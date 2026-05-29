@@ -6,6 +6,13 @@ SofaScore expose une API JSON publique. Les endpoints utilisés ici :
   - /unique-tournament/{id}/season/{seasonId}/events/next/{page}
   - /event/{eventId}
   - /event/{eventId}/statistics
+  - /event/{eventId}/point-by-point
+  - /event/{eventId}/h2h
+  - /event/{eventId}/votes
+  - /event/{eventId}/team-streaks
+  - /team/{playerId}            (fiche joueur)
+  - /team/{playerId}/rankings
+  - /team/{playerId}/events/last/{page}
 
 Toute la logique réseau et la normalisation vers nos modèles vit ici, ce qui
 permet de remplacer la source sans toucher au reste de l'API.
@@ -20,13 +27,23 @@ import httpx
 from app.cache import TTLCache
 from app.config import Settings
 from app.models import (
+    HeadToHead,
     Match,
+    MatchPointByPoint,
     MatchStatistics,
+    MatchStreaks,
+    MatchVotes,
     PeriodStatistics,
     Player,
+    PlayerProfile,
+    PointByPointGame,
+    PointByPointPoint,
+    PointByPointSet,
+    RankingEntry,
     Score,
     StatisticGroup,
     StatisticItem,
+    Streak,
     TournamentInfo,
 )
 
@@ -168,6 +185,126 @@ class SofaScoreProvider:
         data = await self._get(f"/event/{match_id}/statistics")
         return self._normalize_statistics(match_id, data)
 
+    async def get_point_by_point(self, match_id: int) -> MatchPointByPoint:
+        """Déroulé point par point d'un match (tennis : /event/{id}/point-by-point)."""
+        data = await self._get(f"/event/{match_id}/point-by-point")
+        return self._normalize_point_by_point(match_id, data)
+
+    async def get_head_to_head(self, tour: str, match_id: int) -> HeadToHead:
+        """Bilan des confrontations directes des deux joueurs d'un match."""
+        match = await self.get_match(tour, match_id)
+        data = await self._get(f"/event/{match_id}/h2h")
+        duel = data.get("teamDuel") or {}
+        return HeadToHead(
+            match_id=match_id,
+            home=match.home,
+            away=match.away,
+            home_wins=duel.get("homeWins"),
+            away_wins=duel.get("awayWins"),
+            draws=duel.get("draws"),
+        )
+
+    async def get_votes(self, match_id: int) -> MatchVotes:
+        """Pronostics des fans pour un match."""
+        data = await self._get(f"/event/{match_id}/votes")
+        vote = data.get("vote") or {}
+        v1, v2 = vote.get("vote1"), vote.get("vote2")
+        total = (v1 or 0) + (v2 or 0)
+        pct = lambda v: round(100 * v / total, 1) if total and v is not None else None
+        return MatchVotes(
+            match_id=match_id,
+            home_votes=v1,
+            away_votes=v2,
+            home_percent=pct(v1),
+            away_percent=pct(v2),
+        )
+
+    async def get_streaks(self, match_id: int) -> MatchStreaks:
+        """Séries en cours / records autour d'un match."""
+        data = await self._get(f"/event/{match_id}/team-streaks")
+
+        def _streaks(items: list) -> list[Streak]:
+            return [
+                Streak(
+                    name=s.get("name", ""),
+                    value=_as_str(s.get("value")),
+                    side=s.get("team"),
+                    continued=s.get("continued"),
+                )
+                for s in items or []
+            ]
+
+        return MatchStreaks(
+            match_id=match_id,
+            general=_streaks(data.get("general")),
+            head_to_head=_streaks(data.get("head2head")),
+        )
+
+    # --------------------------------------------------------------- joueurs
+    async def get_player(self, player_id: int) -> PlayerProfile:
+        """Fiche détaillée d'un joueur (bio + classement courant)."""
+        data = await self._get(f"/team/{player_id}")
+        team = data.get("team") or {}
+        info = team.get("playerTeamInfo") or {}
+        return PlayerProfile(
+            id=team.get("id"),
+            name=team.get("name", ""),
+            full_name=team.get("fullName"),
+            short_name=team.get("shortName"),
+            gender=team.get("gender"),
+            country=(team.get("country") or {}).get("name"),
+            national=team.get("national"),
+            ranking=team.get("ranking"),
+            plays=info.get("plays"),
+            height_m=info.get("height"),
+            weight_kg=info.get("weight"),
+            turned_pro=_as_str(info.get("turnedPro")),
+            birth_date=Match._ts_to_dt(info.get("birthDateTimestamp")),
+            birth_place=(info.get("birthCity") or {}).get("name"),
+            residence=(info.get("residenceCity") or {}).get("name"),
+            prize_current=info.get("prizeCurrent"),
+            prize_total=info.get("prizeTotal"),
+            user_count=team.get("userCount"),
+        )
+
+    async def get_player_rankings(self, player_id: int) -> list[RankingEntry]:
+        """Toutes les lignes de classement d'un joueur (ATP/WTA, Live, UTR…)."""
+        data = await self._get(f"/team/{player_id}/rankings")
+        return [
+            RankingEntry(
+                ranking_class=r.get("rankingClass"),
+                type=r.get("type"),
+                ranking=r.get("ranking"),
+                points=r.get("points"),
+                previous_ranking=r.get("previousRanking"),
+                previous_points=r.get("previousPoints"),
+                best_ranking=r.get("bestRanking"),
+                tournaments_played=r.get("tournamentsPlayed"),
+            )
+            for r in data.get("rankings", []) or []
+        ]
+
+    async def get_player_matches(self, player_id: int, pages: int = 2) -> list[Match]:
+        """Matchs récents d'un joueur (toutes compétitions), du plus récent au plus ancien."""
+        matches: list[Match] = []
+        seen: set[int] = set()
+        for page in range(pages):
+            try:
+                data = await self._get(f"/team/{player_id}/events/last/{page}")
+            except ProviderError as exc:
+                if exc.status_code == 404:
+                    break
+                raise
+            for ev in data.get("events", []) or []:
+                eid = ev.get("id")
+                if eid is not None and eid not in seen:
+                    seen.add(eid)
+                    matches.append(self._normalize_match(_tour_of(ev), ev))
+            if not data.get("hasNextPage"):
+                break
+        matches.sort(key=lambda m: (m.start_time or _far_future()), reverse=True)
+        return matches
+
     async def get_all_statistics(
         self, tour: str, season: int | None = None
     ) -> dict[int, MatchStatistics]:
@@ -193,23 +330,39 @@ class SofaScoreProvider:
         winner_code = ev.get("winnerCode")
         winner = {1: "home", 2: "away"}.get(winner_code)
 
+        venue = ev.get("venue") or {}
+        time = ev.get("time") or {}
+        set_durations = [time.get(f"period{i}") for i in range(1, 6) if time.get(f"period{i}") is not None]
+        total = sum(d for d in set_durations if d) or None
+
         return Match(
             id=ev["id"],
             tour=tour,
             tournament=(tournament.get("uniqueTournament") or {}).get("name", "Roland Garros"),
             season=_to_int(season.get("year")),
             round=round_info.get("name") or _round_name(round_info.get("round")),
+            round_slug=round_info.get("slug"),
             round_code=round_info.get("round"),
             status=status.get("type"),
             status_description=status.get("description"),
-            court=(ev.get("venue") or {}).get("name") or ev.get("courtName"),
+            court=venue.get("name") or ev.get("courtName"),
+            city=((venue.get("city") or {}).get("name")),
+            country=((venue.get("country") or {}).get("name")),
+            ground_type=ev.get("groundType"),
             start_time=Match._ts_to_dt(ev.get("startTimestamp")),
+            duration_seconds=total,
+            set_durations=set_durations,
+            first_to_serve=_side(ev.get("firstToServe")),
             home=_player(ev.get("homeTeam")),
             away=_player(ev.get("awayTeam")),
+            home_seed=_as_str(ev.get("homeTeamSeed")),
+            away_seed=_as_str(ev.get("awayTeamSeed")),
             home_score=_score(ev.get("homeScore")),
             away_score=_score(ev.get("awayScore")),
             winner=winner,
             has_statistics=bool(ev.get("hasEventPlayerStatistics") or status.get("type") == "finished"),
+            custom_id=ev.get("customId"),
+            slug=ev.get("slug"),
         )
 
     def _normalize_statistics(self, match_id: int, data: dict) -> MatchStatistics:
@@ -230,6 +383,35 @@ class SofaScoreProvider:
                 PeriodStatistics(period=period.get("period", "ALL"), groups=groups)
             )
         return MatchStatistics(match_id=match_id, periods=periods)
+
+    def _normalize_point_by_point(self, match_id: int, data: dict) -> MatchPointByPoint:
+        sets: list[PointByPointSet] = []
+        for set_block in data.get("pointByPoint", []) or []:
+            games: list[PointByPointGame] = []
+            for game in set_block.get("games", []) or []:
+                score = game.get("score") or {}
+                points = [
+                    PointByPointPoint(
+                        home=_as_str(pt.get("homePoint")),
+                        away=_as_str(pt.get("awayPoint")),
+                    )
+                    for pt in game.get("points", []) or []
+                ]
+                games.append(
+                    PointByPointGame(
+                        game=game.get("game"),
+                        home_score=score.get("homeScore"),
+                        away_score=score.get("awayScore"),
+                        server=_side(score.get("serving")),
+                        points=points,
+                    )
+                )
+            # SofaScore renvoie les jeux du plus récent au plus ancien : on remet
+            # en ordre chronologique (jeu 1 -> n).
+            games.sort(key=lambda g: g.game if g.game is not None else 0)
+            sets.append(PointByPointSet(set=set_block.get("set"), games=games))
+        sets.sort(key=lambda s: s.set if s.set is not None else 0)
+        return MatchPointByPoint(match_id=match_id, sets=sets)
 
 
 # --------------------------------------------------------------- helpers
@@ -254,6 +436,67 @@ def _score(score: dict | None) -> Score:
             sets.append(period)
             tiebreaks.append(score.get(f"period{i}TieBreak"))
     return Score(sets_won=score.get("current"), sets=sets, tiebreaks=tiebreaks)
+
+
+def _side(code) -> str | None:
+    """SofaScore encode home=1, away=2."""
+    return {1: "home", 2: "away"}.get(code)
+
+
+def _tour_of(ev: dict) -> str:
+    """Déduit 'atp'/'wta' d'un événement (via la catégorie du tournoi). Défaut: 'atp'."""
+    tournament = ev.get("tournament") or {}
+    cat = (tournament.get("uniqueTournament") or {}).get("category") or tournament.get("category") or {}
+    slug = (cat.get("slug") or "").lower()
+    if "wta" in slug:
+        return "wta"
+    gender = ((ev.get("homeTeam") or {}).get("gender") or "").upper()
+    return "wta" if gender == "F" else "atp"
+
+
+# Filtre de round bilingue. SofaScore renvoie les noms en anglais
+# ('Final', 'Semifinals', ...) ; on accepte aussi les termes français usuels.
+# Chaque clé (normalisée : minuscule, sans accent) pointe vers le nom anglais exact.
+_ROUND_CANON = {
+    # Finale
+    "final": "Final", "finale": "Final",
+    # Demi-finales
+    "semifinals": "Semifinals", "semifinal": "Semifinals", "semi": "Semifinals",
+    "demi-finale": "Semifinals", "demi-finales": "Semifinals",
+    "demi finale": "Semifinals", "demi finales": "Semifinals", "demies": "Semifinals",
+    # Quarts de finale
+    "quarterfinals": "Quarterfinals", "quarterfinal": "Quarterfinals",
+    "quart de finale": "Quarterfinals", "quarts de finale": "Quarterfinals", "quarts": "Quarterfinals",
+    # Huitièmes / 4e tour
+    "round of 16": "Round of 16", "huitieme de finale": "Round of 16",
+    "huitiemes de finale": "Round of 16", "huitiemes": "Round of 16", "8e de finale": "Round of 16",
+    # Tours
+    "round of 32": "Round of 32",
+    "round of 64": "Round of 64",
+    "round of 128": "Round of 128", "1er tour": "Round of 128", "premier tour": "Round of 128",
+}
+
+
+def _norm_round(text: str) -> str:
+    text = text.strip().lower()
+    for a, b in (("é", "e"), ("è", "e"), ("ê", "e"), ("à", "a"), ("ô", "o"), ("î", "i"), ("û", "u")):
+        text = text.replace(a, b)
+    return " ".join(text.split())
+
+
+def round_matches(match: Match, query: str) -> bool:
+    """Vrai si le round du match correspond à `query` (FR ou EN, slug accepté).
+
+    Si la requête désigne un round connu (ex: 'Finale' -> 'Final'), on exige une
+    correspondance exacte pour éviter que 'final' attrape aussi Quarter/Semifinals.
+    Sinon, on retombe sur une recherche partielle (sous-chaîne) sur nom ou slug.
+    """
+    q = _norm_round(query)
+    canon = _ROUND_CANON.get(q)
+    if canon is not None:
+        return (match.round or "").lower() == canon.lower()
+    haystacks = (match.round or "", match.round_slug or "")
+    return any(q in _norm_round(h) for h in haystacks if h)
 
 
 def _round_name(code: int | None) -> str | None:

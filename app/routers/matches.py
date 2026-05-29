@@ -5,8 +5,15 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.dependencies import get_provider
-from app.models import Match, TournamentInfo
-from app.providers.sofascore import ProviderError, SofaScoreProvider
+from app.models import (
+    HeadToHead,
+    Match,
+    MatchPointByPoint,
+    MatchStreaks,
+    MatchVotes,
+    TournamentInfo,
+)
+from app.providers.sofascore import ProviderError, SofaScoreProvider, round_matches
 
 router = APIRouter(prefix="/matches", tags=["Matchs"])
 
@@ -19,7 +26,10 @@ async def list_matches(
     season: int | None = Query(
         None, description="Année de l'édition (ex: 2024). Par défaut : édition la plus récente."
     ),
-    round: str | None = Query(None, description="Filtrer par round (ex: 'Finale', '1er tour')."),
+    round: str | None = Query(
+        None,
+        description="Filtrer par round, FR ou EN (ex: 'Finale'/'Final', '1er tour'/'Round of 128').",
+    ),
     status: str | None = Query(
         None, description="Filtrer par statut: notstarted / inprogress / finished."
     ),
@@ -32,7 +42,7 @@ async def list_matches(
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
     if round:
-        matches = [m for m in matches if m.round and round.lower() in m.round.lower()]
+        matches = [m for m in matches if round_matches(m, round)]
     if status:
         matches = [m for m in matches if (m.status or "").lower() == status.lower()]
     if player:
@@ -50,6 +60,87 @@ async def tournament_info(
 ) -> TournamentInfo:
     try:
         return await provider.get_tournament_info(tour)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/round/{round}",
+    summary="Matchs d'un round donné",
+    response_model=list[Match],
+)
+async def matches_by_round(
+    round: str,
+    tour: Tour = Query("atp"),
+    season: int | None = Query(None, description="Année de l'édition (par défaut : la plus récente)."),
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> list[Match]:
+    """Confort : matchs d'un round (FR ou EN). NB : SofaScore n'expose pas de route
+    'events/round' pour le tennis, le filtrage est donc fait côté API."""
+    try:
+        matches = await provider.get_matches(tour, season)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    return [m for m in matches if round_matches(m, round)]
+
+
+@router.get(
+    "/{match_id}/point-by-point",
+    summary="Déroulé point par point d'un match",
+    response_model=MatchPointByPoint,
+)
+async def match_point_by_point(
+    match_id: int,
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> MatchPointByPoint:
+    try:
+        return await provider.get_point_by_point(match_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/{match_id}/h2h",
+    summary="Confrontations directes (head-to-head)",
+    response_model=HeadToHead,
+)
+async def match_h2h(
+    match_id: int,
+    tour: Tour = Query("atp"),
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> HeadToHead:
+    try:
+        return await provider.get_head_to_head(tour, match_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/{match_id}/votes",
+    summary="Pronostics des fans",
+    response_model=MatchVotes,
+)
+async def match_votes(
+    match_id: int,
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> MatchVotes:
+    try:
+        return await provider.get_votes(match_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/{match_id}/streaks",
+    summary="Séries et records autour du match",
+    response_model=MatchStreaks,
+)
+async def match_streaks(
+    match_id: int,
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> MatchStreaks:
+    try:
+        return await provider.get_streaks(match_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
