@@ -69,7 +69,8 @@ Puis ouvrir :
 | `GET` | `/matches/{match_id}/streaks` | **Séries et records** autour du match |
 | `GET` | `/matches/{match_id}/odds` | **Cotes** (paris) du match, en fractionnaire et décimal |
 | `GET` | `/matches/{match_id}/odds/unibet` | **Cotes Unibet Belgique** matchées sur le match |
-| `GET` | `/analysis/{match_id}` | **Analyse pré-match + value betting** (modèle vs cotes Unibet) |
+| `GET` | `/analysis/{match_id}` | **Analyse pré-match + value betting** (vainqueur, modèle vs cotes Unibet) |
+| `GET` | `/analysis/{match_id}/markets` | **Value sur TOUS les marchés** (jeux, sets, tie-breaks, handicaps…) via simulation |
 | `GET` | `/matches/seasons` | **Éditions disponibles** du tournoi (année + id) |
 | `GET` | `/matches/tournament` | Infos sur l'édition courante |
 | `GET` | `/statistics/{match_id}` | Statistiques détaillées d'un match |
@@ -238,7 +239,8 @@ app/
 ├── config.py               # Configuration (.env)
 ├── cache.py                # Cache mémoire TTL
 ├── models.py               # Modèles Pydantic (réponses normalisées)
-├── analysis.py             # Modèle d'aide à la décision de pari (fonctions pures)
+├── analysis.py             # Modèle vainqueur (calibré) + value betting
+├── markets.py              # Simulateur de match -> value sur tous les marchés
 ├── dependencies.py         # Injection des providers (SofaScore + Unibet)
 ├── providers/
 │   ├── sofascore.py        # Source de données sportives + normalisation

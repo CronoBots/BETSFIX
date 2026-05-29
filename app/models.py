@@ -347,6 +347,43 @@ class MatchAnalysis(BaseModel):
     )
 
 
+class MarketEdge(BaseModel):
+    """Évaluation d'un pari sur un marché Unibet quelconque (pas que le vainqueur)."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    market: str = Field(description="Nom du marché. Ex: 'Nombre total de jeux'")
+    selection: str = Field(description="Le choix parié. Ex: 'Plus de', 'Carlos Alcaraz', '3-1'")
+    line: float | None = Field(default=None, description="Ligne (Over/Under, handicap)")
+    odds: float | None = None
+    model_probability: float | None = None
+    implied_probability: float | None = Field(default=None, description="Proba implicite (vig retirée)")
+    edge: float | None = Field(default=None, description="fair - implied (après ancrage marché)")
+    recommended_stake_pct: float | None = None
+    is_value: bool = False
+
+
+class MatchMarketsAnalysis(BaseModel):
+    """Analyse de TOUS les marchés Unibet d'un match via simulation du déroulé."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    match_id: int
+    home: Player = Field(default_factory=Player)
+    away: Player = Field(default_factory=Player)
+    best_of: int | None = Field(default=None, description="3 (WTA) ou 5 (ATP RG)")
+    model_home_probability: float | None = None
+    unibet_matched: bool = False
+    markets_evaluated: int = 0
+    value_bets: list[MarketEdge] = Field(default_factory=list)
+    all_markets: list[MarketEdge] = Field(default_factory=list)
+    note: str = ""
+    disclaimer: str = (
+        "Probabilités estimées par simulation à partir des stats de service/retour, "
+        "calibrées sur la proba de vainqueur du modèle. Informatif, sans garantie."
+    )
+
+
 class TournamentInfo(BaseModel):
     tour: str
     id: int
