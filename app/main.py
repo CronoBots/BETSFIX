@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.dependencies import shutdown_provider
@@ -25,6 +26,15 @@ app = FastAPI(
         "Documentation interactive : `/docs` · Schéma OpenAPI : `/openapi.json`"
     ),
     lifespan=lifespan,
+)
+
+# CORS ouvert : usage personnel, permet d'appeler l'API depuis un navigateur
+# mobile ou un futur front-end sans blocage.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(matches.router)
