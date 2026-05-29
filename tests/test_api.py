@@ -207,6 +207,47 @@ def test_streaks(client):
 
 
 @respx.mock
+def test_odds(client):
+    respx.mock.get(f"{BASE}/event/11958222/odds/1/all").mock(
+        return_value=httpx.Response(200, json=fixtures.ODDS)
+    )
+    resp = client.get("/matches/11958222/odds")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["markets"]) == 2
+    full = data["markets"][0]
+    assert full["name"] == "Full time"
+    # Conversion fractionnaire -> décimale : 9/4 + 1 = 3.25
+    assert full["choices"][0]["decimal"] == 3.25
+    assert full["choices"][1]["winning"] is True
+    # Marché Over/Under expose son handicap
+    assert data["markets"][1]["handicap"] == "38.5"
+
+
+@respx.mock
+def test_seasons(client):
+    respx.mock.get(f"{BASE}/unique-tournament/{ATP}/seasons").mock(
+        return_value=httpx.Response(200, json=fixtures.SEASONS)
+    )
+    resp = client.get("/matches/seasons?tour=atp")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["year"] == 2024
+    assert data[0]["id"] == SEASON_ID
+
+
+@respx.mock
+def test_player_image(client):
+    respx.mock.get(f"{BASE}/team/2/image").mock(
+        return_value=httpx.Response(200, content=b"webpbytes", headers={"content-type": "image/webp"})
+    )
+    resp = client.get("/players/2/image")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/webp"
+    assert resp.content == b"webpbytes"
+
+
+@respx.mock
 def test_player_profile(client):
     respx.mock.get(f"{BASE}/team/2").mock(
         return_value=httpx.Response(200, json=fixtures.PLAYER)

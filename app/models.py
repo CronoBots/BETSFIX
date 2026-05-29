@@ -176,6 +176,45 @@ class MatchStreaks(BaseModel):
     head_to_head: list[Streak] = Field(default_factory=list)
 
 
+class OddChoice(BaseModel):
+    """Un pari possible sur un marché (ex: vainqueur '1' ou '2')."""
+
+    name: str = Field(description="Libellé du choix. Ex: '1', '2', 'Over', 'Under'")
+    fractional: str | None = Field(default=None, description="Cote fractionnaire. Ex: '9/4'")
+    decimal: float | None = Field(default=None, description="Cote décimale équivalente. Ex: 3.25")
+    initial_fractional: str | None = None
+    winning: bool | None = Field(default=None, description="Choix gagnant (si match terminé)")
+    change: int | None = Field(default=None, description="Évolution récente: -1 / 0 / 1")
+
+
+class OddsMarket(BaseModel):
+    """Un marché de paris (vainqueur du match, 1er set, total de jeux…)."""
+
+    market_id: int | None = None
+    name: str = ""
+    group: str | None = None
+    period: str | None = None
+    is_live: bool | None = None
+    suspended: bool | None = None
+    handicap: str | None = Field(default=None, description="Seuil pour les marchés Over/Under")
+    choices: list[OddChoice] = Field(default_factory=list)
+
+
+class MatchOdds(BaseModel):
+    """Cotes (paris) d'un match."""
+
+    match_id: int
+    markets: list[OddsMarket] = Field(default_factory=list)
+
+
+class TournamentSeason(BaseModel):
+    """Une édition disponible du tournoi."""
+
+    id: int | None = None
+    year: int | None = None
+    name: str | None = None
+
+
 class TournamentInfo(BaseModel):
     tour: str
     id: int

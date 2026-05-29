@@ -115,6 +115,39 @@ POINT_BY_POINT = {
     ]
 }
 
+ODDS = {
+    "eventId": 11958222,
+    "markets": [
+        {
+            "marketId": 1,
+            "marketName": "Full time",
+            "marketGroup": "Home/Away",
+            "marketPeriod": "Match",
+            "isLive": False,
+            "suspended": False,
+            "choices": [
+                {"name": "1", "fractionalValue": "9/4", "initialFractionalValue": "5/2",
+                 "winning": False, "change": -1},
+                {"name": "2", "fractionalValue": "9/25", "initialFractionalValue": "3/10",
+                 "winning": True, "change": 1},
+            ],
+        },
+        {
+            "marketId": 12,
+            "marketName": "Total games won",
+            "marketGroup": "Total sets/games",
+            "marketPeriod": "Match",
+            "choiceGroup": "38.5",
+            "isLive": False,
+            "suspended": False,
+            "choices": [
+                {"name": "Over", "fractionalValue": "5/6", "winning": True, "change": 0},
+                {"name": "Under", "fractionalValue": "5/6", "winning": False, "change": 0},
+            ],
+        },
+    ],
+}
+
 H2H = {"teamDuel": {"homeWins": 4, "awayWins": 6, "draws": 0}, "managerDuel": {}}
 
 VOTES = {"vote": {"vote1": 16040, "vote2": 26797, "voteX": None}}

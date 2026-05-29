@@ -1,6 +1,6 @@
 """Endpoints liés aux joueurs (fiche, classements, matchs récents)."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from app.dependencies import get_provider
 from app.models import Match, PlayerProfile, RankingEntry
@@ -22,6 +22,23 @@ async def player_profile(
         return await provider.get_player(player_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/{player_id}/image",
+    summary="Photo d'un joueur",
+    response_class=Response,
+    responses={200: {"content": {"image/webp": {}}}},
+)
+async def player_image(
+    player_id: int,
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> Response:
+    try:
+        content, content_type = await provider.get_player_image(player_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    return Response(content=content, media_type=content_type)
 
 
 @router.get(

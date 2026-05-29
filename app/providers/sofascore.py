@@ -10,9 +10,11 @@ SofaScore expose une API JSON publique. Les endpoints utilisés ici :
   - /event/{eventId}/h2h
   - /event/{eventId}/votes
   - /event/{eventId}/team-streaks
+  - /event/{eventId}/odds/1/all
   - /team/{playerId}            (fiche joueur)
   - /team/{playerId}/rankings
   - /team/{playerId}/events/last/{page}
+  - /team/{playerId}/image
 
 Toute la logique réseau et la normalisation vers nos modèles vit ici, ce qui
 permet de remplacer la source sans toucher au reste de l'API.
@@ -30,9 +32,12 @@ from app.models import (
     HeadToHead,
     Match,
     MatchPointByPoint,
+    MatchOdds,
     MatchStatistics,
     MatchStreaks,
     MatchVotes,
+    OddChoice,
+    OddsMarket,
     PeriodStatistics,
     Player,
     PlayerProfile,
@@ -45,6 +50,7 @@ from app.models import (
     StatisticItem,
     Streak,
     TournamentInfo,
+    TournamentSeason,
 )
 
 
@@ -100,6 +106,18 @@ class SofaScoreProvider:
         self._cache.set(path, data)
         return data
 
+    async def _get_bytes(self, path: str) -> tuple[bytes, str]:
+        """GET binaire (images). Retourne (contenu, content-type)."""
+        try:
+            resp = await self._client.get(path)
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"Source de données injoignable: {exc}") from exc
+        if resp.status_code == 404:
+            raise ProviderError("Ressource introuvable chez la source.", status_code=404)
+        if resp.status_code >= 400:
+            raise ProviderError(f"La source a répondu {resp.status_code} pour {path}", status_code=502)
+        return resp.content, resp.headers.get("content-type", "application/octet-stream")
+
     def _tour_id(self, tour: str) -> int:
         try:
             return self._settings.tournament_ids[tour]
@@ -119,6 +137,15 @@ class SofaScoreProvider:
             current_season_id=current.get("id"),
             current_season=_to_int(current.get("year")),
         )
+
+    async def get_seasons(self, tour: str) -> list[TournamentSeason]:
+        """Toutes les éditions disponibles du tournoi (de la plus récente à la plus ancienne)."""
+        tid = self._tour_id(tour)
+        data = await self._get(f"/unique-tournament/{tid}/seasons")
+        return [
+            TournamentSeason(id=s.get("id"), year=_to_int(s.get("year")), name=s.get("name"))
+            for s in data.get("seasons", []) or []
+        ]
 
     async def _resolve_season_id(self, tour: str, season: int | None) -> int:
         """Retourne l'identifiant de saison SofaScore pour une année donnée (ou la plus récente)."""
@@ -219,6 +246,34 @@ class SofaScoreProvider:
             away_percent=pct(v2),
         )
 
+    async def get_odds(self, match_id: int) -> MatchOdds:
+        """Cotes (paris) d'un match : tous les marchés et choix disponibles."""
+        data = await self._get(f"/event/{match_id}/odds/1/all")
+        markets = [
+            OddsMarket(
+                market_id=m.get("marketId"),
+                name=m.get("marketName", ""),
+                group=m.get("marketGroup"),
+                period=m.get("marketPeriod"),
+                is_live=m.get("isLive"),
+                suspended=m.get("suspended"),
+                handicap=m.get("choiceGroup"),
+                choices=[
+                    OddChoice(
+                        name=c.get("name", ""),
+                        fractional=c.get("fractionalValue"),
+                        decimal=_fractional_to_decimal(c.get("fractionalValue")),
+                        initial_fractional=c.get("initialFractionalValue"),
+                        winning=c.get("winning"),
+                        change=c.get("change"),
+                    )
+                    for c in m.get("choices", []) or []
+                ],
+            )
+            for m in data.get("markets", []) or []
+        ]
+        return MatchOdds(match_id=match_id, markets=markets)
+
     async def get_streaks(self, match_id: int) -> MatchStreaks:
         """Séries en cours / records autour d'un match."""
         data = await self._get(f"/event/{match_id}/team-streaks")
@@ -266,6 +321,10 @@ class SofaScoreProvider:
             prize_total=info.get("prizeTotal"),
             user_count=team.get("userCount"),
         )
+
+    async def get_player_image(self, player_id: int) -> tuple[bytes, str]:
+        """Photo d'un joueur (contenu binaire + content-type)."""
+        return await self._get_bytes(f"/team/{player_id}/image")
 
     async def get_player_rankings(self, player_id: int) -> list[RankingEntry]:
         """Toutes les lignes de classement d'un joueur (ATP/WTA, Live, UTR…)."""
@@ -511,6 +570,17 @@ def _round_name(code: int | None) -> str | None:
         128: "1er tour",
     }
     return mapping.get(code) if code is not None else None
+
+
+def _fractional_to_decimal(fractional: str | None) -> float | None:
+    """Convertit une cote fractionnaire 'a/b' en cote décimale (a/b + 1)."""
+    if not fractional or "/" not in fractional:
+        return None
+    num, _, den = fractional.partition("/")
+    try:
+        return round(int(num) / int(den) + 1, 2)
+    except (ValueError, ZeroDivisionError):
+        return None
 
 
 def _to_int(value) -> int | None:

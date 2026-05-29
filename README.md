@@ -18,8 +18,9 @@ toucher aux endpoints.
 - 📊 Statistiques de **tous les matchs terminés** en une seule requête (récupération parallèle)
 - 🎯 **Déroulé point par point** (set → jeu → point)
 - 🤝 **Head-to-head**, **pronostics des fans**, **séries et records**
+- 💸 **Cotes** des matchs (fractionnaires + décimales) et **liste des éditions** disponibles
 - 👤 **Fiches joueurs** complètes (taille, poids, main, gains, lieu de naissance…),
-  **classements** (ATP/WTA, Live, UTR) et **matchs récents**
+  **photo**, **classements** (ATP/WTA, Live, UTR) et **matchs récents**
 - 🏆 Infos sur l'édition courante (saison, identifiants)
 - ⚡ Cache mémoire avec TTL pour limiter les appels à la source
 - 📖 Documentation interactive auto-générée sur `/docs`
@@ -60,10 +61,13 @@ Puis ouvrir :
 | `GET` | `/matches/{match_id}/h2h` | **Confrontations directes** (head-to-head) |
 | `GET` | `/matches/{match_id}/votes` | **Pronostics des fans** |
 | `GET` | `/matches/{match_id}/streaks` | **Séries et records** autour du match |
+| `GET` | `/matches/{match_id}/odds` | **Cotes** (paris) du match, en fractionnaire et décimal |
+| `GET` | `/matches/seasons` | **Éditions disponibles** du tournoi (année + id) |
 | `GET` | `/matches/tournament` | Infos sur l'édition courante |
 | `GET` | `/statistics/{match_id}` | Statistiques détaillées d'un match |
 | `GET` | `/statistics` | Statistiques de **tous les matchs terminés** |
 | `GET` | `/players/{player_id}` | **Fiche joueur** (taille, poids, main, gains, naissance…) |
+| `GET` | `/players/{player_id}/image` | **Photo** du joueur (image) |
 | `GET` | `/players/{player_id}/rankings` | **Classements** (ATP/WTA, Live, UTR) |
 | `GET` | `/players/{player_id}/matches` | **Matchs récents** du joueur |
 

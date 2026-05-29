@@ -8,10 +8,12 @@ from app.dependencies import get_provider
 from app.models import (
     HeadToHead,
     Match,
+    MatchOdds,
     MatchPointByPoint,
     MatchStreaks,
     MatchVotes,
     TournamentInfo,
+    TournamentSeason,
 )
 from app.providers.sofascore import ProviderError, SofaScoreProvider, round_matches
 
@@ -95,6 +97,36 @@ async def match_point_by_point(
 ) -> MatchPointByPoint:
     try:
         return await provider.get_point_by_point(match_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/seasons",
+    summary="Éditions disponibles du tournoi",
+    response_model=list[TournamentSeason],
+)
+async def list_seasons(
+    tour: Tour = Query("atp"),
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> list[TournamentSeason]:
+    try:
+        return await provider.get_seasons(tour)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/{match_id}/odds",
+    summary="Cotes (paris) d'un match",
+    response_model=MatchOdds,
+)
+async def match_odds(
+    match_id: int,
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> MatchOdds:
+    try:
+        return await provider.get_odds(match_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
