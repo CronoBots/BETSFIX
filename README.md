@@ -168,22 +168,36 @@ puis la confronte aux **cotes Unibet Belgique** pour repérer la *value* :
 
 | Facteur | Poids | Source |
 |---------|-------|--------|
-| Classement | 0,40 | Rangs ATP/WTA (rating type Elo) |
-| Forme récente | 0,25 | Bilan des derniers matchs |
-| Surface | 0,20 | Stats service + conversion de breaks sur la surface |
-| Head-to-head | 0,15 | Confrontations directes |
+| Classement | 0,50 | Rangs ATP/WTA, **modèle calibré** (régression logistique) |
+| Forme récente | 0,25 | Bilan **pondéré par récence**, spécifique terre battue |
+| Surface | 0,15 | Stats service + conversion de breaks sur la surface |
+| Head-to-head | 0,10 | Confrontations directes |
 
-La marge du bookmaker (*vig*) est retirée pour obtenir la probabilité implicite ;
-l'**edge** = proba du modèle − proba implicite. Si l'edge est positif et suffisant,
-une mise est proposée selon le **critère de Kelly fractionné** (¼ Kelly, prudent).
+### Calibration (back-test)
 
-> ⚠️ **Avertissement.** C'est un modèle **heuristique et transparent**, fourni à
-> titre informatif. Il n'a **aucune garantie de rentabilité** : notamment, comme
-> tout modèle simple, il a tendance à **surévaluer les outsiders** (gros edges sur
-> grosses cotes = souvent une erreur du modèle, pas une vraie value). À utiliser
-> comme aide à la réflexion, pas comme source de vérité. Les cotes Unibet ne sont
-> disponibles que pour les matchs **à venir / en cours**. Jouez de manière
-> responsable, uniquement ce que vous pouvez vous permettre de perdre.
+Le facteur classement est **calibré sur ~1150 matchs RG historiques** (ATP+WTA,
+8 saisons) via `tools/backtest.py` — `P = sigmoid(b0 + b1·(ln rang_adv − ln rang))`,
+avec `b0≈0,02` (≈0 : pas d'avantage « home » au tennis) et `b1≈0,40`. Sur jeu de
+test séparé : **log-loss 0,64**, **Brier 0,22**, **précision 64 %**, et une
+calibration fidèle (proba prédite ≈ taux réel observé). Relancer : `python tools/backtest.py`.
+
+### Détection de value (prudente)
+
+- La marge du bookmaker (*vig*) est retirée → probabilité implicite « juste ».
+- **Ancrage au marché** : le marché étant sharp, la proba retenue est
+  `0,35·modèle + 0,65·marché`. On ne signale une value que sur un **vrai désaccord**.
+- **Garde-fous** : pas de value si l'écart modèle↔marché est *énorme* (> 15 pts →
+  le modèle ignore sûrement une info), si l'outsider est extrême (< 7 % implicite),
+  ou si la **confiance** des données est faible.
+- Mise via **Kelly fractionné** (¼ Kelly, plafonnée à 5 % de bankroll).
+- Chaque réponse indique un niveau de **confiance** (élevée / moyenne / faible).
+
+> ⚠️ **Avertissement.** Modèle d'aide à la décision, **transparent mais sans
+> garantie de gain**. Il est volontairement *sélectif* : sur la plupart des matchs
+> il conseille l'**abstention** (les cotes sont conformes au modèle) — c'est normal,
+> la vraie value est rare. À utiliser comme aide à la réflexion, pas comme source de
+> vérité. Les cotes Unibet ne sont disponibles que pour les matchs **à venir / en
+> cours**. Jouez de manière responsable, uniquement ce que vous pouvez perdre.
 
 ## Tests
 

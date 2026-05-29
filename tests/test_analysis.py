@@ -1,10 +1,12 @@
 """Tests du modèle d'analyse de paris (fonctions pures, sans réseau)."""
 
 from app.analysis import (
+    MODEL_TRUST,
     build_analysis,
     kelly_fraction,
+    prob_from_rankings,
     remove_vig,
-    win_rate,
+    weighted_form,
 )
 from app.models import (
     Match,
@@ -18,91 +20,101 @@ from app.models import (
 
 def _match(home_rank=10, away_rank=20):
     return Match(
-        id=1,
-        tour="atp",
-        ground_type="Red clay",
-        status="notstarted",
+        id=1, tour="atp", ground_type="Red clay", status="notstarted",
         home=Player(id=100, name="Carlos Alcaraz", ranking=home_rank),
         away=Player(id=200, name="Alexander Zverev", ranking=away_rank),
     )
 
 
+def _history(player_id, wins, losses, start=1000):
+    """Crée des matchs terminés où `player_id` gagne `wins` fois, perd `losses`."""
+    out = []
+    i = start
+    for _ in range(wins):
+        out.append(Match(id=i, tour="atp", status="finished", winner="home",
+                          home=Player(id=player_id), away=Player(id=9999)))
+        i += 1
+    for _ in range(losses):
+        out.append(Match(id=i, tour="atp", status="finished", winner="home",
+                          home=Player(id=8888), away=Player(id=player_id)))
+        i += 1
+    return out
+
+
+def test_prob_from_rankings_favors_better_rank():
+    p = prob_from_rankings(2, 50)
+    assert p > 0.6
+    # Quasi-symétrie : inverser les rangs somme ~1 (léger biais dû à l'intercept calibré)
+    assert abs(p + prob_from_rankings(50, 2) - 1.0) < 0.02
+
+
+def test_prob_from_rankings_missing():
+    assert prob_from_rankings(None, 10) is None
+
+
 def test_remove_vig_sums_to_one():
     ph, pa = remove_vig(1.5, 2.5)
     assert round(ph + pa, 6) == 1.0
-    assert ph > pa  # favori = cote la plus basse
+    assert ph > pa
 
 
-def test_kelly_zero_when_no_edge():
-    # proba 0.4 sur une cote 2.0 (implicite 0.5) -> pas de value -> 0
-    assert kelly_fraction(0.4, 2.0) == 0.0
+def test_kelly():
+    assert kelly_fraction(0.4, 2.0) == 0.0          # pas de value
+    assert 0 < kelly_fraction(0.6, 2.0) < 1          # value
 
 
-def test_kelly_positive_with_edge():
-    # proba 0.6 sur une cote 2.0 -> edge -> fraction positive
-    f = kelly_fraction(0.6, 2.0)
-    assert 0 < f < 1
-
-
-def test_win_rate_counts_player_side():
-    matches = [
-        Match(id=1, tour="atp", status="finished", winner="home",
-              home=Player(id=100), away=Player(id=999)),
-        Match(id=2, tour="atp", status="finished", winner="home",
-              home=Player(id=888), away=Player(id=100)),  # 100 perd (away, winner home)
-        Match(id=3, tour="atp", status="notstarted", winner=None,
-              home=Player(id=100), away=Player(id=1)),     # ignoré (pas fini)
-    ]
-    wins, played = win_rate(matches, 100)
-    assert (wins, played) == (1, 2)
-
-
-def _unibet_with_match_winner(odds_home, odds_away):
-    return UnibetOdds(
-        match_id=1, matched=True, kambi_event_id=42, event_name="Alcaraz - Zverev",
-        markets=[UnibetMarket(label="Cotes du match", type="Match", outcomes=[
-            UnibetOutcome(label="Carlos Alcaraz", odds=odds_home),
-            UnibetOutcome(label="Alexander Zverev", odds=odds_away),
-        ])],
-    )
+def test_weighted_form_recency():
+    # 5 victoires (récentes) puis 5 défaites (anciennes) -> forme > 0.5
+    matches = _history(100, wins=5, losses=5)
+    wwin, wsum = weighted_form(matches, 100)
+    assert wsum > 0
+    assert wwin / wsum > 0.5
 
 
 def test_build_analysis_detects_value():
     match = _match(home_rank=2, away_rank=3)
     stats_home = PlayerStatistics(player_id=100, first_serve_points_won_percentage=72,
-                                  break_points_saved_converted_percentage=50)
-    stats_away = PlayerStatistics(player_id=200, first_serve_points_won_percentage=68,
-                                  break_points_saved_converted_percentage=45)
-    # Le favori du modèle (Alcaraz) est sur-coté par Unibet -> value côté home
-    unibet = _unibet_with_match_winner(odds_home=2.5, odds_away=1.5)
+                                  break_points_saved_converted_percentage=52)
+    stats_away = PlayerStatistics(player_id=200, first_serve_points_won_percentage=66,
+                                  break_points_saved_converted_percentage=44)
+    home_hist = _history(100, wins=9, losses=1)
+    away_hist = _history(200, wins=4, losses=6, start=2000)
+    # Marché donne 'home' légèrement outsider (2.2) alors que le modèle le voit
+    # favori -> désaccord MODÉRÉ (dans la bande plausible) = vraie value
+    unibet = UnibetOdds(match_id=1, matched=True, kambi_event_id=42,
+                        markets=[UnibetMarket(label="Cotes du match", type="Match", outcomes=[
+                            UnibetOutcome(label="Carlos Alcaraz", odds=2.2),
+                            UnibetOutcome(label="Alexander Zverev", odds=1.7)])])
+    a = build_analysis(match, home_hist, away_hist, stats_home, stats_away, 6, 4, unibet)
 
-    a = build_analysis(
-        match=match,
-        home_matches=[], away_matches=[],
-        home_stats=stats_home, away_stats=stats_away,
-        home_wins_h2h=6, away_wins_h2h=4,
-        unibet=unibet,
-    )
-    assert a.model_home_probability is not None
-    assert round(a.model_home_probability + a.model_away_probability, 4) == 1.0
-    # 4 facteurs : classement, surface, h2h (pas de forme car listes vides)
-    names = {f.name for f in a.factors}
-    assert {"classement", "surface", "head_to_head"} <= names
-    # Value côté home (cote 2.5 alors que le modèle le voit favori)
+    assert round((a.model_home_probability or 0) + (a.model_away_probability or 0), 4) == 1.0
+    assert {"classement", "forme", "surface", "head_to_head"} <= {f.name for f in a.factors}
+    assert a.confidence in ("moyenne", "élevée")
     home_bet = next(v for v in a.value_bets if v.side == "home")
+    # L'edge est ancré au marché : plus petit que l'écart brut modèle-marché
     assert home_bet.edge > 0
     assert home_bet.is_value is True
-    assert home_bet.recommended_stake_pct > 0
-    assert "value" in a.recommendation.lower()
+    assert 0 < (home_bet.recommended_stake_pct or 0) <= 5.0  # plafonné
+
+
+def test_market_anchoring_shrinks_edge():
+    # fair = MODEL_TRUST*model + (1-MODEL_TRUST)*implied -> edge réduit
+    match = _match(home_rank=1, away_rank=200)  # énorme favori côté modèle
+    unibet = UnibetOdds(match_id=1, matched=True,
+                        markets=[UnibetMarket(label="Match", type="Match", outcomes=[
+                            UnibetOutcome(label="Carlos Alcaraz", odds=1.02),
+                            UnibetOutcome(label="Alexander Zverev", odds=25.0)])])
+    a = build_analysis(match, [], [], None, None, None, None, unibet)
+    away_bet = next(v for v in a.value_bets if v.side == "away")
+    # Outsider extrême (implicite < 5%) -> jamais signalé comme value
+    assert away_bet.implied_probability < 0.05
+    assert away_bet.is_value is False
 
 
 def test_build_analysis_without_unibet():
-    a = build_analysis(
-        match=_match(), home_matches=[], away_matches=[],
-        home_stats=None, away_stats=None,
-        home_wins_h2h=None, away_wins_h2h=None,
-        unibet=UnibetOdds(match_id=1, matched=False),
-    )
+    a = build_analysis(_match(), [], [], None, None, None, None,
+                       UnibetOdds(match_id=1, matched=False))
     assert a.unibet_matched is False
     assert a.value_bets == []
-    assert a.model_home_probability is not None  # classement suffit
+    assert a.model_home_probability is not None  # le classement suffit
+    assert a.confidence is not None

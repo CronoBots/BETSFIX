@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Player(BaseModel):
@@ -308,19 +308,26 @@ class AnalysisFactor(BaseModel):
 class ValueBet(BaseModel):
     """Évaluation de la 'value' d'un pari sur un joueur."""
 
+    model_config = ConfigDict(protected_namespaces=())
+
     side: str = Field(description="home / away")
     player: str = ""
     odds: float | None = Field(default=None, description="Cote Unibet décimale")
     model_probability: float | None = Field(default=None, description="Proba estimée par le modèle")
     implied_probability: float | None = Field(default=None, description="Proba implicite (vig retirée)")
-    edge: float | None = Field(default=None, description="model - implied. Positif = value")
+    fair_probability: float | None = Field(
+        default=None, description="Proba retenue après ancrage au marché (sert au calcul de mise)"
+    )
+    edge: float | None = Field(default=None, description="fair - implied. Positif = value")
     kelly_fraction: float | None = Field(default=None, description="Fraction de bankroll (Kelly)")
-    recommended_stake_pct: float | None = Field(default=None, description="Mise conseillée (¼ Kelly), % bankroll")
+    recommended_stake_pct: float | None = Field(default=None, description="Mise conseillée (¼ Kelly, plafonnée), % bankroll")
     is_value: bool = False
 
 
 class MatchAnalysis(BaseModel):
     """Analyse pré-match complète orientée aide à la décision de pari."""
+
+    model_config = ConfigDict(protected_namespaces=())
 
     match_id: int
     home: Player = Field(default_factory=Player)
@@ -329,6 +336,7 @@ class MatchAnalysis(BaseModel):
     ground_type: str | None = None
     model_home_probability: float | None = None
     model_away_probability: float | None = None
+    confidence: str | None = Field(default=None, description="élevée / moyenne / faible")
     factors: list[AnalysisFactor] = Field(default_factory=list)
     unibet_matched: bool = False
     value_bets: list[ValueBet] = Field(default_factory=list)
