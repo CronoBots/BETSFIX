@@ -185,6 +185,44 @@ PLAYER = {
     }
 }
 
+PLAYER_STATS_SEASONS = {
+    "uniqueTournamentSeasons": [
+        {
+            "uniqueTournament": {"id": 2480, "name": "Roland Garros"},
+            "seasons": [
+                {"id": 52016, "year": "2024", "name": "French Open 2024"},
+                {"id": 50017, "year": "2023", "name": "French Open 2023"},
+            ],
+        }
+    ],
+    "typesMap": {},
+}
+
+PLAYER_OVERALL_STATS = {
+    "statistics": {
+        "matches": 7,
+        "wins": 7,
+        "aces": 25,
+        "avgAces": 3.5714285714286,
+        "doubleFaults": 19,
+        "avgDoubleFaults": 2.7142857142857,
+        "firstServePercentage": 67.957276368491,
+        "firstServePointsWonPercentage": 68.565815324165,
+        "secondServePercentage": 92.083333333333,
+        "secondServePointsWonPercentage": 54.166666666667,
+        "totalServeAttempts": 989,
+        "breakPointsScored": 46,
+        "breakPointsTotal": 97,
+        "breakPointsSavedPercentage": 62.903225806452,
+        "breakPointsSavedConvertedPercentage": 47.422680412371,
+        "winnersTotal": 277,
+        "unforcedErrorsTotal": 255,
+        "tiebreaksWon": 2,
+        "tiebreakLosses": 0,
+        "tiebreakWinPercentage": 100,
+    }
+}
+
 PLAYER_RANKINGS = {
     "rankings": [
         {"type": 5, "ranking": 3, "points": 5705, "previousRanking": 3, "previousPoints": 5705,

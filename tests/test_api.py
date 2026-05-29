@@ -264,6 +264,48 @@ def test_player_profile(client):
 
 
 @respx.mock
+def test_player_stats_available(client):
+    respx.mock.get(f"{BASE}/team/2/team-statistics/seasons").mock(
+        return_value=httpx.Response(200, json=fixtures.PLAYER_STATS_SEASONS)
+    )
+    resp = client.get("/players/2/statistics/available")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["tournament_id"] == 2480
+    assert [s["year"] for s in data[0]["seasons"]] == [2024, 2023]
+
+
+@respx.mock
+def test_player_statistics(client):
+    respx.mock.get(f"{BASE}/team/2/team-statistics/seasons").mock(
+        return_value=httpx.Response(200, json=fixtures.PLAYER_STATS_SEASONS)
+    )
+    respx.mock.get(
+        f"{BASE}/team/2/unique-tournament/2480/season/52016/statistics/overall"
+    ).mock(return_value=httpx.Response(200, json=fixtures.PLAYER_OVERALL_STATS))
+    resp = client.get("/players/2/statistics?tour=atp&season=2024")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["season_year"] == 2024
+    assert data["matches"] == 7
+    assert data["wins"] == 7
+    assert data["aces"] == 25
+    # Pourcentages arrondis à 2 décimales
+    assert data["first_serve_percentage"] == 67.96
+    assert data["break_points_saved_converted_percentage"] == 47.42
+    assert data["tiebreak_win_percentage"] == 100.0
+
+
+@respx.mock
+def test_player_statistics_unknown_season(client):
+    respx.mock.get(f"{BASE}/team/2/team-statistics/seasons").mock(
+        return_value=httpx.Response(200, json=fixtures.PLAYER_STATS_SEASONS)
+    )
+    resp = client.get("/players/2/statistics?tour=atp&season=1999")
+    assert resp.status_code == 404
+
+
+@respx.mock
 def test_player_rankings(client):
     respx.mock.get(f"{BASE}/team/2/rankings").mock(
         return_value=httpx.Response(200, json=fixtures.PLAYER_RANKINGS)

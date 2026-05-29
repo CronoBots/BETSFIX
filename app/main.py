@@ -53,6 +53,8 @@ async def root() -> dict:
             "stats_de_tous_les_matchs": "/statistics?tour=atp",
             "fiche_joueur": "/players/{player_id}",
             "photo_joueur": "/players/{player_id}/image",
+            "stats_joueur": "/players/{player_id}/statistics?tour=atp",
+            "stats_dispo_joueur": "/players/{player_id}/statistics/available",
             "classements_joueur": "/players/{player_id}/rankings",
             "matchs_joueur": "/players/{player_id}/matches",
         },

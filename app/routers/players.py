@@ -1,12 +1,22 @@
 """Endpoints liés aux joueurs (fiche, classements, matchs récents)."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from app.dependencies import get_provider
-from app.models import Match, PlayerProfile, RankingEntry
+from app.models import (
+    Match,
+    PlayerProfile,
+    PlayerStatistics,
+    PlayerStatsAvailability,
+    RankingEntry,
+)
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 
 router = APIRouter(prefix="/players", tags=["Joueurs"])
+
+Tour = Literal["atp", "wta"]
 
 
 @router.get(
@@ -20,6 +30,41 @@ async def player_profile(
 ) -> PlayerProfile:
     try:
         return await provider.get_player(player_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/{player_id}/statistics/available",
+    summary="Tournois/saisons avec stats disponibles pour le joueur",
+    response_model=list[PlayerStatsAvailability],
+)
+async def player_stats_available(
+    player_id: int,
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> list[PlayerStatsAvailability]:
+    try:
+        return await provider.get_player_stats_availability(player_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/{player_id}/statistics",
+    summary="Statistiques agrégées d'un joueur (analyse de forme)",
+    response_model=PlayerStatistics,
+)
+async def player_statistics(
+    player_id: int,
+    tour: Tour = Query("atp", description="atp / wta (choisit le tournoi Roland Garros par défaut)"),
+    season: int | None = Query(None, description="Année (par défaut : la plus récente avec stats)."),
+    tournament_id: int | None = Query(
+        None, description="ID SofaScore d'un autre tournoi (sinon Roland Garros)."
+    ),
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> PlayerStatistics:
+    try:
+        return await provider.get_player_statistics(player_id, tour, season, tournament_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 

@@ -15,6 +15,8 @@ SofaScore expose une API JSON publique. Les endpoints utilisés ici :
   - /team/{playerId}/rankings
   - /team/{playerId}/events/last/{page}
   - /team/{playerId}/image
+  - /team/{playerId}/team-statistics/seasons
+  - /team/{playerId}/unique-tournament/{tid}/season/{sid}/statistics/overall
 
 Toute la logique réseau et la normalisation vers nos modèles vit ici, ce qui
 permet de remplacer la source sans toucher au reste de l'API.
@@ -41,6 +43,8 @@ from app.models import (
     PeriodStatistics,
     Player,
     PlayerProfile,
+    PlayerStatistics,
+    PlayerStatsAvailability,
     PointByPointGame,
     PointByPointPoint,
     PointByPointSet,
@@ -326,6 +330,52 @@ class SofaScoreProvider:
         """Photo d'un joueur (contenu binaire + content-type)."""
         return await self._get_bytes(f"/team/{player_id}/image")
 
+    async def get_player_stats_availability(self, player_id: int) -> list[PlayerStatsAvailability]:
+        """Tournois/saisons pour lesquels le joueur a des statistiques."""
+        data = await self._get(f"/team/{player_id}/team-statistics/seasons")
+        out: list[PlayerStatsAvailability] = []
+        for ut in data.get("uniqueTournamentSeasons", []) or []:
+            tournament = ut.get("uniqueTournament") or {}
+            out.append(
+                PlayerStatsAvailability(
+                    tournament_id=tournament.get("id"),
+                    tournament_name=tournament.get("name"),
+                    seasons=[
+                        TournamentSeason(id=s.get("id"), year=_to_int(s.get("year")), name=s.get("name"))
+                        for s in ut.get("seasons", []) or []
+                    ],
+                )
+            )
+        return out
+
+    async def get_player_statistics(
+        self,
+        player_id: int,
+        tour: str = "atp",
+        season: int | None = None,
+        tournament_id: int | None = None,
+    ) -> PlayerStatistics:
+        """Stats agrégées d'un joueur. Par défaut : Roland Garros, saison la plus récente.
+
+        `tournament_id` permet d'interroger n'importe quel tournoi (pas seulement RG).
+        """
+        tid = tournament_id or self._tour_id(tour)
+        avail = await self.get_player_stats_availability(player_id)
+        entry = next((a for a in avail if a.tournament_id == tid), None)
+        if entry is None or not entry.seasons:
+            raise ProviderError("Aucune statistique disponible pour ce joueur/tournoi.", status_code=404)
+        if season is None:
+            chosen = entry.seasons[0]
+        else:
+            chosen = next((s for s in entry.seasons if s.year == season), None)
+            if chosen is None:
+                raise ProviderError(f"Saison {season} indisponible pour ce joueur/tournoi.", status_code=404)
+
+        data = await self._get(
+            f"/team/{player_id}/unique-tournament/{tid}/season/{chosen.id}/statistics/overall"
+        )
+        return _player_statistics(player_id, tid, chosen, data.get("statistics") or {})
+
     async def get_player_rankings(self, player_id: int) -> list[RankingEntry]:
         """Toutes les lignes de classement d'un joueur (ATP/WTA, Live, UTR…)."""
         data = await self._get(f"/team/{player_id}/rankings")
@@ -570,6 +620,48 @@ def _round_name(code: int | None) -> str | None:
         128: "1er tour",
     }
     return mapping.get(code) if code is not None else None
+
+
+def _round_pct(value) -> float | None:
+    """Arrondit les pourcentages/moyennes (souvent renvoyés avec 12 décimales)."""
+    return round(value, 2) if isinstance(value, (int, float)) else None
+
+
+def _player_statistics(player_id, tid, season, st: dict) -> "PlayerStatistics":
+    from app.models import PlayerStatistics
+
+    return PlayerStatistics(
+        player_id=player_id,
+        tournament_id=tid,
+        season_id=season.id,
+        season_year=season.year,
+        matches=st.get("matches"),
+        wins=st.get("wins"),
+        aces=st.get("aces"),
+        avg_aces=_round_pct(st.get("avgAces")),
+        double_faults=st.get("doubleFaults"),
+        avg_double_faults=_round_pct(st.get("avgDoubleFaults")),
+        first_serve_percentage=_round_pct(st.get("firstServePercentage")),
+        first_serve_points_won_percentage=_round_pct(st.get("firstServePointsWonPercentage")),
+        second_serve_percentage=_round_pct(st.get("secondServePercentage")),
+        second_serve_points_won_percentage=_round_pct(st.get("secondServePointsWonPercentage")),
+        total_serve_attempts=st.get("totalServeAttempts"),
+        first_serve_points_scored=st.get("firstServePointsScored"),
+        first_serve_points_total=st.get("firstServePointsTotal"),
+        second_serve_points_scored=st.get("secondServePointsScored"),
+        second_serve_points_total=st.get("secondServePointsTotal"),
+        break_points_scored=st.get("breakPointsScored"),
+        break_points_total=st.get("breakPointsTotal"),
+        break_points_saved_percentage=_round_pct(st.get("breakPointsSavedPercentage")),
+        break_points_saved_converted_percentage=_round_pct(st.get("breakPointsSavedConvertedPercentage")),
+        opponent_break_points_scored=st.get("opponentBreakPointsScored"),
+        opponent_break_points_total=st.get("opponentBreakPointsTotal"),
+        winners_total=st.get("winnersTotal"),
+        unforced_errors_total=st.get("unforcedErrorsTotal"),
+        tiebreaks_won=st.get("tiebreaksWon"),
+        tiebreak_losses=st.get("tiebreakLosses"),
+        tiebreak_win_percentage=_round_pct(st.get("tiebreakWinPercentage")),
+    )
 
 
 def _fractional_to_decimal(fractional: str | None) -> float | None:

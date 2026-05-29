@@ -21,6 +21,8 @@ toucher aux endpoints.
 - 💸 **Cotes** des matchs (fractionnaires + décimales) et **liste des éditions** disponibles
 - 👤 **Fiches joueurs** complètes (taille, poids, main, gains, lieu de naissance…),
   **photo**, **classements** (ATP/WTA, Live, UTR) et **matchs récents**
+- 📈 **Stats agrégées par joueur/tournoi/saison** (analyse de forme) : % 1ère/2ème
+  balle, points de break sauvés/convertis, winners vs fautes directes, aces, tie-breaks
 - 🏆 Infos sur l'édition courante (saison, identifiants)
 - ⚡ Cache mémoire avec TTL pour limiter les appels à la source
 - 📖 Documentation interactive auto-générée sur `/docs`
@@ -68,6 +70,8 @@ Puis ouvrir :
 | `GET` | `/statistics` | Statistiques de **tous les matchs terminés** |
 | `GET` | `/players/{player_id}` | **Fiche joueur** (taille, poids, main, gains, naissance…) |
 | `GET` | `/players/{player_id}/image` | **Photo** du joueur (image) |
+| `GET` | `/players/{player_id}/statistics` | **Stats agrégées** (service, break, winners/UE, tie-breaks…) |
+| `GET` | `/players/{player_id}/statistics/available` | Tournois/saisons avec stats disponibles |
 | `GET` | `/players/{player_id}/rankings` | **Classements** (ATP/WTA, Live, UTR) |
 | `GET` | `/players/{player_id}/matches` | **Matchs récents** du joueur |
 

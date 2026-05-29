@@ -215,6 +215,56 @@ class TournamentSeason(BaseModel):
     name: str | None = None
 
 
+class PlayerStatistics(BaseModel):
+    """Statistiques agrégées d'un joueur sur un tournoi/saison (analyse de forme).
+
+    Idéal pour le pari : % de 1ère/2ème balle, points de break sauvés/convertis,
+    winners vs fautes directes, aces, tie-breaks…
+    """
+
+    player_id: int
+    tournament_id: int | None = None
+    season_id: int | None = None
+    season_year: int | None = None
+    matches: int | None = None
+    wins: int | None = None
+    # Service
+    aces: int | None = None
+    avg_aces: float | None = None
+    double_faults: int | None = None
+    avg_double_faults: float | None = None
+    first_serve_percentage: float | None = None
+    first_serve_points_won_percentage: float | None = None
+    second_serve_percentage: float | None = None
+    second_serve_points_won_percentage: float | None = None
+    total_serve_attempts: int | None = None
+    first_serve_points_scored: int | None = None
+    first_serve_points_total: int | None = None
+    second_serve_points_scored: int | None = None
+    second_serve_points_total: int | None = None
+    # Break points
+    break_points_scored: int | None = Field(default=None, description="Balles de break converties")
+    break_points_total: int | None = None
+    break_points_saved_percentage: float | None = None
+    break_points_saved_converted_percentage: float | None = None
+    opponent_break_points_scored: int | None = None
+    opponent_break_points_total: int | None = None
+    # Jeu
+    winners_total: int | None = None
+    unforced_errors_total: int | None = None
+    tiebreaks_won: int | None = None
+    tiebreak_losses: int | None = None
+    tiebreak_win_percentage: float | None = None
+
+
+class PlayerStatsAvailability(BaseModel):
+    """Tournois/saisons pour lesquels un joueur a des statistiques disponibles."""
+
+    tournament_id: int | None = None
+    tournament_name: str | None = None
+    seasons: list[TournamentSeason] = Field(default_factory=list)
+
+
 class TournamentInfo(BaseModel):
     tour: str
     id: int
