@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # Identifiants uniqueTournament SofaScore pour Roland Garros
     rg_atp_tournament_id: int = 2480
-    rg_wta_tournament_id: int = 2483
+    rg_wta_tournament_id: int = 2577
 
     # Cotes Unibet Belgique (plateforme Kambi). 'ubbe' = Unibet Belgium.
     unibet_base_url: str = "https://eu-offering-api.kambicdn.com/offering/v2018/ubbe"

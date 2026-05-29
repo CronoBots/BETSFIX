@@ -29,8 +29,8 @@ from app.models import (
 
 # Coefficients calibrés par régression logistique sur les matchs RG historiques
 # (tools/backtest.py). P(home) = sigmoid(b0 + b1 * (ln(rank_away) - ln(rank_home))).
-RANK_B0 = 0.0238
-RANK_B1 = 0.3961
+RANK_B0 = 0.0507
+RANK_B1 = 0.3668
 
 # Poids des facteurs (le classement calibré domine ; renormalisés si manquants).
 WEIGHTS = {"classement": 0.50, "forme": 0.25, "surface": 0.15, "head_to_head": 0.10}

@@ -16,7 +16,7 @@ import httpx
 H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
      "Origin": "https://www.sofascore.com"}
 B = "https://api.sofascore.com/api/v1"
-TOURNAMENTS = {"atp": 2480, "wta": 2483}
+TOURNAMENTS = {"atp": 2480, "wta": 2577}
 
 
 def _get(client, path):

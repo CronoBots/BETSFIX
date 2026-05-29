@@ -153,7 +153,7 @@ curl "http://localhost:8000/statistics?tour=atp"
 |----------|--------|-------------|
 | `SOFASCORE_BASE_URL` | `https://api.sofascore.com/api/v1` | URL de base de la source |
 | `RG_ATP_TOURNAMENT_ID` | `2480` | ID SofaScore du tournoi ATP |
-| `RG_WTA_TOURNAMENT_ID` | `2483` | ID SofaScore du tournoi WTA |
+| `RG_WTA_TOURNAMENT_ID` | `2577` | ID SofaScore du tournoi WTA |
 | `CACHE_TTL_SECONDS` | `30` | Durée du cache |
 | `HTTP_TIMEOUT` | `20` | Timeout des requêtes (s) |
 | `HTTP_USER_AGENT` | *(navigateur)* | User-Agent envoyé à la source |
