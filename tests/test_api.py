@@ -47,12 +47,37 @@ def test_list_all_matches(client):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 2
-    final = next(m for m in data if m["round"] == "Finale")
+    final = next(m for m in data if m["round"] == "Final")
+    assert final["round_slug"] == "final"
     assert final["home"]["name"] == "Alcaraz C."
     assert final["winner"] == "home"
     assert final["home_score"]["sets_won"] == 3
     assert final["home_score"]["sets"] == [6, 2, 5, 6, 6]
     assert final["status"] == "finished"
+
+
+@respx.mock
+def test_filter_by_round_bilingual(client):
+    _mock_common(respx.mock)
+    # 'Finale' (FR) doit cibler exactement 'Final' (EN), sans attraper 'Semifinals'
+    for query in ("Finale", "Final", "final"):
+        resp = client.get(f"/matches?tour=atp&round={query}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert [m["round"] for m in data] == ["Final"], query
+    # 'Demi-finale' (FR) -> 'Semifinals' (EN)
+    resp = client.get("/matches?tour=atp&round=Demi-finale")
+    assert [m["round"] for m in resp.json()] == ["Semifinals"]
+
+
+@respx.mock
+def test_matches_by_round_endpoint(client):
+    _mock_common(respx.mock)
+    resp = client.get("/matches/round/Finale?tour=atp")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["round"] == "Final"
 
 
 @respx.mock
@@ -104,13 +129,165 @@ def test_all_statistics(client):
 
 
 @respx.mock
+def test_point_by_point(client):
+    respx.mock.get(f"{BASE}/event/11958222/point-by-point").mock(
+        return_value=httpx.Response(200, json=fixtures.POINT_BY_POINT)
+    )
+    resp = client.get("/matches/11958222/point-by-point")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["match_id"] == 11958222
+    # Sets remis en ordre chronologique (1 puis 2)
+    assert [s["set"] for s in data["sets"]] == [1, 2]
+    set2 = data["sets"][1]
+    # Jeux remis en ordre chronologique (1 puis 2)
+    assert [g["game"] for g in set2["games"]] == [1, 2]
+    game2 = set2["games"][1]
+    assert game2["server"] == "away"
+    assert game2["points"][0] == {"home": "0", "away": "15"}
+
+
+@respx.mock
 def test_get_single_match(client):
     respx.mock.get(f"{BASE}/event/11958222").mock(
         return_value=httpx.Response(200, json=fixtures.EVENT_DETAIL)
     )
     resp = client.get("/matches/11958222?tour=atp")
     assert resp.status_code == 200
-    assert resp.json()["id"] == 11958222
+    data = resp.json()
+    assert data["id"] == 11958222
+    # Champs enrichis
+    assert data["court"] == "Court Philippe Chatrier"
+    assert data["city"] == "Paris"
+    assert data["ground_type"] == "Red clay"
+    assert data["duration_seconds"] == 2588 + 3130 + 3910 + 2569 + 3367
+    assert data["set_durations"] == [2588, 3130, 3910, 2569, 3367]
+    assert data["first_to_serve"] == "away"
+    assert data["home_seed"] == "3"
+
+
+@respx.mock
+def test_head_to_head(client):
+    respx.mock.get(f"{BASE}/event/11958222").mock(
+        return_value=httpx.Response(200, json=fixtures.EVENT_DETAIL)
+    )
+    respx.mock.get(f"{BASE}/event/11958222/h2h").mock(
+        return_value=httpx.Response(200, json=fixtures.H2H)
+    )
+    resp = client.get("/matches/11958222/h2h?tour=atp")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["home_wins"] == 4
+    assert data["away_wins"] == 6
+    assert data["home"]["name"] == "Alcaraz C."
+
+
+@respx.mock
+def test_votes(client):
+    respx.mock.get(f"{BASE}/event/11958222/votes").mock(
+        return_value=httpx.Response(200, json=fixtures.VOTES)
+    )
+    resp = client.get("/matches/11958222/votes")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["home_votes"] == 16040
+    assert data["away_percent"] == 62.6
+
+
+@respx.mock
+def test_streaks(client):
+    respx.mock.get(f"{BASE}/event/11958222/team-streaks").mock(
+        return_value=httpx.Response(200, json=fixtures.TEAM_STREAKS)
+    )
+    resp = client.get("/matches/11958222/streaks")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["general"][0]["name"] == "Wins"
+    assert data["general"][0]["side"] == "home"
+
+
+@respx.mock
+def test_odds(client):
+    respx.mock.get(f"{BASE}/event/11958222/odds/1/all").mock(
+        return_value=httpx.Response(200, json=fixtures.ODDS)
+    )
+    resp = client.get("/matches/11958222/odds")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["markets"]) == 2
+    full = data["markets"][0]
+    assert full["name"] == "Full time"
+    # Conversion fractionnaire -> décimale : 9/4 + 1 = 3.25
+    assert full["choices"][0]["decimal"] == 3.25
+    assert full["choices"][1]["winning"] is True
+    # Marché Over/Under expose son handicap
+    assert data["markets"][1]["handicap"] == "38.5"
+
+
+@respx.mock
+def test_seasons(client):
+    respx.mock.get(f"{BASE}/unique-tournament/{ATP}/seasons").mock(
+        return_value=httpx.Response(200, json=fixtures.SEASONS)
+    )
+    resp = client.get("/matches/seasons?tour=atp")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["year"] == 2024
+    assert data[0]["id"] == SEASON_ID
+
+
+@respx.mock
+def test_player_image(client):
+    respx.mock.get(f"{BASE}/team/2/image").mock(
+        return_value=httpx.Response(200, content=b"webpbytes", headers={"content-type": "image/webp"})
+    )
+    resp = client.get("/players/2/image")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/webp"
+    assert resp.content == b"webpbytes"
+
+
+@respx.mock
+def test_player_profile(client):
+    respx.mock.get(f"{BASE}/team/2").mock(
+        return_value=httpx.Response(200, json=fixtures.PLAYER)
+    )
+    resp = client.get("/players/2")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "Alexander Zverev"
+    assert data["plays"] == "right-handed"
+    assert data["height_m"] == 1.98
+    assert data["weight_kg"] == 90
+    assert data["prize_total"] == 54458156
+    assert data["birth_place"] == "Hamburg"
+
+
+@respx.mock
+def test_player_rankings(client):
+    respx.mock.get(f"{BASE}/team/2/rankings").mock(
+        return_value=httpx.Response(200, json=fixtures.PLAYER_RANKINGS)
+    )
+    resp = client.get("/players/2/rankings")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert {r["ranking_class"] for r in data} == {"team", "livetennis", "utr"}
+    atp = next(r for r in data if r["ranking_class"] == "team")
+    assert atp["ranking"] == 3
+    assert atp["best_ranking"] == 2
+
+
+@respx.mock
+def test_player_matches(client):
+    respx.mock.get(f"{BASE}/team/2/events/last/0").mock(
+        return_value=httpx.Response(200, json=fixtures.PLAYER_EVENTS)
+    )
+    resp = client.get("/players/2/matches?pages=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["tour"] == "atp"
+    assert data[0]["round"] == "Round of 32"
 
 
 @respx.mock

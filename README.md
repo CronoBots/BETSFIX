@@ -11,9 +11,16 @@ toucher aux endpoints.
 ## Fonctionnalités
 
 - 📋 Liste de **tous les matchs** d'une édition (passés, en cours, à venir)
-- 🔍 Filtres par **round**, **statut** et **joueur**
+- 🔍 Filtres par **round** (FR ou EN), **statut** et **joueur**
+- 🎾 Matchs enrichis : **surface**, court/ville/pays, **durée** (totale et par set),
+  têtes de série, premier au service
 - 📊 **Statistiques détaillées** d'un match (aces, doubles fautes, % de service, points gagnés…)
 - 📊 Statistiques de **tous les matchs terminés** en une seule requête (récupération parallèle)
+- 🎯 **Déroulé point par point** (set → jeu → point)
+- 🤝 **Head-to-head**, **pronostics des fans**, **séries et records**
+- 💸 **Cotes** des matchs (fractionnaires + décimales) et **liste des éditions** disponibles
+- 👤 **Fiches joueurs** complètes (taille, poids, main, gains, lieu de naissance…),
+  **photo**, **classements** (ATP/WTA, Live, UTR) et **matchs récents**
 - 🏆 Infos sur l'édition courante (saison, identifiants)
 - ⚡ Cache mémoire avec TTL pour limiter les appels à la source
 - 📖 Documentation interactive auto-générée sur `/docs`
@@ -49,14 +56,29 @@ Puis ouvrir :
 | `GET` | `/health` | Healthcheck |
 | `GET` | `/matches` | **Tous les matchs** (filtres : `tour`, `season`, `round`, `status`, `player`) |
 | `GET` | `/matches/{match_id}` | Détail d'un match |
+| `GET` | `/matches/round/{round}` | Matchs d'un **round** donné (FR ou EN) |
+| `GET` | `/matches/{match_id}/point-by-point` | **Déroulé point par point** (set → jeu → point) |
+| `GET` | `/matches/{match_id}/h2h` | **Confrontations directes** (head-to-head) |
+| `GET` | `/matches/{match_id}/votes` | **Pronostics des fans** |
+| `GET` | `/matches/{match_id}/streaks` | **Séries et records** autour du match |
+| `GET` | `/matches/{match_id}/odds` | **Cotes** (paris) du match, en fractionnaire et décimal |
+| `GET` | `/matches/seasons` | **Éditions disponibles** du tournoi (année + id) |
 | `GET` | `/matches/tournament` | Infos sur l'édition courante |
 | `GET` | `/statistics/{match_id}` | Statistiques détaillées d'un match |
 | `GET` | `/statistics` | Statistiques de **tous les matchs terminés** |
+| `GET` | `/players/{player_id}` | **Fiche joueur** (taille, poids, main, gains, naissance…) |
+| `GET` | `/players/{player_id}/image` | **Photo** du joueur (image) |
+| `GET` | `/players/{player_id}/rankings` | **Classements** (ATP/WTA, Live, UTR) |
+| `GET` | `/players/{player_id}/matches` | **Matchs récents** du joueur |
 
 ### Paramètres communs
 
 - `tour` : `atp` (hommes, défaut) ou `wta` (femmes)
 - `season` : année de l'édition (ex : `2024`). Par défaut, l'édition la plus récente.
+- `round` : nom du round, accepté en **français ou anglais**. La source SofaScore
+  renvoie les noms en anglais (`Final`, `Semifinals`, `Quarterfinals`,
+  `Round of 16/32/64/128`) ; les termes FR usuels sont aussi reconnus
+  (`Finale`, `Demi-finale`, `Quart de finale`, `1er tour`…).
 
 ### Exemples
 
@@ -64,14 +86,20 @@ Puis ouvrir :
 # Tous les matchs ATP de l'édition courante
 curl "http://localhost:8000/matches?tour=atp"
 
-# Tous les matchs WTA 2024, uniquement les finales
+# Tous les matchs WTA 2024, uniquement la finale (FR ou EN : 'Finale' = 'Final')
 curl "http://localhost:8000/matches?tour=wta&season=2024&round=Finale"
+
+# Les quarts de finale ATP 2024 (endpoint dédié)
+curl "http://localhost:8000/matches/round/Quarterfinals?tour=atp&season=2024"
 
 # Tous les matchs de Djokovic
 curl "http://localhost:8000/matches?tour=atp&player=djokovic"
 
 # Statistiques d'un match précis
 curl "http://localhost:8000/statistics/11958222"
+
+# Déroulé point par point d'un match
+curl "http://localhost:8000/matches/11958222/point-by-point"
 
 # Statistiques de tous les matchs terminés
 curl "http://localhost:8000/statistics?tour=atp"
@@ -86,11 +114,21 @@ curl "http://localhost:8000/statistics?tour=atp"
     "tour": "atp",
     "tournament": "French Open",
     "season": 2024,
-    "round": "Finale",
+    "round": "Final",
+    "round_slug": "final",
     "status": "finished",
+    "court": "Court Philippe Chatrier",
+    "city": "Paris",
+    "country": "France",
+    "ground_type": "Red clay",
     "start_time": "2024-06-08T10:00:00Z",
+    "duration_seconds": 15564,
+    "set_durations": [2588, 3130, 3910, 2569, 3367],
+    "first_to_serve": "away",
     "home": {"id": 1, "name": "Alcaraz C.", "country": "Spain", "ranking": 3},
     "away": {"id": 2, "name": "Zverev A.", "country": "Germany", "ranking": 4},
+    "home_seed": "3",
+    "away_seed": "4",
     "home_score": {"sets_won": 3, "sets": [6, 2, 5, 6, 6], "tiebreaks": [null, null, null, null, null]},
     "away_score": {"sets_won": 2, "sets": [3, 6, 7, 1, 2], "tiebreaks": [null, null, 5, null, null]},
     "winner": "home",
@@ -131,8 +169,9 @@ app/
 ├── providers/
 │   └── sofascore.py        # Source de données + normalisation
 └── routers/
-    ├── matches.py          # Endpoints /matches
-    └── statistics.py       # Endpoints /statistics
+    ├── matches.py          # Endpoints /matches (+ round, point-by-point, h2h, votes, streaks)
+    ├── statistics.py       # Endpoints /statistics
+    └── players.py          # Endpoints /players (fiche, classements, matchs)
 tests/
 ├── fixtures.py             # Réponses SofaScore factices
 └── test_api.py             # Tests d'intégration (source mockée)
