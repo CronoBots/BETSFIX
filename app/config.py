@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     rg_atp_tournament_id: int = 2480
     rg_wta_tournament_id: int = 2483
 
+    # Cotes Unibet Belgique (plateforme Kambi). 'ubbe' = Unibet Belgium.
+    unibet_base_url: str = "https://eu-offering-api.kambicdn.com/offering/v2018/ubbe"
+    unibet_lang: str = "fr_BE"
+    unibet_market: str = "BE"
+
     # Cache et réseau
     cache_ttl_seconds: int = 30
     http_timeout: float = 20.0

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 
 from app import __version__
 from app.dependencies import shutdown_provider
-from app.routers import matches, players, statistics
+from app.routers import analysis, matches, players, statistics
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ app = FastAPI(
 app.include_router(matches.router)
 app.include_router(statistics.router)
 app.include_router(players.router)
+app.include_router(analysis.router)
 
 
 @app.get("/", tags=["Général"], summary="Bienvenue")
@@ -47,6 +48,8 @@ async def root() -> dict:
             "pronostics_fans": "/matches/{match_id}/votes",
             "series": "/matches/{match_id}/streaks",
             "cotes": "/matches/{match_id}/odds",
+            "cotes_unibet": "/matches/{match_id}/odds/unibet?tour=atp",
+            "analyse_paris": "/analysis/{match_id}?tour=atp",
             "editions_disponibles": "/matches/seasons?tour=atp",
             "infos_tournoi": "/matches/tournament?tour=atp",
             "stats_d_un_match": "/statistics/{match_id}",

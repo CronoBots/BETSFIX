@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.dependencies import get_provider
+from app.dependencies import get_provider, get_unibet
 from app.models import (
     HeadToHead,
     Match,
@@ -14,8 +14,10 @@ from app.models import (
     MatchVotes,
     TournamentInfo,
     TournamentSeason,
+    UnibetOdds,
 )
 from app.providers.sofascore import ProviderError, SofaScoreProvider, round_matches
+from app.providers.unibet import UnibetProvider
 
 router = APIRouter(prefix="/matches", tags=["Matchs"])
 
@@ -129,6 +131,26 @@ async def match_odds(
         return await provider.get_odds(match_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/{match_id}/odds/unibet",
+    summary="Cotes Unibet Belgique (matchées sur l'événement)",
+    response_model=UnibetOdds,
+)
+async def match_odds_unibet(
+    match_id: int,
+    tour: Tour = Query("atp"),
+    provider: SofaScoreProvider = Depends(get_provider),
+    unibet: UnibetProvider = Depends(get_unibet),
+) -> UnibetOdds:
+    """Cotes Unibet Belgique (Kambi) pour un match. Disponible pour les matchs
+    à venir / en cours uniquement."""
+    try:
+        match = await provider.get_match(tour, match_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    return await unibet.find_odds(match)
 
 
 @router.get(

@@ -23,6 +23,10 @@ toucher aux endpoints.
   **photo**, **classements** (ATP/WTA, Live, UTR) et **matchs récents**
 - 📈 **Stats agrégées par joueur/tournoi/saison** (analyse de forme) : % 1ère/2ème
   balle, points de break sauvés/convertis, winners vs fautes directes, aces, tie-breaks
+- 💰 **Cotes Unibet Belgique** (plateforme Kambi) matchées sur chaque match
+- 🧠 **Analyse pré-match & value betting** : un modèle combine classement, forme,
+  stats de surface et head-to-head, puis compare aux cotes Unibet pour repérer la
+  *value* (edge) et proposer une mise (Kelly fractionné)
 - 🏆 Infos sur l'édition courante (saison, identifiants)
 - ⚡ Cache mémoire avec TTL pour limiter les appels à la source
 - 📖 Documentation interactive auto-générée sur `/docs`
@@ -64,6 +68,8 @@ Puis ouvrir :
 | `GET` | `/matches/{match_id}/votes` | **Pronostics des fans** |
 | `GET` | `/matches/{match_id}/streaks` | **Séries et records** autour du match |
 | `GET` | `/matches/{match_id}/odds` | **Cotes** (paris) du match, en fractionnaire et décimal |
+| `GET` | `/matches/{match_id}/odds/unibet` | **Cotes Unibet Belgique** matchées sur le match |
+| `GET` | `/analysis/{match_id}` | **Analyse pré-match + value betting** (modèle vs cotes Unibet) |
 | `GET` | `/matches/seasons` | **Éditions disponibles** du tournoi (année + id) |
 | `GET` | `/matches/tournament` | Infos sur l'édition courante |
 | `GET` | `/statistics/{match_id}` | Statistiques détaillées d'un match |
@@ -151,6 +157,33 @@ curl "http://localhost:8000/statistics?tour=atp"
 | `CACHE_TTL_SECONDS` | `30` | Durée du cache |
 | `HTTP_TIMEOUT` | `20` | Timeout des requêtes (s) |
 | `HTTP_USER_AGENT` | *(navigateur)* | User-Agent envoyé à la source |
+| `UNIBET_BASE_URL` | *(Kambi `ubbe`)* | API d'offre Unibet Belgique |
+| `UNIBET_LANG` | `fr_BE` | Langue de l'offre Unibet |
+| `UNIBET_MARKET` | `BE` | Marché Unibet (Belgique) |
+
+## Analyse & paris (`/analysis/{match_id}`)
+
+L'endpoint d'analyse combine plusieurs facteurs en une probabilité de victoire,
+puis la confronte aux **cotes Unibet Belgique** pour repérer la *value* :
+
+| Facteur | Poids | Source |
+|---------|-------|--------|
+| Classement | 0,40 | Rangs ATP/WTA (rating type Elo) |
+| Forme récente | 0,25 | Bilan des derniers matchs |
+| Surface | 0,20 | Stats service + conversion de breaks sur la surface |
+| Head-to-head | 0,15 | Confrontations directes |
+
+La marge du bookmaker (*vig*) est retirée pour obtenir la probabilité implicite ;
+l'**edge** = proba du modèle − proba implicite. Si l'edge est positif et suffisant,
+une mise est proposée selon le **critère de Kelly fractionné** (¼ Kelly, prudent).
+
+> ⚠️ **Avertissement.** C'est un modèle **heuristique et transparent**, fourni à
+> titre informatif. Il n'a **aucune garantie de rentabilité** : notamment, comme
+> tout modèle simple, il a tendance à **surévaluer les outsiders** (gros edges sur
+> grosses cotes = souvent une erreur du modèle, pas une vraie value). À utiliser
+> comme aide à la réflexion, pas comme source de vérité. Les cotes Unibet ne sont
+> disponibles que pour les matchs **à venir / en cours**. Jouez de manière
+> responsable, uniquement ce que vous pouvez vous permettre de perdre.
 
 ## Tests
 
@@ -169,13 +202,16 @@ app/
 ├── config.py               # Configuration (.env)
 ├── cache.py                # Cache mémoire TTL
 ├── models.py               # Modèles Pydantic (réponses normalisées)
-├── dependencies.py         # Injection du provider
+├── analysis.py             # Modèle d'aide à la décision de pari (fonctions pures)
+├── dependencies.py         # Injection des providers (SofaScore + Unibet)
 ├── providers/
-│   └── sofascore.py        # Source de données + normalisation
+│   ├── sofascore.py        # Source de données sportives + normalisation
+│   └── unibet.py           # Cotes Unibet Belgique (Kambi) + matching
 └── routers/
-    ├── matches.py          # Endpoints /matches (+ round, point-by-point, h2h, votes, streaks)
+    ├── matches.py          # Endpoints /matches (+ round, point-by-point, h2h, votes, streaks, odds)
     ├── statistics.py       # Endpoints /statistics
-    └── players.py          # Endpoints /players (fiche, classements, matchs)
+    ├── players.py          # Endpoints /players (fiche, stats, classements, matchs)
+    └── analysis.py         # Endpoint /analysis (value betting)
 tests/
 ├── fixtures.py             # Réponses SofaScore factices
 └── test_api.py             # Tests d'intégration (source mockée)

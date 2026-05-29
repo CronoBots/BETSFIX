@@ -265,6 +265,80 @@ class PlayerStatsAvailability(BaseModel):
     seasons: list[TournamentSeason] = Field(default_factory=list)
 
 
+class UnibetOutcome(BaseModel):
+    """Un choix de pari chez Unibet Belgique."""
+
+    label: str = ""
+    participant: str | None = None
+    odds: float | None = Field(default=None, description="Cote décimale (ex: 1.44)")
+    fractional: str | None = None
+    line: float | None = Field(default=None, description="Ligne (Over/Under, handicap)")
+    implied_probability: float | None = Field(default=None, description="Proba implicite brute = 1/cote")
+
+
+class UnibetMarket(BaseModel):
+    """Un marché de paris Unibet Belgique (vainqueur, total de jeux, sets…)."""
+
+    label: str = ""
+    type: str | None = None
+    outcomes: list[UnibetOutcome] = Field(default_factory=list)
+
+
+class UnibetOdds(BaseModel):
+    """Cotes Unibet Belgique pour un match, matchées sur l'événement SofaScore."""
+
+    match_id: int
+    matched: bool = Field(description="True si l'événement a été retrouvé chez Unibet")
+    kambi_event_id: int | None = None
+    event_name: str | None = None
+    start_time: datetime | None = None
+    markets: list[UnibetMarket] = Field(default_factory=list)
+
+
+class AnalysisFactor(BaseModel):
+    """Un facteur du modèle, avec sa contribution pour chaque joueur."""
+
+    name: str
+    home: float | None = Field(default=None, description="Probabilité home selon ce facteur (0-1)")
+    away: float | None = None
+    weight: float = Field(description="Poids du facteur dans le modèle final")
+    detail: str | None = None
+
+
+class ValueBet(BaseModel):
+    """Évaluation de la 'value' d'un pari sur un joueur."""
+
+    side: str = Field(description="home / away")
+    player: str = ""
+    odds: float | None = Field(default=None, description="Cote Unibet décimale")
+    model_probability: float | None = Field(default=None, description="Proba estimée par le modèle")
+    implied_probability: float | None = Field(default=None, description="Proba implicite (vig retirée)")
+    edge: float | None = Field(default=None, description="model - implied. Positif = value")
+    kelly_fraction: float | None = Field(default=None, description="Fraction de bankroll (Kelly)")
+    recommended_stake_pct: float | None = Field(default=None, description="Mise conseillée (¼ Kelly), % bankroll")
+    is_value: bool = False
+
+
+class MatchAnalysis(BaseModel):
+    """Analyse pré-match complète orientée aide à la décision de pari."""
+
+    match_id: int
+    home: Player = Field(default_factory=Player)
+    away: Player = Field(default_factory=Player)
+    status: str | None = None
+    ground_type: str | None = None
+    model_home_probability: float | None = None
+    model_away_probability: float | None = None
+    factors: list[AnalysisFactor] = Field(default_factory=list)
+    unibet_matched: bool = False
+    value_bets: list[ValueBet] = Field(default_factory=list)
+    recommendation: str = ""
+    disclaimer: str = (
+        "Estimation statistique à titre informatif — aucune garantie de gain. "
+        "Pariez de manière responsable et uniquement ce que vous pouvez perdre."
+    )
+
+
 class TournamentInfo(BaseModel):
     tour: str
     id: int
