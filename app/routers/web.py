@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import ace_markets, elo, tendencies, tracking, web
+from app import ace_markets, elo, serve_return, tendencies, tracking, web
 from app.analysis import build_analysis, prob_from_rankings
 from app.analysis import _match_winner_odds
 from app.markets import (
@@ -148,12 +148,14 @@ async def match_detail(
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
     elo_home, elo_away = elo.ratings_for_match(match)
+    sr_home, sr_away = serve_return.ratings_for_match(match)
     analysis = build_analysis(
         match=match, home_matches=hm or [], away_matches=am or [],
         home_stats=hs, away_stats=as_,
         home_wins_h2h=h2h.home_wins if h2h else None,
         away_wins_h2h=h2h.away_wins if h2h else None,
         unibet=odds, elo_home=elo_home, elo_away=elo_away,
+        sr_home=sr_home, sr_away=sr_away,
     )
     winner_odds = _match_winner_odds(odds, match) if (odds and odds.matched) else (None, None)
     best_of = 5 if tour == "atp" else 3
@@ -193,12 +195,14 @@ async def markets_page(
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
     elo_home, elo_away = elo.ratings_for_match(match)
+    sr_home, sr_away = serve_return.ratings_for_match(match)
     analysis = build_analysis(
         match=match, home_matches=hm or [], away_matches=am or [],
         home_stats=hs, away_stats=as_,
         home_wins_h2h=h2h.home_wins if h2h else None,
         away_wins_h2h=h2h.away_wins if h2h else None,
         unibet=odds, elo_home=elo_home, elo_away=elo_away,
+        sr_home=sr_home, sr_away=sr_away,
     )
     odds_matched = bool(odds and odds.matched)
     winner_rows, ace_rows, sim_rows = [], [], []

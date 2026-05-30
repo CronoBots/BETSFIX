@@ -136,6 +136,18 @@ def test_build_analysis_uses_elo_factor():
     assert (a.model_home_probability or 0) > 0.55
 
 
+def test_serve_return_drives_surface_factor():
+    # Avec des notes service/retour, le facteur 'surface' vient de la domination
+    # (pas des stats de saison), et favorise le joueur plus dominant.
+    match = _match(home_rank=10, away_rank=10)
+    a = build_analysis(match, [], [], None, None, None, None,
+                       UnibetOdds(match_id=1, matched=False),
+                       sr_home=1.15, sr_away=0.80)
+    surf = next(f for f in a.factors if f.name == "surface")
+    assert surf.home > 0.6                               # home nettement plus dominant
+    assert "service+retour" in (surf.detail or "")
+
+
 def test_build_analysis_detects_value():
     match = _match(home_rank=2, away_rank=3)
     stats_home = PlayerStatistics(player_id=100, first_serve_points_won_percentage=72,

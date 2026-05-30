@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse
 
-from app import elo, tracking
+from app import elo, serve_return, tracking
 from app.analysis import build_analysis
 from app.dependencies import get_livescore, get_provider, get_unibet
 from app.routers.analysis import _gather_context
@@ -44,12 +44,14 @@ async def run_snapshot(provider: SofaScoreProvider, unibet: UnibetProvider) -> i
             if not (odds and odds.matched):
                 continue  # pas de cote Unibet -> rien à suivre
             elo_home, elo_away = elo.ratings_for_match(m)
+            sr_home, sr_away = serve_return.ratings_for_match(m)
             analysis = build_analysis(
                 match=m, home_matches=hm or [], away_matches=am or [],
                 home_stats=hs, away_stats=as_,
                 home_wins_h2h=h2h.home_wins if h2h else None,
                 away_wins_h2h=h2h.away_wins if h2h else None,
                 unibet=odds, elo_home=elo_home, elo_away=elo_away,
+                sr_home=sr_home, sr_away=sr_away,
             )
             st_iso = m.start_time.isoformat() if m.start_time else None
             if tracking.upsert_prediction(store, analysis, tour, now.isoformat(), st_iso):

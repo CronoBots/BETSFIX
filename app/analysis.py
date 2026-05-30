@@ -23,6 +23,7 @@ from __future__ import annotations
 import math
 
 from app.elo import prob_from_elo
+from app.serve_return import prob_from_serve_return
 from app.models import (
     AnalysisFactor,
     Match,
@@ -247,6 +248,8 @@ def build_analysis(
     unibet: UnibetOdds | None,
     elo_home: float | None = None,
     elo_away: float | None = None,
+    sr_home: float | None = None,
+    sr_away: float | None = None,
 ) -> MatchAnalysis:
     factors: list[AnalysisFactor] = []
 
@@ -278,13 +281,23 @@ def build_analysis(
             weight=WEIGHTS["forme"], detail=form_label,
         ))
 
-    # 3) Surface (stats service/retour)
-    pair = _normalize_pair(_surface_strength(home_stats), _surface_strength(away_stats))
-    if pair:
+    # 3) Surface : domination service+retour réelle (snapshot, validée au niveau Elo)
+    # ou, à défaut, repli sur les stats de saison (ancien calcul).
+    psr = prob_from_serve_return(sr_home, sr_away)
+    if psr is not None:
         factors.append(AnalysisFactor(
-            name="surface", home=round(pair[0], 4), away=round(pair[1], 4),
-            weight=WEIGHTS["surface"], detail="service + conversion de breaks sur la surface",
+            name="surface", home=round(psr, 4), away=round(1 - psr, 4),
+            weight=WEIGHTS["surface"],
+            detail="domination service+retour (tenue de service + break, par surface)",
         ))
+    else:
+        pair = _normalize_pair(_surface_strength(home_stats), _surface_strength(away_stats))
+        if pair:
+            factors.append(AnalysisFactor(
+                name="surface", home=round(pair[0], 4), away=round(pair[1], 4),
+                weight=WEIGHTS["surface"],
+                detail="service + conversion de breaks sur la surface",
+            ))
 
     # 4) Head-to-head
     n_h2h = (home_wins_h2h or 0) + (away_wins_h2h or 0)
