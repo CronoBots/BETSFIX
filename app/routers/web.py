@@ -37,10 +37,11 @@ async def matches_page(
     store = tracking.load()
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(hours=HORIZON_HOURS)
-    groups = []
+    local_now = web.to_local(now) or now
+    today = local_now.date()
     fallback = False
-    for tour, title in (("atp", "ATP — à venir"), ("wta", "WTA — à venir")):
-        rows = []
+    rows = []
+    for tour in ("atp", "wta"):
         matches, src = await matches_with_fallback(tour)
         if src == "livescore":
             fallback = True
@@ -53,7 +54,7 @@ async def matches_page(
             hp = rec.get("model_home_prob")
             if hp is None and m.home.ranking and m.away.ranking:
                 hp = prob_from_rankings(m.home.ranking, m.away.ranking)
-            if hp is None:  # repli (LiveScore) -> classements officiels par nom
+            if hp is None:  # repli -> classements officiels par nom
                 rh = await rankings.rank(tour, m.home.name)
                 ra = await rankings.rank(tour, m.away.name)
                 hp = prob_from_rankings(rh, ra)
@@ -63,15 +64,26 @@ async def matches_page(
                 fav, favp = m.home.name, f"{round(hp*100)}%"
             else:
                 fav, favp = m.away.name, f"{round((1-hp)*100)}%"
+            local_dt = web.to_local(m.start_time)
             rows.append({
                 "id": m.id, "tour": tour, "home": m.home.name, "away": m.away.name,
                 "status": m.status,
-                "time": web.fmt_local(m.start_time),
+                "time": web.fmt_local(m.start_time, with_date=False),
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
                 "clickable": True,
+                "_date": local_dt.date() if local_dt else None,
+                "_sort": local_dt or datetime.max.replace(tzinfo=timezone.utc),
             })
-        rows.sort(key=lambda r: r["time"])
-        groups.append((title, rows))
+    # Groupe par DATE (Aujourd'hui / Demain / …), trié, matchs par heure
+    rows.sort(key=lambda r: r["_sort"])
+    groups, seen = [], {}
+    for r in rows:
+        key = r["_date"]
+        label = web.day_label(key, today) if key else "Date à confirmer"
+        if label not in seen:
+            seen[label] = []
+            groups.append((label, seen[label]))
+        seen[label].append(r)
     return HTMLResponse(web.render_matches(groups, fallback=fallback))
 
 

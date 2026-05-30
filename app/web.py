@@ -16,6 +16,32 @@ except Exception:  # pragma: no cover
     LOCAL_TZ = None
 
 
+def to_local(value):
+    """Convertit un datetime/ISO en datetime local belge (ou None)."""
+    if value is None:
+        return None
+    dt = value
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    if LOCAL_TZ is not None and getattr(dt, "tzinfo", None) is not None:
+        dt = dt.astimezone(LOCAL_TZ)
+    return dt
+
+
+def day_label(d, today) -> str:
+    """Libellé d'un jour : Aujourd'hui / Demain / jour de semaine + date."""
+    delta = (d - today).days
+    if delta == 0:
+        return f"Aujourd'hui — {d.strftime('%d/%m')}"
+    if delta == 1:
+        return f"Demain — {d.strftime('%d/%m')}"
+    jours = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+    return f"{jours[d.weekday()].capitalize()} {d.strftime('%d/%m')}"
+
+
 def fmt_local(value, with_date: bool = True) -> str:
     """Formate un datetime/ISO en heure locale belge. '' si absent."""
     if value is None:
