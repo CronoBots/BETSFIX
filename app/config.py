@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     unibet_market: str = "BE"
 
     # Cache et réseau
-    cache_ttl_seconds: int = 30
+    cache_ttl_seconds: int = 120
     http_timeout: float = 20.0
     http_user_agent: str = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
