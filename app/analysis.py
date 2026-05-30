@@ -1,11 +1,11 @@
 """Modèle d'aide à la décision de pari (pré-match tennis).
 
 Approche **transparente et calibrée sur données réelles** :
-1. Un facteur **Elo par surface** (force réelle pondérée par la qualité des
-   adversaires, note terre battue distincte ; cf. tools/build_elo.py) — facteur
-   principal quand il est disponible. À défaut, un facteur **classement** calibré
-   par régression logistique sur ~1150 matchs RG (cf. tools/backtest.py) prend le
-   relais (log-loss ≈ 0.64).
+1. Deux facteurs de force à quasi-égalité : le **classement** calibré par régression
+   logistique sur ~1150 matchs RG (cf. tools/backtest.py, log-loss ≈ 0.64) et l'**Elo
+   par surface** (force réelle pondérée par la qualité des adversaires, note terre
+   distincte ; cf. tools/build_elo.py). Le back-test (tools/backtest_model.py) montre
+   que le classement prédit un peu mieux — d'où des poids rééquilibrés (cf. WEIGHTS).
 2. Des facteurs **forme vs attente** (sur-/sous-performance par rapport au rang de
    l'adversaire, pondérée par récence + spécifique terre), **surface**
    (service/retour) et **head-to-head** qui ajustent la base.
@@ -37,10 +37,15 @@ from app.models import (
 RANK_B0 = 0.0507
 RANK_B1 = 0.3668
 
-# Poids des facteurs (renormalisés sur les facteurs présents). L'Elo (force réelle
-# pondérée par les adversaires, spécifique terre) domine quand il est disponible ;
-# le classement reste le repli principal pour les joueurs sans note Elo.
-WEIGHTS = {"elo": 0.45, "classement": 0.20, "forme": 0.20, "surface": 0.10,
+# Poids des facteurs (renormalisés sur les facteurs présents).
+# Rééquilibrage **mesuré par le back-test** (tools/backtest_model.py, ~17k matchs
+# walk-forward) : le classement seul prédit MIEUX que l'Elo seul (log-loss 0.644 vs
+# 0.657), et le mélange optimal Elo/classement est ~30/70 — l'inverse de l'ancien
+# 0.45/0.20. On ne perche pas sur l'optimum (vallée plate, risque de sur-ajustement) :
+# on met les deux à quasi-égalité (Elo 0.30 / classement 0.35), ce qui retire la
+# domination injustifiée de l'Elo tout en gardant sa valeur sur les cas que le rang
+# rate (spécialistes de surface, retours de blessure).
+WEIGHTS = {"elo": 0.30, "classement": 0.35, "forme": 0.20, "surface": 0.10,
            "head_to_head": 0.05}
 
 # Ancrage au marché : confiance accordée au modèle vs aux cotes du bookmaker.
@@ -58,13 +63,13 @@ KELLY_FRACTION = 0.25      # quart de Kelly (prudent)
 MAX_STAKE_PCT = 5.0        # plafond de mise conseillée (% bankroll)
 FORM_DECAY = 0.92          # pondération de récence (match i pèse 0.92^i)
 
-# Recalibration anti-surconfiance. Le mélange brut des facteurs peut être
-# SURCONFIANT (annoncer 66 % pour ~50 % de victoires réelles ; cf. page Perf). On
-# rapproche alors la proba de 0.5 d'un facteur SHRINK (<1 = on tempère). La valeur
-# 1.0 = aucune correction. **À fixer par le back-test** : tools/backtest_model.py
-# imprime le SHRINK qui minimise le log-loss sur des centaines de matchs historiques
-# (walk-forward, sans fuite). Tant qu'on n'a pas l'estimation, on tempère légèrement.
-CALIB_SHRINK = 0.90
+# Recalibration anti-surconfiance. Un facteur SHRINK rapproche la proba de 0.5
+# (<1 = on tempère ; 1.0 = aucune correction). **Mesuré par le back-test**
+# (tools/backtest_model.py, ~17k matchs walk-forward) : le shrink qui minimise le
+# log-loss vaut **1.00** — le mélange n'est PAS surconfiant globalement (sur les
+# favoris il est même plutôt sous-confiant). On laisse donc la correction à 1.0 et on
+# garde le mécanisme : si un futur back-test détecte de la surconfiance, baisser ici.
+CALIB_SHRINK = 1.00
 
 
 def recalibrate(p: float, shrink: float = CALIB_SHRINK) -> float:
@@ -245,7 +250,7 @@ def build_analysis(
 ) -> MatchAnalysis:
     factors: list[AnalysisFactor] = []
 
-    # 0) Elo par surface (force réelle pondérée par les adversaires) — facteur principal
+    # 0) Elo par surface (force réelle pondérée par les adversaires)
     pe = prob_from_elo(elo_home, elo_away)
     if pe is not None:
         surf = "terre" if "clay" in (match.ground_type or "").lower() else "global"

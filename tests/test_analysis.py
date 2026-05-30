@@ -120,8 +120,9 @@ def test_recalibration_is_wired_in_build_analysis():
                        elo_home=2000, elo_away=1400)
     assert {f.name for f in a.factors} == {"elo"}      # seul l'Elo est présent
     p_elo = expected_score(2000, 1400)
+    # La proba finale = version recalibrée du mélange (ici = proba Elo), quel que
+    # soit CALIB_SHRINK. Prouve que recalibrate() est bien branché dans le pipeline.
     assert abs((a.model_home_probability or 0) - recalibrate(p_elo, CALIB_SHRINK)) < 1e-4
-    assert (a.model_home_probability or 0) < p_elo      # tempéré vers 0.5
 
 
 def test_build_analysis_uses_elo_factor():

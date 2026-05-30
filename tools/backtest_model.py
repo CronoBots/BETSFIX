@@ -30,6 +30,13 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Console Windows (.bat) en cp1252 : on force UTF-8 pour ne pas planter sur les
+# accents/symboles, et on remplace ce qui ne s'affiche pas plutôt que de crasher.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, ValueError):  # pragma: no cover
+    pass
+
 import httpx  # noqa: E402
 
 from app import elo  # noqa: E402
@@ -129,6 +136,21 @@ def _blend(s, shrink=1.0) -> float:
     return recalibrate(p, shrink)
 
 
+def best_elo_weight(with_rank):
+    """Poids Elo (vs classement) qui minimise le log-loss du mélange à 2 facteurs.
+
+    Répond directement à : faut-il rééquilibrer WEIGHTS['elo'] / WEIGHTS['classement'] ?
+    """
+    best, best_ll = 0.0, float("inf")
+    for k in range(0, 21):            # 0.00 -> 1.00 par pas de 0.05
+        w = k / 20.0
+        ll = log_loss([(w * d["p_elo"] + (1 - w) * d["p_rank"], d["y"])
+                       for d in with_rank])
+        if ll < best_ll:
+            best, best_ll = w, ll
+    return best, best_ll
+
+
 def best_shrink(with_rank):
     """Cherche le shrink qui minimise le log-loss du mélange (pas de 0.05)."""
     best, best_ll = 1.0, float("inf")
@@ -154,7 +176,7 @@ def main():
         print("Pas assez de données (Elo non réchauffé). Réessaie plus tard.")
         return
     with_rank = [s for s in samples if s["p_rank"] is not None]
-    print(f"Évalués (Elo réchauffé ≥{WARMUP} matchs) : {len(samples)} matchs "
+    print(f"Évalués (Elo réchauffé >= {WARMUP} matchs) : {len(samples)} matchs "
           f"dont {len(with_rank)} avec classements connus.\n")
 
     # --- Ablation : chaque facteur seul vs combiné (sur le MÊME sous-ensemble) ---
@@ -166,8 +188,16 @@ def main():
     # Baseline : favori certain (montre le coût de la surconfiance)
     naive = [(0.999 if s["p_elo"] >= 0.5 else 0.001, s["y"]) for s in with_rank]
     print(_line("favori certain (naïf)", naive))
-    print("  → si 'Elo+classement' a le log-loss le plus bas, combiner aide. Un "
+    print("  -> si 'Elo+classement' a le log-loss le plus bas, combiner aide. Un "
           "facteur au Brier > 0.25 ou précision < 50% dégrade le mélange.\n")
+
+    # --- Poids optimal Elo vs classement (faut-il rééquilibrer le modèle ?) ---
+    w_opt, ll_w = best_elo_weight(with_rank)
+    print("=== Poids optimal Elo vs classement ===")
+    print(f"  poids actuels du modèle : Elo {_W_ELO:.2f} / classement {_W_RANK:.2f}")
+    print(f"  poids Elo OPTIMAL        : {w_opt:.2f} / classement {1 - w_opt:.2f}  "
+          f"(log-loss {ll_w:.4f})")
+    print("  -> rapproche WEIGHTS['elo'] et WEIGHTS['classement'] de ce ratio.\n")
 
     # --- Recalibration : shrink optimal ---
     shrink, ll_s = best_shrink(with_rank)
