@@ -143,18 +143,14 @@ def _pct(x):
 
 
 def render_dashboard(store: dict, rep: dict) -> str:
-    """Page HTML mobile-friendly récapitulant performance + paris suivis."""
+    """Page 'Fiabilité du modèle' : le modèle prédit-il bien ? (calibration)."""
     e = html.escape
     recs = list(store.values())
-    pending_value = [r for r in recs if not r.get("result") and r.get("value_pick")]
-    pending_value.sort(key=lambda r: -(r["value_pick"].get("edge") or 0))
-    settled = [r for r in recs if r.get("result")]
+    settled = [r for r in recs if r.get("result") and r.get("model_home_prob") is not None]
     settled.sort(key=lambda r: r["result"].get("settled_at", ""), reverse=True)
 
-    roi = rep.get("value_roi")
-    roi_color = "#9aa0a6" if roi is None else ("#34a853" if roi > 0 else "#ea4335")
-    roi_txt = "—" if roi is None else f"{'+' if roi >= 0 else ''}{round(roi * 100, 1)}%"
-    pnl = rep.get("value_pnl_unites", 0.0)
+    prec = rep.get("precision_modele")
+    prec_color = "#9aa0a6" if prec is None else ("#34a853" if prec >= 0.5 else "#ea4335")
 
     def card(label, value, sub="", color="#e8eaed"):
         return (f'<div class="card"><div class="lbl">{e(label)}</div>'
@@ -162,52 +158,36 @@ def render_dashboard(store: dict, rep: dict) -> str:
                 f'<div class="sub">{e(sub)}</div></div>')
 
     cards = "".join([
-        card("ROI value", roi_txt, f"{rep.get('value_paris_regles', 0)} paris réglés", roi_color),
-        card("P&L", f"{'+' if pnl >= 0 else ''}{pnl} u", "mise plate 1u"),
-        card("Réussite value", _pct(rep.get("value_taux_reussite")),
-             f"{rep.get('value_gagnes', 0)} gagnés"),
-        card("Précision modèle", _pct(rep.get("precision_modele")),
-             f"{rep.get('predictions_evaluees', 0)} matchs"),
+        card("Précision", _pct(prec), f"{rep.get('predictions_evaluees', 0)} matchs", prec_color),
         card("Brier", rep.get("brier") if rep.get("brier") is not None else "—", "plus bas = mieux"),
-        card("Suivis", rep.get("matchs_suivis", 0), f"{rep.get('matchs_regles', 0)} réglés"),
+        card("Log-loss", rep.get("log_loss") if rep.get("log_loss") is not None else "—",
+             "plus bas = mieux"),
+        card("Matchs suivis", rep.get("matchs_suivis", 0), f"{rep.get('matchs_regles', 0)} réglés"),
     ])
-
-    def pending_row(r):
-        v = r["value_pick"]
-        edge = round((v.get("edge") or 0) * 100, 1)
-        return (f'<tr><td>{e(r["home"])}<br><span class="dim">v {e(r["away"])}</span></td>'
-                f'<td><b>{e(v["player"])}</b><br><span class="dim">@ {v["odds"]}</span></td>'
-                f'<td class="pos">+{edge}pts<br><span class="dim">{v.get("stake_pct")}%</span></td></tr>')
 
     def settled_row(r):
         res = r["result"]
-        v = r.get("value_pick")
-        if not v:
-            outcome = "—"
-        else:
-            won = v["side"] == res["winner"]
-            pnl_v = res.get("value_pnl")
-            outcome = (f'<span class="pos">✓ +{pnl_v}u</span>' if won
-                       else f'<span class="neg">✗ {pnl_v}u</span>')
+        hp = r.get("model_home_prob") or 0
+        fav = r["home"] if hp >= 0.5 else r["away"]
+        favp = round(max(hp, 1 - hp) * 100)
         winner_name = r["home"] if res["winner"] == "home" else r["away"]
-        pick_txt = e(v["player"] + " @" + str(v["odds"])) if v else "—"
-        return (f'<tr><td>{e(r["home"])} v {e(r["away"])}<br>'
-                f'<span class="dim">vainqueur : {e(winner_name)}</span></td>'
-                f'<td>{pick_txt}</td><td>{outcome}</td></tr>')
+        ok = (res["winner"] == "home") == (hp >= 0.5)
+        mark = '<span class="pos">✓</span>' if ok else '<span class="neg">✗</span>'
+        return (f'<tr><td>{e(r["home"])} v {e(r["away"])}</td>'
+                f'<td>favori {e(fav)} {favp}%</td>'
+                f'<td>{mark} {e(winner_name)}</td></tr>')
 
-    pending_html = ("".join(pending_row(r) for r in pending_value)
-                    or '<tr><td colspan="3" class="dim">Aucun pari value en attente.</td></tr>')
     settled_html = ("".join(settled_row(r) for r in settled[:30])
                     or '<tr><td colspan="3" class="dim">Aucun match réglé pour l\'instant.</td></tr>')
 
     body = f"""<div class="grid">{cards}</div>
-<div class="banner">⚠️ {e(rep.get("note", ""))} Le ROI n'est fiable qu'au-delà de 100 paris réglés.
- Ne pas conclure trop tôt. Jouez responsable.</div>
-<h2>Paris value en attente ({len(pending_value)})</h2>
-<table>{pending_html}</table>
-<h2>Derniers résultats</h2>
-<table>{settled_html}</table>"""
-    return web.layout("Performance", "perf", body, refresh=True)
+<div class="banner">Cette page mesure si le <b>modèle prédit bien le vainqueur</b>
+ (calibration sur résultats réels). Ce n'est <b>pas</b> un outil pour battre le bookmaker :
+ un modèle simple ne bat pas un book sérieux. Fiable à partir de ~100 matchs réglés.</div>
+<h2>Le modèle vs résultats réels</h2>
+<table><tr><td class="dim">match</td><td class="dim">prédiction</td>
+<td class="dim">vainqueur</td></tr>{settled_html}</table>"""
+    return web.layout("Fiabilité", "perf", body, refresh=True)
 
 
 def render_today(store: dict) -> str:

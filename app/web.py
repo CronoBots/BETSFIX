@@ -91,8 +91,8 @@ def layout(title: str, active: str, body: str, refresh: bool = False) -> str:
 
 def render_home(rep: dict, source: dict | None = None) -> str:
     e = html.escape
-    roi = rep.get("value_roi")
-    roi_txt = "—" if roi is None else f"{'+' if roi >= 0 else ''}{round(roi*100,1)}%"
+    prec = rep.get("precision_modele")
+    prec_txt = "—" if prec is None else f"{round(prec*100)}%"
     if source and source.get("ok"):
         src = '<div class="src ok">🟢 Source : SofaScore OK</div>'
     elif source:
@@ -102,15 +102,15 @@ def render_home(rep: dict, source: dict | None = None) -> str:
         src = ""
     body = f"""{src}"""
     body += f"""
-<a class="big" href="/app">🎾 Matchs à venir & analyses
-  <div class="d">Voir les matchs du jour, le favori du modèle et les value picks</div></a>
-<a class="big" href="/tracking/dashboard">📊 Performance du modèle
-  <div class="d">ROI value : {e(roi_txt)} · {rep.get('value_paris_regles',0)} paris réglés · {rep.get('matchs_suivis',0)} suivis</div></a>
+<a class="big" href="/app">🎾 Matchs & analyses
+  <div class="d">Matchs du jour : favori du modèle, stats, forme, h2h et cotes Unibet</div></a>
+<a class="big" href="/tracking/dashboard">📊 Fiabilité du modèle
+  <div class="d">Précision : {e(prec_txt)} sur {rep.get('predictions_evaluees',0)} matchs réglés</div></a>
 <a class="big" href="/docs">🛠️ API & documentation
   <div class="d">Tous les endpoints (matchs, stats, joueurs, cotes…)</div></a>
-<div class="banner">Outil personnel d'aide à la décision. Le modèle est en cours de
- validation (voir Performance). N'engagez que de petites mises, et seulement ce que
- vous pouvez vous permettre de perdre.</div>"""
+<div class="banner">Outil d'<b>aide à la décision</b> : il t'aide à analyser, il ne prédit pas
+ de paris gagnants. Un modèle simple ne bat pas un bookmaker sérieux — sers-t'en pour
+ t'informer, décide toi-même, et joue responsable.</div>"""
     return layout("Accueil", "home", body, refresh=True)
 
 
@@ -129,8 +129,8 @@ def render_matches(groups: list[tuple[str, list[dict]]], fallback: bool = False)
                    'affichés via LiveScore (repli). L\'analyse détaillée revient dès que '
                    'SofaScore répond.</div>')
     else:
-        out.append('<div class="banner">Touchez un match pour son analyse détaillée. '
-                   'Heures en fuseau belge. Une "value" = avis du modèle, à confirmer par le suivi.</div>')
+        out.append('<div class="banner">Touchez un match pour son analyse détaillée '
+                   '(favori, stats, cotes). Heures en fuseau belge.</div>')
     total = 0
     for title, ms in groups:
         if not ms:
@@ -138,11 +138,9 @@ def render_matches(groups: list[tuple[str, list[dict]]], fallback: bool = False)
         out.append(f"<h2>{e(title)} ({len(ms)})</h2>")
         for m in ms:
             total += 1
-            badge = (f'<span class="badge b-val">VALUE · {e(m["value"])}</span>'
-                     if m.get("value") else '<span class="badge b-dim">—</span>')
             status = "🔴 en cours" if m["status"] == "inprogress" else e(m.get("time") or "")
             inner = (
-                f'<div class="rowtop"><span>{e(m["tour"].upper())} · {status}</span>{badge}</div>'
+                f'<div class="rowtop"><span>{e(m["tour"].upper())} · {status}</span></div>'
                 f'<div class="players">{e(m["home"])} <span class="dim">vs</span> {e(m["away"])}</div>'
                 f'<div class="dim">favori modèle : {e(m.get("fav") or "—")} {e(m.get("favp") or "")}'
                 f' · confiance {e(m.get("confidence") or "—")}</div>')
@@ -181,26 +179,38 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None]) -> st
                f'<td class="dim">{e(a.away.name.split()[-1])}</td><td class="dim">détail</td></tr>'
                f'{frows}</table>') if a.factors else ""
 
-    # Cotes Unibet vainqueur + value
+    # Lecture du modèle (favori) — neutre, pas de pari conseillé
+    fav = a.home.name if (hp or 0) >= 0.5 else a.away.name
+    favp = round(max(hp or 0, ap or 0) * 100)
+    verdict = (f'<div class="big">🎾 Favori du modèle : {e(fav)} ({favp}%)'
+               f'<div class="d">Confiance {e(a.confidence or "—")}. Lecture statistique, '
+               f'à recouper avec ton jugement — ce n\'est pas un conseil de pari.</div></div>')
+
+    # Cotes Unibet + comparaison au marché (informatif)
     oh, oa = winner_odds
     odds_html = ""
     if a.unibet_matched and (oh or oa):
-        odds_html = (f'<h2>Cotes Unibet (vainqueur)</h2>'
-                     f'<table><tr><td>{e(a.home.name)}</td><td><b>{oh or "—"}</b></td></tr>'
-                     f'<tr><td>{e(a.away.name)}</td><td><b>{oa or "—"}</b></td></tr></table>')
-
-    values = [v for v in a.value_bets if v.is_value]
-    if values:
-        v = max(values, key=lambda x: x.edge or 0)
-        verdict = (f'<div class="big" style="border-color:#1b5e20">✅ VALUE : {e(v.player)} @ {v.odds}'
-                   f'<div class="d">edge +{round((v.edge or 0)*100,1)} pts · mise conseillée '
-                   f'{v.recommended_stake_pct}% de bankroll (¼-Kelly)</div></div>')
-    elif a.unibet_matched:
-        verdict = ('<div class="big">⏸️ Abstention<div class="d">Cotes Unibet conformes au '
-                   'modèle : pas de value nette.</div></div>')
-    else:
-        verdict = ('<div class="big">Cotes Unibet indisponibles<div class="d">Match pas '
-                   'encore à l\'affiche du book.</div></div>')
+        def cmp_row(name, model_p, odds):
+            imp = round(100 / odds) if odds else None
+            mp = round((model_p or 0) * 100)
+            note = ""
+            if imp is not None:
+                if mp - imp >= 6:
+                    note = '<span class="pos">modèle plus optimiste</span>'
+                elif imp - mp >= 6:
+                    note = '<span class="neg">modèle plus prudent</span>'
+                else:
+                    note = '<span class="dim">en accord</span>'
+            return (f'<tr><td>{e(name)}</td><td><b>{odds or "—"}</b></td>'
+                    f'<td>{mp}% / {imp if imp is not None else "—"}%</td><td>{note}</td></tr>')
+        odds_html = (
+            '<h2>Cotes Unibet vs modèle</h2>'
+            '<table><tr><td class="dim">joueur</td><td class="dim">cote</td>'
+            '<td class="dim">modèle / implicite</td><td class="dim"></td></tr>'
+            + cmp_row(a.home.name, hp, oh) + cmp_row(a.away.name, ap, oa) + '</table>')
+    elif not a.unibet_matched:
+        odds_html = ('<div class="banner">Cotes Unibet indisponibles (match pas encore '
+                     'à l\'affiche du book).</div>')
 
     body = head + verdict + probs + factors + odds_html
     return layout(f"{a.home.name} vs {a.away.name}", "matches", body)

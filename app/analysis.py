@@ -294,19 +294,18 @@ def _match_winner_odds(unibet: UnibetOdds, match: Match) -> tuple[float | None, 
 
 
 def _recommendation(a: MatchAnalysis) -> str:
+    """Résumé neutre (aide à la décision, pas un conseil de pari)."""
     if not a.factors:
         return "Données insuffisantes pour une analyse fiable."
     fav = a.home.name if (a.model_home_probability or 0) >= 0.5 else a.away.name
     favp = max(a.model_home_probability or 0, a.model_away_probability or 0)
-    head = f"Modèle (confiance {a.confidence}) : favori {fav} à {favp:.0%}."
+    head = f"Lecture du modèle (confiance {a.confidence}) : favori {fav} à {favp:.0%}."
     if not a.unibet_matched:
         return head + " Cotes Unibet indisponibles (match non à l'affiche)."
-    values = [v for v in a.value_bets if v.is_value]
-    if not values:
-        return head + " Aucune value nette vs Unibet (cotes conformes au modèle) → s'abstenir."
-    best = max(values, key=lambda v: v.edge or 0)
-    return (
-        head + f" VALUE sur {best.player} @ {best.odds} "
-        f"(edge +{round((best.edge or 0) * 100, 1)} pts après ancrage marché ; "
-        f"mise {best.recommended_stake_pct}% bankroll en ¼-Kelly)."
-    )
+    # Écart au marché, présenté comme une INFO (le marché reste la référence sharp).
+    diffs = [v for v in a.value_bets if (v.edge or 0) >= 0.06]
+    if diffs:
+        d = max(diffs, key=lambda v: v.edge or 0)
+        return (head + f" Le modèle est plus optimiste qu'Unibet sur {d.player} "
+                f"(à recouper — désaccord ≠ pari gagnant).")
+    return head + " Cotes Unibet globalement conformes au modèle."
