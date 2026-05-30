@@ -50,7 +50,8 @@ async def run_snapshot(provider: SofaScoreProvider, unibet: UnibetProvider) -> i
                 away_wins_h2h=h2h.away_wins if h2h else None,
                 unibet=odds,
             )
-            if tracking.upsert_prediction(store, analysis, tour, now.isoformat()):
+            st_iso = m.start_time.isoformat() if m.start_time else None
+            if tracking.upsert_prediction(store, analysis, tour, now.isoformat(), st_iso):
                 updated += 1
     tracking.save(store)
     return updated
@@ -105,6 +106,12 @@ async def get_report() -> dict:
 async def dashboard() -> HTMLResponse:
     store = tracking.load()
     return HTMLResponse(tracking.render_dashboard(store, tracking.report(store)))
+
+
+@router.get("/today", response_class=HTMLResponse,
+            summary="Matchs à venir analysés (mobile)")
+async def today() -> HTMLResponse:
+    return HTMLResponse(tracking.render_today(tracking.load()))
 
 
 @router.get("/log", summary="Détail des prédictions suivies")

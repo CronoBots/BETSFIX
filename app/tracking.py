@@ -37,7 +37,8 @@ def save(store: dict, path: str = DATA_PATH) -> None:
     os.replace(tmp, path)
 
 
-def upsert_prediction(store: dict, analysis, tour: str, now_iso: str) -> bool:
+def upsert_prediction(store: dict, analysis, tour: str, now_iso: str,
+                      start_time_iso: str | None = None) -> bool:
     """Crée/rafraîchit la prédiction d'un match à venir. Renvoie True si modifié."""
     key = str(analysis.match_id)
     rec = store.get(key, {})
@@ -48,6 +49,7 @@ def upsert_prediction(store: dict, analysis, tour: str, now_iso: str) -> bool:
     rec.update({
         "match_id": analysis.match_id,
         "tour": tour,
+        "start_time": start_time_iso,
         "home": analysis.home.name,
         "away": analysis.away.name,
         "model_home_prob": analysis.model_home_probability,
@@ -196,35 +198,88 @@ def render_dashboard(store: dict, rep: dict) -> str:
     settled_html = ("".join(settled_row(r) for r in settled[:30])
                     or '<tr><td colspan="3" class="dim">Aucun match réglé pour l\'instant.</td></tr>')
 
-    return f"""<!doctype html><html lang="fr"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="300">
-<title>Paris — Tableau de bord</title>
-<style>
-  body{{margin:0;background:#0e0f13;color:#e8eaed;font-family:-apple-system,Segoe UI,Roboto,sans-serif}}
-  .wrap{{max-width:680px;margin:0 auto;padding:16px}}
-  h1{{font-size:20px;margin:8px 0}}
-  .grid{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0}}
-  .card{{background:#1a1c22;border-radius:14px;padding:12px;text-align:center}}
-  .lbl{{font-size:11px;color:#9aa0a6;text-transform:uppercase;letter-spacing:.4px}}
-  .val{{font-size:22px;font-weight:700;margin:4px 0}}
-  .sub{{font-size:11px;color:#9aa0a6}}
-  h2{{font-size:15px;margin:20px 0 8px;color:#bdc1c6}}
-  table{{width:100%;border-collapse:collapse;font-size:13px}}
-  td{{padding:10px 8px;border-bottom:1px solid #23262e;vertical-align:top}}
-  .dim{{color:#9aa0a6;font-size:12px}}
-  .pos{{color:#34a853;font-weight:600}} .neg{{color:#ea4335;font-weight:600}}
-  .banner{{background:#2a2410;border:1px solid #5c4a00;color:#f4c84a;border-radius:10px;
-           padding:10px 12px;font-size:12px;margin:10px 0}}
-  .foot{{color:#5f6368;font-size:11px;margin-top:18px;text-align:center}}
-</style></head><body><div class="wrap">
-<h1>🎾 Tableau de bord — paris</h1>
-<div class="grid">{cards}</div>
+    body = f"""<div class="grid">{cards}</div>
 <div class="banner">⚠️ {e(rep.get("note", ""))} Le ROI n'est fiable qu'au-delà de 100 paris réglés.
  Ne pas conclure trop tôt. Jouez responsable.</div>
 <h2>Paris value en attente ({len(pending_value)})</h2>
 <table>{pending_html}</table>
 <h2>Derniers résultats</h2>
-<table>{settled_html}</table>
-<div class="foot">Rafraîchissement auto toutes les 5 min · données SofaScore + Unibet BE</div>
+<table>{settled_html}</table>"""
+    return _page("board", "Tableau de bord", body)
+
+
+def render_today(store: dict) -> str:
+    """Page 'Matchs à venir' : toutes les analyses suivies, triées par heure."""
+    e = html.escape
+    upcoming = [r for r in store.values() if not r.get("result")]
+    upcoming.sort(key=lambda r: r.get("start_time") or "")
+
+    def hhmm(iso):
+        return iso[11:16] if iso and len(iso) >= 16 else "—"
+
+    def row(r):
+        hp = r.get("model_home_prob")
+        if hp is None:
+            fav, favp = "—", "—"
+        elif hp >= 0.5:
+            fav, favp = r["home"], _pct(hp)
+        else:
+            fav, favp = r["away"], _pct(1 - hp)
+        v = r.get("value_pick")
+        if v:
+            edge = round((v.get("edge") or 0) * 100, 1)
+            pick = f'<b class="pos">{e(v["player"])}</b> @{v["odds"]}<br><span class="dim">+{edge}pts · {v.get("stake_pct")}%</span>'
+        else:
+            pick = '<span class="dim">—</span>'
+        tag = r.get("tour", "").upper()
+        return (f'<tr><td>{hhmm(r.get("start_time"))}<br><span class="dim">{tag}</span></td>'
+                f'<td>{e(r["home"])}<br>{e(r["away"])}<br>'
+                f'<span class="dim">fav : {e(fav)} {favp} · conf {e(r.get("confidence") or "—")}</span></td>'
+                f'<td>{pick}</td></tr>')
+
+    rows = ("".join(row(r) for r in upcoming)
+            or '<tr><td colspan="3" class="dim">Aucun match à venir suivi pour le moment.</td></tr>')
+    body = (f'<div class="banner">Analyses des matchs à venir (≤ 48 h) avec cotes Unibet. '
+            f'Heure UTC. Une "value" = avis du modèle, à confirmer par le suivi.</div>'
+            f'<h2>Matchs à venir ({len(upcoming)})</h2>'
+            f'<table><tr><td class="dim">Heure</td><td class="dim">Match</td>'
+            f'<td class="dim">Value</td></tr>{rows}</table>')
+    return _page("today", "Matchs à venir", body)
+
+
+_CSS = """
+  body{margin:0;background:#0e0f13;color:#e8eaed;font-family:-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:680px;margin:0 auto;padding:16px}
+  h1{font-size:20px;margin:8px 0}
+  .nav{display:flex;gap:8px;margin:10px 0 4px}
+  .nav a{flex:1;text-align:center;padding:9px;border-radius:10px;text-decoration:none;
+         font-size:13px;font-weight:600;background:#1a1c22;color:#bdc1c6}
+  .nav a.on{background:#1b5e20;color:#fff}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0}
+  .card{background:#1a1c22;border-radius:14px;padding:12px;text-align:center}
+  .lbl{font-size:11px;color:#9aa0a6;text-transform:uppercase;letter-spacing:.4px}
+  .val{font-size:22px;font-weight:700;margin:4px 0}
+  .sub{font-size:11px;color:#9aa0a6}
+  h2{font-size:15px;margin:20px 0 8px;color:#bdc1c6}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td{padding:10px 8px;border-bottom:1px solid #23262e;vertical-align:top}
+  .dim{color:#9aa0a6;font-size:12px}
+  .pos{color:#34a853;font-weight:600} .neg{color:#ea4335;font-weight:600}
+  .banner{background:#2a2410;border:1px solid #5c4a00;color:#f4c84a;border-radius:10px;
+          padding:10px 12px;font-size:12px;margin:10px 0}
+  .foot{color:#5f6368;font-size:11px;margin-top:18px;text-align:center}
+"""
+
+
+def _page(active: str, title: str, body: str) -> str:
+    nav = (f'<div class="nav">'
+           f'<a class="{"on" if active=="board" else ""}" href="/tracking/dashboard">📊 Performance</a>'
+           f'<a class="{"on" if active=="today" else ""}" href="/tracking/today">🎾 Matchs à venir</a>'
+           f'</div>')
+    return f"""<!doctype html><html lang="fr"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="300"><title>Paris — {html.escape(title)}</title>
+<style>{_CSS}</style></head><body><div class="wrap">
+<h1>🎾 {html.escape(title)}</h1>{nav}{body}
+<div class="foot">Rafraîchissement auto 5 min · SofaScore + Unibet BE · jouez responsable</div>
 </div></body></html>"""
