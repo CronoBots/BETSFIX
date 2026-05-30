@@ -230,8 +230,10 @@ def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None
     return layout("Matchs", "matches", "".join(out), refresh=True)
 
 
-def render_match_detail(a, winner_odds: tuple[float | None, float | None]) -> str:
-    """a = MatchAnalysis ; winner_odds = (cote_home, cote_away) Unibet."""
+def render_match_detail(a, winner_odds: tuple[float | None, float | None],
+                        aces: dict | None = None) -> str:
+    """a = MatchAnalysis ; winner_odds = (cote_home, cote_away) Unibet ;
+    aces = récap tendance d'aces (cf. app.tendencies.for_match) ou None."""
     e = html.escape
     hp = a.model_home_probability
     ap = a.model_away_probability
@@ -289,5 +291,24 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None]) -> st
         odds_html = ('<div class="banner">Cotes Unibet indisponibles (match pas encore '
                      'à l\'affiche du book).</div>')
 
-    body = head + verdict + probs + factors + odds_html
+    # Tendance d'aces (marché annexe) — info de lecture
+    aces_html = ""
+    if aces:
+        def arow(name, rate, exp):
+            if rate is None or exp is None:
+                return (f'<tr><td>{e(name)}</td><td class="dim">—</td>'
+                        f'<td class="dim">tendance inconnue</td></tr>')
+            return (f'<tr><td>{e(name)}</td><td><b>~{round(exp)}</b> aces</td>'
+                    f'<td class="dim">{rate:.2f} / jeu de service</td></tr>')
+        aces_html = (
+            '<h2>Service — aces attendus</h2>'
+            '<div class="banner">Estimation d\'après la <b>tendance d\'aces</b> du joueur '
+            f'(~{round(aces["service_games"])} jeux de service estimés). Info de lecture — '
+            '<b>pas encore</b> un signal de value (le book connaît aussi ces tendances).</div>'
+            '<table><tr><td class="dim">joueur</td><td class="dim">aces (est.)</td>'
+            '<td class="dim">tendance</td></tr>'
+            + arow(aces["home_name"], aces["home_rate"], aces["home_exp"])
+            + arow(aces["away_name"], aces["away_rate"], aces["away_exp"]) + '</table>')
+
+    body = head + verdict + probs + factors + aces_html + odds_html
     return layout(f"{a.home.name} vs {a.away.name}", "matches", body)
