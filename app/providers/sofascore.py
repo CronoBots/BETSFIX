@@ -25,11 +25,19 @@ permet de remplacer la source sans toucher au reste de l'API.
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 
 import httpx
 
 from app.cache import TTLCache
 from app.config import Settings
+
+log = logging.getLogger("uvicorn")
+
+# Disjoncteur anti-403 : back-off croissant quand SofaScore rate-limite.
+BREAKER_BASE_S = 30      # 1ère pause
+BREAKER_MAX_S = 300      # plafond (5 min)
 from app.models import (
     HeadToHead,
     Match,
@@ -80,23 +88,53 @@ class SofaScoreProvider:
                 "Origin": "https://www.sofascore.com",
             },
         )
+        self._fail_count = 0
+        self._open_until = 0.0  # horloge monotone : circuit ouvert jusqu'à cet instant
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+    # --------------------------------------------------------- disjoncteur
+    def _breaker_guard(self) -> None:
+        """Lève une erreur immédiate si le circuit est ouvert (sans toucher au réseau)."""
+        remaining = self._open_until - time.monotonic()
+        if remaining > 0:
+            raise ProviderError(
+                f"SofaScore en pause anti-403 ({int(remaining)}s restantes).",
+                status_code=503,
+            )
+
+    def _breaker_trip(self) -> None:
+        """Ouvre le circuit avec un délai exponentiel (rate-limit détecté)."""
+        self._fail_count += 1
+        delay = min(BREAKER_BASE_S * (2 ** (self._fail_count - 1)), BREAKER_MAX_S)
+        self._open_until = time.monotonic() + delay
+        log.warning("SofaScore rate-limit : circuit ouvert %ss (échec #%s)", delay, self._fail_count)
+
+    def _breaker_reset(self) -> None:
+        if self._fail_count:
+            log.info("SofaScore rétabli : circuit refermé.")
+        self._fail_count = 0
+        self._open_until = 0.0
 
     # ----------------------------------------------------------------- réseau
     async def _get(self, path: str) -> dict:
         """GET avec cache TTL et gestion d'erreurs."""
         cached = self._cache.get(path)
         if cached is not None:
-            return cached
+            return cached  # le cache reste servi même circuit ouvert
+        self._breaker_guard()
         try:
             resp = await self._client.get(path)
         except httpx.HTTPError as exc:  # réseau / timeout
+            self._breaker_trip()
             raise ProviderError(f"Source de données injoignable: {exc}") from exc
 
         if resp.status_code == 404:
             raise ProviderError("Ressource introuvable chez la source.", status_code=404)
+        if resp.status_code in (403, 429):  # rate-limit -> on ouvre le circuit
+            self._breaker_trip()
+            raise ProviderError(f"SofaScore a limité l'accès ({resp.status_code}).", status_code=502)
         if resp.status_code >= 400:
             raise ProviderError(
                 f"La source a répondu {resp.status_code} pour {path}",
@@ -107,19 +145,26 @@ class SofaScoreProvider:
         except ValueError as exc:
             raise ProviderError("Réponse non-JSON de la source.") from exc
 
+        self._breaker_reset()
         self._cache.set(path, data)
         return data
 
     async def _get_bytes(self, path: str) -> tuple[bytes, str]:
         """GET binaire (images). Retourne (contenu, content-type)."""
+        self._breaker_guard()
         try:
             resp = await self._client.get(path)
         except httpx.HTTPError as exc:
+            self._breaker_trip()
             raise ProviderError(f"Source de données injoignable: {exc}") from exc
         if resp.status_code == 404:
             raise ProviderError("Ressource introuvable chez la source.", status_code=404)
+        if resp.status_code in (403, 429):
+            self._breaker_trip()
+            raise ProviderError(f"SofaScore a limité l'accès ({resp.status_code}).", status_code=502)
         if resp.status_code >= 400:
             raise ProviderError(f"La source a répondu {resp.status_code} pour {path}", status_code=502)
+        self._breaker_reset()
         return resp.content, resp.headers.get("content-type", "application/octet-stream")
 
     def _tour_id(self, tour: str) -> int:
