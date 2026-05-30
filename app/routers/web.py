@@ -5,9 +5,14 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import elo, tendencies, tracking, web
+from app import ace_markets, elo, tendencies, tracking, web
 from app.analysis import build_analysis, prob_from_rankings
 from app.analysis import _match_winner_odds
+from app.markets import (
+    DEFAULT_SERVE, calibrate_to_market, evaluate_markets, extract_market_anchors,
+    serve_win_pct,
+)
+from app.providers.unibet import _norm_name
 from app.dependencies import (
     get_livescore, get_provider, get_rankings, get_unibet, matches_with_fallback,
 )
@@ -154,7 +159,80 @@ async def match_detail(
     best_of = 5 if tour == "atp" else 3
     fav_prob = max(analysis.model_home_probability or 0.5, analysis.model_away_probability or 0.5)
     aces = tendencies.for_match(match, best_of, fav_prob)
-    return HTMLResponse(web.render_match_detail(analysis, winner_odds, aces=aces))
+    return HTMLResponse(web.render_match_detail(analysis, winner_odds, aces=aces, tour=tour))
+
+
+def _vb_row(vb) -> dict:
+    return {"market": "Vainqueur", "selection": vb.player, "odds": vb.odds,
+            "model_p": vb.model_probability, "implied_p": vb.implied_probability,
+            "edge": vb.edge, "value": vb.is_value, "line": None}
+
+
+def _edge_row(me) -> dict:
+    return {"market": me.market, "selection": me.selection, "odds": me.odds,
+            "model_p": me.model_probability, "implied_p": me.implied_probability,
+            "edge": me.edge, "value": me.is_value, "line": me.line}
+
+
+@router.get("/app/match/{match_id}/paris", response_class=HTMLResponse)
+async def markets_page(
+    match_id: int,
+    tour: str = Query("atp"),
+    provider: SofaScoreProvider = Depends(get_provider),
+    unibet: UnibetProvider = Depends(get_unibet),
+) -> HTMLResponse:
+    """Outil 'Tous les paris' : modèle vs book sur tous les marchés Unibet du match."""
+    tour = "wta" if tour == "wta" else "atp"
+    try:
+        match = await provider.get_match(tour, match_id)
+    except ProviderError:
+        return HTMLResponse(web.layout(
+            "Tous les paris", "matches",
+            '<div class="banner">Analyse momentanément indisponible (SofaScore bloqué).</div>'
+            '<a class="dim" href="/app">← Retour</a>'))
+
+    hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
+    elo_home, elo_away = elo.ratings_for_match(match)
+    analysis = build_analysis(
+        match=match, home_matches=hm or [], away_matches=am or [],
+        home_stats=hs, away_stats=as_,
+        home_wins_h2h=h2h.home_wins if h2h else None,
+        away_wins_h2h=h2h.away_wins if h2h else None,
+        unibet=odds, elo_home=elo_home, elo_away=elo_away,
+    )
+    odds_matched = bool(odds and odds.matched)
+    winner_rows, ace_rows, sim_rows = [], [], []
+    if odds_matched:
+        best_of = 5 if tour == "atp" else 3
+        winner_rows = [_vb_row(vb) for vb in analysis.value_bets]
+
+        # Aces : tendances spécifiques à la surface du match
+        store = tendencies.load_cached()
+        fav_prob = max(analysis.model_home_probability or 0.5,
+                       analysis.model_away_probability or 0.5)
+        rh = tendencies.ace_rate(store.get(str(match.home.id)), match.ground_type)
+        ra = tendencies.ace_rate(store.get(str(match.away.id)), match.ground_type)
+        ace_rows = [_edge_row(me) for me in
+                    ace_markets.evaluate(match, odds, best_of, rh, ra, fav_prob)]
+
+        # Simulateur (jeux/sets/breaks…), calé sur le marché — comme /analysis/markets
+        levels = [v for v in (serve_win_pct(hs), serve_win_pct(as_)) if v is not None]
+        serve_level = sum(levels) / len(levels) if levels else DEFAULT_SERVE[tour]
+        home_tokens = _norm_name(match.home.name)
+        mkt_win, games_line, games_over = extract_market_anchors(odds, home_tokens)
+        model_p = analysis.model_home_probability
+        if mkt_win is not None and model_p is not None:
+            target_win = 0.7 * mkt_win + 0.3 * model_p
+        else:
+            target_win = mkt_win if mkt_win is not None else (model_p or 0.5)
+        sim = calibrate_to_market(target_win, games_line, games_over, serve_level,
+                                  best_of, seed=match_id)
+        sim_edges = sorted(evaluate_markets(match, odds, sim),
+                           key=lambda e: abs(e.edge or 0), reverse=True)
+        sim_rows = [_edge_row(me) for me in sim_edges[:15]]   # top 15 par |écart|
+
+    return HTMLResponse(web.render_markets(
+        match, winner_rows, ace_rows, sim_rows, odds_matched, tour=tour))
 
 
 async def _light_detail(match_id, tour, unibet, rankings) -> HTMLResponse:

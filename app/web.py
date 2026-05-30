@@ -231,7 +231,7 @@ def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None
 
 
 def render_match_detail(a, winner_odds: tuple[float | None, float | None],
-                        aces: dict | None = None) -> str:
+                        aces: dict | None = None, tour: str = "atp") -> str:
     """a = MatchAnalysis ; winner_odds = (cote_home, cote_away) Unibet ;
     aces = récap tendance d'aces (cf. app.tendencies.for_match) ou None."""
     e = html.escape
@@ -310,5 +310,75 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
             + arow(aces["home_name"], aces["home_rate"], aces["home_exp"])
             + arow(aces["away_name"], aces["away_rate"], aces["away_exp"]) + '</table>')
 
-    body = head + verdict + probs + factors + aces_html + odds_html
+    # Accès à l'outil "Tous les paris" (modèle vs book sur tous les marchés Unibet)
+    paris_link = ""
+    if a.unibet_matched:
+        paris_link = (f'<a class="big" href="/app/match/{a.match_id}/paris?tour={e(tour)}">'
+                      f'🎯 Tous les paris (modèle vs Unibet)'
+                      f'<div class="d">Vainqueur, aces, jeux, sets, breaks… proba du modèle '
+                      f'vs cote du book, marché par marché.</div></a>')
+
+    body = head + verdict + paris_link + probs + factors + aces_html + odds_html
     return layout(f"{a.home.name} vs {a.away.name}", "matches", body)
+
+
+def _market_rows(rows: list[dict]) -> str:
+    """Lignes d'un tableau de marché : sélection | cote | modèle/book | écart."""
+    e = html.escape
+    trs = []
+    for r in rows:
+        mp, ip = r.get("model_p"), r.get("implied_p")
+        edge = r.get("edge")
+        mp_s = f"{round(mp * 100)}%" if mp is not None else "—"
+        ip_s = f"{round(ip * 100)}%" if ip is not None else "—"
+        if edge is None:
+            edge_s = "—"
+        else:
+            cls = "pos" if edge > 0 else ("neg" if edge < 0 else "dim")
+            edge_s = f'<span class="{cls}">{"+" if edge >= 0 else ""}{round(edge * 100, 1)}</span>'
+        flag = ' <span class="badge b-val">écart</span>' if r.get("value") else ""
+        trs.append(
+            f'<tr><td>{e(r.get("market") or "")}<br>'
+            f'<span class="dim">{e(r.get("selection") or "")}'
+            f'{(" · ligne " + str(r["line"])) if r.get("line") is not None else ""}</span>{flag}</td>'
+            f'<td><b>{r.get("odds") or "—"}</b></td>'
+            f'<td>{mp_s} / {ip_s}</td><td>{edge_s}</td></tr>')
+    return "".join(trs)
+
+
+def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
+                   sim_rows: list[dict], odds_matched: bool, tour: str = "atp") -> str:
+    """Page "Tous les paris" : modèle vs book, par marché, regroupé par fiabilité."""
+    e = html.escape
+    back = (f'<a class="dim" href="/app/match/{match.id}?tour={e(tour)}">← Retour à l\'analyse</a>'
+            f'<div class="players" style="font-size:18px;margin-top:10px">'
+            f'{e(match.home.name)} <span class="dim">vs</span> {e(match.away.name)}</div>')
+    if not odds_matched:
+        body = back + '<div class="banner">Cotes Unibet indisponibles pour ce match.</div>'
+        return layout("Tous les paris", "matches", body)
+
+    intro = ('<div class="banner">Pour chaque pari Unibet : <b>proba du modèle</b> / '
+             '<b>proba implicite du book</b>, et l\'écart. Un écart <b>n\'est pas</b> une '
+             'value sûre — le book est souvent plus fin que nous, surtout sur les marchés '
+             'de niche. Outil d\'exploration, pas de conseil de pari.</div>')
+
+    def section(title, sub, rows):
+        if not rows:
+            return ""
+        return (f'<h2>{e(title)}</h2><div class="banner">{sub}</div>'
+                '<table><tr><td class="dim">marché / sélection</td><td class="dim">cote</td>'
+                '<td class="dim">modèle / book</td><td class="dim">écart pts</td></tr>'
+                f'{_market_rows(rows)}</table>')
+
+    sections = (
+        section("Vainqueur du match", "Le marché le mieux modélisé (Elo, classement, "
+                "forme, surface, h2h).", winner_rows)
+        + section("Aces (exploratoire)", "Signal réel sur la tendance d'aces, MAIS total "
+                  "ancré sur le book et répartition par tendance terre : à confirmer par le "
+                  "suivi avant d'en faire un pari.", ace_rows)
+        + section("Jeux · sets · breaks (simulateur — expérimental)", "⚠️ Simulation du "
+                  "déroulé, peu fiable sur ces marchés. À NE PAS suivre pour parier en l'état.",
+                  sim_rows))
+    if not (winner_rows or ace_rows or sim_rows):
+        sections = '<div class="dim">Aucun marché évaluable pour ce match.</div>'
+    return layout("Tous les paris", "matches", back + intro + sections)
