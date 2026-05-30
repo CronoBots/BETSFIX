@@ -12,6 +12,7 @@ pures et testables ; l'orchestration réseau est dans le routeur.
 
 from __future__ import annotations
 
+import html
 import json
 import math
 import os
@@ -130,3 +131,100 @@ def report(store: dict) -> dict:
             "ROI positif = le modèle bat le marché sur l'échantillon."
         ),
     }
+
+
+# --------------------------------------------------------------- dashboard
+def _pct(x):
+    return f"{round(x * 100)}%" if isinstance(x, (int, float)) else "—"
+
+
+def render_dashboard(store: dict, rep: dict) -> str:
+    """Page HTML mobile-friendly récapitulant performance + paris suivis."""
+    e = html.escape
+    recs = list(store.values())
+    pending_value = [r for r in recs if not r.get("result") and r.get("value_pick")]
+    pending_value.sort(key=lambda r: -(r["value_pick"].get("edge") or 0))
+    settled = [r for r in recs if r.get("result")]
+    settled.sort(key=lambda r: r["result"].get("settled_at", ""), reverse=True)
+
+    roi = rep.get("value_roi")
+    roi_color = "#9aa0a6" if roi is None else ("#34a853" if roi > 0 else "#ea4335")
+    roi_txt = "—" if roi is None else f"{'+' if roi >= 0 else ''}{round(roi * 100, 1)}%"
+    pnl = rep.get("value_pnl_unites", 0.0)
+
+    def card(label, value, sub="", color="#e8eaed"):
+        return (f'<div class="card"><div class="lbl">{e(label)}</div>'
+                f'<div class="val" style="color:{color}">{e(str(value))}</div>'
+                f'<div class="sub">{e(sub)}</div></div>')
+
+    cards = "".join([
+        card("ROI value", roi_txt, f"{rep.get('value_paris_regles', 0)} paris réglés", roi_color),
+        card("P&L", f"{'+' if pnl >= 0 else ''}{pnl} u", "mise plate 1u"),
+        card("Réussite value", _pct(rep.get("value_taux_reussite")),
+             f"{rep.get('value_gagnes', 0)} gagnés"),
+        card("Précision modèle", _pct(rep.get("precision_modele")),
+             f"{rep.get('predictions_evaluees', 0)} matchs"),
+        card("Brier", rep.get("brier") if rep.get("brier") is not None else "—", "plus bas = mieux"),
+        card("Suivis", rep.get("matchs_suivis", 0), f"{rep.get('matchs_regles', 0)} réglés"),
+    ])
+
+    def pending_row(r):
+        v = r["value_pick"]
+        edge = round((v.get("edge") or 0) * 100, 1)
+        return (f'<tr><td>{e(r["home"])}<br><span class="dim">v {e(r["away"])}</span></td>'
+                f'<td><b>{e(v["player"])}</b><br><span class="dim">@ {v["odds"]}</span></td>'
+                f'<td class="pos">+{edge}pts<br><span class="dim">{v.get("stake_pct")}%</span></td></tr>')
+
+    def settled_row(r):
+        res = r["result"]
+        v = r.get("value_pick")
+        if not v:
+            outcome = "—"
+        else:
+            won = v["side"] == res["winner"]
+            pnl_v = res.get("value_pnl")
+            outcome = (f'<span class="pos">✓ +{pnl_v}u</span>' if won
+                       else f'<span class="neg">✗ {pnl_v}u</span>')
+        winner_name = r["home"] if res["winner"] == "home" else r["away"]
+        pick_txt = e(v["player"] + " @" + str(v["odds"])) if v else "—"
+        return (f'<tr><td>{e(r["home"])} v {e(r["away"])}<br>'
+                f'<span class="dim">vainqueur : {e(winner_name)}</span></td>'
+                f'<td>{pick_txt}</td><td>{outcome}</td></tr>')
+
+    pending_html = ("".join(pending_row(r) for r in pending_value)
+                    or '<tr><td colspan="3" class="dim">Aucun pari value en attente.</td></tr>')
+    settled_html = ("".join(settled_row(r) for r in settled[:30])
+                    or '<tr><td colspan="3" class="dim">Aucun match réglé pour l\'instant.</td></tr>')
+
+    return f"""<!doctype html><html lang="fr"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="300">
+<title>Paris — Tableau de bord</title>
+<style>
+  body{{margin:0;background:#0e0f13;color:#e8eaed;font-family:-apple-system,Segoe UI,Roboto,sans-serif}}
+  .wrap{{max-width:680px;margin:0 auto;padding:16px}}
+  h1{{font-size:20px;margin:8px 0}}
+  .grid{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0}}
+  .card{{background:#1a1c22;border-radius:14px;padding:12px;text-align:center}}
+  .lbl{{font-size:11px;color:#9aa0a6;text-transform:uppercase;letter-spacing:.4px}}
+  .val{{font-size:22px;font-weight:700;margin:4px 0}}
+  .sub{{font-size:11px;color:#9aa0a6}}
+  h2{{font-size:15px;margin:20px 0 8px;color:#bdc1c6}}
+  table{{width:100%;border-collapse:collapse;font-size:13px}}
+  td{{padding:10px 8px;border-bottom:1px solid #23262e;vertical-align:top}}
+  .dim{{color:#9aa0a6;font-size:12px}}
+  .pos{{color:#34a853;font-weight:600}} .neg{{color:#ea4335;font-weight:600}}
+  .banner{{background:#2a2410;border:1px solid #5c4a00;color:#f4c84a;border-radius:10px;
+           padding:10px 12px;font-size:12px;margin:10px 0}}
+  .foot{{color:#5f6368;font-size:11px;margin-top:18px;text-align:center}}
+</style></head><body><div class="wrap">
+<h1>🎾 Tableau de bord — paris</h1>
+<div class="grid">{cards}</div>
+<div class="banner">⚠️ {e(rep.get("note", ""))} Le ROI n'est fiable qu'au-delà de 100 paris réglés.
+ Ne pas conclure trop tôt. Jouez responsable.</div>
+<h2>Paris value en attente ({len(pending_value)})</h2>
+<table>{pending_html}</table>
+<h2>Derniers résultats</h2>
+<table>{settled_html}</table>
+<div class="foot">Rafraîchissement auto toutes les 5 min · données SofaScore + Unibet BE</div>
+</div></body></html>"""

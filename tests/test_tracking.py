@@ -61,3 +61,15 @@ def test_report_metrics():
     assert rep["value_paris_regles"] == 2
     assert rep["value_pnl_unites"] == 0.0  # +1.0 -1.0
     assert rep["brier"] is not None
+
+
+def test_render_dashboard_ok():
+    # vide
+    h = tracking.render_dashboard({}, tracking.report({}))
+    assert "<!doctype html>" in h and "Tableau de bord" in h
+    # peuplé
+    store = {}
+    tracking.upsert_prediction(store, _analysis(1, 0.7, "home", 2.0), "atp", "t0")
+    tracking.settle(store, 1, "home", 30, "t1")
+    h2 = tracking.render_dashboard(store, tracking.report(store))
+    assert "✓" in h2  # le pari gagnant apparaît

@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import HTMLResponse
 
 from app import tracking
 from app.analysis import build_analysis
@@ -97,6 +98,13 @@ async def settle_endpoint(
 @router.get("/report", summary="Performance du modèle (calibration, ROI des value)")
 async def get_report() -> dict:
     return tracking.report(tracking.load())
+
+
+@router.get("/dashboard", response_class=HTMLResponse,
+            summary="Tableau de bord lisible (mobile)")
+async def dashboard() -> HTMLResponse:
+    store = tracking.load()
+    return HTMLResponse(tracking.render_dashboard(store, tracking.report(store)))
 
 
 @router.get("/log", summary="Détail des prédictions suivies")

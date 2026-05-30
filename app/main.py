@@ -83,6 +83,7 @@ async def root() -> dict:
             "analyse_paris": "/analysis/{match_id}?tour=atp",
             "analyse_tous_marches": "/analysis/{match_id}/markets?tour=atp",
             "suivi_performance": "/tracking/report",
+            "tableau_de_bord": "/tracking/dashboard",
             "editions_disponibles": "/matches/seasons?tour=atp",
             "infos_tournoi": "/matches/tournament?tour=atp",
             "stats_d_un_match": "/statistics/{match_id}",
