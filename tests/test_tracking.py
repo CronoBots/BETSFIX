@@ -66,7 +66,7 @@ def test_report_metrics():
 def test_render_dashboard_ok():
     # vide
     h = tracking.render_dashboard({}, tracking.report({}))
-    assert "<!doctype html>" in h and "Tableau de bord" in h
+    assert "<!doctype html>" in h and "BetsFix" in h
     # peuplé
     store = {}
     tracking.upsert_prediction(store, _analysis(1, 0.7, "home", 2.0), "atp", "t0")
