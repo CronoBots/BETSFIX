@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from app import tracking
 from app.analysis import build_analysis
-from app.dependencies import get_provider, get_unibet
+from app.dependencies import get_livescore, get_provider, get_unibet
 from app.routers.analysis import _gather_context
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 from app.providers.unibet import UnibetProvider
@@ -61,19 +61,27 @@ async def run_settle(provider: SofaScoreProvider) -> int:
     """Renseigne le résultat réel des matchs suivis désormais terminés."""
     store = tracking.load()
     now = _now()
+    livescore = get_livescore()
     settled = 0
     for rec in list(store.values()):
         if rec.get("result"):
             continue
+        winner = total = None
         try:
             m = await provider.get_match(rec.get("tour", "atp"), rec["match_id"])
+            if m.status == "finished" and m.winner in ("home", "away"):
+                winner = m.winner
+                total = (sum(g for g in (m.home_score.sets or []) if g is not None) +
+                         sum(g for g in (m.away_score.sets or []) if g is not None)) or None
         except ProviderError:
-            continue
-        if m.status != "finished" or m.winner not in ("home", "away"):
-            continue
-        total = sum(g for g in (m.home_score.sets or []) if g is not None) + \
-            sum(g for g in (m.away_score.sets or []) if g is not None)
-        if tracking.settle(store, m.id, m.winner, total or None, now.isoformat()):
+            # Repli LiveScore : on règle au moins le vainqueur (par noms + date)
+            try:
+                winner = await livescore.find_result(
+                    rec.get("tour", "atp"), rec.get("home", ""), rec.get("away", ""),
+                    rec.get("start_time"))
+            except Exception:
+                winner = None
+        if winner and tracking.settle(store, rec["match_id"], winner, total, now.isoformat()):
             settled += 1
     tracking.save(store)
     return settled

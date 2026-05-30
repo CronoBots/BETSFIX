@@ -86,12 +86,18 @@ def _bar(pct: float | None) -> str:
     return f'<div class="bar"><span style="width:{p}%"></span></div>'
 
 
-def render_matches(groups: list[tuple[str, list[dict]]]) -> str:
+def render_matches(groups: list[tuple[str, list[dict]]], fallback: bool = False) -> str:
     """groups: liste de (titre, [match_dict]). match_dict: id,tour,home,away,time,status,
-    fav,favp,confidence,value(bool/str)."""
+    fav,favp,confidence,value,clickable."""
     e = html.escape
-    out = ['<div class="banner">Touchez un match pour son analyse détaillée. '
-           'Heure UTC. Une "value" = avis du modèle, à confirmer par le suivi.</div>']
+    out = []
+    if fallback:
+        out.append('<div class="banner">⚠️ SofaScore momentanément indisponible — scores '
+                   'affichés via LiveScore (repli). L\'analyse détaillée revient dès que '
+                   'SofaScore répond.</div>')
+    else:
+        out.append('<div class="banner">Touchez un match pour son analyse détaillée. '
+                   'Heure UTC. Une "value" = avis du modèle, à confirmer par le suivi.</div>')
     total = 0
     for title, ms in groups:
         if not ms:
@@ -102,14 +108,17 @@ def render_matches(groups: list[tuple[str, list[dict]]]) -> str:
             badge = (f'<span class="badge b-val">VALUE · {e(m["value"])}</span>'
                      if m.get("value") else '<span class="badge b-dim">—</span>')
             status = "🔴 en cours" if m["status"] == "inprogress" else e(m.get("time") or "")
-            out.append(
-                f'<a class="row" href="/app/match/{m["id"]}?tour={m["tour"]}">'
+            inner = (
                 f'<div class="rowtop"><span>{e(m["tour"].upper())} · {status}</span>{badge}</div>'
                 f'<div class="players">{e(m["home"])} <span class="dim">vs</span> {e(m["away"])}</div>'
                 f'<div class="dim">favori modèle : {e(m.get("fav") or "—")} {e(m.get("favp") or "")}'
-                f' · confiance {e(m.get("confidence") or "—")}</div></a>')
+                f' · confiance {e(m.get("confidence") or "—")}</div>')
+            if m.get("clickable", True):
+                out.append(f'<a class="row" href="/app/match/{m["id"]}?tour={m["tour"]}">{inner}</a>')
+            else:
+                out.append(f'<div class="row">{inner}</div>')
     if not total:
-        out.append('<div class="dim">Aucun match à venir avec cotes pour le moment.</div>')
+        out.append('<div class="dim">Aucun match à venir pour le moment.</div>')
     return layout("Matchs", "matches", "".join(out), refresh=True)
 
 

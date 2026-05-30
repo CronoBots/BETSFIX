@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from app import tracking, web
 from app.analysis import build_analysis
 from app.analysis import _match_winner_odds
-from app.dependencies import get_provider, get_unibet
+from app.dependencies import get_provider, get_unibet, matches_with_fallback
 from app.routers.analysis import _gather_context
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 from app.providers.unibet import UnibetProvider
@@ -32,12 +32,12 @@ async def matches_page(
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(hours=HORIZON_HOURS)
     groups = []
+    fallback = False
     for tour, title in (("atp", "ATP — à venir"), ("wta", "WTA — à venir")):
         rows = []
-        try:
-            matches = await provider.get_matches(tour)
-        except ProviderError:
-            matches = []
+        matches, src = await matches_with_fallback(tour)
+        if src == "livescore":
+            fallback = True
         for m in matches:
             if m.status not in ("notstarted", "inprogress"):
                 continue
@@ -58,10 +58,11 @@ async def matches_page(
                 "time": m.start_time.strftime("%d/%m %H:%M") if m.start_time else "",
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
                 "value": (f'{vpick["player"]} @{vpick["odds"]}' if vpick else None),
+                "clickable": m.source == "sofascore",  # l'analyse exige un id SofaScore
             })
         rows.sort(key=lambda r: r["time"])
         groups.append((title, rows))
-    return HTMLResponse(web.render_matches(groups))
+    return HTMLResponse(web.render_matches(groups, fallback=fallback))
 
 
 @router.get("/app/match/{match_id}", response_class=HTMLResponse)

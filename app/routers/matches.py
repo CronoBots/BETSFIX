@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.dependencies import get_provider, get_unibet
+from app.dependencies import get_provider, get_unibet, matches_with_fallback
 from app.models import (
     HeadToHead,
     Match,
@@ -42,8 +42,11 @@ async def list_matches(
 ) -> list[Match]:
     try:
         matches = await provider.get_matches(tour, season)
-    except ProviderError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except ProviderError:
+        # Repli LiveScore si SofaScore est indisponible (403/timeout)
+        matches, _src = await matches_with_fallback(tour)
+        if not matches:
+            raise HTTPException(status_code=502, detail="Sources de données indisponibles.")
 
     if round:
         matches = [m for m in matches if round_matches(m, round)]

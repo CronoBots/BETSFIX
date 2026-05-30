@@ -48,6 +48,7 @@ class Match(BaseModel):
     has_statistics: bool = False
     custom_id: str | None = None
     slug: str | None = None
+    source: str = Field(default="sofascore", description="Source des données : sofascore / livescore")
 
     @staticmethod
     def _ts_to_dt(ts: int | None) -> datetime | None:
