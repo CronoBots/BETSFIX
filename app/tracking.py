@@ -217,7 +217,7 @@ def render_today(store: dict) -> str:
     upcoming.sort(key=lambda r: r.get("start_time") or "")
 
     def hhmm(iso):
-        return iso[11:16] if iso and len(iso) >= 16 else "—"
+        return web.fmt_local(iso, with_date=False) or "—"
 
     def row(r):
         hp = r.get("model_home_prob")
@@ -242,7 +242,7 @@ def render_today(store: dict) -> str:
     rows = ("".join(row(r) for r in upcoming)
             or '<tr><td colspan="3" class="dim">Aucun match à venir suivi pour le moment.</td></tr>')
     body = (f'<div class="banner">Analyses des matchs à venir (≤ 48 h) avec cotes Unibet. '
-            f'Heure UTC. Une "value" = avis du modèle, à confirmer par le suivi.</div>'
+            f'Heures en fuseau belge. Une "value" = avis du modèle, à confirmer par le suivi.</div>'
             f'<h2>Matchs à venir ({len(upcoming)})</h2>'
             f'<table><tr><td class="dim">Heure</td><td class="dim">Match</td>'
             f'<td class="dim">Value</td></tr>{rows}</table>')

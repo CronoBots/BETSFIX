@@ -61,8 +61,11 @@ class LiveScoreProvider:
             d = (today + timedelta(days=off)).strftime("%Y%m%d")
             data = await self._date(d)
             for stage in data.get("Stages", []) or []:
-                name = (stage.get("Snm", "") + " " + stage.get("Cnm", "")).lower()
-                if "french open" not in name or want not in name:
+                cnm = (stage.get("Cnm") or "").lower()
+                snm = (stage.get("Snm") or "").strip().lower()
+                # Correspondance EXACTE du libellé (sinon "women's singles" contient
+                # "men's singles" -> les femmes fuitaient dans l'ATP).
+                if "french open" not in cnm or snm != want:
                     continue
                 for ev in stage.get("Events", []) or []:
                     eid = ev.get("Eid")

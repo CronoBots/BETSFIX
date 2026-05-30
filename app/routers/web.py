@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
 from app import tracking, web
-from app.analysis import build_analysis
+from app.analysis import build_analysis, prob_from_rankings
 from app.analysis import _match_winner_odds
 from app.dependencies import get_provider, get_unibet, matches_with_fallback
 from app.routers.analysis import _gather_context
@@ -46,6 +46,8 @@ async def matches_page(
                 continue
             rec = store.get(str(m.id), {})
             hp = rec.get("model_home_prob")
+            if hp is None:  # pas encore dans le suivi -> estimation rapide par classement
+                hp = prob_from_rankings(m.home.ranking, m.away.ranking)
             if hp is None:
                 fav = favp = None
             elif hp >= 0.5:
@@ -56,7 +58,7 @@ async def matches_page(
             rows.append({
                 "id": m.id, "tour": tour, "home": m.home.name, "away": m.away.name,
                 "status": m.status,
-                "time": m.start_time.strftime("%d/%m %H:%M") if m.start_time else "",
+                "time": web.fmt_local(m.start_time),
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
                 "value": (f'{vpick["player"]} @{vpick["odds"]}' if vpick else None),
                 "clickable": m.source == "sofascore",  # l'analyse exige un id SofaScore

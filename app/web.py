@@ -7,6 +7,28 @@ détail/analyse d'un match. Thème sombre, nav commune. Aucun JS requis.
 from __future__ import annotations
 
 import html
+from datetime import datetime
+
+try:
+    from zoneinfo import ZoneInfo
+    LOCAL_TZ = ZoneInfo("Europe/Brussels")
+except Exception:  # pragma: no cover
+    LOCAL_TZ = None
+
+
+def fmt_local(value, with_date: bool = True) -> str:
+    """Formate un datetime/ISO en heure locale belge. '' si absent."""
+    if value is None:
+        return ""
+    dt = value
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value)
+        except ValueError:
+            return value[11:16] if len(value) >= 16 else value
+    if LOCAL_TZ is not None and getattr(dt, "tzinfo", None) is not None:
+        dt = dt.astimezone(LOCAL_TZ)
+    return dt.strftime("%d/%m %H:%M" if with_date else "%H:%M")
 
 CSS = """
   *{box-sizing:border-box}
@@ -108,7 +130,7 @@ def render_matches(groups: list[tuple[str, list[dict]]], fallback: bool = False)
                    'SofaScore répond.</div>')
     else:
         out.append('<div class="banner">Touchez un match pour son analyse détaillée. '
-                   'Heure UTC. Une "value" = avis du modèle, à confirmer par le suivi.</div>')
+                   'Heures en fuseau belge. Une "value" = avis du modèle, à confirmer par le suivi.</div>')
     total = 0
     for title, ms in groups:
         if not ms:
