@@ -18,6 +18,7 @@ import math
 import os
 
 from app import web
+from app.analysis import remove_vig
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_PATH = os.path.join(_ROOT, "data", "tracking.json")
@@ -48,6 +49,7 @@ def upsert_prediction(store: dict, analysis, tour: str, now_iso: str,
         return False
 
     value = next((v for v in analysis.value_bets if v.is_value), None)
+    home_odds, away_odds = _odds_for(analysis, "home"), _odds_for(analysis, "away")
     rec.update({
         "match_id": analysis.match_id,
         "tour": tour,
@@ -56,8 +58,10 @@ def upsert_prediction(store: dict, analysis, tour: str, now_iso: str,
         "away": analysis.away.name,
         "model_home_prob": analysis.model_home_probability,
         "confidence": analysis.confidence,
-        "unibet_home_odds": _odds_for(analysis, "home"),
-        "unibet_away_odds": _odds_for(analysis, "away"),
+        # Cote courante : à mesure qu'on rafraîchit jusqu'au coup d'envoi, ce champ
+        # converge vers la cote de CLÔTURE (la plus efficiente).
+        "unibet_home_odds": home_odds,
+        "unibet_away_odds": away_odds,
         "value_pick": ({
             "side": value.side, "player": value.player, "odds": value.odds,
             "edge": value.edge, "stake_pct": value.recommended_stake_pct,
@@ -65,6 +69,9 @@ def upsert_prediction(store: dict, analysis, tour: str, now_iso: str,
         "last_update": now_iso,
     })
     rec.setdefault("first_logged", now_iso)
+    # Cote d'OUVERTURE : figée au tout premier log (sert au calcul du CLV).
+    rec.setdefault("open_home_odds", home_odds)
+    rec.setdefault("open_away_odds", away_odds)
     store[key] = rec
     return True
 
@@ -96,13 +103,57 @@ def settle(store: dict, match_id: int, winner: str | None, total_games: int | No
 
 
 # --------------------------------------------------------------- rapport
+def _market_home_prob(rec: dict) -> float | None:
+    """Proba implicite (vig retirée) du marché de clôture pour 'home'."""
+    devig = remove_vig(rec.get("unibet_home_odds"), rec.get("unibet_away_odds"))
+    return devig[0] if devig else None
+
+
+def clv_pct(rec: dict) -> float | None:
+    """CLV du favori du modèle : cote d'ouverture vs clôture, en proba.
+
+    >0 = la cote prise à l'ouverture battait la clôture (on a anticipé le marché).
+    C'est le juge d'edge le plus rapide : pas besoin d'attendre le résultat, juste la
+    cote de clôture (≈ dernier rafraîchissement avant le coup d'envoi).
+    """
+    hp = rec.get("model_home_prob")
+    if hp is None:
+        return None
+    side = "home" if hp >= 0.5 else "away"
+    op, cl = rec.get(f"open_{side}_odds"), rec.get(f"unibet_{side}_odds")
+    if not op or not cl or op <= 1 or cl <= 1:
+        return None
+    return op / cl - 1.0
+
+
+def calibration_table(pred: list[dict], bins: int = 5) -> list[dict]:
+    """Proba prédite (côté favori) vs taux réel, par tranche. Pour la courbe de calib."""
+    buckets = [[0, 0.0, 0] for _ in range(bins)]  # [n, somme_proba_fav, victoires_fav]
+    for r in pred:
+        hp = r["model_home_prob"]
+        fav_home = hp >= 0.5
+        pfav = hp if fav_home else 1 - hp
+        fav_won = (r["result"]["winner"] == "home") == fav_home
+        i = min(int(pfav * bins), bins - 1)
+        buckets[i][0] += 1
+        buckets[i][1] += pfav
+        buckets[i][2] += 1 if fav_won else 0
+    out = []
+    for i, (cnt, sp, w) in enumerate(buckets):
+        if cnt:
+            out.append({"label": f"{int(i/bins*100)}-{int((i+1)/bins*100)}%",
+                        "n": cnt, "predit": sp / cnt, "reel": w / cnt})
+    return out
+
+
 def report(store: dict) -> dict:
     settled = [r for r in store.values() if r.get("result")]
     pred = [r for r in settled if r.get("model_home_prob") is not None]
 
-    # Calibration / précision du modèle sur résultats réels
+    # Calibration / précision du modèle ET baseline marché, sur résultats réels
     brier = ll = 0.0
-    correct = 0
+    mkt_brier = mkt_ll = 0.0
+    correct = mkt_n = 0
     for r in pred:
         p = min(max(r["model_home_prob"], 1e-6), 1 - 1e-6)
         y = 1 if r["result"]["winner"] == "home" else 0
@@ -110,7 +161,17 @@ def report(store: dict) -> dict:
         ll += -(y * math.log(p) + (1 - y) * math.log(1 - p))
         if (p >= 0.5) == (y == 1):
             correct += 1
+        # Baseline : le marché (cotes de clôture dévig) prédit-il mieux ?
+        mp = _market_home_prob(r)
+        if mp is not None:
+            mp = min(max(mp, 1e-6), 1 - 1e-6)
+            mkt_brier += (mp - y) ** 2
+            mkt_ll += -(y * math.log(mp) + (1 - y) * math.log(1 - mp))
+            mkt_n += 1
     n = len(pred)
+
+    # CLV (closing line value) du favori du modèle — juge d'edge sans attendre N matchs
+    clvs = [c for c in (clv_pct(r) for r in pred) if c is not None]
 
     # Performance des paris 'value'
     picks = [r for r in settled if r.get("value_pick") and r["result"].get("value_pnl") is not None]
@@ -124,6 +185,15 @@ def report(store: dict) -> dict:
         "precision_modele": round(correct / n, 3) if n else None,
         "brier": round(brier / n, 4) if n else None,
         "log_loss": round(ll / n, 4) if n else None,
+        # Baseline marché : si le marché fait MIEUX (Brier/LL plus bas), le modèle
+        # n'apporte pas d'edge — c'est la vraie question, pas la précision absolue.
+        "brier_marche": round(mkt_brier / mkt_n, 4) if mkt_n else None,
+        "log_loss_marche": round(mkt_ll / mkt_n, 4) if mkt_n else None,
+        "bat_le_marche": (None if not mkt_n else (brier / n) < (mkt_brier / mkt_n)),
+        # CLV : > 0 en moyenne = on prend de meilleures cotes que la clôture
+        "clv_evalue": len(clvs),
+        "clv_moyen": round(sum(clvs) / len(clvs), 4) if clvs else None,
+        "clv_positif_pct": round(sum(1 for c in clvs if c > 0) / len(clvs), 3) if clvs else None,
         "value_paris_regles": len(picks),
         "value_gagnes": wins,
         "value_taux_reussite": round(wins / len(picks), 3) if picks else None,
@@ -157,13 +227,48 @@ def render_dashboard(store: dict, rep: dict) -> str:
                 f'<div class="val" style="color:{color}">{e(str(value))}</div>'
                 f'<div class="sub">{e(sub)}</div></div>')
 
+    def num(x):
+        return x if x is not None else "—"
+
+    # Le modèle bat-il le marché ? (Brier plus bas = mieux)
+    b_mod, b_mkt = rep.get("brier"), rep.get("brier_marche")
+    if b_mod is not None and b_mkt is not None:
+        beat = rep.get("bat_le_marche")
+        brier_color = "#34a853" if beat else "#ea4335"
+        brier_sub = "bat le marché ✓" if beat else f"marché : {b_mkt}"
+    else:
+        brier_color, brier_sub = "#e8eaed", "plus bas = mieux"
+
+    # CLV : juge d'edge le plus rapide
+    clv = rep.get("clv_moyen")
+    clv_color = "#9aa0a6" if clv is None else ("#34a853" if clv > 0 else "#ea4335")
+    clv_txt = "—" if clv is None else f"{'+' if clv >= 0 else ''}{round(clv * 100, 1)}%"
+
     cards = "".join([
         card("Précision", _pct(prec), f"{rep.get('predictions_evaluees', 0)} matchs", prec_color),
-        card("Brier", rep.get("brier") if rep.get("brier") is not None else "—", "plus bas = mieux"),
-        card("Log-loss", rep.get("log_loss") if rep.get("log_loss") is not None else "—",
-             "plus bas = mieux"),
+        card("Brier modèle", num(b_mod), brier_sub, brier_color),
+        card("Brier marché", num(b_mkt), "réf. à battre"),
+        card("CLV moyen", clv_txt, f"{rep.get('clv_evalue', 0)} picks · >0 = edge", clv_color),
+        card("Log-loss", num(rep.get("log_loss")), f"marché : {num(rep.get('log_loss_marche'))}"),
         card("Matchs suivis", rep.get("matchs_suivis", 0), f"{rep.get('matchs_regles', 0)} réglés"),
     ])
+
+    # Courbe de calibration : proba prédite vs taux réel par tranche
+    calib = calibration_table(settled)
+    if calib:
+        calib_rows = "".join(
+            f'<tr><td>{e(b["label"])}</td><td>{b["n"]}</td>'
+            f'<td>{round(b["predit"]*100)}%</td><td>{round(b["reel"]*100)}%</td></tr>'
+            for b in calib)
+        calib_html = (
+            '<h2>Calibration (favori du modèle)</h2>'
+            '<div class="banner">Une proba bien calibrée = "prédit" ≈ "réel". '
+            'Si le modèle dit 70 % et que ça gagne ~70 % du temps, il est honnête.</div>'
+            '<table><tr><td class="dim">proba prédite</td><td class="dim">n</td>'
+            '<td class="dim">prédit (moy)</td><td class="dim">réel</td></tr>'
+            f'{calib_rows}</table>')
+    else:
+        calib_html = ""
 
     def settled_row(r):
         res = r["result"]
@@ -186,7 +291,8 @@ def render_dashboard(store: dict, rep: dict) -> str:
  un modèle simple ne bat pas un book sérieux. Fiable à partir de ~100 matchs réglés.</div>
 <h2>Le modèle vs résultats réels</h2>
 <table><tr><td class="dim">match</td><td class="dim">prédiction</td>
-<td class="dim">vainqueur</td></tr>{settled_html}</table>"""
+<td class="dim">vainqueur</td></tr>{settled_html}</table>
+{calib_html}"""
     return web.layout("Fiabilité", "perf", body, refresh=True)
 
 

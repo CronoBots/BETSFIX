@@ -169,18 +169,30 @@ puis la confronte aux **cotes Unibet Belgique** pour repérer la *value* :
 
 | Facteur | Poids | Source |
 |---------|-------|--------|
-| Classement | 0,50 | Rangs ATP/WTA, **modèle calibré** (régression logistique) |
-| Forme récente | 0,25 | Bilan **pondéré par récence**, spécifique terre battue |
-| Surface | 0,15 | Stats service + conversion de breaks sur la surface |
-| Head-to-head | 0,10 | Confrontations directes |
+| **Elo par surface** | 0,45 | Force réelle pondérée par les adversaires, **note terre battue** distincte (`tools/build_elo.py`) |
+| Classement | 0,20 | Rangs ATP/WTA, **modèle calibré** (régression logistique) — repli si pas d'Elo |
+| Forme vs attente | 0,20 | Sur-/sous-performance vs rang de l'adversaire, **pondérée par récence**, spécifique terre |
+| Surface | 0,10 | Stats service + conversion de breaks sur la surface |
+| Head-to-head | 0,05 | Confrontations directes |
 
-### Calibration (back-test)
+Les poids sont **renormalisés** sur les facteurs présents : un joueur sans note Elo
+retombe proprement sur le classement. La forme ne compte plus une victoire « 1 » à
+plat — elle mesure l'écart au résultat *attendu* selon le rang de l'adversaire, donc
+battre un top-10 pèse bien plus que battre un n°200.
+
+### Calibration & notes Elo (back-test)
 
 Le facteur classement est **calibré sur ~1150 matchs RG historiques** (ATP+WTA,
 8 saisons) via `tools/backtest.py` — `P = sigmoid(b0 + b1·(ln rang_adv − ln rang))`,
 avec `b0≈0,02` (≈0 : pas d'avantage « home » au tennis) et `b1≈0,40`. Sur jeu de
 test séparé : **log-loss 0,64**, **Brier 0,22**, **précision 64 %**, et une
 calibration fidèle (proba prédite ≈ taux réel observé). Relancer : `python tools/backtest.py`.
+
+Les notes **Elo** (global + terre battue, base 1500, K=24) se construisent à part :
+`python tools/build_elo.py` collecte l'historique SofaScore des joueurs RG, déroule
+l'Elo chronologiquement et écrit `data/elo_ratings.json`. Tant que ce fichier n'existe
+pas, le modèle fonctionne en repli sur le classement. À relancer périodiquement pour
+garder les notes fraîches.
 
 ### Détection de value (prudente)
 
@@ -199,6 +211,23 @@ calibration fidèle (proba prédite ≈ taux réel observé). Relancer : `python
 > la vraie value est rare. À utiliser comme aide à la réflexion, pas comme source de
 > vérité. Les cotes Unibet ne sont disponibles que pour les matchs **à venir / en
 > cours**. Jouez de manière responsable, uniquement ce que vous pouvez perdre.
+
+### Mesure de la fiabilité (page « Perf » / `/tracking`)
+
+On logge chaque prédiction + ses cotes (rafraîchies jusqu'au coup d'envoi), puis le
+résultat. Le rapport `/tracking/report` et le dashboard donnent alors :
+
+- **Précision / Brier / log-loss du modèle**, et — surtout — les **mêmes métriques
+  pour le marché** (cotes de clôture dévig) en regard. La vraie question n'est pas
+  « le modèle a-t-il raison ? » mais « fait-il **mieux que le marché** ? » (`bat_le_marche`).
+- **CLV (closing line value)** : compare la cote d'**ouverture** (premier log) à la
+  cote de **clôture** sur le favori du modèle. Un CLV moyen **> 0** = on prend de
+  meilleures cotes que la clôture → signe d'edge, lisible **bien avant** d'avoir 100
+  résultats (pas besoin d'attendre l'issue des matchs).
+- **Courbe de calibration** : proba prédite vs taux réel par tranche (50-60 %, …).
+
+> Fiable à partir de **~100 matchs réglés** — en dessous, tout écart est du bruit. Ne
+> recalibre **pas** le modèle sur une poignée de résultats.
 
 ## Tests
 

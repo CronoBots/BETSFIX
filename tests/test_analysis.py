@@ -3,6 +3,7 @@
 from app.analysis import (
     MODEL_TRUST,
     build_analysis,
+    form_rating,
     kelly_fraction,
     prob_from_rankings,
     remove_vig,
@@ -69,6 +70,42 @@ def test_weighted_form_recency():
     wwin, wsum = weighted_form(matches, 100)
     assert wsum > 0
     assert wwin / wsum > 0.5
+
+
+def test_form_rating_rewards_beating_strong_opponents():
+    # Joueur n°50 qui bat 5 fois des top-5 (résultat très au-dessus de l'attente)
+    strong = [Match(id=i, tour="atp", status="finished", winner="home",
+                    home=Player(id=1, ranking=50), away=Player(id=9000 + i, ranking=3))
+              for i in range(5)]
+    # Même joueur qui bat 5 fois des n°300 (attendu -> peu de mérite)
+    weak = [Match(id=i, tour="atp", status="finished", winner="home",
+                  home=Player(id=1, ranking=50), away=Player(id=8000 + i, ranking=300))
+            for i in range(5)]
+    r_strong, _, n1 = form_rating(strong, 1)
+    r_weak, _, n2 = form_rating(weak, 1)
+    assert n1 == 5 and n2 == 5
+    # Battre des plus forts = sur-performance bien plus marquée
+    assert r_strong > r_weak > 0
+
+
+def test_form_rating_penalizes_losing_to_weak():
+    # n°10 qui perd contre des n°200 -> sous-performance nette (résidu négatif)
+    losses = [Match(id=i, tour="atp", status="finished", winner="away",
+                    home=Player(id=1, ranking=10), away=Player(id=8000 + i, ranking=200))
+              for i in range(4)]
+    r, _, n = form_rating(losses, 1)
+    assert n == 4 and r < 0
+
+
+def test_build_analysis_uses_elo_factor():
+    match = _match(home_rank=10, away_rank=10)
+    # Elo nettement favorable à 'home' alors que les rangs sont égaux
+    a = build_analysis(match, [], [], None, None, None, None,
+                       UnibetOdds(match_id=1, matched=False),
+                       elo_home=1900, elo_away=1500)
+    assert "elo" in {f.name for f in a.factors}
+    # Le facteur Elo (poids dominant) tire la proba home au-dessus du 50/50 des rangs
+    assert (a.model_home_probability or 0) > 0.55
 
 
 def test_build_analysis_detects_value():

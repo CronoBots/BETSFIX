@@ -63,6 +63,56 @@ def test_report_metrics():
     assert rep["brier"] is not None
 
 
+def _analysis_with_odds(mid, home_prob, home_odds, away_odds):
+    """Analyse portant les cotes des deux côtés (comme en prod, value ou non)."""
+    a = _analysis(mid, home_prob)
+    a.value_bets = [
+        ValueBet(side="home", player="Home", odds=home_odds, is_value=False),
+        ValueBet(side="away", player="Away", odds=away_odds, is_value=False),
+    ]
+    return a
+
+
+def test_clv_open_vs_close():
+    store = {}
+    # Premier log : cote d'ouverture du favori home = 2.0
+    tracking.upsert_prediction(store, _analysis_with_odds(1, 0.6, 2.0, 2.0), "atp", "t0")
+    assert store["1"]["open_home_odds"] == 2.0
+    # Rafraîchissement : la cote home se raccourcit à 1.8 (clôture) -> on a battu la clôture
+    tracking.upsert_prediction(store, _analysis_with_odds(1, 0.6, 1.8, 2.2), "atp", "t1")
+    assert store["1"]["open_home_odds"] == 2.0          # ouverture figée
+    assert store["1"]["unibet_home_odds"] == 1.8        # clôture = dernier log
+    clv = tracking.clv_pct(store["1"])
+    assert clv is not None and clv > 0                   # 2.0/1.8 - 1 > 0
+
+
+def test_report_market_baseline_and_clv():
+    store = {}
+    # Favori home @1.5 (implicite ~0.6) qui gagne ; ouverture 1.7 -> CLV positif
+    tracking.upsert_prediction(store, _analysis_with_odds(1, 0.65, 1.7, 2.6), "atp", "t0")
+    tracking.upsert_prediction(store, _analysis_with_odds(1, 0.65, 1.5, 2.6), "atp", "t1")
+    tracking.settle(store, 1, "home", 30, "t2")
+    rep = tracking.report(store)
+    assert rep["brier_marche"] is not None
+    assert rep["log_loss_marche"] is not None
+    assert rep["bat_le_marche"] in (True, False)
+    assert rep["clv_evalue"] == 1
+    assert rep["clv_moyen"] is not None
+
+
+def test_calibration_table():
+    store = {}
+    tracking.upsert_prediction(store, _analysis(1, 0.7), "atp", "t0")
+    tracking.upsert_prediction(store, _analysis(2, 0.72), "atp", "t0")
+    tracking.settle(store, 1, "home", 30, "t1")   # favori (home) gagne
+    tracking.settle(store, 2, "away", 30, "t1")   # favori (home) perd
+    settled = [r for r in store.values() if r.get("result")]
+    table = tracking.calibration_table(settled)
+    assert table and table[0]["n"] == 2
+    assert 0.0 <= table[0]["reel"] <= 1.0
+    assert table[0]["reel"] == 0.5                 # 1 favori sur 2 gagne
+
+
 def test_render_dashboard_ok():
     # vide
     h = tracking.render_dashboard({}, tracking.report({}))

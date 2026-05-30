@@ -1,10 +1,14 @@
 """Modèle d'aide à la décision de pari (pré-match tennis).
 
 Approche **transparente et calibrée sur données réelles** :
-1. Un facteur **classement** calibré par régression logistique sur ~1150 matchs
-   RG historiques (cf. tools/backtest.py) — bien calibré (log-loss ≈ 0.64).
-2. Des facteurs **forme** (pondérée par récence + spécifique terre battue),
-   **surface** (service/retour) et **head-to-head** qui ajustent la base.
+1. Un facteur **Elo par surface** (force réelle pondérée par la qualité des
+   adversaires, note terre battue distincte ; cf. tools/build_elo.py) — facteur
+   principal quand il est disponible. À défaut, un facteur **classement** calibré
+   par régression logistique sur ~1150 matchs RG (cf. tools/backtest.py) prend le
+   relais (log-loss ≈ 0.64).
+2. Des facteurs **forme vs attente** (sur-/sous-performance par rapport au rang de
+   l'adversaire, pondérée par récence + spécifique terre), **surface**
+   (service/retour) et **head-to-head** qui ajustent la base.
 3. La probabilité du modèle est ensuite **ancrée au marché** (cotes Unibet) :
    le marché est un estimateur sharp, on ne s'en écarte que modérément. C'est ce
    qui évite les fausses "values" sur les gros outsiders.
@@ -18,6 +22,7 @@ from __future__ import annotations
 
 import math
 
+from app.elo import prob_from_elo
 from app.models import (
     AnalysisFactor,
     Match,
@@ -32,8 +37,11 @@ from app.models import (
 RANK_B0 = 0.0507
 RANK_B1 = 0.3668
 
-# Poids des facteurs (le classement calibré domine ; renormalisés si manquants).
-WEIGHTS = {"classement": 0.50, "forme": 0.25, "surface": 0.15, "head_to_head": 0.10}
+# Poids des facteurs (renormalisés sur les facteurs présents). L'Elo (force réelle
+# pondérée par les adversaires, spécifique terre) domine quand il est disponible ;
+# le classement reste le repli principal pour les joueurs sans note Elo.
+WEIGHTS = {"elo": 0.45, "classement": 0.20, "forme": 0.20, "surface": 0.10,
+           "head_to_head": 0.05}
 
 # Ancrage au marché : confiance accordée au modèle vs aux cotes du bookmaker.
 # fair = MODEL_TRUST * modèle + (1 - MODEL_TRUST) * marché. Le marché étant sharp,
@@ -114,21 +122,61 @@ def weighted_form(matches: list[Match], player_id: int | None, last: int = 25,
     return wwin, wsum
 
 
+def form_rating(matches: list[Match], player_id: int | None, last: int = 25,
+                clay_only: bool = False) -> tuple[float, float, int]:
+    """Forme **vs attente** : a-t-on fait mieux que ce que le rang prévoyait ?
+
+    Pour chaque match : résultat (1/0) − proba attendue contre cet adversaire selon
+    son classement. Battre un top-10 compte donc bien plus que battre un n°200 ; une
+    défaite contre plus fort ne pénalise presque pas. Pondéré par récence (FORM_DECAY).
+    Retourne (résidu_moyen ∈ ~[-0.5, 0.5], poids_total, n_matchs).
+    """
+    if player_id is None:
+        return 0.0, 0.0, 0
+    wsum = rsum = 0.0
+    i = 0
+    for m in matches:
+        if m.status != "finished" or m.winner not in ("home", "away"):
+            continue
+        if clay_only and "clay" not in (m.ground_type or "").lower():
+            continue
+        side = _player_side(m, player_id)
+        if side is None:
+            continue
+        my_rank = m.home.ranking if side == "home" else m.away.ranking
+        opp_rank = m.away.ranking if side == "home" else m.home.ranking
+        expected = prob_from_rankings(my_rank, opp_rank)
+        if expected is None:  # adversaire/rang inconnu -> attente neutre
+            expected = 0.5
+        won = 1.0 if m.winner == side else 0.0
+        w = FORM_DECAY ** i
+        wsum += w
+        rsum += w * (won - expected)
+        i += 1
+        if i >= last:
+            break
+    if wsum <= 0:
+        return 0.0, 0.0, 0
+    return rsum / wsum, wsum, i
+
+
 def _form_pair(home_matches, away_matches, match: Match) -> tuple[tuple[float, float] | None, str]:
-    """Probabilités de forme (home, away), en privilégiant la terre battue."""
+    """Probabilités de forme (home, away) basées sur la performance vs attente,
+    en privilégiant la terre battue."""
     # Terre battue d'abord si assez de données des deux côtés
-    hw, hn = weighted_form(home_matches, match.home.id, clay_only=True)
-    aw, an = weighted_form(away_matches, match.away.id, clay_only=True)
+    rh, _, nh = form_rating(home_matches, match.home.id, clay_only=True)
+    ra, _, na = form_rating(away_matches, match.away.id, clay_only=True)
     label = "terre battue"
-    if hn < 3 or an < 3:  # pas assez de clay -> toutes surfaces
-        hw, hn = weighted_form(home_matches, match.home.id)
-        aw, an = weighted_form(away_matches, match.away.id)
+    if nh < 3 or na < 3:  # pas assez de clay -> toutes surfaces
+        rh, _, nh = form_rating(home_matches, match.home.id)
+        ra, _, na = form_rating(away_matches, match.away.id)
         label = "toutes surfaces"
-    if hn <= 0 or an <= 0:
+    if nh <= 0 or na <= 0:
         return None, label
-    fh = (hw + 1) / (hn + 2)  # lissage de Laplace
-    fa = (aw + 1) / (an + 2)
-    return _normalize_pair(fh, fa), f"forme pondérée ({label})"
+    # Chaque résidu ajuste la base 0.5 (sur-/sous-performance), puis on normalise.
+    fh = min(max(0.5 + rh, 0.02), 0.98)
+    fa = min(max(0.5 + ra, 0.02), 0.98)
+    return _normalize_pair(fh, fa), f"forme vs attente ({label})"
 
 
 def _surface_strength(stats: PlayerStatistics | None) -> float | None:
@@ -179,10 +227,22 @@ def build_analysis(
     home_wins_h2h: int | None,
     away_wins_h2h: int | None,
     unibet: UnibetOdds | None,
+    elo_home: float | None = None,
+    elo_away: float | None = None,
 ) -> MatchAnalysis:
     factors: list[AnalysisFactor] = []
 
-    # 1) Classement (calibré)
+    # 0) Elo par surface (force réelle pondérée par les adversaires) — facteur principal
+    pe = prob_from_elo(elo_home, elo_away)
+    if pe is not None:
+        surf = "terre" if "clay" in (match.ground_type or "").lower() else "global"
+        factors.append(AnalysisFactor(
+            name="elo", home=round(pe, 4), away=round(1 - pe, 4),
+            weight=WEIGHTS["elo"],
+            detail=f"Elo {surf} {round(elo_home)} vs {round(elo_away)}",
+        ))
+
+    # 1) Classement (calibré) — repli et complément de l'Elo
     p = prob_from_rankings(match.home.ranking, match.away.ranking)
     if p is not None:
         factors.append(AnalysisFactor(

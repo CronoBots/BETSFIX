@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import tracking, web
+from app import elo, tracking, web
 from app.analysis import build_analysis, prob_from_rankings
 from app.analysis import _match_winner_odds
 from app.dependencies import (
@@ -103,12 +103,13 @@ async def match_detail(
         return await _light_detail(match_id, tour, unibet, rankings)
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
+    elo_home, elo_away = elo.ratings_for_match(match)
     analysis = build_analysis(
         match=match, home_matches=hm or [], away_matches=am or [],
         home_stats=hs, away_stats=as_,
         home_wins_h2h=h2h.home_wins if h2h else None,
         away_wins_h2h=h2h.away_wins if h2h else None,
-        unibet=odds,
+        unibet=odds, elo_home=elo_home, elo_away=elo_away,
     )
     winner_odds = _match_winner_odds(odds, match) if (odds and odds.matched) else (None, None)
     return HTMLResponse(web.render_match_detail(analysis, winner_odds))
