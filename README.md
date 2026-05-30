@@ -231,6 +231,36 @@ prêt pour **Render** (gratuit) via `render.yaml` :
 Alternatives : un `Procfile` est fourni pour **Railway** / **Fly.io** (même
 commande de démarrage).
 
+## Accès mobile via TON PC (tunnel Cloudflare)
+
+Pour que les requêtes partent de **ton PC** (IP belge → cotes Unibet OK) tout en
+y accédant depuis le mobile, l'API est exposée par un **tunnel Cloudflare**
+(`cloudflared`) sur une URL fixe (ex. `https://api.betsfix.com`). Scripts dans
+`deploy/` :
+
+| Script | Rôle |
+|--------|------|
+| `reconnexion.bat` | **Dépannage rapide** : double-clic → relance API + tunnel (garde la fenêtre ouverte). |
+| `deploy/run_mobile.ps1` | Lance l'API + le tunnel (URL fixe via token). |
+| `deploy/setup_token.ps1` | Tunnel en **service Windows** + API en tâche **à l'ouverture de session**. |
+| `deploy/setup_full_service.ps1` | **Automatisation 100 % sans login** : tunnel ET API démarrent au boot (API en tâche SYSTEM, auto-relance). |
+| `deploy/api_service_loop.ps1` | Superviseur qui maintient uvicorn en vie (utilisé par la tâche SYSTEM). |
+
+**Automatisation complète (recommandée)** — dans un PowerShell *Administrateur* :
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+powershell -ExecutionPolicy Bypass -File .\deploy\setup_full_service.ps1 -Token "eyJ...."
+```
+
+Le `-Token` est facultatif s'il existe déjà dans `%USERPROFILE%\.cloudflared\api_token.txt`.
+Après un redémarrage, `https://api.betsfix.com/docs` remonte tout seul, même sans
+ouvrir la session Windows.
+
+> **Error 1033** sur le mobile = `cloudflared` ne tourne pas côté PC (PC éteint/en
+> veille, ou service arrêté). Vérifs : `Get-Service Cloudflared`,
+> `curl http://localhost:8000/health`.
+
 ## Architecture
 
 ```
