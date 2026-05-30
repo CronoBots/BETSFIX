@@ -58,6 +58,15 @@ def upsert_prediction(store: dict, analysis, tour: str, now_iso: str,
         "away": analysis.away.name,
         "model_home_prob": analysis.model_home_probability,
         "confidence": analysis.confidence,
+        # Surface (terre/dur/gazon) : permet d'analyser la perf par type de court.
+        "surface": analysis.ground_type,
+        # Détail par facteur (Elo, classement, forme, surface, h2h) : pour savoir
+        # APRÈS COUP quel facteur prédit bien et lequel nuit. Sans ça, on ne garde
+        # que la proba finale et on ne peut rien diagnostiquer.
+        "factors": [
+            {"name": f.name, "home": f.home, "weight": f.weight}
+            for f in analysis.factors
+        ],
         # Cote courante : à mesure qu'on rafraîchit jusqu'au coup d'envoi, ce champ
         # converge vers la cote de CLÔTURE (la plus efficiente).
         "unibet_home_odds": home_odds,
@@ -146,6 +155,97 @@ def calibration_table(pred: list[dict], bins: int = 5) -> list[dict]:
     return out
 
 
+def _fav_metrics(pred: list[dict]) -> dict:
+    """Métriques côté 'favori du modèle' sur un sous-ensemble de matchs réglés.
+
+    pred_fav = proba moyenne annoncée au favori ; reel_fav = taux réel de victoire du
+    favori. Quand pred_fav > reel_fav, le modèle est **surconfiant** sur ce sous-groupe.
+    """
+    n = len(pred)
+    if not n:
+        return {"n": 0, "precision": None, "brier": None, "pred_fav": None,
+                "reel_fav": None, "surconfiance": None}
+    correct = brier = pred_sum = real_sum = 0.0
+    for r in pred:
+        hp = min(max(r["model_home_prob"], 1e-6), 1 - 1e-6)
+        fav_home = hp >= 0.5
+        pfav = hp if fav_home else 1 - hp
+        fav_won = (r["result"]["winner"] == "home") == fav_home
+        brier += (pfav - (1.0 if fav_won else 0.0)) ** 2
+        correct += 1.0 if fav_won else 0.0
+        pred_sum += pfav
+        real_sum += 1.0 if fav_won else 0.0
+    return {
+        "n": n,
+        "precision": round(correct / n, 3),
+        "brier": round(brier / n, 4),
+        "pred_fav": round(pred_sum / n, 3),
+        "reel_fav": round(real_sum / n, 3),
+        "surconfiance": round(pred_sum / n - real_sum / n, 3),
+    }
+
+
+def breakdown(pred: list[dict], keyfn, order: list | None = None) -> list[dict]:
+    """Découpe les prédictions par clé (surface, tour, confiance) + métriques par groupe."""
+    groups: dict = {}
+    for r in pred:
+        k = keyfn(r)
+        if k is None:
+            continue
+        groups.setdefault(k, []).append(r)
+    keys = [k for k in (order or sorted(groups)) if k in groups]
+    out = []
+    for k in keys:
+        m = _fav_metrics(groups[k])
+        m["label"] = k
+        out.append(m)
+    return out
+
+
+def surface_label(rec: dict) -> str | None:
+    """Normalise la surface stockée en libellé court (terre/dur/gazon/autre)."""
+    g = (rec.get("surface") or "").lower()
+    if not g:
+        return None
+    if "clay" in g:
+        return "terre"
+    if "grass" in g:
+        return "gazon"
+    if "hard" in g:
+        return "dur"
+    return "autre"
+
+
+def factor_breakdown(pred: list[dict]) -> list[dict]:
+    """Précision/Brier de CHAQUE facteur pris isolément (comme s'il décidait seul).
+
+    C'est le diagnostic clé pour améliorer le modèle : si un facteur a un Brier pire
+    que 0.25 (= pile ou face) ou une précision < 50 %, il dégrade le mélange et son
+    poids devrait baisser. Trié du meilleur (Brier le plus bas) au pire.
+    """
+    acc: dict = {}
+    for r in pred:
+        y = 1 if r["result"]["winner"] == "home" else 0
+        for f in r.get("factors") or []:
+            h = f.get("home")
+            if h is None:
+                continue
+            d = acc.setdefault(f.get("name") or "?",
+                               {"n": 0, "correct": 0, "brier": 0.0, "w": 0.0})
+            hc = min(max(h, 1e-6), 1 - 1e-6)
+            d["n"] += 1
+            d["correct"] += 1 if (hc >= 0.5) == (y == 1) else 0
+            d["brier"] += (hc - y) ** 2
+            d["w"] += f.get("weight") or 0.0
+    out = [{"name": k, "n": d["n"],
+            "precision": round(d["correct"] / d["n"], 3),
+            "brier": round(d["brier"] / d["n"], 4),
+            "poids": round(d["w"] / d["n"], 3)}
+           for k, d in acc.items() if d["n"]]
+    out.sort(key=lambda x: x["brier"])
+    return out
+
+
 def report(store: dict) -> dict:
     settled = [r for r in store.values() if r.get("result")]
     pred = [r for r in settled if r.get("model_home_prob") is not None]
@@ -178,6 +278,8 @@ def report(store: dict) -> dict:
     pnl = sum(r["result"]["value_pnl"] for r in picks)
     wins = sum(1 for r in picks if r["result"]["value_pnl"] > 0)
 
+    overall = _fav_metrics(pred)
+
     return {
         "matchs_suivis": len(store),
         "matchs_regles": len(settled),
@@ -199,6 +301,18 @@ def report(store: dict) -> dict:
         "value_taux_reussite": round(wins / len(picks), 3) if picks else None,
         "value_pnl_unites": round(pnl, 2) if picks else 0.0,
         "value_roi": round(pnl / len(picks), 3) if picks else None,
+        # Surconfiance globale : proba moyenne annoncée au favori − taux réel.
+        # >0 = le modèle promet plus qu'il ne réalise (à corriger par recalibration).
+        "surconfiance": overall["surconfiance"],
+        # Découpes : où le modèle marche / ne marche pas (data pour l'améliorer).
+        "par_confiance": breakdown(pred, lambda r: r.get("confidence"),
+                                   order=["élevée", "moyenne", "faible"]),
+        "par_surface": breakdown(pred, surface_label,
+                                 order=["terre", "dur", "gazon", "autre"]),
+        "par_tour": breakdown(pred, lambda r: (r.get("tour") or "").upper() or None,
+                              order=["ATP", "WTA"]),
+        # Le diagnostic clé : quel facteur prédit bien, lequel plombe le mélange.
+        "par_facteur": factor_breakdown(pred),
         "note": (
             "Échantillon trop faible pour conclure (vise 100+ paris réglés)."
             if len(picks) < 100 else
@@ -270,6 +384,70 @@ def render_dashboard(store: dict, rep: dict) -> str:
     else:
         calib_html = ""
 
+    # Surconfiance : le modèle promet-il plus qu'il ne réalise ?
+    sc = rep.get("surconfiance")
+    if sc is None:
+        surconf_html = ""
+    elif sc > 0.03:
+        surconf_html = (
+            f'<div class="banner">⚠️ <b>Surconfiance +{round(sc*100)} pts</b> : le '
+            f'modèle annonce en moyenne plus que le taux réel de victoire du favori. '
+            f'Lance le back-test (build_backtest.bat) pour fixer le CALIB_SHRINK.</div>')
+    elif sc < -0.03:
+        surconf_html = (
+            f'<div class="banner">Sous-confiance {round(sc*100)} pts : le favori gagne '
+            f'plus souvent que le modèle ne l\'annonce (marge de manœuvre à la hausse).</div>')
+    else:
+        surconf_html = ('<div class="banner">✓ Calibration moyenne saine '
+                        '(prédit ≈ réel pour le favori).</div>')
+
+    # Tableau générique d'une découpe (par confiance / surface / tour)
+    def breakdown_table(title, rows, help_txt=""):
+        if not rows:
+            return ""
+        trs = "".join(
+            f'<tr><td>{e(str(r["label"]))}</td><td>{r["n"]}</td>'
+            f'<td>{_pct(r["precision"])}</td>'
+            f'<td>{r["brier"] if r["brier"] is not None else "—"}</td>'
+            f'<td>{_pct(r.get("pred_fav"))} / {_pct(r.get("reel_fav"))}</td></tr>'
+            for r in rows)
+        help_html = f'<div class="banner">{help_txt}</div>' if help_txt else ""
+        return (f'<h2>{e(title)}</h2>{help_html}'
+                '<table><tr><td class="dim">groupe</td><td class="dim">n</td>'
+                '<td class="dim">précis.</td><td class="dim">Brier</td>'
+                '<td class="dim">prédit/réel fav</td></tr>'
+                f'{trs}</table>')
+
+    # Le diagnostic clé : performance de chaque facteur pris isolément
+    factors_rep = rep.get("par_facteur") or []
+    if factors_rep:
+        frows = "".join(
+            f'<tr><td>{e(r["name"])}</td><td>{r["n"]}</td>'
+            f'<td>{_pct(r["precision"])}</td>'
+            f'<td style="color:{"#34a853" if r["brier"] < 0.25 else "#ea4335"}">{r["brier"]}</td>'
+            f'<td class="dim">{round(r["poids"]*100)}%</td></tr>'
+            for r in factors_rep)
+        factors_html = (
+            '<h2>Performance par facteur</h2>'
+            '<div class="banner">Chaque facteur comme s\'il décidait seul. '
+            'Brier &lt; 0.25 (vert) = il aide ; &gt; 0.25 (rouge) = il dégrade le '
+            'mélange et son poids devrait baisser. Trié du meilleur au pire.</div>'
+            '<table><tr><td class="dim">facteur</td><td class="dim">n</td>'
+            '<td class="dim">précis.</td><td class="dim">Brier</td>'
+            '<td class="dim">poids</td></tr>'
+            f'{frows}</table>')
+    else:
+        factors_html = ""
+
+    breakdowns_html = (
+        breakdown_table("Par niveau de confiance", rep.get("par_confiance"),
+                        "Le modèle est-il plus fiable quand il est 'confiant' ? "
+                        "Sinon, le score de confiance ne veut rien dire.")
+        + breakdown_table("Par surface", rep.get("par_surface"))
+        + breakdown_table("Par circuit", rep.get("par_tour"),
+                          "ATP (hommes) vs WTA (femmes) : si l'un décroche, "
+                          "le modèle lui conviendrait moins."))
+
     def settled_row(r):
         res = r["result"]
         hp = r.get("model_home_prob") or 0
@@ -289,10 +467,13 @@ def render_dashboard(store: dict, rep: dict) -> str:
 <div class="banner">Cette page mesure si le <b>modèle prédit bien le vainqueur</b>
  (calibration sur résultats réels). Ce n'est <b>pas</b> un outil pour battre le bookmaker :
  un modèle simple ne bat pas un book sérieux. Fiable à partir de ~100 matchs réglés.</div>
+{surconf_html}
+{calib_html}
+{factors_html}
+{breakdowns_html}
 <h2>Le modèle vs résultats réels</h2>
 <table><tr><td class="dim">match</td><td class="dim">prédiction</td>
-<td class="dim">vainqueur</td></tr>{settled_html}</table>
-{calib_html}"""
+<td class="dim">vainqueur</td></tr>{settled_html}</table>"""
     return web.layout("Fiabilité", "perf", body, refresh=True)
 
 

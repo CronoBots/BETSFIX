@@ -58,6 +58,19 @@ KELLY_FRACTION = 0.25      # quart de Kelly (prudent)
 MAX_STAKE_PCT = 5.0        # plafond de mise conseillée (% bankroll)
 FORM_DECAY = 0.92          # pondération de récence (match i pèse 0.92^i)
 
+# Recalibration anti-surconfiance. Le mélange brut des facteurs peut être
+# SURCONFIANT (annoncer 66 % pour ~50 % de victoires réelles ; cf. page Perf). On
+# rapproche alors la proba de 0.5 d'un facteur SHRINK (<1 = on tempère). La valeur
+# 1.0 = aucune correction. **À fixer par le back-test** : tools/backtest_model.py
+# imprime le SHRINK qui minimise le log-loss sur des centaines de matchs historiques
+# (walk-forward, sans fuite). Tant qu'on n'a pas l'estimation, on tempère légèrement.
+CALIB_SHRINK = 0.90
+
+
+def recalibrate(p: float, shrink: float = CALIB_SHRINK) -> float:
+    """Rapproche une proba de 0.5 pour corriger la surconfiance (shrink ∈ ]0,1])."""
+    return 0.5 + (p - 0.5) * shrink
+
 
 def sigmoid(z: float) -> float:
     if z < -35:
@@ -277,11 +290,13 @@ def build_analysis(
             weight=WEIGHTS["head_to_head"], detail=f"{home_wins_h2h}-{away_wins_h2h}",
         ))
 
-    # Mélange pondéré (renormalisé sur les facteurs présents)
+    # Mélange pondéré (renormalisé sur les facteurs présents), puis recalibration
+    # anti-surconfiance (on tempère vers 0.5). La proba retenue ci-dessous sert à la
+    # fois à l'affichage, au suivi et au calcul de value : on veut une proba honnête.
     p_home = p_away = None
     total_w = sum(f.weight for f in factors)
     if total_w > 0:
-        p_home = sum(f.weight * f.home for f in factors) / total_w
+        p_home = recalibrate(sum(f.weight * f.home for f in factors) / total_w)
         p_away = 1 - p_home
 
     analysis = MatchAnalysis(

@@ -6,6 +6,7 @@ from app.analysis import (
     form_rating,
     kelly_fraction,
     prob_from_rankings,
+    recalibrate,
     remove_vig,
     weighted_form,
 )
@@ -95,6 +96,32 @@ def test_form_rating_penalizes_losing_to_weak():
               for i in range(4)]
     r, _, n = form_rating(losses, 1)
     assert n == 4 and r < 0
+
+
+def test_recalibrate_shrinks_toward_half():
+    # shrink=1 -> identité ; shrink<1 -> rapproche de 0.5
+    assert recalibrate(0.8, 1.0) == 0.8
+    assert recalibrate(0.5, 0.5) == 0.5            # 0.5 reste 0.5
+    assert 0.5 < recalibrate(0.8, 0.5) < 0.8       # tempéré
+    # symétrique autour de 0.5
+    assert round(recalibrate(0.8, 0.6) + recalibrate(0.2, 0.6), 6) == 1.0
+
+
+def test_recalibration_is_wired_in_build_analysis():
+    # Match SANS rang/forme/stats/h2h : seul le facteur Elo subsiste, donc le mélange
+    # = proba Elo. La proba finale doit être exactement la version recalibrée.
+    from app.analysis import CALIB_SHRINK
+    from app.elo import expected_score
+
+    match = Match(id=1, tour="atp", ground_type="Red clay", status="notstarted",
+                  home=Player(id=100, name="A"), away=Player(id=200, name="B"))
+    a = build_analysis(match, [], [], None, None, None, None,
+                       UnibetOdds(match_id=1, matched=False),
+                       elo_home=2000, elo_away=1400)
+    assert {f.name for f in a.factors} == {"elo"}      # seul l'Elo est présent
+    p_elo = expected_score(2000, 1400)
+    assert abs((a.model_home_probability or 0) - recalibrate(p_elo, CALIB_SHRINK)) < 1e-4
+    assert (a.model_home_probability or 0) < p_elo      # tempéré vers 0.5
 
 
 def test_build_analysis_uses_elo_factor():

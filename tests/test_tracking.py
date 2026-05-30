@@ -1,7 +1,7 @@
 """Tests de la logique de suivi prédictions/résultats (pures, sans réseau)."""
 
 from app import tracking
-from app.models import MatchAnalysis, Player, ValueBet
+from app.models import AnalysisFactor, MatchAnalysis, Player, ValueBet
 
 
 def _analysis(mid, home_prob, pick_side=None, pick_odds=None, pick_edge=0.05):
@@ -111,6 +111,64 @@ def test_calibration_table():
     assert table and table[0]["n"] == 2
     assert 0.0 <= table[0]["reel"] <= 1.0
     assert table[0]["reel"] == 0.5                 # 1 favori sur 2 gagne
+
+
+def _analysis_rich(mid, home_prob, factors, surface="Red clay", tour_conf="moyenne"):
+    """Analyse portant des facteurs + surface (comme en prod enrichie)."""
+    a = MatchAnalysis(
+        match_id=mid, home=Player(name="Home"), away=Player(name="Away"),
+        ground_type=surface,
+        model_home_probability=home_prob, model_away_probability=1 - home_prob,
+        confidence=tour_conf,
+        factors=[AnalysisFactor(name=n, home=h, away=1 - h, weight=w)
+                 for n, h, w in factors],
+        unibet_matched=True,
+    )
+    return a
+
+
+def test_upsert_stores_factors_and_surface():
+    store = {}
+    a = _analysis_rich(1, 0.6, [("elo", 0.7, 0.45), ("classement", 0.55, 0.20)])
+    tracking.upsert_prediction(store, a, "atp", "t0")
+    rec = store["1"]
+    assert rec["surface"] == "Red clay"
+    assert {f["name"] for f in rec["factors"]} == {"elo", "classement"}
+    assert rec["factors"][0]["weight"] == 0.45
+
+
+def test_factor_breakdown_ranks_by_brier():
+    store = {}
+    # elo prédit bien (home gagne, elo dit 0.8), classement prédit mal (dit 0.3)
+    for mid in (1, 2):
+        tracking.upsert_prediction(
+            store, _analysis_rich(mid, 0.6, [("elo", 0.8, 0.45), ("classement", 0.3, 0.20)]),
+            "atp", "t0")
+        tracking.settle(store, mid, "home", 30, "t1")  # home gagne -> elo a raison
+    pred = [r for r in store.values() if r.get("result")]
+    fb = tracking.factor_breakdown(pred)
+    names = [f["name"] for f in fb]
+    assert names[0] == "elo"            # meilleur Brier en tête
+    assert names[-1] == "classement"    # pire en dernier
+    elo_row = next(f for f in fb if f["name"] == "elo")
+    assert elo_row["precision"] == 1.0  # elo a toujours désigné le bon
+
+
+def test_report_has_breakdowns_and_surconfiance():
+    store = {}
+    tracking.upsert_prediction(
+        store, _analysis_rich(1, 0.7, [("elo", 0.7, 0.45)], tour_conf="élevée"), "atp", "t0")
+    tracking.upsert_prediction(
+        store, _analysis_rich(2, 0.7, [("elo", 0.7, 0.45)], tour_conf="élevée"), "wta", "t0")
+    tracking.settle(store, 1, "home", 30, "t1")  # favori gagne
+    tracking.settle(store, 2, "away", 30, "t1")  # favori perd
+    rep = tracking.report(store)
+    # prédit 70% au favori, réel 50% -> surconfiance +0.2
+    assert rep["surconfiance"] == 0.2
+    assert any(b["label"] == "élevée" for b in rep["par_confiance"])
+    assert {b["label"] for b in rep["par_tour"]} == {"ATP", "WTA"}
+    assert any(b["label"] == "terre" for b in rep["par_surface"])
+    assert rep["par_facteur"][0]["name"] == "elo"
 
 
 def test_render_dashboard_ok():
