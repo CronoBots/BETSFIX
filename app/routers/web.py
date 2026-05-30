@@ -8,8 +8,11 @@ from fastapi.responses import HTMLResponse
 from app import tracking, web
 from app.analysis import build_analysis, prob_from_rankings
 from app.analysis import _match_winner_odds
-from app.dependencies import get_provider, get_unibet, matches_with_fallback
+from app.dependencies import (
+    get_livescore, get_provider, get_rankings, get_unibet, matches_with_fallback,
+)
 from app.routers.analysis import _gather_context
+from app.providers.rankings import RankingsProvider
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 from app.providers.unibet import UnibetProvider
 
@@ -27,8 +30,10 @@ async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLRespo
 @router.get("/app", response_class=HTMLResponse)
 async def matches_page(
     provider: SofaScoreProvider = Depends(get_provider),
+    rankings: RankingsProvider = Depends(get_rankings),
 ) -> HTMLResponse:
-    """Liste des matchs à venir (ATP+WTA), avec badge value depuis le suivi."""
+    """Liste des matchs à venir (ATP+WTA). Favori via SofaScore ou, à défaut, via
+    les classements officiels (fonctionne même quand SofaScore bloque)."""
     store = tracking.load()
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(hours=HORIZON_HOURS)
@@ -46,22 +51,24 @@ async def matches_page(
                 continue
             rec = store.get(str(m.id), {})
             hp = rec.get("model_home_prob")
-            if hp is None:  # pas encore dans le suivi -> estimation rapide par classement
+            if hp is None and m.home.ranking and m.away.ranking:
                 hp = prob_from_rankings(m.home.ranking, m.away.ranking)
+            if hp is None:  # repli (LiveScore) -> classements officiels par nom
+                rh = await rankings.rank(tour, m.home.name)
+                ra = await rankings.rank(tour, m.away.name)
+                hp = prob_from_rankings(rh, ra)
             if hp is None:
                 fav = favp = None
             elif hp >= 0.5:
                 fav, favp = m.home.name, f"{round(hp*100)}%"
             else:
                 fav, favp = m.away.name, f"{round((1-hp)*100)}%"
-            vpick = rec.get("value_pick")
             rows.append({
                 "id": m.id, "tour": tour, "home": m.home.name, "away": m.away.name,
                 "status": m.status,
                 "time": web.fmt_local(m.start_time),
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
-                "value": (f'{vpick["player"]} @{vpick["odds"]}' if vpick else None),
-                "clickable": m.source == "sofascore",  # l'analyse exige un id SofaScore
+                "clickable": True,
             })
         rows.sort(key=lambda r: r["time"])
         groups.append((title, rows))
@@ -74,14 +81,14 @@ async def match_detail(
     tour: str = Query("atp"),
     provider: SofaScoreProvider = Depends(get_provider),
     unibet: UnibetProvider = Depends(get_unibet),
+    rankings: RankingsProvider = Depends(get_rankings),
 ) -> HTMLResponse:
     tour = "wta" if tour == "wta" else "atp"
     try:
         match = await provider.get_match(tour, match_id)
     except ProviderError:
-        return HTMLResponse(web.layout("Erreur", "matches",
-                            '<div class="banner">Match introuvable.</div>'
-                            '<a class="dim" href="/app">← Retour</a>'), status_code=404)
+        # SofaScore K.O. -> détail léger via LiveScore + classements officiels
+        return await _light_detail(match_id, tour, unibet, rankings)
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
     analysis = build_analysis(
@@ -93,3 +100,30 @@ async def match_detail(
     )
     winner_odds = _match_winner_odds(odds, match) if (odds and odds.matched) else (None, None)
     return HTMLResponse(web.render_match_detail(analysis, winner_odds))
+
+
+async def _light_detail(match_id, tour, unibet, rankings) -> HTMLResponse:
+    """Détail réduit quand SofaScore bloque : favori par classement + cotes Unibet."""
+    ls = get_livescore()
+    match = None
+    try:
+        for m in await ls.get_matches(tour):
+            if m.id == match_id:
+                match = m
+                break
+    except Exception:
+        match = None
+    if match is None:
+        return HTMLResponse(web.layout("Indisponible", "matches",
+                            '<div class="banner">Analyse momentanément indisponible '
+                            '(SofaScore bloqué et match introuvable côté secours).</div>'
+                            '<a class="dim" href="/app">← Retour</a>'))
+    match.home.ranking = await rankings.rank(tour, match.home.name)
+    match.away.ranking = await rankings.rank(tour, match.away.name)
+    odds = await unibet.find_odds(match)
+    analysis = build_analysis(match, [], [], None, None, None, None, odds)
+    winner_odds = _match_winner_odds(odds, match) if (odds and odds.matched) else (None, None)
+    html = web.render_match_detail(analysis, winner_odds)
+    note = ('<div class="banner">⚠️ SofaScore indisponible : analyse réduite (favori '
+            'par classement + cotes). Stats/forme/h2h reviendront dès le rétablissement.</div>')
+    return HTMLResponse(html.replace("</h1>", "</h1>" + note, 1))

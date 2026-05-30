@@ -2,12 +2,14 @@
 
 from app.config import get_settings
 from app.providers.livescore import LiveScoreProvider
+from app.providers.rankings import RankingsProvider
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 from app.providers.unibet import UnibetProvider
 
 _provider: SofaScoreProvider | None = None
 _unibet: UnibetProvider | None = None
 _livescore: LiveScoreProvider | None = None
+_rankings: RankingsProvider | None = None
 
 
 def get_provider() -> SofaScoreProvider:
@@ -31,6 +33,13 @@ def get_livescore() -> LiveScoreProvider:
     return _livescore
 
 
+def get_rankings() -> RankingsProvider:
+    global _rankings
+    if _rankings is None:
+        _rankings = RankingsProvider(get_settings())
+    return _rankings
+
+
 async def matches_with_fallback(tour: str) -> tuple[list, str]:
     """Liste des matchs avec repli LiveScore si SofaScore échoue.
 
@@ -46,8 +55,8 @@ async def matches_with_fallback(tour: str) -> tuple[list, str]:
 
 
 async def shutdown_provider() -> None:
-    global _provider, _unibet, _livescore
-    for p in (_provider, _unibet, _livescore):
+    global _provider, _unibet, _livescore, _rankings
+    for p in (_provider, _unibet, _livescore, _rankings):
         if p is not None:
             await p.aclose()
-    _provider = _unibet = _livescore = None
+    _provider = _unibet = _livescore = _rankings = None
