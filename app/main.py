@@ -1,19 +1,39 @@
 """Point d'entrée de l'API Roland Garros (FastAPI)."""
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.dependencies import shutdown_provider
-from app.routers import analysis, matches, players, statistics
+from app.dependencies import get_provider, get_unibet, shutdown_provider
+from app.routers import analysis, matches, players, statistics, tracking
+from app.routers.tracking import run_settle, run_snapshot
+
+log = logging.getLogger("uvicorn")
+TRACKING_INTERVAL_S = 3 * 3600  # snapshot + settle toutes les 3h
+
+
+async def _tracking_loop():
+    """Tâche de fond : enregistre cotes/prédictions et règle les résultats."""
+    await asyncio.sleep(60)  # laisse l'app démarrer
+    while True:
+        try:
+            n = await run_snapshot(get_provider(), get_unibet())
+            s = await run_settle(get_provider())
+            log.info("tracking: %s prédictions loggées/màj, %s matchs réglés", n, s)
+        except Exception as exc:  # ne jamais tuer la boucle
+            log.warning("tracking loop error: %s", exc)
+        await asyncio.sleep(TRACKING_INTERVAL_S)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    task = asyncio.create_task(_tracking_loop())
     yield
-    # Fermeture propre du client HTTP au shutdown
+    task.cancel()
     await shutdown_provider()
 
 
@@ -41,6 +61,7 @@ app.include_router(matches.router)
 app.include_router(statistics.router)
 app.include_router(players.router)
 app.include_router(analysis.router)
+app.include_router(tracking.router)
 
 
 @app.get("/", tags=["Général"], summary="Bienvenue")
@@ -61,6 +82,7 @@ async def root() -> dict:
             "cotes_unibet": "/matches/{match_id}/odds/unibet?tour=atp",
             "analyse_paris": "/analysis/{match_id}?tour=atp",
             "analyse_tous_marches": "/analysis/{match_id}/markets?tour=atp",
+            "suivi_performance": "/tracking/report",
             "editions_disponibles": "/matches/seasons?tour=atp",
             "infos_tournoi": "/matches/tournament?tour=atp",
             "stats_d_un_match": "/statistics/{match_id}",

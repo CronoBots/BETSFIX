@@ -10,3 +10,6 @@ env/
 .ruff_cache/
 .DS_Store
 *.log
+
+# Données de suivi des prédictions (générées au runtime)
+data/
