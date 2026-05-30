@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import sys
 import time
 
 import httpx
@@ -38,6 +40,22 @@ log = logging.getLogger("uvicorn")
 # Disjoncteur anti-403 : back-off croissant quand SofaScore rate-limite.
 BREAKER_BASE_S = 30      # 1ère pause
 BREAKER_MAX_S = 300      # plafond (5 min)
+
+_CACHE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "..", "data", "cache_sofascore.json")
+
+
+def _ttl_for(path: str) -> float | None:
+    """Durée de cache selon le type de donnée (les statiques tiennent des heures)."""
+    if "/seasons" in path:
+        return 6 * 3600
+    if "/statistics/overall" in path or "/team-statistics/" in path or "/rankings" in path:
+        return 3600
+    if "/h2h" in path or "/point-by-point" in path:
+        return 1800
+    if "/team/" in path and "/events" not in path:  # fiche joueur
+        return 3600
+    return None  # défaut (events, stats live, odds) -> TTL de base
 from app.models import (
     HeadToHead,
     Match,
@@ -77,7 +95,9 @@ class ProviderError(Exception):
 class SofaScoreProvider:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._cache = TTLCache(settings.cache_ttl_seconds)
+        # Pas de persistance disque sous pytest (isolation des tests).
+        persist = None if "pytest" in sys.modules else os.path.normpath(_CACHE_FILE)
+        self._cache = TTLCache(settings.cache_ttl_seconds, persist_path=persist)
         self._client = httpx.AsyncClient(
             base_url=settings.sofascore_base_url,
             timeout=settings.http_timeout,
@@ -127,31 +147,35 @@ class SofaScoreProvider:
         """GET avec cache TTL et gestion d'erreurs."""
         cached = self._cache.get(path)
         if cached is not None:
-            return cached  # le cache reste servi même circuit ouvert
-        self._breaker_guard()
+            return cached
         try:
+            self._breaker_guard()
             resp = await self._client.get(path)
-        except httpx.HTTPError as exc:  # réseau / timeout
+            if resp.status_code == 404:
+                raise ProviderError("Ressource introuvable chez la source.", status_code=404)
+            if resp.status_code in (403, 429):  # rate-limit -> ouvre le circuit
+                self._breaker_trip()
+                raise ProviderError(f"SofaScore a limité l'accès ({resp.status_code}).")
+            if resp.status_code >= 400:
+                raise ProviderError(f"La source a répondu {resp.status_code} pour {path}")
+            data = resp.json()
+        except ProviderError as exc:
+            if exc.status_code == 404:
+                raise
+            # Stale-while-error : on sert la dernière valeur connue si on l'a.
+            stale = self._cache.get_stale(path)
+            if stale is not None:
+                return stale
+            raise
+        except (httpx.HTTPError, ValueError) as exc:
             self._breaker_trip()
+            stale = self._cache.get_stale(path)
+            if stale is not None:
+                return stale
             raise ProviderError(f"Source de données injoignable: {exc}") from exc
 
-        if resp.status_code == 404:
-            raise ProviderError("Ressource introuvable chez la source.", status_code=404)
-        if resp.status_code in (403, 429):  # rate-limit -> on ouvre le circuit
-            self._breaker_trip()
-            raise ProviderError(f"SofaScore a limité l'accès ({resp.status_code}).", status_code=502)
-        if resp.status_code >= 400:
-            raise ProviderError(
-                f"La source a répondu {resp.status_code} pour {path}",
-                status_code=502,
-            )
-        try:
-            data = resp.json()
-        except ValueError as exc:
-            raise ProviderError("Réponse non-JSON de la source.") from exc
-
         self._breaker_reset()
-        self._cache.set(path, data)
+        self._cache.set(path, data, ttl=_ttl_for(path))
         return data
 
     async def _get_bytes(self, path: str) -> tuple[bytes, str]:
