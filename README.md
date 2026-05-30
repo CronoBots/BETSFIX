@@ -169,10 +169,10 @@ puis la confronte aux **cotes Unibet Belgique** pour repérer la *value* :
 
 | Facteur | Poids | Source |
 |---------|-------|--------|
-| Classement | 0,35 | Rangs ATP/WTA, **modèle calibré** (régression logistique) — meilleur prédicteur au back-test |
-| **Elo par surface** | 0,30 | Force réelle pondérée par les adversaires, **note terre battue** distincte (`tools/build_elo.py`) |
+| Classement | 0,40 | Rangs ATP/WTA, **modèle calibré** (régression logistique) — meilleur prédicteur aux back-tests |
+| **Elo par surface** | 0,20 | Force réelle pondérée par les adversaires, **note terre battue** distincte (`tools/build_elo.py`) |
 | Forme vs attente | 0,20 | Sur-/sous-performance vs rang de l'adversaire, **pondérée par récence**, spécifique terre |
-| Surface (service/retour) | 0,10 | **Domination service+retour** (tenue de service + taux de break, historique par surface, pondéré récence) — validé au niveau Elo (`tools/explore_serve_return.py`). Repli sur stats de saison si pas de note. |
+| Surface (service/retour) | 0,15 | **Domination service+retour** (tenue de service + taux de break, historique par surface, pondéré récence) — validé au niveau Elo (`tools/explore_serve_return.py`). Repli sur stats de saison si pas de note. |
 | Head-to-head | 0,05 | Confrontations directes |
 
 Les poids sont **renormalisés** sur les facteurs présents : un joueur sans note Elo

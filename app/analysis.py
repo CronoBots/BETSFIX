@@ -38,15 +38,16 @@ from app.models import (
 RANK_B0 = 0.0507
 RANK_B1 = 0.3668
 
-# Poids des facteurs (renormalisés sur les facteurs présents).
-# Rééquilibrage **mesuré par le back-test** (tools/backtest_model.py, ~17k matchs
-# walk-forward) : le classement seul prédit MIEUX que l'Elo seul (log-loss 0.644 vs
-# 0.657), et le mélange optimal Elo/classement est ~30/70 — l'inverse de l'ancien
-# 0.45/0.20. On ne perche pas sur l'optimum (vallée plate, risque de sur-ajustement) :
-# on met les deux à quasi-égalité (Elo 0.30 / classement 0.35), ce qui retire la
-# domination injustifiée de l'Elo tout en gardant sa valeur sur les cas que le rang
-# rate (spécialistes de surface, retours de blessure).
-WEIGHTS = {"elo": 0.30, "classement": 0.35, "forme": 0.20, "surface": 0.10,
+# Poids des facteurs (renormalisés sur les facteurs présents), **mesurés par deux
+# back-tests walk-forward** :
+#  - backtest_model.py (~17k matchs) : classement > Elo, optimum Elo/classt ~30/70 ;
+#  - backtest_combined.py (Elo+classt+service/retour) : classement nettement le
+#    meilleur seul (68%), service/retour ~0.20 du trio, Elo redondant quand le
+#    classement est là.
+# Les deux convergent : moins d'Elo, plus de classement, un peu plus de service/retour.
+# On ne prend PAS la solution de coin (Elo=0, sur-ajustement sur petit échantillon) :
+# l'Elo garde sa valeur sur les cas que le rang rate (blessures, spécialistes surface).
+WEIGHTS = {"elo": 0.20, "classement": 0.40, "forme": 0.20, "surface": 0.15,
            "head_to_head": 0.05}
 
 # Ancrage au marché : confiance accordée au modèle vs aux cotes du bookmaker.
