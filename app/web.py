@@ -45,6 +45,9 @@ CSS = """
        border:1px solid #23262e;font-size:16px;font-weight:600}
   .big .d{font-size:12px;color:#9aa0a6;font-weight:400;margin-top:4px}
   .foot{color:#5f6368;font-size:11px;margin-top:22px;text-align:center}
+  .src{font-size:12px;padding:8px 12px;border-radius:10px;margin:4px 0 2px}
+  .src.ok{background:#13351c;color:#5ed88a}
+  .src.ko{background:#2a2410;color:#f4c84a}
 """
 
 
@@ -64,11 +67,19 @@ def layout(title: str, active: str, body: str, refresh: bool = False) -> str:
 </div></body></html>"""
 
 
-def render_home(rep: dict) -> str:
+def render_home(rep: dict, source: dict | None = None) -> str:
     e = html.escape
     roi = rep.get("value_roi")
     roi_txt = "—" if roi is None else f"{'+' if roi >= 0 else ''}{round(roi*100,1)}%"
-    body = f"""
+    if source and source.get("ok"):
+        src = '<div class="src ok">🟢 Source : SofaScore OK</div>'
+    elif source:
+        src = (f'<div class="src ko">🟠 SofaScore en pause '
+               f'({source.get("paused_seconds", 0)}s) — LiveScore prend le relais</div>')
+    else:
+        src = ""
+    body = f"""{src}"""
+    body += f"""
 <a class="big" href="/app">🎾 Matchs à venir & analyses
   <div class="d">Voir les matchs du jour, le favori du modèle et les value picks</div></a>
 <a class="big" href="/tracking/dashboard">📊 Performance du modèle
@@ -78,7 +89,7 @@ def render_home(rep: dict) -> str:
 <div class="banner">Outil personnel d'aide à la décision. Le modèle est en cours de
  validation (voir Performance). N'engagez que de petites mises, et seulement ce que
  vous pouvez vous permettre de perdre.</div>"""
-    return layout("Accueil", "home", body)
+    return layout("Accueil", "home", body, refresh=True)
 
 
 def _bar(pct: float | None) -> str:

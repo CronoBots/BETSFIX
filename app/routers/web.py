@@ -19,8 +19,9 @@ HORIZON_HOURS = 48
 
 
 @router.get("/", response_class=HTMLResponse)
-async def home() -> HTMLResponse:
-    return HTMLResponse(web.render_home(tracking.report(tracking.load())))
+async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
+    return HTMLResponse(web.render_home(tracking.report(tracking.load()),
+                                        source=provider.breaker_status()))
 
 
 @router.get("/app", response_class=HTMLResponse)

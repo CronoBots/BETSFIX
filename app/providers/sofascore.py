@@ -117,6 +117,11 @@ class SofaScoreProvider:
         self._fail_count = 0
         self._open_until = 0.0
 
+    def breaker_status(self) -> dict:
+        """État de la source : circuit ouvert (en pause) ou fermé (OK)."""
+        remaining = self._open_until - time.monotonic()
+        return {"ok": remaining <= 0, "paused_seconds": max(0, int(remaining))}
+
     # ----------------------------------------------------------------- réseau
     async def _get(self, path: str) -> dict:
         """GET avec cache TTL et gestion d'erreurs."""
