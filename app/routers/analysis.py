@@ -9,10 +9,12 @@ from app.analysis import build_analysis
 from app.dependencies import get_provider, get_unibet
 from app.markets import (
     DEFAULT_SERVE,
-    calibrate_and_simulate,
+    calibrate_to_market,
     evaluate_markets,
+    extract_market_anchors,
     serve_win_pct,
 )
+from app.providers.unibet import _norm_name
 from app.models import MatchAnalysis, MatchMarketsAnalysis
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 from app.providers.unibet import UnibetProvider
@@ -113,12 +115,23 @@ async def analyze_markets(
         result.note = "Cotes Unibet indisponibles (match non à l'affiche)."
         return result
 
-    # Niveau de service (pilote le nombre de jeux/tie-breaks) depuis les stats
+    # Niveau de service de repli (si le marché ne donne pas de ligne de jeux)
     levels = [v for v in (serve_win_pct(hs), serve_win_pct(as_)) if v is not None]
     serve_level = sum(levels) / len(levels) if levels else DEFAULT_SERVE[tour]
-    p_home = analysis.model_home_probability or 0.5
 
-    sim = calibrate_and_simulate(p_home, serve_level, result.best_of, seed=match_id)
+    # Ancrage MARCHÉ : on cale la simulation sur la proba vainqueur ET la ligne de
+    # jeux d'Unibet (book sharp). La value ne ressort alors que sur de vrais écarts
+    # de structure. On mélange légèrement notre modèle au vainqueur du marché.
+    home_tokens = _norm_name(match.home.name)
+    mkt_win, games_line, games_over = extract_market_anchors(odds, home_tokens)
+    model_p = analysis.model_home_probability
+    if mkt_win is not None and model_p is not None:
+        target_win = 0.7 * mkt_win + 0.3 * model_p  # marché dominant, léger apport modèle
+    else:
+        target_win = mkt_win if mkt_win is not None else (model_p or 0.5)
+
+    sim = calibrate_to_market(target_win, games_line, games_over, serve_level,
+                              result.best_of, seed=match_id)
     edges = evaluate_markets(match, odds, sim)
     result.all_markets = edges
     result.markets_evaluated = len(edges)

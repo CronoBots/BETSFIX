@@ -379,8 +379,10 @@ class MatchMarketsAnalysis(BaseModel):
     all_markets: list[MarketEdge] = Field(default_factory=list)
     note: str = ""
     disclaimer: str = (
-        "Probabilités estimées par simulation à partir des stats de service/retour, "
-        "calibrées sur la proba de vainqueur du modèle. Informatif, sans garantie."
+        "EXPÉRIMENTAL. Le simulateur reproduit mal la distribution du book sur les "
+        "marchés de 'forme' (jeux/sets/tie-breaks) : il tend à surestimer les matchs "
+        "longs/serrés. Les 'value' sur ces marchés sont probablement des artefacts du "
+        "modèle, PAS des edges réels — à NE PAS utiliser pour parier en l'état."
     )
 
 

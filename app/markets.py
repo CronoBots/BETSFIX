@@ -123,6 +123,84 @@ def _win_prob(p1, p2, best_of, n, seed):
     return r["win1"] / r["n"]
 
 
+def _devig_pair(o1, o2):
+    if not o1 or not o2:
+        return None
+    a, b = 1 / o1, 1 / o2
+    return a / (a + b)
+
+
+def extract_market_anchors(unibet, home_tokens):
+    """Récupère ce que le marché 'sait' : proba vainqueur home + ligne de jeux principale."""
+    win_home = None
+    games_line = games_over = None
+    best_central = 9.9  # on cherche la ligne dont la proba 'over' est la plus proche de 0.5
+    for mk in unibet.markets:
+        lab = (mk.label or "").lower()
+        mtype = mk.type or ""
+        outs = mk.outcomes
+        if mtype == "Match" and "cotes du match" in lab and len(outs) == 2:
+            o1, o2 = outs
+            p = _devig_pair(o1.odds, o2.odds)
+            if p is not None:
+                win_home = p if (_norm_name(o1.label) & home_tokens) else 1 - p
+        elif lab == "nombre total de jeux" and mtype == "Plus de/Moins de" and len(outs) == 2:
+            over = next((o for o in outs if "plus" in o.label.lower()), None)
+            under = next((o for o in outs if "moins" in o.label.lower()), None)
+            if over and under and over.odds and under.odds and over.line is not None:
+                imp_over = _devig_pair(over.odds, under.odds)
+                if imp_over is not None and abs(imp_over - 0.5) < best_central:
+                    best_central = abs(imp_over - 0.5)
+                    games_line = over.line
+                    games_over = imp_over
+    return win_home, games_line, games_over
+
+
+def calibrate_to_market(target_win, games_line, games_over, fallback_level,
+                        best_of, seed) -> dict:
+    """Cale la simulation sur le MARCHÉ : proba vainqueur ET nombre total de jeux.
+
+    Ainsi les marchés 'shape' (jeux/sets/tie-breaks) sont cohérents avec le book ;
+    la value ne ressort que sur de vrais écarts de structure (rares)."""
+    avg = _clamp(fallback_level, SERVE_MIN + 0.02, SERVE_MAX - 0.02)
+    target_win = _clamp(target_win if target_win is not None else 0.5, 0.05, 0.95)
+
+    def solve_gap(level):
+        lo, hi = -0.28, 0.28
+        for _ in range(6):
+            mid = (lo + hi) / 2
+            p1 = _clamp(level + mid / 2, SERVE_MIN, SERVE_MAX)
+            p2 = _clamp(level - mid / 2, SERVE_MIN, SERVE_MAX)
+            if _win_prob(p1, p2, best_of, 1500, seed) < target_win:
+                lo = mid
+            else:
+                hi = mid
+        return (lo + hi) / 2
+
+    gap = solve_gap(avg)
+    # Coordonnée descente : ajuste le niveau pour coller à la ligne de jeux du marché
+    if games_line is not None and games_over is not None:
+        lo, hi = SERVE_MIN + 0.02, SERVE_MAX - 0.02
+        for _ in range(6):
+            avg = (lo + hi) / 2
+            gap = solve_gap(avg)
+            p1 = _clamp(avg + gap / 2, SERVE_MIN, SERVE_MAX)
+            p2 = _clamp(avg - gap / 2, SERVE_MIN, SERVE_MAX)
+            sim = _simulate(p1, p2, best_of, 1500, seed)
+            over = _p_over(sim["total_games"], games_line)
+            # plus de service -> plus de jeux -> P(over) plus haut
+            if over < games_over:
+                lo = avg
+            else:
+                hi = avg
+
+    p1 = _clamp(avg + gap / 2, SERVE_MIN, SERVE_MAX)
+    p2 = _clamp(avg - gap / 2, SERVE_MIN, SERVE_MAX)
+    sim = _simulate(p1, p2, best_of, N_SIM, seed + 1)
+    sim["p1"], sim["p2"] = p1, p2
+    return sim
+
+
 def calibrate_and_simulate(model_p_home: float, serve_level: float, best_of: int,
                            seed: int) -> dict:
     """Calibre l'écart de service pour que P(victoire home simulée) ≈ model_p_home."""
