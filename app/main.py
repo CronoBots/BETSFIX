@@ -13,11 +13,17 @@ from app.routers import analysis, matches, players, statistics, tracking, web
 from app.routers.tracking import run_settle, run_snapshot
 
 log = logging.getLogger("uvicorn")
-TRACKING_INTERVAL_S = 3 * 3600  # snapshot + settle toutes les 3h
+TRACKING_INTERVAL_S = 3 * 3600   # rythme normal : toutes les 3h
+TRACKING_RETRY_S = 20 * 60       # SofaScore bloqué : on réessaie toutes les 20 min
 
 
 async def _tracking_loop():
-    """Tâche de fond : enregistre cotes/prédictions et règle les résultats."""
+    """Tâche de fond : enregistre cotes/prédictions et règle les résultats.
+
+    Cadence adaptative : si SofaScore est bloqué (disjoncteur ouvert), on réessaie
+    plus souvent (1 tentative / 20 min) pour réchauffer le cache dès qu'une fenêtre
+    s'ouvre ; sinon rythme normal de 3h.
+    """
     await asyncio.sleep(60)  # laisse l'app démarrer
     while True:
         try:
@@ -26,7 +32,11 @@ async def _tracking_loop():
             log.info("tracking: %s prédictions loggées/màj, %s matchs réglés", n, s)
         except Exception as exc:  # ne jamais tuer la boucle
             log.warning("tracking loop error: %s", exc)
-        await asyncio.sleep(TRACKING_INTERVAL_S)
+        healthy = get_provider().breaker_status()["ok"]
+        delay = TRACKING_INTERVAL_S if healthy else TRACKING_RETRY_S
+        log.info("tracking: SofaScore %s -> prochaine passe dans %s min",
+                 "OK" if healthy else "bloqué", delay // 60)
+        await asyncio.sleep(delay)
 
 
 @asynccontextmanager
