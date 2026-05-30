@@ -40,7 +40,7 @@ async def matches_page(
     local_now = web.to_local(now) or now
     today = local_now.date()
     fallback = False
-    rows = []
+    rows, live = [], []
     for tour in ("atp", "wta"):
         matches, src = await matches_with_fallback(tour)
         if src == "livescore":
@@ -48,7 +48,7 @@ async def matches_page(
         for m in matches:
             if m.status not in ("notstarted", "inprogress"):
                 continue
-            if m.start_time and m.start_time > horizon:
+            if m.status == "notstarted" and m.start_time and m.start_time > horizon:
                 continue
             rec = store.get(str(m.id), {})
             hp = rec.get("model_home_prob")
@@ -65,7 +65,7 @@ async def matches_page(
             else:
                 fav, favp = m.away.name, f"{round((1-hp)*100)}%"
             local_dt = web.to_local(m.start_time)
-            rows.append({
+            row = {
                 "id": m.id, "tour": tour, "home": m.home.name, "away": m.away.name,
                 "status": m.status,
                 "time": web.fmt_local(m.start_time, with_date=False),
@@ -73,8 +73,11 @@ async def matches_page(
                 "clickable": True,
                 "_date": local_dt.date() if local_dt else None,
                 "_sort": local_dt or datetime.max.replace(tzinfo=timezone.utc),
-            })
-    # Groupe par DATE (Aujourd'hui / Demain / …), trié, matchs par heure
+            }
+            (live if m.status == "inprogress" else rows).append(row)
+
+    live.sort(key=lambda r: r["_sort"])
+    # Matchs à venir groupés par DATE (Aujourd'hui / Demain / …), triés par heure
     rows.sort(key=lambda r: r["_sort"])
     groups, seen = [], {}
     for r in rows:
@@ -84,7 +87,43 @@ async def matches_page(
             seen[label] = []
             groups.append((label, seen[label]))
         seen[label].append(r)
-    return HTMLResponse(web.render_matches(groups, fallback=fallback))
+
+    value_picks, finished = _picks_and_finished(store)
+    return HTMLResponse(web.render_matches(
+        groups, live=live, finished=finished, value_picks=value_picks, fallback=fallback))
+
+
+def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
+    """Extrait du suivi : paris de confiance (value non réglées) et matchs terminés."""
+    value_picks, finished = [], []
+    for rec in store.values():
+        res = rec.get("result")
+        if not res and rec.get("value_pick"):
+            v = rec["value_pick"]
+            value_picks.append({
+                "id": rec["match_id"], "tour": rec.get("tour", "atp"),
+                "home": rec.get("home", ""), "away": rec.get("away", ""),
+                "time": web.fmt_local(rec.get("start_time"), with_date=True),
+                "player": v.get("player"), "odds": v.get("odds"),
+                "edge": v.get("edge"), "stake": v.get("stake_pct"),
+                "confidence": rec.get("confidence"),
+                "_sort": rec.get("start_time") or "",
+            })
+        elif res and rec.get("model_home_prob") is not None:
+            hp = rec["model_home_prob"]
+            fav_home = hp >= 0.5
+            finished.append({
+                "id": rec["match_id"], "tour": rec.get("tour", "atp"),
+                "home": rec.get("home", ""), "away": rec.get("away", ""),
+                "fav": rec["home"] if fav_home else rec["away"],
+                "favp": f"{round(max(hp, 1 - hp) * 100)}%",
+                "winner_name": rec["home"] if res["winner"] == "home" else rec["away"],
+                "ok": (res["winner"] == "home") == fav_home,
+                "_sort": res.get("settled_at", ""),
+            })
+    value_picks.sort(key=lambda r: r["_sort"])
+    finished.sort(key=lambda r: r["_sort"], reverse=True)
+    return value_picks, finished[:8]
 
 
 @router.get("/app/match/{match_id}", response_class=HTMLResponse)

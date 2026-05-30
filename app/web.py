@@ -76,6 +76,8 @@ CSS = """
   .row{display:block;background:#1a1c22;border-radius:12px;padding:12px 14px;margin:8px 0;
        border:1px solid #23262e}
   .row:active{background:#23262e}
+  .row.pick{border-color:#1b5e20;background:#13251a}
+  .live{color:#ea4335;font-weight:700}
   .rowtop{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#9aa0a6}
   .players{font-size:15px;font-weight:600;margin:6px 0 2px}
   .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
@@ -145,37 +147,86 @@ def _bar(pct: float | None) -> str:
     return f'<div class="bar"><span style="width:{p}%"></span></div>'
 
 
-def render_matches(groups: list[tuple[str, list[dict]]], fallback: bool = False) -> str:
-    """groups: liste de (titre, [match_dict]). match_dict: id,tour,home,away,time,status,
-    fav,favp,confidence,value,clickable."""
+def _match_row(m: dict) -> str:
+    """Ligne standard d'un match (à venir ou en direct). Cliquable -> détail."""
     e = html.escape
+    status = ('<span class="live">🔴 EN DIRECT</span>' if m["status"] == "inprogress"
+              else e(m.get("time") or ""))
+    inner = (
+        f'<div class="rowtop"><span>{e(m["tour"].upper())} · {status}</span></div>'
+        f'<div class="players">{e(m["home"])} <span class="dim">vs</span> {e(m["away"])}</div>'
+        f'<div class="dim">favori modèle : {e(m.get("fav") or "—")} {e(m.get("favp") or "")}'
+        f' · confiance {e(m.get("confidence") or "—")}</div>')
+    if m.get("clickable", True):
+        return f'<a class="row" href="/app/match/{m["id"]}?tour={m["tour"]}">{inner}</a>'
+    return f'<div class="row">{inner}</div>'
+
+
+def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None = None,
+                   finished: list[dict] | None = None,
+                   value_picks: list[dict] | None = None, fallback: bool = False) -> str:
+    """Page Matchs en sections : paris de confiance, en direct, à venir, terminés.
+
+    groups : [(titre_jour, [match])] pour les matchs à venir. live/finished/value_picks :
+    listes de dicts (cf. routeur). match_dict à venir/live : id,tour,home,away,time,status,
+    fav,favp,confidence,clickable.
+    """
+    e = html.escape
+    live, finished, value_picks = live or [], finished or [], value_picks or []
     out = []
     if fallback:
         out.append('<div class="banner">⚠️ SofaScore momentanément indisponible — scores '
                    'affichés via LiveScore (repli). L\'analyse détaillée revient dès que '
                    'SofaScore répond.</div>')
-    else:
+
+    # 💎 Paris de confiance (value détectées) — tout en haut
+    if value_picks:
+        out.append(f'<h2>💎 Paris de confiance ({len(value_picks)})</h2>')
+        out.append('<div class="banner">Matchs où le modèle voit une <b>value</b> vs Unibet. '
+                   'Avis du modèle, à confirmer — un désaccord n\'est pas un pari gagnant.</div>')
+        for v in value_picks:
+            edge = round((v.get("edge") or 0) * 100, 1)
+            badge = f'<span class="badge b-val">VALUE +{edge} pts</span>'
+            inner = (
+                f'<div class="rowtop"><span>{e(v["tour"].upper())} · {e(v.get("time") or "")}</span>'
+                f'{badge}</div>'
+                f'<div class="players">{e(v["home"])} <span class="dim">vs</span> {e(v["away"])}</div>'
+                f'<div class="dim">pari : <b class="pos">{e(v.get("player") or "")}</b> '
+                f'@{v.get("odds") or "—"} · mise {v.get("stake") if v.get("stake") is not None else "—"}% '
+                f'· confiance {e(v.get("confidence") or "—")}</div>')
+            out.append(f'<a class="row pick" href="/app/match/{v["id"]}?tour={v["tour"]}">{inner}</a>')
+
+    # 🔴 En direct
+    if live:
+        out.append(f'<h2>🔴 En direct ({len(live)})</h2>')
+        out.extend(_match_row(m) for m in live)
+
+    # À venir (groupés par jour)
+    total_up = sum(len(ms) for _, ms in groups)
+    if total_up:
         out.append('<div class="banner">Touchez un match pour son analyse détaillée '
                    '(favori, stats, cotes). Heures en fuseau belge.</div>')
-    total = 0
-    for title, ms in groups:
-        if not ms:
-            continue
-        out.append(f"<h2>{e(title)} ({len(ms)})</h2>")
-        for m in ms:
-            total += 1
-            status = "🔴 en cours" if m["status"] == "inprogress" else e(m.get("time") or "")
-            inner = (
-                f'<div class="rowtop"><span>{e(m["tour"].upper())} · {status}</span></div>'
-                f'<div class="players">{e(m["home"])} <span class="dim">vs</span> {e(m["away"])}</div>'
-                f'<div class="dim">favori modèle : {e(m.get("fav") or "—")} {e(m.get("favp") or "")}'
-                f' · confiance {e(m.get("confidence") or "—")}</div>')
-            if m.get("clickable", True):
-                out.append(f'<a class="row" href="/app/match/{m["id"]}?tour={m["tour"]}">{inner}</a>')
-            else:
-                out.append(f'<div class="row">{inner}</div>')
-    if not total:
+        for title, ms in groups:
+            if not ms:
+                continue
+            out.append(f"<h2>{e(title)} ({len(ms)})</h2>")
+            out.extend(_match_row(m) for m in ms)
+    elif not live and not value_picks:
         out.append('<div class="dim">Aucun match à venir pour le moment.</div>')
+
+    # ✅ Récemment terminés (vs favori du modèle)
+    if finished:
+        out.append(f'<h2>✅ Récemment terminés ({len(finished)})</h2>')
+        for f in finished:
+            mark = ('<span class="pos">✓ modèle ok</span>' if f.get("ok")
+                    else '<span class="neg">✗ raté</span>')
+            inner = (
+                f'<div class="rowtop"><span>{e(f["tour"].upper())} · terminé</span>{mark}</div>'
+                f'<div class="players">{e(f["home"])} <span class="dim">vs</span> {e(f["away"])}</div>'
+                f'<div class="dim">favori modèle : {e(f.get("fav") or "—")} {e(f.get("favp") or "")} '
+                f'· vainqueur : <b>{e(f.get("winner_name") or "")}</b></div>')
+            out.append(f'<a class="row" href="/app/match/{f["id"]}?tour={f["tour"]}">{inner}</a>')
+
     return layout("Matchs", "matches", "".join(out), refresh=True)
 
 
