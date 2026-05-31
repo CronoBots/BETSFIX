@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from app import web
+from app import tracking, web
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELO_PATH = os.path.join(_ROOT, "data", "foot_elo.json")
@@ -260,4 +260,199 @@ def render(rows: list[dict]) -> str:
     else:
         out.append('<div class="dim">Aucun match de grande compétition à venir '
                    f'(≤ {HORIZON_DAYS} jours). La Coupe du Monde démarre le 11 juin.</div>')
+    out.append('<a class="big" href="/tracking/dashboard?sport=foot">📊 Fiabilité du '
+               'modèle foot<div class="d">Calibration 1-X-2 et track record, séparés</div></a>')
     return web.layout("Football", "foot", "".join(out), refresh=True)
+
+
+# ----------------------------------------------------------------- suivi (3 issues)
+FOOT_TRACK_PATH = os.path.join(_ROOT, "data", "tracking_foot.json")
+_CODE_TO_WINNER = {"1": "home", "X": "draw", "2": "away"}
+
+
+def _iso(ts):
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() if ts else None
+
+
+def _clamp(p):
+    return min(max(p if p is not None else 1 / 3, 1e-6), 1 - 1e-6)
+
+
+def _upsert(store: dict, g: dict, now: str) -> bool:
+    rec = store.get(str(g["id"]), {})
+    if rec.get("result"):
+        return False
+    pr, pk = g.get("probs"), g.get("pick")
+    rec.update({
+        "match_id": g["id"], "sport": "foot", "comp": g.get("comp"),
+        "home": g["home"], "away": g["away"], "start_time": _iso(g.get("start")),
+        "p_home": pr[0] if pr else None, "p_draw": pr[1] if pr else None,
+        "p_away": pr[2] if pr else None,
+        "o1": g.get("o1"), "ox": g.get("ox"), "o2": g.get("o2"),
+        "value_pick": ({"code": pk["code"], "team": pk["team"], "odds": pk["odds"],
+                        "edge": pk["edge"]} if pk else None),
+        "last_update": now,
+    })
+    rec.setdefault("first_logged", now)
+    for k in ("o1", "ox", "o2"):
+        rec.setdefault("open_" + k, g.get(k))
+    store[str(g["id"])] = rec
+    return True
+
+
+async def run_snapshot() -> int:
+    store = tracking.load(FOOT_TRACK_PATH)
+    now = datetime.now(timezone.utc).isoformat()
+    n = 0
+    for g in await board():
+        if g.get("o1") and g.get("probs") and _upsert(store, g, now):
+            n += 1
+    tracking.save(store, FOOT_TRACK_PATH)
+    return n
+
+
+async def run_settle() -> int:
+    store = tracking.load(FOOT_TRACK_PATH)
+    now = datetime.now(timezone.utc).isoformat()
+    s = 0
+    async with httpx.AsyncClient(headers=SOFA_H) as c:
+        for rec in list(store.values()):
+            if rec.get("result"):
+                continue
+            data = await _get(c, SOFA_B, f"/event/{rec['match_id']}")
+            ev = (data or {}).get("event") or {}
+            wc = ev.get("winnerCode")
+            if (ev.get("status") or {}).get("type") == "finished" and wc in (1, 2, 3):
+                winner = {1: "home", 2: "away", 3: "draw"}[wc]
+                pnl = None
+                pk = rec.get("value_pick")
+                if pk and pk.get("odds"):
+                    won = _CODE_TO_WINNER.get(pk["code"]) == winner
+                    pnl = (pk["odds"] - 1) if won else -1.0
+                rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl}
+                s += 1
+    tracking.save(store, FOOT_TRACK_PATH)
+    return s
+
+
+def _clv(rec) -> float | None:
+    pk = rec.get("value_pick")
+    if not pk:
+        return None
+    keys = {"1": ("open_o1", "o1"), "X": ("open_ox", "ox"), "2": ("open_o2", "o2")}.get(pk["code"])
+    if not keys:
+        return None
+    op, cl = rec.get(keys[0]), rec.get(keys[1])
+    if not op or not cl or op <= 1 or cl <= 1:
+        return None
+    return op / cl - 1.0
+
+
+def report(store: dict) -> dict:
+    settled = [r for r in store.values() if r.get("result") and r.get("p_home") is not None]
+    n = len(settled)
+    brier = ll = correct = 0.0
+    mbrier = mll = 0.0
+    mn = 0
+    for r in settled:
+        p = [_clamp(r["p_home"]), _clamp(r["p_draw"]), _clamp(r["p_away"])]
+        w = {"home": 0, "draw": 1, "away": 2}[r["result"]["winner"]]
+        y = [0, 0, 0]
+        y[w] = 1
+        brier += sum((p[i] - y[i]) ** 2 for i in range(3))
+        ll += -math.log(p[w])
+        if max(range(3), key=lambda i: p[i]) == w:
+            correct += 1
+        mk = _devig3(r.get("o1"), r.get("ox"), r.get("o2"))
+        if mk:
+            mk = [_clamp(x) for x in mk]
+            mbrier += sum((mk[i] - y[i]) ** 2 for i in range(3))
+            mll += -math.log(mk[w])
+            mn += 1
+    clvs = [c for c in (_clv(r) for r in settled) if c is not None]
+    picks = [r for r in store.values() if r.get("value_pick") and r.get("result")
+             and r["result"].get("value_pnl") is not None]
+    pnl = sum(r["result"]["value_pnl"] for r in picks)
+    wins = sum(1 for r in picks if r["result"]["value_pnl"] > 0)
+    return {
+        "matchs_suivis": len(store), "matchs_regles": len(settled), "predictions_evaluees": n,
+        "precision_modele": round(correct / n, 3) if n else None,
+        "brier": round(brier / n, 4) if n else None,
+        "brier_marche": round(mbrier / mn, 4) if mn else None,
+        "bat_le_marche": (None if not mn else (brier / n) < (mbrier / mn)),
+        "log_loss": round(ll / n, 4) if n else None,
+        "log_loss_marche": round(mll / mn, 4) if mn else None,
+        "clv_evalue": len(clvs),
+        "clv_moyen": round(sum(clvs) / len(clvs), 4) if clvs else None,
+        "value_paris_regles": len(picks),
+        "value_taux_reussite": round(wins / len(picks), 3) if picks else None,
+        "value_pnl_unites": round(pnl, 2) if picks else 0.0,
+        "value_roi": round(pnl / len(picks), 3) if picks else None,
+    }
+
+
+def render_dashboard(store: dict, rep: dict) -> str:
+    e = html.escape
+
+    def card(label, value, sub="", color="var(--text)"):
+        return (f'<div class="card"><div class="lbl">{e(label)}</div>'
+                f'<div class="val" style="color:{color}">{e(str(value))}</div>'
+                f'<div class="sub">{e(sub)}</div></div>')
+
+    def num(x):
+        return x if x is not None else "—"
+
+    prec = rep.get("precision_modele")
+    pc = "#9aa0a6" if prec is None else ("#34d27b" if prec >= 0.45 else "#f25d6e")
+    bmod, bmkt = rep.get("brier"), rep.get("brier_marche")
+    bc = "#e8eaed"
+    bsub = "1-X-2 (plus bas = mieux)"
+    if bmod is not None and bmkt is not None:
+        beat = rep.get("bat_le_marche")
+        bc = "#34d27b" if beat else "#f25d6e"
+        bsub = "bat le marché ✓" if beat else f"marché : {bmkt}"
+    clv = rep.get("clv_moyen")
+    cc = "#9aa0a6" if clv is None else ("#34d27b" if clv > 0 else "#f25d6e")
+    ctxt = "—" if clv is None else f"{'+' if clv >= 0 else ''}{round(clv*100,1)}%"
+    roi = rep.get("value_roi")
+
+    cards = "".join([
+        card("Précision (1X2)", f"{round(prec*100)}%" if prec is not None else "—",
+             f"{rep.get('predictions_evaluees',0)} matchs", pc),
+        card("Brier modèle", num(bmod), bsub, bc),
+        card("Brier marché", num(bmkt), "réf. à battre"),
+        card("CLV moyen", ctxt, f"{rep.get('clv_evalue',0)} picks · >0 = edge", cc),
+        card("Log-loss", num(rep.get("log_loss")), f"marché : {num(rep.get('log_loss_marche'))}"),
+        card("Matchs suivis", rep.get("matchs_suivis", 0), f"{rep.get('matchs_regles',0)} réglés"),
+    ])
+
+    # Track record des paris foot
+    bets = [r for r in store.values() if r.get("value_pick") and r.get("result")
+            and r["result"].get("value_pnl") is not None]
+    bets.sort(key=lambda r: r["result"].get("settled_at", ""), reverse=True)
+    bets_html = ""
+    if bets:
+        def brow(r):
+            v, res = r["value_pick"], r["result"]
+            won = res["value_pnl"] > 0
+            mark = ('<span class="pos">✓ gagné</span>' if won
+                    else '<span class="neg">✗ perdu</span>')
+            return (f'<tr><td>{e(r["home"])} v {e(r["away"])}<br>'
+                    f'<span class="dim">{e(v["team"])} @{v["odds"]}</span></td><td>{mark}</td>'
+                    f'<td class="{"pos" if won else "neg"}">'
+                    f'{"+" if res["value_pnl"]>=0 else ""}{round(res["value_pnl"],2)}</td></tr>')
+        pnl = rep.get("value_pnl_unites", 0) or 0
+        bets_html = (
+            f'<h2>Track record des paris foot ({len(bets)})</h2>'
+            f'<div class="banner">Mise plate 1 unité. P&amp;L <b>{"+" if pnl>=0 else ""}{pnl} u</b> · '
+            f'réussite {round((rep.get("value_taux_reussite") or 0)*100)}% · '
+            f'ROI {round((roi or 0)*100)}%. Peu significatif tant qu\'on n\'a pas ~100 paris.</div>'
+            '<table><tr><td class="dim">pari</td><td class="dim">résultat</td>'
+            f'<td class="dim">P&amp;L (u)</td></tr>{"".join(brow(r) for r in bets[:30])}</table>')
+
+    body = (f'{web.perf_toggle("foot")}<div class="grid">{cards}</div>'
+            '<div class="banner">Perf <b>foot</b> — calibration <b>1-X-2 (3 issues)</b> : '
+            'précision = l\'issue la plus probable est-elle la bonne ? Brier/log-loss '
+            'multiclasses vs marché. Fiable à partir de ~100 matchs réglés.</div>'
+            f'{bets_html}')
+    return web.layout("Fiabilité foot", "perf", body, refresh=True)

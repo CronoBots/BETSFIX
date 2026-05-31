@@ -507,12 +507,7 @@ def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
     settled_html = ("".join(settled_row(r) for r in settled[:30])
                     or '<tr><td colspan="3" class="dim">Aucun match réglé pour l\'instant.</td></tr>')
 
-    # Bascule de sport (suivis séparés) — réutilise le style des onglets
-    def _tab(key, label):
-        on = "on" if sport == key else ""
-        return f'<a class="{on}" href="/tracking/dashboard?sport={key}">{label}</a>'
-    toggle = (f'<div class="nav" style="margin-top:0">{_tab("tennis", "🎾 Tennis")}'
-              f'{_tab("basket", "🏀 Basket")}</div>')
+    toggle = web.perf_toggle(sport)
 
     body = f"""{toggle}<div class="grid">{cards}</div>
 <div class="banner">Perf <b>{e("basket (WNBA)" if sport == "basket" else "tennis")}</b> — mesure si le

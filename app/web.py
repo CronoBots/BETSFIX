@@ -237,6 +237,15 @@ def _bar(pct: float | None) -> str:
     return f'<div class="bar"><span style="width:{p}%"></span></div>'
 
 
+def perf_toggle(active: str) -> str:
+    """Bascule de sport sur la page Perf (suivis séparés)."""
+    tabs = [("tennis", "🎾 Tennis"), ("basket", "🏀 Basket"), ("foot", "⚽ Foot")]
+    return ('<div class="nav" style="margin-top:0">' + "".join(
+        f'<a class="{"on" if active == k else ""}" '
+        f'href="/tracking/dashboard?sport={k}">{html.escape(lbl)}</a>'
+        for k, lbl in tabs) + "</div>")
+
+
 def fmt_score(home_score, away_score) -> str:
     """Score set par set d'un match en cours/terminé : '6-4 3-2'. '' si aucun."""
     hs = getattr(home_score, "sets", None) or []

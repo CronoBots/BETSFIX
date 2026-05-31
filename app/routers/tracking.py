@@ -118,7 +118,11 @@ async def get_report() -> dict:
 @router.get("/dashboard", response_class=HTMLResponse,
             summary="Tableau de bord lisible (mobile)")
 async def dashboard(sport: str = Query("tennis")) -> HTMLResponse:
-    sport = "basket" if sport == "basket" else "tennis"
+    sport = sport if sport in ("tennis", "basket", "foot") else "tennis"
+    if sport == "foot":
+        from app import foot
+        store = tracking.load(foot.FOOT_TRACK_PATH)
+        return HTMLResponse(foot.render_dashboard(store, foot.report(store)))
     if sport == "basket":
         from app.basket import BASKET_TRACK_PATH
         store = tracking.load(BASKET_TRACK_PATH)
