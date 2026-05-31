@@ -16,7 +16,9 @@ from app import __version__
 from app import basket as basket_sport
 from app import foot as foot_sport
 from app.dependencies import get_provider, get_unibet, shutdown_provider
-from app.routers import analysis, basket, foot, matches, players, statistics, tracking, web
+from app.routers import (
+    analysis, basket, flashscore, foot, matches, players, statistics, tracking, web,
+)
 from app.routers.tracking import run_settle, run_snapshot
 
 log = logging.getLogger("uvicorn")
@@ -113,6 +115,11 @@ OPENAPI_TAGS = [
     {"name": "🏀 Basketball",
      "description": "NBA + WNBA : board (Elo, marge), stats match, classement, "
                     "top joueurs/équipes, cotes, effectifs."},
+    {"name": "🟧 Flashscore (source alternative)",
+     "description": "Source de stats **indépendante de SofaScore**, répertoriée ici pour "
+                    "exploration — non utilisée par le modèle ni l'app. Ids propres à "
+                    "Flashscore (via /flashscore/{sport}/events). Best-effort : feeds non "
+                    "officiels, peuvent changer."},
     {"name": "📊 Suivi & performance",
      "description": "Calibration multi-sports : Brier, log-loss, CLV, track record. "
                     "Tableau de bord par sport (?sport=tennis|foot|basket)."},
@@ -155,6 +162,7 @@ app.include_router(analysis.router)
 app.include_router(tracking.router)
 app.include_router(basket.router)
 app.include_router(foot.router)
+app.include_router(flashscore.router)
 app.include_router(web.router)
 
 # PWA : fichiers statiques (icônes) + manifest -> app installable sur l'écran d'accueil
@@ -258,6 +266,12 @@ async def root() -> dict:
                 "tableau_de_bord": "/tracking/dashboard?sport=tennis",
                 "journal": "/tracking/log",
                 "confiances_du_jour": "/tracking/today",
+            },
+            "flashscore_source_alternative": {
+                "agenda": "/flashscore/{sport}/events  (sport: foot|tennis|basket)",
+                "stats_match": "/flashscore/match/{match_id}/statistics",
+                "resume": "/flashscore/match/{match_id}/summary",
+                "h2h": "/flashscore/match/{match_id}/h2h",
             },
         },
     }
