@@ -147,11 +147,26 @@ def _bar(pct: float | None) -> str:
     return f'<div class="bar"><span style="width:{p}%"></span></div>'
 
 
+def fmt_score(home_score, away_score) -> str:
+    """Score set par set d'un match en cours/terminé : '6-4 3-2'. '' si aucun."""
+    hs = getattr(home_score, "sets", None) or []
+    as_ = getattr(away_score, "sets", None) or []
+    parts = []
+    for h, a in zip(hs, as_):
+        if h is None and a is None:
+            continue
+        parts.append(f'{h if h is not None else 0}-{a if a is not None else 0}')
+    return " ".join(parts)
+
+
 def _match_row(m: dict) -> str:
     """Ligne standard d'un match (à venir ou en direct). Cliquable -> détail."""
     e = html.escape
-    status = ('<span class="live">🔴 EN DIRECT</span>' if m["status"] == "inprogress"
-              else e(m.get("time") or ""))
+    if m["status"] == "inprogress":
+        sc = f' <span class="dim">{e(m["score"])}</span>' if m.get("score") else ""
+        status = f'<span class="live">🔴 EN DIRECT</span>{sc}'
+    else:
+        status = e(m.get("time") or "")
     inner = (
         f'<div class="rowtop"><span>{e(m["tour"].upper())} · {status}</span></div>'
         f'<div class="players">{e(m["home"])} <span class="dim">vs</span> {e(m["away"])}</div>'
@@ -234,18 +249,21 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                         aces: dict | None = None, tour: str = "atp",
                         home_form: list[dict] | None = None,
                         away_form: list[dict] | None = None,
-                        h2h: dict | None = None) -> str:
+                        h2h: dict | None = None, score: str = "") -> str:
     """a = MatchAnalysis ; winner_odds = (cote_home, cote_away) Unibet ;
     aces = récap tendance d'aces ; home_form/away_form = derniers résultats (V/D) ;
-    h2h = {'home': n, 'away': n} bilan des confrontations."""
+    h2h = {'home': n, 'away': n} bilan des confrontations ; score = score en cours."""
     e = html.escape
     hp = a.model_home_probability
     ap = a.model_away_probability
+    live = (f' · <span class="live">🔴 {e(score)}</span>'
+            if a.status == "inprogress" and score else
+            (f' · {e(score)}' if score else ""))
     head = (f'<a class="dim" href="/app">← Retour aux matchs</a>'
             f'<div class="players" style="font-size:18px;margin-top:10px">'
             f'{e(a.home.name)} <span class="dim">vs</span> {e(a.away.name)}</div>'
-            f'<div class="dim">{e(a.ground_type or "")} · statut {e(a.status or "")} '
-            f'· confiance {e(a.confidence or "—")}</div>')
+            f'<div class="dim">{e(a.ground_type or "")} · statut {e(a.status or "")}'
+            f'{live} · confiance {e(a.confidence or "—")}</div>')
 
     # 💰 LE PARI À JOUER — la recommandation nette du modèle pour ce match
     pick = next((v for v in a.value_bets if v.is_value), None)

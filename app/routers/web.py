@@ -74,6 +74,7 @@ async def matches_page(
                 "id": m.id, "tour": tour, "home": m.home.name, "away": m.away.name,
                 "status": m.status,
                 "time": web.fmt_local(m.start_time, with_date=False),
+                "score": web.fmt_score(m.home_score, m.away_score) if m.status == "inprogress" else "",
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
                 "clickable": True,
                 "_date": local_dt.date() if local_dt else None,
@@ -164,9 +165,11 @@ async def match_detail(
     home_form = _recent_form(hm or [], match.home.id)
     away_form = _recent_form(am or [], match.away.id)
     h2h_rec = ({"home": h2h.home_wins, "away": h2h.away_wins} if h2h else None)
+    score = (web.fmt_score(match.home_score, match.away_score)
+             if match.status in ("inprogress", "finished") else "")
     return HTMLResponse(web.render_match_detail(
         analysis, winner_odds, aces=aces, tour=tour,
-        home_form=home_form, away_form=away_form, h2h=h2h_rec))
+        home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score))
 
 
 def _recent_form(matches: list, player_id: int | None, n: int = 6) -> list[dict]:
