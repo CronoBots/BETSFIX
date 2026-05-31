@@ -57,7 +57,7 @@ def _ttl_for(path: str) -> float | None:
         return 3600
     if "/h2h" in path or "/point-by-point" in path:
         return 1800
-    if "/incidents" in path or "/lineups" in path:
+    if "/incidents" in path or "/lineups" in path or "/pregame-form" in path:
         return 600
     if "/standings/" in path or "/top-players/" in path or "/top-teams/" in path:
         return 3600
@@ -74,8 +74,10 @@ from app.models import (
     MatchStatistics,
     MatchStreaks,
     MatchVotes,
+    PregameForm,
     Standings,
     StandingRow,
+    TeamForm,
     TeamSeasonStatistics,
     OddChoice,
     OddsMarket,
@@ -478,6 +480,36 @@ class SofaScoreProvider:
     async def get_event_incidents_raw(self, event_id: int) -> dict:
         """Incidents bruts d'un match (basket : scores par quart-temps + paniers)."""
         return await self._get(f"/event/{event_id}/incidents")
+
+    async def get_event_pregame_form(self, event_id: int) -> PregameForm:
+        """Forme d'avant-match des deux équipes (position, note, 5 derniers résultats)."""
+        data = await self._get(f"/event/{event_id}/pregame-form")
+
+        def _form(d: dict | None) -> TeamForm:
+            d = d or {}
+            return TeamForm(
+                avg_rating=_to_float(d.get("avgRating")),
+                position=d.get("position"),
+                points=_to_int(d.get("value")),
+                form=d.get("form") or [],
+            )
+
+        return PregameForm(
+            match_id=event_id, label=data.get("label"),
+            home=_form(data.get("homeTeam")), away=_form(data.get("awayTeam")),
+        )
+
+    async def get_event_shotmap(self, event_id: int) -> dict:
+        """Carte des tirs d'un match de foot, avec **xG par tir** (brut SofaScore)."""
+        return await self._get(f"/event/{event_id}/shotmap")
+
+    async def get_event_win_probability(self, event_id: int) -> dict:
+        """Probabilité de victoire dans le temps (modèle live SofaScore). Foot."""
+        return await self._get(f"/event/{event_id}/win-probability")
+
+    async def get_event_momentum(self, event_id: int) -> dict:
+        """Graphe de momentum / pression du match (foot/basket)."""
+        return await self._get(f"/event/{event_id}/graph")
 
     async def get_team_squad(self, team_id: int) -> dict:
         """Effectif d'une équipe (joueurs + postes). Foot/basket."""
@@ -997,6 +1029,13 @@ def _fractional_to_decimal(fractional: str | None) -> float | None:
 def _to_int(value) -> int | None:
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_float(value) -> float | None:
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 

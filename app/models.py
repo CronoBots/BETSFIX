@@ -105,6 +105,24 @@ class MatchIncidents(BaseModel):
     incidents: list[MatchIncident] = Field(default_factory=list)
 
 
+class TeamForm(BaseModel):
+    """Forme d'avant-match d'une équipe (foot/basket)."""
+
+    avg_rating: float | None = Field(default=None, description="Note moyenne récente SofaScore")
+    position: int | None = Field(default=None, description="Position au classement")
+    points: int | None = Field(default=None, description="Points (foot) / bilan")
+    form: list[str] = Field(default_factory=list, description="5 derniers résultats : W/D/L")
+
+
+class PregameForm(BaseModel):
+    """Forme des deux équipes avant un match (position, note, 5 derniers résultats)."""
+
+    match_id: int
+    label: str | None = None
+    home: TeamForm = Field(default_factory=TeamForm)
+    away: TeamForm = Field(default_factory=TeamForm)
+
+
 class StandingRow(BaseModel):
     """Une ligne de classement (foot/basket)."""
 

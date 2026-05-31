@@ -15,6 +15,7 @@ from app.models import (
     MatchStatistics,
     MatchStreaks,
     MatchVotes,
+    PregameForm,
     Standings,
     TeamSeasonStatistics,
 )
@@ -112,6 +113,33 @@ async def basket_incidents(
 ) -> dict:
     try:
         return await provider.get_event_incidents_raw(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/basket/match/{event_id}/pregame-form",
+    summary="Forme d'avant-match : position, note, 5 derniers résultats des 2 équipes",
+    response_model=PregameForm,
+)
+async def basket_pregame_form(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> PregameForm:
+    try:
+        return await provider.get_event_pregame_form(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/basket/match/{event_id}/momentum",
+    summary="Graphe de momentum / pression du match",
+)
+async def basket_momentum(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> dict:
+    try:
+        return await provider.get_event_momentum(event_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 

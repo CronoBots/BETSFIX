@@ -17,6 +17,7 @@ from app.models import (
     MatchStatistics,
     MatchStreaks,
     MatchVotes,
+    PregameForm,
     Standings,
     TeamSeasonStatistics,
 )
@@ -124,6 +125,59 @@ async def foot_h2h(
 ) -> dict:
     try:
         return await provider.get_event_h2h(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/match/{event_id}/pregame-form",
+    summary="Forme d'avant-match : position, note, 5 derniers résultats des 2 équipes",
+    response_model=PregameForm,
+)
+async def foot_pregame_form(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> PregameForm:
+    try:
+        return await provider.get_event_pregame_form(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/match/{event_id}/shotmap",
+    summary="Carte des tirs avec xG par tir",
+)
+async def foot_shotmap(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> dict:
+    try:
+        return await provider.get_event_shotmap(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/match/{event_id}/win-probability",
+    summary="Probabilité de victoire dans le temps (modèle live SofaScore)",
+)
+async def foot_win_probability(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> dict:
+    try:
+        return await provider.get_event_win_probability(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/match/{event_id}/momentum",
+    summary="Graphe de momentum / pression du match",
+)
+async def foot_momentum(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> dict:
+    try:
+        return await provider.get_event_momentum(event_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
