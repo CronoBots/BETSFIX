@@ -456,8 +456,7 @@ def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
         cand = [r for r in rows if (r.get("edge") or 0) > 0]
         return max(cand, key=lambda r: r["edge"]) if cand else None
 
-    options = [(_best(winner_rows), "Vainqueur", "marché le plus fiable"),
-               (_best(set_rows), "Sets", "calibré, mais le book est souvent juste")]
+    options = [(_best(winner_rows), "Vainqueur", "marché le plus fiable")]
     options = [(r, lbl, note) for r, lbl, note in options if r]
     if options:
         best, blbl, bnote = max(options, key=lambda x: x[0]["edge"])
@@ -501,11 +500,11 @@ def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
         section("🏆 Vainqueur du match",
                 "Le marché le <b>mieux modélisé</b> (Elo, classement, forme, surface, h2h). "
                 "C\'est ici que nos estimations sont les plus fiables.", winner_rows)
-        + section("🛡️ Paris « sûrs » — sets (au moins un set, handicap ±2.5)",
+        + section("🛡️ Paris « sûrs » — sets (au moins un set, handicap ±2.5, total sets)",
                   "Faible cote, haute probabilité (comme tes paris gagnants). "
-                  "<b>Calibrés sur 4250 matchs</b> : en général le book a raison (pas d\'edge "
-                  "systématique). Une value n\'apparaît que si notre modèle juge le match "
-                  "plus serré que le book.", set_rows)
+                  "<b>Validé sur 4250 matchs : ces marchés sont bien cotés, sans edge "
+                  "systématique.</b> On affiche notre estimation (approximative) à titre "
+                  "<b>indicatif</b> — pas de pari conseillé ici.", set_rows)
         + section("🎾 Aces (exploratoire)",
                   "Signal réel sur la tendance d\'aces, mais total ancré sur le book : "
                   "à confirmer par le suivi avant d\'en faire un pari.", ace_rows)

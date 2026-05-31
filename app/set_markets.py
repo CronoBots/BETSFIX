@@ -46,18 +46,20 @@ def set_prob_from_match(p: float, best_of: int) -> float:
 
 
 def at_least_one_set(p_match: float, best_of: int) -> float:
-    """P(le joueur gagne >= 1 set), CALIBRÉE sur le réel.
+    """P(le joueur gagne >= 1 set), calibrée — ASYMÉTRIQUE.
 
-    On part du modèle indépendant puis on corrige (il sur-estime). Pour un favori très
-    net (proba IID >= 0.88) la correction ne s'applique pas (il prend quasi toujours un
-    set) : on garde la valeur brute.
+    Le modèle "sets indépendants" sur-estime la compétitivité, mais cela ne concerne
+    que l'OUTSIDER (qui se fait écraser 0-3 plus souvent que le hasard). Le FAVORI, lui,
+    prend quasi toujours un set : on ne corrige pas son "au moins un set" (sinon on
+    sous-estime à tort, ex. Andreeva 75% -> 30% de bagel : absurde). On pondère donc la
+    correction par "à quel point le joueur est outsider" (lissé, continu à p=0.5).
     """
     s = set_prob_from_match(p_match, best_of)
     k = 3 if best_of == 5 else 2
     raw = 1 - (1 - s) ** k
-    if raw >= 0.88:
-        return raw
-    return max(0.02, min(0.97, CAL_A * raw + CAL_B))
+    corrected = CAL_A * raw + CAL_B
+    w = min(1.0, max(0.0, (0.5 - p_match) / 0.3))   # 0 si favori, 1 si gros outsider
+    return max(0.02, min(0.985, (1 - w) * raw + w * corrected))
 
 
 def _devig(o1, o2):
@@ -68,14 +70,11 @@ def _devig(o1, o2):
 
 
 def _edge(model_p, imp, odds):
-    fair = MODEL_TRUST * model_p + (1 - MODEL_TRUST) * imp
-    edge = fair - imp
-    stake = 0.0
-    if odds and odds > 1:
-        b = odds - 1
-        stake = min(max(0.0, (b * fair - (1 - fair)) / b) * 0.25 * 100, 3.0)
-    is_value = (edge >= VALUE_THRESHOLD and MIN_IMPLIED <= imp <= MAX_IMPLIED and stake > 0)
-    return round(edge, 4), is_value, round(stake, 2)
+    """Écart modèle-book (info). is_value reste FALSE : la calibration des sets est trop
+    incertaine pour prétendre à une value (validation : ces marchés sont bien cotés).
+    On affiche l'écart à titre indicatif, sans le promouvoir en pari."""
+    edge = MODEL_TRUST * model_p + (1 - MODEL_TRUST) * imp - imp
+    return round(edge, 4), False, 0.0
 
 
 def evaluate(match: Match, unibet: UnibetOdds, best_of: int,
