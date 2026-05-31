@@ -449,15 +449,15 @@ def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
         body = back + '<div class="banner">Cotes Unibet indisponibles pour ce match.</div>'
         return layout("Tous les paris", "matches", body)
 
-    # 🎯 Meilleur pari du match : on scanne les marchés FIABLES (vainqueur, sets, aces)
-    # et on met en avant le plus gros écart positif. Le vainqueur prime (mieux modélisé).
+    # 🎯 Meilleur pari du match : on ne retient QUE les marchés fiables/calibrés
+    # (vainqueur, sets). Les aces sont exclus du titre (edges souvent artefacts non
+    # validés) — ils restent visibles, en info, dans leur section.
     def _best(rows):
         cand = [r for r in rows if (r.get("edge") or 0) > 0]
         return max(cand, key=lambda r: r["edge"]) if cand else None
 
     options = [(_best(winner_rows), "Vainqueur", "marché le plus fiable"),
-               (_best(set_rows), "Sets", "calibré, mais le book est souvent juste"),
-               (_best(ace_rows), "Aces", "exploratoire, à confirmer")]
+               (_best(set_rows), "Sets", "calibré, mais le book est souvent juste")]
     options = [(r, lbl, note) for r, lbl, note in options if r]
     if options:
         best, blbl, bnote = max(options, key=lambda x: x[0]["edge"])
