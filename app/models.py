@@ -61,6 +61,12 @@ class StatisticItem(BaseModel):
     name: str
     home: str | None = None
     away: str | None = None
+    key: str | None = Field(default=None, description="Clé technique SofaScore (ex: ballPossession, expectedGoals)")
+    home_value: float | None = Field(default=None, description="Valeur numérique domicile (foot/basket)")
+    away_value: float | None = Field(default=None, description="Valeur numérique extérieur (foot/basket)")
+    home_total: float | None = Field(default=None, description="Total domicile pour les ratios (ex: tirs cadrés/total)")
+    away_total: float | None = Field(default=None, description="Total extérieur pour les ratios")
+    compare_code: int | None = Field(default=None, description="1 = domicile meilleur, 2 = extérieur meilleur, 3 = égalité")
 
 
 class StatisticGroup(BaseModel):
@@ -76,6 +82,41 @@ class PeriodStatistics(BaseModel):
 class MatchStatistics(BaseModel):
     match_id: int
     periods: list[PeriodStatistics] = Field(default_factory=list)
+
+
+class MatchIncident(BaseModel):
+    """Un évènement d'un match de foot : but, carton, remplacement, VAR…"""
+
+    type: str | None = Field(default=None, description="goal, card, substitution, varDecision, period…")
+    minute: int | None = Field(default=None, description="Minute de l'évènement")
+    added_time: int | None = Field(default=None, description="Temps additionnel (minute + X)")
+    side: str | None = Field(default=None, description="home / away")
+    player: str | None = None
+    assist: str | None = Field(default=None, description="Passeur (but) ou joueur entrant (remplacement)")
+    detail: str | None = Field(default=None, description="penalty, ownGoal, yellow, red, yellowRed…")
+    home_score: int | None = Field(default=None, description="Score domicile après l'évènement")
+    away_score: int | None = Field(default=None, description="Score extérieur après l'évènement")
+
+
+class MatchIncidents(BaseModel):
+    """Fil chronologique des évènements d'un match (buts, cartons, remplacements)."""
+
+    match_id: int
+    incidents: list[MatchIncident] = Field(default_factory=list)
+
+
+class TeamSeasonStatistics(BaseModel):
+    """Statistiques agrégées d'une équipe sur une saison/compétition (foot ou basket).
+
+    Le détail varie selon le sport (buts/xG/passes en foot ; points/rebonds en basket),
+    donc on expose le dictionnaire brut SofaScore + le nombre de matchs.
+    """
+
+    team_id: int
+    tournament_id: int
+    season_id: int
+    matches: int | None = None
+    statistics: dict = Field(default_factory=dict, description="Stats brutes SofaScore (clés selon le sport)")
 
 
 class PointByPointPoint(BaseModel):

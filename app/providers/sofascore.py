@@ -5,12 +5,15 @@ SofaScore expose une API JSON publique. Les endpoints utilisés ici :
   - /unique-tournament/{id}/season/{seasonId}/events/last/{page}
   - /unique-tournament/{id}/season/{seasonId}/events/next/{page}
   - /event/{eventId}
-  - /event/{eventId}/statistics
+  - /event/{eventId}/statistics        (tennis + foot + basket : même structure)
+  - /event/{eventId}/incidents         (foot : buts, cartons, remplacements)
+  - /event/{eventId}/lineups           (foot/basket : compositions)
   - /event/{eventId}/point-by-point
   - /event/{eventId}/h2h
   - /event/{eventId}/votes
   - /event/{eventId}/team-streaks
   - /event/{eventId}/odds/1/all
+  - /team/{teamId}/unique-tournament/{tid}/season/{sid}/statistics/overall  (stats équipe foot/basket)
   - /team/{playerId}            (fiche joueur)
   - /team/{playerId}/rankings
   - /team/{playerId}/events/last/{page}
@@ -54,17 +57,22 @@ def _ttl_for(path: str) -> float | None:
         return 3600
     if "/h2h" in path or "/point-by-point" in path:
         return 1800
+    if "/incidents" in path or "/lineups" in path:
+        return 600
     if "/team/" in path and "/events" not in path:  # fiche joueur
         return 3600
     return None  # défaut (events, stats live, odds) -> TTL de base
 from app.models import (
     HeadToHead,
     Match,
+    MatchIncident,
+    MatchIncidents,
     MatchPointByPoint,
     MatchOdds,
     MatchStatistics,
     MatchStreaks,
     MatchVotes,
+    TeamSeasonStatistics,
     OddChoice,
     OddsMarket,
     PeriodStatistics,
@@ -360,6 +368,67 @@ class SofaScoreProvider:
         data = await self._get(f"/event/{match_id}/point-by-point")
         return self._normalize_point_by_point(match_id, data)
 
+    # ------------------------------------------ stats génériques (foot / basket)
+    async def get_event_statistics(self, event_id: int) -> MatchStatistics:
+        """Stats d'un match, tous sports (possession/tirs/xG en foot, rebonds/3pts en basket).
+
+        Même endpoint et même structure que le tennis : /event/{id}/statistics.
+        """
+        return await self.get_statistics(event_id)
+
+    async def get_event_incidents(self, event_id: int) -> MatchIncidents:
+        """Fil des évènements d'un match de foot (buts, cartons, remplacements, VAR)."""
+        data = await self._get(f"/event/{event_id}/incidents")
+        incidents: list[MatchIncident] = []
+        for inc in data.get("incidents", []) or []:
+            itype = inc.get("incidentType")
+            player = inc.get("player") or {}
+            assist = inc.get("assist1") or inc.get("playerIn") or {}
+            incidents.append(MatchIncident(
+                type=itype,
+                minute=inc.get("time"),
+                added_time=inc.get("addedTime"),
+                side=_home_side(inc.get("isHome")),
+                player=player.get("name") or (inc.get("playerOut") or {}).get("name"),
+                assist=assist.get("name") or None,
+                detail=inc.get("incidentClass") or inc.get("reason") or inc.get("varDecision"),
+                home_score=inc.get("homeScore"),
+                away_score=inc.get("awayScore"),
+            ))
+        # SofaScore renvoie du plus récent au plus ancien -> ordre chronologique
+        incidents.reverse()
+        return MatchIncidents(match_id=event_id, incidents=incidents)
+
+    async def get_event_lineups(self, event_id: int) -> dict:
+        """Compositions d'un match (titulaires, remplaçants, notes). Structure brute SofaScore."""
+        return await self._get(f"/event/{event_id}/lineups")
+
+    async def get_event_h2h(self, event_id: int) -> dict:
+        """Bilan des confrontations directes (brut) — sport-agnostique (foot/basket)."""
+        data = await self._get(f"/event/{event_id}/h2h")
+        return data.get("teamDuel") or {}
+
+    async def get_current_season_id(self, tournament_id: int) -> int | None:
+        """Identifiant de la saison en cours d'une compétition (foot/basket)."""
+        data = await self._get(f"/unique-tournament/{tournament_id}/seasons")
+        seasons = data.get("seasons") or []
+        return seasons[0].get("id") if seasons else None
+
+    async def get_team_season_statistics(
+        self, team_id: int, tournament_id: int, season_id: int
+    ) -> TeamSeasonStatistics:
+        """Stats agrégées d'une équipe sur une saison (foot/basket) : /team/.../statistics/overall."""
+        data = await self._get(
+            f"/team/{team_id}/unique-tournament/{tournament_id}"
+            f"/season/{season_id}/statistics/overall"
+        )
+        st = data.get("statistics") or {}
+        return TeamSeasonStatistics(
+            team_id=team_id, tournament_id=tournament_id, season_id=season_id,
+            matches=st.get("matches") or st.get("appearances"),
+            statistics={k: _round_pct(v) if isinstance(v, float) else v for k, v in st.items()},
+        )
+
     async def get_head_to_head(self, tour: str, match_id: int) -> HeadToHead:
         """Bilan des confrontations directes des deux joueurs d'un match."""
         match = await self.get_match(tour, match_id)
@@ -623,6 +692,12 @@ class SofaScoreProvider:
                         name=item.get("name", ""),
                         home=_as_str(item.get("home")),
                         away=_as_str(item.get("away")),
+                        key=item.get("key"),
+                        home_value=_num(item.get("homeValue")),
+                        away_value=_num(item.get("awayValue")),
+                        home_total=_num(item.get("homeTotal")),
+                        away_total=_num(item.get("awayTotal")),
+                        compare_code=item.get("compareCode"),
                     )
                     for item in group.get("statisticsItems", []) or []
                 ]
@@ -689,6 +764,20 @@ def _score(score: dict | None) -> Score:
 def _side(code) -> str | None:
     """SofaScore encode home=1, away=2."""
     return {1: "home", 2: "away"}.get(code)
+
+
+def _home_side(is_home) -> str | None:
+    """Incidents foot : champ booléen isHome -> 'home' / 'away'."""
+    if is_home is True:
+        return "home"
+    if is_home is False:
+        return "away"
+    return None
+
+
+def _num(value) -> float | None:
+    """Convertit une valeur numérique SofaScore (int/float) en float, sinon None."""
+    return float(value) if isinstance(value, (int, float)) else None
 
 
 def _tour_of(ev: dict) -> str:
