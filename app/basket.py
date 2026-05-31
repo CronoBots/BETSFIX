@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from app import web
+from app import tracking, web
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELO_PATH = os.path.join(_ROOT, "data", "basket_elo.json")
@@ -173,8 +173,11 @@ async def board() -> list[dict]:
                 fair = MODEL_TRUST * model_p + (1 - MODEL_TRUST) * imp_s
                 edge = fair - imp_s
                 if (edge >= VALUE_THRESHOLD and MIN_IMPLIED <= imp_s <= MAX_IMPLIED
-                        and (not pick or edge > pick["edge"])):
-                    pick = {"side": side, "team": g[side], "odds": odds_s, "edge": edge}
+                        and odds_s and (not pick or edge > pick["edge"])):
+                    b = odds_s - 1
+                    kf = max(0.0, (b * fair - (1 - fair)) / b) if b > 0 else 0.0
+                    pick = {"side": side, "team": g[side], "odds": odds_s, "edge": edge,
+                            "stake": round(min(kf * 0.25 * 100, 3.0), 2)}
         rows.append({**g, "model_home": p, "oh": oh, "oa": oa,
                      "imp_home": imp[0] if imp else None, "pick": pick})
     return rows
@@ -234,4 +237,64 @@ def render(rows: list[dict]) -> str:
         out.extend(game_row(r) for r in rows)
     else:
         out.append('<div class="dim">Aucun match WNBA à venir (≤ 3 jours).</div>')
+    out.append('<a class="big" href="/tracking/dashboard?sport=basket">📊 Fiabilité du '
+               'modèle basket<div class="d">Calibration et track record, séparés du '
+               'tennis</div></a>')
     return web.layout("Basket WNBA", "basket", "".join(out), refresh=True)
+
+
+# ----------------------------------------------------------------- suivi (séparé)
+BASKET_TRACK_PATH = os.path.join(_ROOT, "data", "tracking_basket.json")
+
+
+def _upsert(store: dict, g: dict, now_iso: str) -> bool:
+    rec = store.get(str(g["id"]), {})
+    if rec.get("result"):
+        return False
+    pick = g.get("pick")
+    rec.update({
+        "match_id": g["id"], "sport": "basket", "tour": "wnba",
+        "home": g["home"], "away": g["away"], "model_home_prob": g["model_home"],
+        "start_time": (datetime.fromtimestamp(g["start"], tz=timezone.utc).isoformat()
+                       if g.get("start") else None),
+        "unibet_home_odds": g.get("oh"), "unibet_away_odds": g.get("oa"),
+        "value_pick": ({"side": pick["side"], "player": pick["team"], "odds": pick["odds"],
+                        "edge": pick["edge"], "stake_pct": pick.get("stake")} if pick else None),
+        "last_update": now_iso,
+    })
+    rec.setdefault("first_logged", now_iso)
+    rec.setdefault("open_home_odds", g.get("oh"))
+    rec.setdefault("open_away_odds", g.get("oa"))
+    store[str(g["id"])] = rec
+    return True
+
+
+async def run_snapshot() -> int:
+    """Logue les prédictions WNBA (proba + cotes + value) -> tracking_basket.json."""
+    store = tracking.load(BASKET_TRACK_PATH)
+    now = datetime.now(timezone.utc).isoformat()
+    n = 0
+    for g in await board():
+        if g.get("oh") and g.get("model_home") is not None and _upsert(store, g, now):
+            n += 1
+    tracking.save(store, BASKET_TRACK_PATH)
+    return n
+
+
+async def run_settle() -> int:
+    """Renseigne le résultat des matchs WNBA terminés (vainqueur)."""
+    store = tracking.load(BASKET_TRACK_PATH)
+    now = datetime.now(timezone.utc).isoformat()
+    s = 0
+    async with httpx.AsyncClient(headers=SOFA_H) as c:
+        for rec in list(store.values()):
+            if rec.get("result"):
+                continue
+            data = await _get(c, SOFA_B, f"/event/{rec['match_id']}")
+            ev = (data or {}).get("event") or {}
+            if (ev.get("status") or {}).get("type") == "finished" and ev.get("winnerCode") in (1, 2):
+                winner = "home" if ev["winnerCode"] == 1 else "away"
+                if tracking.settle(store, rec["match_id"], winner, None, now):
+                    s += 1
+    tracking.save(store, BASKET_TRACK_PATH)
+    return s

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
 from app import elo, serve_return, tracking
@@ -117,9 +117,14 @@ async def get_report() -> dict:
 
 @router.get("/dashboard", response_class=HTMLResponse,
             summary="Tableau de bord lisible (mobile)")
-async def dashboard() -> HTMLResponse:
-    store = tracking.load()
-    return HTMLResponse(tracking.render_dashboard(store, tracking.report(store)))
+async def dashboard(sport: str = Query("tennis")) -> HTMLResponse:
+    sport = "basket" if sport == "basket" else "tennis"
+    if sport == "basket":
+        from app.basket import BASKET_TRACK_PATH
+        store = tracking.load(BASKET_TRACK_PATH)
+    else:
+        store = tracking.load()
+    return HTMLResponse(tracking.render_dashboard(store, tracking.report(store), sport=sport))
 
 
 @router.get("/today", response_class=HTMLResponse,

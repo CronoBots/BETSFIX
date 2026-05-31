@@ -326,8 +326,11 @@ def _pct(x):
     return f"{round(x * 100)}%" if isinstance(x, (int, float)) else "—"
 
 
-def render_dashboard(store: dict, rep: dict) -> str:
-    """Page 'Fiabilité du modèle' : le modèle prédit-il bien ? (calibration)."""
+def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
+    """Page 'Fiabilité du modèle' : le modèle prédit-il bien ? (calibration).
+
+    `sport` = tennis / basket : suivis séparés, avec une bascule en tête de page.
+    """
     e = html.escape
     recs = list(store.values())
     settled = [r for r in recs if r.get("result") and r.get("model_home_prob") is not None]
@@ -504,10 +507,17 @@ def render_dashboard(store: dict, rep: dict) -> str:
     settled_html = ("".join(settled_row(r) for r in settled[:30])
                     or '<tr><td colspan="3" class="dim">Aucun match réglé pour l\'instant.</td></tr>')
 
-    body = f"""<div class="grid">{cards}</div>
-<div class="banner">Cette page mesure si le <b>modèle prédit bien le vainqueur</b>
- (calibration sur résultats réels). Ce n'est <b>pas</b> un outil pour battre le bookmaker :
- un modèle simple ne bat pas un book sérieux. Fiable à partir de ~100 matchs réglés.</div>
+    # Bascule de sport (suivis séparés) — réutilise le style des onglets
+    def _tab(key, label):
+        on = "on" if sport == key else ""
+        return f'<a class="{on}" href="/tracking/dashboard?sport={key}">{label}</a>'
+    toggle = (f'<div class="nav" style="margin-top:0">{_tab("tennis", "🎾 Tennis")}'
+              f'{_tab("basket", "🏀 Basket")}</div>')
+
+    body = f"""{toggle}<div class="grid">{cards}</div>
+<div class="banner">Perf <b>{e("basket (WNBA)" if sport == "basket" else "tennis")}</b> — mesure si le
+ <b>modèle prédit bien le vainqueur</b> (calibration sur résultats réels). Ce n'est <b>pas</b>
+ un outil pour battre le book. Fiable à partir de ~100 matchs réglés.</div>
 {surconf_html}
 {bets_html}
 {calib_html}

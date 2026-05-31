@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app import basket as basket_sport
 from app.dependencies import get_provider, get_unibet, shutdown_provider
 from app.routers import analysis, basket, matches, players, statistics, tracking, web
 from app.routers.tracking import run_settle, run_snapshot
@@ -69,6 +70,11 @@ async def _tracking_loop():
             n = await run_snapshot(get_provider(), get_unibet())
             s = await run_settle(get_provider())
             log.info("tracking: %s prédictions loggées/màj, %s matchs réglés", n, s)
+            try:   # basket (WNBA) — suivi séparé, ne casse pas le tennis s'il échoue
+                nb, sb = await basket_sport.run_snapshot(), await basket_sport.run_settle()
+                log.info("basket: %s loggés/màj, %s réglés", nb, sb)
+            except Exception as exc:
+                log.warning("basket loop error: %s", exc)
             await _maybe_rebuild_data()   # reconstruit les notes 1x/semaine (auto)
         except Exception as exc:  # ne jamais tuer la boucle
             log.warning("tracking loop error: %s", exc)
