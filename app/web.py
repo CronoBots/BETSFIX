@@ -89,15 +89,20 @@ CSS = """
   .brand .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.12em;
               text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);
               padding:3px 8px;border-radius:20px}
-  .nav{display:flex;gap:6px;margin-top:11px}
-  .nav a{flex:1;text-align:center;padding:9px 3px;border-radius:11px;font-size:12px;
+  .nav{display:flex;gap:7px;margin-top:11px}
+  .nav a{flex:1;text-align:center;padding:11px 4px;border-radius:13px;font-size:13px;
          font-weight:700;background:var(--surface);color:var(--muted);white-space:nowrap;
          border:1px solid var(--border);transition:.16s}
-  .nav a.home{flex:0 0 auto;padding:9px 11px;font-size:15px}
   .nav a:active{transform:scale(.97)}
   .nav a.on{color:var(--accent-ink);border-color:transparent;
             background:linear-gradient(180deg,var(--accent),var(--accent2));
             box-shadow:0 4px 16px rgba(46,226,127,.32)}
+  /* Sous-menu par sport (Matchs / Fiabilité) */
+  .subnav{display:flex;gap:6px;margin:16px 0 2px}
+  .subnav a{flex:1;text-align:center;padding:9px;border-radius:11px;font-size:12.5px;
+            font-weight:700;color:var(--muted);background:transparent;
+            border:1px solid var(--border);transition:.16s}
+  .subnav a.on{color:var(--text);background:var(--surface2);border-color:var(--border2)}
   h2{font-size:13px;font-weight:700;margin:26px 0 11px;color:var(--muted);
      text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:8px}
   h2:before{content:"";width:3px;height:14px;border-radius:3px;
@@ -165,23 +170,37 @@ CSS = """
 """
 
 
-def layout(title: str, active: str, body: str, refresh: bool = False) -> str:
+# Menu principal groupé par SPORT ; chaque sport a son sous-menu (Matchs / Fiabilité).
+_SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
+
+
+def layout(title: str, sport: str, body: str, subnav: str | None = None,
+           refresh: bool = False) -> str:
+    """Page premium. `sport` ∈ home/tennis/basket/foot (onglet principal actif).
+    `subnav` ∈ matchs/perf : affiche le sous-menu du sport (Matchs / Fiabilité)."""
     e = html.escape
-    nav_items = [("home", "/", "🏠"), ("matches", "/app", "🎾 Tennis"),
-                 ("basket", "/basket", "🏀 Basket"), ("foot", "/foot", "⚽ Foot"),
-                 ("perf", "/tracking/dashboard", "📊 Perf")]
+    nav_items = [("home", "/", "🏠 Accueil"), ("tennis", "/app", "🎾 Tennis"),
+                 ("basket", "/basket", "🏀 Basket"), ("foot", "/foot", "⚽ Foot")]
     nav = '<nav class="nav">' + "".join(
-        f'<a class="{("on " if active==k else "")}{"home" if k=="home" else ""}"'
-        f' href="{href}">{e(lbl)}</a>'
+        f'<a class="{"on" if sport == k else ""}" href="{href}">{e(lbl)}</a>'
         for k, href, lbl in nav_items) + "</nav>"
+
+    sub = ""
+    if subnav and sport in _SPORT_MATCH_URL:
+        items = [("matchs", _SPORT_MATCH_URL[sport], "📋 Matchs"),
+                 ("perf", f"/tracking/dashboard?sport={sport}", "📊 Fiabilité")]
+        sub = '<div class="subnav">' + "".join(
+            f'<a class="{"on" if subnav == k else ""}" href="{href}">{e(lbl)}</a>'
+            for k, href, lbl in items) + "</div>"
+
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#080a0f">
 {meta_refresh}<title>{e(title)} · BetsFix</title><style>{CSS}</style></head><body>
 <header class="hdr"><div class="hdr-in">
-<div class="brand"><span class="logo">🎾</span> Bets<b>Fix</b><span class="tag">Tennis</span></div>
-{nav}</div></header><div class="wrap">{body}
+<div class="brand"><span class="logo">🎾</span> Bets<b>Fix</b><span class="tag">Multi-sports</span></div>
+{nav}</div></header><div class="wrap">{sub}{body}
 <div class="foot">Données SofaScore + Unibet BE · informatif, sans garantie · jouez responsable</div>
 </div></body></html>"""
 
@@ -199,36 +218,24 @@ def render_home(rep: dict, source: dict | None = None,
     else:
         src = ""
 
-    # 💰 Paris à venir : les value détectées, classées par edge
-    picks = picks or []
-    if picks:
-        rows = "".join(
-            f'<a class="row pick" href="/app/match/{v["id"]}?tour={v["tour"]}">'
-            f'<div class="rowtop"><span>{e(v["tour"].upper())} · {e(v.get("time") or "")}</span>'
-            f'<span class="badge b-val">+{round((v.get("edge") or 0)*100, 1)} pts</span></div>'
-            f'<div class="players">{e(v.get("player") or "")} '
-            f'<span class="dim">@{v.get("odds") or "—"}</span></div>'
-            f'<div class="dim">{e(v["home"])} vs {e(v["away"])} · mise '
-            f'{v.get("stake") if v.get("stake") is not None else "—"}%</div></a>'
-            for v in picks)
-        picks_html = (f'<h2>💰 Paris à venir ({len(picks)})</h2>'
-                      '<div class="banner">Les "value" du modèle vs Unibet, classées par edge. '
-                      'À recouper — un pari n\'est jamais garanti.</div>' + rows)
-    else:
-        picks_html = ('<h2>💰 Paris à venir</h2>'
-                      '<div class="dim">Aucune value détectée pour le moment.</div>')
+    # Hub multi-sports : on choisit son sport, chacun a Matchs + Fiabilité.
+    sports = [
+        ("🎾", "Tennis", "/app",
+         "ATP & WTA — favori du modèle, value, aces, sets, service/retour"),
+        ("🏀", "Basket", "/basket",
+         "WNBA — Elo d'équipe, value moneyline, marge attendue"),
+        ("⚽", "Foot", "/foot",
+         "Coupe du Monde & grandes compétitions — 1-X-2, BTTS"),
+    ]
+    cards = "".join(
+        f'<a class="big" href="{url}"><span style="font-size:20px">{ic}</span> '
+        f'<b>{name}</b><div class="d">{e(desc)}</div></a>'
+        for ic, name, url, desc in sports)
 
-    body = f"""{src}{picks_html}"""
-    body += f"""
-<a class="big" href="/app">🎾 Matchs & analyses
-  <div class="d">Matchs du jour : favori du modèle, stats, forme, h2h et cotes Unibet</div></a>
-<a class="big" href="/tracking/dashboard">📊 Fiabilité du modèle
-  <div class="d">Précision : {e(prec_txt)} sur {rep.get('predictions_evaluees',0)} matchs réglés</div></a>
-<a class="big" href="/docs">🛠️ API & documentation
-  <div class="d">Tous les endpoints (matchs, stats, joueurs, cotes…)</div></a>
-<div class="banner warn">Outil d'<b>aide à la décision</b> : il t'aide à analyser, il ne prédit pas
- de paris gagnants. Un modèle simple ne bat pas un bookmaker sérieux — sers-t'en pour
- t'informer, décide toi-même, et joue responsable.</div>"""
+    body = (f'{src}<h2>Choisis ton sport</h2>{cards}'
+            '<div class="banner warn">Outil d\'<b>aide à la décision</b> : il aide à '
+            'analyser, il ne prédit pas de paris gagnants. Un modèle simple ne bat pas un '
+            'book sérieux — informe-toi, décide toi-même, et joue responsable.</div>')
     return layout("Accueil", "home", body, refresh=True)
 
 
@@ -341,7 +348,7 @@ def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None
                 f'· vainqueur : <b>{e(f.get("winner_name") or "")}</b></div>')
             out.append(f'<a class="row" href="/app/match/{f["id"]}?tour={f["tour"]}">{inner}</a>')
 
-    return layout("Matchs", "matches", "".join(out), refresh=True)
+    return layout("Matchs", "tennis", "".join(out), subnav="matchs", refresh=True)
 
 
 def render_match_detail(a, winner_odds: tuple[float | None, float | None],
@@ -509,7 +516,7 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
 
     body = (head + pari_html + verdict + form_html + h2h_html + paris_link
             + probs + factors + aces_html + odds_html)
-    return layout(f"{a.home.name} vs {a.away.name}", "matches", body)
+    return layout(f"{a.home.name} vs {a.away.name}", "tennis", body, subnav="matchs")
 
 
 def _market_rows(rows: list[dict]) -> str:
@@ -547,7 +554,7 @@ def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
             f'{e(match.home.name)} <span class="dim">vs</span> {e(match.away.name)}</div>')
     if not odds_matched:
         body = back + '<div class="banner">Cotes Unibet indisponibles pour ce match.</div>'
-        return layout("Tous les paris", "matches", body)
+        return layout("Tous les paris", "tennis", body)
 
     # 🎯 Meilleur pari du match : on ne retient QUE les marchés fiables/calibrés
     # (vainqueur, sets). Les aces sont exclus du titre (edges souvent artefacts non
@@ -613,4 +620,4 @@ def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
                   "À ne PAS suivre pour parier en l\'état.", sim_rows, sub_class="banner warn"))
     if not (winner_rows or set_rows or ace_rows or sim_rows):
         sections = '<div class="dim">Aucun marché évaluable pour ce match.</div>'
-    return layout("Tous les paris", "matches", back + best_html + intro + sections)
+    return layout("Tous les paris", "tennis", back + best_html + intro + sections)

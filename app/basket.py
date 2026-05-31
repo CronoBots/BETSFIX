@@ -280,7 +280,7 @@ def render(rows: list[dict]) -> str:
     out.append('<a class="big" href="/tracking/dashboard?sport=basket">📊 Fiabilité du '
                'modèle basket<div class="d">Calibration et track record, séparés du '
                'tennis</div></a>')
-    return web.layout("Basket WNBA", "basket", "".join(out), refresh=True)
+    return web.layout("Basket WNBA", "basket", "".join(out), subnav="matchs", refresh=True)
 
 
 # ----------------------------------------------------------------- suivi (séparé)

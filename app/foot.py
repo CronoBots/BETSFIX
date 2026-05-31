@@ -282,7 +282,7 @@ def render(rows: list[dict]) -> str:
                    f'(≤ {HORIZON_DAYS} jours). La Coupe du Monde démarre le 11 juin.</div>')
     out.append('<a class="big" href="/tracking/dashboard?sport=foot">📊 Fiabilité du '
                'modèle foot<div class="d">Calibration 1-X-2 et track record, séparés</div></a>')
-    return web.layout("Football", "foot", "".join(out), refresh=True)
+    return web.layout("Football", "foot", "".join(out), subnav="matchs", refresh=True)
 
 
 # ----------------------------------------------------------------- suivi (3 issues)
@@ -470,9 +470,9 @@ def render_dashboard(store: dict, rep: dict) -> str:
             '<table><tr><td class="dim">pari</td><td class="dim">résultat</td>'
             f'<td class="dim">P&amp;L (u)</td></tr>{"".join(brow(r) for r in bets[:30])}</table>')
 
-    body = (f'{web.perf_toggle("foot")}<div class="grid">{cards}</div>'
+    body = (f'<div class="grid">{cards}</div>'
             '<div class="banner">Perf <b>foot</b> — calibration <b>1-X-2 (3 issues)</b> : '
             'précision = l\'issue la plus probable est-elle la bonne ? Brier/log-loss '
             'multiclasses vs marché. Fiable à partir de ~100 matchs réglés.</div>'
             f'{bets_html}')
-    return web.layout("Fiabilité foot", "perf", body, refresh=True)
+    return web.layout("Fiabilité foot", "foot", body, subnav="perf", refresh=True)

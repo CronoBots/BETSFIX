@@ -243,7 +243,7 @@ async def markets_page(
         match = await provider.get_match(tour, match_id)
     except ProviderError:
         return HTMLResponse(web.layout(
-            "Tous les paris", "matches",
+            "Tous les paris", "tennis",
             '<div class="banner">Analyse momentanément indisponible (SofaScore bloqué).</div>'
             '<a class="dim" href="/app">← Retour</a>'))
 
@@ -311,7 +311,7 @@ async def _light_detail(match_id, tour, unibet, rankings) -> HTMLResponse:
     except Exception:
         match = None
     if match is None:
-        return HTMLResponse(web.layout("Indisponible", "matches",
+        return HTMLResponse(web.layout("Indisponible", "tennis",
                             '<div class="banner">Analyse momentanément indisponible '
                             '(SofaScore bloqué et match introuvable côté secours).</div>'
                             '<a class="dim" href="/app">← Retour</a>'))

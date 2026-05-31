@@ -507,9 +507,7 @@ def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
     settled_html = ("".join(settled_row(r) for r in settled[:30])
                     or '<tr><td colspan="3" class="dim">Aucun match réglé pour l\'instant.</td></tr>')
 
-    toggle = web.perf_toggle(sport)
-
-    body = f"""{toggle}<div class="grid">{cards}</div>
+    body = f"""<div class="grid">{cards}</div>
 <div class="banner">Perf <b>{e("basket (WNBA)" if sport == "basket" else "tennis")}</b> — mesure si le
  <b>modèle prédit bien le vainqueur</b> (calibration sur résultats réels). Ce n'est <b>pas</b>
  un outil pour battre le book. Fiable à partir de ~100 matchs réglés.</div>
@@ -521,7 +519,7 @@ def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
 <h2>Le modèle vs résultats réels</h2>
 <table><tr><td class="dim">match</td><td class="dim">prédiction</td>
 <td class="dim">vainqueur</td></tr>{settled_html}</table>"""
-    return web.layout("Fiabilité", "perf", body, refresh=True)
+    return web.layout("Fiabilité", sport, body, subnav="perf", refresh=True)
 
 
 def render_today(store: dict) -> str:
@@ -560,4 +558,4 @@ def render_today(store: dict) -> str:
             f'<h2>Matchs à venir ({len(upcoming)})</h2>'
             f'<table><tr><td class="dim">Heure</td><td class="dim">Match</td>'
             f'<td class="dim">Value</td></tr>{rows}</table>')
-    return web.layout("Matchs à venir", "matches", body, refresh=True)
+    return web.layout("Matchs à venir", "tennis", body, subnav="matchs", refresh=True)
