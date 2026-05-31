@@ -105,6 +105,31 @@ class MatchIncidents(BaseModel):
     incidents: list[MatchIncident] = Field(default_factory=list)
 
 
+class StandingRow(BaseModel):
+    """Une ligne de classement (foot/basket)."""
+
+    position: int | None = None
+    team_id: int | None = None
+    team: str = ""
+    played: int | None = Field(default=None, description="Matchs joués")
+    wins: int | None = None
+    draws: int | None = Field(default=None, description="Nuls (foot ; absent en basket)")
+    losses: int | None = None
+    scores_for: int | None = Field(default=None, description="Buts/points marqués")
+    scores_against: int | None = Field(default=None, description="Buts/points encaissés")
+    diff: str | None = Field(default=None, description="Différence (formatée, ex: +44)")
+    points: int | None = None
+
+
+class Standings(BaseModel):
+    """Classement d'une compétition pour une saison."""
+
+    tournament_id: int
+    season_id: int
+    name: str = ""
+    rows: list[StandingRow] = Field(default_factory=list)
+
+
 class TeamSeasonStatistics(BaseModel):
     """Statistiques agrégées d'une équipe sur une saison/compétition (foot ou basket).
 

@@ -13,12 +13,23 @@ from app import foot
 from app.dependencies import get_provider
 from app.models import (
     MatchIncidents,
+    MatchOdds,
     MatchStatistics,
+    MatchStreaks,
+    MatchVotes,
+    Standings,
     TeamSeasonStatistics,
 )
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 
 router = APIRouter(tags=["Football"])
+
+
+async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: int | None) -> int:
+    sid = season_id or await provider.get_current_season_id(tournament_id)
+    if sid is None:
+        raise HTTPException(status_code=404, detail="Aucune saison trouvée pour cette compétition.")
+    return sid
 
 
 @router.get("/foot", response_class=HTMLResponse, include_in_schema=False)
@@ -118,6 +129,107 @@ async def foot_h2h(
 
 
 @router.get(
+    "/foot/match/{event_id}/best-players",
+    summary="Notes des joueurs + homme du match",
+)
+async def foot_best_players(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> dict:
+    try:
+        return await provider.get_event_best_players(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/match/{event_id}/odds",
+    summary="Cotes SofaScore d'un match (cross-check du marché)",
+    response_model=MatchOdds,
+)
+async def foot_odds(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> MatchOdds:
+    try:
+        return await provider.get_odds(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/match/{event_id}/votes",
+    summary="Pronostics des fans (1-X-2)",
+    response_model=MatchVotes,
+)
+async def foot_votes(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> MatchVotes:
+    try:
+        return await provider.get_votes(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/match/{event_id}/streaks",
+    summary="Séries en cours des deux équipes",
+    response_model=MatchStreaks,
+)
+async def foot_streaks(
+    event_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> MatchStreaks:
+    try:
+        return await provider.get_streaks(event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/competition/{tournament_id}/standings",
+    summary="Classement d'une compétition (forme, position, points)",
+    response_model=Standings,
+)
+async def foot_standings(
+    tournament_id: int,
+    season_id: int | None = Query(None, description="Saison (par défaut : la plus récente)"),
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> Standings:
+    try:
+        return await provider.get_standings(tournament_id, await _season(provider, tournament_id, season_id))
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/competition/{tournament_id}/top-players",
+    summary="Meilleurs joueurs (buts, passes, notes, xG…) par catégorie",
+)
+async def foot_top_players(
+    tournament_id: int,
+    season_id: int | None = Query(None, description="Saison (par défaut : la plus récente)"),
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> dict:
+    try:
+        return await provider.get_top_players(tournament_id, await _season(provider, tournament_id, season_id))
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/competition/{tournament_id}/top-teams",
+    summary="Meilleures équipes (attaque, défense, possession…) par catégorie",
+)
+async def foot_top_teams(
+    tournament_id: int,
+    season_id: int | None = Query(None, description="Saison (par défaut : la plus récente)"),
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> dict:
+    try:
+        return await provider.get_top_teams(tournament_id, await _season(provider, tournament_id, season_id))
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
     "/foot/team/{team_id}/statistics",
     summary="Statistiques d'une équipe sur une compétition (saison courante par défaut)",
     response_model=TeamSeasonStatistics,
@@ -129,9 +241,20 @@ async def foot_team_statistics(
     provider: SofaScoreProvider = Depends(get_provider),
 ) -> TeamSeasonStatistics:
     try:
-        sid = season_id or await provider.get_current_season_id(tournament_id)
-        if sid is None:
-            raise HTTPException(status_code=404, detail="Aucune saison trouvée pour cette compétition.")
-        return await provider.get_team_season_statistics(team_id, tournament_id, sid)
+        return await provider.get_team_season_statistics(
+            team_id, tournament_id, await _season(provider, tournament_id, season_id))
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/team/{team_id}/squad",
+    summary="Effectif d'une équipe (joueurs + postes)",
+)
+async def foot_squad(
+    team_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> dict:
+    try:
+        return await provider.get_team_squad(team_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))

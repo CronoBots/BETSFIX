@@ -59,6 +59,8 @@ def _ttl_for(path: str) -> float | None:
         return 1800
     if "/incidents" in path or "/lineups" in path:
         return 600
+    if "/standings/" in path or "/top-players/" in path or "/top-teams/" in path:
+        return 3600
     if "/team/" in path and "/events" not in path:  # fiche joueur
         return 3600
     return None  # défaut (events, stats live, odds) -> TTL de base
@@ -72,6 +74,8 @@ from app.models import (
     MatchStatistics,
     MatchStreaks,
     MatchVotes,
+    Standings,
+    StandingRow,
     TeamSeasonStatistics,
     OddChoice,
     OddsMarket,
@@ -428,6 +432,56 @@ class SofaScoreProvider:
             matches=st.get("matches") or st.get("appearances"),
             statistics={k: _round_pct(v) if isinstance(v, float) else v for k, v in st.items()},
         )
+
+    async def get_standings(self, tournament_id: int, season_id: int) -> Standings:
+        """Classement d'une compétition (foot : pts/V/N/D ; basket : V/D)."""
+        data = await self._get(
+            f"/unique-tournament/{tournament_id}/season/{season_id}/standings/total"
+        )
+        blocks = data.get("standings") or []
+        block = blocks[0] if blocks else {}
+        rows = [
+            StandingRow(
+                position=r.get("position"),
+                team_id=(r.get("team") or {}).get("id"),
+                team=(r.get("team") or {}).get("name", ""),
+                played=r.get("matches"),
+                wins=r.get("wins"),
+                draws=r.get("draws"),
+                losses=r.get("losses"),
+                scores_for=r.get("scoresFor"),
+                scores_against=r.get("scoresAgainst"),
+                diff=r.get("scoreDiffFormatted"),
+                points=r.get("points"),
+            )
+            for r in block.get("rows", []) or []
+        ]
+        return Standings(tournament_id=tournament_id, season_id=season_id,
+                         name=block.get("name", ""), rows=rows)
+
+    async def get_top_players(self, tournament_id: int, season_id: int) -> dict:
+        """Meilleurs joueurs d'une compétition par catégorie (buts, passes, notes, xG…)."""
+        return await self._get(
+            f"/unique-tournament/{tournament_id}/season/{season_id}/top-players/overall"
+        )
+
+    async def get_top_teams(self, tournament_id: int, season_id: int) -> dict:
+        """Meilleures équipes d'une compétition par catégorie (attaque, défense, possession…)."""
+        return await self._get(
+            f"/unique-tournament/{tournament_id}/season/{season_id}/top-teams/overall"
+        )
+
+    async def get_event_best_players(self, event_id: int) -> dict:
+        """Meilleurs joueurs d'un match + homme du match (notes SofaScore). Foot."""
+        return await self._get(f"/event/{event_id}/best-players/summary")
+
+    async def get_event_incidents_raw(self, event_id: int) -> dict:
+        """Incidents bruts d'un match (basket : scores par quart-temps + paniers)."""
+        return await self._get(f"/event/{event_id}/incidents")
+
+    async def get_team_squad(self, team_id: int) -> dict:
+        """Effectif d'une équipe (joueurs + postes). Foot/basket."""
+        return await self._get(f"/team/{team_id}/players")
 
     async def get_head_to_head(self, tour: str, match_id: int) -> HeadToHead:
         """Bilan des confrontations directes des deux joueurs d'un match."""
