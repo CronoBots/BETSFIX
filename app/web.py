@@ -231,9 +231,13 @@ def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None
 
 
 def render_match_detail(a, winner_odds: tuple[float | None, float | None],
-                        aces: dict | None = None, tour: str = "atp") -> str:
+                        aces: dict | None = None, tour: str = "atp",
+                        home_form: list[dict] | None = None,
+                        away_form: list[dict] | None = None,
+                        h2h: dict | None = None) -> str:
     """a = MatchAnalysis ; winner_odds = (cote_home, cote_away) Unibet ;
-    aces = récap tendance d'aces (cf. app.tendencies.for_match) ou None."""
+    aces = récap tendance d'aces ; home_form/away_form = derniers résultats (V/D) ;
+    h2h = {'home': n, 'away': n} bilan des confrontations."""
     e = html.escape
     hp = a.model_home_probability
     ap = a.model_away_probability
@@ -242,6 +246,52 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
             f'{e(a.home.name)} <span class="dim">vs</span> {e(a.away.name)}</div>'
             f'<div class="dim">{e(a.ground_type or "")} · statut {e(a.status or "")} '
             f'· confiance {e(a.confidence or "—")}</div>')
+
+    # 💰 LE PARI À JOUER — la recommandation nette du modèle pour ce match
+    pick = next((v for v in a.value_bets if v.is_value), None)
+    if pick:
+        pari_html = (
+            f'<div class="big" style="border-color:#1b5e20;background:#13251a">'
+            f'💰 Pari à jouer : <b class="pos">{e(pick.player)}</b> @ {pick.odds}'
+            f'<div class="d">Mise conseillée {pick.recommended_stake_pct}% du capital · '
+            f'edge +{round((pick.edge or 0)*100, 1)} pts vs Unibet. Value du modèle, '
+            f'à recouper — un pari n\'est jamais garanti.</div></div>')
+    elif a.unibet_matched:
+        pari_html = (
+            '<div class="big">🚫 Aucun pari conseillé'
+            '<div class="d">Le modèle ne détecte pas de value vs les cotes Unibet '
+            'sur ce match. Mieux vaut s\'abstenir.</div></div>')
+    else:
+        pari_html = ""
+
+    # Forme récente (V/D, du plus récent au plus ancien)
+    def _form_row(name, form):
+        if not form:
+            return f'<tr><td>{e(name)}</td><td class="dim">historique indisponible</td></tr>'
+        badges = " ".join('<span class="pos">V</span>' if f["win"]
+                          else '<span class="neg">D</span>' for f in form)
+        last_opp = form[0].get("opp", "")
+        return (f'<tr><td>{e(name)}</td><td>{badges} '
+                f'<span class="dim">· dernier : {"✓" if form[0]["win"] else "✗"} '
+                f'{e(last_opp.split()[-1] if last_opp else "")}</span></td></tr>')
+
+    form_html = ""
+    if home_form or away_form:
+        form_html = ('<h2>Forme récente <span class="dim">(récent → ancien)</span></h2>'
+                     '<table>' + _form_row(a.home.name, home_form or [])
+                     + _form_row(a.away.name, away_form or []) + '</table>')
+
+    # Face-à-face
+    h2h_html = ""
+    if h2h:
+        hh, aw = h2h.get("home") or 0, h2h.get("away") or 0
+        if hh + aw > 0:
+            lead = a.home.name if hh > aw else (a.away.name if aw > hh else None)
+            tag = f'avantage {e(lead.split()[-1])}' if lead else "à égalité"
+            h2h_html = (f'<h2>Face-à-face</h2><div class="row"><b>{e(a.home.name)} '
+                        f'{hh} – {aw} {e(a.away.name)}</b><br>'
+                        f'<span class="dim">{hh + aw} confrontation'
+                        f'{"s" if hh + aw > 1 else ""} · {tag}</span></div>')
 
     probs = ""
     if hp is not None:
@@ -318,7 +368,8 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                       f'<div class="d">Vainqueur, aces, jeux, sets, breaks… proba du modèle '
                       f'vs cote du book, marché par marché.</div></a>')
 
-    body = head + verdict + paris_link + probs + factors + aces_html + odds_html
+    body = (head + pari_html + verdict + form_html + h2h_html + paris_link
+            + probs + factors + aces_html + odds_html)
     return layout(f"{a.home.name} vs {a.away.name}", "matches", body)
 
 

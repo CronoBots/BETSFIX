@@ -161,7 +161,32 @@ async def match_detail(
     best_of = 5 if tour == "atp" else 3
     fav_prob = max(analysis.model_home_probability or 0.5, analysis.model_away_probability or 0.5)
     aces = tendencies.for_match(match, best_of, fav_prob)
-    return HTMLResponse(web.render_match_detail(analysis, winner_odds, aces=aces, tour=tour))
+    home_form = _recent_form(hm or [], match.home.id)
+    away_form = _recent_form(am or [], match.away.id)
+    h2h_rec = ({"home": h2h.home_wins, "away": h2h.away_wins} if h2h else None)
+    return HTMLResponse(web.render_match_detail(
+        analysis, winner_odds, aces=aces, tour=tour,
+        home_form=home_form, away_form=away_form, h2h=h2h_rec))
+
+
+def _recent_form(matches: list, player_id: int | None, n: int = 6) -> list[dict]:
+    """Derniers résultats (V/D) d'un joueur depuis son historique (récent -> ancien)."""
+    if player_id is None:
+        return []
+    out = []
+    for m in matches:
+        if m.status != "finished" or m.winner not in ("home", "away"):
+            continue
+        if m.home.id == player_id:
+            side, opp = "home", m.away
+        elif m.away.id == player_id:
+            side, opp = "away", m.home
+        else:
+            continue
+        out.append({"win": m.winner == side, "opp": opp.name or ""})
+        if len(out) >= n:
+            break
+    return out
 
 
 def _vb_row(vb) -> dict:
