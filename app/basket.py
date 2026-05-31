@@ -227,60 +227,88 @@ def _fmt_time(ts) -> str:
     return web.fmt_local(datetime.fromtimestamp(ts, tz=timezone.utc).isoformat())
 
 
-def render(rows: list[dict]) -> str:
-    e = html.escape
-    out = ['<div class="banner">🏀 <b>WNBA</b> — modèle <b>Elo d\'équipe</b> '
-           '(avantage du terrain) confronté aux cotes Unibet. Saison jeune : l\'Elo est '
-           'encore bruité, les « value » sont à <b>confirmer par le suivi</b>. '
-           'Sport séparé du tennis.</div>']
+async def _finished_games(client, days: int = 2) -> list[dict]:
+    """Matchs WNBA terminés récents (pour la section Terminés)."""
+    base = datetime.now(timezone.utc).date()
+    out = []
+    for d in range(1, days + 1):
+        day = (base - timedelta(days=d)).isoformat()
+        data = await _get(client, SOFA_B, f"/sport/basketball/scheduled-events/{day}")
+        for ev in (data or {}).get("events", []) or []:
+            if (ev.get("tournament") or {}).get("name") != "WNBA":
+                continue
+            if (ev.get("status") or {}).get("type") != "finished" or ev.get("winnerCode") not in (1, 2):
+                continue
+            ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
+            out.append({"home_id": ht.get("id"), "away_id": at.get("id"),
+                        "home": ht.get("name", ""), "away": at.get("name", ""),
+                        "winner": "home" if ev["winnerCode"] == 1 else "away",
+                        "hs": (ev.get("homeScore") or {}).get("current"),
+                        "as": (ev.get("awayScore") or {}).get("current"),
+                        "ts": ev.get("startTimestamp") or 0})
+    out.sort(key=lambda g: g["ts"], reverse=True)
+    return out[:8]
 
-    def game_row(r):
+
+async def finished() -> list[dict]:
+    elo = load_elo()
+    async with httpx.AsyncClient(headers=SOFA_H) as c:
+        games = await _finished_games(c)
+    for g in games:
+        eh = (elo.get(str(g["home_id"])) or {}).get("elo")
+        ea = (elo.get(str(g["away_id"])) or {}).get("elo")
+        g["model_home"] = win_prob(eh, ea)
+    return games
+
+
+def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
+    e = html.escape
+    value, live, upcoming = [], [], []
+    for r in rows:
         p = r.get("model_home")
-        if r["status"] == "inprogress":
-            sc = (f' <span class="dim">{r["home_pts"]}-{r["away_pts"]}</span>'
-                  if r.get("home_pts") is not None else "")
-            top = f'<span class="live">🔴 EN DIRECT</span>{sc}'
+        if p is not None:
+            fav = r["home"] if p >= 0.5 else r["away"]
+            sub = f'modèle : <b>{e(fav)}</b> {round(max(p, 1 - p) * 100)}%'
+            m = r.get("margin")
+            if m is not None and abs(m) >= 0.5:
+                sub += f' · marge ~{abs(round(m))} pts'
         else:
-            top = e(_fmt_time(r.get("start")))
+            sub = 'Elo indisponible'
+        sub += (f' · cotes {r["oh"]}/{r["oa"]}' if r.get("oh") else ' · cotes à venir')
         pk = r.get("pick")
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
                  if pk else "")
+        base = {"tour": "WNBA", "status": r["status"], "time": _fmt_time(r.get("start")),
+                "home": r["home"], "away": r["away"],
+                "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'
+                          if r["status"] == "inprogress" and r.get("home_pts") is not None else "")}
+        (live if r["status"] == "inprogress" else upcoming).append(
+            {**base, "sub": f'<div class="dim">{sub}</div>', "badge": badge, "pick": bool(pk)})
+        if pk:
+            value.append({**base, "badge": badge, "pick": True,
+                          "sub": f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
+                                 f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts (à confirmer)</div>'})
+
+    fin = []
+    for r in (finished_rows or []):
+        p = r.get("model_home")
         if p is not None:
             fav = r["home"] if p >= 0.5 else r["away"]
-            line = (f'modèle : <b>{e(fav)}</b> {round(max(p,1-p)*100)}%')
-            m = r.get("margin")
-            if m is not None and abs(m) >= 0.5:
-                line += f' · marge attendue ~{abs(round(m))} pts'
+            ok = (r["winner"] == "home") == (p >= 0.5)
+            wname = r["home"] if r["winner"] == "home" else r["away"]
+            badge = ('<span class="pos">✓ modèle ok</span>' if ok
+                     else '<span class="neg">✗ raté</span>')
+            sub = (f'<div class="dim">favori modèle : {e(fav)} {round(max(p,1-p)*100)}% '
+                   f'· vainqueur : <b>{e(wname)}</b></div>')
         else:
-            line = '<span class="dim">Elo indisponible (équipe inconnue)</span>'
-        if r.get("oh") and r.get("oa"):
-            line += f' · cotes {r["oh"]} / {r["oa"]}'
-        else:
-            line += ' · <span class="dim">cotes Unibet indisponibles</span>'
-        pick_line = ""
-        if pk:
-            pick_line = (f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
-                         f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts vs book (à confirmer)</div>')
-        cls = "row pick" if pk else "row"
-        bar = web._bar(p) if p is not None else ""
-        return (f'<div class="{cls}">'
-                f'<div class="rowtop"><span>WNBA · {top}</span>{badge}</div>'
-                f'<div class="players">{e(r["home"])} <span class="dim">vs</span> {e(r["away"])}</div>'
-                f'{bar}<div class="dim">{line}</div>{pick_line}</div>')
+            badge, sub = "", ""
+        fin.append({"tour": "WNBA", "status": "finished", "home": r["home"], "away": r["away"],
+                    "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",
+                    "sub": sub, "badge": badge})
 
-    picks = [r for r in rows if r.get("pick")]
-    if picks:
-        out.append(f'<h2>💰 Value WNBA ({len(picks)})</h2>')
-        out.extend(game_row(r) for r in picks)
-    out.append(f'<h2>🏀 Matchs WNBA ({len(rows)})</h2>')
-    if rows:
-        out.extend(game_row(r) for r in rows)
-    else:
-        out.append('<div class="dim">Aucun match WNBA à venir (≤ 3 jours).</div>')
-    out.append('<a class="big" href="/tracking/dashboard?sport=basket">📊 Fiabilité du '
-               'modèle basket<div class="d">Calibration et track record, séparés du '
-               'tennis</div></a>')
-    return web.layout("Basket WNBA", "basket", "".join(out), subnav="matchs", refresh=True)
+    intro = ('🏀 <b>WNBA</b> — Elo d\'équipe + avantage du terrain vs cotes Unibet. '
+             'Saison jeune : les « value » sont à <b>confirmer par le suivi</b>.')
+    return web.render_sport_matches("basket", "Basket WNBA", value, live, upcoming, fin, intro=intro)
 
 
 # ----------------------------------------------------------------- suivi (séparé)

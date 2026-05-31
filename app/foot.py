@@ -233,56 +233,95 @@ def _fmt_time(ts) -> str:
     return web.fmt_local(datetime.fromtimestamp(ts, tz=timezone.utc).isoformat())
 
 
-def render(rows: list[dict]) -> str:
-    e = html.escape
-    out = ['<div class="banner">⚽ <b>Coupe du Monde & grandes compétitions</b> — modèle '
-           '<b>Elo de sélection</b> (1-X-2 via double Poisson) vs cotes Unibet. Modèle jeune '
-           'et venues neutres : les « value » sont à <b>confirmer</b>. Sport séparé.</div>']
+async def _finished_games(client, days: int = 3) -> list[dict]:
+    """Matchs terminés récents des grandes compétitions (section Terminés)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).timestamp()
+    out = []
+    for tid, label in MAJOR_TIDS.items():
+        sid = await _season_id(client, tid)
+        if not sid:
+            continue
+        data = await _get(client, SOFA_B, f"/unique-tournament/{tid}/season/{sid}/events/last/0")
+        for ev in (data or {}).get("events", []) or []:
+            if (ev.get("status") or {}).get("type") != "finished" or ev.get("winnerCode") not in (1, 2, 3):
+                continue
+            ts = ev.get("startTimestamp") or 0
+            if ts < cutoff:
+                continue
+            ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
+            out.append({"comp": label, "home_id": ht.get("id"), "away_id": at.get("id"),
+                        "home": ht.get("name", ""), "away": at.get("name", ""),
+                        "winner": {1: "home", 2: "away", 3: "draw"}[ev["winnerCode"]],
+                        "hs": (ev.get("homeScore") or {}).get("current"),
+                        "as": (ev.get("awayScore") or {}).get("current"), "ts": ts})
+    out.sort(key=lambda g: g["ts"], reverse=True)
+    return out[:10]
 
-    def game_row(r):
+
+async def finished() -> list[dict]:
+    elo = load_elo()
+    async with httpx.AsyncClient(headers=SOFA_H) as c:
+        games = await _finished_games(c)
+    for g in games:
+        eh = (elo.get(str(g["home_id"])) or {}).get("elo")
+        ea = (elo.get(str(g["away_id"])) or {}).get("elo")
+        g["probs"] = outcome_probs(eh, ea)
+    return games
+
+
+def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
+    e = html.escape
+
+    def model_line(r):
         probs = r.get("probs")
+        if probs:
+            line = (f'1-N-2 : <b>{round(probs[0]*100)}%</b> · {round(probs[1]*100)}% · '
+                    f'<b>{round(probs[2]*100)}%</b>')
+        else:
+            line = 'Elo indisponible'
+        if r.get("o1"):
+            line += f' · cotes {r["o1"]}/{r["ox"]}/{r["o2"]}'
+        gm = r.get("goals")
+        btts = f'<br>les 2 marquent (BTTS) : <b>{round(gm["btts"]*100)}%</b>' if gm else ""
+        return f'<div class="dim">{line}{btts}</div>'
+
+    value, live, upcoming = [], [], []
+    for r in rows:
         pk = r.get("pick")
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
                  if pk else "")
-        top = (f'<span class="live">🔴 EN DIRECT</span>' if r["status"] == "inprogress"
-               else e(_fmt_time(r.get("start"))))
-        if probs:
-            line = (f'<b>{round(probs[0]*100)}%</b> · nul {round(probs[1]*100)}% · '
-                    f'<b>{round(probs[2]*100)}%</b>')
-        else:
-            line = '<span class="dim">Elo indisponible</span>'
-        if r.get("o1"):
-            line += f' <span class="dim">· cotes {r["o1"]}/{r["ox"]}/{r["o2"]}</span>'
-        else:
-            line += ' <span class="dim">· cotes Unibet à venir</span>'
-        goals_line = ""
-        gm = r.get("goals")
-        if gm:
-            goals_line = (f'<div class="dim">les 2 équipes marquent (BTTS) : '
-                          f'<b>{round(gm["btts"]*100)}%</b></div>')
-        pick_line = ""
+        base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
+                "home": r["home"], "away": r["away"]}
+        (live if r["status"] == "inprogress" else upcoming).append(
+            {**base, "sub": model_line(r), "badge": badge, "pick": bool(pk)})
         if pk:
-            pick_line = (f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
-                         f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts (à confirmer)</div>')
-        cls = "row pick" if pk else "row"
-        return (f'<div class="{cls}">'
-                f'<div class="rowtop"><span>{e(r["comp"])} · {top}</span>{badge}</div>'
-                f'<div class="players">{e(r["home"])} <span class="dim">vs</span> {e(r["away"])}</div>'
-                f'<div class="dim">modèle (1/N/2) : {line}</div>{goals_line}{pick_line}</div>')
+            value.append({**base, "badge": badge, "pick": True,
+                          "sub": f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
+                                 f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts (à confirmer)</div>'})
 
-    picks = [r for r in rows if r.get("pick")]
-    if picks:
-        out.append(f'<h2>💰 Value Foot ({len(picks)})</h2>')
-        out.extend(game_row(r) for r in picks)
-    out.append(f'<h2>⚽ Matchs ({len(rows)})</h2>')
-    if rows:
-        out.extend(game_row(r) for r in rows)
-    else:
-        out.append('<div class="dim">Aucun match de grande compétition à venir '
-                   f'(≤ {HORIZON_DAYS} jours). La Coupe du Monde démarre le 11 juin.</div>')
-    out.append('<a class="big" href="/tracking/dashboard?sport=foot">📊 Fiabilité du '
-               'modèle foot<div class="d">Calibration 1-X-2 et track record, séparés</div></a>')
-    return web.layout("Football", "foot", "".join(out), subnav="matchs", refresh=True)
+    fin = []
+    for r in (finished_rows or []):
+        probs = r.get("probs")
+        sub, badge = "", ""
+        if probs:
+            names = [r["home"], "nul", r["away"]]
+            fav_i = max(range(3), key=lambda i: probs[i])
+            wi = {"home": 0, "draw": 1, "away": 2}[r["winner"]]
+            ok = fav_i == wi
+            badge = ('<span class="pos">✓ modèle ok</span>' if ok
+                     else '<span class="neg">✗ raté</span>')
+            wname = {"home": r["home"], "draw": "Match nul", "away": r["away"]}[r["winner"]]
+            sub = (f'<div class="dim">prédit : <b>{e(names[fav_i])}</b> {round(probs[fav_i]*100)}% '
+                   f'· résultat : <b>{e(wname)}</b></div>')
+        fin.append({"tour": r.get("comp"), "status": "finished", "home": r["home"], "away": r["away"],
+                    "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",
+                    "sub": sub, "badge": badge})
+
+    intro = ('⚽ <b>Coupe du Monde & grandes compétitions</b> — Elo de sélection (1-X-2 via '
+             'double Poisson) vs Unibet. Modèle jeune + venues neutres : value à <b>confirmer</b>.')
+    if not (value or live or upcoming or fin):
+        intro += ' La Coupe du Monde démarre le 11 juin.'
+    return web.render_sport_matches("foot", "Football", value, live, upcoming, fin, intro=intro)
 
 
 # ----------------------------------------------------------------- suivi (3 issues)

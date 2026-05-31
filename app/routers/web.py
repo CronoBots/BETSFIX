@@ -1,5 +1,6 @@
 """Plateforme de visionnage : pages HTML (accueil, matchs, détail match)."""
 
+import html
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -101,7 +102,7 @@ async def matches_page(
             row = {
                 "id": m.id, "tour": tour, "home": m.home.name, "away": m.away.name,
                 "status": m.status,
-                "time": web.fmt_local(m.start_time, with_date=False),
+                "time": web.fmt_local(m.start_time, with_date=True),
                 "score": web.fmt_score(m.home_score, m.away_score) if m.status == "inprogress" else "",
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
                 "clickable": True,
@@ -111,20 +112,45 @@ async def matches_page(
             (live if m.status == "inprogress" else rows).append(row)
 
     live.sort(key=lambda r: r["_sort"])
-    # Matchs à venir groupés par DATE (Aujourd'hui / Demain / …), triés par heure
     rows.sort(key=lambda r: r["_sort"])
-    groups, seen = [], {}
-    for r in rows:
-        key = r["_date"]
-        label = web.day_label(key, today) if key else "Date à confirmer"
-        if label not in seen:
-            seen[label] = []
-            groups.append((label, seen[label]))
-        seen[label].append(r)
+    ev = html.escape
+
+    def _fav_sub(r):
+        return (f'<div class="dim">favori : {ev(r.get("fav") or "—")} {ev(r.get("favp") or "")}'
+                f' · confiance {ev(r.get("confidence") or "—")}</div>')
+
+    def _trow(r, sub, badge="", pick=False):
+        return {"tour": r["tour"].upper(), "status": r["status"], "time": r.get("time") or "",
+                "score": r.get("score") or "", "home": r["home"], "away": r["away"],
+                "sub": sub, "badge": badge, "pick": pick,
+                "url": f'/app/match/{r["id"]}?tour={r["tour"]}'}
+
+    upcoming_rows = [_trow(r, _fav_sub(r)) for r in rows]
+    live_rows = [_trow(r, _fav_sub(r)) for r in live]
 
     value_picks, finished = _picks_and_finished(store)
-    return HTMLResponse(web.render_matches(
-        groups, live=live, finished=finished, value_picks=value_picks, fallback=fallback))
+    value_rows = [{
+        "tour": v["tour"].upper(), "status": "notstarted", "time": v.get("time") or "",
+        "home": v["home"], "away": v["away"], "pick": True,
+        "badge": f'<span class="badge b-val">+{round((v.get("edge") or 0)*100,1)} pts</span>',
+        "sub": (f'<div class="dim">pari : <b class="pos">{ev(v.get("player") or "")}</b> '
+                f'@{v.get("odds") or "—"} · mise '
+                f'{v.get("stake") if v.get("stake") is not None else "—"}%</div>'),
+        "url": f'/app/match/{v["id"]}?tour={v["tour"]}'} for v in value_picks]
+    finished_rows = [{
+        "tour": f["tour"].upper(), "status": "finished", "score": "terminé",
+        "home": f["home"], "away": f["away"],
+        "badge": ('<span class="pos">✓ modèle ok</span>' if f.get("ok")
+                  else '<span class="neg">✗ raté</span>'),
+        "sub": (f'<div class="dim">favori : {ev(f.get("fav") or "—")} {ev(f.get("favp") or "")} '
+                f'· vainqueur : <b>{ev(f.get("winner_name") or "")}</b></div>'),
+        "url": f'/app/match/{f["id"]}?tour={f["tour"]}'} for f in finished]
+
+    intro = ('⚠️ SofaScore momentanément indisponible — scores via LiveScore (repli).'
+             if fallback else
+             'Touchez un match pour son analyse détaillée. Heures en fuseau belge.')
+    return HTMLResponse(web.render_sport_matches(
+        "tennis", "Matchs", value_rows, live_rows, upcoming_rows, finished_rows, intro=intro))
 
 
 def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:

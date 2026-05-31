@@ -15,4 +15,8 @@ async def foot_page() -> HTMLResponse:
         rows = await foot.board()
     except Exception:
         rows = []
-    return HTMLResponse(foot.render(rows))
+    try:
+        fin = await foot.finished()
+    except Exception:
+        fin = []
+    return HTMLResponse(foot.render(rows, fin))

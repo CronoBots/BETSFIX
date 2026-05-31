@@ -259,6 +259,48 @@ def _bar(pct: float | None) -> str:
     return f'<div class="bar"><span style="width:{p}%"></span></div>'
 
 
+def _sport_row(r: dict) -> str:
+    """Ligne de match unifiée (tous sports). r : tour, status, time, score, home,
+    away, sub (HTML d'analyse spécifique au sport), badge, url, pick."""
+    e = html.escape
+    if r.get("status") == "inprogress":
+        sc = f' <span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
+        top = f'<span class="live">🔴 EN DIRECT</span>{sc}'
+    elif r.get("status") == "finished":
+        top = e(r.get("score") or "terminé")
+    else:
+        top = e(r.get("time") or "")
+    inner = (f'<div class="rowtop"><span>{e(r.get("tour") or "")} · {top}</span>'
+             f'{r.get("badge", "")}</div>'
+             f'<div class="players">{e(r.get("home") or "")} '
+             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>{r.get("sub", "")}')
+    cls = "row pick" if r.get("pick") else "row"
+    if r.get("url"):
+        return f'<a class="{cls}" href="{r["url"]}">{inner}</a>'
+    return f'<div class="{cls}">{inner}</div>'
+
+
+def render_sport_matches(sport: str, title: str, value: list, live: list,
+                         upcoming: list, finished: list, intro: str = "") -> str:
+    """Page Matchs UNIFIÉE pour tous les sports, sections dans l'ordre logique :
+    Confiance du jour → En direct → À venir → Terminés."""
+    out = [f'<div class="banner">{intro}</div>'] if intro else []
+
+    def section(heading, rows):
+        if not rows:
+            return ""
+        return (f'<h2>{heading} ({len(rows)})</h2>'
+                + "".join(_sport_row(r) for r in rows))
+
+    out.append(section("🔥 Confiance du jour", value))
+    out.append(section("🔴 En direct", live))
+    out.append(section("📅 À venir", upcoming))
+    out.append(section("✅ Terminés", finished))
+    if not (value or live or upcoming or finished):
+        out.append('<div class="dim">Aucun match à afficher pour le moment.</div>')
+    return layout(title, sport, "".join(out), subnav="matchs", refresh=True)
+
+
 def perf_toggle(active: str) -> str:
     """Bascule de sport sur la page Perf (suivis séparés)."""
     tabs = [("tennis", "🎾 Tennis"), ("basket", "🏀 Basket"), ("foot", "⚽ Foot")]

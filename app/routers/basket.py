@@ -15,4 +15,8 @@ async def basket_page() -> HTMLResponse:
         rows = await basket.board()
     except Exception:
         rows = []
-    return HTMLResponse(basket.render(rows))
+    try:
+        fin = await basket.finished()
+    except Exception:
+        fin = []
+    return HTMLResponse(basket.render(rows, fin))
