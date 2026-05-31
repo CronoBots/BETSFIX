@@ -52,10 +52,21 @@ def test_for_match_builds_summary():
     store = {"100": _rec(0.6, 500), "200": _rec(0.2, 500)}
     m = Match(id=1, tour="atp", ground_type="Red clay",
               home=Player(id=100, name="Big Server"), away=Player(id=200, name="Pusher"))
-    out = t.for_match(m, best_of=5, fav_prob=0.6, store=store)
-    assert out["home_rate"] == 0.6 and out["away_rate"] == 0.2
-    assert out["home_exp"] > out["away_exp"]          # le gros serveur en fait plus
-    assert out["service_games"] > 0
+    out = t.for_match(m, best_of=5, fav_prob=0.6, store=store, line_home=11.5)
+    assert out["home"]["rate"] == 0.6 and out["away"]["rate"] == 0.2
+    # fourchette cohérente (court < long) et gros serveur > petit
+    assert out["home"]["exp_low"] < out["home"]["exp_high"]
+    assert out["home"]["exp_mid"] > out["away"]["exp_mid"]
+    # P(plus de la ligne) calculée quand la ligne est fournie
+    assert 0.0 <= out["home"]["p_over_low"] <= 1.0
+
+
+def test_opponent_ace_factor():
+    # bon retourneur (taux de break > moyenne) -> réduit les aces ; borné
+    assert t.opponent_ace_factor(0.28) < 1.0
+    assert t.opponent_ace_factor(0.10) > 1.0
+    assert t.opponent_ace_factor(None) == 1.0
+    assert 0.8 <= t.opponent_ace_factor(0.5) <= 1.15
 
 
 def test_for_match_none_when_no_data():

@@ -30,6 +30,9 @@ SR_B1 = 4.91
 # En-deçà, la note terre est trop bruitée -> on prend la note globale.
 MIN_CLAY = 10
 
+# Taux de break moyen du circuit (force de retour de référence), cf. build_serve_return.
+AVG_RETURN = 0.19
+
 
 def is_clay(ground_type: str | None) -> bool:
     return "clay" in (ground_type or "").lower()
@@ -88,3 +91,13 @@ def ratings_for_match(match, store: dict | None = None) -> tuple[float | None, f
     dh = dominance_for(store.get(str(match.home.id)), match.ground_type)
     da = dominance_for(store.get(str(match.away.id)), match.ground_type)
     return dh, da
+
+
+def return_rates_for_match(match, store: dict | None = None) -> tuple[float | None, float | None]:
+    """(force de retour home, away) = taux de break du joueur. Sert à ajuster les aces."""
+    store = store if store is not None else load_cached()
+    if not store:
+        return None, None
+    rh = (store.get(str(match.home.id)) or {}).get("ret")
+    ra = (store.get(str(match.away.id)) or {}).get("ret")
+    return rh, ra

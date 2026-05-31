@@ -58,6 +58,23 @@ def expected_service_games(best_of: int, fav_prob: float | None) -> float:
     return base + (3.0 if best_of == 5 else 2.0) * closeness
 
 
+def service_games_range(best_of: int) -> tuple[float, float]:
+    """Fourchette de jeux de service par joueur : match court (sec) -> long (distance)."""
+    return (15.0, 24.0) if best_of == 5 else (10.0, 15.0)
+
+
+def opponent_ace_factor(opp_return_rate: float | None, avg: float = 0.19) -> float:
+    """Multiplicateur d'aces selon la force de RETOUR de l'adversaire.
+
+    Un bon retourneur (taux de break > moyenne) remet plus de balles -> moins d'aces.
+    Effet modéré (les aces restent surtout déterminés par le serveur). Borné.
+    """
+    if opp_return_rate is None or avg <= 0:
+        return 1.0
+    factor = 1.0 - 0.35 * (opp_return_rate - avg) / avg
+    return max(0.8, min(1.15, factor))
+
+
 def expected_aces(rate: float | None, service_games: float | None) -> float | None:
     """Nombre d'aces attendu = taux x jeux de service. None si tendance inconnue."""
     if rate is None or service_games is None:
@@ -103,12 +120,31 @@ def load_cached(path: str = PATH) -> dict:
     return _cache["store"]
 
 
-def for_match(match, best_of: int, fav_prob: float | None,
-              store: dict | None = None) -> dict | None:
-    """Récapitulatif aces des deux joueurs pour un match, ou None si aucune tendance.
+def _ace_pack(rate, opp_ret, sg_short, sg_long, line):
+    """Détail aces d'un joueur : taux ajusté adversaire, fourchette, P(plus de ligne)."""
+    if rate is None:
+        return {"rate": None}
+    factor = opponent_ace_factor(opp_ret)
+    adj = rate * factor
+    exp_low, exp_high = adj * sg_short, adj * sg_long
+    pack = {"rate": rate, "factor": round(factor, 2), "adj_rate": round(adj, 3),
+            "exp_low": exp_low, "exp_high": exp_high,
+            "exp_mid": adj * (sg_short + sg_long) / 2, "line": line}
+    if line is not None:
+        pack["p_over_low"] = prob_over(line, exp_low)
+        pack["p_over_high"] = prob_over(line, exp_high)
+    return pack
 
-    Renvoie {home_name, away_name, home_rate, away_rate, home_exp, away_exp,
-    service_games}. home_exp/away_exp = aces attendus (arrondis à l'affichage).
+
+def for_match(match, best_of: int, fav_prob: float | None,
+              store: dict | None = None, opp_ret_home: float | None = None,
+              opp_ret_away: float | None = None, line_home: float | None = None,
+              line_away: float | None = None) -> dict | None:
+    """Récapitulatif aces des deux joueurs (fourchette durée + ajustement adversaire).
+
+    opp_ret_* = force de retour de l'adversaire (réduit les aces d'un bon retourneur).
+    line_* = ligne Unibet 'total aces joueur' (-> P(plus de la ligne)). None si absente.
+    Renvoie {home_name, away_name, home:{...}, away:{...}, sg_short, sg_long} ou None.
     """
     store = store if store is not None else load_cached()
     if not store:
@@ -117,10 +153,11 @@ def for_match(match, best_of: int, fav_prob: float | None,
     ra = ace_rate(store.get(str(match.away.id)), match.ground_type)
     if rh is None and ra is None:
         return None
-    sg = expected_service_games(best_of, fav_prob)
+    sg_short, sg_long = service_games_range(best_of)
     return {
         "home_name": match.home.name, "away_name": match.away.name,
-        "home_rate": rh, "away_rate": ra,
-        "home_exp": expected_aces(rh, sg), "away_exp": expected_aces(ra, sg),
-        "service_games": sg,
+        "sg_short": sg_short, "sg_long": sg_long,
+        # l'adversaire de 'home' est 'away' (et inversement) -> retour croisé
+        "home": _ace_pack(rh, opp_ret_away, sg_short, sg_long, line_home),
+        "away": _ace_pack(ra, opp_ret_home, sg_short, sg_long, line_away),
     }

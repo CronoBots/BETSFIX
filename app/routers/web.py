@@ -164,7 +164,11 @@ async def match_detail(
     winner_odds = _match_winner_odds(odds, match) if (odds and odds.matched) else (None, None)
     best_of = 5 if tour == "atp" else 3
     fav_prob = max(analysis.model_home_probability or 0.5, analysis.model_away_probability or 0.5)
-    aces = tendencies.for_match(match, best_of, fav_prob)
+    opp_ret_home, opp_ret_away = serve_return.return_rates_for_match(match)
+    line_home, line_away = (_ace_lines(odds, match) if (odds and odds.matched) else (None, None))
+    aces = tendencies.for_match(
+        match, best_of, fav_prob, opp_ret_home=opp_ret_home, opp_ret_away=opp_ret_away,
+        line_home=line_home, line_away=line_away)
     home_form = _recent_form(hm or [], match.home.id)
     away_form = _recent_form(am or [], match.away.id)
     h2h_rec = ({"home": h2h.home_wins, "away": h2h.away_wins} if h2h else None)
@@ -173,6 +177,25 @@ async def match_detail(
     return HTMLResponse(web.render_match_detail(
         analysis, winner_odds, aces=aces, tour=tour,
         home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score))
+
+
+def _ace_lines(odds, match) -> tuple[float | None, float | None]:
+    """Lignes Unibet 'Nombre total d'aces - <joueur>' (Plus de), par joueur."""
+    home_tokens = _norm_name(match.home.name)
+    lh = la = None
+    for mk in odds.markets:
+        label = mk.label or ""
+        lab = label.lower()
+        if "aces" not in lab or not ("nombre" in lab or " - " in label):
+            continue
+        over = next((o for o in mk.outcomes if "plus" in (o.label or "").lower()), None)
+        if not over or over.line is None:
+            continue
+        if _norm_name(label) & home_tokens:
+            lh = over.line
+        else:
+            la = over.line
+    return lh, la
 
 
 def _recent_form(matches: list, player_id: int | None, n: int = 6) -> list[dict]:

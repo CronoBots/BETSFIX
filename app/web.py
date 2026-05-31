@@ -380,24 +380,46 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
         odds_html = ('<div class="banner">Cotes Unibet indisponibles (match pas encore '
                      'à l\'affiche du book).</div>')
 
-    # Tendance d'aces (marché annexe) — info de lecture
+    # Tendance d'aces : fourchette (durée), ajustement adversaire, P(plus de la ligne)
     aces_html = ""
     if aces:
-        def arow(name, rate, exp):
-            if rate is None or exp is None:
+        def arow(name, p):
+            if p.get("rate") is None:
                 return (f'<tr><td>{e(name)}</td><td class="dim">—</td>'
                         f'<td class="dim">tendance inconnue</td></tr>')
-            return (f'<tr><td>{e(name)}</td><td><b>~{round(exp)}</b> aces</td>'
-                    f'<td class="dim">{rate:.2f} / jeu de service</td></tr>')
+            lo, hi = round(p["exp_low"]), round(p["exp_high"])
+            adj = ""
+            if p["factor"] <= 0.97:
+                adj = ' <span class="dim">(− retour adverse)</span>'
+            elif p["factor"] >= 1.03:
+                adj = ' <span class="dim">(+ retour faible)</span>'
+            # vs ligne Unibet
+            if p.get("line") is not None and p.get("p_over_low") is not None:
+                pl, ph = round(p["p_over_low"] * 100), round(p["p_over_high"] * 100)
+                lo_p, hi_p = min(pl, ph), max(pl, ph)
+                if hi_p < 48:
+                    verdict = '<span class="neg">Moins de</span> plus probable'
+                elif lo_p > 55:
+                    verdict = '<span class="pos">Plus de</span> plausible (si match long)'
+                else:
+                    verdict = 'incertain — dépend de la durée'
+                cmp = (f'Plus de {p["line"]} : <b>{lo_p}–{hi_p}%</b><br>'
+                       f'<span class="dim">{verdict}</span>')
+            else:
+                cmp = '<span class="dim">pas de ligne Unibet</span>'
+            return (f'<tr><td>{e(name)}<br><span class="dim">{p["adj_rate"]:.2f}/jeu</span></td>'
+                    f'<td><b>~{lo}–{hi}</b> aces{adj}</td><td>{cmp}</td></tr>')
         aces_html = (
             '<h2>Service — aces attendus</h2>'
-            '<div class="banner">Estimation d\'après la <b>tendance d\'aces</b> du joueur '
-            f'(~{round(aces["service_games"])} jeux de service estimés). Info de lecture — '
-            '<b>pas encore</b> un signal de value (le book connaît aussi ces tendances).</div>'
-            '<table><tr><td class="dim">joueur</td><td class="dim">aces (est.)</td>'
-            '<td class="dim">tendance</td></tr>'
-            + arow(aces["home_name"], aces["home_rate"], aces["home_exp"])
-            + arow(aces["away_name"], aces["away_rate"], aces["away_exp"]) + '</table>')
+            '<div class="banner">Fourchette selon la <b>durée du match</b> '
+            f'(court ~{round(aces["sg_short"])} jeux de service → long ~{round(aces["sg_long"])}), '
+            'ajustée par la <b>force de retour</b> de l\'adversaire. '
+            '<b>P(Plus de la ligne)</b> = notre proba vs le pari Unibet. '
+            '⚠️ Le book intègre déjà tout ça : à lire, pas un signal de value.</div>'
+            '<table><tr><td class="dim">joueur</td><td class="dim">aces attendus</td>'
+            '<td class="dim">vs ligne Unibet</td></tr>'
+            + arow(aces["home_name"], aces["home"])
+            + arow(aces["away_name"], aces["away"]) + '</table>')
 
     # Accès à l'outil "Tous les paris" (modèle vs book sur tous les marchés Unibet)
     paris_link = ""

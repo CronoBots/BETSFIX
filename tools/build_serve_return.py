@@ -55,8 +55,9 @@ def main():
         events = collect_events(client, players)
     print(f"  {len(events)} matchs reliés.")
 
-    # Récolte par joueur : (timestamp, dominance, clay), tous matchs confondus
+    # Récolte par joueur : (timestamp, dominance, taux de break/retour, clay)
     by_player: dict[str, dict] = {}
+    tot_br = tot_rg = 0
     for ev in events:
         st = cache.get(str(ev.get("id")))
         if not st:
@@ -66,6 +67,11 @@ def main():
             continue
         clay = elo.is_clay(ev.get("groundType"))
         ts = ev.get("startTimestamp") or 0
+        # Taux de break (force de retour) de chaque joueur ce match-là.
+        br_h = st["bch"] / st["rgh"] if st.get("rgh") else None
+        br_a = st["bca"] / st["rga"] if st.get("rga") else None
+        tot_br += (st.get("bch") or 0) + (st.get("bca") or 0)
+        tot_rg += (st.get("rgh") or 0) + (st.get("rga") or 0)
         for side, (team_key) in (("home", "homeTeam"), ("away", "awayTeam")):
             t = ev.get(team_key) or {}
             pid = t.get("id")
@@ -74,18 +80,24 @@ def main():
             rec = by_player.setdefault(str(pid), {"name": t.get("name", ""), "obs": []})
             if t.get("name"):
                 rec["name"] = t["name"]
-            rec["obs"].append((ts, doms[0] if side == "home" else doms[1], clay))
+            rec["obs"].append((ts, doms[0] if side == "home" else doms[1], clay,
+                               br_h if side == "home" else br_a))
+    avg_ret = tot_br / tot_rg if tot_rg else 0.19
+    print(f"  taux de break moyen (force de retour) : {avg_ret:.3f}")
 
-    # Moyenne pondérée par récence (global + terre)
+    # Moyenne pondérée par récence (global + terre) + force de retour
     store = {}
     for pid, rec in by_player.items():
         obs = sorted(rec["obs"], key=lambda o: o[0], reverse=True)   # + récent d'abord
-        ws = wd = cws = cwd = 0.0
+        ws = wd = cws = cwd = rws = rwd = 0.0
         cn = 0
-        for i, (_, dom, clay) in enumerate(obs):
+        for i, (_, dom, clay, br) in enumerate(obs):
             w = DECAY ** i
             ws += w
             wd += w * dom
+            if br is not None:
+                rws += w
+                rwd += w * br
             if clay:
                 cws += w
                 cwd += w * dom
@@ -98,6 +110,8 @@ def main():
             "dom_n": len(obs),
             "dom_clay": round(cwd / cws, 4) if cws > 0 else None,
             "dom_clay_n": cn,
+            # Force de retour (taux de break) : sert à ajuster les aces de l'adversaire.
+            "ret": round(rwd / rws, 4) if rws > 0 else None,
         }
 
     os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
