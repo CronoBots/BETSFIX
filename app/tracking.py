@@ -448,6 +448,37 @@ def render_dashboard(store: dict, rep: dict) -> str:
                           "ATP (hommes) vs WTA (femmes) : si l'un décroche, "
                           "le modèle lui conviendrait moins."))
 
+    # Track record des paris conseillés (value réglées) — le vrai juge de rentabilité
+    bets = [r for r in recs if r.get("value_pick") and r.get("result")
+            and r["result"].get("value_pnl") is not None]
+    bets.sort(key=lambda r: r["result"].get("settled_at", ""), reverse=True)
+    if bets:
+        def bet_row(r):
+            v, res = r["value_pick"], r["result"]
+            pnl = res["value_pnl"]
+            won = pnl > 0
+            mark = ('<span class="pos">✓ gagné</span>' if won
+                    else '<span class="neg">✗ perdu</span>')
+            return (f'<tr><td>{e(r["home"])} v {e(r["away"])}<br>'
+                    f'<span class="dim">{e(v.get("player") or "")} @{v.get("odds")}</span></td>'
+                    f'<td>{mark}</td>'
+                    f'<td class="{"pos" if won else "neg"}">'
+                    f'{"+" if pnl >= 0 else ""}{round(pnl, 2)}</td></tr>')
+        pnl_tot = rep.get("value_pnl_unites", 0) or 0
+        roi = rep.get("value_roi")
+        bets_html = (
+            f'<h2>Track record des paris conseillés ({len(bets)})</h2>'
+            f'<div class="banner">Résultat réel des « paris à jouer » (value), mise plate '
+            f'1 unité. P&amp;L total <b>{"+" if pnl_tot >= 0 else ""}{pnl_tot} u</b> · '
+            f'réussite {_pct(rep.get("value_taux_reussite"))} · '
+            f'ROI {_pct(roi) if roi is not None else "—"}. '
+            f'Peu significatif tant qu\'on n\'a pas ~100 paris réglés.</div>'
+            '<table><tr><td class="dim">pari</td><td class="dim">résultat</td>'
+            f'<td class="dim">P&amp;L (u)</td></tr>'
+            f'{"".join(bet_row(r) for r in bets[:30])}</table>')
+    else:
+        bets_html = ""
+
     def settled_row(r):
         res = r["result"]
         hp = r.get("model_home_prob") or 0
@@ -468,6 +499,7 @@ def render_dashboard(store: dict, rep: dict) -> str:
  (calibration sur résultats réels). Ce n'est <b>pas</b> un outil pour battre le bookmaker :
  un modèle simple ne bat pas un book sérieux. Fiable à partir de ~100 matchs réglés.</div>
 {surconf_html}
+{bets_html}
 {calib_html}
 {factors_html}
 {breakdowns_html}
