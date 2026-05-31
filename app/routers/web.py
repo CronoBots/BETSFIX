@@ -105,7 +105,7 @@ async def matches_page(
                 "time": web.fmt_local(m.start_time, with_date=True),
                 "score": web.fmt_score(m.home_score, m.away_score) if m.status == "inprogress" else "",
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
-                "clickable": True,
+                "hp": hp, "clickable": True,
                 "_date": local_dt.date() if local_dt else None,
                 "_sort": local_dt or datetime.max.replace(tzinfo=timezone.utc),
             }
@@ -120,8 +120,10 @@ async def matches_page(
                 f' · confiance {ev(r.get("confidence") or "—")}</div>')
 
     def _trow(r, sub, badge="", pick=False):
+        labels = ((r["home"].split() or [""])[-1], (r["away"].split() or [""])[-1])
         return {"tour": r["tour"].upper(), "status": r["status"], "time": r.get("time") or "",
                 "score": r.get("score") or "", "home": r["home"], "away": r["away"],
+                "prob": r.get("hp"), "prob_labels": labels,
                 "sub": sub, "badge": badge, "pick": pick,
                 "url": f'/app/match/{r["id"]}?tour={r["tour"]}'}
 

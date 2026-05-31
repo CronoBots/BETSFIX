@@ -62,9 +62,12 @@ CSS = """
     --border:#252a37;--border2:#2f3545;--text:#eef1f7;--muted:#9099a8;--dim:#646c7c;
     --accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;
     --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
-    --red:#f25d6e;--green:#34d27b;
+    --red:#f25d6e;--green:#34d27b;--brand:#2ee27f;
     --radius:16px;--shadow:0 6px 22px rgba(0,0,0,.40);--shadow-sm:0 2px 8px rgba(0,0,0,.30);
   }
+  /* Identité couleur par sport (accent réutilisé partout) */
+  body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00}
+  body.sp-foot{--accent:#5b9dff;--accent2:#2f7cf0;--accent-ink:#02112b}
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{margin:0;color:var(--text);font-size:15px;line-height:1.45;
@@ -85,7 +88,7 @@ CSS = """
   .brand{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:800;
          letter-spacing:-.02em}
   .brand .logo{font-size:22px;filter:drop-shadow(0 2px 6px rgba(46,226,127,.4))}
-  .brand b{color:var(--accent)}
+  .brand b{color:var(--brand)}
   .brand .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.12em;
               text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);
               padding:3px 8px;border-radius:20px}
@@ -137,6 +140,32 @@ CSS = """
   .bar{height:9px;border-radius:99px;background:rgba(242,93,110,.22);overflow:hidden;margin:8px 0}
   .bar > span{display:block;height:100%;border-radius:99px;
               background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  /* Barre de proba (2 issues home/away ou 3 issues 1-N-2) */
+  .pbar{display:flex;height:8px;border-radius:99px;overflow:hidden;margin:9px 0 3px;
+        background:var(--border);gap:1px}
+  .pbar span{display:block;height:100%}
+  .pbar .s1{background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .pbar .s2{background:var(--surface2)}
+  .pbar .sx{background:var(--dim)}
+  .pbar-l{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);
+          font-weight:700;letter-spacing:.02em;gap:6px}
+  .pbar-l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Dataviz fiche match : pastilles de forme + mini-barres de facteurs */
+  .dots{display:flex;gap:5px;flex-wrap:wrap}
+  .dot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;
+       justify-content:center;font-size:11px;font-weight:800}
+  .dot.w{background:var(--green);color:#04130a}
+  .dot.l{background:var(--red);color:#fff}
+  .mbar{height:7px;border-radius:99px;overflow:hidden;display:flex;background:var(--border);gap:1px}
+  .mbar .a{background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .mbar .b{background:var(--surface2)}
+  .frow{padding:10px 0;border-bottom:1px solid var(--border)}
+  .frow:last-child{border:none}
+  .frow .ft{display:flex;align-items:center;gap:10px}
+  .frow .fn{flex:0 0 88px;font-size:12.5px;font-weight:700}
+  .frow .fb{flex:1}
+  .frow .fp{flex:0 0 76px;text-align:right;font-size:11px;color:var(--muted);
+            font-variant-numeric:tabular-nums;font-weight:700}
   /* Tables */
   table{width:100%;border-collapse:collapse;font-size:13px;margin:4px 0;
         background:var(--surface);border:1px solid var(--border);border-radius:14px;
@@ -197,7 +226,13 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#080a0f">
-{meta_refresh}<title>{e(title)} · BetsFix</title><style>{CSS}</style></head><body>
+{meta_refresh}<title>{e(title)} · BetsFix</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BetsFix">
+<style>{CSS}</style></head><body class="sp-{e(sport)}">
 <header class="hdr"><div class="hdr-in">
 <div class="brand"><span class="logo">🎾</span> Bets<b>Fix</b><span class="tag">Multi-sports</span></div>
 {nav}</div></header><div class="wrap">{sub}{body}
@@ -259,9 +294,28 @@ def _bar(pct: float | None) -> str:
     return f'<div class="bar"><span style="width:{p}%"></span></div>'
 
 
+def _prob_bar(prob, labels=None) -> str:
+    """Barre de proba visuelle : float = 2 issues (home/away) ; (p1,px,p2) = 1-N-2."""
+    if prob is None:
+        return ""
+    if isinstance(prob, (int, float)):
+        p = round(prob * 100)
+        bar = (f'<div class="pbar"><span class="s1" style="width:{p}%"></span>'
+               f'<span class="s2" style="width:{100 - p}%"></span></div>')
+        lab = labels or ("", "")
+        return (bar + f'<div class="pbar-l"><span>{html.escape(lab[0])} {p}%</span>'
+                f'<span>{100 - p}% {html.escape(lab[1])}</span></div>')
+    p1, px, p2 = (round(x * 100) for x in prob)
+    return (f'<div class="pbar"><span class="s1" style="width:{p1}%"></span>'
+            f'<span class="sx" style="width:{px}%"></span>'
+            f'<span class="s2" style="width:{p2}%"></span></div>'
+            f'<div class="pbar-l"><span>1 · {p1}%</span><span>N · {px}%</span>'
+            f'<span>{p2}% · 2</span></div>')
+
+
 def _sport_row(r: dict) -> str:
     """Ligne de match unifiée (tous sports). r : tour, status, time, score, home,
-    away, sub (HTML d'analyse spécifique au sport), badge, url, pick."""
+    away, prob (float ou 3-tuple), sub, badge, url, pick."""
     e = html.escape
     if r.get("status") == "inprogress":
         sc = f' <span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
@@ -273,7 +327,8 @@ def _sport_row(r: dict) -> str:
     inner = (f'<div class="rowtop"><span>{e(r.get("tour") or "")} · {top}</span>'
              f'{r.get("badge", "")}</div>'
              f'<div class="players">{e(r.get("home") or "")} '
-             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>{r.get("sub", "")}')
+             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>'
+             f'{_prob_bar(r.get("prob"), r.get("prob_labels"))}{r.get("sub", "")}')
     cls = "row pick" if r.get("pick") else "row"
     if r.get("url"):
         return f'<a class="{cls}" href="{r["url"]}">{inner}</a>'
@@ -445,49 +500,55 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
     else:
         pari_html = ""
 
-    # Forme récente (V/D, du plus récent au plus ancien)
-    def _form_row(name, form):
+    # Forme récente en PASTILLES (V vert / D rouge), du plus récent au plus ancien
+    def _form_block(name, form):
         if not form:
-            return f'<tr><td>{e(name)}</td><td class="dim">historique indisponible</td></tr>'
-        badges = " ".join('<span class="pos">V</span>' if f["win"]
-                          else '<span class="neg">D</span>' for f in form)
-        last_opp = form[0].get("opp", "")
-        return (f'<tr><td>{e(name)}</td><td>{badges} '
-                f'<span class="dim">· dernier : {"✓" if form[0]["win"] else "✗"} '
-                f'{e(last_opp.split()[-1] if last_opp else "")}</span></td></tr>')
+            return (f'<div class="frow"><div class="fn">{e(name.split()[-1])}</div>'
+                    '<span class="dim">historique indisponible</span></div>')
+        dots = "".join(f'<span class="dot {"w" if f["win"] else "l"}">'
+                       f'{"V" if f["win"] else "D"}</span>' for f in form)
+        return (f'<div class="frow"><div class="players" style="font-size:14px;margin:0 0 6px">'
+                f'{e(name)}</div><div class="dots">{dots}</div></div>')
 
     form_html = ""
     if home_form or away_form:
         form_html = ('<h2>Forme récente <span class="dim">(récent → ancien)</span></h2>'
-                     '<table>' + _form_row(a.home.name, home_form or [])
-                     + _form_row(a.away.name, away_form or []) + '</table>')
+                     f'<div class="row">{_form_block(a.home.name, home_form or [])}'
+                     f'{_form_block(a.away.name, away_form or [])}</div>')
 
-    # Face-à-face
+    # Face-à-face en BARRE
     h2h_html = ""
     if h2h:
         hh, aw = h2h.get("home") or 0, h2h.get("away") or 0
         if hh + aw > 0:
-            lead = a.home.name if hh > aw else (a.away.name if aw > hh else None)
-            tag = f'avantage {e(lead.split()[-1])}' if lead else "à égalité"
-            h2h_html = (f'<h2>Face-à-face</h2><div class="row"><b>{e(a.home.name)} '
-                        f'{hh} – {aw} {e(a.away.name)}</b><br>'
-                        f'<span class="dim">{hh + aw} confrontation'
-                        f'{"s" if hh + aw > 1 else ""} · {tag}</span></div>')
+            ph = round(hh / (hh + aw) * 100)
+            h2h_html = (
+                f'<h2>Face-à-face</h2><div class="row">'
+                f'<div class="pbar-l"><span>{e(a.home.name.split()[-1])} {hh}</span>'
+                f'<span>{aw} {e(a.away.name.split()[-1])}</span></div>'
+                f'<div class="mbar"><span class="a" style="width:{ph}%"></span>'
+                f'<span class="b" style="width:{100-ph}%"></span></div>'
+                f'<div class="dim" style="margin-top:6px">{hh + aw} confrontation'
+                f'{"s" if hh + aw > 1 else ""}</div></div>')
 
     probs = ""
     if hp is not None:
-        probs = (f'<h2>Probabilités du modèle</h2>'
-                 f'<div class="dim">{e(a.home.name)} {round(hp*100)}% · '
-                 f'{e(a.away.name)} {round(ap*100)}%</div>{_bar(hp)}')
+        probs = (f'<h2>Probabilités du modèle</h2><div class="row">'
+                 f'<div class="pbar-l"><span>{e(a.home.name.split()[-1])} {round(hp*100)}%</span>'
+                 f'<span>{round(ap*100)}% {e(a.away.name.split()[-1])}</span></div>'
+                 f'<div class="mbar" style="height:10px"><span class="a" style="width:{round(hp*100)}%">'
+                 f'</span><span class="b" style="width:{round(ap*100)}%"></span></div></div>')
 
-    frows = "".join(
-        f'<tr><td>{e(f.name)}</td><td>{round((f.home or 0)*100)}%</td>'
-        f'<td>{round((f.away or 0)*100)}%</td><td class="dim">{e(f.detail or "")}</td></tr>'
-        for f in a.factors)
-    factors = (f'<h2>Facteurs</h2><table><tr><td class="dim">facteur</td>'
-               f'<td class="dim">{e(a.home.name.split()[-1])}</td>'
-               f'<td class="dim">{e(a.away.name.split()[-1])}</td><td class="dim">détail</td></tr>'
-               f'{frows}</table>') if a.factors else ""
+    # Facteurs en MINI-BARRES (contribution home/away par facteur)
+    def _factor_row(f):
+        h = round((f.home or 0) * 100)
+        return (f'<div class="frow"><div class="ft"><span class="fn">{e(f.name)}</span>'
+                f'<span class="fb"><span class="mbar"><span class="a" style="width:{h}%"></span>'
+                f'<span class="b" style="width:{100-h}%"></span></span></span>'
+                f'<span class="fp">{h}/{100-h}%</span></div>'
+                f'<div class="dim" style="font-size:11px;margin-top:4px">{e(f.detail or "")}</div></div>')
+    factors = (f'<h2>Facteurs du modèle</h2><div class="row">'
+               + "".join(_factor_row(f) for f in a.factors) + '</div>') if a.factors else ""
 
     # Lecture du modèle (favori) — neutre, pas de pari conseillé
     fav = a.home.name if (hp or 0) >= 0.5 else a.away.name

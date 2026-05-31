@@ -273,17 +273,17 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
     e = html.escape
 
     def model_line(r):
-        probs = r.get("probs")
-        if probs:
-            line = (f'1-N-2 : <b>{round(probs[0]*100)}%</b> · {round(probs[1]*100)}% · '
-                    f'<b>{round(probs[2]*100)}%</b>')
-        else:
-            line = 'Elo indisponible'
+        parts = []
+        if not r.get("probs"):
+            parts.append("Elo indisponible")
         if r.get("o1"):
-            line += f' · cotes {r["o1"]}/{r["ox"]}/{r["o2"]}'
+            parts.append(f'cotes {r["o1"]}/{r["ox"]}/{r["o2"]}')
+        else:
+            parts.append("cotes Unibet à venir")
         gm = r.get("goals")
-        btts = f'<br>les 2 marquent (BTTS) : <b>{round(gm["btts"]*100)}%</b>' if gm else ""
-        return f'<div class="dim">{line}{btts}</div>'
+        if gm:
+            parts.append(f'BTTS <b>{round(gm["btts"]*100)}%</b>')
+        return f'<div class="dim">{" · ".join(parts)}</div>'
 
     value, live, upcoming = [], [], []
     for r in rows:
@@ -293,7 +293,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
         base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "home": r["home"], "away": r["away"]}
         (live if r["status"] == "inprogress" else upcoming).append(
-            {**base, "sub": model_line(r), "badge": badge, "pick": bool(pk)})
+            {**base, "prob": r.get("probs"), "sub": model_line(r),
+             "badge": badge, "pick": bool(pk)})
         if pk:
             value.append({**base, "badge": badge, "pick": True,
                           "sub": f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '

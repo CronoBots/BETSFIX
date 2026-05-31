@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app import basket as basket_sport
@@ -127,6 +129,26 @@ app.include_router(tracking.router)
 app.include_router(basket.router)
 app.include_router(foot.router)
 app.include_router(web.router)
+
+# PWA : fichiers statiques (icônes) + manifest -> app installable sur l'écran d'accueil
+app.mount("/static", StaticFiles(directory=os.path.join(_ROOT, "static")), name="static")
+
+
+@app.get("/manifest.webmanifest", include_in_schema=False)
+async def manifest() -> JSONResponse:
+    return JSONResponse({
+        "name": "BetsFix — Analyse paris multi-sports",
+        "short_name": "BetsFix",
+        "description": "Tennis · Basket · Foot — modèle vs cotes, value, calibration.",
+        "start_url": "/", "scope": "/", "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#080a0f", "theme_color": "#080a0f",
+        "icons": [
+            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png",
+             "purpose": "any maskable"},
+        ],
+    }, media_type="application/manifest+json")
 
 
 @app.get("/api", tags=["Général"], summary="Liste des endpoints (JSON)")
