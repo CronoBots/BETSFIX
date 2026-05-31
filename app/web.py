@@ -89,10 +89,11 @@ CSS = """
   .brand .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.12em;
               text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);
               padding:3px 8px;border-radius:20px}
-  .nav{display:flex;gap:7px;margin-top:11px}
-  .nav a{flex:1;text-align:center;padding:10px 8px;border-radius:12px;font-size:13px;
-         font-weight:700;background:var(--surface);color:var(--muted);
+  .nav{display:flex;gap:6px;margin-top:11px}
+  .nav a{flex:1;text-align:center;padding:9px 3px;border-radius:11px;font-size:12px;
+         font-weight:700;background:var(--surface);color:var(--muted);white-space:nowrap;
          border:1px solid var(--border);transition:.16s}
+  .nav a.home{flex:0 0 auto;padding:9px 11px;font-size:15px}
   .nav a:active{transform:scale(.97)}
   .nav a.on{color:var(--accent-ink);border-color:transparent;
             background:linear-gradient(180deg,var(--accent),var(--accent2));
@@ -166,10 +167,12 @@ CSS = """
 
 def layout(title: str, active: str, body: str, refresh: bool = False) -> str:
     e = html.escape
-    nav_items = [("home", "/", "🏠 Accueil"), ("matches", "/app", "🎾 Tennis"),
-                 ("basket", "/basket", "🏀 Basket"), ("perf", "/tracking/dashboard", "📊 Perf")]
+    nav_items = [("home", "/", "🏠"), ("matches", "/app", "🎾 Tennis"),
+                 ("basket", "/basket", "🏀 Basket"), ("foot", "/foot", "⚽ Foot"),
+                 ("perf", "/tracking/dashboard", "📊 Perf")]
     nav = '<nav class="nav">' + "".join(
-        f'<a class="{"on" if active==k else ""}" href="{href}">{e(lbl)}</a>'
+        f'<a class="{("on " if active==k else "")}{"home" if k=="home" else ""}"'
+        f' href="{href}">{e(lbl)}</a>'
         for k, href, lbl in nav_items) + "</nav>"
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>

@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app import basket as basket_sport
 from app.dependencies import get_provider, get_unibet, shutdown_provider
-from app.routers import analysis, basket, matches, players, statistics, tracking, web
+from app.routers import analysis, basket, foot, matches, players, statistics, tracking, web
 from app.routers.tracking import run_settle, run_snapshot
 
 log = logging.getLogger("uvicorn")
@@ -119,6 +119,7 @@ app.include_router(players.router)
 app.include_router(analysis.router)
 app.include_router(tracking.router)
 app.include_router(basket.router)
+app.include_router(foot.router)
 app.include_router(web.router)
 
 
