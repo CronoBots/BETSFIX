@@ -385,20 +385,30 @@ def render_dashboard(store: dict, rep: dict) -> str:
         calib_html = ""
 
     # Surconfiance : le modèle promet-il plus qu'il ne réalise ?
+    # ⚠️ On n'alerte (et ne conseille de recalibrer) qu'au-delà d'un échantillon
+    # suffisant : sur < 50 matchs, l'écart est du bruit (le back-test 16k a déjà
+    # tranché : pas de surconfiance réelle). Conseiller un changement de CALIB_SHRINK
+    # sur 20 matchs serait du sur-ajustement.
     sc = rep.get("surconfiance")
+    n_calib = rep.get("predictions_evaluees", 0)
     if sc is None:
         surconf_html = ""
+    elif n_calib < 50:
+        surconf_html = (
+            f'<div class="banner">Calibration : écart prédit−réel {"+" if sc >= 0 else ""}'
+            f'{round(sc*100)} pts sur {n_calib} matchs — <b>échantillon trop faible</b> '
+            f'pour conclure (vise 50+). Ne change rien sur si peu.</div>')
     elif sc > 0.03:
         surconf_html = (
-            f'<div class="banner">⚠️ <b>Surconfiance +{round(sc*100)} pts</b> : le '
-            f'modèle annonce en moyenne plus que le taux réel de victoire du favori. '
-            f'Lance le back-test (build_backtest.bat) pour fixer le CALIB_SHRINK.</div>')
+            f'<div class="banner">⚠️ <b>Surconfiance +{round(sc*100)} pts</b> sur '
+            f'{n_calib} matchs : le modèle annonce plus que le taux réel. Envisage de '
+            f'baisser CALIB_SHRINK (relance build_backtest.bat pour confirmer).</div>')
     elif sc < -0.03:
         surconf_html = (
-            f'<div class="banner">Sous-confiance {round(sc*100)} pts : le favori gagne '
-            f'plus souvent que le modèle ne l\'annonce (marge de manœuvre à la hausse).</div>')
+            f'<div class="banner">Sous-confiance {round(sc*100)} pts sur {n_calib} matchs : '
+            f'le favori gagne plus souvent que le modèle ne l\'annonce.</div>')
     else:
-        surconf_html = ('<div class="banner">✓ Calibration moyenne saine '
+        surconf_html = (f'<div class="banner">✓ Calibration saine sur {n_calib} matchs '
                         '(prédit ≈ réel pour le favori).</div>')
 
     # Tableau générique d'une découpe (par confiance / surface / tour)
