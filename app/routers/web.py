@@ -26,13 +26,38 @@ router = APIRouter(tags=["Plateforme"], include_in_schema=False)
 HORIZON_HOURS = 48
 
 
+def _all_sport_picks() -> list[dict]:
+    """Value 'à venir' des 3 sports, normalisées et classées par edge (pour l'accueil)."""
+    from app import basket, foot
+    out = []
+
+    def add(store, sport, icon, url_fn, bet_key):
+        for rec in store.values():
+            v = rec.get("value_pick")
+            if rec.get("result") or not v:
+                continue
+            out.append({
+                "sport": sport, "icon": icon, "home": rec.get("home", ""),
+                "away": rec.get("away", ""), "bet": v.get(bet_key) or v.get("player") or "",
+                "odds": v.get("odds"), "edge": v.get("edge"),
+                "time": web.fmt_local(rec.get("start_time"), with_date=True),
+                "url": url_fn(rec),
+            })
+
+    add(tracking.load(), "Tennis", "🎾",
+        lambda r: f'/app/match/{r["match_id"]}?tour={r.get("tour", "atp")}', "player")
+    add(tracking.load(basket.BASKET_TRACK_PATH), "Basket", "🏀",
+        lambda r: "/basket", "player")
+    add(tracking.load(foot.FOOT_TRACK_PATH), "Foot", "⚽", lambda r: "/foot", "team")
+    out.sort(key=lambda p: p.get("edge") or 0, reverse=True)
+    return out
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
-    store = tracking.load()
-    picks, _ = _picks_and_finished(store)
-    picks.sort(key=lambda v: v.get("edge") or 0, reverse=True)   # meilleurs edges d'abord
-    return HTMLResponse(web.render_home(tracking.report(store),
-                                        source=provider.breaker_status(), picks=picks[:6]))
+    return HTMLResponse(web.render_home(
+        tracking.report(tracking.load()), source=provider.breaker_status(),
+        picks=_all_sport_picks()[:8]))
 
 
 @router.get("/app", response_class=HTMLResponse)

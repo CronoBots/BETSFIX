@@ -218,21 +218,36 @@ def render_home(rep: dict, source: dict | None = None,
     else:
         src = ""
 
-    # Hub multi-sports : on choisit son sport, chacun a Matchs + Fiabilité.
-    sports = [
-        ("🎾", "Tennis", "/app",
-         "ATP & WTA — favori du modèle, value, aces, sets, service/retour"),
-        ("🏀", "Basket", "/basket",
-         "WNBA — Elo d'équipe, value moneyline, marge attendue"),
-        ("⚽", "Foot", "/foot",
-         "Coupe du Monde & grandes compétitions — 1-X-2, BTTS"),
-    ]
+    # 🔥 Confiances du jour : les value des 3 sports, classées par edge
+    picks = picks or []
+    if picks:
+        rows = "".join(
+            f'<a class="row pick" href="{p["url"]}">'
+            f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])} · {e(p.get("time") or "")}</span>'
+            f'<span class="badge b-val">+{round((p.get("edge") or 0)*100, 1)} pts</span></div>'
+            f'<div class="players">{e(p.get("bet") or "")} '
+            f'<span class="dim">@{p.get("odds") or "—"}</span></div>'
+            f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div></a>'
+            for p in picks)
+        picks_html = (f'<h2>🔥 Confiances du jour ({len(picks)})</h2>'
+                      '<div class="banner">Les meilleures <b>value</b> des 3 sports vs Unibet, '
+                      'classées par edge. À recouper — un pari n\'est jamais garanti.</div>'
+                      + rows)
+    else:
+        picks_html = ('<h2>🔥 Confiances du jour</h2>'
+                      '<div class="banner">Aucune value détectée pour le moment '
+                      '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
+
+    # Accès rapide par sport
+    sports = [("🎾", "Tennis", "/app", "ATP & WTA — value, aces, sets, service/retour"),
+              ("🏀", "Basket", "/basket", "WNBA — Elo, moneyline, marge attendue"),
+              ("⚽", "Foot", "/foot", "Coupe du Monde & grandes compétitions — 1-X-2, BTTS")]
     cards = "".join(
         f'<a class="big" href="{url}"><span style="font-size:20px">{ic}</span> '
         f'<b>{name}</b><div class="d">{e(desc)}</div></a>'
         for ic, name, url, desc in sports)
 
-    body = (f'{src}<h2>Choisis ton sport</h2>{cards}'
+    body = (f'{src}{picks_html}<h2>Les sports</h2>{cards}'
             '<div class="banner warn">Outil d\'<b>aide à la décision</b> : il aide à '
             'analyser, il ne prédit pas de paris gagnants. Un modèle simple ne bat pas un '
             'book sérieux — informe-toi, décide toi-même, et joue responsable.</div>')
