@@ -117,7 +117,8 @@ def layout(title: str, active: str, body: str, refresh: bool = False) -> str:
 </div></body></html>"""
 
 
-def render_home(rep: dict, source: dict | None = None) -> str:
+def render_home(rep: dict, source: dict | None = None,
+                picks: list[dict] | None = None) -> str:
     e = html.escape
     prec = rep.get("precision_modele")
     prec_txt = "—" if prec is None else f"{round(prec*100)}%"
@@ -128,7 +129,27 @@ def render_home(rep: dict, source: dict | None = None) -> str:
                f'({source.get("paused_seconds", 0)}s) — LiveScore prend le relais</div>')
     else:
         src = ""
-    body = f"""{src}"""
+
+    # 💰 Paris du jour : les value détectées, classées par edge
+    picks = picks or []
+    if picks:
+        rows = "".join(
+            f'<a class="row pick" href="/app/match/{v["id"]}?tour={v["tour"]}">'
+            f'<div class="rowtop"><span>{e(v["tour"].upper())} · {e(v.get("time") or "")}</span>'
+            f'<span class="badge b-val">+{round((v.get("edge") or 0)*100, 1)} pts</span></div>'
+            f'<div class="players">{e(v.get("player") or "")} '
+            f'<span class="dim">@{v.get("odds") or "—"}</span></div>'
+            f'<div class="dim">{e(v["home"])} vs {e(v["away"])} · mise '
+            f'{v.get("stake") if v.get("stake") is not None else "—"}%</div></a>'
+            for v in picks)
+        picks_html = (f'<h2>💰 Paris du jour ({len(picks)})</h2>'
+                      '<div class="banner">Les "value" du modèle vs Unibet, classées par edge. '
+                      'À recouper — un pari n\'est jamais garanti.</div>' + rows)
+    else:
+        picks_html = ('<h2>💰 Paris du jour</h2>'
+                      '<div class="dim">Aucune value détectée pour le moment.</div>')
+
+    body = f"""{src}{picks_html}"""
     body += f"""
 <a class="big" href="/app">🎾 Matchs & analyses
   <div class="d">Matchs du jour : favori du modèle, stats, forme, h2h et cotes Unibet</div></a>

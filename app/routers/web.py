@@ -28,8 +28,11 @@ HORIZON_HOURS = 48
 
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
-    return HTMLResponse(web.render_home(tracking.report(tracking.load()),
-                                        source=provider.breaker_status()))
+    store = tracking.load()
+    picks, _ = _picks_and_finished(store)
+    picks.sort(key=lambda v: v.get("edge") or 0, reverse=True)   # meilleurs edges d'abord
+    return HTMLResponse(web.render_home(tracking.report(store),
+                                        source=provider.breaker_status(), picks=picks[:6]))
 
 
 @router.get("/app", response_class=HTMLResponse)
