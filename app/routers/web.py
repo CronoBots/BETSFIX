@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import ace_markets, elo, serve_return, tendencies, tracking, web
+from app import ace_markets, elo, serve_return, set_markets, tendencies, tracking, web
 from app.analysis import build_analysis, prob_from_rankings
 from app.analysis import _match_winner_odds
 from app.markets import (
@@ -236,10 +236,15 @@ async def markets_page(
         sr_home=sr_home, sr_away=sr_away,
     )
     odds_matched = bool(odds and odds.matched)
-    winner_rows, ace_rows, sim_rows = [], [], []
+    winner_rows, ace_rows, set_rows, sim_rows = [], [], [], []
     if odds_matched:
         best_of = 5 if tour == "atp" else 3
         winner_rows = [_vb_row(vb) for vb in analysis.value_bets]
+
+        # Sets (au moins un set / handicap ±2.5) : dérivés de la proba de vainqueur, calibrés
+        set_rows = [_edge_row(me) for me in set_markets.evaluate(
+            match, odds, best_of,
+            analysis.model_home_probability, analysis.model_away_probability)]
 
         # Aces : tendances spécifiques à la surface du match
         store = tendencies.load_cached()
@@ -267,7 +272,8 @@ async def markets_page(
         sim_rows = [_edge_row(me) for me in sim_edges[:15]]   # top 15 par |écart|
 
     return HTMLResponse(web.render_markets(
-        match, winner_rows, ace_rows, sim_rows, odds_matched, tour=tour))
+        match, winner_rows, ace_rows, sim_rows, odds_matched, tour=tour,
+        set_rows=set_rows))
 
 
 async def _light_detail(match_id, tour, unibet, rankings) -> HTMLResponse:

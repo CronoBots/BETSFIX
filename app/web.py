@@ -437,9 +437,11 @@ def _market_rows(rows: list[dict]) -> str:
 
 
 def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
-                   sim_rows: list[dict], odds_matched: bool, tour: str = "atp") -> str:
+                   sim_rows: list[dict], odds_matched: bool, tour: str = "atp",
+                   set_rows: list[dict] | None = None) -> str:
     """Page "Tous les paris" : modèle vs book, par marché, regroupé par fiabilité."""
     e = html.escape
+    set_rows = set_rows or []
     back = (f'<a class="dim" href="/app/match/{match.id}?tour={e(tour)}">← Retour à l\'analyse</a>'
             f'<div class="players" style="font-size:18px;margin-top:10px">'
             f'{e(match.home.name)} <span class="dim">vs</span> {e(match.away.name)}</div>')
@@ -447,28 +449,39 @@ def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
         body = back + '<div class="banner">Cotes Unibet indisponibles pour ce match.</div>'
         return layout("Tous les paris", "matches", body)
 
-    intro = ('<div class="banner">Pour chaque pari Unibet : <b>proba du modèle</b> / '
-             '<b>proba implicite du book</b>, et l\'écart. Un écart <b>n\'est pas</b> une '
-             'value sûre — le book est souvent plus fin que nous, surtout sur les marchés '
-             'de niche. Outil d\'exploration, pas de conseil de pari.</div>')
+    # Légende : comment lire le tableau (la demande "mieux expliqué")
+    intro = (
+        '<div class="banner"><b>Comment lire ?</b> Chaque ligne = un pari Unibet.<br>'
+        '• <b>modèle</b> = la proba qu\'on estime · <b>book</b> = la proba derrière la cote.<br>'
+        '• <b>écart</b> = modèle − book. <span class="pos">Vert (+)</span> = on te donne '
+        'PLUS de chances que le book ⇒ potentiellement intéressant. '
+        '<span class="neg">Rouge (−)</span> = à éviter.<br>'
+        '⚠️ Un écart positif <b>n\'est pas</b> un gain garanti — le book est souvent très '
+        'juste, surtout sur les petits marchés.</div>')
 
-    def section(title, sub, rows):
+    def section(title, sub, rows, sub_class="banner"):
         if not rows:
             return ""
-        return (f'<h2>{e(title)}</h2><div class="banner">{sub}</div>'
+        return (f'<h2>{e(title)}</h2><div class="{sub_class}">{sub}</div>'
                 '<table><tr><td class="dim">marché / sélection</td><td class="dim">cote</td>'
-                '<td class="dim">modèle / book</td><td class="dim">écart pts</td></tr>'
+                '<td class="dim">modèle / book</td><td class="dim">écart</td></tr>'
                 f'{_market_rows(rows)}</table>')
 
     sections = (
-        section("Vainqueur du match", "Le marché le mieux modélisé (Elo, classement, "
-                "forme, surface, h2h).", winner_rows)
-        + section("Aces (exploratoire)", "Signal réel sur la tendance d'aces, MAIS total "
-                  "ancré sur le book et répartition par tendance terre : à confirmer par le "
-                  "suivi avant d'en faire un pari.", ace_rows)
-        + section("Jeux · sets · breaks (simulateur — expérimental)", "⚠️ Simulation du "
-                  "déroulé, peu fiable sur ces marchés. À NE PAS suivre pour parier en l'état.",
-                  sim_rows))
-    if not (winner_rows or ace_rows or sim_rows):
+        section("🏆 Vainqueur du match",
+                "Le marché le <b>mieux modélisé</b> (Elo, classement, forme, surface, h2h). "
+                "C\'est ici que nos estimations sont les plus fiables.", winner_rows)
+        + section("🛡️ Paris « sûrs » — sets (au moins un set, handicap ±2.5)",
+                  "Faible cote, haute probabilité (comme tes paris gagnants). "
+                  "<b>Calibrés sur 4250 matchs</b> : en général le book a raison (pas d\'edge "
+                  "systématique). Une value n\'apparaît que si notre modèle juge le match "
+                  "plus serré que le book.", set_rows)
+        + section("🎾 Aces (exploratoire)",
+                  "Signal réel sur la tendance d\'aces, mais total ancré sur le book : "
+                  "à confirmer par le suivi avant d\'en faire un pari.", ace_rows)
+        + section("🧪 Jeux · breaks (simulateur — expérimental)",
+                  "⚠️ Simulation du déroulé, <b>peu fiable</b> sur ces marchés. "
+                  "À ne PAS suivre pour parier en l\'état.", sim_rows))
+    if not (winner_rows or set_rows or ace_rows or sim_rows):
         sections = '<div class="dim">Aucun marché évaluable pour ce match.</div>'
     return layout("Tous les paris", "matches", back + intro + sections)
