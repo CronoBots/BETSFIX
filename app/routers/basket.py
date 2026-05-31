@@ -36,6 +36,7 @@ async def basket_page() -> HTMLResponse:
     """Tableau WNBA : matchs à venir, proba modèle (Elo) vs cotes Unibet, value."""
     try:
         rows = await basket.board()
+        await basket.enrich_display(rows)   # votes fans + forme (provider caché)
     except Exception:
         rows = []
     try:

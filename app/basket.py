@@ -20,9 +20,12 @@ import os
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
+import asyncio
+
 import httpx
 
 from app import tracking, web
+from app.dependencies import get_provider
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELO_PATH = os.path.join(_ROOT, "data", "basket_elo.json")
@@ -274,6 +277,34 @@ async def board() -> list[dict]:
     return rows
 
 
+async def enrich_display(rows: list[dict]) -> None:
+    """Ajoute votes des fans + forme d'avant-match (via provider SofaScore caché).
+
+    Même logique que le foot : seul le 1er affichage touche le réseau (stale-while-revalidate),
+    limité aux matchs jouables, tolérant aux erreurs.
+    """
+    prov = get_provider()
+    targets = [r for r in rows if r.get("status") in ("notstarted", "inprogress")][:12]
+
+    async def one(r: dict) -> None:
+        eid = r.get("id")
+        try:
+            v = await prov.get_votes(eid)
+            if v.home_percent is not None:
+                r["votes"] = (v.home_percent, v.away_percent)
+        except Exception:
+            pass
+        try:
+            pf = await prov.get_event_pregame_form(eid)
+            if pf.home.form or pf.away.form:
+                r["form"] = (pf.home.form, pf.away.form)
+        except Exception:
+            pass
+
+    if targets:
+        await asyncio.gather(*[one(r) for r in targets], return_exceptions=True)
+
+
 # ----------------------------------------------------------------- rendu (page)
 def _fmt_time(ts) -> str:
     if not ts:
@@ -329,17 +360,27 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
                 sub += f' · marge ~{abs(round(m))} pts'
         else:
             sub = 'Elo indisponible'
-        sub += (f' · cotes {r["oh"]}/{r["oa"]}' if r.get("oh") else ' · cotes à venir')
+        if r.get("oh"):
+            sub += f' · cotes {r["oh"]}/{r["oa"]}'
+        sub_html = f'<div class="dim">{sub}</div>'
+        # forme d'avant-match + votes des fans (si enrichis)
+        fm = r.get("form")
+        if fm:
+            sub_html += (f'<div class="dim">forme : {web.form_dots(fm[0])} {e(r["home"])} · '
+                         f'{web.form_dots(fm[1])} {e(r["away"])}</div>')
+        vt = r.get("votes")
+        if vt:
+            sub_html += web.votes_line(vt[0], vt[1], r["home"], r["away"])
         pk = r.get("pick")
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
-                 if pk else "")
+                 if pk else web.unibet_badge(bool(r.get("oh"))))
         base = {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "home": r["home"], "away": r["away"],
                 "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'
                           if r["status"] == "inprogress" and r.get("home_pts") is not None else "")}
         (live if r["status"] == "inprogress" else upcoming).append(
             {**base, "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
-             "sub": f'<div class="dim">{sub}</div>', "badge": badge, "pick": bool(pk)})
+             "sub": sub_html, "badge": badge, "pick": bool(pk)})
         if pk:
             value.append({**base, "badge": badge, "pick": True,
                           "sub": f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '

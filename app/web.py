@@ -147,6 +147,11 @@ CSS = """
          letter-spacing:.02em}
   .b-val{background:rgba(46,226,127,.14);color:var(--accent);border:1px solid rgba(46,226,127,.25)}
   .b-dim{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
+  .b-uni{background:rgba(46,155,255,.14);color:#56b0ff;border:1px solid rgba(46,155,255,.30)}
+  .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
+  .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
+  .fd{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+      border-radius:4px;font-size:9px;font-weight:800;color:#08110a}
   .bar{height:9px;border-radius:99px;background:rgba(242,93,110,.22);overflow:hidden;margin:8px 0}
   .bar > span{display:block;height:100%;border-radius:99px;
               background:linear-gradient(90deg,var(--accent2),var(--accent))}
@@ -379,6 +384,37 @@ def perf_toggle(active: str) -> str:
         for k, lbl in tabs) + "</div>")
 
 
+_FORM_COLOR = {"W": "#34d27b", "D": "#e0b341", "L": "#f25d6e",
+               "В": "#34d27b", "Н": "#e0b341", "П": "#f25d6e"}  # W/D/L (en/ru selon locale)
+
+
+def form_dots(form) -> str:
+    """Pastilles colorées des derniers résultats (V/N/D). form = ['W','D','L',...]."""
+    if not form:
+        return ""
+    dots = "".join(
+        f'<span class="fd" style="background:{_FORM_COLOR.get(str(x).upper()[:1], "#5a6472")}">'
+        f'{html.escape(str(x)[:1])}</span>'
+        for x in form[:5])
+    return f'<span class="forms">{dots}</span>'
+
+
+def unibet_badge(available: bool) -> str:
+    """Pastille de disponibilité des cotes Unibet (pari jouable maintenant ?)."""
+    if available:
+        return '<span class="badge b-uni">🎯 Unibet dispo</span>'
+    return '<span class="badge b-soon">cotes Unibet à venir</span>'
+
+
+def votes_line(home_pct, away_pct, home, away) -> str:
+    """Ligne 'pronostics des fans' (votes SofaScore)."""
+    if home_pct is None or away_pct is None:
+        return ""
+    e = html.escape
+    return (f'<div class="dim">👥 fans : <b>{round(home_pct)}%</b> {e(home)} · '
+            f'<b>{round(away_pct)}%</b> {e(away)}</div>')
+
+
 def fmt_score(home_score, away_score) -> str:
     """Score set par set d'un match en cours/terminé : '6-4 3-2'. '' si aucun."""
     hs = getattr(home_score, "sets", None) or []
@@ -481,7 +517,8 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                         aces: dict | None = None, tour: str = "atp",
                         home_form: list[dict] | None = None,
                         away_form: list[dict] | None = None,
-                        h2h: dict | None = None, score: str = "") -> str:
+                        h2h: dict | None = None, score: str = "",
+                        votes: tuple | None = None) -> str:
     """a = MatchAnalysis ; winner_odds = (cote_home, cote_away) Unibet ;
     aces = récap tendance d'aces ; home_form/away_form = derniers résultats (V/D) ;
     h2h = {'home': n, 'away': n} bilan des confrontations ; score = score en cours."""
@@ -646,7 +683,13 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                       f'<div class="d">Vainqueur, aces, jeux, sets, breaks… proba du modèle '
                       f'vs cote du book, marché par marché.</div></a>')
 
-    body = (head + pari_html + verdict + form_html + h2h_html + paris_link
+    # 👥 Pronostics des fans (votes SofaScore) — informatif
+    votes_html = ""
+    if votes and votes[0] is not None:
+        votes_html = ('<h2>Pronostics des fans</h2><div class="row">'
+                      + votes_line(votes[0], votes[1], a.home.name, a.away.name) + '</div>')
+
+    body = (head + pari_html + verdict + form_html + h2h_html + votes_html + paris_link
             + probs + factors + aces_html + odds_html)
     return layout(f"{a.home.name} vs {a.away.name}", "tennis", body, subnav="matchs")
 

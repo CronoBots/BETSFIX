@@ -18,9 +18,12 @@ import os
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
+import asyncio
+
 import httpx
 
 from app import tracking, web
+from app.dependencies import get_provider
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELO_PATH = os.path.join(_ROOT, "data", "foot_elo.json")
@@ -226,6 +229,35 @@ async def board() -> list[dict]:
     return rows
 
 
+async def enrich_display(rows: list[dict]) -> None:
+    """Ajoute votes des fans + forme d'avant-match aux matchs affichés (à venir / en direct).
+
+    Passe par le provider SofaScore **caché** (stale-while-revalidate) -> pas de surcharge :
+    seul le tout premier affichage touche le réseau, ensuite c'est servi du cache. Limité
+    aux matchs jouables et tolérant aux erreurs (si ça échoue, on n'affiche juste rien).
+    """
+    prov = get_provider()
+    targets = [r for r in rows if r.get("status") in ("notstarted", "inprogress")][:12]
+
+    async def one(r: dict) -> None:
+        eid = r.get("id")
+        try:
+            v = await prov.get_votes(eid)
+            if v.home_percent is not None:
+                r["votes"] = (v.home_percent, v.away_percent)
+        except Exception:
+            pass
+        try:
+            pf = await prov.get_event_pregame_form(eid)
+            if pf.home.form or pf.away.form:
+                r["form"] = (pf.home.form, pf.away.form)
+        except Exception:
+            pass
+
+    if targets:
+        await asyncio.gather(*[one(r) for r in targets], return_exceptions=True)
+
+
 # ----------------------------------------------------------------- rendu
 def _fmt_time(ts) -> str:
     if not ts:
@@ -278,18 +310,26 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
             parts.append("Elo indisponible")
         if r.get("o1"):
             parts.append(f'cotes {r["o1"]}/{r["ox"]}/{r["o2"]}')
-        else:
-            parts.append("cotes Unibet à venir")
         gm = r.get("goals")
         if gm:
             parts.append(f'BTTS <b>{round(gm["btts"]*100)}%</b>')
-        return f'<div class="dim">{" · ".join(parts)}</div>'
+        sub = f'<div class="dim">{" · ".join(parts)}</div>' if parts else ""
+        # forme d'avant-match (V/N/D) des deux équipes
+        fm = r.get("form")
+        if fm:
+            sub += (f'<div class="dim">forme : {web.form_dots(fm[0])} {e(r["home"])} · '
+                    f'{web.form_dots(fm[1])} {e(r["away"])}</div>')
+        # pronostics des fans
+        vt = r.get("votes")
+        if vt:
+            sub += web.votes_line(vt[0], vt[1], r["home"], r["away"])
+        return sub
 
     value, live, upcoming = [], [], []
     for r in rows:
         pk = r.get("pick")
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
-                 if pk else "")
+                 if pk else web.unibet_badge(bool(r.get("o1"))))
         base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "home": r["home"], "away": r["away"]}
         (live if r["status"] == "inprogress" else upcoming).append(

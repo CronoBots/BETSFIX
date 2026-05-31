@@ -229,9 +229,16 @@ async def match_detail(
     h2h_rec = ({"home": h2h.home_wins, "away": h2h.away_wins} if h2h else None)
     score = (web.fmt_score(match.home_score, match.away_score)
              if match.status in ("inprogress", "finished") else "")
+    votes = None
+    try:   # pronostics des fans (provider caché, tolérant aux erreurs)
+        v = await provider.get_votes(match_id)
+        if v.home_percent is not None:
+            votes = (v.home_percent, v.away_percent)
+    except ProviderError:
+        pass
     return HTMLResponse(web.render_match_detail(
         analysis, winner_odds, aces=aces, tour=tour,
-        home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score))
+        home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score, votes=votes))
 
 
 def _ace_lines(odds, match) -> tuple[float | None, float | None]:
