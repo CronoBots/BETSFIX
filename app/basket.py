@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 import os
 import unicodedata
 from datetime import datetime, timedelta, timezone
@@ -56,6 +57,42 @@ def win_prob(elo_home: float | None, elo_away: float | None) -> float | None:
     if elo_home is None or elo_away is None:
         return None
     return expected(elo_home + HOME_ADV, elo_away)
+
+
+SPREAD_SIGMA = 11.0       # écart-type de la marge (points) en WNBA
+
+
+def _inv_norm(p: float) -> float:
+    """Quantile de la loi normale (algorithme d'Acklam)."""
+    p = min(max(p, 1e-6), 1 - 1e-6)
+    a = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2,
+         1.383577518672690e2, -3.066479806614716e1, 2.506628277459239e0]
+    b = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2,
+         6.680131188771972e1, -1.328068155288572e1]
+    cc = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838e0,
+          -2.549732539343734e0, 4.374664141464968e0, 2.938163982698783e0]
+    d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996e0,
+         3.754408661907416e0]
+    pl = 0.02425
+    if p < pl:
+        q = math.sqrt(-2 * math.log(p))
+        return (((((cc[0]*q+cc[1])*q+cc[2])*q+cc[3])*q+cc[4])*q+cc[5]) / \
+               ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)
+    if p <= 1 - pl:
+        q = p - 0.5
+        r = q * q
+        return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / \
+               (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1)
+    q = math.sqrt(-2 * math.log(1 - p))
+    return -(((((cc[0]*q+cc[1])*q+cc[2])*q+cc[3])*q+cc[4])*q+cc[5]) / \
+            ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)
+
+
+def expected_margin(p_home: float | None) -> float | None:
+    """Marge attendue (points) de l'équipe à domicile, dérivée de la proba de victoire."""
+    if p_home is None:
+        return None
+    return SPREAD_SIGMA * _inv_norm(p_home)
 
 
 def _norm(name: str) -> set[str]:
@@ -178,7 +215,7 @@ async def board() -> list[dict]:
                     kf = max(0.0, (b * fair - (1 - fair)) / b) if b > 0 else 0.0
                     pick = {"side": side, "team": g[side], "odds": odds_s, "edge": edge,
                             "stake": round(min(kf * 0.25 * 100, 3.0), 2)}
-        rows.append({**g, "model_home": p, "oh": oh, "oa": oa,
+        rows.append({**g, "model_home": p, "margin": expected_margin(p), "oh": oh, "oa": oa,
                      "imp_home": imp[0] if imp else None, "pick": pick})
     return rows
 
@@ -211,6 +248,9 @@ def render(rows: list[dict]) -> str:
         if p is not None:
             fav = r["home"] if p >= 0.5 else r["away"]
             line = (f'modèle : <b>{e(fav)}</b> {round(max(p,1-p)*100)}%')
+            m = r.get("margin")
+            if m is not None and abs(m) >= 0.5:
+                line += f' · marge attendue ~{abs(round(m))} pts'
         else:
             line = '<span class="dim">Elo indisponible (équipe inconnue)</span>'
         if r.get("oh") and r.get("oa"):

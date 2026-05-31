@@ -62,14 +62,29 @@ def _pois(k: int, lam: float) -> float:
     return math.exp(-lam + k * math.log(lam) - math.lgamma(k + 1))
 
 
+def _lambdas(elo_home: float, elo_away: float) -> tuple[float, float]:
+    """Buts attendus (domicile, extérieur) selon l'Elo + avantage terrain."""
+    sup = (elo_home + HOME_ADV - elo_away) / 100.0 * SUP_PER_100
+    return max(0.15, (GOALS_TOTAL + sup) / 2), max(0.15, (GOALS_TOTAL - sup) / 2)
+
+
+def goals_markets(elo_home: float | None, elo_away: float | None) -> dict | None:
+    """Marchés de buts dérivés du double Poisson : O/U 2.5 et BTTS (les deux marquent)."""
+    if elo_home is None or elo_away is None:
+        return None
+    lh, la = _lambdas(elo_home, elo_away)
+    lt = lh + la
+    p_le2 = math.exp(-lt) * (1 + lt + lt * lt / 2)   # P(total ≤ 2 buts)
+    btts = (1 - math.exp(-lh)) * (1 - math.exp(-la))
+    return {"over25": 1 - p_le2, "btts": btts}
+
+
 def outcome_probs(elo_home: float | None, elo_away: float | None,
                   kmax: int = 10) -> tuple[float, float, float] | None:
     """(P(domicile), P(nul), P(extérieur)) via double Poisson dérivé de l'Elo."""
     if elo_home is None or elo_away is None:
         return None
-    sup = (elo_home + HOME_ADV - elo_away) / 100.0 * SUP_PER_100
-    lh = max(0.15, (GOALS_TOTAL + sup) / 2)
-    la = max(0.15, (GOALS_TOTAL - sup) / 2)
+    lh, la = _lambdas(elo_home, elo_away)
     ph = [_pois(i, lh) for i in range(kmax + 1)]
     pa = [_pois(j, la) for j in range(kmax + 1)]
     p1 = px = p2 = 0.0
@@ -206,8 +221,8 @@ async def board() -> list[dict]:
                 if (edge >= VALUE_THRESHOLD and MIN_IMPLIED <= imp[i] <= MAX_IMPLIED
                         and odd and (not pick or edge > pick["edge"])):
                     pick = {"code": code, "team": name, "odds": odd, "edge": edge}
-        rows.append({**g, "probs": probs, "o1": o1, "ox": ox, "o2": o2,
-                     "imp": imp, "pick": pick})
+        rows.append({**g, "probs": probs, "goals": goals_markets(eh, ea),
+                     "o1": o1, "ox": ox, "o2": o2, "imp": imp, "pick": pick})
     return rows
 
 
@@ -240,6 +255,11 @@ def render(rows: list[dict]) -> str:
             line += f' <span class="dim">· cotes {r["o1"]}/{r["ox"]}/{r["o2"]}</span>'
         else:
             line += ' <span class="dim">· cotes Unibet à venir</span>'
+        goals_line = ""
+        gm = r.get("goals")
+        if gm:
+            goals_line = (f'<div class="dim">les 2 équipes marquent (BTTS) : '
+                          f'<b>{round(gm["btts"]*100)}%</b></div>')
         pick_line = ""
         if pk:
             pick_line = (f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
@@ -248,7 +268,7 @@ def render(rows: list[dict]) -> str:
         return (f'<div class="{cls}">'
                 f'<div class="rowtop"><span>{e(r["comp"])} · {top}</span>{badge}</div>'
                 f'<div class="players">{e(r["home"])} <span class="dim">vs</span> {e(r["away"])}</div>'
-                f'<div class="dim">modèle (1/N/2) : {line}</div>{pick_line}</div>')
+                f'<div class="dim">modèle (1/N/2) : {line}</div>{goals_line}{pick_line}</div>')
 
     picks = [r for r in rows if r.get("pick")]
     if picks:
