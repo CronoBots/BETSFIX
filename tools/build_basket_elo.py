@@ -27,6 +27,8 @@ H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
      "Origin": "https://www.sofascore.com"}
 B = "https://api.sofascore.com/api/v1"
 WNBA_TID = 486
+NBA_TID = 132
+LEAGUES = {"NBA": NBA_TID, "WNBA": WNBA_TID}  # un seul fichier : ids d'équipe uniques
 BASE, K = 1500.0, 24.0
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,15 +47,15 @@ def _expected(a, b):
     return 1.0 / (1.0 + 10 ** ((b - a) / 400.0))
 
 
-def collect_finished(c) -> list[dict]:
-    """Matchs WNBA terminés de la saison en cours, ordre chronologique croissant."""
-    seasons = (_get(c, f"/unique-tournament/{WNBA_TID}/seasons") or {}).get("seasons", [])
+def collect_finished(c, tid: int) -> list[dict]:
+    """Matchs terminés de la saison en cours d'une ligue, ordre chronologique croissant."""
+    seasons = (_get(c, f"/unique-tournament/{tid}/seasons") or {}).get("seasons", [])
     if not seasons:
         return []
     sid = seasons[0]["id"]
     events: dict[int, dict] = {}
-    for page in range(12):
-        data = _get(c, f"/unique-tournament/{WNBA_TID}/season/{sid}/events/last/{page}")
+    for page in range(20):
+        data = _get(c, f"/unique-tournament/{tid}/season/{sid}/events/last/{page}")
         if not data:
             break
         for ev in data.get("events", []) or []:
@@ -67,21 +69,18 @@ def collect_finished(c) -> list[dict]:
     return out
 
 
-def main():
-    print("Construction de l'Elo d'équipe WNBA...")
-    store: dict = {}
-    with httpx.Client(base_url=B, headers=H) as c:
-        games = collect_finished(c)
-    print(f"  {len(games)} matchs terminés collectés.")
-
+def build_league(c, league: str, tid: int, store: dict) -> int:
+    """Déroule l'Elo d'une ligue dans `store` (clé = id équipe). Retourne le nb de matchs."""
+    games = collect_finished(c, tid)
+    print(f"  {league}: {len(games)} matchs terminés collectés.")
     for ev in games:
         ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
         hid, aid = ht.get("id"), at.get("id")
         if hid is None or aid is None:
             continue
         hk, ak = str(hid), str(aid)
-        h = store.setdefault(hk, {"name": ht.get("name", ""), "elo": BASE, "n": 0})
-        a = store.setdefault(ak, {"name": at.get("name", ""), "elo": BASE, "n": 0})
+        h = store.setdefault(hk, {"name": ht.get("name", ""), "league": league, "elo": BASE, "n": 0})
+        a = store.setdefault(ak, {"name": at.get("name", ""), "league": league, "elo": BASE, "n": 0})
         h["name"], a["name"] = ht.get("name", h["name"]), at.get("name", a["name"])
         sh = 1.0 if ev.get("winnerCode") == 1 else 0.0
         eh = _expected(h["elo"], a["elo"])
@@ -89,17 +88,28 @@ def main():
         a["elo"] += K * ((1 - sh) - (1 - eh))
         h["n"] += 1
         a["n"] += 1
+    return len(games)
+
+
+def main():
+    print("Construction de l'Elo d'équipe NBA + WNBA...")
+    store: dict = {}
+    with httpx.Client(base_url=B, headers=H) as c:
+        for league, tid in LEAGUES.items():
+            build_league(c, league, tid, store)
 
     os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
     tmp = OUT_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(store, f, ensure_ascii=False)
     os.replace(tmp, OUT_PATH)
-    print(f"\n✓ {len(store)} équipes notées -> {OUT_PATH}")
-    top = sorted(store.values(), key=lambda r: r["elo"], reverse=True)
-    print("\nClassement Elo WNBA :")
-    for r in top:
-        print(f"  {r['elo']:6.0f}  (n={r['n']:2d})  {r['name']}")
+    print(f"\nOK {len(store)} équipes notées -> {OUT_PATH}")
+    for league in LEAGUES:
+        top = sorted((r for r in store.values() if r.get("league") == league),
+                     key=lambda r: r["elo"], reverse=True)
+        print(f"\nClassement Elo {league} :")
+        for r in top:
+            print(f"  {r['elo']:6.0f}  (n={r['n']:2d})  {r['name']}")
 
 
 if __name__ == "__main__":

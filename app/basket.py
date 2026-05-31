@@ -1,11 +1,14 @@
-"""Module BASKET (WNBA) — **séparé du tennis**.
+"""Module BASKET (NBA + WNBA) — **séparé du tennis**.
 
 Modèle d'équipe simple et honnête : Elo d'équipe (tools/build_basket_elo.py) + avantage
 du terrain -> probabilité de victoire, confrontée au moneyline Unibet pour repérer une
 éventuelle value. Pas de simulation : un seul marché fiable (vainqueur) pour démarrer.
 
-Sources gratuites : SofaScore (matchs WNBA, tournoi 486) + Unibet BE (cotes WNBA).
-Conçu pour resservir à la NBA en octobre (changer le tournament id + le path Unibet).
+Deux ligues suivies ensemble (voir LEAGUES) : NBA (tournoi 132) et WNBA (486). Les ids
+d'équipe SofaScore sont uniques entre ligues, donc un seul fichier Elo les contient
+toutes. L'écart-type de marge diffère par ligue (NBA un peu plus dispersée).
+
+Sources gratuites : SofaScore (scheduled-events basket) + Unibet BE (nba.json / wnba.json).
 """
 
 from __future__ import annotations
@@ -25,10 +28,18 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELO_PATH = os.path.join(_ROOT, "data", "basket_elo.json")
 
 WNBA_TID = 486
+NBA_TID = 132
 HOME_ADV = 65.0            # avantage du terrain en points Elo (~2.5-3 pts)
 MODEL_TRUST = 0.50         # ancrage marché (l'Elo jeune est bruité -> on suit le book)
 VALUE_THRESHOLD = 0.05
 MIN_IMPLIED, MAX_IMPLIED = 0.25, 0.75
+
+# Ligues suivies (nom SofaScore -> config). L'écart-type de marge diffère :
+# la NBA a des scores plus élevés et des marges un peu plus dispersées que la WNBA.
+LEAGUES = {
+    "NBA":  {"tid": NBA_TID,  "unibet": "/listView/basketball/nba.json",  "sigma": 12.5},
+    "WNBA": {"tid": WNBA_TID, "unibet": "/listView/basketball/wnba.json", "sigma": 11.0},
+}
 
 SOFA_B = "https://api.sofascore.com/api/v1"
 SOFA_H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
@@ -88,11 +99,14 @@ def _inv_norm(p: float) -> float:
             ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)
 
 
-def expected_margin(p_home: float | None) -> float | None:
-    """Marge attendue (points) de l'équipe à domicile, dérivée de la proba de victoire."""
+def expected_margin(p_home: float | None, sigma: float = SPREAD_SIGMA) -> float | None:
+    """Marge attendue (points) de l'équipe à domicile, dérivée de la proba de victoire.
+
+    `sigma` = écart-type de la marge de la ligue (WNBA ~11, NBA ~12.5).
+    """
     if p_home is None:
         return None
-    return SPREAD_SIGMA * _inv_norm(p_home)
+    return sigma * _inv_norm(p_home)
 
 
 def _norm(name: str) -> set[str]:
@@ -124,55 +138,94 @@ async def _get(client, base, path, params=None):
         return None
 
 
+HORIZON_DAYS = 4          # fenêtre des matchs à venir (assez large pour les playoffs NBA espacés)
+
+
+async def _season_id(client, tid: int):
+    data = await _get(client, SOFA_B, f"/unique-tournament/{tid}/seasons")
+    s = (data or {}).get("seasons") or []
+    return s[0]["id"] if s else None
+
+
+def _row_from_event(ev: dict, league: str) -> dict:
+    ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
+    return {
+        "id": ev["id"], "league": league, "home_id": ht.get("id"), "away_id": at.get("id"),
+        "home": ht.get("name", ""), "away": at.get("name", ""),
+        "start": ev.get("startTimestamp"), "status": (ev.get("status") or {}).get("type"),
+        "home_pts": (ev.get("homeScore") or {}).get("current"),
+        "away_pts": (ev.get("awayScore") or {}).get("current"),
+    }
+
+
 async def _upcoming_games(client) -> list[dict]:
-    """Matchs WNBA à venir / en cours sur 3 jours (SofaScore)."""
-    base = datetime.now(timezone.utc).date()
+    """Matchs NBA + WNBA à venir / en cours (SofaScore).
+
+    Deux sources fusionnées : l'agenda du jour (scheduled-events, calendriers denses
+    comme la WNBA) ET les prochains matchs de chaque ligue (events/next, indispensable
+    pour les playoffs NBA dont les matchs sont espacés de plusieurs jours).
+    """
+    now = datetime.now(timezone.utc)
+    base = now.date()
+    horizon = now + timedelta(days=HORIZON_DAYS)
     games, seen = [], set()
-    for d in range(3):
-        day = (base + timedelta(days=d)).isoformat()
-        data = await _get(client, SOFA_B, f"/sport/basketball/scheduled-events/{day}")
+
+    def _add(ev: dict, league: str) -> None:
+        st = (ev.get("status") or {}).get("type")
+        if st not in ("notstarted", "inprogress") or ev.get("id") in seen:
+            return
+        ts = ev.get("startTimestamp")
+        start = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else None
+        if start and start > horizon:
+            return
+        seen.add(ev["id"])
+        games.append(_row_from_event(ev, league))
+
+    # Source 1 : agenda quotidien (HORIZON_DAYS jours)
+    for d in range(HORIZON_DAYS):
+        data = await _get(client, SOFA_B, f"/sport/basketball/scheduled-events/{(base + timedelta(days=d)).isoformat()}")
         for ev in (data or {}).get("events", []) or []:
-            if (ev.get("tournament") or {}).get("name") != "WNBA":
-                continue
-            st = (ev.get("status") or {}).get("type")
-            if st not in ("notstarted", "inprogress") or ev.get("id") in seen:
-                continue
-            seen.add(ev["id"])
-            ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
-            games.append({
-                "id": ev["id"], "home_id": ht.get("id"), "away_id": at.get("id"),
-                "home": ht.get("name", ""), "away": at.get("name", ""),
-                "start": ev.get("startTimestamp"), "status": st,
-                "home_pts": (ev.get("homeScore") or {}).get("current"),
-                "away_pts": (ev.get("awayScore") or {}).get("current"),
-            })
+            league = (ev.get("tournament") or {}).get("name")
+            if league in LEAGUES:
+                _add(ev, league)
+
+    # Source 2 : prochains matchs par ligue (capte les playoffs espacés)
+    for league, cfg in LEAGUES.items():
+        sid = await _season_id(client, cfg["tid"])
+        if not sid:
+            continue
+        data = await _get(client, SOFA_B, f"/unique-tournament/{cfg['tid']}/season/{sid}/events/next/0")
+        for ev in (data or {}).get("events", []) or []:
+            _add(ev, league)
+
     games.sort(key=lambda g: g["start"] or 0)
     return games
 
 
 async def _unibet_odds(client) -> list[dict]:
-    """Cotes moneyline WNBA Unibet : [{home_tokens, away_tokens, oh, oa}]."""
-    data = await _get(client, UNIBET_B, "/listView/basketball/wnba.json", UNIBET_PARAMS)
+    """Cotes moneyline NBA + WNBA Unibet : [{home_tokens, away_tokens, oh, oa}]."""
     out = []
-    for entry in (data or {}).get("events", []) or []:
-        ev = entry.get("event") or {}
-        offers = entry.get("betOffers") or []
-        money = next((b for b in offers if (b.get("betOfferType") or {}).get("name")
-                      in ("Match", "Head to Head", "Moneyline")), offers[0] if offers else None)
-        if not money:
-            continue
-        outs = money.get("outcomes") or []
-        if len(outs) != 2:
-            continue
-        def dec(o):
-            v = o.get("odds")
-            return round(v / 1000, 3) if isinstance(v, (int, float)) else None
-        # 'participant' / 'label' donne quelle équipe ; on relie via les noms de l'event
-        out.append({
-            "home_tokens": _norm(ev.get("homeName", "")),
-            "away_tokens": _norm(ev.get("awayName", "")),
-            "oh": dec(outs[0]), "oa": dec(outs[1]),
-        })
+    for cfg in LEAGUES.values():
+        data = await _get(client, UNIBET_B, cfg["unibet"], UNIBET_PARAMS)
+        for entry in (data or {}).get("events", []) or []:
+            ev = entry.get("event") or {}
+            offers = entry.get("betOffers") or []
+            money = next((b for b in offers if (b.get("betOfferType") or {}).get("name")
+                          in ("Match", "Head to Head", "Moneyline")), offers[0] if offers else None)
+            if not money:
+                continue
+            outs = money.get("outcomes") or []
+            if len(outs) != 2:
+                continue
+            def dec(o):
+                v = o.get("odds")
+                return round(v / 1000, 3) if isinstance(v, (int, float)) else None
+            # 'participant' / 'label' donne quelle équipe ; on relie via les noms de l'event
+            out.append({
+                "home_tokens": _norm(ev.get("homeName", "")),
+                "away_tokens": _norm(ev.get("awayName", "")),
+                "oh": dec(outs[0]), "oa": dec(outs[1]),
+            })
     return out
 
 
@@ -215,7 +268,8 @@ async def board() -> list[dict]:
                     kf = max(0.0, (b * fair - (1 - fair)) / b) if b > 0 else 0.0
                     pick = {"side": side, "team": g[side], "odds": odds_s, "edge": edge,
                             "stake": round(min(kf * 0.25 * 100, 3.0), 2)}
-        rows.append({**g, "model_home": p, "margin": expected_margin(p), "oh": oh, "oa": oa,
+        sigma = LEAGUES.get(g.get("league"), {}).get("sigma", SPREAD_SIGMA)
+        rows.append({**g, "model_home": p, "margin": expected_margin(p, sigma), "oh": oh, "oa": oa,
                      "imp_home": imp[0] if imp else None, "pick": pick})
     return rows
 
@@ -228,26 +282,27 @@ def _fmt_time(ts) -> str:
 
 
 async def _finished_games(client, days: int = 2) -> list[dict]:
-    """Matchs WNBA terminés récents (pour la section Terminés)."""
+    """Matchs NBA + WNBA terminés récents (pour la section Terminés)."""
     base = datetime.now(timezone.utc).date()
     out = []
     for d in range(1, days + 1):
         day = (base - timedelta(days=d)).isoformat()
         data = await _get(client, SOFA_B, f"/sport/basketball/scheduled-events/{day}")
         for ev in (data or {}).get("events", []) or []:
-            if (ev.get("tournament") or {}).get("name") != "WNBA":
+            league = (ev.get("tournament") or {}).get("name")
+            if league not in LEAGUES:
                 continue
             if (ev.get("status") or {}).get("type") != "finished" or ev.get("winnerCode") not in (1, 2):
                 continue
             ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
-            out.append({"home_id": ht.get("id"), "away_id": at.get("id"),
+            out.append({"league": league, "home_id": ht.get("id"), "away_id": at.get("id"),
                         "home": ht.get("name", ""), "away": at.get("name", ""),
                         "winner": "home" if ev["winnerCode"] == 1 else "away",
                         "hs": (ev.get("homeScore") or {}).get("current"),
                         "as": (ev.get("awayScore") or {}).get("current"),
                         "ts": ev.get("startTimestamp") or 0})
     out.sort(key=lambda g: g["ts"], reverse=True)
-    return out[:8]
+    return out[:10]
 
 
 async def finished() -> list[dict]:
@@ -278,7 +333,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
         pk = r.get("pick")
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
                  if pk else "")
-        base = {"tour": "WNBA", "status": r["status"], "time": _fmt_time(r.get("start")),
+        base = {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "home": r["home"], "away": r["away"],
                 "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'
                           if r["status"] == "inprogress" and r.get("home_pts") is not None else "")}
@@ -303,13 +358,14 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
                    f'· vainqueur : <b>{e(wname)}</b></div>')
         else:
             badge, sub = "", ""
-        fin.append({"tour": "WNBA", "status": "finished", "home": r["home"], "away": r["away"],
+        fin.append({"tour": r.get("league", "Basket"), "status": "finished",
+                    "home": r["home"], "away": r["away"],
                     "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",
                     "sub": sub, "badge": badge})
 
-    intro = ('🏀 <b>WNBA</b> — Elo d\'équipe + avantage du terrain vs cotes Unibet. '
-             'Saison jeune : les « value » sont à <b>confirmer par le suivi</b>.')
-    return web.render_sport_matches("basket", "Basket WNBA", value, live, upcoming, fin, intro=intro)
+    intro = ('🏀 <b>NBA & WNBA</b> — Elo d\'équipe + avantage du terrain vs cotes Unibet. '
+             'Les « value » restent à <b>confirmer par le suivi</b> (CLV).')
+    return web.render_sport_matches("basket", "Basket NBA & WNBA", value, live, upcoming, fin, intro=intro)
 
 
 # ----------------------------------------------------------------- suivi (séparé)
@@ -322,7 +378,7 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
         return False
     pick = g.get("pick")
     rec.update({
-        "match_id": g["id"], "sport": "basket", "tour": "wnba",
+        "match_id": g["id"], "sport": "basket", "tour": (g.get("league") or "").lower() or "wnba",
         "home": g["home"], "away": g["away"], "model_home_prob": g["model_home"],
         "start_time": (datetime.fromtimestamp(g["start"], tz=timezone.utc).isoformat()
                        if g.get("start") else None),
