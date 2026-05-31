@@ -196,7 +196,7 @@ def render_home(rep: dict, source: dict | None = None,
     else:
         src = ""
 
-    # 💰 Paris du jour : les value détectées, classées par edge
+    # 💰 Paris à venir : les value détectées, classées par edge
     picks = picks or []
     if picks:
         rows = "".join(
@@ -208,11 +208,11 @@ def render_home(rep: dict, source: dict | None = None,
             f'<div class="dim">{e(v["home"])} vs {e(v["away"])} · mise '
             f'{v.get("stake") if v.get("stake") is not None else "—"}%</div></a>'
             for v in picks)
-        picks_html = (f'<h2>💰 Paris du jour ({len(picks)})</h2>'
+        picks_html = (f'<h2>💰 Paris à venir ({len(picks)})</h2>'
                       '<div class="banner">Les "value" du modèle vs Unibet, classées par edge. '
                       'À recouper — un pari n\'est jamais garanti.</div>' + rows)
     else:
-        picks_html = ('<h2>💰 Paris du jour</h2>'
+        picks_html = ('<h2>💰 Paris à venir</h2>'
                       '<div class="dim">Aucune value détectée pour le moment.</div>')
 
     body = f"""{src}{picks_html}"""
