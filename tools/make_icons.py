@@ -34,12 +34,31 @@ def make(size: int) -> Image.Image:
     return img
 
 
+def from_logo(size: int, src: Image.Image) -> Image.Image:
+    """Cadre le logo carre sur fond sombre (icone d'app installee)."""
+    img = Image.new("RGB", (size, size), BG)
+    logo = src.convert("RGBA")
+    # marge interne ~8% pour respirer
+    inner = int(size * 0.84)
+    w, h = logo.size
+    scale = inner / max(w, h)
+    logo = logo.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+    off = ((size - logo.size[0]) // 2, (size - logo.size[1]) // 2)
+    img.paste(logo, off, logo)
+    return img
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    logo_path = os.path.join(OUT, "logo.png")
+    src = Image.open(logo_path) if os.path.exists(logo_path) else None
+    if src is not None:
+        print(f"  source : logo.png ({src.size[0]}x{src.size[1]})")
     for size in (180, 192, 512):
-        make(size).save(os.path.join(OUT, f"icon-{size}.png"))
+        img = from_logo(size, src) if src is not None else make(size)
+        img.save(os.path.join(OUT, f"icon-{size}.png"))
         print(f"  icon-{size}.png")
-    print(f"✓ icônes -> {OUT}")
+    print(f"icones -> {OUT}")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,11 @@ détail/analyse d'un match. Thème sombre, nav commune. Aucun JS requis.
 from __future__ import annotations
 
 import html
+import os
 from datetime import datetime
+
+_LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "static", "logo.png")
 
 try:
     from zoneinfo import ZoneInfo
@@ -62,7 +66,7 @@ CSS = """
     --border:#252a37;--border2:#2f3545;--text:#eef1f7;--muted:#9099a8;--dim:#646c7c;
     --accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;
     --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
-    --red:#f25d6e;--green:#34d27b;--brand:#2ee27f;
+    --red:#f25d6e;--green:#34d27b;--brand:#2e9bff;
     --radius:16px;--shadow:0 6px 22px rgba(0,0,0,.40);--shadow-sm:0 2px 8px rgba(0,0,0,.30);
   }
   /* Identité couleur par sport (accent réutilisé partout) */
@@ -87,7 +91,13 @@ CSS = """
   .hdr-in{max-width:720px;margin:0 auto;padding:12px 16px 10px}
   .brand{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:800;
          letter-spacing:-.02em}
-  .brand .logo{font-size:22px;filter:drop-shadow(0 2px 6px rgba(46,226,127,.4))}
+  .brand .logo{font-size:22px;filter:drop-shadow(0 2px 7px rgba(46,155,255,.5))}
+  .brand img.logo{height:30px;width:auto;display:block}
+  .hero{text-align:center;padding:18px 0 6px}
+  .hero-logo{max-width:230px;width:62%;height:auto;
+             filter:drop-shadow(0 6px 22px rgba(46,155,255,.35))}
+  .hero-sub{margin-top:6px;font-size:12px;color:var(--muted);
+            letter-spacing:.04em}
   .brand b{color:var(--brand)}
   .brand .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.12em;
               text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);
@@ -282,7 +292,11 @@ def render_home(rep: dict, source: dict | None = None,
         f'<b>{name}</b><div class="d">{e(desc)}</div></a>'
         for ic, name, url, desc in sports)
 
-    body = (f'{src}{picks_html}<h2>Les sports</h2>{cards}'
+    hero = ('<div class="hero"><img class="hero-logo" src="/static/logo.png" '
+            'alt="BetsFix"><div class="hero-sub">Analyse multi-sports · '
+            'value vs Unibet</div></div>') if os.path.exists(_LOGO) else ""
+
+    body = (f'{hero}{src}{picks_html}<h2>Les sports</h2>{cards}'
             '<div class="banner warn">Outil d\'<b>aide à la décision</b> : il aide à '
             'analyser, il ne prédit pas de paris gagnants. Un modèle simple ne bat pas un '
             'book sérieux — informe-toi, décide toi-même, et joue responsable.</div>')
