@@ -88,7 +88,9 @@ async def matches_page(
             hp = rec.get("model_home_prob")
             if hp is None and m.home.ranking and m.away.ranking:
                 hp = prob_from_rankings(m.home.ranking, m.away.ranking)
-            if hp is None:  # repli -> classements officiels par nom
+            # Repli classements officiels (par nom) : appels réseau LENTS -> uniquement
+            # quand SofaScore est bloqué (sinon les rangs de l'événement suffisent).
+            if hp is None and fallback:
                 rh = await rankings.rank(tour, m.home.name)
                 ra = await rankings.rank(tour, m.away.name)
                 hp = prob_from_rankings(rh, ra)
