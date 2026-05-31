@@ -57,47 +57,106 @@ def fmt_local(value, with_date: bool = True) -> str:
     return dt.strftime("%d/%m %H:%M" if with_date else "%H:%M")
 
 CSS = """
+  :root{
+    --bg:#080a0f;--bg2:#0c0f16;--surface:#13161f;--surface2:#1a1e2a;
+    --border:#252a37;--border2:#2f3545;--text:#eef1f7;--muted:#9099a8;--dim:#646c7c;
+    --accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;
+    --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
+    --red:#f25d6e;--green:#34d27b;
+    --radius:16px;--shadow:0 6px 22px rgba(0,0,0,.40);--shadow-sm:0 2px 8px rgba(0,0,0,.30);
+  }
   *{box-sizing:border-box}
-  body{margin:0;background:#0e0f13;color:#e8eaed;font-family:-apple-system,Segoe UI,Roboto,sans-serif}
-  a{color:inherit;text-decoration:none}
-  .wrap{max-width:680px;margin:0 auto;padding:14px 16px 40px}
-  .top{display:flex;align-items:center;gap:8px;padding:6px 0 2px}
-  .top h1{font-size:18px;margin:0}
-  .nav{display:flex;gap:8px;margin:10px 0}
-  .nav a{flex:1;text-align:center;padding:10px;border-radius:11px;font-size:13px;
-         font-weight:600;background:#1a1c22;color:#bdc1c6}
-  .nav a.on{background:#1b5e20;color:#fff}
-  h2{font-size:15px;margin:20px 0 8px;color:#bdc1c6}
-  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0}
-  .card{background:#1a1c22;border-radius:14px;padding:12px;text-align:center}
-  .lbl{font-size:11px;color:#9aa0a6;text-transform:uppercase;letter-spacing:.4px}
-  .val{font-size:22px;font-weight:700;margin:4px 0}
-  .sub{font-size:11px;color:#9aa0a6}
-  .row{display:block;background:#1a1c22;border-radius:12px;padding:12px 14px;margin:8px 0;
-       border:1px solid #23262e}
-  .row:active{background:#23262e}
-  .row.pick{border-color:#1b5e20;background:#13251a}
-  .live{color:#ea4335;font-weight:700}
-  .rowtop{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#9aa0a6}
-  .players{font-size:15px;font-weight:600;margin:6px 0 2px}
-  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
-  .b-val{background:#13351c;color:#5ed88a}
-  .b-dim{background:#23262e;color:#9aa0a6}
-  .bar{height:10px;border-radius:6px;background:#ea4335;overflow:hidden;margin:6px 0}
-  .bar > span{display:block;height:100%;background:#34a853}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  td{padding:9px 8px;border-bottom:1px solid #23262e;vertical-align:top}
-  .dim{color:#9aa0a6;font-size:12px}
-  .pos{color:#34a853;font-weight:600}.neg{color:#ea4335;font-weight:600}
-  .banner{background:#2a2410;border:1px solid #5c4a00;color:#f4c84a;border-radius:10px;
-          padding:10px 12px;font-size:12px;margin:10px 0}
-  .big{display:block;background:#1a1c22;border-radius:14px;padding:18px;margin:10px 0;
-       border:1px solid #23262e;font-size:16px;font-weight:600}
-  .big .d{font-size:12px;color:#9aa0a6;font-weight:400;margin-top:4px}
-  .foot{color:#5f6368;font-size:11px;margin-top:22px;text-align:center}
-  .src{font-size:12px;padding:8px 12px;border-radius:10px;margin:4px 0 2px}
-  .src.ok{background:#13351c;color:#5ed88a}
-  .src.ko{background:#2a2410;color:#f4c84a}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;color:var(--text);font-size:15px;line-height:1.45;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+       background:
+         radial-gradient(900px 500px at 100% -10%,rgba(46,226,127,.07),transparent 60%),
+         radial-gradient(700px 400px at -10% 0%,rgba(60,120,255,.05),transparent 55%),
+         var(--bg);}
+  a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:720px;margin:0 auto;padding:16px 16px 56px}
+  /* Header sticky premium */
+  .hdr{position:sticky;top:0;z-index:50;
+       background:linear-gradient(180deg,rgba(12,15,22,.92),rgba(12,15,22,.78));
+       backdrop-filter:saturate(160%) blur(14px);-webkit-backdrop-filter:saturate(160%) blur(14px);
+       border-bottom:1px solid var(--border)}
+  .hdr-in{max-width:720px;margin:0 auto;padding:12px 16px 10px}
+  .brand{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:800;
+         letter-spacing:-.02em}
+  .brand .logo{font-size:22px;filter:drop-shadow(0 2px 6px rgba(46,226,127,.4))}
+  .brand b{color:var(--accent)}
+  .brand .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.12em;
+              text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);
+              padding:3px 8px;border-radius:20px}
+  .nav{display:flex;gap:7px;margin-top:11px}
+  .nav a{flex:1;text-align:center;padding:10px 8px;border-radius:12px;font-size:13px;
+         font-weight:700;background:var(--surface);color:var(--muted);
+         border:1px solid var(--border);transition:.16s}
+  .nav a:active{transform:scale(.97)}
+  .nav a.on{color:var(--accent-ink);border-color:transparent;
+            background:linear-gradient(180deg,var(--accent),var(--accent2));
+            box-shadow:0 4px 16px rgba(46,226,127,.32)}
+  h2{font-size:13px;font-weight:700;margin:26px 0 11px;color:var(--muted);
+     text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:8px}
+  h2:before{content:"";width:3px;height:14px;border-radius:3px;
+            background:linear-gradient(var(--accent),var(--accent2))}
+  /* KPI grid */
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px;margin:14px 0}
+  .card{position:relative;background:linear-gradient(180deg,var(--surface2),var(--surface));
+        border:1px solid var(--border);border-radius:var(--radius);padding:14px 10px;
+        text-align:center;box-shadow:var(--shadow-sm);overflow:hidden}
+  .card:before{content:"";position:absolute;inset:0 0 auto 0;height:2px;
+               background:linear-gradient(90deg,transparent,var(--border2),transparent)}
+  .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+  .val{font-size:25px;font-weight:800;margin:5px 0;letter-spacing:-.02em}
+  .sub{font-size:11px;color:var(--muted)}
+  /* Rows / list cards */
+  .row{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border-radius:var(--radius);padding:14px 15px;margin:10px 0;border:1px solid var(--border);
+       box-shadow:var(--shadow-sm);transition:.16s}
+  .row:active{transform:scale(.99);border-color:var(--border2)}
+  .row.pick{border-color:rgba(46,226,127,.45);
+            background:linear-gradient(180deg,rgba(46,226,127,.10),rgba(46,226,127,.03));
+            box-shadow:0 4px 18px rgba(46,226,127,.14)}
+  .live{color:var(--red);font-weight:800;letter-spacing:.02em}
+  .rowtop{display:flex;justify-content:space-between;align-items:center;font-size:11px;
+          color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .players{font-size:16px;font-weight:700;margin:7px 0 3px;letter-spacing:-.01em}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
+         letter-spacing:.02em}
+  .b-val{background:rgba(46,226,127,.14);color:var(--accent);border:1px solid rgba(46,226,127,.25)}
+  .b-dim{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
+  .bar{height:9px;border-radius:99px;background:rgba(242,93,110,.22);overflow:hidden;margin:8px 0}
+  .bar > span{display:block;height:100%;border-radius:99px;
+              background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  /* Tables */
+  table{width:100%;border-collapse:collapse;font-size:13px;margin:4px 0;
+        background:var(--surface);border:1px solid var(--border);border-radius:14px;
+        overflow:hidden;box-shadow:var(--shadow-sm)}
+  td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:first-child td{background:rgba(255,255,255,.02);font-size:11px;text-transform:uppercase;
+                    letter-spacing:.05em}
+  .dim{color:var(--muted);font-size:12px}
+  .pos{color:var(--green);font-weight:700}.neg{color:var(--red);font-weight:700}
+  /* Banners */
+  .banner{background:linear-gradient(180deg,var(--gold-bg),rgba(35,29,9,.5));
+          border:1px solid var(--gold-bd);color:var(--gold);border-radius:14px;
+          padding:12px 14px;font-size:12.5px;line-height:1.5;margin:11px 0}
+  .banner b{color:#ffd877}
+  /* CTA cards */
+  .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--border);
+       font-size:16px;font-weight:700;box-shadow:var(--shadow);transition:.16s}
+  .big:active{transform:scale(.99)}
+  .big .d{font-size:12.5px;color:var(--muted);font-weight:400;margin-top:5px;line-height:1.5}
+  .foot{color:var(--dim);font-size:11px;margin-top:30px;text-align:center;line-height:1.7;
+        border-top:1px solid var(--border);padding-top:18px}
+  .src{font-size:12px;font-weight:600;padding:9px 13px;border-radius:12px;margin:4px 0 2px;
+       border:1px solid var(--border)}
+  .src.ok{background:rgba(46,226,127,.10);color:var(--accent);border-color:rgba(46,226,127,.22)}
+  .src.ko{background:var(--gold-bg);color:var(--gold);border-color:var(--gold-bd)}
 """
 
 
@@ -105,14 +164,17 @@ def layout(title: str, active: str, body: str, refresh: bool = False) -> str:
     e = html.escape
     nav_items = [("home", "/", "🏠 Accueil"), ("matches", "/app", "🎾 Matchs"),
                  ("perf", "/tracking/dashboard", "📊 Perf")]
-    nav = '<div class="nav">' + "".join(
+    nav = '<nav class="nav">' + "".join(
         f'<a class="{"on" if active==k else ""}" href="{href}">{e(lbl)}</a>'
-        for k, href, lbl in nav_items) + "</div>"
+        for k, href, lbl in nav_items) + "</nav>"
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-{meta_refresh}<title>{e(title)} · BetsFix</title><style>{CSS}</style></head><body><div class="wrap">
-<div class="top"><h1>🎾 BetsFix</h1></div>{nav}{body}
+<meta name="theme-color" content="#080a0f">
+{meta_refresh}<title>{e(title)} · BetsFix</title><style>{CSS}</style></head><body>
+<header class="hdr"><div class="hdr-in">
+<div class="brand"><span class="logo">🎾</span> Bets<b>Fix</b><span class="tag">Tennis</span></div>
+{nav}</div></header><div class="wrap">{body}
 <div class="foot">Données SofaScore + Unibet BE · informatif, sans garantie · jouez responsable</div>
 </div></body></html>"""
 
