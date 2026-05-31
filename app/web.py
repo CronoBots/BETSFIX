@@ -166,8 +166,8 @@ CSS = """
 
 def layout(title: str, active: str, body: str, refresh: bool = False) -> str:
     e = html.escape
-    nav_items = [("home", "/", "🏠 Accueil"), ("matches", "/app", "🎾 Matchs"),
-                 ("perf", "/tracking/dashboard", "📊 Perf")]
+    nav_items = [("home", "/", "🏠 Accueil"), ("matches", "/app", "🎾 Tennis"),
+                 ("basket", "/basket", "🏀 Basket"), ("perf", "/tracking/dashboard", "📊 Perf")]
     nav = '<nav class="nav">' + "".join(
         f'<a class="{"on" if active==k else ""}" href="{href}">{e(lbl)}</a>'
         for k, href, lbl in nav_items) + "</nav>"
