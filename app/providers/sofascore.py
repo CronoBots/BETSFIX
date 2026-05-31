@@ -29,6 +29,7 @@ import logging
 import os
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -284,6 +285,49 @@ class SofaScoreProvider:
         if not event:
             raise ProviderError("Match introuvable.", status_code=404)
         return self._normalize_match(tour, event)
+
+    # Catégories SofaScore du circuit principal (on exclut Challenger/ITF/Juniors/UTR).
+    _TOUR_CATEGORIES = {"atp": {"ATP"}, "wta": {"WTA", "WTA 125"}}
+
+    @staticmethod
+    def _is_singles(ev: dict) -> bool:
+        """Exclut le double (équipes à deux joueurs ou libellé 'X / Y')."""
+        for side in ("homeTeam", "awayTeam"):
+            t = ev.get(side) or {}
+            if t.get("subTeams") or "/" in (t.get("name") or ""):
+                return False
+        return True
+
+    async def get_scheduled_matches(self, tour: str, days: int = 3) -> list[Match]:
+        """Tous les matchs du **circuit principal** (ATP/WTA), sur `days` jours.
+
+        Contrairement à get_matches (Roland Garros uniquement), on lit l'agenda tennis
+        complet (/sport/tennis/scheduled-events/{date}) et on filtre par catégorie
+        (ATP / WTA / WTA 125) et simples. Permet de continuer à suivre après RG : la
+        catégorie 'ATP'/'WTA' bascule automatiquement sur les tournois suivants (gazon,
+        dur…). Les surfaces sont lues sur chaque match.
+        """
+        wanted = self._TOUR_CATEGORIES.get(tour, {"ATP"})
+        base = datetime.now(timezone.utc).date()
+        matches: list[Match] = []
+        seen: set[int] = set()
+        for d in range(max(1, days)):
+            day = (base + timedelta(days=d)).isoformat()
+            try:
+                data = await self._get(f"/sport/tennis/scheduled-events/{day}")
+            except ProviderError:
+                continue
+            for ev in data.get("events", []) or []:
+                cat = ((ev.get("tournament") or {}).get("category") or {}).get("name", "")
+                if cat not in wanted or not self._is_singles(ev):
+                    continue
+                eid = ev.get("id")
+                if eid is None or eid in seen:
+                    continue
+                seen.add(eid)
+                matches.append(self._normalize_match(tour, ev))
+        matches.sort(key=lambda m: m.start_time or _far_future())
+        return matches
 
     # ----------------------------------------------------------- statistiques
     async def get_statistics(self, match_id: int) -> MatchStatistics:

@@ -46,7 +46,10 @@ async def matches_with_fallback(tour: str) -> tuple[list, str]:
     Renvoie (matchs, source) où source = 'sofascore' ou 'livescore'.
     """
     try:
-        return await get_provider().get_matches(tour), "sofascore"
+        prov = get_provider()
+        if get_settings().track_full_tour:
+            return await prov.get_scheduled_matches(tour), "sofascore"
+        return await prov.get_matches(tour), "sofascore"
     except ProviderError:
         try:
             return await get_livescore().get_matches(tour), "livescore"

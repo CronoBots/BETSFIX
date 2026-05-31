@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse
 
 from app import elo, serve_return, tracking
+from app.config import get_settings
 from app.analysis import build_analysis
 from app.dependencies import get_livescore, get_provider, get_unibet
 from app.routers.analysis import _gather_context
@@ -27,9 +28,11 @@ async def run_snapshot(provider: SofaScoreProvider, unibet: UnibetProvider) -> i
     now = _now()
     horizon = now + timedelta(hours=HORIZON_HOURS)
     updated = 0
+    full_tour = get_settings().track_full_tour
     for tour in ("atp", "wta"):
         try:
-            matches = await provider.get_matches(tour)
+            matches = (await provider.get_scheduled_matches(tour) if full_tour
+                       else await provider.get_matches(tour))
         except ProviderError:
             continue
         for m in matches:

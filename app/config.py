@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     rg_atp_tournament_id: int = 2480
     rg_wta_tournament_id: int = 2577
 
+    # Suivre TOUT le circuit principal (ATP/WTA), pas seulement Roland Garros.
+    # True = l'agenda complet (continue après RG : gazon, dur…) -> atteint 100+ matchs.
+    # False = Roland Garros uniquement (mode historique).
+    track_full_tour: bool = True
+
     # Cotes Unibet Belgique (plateforme Kambi). 'ubbe' = Unibet Belgium.
     unibet_base_url: str = "https://eu-offering-api.kambicdn.com/offering/v2018/ubbe"
     unibet_lang: str = "fr_BE"
