@@ -400,7 +400,7 @@ def render_dashboard(store: dict, rep: dict) -> str:
             f'pour conclure (vise 50+). Ne change rien sur si peu.</div>')
     elif sc > 0.03:
         surconf_html = (
-            f'<div class="banner">⚠️ <b>Surconfiance +{round(sc*100)} pts</b> sur '
+            f'<div class="banner warn">⚠️ <b>Surconfiance +{round(sc*100)} pts</b> sur '
             f'{n_calib} matchs : le modèle annonce plus que le taux réel. Envisage de '
             f'baisser CALIB_SHRINK (relance build_backtest.bat pour confirmer).</div>')
     elif sc < -0.03:

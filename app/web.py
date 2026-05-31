@@ -109,7 +109,8 @@ CSS = """
   .card:before{content:"";position:absolute;inset:0 0 auto 0;height:2px;
                background:linear-gradient(90deg,transparent,var(--border2),transparent)}
   .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
-  .val{font-size:25px;font-weight:800;margin:5px 0;letter-spacing:-.02em}
+  .val{font-size:25px;font-weight:800;margin:5px 0;letter-spacing:-.02em;
+       font-variant-numeric:tabular-nums}
   .sub{font-size:11px;color:var(--muted)}
   /* Rows / list cards */
   .row{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
@@ -140,11 +141,14 @@ CSS = """
                     letter-spacing:.05em}
   .dim{color:var(--muted);font-size:12px}
   .pos{color:var(--green);font-weight:700}.neg{color:var(--red);font-weight:700}
-  /* Banners */
-  .banner{background:linear-gradient(180deg,var(--gold-bg),rgba(35,29,9,.5));
-          border:1px solid var(--gold-bd);color:var(--gold);border-radius:14px;
-          padding:12px 14px;font-size:12.5px;line-height:1.5;margin:11px 0}
-  .banner b{color:#ffd877}
+  /* Banners — info discret par défaut, ambre seulement pour les vraies alertes (.warn) */
+  .banner{background:var(--surface);border:1px solid var(--border);
+          border-left:3px solid var(--border2);color:var(--muted);border-radius:12px;
+          padding:11px 14px;font-size:12.5px;line-height:1.55;margin:11px 0}
+  .banner b{color:var(--text)}
+  .banner.warn{background:linear-gradient(180deg,var(--gold-bg),rgba(35,29,9,.45));
+          border:1px solid var(--gold-bd);border-left:3px solid var(--gold);color:var(--gold)}
+  .banner.warn b{color:#ffd877}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--border);
@@ -219,7 +223,7 @@ def render_home(rep: dict, source: dict | None = None,
   <div class="d">Précision : {e(prec_txt)} sur {rep.get('predictions_evaluees',0)} matchs réglés</div></a>
 <a class="big" href="/docs">🛠️ API & documentation
   <div class="d">Tous les endpoints (matchs, stats, joueurs, cotes…)</div></a>
-<div class="banner">Outil d'<b>aide à la décision</b> : il t'aide à analyser, il ne prédit pas
+<div class="banner warn">Outil d'<b>aide à la décision</b> : il t'aide à analyser, il ne prédit pas
  de paris gagnants. Un modèle simple ne bat pas un bookmaker sérieux — sers-t'en pour
  t'informer, décide toi-même, et joue responsable.</div>"""
     return layout("Accueil", "home", body, refresh=True)
@@ -273,7 +277,7 @@ def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None
     live, finished, value_picks = live or [], finished or [], value_picks or []
     out = []
     if fallback:
-        out.append('<div class="banner">⚠️ SofaScore momentanément indisponible — scores '
+        out.append('<div class="banner warn">⚠️ SofaScore momentanément indisponible — scores '
                    'affichés via LiveScore (repli). L\'analyse détaillée revient dès que '
                    'SofaScore répond.</div>')
 
@@ -594,7 +598,7 @@ def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
                   "à confirmer par le suivi avant d\'en faire un pari.", ace_rows)
         + section("🧪 Jeux · breaks (simulateur — expérimental)",
                   "⚠️ Simulation du déroulé, <b>peu fiable</b> sur ces marchés. "
-                  "À ne PAS suivre pour parier en l\'état.", sim_rows))
+                  "À ne PAS suivre pour parier en l\'état.", sim_rows, sub_class="banner warn"))
     if not (winner_rows or set_rows or ace_rows or sim_rows):
         sections = '<div class="dim">Aucun marché évaluable pour ce match.</div>'
     return layout("Tous les paris", "matches", back + best_html + intro + sections)
