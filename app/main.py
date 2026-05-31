@@ -2,6 +2,9 @@
 
 import asyncio
 import logging
+import os
+import sys
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -15,6 +18,42 @@ from app.routers.tracking import run_settle, run_snapshot
 log = logging.getLogger("uvicorn")
 TRACKING_INTERVAL_S = 3 * 3600   # rythme normal : toutes les 3h
 TRACKING_RETRY_S = 20 * 60       # SofaScore bloqué : on réessaie toutes les 20 min
+
+# Reconstruction automatique des notes du modèle (Elo/tendances/service-retour).
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DATA_MARKER = os.path.join(_ROOT, "data", ".last_data_build")
+DATA_REBUILD_S = 7 * 24 * 3600   # une fois par semaine
+
+
+async def _maybe_rebuild_data() -> None:
+    """Relance build_data_all (sous-processus) si > 1 semaine depuis le dernier build.
+
+    Isolé en sous-processus : ne bloque pas la boucle et ne peut pas crasher l'app.
+    Un fichier marqueur (mtime) évite de relancer à chaque passe ou à chaque reboot.
+    """
+    try:
+        age = time.time() - os.path.getmtime(_DATA_MARKER)
+    except OSError:
+        age = None  # marqueur absent -> jamais construit (ou nouveau déploiement)
+    if age is not None and age < DATA_REBUILD_S:
+        return
+    os.makedirs(os.path.dirname(_DATA_MARKER), exist_ok=True)
+    with open(_DATA_MARKER, "w", encoding="utf-8") as f:  # touch -> évite re-déclenchement
+        f.write(str(int(time.time())))
+
+    async def _run():
+        log.info("data: reconstruction hebdo des notes (Elo/tendances/service-retour)...")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, os.path.join(_ROOT, "tools", "build_data_all.py"),
+                cwd=_ROOT, stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL)
+            await proc.wait()
+            log.info("data: reconstruction terminée (code %s)", proc.returncode)
+        except Exception as exc:  # ne jamais tuer la boucle
+            log.warning("data rebuild error: %s", exc)
+
+    asyncio.create_task(_run())   # lancement en tâche de fond, sans bloquer le suivi
 
 
 async def _tracking_loop():
@@ -30,6 +69,7 @@ async def _tracking_loop():
             n = await run_snapshot(get_provider(), get_unibet())
             s = await run_settle(get_provider())
             log.info("tracking: %s prédictions loggées/màj, %s matchs réglés", n, s)
+            await _maybe_rebuild_data()   # reconstruit les notes 1x/semaine (auto)
         except Exception as exc:  # ne jamais tuer la boucle
             log.warning("tracking loop error: %s", exc)
         healthy = get_provider().breaker_status()["ok"]
