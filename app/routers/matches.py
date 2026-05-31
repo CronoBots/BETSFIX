@@ -19,7 +19,7 @@ from app.models import (
 from app.providers.sofascore import ProviderError, SofaScoreProvider, round_matches
 from app.providers.unibet import UnibetProvider
 
-router = APIRouter(prefix="/matches", tags=["Matchs"])
+router = APIRouter(prefix="/matches", tags=["🎾 Tennis · Matchs"])
 
 Tour = Literal["atp", "wta"]
 

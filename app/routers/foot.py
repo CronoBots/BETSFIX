@@ -22,7 +22,7 @@ from app.models import (
 )
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 
-router = APIRouter(tags=["Football"])
+router = APIRouter(tags=["⚽ Football"])
 
 
 async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: int | None) -> int:
@@ -32,7 +32,7 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
     return sid
 
 
-@router.get("/foot", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/foot", response_class=HTMLResponse, summary="Page Football (HTML)")
 async def foot_page() -> HTMLResponse:
     """Matchs des grandes compétitions (dont CdM) : proba 1X2 (Elo) vs cotes Unibet."""
     try:

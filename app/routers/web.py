@@ -22,7 +22,7 @@ from app.providers.rankings import RankingsProvider
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 from app.providers.unibet import UnibetProvider
 
-router = APIRouter(tags=["Plateforme"], include_in_schema=False)
+router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
 
 HORIZON_HOURS = 48
 

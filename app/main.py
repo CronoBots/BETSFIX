@@ -1,4 +1,4 @@
-"""Point d'entrée de l'API Roland Garros (FastAPI)."""
+"""Point d'entrée de l'API BetsFix multi-sports (FastAPI)."""
 
 import asyncio
 import logging
@@ -101,14 +101,45 @@ async def lifespan(app: FastAPI):
     await shutdown_provider()
 
 
+# Ordre et description des sections de /docs (regroupées par sport).
+OPENAPI_TAGS = [
+    {"name": "🎾 Tennis · Matchs",
+     "description": "Matchs ATP/WTA : liste, fiche, h2h, cotes, point par point, séries, votes."},
+    {"name": "🎾 Tennis · Statistiques",
+     "description": "Statistiques détaillées d'un match (service, retour, breaks…)."},
+    {"name": "🎾 Tennis · Joueurs",
+     "description": "Fiche joueur, photo, classements, stats par saison, derniers matchs."},
+    {"name": "🎾 Tennis · Analyse & paris",
+     "description": "Probabilités du modèle vs cotes : value, tous les marchés (aces, sets…)."},
+    {"name": "⚽ Football",
+     "description": "Coupe du Monde + grandes compétitions : board 1X2, stats match (xG…), "
+                    "incidents, compositions, classement, top joueurs/équipes, cotes."},
+    {"name": "🏀 Basketball",
+     "description": "NBA + WNBA : board (Elo, marge), stats match, classement, "
+                    "top joueurs/équipes, cotes, effectifs."},
+    {"name": "📊 Suivi & performance",
+     "description": "Calibration multi-sports : Brier, log-loss, CLV, track record. "
+                    "Tableau de bord par sport (?sport=tennis|foot|basket)."},
+    {"name": "🖥️ Interface (pages HTML)",
+     "description": "Pages de l'application (rendu HTML), pour mémoire — pas des ressources JSON."},
+    {"name": "ℹ️ Méta",
+     "description": "Catalogue des endpoints et healthcheck."},
+]
+
 app = FastAPI(
-    title="Roland Garros API",
+    title="BetsFix API — multi-sports",
     version=__version__,
     description=(
-        "API qui récupère **tous les matchs** et **toutes les statistiques** de Roland Garros "
-        "(simple messieurs ATP et dames WTA), à partir de la source gratuite SofaScore.\n\n"
+        "API **BetsFix** : récupère matchs, **statistiques complètes** et cotes pour "
+        "**3 sports**, et confronte un modèle aux cotes du marché pour repérer la *value*.\n\n"
+        "- 🎾 **Tennis** ATP/WTA — 🏀 **Basket** NBA & WNBA — ⚽ **Foot** (CdM + grandes compétitions)\n"
+        "- Source de données gratuite **SofaScore** + cotes **Unibet**.\n"
+        "- Les sections de cette page sont **regroupées par sport**.\n\n"
+        "⚠️ Outil d'aide à la décision : un modèle simple ne bat pas un book sérieux. "
+        "Le juge de paix est le **CLV**, pas un pari isolé.\n\n"
         "Documentation interactive : `/docs` · Schéma OpenAPI : `/openapi.json`"
     ),
+    openapi_tags=OPENAPI_TAGS,
     lifespan=lifespan,
 )
 
@@ -151,40 +182,79 @@ async def manifest() -> JSONResponse:
     }, media_type="application/manifest+json")
 
 
-@app.get("/api", tags=["Général"], summary="Liste des endpoints (JSON)")
+@app.get("/api", tags=["ℹ️ Méta"], summary="Catalogue des endpoints (JSON), groupé par sport")
 async def root() -> dict:
     return {
-        "name": "Roland Garros API",
+        "name": "BetsFix API",
         "version": __version__,
         "docs": "/docs",
-        "endpoints": {
-            "tous_les_matchs": "/matches?tour=atp",
-            "un_match": "/matches/{match_id}?tour=atp",
-            "matchs_d_un_round": "/matches/round/{round}?tour=atp",
-            "point_par_point": "/matches/{match_id}/point-by-point",
-            "head_to_head": "/matches/{match_id}/h2h?tour=atp",
-            "pronostics_fans": "/matches/{match_id}/votes",
-            "series": "/matches/{match_id}/streaks",
-            "cotes": "/matches/{match_id}/odds",
-            "cotes_unibet": "/matches/{match_id}/odds/unibet?tour=atp",
-            "analyse_paris": "/analysis/{match_id}?tour=atp",
-            "analyse_tous_marches": "/analysis/{match_id}/markets?tour=atp",
-            "suivi_performance": "/tracking/report",
-            "tableau_de_bord": "/tracking/dashboard",
-            "editions_disponibles": "/matches/seasons?tour=atp",
-            "infos_tournoi": "/matches/tournament?tour=atp",
-            "stats_d_un_match": "/statistics/{match_id}",
-            "stats_de_tous_les_matchs": "/statistics?tour=atp",
-            "fiche_joueur": "/players/{player_id}",
-            "photo_joueur": "/players/{player_id}/image",
-            "stats_joueur": "/players/{player_id}/statistics?tour=atp",
-            "stats_dispo_joueur": "/players/{player_id}/statistics/available",
-            "classements_joueur": "/players/{player_id}/rankings",
-            "matchs_joueur": "/players/{player_id}/matches",
+        "sports": {
+            "tennis": {
+                "matchs": "/matches?tour=atp",
+                "un_match": "/matches/{match_id}?tour=atp",
+                "matchs_d_un_round": "/matches/round/{round}?tour=atp",
+                "point_par_point": "/matches/{match_id}/point-by-point",
+                "head_to_head": "/matches/{match_id}/h2h?tour=atp",
+                "votes": "/matches/{match_id}/votes",
+                "series": "/matches/{match_id}/streaks",
+                "cotes": "/matches/{match_id}/odds",
+                "cotes_unibet": "/matches/{match_id}/odds/unibet?tour=atp",
+                "stats_match": "/statistics/{match_id}",
+                "stats_tous_matchs": "/statistics?tour=atp",
+                "analyse_paris": "/analysis/{match_id}?tour=atp",
+                "analyse_tous_marches": "/analysis/{match_id}/markets?tour=atp",
+                "fiche_joueur": "/players/{player_id}",
+                "photo_joueur": "/players/{player_id}/image",
+                "stats_joueur": "/players/{player_id}/statistics?tour=atp",
+                "classements_joueur": "/players/{player_id}/rankings",
+                "matchs_joueur": "/players/{player_id}/matches",
+                "editions": "/matches/seasons?tour=atp",
+            },
+            "foot": {
+                "board": "/foot/board",
+                "termines": "/foot/finished",
+                "competitions": "/foot/competitions",
+                "stats_match": "/foot/match/{event_id}/statistics",
+                "incidents": "/foot/match/{event_id}/incidents",
+                "compositions": "/foot/match/{event_id}/lineups",
+                "notes_joueurs": "/foot/match/{event_id}/best-players",
+                "h2h": "/foot/match/{event_id}/h2h",
+                "cotes": "/foot/match/{event_id}/odds",
+                "votes": "/foot/match/{event_id}/votes",
+                "series": "/foot/match/{event_id}/streaks",
+                "classement": "/foot/competition/{tournament_id}/standings",
+                "top_joueurs": "/foot/competition/{tournament_id}/top-players",
+                "top_equipes": "/foot/competition/{tournament_id}/top-teams",
+                "stats_equipe": "/foot/team/{team_id}/statistics?tournament_id=17",
+                "effectif": "/foot/team/{team_id}/squad",
+            },
+            "basket": {
+                "board": "/basket/board",
+                "termines": "/basket/finished",
+                "stats_match": "/basket/match/{event_id}/statistics",
+                "incidents_quart_temps": "/basket/match/{event_id}/incidents",
+                "compositions": "/basket/match/{event_id}/lineups",
+                "h2h": "/basket/match/{event_id}/h2h",
+                "cotes": "/basket/match/{event_id}/odds",
+                "votes": "/basket/match/{event_id}/votes",
+                "series": "/basket/match/{event_id}/streaks",
+                "classement_nba": "/basket/competition/132/standings",
+                "classement_wnba": "/basket/competition/486/standings",
+                "top_joueurs": "/basket/competition/{tournament_id}/top-players",
+                "top_equipes": "/basket/competition/{tournament_id}/top-teams",
+                "stats_equipe": "/basket/team/{team_id}/statistics",
+                "effectif": "/basket/team/{team_id}/squad",
+            },
+            "suivi": {
+                "rapport": "/tracking/report?sport=tennis",
+                "tableau_de_bord": "/tracking/dashboard?sport=tennis",
+                "journal": "/tracking/log",
+                "confiances_du_jour": "/tracking/today",
+            },
         },
     }
 
 
-@app.get("/health", tags=["Général"], summary="Healthcheck")
+@app.get("/health", tags=["ℹ️ Méta"], summary="Healthcheck")
 async def health() -> dict:
     return {"status": "ok"}

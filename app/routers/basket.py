@@ -20,7 +20,7 @@ from app.models import (
 )
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 
-router = APIRouter(tags=["Basketball"])
+router = APIRouter(tags=["🏀 Basketball"])
 
 
 async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: int | None) -> int:
@@ -30,7 +30,7 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
     return sid
 
 
-@router.get("/basket", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/basket", response_class=HTMLResponse, summary="Page Basket (HTML)")
 async def basket_page() -> HTMLResponse:
     """Tableau WNBA : matchs à venir, proba modèle (Elo) vs cotes Unibet, value."""
     try:

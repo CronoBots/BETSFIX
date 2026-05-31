@@ -13,7 +13,7 @@ from app.routers.analysis import _gather_context
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 from app.providers.unibet import UnibetProvider
 
-router = APIRouter(prefix="/tracking", tags=["Suivi / Performance"])
+router = APIRouter(prefix="/tracking", tags=["📊 Suivi & performance"])
 
 HORIZON_HOURS = 48  # on ne logge que les matchs à venir dans cette fenêtre
 
