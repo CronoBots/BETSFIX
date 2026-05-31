@@ -55,8 +55,13 @@ WEIGHTS = {"elo": 0.20, "classement": 0.40, "forme": 0.20, "surface": 0.15,
 # on lui laisse le dessus -> on ne signale une value que sur un vrai désaccord.
 MODEL_TRUST = 0.35
 
-VALUE_THRESHOLD = 0.03      # edge minimal (3%) APRÈS ancrage pour signaler une value
-MIN_IMPLIED = 0.07         # on ignore les outsiders extrêmes (< 7% implicite)
+# Sélectivité (resserrée volontairement) : le modèle est le plus fiable sur les probas
+# MODÉRÉES ; aux extrêmes (gros outsiders/favoris), le book est très sharp et la value
+# est souvent un mirage. On exige donc un edge plus net et on borne la cote pariée à
+# ~[1.45, 4.3] (implicite 0.22–0.68). À revalider sur ~100 paris réglés.
+VALUE_THRESHOLD = 0.04      # edge minimal (4%) APRÈS ancrage pour signaler une value
+MIN_IMPLIED = 0.22         # pas de value sur outsider extrême (cote > ~4.3)
+MAX_IMPLIED = 0.68         # ni sur gros favori (cote < ~1.45 : edge trop fin, peu utile)
 # Garde-fou : si le modèle s'écarte énormément du marché (> 15 pts bruts), c'est
 # presque sûrement que le modèle ignore une info (forme/blessure/spécialiste de
 # surface...). On ne crie PAS à la value dans ce cas — on le signale comme désaccord.
@@ -348,7 +353,7 @@ def build_analysis(
                 stake = min(f * KELLY_FRACTION * 100, MAX_STAKE_PCT)
                 is_value = (
                     edge >= VALUE_THRESHOLD
-                    and imp >= MIN_IMPLIED            # pas d'outsider extrême
+                    and MIN_IMPLIED <= imp <= MAX_IMPLIED   # cote modérée (ni outsider ni gros favori)
                     and raw_gap <= MAX_DISAGREEMENT   # pas de désaccord majeur (modèle aveugle)
                     and f > 0
                     and analysis.confidence != "faible"
