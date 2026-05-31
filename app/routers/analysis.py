@@ -20,7 +20,7 @@ from app.models import MatchAnalysis, MatchMarketsAnalysis
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 from app.providers.unibet import UnibetProvider
 
-router = APIRouter(prefix="/analysis", tags=["🎾 Tennis · Analyse & paris"])
+router = APIRouter(prefix="/analysis", tags=["🎾 Tennis"])
 
 Tour = Literal["atp", "wta"]
 

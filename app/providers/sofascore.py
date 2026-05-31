@@ -483,6 +483,43 @@ class SofaScoreProvider:
         """Effectif d'une équipe (joueurs + postes). Foot/basket."""
         return await self._get(f"/team/{team_id}/players")
 
+    async def get_player_overview(self, player_id: int) -> dict:
+        """Fiche d'un joueur foot/basket (poste, équipe, taille, valeur…). Brut SofaScore."""
+        data = await self._get(f"/player/{player_id}")
+        return data.get("player") or data
+
+    async def get_player_portrait(self, player_id: int) -> tuple[bytes, str]:
+        """Photo d'un joueur foot/basket (/player/{id}/image — distinct du tennis)."""
+        return await self._get_bytes(f"/player/{player_id}/image")
+
+    async def get_player_overall_statistics(
+        self, player_id: int, tournament_id: int | None = None, season_id: int | None = None
+    ) -> dict:
+        """Stats d'un joueur foot/basket sur une saison (résout la plus récente par défaut)."""
+        seasons = await self._get(f"/player/{player_id}/statistics/seasons")
+        uts = seasons.get("uniqueTournamentSeasons") or []
+        if not uts:
+            raise ProviderError("Aucune statistique disponible pour ce joueur.", status_code=404)
+        entry = None
+        if tournament_id is not None:
+            entry = next((u for u in uts
+                          if (u.get("uniqueTournament") or {}).get("id") == tournament_id), None)
+        entry = entry or uts[0]
+        tid = (entry.get("uniqueTournament") or {}).get("id")
+        sids = entry.get("seasons") or []
+        sid = season_id or (sids[0].get("id") if sids else None)
+        if tid is None or sid is None:
+            raise ProviderError("Aucune saison de stats pour ce joueur.", status_code=404)
+        data = await self._get(
+            f"/player/{player_id}/unique-tournament/{tid}/season/{sid}/statistics/overall"
+        )
+        st = data.get("statistics") or {}
+        return {
+            "player_id": player_id, "tournament_id": tid, "season_id": sid,
+            "appearances": st.get("appearances") or st.get("matches"),
+            "statistics": {k: _round_pct(v) if isinstance(v, float) else v for k, v in st.items()},
+        }
+
     async def get_head_to_head(self, tour: str, match_id: int) -> HeadToHead:
         """Bilan des confrontations directes des deux joueurs d'un match."""
         match = await self.get_match(tour, match_id)

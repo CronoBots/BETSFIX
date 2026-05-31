@@ -5,7 +5,7 @@
   et stats complètes SofaScore par match (statistiques, compositions, h2h, stats d'équipe).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
 from app import basket
@@ -233,3 +233,37 @@ async def basket_squad(
         return await provider.get_team_squad(team_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/basket/player/{player_id}",
+    summary="Fiche d'un joueur (poste, équipe, taille…)",
+)
+async def basket_player(
+    player_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> dict:
+    try:
+        return await provider.get_player_overview(player_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+    # Stats par joueur en basket : SofaScore n'expose pas d'agrégat saison fiable.
+    # Les box scores par joueur (points, rebonds, passes, 3pts…) sont disponibles
+    # match par match via /basket/match/{event_id}/lineups.
+
+
+@router.get(
+    "/basket/player/{player_id}/image",
+    summary="Photo d'un joueur",
+    response_class=Response,
+    responses={200: {"content": {"image/webp": {}}}},
+)
+async def basket_player_image(
+    player_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> Response:
+    try:
+        content, ctype = await provider.get_player_portrait(player_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    return Response(content=content, media_type=ctype)

@@ -14,7 +14,7 @@ from app.models import (
 )
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 
-router = APIRouter(prefix="/players", tags=["🎾 Tennis · Joueurs"])
+router = APIRouter(prefix="/players", tags=["🎾 Tennis"])
 
 Tour = Literal["atp", "wta"]
 

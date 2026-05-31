@@ -6,7 +6,7 @@
   stats d'équipe par saison).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
 from app import foot
@@ -258,3 +258,48 @@ async def foot_squad(
         return await provider.get_team_squad(team_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/player/{player_id}",
+    summary="Fiche d'un joueur (poste, équipe, taille, valeur…)",
+)
+async def foot_player(
+    player_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> dict:
+    try:
+        return await provider.get_player_overview(player_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/player/{player_id}/statistics",
+    summary="Statistiques d'un joueur sur une saison (buts, passes, xG, duels…)",
+)
+async def foot_player_statistics(
+    player_id: int,
+    tournament_id: int | None = Query(None, description="Compétition (par défaut : la plus récente avec stats)"),
+    season_id: int | None = Query(None, description="Saison (par défaut : la plus récente)"),
+    provider: SofaScoreProvider = Depends(get_provider),
+) -> dict:
+    try:
+        return await provider.get_player_overall_statistics(player_id, tournament_id, season_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/player/{player_id}/image",
+    summary="Photo d'un joueur",
+    response_class=Response,
+    responses={200: {"content": {"image/webp": {}}}},
+)
+async def foot_player_image(
+    player_id: int, provider: SofaScoreProvider = Depends(get_provider)
+) -> Response:
+    try:
+        content, ctype = await provider.get_player_portrait(player_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    return Response(content=content, media_type=ctype)

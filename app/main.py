@@ -103,14 +103,10 @@ async def lifespan(app: FastAPI):
 
 # Ordre et description des sections de /docs (regroupées par sport).
 OPENAPI_TAGS = [
-    {"name": "🎾 Tennis · Matchs",
-     "description": "Matchs ATP/WTA : liste, fiche, h2h, cotes, point par point, séries, votes."},
-    {"name": "🎾 Tennis · Statistiques",
-     "description": "Statistiques détaillées d'un match (service, retour, breaks…)."},
-    {"name": "🎾 Tennis · Joueurs",
-     "description": "Fiche joueur, photo, classements, stats par saison, derniers matchs."},
-    {"name": "🎾 Tennis · Analyse & paris",
-     "description": "Probabilités du modèle vs cotes : value, tous les marchés (aces, sets…)."},
+    {"name": "🎾 Tennis",
+     "description": "ATP/WTA — matchs (fiche, h2h, cotes, point par point, séries, votes), "
+                    "statistiques de match, joueurs (fiche, photo, classements, stats), "
+                    "et analyse value vs cotes (tous les marchés : aces, sets…)."},
     {"name": "⚽ Football",
      "description": "Coupe du Monde + grandes compétitions : board 1X2, stats match (xG…), "
                     "incidents, compositions, classement, top joueurs/équipes, cotes."},
@@ -127,10 +123,10 @@ OPENAPI_TAGS = [
 ]
 
 app = FastAPI(
-    title="BetsFix API — multi-sports",
+    title="BETSFIX API — multi-sports",
     version=__version__,
     description=(
-        "API **BetsFix** : récupère matchs, **statistiques complètes** et cotes pour "
+        "API **BETSFIX** : récupère matchs, **statistiques complètes** et cotes pour "
         "**3 sports**, et confronte un modèle aux cotes du marché pour repérer la *value*.\n\n"
         "- 🎾 **Tennis** ATP/WTA — 🏀 **Basket** NBA & WNBA — ⚽ **Foot** (CdM + grandes compétitions)\n"
         "- Source de données gratuite **SofaScore** + cotes **Unibet**.\n"
@@ -227,6 +223,9 @@ async def root() -> dict:
                 "top_equipes": "/foot/competition/{tournament_id}/top-teams",
                 "stats_equipe": "/foot/team/{team_id}/statistics?tournament_id=17",
                 "effectif": "/foot/team/{team_id}/squad",
+                "fiche_joueur": "/foot/player/{player_id}",
+                "stats_joueur": "/foot/player/{player_id}/statistics",
+                "photo_joueur": "/foot/player/{player_id}/image",
             },
             "basket": {
                 "board": "/basket/board",
@@ -244,6 +243,9 @@ async def root() -> dict:
                 "top_equipes": "/basket/competition/{tournament_id}/top-teams",
                 "stats_equipe": "/basket/team/{team_id}/statistics",
                 "effectif": "/basket/team/{team_id}/squad",
+                "fiche_joueur": "/basket/player/{player_id}",
+                "photo_joueur": "/basket/player/{player_id}/image",
+                "box_scores_joueurs": "/basket/match/{event_id}/lineups",
             },
             "suivi": {
                 "rapport": "/tracking/report?sport=tennis",

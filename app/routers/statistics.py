@@ -8,7 +8,7 @@ from app.dependencies import get_provider
 from app.models import MatchStatistics
 from app.providers.sofascore import ProviderError, SofaScoreProvider
 
-router = APIRouter(prefix="/statistics", tags=["🎾 Tennis · Statistiques"])
+router = APIRouter(prefix="/statistics", tags=["🎾 Tennis"])
 
 Tour = Literal["atp", "wta"]
 
