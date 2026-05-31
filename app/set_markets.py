@@ -113,6 +113,28 @@ def evaluate(match: Match, unibet: UnibetOdds, best_of: int,
                     edge=edge, recommended_stake_pct=stake, is_value=isv))
             continue
 
+        # "Nombre total de sets" : Plus/Moins. P(match NON sec) = P(les deux gagnent
+        # >=1 set) = als_home + als_away - 1 (events "perd 0 set" mutuellement exclusifs).
+        # On ne traite que la ligne standard (3.5 en bo5, 2.5 en bo3).
+        if "total de sets" in lab and len(outs) == 2:
+            std_line = 3.5 if best_of == 5 else 2.5
+            over = next((o for o in outs if "plus" in (o.label or "").lower()), None)
+            under = next((o for o in outs if "moins" in (o.label or "").lower()), None)
+            if not (over and under) or over.line is None or abs(over.line - std_line) > 0.01:
+                continue
+            p_over = max(0.02, min(0.98, als_home + als_away - 1))
+            imp_over = _devig(over.odds, under.odds)
+            for o, mp, imp in ((over, p_over, imp_over),
+                               (under, 1 - p_over, 1 - imp_over if imp_over else None)):
+                if imp is None:
+                    continue
+                edge, isv, stake = _edge(mp, imp, o.odds)
+                out.append(MarketEdge(
+                    market=label, selection=o.label, line=o.line, odds=o.odds,
+                    model_probability=round(mp, 4), implied_probability=round(imp, 4),
+                    edge=edge, recommended_stake_pct=stake, is_value=isv))
+            continue
+
         # "Set Handicap" : on ne traite que les lignes ±2.5 (= au moins un set / 3-0)
         if "set handicap" in lab and len(outs) >= 2:
             imps = _devig_multi([o.odds for o in outs])

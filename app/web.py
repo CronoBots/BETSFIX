@@ -449,6 +449,36 @@ def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
         body = back + '<div class="banner">Cotes Unibet indisponibles pour ce match.</div>'
         return layout("Tous les paris", "matches", body)
 
+    # 🎯 Meilleur pari du match : on scanne les marchés FIABLES (vainqueur, sets, aces)
+    # et on met en avant le plus gros écart positif. Le vainqueur prime (mieux modélisé).
+    def _best(rows):
+        cand = [r for r in rows if (r.get("edge") or 0) > 0]
+        return max(cand, key=lambda r: r["edge"]) if cand else None
+
+    options = [(_best(winner_rows), "Vainqueur", "marché le plus fiable"),
+               (_best(set_rows), "Sets", "calibré, mais le book est souvent juste"),
+               (_best(ace_rows), "Aces", "exploratoire, à confirmer")]
+    options = [(r, lbl, note) for r, lbl, note in options if r]
+    if options:
+        best, blbl, bnote = max(options, key=lambda x: x[0]["edge"])
+        be = round((best["edge"] or 0) * 100, 1)
+        if (best["edge"] or 0) >= 0.04:
+            line = f' (ligne {best["line"]})' if best.get("line") is not None else ""
+            best_html = (
+                f'<div class="big" style="border-color:#1b5e20;background:#13251a">'
+                f'🎯 Meilleur pari : <b class="pos">{e(best.get("selection") or "")}</b>{line} '
+                f'@ {best.get("odds") or "—"} <span class="dim">[{blbl}]</span>'
+                f'<div class="d">{e(best.get("market") or "")} · modèle '
+                f'{round((best.get("model_p") or 0)*100)}% vs book '
+                f'{round((best.get("implied_p") or 0)*100)}% · edge +{be} pts. '
+                f'{bnote} — jamais garanti.</div></div>')
+        else:
+            best_html = ('<div class="big">🎯 Aucun pari à valeur nette'
+                         '<div class="d">Les cotes du book collent à nos estimations sur '
+                         'ce match. Mieux vaut s\'abstenir ou jouer petit.</div></div>')
+    else:
+        best_html = ""
+
     # Légende : comment lire le tableau (la demande "mieux expliqué")
     intro = (
         '<div class="banner"><b>Comment lire ?</b> Chaque ligne = un pari Unibet.<br>'
@@ -484,4 +514,4 @@ def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
                   "À ne PAS suivre pour parier en l\'état.", sim_rows))
     if not (winner_rows or set_rows or ace_rows or sim_rows):
         sections = '<div class="dim">Aucun marché évaluable pour ce match.</div>'
-    return layout("Tous les paris", "matches", back + intro + sections)
+    return layout("Tous les paris", "matches", back + best_html + intro + sections)

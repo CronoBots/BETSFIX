@@ -42,6 +42,17 @@ def test_evaluate_set_markets():
     assert sh and all(e.model_probability is not None for e in sh)
 
 
+def test_evaluate_total_sets():
+    match = Match(id=1, tour="atp", home=Player(id=100, name="A"), away=Player(id=200, name="B"))
+    odds = UnibetOdds(match_id=1, matched=True, markets=[
+        UnibetMarket(label="Nombre total de sets", type="Plus de/Moins de", outcomes=[
+            UnibetOutcome(label="Plus de", odds=1.9, line=3.5),
+            UnibetOutcome(label="Moins de", odds=1.9, line=3.5)])])
+    edges = sm.evaluate(match, odds, best_of=5, p_home=0.45, p_away=0.55)
+    over = next(e for e in edges if "plus" in e.selection.lower())
+    assert 0.0 < (over.model_probability or 0) < 1.0   # P(4+ sets) cohérente
+
+
 def test_evaluate_empty_without_probs():
     match = Match(id=1, tour="atp", home=Player(id=1), away=Player(id=2))
     assert sm.evaluate(match, UnibetOdds(match_id=1, matched=True), 5, None, 0.5) == []
