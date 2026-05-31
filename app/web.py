@@ -244,7 +244,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-title" content="BetsFix">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 <header class="hdr"><div class="hdr-in">
-<div class="brand"><span class="logo">🎾</span> Bets<b>Fix</b><span class="tag">Multi-sports</span></div>
+<div class="brand"><img class="logo" src="/static/mark.png" alt=""> Bets<b>Fix</b><span class="tag">Multi-sports</span></div>
 {nav}</div></header><div class="wrap">{sub}{body}
 <div class="foot">Données SofaScore + Unibet BE · informatif, sans garantie · jouez responsable</div>
 </div></body></html>"""

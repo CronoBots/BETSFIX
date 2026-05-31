@@ -35,16 +35,10 @@ def make(size: int) -> Image.Image:
 
 
 def from_logo(size: int, src: Image.Image) -> Image.Image:
-    """Cadre le logo carre sur fond sombre (icone d'app installee)."""
-    img = Image.new("RGB", (size, size), BG)
-    logo = src.convert("RGBA")
-    # marge interne ~8% pour respirer
-    inner = int(size * 0.84)
-    w, h = logo.size
-    scale = inner / max(w, h)
-    logo = logo.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
-    off = ((size - logo.size[0]) // 2, (size - logo.size[1]) // 2)
-    img.paste(logo, off, logo)
+    """Logo deja carre sur fond sombre : resize direct pour l'icone d'app."""
+    img = src.convert("RGB")
+    if img.size != (size, size):
+        img = img.resize((size, size), Image.LANCZOS)
     return img
 
 
