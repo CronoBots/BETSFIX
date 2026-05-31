@@ -99,6 +99,7 @@ class SofaScoreProvider:
         # Pas de persistance disque sous pytest (isolation des tests).
         persist = None if "pytest" in sys.modules else os.path.normpath(_CACHE_FILE)
         self._cache = TTLCache(settings.cache_ttl_seconds, persist_path=persist)
+        self._refreshing: set[str] = set()   # chemins en cours de rafraîchissement (fond)
         self._client = httpx.AsyncClient(
             base_url=settings.sofascore_base_url,
             timeout=settings.http_timeout,
@@ -145,10 +146,31 @@ class SofaScoreProvider:
 
     # ----------------------------------------------------------------- réseau
     async def _get(self, path: str) -> dict:
-        """GET avec cache TTL et gestion d'erreurs."""
-        cached = self._cache.get(path)
-        if cached is not None:
-            return cached
+        """GET avec **stale-while-revalidate** : on sert le cache (même périmé)
+        instantanément et on rafraîchit en arrière-plan. L'utilisateur n'attend donc
+        le réseau qu'au tout premier chargement (cache vide) ; ensuite c'est immédiat.
+        """
+        fresh = self._cache.get(path)
+        if fresh is not None:
+            return fresh
+        stale = self._cache.get_stale(path)
+        if stale is not None:
+            if path not in self._refreshing:        # un seul refresh en vol par chemin
+                self._refreshing.add(path)
+                asyncio.create_task(self._background_refresh(path))
+            return stale
+        return await self._fetch_and_cache(path)    # première fois : fetch bloquant
+
+    async def _background_refresh(self, path: str) -> None:
+        try:
+            await self._fetch_and_cache(path)
+        except Exception:
+            pass  # le rafraîchissement de fond ne doit jamais faire de bruit
+        finally:
+            self._refreshing.discard(path)
+
+    async def _fetch_and_cache(self, path: str) -> dict:
+        """Appel réseau réel + mise en cache (avec repli sur le périmé en cas d'erreur)."""
         try:
             self._breaker_guard()
             resp = await self._client.get(path)
@@ -163,7 +185,6 @@ class SofaScoreProvider:
         except ProviderError as exc:
             if exc.status_code == 404:
                 raise
-            # Stale-while-error : on sert la dernière valeur connue si on l'a.
             stale = self._cache.get_stale(path)
             if stale is not None:
                 return stale
