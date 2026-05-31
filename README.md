@@ -209,9 +209,10 @@ constante tempère la proba du modèle vers 0,5 pour corriger la surconfiance d�
 - La marge du bookmaker (*vig*) est retirée → probabilité implicite « juste ».
 - **Ancrage au marché** : le marché étant sharp, la proba retenue est
   `0,35·modèle + 0,65·marché`. On ne signale une value que sur un **vrai désaccord**.
-- **Garde-fous** : pas de value si l'écart modèle↔marché est *énorme* (> 15 pts →
-  le modèle ignore sûrement une info), si l'outsider est extrême (< 7 % implicite),
-  ou si la **confiance** des données est faible.
+- **Garde-fous (sélectifs)** : edge minimal **4 %** ; on ne parie que sur des cotes
+  **modérées** (implicite 0,22–0,68, soit ~@1,45–@4,3) car le modèle est le plus fiable
+  sur les probas moyennes et le book le plus sharp aux extrêmes ; pas de value si
+  l'écart modèle↔marché est *énorme* (> 15 pts) ou si la **confiance** est faible.
 - Mise via **Kelly fractionné** (¼ Kelly, plafonnée à 5 % de bankroll).
 - Chaque réponse indique un niveau de **confiance** (élevée / moyenne / faible).
 
