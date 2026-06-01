@@ -150,6 +150,12 @@ CSS = """
   .b-dim{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
   .b-uni{background:rgba(46,155,255,.14);color:#56b0ff;border:1px solid rgba(46,155,255,.30)}
   .b-conf{background:rgba(46,155,255,.16);color:#6cbcff;border:1px solid rgba(46,155,255,.32)}
+  details.info{margin:-4px 0 10px}
+  details.info > summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;
+    gap:6px;width:max-content;font-size:12px;font-weight:700;color:var(--muted);
+    padding:5px 11px;border:1px solid var(--border);border-radius:20px}
+  details.info > summary::-webkit-details-marker{display:none}
+  details.info[open] > summary{color:var(--text);border-color:var(--border2)}
   .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
@@ -297,6 +303,12 @@ def _pick_bars(p: dict) -> str:
             f'<span class="dim">— selon :</span></div>{inner}</div>')
 
 
+def _info(content: str, label: str = "Comment lire ?") -> str:
+    """Explication repliable (HTML natif, sans JS) : un petit 'ⓘ' à dérouler."""
+    return (f'<details class="info"><summary>ⓘ {label}</summary>'
+            f'<div class="banner" style="margin-top:8px">{content}</div></details>')
+
+
 def _pick_card(p: dict, badge: str) -> str:
     """Carte d'un pari pour l'accueil (value OU confiance), avec les 3 barres."""
     e = html.escape
@@ -332,10 +344,10 @@ def render_home(rep: dict, source: dict | None = None,
             p, '<span class="badge b-val" title="Avantage estimé sur la cote">'
                f'+{round((p.get("edge") or 0)*100, 1)} pts</span>') for p in picks)
         val_html = (f'<h2>💎 Valeurs du jour ({len(picks)})</h2>'
-                    '<div class="banner">Paris où <b>BetsFix</b> estime la cote <b>sous-évaluée</b> '
-                    '(edge). Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
-                    f'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. {bars_legend} '
-                    'Value = quand BetsFix &gt; Bookmaker.</div>' + rows)
+                    + _info('Paris où <b>BetsFix</b> estime la cote <b>sous-évaluée</b> (edge). '
+                            'Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
+                            'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. '
+                            f'{bars_legend} Value = quand BetsFix &gt; Bookmaker.') + rows)
     else:
         val_html = ('<h2>💎 Valeurs du jour</h2>'
                     '<div class="banner">Aucune value détectée pour le moment '
@@ -347,9 +359,9 @@ def render_home(rep: dict, source: dict | None = None,
             p, f'<span class="badge b-conf" title="Probabilité du modèle">modèle '
                f'{p.get("conf_pct")}%</span>') for p in conf_picks)
         conf_html = (f'<h2>🔥 Confiances du jour ({len(conf_picks)})</h2>'
-                     '<div class="banner">Matchs où <b>BetsFix</b> voit un <b>favori net</b> '
-                     '(forte proba de gagner). Plus « sûr » mais souvent à <b>petite cote</b> — '
-                     'donc rarement une value. Badge = proba du modèle.</div>' + rows)
+                     + _info('Matchs où <b>BetsFix</b> voit un <b>favori net</b> (forte proba de '
+                             'gagner). Plus « sûr » mais souvent à <b>petite cote</b> — donc '
+                             'rarement une value. Badge = proba du modèle.') + rows)
     else:
         conf_html = ('<h2>🔥 Confiances du jour</h2>'
                      '<div class="banner">Aucun favori net à venir pour le moment.</div>')
