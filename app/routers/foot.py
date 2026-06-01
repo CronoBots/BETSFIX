@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
 from app import foot, sportcache
-from app.dependencies import get_provider
+from app.dependencies import get_provider, get_unibet
 from app.models import (
     MatchIncidents,
     MatchOdds,
@@ -20,8 +20,10 @@ from app.models import (
     PregameForm,
     Standings,
     TeamSeasonStatistics,
+    UnibetOdds,
 )
 from app.providers.sofascore import ProviderError, SofaScoreProvider
+from app.providers.unibet import UnibetProvider
 
 router = APIRouter(tags=["⚽ Football"])
 
@@ -208,6 +210,27 @@ async def foot_odds(
         return await provider.get_odds(event_id)
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/foot/match/{event_id}/odds/unibet",
+    summary="Cotes Unibet Belgique (tous les marchés) d'un match",
+    response_model=UnibetOdds,
+)
+async def foot_odds_unibet(
+    event_id: int,
+    provider: SofaScoreProvider = Depends(get_provider),
+    unibet: UnibetProvider = Depends(get_unibet),
+) -> UnibetOdds:
+    """Cotes Unibet Belgique (Kambi) pour un match de foot, tous marchés confondus
+    (1X2, double chance, BTTS, totaux, handicaps…). Matché par noms d'équipes + date.
+    Disponible pour les matchs à venir / en cours."""
+    try:
+        m = await provider.get_match("football", event_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    return await unibet.find_event_odds(
+        "football", m.home.name, m.away.name, event_id, m.start_time)
 
 
 @router.get(

@@ -103,31 +103,104 @@ async def lifespan(app: FastAPI):
     await shutdown_provider()
 
 
-# Ordre et description des sections de /docs (regroupées par sport).
+# --------------------------------------------------------------------------- #
+# Organisation de /docs PAR NATURE DE DONNÉE (et non plus par sport), pour qu'un
+# consommateur (humain ou bot) ne confonde JAMAIS :
+#   🟢 une SOURCE de faits bruts (SofaScore, Flashscore) — données factuelles ;
+#   🟡 des COTES de bookmaker (Unibet/SofaScore) — prix de marché bruts ;
+#   🔴 une SORTIE DE NOTRE MODÈLE (analyse, value, prédiction, suivi) — un CALCUL,
+#      surtout pas une source à réinjecter telle quelle.
+# Les tags sont assignés par chemin dans _retag_routes() (voir plus bas), donc les
+# tags posés au niveau des routeurs sont sans effet : seule cette liste fait foi.
+# --------------------------------------------------------------------------- #
+TAG_TENNIS_SRC = "🎾 Tennis · Données SofaScore (source)"
+TAG_FOOT_SRC = "⚽ Foot · Données SofaScore (source)"
+TAG_BASKET_SRC = "🏀 Basket · Données SofaScore (source)"
+TAG_COTES = "💰 Cotes & paris bookmaker (Unibet/SofaScore)"
+TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
+TAG_MODELE_SUIVI = "📊 Modèle maison · Suivi & performance"
+TAG_FLASH = "🟧 Flashscore (source alternative)"
+TAG_INTERFACE = "🖥️ Interface (pages HTML)"
+TAG_META = "ℹ️ Méta"
+
+_SRC_DESC = (
+    "**SOURCE = SofaScore (faits bruts).** Données factuelles à utiliser comme base "
+    "d'analyse : matchs, scores, statistiques, classements, h2h, forme, votes. "
+    "Aucun calcul ni avis de notre part ici."
+)
 OPENAPI_TAGS = [
-    {"name": "🎾 Tennis",
-     "description": "ATP/WTA — matchs (fiche, h2h, cotes, point par point, séries, votes), "
-                    "statistiques de match, joueurs (fiche, photo, classements, stats), "
-                    "et analyse value vs cotes (tous les marchés : aces, sets…)."},
-    {"name": "⚽ Football",
-     "description": "Coupe du Monde + grandes compétitions : board 1X2, stats match (xG…), "
-                    "incidents, compositions, classement, top joueurs/équipes, cotes."},
-    {"name": "🏀 Basketball",
-     "description": "NBA + WNBA : board (Elo, marge), stats match, classement, "
-                    "top joueurs/équipes, cotes, effectifs."},
-    {"name": "🟧 Flashscore (source alternative)",
-     "description": "Source de stats **indépendante de SofaScore**, répertoriée ici pour "
-                    "exploration — non utilisée par le modèle ni l'app. Ids propres à "
-                    "Flashscore (via /flashscore/{sport}/events). Best-effort : feeds non "
-                    "officiels, peuvent changer."},
-    {"name": "📊 Suivi & performance",
-     "description": "Calibration multi-sports : Brier, log-loss, CLV, track record. "
-                    "Tableau de bord par sport (?sport=tennis|foot|basket)."},
-    {"name": "🖥️ Interface (pages HTML)",
-     "description": "Pages de l'application (rendu HTML), pour mémoire — pas des ressources JSON."},
-    {"name": "ℹ️ Méta",
-     "description": "Catalogue des endpoints et healthcheck."},
+    {"name": TAG_TENNIS_SRC, "description": _SRC_DESC +
+     " Tennis ATP/WTA : matchs, point par point, séries, stats de match, joueurs "
+     "(fiche, photo, classements, stats)."},
+    {"name": TAG_FOOT_SRC, "description": _SRC_DESC +
+     " Foot (CdM + grandes compétitions) : stats match (xG…), incidents, compositions, "
+     "h2h, momentum, classement, top joueurs/équipes, fiches."},
+    {"name": TAG_BASKET_SRC, "description": _SRC_DESC +
+     " Basket (NBA/WNBA) : stats match, scores par quart-temps, compositions, h2h, "
+     "classement, top joueurs/équipes, effectifs."},
+    {"name": TAG_COTES, "description":
+     "**Cotes RÉELLES du marché** — prix bruts du bookmaker (Unibet Belgique / Kambi) "
+     "et de SofaScore, tous marchés (vainqueur, jeux/sets, 1X2, totaux, handicaps…). "
+     "Ce sont des cotes, **pas des prédictions** : aucun avis du modèle ici."},
+    {"name": TAG_MODELE_ANALYSE, "description":
+     "⚠️ **SORTIE DU MODÈLE MAISON — CE N'EST PAS UNE SOURCE.** Probabilités, *value* "
+     "et prédictions **calculées par BETSFIX** en confrontant les données aux cotes "
+     "(`/analysis`, `board`, `finished`). Ne jamais réinjecter ces valeurs comme si "
+     "c'étaient des faits : pour des données brutes, voir les sections « Données "
+     "SofaScore » ; pour des cotes, la section « Cotes & paris »."},
+    {"name": TAG_MODELE_SUIVI, "description":
+     "⚠️ **Calculs maison** (pas une source) : calibration, Brier, log-loss, CLV, ROI, "
+     "track record du modèle. Mesure interne de performance (?sport=tennis|foot|basket)."},
+    {"name": TAG_FLASH, "description":
+     "Source de stats **indépendante de SofaScore**, répertoriée pour exploration — "
+     "non utilisée par le modèle ni l'app. Ids propres à Flashscore (via "
+     "/flashscore/{sport}/events). Best-effort : feeds non officiels, peuvent changer."},
+    {"name": TAG_INTERFACE, "description":
+     "Pages de l'application (rendu HTML), pour mémoire — pas des ressources JSON."},
+    {"name": TAG_META, "description": "Catalogue des endpoints et healthcheck."},
 ]
+
+
+def _classify_tag(path: str) -> str | None:
+    """Tag /docs d'un endpoint d'après son chemin (nature de la donnée, pas le sport)."""
+    p = path
+    # 🟡 Cotes du book/SofaScore (avant les sections sport : /foot/.../odds → Cotes)
+    if p.endswith("/odds") or p.endswith("/odds/unibet"):
+        return TAG_COTES
+    # 🔴 Modèle maison : analyse / value / prédictions
+    if p.startswith("/analysis") or p in (
+        "/basket/board", "/basket/finished", "/foot/board", "/foot/finished"):
+        return TAG_MODELE_ANALYSE
+    # 🔴 Modèle maison : suivi & performance
+    if p.startswith("/tracking"):
+        return TAG_MODELE_SUIVI
+    # 🖥️ Pages HTML (dont les pages d'accueil sport /basket et /foot)
+    if p == "/" or p.startswith("/app") or p in ("/basket", "/foot"):
+        return TAG_INTERFACE
+    # ℹ️ Méta
+    if p in ("/api", "/health"):
+        return TAG_META
+    # 🟧 Source alternative
+    if p.startswith("/flashscore"):
+        return TAG_FLASH
+    # 🟢 Sources SofaScore par sport (le reste)
+    if p.startswith(("/matches", "/players", "/statistics")):
+        return TAG_TENNIS_SRC
+    if p.startswith("/foot"):
+        return TAG_FOOT_SRC
+    if p.startswith("/basket"):
+        return TAG_BASKET_SRC
+    return None
+
+
+def _retag_routes(application) -> None:
+    """Réassigne le tag /docs de chaque route selon sa nature (voir _classify_tag)."""
+    from fastapi.routing import APIRoute
+    for route in application.routes:
+        if isinstance(route, APIRoute):
+            tag = _classify_tag(route.path)
+            if tag:
+                route.tags = [tag]
 
 app = FastAPI(
     title="BETSFIX API — multi-sports",
@@ -197,14 +270,23 @@ async def manifest() -> JSONResponse:
     }, media_type="application/manifest+json")
 
 
-@app.get("/api", tags=["ℹ️ Méta"], summary="Catalogue des endpoints (JSON), groupé par sport")
+@app.get("/api", tags=["ℹ️ Méta"],
+         summary="Catalogue des endpoints (JSON), groupé par NATURE (source / cotes / modèle)")
 async def root() -> dict:
     return {
         "name": "BETSFIX API",
         "version": __version__,
         "docs": "/docs",
-        "sports": {
-            "tennis": {
+        # ⚠️ Lecture impérative pour un bot/agent : ne pas confondre les natures.
+        "_lire_avant_usage": {
+            "sources": "Faits BRUTS (SofaScore, Flashscore). À utiliser comme base d'analyse.",
+            "cotes": "Prix RÉELS du bookmaker (Unibet) / SofaScore. Des cotes, pas des avis.",
+            "modele": "⚠️ CALCULS de BETSFIX (probas, value, prédictions). PAS une source : "
+                      "ne jamais réinjecter ces valeurs comme si c'étaient des faits.",
+        },
+        # 🟢 SOURCES — faits bruts
+        "sources": {
+            "tennis_sofascore": {
                 "matchs": "/matches?tour=atp",
                 "un_match": "/matches/{match_id}?tour=atp",
                 "matchs_d_un_round": "/matches/round/{round}?tour=atp",
@@ -212,12 +294,8 @@ async def root() -> dict:
                 "head_to_head": "/matches/{match_id}/h2h?tour=atp",
                 "votes": "/matches/{match_id}/votes",
                 "series": "/matches/{match_id}/streaks",
-                "cotes": "/matches/{match_id}/odds",
-                "cotes_unibet": "/matches/{match_id}/odds/unibet?tour=atp",
                 "stats_match": "/statistics/{match_id}",
                 "stats_tous_matchs": "/statistics?tour=atp",
-                "analyse_paris": "/analysis/{match_id}?tour=atp",
-                "analyse_tous_marches": "/analysis/{match_id}/markets?tour=atp",
                 "fiche_joueur": "/players/{player_id}",
                 "photo_joueur": "/players/{player_id}/image",
                 "stats_joueur": "/players/{player_id}/statistics?tour=atp",
@@ -225,20 +303,17 @@ async def root() -> dict:
                 "matchs_joueur": "/players/{player_id}/matches",
                 "editions": "/matches/seasons?tour=atp",
             },
-            "foot": {
-                "board": "/foot/board",
-                "termines": "/foot/finished",
+            "foot_sofascore": {
                 "competitions": "/foot/competitions",
                 "forme_avant_match": "/foot/match/{event_id}/pregame-form",
                 "stats_match": "/foot/match/{event_id}/statistics",
                 "tirs_xg": "/foot/match/{event_id}/shotmap",
-                "proba_live": "/foot/match/{event_id}/win-probability",
+                "proba_live_sofascore": "/foot/match/{event_id}/win-probability",
                 "momentum": "/foot/match/{event_id}/momentum",
                 "incidents": "/foot/match/{event_id}/incidents",
                 "compositions": "/foot/match/{event_id}/lineups",
                 "notes_joueurs": "/foot/match/{event_id}/best-players",
                 "h2h": "/foot/match/{event_id}/h2h",
-                "cotes": "/foot/match/{event_id}/odds",
                 "votes": "/foot/match/{event_id}/votes",
                 "series": "/foot/match/{event_id}/streaks",
                 "classement": "/foot/competition/{tournament_id}/standings",
@@ -250,16 +325,13 @@ async def root() -> dict:
                 "stats_joueur": "/foot/player/{player_id}/statistics",
                 "photo_joueur": "/foot/player/{player_id}/image",
             },
-            "basket": {
-                "board": "/basket/board",
-                "termines": "/basket/finished",
+            "basket_sofascore": {
                 "forme_avant_match": "/basket/match/{event_id}/pregame-form",
                 "stats_match": "/basket/match/{event_id}/statistics",
                 "momentum": "/basket/match/{event_id}/momentum",
                 "incidents_quart_temps": "/basket/match/{event_id}/incidents",
                 "compositions": "/basket/match/{event_id}/lineups",
                 "h2h": "/basket/match/{event_id}/h2h",
-                "cotes": "/basket/match/{event_id}/odds",
                 "votes": "/basket/match/{event_id}/votes",
                 "series": "/basket/match/{event_id}/streaks",
                 "classement_nba": "/basket/competition/132/standings",
@@ -272,13 +344,7 @@ async def root() -> dict:
                 "photo_joueur": "/basket/player/{player_id}/image",
                 "box_scores_joueurs": "/basket/match/{event_id}/lineups",
             },
-            "suivi": {
-                "rapport": "/tracking/report?sport=tennis",
-                "tableau_de_bord": "/tracking/dashboard?sport=tennis",
-                "journal": "/tracking/log",
-                "confiances_du_jour": "/tracking/today",
-            },
-            "flashscore_source_alternative": {
+            "flashscore_alternative": {
                 "agenda": "/flashscore/{sport}/events  (sport: foot|tennis|basket)",
                 "stats_match": "/flashscore/match/{match_id}/statistics?period=1",
                 "compositions": "/flashscore/match/{match_id}/lineups",
@@ -287,9 +353,38 @@ async def root() -> dict:
                 "h2h": "/flashscore/match/{match_id}/h2h",
             },
         },
+        # 🟡 COTES — prix réels du marché (tous marchés Unibet par sport)
+        "cotes": {
+            "tennis_unibet_tous_marches": "/matches/{match_id}/odds/unibet?tour=atp",
+            "tennis_sofascore": "/matches/{match_id}/odds",
+            "foot_unibet_tous_marches": "/foot/match/{event_id}/odds/unibet",
+            "foot_sofascore": "/foot/match/{event_id}/odds",
+            "basket_unibet_tous_marches": "/basket/match/{event_id}/odds/unibet",
+            "basket_sofascore": "/basket/match/{event_id}/odds",
+        },
+        # 🔴 MODÈLE MAISON — calculs, PAS une source
+        "modele_maison": {
+            "_avertissement": "Sorties calculées par BETSFIX (probas/value/prédictions). "
+                              "Ne pas utiliser comme donnée factuelle.",
+            "tennis_analyse_paris": "/analysis/{match_id}?tour=atp",
+            "tennis_analyse_tous_marches": "/analysis/{match_id}/markets?tour=atp",
+            "foot_board": "/foot/board",
+            "foot_termines": "/foot/finished",
+            "basket_board": "/basket/board",
+            "basket_termines": "/basket/finished",
+            "suivi_rapport": "/tracking/report?sport=tennis",
+            "suivi_tableau_de_bord": "/tracking/dashboard?sport=tennis",
+            "suivi_journal": "/tracking/log",
+            "suivi_confiances_du_jour": "/tracking/today",
+        },
     }
 
 
 @app.get("/health", tags=["ℹ️ Méta"], summary="Healthcheck")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+# Une fois TOUTES les routes enregistrées, on (re)classe chaque endpoint par nature
+# de donnée pour /docs (source SofaScore / cotes / modèle / …). À faire en dernier.
+_retag_routes(app)

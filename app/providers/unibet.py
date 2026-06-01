@@ -4,11 +4,15 @@ Unibet Belgique (unibet.be) tourne sur Kambi, qui expose une API d'offre
 publique (sans clé). Le « offering » de l'enseigne belge est ``ubbe``.
 
 Endpoints utilisés :
-  - /listView/tennis.json                 (tous les matchs de tennis + cote principale)
+  - /listView/{sport}.json                (tous les matchs d'un sport + cote principale)
+                                          sport ∈ {tennis, football, basketball}
   - /betoffer/event/{kambiEventId}.json   (tous les marchés d'un match)
 
 Les cotes ne sont disponibles que pour les matchs **à venir / en cours**
 (c'est l'offre du bookmaker), pas pour les matchs déjà joués.
+
+Le matching SofaScore → Unibet se fait par noms (joueurs ou équipes) + date :
+identique pour les 3 sports, seul le slug de la liste change.
 """
 
 from __future__ import annotations
@@ -62,22 +66,41 @@ class UnibetProvider:
         return data
 
     # ------------------------------------------------------------ matching
-    async def _tennis_events(self) -> list[dict]:
-        data = await self._get("/listView/tennis.json")
+    # Slug Kambi par sport (le tennis reste le défaut historique).
+    _SPORT_SLUG = {"tennis": "tennis", "atp": "tennis", "wta": "tennis",
+                   "football": "football", "foot": "football",
+                   "basketball": "basketball", "basket": "basketball"}
+
+    async def _events(self, sport: str = "tennis") -> list[dict]:
+        slug = self._SPORT_SLUG.get(sport, sport)
+        data = await self._get(f"/listView/{slug}.json")
         return data.get("events", []) or []
 
     async def find_odds(self, match: Match) -> UnibetOdds:
-        """Retrouve les cotes Unibet pour un match SofaScore (par noms + date)."""
-        target_home = _norm_name(match.home.name)
-        target_away = _norm_name(match.away.name)
-        match_day = match.start_time.date() if match.start_time else None
+        """Cotes Unibet (tennis) pour un match SofaScore — par noms de joueurs + date."""
+        return await self.find_event_odds(
+            "tennis", match.home.name, match.away.name, match.id, match.start_time)
+
+    async def find_event_odds(
+        self, sport: str, home_name: str, away_name: str,
+        match_id: int, start_time=None,
+    ) -> UnibetOdds:
+        """Retrouve les cotes Unibet d'un événement (tennis/foot/basket) par noms + date.
+
+        Le matching exige que les DEUX camps correspondent (token de nom de famille /
+        nom d'équipe partagé), dans n'importe quel sens, et la même date si connue.
+        Renvoie tous les marchés du book, ou matched=False si rien ne correspond.
+        """
+        target_home = _norm_name(home_name)
+        target_away = _norm_name(away_name)
+        match_day = start_time.date() if start_time else None
 
         best = None
-        for entry in await self._tennis_events():
+        for entry in await self._events(sport):
             ev = entry.get("event") or {}
             h = _norm_name(ev.get("homeName", ""))
             a = _norm_name(ev.get("awayName", ""))
-            # Les deux joueurs doivent correspondre (peu importe le sens home/away).
+            # Les deux camps doivent correspondre (peu importe le sens home/away).
             straight = _names_match(target_home, h) and _names_match(target_away, a)
             swapped = _names_match(target_home, a) and _names_match(target_away, h)
             if not (straight or swapped):
@@ -91,13 +114,13 @@ class UnibetProvider:
             break
 
         if best is None:
-            return UnibetOdds(match_id=match.id, matched=False)
+            return UnibetOdds(match_id=match_id, matched=False)
 
         ev, entry, swapped = best
         kambi_id = ev.get("id")
         markets = await self._all_markets(kambi_id, entry)
         return UnibetOdds(
-            match_id=match.id,
+            match_id=match_id,
             matched=True,
             kambi_event_id=kambi_id,
             event_name=ev.get("name"),
