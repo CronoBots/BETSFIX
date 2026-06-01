@@ -94,9 +94,9 @@ CSS = """
   .brand .logo{font-size:22px;filter:drop-shadow(0 2px 7px rgba(46,155,255,.5))}
   .brand img.logo{height:30px;width:auto;display:block}
   .brand img.wm{height:15px;width:auto;display:block;margin-left:-2px}
-  .hero{text-align:center;padding:14px 0 6px}
-  .hero-logo{max-width:330px;width:82%;height:auto;
-             filter:drop-shadow(0 8px 26px rgba(46,155,255,.40))}
+  .hero{text-align:center;padding:10px 0 6px}
+  .hero-logo{max-width:440px;width:94%;height:auto;
+             filter:drop-shadow(0 8px 28px rgba(46,155,255,.42))}
   .hero-sub{margin-top:6px;font-size:12px;color:var(--muted);
             letter-spacing:.04em}
   .brand b{color:var(--brand)}
