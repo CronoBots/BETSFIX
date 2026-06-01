@@ -81,19 +81,23 @@ CSS = """
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
        -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
        -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+       /* Thème premium UNIQUE : un halo bleu (marque) centré en haut, derrière le logo,
+          identique sur tous les onglets (le glow ne dépend plus du sport). */
        background:
-         radial-gradient(900px 500px at 100% -10%,rgba(46,226,127,.07),transparent 60%),
-         radial-gradient(700px 400px at -10% 0%,rgba(60,120,255,.05),transparent 55%),
-         var(--bg);}
+         radial-gradient(1100px 620px at 50% -14%,rgba(46,155,255,.11),transparent 60%),
+         radial-gradient(820px 520px at 100% 108%,rgba(46,155,255,.045),transparent 60%),
+         var(--bg);
+       background-attachment:fixed;}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   .wrap{max-width:720px;margin:0 auto;
         padding:calc(8px + env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom))}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
   .toplogo{display:block;text-align:center;margin:0 0 16px}
   .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 18px rgba(46,155,255,.40))}
-  .pausebar{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
-            color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);
-            padding:5px 11px;border-radius:20px;margin:0 0 12px}
+  .pausewrap{text-align:center;margin:-6px 0 12px}
+  .pausebadge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;
+              color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);
+              padding:3px 10px;border-radius:20px}
   /* Barre d'onglets fixée en bas (style app native) */
   .botnav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;
@@ -286,8 +290,9 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     pausebar = ""
     if source and not source.get("ok"):
         s = source.get("paused_seconds", 0)
-        pausebar = (f'<div class="pausebar" title="LiveScore prend le relais">'
-                    f'🟠 SofaScore en pause ({s}s)</div>')
+        pausebar = (f'<div class="pausewrap"><span class="pausebadge" '
+                    f'title="SofaScore en pause ({s}s) — LiveScore prend le relais">'
+                    f'🟠 Source en pause</span></div>')
     nav_items = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
                  ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot")]
     # Barre d'onglets fixée en BAS (style app native) : icône + petit label.
