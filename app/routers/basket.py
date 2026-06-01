@@ -8,7 +8,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import basket
+from app import basket, sportcache
 from app.dependencies import get_provider
 from app.models import (
     MatchOdds,
@@ -43,7 +43,7 @@ async def basket_page() -> HTMLResponse:
         fin = await basket.finished()
     except Exception:
         fin = []
-    return HTMLResponse(basket.render(rows, fin))
+    return HTMLResponse(basket.render(rows, fin, paused=sportcache.blocked()))
 
 
 # ------------------------------------------------------------------- API JSON

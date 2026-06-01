@@ -9,7 +9,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import foot
+from app import foot, sportcache
 from app.dependencies import get_provider
 from app.models import (
     MatchIncidents,
@@ -45,7 +45,7 @@ async def foot_page() -> HTMLResponse:
         fin = await foot.finished()
     except Exception:
         fin = []
-    return HTMLResponse(foot.render(rows, fin))
+    return HTMLResponse(foot.render(rows, fin, paused=sportcache.blocked()))
 
 
 # ------------------------------------------------------------------- API JSON

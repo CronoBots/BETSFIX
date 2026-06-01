@@ -320,7 +320,8 @@ async def finished() -> list[dict]:
     return games
 
 
-def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
+def render(rows: list[dict], finished_rows: list[dict] | None = None,
+           paused: bool = False) -> str:
     e = html.escape
 
     def model_line(r):
@@ -378,7 +379,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
              'double Poisson) vs Unibet. Modèle jeune + venues neutres : value à <b>confirmer</b>.')
     if not (value or live or upcoming or fin):
         intro += ' La Coupe du Monde démarre le 11 juin.'
-    return web.render_sport_matches("foot", "Football", value, live, upcoming, fin, intro=intro)
+    return web.render_sport_matches("foot", "Football", value, live, upcoming, fin,
+                                    intro=intro, paused=paused)
 
 
 # ----------------------------------------------------------------- suivi (3 issues)

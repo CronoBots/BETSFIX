@@ -363,9 +363,13 @@ def _sport_row(r: dict) -> str:
 
 
 def render_sport_matches(sport: str, title: str, value: list, live: list,
-                         upcoming: list, finished: list, intro: str = "") -> str:
+                         upcoming: list, finished: list, intro: str = "",
+                         paused: bool = False) -> str:
     """Page Matchs UNIFIÉE pour tous les sports, sections dans l'ordre logique :
-    Confiance du jour → En direct → À venir → Terminés."""
+    Confiance du jour → En direct → À venir → Terminés.
+
+    `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
+    « aucun match » (qui laisserait croire qu'il n'y a pas de rencontres)."""
     out = [f'<div class="banner">{intro}</div>'] if intro else []
 
     def section(heading, rows):
@@ -379,7 +383,12 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     out.append(section("📅 À venir", upcoming))
     out.append(section("✅ Terminés", finished))
     if not (value or live or upcoming or finished):
-        out.append('<div class="dim">Aucun match à afficher pour le moment.</div>')
+        if paused:
+            out.append('<div class="banner warn">⏸️ Source SofaScore momentanément en pause '
+                       '(trop de requêtes) — les matchs reviennent <b>automatiquement</b> '
+                       'd\'ici quelques minutes. Rien à faire.</div>')
+        else:
+            out.append('<div class="dim">Aucun match à afficher pour le moment.</div>')
     return layout(title, sport, "".join(out), subnav="matchs", refresh=True)
 
 

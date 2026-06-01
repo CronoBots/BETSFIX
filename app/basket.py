@@ -365,7 +365,8 @@ async def finished() -> list[dict]:
     return games
 
 
-def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
+def render(rows: list[dict], finished_rows: list[dict] | None = None,
+           paused: bool = False) -> str:
     e = html.escape
     value, live, upcoming = [], [], []
     for r in rows:
@@ -424,7 +425,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
 
     intro = ('🏀 <b>NBA & WNBA</b> — Elo d\'équipe + avantage du terrain vs cotes Unibet. '
              'Les « value » restent à <b>confirmer par le suivi</b> (CLV).')
-    return web.render_sport_matches("basket", "Basket NBA & WNBA", value, live, upcoming, fin, intro=intro)
+    return web.render_sport_matches("basket", "Basket NBA & WNBA", value, live, upcoming, fin,
+                                    intro=intro, paused=paused)
 
 
 # ----------------------------------------------------------------- suivi (séparé)
