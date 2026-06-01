@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class Player(BaseModel):
@@ -378,6 +378,16 @@ class UnibetOdds(BaseModel):
     event_name: str | None = None
     start_time: datetime | None = None
     markets: list[UnibetMarket] = Field(default_factory=list)
+
+    @computed_field(description="Nombre de marchés (paris différents) récupérés")
+    @property
+    def markets_count(self) -> int:
+        return len(self.markets)
+
+    @computed_field(description="Nombre total de cotes (toutes sélections confondues)")
+    @property
+    def outcomes_count(self) -> int:
+        return sum(len(m.outcomes) for m in self.markets)
 
 
 class AnalysisFactor(BaseModel):
