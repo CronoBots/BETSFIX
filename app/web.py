@@ -94,9 +94,9 @@ CSS = """
   .brand .logo{font-size:22px;filter:drop-shadow(0 2px 7px rgba(46,155,255,.5))}
   .brand img.logo{height:30px;width:auto;display:block}
   .brand img.wm{height:15px;width:auto;display:block;margin-left:-2px}
-  .hero{text-align:center;padding:18px 0 6px}
-  .hero-logo{max-width:230px;width:62%;height:auto;
-             filter:drop-shadow(0 6px 22px rgba(46,155,255,.35))}
+  .hero{text-align:center;padding:14px 0 6px}
+  .hero-logo{max-width:330px;width:82%;height:auto;
+             filter:drop-shadow(0 8px 26px rgba(46,155,255,.40))}
   .hero-sub{margin-top:6px;font-size:12px;color:var(--muted);
             letter-spacing:.04em}
   .brand b{color:var(--brand)}
@@ -249,13 +249,13 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="theme-color" content="#080a0f">
 {meta_refresh}<title>{e(title)} · BetsFix</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/static/icon-180.png">
+<link rel="apple-touch-icon" href="/static/icon-180.png?v=2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BetsFix">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 <header class="hdr"><div class="hdr-in">
-<div class="brand"><img class="logo" src="/static/mark.png" alt=""><img class="wm" src="/static/wordmark.png" alt="BETSFIX"><span class="tag">Multi-sports</span></div>
+<div class="brand"><img class="logo" src="/static/mark.png?v=2" alt=""><img class="wm" src="/static/wordmark.png?v=2" alt="BETSFIX"><span class="tag">Multi-sports</span></div>
 {nav}</div></header><div class="wrap">{sub}{body}
 <div class="foot">Données SofaScore + Unibet BE · informatif, sans garantie · jouez responsable</div>
 </div></body></html>"""
@@ -303,7 +303,7 @@ def render_home(rep: dict, source: dict | None = None,
         f'<b>{name}</b><div class="d">{e(desc)}</div></a>'
         for ic, name, url, desc in sports)
 
-    hero = ('<div class="hero"><img class="hero-logo" src="/static/logo.png" '
+    hero = ('<div class="hero"><img class="hero-logo" src="/static/logo.png?v=2" '
             'alt="BetsFix"><div class="hero-sub">Analyse multi-sports · '
             'value vs Unibet</div></div>') if os.path.exists(_LOGO) else ""
 
