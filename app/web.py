@@ -102,7 +102,9 @@ CSS = """
   .hero-sub{margin-top:6px;font-size:12px;color:var(--muted);
             letter-spacing:.04em}
   .brand b{color:var(--brand)}
-  .brand .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.12em;
+  .brand .hright{margin-left:auto;display:inline-flex;align-items:center;gap:8px}
+  .brand .hdot{font-size:10px;font-weight:800;color:var(--gold);white-space:nowrap;letter-spacing:.02em}
+  .brand .tag{font-size:10px;font-weight:700;letter-spacing:.12em;
               text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);
               padding:3px 8px;border-radius:20px}
   .nav{display:flex;gap:9px;margin-top:11px}
@@ -251,10 +253,16 @@ _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 
 
 def layout(title: str, sport: str, body: str, subnav: str | None = None,
-           refresh: bool = False) -> str:
+           refresh: bool = False, source: dict | None = None) -> str:
     """Page premium. `sport` ∈ home/tennis/basket/foot (onglet principal actif).
-    `subnav` ∈ matchs/perf : affiche le sous-menu du sport (Matchs / Fiabilité)."""
+    `subnav` ∈ matchs/perf : affiche le sous-menu du sport (Matchs / Fiabilité).
+    `source` : état SofaScore -> petit indicateur discret dans l'en-tête si en pause."""
     e = html.escape
+    status = ""
+    if source and not source.get("ok"):
+        s = source.get("paused_seconds", 0)
+        status = (f'<span class="hdot" title="SofaScore en pause ({s}s) — '
+                  f'LiveScore prend le relais">🟠 pause</span>')
     nav_items = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
                  ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot")]
     nav = '<nav class="nav">' + "".join(
@@ -282,9 +290,9 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 <header class="hdr"><div class="hdr-in">
-<div class="brand"><img class="logo" src="/static/mark.png?v=2" alt=""><img class="wm" src="/static/wordmark.png?v=2" alt="BETSFIX"><span class="tag">Multi-sports</span></div>
+<div class="brand"><img class="logo" src="/static/mark.png?v=2" alt=""><img class="wm" src="/static/wordmark.png?v=2" alt="BETSFIX"><span class="hright">{status}<span class="tag">Multi-sports</span></span></div>
 {nav}</div></header><div class="wrap">{sub}{body}
-<div class="foot">18+ · informatif, sans garantie · jouez responsable</div>
+<div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div></body></html>"""
 
 
@@ -336,13 +344,7 @@ def render_home(rep: dict, source: dict | None = None,
                 picks: list[dict] | None = None,
                 conf_picks: list[dict] | None = None) -> str:
     e = html.escape
-    # bandeau source : seulement en cas de problème (rien quand tout va bien -> accueil épuré)
-    if source and not source.get("ok"):
-        src = (f'<div class="src ko">🟠 SofaScore en pause '
-               f'({source.get("paused_seconds", 0)}s) — LiveScore prend le relais</div>')
-    else:
-        src = ""
-
+    # l'état SofaScore (pause) s'affiche désormais discrètement dans l'en-tête (cf. layout).
     picks = picks or []
     conf_picks = conf_picks or []
     bars_legend = ('Les 3 barres = <b>chance que le pari gagne</b> selon <b>BETSFIX</b> (l\'app), '
@@ -365,9 +367,7 @@ def render_home(rep: dict, source: dict | None = None,
 
     # 🔥 CONFIANCES du jour : favori NET du modèle (forte proba) — pas forcément une value
     if conf_picks:
-        rows = "".join(_pick_card(
-            p, f'<span class="badge b-conf" title="Probabilité du modèle">modèle '
-               f'{p.get("conf_pct")}%</span>') for p in conf_picks)
+        rows = "".join(_pick_card(p, "") for p in conf_picks)  # pas de badge % (déjà dans la barre)
         conf_html = (_head(f'🔥 Confiances du jour ({len(conf_picks)})',
                            'Matchs où <b>BETSFIX</b> voit un <b>favori net</b> (forte proba de '
                            'gagner). Plus « sûr » mais souvent à <b>petite cote</b> — donc '
@@ -380,8 +380,8 @@ def render_home(rep: dict, source: dict | None = None,
             'alt="BETSFIX"></div>') if os.path.exists(_LOGO) else ""
 
     # Confiances AU-DESSUS des valeurs (favori net d'abord, puis les value/outsiders)
-    body = f'{hero}{src}{conf_html}{val_html}'
-    return layout("Accueil", "home", body, refresh=True)
+    body = f'{hero}{conf_html}{val_html}'
+    return layout("Accueil", "home", body, refresh=True, source=source)
 
 
 def _bar(pct: float | None) -> str:
@@ -439,7 +439,7 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
     « aucun match » (qui laisserait croire qu'il n'y a pas de rencontres)."""
     out = []
-    sections = [("🔥 Confiance du jour", value), ("🔴 En direct", live),
+    sections = [("💎 Valeurs du jour", value), ("🔴 En direct", live),
                 ("📅 À venir", upcoming), ("✅ Terminés", finished)]
     info_done = False
     for heading, rows in sections:
