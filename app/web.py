@@ -81,13 +81,14 @@ CSS = """
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
        -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
        -webkit-tap-highlight-color:transparent;touch-action:manipulation;
-       /* Thème premium UNIQUE : un halo bleu (marque) centré en haut, derrière le logo,
-          identique sur tous les onglets (le glow ne dépend plus du sport). */
+       background:var(--bg);}
+  /* Thème premium UNIQUE : halo bleu via un calque FIXE collé au viewport (et non au
+     body) -> identique sur tous les onglets, quelle que soit la hauteur de la page.
+     (évite le bug iOS où background-attachment:fixed est ignoré.) */
+  body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
        background:
-         radial-gradient(1100px 620px at 50% -14%,rgba(46,155,255,.11),transparent 60%),
-         radial-gradient(820px 520px at 100% 108%,rgba(46,155,255,.045),transparent 60%),
-         var(--bg);
-       background-attachment:fixed;}
+         radial-gradient(1100px 620px at 50% -4%,rgba(46,155,255,.12),transparent 60%),
+         radial-gradient(820px 520px at 100% 102%,rgba(46,155,255,.05),transparent 60%);}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   .wrap{max-width:720px;margin:0 auto;
         padding:calc(8px + env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom))}
