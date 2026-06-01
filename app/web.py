@@ -93,16 +93,16 @@ CSS = """
          letter-spacing:-.02em}
   .brand .logo{font-size:22px;filter:drop-shadow(0 2px 7px rgba(46,155,255,.5))}
   .brand img.logo{height:30px;width:auto;display:block}
-  .brand img.wm{height:15px;width:auto;display:block;margin-left:-2px}
+  .brand img.wm{height:21px;width:auto;display:block;margin-left:-1px}
   .hero{text-align:center;padding:18px 0 6px}
   .hero-logo{max-width:230px;width:62%;height:auto;
              filter:drop-shadow(0 6px 22px rgba(46,155,255,.35))}
   .hero-sub{margin-top:6px;font-size:12px;color:var(--muted);
             letter-spacing:.04em}
   .brand b{color:var(--brand)}
-  .brand .tag{margin-left:auto;font-size:13px;font-weight:800;letter-spacing:.10em;
-              text-transform:uppercase;color:var(--text);border:1px solid var(--border2);
-              padding:6px 12px;border-radius:20px}
+  .brand .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.12em;
+              text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);
+              padding:3px 8px;border-radius:20px}
   .nav{display:flex;gap:7px;margin-top:11px}
   .nav a{flex:1;text-align:center;padding:11px 4px;border-radius:13px;font-size:13px;
          font-weight:700;background:var(--surface);color:var(--muted);white-space:nowrap;
