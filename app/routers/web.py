@@ -27,6 +27,25 @@ router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
 HORIZON_HOURS = 48
 
 
+def _is_upcoming(rec: dict, now: datetime | None = None) -> bool:
+    """Vrai si le match n'a pas encore commencé (donc encore 'pariable').
+
+    Un pari sur un match déjà commencé n'est plus une 'valeur du jour' : la fenêtre
+    est fermée et le résultat n'attend que d'être réglé. On le masque tout de suite,
+    sans attendre la passe de règlement (boucle 3 h + cache stale-while-revalidate),
+    sinon un match terminé reste affiché comme un pari à jouer pendant des heures."""
+    st = rec.get("start_time")
+    if not st:
+        return True  # heure inconnue -> on n'exclut pas
+    try:
+        dt = datetime.fromisoformat(st)
+    except ValueError:
+        return True
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt > (now or datetime.now(timezone.utc))
+
+
 def _two_way_prob(rec: dict, v: dict) -> tuple[float | None, str | None]:
     """Proba modèle du côté parié + côté (home/away) pour tennis/basket (2 issues)."""
     mh = rec.get("model_home_prob")
@@ -52,7 +71,7 @@ def _all_sport_picks() -> list[dict]:
     def add(store, sport, icon, url_fn, bet_key, prob_fn):
         for rec in store.values():
             v = rec.get("value_pick")
-            if rec.get("result") or not v:
+            if rec.get("result") or not v or not _is_upcoming(rec):
                 continue
             odds = v.get("odds")
             model_p, side = prob_fn(rec, v)
@@ -114,7 +133,7 @@ def _confidence_picks() -> list[dict]:
 
     def add(store, sport, icon, url_fn, fav_fn):
         for rec in store.values():
-            if rec.get("result"):
+            if rec.get("result") or not _is_upcoming(rec):
                 continue
             fav = fav_fn(rec)
             if not fav or fav[1] is None or fav[1] < CONF_MIN_PROB:
@@ -274,7 +293,7 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
     value_picks, finished = [], []
     for rec in store.values():
         res = rec.get("result")
-        if not res and rec.get("value_pick"):
+        if not res and rec.get("value_pick") and _is_upcoming(rec):
             v = rec["value_pick"]
             value_picks.append({
                 "id": rec["match_id"], "tour": rec.get("tour", "atp"),
