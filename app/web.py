@@ -64,14 +64,16 @@ CSS = """
   :root{
     --bg:#080a0f;--bg2:#0c0f16;--surface:#13161f;--surface2:#1a1e2a;
     --border:#252a37;--border2:#2f3545;--text:#eef1f7;--muted:#9099a8;--dim:#646c7c;
-    --accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;
+    --accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30);
     --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
     --red:#f25d6e;--green:#34d27b;--brand:#2e9bff;
     --radius:16px;--shadow:0 6px 22px rgba(0,0,0,.40);--shadow-sm:0 2px 8px rgba(0,0,0,.30);
   }
-  /* Identité couleur par sport (accent réutilisé partout) */
-  body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00}
-  body.sp-foot{--accent:#5b9dff;--accent2:#2f7cf0;--accent-ink:#02112b}
+  /* Identité couleur par sport : home bleu · tennis jaune · basket orange · foot vert */
+  body.sp-home{--accent:#2e9bff;--accent2:#1f80e6;--accent-ink:#02122b;--glow:rgba(46,155,255,.32)}
+  body.sp-tennis{--accent:#d7e64a;--accent2:#aac72f;--accent-ink:#16180a;--glow:rgba(190,210,60,.30)}
+  body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00;--glow:rgba(240,128,0,.30)}
+  body.sp-foot{--accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30)}
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{margin:0;color:var(--text);font-size:15px;line-height:1.45;
@@ -110,7 +112,7 @@ CSS = """
   .nav a:active{transform:scale(.95)}
   .nav a.on{border-color:transparent;
             background:linear-gradient(180deg,var(--accent),var(--accent2));
-            box-shadow:0 6px 18px rgba(46,226,127,.30)}
+            box-shadow:0 6px 18px var(--glow)}
   /* Sous-menu par sport (Matchs / Fiabilité) */
   .subnav{display:flex;gap:6px;margin:16px 0 2px}
   .subnav a{flex:1;text-align:center;padding:9px;border-radius:11px;font-size:12.5px;
