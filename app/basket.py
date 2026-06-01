@@ -138,8 +138,13 @@ async def _get(client, base, path, params=None):
     cached = sportcache.get(key)
     if cached is not None:
         return cached
+    is_sofa = base == SOFA_B
+    if is_sofa and sportcache.blocked():   # disjoncteur ouvert -> on ne tape pas SofaScore
+        return None
     try:
         r = await client.get(base + path, params=params, timeout=20)
+        if is_sofa and r.status_code in (403, 429):
+            sportcache.trip()
         data = r.json() if r.status_code == 200 else None
     except httpx.HTTPError:
         data = None

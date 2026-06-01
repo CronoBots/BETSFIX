@@ -16,6 +16,10 @@ import time
 _store: dict[str, tuple[float, object]] = {}
 DEFAULT_TTL = 90.0          # secondes : assez court pour rester frais, assez long pour amortir
 
+# Disjoncteur anti-403 pour SofaScore (foot/basket n'ont pas le breaker du provider).
+_blocked_until = 0.0
+BREAKER_S = 90.0            # pause après un 403/429 : on ne re-tape pas SofaScore pendant ce temps
+
 
 def get(key: str):
     """Valeur en cache si encore valide, sinon None."""
@@ -30,5 +34,22 @@ def put(key: str, value, ttl: float = DEFAULT_TTL) -> None:
         _store[key] = (time.monotonic() + ttl, value)
 
 
+def blocked() -> bool:
+    """Vrai si SofaScore est en pause anti-403 (on évite de le solliciter)."""
+    return time.monotonic() < _blocked_until
+
+
+def trip(seconds: float = BREAKER_S) -> None:
+    """Ouvre le disjoncteur : on cesse de taper SofaScore pendant `seconds`."""
+    global _blocked_until
+    _blocked_until = time.monotonic() + seconds
+
+
+def reset() -> None:
+    global _blocked_until
+    _blocked_until = 0.0
+
+
 def clear() -> None:   # utilitaire (tests)
     _store.clear()
+    reset()
