@@ -269,7 +269,8 @@ async def root() -> dict:
             },
             "flashscore_source_alternative": {
                 "agenda": "/flashscore/{sport}/events  (sport: foot|tennis|basket)",
-                "stats_match": "/flashscore/match/{match_id}/statistics",
+                "stats_match": "/flashscore/match/{match_id}/statistics?period=1",
+                "compositions": "/flashscore/match/{match_id}/lineups",
                 "resume": "/flashscore/match/{match_id}/summary",
                 "h2h": "/flashscore/match/{match_id}/h2h",
             },

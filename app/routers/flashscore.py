@@ -7,7 +7,7 @@ Les ids de match sont **propres à Flashscore** (obtenus via /flashscore/{sport}
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.providers import flashscore as fs
 
@@ -31,9 +31,23 @@ async def fs_events(sport: Sport) -> list[dict]:
     "/match/{match_id}/statistics",
     summary="Statistiques d'un match (xG/tirs en foot, aces en tennis, rebonds en basket)",
 )
-async def fs_statistics(match_id: str) -> dict:
+async def fs_statistics(
+    match_id: str,
+    period: int = Query(1, ge=1, le=3, description="1 = match entier, 2/3 = par période/mi-temps"),
+) -> dict:
     try:
-        return await fs.statistics(match_id)
+        return await fs.statistics(match_id, period)
+    except fs.FlashscoreError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/match/{match_id}/lineups",
+    summary="Compositions / formations d'un match (foot) — brut Flashscore",
+)
+async def fs_lineups(match_id: str) -> dict:
+    try:
+        return await fs.lineups(match_id)
     except fs.FlashscoreError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 

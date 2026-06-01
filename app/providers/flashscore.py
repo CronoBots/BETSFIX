@@ -9,9 +9,15 @@ via le host `*.flashscore.ninja` avec l'en-tête obligatoire `x-fsign`.
 
 Feeds confirmés (foot=1, tennis=2, basket=3) :
   - f_{sport}_0_3_en_1            -> agenda du jour (matchs, équipes, scores, ligue)
-  - df_st_1_{matchId}            -> statistiques de match (xG, tirs / aces / rebonds…)
+  - df_st_{p}_{matchId}          -> statistiques (p=1 match entier, 2/3 par période/mi-temps)
+  - df_li_1_{matchId}            -> compositions / formations (foot)
   - df_sui_1_{matchId}           -> résumé (lieu, TV, infos)
   - df_hh_1_{matchId}            -> confrontations directes (historique)
+
+Feeds repérés mais NON ajoutés (volontairement) :
+  - df_to_1_ / df_tl_1_  -> comparateur de cotes multi-bookmakers (lourd ; Unibet suffit)
+  - classements de ligue : nécessitent un id de « tournament stage » non exposé par le
+    feed agenda/match -> non catalogable de façon fiable ici.
 
 Robustesse : le préfixe numérique du host et le `x-fsign` peuvent changer côté
 Flashscore ; en cas d'échec, on lève proprement (pas de crash, source best-effort).
@@ -147,9 +153,17 @@ async def events(sport: str) -> list[dict]:
     return parse_events(await _fetch(f"f_{sid}_0_3_en_1"))
 
 
-async def statistics(match_id: str) -> dict:
-    body = await _fetch(f"df_st_1_{match_id}")
-    return {"match_id": match_id, "source": "flashscore", "periods": parse_statistics(body)}
+async def statistics(match_id: str, period: int = 1) -> dict:
+    """Statistiques. period : 1 = match entier, 2/3 = par période (mi-temps / quart-temps)."""
+    body = await _fetch(f"df_st_{period}_{match_id}")
+    return {"match_id": match_id, "source": "flashscore", "period": period,
+            "periods": parse_statistics(body)}
+
+
+async def lineups(match_id: str) -> dict:
+    """Compositions / formations (foot). Rendu en lignes brutes Flashscore."""
+    body = await _fetch(f"df_li_1_{match_id}")
+    return {"match_id": match_id, "source": "flashscore", "rows": _rows(body)}
 
 
 async def summary(match_id: str) -> dict:
