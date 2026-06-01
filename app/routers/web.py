@@ -56,11 +56,15 @@ def _all_sport_picks() -> list[dict]:
                 continue
             odds = v.get("odds")
             model_p, side = prob_fn(rec, v)
+            # vote "public" persisté (si capté lors d'un snapshot) -> part du côté parié
+            ph, pa = rec.get("public_home"), rec.get("public_away")
+            community = ((ph if side == "home" else pa) / 100
+                         if ph is not None and side in ("home", "away") else None)
             out.append({
                 "sport": sport, "icon": icon, "home": rec.get("home", ""),
                 "away": rec.get("away", ""), "bet": v.get(bet_key) or v.get("player") or "",
                 "odds": odds, "edge": v.get("edge"),
-                "model_prob": model_p, "side": side,
+                "model_prob": model_p, "side": side, "community": community,
                 "implied": (1 / odds) if odds else None,   # proba "officielle" (cote)
                 "match_id": rec.get("match_id"),
                 "time": web.fmt_local(rec.get("start_time"), with_date=True),

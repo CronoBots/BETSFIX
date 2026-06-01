@@ -411,6 +411,9 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
                         "edge": pk["edge"]} if pk else None),
         "last_update": now,
     })
+    vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)
+    if vt and vt[0] is not None:
+        rec["public_home"], rec["public_away"] = vt[0], vt[1]
     rec.setdefault("first_logged", now)
     for k in ("o1", "ox", "o2"):
         rec.setdefault("open_" + k, g.get(k))
@@ -421,8 +424,10 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
 async def run_snapshot() -> int:
     store = tracking.load(FOOT_TRACK_PATH)
     now = datetime.now(timezone.utc).isoformat()
+    rows = await board()
+    await enrich_display(rows)         # capture les votes pour les persister
     n = 0
-    for g in await board():
+    for g in rows:
         if g.get("o1") and g.get("probs") and _upsert(store, g, now):
             n += 1
     tracking.save(store, FOOT_TRACK_PATH)

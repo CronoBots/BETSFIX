@@ -59,6 +59,8 @@ def _ttl_for(path: str) -> float | None:
         return 1800
     if "/incidents" in path or "/lineups" in path or "/pregame-form" in path:
         return 600
+    if "/votes" in path:        # votes des fans : changent lentement -> cache long
+        return 1800
     if "/standings/" in path or "/top-players/" in path or "/top-teams/" in path:
         return 3600
     if "/team/" in path and "/events" not in path:  # fiche joueur

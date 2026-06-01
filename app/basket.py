@@ -448,6 +448,9 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
                         "edge": pick["edge"], "stake_pct": pick.get("stake")} if pick else None),
         "last_update": now_iso,
     })
+    vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)
+    if vt and vt[0] is not None:
+        rec["public_home"], rec["public_away"] = vt[0], vt[1]
     rec.setdefault("first_logged", now_iso)
     rec.setdefault("open_home_odds", g.get("oh"))
     rec.setdefault("open_away_odds", g.get("oa"))
@@ -456,11 +459,13 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
 
 
 async def run_snapshot() -> int:
-    """Logue les prédictions WNBA (proba + cotes + value) -> tracking_basket.json."""
+    """Logue les prédictions WNBA (proba + cotes + value + votes) -> tracking_basket.json."""
     store = tracking.load(BASKET_TRACK_PATH)
     now = datetime.now(timezone.utc).isoformat()
+    rows = await board()
+    await enrich_display(rows)         # capture les votes pour les persister
     n = 0
-    for g in await board():
+    for g in rows:
         if g.get("oh") and g.get("model_home") is not None and _upsert(store, g, now):
             n += 1
     tracking.save(store, BASKET_TRACK_PATH)
