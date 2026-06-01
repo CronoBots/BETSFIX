@@ -150,6 +150,8 @@ CSS = """
   .b-dim{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
   .b-uni{background:rgba(46,155,255,.14);color:#56b0ff;border:1px solid rgba(46,155,255,.30)}
   .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
+  .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
+  .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
   .fd{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
       border-radius:4px;font-size:9px;font-weight:800;color:#08110a}
@@ -403,6 +405,16 @@ def form_dots(form) -> str:
         f'{html.escape(str(x)[:1])}</span>'
         for x in form[:5])
     return f'<span class="forms">{dots}</span>'
+
+
+def form_compare(home: str, home_form, away: str, away_form) -> str:
+    """Forme des 2 équipes alignée : domicile à gauche, extérieur à droite (lisible)."""
+    if not (home_form or away_form):
+        return ""
+    e = html.escape
+    return ('<div class="formrow">'
+            f'<span class="fc"><span class="dim">forme</span> {form_dots(home_form)}</span>'
+            f'<span class="fc">{form_dots(away_form)}</span></div>')
 
 
 def unibet_badge(available: bool) -> str:

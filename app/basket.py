@@ -370,22 +370,22 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
     value, live, upcoming = [], [], []
     for r in rows:
         p = r.get("model_home")
+        # ligne méta COMPACTE : la barre de proba montre déjà le favori + %, on n'ajoute
+        # que l'info complémentaire (marge, cotes) pour ne pas répéter.
         if p is not None:
-            fav = r["home"] if p >= 0.5 else r["away"]
-            sub = f'modèle : <b>{e(fav)}</b> {round(max(p, 1 - p) * 100)}%'
+            bits = []
             m = r.get("margin")
             if m is not None and abs(m) >= 0.5:
-                sub += f' · marge ~{abs(round(m))} pts'
+                bits.append(f'marge ~{abs(round(m))} pts')
+            if r.get("oh"):
+                bits.append(f'cotes {r["oh"]}/{r["oa"]}')
+            sub = " · ".join(bits)
         else:
-            sub = 'Elo indisponible'
-        if r.get("oh"):
-            sub += f' · cotes {r["oh"]}/{r["oa"]}'
-        sub_html = f'<div class="dim">{sub}</div>'
-        # forme d'avant-match + votes des fans (si enrichis)
+            sub = "Elo indisponible" + (f' · cotes {r["oh"]}/{r["oa"]}' if r.get("oh") else "")
+        sub_html = f'<div class="dim">{sub}</div>' if sub else ""
         fm = r.get("form")
         if fm:
-            sub_html += (f'<div class="dim">forme : {web.form_dots(fm[0])} {e(r["home"])} · '
-                         f'{web.form_dots(fm[1])} {e(r["away"])}</div>')
+            sub_html += web.form_compare(r["home"], fm[0], r["away"], fm[1])
         vt = r.get("votes")
         if vt:
             sub_html += web.votes_line(vt[0], vt[1], r["home"], r["away"])

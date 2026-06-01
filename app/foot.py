@@ -333,12 +333,9 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None) -> str:
         if gm:
             parts.append(f'BTTS <b>{round(gm["btts"]*100)}%</b>')
         sub = f'<div class="dim">{" · ".join(parts)}</div>' if parts else ""
-        # forme d'avant-match (V/N/D) des deux équipes
         fm = r.get("form")
         if fm:
-            sub += (f'<div class="dim">forme : {web.form_dots(fm[0])} {e(r["home"])} · '
-                    f'{web.form_dots(fm[1])} {e(r["away"])}</div>')
-        # pronostics des fans
+            sub += web.form_compare(r["home"], fm[0], r["away"], fm[1])
         vt = r.get("votes")
         if vt:
             sub += web.votes_line(vt[0], vt[1], r["home"], r["away"])
