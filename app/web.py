@@ -87,11 +87,10 @@ CSS = """
          var(--bg);}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   .wrap{max-width:720px;margin:0 auto;
-        padding:calc(14px + env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom))}
-  /* Branding inline en haut (hors accueil) + pastille de pause */
-  .topbrand{display:flex;align-items:center;gap:6px;margin:2px 0 14px}
-  .topbrand .tb-logo{height:26px;width:auto;filter:drop-shadow(0 2px 7px rgba(46,155,255,.45))}
-  .topbrand .tb-wm{height:18px;width:auto}
+        padding:calc(8px + env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom))}
+  /* Logo unique centré tout en haut de chaque page + pastille de pause */
+  .toplogo{display:block;text-align:center;margin:0 0 16px}
+  .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 18px rgba(46,155,255,.40))}
   .pausebar{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
             color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);
             padding:5px 11px;border-radius:20px;margin:0 0 12px}
@@ -281,11 +280,9 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     `subnav` ∈ matchs/perf : affiche le sous-menu du sport (Matchs / Fiabilité).
     `source` : état SofaScore -> petit indicateur discret dans l'en-tête si en pause."""
     e = html.escape
-    # Pas de barre du haut : branding inline (hors accueil, qui a le grand logo) +
-    # pastille de pause discrète si SofaScore est indisponible.
-    topbrand = ("" if sport == "home" else
-                '<a class="topbrand" href="/"><img class="tb-logo" src="/static/mark.png?v=2" '
-                'alt=""><img class="tb-wm" src="/static/wordmark.png?v=2" alt="BETSFIX"></a>')
+    # Logo unique : réduit, centré, tout en haut de CHAQUE page (accueil + sports).
+    toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=2" alt="BETSFIX"></a>'
+               if os.path.exists(_LOGO) else "")
     pausebar = ""
     if source and not source.get("ok"):
         s = source.get("paused_seconds", 0)
@@ -318,7 +315,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
-<div class="wrap">{topbrand}{pausebar}{sub}{body}
+<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}</body></html>"""
 
@@ -403,11 +400,9 @@ def render_home(rep: dict, source: dict | None = None,
         conf_html = ('<h2>🔥 Confiances du jour</h2>'
                      '<div class="banner">Aucun favori net à venir pour le moment.</div>')
 
-    hero = ('<div class="hero"><img class="hero-logo" src="/static/logo.png?v=2" '
-            'alt="BETSFIX"></div>') if os.path.exists(_LOGO) else ""
-
-    # Confiances AU-DESSUS des valeurs (favori net d'abord, puis les value/outsiders)
-    body = f'{hero}{conf_html}{val_html}'
+    # Confiances AU-DESSUS des valeurs (favori net d'abord, puis les value/outsiders).
+    # Le logo est désormais géré par layout() en haut de chaque page.
+    body = f'{conf_html}{val_html}'
     return layout("Accueil", "home", body, refresh=True, source=source)
 
 
