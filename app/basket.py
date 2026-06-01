@@ -36,6 +36,8 @@ HOME_ADV = 65.0            # avantage du terrain en points Elo (~2.5-3 pts)
 MODEL_TRUST = 0.50         # ancrage marché (l'Elo jeune est bruité -> on suit le book)
 VALUE_THRESHOLD = 0.05
 MIN_IMPLIED, MAX_IMPLIED = 0.25, 0.75
+MAX_DISAGREEMENT = 0.15    # si le modèle dépasse le marché de +15 pts, c'est le modèle
+                           # (Elo jeune) qui a tort -> pas de value (garde-fou comme le tennis)
 
 # Ligues suivies (nom SofaScore -> config). L'écart-type de marge diffère :
 # la NBA a des scores plus élevés et des marges un peu plus dispersées que la WNBA.
@@ -277,6 +279,7 @@ async def board() -> list[dict]:
                 fair = MODEL_TRUST * model_p + (1 - MODEL_TRUST) * imp_s
                 edge = fair - imp_s
                 if (edge >= VALUE_THRESHOLD and MIN_IMPLIED <= imp_s <= MAX_IMPLIED
+                        and (model_p - imp_s) <= MAX_DISAGREEMENT   # modèle pas "aveugle"
                         and odds_s and (not pick or edge > pick["edge"])):
                     b = odds_s - 1
                     kf = max(0.0, (b * fair - (1 - fair)) / b) if b > 0 else 0.0

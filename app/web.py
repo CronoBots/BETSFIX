@@ -152,6 +152,11 @@ CSS = """
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
   .fd{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
       border-radius:4px;font-size:9px;font-weight:800;color:#08110a}
+  .votes{margin-top:7px}
+  .vlbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+  .vbar{display:flex;height:6px;border-radius:99px;overflow:hidden;margin-top:3px;background:var(--surface)}
+  .vbar .vh{background:var(--accent2)}
+  .vbar .va{background:#5a6472}
   .bar{height:9px;border-radius:99px;background:rgba(242,93,110,.22);overflow:hidden;margin:8px 0}
   .bar > span{display:block;height:100%;border-radius:99px;
               background:linear-gradient(90deg,var(--accent2),var(--accent))}
@@ -407,12 +412,15 @@ def unibet_badge(available: bool) -> str:
 
 
 def votes_line(home_pct, away_pct, home, away) -> str:
-    """Ligne 'pronostics des fans' (votes SofaScore)."""
+    """Pronostics des fans (votes SofaScore) en mini-barre visuelle."""
     if home_pct is None or away_pct is None:
         return ""
     e = html.escape
-    return (f'<div class="dim">👥 fans : <b>{round(home_pct)}%</b> {e(home)} · '
-            f'<b>{round(away_pct)}%</b> {e(away)}</div>')
+    h, a = round(home_pct), round(away_pct)
+    return (f'<div class="votes"><div class="vlbl"><span>👥 <b>{h}%</b> {e(home)}</span>'
+            f'<span>{e(away)} <b>{a}%</b></span></div>'
+            f'<div class="vbar"><span class="vh" style="width:{h}%"></span>'
+            f'<span class="va" style="width:{a}%"></span></div></div>')
 
 
 def fmt_score(home_score, away_score) -> str:

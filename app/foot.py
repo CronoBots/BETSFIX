@@ -40,6 +40,8 @@ HORIZON_DAYS = 14         # la CdM démarre dans ~11 jours -> fenêtre large
 MODEL_TRUST = 0.50
 VALUE_THRESHOLD = 0.05
 MIN_IMPLIED, MAX_IMPLIED = 0.12, 0.80
+MAX_DISAGREEMENT = 0.15    # si le modèle dépasse le marché de +15 pts, c'est le modèle
+                           # (Elo jeune) qui a tort -> pas de value (garde-fou comme le tennis)
 
 SOFA_B = "https://api.sofascore.com/api/v1"
 SOFA_H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
@@ -234,6 +236,7 @@ async def board() -> list[dict]:
                 fair = MODEL_TRUST * probs[i] + (1 - MODEL_TRUST) * imp[i]
                 edge = fair - imp[i]
                 if (edge >= VALUE_THRESHOLD and MIN_IMPLIED <= imp[i] <= MAX_IMPLIED
+                        and (probs[i] - imp[i]) <= MAX_DISAGREEMENT   # modèle pas "aveugle"
                         and odd and (not pick or edge > pick["edge"])):
                     pick = {"code": code, "team": name, "odds": odd, "edge": edge}
         rows.append({**g, "probs": probs, "goals": goals_markets(eh, ea),
