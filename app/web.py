@@ -156,6 +156,7 @@ CSS = """
   .fd{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
       border-radius:4px;font-size:9px;font-weight:800;color:#08110a}
   .pbars{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
   .pb-row{display:flex;align-items:center;gap:9px;font-size:11px}
   .pb-l{width:84px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
         font-weight:700;font-size:10px}
@@ -274,7 +275,10 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 
 
 def _pick_bars(p: dict) -> str:
-    """3 barres pour la proba du pari : Modèle (l'app) / Officiel (cote) / Communauté (fans)."""
+    """3 barres = proba que LE PARI passe, selon Modèle (l'app) / Officiel (cote) / Communauté.
+
+    Toutes mesurent la même chose (chances du pari) -> comparables. Le vote communauté
+    est la part des fans sur ce côté (le reste va à l'adversaire : total 100%)."""
     def bar(label, val, cls):
         if val is None:
             return ""
@@ -285,7 +289,11 @@ def _pick_bars(p: dict) -> str:
     inner = (bar("Modèle", p.get("model_prob"), "pm")
              + bar("Officiel", p.get("implied"), "po")
              + bar("Communauté", p.get("community"), "pc"))
-    return f'<div class="pbars">{inner}</div>' if inner else ""
+    if not inner:
+        return ""
+    bet = html.escape(p.get("bet") or "le pari")
+    return (f'<div class="pbars"><div class="pb-h">Chances que <b>{bet}</b> gagne '
+            f'<span class="dim">— selon :</span></div>{inner}</div>')
 
 
 def render_home(rep: dict, source: dict | None = None,
@@ -317,8 +325,9 @@ def render_home(rep: dict, source: dict | None = None,
         picks_html = (f'<h2>🔥 Confiances du jour ({len(picks)})</h2>'
                       '<div class="banner">Meilleures <b>value</b> des 3 sports vs Unibet, classées '
                       'par avantage. Le badge <b>+X pts</b> = écart estimé du modèle sur la cote '
-                      '(en points de %). Barres : <b>Modèle</b> (l\'app) · <b>Officiel</b> (cote '
-                      'Unibet) · <b>Communauté</b> (votes des fans). À recouper.</div>'
+                      '(en points de %). Les 3 barres = <b>chance que le pari passe</b> selon le '
+                      '<b>Modèle</b>, la cote (<b>Officiel</b>) et les fans (<b>Communauté</b>) — '
+                      'comparables : quand Modèle &gt; Officiel, c\'est la value. À recouper.</div>'
                       + rows)
     else:
         picks_html = ('<h2>🔥 Confiances du jour</h2>'
