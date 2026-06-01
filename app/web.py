@@ -286,9 +286,9 @@ def _pick_bars(p: dict) -> str:
         return (f'<div class="pb-row"><span class="pb-l">{label}</span>'
                 f'<div class="pb-t"><span class="{cls}" style="width:{min(pct,100)}%"></span></div>'
                 f'<span class="pb-v">{pct}%</span></div>')
-    inner = (bar("Modèle", p.get("model_prob"), "pm")
-             + bar("Officiel", p.get("implied"), "po")
-             + bar("Communauté", p.get("community"), "pc"))
+    inner = (bar("BetsFix", p.get("model_prob"), "pm")
+             + bar("Bookmaker", p.get("implied"), "po")
+             + bar("Public", p.get("community"), "pc"))
     if not inner:
         return ""
     bet = html.escape(p.get("bet") or "le pari")
@@ -324,10 +324,11 @@ def render_home(rep: dict, source: dict | None = None,
             for p in picks)
         picks_html = (f'<h2>🔥 Confiances du jour ({len(picks)})</h2>'
                       '<div class="banner">Meilleures <b>value</b> des 3 sports vs Unibet, classées '
-                      'par avantage. Le badge <b>+X pts</b> = écart estimé du modèle sur la cote '
-                      '(en points de %). Les 3 barres = <b>chance que le pari passe</b> selon le '
-                      '<b>Modèle</b>, la cote (<b>Officiel</b>) et les fans (<b>Communauté</b>) — '
-                      'comparables : quand Modèle &gt; Officiel, c\'est la value. À recouper.</div>'
+                      'par avantage. Le badge <b>+X pts</b> = écart estimé de BetsFix sur la cote '
+                      '(en points de %). Les 3 barres = <b>chance que le pari passe</b> selon '
+                      '<b>BetsFix</b> (l\'app), le <b>Bookmaker</b> (cote Unibet) et le '
+                      '<b>Public</b> (votes SofaScore) — comparables : quand BetsFix &gt; Bookmaker, '
+                      'c\'est la value. À recouper.</div>'
                       + rows)
     else:
         picks_html = ('<h2>🔥 Confiances du jour</h2>'
