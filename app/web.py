@@ -79,6 +79,8 @@ CSS = """
   body{margin:0;color:var(--text);font-size:15px;line-height:1.45;
        font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+       -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+       -webkit-tap-highlight-color:transparent;touch-action:manipulation;
        background:
          radial-gradient(900px 500px at 100% -10%,rgba(46,226,127,.07),transparent 60%),
          radial-gradient(700px 400px at -10% 0%,rgba(60,120,255,.05),transparent 55%),
@@ -280,7 +282,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#080a0f">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
