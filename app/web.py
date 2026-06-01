@@ -86,7 +86,20 @@ CSS = """
          radial-gradient(700px 400px at -10% 0%,rgba(60,120,255,.05),transparent 55%),
          var(--bg);}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
-  .wrap{max-width:720px;margin:0 auto;padding:16px 16px 56px}
+  .wrap{max-width:720px;margin:0 auto;padding:16px 16px calc(86px + env(safe-area-inset-bottom))}
+  /* Barre d'onglets fixée en bas (style app native) */
+  .botnav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:4px;
+          padding:7px 10px calc(7px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;
+          background:linear-gradient(0deg,rgba(10,12,17,.97),rgba(10,12,17,.86));
+          backdrop-filter:saturate(160%) blur(16px);-webkit-backdrop-filter:saturate(160%) blur(16px);
+          border-top:1px solid var(--border)}
+  .botnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+            padding:6px 0 4px;border-radius:14px;color:var(--muted);font-size:10px;
+            font-weight:700;transition:.15s}
+  .botnav a .ic{font-size:24px;line-height:1}
+  .botnav a:active{transform:scale(.93)}
+  .botnav a.on{color:var(--accent);background:var(--surface)}
+  .botnav a.on .ic{transform:scale(1.06)}
   /* Header sticky premium */
   .hdr{position:sticky;top:0;z-index:50;
        background:linear-gradient(180deg,rgba(12,15,22,.92),rgba(12,15,22,.78));
@@ -267,9 +280,10 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
                   f'LiveScore prend le relais">🟠 pause</span>')
     nav_items = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
                  ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot")]
-    nav = '<nav class="nav">' + "".join(
-        f'<a class="{"on" if sport == k else ""}" href="{href}" '
-        f'aria-label="{e(name)}" title="{e(name)}">{ico}</a>'
+    # Barre d'onglets fixée en BAS (style app native) : icône + petit label.
+    botnav = '<nav class="botnav">' + "".join(
+        f'<a class="{"on" if sport == k else ""}" href="{href}" aria-label="{e(name)}">'
+        f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span></a>'
         for k, href, ico, name in nav_items) + "</nav>"
 
     sub = ""
@@ -293,9 +307,9 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 <header class="hdr"><div class="hdr-in">
 <div class="brand"><img class="logo" src="/static/mark.png?v=2" alt=""><img class="wm" src="/static/wordmark.png?v=2" alt="BETSFIX"><span class="hright">{status}<span class="tag">Multi-sports</span></span></div>
-{nav}</div></header><div class="wrap">{sub}{body}
+</div></header><div class="wrap">{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div></body></html>"""
+</div>{botnav}</body></html>"""
 
 
 def _pick_bars(p: dict) -> str:
@@ -468,7 +482,7 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
 def perf_toggle(active: str) -> str:
     """Bascule de sport sur la page Perf (suivis séparés)."""
     tabs = [("tennis", "🎾 Tennis"), ("basket", "🏀 Basket"), ("foot", "⚽ Foot")]
-    return ('<div class="nav" style="margin-top:0">' + "".join(
+    return ('<div class="subnav" style="margin-top:0">' + "".join(
         f'<a class="{"on" if active == k else ""}" '
         f'href="/tracking/dashboard?sport={k}">{html.escape(lbl)}</a>'
         for k, lbl in tabs) + "</div>")
