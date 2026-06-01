@@ -22,7 +22,7 @@ import asyncio
 
 import httpx
 
-from app import tracking, web
+from app import sportcache, tracking, web
 from app.dependencies import get_provider
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -122,11 +122,18 @@ def _devig3(o1, ox, o2):
 
 # ----------------------------------------------------------------- données
 async def _get(client, base, path, params=None):
+    key = base + path + (str(sorted(params.items())) if params else "")
+    cached = sportcache.get(key)
+    if cached is not None:
+        return cached
     try:
         r = await client.get(base + path, params=params, timeout=20)
-        return r.json() if r.status_code == 200 else None
+        data = r.json() if r.status_code == 200 else None
     except httpx.HTTPError:
-        return None
+        data = None
+    # les listes de saisons changent rarement -> TTL long ; le reste -> TTL court
+    sportcache.put(key, data, ttl=3600 if "/seasons" in path else sportcache.DEFAULT_TTL)
+    return data
 
 
 async def _season_id(client, tid):
@@ -255,7 +262,11 @@ async def enrich_display(rows: list[dict]) -> None:
             pass
 
     if targets:
-        await asyncio.gather(*[one(r) for r in targets], return_exceptions=True)
+        try:   # best-effort : si SofaScore traîne, on rend la page sans enrichissement
+            await asyncio.wait_for(
+                asyncio.gather(*[one(r) for r in targets], return_exceptions=True), timeout=3.0)
+        except asyncio.TimeoutError:
+            pass
 
 
 # ----------------------------------------------------------------- rendu
