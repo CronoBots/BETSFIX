@@ -150,12 +150,17 @@ CSS = """
   .b-dim{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
   .b-uni{background:rgba(46,155,255,.14);color:#56b0ff;border:1px solid rgba(46,155,255,.30)}
   .b-conf{background:rgba(46,155,255,.16);color:#6cbcff;border:1px solid rgba(46,155,255,.32)}
-  details.info{margin:-4px 0 10px}
-  details.info > summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;
-    gap:6px;width:max-content;font-size:12px;font-weight:700;color:var(--muted);
-    padding:5px 11px;border:1px solid var(--border);border-radius:20px}
-  details.info > summary::-webkit-details-marker{display:none}
-  details.info[open] > summary{color:var(--text);border-color:var(--border2)}
+  details.sec{margin:26px 0 11px}
+  details.sec > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+    font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+  details.sec > summary::-webkit-details-marker{display:none}
+  details.sec > summary::before{content:"";width:3px;height:14px;border-radius:3px;flex:none;
+    background:linear-gradient(var(--accent),var(--accent2))}
+  details.sec .i{margin-left:auto;width:21px;height:21px;border-radius:50%;flex:none;
+    border:1px solid var(--border2);display:inline-flex;align-items:center;justify-content:center;
+    font:italic 800 12px Georgia,serif;text-transform:none;color:var(--muted)}
+  details.sec[open] .i{color:#fff;border-color:var(--accent2);background:rgba(46,155,255,.16)}
+  details.sec > .banner{margin-top:9px}
   .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
@@ -303,10 +308,14 @@ def _pick_bars(p: dict) -> str:
             f'<span class="dim">— selon :</span></div>{inner}</div>')
 
 
-def _info(content: str, label: str = "Comment lire ?") -> str:
-    """Explication repliable (HTML natif, sans JS) : un petit 'ⓘ' à dérouler."""
-    return (f'<details class="info"><summary>ⓘ {label}</summary>'
-            f'<div class="banner" style="margin-top:8px">{content}</div></details>')
+def _head(title: str, info: str | None = None) -> str:
+    """Titre de section. Si `info` est fourni, un petit 'i' à droite déroule
+    l'explication dessous (HTML natif <details>, sans JS)."""
+    if not info:
+        return f'<h2>{title}</h2>'
+    return (f'<details class="sec"><summary>{title}'
+            '<span class="i" aria-label="Infos">i</span></summary>'
+            f'<div class="banner">{info}</div></details>')
 
 
 def _pick_card(p: dict, badge: str) -> str:
@@ -343,11 +352,11 @@ def render_home(rep: dict, source: dict | None = None,
         rows = "".join(_pick_card(
             p, '<span class="badge b-val" title="Avantage estimé sur la cote">'
                f'+{round((p.get("edge") or 0)*100, 1)} pts</span>') for p in picks)
-        val_html = (f'<h2>💎 Valeurs du jour ({len(picks)})</h2>'
-                    + _info('Paris où <b>BetsFix</b> estime la cote <b>sous-évaluée</b> (edge). '
-                            'Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
-                            'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. '
-                            f'{bars_legend} Value = quand BetsFix &gt; Bookmaker.') + rows)
+        val_html = (_head(f'💎 Valeurs du jour ({len(picks)})',
+                          'Paris où <b>BetsFix</b> estime la cote <b>sous-évaluée</b> (edge). '
+                          'Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
+                          'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. '
+                          f'{bars_legend} Value = quand BetsFix &gt; Bookmaker.') + rows)
     else:
         val_html = ('<h2>💎 Valeurs du jour</h2>'
                     '<div class="banner">Aucune value détectée pour le moment '
@@ -358,10 +367,10 @@ def render_home(rep: dict, source: dict | None = None,
         rows = "".join(_pick_card(
             p, f'<span class="badge b-conf" title="Probabilité du modèle">modèle '
                f'{p.get("conf_pct")}%</span>') for p in conf_picks)
-        conf_html = (f'<h2>🔥 Confiances du jour ({len(conf_picks)})</h2>'
-                     + _info('Matchs où <b>BetsFix</b> voit un <b>favori net</b> (forte proba de '
-                             'gagner). Plus « sûr » mais souvent à <b>petite cote</b> — donc '
-                             'rarement une value. Badge = proba du modèle.') + rows)
+        conf_html = (_head(f'🔥 Confiances du jour ({len(conf_picks)})',
+                           'Matchs où <b>BetsFix</b> voit un <b>favori net</b> (forte proba de '
+                           'gagner). Plus « sûr » mais souvent à <b>petite cote</b> — donc '
+                           'rarement une value. Badge = proba du modèle.') + rows)
     else:
         conf_html = ('<h2>🔥 Confiances du jour</h2>'
                      '<div class="banner">Aucun favori net à venir pour le moment.</div>')
@@ -431,19 +440,22 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
 
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
     « aucun match » (qui laisserait croire qu'il n'y a pas de rencontres)."""
-    out = [f'<div class="banner">{intro}</div>'] if intro else []
-
-    def section(heading, rows):
+    out = []
+    sections = [("🔥 Confiance du jour", value), ("🔴 En direct", live),
+                ("📅 À venir", upcoming), ("✅ Terminés", finished)]
+    info_done = False
+    for heading, rows in sections:
         if not rows:
-            return ""
-        return (f'<h2>{heading} ({len(rows)})</h2>'
-                + "".join(_sport_row(r) for r in rows))
+            continue
+        # l'intro (à propos du sport) se replie derrière le 'i' du 1er titre affiché
+        info = intro if (intro and not info_done) else None
+        info_done = info_done or bool(info)
+        out.append(_head(f'{heading} ({len(rows)})', info)
+                   + "".join(_sport_row(r) for r in rows))
 
-    out.append(section("🔥 Confiance du jour", value))
-    out.append(section("🔴 En direct", live))
-    out.append(section("📅 À venir", upcoming))
-    out.append(section("✅ Terminés", finished))
     if not (value or live or upcoming or finished):
+        if intro:
+            out.append(f'<div class="banner">{intro}</div>')
         if paused:
             out.append('<div class="banner warn">⏸️ Source SofaScore momentanément en pause '
                        '(trop de requêtes) — les matchs reviennent <b>automatiquement</b> '
