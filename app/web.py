@@ -93,6 +93,7 @@ CSS = """
          letter-spacing:-.02em}
   .brand .logo{font-size:22px;filter:drop-shadow(0 2px 7px rgba(46,155,255,.5))}
   .brand img.logo{height:30px;width:auto;display:block}
+  .brand img.wm{height:15px;width:auto;display:block;margin-left:-2px}
   .hero{text-align:center;padding:18px 0 6px}
   .hero-logo{max-width:230px;width:62%;height:auto;
              filter:drop-shadow(0 6px 22px rgba(46,155,255,.35))}
@@ -254,7 +255,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-title" content="BetsFix">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 <header class="hdr"><div class="hdr-in">
-<div class="brand"><img class="logo" src="/static/mark.png" alt=""> Bets<b>Fix</b><span class="tag">Multi-sports</span></div>
+<div class="brand"><img class="logo" src="/static/mark.png" alt=""><img class="wm" src="/static/wordmark.png" alt="BETSFIX"><span class="tag">Multi-sports</span></div>
 {nav}</div></header><div class="wrap">{sub}{body}
 <div class="foot">Données SofaScore + Unibet BE · informatif, sans garantie · jouez responsable</div>
 </div></body></html>"""

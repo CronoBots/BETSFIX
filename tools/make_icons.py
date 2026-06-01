@@ -35,11 +35,14 @@ def make(size: int) -> Image.Image:
 
 
 def from_logo(size: int, src: Image.Image) -> Image.Image:
-    """Logo deja carre sur fond sombre : resize direct pour l'icone d'app."""
-    img = src.convert("RGB")
-    if img.size != (size, size):
-        img = img.resize((size, size), Image.LANCZOS)
-    return img
+    """Cadre le logo (transparent ou non, ratio quelconque) sur un carre a fond plein,
+    SANS deformer : padding centre puis resize. Une icone PWA doit avoir un fond opaque.
+    """
+    logo = src.convert("RGBA")
+    side = max(logo.size)
+    canvas = Image.new("RGBA", (side, side), BG + (255,))
+    canvas.paste(logo, ((side - logo.size[0]) // 2, (side - logo.size[1]) // 2), logo)
+    return canvas.convert("RGB").resize((size, size), Image.LANCZOS)
 
 
 def main():
