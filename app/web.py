@@ -149,6 +149,7 @@ CSS = """
   .b-val{background:rgba(46,226,127,.14);color:var(--accent);border:1px solid rgba(46,226,127,.25)}
   .b-dim{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
   .b-uni{background:rgba(46,155,255,.14);color:#56b0ff;border:1px solid rgba(46,155,255,.30)}
+  .b-conf{background:rgba(46,155,255,.16);color:#6cbcff;border:1px solid rgba(46,155,255,.32)}
   .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
@@ -296,11 +297,22 @@ def _pick_bars(p: dict) -> str:
             f'<span class="dim">— selon :</span></div>{inner}</div>')
 
 
-def render_home(rep: dict, source: dict | None = None,
-                picks: list[dict] | None = None) -> str:
+def _pick_card(p: dict, badge: str) -> str:
+    """Carte d'un pari pour l'accueil (value OU confiance), avec les 3 barres."""
     e = html.escape
-    prec = rep.get("precision_modele")
-    prec_txt = "—" if prec is None else f"{round(prec*100)}%"
+    odds = f' <span class="dim">@{p.get("odds")}</span>' if p.get("odds") else ""
+    return (f'<a class="row pick" href="{p["url"]}">'
+            f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])} · {e(p.get("time") or "")}</span>'
+            f'{badge}</div>'
+            f'<div class="players">{e(p.get("bet") or "")}{odds}</div>'
+            f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
+            f'{_pick_bars(p)}</a>')
+
+
+def render_home(rep: dict, source: dict | None = None,
+                picks: list[dict] | None = None,
+                conf_picks: list[dict] | None = None) -> str:
+    e = html.escape
     if source and source.get("ok"):
         src = '<div class="src ok">🟢 Source : SofaScore OK</div>'
     elif source:
@@ -309,37 +321,44 @@ def render_home(rep: dict, source: dict | None = None,
     else:
         src = ""
 
-    # 🔥 Confiances du jour : les value des 3 sports, classées par edge
     picks = picks or []
+    conf_picks = conf_picks or []
+    bars_legend = ('Les 3 barres = <b>chance que le pari gagne</b> selon <b>BetsFix</b> (l\'app), '
+                   'le <b>Bookmaker</b> (cote Unibet) et le <b>Public</b> (votes SofaScore).')
+
+    # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders
     if picks:
-        rows = "".join(
-            f'<a class="row pick" href="{p["url"]}">'
-            f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])} · {e(p.get("time") or "")}</span>'
-            f'<span class="badge b-val" title="Avantage estimé du modèle sur la cote">'
-            f'+{round((p.get("edge") or 0)*100, 1)} pts</span></div>'
-            f'<div class="players">{e(p.get("bet") or "")} '
-            f'<span class="dim">@{p.get("odds") or "—"}</span></div>'
-            f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
-            f'{_pick_bars(p)}</a>'
-            for p in picks)
-        picks_html = (f'<h2>🔥 Confiances du jour ({len(picks)})</h2>'
-                      '<div class="banner">Meilleures <b>value</b> des 3 sports vs Unibet, classées '
-                      'par avantage. Le badge <b>+X pts</b> = écart estimé de BetsFix sur la cote '
-                      '(en points de %). Les 3 barres = <b>chance que le pari passe</b> selon '
-                      '<b>BetsFix</b> (l\'app), le <b>Bookmaker</b> (cote Unibet) et le '
-                      '<b>Public</b> (votes SofaScore) — comparables : quand BetsFix &gt; Bookmaker, '
-                      'c\'est la value. À recouper.</div>'
-                      + rows)
+        rows = "".join(_pick_card(
+            p, '<span class="badge b-val" title="Avantage estimé sur la cote">'
+               f'+{round((p.get("edge") or 0)*100, 1)} pts</span>') for p in picks)
+        val_html = (f'<h2>💎 Valeurs du jour ({len(picks)})</h2>'
+                    '<div class="banner">Paris où <b>BetsFix</b> estime la cote <b>sous-évaluée</b> '
+                    '(edge). Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
+                    f'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. {bars_legend} '
+                    'Value = quand BetsFix &gt; Bookmaker.</div>' + rows)
     else:
-        picks_html = ('<h2>🔥 Confiances du jour</h2>'
-                      '<div class="banner">Aucune value détectée pour le moment '
-                      '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
+        val_html = ('<h2>💎 Valeurs du jour</h2>'
+                    '<div class="banner">Aucune value détectée pour le moment '
+                    '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
+
+    # 🔥 CONFIANCES du jour : favori NET du modèle (forte proba) — pas forcément une value
+    if conf_picks:
+        rows = "".join(_pick_card(
+            p, f'<span class="badge b-conf" title="Probabilité du modèle">modèle '
+               f'{p.get("conf_pct")}%</span>') for p in conf_picks)
+        conf_html = (f'<h2>🔥 Confiances du jour ({len(conf_picks)})</h2>'
+                     '<div class="banner">Matchs où <b>BetsFix</b> voit un <b>favori net</b> '
+                     '(forte proba de gagner). Plus « sûr » mais souvent à <b>petite cote</b> — '
+                     'donc rarement une value. Badge = proba du modèle.</div>' + rows)
+    else:
+        conf_html = ('<h2>🔥 Confiances du jour</h2>'
+                     '<div class="banner">Aucun favori net à venir pour le moment.</div>')
 
     hero = ('<div class="hero"><img class="hero-logo" src="/static/logo.png?v=2" '
             'alt="BetsFix"><div class="hero-sub">Analyse multi-sports · '
             'value vs Unibet</div></div>') if os.path.exists(_LOGO) else ""
 
-    body = (f'{hero}{src}{picks_html}'
+    body = (f'{hero}{src}{val_html}{conf_html}'
             '<div class="banner warn">Outil d\'<b>aide à la décision</b> : il aide à '
             'analyser, il ne prédit pas de paris gagnants. Un modèle simple ne bat pas un '
             'book sérieux — informe-toi, décide toi-même, et joue responsable.</div>')

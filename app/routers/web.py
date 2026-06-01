@@ -80,6 +80,67 @@ def _all_sport_picks() -> list[dict]:
     return out
 
 
+def _fav_two_way(rec: dict):
+    """Favori du modèle (tennis/basket) : (nom, proba, côté, cote)."""
+    mh = rec.get("model_home_prob")
+    if mh is None:
+        return None
+    if mh >= 0.5:
+        return rec.get("home", ""), mh, "home", rec.get("unibet_home_odds")
+    return rec.get("away", ""), 1 - mh, "away", rec.get("unibet_away_odds")
+
+
+def _fav_foot(rec: dict):
+    """Favori du modèle (foot, 1-X-2) : (nom, proba, côté, cote)."""
+    ps = [rec.get("p_home"), rec.get("p_draw"), rec.get("p_away")]
+    if any(p is None for p in ps):
+        return None
+    i = max(range(3), key=lambda k: ps[k])
+    name = [rec.get("home", ""), "Match nul", rec.get("away", "")][i]
+    odds = [rec.get("o1"), rec.get("ox"), rec.get("o2")][i]
+    return name, ps[i], ["home", "draw", "away"][i], odds
+
+
+CONF_MIN_PROB = 0.65   # "confiance" = favori NET (sinon ce n'est pas une vraie confiance)
+
+
+def _confidence_picks() -> list[dict]:
+    """Matchs où le modèle est le plus SÛR du résultat (favori net), tous sports.
+
+    Différent des 'valeurs' : ici on cherche la proba la plus haute (favori), pas
+    l'écart avec la cote. Souvent des favoris -> pas forcément une value."""
+    from app import basket, foot
+    out = []
+
+    def add(store, sport, icon, url_fn, fav_fn):
+        for rec in store.values():
+            if rec.get("result"):
+                continue
+            fav = fav_fn(rec)
+            if not fav or fav[1] is None or fav[1] < CONF_MIN_PROB:
+                continue
+            name, prob, side, odds = fav
+            ph, pa = rec.get("public_home"), rec.get("public_away")
+            community = ((ph if side == "home" else pa) / 100
+                         if ph is not None and side in ("home", "away") else None)
+            out.append({
+                "sport": sport, "icon": icon, "home": rec.get("home", ""),
+                "away": rec.get("away", ""), "bet": name, "model_prob": prob, "side": side,
+                "conf_pct": round(prob * 100), "odds": odds,
+                "implied": (1 / odds) if odds else None, "community": community,
+                "match_id": rec.get("match_id"),
+                "time": web.fmt_local(rec.get("start_time"), with_date=True),
+                "url": url_fn(rec),
+            })
+
+    add(tracking.load(), "Tennis", "🎾",
+        lambda r: f'/app/match/{r["match_id"]}?tour={r.get("tour", "atp")}', _fav_two_way)
+    add(tracking.load(basket.BASKET_TRACK_PATH), "Basket", "🏀", lambda r: "/basket", _fav_two_way)
+    add(tracking.load(foot.FOOT_TRACK_PATH), "Foot", "⚽", lambda r: "/foot", _fav_foot)
+    out.sort(key=lambda p: p["model_prob"], reverse=True)
+    return out
+
+
 async def _enrich_picks_votes(picks: list[dict], provider) -> None:
     """Ajoute la proba 'communauté' (votes fans, côté parié) — best-effort, provider caché.
     Si SofaScore est en pause, le disjoncteur court-circuite : on n'affiche juste rien."""
@@ -104,10 +165,12 @@ async def _enrich_picks_votes(picks: list[dict], provider) -> None:
 
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
-    picks = _all_sport_picks()[:8]
-    await _enrich_picks_votes(picks, provider)   # proba communauté (best-effort)
+    values = _all_sport_picks()[:8]          # value = edge vs cote (souvent outsiders)
+    confidences = _confidence_picks()[:6]    # confiance = favori net du modèle
+    await _enrich_picks_votes(values + confidences, provider)   # votes communauté (best-effort)
     return HTMLResponse(web.render_home(
-        tracking.report(tracking.load()), source=provider.breaker_status(), picks=picks))
+        tracking.report(tracking.load()), source=provider.breaker_status(),
+        picks=values, conf_picks=confidences))
 
 
 @router.get("/app", response_class=HTMLResponse)
