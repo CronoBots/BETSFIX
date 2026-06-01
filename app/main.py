@@ -1,4 +1,4 @@
-"""Point d'entrée de l'API BetsFix multi-sports (FastAPI)."""
+"""Point d'entrée de l'API BETSFIX multi-sports (FastAPI)."""
 
 import asyncio
 import logging
@@ -172,8 +172,8 @@ app.mount("/static", StaticFiles(directory=os.path.join(_ROOT, "static")), name=
 @app.get("/manifest.webmanifest", include_in_schema=False)
 async def manifest() -> JSONResponse:
     return JSONResponse({
-        "name": "BetsFix — Analyse paris multi-sports",
-        "short_name": "BetsFix",
+        "name": "BETSFIX — Analyse paris multi-sports",
+        "short_name": "BETSFIX",
         "description": "Tennis · Basket · Foot — modèle vs cotes, value, calibration.",
         "start_url": "/", "scope": "/", "display": "standalone",
         "orientation": "portrait",
@@ -189,7 +189,7 @@ async def manifest() -> JSONResponse:
 @app.get("/api", tags=["ℹ️ Méta"], summary="Catalogue des endpoints (JSON), groupé par sport")
 async def root() -> dict:
     return {
-        "name": "BetsFix API",
+        "name": "BETSFIX API",
         "version": __version__,
         "docs": "/docs",
         "sports": {

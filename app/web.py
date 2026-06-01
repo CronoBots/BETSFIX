@@ -91,7 +91,7 @@ CSS = """
        backdrop-filter:saturate(160%) blur(14px);-webkit-backdrop-filter:saturate(160%) blur(14px);
        border-bottom:1px solid var(--border)}
   .hdr-in{max-width:720px;margin:0 auto;padding:12px 16px 10px}
-  .brand{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:800;
+  .brand{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:800;
          letter-spacing:-.02em}
   .brand .logo{font-size:22px;filter:drop-shadow(0 2px 7px rgba(46,155,255,.5))}
   .brand img.logo{height:30px;width:auto;display:block}
@@ -238,8 +238,7 @@ CSS = """
        font-size:16px;font-weight:700;box-shadow:var(--shadow);transition:.16s}
   .big:active{transform:scale(.99)}
   .big .d{font-size:12.5px;color:var(--muted);font-weight:400;margin-top:5px;line-height:1.5}
-  .foot{color:var(--dim);font-size:11px;margin-top:30px;text-align:center;line-height:1.7;
-        border-top:1px solid var(--border);padding-top:18px}
+  .foot{color:var(--dim);font-size:10.5px;margin-top:22px;text-align:center;line-height:1.6}
   .src{font-size:12px;font-weight:600;padding:9px 13px;border-radius:12px;margin:4px 0 2px;
        border:1px solid var(--border)}
   .src.ok{background:rgba(46,226,127,.10);color:var(--accent);border-color:rgba(46,226,127,.22)}
@@ -275,17 +274,17 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#080a0f">
-{meta_refresh}<title>{e(title)} · BetsFix</title>
+{meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon-180.png?v=2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="BetsFix">
+<meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 <header class="hdr"><div class="hdr-in">
 <div class="brand"><img class="logo" src="/static/mark.png?v=2" alt=""><img class="wm" src="/static/wordmark.png?v=2" alt="BETSFIX"><span class="tag">Multi-sports</span></div>
 {nav}</div></header><div class="wrap">{sub}{body}
-<div class="foot">Données SofaScore + Unibet BE · informatif, sans garantie · jouez responsable</div>
+<div class="foot">18+ · informatif, sans garantie · jouez responsable</div>
 </div></body></html>"""
 
 
@@ -301,7 +300,7 @@ def _pick_bars(p: dict) -> str:
         return (f'<div class="pb-row"><span class="pb-l">{label}</span>'
                 f'<div class="pb-t"><span class="{cls}" style="width:{min(pct,100)}%"></span></div>'
                 f'<span class="pb-v">{pct}%</span></div>')
-    inner = (bar("BetsFix", p.get("model_prob"), "pm")
+    inner = (bar("BETSFIX", p.get("model_prob"), "pm")
              + bar("Bookmaker", p.get("implied"), "po")
              + bar("Public", p.get("community"), "pc"))
     if not inner:
@@ -337,9 +336,8 @@ def render_home(rep: dict, source: dict | None = None,
                 picks: list[dict] | None = None,
                 conf_picks: list[dict] | None = None) -> str:
     e = html.escape
-    if source and source.get("ok"):
-        src = '<div class="src ok">🟢 Source : SofaScore OK</div>'
-    elif source:
+    # bandeau source : seulement en cas de problème (rien quand tout va bien -> accueil épuré)
+    if source and not source.get("ok"):
         src = (f'<div class="src ko">🟠 SofaScore en pause '
                f'({source.get("paused_seconds", 0)}s) — LiveScore prend le relais</div>')
     else:
@@ -347,7 +345,7 @@ def render_home(rep: dict, source: dict | None = None,
 
     picks = picks or []
     conf_picks = conf_picks or []
-    bars_legend = ('Les 3 barres = <b>chance que le pari gagne</b> selon <b>BetsFix</b> (l\'app), '
+    bars_legend = ('Les 3 barres = <b>chance que le pari gagne</b> selon <b>BETSFIX</b> (l\'app), '
                    'le <b>Bookmaker</b> (cote Unibet) et le <b>Public</b> (votes SofaScore).')
 
     # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders
@@ -356,10 +354,10 @@ def render_home(rep: dict, source: dict | None = None,
             p, '<span class="badge b-val" title="Avantage estimé sur la cote">'
                f'+{round((p.get("edge") or 0)*100, 1)} pts</span>') for p in picks)
         val_html = (_head(f'💎 Valeurs du jour ({len(picks)})',
-                          'Paris où <b>BetsFix</b> estime la cote <b>sous-évaluée</b> (edge). '
+                          'Paris où <b>BETSFIX</b> estime la cote <b>sous-évaluée</b> (edge). '
                           'Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
                           'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. '
-                          f'{bars_legend} Value = quand BetsFix &gt; Bookmaker.') + rows)
+                          f'{bars_legend} Value = quand BETSFIX &gt; Bookmaker.') + rows)
     else:
         val_html = ('<h2>💎 Valeurs du jour</h2>'
                     '<div class="banner">Aucune value détectée pour le moment '
@@ -371,7 +369,7 @@ def render_home(rep: dict, source: dict | None = None,
             p, f'<span class="badge b-conf" title="Probabilité du modèle">modèle '
                f'{p.get("conf_pct")}%</span>') for p in conf_picks)
         conf_html = (_head(f'🔥 Confiances du jour ({len(conf_picks)})',
-                           'Matchs où <b>BetsFix</b> voit un <b>favori net</b> (forte proba de '
+                           'Matchs où <b>BETSFIX</b> voit un <b>favori net</b> (forte proba de '
                            'gagner). Plus « sûr » mais souvent à <b>petite cote</b> — donc '
                            'rarement une value. Badge = proba du modèle.') + rows)
     else:
@@ -379,13 +377,10 @@ def render_home(rep: dict, source: dict | None = None,
                      '<div class="banner">Aucun favori net à venir pour le moment.</div>')
 
     hero = ('<div class="hero"><img class="hero-logo" src="/static/logo.png?v=2" '
-            'alt="BetsFix"><div class="hero-sub">Analyse multi-sports · '
-            'value vs Unibet</div></div>') if os.path.exists(_LOGO) else ""
+            'alt="BETSFIX"></div>') if os.path.exists(_LOGO) else ""
 
-    body = (f'{hero}{src}{val_html}{conf_html}'
-            '<div class="banner warn">Outil d\'<b>aide à la décision</b> : il aide à '
-            'analyser, il ne prédit pas de paris gagnants. Un modèle simple ne bat pas un '
-            'book sérieux — informe-toi, décide toi-même, et joue responsable.</div>')
+    # Confiances AU-DESSUS des valeurs (favori net d'abord, puis les value/outsiders)
+    body = f'{hero}{src}{conf_html}{val_html}'
     return layout("Accueil", "home", body, refresh=True)
 
 
