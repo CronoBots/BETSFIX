@@ -11,7 +11,7 @@ Feeds confirmés (foot=1, tennis=2, basket=3) :
   - f_{sport}_0_3_en_1            -> agenda du jour (matchs, équipes, scores, ligue)
   - df_st_{p}_{matchId}          -> statistiques (p=1 match entier, 2/3 par période/mi-temps)
   - df_li_1_{matchId}            -> compositions / formations (foot)
-  - df_sui_1_{matchId}           -> résumé (lieu, TV, infos)
+  - df_sui_1_{matchId}           -> résumé + déroulé (buts, cartons, pénos, remplacements)
   - df_hh_1_{matchId}            -> confrontations directes (historique)
 
 Feeds repérés mais NON ajoutés (volontairement) :
@@ -117,6 +117,32 @@ def parse_events(body: str) -> list[dict]:
     return matches
 
 
+def parse_incidents(body: str) -> list[dict]:
+    """Déroulé du match (depuis df_sui) -> buts, cartons, pénos, remplacements.
+
+    Codes : AC = période, IB = minute, IK = type, IF = joueur, IA = camp (1=dom, 2=ext),
+    IG/IH = score après l'évènement.
+    """
+    incidents: list[dict] = []
+    period = None
+    for kv in _rows(body):
+        if "AC" in kv:
+            period = kv["AC"]
+        if kv.get("IK") or (kv.get("IB") and kv.get("IF")):
+            score = ""
+            if kv.get("IG") is not None and kv.get("IH") is not None:
+                score = f'{kv["IG"]}-{kv["IH"]}'
+            incidents.append({
+                "minute": kv.get("IB"),
+                "type": kv.get("IK"),
+                "player": kv.get("IF"),
+                "side": {"1": "home", "2": "away"}.get(kv.get("IA")),
+                "score": score,
+                "period": period,
+            })
+    return incidents
+
+
 def parse_statistics(body: str) -> list[dict]:
     """Statistiques -> [{period, groups:[{name, items:[{name, home, away}]}]}]."""
     periods: list[dict] = []
@@ -169,6 +195,12 @@ async def lineups(match_id: str) -> dict:
 async def summary(match_id: str) -> dict:
     body = await _fetch(f"df_sui_1_{match_id}")
     return {"match_id": match_id, "source": "flashscore", "rows": _rows(body)}
+
+
+async def incidents(match_id: str) -> dict:
+    """Déroulé du match : buts, cartons, pénos, remplacements (foot)."""
+    body = await _fetch(f"df_sui_1_{match_id}")
+    return {"match_id": match_id, "source": "flashscore", "incidents": parse_incidents(body)}
 
 
 async def head_to_head(match_id: str) -> dict:

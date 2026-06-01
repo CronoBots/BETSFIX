@@ -271,6 +271,7 @@ async def root() -> dict:
                 "agenda": "/flashscore/{sport}/events  (sport: foot|tennis|basket)",
                 "stats_match": "/flashscore/match/{match_id}/statistics?period=1",
                 "compositions": "/flashscore/match/{match_id}/lineups",
+                "incidents": "/flashscore/match/{match_id}/incidents",
                 "resume": "/flashscore/match/{match_id}/summary",
                 "h2h": "/flashscore/match/{match_id}/h2h",
             },

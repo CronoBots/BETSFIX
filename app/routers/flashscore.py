@@ -53,6 +53,17 @@ async def fs_lineups(match_id: str) -> dict:
 
 
 @router.get(
+    "/match/{match_id}/incidents",
+    summary="Déroulé du match : buts, cartons, pénos, remplacements (foot)",
+)
+async def fs_incidents(match_id: str) -> dict:
+    try:
+        return await fs.incidents(match_id)
+    except fs.FlashscoreError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
     "/match/{match_id}/summary",
     summary="Résumé d'un match (lieu, diffuseurs, infos) — brut Flashscore",
 )
