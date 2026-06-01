@@ -155,6 +155,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def _no_cache_html(request, call_next):
+    """Empêche le cache des pages HTML : on évite qu'un onglet affiche une vieille
+    version (ex. ancien fond/logo) alors que le code a changé. Les fichiers statiques
+    (logos, versionnés par ?v=) gardent leur cache normal."""
+    resp = await call_next(request)
+    if resp.headers.get("content-type", "").startswith("text/html"):
+        resp.headers["Cache-Control"] = "no-store, max-age=0"
+    return resp
+
 app.include_router(matches.router)
 app.include_router(statistics.router)
 app.include_router(players.router)
