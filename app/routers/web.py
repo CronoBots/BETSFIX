@@ -27,38 +27,83 @@ router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
 HORIZON_HOURS = 48
 
 
+def _two_way_prob(rec: dict, v: dict) -> tuple[float | None, str | None]:
+    """Proba modèle du côté parié + côté (home/away) pour tennis/basket (2 issues)."""
+    mh = rec.get("model_home_prob")
+    side = v.get("side")
+    if mh is None or side not in ("home", "away"):
+        return None, side
+    return (mh if side == "home" else 1 - mh), side
+
+
+def _foot_prob(rec: dict, v: dict) -> tuple[float | None, str | None]:
+    """Proba modèle du côté parié + côté (home/draw/away) pour le foot (1-X-2)."""
+    code = v.get("code")
+    p = {"1": rec.get("p_home"), "X": rec.get("p_draw"), "2": rec.get("p_away")}.get(code)
+    side = {"1": "home", "X": "draw", "2": "away"}.get(code)
+    return p, side
+
+
 def _all_sport_picks() -> list[dict]:
     """Value 'à venir' des 3 sports, normalisées et classées par edge (pour l'accueil)."""
     from app import basket, foot
     out = []
 
-    def add(store, sport, icon, url_fn, bet_key):
+    def add(store, sport, icon, url_fn, bet_key, prob_fn):
         for rec in store.values():
             v = rec.get("value_pick")
             if rec.get("result") or not v:
                 continue
+            odds = v.get("odds")
+            model_p, side = prob_fn(rec, v)
             out.append({
                 "sport": sport, "icon": icon, "home": rec.get("home", ""),
                 "away": rec.get("away", ""), "bet": v.get(bet_key) or v.get("player") or "",
-                "odds": v.get("odds"), "edge": v.get("edge"),
+                "odds": odds, "edge": v.get("edge"),
+                "model_prob": model_p, "side": side,
+                "implied": (1 / odds) if odds else None,   # proba "officielle" (cote)
+                "match_id": rec.get("match_id"),
                 "time": web.fmt_local(rec.get("start_time"), with_date=True),
                 "url": url_fn(rec),
             })
 
     add(tracking.load(), "Tennis", "🎾",
-        lambda r: f'/app/match/{r["match_id"]}?tour={r.get("tour", "atp")}', "player")
+        lambda r: f'/app/match/{r["match_id"]}?tour={r.get("tour", "atp")}', "player", _two_way_prob)
     add(tracking.load(basket.BASKET_TRACK_PATH), "Basket", "🏀",
-        lambda r: "/basket", "player")
-    add(tracking.load(foot.FOOT_TRACK_PATH), "Foot", "⚽", lambda r: "/foot", "team")
+        lambda r: "/basket", "player", _two_way_prob)
+    add(tracking.load(foot.FOOT_TRACK_PATH), "Foot", "⚽", lambda r: "/foot", "team", _foot_prob)
     out.sort(key=lambda p: p.get("edge") or 0, reverse=True)
     return out
 
 
+async def _enrich_picks_votes(picks: list[dict], provider) -> None:
+    """Ajoute la proba 'communauté' (votes fans, côté parié) — best-effort, provider caché.
+    Si SofaScore est en pause, le disjoncteur court-circuite : on n'affiche juste rien."""
+    import asyncio
+    targets = [p for p in picks if p.get("match_id") and p.get("side") in ("home", "away")][:8]
+
+    async def one(p):
+        try:
+            v = await provider.get_votes(p["match_id"])
+            if v.home_percent is not None:
+                p["community"] = (v.home_percent if p["side"] == "home" else v.away_percent) / 100
+        except Exception:
+            pass
+
+    if targets:
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*[one(p) for p in targets], return_exceptions=True), timeout=2.5)
+        except asyncio.TimeoutError:
+            pass
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
+    picks = _all_sport_picks()[:8]
+    await _enrich_picks_votes(picks, provider)   # proba communauté (best-effort)
     return HTMLResponse(web.render_home(
-        tracking.report(tracking.load()), source=provider.breaker_status(),
-        picks=_all_sport_picks()[:8]))
+        tracking.report(tracking.load()), source=provider.breaker_status(), picks=picks))
 
 
 @router.get("/app", response_class=HTMLResponse)

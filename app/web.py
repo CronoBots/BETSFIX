@@ -155,6 +155,16 @@ CSS = """
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
   .fd{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
       border-radius:4px;font-size:9px;font-weight:800;color:#08110a}
+  .pbars{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .pb-row{display:flex;align-items:center;gap:9px;font-size:11px}
+  .pb-l{width:84px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
+        font-weight:700;font-size:10px}
+  .pb-t{flex:1;height:8px;border-radius:99px;background:var(--surface);overflow:hidden}
+  .pb-t > span{display:block;height:100%;border-radius:99px}
+  .pb-v{width:36px;flex:none;text-align:right;font-weight:800}
+  .pm{background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .po{background:#8a93a3}
+  .pc{background:#e0b341}
   .votes{margin-top:7px}
   .vlbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
   .vbar{display:flex;height:6px;border-radius:99px;overflow:hidden;margin-top:3px;background:var(--surface)}
@@ -263,6 +273,21 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 </div></body></html>"""
 
 
+def _pick_bars(p: dict) -> str:
+    """3 barres pour la proba du pari : Modèle (l'app) / Officiel (cote) / Communauté (fans)."""
+    def bar(label, val, cls):
+        if val is None:
+            return ""
+        pct = round(val * 100)
+        return (f'<div class="pb-row"><span class="pb-l">{label}</span>'
+                f'<div class="pb-t"><span class="{cls}" style="width:{min(pct,100)}%"></span></div>'
+                f'<span class="pb-v">{pct}%</span></div>')
+    inner = (bar("Modèle", p.get("model_prob"), "pm")
+             + bar("Officiel", p.get("implied"), "po")
+             + bar("Communauté", p.get("community"), "pc"))
+    return f'<div class="pbars">{inner}</div>' if inner else ""
+
+
 def render_home(rep: dict, source: dict | None = None,
                 picks: list[dict] | None = None) -> str:
     e = html.escape
@@ -282,34 +307,29 @@ def render_home(rep: dict, source: dict | None = None,
         rows = "".join(
             f'<a class="row pick" href="{p["url"]}">'
             f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])} · {e(p.get("time") or "")}</span>'
-            f'<span class="badge b-val">+{round((p.get("edge") or 0)*100, 1)} pts</span></div>'
+            f'<span class="badge b-val" title="Avantage estimé du modèle sur la cote">'
+            f'+{round((p.get("edge") or 0)*100, 1)} pts</span></div>'
             f'<div class="players">{e(p.get("bet") or "")} '
             f'<span class="dim">@{p.get("odds") or "—"}</span></div>'
-            f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div></a>'
+            f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
+            f'{_pick_bars(p)}</a>'
             for p in picks)
         picks_html = (f'<h2>🔥 Confiances du jour ({len(picks)})</h2>'
-                      '<div class="banner">Les meilleures <b>value</b> des 3 sports vs Unibet, '
-                      'classées par edge. À recouper — un pari n\'est jamais garanti.</div>'
+                      '<div class="banner">Meilleures <b>value</b> des 3 sports vs Unibet, classées '
+                      'par avantage. Le badge <b>+X pts</b> = écart estimé du modèle sur la cote '
+                      '(en points de %). Barres : <b>Modèle</b> (l\'app) · <b>Officiel</b> (cote '
+                      'Unibet) · <b>Communauté</b> (votes des fans). À recouper.</div>'
                       + rows)
     else:
         picks_html = ('<h2>🔥 Confiances du jour</h2>'
                       '<div class="banner">Aucune value détectée pour le moment '
                       '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
 
-    # Accès rapide par sport
-    sports = [("🎾", "Tennis", "/app", "ATP & WTA — value, aces, sets, service/retour"),
-              ("🏀", "Basket", "/basket", "WNBA — Elo, moneyline, marge attendue"),
-              ("⚽", "Foot", "/foot", "Coupe du Monde & grandes compétitions — 1-X-2, BTTS")]
-    cards = "".join(
-        f'<a class="big" href="{url}"><span style="font-size:20px">{ic}</span> '
-        f'<b>{name}</b><div class="d">{e(desc)}</div></a>'
-        for ic, name, url, desc in sports)
-
     hero = ('<div class="hero"><img class="hero-logo" src="/static/logo.png?v=2" '
             'alt="BetsFix"><div class="hero-sub">Analyse multi-sports · '
             'value vs Unibet</div></div>') if os.path.exists(_LOGO) else ""
 
-    body = (f'{hero}{src}{picks_html}<h2>Les sports</h2>{cards}'
+    body = (f'{hero}{src}{picks_html}'
             '<div class="banner warn">Outil d\'<b>aide à la décision</b> : il aide à '
             'analyser, il ne prédit pas de paris gagnants. Un modèle simple ne bat pas un '
             'book sérieux — informe-toi, décide toi-même, et joue responsable.</div>')
