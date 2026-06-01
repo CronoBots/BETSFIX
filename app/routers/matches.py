@@ -1,5 +1,6 @@
 """Endpoints liés aux matchs de Roland Garros."""
 
+import unicodedata
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -22,6 +23,15 @@ from app.providers.unibet import UnibetProvider
 router = APIRouter(prefix="/matches", tags=["🎾 Tennis"])
 
 Tour = Literal["atp", "wta"]
+
+
+def _fold(text: str) -> str:
+    """Minuscule + sans accents, pour une recherche par nom tolérante.
+
+    Sans ça, `?player=mensik` ne trouverait pas « Menšík » (l'accent bloque la
+    sous-chaîne). On replie les deux côtés vers l'ASCII avant de comparer."""
+    text = unicodedata.normalize("NFKD", text or "")
+    return "".join(c for c in text if not unicodedata.combining(c)).lower()
 
 
 @router.get("", summary="Tous les matchs de Roland Garros", response_model=list[Match])
@@ -53,9 +63,9 @@ async def list_matches(
     if status:
         matches = [m for m in matches if (m.status or "").lower() == status.lower()]
     if player:
-        p = player.lower()
+        p = _fold(player)
         matches = [
-            m for m in matches if p in m.home.name.lower() or p in m.away.name.lower()
+            m for m in matches if p in _fold(m.home.name) or p in _fold(m.away.name)
         ]
     return matches
 

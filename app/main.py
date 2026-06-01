@@ -116,56 +116,35 @@ async def lifespan(app: FastAPI):
 TAG_TENNIS_SRC = "🎾 Tennis · Données SofaScore (source)"
 TAG_FOOT_SRC = "⚽ Foot · Données SofaScore (source)"
 TAG_BASKET_SRC = "🏀 Basket · Données SofaScore (source)"
-TAG_COTES = "💰 Cotes & paris bookmaker (Unibet/SofaScore)"
+TAG_COTES = "💰 Cotes & paris Unibet"
 TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
 TAG_MODELE_SUIVI = "📊 Modèle maison · Suivi & performance"
 TAG_FLASH = "🟧 Flashscore (source alternative)"
 TAG_INTERFACE = "🖥️ Interface (pages HTML)"
 TAG_META = "ℹ️ Méta"
 
-_SRC_DESC = (
-    "**SOURCE = SofaScore (faits bruts).** Données factuelles à utiliser comme base "
-    "d'analyse : matchs, scores, statistiques, classements, h2h, forme, votes. "
-    "Aucun calcul ni avis de notre part ici."
-)
+# Tags SANS description : le titre porte déjà l'info (source / cotes / modèle).
+# Seules les COTES UNIBET vivent dans la section dédiée ; les cotes SofaScore sont
+# purement informatives et restent dans la section « Données SofaScore » du sport.
 OPENAPI_TAGS = [
-    {"name": TAG_TENNIS_SRC, "description": _SRC_DESC +
-     " Tennis ATP/WTA : matchs, point par point, séries, stats de match, joueurs "
-     "(fiche, photo, classements, stats)."},
-    {"name": TAG_FOOT_SRC, "description": _SRC_DESC +
-     " Foot (CdM + grandes compétitions) : stats match (xG…), incidents, compositions, "
-     "h2h, momentum, classement, top joueurs/équipes, fiches."},
-    {"name": TAG_BASKET_SRC, "description": _SRC_DESC +
-     " Basket (NBA/WNBA) : stats match, scores par quart-temps, compositions, h2h, "
-     "classement, top joueurs/équipes, effectifs."},
-    {"name": TAG_COTES, "description":
-     "**Cotes RÉELLES du marché** — prix bruts du bookmaker (Unibet Belgique / Kambi) "
-     "et de SofaScore, tous marchés (vainqueur, jeux/sets, 1X2, totaux, handicaps…). "
-     "Ce sont des cotes, **pas des prédictions** : aucun avis du modèle ici."},
-    {"name": TAG_MODELE_ANALYSE, "description":
-     "⚠️ **SORTIE DU MODÈLE MAISON — CE N'EST PAS UNE SOURCE.** Probabilités, *value* "
-     "et prédictions **calculées par BETSFIX** en confrontant les données aux cotes "
-     "(`/analysis`, `board`, `finished`). Ne jamais réinjecter ces valeurs comme si "
-     "c'étaient des faits : pour des données brutes, voir les sections « Données "
-     "SofaScore » ; pour des cotes, la section « Cotes & paris »."},
-    {"name": TAG_MODELE_SUIVI, "description":
-     "⚠️ **Calculs maison** (pas une source) : calibration, Brier, log-loss, CLV, ROI, "
-     "track record du modèle. Mesure interne de performance (?sport=tennis|foot|basket)."},
-    {"name": TAG_FLASH, "description":
-     "Source de stats **indépendante de SofaScore**, répertoriée pour exploration — "
-     "non utilisée par le modèle ni l'app. Ids propres à Flashscore (via "
-     "/flashscore/{sport}/events). Best-effort : feeds non officiels, peuvent changer."},
-    {"name": TAG_INTERFACE, "description":
-     "Pages de l'application (rendu HTML), pour mémoire — pas des ressources JSON."},
-    {"name": TAG_META, "description": "Catalogue des endpoints et healthcheck."},
+    {"name": TAG_TENNIS_SRC},
+    {"name": TAG_FOOT_SRC},
+    {"name": TAG_BASKET_SRC},
+    {"name": TAG_COTES},
+    {"name": TAG_MODELE_ANALYSE},
+    {"name": TAG_MODELE_SUIVI},
+    {"name": TAG_FLASH},
+    {"name": TAG_INTERFACE},
+    {"name": TAG_META},
 ]
 
 
 def _classify_tag(path: str) -> str | None:
     """Tag /docs d'un endpoint d'après son chemin (nature de la donnée, pas le sport)."""
     p = path
-    # 🟡 Cotes du book/SofaScore (avant les sections sport : /foot/.../odds → Cotes)
-    if p.endswith("/odds") or p.endswith("/odds/unibet"):
+    # 🟡 Cotes UNIBET uniquement (les /odds SofaScore, informatifs, restent dans la
+    #    section « Données SofaScore » du sport via les règles plus bas).
+    if p.endswith("/odds/unibet"):
         return TAG_COTES
     # 🔴 Modèle maison : analyse / value / prédictions
     if p.startswith("/analysis") or p in (
@@ -205,16 +184,6 @@ def _retag_routes(application) -> None:
 app = FastAPI(
     title="BETSFIX API — multi-sports",
     version=__version__,
-    description=(
-        "API **BETSFIX** : récupère matchs, **statistiques complètes** et cotes pour "
-        "**3 sports**, et confronte un modèle aux cotes du marché pour repérer la *value*.\n\n"
-        "- 🎾 **Tennis** ATP/WTA — 🏀 **Basket** NBA & WNBA — ⚽ **Foot** (CdM + grandes compétitions)\n"
-        "- Source de données gratuite **SofaScore** + cotes **Unibet**.\n"
-        "- Les sections de cette page sont **regroupées par sport**.\n\n"
-        "⚠️ Outil d'aide à la décision : un modèle simple ne bat pas un book sérieux. "
-        "Le juge de paix est le **CLV**, pas un pari isolé.\n\n"
-        "Documentation interactive : `/docs` · Schéma OpenAPI : `/openapi.json`"
-    ),
     openapi_tags=OPENAPI_TAGS,
     lifespan=lifespan,
 )
@@ -280,7 +249,8 @@ async def root() -> dict:
         # ⚠️ Lecture impérative pour un bot/agent : ne pas confondre les natures.
         "_lire_avant_usage": {
             "sources": "Faits BRUTS (SofaScore, Flashscore). À utiliser comme base d'analyse.",
-            "cotes": "Prix RÉELS du bookmaker (Unibet) / SofaScore. Des cotes, pas des avis.",
+            "cotes_unibet": "Prix RÉELS du bookmaker Unibet (les seules à utiliser). "
+                            "Les cotes SofaScore sont juste informatives (rangées dans sources).",
             "modele": "⚠️ CALCULS de BETSFIX (probas, value, prédictions). PAS une source : "
                       "ne jamais réinjecter ces valeurs comme si c'étaient des faits.",
         },
@@ -302,6 +272,7 @@ async def root() -> dict:
                 "classements_joueur": "/players/{player_id}/rankings",
                 "matchs_joueur": "/players/{player_id}/matches",
                 "editions": "/matches/seasons?tour=atp",
+                "cotes_sofascore_informatif": "/matches/{match_id}/odds",
             },
             "foot_sofascore": {
                 "competitions": "/foot/competitions",
@@ -324,6 +295,7 @@ async def root() -> dict:
                 "fiche_joueur": "/foot/player/{player_id}",
                 "stats_joueur": "/foot/player/{player_id}/statistics",
                 "photo_joueur": "/foot/player/{player_id}/image",
+                "cotes_sofascore_informatif": "/foot/match/{event_id}/odds",
             },
             "basket_sofascore": {
                 "forme_avant_match": "/basket/match/{event_id}/pregame-form",
@@ -343,6 +315,7 @@ async def root() -> dict:
                 "fiche_joueur": "/basket/player/{player_id}",
                 "photo_joueur": "/basket/player/{player_id}/image",
                 "box_scores_joueurs": "/basket/match/{event_id}/lineups",
+                "cotes_sofascore_informatif": "/basket/match/{event_id}/odds",
             },
             "flashscore_alternative": {
                 "agenda": "/flashscore/{sport}/events  (sport: foot|tennis|basket)",
@@ -353,14 +326,12 @@ async def root() -> dict:
                 "h2h": "/flashscore/match/{match_id}/h2h",
             },
         },
-        # 🟡 COTES — prix réels du marché (tous marchés Unibet par sport)
-        "cotes": {
-            "tennis_unibet_tous_marches": "/matches/{match_id}/odds/unibet?tour=atp",
-            "tennis_sofascore": "/matches/{match_id}/odds",
-            "foot_unibet_tous_marches": "/foot/match/{event_id}/odds/unibet",
-            "foot_sofascore": "/foot/match/{event_id}/odds",
-            "basket_unibet_tous_marches": "/basket/match/{event_id}/odds/unibet",
-            "basket_sofascore": "/basket/match/{event_id}/odds",
+        # 🟡 COTES — prix réels du marché : UNIBET uniquement (tous marchés par sport).
+        # Les cotes SofaScore sont seulement informatives -> rangées dans `sources`.
+        "cotes_unibet": {
+            "tennis_tous_marches": "/matches/{match_id}/odds/unibet?tour=atp",
+            "foot_tous_marches": "/foot/match/{event_id}/odds/unibet",
+            "basket_tous_marches": "/basket/match/{event_id}/odds/unibet",
         },
         # 🔴 MODÈLE MAISON — calculs, PAS une source
         "modele_maison": {
