@@ -86,7 +86,15 @@ CSS = """
          radial-gradient(700px 400px at -10% 0%,rgba(60,120,255,.05),transparent 55%),
          var(--bg);}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
-  .wrap{max-width:720px;margin:0 auto;padding:16px 16px calc(86px + env(safe-area-inset-bottom))}
+  .wrap{max-width:720px;margin:0 auto;
+        padding:calc(14px + env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom))}
+  /* Branding inline en haut (hors accueil) + pastille de pause */
+  .topbrand{display:flex;align-items:center;gap:6px;margin:2px 0 14px}
+  .topbrand .tb-logo{height:26px;width:auto;filter:drop-shadow(0 2px 7px rgba(46,155,255,.45))}
+  .topbrand .tb-wm{height:18px;width:auto}
+  .pausebar{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+            color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);
+            padding:5px 11px;border-radius:20px;margin:0 0 12px}
   /* Barre d'onglets fixée en bas (style app native) */
   .botnav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;
@@ -273,11 +281,16 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     `subnav` ∈ matchs/perf : affiche le sous-menu du sport (Matchs / Fiabilité).
     `source` : état SofaScore -> petit indicateur discret dans l'en-tête si en pause."""
     e = html.escape
-    status = ""
+    # Pas de barre du haut : branding inline (hors accueil, qui a le grand logo) +
+    # pastille de pause discrète si SofaScore est indisponible.
+    topbrand = ("" if sport == "home" else
+                '<a class="topbrand" href="/"><img class="tb-logo" src="/static/mark.png?v=2" '
+                'alt=""><img class="tb-wm" src="/static/wordmark.png?v=2" alt="BETSFIX"></a>')
+    pausebar = ""
     if source and not source.get("ok"):
         s = source.get("paused_seconds", 0)
-        status = (f'<span class="hdot" title="SofaScore en pause ({s}s) — '
-                  f'LiveScore prend le relais">🟠 pause</span>')
+        pausebar = (f'<div class="pausebar" title="LiveScore prend le relais">'
+                    f'🟠 SofaScore en pause ({s}s)</div>')
     nav_items = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
                  ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot")]
     # Barre d'onglets fixée en BAS (style app native) : icône + petit label.
@@ -305,9 +318,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
-<header class="hdr"><div class="hdr-in">
-<div class="brand"><img class="logo" src="/static/mark.png?v=2" alt=""><img class="wm" src="/static/wordmark.png?v=2" alt="BETSFIX"><span class="hright">{status}<span class="tag">Multi-sports</span></span></div>
-</div></header><div class="wrap">{sub}{body}
+<div class="wrap">{topbrand}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}</body></html>"""
 
