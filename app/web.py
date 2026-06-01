@@ -103,14 +103,14 @@ CSS = """
   .brand .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.12em;
               text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);
               padding:3px 8px;border-radius:20px}
-  .nav{display:flex;gap:7px;margin-top:11px}
-  .nav a{flex:1;text-align:center;padding:11px 4px;border-radius:13px;font-size:13px;
-         font-weight:700;background:var(--surface);color:var(--muted);white-space:nowrap;
+  .nav{display:flex;gap:9px;margin-top:11px}
+  .nav a{flex:1;display:flex;align-items:center;justify-content:center;height:60px;
+         border-radius:17px;font-size:30px;line-height:1;background:var(--surface);
          border:1px solid var(--border);transition:.16s}
-  .nav a:active{transform:scale(.97)}
-  .nav a.on{color:var(--accent-ink);border-color:transparent;
+  .nav a:active{transform:scale(.95)}
+  .nav a.on{border-color:transparent;
             background:linear-gradient(180deg,var(--accent),var(--accent2));
-            box-shadow:0 4px 16px rgba(46,226,127,.32)}
+            box-shadow:0 6px 18px rgba(46,226,127,.30)}
   /* Sous-menu par sport (Matchs / Fiabilité) */
   .subnav{display:flex;gap:6px;margin:16px 0 2px}
   .subnav a{flex:1;text-align:center;padding:9px;border-radius:11px;font-size:12.5px;
@@ -254,11 +254,12 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     """Page premium. `sport` ∈ home/tennis/basket/foot (onglet principal actif).
     `subnav` ∈ matchs/perf : affiche le sous-menu du sport (Matchs / Fiabilité)."""
     e = html.escape
-    nav_items = [("home", "/", "🏠 Accueil"), ("tennis", "/app", "🎾 Tennis"),
-                 ("basket", "/basket", "🏀 Basket"), ("foot", "/foot", "⚽ Foot")]
+    nav_items = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
+                 ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot")]
     nav = '<nav class="nav">' + "".join(
-        f'<a class="{"on" if sport == k else ""}" href="{href}">{e(lbl)}</a>'
-        for k, href, lbl in nav_items) + "</nav>"
+        f'<a class="{"on" if sport == k else ""}" href="{href}" '
+        f'aria-label="{e(name)}" title="{e(name)}">{ico}</a>'
+        for k, href, ico, name in nav_items) + "</nav>"
 
     sub = ""
     if subnav and sport in _SPORT_MATCH_URL:
