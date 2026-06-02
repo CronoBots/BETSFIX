@@ -1,5 +1,6 @@
 """Suivi des prédictions vs résultats (CLV / ROI) — endpoints + jobs."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -41,12 +42,16 @@ async def run_snapshot(provider: SofaScoreProvider, unibet: UnibetProvider) -> i
                 continue
             if not (now <= m.start_time <= horizon):
                 continue
+            # Unibet D'ABORD (cache, gratuit) : on ne fetch les stats SofaScore (lourdes)
+            # QUE pour les matchs réellement jouables -> beaucoup moins de requêtes SofaScore.
+            odds = await unibet.find_odds(m)
+            if not (odds and odds.matched):
+                continue
             try:
-                hm, am, hs, as_, h2h, odds = await _gather_context(m, tour, provider, unibet)
+                hm, am, hs, as_, h2h, _ = await _gather_context(m, tour, provider, unibet)
             except ProviderError:
                 continue
-            if not (odds and odds.matched):
-                continue  # pas de cote Unibet -> rien à suivre
+            await asyncio.sleep(0.4)     # filet d'eau : la boucle ne fait jamais de pic
             elo_home, elo_away = elo.ratings_for_match(m)
             sr_home, sr_away = serve_return.ratings_for_match(m)
             analysis = build_analysis(
