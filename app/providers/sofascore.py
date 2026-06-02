@@ -124,6 +124,10 @@ class SofaScoreProvider:
         # comme les ~14 votes en parallèle de la home) : empêche les rafales qui déclenchent
         # le rate-limit 403. Au plus N requêtes réelles en vol à un instant donné.
         self._net_sem = asyncio.Semaphore(3)
+        # Rate-limit DOUX : au moins MIN_REQ_GAP entre deux requêtes réseau réelles, pour
+        # que les grosses passes (boucle de suivi) ne dépassent plus le seuil 403 de SofaScore.
+        self._min_gap = 0.25
+        self._last_req = 0.0
         self._client = httpx.AsyncClient(
             base_url=settings.sofascore_base_url,
             timeout=settings.http_timeout,
@@ -217,6 +221,10 @@ class SofaScoreProvider:
             # et abandonnent sans taper le réseau (au lieu de toutes passer un guard encore fermé).
             async with self._net_sem:           # borne la concurrence réseau (anti-rafale 403)
                 self._breaker_guard()
+                gap = self._min_gap - (time.monotonic() - self._last_req)
+                if gap > 0:                     # espace les requêtes (rate-limit doux)
+                    await asyncio.sleep(gap)
+                self._last_req = time.monotonic()
                 resp = await self._client.get(path)
             if resp.status_code == 404:
                 raise ProviderError("Ressource introuvable chez la source.", status_code=404)
