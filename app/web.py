@@ -193,6 +193,12 @@ CSS = """
   details.sec[open] .i{color:#fff;border-color:var(--accent2);background:rgba(46,155,255,.16)}
   details.sec > .banner{margin-top:9px}
   .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
+  /* badge décompte (timer avant le coup d'envoi), en haut à droite de la carte */
+  .rt-r{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+  .cd{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
+      font-variant-numeric:tabular-nums;background:rgba(224,179,65,.14);color:#e0b341;
+      border:1px solid rgba(224,179,65,.30);white-space:nowrap}
+  .cd.live{background:rgba(242,93,110,.16);color:#ff7a88;border-color:rgba(242,93,110,.35)}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
@@ -279,6 +285,22 @@ CSS = """
 _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 
 
+# Décompte avant le coup d'envoi (timer live), côté client : met à jour chaque badge
+# .cd[data-ts] (timestamp epoch s) toutes les secondes. Pas de dépendance, ~0 coût.
+_COUNTDOWN_JS = (
+    "(function(){function f(ms){if(ms<=0)return'\\u25b6 live';"
+    "var s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),"
+    "m=Math.floor(s%3600/60),x=s%60;"
+    "if(d>0)return d+'j '+h+'h';if(h>0)return h+'h'+('0'+m).slice(-2);"
+    "return m+'m'+('0'+x).slice(-2);}"
+    "function t(){var n=Date.now(),e=document.getElementsByClassName('cd');"
+    "for(var i=0;i<e.length;i++){var v=e[i].getAttribute('data-ts');if(!v)continue;"
+    "var ms=parseInt(v,10)*1000-n;e[i].textContent=f(ms);"
+    "e[i].className=ms<=0?'cd live':'cd';}}"
+    "t();setInterval(t,1000);})();"
+)
+
+
 def layout(title: str, sport: str, body: str, subnav: str | None = None,
            refresh: bool = False, source: dict | None = None) -> str:
     """Page premium. `sport` ∈ home/tennis/basket/foot (onglet principal actif).
@@ -323,7 +345,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 <div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}</body></html>"""
+</div>{botnav}<script>{_COUNTDOWN_JS}</script></body></html>"""
 
 
 def _pick_bars(p: dict) -> str:
@@ -478,8 +500,11 @@ def _sport_row(r: dict) -> str:
     # sinon la barre de proba simple (favori + %).
     probviz = _pick_bars(r) if r.get("model_prob") is not None else \
         _prob_bar(r.get("prob"), r.get("prob_labels"))
+    # badge décompte (timer) en haut à droite pour les matchs à venir
+    cd = (f'<span class="cd" data-ts="{int(r["start_ts"])}"></span>'
+          if r.get("status") == "notstarted" and r.get("start_ts") else "")
     inner = (f'<div class="rowtop"><span>{e(r.get("tour") or "")} · {top}</span>'
-             f'{r.get("badge", "")}</div>'
+             f'<span class="rt-r">{cd}{r.get("badge", "")}</span></div>'
              f'<div class="players">{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>'
              f'{probviz}{r.get("sub", "")}')

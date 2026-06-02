@@ -448,7 +448,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
                  if pk else web.unibet_badge(bool(r.get("oh"))))
         base = {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
-                "home": r["home"], "away": r["away"],
+                "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
                 "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'
                           if r["status"] == "inprogress" and r.get("home_pts") is not None else ""),
                 **web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])}

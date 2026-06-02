@@ -232,6 +232,7 @@ async def matches_page(
                 "score": web.fmt_score(m.home_score, m.away_score) if m.status == "inprogress" else "",
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
                 "hp": hp, "implied": devig[0] if devig else None, "votes": votes,
+                "start_ts": m.start_time.timestamp() if m.start_time else None,
                 "clickable": True,
                 "_date": local_dt.date() if local_dt else None,
                 "_sort": local_dt or datetime.max.replace(tzinfo=timezone.utc),
@@ -268,6 +269,7 @@ async def matches_page(
                 "implied": devig[0] if devig else None,
                 "votes": ((rec.get("public_home"), rec.get("public_away"))
                           if rec.get("public_home") is not None else None),
+                "start_ts": dt.timestamp(),
                 "_sort": web.to_local(dt) or datetime.max.replace(tzinfo=timezone.utc),
             })
 
@@ -285,6 +287,7 @@ async def matches_page(
                 "score": r.get("score") or "", "home": r["home"], "away": r["away"],
                 "prob": r.get("hp"), "prob_labels": labels,
                 "sub": sub, "badge": badge, "pick": pick,
+                "start_ts": r.get("start_ts"),
                 "url": f'/app/match/{r["id"]}?tour={r["tour"]}',
                 **web.bars_two_way(r.get("hp"), r.get("implied"), r.get("votes"),
                                    r["home"], r["away"])}

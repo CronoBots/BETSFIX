@@ -415,7 +415,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
                  if pk else web.unibet_badge(bool(r.get("o1"))))
         base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
-                "home": r["home"], "away": r["away"],
+                "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
                 **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
         (live if r["status"] == "inprogress" else upcoming).append(
             {**base, "prob": r.get("probs"), "sub": model_line(r),
