@@ -411,9 +411,124 @@ def board_from_store() -> list[dict]:
 RENDER_NET_BUDGET = 2.5   # s max d'attente réseau au rendu (sinon repli)
 
 
+def _ub_dt(value):
+    """Horodatage ISO Unibet -> datetime UTC."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+async def board_from_unibet() -> list[dict]:
+    """Matchs basket depuis UNIBET (moneyline NBA+WNBA) + Elo par nom. SANS SofaScore.
+    Les noms d'équipes US sont identiques chez Unibet et SofaScore -> pas de bilingue."""
+    elo = load_elo()
+    index = [(name_tokens(v.get("name", "")), v.get("elo")) for v in elo.values() if v.get("name")]
+
+    def elo_for(name):
+        q = name_tokens(name)
+        for toks, e in index:
+            if names_match(q, toks):
+                return e
+        return None
+
+    def _dec(o):
+        v = o.get("odds")
+        return round(v / 1000, 3) if isinstance(v, (int, float)) else None
+
+    now = datetime.now(timezone.utc)
+    horizon = now + timedelta(days=HORIZON_DAYS)
+    rows, seen = [], set()
+    async with httpx.AsyncClient(headers=UNIBET_H) as client:
+        for league, cfg in LEAGUES.items():
+            data = await _get(client, UNIBET_B, cfg["unibet"], UNIBET_PARAMS)
+            for entry in (data or {}).get("events", []) or []:
+                ev = entry.get("event") or {}
+                kid = ev.get("id")
+                home, away = ev.get("homeName", ""), ev.get("awayName", "")
+                if "(" in home or "(" in away or kid in seen:
+                    continue
+                start = _ub_dt(ev.get("start"))
+                if start is None or start > horizon:
+                    continue
+                eh, ea = elo_for(home), elo_for(away)
+                if eh is None or ea is None:
+                    continue
+                seen.add(kid)
+                offers = entry.get("betOffers") or []
+                money = next((b for b in offers if (b.get("betOfferType") or {}).get("name")
+                              in ("Match", "Head to Head", "Moneyline")), offers[0] if offers else None)
+                oh = oa = None
+                outs = (money or {}).get("outcomes") or []
+                if len(outs) == 2:
+                    oh, oa = _dec(outs[0]), _dec(outs[1])
+                p = win_prob(eh, ea)
+                imp = _devig(oh, oa)
+                pick = None
+                if p is not None and imp is not None:
+                    for side, mp, odds_s, imp_s in (("home", p, oh, imp[0]), ("away", 1 - p, oa, imp[1])):
+                        fair = MODEL_TRUST * mp + (1 - MODEL_TRUST) * imp_s
+                        edge = fair - imp_s
+                        if (edge >= VALUE_THRESHOLD and MIN_IMPLIED <= imp_s <= MAX_IMPLIED
+                                and (mp - imp_s) <= MAX_DISAGREEMENT and odds_s
+                                and (not pick or edge > pick["edge"])):
+                            b = odds_s - 1
+                            kf = max(0.0, (b * fair - (1 - fair)) / b) if b > 0 else 0.0
+                            pick = {"side": side, "team": home if side == "home" else away,
+                                    "odds": odds_s, "edge": edge, "stake": round(min(kf * 0.25 * 100, 3.0), 2)}
+                status = "notstarted" if ev.get("state") == "NOT_STARTED" else "inprogress"
+                rows.append({
+                    "id": kid, "league": league, "status": status, "home": home, "away": away,
+                    "model_home": p, "margin": expected_margin(p, cfg.get("sigma", SPREAD_SIGMA)),
+                    "oh": oh, "oa": oa, "imp_home": imp[0] if imp else None, "pick": pick,
+                    "start": start.timestamp(), "votes": None,
+                })
+    rows.sort(key=lambda g: g["start"] or 0)
+    return rows
+
+
+async def _resolve_sofa_ids(rows: list[dict]) -> None:
+    """Pose l'id SofaScore (noms + date, via scheduled-events basket) dans row['id'] pour
+    l'enrichissement. Best-effort : ignoré si SofaScore est en pause."""
+    if not rows or sportcache.blocked():
+        return
+    days = sorted({datetime.fromtimestamp(r["start"], tz=timezone.utc).date().isoformat()
+                   for r in rows if r.get("start")})
+    index = []
+    async with httpx.AsyncClient(headers=SOFA_H) as c:
+        for day in days:
+            data = await _get(c, SOFA_B, f"/sport/basketball/scheduled-events/{day}")
+            for ev in (data or {}).get("events", []) or []:
+                ts = ev.get("startTimestamp")
+                d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat() if ts else None
+                index.append((name_tokens((ev.get("homeTeam") or {}).get("name", "")),
+                              name_tokens((ev.get("awayTeam") or {}).get("name", "")), d, ev.get("id")))
+    for r in rows:
+        rd = datetime.fromtimestamp(r["start"], tz=timezone.utc).date().isoformat() if r.get("start") else None
+        rh, ra = name_tokens(r["home"]), name_tokens(r["away"])
+        for ht, at, d, sid in index:
+            if names_match(rh, ht) and names_match(ra, at) and (d is None or rd is None or d == rd):
+                r["id"] = sid
+                break
+
+
 async def board_resilient() -> list[dict]:
-    """SOURCE UNIQUE des matchs basket (onglet ET accueil) : board live (SofaScore) ->
-    repli store. Réseau borné. Garantit que l'accueil et l'onglet voient les mêmes matchs."""
+    """SOURCE UNIQUE des matchs basket (onglet ET accueil). Cible : MATCHS via UNIBET +
+    cotes + Elo, puis id SofaScore (nom+date) pour l'ENRICHISSEMENT. Replis : board
+    SofaScore directe, puis store. Réseau borné."""
+    try:
+        rows = await asyncio.wait_for(board_from_unibet(), timeout=RENDER_NET_BUDGET)
+        if rows:
+            try:
+                await asyncio.wait_for(_resolve_sofa_ids(rows), timeout=2.0)
+                await asyncio.wait_for(enrich_display(rows), timeout=2.0)
+            except (Exception, asyncio.TimeoutError):
+                pass
+            return rows
+    except (Exception, asyncio.TimeoutError):
+        pass
     try:
         rows = await asyncio.wait_for(board(), timeout=RENDER_NET_BUDGET)
         if rows:
