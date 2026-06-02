@@ -489,7 +489,7 @@ async def board_from_unibet() -> list[dict]:
                     "id": kid, "league": league, "status": status, "home": home, "away": away,
                     "model_home": p, "margin": expected_margin(p, cfg.get("sigma", SPREAD_SIGMA)),
                     "oh": oh, "oa": oa, "imp_home": imp[0] if imp else None, "pick": pick,
-                    "start": start.timestamp(), "votes": None,
+                    "start": start.timestamp(), "votes": None, "female": league == "WNBA",
                 })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows
@@ -608,8 +608,10 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         pk = r.get("pick")
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
                  if pk else "")
+        female = r.get("female") if r.get("female") is not None \
+            else (r.get("league") or "").upper() == "WNBA"
         base = {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
-                "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
+                "start_ts": r.get("start"), "home": r["home"], "away": r["away"], "female": female,
                 "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'
                           if r["status"] == "inprogress" and r.get("home_pts") is not None else ""),
                 **web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])}
@@ -636,6 +638,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             badge, sub = "", ""
         fin.append({"tour": r.get("league", "Basket"), "status": "finished",
                     "home": r["home"], "away": r["away"],
+                    "female": (r.get("league") or "").upper() == "WNBA",
                     "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",
                     "sub": sub, "badge": badge})
 

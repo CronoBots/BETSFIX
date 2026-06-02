@@ -364,7 +364,16 @@ async def board_from_unibet() -> list[dict]:
         home, away = ev.get("homeName", ""), ev.get("awayName", "")
         group = ev.get("group") or "Football"
         path = " ".join(p.get("name", "") for p in (ev.get("path") or []))
-        # exclut l'esports (joueur entre parenthèses, groupe « Cyber »/path « Esports »)
+        ctx = f"{group} {path}".lower()
+        # match féminin : marqueur « (W) »/« (F) » sur un nom, ou compétition « Women/Féminin »
+        female = ("(w)" in home.lower() or "(f)" in home.lower()
+                  or "(w)" in away.lower() or "(f)" in away.lower()
+                  or "women" in ctx or "fémin" in ctx or "femin" in ctx)
+        # marqueur féminin retiré du nom affiché
+        for mark in (" (W)", " (F)"):
+            home, away = home.replace(mark, "").strip(), away.replace(mark, "").strip()
+        # exclut l'esports (joueur entre parenthèses, groupe « Cyber »/path « Esports »).
+        # NB : un éventuel « (W) » a déjà été retiré ci-dessus -> pas pris pour de l'esports.
         if "(" in home or "(" in away or "esport" in path.lower() or "cyber" in group.lower():
             continue
         if kid in seen:
@@ -401,7 +410,7 @@ async def board_from_unibet() -> list[dict]:
             "home_en": en_home, "away_en": en_away,   # noms anglais -> matcher SofaScore
             "probs": probs, "goals": goals_markets(eh, ea),
             "o1": o1, "ox": ox, "o2": o2, "imp": imp, "pick": pick,
-            "start": start.timestamp(),
+            "start": start.timestamp(), "female": female,
         })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows
@@ -593,6 +602,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
                  if pk else "")
         base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
+                "female": r.get("female"),
                 **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
         (live if r["status"] == "inprogress" else upcoming).append(
             {**base, "prob": r.get("probs"), "sub": model_line(r),

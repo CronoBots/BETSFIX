@@ -233,7 +233,7 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
         start = r.get("start")
         iso = datetime.fromtimestamp(start, tz=timezone.utc).isoformat() if start else None
         base = {"sport": sport, "icon": icon, "home": r["home"], "away": r["away"],
-                "match_id": r.get("id"), "url": url,
+                "match_id": r.get("id"), "url": url, "female": r.get("female"),
                 "time": web.fmt_local(iso, with_date=True), "start_ts": start}
         if pk_data:
             team, odds, edge, mp, side, pimp = pk_data
@@ -415,7 +415,7 @@ async def matches_page(
                 "hp": hp, "implied": devig[0] if devig else None, "votes": votes,
                 "oh": rec.get("unibet_home_odds"), "oa": rec.get("unibet_away_odds"),
                 "start_ts": m.start_time.timestamp() if m.start_time else None,
-                "clickable": True,
+                "female": tour == "wta", "clickable": True,
                 "_date": local_dt.date() if local_dt else None,
                 "_sort": local_dt or datetime.max.replace(tzinfo=timezone.utc),
             }
@@ -453,6 +453,7 @@ async def matches_page(
                 "votes": ((rec.get("public_home"), rec.get("public_away"))
                           if rec.get("public_home") is not None else None),
                 "start_ts": dt.timestamp(),
+                "female": rec.get("tour") == "wta",
                 "_sort": web.to_local(dt) or datetime.max.replace(tzinfo=timezone.utc),
             })
 
@@ -471,7 +472,7 @@ async def matches_page(
                 "score": r.get("score") or "", "home": r["home"], "away": r["away"],
                 "prob": r.get("hp"), "prob_labels": labels,
                 "sub": sub, "badge": badge, "pick": pick,
-                "start_ts": r.get("start_ts"),
+                "start_ts": r.get("start_ts"), "female": r.get("female"),
                 "url": f'/app/match/{r["id"]}?tour={r["tour"]}',
                 **web.bars_two_way(r.get("hp"), r.get("implied"), r.get("votes"),
                                    r["home"], r["away"])}
@@ -483,6 +484,7 @@ async def matches_page(
     value_rows = [{
         "tour": v["tour"].upper(), "status": "notstarted", "time": v.get("time") or "",
         "home": v["home"], "away": v["away"], "pick": True, "start_ts": v.get("start_ts"),
+        "female": v.get("tour") == "wta",
         "badge": f'<span class="badge b-val">+{round((v.get("edge") or 0)*100,1)} pts</span>',
         "sub": (f'<div class="dim">pari : <b class="pos">{ev(v.get("player") or "")}</b> '
                 f'@{v.get("odds") or "—"} · mise '

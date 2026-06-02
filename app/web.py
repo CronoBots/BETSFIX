@@ -173,6 +173,7 @@ CSS = """
             background:linear-gradient(180deg,rgba(46,226,127,.10),rgba(46,226,127,.03));
             box-shadow:0 4px 18px rgba(46,226,127,.14)}
   .live{color:var(--red);font-weight:800;letter-spacing:.02em}
+  .fem{color:#ff7ab8;font-weight:800}
   .rowtop{display:flex;justify-content:space-between;align-items:center;font-size:11px;
           color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
   .players{font-size:16px;font-weight:700;margin:7px 0 3px;letter-spacing:-.01em}
@@ -421,8 +422,9 @@ def _pick_card(p: dict, badge: str) -> str:
     odds = f' <span class="dim">@{p.get("odds")}</span>' if p.get("odds") else ""
     cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
           if p.get("start_ts") and p["start_ts"] > time.time() else "")
+    fem = ' <span class="fem">(F)</span>' if p.get("female") else ""
     return (f'<a class="row pick" href="{p["url"]}">'
-            f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])} · {e(p.get("time") or "")}</span>'
+            f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
             f'<span class="rt-r">{cd}{badge}</span></div>'
             f'<div class="players">{e(p.get("bet") or "")}{odds}</div>'
             f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
@@ -515,7 +517,8 @@ def _sport_row(r: dict) -> str:
     cd = (f'<span class="cd" data-ts="{int(r["start_ts"])}"></span>'
           if r.get("status") == "notstarted" and r.get("start_ts")
           and r["start_ts"] > time.time() else "")
-    inner = (f'<div class="rowtop"><span>{e(r.get("tour") or "")} · {top}</span>'
+    fem = ' <span class="fem">(F)</span>' if r.get("female") else ""
+    inner = (f'<div class="rowtop"><span>{e(r.get("tour") or "")}{fem} · {top}</span>'
              f'<span class="rt-r">{cd}{r.get("badge", "")}</span></div>'
              f'<div class="players">{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>'
