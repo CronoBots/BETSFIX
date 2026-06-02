@@ -274,6 +274,11 @@ CSS = """
   .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
   .po{background:#8a93a3}
   .pc{background:#e0b341}
+  /* Note de divergence public vs modèle (signal contrarian) */
+  .dvg{font-size:11.5px;margin-top:8px;padding:6px 11px;border-radius:9px;font-weight:600;
+       background:rgba(46,155,255,.10);border:1px solid rgba(46,155,255,.22);color:#9fd0ff}
+  .dvg.warn{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold)}
+  .dvg b{color:#fff}
   /* Barre de cotes : une cellule par issue (joueur 1 / Nul / joueur 2) ; favori (cote la
      plus basse) mis en avant en bleu. Nom au-dessus, cote dessous. */
   .oddsrow{display:flex;gap:6px;margin-top:9px}
@@ -528,8 +533,18 @@ def _pick_bars(p: dict) -> str:
     if not inner:
         return ""
     bet = html.escape(p.get("bet") or "le pari")
+    # Indicateur de divergence PUBLIC vs MODÈLE (le désaccord book vs modèle = déjà la value).
+    # Public très au-dessus du modèle -> hype, favori sur-parié (signal contrarian = à fader).
+    note, m, c = "", p.get("model_prob"), p.get("community")
+    if m is not None and c is not None:
+        if c - m >= 0.18:
+            note = (f'<div class="dvg warn">⚠️ Le public <b>surévalue</b> ce camp '
+                    f'({round(c*100)}% public vs {round(m*100)}% BETSFIX)</div>')
+        elif m - c >= 0.18:
+            note = (f'<div class="dvg">💡 Le public <b>sous-évalue</b> ce camp '
+                    f'({round(m*100)}% BETSFIX vs {round(c*100)}% public)</div>')
     return (f'<div class="pbars"><div class="pb-h">Chances que <b>{bet}</b> gagne '
-            f'<span class="dim">— selon :</span></div>{inner}</div>')
+            f'<span class="dim">— selon :</span></div>{inner}</div>{note}')
 
 
 def bars_two_way(p_home, imp_home, votes, home, away) -> dict:
