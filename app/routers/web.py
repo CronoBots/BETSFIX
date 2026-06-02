@@ -477,9 +477,10 @@ async def matches_page(
     ev = html.escape
 
     def _fav_sub(r):
-        oh, oa = r.get("oh"), r.get("oa")
-        cotes = f'cotes {oh} / {oa}' if oh and oa else 'cotes Unibet à venir'
-        return f'<div class="dim">{cotes}</div>'
+        # noms de famille (le matchup complet est déjà au-dessus) pour des cellules compactes
+        nh = (r["home"].split() or [r["home"]])[-1]
+        na = (r["away"].split() or [r["away"]])[-1]
+        return web.odds_row([(nh, r.get("oh")), (na, r.get("oa"))])
 
     def _trow(r, sub, badge="", pick=False):
         labels = ((r["home"].split() or [""])[-1], (r["away"].split() or [""])[-1])

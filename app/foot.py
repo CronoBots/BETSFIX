@@ -608,13 +608,12 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
     e = html.escape
 
     def model_line(r):
-        # Ligne d'info UNIFORME tous sports : les cotes (la barre montre déjà le favori).
-        parts = []
+        # Barre de cotes Unibet claire 1-X-2 (home / Nul / away) ; sinon état Elo.
+        sub = ""
         if not r.get("probs"):
-            parts.append("Elo indisponible")
+            sub += '<div class="dim">Elo indisponible</div>'
         if r.get("o1"):
-            parts.append(f'cotes {r["o1"]} / {r["ox"]} / {r["o2"]}')
-        sub = f'<div class="dim">{" · ".join(parts)}</div>' if parts else ""
+            sub += web.odds_row([(r["home"], r["o1"]), ("Nul", r["ox"]), (r["away"], r["o2"])])
         fm = r.get("form")
         if fm:
             sub += web.form_compare(r["home"], fm[0], r["away"], fm[1])

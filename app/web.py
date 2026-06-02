@@ -274,6 +274,16 @@ CSS = """
   .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
   .po{background:#8a93a3}
   .pc{background:#e0b341}
+  /* Barre de cotes : une cellule par issue (joueur 1 / Nul / joueur 2) ; favori (cote la
+     plus basse) mis en avant en bleu. Nom au-dessus, cote dessous. */
+  .oddsrow{display:flex;gap:6px;margin-top:9px}
+  .oc{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
+      background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px 6px}
+  .oc.fav{border-color:var(--accent2);background:rgba(46,155,255,.10)}
+  .ocn{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
+       max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .oc.fav .ocn{color:#9fd0ff}
+  .ocv{font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums}
   .votes{margin-top:7px}
   .vlbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
   .vbar{display:flex;height:6px;border-radius:99px;overflow:hidden;margin-top:3px;background:var(--surface)}
@@ -547,6 +557,22 @@ def bars_foot(probs, imp, votes, home, away) -> dict:
         community = (votes[0] if i == 0 else votes[1]) / 100
     return {"model_prob": probs[i], "implied": implied, "community": community,
             "bet": [home, "Match nul", away][i]}
+
+
+def odds_row(outcomes) -> str:
+    """Barre de cotes Unibet claire : `outcomes` = [(libellé, cote), ...] — 2 issues
+    (tennis/basket) ou 3 avec « Nul » (foot). La cote la plus basse (favori du book) est
+    mise en avant en bleu. Chaque cellule : nom au-dessus, cote dessous."""
+    valid = [(lbl, o) for lbl, o in outcomes if o]
+    if not valid:
+        return '<div class="dim">cotes Unibet à venir</div>'
+    best = min(o for _, o in valid)
+    cells = "".join(
+        f'<span class="oc{" fav" if o == best else ""}">'
+        f'<span class="ocn">{html.escape(str(lbl))}</span>'
+        f'<span class="ocv">{o}</span></span>'
+        for lbl, o in valid)
+    return f'<div class="oddsrow">{cells}</div>'
 
 
 def _head(title: str, info: str | None = None) -> str:

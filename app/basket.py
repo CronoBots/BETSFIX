@@ -597,14 +597,13 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
     value, live, upcoming = [], [], []
     for r in rows:
         p = r.get("model_home")
-        # Ligne d'info UNIFORME tous sports : les cotes (la barre montre déjà le favori).
+        # Barre de cotes Unibet claire (nom + cote par équipe) ; sinon état Elo.
         if r.get("oh"):
-            sub = f'cotes {r["oh"]} / {r["oa"]}'
+            sub_html = web.odds_row([(r["home"], r.get("oh")), (r["away"], r.get("oa"))])
         elif p is None:
-            sub = "Elo indisponible"
+            sub_html = '<div class="dim">Elo indisponible</div>'
         else:
-            sub = ""
-        sub_html = f'<div class="dim">{sub}</div>' if sub else ""
+            sub_html = ""
         fm = r.get("form")
         if fm:
             sub_html += web.form_compare(r["home"], fm[0], r["away"], fm[1])
