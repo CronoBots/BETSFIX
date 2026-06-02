@@ -334,7 +334,7 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
         devig = remove_vig(rec.get("unibet_home_odds"), rec.get("unibet_away_odds"))
         local_dt = web.to_local(start)
         is_live = start <= now
-        rows.append({
+        row = {
             "id": mid, "tour": rec.get("tour", "atp"),
             "home": rec.get("home", ""), "away": rec.get("away", ""),
             "status": "inprogress" if is_live else "notstarted",
@@ -346,7 +346,8 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
                       if rec.get("public_home") is not None else None),
             "start_ts": start.timestamp(),
             "_sort": local_dt or datetime.max.replace(tzinfo=timezone.utc),
-        })
+        }
+        (live if is_live else rows).append(row)   # en direct -> section « En direct »
     return rows, live
 
 
@@ -371,7 +372,7 @@ async def matches_page(
             _tennis_unibet_rows(unibet, store, now, horizon), timeout=3.0)
     except (Exception, asyncio.TimeoutError):
         rows, live = [], []
-    for tour in ([] if rows else ("atp", "wta")):
+    for tour in ([] if (rows or live) else ("atp", "wta")):
         # Budget réseau borné : si la source traîne, on n'attend pas (le repli store
         # plus bas prend le relais) -> page rapide même quand SofaScore est lent.
         try:
