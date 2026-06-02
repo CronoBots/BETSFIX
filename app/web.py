@@ -210,10 +210,16 @@ CSS = """
   details.sec2 > summary::-webkit-details-marker{display:none}
   details.sec2 > summary::before{content:"";width:3px;height:14px;border-radius:3px;flex:none;
     background:linear-gradient(var(--accent),var(--accent2))}
-  details.sec2 .chev{margin-left:auto;color:var(--dim);font-size:13px;transition:transform .18s}
+  details.sec2 > summary > .ttl{flex:1;min-width:0}
+  details.sec2 .sright{margin-left:auto;display:inline-flex;align-items:center;gap:10px;flex:none}
+  details.sec2 .chev{color:var(--muted);font-size:20px;line-height:1;transition:transform .18s}
   details.sec2[open] .chev{transform:rotate(180deg)}
+  details.sec2 .i{width:22px;height:22px;border-radius:50%;flex:none;border:1px solid var(--border2);
+    display:inline-flex;align-items:center;justify-content:center;font:italic 800 12px Georgia,serif;
+    text-transform:none;color:var(--muted);cursor:pointer}
+  details.sec2 .i:active{transform:scale(.92)}
+  details.sec2 .sec-info{margin:8px 0 4px}
   details.sec2 > .secbody{margin-top:4px}
-  details.sec2 > .secbody > .banner:first-child{margin-top:4px}
   .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
   /* badge décompte (timer avant le coup d'envoi), en haut à droite de la carte.
      Texte BLANC, unités jour/heure/minute bien distinctes. */
@@ -373,7 +379,12 @@ _SPA_JS = (
     "go(this.getAttribute('data-tab'),true);});}"
     "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
     "if(!t){var m={'/':'home','/app':'tennis','/basket':'basket','/foot':'foot'};"
-    "t=m[location.pathname]||'home';}go(t,false);});})();"
+    "t=m[location.pathname]||'home';}go(t,false);});"
+    # le « i » déplie/replie l'explication sans toucher au pliage de la section
+    "document.addEventListener('click',function(e){var b=e.target.closest('[data-info]');"
+    "if(!b)return;e.preventDefault();e.stopPropagation();"
+    "var d=b.closest('details.sec2'),inf=d&&d.querySelector('.sec-info');"
+    "if(inf)inf.hidden=!inf.hidden;});})();"
 )
 
 
@@ -523,12 +534,14 @@ def _head(title: str, info: str | None = None) -> str:
 
 def _section(heading: str, body: str, open_: bool = True, info: str | None = None) -> str:
     """Section repliable : le titre est un bouton (▾) qui plie/déplie la liste.
-    `open_=False` -> repliée d'office (ex. « Terminés »). `info` = bannière en tête."""
-    inner = (f'<div class="banner">{info}</div>' if info else "") + body
+    `open_=False` -> repliée d'office (ex. « Terminés »). `info`, s'il existe, se déplie
+    derrière un petit « i » (caché par défaut) -> n'occupe pas d'espace."""
     op = " open" if open_ else ""
-    return (f'<details class="sec2"{op}><summary>{heading}'
-            '<span class="chev">▾</span></summary>'
-            f'<div class="secbody">{inner}</div></details>')
+    i_btn = '<span class="i" data-info aria-label="Infos">i</span>' if info else ""
+    info_html = f'<div class="banner sec-info" hidden>{info}</div>' if info else ""
+    return (f'<details class="sec2"{op}><summary><span class="ttl">{heading}</span>'
+            f'<span class="sright">{i_btn}<span class="chev">▾</span></span></summary>'
+            f'<div class="secbody">{info_html}{body}</div></details>')
 
 
 def _pick_card(p: dict, badge: str) -> str:
