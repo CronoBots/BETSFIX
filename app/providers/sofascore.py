@@ -120,6 +120,10 @@ class SofaScoreProvider:
         # Borne les rafraîchissements de fond simultanés : une page touchant 50 chemins
         # périmés ne lance plus 50 requêtes d'un coup (rafale -> 403).
         self._refresh_sem = asyncio.Semaphore(4)
+        # Borne TOUTE la concurrence réseau vers SofaScore (y compris les appels directs
+        # comme les ~14 votes en parallèle de la home) : empêche les rafales qui déclenchent
+        # le rate-limit 403. Au plus N requêtes réelles en vol à un instant donné.
+        self._net_sem = asyncio.Semaphore(3)
         self._client = httpx.AsyncClient(
             base_url=settings.sofascore_base_url,
             timeout=settings.http_timeout,
@@ -203,8 +207,12 @@ class SofaScoreProvider:
     async def _fetch_and_cache(self, path: str) -> dict:
         """Appel réseau réel + mise en cache (avec repli sur le périmé en cas d'erreur)."""
         try:
-            self._breaker_guard()
-            resp = await self._client.get(path)
+            # Le guard est vérifié APRÈS acquisition du sémaphore : si les 1ères requêtes
+            # d'une rafale prennent un 403, les suivantes (en file) voient le circuit ouvert
+            # et abandonnent sans taper le réseau (au lieu de toutes passer un guard encore fermé).
+            async with self._net_sem:           # borne la concurrence réseau (anti-rafale 403)
+                self._breaker_guard()
+                resp = await self._client.get(path)
             if resp.status_code == 404:
                 raise ProviderError("Ressource introuvable chez la source.", status_code=404)
             if resp.status_code in (403, 429):  # rate-limit -> ouvre le circuit
