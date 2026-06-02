@@ -42,8 +42,9 @@ from app.config import Settings
 log = logging.getLogger("uvicorn")
 
 # Disjoncteur anti-403 : back-off croissant quand SofaScore rate-limite.
-BREAKER_BASE_S = 30      # 1ère pause
-BREAKER_MAX_S = 300      # plafond (5 min)
+BREAKER_BASE_S = 30       # 1ère pause (vrai 403/429)
+BREAKER_MAX_S = 120       # plafond (2 min) — assez pour souffler, pas trop pour ne pas rester bloqué
+BREAKER_LIGHT_S = 15      # pause courte sur erreur réseau transitoire (timeout/coupure), sans escalade
 
 _CACHE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "..", "data", "cache_sofascore.json")
@@ -144,9 +145,17 @@ class SofaScoreProvider:
                 f"SofaScore en pause anti-403 ({int(remaining)}s restantes).",
                 status_code=503,
             )
+        # Pause expirée : on fait redescendre le compteur (le back-off ne s'empile plus
+        # vers une pause permanente, même sans fetch réussi entre-temps).
+        if self._open_until:
+            self._open_until = 0.0
+            self._fail_count = max(0, self._fail_count - 1)
 
-    def _breaker_trip(self) -> None:
-        """Ouvre le circuit avec un délai exponentiel (rate-limit détecté)."""
+    def _breaker_trip(self, light: bool = False) -> None:
+        """Ouvre le circuit. `light` = erreur réseau transitoire (pause courte, sans escalade)."""
+        if light:
+            self._open_until = max(self._open_until, time.monotonic() + BREAKER_LIGHT_S)
+            return
         self._fail_count += 1
         delay = min(BREAKER_BASE_S * (2 ** (self._fail_count - 1)), BREAKER_MAX_S)
         self._open_until = time.monotonic() + delay
@@ -212,7 +221,9 @@ class SofaScoreProvider:
                 return stale
             raise
         except (httpx.HTTPError, ValueError) as exc:
-            self._breaker_trip()
+            # Erreur transitoire (timeout, coupure tunnel, JSON invalide) : ce n'est PAS un
+            # rate-limit -> pause courte sans escalade, on sert le périmé si on l'a.
+            self._breaker_trip(light=True)
             stale = self._cache.get_stale(path)
             if stale is not None:
                 return stale
