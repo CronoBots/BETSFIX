@@ -398,6 +398,7 @@ async def board_from_unibet() -> list[dict]:
         status = "notstarted" if ev.get("state") == "NOT_STARTED" else "inprogress"
         rows.append({
             "id": kid, "comp": group, "status": status, "home": home, "away": away,
+            "home_en": en_home, "away_en": en_away,   # noms anglais -> matcher SofaScore
             "probs": probs, "goals": goals_markets(eh, ea),
             "o1": o1, "ox": ox, "o2": o2, "imp": imp, "pick": pick,
             "start": start.timestamp(),
@@ -406,20 +407,53 @@ async def board_from_unibet() -> list[dict]:
     return rows
 
 
+async def _resolve_sofa_ids(rows: list[dict]) -> None:
+    """Retrouve l'id SofaScore de chaque match Unibet (par noms ANGLAIS + date) et le pose
+    dans row['id'] -> permet l'enrichissement SofaScore (votes/forme) sur une board Unibet.
+    Best-effort : si SofaScore est en pause, on n'y touche pas (les matchs restent affichés)."""
+    if not rows or sportcache.blocked():
+        return
+    days = sorted({datetime.fromtimestamp(r["start"], tz=timezone.utc).date().isoformat()
+                   for r in rows if r.get("start")})
+    index = []   # (home_tokens, away_tokens, date_iso, sofa_id)
+    async with httpx.AsyncClient(headers=SOFA_H) as c:
+        for day in days:
+            data = await _get(c, SOFA_B, f"/sport/football/scheduled-events/{day}")
+            for ev in (data or {}).get("events", []) or []:
+                ts = ev.get("startTimestamp")
+                d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat() if ts else None
+                index.append((name_tokens((ev.get("homeTeam") or {}).get("name", "")),
+                              name_tokens((ev.get("awayTeam") or {}).get("name", "")),
+                              d, ev.get("id")))
+    for r in rows:
+        rd = datetime.fromtimestamp(r["start"], tz=timezone.utc).date().isoformat() if r.get("start") else None
+        rh, ra = name_tokens(r.get("home_en") or r["home"]), name_tokens(r.get("away_en") or r["away"])
+        for ht, at, d, sid in index:
+            if names_match(rh, ht) and names_match(ra, at) and (d is None or rd is None or d == rd):
+                r["id"] = sid     # id SofaScore -> enrich_display pourra l'utiliser
+                break
+
+
 async def board_resilient() -> list[dict]:
-    """SOURCE UNIQUE des matchs foot (onglet ET accueil) : board live (SofaScore) -> board
-    UNIBET (sans SofaScore, surface les amicaux) -> repli store. Réseau borné. Garantit que
-    l'accueil et l'onglet voient les mêmes matchs."""
-    try:
-        rows = await asyncio.wait_for(board(), timeout=2.5)
-        if rows:
-            await asyncio.wait_for(enrich_display(rows), timeout=2.0)
-            return rows
-    except (Exception, asyncio.TimeoutError):
-        pass
+    """SOURCE UNIQUE des matchs foot (onglet ET accueil). Architecture cible :
+    MATCHS via UNIBET (liste + cotes, en français), proba via Elo (par nom). On retrouve
+    ensuite l'id SofaScore (nom + date) pour l'ENRICHISSEMENT (votes/forme). Replis : board
+    SofaScore directe, puis store. Réseau borné -> page rapide."""
     try:
         rows = await asyncio.wait_for(board_from_unibet(), timeout=2.5)
         if rows:
+            try:    # enrichissement SofaScore best-effort (ne bloque jamais l'affichage)
+                await asyncio.wait_for(_resolve_sofa_ids(rows), timeout=2.0)
+                await asyncio.wait_for(enrich_display(rows), timeout=2.0)
+            except (Exception, asyncio.TimeoutError):
+                pass
+            return rows
+    except (Exception, asyncio.TimeoutError):
+        pass
+    try:    # repli : board SofaScore directe
+        rows = await asyncio.wait_for(board(), timeout=2.5)
+        if rows:
+            await asyncio.wait_for(enrich_display(rows), timeout=2.0)
             return rows
     except (Exception, asyncio.TimeoutError):
         pass
