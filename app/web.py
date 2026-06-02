@@ -197,6 +197,10 @@ CSS = """
   .rowtop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;
           color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
   .rowtop > span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* en-tête match : compétition tronquable + date toujours visible */
+  .rt-l{display:flex;align-items:center;min-width:0;flex:1;overflow:hidden}
+  .rt-comp{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .rt-when{white-space:nowrap;flex:none}
   .players{font-size:16px;font-weight:700;margin:7px 0 3px;letter-spacing:-.01em}
   /* Ligne du pari : nom+cote à gauche, badge value à droite (toujours sur une ligne) */
   .betline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:7px 0 3px}
@@ -673,7 +677,11 @@ def _sport_row(r: dict) -> str:
     # En-tête = compétition · heure · compte à rebours SEUL ; le badge (value/✓/✗) passe à
     # droite de l'affiche -> l'en-tête ne déborde pas, le matchup reste lisible (il peut wraper).
     bdg = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
-    inner = (f'<div class="rowtop"><span>{e(r.get("tour") or "")}{fem} · {top}</span>'
+    # En-tête : la compétition (souvent longue, ex. « Amicaux Internationaux ») se tronque,
+    # mais la date/heure (rt-when) reste TOUJOURS visible.
+    inner = (f'<div class="rowtop"><span class="rt-l">'
+             f'<span class="rt-comp">{e(r.get("tour") or "")}{fem}</span>'
+             f'<span class="rt-when"> · {top}</span></span>'
              f'<span class="rt-r">{cd}</span></div>'
              f'<div class="mrow"><div class="players">{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>{bdg}</div>'
