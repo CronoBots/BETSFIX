@@ -591,13 +591,6 @@ def form_compare(home: str, home_form, away: str, away_form) -> str:
             f'<span class="fc">{form_dots(away_form)}</span></div>')
 
 
-def unibet_badge(available: bool) -> str:
-    """Pastille de disponibilité des cotes Unibet (pari jouable maintenant ?)."""
-    if available:
-        return '<span class="badge b-uni">🎯 Unibet dispo</span>'
-    return '<span class="badge b-soon">cotes Unibet à venir</span>'
-
-
 def votes_line(home_pct, away_pct, home, away) -> str:
     """Pronostics des fans (votes SofaScore) en mini-barre visuelle."""
     if home_pct is None or away_pct is None:

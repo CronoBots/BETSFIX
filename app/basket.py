@@ -446,7 +446,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             sub_html += web.votes_line(vt[0], vt[1], r["home"], r["away"])
         pk = r.get("pick")
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
-                 if pk else web.unibet_badge(bool(r.get("oh"))))
+                 if pk else "")
         base = {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
                 "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'

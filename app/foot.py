@@ -413,7 +413,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
     for r in rows:
         pk = r.get("pick")
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
-                 if pk else web.unibet_badge(bool(r.get("o1"))))
+                 if pk else "")
         base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
                 **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
