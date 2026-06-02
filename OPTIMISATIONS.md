@@ -1,5 +1,28 @@
 # Optimisations possibles — audit du 2026-06-02
 
+## ✅ État d'avancement (mise en œuvre du 2026-06-02)
+
+**FAIT** (5 commits, 111 tests verts, déployé) :
+- 🔴 #1 Matching cotes durci (token discriminant + date foot/basket) · #2 anti-inversion
+  home/away (`_match_winner_odds`) · #3 terrain neutre CdM/Euro · #4 void des matchs
+  annulés/reportés (3 sports) · #5 store anti-corruption (.bak) · #6 log Elo manquant.
+- 🟠 #8/#9/#10 Cache borné (éviction + plafond) + sauvegarde non bloquante (thread) ·
+  #13 sémaphore + court-circuit des refresh de fond · #8(sportcache) expiration paresseuse.
+- 🟢 #23 Normalisation centralisée (`app/textutil.py`, 6 copies dérivées) · #28 quick wins
+  (import dup, commentaire orphelin) · #26 tests (textutil, foot/basket, find_event_odds,
+  routing, void, cache, champs calculés).
+
+**À DÉCIDER ENSEMBLE** (changent le comportement de pari ou trop gros / risqués) :
+- 🟡 Modèle : #16 recalibration rang multi-surface · #17 poids · #18 `MODEL_TRUST` ·
+  #19 marchés buts foot vs book · #20 Elo basket MOV · #22 seuils de value. → back-tests requis.
+- 🟠 #11 parallélisation snapshot/settle (risque 403 — à sémaphorer finement) ·
+  #12/#24 unifier les 2 systèmes cache/disjoncteur (gros refacto) · #7 lock écritures store.
+- 🟢 #27 obsolescence « Roland Garros » (le `/matches` sert bien RG ; le repli LiveScore
+  RG-only reste à trancher) · #25 socle commun foot/basket · #18/#19 découpe des gros modules.
+
+---
+
+
 Audit en lecture seule sur 4 dimensions (perf/réseau, robustesse/correction, qualité du
 modèle, qualité de code/tests). Rien n'a été modifié. Classé par priorité de décision.
 Effort : S (≈<1h) · M (≈demi-journée) · L (≈jours).
