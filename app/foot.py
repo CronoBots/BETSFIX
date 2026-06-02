@@ -11,19 +11,21 @@ Sources gratuites : SofaScore + Unibet BE.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import json
+import logging
 import math
 import os
-import unicodedata
 from datetime import datetime, timedelta, timezone
-
-import asyncio
 
 import httpx
 
 from app import sportcache, tracking, web
 from app.dependencies import get_provider
+from app.textutil import name_tokens, names_match
+
+log = logging.getLogger("uvicorn")
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELO_PATH = os.path.join(_ROOT, "data", "foot_elo.json")
@@ -32,6 +34,10 @@ ELO_PATH = os.path.join(_ROOT, "data", "foot_elo.json")
 MAJOR_TIDS = {16: "Coupe du Monde", 17: "Premier League", 8: "LaLiga", 23: "Serie A",
               35: "Bundesliga", 34: "Ligue 1", 7: "Ligue des Champions",
               679: "Europa League", 1: "Euro", 18: "Coupe du Monde"}
+
+# Compétitions à venues majoritairement NEUTRES : le « domicile » SofaScore est
+# arbitraire (sauf pays hôte), donc aucun avantage terrain ne doit s'appliquer.
+NEUTRAL_COMPS = {"Coupe du Monde", "Euro"}
 
 HOME_ADV = 35.0           # faible : beaucoup de venues neutres en grand tournoi
 GOALS_TOTAL = 2.7         # total de buts moyen (baseline)
@@ -67,17 +73,21 @@ def _pois(k: int, lam: float) -> float:
     return math.exp(-lam + k * math.log(lam) - math.lgamma(k + 1))
 
 
-def _lambdas(elo_home: float, elo_away: float) -> tuple[float, float]:
-    """Buts attendus (domicile, extérieur) selon l'Elo + avantage terrain."""
-    sup = (elo_home + HOME_ADV - elo_away) / 100.0 * SUP_PER_100
+def _lambdas(elo_home: float, elo_away: float, neutral: bool = False) -> tuple[float, float]:
+    """Buts attendus (domicile, extérieur) selon l'Elo + avantage terrain.
+
+    `neutral=True` (CdM/Euro) annule l'avantage terrain : le « domicile » est arbitraire."""
+    home_adv = 0.0 if neutral else HOME_ADV
+    sup = (elo_home + home_adv - elo_away) / 100.0 * SUP_PER_100
     return max(0.15, (GOALS_TOTAL + sup) / 2), max(0.15, (GOALS_TOTAL - sup) / 2)
 
 
-def goals_markets(elo_home: float | None, elo_away: float | None) -> dict | None:
+def goals_markets(elo_home: float | None, elo_away: float | None,
+                  neutral: bool = False) -> dict | None:
     """Marchés de buts dérivés du double Poisson : O/U 2.5 et BTTS (les deux marquent)."""
     if elo_home is None or elo_away is None:
         return None
-    lh, la = _lambdas(elo_home, elo_away)
+    lh, la = _lambdas(elo_home, elo_away, neutral)
     lt = lh + la
     p_le2 = math.exp(-lt) * (1 + lt + lt * lt / 2)   # P(total ≤ 2 buts)
     btts = (1 - math.exp(-lh)) * (1 - math.exp(-la))
@@ -85,11 +95,11 @@ def goals_markets(elo_home: float | None, elo_away: float | None) -> dict | None
 
 
 def outcome_probs(elo_home: float | None, elo_away: float | None,
-                  kmax: int = 10) -> tuple[float, float, float] | None:
+                  kmax: int = 10, neutral: bool = False) -> tuple[float, float, float] | None:
     """(P(domicile), P(nul), P(extérieur)) via double Poisson dérivé de l'Elo."""
     if elo_home is None or elo_away is None:
         return None
-    lh, la = _lambdas(elo_home, elo_away)
+    lh, la = _lambdas(elo_home, elo_away, neutral)
     ph = [_pois(i, lh) for i in range(kmax + 1)]
     pa = [_pois(j, la) for j in range(kmax + 1)]
     p1 = px = p2 = 0.0
@@ -106,11 +116,7 @@ def outcome_probs(elo_home: float | None, elo_away: float | None,
     return (p1 / tot, px / tot, p2 / tot) if tot else None
 
 
-def _norm(name: str) -> set[str]:
-    text = unicodedata.normalize("NFKD", name or "")
-    text = "".join(ch for ch in text if not unicodedata.combining(ch)).lower()
-    return {t for t in text.replace("-", " ").replace(".", " ").split()
-            if len(t) > 2 and t not in ("the", "fc", "cf")}
+_norm = name_tokens  # normalisation centralisée (cf. app/textutil.py)
 
 
 def _devig3(o1, ox, o2):
@@ -202,15 +208,35 @@ async def _unibet_odds(client) -> list[dict]:
         # ordre Kambi : 1 (home), X (draw), 2 (away)
         out.append({"home_tokens": _norm(ev.get("homeName", "")),
                     "away_tokens": _norm(ev.get("awayName", "")),
+                    "day": _odds_day(ev.get("start")),
                     "o1": dec(outs[0]), "ox": dec(outs[1]), "o2": dec(outs[2])})
     return out
 
 
+def _odds_day(value):
+    """Date (UTC) d'un événement Unibet, pour désambiguïser le matching par noms."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc).date()
+    except (ValueError, TypeError):
+        return None
+
+
 def _match_odds(game, odds_list):
+    """Cotes 1X2 Unibet d'un match : matching par noms NON génériques + même date.
+
+    On exige un token discriminant partagé des DEUX côtés (names_match ignore « united »,
+    « fc »…) et la même date si connue, pour ne pas coller les cotes d'un autre match."""
     ht, at = _norm(game["home"]), _norm(game["away"])
+    ts = game.get("start")
+    gday = datetime.fromtimestamp(ts, tz=timezone.utc).date() if ts else None
     for o in odds_list:
-        if (ht & o["home_tokens"]) and (at & o["away_tokens"]):
-            return o["o1"], o["ox"], o["o2"]
+        if not (names_match(ht, o["home_tokens"]) and names_match(at, o["away_tokens"])):
+            continue
+        if gday is not None and o["day"] is not None and o["day"] != gday:
+            continue
+        return o["o1"], o["ox"], o["o2"]
     return None, None, None
 
 
@@ -226,7 +252,11 @@ async def board() -> list[dict]:
     for g in games:
         eh = (elo.get(str(g["home_id"])) or {}).get("elo")
         ea = (elo.get(str(g["away_id"])) or {}).get("elo")
-        probs = outcome_probs(eh, ea)
+        if eh is None or ea is None:   # Elo absent (ex. sélection CdM non couverte)
+            log.info("foot: Elo manquant pour %s vs %s -> pas de prédiction",
+                     g.get("home"), g.get("away"))
+        neutral = g.get("comp") in NEUTRAL_COMPS
+        probs = outcome_probs(eh, ea, neutral=neutral)
         o1, ox, o2 = _match_odds(g, odds)
         imp = _devig3(o1, ox, o2)
         pick = None
@@ -239,7 +269,7 @@ async def board() -> list[dict]:
                         and (probs[i] - imp[i]) <= MAX_DISAGREEMENT   # modèle pas "aveugle"
                         and odd and (not pick or edge > pick["edge"])):
                     pick = {"code": code, "team": name, "odds": odd, "edge": edge}
-        rows.append({**g, "probs": probs, "goals": goals_markets(eh, ea),
+        rows.append({**g, "probs": probs, "goals": goals_markets(eh, ea, neutral=neutral),
                      "o1": o1, "ox": ox, "o2": o2, "imp": imp, "pick": pick})
     return rows
 

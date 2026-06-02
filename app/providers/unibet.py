@@ -17,7 +17,6 @@ identique pour les 3 sports, seul le slug de la liste change.
 
 from __future__ import annotations
 
-import unicodedata
 from datetime import datetime, timezone
 
 import httpx
@@ -25,6 +24,7 @@ import httpx
 from app.cache import TTLCache
 from app.config import Settings
 from app.models import Match, UnibetMarket, UnibetOdds, UnibetOutcome
+from app.textutil import name_tokens, names_match
 
 
 class UnibetProvider:
@@ -166,20 +166,10 @@ def _market(bo: dict) -> UnibetMarket:
     return UnibetMarket(label=crit, type=btype, outcomes=outcomes)
 
 
-def _norm_name(name: str) -> set[str]:
-    """Normalise un nom en jeu de tokens (minuscules, sans accents, sans initiales)."""
-    text = unicodedata.normalize("NFKD", name or "")
-    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
-    tokens = set()
-    for tok in text.replace(".", " ").replace("-", " ").split():
-        if len(tok) > 1:  # ignore les initiales ('C.')
-            tokens.add(tok)
-    return tokens
-
-
-def _names_match(a: set[str], b: set[str]) -> bool:
-    """Vrai si les deux noms partagent au moins un token significatif (nom de famille)."""
-    return bool(a and b and a & b)
+# Normalisation centralisée (cf. app/textutil.py). Ces alias gardent l'API
+# historique importée par analysis/markets/… tout en partageant une seule source.
+_norm_name = name_tokens
+_names_match = names_match
 
 
 def _parse_dt(value) -> datetime | None:

@@ -13,19 +13,21 @@ Sources gratuites : SofaScore (scheduled-events basket) + Unibet BE (nba.json / 
 
 from __future__ import annotations
 
+import asyncio
 import html
 import json
+import logging
 import math
 import os
-import unicodedata
 from datetime import datetime, timedelta, timezone
-
-import asyncio
 
 import httpx
 
 from app import sportcache, tracking, web
 from app.dependencies import get_provider
+from app.textutil import name_tokens, names_match
+
+log = logging.getLogger("uvicorn")
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELO_PATH = os.path.join(_ROOT, "data", "basket_elo.json")
@@ -114,17 +116,7 @@ def expected_margin(p_home: float | None, sigma: float = SPREAD_SIGMA) -> float 
     return sigma * _inv_norm(p_home)
 
 
-def _norm(name: str) -> set[str]:
-    """Tokens normalisés d'un nom d'équipe (sans accents, sans '(F)')."""
-    text = unicodedata.normalize("NFKD", name or "")
-    text = "".join(ch for ch in text if not unicodedata.combining(ch)).lower()
-    for junk in ("(f)", "(w)"):
-        text = text.replace(junk, " ")
-    toks = set()
-    for t in text.replace("-", " ").replace(".", " ").split():
-        if len(t) > 2 and t != "the":
-            toks.add(t)
-    return toks
+_norm = name_tokens  # normalisation centralisée (cf. app/textutil.py)
 
 
 def _devig(o1: float | None, o2: float | None) -> tuple[float, float] | None:
@@ -240,18 +232,36 @@ async def _unibet_odds(client) -> list[dict]:
             out.append({
                 "home_tokens": _norm(ev.get("homeName", "")),
                 "away_tokens": _norm(ev.get("awayName", "")),
+                "day": _odds_day(ev.get("start")),
                 "oh": dec(outs[0]), "oa": dec(outs[1]),
             })
     return out
 
 
+def _odds_day(value):
+    """Date (UTC) d'un événement Unibet, pour désambiguïser le matching par noms."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc).date()
+    except (ValueError, TypeError):
+        return None
+
+
 def _match_odds(game, odds_list):
-    """Relie un match SofaScore à ses cotes Unibet (par tokens d'équipe)."""
+    """Relie un match SofaScore à ses cotes Unibet : noms NON génériques + même date.
+
+    names_match ignore les mots génériques (« los », « city »…) qui apparieraient deux
+    équipes différentes ; la date lève les dernières ambiguïtés."""
     ht, at = _norm(game["home"]), _norm(game["away"])
+    ts = game.get("start")
+    gday = datetime.fromtimestamp(ts, tz=timezone.utc).date() if ts else None
     for o in odds_list:
-        if (ht & o["home_tokens"]) and (at & o["away_tokens"]):
+        if gday is not None and o["day"] is not None and o["day"] != gday:
+            continue
+        if names_match(ht, o["home_tokens"]) and names_match(at, o["away_tokens"]):
             return o["oh"], o["oa"]
-        if (ht & o["away_tokens"]) and (at & o["home_tokens"]):   # sens inversé
+        if names_match(ht, o["away_tokens"]) and names_match(at, o["home_tokens"]):   # sens inversé
             return o["oa"], o["oh"]
     return None, None
 
@@ -269,6 +279,9 @@ async def board() -> list[dict]:
     for g in games:
         eh = (elo.get(str(g["home_id"])) or {}).get("elo")
         ea = (elo.get(str(g["away_id"])) or {}).get("elo")
+        if eh is None or ea is None:   # Elo absent (équipe non couverte par le build)
+            log.info("basket: Elo manquant pour %s vs %s -> pas de prédiction",
+                     g.get("home"), g.get("away"))
         p = win_prob(eh, ea)
         oh, oa = _match_odds(g, odds)
         imp = _devig(oh, oa)

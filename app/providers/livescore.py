@@ -11,13 +11,13 @@ LiveScore (Eid) diffèrent de ceux de SofaScore : ces matchs sont marqués
 
 from __future__ import annotations
 
-import unicodedata
 from datetime import datetime, timedelta, timezone
 
 import httpx
 
 from app.cache import TTLCache
 from app.config import Settings
+from app.textutil import name_tokens
 from app.models import Match, Player, Score
 
 # Libellés de stage LiveScore -> tour
@@ -140,7 +140,4 @@ def _to_int(v):
         return None
 
 
-def _tokens(name: str) -> set:
-    text = unicodedata.normalize("NFKD", name or "")
-    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
-    return {t for t in text.replace(".", " ").replace("-", " ").split() if len(t) > 1}
+_tokens = name_tokens  # normalisation centralisée (cf. app/textutil.py)

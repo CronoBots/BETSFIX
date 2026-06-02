@@ -10,9 +10,10 @@ from __future__ import annotations
 import csv
 import io
 import time
-import unicodedata
 
 import httpx
+
+from app.textutil import fold
 
 _BASE = "https://raw.githubusercontent.com/JeffSackmann"
 _URLS = {
@@ -25,9 +26,8 @@ _TTL = 12 * 3600
 
 
 def _norm(name: str) -> str:
-    text = unicodedata.normalize("NFKD", name or "")
-    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
-    return " ".join(text.replace(".", " ").replace("-", " ").split())
+    """Nom replié en chaîne normalisée (clé de lookup ; l'ordre des mots compte)."""
+    return " ".join(fold(name).replace(".", " ").replace("-", " ").split())
 
 
 class RankingsProvider:
