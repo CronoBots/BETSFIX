@@ -22,16 +22,23 @@ BREAKER_S = 90.0            # pause après un 403/429 : on ne re-tape pas SofaSc
 
 
 def get(key: str):
-    """Valeur en cache si encore valide, sinon None."""
+    """Valeur en cache si encore valide, sinon None (et purge l'entrée périmée)."""
     entry = _store.get(key)
-    if entry is not None and entry[0] > time.monotonic():
+    if entry is None:
+        return None
+    if entry[0] > time.monotonic():
         return entry[1]
+    del _store[key]            # expiration paresseuse : pas de fuite mémoire
     return None
 
 
 def put(key: str, value, ttl: float = DEFAULT_TTL) -> None:
     if value is not None:
-        _store[key] = (time.monotonic() + ttl, value)
+        now = time.monotonic()
+        _store[key] = (now + ttl, value)
+        if len(_store) > 256:   # balayage occasionnel des entrées mortes
+            for k in [k for k, (exp, _) in _store.items() if exp <= now]:
+                del _store[k]
 
 
 def blocked() -> bool:

@@ -116,6 +116,9 @@ class SofaScoreProvider:
         persist = None if "pytest" in sys.modules else os.path.normpath(_CACHE_FILE)
         self._cache = TTLCache(settings.cache_ttl_seconds, persist_path=persist)
         self._refreshing: set[str] = set()   # chemins en cours de rafraîchissement (fond)
+        # Borne les rafraîchissements de fond simultanés : une page touchant 50 chemins
+        # périmés ne lance plus 50 requêtes d'un coup (rafale -> 403).
+        self._refresh_sem = asyncio.Semaphore(4)
         self._client = httpx.AsyncClient(
             base_url=settings.sofascore_base_url,
             timeout=settings.http_timeout,
@@ -171,7 +174,9 @@ class SofaScoreProvider:
             return fresh
         stale = self._cache.get_stale(path)
         if stale is not None:
-            if path not in self._refreshing:        # un seul refresh en vol par chemin
+            # On ne rafraîchit en fond que si le circuit est fermé (sinon on sert le
+            # périmé sans gaspiller une tâche/requête vouée au 403) et un seul par chemin.
+            if path not in self._refreshing and self._open_until <= time.monotonic():
                 self._refreshing.add(path)
                 asyncio.create_task(self._background_refresh(path))
             return stale
@@ -179,7 +184,8 @@ class SofaScoreProvider:
 
     async def _background_refresh(self, path: str) -> None:
         try:
-            await self._fetch_and_cache(path)
+            async with self._refresh_sem:           # borne la concurrence des refresh
+                await self._fetch_and_cache(path)
         except Exception:
             pass  # le rafraîchissement de fond ne doit jamais faire de bruit
         finally:
