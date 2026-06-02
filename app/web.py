@@ -212,7 +212,9 @@ CSS = """
   .pb-t{flex:1;height:8px;border-radius:99px;background:var(--surface);overflow:hidden}
   .pb-t > span{display:block;height:100%;border-radius:99px}
   .pb-v{width:36px;flex:none;text-align:right;font-weight:800}
-  .pm{background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  /* Barres comparatives : couleurs FIXES (identiques tous sports/onglets) ->
+     BETSFIX bleu, BOOKMAKER gris, PUBLIC jaune. Ne pas thématiser par sport. */
+  .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
   .po{background:#8a93a3}
   .pc{background:#e0b341}
   .votes{margin-top:7px}
