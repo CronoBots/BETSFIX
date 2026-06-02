@@ -289,6 +289,19 @@ CSS = """
        max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .oc.fav .ocn{color:#9fd0ff}
   .ocv{font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums}
+  /* Fiche match détaillée (foot/basket) */
+  .mdh{margin:14px 0 6px}
+  .mdh-c{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+  .mdh-t{font-size:20px;font-weight:800;letter-spacing:-.01em;margin-top:5px}
+  .frm{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 0;
+       border-bottom:1px solid var(--border)}
+  .frm:last-child{border:none}
+  .frm-t{flex:1 1 120px;font-size:14px;font-weight:700;min-width:0}
+  .h2h{display:flex;gap:8px;margin:6px 0}
+  .h2h-c{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 6px;
+         background:var(--surface);border:1px solid var(--border);border-radius:12px}
+  .h2h-c b{font-size:22px;font-weight:800}
+  .h2h-c .dim{font-size:11px;text-align:center}
   .votes{margin-top:7px}
   .vlbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
   .vbar{display:flex;height:6px;border-radius:99px;overflow:hidden;margin-top:3px;background:var(--surface)}
@@ -815,6 +828,60 @@ def votes_line(home_pct, away_pct, home, away) -> str:
             f'<span>{e(away)} <b>{a}%</b></span></div>'
             f'<div class="vbar"><span class="vh" style="width:{h}%"></span>'
             f'<span class="va" style="width:{a}%"></span></div></div>')
+
+
+def _team_form_block(flag: str, name: str, tf: dict | None) -> str:
+    """Bloc forme d'une équipe : 5 derniers résultats + note moyenne + classement."""
+    e = html.escape
+    fl = f'{flag} ' if flag else ""
+    if not tf:
+        return f'<div class="frm"><div class="frm-t">{fl}{e(name)}</div><span class="dim">—</span></div>'
+    meta = []
+    if tf.get("position"):
+        meta.append(f'{tf["position"]}<span class="dim">e</span>')
+    if tf.get("avg_rating"):
+        meta.append(f'note <b>{round(tf["avg_rating"], 2)}</b>')
+    return (f'<div class="frm"><div class="frm-t">{fl}{e(name)}</div>'
+            f'{form_dots(tf.get("form"))}'
+            f'<span class="dim">{" · ".join(meta) if meta else ""}</span></div>')
+
+
+def render_sport_match_detail(ctx: dict) -> str:
+    """Fiche détaillée d'un match foot/basket : prédiction (3 barres + divergence + cotes)
+    puis analyse SofaScore (forme des 2 équipes, confrontations directes)."""
+    e = html.escape
+    hf = f'{ctx.get("home_flag")} ' if ctx.get("home_flag") else ""
+    af = f'{ctx.get("away_flag")} ' if ctx.get("away_flag") else ""
+    head = (f'<a class="dim" href="{ctx["back_url"]}">← {e(ctx["back_label"])}</a>'
+            f'<div class="mdh"><div class="mdh-c">{e(ctx.get("comp") or "")}'
+            f'<span class="dim"> · {ctx.get("when") or ""}</span></div>'
+            f'<div class="mdh-t">{hf}{e(ctx["home"])} <span class="dim">vs</span> '
+            f'{af}{e(ctx["away"])}</div></div>')
+
+    pred = _pick_bars(ctx["prediction"]) if ctx.get("prediction") else ""
+    odds = odds_row(ctx["odds_cells"]) if ctx.get("odds_cells") else ""
+
+    forms = ctx.get("forms")
+    form_html = ""
+    if forms:
+        form_html = ('<h2>📈 Forme récente</h2>'
+                     f'{_team_form_block(*forms[0])}{_team_form_block(*forms[1])}')
+
+    h2h = ctx.get("h2h")
+    h2h_html = ""
+    if h2h and any(h2h.get(k) is not None for k in ("home_wins", "draws", "away_wins")):
+        hw, dr, aw = h2h.get("home_wins") or 0, h2h.get("draws"), h2h.get("away_wins") or 0
+        cells = [f'<span class="h2h-c"><b>{hw}</b><span class="dim">{e(ctx["home"])}</span></span>']
+        if dr is not None:
+            cells.append(f'<span class="h2h-c"><b>{dr}</b><span class="dim">nuls</span></span>')
+        cells.append(f'<span class="h2h-c"><b>{aw}</b><span class="dim">{e(ctx["away"])}</span></span>')
+        h2h_html = f'<h2>🤝 Confrontations directes</h2><div class="h2h">{"".join(cells)}</div>'
+
+    body = head + pred + odds + form_html + h2h_html
+    if not (form_html or h2h_html):
+        body += ('<div class="banner">Détails SofaScore indisponibles pour ce match '
+                 '(source momentanément en pause ou match non couvert).</div>')
+    return layout(ctx["home"] + " vs " + ctx["away"], ctx["sport_key"], body, subnav="matchs")
 
 
 def fmt_score(home_score, away_score) -> str:

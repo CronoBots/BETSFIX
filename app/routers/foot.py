@@ -11,7 +11,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import foot, sportcache
+from app import flags, foot, sportcache, tracking, web
 from app.dependencies import get_provider, get_unibet
 from app.models import (
     MatchIncidents,
@@ -46,6 +46,46 @@ async def foot_page(frag: int = 0) -> HTMLResponse:
     rows = await foot.board_resilient()       # MÊME source que l'accueil (cohérence)
     fin = foot.finished_from_store()          # terminés depuis le store (hors-SofaScore)
     return HTMLResponse(foot.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag)))
+
+
+@router.get("/foot/match/{event_id}", response_class=HTMLResponse,
+            summary="Fiche détaillée d'un match foot (prédiction + forme + H2H)")
+async def foot_match(event_id: int,
+                     provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
+    """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H)."""
+    store = tracking.load(foot.FOOT_TRACK_PATH)
+    rec = next((r for r in store.values() if str(r.get("match_id")) == str(event_id)), None)
+    home = away = ""
+    prediction = odds_cells = when = None
+    comp = "Football"
+    if rec:
+        home, away, comp = rec.get("home", ""), rec.get("away", ""), rec.get("comp") or "Football"
+        when = web.fmt_local(rec.get("start_time"), with_date=True)
+        o1, ox, o2 = rec.get("o1"), rec.get("ox"), rec.get("o2")
+        odds_cells = [(home, o1), ("Nul", ox), (away, o2)]
+        probs = [rec.get("p_home"), rec.get("p_draw"), rec.get("p_away")]
+        if all(p is not None for p in probs):
+            votes = ((rec.get("public_home"), rec.get("public_away"))
+                     if rec.get("public_home") is not None else None)
+            prediction = web.bars_foot(probs, foot._devig3(o1, ox, o2), votes, home, away)
+    # Analyse SofaScore en direct (best-effort, 1 match -> pas de rafale)
+    forms = h2h = None
+    try:
+        pf = await provider.get_event_pregame_form(event_id)
+        forms = [(flags.flag(home), home, pf.home.model_dump()),
+                 (flags.flag(away), away, pf.away.model_dump())]
+    except ProviderError:
+        pass
+    try:
+        d = await provider.get_event_h2h(event_id)
+        h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": d.get("draws")}
+    except ProviderError:
+        pass
+    ctx = {"home": home or "Match", "away": away, "home_flag": flags.flag(home),
+           "away_flag": flags.flag(away), "comp": comp, "when": when,
+           "prediction": prediction, "odds_cells": odds_cells, "forms": forms, "h2h": h2h,
+           "back_url": "/foot", "back_label": "Foot", "sport_key": "foot"}
+    return HTMLResponse(web.render_sport_match_detail(ctx))
 
 
 # ------------------------------------------------------------------- API JSON

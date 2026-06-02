@@ -487,7 +487,10 @@ def _attach_from_store(rows: list[dict]) -> None:
                 if rec.get("public_home") is not None:
                     break          # on privilégie le rec QUI A des votes (dédoublonnage transition)
         if best is not None:
-            r["id"] = best.get("match_id", r["id"])
+            mid = best.get("match_id")
+            if mid:
+                r["id"] = mid
+                r["sofa_ok"] = True     # id SofaScore résolu -> fiche détaillée cliquable
             if best.get("public_home") is not None:
                 r["votes"] = (best["public_home"], best["public_away"])
 
@@ -637,6 +640,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
                 "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
                 "female": r.get("female"),
                 "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
+                "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
                 **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
         (live if r["status"] == "inprogress" else upcoming).append(
             {**base, "prob": r.get("probs"), "sub": model_line(r),

@@ -544,7 +544,10 @@ def _attach_from_store(rows: list[dict]) -> None:
             if d is not None and rd is not None and d != rd:
                 continue
             if names_match(rh, sht) and names_match(ra, sat):
-                r["id"] = rec.get("match_id", r["id"])
+                mid = rec.get("match_id")
+                if mid:
+                    r["id"] = mid
+                    r["sofa_ok"] = True     # id SofaScore résolu -> fiche détaillée cliquable
                 if rec.get("public_home") is not None:
                     r["votes"] = (rec["public_home"], rec["public_away"])
                 break
@@ -615,6 +618,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             else (r.get("league") or "").upper() == "WNBA"
         base = {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "start_ts": r.get("start"), "home": r["home"], "away": r["away"], "female": female,
+                "url": f'/basket/match/{r["id"]}' if r.get("sofa_ok") else None,
                 "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'
                           if r["status"] == "inprogress" and r.get("home_pts") is not None else ""),
                 **web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])}

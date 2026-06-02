@@ -10,7 +10,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import basket, sportcache
+from app import basket, sportcache, tracking, web
 from app.dependencies import get_provider, get_unibet
 from app.models import (
     MatchOdds,
@@ -43,6 +43,44 @@ async def basket_page(frag: int = 0) -> HTMLResponse:
     rows = await basket.board_resilient()       # MÊME source que l'accueil (cohérence)
     fin = basket.finished_from_store()          # terminés depuis le store (hors-SofaScore)
     return HTMLResponse(basket.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag)))
+
+
+@router.get("/basket/match/{event_id}", response_class=HTMLResponse,
+            summary="Fiche détaillée d'un match basket (prédiction + forme + H2H)")
+async def basket_match(event_id: int,
+                       provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
+    """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H)."""
+    store = tracking.load(basket.BASKET_TRACK_PATH)
+    rec = next((r for r in store.values() if str(r.get("match_id")) == str(event_id)), None)
+    home = away = ""
+    prediction = odds_cells = when = None
+    comp = "Basket"
+    if rec:
+        home, away, comp = rec.get("home", ""), rec.get("away", ""), (rec.get("tour") or "Basket").upper()
+        when = web.fmt_local(rec.get("start_time"), with_date=True)
+        oh, oa = rec.get("unibet_home_odds"), rec.get("unibet_away_odds")
+        odds_cells = [(home, oh), (away, oa)]
+        mh = rec.get("model_home_prob")
+        if mh is not None:
+            votes = ((rec.get("public_home"), rec.get("public_away"))
+                     if rec.get("public_home") is not None else None)
+            prediction = web.bars_two_way(mh, (basket._devig(oh, oa) or (None, None))[0], votes, home, away)
+    forms = h2h = None
+    try:
+        pf = await provider.get_event_pregame_form(event_id)
+        forms = [("", home, pf.home.model_dump()), ("", away, pf.away.model_dump())]
+    except ProviderError:
+        pass
+    try:
+        d = await provider.get_event_h2h(event_id)
+        h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": None}
+    except ProviderError:
+        pass
+    ctx = {"home": home or "Match", "away": away, "home_flag": "", "away_flag": "",
+           "comp": comp, "when": when, "prediction": prediction, "odds_cells": odds_cells,
+           "forms": forms, "h2h": h2h, "back_url": "/basket", "back_label": "Basket",
+           "sport_key": "basket"}
+    return HTMLResponse(web.render_sport_match_detail(ctx))
 
 
 # ------------------------------------------------------------------- API JSON
