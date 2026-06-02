@@ -25,11 +25,14 @@ except (AttributeError, ValueError):  # pragma: no cover
 
 import httpx
 
+from app.elo_math import expected, mov_multiplier
+
 H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
      "Origin": "https://www.sofascore.com"}
 B = "https://api.sofascore.com/api/v1"
 WC_TID = 16               # FIFA World Cup
 BASE, K = 1500.0, 28.0
+HOME_ADV = 35.0           # avantage du terrain, intégré DÈS l'apprentissage (cohérent avec la prédiction)
 PLAYER_PAGES = 4          # ~4 pages d'historique par sélection
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,8 +47,10 @@ def _get(c, path):
         return None
 
 
-def _expected(a, b):
-    return 1.0 / (1.0 + 10 ** ((b - a) / 400.0))
+def _margin(ev) -> int | None:
+    hs = (ev.get("homeScore") or {}).get("current")
+    as_ = (ev.get("awayScore") or {}).get("current")
+    return (hs - as_) if isinstance(hs, (int, float)) and isinstance(as_, (int, float)) else None
 
 
 def wc_team_ids(c) -> list[int]:
@@ -112,9 +117,16 @@ def main():
         h["name"], a["name"] = ht.get("name", h["name"]), at.get("name", a["name"])
         wc = ev.get("winnerCode")
         sh = 1.0 if wc == 1 else (0.0 if wc == 2 else 0.5)   # 3 = match nul
-        eh = _expected(h["elo"], a["elo"])
-        h["elo"] += K * (sh - eh)
-        a["elo"] += K * ((1 - sh) - (1 - eh))
+        eh = expected(h["elo"] + HOME_ADV, a["elo"])         # avantage terrain DANS l'apprentissage
+        margin = _margin(ev)
+        if margin is not None and margin != 0 and sh != 0.5:  # but d'écart sur un résultat décisif
+            elo_diff = (h["elo"] + HOME_ADV - a["elo"]) if sh == 1.0 else (a["elo"] - h["elo"] - HOME_ADV)
+            mult = mov_multiplier(abs(margin), elo_diff)
+        else:
+            mult = 1.0                                        # nul : ajustement standard
+        delta = K * mult * (sh - eh)
+        h["elo"] += delta
+        a["elo"] -= delta                                    # somme nulle
         h["n"] += 1
         a["n"] += 1
 
