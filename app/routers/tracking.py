@@ -60,15 +60,15 @@ async def run_snapshot(provider: SofaScoreProvider, unibet: UnibetProvider) -> i
             st_iso = m.start_time.isoformat() if m.start_time else None
             if tracking.upsert_prediction(store, analysis, tour, now.isoformat(), st_iso):
                 updated += 1
-            # votes des fans -> persistés (barre PUBLIC stable), seulement si value détectée
-            if any(vb.is_value for vb in analysis.value_bets):
-                try:
-                    v = await provider.get_votes(m.id)
-                    rec = store.get(str(m.id))
-                    if rec is not None and v.home_percent is not None:
-                        rec["public_home"], rec["public_away"] = v.home_percent, v.away_percent
-                except ProviderError:
-                    pass
+            # Votes des fans -> persistés pour TOUS les matchs suivis (barre PUBLIC stable
+            # et homogène avec le basket). En fond, throttlé, et caché 30 min.
+            try:
+                v = await provider.get_votes(m.id)
+                rec = store.get(str(m.id))
+                if rec is not None and v.home_percent is not None:
+                    rec["public_home"], rec["public_away"] = v.home_percent, v.away_percent
+            except ProviderError:
+                pass
     tracking.save(store)
     return updated
 
