@@ -59,7 +59,19 @@ def fmt_local(value, with_date: bool = True) -> str:
             return value[11:16] if len(value) >= 16 else value
     if LOCAL_TZ is not None and getattr(dt, "tzinfo", None) is not None:
         dt = dt.astimezone(LOCAL_TZ)
-    return dt.strftime("%d/%m %H:%M" if with_date else "%H:%M")
+    hm = dt.strftime("%H:%M")
+    if not with_date:
+        return hm
+    # Dates conviviales : Aujourd'hui / Demain / jour abrégé, sinon jj/mm.
+    today = (datetime.now(LOCAL_TZ).date() if LOCAL_TZ is not None else datetime.now().date())
+    delta = (dt.date() - today).days
+    if delta == 0:
+        return f"Aujourd'hui {hm}"
+    if delta == 1:
+        return f"Demain {hm}"
+    if 2 <= delta <= 6:
+        return f"{('Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.','Dim.')[dt.weekday()]} {hm}"
+    return f"{dt.strftime('%d/%m')} {hm}"
 
 CSS = """
   :root{
@@ -96,10 +108,10 @@ CSS = """
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
   .toplogo{display:block;text-align:center;margin:0 0 16px}
   .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 18px rgba(46,155,255,.40))}
-  .pausewrap{text-align:center;margin:-6px 0 12px}
-  .pausebadge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;
-              color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);
-              padding:3px 10px;border-radius:20px}
+  .pausewrap{text-align:right;margin:-10px 0 8px}
+  .pausebadge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
+              color:var(--dim);background:transparent;border:1px solid var(--border2);
+              padding:2px 8px;border-radius:20px;opacity:.8}
   /* Barre d'onglets fixée en bas (style app native) */
   .botnav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;
@@ -182,9 +194,19 @@ CSS = """
             box-shadow:0 4px 18px rgba(46,226,127,.14)}
   .live{color:var(--red);font-weight:800;letter-spacing:.02em}
   .fem{color:#ff7ab8;font-weight:800}
-  .rowtop{display:flex;justify-content:space-between;align-items:center;font-size:11px;
+  .rowtop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;
           color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .rowtop > span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .players{font-size:16px;font-weight:700;margin:7px 0 3px;letter-spacing:-.01em}
+  /* Ligne du pari : nom+cote à gauche, badge value à droite (toujours sur une ligne) */
+  .betline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:7px 0 3px}
+  .betline .bn{font-size:16px;font-weight:700;letter-spacing:-.01em;min-width:0;
+               overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* affiche (équipes) + badge à droite, badge aligné en haut, le matchup peut wraper */
+  .mrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .mrow .players{flex:1;min-width:0}
+  .bdg{flex:none}
+  .bdg .badge{white-space:nowrap}
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
          letter-spacing:.02em}
   .b-val{background:rgba(46,226,127,.14);color:var(--accent);border:1px solid rgba(46,226,127,.25)}
@@ -228,6 +250,7 @@ CSS = """
       font-variant-numeric:tabular-nums;letter-spacing:.02em;background:rgba(255,255,255,.10);
       color:#fff;border:1px solid rgba(255,255,255,.20);white-space:nowrap}
   .cd .u{color:rgba(255,255,255,.55);font-weight:700;margin:0 1px 0 1px}
+  .cd.soon{background:rgba(224,179,65,.16);color:#ffd061;border-color:rgba(224,179,65,.40)}
   .cd.live{background:rgba(242,93,110,.18);color:#ff7a88;border-color:rgba(242,93,110,.38)}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
@@ -346,7 +369,7 @@ _COUNTDOWN_JS = (
     "function t(){var n=Date.now(),e=document.getElementsByClassName('cd');"
     "for(var i=0;i<e.length;i++){var v=e[i].getAttribute('data-ts');if(!v)continue;"
     "var ms=parseInt(v,10)*1000-n;e[i].innerHTML=f(ms);"
-    "e[i].className=ms<=0?'cd live':'cd';}}"
+    "e[i].className=ms<=0?'cd live':(ms<3600000?'cd soon':'cd');}}"
     "t();setInterval(t,1000);})();"
 )
 
@@ -402,7 +425,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
         s = source.get("paused_seconds", 0)
         pausebar = (f'<div class="pausewrap"><span class="pausebadge" '
                     f'title="SofaScore en pause ({s}s) — LiveScore prend le relais">'
-                    f'🟠 Source en pause</span></div>')
+                    f'⏸ Source en pause</span></div>')
     nav_items = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
                  ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot")]
     # Barre d'onglets fixée en BAS (style app native) : icône + petit label.
@@ -447,7 +470,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         s = source.get("paused_seconds", 0)
         pausebar = (f'<div class="pausewrap"><span class="pausebadge" '
                     f'title="SofaScore en pause ({s}s) — LiveScore prend le relais">'
-                    f'🟠 Source en pause</span></div>')
+                    f'⏸ Source en pause</span></div>')
     panels = []
     for k, href, _ico, _name in _SPA_TABS:
         on = " on" if k == active else ""
@@ -551,10 +574,13 @@ def _pick_card(p: dict, badge: str) -> str:
     cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
           if p.get("start_ts") and p["start_ts"] > time.time() else "")
     fem = ' <span class="fem">(F)</span>' if p.get("female") else ""
+    # En-tête = sport · date · compte à rebours SEUL ; le badge value descend sur la ligne
+    # du pari -> l'en-tête ne déborde jamais sur 2 lignes.
+    bdg = f'<span class="bdg">{badge}</span>' if badge else ""
     return (f'<a class="row pick" href="{p["url"]}">'
             f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
-            f'<span class="rt-r">{cd}{badge}</span></div>'
-            f'<div class="players">{e(p.get("bet") or "")}{odds}</div>'
+            f'<span class="rt-r">{cd}</span></div>'
+            f'<div class="betline"><span class="bn">{e(p.get("bet") or "")}{odds}</span>{bdg}</div>'
             f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
             f'{_pick_bars(p)}</a>')
 
@@ -644,10 +670,13 @@ def _sport_row(r: dict) -> str:
           if r.get("status") == "notstarted" and r.get("start_ts")
           and r["start_ts"] > time.time() else "")
     fem = ' <span class="fem">(F)</span>' if r.get("female") else ""
+    # En-tête = compétition · heure · compte à rebours SEUL ; le badge (value/✓/✗) passe à
+    # droite de l'affiche -> l'en-tête ne déborde pas, le matchup reste lisible (il peut wraper).
+    bdg = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
     inner = (f'<div class="rowtop"><span>{e(r.get("tour") or "")}{fem} · {top}</span>'
-             f'<span class="rt-r">{cd}{r.get("badge", "")}</span></div>'
-             f'<div class="players">{e(r.get("home") or "")} '
-             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>'
+             f'<span class="rt-r">{cd}</span></div>'
+             f'<div class="mrow"><div class="players">{e(r.get("home") or "")} '
+             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>{bdg}</div>'
              f'{probviz}{r.get("sub", "")}')
     cls = "row pick" if r.get("pick") else "row"
     if r.get("url"):
