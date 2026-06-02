@@ -425,12 +425,15 @@ async def board_from_unibet() -> list[dict]:
     """Matchs basket depuis UNIBET (moneyline NBA+WNBA) + Elo par nom. SANS SofaScore.
     Les noms d'équipes US sont identiques chez Unibet et SofaScore -> pas de bilingue."""
     elo = load_elo()
-    index = [(name_tokens(v.get("name", "")), v.get("elo")) for v in elo.values() if v.get("name")]
+    # index AVEC la ligue : crucial car NBA et WNBA partagent les villes (« Atlanta Dream »
+    # WNBA ne doit PAS matcher « Atlanta Hawks » NBA via le token « atlanta »).
+    index = [(name_tokens(v.get("name", "")), v.get("elo"), v.get("league"))
+             for v in elo.values() if v.get("name")]
 
-    def elo_for(name):
+    def elo_for(name, league):
         q = name_tokens(name)
-        for toks, e in index:
-            if names_match(q, toks):
+        for toks, e, lg in index:
+            if lg == league and names_match(q, toks):
                 return e
         return None
 
@@ -447,13 +450,16 @@ async def board_from_unibet() -> list[dict]:
             for entry in (data or {}).get("events", []) or []:
                 ev = entry.get("event") or {}
                 kid = ev.get("id")
-                home, away = ev.get("homeName", ""), ev.get("awayName", "")
-                if "(" in home or "(" in away or kid in seen:
+                home = ev.get("homeName", "").replace(" (F)", "").replace(" (W)", "").strip()
+                away = ev.get("awayName", "").replace(" (F)", "").replace(" (W)", "").strip()
+                # NB : pas de filtre parenthèses ici -> les listViews nba/wnba.json sont des
+                # vraies ligues (le « (F) » des noms WNBA est juste un marqueur), pas d'esports.
+                if kid in seen:
                     continue
                 start = _ub_dt(ev.get("start"))
                 if start is None or start > horizon:
                     continue
-                eh, ea = elo_for(home), elo_for(away)
+                eh, ea = elo_for(home, league), elo_for(away, league)
                 if eh is None or ea is None:
                     continue
                 seen.add(kid)
