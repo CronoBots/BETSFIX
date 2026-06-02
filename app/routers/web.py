@@ -234,6 +234,7 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
         iso = datetime.fromtimestamp(start, tz=timezone.utc).isoformat() if start else None
         base = {"sport": sport, "icon": icon, "home": r["home"], "away": r["away"],
                 "match_id": r.get("id"), "url": url, "female": r.get("female"),
+                "live": r.get("status") == "inprogress",
                 "time": web.fmt_local(iso, with_date=True), "start_ts": start}
         if pk_data:
             team, odds, edge, mp, side, pimp = pk_data

@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from app import sportcache, tracking, web
+from app import sofa_http, sportcache, tracking, web
 from app.dependencies import get_provider
 from app.textutil import name_tokens, names_match
 
@@ -140,11 +140,15 @@ async def _get(client, base, path, params=None):
     if is_sofa and sportcache.blocked():   # disjoncteur ouvert -> on ne tape pas SofaScore
         return None
     try:
-        r = await client.get(base + path, params=params, timeout=20)
+        # SofaScore -> curl_cffi (empreinte TLS Chrome, anti-403) ; le reste -> httpx fourni.
+        if is_sofa:
+            r = await sofa_http.get(base + path, params=params)
+        else:
+            r = await client.get(base + path, params=params, timeout=20)
         if is_sofa and r.status_code in (403, 429):
             sportcache.trip()
         data = r.json() if r.status_code == 200 else None
-    except httpx.HTTPError:
+    except Exception:
         data = None
     # les listes de saisons changent rarement -> TTL long ; le reste -> TTL court
     sportcache.put(key, data, ttl=3600 if "/seasons" in path else sportcache.DEFAULT_TTL)

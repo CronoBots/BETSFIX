@@ -578,13 +578,13 @@ def _pick_card(p: dict, badge: str) -> str:
     cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
           if p.get("start_ts") and p["start_ts"] > time.time() else "")
     fem = ' <span class="fem">(F)</span>' if p.get("female") else ""
-    # Badge en haut à droite À LA PLACE du décompte si le match est live (pas de décompte) ;
-    # sinon (à venir) il descend sur la ligne du pari pour ne pas faire déborder l'en-tête.
-    rt_badge = badge if (not cd and badge) else ""
-    bdg = f'<span class="bdg">{badge}</span>' if (cd and badge) else ""
+    # Coin haut-droit = pastille d'état (même style) : décompte si à venir, « EN DIRECT » si
+    # live. Le badge value descend toujours sur la ligne du pari.
+    state = cd if cd else ('<span class="cd live">🔴 EN DIRECT</span>' if p.get("live") else "")
+    bdg = f'<span class="bdg">{badge}</span>' if badge else ""
     return (f'<a class="row pick" href="{p["url"]}">'
             f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
-            f'<span class="rt-r">{cd}{rt_badge}</span></div>'
+            f'<span class="rt-r">{state}</span></div>'
             f'<div class="betline"><span class="bn">{e(p.get("bet") or "")}{odds}</span>{bdg}</div>'
             f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
             f'{_pick_bars(p)}</a>')
@@ -658,37 +658,32 @@ def _sport_row(r: dict) -> str:
     """Ligne de match unifiée (tous sports). r : tour, status, time, score, home,
     away, prob (float ou 3-tuple), sub, badge, url, pick."""
     e = html.escape
+    # Pastille d'état en haut à droite, MÊME style que le décompte : décompte si à venir,
+    # « EN DIRECT » (rouge) si live. Le badge value/✓ va, lui, sur la ligne de l'affiche.
     if r.get("status") == "inprogress":
-        sc = f' <span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
-        top = f'<span class="live">🔴 EN DIRECT</span>{sc}'
+        top = f'<span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
+        state = '<span class="cd live">🔴 EN DIRECT</span>'
     elif r.get("status") == "finished":
         top = e(r.get("score") or "terminé")
+        state = ""
     else:
         top = e(r.get("time") or "")
+        state = (f'<span class="cd" data-ts="{int(r["start_ts"])}"></span>'
+                 if r.get("start_ts") and r["start_ts"] > time.time() else "")
     # 3 barres (BETSFIX / Bookmaker / Public) comme sur l'accueil si on a les données,
     # sinon la barre de proba simple (favori + %).
     probviz = _pick_bars(r) if r.get("model_prob") is not None else \
         _prob_bar(r.get("prob"), r.get("prob_labels"))
-    # badge décompte (timer) en haut à droite — UNIQUEMENT pour un match encore à venir
-    # (un notstarted dont l'heure est déjà passée ne doit pas afficher « live »).
-    cd = (f'<span class="cd" data-ts="{int(r["start_ts"])}"></span>'
-          if r.get("status") == "notstarted" and r.get("start_ts")
-          and r["start_ts"] > time.time() else "")
     fem = ' <span class="fem">(F)</span>' if r.get("female") else ""
-    # Place du badge : en haut à droite À LA PLACE du décompte quand il n'y a pas de décompte
-    # (live / terminé) ; sinon (match à venir, le décompte occupe le coin) il passe à droite de
-    # l'affiche. -> l'en-tête ne déborde jamais et les live ont leur badge au même endroit.
-    badge = r.get("badge", "")
-    rt_badge = badge if (not cd and badge) else ""
-    mrow_badge = f'<span class="bdg">{badge}</span>' if (cd and badge) else ""
-    # En-tête : la compétition (souvent longue, ex. « Amicaux Internationaux ») se tronque,
-    # mais la date/heure (rt-when) reste TOUJOURS visible.
+    badge = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
+    # En-tête : la compétition (souvent longue) se tronque, la date/heure (rt-when) reste visible.
+    when = f' · {top}' if top else ""
     inner = (f'<div class="rowtop"><span class="rt-l">'
              f'<span class="rt-comp">{e(r.get("tour") or "")}{fem}</span>'
-             f'<span class="rt-when"> · {top}</span></span>'
-             f'<span class="rt-r">{cd}{rt_badge}</span></div>'
+             f'<span class="rt-when">{when}</span></span>'
+             f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{e(r.get("home") or "")} '
-             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>{mrow_badge}</div>'
+             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>{badge}</div>'
              f'{probviz}{r.get("sub", "")}')
     cls = "row pick" if r.get("pick") else "row"
     if r.get("url"):

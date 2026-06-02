@@ -13,6 +13,3 @@ env/
 
 # Données de suivi des prédictions (générées au runtime)
 data/
-
-# Session SofaScore perso (cookie cf_clearance) — ne JAMAIS commiter
-sofascore_cookies.txt
