@@ -646,8 +646,9 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             {**base, "prob": r.get("probs"), "sub": model_line(r),
              "badge": badge, "pick": bool(pk)})
         if pk:
+            oddsrow = web.odds_row([(r["home"], r.get("o1")), ("Nul", r.get("ox")), (r["away"], r.get("o2"))])
             value.append({**base, "badge": badge, "pick": True,
-                          "sub": f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
+                          "sub": oddsrow + f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
                                  f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts (à confirmer)</div>'})
 
     fin = []

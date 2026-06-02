@@ -539,7 +539,8 @@ async def matches_page(
         "home": v["home"], "away": v["away"], "pick": True, "start_ts": v.get("start_ts"),
         "female": v.get("tour") == "wta",
         "badge": f'<span class="badge b-val">+{round((v.get("edge") or 0)*100,1)} pts</span>',
-        "sub": (f'<div class="dim">pari : <b class="pos">{ev(v.get("player") or "")}</b> '
+        "sub": (web.odds_row(v.get("odds_cells") or [])
+                + f'<div class="dim">pari : <b class="pos">{ev(v.get("player") or "")}</b> '
                 f'@{v.get("odds") or "—"} · mise '
                 f'{v.get("stake") if v.get("stake") is not None else "—"}%</div>'),
         # 3 barres du côté parié (comme l'accueil)
@@ -579,6 +580,8 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
             implied = ((devig[0] if side == "home" else devig[1]) if devig and side in ("home", "away") else None)
             community = ((ph if side == "home" else pa) / 100
                          if ph is not None and side in ("home", "away") else None)
+            nh = (rec.get("home", "").split() or [""])[-1]
+            na = (rec.get("away", "").split() or [""])[-1]
             value_picks.append({
                 "id": rec["match_id"], "tour": rec.get("tour", "atp"),
                 "home": rec.get("home", ""), "away": rec.get("away", ""),
@@ -588,6 +591,7 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
                 "edge": v.get("edge"), "stake": v.get("stake_pct"),
                 "confidence": rec.get("confidence"),
                 "model_prob": model_prob, "implied": implied, "community": community,
+                "odds_cells": [(nh, rec.get("unibet_home_odds")), (na, rec.get("unibet_away_odds"))],
                 "_sort": rec.get("start_time") or "",
             })
         elif res and rec.get("model_home_prob") is not None:

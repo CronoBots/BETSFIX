@@ -9,7 +9,7 @@ from __future__ import annotations
 import html
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                      "static", "logo.png")
@@ -185,8 +185,12 @@ CSS = """
        font-variant-numeric:tabular-nums}
   .sub{font-size:11px;color:var(--muted)}
   /* Rows / list cards */
+  /* En-tête de jour dans les listes (regroupement par date) */
+  .dayhdr{display:flex;align-items:center;gap:9px;margin:16px 2px 4px;font-size:10.5px;
+          font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+  .dayhdr::after{content:"";flex:1;height:1px;background:var(--border)}
   .row{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border-radius:var(--radius);padding:14px 15px;margin:10px 0;border:1px solid var(--border);
+       border-radius:var(--radius);padding:12px 14px;margin:8px 0;border:1px solid var(--border);
        box-shadow:var(--shadow-sm);transition:.16s}
   .row:active{transform:scale(.99);border-color:var(--border2)}
   .row.pick{border-color:rgba(46,226,127,.45);
@@ -201,9 +205,9 @@ CSS = """
   .rt-l{display:flex;align-items:center;min-width:0;flex:1;overflow:hidden}
   .rt-comp{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .rt-when{white-space:nowrap;flex:none}
-  .players{font-size:16px;font-weight:700;margin:7px 0 3px;letter-spacing:-.01em}
+  .players{font-size:15.5px;font-weight:700;margin:5px 0 2px;letter-spacing:-.01em}
   /* Ligne du pari : nom+cote à gauche, badge value à droite (toujours sur une ligne) */
-  .betline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:7px 0 3px}
+  .betline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:5px 0 2px}
   .betline .bn{font-size:16px;font-weight:700;letter-spacing:-.01em;min-width:0;
                overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* affiche (équipes) + badge à droite, badge aligné en haut, le matchup peut wraper */
@@ -261,7 +265,7 @@ CSS = """
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
   .fd{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
       border-radius:4px;font-size:9px;font-weight:800;color:#08110a}
-  .pbars{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .pbars{margin-top:7px;display:flex;flex-direction:column;gap:4px}
   .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
   .pb-row{display:flex;align-items:center;gap:9px;font-size:11px}
   .pb-l{width:84px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
@@ -281,9 +285,9 @@ CSS = """
   .dvg b{color:#fff}
   /* Barre de cotes : une cellule par issue (joueur 1 / Nul / joueur 2) ; favori (cote la
      plus basse) mis en avant en bleu. Nom au-dessus, cote dessous. */
-  .oddsrow{display:flex;gap:6px;margin-top:9px}
+  .oddsrow{display:flex;gap:6px;margin-top:7px}
   .oc{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
-      background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px 6px}
+      background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:5px 6px}
   .oc.fav{border-color:var(--accent2);background:rgba(46,155,255,.10)}
   .ocn{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
        max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -750,6 +754,23 @@ def _sport_row(r: dict) -> str:
     return f'<div class="{cls}">{inner}</div>'
 
 
+def _rows_by_day(rows: list) -> str:
+    """Rend les lignes avec un petit en-tête de jour (Aujourd'hui / Demain / Sam. …) à chaque
+    changement de date. Les lignes doivent être triées par heure de début."""
+    today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
+    out, cur = [], object()
+    for r in rows:
+        ts = r.get("start_ts")
+        ld = to_local(datetime.fromtimestamp(ts, tz=timezone.utc)) if ts else None
+        d = ld.date() if ld else None
+        if d != cur:
+            cur = d
+            if d is not None:
+                out.append(f'<div class="dayhdr">{html.escape(day_label(d, today))}</div>')
+        out.append(_sport_row(r))
+    return "".join(out)
+
+
 def render_sport_matches(sport: str, title: str, value: list, live: list,
                          upcoming: list, finished: list, intro: str = "",
                          paused: bool = False, frag: bool = False) -> str:
@@ -759,17 +780,18 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
     « aucun match ». `frag=True` -> renvoie le corps seul (chargé en AJAX dans la SPA)."""
     out = []
-    # (heading, rows, ouvert d'office ?) — « Terminés » plié par défaut.
-    sections = [("💎 Valeurs du jour", value, True), ("🔴 En direct", live, True),
-                ("📅 À venir", upcoming, True), ("✅ Terminés", finished, False)]
+    # (heading, rows, ouvert d'office ?, regrouper par jour ?) — « Terminés » plié par défaut ;
+    # « À venir » regroupé par jour (Aujourd'hui / Demain / …) pour se repérer dans la liste.
+    sections = [("💎 Valeurs du jour", value, True, False), ("🔴 En direct", live, True, False),
+                ("📅 À venir", upcoming, True, True), ("✅ Terminés", finished, False, False)]
     info_done = False
-    for heading, rows, open_ in sections:
+    for heading, rows, open_, by_day in sections:
         if not rows:
             continue
         info = intro if (intro and not info_done) else None
         info_done = info_done or bool(info)
-        out.append(_section(f'{heading} ({len(rows)})',
-                            "".join(_sport_row(r) for r in rows), open_=open_, info=info))
+        content = _rows_by_day(rows) if by_day else "".join(_sport_row(r) for r in rows)
+        out.append(_section(f'{heading} ({len(rows)})', content, open_=open_, info=info))
 
     if not (value or live or upcoming or finished):
         if intro:
