@@ -311,6 +311,18 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
         picks=values, conf_picks=confidences, frag=bool(frag)))
 
 
+def _two_way_odds(entry: dict) -> tuple[float | None, float | None]:
+    """Cotes décimales (home, away) du marché vainqueur d'un événement Unibet 2 issues."""
+    for bo in entry.get("betOffers") or []:
+        outs = bo.get("outcomes") or []
+        if len(outs) == 2:
+            def dec(o):
+                v = o.get("odds")
+                return round(v / 1000, 2) if isinstance(v, (int, float)) else None
+            return dec(outs[0]), dec(outs[1])
+    return None, None
+
+
 async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, list]:
     """Liste tennis PILOTÉE PAR UNIBET (temps réel), analyse depuis le store (modèle complet
     SofaScore) matchée par nom + date. On ne montre que les matchs suivis (analyse dispo) :
@@ -340,12 +352,15 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
         if start is None or start > horizon:
             continue
         rh, ra, rd = name_tokens(h), name_tokens(a), start.date()
-        rec = None
+        rec, swapped = None, False
         for sht, sat, sd, srec in idx:
             if sd is not None and sd != rd:
                 continue
-            if (names_match(rh, sht) and names_match(ra, sat)) or (names_match(rh, sat) and names_match(ra, sht)):
+            if names_match(rh, sht) and names_match(ra, sat):
                 rec = srec
+                break
+            if names_match(rh, sat) and names_match(ra, sht):
+                rec, swapped = srec, True   # Unibet home == joueur 'away' du store
                 break
         if rec is None:                 # match Unibet non suivi -> pas d'analyse -> on saute
             continue
@@ -360,7 +375,14 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
             fav, favp = rec.get("home"), f"{round(hp * 100)}%"
         else:
             fav, favp = rec.get("away"), f"{round((1 - hp) * 100)}%"
-        devig = remove_vig(rec.get("unibet_home_odds"), rec.get("unibet_away_odds"))
+        # Cotes : on prend celles du STORE (clôture pré-match, utilisées par le modèle) ;
+        # à défaut (ex. live jamais snapshoté), on lit celles de l'événement Unibet courant
+        # -> plus de « cotes Unibet à venir » alors qu'Unibet les affiche.
+        uh, ua = _two_way_odds(entry)
+        ev_oh, ev_oa = (ua, uh) if swapped else (uh, ua)
+        oh = rec.get("unibet_home_odds") or ev_oh
+        oa = rec.get("unibet_away_odds") or ev_oa
+        devig = remove_vig(oh, oa)
         local_dt = web.to_local(start)
         is_live = start <= now
         row = {
@@ -370,7 +392,7 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
             "time": web.fmt_local(start.isoformat(), with_date=True), "score": "",
             "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
             "hp": hp, "implied": devig[0] if devig else None,
-            "oh": rec.get("unibet_home_odds"), "oa": rec.get("unibet_away_odds"),
+            "oh": oh, "oa": oa,
             "votes": ((rec.get("public_home"), rec.get("public_away"))
                       if rec.get("public_home") is not None else None),
             "start_ts": start.timestamp(),
