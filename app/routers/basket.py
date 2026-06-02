@@ -298,10 +298,8 @@ async def basket_player(
     except ProviderError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
-
-    # Stats par joueur en basket : SofaScore n'expose pas d'agrégat saison fiable.
-    # Les box scores par joueur (points, rebonds, passes, 3pts…) sont disponibles
-    # match par match via /basket/match/{event_id}/lineups.
+# NB : pas d'agrégat saison fiable par joueur en basket chez SofaScore. Les box scores
+# (points, rebonds, passes, 3pts…) sont dispos match par match via .../lineups.
 
 
 @router.get(

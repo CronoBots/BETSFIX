@@ -1,0 +1,45 @@
+"""Tests du classement des endpoints /docs et du filtre 'à venir'."""
+
+from datetime import datetime, timedelta, timezone
+
+from app.main import _classify_tag, TAG_COTES, TAG_MODELE_ANALYSE, TAG_MODELE_SUIVI, \
+    TAG_TENNIS_SRC, TAG_FOOT_SRC, TAG_BASKET_SRC, TAG_INTERFACE, TAG_META, TAG_FLASH
+from app.routers.web import _is_upcoming
+
+
+def test_classify_tag_natures():
+    # Cotes = UNIBET uniquement ; les /odds SofaScore restent dans la source du sport
+    assert _classify_tag("/matches/{id}/odds/unibet") == TAG_COTES
+    assert _classify_tag("/foot/match/{id}/odds/unibet") == TAG_COTES
+    assert _classify_tag("/matches/{id}/odds") == TAG_TENNIS_SRC
+    assert _classify_tag("/foot/match/{id}/odds") == TAG_FOOT_SRC
+    assert _classify_tag("/basket/match/{id}/odds") == TAG_BASKET_SRC
+    # Modèle maison
+    assert _classify_tag("/analysis/{id}") == TAG_MODELE_ANALYSE
+    assert _classify_tag("/foot/board") == TAG_MODELE_ANALYSE
+    assert _classify_tag("/basket/finished") == TAG_MODELE_ANALYSE
+    assert _classify_tag("/tracking/report") == TAG_MODELE_SUIVI
+    # Sources
+    assert _classify_tag("/matches") == TAG_TENNIS_SRC
+    assert _classify_tag("/players/{id}/rankings") == TAG_TENNIS_SRC
+    assert _classify_tag("/foot/match/{id}/statistics") == TAG_FOOT_SRC
+    assert _classify_tag("/basket/competition/{id}/standings") == TAG_BASKET_SRC
+    # Pages HTML & méta
+    assert _classify_tag("/foot") == TAG_INTERFACE
+    assert _classify_tag("/basket") == TAG_INTERFACE
+    assert _classify_tag("/app/match/{id}") == TAG_INTERFACE
+    assert _classify_tag("/flashscore/{sport}/events") == TAG_FLASH
+    assert _classify_tag("/api") == TAG_META
+
+
+def test_is_upcoming():
+    now = datetime.now(timezone.utc)
+    future = (now + timedelta(hours=3)).isoformat()
+    past = (now - timedelta(hours=3)).isoformat()
+    assert _is_upcoming({"start_time": future}) is True
+    assert _is_upcoming({"start_time": past}) is False
+    assert _is_upcoming({}) is True                       # heure inconnue -> on n'exclut pas
+    assert _is_upcoming({"start_time": "pas-une-date"}) is True
+    # datetime naïf traité comme UTC
+    naive_future = (now + timedelta(hours=2)).replace(tzinfo=None).isoformat()
+    assert _is_upcoming({"start_time": naive_future}) is True

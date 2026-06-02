@@ -30,6 +30,7 @@ class TTLCache:
         self._stale_grace = stale_grace      # on garde le périmé ce délai (filet anti-indispo)
         self._save_interval = save_interval
         self._last_save = 0.0
+        self._last_evict = 0.0
         if persist_path:
             self._load()
 
@@ -48,8 +49,14 @@ class TTLCache:
         return e["val"] if e else None
 
     def set(self, key: str, value: Any, ttl: float | None = None) -> None:
-        self._store[key] = {"exp": time.time() + (ttl if ttl is not None else self._ttl),
+        now = time.time()
+        self._store[key] = {"exp": now + (ttl if ttl is not None else self._ttl),
                             "val": value}
+        # Éviction indépendante de la persistance (le cache Unibet n'a pas de fichier) :
+        # immédiate si on dépasse le plafond, sinon périodique pour le ménage du périmé.
+        if len(self._store) > self._max_entries or now - self._last_evict >= self._save_interval:
+            self._last_evict = now
+            self._evict(now)
         self._maybe_save()
 
     def clear(self) -> None:
@@ -85,7 +92,6 @@ class TTLCache:
         if now - self._last_save < self._save_interval:  # anti-thrash
             return
         self._last_save = now
-        self._evict(now)
         snapshot = dict(self._store)   # copie superficielle : références stables pour le dump
         try:
             loop = asyncio.get_running_loop()

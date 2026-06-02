@@ -31,8 +31,6 @@ async def _noop():
 
 async def _gather_context(match, tour, provider, unibet):
     """Récupère en parallèle : forme, stats, h2h, cotes Unibet."""
-    import asyncio
-
     async def _safe(coro):
         try:
             return await coro

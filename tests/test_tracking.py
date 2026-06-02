@@ -181,3 +181,26 @@ def test_render_dashboard_ok():
     tracking.settle(store, 1, "home", 30, "t1")
     h2 = tracking.render_dashboard(store, tracking.report(store))
     assert "✓" in h2  # le pari gagnant apparaît
+
+
+def test_void_closes_unfinished_match():
+    store = {}
+    tracking.upsert_prediction(store, _analysis(9, 0.6, "home", 2.5), "atp", "t0")
+    assert tracking.void(store, 9, "reporté", "t1") is True
+    assert store["9"]["result"]["void"] is True
+    # une fois clos, on ne le re-règle plus
+    assert tracking.void(store, 9, "x", "t2") is False
+    assert tracking.settle(store, 9, "home", 20, "t3") is False
+
+
+def test_void_excluded_from_metrics():
+    store = {}
+    tracking.upsert_prediction(store, _analysis(1, 0.6, "home", 2.0), "atp", "t0")
+    tracking.settle(store, 1, "home", 30, "t1")
+    tracking.upsert_prediction(store, _analysis(2, 0.6), "atp", "t0")
+    tracking.void(store, 2, "annulé", "t1")
+    rep = tracking.report(store)
+    assert rep["matchs_regles"] == 2          # le void compte comme réglé
+    assert rep["predictions_evaluees"] == 1   # mais il est exclu des métriques
+    # le dashboard ne plante pas sur un void (winner=None)
+    assert tracking.render_dashboard(store, rep)

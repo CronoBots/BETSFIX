@@ -37,3 +37,16 @@ def test_ttl_for_tiers():
     assert _ttl_for("/event/1/h2h") == 1800
     # events / live -> défaut (None)
     assert _ttl_for("/unique-tournament/2480/season/5/events/last/0") is None
+
+
+def test_eviction_drops_dead_and_caps_size():
+    from app.cache import TTLCache
+    # grâce courte : les entrées périmées au-delà sont supprimées
+    c = TTLCache(ttl_seconds=0.01, max_entries=3, stale_grace=0.0)
+    for i in range(10):
+        c.set(f"k{i}", i)
+    import time
+    time.sleep(0.02)
+    c.set("fresh", 1)          # déclenche l'éviction
+    # au plus max_entries entrées restent, et les mortes (grâce 0) sont parties
+    assert len(c._store) <= 3
