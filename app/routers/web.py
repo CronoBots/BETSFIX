@@ -15,6 +15,7 @@ from app.markets import (
     serve_win_pct,
 )
 from app.providers.unibet import _norm_name
+from app.textutil import name_tokens, names_match
 from app.dependencies import (
     get_livescore, get_provider, get_rankings, get_unibet, matches_with_fallback,
 )
@@ -281,21 +282,96 @@ async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLRespo
         picks=values, conf_picks=confidences))
 
 
+async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, list]:
+    """Liste tennis PILOTÉE PAR UNIBET (temps réel), analyse depuis le store (modèle complet
+    SofaScore) matchée par nom + date. On ne montre que les matchs suivis (analyse dispo) :
+    l'id SofaScore du store sert au détail et à l'enrichissement."""
+    try:
+        events = await unibet._events("tennis")
+    except Exception:
+        return [], []
+    idx = []   # (home_tokens, away_tokens, date, rec) des matchs suivis non réglés
+    for rec in store.values():
+        if rec.get("result"):
+            continue
+        st = rec.get("start_time")
+        try:
+            d = datetime.fromisoformat(st).date() if st else None
+        except ValueError:
+            d = None
+        idx.append((name_tokens(rec.get("home", "")), name_tokens(rec.get("away", "")), d, rec))
+    rows, live, seen = [], [], set()
+    for entry in events or []:
+        ev = entry.get("event") or {}
+        h, a = ev.get("homeName", ""), ev.get("awayName", "")
+        try:
+            start = datetime.fromisoformat(str(ev.get("start")).replace("Z", "+00:00")).astimezone(timezone.utc)
+        except (ValueError, TypeError):
+            start = None
+        if start is None or start > horizon:
+            continue
+        rh, ra, rd = name_tokens(h), name_tokens(a), start.date()
+        rec = None
+        for sht, sat, sd, srec in idx:
+            if sd is not None and sd != rd:
+                continue
+            if (names_match(rh, sht) and names_match(ra, sat)) or (names_match(rh, sat) and names_match(ra, sht)):
+                rec = srec
+                break
+        if rec is None:                 # match Unibet non suivi -> pas d'analyse -> on saute
+            continue
+        mid = rec["match_id"]
+        if mid in seen:
+            continue
+        seen.add(mid)
+        hp = rec.get("model_home_prob")
+        if hp is None:
+            fav = favp = None
+        elif hp >= 0.5:
+            fav, favp = rec.get("home"), f"{round(hp * 100)}%"
+        else:
+            fav, favp = rec.get("away"), f"{round((1 - hp) * 100)}%"
+        devig = remove_vig(rec.get("unibet_home_odds"), rec.get("unibet_away_odds"))
+        local_dt = web.to_local(start)
+        is_live = start <= now
+        rows.append({
+            "id": mid, "tour": rec.get("tour", "atp"),
+            "home": rec.get("home", ""), "away": rec.get("away", ""),
+            "status": "inprogress" if is_live else "notstarted",
+            "time": web.fmt_local(start.isoformat(), with_date=True), "score": "",
+            "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
+            "hp": hp, "implied": devig[0] if devig else None,
+            "oh": rec.get("unibet_home_odds"), "oa": rec.get("unibet_away_odds"),
+            "votes": ((rec.get("public_home"), rec.get("public_away"))
+                      if rec.get("public_home") is not None else None),
+            "start_ts": start.timestamp(),
+            "_sort": local_dt or datetime.max.replace(tzinfo=timezone.utc),
+        })
+    return rows, live
+
+
 @router.get("/app", response_class=HTMLResponse)
 async def matches_page(
     provider: SofaScoreProvider = Depends(get_provider),
     rankings: RankingsProvider = Depends(get_rankings),
+    unibet: UnibetProvider = Depends(get_unibet),
 ) -> HTMLResponse:
-    """Liste des matchs à venir (ATP+WTA). Favori via SofaScore ou, à défaut, via
-    les classements officiels (fonctionne même quand SofaScore bloque)."""
+    """Liste des matchs à venir (ATP+WTA). Source : Unibet (temps réel) + analyse du store
+    (modèle complet SofaScore) ; repli SofaScore/LiveScore si Unibet ne donne rien."""
     store = tracking.load()
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(hours=HORIZON_HOURS)
     local_now = web.to_local(now) or now
     today = local_now.date()
     fallback = False
-    rows, live = [], []
-    for tour in ("atp", "wta"):
+    # Source PRIMAIRE : Unibet (temps réel) + analyse du store. Si rien (Unibet K.O. ou
+    # aucun match suivi), on bascule sur l'ancien chemin SofaScore/LiveScore ci-dessous.
+    try:
+        rows, live = await asyncio.wait_for(
+            _tennis_unibet_rows(unibet, store, now, horizon), timeout=3.0)
+    except (Exception, asyncio.TimeoutError):
+        rows, live = [], []
+    for tour in ([] if rows else ("atp", "wta")):
         # Budget réseau borné : si la source traîne, on n'attend pas (le repli store
         # plus bas prend le relais) -> page rapide même quand SofaScore est lent.
         try:
