@@ -49,48 +49,74 @@ async def _get(path):
         return None
 
 
+PROGRESS = os.path.join(_ROOT, "data", "foot_backtest_progress.json")
+PACE = 0.4               # espacement entre requêtes (doux, anti-rate-limit)
+
+
+async def _get_retry(path, tries=3):
+    """GET avec quelques essais + back-off (le rate-limit de volume retombe vite)."""
+    for k in range(tries):
+        d = await _get(path)
+        if d is not None:
+            return d
+        await asyncio.sleep(1.5 * (k + 1))
+    return None
+
+
 async def collect():
     if os.path.exists(CACHE):
         with open(CACHE, encoding="utf-8") as f:
             evs = json.load(f)
         print(f"  (cache) {len(evs)} matchs.")
         return evs
-    print("  Collecte des sélections CdM + leur historique international...")
-    seasons = (await _get(f"/unique-tournament/{WC_TID}/seasons") or {}).get("seasons", [])
-    if not seasons:
-        print("  ⚠️ SofaScore indisponible (rate-limit ?) — réessaie dans quelques minutes.")
-        return []
-    sid = seasons[0]["id"]
-    ids, seen = [], set()
-    for direction in ("next", "last"):
-        for page in range(4):
-            data = await _get(f"/unique-tournament/{WC_TID}/season/{sid}/events/{direction}/{page}")
-            if not data:
-                break
-            for ev in data.get("events", []) or []:
-                for side in ("homeTeam", "awayTeam"):
-                    tid = (ev.get(side) or {}).get("id")
-                    if tid and tid not in seen:
-                        seen.add(tid)
-                        ids.append(tid)
-            if not data.get("hasNextPage"):
-                break
-            await asyncio.sleep(0.2)
-    print(f"  {len(ids)} sélections.")
-    events: dict[int, dict] = {}
-    for i, tid in enumerate(ids):
-        if i % 12 == 0:
-            print(f"   ...équipe {i}/{len(ids)} ({len(events)} matchs)")
+    # REPRENABLE : on stocke {ids, done (team ids traités), events}. Chaque run avance ; quand
+    # toutes les équipes sont faites, on fige le cache final. Tolérant au rate-limit intermittent.
+    prog = {"ids": [], "done": [], "events": {}}
+    if os.path.exists(PROGRESS):
+        with open(PROGRESS, encoding="utf-8") as f:
+            prog = json.load(f)
+        print(f"  (reprise) {len(prog['done'])}/{len(prog['ids'])} équipes, {len(prog['events'])} matchs.")
+
+    if not prog["ids"]:
+        seasons = (await _get_retry(f"/unique-tournament/{WC_TID}/seasons") or {}).get("seasons", [])
+        if not seasons:
+            print("  ⚠️ SofaScore en rate-limit — réessaie dans ~15 min (la collecte reprendra où elle en est).")
+            return []
+        sid = seasons[0]["id"]
+        seen = []
+        for direction in ("next", "last"):
+            for page in range(4):
+                data = await _get_retry(f"/unique-tournament/{WC_TID}/season/{sid}/events/{direction}/{page}")
+                if not data:
+                    break
+                for ev in data.get("events", []) or []:
+                    for side in ("homeTeam", "awayTeam"):
+                        tid = (ev.get(side) or {}).get("id")
+                        if tid and tid not in seen:
+                            seen.append(tid)
+                if not data.get("hasNextPage"):
+                    break
+                await asyncio.sleep(PACE)
+        prog["ids"] = seen
+        _save(PROGRESS, prog)
+        print(f"  {len(seen)} sélections à parcourir.")
+
+    done = set(prog["done"])
+    for i, tid in enumerate(prog["ids"]):
+        if tid in done:
+            continue
+        ok = True
         for page in range(PAGES):
-            data = await _get(f"/team/{tid}/events/last/{page}")
-            if not data:
+            data = await _get_retry(f"/team/{tid}/events/last/{page}")
+            if data is None:                # rate-limit -> on arrête, on reprendra cette équipe
+                ok = False
                 break
             for ev in data.get("events", []) or []:
                 eid = ev.get("id")
                 st = (ev.get("status") or {}).get("type")
-                if eid and eid not in events and st == "finished" and ev.get("winnerCode") in (1, 2, 3):
+                if eid and st == "finished" and ev.get("winnerCode") in (1, 2, 3):
                     ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
-                    events[eid] = {
+                    prog["events"][str(eid)] = {
                         "id": eid, "t": ev.get("startTimestamp") or 0,
                         "h": ht.get("id"), "a": at.get("id"),
                         "hn": ht.get("name", ""), "an": at.get("name", ""),
@@ -100,13 +126,27 @@ async def collect():
                     }
             if not data.get("hasNextPage"):
                 break
-            await asyncio.sleep(0.2)
-    evs = [e for e in events.values() if e["h"] and e["a"]]
-    os.makedirs(os.path.dirname(CACHE), exist_ok=True)
-    with open(CACHE, "w", encoding="utf-8") as f:
-        json.dump(evs, f, ensure_ascii=False)
-    print(f"  {len(evs)} matchs collectés et mis en cache.")
+            await asyncio.sleep(PACE)
+        if not ok:
+            _save(PROGRESS, prog)
+            print(f"  ⏸️ rate-limit à l'équipe {i}/{len(prog['ids'])} — progrès sauvé "
+                  f"({len(prog['events'])} matchs). Relance pour continuer.")
+            return []
+        prog["done"].append(tid)
+        if i % 8 == 0:
+            _save(PROGRESS, prog)
+            print(f"   ...équipe {i}/{len(prog['ids'])} ({len(prog['events'])} matchs)")
+
+    evs = [e for e in prog["events"].values() if e["h"] and e["a"]]
+    _save(CACHE, evs)
+    print(f"  ✓ {len(evs)} matchs collectés et mis en cache.")
     return evs
+
+
+def _save(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False)
 
 
 # ----------------------------------------------------------------- métriques
