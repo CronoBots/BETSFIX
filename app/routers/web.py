@@ -94,12 +94,15 @@ def _all_sport_picks() -> list[dict]:
             ph, pa = rec.get("public_home"), rec.get("public_away")
             community = ((ph if side == "home" else pa) / 100
                          if ph is not None and side in ("home", "away") else None)
+            nh = (rec.get("home", "").split() or [""])[-1]
+            na = (rec.get("away", "").split() or [""])[-1]
             out.append({
                 "sport": sport, "icon": icon, "home": rec.get("home", ""),
                 "away": rec.get("away", ""), "bet": v.get(bet_key) or v.get("player") or "",
                 "odds": odds, "edge": v.get("edge"),
                 "model_prob": model_p, "side": side, "community": community,
                 "implied": (1 / odds) if odds else None,   # proba "officielle" (cote)
+                "odds_cells": [(nh, rec.get("unibet_home_odds")), (na, rec.get("unibet_away_odds"))],
                 "match_id": rec.get("match_id"),
                 "time": web.fmt_local(rec.get("start_time"), with_date=True),
                 "start_ts": _ts(rec.get("start_time")),
@@ -157,11 +160,14 @@ def _confidence_picks() -> list[dict]:
             ph, pa = rec.get("public_home"), rec.get("public_away")
             community = ((ph if side == "home" else pa) / 100
                          if ph is not None and side in ("home", "away") else None)
+            nh = (rec.get("home", "").split() or [""])[-1]
+            na = (rec.get("away", "").split() or [""])[-1]
             out.append({
                 "sport": sport, "icon": icon, "home": rec.get("home", ""),
                 "away": rec.get("away", ""), "bet": name, "model_prob": prob, "side": side,
                 "conf_pct": round(prob * 100), "odds": odds,
                 "implied": (1 / odds) if odds else None, "community": community,
+                "odds_cells": [(nh, rec.get("unibet_home_odds")), (na, rec.get("unibet_away_odds"))],
                 "match_id": rec.get("match_id"),
                 "time": web.fmt_local(rec.get("start_time"), with_date=True),
                 "start_ts": _ts(rec.get("start_time")),
@@ -232,9 +238,14 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
 
         start = r.get("start")
         iso = datetime.fromtimestamp(start, tz=timezone.utc).isoformat() if start else None
+        # cotes de TOUTES les issues (pour la barre claire) : 1-X-2 au foot, 2 issues sinon
+        if ndim == 3:
+            odds_cells = [(r["home"], r.get("o1")), ("Nul", r.get("ox")), (r["away"], r.get("o2"))]
+        else:
+            odds_cells = [(r["home"], r.get("oh")), (r["away"], r.get("oa"))]
         base = {"sport": sport, "icon": icon, "home": r["home"], "away": r["away"],
                 "match_id": r.get("id"), "url": url, "female": r.get("female"),
-                "live": r.get("status") == "inprogress",
+                "live": r.get("status") == "inprogress", "odds_cells": odds_cells,
                 "time": web.fmt_local(iso, with_date=True), "start_ts": start}
         if pk_data:
             team, odds, edge, mp, side, pimp = pk_data

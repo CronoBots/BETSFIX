@@ -608,12 +608,13 @@ def _pick_card(p: dict, badge: str) -> str:
     # live. Le badge value descend toujours sur la ligne du pari.
     state = cd if cd else ('<span class="cd live">🔴 EN DIRECT</span>' if p.get("live") else "")
     bdg = f'<span class="bdg">{badge}</span>' if badge else ""
+    oddsrow = odds_row(p["odds_cells"]) if p.get("odds_cells") else ""
     return (f'<a class="row pick" href="{p["url"]}">'
             f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
             f'<span class="rt-r">{state}</span></div>'
             f'<div class="betline"><span class="bn">{e(p.get("bet") or "")}{odds}</span>{bdg}</div>'
             f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
-            f'{_pick_bars(p)}</a>')
+            f'{_pick_bars(p)}{oddsrow}</a>')
 
 
 def render_home(rep: dict, source: dict | None = None,
