@@ -514,18 +514,40 @@ async def _resolve_sofa_ids(rows: list[dict]) -> None:
                 break
 
 
+def _attach_from_store(rows: list[dict]) -> None:
+    """Relie chaque match Unibet au suivi (par nom + date) -> id SofaScore + votes, SANS
+    aucun appel SofaScore (le store est peuplé en fond par la boucle de suivi). C'est ce
+    qui garde le RENDU des pages 100 % hors-SofaScore (plus de rafales -> plus de pauses)."""
+    store = tracking.load(BASKET_TRACK_PATH)
+    idx = []
+    for rec in store.values():
+        st = rec.get("start_time")
+        try:
+            d = datetime.fromisoformat(st).date() if st else None
+        except ValueError:
+            d = None
+        idx.append((name_tokens(rec.get("home", "")), name_tokens(rec.get("away", "")), d, rec))
+    for r in rows:
+        rd = datetime.fromtimestamp(r["start"], tz=timezone.utc).date() if r.get("start") else None
+        rh, ra = name_tokens(r["home"]), name_tokens(r["away"])
+        for sht, sat, d, rec in idx:
+            if d is not None and rd is not None and d != rd:
+                continue
+            if names_match(rh, sht) and names_match(ra, sat):
+                r["id"] = rec.get("match_id", r["id"])
+                if rec.get("public_home") is not None:
+                    r["votes"] = (rec["public_home"], rec["public_away"])
+                break
+
+
 async def board_resilient() -> list[dict]:
-    """SOURCE UNIQUE des matchs basket (onglet ET accueil). Cible : MATCHS via UNIBET +
-    cotes + Elo, puis id SofaScore (nom+date) pour l'ENRICHISSEMENT. Replis : board
-    SofaScore directe, puis store. Réseau borné."""
+    """SOURCE UNIQUE des matchs basket (onglet ET accueil). MATCHS + cotes via UNIBET + Elo,
+    enrichissement (id SofaScore + votes) lu dans le STORE -> rendu 100 % hors-SofaScore.
+    Replis : board SofaScore directe puis store."""
     try:
         rows = await asyncio.wait_for(board_from_unibet(), timeout=RENDER_NET_BUDGET)
         if rows:
-            try:
-                await asyncio.wait_for(_resolve_sofa_ids(rows), timeout=2.0)
-                await asyncio.wait_for(enrich_display(rows), timeout=2.0)
-            except (Exception, asyncio.TimeoutError):
-                pass
+            _attach_from_store(rows)       # store local, aucun appel SofaScore
             return rows
     except (Exception, asyncio.TimeoutError):
         pass
