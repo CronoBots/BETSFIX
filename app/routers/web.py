@@ -160,33 +160,23 @@ def _confidence_picks() -> list[dict]:
     return out
 
 
-async def _enrich_picks_votes(picks: list[dict], provider) -> None:
-    """Ajoute la proba 'communauté' (votes fans, côté parié) — best-effort, provider caché.
-    Si SofaScore est en pause, le disjoncteur court-circuite : on n'affiche juste rien."""
-    import asyncio
-    targets = [p for p in picks if p.get("match_id") and p.get("side") in ("home", "away")][:8]
-
-    async def one(p):
-        try:
-            v = await provider.get_votes(p["match_id"])
-            if v.home_percent is not None:
-                p["community"] = (v.home_percent if p["side"] == "home" else v.away_percent) / 100
-        except Exception:
-            pass
-
-    if targets:
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(*[one(p) for p in targets], return_exceptions=True), timeout=2.5)
-        except asyncio.TimeoutError:
-            pass
+def _enrich_picks_votes(picks: list[dict], provider) -> None:
+    """Ajoute la proba 'communauté' (votes fans) depuis le cache UNIQUEMENT — aucun appel
+    réseau, donc aucun risque de rafale 403 au rendu de la page. Les votes sont peuplés en
+    fond par la boucle de suivi ; ici on ne fait que les lire s'ils sont déjà là."""
+    for p in picks:
+        if not (p.get("match_id") and p.get("side") in ("home", "away")):
+            continue
+        v = provider.get_votes_cached(p["match_id"])
+        if v and v.home_percent is not None:
+            p["community"] = (v.home_percent if p["side"] == "home" else v.away_percent) / 100
 
 
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
     values = _all_sport_picks()[:8]          # value = edge vs cote (souvent outsiders)
     confidences = _confidence_picks()[:6]    # confiance = favori net du modèle
-    await _enrich_picks_votes(values + confidences, provider)   # votes communauté (best-effort)
+    _enrich_picks_votes(values + confidences, provider)   # votes communauté (cache only)
     return HTMLResponse(web.render_home(
         tracking.report(tracking.load()), source=provider.breaker_status(),
         picks=values, conf_picks=confidences))

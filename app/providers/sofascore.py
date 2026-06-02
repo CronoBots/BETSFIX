@@ -601,17 +601,25 @@ class SofaScoreProvider:
     async def get_votes(self, match_id: int) -> MatchVotes:
         """Pronostics des fans pour un match."""
         data = await self._get(f"/event/{match_id}/votes")
-        vote = data.get("vote") or {}
+        return self._votes_from_data(match_id, data)
+
+    def get_votes_cached(self, match_id: int) -> MatchVotes | None:
+        """Votes DÉJÀ en cache (fresh ou périmé), SANS appel réseau. None si absent.
+
+        Sert au rendu des pages (accueil) pour ne JAMAIS déclencher de rafale réseau :
+        les votes sont peuplés en fond par la boucle de suivi."""
+        path = f"/event/{match_id}/votes"
+        data = self._cache.get(path) or self._cache.get_stale(path)
+        return self._votes_from_data(match_id, data) if data is not None else None
+
+    @staticmethod
+    def _votes_from_data(match_id: int, data: dict) -> MatchVotes:
+        vote = (data or {}).get("vote") or {}
         v1, v2 = vote.get("vote1"), vote.get("vote2")
         total = (v1 or 0) + (v2 or 0)
         pct = lambda v: round(100 * v / total, 1) if total and v is not None else None
-        return MatchVotes(
-            match_id=match_id,
-            home_votes=v1,
-            away_votes=v2,
-            home_percent=pct(v1),
-            away_percent=pct(v2),
-        )
+        return MatchVotes(match_id=match_id, home_votes=v1, away_votes=v2,
+                          home_percent=pct(v1), away_percent=pct(v2))
 
     async def get_odds(self, match_id: int) -> MatchOdds:
         """Cotes (paris) d'un match : tous les marchés et choix disponibles."""
