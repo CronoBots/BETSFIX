@@ -55,6 +55,7 @@ SOFA_H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
           "Origin": "https://www.sofascore.com"}
 UNIBET_B = "https://eu-offering-api.kambicdn.com/offering/v2018/ubbe"
 UNIBET_PARAMS = {"lang": "fr_BE", "market": "BE", "client_id": "2", "channel_id": "1"}
+UNIBET_PARAMS_EN = {**UNIBET_PARAMS, "lang": "en_GB"}   # noms anglais pour matcher l'Elo
 UNIBET_H = {"User-Agent": "Mozilla/5.0", "Accept": "application/json",
             "Referer": "https://www.unibet.be/"}
 
@@ -306,6 +307,100 @@ def board_from_store() -> list[dict]:
             "probs": pr, "goals": None, "o1": o1, "ox": ox, "o2": o2,
             "imp": _devig3(o1, ox, o2), "pick": pick, "start": dt.timestamp(),
             "votes": (ph, pa) if ph is not None else None,
+        })
+    rows.sort(key=lambda g: g["start"] or 0)
+    return rows
+
+
+def _ub_dt(value):
+    """Horodatage ISO Unibet -> datetime UTC."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _elo_index(elo: dict):
+    """Liste (tokens, elo) pour résoudre l'Elo par NOM (Unibet en_GB ~ Elo anglais)."""
+    return [(name_tokens(v.get("name", "")), v.get("elo")) for v in elo.values() if v.get("name")]
+
+
+def _elo_for(tokens, index):
+    for toks, e in index:
+        if names_match(tokens, toks):
+            return e
+    return None
+
+
+async def board_from_unibet() -> list[dict]:
+    """Board foot construite UNIQUEMENT depuis Unibet (matchs + cotes 1X2) + Elo par nom.
+
+    Affichage en FRANÇAIS (fr_BE) ; l'Elo est résolu via les noms ANGLAIS (en_GB) liés par
+    l'id Kambi. AUCUN appel SofaScore -> les matchs (dont les amicaux internationaux)
+    s'affichent même quand SofaScore est en pause. On ne garde que ceux dont on connaît
+    l'Elo des 2 équipes (filtre naturel : nations + grandes équipes ; esports exclus)."""
+    elo = load_elo()
+    index = _elo_index(elo)
+    now = datetime.now(timezone.utc)
+    horizon = now + timedelta(days=HORIZON_DAYS)
+    async with httpx.AsyncClient(headers=UNIBET_H) as client:
+        fr = await _get(client, UNIBET_B, "/listView/football.json", UNIBET_PARAMS)
+        en = await _get(client, UNIBET_B, "/listView/football.json", UNIBET_PARAMS_EN)
+    en_names = {}
+    for entry in (en or {}).get("events", []) or []:
+        ev = entry.get("event") or {}
+        en_names[ev.get("id")] = (ev.get("homeName", ""), ev.get("awayName", ""))
+
+    def _dec(o):
+        vv = o.get("odds")
+        return round(vv / 1000, 3) if isinstance(vv, (int, float)) else None
+
+    rows, seen = [], set()
+    for entry in (fr or {}).get("events", []) or []:
+        ev = entry.get("event") or {}
+        kid = ev.get("id")
+        home, away = ev.get("homeName", ""), ev.get("awayName", "")
+        group = ev.get("group") or "Football"
+        path = " ".join(p.get("name", "") for p in (ev.get("path") or []))
+        # exclut l'esports (joueur entre parenthèses, groupe « Cyber »/path « Esports »)
+        if "(" in home or "(" in away or "esport" in path.lower() or "cyber" in group.lower():
+            continue
+        if kid in seen:
+            continue
+        start = _ub_dt(ev.get("start"))
+        if start is None or start > horizon:
+            continue
+        en_home, en_away = en_names.get(kid, (home, away))
+        eh = _elo_for(name_tokens(en_home), index)
+        ea = _elo_for(name_tokens(en_away), index)
+        if eh is None or ea is None:          # Elo inconnu d'un camp -> on ne montre pas
+            continue
+        seen.add(kid)
+        offers = entry.get("betOffers") or []
+        main = next((b for b in offers if len(b.get("outcomes") or []) == 3), None)
+        o1 = ox = o2 = None
+        if main:
+            outs = main["outcomes"]
+            o1, ox, o2 = _dec(outs[0]), _dec(outs[1]), _dec(outs[2])
+        probs = outcome_probs(eh, ea)
+        imp = _devig3(o1, ox, o2)
+        pick = None
+        if probs and imp:
+            for i, (code, nm, odd) in enumerate([("1", home, o1), ("X", "Match nul", ox), ("2", away, o2)]):
+                fair = MODEL_TRUST * probs[i] + (1 - MODEL_TRUST) * imp[i]
+                edge = fair - imp[i]
+                if (edge >= VALUE_THRESHOLD and MIN_IMPLIED <= imp[i] <= MAX_IMPLIED
+                        and (probs[i] - imp[i]) <= MAX_DISAGREEMENT and odd
+                        and (not pick or edge > pick["edge"])):
+                    pick = {"code": code, "team": nm, "odds": odd, "edge": edge}
+        status = "notstarted" if ev.get("state") == "NOT_STARTED" else "inprogress"
+        rows.append({
+            "id": kid, "comp": group, "status": status, "home": home, "away": away,
+            "probs": probs, "goals": goals_markets(eh, ea),
+            "o1": o1, "ox": ox, "o2": o2, "imp": imp, "pick": pick,
+            "start": start.timestamp(),
         })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows

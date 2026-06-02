@@ -50,7 +50,12 @@ async def foot_page() -> HTMLResponse:
             await asyncio.wait_for(foot.enrich_display(rows), timeout=2.0)
     except (Exception, asyncio.TimeoutError):
         rows = []
-    if not rows:                              # SofaScore lent/en pause -> repli sur le suivi
+    if not rows:                              # SofaScore lent/en pause -> board via UNIBET
+        try:                                  # (matchs + cotes Unibet + Elo, sans SofaScore)
+            rows = await asyncio.wait_for(foot.board_from_unibet(), timeout=RENDER_NET_BUDGET)
+        except (Exception, asyncio.TimeoutError):
+            rows = []
+    if not rows:                              # dernier repli : le suivi persisté
         rows = foot.board_from_store()
     try:
         fin = await asyncio.wait_for(foot.finished(), timeout=2.0)
