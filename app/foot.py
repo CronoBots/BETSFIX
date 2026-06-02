@@ -439,7 +439,10 @@ async def _resolve_sofa_ids(rows: list[dict]) -> None:
         rh, ra = name_tokens(r.get("home_en") or r["home"]), name_tokens(r.get("away_en") or r["away"])
         for ht, at, d, sid in index:
             if names_match(rh, ht) and names_match(ra, at) and (d is None or rd is None or d == rd):
-                r["id"] = sid     # id SofaScore -> enrich_display pourra l'utiliser
+                # id SofaScore stocké À PART (r['id'] reste l'id Unibet, clé de store STABLE ->
+                # pas de doublon quand SofaScore passe de bloqué à résolu entre deux runs).
+                r["sofa_id"] = sid
+                r["sofa_ok"] = True
                 break
 
 
@@ -458,16 +461,23 @@ def _attach_from_store(rows: list[dict]) -> None:
         idx.append((name_tokens(rec.get("home", "")), name_tokens(rec.get("away", "")), d, rec))
     for r in rows:
         rd = datetime.fromtimestamp(r["start"], tz=timezone.utc).date() if r.get("start") else None
-        rh = name_tokens(r.get("home_en") or r["home"])
-        ra = name_tokens(r.get("away_en") or r["away"])
+        # on tente le matching sur les noms FR (board Unibet) ET EN (SofaScore) : le store peut
+        # contenir l'un ou l'autre selon la source qui l'a peuplé.
+        rh_fr, ra_fr = name_tokens(r.get("home", "")), name_tokens(r.get("away", ""))
+        rh_en, ra_en = name_tokens(r.get("home_en", "")), name_tokens(r.get("away_en", ""))
+        best = None
         for sht, sat, d, rec in idx:
             if d is not None and rd is not None and d != rd:
                 continue
-            if names_match(rh, sht) and names_match(ra, sat):
-                r["id"] = rec.get("match_id", r["id"])
+            if ((names_match(rh_fr, sht) or names_match(rh_en, sht))
+                    and (names_match(ra_fr, sat) or names_match(ra_en, sat))):
+                best = rec
                 if rec.get("public_home") is not None:
-                    r["votes"] = (rec["public_home"], rec["public_away"])
-                break
+                    break          # on privilégie le rec QUI A des votes (dédoublonnage transition)
+        if best is not None:
+            r["id"] = best.get("match_id", r["id"])
+            if best.get("public_home") is not None:
+                r["votes"] = (best["public_home"], best["public_away"])
 
 
 async def board_resilient() -> list[dict]:
@@ -492,27 +502,39 @@ async def enrich_display(rows: list[dict]) -> None:
     aux matchs jouables et tolérant aux erreurs (si ça échoue, on n'affiche juste rien).
     """
     prov = get_provider()
-    targets = [r for r in rows if r.get("status") in ("notstarted", "inprogress")][:12]
+    # Uniquement les matchs dont l'id SofaScore est CONFIRMÉ (sofa_ok) : on ne tire jamais de
+    # votes sur un id Unibet (mauvais id -> requêtes inutiles -> risque de pause).
+    targets = [r for r in rows if r.get("status") in ("notstarted", "inprogress")
+               and r.get("sofa_id")]
 
-    async def one(r: dict) -> None:
-        eid = r.get("id")
+    async def votes(r: dict) -> None:
         try:
-            v = await prov.get_votes(eid)
+            v = await prov.get_votes(r["sofa_id"])
             if v.home_percent is not None:
                 r["votes"] = (v.home_percent, v.away_percent)
         except Exception:
             pass
+
+    async def form(r: dict) -> None:
         try:
-            pf = await prov.get_event_pregame_form(eid)
+            pf = await prov.get_event_pregame_form(r["sofa_id"])
             if pf.home.form or pf.away.form:
                 r["form"] = (pf.home.form, pf.away.form)
         except Exception:
             pass
 
+    # Votes pour TOUTES les rencontres (priorité barre PUBLIC) ; forme (plus lourde) limitée
+    # aux premières. La concurrence est bornée par le provider (sémaphore + min_gap).
+    async def one(r: dict, with_form: bool) -> None:
+        await votes(r)
+        if with_form:
+            await form(r)
+
     if targets:
-        try:   # best-effort : si SofaScore traîne, on rend la page sans enrichissement
-            await asyncio.wait_for(
-                asyncio.gather(*[one(r) for r in targets], return_exceptions=True), timeout=3.0)
+        try:   # best-effort : si SofaScore traîne, on persiste ce qu'on a déjà
+            await asyncio.wait_for(asyncio.gather(
+                *[one(r, i < 14) for i, r in enumerate(targets[:40])],
+                return_exceptions=True), timeout=30.0)
         except asyncio.TimeoutError:
             pass
 
@@ -656,8 +678,11 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
     if rec.get("result"):
         return False
     pr, pk = g.get("probs"), g.get("pick")
+    # match_id = id SofaScore (résolu via l'agenda) pour le détail/settle/votes ; à défaut on
+    # garde l'id déjà connu, sinon l'id Unibet. La CLÉ du store reste g['id'] (Unibet, stable).
+    sofa_id = g.get("sofa_id") or rec.get("match_id") or g["id"]
     rec.update({
-        "match_id": g["id"], "sport": "foot", "comp": g.get("comp"),
+        "match_id": sofa_id, "sport": "foot", "comp": g.get("comp"),
         "home": g["home"], "away": g["away"], "start_time": _iso(g.get("start")),
         "p_home": pr[0] if pr else None, "p_draw": pr[1] if pr else None,
         "p_away": pr[2] if pr else None,
@@ -679,8 +704,12 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
 async def run_snapshot() -> int:
     store = tracking.load(FOOT_TRACK_PATH)
     now = datetime.now(timezone.utc).isoformat()
-    rows = await board()
-    await enrich_display(rows)         # capture les votes pour les persister
+    # On part des matchs RÉELLEMENT affichés (board Unibet, large : amicaux inclus) plutôt
+    # que des seules grandes compétitions SofaScore -> les votes du public sont récupérés
+    # pour CHAQUE rencontre existante, pas seulement la CdM & co.
+    rows = await board_from_unibet()
+    await _resolve_sofa_ids(rows)      # id SofaScore par nom+date (agenda du jour, large)
+    await enrich_display(rows)         # votes + forme -> persistés dans le store
     n = 0
     for g in rows:
         if g.get("o1") and g.get("probs") and _upsert(store, g, now):

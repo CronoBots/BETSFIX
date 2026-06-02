@@ -578,12 +578,13 @@ def _pick_card(p: dict, badge: str) -> str:
     cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
           if p.get("start_ts") and p["start_ts"] > time.time() else "")
     fem = ' <span class="fem">(F)</span>' if p.get("female") else ""
-    # En-tête = sport · date · compte à rebours SEUL ; le badge value descend sur la ligne
-    # du pari -> l'en-tête ne déborde jamais sur 2 lignes.
-    bdg = f'<span class="bdg">{badge}</span>' if badge else ""
+    # Badge en haut à droite À LA PLACE du décompte si le match est live (pas de décompte) ;
+    # sinon (à venir) il descend sur la ligne du pari pour ne pas faire déborder l'en-tête.
+    rt_badge = badge if (not cd and badge) else ""
+    bdg = f'<span class="bdg">{badge}</span>' if (cd and badge) else ""
     return (f'<a class="row pick" href="{p["url"]}">'
             f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
-            f'<span class="rt-r">{cd}</span></div>'
+            f'<span class="rt-r">{cd}{rt_badge}</span></div>'
             f'<div class="betline"><span class="bn">{e(p.get("bet") or "")}{odds}</span>{bdg}</div>'
             f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
             f'{_pick_bars(p)}</a>')
@@ -674,17 +675,20 @@ def _sport_row(r: dict) -> str:
           if r.get("status") == "notstarted" and r.get("start_ts")
           and r["start_ts"] > time.time() else "")
     fem = ' <span class="fem">(F)</span>' if r.get("female") else ""
-    # En-tête = compétition · heure · compte à rebours SEUL ; le badge (value/✓/✗) passe à
-    # droite de l'affiche -> l'en-tête ne déborde pas, le matchup reste lisible (il peut wraper).
-    bdg = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
+    # Place du badge : en haut à droite À LA PLACE du décompte quand il n'y a pas de décompte
+    # (live / terminé) ; sinon (match à venir, le décompte occupe le coin) il passe à droite de
+    # l'affiche. -> l'en-tête ne déborde jamais et les live ont leur badge au même endroit.
+    badge = r.get("badge", "")
+    rt_badge = badge if (not cd and badge) else ""
+    mrow_badge = f'<span class="bdg">{badge}</span>' if (cd and badge) else ""
     # En-tête : la compétition (souvent longue, ex. « Amicaux Internationaux ») se tronque,
     # mais la date/heure (rt-when) reste TOUJOURS visible.
     inner = (f'<div class="rowtop"><span class="rt-l">'
              f'<span class="rt-comp">{e(r.get("tour") or "")}{fem}</span>'
              f'<span class="rt-when"> · {top}</span></span>'
-             f'<span class="rt-r">{cd}</span></div>'
+             f'<span class="rt-r">{cd}{rt_badge}</span></div>'
              f'<div class="mrow"><div class="players">{e(r.get("home") or "")} '
-             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>{bdg}</div>'
+             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>{mrow_badge}</div>'
              f'{probviz}{r.get("sub", "")}')
     cls = "row pick" if r.get("pick") else "row"
     if r.get("url"):
