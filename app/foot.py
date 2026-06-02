@@ -34,7 +34,15 @@ ELO_PATH = os.path.join(_ROOT, "data", "foot_elo.json")
 MAJOR_TIDS = {16: "Coupe du Monde", 17: "Premier League", 8: "LaLiga", 23: "Serie A",
               35: "Bundesliga", 34: "Ligue 1", 7: "Ligue des Champions",
               679: "Europa League", 1: "Euro", 18: "Coupe du Monde",
-              851: "Amicaux Internationaux"}
+              851: "Amicaux Int."}
+
+
+def _short_comp(name: str) -> str:
+    """Abrège les noms de compétition trop longs pour l'en-tête (ex. « Amicaux Int. »)."""
+    low = (name or "").lower()
+    if "amicaux" in low and "internati" in low:
+        return "Amicaux Int."
+    return name or "Football"
 
 # Compétitions à venues majoritairement NEUTRES : le « domicile » SofaScore est
 # arbitraire (sauf pays hôte), donc aucun avantage terrain ne doit s'appliquer.
@@ -366,7 +374,7 @@ async def board_from_unibet() -> list[dict]:
         ev = entry.get("event") or {}
         kid = ev.get("id")
         home, away = ev.get("homeName", ""), ev.get("awayName", "")
-        group = ev.get("group") or "Football"
+        group = _short_comp(ev.get("group"))
         path = " ".join(p.get("name", "") for p in (ev.get("path") or []))
         ctx = f"{group} {path}".lower()
         # match féminin : marqueur « (W) »/« (F) » sur un nom, ou compétition « Women/Féminin »
