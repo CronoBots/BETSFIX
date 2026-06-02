@@ -274,6 +274,42 @@ async def board() -> list[dict]:
     return rows
 
 
+def board_from_store() -> list[dict]:
+    """Repli : reconstruit la board foot depuis le SUIVI persisté (tracking_foot.json)
+    quand SofaScore est en pause. Évite un onglet Foot vide alors que les mêmes matchs
+    apparaissent dans les picks de l'accueil (qui lisent déjà le store)."""
+    store = tracking.load(FOOT_TRACK_PATH)
+    now = datetime.now(timezone.utc)
+    horizon = now + timedelta(days=HORIZON_DAYS)
+    rows = []
+    for rec in store.values():
+        if rec.get("result"):
+            continue
+        st = rec.get("start_time")
+        try:
+            dt = datetime.fromisoformat(st) if st else None
+        except ValueError:
+            dt = None
+        if dt is None or dt > horizon:
+            continue
+        pr = ((rec["p_home"], rec["p_draw"], rec["p_away"])
+              if rec.get("p_home") is not None else None)
+        v = rec.get("value_pick")
+        pick = ({"code": v["code"], "team": v.get("team"), "odds": v.get("odds"),
+                 "edge": v.get("edge")} if v else None)
+        o1, ox, o2 = rec.get("o1"), rec.get("ox"), rec.get("o2")
+        ph, pa = rec.get("public_home"), rec.get("public_away")
+        rows.append({
+            "id": rec.get("match_id"), "comp": rec.get("comp"), "status": "notstarted",
+            "home": rec.get("home", ""), "away": rec.get("away", ""),
+            "probs": pr, "goals": None, "o1": o1, "ox": ox, "o2": o2,
+            "imp": _devig3(o1, ox, o2), "pick": pick, "start": dt.timestamp(),
+            "votes": (ph, pa) if ph is not None else None,
+        })
+    rows.sort(key=lambda g: g["start"] or 0)
+    return rows
+
+
 async def enrich_display(rows: list[dict]) -> None:
     """Ajoute votes des fans + forme d'avant-match aux matchs affichés (à venir / en direct).
 

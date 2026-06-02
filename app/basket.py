@@ -367,6 +367,45 @@ async def _finished_games(client, days: int = 2) -> list[dict]:
     return out[:10]
 
 
+def board_from_store() -> list[dict]:
+    """Repli : reconstruit la board des matchs à venir depuis le SUIVI persisté
+    (tracking_basket.json), quand SofaScore est en pause et que la board live est vide.
+
+    Sans ça, l'onglet Basket apparaît vide alors que les mêmes matchs s'affichent dans
+    les picks de l'accueil (qui, eux, lisent déjà le store)."""
+    store = tracking.load(BASKET_TRACK_PATH)
+    now = datetime.now(timezone.utc)
+    horizon = now + timedelta(days=HORIZON_DAYS)
+    rows = []
+    for rec in store.values():
+        if rec.get("result"):
+            continue
+        st = rec.get("start_time")
+        try:
+            dt = datetime.fromisoformat(st) if st else None
+        except ValueError:
+            dt = None
+        if dt is None or dt > horizon:        # passés gardés tant que < horizon (à venir)
+            continue
+        league = (rec.get("tour") or "wnba").upper()
+        p = rec.get("model_home_prob")
+        sigma = LEAGUES.get(league, {}).get("sigma", SPREAD_SIGMA)
+        v = rec.get("value_pick")
+        pick = ({"side": v["side"], "team": v.get("player"), "odds": v.get("odds"),
+                 "edge": v.get("edge"), "stake": v.get("stake_pct")} if v else None)
+        ph, pa = rec.get("public_home"), rec.get("public_away")
+        rows.append({
+            "id": rec.get("match_id"), "league": league, "status": "notstarted",
+            "home": rec.get("home", ""), "away": rec.get("away", ""),
+            "model_home": p, "margin": expected_margin(p, sigma),
+            "oh": rec.get("unibet_home_odds"), "oa": rec.get("unibet_away_odds"),
+            "imp_home": None, "pick": pick, "start": dt.timestamp(),
+            "votes": (ph, pa) if ph is not None else None,
+        })
+    rows.sort(key=lambda g: g["start"] or 0)
+    return rows
+
+
 async def finished() -> list[dict]:
     elo = load_elo()
     async with httpx.AsyncClient(headers=SOFA_H) as c:

@@ -234,6 +234,35 @@ async def matches_page(
             }
             (live if m.status == "inprogress" else rows).append(row)
 
+    # Repli : SofaScore en pause ET LiveScore indisponible (aucun match live) -> on montre
+    # les matchs à venir DÉJÀ suivis (store), pour ne pas afficher un onglet vide alors que
+    # ces matchs apparaissent dans les picks de l'accueil.
+    if not rows and not live:
+        for rec in store.values():
+            if rec.get("result") or rec.get("value_pick"):   # value -> section dédiée
+                continue
+            st = rec.get("start_time")
+            try:
+                dt = datetime.fromisoformat(st) if st else None
+            except ValueError:
+                dt = None
+            if dt is None or dt < now or dt > horizon:
+                continue
+            hp = rec.get("model_home_prob")
+            if hp is None:
+                fav = favp = None
+            elif hp >= 0.5:
+                fav, favp = rec.get("home"), f"{round(hp * 100)}%"
+            else:
+                fav, favp = rec.get("away"), f"{round((1 - hp) * 100)}%"
+            rows.append({
+                "id": rec.get("match_id"), "tour": rec.get("tour", "atp"),
+                "home": rec.get("home", ""), "away": rec.get("away", ""), "status": "notstarted",
+                "time": web.fmt_local(st, with_date=True), "score": "",
+                "fav": fav, "favp": favp, "confidence": rec.get("confidence"), "hp": hp,
+                "_sort": web.to_local(dt) or datetime.max.replace(tzinfo=timezone.utc),
+            })
+
     live.sort(key=lambda r: r["_sort"])
     rows.sort(key=lambda r: r["_sort"])
     ev = html.escape

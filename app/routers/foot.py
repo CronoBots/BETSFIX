@@ -40,9 +40,12 @@ async def foot_page() -> HTMLResponse:
     """Matchs des grandes compétitions (dont CdM) : proba 1X2 (Elo) vs cotes Unibet."""
     try:
         rows = await foot.board()
-        await foot.enrich_display(rows)   # votes fans + forme (provider caché)
+        if rows:
+            await foot.enrich_display(rows)   # votes fans + forme (provider caché)
     except Exception:
         rows = []
+    if not rows:                              # SofaScore en pause -> repli sur le suivi
+        rows = foot.board_from_store()
     try:
         fin = await foot.finished()
     except Exception:

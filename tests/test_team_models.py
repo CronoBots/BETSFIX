@@ -1,6 +1,6 @@
 """Tests des modèles d'équipe foot/basket (maths pures + matching cotes), sans réseau."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app import basket, foot
 from app.textutil import name_tokens
@@ -92,3 +92,23 @@ def test_foot_match_odds_generic_and_date_guard():
     assert foot._match_odds(game, [_foot_odds("Manchester United", "Arsenal", day)])[0] == 2.0
     # « United » seul ne doit PAS apparier Newcastle United
     assert foot._match_odds(game, [_foot_odds("Newcastle United", "Arsenal", day)]) == (None, None, None)
+
+
+def test_board_from_store_basket(monkeypatch):
+    from app import basket, tracking
+    soon = (datetime.now(timezone.utc) + timedelta(hours=5)).isoformat()
+    fake = {
+        "1": {"match_id": 1, "tour": "wnba", "home": "Dallas Wings", "away": "Seattle Storm",
+              "model_home_prob": 0.66, "start_time": soon,
+              "unibet_home_odds": 1.15, "unibet_away_odds": 5.6,
+              "value_pick": {"side": "home", "player": "Dallas Wings", "odds": 1.15,
+                             "edge": 0.04, "stake_pct": 1.0}},
+        "2": {"match_id": 2, "home": "X", "away": "Y", "result": {"winner": "home"}},  # réglé -> exclu
+    }
+    monkeypatch.setattr(tracking, "load", lambda *a, **k: fake)
+    rows = basket.board_from_store()
+    assert len(rows) == 1                       # le match réglé est exclu
+    assert rows[0]["home"] == "Dallas Wings"
+    assert rows[0]["oh"] == 1.15
+    assert rows[0]["pick"]["side"] == "home"
+    assert rows[0]["model_home"] == 0.66
