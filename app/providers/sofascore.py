@@ -157,12 +157,17 @@ class SofaScoreProvider:
 
     def _breaker_trip(self, light: bool = False) -> None:
         """Ouvre le circuit. `light` = erreur réseau transitoire (pause courte, sans escalade)."""
+        now = time.monotonic()
+        # Déjà ouvert : les échecs CONCURRENTS d'une même rafale (ex. 3 votes en vol qui
+        # prennent un 403 ensemble) ne doivent compter que pour un -> pas de ré-escalade.
+        if self._open_until > now:
+            return
         if light:
-            self._open_until = max(self._open_until, time.monotonic() + BREAKER_LIGHT_S)
+            self._open_until = now + BREAKER_LIGHT_S
             return
         self._fail_count += 1
         delay = min(BREAKER_BASE_S * (2 ** (self._fail_count - 1)), BREAKER_MAX_S)
-        self._open_until = time.monotonic() + delay
+        self._open_until = now + delay
         log.warning("SofaScore rate-limit : circuit ouvert %ss (échec #%s)", delay, self._fail_count)
 
     def _breaker_reset(self) -> None:
