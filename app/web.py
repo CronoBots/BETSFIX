@@ -193,12 +193,14 @@ CSS = """
   details.sec[open] .i{color:#fff;border-color:var(--accent2);background:rgba(46,155,255,.16)}
   details.sec > .banner{margin-top:9px}
   .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
-  /* badge décompte (timer avant le coup d'envoi), en haut à droite de la carte */
+  /* badge décompte (timer avant le coup d'envoi), en haut à droite de la carte.
+     Texte BLANC, unités jour/heure/minute bien distinctes. */
   .rt-r{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
-  .cd{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
-      font-variant-numeric:tabular-nums;background:rgba(224,179,65,.14);color:#e0b341;
-      border:1px solid rgba(224,179,65,.30);white-space:nowrap}
-  .cd.live{background:rgba(242,93,110,.16);color:#ff7a88;border-color:rgba(242,93,110,.35)}
+  .cd{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:800;
+      font-variant-numeric:tabular-nums;letter-spacing:.02em;background:rgba(255,255,255,.10);
+      color:#fff;border:1px solid rgba(255,255,255,.20);white-space:nowrap}
+  .cd .u{color:rgba(255,255,255,.55);font-weight:700;margin:0 1px 0 1px}
+  .cd.live{background:rgba(242,93,110,.18);color:#ff7a88;border-color:rgba(242,93,110,.38)}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
@@ -290,14 +292,17 @@ _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 # Décompte avant le coup d'envoi (timer live), côté client : met à jour chaque badge
 # .cd[data-ts] (timestamp epoch s) toutes les secondes. Pas de dépendance, ~0 coût.
 _COUNTDOWN_JS = (
-    "(function(){function f(ms){if(ms<=0)return'\\u25b6 live';"
+    "(function(){function p(n){return n<10?'0'+n:''+n;}"
+    "function U(v,u){return v+'<span class=u>'+u+'</span>';}"
+    "function f(ms){if(ms<=0)return'\\u25b6 live';"
     "var s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),"
     "m=Math.floor(s%3600/60),x=s%60;"
-    "if(d>0)return d+'j '+h+'h';if(h>0)return h+'h'+('0'+m).slice(-2);"
-    "return m+'m'+('0'+x).slice(-2);}"
+    "if(d>0)return U(d,'j')+' '+U(h,'h')+' '+U(p(m),'m');"
+    "if(h>0)return U(h,'h')+' '+U(p(m),'m');"
+    "return U(m,'m')+' '+U(p(x),'s');}"
     "function t(){var n=Date.now(),e=document.getElementsByClassName('cd');"
     "for(var i=0;i<e.length;i++){var v=e[i].getAttribute('data-ts');if(!v)continue;"
-    "var ms=parseInt(v,10)*1000-n;e[i].textContent=f(ms);"
+    "var ms=parseInt(v,10)*1000-n;e[i].innerHTML=f(ms);"
     "e[i].className=ms<=0?'cd live':'cd';}}"
     "t();setInterval(t,1000);})();"
 )
