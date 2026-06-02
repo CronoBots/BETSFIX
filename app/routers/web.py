@@ -253,6 +253,7 @@ async def matches_page(
                 "score": web.fmt_score(m.home_score, m.away_score) if m.status == "inprogress" else "",
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
                 "hp": hp, "implied": devig[0] if devig else None, "votes": votes,
+                "oh": rec.get("unibet_home_odds"), "oa": rec.get("unibet_away_odds"),
                 "start_ts": m.start_time.timestamp() if m.start_time else None,
                 "clickable": True,
                 "_date": local_dt.date() if local_dt else None,
@@ -288,6 +289,7 @@ async def matches_page(
                 "time": web.fmt_local(st, with_date=True), "score": "",
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"), "hp": hp,
                 "implied": devig[0] if devig else None,
+                "oh": rec.get("unibet_home_odds"), "oa": rec.get("unibet_away_odds"),
                 "votes": ((rec.get("public_home"), rec.get("public_away"))
                           if rec.get("public_home") is not None else None),
                 "start_ts": dt.timestamp(),
@@ -299,8 +301,9 @@ async def matches_page(
     ev = html.escape
 
     def _fav_sub(r):
-        return (f'<div class="dim">favori : {ev(r.get("fav") or "—")} {ev(r.get("favp") or "")}'
-                f' · confiance {ev(r.get("confidence") or "—")}</div>')
+        oh, oa = r.get("oh"), r.get("oa")
+        cotes = f'cotes {oh} / {oa}' if oh and oa else 'cotes Unibet à venir'
+        return f'<div class="dim">{cotes}</div>'
 
     def _trow(r, sub, badge="", pick=False):
         labels = ((r["home"].split() or [""])[-1], (r["away"].split() or [""])[-1])

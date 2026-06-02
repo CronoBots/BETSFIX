@@ -487,14 +487,12 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
     e = html.escape
 
     def model_line(r):
+        # Ligne d'info UNIFORME tous sports : les cotes (la barre montre déjà le favori).
         parts = []
         if not r.get("probs"):
             parts.append("Elo indisponible")
         if r.get("o1"):
-            parts.append(f'cotes {r["o1"]}/{r["ox"]}/{r["o2"]}')
-        gm = r.get("goals")
-        if gm:
-            parts.append(f'BTTS <b>{round(gm["btts"]*100)}%</b>')
+            parts.append(f'cotes {r["o1"]} / {r["ox"]} / {r["o2"]}')
         sub = f'<div class="dim">{" · ".join(parts)}</div>' if parts else ""
         fm = r.get("form")
         if fm:

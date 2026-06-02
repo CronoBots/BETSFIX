@@ -425,18 +425,13 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
     value, live, upcoming = [], [], []
     for r in rows:
         p = r.get("model_home")
-        # ligne méta COMPACTE : la barre de proba montre déjà le favori + %, on n'ajoute
-        # que l'info complémentaire (marge, cotes) pour ne pas répéter.
-        if p is not None:
-            bits = []
-            m = r.get("margin")
-            if m is not None and abs(m) >= 0.5:
-                bits.append(f'marge ~{abs(round(m))} pts')
-            if r.get("oh"):
-                bits.append(f'cotes {r["oh"]}/{r["oa"]}')
-            sub = " · ".join(bits)
+        # Ligne d'info UNIFORME tous sports : les cotes (la barre montre déjà le favori).
+        if r.get("oh"):
+            sub = f'cotes {r["oh"]} / {r["oa"]}'
+        elif p is None:
+            sub = "Elo indisponible"
         else:
-            sub = "Elo indisponible" + (f' · cotes {r["oh"]}/{r["oa"]}' if r.get("oh") else "")
+            sub = ""
         sub_html = f'<div class="dim">{sub}</div>' if sub else ""
         fm = r.get("form")
         if fm:
