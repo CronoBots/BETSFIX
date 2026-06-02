@@ -34,3 +34,11 @@ def test_name_substring_accent_tolerant():
     assert name_substring("mensik", "Jakub Menšík")        # le bug d'origine
     assert name_substring("TSITSIPAS", "Stefanos Tsitsipás")
     assert not name_substring("federer", "Rafael Nadal")
+
+
+def test_reserve_markers_not_discriminant():
+    # « II » / « U23 » (réserve) ne doivent pas créer de faux match entre clubs différents
+    assert not names_match(name_tokens("Atlanta United II"), name_tokens("Borussia Dortmund II U23"))
+    assert not names_match(name_tokens("Chicago Fire FC II"), name_tokens("Real Madrid U21"))
+    # mais une vraie réserve reste reliée à son club
+    assert names_match(name_tokens("Borussia Dortmund II"), name_tokens("Borussia Dortmund"))

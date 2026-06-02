@@ -29,6 +29,9 @@ GENERIC_TOKENS = frozenset({
     "al", "as", "ec", "sk", "fk", "us", "ud", "cd",
     # géographie générique fréquente
     "san", "santa", "new", "north", "south", "east", "west", "saint", "st",
+    # marqueurs d'équipes réserve / jeunes (ne discriminent pas : « United II » ne doit
+    # pas matcher « Dortmund II » via « ii »)
+    "ii", "iii", "iv", "u23", "u21", "u20", "u19", "u18", "u17", "u16", "res", "reserve",
 })
 
 
