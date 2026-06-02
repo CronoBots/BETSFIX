@@ -43,3 +43,25 @@ def test_is_upcoming():
     # datetime naïf traité comme UTC
     naive_future = (now + timedelta(hours=2)).replace(tzinfo=None).isoformat()
     assert _is_upcoming({"start_time": naive_future}) is True
+
+
+def test_bars_two_way():
+    from app.web import bars_two_way
+    b = bars_two_way(0.66, 0.6, (70, 30), "Home", "Away")
+    assert b["bet"] == "Home" and b["model_prob"] == 0.66
+    assert b["implied"] == 0.6 and abs(b["community"] - 0.7) < 1e-9
+    # favori = extérieur -> proba/implied/community basculent côté away
+    b2 = bars_two_way(0.4, 0.45, (40, 60), "Home", "Away")
+    assert b2["bet"] == "Away" and abs(b2["model_prob"] - 0.6) < 1e-9
+    assert abs(b2["implied"] - 0.55) < 1e-9 and abs(b2["community"] - 0.6) < 1e-9
+    assert bars_two_way(None, 0.5, None, "H", "A") == {}
+
+
+def test_bars_foot():
+    from app.web import bars_foot
+    b = bars_foot((0.5, 0.3, 0.2), (0.45, 0.3, 0.25), (60, 40), "Croatie", "Belgique")
+    assert b["bet"] == "Croatie" and b["model_prob"] == 0.5 and b["implied"] == 0.45
+    # nul favori -> pas de vote 'communauté'
+    bx = bars_foot((0.2, 0.5, 0.3), (0.25, 0.45, 0.3), (60, 40), "A", "B")
+    assert bx["bet"] == "Match nul" and bx["community"] is None
+    assert bars_foot(None, None, None, "A", "B") == {}

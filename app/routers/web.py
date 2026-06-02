@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
 from app import ace_markets, elo, serve_return, set_markets, tendencies, tracking, web
-from app.analysis import build_analysis, prob_from_rankings
+from app.analysis import build_analysis, prob_from_rankings, remove_vig
 from app.analysis import _match_winner_odds
 from app.markets import (
     DEFAULT_SERVE, calibrate_to_market, evaluate_markets, extract_market_anchors,
@@ -222,13 +222,17 @@ async def matches_page(
             else:
                 fav, favp = m.away.name, f"{round((1-hp)*100)}%"
             local_dt = web.to_local(m.start_time)
+            devig = remove_vig(rec.get("unibet_home_odds"), rec.get("unibet_away_odds"))
+            votes = ((rec.get("public_home"), rec.get("public_away"))
+                     if rec.get("public_home") is not None else None)
             row = {
                 "id": m.id, "tour": tour, "home": m.home.name, "away": m.away.name,
                 "status": m.status,
                 "time": web.fmt_local(m.start_time, with_date=True),
                 "score": web.fmt_score(m.home_score, m.away_score) if m.status == "inprogress" else "",
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
-                "hp": hp, "clickable": True,
+                "hp": hp, "implied": devig[0] if devig else None, "votes": votes,
+                "clickable": True,
                 "_date": local_dt.date() if local_dt else None,
                 "_sort": local_dt or datetime.max.replace(tzinfo=timezone.utc),
             }
@@ -255,11 +259,15 @@ async def matches_page(
                 fav, favp = rec.get("home"), f"{round(hp * 100)}%"
             else:
                 fav, favp = rec.get("away"), f"{round((1 - hp) * 100)}%"
+            devig = remove_vig(rec.get("unibet_home_odds"), rec.get("unibet_away_odds"))
             rows.append({
                 "id": rec.get("match_id"), "tour": rec.get("tour", "atp"),
                 "home": rec.get("home", ""), "away": rec.get("away", ""), "status": "notstarted",
                 "time": web.fmt_local(st, with_date=True), "score": "",
                 "fav": fav, "favp": favp, "confidence": rec.get("confidence"), "hp": hp,
+                "implied": devig[0] if devig else None,
+                "votes": ((rec.get("public_home"), rec.get("public_away"))
+                          if rec.get("public_home") is not None else None),
                 "_sort": web.to_local(dt) or datetime.max.replace(tzinfo=timezone.utc),
             })
 
@@ -277,7 +285,9 @@ async def matches_page(
                 "score": r.get("score") or "", "home": r["home"], "away": r["away"],
                 "prob": r.get("hp"), "prob_labels": labels,
                 "sub": sub, "badge": badge, "pick": pick,
-                "url": f'/app/match/{r["id"]}?tour={r["tour"]}'}
+                "url": f'/app/match/{r["id"]}?tour={r["tour"]}',
+                **web.bars_two_way(r.get("hp"), r.get("implied"), r.get("votes"),
+                                   r["home"], r["away"])}
 
     upcoming_rows = [_trow(r, _fav_sub(r)) for r in rows]
     live_rows = [_trow(r, _fav_sub(r)) for r in live]

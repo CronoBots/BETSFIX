@@ -394,12 +394,14 @@ def board_from_store() -> list[dict]:
         pick = ({"side": v["side"], "team": v.get("player"), "odds": v.get("odds"),
                  "edge": v.get("edge"), "stake": v.get("stake_pct")} if v else None)
         ph, pa = rec.get("public_home"), rec.get("public_away")
+        oh, oa = rec.get("unibet_home_odds"), rec.get("unibet_away_odds")
+        imp = _devig(oh, oa)
         rows.append({
             "id": rec.get("match_id"), "league": league, "status": "notstarted",
             "home": rec.get("home", ""), "away": rec.get("away", ""),
             "model_home": p, "margin": expected_margin(p, sigma),
-            "oh": rec.get("unibet_home_odds"), "oa": rec.get("unibet_away_odds"),
-            "imp_home": None, "pick": pick, "start": dt.timestamp(),
+            "oh": oh, "oa": oa,
+            "imp_home": imp[0] if imp else None, "pick": pick, "start": dt.timestamp(),
             "votes": (ph, pa) if ph is not None else None,
         })
     rows.sort(key=lambda g: g["start"] or 0)
@@ -448,7 +450,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         base = {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "home": r["home"], "away": r["away"],
                 "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'
-                          if r["status"] == "inprogress" and r.get("home_pts") is not None else "")}
+                          if r["status"] == "inprogress" and r.get("home_pts") is not None else ""),
+                **web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])}
         (live if r["status"] == "inprogress" else upcoming).append(
             {**base, "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
              "sub": sub_html, "badge": badge, "pick": bool(pk)})

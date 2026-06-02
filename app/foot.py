@@ -33,7 +33,8 @@ ELO_PATH = os.path.join(_ROOT, "data", "foot_elo.json")
 # Grandes compétitions (SofaScore unique-tournament id -> libellé court).
 MAJOR_TIDS = {16: "Coupe du Monde", 17: "Premier League", 8: "LaLiga", 23: "Serie A",
               35: "Bundesliga", 34: "Ligue 1", 7: "Ligue des Champions",
-              679: "Europa League", 1: "Euro", 18: "Coupe du Monde"}
+              679: "Europa League", 1: "Euro", 18: "Coupe du Monde",
+              851: "Amicaux Internationaux"}
 
 # Compétitions à venues majoritairement NEUTRES : le « domicile » SofaScore est
 # arbitraire (sauf pays hôte), donc aucun avantage terrain ne doit s'appliquer.
@@ -414,7 +415,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
                  if pk else web.unibet_badge(bool(r.get("o1"))))
         base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
-                "home": r["home"], "away": r["away"]}
+                "home": r["home"], "away": r["away"],
+                **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
         (live if r["status"] == "inprogress" else upcoming).append(
             {**base, "prob": r.get("probs"), "sub": model_line(r),
              "badge": badge, "pick": bool(pk)})

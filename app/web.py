@@ -348,6 +348,33 @@ def _pick_bars(p: dict) -> str:
             f'<span class="dim">— selon :</span></div>{inner}</div>')
 
 
+def bars_two_way(p_home, imp_home, votes, home, away) -> dict:
+    """Champs des 3 barres (BETSFIX/Bookmaker/Public) côté favori — match à 2 issues
+    (basket/tennis). `imp_home` = proba implicite dévig du domicile ; `votes` = (% home, % away)."""
+    if p_home is None:
+        return {}
+    home_fav = p_home >= 0.5
+    implied = (imp_home if home_fav else 1 - imp_home) if imp_home is not None else None
+    community = None
+    if votes and votes[0] is not None:
+        community = (votes[0] if home_fav else votes[1]) / 100
+    return {"model_prob": p_home if home_fav else 1 - p_home,
+            "implied": implied, "community": community, "bet": home if home_fav else away}
+
+
+def bars_foot(probs, imp, votes, home, away) -> dict:
+    """Champs des 3 barres côté issue favorite — foot 1X2. `imp` = (p1,pX,p2) dévig."""
+    if not probs:
+        return {}
+    i = max(range(3), key=lambda k: probs[k])
+    implied = imp[i] if imp else None
+    community = None
+    if votes and votes[0] is not None and i in (0, 2):   # pas de vote 'communauté' pour le nul
+        community = (votes[0] if i == 0 else votes[1]) / 100
+    return {"model_prob": probs[i], "implied": implied, "community": community,
+            "bet": [home, "Match nul", away][i]}
+
+
 def _head(title: str, info: str | None = None) -> str:
     """Titre de section. Si `info` est fourni, un petit 'i' à droite déroule
     l'explication dessous (HTML natif <details>, sans JS)."""
@@ -447,11 +474,15 @@ def _sport_row(r: dict) -> str:
         top = e(r.get("score") or "terminé")
     else:
         top = e(r.get("time") or "")
+    # 3 barres (BETSFIX / Bookmaker / Public) comme sur l'accueil si on a les données,
+    # sinon la barre de proba simple (favori + %).
+    probviz = _pick_bars(r) if r.get("model_prob") is not None else \
+        _prob_bar(r.get("prob"), r.get("prob_labels"))
     inner = (f'<div class="rowtop"><span>{e(r.get("tour") or "")} · {top}</span>'
              f'{r.get("badge", "")}</div>'
              f'<div class="players">{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>'
-             f'{_prob_bar(r.get("prob"), r.get("prob_labels"))}{r.get("sub", "")}')
+             f'{probviz}{r.get("sub", "")}')
     cls = "row pick" if r.get("pick") else "row"
     if r.get("url"):
         return f'<a class="{cls}" href="{r["url"]}">{inner}</a>'
