@@ -311,6 +311,21 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
         picks=values, conf_picks=confidences, frag=bool(frag)))
 
 
+def _tennis_live_score(entry: dict, swapped: bool = False) -> str:
+    """Score live (sets) d'un match tennis depuis le liveData Unibet -> « 2-6 6-4 0-0 ».
+    Orienté selon le sens du match (home/away éventuellement inversés)."""
+    sets = (((entry.get("liveData") or {}).get("statistics") or {}).get("sets") or {})
+    sh, sa = sets.get("home") or [], sets.get("away") or []
+    if swapped:
+        sh, sa = sa, sh
+    pairs = list(zip(sh, sa))
+    if not pairs:
+        return ""
+    last = max((i for i, (h, a) in enumerate(pairs) if h or a), default=-1)
+    show = pairs[:last + 2] if last >= 0 else pairs[:1]   # sets joués + le set en cours
+    return " ".join(f"{h}-{a}" for h, a in show)
+
+
 def _two_way_odds(entry: dict) -> tuple[float | None, float | None]:
     """Cotes décimales (home, away) du marché vainqueur d'un événement Unibet 2 issues."""
     for bo in entry.get("betOffers") or []:
@@ -389,7 +404,8 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
             "id": mid, "tour": rec.get("tour", "atp"),
             "home": rec.get("home", ""), "away": rec.get("away", ""),
             "status": "inprogress" if is_live else "notstarted",
-            "time": web.fmt_local(start.isoformat(), with_date=True), "score": "",
+            "time": web.fmt_local(start.isoformat(), with_date=True),
+            "score": _tennis_live_score(entry, swapped) if is_live else "",
             "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
             "hp": hp, "implied": devig[0] if devig else None,
             "oh": oh, "oa": oa,
@@ -514,10 +530,13 @@ async def matches_page(
     ev = html.escape
 
     def _fav_sub(r):
-        # noms de famille (le matchup complet est déjà au-dessus) pour des cellules compactes
+        # noms de famille (le matchup complet est déjà au-dessus) pour des cellules compactes ;
+        # on surligne l'issue pronostiquée par BETSFIX (cohérent avec la barre), pas le favori book.
         nh = (r["home"].split() or [r["home"]])[-1]
         na = (r["away"].split() or [r["away"]])[-1]
-        return web.odds_row([(nh, r.get("oh")), (na, r.get("oa"))])
+        hp = r.get("hp")
+        hi = (0 if hp >= 0.5 else 1) if hp is not None else None
+        return web.odds_row([(nh, r.get("oh")), (na, r.get("oa"))], highlight_idx=hi)
 
     def _trow(r, sub, badge="", pick=False):
         labels = ((r["home"].split() or [""])[-1], (r["away"].split() or [""])[-1])
@@ -539,7 +558,8 @@ async def matches_page(
         "home": v["home"], "away": v["away"], "pick": True, "start_ts": v.get("start_ts"),
         "female": v.get("tour") == "wta",
         "badge": f'<span class="badge b-val">+{round((v.get("edge") or 0)*100,1)} pts</span>',
-        "sub": (web.odds_row(v.get("odds_cells") or [])
+        "sub": (web.odds_row(v.get("odds_cells") or [],
+                             highlight_idx={"home": 0, "away": 1}.get(v.get("side")))
                 + f'<div class="dim">pari : <b class="pos">{ev(v.get("player") or "")}</b> '
                 f'@{v.get("odds") or "—"} · mise '
                 f'{v.get("stake") if v.get("stake") is not None else "—"}%</div>'),
@@ -592,7 +612,7 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
                 "confidence": rec.get("confidence"),
                 "model_prob": model_prob, "implied": implied, "community": community,
                 "odds_cells": [(nh, rec.get("unibet_home_odds")), (na, rec.get("unibet_away_odds"))],
-                "_sort": rec.get("start_time") or "",
+                "side": side, "_sort": rec.get("start_time") or "",
             })
         elif res and rec.get("model_home_prob") is not None:
             hp = rec["model_home_prob"]

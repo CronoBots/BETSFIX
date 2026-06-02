@@ -602,7 +602,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         p = r.get("model_home")
         # Barre de cotes Unibet claire (nom + cote par équipe) ; sinon état Elo.
         if r.get("oh"):
-            sub_html = web.odds_row([(r["home"], r.get("oh")), (r["away"], r.get("oa"))])
+            hi = (0 if p >= 0.5 else 1) if p is not None else None   # équipe pronostiquée
+            sub_html = web.odds_row([(r["home"], r.get("oh")), (r["away"], r.get("oa"))], highlight_idx=hi)
         elif p is None:
             sub_html = '<div class="dim">Elo indisponible</div>'
         else:
@@ -626,7 +627,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             {**base, "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
              "sub": sub_html, "badge": badge, "pick": bool(pk)})
         if pk:
-            oddsrow = web.odds_row([(r["home"], r.get("oh")), (r["away"], r.get("oa"))])
+            _hi = 0 if pk.get("side") == "home" else 1
+            oddsrow = web.odds_row([(r["home"], r.get("oh")), (r["away"], r.get("oa"))], highlight_idx=_hi)
             value.append({**base, "badge": badge, "pick": True,
                           "sub": oddsrow + f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
                                  f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts (à confirmer)</div>'})

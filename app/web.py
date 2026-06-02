@@ -278,11 +278,13 @@ CSS = """
   .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
   .po{background:#8a93a3}
   .pc{background:#e0b341}
-  /* Note de divergence public vs modèle (signal contrarian) */
-  .dvg{font-size:11.5px;margin-top:8px;padding:6px 11px;border-radius:9px;font-weight:600;
-       background:rgba(46,155,255,.10);border:1px solid rgba(46,155,255,.22);color:#9fd0ff}
-  .dvg.warn{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold)}
-  .dvg b{color:#fff}
+  /* Note de divergence public vs modèle (signal contrarian) — fine et discrète */
+  .dvg{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;margin-top:7px;
+       padding:4px 9px;border-radius:7px;line-height:1.2;
+       background:rgba(46,155,255,.08);border:1px solid rgba(46,155,255,.18);color:#9fd0ff}
+  .dvg.warn{background:rgba(224,179,65,.08);border-color:rgba(224,179,65,.22);color:#e6b94a}
+  .dvg b{color:inherit;font-weight:800}
+  .dvg-n{margin-left:auto;font-variant-numeric:tabular-nums;opacity:.85;font-weight:700}
   /* Barre de cotes : une cellule par issue (joueur 1 / Nul / joueur 2) ; favori (cote la
      plus basse) mis en avant en bleu. Nom au-dessus, cote dessous. */
   .oddsrow{display:flex;gap:6px;margin-top:7px}
@@ -555,11 +557,11 @@ def _pick_bars(p: dict) -> str:
     note, m, c = "", p.get("model_prob"), p.get("community")
     if m is not None and c is not None:
         if c - m >= 0.18:
-            note = (f'<div class="dvg warn">⚠️ Le public <b>surévalue</b> ce camp '
-                    f'({round(c*100)}% public vs {round(m*100)}% BETSFIX)</div>')
+            note = (f'<div class="dvg warn">⚠️ Public <b>surévalue</b>'
+                    f'<span class="dvg-n">{round(c*100)}% vs {round(m*100)}%</span></div>')
         elif m - c >= 0.18:
-            note = (f'<div class="dvg">💡 Le public <b>sous-évalue</b> ce camp '
-                    f'({round(m*100)}% BETSFIX vs {round(c*100)}% public)</div>')
+            note = (f'<div class="dvg">💡 Public <b>sous-évalue</b>'
+                    f'<span class="dvg-n">{round(c*100)}% vs {round(m*100)}%</span></div>')
     return (f'<div class="pbars"><div class="pb-h">Chances que <b>{bet}</b> gagne '
             f'<span class="dim">— selon :</span></div>{inner}</div>{note}')
 
@@ -591,19 +593,23 @@ def bars_foot(probs, imp, votes, home, away) -> dict:
             "bet": [home, "Match nul", away][i]}
 
 
-def odds_row(outcomes) -> str:
+def odds_row(outcomes, highlight_idx: int | None = None) -> str:
     """Barre de cotes Unibet claire : `outcomes` = [(libellé, cote), ...] — 2 issues
-    (tennis/basket) ou 3 avec « Nul » (foot). La cote la plus basse (favori du book) est
-    mise en avant en bleu. Chaque cellule : nom au-dessus, cote dessous."""
-    valid = [(lbl, o) for lbl, o in outcomes if o]
+    (tennis/basket) ou 3 avec « Nul » (foot). On met en avant en bleu l'issue PRONOSTIQUÉE
+    par BETSFIX (`highlight_idx`, cohérent avec les barres) ; à défaut, la cote la plus basse
+    (favori du book). Chaque cellule : nom au-dessus, cote dessous."""
+    valid = [(i, lbl, o) for i, (lbl, o) in enumerate(outcomes) if o]
     if not valid:
         return '<div class="dim">cotes Unibet à venir</div>'
-    best = min(o for _, o in valid)
+    if highlight_idx is not None and any(i == highlight_idx for i, _, _ in valid):
+        hi = highlight_idx
+    else:
+        hi = min(valid, key=lambda t: t[2])[0]   # repli : favori du book (cote mini)
     cells = "".join(
-        f'<span class="oc{" fav" if o == best else ""}">'
+        f'<span class="oc{" fav" if i == hi else ""}">'
         f'<span class="ocn">{html.escape(str(lbl))}</span>'
         f'<span class="ocv">{o}</span></span>'
-        for lbl, o in valid)
+        for i, lbl, o in valid)
     return f'<div class="oddsrow">{cells}</div>'
 
 
@@ -640,7 +646,9 @@ def _pick_card(p: dict, badge: str) -> str:
     # live. Le badge value descend toujours sur la ligne du pari.
     state = cd if cd else ('<span class="cd live">🔴 EN DIRECT</span>' if p.get("live") else "")
     bdg = f'<span class="bdg">{badge}</span>' if badge else ""
-    oddsrow = odds_row(p["odds_cells"]) if p.get("odds_cells") else ""
+    # surligne l'issue pariée (cohérent avec les barres), pas le favori du book
+    _hi = {"1": 0, "X": 1, "2": 2, "home": 0, "away": 1}.get(p.get("side"))
+    oddsrow = odds_row(p["odds_cells"], highlight_idx=_hi) if p.get("odds_cells") else ""
     hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""
     af = f'{p["away_flag"]} ' if p.get("away_flag") else ""
     return (f'<a class="row pick" href="{p["url"]}">'

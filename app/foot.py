@@ -624,7 +624,10 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         if not r.get("probs"):
             sub += '<div class="dim">Elo indisponible</div>'
         if r.get("o1"):
-            sub += web.odds_row([(r["home"], r["o1"]), ("Nul", r["ox"]), (r["away"], r["o2"])])
+            pr = r.get("probs")
+            hi = max(range(3), key=lambda k: pr[k]) if pr else None   # issue pronostiquée
+            sub += web.odds_row([(r["home"], r["o1"]), ("Nul", r["ox"]), (r["away"], r["o2"])],
+                                highlight_idx=hi)
         fm = r.get("form")
         if fm:
             sub += web.form_compare(r["home"], fm[0], r["away"], fm[1])
@@ -646,7 +649,9 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             {**base, "prob": r.get("probs"), "sub": model_line(r),
              "badge": badge, "pick": bool(pk)})
         if pk:
-            oddsrow = web.odds_row([(r["home"], r.get("o1")), ("Nul", r.get("ox")), (r["away"], r.get("o2"))])
+            _hi = {"1": 0, "X": 1, "2": 2}.get(pk.get("code"))
+            oddsrow = web.odds_row([(r["home"], r.get("o1")), ("Nul", r.get("ox")), (r["away"], r.get("o2"))],
+                                   highlight_idx=_hi)
             value.append({**base, "badge": badge, "pick": True,
                           "sub": oddsrow + f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
                                  f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts (à confirmer)</div>'})
