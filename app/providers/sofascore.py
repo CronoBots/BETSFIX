@@ -49,6 +49,33 @@ BREAKER_LIGHT_S = 15      # pause courte sur erreur réseau transitoire (timeout
 _CACHE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "..", "data", "cache_sofascore.json")
 
+# Fichier de SESSION SofaScore (anti-403 Cloudflare) : on y colle le cookie du navigateur
+# (cf_clearance + session) et éventuellement le User-Agent. Lu À CHAUD (mtime) -> on peut le
+# rafraîchir sans redémarrer. Jamais commité (cf .gitignore) : c'est une donnée perso.
+_COOKIE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "..", "sofascore_cookies.txt")
+
+
+def _parse_session_file(text: str) -> tuple[str | None, str | None]:
+    """Extrait (cookie, user_agent) du fichier de session. Accepte :
+    - la valeur brute de l'en-tête Cookie (avec ou sans préfixe « Cookie: »), sur 1+ lignes ;
+    - une ligne « User-Agent: ... » (le cf_clearance est lié à l'UA du navigateur).
+    Les lignes vides et « # commentaire » sont ignorées."""
+    cookie_parts, ua = [], None
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        low = s.lower()
+        if low.startswith(("user-agent:", "ua:")):
+            ua = s.split(":", 1)[1].strip() or None
+        elif low.startswith("cookie:"):
+            cookie_parts.append(s.split(":", 1)[1].strip())
+        else:
+            cookie_parts.append(s)
+    cookie = "; ".join(p.strip().rstrip(";") for p in cookie_parts if p.strip())
+    return (cookie or None), ua
+
 
 def _ttl_for(path: str) -> float | None:
     """Durée de cache selon le type de donnée (les statiques tiennent des heures)."""
@@ -140,6 +167,35 @@ class SofaScoreProvider:
         )
         self._fail_count = 0
         self._open_until = 0.0  # horloge monotone : circuit ouvert jusqu'à cet instant
+        # Session navigateur (anti-403) : chargée depuis _COOKIE_FILE, rechargée à chaud (mtime).
+        self._cookie_path = os.path.normpath(_COOKIE_FILE)
+        self._cookie_mtime = 0.0
+        self._refresh_cookies()
+
+    def _refresh_cookies(self) -> None:
+        """Recharge le cookie/UA depuis le fichier de session s'il a changé (stat mtime, ~0 coût).
+        Permet de rafraîchir le cf_clearance sans redémarrer l'app."""
+        try:
+            mt = os.path.getmtime(self._cookie_path)
+        except OSError:
+            return
+        if mt == self._cookie_mtime:
+            return
+        self._cookie_mtime = mt
+        try:
+            with open(self._cookie_path, encoding="utf-8") as f:
+                cookie, ua = _parse_session_file(f.read())
+        except OSError:
+            return
+        if cookie:
+            self._client.headers["Cookie"] = cookie
+        else:
+            self._client.headers.pop("Cookie", None)
+        if ua:
+            self._client.headers["User-Agent"] = ua
+        log.info("SofaScore: session %s (cookie %d car.%s)",
+                 "chargée" if cookie else "vidée", len(cookie or ""),
+                 ", UA perso" if ua else "")
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -216,6 +272,7 @@ class SofaScoreProvider:
     async def _fetch_and_cache(self, path: str) -> dict:
         """Appel réseau réel + mise en cache (avec repli sur le périmé en cas d'erreur)."""
         try:
+            self._refresh_cookies()             # recharge la session navigateur si le fichier a changé
             # Le guard est vérifié APRÈS acquisition du sémaphore : si les 1ères requêtes
             # d'une rafale prennent un 403, les suivantes (en file) voient le circuit ouvert
             # et abandonnent sans taper le réseau (au lieu de toutes passer un guard encore fermé).
@@ -256,6 +313,7 @@ class SofaScoreProvider:
 
     async def _get_bytes(self, path: str) -> tuple[bytes, str]:
         """GET binaire (images). Retourne (contenu, content-type)."""
+        self._refresh_cookies()
         self._breaker_guard()
         try:
             resp = await self._client.get(path)
