@@ -385,7 +385,7 @@ def board_from_store() -> list[dict]:
             dt = datetime.fromisoformat(st) if st else None
         except ValueError:
             dt = None
-        if dt is None or dt > horizon:        # passés gardés tant que < horizon (à venir)
+        if dt is None or dt < now or dt > horizon:   # uniquement les matchs À VENIR
             continue
         league = (rec.get("tour") or "wnba").upper()
         p = rec.get("model_home_prob")

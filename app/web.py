@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import os
+import time
 from datetime import datetime
 
 _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -507,9 +508,11 @@ def _sport_row(r: dict) -> str:
     # sinon la barre de proba simple (favori + %).
     probviz = _pick_bars(r) if r.get("model_prob") is not None else \
         _prob_bar(r.get("prob"), r.get("prob_labels"))
-    # badge décompte (timer) en haut à droite pour les matchs à venir
+    # badge décompte (timer) en haut à droite — UNIQUEMENT pour un match encore à venir
+    # (un notstarted dont l'heure est déjà passée ne doit pas afficher « live »).
     cd = (f'<span class="cd" data-ts="{int(r["start_ts"])}"></span>'
-          if r.get("status") == "notstarted" and r.get("start_ts") else "")
+          if r.get("status") == "notstarted" and r.get("start_ts")
+          and r["start_ts"] > time.time() else "")
     inner = (f'<div class="rowtop"><span>{e(r.get("tour") or "")} · {top}</span>'
              f'<span class="rt-r">{cd}{r.get("badge", "")}</span></div>'
              f'<div class="players">{e(r.get("home") or "")} '

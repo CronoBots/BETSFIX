@@ -291,7 +291,7 @@ def board_from_store() -> list[dict]:
             dt = datetime.fromisoformat(st) if st else None
         except ValueError:
             dt = None
-        if dt is None or dt > horizon:
+        if dt is None or dt < now or dt > horizon:   # uniquement les matchs À VENIR
             continue
         pr = ((rec["p_home"], rec["p_draw"], rec["p_away"])
               if rec.get("p_home") is not None else None)
