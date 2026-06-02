@@ -14,21 +14,34 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import math
 import os
 
 from app import web
 from app.analysis import remove_vig
 
+log = logging.getLogger("uvicorn")
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_PATH = os.path.join(_ROOT, "data", "tracking.json")
 
 
 def load(path: str = DATA_PATH) -> dict:
+    """Charge le store de suivi. Un fichier CORROMPU est sauvegardé en .bak (jamais
+    écrasé silencieusement par {}), pour ne pas perdre tout l'historique sans trace."""
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (FileNotFoundError, ValueError):
+    except FileNotFoundError:
+        return {}
+    except ValueError:
+        bak = path + ".corrupt.bak"
+        try:
+            os.replace(path, bak)
+            log.error("tracking: %s corrompu -> sauvegardé en %s (repart de zéro)", path, bak)
+        except OSError as exc:
+            log.error("tracking: %s corrompu et non sauvegardable: %s", path, exc)
         return {}
 
 
@@ -107,6 +120,21 @@ def settle(store: dict, match_id: int, winner: str | None, total_games: int | No
         "winner": winner, "total_games": total_games, "settled_at": now_iso,
         "value_pnl": pnl,
     }
+    store[str(match_id)] = rec
+    return True
+
+
+def void(store: dict, match_id: int, reason: str, now_iso: str) -> bool:
+    """Clôt un match qui n'aboutira pas (reporté/annulé/abandon) sans gagnant.
+
+    Sans ça, un match jamais « finished » reste indéfiniment dans le store, ré-essayé à
+    chaque passe et le faisant grossir sans fin. Un void est exclu des métriques (pas de
+    gagnant, pas de P&L) mais marque le match comme réglé pour qu'on cesse de le suivre."""
+    rec = store.get(str(match_id))
+    if not rec or rec.get("result"):
+        return False
+    rec["result"] = {"winner": None, "void": True, "reason": reason,
+                     "settled_at": now_iso, "value_pnl": None}
     store[str(match_id)] = rec
     return True
 
@@ -248,7 +276,9 @@ def factor_breakdown(pred: list[dict]) -> list[dict]:
 
 def report(store: dict) -> dict:
     settled = [r for r in store.values() if r.get("result")]
-    pred = [r for r in settled if r.get("model_home_prob") is not None]
+    # Les void (matchs annulés/reportés, sans gagnant) sont exclus des métriques.
+    pred = [r for r in settled
+            if r.get("model_home_prob") is not None and not r["result"].get("void")]
 
     # Calibration / précision du modèle ET baseline marché, sur résultats réels
     brier = ll = 0.0
@@ -333,7 +363,8 @@ def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
     """
     e = html.escape
     recs = list(store.values())
-    settled = [r for r in recs if r.get("result") and r.get("model_home_prob") is not None]
+    settled = [r for r in recs if r.get("result") and r.get("model_home_prob") is not None
+               and not r["result"].get("void")]
     settled.sort(key=lambda r: r["result"].get("settled_at", ""), reverse=True)
 
     prec = rep.get("precision_modele")

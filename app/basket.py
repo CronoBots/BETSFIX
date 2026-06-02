@@ -486,9 +486,10 @@ async def run_snapshot() -> int:
 
 
 async def run_settle() -> int:
-    """Renseigne le résultat des matchs WNBA terminés (vainqueur)."""
+    """Renseigne le résultat des matchs terminés (vainqueur), clôt les annulés/reportés."""
     store = tracking.load(BASKET_TRACK_PATH)
-    now = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
     s = 0
     async with httpx.AsyncClient(headers=SOFA_H) as c:
         for rec in list(store.values()):
@@ -500,5 +501,21 @@ async def run_settle() -> int:
                 winner = "home" if ev["winnerCode"] == 1 else "away"
                 if tracking.settle(store, rec["match_id"], winner, None, now):
                     s += 1
+                continue
+            if _stale(rec, now_dt) and tracking.void(
+                    store, rec["match_id"], "non terminé (reporté/annulé ?)", now):
+                s += 1
     tracking.save(store, BASKET_TRACK_PATH)
     return s
+
+
+def _stale(rec: dict, now_dt: datetime, days: int = 3) -> bool:
+    """Vrai si le match était prévu il y a plus de `days` jours et n'a pas abouti."""
+    st = rec.get("start_time")
+    if not st:
+        return False
+    try:
+        dt = datetime.fromisoformat(st)
+    except ValueError:
+        return False
+    return (now_dt - dt) > timedelta(days=days)

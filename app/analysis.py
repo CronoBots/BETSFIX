@@ -374,21 +374,25 @@ def build_analysis(
 
 
 def _match_winner_odds(unibet: UnibetOdds, match: Match) -> tuple[float | None, float | None]:
-    """Extrait (cote_home, cote_away) du marché vainqueur de match chez Unibet."""
-    from app.providers.unibet import _norm_name
+    """Extrait (cote_home, cote_away) du marché vainqueur de match chez Unibet.
 
-    home_tokens = _norm_name(match.home.name)
+    On aligne par NOM (et non par l'ordre Kambi, qui peut être inversé). Si aucun label
+    ne correspond, on renvoie (None, None) plutôt que de DEVINER : des cotes home/away
+    inversées produiraient une fausse value."""
+    from app.textutil import name_tokens, names_match
+
+    home = name_tokens(match.home.name)
+    away = name_tokens(match.away.name)
     for mk in unibet.markets:
-        if (mk.type or "").lower() != "match":
-            continue
-        if len(mk.outcomes) != 2:
+        if (mk.type or "").lower() != "match" or len(mk.outcomes) != 2:
             continue
         o1, o2 = mk.outcomes
-        if _norm_name(o1.label) & home_tokens:
+        t1, t2 = name_tokens(o1.label), name_tokens(o2.label)
+        if names_match(t1, home) or names_match(t2, away):
             return o1.odds, o2.odds
-        if _norm_name(o2.label) & home_tokens:
+        if names_match(t2, home) or names_match(t1, away):
             return o2.odds, o1.odds
-        return o1.odds, o2.odds
+        return None, None   # aucun label ne matche -> on ne devine pas l'ordre
     return None, None
 
 

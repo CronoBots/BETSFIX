@@ -16,6 +16,7 @@ from app.providers.unibet import UnibetProvider
 router = APIRouter(prefix="/tracking", tags=["📊 Suivi & performance"])
 
 HORIZON_HOURS = 48  # on ne logge que les matchs à venir dans cette fenêtre
+VOID_AFTER = timedelta(days=3)  # un match non terminé 3 j après l'heure prévue = annulé/reporté
 
 
 def _now():
@@ -98,6 +99,19 @@ async def run_settle(provider: SofaScoreProvider) -> int:
                 winner = None
         if winner and tracking.settle(store, rec["match_id"], winner, total, now.isoformat()):
             settled += 1
+            continue
+        # Match jamais « finished » longtemps après l'heure prévue -> annulé/reporté : on
+        # le clôt (void) pour qu'il cesse d'être ré-essayé et de gonfler le store.
+        st = rec.get("start_time")
+        if st:
+            try:
+                dt = datetime.fromisoformat(st)
+            except ValueError:
+                dt = None
+            if dt and (now - dt) > VOID_AFTER:
+                if tracking.void(store, rec["match_id"], "non terminé (reporté/annulé ?)",
+                                 now.isoformat()):
+                    settled += 1
     tracking.save(store)
     return settled
 

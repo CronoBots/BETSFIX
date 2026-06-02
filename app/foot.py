@@ -466,7 +466,8 @@ async def run_snapshot() -> int:
 
 async def run_settle() -> int:
     store = tracking.load(FOOT_TRACK_PATH)
-    now = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
     s = 0
     async with httpx.AsyncClient(headers=SOFA_H) as c:
         for rec in list(store.values()):
@@ -484,8 +485,25 @@ async def run_settle() -> int:
                     pnl = (pk["odds"] - 1) if won else -1.0
                 rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl}
                 s += 1
+                continue
+            # Match jamais terminé longtemps après l'heure prévue -> annulé/reporté : on clôt.
+            if _stale(rec, now_dt) and tracking.void(
+                    store, rec["match_id"], "non terminé (reporté/annulé ?)", now):
+                s += 1
     tracking.save(store, FOOT_TRACK_PATH)
     return s
+
+
+def _stale(rec: dict, now_dt: datetime, days: int = 3) -> bool:
+    """Vrai si le match était prévu il y a plus de `days` jours et n'a pas abouti."""
+    st = rec.get("start_time")
+    if not st:
+        return False
+    try:
+        dt = datetime.fromisoformat(st)
+    except ValueError:
+        return False
+    return (now_dt - dt) > timedelta(days=days)
 
 
 def _clv(rec) -> float | None:
@@ -502,7 +520,9 @@ def _clv(rec) -> float | None:
 
 
 def report(store: dict) -> dict:
-    settled = [r for r in store.values() if r.get("result") and r.get("p_home") is not None]
+    # Les void (annulés/reportés, sans gagnant) sont exclus des métriques.
+    settled = [r for r in store.values() if r.get("result") and r.get("p_home") is not None
+               and not r["result"].get("void")]
     n = len(settled)
     brier = ll = correct = 0.0
     mbrier = mll = 0.0
