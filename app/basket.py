@@ -408,6 +408,22 @@ def board_from_store() -> list[dict]:
     return rows
 
 
+RENDER_NET_BUDGET = 2.5   # s max d'attente réseau au rendu (sinon repli)
+
+
+async def board_resilient() -> list[dict]:
+    """SOURCE UNIQUE des matchs basket (onglet ET accueil) : board live (SofaScore) ->
+    repli store. Réseau borné. Garantit que l'accueil et l'onglet voient les mêmes matchs."""
+    try:
+        rows = await asyncio.wait_for(board(), timeout=RENDER_NET_BUDGET)
+        if rows:
+            await asyncio.wait_for(enrich_display(rows), timeout=2.0)
+            return rows
+    except (Exception, asyncio.TimeoutError):
+        pass
+    return board_from_store()
+
+
 async def finished() -> list[dict]:
     elo = load_elo()
     async with httpx.AsyncClient(headers=SOFA_H) as c:

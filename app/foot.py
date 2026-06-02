@@ -406,6 +406,26 @@ async def board_from_unibet() -> list[dict]:
     return rows
 
 
+async def board_resilient() -> list[dict]:
+    """SOURCE UNIQUE des matchs foot (onglet ET accueil) : board live (SofaScore) -> board
+    UNIBET (sans SofaScore, surface les amicaux) -> repli store. Réseau borné. Garantit que
+    l'accueil et l'onglet voient les mêmes matchs."""
+    try:
+        rows = await asyncio.wait_for(board(), timeout=2.5)
+        if rows:
+            await asyncio.wait_for(enrich_display(rows), timeout=2.0)
+            return rows
+    except (Exception, asyncio.TimeoutError):
+        pass
+    try:
+        rows = await asyncio.wait_for(board_from_unibet(), timeout=2.5)
+        if rows:
+            return rows
+    except (Exception, asyncio.TimeoutError):
+        pass
+    return board_from_store()
+
+
 async def enrich_display(rows: list[dict]) -> None:
     """Ajoute votes des fans + forme d'avant-match aux matchs affichés (à venir / en direct).
 

@@ -40,16 +40,7 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
 @router.get("/basket", response_class=HTMLResponse, summary="Page Basket (HTML)")
 async def basket_page() -> HTMLResponse:
     """Tableau WNBA : matchs à venir, proba modèle (Elo) vs cotes Unibet, value."""
-    # Budget réseau borné : si SofaScore traîne, on n'attend pas -> on sert le store.
-    rows, fin = [], []
-    try:
-        rows = await asyncio.wait_for(basket.board(), timeout=RENDER_NET_BUDGET)
-        if rows:
-            await asyncio.wait_for(basket.enrich_display(rows), timeout=2.0)
-    except (Exception, asyncio.TimeoutError):
-        rows = []
-    if not rows:                                # SofaScore lent/en pause -> repli sur le suivi
-        rows = basket.board_from_store()
+    rows = await basket.board_resilient()       # MÊME source que l'accueil (cohérence)
     try:
         fin = await asyncio.wait_for(basket.finished(), timeout=2.0)
     except (Exception, asyncio.TimeoutError):
