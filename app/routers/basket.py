@@ -41,10 +41,7 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
 async def basket_page() -> HTMLResponse:
     """Tableau WNBA : matchs à venir, proba modèle (Elo) vs cotes Unibet, value."""
     rows = await basket.board_resilient()       # MÊME source que l'accueil (cohérence)
-    try:
-        fin = await asyncio.wait_for(basket.finished(), timeout=2.0)
-    except (Exception, asyncio.TimeoutError):
-        fin = []
+    fin = basket.finished_from_store()          # terminés depuis le store (hors-SofaScore)
     return HTMLResponse(basket.render(rows, fin, paused=sportcache.blocked()))
 
 

@@ -44,10 +44,7 @@ async def foot_page() -> HTMLResponse:
     """Matchs des grandes compétitions (dont CdM) : proba 1X2 (Elo) vs cotes Unibet."""
     # Budget réseau borné : si SofaScore traîne, on n'attend pas -> on sert le store.
     rows = await foot.board_resilient()       # MÊME source que l'accueil (cohérence)
-    try:
-        fin = await asyncio.wait_for(foot.finished(), timeout=2.0)
-    except (Exception, asyncio.TimeoutError):
-        fin = []
+    fin = foot.finished_from_store()          # terminés depuis le store (hors-SofaScore)
     return HTMLResponse(foot.render(rows, fin, paused=sportcache.blocked()))
 
 

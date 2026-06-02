@@ -472,14 +472,7 @@ async def board_resilient() -> list[dict]:
             return rows
     except (Exception, asyncio.TimeoutError):
         pass
-    try:    # repli : board SofaScore directe
-        rows = await asyncio.wait_for(board(), timeout=2.5)
-        if rows:
-            await asyncio.wait_for(enrich_display(rows), timeout=2.0)
-            return rows
-    except (Exception, asyncio.TimeoutError):
-        pass
-    return board_from_store()
+    return board_from_store()              # repli store (toujours hors-SofaScore au rendu)
 
 
 async def enrich_display(rows: list[dict]) -> None:
@@ -556,6 +549,23 @@ async def finished() -> list[dict]:
         ea = (elo.get(str(g["away_id"])) or {}).get("elo")
         g["probs"] = outcome_probs(eh, ea)
     return games
+
+
+def finished_from_store(limit: int = 8) -> list[dict]:
+    """Matchs récemment terminés depuis le suivi (SANS appel SofaScore) — pour le rendu."""
+    store = tracking.load(FOOT_TRACK_PATH)
+    out = []
+    for rec in store.values():
+        res = rec.get("result")
+        if not res or res.get("winner") not in ("home", "away", "draw") or res.get("void"):
+            continue
+        pr = ((rec["p_home"], rec["p_draw"], rec["p_away"])
+              if rec.get("p_home") is not None else None)
+        out.append({"comp": rec.get("comp"), "home": rec.get("home", ""), "away": rec.get("away", ""),
+                    "winner": res["winner"], "probs": pr, "hs": None, "as": None,
+                    "_at": res.get("settled_at", "")})
+    out.sort(key=lambda g: g["_at"], reverse=True)
+    return out[:limit]
 
 
 def render(rows: list[dict], finished_rows: list[dict] | None = None,
