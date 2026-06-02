@@ -110,7 +110,7 @@ def _all_sport_picks() -> list[dict]:
     add(tracking.load(basket.BASKET_TRACK_PATH), "Basket", "🏀",
         lambda r: "/basket", "player", _two_way_prob)
     add(tracking.load(foot.FOOT_TRACK_PATH), "Foot", "⚽", lambda r: "/foot", "team", _foot_prob)
-    out.sort(key=lambda p: p.get("edge") or 0, reverse=True)
+    out.sort(key=lambda p: p.get("start_ts") or float("inf"))   # du plus proche au plus éloigné
     return out
 
 
@@ -172,7 +172,7 @@ def _confidence_picks() -> list[dict]:
         lambda r: f'/app/match/{r["match_id"]}?tour={r.get("tour", "atp")}', _fav_two_way)
     add(tracking.load(basket.BASKET_TRACK_PATH), "Basket", "🏀", lambda r: "/basket", _fav_two_way)
     add(tracking.load(foot.FOOT_TRACK_PATH), "Foot", "⚽", lambda r: "/foot", _fav_foot)
-    out.sort(key=lambda p: p["model_prob"], reverse=True)
+    out.sort(key=lambda p: p.get("start_ts") or float("inf"))   # du plus proche au plus éloigné
     return out
 
 
@@ -188,10 +188,49 @@ def _enrich_picks_votes(picks: list[dict], provider) -> None:
             p["community"] = (v.home_percent if p["side"] == "home" else v.away_percent) / 100
 
 
+async def _foot_unibet_picks() -> tuple[list[dict], list[dict]]:
+    """Picks foot (value + confiance) issus de la board UNIBET, pour l'accueil — le store
+    foot est vide tant que SofaScore n'a pas tourné, donc on les lit directement d'Unibet."""
+    from app import foot   # import local : foot importe web (cycle) -> on l'importe ici
+    try:
+        rows = await asyncio.wait_for(foot.board_from_unibet(), timeout=2.5)
+    except (Exception, asyncio.TimeoutError):
+        return [], []
+    codes = ["1", "X", "2"]
+    values, confs = [], []
+    for r in rows:
+        probs = r.get("probs")
+        if not probs:
+            continue
+        imp = r.get("imp")
+        names = [r["home"], "Match nul", r["away"]]
+        iso = datetime.fromtimestamp(r["start"], tz=timezone.utc).isoformat() if r.get("start") else None
+        base = {"sport": "Foot", "icon": "⚽", "home": r["home"], "away": r["away"],
+                "match_id": r["id"], "url": "/foot", "community": None,
+                "time": web.fmt_local(iso, with_date=True), "start_ts": r.get("start")}
+        pk = r.get("pick")
+        if pk:
+            i = codes.index(pk["code"])
+            values.append({**base, "bet": pk["team"], "odds": pk["odds"], "edge": pk["edge"],
+                           "model_prob": probs[i], "side": pk["code"],
+                           "implied": (imp[i] if imp else None)})
+        i = max(range(3), key=lambda k: probs[k])
+        if probs[i] >= CONF_MIN_PROB:
+            confs.append({**base, "bet": names[i], "model_prob": probs[i], "side": codes[i],
+                          "conf_pct": round(probs[i] * 100),
+                          "odds": [r.get("o1"), r.get("ox"), r.get("o2")][i],
+                          "implied": (imp[i] if imp else None)})
+    return values, confs
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
-    values = _all_sport_picks()[:8]          # value = edge vs cote (souvent outsiders)
-    confidences = _confidence_picks()[:6]    # confiance = favori net du modèle
+    values = _all_sport_picks()              # value = edge vs cote (souvent outsiders)
+    confidences = _confidence_picks()        # confiance = favori net du modèle
+    fv, fc = await _foot_unibet_picks()      # + foot (amicaux via Unibet, store vide)
+    inf = float("inf")
+    values = sorted(values + fv, key=lambda p: p.get("start_ts") or inf)[:8]
+    confidences = sorted(confidences + fc, key=lambda p: p.get("start_ts") or inf)[:6]
     _enrich_picks_votes(values + confidences, provider)   # votes communauté (cache only)
     return HTMLResponse(web.render_home(
         tracking.report(tracking.load()), source=provider.breaker_status(),
