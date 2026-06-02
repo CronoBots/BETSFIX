@@ -578,7 +578,7 @@ def finished_from_store(limit: int = 8) -> list[dict]:
 
 
 def render(rows: list[dict], finished_rows: list[dict] | None = None,
-           paused: bool = False) -> str:
+           paused: bool = False, frag: bool = False) -> str:
     e = html.escape
 
     def model_line(r):
@@ -635,7 +635,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
     if not (value or live or upcoming or fin):
         intro += ' La Coupe du Monde démarre le 11 juin.'
     return web.render_sport_matches("foot", "Football", value, live, upcoming, fin,
-                                    intro=intro, paused=paused)
+                                    intro=intro, paused=paused, frag=frag)
 
 
 # ----------------------------------------------------------------- suivi (3 issues)

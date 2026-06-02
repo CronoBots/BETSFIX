@@ -38,11 +38,11 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
 
 
 @router.get("/basket", response_class=HTMLResponse, summary="Page Basket (HTML)")
-async def basket_page() -> HTMLResponse:
-    """Tableau WNBA : matchs à venir, proba modèle (Elo) vs cotes Unibet, value."""
+async def basket_page(frag: int = 0) -> HTMLResponse:
+    """Tableau NBA & WNBA : matchs à venir, proba modèle (Elo) vs cotes Unibet, value."""
     rows = await basket.board_resilient()       # MÊME source que l'accueil (cohérence)
     fin = basket.finished_from_store()          # terminés depuis le store (hors-SofaScore)
-    return HTMLResponse(basket.render(rows, fin, paused=sportcache.blocked()))
+    return HTMLResponse(basket.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag)))
 
 
 # ------------------------------------------------------------------- API JSON

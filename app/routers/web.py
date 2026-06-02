@@ -269,7 +269,8 @@ async def _live_board_picks() -> tuple[list[dict], list[dict]]:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
+async def home(provider: SofaScoreProvider = Depends(get_provider),
+               frag: int = 0) -> HTMLResponse:
     values = _all_sport_picks()              # tennis (store) — même source que l'onglet
     confidences = _confidence_picks()        # tennis (store)
     bv, bc = await _live_board_picks()       # basket + foot : MÊMES boards que les onglets
@@ -279,7 +280,7 @@ async def home(provider: SofaScoreProvider = Depends(get_provider)) -> HTMLRespo
     _enrich_picks_votes(values + confidences, provider)   # votes communauté (cache only)
     return HTMLResponse(web.render_home(
         tracking.report(tracking.load()), source=provider.breaker_status(),
-        picks=values, conf_picks=confidences))
+        picks=values, conf_picks=confidences, frag=bool(frag)))
 
 
 async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, list]:
@@ -356,6 +357,7 @@ async def matches_page(
     provider: SofaScoreProvider = Depends(get_provider),
     rankings: RankingsProvider = Depends(get_rankings),
     unibet: UnibetProvider = Depends(get_unibet),
+    frag: int = 0,
 ) -> HTMLResponse:
     """Liste des matchs à venir (ATP+WTA). Source : Unibet (temps réel) + analyse du store
     (modèle complet SofaScore) ; repli SofaScore/LiveScore si Unibet ne donne rien."""
@@ -506,7 +508,8 @@ async def matches_page(
              if fallback else
              'Touchez un match pour son analyse détaillée. Heures en fuseau belge.')
     return HTMLResponse(web.render_sport_matches(
-        "tennis", "Matchs", value_rows, live_rows, upcoming_rows, finished_rows, intro=intro))
+        "tennis", "Matchs", value_rows, live_rows, upcoming_rows, finished_rows,
+        intro=intro, frag=bool(frag)))
 
 
 def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:

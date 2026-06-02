@@ -113,6 +113,14 @@ CSS = """
   .botnav a:active{transform:scale(.93)}
   .botnav a.on{color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
   .botnav a.on .ic{transform:scale(1.06)}
+  /* SPA : panneaux par onglet (tout chargé à l'ouverture, bascule sans rechargement) */
+  .panel{display:none}
+  .panel.on{display:block;animation:fadein .18s ease}
+  @keyframes fadein{from{opacity:.4}to{opacity:1}}
+  .ldg{color:var(--dim);text-align:center;padding:40px 0;font-size:13px}
+  .ldg::before{content:"";display:block;width:22px;height:22px;margin:0 auto 12px;border-radius:50%;
+    border:2px solid var(--border2);border-top-color:var(--accent2);animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
   /* Header sticky premium */
   .hdr{position:sticky;top:0;z-index:50;
        background:linear-gradient(180deg,rgba(12,15,22,.92),rgba(12,15,22,.78));
@@ -194,6 +202,18 @@ CSS = """
     font:italic 800 12px Georgia,serif;text-transform:none;color:var(--muted)}
   details.sec[open] .i{color:#fff;border-color:var(--accent2);background:rgba(46,155,255,.16)}
   details.sec > .banner{margin-top:9px}
+  /* Section repliable (Valeurs / En direct / À venir / Terminés). Titre = bouton. */
+  details.sec2{margin:22px 0 4px}
+  details.sec2 > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+    font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;
+    padding:6px 0;-webkit-tap-highlight-color:transparent}
+  details.sec2 > summary::-webkit-details-marker{display:none}
+  details.sec2 > summary::before{content:"";width:3px;height:14px;border-radius:3px;flex:none;
+    background:linear-gradient(var(--accent),var(--accent2))}
+  details.sec2 .chev{margin-left:auto;color:var(--dim);font-size:13px;transition:transform .18s}
+  details.sec2[open] .chev{transform:rotate(180deg)}
+  details.sec2 > .secbody{margin-top:4px}
+  details.sec2 > .secbody > .banner:first-child{margin-top:4px}
   .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
   /* badge décompte (timer avant le coup d'envoi), en haut à droite de la carte.
      Texte BLANC, unités jour/heure/minute bien distinctes. */
@@ -290,6 +310,21 @@ CSS = """
 # Menu principal groupé par SPORT ; chaque sport a son sous-menu (Matchs / Fiabilité).
 _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 
+# Onglets de la SPA (clé, URL, icône, libellé). L'URL sert AUSSI de source AJAX (?frag=1).
+_SPA_TABS = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
+             ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot")]
+
+
+def _subnav(sport: str) -> str:
+    """Sous-menu d'un sport (Matchs / Fiabilité), inclus dans le corps du fragment."""
+    if sport not in _SPORT_MATCH_URL:
+        return ""
+    items = [("matchs", _SPORT_MATCH_URL[sport], "📋 Matchs"),
+             ("perf", f"/tracking/dashboard?sport={sport}", "📊 Fiabilité")]
+    return '<div class="subnav">' + "".join(
+        f'<a class="{"on" if k == "matchs" else ""}" href="{href}">{html.escape(lbl)}</a>'
+        for k, href, lbl in items) + "</div>"
+
 
 # Décompte avant le coup d'envoi (timer live), côté client : met à jour chaque badge
 # .cd[data-ts] (timestamp epoch s) toutes les secondes. Pas de dépendance, ~0 coût.
@@ -307,6 +342,38 @@ _COUNTDOWN_JS = (
     "var ms=parseInt(v,10)*1000-n;e[i].innerHTML=f(ms);"
     "e[i].className=ms<=0?'cd live':'cd';}}"
     "t();setInterval(t,1000);})();"
+)
+
+
+# SPA : tout est chargé à l'ouverture (le sport actif rendu côté serveur, les 3 autres
+# préchargés en arrière-plan via ?frag=1), puis la nav du bas bascule les panneaux SANS
+# rechargement. Vanilla JS, ~0 dépendance. history.pushState garde l'URL/refresh cohérents.
+_SPA_JS = (
+    "(function(){var P=document.getElementById('panels');if(!P)return;"
+    "function panel(t){return document.getElementById('pn-'+t);}"
+    "function show(t){var c=P.children,i;for(i=0;i<c.length;i++)"
+    "c[i].classList.toggle('on',c[i].getAttribute('data-tab')===t);"
+    "var n=document.querySelectorAll('.botnav a'),j;for(j=0;j<n.length;j++)"
+    "n[j].classList.toggle('on',n[j].getAttribute('data-tab')===t);"
+    "document.body.className='sp-'+t;}"
+    "function load(p){if(!p||p.getAttribute('data-loaded'))return;"
+    "p.setAttribute('data-loaded','1');var u=p.getAttribute('data-src');"
+    "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
+    ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;})"
+    ".catch(function(){p.removeAttribute('data-loaded');"
+    "p.innerHTML='<div class=ldg>Erreur de chargement. Touchez l\\'onglet pour réessayer.</div>';});}"
+    "function go(t,push){var p=panel(t);if(!p)return;load(p);show(t);"
+    "if(push)try{history.pushState({tab:t},'',p.getAttribute('data-src'));}catch(e){}"
+    "window.scrollTo(0,0);}"
+    # panneau actif (rendu serveur) = déjà chargé ; on précharge les autres tout de suite
+    "var c=P.children,i;for(i=0;i<c.length;i++){"
+    "if(c[i].classList.contains('on'))c[i].setAttribute('data-loaded','1');else load(c[i]);}"
+    "var nav=document.querySelectorAll('.botnav a');for(i=0;i<nav.length;i++){"
+    "nav[i].addEventListener('click',function(e){e.preventDefault();"
+    "go(this.getAttribute('data-tab'),true);});}"
+    "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
+    "if(!t){var m={'/':'home','/app':'tennis','/basket':'basket','/foot':'foot'};"
+    "t=m[location.pathname]||'home';}go(t,false);});})();"
 )
 
 
@@ -355,6 +422,44 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_COUNTDOWN_JS}</script></body></html>"""
+
+
+def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
+    """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
+    serveur (1er affichage rapide, marche sans JS) ; les 3 autres panneaux sont vides et
+    remplis en AJAX dès l'ouverture. La nav du bas bascule les panneaux SANS rechargement."""
+    e = html.escape
+    toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=2" alt="BETSFIX"></a>'
+               if os.path.exists(_LOGO) else "")
+    pausebar = ""
+    if source and not source.get("ok"):
+        s = source.get("paused_seconds", 0)
+        pausebar = (f'<div class="pausewrap"><span class="pausebadge" '
+                    f'title="SofaScore en pause ({s}s) — LiveScore prend le relais">'
+                    f'🟠 Source en pause</span></div>')
+    panels = []
+    for k, href, _ico, _name in _SPA_TABS:
+        on = " on" if k == active else ""
+        inner = body if k == active else '<div class="ldg">Chargement…</div>'
+        panels.append(f'<section class="panel{on}" id="pn-{k}" data-tab="{k}" '
+                      f'data-src="{href}">{inner}</section>')
+    botnav = '<nav class="botnav">' + "".join(
+        f'<a class="{"on" if active == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
+        f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span></a>'
+        for k, href, ico, name in _SPA_TABS) + "</nav>"
+    return f"""<!doctype html><html lang="fr"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#080a0f">
+<title>{e(title)} · BETSFIX</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icon-180.png?v=2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BETSFIX">
+<style>{CSS}</style></head><body class="sp-{e(active)}">
+<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
+<div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
+</div>{botnav}<script>{_COUNTDOWN_JS}</script><script>{_SPA_JS}</script></body></html>"""
 
 
 def _pick_bars(p: dict) -> str:
@@ -416,6 +521,16 @@ def _head(title: str, info: str | None = None) -> str:
             f'<div class="banner">{info}</div></details>')
 
 
+def _section(heading: str, body: str, open_: bool = True, info: str | None = None) -> str:
+    """Section repliable : le titre est un bouton (▾) qui plie/déplie la liste.
+    `open_=False` -> repliée d'office (ex. « Terminés »). `info` = bannière en tête."""
+    inner = (f'<div class="banner">{info}</div>' if info else "") + body
+    op = " open" if open_ else ""
+    return (f'<details class="sec2"{op}><summary>{heading}'
+            '<span class="chev">▾</span></summary>'
+            f'<div class="secbody">{inner}</div></details>')
+
+
 def _pick_card(p: dict, badge: str) -> str:
     """Carte d'un pari pour l'accueil (value OU confiance), avec les 3 barres."""
     e = html.escape
@@ -433,44 +548,42 @@ def _pick_card(p: dict, badge: str) -> str:
 
 def render_home(rep: dict, source: dict | None = None,
                 picks: list[dict] | None = None,
-                conf_picks: list[dict] | None = None) -> str:
-    e = html.escape
+                conf_picks: list[dict] | None = None, frag: bool = False) -> str:
     # l'état SofaScore (pause) s'affiche désormais discrètement dans l'en-tête (cf. layout).
     picks = picks or []
     conf_picks = conf_picks or []
     bars_legend = ('Les 3 barres = <b>chance que le pari gagne</b> selon <b>BETSFIX</b> (l\'app), '
                    'le <b>Bookmaker</b> (cote Unibet) et le <b>Public</b> (votes SofaScore).')
 
+    # 🔥 CONFIANCES du jour : favori NET du modèle (forte proba) — pas forcément une value
+    if conf_picks:
+        rows = "".join(_pick_card(p, "") for p in conf_picks)  # pas de badge % (déjà dans la barre)
+        conf_html = _section(f'🔥 Confiances du jour ({len(conf_picks)})', rows, open_=True,
+                             info='Matchs où <b>BETSFIX</b> voit un <b>favori net</b> (forte proba de '
+                                  'gagner). Plus « sûr » mais souvent à <b>petite cote</b> — donc '
+                                  'rarement une value. Badge = proba du modèle.')
+    else:
+        conf_html = _section('🔥 Confiances du jour (0)',
+                             '<div class="banner">Aucun favori net à venir pour le moment.</div>')
+
     # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders
     if picks:
         rows = "".join(_pick_card(
             p, '<span class="badge b-val" title="Avantage estimé sur la cote">'
                f'+{round((p.get("edge") or 0)*100, 1)} pts</span>') for p in picks)
-        val_html = (_head(f'💎 Valeurs du jour ({len(picks)})',
-                          'Paris où <b>BETSFIX</b> estime la cote <b>sous-évaluée</b> (edge). '
-                          'Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
-                          'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. '
-                          f'{bars_legend} Value = quand BETSFIX &gt; Bookmaker.') + rows)
+        val_html = _section(f'💎 Valeurs du jour ({len(picks)})', rows, open_=True,
+                            info='Paris où <b>BETSFIX</b> estime la cote <b>sous-évaluée</b> (edge). '
+                                 'Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
+                                 'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. '
+                                 f'{bars_legend} Value = quand BETSFIX &gt; Bookmaker.')
     else:
-        val_html = ('<h2>💎 Valeurs du jour</h2>'
-                    '<div class="banner">Aucune value détectée pour le moment '
-                    '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
-
-    # 🔥 CONFIANCES du jour : favori NET du modèle (forte proba) — pas forcément une value
-    if conf_picks:
-        rows = "".join(_pick_card(p, "") for p in conf_picks)  # pas de badge % (déjà dans la barre)
-        conf_html = (_head(f'🔥 Confiances du jour ({len(conf_picks)})',
-                           'Matchs où <b>BETSFIX</b> voit un <b>favori net</b> (forte proba de '
-                           'gagner). Plus « sûr » mais souvent à <b>petite cote</b> — donc '
-                           'rarement une value. Badge = proba du modèle.') + rows)
-    else:
-        conf_html = ('<h2>🔥 Confiances du jour</h2>'
-                     '<div class="banner">Aucun favori net à venir pour le moment.</div>')
+        val_html = _section('💎 Valeurs du jour (0)',
+                            '<div class="banner">Aucune value détectée pour le moment '
+                            '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
 
     # Confiances AU-DESSUS des valeurs (favori net d'abord, puis les value/outsiders).
-    # Le logo est désormais géré par layout() en haut de chaque page.
     body = f'{conf_html}{val_html}'
-    return layout("Accueil", "home", body, refresh=True, source=source)
+    return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 
 def _bar(pct: float | None) -> str:
@@ -531,24 +644,24 @@ def _sport_row(r: dict) -> str:
 
 def render_sport_matches(sport: str, title: str, value: list, live: list,
                          upcoming: list, finished: list, intro: str = "",
-                         paused: bool = False) -> str:
-    """Page Matchs UNIFIÉE pour tous les sports, sections dans l'ordre logique :
-    Confiance du jour → En direct → À venir → Terminés.
+                         paused: bool = False, frag: bool = False) -> str:
+    """Page Matchs UNIFIÉE pour tous les sports, sections REPLIABLES dans l'ordre logique :
+    Valeurs → En direct → À venir → Terminés (Terminés replié d'office).
 
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
-    « aucun match » (qui laisserait croire qu'il n'y a pas de rencontres)."""
+    « aucun match ». `frag=True` -> renvoie le corps seul (chargé en AJAX dans la SPA)."""
     out = []
-    sections = [("💎 Valeurs du jour", value), ("🔴 En direct", live),
-                ("📅 À venir", upcoming), ("✅ Terminés", finished)]
+    # (heading, rows, ouvert d'office ?) — « Terminés » plié par défaut.
+    sections = [("💎 Valeurs du jour", value, True), ("🔴 En direct", live, True),
+                ("📅 À venir", upcoming, True), ("✅ Terminés", finished, False)]
     info_done = False
-    for heading, rows in sections:
+    for heading, rows, open_ in sections:
         if not rows:
             continue
-        # l'intro (à propos du sport) se replie derrière le 'i' du 1er titre affiché
         info = intro if (intro and not info_done) else None
         info_done = info_done or bool(info)
-        out.append(_head(f'{heading} ({len(rows)})', info)
-                   + "".join(_sport_row(r) for r in rows))
+        out.append(_section(f'{heading} ({len(rows)})',
+                            "".join(_sport_row(r) for r in rows), open_=open_, info=info))
 
     if not (value or live or upcoming or finished):
         if intro:
@@ -559,7 +672,8 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
                        'd\'ici quelques minutes. Rien à faire.</div>')
         else:
             out.append('<div class="dim">Aucun match à afficher pour le moment.</div>')
-    return layout(title, sport, "".join(out), subnav="matchs", refresh=True)
+    body = _subnav(sport) + "".join(out)
+    return body if frag else spa_shell(sport, title, body)
 
 
 def perf_toggle(active: str) -> str:

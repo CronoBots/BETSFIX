@@ -588,7 +588,7 @@ def finished_from_store(limit: int = 8) -> list[dict]:
 
 
 def render(rows: list[dict], finished_rows: list[dict] | None = None,
-           paused: bool = False) -> str:
+           paused: bool = False, frag: bool = False) -> str:
     e = html.escape
     value, live, upcoming = [], [], []
     for r in rows:
@@ -645,7 +645,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
     intro = ('🏀 <b>NBA & WNBA</b> — Elo d\'équipe + avantage du terrain vs cotes Unibet. '
              'Les « value » restent à <b>confirmer par le suivi</b> (CLV).')
     return web.render_sport_matches("basket", "Basket NBA & WNBA", value, live, upcoming, fin,
-                                    intro=intro, paused=paused)
+                                    intro=intro, paused=paused, frag=frag)
 
 
 # ----------------------------------------------------------------- suivi (séparé)
