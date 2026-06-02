@@ -1,5 +1,6 @@
 """Plateforme de visionnage : pages HTML (accueil, matchs, détail match)."""
 
+import asyncio
 import html
 from datetime import datetime, timedelta, timezone
 
@@ -197,7 +198,12 @@ async def matches_page(
     fallback = False
     rows, live = [], []
     for tour in ("atp", "wta"):
-        matches, src = await matches_with_fallback(tour)
+        # Budget réseau borné : si la source traîne, on n'attend pas (le repli store
+        # plus bas prend le relais) -> page rapide même quand SofaScore est lent.
+        try:
+            matches, src = await asyncio.wait_for(matches_with_fallback(tour), timeout=3.0)
+        except (Exception, asyncio.TimeoutError):
+            matches, src = [], "none"
         if src == "livescore":
             fallback = True
         for m in matches:

@@ -6,6 +6,8 @@
   stats d'équipe par saison).
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
@@ -27,6 +29,8 @@ from app.providers.unibet import UnibetProvider
 
 router = APIRouter(tags=["⚽ Football"])
 
+RENDER_NET_BUDGET = 2.5  # s max d'attente réseau au rendu d'une page (sinon -> store)
+
 
 async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: int | None) -> int:
     sid = season_id or await provider.get_current_season_id(tournament_id)
@@ -38,17 +42,19 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
 @router.get("/foot", response_class=HTMLResponse, summary="Page Football (HTML)")
 async def foot_page() -> HTMLResponse:
     """Matchs des grandes compétitions (dont CdM) : proba 1X2 (Elo) vs cotes Unibet."""
+    # Budget réseau borné : si SofaScore traîne, on n'attend pas -> on sert le store.
+    rows, fin = [], []
     try:
-        rows = await foot.board()
+        rows = await asyncio.wait_for(foot.board(), timeout=RENDER_NET_BUDGET)
         if rows:
-            await foot.enrich_display(rows)   # votes fans + forme (provider caché)
-    except Exception:
+            await asyncio.wait_for(foot.enrich_display(rows), timeout=2.0)
+    except (Exception, asyncio.TimeoutError):
         rows = []
-    if not rows:                              # SofaScore en pause -> repli sur le suivi
+    if not rows:                              # SofaScore lent/en pause -> repli sur le suivi
         rows = foot.board_from_store()
     try:
-        fin = await foot.finished()
-    except Exception:
+        fin = await asyncio.wait_for(foot.finished(), timeout=2.0)
+    except (Exception, asyncio.TimeoutError):
         fin = []
     return HTMLResponse(foot.render(rows, fin, paused=sportcache.blocked()))
 
