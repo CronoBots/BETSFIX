@@ -111,7 +111,7 @@ CSS = """
             font-weight:700;transition:.15s}
   .botnav a .ic{font-size:24px;line-height:1}
   .botnav a:active{transform:scale(.93)}
-  .botnav a.on{color:var(--accent);background:var(--surface)}
+  .botnav a.on{color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
   .botnav a.on .ic{transform:scale(1.06)}
   /* Header sticky premium */
   .hdr{position:sticky;top:0;z-index:50;
@@ -419,9 +419,11 @@ def _pick_card(p: dict, badge: str) -> str:
     """Carte d'un pari pour l'accueil (value OU confiance), avec les 3 barres."""
     e = html.escape
     odds = f' <span class="dim">@{p.get("odds")}</span>' if p.get("odds") else ""
+    cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
+          if p.get("start_ts") and p["start_ts"] > time.time() else "")
     return (f'<a class="row pick" href="{p["url"]}">'
             f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])} · {e(p.get("time") or "")}</span>'
-            f'{badge}</div>'
+            f'<span class="rt-r">{cd}{badge}</span></div>'
             f'<div class="players">{e(p.get("bet") or "")}{odds}</div>'
             f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
             f'{_pick_bars(p)}</a>')

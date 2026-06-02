@@ -28,6 +28,19 @@ router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
 HORIZON_HOURS = 48
 
 
+def _ts(iso: str | None) -> float | None:
+    """Heure de début (epoch s) depuis l'ISO du store, pour le badge décompte."""
+    if not iso:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
 def _is_upcoming(rec: dict, now: datetime | None = None) -> bool:
     """Vrai si le match n'a pas encore commencé (donc encore 'pariable').
 
@@ -88,6 +101,7 @@ def _all_sport_picks() -> list[dict]:
                 "implied": (1 / odds) if odds else None,   # proba "officielle" (cote)
                 "match_id": rec.get("match_id"),
                 "time": web.fmt_local(rec.get("start_time"), with_date=True),
+                "start_ts": _ts(rec.get("start_time")),
                 "url": url_fn(rec),
             })
 
@@ -150,6 +164,7 @@ def _confidence_picks() -> list[dict]:
                 "implied": (1 / odds) if odds else None, "community": community,
                 "match_id": rec.get("match_id"),
                 "time": web.fmt_local(rec.get("start_time"), with_date=True),
+                "start_ts": _ts(rec.get("start_time")),
                 "url": url_fn(rec),
             })
 
@@ -304,11 +319,14 @@ async def matches_page(
     value_picks, finished = _picks_and_finished(store)
     value_rows = [{
         "tour": v["tour"].upper(), "status": "notstarted", "time": v.get("time") or "",
-        "home": v["home"], "away": v["away"], "pick": True,
+        "home": v["home"], "away": v["away"], "pick": True, "start_ts": v.get("start_ts"),
         "badge": f'<span class="badge b-val">+{round((v.get("edge") or 0)*100,1)} pts</span>',
         "sub": (f'<div class="dim">pari : <b class="pos">{ev(v.get("player") or "")}</b> '
                 f'@{v.get("odds") or "—"} · mise '
                 f'{v.get("stake") if v.get("stake") is not None else "—"}%</div>'),
+        # 3 barres du côté parié (comme l'accueil)
+        "model_prob": v.get("model_prob"), "implied": v.get("implied"),
+        "community": v.get("community"), "bet": v.get("player"),
         "url": f'/app/match/{v["id"]}?tour={v["tour"]}'} for v in value_picks]
     finished_rows = [{
         "tour": f["tour"].upper(), "status": "finished", "score": "terminé",
@@ -333,13 +351,24 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
         res = rec.get("result")
         if not res and rec.get("value_pick") and _is_upcoming(rec):
             v = rec["value_pick"]
+            # 3 barres du côté PARIÉ (pas le favori) : modèle / cote dévig / public
+            side = v.get("side")
+            mh = rec.get("model_home_prob")
+            devig = remove_vig(rec.get("unibet_home_odds"), rec.get("unibet_away_odds"))
+            ph, pa = rec.get("public_home"), rec.get("public_away")
+            model_prob = (mh if side == "home" else 1 - mh) if mh is not None and side in ("home", "away") else None
+            implied = ((devig[0] if side == "home" else devig[1]) if devig and side in ("home", "away") else None)
+            community = ((ph if side == "home" else pa) / 100
+                         if ph is not None and side in ("home", "away") else None)
             value_picks.append({
                 "id": rec["match_id"], "tour": rec.get("tour", "atp"),
                 "home": rec.get("home", ""), "away": rec.get("away", ""),
                 "time": web.fmt_local(rec.get("start_time"), with_date=True),
+                "start_ts": _ts(rec.get("start_time")),
                 "player": v.get("player"), "odds": v.get("odds"),
                 "edge": v.get("edge"), "stake": v.get("stake_pct"),
                 "confidence": rec.get("confidence"),
+                "model_prob": model_prob, "implied": implied, "community": community,
                 "_sort": rec.get("start_time") or "",
             })
         elif res and rec.get("model_home_prob") is not None:

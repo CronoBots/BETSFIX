@@ -404,9 +404,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         fm = r.get("form")
         if fm:
             sub += web.form_compare(r["home"], fm[0], r["away"], fm[1])
-        vt = r.get("votes")
-        if vt:
-            sub += web.votes_line(vt[0], vt[1], r["home"], r["away"])
+        # (les votes communauté sont déjà dans la barre PUBLIC -> pas de doublon ici)
         return sub
 
     value, live, upcoming = [], [], []
