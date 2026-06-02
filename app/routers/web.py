@@ -276,8 +276,20 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
     confidences = _confidence_picks()        # tennis (store)
     bv, bc = await _live_board_picks()       # basket + foot : MÊMES boards que les onglets
     inf = float("inf")
-    values = sorted(values + bv, key=lambda p: p.get("start_ts") or inf)[:8]
-    confidences = sorted(confidences + bc, key=lambda p: p.get("start_ts") or inf)[:6]
+    # On ne montre PAS un pari du jour déjà commencé (live ou heure passée) : le pari
+    # d'avant-match n'est plus jouable.
+    now_ts = datetime.now(timezone.utc).timestamp()
+
+    def _not_started(p: dict) -> bool:
+        if p.get("live"):
+            return False
+        st = p.get("start_ts")
+        return st is None or st > now_ts
+
+    values = sorted([p for p in values + bv if _not_started(p)],
+                    key=lambda p: p.get("start_ts") or inf)[:8]
+    confidences = sorted([p for p in confidences + bc if _not_started(p)],
+                         key=lambda p: p.get("start_ts") or inf)[:6]
     _enrich_picks_votes(values + confidences, provider)   # votes communauté (cache only)
     return HTMLResponse(web.render_home(
         tracking.report(tracking.load()), source=provider.breaker_status(),
