@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from app import sofa_http, sportcache, tracking, web
+from app import flags, sofa_http, sportcache, tracking, web
 from app.dependencies import get_provider
 from app.textutil import name_tokens, names_match
 
@@ -628,6 +628,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
                 "female": r.get("female"),
+                "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
                 **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
         (live if r["status"] == "inprogress" else upcoming).append(
             {**base, "prob": r.get("probs"), "sub": model_line(r),
@@ -652,6 +653,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             sub = (f'<div class="dim">prédit : <b>{e(names[fav_i])}</b> {round(probs[fav_i]*100)}% '
                    f'· résultat : <b>{e(wname)}</b></div>')
         fin.append({"tour": r.get("comp"), "status": "finished", "home": r["home"], "away": r["away"],
+                    "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
                     "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",
                     "sub": sub, "badge": badge})
 

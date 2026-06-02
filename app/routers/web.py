@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import ace_markets, elo, serve_return, set_markets, tendencies, tracking, web
+from app import ace_markets, elo, flags, serve_return, set_markets, tendencies, tracking, web
 from app.analysis import build_analysis, prob_from_rankings, remove_vig
 from app.analysis import _match_winner_odds
 from app.markets import (
@@ -243,9 +243,13 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
             odds_cells = [(r["home"], r.get("o1")), ("Nul", r.get("ox")), (r["away"], r.get("o2"))]
         else:
             odds_cells = [(r["home"], r.get("oh")), (r["away"], r.get("oa"))]
+        # drapeaux uniquement pour le foot (sélections nationales) ; basket = clubs -> pas de drapeau
+        hflag = flags.flag(r["home"]) if ndim == 3 else ""
+        aflag = flags.flag(r["away"]) if ndim == 3 else ""
         base = {"sport": sport, "icon": icon, "home": r["home"], "away": r["away"],
                 "match_id": r.get("id"), "url": url, "female": r.get("female"),
                 "live": r.get("status") == "inprogress", "odds_cells": odds_cells,
+                "home_flag": hflag, "away_flag": aflag,
                 "time": web.fmt_local(iso, with_date=True), "start_ts": start}
         if pk_data:
             team, odds, edge, mp, side, pimp = pk_data

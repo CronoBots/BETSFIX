@@ -624,11 +624,13 @@ def _pick_card(p: dict, badge: str) -> str:
     state = cd if cd else ('<span class="cd live">🔴 EN DIRECT</span>' if p.get("live") else "")
     bdg = f'<span class="bdg">{badge}</span>' if badge else ""
     oddsrow = odds_row(p["odds_cells"]) if p.get("odds_cells") else ""
+    hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""
+    af = f'{p["away_flag"]} ' if p.get("away_flag") else ""
     return (f'<a class="row pick" href="{p["url"]}">'
             f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
             f'<span class="rt-r">{state}</span></div>'
             f'<div class="betline"><span class="bn">{e(p.get("bet") or "")}{odds}</span>{bdg}</div>'
-            f'<div class="dim">{e(p.get("home") or "")} vs {e(p.get("away") or "")}</div>'
+            f'<div class="dim">{hf}{e(p.get("home") or "")} vs {af}{e(p.get("away") or "")}</div>'
             f'{_pick_bars(p)}{oddsrow}</a>')
 
 
@@ -718,14 +720,16 @@ def _sport_row(r: dict) -> str:
         _prob_bar(r.get("prob"), r.get("prob_labels"))
     fem = ' <span class="fem">(F)</span>' if r.get("female") else ""
     badge = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
+    hf = f'{r["home_flag"]} ' if r.get("home_flag") else ""
+    af = f'{r["away_flag"]} ' if r.get("away_flag") else ""
     # En-tête : la compétition (souvent longue) se tronque, la date/heure (rt-when) reste visible.
     when = f' · {top}' if top else ""
     inner = (f'<div class="rowtop"><span class="rt-l">'
              f'<span class="rt-comp">{e(r.get("tour") or "")}{fem}</span>'
              f'<span class="rt-when">{when}</span></span>'
              f'<span class="rt-r">{state}</span></div>'
-             f'<div class="mrow"><div class="players">{e(r.get("home") or "")} '
-             f'<span class="dim">vs</span> {e(r.get("away") or "")}</div>{badge}</div>'
+             f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
+             f'<span class="dim">vs</span> {af}{e(r.get("away") or "")}</div>{badge}</div>'
              f'{probviz}{r.get("sub", "")}')
     cls = "row pick" if r.get("pick") else "row"
     if r.get("url"):
