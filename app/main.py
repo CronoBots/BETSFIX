@@ -15,7 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from app import __version__
 from app import basket as basket_sport
 from app import foot as foot_sport
-from app.dependencies import get_provider, get_unibet, shutdown_provider
+from app import fragcache
+from app.dependencies import get_provider, get_rankings, get_unibet, shutdown_provider
 from app.routers import (
     analysis, basket, flashscore, foot, matches, players, statistics, tracking, web,
 )
@@ -95,11 +96,36 @@ async def _tracking_loop():
         await asyncio.sleep(delay)
 
 
+async def _panel_warmer():
+    """Pré-chauffe le cache des panneaux de liste pour que PERSONNE n'attende le calcul
+    réseau (l'accueil = ~2,6 s à froid). On recalcule juste sous le TTL ; via force_refresh,
+    l'ancienne valeur reste servie pendant le recalcul -> aucun « trou » froid."""
+    await asyncio.sleep(8)   # laisse l'app démarrer
+    panels = [
+        ("panel/home", lambda: web.home(provider=get_provider(), frag=1)),
+        ("panel/tennis", lambda: web.matches_page(
+            provider=get_provider(), rankings=get_rankings(), unibet=get_unibet(), frag=1)),
+        ("panel/directs", lambda: web.directs_page(unibet=get_unibet(), frag=1)),
+        ("panel/foot", lambda: foot.foot_page(frag=1)),
+        ("panel/basket", lambda: basket.basket_page(frag=1)),
+    ]
+    while True:
+        for key, call in panels:
+            try:
+                fragcache.force_refresh(key)
+                await call()
+            except Exception as exc:   # ne jamais tuer le réchauffeur
+                log.debug("warmer %s: %s", key, exc)
+        await asyncio.sleep(15)        # < TTL 20s -> le cache ne se vide jamais
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(_tracking_loop())
+    tasks = [asyncio.create_task(_tracking_loop()),
+             asyncio.create_task(_panel_warmer())]
     yield
-    task.cancel()
+    for t in tasks:
+        t.cancel()
     await shutdown_provider()
 
 
