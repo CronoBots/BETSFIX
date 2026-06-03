@@ -7,6 +7,7 @@
 """
 
 import asyncio
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
@@ -48,10 +49,44 @@ async def foot_page(frag: int = 0) -> HTMLResponse:
     return HTMLResponse(foot.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag)))
 
 
+def _unibet_over(markets, line: float):
+    """Proba implicite Unibet du « Plus de {line} buts » (marché Total Goals)."""
+    for m in markets:
+        for o in (m.outcomes or []):
+            if o.line == line and (o.label or "").lower().startswith("over") and o.implied_probability:
+                return o.implied_probability
+    return None
+
+
+def _unibet_btts(markets):
+    """Proba implicite Unibet du « les 2 équipes marquent » (BTTS = Oui)."""
+    for m in markets:
+        lbl = f'{m.label or ""} {m.type or ""}'.lower()
+        if "both" in lbl and "score" in lbl:
+            for o in (m.outcomes or []):
+                if (o.label or "").lower() in ("yes", "oui") and o.implied_probability:
+                    return o.implied_probability
+    return None
+
+
+def _market_compare(label: str, model_p: float, book_imp) -> str:
+    """Ligne « marché : modèle % vs book % » + flag VALUE si le modèle dépasse nettement."""
+    mp = round(model_p * 100)
+    if book_imp is None:
+        right = '<span class="dim">cote Unibet indispo</span>'
+        val = ""
+    else:
+        bp = round(book_imp * 100)
+        val = ' <span class="badge b-val">VALUE</span>' if (model_p - book_imp) >= 0.08 else ""
+        right = f'BETSFIX <b>{mp}%</b> · <span class="dim">book {bp}%</span>'
+    return f'<div class="formrow"><span class="fc"><b>{label}</b>{val}</span><span class="fc">{right}</span></div>'
+
+
 @router.get("/foot/match/{event_id}", response_class=HTMLResponse,
             summary="Fiche détaillée d'un match foot (prédiction + forme + H2H)")
 async def foot_match(event_id: int, frag: int = 0,
-                     provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
+                     provider: SofaScoreProvider = Depends(get_provider),
+                     unibet: UnibetProvider = Depends(get_unibet)) -> HTMLResponse:
     """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H)."""
     store = tracking.load(foot.FOOT_TRACK_PATH)
     rec = next((r for r in store.values() if str(r.get("match_id")) == str(event_id)), None)
@@ -94,16 +129,21 @@ async def foot_match(event_id: int, frag: int = 0,
                 confidence = ([home, "Match nul", away][i], probs[i],
                               [rec.get("o1"), rec.get("ox"), rec.get("o2")][i])
         extra = web.recommended_bets(value, confidence)
-    # Buts attendus (modèle, double Poisson) : Plus/Moins 2,5 buts + les 2 marquent (BTTS)
+    # ⚽ Autres marchés (modèle vs Unibet) : Plus/Moins 2,5 buts + BTTS, avec value éventuelle
     g = (rec or {}).get("goals")
     if g and g.get("over25") is not None:
-        extra += (f'<h2>⚽ Buts attendus</h2><div class="oddsrow">'
-                 f'<span class="oc"><span class="ocn">+2,5 buts</span>'
-                 f'<span class="ocv">{round(g["over25"]*100)}%</span></span>'
-                 f'<span class="oc"><span class="ocn">−2,5 buts</span>'
-                 f'<span class="ocv">{round((1-g["over25"])*100)}%</span></span>'
-                 f'<span class="oc"><span class="ocn">2 équipes marquent</span>'
-                 f'<span class="ocv">{round(g["btts"]*100)}%</span></span></div>')
+        ou_imp = btts_imp = None
+        try:   # cotes Unibet de l'événement (1 appel, marché complet) — best-effort
+            st = datetime.fromisoformat(rec["start_time"]) if rec.get("start_time") else None
+            uo = await unibet.find_event_odds("football", home, away, event_id, st)
+            if uo.matched:
+                ou_imp = _unibet_over(uo.markets, 2.5)
+                btts_imp = _unibet_btts(uo.markets)
+        except Exception:
+            pass
+        extra += ('<h2>⚽ Autres marchés (modèle vs Unibet)</h2>'
+                  + _market_compare("Plus de 2,5 buts", g["over25"], ou_imp)
+                  + _market_compare("Les 2 équipes marquent", g["btts"], btts_imp))
     ctx = {"home": home or "Match", "away": away, "home_flag": flags.flag(home),
            "away_flag": flags.flag(away), "comp": comp, "when": when, "extra": extra,
            "prediction": prediction, "odds_cells": odds_cells, "forms": forms, "h2h": h2h,
