@@ -128,6 +128,8 @@ CSS = """
   /* Onglet Directs : pastille 🔴 qui pulse (effet live) */
   .botnav a[data-tab="directs"] .ic{animation:livepulse 1.4s ease-in-out infinite}
   @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.86)}}
+  .botnav a[data-tab="directs"]{color:#ff6271}
+  .botnav a[data-tab="directs"].on{background:linear-gradient(180deg,#ff5a6a,#e23b4e);color:#fff}
   .botnav a[data-tab="directs"].on .ic{animation:none}
   /* SPA : panneaux par onglet (tout chargé à l'ouverture, bascule sans rechargement) */
   .panel{display:none}
@@ -202,10 +204,11 @@ CSS = """
   .exp-c{margin-top:9px;font-size:10.5px;color:var(--accent2);font-weight:800;display:flex;
          align-items:center;gap:5px;text-transform:uppercase;letter-spacing:.05em}
   .exp-chev{display:inline-block;transition:transform .18s}
-  .rowx.open .exp-chev{transform:rotate(180deg)}
-  .exp{margin:-2px 2px 10px;padding:2px 14px 4px}
+  .row.open .exp-chev{transform:rotate(180deg)}
+  .exp{margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
+  .exp h2:first-child{margin-top:4px}
   .exp h2{margin:14px 0 8px}
-  .exp .ldg{padding:18px 0}
+  .exp .ldg{padding:16px 0}
   .row.pick{border-color:rgba(46,226,127,.45);
             background:linear-gradient(180deg,rgba(46,226,127,.10),rgba(46,226,127,.03));
             box-shadow:0 4px 18px rgba(46,226,127,.14)}
@@ -469,9 +472,9 @@ _SPA_JS = (
     "document.addEventListener('click',function(e){"
     "if(e.target.closest('[data-dvg]')||e.target.closest('.exp')||e.target.closest('a'))return;"
     "var c=e.target.closest('[data-exp]');if(!c)return;e.preventDefault();"
-    "var w=c.closest('.rowx'),x=w&&w.querySelector('.exp');if(!x)return;"
-    "if(!x.hidden){x.hidden=true;w.classList.remove('open');return;}"
-    "w.classList.add('open');x.hidden=false;"
+    "var x=c.querySelector('.exp');if(!x)return;"
+    "if(!x.hidden){x.hidden=true;c.classList.remove('open');return;}"
+    "c.classList.add('open');x.hidden=false;"
     "if(!x.getAttribute('data-loaded')){x.setAttribute('data-loaded','1');"
     "x.innerHTML='<div class=ldg>Chargement de l\\'analyse…</div>';"
     "fetch(c.getAttribute('data-exp')).then(function(r){return r.text();})"
@@ -708,12 +711,12 @@ def render_home(rep: dict, source: dict | None = None,
     # 🔥 CONFIANCES du jour : favori NET du modèle (forte proba) — pas forcément une value
     if conf_picks:
         rows = "".join(_pick_card(p, "") for p in conf_picks)  # pas de badge % (déjà dans la barre)
-        conf_html = _section(f'🔥 Confiances du jour ({len(conf_picks)})', rows, open_=True,
+        conf_html = _section(f'🔥 Confiances ({len(conf_picks)})', rows, open_=True,
                              info='Matchs où <b>BETSFIX</b> voit un <b>favori net</b> (forte proba de '
                                   'gagner). Plus « sûr » mais souvent à <b>petite cote</b> — donc '
                                   'rarement une value. Badge = proba du modèle.')
     else:
-        conf_html = _section('🔥 Confiances du jour (0)',
+        conf_html = _section('🔥 Confiances (0)',
                              '<div class="banner">Aucun favori net à venir pour le moment.</div>')
 
     # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders
@@ -721,13 +724,13 @@ def render_home(rep: dict, source: dict | None = None,
         rows = "".join(_pick_card(
             p, '<span class="badge b-val" title="Avantage estimé sur la cote">'
                f'+{round((p.get("edge") or 0)*100, 1)} pts</span>') for p in picks)
-        val_html = _section(f'💎 Valeurs du jour ({len(picks)})', rows, open_=True,
+        val_html = _section(f'💎 Valeurs ({len(picks)})', rows, open_=True,
                             info='Paris où <b>BETSFIX</b> estime la cote <b>sous-évaluée</b> (edge). '
                                  'Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
                                  'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. '
                                  f'{bars_legend} Value = quand BETSFIX &gt; Bookmaker.')
     else:
-        val_html = _section('💎 Valeurs du jour (0)',
+        val_html = _section('💎 Valeurs (0)',
                             '<div class="banner">Aucune value détectée pour le moment '
                             '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
 
@@ -797,8 +800,9 @@ def _sport_row(r: dict) -> str:
     url = r.get("url") or ""
     # Foot/basket : tap -> déplie l'analyse (forme + H2H) SOUS la carte, sans changer de vue.
     if url.startswith("/foot/match/") or url.startswith("/basket/match/"):
-        return (f'<div class="rowx"><div class="{cls} rowtap" data-exp="{url}?frag=1">{inner}'
-                f'<div class="exp-c"><span class="exp-chev">▾</span> Analyse détaillée</div></div>'
+        # accordéon DANS le cadre de la carte (l'analyse s'ouvre à l'intérieur, pas en dessous)
+        return (f'<div class="{cls} rowtap" data-exp="{url}?frag=1">{inner}'
+                f'<div class="exp-c"><span class="exp-chev">▾</span> Analyse détaillée</div>'
                 f'<div class="exp" hidden></div></div>')
     if url:   # tennis : page d'analyse riche dédiée
         return f'<a class="{cls}" href="{url}">{inner}</a>'
@@ -833,7 +837,7 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     out = []
     # (heading, rows, ouvert d'office ?, regrouper par jour ?) — « Terminés » plié par défaut ;
     # « À venir » regroupé par jour (Aujourd'hui / Demain / …) pour se repérer dans la liste.
-    sections = [("💎 Valeurs du jour", value, True, False), ("🔴 En direct", live, True, False),
+    sections = [("💎 Valeurs", value, True, False), ("🔴 En direct", live, True, False),
                 ("📅 À venir", upcoming, True, True), ("✅ Terminés", finished, False, False)]
     info_done = False
     for heading, rows, open_, by_day in sections:
