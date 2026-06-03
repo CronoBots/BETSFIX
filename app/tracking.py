@@ -389,79 +389,63 @@ def _signed_pct(x, dec: int = 1) -> str:
     return f"{'+' if x >= 0 else ''}{round(x * 100, dec)}%"
 
 
-def _proof_card(icon: str, name: str, rep: dict, url: str) -> str:
-    """Carte « preuve » d'un sport, INTUITIVE : pastille en mots simples + 2 lignes claires.
-    Le jargon (Brier, CLV, intervalles) reste dans le dashboard détaillé (un tap sur la carte).
-      • 🔥 Confiance (favori net) -> nb gagnés (doit passer souvent)
-      • 💎 Value (grosse cote) -> ROI (perd souvent = normal, la rentabilité vient du prix).
-    Honnête : « peu de recul » tant que l'échantillon est faible."""
+def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
+    """Une LIGNE du tableau Preuve (1 sport) : sport (+ nb matchs) | fiabilité | confiance | value.
+    Couleur du sport sur le liseré gauche. Détail complet au tap (dashboard)."""
     e = html.escape
-    # « matchs notés » = matchs réglés (avec résultat) -> cohérent avec les paris affichés
-    # (évite « 0 matchs notés » alors qu'un pari value est déjà réglé).
+    # « matchs notés » = matchs réglés -> cohérent avec les paris affichés
     n = rep.get("matchs_regles") or 0
     n_pred = rep.get("predictions_evaluees") or 0
     bat = rep.get("bat_le_marche")
-    # Pastille = verdict (le liseré gauche, lui, porte la COULEUR DU SPORT pour l'identité)
     if n == 0:
-        pill = '<span class="pvpill pv-na">en collecte</span>'
+        verdict, vcls = "⋯ en collecte", "na"
     elif n < 30 or n_pred < 30:
-        pill = f'<span class="pvpill pv-na">en rodage · {n}/30</span>'
+        verdict, vcls = "⋯ en rodage", "na"
     elif bat is True:
-        pill = '<span class="pvpill pv-ok">✓ plus fiable que les cotes</span>'
+        verdict, vcls = "✓ plus fiable", "ok"
     elif bat is False:
-        pill = '<span class="pvpill pv-ko">✗ moins fiable que les cotes</span>'
+        verdict, vcls = "✗ moins fiable", "ko"
     else:
-        pill = '<span class="pvpill pv-na">en rodage</span>'
-    # Couleur du sport sur le liseré (mêmes teintes que les onglets) -> identité par carte
+        verdict, vcls = "⋯ en rodage", "na"
     accent = {"tennis": "#d7e64a", "foot": "#2ee27f", "basket": "#ff9f43"}.get(name.lower(), "")
-    noted = f'{n} match{"s" if n > 1 else ""} noté{"s" if n > 1 else ""}'
-
-    def stat(label, val, unit, sub, vc=""):
-        u = f' <span class="pstat-u">{unit}</span>' if unit else ""
-        return (f'<div class="pstat"><div class="pstat-k">{label}</div>'
-                f'<div class="pstat-v {vc}">{val}{u}</div>'
-                f'<div class="pstat-s">{sub}</div></div>')
-
-    # 🔥 CONFIANCE : nb de favoris nets passés (X/Y gagnés)
+    # Confiance : X/Y gagnés (favoris nets)
     conf = next((d for d in (rep.get("par_type") or []) if d.get("label") == "Confiance"), None)
     if conf and conf.get("n"):
         cn = conf["n"]
-        wins = round((conf.get("precision") or 0) * cn)
-        c_sub = "peu de recul" if cn < 20 else f'{_pct(conf.get("precision"))} de réussite'
-        conf_stat = stat("🔥 Confiance", f"{wins}/{cn}", "gagnés", c_sub)
+        cval, ccls = f'{round((conf.get("precision") or 0) * cn)}/{cn}', ""
     else:
-        conf_stat = stat("🔥 Confiance", "—", "", "aucun encore", "pv-empty")
-    # 💎 VALUE : ROI (le vrai juge), coloré vert/rouge
+        cval, ccls = "—", "na"
+    # Value : ROI coloré
     vn = rep.get("value_paris_regles") or 0
     if vn:
         roi = rep.get("value_roi") or 0
-        v_sub = f'{vn} pari{"s" if vn > 1 else ""}' + (" · peu de recul" if vn < 20 else "")
-        value_stat = stat("💎 Value", _signed_pct(roi), "ROI", v_sub,
-                          "pos" if roi >= 0 else "neg")
+        vval = f'{"+" if roi >= 0 else ""}{round(roi * 100)}%'   # entier -> colonne compacte
+        vvcls = "pos" if roi >= 0 else "neg"
     else:
-        value_stat = stat("💎 Value", "—", "", "aucun encore", "pv-empty")
-    style = f' style="border-left-color:{accent}"' if accent else ""
-    return (f'<a class="proofcard" href="{e(url)}"{style}>'
-            f'<div class="proof-h"><span class="proof-name">{icon} {e(name)}</span> {pill}</div>'
-            f'<div class="proof-row dim">{noted}</div>'
-            f'<div class="proof-stats">{conf_stat}{value_stat}</div>'
-            '<div class="proof-go">Voir le détail ›</div></a>')
+        vval, vvcls = "—", "na"
+    sub = f'{n} match{"s" if n > 1 else ""} noté{"s" if n > 1 else ""}'
+    style = f' style="--sc:{accent}"' if accent else ""
+    return (f'<a class="ptab-row" href="{e(url)}"{style}>'
+            f'<span class="ptab-sport">{icon} {e(name)}<span class="ptab-sub">{sub}</span></span>'
+            f'<span class="ptab-verdict {vcls}">{verdict}</span>'
+            f'<span class="ptab-conf {ccls}">{cval}</span>'
+            f'<span class="ptab-val {vvcls}">{vval}</span></a>')
 
 
 def render_proof(reports: list[tuple]) -> str:
-    """Section « Preuve » de l'accueil : pour chaque sport (icône, nom, rapport, url dashboard),
-    le verdict honnête bat-le-marché + ROI/CLV. `reports` = [(icon, name, rep, url), ...]."""
-    cards = "".join(_proof_card(i, n, r, u) for i, n, r, u in reports)
-    info = ('La preuve que l\'app sert à quelque chose : sur les matchs déjà terminés, ses '
-            'prédictions sont-elles meilleures que les cotes ? La pastille le dit en clair '
-            '(<b>plus / moins fiable que les cotes</b>). '
-            '<b>🔥 Confiance</b> = on mise sur un favori net : ça doit <b>gagner souvent</b> '
-            '(on regarde le nombre de paris gagnés). '
-            '<b>💎 Value</b> = on mise sur une <b>grosse cote</b> jugée trop haute : ça <b>perd '
-            'souvent, c\'est normal</b> — ce qui compte c\'est le <b>ROI</b> (gain/perte moyen). '
-            '« <b>peu de recul</b> » = encore trop peu de paris pour être sûr. '
-            'Touche une carte pour les chiffres détaillés.')
-    return web._section('📊 Preuve — le modèle bat-il le marché ?', cards, open_=True, info=info)
+    """Section « Preuve » : UN tableau (1 ligne par sport) pour comparer d'un coup d'œil.
+    `reports` = [(icon, name, rep, url), ...]."""
+    head = ('<div class="ptab-h"><span>Sport</span><span>Fiabilité</span>'
+            '<span>Confiance</span><span>Value</span></div>')
+    rows = "".join(_proof_row(i, n, r, u) for i, n, r, u in reports)
+    table = f'<div class="ptab">{head}{rows}</div>'
+    info = ('Sur les matchs déjà terminés, les prédictions de l\'app sont-elles meilleures que '
+            'les cotes ? <b>Fiabilité</b> le dit : <b>✓ plus fiable</b> / <b>✗ moins fiable</b> '
+            'que les cotes, <b>⋯ en rodage</b> = pas encore assez de recul. '
+            '<b>Confiance</b> = paris « favori net » gagnés (doit passer souvent). '
+            '<b>Value</b> = <b>ROI</b> des paris « grosse cote » : ils perdent souvent (normal), '
+            'seul le ROI compte. Touche une ligne pour les chiffres détaillés.')
+    return web._section('📊 Preuve — le modèle bat-il le marché ?', table, open_=True, info=info)
 
 
 def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:

@@ -232,17 +232,13 @@ def test_render_proof_honnete():
     html = tracking.render_proof([("T", "Tennis", rep_full, "/a"),
                                   ("F", "Foot", rep_empty, "/b"),
                                   ("B", "Basket", rep_small, "/c")])
-    assert "plus fiable que les cotes" in html    # tennis : verdict positif en mots clairs
+    # Tableau unique : en-tête + 1 ligne par sport (3 lignes), comparables
+    assert html.count("ptab-row") == 3
+    assert "Fiabilité" in html and "Confiance" in html and "Value" in html   # colonnes
+    assert "✓ plus fiable" in html                # tennis : verdict positif (chip court)
     assert "en collecte" in html                  # foot vide
-    assert "en rodage · 12/30" in html            # basket : pas concluant
-    # SÉPARATION confiance / value : la confiance = nb gagnés, la value = ROI
-    assert "Confiance" in html and "gagnés" in html
-    assert "Value" in html and "ROI" in html
-    assert "peu de recul" in html                 # honnêteté petit échantillon, en clair
-    assert "Voir le détail" in html               # renvoi vers le dashboard complet
-    # UNIFORMITÉ : les 2 blocs-stats (Confiance + Value) sur CHAQUE carte (3 sports)
-    assert html.count('pstat-k">🔥 Confiance</div>') == 3
-    assert html.count('pstat-k">💎 Value</div>') == 3
-    assert "aucun encore" in html                 # placeholder quand un type n'a pas de donnée
-    assert "border-left-color:#d7e64a" in html    # liseré = couleur du sport (tennis lime)
-    assert "border-left-color:#ff9f43" in html    # basket orange
+    assert "en rodage" in html and "12 matchs" in html   # basket : pas concluant + échantillon
+    assert "+4%" in html                          # value ROI tennis (entier, compact)
+    assert "—" in html                            # placeholder quand un type n'a pas de donnée
+    assert "--sc:#d7e64a" in html                 # liseré = couleur du sport (tennis lime)
+    assert "--sc:#ff9f43" in html                 # basket orange
