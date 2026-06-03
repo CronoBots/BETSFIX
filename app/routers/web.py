@@ -212,6 +212,8 @@ def _enrich_picks_votes(picks: list[dict], provider) -> None:
         if v and v.home_percent is not None:
             p["community"] = (v.home_percent if p["side"] == "home" else v.away_percent) / 100
             p["pub_home"], p["pub_away"] = v.home_percent / 100, v.away_percent / 100
+            if v.draw_percent is not None:          # vote du nul (foot 1X2)
+                p["pub_draw"] = v.draw_percent / 100
 
 
 def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
@@ -277,6 +279,8 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
         split = web.bars_split(bmodel, bimp)
         if vt and vt[0] is not None:
             split["pub_home"], split["pub_away"] = vt[0] / 100, vt[1] / 100
+            if len(vt) > 2 and vt[2] is not None:   # vote du nul (foot 1X2)
+                split["pub_draw"] = vt[2] / 100
         base = {"sport": sport, "icon": icon, "home": r["home"], "away": r["away"],
                 "match_id": r.get("id"), "url": match_url, "female": r.get("female"),
                 "live": r.get("status") == "inprogress", "odds_cells": odds_cells,

@@ -301,14 +301,12 @@ CSS = """
   .pbg{margin:8px 0 0}
   .pbg-s{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
          color:var(--muted);margin-bottom:3px;text-align:center}
-  .pb-t2{position:relative;display:flex;gap:1px;height:18px;border-radius:99px;overflow:hidden;
+  .pb-t2{position:relative;display:flex;gap:1px;height:19px;border-radius:99px;overflow:hidden;
          background:var(--surface)}
   .pb-seg{display:block;height:100%}
-  .pl-h,.pl-d,.pl-a{position:absolute;top:50%;font-size:10px;font-weight:800;color:#fff;
-         text-shadow:0 1px 2px rgba(0,0,0,.6);font-variant-numeric:tabular-nums;pointer-events:none}
-  .pl-h{left:7px;transform:translateY(-50%)}
-  .pl-a{right:7px;transform:translateY(-50%)}
-  .pl-d{transform:translate(-50%,-50%)}
+  .pl{position:absolute;top:50%;font-size:10.5px;font-weight:800;color:#fff;white-space:nowrap;
+      text-shadow:0 1px 2px rgba(0,0,0,.6);font-variant-numeric:tabular-nums;pointer-events:none}
+  .pl-mut{color:#eef1f7;opacity:.92}
   .pb-row{display:flex;align-items:center;gap:7px;font-size:11px}
   .pb-l{width:64px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
         font-weight:800;font-size:9px}
@@ -697,17 +695,29 @@ def _pick_bars(p: dict) -> str:
         if h is None or a is None:
             return ""
         hp, ap = round(h * 100), round(a * 100)
+        dp = round(d * 100) if d is not None else None
         segs = f'<span class="{cls} pb-seg" style="width:{hp}%"></span>'
-        lbls = f'<span class="pl-h">{hp}%</span>'
-        if d is not None:                       # segment + libellé du nul (centré sur le segment)
-            dp = round(d * 100)
+        if dp is not None:
             segs += f'<span class="pbd pb-seg" style="width:{dp}%"></span>'
-            if dp >= 8:
-                lbls += f'<span class="pl-d" style="left:{round((h + d / 2) * 100, 1)}%">{dp}%</span>'
         segs += f'<span class="pba pb-seg" style="width:{ap}%"></span>'
-        lbls += f'<span class="pl-a">{ap}%</span>'
+        # un % par segment : CENTRÉ dans son segment s'il est assez large, sinon collé au bord
+        # (et le 'nul' masqué si trop étroit) -> jamais de chevauchement.
+        lbls = []
+        if h >= 0.14:
+            lbls.append(f'<span class="pl" style="left:{round(h / 2 * 100, 1)}%;'
+                        f'transform:translate(-50%,-50%)">{hp}%</span>')
+        else:
+            lbls.append(f'<span class="pl" style="left:6px;transform:translateY(-50%)">{hp}%</span>')
+        if dp is not None and d >= 0.16:
+            lbls.append(f'<span class="pl pl-mut" style="left:{round((h + d / 2) * 100, 1)}%;'
+                        f'transform:translate(-50%,-50%)">{dp}%</span>')
+        if a >= 0.14:
+            lbls.append(f'<span class="pl" style="left:{round((1 - a / 2) * 100, 1)}%;'
+                        f'transform:translate(-50%,-50%)">{ap}%</span>')
+        else:
+            lbls.append(f'<span class="pl" style="right:6px;transform:translateY(-50%)">{ap}%</span>')
         return (f'<div class="pbg"><div class="pbg-s">{label}</div>'
-                f'<div class="pb-t2">{segs}{lbls}</div></div>')
+                f'<div class="pb-t2">{segs}{"".join(lbls)}</div></div>')
 
     def short(n):
         return (str(n).split() or [str(n)])[-1]
@@ -716,7 +726,7 @@ def _pick_bars(p: dict) -> str:
             f'<span class="pb-an">{e(short(p.get("away") or ""))}</span></div>')
     rows = (block("BETSFIX", "pm", mh, p.get("m_draw"), ma)
             + block("Cote Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
-            + block("Public", "pc", p.get("pub_home"), None, p.get("pub_away")))
+            + block("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
     return f'<div class="pbars">{head}{rows}</div>'
 
 
@@ -765,6 +775,8 @@ def bars_foot(probs, imp, votes, home, away) -> dict:
          "model_prob": probs[i], **bars_split(model, implied)}
     if votes and votes[0] is not None:
         d["pub_home"], d["pub_away"] = votes[0] / 100, votes[1] / 100
+        if len(votes) > 2 and votes[2] is not None:   # vote du nul (1X2)
+            d["pub_draw"] = votes[2] / 100
     return d
 
 

@@ -244,8 +244,10 @@ class MatchVotes(BaseModel):
     match_id: int
     home_votes: int | None = None
     away_votes: int | None = None
+    draw_votes: int | None = None          # vote 'nul' (foot 1X2) ; None si pas de nul
     home_percent: float | None = None
     away_percent: float | None = None
+    draw_percent: float | None = None
 
 
 class Streak(BaseModel):

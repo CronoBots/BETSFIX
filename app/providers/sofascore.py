@@ -630,11 +630,13 @@ class SofaScoreProvider:
     @staticmethod
     def _votes_from_data(match_id: int, data: dict) -> MatchVotes:
         vote = (data or {}).get("vote") or {}
-        v1, v2 = vote.get("vote1"), vote.get("vote2")
-        total = (v1 or 0) + (v2 or 0)
+        v1, vx, v2 = vote.get("vote1"), vote.get("voteX"), vote.get("vote2")
+        # On INCLUT le nul (voteX) dans le total -> parts 1/X/2 réelles (foot). Sans nul
+        # (tennis/basket), voteX est absent et le total reste home+away.
+        total = (v1 or 0) + (vx or 0) + (v2 or 0)
         pct = lambda v: round(100 * v / total, 1) if total and v is not None else None
-        return MatchVotes(match_id=match_id, home_votes=v1, away_votes=v2,
-                          home_percent=pct(v1), away_percent=pct(v2))
+        return MatchVotes(match_id=match_id, home_votes=v1, away_votes=v2, draw_votes=vx,
+                          home_percent=pct(v1), away_percent=pct(v2), draw_percent=pct(vx))
 
     async def get_odds(self, match_id: int) -> MatchOdds:
         """Cotes (paris) d'un match : tous les marchés et choix disponibles."""

@@ -69,3 +69,14 @@ def test_bars_foot():
     bx = bars_foot((0.2, 0.5, 0.3), (0.25, 0.45, 0.3), (60, 40), "A", "B")
     assert bx["bet"] == "Match nul" and bx["m_home"] == 0.2 and bx["m_away"] == 0.3
     assert bars_foot(None, None, None, "A", "B") == {}
+
+
+def test_votes_capture_draw():
+    """Le vote du nul (voteX) doit être capté et inclus dans le total (foot 1X2)."""
+    from app.providers.sofascore import SofaScoreProvider
+    v = SofaScoreProvider._votes_from_data(1, {"vote": {"vote1": 5400, "voteX": 1300, "vote2": 3300}})
+    assert (v.home_percent, v.draw_percent, v.away_percent) == (54.0, 13.0, 33.0)
+    assert round(v.home_percent + v.draw_percent + v.away_percent) == 100
+    # 2 issues (tennis/basket) : pas de nul
+    v2 = SofaScoreProvider._votes_from_data(2, {"vote": {"vote1": 70, "vote2": 30}})
+    assert v2.draw_percent is None and v2.home_percent == 70.0

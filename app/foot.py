@@ -495,7 +495,7 @@ def _attach_from_store(rows: list[dict]) -> None:
                 r["id"] = mid
                 r["sofa_ok"] = True     # id SofaScore résolu -> fiche détaillée cliquable
             if best.get("public_home") is not None:
-                r["votes"] = (best["public_home"], best["public_away"])
+                r["votes"] = (best["public_home"], best["public_away"], best.get("public_draw"))
 
 
 async def board_resilient() -> list[dict]:
@@ -529,7 +529,7 @@ async def enrich_display(rows: list[dict]) -> None:
         try:
             v = await prov.get_votes(r["sofa_id"])
             if v.home_percent is not None:
-                r["votes"] = (v.home_percent, v.away_percent)
+                r["votes"] = (v.home_percent, v.away_percent, v.draw_percent)
         except Exception:
             pass
 
@@ -731,6 +731,8 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
     vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)
     if vt and vt[0] is not None:
         rec["public_home"], rec["public_away"] = vt[0], vt[1]
+        if len(vt) > 2 and vt[2] is not None:   # vote du nul (1X2)
+            rec["public_draw"] = vt[2]
     rec.setdefault("first_logged", now)
     for k in ("o1", "ox", "o2"):
         rec.setdefault("open_" + k, g.get(k))
