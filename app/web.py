@@ -397,16 +397,32 @@ CSS = """
   .banner.warn{background:linear-gradient(180deg,var(--gold-bg),rgba(35,29,9,.45));
           border:1px solid var(--gold-bd);border-left:3px solid var(--gold);color:var(--gold)}
   .banner.warn b{color:#ffd877}
-  /* Cartes « Preuve » (track record par sport) */
-  .proofcard{display:block;background:var(--surface);border:1px solid var(--border);
-          border-radius:12px;padding:10px 13px;margin:8px 0;text-decoration:none;color:var(--text)}
+  /* Cartes « Preuve » (track record par sport) — style tableau de bord premium */
+  .proofcard{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
+          border:1px solid var(--border);border-left:3px solid var(--border2);border-radius:14px;
+          padding:13px 15px;margin:10px 0;text-decoration:none;color:var(--text);
+          box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
+  .proofcard.v-ok{border-left-color:var(--green)}
+  .proofcard.v-ko{border-left-color:var(--red)}
+  .proofcard.v-na{border-left-color:var(--border2)}
   .proofcard:active{background:var(--surface2)}
-  .proof-h{font-weight:800;font-size:15px;margin-bottom:5px;line-height:1.5}
-  .proof-row{font-size:13px;color:var(--text);line-height:1.65}
-  .proof-row.dim{color:var(--muted);font-size:12px}
-  .proof-row b{color:var(--text)}
-  .proof-go{font-size:11.5px;color:var(--muted);margin-top:6px;font-weight:600}
-  .pvpill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11.5px;
+  .proof-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:3px}
+  .proof-name{font-weight:800;font-size:16px;line-height:1.3}
+  .proof-row.dim{color:var(--muted);font-size:11.5px;margin-bottom:2px}
+  .proof-stats{display:flex;gap:9px;margin:10px 0 2px}
+  .pstat{flex:1;min-width:0;background:rgba(255,255,255,.025);border:1px solid var(--border);
+          border-radius:11px;padding:9px 11px}
+  .pstat-k{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;
+          letter-spacing:.04em}
+  .pstat-v{font-size:19px;font-weight:800;color:var(--text);margin-top:3px;line-height:1.1;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pstat-v.pos{color:var(--green)} .pstat-v.neg{color:var(--red)}
+  .pstat-v.pv-empty{color:var(--muted);font-size:15px;font-weight:700}
+  .pstat-u{font-size:11px;font-weight:600;color:var(--muted)}
+  .pstat-s{font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.4}
+  .proof-go{font-size:11.5px;color:var(--muted);margin-top:10px;font-weight:700;
+          border-top:1px solid var(--border);padding-top:9px}
+  .pvpill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;
           font-weight:800;vertical-align:middle;white-space:nowrap}
   .pv-ok{background:rgba(46,226,127,.14);color:var(--green);border:1px solid rgba(46,226,127,.3)}
   .pv-ko{background:rgba(255,90,90,.13);color:var(--red);border:1px solid rgba(255,90,90,.32)}

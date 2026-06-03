@@ -396,44 +396,54 @@ def _proof_card(icon: str, name: str, rep: dict, url: str) -> str:
       • 💎 Value (grosse cote) -> ROI (perd souvent = normal, la rentabilité vient du prix).
     Honnête : « peu de recul » tant que l'échantillon est faible."""
     e = html.escape
-    n = rep.get("predictions_evaluees") or 0
+    # « matchs notés » = matchs réglés (avec résultat) -> cohérent avec les paris affichés
+    # (évite « 0 matchs notés » alors qu'un pari value est déjà réglé).
+    n = rep.get("matchs_regles") or 0
+    n_pred = rep.get("predictions_evaluees") or 0
     bat = rep.get("bat_le_marche")
-    # Pastille (verdict) — toujours présente, même structure pour les 3 sports
+    # Pastille (verdict) + couleur du liseré de carte
     if n == 0:
-        pill = '<span class="pvpill pv-na">en collecte</span>'
-    elif n < 30:
-        pill = f'<span class="pvpill pv-na">en rodage · {n}/30 matchs</span>'
+        pill, vcls = '<span class="pvpill pv-na">en collecte</span>', "v-na"
+    elif n < 30 or n_pred < 30:
+        pill = f'<span class="pvpill pv-na">en rodage · {n}/30</span>'
+        vcls = "v-na"
     elif bat is True:
-        pill = '<span class="pvpill pv-ok">✓ plus fiable que les cotes</span>'
+        pill, vcls = '<span class="pvpill pv-ok">✓ plus fiable que les cotes</span>', "v-ok"
     elif bat is False:
-        pill = '<span class="pvpill pv-ko">✗ moins fiable que les cotes</span>'
+        pill, vcls = '<span class="pvpill pv-ko">✗ moins fiable que les cotes</span>', "v-ko"
     else:
-        pill = ""
-    rows = [f'<div class="proof-h">{icon} {e(name)} {pill}</div>',
-            f'<div class="proof-row dim">{n} matchs notés</div>']
-    none = '<span class="dim">aucun encore</span>'
-    # 🔥 CONFIANCE : combien de paris « favori net » sont passés — TOUJOURS affichée (uniformité)
+        pill, vcls = '<span class="pvpill pv-na">en rodage</span>', "v-na"
+    noted = f'{n} match{"s" if n > 1 else ""} noté{"s" if n > 1 else ""}'
+
+    def stat(label, val, unit, sub, vc=""):
+        u = f' <span class="pstat-u">{unit}</span>' if unit else ""
+        return (f'<div class="pstat"><div class="pstat-k">{label}</div>'
+                f'<div class="pstat-v {vc}">{val}{u}</div>'
+                f'<div class="pstat-s">{sub}</div></div>')
+
+    # 🔥 CONFIANCE : nb de favoris nets passés (X/Y gagnés)
     conf = next((d for d in (rep.get("par_type") or []) if d.get("label") == "Confiance"), None)
     if conf and conf.get("n"):
         cn = conf["n"]
         wins = round((conf.get("precision") or 0) * cn)
-        recul = ' <span class="dim">· peu de recul</span>' if cn < 20 else ""
-        cval = f'{wins}/{cn} gagnés{recul}'
+        c_sub = "peu de recul" if cn < 20 else f'{_pct(conf.get("precision"))} de réussite'
+        conf_stat = stat("🔥 Confiance", f"{wins}/{cn}", "gagnés", c_sub)
     else:
-        cval = none
-    rows.append(f'<div class="proof-row">🔥 <b>Confiance</b> · {cval}</div>')
-    # 💎 VALUE : ROI (le vrai juge) — TOUJOURS affichée (uniformité), coloré vert/rouge
+        conf_stat = stat("🔥 Confiance", "—", "", "aucun encore", "pv-empty")
+    # 💎 VALUE : ROI (le vrai juge), coloré vert/rouge
     vn = rep.get("value_paris_regles") or 0
     if vn:
         roi = rep.get("value_roi") or 0
-        cls = "pos" if roi >= 0 else "neg"
-        recul = ' <span class="dim">· peu de recul</span>' if vn < 20 else ""
-        vval = f'{vn} paris · ROI <span class="{cls}">{_signed_pct(roi)}</span>{recul}'
+        v_sub = f'{vn} pari{"s" if vn > 1 else ""}' + (" · peu de recul" if vn < 20 else "")
+        value_stat = stat("💎 Value", _signed_pct(roi), "ROI", v_sub,
+                          "pos" if roi >= 0 else "neg")
     else:
-        vval = none
-    rows.append(f'<div class="proof-row">💎 <b>Value</b> · {vval}</div>')
-    rows.append('<div class="proof-go">Voir le détail ›</div>')
-    return f'<a class="proofcard" href="{e(url)}">{"".join(rows)}</a>'
+        value_stat = stat("💎 Value", "—", "", "aucun encore", "pv-empty")
+    return (f'<a class="proofcard {vcls}" href="{e(url)}">'
+            f'<div class="proof-h"><span class="proof-name">{icon} {e(name)}</span> {pill}</div>'
+            f'<div class="proof-row dim">{noted}</div>'
+            f'<div class="proof-stats">{conf_stat}{value_stat}</div>'
+            '<div class="proof-go">Voir le détail ›</div></a>')
 
 
 def render_proof(reports: list[tuple]) -> str:
