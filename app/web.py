@@ -641,16 +641,18 @@ def _pick_bars(p: dict) -> str:
     if m is not None and c is not None:
         if c - m >= 0.18:
             emoji = "⚠️"
-            expl = (f'⚠️ Le public <b>surévalue</b> ce camp : {round(c*100)}% des parieurs '
-                    f'contre {round(m*100)}% pour BETSFIX. Favori sur-parié — signal '
-                    f'<b>contrarian</b> (la cote du favori est souvent trop basse, à fader).')
+            expl = (f'⚠️ <b>Le public mise gros sur ce camp</b> : {round(c*100)}% des parieurs, '
+                    f'contre {round(m*100)}% de chances selon BETSFIX. Quand tout le monde suit '
+                    f'le favori, sa cote devient souvent <b>trop basse</b> pour être rentable — '
+                    f'à prendre avec prudence.')
         elif m - c >= 0.18:
             emoji = "💡"
-            expl = (f'💡 Le public <b>sous-évalue</b> ce camp : {round(m*100)}% pour BETSFIX '
-                    f'contre seulement {round(c*100)}% des parieurs.')
+            expl = (f'💡 <b>Le public néglige ce camp</b> : {round(m*100)}% de chances selon '
+                    f'BETSFIX, mais seulement {round(c*100)}% des parieurs misent dessus. '
+                    f'Sa cote peut être <b>intéressante</b>.')
     pub_x = f'<span class="dvg-i" data-dvg aria-label="Explication">{emoji}</span>' if emoji else ""
     inner = (bar("BETSFIX", m, "pm")
-             + bar("Bookmaker", p.get("implied"), "po")
+             + bar("Cote Unibet", p.get("implied"), "po")
              + bar("Public", c, "pc", pub_x))
     if not inner:
         return ""
@@ -762,10 +764,11 @@ def _pick_card(p: dict, badge: str) -> str:
 
 # Légende des 3 barres, réutilisée partout (accueil + intros des onglets) pour une explication
 # COHÉRENTE et claire pour le parieur.
-BARS_LEGEND = ('Les 3 barres = la <b>chance de gagner</b> du pari, vue par 3 sources : '
-               '<b>BETSFIX</b> (notre modèle), le <b>Bookmaker</b> (déduit de la cote Unibet) '
-               'et le <b>Public</b> (les votes des parieurs). Si <b>BETSFIX dépasse le '
-               'Bookmaker</b>, c\'est une piste de <b>value</b>.')
+BARS_LEGEND = ('Les 3 barres montrent la <b>chance de gagner</b> du pari, selon 3 sources : '
+               '<b>BETSFIX</b> (notre analyse), <b>Cote Unibet</b> (la chance cachée derrière '
+               'la cote) et le <b>Public</b> (ce que misent les parieurs). Quand <b>BETSFIX '
+               'donne plus de chances que la cote Unibet</b>, le pari est peut-être sous-coté — '
+               'une <b>« value »</b> (cote un peu trop généreuse, rentable sur la durée).')
 
 
 def render_home(rep: dict, source: dict | None = None,
@@ -781,10 +784,10 @@ def render_home(rep: dict, source: dict | None = None,
     if conf_picks:
         rows = "".join(_pick_card(p, "") for p in conf_picks)  # pas de badge % (déjà dans la barre)
         conf_html = _section(f'🔥 Confiances ({len(conf_picks)})', rows, open_=True,
-                             info='Les matchs où <b>BETSFIX</b> voit un <b>favori clair</b> (forte '
-                                  'chance de gagner). C\'est le choix le plus « <b>sûr</b> », mais la '
-                                  'cote est souvent <b>petite</b> (faible gain). À privilégier pour la '
-                                  f'régularité. {bars_legend}')
+                             info='Les matchs où <b>BETSFIX</b> voit un <b>grand favori</b> (forte '
+                                  'chance de gagner). C\'est le choix le plus <b>sûr</b>, mais comme '
+                                  'c\'est le favori la cote est <b>petite</b> : <b>petit gain</b>. '
+                                  f'Parfait pour viser la régularité. {bars_legend}')
     else:
         conf_html = _section('🔥 Confiances (0)',
                              '<div class="banner">Aucun favori net à venir pour le moment.</div>')
@@ -792,15 +795,15 @@ def render_home(rep: dict, source: dict | None = None,
     # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders
     if picks:
         rows = "".join(_pick_card(
-            p, '<span class="badge b-val" title="Avantage estimé sur la cote">'
-               f'+{round((p.get("edge") or 0)*100, 1)} pts</span>') for p in picks)
+            p, '<span class="badge b-val" title="Notre avantage estimé sur la cote (value)">'
+               f'value +{round((p.get("edge") or 0)*100, 1)}%</span>') for p in picks)
         val_html = _section(f'💎 Valeurs ({len(picks)})', rows, open_=True,
-                            info='Les paris où <b>BETSFIX</b> juge la <b>cote Unibet trop haute</b> '
-                                 '(le book sous-estime ce camp) — une « <b>value</b> ». Souvent des '
-                                 'outsiders : <b>gros gain possible mais ça passe rarement</b>. '
-                                 'Rentable <b>en moyenne sur la durée</b>, jamais garanti sur un seul '
-                                 'match. Le badge <b>+X pts</b> = l\'écart estimé en ta faveur. '
-                                 f'{bars_legend}')
+                            info='Les paris où la <b>cote Unibet est un peu trop généreuse</b> : '
+                                 'Unibet donne moins de chances que <b>BETSFIX</b> — une '
+                                 '« <b>value</b> ». Ça <b>gagne moins souvent mais rapporte plus</b> '
+                                 '(souvent un pari moins évident). Rentable <b>sur la durée</b>, '
+                                 'jamais garanti sur un seul match. Le badge <b>value +X%</b> = '
+                                 f'notre avantage estimé sur la cote. {bars_legend}')
     else:
         val_html = _section('💎 Valeurs (0)',
                             '<div class="banner">Aucune value détectée pour le moment '
@@ -1006,9 +1009,10 @@ def _team_form_block(flag: str, name: str, tf: dict | None) -> str:
         return f'<div class="frm"><div class="frm-t">{fl}{e(name)}</div><span class="dim">—</span></div>'
     meta = []
     if tf.get("position"):
-        meta.append(f'{tf["position"]}<span class="dim">e</span>')
+        meta.append(f'{tf["position"]}<span class="dim">ᵉ au classement</span>')
     if tf.get("avg_rating"):
-        meta.append(f'note <b>{round(tf["avg_rating"], 2)}</b>')
+        meta.append(f'<span title="Note moyenne des joueurs (SofaScore), sur 10">note '
+                    f'<b>{round(tf["avg_rating"], 2)}</b>/10</span>')
     return (f'<div class="frm"><div class="frm-t">{fl}{e(name)}</div>'
             f'{form_dots(tf.get("form"))}'
             f'<span class="dim">{" · ".join(meta) if meta else ""}</span></div>')
@@ -1137,19 +1141,22 @@ def recommended_bets(value=None, confidence=None) -> str:
     if value:
         lbl, od, edge = value
         cards.append('<div class="banner"><b class="pos">💎 Value</b> — '
-                     f'miser sur <b>{e(str(lbl))}</b> @{od}. <span class="dim">La cote semble '
-                     f'<b>trop haute</b> de ~{round((edge or 0)*100,1)} pts (le book sous-estime ce '
-                     "camp). Rentable sur la durée, mais ça passe rarement — jamais sûr.</span></div>")
+                     f'pari sur <b>{e(str(lbl))}</b> @{od}. <span class="dim">Unibet lui donne '
+                     f'<b>trop peu de chances</b>, donc sa cote est <b>un peu trop généreuse</b> '
+                     f'(~+{round((edge or 0)*100,1)}% en notre faveur). Ça gagne <b>moins souvent '
+                     "mais rapporte plus</b> : rentable sur la durée, jamais garanti sur un seul "
+                     "match.</span></div>")
     if confidence:
         lbl, prob, od = confidence
         cards.append('<div class="banner"><b style="color:#6cbcff">🔥 Confiance</b> — '
-                     f'<b>{e(str(lbl))}</b> donné gagnant à <b>{round((prob or 0)*100)}%</b>'
-                     f'{f" @{od}" if od else ""}. <span class="dim">Favori clair du modèle : '
-                     "le plus « sûr », mais petite cote (faible gain).</span></div>")
+                     f'<b>{e(str(lbl))}</b> est <b>grand favori</b> selon nous : '
+                     f'<b>{round((prob or 0)*100)}%</b> de chances de gagner'
+                     f'{f" @{od}" if od else ""}. <span class="dim">Le pari le plus <b>sûr</b>, '
+                     "mais comme c'est le favori la cote est petite : <b>petit gain</b>.</span></div>")
     if not cards:
-        cards.append('<div class="banner">Pas de pari « safe » détecté ici : ni favori vraiment '
-                     "net (≥ 65 %), ni cote sous-évaluée (value). Le modèle conseille de "
-                     "<b>s'abstenir</b> sur ce match.</div>")
+        cards.append('<div class="banner">Aucun pari intéressant ici : ni <b>grand favori</b> '
+                     "(≥ 65 % de chances), ni <b>cote trop généreuse</b>. Mieux vaut "
+                     "<b>passer ce match</b>.</div>")
     return '<h2>🎯 Paris conseillés</h2>' + "".join(cards)
 
 
@@ -1172,7 +1179,8 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     forms = ctx.get("forms")
     form_html = ""
     if forms:
-        form_html = ('<h2>📈 Forme récente</h2>'
+        form_html = ('<h2>📈 Forme récente <span class="dim" style="font-weight:400;font-size:11px">'
+                     '· 5 derniers : 🟢 gagné · 🟡 nul · 🔴 perdu</span></h2>'
                      f'{_team_form_block(*forms[0])}{_team_form_block(*forms[1])}')
 
     h2h = ctx.get("h2h")
@@ -1345,7 +1353,8 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
 
     form_html = ""
     if home_form or away_form:
-        form_html = ('<h2>Forme récente <span class="dim">(récent → ancien)</span></h2>'
+        form_html = ('<h2>Forme récente <span class="dim" style="font-weight:400;font-size:11px">'
+                     '· 🟢 V gagné · 🔴 D perdu · récent → ancien</span></h2>'
                      f'<div class="row">{_form_block(a.home.name, home_form or [])}'
                      f'{_form_block(a.away.name, away_form or [])}</div>')
 
@@ -1366,21 +1375,29 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
 
     probs = ""
     if hp is not None:
-        probs = (f'<h2>Probabilités du modèle</h2><div class="row">'
+        probs = (f'<h2>Chances de gagner <span class="dim" style="font-weight:400;font-size:11px">'
+                 f'· selon BETSFIX</span></h2><div class="row">'
                  f'<div class="pbar-l"><span>{e(a.home.name.split()[-1])} {round(hp*100)}%</span>'
                  f'<span>{round(ap*100)}% {e(a.away.name.split()[-1])}</span></div>'
                  f'<div class="mbar" style="height:10px"><span class="a" style="width:{round(hp*100)}%">'
                  f'</span><span class="b" style="width:{round(ap*100)}%"></span></div></div>')
 
-    # Facteurs en MINI-BARRES (contribution home/away par facteur)
+    # Facteurs en MINI-BARRES (contribution home/away par facteur) — noms en clair
+    _FNAMES = {"elo": "Force générale (Elo)", "classement": "Classement", "forme": "Forme",
+               "surface": "Surface", "head_to_head": "Face-à-face"}
     def _factor_row(f):
         h = round((f.home or 0) * 100)
-        return (f'<div class="frow"><div class="ft"><span class="fn">{e(f.name)}</span>'
+        nom = _FNAMES.get(f.name, f.name.replace("_", " ").capitalize())
+        return (f'<div class="frow"><div class="ft"><span class="fn">{e(nom)}</span>'
                 f'<span class="fb"><span class="mbar"><span class="a" style="width:{h}%"></span>'
                 f'<span class="b" style="width:{100-h}%"></span></span></span>'
                 f'<span class="fp">{h}/{100-h}%</span></div>'
                 f'<div class="dim" style="font-size:11px;margin-top:4px">{e(f.detail or "")}</div></div>')
-    factors = (f'<h2>Facteurs du modèle</h2><div class="row">'
+    factors = (f'<h2>Ce qui pèse dans l\'analyse</h2>'
+               '<div class="dim" style="font-size:11px;margin:-2px 0 8px">Chaque barre = part en '
+               'faveur de chaque joueur. <b>Force générale</b> = niveau global ; <b>Classement</b>, '
+               '<b>Forme</b> du moment, <b>Surface</b> et <b>Face-à-face</b> (historique entre eux).</div>'
+               '<div class="row">'
                + "".join(_factor_row(f) for f in a.factors) + '</div>') if a.factors else ""
 
     # Lecture du modèle (favori) — neutre, pas de pari conseillé
