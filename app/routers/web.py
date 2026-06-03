@@ -829,8 +829,9 @@ async def match_detail(
             "match_id": match_id,
         }
         analysis_html = await match_analysis.write_analysis(brief, get_settings())
-    # 💰 TOUS les paris Unibet (déjà récupérés dans gather_context)
-    markets_html = (web.render_unibet_markets(odds.markets, sport="tennis")
+    # 💰 Unibet : on n'affiche QUE le « résultat du match » dans l'analyse (tous les marchés
+    # restent en mémoire/dans gather_context pour la value).
+    markets_html = (web.render_unibet_markets(odds.markets, sport="tennis", result_only=True)
                     if (frag and odds and odds.matched) else "")
     html = web.render_match_detail(
         analysis, winner_odds, aces=aces, tour=tour,
@@ -985,7 +986,7 @@ async def _tennis_light_frag(match_id, tour, unibet) -> HTMLResponse:
         st = datetime.fromisoformat(rec["start_time"]) if rec.get("start_time") else None
         uo = await unibet.find_event_odds("tennis", home, away, match_id, st)
         if uo.matched:
-            parts.append(web.render_unibet_markets(uo.markets, sport="tennis"))
+            parts.append(web.render_unibet_markets(uo.markets, sport="tennis", result_only=True))
     except Exception:
         pass
     return HTMLResponse("".join(parts) or '<div class="dim">Analyse indisponible pour le moment.</div>')

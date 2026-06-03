@@ -134,7 +134,7 @@ async def basket_match(event_id: int, frag: int = 0,
         st = datetime.fromisoformat(rec["start_time"]) if rec and rec.get("start_time") else None
         uo = await unibet.find_event_odds("basketball", home, away, event_id, st)
         if uo.matched:
-            extra += web.render_unibet_markets(uo.markets)
+            extra += web.render_unibet_markets(uo.markets, result_only=True)
     except Exception:
         pass
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)

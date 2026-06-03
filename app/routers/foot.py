@@ -67,7 +67,7 @@ async def _sofa(path: str):
 
 
 def _result_dot(wc_for_team: str) -> str:
-    cls = {"W": "w", "L": "l", "D": ""}[wc_for_team]
+    cls = {"W": "w", "L": "l", "D": "n"}[wc_for_team]   # 'n' = nul -> jaune (cf. légende)
     return f'<span class="dot {cls}">{ {"W":"V","L":"D","D":"N"}[wc_for_team] }</span>'
 
 
@@ -269,7 +269,7 @@ async def foot_match(event_id: int, frag: int = 0,
                   + _market_compare("Plus de 2,5 buts dans le match", g["over25"], _unibet_over(markets, 2.5))
                   + _market_compare("Les 2 équipes marquent", g["btts"], _unibet_btts(markets)))
     # 💰 TOUS les paris Unibet de l'event (intuitif : un bloc par marché)
-    extra += web.render_unibet_markets(markets)
+    extra += web.render_unibet_markets(markets, result_only=True)
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
     try:
         extra += await team_context(event_id, home, away, unit="buts")

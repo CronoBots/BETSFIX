@@ -297,14 +297,14 @@ CSS = """
   .pt2-h,.pt2-row{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center}
   .pt2-h{padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
          color:var(--muted);border-bottom:1px solid var(--border)}
-  /* en-tête équipes : nom COMPLET, peut passer sur 2 lignes (au lieu de tronquer « S… ») */
-  .pt2-h span{text-align:right;line-height:1.12;hyphens:auto;overflow-wrap:anywhere}
+  /* en-tête équipes : nom abrégé, CENTRÉ sur sa colonne (nul pile au milieu, écarts égaux) */
+  .pt2-h span{text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .pt2-h span:first-child{text-align:left}
   .pt2-block{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.04)}
   .pt2-block:last-child{border-bottom:none}
   .pt2-s{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
          color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pt2-v{text-align:right;font-size:13px;font-weight:600;color:var(--muted);
+  .pt2-v{text-align:center;font-size:13px;font-weight:600;color:var(--muted);
          font-variant-numeric:tabular-nums}
   .pt2-v.hi{font-weight:800}
   .pt2-v.dim{color:var(--dim)}
@@ -325,9 +325,8 @@ CSS = """
   .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}   /* BETSFIX bleu */
   .po{background:linear-gradient(90deg,#19c46a,#34d27b)}   /* Cote Unibet VERT */
   .pc{background:#e0b341}                                   /* Public jaune */
-  .pbd{background:var(--dim)}          /* segment 'nul' (foot) */
-  .pba{background:var(--surface2)}     /* segment joueur 2 (droite) */
-  .pbm{background:#3a4763}             /* segment NON-favori (atténué) dans le tableau */
+  .pbd{background:#7a8094}             /* segment NUL (gris clair, bien distinct) */
+  .pba{background:#2d3f66}             /* segment équipe NON-favorite (navy atténué) */
   /* Divergence public/modèle : emoji à droite de la barre PUBLIC + bulle au tap */
   .pb-x{width:20px;flex:none;text-align:center}
   .dvg-i{cursor:pointer;font-size:14px;line-height:1;-webkit-tap-highlight-color:transparent}
@@ -399,6 +398,7 @@ CSS = """
   .dot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;
        justify-content:center;font-size:11px;font-weight:800}
   .dot.w{background:var(--green);color:#04130a}
+  .dot.n{background:var(--gold);color:#1a1400}    /* nul = jaune (cf. légende) */
   .dot.l{background:var(--red);color:#fff}
   .mbar{height:7px;border-radius:99px;overflow:hidden;display:flex;background:var(--border);gap:1px}
   .mbar .a{background:linear-gradient(90deg,var(--accent2),var(--accent))}
@@ -688,6 +688,23 @@ def bars_split(model, implied) -> dict:
             "i_home": i[0], "i_draw": i[1], "i_away": i[2]}
 
 
+_NAME_CONNECTORS = {"du", "de", "des", "da", "di", "of", "the", "und", "et", "and"}
+
+
+def _abbr_team(name: str, maxlen: int = 11) -> str:
+    """Abrège un nom d'équipe trop long pour l'en-tête (1 ligne) : d'abord retire les connecteurs
+    (du, de, of…) -> « Corée du Sud » devient « Corée Sud ». Si encore trop long (clubs : « New
+    York Liberty »), garde le DERNIER mot, souvent le plus distinctif -> « Liberty »."""
+    name = str(name).strip()
+    if len(name) <= maxlen:
+        return name
+    words = [w for w in name.split() if w.lower() not in _NAME_CONNECTORS]
+    short = " ".join(words)
+    if len(short) <= maxlen or not words:
+        return short or name
+    return words[-1]
+
+
 def _pick_bars(p: dict) -> str:
     """TABLEAU « Chances de gagner » : sources en lignes (BETSFIX / Cote Unibet / Public),
     issues en colonnes (joueur 1 · [Nul] · joueur 2). On lit une colonne pour comparer les 3
@@ -698,8 +715,9 @@ def _pick_bars(p: dict) -> str:
         return _pick_bars_legacy(p)
     has_draw = p.get("m_draw") is not None
 
-    # Nom COMPLET de l'équipe en en-tête (tronqué par CSS si trop long) — pas le dernier mot
-    cols = [e(p.get("home") or "")] + (["Nul"] if has_draw else []) + [e(p.get("away") or "")]
+    # Nom abrégé (connecteurs retirés) sur 1 ligne ; tronqué par CSS si vraiment trop long
+    cols = ([e(_abbr_team(p.get("home") or ""))] + (["Nul"] if has_draw else [])
+            + [e(_abbr_team(p.get("away") or ""))])
     head = ('<div class="pt2-h"><span>Source</span>'
             + "".join(f'<span>{c}</span>' for c in cols) + '</div>')
 
@@ -715,12 +733,12 @@ def _pick_bars(p: dict) -> str:
             cls = f"pt2-v hi t-{scol}" if v == mx else "pt2-v"   # favori coloré (couleur source)
             return f'<span class="{cls}">{round(v * 100)}%</span>'
         cells = cell(h) + (cell(d) if has_draw else "") + cell(a)
-        # fine barre : le segment du FAVORI (plus haut %) est coloré (couleur source), les autres
-        # atténués -> le morceau coloré suit le favori (à droite si l'extérieur est favori).
-        def seg(v):
-            cls = scol if (v is not None and v == mx) else "pbm"
+        # fine barre : FAVORI (plus haut %) = couleur source ; le NUL et l'équipe non-favorite
+        # gardent des teintes DISTINCTES (pbd vs pba) -> on les différencie toujours.
+        def seg(v, base):
+            cls = scol if (v is not None and v == mx) else base
             return f'<span class="{cls}" style="width:{round((v or 0) * 100)}%"></span>'
-        bar = seg(h) + (seg(d) if has_draw else "") + seg(a)
+        bar = seg(h, "pba") + (seg(d, "pbd") if has_draw else "") + seg(a, "pba")
         return (f'<div class="pt2-block"><div class="pt2-row">'
                 f'<span class="pt2-s">{label}</span>{cells}</div>'
                 f'<div class="pt2-bar">{bar}</div></div>')
@@ -728,7 +746,8 @@ def _pick_bars(p: dict) -> str:
     rows = (row("BETSFIX", "pm", mh, p.get("m_draw"), ma)
             + row("Cote Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
             + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
-    cols_css = "1.25fr 1fr 1fr 1fr" if has_draw else "1.4fr 1fr 1fr"
+    # source réduite -> plus de place aux équipes ; home/away ÉGALES, nul centré entre elles
+    cols_css = "0.82fr 1fr 0.6fr 1fr" if has_draw else "0.95fr 1fr 1fr"
     return f'<div class="ptab2" style="--cols:{cols_css}">{head}{rows}</div>'
 
 
@@ -1171,7 +1190,7 @@ def _oc_label(o) -> str:
 
 
 def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet",
-                          sport: str | None = None) -> str:
+                          sport: str | None = None, result_only: bool = False) -> str:
     """Tous les marchés Unibet, REGROUPÉS par catégorie (comme l'app Unibet) en sections
     repliables : un gros match a 500+ marchés -> on affiche les catégories + leur nombre,
     et on déplie pour voir les cotes. Cap par catégorie pour garder un poids raisonnable."""
@@ -1210,6 +1229,15 @@ def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet",
         cats.setdefault((rank, name), []).append((sort_key, block))
     if not cats:
         return ""
+    if result_only:
+        # On garde TOUS les marchés en mémoire (pour l'analyse/la value), mais on n'AFFICHE que
+        # le « résultat du match » (rang 0) : titre du pari + source Unibet, sans repli.
+        res = {k: v for k, v in cats.items() if k[0] == 0}
+        if not res:
+            return ""
+        blocks = sorted(res.items())[0][1]
+        block_html = "".join(b for _, b in sorted(blocks, key=lambda x: x[0]))
+        return f'<h2>💰 Cote Unibet</h2>{block_html}'
     total = sum(len(v) for v in cats.values())
     out = [f'<h2>{title} <span class="dim">({total})</span></h2>']
     for (rank, name), blocks in sorted(cats.items()):
