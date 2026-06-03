@@ -471,8 +471,15 @@ _SPA_JS = (
     "if(!b)return;e.preventDefault();e.stopPropagation();"
     "var pb=b.closest('.pbars'),bub=pb&&pb.nextElementSibling;"
     "if(bub&&bub.classList.contains('dvg-bubble'))bub.hidden=!bub.hidden;});"
-    # carte dépliable (foot/basket) : tap -> charge et déplie l'analyse sous la carte
+    # garde anti-scroll mobile : un glissement (>10px) n'est PAS un tap -> n'ouvre pas la carte
+    "var _mv=false,_sx=0,_sy=0;"
+    "document.addEventListener('touchstart',function(e){_mv=false;var t=e.touches[0];"
+    "_sx=t.clientX;_sy=t.clientY;},{passive:true});"
+    "document.addEventListener('touchmove',function(e){var t=e.touches[0];"
+    "if(Math.abs(t.clientX-_sx)>10||Math.abs(t.clientY-_sy)>10)_mv=true;},{passive:true});"
+    # carte dépliable : tap N'IMPORTE OÙ sur la carte -> charge et déplie l'analyse à l'intérieur
     "document.addEventListener('click',function(e){"
+    "if(_mv)return;"  # c'était un scroll, pas un tap
     "if(e.target.closest('[data-dvg]')||e.target.closest('.exp')||e.target.closest('a'))return;"
     "var c=e.target.closest('[data-exp]');if(!c)return;e.preventDefault();"
     "var x=c.querySelector('.exp');if(!x)return;"
