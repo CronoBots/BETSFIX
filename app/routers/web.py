@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import ace_markets, elo, flags, serve_return, set_markets, tendencies, tracking, web
+from app import ace_markets, elo, flags, fragcache, serve_return, set_markets, tendencies, tracking, web
 from app.analysis import build_analysis, prob_from_rankings, remove_vig
 from app.analysis import _match_winner_odds
 from app.markets import (
@@ -677,6 +677,10 @@ async def match_detail(
     rankings: RankingsProvider = Depends(get_rankings),
 ) -> HTMLResponse:
     tour = "wta" if tour == "wta" else "atp"
+    if frag:
+        cached = fragcache.get(f"tennis/{match_id}")
+        if cached:
+            return HTMLResponse(cached)
     try:
         match = await provider.get_match(tour, match_id)
     except ProviderError:
@@ -730,10 +734,13 @@ async def match_detail(
             recos = web.recommended_bets(value, confidence)
     # 💰 TOUS les paris Unibet (déjà récupérés dans gather_context)
     markets_html = web.render_unibet_markets(odds.markets) if (frag and odds and odds.matched) else ""
-    return HTMLResponse(web.render_match_detail(
+    html = web.render_match_detail(
         analysis, winner_odds, aces=aces, tour=tour,
         home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score, votes=votes,
-        frag=bool(frag), recos=recos, markets_html=markets_html))
+        frag=bool(frag), recos=recos, markets_html=markets_html)
+    if frag:
+        fragcache.put(f"tennis/{match_id}", html)
+    return HTMLResponse(html)
 
 
 def _ace_lines(odds, match) -> tuple[float | None, float | None]:

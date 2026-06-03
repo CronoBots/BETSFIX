@@ -12,7 +12,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import flags, foot, sportcache, tracking, web
+from app import flags, foot, fragcache, sportcache, tracking, web
 from app.dependencies import get_provider, get_unibet
 from app.models import (
     MatchIncidents,
@@ -172,6 +172,10 @@ async def foot_match(event_id: int, frag: int = 0,
                      provider: SofaScoreProvider = Depends(get_provider),
                      unibet: UnibetProvider = Depends(get_unibet)) -> HTMLResponse:
     """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H)."""
+    if frag:   # cache partagé : même match ouvert N fois = 1 récupération
+        cached = fragcache.get(f"foot/{event_id}")
+        if cached:
+            return HTMLResponse(cached)
     store = tracking.load(foot.FOOT_TRACK_PATH)
     rec = next((r for r in store.values() if str(r.get("match_id")) == str(event_id)), None)
     home = away = ""
@@ -239,7 +243,10 @@ async def foot_match(event_id: int, frag: int = 0,
            "away_flag": flags.flag(away), "comp": comp, "when": when, "extra": extra,
            "prediction": prediction, "odds_cells": odds_cells, "forms": forms, "h2h": h2h,
            "back_url": "/foot", "back_label": "Foot", "sport_key": "foot"}
-    return HTMLResponse(web.render_sport_match_detail(ctx, frag=bool(frag)))
+    html = web.render_sport_match_detail(ctx, frag=bool(frag))
+    if frag and (forms or h2h or extra):   # ne cache que si on a du contenu utile
+        fragcache.put(f"foot/{event_id}", html)
+    return HTMLResponse(html)
 
 
 # ------------------------------------------------------------------- API JSON

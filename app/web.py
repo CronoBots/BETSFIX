@@ -320,6 +320,17 @@ CSS = """
          font-weight:700;margin-bottom:4px}
   .oddsrow-wrap{flex-wrap:wrap}
   .oddsrow-wrap .oc{flex:1 1 28%;min-width:82px}
+  /* Catégories de paris repliables (comme Unibet) */
+  .mktcat{border:1px solid var(--border);border-radius:12px;margin:7px 0;overflow:hidden;
+          background:var(--surface)}
+  .mktcat>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+          padding:11px 14px;font-size:13px;font-weight:700}
+  .mktcat>summary::-webkit-details-marker{display:none}
+  .mktcat>summary::after{content:"▾";margin-left:auto;color:var(--dim);transition:transform .18s}
+  .mktcat[open]>summary::after{transform:rotate(180deg)}
+  .mktcat-n{background:var(--surface2);color:var(--muted);border:1px solid var(--border);
+            border-radius:20px;padding:1px 9px;font-size:11px;font-weight:800}
+  .mktcat-b{padding:2px 14px 10px}
   /* Fiche match détaillée (foot/basket) */
   .mdh{margin:14px 0 6px}
   .mdh-c{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
@@ -964,42 +975,62 @@ def _team_form_block(flag: str, name: str, tf: dict | None) -> str:
             f'<span class="dim">{" · ".join(meta) if meta else ""}</span></div>')
 
 
-# Ordre d'affichage des marchés (les plus utiles d'abord) ; le reste suit.
-_MKT_ORDER = ["temps réglementaire", "match", "double chance", "nombre total de buts",
-              "moneyline", "handicap", "plus de", "score exact"]
+# Catégories de paris (comme Unibet). Ordre de MATCHING : du plus spécifique au plus
+# générique (« Corners - Total » -> Corners, pas Buts). Le 2e nombre = rang d'AFFICHAGE.
+_MKT_CATS = [
+    ("Double chance", 1, ("double chance",)),
+    ("Handicaps", 3, ("handicap", "asiatique")),
+    ("Corners", 7, ("corner",)),
+    ("Cartons", 8, ("carton", "card")),
+    ("Buteurs", 6, ("buteur", "marque", "scorer")),
+    ("Mi-temps / périodes", 4, ("mi-temps", "1ère", "2ème", "première", "deuxième", "half", "période", "quart", "quarter")),
+    ("Paris joueurs", 9, ("joueur", "player", "tirs", "passe", "arrêt")),
+    ("Scores exacts", 5, ("score exact", "résultat correct")),
+    ("Buts / totaux", 2, ("total", "plus de", "moins de", "nombre de buts", "but ")),
+    ("Résultat du match", 0, ("temps réglementaire", "1x2", "résultat final", "vainqueur", "moneyline", "match")),
+]
 
 
-def _mkt_rank(label: str) -> int:
-    low = (label or "").lower()
-    for i, key in enumerate(_MKT_ORDER):
-        if key in low:
-            return i
-    return len(_MKT_ORDER)
+def _market_category(label: str, mtype: str) -> tuple[str, int]:
+    s = f'{label or ""} {mtype or ""}'.lower()
+    for name, rank, keys in _MKT_CATS:
+        if any(k in s for k in keys):
+            return name, rank
+    return "Autres marchés", 99
 
 
 def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet") -> str:
-    """Liste INTUITIVE de tous les marchés Unibet d'un event : un bloc par marché, chaque
-    issue = une cellule (nom + cote). Marchés sans cote affichée sont ignorés."""
+    """Tous les marchés Unibet, REGROUPÉS par catégorie (comme l'app Unibet) en sections
+    repliables : un gros match a 500+ marchés -> on affiche les catégories + leur nombre,
+    et on déplie pour voir les cotes. Cap par catégorie pour garder un poids raisonnable."""
     e = html.escape
-    blocks = []
+    cats: dict = {}
     for m in (markets or []):
         outs = [o for o in (m.outcomes or []) if o.odds]
         if not outs:
             continue
+        name, rank = _market_category(m.label, m.type)
         cells = []
-        for o in outs[:10]:   # cap (un « score exact » peut avoir des dizaines d'issues)
-            lbl = o.label or ""
-            if o.line is not None:
-                lbl = f'{lbl} {o.line}'.strip()
+        for o in outs[:10]:
+            lbl = f'{o.label or ""} {o.line if o.line is not None else ""}'.strip()
             cells.append(f'<span class="oc"><span class="ocn">{e(lbl)}</span>'
                          f'<span class="ocv">{o.odds}</span></span>')
-        extra = f'<span class="dim" style="font-size:11px"> +{len(outs)-10}</span>' if len(outs) > 10 else ""
-        blocks.append((_mkt_rank(m.label), f'<div class="mkt"><div class="mkt-l">{e(m.label or "Marché")}'
-                       f'{extra}</div><div class="oddsrow oddsrow-wrap">{"".join(cells)}</div></div>'))
-    if not blocks:
+        block = (f'<div class="mkt"><div class="mkt-l">{e(m.label or "Marché")}</div>'
+                 f'<div class="oddsrow oddsrow-wrap">{"".join(cells)}</div></div>')
+        cats.setdefault((rank, name), []).append(block)
+    if not cats:
         return ""
-    blocks.sort(key=lambda b: b[0])
-    return f'<h2>{title} <span class="dim">({len(blocks)})</span></h2>' + "".join(b[1] for b in blocks)
+    total = sum(len(v) for v in cats.values())
+    out = [f'<h2>{title} <span class="dim">({total})</span></h2>']
+    for (rank, name), blocks in sorted(cats.items()):
+        shown = blocks[:18]
+        more = (f'<div class="dim" style="padding:4px 2px">+{len(blocks)-18} autres marchés '
+                "sur Unibet</div>") if len(blocks) > 18 else ""
+        op = " open" if rank == 0 else ""   # « Résultat du match » ouvert d'office
+        out.append(f'<details class="mktcat"{op}><summary>{e(name)} '
+                   f'<span class="mktcat-n">{len(blocks)}</span></summary>'
+                   f'<div class="mktcat-b">{"".join(shown)}{more}</div></details>')
+    return "".join(out)
 
 
 def recommended_bets(value=None, confidence=None) -> str:

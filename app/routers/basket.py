@@ -10,7 +10,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import basket, sportcache, tracking, web
+from app import basket, fragcache, sportcache, tracking, web
 from app.dependencies import get_provider, get_unibet
 from app.models import (
     MatchOdds,
@@ -51,6 +51,10 @@ async def basket_match(event_id: int, frag: int = 0,
                        provider: SofaScoreProvider = Depends(get_provider),
                        unibet: UnibetProvider = Depends(get_unibet)) -> HTMLResponse:
     """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H)."""
+    if frag:
+        cached = fragcache.get(f"basket/{event_id}")
+        if cached:
+            return HTMLResponse(cached)
     store = tracking.load(basket.BASKET_TRACK_PATH)
     rec = next((r for r in store.values() if str(r.get("match_id")) == str(event_id)), None)
     home = away = ""
@@ -115,7 +119,10 @@ async def basket_match(event_id: int, frag: int = 0,
            "comp": comp, "when": when, "prediction": prediction, "odds_cells": odds_cells,
            "forms": forms, "h2h": h2h, "extra": extra, "back_url": "/basket",
            "back_label": "Basket", "sport_key": "basket"}
-    return HTMLResponse(web.render_sport_match_detail(ctx, frag=bool(frag)))
+    html = web.render_sport_match_detail(ctx, frag=bool(frag))
+    if frag and (forms or h2h or extra):
+        fragcache.put(f"basket/{event_id}", html)
+    return HTMLResponse(html)
 
 
 # ------------------------------------------------------------------- API JSON
