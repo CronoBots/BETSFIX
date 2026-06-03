@@ -489,11 +489,11 @@ def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
     clv_txt = "—" if clv is None else f"{'+' if clv >= 0 else ''}{round(clv * 100, 1)}%"
 
     cards = "".join([
-        card("Précision", _pct(prec), f"{rep.get('predictions_evaluees', 0)} matchs", prec_color),
-        card("Brier modèle", num(b_mod), brier_sub, brier_color),
-        card("Brier marché", num(b_mkt), "réf. à battre"),
-        card("CLV moyen", clv_txt, f"{rep.get('clv_evalue', 0)} picks · >0 = edge", clv_color),
-        card("Log-loss", num(rep.get("log_loss")), f"marché : {num(rep.get('log_loss_marche'))}"),
+        card("Favori gagnant", _pct(prec), f"{rep.get('predictions_evaluees', 0)} matchs", prec_color),
+        card("Justesse (modèle)", num(b_mod), brier_sub, brier_color),
+        card("Justesse (cotes)", num(b_mkt), "réf. à battre"),
+        card("Cotes prises (CLV)", clv_txt, f"{rep.get('clv_evalue', 0)} paris · >0 = bon", clv_color),
+        card("Erreur (log-loss)", num(rep.get("log_loss")), f"cotes : {num(rep.get('log_loss_marche'))}"),
         card("Matchs suivis", rep.get("matchs_suivis", 0), f"{rep.get('matchs_regles', 0)} réglés"),
     ])
 
@@ -530,9 +530,9 @@ def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
             f'pour conclure (vise 50+). Ne change rien sur si peu.</div>')
     elif sc > 0.03:
         surconf_html = (
-            f'<div class="banner warn">⚠️ <b>Surconfiance +{round(sc*100)} pts</b> sur '
-            f'{n_calib} matchs : le modèle annonce plus que le taux réel. Envisage de '
-            f'baisser CALIB_SHRINK (relance build_backtest.bat pour confirmer).</div>')
+            f'<div class="banner warn">⚠️ <b>Trop optimiste de +{round(sc*100)} pts</b> sur '
+            f'{n_calib} matchs : le modèle annonce un peu plus de chances que le taux réel — '
+            f'à recalibrer (légère sur-confiance).</div>')
     elif sc < -0.03:
         surconf_html = (
             f'<div class="banner">Sous-confiance {round(sc*100)} pts sur {n_calib} matchs : '
