@@ -240,3 +240,7 @@ def test_render_proof_honnete():
     assert "Value" in html and "ROI" in html
     assert "peu de recul" in html                 # honnêteté petit échantillon, en clair
     assert "Voir le détail" in html               # renvoi vers le dashboard complet
+    # UNIFORMITÉ : les 2 lignes (Confiance + Value) apparaissent sur CHAQUE carte (3 sports)
+    assert html.count("🔥 <b>Confiance</b>") == 3
+    assert html.count("💎 <b>Value</b>") == 3
+    assert "aucun encore" in html                 # placeholder quand un type n'a pas de donnée

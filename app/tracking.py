@@ -397,15 +397,11 @@ def _proof_card(icon: str, name: str, rep: dict, url: str) -> str:
     Honnête : « peu de recul » tant que l'échantillon est faible."""
     e = html.escape
     n = rep.get("predictions_evaluees") or 0
-    head = f'<div class="proof-h">{icon} {e(name)}'
-    if n == 0:
-        return (f'<a class="proofcard" href="{e(url)}">{head} '
-                '<span class="pvpill pv-na">en collecte</span></div>'
-                '<div class="proof-row dim">Aucun match noté pour l\'instant — le suivi se '
-                'construit match après match.</div>'
-                '<div class="proof-go">Voir le détail ›</div></a>')
     bat = rep.get("bat_le_marche")
-    if n < 30:
+    # Pastille (verdict) — toujours présente, même structure pour les 3 sports
+    if n == 0:
+        pill = '<span class="pvpill pv-na">en collecte</span>'
+    elif n < 30:
         pill = f'<span class="pvpill pv-na">en rodage · {n}/30 matchs</span>'
     elif bat is True:
         pill = '<span class="pvpill pv-ok">✓ plus fiable que les cotes</span>'
@@ -413,25 +409,29 @@ def _proof_card(icon: str, name: str, rep: dict, url: str) -> str:
         pill = '<span class="pvpill pv-ko">✗ moins fiable que les cotes</span>'
     else:
         pill = ""
-    rows = [f'{head} {pill}</div>',
+    rows = [f'<div class="proof-h">{icon} {e(name)} {pill}</div>',
             f'<div class="proof-row dim">{n} matchs notés</div>']
-    # 🔥 CONFIANCE : combien de paris « favori net » sont passés (intuitif : X gagnés sur Y)
+    none = '<span class="dim">aucun encore</span>'
+    # 🔥 CONFIANCE : combien de paris « favori net » sont passés — TOUJOURS affichée (uniformité)
     conf = next((d for d in (rep.get("par_type") or []) if d.get("label") == "Confiance"), None)
     if conf and conf.get("n"):
         cn = conf["n"]
         wins = round((conf.get("precision") or 0) * cn)
         recul = ' <span class="dim">· peu de recul</span>' if cn < 20 else ""
-        rows.append(f'<div class="proof-row">🔥 <b>Confiance</b> · {wins}/{cn} gagnés{recul}</div>')
-    # 💎 VALUE : ROI (le vrai juge ; le taux est dans le dashboard). ROI coloré vert/rouge.
+        cval = f'{wins}/{cn} gagnés{recul}'
+    else:
+        cval = none
+    rows.append(f'<div class="proof-row">🔥 <b>Confiance</b> · {cval}</div>')
+    # 💎 VALUE : ROI (le vrai juge) — TOUJOURS affichée (uniformité), coloré vert/rouge
     vn = rep.get("value_paris_regles") or 0
     if vn:
         roi = rep.get("value_roi") or 0
         cls = "pos" if roi >= 0 else "neg"
         recul = ' <span class="dim">· peu de recul</span>' if vn < 20 else ""
-        rows.append(f'<div class="proof-row">💎 <b>Value</b> · {vn} paris · '
-                    f'ROI <span class="{cls}">{_signed_pct(roi)}</span>{recul}</div>')
-    if conf is None and not vn:
-        rows.append('<div class="proof-row dim">Pas encore de pari conseillé noté.</div>')
+        vval = f'{vn} paris · ROI <span class="{cls}">{_signed_pct(roi)}</span>{recul}'
+    else:
+        vval = none
+    rows.append(f'<div class="proof-row">💎 <b>Value</b> · {vval}</div>')
     rows.append('<div class="proof-go">Voir le détail ›</div>')
     return f'<a class="proofcard" href="{e(url)}">{"".join(rows)}</a>'
 
