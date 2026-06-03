@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import os
+import re
 import time
 from datetime import datetime, timezone
 
@@ -1018,7 +1019,26 @@ _MKT_CATS = [
 ]
 
 
-def _market_category(label: str, mtype: str) -> tuple[str, int]:
+# Tennis : Unibet groupe en Match / Jeu / Point / Set, déduits du LIBELLÉ (aucun champ dédié).
+# Ordre de matching : du plus spécifique au plus générique. 2e nombre = rang d'affichage.
+_TENNIS_GROUPS = [
+    ("Point", 2, re.compile(r"\bpoint\s+\d")),                  # « Point 1 - Set 3, Jeu 2 »
+    ("Jeu", 1, re.compile(r"\bjeu\s+\d|40-40|balle de break")), # rattaché à un jeu précis
+    ("Set", 3, re.compile(r"\bset\s+\d|\bmanche\s+\d")),        # rattaché à un set précis
+]
+
+
+def _tennis_market_category(label: str) -> tuple[str, int]:
+    s = (label or "").lower()
+    for name, rank, rx in _TENNIS_GROUPS:
+        if rx.search(s):
+            return name, rank
+    return "Match", 0   # cotes du match, pari de set, handicap du jeu, total de jeux… = niveau match
+
+
+def _market_category(label: str, mtype: str, sport: str | None = None) -> tuple[str, int]:
+    if (sport or "").lower() in ("tennis", "atp", "wta"):
+        return _tennis_market_category(label)
     s = f'{label or ""} {mtype or ""}'.lower()
     for name, rank, keys in _MKT_CATS:
         if any(k in s for k in keys):
@@ -1026,7 +1046,8 @@ def _market_category(label: str, mtype: str) -> tuple[str, int]:
     return "Autres marchés", 99
 
 
-def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet") -> str:
+def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet",
+                          sport: str | None = None) -> str:
     """Tous les marchés Unibet, REGROUPÉS par catégorie (comme l'app Unibet) en sections
     repliables : un gros match a 500+ marchés -> on affiche les catégories + leur nombre,
     et on déplie pour voir les cotes. Cap par catégorie pour garder un poids raisonnable."""
@@ -1048,7 +1069,7 @@ def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet") ->
     cats: dict = {}
     for key in order:
         outs = merged[key]
-        name, rank = _market_category(key, "")
+        name, rank = _market_category(key, "", sport)
         cells = []
         for o in outs[:30]:
             lbl = f'{o.label or ""} {o.line if o.line is not None else ""}'.strip()
