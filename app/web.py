@@ -205,8 +205,11 @@ CSS = """
   .row:active{transform:scale(.99);border-color:var(--border2)}
   /* Carte dépliable (foot/basket) : analyse en accordéon sous la carte */
   .rowtap{cursor:pointer}
-  .exp-c{margin-top:9px;font-size:10.5px;color:var(--accent2);font-weight:800;display:flex;
-         align-items:center;gap:5px;text-transform:uppercase;letter-spacing:.05em}
+  .exp-c{margin-top:10px;font-size:10.5px;color:var(--accent2);font-weight:800;display:inline-flex;
+         align-items:center;gap:5px;text-transform:uppercase;letter-spacing:.05em;
+         padding:5px 11px;border:1px solid var(--border2);border-radius:20px;
+         background:rgba(255,255,255,.02)}
+  .row.open .exp-c{color:var(--text);border-color:var(--accent2)}
   .exp-chev{display:inline-block;transition:transform .18s}
   .row.open .exp-chev{transform:rotate(180deg)}
   .exp{margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
@@ -784,7 +787,7 @@ def _pick_card(p: dict, badge: str) -> str:
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
         sep = "&" if "?" in url else "?"
         return (f'<div class="row pick rowtap" data-exp="{url}{sep}frag=1">{inner}'
-                f'<div class="exp-c"><span class="exp-chev">▾</span> Analyse détaillée</div>'
+                f'<div class="exp-c"><span class="exp-chev">▾</span> 🧠 Voir l\'analyse</div>'
                 f'<div class="exp" hidden></div></div>')
     return f'<a class="row pick" href="{url}">{inner}</a>'
 
@@ -905,7 +908,7 @@ def _sport_row(r: dict) -> str:
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
         sep = "&" if "?" in url else "?"
         return (f'<div class="{cls} rowtap" data-exp="{url}{sep}frag=1">{inner}'
-                f'<div class="exp-c"><span class="exp-chev">▾</span> Analyse détaillée</div>'
+                f'<div class="exp-c"><span class="exp-chev">▾</span> 🧠 Voir l\'analyse</div>'
                 f'<div class="exp" hidden></div></div>')
     if url:
         return f'<a class="{cls}" href="{url}">{inner}</a>'
