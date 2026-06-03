@@ -39,6 +39,12 @@ def _support(b: dict, seed: int) -> str:
     if surf and b.get("surface_edge"):
         surf_fr = {"terre": "la terre battue", "dur": "le dur", "gazon": "le gazon"}.get(surf, surf)
         bits.append(f"{surf_fr} lui réussit")
+    fr, dr = b.get("fav_rank"), b.get("dog_rank")
+    if fr and dr and abs(fr - dr) >= 8:
+        if fr < dr:
+            bits.append(f"mieux classé ({fr}ᵉ contre {dr}ᵉ)")
+        else:   # notre favori est le MOINS bien classé -> insight fort
+            bits.append(f"pourtant moins bien classé ({fr}ᵉ contre {dr}ᵉ)")
     hf, ho = b.get("h2h_fav"), b.get("h2h_opp")
     if hf is not None and ho is not None and (hf + ho) > 0:
         if hf > ho:

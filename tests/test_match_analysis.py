@@ -45,3 +45,17 @@ def test_wrap_html():
     assert "Notre analyse" in out and "Texte d'analyse." in out
     assert 'class="an-card"' in out and "💎 VALUE" in out   # carte premium + verdict
     assert _wrap("", by_claude=False) == ""                # vide -> rien
+
+
+def test_classement_insight():
+    # favori MIEUX classé -> appui
+    b = {"favorite": "A", "underdog": "B", "fav_prob": 0.7, "fav_odds": 1.3,
+         "fav_rank": 1, "dog_rank": 40, "match_id": 1}
+    assert "Mieux classé" in _templated(b)
+    # favori MOINS bien classé -> insight « pourtant » (le modèle aime l'outsider)
+    b2 = {"favorite": "A", "underdog": "B", "fav_prob": 0.55, "fav_odds": 1.8,
+          "fav_rank": 60, "dog_rank": 12, "match_id": 2}
+    assert "moins bien classé" in _templated(b2)
+    # écart de classement faible -> pas mentionné (pas de bruit)
+    b3 = {"favorite": "A", "underdog": "B", "fav_prob": 0.6, "fav_rank": 10, "dog_rank": 13, "match_id": 3}
+    assert "classé" not in _templated(b3)

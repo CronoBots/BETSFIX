@@ -792,6 +792,8 @@ async def match_detail(
             "confidence": analysis.confidence,
             "value": ({"name": value[0], "odds": value[1], "edge": value[2]} if value else None),
             "surface": surface, "surface_edge": surf_edge,
+            "fav_rank": (match.home.ranking if fav_home else match.away.ranking),
+            "dog_rank": (match.away.ranking if fav_home else match.home.ranking),
             "fav_form_wins": sum(1 for x in (fform or []) if x.get("win")),
             "fav_form_n": len(fform or []),
             "h2h_fav": (h2h_rec or {}).get("home" if fav_home else "away"),
