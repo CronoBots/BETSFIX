@@ -28,6 +28,8 @@ except (AttributeError, ValueError):
 from app import basket, sofa_http
 from app.elo_math import expected, mov_multiplier
 
+sofa_http.allow_rapid = False   # le backtest (gros volume) n'use PAS le quota RapidAPI -> live only
+
 B = "https://api.sofascore.com/api/v1"
 LEAGUES = {132: ("NBA", 12.5), 486: ("WNBA", 11.0)}   # tid -> (nom, sigma live)
 BASE, K, HOME_ADV_LIVE = 1500.0, 24.0, 65.0           # mêmes que build_basket_elo.py

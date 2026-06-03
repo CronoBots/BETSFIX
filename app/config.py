@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     unibet_lang: str = "fr_BE"
     unibet_market: str = "BE"
 
+    # Repli SofaScore via RapidAPI SportAPI7 (OPTIONNEL) : utilisé UNIQUEMENT quand SofaScore
+    # renvoie 403/429 (rate-limit). Plafond/jour pour protéger le quota (Pro = 15 000/mois).
+    rapidapi_key: str = ""
+    rapidapi_host: str = "sportapi7.p.rapidapi.com"
+    rapidapi_daily_cap: int = 400
+
     # Analyse rédigée par Claude (OPTIONNEL) : si la clé est vide, on garde l'analyse
     # gratuite générée localement (templatée). Mettre ANTHROPIC_API_KEY dans .env pour
     # passer en prose Claude (Haiku par défaut, ~bon marché en cache).

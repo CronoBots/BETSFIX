@@ -233,6 +233,11 @@ class SofaScoreProvider:
                     await asyncio.sleep(gap)
                 self._last_req = time.monotonic()
                 resp = await self._client.get(self._base + path)
+            # SofaScore bloqué (403/429) -> repli RapidAPI sur le MÊME chemin, avant le circuit
+            if resp.status_code in (403, 429):
+                rr = await sofa_http._rapid_get(self._base + path, None)
+                if rr is not None and rr.status_code == 200:
+                    resp = rr
             if resp.status_code == 404:
                 raise ProviderError("Ressource introuvable chez la source.", status_code=404)
             if resp.status_code in (403, 429):  # rate-limit -> ouvre le circuit

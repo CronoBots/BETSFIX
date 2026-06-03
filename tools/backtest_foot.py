@@ -28,6 +28,8 @@ except (AttributeError, ValueError):
 from app import foot, sofa_http
 from app.elo_math import expected, mov_multiplier
 
+sofa_http.allow_rapid = False   # le backtest (gros volume) n'use PAS le quota RapidAPI -> live only
+
 B = "https://api.sofascore.com/api/v1"
 WC_TID = 16
 BASE, K, HOME_ADV = 1500.0, 28.0, 35.0
