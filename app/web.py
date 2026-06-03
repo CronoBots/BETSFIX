@@ -296,14 +296,19 @@ CSS = """
   .pb-h2 .dim{font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.04em;flex:none}
   .pb-hn,.pb-an{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
   .pb-an{text-align:right}
-  /* Un bloc par source : nom AU-DESSUS, puis home% · nul% · away%, puis la barre */
-  .pbg{margin:7px 0 0}
+  /* Un bloc par source : nom CENTRÉ au-dessus, % écrits DANS la barre (home gauche, nul centre,
+     away droite). Barre haute pour loger le texte ; libellés en absolu, lisibles sur tout fond. */
+  .pbg{margin:8px 0 0}
   .pbg-s{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
-         color:var(--muted);margin-bottom:3px}
-  .pbg-v{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
-         font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;margin-bottom:3px}
-  .pbg-v .dim{font-weight:600;font-size:10px}
-  .pbg-a{color:var(--muted)}
+         color:var(--muted);margin-bottom:3px;text-align:center}
+  .pb-t2{position:relative;display:flex;gap:1px;height:18px;border-radius:99px;overflow:hidden;
+         background:var(--surface)}
+  .pb-seg{display:block;height:100%}
+  .pl-h,.pl-d,.pl-a{position:absolute;top:50%;font-size:10px;font-weight:800;color:#fff;
+         text-shadow:0 1px 2px rgba(0,0,0,.6);font-variant-numeric:tabular-nums;pointer-events:none}
+  .pl-h{left:7px;transform:translateY(-50%)}
+  .pl-a{right:7px;transform:translateY(-50%)}
+  .pl-d{transform:translate(-50%,-50%)}
   .pb-row{display:flex;align-items:center;gap:7px;font-size:11px}
   .pb-l{width:64px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
         font-weight:800;font-size:9px}
@@ -692,13 +697,17 @@ def _pick_bars(p: dict) -> str:
         if h is None or a is None:
             return ""
         hp, ap = round(h * 100), round(a * 100)
-        dp = round(d * 100) if d is not None else None
-        mid_val = f'<span class="dim">nul {dp}%</span>' if dp is not None else ""
-        seg_d = f'<span class="pbd" style="width:{dp}%"></span>' if dp is not None else ""
+        segs = f'<span class="{cls} pb-seg" style="width:{hp}%"></span>'
+        lbls = f'<span class="pl-h">{hp}%</span>'
+        if d is not None:                       # segment + libellé du nul (centré sur le segment)
+            dp = round(d * 100)
+            segs += f'<span class="pbd pb-seg" style="width:{dp}%"></span>'
+            if dp >= 8:
+                lbls += f'<span class="pl-d" style="left:{round((h + d / 2) * 100, 1)}%">{dp}%</span>'
+        segs += f'<span class="pba pb-seg" style="width:{ap}%"></span>'
+        lbls += f'<span class="pl-a">{ap}%</span>'
         return (f'<div class="pbg"><div class="pbg-s">{label}</div>'
-                f'<div class="pbg-v"><span>{hp}%</span>{mid_val}<span class="pbg-a">{ap}%</span></div>'
-                f'<div class="pb-t"><span class="{cls}" style="width:{hp}%"></span>'
-                f'{seg_d}<span class="pba" style="width:{ap}%"></span></div></div>')
+                f'<div class="pb-t2">{segs}{lbls}</div></div>')
 
     def short(n):
         return (str(n).split() or [str(n)])[-1]
