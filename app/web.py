@@ -125,6 +125,10 @@ CSS = """
   .botnav a:active{transform:scale(.93)}
   .botnav a.on{color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
   .botnav a.on .ic{transform:scale(1.06)}
+  /* Onglet Directs : pastille 🔴 qui pulse (effet live) */
+  .botnav a[data-tab="directs"] .ic{animation:livepulse 1.4s ease-in-out infinite}
+  @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.86)}}
+  .botnav a[data-tab="directs"].on .ic{animation:none}
   /* SPA : panneaux par onglet (tout chargé à l'ouverture, bascule sans rechargement) */
   .panel{display:none}
   .panel.on{display:block;animation:fadein .18s ease}
@@ -193,6 +197,15 @@ CSS = """
        border-radius:var(--radius);padding:12px 14px;margin:8px 0;border:1px solid var(--border);
        box-shadow:var(--shadow-sm);transition:.16s}
   .row:active{transform:scale(.99);border-color:var(--border2)}
+  /* Carte dépliable (foot/basket) : analyse en accordéon sous la carte */
+  .rowtap{cursor:pointer}
+  .exp-c{margin-top:9px;font-size:10.5px;color:var(--accent2);font-weight:800;display:flex;
+         align-items:center;gap:5px;text-transform:uppercase;letter-spacing:.05em}
+  .exp-chev{display:inline-block;transition:transform .18s}
+  .rowx.open .exp-chev{transform:rotate(180deg)}
+  .exp{margin:-2px 2px 10px;padding:2px 14px 4px}
+  .exp h2{margin:14px 0 8px}
+  .exp .ldg{padding:18px 0}
   .row.pick{border-color:rgba(46,226,127,.45);
             background:linear-gradient(180deg,rgba(46,226,127,.10),rgba(46,226,127,.03));
             box-shadow:0 4px 18px rgba(46,226,127,.14)}
@@ -378,9 +391,9 @@ CSS = """
 _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 
 # Onglets de la SPA (clé, URL, icône, libellé). L'URL sert AUSSI de source AJAX (?frag=1).
-_SPA_TABS = [("home", "/", "🏠", "Accueil"), ("directs", "/directs", "🔴", "Directs"),
-             ("tennis", "/app", "🎾", "Tennis"), ("basket", "/basket", "🏀", "Basket"),
-             ("foot", "/foot", "⚽", "Foot")]
+_SPA_TABS = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
+             ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot"),
+             ("directs", "/directs", "🔴", "Directs")]
 
 
 def _subnav(sport: str) -> str:
@@ -451,7 +464,19 @@ _SPA_JS = (
     "document.addEventListener('click',function(e){var b=e.target.closest('[data-dvg]');"
     "if(!b)return;e.preventDefault();e.stopPropagation();"
     "var pb=b.closest('.pbars'),bub=pb&&pb.nextElementSibling;"
-    "if(bub&&bub.classList.contains('dvg-bubble'))bub.hidden=!bub.hidden;});})();"
+    "if(bub&&bub.classList.contains('dvg-bubble'))bub.hidden=!bub.hidden;});"
+    # carte dépliable (foot/basket) : tap -> charge et déplie l'analyse sous la carte
+    "document.addEventListener('click',function(e){"
+    "if(e.target.closest('[data-dvg]')||e.target.closest('.exp')||e.target.closest('a'))return;"
+    "var c=e.target.closest('[data-exp]');if(!c)return;e.preventDefault();"
+    "var w=c.closest('.rowx'),x=w&&w.querySelector('.exp');if(!x)return;"
+    "if(!x.hidden){x.hidden=true;w.classList.remove('open');return;}"
+    "w.classList.add('open');x.hidden=false;"
+    "if(!x.getAttribute('data-loaded')){x.setAttribute('data-loaded','1');"
+    "x.innerHTML='<div class=ldg>Chargement de l\\'analyse…</div>';"
+    "fetch(c.getAttribute('data-exp')).then(function(r){return r.text();})"
+    ".then(function(h){x.innerHTML=h;}).catch(function(){x.removeAttribute('data-loaded');"
+    "x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}});})();"
 )
 
 
@@ -769,8 +794,14 @@ def _sport_row(r: dict) -> str:
              f'<span class="dim">vs</span> {af}{e(r.get("away") or "")}</div>{badge}</div>'
              f'{probviz}{r.get("sub", "")}')
     cls = "row pick" if r.get("pick") else "row"
-    if r.get("url"):
-        return f'<a class="{cls}" href="{r["url"]}">{inner}</a>'
+    url = r.get("url") or ""
+    # Foot/basket : tap -> déplie l'analyse (forme + H2H) SOUS la carte, sans changer de vue.
+    if url.startswith("/foot/match/") or url.startswith("/basket/match/"):
+        return (f'<div class="rowx"><div class="{cls} rowtap" data-exp="{url}?frag=1">{inner}'
+                f'<div class="exp-c"><span class="exp-chev">▾</span> Analyse détaillée</div></div>'
+                f'<div class="exp" hidden></div></div>')
+    if url:   # tennis : page d'analyse riche dédiée
+        return f'<a class="{cls}" href="{url}">{inner}</a>'
     return f'<div class="{cls}">{inner}</div>'
 
 
@@ -906,9 +937,10 @@ def _team_form_block(flag: str, name: str, tf: dict | None) -> str:
             f'<span class="dim">{" · ".join(meta) if meta else ""}</span></div>')
 
 
-def render_sport_match_detail(ctx: dict) -> str:
+def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     """Fiche détaillée d'un match foot/basket : prédiction (3 barres + divergence + cotes)
-    puis analyse SofaScore (forme des 2 équipes, confrontations directes)."""
+    puis analyse SofaScore (forme des 2 équipes, confrontations directes).
+    `frag=True` -> renvoie SEULEMENT l'analyse (forme + H2H) pour l'accordéon sous la carte."""
     e = html.escape
     hf = f'{ctx.get("home_flag")} ' if ctx.get("home_flag") else ""
     af = f'{ctx.get("away_flag")} ' if ctx.get("away_flag") else ""
@@ -937,10 +969,13 @@ def render_sport_match_detail(ctx: dict) -> str:
         cells.append(f'<span class="h2h-c"><b>{aw}</b><span class="dim">{e(ctx["away"])}</span></span>')
         h2h_html = f'<h2>🤝 Confrontations directes</h2><div class="h2h">{"".join(cells)}</div>'
 
+    no_data = ('<div class="banner">Analyse SofaScore indisponible pour ce match '
+               '(source momentanément en pause ou match non couvert).</div>')
+    if frag:   # accordéon sous la carte : juste l'analyse (la carte montre déjà proba + cotes)
+        return (form_html + h2h_html) or no_data
     body = head + pred + odds + form_html + h2h_html
     if not (form_html or h2h_html):
-        body += ('<div class="banner">Détails SofaScore indisponibles pour ce match '
-                 '(source momentanément en pause ou match non couvert).</div>')
+        body += no_data
     return layout(ctx["home"] + " vs " + ctx["away"], ctx["sport_key"], body, subnav="matchs")
 
 

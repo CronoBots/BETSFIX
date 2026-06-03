@@ -50,7 +50,7 @@ async def foot_page(frag: int = 0) -> HTMLResponse:
 
 @router.get("/foot/match/{event_id}", response_class=HTMLResponse,
             summary="Fiche détaillée d'un match foot (prédiction + forme + H2H)")
-async def foot_match(event_id: int,
+async def foot_match(event_id: int, frag: int = 0,
                      provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
     """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H)."""
     store = tracking.load(foot.FOOT_TRACK_PATH)
@@ -85,7 +85,7 @@ async def foot_match(event_id: int,
            "away_flag": flags.flag(away), "comp": comp, "when": when,
            "prediction": prediction, "odds_cells": odds_cells, "forms": forms, "h2h": h2h,
            "back_url": "/foot", "back_label": "Foot", "sport_key": "foot"}
-    return HTMLResponse(web.render_sport_match_detail(ctx))
+    return HTMLResponse(web.render_sport_match_detail(ctx, frag=bool(frag)))
 
 
 # ------------------------------------------------------------------- API JSON
