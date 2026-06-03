@@ -1261,10 +1261,13 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
 
     # frag : accordéon sous la carte -> analyse SANS l'en-tête (matchup déjà sur la carte)
     # ni le bandeau layout. On garde tout le reste (la plus complète).
-    if frag:   # accordéon : pas de paris_link (il ouvrirait une page)
-        return (pari_html + verdict + form_html + h2h_html + votes_html
-                + probs + factors + aces_html + odds_html) \
-            or '<div class="dim">Analyse indisponible.</div>'
+    if frag:
+        # Accordéon : la CARTE montre déjà la prédiction (proba + cotes), source de vérité.
+        # On NE répète PAS le favori / les probas / les cotes ici (la fiche recalcule au clic
+        # et peut diverger si SofaScore est limité) -> on garde l'analyse qui COMPLÈTE vraiment.
+        return (pari_html + form_html + h2h_html + votes_html + factors + aces_html) \
+            or '<div class="dim">Analyse détaillée indisponible (SofaScore momentanément ' \
+               'limité) — la prédiction reste celle de la carte.</div>'
     body = (head + pari_html + verdict + form_html + h2h_html + votes_html + paris_link
             + probs + factors + aces_html + odds_html)
     return layout(f"{a.home.name} vs {a.away.name}", "tennis", body, subnav="matchs")
