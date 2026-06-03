@@ -297,7 +297,8 @@ CSS = """
   .pt2-h,.pt2-row{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center}
   .pt2-h{padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
          color:var(--muted);border-bottom:1px solid var(--border)}
-  .pt2-h span{text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* en-tête équipes : nom COMPLET, peut passer sur 2 lignes (au lieu de tronquer « S… ») */
+  .pt2-h span{text-align:right;line-height:1.12;hyphens:auto;overflow-wrap:anywhere}
   .pt2-h span:first-child{text-align:left}
   .pt2-block{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.04)}
   .pt2-block:last-child{border-bottom:none}
@@ -326,6 +327,7 @@ CSS = """
   .pc{background:#e0b341}                                   /* Public jaune */
   .pbd{background:var(--dim)}          /* segment 'nul' (foot) */
   .pba{background:var(--surface2)}     /* segment joueur 2 (droite) */
+  .pbm{background:#3a4763}             /* segment NON-favori (atténué) dans le tableau */
   /* Divergence public/modèle : emoji à droite de la barre PUBLIC + bulle au tap */
   .pb-x{width:20px;flex:none;text-align:center}
   .dvg-i{cursor:pointer;font-size:14px;line-height:1;-webkit-tap-highlight-color:transparent}
@@ -713,10 +715,12 @@ def _pick_bars(p: dict) -> str:
             cls = f"pt2-v hi t-{scol}" if v == mx else "pt2-v"   # favori coloré (couleur source)
             return f'<span class="{cls}">{round(v * 100)}%</span>'
         cells = cell(h) + (cell(d) if has_draw else "") + cell(a)
-        # fine barre de proportion (home=couleur source · nul=gris · away=atténué), sans texte
-        bar = (f'<span class="{scol}" style="width:{round(h * 100)}%"></span>'
-               + (f'<span class="pbd" style="width:{round((d or 0) * 100)}%"></span>' if has_draw else "")
-               + f'<span class="pba" style="width:{round(a * 100)}%"></span>')
+        # fine barre : le segment du FAVORI (plus haut %) est coloré (couleur source), les autres
+        # atténués -> le morceau coloré suit le favori (à droite si l'extérieur est favori).
+        def seg(v):
+            cls = scol if (v is not None and v == mx) else "pbm"
+            return f'<span class="{cls}" style="width:{round((v or 0) * 100)}%"></span>'
+        bar = seg(h) + (seg(d) if has_draw else "") + seg(a)
         return (f'<div class="pt2-block"><div class="pt2-row">'
                 f'<span class="pt2-s">{label}</span>{cells}</div>'
                 f'<div class="pt2-bar">{bar}</div></div>')
