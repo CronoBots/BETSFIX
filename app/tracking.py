@@ -465,7 +465,7 @@ def render_proof(reports: list[tuple]) -> str:
             '<b>Confiance</b> = paris « favori net » gagnés (doit passer souvent). '
             '<b>Value</b> = <b>ROI</b> des paris « grosse cote » : ils perdent souvent (normal), '
             'seul le ROI compte. Touche une ligne pour les chiffres détaillés.')
-    return web._section('📊 Preuve — bat le marché ?', table, open_=True, info=info)
+    return web._section('📊 BETSFIX bat le marché ?', table, open_=True, info=info)
 
 
 def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
