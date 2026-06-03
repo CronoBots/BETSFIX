@@ -1031,18 +1031,32 @@ def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet") ->
     repliables : un gros match a 500+ marchés -> on affiche les catégories + leur nombre,
     et on déplie pour voir les cotes. Cap par catégorie pour garder un poids raisonnable."""
     e = html.escape
-    cats: dict = {}
+    # 1) FUSION « comme Unibet » : tous les betOffers d'un même marché (criterion.label) sont
+    #    regroupés en UN SEUL bloc rassemblant toutes leurs lignes (ex. « Handicap » = 1 marché
+    #    avec ses 48 lignes, et non 48 marchés). Le compte par catégorie colle alors à Unibet.
+    merged: dict = {}
+    order: list = []
     for m in (markets or []):
         outs = [o for o in (m.outcomes or []) if o.odds]
         if not outs:
             continue
-        name, rank = _market_category(m.label, m.type)
+        key = (m.label or m.type or "Marché").strip()
+        if key not in merged:
+            merged[key] = []
+            order.append(key)
+        merged[key].extend(outs)
+    cats: dict = {}
+    for key in order:
+        outs = merged[key]
+        name, rank = _market_category(key, "")
         cells = []
-        for o in outs[:10]:
+        for o in outs[:30]:
             lbl = f'{o.label or ""} {o.line if o.line is not None else ""}'.strip()
             cells.append(f'<span class="oc"><span class="ocn">{e(lbl)}</span>'
                          f'<span class="ocv">{o.odds}</span></span>')
-        block = (f'<div class="mkt"><div class="mkt-l">{e(m.label or "Marché")}</div>'
+        if len(outs) > 30:
+            cells.append(f'<span class="oc dim"><span class="ocn">+{len(outs)-30} lignes</span></span>')
+        block = (f'<div class="mkt"><div class="mkt-l">{e(key)}</div>'
                  f'<div class="oddsrow oddsrow-wrap">{"".join(cells)}</div></div>')
         cats.setdefault((rank, name), []).append(block)
     if not cats:
@@ -1050,9 +1064,9 @@ def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet") ->
     total = sum(len(v) for v in cats.values())
     out = [f'<h2>{title} <span class="dim">({total})</span></h2>']
     for (rank, name), blocks in sorted(cats.items()):
-        shown = blocks[:18]
-        more = (f'<div class="dim" style="padding:4px 2px">+{len(blocks)-18} autres marchés '
-                "sur Unibet</div>") if len(blocks) > 18 else ""
+        shown = blocks[:40]
+        more = (f'<div class="dim" style="padding:4px 2px">+{len(blocks)-40} autres marchés '
+                "sur Unibet</div>") if len(blocks) > 40 else ""
         op = " open" if rank == 0 else ""   # « Résultat du match » ouvert d'office
         out.append(f'<details class="mktcat"{op}><summary>{e(name)} '
                    f'<span class="mktcat-n">{len(blocks)}</span></summary>'
