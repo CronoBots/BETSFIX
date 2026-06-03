@@ -144,14 +144,26 @@ async def _claude(b: dict, settings) -> str | None:
     return text.strip() or None
 
 
-def _wrap(text: str, by_claude: bool) -> str:
+def _verdict_tag(b: dict) -> tuple[str, str]:
+    """Verdict instantané (label, classe CSS) déduit des données, affiché en tête de l'analyse."""
+    if b.get("value"):
+        return ("💎 VALUE", "val")
+    if (b.get("fav_prob") or 0) >= 0.65:
+        return ("🔥 CONFIANCE", "conf")
+    return ("⚪ À ÉVITER", "no")
+
+
+def _wrap(text: str, by_claude: bool, tag: tuple[str, str] | None = None) -> str:
     if not text:
         return ""
-    src = "Claude" if by_claude else "automatique"
-    note = (f'<div class="dim" style="font-size:10.5px;margin-top:7px">Analyse {src}, à partir '
-            "des données du match — pas un conseil garanti.</div>")
-    return (f'<h2>🧠 L\'analyse</h2><div class="banner analysis">'
-            f'{html.escape(text, quote=False)}{note}</div>')
+    src = "Claude" if by_claude else "auto"
+    tag_html = f'<span class="an-tag {tag[1]}">{tag[0]}</span>' if tag else ""
+    return (
+        '<div class="an-card"><div class="an-head"><span class="an-ic">🧠</span>'
+        f'<span class="an-title">Notre analyse</span>{tag_html}</div>'
+        f'<div class="an-body">{html.escape(text, quote=False)}</div>'
+        f'<div class="an-note">Générée {src} à partir des données du match — '
+        "pas un conseil garanti.</div></div>")
 
 
 async def write_analysis(brief: dict, settings=None) -> str:
@@ -165,4 +177,4 @@ async def write_analysis(brief: dict, settings=None) -> str:
             text = None
     if not text:
         text = _templated(brief)
-    return _wrap(text, by_claude)
+    return _wrap(text, by_claude, _verdict_tag(brief))

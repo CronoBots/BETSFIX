@@ -41,7 +41,7 @@ def test_deterministe():
 
 
 def test_wrap_html():
-    out = _wrap("Texte d'analyse.", by_claude=False)
-    assert "L'analyse" in out and "Texte d'analyse." in out
-    assert 'class="banner analysis"' in out
+    out = _wrap("Texte d'analyse.", by_claude=False, tag=("💎 VALUE", "val"))
+    assert "Notre analyse" in out and "Texte d'analyse." in out
+    assert 'class="an-card"' in out and "💎 VALUE" in out   # carte premium + verdict
     assert _wrap("", by_claude=False) == ""                # vide -> rien

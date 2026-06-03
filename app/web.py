@@ -397,9 +397,22 @@ CSS = """
   .banner.warn{background:linear-gradient(180deg,var(--gold-bg),rgba(35,29,9,.45));
           border:1px solid var(--gold-bd);border-left:3px solid var(--gold);color:var(--gold)}
   .banner.warn b{color:#ffd877}
-  /* Bloc « analyse rédigée » (texte d'expert généré) */
-  .banner.analysis{border-left:3px solid var(--accent2);color:var(--text);font-size:13px;
-          line-height:1.62;background:linear-gradient(180deg,var(--surface2),var(--surface))}
+  /* Carte « analyse rédigée » (texte d'expert généré) — premium */
+  .an-card{background:linear-gradient(180deg,var(--surface2),var(--surface));
+          border:1px solid var(--border);border-left:3px solid var(--brand);border-radius:14px;
+          padding:13px 15px;margin:11px 0;box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
+  .an-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .an-ic{font-size:16px}
+  .an-title{font-weight:800;font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;
+          color:var(--muted)}
+  .an-tag{margin-left:auto;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;
+          white-space:nowrap}
+  .an-tag.val{background:rgba(46,226,127,.14);color:var(--green);border:1px solid rgba(46,226,127,.3)}
+  .an-tag.conf{background:rgba(46,155,255,.14);color:var(--brand);border:1px solid rgba(46,155,255,.32)}
+  .an-tag.no{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  .an-body{font-size:13.5px;line-height:1.62;color:var(--text)}
+  .an-note{font-size:10px;color:var(--muted);margin-top:9px;border-top:1px solid var(--border);
+          padding-top:7px}
   /* « Preuve » — tableau unique (1 ligne/sport, colonnes alignées) façon tableau de bord */
   .ptab{border:1px solid var(--border);border-radius:14px;overflow:hidden;margin:8px 0;
           background:linear-gradient(180deg,var(--surface2),var(--surface));
