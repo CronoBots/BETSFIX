@@ -95,7 +95,8 @@ async def team_context(event_id: int, home: str, away: str, unit: str = "buts") 
                 return f'<div class="frow"><div class="fn">{web.html.escape(name)}</div><span class="dim">—</span></div>'
             position, pts, sf, sa = p
             return (f'<div class="frow"><div class="fn">{web.html.escape(name)}</div>'
-                    f'<span class="dim">{position}<sup>e</sup> · {pts} pts · {sf}:{sa} {unit}</span></div>')
+                    f'<span class="dim">{position}<sup>e</sup> · {pts} pts · {sf} {unit} marqués, '
+                    f'{sa} encaissés</span></div>')
         standings_html = '<h2>📊 Classement</h2>' + line(home, hid) + line(away, aid)
 
     # 5 derniers résultats détaillés (adversaire + score)
@@ -119,7 +120,8 @@ async def team_context(event_id: int, home: str, away: str, unit: str = "buts") 
         return f'<div class="players" style="font-size:14px;margin:8px 0 2px">{web.html.escape(name)}</div>' + "".join(rows)
     last_html = last5(home, hid, h_last) + last5(away, aid, a_last)
     if last_html:
-        last_html = '<h2>📅 5 derniers résultats</h2>' + last_html
+        last_html = ('<h2>📅 5 derniers résultats <span class="dim" style="font-weight:400;'
+                     'font-size:11px">· 🟢 gagné · 🟡 nul · 🔴 perdu</span></h2>' + last_html)
     return standings_html + last_html
 
 
@@ -161,8 +163,8 @@ def _market_compare(label: str, model_p: float, book_imp) -> str:
         val = ""
     else:
         bp = round(book_imp * 100)
-        val = ' <span class="badge b-val">VALUE</span>' if (model_p - book_imp) >= 0.08 else ""
-        right = f'BETSFIX <b>{mp}%</b> · <span class="dim">book {bp}%</span>'
+        val = ' <span class="badge b-val">value</span>' if (model_p - book_imp) >= 0.08 else ""
+        right = f'BETSFIX <b>{mp}%</b> · <span class="dim">Unibet {bp}%</span>'
     return f'<div class="formrow"><span class="fc"><b>{label}</b>{val}</span><span class="fc">{right}</span></div>'
 
 
@@ -229,8 +231,11 @@ async def foot_match(event_id: int, frag: int = 0,
     # ⚽ Comparaison modèle vs Unibet sur les marchés que le modèle évalue (O/U 2,5, BTTS)
     g = (rec or {}).get("goals")
     if g and g.get("over25") is not None:
-        extra += ('<h2>⚽ Marchés évalués (modèle vs Unibet)</h2>'
-                  + _market_compare("Plus de 2,5 buts", g["over25"], _unibet_over(markets, 2.5))
+        extra += ('<h2>⚽ Notre avis vs Unibet</h2>'
+                  '<div class="dim" style="font-size:11px;margin:-2px 0 8px">Pour chaque pari, '
+                  'la chance estimée par <b>BETSFIX</b> face à celle d\'<b>Unibet</b>. Le badge '
+                  '<b>value</b> apparaît quand on donne nettement plus de chances que la cote.</div>'
+                  + _market_compare("Plus de 2,5 buts dans le match", g["over25"], _unibet_over(markets, 2.5))
                   + _market_compare("Les 2 équipes marquent", g["btts"], _unibet_btts(markets)))
     # 💰 TOUS les paris Unibet de l'event (intuitif : un bloc par marché)
     extra += web.render_unibet_markets(markets)

@@ -97,9 +97,10 @@ async def basket_match(event_id: int, frag: int = 0,
     margin = (rec or {}).get("margin")
     if margin and mh is not None:
         fav = home if mh >= 0.5 else away
-        extra += (f'<h2>🏀 Marge attendue</h2>'
-                  f'<div class="banner">Le modèle prévoit <b>{fav}</b> vainqueur d\'environ '
-                  f'<b>{abs(round(margin))} points</b> (écart moyen estimé).</div>')
+        extra += (f'<h2>🏀 Écart de points prévu</h2>'
+                  f'<div class="banner">BETSFIX voit <b>{fav}</b> gagner avec <b>~{abs(round(margin))} '
+                  f'points</b> d\'écart en moyenne. <span class="dim">Utile pour les paris sur '
+                  f'l\'écart (handicap).</span></div>')
     # 💰 TOUS les paris Unibet de l'event (moneyline, handicaps, totaux, quart-temps…)
     try:
         from datetime import datetime
