@@ -63,9 +63,9 @@ def _result_dot(wc_for_team: str) -> str:
     return f'<span class="dot {cls}">{ {"W":"V","L":"D","D":"N"}[wc_for_team] }</span>'
 
 
-async def _foot_team_context(event_id: int, home: str, away: str) -> str:
+async def team_context(event_id: int, home: str, away: str, unit: str = "buts") -> str:
     """Classement (position/points) + 5 derniers résultats détaillés des 2 équipes (SofaScore).
-    Tout best-effort et concurrent : si un appel échoue, la section est juste omise."""
+    Générique foot/basket (`unit` = buts/points). Best-effort + concurrent."""
     ev = await _sofa(f"/event/{event_id}")
     e = (ev or {}).get("event") or {}
     hid = (e.get("homeTeam") or {}).get("id")
@@ -95,7 +95,7 @@ async def _foot_team_context(event_id: int, home: str, away: str) -> str:
                 return f'<div class="frow"><div class="fn">{web.html.escape(name)}</div><span class="dim">—</span></div>'
             position, pts, sf, sa = p
             return (f'<div class="frow"><div class="fn">{web.html.escape(name)}</div>'
-                    f'<span class="dim">{position}<sup>e</sup> · {pts} pts · {sf}:{sa} buts</span></div>')
+                    f'<span class="dim">{position}<sup>e</sup> · {pts} pts · {sf}:{sa} {unit}</span></div>')
         standings_html = '<h2>📊 Classement</h2>' + line(home, hid) + line(away, aid)
 
     # 5 derniers résultats détaillés (adversaire + score)
@@ -224,7 +224,7 @@ async def foot_match(event_id: int, frag: int = 0,
                   + _market_compare("Les 2 équipes marquent", g["btts"], btts_imp))
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
     try:
-        extra += await _foot_team_context(event_id, home, away)
+        extra += await team_context(event_id, home, away, unit="buts")
     except Exception:
         pass
     ctx = {"home": home or "Match", "away": away, "home_flag": flags.flag(home),
