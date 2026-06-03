@@ -694,6 +694,7 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
         "start_time": (datetime.fromtimestamp(g["start"], tz=timezone.utc).isoformat()
                        if g.get("start") else None),
         "unibet_home_odds": g.get("oh"), "unibet_away_odds": g.get("oa"),
+        "margin": g.get("margin"),   # marge attendue (points) du favori, pour la fiche
         "value_pick": ({"side": pick["side"], "player": pick["team"], "odds": pick["odds"],
                         "edge": pick["edge"], "stake_pct": pick.get("stake")} if pick else None),
         "last_update": now_iso,

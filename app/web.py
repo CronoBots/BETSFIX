@@ -974,12 +974,13 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
         cells.append(f'<span class="h2h-c"><b>{aw}</b><span class="dim">{e(ctx["away"])}</span></span>')
         h2h_html = f'<h2>🤝 Confrontations directes</h2><div class="h2h">{"".join(cells)}</div>'
 
+    extra = ctx.get("extra") or ""   # sections supplémentaires (buts attendus foot, marge basket…)
     no_data = ('<div class="banner">Analyse SofaScore indisponible pour ce match '
                '(source momentanément en pause ou match non couvert).</div>')
-    if frag:   # accordéon sous la carte : juste l'analyse (la carte montre déjà proba + cotes)
-        return (form_html + h2h_html) or no_data
-    body = head + pred + odds + form_html + h2h_html
-    if not (form_html or h2h_html):
+    if frag:   # accordéon sous la carte : analyse (la carte montre déjà proba + cotes)
+        return (extra + form_html + h2h_html) or no_data
+    body = head + pred + odds + extra + form_html + h2h_html
+    if not (extra or form_html or h2h_html):
         body += no_data
     return layout(ctx["home"] + " vs " + ctx["away"], ctx["sport_key"], body, subnav="matchs")
 

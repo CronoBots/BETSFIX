@@ -76,10 +76,19 @@ async def basket_match(event_id: int, frag: int = 0,
         h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": None}
     except ProviderError:
         pass
+    # Marge attendue (modèle) : écart de points prévu en faveur du favori
+    extra = ""
+    margin = (rec or {}).get("margin")
+    mh = (rec or {}).get("model_home_prob")
+    if margin and mh is not None:
+        fav = home if mh >= 0.5 else away
+        extra = (f'<h2>🏀 Marge attendue</h2>'
+                 f'<div class="banner">Le modèle prévoit <b>{fav}</b> vainqueur d\'environ '
+                 f'<b>{abs(round(margin))} points</b> (écart moyen estimé).</div>')
     ctx = {"home": home or "Match", "away": away, "home_flag": "", "away_flag": "",
            "comp": comp, "when": when, "prediction": prediction, "odds_cells": odds_cells,
-           "forms": forms, "h2h": h2h, "back_url": "/basket", "back_label": "Basket",
-           "sport_key": "basket"}
+           "forms": forms, "h2h": h2h, "extra": extra, "back_url": "/basket",
+           "back_label": "Basket", "sport_key": "basket"}
     return HTMLResponse(web.render_sport_match_detail(ctx, frag=bool(frag)))
 
 

@@ -723,6 +723,7 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
         "p_home": pr[0] if pr else None, "p_draw": pr[1] if pr else None,
         "p_away": pr[2] if pr else None,
         "o1": g.get("o1"), "ox": g.get("ox"), "o2": g.get("o2"),
+        "goals": g.get("goals"),   # {over25, btts} : buts attendus (modèle) pour la fiche
         "value_pick": ({"code": pk["code"], "team": pk["team"], "odds": pk["odds"],
                         "edge": pk["edge"]} if pk else None),
         "last_update": now,

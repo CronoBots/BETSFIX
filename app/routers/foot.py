@@ -81,8 +81,19 @@ async def foot_match(event_id: int, frag: int = 0,
         h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": d.get("draws")}
     except ProviderError:
         pass
+    # Buts attendus (modèle, double Poisson) : Plus/Moins 2,5 buts + les 2 marquent (BTTS)
+    extra = ""
+    g = (rec or {}).get("goals")
+    if g and g.get("over25") is not None:
+        extra = (f'<h2>⚽ Buts attendus</h2><div class="oddsrow">'
+                 f'<span class="oc"><span class="ocn">+2,5 buts</span>'
+                 f'<span class="ocv">{round(g["over25"]*100)}%</span></span>'
+                 f'<span class="oc"><span class="ocn">−2,5 buts</span>'
+                 f'<span class="ocv">{round((1-g["over25"])*100)}%</span></span>'
+                 f'<span class="oc"><span class="ocn">2 équipes marquent</span>'
+                 f'<span class="ocv">{round(g["btts"]*100)}%</span></span></div>')
     ctx = {"home": home or "Match", "away": away, "home_flag": flags.flag(home),
-           "away_flag": flags.flag(away), "comp": comp, "when": when,
+           "away_flag": flags.flag(away), "comp": comp, "when": when, "extra": extra,
            "prediction": prediction, "odds_cells": odds_cells, "forms": forms, "h2h": h2h,
            "back_url": "/foot", "back_label": "Foot", "sport_key": "foot"}
     return HTMLResponse(web.render_sport_match_detail(ctx, frag=bool(frag)))
