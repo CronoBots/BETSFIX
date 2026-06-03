@@ -27,12 +27,25 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_PATH = os.path.join(_ROOT, "data", "tracking.json")
 
 
+# Cache mémoire du store invalidé par la date de modif (mtime) : le store ne change que
+# toutes les ~3h (boucle de suivi), mais load() est appelé ~6-7×/requête. Tant que le
+# fichier n'a pas changé, on évite le re-parse JSON (gros gain CPU/IO, 0 risque de péremption).
+_load_cache: dict[str, tuple[float, dict]] = {}
+
+
 def load(path: str = DATA_PATH) -> dict:
-    """Charge le store de suivi. Un fichier CORROMPU est sauvegardé en .bak (jamais
-    écrasé silencieusement par {}), pour ne pas perdre tout l'historique sans trace."""
+    """Charge le store de suivi (avec cache mtime). Un fichier CORROMPU est sauvegardé en .bak
+    (jamais écrasé silencieusement par {}), pour ne pas perdre l'historique sans trace."""
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return {}
+    cached = _load_cache.get(path)
+    if cached and cached[0] == mtime:
+        return cached[1]
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            store = json.load(f)
     except FileNotFoundError:
         return {}
     except ValueError:
@@ -43,6 +56,8 @@ def load(path: str = DATA_PATH) -> dict:
         except OSError as exc:
             log.error("tracking: %s corrompu et non sauvegardable: %s", path, exc)
         return {}
+    _load_cache[path] = (mtime, store)
+    return store
 
 
 def save(store: dict, path: str = DATA_PATH) -> None:
@@ -51,6 +66,10 @@ def save(store: dict, path: str = DATA_PATH) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(store, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
+    try:   # amorce le cache pour éviter une relecture immédiate
+        _load_cache[path] = (os.path.getmtime(path), store)
+    except OSError:
+        _load_cache.pop(path, None)
 
 
 def upsert_prediction(store: dict, analysis, tour: str, now_iso: str,

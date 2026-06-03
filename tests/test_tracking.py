@@ -243,3 +243,13 @@ def test_render_proof_honnete():
     assert "—" in html                            # placeholder quand un type n'a pas de donnée
     assert "--sc:#d7e64a" in html                 # liseré = couleur du sport (tennis lime)
     assert "--sc:#ff9f43" in html                 # basket orange
+
+
+def test_load_cache(tmp_path):
+    p = str(tmp_path / "trk.json")
+    tracking.save({"x": {"home": "A"}}, p)
+    a = tracking.load(p)
+    b = tracking.load(p)
+    assert a is b                                      # mtime inchangé -> même objet (pas de re-parse)
+    tracking.save({"y": {"home": "B"}}, p)             # nouvelle sauvegarde -> mtime change
+    assert tracking.load(p) == {"y": {"home": "B"}}    # cache invalidé, données à jour
