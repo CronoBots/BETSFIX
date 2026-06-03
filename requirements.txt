@@ -5,7 +5,7 @@ curl_cffi==0.15.0   # appels SofaScore : imite l'empreinte TLS de Chrome (anti-4
 pydantic==2.7.1
 pydantic-settings==2.3.0
 python-dotenv==1.0.1
-tzdata==2025.2  # fuseaux horaires (Windows n'a pas de base zoneinfo système)
+tzdata==2026.2  # fuseaux horaires (Windows n'a pas de base zoneinfo système) — INDISPENSABLE
 
 # Dev / tests
 pytest==8.2.2

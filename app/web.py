@@ -17,7 +17,10 @@ _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 try:
     from zoneinfo import ZoneInfo
     LOCAL_TZ = ZoneInfo("Europe/Brussels")
-except Exception:  # pragma: no cover
+except Exception:  # tzdata manquant -> sans lui les heures s'afficheraient en UTC (-2h)
+    import logging
+    logging.getLogger("uvicorn").warning(
+        "tzdata introuvable -> heures en UTC. Installe le paquet 'tzdata' (pip install tzdata).")
     LOCAL_TZ = None
 
 
