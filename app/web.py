@@ -79,15 +79,17 @@ def fmt_local(value, with_date: bool = True) -> str:
 
 CSS = """
   :root{
-    --bg:#06090f;--bg2:#0a0e1a;--surface:#111626;--surface2:#1a2133;
-    --border:#242c40;--border2:#30394f;--text:#eef1f7;--muted:#9099a8;--dim:#646c7c;
+    /* Thème « cronos » : fond navy profond + cartes à bordure bleue lumineuse */
+    --bg:#0a1124;--bg2:#0b1530;--surface:#0e1a36;--surface2:#16264c;
+    --border:#243f6e;--border2:#345f9e;--text:#eef1f7;--muted:#90a0bc;--dim:#5f6f8e;
     --accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30);
     --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
-    --red:#f25d6e;--green:#34d27b;--brand:#22d3ee;--cyan:#22d3ee;
+    --red:#f25d6e;--green:#34d27b;--brand:#2e9bff;
+    --cardline:rgba(46,155,255,.40);--cardglow:0 0 20px rgba(46,155,255,.13);
     --radius:16px;--shadow:0 6px 22px rgba(0,0,0,.45);--shadow-sm:0 2px 8px rgba(0,0,0,.30);
   }
-  /* Identité couleur par sport : home cyan · tennis jaune · basket orange · foot vert */
-  body.sp-home{--accent:#22d3ee;--accent2:#0fb6d6;--accent-ink:#031619;--glow:rgba(34,211,238,.34)}
+  /* Identité couleur par sport : home bleu · tennis jaune · basket orange · foot vert */
+  body.sp-home{--accent:#2e9bff;--accent2:#1f80e6;--accent-ink:#02122b;--glow:rgba(46,155,255,.32)}
   body.sp-tennis{--accent:#d7e64a;--accent2:#aac72f;--accent-ink:#16180a;--glow:rgba(190,210,60,.30)}
   body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00;--glow:rgba(240,128,0,.30)}
   body.sp-foot{--accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30)}
@@ -104,15 +106,14 @@ CSS = """
      (évite le bug iOS où background-attachment:fixed est ignoré.) */
   body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
        background:
-         radial-gradient(1150px 680px at 50% -6%,rgba(34,211,238,.17),transparent 62%),
-         radial-gradient(760px 520px at 8% 8%,rgba(34,211,238,.06),transparent 58%),
-         radial-gradient(900px 560px at 100% 104%,rgba(34,211,238,.08),transparent 60%);}
+         radial-gradient(1100px 620px at 50% -4%,rgba(46,155,255,.12),transparent 60%),
+         radial-gradient(820px 520px at 100% 102%,rgba(46,155,255,.05),transparent 60%);}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   .wrap{max-width:720px;margin:0 auto;
         padding:calc(8px + env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom))}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
   .toplogo{display:block;text-align:center;margin:0 0 16px}
-  .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 22px rgba(34,211,238,.50))}
+  .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 18px rgba(46,155,255,.40))}
   .pausewrap{text-align:right;margin:-10px 0 8px}
   .pausebadge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
               color:var(--dim);background:transparent;border:1px solid var(--border2);
@@ -201,8 +202,8 @@ CSS = """
           font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
   .dayhdr::after{content:"";flex:1;height:1px;background:var(--border)}
   .row{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border-radius:var(--radius);padding:12px 14px;margin:8px 0;border:1px solid var(--border);
-       box-shadow:var(--shadow-sm);transition:.16s}
+       border-radius:var(--radius);padding:12px 14px;margin:8px 0;border:1px solid var(--cardline);
+       box-shadow:var(--cardglow),var(--shadow-sm);transition:.16s}
   .row:active{transform:scale(.99);border-color:var(--border2)}
   /* Carte dépliable (foot/basket) : analyse en accordéon sous la carte */
   .rowtap{cursor:pointer}
@@ -217,9 +218,9 @@ CSS = """
   .exp h2{margin:16px 0 9px;font-size:13.5px;font-weight:800;padding-left:11px;line-height:1.35;
           border-left:3px solid var(--accent2)}
   .exp .ldg{padding:16px 0}
-  .row.pick{border-color:rgba(46,226,127,.45);
-            background:linear-gradient(180deg,rgba(46,226,127,.10),rgba(46,226,127,.03));
-            box-shadow:0 4px 18px rgba(46,226,127,.14)}
+  .row.pick{border-color:rgba(46,155,255,.60);
+            background:linear-gradient(180deg,rgba(46,155,255,.09),rgba(46,155,255,.02));
+            box-shadow:0 0 26px rgba(46,155,255,.20)}
   .live{color:var(--red);font-weight:800;letter-spacing:.02em}
   .fem{color:#b08cf2;font-weight:800}
   .rowtop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;
@@ -306,7 +307,7 @@ CSS = """
          font-variant-numeric:tabular-nums}
   .pt2-v.hi{font-weight:800}
   .pt2-v.dim{color:var(--dim)}
-  .t-pm{color:#35d6f0} .t-po{color:#43dd8c} .t-pc{color:#e8c34d}   /* favori = couleur de la source */
+  .t-pm{color:#4aa8ff} .t-po{color:#43dd8c} .t-pc{color:#e8c34d}   /* favori = couleur de la source */
   .pt2-bar{display:flex;gap:1px;height:4px;border-radius:99px;overflow:hidden;margin-top:6px;
          background:var(--surface)}
   .pt2-bar > span{display:block;height:100%}
@@ -320,7 +321,7 @@ CSS = """
   .pb-v{width:36px;flex:none;text-align:right;font-weight:800}
   /* Barres comparatives : couleurs FIXES (identiques tous sports/onglets) ->
      BETSFIX bleu, BOOKMAKER gris, PUBLIC jaune. Ne pas thématiser par sport. */
-  .pm{background:linear-gradient(90deg,#0fb6d6,#22d3ee)}   /* BETSFIX cyan */
+  .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}   /* BETSFIX bleu */
   .po{background:linear-gradient(90deg,#19c46a,#34d27b)}   /* Cote Unibet VERT */
   .pc{background:#e0b341}                                   /* Public jaune */
   .pbd{background:var(--dim)}          /* segment 'nul' (foot) */
@@ -426,8 +427,8 @@ CSS = """
   .banner.warn b{color:#ffd877}
   /* Carte « analyse rédigée » (texte d'expert généré) — premium */
   .an-card{background:linear-gradient(180deg,var(--surface2),var(--surface));
-          border:1px solid var(--border);border-left:3px solid var(--brand);border-radius:14px;
-          padding:13px 15px;margin:11px 0;box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
+          border:1px solid var(--cardline);border-left:3px solid var(--brand);border-radius:14px;
+          padding:13px 15px;margin:11px 0;box-shadow:var(--cardglow)}
   .an-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
   .an-ic{font-size:16px}
   .an-title{font-weight:800;font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;
@@ -441,9 +442,9 @@ CSS = """
   .an-note{font-size:10px;color:var(--muted);margin-top:9px;border-top:1px solid var(--border);
           padding-top:7px}
   /* « Preuve » — tableau unique (1 ligne/sport, colonnes alignées) façon tableau de bord */
-  .ptab{border:1px solid var(--border);border-radius:14px;overflow:hidden;margin:8px 0;
+  .ptab{border:1px solid var(--cardline);border-radius:14px;overflow:hidden;margin:8px 0;
           background:linear-gradient(180deg,var(--surface2),var(--surface));
-          box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
+          box-shadow:var(--cardglow)}
   .ptab-h,.ptab-row{display:grid;grid-template-columns:1.45fr 1.1fr .6fr .7fr;gap:8px;
           align-items:center;padding:11px 12px}
   .ptab-h{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
@@ -467,8 +468,8 @@ CSS = """
   .ptab-pct.pos{color:var(--green)} .ptab-pct.neg{color:var(--red)}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--border);
-       font-size:16px;font-weight:700;box-shadow:var(--shadow);transition:.16s}
+       border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);
+       font-size:16px;font-weight:700;box-shadow:var(--cardglow),var(--shadow);transition:.16s}
   .big:active{transform:scale(.99)}
   .big .d{font-size:12.5px;color:var(--muted);font-weight:400;margin-top:5px;line-height:1.5}
   .foot{color:var(--dim);font-size:10.5px;margin-top:22px;text-align:center;line-height:1.6}
