@@ -416,12 +416,10 @@ CSS = """
   .ptab-sport{font-weight:800;font-size:14px;line-height:1.25;min-width:0;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ptab-sub{display:block;font-size:10px;font-weight:600;color:var(--muted)}
-  /* Fiabilité = pastille de statut teintée, centrée dans sa colonne */
-  .ptab-verdict{justify-self:center;display:inline-block;padding:2px 9px;border-radius:20px;
-          font-size:10.5px;font-weight:800;white-space:nowrap}
-  .ptab-verdict.ok{background:rgba(46,226,127,.14);color:var(--green);border:1px solid rgba(46,226,127,.3)}
-  .ptab-verdict.ko{background:rgba(255,90,90,.13);color:var(--red);border:1px solid rgba(255,90,90,.32)}
-  .ptab-verdict.na{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  /* Fiabilité = texte coloré simple (pas de pastille), centré */
+  .ptab-verdict{font-size:11px;font-weight:800;text-align:center;white-space:nowrap}
+  .ptab-verdict.ok{color:var(--green)} .ptab-verdict.ko{color:var(--red)}
+  .ptab-verdict.na{color:var(--muted)}
   .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap}
   .ptab-val.pos{color:var(--green)} .ptab-val.neg{color:var(--red)}
   .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600}
