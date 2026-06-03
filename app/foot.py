@@ -318,7 +318,7 @@ def board_from_store() -> list[dict]:
             "home": rec.get("home", ""), "away": rec.get("away", ""),
             "probs": pr, "goals": None, "o1": o1, "ox": ox, "o2": o2,
             "imp": _devig3(o1, ox, o2), "pick": pick, "start": dt.timestamp(),
-            "votes": (ph, pa) if ph is not None else None,
+            "votes": (ph, pa, rec.get("public_draw")) if ph is not None else None,
         })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows
