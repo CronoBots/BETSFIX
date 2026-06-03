@@ -232,10 +232,11 @@ def test_render_proof_honnete():
     html = tracking.render_proof([("T", "Tennis", rep_full, "/a"),
                                   ("F", "Foot", rep_empty, "/b"),
                                   ("B", "Basket", rep_small, "/c")])
-    assert "bat le marché" in html          # tennis : verdict positif
-    assert "en collecte" in html            # foot vide
-    assert "échantillon faible (12/30)" in html   # basket : pas concluant
-    # SÉPARATION confiance / value : la confiance se juge au taux, la value au ROI/CLV
-    assert "Confiance" in html and "réussite" in html
-    assert "Value" in html and "ROI" in html and "grosses cotes : normal" in html
-    assert "IC95" in html                   # intervalle de confiance sur la confiance
+    assert "plus fiable que les cotes" in html    # tennis : verdict positif en mots clairs
+    assert "en collecte" in html                  # foot vide
+    assert "en rodage · 12/30 matchs" in html     # basket : pas concluant
+    # SÉPARATION confiance / value : la confiance = nb gagnés, la value = ROI
+    assert "Confiance" in html and "gagnés" in html
+    assert "Value" in html and "ROI" in html
+    assert "peu de recul" in html                 # honnêteté petit échantillon, en clair
+    assert "Voir le détail" in html               # renvoi vers le dashboard complet

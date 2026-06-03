@@ -401,12 +401,16 @@ CSS = """
   .proofcard{display:block;background:var(--surface);border:1px solid var(--border);
           border-radius:12px;padding:10px 13px;margin:8px 0;text-decoration:none;color:var(--text)}
   .proofcard:active{background:var(--surface2)}
-  .proof-h{font-weight:800;font-size:14px;margin-bottom:3px}
-  .proof-row{font-size:12px;color:var(--muted);line-height:1.5}
+  .proof-h{font-weight:800;font-size:15px;margin-bottom:5px;line-height:1.5}
+  .proof-row{font-size:13px;color:var(--text);line-height:1.65}
+  .proof-row.dim{color:var(--muted);font-size:12px}
   .proof-row b{color:var(--text)}
-  .pv-ok{color:var(--green);font-weight:800;font-size:12.5px}
-  .pv-ko{color:var(--red);font-weight:800;font-size:12.5px}
-  .pv-na{color:var(--muted);font-weight:700;font-size:12px}
+  .proof-go{font-size:11.5px;color:var(--muted);margin-top:6px;font-weight:600}
+  .pvpill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11.5px;
+          font-weight:800;vertical-align:middle;white-space:nowrap}
+  .pv-ok{background:rgba(46,226,127,.14);color:var(--green);border:1px solid rgba(46,226,127,.3)}
+  .pv-ko{background:rgba(255,90,90,.13);color:var(--red);border:1px solid rgba(255,90,90,.32)}
+  .pv-na{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--border);

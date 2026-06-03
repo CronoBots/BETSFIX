@@ -390,68 +390,65 @@ def _signed_pct(x, dec: int = 1) -> str:
 
 
 def _proof_card(icon: str, name: str, rep: dict, url: str) -> str:
-    """Carte « preuve » d'un sport, en SÉPARANT les deux logiques de pari :
-      • Confiance (favori net) -> se juge au TAUX DE RÉUSSITE + calibration (doit passer souvent)
-      • Value (grosse cote sous-évaluée) -> se juge au ROI/CLV, JAMAIS au taux brut (perd souvent,
-        c'est normal et attendu : la rentabilité vient du prix, pas de la fréquence).
-    Honnête : verdict gris tant que l'échantillon est trop faible pour conclure."""
+    """Carte « preuve » d'un sport, INTUITIVE : pastille en mots simples + 2 lignes claires.
+    Le jargon (Brier, CLV, intervalles) reste dans le dashboard détaillé (un tap sur la carte).
+      • 🔥 Confiance (favori net) -> nb gagnés (doit passer souvent)
+      • 💎 Value (grosse cote) -> ROI (perd souvent = normal, la rentabilité vient du prix).
+    Honnête : « peu de recul » tant que l'échantillon est faible."""
     e = html.escape
     n = rep.get("predictions_evaluees") or 0
+    head = f'<div class="proof-h">{icon} {e(name)}'
     if n == 0:
-        return (f'<a class="proofcard" href="{e(url)}"><div class="proof-h">{icon} {e(name)} '
-                '<span class="pv-na">· en collecte</span></div>'
-                '<div class="proof-row dim">Aucun match réglé pour l\'instant — le suivi se '
-                'construit match après match.</div></a>')
+        return (f'<a class="proofcard" href="{e(url)}">{head} '
+                '<span class="pvpill pv-na">en collecte</span></div>'
+                '<div class="proof-row dim">Aucun match noté pour l\'instant — le suivi se '
+                'construit match après match.</div>'
+                '<div class="proof-go">Voir le détail ›</div></a>')
     bat = rep.get("bat_le_marche")
     if n < 30:
-        verdict = f'<span class="pv-na">· échantillon faible ({n}/30)</span>'
+        pill = f'<span class="pvpill pv-na">en rodage · {n}/30 matchs</span>'
     elif bat is True:
-        verdict = '<span class="pv-ok">· ✓ bat le marché</span>'
+        pill = '<span class="pvpill pv-ok">✓ plus fiable que les cotes</span>'
     elif bat is False:
-        verdict = '<span class="pv-ko">· ✗ sous le marché</span>'
+        pill = '<span class="pvpill pv-ko">✗ moins fiable que les cotes</span>'
     else:
-        verdict = ""
-    br, brm = rep.get("brier"), rep.get("brier_marche")
-    brtxt = (f' <span class="dim">· Brier {br}' + (f' vs {brm} marché' if brm is not None else "")
-             + '</span>') if br is not None else ""
-    header = (f'<div class="proof-h">{icon} {e(name)} {verdict}</div>'
-              f'<div class="proof-row"><span class="dim">{n} réglés</span>{brtxt}</div>')
-    rows = []
-    # 🔥 CONFIANCE : taux de réussite (le favori doit gagner souvent) + calibration (réel vs prévu)
+        pill = ""
+    rows = [f'{head} {pill}</div>',
+            f'<div class="proof-row dim">{n} matchs notés</div>']
+    # 🔥 CONFIANCE : combien de paris « favori net » sont passés (intuitif : X gagnés sur Y)
     conf = next((d for d in (rep.get("par_type") or []) if d.get("label") == "Confiance"), None)
     if conf and conf.get("n"):
-        cn, prec, exp = conf["n"], conf.get("precision"), conf.get("pred_fav")
-        ci = wilson_interval(round((prec or 0) * cn), cn)
-        citxt = (f' <span class="dim">(IC95 {round(ci[0]*100)}–{round(ci[1]*100)}%)</span>'
-                 if ci else "")
-        exptxt = f' <span class="dim">· prévu {_pct(exp)}</span>' if exp is not None else ""
-        rows.append(f'<div class="proof-row">🔥 Confiance · {cn} · réussite '
-                    f'<b>{_pct(prec)}</b>{citxt}{exptxt}</div>')
-    # 💎 VALUE : ROI + CLV (le vrai juge) ; le taux brut est montré mais cadré « normal »
+        cn = conf["n"]
+        wins = round((conf.get("precision") or 0) * cn)
+        recul = ' <span class="dim">· peu de recul</span>' if cn < 20 else ""
+        rows.append(f'<div class="proof-row">🔥 <b>Confiance</b> · {wins}/{cn} gagnés{recul}</div>')
+    # 💎 VALUE : ROI (le vrai juge ; le taux est dans le dashboard). ROI coloré vert/rouge.
     vn = rep.get("value_paris_regles") or 0
     if vn:
-        clv = rep.get("clv_moyen")
-        clvtxt = f' · CLV <b>{_signed_pct(clv)}</b>' if clv is not None else ""
-        wr = _pct((rep.get("value_gagnes") or 0) / vn)
-        rows.append(f'<div class="proof-row">💎 Value · {vn} · ROI <b>{_signed_pct(rep.get("value_roi"))}</b>'
-                    f'{clvtxt} <span class="dim">· réussite {wr} (grosses cotes : normal)</span></div>')
-    if not rows:
-        rows.append('<div class="proof-row dim">Pas encore de pari conseillé réglé.</div>')
-    return f'<a class="proofcard" href="{e(url)}">{header}{"".join(rows)}</a>'
+        roi = rep.get("value_roi") or 0
+        cls = "pos" if roi >= 0 else "neg"
+        recul = ' <span class="dim">· peu de recul</span>' if vn < 20 else ""
+        rows.append(f'<div class="proof-row">💎 <b>Value</b> · {vn} paris · '
+                    f'ROI <span class="{cls}">{_signed_pct(roi)}</span>{recul}</div>')
+    if conf is None and not vn:
+        rows.append('<div class="proof-row dim">Pas encore de pari conseillé noté.</div>')
+    rows.append('<div class="proof-go">Voir le détail ›</div>')
+    return f'<a class="proofcard" href="{e(url)}">{"".join(rows)}</a>'
 
 
 def render_proof(reports: list[tuple]) -> str:
     """Section « Preuve » de l'accueil : pour chaque sport (icône, nom, rapport, url dashboard),
     le verdict honnête bat-le-marché + ROI/CLV. `reports` = [(icon, name, rep, url), ...]."""
     cards = "".join(_proof_card(i, n, r, u) for i, n, r, u in reports)
-    info = ('Deux logiques à NE PAS mélanger : <b>🔥 Confiance</b> = favori net, doit gagner '
-            '<b>souvent</b> → jugé au <b>taux de réussite</b> (et « prévu » = ce que le modèle '
-            'annonçait, pour la calibration). <b>💎 Value</b> = grosse cote sous-évaluée, qui '
-            '<b>perd souvent</b> (c\'est normal !) → jugée au <b>ROI</b> et au <b>CLV</b>, jamais '
-            'au taux brut : la rentabilité vient du <b>prix</b>, pas de la fréquence. '
-            '« <b>Bat le marché</b> » = Brier du modèle &lt; Brier de la cote de clôture (toutes '
-            'prédictions). <b>IC 95%</b> large = échantillon encore trop petit pour conclure. '
-            'Touche une carte pour le détail.')
+    info = ('La preuve que l\'app sert à quelque chose : sur les matchs déjà terminés, ses '
+            'prédictions sont-elles meilleures que les cotes ? La pastille le dit en clair '
+            '(<b>plus / moins fiable que les cotes</b>). '
+            '<b>🔥 Confiance</b> = on mise sur un favori net : ça doit <b>gagner souvent</b> '
+            '(on regarde le nombre de paris gagnés). '
+            '<b>💎 Value</b> = on mise sur une <b>grosse cote</b> jugée trop haute : ça <b>perd '
+            'souvent, c\'est normal</b> — ce qui compte c\'est le <b>ROI</b> (gain/perte moyen). '
+            '« <b>peu de recul</b> » = encore trop peu de paris pour être sûr. '
+            'Touche une carte pour les chiffres détaillés.')
     return web._section('📊 Preuve — le modèle bat-il le marché ?', cards, open_=True, info=info)
 
 
