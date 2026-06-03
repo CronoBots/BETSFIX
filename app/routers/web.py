@@ -321,12 +321,11 @@ def _tennis_live_score(entry: dict, swapped: bool = False) -> str:
     sh, sa = sets.get("home") or [], sets.get("away") or []
     if swapped:
         sh, sa = sa, sh
-    pairs = list(zip(sh, sa))
-    if not pairs:
-        return ""
-    last = max((i for i, (h, a) in enumerate(pairs) if h or a), default=-1)
-    show = pairs[:last + 2] if last >= 0 else pairs[:1]   # sets joués + le set en cours
-    return " ".join(f"{h}-{a}" for h, a in show)
+    # Unibet met -1 aux sets NON joués (ex. [1,-1,-1]) -> on ne garde que les sets réels
+    # (les deux scores >= 0). Corrige l'affichage « 1-5 -1--1 -1--1 ».
+    pairs = [(h, a) for h, a in zip(sh, sa)
+             if isinstance(h, int) and isinstance(a, int) and h >= 0 and a >= 0]
+    return " ".join(f"{h}-{a}" for h, a in pairs)
 
 
 def _two_way_odds(entry: dict) -> tuple[float | None, float | None]:

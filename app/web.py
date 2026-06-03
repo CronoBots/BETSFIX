@@ -985,17 +985,21 @@ def _team_form_block(flag: str, name: str, tf: dict | None) -> str:
             f'<span class="dim">{" · ".join(meta) if meta else ""}</span></div>')
 
 
-# Catégories de paris (comme Unibet). Ordre de MATCHING : du plus spécifique au plus
-# générique (« Corners - Total » -> Corners, pas Buts). Le 2e nombre = rang d'AFFICHAGE.
+# Catégories de paris, calquées sur Unibet. Ordre de MATCHING : du plus spécifique au plus
+# générique (un libellé prend la 1re catégorie qui colle). 2e nombre = rang d'AFFICHAGE.
 _MKT_CATS = [
-    ("Double chance", 1, ("double chance",)),
-    ("Handicaps", 3, ("handicap", "asiatique")),
-    ("Corners", 7, ("corner",)),
-    ("Cartons", 8, ("carton", "card")),
-    ("Buteurs", 6, ("buteur", "marque", "scorer")),
+    ("Corners", 11, ("corner",)),
+    ("Cartons joueur", 10, ("prend un carton", "carton du joueur", "cartons joueur")),
+    ("Tirs (joueur)", 8, ("tirs cadrés du joueur", "tirs du joueur", "tir du joueur")),
+    ("Buteurs", 6, ("buteur", "marque", "scorer", "anytime")),   # « Marque ou passe » -> Buteurs
+    ("Passes décisives", 9, ("passe décisive",)),
+    ("Cartons", 12, ("carton", "card")),                         # cartons ÉQUIPE (après joueur)
     ("Mi-temps / périodes", 4, ("mi-temps", "1ère", "2ème", "première", "deuxième", "half", "période", "quart", "quarter")),
-    ("Paris joueurs", 9, ("joueur", "player", "tirs", "passe", "arrêt")),
+    ("Handicaps", 3, ("handicap", "asiatique")),
     ("Scores exacts", 5, ("score exact", "résultat correct")),
+    ("Double chance", 1, ("double chance",)),
+    ("Tirs (équipe)", 13, ("tirs",)),                            # tirs d'équipe (après tirs joueur)
+    ("Autres paris joueurs", 14, ("joueur", "player", "arrêt", "gardien")),
     ("Buts / totaux", 2, ("total", "plus de", "moins de", "nombre de buts", "but ")),
     ("Résultat du match", 0, ("temps réglementaire", "1x2", "résultat final", "vainqueur", "moneyline", "match")),
 ]
