@@ -506,7 +506,20 @@ _SPA_JS = (
     "x.innerHTML='<div class=ldg>Chargement de l\\'analyse…</div>';"
     "fetch(c.getAttribute('data-exp')).then(function(r){return r.text();})"
     ".then(function(h){x.innerHTML=h;}).catch(function(){x.removeAttribute('data-loaded');"
-    "x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}});})();"
+    "x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}});"
+    # rafraîchissement auto des COTES/SCORES live : on ré-interroge le panneau actif toutes les
+    # 45 s, UNIQUEMENT s'il contient un direct (.live) ET qu'aucun accordéon n'est ouvert
+    # (on ne coupe pas une lecture). Le scroll est préservé. Pas de direct = aucun appel réseau.
+    "function fresh(){var c=P.children,i,p=null;"
+    "for(i=0;i<c.length;i++)if(c[i].classList.contains('on')){p=c[i];break;}"
+    "if(!p||!p.getAttribute('data-loaded')||document.hidden)return;"
+    "if(!p.querySelector('.live'))return;"
+    "if(p.querySelector('.exp:not([hidden])'))return;"
+    "var u=p.getAttribute('data-src');"
+    "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
+    ".then(function(r){return r.text();}).then(function(h){"
+    "var y=window.scrollY;p.innerHTML=h;window.scrollTo(0,y);}).catch(function(){});}"
+    "setInterval(fresh,45000);})();"
 )
 
 

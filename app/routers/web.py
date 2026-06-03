@@ -392,16 +392,16 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
             fav, favp = rec.get("home"), f"{round(hp * 100)}%"
         else:
             fav, favp = rec.get("away"), f"{round((1 - hp) * 100)}%"
-        # Cotes : on prend celles du STORE (clôture pré-match, utilisées par le modèle) ;
-        # à défaut (ex. live jamais snapshoté), on lit celles de l'événement Unibet courant
-        # -> plus de « cotes Unibet à venir » alors qu'Unibet les affiche.
-        uh, ua = _two_way_odds(entry)
-        ev_oh, ev_oa = (ua, uh) if swapped else (uh, ua)
-        oh = rec.get("unibet_home_odds") or ev_oh
-        oa = rec.get("unibet_away_odds") or ev_oa
-        devig = remove_vig(oh, oa)
         local_dt = web.to_local(start)
         is_live = start <= now
+        # Cotes : celles de l'ÉVÉNEMENT Unibet courant en priorité (à jour, LIVE pendant le
+        # match) ; à défaut, celles du store (clôture pré-match). Corrige les cotes figées
+        # pendant les directs (ex. 1.56/2.33 affiché alors qu'Unibet est à 3.95/1.23).
+        uh, ua = _two_way_odds(entry)
+        ev_oh, ev_oa = (ua, uh) if swapped else (uh, ua)
+        oh = ev_oh or rec.get("unibet_home_odds")
+        oa = ev_oa or rec.get("unibet_away_odds")
+        devig = remove_vig(oh, oa)
         row = {
             "id": mid, "tour": rec.get("tour", "atp"),
             "home": rec.get("home", ""), "away": rec.get("away", ""),
@@ -684,7 +684,10 @@ async def match_detail(
     try:
         match = await provider.get_match(tour, match_id)
     except ProviderError:
-        # SofaScore K.O. -> détail léger via LiveScore + classements officiels
+        # SofaScore en pause : en accordéon, on montre quand même la reco (store) + TOUS les
+        # paris Unibet (qui ne dépendent pas de SofaScore). Sinon, détail léger pleine page.
+        if frag:
+            return await _tennis_light_frag(match_id, tour, unibet)
         return await _light_detail(match_id, tour, unibet, rankings, frag=bool(frag))
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
@@ -861,6 +864,35 @@ async def markets_page(
     return HTMLResponse(web.render_markets(
         match, winner_rows, ace_rows, sim_rows, odds_matched, tour=tour,
         set_rows=set_rows))
+
+
+async def _tennis_light_frag(match_id, tour, unibet) -> HTMLResponse:
+    """Accordéon tennis quand SofaScore est en pause : reco (depuis le suivi) + TOUS les paris
+    Unibet (qui ne dépendent pas de SofaScore). Plus de « analyse indisponible » sec."""
+    rec = tracking.load().get(str(match_id)) or {}
+    home, away = rec.get("home", ""), rec.get("away", "")
+    parts = []
+    vp = rec.get("value_pick")
+    value = (vp.get("player"), vp.get("odds"), vp.get("edge")) if vp and vp.get("odds") else None
+    mh = rec.get("model_home_prob")
+    confidence = None
+    if mh is not None and max(mh, 1 - mh) >= 0.65:
+        fav = home if mh >= 0.5 else away
+        odd = rec.get("unibet_home_odds") if mh >= 0.5 else rec.get("unibet_away_odds")
+        confidence = (fav, max(mh, 1 - mh), odd)
+    if rec:
+        parts.append(web.recommended_bets(value, confidence))
+    parts.append('<div class="banner">Stats détaillées (forme, face-à-face, facteurs) '
+                 'momentanément indisponibles — source en pause. La prédiction (carte) et les '
+                 'paris ci-dessous restent à jour.</div>')
+    try:
+        st = datetime.fromisoformat(rec["start_time"]) if rec.get("start_time") else None
+        uo = await unibet.find_event_odds("tennis", home, away, match_id, st)
+        if uo.matched:
+            parts.append(web.render_unibet_markets(uo.markets))
+    except Exception:
+        pass
+    return HTMLResponse("".join(parts) or '<div class="dim">Analyse indisponible pour le moment.</div>')
 
 
 async def _light_detail(match_id, tour, unibet, rankings, frag: bool = False) -> HTMLResponse:
