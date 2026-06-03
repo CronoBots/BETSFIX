@@ -798,13 +798,14 @@ def _sport_row(r: dict) -> str:
              f'{probviz}{r.get("sub", "")}')
     cls = "row pick" if r.get("pick") else "row"
     url = r.get("url") or ""
-    # Foot/basket : tap -> déplie l'analyse (forme + H2H) SOUS la carte, sans changer de vue.
-    if url.startswith("/foot/match/") or url.startswith("/basket/match/"):
-        # accordéon DANS le cadre de la carte (l'analyse s'ouvre à l'intérieur, pas en dessous)
-        return (f'<div class="{cls} rowtap" data-exp="{url}?frag=1">{inner}'
+    # Tap -> déplie l'analyse complète À L'INTÉRIEUR de la carte (les 3 sports), sans changer
+    # de vue. L'analyse est chargée en AJAX (route détail ?frag=1).
+    if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
+        sep = "&" if "?" in url else "?"
+        return (f'<div class="{cls} rowtap" data-exp="{url}{sep}frag=1">{inner}'
                 f'<div class="exp-c"><span class="exp-chev">▾</span> Analyse détaillée</div>'
                 f'<div class="exp" hidden></div></div>')
-    if url:   # tennis : page d'analyse riche dédiée
+    if url:
         return f'<a class="{cls}" href="{url}">{inner}</a>'
     return f'<div class="{cls}">{inner}</div>'
 
@@ -1086,7 +1087,7 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                         home_form: list[dict] | None = None,
                         away_form: list[dict] | None = None,
                         h2h: dict | None = None, score: str = "",
-                        votes: tuple | None = None) -> str:
+                        votes: tuple | None = None, frag: bool = False) -> str:
     """a = MatchAnalysis ; winner_odds = (cote_home, cote_away) Unibet ;
     aces = récap tendance d'aces ; home_form/away_form = derniers résultats (V/D) ;
     h2h = {'home': n, 'away': n} bilan des confrontations ; score = score en cours."""
@@ -1257,6 +1258,12 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
         votes_html = ('<h2>Pronostics des fans</h2><div class="row">'
                       + votes_line(votes[0], votes[1], a.home.name, a.away.name) + '</div>')
 
+    # frag : accordéon sous la carte -> analyse SANS l'en-tête (matchup déjà sur la carte)
+    # ni le bandeau layout. On garde tout le reste (la plus complète).
+    if frag:   # accordéon : pas de paris_link (il ouvrirait une page)
+        return (pari_html + verdict + form_html + h2h_html + votes_html
+                + probs + factors + aces_html + odds_html) \
+            or '<div class="dim">Analyse indisponible.</div>'
     body = (head + pari_html + verdict + form_html + h2h_html + votes_html + paris_link
             + probs + factors + aces_html + odds_html)
     return layout(f"{a.home.name} vs {a.away.name}", "tennis", body, subnav="matchs")

@@ -668,6 +668,7 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
 async def match_detail(
     match_id: int,
     tour: str = Query("atp"),
+    frag: int = 0,
     provider: SofaScoreProvider = Depends(get_provider),
     unibet: UnibetProvider = Depends(get_unibet),
     rankings: RankingsProvider = Depends(get_rankings),
@@ -677,7 +678,7 @@ async def match_detail(
         match = await provider.get_match(tour, match_id)
     except ProviderError:
         # SofaScore K.O. -> détail léger via LiveScore + classements officiels
-        return await _light_detail(match_id, tour, unibet, rankings)
+        return await _light_detail(match_id, tour, unibet, rankings, frag=bool(frag))
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
     elo_home, elo_away = elo.ratings_for_match(match)
@@ -712,7 +713,8 @@ async def match_detail(
         pass
     return HTMLResponse(web.render_match_detail(
         analysis, winner_odds, aces=aces, tour=tour,
-        home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score, votes=votes))
+        home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score, votes=votes,
+        frag=bool(frag)))
 
 
 def _ace_lines(odds, match) -> tuple[float | None, float | None]:
@@ -835,7 +837,7 @@ async def markets_page(
         set_rows=set_rows))
 
 
-async def _light_detail(match_id, tour, unibet, rankings) -> HTMLResponse:
+async def _light_detail(match_id, tour, unibet, rankings, frag: bool = False) -> HTMLResponse:
     """Détail réduit quand SofaScore bloque : favori par classement + cotes Unibet."""
     ls = get_livescore()
     match = None
@@ -847,16 +849,18 @@ async def _light_detail(match_id, tour, unibet, rankings) -> HTMLResponse:
     except Exception:
         match = None
     if match is None:
-        return HTMLResponse(web.layout("Indisponible", "tennis",
-                            '<div class="banner">Analyse momentanément indisponible '
-                            '(SofaScore bloqué et match introuvable côté secours).</div>'
-                            '<a class="dim" href="/app">← Retour</a>'))
+        msg = ('<div class="banner">Analyse momentanément indisponible '
+               '(SofaScore bloqué et match introuvable côté secours).</div>')
+        return HTMLResponse(msg if frag else web.layout(
+            "Indisponible", "tennis", msg + '<a class="dim" href="/app">← Retour</a>'))
     match.home.ranking = await rankings.rank(tour, match.home.name)
     match.away.ranking = await rankings.rank(tour, match.away.name)
     odds = await unibet.find_odds(match)
     analysis = build_analysis(match, [], [], None, None, None, None, odds)
     winner_odds = _match_winner_odds(odds, match) if (odds and odds.matched) else (None, None)
-    html = web.render_match_detail(analysis, winner_odds)
     note = ('<div class="banner">⚠️ SofaScore indisponible : analyse réduite (favori '
             'par classement + cotes). Stats/forme/h2h reviendront dès le rétablissement.</div>')
+    html = web.render_match_detail(analysis, winner_odds, frag=frag)
+    if frag:
+        return HTMLResponse(note + html)
     return HTMLResponse(html.replace("</h1>", "</h1>" + note, 1))
