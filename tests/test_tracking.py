@@ -238,7 +238,8 @@ def test_render_proof_honnete():
     assert "✓ plus fiable" in html                # tennis : verdict positif (chip court)
     assert "en collecte" in html                  # foot vide
     assert "en rodage" in html and "12 matchs" in html   # basket : pas concluant + échantillon
-    assert "+4%" in html                          # value ROI tennis (entier, compact)
+    assert "40/120" in html                       # value : nb gagnés/total (comme confiance)
+    assert "+4%" in html and "ptab-pct" in html   # ROI value en petit % sous le nombre
     assert "—" in html                            # placeholder quand un type n'a pas de donnée
     assert "--sc:#d7e64a" in html                 # liseré = couleur du sport (tennis lime)
     assert "--sc:#ff9f43" in html                 # basket orange

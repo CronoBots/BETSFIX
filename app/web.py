@@ -420,9 +420,11 @@ CSS = """
   .ptab-verdict{font-size:11px;font-weight:800;text-align:center;white-space:nowrap}
   .ptab-verdict.ok{color:var(--green)} .ptab-verdict.ko{color:var(--red)}
   .ptab-verdict.na{color:var(--muted)}
-  .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap}
-  .ptab-val.pos{color:var(--green)} .ptab-val.neg{color:var(--red)}
+  .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap;
+          line-height:1.1}
   .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600}
+  .ptab-pct{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
+  .ptab-pct.pos{color:var(--green)} .ptab-pct.neg{color:var(--red)}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--border);

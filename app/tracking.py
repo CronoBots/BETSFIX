@@ -408,28 +408,29 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
     else:
         verdict, vcls = "⋯ en rodage", "na"
     accent = {"tennis": "#d7e64a", "foot": "#2ee27f", "basket": "#ff9f43"}.get(name.lower(), "")
-    # Confiance : X/Y gagnés (favoris nets)
+    # Confiance : nb gagnés (gros) + taux de réussite (petit dessous)
     conf = next((d for d in (rep.get("par_type") or []) if d.get("label") == "Confiance"), None)
     if conf and conf.get("n"):
-        cn = conf["n"]
-        cval, ccls = f'{round((conf.get("precision") or 0) * cn)}/{cn}', ""
+        cn, prec = conf["n"], conf.get("precision") or 0
+        conf_cell = (f'<span class="ptab-conf">{round(prec * cn)}/{cn}'
+                     f'<span class="ptab-pct">{round(prec * 100)}%</span></span>')
     else:
-        cval, ccls = "—", "na"
-    # Value : ROI coloré
+        conf_cell = '<span class="ptab-conf na">—</span>'
+    # Value : nb gagnés (gros) + ROI coloré (petit dessous)
     vn = rep.get("value_paris_regles") or 0
     if vn:
         roi = rep.get("value_roi") or 0
-        vval = f'{"+" if roi >= 0 else ""}{round(roi * 100)}%'   # entier -> colonne compacte
-        vvcls = "pos" if roi >= 0 else "neg"
+        roi_txt = f'{"+" if roi >= 0 else ""}{round(roi * 100)}%'
+        val_cell = (f'<span class="ptab-val">{rep.get("value_gagnes") or 0}/{vn}'
+                    f'<span class="ptab-pct {"pos" if roi >= 0 else "neg"}">{roi_txt}</span></span>')
     else:
-        vval, vvcls = "—", "na"
+        val_cell = '<span class="ptab-val na">—</span>'
     sub = f'{n} match{"s" if n > 1 else ""} noté{"s" if n > 1 else ""}'
     style = f' style="--sc:{accent}"' if accent else ""
     return (f'<a class="ptab-row" href="{e(url)}"{style}>'
             f'<span class="ptab-sport">{icon} {e(name)}<span class="ptab-sub">{sub}</span></span>'
             f'<span class="ptab-verdict {vcls}">{verdict}</span>'
-            f'<span class="ptab-conf {ccls}">{cval}</span>'
-            f'<span class="ptab-val {vvcls}">{vval}</span></a>')
+            f'{conf_cell}{val_cell}</a>')
 
 
 def render_proof(reports: list[tuple]) -> str:
@@ -445,7 +446,7 @@ def render_proof(reports: list[tuple]) -> str:
             '<b>Confiance</b> = paris « favori net » gagnés (doit passer souvent). '
             '<b>Value</b> = <b>ROI</b> des paris « grosse cote » : ils perdent souvent (normal), '
             'seul le ROI compte. Touche une ligne pour les chiffres détaillés.')
-    return web._section('📊 Preuve — le modèle bat-il le marché ?', table, open_=True, info=info)
+    return web._section('📊 Preuve — bat le marché ?', table, open_=True, info=info)
 
 
 def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
