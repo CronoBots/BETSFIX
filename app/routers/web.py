@@ -714,10 +714,24 @@ async def match_detail(
             votes = (v.home_percent, v.away_percent)
     except ProviderError:
         pass
+    # « 🎯 Paris conseillés » depuis le SUIVI (cohérent avec la carte), comme foot/basket.
+    recos = ""
+    if frag:
+        rec = tracking.load().get(str(match_id))
+        if rec:
+            vp = rec.get("value_pick")
+            value = (vp.get("player"), vp.get("odds"), vp.get("edge")) if vp and vp.get("odds") else None
+            mh = rec.get("model_home_prob")
+            confidence = None
+            if mh is not None and max(mh, 1 - mh) >= 0.65:
+                fav = rec.get("home") if mh >= 0.5 else rec.get("away")
+                odd = rec.get("unibet_home_odds") if mh >= 0.5 else rec.get("unibet_away_odds")
+                confidence = (fav, max(mh, 1 - mh), odd)
+            recos = web.recommended_bets(value, confidence)
     return HTMLResponse(web.render_match_detail(
         analysis, winner_odds, aces=aces, tour=tour,
         home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score, votes=votes,
-        frag=bool(frag)))
+        frag=bool(frag), recos=recos))
 
 
 def _ace_lines(odds, match) -> tuple[float | None, float | None]:

@@ -1127,7 +1127,8 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                         home_form: list[dict] | None = None,
                         away_form: list[dict] | None = None,
                         h2h: dict | None = None, score: str = "",
-                        votes: tuple | None = None, frag: bool = False) -> str:
+                        votes: tuple | None = None, frag: bool = False,
+                        recos: str = "") -> str:
     """a = MatchAnalysis ; winner_odds = (cote_home, cote_away) Unibet ;
     aces = récap tendance d'aces ; home_form/away_form = derniers résultats (V/D) ;
     h2h = {'home': n, 'away': n} bilan des confrontations ; score = score en cours."""
@@ -1301,10 +1302,9 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
     # frag : accordéon sous la carte -> analyse SANS l'en-tête (matchup déjà sur la carte)
     # ni le bandeau layout. On garde tout le reste (la plus complète).
     if frag:
-        # Accordéon : la CARTE montre déjà la prédiction (proba + cotes), source de vérité.
-        # On NE répète PAS le favori / les probas / les cotes ici (la fiche recalcule au clic
-        # et peut diverger si SofaScore est limité) -> on garde l'analyse qui COMPLÈTE vraiment.
-        return (pari_html + form_html + h2h_html + votes_html + factors + aces_html) \
+        # Accordéon : MÊME présentation que foot/basket -> « 🎯 Paris conseillés » (depuis le
+        # suivi, cohérent avec la carte) puis l'analyse. On NE répète PAS favori/probas/cotes.
+        return ((recos or pari_html) + form_html + h2h_html + votes_html + factors + aces_html) \
             or '<div class="dim">Analyse détaillée indisponible (SofaScore momentanément ' \
                'limité) — la prédiction reste celle de la carte.</div>'
     body = (head + pari_html + verdict + form_html + h2h_html + votes_html + paris_link
