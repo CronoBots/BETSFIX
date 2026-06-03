@@ -401,18 +401,19 @@ def _proof_card(icon: str, name: str, rep: dict, url: str) -> str:
     n = rep.get("matchs_regles") or 0
     n_pred = rep.get("predictions_evaluees") or 0
     bat = rep.get("bat_le_marche")
-    # Pastille (verdict) + couleur du liseré de carte
+    # Pastille = verdict (le liseré gauche, lui, porte la COULEUR DU SPORT pour l'identité)
     if n == 0:
-        pill, vcls = '<span class="pvpill pv-na">en collecte</span>', "v-na"
+        pill = '<span class="pvpill pv-na">en collecte</span>'
     elif n < 30 or n_pred < 30:
         pill = f'<span class="pvpill pv-na">en rodage · {n}/30</span>'
-        vcls = "v-na"
     elif bat is True:
-        pill, vcls = '<span class="pvpill pv-ok">✓ plus fiable que les cotes</span>', "v-ok"
+        pill = '<span class="pvpill pv-ok">✓ plus fiable que les cotes</span>'
     elif bat is False:
-        pill, vcls = '<span class="pvpill pv-ko">✗ moins fiable que les cotes</span>', "v-ko"
+        pill = '<span class="pvpill pv-ko">✗ moins fiable que les cotes</span>'
     else:
-        pill, vcls = '<span class="pvpill pv-na">en rodage</span>', "v-na"
+        pill = '<span class="pvpill pv-na">en rodage</span>'
+    # Couleur du sport sur le liseré (mêmes teintes que les onglets) -> identité par carte
+    accent = {"tennis": "#d7e64a", "foot": "#2ee27f", "basket": "#ff9f43"}.get(name.lower(), "")
     noted = f'{n} match{"s" if n > 1 else ""} noté{"s" if n > 1 else ""}'
 
     def stat(label, val, unit, sub, vc=""):
@@ -439,7 +440,8 @@ def _proof_card(icon: str, name: str, rep: dict, url: str) -> str:
                           "pos" if roi >= 0 else "neg")
     else:
         value_stat = stat("💎 Value", "—", "", "aucun encore", "pv-empty")
-    return (f'<a class="proofcard {vcls}" href="{e(url)}">'
+    style = f' style="border-left-color:{accent}"' if accent else ""
+    return (f'<a class="proofcard" href="{e(url)}"{style}>'
             f'<div class="proof-h"><span class="proof-name">{icon} {e(name)}</span> {pill}</div>'
             f'<div class="proof-row dim">{noted}</div>'
             f'<div class="proof-stats">{conf_stat}{value_stat}</div>'

@@ -244,5 +244,5 @@ def test_render_proof_honnete():
     assert html.count('pstat-k">🔥 Confiance</div>') == 3
     assert html.count('pstat-k">💎 Value</div>') == 3
     assert "aucun encore" in html                 # placeholder quand un type n'a pas de donnée
-    assert 'class="proofcard v-ok"' in html       # liseré vert (tennis bat le marché) + v-na ailleurs
-    assert 'class="proofcard v-na"' in html
+    assert "border-left-color:#d7e64a" in html    # liseré = couleur du sport (tennis lime)
+    assert "border-left-color:#ff9f43" in html    # basket orange

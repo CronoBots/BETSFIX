@@ -402,19 +402,16 @@ CSS = """
           border:1px solid var(--border);border-left:3px solid var(--border2);border-radius:14px;
           padding:13px 15px;margin:10px 0;text-decoration:none;color:var(--text);
           box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
-  .proofcard.v-ok{border-left-color:var(--green)}
-  .proofcard.v-ko{border-left-color:var(--red)}
-  .proofcard.v-na{border-left-color:var(--border2)}
   .proofcard:active{background:var(--surface2)}
   .proof-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:3px}
   .proof-name{font-weight:800;font-size:16px;line-height:1.3}
   .proof-row.dim{color:var(--muted);font-size:11.5px;margin-bottom:2px}
   .proof-stats{display:flex;gap:9px;margin:10px 0 2px}
   .pstat{flex:1;min-width:0;background:rgba(255,255,255,.025);border:1px solid var(--border);
-          border-radius:11px;padding:9px 11px}
+          border-radius:11px;padding:10px 11px;text-align:center}
   .pstat-k{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;
           letter-spacing:.04em}
-  .pstat-v{font-size:19px;font-weight:800;color:var(--text);margin-top:3px;line-height:1.1;
+  .pstat-v{font-size:18px;font-weight:800;color:var(--text);margin-top:4px;line-height:1.1;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pstat-v.pos{color:var(--green)} .pstat-v.neg{color:var(--red)}
   .pstat-v.pv-empty{color:var(--muted);font-size:15px;font-weight:700}
