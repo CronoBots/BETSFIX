@@ -278,13 +278,13 @@ CSS = """
   .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
   .po{background:#8a93a3}
   .pc{background:#e0b341}
-  /* Note de divergence public vs modèle (signal contrarian) — fine et discrète */
-  .dvg{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;margin-top:7px;
-       padding:4px 9px;border-radius:7px;line-height:1.2;
-       background:rgba(46,155,255,.08);border:1px solid rgba(46,155,255,.18);color:#9fd0ff}
-  .dvg.warn{background:rgba(224,179,65,.08);border-color:rgba(224,179,65,.22);color:#e6b94a}
-  .dvg b{color:inherit;font-weight:800}
-  .dvg-n{margin-left:auto;font-variant-numeric:tabular-nums;opacity:.85;font-weight:700}
+  /* Divergence public/modèle : emoji à droite de la barre PUBLIC + bulle au tap */
+  .pb-x{width:20px;flex:none;text-align:center}
+  .dvg-i{cursor:pointer;font-size:14px;line-height:1;-webkit-tap-highlight-color:transparent}
+  .dvg-i:active{opacity:.6}
+  .dvg-bubble{margin-top:8px;padding:9px 12px;border-radius:10px;font-size:12px;line-height:1.5;
+              background:var(--surface2);border:1px solid var(--border2);color:var(--muted)}
+  .dvg-bubble b{color:var(--text)}
   /* Barre de cotes : une cellule par issue (joueur 1 / Nul / joueur 2) ; favori (cote la
      plus basse) mis en avant en bleu. Nom au-dessus, cote dessous. */
   .oddsrow{display:flex;gap:6px;margin-top:7px}
@@ -445,7 +445,12 @@ _SPA_JS = (
     "document.addEventListener('click',function(e){var b=e.target.closest('[data-info]');"
     "if(!b)return;e.preventDefault();e.stopPropagation();"
     "var d=b.closest('details.sec2'),inf=d&&d.querySelector('.sec-info');"
-    "if(inf)inf.hidden=!inf.hidden;});})();"
+    "if(inf)inf.hidden=!inf.hidden;});"
+    # l'emoji de divergence ouvre/ferme sa bulle d'explication (sans suivre le lien de la carte)
+    "document.addEventListener('click',function(e){var b=e.target.closest('[data-dvg]');"
+    "if(!b)return;e.preventDefault();e.stopPropagation();"
+    "var pb=b.closest('.pbars'),bub=pb&&pb.nextElementSibling;"
+    "if(bub&&bub.classList.contains('dvg-bubble'))bub.hidden=!bub.hidden;});})();"
 )
 
 
@@ -539,31 +544,37 @@ def _pick_bars(p: dict) -> str:
 
     Toutes mesurent la même chose (chances du pari) -> comparables. Le vote communauté
     est la part des fans sur ce côté (le reste va à l'adversaire : total 100%)."""
-    def bar(label, val, cls):
+    def bar(label, val, cls, extra=""):
         if val is None:
             return ""
         pct = round(val * 100)
         return (f'<div class="pb-row"><span class="pb-l">{label}</span>'
                 f'<div class="pb-t"><span class="{cls}" style="width:{min(pct,100)}%"></span></div>'
-                f'<span class="pb-v">{pct}%</span></div>')
-    inner = (bar("BETSFIX", p.get("model_prob"), "pm")
+                f'<span class="pb-v">{pct}%</span><span class="pb-x">{extra}</span></div>')
+    # Divergence PUBLIC vs MODÈLE (le désaccord book vs modèle = déjà la value) -> juste un
+    # emoji à droite de la barre PUBLIC ; au tap, une bulle explique (signal contrarian).
+    m, c = p.get("model_prob"), p.get("community")
+    emoji = expl = ""
+    if m is not None and c is not None:
+        if c - m >= 0.18:
+            emoji = "⚠️"
+            expl = (f'⚠️ Le public <b>surévalue</b> ce camp : {round(c*100)}% des parieurs '
+                    f'contre {round(m*100)}% pour BETSFIX. Favori sur-parié — signal '
+                    f'<b>contrarian</b> (la cote du favori est souvent trop basse, à fader).')
+        elif m - c >= 0.18:
+            emoji = "💡"
+            expl = (f'💡 Le public <b>sous-évalue</b> ce camp : {round(m*100)}% pour BETSFIX '
+                    f'contre seulement {round(c*100)}% des parieurs.')
+    pub_x = f'<span class="dvg-i" data-dvg aria-label="Explication">{emoji}</span>' if emoji else ""
+    inner = (bar("BETSFIX", m, "pm")
              + bar("Bookmaker", p.get("implied"), "po")
-             + bar("Public", p.get("community"), "pc"))
+             + bar("Public", c, "pc", pub_x))
     if not inner:
         return ""
     bet = html.escape(p.get("bet") or "le pari")
-    # Indicateur de divergence PUBLIC vs MODÈLE (le désaccord book vs modèle = déjà la value).
-    # Public très au-dessus du modèle -> hype, favori sur-parié (signal contrarian = à fader).
-    note, m, c = "", p.get("model_prob"), p.get("community")
-    if m is not None and c is not None:
-        if c - m >= 0.18:
-            note = (f'<div class="dvg warn">⚠️ Public <b>surévalue</b>'
-                    f'<span class="dvg-n">{round(c*100)}% vs {round(m*100)}%</span></div>')
-        elif m - c >= 0.18:
-            note = (f'<div class="dvg">💡 Public <b>sous-évalue</b>'
-                    f'<span class="dvg-n">{round(c*100)}% vs {round(m*100)}%</span></div>')
+    bubble = f'<div class="dvg-bubble" hidden>{expl}</div>' if expl else ""
     return (f'<div class="pbars"><div class="pb-h">Chances que <b>{bet}</b> gagne '
-            f'<span class="dim">— selon :</span></div>{inner}</div>{note}')
+            f'<span class="dim">— selon :</span></div>{inner}</div>{bubble}')
 
 
 def bars_two_way(p_home, imp_home, votes, home, away) -> dict:
