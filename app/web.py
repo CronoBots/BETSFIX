@@ -404,11 +404,11 @@ CSS = """
   .ptab{border:1px solid var(--border);border-radius:14px;overflow:hidden;margin:8px 0;
           background:linear-gradient(180deg,var(--surface2),var(--surface));
           box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
-  .ptab-h,.ptab-row{display:grid;grid-template-columns:1fr auto 52px 64px;gap:10px;
-          align-items:center;padding:10px 13px}
-  .ptab-h{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  .ptab-h,.ptab-row{display:grid;grid-template-columns:1.45fr 1.1fr .6fr .7fr;gap:8px;
+          align-items:center;padding:11px 12px}
+  .ptab-h{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
           color:var(--muted);border-bottom:1px solid var(--border)}
-  .ptab-h span{text-align:right} .ptab-h span:first-child{text-align:left}
+  .ptab-h span{text-align:center} .ptab-h span:first-child{text-align:left}
   .ptab-row{border-top:1px solid var(--border);border-left:3px solid var(--sc,var(--border2));
           text-decoration:none;color:var(--text)}
   .ptab-row:first-of-type{border-top:none}
@@ -416,11 +416,15 @@ CSS = """
   .ptab-sport{font-weight:800;font-size:14px;line-height:1.25;min-width:0;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ptab-sub{display:block;font-size:10px;font-weight:600;color:var(--muted)}
-  .ptab-verdict{font-size:11px;font-weight:800;text-align:right;white-space:nowrap}
-  .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:right;white-space:nowrap}
-  .ptab-verdict.ok,.ptab-val.pos{color:var(--green)}
-  .ptab-verdict.ko,.ptab-val.neg{color:var(--red)}
-  .ptab-verdict.na,.ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600}
+  /* Fiabilité = pastille de statut teintée, centrée dans sa colonne */
+  .ptab-verdict{justify-self:center;display:inline-block;padding:2px 9px;border-radius:20px;
+          font-size:10.5px;font-weight:800;white-space:nowrap}
+  .ptab-verdict.ok{background:rgba(46,226,127,.14);color:var(--green);border:1px solid rgba(46,226,127,.3)}
+  .ptab-verdict.ko{background:rgba(255,90,90,.13);color:var(--red);border:1px solid rgba(255,90,90,.32)}
+  .ptab-verdict.na{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap}
+  .ptab-val.pos{color:var(--green)} .ptab-val.neg{color:var(--red)}
+  .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--border);
