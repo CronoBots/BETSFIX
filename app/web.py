@@ -297,9 +297,12 @@ CSS = """
   .pt2-h,.pt2-row{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center}
   .pt2-h{padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
          color:var(--muted);border-bottom:1px solid var(--border)}
-  /* en-tête équipes : nom abrégé, CENTRÉ sur sa colonne (nul pile au milieu, écarts égaux) */
+  /* en-tête : nul centré ; équipe gauche alignée à GAUCHE, équipe droite à DROITE (comme leurs
+     cotes en dessous). Les VALEURS %, elles, restent centrées (cf. .pt2-v). */
   .pt2-h span{text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .pt2-h span:first-child{text-align:left}
+  .pt2-h span:nth-child(2){text-align:left}
+  .pt2-h span:last-child{text-align:right}
   .pt2-block{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.04)}
   .pt2-block:last-child{border-bottom:none}
   .pt2-s{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
@@ -920,8 +923,10 @@ def render_home(rep: dict, source: dict | None = None,
                             '<div class="banner">Aucune value détectée pour le moment '
                             '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
 
-    # Preuve EN HAUT (le track record honnête, ancre de confiance), puis confiances, puis valeurs.
-    body = f'{proof_html}{conf_html}{val_html}'
+    # Preuve EN HAUT, puis Confiances. Section « Valeurs » MASQUÉE pour l'instant (focus
+    # confiances) — les matchs restent visibles dans leurs onglets. `val_html` est conservé
+    # (calculé) mais non affiché : réactivation = remettre {val_html} dans le body.
+    body = f'{proof_html}{conf_html}'
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 
