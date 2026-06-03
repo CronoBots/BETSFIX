@@ -163,7 +163,8 @@ def _market(bo: dict) -> UnibetMarket:
                 implied_probability=round(1 / decimal, 4) if decimal else None,
             )
         )
-    return UnibetMarket(label=crit, type=btype, outcomes=outcomes)
+    is_main = "MAIN" in (bo.get("tags") or [])
+    return UnibetMarket(label=crit, type=btype, main=is_main, outcomes=outcomes)
 
 
 # Normalisation centralisée (cf. app/textutil.py). Ces alias gardent l'API

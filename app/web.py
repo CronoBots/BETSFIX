@@ -1046,6 +1046,19 @@ def _market_category(label: str, mtype: str, sport: str | None = None) -> tuple[
     return "Autres marchés", 99
 
 
+def _oc_label(o) -> str:
+    """Libellé d'un choix « comme Unibet » : nom du participant si dispo (sinon « Nul » pour X),
+    avec la ligne -> handicap signé (+0.5 / -0.5), total juste le seuil (Plus de 27.5)."""
+    raw = (o.label or "").strip()
+    name = o.participant or ("Nul" if raw.upper() == "X" else raw)
+    if o.line is not None:
+        if o.participant:                       # handicap rattaché à un camp -> signe explicite
+            name = f"{name} {'+' if o.line > 0 else ''}{o.line:g}"
+        else:                                   # total (Plus de / Moins de N) -> juste le seuil
+            name = f"{name} {o.line:g}"
+    return name.strip()
+
+
 def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet",
                           sport: str | None = None) -> str:
     """Tous les marchés Unibet, REGROUPÉS par catégorie (comme l'app Unibet) en sections
@@ -1057,6 +1070,7 @@ def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet",
     #    avec ses 48 lignes, et non 48 marchés). Le compte par catégorie colle alors à Unibet.
     merged: dict = {}
     order: list = []
+    main_keys: set = set()
     for m in (markets or []):
         outs = [o for o in (m.outcomes or []) if o.odds]
         if not outs:
@@ -1066,28 +1080,32 @@ def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet",
             merged[key] = []
             order.append(key)
         merged[key].extend(outs)
+        if m.main:
+            main_keys.add(key)   # marché principal -> remontera en tête de sa catégorie
     cats: dict = {}
-    for key in order:
+    for idx, key in enumerate(order):
         outs = merged[key]
         name, rank = _market_category(key, "", sport)
         cells = []
         for o in outs[:30]:
-            lbl = f'{o.label or ""} {o.line if o.line is not None else ""}'.strip()
-            cells.append(f'<span class="oc"><span class="ocn">{e(lbl)}</span>'
+            cells.append(f'<span class="oc"><span class="ocn">{e(_oc_label(o))}</span>'
                          f'<span class="ocv">{o.odds}</span></span>')
         if len(outs) > 30:
             cells.append(f'<span class="oc dim"><span class="ocn">+{len(outs)-30} lignes</span></span>')
         block = (f'<div class="mkt"><div class="mkt-l">{e(key)}</div>'
                  f'<div class="oddsrow oddsrow-wrap">{"".join(cells)}</div></div>')
-        cats.setdefault((rank, name), []).append(block)
+        # tri intra-catégorie : marché principal d'abord, puis ordre d'apparition Unibet
+        sort_key = (0 if key in main_keys else 1, idx)
+        cats.setdefault((rank, name), []).append((sort_key, block))
     if not cats:
         return ""
     total = sum(len(v) for v in cats.values())
     out = [f'<h2>{title} <span class="dim">({total})</span></h2>']
     for (rank, name), blocks in sorted(cats.items()):
-        shown = blocks[:40]
-        more = (f'<div class="dim" style="padding:4px 2px">+{len(blocks)-40} autres marchés '
-                "sur Unibet</div>") if len(blocks) > 40 else ""
+        ordered = [b for _, b in sorted(blocks, key=lambda x: x[0])]
+        shown = ordered[:40]
+        more = (f'<div class="dim" style="padding:4px 2px">+{len(ordered)-40} autres marchés '
+                "sur Unibet</div>") if len(ordered) > 40 else ""
         op = " open" if rank == 0 else ""   # « Résultat du match » ouvert d'office
         out.append(f'<details class="mktcat"{op}><summary>{e(name)} '
                    f'<span class="mktcat-n">{len(blocks)}</span></summary>'

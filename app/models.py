@@ -366,6 +366,7 @@ class UnibetMarket(BaseModel):
 
     label: str = ""
     type: str | None = None
+    main: bool = Field(default=False, description="Marché principal (tag Kambi MAIN) -> en tête")
     outcomes: list[UnibetOutcome] = Field(default_factory=list)
 
 
