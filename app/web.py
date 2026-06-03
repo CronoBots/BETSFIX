@@ -338,7 +338,8 @@ CSS = """
   .oddsrow{display:flex;gap:6px;margin-top:7px}
   .oc{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
       background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:5px 6px}
-  .oc.fav{border-color:var(--accent2);background:rgba(46,155,255,.10)}
+  /* Cote PARIÉE : cadre bleu fixe (identique pour TOUS les sports, pas la couleur du sport) */
+  .oc.fav{border-color:#2e9bff;background:rgba(46,155,255,.12);box-shadow:0 0 12px rgba(46,155,255,.18)}
   .ocn{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
        max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .oc.fav .ocn{color:#9fd0ff}
@@ -695,9 +696,8 @@ def _pick_bars(p: dict) -> str:
         return _pick_bars_legacy(p)
     has_draw = p.get("m_draw") is not None
 
-    def short(n):
-        return (str(n).split() or [str(n)])[-1]
-    cols = [e(short(p.get("home") or ""))] + (["Nul"] if has_draw else []) + [e(short(p.get("away") or ""))]
+    # Nom COMPLET de l'équipe en en-tête (tronqué par CSS si trop long) — pas le dernier mot
+    cols = [e(p.get("home") or "")] + (["Nul"] if has_draw else []) + [e(p.get("away") or "")]
     head = ('<div class="pt2-h"><span>Source</span>'
             + "".join(f'<span>{c}</span>' for c in cols) + '</div>')
 
@@ -821,14 +821,13 @@ def _section(heading: str, body: str, open_: bool = True, info: str | None = Non
 
 
 def _pick_card(p: dict, badge: str) -> str:
-    """Carte d'un pari pour l'accueil (value OU confiance), avec les 3 barres."""
+    """Carte d'un pari pour l'accueil (value OU confiance), avec le tableau des chances.
+    Titre = l'AFFICHE (les 2 équipes) ; le pari/cote n'est PAS répété (la cote pariée est
+    surlignée en bleu dans la ligne de cotes du dessous)."""
     e = html.escape
-    odds = f' <span class="dim">@{p.get("odds")}</span>' if p.get("odds") else ""
     cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
           if p.get("start_ts") and p["start_ts"] > time.time() else "")
     fem = ' <span class="fem">(F)</span>' if p.get("female") else ""
-    # Coin haut-droit = pastille d'état (même style) : décompte si à venir, « EN DIRECT » si
-    # live. Le badge value descend toujours sur la ligne du pari.
     state = cd if cd else ('<span class="cd live">🔴 EN DIRECT</span>' if p.get("live") else "")
     bdg = f'<span class="bdg">{badge}</span>' if badge else ""
     # surligne l'issue pariée (cohérent avec les barres), pas le favori du book
@@ -838,8 +837,8 @@ def _pick_card(p: dict, badge: str) -> str:
     af = f'{p["away_flag"]} ' if p.get("away_flag") else ""
     inner = (f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
              f'<span class="rt-r">{state}</span></div>'
-             f'<div class="betline"><span class="bn">{e(p.get("bet") or "")}{odds}</span>{bdg}</div>'
-             f'<div class="dim">{hf}{e(p.get("home") or "")} vs {af}{e(p.get("away") or "")}</div>'
+             f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
+             f'<span class="dim">vs</span> {af}{e(p.get("away") or "")}</div>{bdg}</div>'
              f'{_pick_bars(p)}{oddsrow}')
     url = p.get("url") or ""
     # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
