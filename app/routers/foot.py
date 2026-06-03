@@ -12,7 +12,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import flags, foot, fragcache, sportcache, tracking, web
+from app import flags, foot, fragcache, match_analysis, sportcache, tracking, web
+from app.config import get_settings
 from app.dependencies import get_provider, get_unibet
 from app.models import (
     MatchIncidents,
@@ -219,6 +220,26 @@ async def foot_match(event_id: int, frag: int = 0,
                 confidence = ([home, "Match nul", away][i], probs[i],
                               [rec.get("o1"), rec.get("ox"), rec.get("o2")][i])
         extra = web.recommended_bets(value, confidence)
+        # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — 1X2
+        if all(p is not None for p in probs):
+            idx = max(range(3), key=lambda k: probs[k])
+            fav_h, fav_a = idx == 0, idx == 2
+            brief = {
+                "sport": "foot", "home": home, "away": away,
+                "favorite": home if fav_h else (away if fav_a else "le match nul"),
+                "underdog": away if fav_h else (home if fav_a else ""),
+                "fav_prob": probs[idx],
+                "fav_odds": [rec.get("o1"), rec.get("ox"), rec.get("o2")][idx],
+                "confidence": rec.get("confidence"),
+                "value": ({"name": value[0], "odds": value[1], "edge": value[2]} if value else None),
+                "h2h_fav": (h2h.get("home_wins") if fav_h else h2h.get("away_wins")) if (h2h and idx != 1) else None,
+                "h2h_opp": (h2h.get("away_wins") if fav_h else h2h.get("home_wins")) if (h2h and idx != 1) else None,
+                "public_fav": (rec.get("public_home") / 100 if fav_h and rec.get("public_home") is not None
+                               else rec.get("public_away") / 100 if fav_a and rec.get("public_away") is not None
+                               else None),
+                "match_id": int(event_id),
+            }
+            extra = (await match_analysis.write_analysis(brief, get_settings())) + extra
     # Cotes Unibet de l'événement (1 appel = TOUS les marchés du book) — best-effort
     markets = []
     try:

@@ -10,7 +10,8 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import basket, fragcache, sportcache, tracking, web
+from app import basket, fragcache, match_analysis, sportcache, tracking, web
+from app.config import get_settings
 from app.dependencies import get_provider, get_unibet
 from app.models import (
     MatchOdds,
@@ -93,6 +94,25 @@ async def basket_match(event_id: int, frag: int = 0,
             fav = home if mh >= 0.5 else away
             confidence = (fav, p_fav, rec.get("unibet_home_odds") if mh >= 0.5 else rec.get("unibet_away_odds"))
         extra = web.recommended_bets(value, confidence)
+        # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — moneyline
+        fav_h = mh >= 0.5
+        _m = rec.get("margin")
+        brief = {
+            "sport": "basket", "home": home, "away": away,
+            "favorite": home if fav_h else away, "underdog": away if fav_h else home,
+            "fav_prob": p_fav,
+            "fav_odds": rec.get("unibet_home_odds") if fav_h else rec.get("unibet_away_odds"),
+            "confidence": rec.get("confidence"),
+            "value": ({"name": value[0], "odds": value[1], "edge": value[2]} if value else None),
+            "margin": abs(_m) if _m else None,
+            "h2h_fav": (h2h.get("home_wins") if fav_h else h2h.get("away_wins")) if h2h else None,
+            "h2h_opp": (h2h.get("away_wins") if fav_h else h2h.get("home_wins")) if h2h else None,
+            "public_fav": (rec.get("public_home") / 100 if fav_h and rec.get("public_home") is not None
+                           else rec.get("public_away") / 100 if not fav_h and rec.get("public_away") is not None
+                           else None),
+            "match_id": int(event_id),
+        }
+        extra = (await match_analysis.write_analysis(brief, get_settings())) + extra
     # Marge attendue (modèle) : écart de points prévu en faveur du favori
     margin = (rec or {}).get("margin")
     if margin and mh is not None:
