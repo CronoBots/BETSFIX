@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     unibet_lang: str = "fr_BE"
     unibet_market: str = "BE"
 
+    # Analyse rédigée par Claude (OPTIONNEL) : si la clé est vide, on garde l'analyse
+    # gratuite générée localement (templatée). Mettre ANTHROPIC_API_KEY dans .env pour
+    # passer en prose Claude (Haiku par défaut, ~bon marché en cache).
+    anthropic_api_key: str = ""
+    analysis_model: str = "claude-haiku-4-5-20251001"
+
     # Cache et réseau
     cache_ttl_seconds: int = 120
     http_timeout: float = 20.0

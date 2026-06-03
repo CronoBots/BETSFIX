@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import ace_markets, elo, flags, fragcache, serve_return, set_markets, tendencies, tracking, web
+from app import ace_markets, elo, flags, fragcache, match_analysis, serve_return, set_markets, tendencies, tracking, web
+from app.config import get_settings
 from app.analysis import build_analysis, prob_from_rankings, remove_vig
 from app.analysis import _match_winner_odds
 from app.markets import (
@@ -734,6 +735,8 @@ async def match_detail(
         pass
     # « 🎯 Paris conseillés » depuis le SUIVI (cohérent avec la carte), comme foot/basket.
     recos = ""
+    value = None
+    analysis_html = ""
     if frag:
         rec = tracking.load().get(str(match_id))
         if rec:
@@ -746,6 +749,31 @@ async def match_detail(
                 odd = rec.get("unibet_home_odds") if mh >= 0.5 else rec.get("unibet_away_odds")
                 confidence = (fav, max(mh, 1 - mh), odd)
             recos = web.recommended_bets(value, confidence)
+        # 🧠 Analyse rédigée (gratuite, ou prose Claude si une clé API est configurée)
+        ground = (analysis.ground_type or "").lower()
+        surface = ("terre" if "clay" in ground else "gazon" if "grass" in ground
+                   else "dur" if "hard" in ground else None)
+        fav_home = (analysis.model_home_probability or 0.5) >= 0.5
+        fform = home_form if fav_home else away_form
+        surf_edge = any(f.name == "surface" and ((f.home if fav_home else f.away) or 0) >= 0.55
+                        for f in (analysis.factors or []))
+        brief = {
+            "sport": "tennis", "home": match.home.name, "away": match.away.name,
+            "favorite": match.home.name if fav_home else match.away.name,
+            "underdog": match.away.name if fav_home else match.home.name,
+            "fav_prob": fav_prob,
+            "fav_odds": winner_odds[0] if fav_home else winner_odds[1],
+            "confidence": analysis.confidence,
+            "value": ({"name": value[0], "odds": value[1], "edge": value[2]} if value else None),
+            "surface": surface, "surface_edge": surf_edge,
+            "fav_form_wins": sum(1 for x in (fform or []) if x.get("win")),
+            "fav_form_n": len(fform or []),
+            "h2h_fav": (h2h_rec or {}).get("home" if fav_home else "away"),
+            "h2h_opp": (h2h_rec or {}).get("away" if fav_home else "home"),
+            "public_fav": ((votes[0] if fav_home else votes[1]) / 100 if votes else None),
+            "match_id": match_id,
+        }
+        analysis_html = await match_analysis.write_analysis(brief, get_settings())
     # 💰 TOUS les paris Unibet (déjà récupérés dans gather_context)
     markets_html = (web.render_unibet_markets(odds.markets, sport="tennis")
                     if (frag and odds and odds.matched) else "")
@@ -754,6 +782,7 @@ async def match_detail(
         home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score, votes=votes,
         frag=bool(frag), recos=recos, markets_html=markets_html)
     if frag:
+        html = analysis_html + html      # 🧠 l'analyse rédigée en tête de l'accordéon
         fragcache.put(f"tennis/{match_id}", html)
     return HTMLResponse(html)
 

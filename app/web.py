@@ -397,6 +397,9 @@ CSS = """
   .banner.warn{background:linear-gradient(180deg,var(--gold-bg),rgba(35,29,9,.45));
           border:1px solid var(--gold-bd);border-left:3px solid var(--gold);color:var(--gold)}
   .banner.warn b{color:#ffd877}
+  /* Bloc « analyse rédigée » (texte d'expert généré) */
+  .banner.analysis{border-left:3px solid var(--accent2);color:var(--text);font-size:13px;
+          line-height:1.62;background:linear-gradient(180deg,var(--surface2),var(--surface))}
   /* Cartes « Preuve » (track record par sport) — style tableau de bord premium */
   .proofcard{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
           border:1px solid var(--border);border-left:3px solid var(--border2);border-radius:14px;
