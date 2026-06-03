@@ -44,10 +44,17 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
 @router.get("/foot", response_class=HTMLResponse, summary="Page Football (HTML)")
 async def foot_page(frag: int = 0) -> HTMLResponse:
     """Matchs des grandes compétitions (dont CdM) : proba 1X2 (Elo) vs cotes Unibet."""
+    if frag:   # panneau partagé -> cache court anti-rafale (pré-chargement SPA + refresh 45s)
+        cached = fragcache.get("panel/foot")
+        if cached:
+            return HTMLResponse(cached)
     # Budget réseau borné : si SofaScore traîne, on n'attend pas -> on sert le store.
     rows = await foot.board_resilient()       # MÊME source que l'accueil (cohérence)
     fin = foot.finished_from_store()          # terminés depuis le store (hors-SofaScore)
-    return HTMLResponse(foot.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag)))
+    body = foot.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag))
+    if frag:
+        fragcache.put("panel/foot", body, ttl=20)
+    return HTMLResponse(body)
 
 
 async def _sofa(path: str):

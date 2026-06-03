@@ -41,9 +41,16 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
 @router.get("/basket", response_class=HTMLResponse, summary="Page Basket (HTML)")
 async def basket_page(frag: int = 0) -> HTMLResponse:
     """Tableau NBA & WNBA : matchs à venir, proba modèle (Elo) vs cotes Unibet, value."""
+    if frag:   # panneau partagé -> cache court anti-rafale (pré-chargement SPA + refresh 45s)
+        cached = fragcache.get("panel/basket")
+        if cached:
+            return HTMLResponse(cached)
     rows = await basket.board_resilient()       # MÊME source que l'accueil (cohérence)
     fin = basket.finished_from_store()          # terminés depuis le store (hors-SofaScore)
-    return HTMLResponse(basket.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag)))
+    body = basket.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag))
+    if frag:
+        fragcache.put("panel/basket", body, ttl=20)
+    return HTMLResponse(body)
 
 
 @router.get("/basket/match/{event_id}", response_class=HTMLResponse,

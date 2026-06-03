@@ -28,6 +28,10 @@ from app.providers.unibet import UnibetProvider
 router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
 
 HORIZON_HOURS = 48
+# Cache court (s) des panneaux de liste (partagés entre tous les visiteurs) : coupe les
+# rafales d'appels Unibet/SofaScore au pré-chargement SPA et au refresh 45s. < refresh ->
+# un utilisateur seul récupère quand même des données fraîches à chaque rafraîchissement.
+PANEL_TTL = 20
 
 
 def _ts(iso: str | None) -> float | None:
@@ -291,6 +295,10 @@ async def _live_board_picks() -> tuple[list[dict], list[dict]]:
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider),
                frag: int = 0) -> HTMLResponse:
+    if frag:   # panneau partagé (pas de données par utilisateur) -> cache court anti-rafale
+        cached = fragcache.get("panel/home")
+        if cached:
+            return HTMLResponse(cached)
     values = _all_sport_picks()              # tennis (store) — même source que l'onglet
     confidences = _confidence_picks()        # tennis (store)
     bv, bc = await _live_board_picks()       # basket + foot : MÊMES boards que les onglets
@@ -320,10 +328,13 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
         ("🏀", "Basket", tracking.report(tracking.load(basket.BASKET_TRACK_PATH)),
          "/tracking/dashboard?sport=basket"),
     ]
-    return HTMLResponse(web.render_home(
+    body = web.render_home(
         tennis_rep, source=provider.breaker_status(),
         picks=values, conf_picks=confidences, frag=bool(frag),
-        proof_html=tracking.render_proof(proof)))
+        proof_html=tracking.render_proof(proof))
+    if frag:
+        fragcache.put("panel/home", body, ttl=PANEL_TTL)
+    return HTMLResponse(body)
 
 
 def _tennis_live_score(entry: dict, swapped: bool = False) -> str:
@@ -473,6 +484,11 @@ async def directs_page(
     """Tous les matchs EN DIRECT regroupés par sport (ils restent dans leur onglet)."""
     from app import basket, foot
 
+    if frag:
+        cached = fragcache.get("panel/directs")
+        if cached:
+            return HTMLResponse(cached)
+
     async def _safe(coro):
         try:
             return await asyncio.wait_for(coro, timeout=3.0)
@@ -482,7 +498,10 @@ async def directs_page(
     tl, bl, fl = await _safe(_tennis_live_cards(unibet)), await _safe(basket.live_cards()), \
         await _safe(foot.live_cards())
     sections = [("Tennis", "🎾", tl), ("Basket", "🏀", bl), ("Foot", "⚽", fl)]
-    return HTMLResponse(web.render_directs(sections, frag=bool(frag)))
+    body = web.render_directs(sections, frag=bool(frag))
+    if frag:
+        fragcache.put("panel/directs", body, ttl=PANEL_TTL)
+    return HTMLResponse(body)
 
 
 @router.get("/app", response_class=HTMLResponse)
@@ -494,6 +513,10 @@ async def matches_page(
 ) -> HTMLResponse:
     """Liste des matchs à venir (ATP+WTA). Source : Unibet (temps réel) + analyse du store
     (modèle complet SofaScore) ; repli SofaScore/LiveScore si Unibet ne donne rien."""
+    if frag:
+        cached = fragcache.get("panel/tennis")
+        if cached:
+            return HTMLResponse(cached)
     store = tracking.load()
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(hours=HORIZON_HOURS)
@@ -626,9 +649,12 @@ async def matches_page(
              if fallback else
              'Touchez un match pour son analyse complète (forme, face-à-face, facteurs, '
              f'aces, tous les paris Unibet). {web.BARS_LEGEND}')
-    return HTMLResponse(web.render_sport_matches(
+    body = web.render_sport_matches(
         "tennis", "Matchs", value_rows, live_rows, upcoming_rows, finished_rows,
-        intro=intro, frag=bool(frag)))
+        intro=intro, frag=bool(frag))
+    if frag:
+        fragcache.put("panel/tennis", body, ttl=PANEL_TTL)
+    return HTMLResponse(body)
 
 
 def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
