@@ -213,6 +213,17 @@ def _fav_metrics(pred: list[dict]) -> dict:
     }
 
 
+def _pick_type(r: dict) -> str:
+    """Catégorie du pari (mutuellement exclusive) : Value (edge) > Confiance (favori net
+    ≥ 65 %) > Autre. Sert à séparer les résultats par type de signal du modèle."""
+    if r.get("value_pick"):
+        return "Value"
+    mh = r.get("model_home_prob")
+    if mh is not None and max(mh, 1 - mh) >= 0.65:
+        return "Confiance"
+    return "Autre"
+
+
 def breakdown(pred: list[dict], keyfn, order: list | None = None) -> list[dict]:
     """Découpe les prédictions par clé (surface, tour, confiance) + métriques par groupe."""
     groups: dict = {}
@@ -335,6 +346,8 @@ def report(store: dict) -> dict:
         # >0 = le modèle promet plus qu'il ne réalise (à corriger par recalibration).
         "surconfiance": overall["surconfiance"],
         # Découpes : où le modèle marche / ne marche pas (data pour l'améliorer).
+        # Séparation des résultats par TYPE de pari (Confiance / Value / Autre).
+        "par_type": breakdown(pred, _pick_type, order=["Confiance", "Value", "Autre"]),
         "par_confiance": breakdown(pred, lambda r: r.get("confidence"),
                                    order=["élevée", "moyenne", "faible"]),
         "par_surface": breakdown(pred, surface_label,
@@ -484,7 +497,11 @@ def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
         factors_html = ""
 
     breakdowns_html = (
-        breakdown_table("Par niveau de confiance", rep.get("par_confiance"),
+        breakdown_table("Par type de pari", rep.get("par_type"),
+                        "Résultats SÉPARÉS par type : Confiance (favori net ≥ 65 %), "
+                        "Value (edge sur la cote, souvent des outsiders) et Autre. "
+                        "Le ROI des Value est détaillé plus bas.")
+        + breakdown_table("Par niveau de confiance", rep.get("par_confiance"),
                         "Le modèle est-il plus fiable quand il est 'confiant' ? "
                         "Sinon, le score de confiance ne veut rien dire.")
         + breakdown_table("Par surface", rep.get("par_surface"))
