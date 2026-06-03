@@ -79,15 +79,15 @@ def fmt_local(value, with_date: bool = True) -> str:
 
 CSS = """
   :root{
-    --bg:#080a0f;--bg2:#0c0f16;--surface:#13161f;--surface2:#1a1e2a;
-    --border:#252a37;--border2:#2f3545;--text:#eef1f7;--muted:#9099a8;--dim:#646c7c;
+    --bg:#06090f;--bg2:#0a0e1a;--surface:#111626;--surface2:#1a2133;
+    --border:#242c40;--border2:#30394f;--text:#eef1f7;--muted:#9099a8;--dim:#646c7c;
     --accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30);
     --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
-    --red:#f25d6e;--green:#34d27b;--brand:#2e9bff;
-    --radius:16px;--shadow:0 6px 22px rgba(0,0,0,.40);--shadow-sm:0 2px 8px rgba(0,0,0,.30);
+    --red:#f25d6e;--green:#34d27b;--brand:#22d3ee;--cyan:#22d3ee;
+    --radius:16px;--shadow:0 6px 22px rgba(0,0,0,.45);--shadow-sm:0 2px 8px rgba(0,0,0,.30);
   }
-  /* Identité couleur par sport : home bleu · tennis jaune · basket orange · foot vert */
-  body.sp-home{--accent:#2e9bff;--accent2:#1f80e6;--accent-ink:#02122b;--glow:rgba(46,155,255,.32)}
+  /* Identité couleur par sport : home cyan · tennis jaune · basket orange · foot vert */
+  body.sp-home{--accent:#22d3ee;--accent2:#0fb6d6;--accent-ink:#031619;--glow:rgba(34,211,238,.34)}
   body.sp-tennis{--accent:#d7e64a;--accent2:#aac72f;--accent-ink:#16180a;--glow:rgba(190,210,60,.30)}
   body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00;--glow:rgba(240,128,0,.30)}
   body.sp-foot{--accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30)}
@@ -104,14 +104,15 @@ CSS = """
      (évite le bug iOS où background-attachment:fixed est ignoré.) */
   body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
        background:
-         radial-gradient(1100px 620px at 50% -4%,rgba(46,155,255,.12),transparent 60%),
-         radial-gradient(820px 520px at 100% 102%,rgba(46,155,255,.05),transparent 60%);}
+         radial-gradient(1150px 680px at 50% -6%,rgba(34,211,238,.17),transparent 62%),
+         radial-gradient(760px 520px at 8% 8%,rgba(34,211,238,.06),transparent 58%),
+         radial-gradient(900px 560px at 100% 104%,rgba(34,211,238,.08),transparent 60%);}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   .wrap{max-width:720px;margin:0 auto;
         padding:calc(8px + env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom))}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
   .toplogo{display:block;text-align:center;margin:0 0 16px}
-  .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 18px rgba(46,155,255,.40))}
+  .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 22px rgba(34,211,238,.50))}
   .pausewrap{text-align:right;margin:-10px 0 8px}
   .pausebadge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
               color:var(--dim);background:transparent;border:1px solid var(--border2);
@@ -305,7 +306,7 @@ CSS = """
          font-variant-numeric:tabular-nums}
   .pt2-v.hi{font-weight:800}
   .pt2-v.dim{color:var(--dim)}
-  .t-pm{color:#4aa8ff} .t-po{color:#c2cad6} .t-pc{color:#e8c34d}   /* favori = couleur de la source */
+  .t-pm{color:#35d6f0} .t-po{color:#43dd8c} .t-pc{color:#e8c34d}   /* favori = couleur de la source */
   .pt2-bar{display:flex;gap:1px;height:4px;border-radius:99px;overflow:hidden;margin-top:6px;
          background:var(--surface)}
   .pt2-bar > span{display:block;height:100%}
@@ -319,9 +320,9 @@ CSS = """
   .pb-v{width:36px;flex:none;text-align:right;font-weight:800}
   /* Barres comparatives : couleurs FIXES (identiques tous sports/onglets) ->
      BETSFIX bleu, BOOKMAKER gris, PUBLIC jaune. Ne pas thématiser par sport. */
-  .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
-  .po{background:#8a93a3}
-  .pc{background:#e0b341}
+  .pm{background:linear-gradient(90deg,#0fb6d6,#22d3ee)}   /* BETSFIX cyan */
+  .po{background:linear-gradient(90deg,#19c46a,#34d27b)}   /* Cote Unibet VERT */
+  .pc{background:#e0b341}                                   /* Public jaune */
   .pbd{background:var(--dim)}          /* segment 'nul' (foot) */
   .pba{background:var(--surface2)}     /* segment joueur 2 (droite) */
   /* Divergence public/modèle : emoji à droite de la barre PUBLIC + bulle au tap */
