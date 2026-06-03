@@ -301,8 +301,14 @@ CSS = """
   .pbg{margin:8px 0 0}
   .pbg-s{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
          color:var(--muted);margin-bottom:3px;text-align:center}
-  .pb-t2{position:relative;display:flex;gap:1px;height:19px;border-radius:99px;overflow:hidden;
-         background:var(--surface)}
+  /* ligne : % joueur 1 (gauche) | barre | % joueur 2 (droite) — les 2 camps À L'EXTÉRIEUR */
+  .pbg-r{display:flex;align-items:center;gap:8px}
+  .pbg-h,.pbg-a{flex:none;min-width:34px;font-size:12.5px;font-weight:800;
+         font-variant-numeric:tabular-nums}
+  .pbg-h{text-align:right}
+  .pbg-a{text-align:left;color:var(--muted)}
+  .pb-t2{position:relative;flex:1;display:flex;gap:1px;height:16px;border-radius:99px;
+         overflow:hidden;background:var(--surface)}
   .pb-seg{display:block;height:100%}
   .pl{position:absolute;top:50%;font-size:10.5px;font-weight:800;color:#fff;white-space:nowrap;
       text-shadow:0 1px 2px rgba(0,0,0,.6);font-variant-numeric:tabular-nums;pointer-events:none}
@@ -697,27 +703,18 @@ def _pick_bars(p: dict) -> str:
         hp, ap = round(h * 100), round(a * 100)
         dp = round(d * 100) if d is not None else None
         segs = f'<span class="{cls} pb-seg" style="width:{hp}%"></span>'
+        nul_lbl = ""
         if dp is not None:
             segs += f'<span class="pbd pb-seg" style="width:{dp}%"></span>'
+            if dp >= 8:    # % du NUL à l'intérieur, centré sur son segment (s'il est assez large)
+                nul_lbl = (f'<span class="pl pl-mut" style="left:{round((h + d / 2) * 100, 1)}%;'
+                           f'transform:translate(-50%,-50%)">{dp}%</span>')
         segs += f'<span class="pba pb-seg" style="width:{ap}%"></span>'
-        # un % par segment : CENTRÉ dans son segment s'il est assez large, sinon collé au bord
-        # (et le 'nul' masqué si trop étroit) -> jamais de chevauchement.
-        lbls = []
-        if h >= 0.14:
-            lbls.append(f'<span class="pl" style="left:{round(h / 2 * 100, 1)}%;'
-                        f'transform:translate(-50%,-50%)">{hp}%</span>')
-        else:
-            lbls.append(f'<span class="pl" style="left:6px;transform:translateY(-50%)">{hp}%</span>')
-        if dp is not None and d >= 0.16:
-            lbls.append(f'<span class="pl pl-mut" style="left:{round((h + d / 2) * 100, 1)}%;'
-                        f'transform:translate(-50%,-50%)">{dp}%</span>')
-        if a >= 0.14:
-            lbls.append(f'<span class="pl" style="left:{round((1 - a / 2) * 100, 1)}%;'
-                        f'transform:translate(-50%,-50%)">{ap}%</span>')
-        else:
-            lbls.append(f'<span class="pl" style="right:6px;transform:translateY(-50%)">{ap}%</span>')
+        # % des 2 camps à l'EXTÉRIEUR (joueur 1 à gauche de la barre, joueur 2 à droite)
         return (f'<div class="pbg"><div class="pbg-s">{label}</div>'
-                f'<div class="pb-t2">{segs}{"".join(lbls)}</div></div>')
+                f'<div class="pbg-r"><span class="pbg-h">{hp}%</span>'
+                f'<div class="pb-t2">{segs}{nul_lbl}</div>'
+                f'<span class="pbg-a">{ap}%</span></div></div>')
 
     def short(n):
         return (str(n).split() or [str(n)])[-1]
