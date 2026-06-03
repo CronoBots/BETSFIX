@@ -105,7 +105,8 @@ async def team_context(event_id: int, home: str, away: str, unit: str = "buts") 
             return (f'<div class="frow"><div class="fn">{web.html.escape(name)}</div>'
                     f'<span class="dim">{position}<sup>e</sup> · {pts} pts · {sf} {unit} marqués, '
                     f'{sa} encaissés</span></div>')
-        standings_html = '<h2>📊 Classement</h2>' + line(home, hid) + line(away, aid)
+        standings_html = ('<h2>📊 Classement</h2><div class="row">'
+                          + line(home, hid) + line(away, aid) + '</div>')
 
     # 5 derniers résultats détaillés (adversaire + score)
     def last5(name, tid_, data):
@@ -126,10 +127,12 @@ async def team_context(event_id: int, home: str, away: str, unit: str = "buts") 
             rows.append(f'<div class="frow" style="padding:6px 0"><div class="ft">'
                         f'{_result_dot(res)}<span class="dim">{sc} vs {web.html.escape(opp)}</span></div></div>')
         return f'<div class="players" style="font-size:14px;margin:8px 0 2px">{web.html.escape(name)}</div>' + "".join(rows)
-    last_html = last5(home, hid, h_last) + last5(away, aid, a_last)
-    if last_html:
+    last_inner = last5(home, hid, h_last) + last5(away, aid, a_last)
+    last_html = ""
+    if last_inner:
         last_html = ('<h2>📅 5 derniers résultats <span class="dim" style="font-weight:400;'
-                     'font-size:11px">· 🟢 gagné · 🟡 nul · 🔴 perdu</span></h2>' + last_html)
+                     'font-size:11px">· 🟢 gagné · 🟡 nul · 🔴 perdu</span></h2>'
+                     f'<div class="row">{last_inner}</div>')
     return standings_html + last_html
 
 

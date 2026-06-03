@@ -1213,7 +1213,8 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     if forms:
         form_html = ('<h2>📈 Forme récente <span class="dim" style="font-weight:400;font-size:11px">'
                      '· 5 derniers : 🟢 gagné · 🟡 nul · 🔴 perdu</span></h2>'
-                     f'{_team_form_block(*forms[0])}{_team_form_block(*forms[1])}')
+                     f'<div class="row">{_team_form_block(*forms[0])}'
+                     f'{_team_form_block(*forms[1])}</div>')
 
     h2h = ctx.get("h2h")
     h2h_html = ""
