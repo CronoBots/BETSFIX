@@ -288,19 +288,37 @@ CSS = """
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
   .fd{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
       border-radius:4px;font-size:9px;font-weight:800;color:#08110a}
-  .pbars{margin-top:7px;display:flex;flex-direction:column;gap:4px}
+  .pbars{margin-top:7px;display:flex;flex-direction:column;gap:5px}
   .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
-  .pb-row{display:flex;align-items:center;gap:9px;font-size:11px}
-  .pb-l{width:84px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
-        font-weight:700;font-size:10px}
-  .pb-t{flex:1;height:8px;border-radius:99px;background:var(--surface);overflow:hidden}
-  .pb-t > span{display:block;height:100%;border-radius:99px}
+  /* En-tête des barres réparties : joueur 1 à gauche, joueur 2 à droite */
+  .pb-h2{display:flex;justify-content:space-between;align-items:center;gap:8px;
+         font-size:11.5px;font-weight:800;margin-bottom:2px}
+  .pb-h2 .dim{font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.04em;flex:none}
+  .pb-hn,.pb-an{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .pb-an{text-align:right}
+  /* Un bloc par source : nom AU-DESSUS, puis home% · nul% · away%, puis la barre */
+  .pbg{margin:7px 0 0}
+  .pbg-s{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+         color:var(--muted);margin-bottom:3px}
+  .pbg-v{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+         font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;margin-bottom:3px}
+  .pbg-v .dim{font-weight:600;font-size:10px}
+  .pbg-a{color:var(--muted)}
+  .pb-row{display:flex;align-items:center;gap:7px;font-size:11px}
+  .pb-l{width:64px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
+        font-weight:800;font-size:9px}
+  /* Piste = flex : segment home (couleur source) | nul | away (atténué), total 100% */
+  .pb-t{flex:1;height:8px;border-radius:99px;background:var(--surface);overflow:hidden;
+        display:flex;gap:1px}
+  .pb-t > span{display:block;height:100%}
   .pb-v{width:36px;flex:none;text-align:right;font-weight:800}
   /* Barres comparatives : couleurs FIXES (identiques tous sports/onglets) ->
      BETSFIX bleu, BOOKMAKER gris, PUBLIC jaune. Ne pas thématiser par sport. */
   .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
   .po{background:#8a93a3}
   .pc{background:#e0b341}
+  .pbd{background:var(--dim)}          /* segment 'nul' (foot) */
+  .pba{background:var(--surface2)}     /* segment joueur 2 (droite) */
   /* Divergence public/modèle : emoji à droite de la barre PUBLIC + bulle au tap */
   .pb-x{width:20px;flex:none;text-align:center}
   .dvg-i{cursor:pointer;font-size:14px;line-height:1;-webkit-tap-highlight-color:transparent}
@@ -652,71 +670,93 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 </div>{botnav}<script>{_COUNTDOWN_JS}</script><script>{_SPA_JS}</script></body></html>"""
 
 
-def _pick_bars(p: dict) -> str:
-    """3 barres = proba que LE PARI passe, selon Modèle (l'app) / Officiel (cote) / Communauté.
+def bars_split(model, implied) -> dict:
+    """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
+    m = model or (None, None, None)
+    i = implied or (None, None, None)
+    return {"m_home": m[0], "m_draw": m[1], "m_away": m[2],
+            "i_home": i[0], "i_draw": i[1], "i_away": i[2]}
 
-    Toutes mesurent la même chose (chances du pari) -> comparables. Le vote communauté
-    est la part des fans sur ce côté (le reste va à l'adversaire : total 100%)."""
-    def bar(label, val, cls, extra=""):
+
+def _pick_bars(p: dict) -> str:
+    """3 barres RÉPARTIES (joueur 1 à gauche, joueur 2 à droite, total 100 %), une par source :
+    BETSFIX (modèle) / Cote Unibet (implicite dévig) / Public (votes). Chaque barre montre le
+    % de CHAQUE camp selon la source. (La divergence public/modèle est expliquée dans l'analyse,
+    plus de pastille sur la barre.)"""
+    e = html.escape
+    mh, ma = p.get("m_home"), p.get("m_away")
+    if mh is None or ma is None:
+        return _pick_bars_legacy(p)
+
+    def block(label, cls, h, d, a):
+        if h is None or a is None:
+            return ""
+        hp, ap = round(h * 100), round(a * 100)
+        dp = round(d * 100) if d is not None else None
+        mid_val = f'<span class="dim">nul {dp}%</span>' if dp is not None else ""
+        seg_d = f'<span class="pbd" style="width:{dp}%"></span>' if dp is not None else ""
+        return (f'<div class="pbg"><div class="pbg-s">{label}</div>'
+                f'<div class="pbg-v"><span>{hp}%</span>{mid_val}<span class="pbg-a">{ap}%</span></div>'
+                f'<div class="pb-t"><span class="{cls}" style="width:{hp}%"></span>'
+                f'{seg_d}<span class="pba" style="width:{ap}%"></span></div></div>')
+
+    def short(n):
+        return (str(n).split() or [str(n)])[-1]
+    head = (f'<div class="pb-h2"><span class="pb-hn">{e(short(p.get("home") or ""))}</span>'
+            f'<span class="dim">chances de gagner</span>'
+            f'<span class="pb-an">{e(short(p.get("away") or ""))}</span></div>')
+    rows = (block("BETSFIX", "pm", mh, p.get("m_draw"), ma)
+            + block("Cote Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
+            + block("Public", "pc", p.get("pub_home"), None, p.get("pub_away")))
+    return f'<div class="pbars">{head}{rows}</div>'
+
+
+def _pick_bars_legacy(p: dict) -> str:
+    """Repli (anciennes barres, côté pari) si le détail home/away manque — SANS emoji."""
+    def bar(label, val, cls):
         if val is None:
             return ""
         pct = round(val * 100)
         return (f'<div class="pb-row"><span class="pb-l">{label}</span>'
                 f'<div class="pb-t"><span class="{cls}" style="width:{min(pct,100)}%"></span></div>'
-                f'<span class="pb-v">{pct}%</span><span class="pb-x">{extra}</span></div>')
-    # Divergence PUBLIC vs MODÈLE (le désaccord book vs modèle = déjà la value) -> juste un
-    # emoji à droite de la barre PUBLIC ; au tap, une bulle explique (signal contrarian).
-    m, c = p.get("model_prob"), p.get("community")
-    emoji = expl = ""
-    if m is not None and c is not None:
-        if c - m >= 0.18:
-            emoji = "⚠️"
-            expl = (f'⚠️ <b>Le public mise gros sur ce camp</b> : {round(c*100)}% des parieurs, '
-                    f'contre {round(m*100)}% de chances selon BETSFIX. Quand tout le monde suit '
-                    f'le favori, sa cote devient souvent <b>trop basse</b> pour être rentable — '
-                    f'à prendre avec prudence.')
-        elif m - c >= 0.18:
-            emoji = "💡"
-            expl = (f'💡 <b>Le public néglige ce camp</b> : {round(m*100)}% de chances selon '
-                    f'BETSFIX, mais seulement {round(c*100)}% des parieurs misent dessus. '
-                    f'Sa cote peut être <b>intéressante</b>.')
-    pub_x = f'<span class="dvg-i" data-dvg aria-label="Explication">{emoji}</span>' if emoji else ""
-    inner = (bar("BETSFIX", m, "pm")
+                f'<span class="pb-v">{pct}%</span></div>')
+    inner = (bar("BETSFIX", p.get("model_prob"), "pm")
              + bar("Cote Unibet", p.get("implied"), "po")
-             + bar("Public", c, "pc", pub_x))
+             + bar("Public", p.get("community"), "pc"))
     if not inner:
         return ""
     bet = html.escape(p.get("bet") or "le pari")
-    bubble = f'<div class="dvg-bubble" hidden>{expl}</div>' if expl else ""
     return (f'<div class="pbars"><div class="pb-h">Chances que <b>{bet}</b> gagne '
-            f'<span class="dim">— selon :</span></div>{inner}</div>{bubble}')
+            f'<span class="dim">— selon :</span></div>{inner}</div>')
 
 
 def bars_two_way(p_home, imp_home, votes, home, away) -> dict:
-    """Champs des 3 barres (BETSFIX/Bookmaker/Public) côté favori — match à 2 issues
-    (basket/tennis). `imp_home` = proba implicite dévig du domicile ; `votes` = (% home, % away)."""
+    """Barres réparties — match à 2 issues (basket/tennis). `imp_home` = proba implicite dévig
+    du domicile ; `votes` = (% home, % away)."""
     if p_home is None:
         return {}
+    model = (p_home, None, 1 - p_home)
+    implied = (imp_home, None, 1 - imp_home) if imp_home is not None else None
     home_fav = p_home >= 0.5
-    implied = (imp_home if home_fav else 1 - imp_home) if imp_home is not None else None
-    community = None
+    d = {"home": home, "away": away, "bet": home if home_fav else away,
+         "model_prob": p_home if home_fav else 1 - p_home, **bars_split(model, implied)}
     if votes and votes[0] is not None:
-        community = (votes[0] if home_fav else votes[1]) / 100
-    return {"model_prob": p_home if home_fav else 1 - p_home,
-            "implied": implied, "community": community, "bet": home if home_fav else away}
+        d["pub_home"], d["pub_away"] = votes[0] / 100, votes[1] / 100
+    return d
 
 
 def bars_foot(probs, imp, votes, home, away) -> dict:
-    """Champs des 3 barres côté issue favorite — foot 1X2. `imp` = (p1,pX,p2) dévig."""
+    """Barres réparties — foot 1X2. `imp` = (p1,pX,p2) dévig ; `votes` = (% home, % away)."""
     if not probs:
         return {}
+    model = (probs[0], probs[1], probs[2])
+    implied = (imp[0], imp[1], imp[2]) if imp else None
     i = max(range(3), key=lambda k: probs[k])
-    implied = imp[i] if imp else None
-    community = None
-    if votes and votes[0] is not None and i in (0, 2):   # pas de vote 'communauté' pour le nul
-        community = (votes[0] if i == 0 else votes[1]) / 100
-    return {"model_prob": probs[i], "implied": implied, "community": community,
-            "bet": [home, "Match nul", away][i]}
+    d = {"home": home, "away": away, "bet": [home, "Match nul", away][i],
+         "model_prob": probs[i], **bars_split(model, implied)}
+    if votes and votes[0] is not None:
+        d["pub_home"], d["pub_away"] = votes[0] / 100, votes[1] / 100
+    return d
 
 
 def odds_row(outcomes, highlight_idx: int | None = None) -> str:
@@ -794,11 +834,11 @@ def _pick_card(p: dict, badge: str) -> str:
 
 # Légende des 3 barres, réutilisée partout (accueil + intros des onglets) pour une explication
 # COHÉRENTE et claire pour le parieur.
-BARS_LEGEND = ('Les 3 barres montrent la <b>chance de gagner</b> du pari, selon 3 sources : '
-               '<b>BETSFIX</b> (notre analyse), <b>Cote Unibet</b> (la chance cachée derrière '
-               'la cote) et le <b>Public</b> (ce que misent les parieurs). Quand <b>BETSFIX '
-               'donne plus de chances que la cote Unibet</b>, le pari est peut-être sous-coté — '
-               'une <b>« value »</b> (cote un peu trop généreuse, rentable sur la durée).')
+BARS_LEGEND = ('Chaque barre montre les <b>chances de chaque camp</b> (joueur 1 à gauche, '
+               'joueur 2 à droite, total 100 %), selon 3 sources : <b>BETSFIX</b> (notre '
+               'analyse), <b>Cote Unibet</b> (chances cachées derrière la cote) et le <b>Public</b> '
+               '(votes des parieurs). Quand <b>BETSFIX donne plus de chances qu\'Unibet</b> à un '
+               'camp, sa cote est peut-être trop généreuse — une <b>« value »</b>.')
 
 
 def render_home(rep: dict, source: dict | None = None,

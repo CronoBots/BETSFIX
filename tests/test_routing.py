@@ -47,21 +47,25 @@ def test_is_upcoming():
 
 def test_bars_two_way():
     from app.web import bars_two_way
+    # barres RÉPARTIES : home/away par source (model + implied dévig + public)
     b = bars_two_way(0.66, 0.6, (70, 30), "Home", "Away")
-    assert b["bet"] == "Home" and b["model_prob"] == 0.66
-    assert b["implied"] == 0.6 and abs(b["community"] - 0.7) < 1e-9
-    # favori = extérieur -> proba/implied/community basculent côté away
+    assert b["home"] == "Home" and b["away"] == "Away" and b["bet"] == "Home"
+    assert b["m_home"] == 0.66 and abs(b["m_away"] - 0.34) < 1e-9 and b["m_draw"] is None
+    assert b["i_home"] == 0.6 and abs(b["i_away"] - 0.4) < 1e-9
+    assert abs(b["pub_home"] - 0.7) < 1e-9 and abs(b["pub_away"] - 0.3) < 1e-9
+    # favori = extérieur -> bet bascule côté away, mais home reste à GAUCHE
     b2 = bars_two_way(0.4, 0.45, (40, 60), "Home", "Away")
-    assert b2["bet"] == "Away" and abs(b2["model_prob"] - 0.6) < 1e-9
-    assert abs(b2["implied"] - 0.55) < 1e-9 and abs(b2["community"] - 0.6) < 1e-9
+    assert b2["bet"] == "Away" and b2["m_home"] == 0.4
     assert bars_two_way(None, 0.5, None, "H", "A") == {}
 
 
 def test_bars_foot():
     from app.web import bars_foot
     b = bars_foot((0.5, 0.3, 0.2), (0.45, 0.3, 0.25), (60, 40), "Croatie", "Belgique")
-    assert b["bet"] == "Croatie" and b["model_prob"] == 0.5 and b["implied"] == 0.45
-    # nul favori -> pas de vote 'communauté'
+    assert b["home"] == "Croatie" and b["bet"] == "Croatie"
+    assert b["m_home"] == 0.5 and b["m_draw"] == 0.3 and b["m_away"] == 0.2   # nul au milieu
+    assert b["i_home"] == 0.45 and abs(b["pub_home"] - 0.6) < 1e-9
+    # nul favori -> 'bet' = Match nul, mais les barres restent home/away
     bx = bars_foot((0.2, 0.5, 0.3), (0.25, 0.45, 0.3), (60, 40), "A", "B")
-    assert bx["bet"] == "Match nul" and bx["community"] is None
+    assert bx["bet"] == "Match nul" and bx["m_home"] == 0.2 and bx["m_away"] == 0.3
     assert bars_foot(None, None, None, "A", "B") == {}

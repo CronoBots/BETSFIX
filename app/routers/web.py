@@ -83,6 +83,19 @@ def _foot_prob(rec: dict, v: dict) -> tuple[float | None, str | None]:
     return p, side
 
 
+def _split_2way(rec: dict) -> dict:
+    """Champs des barres RÉPARTIES (home/away) pour un match 2 issues (tennis) depuis le store."""
+    mh = rec.get("model_home_prob")
+    model = (mh, None, (1 - mh) if mh is not None else None)
+    rv = remove_vig(rec.get("unibet_home_odds"), rec.get("unibet_away_odds"))
+    implied = (rv[0], None, rv[1]) if rv else None
+    d = web.bars_split(model, implied)
+    ph, pa = rec.get("public_home"), rec.get("public_away")
+    if ph is not None and pa is not None:
+        d["pub_home"], d["pub_away"] = ph / 100, pa / 100
+    return d
+
+
 def _all_sport_picks() -> list[dict]:
     """Value 'à venir' des 3 sports, normalisées et classées par edge (pour l'accueil)."""
     from app import basket, foot
@@ -112,6 +125,7 @@ def _all_sport_picks() -> list[dict]:
                 "time": web.fmt_local(rec.get("start_time"), with_date=True),
                 "start_ts": _ts(rec.get("start_time")),
                 "url": url_fn(rec),
+                **_split_2way(rec),
             })
 
     # Tennis depuis le store (même source que l'onglet Tennis). Basket/foot viennent des
@@ -177,6 +191,7 @@ def _confidence_picks() -> list[dict]:
                 "time": web.fmt_local(rec.get("start_time"), with_date=True),
                 "start_ts": _ts(rec.get("start_time")),
                 "url": url_fn(rec),
+                **_split_2way(rec),
             })
 
     # Tennis seul (basket/foot viennent des boards, agrégés dans home()).
@@ -196,6 +211,7 @@ def _enrich_picks_votes(picks: list[dict], provider) -> None:
         v = provider.get_votes_cached(p["match_id"])
         if v and v.home_percent is not None:
             p["community"] = (v.home_percent if p["side"] == "home" else v.away_percent) / 100
+            p["pub_home"], p["pub_away"] = v.home_percent / 100, v.away_percent / 100
 
 
 def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
@@ -225,6 +241,8 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
             if pk:
                 i = codes.index(pk["code"])
                 pk_data = (pk["team"], pk["odds"], pk["edge"], probs[i], pk["code"], imp[i] if imp else None)
+            bmodel = (probs[0], probs[1], probs[2])
+            bimp = (imp[0], imp[1], imp[2]) if imp else None
         else:              # basket 2 issues
             p = r.get("model_home")
             if p is None:
@@ -240,6 +258,8 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
                 mp = p if pk["side"] == "home" else 1 - p
                 pimp = (imph if pk["side"] == "home" else (1 - imph if imph is not None else None))
                 pk_data = (pk["team"], pk["odds"], pk["edge"], mp, pk["side"], pimp)
+            bmodel = (p, None, 1 - p)
+            bimp = (imph, None, 1 - imph) if imph is not None else None
 
         start = r.get("start")
         iso = datetime.fromtimestamp(start, tz=timezone.utc).isoformat() if start else None
@@ -254,11 +274,14 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
         # url vers la FICHE du match (déplie l'analyse) si l'id SofaScore est résolu ; sinon
         # repli sur l'onglet du sport. `url` = '/foot' ou '/basket'.
         match_url = f'{url}/match/{r["id"]}' if r.get("sofa_ok") else url
+        split = web.bars_split(bmodel, bimp)
+        if vt and vt[0] is not None:
+            split["pub_home"], split["pub_away"] = vt[0] / 100, vt[1] / 100
         base = {"sport": sport, "icon": icon, "home": r["home"], "away": r["away"],
                 "match_id": r.get("id"), "url": match_url, "female": r.get("female"),
                 "live": r.get("status") == "inprogress", "odds_cells": odds_cells,
                 "home_flag": hflag, "away_flag": aflag,
-                "time": web.fmt_local(iso, with_date=True), "start_ts": start}
+                "time": web.fmt_local(iso, with_date=True), "start_ts": start, **split}
         if pk_data:
             team, odds, edge, mp, side, pimp = pk_data
             values.append({**base, "bet": team, "odds": odds, "edge": edge, "model_prob": mp,
