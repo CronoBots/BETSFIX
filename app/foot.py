@@ -688,8 +688,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
                     "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",
                     "sub": sub, "badge": badge})
 
-    intro = ('⚽ <b>Coupe du Monde & grandes compétitions</b> — Elo de sélection (1-X-2 via '
-             'double Poisson) vs Unibet. Modèle jeune + venues neutres : value à <b>confirmer</b>.')
+    intro = ('⚽ <b>Foot international & grandes compétitions</b>. Touchez un match pour son '
+             f'analyse complète (forme, face-à-face, tous les paris Unibet). {web.BARS_LEGEND}')
     if not (value or live or upcoming or fin):
         intro += ' La Coupe du Monde démarre le 11 juin.'
     return web.render_sport_matches("foot", "Football", value, live, upcoming, fin,

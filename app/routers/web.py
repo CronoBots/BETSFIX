@@ -613,7 +613,8 @@ async def matches_page(
 
     intro = ('⚠️ SofaScore momentanément indisponible — scores via LiveScore (repli).'
              if fallback else
-             'Touchez un match pour son analyse détaillée. Heures en fuseau belge.')
+             'Touchez un match pour son analyse complète (forme, face-à-face, facteurs, '
+             f'aces, tous les paris Unibet). {web.BARS_LEGEND}')
     return HTMLResponse(web.render_sport_matches(
         "tennis", "Matchs", value_rows, live_rows, upcoming_rows, finished_rows,
         intro=intro, frag=bool(frag)))

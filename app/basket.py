@@ -673,8 +673,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
                     "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",
                     "sub": sub, "badge": badge})
 
-    intro = ('🏀 <b>NBA & WNBA</b> — Elo d\'équipe + avantage du terrain vs cotes Unibet. '
-             'Les « value » restent à <b>confirmer par le suivi</b> (CLV).')
+    intro = ('🏀 <b>NBA & WNBA</b>. Touchez un match pour son analyse complète (forme, '
+             f'face-à-face, tous les paris Unibet). {web.BARS_LEGEND}')
     return web.render_sport_matches("basket", "Basket NBA & WNBA", value, live, upcoming, fin,
                                     intro=intro, paused=paused, frag=frag)
 

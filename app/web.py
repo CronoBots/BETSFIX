@@ -732,22 +732,30 @@ def _pick_card(p: dict, badge: str) -> str:
     return f'<a class="row pick" href="{url}">{inner}</a>'
 
 
+# Légende des 3 barres, réutilisée partout (accueil + intros des onglets) pour une explication
+# COHÉRENTE et claire pour le parieur.
+BARS_LEGEND = ('Les 3 barres = la <b>chance de gagner</b> du pari, vue par 3 sources : '
+               '<b>BETSFIX</b> (notre modèle), le <b>Bookmaker</b> (déduit de la cote Unibet) '
+               'et le <b>Public</b> (les votes des parieurs). Si <b>BETSFIX dépasse le '
+               'Bookmaker</b>, c\'est une piste de <b>value</b>.')
+
+
 def render_home(rep: dict, source: dict | None = None,
                 picks: list[dict] | None = None,
                 conf_picks: list[dict] | None = None, frag: bool = False) -> str:
     # l'état SofaScore (pause) s'affiche désormais discrètement dans l'en-tête (cf. layout).
     picks = picks or []
     conf_picks = conf_picks or []
-    bars_legend = ('Les 3 barres = <b>chance que le pari gagne</b> selon <b>BETSFIX</b> (l\'app), '
-                   'le <b>Bookmaker</b> (cote Unibet) et le <b>Public</b> (votes SofaScore).')
+    bars_legend = BARS_LEGEND
 
     # 🔥 CONFIANCES du jour : favori NET du modèle (forte proba) — pas forcément une value
     if conf_picks:
         rows = "".join(_pick_card(p, "") for p in conf_picks)  # pas de badge % (déjà dans la barre)
         conf_html = _section(f'🔥 Confiances ({len(conf_picks)})', rows, open_=True,
-                             info='Matchs où <b>BETSFIX</b> voit un <b>favori net</b> (forte proba de '
-                                  'gagner). Plus « sûr » mais souvent à <b>petite cote</b> — donc '
-                                  'rarement une value. Badge = proba du modèle.')
+                             info='Les matchs où <b>BETSFIX</b> voit un <b>favori clair</b> (forte '
+                                  'chance de gagner). C\'est le choix le plus « <b>sûr</b> », mais la '
+                                  'cote est souvent <b>petite</b> (faible gain). À privilégier pour la '
+                                  f'régularité. {bars_legend}')
     else:
         conf_html = _section('🔥 Confiances (0)',
                              '<div class="banner">Aucun favori net à venir pour le moment.</div>')
@@ -758,10 +766,12 @@ def render_home(rep: dict, source: dict | None = None,
             p, '<span class="badge b-val" title="Avantage estimé sur la cote">'
                f'+{round((p.get("edge") or 0)*100, 1)} pts</span>') for p in picks)
         val_html = _section(f'💎 Valeurs ({len(picks)})', rows, open_=True,
-                            info='Paris où <b>BETSFIX</b> estime la cote <b>sous-évaluée</b> (edge). '
-                                 'Souvent des outsiders : gros gain potentiel mais ça passe rarement — '
-                                 'c\'est du <b>+EV</b>, pas une certitude. Badge <b>+X pts</b> = edge. '
-                                 f'{bars_legend} Value = quand BETSFIX &gt; Bookmaker.')
+                            info='Les paris où <b>BETSFIX</b> juge la <b>cote Unibet trop haute</b> '
+                                 '(le book sous-estime ce camp) — une « <b>value</b> ». Souvent des '
+                                 'outsiders : <b>gros gain possible mais ça passe rarement</b>. '
+                                 'Rentable <b>en moyenne sur la durée</b>, jamais garanti sur un seul '
+                                 'match. Le badge <b>+X pts</b> = l\'écart estimé en ta faveur. '
+                                 f'{bars_legend}')
     else:
         val_html = _section('💎 Valeurs (0)',
                             '<div class="banner">Aucune value détectée pour le moment '
@@ -1042,17 +1052,19 @@ def recommended_bets(value=None, confidence=None) -> str:
     if value:
         lbl, od, edge = value
         cards.append('<div class="banner"><b class="pos">💎 Value</b> — '
-                     f'<b>{e(str(lbl))}</b> @{od} <span class="dim">(+{round((edge or 0)*100,1)} pts '
-                     "d'edge vs le book : pari sous-coté, +EV mais ça passe rarement)</span></div>")
+                     f'miser sur <b>{e(str(lbl))}</b> @{od}. <span class="dim">La cote semble '
+                     f'<b>trop haute</b> de ~{round((edge or 0)*100,1)} pts (le book sous-estime ce '
+                     "camp). Rentable sur la durée, mais ça passe rarement — jamais sûr.</span></div>")
     if confidence:
         lbl, prob, od = confidence
         cards.append('<div class="banner"><b style="color:#6cbcff">🔥 Confiance</b> — '
-                     f'<b>{e(str(lbl))}</b> ({round((prob or 0)*100)}%)'
-                     f'{f" @{od}" if od else ""} <span class="dim">(favori net du modèle : '
-                     "plus sûr, mais souvent petite cote)</span></div>")
+                     f'<b>{e(str(lbl))}</b> donné gagnant à <b>{round((prob or 0)*100)}%</b>'
+                     f'{f" @{od}" if od else ""}. <span class="dim">Favori clair du modèle : '
+                     "le plus « sûr », mais petite cote (faible gain).</span></div>")
     if not cards:
-        cards.append('<div class="banner">Aucun pari « safe » sur ce match : ni favori net '
-                     "(≥ 65 %), ni value vs la cote Unibet. Mieux vaut s'abstenir.</div>")
+        cards.append('<div class="banner">Pas de pari « safe » détecté ici : ni favori vraiment '
+                     "net (≥ 65 %), ni cote sous-évaluée (value). Le modèle conseille de "
+                     "<b>s'abstenir</b> sur ce match.</div>")
     return '<h2>🎯 Paris conseillés</h2>' + "".join(cards)
 
 
