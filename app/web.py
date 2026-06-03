@@ -948,6 +948,29 @@ def _team_form_block(flag: str, name: str, tf: dict | None) -> str:
             f'<span class="dim">{" · ".join(meta) if meta else ""}</span></div>')
 
 
+def recommended_bets(value=None, confidence=None) -> str:
+    """Section « 🎯 Paris conseillés » : la value (cote sous-évaluée) et/ou la confiance
+    (favori net du modèle), ou « aucun pari safe » si rien. `value`=(libellé,cote,edge) ;
+    `confidence`=(libellé,proba,cote|None)."""
+    e = html.escape
+    cards = []
+    if value:
+        lbl, od, edge = value
+        cards.append('<div class="banner"><b class="pos">💎 Value</b> — '
+                     f'<b>{e(str(lbl))}</b> @{od} <span class="dim">(+{round((edge or 0)*100,1)} pts '
+                     "d'edge vs le book : pari sous-coté, +EV mais ça passe rarement)</span></div>")
+    if confidence:
+        lbl, prob, od = confidence
+        cards.append('<div class="banner"><b style="color:#6cbcff">🔥 Confiance</b> — '
+                     f'<b>{e(str(lbl))}</b> ({round((prob or 0)*100)}%)'
+                     f'{f" @{od}" if od else ""} <span class="dim">(favori net du modèle : '
+                     "plus sûr, mais souvent petite cote)</span></div>")
+    if not cards:
+        cards.append('<div class="banner">Aucun pari « safe » sur ce match : ni favori net '
+                     "(≥ 65 %), ni value vs la cote Unibet. Mieux vaut s'abstenir.</div>")
+    return '<h2>🎯 Paris conseillés</h2>' + "".join(cards)
+
+
 def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     """Fiche détaillée d'un match foot/basket : prédiction (3 barres + divergence + cotes)
     puis analyse SofaScore (forme des 2 équipes, confrontations directes).

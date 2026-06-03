@@ -81,11 +81,23 @@ async def foot_match(event_id: int, frag: int = 0,
         h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": d.get("draws")}
     except ProviderError:
         pass
-    # Buts attendus (modèle, double Poisson) : Plus/Moins 2,5 buts + les 2 marquent (BTTS)
+    # 🎯 Paris conseillés : value (cote sous-évaluée) + confiance (favori net ≥65 %)
     extra = ""
+    if rec:
+        vp = rec.get("value_pick")
+        value = (vp["team"], vp["odds"], vp["edge"]) if vp and vp.get("odds") else None
+        probs = [rec.get("p_home"), rec.get("p_draw"), rec.get("p_away")]
+        confidence = None
+        if all(p is not None for p in probs):
+            i = max(range(3), key=lambda k: probs[k])
+            if probs[i] >= 0.65:
+                confidence = ([home, "Match nul", away][i], probs[i],
+                              [rec.get("o1"), rec.get("ox"), rec.get("o2")][i])
+        extra = web.recommended_bets(value, confidence)
+    # Buts attendus (modèle, double Poisson) : Plus/Moins 2,5 buts + les 2 marquent (BTTS)
     g = (rec or {}).get("goals")
     if g and g.get("over25") is not None:
-        extra = (f'<h2>⚽ Buts attendus</h2><div class="oddsrow">'
+        extra += (f'<h2>⚽ Buts attendus</h2><div class="oddsrow">'
                  f'<span class="oc"><span class="ocn">+2,5 buts</span>'
                  f'<span class="ocv">{round(g["over25"]*100)}%</span></span>'
                  f'<span class="oc"><span class="ocn">−2,5 buts</span>'

@@ -76,15 +76,25 @@ async def basket_match(event_id: int, frag: int = 0,
         h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": None}
     except ProviderError:
         pass
-    # Marge attendue (modèle) : écart de points prévu en faveur du favori
+    # 🎯 Paris conseillés : value + confiance (favori net ≥65 %)
     extra = ""
-    margin = (rec or {}).get("margin")
     mh = (rec or {}).get("model_home_prob")
+    if rec and mh is not None:
+        vp = rec.get("value_pick")
+        value = (vp["player"], vp["odds"], vp["edge"]) if vp and vp.get("odds") else None
+        p_fav = max(mh, 1 - mh)
+        confidence = None
+        if p_fav >= 0.65:
+            fav = home if mh >= 0.5 else away
+            confidence = (fav, p_fav, rec.get("unibet_home_odds") if mh >= 0.5 else rec.get("unibet_away_odds"))
+        extra = web.recommended_bets(value, confidence)
+    # Marge attendue (modèle) : écart de points prévu en faveur du favori
+    margin = (rec or {}).get("margin")
     if margin and mh is not None:
         fav = home if mh >= 0.5 else away
-        extra = (f'<h2>🏀 Marge attendue</h2>'
-                 f'<div class="banner">Le modèle prévoit <b>{fav}</b> vainqueur d\'environ '
-                 f'<b>{abs(round(margin))} points</b> (écart moyen estimé).</div>')
+        extra += (f'<h2>🏀 Marge attendue</h2>'
+                  f'<div class="banner">Le modèle prévoit <b>{fav}</b> vainqueur d\'environ '
+                  f'<b>{abs(round(margin))} points</b> (écart moyen estimé).</div>')
     ctx = {"home": home or "Match", "away": away, "home_flag": "", "away_flag": "",
            "comp": comp, "when": when, "prediction": prediction, "odds_cells": odds_cells,
            "forms": forms, "h2h": h2h, "extra": extra, "back_url": "/basket",
