@@ -619,45 +619,53 @@ def finished_from_store(limit: int = 8) -> list[dict]:
     return out[:limit]
 
 
+def _model_line(r: dict) -> str:
+    # Barre de cotes Unibet claire 1-X-2 (home / Nul / away) ; sinon état Elo.
+    sub = ""
+    if not r.get("probs"):
+        sub += '<div class="dim">Elo indisponible</div>'
+    if r.get("o1"):
+        pr = r.get("probs")
+        hi = max(range(3), key=lambda k: pr[k]) if pr else None   # issue pronostiquée
+        sub += web.odds_row([(r["home"], r["o1"]), ("Nul", r["ox"]), (r["away"], r["o2"])],
+                            highlight_idx=hi)
+    fm = r.get("form")
+    if fm:
+        sub += web.form_compare(r["home"], fm[0], r["away"], fm[1])
+    return sub
+
+
+def _card(r: dict) -> dict:
+    """Dict _sport_row d'une rencontre foot (live / à venir), réutilisé par render + Directs."""
+    pk = r.get("pick")
+    badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>' if pk else "")
+    return {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
+            "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
+            "female": r.get("female"), "score": r.get("score", ""),
+            "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
+            "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
+            "prob": r.get("probs"), "sub": _model_line(r), "badge": badge, "pick": bool(pk),
+            **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
+
+
+async def live_cards() -> list[dict]:
+    """Cartes des matchs foot EN DIRECT (pour l'onglet Directs)."""
+    return [_card(r) for r in await board_resilient() if r.get("status") == "inprogress"]
+
+
 def render(rows: list[dict], finished_rows: list[dict] | None = None,
            paused: bool = False, frag: bool = False) -> str:
     e = html.escape
-
-    def model_line(r):
-        # Barre de cotes Unibet claire 1-X-2 (home / Nul / away) ; sinon état Elo.
-        sub = ""
-        if not r.get("probs"):
-            sub += '<div class="dim">Elo indisponible</div>'
-        if r.get("o1"):
-            pr = r.get("probs")
-            hi = max(range(3), key=lambda k: pr[k]) if pr else None   # issue pronostiquée
-            sub += web.odds_row([(r["home"], r["o1"]), ("Nul", r["ox"]), (r["away"], r["o2"])],
-                                highlight_idx=hi)
-        fm = r.get("form")
-        if fm:
-            sub += web.form_compare(r["home"], fm[0], r["away"], fm[1])
-        # (les votes communauté sont déjà dans la barre PUBLIC -> pas de doublon ici)
-        return sub
-
     value, live, upcoming = [], [], []
     for r in rows:
+        card = _card(r)
+        (live if r["status"] == "inprogress" else upcoming).append(card)
         pk = r.get("pick")
-        badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>'
-                 if pk else "")
-        base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
-                "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
-                "female": r.get("female"), "score": r.get("score", ""),
-                "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
-                "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
-                **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
-        (live if r["status"] == "inprogress" else upcoming).append(
-            {**base, "prob": r.get("probs"), "sub": model_line(r),
-             "badge": badge, "pick": bool(pk)})
         if pk:
             _hi = {"1": 0, "X": 1, "2": 2}.get(pk.get("code"))
             oddsrow = web.odds_row([(r["home"], r.get("o1")), ("Nul", r.get("ox")), (r["away"], r.get("o2"))],
                                    highlight_idx=_hi)
-            value.append({**base, "badge": badge, "pick": True,
+            value.append({**card, "pick": True,
                           "sub": oddsrow + f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
                                  f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts (à confirmer)</div>'})
 

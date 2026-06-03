@@ -418,6 +418,59 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
     return rows, live
 
 
+def _tennis_fav_sub(r: dict) -> str:
+    # noms de famille (matchup complet déjà au-dessus) ; surligne l'issue pronostiquée par BETSFIX.
+    nh = (r["home"].split() or [r["home"]])[-1]
+    na = (r["away"].split() or [r["away"]])[-1]
+    hp = r.get("hp")
+    hi = (0 if hp >= 0.5 else 1) if hp is not None else None
+    return web.odds_row([(nh, r.get("oh")), (na, r.get("oa"))], highlight_idx=hi)
+
+
+def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = False) -> dict:
+    """Dict _sport_row d'un match tennis (réutilisé par l'onglet Tennis ET Directs)."""
+    labels = ((r["home"].split() or [""])[-1], (r["away"].split() or [""])[-1])
+    return {"tour": r["tour"].upper(), "status": r["status"], "time": r.get("time") or "",
+            "score": r.get("score") or "", "home": r["home"], "away": r["away"],
+            "prob": r.get("hp"), "prob_labels": labels,
+            "sub": _tennis_fav_sub(r) if sub is None else sub, "badge": badge, "pick": pick,
+            "start_ts": r.get("start_ts"), "female": r.get("female"),
+            "url": f'/app/match/{r["id"]}?tour={r["tour"]}',
+            **web.bars_two_way(r.get("hp"), r.get("implied"), r.get("votes"), r["home"], r["away"])}
+
+
+async def _tennis_live_cards(unibet) -> list[dict]:
+    """Cartes tennis EN DIRECT (pour l'onglet Directs)."""
+    store = tracking.load()
+    now = datetime.now(timezone.utc)
+    horizon = now + timedelta(hours=HORIZON_HOURS)
+    try:
+        _, live = await _tennis_unibet_rows(unibet, store, now, horizon)
+    except Exception:
+        return []
+    return [_tennis_trow(r) for r in live]
+
+
+@router.get("/directs", response_class=HTMLResponse)
+async def directs_page(
+    unibet: UnibetProvider = Depends(get_unibet),
+    frag: int = 0,
+) -> HTMLResponse:
+    """Tous les matchs EN DIRECT regroupés par sport (ils restent dans leur onglet)."""
+    from app import basket, foot
+
+    async def _safe(coro):
+        try:
+            return await asyncio.wait_for(coro, timeout=3.0)
+        except (Exception, asyncio.TimeoutError):
+            return []
+
+    tl, bl, fl = await _safe(_tennis_live_cards(unibet)), await _safe(basket.live_cards()), \
+        await _safe(foot.live_cards())
+    sections = [("Tennis", "🎾", tl), ("Basket", "🏀", bl), ("Foot", "⚽", fl)]
+    return HTMLResponse(web.render_directs(sections, frag=bool(frag)))
+
+
 @router.get("/app", response_class=HTMLResponse)
 async def matches_page(
     provider: SofaScoreProvider = Depends(get_provider),
@@ -483,7 +536,7 @@ async def matches_page(
                 "hp": hp, "implied": devig[0] if devig else None, "votes": votes,
                 "oh": rec.get("unibet_home_odds"), "oa": rec.get("unibet_away_odds"),
                 "start_ts": m.start_time.timestamp() if m.start_time else None,
-                "female": tour == "wta", "clickable": True,
+                "female": False, "clickable": True,   # WTA = déjà féminin, pas de (F) redondant
                 "_date": local_dt.date() if local_dt else None,
                 "_sort": local_dt or datetime.max.replace(tzinfo=timezone.utc),
             }
@@ -521,42 +574,21 @@ async def matches_page(
                 "votes": ((rec.get("public_home"), rec.get("public_away"))
                           if rec.get("public_home") is not None else None),
                 "start_ts": dt.timestamp(),
-                "female": rec.get("tour") == "wta",
+                "female": False,
                 "_sort": web.to_local(dt) or datetime.max.replace(tzinfo=timezone.utc),
             })
 
     live.sort(key=lambda r: r["_sort"])
     rows.sort(key=lambda r: r["_sort"])
     ev = html.escape
-
-    def _fav_sub(r):
-        # noms de famille (le matchup complet est déjà au-dessus) pour des cellules compactes ;
-        # on surligne l'issue pronostiquée par BETSFIX (cohérent avec la barre), pas le favori book.
-        nh = (r["home"].split() or [r["home"]])[-1]
-        na = (r["away"].split() or [r["away"]])[-1]
-        hp = r.get("hp")
-        hi = (0 if hp >= 0.5 else 1) if hp is not None else None
-        return web.odds_row([(nh, r.get("oh")), (na, r.get("oa"))], highlight_idx=hi)
-
-    def _trow(r, sub, badge="", pick=False):
-        labels = ((r["home"].split() or [""])[-1], (r["away"].split() or [""])[-1])
-        return {"tour": r["tour"].upper(), "status": r["status"], "time": r.get("time") or "",
-                "score": r.get("score") or "", "home": r["home"], "away": r["away"],
-                "prob": r.get("hp"), "prob_labels": labels,
-                "sub": sub, "badge": badge, "pick": pick,
-                "start_ts": r.get("start_ts"), "female": r.get("female"),
-                "url": f'/app/match/{r["id"]}?tour={r["tour"]}',
-                **web.bars_two_way(r.get("hp"), r.get("implied"), r.get("votes"),
-                                   r["home"], r["away"])}
-
-    upcoming_rows = [_trow(r, _fav_sub(r)) for r in rows]
-    live_rows = [_trow(r, _fav_sub(r)) for r in live]
+    upcoming_rows = [_tennis_trow(r) for r in rows]
+    live_rows = [_tennis_trow(r) for r in live]
 
     value_picks, finished = _picks_and_finished(store)
     value_rows = [{
         "tour": v["tour"].upper(), "status": "notstarted", "time": v.get("time") or "",
         "home": v["home"], "away": v["away"], "pick": True, "start_ts": v.get("start_ts"),
-        "female": v.get("tour") == "wta",
+        "female": False,
         "badge": f'<span class="badge b-val">+{round((v.get("edge") or 0)*100,1)} pts</span>',
         "sub": (web.odds_row(v.get("odds_cells") or [],
                              highlight_idx={"home": 0, "away": 1}.get(v.get("side")))

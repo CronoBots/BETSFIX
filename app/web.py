@@ -197,7 +197,7 @@ CSS = """
             background:linear-gradient(180deg,rgba(46,226,127,.10),rgba(46,226,127,.03));
             box-shadow:0 4px 18px rgba(46,226,127,.14)}
   .live{color:var(--red);font-weight:800;letter-spacing:.02em}
-  .fem{color:#ff7ab8;font-weight:800}
+  .fem{color:#b08cf2;font-weight:800}
   .rowtop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;
           color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
   .rowtop > span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -378,8 +378,9 @@ CSS = """
 _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 
 # Onglets de la SPA (clé, URL, icône, libellé). L'URL sert AUSSI de source AJAX (?frag=1).
-_SPA_TABS = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
-             ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot")]
+_SPA_TABS = [("home", "/", "🏠", "Accueil"), ("directs", "/directs", "🔴", "Directs"),
+             ("tennis", "/app", "🎾", "Tennis"), ("basket", "/basket", "🏀", "Basket"),
+             ("foot", "/foot", "⚽", "Foot")]
 
 
 def _subnav(sport: str) -> str:
@@ -439,7 +440,7 @@ _SPA_JS = (
     "nav[i].addEventListener('click',function(e){e.preventDefault();"
     "go(this.getAttribute('data-tab'),true);});}"
     "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
-    "if(!t){var m={'/':'home','/app':'tennis','/basket':'basket','/foot':'foot'};"
+    "if(!t){var m={'/':'home','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot'};"
     "t=m[location.pathname]||'home';}go(t,false);});"
     # le « i » déplie/replie l'explication sans toucher au pliage de la section
     "document.addEventListener('click',function(e){var b=e.target.closest('[data-info]');"
@@ -823,6 +824,24 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
             out.append('<div class="dim">Aucun match à afficher pour le moment.</div>')
     body = _subnav(sport) + "".join(out)
     return body if frag else spa_shell(sport, title, body)
+
+
+def render_directs(sections: list, frag: bool = False) -> str:
+    """Onglet « Directs » : tous les matchs EN DIRECT regroupés par sport (ils restent aussi
+    dans leur onglet respectif). `sections` = [(libellé, icône, cartes _sport_row), ...]."""
+    out, total = [], 0
+    for label, icon, cards in sections:
+        if not cards:
+            continue
+        total += len(cards)
+        cards = sorted(cards, key=lambda c: c.get("start_ts") or 0)
+        out.append(_section(f'{icon} {html.escape(label)} ({len(cards)})',
+                            "".join(_sport_row(c) for c in cards), open_=True))
+    if not total:
+        out.append('<div class="banner">Aucun match en direct pour le moment — '
+                   'reviens pendant les rencontres. 🔴</div>')
+    body = "".join(out)
+    return body if frag else spa_shell("directs", "En direct", body)
 
 
 def perf_toggle(active: str) -> str:
