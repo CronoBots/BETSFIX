@@ -425,6 +425,15 @@ def _ub_dt(value):
         return None
 
 
+def _live_pts(entry: dict) -> tuple[int | None, int | None]:
+    """Score live (points) depuis le liveData Unibet : (home, away) ou (None, None)."""
+    sc = (entry.get("liveData") or {}).get("score") or {}
+    try:
+        return int(sc.get("home")), int(sc.get("away"))
+    except (TypeError, ValueError):
+        return None, None
+
+
 async def board_from_unibet() -> list[dict]:
     """Matchs basket depuis UNIBET (moneyline NBA+WNBA) + Elo par nom. SANS SofaScore.
     Les noms d'équipes US sont identiques chez Unibet et SofaScore -> pas de bilingue."""
@@ -489,11 +498,13 @@ async def board_from_unibet() -> list[dict]:
                             pick = {"side": side, "team": home if side == "home" else away,
                                     "odds": odds_s, "edge": edge, "stake": round(min(kf * 0.25 * 100, 3.0), 2)}
                 status = "notstarted" if ev.get("state") == "NOT_STARTED" else "inprogress"
+                hp_pts, ap_pts = _live_pts(entry) if status == "inprogress" else (None, None)
                 rows.append({
                     "id": kid, "league": league, "status": status, "home": home, "away": away,
                     "model_home": p, "margin": expected_margin(p, cfg.get("sigma", SPREAD_SIGMA)),
                     "oh": oh, "oa": oa, "imp_home": imp[0] if imp else None, "pick": pick,
                     "start": start.timestamp(), "votes": None, "female": league == "WNBA",
+                    "home_pts": hp_pts, "away_pts": ap_pts,
                 })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows
@@ -586,10 +597,12 @@ def finished_from_store(limit: int = 8) -> list[dict]:
         res = rec.get("result")
         if not res or res.get("winner") not in ("home", "away") or res.get("void"):
             continue
+        sc = (res.get("score") or "").split("-")
+        hs, as_ = (sc[0], sc[1]) if len(sc) == 2 else (None, None)
         out.append({"league": (rec.get("tour") or "").upper() or "Basket",
                     "home": rec.get("home", ""), "away": rec.get("away", ""),
                     "winner": res["winner"], "model_home": rec.get("model_home_prob"),
-                    "hs": None, "as": None, "_at": res.get("settled_at", "")})
+                    "hs": hs, "as": as_, "_at": res.get("settled_at", "")})
     out.sort(key=lambda g: g["_at"], reverse=True)
     return out[:limit]
 
@@ -715,7 +728,11 @@ async def run_settle() -> int:
             ev = (data or {}).get("event") or {}
             if (ev.get("status") or {}).get("type") == "finished" and ev.get("winnerCode") in (1, 2):
                 winner = "home" if ev["winnerCode"] == 1 else "away"
+                hs = (ev.get("homeScore") or {}).get("current")
+                as_ = (ev.get("awayScore") or {}).get("current")
                 if tracking.settle(store, rec["match_id"], winner, None, now):
+                    if hs is not None and as_ is not None and rec.get("result"):
+                        rec["result"]["score"] = f"{hs}-{as_}"
                     s += 1
                 continue
             if _stale(rec, now_dt) and tracking.void(

@@ -568,7 +568,7 @@ async def matches_page(
         "community": v.get("community"), "bet": v.get("player"),
         "url": f'/app/match/{v["id"]}?tour={v["tour"]}'} for v in value_picks]
     finished_rows = [{
-        "tour": f["tour"].upper(), "status": "finished", "score": "terminé",
+        "tour": f["tour"].upper(), "status": "finished", "score": f.get("score") or "terminé",
         "home": f["home"], "away": f["away"],
         "badge": ('<span class="pos">✓ modèle ok</span>' if f.get("ok")
                   else '<span class="neg">✗ raté</span>'),
@@ -624,6 +624,7 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
                 "favp": f"{round(max(hp, 1 - hp) * 100)}%",
                 "winner_name": rec["home"] if res["winner"] == "home" else rec["away"],
                 "ok": (res["winner"] == "home") == fav_home,
+                "score": res.get("score"),
                 "_sort": res.get("settled_at", ""),
             })
     value_picks.sort(key=lambda r: r["_sort"])

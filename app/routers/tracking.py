@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import elo, serve_return, tracking
+from app import elo, serve_return, tracking, web
 from app.config import get_settings
 from app.analysis import build_analysis
 from app.dependencies import get_livescore, get_provider, get_unibet
@@ -87,13 +87,14 @@ async def run_settle(provider: SofaScoreProvider) -> int:
     for rec in list(store.values()):
         if rec.get("result"):
             continue
-        winner = total = None
+        winner = total = score = None
         try:
             m = await provider.get_match(rec.get("tour", "atp"), rec["match_id"])
             if m.status == "finished" and m.winner in ("home", "away"):
                 winner = m.winner
                 total = (sum(g for g in (m.home_score.sets or []) if g is not None) +
                          sum(g for g in (m.away_score.sets or []) if g is not None)) or None
+                score = web.fmt_score(m.home_score, m.away_score) or None
         except ProviderError:
             # Repli LiveScore : on règle au moins le vainqueur (par noms + date)
             try:
@@ -103,6 +104,8 @@ async def run_settle(provider: SofaScoreProvider) -> int:
             except Exception:
                 winner = None
         if winner and tracking.settle(store, rec["match_id"], winner, total, now.isoformat()):
+            if score and rec.get("result"):
+                rec["result"]["score"] = score
             settled += 1
             continue
         # Match jamais « finished » longtemps après l'heure prévue -> annulé/reporté : on

@@ -417,10 +417,13 @@ async def board_from_unibet() -> list[dict]:
                         and (not pick or edge > pick["edge"])):
                     pick = {"code": code, "team": nm, "odds": odd, "edge": edge}
         status = "notstarted" if ev.get("state") == "NOT_STARTED" else "inprogress"
+        sc = (entry.get("liveData") or {}).get("score") or {}
+        live_score = (f'{sc.get("home")}-{sc.get("away")}'
+                      if status == "inprogress" and sc.get("home") is not None else "")
         rows.append({
             "id": kid, "comp": group, "status": status, "home": home, "away": away,
             "home_en": en_home, "away_en": en_away,   # noms anglais -> matcher SofaScore
-            "probs": probs, "goals": goals_markets(eh, ea),
+            "probs": probs, "goals": goals_markets(eh, ea), "score": live_score,
             "o1": o1, "ox": ox, "o2": o2, "imp": imp, "pick": pick,
             "start": start.timestamp(), "female": female,
         })
@@ -607,8 +610,10 @@ def finished_from_store(limit: int = 8) -> list[dict]:
             continue
         pr = ((rec["p_home"], rec["p_draw"], rec["p_away"])
               if rec.get("p_home") is not None else None)
+        sc = (res.get("score") or "").split("-")
+        hs, as_ = (sc[0], sc[1]) if len(sc) == 2 else (None, None)
         out.append({"comp": rec.get("comp"), "home": rec.get("home", ""), "away": rec.get("away", ""),
-                    "winner": res["winner"], "probs": pr, "hs": None, "as": None,
+                    "winner": res["winner"], "probs": pr, "hs": hs, "as": as_,
                     "_at": res.get("settled_at", "")})
     out.sort(key=lambda g: g["_at"], reverse=True)
     return out[:limit]
@@ -641,7 +646,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
                  if pk else "")
         base = {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
                 "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
-                "female": r.get("female"),
+                "female": r.get("female"), "score": r.get("score", ""),
                 "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
                 "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
                 **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
@@ -755,12 +760,15 @@ async def run_settle() -> int:
             wc = ev.get("winnerCode")
             if (ev.get("status") or {}).get("type") == "finished" and wc in (1, 2, 3):
                 winner = {1: "home", 2: "away", 3: "draw"}[wc]
+                hs = (ev.get("homeScore") or {}).get("current")
+                as_ = (ev.get("awayScore") or {}).get("current")
+                score = f"{hs}-{as_}" if hs is not None and as_ is not None else None
                 pnl = None
                 pk = rec.get("value_pick")
                 if pk and pk.get("odds"):
                     won = _CODE_TO_WINNER.get(pk["code"]) == winner
                     pnl = (pk["odds"] - 1) if won else -1.0
-                rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl}
+                rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl, "score": score}
                 s += 1
                 continue
             # Match jamais terminé longtemps après l'heure prévue -> annulé/reporté : on clôt.
