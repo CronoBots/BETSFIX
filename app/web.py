@@ -498,13 +498,12 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
         pausebar = (f'<div class="pausewrap"><span class="pausebadge" '
                     f'title="SofaScore en pause ({s}s) — LiveScore prend le relais">'
                     f'⏸ Source en pause</span></div>')
-    nav_items = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
-                 ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot")]
-    # Barre d'onglets fixée en BAS (style app native) : icône + petit label.
+    # Barre d'onglets fixée en BAS (MÊMES 5 onglets que la SPA, Directs inclus) : sur une page
+    # layout (détail, dashboard…), cliquer un onglet recharge l'URL -> la SPA reprend la main.
     botnav = '<nav class="botnav">' + "".join(
-        f'<a class="{"on" if sport == k else ""}" href="{href}" aria-label="{e(name)}">'
+        f'<a class="{"on" if sport == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span></a>'
-        for k, href, ico, name in nav_items) + "</nav>"
+        for k, href, ico, name in _SPA_TABS) + "</nav>"
 
     sub = ""
     if subnav and sport in _SPORT_MATCH_URL:
@@ -691,12 +690,19 @@ def _pick_card(p: dict, badge: str) -> str:
     oddsrow = odds_row(p["odds_cells"], highlight_idx=_hi) if p.get("odds_cells") else ""
     hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""
     af = f'{p["away_flag"]} ' if p.get("away_flag") else ""
-    return (f'<a class="row pick" href="{p["url"]}">'
-            f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
-            f'<span class="rt-r">{state}</span></div>'
-            f'<div class="betline"><span class="bn">{e(p.get("bet") or "")}{odds}</span>{bdg}</div>'
-            f'<div class="dim">{hf}{e(p.get("home") or "")} vs {af}{e(p.get("away") or "")}</div>'
-            f'{_pick_bars(p)}{oddsrow}</a>')
+    inner = (f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
+             f'<span class="rt-r">{state}</span></div>'
+             f'<div class="betline"><span class="bn">{e(p.get("bet") or "")}{odds}</span>{bdg}</div>'
+             f'<div class="dim">{hf}{e(p.get("home") or "")} vs {af}{e(p.get("away") or "")}</div>'
+             f'{_pick_bars(p)}{oddsrow}')
+    url = p.get("url") or ""
+    # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
+    if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
+        sep = "&" if "?" in url else "?"
+        return (f'<div class="row pick rowtap" data-exp="{url}{sep}frag=1">{inner}'
+                f'<div class="exp-c"><span class="exp-chev">▾</span> Analyse détaillée</div>'
+                f'<div class="exp" hidden></div></div>')
+    return f'<a class="row pick" href="{url}">{inner}</a>'
 
 
 def render_home(rep: dict, source: dict | None = None,

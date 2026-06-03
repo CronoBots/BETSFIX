@@ -246,8 +246,11 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
         # drapeaux uniquement pour le foot (sélections nationales) ; basket = clubs -> pas de drapeau
         hflag = flags.flag(r["home"]) if ndim == 3 else ""
         aflag = flags.flag(r["away"]) if ndim == 3 else ""
+        # url vers la FICHE du match (déplie l'analyse) si l'id SofaScore est résolu ; sinon
+        # repli sur l'onglet du sport. `url` = '/foot' ou '/basket'.
+        match_url = f'{url}/match/{r["id"]}' if r.get("sofa_ok") else url
         base = {"sport": sport, "icon": icon, "home": r["home"], "away": r["away"],
-                "match_id": r.get("id"), "url": url, "female": r.get("female"),
+                "match_id": r.get("id"), "url": match_url, "female": r.get("female"),
                 "live": r.get("status") == "inprogress", "odds_cells": odds_cells,
                 "home_flag": hflag, "away_flag": aflag,
                 "time": web.fmt_local(iso, with_date=True), "start_ts": start}
