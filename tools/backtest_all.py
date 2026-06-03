@@ -37,8 +37,10 @@ def main() -> None:
         for rnd in range(ROUNDS):
             for script in ("backtest_foot.py", "backtest_basket.py"):
                 r = subprocess.run([PY, os.path.join("tools", script)], cwd=_ROOT,
-                                   capture_output=True, text=True)
-                out.write(f"\n===== vague {rnd + 1} · {script} =====\n{r.stdout}{r.stderr}")
+                                   capture_output=True, text=True,
+                                   encoding="utf-8", errors="replace")
+                out.write(f"\n===== vague {rnd + 1} · {script} =====\n"
+                          f"{r.stdout or ''}{r.stderr or ''}")
                 out.flush()
             if _ready(FOOT_CACHE) and _ready(BASK_CACHE):
                 out.write("\n✓ Les deux caches sont prêts — backtests exécutés ci-dessus.\n")
