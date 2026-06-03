@@ -214,7 +214,9 @@ CSS = """
   .row.open .exp-chev{transform:rotate(180deg)}
   .exp{margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
   .exp h2:first-child{margin-top:4px}
-  .exp h2{margin:14px 0 8px}
+  /* Titres de section de l'analyse : liseré d'accent (couleur du sport) -> premium, cohérent */
+  .exp h2{margin:16px 0 9px;font-size:13.5px;font-weight:800;padding-left:11px;line-height:1.35;
+          border-left:3px solid var(--accent2)}
   .exp .ldg{padding:16px 0}
   .row.pick{border-color:rgba(46,226,127,.45);
             background:linear-gradient(180deg,rgba(46,226,127,.10),rgba(46,226,127,.03));
