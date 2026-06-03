@@ -222,6 +222,14 @@ class SofaScoreProvider:
 
     async def _fetch_and_cache(self, path: str) -> dict:
         """Appel réseau réel + mise en cache (avec repli sur le périmé en cas d'erreur)."""
+        # Circuit SofaScore OUVERT (blocage prolongé) -> on tente RapidAPI directement, sans
+        # taper SofaScore. C'est le cas où le repli est le plus utile (le guard lèverait sinon).
+        if self._open_until - time.monotonic() > 0:
+            rr = await sofa_http._rapid_get(self._base + path, None)
+            if rr is not None and rr.status_code == 200:
+                data = rr.json()
+                self._cache.set(path, data, ttl=_ttl_for(path))
+                return data
         try:
             # Le guard est vérifié APRÈS acquisition du sémaphore : si les 1ères requêtes
             # d'une rafale prennent un 403, les suivantes (en file) voient le circuit ouvert
