@@ -290,29 +290,22 @@ CSS = """
       border-radius:4px;font-size:9px;font-weight:800;color:#08110a}
   .pbars{margin-top:7px;display:flex;flex-direction:column;gap:5px}
   .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
-  /* En-tête des barres réparties : joueur 1 à gauche, joueur 2 à droite */
-  .pb-h2{display:flex;justify-content:space-between;align-items:center;gap:8px;
-         font-size:11.5px;font-weight:800;margin-bottom:2px}
-  .pb-h2 .dim{font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.04em;flex:none}
-  .pb-hn,.pb-an{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-  .pb-an{text-align:right}
-  /* Un bloc par source : nom CENTRÉ au-dessus, % écrits DANS la barre (home gauche, nul centre,
-     away droite). Barre haute pour loger le texte ; libellés en absolu, lisibles sur tout fond. */
-  .pbg{margin:8px 0 0}
-  .pbg-s{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
-         color:var(--muted);margin-bottom:3px;text-align:center}
-  /* ligne : % joueur 1 (gauche) | barre | % joueur 2 (droite) — les 2 camps À L'EXTÉRIEUR */
-  .pbg-r{display:flex;align-items:center;gap:8px}
-  .pbg-h,.pbg-a{flex:none;min-width:34px;font-size:12.5px;font-weight:800;
+  /* TABLEAU « Chances de gagner » : sources en LIGNES, issues en COLONNES (comparaison directe) */
+  .ptab2{margin:8px 0 2px}
+  .pt2-h,.pt2-row{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center;
+         padding:5px 2px}
+  .pt2-h{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
+         color:var(--muted);border-bottom:1px solid var(--border)}
+  .pt2-h span{text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pt2-h span:first-child{text-align:left}
+  .pt2-row{border-bottom:1px solid rgba(255,255,255,.04)}
+  .pt2-row:last-child{border-bottom:none}
+  .pt2-s{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
+         color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pt2-v{text-align:right;font-size:13px;font-weight:600;color:var(--muted);
          font-variant-numeric:tabular-nums}
-  .pbg-h{text-align:right}
-  .pbg-a{text-align:left;color:var(--muted)}
-  .pb-t2{position:relative;flex:1;display:flex;gap:1px;height:16px;border-radius:99px;
-         overflow:hidden;background:var(--surface)}
-  .pb-seg{display:block;height:100%}
-  .pl{position:absolute;top:50%;font-size:10.5px;font-weight:800;color:#fff;white-space:nowrap;
-      text-shadow:0 1px 2px rgba(0,0,0,.6);font-variant-numeric:tabular-nums;pointer-events:none}
-  .pl-mut{color:#eef1f7;opacity:.92}
+  .pt2-v.hi{color:var(--text);font-weight:800}
+  .pt2-v.dim{color:var(--dim)}
   .pb-row{display:flex;align-items:center;gap:7px;font-size:11px}
   .pb-l{width:64px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
         font-weight:800;font-size:9px}
@@ -688,43 +681,40 @@ def bars_split(model, implied) -> dict:
 
 
 def _pick_bars(p: dict) -> str:
-    """3 barres RÉPARTIES (joueur 1 à gauche, joueur 2 à droite, total 100 %), une par source :
-    BETSFIX (modèle) / Cote Unibet (implicite dévig) / Public (votes). Chaque barre montre le
-    % de CHAQUE camp selon la source. (La divergence public/modèle est expliquée dans l'analyse,
-    plus de pastille sur la barre.)"""
+    """TABLEAU « Chances de gagner » : sources en lignes (BETSFIX / Cote Unibet / Public),
+    issues en colonnes (joueur 1 · [Nul] · joueur 2). On lit une colonne pour comparer les 3
+    sources sur une issue ; le favori de chaque ligne est en gras."""
     e = html.escape
     mh, ma = p.get("m_home"), p.get("m_away")
     if mh is None or ma is None:
         return _pick_bars_legacy(p)
-
-    def block(label, cls, h, d, a):
-        if h is None or a is None:
-            return ""
-        hp, ap = round(h * 100), round(a * 100)
-        dp = round(d * 100) if d is not None else None
-        segs = f'<span class="{cls} pb-seg" style="width:{hp}%"></span>'
-        nul_lbl = ""
-        if dp is not None:
-            segs += f'<span class="pbd pb-seg" style="width:{dp}%"></span>'
-            if dp >= 8:    # % du NUL à l'intérieur, centré sur son segment (s'il est assez large)
-                nul_lbl = (f'<span class="pl pl-mut" style="left:{round((h + d / 2) * 100, 1)}%;'
-                           f'transform:translate(-50%,-50%)">{dp}%</span>')
-        segs += f'<span class="pba pb-seg" style="width:{ap}%"></span>'
-        # % des 2 camps à l'EXTÉRIEUR (joueur 1 à gauche de la barre, joueur 2 à droite)
-        return (f'<div class="pbg"><div class="pbg-s">{label}</div>'
-                f'<div class="pbg-r"><span class="pbg-h">{hp}%</span>'
-                f'<div class="pb-t2">{segs}{nul_lbl}</div>'
-                f'<span class="pbg-a">{ap}%</span></div></div>')
+    has_draw = p.get("m_draw") is not None
 
     def short(n):
         return (str(n).split() or [str(n)])[-1]
-    head = (f'<div class="pb-h2"><span class="pb-hn">{e(short(p.get("home") or ""))}</span>'
-            f'<span class="dim">chances de gagner</span>'
-            f'<span class="pb-an">{e(short(p.get("away") or ""))}</span></div>')
-    rows = (block("BETSFIX", "pm", mh, p.get("m_draw"), ma)
-            + block("Cote Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
-            + block("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
-    return f'<div class="pbars">{head}{rows}</div>'
+    cols = [e(short(p.get("home") or ""))] + (["Nul"] if has_draw else []) + [e(short(p.get("away") or ""))]
+    head = ('<div class="pt2-h"><span>Source</span>'
+            + "".join(f'<span>{c}</span>' for c in cols) + '</div>')
+
+    def row(label, h, d, a):
+        if h is None or a is None:
+            return ""
+        vals = [h, d, a] if has_draw else [h, a]
+        mx = max(v for v in vals if v is not None)
+
+        def cell(v):
+            if v is None:
+                return '<span class="pt2-v dim">—</span>'
+            cls = "pt2-v hi" if v == mx else "pt2-v"
+            return f'<span class="{cls}">{round(v * 100)}%</span>'
+        cells = cell(h) + (cell(d) if has_draw else "") + cell(a)
+        return f'<div class="pt2-row"><span class="pt2-s">{label}</span>{cells}</div>'
+
+    rows = (row("BETSFIX", mh, p.get("m_draw"), ma)
+            + row("Cote Unibet", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
+            + row("Public", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
+    cols_css = "1.25fr 1fr 1fr 1fr" if has_draw else "1.4fr 1fr 1fr"
+    return f'<div class="ptab2" style="--cols:{cols_css}">{head}{rows}</div>'
 
 
 def _pick_bars_legacy(p: dict) -> str:
