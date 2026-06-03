@@ -48,7 +48,8 @@ async def basket_page(frag: int = 0) -> HTMLResponse:
 @router.get("/basket/match/{event_id}", response_class=HTMLResponse,
             summary="Fiche détaillée d'un match basket (prédiction + forme + H2H)")
 async def basket_match(event_id: int, frag: int = 0,
-                       provider: SofaScoreProvider = Depends(get_provider)) -> HTMLResponse:
+                       provider: SofaScoreProvider = Depends(get_provider),
+                       unibet: UnibetProvider = Depends(get_unibet)) -> HTMLResponse:
     """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H)."""
     store = tracking.load(basket.BASKET_TRACK_PATH)
     rec = next((r for r in store.values() if str(r.get("match_id")) == str(event_id)), None)
@@ -95,6 +96,15 @@ async def basket_match(event_id: int, frag: int = 0,
         extra += (f'<h2>🏀 Marge attendue</h2>'
                   f'<div class="banner">Le modèle prévoit <b>{fav}</b> vainqueur d\'environ '
                   f'<b>{abs(round(margin))} points</b> (écart moyen estimé).</div>')
+    # 💰 TOUS les paris Unibet de l'event (moneyline, handicaps, totaux, quart-temps…)
+    try:
+        from datetime import datetime
+        st = datetime.fromisoformat(rec["start_time"]) if rec and rec.get("start_time") else None
+        uo = await unibet.find_event_odds("basketball", home, away, event_id, st)
+        if uo.matched:
+            extra += web.render_unibet_markets(uo.markets)
+    except Exception:
+        pass
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
     try:
         from app.routers.foot import team_context

@@ -728,10 +728,12 @@ async def match_detail(
                 odd = rec.get("unibet_home_odds") if mh >= 0.5 else rec.get("unibet_away_odds")
                 confidence = (fav, max(mh, 1 - mh), odd)
             recos = web.recommended_bets(value, confidence)
+    # 💰 TOUS les paris Unibet (déjà récupérés dans gather_context)
+    markets_html = web.render_unibet_markets(odds.markets) if (frag and odds and odds.matched) else ""
     return HTMLResponse(web.render_match_detail(
         analysis, winner_odds, aces=aces, tour=tour,
         home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score, votes=votes,
-        frag=bool(frag), recos=recos))
+        frag=bool(frag), recos=recos, markets_html=markets_html))
 
 
 def _ace_lines(odds, match) -> tuple[float | None, float | None]:

@@ -314,6 +314,12 @@ CSS = """
        max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .oc.fav .ocn{color:#9fd0ff}
   .ocv{font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums}
+  /* Tous les paris Unibet : un bloc par marché, cotes qui wrappent si nombreuses */
+  .mkt{margin:9px 0}
+  .mkt-l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
+         font-weight:700;margin-bottom:4px}
+  .oddsrow-wrap{flex-wrap:wrap}
+  .oddsrow-wrap .oc{flex:1 1 28%;min-width:82px}
   /* Fiche match détaillée (foot/basket) */
   .mdh{margin:14px 0 6px}
   .mdh-c{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
@@ -958,6 +964,44 @@ def _team_form_block(flag: str, name: str, tf: dict | None) -> str:
             f'<span class="dim">{" · ".join(meta) if meta else ""}</span></div>')
 
 
+# Ordre d'affichage des marchés (les plus utiles d'abord) ; le reste suit.
+_MKT_ORDER = ["temps réglementaire", "match", "double chance", "nombre total de buts",
+              "moneyline", "handicap", "plus de", "score exact"]
+
+
+def _mkt_rank(label: str) -> int:
+    low = (label or "").lower()
+    for i, key in enumerate(_MKT_ORDER):
+        if key in low:
+            return i
+    return len(_MKT_ORDER)
+
+
+def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet") -> str:
+    """Liste INTUITIVE de tous les marchés Unibet d'un event : un bloc par marché, chaque
+    issue = une cellule (nom + cote). Marchés sans cote affichée sont ignorés."""
+    e = html.escape
+    blocks = []
+    for m in (markets or []):
+        outs = [o for o in (m.outcomes or []) if o.odds]
+        if not outs:
+            continue
+        cells = []
+        for o in outs[:10]:   # cap (un « score exact » peut avoir des dizaines d'issues)
+            lbl = o.label or ""
+            if o.line is not None:
+                lbl = f'{lbl} {o.line}'.strip()
+            cells.append(f'<span class="oc"><span class="ocn">{e(lbl)}</span>'
+                         f'<span class="ocv">{o.odds}</span></span>')
+        extra = f'<span class="dim" style="font-size:11px"> +{len(outs)-10}</span>' if len(outs) > 10 else ""
+        blocks.append((_mkt_rank(m.label), f'<div class="mkt"><div class="mkt-l">{e(m.label or "Marché")}'
+                       f'{extra}</div><div class="oddsrow oddsrow-wrap">{"".join(cells)}</div></div>'))
+    if not blocks:
+        return ""
+    blocks.sort(key=lambda b: b[0])
+    return f'<h2>{title} <span class="dim">({len(blocks)})</span></h2>' + "".join(b[1] for b in blocks)
+
+
 def recommended_bets(value=None, confidence=None) -> str:
     """Section « 🎯 Paris conseillés » : la value (cote sous-évaluée) et/ou la confiance
     (favori net du modèle), ou « aucun pari safe » si rien. `value`=(libellé,cote,edge) ;
@@ -1128,7 +1172,7 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                         away_form: list[dict] | None = None,
                         h2h: dict | None = None, score: str = "",
                         votes: tuple | None = None, frag: bool = False,
-                        recos: str = "") -> str:
+                        recos: str = "", markets_html: str = "") -> str:
     """a = MatchAnalysis ; winner_odds = (cote_home, cote_away) Unibet ;
     aces = récap tendance d'aces ; home_form/away_form = derniers résultats (V/D) ;
     h2h = {'home': n, 'away': n} bilan des confrontations ; score = score en cours."""
@@ -1304,7 +1348,8 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
     if frag:
         # Accordéon : MÊME présentation que foot/basket -> « 🎯 Paris conseillés » (depuis le
         # suivi, cohérent avec la carte) puis l'analyse. On NE répète PAS favori/probas/cotes.
-        return ((recos or pari_html) + form_html + h2h_html + votes_html + factors + aces_html) \
+        return ((recos or pari_html) + form_html + h2h_html + votes_html + factors + aces_html
+                + markets_html) \
             or '<div class="dim">Analyse détaillée indisponible (SofaScore momentanément ' \
                'limité) — la prédiction reste celle de la carte.</div>'
     body = (head + pari_html + verdict + form_html + h2h_html + votes_html + paris_link

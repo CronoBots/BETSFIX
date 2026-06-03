@@ -128,19 +128,25 @@ async def _noop():
 
 
 def _unibet_over(markets, line: float):
-    """Proba implicite Unibet du « Plus de {line} buts » (marché Total Goals)."""
+    """Proba implicite Unibet du « Plus de {line} buts » (total du match, labels FR ou EN)."""
     for m in markets:
+        ml = (m.label or "").lower()
+        if "total" not in ml and "but" not in ml:   # uniquement le total du match
+            continue
+        if "par " in ml:                              # exclut les totaux PAR équipe
+            continue
         for o in (m.outcomes or []):
-            if o.line == line and (o.label or "").lower().startswith("over") and o.implied_probability:
+            ol = (o.label or "").lower()
+            if o.line == line and (ol.startswith("over") or ol.startswith("plus")) and o.implied_probability:
                 return o.implied_probability
     return None
 
 
 def _unibet_btts(markets):
-    """Proba implicite Unibet du « les 2 équipes marquent » (BTTS = Oui)."""
+    """Proba implicite Unibet du « les 2 équipes marquent » (BTTS = Oui) — labels FR ou EN."""
     for m in markets:
         lbl = f'{m.label or ""} {m.type or ""}'.lower()
-        if "both" in lbl and "score" in lbl:
+        if ("both" in lbl and "score" in lbl) or ("deux" in lbl and "marqu" in lbl):
             for o in (m.outcomes or []):
                 if (o.label or "").lower() in ("yes", "oui") and o.implied_probability:
                     return o.implied_probability
@@ -207,21 +213,23 @@ async def foot_match(event_id: int, frag: int = 0,
                 confidence = ([home, "Match nul", away][i], probs[i],
                               [rec.get("o1"), rec.get("ox"), rec.get("o2")][i])
         extra = web.recommended_bets(value, confidence)
-    # ⚽ Autres marchés (modèle vs Unibet) : Plus/Moins 2,5 buts + BTTS, avec value éventuelle
+    # Cotes Unibet de l'événement (1 appel = TOUS les marchés du book) — best-effort
+    markets = []
+    try:
+        st = datetime.fromisoformat(rec["start_time"]) if rec and rec.get("start_time") else None
+        uo = await unibet.find_event_odds("football", home, away, event_id, st)
+        if uo.matched:
+            markets = uo.markets
+    except Exception:
+        pass
+    # ⚽ Comparaison modèle vs Unibet sur les marchés que le modèle évalue (O/U 2,5, BTTS)
     g = (rec or {}).get("goals")
     if g and g.get("over25") is not None:
-        ou_imp = btts_imp = None
-        try:   # cotes Unibet de l'événement (1 appel, marché complet) — best-effort
-            st = datetime.fromisoformat(rec["start_time"]) if rec.get("start_time") else None
-            uo = await unibet.find_event_odds("football", home, away, event_id, st)
-            if uo.matched:
-                ou_imp = _unibet_over(uo.markets, 2.5)
-                btts_imp = _unibet_btts(uo.markets)
-        except Exception:
-            pass
-        extra += ('<h2>⚽ Autres marchés (modèle vs Unibet)</h2>'
-                  + _market_compare("Plus de 2,5 buts", g["over25"], ou_imp)
-                  + _market_compare("Les 2 équipes marquent", g["btts"], btts_imp))
+        extra += ('<h2>⚽ Marchés évalués (modèle vs Unibet)</h2>'
+                  + _market_compare("Plus de 2,5 buts", g["over25"], _unibet_over(markets, 2.5))
+                  + _market_compare("Les 2 équipes marquent", g["btts"], _unibet_btts(markets)))
+    # 💰 TOUS les paris Unibet de l'event (intuitif : un bloc par marché)
+    extra += web.render_unibet_markets(markets)
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
     try:
         extra += await team_context(event_id, home, away, unit="buts")
