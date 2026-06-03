@@ -397,6 +397,16 @@ CSS = """
   .banner.warn{background:linear-gradient(180deg,var(--gold-bg),rgba(35,29,9,.45));
           border:1px solid var(--gold-bd);border-left:3px solid var(--gold);color:var(--gold)}
   .banner.warn b{color:#ffd877}
+  /* Cartes « Preuve » (track record par sport) */
+  .proofcard{display:block;background:var(--surface);border:1px solid var(--border);
+          border-radius:12px;padding:10px 13px;margin:8px 0;text-decoration:none;color:var(--text)}
+  .proofcard:active{background:var(--surface2)}
+  .proof-h{font-weight:800;font-size:14px;margin-bottom:3px}
+  .proof-row{font-size:12px;color:var(--muted);line-height:1.5}
+  .proof-row b{color:var(--text)}
+  .pv-ok{color:var(--green);font-weight:800;font-size:12.5px}
+  .pv-ko{color:var(--red);font-weight:800;font-size:12.5px}
+  .pv-na{color:var(--muted);font-weight:700;font-size:12px}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--border);
@@ -756,7 +766,8 @@ BARS_LEGEND = ('Les 3 barres = la <b>chance de gagner</b> du pari, vue par 3 sou
 
 def render_home(rep: dict, source: dict | None = None,
                 picks: list[dict] | None = None,
-                conf_picks: list[dict] | None = None, frag: bool = False) -> str:
+                conf_picks: list[dict] | None = None, frag: bool = False,
+                proof_html: str = "") -> str:
     # l'état SofaScore (pause) s'affiche désormais discrètement dans l'en-tête (cf. layout).
     picks = picks or []
     conf_picks = conf_picks or []
@@ -791,8 +802,8 @@ def render_home(rep: dict, source: dict | None = None,
                             '<div class="banner">Aucune value détectée pour le moment '
                             '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
 
-    # Confiances AU-DESSUS des valeurs (favori net d'abord, puis les value/outsiders).
-    body = f'{conf_html}{val_html}'
+    # Preuve EN HAUT (le track record honnête, ancre de confiance), puis confiances, puis valeurs.
+    body = f'{proof_html}{conf_html}{val_html}'
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 

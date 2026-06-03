@@ -285,6 +285,20 @@ def factor_breakdown(pred: list[dict]) -> list[dict]:
     return out
 
 
+def wilson_interval(wins: int, n: int, z: float = 1.96) -> tuple[float, float] | None:
+    """Intervalle de confiance 95% (score de Wilson) sur un taux de réussite binomial.
+    Honnête sur petit échantillon : N=10 donne un intervalle large, N=200 un intervalle serré.
+    Renvoie (borne_basse, borne_haute) en proportions, ou None si aucun pari."""
+    if not n:
+        return None
+    p = wins / n
+    z2 = z * z
+    denom = 1 + z2 / n
+    center = (p + z2 / (2 * n)) / denom
+    margin = (z / denom) * math.sqrt(p * (1 - p) / n + z2 / (4 * n * n))
+    return (max(0.0, center - margin), min(1.0, center + margin))
+
+
 def report(store: dict) -> dict:
     settled = [r for r in store.values() if r.get("result")]
     # Les void (matchs annulés/reportés, sans gagnant) sont exclus des métriques.
@@ -367,6 +381,66 @@ def report(store: dict) -> dict:
 # --------------------------------------------------------------- dashboard
 def _pct(x):
     return f"{round(x * 100)}%" if isinstance(x, (int, float)) else "—"
+
+
+def _signed_pct(x, dec: int = 1) -> str:
+    if x is None:
+        return "—"
+    return f"{'+' if x >= 0 else ''}{round(x * 100, dec)}%"
+
+
+def _proof_card(icon: str, name: str, rep: dict, url: str) -> str:
+    """Carte « preuve » d'un sport : verdict bat-le-marché + Brier + ROI/CLV value avec IC95.
+    Honnête : verdict gris tant que l'échantillon est trop faible pour conclure."""
+    e = html.escape
+    n = rep.get("predictions_evaluees") or 0
+    if n == 0:
+        return (f'<a class="proofcard" href="{e(url)}"><div class="proof-h">{icon} {e(name)} '
+                '<span class="pv-na">· en collecte</span></div>'
+                '<div class="proof-row dim">Aucun match réglé pour l\'instant — le suivi se '
+                'construit match après match.</div></a>')
+    bat = rep.get("bat_le_marche")
+    if n < 30:
+        verdict = f'<span class="pv-na">· échantillon faible ({n}/30)</span>'
+    elif bat is True:
+        verdict = '<span class="pv-ok">· ✓ bat le marché</span>'
+    elif bat is False:
+        verdict = '<span class="pv-ko">· ✗ sous le marché</span>'
+    else:
+        verdict = ""
+    br, brm = rep.get("brier"), rep.get("brier_marche")
+    brtxt = ""
+    if br is not None:
+        brtxt = f' · Brier <b>{br}</b>' + (f' <span class="dim">(marché {brm})</span>'
+                                           if brm is not None else "")
+    rows = [f'<div class="proof-row"><span class="dim">{n} réglés</span> · '
+            f'précision favori <b>{_pct(rep.get("precision_modele"))}</b>{brtxt}</div>']
+    npk = rep.get("value_paris_regles") or 0
+    if npk:
+        ci = wilson_interval(rep.get("value_gagnes") or 0, npk)
+        citxt = (f' <span class="dim">(IC95 {round(ci[0]*100)}–{round(ci[1]*100)}%)</span>'
+                 if ci else "")
+        clv, clvp = rep.get("clv_moyen"), rep.get("clv_positif_pct")
+        clvtxt = (f' · CLV <b>{_signed_pct(clv)}</b> <span class="dim">({_pct(clvp)} positifs)</span>'
+                  if clv is not None else "")
+        rows.append(f'<div class="proof-row">Value : ROI <b>{_signed_pct(rep.get("value_roi"))}</b> · '
+                    f'{rep.get("value_gagnes")}/{npk} gagnés{citxt}{clvtxt}</div>')
+    else:
+        rows.append('<div class="proof-row dim">Pas encore de pari « value » réglé.</div>')
+    return (f'<a class="proofcard" href="{e(url)}"><div class="proof-h">{icon} {e(name)} '
+            f'{verdict}</div>{"".join(rows)}</a>')
+
+
+def render_proof(reports: list[tuple]) -> str:
+    """Section « Preuve » de l'accueil : pour chaque sport (icône, nom, rapport, url dashboard),
+    le verdict honnête bat-le-marché + ROI/CLV. `reports` = [(icon, name, rep, url), ...]."""
+    cards = "".join(_proof_card(i, n, r, u) for i, n, r, u in reports)
+    info = ('« <b>Bat le marché</b> » = sur les matchs réglés, la prédiction BETSFIX est plus '
+            'juste (score de <b>Brier</b> plus bas) que la cote de clôture dévigée — la vraie '
+            'référence. <b>CLV</b> = on a pris de meilleures cotes que la clôture (signe d\'edge '
+            'même avant le résultat). <b>IC 95%</b> = fourchette honnête vu l\'échantillon : '
+            'large = pas encore concluant. Touche une carte pour le détail (calibration, facteurs).')
+    return web._section('📊 Preuve — le modèle bat-il le marché ?', cards, open_=True, info=info)
 
 
 def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:

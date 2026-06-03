@@ -309,9 +309,20 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
     confidences = sorted([p for p in confidences + bc if _not_started(p)],
                          key=lambda p: p.get("start_ts") or inf)[:6]
     _enrich_picks_votes(values + confidences, provider)   # votes communauté (cache only)
+    # 📊 Preuve : track record honnête des 3 sports (suivis séparés), exposé en haut de l'accueil.
+    from app import basket, foot
+    tennis_rep = tracking.report(tracking.load())
+    proof = [
+        ("🎾", "Tennis", tennis_rep, "/tracking/dashboard?sport=tennis"),
+        ("⚽", "Foot", tracking.report(tracking.load(foot.FOOT_TRACK_PATH)),
+         "/tracking/dashboard?sport=foot"),
+        ("🏀", "Basket", tracking.report(tracking.load(basket.BASKET_TRACK_PATH)),
+         "/tracking/dashboard?sport=basket"),
+    ]
     return HTMLResponse(web.render_home(
-        tracking.report(tracking.load()), source=provider.breaker_status(),
-        picks=values, conf_picks=confidences, frag=bool(frag)))
+        tennis_rep, source=provider.breaker_status(),
+        picks=values, conf_picks=confidences, frag=bool(frag),
+        proof_html=tracking.render_proof(proof)))
 
 
 def _tennis_live_score(entry: dict, swapped: bool = False) -> str:

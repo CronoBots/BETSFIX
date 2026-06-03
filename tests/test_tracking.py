@@ -204,3 +204,33 @@ def test_void_excluded_from_metrics():
     assert rep["predictions_evaluees"] == 1   # mais il est exclu des métriques
     # le dashboard ne plante pas sur un void (winner=None)
     assert tracking.render_dashboard(store, rep)
+
+
+def test_wilson_interval():
+    # 0 pari -> None
+    assert tracking.wilson_interval(0, 0) is None
+    # petit échantillon -> intervalle TRÈS large (honnêteté)
+    lo, hi = tracking.wilson_interval(5, 10)
+    assert lo < 0.30 and hi > 0.70
+    # gros échantillon centré -> intervalle serré autour de 0.5
+    lo, hi = tracking.wilson_interval(100, 200)
+    assert 0.42 < lo < 0.50 < hi < 0.58
+    # bornes valides
+    lo, hi = tracking.wilson_interval(10, 10)
+    assert 0.0 <= lo <= hi <= 1.0
+
+
+def test_render_proof_honnete():
+    rep_full = {"predictions_evaluees": 142, "precision_modele": 0.68, "brier": 0.21,
+                "brier_marche": 0.22, "bat_le_marche": True, "value_paris_regles": 120,
+                "value_gagnes": 54, "value_roi": 0.042, "clv_moyen": 0.018, "clv_positif_pct": 0.72}
+    rep_empty = {"predictions_evaluees": 0}
+    rep_small = {"predictions_evaluees": 12, "precision_modele": 0.6, "bat_le_marche": False,
+                 "value_paris_regles": 5, "value_gagnes": 3, "value_roi": 0.1}
+    html = tracking.render_proof([("T", "Tennis", rep_full, "/a"),
+                                  ("F", "Foot", rep_empty, "/b"),
+                                  ("B", "Basket", rep_small, "/c")])
+    assert "bat le marché" in html          # tennis : verdict positif
+    assert "en collecte" in html            # foot vide
+    assert "échantillon faible (12/30)" in html   # basket : pas concluant
+    assert "IC95" in html                   # intervalle de confiance affiché
