@@ -49,6 +49,84 @@ async def foot_page(frag: int = 0) -> HTMLResponse:
     return HTMLResponse(foot.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag)))
 
 
+async def _sofa(path: str):
+    """GET SofaScore brut (curl_cffi) tolérant : renvoie le JSON ou None."""
+    try:
+        r = await foot.sofa_http.get(foot.SOFA_B + path)
+        return r.json() if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
+def _result_dot(wc_for_team: str) -> str:
+    cls = {"W": "w", "L": "l", "D": ""}[wc_for_team]
+    return f'<span class="dot {cls}">{ {"W":"V","L":"D","D":"N"}[wc_for_team] }</span>'
+
+
+async def _foot_team_context(event_id: int, home: str, away: str) -> str:
+    """Classement (position/points) + 5 derniers résultats détaillés des 2 équipes (SofaScore).
+    Tout best-effort et concurrent : si un appel échoue, la section est juste omise."""
+    ev = await _sofa(f"/event/{event_id}")
+    e = (ev or {}).get("event") or {}
+    hid = (e.get("homeTeam") or {}).get("id")
+    aid = (e.get("awayTeam") or {}).get("id")
+    ut = ((e.get("tournament") or {}).get("uniqueTournament") or {})
+    tid, sid = ut.get("id"), (e.get("season") or {}).get("id")
+    if not (hid and aid):
+        return ""
+    standings_data, h_last, a_last = await asyncio.gather(
+        _sofa(f"/unique-tournament/{tid}/season/{sid}/standings/total") if (tid and sid) else _noop(),
+        _sofa(f"/team/{hid}/events/last/0"),
+        _sofa(f"/team/{aid}/events/last/0"))
+
+    # Classement
+    pos = {}
+    for blk in (standings_data or {}).get("standings", []) or []:
+        for row in blk.get("rows", []) or []:
+            tid_r = (row.get("team") or {}).get("id")
+            if tid_r in (hid, aid):
+                pos[tid_r] = (row.get("position"), row.get("points"),
+                              row.get("scoresFor"), row.get("scoresAgainst"))
+    standings_html = ""
+    if pos:
+        def line(name, tid_):
+            p = pos.get(tid_)
+            if not p:
+                return f'<div class="frow"><div class="fn">{web.html.escape(name)}</div><span class="dim">—</span></div>'
+            position, pts, sf, sa = p
+            return (f'<div class="frow"><div class="fn">{web.html.escape(name)}</div>'
+                    f'<span class="dim">{position}<sup>e</sup> · {pts} pts · {sf}:{sa} buts</span></div>')
+        standings_html = '<h2>📊 Classement</h2>' + line(home, hid) + line(away, aid)
+
+    # 5 derniers résultats détaillés (adversaire + score)
+    def last5(name, tid_, data):
+        evs = [x for x in (data or {}).get("events", []) or []
+               if (x.get("status") or {}).get("type") == "finished" and x.get("winnerCode") in (1, 2, 3)][-5:][::-1]
+        if not evs:
+            return ""
+        rows = []
+        for x in evs:
+            ht, at = x.get("homeTeam") or {}, x.get("awayTeam") or {}
+            is_home = ht.get("id") == tid_
+            opp = (at if is_home else ht).get("name", "?")
+            hs = (x.get("homeScore") or {}).get("current")
+            as_ = (x.get("awayScore") or {}).get("current")
+            wc = x.get("winnerCode")
+            res = "D" if wc == 3 else ("W" if (wc == 1) == is_home else "L")
+            sc = f'{hs}-{as_}' if is_home else f'{as_}-{hs}'
+            rows.append(f'<div class="frow" style="padding:6px 0"><div class="ft">'
+                        f'{_result_dot(res)}<span class="dim">{sc} vs {web.html.escape(opp)}</span></div></div>')
+        return f'<div class="players" style="font-size:14px;margin:8px 0 2px">{web.html.escape(name)}</div>' + "".join(rows)
+    last_html = last5(home, hid, h_last) + last5(away, aid, a_last)
+    if last_html:
+        last_html = '<h2>📅 5 derniers résultats</h2>' + last_html
+    return standings_html + last_html
+
+
+async def _noop():
+    return None
+
+
 def _unibet_over(markets, line: float):
     """Proba implicite Unibet du « Plus de {line} buts » (marché Total Goals)."""
     for m in markets:
@@ -144,6 +222,11 @@ async def foot_match(event_id: int, frag: int = 0,
         extra += ('<h2>⚽ Autres marchés (modèle vs Unibet)</h2>'
                   + _market_compare("Plus de 2,5 buts", g["over25"], ou_imp)
                   + _market_compare("Les 2 équipes marquent", g["btts"], btts_imp))
+    # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
+    try:
+        extra += await _foot_team_context(event_id, home, away)
+    except Exception:
+        pass
     ctx = {"home": home or "Match", "away": away, "home_flag": flags.flag(home),
            "away_flag": flags.flag(away), "comp": comp, "when": when, "extra": extra,
            "prediction": prediction, "odds_cells": odds_cells, "forms": forms, "h2h": h2h,
