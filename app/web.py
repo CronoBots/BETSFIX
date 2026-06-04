@@ -293,16 +293,16 @@ CSS = """
   /* perle rare : le pari à jouer (confiance×value) mis en avant */
   /* Bloc « pari à jouer », SOUS les cotes : tête (type + pari + cote) puis barre de confiance.
      CONFIANCE = vert · VALUE = bleu · avant-match = neutre. */
-  /* Badge CATÉGORIE centré (Confiance/Value) entre les 4 barres et les paris à jouer.
-     margin-top = l'ESPACE demandé sous les barres. */
-  .pcat-row{display:flex;justify-content:center;margin:15px 0 8px}
+  /* Badge CATÉGORIE centré (Confiance/Value) — DANS le cadre des paris, en haut. */
+  .pcat-row{display:flex;justify-content:center;margin:0 0 9px}
   .pcat{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
         padding:4px 18px;border-radius:20px}
   .pcat-conf{color:#34d27b;background:rgba(25,196,106,.14);border:1px solid rgba(25,196,106,.36)}
   .pcat-val{color:#4aa8ff;background:rgba(46,155,255,.14);border:1px solid rgba(46,155,255,.36)}
   /* Paris GROUPÉS dans un seul bloc : chaque pari = sélection puis cote dessous, séparés
      par un filet fin. Pas de label par pari (la catégorie est dans le badge centré). */
-  .plg{border-radius:12px;padding:2px 13px;margin:0 0 3px}
+  /* margin-top = l'ESPACE demandé sous les 4 barres ; padding-top accueille le badge type */
+  .plg{border-radius:12px;padding:11px 13px 4px;margin:15px 0 3px}
   .plg-conf{background:linear-gradient(180deg,rgba(25,196,106,.12),rgba(25,196,106,.04));
         border:1px solid rgba(25,196,106,.30)}
   .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
@@ -1151,8 +1151,10 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     parts = [x for x in parts if x]
     # Plusieurs paris dans le même cadre -> séparés par « et / ou » (jouer l'un et/ou l'autre).
     items = '<div class="plg-sep">et / ou</div>'.join(parts)
-    return (f'<div class="pcat-row"><span class="pcat {ccls}">{lbl}</span></div>'
-            f'<div class="plg {gcls}">{items}</div>')
+    # Le TYPE (Confiance/Value) est DANS le même cadre que les paris, centré en haut.
+    return (f'<div class="plg {gcls}">'
+            f'<div class="pcat-row"><span class="pcat {ccls}">{lbl}</span></div>'
+            f'{items}</div>')
 
 
 def finished_picks(perle, perle_won, perle_value, value_won, winner_name,
