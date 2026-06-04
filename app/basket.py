@@ -1047,7 +1047,10 @@ async def run_snapshot() -> int:
     await _attach_perles(rows)         # perles (moneyline/handicap/totaux) par match
     n = 0
     for g in rows:
-        if g.get("oh") and g.get("model_home") is not None and _upsert(store, g, now):
+        # UNIFORMISÉ avec le tennis : on ne log/MAJ que les matchs À VENIR (match commencé ->
+        # plus touché, pronos figés). Le garde-fou `_keep` dans _upsert reste un filet de sécurité.
+        if (g.get("status") == "notstarted" and g.get("oh")
+                and g.get("model_home") is not None and _upsert(store, g, now)):
             n += 1
     tracking.save(store, BASKET_TRACK_PATH)
     return n

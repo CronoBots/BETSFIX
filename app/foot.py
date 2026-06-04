@@ -1558,7 +1558,10 @@ async def run_snapshot() -> int:
     await _attach_perles(rows)         # perle rare par match (marchés complets Unibet)
     n = 0
     for g in rows:
-        if g.get("o1") and g.get("probs") and _upsert(store, g, now):
+        # UNIFORMISÉ avec le tennis : le snapshot ne log/MAJ que les matchs À VENIR. Un match
+        # commencé n'est plus touché (cotes/probas de clôture préservées, pronos figés tels quels).
+        # Le garde-fou `_keep` dans _upsert reste un filet de sécurité.
+        if g.get("status") == "notstarted" and g.get("o1") and g.get("probs") and _upsert(store, g, now):
             n += 1
     tracking.save(store, FOOT_TRACK_PATH)
     return n
