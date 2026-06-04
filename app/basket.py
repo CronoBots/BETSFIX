@@ -858,6 +858,12 @@ def _card(r: dict) -> dict:
         sub_html += web.form_compare(r["home"], fm[0], r["away"], fm[1])
     pk = r.get("pick")
     badge = ""   # plus de badge VALUE en haut à droite (value dans la bannière + l'analyse)
+    # 🟢 Halo « gagné » en LIVE : la perle est-elle déjà gagnée vu le score (points) ?
+    hp_l, ap_l = r.get("home_pts"), r.get("away_pts")
+
+    def _won(p):
+        return bool(r["status"] == "inprogress" and hp_l is not None and ap_l is not None
+                    and settle_basket_perle(p, hp_l, ap_l) is True)
     female = r.get("female") if r.get("female") is not None \
         else (r.get("league") or "").upper() == "WNBA"
     return {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
@@ -868,6 +874,8 @@ def _card(r: dict) -> dict:
             "live_time": r.get("live_time", ""),
             "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
             "sub": sub_html, "badge": badge, "pick": bool(pk),
+            "live_won": _won(r.get("perle")), "live_won2": _won(r.get("perle2")),
+            "live_won_value": _won(r.get("perle_value")),
             "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
             **web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])}
 
@@ -891,7 +899,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             confidences.append(card)
         pv = r.get("perle_value")
         if isinstance(pv, dict) and pv.get("selection"):
-            value.append({**card, "perle": pv, "perle2": None, "pick_kind": "value"})
+            value.append({**card, "perle": pv, "perle2": None, "pick_kind": "value",
+                          "live_won": card.get("live_won_value")})
 
     fin = []
     for r in (finished_rows or []):

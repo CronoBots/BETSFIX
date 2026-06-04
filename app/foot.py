@@ -1379,12 +1379,24 @@ def _card(r: dict) -> dict:
     pk = r.get("pick")
     # plus de badge VALUE en haut à droite : la value est dans la bannière « À JOUER » + l'analyse
     badge = ""
+    # 🟢 Halo « gagné » en LIVE : la perle est-elle déjà/en passe d'être gagnée vu le score ?
+    hs = as_ = None
+    if r.get("status") == "inprogress" and r.get("score"):
+        try:
+            hs, as_ = (int(x) for x in str(r["score"]).split("-"))
+        except (ValueError, AttributeError):
+            hs = as_ = None
+
+    def _won(p):
+        return bool(hs is not None and settle_perle(p, hs, as_) is True)
     return {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
             "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
             "female": r.get("female"), "score": r.get("score", ""), "live_time": r.get("live_time", ""),
             "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
             "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
             "prob": r.get("probs"), "sub": _model_line(r), "badge": badge, "pick": bool(pk),
+            "live_won": _won(r.get("perle")), "live_won2": _won(r.get("perle2")),
+            "live_won_value": _won(r.get("perle_value")),
             "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
             **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
 
@@ -1409,7 +1421,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             confidences.append(card)
         pv = r.get("perle_value")
         if isinstance(pv, dict) and pv.get("selection"):
-            value.append({**card, "perle": pv, "perle2": None, "pick_kind": "value"})
+            value.append({**card, "perle": pv, "perle2": None, "pick_kind": "value",
+                          "live_won": card.get("live_won_value")})
 
     fin = []
     for r in (finished_rows or []):

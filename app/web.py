@@ -296,6 +296,12 @@ CSS = """
   /* Match commencé : on garde le type (vert/bleu) mais sans halo « action » + mention discrète */
   .perle-pre{box-shadow:none;opacity:.9}
   .pl-pre{font-size:9.5px;font-weight:700;font-style:italic;color:var(--muted);white-space:nowrap}
+  /* 🟢 Pari déjà GAGNÉ en live : halo vert prononcé + badge ✓ (prime sur conf/value) */
+  .perle-won{border-color:rgba(25,196,106,.9)!important;
+             box-shadow:0 0 18px rgba(25,196,106,.5)!important;
+             background:linear-gradient(90deg,rgba(25,196,106,.2),rgba(25,196,106,.07))!important}
+  .pl-won{font-size:10px;font-weight:800;color:#19c46a;background:rgba(25,196,106,.18);
+          padding:2px 6px;border-radius:6px;white-space:nowrap}
   /* Barre de CONFIANCE (jauge) : niveau + % ; couleur héritée du type de pari ci-dessus */
   .cmeter{display:flex;align-items:center;gap:9px;margin:8px 0 1px;font-size:11px}
   .cm-l{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
@@ -971,15 +977,16 @@ def _pick_kind(perle: dict, kind: str | None) -> bool:
 
 
 def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = False,
-                  kind: str | None = None) -> str:
+                  kind: str | None = None, won: bool = False, won2: bool = False) -> str:
     """Bloc « pari à jouer » placé SOUS les cotes : le pari (DIFFÉRENCIÉ Confiance/Value) +
     sa barre de confiance, en un seul bloc. `live=True` : match commencé -> « avant-match »
-    (gardé en mémoire, plus « à jouer »). `kind` = 'confiance'/'value' (sinon dérivé)."""
+    (gardé en mémoire, plus « à jouer »). `kind` = 'confiance'/'value' (sinon dérivé).
+    `won/won2` : pari déjà gagné vu le score LIVE -> halo vert + ✓."""
     e = html.escape
     if not (isinstance(perle, dict) and perle.get("selection")):
         return ""
 
-    def one(p: dict, secondary: bool = False, k: str | None = None) -> str:
+    def one(p: dict, secondary: bool = False, k: str | None = None, is_won: bool = False) -> str:
         edgep = round((p.get("edge") or 0) * 100)
         is_value = _pick_kind(p, k)
         if secondary:                                  # 2e confiance : MÊME style, badge « CONFIANCE 2 »
@@ -994,13 +1001,16 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
         if live and not secondary:
             cls += " perle-pre"
             pre = '<span class="pl-pre">d\'avant-match</span>'
+        if is_won:                                     # 🟢 déjà gagné en live -> halo vert + ✓
+            cls += " perle-won"
+            pre = '<span class="pl-won">✓ gagné</span>'
         head = (f'<div class="pl-top"><span class="pl-tag">{tag}</span>{pre}'
                 f'<span class="pl-o">@{p["odds"]:g}</span></div>'
                 f'<div class="pl-sel">{e(str(p["selection"]))}</div>')
         return f'<div class="perle {cls}">{head}{_confidence_meter(p)}</div>'
-    out = one(perle, k=kind)
+    out = one(perle, k=kind, is_won=won)
     if isinstance(perle2, dict) and perle2.get("selection"):
-        out += one(perle2, secondary=True)
+        out += one(perle2, secondary=True, is_won=won2)
     return out
 
 
@@ -1029,7 +1039,7 @@ def _pick_card(p: dict, badge: str) -> str:
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
              f'<span class="dim">vs</span> {af}{e(p.get("away") or "")}</div>{bdg}</div>'
              f'{_pick_bars(p)}{oddsrow}'
-             f'{_perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")), kind=p.get("pick_kind"))}')
+             f'{_perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")), kind=p.get("pick_kind"), won=bool(p.get("live_won")), won2=bool(p.get("live_won2")))}')
     url = p.get("url") or ""
     # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
@@ -1159,7 +1169,7 @@ def _sport_row(r: dict) -> str:
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {af}{e(r.get("away") or "")}</div>{badge}</div>'
              f'{probviz}{r.get("sub", "")}'
-             f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"))}')
+             f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")))}')
     cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
     url = r.get("url") or ""
     # Tap -> déplie l'analyse complète À L'INTÉRIEUR de la carte (les 3 sports), sans changer
