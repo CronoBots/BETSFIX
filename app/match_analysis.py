@@ -63,6 +63,51 @@ def _support(b: dict, seed: int) -> str:
     return phrase[0].upper() + phrase[1:] + "."
 
 
+def _perle_reason(b: dict) -> str:
+    """Courte justification du pari conseillé, selon le TYPE de marché + le contexte (serré/favori,
+    surface). C'est le « pourquoi » qui relie la perle à l'analyse."""
+    perle = b.get("perle") or {}
+    sel = (perle.get("selection") or "").lower()
+    mkt = (perle.get("market") or "").lower()
+    kind = perle.get("kind") or ""
+    side = perle.get("side") or ""
+    is_under = side == "under" or "moins" in sel or "ne marque pas" in sel
+    fp = round((b.get("fav_prob") or 0.5) * 100)
+    close = fp < 56
+    surf = b.get("surface")
+    # TOTAL de jeux (tennis)
+    if "jeu" in mkt or ("jeu" in sel and ("plus" in sel or "moins" in sel)):
+        if "plus" in sel:
+            r = ("deux joueuses de niveau proche : sets accrochés, donc beaucoup de jeux"
+                 if close else "même un favori lâche des jeux, le total grimpe")
+            return r + (" — et sur terre les échanges s'allongent encore" if surf == "terre" else "")
+        return "un favori qui peut dérouler vite : peu de jeux attendus"
+    # au moins un set (tennis)
+    if "set" in mkt:
+        return "assez solide pour accrocher au moins un set"
+    # handicap (tennis/basket/foot)
+    if kind == "hasian" or "handicap" in mkt or kind.endswith("handicap"):
+        return ("le favori a la marge pour couvrir l'écart" if not close
+                else "écart serré, mais notre modèle penche de ce côté")
+    # TOTAUX buts/points (foot/basket)
+    if kind in ("ou", "total") or "total" in mkt:
+        return ("défenses solides / match fermé : peu d'unités attendues" if is_under
+                else "deux équipes qui produisent offensivement : ça devrait marquer")
+    if kind == "team_total":
+        return "le rythme de cette équipe colle à cette ligne de points"
+    # BTTS / équipe marque (foot)
+    if kind == "btts":
+        return ("au moins une équipe muette est probable" if "pas" in sel
+                else "les deux équipes marquent régulièrement")
+    if kind == "team_ou":
+        return ("cette équipe marque peu / face à une défense solide" if is_under
+                else "cette équipe trouve le chemin des filets régulièrement")
+    # vainqueur / 1X2 / double chance / moneyline
+    if kind in ("1x2", "dc") or "vainqueur" in sel:
+        return "le favori de notre modèle, à une cote qui paie encore"
+    return ""
+
+
 def _templated(b: dict) -> str:
     """Analyse courte (3-4 phrases) à partir des données — déterministe (pas d'aléa)."""
     fav, dog = b.get("favorite") or "", b.get("underdog") or ""
@@ -95,11 +140,14 @@ def _templated(b: dict) -> str:
         if perle and perle.get("selection"):
             edgep = round((perle.get("edge") or 0) * 100)
             pct = round((perle.get("model_prob") or 0) * 100)
-            s.append(_pick([
-                f"La perle du match : {perle['selection']} à {perle['odds']:g} — {pct} % selon nous, "
-                f"~+{edgep} % de value, le meilleur rapport confiance/cote ici.",
-                f"À jouer : {perle['selection']} à {perle['odds']:g} ({pct} %, ~+{edgep} % en notre faveur)."],
-                seed))
+            reason = _perle_reason(b)
+            because = f" — {reason}" if reason else ""
+            if pct >= 68 and edgep < 6:    # forte proba, faible value -> pari de RÉGULARITÉ (sûr)
+                s.append(f"À jouer : {perle['selection']} à {perle['odds']:g} — pari sûr "
+                         f"({pct} % de chances, petite cote){because}.")
+            else:                          # vraie VALUE (cote généreuse)
+                s.append(f"À jouer : {perle['selection']} à {perle['odds']:g} "
+                         f"({pct} %, ~+{edgep} % de value){because}.")
         else:
             s.append(_pick(["Aucun pari Unibet n'offre un bon équilibre confiance/value : mieux vaut s'abstenir.",
                             "Pas de perle ici — match à passer."], seed))

@@ -870,10 +870,12 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None) -> str:
         return ""
     pct = round((perle.get("model_prob") or 0) * 100)
     edgep = round((perle.get("edge") or 0) * 100)
+    # pari SÛR (forte proba, faible value) vs vraie VALUE : on ne survend pas un +3 % à 1.2
+    note = (f'🛡️ <b>pari sûr</b>' if (pct >= 68 and edgep < 6) else f'value <b>+{edgep}%</b>')
     out = (f'<div class="perle"><span class="pl-tag">🎯 À JOUER</span>'
            f'<span class="pl-sel">{e(str(perle["selection"]))}</span>'
            f'<span class="pl-o">@{perle["odds"]:g}</span>'
-           f'<span class="pl-m">modèle <b>{pct}%</b> · value <b>+{edgep}%</b></span></div>')
+           f'<span class="pl-m">modèle <b>{pct}%</b> · {note}</span></div>')
     if isinstance(perle2, dict) and perle2.get("selection"):
         pct2 = round((perle2.get("model_prob") or 0) * 100)
         out += (f'<div class="perle perle2"><span class="pl-tag">+ AUSSI</span>'
@@ -1335,11 +1337,15 @@ def perle_advice(perle: dict | None) -> str:
     if perle and perle.get("selection"):
         pct = round((perle.get("model_prob") or 0) * 100)
         edgep = round((perle.get("edge") or 0) * 100)
+        if pct >= 68 and edgep < 6:   # forte proba, faible value -> pari de régularité
+            qual = (f'un <b>pari sûr</b> : <b>{pct} %</b> de chances selon nous (petite cote, '
+                    f'petit gain) — value modeste ~+{edgep} %.')
+        else:
+            qual = (f'le <b>meilleur équilibre confiance × value</b> du match : <b>{pct} %</b> de '
+                    f'chances selon nous, cote <b>~+{edgep} %</b> en notre faveur.')
         body = ('<div class="banner"><b style="color:#19c46a">🎯 À jouer</b> — '
                 f'<b>{e(str(perle["selection"]))}</b> @{perle["odds"]:g}. '
-                f'<span class="dim">Le <b>meilleur équilibre confiance × value</b> parmi tous les '
-                f'paris Unibet de ce match : <b>{pct} %</b> de chances selon nous, cote '
-                f'<b>~+{edgep} %</b> en notre faveur.</span></div>')
+                f'<span class="dim">{qual}</span></div>')
     else:
         body = ('<div class="banner">Aucune perle sur ce match : aucun pari Unibet n\'offre un bon '
                 '<b>équilibre confiance × value</b>. Mieux vaut <b>s\'abstenir</b>.</div>')

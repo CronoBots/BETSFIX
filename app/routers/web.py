@@ -832,7 +832,13 @@ async def match_detail(
         ground = (analysis.ground_type or "").lower()
         surface = ("terre" if "clay" in ground else "gazon" if "grass" in ground
                    else "dur" if "hard" in ground else None)
-        fav_home = (analysis.model_home_probability or 0.5) >= 0.5
+        # COHÉRENCE carte/analyse : on prend la proba du SUIVI (celle des barres de la carte),
+        # pas le recalcul à la volée -> plus de « 53/47 sur la carte, 50/50 dans le texte ».
+        mh = (rec or {}).get("model_home_prob")
+        if mh is None:
+            mh = analysis.model_home_probability or 0.5
+        fav_home = mh >= 0.5
+        fav_prob_disp = max(mh, 1 - mh)
         fform = home_form if fav_home else away_form
         surf_edge = any(f.name == "surface" and ((f.home if fav_home else f.away) or 0) >= 0.55
                         for f in (analysis.factors or []))
@@ -840,7 +846,7 @@ async def match_detail(
             "sport": "tennis", "home": match.home.name, "away": match.away.name,
             "favorite": match.home.name if fav_home else match.away.name,
             "underdog": match.away.name if fav_home else match.home.name,
-            "fav_prob": fav_prob,
+            "fav_prob": fav_prob_disp,
             "fav_odds": winner_odds[0] if fav_home else winner_odds[1],
             "confidence": analysis.confidence, "perle": perle, "value": None,
             "surface": surface, "surface_edge": surf_edge,
