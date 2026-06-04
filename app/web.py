@@ -93,6 +93,9 @@ CSS = """
   body.sp-tennis{--accent:#d7e64a;--accent2:#aac72f;--accent-ink:#16180a;--glow:rgba(190,210,60,.30)}
   body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00;--glow:rgba(240,128,0,.30)}
   body.sp-foot{--accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30)}
+  /* Live = vue transversale, pas un sport -> thème NEUTRE (bleu) pour ne pas concurrencer le
+     vert du foot ; le « live » reste signalé par le seul point 🟢 clignotant de l'onglet. */
+  body.sp-directs{--accent:#2e9bff;--accent2:#1f80e6;--accent-ink:#02122b;--glow:rgba(46,155,255,.30)}
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{margin:0;color:var(--text);font-size:15px;line-height:1.45;
@@ -131,13 +134,12 @@ CSS = """
   .botnav a:active{transform:scale(.93)}
   .botnav a.on{color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
   .botnav a.on .ic{transform:scale(1.06)}
-  /* Onglet Live : vert + pastille 🟢 qui pulse UNIQUEMENT s'il y a des matchs en direct
-     (classe .has-live posée par la SPA). Sans live -> onglet neutre, pas de clignotement. */
-  .botnav a[data-tab="directs"].has-live{color:#34d27b}
-  .botnav a[data-tab="directs"].has-live .ic{animation:livepulse 1.4s ease-in-out infinite}
+  /* Onglet Live : SEUL le point 🟢 vire au vert et clignote, et UNIQUEMENT s'il y a du live
+     (classe .has-live) ET que l'onglet n'est pas ouvert. Pas de fond vert -> quand on est dessus,
+     l'onglet actif prend le thème neutre (bleu) comme les autres. */
+  .botnav a[data-tab="directs"].has-live:not(.on){color:#34d27b}
+  .botnav a[data-tab="directs"].has-live:not(.on) .ic{animation:livepulse 1.4s ease-in-out infinite}
   @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.86)}}
-  .botnav a[data-tab="directs"].on{background:linear-gradient(180deg,#2fc46e,#1f9e54);color:#fff}
-  .botnav a[data-tab="directs"].on .ic{animation:none}
   /* SPA : panneaux par onglet (tout chargé à l'ouverture, bascule sans rechargement) */
   .panel{display:none}
   .panel.on{display:block;animation:fadein .18s ease}
