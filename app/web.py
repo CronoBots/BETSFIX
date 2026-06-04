@@ -258,6 +258,9 @@ CSS = """
   /* Live : 3 zones (comp à gauche · score/temps CENTRÉS · badge Live à droite) */
   .rowtop-live{display:grid;grid-template-columns:1fr auto 1fr}
   .rt-mid{text-align:center;white-space:nowrap;font-size:12px}
+  /* Live : score actuel dans un CADRE BLANC, au-dessus du cadre des cotes */
+  .lscore{background:#fff;color:#0a1124;border-radius:10px;padding:7px 12px;margin:9px 0 4px;
+          text-align:center;font-weight:800;font-size:16px;letter-spacing:.03em}
   .rowtop-live .rt-r{justify-content:flex-end}
   .players{font-size:15.5px;font-weight:700;margin:5px 0 2px;letter-spacing:-.01em}
   /* Ligne du pari : nom+cote à gauche, badge value à droite (toujours sur une ligne) */
@@ -1025,12 +1028,12 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
         if live and not secondary:
             cls += " perle-pre"
             pre = '<span class="pl-pre">d\'avant-match</span>'
-        if is_won:                                     # 🟢 déjà gagné en live -> halo vert + ✓
-            cls += " perle-won"
-            pre = '<span class="pl-won">✓ gagné</span>'
-        elif is_lost:                                  # 🔴 déjà perdu en live -> halo rouge + ✗
-            cls += " perle-lost"
-            pre = '<span class="pl-lost">✗ raté</span>'
+        # En live : SEULE la couleur du halo indique le résultat (pas de texte « gagné/raté » —
+        # ce texte n'apparaît que dans les matchs TERMINÉS).
+        if is_won:
+            cls += " perle-won"          # 🟢 halo vert
+        elif is_lost:
+            cls += " perle-lost"         # 🔴 halo rouge
         head = (f'<div class="pl-top"><span class="pl-tag">{tag}</span>{pre}'
                 f'<span class="pl-o">@{p["odds"]:g}</span></div>'
                 f'<div class="pl-sel">{e(str(p["selection"]))}</div>')
@@ -1192,11 +1195,9 @@ def _sport_row(r: dict) -> str:
     # « EN DIRECT » (rouge) si live. Le badge value/✓ va, lui, sur la ligne de l'affiche.
     mid = ""
     if r.get("status") == "inprogress":
-        # Live : score puis TEMPS, CENTRÉS horizontalement sur la ligne ; badge Live à droite
-        sc = f'<span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
+        # Live : le TEMPS au centre de l'en-tête (le SCORE va dans son cadre blanc, cf. lscore)
         lt = f'<span class="live">{e(r["live_time"])}</span>' if r.get("live_time") else ""
-        scoretime = " · ".join(x for x in (sc, lt) if x)
-        mid = f'<span class="rt-mid">{scoretime}</span>' if scoretime else ""
+        mid = f'<span class="rt-mid">{lt}</span>' if lt else ""
         state = '<span class="cd live">🟢 Live</span>'
         top = ""
     elif r.get("status") == "finished":
@@ -1216,6 +1217,9 @@ def _sport_row(r: dict) -> str:
     badge = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
     hf = f'{r["home_flag"]} ' if r.get("home_flag") else ""
     af = f'{r["away_flag"]} ' if r.get("away_flag") else ""
+    # Live : SCORE actuel dans un cadre blanc, AU-DESSUS du cadre des cotes
+    lscore = (f'<div class="lscore">{e(str(r["score"]))}</div>'
+              if r.get("status") == "inprogress" and r.get("score") else "")
     # En-tête : la compétition (souvent longue) se tronque, la date/heure (rt-when) reste visible.
     when = f' · {top}' if top else ""
     inner = (f'<div class="rowtop{" rowtop-live" if mid else ""}"><span class="rt-l">'
@@ -1224,7 +1228,7 @@ def _sport_row(r: dict) -> str:
              f'{mid}<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {af}{e(r.get("away") or "")}</div>{badge}</div>'
-             f'{probviz}{r.get("sub", "")}'
+             f'{probviz}{lscore}{r.get("sub", "")}'
              f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")), lost=bool(r.get("live_lost")), lost2=bool(r.get("live_lost2")))}')
     cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
     url = r.get("url") or ""
