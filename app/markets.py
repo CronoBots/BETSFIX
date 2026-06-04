@@ -488,6 +488,46 @@ def settle_tennis_perle(perle, winner, sets_home, sets_away, total_games,
     return None
 
 
+def tennis_perle_live_won(perle, score_str, home_name, away_name) -> bool:
+    """Perle tennis DÉJÀ gagnée vu le score LIVE (set par set), ex. « au moins un set » dès qu'un
+    set est remporté, ou « Plus de N jeux » dès que le total dépasse N. False sinon (ou incertain)."""
+    if not (isinstance(perle, dict) and perle.get("selection") and score_str):
+        return False
+    sel = (perle.get("selection") or "").lower()
+    sets = []
+    for part in str(score_str).split():
+        if "-" in part:
+            try:
+                h, a = (int(x) for x in part.split("-"))
+            except ValueError:
+                continue
+            sets.append((h, a))
+    if not sets:
+        return False
+
+    def sets_won(side):                                # sets TERMINÉS gagnés par ce camp
+        n = 0
+        for h, a in sets:
+            hi, lo = max(h, a), min(h, a)
+            if (hi >= 6 and hi - lo >= 2) or hi == 7:   # set terminé
+                if (h > a) == (side == "home"):
+                    n += 1
+        return n
+    total_games = sum(h + a for h, a in sets)
+    # « X remporte au moins un set »
+    if "au moins un set" in sel or "moins un set" in sel:
+        st = _norm_name(perle.get("selection") or "")
+        ht, at = _norm_name(home_name or ""), _norm_name(away_name or "")
+        who = "home" if (st & ht) and not (st & at) else ("away" if (st & at) and not (st & ht) else None)
+        return bool(who and sets_won(who) >= 1)
+    # « Plus de N jeux » : gagné dès que le total dépasse la ligne
+    if "jeu" in sel and ("plus" in sel or "over" in sel):
+        mo = re.search(r"(\d+(?:[.,]\d+)?)", sel)
+        if mo:
+            return total_games > float(mo.group(1).replace(",", "."))
+    return False
+
+
 def tennis_all_edges(match, odds, analysis, tour, seed, home_stats=None, away_stats=None):
     """TOUS les edges tennis d'un match (vainqueur, sets, jeux/handicap, aces, simulateur) en une
     liste de MarketEdge — réutilisé par le détail ET le snapshot pour en tirer la perle."""

@@ -13,7 +13,7 @@ from app.analysis import build_analysis, prob_from_rankings, remove_vig
 from app.analysis import _match_winner_odds
 from app.markets import (
     DEFAULT_SERVE, calibrate_to_market, evaluate_markets, extract_market_anchors,
-    serve_win_pct,
+    serve_win_pct, tennis_perle_live_won,
 )
 from app.providers.unibet import _norm_name
 from app.textutil import name_tokens, names_match
@@ -525,12 +525,18 @@ def _tennis_fav_sub(r: dict) -> str:
 def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = False) -> dict:
     """Dict _sport_row d'un match tennis (réutilisé par l'onglet Tennis ET Directs)."""
     labels = ((r["home"].split() or [""])[-1], (r["away"].split() or [""])[-1])
+    # 🟢 Halo « gagné » en LIVE (ex. « au moins un set » dès qu'un set est remporté)
+    lw = lw2 = False
+    if r.get("status") == "inprogress" and r.get("score"):
+        lw = tennis_perle_live_won(r.get("perle"), r["score"], r["home"], r["away"])
+        lw2 = tennis_perle_live_won(r.get("perle2"), r["score"], r["home"], r["away"])
     return {"tour": r["tour"].upper(), "status": r["status"], "time": r.get("time") or "",
             "score": r.get("score") or "", "home": r["home"], "away": r["away"],
             "prob": r.get("hp"), "prob_labels": labels,
             "sub": _tennis_fav_sub(r) if sub is None else sub, "badge": badge, "pick": pick,
             "start_ts": r.get("start_ts"), "female": r.get("female"), "pick_kind": "confiance",
             "perle": r.get("perle"), "perle2": r.get("perle2"),
+            "live_won": lw, "live_won2": lw2,
             "url": f'/app/match/{r["id"]}?tour={r["tour"]}',
             **web.bars_two_way(r.get("hp"), r.get("implied"), r.get("votes"), r["home"], r["away"])}
 
@@ -699,14 +705,22 @@ async def matches_page(
                    "pick_kind": "value"} for r in rows
                   if isinstance(r.get("perle_value"), dict) and r["perle_value"].get("selection")]
     _, finished = _picks_and_finished(store)
-    finished_rows = [{
-        "tour": f["tour"].upper(), "status": "finished", "score": f.get("score") or "terminé",
-        "home": f["home"], "away": f["away"],
-        "badge": ('<span class="pos">✓ modèle ok</span>' if f.get("ok")
-                  else '<span class="neg">✗ raté</span>'),
-        "sub": (f'<div class="dim">favori : {ev(f.get("fav") or "—")} {ev(f.get("favp") or "")} '
-                f'· vainqueur : <b>{ev(f.get("winner_name") or "")}</b></div>'),
-        "url": f'/app/match/{f["id"]}?tour={f["tour"]}'} for f in finished]
+    finished_rows = []
+    for f in finished:
+        pl, won = f.get("perle"), f.get("perle_won")
+        # Badge SEULEMENT s'il y avait un pronostic perle réglé (sinon rien — pas de « raté »)
+        badge = ('<span class="pos">✓ gagné</span>' if won is True
+                 else '<span class="neg">✗ perdu</span>' if won is False else "")
+        win_txt = f'vainqueur : <b>{ev(f.get("winner_name") or "")}</b>'
+        if isinstance(pl, dict) and pl.get("selection"):
+            od = f' @{pl["odds"]:g}' if pl.get("odds") else ""
+            sub = f'<div class="dim">Pari : <b>{ev(pl["selection"])}</b>{od} · {win_txt}</div>'
+        else:
+            sub = f'<div class="dim">{win_txt}</div>'
+        finished_rows.append({
+            "tour": f["tour"].upper(), "status": "finished", "score": f.get("score") or "terminé",
+            "home": f["home"], "away": f["away"], "badge": badge, "sub": sub,
+            "url": f'/app/match/{f["id"]}?tour={f["tour"]}'})
 
     intro = ('⚠️ SofaScore momentanément indisponible — scores via LiveScore (repli).'
              if fallback else
@@ -751,16 +765,16 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
                 "odds_cells": [(nh, rec.get("unibet_home_odds")), (na, rec.get("unibet_away_odds"))],
                 "side": side, "_sort": rec.get("start_time") or "",
             })
-        elif res and rec.get("model_home_prob") is not None:
-            hp = rec["model_home_prob"]
-            fav_home = hp >= 0.5
+        elif res and not res.get("void") and res.get("winner") in ("home", "away"):
+            # Matchs terminés = on montre le PRONOSTIC perle joué (confiance) + son résultat.
+            perle = rec.get("perle") if isinstance(rec.get("perle"), dict) else None
+            pnl = res.get("perle_pnl")
+            won = (pnl > 0) if pnl is not None else None     # None = aucun prono réglé
             finished.append({
                 "id": rec["match_id"], "tour": rec.get("tour", "atp"),
                 "home": rec.get("home", ""), "away": rec.get("away", ""),
-                "fav": rec["home"] if fav_home else rec["away"],
-                "favp": f"{round(max(hp, 1 - hp) * 100)}%",
                 "winner_name": rec["home"] if res["winner"] == "home" else rec["away"],
-                "ok": (res["winner"] == "home") == fav_home,
+                "perle": perle, "perle_won": won,
                 "score": res.get("score"),
                 "_sort": res.get("settled_at", ""),
             })
