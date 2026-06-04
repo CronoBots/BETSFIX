@@ -293,6 +293,13 @@ CSS = """
   /* perle rare : le pari à jouer (confiance×value) mis en avant */
   /* Bloc « pari à jouer », SOUS les cotes : tête (type + pari + cote) puis barre de confiance.
      CONFIANCE = vert · VALUE = bleu · avant-match = neutre. */
+  /* Badge CATÉGORIE centré (Confiance/Value) entre les 4 barres et les paris à jouer.
+     margin-top = l'ESPACE demandé sous les barres. */
+  .pcat-row{display:flex;justify-content:center;margin:15px 0 8px}
+  .pcat{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
+        padding:4px 18px;border-radius:20px}
+  .pcat-conf{color:#34d27b;background:rgba(25,196,106,.14);border:1px solid rgba(25,196,106,.36)}
+  .pcat-val{color:#4aa8ff;background:rgba(46,155,255,.14);border:1px solid rgba(46,155,255,.36)}
   .perle{display:block;margin:9px 0 3px;padding:10px 12px;border-radius:11px;
          background:rgba(255,255,255,.03);border:1px solid var(--cardline)}
   .pl-top{display:flex;align-items:center;gap:7px}
@@ -398,7 +405,8 @@ CSS = """
       font-variant-numeric:tabular-nums;letter-spacing:.02em;background:rgba(255,255,255,.10);
       color:#fff;border:1px solid rgba(255,255,255,.20);white-space:nowrap}
   .cd .u{color:rgba(255,255,255,.55);font-weight:700;margin:0 1px 0 1px}
-  .cd.soon{background:rgba(224,179,65,.16);color:#ffd061;border-color:rgba(224,179,65,.40)}
+  /* « soon » (match proche) : MÊME aspect blanc que les autres timers (plus de jaune) */
+  .cd.soon{background:rgba(255,255,255,.10);color:#fff;border-color:rgba(255,255,255,.20)}
   .cd.live{background:rgba(52,210,123,.18);color:#5fe39b;border-color:rgba(52,210,123,.40)}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
@@ -982,9 +990,17 @@ def odds_bar(outcomes, highlight_idx: int | None = None) -> str:
     if not valid:
         return ('<div class="sb"><span class="sb-l">Bookmakers</span>'
                 '<div class="sb-bar ocbar"><span class="seg pba">à venir</span></div></div>')
-    # Les 3 segments ont le MÊME fond (navy .pba, comme le segment le plus faible des autres
-    # barres) : pas de surlignage du favori -> ligne de cotes brute, neutre.
-    segs = "".join(f'<span class="seg pba"><b>{o}</b></span>' for _, _, o in valid)
+    # Segments en navy .pba ; la MEILLEURE cote (la plus basse = le favori du book) ressort en
+    # gris clair .pbd (comme le segment « nul » des autres barres).
+    def _f(o):
+        try:
+            return float(o)
+        except (TypeError, ValueError):
+            return float("inf")
+    best_i = min(valid, key=lambda t: _f(t[2]))[0]
+    segs = "".join(
+        f'<span class="seg {"pbd" if i == best_i else "pba"}"><b>{o}</b></span>'
+        for i, _, o in valid)
     return (f'<div class="sb"><span class="sb-l">Bookmakers</span>'
             f'<div class="sb-bar ocbar">{segs}</div></div>')
 
@@ -1047,11 +1063,13 @@ def _pick_kind(perle: dict, kind: str | None) -> bool:
 
 def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = False,
                   kind: str | None = None, won: bool = False, won2: bool = False,
-                  lost: bool = False, lost2: bool = False) -> str:
+                  lost: bool = False, lost2: bool = False, header: bool = False) -> str:
     """Bloc « pari à jouer » placé SOUS les cotes : le pari (DIFFÉRENCIÉ Confiance/Value) +
     sa barre de confiance, en un seul bloc. `live=True` : match commencé -> « avant-match »
     (gardé en mémoire, plus « à jouer »). `kind` = 'confiance'/'value' (sinon dérivé).
-    `won/lost` : pari déjà gagné/perdu vu le score LIVE -> halo vert/rouge + ✓/✗."""
+    `won/lost` : pari déjà gagné/perdu vu le score LIVE -> halo vert/rouge + ✓/✗.
+    `header=True` : un BADGE CATÉGORIE centré (Confiance/Value) coiffe les paris, et le tag
+    interne de chaque pari est allégé (pas de doublon avec le badge)."""
     e = html.escape
     if not (isinstance(perle, dict) and perle.get("selection")):
         return ""
@@ -1060,11 +1078,11 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
         edgep = round((p.get("edge") or 0) * 100)
         is_value = _pick_kind(p, k)
         if secondary:                                  # 2e confiance : MÊME style, badge « CONFIANCE 2 »
-            cls, tag = "perle-conf", "🛡️ CONFIANCE 2"
+            cls, tag = "perle-conf", ("Pari 2" if header else "🛡️ CONFIANCE 2")
         elif is_value:
-            cls, tag = "perle-value", f"💎 VALUE +{edgep}%"
+            cls, tag = "perle-value", (f"+{edgep}%" if header else f"💎 VALUE +{edgep}%")
         else:
-            cls, tag = "perle-conf", "🛡️ CONFIANCE"
+            cls, tag = "perle-conf", ("" if header else "🛡️ CONFIANCE")
         # Match commencé : on GARDE le type (confiance/value) mais on indique que c'était un
         # pari d'AVANT-MATCH (gardé en mémoire), ton légèrement atténué.
         pre = ""
@@ -1077,13 +1095,20 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
             cls += " perle-won"          # 🟢 halo vert
         elif is_lost:
             cls += " perle-lost"         # 🔴 halo rouge
-        head = (f'<div class="pl-top"><span class="pl-tag">{tag}</span>{pre}'
+        tag_html = f'<span class="pl-tag">{tag}</span>' if tag else ""
+        head = (f'<div class="pl-top">{tag_html}{pre}'
                 f'<span class="pl-o">@{p["odds"]:g}</span></div>'
                 f'<div class="pl-sel">{e(str(p["selection"]))}</div>')
         return f'<div class="perle {cls}">{head}{_confidence_meter(p)}</div>'
     out = one(perle, k=kind, is_won=won, is_lost=lost)
     if isinstance(perle2, dict) and perle2.get("selection"):
         out += one(perle2, secondary=True, is_won=won2, is_lost=lost2)
+    if header:
+        # Badge CATÉGORIE centré au-dessus des paris (espace au-dessus = sous les 4 barres).
+        is_val = _pick_kind(perle, kind)
+        lbl = "Value" if is_val else "Confiance"
+        cls = "pcat-val" if is_val else "pcat-conf"
+        out = f'<div class="pcat-row"><span class="pcat {cls}">{lbl}</span></div>' + out
     return out
 
 
@@ -1142,7 +1167,7 @@ def _pick_card(p: dict, badge: str) -> str:
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
              f'<span class="dim">vs</span> {e(p.get("away") or "")}{af}</div>{bdg}</div>'
              f'{oddsrow}{_pick_bars(p)}'
-             f'{_perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")), kind=p.get("pick_kind"), won=bool(p.get("live_won")), won2=bool(p.get("live_won2")), lost=bool(p.get("live_lost")), lost2=bool(p.get("live_lost2")))}')
+             f'{_perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")), kind=p.get("pick_kind"), won=bool(p.get("live_won")), won2=bool(p.get("live_won2")), lost=bool(p.get("live_lost")), lost2=bool(p.get("live_lost2")), header=True)}')
     url = p.get("url") or ""
     # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
