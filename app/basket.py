@@ -897,7 +897,8 @@ def _card(r: dict) -> dict:
     sp, sp2, spv = _st(r.get("perle")), _st(r.get("perle2")), _st(r.get("perle_value"))
     female = r.get("female") if r.get("female") is not None \
         else (r.get("league") or "").upper() == "WNBA"
-    return {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
+    return {"tour": r.get("league", "Basket"), "sport": "Basket", "icon": "🏀",
+            "status": r["status"], "time": _fmt_time(r.get("start")),
             "start_ts": r.get("start"), "home": r["home"], "away": r["away"], "female": female,
             "url": f'/basket/match/{r["id"]}' if r.get("sofa_ok") else None,
             "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'

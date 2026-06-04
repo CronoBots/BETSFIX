@@ -1429,7 +1429,8 @@ def _card(r: dict) -> dict:
     def _st(p):
         return perle_live_status(p, hs, as_) if hs is not None else None
     sp, sp2, spv = _st(r.get("perle")), _st(r.get("perle2")), _st(r.get("perle_value"))
-    return {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
+    return {"tour": r.get("comp"), "sport": "Foot", "icon": "⚽",
+            "status": r["status"], "time": _fmt_time(r.get("start")),
             "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
             "female": r.get("female"), "score": r.get("score", ""), "live_time": r.get("live_time", ""),
             "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),

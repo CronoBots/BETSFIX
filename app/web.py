@@ -282,6 +282,10 @@ CSS = """
   /* Colonne 🎾 = points du jeu en cours (0/15/30/40) : en évidence, SANS case verte */
   .lb-pt{color:#fff;font-weight:800}
   .lb-pt-h{font-size:12px}
+  /* Trait horizontal FIN sous la ligne des sets (en-tête) + trait VERTICAL à gauche de la
+     colonne du jeu en cours (points). */
+  .lboard-t .lb-hdr{border-bottom:1px solid rgba(255,255,255,.13);padding-bottom:3px;margin-bottom:2px}
+  .lboard-t .lb-pt,.lboard-t .lb-pt-h{border-left:1px solid rgba(255,255,255,.15);padding-left:10px}
   /* Libellé « cotes en direct » au-dessus des boutons de cotes */
   .live-odds-l{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
           color:var(--muted);margin:2px 2px 4px}
@@ -1438,8 +1442,10 @@ def _sport_row(r: dict) -> str:
     # _card basket / _tennis_fav_sub) -> plus besoin d'un libellé « cotes en direct » séparé.
     # En-tête : la compétition (souvent longue) se tronque, la date/heure (rt-when) reste visible.
     when = f' · {top}' if top else ""
+    # TOUJOURS le sport (emoji + nom) AVANT la ligue / le type de match.
+    sport_pre = (f'{r.get("icon", "")} {e(r.get("sport"))} · ' if r.get("sport") else "")
     inner = (f'<div class="rowtop{" rowtop-live" if mid else ""}"><span class="rt-l">'
-             f'<span class="rt-comp">{e(r.get("tour") or "")}{fem}</span>'
+             f'<span class="rt-comp">{sport_pre}{e(r.get("tour") or "")}{fem}</span>'
              f'<span class="rt-when">{when}</span></span>'
              f'{mid}<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '

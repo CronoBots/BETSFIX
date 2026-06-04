@@ -560,7 +560,8 @@ def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = 
         sp2 = tennis_perle_live_status(r.get("perle2"), r["score"], r["home"], r["away"])
     lw, lw2 = sp == "won", sp2 == "won"
     ll, ll2 = sp == "lost", sp2 == "lost"
-    return {"tour": r["tour"].upper(), "status": r["status"], "time": r.get("time") or "",
+    return {"tour": r["tour"].upper(), "sport": "Tennis", "icon": "🎾",
+            "status": r["status"], "time": r.get("time") or "",
             "score": r.get("score") or "", "server": r.get("server"),
             "game_pts": r.get("game_pts"),
             "home": r["home"], "away": r["away"],
