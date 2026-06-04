@@ -261,6 +261,9 @@ CSS = """
   /* Live : SCOREBOARD 2 lignes (nom + scores), meneur en vert, set gagné en gras */
   .lboard{background:rgba(255,255,255,.05);border:1px solid var(--cardline);border-radius:10px;
           padding:8px 12px;margin:9px 0 5px}
+  /* Temps de jeu live (51', Q3·5:42) DANS le cadre des scores : centré, vert, bien visible */
+  .lb-clk{text-align:center;font-size:12px;font-weight:800;color:#34d27b;letter-spacing:.04em;
+          padding-bottom:5px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.08)}
   .lb-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 0;
           font-size:14px;font-weight:700;color:var(--muted)}
   .lb-row.lb-lead .lb-n{color:#34d27b}            /* meneur : nom en vert */
@@ -314,8 +317,8 @@ CSS = """
      margin-top = l'ESPACE demandé sous les 4 barres. PAS d'overflow:hidden (sur iOS, combiné
      au calque fixe body::before, il laisse des traces concentriques au scroll) : on arrondit
      plutôt les coins HAUT du bandeau pour épouser le cadre. */
-  /* margin-top = MÊME espace qu'entre 2 barres de % (.sb margin 8px) */
-  .plg{border-radius:12px;margin:8px 0 3px}
+  /* Cadre Confiance/Value bien ÉCARTÉ de la barre Public au-dessus */
+  .plg{border-radius:12px;margin:18px 0 3px}
   .plg-conf{background:linear-gradient(180deg,rgba(25,196,106,.12),rgba(25,196,106,.04));
         border:1px solid rgba(25,196,106,.32)}
   .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
@@ -1348,7 +1351,8 @@ def _prob_bar(prob, labels=None) -> str:
 
 
 def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
-                     server: str | None = None, points: tuple | None = None) -> str:
+                     server: str | None = None, points: tuple | None = None,
+                     clock: str | None = None) -> str:
     """Scoreboard LIVE. Tennis (`tennis=True`) : style Unibet — en-tête numéros de set + 🎾, TOUS
     les sets en colonnes (jeux par set), sets gagnés en gras, set en cours en évidence (PAS de
     case verte), colonne 🎾 = points du jeu en cours (`points`), et une balle 🎾 à droite du
@@ -1402,7 +1406,9 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
     def cells(i):
         return "".join(f'<span class="lb-c{" lb-win" if c[i] > c[1 - i] else ""}">{c[i]}</span>'
                        for c in cols)
-    return (f'<div class="lboard">'
+    # Temps de jeu (51', Q3 · 5:42…) DANS le cadre des scores : centré en haut, bien visible.
+    clk = f'<div class="lb-clk">{e(clock)}</div>' if clock else ""
+    return (f'<div class="lboard">{clk}'
             f'<div class="lb-row{" lb-lead" if home_lead else ""}">'
             f'<span class="lb-n">{hn}</span><span class="lb-s">{cells(0)}</span></div>'
             f'<div class="lb-row{" lb-lead" if away_lead else ""}">'
@@ -1417,9 +1423,7 @@ def _sport_row(r: dict) -> str:
     # « EN DIRECT » (rouge) si live. Le badge value/✓ va, lui, sur la ligne de l'affiche.
     mid = ""
     if r.get("status") == "inprogress":
-        # Live : le TEMPS au centre de l'en-tête (le SCORE va dans son cadre blanc, cf. lscore)
-        lt = f'<span class="live">{e(r["live_time"])}</span>' if r.get("live_time") else ""
-        mid = f'<span class="rt-mid">{lt}</span>' if lt else ""
+        # Live : le TEMPS de jeu va DANS le cadre des scores (cf. lscore/clock), plus dans l'en-tête.
         state = '<span class="cd live">🟢 Live</span>'
         top = ""
     elif r.get("status") == "finished":
@@ -1443,7 +1447,8 @@ def _sport_row(r: dict) -> str:
     is_live = r.get("status") == "inprogress"
     _is_tennis = (r.get("tour") or "").upper() in ("WTA", "ATP")
     lscore = (_live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "",
-                               tennis=_is_tennis, server=r.get("server"), points=r.get("game_pts"))
+                               tennis=_is_tennis, server=r.get("server"), points=r.get("game_pts"),
+                               clock=r.get("live_time"))
               if is_live else "")
     # Les cotes live sont présentées comme une barre « BOOKMAKERS LIVE » (cf. _model_line /
     # _card basket / _tennis_fav_sub) -> plus besoin d'un libellé « cotes en direct » séparé.
