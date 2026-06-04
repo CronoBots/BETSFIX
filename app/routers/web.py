@@ -104,7 +104,8 @@ def _all_sport_picks() -> list[dict]:
     def add(store, sport, icon, url_fn, bet_key, prob_fn):
         for rec in store.values():
             v = rec.get("value_pick")
-            if rec.get("result") or not v or not _is_upcoming(rec):
+            if (rec.get("result") or not v or not _is_upcoming(rec)
+                    or not window.within(rec.get("start_time"))):   # rien au-delà de la fenêtre 24 h
                 continue
             odds = v.get("odds")
             model_p, side = prob_fn(rec, v)
@@ -170,7 +171,8 @@ def _confidence_picks() -> list[dict]:
 
     def add(store, sport, icon, url_fn, fav_fn):
         for rec in store.values():
-            if rec.get("result") or not _is_upcoming(rec):
+            if (rec.get("result") or not _is_upcoming(rec)
+                    or not window.within(rec.get("start_time"))):   # rien au-delà de la fenêtre 24 h
                 continue
             fav = fav_fn(rec)
             if not fav or fav[1] is None or fav[1] < CONF_MIN_PROB:
@@ -701,7 +703,8 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
     value_picks, finished = [], []
     for rec in store.values():
         res = rec.get("result")
-        if not res and rec.get("value_pick") and _is_upcoming(rec):
+        if (not res and rec.get("value_pick") and _is_upcoming(rec)
+                and window.within(rec.get("start_time"))):   # rien au-delà de la fenêtre 24 h
             v = rec["value_pick"]
             # 3 barres du côté PARIÉ (pas le favori) : modèle / cote dévig / public
             side = v.get("side")
