@@ -87,21 +87,37 @@ def _templated(b: dict) -> str:
     if sup:
         s.append(sup)
 
-    # 3) Verdict de pari
-    v = b.get("value")
-    if v and v.get("odds"):
-        edge = round((v.get("edge") or 0) * 100, 1)
-        s.append(_pick([
-            f"À {v['odds']}, la cote de {v['name']} paraît trop généreuse (~+{edge} %) : "
-            "une value — gros gain possible, mais ça passe moins souvent.",
-            f"Value repérée sur {v['name']} à {v['odds']} (~+{edge} % en notre faveur) : "
-            "rentable sur la durée, jamais garanti sur un match."], seed))
-    elif fp >= 65 and b.get("fav_odds"):
-        s.append(_pick([f"À {b['fav_odds']}, c'est un pari de confiance : assez sûr, mais petit gain.",
-                        f"Pari de confiance à {b['fav_odds']} : faible risque, faible gain."], seed))
+    # 3) Verdict de pari. FOOT (clé 'perle' présente) : piloté par la PERLE -> cohérent avec la
+    # bannière « À JOUER » et les « paris conseillés ». Tennis/basket (pas de perle) : ancien
+    # système value/confiance conservé tel quel.
+    if "perle" in b:
+        perle = b.get("perle")
+        if perle and perle.get("selection"):
+            edgep = round((perle.get("edge") or 0) * 100)
+            pct = round((perle.get("model_prob") or 0) * 100)
+            s.append(_pick([
+                f"La perle du match : {perle['selection']} à {perle['odds']:g} — {pct} % selon nous, "
+                f"~+{edgep} % de value, le meilleur rapport confiance/cote ici.",
+                f"À jouer : {perle['selection']} à {perle['odds']:g} ({pct} %, ~+{edgep} % en notre faveur)."],
+                seed))
+        else:
+            s.append(_pick(["Aucun pari Unibet n'offre un bon équilibre confiance/value : mieux vaut s'abstenir.",
+                            "Pas de perle ici — match à passer."], seed))
     else:
-        s.append(_pick(["Ni value ni favori vraiment net : mieux vaut s'abstenir.",
-                        "Pas de pari intéressant ici — à passer."], seed))
+        v = b.get("value")
+        if v and v.get("odds"):
+            edge = round((v.get("edge") or 0) * 100, 1)
+            s.append(_pick([
+                f"À {v['odds']}, la cote de {v['name']} paraît trop généreuse (~+{edge} %) : "
+                "une value — gros gain possible, mais ça passe moins souvent.",
+                f"Value repérée sur {v['name']} à {v['odds']} (~+{edge} % en notre faveur) : "
+                "rentable sur la durée, jamais garanti sur un match."], seed))
+        elif fp >= 65 and b.get("fav_odds"):
+            s.append(_pick([f"À {b['fav_odds']}, c'est un pari de confiance : assez sûr, mais petit gain.",
+                            f"Pari de confiance à {b['fav_odds']} : faible risque, faible gain."], seed))
+        else:
+            s.append(_pick(["Ni value ni favori vraiment net : mieux vaut s'abstenir.",
+                            "Pas de pari intéressant ici — à passer."], seed))
 
     # 4) Garde-fous
     extra: list[str] = []
@@ -122,8 +138,10 @@ _SYSTEM = (
     "DONNÉES d'un match (probabilités du modèle, forme, face-à-face, surface, cotes, value). "
     "Rédige une analyse COURTE ET PERCUTANTE en français (3-4 phrases max) basée UNIQUEMENT "
     "sur ces données. INTERDIT d'inventer des faits absents (blessures, compositions, actualité). "
-    "Donne le verdict (favori/value/à éviter), 1-2 appuis chiffrés, et le risque. Pas de "
-    "garantie, ton honnête. Pas de markdown, pas de titre, juste le paragraphe."
+    "Le champ 'perle' = LE pari à recommander (meilleur équilibre confiance×value parmi tous les "
+    "marchés) : s'il est présent, conclus en le recommandant ; s'il est absent (null), conseille "
+    "de s'abstenir. 1-2 appuis chiffrés, le risque. Pas de garantie, ton honnête. Pas de markdown, "
+    "pas de titre, juste le paragraphe."
 )
 
 
@@ -151,7 +169,9 @@ async def _claude(b: dict, settings) -> str | None:
 
 
 def _verdict_tag(b: dict) -> tuple[str, str]:
-    """Verdict instantané (label, classe CSS) déduit des données, affiché en tête de l'analyse."""
+    """Verdict instantané (label, classe CSS). FOOT : piloté par la perle. Tennis/basket : value/confiance."""
+    if "perle" in b:
+        return ("🎯 À JOUER", "val") if b.get("perle") else ("⚪ À ÉVITER", "no")
     if b.get("value"):
         return ("💎 VALUE", "val")
     if (b.get("fav_prob") or 0) >= 0.65:

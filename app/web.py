@@ -1308,6 +1308,25 @@ def recommended_bets(value=None, confidence=None) -> str:
     return '<h2>🎯 Paris conseillés</h2>' + "".join(cards)
 
 
+def perle_advice(perle: dict | None) -> str:
+    """Section « 🎯 Paris conseillés » PILOTÉE PAR LA PERLE : le pari à jouer (meilleur équilibre
+    confiance × value parmi TOUS les marchés Unibet), ou s'abstenir. Source unique de vérité,
+    cohérente avec la bannière « À JOUER » de la carte et le verdict de l'analyse."""
+    e = html.escape
+    if perle and perle.get("selection"):
+        pct = round((perle.get("model_prob") or 0) * 100)
+        edgep = round((perle.get("edge") or 0) * 100)
+        body = ('<div class="banner"><b style="color:#19c46a">🎯 À jouer</b> — '
+                f'<b>{e(str(perle["selection"]))}</b> @{perle["odds"]:g}. '
+                f'<span class="dim">Le <b>meilleur équilibre confiance × value</b> parmi tous les '
+                f'paris Unibet de ce match : <b>{pct} %</b> de chances selon nous, cote '
+                f'<b>~+{edgep} %</b> en notre faveur.</span></div>')
+    else:
+        body = ('<div class="banner">Aucune perle sur ce match : aucun pari Unibet n\'offre un bon '
+                '<b>équilibre confiance × value</b>. Mieux vaut <b>s\'abstenir</b>.</div>')
+    return '<h2>🎯 Paris conseillés</h2>' + body
+
+
 def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     """Fiche détaillée d'un match foot/basket : prédiction (3 barres + divergence + cotes)
     puis analyse SofaScore (forme des 2 équipes, confrontations directes).

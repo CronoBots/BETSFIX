@@ -229,8 +229,10 @@ async def foot_match(event_id: int, frag: int = 0,
             if probs[i] >= 0.65:
                 confidence = ([home, "Match nul", away][i], probs[i],
                               [rec.get("o1"), rec.get("ox"), rec.get("o2")][i])
-        extra = web.recommended_bets(value, confidence)
-        # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — 1X2
+        # 🎯 Paris conseillés PILOTÉS PAR LA PERLE (source unique, cohérente avec la bannière)
+        perle = rec.get("perle") if rec else None
+        extra = web.perle_advice(perle)
+        # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — contexte 1X2 + verdict perle
         if all(p is not None for p in probs):
             idx = max(range(3), key=lambda k: probs[k])
             fav_h, fav_a = idx == 0, idx == 2
@@ -241,6 +243,7 @@ async def foot_match(event_id: int, frag: int = 0,
                 "fav_prob": probs[idx],
                 "fav_odds": [rec.get("o1"), rec.get("ox"), rec.get("o2")][idx],
                 "confidence": rec.get("confidence"),
+                "perle": perle,
                 "value": ({"name": value[0], "odds": value[1], "edge": value[2]} if value else None),
                 "h2h_fav": (h2h.get("home_wins") if fav_h else h2h.get("away_wins")) if (h2h and idx != 1) else None,
                 "h2h_opp": (h2h.get("away_wins") if fav_h else h2h.get("home_wins")) if (h2h and idx != 1) else None,
@@ -259,15 +262,10 @@ async def foot_match(event_id: int, frag: int = 0,
             markets = uo.markets
     except Exception:
         pass
-    # ⚽ Comparaison modèle vs Unibet sur les marchés que le modèle évalue (O/U 2,5, BTTS)
-    g = (rec or {}).get("goals")
-    if g and g.get("over25") is not None:
-        extra += ('<h2>⚽ Notre avis vs Unibet</h2>'
-                  '<div class="dim" style="font-size:11px;margin:-2px 0 8px">Pour chaque pari, '
-                  'la chance estimée par <b>BETSFIX</b> face à celle d\'<b>Unibet</b>. Le badge '
-                  '<b>value</b> apparaît quand on donne nettement plus de chances que la cote.</div>'
-                  + _market_compare("Plus de 2,5 buts dans le match", g["over25"], _unibet_over(markets, 2.5))
-                  + _market_compare("Les 2 équipes marquent", g["btts"], _unibet_btts(markets)))
+    # NB : ancien bloc « Notre avis vs Unibet » (Over2.5/BTTS via Elo) RETIRÉ — il s'appuyait sur le
+    # modèle Elo générique (sans la forme par équipe) et produisait de fausses value sur les équipes
+    # extrêmes (ex. Andorre BTTS 55 %). La perle (moteur complet + garde-fous) est désormais l'unique
+    # signal de pari, cohérent partout.
     # 💰 TOUS les paris Unibet de l'event (intuitif : un bloc par marché)
     extra += web.render_unibet_markets(markets, result_only=True)
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
