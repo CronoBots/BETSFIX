@@ -253,13 +253,16 @@ def test_foot_extreme_weak_team_no_false_value():
     assert sh[0] < 0.50                            # attaque faible possible (plancher 0.40)
     lam = foot._lambdas_form(sh, sa, neutral=False)
     assert foot._p_btts(foot._grid_l(*lam)) < 0.35   # BTTS réaliste (et non ~0.55)
-    # marché BTTS « Oui » à grosse cote (marché = 19 %) : l'écart modèle/marché reste sous contrôle
+    # marché BTTS « Oui » à grosse cote (marché = 19 %) : pas de FAUSSE value haute (BTTS-Oui / Over).
     mk = [UnibetMarket(label="Les deux équipes marquent", type="Oui/Non", outcomes=[
               UnibetOutcome(label="Oui", odds=5.2), UnibetOutcome(label="Non", odds=1.15)]),
           UnibetMarket(label="Nombre total de buts", type="Plus de/Moins de", outcomes=[
               UnibetOutcome(label="Plus de", odds=2.60, line=2.5),
               UnibetOutcome(label="Moins de", odds=1.48, line=2.5)])]
-    assert foot.best_bet(None, None, False, mk, lambdas=lam, home="A", away="B") is None
+    bb = foot.best_bet(None, None, False, mk, lambdas=lam, home="A", away="B")
+    # un pari « Moins de » est légitime ; mais JAMAIS de BTTS-Oui / Over (la fausse value d'avant)
+    if bb:
+        assert bb["side"] in ("under", "no")
 
 
 def test_foot_sos_adjustment():

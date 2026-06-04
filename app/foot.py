@@ -150,9 +150,11 @@ def _devig3(o1, ox, o2):
 # et on sort le pari au meilleur ÉQUILIBRE confiance × value. (Pas les paris joueurs/corners :
 # aucun modèle pour ça.)
 PERLE_MIN_PROB = 0.52      # le pari doit rester plausible (plus probable que non)
-PERLE_MIN_ODDS = 1.50      # « confiance » ≠ pari à 1.1 -> on exige une cote qui paie
-PERLE_MIN_EDGE = 0.05      # value minimale (modèle > marché dévig)
-PERLE_MIN_EDGE_ANNEX = 0.07  # mi-temps/corners/cartons : modèle approximatif -> on exige plus de value
+PERLE_MIN_ODDS = 1.20      # pool : la CONFIANCE accepte les petites cotes (gros favori sûr, gain modeste)
+VALUE_MIN_ODDS = 1.50      # la VALUE, elle, exige une cote qui paie vraiment
+PERLE_MIN_EDGE = 0.03      # value minimale pour entrer dans le pool (modèle > marché dévig)
+PERLE_MIN_EDGE_ANNEX = 0.05  # mi-temps/corners/cartons : modèle approximatif -> on exige plus
+N_CONFIANCES = 2           # nb max de paris de confiance proposés par match (types de marché distincts)
 
 
 # --- buts attendus par FORME RÉELLE (attaque/défense des derniers matchs) -----------------
@@ -689,15 +691,29 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
 
 def best_picks(elo_home, elo_away, neutral, markets, lambdas=None,
                home: str = "", away: str = "", corner_form=None, card_form=None) -> dict | None:
-    """Depuis le MÊME pool de candidats : la CONFIANCE (proba la plus haute) et la VALUE (edge le
-    plus élevé). Même logique, deux classements. None si aucun pari jouable.
-    NB : confiance et value peuvent être le même pari (ex. un favori net ET sous-coté)."""
+    """Depuis le MÊME pool de candidats, même logique, deux classements :
+    - CONFIANCES : les 1-2 paris les plus PROBABLES (favoris sûrs, cote ≥ 1,20 acceptée), de
+      types de marché DISTINCTS (pas deux fois le même genre de pari).
+    - VALUE : le pari au plus GROS EDGE, mais à une cote qui paie (≥ 1,50).
+    None si aucun pari jouable. Confiance et value peuvent coïncider (favori net ET sous-coté)."""
     cands = _candidates(elo_home, elo_away, neutral, markets, lambdas, home, away,
                         corner_form, card_form)
     if not cands:
         return None
-    return {"confidence": max(cands, key=lambda c: c["model_prob"]),
-            "value": max(cands, key=lambda c: c["edge"])}
+    # 1-2 confiances : les plus probables, un seul pari par type de marché (évite les doublons
+    # corrélés type « Plus de 0.5 » + « Plus de 1.5 »).
+    confidences, seen = [], set()
+    for c in sorted(cands, key=lambda c: -c["model_prob"]):
+        if c["kind"] in seen:
+            continue
+        confidences.append(c)
+        seen.add(c["kind"])
+        if len(confidences) >= N_CONFIANCES:
+            break
+    # value : plus gros edge parmi les cotes qui paient (≥ VALUE_MIN_ODDS)
+    payed = [c for c in cands if c["odds"] >= VALUE_MIN_ODDS]
+    value = max(payed, key=lambda c: c["edge"]) if payed else None
+    return {"confidences": confidences, "confidence": confidences[0], "value": value}
 
 
 def _price_htft(m, grid_h1, grid_h2) -> list:
@@ -972,7 +988,8 @@ def board_from_store() -> list[dict]:
             "probs": pr, "goals": None, "o1": o1, "ox": ox, "o2": o2,
             "imp": _devig3(o1, ox, o2), "pick": pick, "start": dt.timestamp(),
             "votes": (ph, pa, rec.get("public_draw")) if ph is not None else None,
-            "perle": rec.get("perle"), "perle_value": rec.get("perle_value"),
+            "perle": rec.get("perle"), "perle2": rec.get("perle2"),
+            "perle_value": rec.get("perle_value"),
         })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows
@@ -1156,6 +1173,8 @@ def _attach_from_store(rows: list[dict]) -> None:
                 r["votes"] = (best["public_home"], best["public_away"], best.get("public_draw"))
             if best.get("perle"):
                 r["perle"] = best["perle"]
+            if best.get("perle2"):
+                r["perle2"] = best["perle2"]
             if best.get("perle_value"):
                 r["perle_value"] = best["perle_value"]
 
@@ -1389,6 +1408,7 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
         "value_pick": ({"code": pk["code"], "team": pk["team"], "odds": pk["odds"],
                         "edge": pk["edge"]} if pk else None),
         "perle": g.get("perle"),               # 🔥 Confiance : la perle la PLUS PROBABLE
+        "perle2": g.get("perle2"),             # 🔥 2e pari de confiance (type distinct), optionnel
         "perle_value": g.get("perle_value"),   # 💎 Value : la perle au plus GROS EDGE
         "last_update": now,
     })
@@ -1472,12 +1492,14 @@ async def _attach_perles(rows: list[dict]) -> None:
                    for m in offers):
                 cfh, cfa = await _cform(g.get("home_tid")), await _cform(g.get("away_tid"))
                 corner_form = (cfh, cfa) if (cfh and cfa) else None
-            # Même pool de candidats -> CONFIANCE (proba max) ET VALUE (edge max), même logique.
+            # Même pool de candidats -> CONFIANCES (1-2, proba max) ET VALUE (edge max), même logique.
             picks = best_picks(g["eh"], g["ea"], g.get("neutral", False), offers,
                                lambdas=lambdas, home=g.get("home", ""),
                                away=g.get("away", ""), corner_form=corner_form)
-            g["perle"] = picks["confidence"] if picks else None          # 🔥 Confiances
-            g["perle_value"] = picks["value"] if picks else None         # 💎 Valeurs
+            confs = picks["confidences"] if picks else []
+            g["perle"] = confs[0] if confs else None                     # 🔥 Confiance principale
+            g["perle2"] = confs[1] if len(confs) > 1 else None           # 🔥 2e pari (type distinct)
+            g["perle_value"] = picks["value"] if picks else None         # 💎 Value
 
     async with httpx.AsyncClient(headers=UNIBET_H) as client:
         await asyncio.gather(*(one(client, g) for g in targets))
@@ -1507,8 +1529,8 @@ async def run_settle() -> int:
                 if pk and pk.get("odds"):
                     won = _CODE_TO_WINNER.get(pk["code"]) == winner
                     pnl = (pk["odds"] - 1) if won else -1.0
-                # règlement des perles CONFIANCE et VALUE (même moteur, tous marchés)
-                perles = [rec.get("perle"), rec.get("perle_value")]
+                # règlement des perles CONFIANCE (1-2) et VALUE (même moteur, tous marchés)
+                perles = [rec.get("perle"), rec.get("perle2"), rec.get("perle_value")]
                 mstats = None
                 if any((p or {}).get("kind", "")[:2] in ("c_", "k_") for p in perles):
                     try:
@@ -1524,6 +1546,7 @@ async def run_settle() -> int:
 
                 rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl,
                                  "perle_pnl": _pnl(rec.get("perle")),
+                                 "perle2_pnl": _pnl(rec.get("perle2")),
                                  "perle_value_pnl": _pnl(rec.get("perle_value")), "score": score}
                 s += 1
                 continue

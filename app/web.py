@@ -249,6 +249,12 @@ CSS = """
   .pl-o{font-size:14.5px;font-weight:800;color:#34d27b}
   .pl-m{font-size:11.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
   .pl-m b{color:#cfe0f5;font-weight:700}
+  /* 2e pari de confiance : plus discret, ton bleu (vs vert du pari principal) */
+  .perle2{margin-top:-4px;padding:6px 11px;background:rgba(46,155,255,.08);
+          border-color:rgba(46,155,255,.30);box-shadow:none}
+  .perle2 .pl-tag{color:#2e9bff;background:rgba(46,155,255,.14)}
+  .perle2 .pl-sel{font-size:13px}
+  .perle2 .pl-o{font-size:13px;color:#4aa8ff}
   .bdg .badge{white-space:nowrap}
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
          letter-spacing:.02em}
@@ -882,6 +888,14 @@ def _pick_card(p: dict, badge: str) -> str:
                       f'<span class="pl-sel">{e(perle["selection"])}</span>'
                       f'<span class="pl-o">@{perle["odds"]:g}</span>'
                       f'<span class="pl-m">modèle <b>{pct}%</b> · value <b>+{edgep}%</b></span></div>')
+    # 2e pari de confiance (type de marché distinct) — bannière secondaire, plus discrète
+    perle2 = p.get("perle2")
+    if isinstance(perle2, dict) and perle2.get("selection"):
+        pct2 = round(perle2.get("model_prob", 0) * 100)
+        perle_html += (f'<div class="perle perle2"><span class="pl-tag">+ AUSSI</span>'
+                       f'<span class="pl-sel">{e(perle2["selection"])}</span>'
+                       f'<span class="pl-o">@{perle2["odds"]:g}</span>'
+                       f'<span class="pl-m">modèle <b>{pct2}%</b></span></div>')
     inner = (f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '

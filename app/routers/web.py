@@ -292,13 +292,14 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
         if ndim == 3:
             # FOOT : values ET confiances depuis le MÊME moteur perle (même pool, même logique).
             # Confiance = perle la plus probable ; Value = perle au plus gros edge.
-            perle, perle_value = r.get("perle"), r.get("perle_value")
+            perle, perle_value, perle2 = r.get("perle"), r.get("perle_value"), r.get("perle2")
             if isinstance(perle, dict) and perle.get("selection"):
                 confs.append({**base, "bet": perle["selection"],
                               "model_prob": perle.get("model_prob"),
                               "conf_pct": round((perle.get("model_prob") or 0) * 100),
                               "odds": perle.get("odds"), "side": None, "implied": None,
-                              "community": None, "perle": perle, "score": perle.get("model_prob") or 0})
+                              "community": None, "perle": perle, "perle2": perle2,
+                              "score": perle.get("model_prob") or 0})
             if isinstance(perle_value, dict) and perle_value.get("selection"):
                 values.append({**base, "bet": perle_value["selection"], "odds": perle_value.get("odds"),
                                "edge": perle_value.get("edge"), "model_prob": perle_value.get("model_prob"),
