@@ -223,6 +223,23 @@ def _p_parity(grid, even: bool) -> float:
               if ((i + j) % 2 == 0) == even)
 
 
+def _p_handicap(grid, team: str, h: float) -> tuple[float, float]:
+    """(P(gagné), P(remboursé)) d'un handicap. team='home' -> marge=i-j ; 'away' -> j-i.
+    Gagné si marge + h > 0 ; remboursé (push) si marge + h == 0 (lignes entières)."""
+    win = push = 0.0
+    for i, row in enumerate(grid):
+        for j, v in enumerate(row):
+            x = ((i - j) if team == "home" else (j - i)) + h
+            win += v if x > 0 else 0.0
+            push += v if x == 0 else 0.0
+    return win, push
+
+
+# familles de marchés « de RÉSULTAT / marge » (efficients) : on les évalue mais on s'aligne sur
+# le marché si le modèle s'en écarte trop (garde-fou MAX_DISAGREEMENT) -> pas de faux edge.
+_RESULT_KINDS = {"1x2", "dc", "hasian"}
+
+
 # Marqueurs d'un marché qu'on NE price PAS : sous-période (mi-temps, 15 min), joueur/buteur,
 # corners/cartons, prolongation, handicap (push/lignes asiatiques trop fragiles à régler), et
 # combinés « résultat & autre marché ». Notre modèle price le plein-temps -> tout le reste fausse.
@@ -230,7 +247,7 @@ _NOT_FULLTIME = (
     "half", "mi-temps", "mi temps", "1ère", "1ere", "2ème", "2eme", "1st", "2nd",
     "période", "periode", "quart", "quarter", "minute", "15 min", "first", "second",
     "corner", "carton", "card", "buteur", "joueur", "player", "scorer", "prolongation",
-    "extra time", "handicap", "+/-", "asian", "asiatique",
+    "extra time",
     " and ", "&", " or ", " win and", "to win", " et ",
     "avance", "ahead",   # « Temps réglementaire - 2 buts d'avance » ≠ résultat 1X2
 )
@@ -260,9 +277,10 @@ def _market_kind(m, home: str = "", away: str = "") -> str | None:
         return "1x2"
     if ("deux" in lbl and "marqu" in lbl) or ("both" in lbl and "score" in lbl):
         return "btts"
-    # Marchés de RÉSULTAT dérivés (double chance) : volontairement non perle-éligibles. Le marché
-    # 1X2 est efficient -> le modèle n'y a aucun edge réel ; les « disagreements » sur le résultat
-    # sont du bruit (surévaluation d'un petit à domicile). La value réelle est sur les BUTS.
+    if "handicap" in lbl and ("asiatique" in lbl or "asian" in lbl):
+        return "hasian"      # handicap asiatique (marché de marge) — lignes nettes (.5) seulement
+    if "double chance" in lbl:
+        return "dc"
     if (("pair" in lbl or "impair" in lbl or "odd" in lbl or "even" in lbl)
             and ("but" in lbl or "goal" in lbl)):
         return "parity"
@@ -320,6 +338,23 @@ def _price_market(m, grid, home: str = "", away: str = "") -> list:
             if key in dc:
                 res.append({"sel": o.label or key.upper(), "mp": dc[key], "odds": o.odds,
                             "kind": kind, "side": key})
+        return res
+
+    if kind == "hasian" and len(outs) == 2:
+        # 2 issues (équipe ±handicap). On ne retient que les lignes NETTES (.5) : pas de push
+        # ni de quart de mise -> règlement binaire honnête.
+        line = next((o.line for o in outs if o.line is not None), None)
+        if line is None or round(line * 2) % 2 == 0:        # entier (.0) ou quart -> on s'abstient
+            return []
+        res = []
+        for o in outs:
+            team = _team_side(o.participant or o.label or "", home, away)
+            if team is None:
+                return []
+            win, push = _p_handicap(grid, team, o.line)
+            name = home if team == "home" else away
+            res.append({"sel": f"{name} {o.line:+g}", "mp": win, "odds": o.odds,
+                        "kind": kind, "side": "h", "team": team, "line": o.line})
         return res
 
     if kind == "parity" and len(outs) == 2:
@@ -421,6 +456,10 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
         for c, iv in zip(priced, inv):
             # dévig sur la MÊME base que le modèle (gère DC ~2 et marchés non exhaustifs)
             implied = iv / s * msum
+            # marché de RÉSULTAT/marge : si le modèle s'écarte trop du marché (efficient), c'est le
+            # modèle qui a tort -> on s'aligne, pas de faux edge (cf. ancien « 1X @2.5 +24 % »).
+            if c["kind"] in _RESULT_KINDS and abs(c["mp"] - implied) > MAX_DISAGREEMENT:
+                continue
             # on ne compare jamais la proba brute du modèle au marché : on mélange (MODEL_TRUST)
             fair = MODEL_TRUST * c["mp"] + (1 - MODEL_TRUST) * implied
             edge = fair - implied
@@ -451,6 +490,9 @@ def settle_perle(perle: dict, home_score: int, away_score: int):
         return btts if side == "yes" else (not btts)
     if kind == "ou" and line is not None:
         return tot > line if side == "over" else tot < line
+    if kind == "hasian" and line is not None:
+        margin = (home_score - away_score) if perle.get("team") == "home" else (away_score - home_score)
+        return margin + line > 0          # lignes .5 -> jamais de push, règlement net
     if kind == "team_ou" and line is not None:
         g = home_score if perle.get("team") == "home" else away_score
         return g > line if side == "over" else g < line

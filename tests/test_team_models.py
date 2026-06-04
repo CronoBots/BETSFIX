@@ -161,7 +161,23 @@ def test_foot_form_model_and_settle():
     assert foot.settle_perle({"kind": "exact", "side": "2-1", "sc": [2, 1]}, 1, 1) is False
     assert foot.settle_perle({"kind": "nbexact", "side": "3", "k": 3, "ge": True}, 2, 2) is True
     assert foot.settle_perle({"kind": "nbexact", "side": "2", "k": 2, "ge": False}, 1, 1) is True
+    # handicap asiatique (lignes .5, règlement net)
+    assert foot.settle_perle({"kind": "hasian", "side": "h", "team": "home", "line": -1.5}, 3, 1) is True
+    assert foot.settle_perle({"kind": "hasian", "side": "h", "team": "home", "line": -1.5}, 2, 1) is False
+    assert foot.settle_perle({"kind": "hasian", "side": "h", "team": "away", "line": 1.5}, 2, 1) is True
     assert foot.settle_perle(None, 1, 1) is None
+
+
+def test_foot_result_market_guard():
+    """Marché de RÉSULTAT : un écart modèle/marché trop grand est ignoré (pas de faux edge)."""
+    from app.providers.unibet import UnibetMarket, UnibetOutcome
+    # double chance « 1X » très généreuse alors que le modèle surévalue énormément le domicile :
+    # l'écart dépasse MAX_DISAGREEMENT -> aucune perle (on s'aligne sur le marché efficient).
+    mk = [UnibetMarket(label="Double Chance", type="", outcomes=[
+              UnibetOutcome(label="1X", odds=2.5), UnibetOutcome(label="12", odds=1.2),
+              UnibetOutcome(label="X2", odds=1.5)])]
+    bb = foot.best_bet(2200, 1300, False, mk, lambdas=(3.0, 0.3), home="A", away="B")
+    assert bb is None or bb["kind"] != "dc"
 
 
 def test_foot_team_goals_markets():
