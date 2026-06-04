@@ -255,6 +255,10 @@ CSS = """
   .rt-l{display:flex;align-items:center;min-width:0;flex:1;overflow:hidden}
   .rt-comp{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .rt-when{white-space:nowrap;flex:none}
+  /* Live : 3 zones (comp à gauche · score/temps CENTRÉS · badge Live à droite) */
+  .rowtop-live{display:grid;grid-template-columns:1fr auto 1fr}
+  .rt-mid{text-align:center;white-space:nowrap;font-size:12px}
+  .rowtop-live .rt-r{justify-content:flex-end}
   .players{font-size:15.5px;font-weight:700;margin:5px 0 2px;letter-spacing:-.01em}
   /* Ligne du pari : nom+cote à gauche, badge value à droite (toujours sur une ligne) */
   .betline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:5px 0 2px}
@@ -373,7 +377,9 @@ CSS = """
   .pt2-v.hi{font-weight:800}
   .pt2-v.dim{color:var(--dim)}
   .t-pm{color:#4aa8ff} .t-po{color:#43dd8c} .t-pc{color:#e8c34d}   /* favori = couleur de la source */
-  .pt2-bar{display:flex;gap:1px;height:4px;border-radius:99px;overflow:hidden;margin-top:6px;
+  /* La barre démarre APRÈS la colonne source : grille alignée sur --cols, 1re cellule vide */
+  .pt2-barwrap{display:grid;grid-template-columns:var(--cols);gap:6px;margin-top:6px}
+  .pt2-bar{grid-column:2/-1;display:flex;gap:1px;height:4px;border-radius:99px;overflow:hidden;
          background:var(--surface)}
   .pt2-bar > span{display:block;height:100%}
   .pb-row{display:flex;align-items:center;gap:7px;font-size:11px}
@@ -825,9 +831,10 @@ def _pick_bars(p: dict) -> str:
             cls = scol if (v is not None and v == mx) else base
             return f'<span class="{cls}" style="width:{round((v or 0) * 100)}%"></span>'
         bar = seg(h, "pba") + (seg(d, "pbd") if has_draw else "") + seg(a, "pba")
+        # La barre démarre APRÈS la colonne « source » (1re cellule vide alignée sur --cols)
         return (f'<div class="pt2-block"><div class="pt2-row">'
                 f'<span class="pt2-s">{label}</span>{cells}</div>'
-                f'<div class="pt2-bar">{bar}</div></div>')
+                f'<div class="pt2-barwrap"><span></span><div class="pt2-bar">{bar}</div></div></div>')
 
     rows = (row("BETSFIX", "pm", mh, p.get("m_draw"), ma)
             + row("Cote Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
@@ -1117,12 +1124,14 @@ def _sport_row(r: dict) -> str:
     e = html.escape
     # Pastille d'état en haut à droite, MÊME style que le décompte : décompte si à venir,
     # « EN DIRECT » (rouge) si live. Le badge value/✓ va, lui, sur la ligne de l'affiche.
+    mid = ""
     if r.get("status") == "inprogress":
-        # Live : score puis TEMPS (à droite du score), groupés à DROITE avec le badge Live
+        # Live : score puis TEMPS, CENTRÉS horizontalement sur la ligne ; badge Live à droite
         sc = f'<span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
         lt = f'<span class="live">{e(r["live_time"])}</span>' if r.get("live_time") else ""
         scoretime = " · ".join(x for x in (sc, lt) if x)
-        state = (f'{scoretime} ' if scoretime else "") + '<span class="cd live">🟢 Live</span>'
+        mid = f'<span class="rt-mid">{scoretime}</span>' if scoretime else ""
+        state = '<span class="cd live">🟢 Live</span>'
         top = ""
     elif r.get("status") == "finished":
         top = e(r.get("score") or "terminé")
@@ -1143,10 +1152,10 @@ def _sport_row(r: dict) -> str:
     af = f'{r["away_flag"]} ' if r.get("away_flag") else ""
     # En-tête : la compétition (souvent longue) se tronque, la date/heure (rt-when) reste visible.
     when = f' · {top}' if top else ""
-    inner = (f'<div class="rowtop"><span class="rt-l">'
+    inner = (f'<div class="rowtop{" rowtop-live" if mid else ""}"><span class="rt-l">'
              f'<span class="rt-comp">{e(r.get("tour") or "")}{fem}</span>'
              f'<span class="rt-when">{when}</span></span>'
-             f'<span class="rt-r">{state}</span></div>'
+             f'{mid}<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {af}{e(r.get("away") or "")}</div>{badge}</div>'
              f'{probviz}{r.get("sub", "")}'
