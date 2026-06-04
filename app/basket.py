@@ -952,10 +952,16 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
     if rec.get("result"):
         return False
     pick = g.get("pick")
-    # 🔒 Match commencé -> on GÈLE les pronos d'avant-match (le board live ne recalcule pas la perle)
+    # 🔒 MÉMORISER les pronos et NE JAMAIS LES PERDRE : figé une fois commencé, et jamais
+    # écrasé par None avant match (échec transitoire de récupération des cotes).
     started = (g.get("status") or "notstarted") != "notstarted"
     new_pick = ({"side": pick["side"], "player": pick["team"], "odds": pick["odds"],
                  "edge": pick["edge"], "stake_pct": pick.get("stake")} if pick else None)
+
+    def _keep(key, new):
+        if started:
+            return rec.get(key)
+        return new if new is not None else rec.get(key)
     rec.update({
         "match_id": g["id"], "sport": "basket", "tour": (g.get("league") or "").lower() or "wnba",
         "home": g["home"], "away": g["away"], "model_home_prob": g["model_home"],
@@ -963,10 +969,10 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
                        if g.get("start") else None),
         "unibet_home_odds": g.get("oh"), "unibet_away_odds": g.get("oa"),
         "margin": g.get("margin"),   # marge attendue (points) du favori, pour la fiche
-        "value_pick": rec.get("value_pick") if started else new_pick,
-        "perle": rec.get("perle") if started else g.get("perle"),
-        "perle2": rec.get("perle2") if started else g.get("perle2"),
-        "perle_value": rec.get("perle_value") if started else g.get("perle_value"),
+        "value_pick": _keep("value_pick", new_pick),
+        "perle": _keep("perle", g.get("perle")),
+        "perle2": _keep("perle2", g.get("perle2")),
+        "perle_value": _keep("perle_value", g.get("perle_value")),
         "last_update": now_iso,
     })
     vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)

@@ -1499,11 +1499,18 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
     # match_id = id SofaScore (résolu via l'agenda) pour le détail/settle/votes ; à défaut on
     # garde l'id déjà connu, sinon l'id Unibet. La CLÉ du store reste g['id'] (Unibet, stable).
     sofa_id = g.get("sofa_id") or rec.get("match_id") or g["id"]
-    # 🔒 Une fois le match COMMENCÉ, on GÈLE les pronos d'avant-match (le board live ne recalcule
-    # pas la perle correctement -> sinon elle disparaîtrait). On garde la perle pré-match logguée.
+    # 🔒 MÉMORISER les pronos et NE JAMAIS LES PERDRE (vérif après match) :
+    #  - match commencé -> figé (le board live recalcule la perle à None)
+    #  - avant match -> on met à jour SEULEMENT si on a une nouvelle valeur (jamais écrasé par None,
+    #    ex. échec transitoire de récupération des cotes Unibet).
     started = (g.get("status") or "notstarted") != "notstarted"
     new_pick = ({"code": pk["code"], "team": pk["team"], "odds": pk["odds"], "edge": pk["edge"]}
                 if pk else None)
+
+    def _keep(key, new):
+        if started:
+            return rec.get(key)
+        return new if new is not None else rec.get(key)
     rec.update({
         "match_id": sofa_id, "sport": "foot", "comp": g.get("comp"),
         "home": g["home"], "away": g["away"], "start_time": _iso(g.get("start")),
@@ -1511,10 +1518,10 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
         "p_away": pr[2] if pr else None,
         "o1": g.get("o1"), "ox": g.get("ox"), "o2": g.get("o2"),
         "goals": g.get("goals"),   # {over25, btts} : buts attendus (modèle) pour la fiche
-        "value_pick": rec.get("value_pick") if started else new_pick,
-        "perle": rec.get("perle") if started else g.get("perle"),               # 🔥 Confiance
-        "perle2": rec.get("perle2") if started else g.get("perle2"),            # 🔥 2e confiance
-        "perle_value": rec.get("perle_value") if started else g.get("perle_value"),  # 💎 Value
+        "value_pick": _keep("value_pick", new_pick),
+        "perle": _keep("perle", g.get("perle")),               # 🔥 Confiance
+        "perle2": _keep("perle2", g.get("perle2")),            # 🔥 2e confiance
+        "perle_value": _keep("perle_value", g.get("perle_value")),  # 💎 Value
         "last_update": now,
     })
     vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)

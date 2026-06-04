@@ -72,10 +72,14 @@ async def run_snapshot(provider: SofaScoreProvider, unibet: UnibetProvider) -> i
                 picks = _mk.best_picks_tennis(edges)
                 rec = store.get(str(m.id))
                 if rec is not None:
-                    confs = picks["confidences"] if picks else []
-                    rec["perle"] = confs[0] if confs else None
-                    rec["perle2"] = confs[1] if len(confs) > 1 else None
-                    rec["perle_value"] = picks["value"] if picks else None
+                    # 🔒 MÉMORISER et NE JAMAIS PERDRE : on ne remplace une perle que par une
+                    # NOUVELLE valeur, jamais par None (échec transitoire -> on garde l'ancienne).
+                    confs = (picks["confidences"] if picks else []) or []
+                    def _keep(new, old):
+                        return new if new is not None else old
+                    rec["perle"] = _keep(confs[0] if confs else None, rec.get("perle"))
+                    rec["perle2"] = _keep(confs[1] if len(confs) > 1 else None, rec.get("perle2"))
+                    rec["perle_value"] = _keep((picks or {}).get("value"), rec.get("perle_value"))
             except Exception:
                 pass
             # Votes des fans -> persistés pour TOUS les matchs suivis (barre PUBLIC stable
