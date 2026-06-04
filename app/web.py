@@ -1004,7 +1004,9 @@ def _pick_card(p: dict, badge: str) -> str:
     e = html.escape
     cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
           if p.get("start_ts") and p["start_ts"] > time.time() else "")
-    fem = ' <span class="fem">(F)</span>' if p.get("female") else ""
+    # « (F) » seulement au foot : tennis WTA / basket WNBA sont d'office féminins
+    fem = (' <span class="fem">(F)</span>'
+           if p.get("female") and p.get("sport") not in ("Tennis", "Basket") else "")
     state = cd if cd else ('<span class="cd live">🟢 Live</span>' if p.get("live") else "")
     bdg = f'<span class="bdg">{badge}</span>' if badge else ""
     # surligne l'issue pariée (cohérent avec les barres), pas le favori du book
@@ -1116,14 +1118,12 @@ def _sport_row(r: dict) -> str:
     # Pastille d'état en haut à droite, MÊME style que le décompte : décompte si à venir,
     # « EN DIRECT » (rouge) si live. Le badge value/✓ va, lui, sur la ligne de l'affiche.
     if r.get("status") == "inprogress":
-        # Live : temps du match (foot 51' / basket Q3 · 5:42) + score
-        bits = []
-        if r.get("live_time"):
-            bits.append(f'<span class="live">{e(r["live_time"])}</span>')
-        if r.get("score"):
-            bits.append(f'<span class="dim">{e(r["score"])}</span>')
-        top = " · ".join(bits)
-        state = '<span class="cd live">🟢 Live</span>'
+        # Live : score puis TEMPS (à droite du score), groupés à DROITE avec le badge Live
+        sc = f'<span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
+        lt = f'<span class="live">{e(r["live_time"])}</span>' if r.get("live_time") else ""
+        scoretime = " · ".join(x for x in (sc, lt) if x)
+        state = (f'{scoretime} ' if scoretime else "") + '<span class="cd live">🟢 Live</span>'
+        top = ""
     elif r.get("status") == "finished":
         top = e(r.get("score") or "terminé")
         state = ""
@@ -1135,7 +1135,9 @@ def _sport_row(r: dict) -> str:
     # sinon la barre de proba simple (favori + %).
     probviz = _pick_bars(r) if r.get("model_prob") is not None else \
         _prob_bar(r.get("prob"), r.get("prob_labels"))
-    fem = ' <span class="fem">(F)</span>' if r.get("female") else ""
+    # « (F) » seulement utile au foot : WTA (tennis) et WNBA (basket) sont d'office féminines
+    fem = (' <span class="fem">(F)</span>'
+           if r.get("female") and (r.get("tour") or "").upper() not in ("WTA", "WNBA") else "")
     badge = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
     hf = f'{r["home_flag"]} ' if r.get("home_flag") else ""
     af = f'{r["away_flag"]} ' if r.get("away_flag") else ""
@@ -1190,17 +1192,23 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
     « aucun match ». `frag=True` -> renvoie le corps seul (chargé en AJAX dans la SPA)."""
     out = []
-    # (heading, rows, ouvert d'office ?, regrouper par jour ?) — « Terminés » plié par défaut ;
+    # Info (bouton « i ») PROPRE à chaque section, comme sur l'accueil.
+    conf_info = ('Pour chaque match, BETSFIX analyse <b>tous les paris Unibet</b> et garde la '
+                 '<b>perle la plus probable</b> : le pari le plus <b>sûr</b> à une cote qui paie. '
+                 'C\'est le 🛡️ <b>CONFIANCE</b> (vert). ' + BARS_LEGEND)
+    val_info = ('La <b>perle au plus gros edge</b> : la cote où Unibet est le plus <b>trop '
+                'généreux</b> vs BETSFIX. Ça <b>gagne moins souvent mais rapporte plus</b> '
+                '(badge 💎 <b>VALUE +X%</b>), rentable sur la durée. ' + BARS_LEGEND)
+    # (heading, rows, ouvert d'office ?, regrouper par jour ?, info) — « Terminés » plié par défaut ;
     # « À venir » regroupé par jour (Aujourd'hui / Demain / …) pour se repérer dans la liste.
-    sections = [("🔥 Confiances", confidences or [], True, False),
-                ("💎 Valeurs", value, True, False), ("🟢 En direct", live, True, False),
-                ("📅 À venir", upcoming, True, True), ("✅ Terminés", finished, False, False)]
-    info_done = False
-    for heading, rows, open_, by_day in sections:
+    sections = [("🔥 Confiances", confidences or [], True, False, conf_info),
+                ("💎 Valeurs", value, True, False, val_info),
+                ("🟢 En direct", live, True, False, intro or None),
+                ("📅 À venir", upcoming, True, True, None),
+                ("✅ Terminés", finished, False, False, None)]
+    for heading, rows, open_, by_day, info in sections:
         if not rows:
             continue
-        info = intro if (intro and not info_done) else None
-        info_done = info_done or bool(info)
         content = _rows_by_day(rows) if by_day else "".join(_sport_row(r) for r in rows)
         out.append(_section(f'{heading} ({len(rows)})', content, open_=open_, info=info))
 
