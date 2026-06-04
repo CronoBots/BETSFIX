@@ -224,6 +224,23 @@ def test_foot_corner_card_markets():
     assert foot.settle_perle({"kind": "c_ou", "side": "over", "line": 9.5}, 1, 0) is None   # pas de stats
 
 
+def test_foot_extreme_weak_team_no_false_value():
+    """Équipe extrême très faible (Andorre) : pas de fausse value buts (garde-fou + plancher bas)."""
+    from app.providers.unibet import UnibetMarket, UnibetOutcome
+    sh = foot._team_strength(gf=2, ga=18, n=12)    # Andorre : ne marque quasiment jamais
+    sa = foot._team_strength(gf=6, ga=20, n=12)    # Liechtenstein
+    assert sh[0] < 0.50                            # attaque faible possible (plancher 0.40)
+    lam = foot._lambdas_form(sh, sa, neutral=False)
+    assert foot._p_btts(foot._grid_l(*lam)) < 0.35   # BTTS réaliste (et non ~0.55)
+    # marché BTTS « Oui » à grosse cote (marché = 19 %) : l'écart modèle/marché reste sous contrôle
+    mk = [UnibetMarket(label="Les deux équipes marquent", type="Oui/Non", outcomes=[
+              UnibetOutcome(label="Oui", odds=5.2), UnibetOutcome(label="Non", odds=1.15)]),
+          UnibetMarket(label="Nombre total de buts", type="Plus de/Moins de", outcomes=[
+              UnibetOutcome(label="Plus de", odds=2.60, line=2.5),
+              UnibetOutcome(label="Moins de", odds=1.48, line=2.5)])]
+    assert foot.best_bet(None, None, False, mk, lambdas=lam, home="A", away="B") is None
+
+
 def test_foot_team_goals_markets():
     """Le moteur évalue les marchés PAR ÉQUIPE (totaux d'un camp, but / pas de but)."""
     from app.providers.unibet import UnibetMarket, UnibetOutcome

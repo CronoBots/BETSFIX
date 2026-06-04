@@ -56,9 +56,12 @@ HORIZON_DAYS = 14         # la CdM démarre dans ~11 jours -> fenêtre large
 MODEL_TRUST = 0.50
 VALUE_THRESHOLD = 0.05
 MIN_IMPLIED, MAX_IMPLIED = 0.12, 0.80
-MAX_DISAGREEMENT = 0.15    # si le modèle dépasse le marché de +15 pts, c'est le modèle
-                           # (Elo jeune) qui a tort -> pas de value (garde-fou comme le tennis)
-ANNEX_DISAGREEMENT = 0.25  # garde-fou plus souple pour les marchés annexes (mi-temps, corners/cartons)
+# Garde-fou « le marché a raison » par fiabilité du marché : si le modèle s'écarte de plus que
+# le seuil de la cote dévigée, c'est le MODÈLE qui a tort -> on écarte (pas de fausse value).
+# Indispensable sur les équipes EXTRÊMES (Andorre, Saint-Marin…) où la régularisation surévalue.
+MAX_DISAGREEMENT = 0.15    # résultat 1X2 / double chance / handicap : marché très efficient
+GOALS_DISAGREEMENT = 0.20  # totaux, par équipe, BTTS : marché efficient, modèle a un vrai signal
+ANNEX_DISAGREEMENT = 0.25  # mi-temps, corners/cartons : marchés moins efficients, modèle approximatif
 
 SOFA_B = "https://api.sofascore.com/api/v1"
 SOFA_H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
@@ -147,7 +150,8 @@ def _devig3(o1, ox, o2):
 # aucun modèle pour ça.)
 PERLE_MIN_PROB = 0.52      # le pari doit rester plausible (plus probable que non)
 PERLE_MIN_ODDS = 1.50      # « confiance » ≠ pari à 1.1 -> on exige une cote qui paie
-PERLE_MIN_EDGE = 0.04      # value minimale (modèle > marché dévig)
+PERLE_MIN_EDGE = 0.05      # value minimale (modèle > marché dévig)
+PERLE_MIN_EDGE_ANNEX = 0.07  # mi-temps/corners/cartons : modèle approximatif -> on exige plus de value
 
 
 # --- buts attendus par FORME RÉELLE (attaque/défense des derniers matchs) -----------------
@@ -165,7 +169,9 @@ def _team_strength(gf: int, ga: int, n: int) -> tuple[float, float]:
     """(attaque, défense) ~1.0 = moyenne ; >1 attaque = marque plus, >1 défense = encaisse plus."""
     att = (gf + FORM_SHRINK * LEAGUE_GPG) / (n + FORM_SHRINK) / LEAGUE_GPG
     deff = (ga + FORM_SHRINK * LEAGUE_GPG) / (n + FORM_SHRINK) / LEAGUE_GPG
-    clamp = lambda x: min(max(x, 0.55), 1.75)
+    # plancher bas : les équipes EXTRÊMES (Andorre, Saint-Marin) doivent pouvoir être vues très
+    # faibles offensivement (sinon le modèle leur invente des buts -> fausses value BTTS/Over).
+    clamp = lambda x: min(max(x, 0.40), 1.85)
     return clamp(att), clamp(deff)
 
 
@@ -611,18 +617,20 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
         for c, iv in zip(priced, inv):
             # dévig sur la MÊME base que le modèle (gère DC ~2 et marchés non exhaustifs)
             implied = iv / s * msum
-            # garde-fou : si le modèle s'écarte trop du marché, c'est lui qui a tort -> on s'aligne.
-            # Strict sur le RÉSULTAT (marché très efficient) ; plus souple sur les modèles ANNEXES
-            # (mi-temps, corners/cartons : marchés moins efficients, mais modèle plus approximatif).
+            # GARDE-FOU « le marché a raison » : si le modèle s'écarte de plus que le seuil de sa
+            # famille, c'est le modèle qui a tort -> on écarte (tue les fausses value des équipes
+            # extrêmes, ex. Andorre BTTS 55 % vs marché 19 %). Seuil croissant : résultat (efficient)
+            # < buts < annexe (mi-temps/corners, moins efficients mais modèle plus approximatif).
             annex = c.get("period") or c["kind"] == "htft" or c["kind"][:2] in ("c_", "k_")
-            if c["kind"] in _RESULT_KINDS and abs(c["mp"] - implied) > MAX_DISAGREEMENT:
-                continue
-            if annex and abs(c["mp"] - implied) > ANNEX_DISAGREEMENT:
+            cap = (MAX_DISAGREEMENT if c["kind"] in _RESULT_KINDS
+                   else ANNEX_DISAGREEMENT if annex else GOALS_DISAGREEMENT)
+            if abs(c["mp"] - implied) > cap:
                 continue
             # on ne compare jamais la proba brute du modèle au marché : on mélange (MODEL_TRUST)
             fair = MODEL_TRUST * c["mp"] + (1 - MODEL_TRUST) * implied
             edge = fair - implied
-            if fair >= PERLE_MIN_PROB and c["odds"] >= PERLE_MIN_ODDS and edge >= PERLE_MIN_EDGE:
+            min_edge = PERLE_MIN_EDGE_ANNEX if annex else PERLE_MIN_EDGE
+            if fair >= PERLE_MIN_PROB and c["odds"] >= PERLE_MIN_ODDS and edge >= min_edge:
                 cands.append({"market": m.label or "", "selection": c["sel"],
                               "odds": round(c["odds"], 2), "model_prob": round(fair, 4),
                               "edge": round(edge, 4), "score": round(fair * edge, 5),
