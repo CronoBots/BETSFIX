@@ -287,9 +287,11 @@ CSS = """
   .lboard-t .lb-hdr{border-bottom:1px solid rgba(255,255,255,.13);padding-bottom:3px;margin-bottom:2px}
   /* Colonne points : LARGEUR FIXE (🎾 en-tête et points alignés -> les n° de set restent centrés
      sur les jeux du dessous), SANS bordure par cellule. */
-  .lboard-t .lb-pt,.lboard-t .lb-pt-h{min-width:26px;width:26px;text-align:center;padding-left:0}
-  /* UNE seule ligne verticale CONTINUE à gauche de la colonne des points (du jeu en cours). */
-  .lboard-t::after{content:"";position:absolute;top:7px;bottom:7px;right:38px;width:1px;
+  .lboard-t .lb-pt,.lboard-t .lb-pt-h{min-width:26px;width:26px;text-align:center;padding-left:0;
+        margin-left:11px}
+  /* UNE seule ligne verticale CONTINUE à gauche de la colonne des points, avec de l'air de
+     chaque côté (ni collée aux points, ni aux jeux). */
+  .lboard-t::after{content:"";position:absolute;top:7px;bottom:7px;right:48px;width:1px;
         background:rgba(255,255,255,.16)}
   /* Libellé « cotes en direct » au-dessus des boutons de cotes */
   .live-odds-l{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
