@@ -978,22 +978,22 @@ def odds_row(outcomes, highlight_idx: int | None = None) -> str:
 
 
 def odds_bar(outcomes, highlight_idx: int | None = None) -> str:
-    """Cotes Unibet présentées comme une 4e BARRE (même style que BETSFIX/Unibet/Public) :
-    un segment par issue (nom + cote), répartis à parts ÉGALES, le pari/favori surligné en bleu.
+    """Cotes Unibet présentées comme une BARRE (même style que BETSFIX/Unibet/Public), placée
+    EN PREMIER. Un segment par issue avec UNIQUEMENT la cote (l'issue se lit par sa position,
+    alignée sur les barres du dessous) ; le pari/favori surligné en bleu.
     `outcomes` = [(libellé, cote), ...] ; `highlight_idx` = issue pronostiquée par BETSFIX."""
     valid = [(i, lbl, o) for i, (lbl, o) in enumerate(outcomes) if o]
     if not valid:
-        return ('<div class="sb"><span class="sb-l">Cotes Unibet</span>'
+        return ('<div class="sb"><span class="sb-l">Bookmaker</span>'
                 '<div class="sb-bar ocbar"><span class="seg pba">à venir</span></div></div>')
     if highlight_idx is not None and any(i == highlight_idx for i, _, _ in valid):
         hi = highlight_idx
     else:
         hi = min(valid, key=lambda t: t[2])[0]   # repli : favori du book (cote mini)
     segs = "".join(
-        f'<span class="seg {"ocf" if i == hi else "pba"}">'
-        f'<span class="ocn">{html.escape(str(lbl))}</span> <b>{o}</b></span>'
+        f'<span class="seg {"ocf" if i == hi else "pba"}"><b>{o}</b></span>'
         for i, lbl, o in valid)
-    return (f'<div class="sb"><span class="sb-l">Cotes Unibet</span>'
+    return (f'<div class="sb"><span class="sb-l">Bookmaker</span>'
             f'<div class="sb-bar ocbar">{segs}</div></div>')
 
 
@@ -1149,7 +1149,7 @@ def _pick_card(p: dict, badge: str) -> str:
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
              f'<span class="dim">vs</span> {e(p.get("away") or "")}{af}</div>{bdg}</div>'
-             f'{_pick_bars(p)}{oddsrow}'
+             f'{oddsrow}{_pick_bars(p)}'
              f'{_perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")), kind=p.get("pick_kind"), won=bool(p.get("live_won")), won2=bool(p.get("live_won2")), lost=bool(p.get("live_lost")), lost2=bool(p.get("live_lost2")))}')
     url = p.get("url") or ""
     # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
