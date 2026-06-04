@@ -48,7 +48,8 @@ async def matches_with_fallback(tour: str) -> tuple[list, str]:
     try:
         prov = get_provider()
         if get_settings().track_full_tour:
-            return await prov.get_scheduled_matches(tour), "sofascore"
+            # 2 jours d'agenda suffisent pour couvrir la fenêtre 24 h (à cheval sur minuit)
+            return await prov.get_scheduled_matches(tour, days=2), "sofascore"
         return await prov.get_matches(tour), "sofascore"
     except ProviderError:
         try:

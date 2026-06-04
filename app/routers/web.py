@@ -27,7 +27,7 @@ from app.providers.unibet import UnibetProvider
 
 router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
 
-HORIZON_HOURS = 48
+HORIZON_HOURS = 24   # fenêtre courte (tennis & accueil) : matchs des prochaines 24 h -> moins d'appels
 # Cache court (s) des panneaux de liste (partagés entre tous les visiteurs) : coupe les
 # rafales d'appels Unibet/SofaScore au pré-chargement SPA et au refresh 45s. < refresh ->
 # un utilisateur seul récupère quand même des données fraîches à chaque rafraîchissement.

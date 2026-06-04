@@ -150,7 +150,8 @@ async def _get(client, base, path, params=None):
     return data
 
 
-HORIZON_DAYS = 4          # fenêtre des matchs à venir (assez large pour les playoffs NBA espacés)
+HORIZON_HOURS = 24        # fenêtre courte : seuls les matchs des prochaines 24 h (moins d'appels)
+HORIZON_AGENDA_DAYS = 2   # agendas à tirer pour couvrir 24 h à cheval sur minuit (aujourd'hui + demain)
 
 
 async def _season_id(client, tid: int):
@@ -179,7 +180,7 @@ async def _upcoming_games(client) -> list[dict]:
     """
     now = datetime.now(timezone.utc)
     base = now.date()
-    horizon = now + timedelta(days=HORIZON_DAYS)
+    horizon = now + timedelta(hours=HORIZON_HOURS)
     games, seen = [], set()
 
     def _add(ev: dict, league: str) -> None:
@@ -193,8 +194,8 @@ async def _upcoming_games(client) -> list[dict]:
         seen.add(ev["id"])
         games.append(_row_from_event(ev, league))
 
-    # Source 1 : agenda quotidien (HORIZON_DAYS jours)
-    for d in range(HORIZON_DAYS):
+    # Source 1 : agenda quotidien (aujourd'hui + demain) -> filtré ensuite à la fenêtre 24 h
+    for d in range(HORIZON_AGENDA_DAYS):
         data = await _get(client, SOFA_B, f"/sport/basketball/scheduled-events/{(base + timedelta(days=d)).isoformat()}")
         for ev in (data or {}).get("events", []) or []:
             league = (ev.get("tournament") or {}).get("name")
@@ -379,7 +380,7 @@ def board_from_store() -> list[dict]:
     les picks de l'accueil (qui, eux, lisent déjà le store)."""
     store = tracking.load(BASKET_TRACK_PATH)
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(days=HORIZON_DAYS)
+    horizon = now + timedelta(hours=HORIZON_HOURS)
     rows = []
     for rec in store.values():
         if rec.get("result"):
@@ -455,7 +456,7 @@ async def board_from_unibet() -> list[dict]:
         return round(v / 1000, 3) if isinstance(v, (int, float)) else None
 
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(days=HORIZON_DAYS)
+    horizon = now + timedelta(hours=HORIZON_HOURS)
     rows, seen = [], set()
     async with httpx.AsyncClient(headers=UNIBET_H) as client:
         for league, cfg in LEAGUES.items():
