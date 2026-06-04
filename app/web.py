@@ -239,9 +239,9 @@ CSS = """
   .row.open .exp-chev{transform:rotate(180deg)}
   .exp{margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
   .exp h2:first-child{margin-top:4px}
-  /* Titres de section de l'analyse : liseré d'accent (couleur du sport) -> premium, cohérent */
-  .exp h2{margin:16px 0 9px;font-size:13.5px;font-weight:800;padding-left:11px;line-height:1.35;
-          border-left:3px solid var(--accent2)}
+  /* Titres de section de l'analyse : UNE seule barre (le liseré h2:before) — pas de border-left
+     en plus (sinon 2 barres verticales). */
+  .exp h2{margin:16px 0 9px;font-size:13.5px;font-weight:800;line-height:1.35}
   .exp .ldg{padding:16px 0}
   .row.pick{border-color:rgba(46,155,255,.60);
             background:linear-gradient(180deg,rgba(46,155,255,.09),rgba(46,155,255,.02));
@@ -282,10 +282,15 @@ CSS = """
   /* Colonne 🎾 = points du jeu en cours (0/15/30/40) : en évidence, SANS case verte */
   .lb-pt{color:#fff;font-weight:800}
   .lb-pt-h{font-size:12px}
-  /* Trait horizontal FIN sous la ligne des sets (en-tête) + trait VERTICAL à gauche de la
-     colonne du jeu en cours (points). */
+  /* Trait horizontal FIN sous la ligne des sets (en-tête). */
+  .lboard-t{position:relative}
   .lboard-t .lb-hdr{border-bottom:1px solid rgba(255,255,255,.13);padding-bottom:3px;margin-bottom:2px}
-  .lboard-t .lb-pt,.lboard-t .lb-pt-h{border-left:1px solid rgba(255,255,255,.15);padding-left:10px}
+  /* Colonne points : LARGEUR FIXE (🎾 en-tête et points alignés -> les n° de set restent centrés
+     sur les jeux du dessous), SANS bordure par cellule. */
+  .lboard-t .lb-pt,.lboard-t .lb-pt-h{min-width:26px;width:26px;text-align:center;padding-left:0}
+  /* UNE seule ligne verticale CONTINUE à gauche de la colonne des points (du jeu en cours). */
+  .lboard-t::after{content:"";position:absolute;top:7px;bottom:7px;right:38px;width:1px;
+        background:rgba(255,255,255,.16)}
   /* Libellé « cotes en direct » au-dessus des boutons de cotes */
   .live-odds-l{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
           color:var(--muted);margin:2px 2px 4px}
