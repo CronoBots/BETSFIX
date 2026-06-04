@@ -442,11 +442,11 @@ def best_picks_tennis(edges) -> dict | None:
 
 
 def settle_tennis_perle(perle, winner, sets_home, sets_away, total_games,
-                        home_name, away_name):
+                        home_name, away_name, score_str=None):
     """Règle une perle tennis -> P&L (mise plate 1 u) ou None si NON vérifiable de façon fiable.
-    Marchés réglés : « au moins un set », Total de jeux (Plus/Moins), Vainqueur. Les autres
-    (aces, handicaps complexes…) renvoient None -> exclus des stats (on ne compte que le vérifiable).
-    `winner`='home'/'away' ; `sets_home/away` = sets gagnés ; `total_games` = total de jeux."""
+    Marchés réglés : « au moins un set », Total de jeux (Plus/Moins), Vainqueur, Handicap de jeux
+    (match entier ou set 1) via le score set par set. Les aces -> None (pas de données).
+    `score_str` = score set par set (ex. « 6-4 6-1 »)."""
     if not (isinstance(perle, dict) and perle.get("odds")) or winner not in ("home", "away"):
         return None
     odds = perle["odds"]
@@ -457,6 +457,16 @@ def settle_tennis_perle(perle, winner, sets_home, sets_away, total_games,
     def pnl(w):
         return (odds - 1) if w else -1.0
 
+    def _sets():
+        out = []
+        for part in str(score_str or "").split():
+            if "-" in part:
+                try:
+                    out.append(tuple(int(x) for x in part.split("-")))
+                except ValueError:
+                    pass
+        return out
+
     def which():   # quel joueur la sélection désigne-t-elle ? (par les noms)
         st = _norm_name(sel)
         ht, at = _norm_name(home_name or ""), _norm_name(away_name or "")
@@ -466,6 +476,20 @@ def settle_tennis_perle(perle, winner, sets_home, sets_away, total_games,
             return "away"
         return None
 
+    # Handicap de JEUX (match entier ou set 1) : « X -2.5 » / « X +3.5 »
+    if "handicap" in market and ("jeu" in market or "game" in market):
+        who = which()
+        mo = re.search(r"[+-]\d+(?:[.,]\d+)?", sel)
+        sets = _sets()
+        if not (who and mo and sets):
+            return None
+        line = float(mo.group(0).replace(",", "."))
+        if "set 1" in market or "set1" in market or "1er set" in market or "1re" in market:
+            gh, ga = sets[0]                       # jeux du SET 1 uniquement
+        else:
+            gh, ga = sum(h for h, a in sets), sum(a for h, a in sets)   # jeux du match
+        margin = (gh - ga) if who == "home" else (ga - gh)
+        return pnl(margin + line > 0)              # lignes .5 -> jamais de push
     # « X remporte au moins un set »
     if "au moins un set" in sl or "moins un set" in sl or "at least one set" in sl:
         who = which()

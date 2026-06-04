@@ -194,11 +194,14 @@ class SofaScoreProvider:
         return {"ok": remaining <= 0, "paused_seconds": max(0, int(remaining))}
 
     # ----------------------------------------------------------------- réseau
-    async def _get(self, path: str) -> dict:
+    async def _get(self, path: str, force_refresh: bool = False) -> dict:
         """GET avec **stale-while-revalidate** : on sert le cache (même périmé)
         instantanément et on rafraîchit en arrière-plan. L'utilisateur n'attend donc
         le réseau qu'au tout premier chargement (cache vide) ; ensuite c'est immédiat.
-        """
+        `force_refresh=True` -> appel réseau RÉEL (pour le RÈGLEMENT : on ne peut pas régler
+        sur un cache « notstarted » périmé alors que le match est en fait terminé)."""
+        if force_refresh:
+            return await self._fetch_and_cache(path)
         fresh = self._cache.get(path)
         if fresh is not None:
             return fresh
@@ -375,8 +378,8 @@ class SofaScoreProvider:
                     break
         return events
 
-    async def get_match(self, tour: str, match_id: int) -> Match:
-        data = await self._get(f"/event/{match_id}")
+    async def get_match(self, tour: str, match_id: int, force_refresh: bool = False) -> Match:
+        data = await self._get(f"/event/{match_id}", force_refresh=force_refresh)
         event = data.get("event")
         if not event:
             raise ProviderError("Match introuvable.", status_code=404)

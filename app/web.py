@@ -320,16 +320,18 @@ CSS = """
   .cm-p{color:var(--muted);font-weight:700;margin-left:5px}
   .bdg .badge{white-space:nowrap}
   /* Matchs terminés : prono JOUÉ mis en évidence (Confiance vert / Value bleu) + ✓/✗ */
-  .fpick{font-size:11.5px;font-weight:700;color:#cfe0f5;padding:5px 9px;border-radius:8px;
-         margin:3px 0;border:1px solid var(--cardline);line-height:1.4}
-  .fpick-t{font-weight:800;white-space:nowrap}
+  .fpick{font-size:12px;color:#eaf2ff;padding:7px 10px;border-radius:9px;
+         margin:4px 0;border:1px solid var(--cardline);line-height:1.35}
+  .fpick-t{font-weight:800;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em}
+  .fpick-s{font-weight:700;margin:2px 0}             /* le pari, 2e ligne */
+  .fpick-r{font-weight:800;font-size:11.5px}         /* le résultat, 3e ligne */
   .fp-conf{background:rgba(25,196,106,.08);border-color:rgba(25,196,106,.32)}
   .fp-conf .fpick-t{color:#34d27b}
   .fp-val{background:rgba(46,155,255,.08);border-color:rgba(46,155,255,.32)}
   .fp-val .fpick-t{color:#4aa8ff}
   .fpick.fp-won{border-color:rgba(25,196,106,.6);box-shadow:0 0 10px rgba(25,196,106,.12)}
-  .fpick.fp-lost{opacity:.78}
-  .fp-w{color:#34d27b;font-weight:800} .fp-l{color:#ff6b6b;font-weight:800}
+  .fpick.fp-lost{opacity:.82}
+  .fp-w{color:#34d27b} .fp-l{color:#ff6b6b}
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
          letter-spacing:.02em}
   .b-val{background:rgba(46,226,127,.14);color:var(--accent);border:1px solid rgba(46,226,127,.25)}
@@ -559,14 +561,15 @@ CSS = """
   .ptab-sport{font-weight:800;font-size:14px;line-height:1.25;min-width:0;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ptab-sub{display:block;font-size:10px;font-weight:600;color:var(--muted)}
-  /* Fiabilité = verdict coloré + nb de matchs dessous (sans « noté »), centré */
-  .ptab-verdict{font-size:11px;font-weight:800;text-align:center;white-space:nowrap;
+  /* Fiabilité = verdict coloré + nb de matchs dessous. min-width:0 + sous-ligne qui peut
+     se replier -> la colonne RESTE à sa fraction (sinon elle s'élargit et décale Confiance/Value). */
+  .ptab-verdict{font-size:11px;font-weight:800;text-align:center;white-space:nowrap;min-width:0;
           display:flex;flex-direction:column;align-items:center;gap:2px}
-  .ptab-vsub{font-size:10px;font-weight:600;color:var(--muted)}
+  .ptab-vsub{font-size:10px;font-weight:600;color:var(--muted);white-space:normal;text-align:center}
   .ptab-verdict.ok{color:var(--green)} .ptab-verdict.ko{color:var(--red)}
   .ptab-verdict.na{color:var(--muted)}
   .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap;
-          line-height:1.1}
+          line-height:1.1;min-width:0}
   .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600;opacity:.5;font-size:16px}
   .ptab-pct{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
   .ptab-pct.pos{color:var(--green)} .ptab-pct.neg{color:var(--red)}
@@ -1047,11 +1050,13 @@ def finished_picks(perle, perle_won, perle_value, value_won, winner_name):
         if not (isinstance(p, dict) and p.get("selection")):
             return ""
         od = f' <b>@{p["odds"]:g}</b>' if p.get("odds") else ""
-        res = (' <span class="fp-w">✓ gagné</span>' if won is True
-               else ' <span class="fp-l">✗ perdu</span>' if won is False else "")
+        res = ('<div class="fpick-r fp-w">✓ gagné</div>' if won is True
+               else '<div class="fpick-r fp-l">✗ perdu</div>' if won is False
+               else '<div class="fpick-r dim">résultat en attente</div>')
         wc = " fp-won" if won is True else " fp-lost" if won is False else ""
-        return (f'<div class="fpick {cls}{wc}"><span class="fpick-t">{label}</span> '
-                f'{e(str(p["selection"]))}{od}{res}</div>')
+        # 3 lignes : TYPE, puis le PARI, puis le RÉSULTAT
+        return (f'<div class="fpick {cls}{wc}"><div class="fpick-t">{label}</div>'
+                f'<div class="fpick-s">{e(str(p["selection"]))}{od}</div>{res}</div>')
     same = (isinstance(perle, dict) and isinstance(perle_value, dict)
             and perle.get("selection") == perle_value.get("selection"))
     chips = chip(perle, perle_won, "🛡️ Confiance", "fp-conf")

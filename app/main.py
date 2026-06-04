@@ -119,9 +119,34 @@ async def _panel_warmer():
         await asyncio.sleep(15)        # < TTL 20s -> le cache ne se vide jamais
 
 
+async def _settle_loop():
+    """Règlement FRÉQUENT (~20 min) des matchs terminés, pour les 3 sports : un match fini
+    apparaît vite dans « Terminés » et alimente les stats, sans attendre la grosse passe de 3h.
+    Léger : run_settle ne fetch (en frais) que les matchs DÉJÀ commencés."""
+    await asyncio.sleep(150)   # laisse démarrer (après la 1re passe complète)
+    while True:
+        try:
+            s = await run_settle(get_provider())
+            sb = sf = 0
+            try:
+                sb = await basket_sport.run_settle()
+            except Exception as exc:
+                log.warning("settle basket: %s", exc)
+            try:
+                sf = await foot_sport.run_settle()
+            except Exception as exc:
+                log.warning("settle foot: %s", exc)
+            if s or sb or sf:
+                log.info("settle rapide: %s tennis, %s basket, %s foot réglés", s, sb, sf)
+        except Exception as exc:
+            log.warning("settle loop error: %s", exc)
+        await asyncio.sleep(20 * 60)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     tasks = [asyncio.create_task(_tracking_loop()),
+             asyncio.create_task(_settle_loop()),
              asyncio.create_task(_panel_warmer())]
     yield
     for t in tasks:

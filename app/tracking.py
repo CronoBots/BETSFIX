@@ -125,7 +125,8 @@ def _odds_for(analysis, side: str):
 
 
 def settle(store: dict, match_id: int, winner: str | None, total_games: int | None,
-           now_iso: str, sets_home: int | None = None, sets_away: int | None = None) -> bool:
+           now_iso: str, sets_home: int | None = None, sets_away: int | None = None,
+           score: str | None = None) -> bool:
     """Enregistre le résultat réel d'un match suivi. Renvoie True si réglé.
     Règle aussi les PERLES (confiance + 2e + value) -> alimente « BETSFIX bat le marché ?»."""
     rec = store.get(str(match_id))
@@ -141,7 +142,7 @@ def settle(store: dict, match_id: int, winner: str | None, total_games: int | No
 
     def _pp(p):
         return settle_tennis_perle(p, winner, sets_home, sets_away, total_games,
-                                   rec.get("home", ""), rec.get("away", ""))
+                                   rec.get("home", ""), rec.get("away", ""), score)
     rec["result"] = {
         "winner": winner, "total_games": total_games, "settled_at": now_iso,
         "value_pnl": pnl,

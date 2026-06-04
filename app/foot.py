@@ -1626,6 +1626,12 @@ async def run_settle() -> int:
         for rec in list(store.values()):
             if rec.get("result"):
                 continue
+            st = rec.get("start_time")          # match futur -> pas terminable, on saute
+            try:
+                if st and datetime.fromisoformat(st) > now_dt:
+                    continue
+            except ValueError:
+                pass
             data = await _get(c, SOFA_B, f"/event/{rec['match_id']}")
             ev = (data or {}).get("event") or {}
             wc = ev.get("winnerCode")

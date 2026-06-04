@@ -104,10 +104,20 @@ async def run_settle(provider: SofaScoreProvider) -> int:
     for rec in list(store.values()):
         if rec.get("result"):
             continue
+        # On ne fetch (frais) que les matchs DÉJÀ COMMENCÉS : un match futur ne peut pas
+        # être terminé -> on évite des appels réseau inutiles (le fetch de règlement est frais).
+        st = rec.get("start_time")
+        try:
+            if st and datetime.fromisoformat(st) > now:
+                continue
+        except ValueError:
+            pass
         winner = total = score = None
         sets_h = sets_a = None
         try:
-            m = await provider.get_match(rec.get("tour", "atp"), rec["match_id"])
+            # RÈGLEMENT -> fetch FRAIS (le cache stale-while-revalidate peut servir un
+            # « notstarted » périmé pour un match en fait terminé -> jamais réglé).
+            m = await provider.get_match(rec.get("tour", "atp"), rec["match_id"], force_refresh=True)
             if m.status == "finished" and m.winner in ("home", "away"):
                 winner = m.winner
                 sh, sa = (m.home_score.sets or []), (m.away_score.sets or [])
@@ -126,7 +136,7 @@ async def run_settle(provider: SofaScoreProvider) -> int:
             except Exception:
                 winner = None
         if winner and tracking.settle(store, rec["match_id"], winner, total, now.isoformat(),
-                                      sets_home=sets_h, sets_away=sets_a):
+                                      sets_home=sets_h, sets_away=sets_a, score=score):
             if score and rec.get("result"):
                 rec["result"]["score"] = score
             settled += 1
