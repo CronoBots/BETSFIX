@@ -523,9 +523,12 @@ CSS = """
   .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600;opacity:.5;font-size:16px}
   .ptab-pct{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
   .ptab-pct.pos{color:var(--green)} .ptab-pct.neg{color:var(--red)}
-  /* Légende vivante sous le tableau (paris d'avant-match en attente) */
-  .ptab-cap{font-size:11px;color:var(--muted);text-align:center;margin:8px 6px 2px;line-height:1.45}
-  .ptab-cap b{color:#cfe0f5}
+  /* Pied de tableau : barre de progression vers la preuve (100 paris) + légende vivante */
+  .ptab-prog{height:6px;border-radius:99px;background:var(--border);overflow:hidden;margin:10px 4px 7px}
+  .ptab-prog>span{display:block;height:100%;border-radius:99px;min-width:2px;
+          background:linear-gradient(90deg,#34d27b,#4aa8ff);transition:width .4s}
+  .ptab-cap{font-size:11px;color:var(--muted);text-align:center;margin:0 6px 2px;line-height:1.45}
+  .ptab-cap b{color:#cfe0f5} .ptab-cap b.pos{color:var(--green)}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);

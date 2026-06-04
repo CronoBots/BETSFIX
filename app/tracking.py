@@ -499,17 +499,22 @@ def render_proof(reports: list[tuple]) -> str:
     head = ('<div class="ptab-h"><span>Sport</span><span>Fiabilité</span>'
             '<span class="ph-conf">Confiance</span><span class="ph-val">Value</span></div>')
     rows = "".join(_proof_row(i, n, r, u) for i, n, r, u in reports)
-    # Légende vivante : combien de paris d'avant-match attendent leur résultat (palmarès à venir).
-    pending = sum((r.get("perle_en_attente") or 0) for _, _, r, _ in reports)
-    settled = sum((r.get("perle_matchs_regles") or 0) for _, _, r, _ in reports)
-    cap = ""
-    if settled == 0 and pending:
-        cap = (f'<div class="ptab-cap">🕓 <b>{pending}</b> pari{"s" if pending > 1 else ""} '
-               f'd\'avant-match en attente de résultat — le palmarès se remplit à leur règlement.</div>')
-    elif pending:
-        cap = (f'<div class="ptab-cap">🕓 {pending} autre{"s" if pending > 1 else ""} '
-               f'pari{"s" if pending > 1 else ""} d\'avant-match en cours.</div>')
-    table = f'<div class="ptab">{head}{rows}</div>{cap}'
+    # Pied de tableau : progression vers une PREUVE statistique (100 paris réglés) + paris
+    # d'avant-match en attente, détaillés par sport -> le palmarès paraît vivant, pas « vide ».
+    TARGET = 100
+    settled = sum((r.get("perle_paris_regles") or 0) for _, _, r, _ in reports)
+    parts = [(name, (r.get("perle_en_attente") or 0)) for _, name, r, _ in reports]
+    pending = sum(p for _, p in parts)
+    pct = min(round(settled / TARGET * 100), 100) if TARGET else 0
+    solid = settled >= TARGET
+    prog = (f'<div class="ptab-prog"><span style="width:{pct}%"></span></div>')
+    goal = ('<b class="pos">✓ preuve statistique atteinte</b>' if solid
+            else f'<b>{settled}</b>/{TARGET} paris réglés vers une preuve solide')
+    brk = " · ".join(f'{n} {p}' for n, p in parts if p)
+    tail = (f' · 🕓 {pending} d\'avant-match en attente'
+            + (f' ({brk})' if brk else '')) if pending else ''
+    cap = f'<div class="ptab-cap">📈 {goal}{tail}</div>'
+    table = f'<div class="ptab">{head}{rows}</div>{prog}{cap}'
     info = ('Sur les paris « perle » déjà réglés, sont-ils gagnants face au marché ? '
             '<b>Fiabilité</b> le dit (sur le ROI global) : <b>✓ Plus fiable</b> / '
             '<b>✗ Moins fiable</b> que le marché, <b>En rodage</b> = pas encore assez de recul, '
