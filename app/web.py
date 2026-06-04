@@ -258,9 +258,21 @@ CSS = """
   /* Live : 3 zones (comp à gauche · score/temps CENTRÉS · badge Live à droite) */
   .rowtop-live{display:grid;grid-template-columns:1fr auto 1fr}
   .rt-mid{text-align:center;white-space:nowrap;font-size:12px}
-  /* Live : score actuel dans un CADRE BLANC, au-dessus du cadre des cotes */
-  .lscore{background:#fff;color:#0a1124;border-radius:10px;padding:7px 12px;margin:9px 0 4px;
-          text-align:center;font-weight:800;font-size:16px;letter-spacing:.03em}
+  /* Live : SCOREBOARD 2 lignes (nom + scores), meneur en vert, set gagné en gras */
+  .lboard{background:rgba(255,255,255,.05);border:1px solid var(--cardline);border-radius:10px;
+          padding:8px 12px;margin:9px 0 5px}
+  .lb-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 0;
+          font-size:14px;font-weight:700;color:var(--muted)}
+  .lb-row.lb-lead .lb-n{color:#34d27b}            /* meneur : nom en vert */
+  .lb-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lb-s{display:flex;gap:13px;flex:none}
+  .lb-c{min-width:13px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
+  .lb-c.lb-win{color:#eaf2ff;font-weight:800}     /* set/score gagné : clair gras */
+  .lb-row.lb-lead .lb-c.lb-win{color:#34d27b}     /* meneur : score gagné en vert */
+  /* Libellé « cotes en direct » au-dessus des boutons de cotes */
+  .live-odds-l{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+          color:var(--muted);margin:2px 2px 4px}
+  .live-odds-l .live{color:#34d27b;font-size:8px;vertical-align:middle}
   .rowtop-live .rt-r{justify-content:flex-end}
   .players{font-size:15.5px;font-weight:700;margin:5px 0 2px;letter-spacing:-.01em}
   /* Ligne du pari : nom+cote à gauche, badge value à droite (toujours sur une ligne) */
@@ -1187,6 +1199,39 @@ def _prob_bar(prob, labels=None) -> str:
             f'<span>{p2}% · 2</span></div>')
 
 
+def _live_scoreboard(score: str, home: str, away: str) -> str:
+    """Scoreboard LIVE sur 2 lignes (nom + scores) : meneur en vert, set/score gagné en gras.
+    Gère le tennis (sets « 6-3 5-2 ») ET foot/basket (score simple « 0-1 »)."""
+    if not score:
+        return ""
+    e = html.escape
+    cols = []
+    for part in str(score).split():
+        if "-" in part:
+            try:
+                h, a = (int(x) for x in part.split("-"))
+                cols.append((h, a))
+            except ValueError:
+                pass
+    if not cols:
+        return ""
+    hs = sum(1 for h, a in cols if h > a)
+    as_ = sum(1 for h, a in cols if a > h)
+    home_lead, away_lead = ((hs > as_, as_ > hs) if len(cols) > 1
+                            else (cols[0][0] > cols[0][1], cols[0][1] > cols[0][0]))
+
+    def cells(i):
+        return "".join(f'<span class="lb-c{" lb-win" if c[i] > c[1 - i] else ""}">{c[i]}</span>'
+                       for c in cols)
+    hn = e((home.split() or [home or ""])[-1])
+    an = e((away.split() or [away or ""])[-1])
+    return (f'<div class="lboard">'
+            f'<div class="lb-row{" lb-lead" if home_lead else ""}">'
+            f'<span class="lb-n">{hn}</span><span class="lb-s">{cells(0)}</span></div>'
+            f'<div class="lb-row{" lb-lead" if away_lead else ""}">'
+            f'<span class="lb-n">{an}</span><span class="lb-s">{cells(1)}</span></div></div>')
+
+
 def _sport_row(r: dict) -> str:
     """Ligne de match unifiée (tous sports). r : tour, status, time, score, home,
     away, prob (float ou 3-tuple), sub, badge, url, pick."""
@@ -1217,9 +1262,11 @@ def _sport_row(r: dict) -> str:
     badge = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
     hf = f'{r["home_flag"]} ' if r.get("home_flag") else ""
     af = f'{r["away_flag"]} ' if r.get("away_flag") else ""
-    # Live : SCORE actuel dans un cadre blanc, AU-DESSUS du cadre des cotes
-    lscore = (f'<div class="lscore">{e(str(r["score"]))}</div>'
-              if r.get("status") == "inprogress" and r.get("score") else "")
+    # Live : SCORE actuel en scoreboard 2 lignes + libellé « cotes en direct », au-dessus des cotes
+    is_live = r.get("status") == "inprogress"
+    lscore = _live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "") if is_live else ""
+    odds_lbl = ('<div class="live-odds-l"><span class="cd live">🟢</span> cotes en direct</div>'
+                if is_live and r.get("sub") else "")
     # En-tête : la compétition (souvent longue) se tronque, la date/heure (rt-when) reste visible.
     when = f' · {top}' if top else ""
     inner = (f'<div class="rowtop{" rowtop-live" if mid else ""}"><span class="rt-l">'
@@ -1228,7 +1275,7 @@ def _sport_row(r: dict) -> str:
              f'{mid}<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {af}{e(r.get("away") or "")}</div>{badge}</div>'
-             f'{probviz}{lscore}{r.get("sub", "")}'
+             f'{probviz}{lscore}{odds_lbl}{r.get("sub", "")}'
              f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")), lost=bool(r.get("live_lost")), lost2=bool(r.get("live_lost2")))}')
     cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
     url = r.get("url") or ""
