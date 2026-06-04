@@ -426,14 +426,19 @@ def best_picks_tennis(edges) -> dict | None:
                           "odds": round(od, 2), "model_prob": round(fair, 4), "edge": round(eg, 4)})
     if not cands:
         return None
-    confidences, seen = [], set()
+    confidences, seen, seen_sel = [], set(), set()
     for c in sorted(cands, key=lambda c: -c["model_prob"]):
         if c["market"] in seen:
+            continue
+        # 2e pari = marché ET sélection DISTINCTS (sinon doublon -> rien).
+        sel = (c.get("selection") or "").strip().lower()
+        if sel in seen_sel:
             continue
         if confidences and c["model_prob"] < T_CONF2_MIN_PROB:   # 2e pari : solide aussi
             break
         confidences.append(c)
         seen.add(c["market"])
+        seen_sel.add(sel)
         if len(confidences) >= T_N_CONFIANCES:
             break
     payed = [c for c in cands if c["odds"] >= T_VALUE_MIN_ODDS]

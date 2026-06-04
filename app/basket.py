@@ -318,15 +318,21 @@ def best_picks_basket(elo_home, elo_away, sigma, markets, home, away, form_h=Non
     cands = _basket_candidates(elo_home, elo_away, sigma, markets, home, away, form_h, form_a)
     if not cands:
         return None
-    confidences, seen = [], set()
+    confidences, seen, seen_sel = [], set(), set()
     for c in sorted(cands, key=lambda c: -c["model_prob"]):
         base_kind = c["kind"]
         if base_kind in seen:
+            continue
+        # 2e pari = type ET sélection DISTINCTS (sinon doublon -> on n'ajoute rien : un 2e pari
+        # n'apparaît QUE s'il est vraiment différent et intéressant).
+        sel = (c.get("selection") or "").strip().lower()
+        if sel in seen_sel:
             continue
         if confidences and c["model_prob"] < B_CONF2_MIN_PROB:   # 2e pari : solide aussi
             break
         confidences.append(c)
         seen.add(base_kind)
+        seen_sel.add(sel)
         if len(confidences) >= B_N_CONFIANCES:
             break
     payed = [c for c in cands if c["odds"] >= B_VALUE_MIN_ODDS]

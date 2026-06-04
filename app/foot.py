@@ -707,14 +707,20 @@ def best_picks(elo_home, elo_away, neutral, markets, lambdas=None,
     # 1-2 confiances : les plus probables, un seul pari par type de marché (évite les doublons
     # corrélés type « Plus de 0.5 » + « Plus de 1.5 »). Le 2e pari (et +) doit rester SOLIDE
     # (≥ CONF2_MIN_PROB) -> pas de 2e pari trop optimiste (ex. handicap à 55 %).
-    confidences, seen = [], set()
+    confidences, seen, seen_sel = [], set(), set()
     for c in sorted(cands, key=lambda c: -c["model_prob"]):
         if c["kind"] in seen:
+            continue
+        # 2e pari = type ET sélection DISTINCTS (sinon doublon -> rien : un 2e pari n'apparaît
+        # QUE s'il est vraiment différent et intéressant).
+        sel = (c.get("selection") or "").strip().lower()
+        if sel in seen_sel:
             continue
         if confidences and c["model_prob"] < CONF2_MIN_PROB:
             break
         confidences.append(c)
         seen.add(c["kind"])
+        seen_sel.add(sel)
         if len(confidences) >= N_CONFIANCES:
             break
     # value : plus gros edge parmi les cotes qui paient (≥ VALUE_MIN_ODDS)
