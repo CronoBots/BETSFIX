@@ -520,7 +520,8 @@ def _tennis_fav_sub(r: dict) -> str:
     na = (r["away"].split() or [r["away"]])[-1]
     hp = r.get("hp")
     hi = (0 if hp >= 0.5 else 1) if hp is not None else None
-    return web.odds_row([(nh, r.get("oh")), (na, r.get("oa"))], highlight_idx=hi)
+    lbl = "Bookmakers live" if r.get("status") == "inprogress" else "Bookmakers"
+    return web.odds_bar([(nh, r.get("oh")), (na, r.get("oa"))], highlight_idx=hi, label=lbl)
 
 
 def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = False) -> dict:

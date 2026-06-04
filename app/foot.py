@@ -1404,8 +1404,9 @@ def _model_line(r: dict) -> str:
     if r.get("o1"):
         pr = r.get("probs")
         hi = max(range(3), key=lambda k: pr[k]) if pr else None   # issue pronostiquée
-        sub += web.odds_row([(r["home"], r["o1"]), ("Nul", r["ox"]), (r["away"], r["o2"])],
-                            highlight_idx=hi)
+        lbl = "Bookmakers live" if r.get("status") == "inprogress" else "Bookmakers"
+        sub += web.odds_bar([(r["home"], r["o1"]), ("Nul", r["ox"]), (r["away"], r["o2"])],
+                            highlight_idx=hi, label=lbl)
     fm = r.get("form")
     if fm:
         sub += web.form_compare(r["home"], fm[0], r["away"], fm[1])

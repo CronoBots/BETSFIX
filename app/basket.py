@@ -877,7 +877,9 @@ def _card(r: dict) -> dict:
     p = r.get("model_home")
     if r.get("oh"):
         hi = (0 if p >= 0.5 else 1) if p is not None else None   # équipe pronostiquée
-        sub_html = web.odds_row([(r["home"], r.get("oh")), (r["away"], r.get("oa"))], highlight_idx=hi)
+        lbl = "Bookmakers live" if r.get("status") == "inprogress" else "Bookmakers"
+        sub_html = web.odds_bar([(r["home"], r.get("oh")), (r["away"], r.get("oa"))],
+                                highlight_idx=hi, label=lbl)
     elif p is None:
         sub_html = '<div class="dim">Elo indisponible</div>'
     else:

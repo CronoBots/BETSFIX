@@ -1004,14 +1004,16 @@ def odds_row(outcomes, highlight_idx: int | None = None) -> str:
     return f'<div class="oddsrow2">{cells}</div>'
 
 
-def odds_bar(outcomes, highlight_idx: int | None = None) -> str:
+def odds_bar(outcomes, highlight_idx: int | None = None, label: str = "Bookmakers") -> str:
     """Cotes Unibet présentées comme une BARRE (même style que BETSFIX/Unibet/Public), placée
     EN PREMIER. Un segment par issue avec UNIQUEMENT la cote (l'issue se lit par sa position,
-    alignée sur les barres du dessous) ; le pari/favori surligné en bleu.
+    alignée sur les barres du dessous) ; le pari/favori surligné en bleu. `label` = intitulé de
+    la barre (« Bookmakers », ou « Bookmakers live » pour les cotes en direct).
     `outcomes` = [(libellé, cote), ...] ; `highlight_idx` = issue pronostiquée par BETSFIX."""
+    lab = html.escape(label)
     valid = [(i, lbl, o) for i, (lbl, o) in enumerate(outcomes) if o]
     if not valid:
-        return ('<div class="sb"><span class="sb-l">Bookmakers</span>'
+        return (f'<div class="sb"><span class="sb-l">{lab}</span>'
                 '<div class="sb-bar ocbar"><span class="seg pba">à venir</span></div></div>')
     # Segments en navy .pba ; la MEILLEURE cote (la plus basse = le favori du book) ressort en
     # gris clair .pbd (comme le segment « nul » des autres barres).
@@ -1024,7 +1026,7 @@ def odds_bar(outcomes, highlight_idx: int | None = None) -> str:
     segs = "".join(
         f'<span class="seg {"pbd" if i == best_i else "pba"}"><b>{o}</b></span>'
         for i, _, o in valid)
-    return (f'<div class="sb"><span class="sb-l">Bookmakers</span>'
+    return (f'<div class="sb"><span class="sb-l">{lab}</span>'
             f'<div class="sb-bar ocbar">{segs}</div></div>')
 
 
@@ -1101,11 +1103,11 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
         edgep = round((p.get("edge") or 0) * 100)
         is_value = _pick_kind(p, k)
         if secondary:                                  # 2e confiance : MÊME style, badge « CONFIANCE 2 »
-            cls, tag = "perle-conf", ("Pari 2" if header else "🛡️ CONFIANCE 2")
+            cls, tag = "perle-conf", ("Pari 2" if header else "CONFIANCE 2")
         elif is_value:
-            cls, tag = "perle-value", (f"+{edgep}%" if header else f"💎 VALUE +{edgep}%")
+            cls, tag = "perle-value", (f"+{edgep}%" if header else f"VALUE +{edgep}%")
         else:
-            cls, tag = "perle-conf", ("" if header else "🛡️ CONFIANCE")
+            cls, tag = "perle-conf", ("" if header else "CONFIANCE")
         # Match commencé : on GARDE le type (confiance/value) mais on indique que c'était un
         # pari d'AVANT-MATCH (gardé en mémoire), ton légèrement atténué.
         pre = ""
@@ -1153,9 +1155,8 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     # Plusieurs paris dans le même cadre -> séparés par « et / ou » (jouer l'un et/ou l'autre).
     items = '<div class="plg-sep">et / ou</div>'.join(parts)
     # Le TYPE (Confiance/Value) = BANDEAU EN-TÊTE plein largeur en haut du cadre (icône + libellé).
-    icon = "💎" if is_val else "🛡️"
     return (f'<div class="plg {gcls}">'
-            f'<div class="plg-head">{icon} {lbl}</div>'
+            f'<div class="plg-head">{lbl}</div>'
             f'<div class="plg-body">{items}</div></div>')
 
 
@@ -1181,13 +1182,13 @@ def finished_picks(perle, perle_won, perle_value, value_won, winner_name,
     def _sel(p):
         return p.get("selection") if isinstance(p, dict) else None
     same = _sel(perle) is not None and _sel(perle) == _sel(perle_value)
-    chips = chip(perle, perle_won, "🛡️ Confiance", "fp-conf")
+    chips = chip(perle, perle_won, "Confiance", "fp-conf")
     # 2e pari confiance (perle2) : compté dans le tableau Preuve -> on l'affiche aussi (sauf
     # s'il fait doublon avec la 1re confiance).
     if _sel(perle2) is not None and _sel(perle2) != _sel(perle):
-        chips += chip(perle2, perle2_won, "🛡️ Confiance 2", "fp-conf")
+        chips += chip(perle2, perle2_won, "Confiance 2", "fp-conf")
     if not same:
-        chips += chip(perle_value, value_won, "💎 Value", "fp-val")
+        chips += chip(perle_value, value_won, "Value", "fp-val")
     win = (f'<div class="dim" style="margin-top:4px">vainqueur : <b>{e(winner_name or "")}</b></div>'
            if winner_name else "")
     prim = perle_won if perle_won is not None else value_won      # badge = pari principal
@@ -1398,8 +1399,8 @@ def _sport_row(r: dict) -> str:
     _is_tennis = (r.get("tour") or "").upper() in ("WTA", "ATP")
     lscore = (_live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "", tennis=_is_tennis)
               if is_live else "")
-    odds_lbl = ('<div class="live-odds-l"><span class="cd live">🟢</span> cotes en direct</div>'
-                if is_live and r.get("sub") else "")
+    # Les cotes live sont présentées comme une barre « BOOKMAKERS LIVE » (cf. _model_line /
+    # _card basket / _tennis_fav_sub) -> plus besoin d'un libellé « cotes en direct » séparé.
     # En-tête : la compétition (souvent longue) se tronque, la date/heure (rt-when) reste visible.
     when = f' · {top}' if top else ""
     inner = (f'<div class="rowtop{" rowtop-live" if mid else ""}"><span class="rt-l">'
@@ -1408,7 +1409,7 @@ def _sport_row(r: dict) -> str:
              f'{mid}<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {e(r.get("away") or "")}{af}</div>{badge}</div>'
-             f'{probviz}{lscore}{odds_lbl}{r.get("sub", "")}'
+             f'{probviz}{lscore}{r.get("sub", "")}'
              f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")), lost=bool(r.get("live_lost")), lost2=bool(r.get("live_lost2")))}')
     cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
     url = r.get("url") or ""
