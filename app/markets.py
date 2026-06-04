@@ -488,6 +488,48 @@ def settle_tennis_perle(perle, winner, sets_home, sets_away, total_games,
     return None
 
 
+def tennis_perle_live_status(perle, score_str, home_name, away_name):
+    """Statut LIVE d'une perle tennis : 'won'/'lost'/None. « au moins un set » -> 'won' dès qu'un
+    set est gagné ; « Plus de N jeux » -> 'won' si dépassé ; « Moins de N jeux » -> 'lost' si dépassé."""
+    if not (isinstance(perle, dict) and perle.get("selection") and score_str):
+        return None
+    sel = (perle.get("selection") or "").lower()
+    sets = []
+    for part in str(score_str).split():
+        if "-" in part:
+            try:
+                h, a = (int(x) for x in part.split("-"))
+            except ValueError:
+                continue
+            sets.append((h, a))
+    if not sets:
+        return None
+
+    def sets_won(side):
+        n = 0
+        for h, a in sets:
+            hi, lo = max(h, a), min(h, a)
+            if (hi >= 6 and hi - lo >= 2) or hi == 7:
+                if (h > a) == (side == "home"):
+                    n += 1
+        return n
+    total_games = sum(h + a for h, a in sets)
+    if "au moins un set" in sel or "moins un set" in sel:
+        st = _norm_name(perle.get("selection") or "")
+        ht, at = _norm_name(home_name or ""), _norm_name(away_name or "")
+        who = "home" if (st & ht) and not (st & at) else ("away" if (st & at) and not (st & ht) else None)
+        return "won" if (who and sets_won(who) >= 1) else None
+    if "jeu" in sel:
+        mo = re.search(r"(\d+(?:[.,]\d+)?)", sel)
+        if mo:
+            line = float(mo.group(1).replace(",", "."))
+            if ("plus" in sel or "over" in sel) and total_games > line:
+                return "won"
+            if ("moins" in sel or "under" in sel) and total_games > line:
+                return "lost"
+    return None
+
+
 def tennis_perle_live_won(perle, score_str, home_name, away_name) -> bool:
     """Perle tennis DÉJÀ gagnée vu le score LIVE (set par set), ex. « au moins un set » dès qu'un
     set est remporté, ou « Plus de N jeux » dès que le total dépasse N. False sinon (ou incertain)."""

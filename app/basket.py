@@ -334,6 +334,17 @@ def best_picks_basket(elo_home, elo_away, sigma, markets, home, away, form_h=Non
     return {"confidences": confidences, "confidence": confidences[0], "value": value}
 
 
+def perle_live_status(perle, hp, ap):
+    """Statut LIVE d'une perle basket : 'won'/'lost'/None. Seul le total de points est
+    verrouillable en live (over atteint -> gagné ; under dépassé -> perdu). Moneyline/handicap
+    -> None (réversibles tant que le match n'est pas fini)."""
+    if not (isinstance(perle, dict) and hp is not None and ap is not None):
+        return None
+    if perle.get("kind") == "total" and perle.get("line") is not None and (hp + ap) > perle["line"]:
+        return "won" if perle.get("side") == "over" else "lost"
+    return None
+
+
 def settle_basket_perle(perle: dict, home_pts: int, away_pts: int):
     """Gagné/perdu/None (None = push/non réglable) d'une perle basket d'après le score final."""
     if not perle or home_pts is None or away_pts is None:
@@ -362,8 +373,12 @@ async def _get(client, base, path, params=None):
     if cached is not None:
         return cached
     is_sofa = base == SOFA_B
-    if is_sofa and sportcache.blocked():   # disjoncteur ouvert -> on ne tape pas SofaScore
-        return None
+    if is_sofa and sportcache.blocked():
+        # disjoncteur ouvert : on tente DIRECTEMENT RapidAPI (repli) -> le règlement continue
+        rr = await sofa_http._rapid_get(base + path, params)
+        data = rr.json() if (rr is not None and rr.status_code == 200) else None
+        sportcache.put(key, data, ttl=sportcache.DEFAULT_TTL)
+        return data
     try:
         # SofaScore -> curl_cffi (empreinte TLS Chrome, anti-403) ; le reste -> httpx fourni.
         if is_sofa:
@@ -861,9 +876,9 @@ def _card(r: dict) -> dict:
     # 🟢 Halo « gagné » en LIVE : la perle est-elle déjà gagnée vu le score (points) ?
     hp_l, ap_l = r.get("home_pts"), r.get("away_pts")
 
-    def _won(p):
-        return bool(r["status"] == "inprogress" and hp_l is not None and ap_l is not None
-                    and settle_basket_perle(p, hp_l, ap_l) is True)
+    def _st(p):
+        return perle_live_status(p, hp_l, ap_l) if r["status"] == "inprogress" else None
+    sp, sp2, spv = _st(r.get("perle")), _st(r.get("perle2")), _st(r.get("perle_value"))
     female = r.get("female") if r.get("female") is not None \
         else (r.get("league") or "").upper() == "WNBA"
     return {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
@@ -874,8 +889,8 @@ def _card(r: dict) -> dict:
             "live_time": r.get("live_time", ""),
             "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
             "sub": sub_html, "badge": badge, "pick": bool(pk),
-            "live_won": _won(r.get("perle")), "live_won2": _won(r.get("perle2")),
-            "live_won_value": _won(r.get("perle_value")),
+            "live_won": sp == "won", "live_won2": sp2 == "won", "live_won_value": spv == "won",
+            "live_lost": sp == "lost", "live_lost2": sp2 == "lost", "live_lost_value": spv == "lost",
             "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
             **web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])}
 
@@ -891,16 +906,17 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
     confidences, value, live, upcoming = [], [], [], []
     for r in rows:
         card = _card(r)
-        plain = {**card, "perle": None, "perle2": None}
-        (live if r["status"] == "inprogress" else upcoming).append(plain)
         if r["status"] == "inprogress":
+            live.append(card)                            # LIVE : on GARDE le prono d'avant-match (+ halo)
             continue
+        upcoming.append({**card, "perle": None, "perle2": None})  # À venir : prono dans Confiances/Valeurs
         if isinstance(r.get("perle"), dict) and r["perle"].get("selection"):
             confidences.append(card)
         pv = r.get("perle_value")
         if isinstance(pv, dict) and pv.get("selection"):
             value.append({**card, "perle": pv, "perle2": None, "pick_kind": "value",
-                          "live_won": card.get("live_won_value")})
+                          "live_won": card.get("live_won_value"),
+                          "live_lost": card.get("live_lost_value")})
 
     fin = []
     for r in (finished_rows or []):
@@ -936,6 +952,10 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
     if rec.get("result"):
         return False
     pick = g.get("pick")
+    # 🔒 Match commencé -> on GÈLE les pronos d'avant-match (le board live ne recalcule pas la perle)
+    started = (g.get("status") or "notstarted") != "notstarted"
+    new_pick = ({"side": pick["side"], "player": pick["team"], "odds": pick["odds"],
+                 "edge": pick["edge"], "stake_pct": pick.get("stake")} if pick else None)
     rec.update({
         "match_id": g["id"], "sport": "basket", "tour": (g.get("league") or "").lower() or "wnba",
         "home": g["home"], "away": g["away"], "model_home_prob": g["model_home"],
@@ -943,10 +963,10 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
                        if g.get("start") else None),
         "unibet_home_odds": g.get("oh"), "unibet_away_odds": g.get("oa"),
         "margin": g.get("margin"),   # marge attendue (points) du favori, pour la fiche
-        "value_pick": ({"side": pick["side"], "player": pick["team"], "odds": pick["odds"],
-                        "edge": pick["edge"], "stake_pct": pick.get("stake")} if pick else None),
-        "perle": g.get("perle"), "perle2": g.get("perle2"),     # 🔥 confiances (1-2)
-        "perle_value": g.get("perle_value"),                    # 💎 value
+        "value_pick": rec.get("value_pick") if started else new_pick,
+        "perle": rec.get("perle") if started else g.get("perle"),
+        "perle2": rec.get("perle2") if started else g.get("perle2"),
+        "perle_value": rec.get("perle_value") if started else g.get("perle_value"),
         "last_update": now_iso,
     })
     vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)

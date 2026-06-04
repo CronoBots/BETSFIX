@@ -743,6 +743,24 @@ def _sign(a, b):
     return "1" if a > b else ("2" if b > a else "x")
 
 
+def perle_live_status(perle, hs, as_):
+    """Statut LIVE d'une perle vu le score : 'won' (déjà gagnée, verrouillée), 'lost' (déjà
+    perdue, verrouillée) ou None (encore en jeu). Seuls les marchés MONOTONES verrouillables en
+    live (un but de plus ne peut pas inverser le résultat) ; 1X2/handicap/dc -> None (réversibles)."""
+    if not (isinstance(perle, dict) and hs is not None and as_ is not None):
+        return None
+    kind, side, line, team = perle.get("kind"), perle.get("side"), perle.get("line"), perle.get("team")
+    if kind == "ou" and line is not None and (hs + as_) > line:
+        return "won" if side == "over" else "lost"
+    if kind == "team_ou" and line is not None:
+        g = hs if team == "home" else as_
+        if g > line:
+            return "won" if side == "over" else "lost"
+    if kind == "btts" and hs >= 1 and as_ >= 1:        # les 2 ont marqué
+        return "won" if side == "yes" else "lost"
+    return None
+
+
 def settle_perle(perle: dict, home_score: int, away_score: int,
                  h1_home: int | None = None, h1_away: int | None = None,
                  match_stats: dict | None = None):
@@ -821,8 +839,13 @@ async def _get(client, base, path, params=None):
     if cached is not None:
         return cached
     is_sofa = base == SOFA_B
-    if is_sofa and sportcache.blocked():   # disjoncteur ouvert -> on ne tape pas SofaScore
-        return None
+    if is_sofa and sportcache.blocked():
+        # disjoncteur SofaScore ouvert : on ne tape pas l'API impersonée (bloquée), mais on
+        # tente DIRECTEMENT RapidAPI (repli) -> le règlement/forme continue de fonctionner.
+        rr = await sofa_http._rapid_get(base + path, params)
+        data = rr.json() if (rr is not None and rr.status_code == 200) else None
+        sportcache.put(key, data, ttl=sportcache.DEFAULT_TTL)
+        return data
     try:
         # SofaScore -> curl_cffi (empreinte TLS Chrome, anti-403) ; le reste -> httpx fourni.
         if is_sofa:
@@ -1387,16 +1410,17 @@ def _card(r: dict) -> dict:
         except (ValueError, AttributeError):
             hs = as_ = None
 
-    def _won(p):
-        return bool(hs is not None and settle_perle(p, hs, as_) is True)
+    def _st(p):
+        return perle_live_status(p, hs, as_) if hs is not None else None
+    sp, sp2, spv = _st(r.get("perle")), _st(r.get("perle2")), _st(r.get("perle_value"))
     return {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
             "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
             "female": r.get("female"), "score": r.get("score", ""), "live_time": r.get("live_time", ""),
             "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
             "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
             "prob": r.get("probs"), "sub": _model_line(r), "badge": badge, "pick": bool(pk),
-            "live_won": _won(r.get("perle")), "live_won2": _won(r.get("perle2")),
-            "live_won_value": _won(r.get("perle_value")),
+            "live_won": sp == "won", "live_won2": sp2 == "won", "live_won_value": spv == "won",
+            "live_lost": sp == "lost", "live_lost2": sp2 == "lost", "live_lost_value": spv == "lost",
             "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
             **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
 
@@ -1412,8 +1436,10 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
     confidences, value, live, upcoming = [], [], [], []
     for r in rows:
         card = _card(r)                                  # porte perle/perle2 (bannière)
-        plain = {**card, "perle": None, "perle2": None}  # version sans bannière (listes À venir/live)
-        (live if r["status"] == "inprogress" else upcoming).append(plain)
+        if r["status"] == "inprogress":
+            live.append(card)                            # LIVE : on GARDE le prono d'avant-match (+ halo)
+        else:
+            upcoming.append({**card, "perle": None, "perle2": None})  # À venir : prono dans Confiances/Valeurs
         if r["status"] == "inprogress":
             continue
         # 🔥 Confiance = la perle la plus probable ; 💎 Value = la perle au plus gros edge
@@ -1422,7 +1448,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         pv = r.get("perle_value")
         if isinstance(pv, dict) and pv.get("selection"):
             value.append({**card, "perle": pv, "perle2": None, "pick_kind": "value",
-                          "live_won": card.get("live_won_value")})
+                          "live_won": card.get("live_won_value"),
+                          "live_lost": card.get("live_lost_value")})
 
     fin = []
     for r in (finished_rows or []):
@@ -1472,6 +1499,11 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
     # match_id = id SofaScore (résolu via l'agenda) pour le détail/settle/votes ; à défaut on
     # garde l'id déjà connu, sinon l'id Unibet. La CLÉ du store reste g['id'] (Unibet, stable).
     sofa_id = g.get("sofa_id") or rec.get("match_id") or g["id"]
+    # 🔒 Une fois le match COMMENCÉ, on GÈLE les pronos d'avant-match (le board live ne recalcule
+    # pas la perle correctement -> sinon elle disparaîtrait). On garde la perle pré-match logguée.
+    started = (g.get("status") or "notstarted") != "notstarted"
+    new_pick = ({"code": pk["code"], "team": pk["team"], "odds": pk["odds"], "edge": pk["edge"]}
+                if pk else None)
     rec.update({
         "match_id": sofa_id, "sport": "foot", "comp": g.get("comp"),
         "home": g["home"], "away": g["away"], "start_time": _iso(g.get("start")),
@@ -1479,11 +1511,10 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
         "p_away": pr[2] if pr else None,
         "o1": g.get("o1"), "ox": g.get("ox"), "o2": g.get("o2"),
         "goals": g.get("goals"),   # {over25, btts} : buts attendus (modèle) pour la fiche
-        "value_pick": ({"code": pk["code"], "team": pk["team"], "odds": pk["odds"],
-                        "edge": pk["edge"]} if pk else None),
-        "perle": g.get("perle"),               # 🔥 Confiance : la perle la PLUS PROBABLE
-        "perle2": g.get("perle2"),             # 🔥 2e pari de confiance (type distinct), optionnel
-        "perle_value": g.get("perle_value"),   # 💎 Value : la perle au plus GROS EDGE
+        "value_pick": rec.get("value_pick") if started else new_pick,
+        "perle": rec.get("perle") if started else g.get("perle"),               # 🔥 Confiance
+        "perle2": rec.get("perle2") if started else g.get("perle2"),            # 🔥 2e confiance
+        "perle_value": rec.get("perle_value") if started else g.get("perle_value"),  # 💎 Value
         "last_update": now,
     })
     vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)
