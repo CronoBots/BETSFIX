@@ -293,20 +293,20 @@ CSS = """
   /* perle rare : le pari à jouer (confiance×value) mis en avant */
   /* Bloc « pari à jouer », SOUS les cotes : tête (type + pari + cote) puis barre de confiance.
      CONFIANCE = vert · VALUE = bleu · avant-match = neutre. */
-  /* Badge CATÉGORIE centré (Confiance/Value) — DANS le cadre des paris, en haut. */
-  .pcat-row{display:flex;justify-content:center;margin:0 0 9px}
-  .pcat{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
-        padding:4px 18px;border-radius:20px}
-  .pcat-conf{color:#34d27b;background:rgba(25,196,106,.14);border:1px solid rgba(25,196,106,.36)}
-  .pcat-val{color:#4aa8ff;background:rgba(46,155,255,.14);border:1px solid rgba(46,155,255,.36)}
-  /* Paris GROUPÉS dans un seul bloc : chaque pari = sélection puis cote dessous, séparés
-     par un filet fin. Pas de label par pari (la catégorie est dans le badge centré). */
-  /* margin-top = l'ESPACE demandé sous les 4 barres ; padding-top accueille le badge type */
-  .plg{border-radius:12px;padding:11px 13px 4px;margin:15px 0 3px}
+  /* Paris GROUPÉS dans un seul cadre, coiffé d'un BANDEAU EN-TÊTE (type : Confiance/Value).
+     margin-top = l'ESPACE demandé sous les 4 barres. overflow:hidden -> le bandeau épouse
+     les coins arrondis du cadre. */
+  .plg{border-radius:12px;margin:15px 0 3px;overflow:hidden}
   .plg-conf{background:linear-gradient(180deg,rgba(25,196,106,.12),rgba(25,196,106,.04));
-        border:1px solid rgba(25,196,106,.30)}
+        border:1px solid rgba(25,196,106,.32)}
   .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
-        border:1px solid rgba(46,155,255,.30)}
+        border:1px solid rgba(46,155,255,.32)}
+  .plg-head{text-align:center;padding:7px 12px;font-size:12px;font-weight:800;
+        text-transform:uppercase;letter-spacing:.07em;color:#fff;
+        text-shadow:0 1px 2px rgba(0,0,0,.28)}
+  .plg-conf .plg-head{background:linear-gradient(90deg,#16a857,#22bf6c)}
+  .plg-val .plg-head{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
+  .plg-body{padding:4px 13px}
   .plg-item{padding:10px 0}
   /* Séparateur « et / ou » entre 2 paris du même cadre (filets de part et d'autre) */
   .plg-sep{display:flex;align-items:center;gap:9px;text-align:center;margin:1px 0;
@@ -1151,10 +1151,11 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     parts = [x for x in parts if x]
     # Plusieurs paris dans le même cadre -> séparés par « et / ou » (jouer l'un et/ou l'autre).
     items = '<div class="plg-sep">et / ou</div>'.join(parts)
-    # Le TYPE (Confiance/Value) est DANS le même cadre que les paris, centré en haut.
+    # Le TYPE (Confiance/Value) = BANDEAU EN-TÊTE plein largeur en haut du cadre (icône + libellé).
+    icon = "💎" if is_val else "🛡️"
     return (f'<div class="plg {gcls}">'
-            f'<div class="pcat-row"><span class="pcat {ccls}">{lbl}</span></div>'
-            f'{items}</div>')
+            f'<div class="plg-head">{icon} {lbl}</div>'
+            f'<div class="plg-body">{items}</div>')
 
 
 def finished_picks(perle, perle_won, perle_value, value_won, winner_name,
