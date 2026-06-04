@@ -89,19 +89,14 @@ async def basket_match(event_id: int, frag: int = 0,
         h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": None}
     except ProviderError:
         pass
-    # 🎯 Paris conseillés : value + confiance (favori net ≥65 %)
+    # 🎯 Paris conseillés PILOTÉS PAR LA PERLE (même moteur que le foot : moneyline/handicap/totaux)
     extra = ""
     mh = (rec or {}).get("model_home_prob")
     if rec and mh is not None:
-        vp = rec.get("value_pick")
-        value = (vp["player"], vp["odds"], vp["edge"]) if vp and vp.get("odds") else None
+        perle = rec.get("perle")
+        extra = web.perle_advice(perle)
         p_fav = max(mh, 1 - mh)
-        confidence = None
-        if p_fav >= 0.65:
-            fav = home if mh >= 0.5 else away
-            confidence = (fav, p_fav, rec.get("unibet_home_odds") if mh >= 0.5 else rec.get("unibet_away_odds"))
-        extra = web.recommended_bets(value, confidence)
-        # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — moneyline
+        # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — verdict piloté par la perle
         fav_h = mh >= 0.5
         _m = rec.get("margin")
         brief = {
@@ -109,8 +104,8 @@ async def basket_match(event_id: int, frag: int = 0,
             "favorite": home if fav_h else away, "underdog": away if fav_h else home,
             "fav_prob": p_fav,
             "fav_odds": rec.get("unibet_home_odds") if fav_h else rec.get("unibet_away_odds"),
-            "confidence": rec.get("confidence"),
-            "value": ({"name": value[0], "odds": value[1], "edge": value[2]} if value else None),
+            "confidence": rec.get("confidence"), "perle": perle,
+            "value": None,
             "margin": abs(_m) if _m else None,
             "h2h_fav": (h2h.get("home_wins") if fav_h else h2h.get("away_wins")) if h2h else None,
             "h2h_opp": (h2h.get("away_wins") if fav_h else h2h.get("home_wins")) if h2h else None,
