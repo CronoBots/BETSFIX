@@ -133,6 +133,10 @@ CSS = """
   .botnav a .ic{font-size:24px;line-height:1}
   .botnav a:active{transform:scale(.93)}
   .botnav a.on{color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
+  /* Home et Live ne sont pas des sports -> onglet actif en BLANC/GRIS neutre (les sports gardent
+     leur couleur : tennis citron, basket orange, foot vert). */
+  .botnav a[data-tab="home"].on,.botnav a[data-tab="directs"].on{
+    background:linear-gradient(180deg,#eef2f8,#cdd6e4);color:#0a1124}
   .botnav a.on .ic{transform:scale(1.06)}
   /* Onglet Live : SEUL le point 🟢 vire au vert et clignote, et UNIQUEMENT s'il y a du live
      (classe .has-live) ET que l'onglet n'est pas ouvert. Pas de fond vert -> quand on est dessus,
@@ -470,7 +474,7 @@ CSS = """
   .ptab{border:1px solid var(--cardline);border-radius:14px;overflow:hidden;margin:8px 0;
           background:linear-gradient(180deg,var(--surface2),var(--surface));
           box-shadow:var(--cardglow)}
-  .ptab-h,.ptab-row{display:grid;grid-template-columns:1.45fr 1.1fr .6fr .7fr;gap:8px;
+  .ptab-h,.ptab-row{display:grid;grid-template-columns:1.25fr 1fr .9fr .9fr;gap:6px;
           align-items:center;padding:11px 12px}
   .ptab-h{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
           color:var(--muted);border-bottom:1px solid var(--border)}
@@ -561,7 +565,7 @@ _SPA_JS = (
     ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;"
     # onglet Directs : on n'allume le rouge clignotant QUE s'il y a du live dans le panneau
     "if((u||'').indexOf('/directs')>=0){var nv=document.querySelector('.botnav a[data-tab=\"directs\"]');"
-    "if(nv)nv.classList.toggle('has-live',h.indexOf('EN DIRECT')>=0);}})"
+    "if(nv)nv.classList.toggle('has-live',h.indexOf('🟢 Live')>=0);}})"
     ".catch(function(){p.removeAttribute('data-loaded');"
     "p.innerHTML='<div class=ldg>Erreur de chargement. Touchez l\\'onglet pour réessayer.</div>';});}"
     "function go(t,push){var p=panel(t);if(!p)return;load(p);show(t);"
@@ -899,7 +903,7 @@ def _pick_card(p: dict, badge: str) -> str:
     cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
           if p.get("start_ts") and p["start_ts"] > time.time() else "")
     fem = ' <span class="fem">(F)</span>' if p.get("female") else ""
-    state = cd if cd else ('<span class="cd live">🟢 EN DIRECT</span>' if p.get("live") else "")
+    state = cd if cd else ('<span class="cd live">🟢 Live</span>' if p.get("live") else "")
     bdg = f'<span class="bdg">{badge}</span>' if badge else ""
     # surligne l'issue pariée (cohérent avec les barres), pas le favori du book
     _hi = {"1": 0, "X": 1, "2": 2, "home": 0, "away": 1}.get(p.get("side"))
@@ -1010,7 +1014,7 @@ def _sport_row(r: dict) -> str:
     # « EN DIRECT » (rouge) si live. Le badge value/✓ va, lui, sur la ligne de l'affiche.
     if r.get("status") == "inprogress":
         top = f'<span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
-        state = '<span class="cd live">🟢 EN DIRECT</span>'
+        state = '<span class="cd live">🟢 Live</span>'
     elif r.get("status") == "finished":
         top = e(r.get("score") or "terminé")
         state = ""
@@ -1420,7 +1424,7 @@ def _match_row(m: dict) -> str:
     e = html.escape
     if m["status"] == "inprogress":
         sc = f' <span class="dim">{e(m["score"])}</span>' if m.get("score") else ""
-        status = f'<span class="live">🟢 EN DIRECT</span>{sc}'
+        status = f'<span class="live">🟢 Live</span>{sc}'
     else:
         status = e(m.get("time") or "")
     inner = (

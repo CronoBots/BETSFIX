@@ -221,24 +221,25 @@ def test_wilson_interval():
 
 
 def test_render_proof_honnete():
-    rep_full = {"predictions_evaluees": 142, "matchs_regles": 142, "brier": 0.21,
-                "brier_marche": 0.22, "bat_le_marche": True, "value_paris_regles": 120,
-                "value_gagnes": 40, "value_roi": 0.042, "clv_moyen": 0.018, "clv_positif_pct": 0.72,
-                "par_type": [{"label": "Confiance", "n": 64, "precision": 0.71, "pred_fav": 0.68},
-                             {"label": "Value", "n": 38, "precision": 0.34, "pred_fav": 0.40}]}
-    rep_empty = {"predictions_evaluees": 0, "matchs_regles": 0}
-    rep_small = {"predictions_evaluees": 12, "matchs_regles": 12, "bat_le_marche": False,
-                 "value_paris_regles": 5, "value_gagnes": 2, "value_roi": 0.1, "par_type": []}
+    # Track record PERLE : matchs perle réglés + ROI perle global + colonnes confiance/value perle
+    rep_full = {"perle_matchs_regles": 64, "perle_paris_regles": 100, "perle_roi_global": 0.05,
+                "perle_conf_regles": 64, "perle_conf_gagnes": 45, "perle_conf_taux": 0.703,
+                "perle_value_regles": 36, "perle_value_gagnes": 15, "perle_value_roi": 0.042}
+    rep_empty = {"perle_matchs_regles": 0, "perle_paris_regles": 0}
+    rep_small = {"perle_matchs_regles": 12, "perle_paris_regles": 12, "perle_roi_global": -0.1,
+                 "perle_conf_regles": 8, "perle_conf_gagnes": 3, "perle_conf_taux": 0.375,
+                 "perle_value_regles": 5, "perle_value_gagnes": 2, "perle_value_roi": 0.1}
     html = tracking.render_proof([("T", "Tennis", rep_full, "/a"),
                                   ("F", "Foot", rep_empty, "/b"),
                                   ("B", "Basket", rep_small, "/c")])
     # Tableau unique : en-tête + 1 ligne par sport (3 lignes), comparables
     assert html.count("ptab-row") == 3
     assert "Fiabilité" in html and "Confiance" in html and "Value" in html   # colonnes
-    assert "✓ plus fiable" in html                # tennis : verdict positif (chip court)
-    assert "en collecte" in html                  # foot vide
-    assert "en rodage" in html and "12 matchs" in html   # basket : pas concluant + échantillon
-    assert "40/120" in html                       # value : nb gagnés/total (comme confiance)
+    assert "✓ Plus fiable" in html                # tennis : ROI perle global positif
+    assert "En collecte" in html                  # foot : aucune perle réglée
+    assert "En rodage" in html and "12 matchs" in html   # basket : échantillon < 30
+    assert "45/64" in html                        # confiance : nb gagnés/total
+    assert "15/36" in html                        # value : nb gagnés/total
     assert "+4%" in html and "ptab-pct" in html   # ROI value en petit % sous le nombre
     assert "—" in html                            # placeholder quand un type n'a pas de donnée
     assert "--sc:#d7e64a" in html                 # liseré = couleur du sport (tennis lime)

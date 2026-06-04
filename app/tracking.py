@@ -347,10 +347,24 @@ def report(store: dict) -> dict:
     # CLV (closing line value) du favori du modèle — juge d'edge sans attendre N matchs
     clvs = [c for c in (clv_pct(r) for r in pred) if c is not None]
 
-    # Performance des paris 'value'
+    # Performance des paris 'value' (ANCIEN value_pick — gardé pour le dashboard détaillé)
     picks = [r for r in settled if r.get("value_pick") and r["result"].get("value_pnl") is not None]
     pnl = sum(r["result"]["value_pnl"] for r in picks)
     wins = sum(1 for r in picks if r["result"]["value_pnl"] > 0)
+
+    # 🎯 Performance des PERLES (ce qu'on recommande vraiment) : CONFIANCE (perle + 2e pari) et VALUE.
+    conf_pnls = [r["result"][k] for r in settled for k in ("perle_pnl", "perle2_pnl")
+                 if r["result"].get(k) is not None]
+    val_pnls = [r["result"]["perle_value_pnl"] for r in settled
+                if r["result"].get("perle_value_pnl") is not None]
+    cwins = sum(1 for x in conf_pnls if x > 0)
+    vwins = sum(1 for x in val_pnls if x > 0)
+    # Track record GLOBAL de la perle (depuis sa mise en place) : matchs réglés ayant
+    # eu une perle, et ROI toutes perles confondues (confiance + value) -> base du verdict.
+    perle_settled = [r for r in settled
+                     if r.get("perle") and r["result"].get("perle_pnl") is not None]
+    all_pnls = conf_pnls + val_pnls
+    perle_roi = (sum(all_pnls) / len(all_pnls)) if all_pnls else None
 
     overall = _fav_metrics(pred)
 
@@ -375,6 +389,17 @@ def report(store: dict) -> dict:
         "value_taux_reussite": round(wins / len(picks), 3) if picks else None,
         "value_pnl_unites": round(pnl, 2) if picks else 0.0,
         "value_roi": round(pnl / len(picks), 3) if picks else None,
+        # 🎯 PERLES (le tableau « bat le marché » s'appuie là-dessus) : confiance + value.
+        "perle_conf_regles": len(conf_pnls), "perle_conf_gagnes": cwins,
+        "perle_conf_taux": round(cwins / len(conf_pnls), 3) if conf_pnls else None,
+        "perle_conf_roi": round(sum(conf_pnls) / len(conf_pnls), 3) if conf_pnls else None,
+        "perle_value_regles": len(val_pnls), "perle_value_gagnes": vwins,
+        "perle_value_taux": round(vwins / len(val_pnls), 3) if val_pnls else None,
+        "perle_value_roi": round(sum(val_pnls) / len(val_pnls), 3) if val_pnls else None,
+        # Base du tableau « bat le marché » : échantillon perle + ROI global.
+        "perle_matchs_regles": len(perle_settled),
+        "perle_paris_regles": len(all_pnls),
+        "perle_roi_global": round(perle_roi, 3) if perle_roi is not None else None,
         # Surconfiance globale : proba moyenne annoncée au favori − taux réel.
         # >0 = le modèle promet plus qu'il ne réalise (à corriger par recalibration).
         "surconfiance": overall["surconfiance"],
@@ -412,35 +437,36 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
     """Une LIGNE du tableau Preuve (1 sport) : sport (+ nb matchs) | fiabilité | confiance | value.
     Couleur du sport sur le liseré gauche. Détail complet au tap (dashboard)."""
     e = html.escape
-    # « matchs notés » = matchs réglés -> cohérent avec les paris affichés
-    n = rep.get("matchs_regles") or 0
-    n_pred = rep.get("predictions_evaluees") or 0
-    bat = rep.get("bat_le_marche")
+    # Track record de la PERLE (depuis sa mise en place) : « matchs notés » = matchs
+    # perle réglés, verdict = ROI perle global (la perle bat-elle le marché ?).
+    n = rep.get("perle_matchs_regles") or 0
+    np = rep.get("perle_paris_regles") or 0
+    roi_g = rep.get("perle_roi_global")
     if n == 0:
-        verdict, vcls = "⋯ en collecte", "na"
-    elif n < 30 or n_pred < 30:
-        verdict, vcls = "⋯ en rodage", "na"
-    elif bat is True:
-        verdict, vcls = "✓ plus fiable", "ok"
-    elif bat is False:
-        verdict, vcls = "✗ moins fiable", "ko"
+        verdict, vcls = "En collecte", "na"
+    elif np < 30:
+        verdict, vcls = "En rodage", "na"
+    elif roi_g is not None and roi_g > 0:
+        verdict, vcls = "✓ Plus fiable", "ok"
+    elif roi_g is not None and roi_g < 0:
+        verdict, vcls = "✗ Moins fiable", "ko"
     else:
-        verdict, vcls = "⋯ en rodage", "na"
+        verdict, vcls = "En rodage", "na"
     accent = {"tennis": "#d7e64a", "foot": "#2ee27f", "basket": "#ff9f43"}.get(name.lower(), "")
-    # Confiance : nb gagnés (gros) + taux de réussite (petit dessous)
-    conf = next((d for d in (rep.get("par_type") or []) if d.get("label") == "Confiance"), None)
-    if conf and conf.get("n"):
-        cn, prec = conf["n"], conf.get("precision") or 0
-        conf_cell = (f'<span class="ptab-conf">{round(prec * cn)}/{cn}'
-                     f'<span class="ptab-pct">{round(prec * 100)}%</span></span>')
+    # Confiance : perles « À JOUER » réglées -> nb gagnés (gros) + taux de réussite (petit dessous)
+    cn = rep.get("perle_conf_regles") or 0
+    if cn:
+        cw = rep.get("perle_conf_gagnes") or 0
+        conf_cell = (f'<span class="ptab-conf">{cw}/{cn}'
+                     f'<span class="ptab-pct">{round((rep.get("perle_conf_taux") or 0) * 100)}%</span></span>')
     else:
         conf_cell = '<span class="ptab-conf na">—</span>'
-    # Value : nb gagnés (gros) + ROI coloré (petit dessous)
-    vn = rep.get("value_paris_regles") or 0
+    # Value : perles « value » réglées -> nb gagnés (gros) + ROI coloré (petit dessous)
+    vn = rep.get("perle_value_regles") or 0
     if vn:
-        roi = rep.get("value_roi") or 0
+        roi = rep.get("perle_value_roi") or 0
         roi_txt = f'{"+" if roi >= 0 else ""}{round(roi * 100)}%'
-        val_cell = (f'<span class="ptab-val">{rep.get("value_gagnes") or 0}/{vn}'
+        val_cell = (f'<span class="ptab-val">{rep.get("perle_value_gagnes") or 0}/{vn}'
                     f'<span class="ptab-pct {"pos" if roi >= 0 else "neg"}">{roi_txt}</span></span>')
     else:
         val_cell = '<span class="ptab-val na">—</span>'
@@ -459,11 +485,12 @@ def render_proof(reports: list[tuple]) -> str:
             '<span>Confiance</span><span>Value</span></div>')
     rows = "".join(_proof_row(i, n, r, u) for i, n, r, u in reports)
     table = f'<div class="ptab">{head}{rows}</div>'
-    info = ('Sur les matchs déjà terminés, les prédictions de l\'app sont-elles meilleures que '
-            'les cotes ? <b>Fiabilité</b> le dit : <b>✓ plus fiable</b> / <b>✗ moins fiable</b> '
-            'que les cotes, <b>⋯ en rodage</b> = pas encore assez de recul. '
-            '<b>Confiance</b> = paris « favori net » gagnés (doit passer souvent). '
-            '<b>Value</b> = <b>ROI</b> des paris « grosse cote » : ils perdent souvent (normal), '
+    info = ('Sur les paris « perle » déjà réglés, sont-ils gagnants face au marché ? '
+            '<b>Fiabilité</b> le dit (sur le ROI global) : <b>✓ Plus fiable</b> / '
+            '<b>✗ Moins fiable</b> que le marché, <b>En rodage</b> = pas encore assez de recul, '
+            '<b>En collecte</b> = aucun pari encore réglé. '
+            '<b>Confiance</b> = perles « À jouer » gagnées (doit passer souvent). '
+            '<b>Value</b> = <b>ROI</b> des perles « grosse cote » : elles perdent souvent (normal), '
             'seul le ROI compte. Touche une ligne pour les chiffres détaillés.')
     return web._section('📊 BETSFIX bat le marché ?', table, open_=True, info=info)
 
