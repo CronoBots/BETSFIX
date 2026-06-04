@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import ace_markets, elo, flags, fragcache, match_analysis, serve_return, set_markets, tendencies, tracking, web
+from app import ace_markets, elo, flags, fragcache, match_analysis, serve_return, set_markets, tendencies, tracking, web, window
 from app.config import get_settings
 from app.analysis import build_analysis, prob_from_rankings, remove_vig
 from app.analysis import _match_winner_odds
@@ -27,7 +27,7 @@ from app.providers.unibet import UnibetProvider
 
 router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
 
-HORIZON_HOURS = 24   # fenêtre courte (tennis & accueil) : matchs des prochaines 24 h -> moins d'appels
+# Fenêtre de récupération (tennis & accueil) : logique COMMUNE aux 3 sports (cf. app/window.py).
 # Cache court (s) des panneaux de liste (partagés entre tous les visiteurs) : coupe les
 # rafales d'appels Unibet/SofaScore au pré-chargement SPA et au refresh 45s. < refresh ->
 # un utilisateur seul récupère quand même des données fraîches à chaque rafraîchissement.
@@ -507,7 +507,7 @@ async def _tennis_live_cards(unibet) -> list[dict]:
     """Cartes tennis EN DIRECT (pour l'onglet Directs)."""
     store = tracking.load()
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(hours=HORIZON_HOURS)
+    horizon = window.cutoff(now)
     try:
         _, live = await _tennis_unibet_rows(unibet, store, now, horizon)
     except Exception:
@@ -558,7 +558,7 @@ async def matches_page(
             return HTMLResponse(cached)
     store = tracking.load()
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(hours=HORIZON_HOURS)
+    horizon = window.cutoff(now)
     local_now = web.to_local(now) or now
     today = local_now.date()
     fallback = False

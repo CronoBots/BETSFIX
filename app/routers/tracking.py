@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import elo, serve_return, tracking, web
+from app import elo, serve_return, tracking, web, window
 from app.config import get_settings
 from app.analysis import build_analysis
 from app.dependencies import get_livescore, get_provider, get_unibet
@@ -16,7 +16,7 @@ from app.providers.unibet import UnibetProvider
 
 router = APIRouter(prefix="/tracking", tags=["📊 Suivi & performance"])
 
-HORIZON_HOURS = 48  # on ne logge que les matchs à venir dans cette fenêtre
+# Fenêtre de logging du suivi : logique COMMUNE aux 3 sports (cf. app/window.py).
 VOID_AFTER = timedelta(days=3)  # un match non terminé 3 j après l'heure prévue = annulé/reporté
 
 
@@ -28,12 +28,12 @@ async def run_snapshot(provider: SofaScoreProvider, unibet: UnibetProvider) -> i
     """Logge prédictions + cotes Unibet des matchs à venir (≈ cote de clôture)."""
     store = tracking.load()
     now = _now()
-    horizon = now + timedelta(hours=HORIZON_HOURS)
+    horizon = window.cutoff(now)
     updated = 0
     full_tour = get_settings().track_full_tour
     for tour in ("atp", "wta"):
         try:
-            matches = (await provider.get_scheduled_matches(tour) if full_tour
+            matches = (await provider.get_scheduled_matches(tour, days=window.agenda_days()) if full_tour
                        else await provider.get_matches(tour))
         except ProviderError:
             continue

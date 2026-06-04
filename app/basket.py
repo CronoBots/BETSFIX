@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from app import sofa_http, sportcache, tracking, web
+from app import sofa_http, sportcache, tracking, web, window
 from app.dependencies import get_provider
 from app.textutil import name_tokens, names_match
 
@@ -150,8 +150,7 @@ async def _get(client, base, path, params=None):
     return data
 
 
-HORIZON_HOURS = 24        # fenêtre courte : seuls les matchs des prochaines 24 h (moins d'appels)
-HORIZON_AGENDA_DAYS = 2   # agendas à tirer pour couvrir 24 h à cheval sur minuit (aujourd'hui + demain)
+# Fenêtre de récupération : logique COMMUNE aux 3 sports (cf. app/window.py).
 
 
 async def _season_id(client, tid: int):
@@ -180,7 +179,7 @@ async def _upcoming_games(client) -> list[dict]:
     """
     now = datetime.now(timezone.utc)
     base = now.date()
-    horizon = now + timedelta(hours=HORIZON_HOURS)
+    horizon = window.cutoff(now)
     games, seen = [], set()
 
     def _add(ev: dict, league: str) -> None:
@@ -195,7 +194,7 @@ async def _upcoming_games(client) -> list[dict]:
         games.append(_row_from_event(ev, league))
 
     # Source 1 : agenda quotidien (aujourd'hui + demain) -> filtré ensuite à la fenêtre 24 h
-    for d in range(HORIZON_AGENDA_DAYS):
+    for d in range(window.agenda_days()):
         data = await _get(client, SOFA_B, f"/sport/basketball/scheduled-events/{(base + timedelta(days=d)).isoformat()}")
         for ev in (data or {}).get("events", []) or []:
             league = (ev.get("tournament") or {}).get("name")
@@ -380,7 +379,7 @@ def board_from_store() -> list[dict]:
     les picks de l'accueil (qui, eux, lisent déjà le store)."""
     store = tracking.load(BASKET_TRACK_PATH)
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(hours=HORIZON_HOURS)
+    horizon = window.cutoff(now)
     rows = []
     for rec in store.values():
         if rec.get("result"):
@@ -456,7 +455,7 @@ async def board_from_unibet() -> list[dict]:
         return round(v / 1000, 3) if isinstance(v, (int, float)) else None
 
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(hours=HORIZON_HOURS)
+    horizon = window.cutoff(now)
     rows, seen = [], set()
     async with httpx.AsyncClient(headers=UNIBET_H) as client:
         for league, cfg in LEAGUES.items():
