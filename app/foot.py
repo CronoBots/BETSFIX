@@ -155,6 +155,7 @@ VALUE_MIN_ODDS = 1.50      # la VALUE, elle, exige une cote qui paie vraiment
 PERLE_MIN_EDGE = 0.03      # value minimale pour entrer dans le pool (modèle > marché dévig)
 PERLE_MIN_EDGE_ANNEX = 0.05  # mi-temps/corners/cartons : modèle approximatif -> on exige plus
 N_CONFIANCES = 2           # nb max de paris de confiance proposés par match (types de marché distincts)
+CONF2_MIN_PROB = 0.62      # le 2e pari de confiance doit rester solide (sinon on n'en propose qu'un)
 
 
 # --- buts attendus par FORME RÉELLE (attaque/défense des derniers matchs) -----------------
@@ -701,11 +702,14 @@ def best_picks(elo_home, elo_away, neutral, markets, lambdas=None,
     if not cands:
         return None
     # 1-2 confiances : les plus probables, un seul pari par type de marché (évite les doublons
-    # corrélés type « Plus de 0.5 » + « Plus de 1.5 »).
+    # corrélés type « Plus de 0.5 » + « Plus de 1.5 »). Le 2e pari (et +) doit rester SOLIDE
+    # (≥ CONF2_MIN_PROB) -> pas de 2e pari trop optimiste (ex. handicap à 55 %).
     confidences, seen = [], set()
     for c in sorted(cands, key=lambda c: -c["model_prob"]):
         if c["kind"] in seen:
             continue
+        if confidences and c["model_prob"] < CONF2_MIN_PROB:
+            break
         confidences.append(c)
         seen.add(c["kind"])
         if len(confidences) >= N_CONFIANCES:

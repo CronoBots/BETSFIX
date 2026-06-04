@@ -139,6 +139,7 @@ B_MIN_EDGE = 0.03
 B_MARGIN_DISAGREEMENT = 0.15   # vainqueur/handicap : marché très efficient
 B_TOTAL_DISAGREEMENT = 0.20    # totaux : modèle (forme) porteur d'un vrai signal
 B_N_CONFIANCES = 2
+B_CONF2_MIN_PROB = 0.62    # le 2e pari de confiance doit rester solide
 MODEL_TRUST_B = 0.50
 
 
@@ -293,6 +294,8 @@ def best_picks_basket(elo_home, elo_away, sigma, markets, home, away, form_h=Non
         base_kind = c["kind"]
         if base_kind in seen:
             continue
+        if confidences and c["model_prob"] < B_CONF2_MIN_PROB:   # 2e pari : solide aussi
+            break
         confidences.append(c)
         seen.add(base_kind)
         if len(confidences) >= B_N_CONFIANCES:

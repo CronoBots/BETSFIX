@@ -131,10 +131,11 @@ CSS = """
   .botnav a:active{transform:scale(.93)}
   .botnav a.on{color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
   .botnav a.on .ic{transform:scale(1.06)}
-  /* Onglet Directs : pastille 🔴 qui pulse (effet live) */
-  .botnav a[data-tab="directs"] .ic{animation:livepulse 1.4s ease-in-out infinite}
+  /* Onglet Directs : rouge + pastille 🔴 qui pulse UNIQUEMENT s'il y a des matchs en direct
+     (classe .has-live posée par la SPA). Sans live -> onglet neutre, pas de clignotement. */
+  .botnav a[data-tab="directs"].has-live{color:#ff6271}
+  .botnav a[data-tab="directs"].has-live .ic{animation:livepulse 1.4s ease-in-out infinite}
   @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.86)}}
-  .botnav a[data-tab="directs"]{color:#ff6271}
   .botnav a[data-tab="directs"].on{background:linear-gradient(180deg,#ff5a6a,#e23b4e);color:#fff}
   .botnav a[data-tab="directs"].on .ic{animation:none}
   /* SPA : panneaux par onglet (tout chargé à l'ouverture, bascule sans rechargement) */
@@ -555,7 +556,10 @@ _SPA_JS = (
     "function load(p){if(!p||p.getAttribute('data-loaded'))return;"
     "p.setAttribute('data-loaded','1');var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
-    ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;})"
+    ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;"
+    # onglet Directs : on n'allume le rouge clignotant QUE s'il y a du live dans le panneau
+    "if((u||'').indexOf('/directs')>=0){var nv=document.querySelector('.botnav a[data-tab=\"directs\"]');"
+    "if(nv)nv.classList.toggle('has-live',h.indexOf('EN DIRECT')>=0);}})"
     ".catch(function(){p.removeAttribute('data-loaded');"
     "p.innerHTML='<div class=ldg>Erreur de chargement. Touchez l\\'onglet pour réessayer.</div>';});}"
     "function go(t,push){var p=panel(t);if(!p)return;load(p);show(t);"

@@ -388,6 +388,7 @@ T_MIN_ODDS = 1.20
 T_VALUE_MIN_ODDS = 1.50
 T_MIN_EDGE = 0.03
 T_N_CONFIANCES = 2
+T_CONF2_MIN_PROB = 0.62    # le 2e pari de confiance doit rester solide
 
 
 def _edge_label(me) -> str:
@@ -428,6 +429,8 @@ def best_picks_tennis(edges) -> dict | None:
     for c in sorted(cands, key=lambda c: -c["model_prob"]):
         if c["market"] in seen:
             continue
+        if confidences and c["model_prob"] < T_CONF2_MIN_PROB:   # 2e pari : solide aussi
+            break
         confidences.append(c)
         seen.add(c["market"])
         if len(confidences) >= T_N_CONFIANCES:
