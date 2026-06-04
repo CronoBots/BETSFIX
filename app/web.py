@@ -269,6 +269,13 @@ CSS = """
   .lb-c{min-width:13px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
   .lb-c.lb-win{color:#eaf2ff;font-weight:800}     /* set/score gagné : clair gras */
   .lb-row.lb-lead .lb-c.lb-win{color:#34d27b}     /* meneur : score gagné en vert */
+  /* Tennis : style tableau (colonnes par set), set EN COURS en boîte verte */
+  .lboard-t .lb-s{gap:9px}
+  .lboard-t .lb-c{min-width:22px}
+  .lb-hdr .lb-c{color:var(--muted);font-size:11px;font-weight:800;padding-bottom:2px}
+  .lb-hdr{padding-bottom:0}
+  .lb-box{min-width:22px;background:#157a3a;color:#fff;font-weight:800;border-radius:5px;
+          padding:1px 4px}
   /* Libellé « cotes en direct » au-dessus des boutons de cotes */
   .live-odds-l{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
           color:var(--muted);margin:2px 2px 4px}
@@ -450,10 +457,10 @@ CSS = """
   /* Barre de cotes : une cellule par issue (joueur 1 / Nul / joueur 2) ; favori (cote la
      plus basse) mis en avant en bleu. Nom au-dessus, cote dessous. */
   .oddsrow{display:flex;gap:6px;margin-top:7px}
+  /* TOUS les boutons de cotes en encadré BLEU ; la cote pariée est un peu plus marquée */
   .oc{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
-      background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:5px 6px}
-  /* Cote PARIÉE : cadre bleu fixe (identique pour TOUS les sports, pas la couleur du sport) */
-  .oc.fav{border-color:#2e9bff;background:rgba(46,155,255,.12);box-shadow:0 0 12px rgba(46,155,255,.18)}
+      background:rgba(46,155,255,.07);border:1px solid rgba(46,155,255,.4);border-radius:10px;padding:5px 6px}
+  .oc.fav{border-color:#2e9bff;background:rgba(46,155,255,.16);box-shadow:0 0 12px rgba(46,155,255,.2)}
   .ocn{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
        max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .oc.fav .ocn{color:#9fd0ff}
@@ -1199,9 +1206,10 @@ def _prob_bar(prob, labels=None) -> str:
             f'<span>{p2}% · 2</span></div>')
 
 
-def _live_scoreboard(score: str, home: str, away: str) -> str:
-    """Scoreboard LIVE sur 2 lignes (nom + scores) : meneur en vert, set/score gagné en gras.
-    Gère le tennis (sets « 6-3 5-2 ») ET foot/basket (score simple « 0-1 »)."""
+def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False) -> str:
+    """Scoreboard LIVE. Tennis (`tennis=True`) : style « tableau » — en-tête numéros de set,
+    jeux par set, SET EN COURS en boîte verte, sets gagnés en gras. Foot/basket : 2 lignes
+    (nom + score), meneur en vert."""
     if not score:
         return ""
     e = html.escape
@@ -1219,12 +1227,30 @@ def _live_scoreboard(score: str, home: str, away: str) -> str:
     as_ = sum(1 for h, a in cols if a > h)
     home_lead, away_lead = ((hs > as_, as_ > hs) if len(cols) > 1
                             else (cols[0][0] > cols[0][1], cols[0][1] > cols[0][0]))
+    hn = e((home.split() or [home or ""])[-1])
+    an = e((away.split() or [away or ""])[-1])
+
+    if tennis:
+        n = len(cols)
+        hdr = "".join(f'<span class="lb-c lb-h">{j + 1}</span>' for j in range(n))
+
+        def trow(i, name, lead):
+            cs = ""
+            for j, (h, a) in enumerate(cols):
+                v = h if i == 0 else a
+                won = (h > a) if i == 0 else (a > h)
+                cur = j == n - 1                       # set en cours -> boîte verte
+                kls = "lb-c" + (" lb-box" if cur else (" lb-win" if won else ""))
+                cs += f'<span class="{kls}">{v}</span>'
+            return (f'<div class="lb-row{" lb-lead" if lead else ""}">'
+                    f'<span class="lb-n">{name}</span><span class="lb-s">{cs}</span></div>')
+        return (f'<div class="lboard lboard-t">'
+                f'<div class="lb-row lb-hdr"><span class="lb-n"></span><span class="lb-s">{hdr}</span></div>'
+                f'{trow(0, hn, home_lead)}{trow(1, an, away_lead)}</div>')
 
     def cells(i):
         return "".join(f'<span class="lb-c{" lb-win" if c[i] > c[1 - i] else ""}">{c[i]}</span>'
                        for c in cols)
-    hn = e((home.split() or [home or ""])[-1])
-    an = e((away.split() or [away or ""])[-1])
     return (f'<div class="lboard">'
             f'<div class="lb-row{" lb-lead" if home_lead else ""}">'
             f'<span class="lb-n">{hn}</span><span class="lb-s">{cells(0)}</span></div>'
@@ -1264,7 +1290,9 @@ def _sport_row(r: dict) -> str:
     af = f'{r["away_flag"]} ' if r.get("away_flag") else ""
     # Live : SCORE actuel en scoreboard 2 lignes + libellé « cotes en direct », au-dessus des cotes
     is_live = r.get("status") == "inprogress"
-    lscore = _live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "") if is_live else ""
+    _is_tennis = (r.get("tour") or "").upper() in ("WTA", "ATP")
+    lscore = (_live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "", tennis=_is_tennis)
+              if is_live else "")
     odds_lbl = ('<div class="live-odds-l"><span class="cd live">🟢</span> cotes en direct</div>'
                 if is_live and r.get("sub") else "")
     # En-tête : la compétition (souvent longue) se tronque, la date/heure (rt-when) reste visible.
