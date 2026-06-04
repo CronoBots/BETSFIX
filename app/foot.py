@@ -232,6 +232,7 @@ _NOT_FULLTIME = (
     "corner", "carton", "card", "buteur", "joueur", "player", "scorer", "prolongation",
     "extra time", "handicap", "+/-", "asian", "asiatique",
     " and ", "&", " or ", " win and", "to win", " et ",
+    "avance", "ahead",   # « Temps réglementaire - 2 buts d'avance » ≠ résultat 1X2
 )
 
 
@@ -254,6 +255,7 @@ def _market_kind(m, home: str = "", away: str = "") -> str | None:
     if any(k in lbl for k in _NOT_FULLTIME):
         return None
     if ("résultat du match" in lbl or "résultat final" in lbl or "1x2" in lbl
+            or "temps réglementaire" in lbl or "temps reglementaire" in lbl or "regular time" in lbl
             or "full time result" in lbl or "match result" in lbl or "match odds" in lbl):
         return "1x2"
     if ("deux" in lbl and "marqu" in lbl) or ("both" in lbl and "score" in lbl):
