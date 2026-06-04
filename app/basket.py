@@ -126,6 +126,203 @@ def _devig(o1: float | None, o2: float | None) -> tuple[float, float] | None:
     return a / (a + b), b / (a + b)
 
 
+# ============================================================ moteur PERLE basket
+# Deux lois normales : l'ÉCART (margin, depuis l'Elo) price le vainqueur et le handicap ;
+# le TOTAL de points (depuis la forme de scoring des 2 équipes) price les over/under et les
+# totaux par équipe. Même philosophie que le foot : garde-fou « le marché a raison » (strict sur
+# l'écart, efficient ; plus souple sur les totaux où le modèle a un vrai signal), seuils par
+# famille, et on tire du MÊME pool la CONFIANCE (proba max) et la VALUE (edge max).
+B_MIN_PROB = 0.52
+B_MIN_ODDS = 1.20          # confiance : petits favoris sûrs acceptés
+B_VALUE_MIN_ODDS = 1.50    # value : cote qui paie
+B_MIN_EDGE = 0.03
+B_MARGIN_DISAGREEMENT = 0.15   # vainqueur/handicap : marché très efficient
+B_TOTAL_DISAGREEMENT = 0.20    # totaux : modèle (forme) porteur d'un vrai signal
+B_N_CONFIANCES = 2
+MODEL_TRUST_B = 0.50
+
+
+def _phi(z: float) -> float:
+    """Fonction de répartition de la loi normale centrée réduite."""
+    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+
+def team_points_form(matches: list) -> dict | None:
+    """Forme de scoring d'une équipe : points marqués/encaissés par match (moyennes), depuis ses
+    derniers matchs (mêmes données que le foot : get_team_recent_matches -> {gf, ga})."""
+    if not matches:
+        return None
+    n = len(matches)
+    return {"pf": sum(m["gf"] for m in matches) / n,
+            "pa": sum(m["ga"] for m in matches) / n, "n": n}
+
+
+def _team_side_b(label: str, home: str, away: str) -> str | None:
+    toks = set(name_tokens(label or ""))
+    if home and set(name_tokens(home)) & toks:
+        return "home"
+    if away and set(name_tokens(away)) & toks:
+        return "away"
+    return None
+
+
+_B_NOT = ("joueur", "player", "rebond", "rebound", "passe", "assist", "3 points", "three",
+          "interception", "steal", "contre", "block", "lancer", "free throw", "1er", "2e",
+          "3e", "4e", "quart", "quarter", "mi-temps", "half", "période", "periode",
+          " and ", "&", " or ")
+
+
+def _bmarket_kind(m, home: str, away: str) -> str | None:
+    """Type de marché basket évaluable PLEIN-TEMPS (prolongations incluses)."""
+    lbl = f"{m.label or ''} {m.type or ''}".lower()
+    if any(x in lbl for x in _B_NOT):
+        return None
+    if "point" in lbl and _team_side_b(m.label or "", home, away):
+        return "team_total"                                  # total de points d'une équipe
+    if "total" in lbl and "point" in lbl:
+        return "total"                                       # total de points du match
+    if "handicap" in lbl or "spread" in lbl:
+        return "handicap"
+    if ("cotes du match" in lbl or "vainqueur" in lbl or "moneyline" in lbl
+            or "match winner" in lbl or "résultat" in lbl or (m.type or "").lower() == "match"):
+        return "moneyline"
+    return None
+
+
+def _price_basket(m, home, away, p_home, mu_m, sig_m, mu_t, sig_t, home_exp, away_exp, team_sig):
+    """Issues d'un marché basket évaluable : dicts {sel, mp, odds, kind, side, line}."""
+    kind = _bmarket_kind(m, home, away)
+    outs = [o for o in (m.outcomes or []) if o.odds]
+    if not kind or len(outs) != 2:
+        return []
+    if kind == "moneyline":
+        res = []
+        for o in outs:
+            side = _team_side_b(o.label or o.participant or "", home, away)
+            if side is None:
+                return []
+            res.append({"sel": f'{home if side == "home" else away} vainqueur',
+                        "mp": p_home if side == "home" else 1 - p_home,
+                        "odds": o.odds, "kind": kind, "side": side})
+        return res
+    if kind == "handicap":
+        res = []
+        for o in outs:
+            side = _team_side_b(o.label or o.participant or "", home, away)
+            if side is None or o.line is None:
+                return []
+            mp = _phi((mu_m + o.line) / sig_m) if side == "home" else _phi((o.line - mu_m) / sig_m)
+            res.append({"sel": f'{home if side == "home" else away} {o.line:+g}',
+                        "mp": mp, "odds": o.odds, "kind": kind, "side": side, "line": o.line})
+        return res
+    if kind == "total" and mu_t is not None:
+        line = next((o.line for o in outs if o.line is not None), None)
+        if line is None:
+            return []
+        over = _phi((mu_t - line) / sig_t)
+        return [{"sel": f'{"Plus" if _b_over(o.label) else "Moins"} de {line:g} pts',
+                 "mp": over if _b_over(o.label) else 1 - over, "odds": o.odds,
+                 "kind": kind, "side": "over" if _b_over(o.label) else "under", "line": line}
+                for o in outs]
+    if kind == "team_total" and home_exp is not None:
+        side = _team_side_b(m.label or "", home, away)
+        line = next((o.line for o in outs if o.line is not None), None)
+        if side is None or line is None:
+            return []
+        exp = home_exp if side == "home" else away_exp
+        over = _phi((exp - line) / team_sig)
+        name = home if side == "home" else away
+        return [{"sel": f'{name} : {"plus" if _b_over(o.label) else "moins"} de {line:g} pts',
+                 "mp": over if _b_over(o.label) else 1 - over, "odds": o.odds,
+                 "kind": kind, "side": ("over" if _b_over(o.label) else "under") + ":" + side,
+                 "line": line} for o in outs]
+    return []
+
+
+def _b_over(label: str) -> bool:
+    lab = (label or "").lower()
+    return "plus" in lab or "over" in lab or "+" in lab
+
+
+def _basket_candidates(elo_home, elo_away, sigma, markets, home, away, form_h=None, form_a=None):
+    """Pool commun des paris basket jouables (mêmes garde-fous/seuils) -> confiance & value."""
+    p_home = win_prob(elo_home, elo_away)
+    if p_home is None or not markets:
+        return []
+    mu_m, sig_m = expected_margin(p_home, sigma), sigma          # écart (dom-ext) ~ N(mu_m, sigma)
+    team_sig = sigma                                              # σ des points d'une équipe ~ σ marge
+    sig_t = sigma * math.sqrt(2.0)                                # σ du total (2 équipes ~ indépendantes)
+    mu_t = home_exp = away_exp = None
+    if form_h and form_a:
+        home_exp = (form_h["pf"] + form_a["pa"]) / 2
+        away_exp = (form_a["pf"] + form_h["pa"]) / 2
+        mu_t = home_exp + away_exp
+    cands = []
+    for m in markets:
+        priced = _price_basket(m, home, away, p_home, mu_m, sig_m, mu_t, sig_t,
+                               home_exp, away_exp, team_sig)
+        if len(priced) < 2:
+            continue
+        inv = [1 / c["odds"] for c in priced]
+        s = sum(inv) or 1.0
+        msum = sum(c["mp"] for c in priced) or 1.0
+        for c, iv in zip(priced, inv):
+            implied = iv / s * msum
+            # garde-fou : strict sur l'écart (vainqueur/handicap, marché efficient), plus souple
+            # sur les totaux (le modèle de scoring a un vrai signal).
+            cap = B_MARGIN_DISAGREEMENT if c["kind"] in ("moneyline", "handicap") else B_TOTAL_DISAGREEMENT
+            if abs(c["mp"] - implied) > cap:
+                continue
+            fair = MODEL_TRUST_B * c["mp"] + (1 - MODEL_TRUST_B) * implied
+            edge = fair - implied
+            if fair >= B_MIN_PROB and c["odds"] >= B_MIN_ODDS and edge >= B_MIN_EDGE:
+                cands.append({"market": m.label or "", "selection": c["sel"],
+                              "odds": round(c["odds"], 2), "model_prob": round(fair, 4),
+                              "edge": round(edge, 4), "kind": c["kind"],
+                              "side": c.get("side"), "line": c.get("line")})
+    return cands
+
+
+def best_picks_basket(elo_home, elo_away, sigma, markets, home, away, form_h=None, form_a=None):
+    """1-2 confiances (proba max, types distincts) + value (edge max, cote ≥ 1,50). None si rien."""
+    cands = _basket_candidates(elo_home, elo_away, sigma, markets, home, away, form_h, form_a)
+    if not cands:
+        return None
+    confidences, seen = [], set()
+    for c in sorted(cands, key=lambda c: -c["model_prob"]):
+        base_kind = c["kind"]
+        if base_kind in seen:
+            continue
+        confidences.append(c)
+        seen.add(base_kind)
+        if len(confidences) >= B_N_CONFIANCES:
+            break
+    payed = [c for c in cands if c["odds"] >= B_VALUE_MIN_ODDS]
+    value = max(payed, key=lambda c: c["edge"]) if payed else None
+    return {"confidences": confidences, "confidence": confidences[0], "value": value}
+
+
+def settle_basket_perle(perle: dict, home_pts: int, away_pts: int):
+    """Gagné/perdu/None (None = push/non réglable) d'une perle basket d'après le score final."""
+    if not perle or home_pts is None or away_pts is None:
+        return None
+    kind, side, line = perle.get("kind"), perle.get("side"), perle.get("line")
+    margin, total = home_pts - away_pts, home_pts + away_pts
+    if kind == "moneyline":
+        return (side == "home") == (margin > 0)
+    if kind == "handicap" and line is not None:
+        tm = margin if side == "home" else -margin
+        x = tm + line
+        return None if x == 0 else x > 0          # push (ligne entière atteinte) -> non réglé
+    if kind == "total" and line is not None:
+        return None if total == line else (total > line if side == "over" else total < line)
+    if kind == "team_total" and line is not None:
+        ou, sd = side.split(":")
+        pts = home_pts if sd == "home" else away_pts
+        return None if pts == line else (pts > line if ou == "over" else pts < line)
+    return None
+
+
 # ----------------------------------------------------------------- données
 async def _get(client, base, path, params=None):
     key = base + path + (str(sorted(params.items())) if params else "")
@@ -407,6 +604,8 @@ def board_from_store() -> list[dict]:
             "oh": oh, "oa": oa,
             "imp_home": imp[0] if imp else None, "pick": pick, "start": dt.timestamp(),
             "votes": (ph, pa) if ph is not None else None,
+            "perle": rec.get("perle"), "perle2": rec.get("perle2"),
+            "perle_value": rec.get("perle_value"),
         })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows
@@ -561,6 +760,9 @@ def _attach_from_store(rows: list[dict]) -> None:
                     r["sofa_ok"] = True     # id SofaScore résolu -> fiche détaillée cliquable
                 if rec.get("public_home") is not None:
                     r["votes"] = (rec["public_home"], rec["public_away"])
+                for k in ("perle", "perle2", "perle_value"):
+                    if rec.get(k):
+                        r[k] = rec[k]
                 break
 
 
@@ -697,6 +899,8 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
         "margin": g.get("margin"),   # marge attendue (points) du favori, pour la fiche
         "value_pick": ({"side": pick["side"], "player": pick["team"], "odds": pick["odds"],
                         "edge": pick["edge"], "stake_pct": pick.get("stake")} if pick else None),
+        "perle": g.get("perle"), "perle2": g.get("perle2"),     # 🔥 confiances (1-2)
+        "perle_value": g.get("perle_value"),                    # 💎 value
         "last_update": now_iso,
     })
     vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)
@@ -709,12 +913,55 @@ def _upsert(store: dict, g: dict, now_iso: str) -> bool:
     return True
 
 
+async def _attach_perles(rows: list[dict]) -> None:
+    """Pose perle/perle2/perle_value sur chaque match basket à venir : marchés complets Unibet
+    (moneyline, handicap, totaux, totaux par équipe) + forme de scoring des 2 équipes. Best-effort."""
+    from datetime import datetime as _dt
+    from app.dependencies import get_unibet
+    elo = load_elo()
+    prov, uni = get_provider(), get_unibet()
+    targets = [g for g in rows if g.get("status") == "notstarted"
+               and g.get("home_id") and g.get("away_id")]
+    sem = asyncio.Semaphore(4)
+
+    async def _form(tid):
+        try:
+            return team_points_form(await prov.get_team_recent_matches(tid, n=15))
+        except Exception:
+            return None
+
+    async def one(g):
+        async with sem:
+            eh = (elo.get(str(g["home_id"])) or {}).get("elo")
+            ea = (elo.get(str(g["away_id"])) or {}).get("elo")
+            if eh is None or ea is None:
+                return
+            sigma = LEAGUES.get(g.get("league"), {}).get("sigma", SPREAD_SIGMA)
+            fh, fa = await _form(g["home_id"]), await _form(g["away_id"])
+            try:
+                st = _dt.fromtimestamp(g["start"], tz=timezone.utc) if g.get("start") else None
+                uo = await uni.find_event_odds("basketball", g["home"], g["away"], g["id"], st)
+                markets = uo.markets if uo.matched else []
+            except Exception:
+                markets = []
+            if not markets:
+                return
+            picks = best_picks_basket(eh, ea, sigma, markets, g["home"], g["away"], fh, fa)
+            confs = picks["confidences"] if picks else []
+            g["perle"] = confs[0] if confs else None
+            g["perle2"] = confs[1] if len(confs) > 1 else None
+            g["perle_value"] = picks["value"] if picks else None
+
+    await asyncio.gather(*(one(g) for g in targets))
+
+
 async def run_snapshot() -> int:
     """Logue les prédictions WNBA (proba + cotes + value + votes) -> tracking_basket.json."""
     store = tracking.load(BASKET_TRACK_PATH)
     now = datetime.now(timezone.utc).isoformat()
     rows = await board()
     await enrich_display(rows)         # capture les votes pour les persister
+    await _attach_perles(rows)         # perles (moneyline/handicap/totaux) par match
     n = 0
     for g in rows:
         if g.get("oh") and g.get("model_home") is not None and _upsert(store, g, now):
@@ -742,6 +989,12 @@ async def run_settle() -> int:
                 if tracking.settle(store, rec["match_id"], winner, None, now):
                     if hs is not None and as_ is not None and rec.get("result"):
                         rec["result"]["score"] = f"{hs}-{as_}"
+                        # règlement des perles (moneyline/handicap/totaux)
+                        for key, p in (("perle_pnl", rec.get("perle")),
+                                       ("perle2_pnl", rec.get("perle2")),
+                                       ("perle_value_pnl", rec.get("perle_value"))):
+                            pw = settle_basket_perle(p, hs, as_) if (p and p.get("odds")) else None
+                            rec["result"][key] = None if pw is None else ((p["odds"] - 1) if pw else -1.0)
                     s += 1
                 continue
             if _stale(rec, now_dt) and tracking.void(
