@@ -516,11 +516,14 @@ def _price_market_raw(m, grid, home: str = "", away: str = "") -> list:
 
     if kind == "dc":
         dc = {"1x": p1 + px, "12": p1 + p2, "x2": px + p2}
+        # Libellés EXPLICITES (le « 12 » brut d'Unibet n'est pas clair) avec les noms d'équipes
+        nm = {"1x": f"{home or '1'} ou nul", "12": f"{home or '1'} ou {away or '2'}",
+              "x2": f"nul ou {away or '2'}"}
         res = []
         for o in outs:
             key = (o.label or "").replace(" ", "").replace("/", "").lower()
             if key in dc:
-                res.append({"sel": o.label or key.upper(), "mp": dc[key], "odds": o.odds,
+                res.append({"sel": nm[key], "mp": dc[key], "odds": o.odds,
                             "kind": kind, "side": key})
         return res
 

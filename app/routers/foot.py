@@ -141,8 +141,7 @@ async def team_context(event_id: int, home: str, away: str, unit: str = "buts",
     form_inner = team_block(home, hid, h_last, tf_home) + team_block(away, aid, a_last, tf_away)
     form_html = ""
     if form_inner:
-        form_html = ('<h2>📈 Forme récente <span class="dim" style="font-weight:400;'
-                     'font-size:11px">· 🟢 gagné · 🟡 nul · 🔴 perdu · récent → ancien</span></h2>'
+        form_html = ('<h2>📈 Forme récente</h2>'
                      f'<div class="row">{form_inner}</div>')
     return form_html, standings_html
 

@@ -446,7 +446,7 @@ CSS = """
           font-weight:700;letter-spacing:.02em;gap:6px}
   .pbar-l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Dataviz fiche match : pastilles de forme + mini-barres de facteurs */
-  .dots{display:flex;gap:5px;flex-wrap:wrap}
+  .dots{display:flex;gap:5px;justify-content:space-between}   /* réparti sur toute la largeur */
   .dot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;
        justify-content:center;font-size:11px;font-weight:800}
   .dot.w{background:var(--green);color:#04130a}
@@ -1470,8 +1470,7 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     form_html = ctx.get("form_html") or ""
     forms = ctx.get("forms")
     if not form_html and forms:
-        form_html = ('<h2>📈 Forme récente <span class="dim" style="font-weight:400;font-size:11px">'
-                     '· 5 derniers : 🟢 gagné · 🟡 nul · 🔴 perdu</span></h2>'
+        form_html = ('<h2>📈 Forme récente</h2>'
                      f'<div class="row">{_team_form_block(*forms[0])}'
                      f'{_team_form_block(*forms[1])}</div>')
 
@@ -1494,8 +1493,8 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     no_data = ('<div class="banner">Analyse SofaScore indisponible pour ce match '
                '(source momentanément en pause ou match non couvert).</div>')
     if frag:   # accordéon sous la carte (la carte montre déjà la box « À jouer », proba + cotes)
-        return (analysis + form_html + h2h_html + factors_html + extra) or no_data
-    body = head + pred + odds + recos + analysis + form_html + h2h_html + factors_html + extra
+        return (analysis + h2h_html + form_html + factors_html + extra) or no_data
+    body = head + pred + odds + recos + analysis + h2h_html + form_html + factors_html + extra
     if not (analysis or factors_html or extra or form_html or h2h_html):
         body += no_data
     return layout(ctx["home"] + " vs " + ctx["away"], ctx["sport_key"], body, subnav="matchs")
@@ -1682,8 +1681,7 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
 
     form_html = ""
     if home_form or away_form:
-        form_html = ('<h2>📈 Forme récente <span class="dim" style="font-weight:400;font-size:11px">'
-                     '· 🟢 V · 🔴 D · le + récent à droite →</span></h2>'
+        form_html = ('<h2>📈 Forme récente</h2>'
                      f'<div class="row">{_form_block(a.home.name, home_form or [])}'
                      f'{_form_block(a.away.name, away_form or [])}</div>')
 
@@ -1813,10 +1811,10 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
         # On NE répète PAS le pari (déjà dans la box « 🎯 À jouer » de la carte) ni les
         # pronostics des fans (déjà dans la barre PUBLIC). Ordre intuitif -> technique :
         # forme -> face-à-face -> ce qui pèse -> aces.
-        return (form_html + h2h_html + factors + aces_html + markets_html) \
+        return (h2h_html + form_html + factors + aces_html + markets_html) \
             or '<div class="dim">Analyse détaillée indisponible (SofaScore momentanément ' \
                'limité) — la prédiction reste celle de la carte.</div>'
-    body = (head + pari_html + verdict + form_html + h2h_html + votes_html + paris_link
+    body = (head + pari_html + verdict + h2h_html + form_html + votes_html + paris_link
             + probs + factors + aces_html + odds_html)
     return layout(f"{a.home.name} vs {a.away.name}", "tennis", body, subnav="matchs")
 
