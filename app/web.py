@@ -408,6 +408,17 @@ CSS = """
   .pbars{margin-top:7px;display:flex;flex-direction:column;gap:5px}
   .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
   /* TABLEAU « Chances de gagner » : sources en LIGNES, issues en COLONNES + fine barre/ligne */
+  /* Barres PLEINES : source au-dessus, % dans chaque segment (favori = couleur source) */
+  .sbars{margin:9px 0 2px}
+  .sb-teams{display:flex;justify-content:space-between;align-items:baseline;padding:0 1px 5px;
+            font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.02em;color:var(--muted)}
+  .sb-teams .sb-tn{flex:1;text-align:center}
+  .sb{margin:8px 0}
+  .sb-l{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
+        color:var(--muted);margin-bottom:3px}
+  .sb-bar{display:flex;gap:2px;height:22px;border-radius:7px;overflow:hidden;background:var(--surface)}
+  .sb-bar .seg{display:flex;align-items:center;justify-content:center;color:#fff;
+        font-size:11.5px;font-weight:800;min-width:0;overflow:hidden;white-space:nowrap}
   .ptab2{margin:8px 0 2px}
   .pt2-h{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center;
          padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
@@ -857,11 +868,12 @@ def _pick_bars(p: dict) -> str:
         return _pick_bars_legacy(p)
     has_draw = p.get("m_draw") is not None
 
-    # Nom abrégé (connecteurs retirés) sur 1 ligne ; tronqué par CSS si vraiment trop long
-    cols = ([e(_abbr_team(p.get("home") or ""))] + (["Nul"] if has_draw else [])
-            + [e(_abbr_team(p.get("away") or ""))])
-    head = ('<div class="pt2-h"><span>Source</span>'
-            + "".join(f'<span>{c}</span>' for c in cols) + '</div>')
+    # Légende des camps : équipe GAUCHE · [Nul] · équipe DROITE (au-dessus des barres)
+    hn = e(_abbr_team(p.get("home") or ""))
+    an = e(_abbr_team(p.get("away") or ""))
+    teams = (f'<div class="sb-teams"><span>{hn}</span>'
+             + ('<span class="sb-tn">Nul</span>' if has_draw else "")
+             + f'<span>{an}</span></div>')
 
     def row(label, scol, h, d, a):
         if h is None or a is None:
@@ -869,29 +881,22 @@ def _pick_bars(p: dict) -> str:
         vals = [h, d, a] if has_draw else [h, a]
         mx = max(v for v in vals if v is not None)
 
-        def cell(v):
-            if v is None:
-                return '<span class="pt2-v dim">—</span>'
-            cls = f"pt2-v hi t-{scol}" if v == mx else "pt2-v"   # favori coloré (couleur source)
-            return f'<span class="{cls}">{round(v * 100)}%</span>'
-        cells = cell(h) + (cell(d) if has_draw else "") + cell(a)
-        # fine barre : FAVORI (plus haut %) = couleur source ; le NUL et l'équipe non-favorite
-        # gardent des teintes DISTINCTES (pbd vs pba) -> on les différencie toujours.
+        # Segment PLEIN avec le % DEDANS ; favori (max) = couleur de la source, sinon atténué.
         def seg(v, base):
-            cls = scol if (v is not None and v == mx) else base
-            return f'<span class="{cls}" style="width:{round((v or 0) * 100)}%"></span>'
+            if v is None:
+                return ""
+            pct = round(v * 100)
+            cls = scol if v == mx else base
+            return f'<span class="seg {cls}" style="width:{pct}%">{pct}%</span>'
         bar = seg(h, "pba") + (seg(d, "pbd") if has_draw else "") + seg(a, "pba")
-        # Grille : source (col 1, centrée verticalement sur les 2 lignes) | valeurs (ligne 1) |
-        # barre (ligne 2, à partir de la colonne 2 -> démarre après la source).
-        return (f'<div class="pt2-block"><span class="pt2-s">{label}</span>{cells}'
-                f'<div class="pt2-bar">{bar}</div></div>')
+        # Source AU-DESSUS, barre complète en dessous
+        return (f'<div class="sb"><span class="sb-l">{label}</span>'
+                f'<div class="sb-bar">{bar}</div></div>')
 
     rows = (row("BETSFIX", "pm", mh, p.get("m_draw"), ma)
             + row("Cote Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
             + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
-    # source réduite -> plus de place aux équipes ; home/away ÉGALES, nul centré entre elles
-    cols_css = "0.82fr 1fr 0.6fr 1fr" if has_draw else "0.95fr 1fr 1fr"
-    return f'<div class="ptab2" style="--cols:{cols_css}">{head}{rows}</div>'
+    return f'<div class="sbars">{teams}{rows}</div>'
 
 
 def _pick_bars_legacy(p: dict) -> str:
