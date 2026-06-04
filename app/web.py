@@ -571,7 +571,7 @@ CSS = """
   .ptab{border:1px solid var(--cardline);border-radius:14px;overflow:hidden;margin:8px 0;
           background:linear-gradient(180deg,var(--surface2),var(--surface));
           box-shadow:var(--cardglow)}
-  .ptab-h,.ptab-row{display:grid;grid-template-columns:1.05fr 1fr .95fr .95fr;gap:6px;
+  .ptab-h,.ptab-row{display:grid;grid-template-columns:.8fr 1.5fr .85fr .85fr;gap:6px;
           align-items:center;padding:11px 12px}
   .ptab-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.01em;
           color:#eaf2ff;border-bottom:1px solid var(--border);background:rgba(255,255,255,.022)}
@@ -581,14 +581,14 @@ CSS = """
           text-decoration:none;color:var(--text);transition:background .15s}
   .ptab-row:first-of-type{border-top:none}
   .ptab-row:active,.ptab-row:hover{background:rgba(255,255,255,.03)}
-  .ptab-sport{font-weight:800;font-size:14px;line-height:1.25;min-width:0;
+  .ptab-sport{font-weight:800;font-size:13px;line-height:1.2;min-width:0;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ptab-sub{display:block;font-size:10px;font-weight:600;color:var(--muted)}
   /* Fiabilité = verdict coloré + nb de matchs dessous. min-width:0 + sous-ligne qui peut
      se replier -> la colonne RESTE à sa fraction (sinon elle s'élargit et décale Confiance/Value). */
   .ptab-verdict{font-size:11px;font-weight:800;text-align:center;white-space:nowrap;min-width:0;
           display:flex;flex-direction:column;align-items:center;gap:2px}
-  .ptab-vsub{font-size:10px;font-weight:600;color:var(--muted);white-space:normal;text-align:center}
+  .ptab-vsub{font-size:9.5px;font-weight:600;color:var(--muted);white-space:nowrap;text-align:center}
   .ptab-verdict.ok{color:var(--green)} .ptab-verdict.ko{color:var(--red)}
   .ptab-verdict.na{color:var(--muted)}
   .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap;

@@ -501,7 +501,7 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
     wp = min(round(wait_n / TARGET * 100), 100 - sp)
     bar = (f'<span class="pbar2"><span class="pg-done" style="width:{sp}%"></span>'
            f'<span class="pg-wait" style="width:{wp}%"></span></span>')
-    sub = (f'{np} réglé{"s" if np > 1 else ""} · {wait_n} à venir' if wait_n
+    sub = (f'{np} réglé{"s" if np > 1 else ""} · {wait_n} en cours' if wait_n
            else f'{np} pari{"s" if np > 1 else ""} réglé{"s" if np > 1 else ""}')
     style = f' style="--sc:{accent}"' if accent else ""
     return (f'<a class="ptab-row" href="{e(url)}"{style}>'
