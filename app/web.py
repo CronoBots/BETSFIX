@@ -320,18 +320,19 @@ CSS = """
   .cm-p{color:var(--muted);font-weight:700;margin-left:5px}
   .bdg .badge{white-space:nowrap}
   /* Matchs terminés : prono JOUÉ mis en évidence (Confiance vert / Value bleu) + ✓/✗ */
-  .fpick{font-size:12px;color:#eaf2ff;padding:7px 10px;border-radius:9px;
+  .fpick{font-size:12.5px;color:#eaf2ff;padding:8px 11px;border-radius:9px;
          margin:4px 0;border:1px solid var(--cardline);line-height:1.35}
-  .fpick-t{font-weight:800;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em}
-  .fpick-s{font-weight:700;margin:2px 0}             /* le pari, 2e ligne */
-  .fpick-r{font-weight:800;font-size:11.5px}         /* le résultat, 3e ligne */
-  .fp-conf{background:rgba(25,196,106,.08);border-color:rgba(25,196,106,.32)}
+  .fp-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .fpick-t{font-weight:800;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+  .fp-o{font-weight:800;color:#34d27b;white-space:nowrap}      /* cote en vert, à droite du type */
+  .fpick-s{font-weight:700;text-align:center;margin-top:5px}   /* le pari, centré sur 2e ligne */
   .fp-conf .fpick-t{color:#34d27b}
-  .fp-val{background:rgba(46,155,255,.08);border-color:rgba(46,155,255,.32)}
   .fp-val .fpick-t{color:#4aa8ff}
-  .fpick.fp-won{border-color:rgba(25,196,106,.6);box-shadow:0 0 10px rgba(25,196,106,.12)}
-  .fpick.fp-lost{opacity:.82}
-  .fp-w{color:#34d27b} .fp-l{color:#ff6b6b}
+  /* Couleur de la bulle selon le RÉSULTAT (prime sur le type) : vert+halo / rouge+halo */
+  .fpick.fp-won{background:linear-gradient(90deg,rgba(25,196,106,.16),rgba(25,196,106,.05));
+                border-color:rgba(25,196,106,.75);box-shadow:0 0 15px rgba(25,196,106,.32)}
+  .fpick.fp-lost{background:linear-gradient(90deg,rgba(244,73,73,.16),rgba(244,73,73,.05));
+                 border-color:rgba(244,73,73,.7);box-shadow:0 0 15px rgba(244,73,73,.3)}
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
          letter-spacing:.02em}
   .b-val{background:rgba(46,226,127,.14);color:var(--accent);border:1px solid rgba(46,226,127,.25)}
@@ -1049,14 +1050,13 @@ def finished_picks(perle, perle_won, perle_value, value_won, winner_name):
     def chip(p, won, label, cls):
         if not (isinstance(p, dict) and p.get("selection")):
             return ""
-        od = f' <b>@{p["odds"]:g}</b>' if p.get("odds") else ""
-        res = ('<div class="fpick-r fp-w">✓ gagné</div>' if won is True
-               else '<div class="fpick-r fp-l">✗ perdu</div>' if won is False
-               else '<div class="fpick-r dim">résultat en attente</div>')
+        od = f'<span class="fp-o">@{p["odds"]:g}</span>' if p.get("odds") else ""
+        # couleur de la BULLE selon le résultat : gagné -> vert+halo, perdu -> rouge+halo
         wc = " fp-won" if won is True else " fp-lost" if won is False else ""
-        # 3 lignes : TYPE, puis le PARI, puis le RÉSULTAT
-        return (f'<div class="fpick {cls}{wc}"><div class="fpick-t">{label}</div>'
-                f'<div class="fpick-s">{e(str(p["selection"]))}{od}</div>{res}</div>')
+        # Ligne 1 : TYPE (gauche) + cote verte (droite) ; ligne 2 : le PARI centré
+        return (f'<div class="fpick {cls}{wc}">'
+                f'<div class="fp-head"><span class="fpick-t">{label}</span>{od}</div>'
+                f'<div class="fpick-s">{e(str(p["selection"]))}</div></div>')
     same = (isinstance(perle, dict) and isinstance(perle_value, dict)
             and perle.get("selection") == perle_value.get("selection"))
     chips = chip(perle, perle_won, "🛡️ Confiance", "fp-conf")
