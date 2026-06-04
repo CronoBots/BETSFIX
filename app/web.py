@@ -300,6 +300,25 @@ CSS = """
         padding:4px 18px;border-radius:20px}
   .pcat-conf{color:#34d27b;background:rgba(25,196,106,.14);border:1px solid rgba(25,196,106,.36)}
   .pcat-val{color:#4aa8ff;background:rgba(46,155,255,.14);border:1px solid rgba(46,155,255,.36)}
+  /* Paris GROUPÉS dans un seul bloc : chaque pari = sélection puis cote dessous, séparés
+     par un filet fin. Pas de label par pari (la catégorie est dans le badge centré). */
+  .plg{border-radius:12px;padding:2px 13px;margin:0 0 3px}
+  .plg-conf{background:linear-gradient(180deg,rgba(25,196,106,.12),rgba(25,196,106,.04));
+        border:1px solid rgba(25,196,106,.30)}
+  .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
+        border:1px solid rgba(46,155,255,.30)}
+  .plg-item{padding:10px 0}
+  .plg-item+.plg-item{border-top:1px solid rgba(255,255,255,.09)}
+  .plg-sel{font-size:14px;font-weight:800;text-align:center;color:#fff;line-height:1.2}
+  .plg-o{text-align:center;font-size:13.5px;font-weight:800;margin:2px 0 7px;
+        font-variant-numeric:tabular-nums}
+  .plg-conf .plg-o{color:#34d27b}
+  .plg-val .plg-o{color:#4aa8ff}
+  /* Résultat live : halo/teinte vert (gagné) ou rouge (perdu) sur le pari concerné */
+  .plg-item.pl-won{background:rgba(25,196,106,.10);border-radius:9px;
+        box-shadow:inset 0 0 0 1px rgba(52,210,123,.45)}
+  .plg-item.pl-lost{background:rgba(242,93,110,.09);border-radius:9px;
+        box-shadow:inset 0 0 0 1px rgba(242,93,110,.45)}
   .perle{display:block;margin:9px 0 3px;padding:10px 12px;border-radius:11px;
          background:rgba(255,255,255,.03);border:1px solid var(--cardline)}
   .pl-top{display:flex;align-items:center;gap:7px}
@@ -1100,16 +1119,30 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
                 f'<span class="pl-o">@{p["odds"]:g}</span></div>'
                 f'<div class="pl-sel">{e(str(p["selection"]))}</div>')
         return f'<div class="perle {cls}">{head}{_confidence_meter(p)}</div>'
-    out = one(perle, k=kind, is_won=won, is_lost=lost)
-    if isinstance(perle2, dict) and perle2.get("selection"):
-        out += one(perle2, secondary=True, is_won=won2, is_lost=lost2)
-    if header:
-        # Badge CATÉGORIE centré au-dessus des paris (espace au-dessus = sous les 4 barres).
-        is_val = _pick_kind(perle, kind)
-        lbl = "Value" if is_val else "Confiance"
-        cls = "pcat-val" if is_val else "pcat-conf"
-        out = f'<div class="pcat-row"><span class="pcat {cls}">{lbl}</span></div>' + out
-    return out
+    if not header:
+        out = one(perle, k=kind, is_won=won, is_lost=lost)
+        if isinstance(perle2, dict) and perle2.get("selection"):
+            out += one(perle2, secondary=True, is_won=won2, is_lost=lost2)
+        return out
+
+    # MODE HEADER : badge catégorie centré + paris GROUPÉS dans un seul bloc. Chaque pari =
+    # sélection puis sa COTE en dessous (pas de label « Pari 2 », la catégorie est dans le badge).
+    is_val = _pick_kind(perle, kind)
+    lbl = "Value" if is_val else "Confiance"
+    ccls = "pcat-val" if is_val else "pcat-conf"
+    gcls = "plg-val" if is_val else "plg-conf"
+
+    def item(p, is_won, is_lost):
+        if not (isinstance(p, dict) and p.get("selection")):
+            return ""
+        hcls = " pl-won" if is_won else (" pl-lost" if is_lost else "")
+        return (f'<div class="plg-item{hcls}">'
+                f'<div class="plg-sel">{e(str(p["selection"]))}</div>'
+                f'<div class="plg-o">@{p["odds"]:g}</div>'
+                f'{_confidence_meter(p)}</div>')
+    items = item(perle, won, lost) + item(perle2, won2, lost2)
+    return (f'<div class="pcat-row"><span class="pcat {ccls}">{lbl}</span></div>'
+            f'<div class="plg {gcls}">{items}</div>')
 
 
 def finished_picks(perle, perle_won, perle_value, value_won, winner_name):
