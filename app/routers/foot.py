@@ -217,22 +217,16 @@ async def foot_match(event_id: int, frag: int = 0,
         h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": d.get("draws")}
     except ProviderError:
         pass
-    # 🎯 Paris conseillés : value (cote sous-évaluée) + confiance (favori net ≥65 %)
-    extra = ""
+    # Squelette commun aux 3 sports : 🧠 analyse, 📊 ce qui pèse (facteurs), 🎯 reco (page pleine),
+    # puis contexte (classement + 5 derniers). Forme/face-à-face sont rendus par render_sport_match_detail.
+    analysis_html = recos = factors_html = ""
+    context = ""
     if rec:
         vp = rec.get("value_pick")
         value = (vp["team"], vp["odds"], vp["edge"]) if vp and vp.get("odds") else None
         probs = [rec.get("p_home"), rec.get("p_draw"), rec.get("p_away")]
-        confidence = None
-        if all(p is not None for p in probs):
-            i = max(range(3), key=lambda k: probs[k])
-            if probs[i] >= 0.65:
-                confidence = ([home, "Match nul", away][i], probs[i],
-                              [rec.get("o1"), rec.get("ox"), rec.get("o2")][i])
-        # 🎯 Paris conseillés PILOTÉS PAR LA PERLE. Dans l'accordéon (frag), la box « À jouer »
-        # de la carte au-dessus l'affiche déjà -> on ne le répète PAS ici (uniquement page pleine).
-        perle = rec.get("perle") if rec else None
-        extra = "" if frag else web.perle_advice(perle)
+        perle = rec.get("perle")
+        recos = web.perle_advice(perle)        # affiché en PAGE PLEINE uniquement (cf. renderer)
         # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — contexte 1X2 + verdict perle
         if all(p is not None for p in probs):
             idx = max(range(3), key=lambda k: probs[k])
@@ -253,20 +247,26 @@ async def foot_match(event_id: int, frag: int = 0,
                                else None),
                 "match_id": int(event_id),
             }
-            extra = (await match_analysis.write_analysis(brief, get_settings())) + extra
-    # NB : les marchés Unibet sont UTILISÉS pour calculer la perle (dans le snapshot), mais on ne
-    # les AFFICHE plus dans la fiche — l'analyse se résume à la perle conseillée + le contexte.
+            analysis_html = await match_analysis.write_analysis(brief, get_settings())
+        # 📊 Ce qui pèse : facteurs (Elo local + forme + classement + face-à-face), même bloc que le tennis
+        fh = forms[0][2] if forms else None
+        fa = forms[1][2] if forms else None
+        factors_html = web.render_factors(
+            foot.analysis_factors(home, away, p_home=rec.get("p_home"), p_away=rec.get("p_away"),
+                                  h2h=h2h, form_home=fh, form_away=fa))
+    # NB : les marchés Unibet sont UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
     try:
-        extra += await team_context(event_id, home, away, unit="buts")
+        context += await team_context(event_id, home, away, unit="buts")
     except Exception:
         pass
     ctx = {"home": home or "Match", "away": away, "home_flag": flags.flag(home),
-           "away_flag": flags.flag(away), "comp": comp, "when": when, "extra": extra,
+           "away_flag": flags.flag(away), "comp": comp, "when": when,
+           "analysis": analysis_html, "factors_html": factors_html, "recos": recos, "extra": context,
            "prediction": prediction, "odds_cells": odds_cells, "forms": forms, "h2h": h2h,
            "back_url": "/foot", "back_label": "Foot", "sport_key": "foot"}
     html = web.render_sport_match_detail(ctx, frag=bool(frag))
-    if frag and (forms or h2h or extra):   # ne cache que si on a du contenu utile
+    if frag and (forms or h2h or analysis_html or factors_html or context):   # cache si contenu utile
         fragcache.put(f"foot/{event_id}", html)
     return HTMLResponse(html)
 

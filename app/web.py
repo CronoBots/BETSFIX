@@ -1394,15 +1394,20 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
         if dr is not None:
             cells.append(f'<span class="h2h-c"><b>{dr}</b><span class="dim">nuls</span></span>')
         cells.append(f'<span class="h2h-c"><b>{aw}</b><span class="dim">{e(ctx["away"])}</span></span>')
-        h2h_html = f'<h2>🤝 Confrontations directes</h2><div class="h2h">{"".join(cells)}</div>'
+        h2h_html = f'<h2>🤝 Face-à-face</h2><div class="h2h">{"".join(cells)}</div>'
 
-    extra = ctx.get("extra") or ""   # sections supplémentaires (buts attendus foot, marge basket…)
+    # Squelette COMMUN aux 3 sports (même ordre que le tennis) :
+    #   analyse rédigée -> forme récente -> face-à-face -> ce qui pèse -> contexte (classement…)
+    analysis = ctx.get("analysis") or ""          # 🧠 prose
+    factors_html = ctx.get("factors_html") or ""  # 📊 ce qui pèse (barres de facteurs)
+    extra = ctx.get("extra") or ""                # contexte + spécificités (classement, écart, buts)
+    recos = ctx.get("recos") or ""                # 🎯 reco perle (page pleine seulement)
     no_data = ('<div class="banner">Analyse SofaScore indisponible pour ce match '
                '(source momentanément en pause ou match non couvert).</div>')
-    if frag:   # accordéon sous la carte : analyse (la carte montre déjà proba + cotes)
-        return (extra + form_html + h2h_html) or no_data
-    body = head + pred + odds + extra + form_html + h2h_html
-    if not (extra or form_html or h2h_html):
+    if frag:   # accordéon sous la carte (la carte montre déjà la box « À jouer », proba + cotes)
+        return (analysis + form_html + h2h_html + factors_html + extra) or no_data
+    body = head + pred + odds + recos + analysis + form_html + h2h_html + factors_html + extra
+    if not (analysis or factors_html or extra or form_html or h2h_html):
         body += no_data
     return layout(ctx["home"] + " vs " + ctx["away"], ctx["sport_key"], body, subnav="matchs")
 
@@ -1505,6 +1510,37 @@ def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None
     return layout("Matchs", "tennis", "".join(out), subnav="matchs", refresh=True)
 
 
+_FACTOR_NAMES = {"elo": "Force générale (Elo)", "classement": "Classement", "forme": "Forme",
+                 "surface": "Surface", "head_to_head": "Face-à-face"}
+
+
+def render_factors(factors, intro: str | None = None) -> str:
+    """Bloc PARTAGÉ « 📊 Ce qui pèse dans l'analyse » (tennis/foot/basket) : une barre de
+    contribution domicile/extérieur par facteur. `factors` = objets AnalysisFactor OU dicts
+    {name, home, away, detail}. Même présentation pour les 3 sports."""
+    if not factors:
+        return ""
+    e = html.escape
+
+    def g(f, k):
+        return f.get(k) if isinstance(f, dict) else getattr(f, k, None)
+
+    def row(f):
+        h = round((g(f, "home") or 0) * 100)
+        nom = _FACTOR_NAMES.get(g(f, "name"), str(g(f, "name")).replace("_", " ").capitalize())
+        return (f'<div class="frow"><div class="ft"><span class="fn">{e(nom)}</span>'
+                f'<span class="fb"><span class="mbar"><span class="a" style="width:{h}%"></span>'
+                f'<span class="b" style="width:{100 - h}%"></span></span></span>'
+                f'<span class="fp">{h}/{100 - h}%</span></div>'
+                f'<div class="dim" style="font-size:11px;margin-top:4px">{e(g(f, "detail") or "")}</div></div>')
+    intro = intro or ('Chaque barre = part en faveur de chaque camp sur ce facteur (gauche = '
+                      'domicile/1er cité). <b>Force générale</b> = niveau global ; puis '
+                      '<b>Classement</b>, <b>Forme</b> du moment et <b>Face-à-face</b>.')
+    return (f'<h2>📊 Ce qui pèse dans l\'analyse</h2>'
+            f'<div class="dim" style="font-size:11px;margin:-2px 0 8px">{intro}</div>'
+            '<div class="row">' + "".join(row(f) for f in factors) + '</div>')
+
+
 def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                         aces: dict | None = None, tour: str = "atp",
                         home_form: list[dict] | None = None,
@@ -1556,7 +1592,7 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
 
     form_html = ""
     if home_form or away_form:
-        form_html = ('<h2>Forme récente <span class="dim" style="font-weight:400;font-size:11px">'
+        form_html = ('<h2>📈 Forme récente <span class="dim" style="font-weight:400;font-size:11px">'
                      '· 🟢 V gagné · 🔴 D perdu · récent → ancien</span></h2>'
                      f'<div class="row">{_form_block(a.home.name, home_form or [])}'
                      f'{_form_block(a.away.name, away_form or [])}</div>')
@@ -1568,7 +1604,7 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
         if hh + aw > 0:
             ph = round(hh / (hh + aw) * 100)
             h2h_html = (
-                f'<h2>Face-à-face</h2><div class="row">'
+                f'<h2>🤝 Face-à-face</h2><div class="row">'
                 f'<div class="pbar-l"><span>{e(a.home.name.split()[-1])} {hh}</span>'
                 f'<span>{aw} {e(a.away.name.split()[-1])}</span></div>'
                 f'<div class="mbar"><span class="a" style="width:{ph}%"></span>'
@@ -1585,23 +1621,12 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                  f'<div class="mbar" style="height:10px"><span class="a" style="width:{round(hp*100)}%">'
                  f'</span><span class="b" style="width:{round(ap*100)}%"></span></div></div>')
 
-    # Facteurs en MINI-BARRES (contribution home/away par facteur) — noms en clair
-    _FNAMES = {"elo": "Force générale (Elo)", "classement": "Classement", "forme": "Forme",
-               "surface": "Surface", "head_to_head": "Face-à-face"}
-    def _factor_row(f):
-        h = round((f.home or 0) * 100)
-        nom = _FNAMES.get(f.name, f.name.replace("_", " ").capitalize())
-        return (f'<div class="frow"><div class="ft"><span class="fn">{e(nom)}</span>'
-                f'<span class="fb"><span class="mbar"><span class="a" style="width:{h}%"></span>'
-                f'<span class="b" style="width:{100-h}%"></span></span></span>'
-                f'<span class="fp">{h}/{100-h}%</span></div>'
-                f'<div class="dim" style="font-size:11px;margin-top:4px">{e(f.detail or "")}</div></div>')
-    factors = (f'<h2>Ce qui pèse dans l\'analyse</h2>'
-               '<div class="dim" style="font-size:11px;margin:-2px 0 8px">Chaque barre = part en '
-               'faveur de chaque joueur. <b>Force générale</b> = niveau global ; <b>Classement</b>, '
-               '<b>Forme</b> du moment, <b>Surface</b> et <b>Face-à-face</b> (historique entre eux).</div>'
-               '<div class="row">'
-               + "".join(_factor_row(f) for f in a.factors) + '</div>') if a.factors else ""
+    # Facteurs (contribution home/away) — bloc PARTAGÉ avec foot/basket
+    factors = render_factors(
+        a.factors,
+        intro=('Chaque barre = part en faveur de chaque joueur. <b>Force générale</b> = niveau '
+               'global ; <b>Classement</b>, <b>Forme</b> du moment, <b>Surface</b> et '
+               '<b>Face-à-face</b> (historique entre eux).'))
 
     # Lecture du modèle (favori) — neutre, pas de pari conseillé
     fav = a.home.name if (hp or 0) >= 0.5 else a.away.name

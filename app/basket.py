@@ -77,6 +77,35 @@ def win_prob(elo_home: float | None, elo_away: float | None) -> float | None:
     return expected(elo_home + HOME_ADV, elo_away)
 
 
+def analysis_factors(model_home_prob=None, h2h=None, form_home=None, form_away=None):
+    """Facteurs « ce qui pèse » de la fiche basket — MÊMES barres que tennis/foot :
+    Force générale (Elo), Classement, Forme, Face-à-face. Chacun = part en faveur du
+    domicile (0-1). Données RÉELLES (proba modèle Elo, forme/classement SofaScore)."""
+    out = []
+    if model_home_prob is not None:
+        out.append({"name": "elo", "home": model_home_prob, "away": 1 - model_home_prob,
+                    "detail": "force générale (Elo + avantage terrain)"})
+    ph_pos, pa_pos = (form_home or {}).get("position"), (form_away or {}).get("position")
+    if ph_pos and pa_pos:
+        sh, sa = 1.0 / ph_pos, 1.0 / pa_pos
+        out.append({"name": "classement", "home": sh / (sh + sa), "away": sa / (sh + sa),
+                    "detail": f"{ph_pos}e vs {pa_pos}e au classement"})
+
+    def _fs(f):   # basket : 5 derniers en V/D (pas de nul)
+        seq = (f or {}).get("form") or []
+        return (sum(1 for r in seq if r == "W") / len(seq)) if seq else None
+    fh, fa = _fs(form_home), _fs(form_away)
+    if fh is not None and fa is not None and (fh + fa) > 0:
+        out.append({"name": "forme", "home": fh / (fh + fa), "away": fa / (fh + fa),
+                    "detail": "5 derniers résultats"})
+    if h2h:
+        hw, aw = h2h.get("home_wins") or 0, h2h.get("away_wins") or 0
+        if hw + aw > 0:
+            out.append({"name": "head_to_head", "home": hw / (hw + aw), "away": aw / (hw + aw),
+                        "detail": f"{hw + aw} confrontation{'s' if hw + aw > 1 else ''}"})
+    return out
+
+
 SPREAD_SIGMA = 11.0       # écart-type de la marge (points) en WNBA
 
 

@@ -1021,6 +1021,54 @@ def _elo_for(tokens, index):
     return None
 
 
+def analysis_factors(home, away, p_home=None, p_away=None, h2h=None,
+                     form_home=None, form_away=None, neutral=False):
+    """Facteurs « ce qui pèse » de la fiche foot — MÊMES barres que le tennis :
+    Force générale (Elo), Classement, Forme, Face-à-face. Chacun = part en faveur du
+    domicile (0-1). `p_home/p_away` = proba modèle (toujours dispo) ; `form_home/away` =
+    TeamForm.model_dump() ; `h2h` = {home_wins, away_wins}. Données RÉELLES uniquement."""
+    index = _elo_index(load_elo())
+    eh = _elo_for(name_tokens(home or ""), index)
+    ea = _elo_for(name_tokens(away or ""), index)
+    out = []
+    # Force générale : part domicile/extérieur hors nul. On préfère la proba du modèle
+    # (toujours stockée), avec les Elo en détail quand on les retrouve localement.
+    share = None
+    if p_home is not None and p_away is not None and (p_home + p_away) > 0:
+        share = p_home / (p_home + p_away)
+    elif eh is not None and ea is not None:
+        probs = outcome_probs(eh, ea, neutral=neutral)
+        if probs and (probs[0] + probs[2]):
+            share = probs[0] / (probs[0] + probs[2])
+    if share is not None:
+        detail = (f"Elo {round(eh)} vs {round(ea)}" if (eh is not None and ea is not None)
+                  else "force générale (modèle)")
+        out.append({"name": "elo", "home": share, "away": 1 - share,
+                    "detail": detail + (" · terrain neutre" if neutral else "")})
+    # Classement : meilleure position (plus petit nombre) = part plus grande
+    ph_pos, pa_pos = (form_home or {}).get("position"), (form_away or {}).get("position")
+    if ph_pos and pa_pos:
+        sh, sa = 1.0 / ph_pos, 1.0 / pa_pos
+        out.append({"name": "classement", "home": sh / (sh + sa), "away": sa / (sh + sa),
+                    "detail": f"{ph_pos}e vs {pa_pos}e au classement"})
+    # Forme : 5 derniers (V=3, N=1, D=0)
+    def _fs(f):
+        seq = (f or {}).get("form") or []
+        return (sum(3 if r == "W" else 1 if r == "D" else 0 for r in seq) / (3 * len(seq))
+                if seq else None)
+    fh, fa = _fs(form_home), _fs(form_away)
+    if fh is not None and fa is not None and (fh + fa) > 0:
+        out.append({"name": "forme", "home": fh / (fh + fa), "away": fa / (fh + fa),
+                    "detail": "5 derniers résultats"})
+    # Face-à-face
+    if h2h:
+        hw, aw = h2h.get("home_wins") or 0, h2h.get("away_wins") or 0
+        if hw + aw > 0:
+            out.append({"name": "head_to_head", "home": hw / (hw + aw), "away": aw / (hw + aw),
+                        "detail": f"{hw + aw} confrontation{'s' if hw + aw > 1 else ''}"})
+    return out
+
+
 async def board_from_unibet() -> list[dict]:
     """Board foot construite UNIQUEMENT depuis Unibet (matchs + cotes 1X2) + Elo par nom.
 

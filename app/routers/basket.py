@@ -89,13 +89,14 @@ async def basket_match(event_id: int, frag: int = 0,
         h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": None}
     except ProviderError:
         pass
-    # 🎯 Paris conseillés PILOTÉS PAR LA PERLE (même moteur que le foot : moneyline/handicap/totaux)
-    extra = ""
+    # Squelette commun aux 3 sports : 🧠 analyse, 📊 ce qui pèse (facteurs), 🎯 reco (page pleine),
+    # puis contexte (écart de points + classement + 5 derniers).
+    analysis_html = recos = factors_html = ""
+    context = ""
     mh = (rec or {}).get("model_home_prob")
     if rec and mh is not None:
         perle = rec.get("perle")
-        # Doublon de la box « À jouer » de la carte dans l'accordéon -> page pleine seulement.
-        extra = "" if frag else web.perle_advice(perle)
+        recos = web.perle_advice(perle)        # affiché en PAGE PLEINE uniquement (cf. renderer)
         p_fav = max(mh, 1 - mh)
         # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — verdict piloté par la perle
         fav_h = mh >= 0.5
@@ -115,28 +116,34 @@ async def basket_match(event_id: int, frag: int = 0,
                            else None),
             "match_id": int(event_id),
         }
-        extra = (await match_analysis.write_analysis(brief, get_settings())) + extra
-    # Marge attendue (modèle) : écart de points prévu en faveur du favori
+        analysis_html = await match_analysis.write_analysis(brief, get_settings())
+        # 📊 Ce qui pèse : facteurs (proba modèle Elo + forme + classement + face-à-face)
+        fh = forms[0][2] if forms else None
+        fa = forms[1][2] if forms else None
+        factors_html = web.render_factors(
+            basket.analysis_factors(model_home_prob=mh, h2h=h2h, form_home=fh, form_away=fa))
+    # Écart de points prévu (modèle) — spécifique basket
     margin = (rec or {}).get("margin")
     if margin and mh is not None:
         fav = home if mh >= 0.5 else away
-        extra += (f'<h2>🏀 Écart de points prévu</h2>'
-                  f'<div class="banner">BETSFIX voit <b>{fav}</b> gagner avec <b>~{abs(round(margin))} '
-                  f'points</b> d\'écart en moyenne. <span class="dim">Utile pour les paris sur '
-                  f'l\'écart (handicap).</span></div>')
+        context += (f'<h2>🏀 Écart de points prévu</h2>'
+                    f'<div class="banner">BETSFIX voit <b>{fav}</b> gagner avec <b>~{abs(round(margin))} '
+                    f'points</b> d\'écart en moyenne. <span class="dim">Utile pour les paris sur '
+                    f'l\'écart (handicap).</span></div>')
     # NB : marchés Unibet UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
     try:
         from app.routers.foot import team_context
-        extra += await team_context(event_id, home, away, unit="points")
+        context += await team_context(event_id, home, away, unit="points")
     except Exception:
         pass
     ctx = {"home": home or "Match", "away": away, "home_flag": "", "away_flag": "",
            "comp": comp, "when": when, "prediction": prediction, "odds_cells": odds_cells,
-           "forms": forms, "h2h": h2h, "extra": extra, "back_url": "/basket",
+           "forms": forms, "h2h": h2h, "back_url": "/basket",
+           "analysis": analysis_html, "factors_html": factors_html, "recos": recos, "extra": context,
            "back_label": "Basket", "sport_key": "basket"}
     html = web.render_sport_match_detail(ctx, frag=bool(frag))
-    if frag and (forms or h2h or extra):
+    if frag and (forms or h2h or analysis_html or factors_html or context):
         fragcache.put(f"basket/{event_id}", html)
     return HTMLResponse(html)
 
