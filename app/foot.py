@@ -1379,7 +1379,7 @@ def _card(r: dict) -> dict:
             "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
             "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
             "prob": r.get("probs"), "sub": _model_line(r), "badge": badge, "pick": bool(pk),
-            "perle": r.get("perle"), "perle2": r.get("perle2"),
+            "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
             **web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])}
 
 
@@ -1403,7 +1403,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             confidences.append(card)
         pv = r.get("perle_value")
         if isinstance(pv, dict) and pv.get("selection"):
-            value.append({**card, "perle": pv, "perle2": None})
+            value.append({**card, "perle": pv, "perle2": None, "pick_kind": "value"})
 
     fin = []
     for r in (finished_rows or []):

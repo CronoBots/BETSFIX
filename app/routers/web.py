@@ -529,7 +529,7 @@ def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = 
             "score": r.get("score") or "", "home": r["home"], "away": r["away"],
             "prob": r.get("hp"), "prob_labels": labels,
             "sub": _tennis_fav_sub(r) if sub is None else sub, "badge": badge, "pick": pick,
-            "start_ts": r.get("start_ts"), "female": r.get("female"),
+            "start_ts": r.get("start_ts"), "female": r.get("female"), "pick_kind": "confiance",
             "perle": r.get("perle"), "perle2": r.get("perle2"),
             "url": f'/app/match/{r["id"]}?tour={r["tour"]}',
             **web.bars_two_way(r.get("hp"), r.get("implied"), r.get("votes"), r["home"], r["away"])}

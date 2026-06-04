@@ -865,7 +865,7 @@ def _card(r: dict) -> dict:
                       if r["status"] == "inprogress" and r.get("home_pts") is not None else ""),
             "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
             "sub": sub_html, "badge": badge, "pick": bool(pk),
-            "perle": r.get("perle"), "perle2": r.get("perle2"),
+            "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
             **web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])}
 
 
@@ -888,7 +888,7 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
             confidences.append(card)
         pv = r.get("perle_value")
         if isinstance(pv, dict) and pv.get("selection"):
-            value.append({**card, "perle": pv, "perle2": None})
+            value.append({**card, "perle": pv, "perle2": None, "pick_kind": "value"})
 
     fin = []
     for r in (finished_rows or []):

@@ -270,12 +270,9 @@ CSS = """
   .perle-value .pl-o{color:#4aa8ff}
   .perle-value .cm-bar>span{background:linear-gradient(90deg,#2e9bff,#4aa8ff)}
   .perle-value .cm-v{color:#7cc0ff}
-  /* Match commencé : ton neutre (gris-bleu), plus de halo « action » */
-  .perle-live{background:rgba(255,255,255,.04);border-color:var(--cardline);box-shadow:none}
-  .perle-live .pl-tag{color:#9fb4cf;background:rgba(159,180,207,.14)}
-  .perle-live .pl-o{color:#cfe0f5}
-  .perle-live .cm-bar>span{background:linear-gradient(90deg,#7c8ba0,#9fb4cf)}
-  .perle-live .cm-v{color:#cfe0f5}
+  /* Match commencé : on garde le type (vert/bleu) mais sans halo « action » + mention discrète */
+  .perle-pre{box-shadow:none;opacity:.9}
+  .pl-pre{font-size:9.5px;font-weight:700;font-style:italic;color:var(--muted);white-space:nowrap}
   /* 2e pari de confiance : vert discret, plus petit */
   .perle2{margin-top:5px;padding:7px 11px;background:rgba(25,196,106,.05);
           border-color:rgba(25,196,106,.22);box-shadow:none}
@@ -504,9 +501,10 @@ CSS = """
           box-shadow:var(--cardglow)}
   .ptab-h,.ptab-row{display:grid;grid-template-columns:1.25fr 1fr .9fr .9fr;gap:6px;
           align-items:center;padding:11px 12px}
-  .ptab-h{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
-          color:var(--muted);border-bottom:1px solid var(--border)}
+  .ptab-h{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+          color:#eaf2ff;border-bottom:1px solid var(--border)}
   .ptab-h span{text-align:center} .ptab-h span:first-child{text-align:left}
+  .ptab-h .ph-conf{color:#34d27b} .ptab-h .ph-val{color:#4aa8ff}   /* Confiance vert · Value bleu */
   .ptab-row{border-top:1px solid var(--border);border-left:3px solid var(--sc,var(--border2));
           text-decoration:none;color:var(--text)}
   .ptab-row:first-of-type{border-top:none}
@@ -514,8 +512,10 @@ CSS = """
   .ptab-sport{font-weight:800;font-size:14px;line-height:1.25;min-width:0;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ptab-sub{display:block;font-size:10px;font-weight:600;color:var(--muted)}
-  /* Fiabilité = texte coloré simple (pas de pastille), centré */
-  .ptab-verdict{font-size:11px;font-weight:800;text-align:center;white-space:nowrap}
+  /* Fiabilité = verdict coloré + nb de matchs dessous (sans « noté »), centré */
+  .ptab-verdict{font-size:11px;font-weight:800;text-align:center;white-space:nowrap;
+          display:flex;flex-direction:column;align-items:center;gap:2px}
+  .ptab-vsub{font-size:10px;font-weight:600;color:var(--muted)}
   .ptab-verdict.ok{color:var(--green)} .ptab-verdict.ko{color:var(--red)}
   .ptab-verdict.na{color:var(--muted)}
   .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap;
@@ -948,13 +948,17 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
         is_value = _pick_kind(p, k)
         if secondary:
             cls, tag = "perle2", "+ AUSSI (confiance)"
-        elif live:
-            cls, tag = "perle-live", "🎯 AVANT-MATCH"
         elif is_value:
             cls, tag = "perle-value", f"💎 VALUE +{edgep}%"
         else:
             cls, tag = "perle-conf", "🛡️ CONFIANCE"
-        head = (f'<div class="pl-h"><span class="pl-tag">{tag}</span>'
+        # Match commencé : on GARDE le type (confiance/value) mais on indique que c'était un
+        # pari d'AVANT-MATCH (gardé en mémoire), ton légèrement atténué.
+        pre = ""
+        if live and not secondary:
+            cls += " perle-pre"
+            pre = '<span class="pl-pre">d\'avant-match</span>'
+        head = (f'<div class="pl-h"><span class="pl-tag">{tag}</span>{pre}'
                 f'<span class="pl-sel">{e(str(p["selection"]))}</span>'
                 f'<span class="pl-o">@{p["odds"]:g}</span></div>')
         return f'<div class="perle {cls}">{head}{_confidence_meter(p)}</div>'

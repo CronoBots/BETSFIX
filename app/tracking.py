@@ -480,11 +480,12 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
                     f'<span class="ptab-pct {"pos" if roi >= 0 else "neg"}">{roi_txt}</span></span>')
     else:
         val_cell = '<span class="ptab-val na">—</span>'
-    sub = f'{n} match{"s" if n > 1 else ""} noté{"s" if n > 1 else ""}'
+    # Nb de matchs SOUS le verdict (colonne Fiabilité), sans le mot « noté »
+    sub = f'{n} match{"s" if n > 1 else ""}'
     style = f' style="--sc:{accent}"' if accent else ""
     return (f'<a class="ptab-row" href="{e(url)}"{style}>'
-            f'<span class="ptab-sport">{icon} {e(name)}<span class="ptab-sub">{sub}</span></span>'
-            f'<span class="ptab-verdict {vcls}">{verdict}</span>'
+            f'<span class="ptab-sport">{icon} {e(name)}</span>'
+            f'<span class="ptab-verdict {vcls}">{verdict}<span class="ptab-vsub">{sub}</span></span>'
             f'{conf_cell}{val_cell}</a>')
 
 
@@ -492,7 +493,7 @@ def render_proof(reports: list[tuple]) -> str:
     """Section « Preuve » : UN tableau (1 ligne par sport) pour comparer d'un coup d'œil.
     `reports` = [(icon, name, rep, url), ...]."""
     head = ('<div class="ptab-h"><span>Sport</span><span>Fiabilité</span>'
-            '<span>Confiance</span><span>Value</span></div>')
+            '<span class="ph-conf">Confiance</span><span class="ph-val">Value</span></div>')
     rows = "".join(_proof_row(i, n, r, u) for i, n, r, u in reports)
     table = f'<div class="ptab">{head}{rows}</div>'
     info = ('Sur les paris « perle » déjà réglés, sont-ils gagnants face au marché ? '
