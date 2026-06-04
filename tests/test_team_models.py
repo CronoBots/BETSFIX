@@ -241,6 +241,20 @@ def test_foot_extreme_weak_team_no_false_value():
     assert foot.best_bet(None, None, False, mk, lambdas=lam, home="A", away="B") is None
 
 
+def test_foot_sos_adjustment():
+    """Force de calendrier : marquer peu CONTRE DES GROS est crédité (att SOS > att brute)."""
+    idx = foot._elo_index({"a": {"name": "Strong FC", "elo": 1850}})
+    # 3 buts en 5 matchs, mais tous contre une équipe FORTE (qui concède peu)
+    hard = ([{"gf": 1, "ga": 1, "opp": "Strong FC", "home": True}] * 3
+            + [{"gf": 0, "ga": 2, "opp": "Strong FC", "home": False}] * 2)
+    brut = foot._team_strength(gf=3, ga=7, n=5)
+    sos = foot._strength_sos(hard, idx)
+    assert sos is not None and sos[0] > brut[0]          # attaque créditée par la difficulté
+    # adversaire inconnu -> force moyenne (pas de crash) ; liste vide -> None
+    assert foot._strength_sos([{"gf": 2, "ga": 1, "opp": "Inconnu ZzZ", "home": True}], idx) is not None
+    assert foot._strength_sos([], idx) is None
+
+
 def test_foot_team_goals_markets():
     """Le moteur évalue les marchés PAR ÉQUIPE (totaux d'un camp, but / pas de but)."""
     from app.providers.unibet import UnibetMarket, UnibetOutcome

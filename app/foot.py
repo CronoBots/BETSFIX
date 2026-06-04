@@ -165,14 +165,53 @@ GOALS_AWAY_BASE = 1.15     # ... à l'extérieur
 GOALS_NEUTRAL_BASE = 1.30  # ... terrain neutre
 
 
+SOS_SHRINK = 3             # régularisation du modèle ajusté force-de-calendrier (vers att/def = 1)
+_STR_CLAMP = (0.40, 1.85)
+
+
+def _clamp_str(x: float) -> float:
+    return min(max(x, _STR_CLAMP[0]), _STR_CLAMP[1])
+
+
 def _team_strength(gf: int, ga: int, n: int) -> tuple[float, float]:
-    """(attaque, défense) ~1.0 = moyenne ; >1 attaque = marque plus, >1 défense = encaisse plus."""
+    """(attaque, défense) BRUTES ~1.0 = moyenne. Repli quand l'Elo des adversaires est inconnu.
+    >1 attaque = marque plus, >1 défense = encaisse plus."""
     att = (gf + FORM_SHRINK * LEAGUE_GPG) / (n + FORM_SHRINK) / LEAGUE_GPG
     deff = (ga + FORM_SHRINK * LEAGUE_GPG) / (n + FORM_SHRINK) / LEAGUE_GPG
     # plancher bas : les équipes EXTRÊMES (Andorre, Saint-Marin) doivent pouvoir être vues très
     # faibles offensivement (sinon le modèle leur invente des buts -> fausses value BTTS/Over).
-    clamp = lambda x: min(max(x, 0.40), 1.85)
-    return clamp(att), clamp(deff)
+    return _clamp_str(att), _clamp_str(deff)
+
+
+def _strength_sos(matches: list, index) -> tuple[float, float] | None:
+    """(attaque, défense) AJUSTÉES DE LA FORCE DES ADVERSAIRES (force de calendrier).
+
+    Pour chaque match récent, on compare les buts réels à ce qu'une équipe MOYENNE aurait fait
+    contre le même adversaire (estimé via l'Elo de l'adversaire). Ainsi marquer 0 contre la
+    Belgique (qui concède ~0,5) ne pèse pas comme marquer 0 contre Saint-Marin (qui concède ~2,5).
+    `matches` = [{gf, ga, opp, home}] ; `index` = index Elo (cf. _elo_index). None si vide."""
+    if not matches:
+        return None
+    sgf = sga = exp_for = exp_against = 0.0
+    n = 0
+    for mt in matches:
+        eo = _elo_for(name_tokens(mt.get("opp", "")), index)
+        if eo is None:
+            eo = 1500.0                                   # adversaire inconnu -> force moyenne
+        # buts qu'une équipe MOYENNE (1500) marque / encaisse contre cet adversaire (terrain neutre)
+        opp_concedes, opp_scores = _lambdas(1500.0, eo, neutral=True)
+        sgf += mt.get("gf", 0)
+        sga += mt.get("ga", 0)
+        exp_for += opp_concedes
+        exp_against += opp_scores
+        n += 1
+    if n == 0 or exp_for <= 0 or exp_against <= 0:
+        return None
+    # ratio (buts réels / buts attendus d'une moyenne), régularisé vers 1 (k pseudo-matchs neutres)
+    avg_for, avg_against = exp_for / n, exp_against / n
+    att = (sgf + SOS_SHRINK * avg_for) / (exp_for + SOS_SHRINK * avg_for)
+    deff = (sga + SOS_SHRINK * avg_against) / (exp_against + SOS_SHRINK * avg_against)
+    return _clamp_str(att), _clamp_str(deff)
 
 
 def _lambdas_form(sh: tuple, sa: tuple, neutral: bool = False) -> tuple[float, float]:
@@ -1367,15 +1406,16 @@ async def _attach_perles(rows: list[dict]) -> None:
     targets = [g for g in rows if g.get("status") == "notstarted"
                and g.get("eh") is not None and g.get("ea") is not None]
     prov = get_provider()
+    index = _elo_index(load_elo())     # Elo par nom -> force des adversaires (ajustement SOS)
     sem = asyncio.Semaphore(6)
 
     async def _form(tid):
-        """(attaque, défense) d'une équipe via sa forme buts SofaScore, sinon None."""
+        """(attaque, défense) AJUSTÉES de la force des adversaires (force de calendrier), sinon None."""
         if not tid:
             return None
         try:
-            g = await prov.get_team_recent_goals(tid)
-            return _team_strength(*g) if g else None
+            matches = await prov.get_team_recent_matches(tid)
+            return _strength_sos(matches, index) if matches else None
         except Exception:
             return None
 

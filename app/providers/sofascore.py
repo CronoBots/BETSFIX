@@ -545,6 +545,26 @@ class SofaScoreProvider:
         out["cards_a"] = (out.get("yc_a") or 0) + (out.get("rc_a") or 0)
         return out
 
+    async def get_team_recent_matches(self, team_id: int, n: int = 12):
+        """Les `n` derniers matchs TERMINÉS d'une équipe, avec l'ADVERSAIRE et le lieu — base de
+        l'ajustement « force de calendrier » (pondérer les buts par la force de l'adversaire).
+        Liste de {gf, ga, opp, home} (récents d'abord), ou [] si rien."""
+        data = await self._get(f"/team/{team_id}/events/last/0")
+        evs = [e for e in (data or {}).get("events", [])
+               if (e.get("status") or {}).get("type") == "finished"
+               and (e.get("homeScore") or {}).get("current") is not None
+               and (e.get("awayScore") or {}).get("current") is not None]
+        evs.sort(key=lambda e: e.get("startTimestamp") or 0, reverse=True)
+        out = []
+        for e in evs[:n]:
+            hs = (e.get("homeScore") or {}).get("current")
+            as_ = (e.get("awayScore") or {}).get("current")
+            at_home = (e.get("homeTeam") or {}).get("id") == team_id
+            opp = (e.get("awayTeam") if at_home else e.get("homeTeam")) or {}
+            out.append({"gf": hs if at_home else as_, "ga": as_ if at_home else hs,
+                        "opp": opp.get("name", ""), "home": at_home})
+        return out
+
     async def get_team_recent_goals(self, team_id: int, n: int = 12):
         """(buts marqués, buts encaissés, nb matchs) d'une équipe sur ses `n` derniers matchs
         TERMINÉS, toutes compétitions — base du modèle de buts par forme. None si rien d'exploitable.
