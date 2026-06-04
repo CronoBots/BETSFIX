@@ -372,12 +372,13 @@ def _price_market_raw(m, grid, home: str = "", away: str = "") -> list:
 
     if kind == "1x2" and len(outs) == 3:
         probs, alias = {"1": p1, "x": px, "2": p2}, {"home": "1", "draw": "x", "away": "2"}
+        names = {"1": home or "1", "x": "Match nul", "2": away or "2"}
         res = []
         for o in outs:
             key = (o.label or "").strip().lower()
             side = key if key in probs else alias.get(key)
             if side in probs:
-                res.append({"sel": o.label or side.upper(), "mp": probs[side], "odds": o.odds,
+                res.append({"sel": names[side], "mp": probs[side], "odds": o.odds,
                             "kind": kind, "side": side})
         return res if len(res) == 3 else []
 
