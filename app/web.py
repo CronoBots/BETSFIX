@@ -410,15 +410,13 @@ CSS = """
   /* TABLEAU « Chances de gagner » : sources en LIGNES, issues en COLONNES + fine barre/ligne */
   /* Barres PLEINES : source au-dessus, % dans chaque segment (favori = couleur source) */
   .sbars{margin:9px 0 2px}
-  .sb-teams{display:flex;justify-content:space-between;align-items:baseline;padding:0 1px 5px;
-            font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.02em;color:var(--muted)}
-  .sb-teams .sb-tn{flex:1;text-align:center}
   .sb{margin:8px 0}
   .sb-l{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
         color:var(--muted);margin-bottom:3px}
   .sb-bar{display:flex;gap:3px;height:25px}
+  /* min-width -> le % reste LISIBLE même sur un petit segment (le favori se réduit un peu) */
   .sb-bar .seg{display:flex;align-items:center;justify-content:center;color:#fff;border-radius:7px;
-        font-size:12.5px;font-weight:800;min-width:0;overflow:hidden;white-space:nowrap;
+        font-size:12.5px;font-weight:800;min-width:34px;overflow:hidden;white-space:nowrap;
         text-shadow:0 1px 1px rgba(0,0,0,.28)}
   /* Favori (couleur de la source) : pilule mise en valeur (reflet en haut + légère ombre) */
   .seg.pm,.seg.po,.seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
@@ -873,13 +871,6 @@ def _pick_bars(p: dict) -> str:
         return _pick_bars_legacy(p)
     has_draw = p.get("m_draw") is not None
 
-    # Légende des camps : équipe GAUCHE · [Nul] · équipe DROITE (au-dessus des barres)
-    hn = e(_abbr_team(p.get("home") or ""))
-    an = e(_abbr_team(p.get("away") or ""))
-    teams = (f'<div class="sb-teams"><span>{hn}</span>'
-             + ('<span class="sb-tn">Nul</span>' if has_draw else "")
-             + f'<span>{an}</span></div>')
-
     def row(label, scol, h, d, a):
         if h is None or a is None:
             return ""
@@ -901,7 +892,7 @@ def _pick_bars(p: dict) -> str:
     rows = (row("BETSFIX", "pm", mh, p.get("m_draw"), ma)
             + row("Cote Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
             + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
-    return f'<div class="sbars">{teams}{rows}</div>'
+    return f'<div class="sbars">{rows}</div>'
 
 
 def _pick_bars_legacy(p: dict) -> str:
