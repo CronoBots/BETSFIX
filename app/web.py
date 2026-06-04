@@ -413,13 +413,13 @@ CSS = """
   .sb{margin:8px 0}
   .sb-l{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
         color:var(--muted);margin-bottom:3px}
-  .sb-bar{display:flex;gap:3px;height:38px}
-  /* min-width -> % + cote restent LISIBLES même sur un petit segment (le favori se réduit un peu) */
-  .sb-bar .seg{display:flex;flex-direction:column;align-items:center;justify-content:center;
-        color:#fff;border-radius:7px;min-width:42px;overflow:hidden;white-space:nowrap;
-        line-height:1.04;text-shadow:0 1px 1px rgba(0,0,0,.28)}
+  .sb-bar{display:flex;gap:3px;height:27px}
+  /* min-width -> le % reste LISIBLE même sur un petit segment (le favori se réduit un peu) */
+  .sb-bar .seg{display:flex;align-items:baseline;justify-content:center;gap:5px;color:#fff;
+        border-radius:7px;min-width:34px;overflow:hidden;white-space:nowrap;
+        text-shadow:0 1px 1px rgba(0,0,0,.28)}
   .seg b{font-size:12.5px;font-weight:800}
-  .seg i{font-size:9.5px;font-weight:700;font-style:normal;opacity:.82;margin-top:1px}
+  .seg i{font-size:11.5px;font-weight:800;font-style:normal;opacity:.92}
   /* Favori (couleur de la source) : pilule mise en valeur (reflet en haut + légère ombre) */
   .seg.pm,.seg.po,.seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
   /* Non-favori : % légèrement atténué + un poil plus petit */
@@ -896,16 +896,17 @@ def _pick_bars(p: dict) -> str:
         if ct is None:
             return ""
         try:
-            return f'<i>@{float(ct):.2f}</i>'
+            return f'@{float(ct):.2f}'
         except (TypeError, ValueError):
-            return f'<i>@{html.escape(str(ct))}</i>'
+            return f'@{html.escape(str(ct))}'
 
     def row(label, scol, h, d, a, cotes):
         if h is None or a is None:
             return ""
         vals = [h, d, a] if has_draw else [h, a]
         mx = max(v for v in vals if v is not None)
-        # Segment PLEIN : % en gros + cote en dessous ; favori (max) = couleur de la source.
+        # Segment PLEIN, sur UNE ligne : % + cote côte à côte. La cote n'est affichée que sur
+        # le segment GAGNANT (le plus large -> lisible) ; favori = couleur de la source.
         specs = ([(h, cotes[0], "pba"), (d, cotes[1], "pbd"), (a, cotes[2], "pba")]
                  if has_draw else [(h, cotes[0], "pba"), (a, cotes[2], "pba")])
         bar = ""
@@ -913,9 +914,11 @@ def _pick_bars(p: dict) -> str:
             if v is None:
                 continue
             pct = round(v * 100)
-            cls = scol if v == mx else base
+            fav = v == mx
+            cls = scol if fav else base
+            cote = f' <i>{_fmt(ct)}</i>' if (fav and ct) else ""
             bar += (f'<span class="seg {cls}" style="width:{pct}%">'
-                    f'<b>{pct}%</b>{_fmt(ct)}</span>')
+                    f'<b>{pct}%</b>{cote}</span>')
         # Source AU-DESSUS, barre complète en dessous
         return (f'<div class="sb"><span class="sb-l">{label}</span>'
                 f'<div class="sb-bar">{bar}</div></div>')
