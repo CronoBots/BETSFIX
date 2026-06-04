@@ -693,7 +693,8 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     if source and not source.get("ok"):
         s = source.get("paused_seconds", 0)
         pausebar = (f'<div class="pausewrap"><span class="pausebadge" '
-                    f'title="SofaScore en pause ({s}s) — LiveScore prend le relais">'
+                    f'title="SofaScore limité ({s}s) — RapidAPI/LiveScore prennent le relais, '
+                    f'les paris et values restent à jour">'
                     f'⏸ Source en pause</span></div>')
     # Barre d'onglets fixée en BAS (MÊMES 5 onglets que la SPA, Directs inclus) : sur une page
     # layout (détail, dashboard…), cliquer un onglet recharge l'URL -> la SPA reprend la main.
@@ -737,7 +738,8 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
     if source and not source.get("ok"):
         s = source.get("paused_seconds", 0)
         pausebar = (f'<div class="pausewrap"><span class="pausebadge" '
-                    f'title="SofaScore en pause ({s}s) — LiveScore prend le relais">'
+                    f'title="SofaScore limité ({s}s) — RapidAPI/LiveScore prennent le relais, '
+                    f'les paris et values restent à jour">'
                     f'⏸ Source en pause</span></div>')
     panels = []
     for k, href, _ico, _name in _SPA_TABS:
