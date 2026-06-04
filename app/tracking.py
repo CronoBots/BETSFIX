@@ -364,8 +364,18 @@ def report(store: dict) -> dict:
     wins = sum(1 for r in picks if r["result"]["value_pnl"] > 0)
 
     # 🎯 Performance des PERLES (ce qu'on recommande vraiment) : CONFIANCE (perle + 2e pari) et VALUE.
-    conf_pnls = [r["result"][k] for r in settled for k in ("perle_pnl", "perle2_pnl")
-                 if r["result"].get(k) is not None]
+    def _distinct_perle2(r):
+        # 2e confiance comptée seulement si elle DIFFÈRE de la 1re (sinon doublon -> pas 2 fois).
+        p, p2 = r.get("perle"), r.get("perle2")
+        if not (isinstance(p2, dict) and p2.get("selection")):
+            return False
+        return not (isinstance(p, dict) and p.get("selection") == p2.get("selection"))
+    conf_pnls = []
+    for r in settled:
+        if r["result"].get("perle_pnl") is not None:
+            conf_pnls.append(r["result"]["perle_pnl"])
+        if r["result"].get("perle2_pnl") is not None and _distinct_perle2(r):
+            conf_pnls.append(r["result"]["perle2_pnl"])
 
     def _distinct_value(r):
         # Value seulement si le pari DIFFÈRE de la confiance (sinon c'est le MÊME pari -> il est

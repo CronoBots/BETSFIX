@@ -1383,6 +1383,7 @@ def finished_from_store(limit: int = 8) -> list[dict]:
         out.append({"comp": rec.get("comp"), "home": rec.get("home", ""), "away": rec.get("away", ""),
                     "winner": res["winner"], "winner_name": wn, "probs": pr, "hs": hs, "as": as_,
                     "perle": rec.get("perle"), "perle_won": _won("perle_pnl"),
+                    "perle2": rec.get("perle2"), "perle2_won": _won("perle2_pnl"),
                     "perle_value": rec.get("perle_value"), "value_won": _won("perle_value_pnl"),
                     "_at": res.get("settled_at", "")})
     out.sort(key=lambda g: g["_at"], reverse=True)
@@ -1464,7 +1465,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         # PRONO joué (confiance/value) mis en évidence + ✓/✗ ; PAS de badge si aucun prono
         badge, sub = web.finished_picks(r.get("perle"), r.get("perle_won"),
                                         r.get("perle_value"), r.get("value_won"),
-                                        r.get("winner_name"))
+                                        r.get("winner_name"),
+                                        perle2=r.get("perle2"), perle2_won=r.get("perle2_won"))
         fin.append({"tour": r.get("comp"), "status": "finished", "home": r["home"], "away": r["away"],
                     "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
                     "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",

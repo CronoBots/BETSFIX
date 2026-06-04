@@ -308,7 +308,10 @@ CSS = """
   .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
         border:1px solid rgba(46,155,255,.30)}
   .plg-item{padding:10px 0}
-  .plg-item+.plg-item{border-top:1px solid rgba(255,255,255,.09)}
+  /* Séparateur « et / ou » entre 2 paris du même cadre (filets de part et d'autre) */
+  .plg-sep{display:flex;align-items:center;gap:9px;text-align:center;margin:1px 0;
+        font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .plg-sep::before,.plg-sep::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.10)}
   .plg-sel{font-size:14px;font-weight:800;text-align:center;color:#fff;line-height:1.2}
   .plg-o{text-align:center;font-size:13.5px;font-weight:800;margin:2px 0 7px;
         font-variant-numeric:tabular-nums}
@@ -1134,21 +1137,30 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
 
     def item(p, is_won, is_lost):
         if not (isinstance(p, dict) and p.get("selection")):
-            return ""
+            return None
         hcls = " pl-won" if is_won else (" pl-lost" if is_lost else "")
         return (f'<div class="plg-item{hcls}">'
                 f'<div class="plg-sel">{e(str(p["selection"]))}</div>'
                 f'<div class="plg-o">@{p["odds"]:g}</div>'
                 f'{_confidence_meter(p)}</div>')
-    items = item(perle, won, lost) + item(perle2, won2, lost2)
+    parts = [item(perle, won, lost)]
+    # 2e pari confiance UNIQUEMENT s'il DIFFÈRE du 1er (sinon c'est un doublon -> on l'enlève).
+    if (isinstance(perle2, dict) and perle2.get("selection")
+            and not (isinstance(perle, dict) and perle.get("selection") == perle2.get("selection"))):
+        parts.append(item(perle2, won2, lost2))
+    parts = [x for x in parts if x]
+    # Plusieurs paris dans le même cadre -> séparés par « et / ou » (jouer l'un et/ou l'autre).
+    items = '<div class="plg-sep">et / ou</div>'.join(parts)
     return (f'<div class="pcat-row"><span class="pcat {ccls}">{lbl}</span></div>'
             f'<div class="plg {gcls}">{items}</div>')
 
 
-def finished_picks(perle, perle_won, perle_value, value_won, winner_name):
+def finished_picks(perle, perle_won, perle_value, value_won, winner_name,
+                   perle2=None, perle2_won=None):
     """(badge, sub) d'un match TERMINÉ : pronos JOUÉS mis en évidence — 🛡️ Confiance (vert) /
     💎 Value (bleu) — avec ✓ gagné / ✗ perdu, puis le vainqueur. AUCUN badge si aucun prono joué
-    (on n'invente pas un « raté » sur un match sans pari conseillé)."""
+    (on n'invente pas un « raté » sur un match sans pari conseillé). `perle2` = 2e pari confiance
+    (compté dans le tableau Preuve) -> affiché aussi pour que les cartes = le tableau."""
     e = html.escape
 
     def chip(p, won, label, cls):
@@ -1161,9 +1173,15 @@ def finished_picks(perle, perle_won, perle_value, value_won, winner_name):
         return (f'<div class="fpick {cls}{wc}">'
                 f'<div class="fp-head"><span class="fpick-t">{label}</span>{od}</div>'
                 f'<div class="fpick-s">{e(str(p["selection"]))}</div></div>')
-    same = (isinstance(perle, dict) and isinstance(perle_value, dict)
-            and perle.get("selection") == perle_value.get("selection"))
+
+    def _sel(p):
+        return p.get("selection") if isinstance(p, dict) else None
+    same = _sel(perle) is not None and _sel(perle) == _sel(perle_value)
     chips = chip(perle, perle_won, "🛡️ Confiance", "fp-conf")
+    # 2e pari confiance (perle2) : compté dans le tableau Preuve -> on l'affiche aussi (sauf
+    # s'il fait doublon avec la 1re confiance).
+    if _sel(perle2) is not None and _sel(perle2) != _sel(perle):
+        chips += chip(perle2, perle2_won, "🛡️ Confiance 2", "fp-conf")
     if not same:
         chips += chip(perle_value, value_won, "💎 Value", "fp-val")
     win = (f'<div class="dim" style="margin-top:4px">vainqueur : <b>{e(winner_name or "")}</b></div>'

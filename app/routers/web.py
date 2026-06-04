@@ -712,7 +712,8 @@ async def matches_page(
     for f in finished:
         badge, sub = web.finished_picks(f.get("perle"), f.get("perle_won"),
                                         f.get("perle_value"), f.get("value_won"),
-                                        f.get("winner_name"))
+                                        f.get("winner_name"),
+                                        perle2=f.get("perle2"), perle2_won=f.get("perle2_won"))
         finished_rows.append({
             "tour": f["tour"].upper(), "status": "finished", "score": f.get("score") or "terminé",
             "home": f["home"], "away": f["away"], "badge": badge, "sub": sub,
@@ -772,6 +773,8 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
                 "winner_name": rec["home"] if res["winner"] == "home" else rec["away"],
                 "perle": rec.get("perle") if isinstance(rec.get("perle"), dict) else None,
                 "perle_won": _won("perle_pnl"),
+                "perle2": rec.get("perle2") if isinstance(rec.get("perle2"), dict) else None,
+                "perle2_won": _won("perle2_pnl"),
                 "perle_value": rec.get("perle_value") if isinstance(rec.get("perle_value"), dict) else None,
                 "value_won": _won("perle_value_pnl"),
                 "score": res.get("score"),

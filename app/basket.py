@@ -859,6 +859,7 @@ def finished_from_store(limit: int = 8) -> list[dict]:
                     "home": rec.get("home", ""), "away": rec.get("away", ""),
                     "winner": res["winner"], "winner_name": wn, "model_home": rec.get("model_home_prob"),
                     "perle": rec.get("perle"), "perle_won": _won("perle_pnl"),
+                    "perle2": rec.get("perle2"), "perle2_won": _won("perle2_pnl"),
                     "perle_value": rec.get("perle_value"), "value_won": _won("perle_value_pnl"),
                     "hs": hs, "as": as_, "_at": res.get("settled_at", "")})
     out.sort(key=lambda g: g["_at"], reverse=True)
@@ -930,7 +931,8 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
         # PRONO joué (confiance/value) mis en évidence + ✓/✗ ; PAS de badge si aucun prono
         badge, sub = web.finished_picks(r.get("perle"), r.get("perle_won"),
                                         r.get("perle_value"), r.get("value_won"),
-                                        r.get("winner_name"))
+                                        r.get("winner_name"),
+                                        perle2=r.get("perle2"), perle2_won=r.get("perle2_won"))
         fin.append({"tour": r.get("league", "Basket"), "status": "finished",
                     "home": r["home"], "away": r["away"],
                     "female": (r.get("league") or "").upper() == "WNBA",
