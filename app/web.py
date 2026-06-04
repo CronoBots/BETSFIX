@@ -131,12 +131,12 @@ CSS = """
   .botnav a:active{transform:scale(.93)}
   .botnav a.on{color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
   .botnav a.on .ic{transform:scale(1.06)}
-  /* Onglet Directs : rouge + pastille 🔴 qui pulse UNIQUEMENT s'il y a des matchs en direct
+  /* Onglet Live : vert + pastille 🟢 qui pulse UNIQUEMENT s'il y a des matchs en direct
      (classe .has-live posée par la SPA). Sans live -> onglet neutre, pas de clignotement. */
-  .botnav a[data-tab="directs"].has-live{color:#ff6271}
+  .botnav a[data-tab="directs"].has-live{color:#34d27b}
   .botnav a[data-tab="directs"].has-live .ic{animation:livepulse 1.4s ease-in-out infinite}
   @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.86)}}
-  .botnav a[data-tab="directs"].on{background:linear-gradient(180deg,#ff5a6a,#e23b4e);color:#fff}
+  .botnav a[data-tab="directs"].on{background:linear-gradient(180deg,#2fc46e,#1f9e54);color:#fff}
   .botnav a[data-tab="directs"].on .ic{animation:none}
   /* SPA : panneaux par onglet (tout chargé à l'ouverture, bascule sans rechargement) */
   .panel{display:none}
@@ -222,7 +222,7 @@ CSS = """
   .row.pick{border-color:rgba(46,155,255,.60);
             background:linear-gradient(180deg,rgba(46,155,255,.09),rgba(46,155,255,.02));
             box-shadow:0 0 26px rgba(46,155,255,.20)}
-  .live{color:var(--red);font-weight:800;letter-spacing:.02em}
+  .live{color:#34d27b;font-weight:800;letter-spacing:.02em}
   .fem{color:#b08cf2;font-weight:800}
   .rowtop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;
           color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
@@ -301,7 +301,7 @@ CSS = """
       color:#fff;border:1px solid rgba(255,255,255,.20);white-space:nowrap}
   .cd .u{color:rgba(255,255,255,.55);font-weight:700;margin:0 1px 0 1px}
   .cd.soon{background:rgba(224,179,65,.16);color:#ffd061;border-color:rgba(224,179,65,.40)}
-  .cd.live{background:rgba(242,93,110,.18);color:#ff7a88;border-color:rgba(242,93,110,.38)}
+  .cd.live{background:rgba(52,210,123,.18);color:#5fe39b;border-color:rgba(52,210,123,.40)}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
@@ -509,7 +509,7 @@ _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 # Onglets de la SPA (clé, URL, icône, libellé). L'URL sert AUSSI de source AJAX (?frag=1).
 _SPA_TABS = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
              ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot"),
-             ("directs", "/directs", "🔴", "Directs")]
+             ("directs", "/directs", "🟢", "Live")]
 
 
 def _subnav(sport: str) -> str:
@@ -897,7 +897,7 @@ def _pick_card(p: dict, badge: str) -> str:
     cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
           if p.get("start_ts") and p["start_ts"] > time.time() else "")
     fem = ' <span class="fem">(F)</span>' if p.get("female") else ""
-    state = cd if cd else ('<span class="cd live">🔴 EN DIRECT</span>' if p.get("live") else "")
+    state = cd if cd else ('<span class="cd live">🟢 EN DIRECT</span>' if p.get("live") else "")
     bdg = f'<span class="bdg">{badge}</span>' if badge else ""
     # surligne l'issue pariée (cohérent avec les barres), pas le favori du book
     _hi = {"1": 0, "X": 1, "2": 2, "home": 0, "away": 1}.get(p.get("side"))
@@ -1008,7 +1008,7 @@ def _sport_row(r: dict) -> str:
     # « EN DIRECT » (rouge) si live. Le badge value/✓ va, lui, sur la ligne de l'affiche.
     if r.get("status") == "inprogress":
         top = f'<span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
-        state = '<span class="cd live">🔴 EN DIRECT</span>'
+        state = '<span class="cd live">🟢 EN DIRECT</span>'
     elif r.get("status") == "finished":
         top = e(r.get("score") or "terminé")
         state = ""
@@ -1077,7 +1077,7 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     # (heading, rows, ouvert d'office ?, regrouper par jour ?) — « Terminés » plié par défaut ;
     # « À venir » regroupé par jour (Aujourd'hui / Demain / …) pour se repérer dans la liste.
     sections = [("🔥 Confiances", confidences or [], True, False),
-                ("💎 Valeurs", value, True, False), ("🔴 En direct", live, True, False),
+                ("💎 Valeurs", value, True, False), ("🟢 En direct", live, True, False),
                 ("📅 À venir", upcoming, True, True), ("✅ Terminés", finished, False, False)]
     info_done = False
     for heading, rows, open_, by_day in sections:
@@ -1114,9 +1114,9 @@ def render_directs(sections: list, frag: bool = False) -> str:
                             "".join(_sport_row(c) for c in cards), open_=True))
     if not total:
         out.append('<div class="banner">Aucun match en direct pour le moment — '
-                   'reviens pendant les rencontres. 🔴</div>')
+                   'reviens pendant les rencontres. 🟢</div>')
     body = "".join(out)
-    return body if frag else spa_shell("directs", "En direct", body)
+    return body if frag else spa_shell("directs", "Live", body)
 
 
 def perf_toggle(active: str) -> str:
@@ -1418,7 +1418,7 @@ def _match_row(m: dict) -> str:
     e = html.escape
     if m["status"] == "inprogress":
         sc = f' <span class="dim">{e(m["score"])}</span>' if m.get("score") else ""
-        status = f'<span class="live">🔴 EN DIRECT</span>{sc}'
+        status = f'<span class="live">🟢 EN DIRECT</span>{sc}'
     else:
         status = e(m.get("time") or "")
     inner = (
@@ -1465,9 +1465,9 @@ def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None
                 f'· confiance {e(v.get("confidence") or "—")}</div>')
             out.append(f'<a class="row pick" href="/app/match/{v["id"]}?tour={v["tour"]}">{inner}</a>')
 
-    # 🔴 En direct
+    # 🟢 En direct
     if live:
-        out.append(f'<h2>🔴 En direct ({len(live)})</h2>')
+        out.append(f'<h2>🟢 En direct ({len(live)})</h2>')
         out.extend(_match_row(m) for m in live)
 
     # À venir (groupés par jour)
@@ -1512,7 +1512,7 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
     e = html.escape
     hp = a.model_home_probability
     ap = a.model_away_probability
-    live = (f' · <span class="live">🔴 {e(score)}</span>'
+    live = (f' · <span class="live">🟢 {e(score)}</span>'
             if a.status == "inprogress" and score else
             (f' · {e(score)}' if score else ""))
     head = (f'<a class="dim" href="/app">← Retour aux matchs</a>'
