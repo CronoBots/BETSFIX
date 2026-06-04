@@ -130,3 +130,25 @@ def test_foot_best_bet():
     assert bb["odds"] != 1.30                 # le favori sous 1.5 n'est PAS la perle
     assert foot.best_bet(1900, 1500, True, []) is None
     assert foot.best_bet(None, None, True, mk) is None
+
+
+def test_foot_form_model_and_settle():
+    """Modèle de buts par forme réelle + règlement automatique des perles."""
+    from app import foot
+    # équipe moyenne -> attaque/défense ~1.0 ; offensive -> attaque > 1
+    att_moy, _ = foot._team_strength(gf=14, ga=12, n=10)
+    att_off, _ = foot._team_strength(gf=25, ga=6, n=10)
+    assert att_off > att_moy > 0.9
+    # domicile attendu > extérieur, buts positifs
+    lh, la = foot._lambdas_form(foot._team_strength(20, 8, 10),
+                                foot._team_strength(12, 14, 10), neutral=False)
+    assert lh > la > 0
+    # règlement : totaux / BTTS / 1X2
+    assert foot.settle_perle({"kind": "ou", "side": "over", "line": 2.5}, 2, 1) is True
+    assert foot.settle_perle({"kind": "ou", "side": "over", "line": 2.5}, 1, 1) is False
+    assert foot.settle_perle({"kind": "ou", "side": "under", "line": 2.5}, 1, 1) is True
+    assert foot.settle_perle({"kind": "btts", "side": "yes"}, 1, 2) is True
+    assert foot.settle_perle({"kind": "btts", "side": "no"}, 0, 3) is True
+    assert foot.settle_perle({"kind": "1x2", "side": "1"}, 2, 0) is True
+    assert foot.settle_perle({"kind": "1x2", "side": "2"}, 2, 0) is False
+    assert foot.settle_perle(None, 1, 1) is None

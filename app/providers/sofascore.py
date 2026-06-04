@@ -495,6 +495,26 @@ class SofaScoreProvider:
             statistics={k: _round_pct(v) if isinstance(v, float) else v for k, v in st.items()},
         )
 
+    async def get_team_recent_goals(self, team_id: int, n: int = 12):
+        """(buts marqués, buts encaissés, nb matchs) d'une équipe sur ses `n` derniers matchs
+        TERMINÉS, toutes compétitions — base du modèle de buts par forme. None si rien d'exploitable.
+        Cache stale-while-revalidate du provider (la forme bouge lentement)."""
+        data = await self._get(f"/team/{team_id}/events/last/0")
+        evs = [e for e in (data or {}).get("events", [])
+               if (e.get("status") or {}).get("type") == "finished"
+               and (e.get("homeScore") or {}).get("current") is not None
+               and (e.get("awayScore") or {}).get("current") is not None]
+        evs.sort(key=lambda e: e.get("startTimestamp") or 0, reverse=True)
+        gf = ga = cnt = 0
+        for e in evs[:n]:
+            hs = (e.get("homeScore") or {}).get("current")
+            as_ = (e.get("awayScore") or {}).get("current")
+            at_home = (e.get("homeTeam") or {}).get("id") == team_id
+            gf += hs if at_home else as_
+            ga += as_ if at_home else hs
+            cnt += 1
+        return (gf, ga, cnt) if cnt else None
+
     async def get_standings(self, tournament_id: int, season_id: int) -> Standings:
         """Classement d'une compétition (foot : pts/V/N/D ; basket : V/D)."""
         data = await self._get(

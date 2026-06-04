@@ -148,14 +148,46 @@ PERLE_MIN_ODDS = 1.50      # « confiance » ≠ pari à 1.1 -> on exige une cot
 PERLE_MIN_EDGE = 0.04      # value minimale (modèle > marché dévig)
 
 
-def _grid(elo_home: float, elo_away: float, neutral: bool = False, kmax: int = 8) -> list:
-    """Loi jointe P(buts_dom=i, buts_ext=j) (double Poisson), normalisée."""
-    lh, la = _lambdas(elo_home, elo_away, neutral)
+# --- buts attendus par FORME RÉELLE (attaque/défense des derniers matchs) -----------------
+# C'est ce qui rend les marchés totaux/BTTS porteurs d'un vrai signal par équipe (l'Elo seul
+# ne donne qu'une base de buts générique). Régularisé vers la moyenne ligue (petits échantillons
+# + force de calendrier), borné contre les aberrations.
+LEAGUE_GPG = 1.35          # buts/équipe/match de référence
+FORM_SHRINK = 6            # nb de matchs « fictifs » à la moyenne (régularisation)
+GOALS_HOME_BASE = 1.45     # buts attendus à domicile (équipes de force moyenne)
+GOALS_AWAY_BASE = 1.15     # ... à l'extérieur
+GOALS_NEUTRAL_BASE = 1.30  # ... terrain neutre
+
+
+def _team_strength(gf: int, ga: int, n: int) -> tuple[float, float]:
+    """(attaque, défense) ~1.0 = moyenne ; >1 attaque = marque plus, >1 défense = encaisse plus."""
+    att = (gf + FORM_SHRINK * LEAGUE_GPG) / (n + FORM_SHRINK) / LEAGUE_GPG
+    deff = (ga + FORM_SHRINK * LEAGUE_GPG) / (n + FORM_SHRINK) / LEAGUE_GPG
+    clamp = lambda x: min(max(x, 0.55), 1.75)
+    return clamp(att), clamp(deff)
+
+
+def _lambdas_form(sh: tuple, sa: tuple, neutral: bool = False) -> tuple[float, float]:
+    """Buts attendus (dom, ext) = base ligue × attaque d'un camp × défense de l'autre."""
+    (ah, dh), (aa, da) = sh, sa
+    bh = GOALS_NEUTRAL_BASE if neutral else GOALS_HOME_BASE
+    ba = GOALS_NEUTRAL_BASE if neutral else GOALS_AWAY_BASE
+    return max(0.15, bh * ah * da), max(0.15, ba * aa * dh)
+
+
+def _grid_l(lh: float, la: float, kmax: int = 8) -> list:
+    """Loi jointe P(buts_dom=i, buts_ext=j) (double Poisson) à partir des lambdas, normalisée."""
     ph = [_pois(i, lh) for i in range(kmax + 1)]
     pa = [_pois(j, la) for j in range(kmax + 1)]
     g = [[ph[i] * pa[j] for j in range(kmax + 1)] for i in range(kmax + 1)]
     tot = sum(sum(r) for r in g) or 1.0
     return [[v / tot for v in r] for r in g]
+
+
+def _grid(elo_home: float, elo_away: float, neutral: bool = False, kmax: int = 8) -> list:
+    """Grille depuis l'Elo (repli quand la forme buts n'est pas disponible)."""
+    lh, la = _lambdas(elo_home, elo_away, neutral)
+    return _grid_l(lh, la, kmax)
 
 
 def _p_1x2(grid):
@@ -185,6 +217,8 @@ _NOT_FULLTIME = (
     "extra time", "exact", "handicap", "+/-", "pair", "impair", "odd/even",
     # combinés (résultat & autre marché) : non standard, issues incohérentes avec notre modèle
     " and ", "&", " or ", " win and", "to win", " et ",
+    # totaux PAR ÉQUIPE (« buts par Irak ») : notre grille price le total du MATCH, pas d'un camp
+    " par ", " by ",
 )
 
 
@@ -193,14 +227,16 @@ def _market_kind(m) -> str | None:
     lbl = f"{m.label or ''} {m.type or ''}".lower()
     if any(k in lbl for k in _NOT_FULLTIME):
         return None
-    if "résultat du match" in lbl or "résultat final" in lbl or "1x2" in lbl:
+    if ("résultat du match" in lbl or "résultat final" in lbl or "1x2" in lbl
+            or "full time result" in lbl or "match result" in lbl or "match odds" in lbl):
         return "1x2"
     if ("deux" in lbl and "marqu" in lbl) or ("both" in lbl and "score" in lbl):
         return "btts"
     # NB : la double chance est volontairement écartée — issues non mutuellement exclusives
     # (somme = 2.0) et trop sensible à la sous-estimation des nuls par le double Poisson.
-    if "but" in lbl and ("plus de" in lbl or "moins de" in lbl or "total" in lbl
-                         or "over" in lbl or "under" in lbl):
+    if (("but" in lbl or "goal" in lbl)
+            and ("plus de" in lbl or "moins de" in lbl or "total" in lbl
+                 or "over" in lbl or "under" in lbl)):
         return "ou"
     return None
 
@@ -258,13 +294,19 @@ def _price_market(m, grid):
     return []
 
 
-def best_bet(elo_home, elo_away, neutral, markets) -> dict | None:
+def best_bet(elo_home, elo_away, neutral, markets, lambdas=None) -> dict | None:
     """La « perle rare » : parmi les marchés évaluables, le pari au meilleur équilibre
     confiance × value (proba modèle ≥ seuil, cote ≥ 1.5, value ≥ seuil).
+    `lambdas=(lh, la)` (buts attendus par FORME réelle) prime sur l'Elo quand disponible.
     Le dict renvoyé porte kind/side/line -> réglable automatiquement depuis le score final."""
-    if elo_home is None or elo_away is None or not markets:
+    if not markets:
         return None
-    grid = _grid(elo_home, elo_away, neutral)
+    if lambdas is not None:
+        grid = _grid_l(lambdas[0], lambdas[1])
+    elif elo_home is not None and elo_away is not None:
+        grid = _grid(elo_home, elo_away, neutral)
+    else:
+        return None
     cands = []
     for m in markets:
         priced = _price_market(m, grid)
@@ -610,7 +652,7 @@ async def _resolve_sofa_ids(rows: list[dict]) -> None:
         return
     days = sorted({datetime.fromtimestamp(r["start"], tz=timezone.utc).date().isoformat()
                    for r in rows if r.get("start")})
-    index = []   # (home_tokens, away_tokens, date_iso, sofa_id)
+    index = []   # (home_tokens, away_tokens, date_iso, sofa_id, home_tid, away_tid)
     async with httpx.AsyncClient(headers=SOFA_H) as c:
         for day in days:
             data = await _get(c, SOFA_B, f"/sport/football/scheduled-events/{day}")
@@ -619,16 +661,19 @@ async def _resolve_sofa_ids(rows: list[dict]) -> None:
                 d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat() if ts else None
                 index.append((name_tokens((ev.get("homeTeam") or {}).get("name", "")),
                               name_tokens((ev.get("awayTeam") or {}).get("name", "")),
-                              d, ev.get("id")))
+                              d, ev.get("id"),
+                              (ev.get("homeTeam") or {}).get("id"),
+                              (ev.get("awayTeam") or {}).get("id")))
     for r in rows:
         rd = datetime.fromtimestamp(r["start"], tz=timezone.utc).date().isoformat() if r.get("start") else None
         rh, ra = name_tokens(r.get("home_en") or r["home"]), name_tokens(r.get("away_en") or r["away"])
-        for ht, at, d, sid in index:
+        for ht, at, d, sid, htid, atid in index:
             if names_match(rh, ht) and names_match(ra, at) and (d is None or rd is None or d == rd):
                 # id SofaScore stocké À PART (r['id'] reste l'id Unibet, clé de store STABLE ->
                 # pas de doublon quand SofaScore passe de bloqué à résolu entre deux runs).
                 r["sofa_id"] = sid
                 r["sofa_ok"] = True
+                r["home_tid"], r["away_tid"] = htid, atid   # ids équipes -> forme buts
                 break
 
 
@@ -939,15 +984,32 @@ async def _attach_perles(rows: list[dict]) -> None:
     from app.providers.unibet import _market
     targets = [g for g in rows if g.get("status") == "notstarted"
                and g.get("eh") is not None and g.get("ea") is not None]
+    prov = get_provider()
     sem = asyncio.Semaphore(6)
+
+    async def _form(tid):
+        """(attaque, défense) d'une équipe via sa forme buts SofaScore, sinon None."""
+        if not tid:
+            return None
+        try:
+            g = await prov.get_team_recent_goals(tid)
+            return _team_strength(*g) if g else None
+        except Exception:
+            return None
 
     async def one(client, g):
         async with sem:
+            # buts attendus par FORME réelle des 2 équipes (sinon repli Elo dans best_bet)
+            lambdas = None
+            sh, sa = await _form(g.get("home_tid")), await _form(g.get("away_tid"))
+            if sh and sa:
+                lambdas = _lambdas_form(sh, sa, g.get("neutral", False))
             try:
-                data = await _get(client, UNIBET_B, f"/betoffer/event/{g['id']}.json")
+                data = await _get(client, UNIBET_B, f"/betoffer/event/{g['id']}.json",
+                                  UNIBET_PARAMS)   # libellés FR -> détection des marchés
                 offers = (data or {}).get("betOffers") or []
                 g["perle"] = best_bet(g["eh"], g["ea"], g.get("neutral", False),
-                                      [_market(bo) for bo in offers])
+                                      [_market(bo) for bo in offers], lambdas=lambdas)
             except Exception:
                 pass
 
