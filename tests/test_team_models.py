@@ -200,6 +200,30 @@ def test_foot_halftime_model_and_settle():
     assert foot.settle_perle(p_htft, 1, 2, h1_home=0, h1_away=0) is False
 
 
+def test_foot_corner_card_markets():
+    """Marchés CORNERS & CARTONS : modèle dédié (forme corners/cartons) + règlement sur stats réelles."""
+    from app.providers.unibet import UnibetMarket, UnibetOutcome
+    cfh = {"n": 30, "cf": 6.5, "ca": 3.5, "yf": 2.0, "ya": 2.0}
+    cfa = {"n": 30, "cf": 3.5, "ca": 6.0, "yf": 2.0, "ya": 2.0}
+    assert foot._corner_lambdas(cfh, cfa)[0] > foot._corner_lambdas(cfh, cfa)[1]   # dom + de corners
+    # perle « corners par équipe » quand la cote est généreuse ET la forme connue
+    cfh2 = {"n": 30, "cf": 4.5, "ca": 4.0, "yf": 2.0, "ya": 2.0}
+    cfa2 = {"n": 30, "cf": 4.0, "ca": 4.5, "yf": 2.0, "ya": 2.0}
+    mk = [UnibetMarket(label="Nombre total de corners par Real", type="", outcomes=[
+              UnibetOutcome(label="Plus de", odds=1.80, line=3.5),
+              UnibetOutcome(label="Moins de", odds=2.00, line=3.5)])]
+    bb = foot.best_bet(1700, 1500, False, mk, home="Real", away="Getafe", corner_form=(cfh2, cfa2))
+    assert bb is not None and bb["kind"] == "c_team"
+    assert foot.best_bet(1700, 1500, False, mk, home="Real", away="Getafe") is None   # sans forme
+    # règlement sur les stats réelles du match (corners 6-3, cartons 2-3)
+    ms = {"corners_h": 6, "corners_a": 3, "cards_h": 2, "cards_a": 3}
+    assert foot.settle_perle({"kind": "c_ou", "side": "over", "line": 9.5}, 1, 0, match_stats=ms) is False
+    assert foot.settle_perle({"kind": "c_team", "side": "over", "line": 4.5, "team": "home"}, 1, 0, match_stats=ms) is True
+    assert foot.settle_perle({"kind": "c_1x2", "side": "1"}, 1, 0, match_stats=ms) is True
+    assert foot.settle_perle({"kind": "k_ou", "side": "over", "line": 3.5}, 1, 0, match_stats=ms) is True
+    assert foot.settle_perle({"kind": "c_ou", "side": "over", "line": 9.5}, 1, 0) is None   # pas de stats
+
+
 def test_foot_team_goals_markets():
     """Le moteur évalue les marchés PAR ÉQUIPE (totaux d'un camp, but / pas de but)."""
     from app.providers.unibet import UnibetMarket, UnibetOutcome

@@ -58,6 +58,7 @@ VALUE_THRESHOLD = 0.05
 MIN_IMPLIED, MAX_IMPLIED = 0.12, 0.80
 MAX_DISAGREEMENT = 0.15    # si le modèle dépasse le marché de +15 pts, c'est le modèle
                            # (Elo jeune) qui a tort -> pas de value (garde-fou comme le tennis)
+ANNEX_DISAGREEMENT = 0.25  # garde-fou plus souple pour les marchés annexes (mi-temps, corners/cartons)
 
 SOFA_B = "https://api.sofascore.com/api/v1"
 SOFA_H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
@@ -263,6 +264,80 @@ def _market_period(m) -> str | None:
     return None
 
 
+# --- corners & cartons : même Poisson que les buts, sur la FORME corners/cartons par équipe
+# (moyennes pour/contre de la compétition). Modèle annexe -> toujours sous garde-fou.
+CORNER_HOME_ADV = 0.3      # léger surplus de corners à domicile
+_CARD_KMAX = 13
+_CORNER_KMAX = 24
+
+
+def _corner_lambdas(fh: dict, fa: dict) -> tuple[float, float]:
+    """Corners attendus (dom, ext) = moyenne(corners obtenus d'un camp, corners concédés de l'autre)."""
+    lh = (fh["cf"] + fa["ca"]) / 2 + CORNER_HOME_ADV
+    la = (fa["cf"] + fh["ca"]) / 2 - CORNER_HOME_ADV
+    return max(0.5, lh), max(0.5, la)
+
+
+def _card_lambdas(fh: dict, fa: dict) -> tuple[float, float]:
+    """Cartons attendus (dom, ext) = moyenne(cartons pris d'un camp, provoqués par l'autre)."""
+    return max(0.2, (fh["yf"] + fa["ya"]) / 2), max(0.2, (fa["yf"] + fh["ya"]) / 2)
+
+
+def _market_family(m) -> str:
+    """'corner' / 'card' / 'goal' selon le libellé."""
+    lbl = f"{m.label or ''} {m.type or ''}".lower()
+    if "corner" in lbl:
+        return "corner"
+    if "carton" in lbl or "card" in lbl:
+        return "card"
+    return "goal"
+
+
+def _price_special(m, grid, fam: str, home: str, away: str) -> list:
+    """Price un marché CORNERS ou CARTONS sur sa grille dédiée (total / par équipe / plus grand
+    nombre). kinds 'c_*' (corners) ou 'k_*' (cartons) -> réglés depuis les stats réelles du match."""
+    lbl = f"{m.label or ''} {m.type or ''}".lower()
+    outs = [o for o in (m.outcomes or []) if o.odds]
+    if len(outs) < 2:
+        return []
+    pre = "c" if fam == "corner" else "k"
+    unit = "corners" if fam == "corner" else "cartons"
+    # « plus grand nombre de corners » : 1X2 sur le décompte (dom/égalité/ext)
+    if ("plus grand" in lbl or "le plus" in lbl or "most" in lbl) and len(outs) == 3:
+        p1, px, p2 = _p_1x2(grid)
+        probs, alias = {"1": p1, "x": px, "2": p2}, {"home": "1", "draw": "x", "away": "2"}
+        names = {"1": home or "1", "x": "Égalité", "2": away or "2"}
+        res = []
+        for o in outs:
+            key = (o.label or "").strip().lower()
+            side = key if key in probs else alias.get(key)
+            if side in probs:
+                res.append({"sel": f"{names[side]} ({unit})", "mp": probs[side], "odds": o.odds,
+                            "kind": f"{pre}_1x2", "side": side})
+        return res if len(res) == 3 else []
+    # par équipe (« corners par X »)
+    team = _team_side(m.label or "", home, away)
+    if team is not None and len(outs) == 2:
+        line = next((o.line for o in outs if o.line is not None), None)
+        if line is None:
+            return []
+        over = _p_team_over(grid, team, line)
+        name = home if team == "home" else away
+        return [{"sel": f'{name} : {"plus" if _is_over(o.label) else "moins"} de {line:g} {unit}',
+                 "mp": over if _is_over(o.label) else 1 - over, "odds": o.odds,
+                 "kind": f"{pre}_team", "side": "over" if _is_over(o.label) else "under",
+                 "line": line, "team": team} for o in outs]
+    # total du match
+    line = next((o.line for o in outs if o.line is not None), None)
+    if line is None or len(outs) != 2:
+        return []
+    over = _p_over(grid, line)
+    return [{"sel": f'{"Plus" if _is_over(o.label) else "Moins"} de {line:g} {unit}',
+             "mp": over if _is_over(o.label) else 1 - over, "odds": o.odds,
+             "kind": f"{pre}_ou", "side": "over" if _is_over(o.label) else "under",
+             "line": line} for o in outs]
+
+
 def _p_htft(grid_h1: list, grid_h2: list) -> dict:
     """Loi jointe (résultat à la PAUSE, résultat FINAL) -> {('1','1'): p, …} sur les 9 combinaisons.
     MT1 et MT2 supposées indépendantes ; score final = MT1 + MT2."""
@@ -283,9 +358,11 @@ def _p_htft(grid_h1: list, grid_h2: list) -> dict:
 # combinés « résultat & autre marché ». Notre modèle price le plein-temps -> tout le reste fausse.
 # NB : les marqueurs de mi-temps NE sont PLUS ici (on price les mi-temps, cf. _market_period).
 # Restent exclus : segments courts (quart/minute/15min), corners/cartons/tirs, joueurs, combinés.
+# NB : corners/cartons NE sont plus exclus (modèle dédié, cf. _price_special) — mais restent
+# exclus : segments courts, tirs/hors-jeu/penalties, joueurs, combinés, prolongation.
 _NOT_FULLTIME = (
     "quart", "quarter", "minute", "15 min", "intervalle", "10 min",
-    "corner", "carton", "card", "buteur", "joueur", "player", "scorer", "tir", "shot",
+    "buteur", "joueur", "player", "scorer", "tir", "shot", "frappe",
     "hors-jeu", "offside", "penalt", "poteau", "prolongation", "extra time",
     " and ", "&", " or ", " win and", "to win", " et ",
     "avance", "ahead",   # « Temps réglementaire - 2 buts d'avance » ≠ résultat 1X2
@@ -490,11 +567,12 @@ def _price_market_raw(m, grid, home: str = "", away: str = "") -> list:
 
 
 def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
-             home: str = "", away: str = "") -> dict | None:
+             home: str = "", away: str = "", corner_form=None, card_form=None) -> dict | None:
     """La « perle rare » : parmi TOUS les marchés Unibet plein-temps évaluables (résultat, totaux
-    du match ET par équipe, BTTS, double chance, pair/impair, score/ nombre exact), le pari au
-    meilleur équilibre confiance × value (proba `fair` ≥ seuil, cote ≥ 1.5, value ≥ seuil).
-    `lambdas=(lh, la)` (buts attendus par FORME réelle) prime sur l'Elo quand disponible."""
+    du match ET par équipe, BTTS, double chance, pair/impair, score/nombre exact, mi-temps, ET
+    corners/cartons quand la forme est dispo), le pari au meilleur équilibre confiance × value.
+    `lambdas=(lh, la)` (buts par FORME) prime sur l'Elo ; `corner_form`/`card_form` = (forme_dom,
+    forme_ext) pour les marchés corners/cartons."""
     if not markets:
         return None
     if lambdas is not None:
@@ -506,10 +584,22 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
     grid = _grid_l(lh, la)                                   # plein-temps
     grids = {"h1": _grid_half(lh, la, HALF1_SHARE),          # mi-temps (modèle approximatif)
              "h2": _grid_half(lh, la, 1 - HALF1_SHARE)}
+    # grilles corners/cartons (si la forme des 2 équipes est connue)
+    cgrid = kgrid = None
+    if corner_form and all(corner_form):
+        cgrid = _grid_l(*_corner_lambdas(*corner_form), kmax=_CORNER_KMAX)
+        kgrid = _grid_l(*_card_lambdas(*corner_form), kmax=_CARD_KMAX)
     cands = []
     for m in markets:
         period = _market_period(m)
-        if _market_kind(m, home, away) == "htft":
+        fam = _market_family(m)
+        lblf = f"{m.label or ''} {m.type or ''}".lower()
+        excluded = any(x in lblf for x in _NOT_FULLTIME)
+        if fam in ("corner", "card") and not excluded and period is None and cgrid is not None:
+            priced = _price_special(m, cgrid if fam == "corner" else kgrid, fam, home, away)
+        elif fam in ("corner", "card"):
+            continue                                          # pas de forme corners/cartons -> on s'abstient
+        elif _market_kind(m, home, away) == "htft":
             priced = _price_htft(m, grids["h1"], grids["h2"])
         else:
             priced = _price_market(m, grids.get(period, grid), home, away, period=period)
@@ -521,10 +611,13 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
         for c, iv in zip(priced, inv):
             # dévig sur la MÊME base que le modèle (gère DC ~2 et marchés non exhaustifs)
             implied = iv / s * msum
-            # marché de RÉSULTAT/marge OU de MI-TEMPS (modèle approximatif) : si le modèle s'écarte
-            # trop du marché (efficient), c'est le modèle qui a tort -> on s'aligne (pas de faux edge).
-            guarded = c["kind"] in _RESULT_KINDS or c.get("period") or c["kind"] == "htft"
-            if guarded and abs(c["mp"] - implied) > MAX_DISAGREEMENT:
+            # garde-fou : si le modèle s'écarte trop du marché, c'est lui qui a tort -> on s'aligne.
+            # Strict sur le RÉSULTAT (marché très efficient) ; plus souple sur les modèles ANNEXES
+            # (mi-temps, corners/cartons : marchés moins efficients, mais modèle plus approximatif).
+            annex = c.get("period") or c["kind"] == "htft" or c["kind"][:2] in ("c_", "k_")
+            if c["kind"] in _RESULT_KINDS and abs(c["mp"] - implied) > MAX_DISAGREEMENT:
+                continue
+            if annex and abs(c["mp"] - implied) > ANNEX_DISAGREEMENT:
                 continue
             # on ne compare jamais la proba brute du modèle au marché : on mélange (MODEL_TRUST)
             fair = MODEL_TRUST * c["mp"] + (1 - MODEL_TRUST) * implied
@@ -560,12 +653,29 @@ def _sign(a, b):
 
 
 def settle_perle(perle: dict, home_score: int, away_score: int,
-                 h1_home: int | None = None, h1_away: int | None = None):
+                 h1_home: int | None = None, h1_away: int | None = None,
+                 match_stats: dict | None = None):
     """Gagné/perdu/None d'une perle d'après le score final (+ score à la pause pour les marchés
-    mi-temps). Couvre tous les types priçables, plein-temps comme mi-temps."""
+    mi-temps, + stats corners/cartons du match). Couvre tous les types priçables."""
     if not perle or home_score is None or away_score is None:
         return None
     kind = perle.get("kind")
+    # corners / cartons : réglés sur les stats RÉELLES du match
+    if kind[:2] in ("c_", "k_"):
+        if not match_stats:
+            return None
+        hk = "corners_h" if kind[0] == "c" else "cards_h"
+        ak = "corners_a" if kind[0] == "c" else "cards_a"
+        h, a = match_stats.get(hk), match_stats.get(ak)
+        if h is None or a is None:
+            return None
+        side, line = perle.get("side"), perle.get("line")
+        if kind.endswith("_1x2"):
+            return side == _sign(h, a)
+        if kind.endswith("_team"):
+            g = h if perle.get("team") == "home" else a
+            return g > line if side == "over" else g < line
+        return (h + a) > line if side == "over" else (h + a) < line   # _ou (total)
     # mi-temps / fin de match : double résultat (pause, final)
     if kind == "htft":
         ht = perle.get("htft")
@@ -1261,6 +1371,15 @@ async def _attach_perles(rows: list[dict]) -> None:
         except Exception:
             return None
 
+    async def _cform(tid):
+        """Forme corners/cartons d'une équipe (stats agrégées), sinon None."""
+        if not tid:
+            return None
+        try:
+            return await prov.get_team_corner_card_form(tid)
+        except Exception:
+            return None
+
     async def one(client, g):
         async with sem:
             # buts attendus par FORME réelle des 2 équipes (sinon repli Elo dans best_bet)
@@ -1271,12 +1390,19 @@ async def _attach_perles(rows: list[dict]) -> None:
             try:
                 data = await _get(client, UNIBET_B, f"/betoffer/event/{g['id']}.json",
                                   UNIBET_PARAMS)   # libellés FR -> détection des marchés
-                offers = (data or {}).get("betOffers") or []
-                g["perle"] = best_bet(g["eh"], g["ea"], g.get("neutral", False),
-                                      [_market(bo) for bo in offers], lambdas=lambdas,
-                                      home=g.get("home", ""), away=g.get("away", ""))
+                offers = [_market(bo) for bo in ((data or {}).get("betOffers") or [])]
             except Exception:
-                pass
+                return
+            # forme corners/cartons : UNIQUEMENT si Unibet propose des marchés corners/cartons pour
+            # ce match (évite de marteler SofaScore pour des petites équipes sans ces marchés).
+            corner_form = None
+            if any(_market_family(m) in ("corner", "card") and _market_period(m) is None
+                   for m in offers):
+                cfh, cfa = await _cform(g.get("home_tid")), await _cform(g.get("away_tid"))
+                corner_form = (cfh, cfa) if (cfh and cfa) else None
+            g["perle"] = best_bet(g["eh"], g["ea"], g.get("neutral", False), offers,
+                                  lambdas=lambdas, home=g.get("home", ""),
+                                  away=g.get("away", ""), corner_form=corner_form)
 
     async with httpx.AsyncClient(headers=UNIBET_H) as client:
         await asyncio.gather(*(one(client, g) for g in targets))
@@ -1306,11 +1432,17 @@ async def run_settle() -> int:
                 if pk and pk.get("odds"):
                     won = _CODE_TO_WINNER.get(pk["code"]) == winner
                     pnl = (pk["odds"] - 1) if won else -1.0
-                # règlement de la perle (tous marchés : résultat, buts, par équipe, mi-temps…)
+                # règlement de la perle (résultat, buts, par équipe, mi-temps, corners/cartons…)
                 perle_pnl = None
                 perle = rec.get("perle")
                 if perle and perle.get("odds") and hs is not None and as_ is not None:
-                    pw = settle_perle(perle, hs, as_, h1h, h1a)
+                    mstats = None
+                    if (perle.get("kind") or "")[:2] in ("c_", "k_"):   # corners/cartons -> stats du match
+                        try:
+                            mstats = await get_provider().get_event_team_stats(rec["match_id"])
+                        except Exception:
+                            mstats = None
+                    pw = settle_perle(perle, hs, as_, h1h, h1a, mstats)
                     if pw is not None:
                         perle_pnl = (perle["odds"] - 1) if pw else -1.0
                 rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl,

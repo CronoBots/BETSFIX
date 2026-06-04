@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -494,6 +495,55 @@ class SofaScoreProvider:
             matches=st.get("matches") or st.get("appearances"),
             statistics={k: _round_pct(v) if isinstance(v, float) else v for k, v in st.items()},
         )
+
+    async def get_team_corner_card_form(self, team_id: int):
+        """Forme CORNERS & CARTONS d'une équipe (moyennes/match : pour et contre), via les stats
+        agrégées de sa compétition principale — 1 à 3 appels TRÈS cachables (le tournoi/la saison
+        bougent rarement). None si pas de compétition/saison/stats (ex. équipe en amical pur)."""
+        t = await self._get(f"/team/{team_id}")
+        put = ((t or {}).get("team") or {}).get("primaryUniqueTournament") or {}
+        tid = put.get("id")
+        if not tid:
+            return None
+        sid = await self.get_current_season_id(tid)
+        if not sid:
+            return None
+        st = await self._get(
+            f"/team/{team_id}/unique-tournament/{tid}/season/{sid}/statistics/overall")
+        s = (st or {}).get("statistics") or {}
+        m = s.get("matches") or s.get("appearances") or 0
+        # Données fiables exigées : corners POUR **et** CONTRE présents et ≥ ~5 matchs. Beaucoup de
+        # compétitions de sélections n'ont que des stats partielles (cornersAgainst=0) -> on s'abstient
+        # plutôt que de modéliser sur une donnée fausse.
+        if m < 5 or not s.get("corners") or not s.get("cornersAgainst"):
+            return None
+        g = lambda k: (s.get(k) or 0) / m
+        return {"n": m,
+                "cf": g("corners"), "ca": g("cornersAgainst"),
+                "yf": g("yellowCards") + g("redCards"),
+                "ya": g("yellowCardsAgainst") + g("redCardsAgainst")}
+
+    async def get_event_team_stats(self, event_id: int):
+        """Corners & cartons RÉELS d'un match terminé (pour le règlement). None si indisponible."""
+        st = await self._get(f"/event/{event_id}/statistics")
+        out = {}
+        for grp in (st or {}).get("statistics", []) or []:
+            if grp.get("period") != "ALL":
+                continue
+            for sub in grp.get("groups", []) or []:
+                for it in sub.get("statisticsItems", []) or []:
+                    nm = (it.get("name") or "").lower()
+                    if "corner" in nm:
+                        out["corners_h"], out["corners_a"] = _num(it.get("home")), _num(it.get("away"))
+                    elif nm == "yellow cards" or nm == "cartons jaunes":
+                        out["yc_h"], out["yc_a"] = _num(it.get("home")), _num(it.get("away"))
+                    elif nm == "red cards" or nm == "cartons rouges":
+                        out["rc_h"], out["rc_a"] = _num(it.get("home")), _num(it.get("away"))
+        if "corners_h" not in out and "yc_h" not in out:
+            return None
+        out["cards_h"] = (out.get("yc_h") or 0) + (out.get("rc_h") or 0)
+        out["cards_a"] = (out.get("yc_a") or 0) + (out.get("rc_a") or 0)
+        return out
 
     async def get_team_recent_goals(self, team_id: int, n: int = 12):
         """(buts marqués, buts encaissés, nb matchs) d'une équipe sur ses `n` derniers matchs
@@ -989,8 +1039,13 @@ def _home_side(is_home) -> str | None:
 
 
 def _num(value) -> float | None:
-    """Convertit une valeur numérique SofaScore (int/float) en float, sinon None."""
-    return float(value) if isinstance(value, (int, float)) else None
+    """Convertit une valeur numérique SofaScore (int/float, ou chaîne « 5 »/« 5 (3) ») en float."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        mm = re.match(r"\s*(\d+(?:\.\d+)?)", value)
+        return float(mm.group(1)) if mm else None
+    return None
 
 
 def _tour_of(ev: dict) -> str:
