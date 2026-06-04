@@ -416,9 +416,14 @@ CSS = """
   .sb{margin:8px 0}
   .sb-l{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
         color:var(--muted);margin-bottom:3px}
-  .sb-bar{display:flex;gap:2px;height:22px;border-radius:7px;overflow:hidden;background:var(--surface)}
-  .sb-bar .seg{display:flex;align-items:center;justify-content:center;color:#fff;
-        font-size:11.5px;font-weight:800;min-width:0;overflow:hidden;white-space:nowrap}
+  .sb-bar{display:flex;gap:3px;height:25px}
+  .sb-bar .seg{display:flex;align-items:center;justify-content:center;color:#fff;border-radius:7px;
+        font-size:12.5px;font-weight:800;min-width:0;overflow:hidden;white-space:nowrap;
+        text-shadow:0 1px 1px rgba(0,0,0,.28)}
+  /* Favori (couleur de la source) : pilule mise en valeur (reflet en haut + légère ombre) */
+  .seg.pm,.seg.po,.seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
+  /* Non-favori : % légèrement atténué + un poil plus petit */
+  .seg.pba,.seg.pbd{color:rgba(255,255,255,.74);font-size:11px;font-weight:700}
   .ptab2{margin:8px 0 2px}
   .pt2-h{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center;
          padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
