@@ -295,6 +295,7 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
             if len(vt) > 2 and vt[2] is not None:   # vote du nul (foot 1X2)
                 split["pub_draw"] = vt[2] / 100
         base = {"sport": sport, "icon": icon, "home": r["home"], "away": r["away"],
+                "league": r.get("league"),   # ligue (WNBA/NBA) -> affichée à côté du sport
                 "match_id": r.get("id"), "url": match_url, "female": r.get("female"),
                 "live": r.get("status") == "inprogress", "odds_cells": odds_cells,
                 "home_flag": hflag, "away_flag": aflag,

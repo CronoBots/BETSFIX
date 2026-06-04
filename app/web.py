@@ -394,7 +394,7 @@ CSS = """
   /* badge décompte (timer avant le coup d'envoi), en haut à droite de la carte.
      Texte BLANC, unités jour/heure/minute bien distinctes. */
   .rt-r{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
-  .cd{display:inline-block;padding:2px 7px;border-radius:20px;font-size:9.5px;font-weight:800;
+  .cd{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:9.5px;font-weight:800;line-height:1;
       font-variant-numeric:tabular-nums;letter-spacing:.02em;background:rgba(255,255,255,.10);
       color:#fff;border:1px solid rgba(255,255,255,.20);white-space:nowrap}
   .cd .u{color:rgba(255,255,255,.55);font-weight:700;margin:0 1px 0 1px}
@@ -1111,7 +1111,8 @@ def _pick_card(p: dict, badge: str) -> str:
     # « perle rare » : le pari à jouer (meilleur équilibre confiance×value parmi TOUS les
     # marchés Unibet), mis en avant au-dessus des barres de contexte.
     # Le « pari à jouer » (perle + barre de confiance) va SOUS les cotes — différencié conf/value.
-    inner = (f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
+    sport_lbl = e(p["sport"]) + (f' · {e(p["league"])}' if p.get("league") else "")
+    inner = (f'<div class="rowtop"><span>{p["icon"]} {sport_lbl}{fem} · {e(p.get("time") or "")}</span>'
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
              f'<span class="dim">vs</span> {e(p.get("away") or "")}{af}</div>{bdg}</div>'
