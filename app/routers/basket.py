@@ -131,19 +131,24 @@ async def basket_match(event_id: int, frag: int = 0,
                     f'points</b> d\'écart en moyenne. <span class="dim">Utile pour les paris sur '
                     f'l\'écart (handicap).</span></div>')
     # NB : marchés Unibet UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
-    # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
+    # 📈 Forme récente FUSIONNÉE (note + 5 derniers détaillés) + 📊 Classement (SofaScore, best-effort)
+    form_html = ""
+    fh = forms[0][2] if forms else None
+    fa = forms[1][2] if forms else None
     try:
         from app.routers.foot import team_context
-        context += await team_context(event_id, home, away, unit="points")
+        form_html, standings = await team_context(event_id, home, away, unit="points",
+                                                   tf_home=fh, tf_away=fa)
+        context += standings
     except Exception:
         pass
     ctx = {"home": home or "Match", "away": away, "home_flag": "", "away_flag": "",
            "comp": comp, "when": when, "prediction": prediction, "odds_cells": odds_cells,
-           "forms": forms, "h2h": h2h, "back_url": "/basket",
+           "forms": forms, "h2h": h2h, "back_url": "/basket", "form_html": form_html,
            "analysis": analysis_html, "factors_html": factors_html, "recos": recos, "extra": context,
            "back_label": "Basket", "sport_key": "basket"}
     html = web.render_sport_match_detail(ctx, frag=bool(frag))
-    if frag and (forms or h2h or analysis_html or factors_html or context):
+    if frag and (form_html or h2h or analysis_html or factors_html or context):
         fragcache.put(f"basket/{event_id}", html)
     return HTMLResponse(html)
 

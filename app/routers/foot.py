@@ -71,8 +71,12 @@ def _result_dot(wc_for_team: str) -> str:
     return f'<span class="dot {cls}">{ {"W":"V","L":"D","D":"N"}[wc_for_team] }</span>'
 
 
-async def team_context(event_id: int, home: str, away: str, unit: str = "buts") -> str:
-    """Classement (position/points) + 5 derniers résultats détaillés des 2 équipes (SofaScore).
+async def team_context(event_id: int, home: str, away: str, unit: str = "buts",
+                       tf_home: dict | None = None, tf_away: dict | None = None) -> tuple[str, str]:
+    """Renvoie (forme_html, classement_html) pour les 2 équipes (SofaScore).
+    `forme_html` = section « 📈 Forme récente » FUSIONNÉE : note + 5 derniers DÉTAILLÉS
+    (adversaire + score). `classement_html` = « 📊 Classement » (position/points/buts).
+    `tf_home/away` = TeamForm.model_dump() (pour la note et le repli en pastilles).
     Générique foot/basket (`unit` = buts/points). Best-effort + concurrent."""
     ev = await _sofa(f"/event/{event_id}")
     e = (ev or {}).get("event") or {}
@@ -81,7 +85,7 @@ async def team_context(event_id: int, home: str, away: str, unit: str = "buts") 
     ut = ((e.get("tournament") or {}).get("uniqueTournament") or {})
     tid, sid = ut.get("id"), (e.get("season") or {}).get("id")
     if not (hid and aid):
-        return ""
+        return "", ""
     standings_data, h_last, a_last = await asyncio.gather(
         _sofa(f"/unique-tournament/{tid}/season/{sid}/standings/total") if (tid and sid) else _noop(),
         _sofa(f"/team/{hid}/events/last/0"),
@@ -108,12 +112,15 @@ async def team_context(event_id: int, home: str, away: str, unit: str = "buts") 
         standings_html = ('<h2>📊 Classement</h2><div class="row">'
                           + line(home, hid) + line(away, aid) + '</div>')
 
-    # 5 derniers résultats détaillés (adversaire + score)
-    def last5(name, tid_, data):
+    # 📈 Forme récente FUSIONNÉE : note (forme pré-match) + 5 derniers DÉTAILLÉS (adversaire + score).
+    # Repli sur les pastilles compactes si SofaScore ne donne pas le détail des matchs.
+    def team_block(name, tid_, data, tf):
+        note = ""
+        if (tf or {}).get("avg_rating"):
+            note = (f' <span class="dim" style="font-weight:400;font-size:11px">· note '
+                    f'<b>{round(tf["avg_rating"], 2)}</b>/10</span>')
         evs = [x for x in (data or {}).get("events", []) or []
                if (x.get("status") or {}).get("type") == "finished" and x.get("winnerCode") in (1, 2, 3)][-5:][::-1]
-        if not evs:
-            return ""
         rows = []
         for x in evs:
             ht, at = x.get("homeTeam") or {}, x.get("awayTeam") or {}
@@ -126,14 +133,18 @@ async def team_context(event_id: int, home: str, away: str, unit: str = "buts") 
             sc = f'{hs}-{as_}' if is_home else f'{as_}-{hs}'
             rows.append(f'<div class="frow" style="padding:6px 0"><div class="ft">'
                         f'{_result_dot(res)}<span class="dim">{sc} vs {web.html.escape(opp)}</span></div></div>')
-        return f'<div class="players" style="font-size:14px;margin:8px 0 2px">{web.html.escape(name)}</div>' + "".join(rows)
-    last_inner = last5(home, hid, h_last) + last5(away, aid, a_last)
-    last_html = ""
-    if last_inner:
-        last_html = ('<h2>📅 5 derniers résultats <span class="dim" style="font-weight:400;'
-                     'font-size:11px">· 🟢 gagné · 🟡 nul · 🔴 perdu</span></h2>'
-                     f'<div class="row">{last_inner}</div>')
-    return standings_html + last_html
+        body = "".join(rows) or (web.form_dots((tf or {}).get("form")) if (tf or {}).get("form") else "")
+        if not body:
+            return ""
+        return (f'<div class="players" style="font-size:14px;margin:8px 0 2px">'
+                f'{web.html.escape(name)}{note}</div>{body}')
+    form_inner = team_block(home, hid, h_last, tf_home) + team_block(away, aid, a_last, tf_away)
+    form_html = ""
+    if form_inner:
+        form_html = ('<h2>📈 Forme récente <span class="dim" style="font-weight:400;'
+                     'font-size:11px">· 🟢 gagné · 🟡 nul · 🔴 perdu · récent → ancien</span></h2>'
+                     f'<div class="row">{form_inner}</div>')
+    return form_html, standings_html
 
 
 async def _noop():
@@ -255,18 +266,24 @@ async def foot_match(event_id: int, frag: int = 0,
             foot.analysis_factors(home, away, p_home=rec.get("p_home"), p_away=rec.get("p_away"),
                                   h2h=h2h, form_home=fh, form_away=fa))
     # NB : les marchés Unibet sont UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
-    # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
+    # 📈 Forme récente FUSIONNÉE (note + 5 derniers détaillés) + 📊 Classement (SofaScore, best-effort)
+    form_html = ""
+    fh = forms[0][2] if forms else None
+    fa = forms[1][2] if forms else None
     try:
-        context += await team_context(event_id, home, away, unit="buts")
+        form_html, standings = await team_context(event_id, home, away, unit="buts",
+                                                   tf_home=fh, tf_away=fa)
+        context += standings
     except Exception:
         pass
     ctx = {"home": home or "Match", "away": away, "home_flag": flags.flag(home),
            "away_flag": flags.flag(away), "comp": comp, "when": when,
-           "analysis": analysis_html, "factors_html": factors_html, "recos": recos, "extra": context,
+           "analysis": analysis_html, "factors_html": factors_html, "recos": recos,
+           "form_html": form_html, "extra": context,
            "prediction": prediction, "odds_cells": odds_cells, "forms": forms, "h2h": h2h,
            "back_url": "/foot", "back_label": "Foot", "sport_key": "foot"}
     html = web.render_sport_match_detail(ctx, frag=bool(frag))
-    if frag and (forms or h2h or analysis_html or factors_html or context):   # cache si contenu utile
+    if frag and (form_html or h2h or analysis_html or factors_html or context):   # cache si contenu utile
         fragcache.put(f"foot/{event_id}", html)
     return HTMLResponse(html)
 

@@ -1378,9 +1378,11 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     pred = _pick_bars(ctx["prediction"]) if ctx.get("prediction") else ""
     odds = odds_row(ctx["odds_cells"]) if ctx.get("odds_cells") else ""
 
+    # 📈 Forme récente : version DÉTAILLÉE fusionnée (note + 5 derniers avec adversaire/score)
+    # fournie par le routeur si dispo ; sinon repli sur les pastilles compactes (forme pré-match).
+    form_html = ctx.get("form_html") or ""
     forms = ctx.get("forms")
-    form_html = ""
-    if forms:
+    if not form_html and forms:
         form_html = ('<h2>📈 Forme récente <span class="dim" style="font-weight:400;font-size:11px">'
                      '· 5 derniers : 🟢 gagné · 🟡 nul · 🔴 perdu</span></h2>'
                      f'<div class="row">{_team_form_block(*forms[0])}'
