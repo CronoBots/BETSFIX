@@ -413,18 +413,15 @@ CSS = """
   .sb{margin:8px 0}
   .sb-l{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
         color:var(--muted);margin-bottom:3px}
-  .sb-bar{display:flex;gap:3px;height:27px}
+  .sb-bar{display:flex;gap:3px;height:25px}
   /* min-width -> le % reste LISIBLE même sur un petit segment (le favori se réduit un peu) */
-  .sb-bar .seg{display:flex;align-items:baseline;justify-content:center;gap:5px;color:#fff;
-        border-radius:7px;min-width:34px;overflow:hidden;white-space:nowrap;
+  .sb-bar .seg{display:flex;align-items:center;justify-content:center;color:#fff;border-radius:7px;
+        font-size:12.5px;font-weight:800;min-width:34px;overflow:hidden;white-space:nowrap;
         text-shadow:0 1px 1px rgba(0,0,0,.28)}
-  .seg b{font-size:12.5px;font-weight:800}
-  .seg i{font-size:11.5px;font-weight:800;font-style:normal;opacity:.92}
   /* Favori (couleur de la source) : pilule mise en valeur (reflet en haut + légère ombre) */
   .seg.pm,.seg.po,.seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
   /* Non-favori : % légèrement atténué + un poil plus petit */
-  .seg.pba,.seg.pbd{color:rgba(255,255,255,.74)}
-  .seg.pba b,.seg.pbd b{font-size:11px;font-weight:700}
+  .seg.pba,.seg.pbd{color:rgba(255,255,255,.74);font-size:11px;font-weight:700}
   .ptab2{margin:8px 0 2px}
   .pt2-h{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center;
          padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
@@ -875,59 +872,33 @@ def _pick_bars(p: dict) -> str:
     """TABLEAU « Chances de gagner » : sources en lignes (BETSFIX / Cote Unibet / Public),
     issues en colonnes (joueur 1 · [Nul] · joueur 2). On lit une colonne pour comparer les 3
     sources sur une issue ; le favori de chaque ligne est en gras."""
+    e = html.escape
     mh, ma = p.get("m_home"), p.get("m_away")
     if mh is None or ma is None:
         return _pick_bars_legacy(p)
     has_draw = p.get("m_draw") is not None
 
-    # Cotes Unibet RÉELLES alignées (home / [Nul] / away) -> ligne « Unibet » ; pour BETSFIX
-    # et Public on affiche la cote JUSTE implicite (1/proba). Comparer la cote juste BETSFIX
-    # à la cote Unibet montre d'un coup d'œil où se cache la value -> plus besoin d'une ligne
-    # de cotes séparée sous les barres.
-    oc = p.get("odds_cells") or []
-    def _oc(i):
-        return oc[i][1] if i < len(oc) and oc[i][1] else None
-    uni_c = [_oc(0), _oc(1), _oc(2)] if has_draw else [_oc(0), None, _oc(1)]
-
-    def _inv(v):
-        return round(1.0 / v, 2) if v else None
-
-    def _fmt(ct):
-        if ct is None:
-            return ""
-        try:
-            return f'@{float(ct):.2f}'
-        except (TypeError, ValueError):
-            return f'@{html.escape(str(ct))}'
-
-    def row(label, scol, h, d, a, cotes):
+    def row(label, scol, h, d, a):
         if h is None or a is None:
             return ""
         vals = [h, d, a] if has_draw else [h, a]
         mx = max(v for v in vals if v is not None)
-        # Segment PLEIN, sur UNE ligne : % + cote côte à côte. La cote n'est affichée que sur
-        # le segment GAGNANT (le plus large -> lisible) ; favori = couleur de la source.
-        specs = ([(h, cotes[0], "pba"), (d, cotes[1], "pbd"), (a, cotes[2], "pba")]
-                 if has_draw else [(h, cotes[0], "pba"), (a, cotes[2], "pba")])
-        bar = ""
-        for v, ct, base in specs:
+
+        # Segment PLEIN avec le % DEDANS ; favori (max) = couleur de la source, sinon atténué.
+        def seg(v, base):
             if v is None:
-                continue
+                return ""
             pct = round(v * 100)
-            fav = v == mx
-            cls = scol if fav else base
-            cote = f' <i>{_fmt(ct)}</i>' if (fav and ct) else ""
-            bar += (f'<span class="seg {cls}" style="width:{pct}%">'
-                    f'<b>{pct}%</b>{cote}</span>')
+            cls = scol if v == mx else base
+            return f'<span class="seg {cls}" style="width:{pct}%">{pct}%</span>'
+        bar = seg(h, "pba") + (seg(d, "pbd") if has_draw else "") + seg(a, "pba")
         # Source AU-DESSUS, barre complète en dessous
         return (f'<div class="sb"><span class="sb-l">{label}</span>'
                 f'<div class="sb-bar">{bar}</div></div>')
 
-    rows = (row("BETSFIX", "pm", mh, p.get("m_draw"), ma,
-                [_inv(mh), _inv(p.get("m_draw")), _inv(ma)])
-            + row("Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"), uni_c)
-            + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away"),
-                  [_inv(p.get("pub_home")), _inv(p.get("pub_draw")), _inv(p.get("pub_away"))]))
+    rows = (row("BETSFIX", "pm", mh, p.get("m_draw"), ma)
+            + row("Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
+            + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
     return f'<div class="sbars">{rows}</div>'
 
 
@@ -1137,6 +1108,9 @@ def _pick_card(p: dict, badge: str) -> str:
            if p.get("female") and p.get("sport") not in ("Tennis", "Basket") else "")
     state = cd if cd else ('<span class="cd live">🟢 Live</span>' if p.get("live") else "")
     bdg = f'<span class="bdg">{badge}</span>' if badge else ""
+    # surligne l'issue pariée (cohérent avec les barres), pas le favori du book
+    _hi = {"1": 0, "X": 1, "2": 2, "home": 0, "away": 1}.get(p.get("side"))
+    oddsrow = odds_row(p["odds_cells"], highlight_idx=_hi) if p.get("odds_cells") else ""
     hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""      # gauche : drapeau AVANT le nom
     af = f' {p["away_flag"]}' if p.get("away_flag") else ""       # droite : drapeau APRÈS le nom
     # « perle rare » : le pari à jouer (meilleur équilibre confiance×value parmi TOUS les
@@ -1147,7 +1121,7 @@ def _pick_card(p: dict, badge: str) -> str:
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
              f'<span class="dim">vs</span> {e(p.get("away") or "")}{af}</div>{bdg}</div>'
-             f'{_pick_bars(p)}'
+             f'{_pick_bars(p)}{oddsrow}'
              f'{_perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")), kind=p.get("pick_kind"), won=bool(p.get("live_won")), won2=bool(p.get("live_won2")), lost=bool(p.get("live_lost")), lost2=bool(p.get("live_lost2")))}')
     url = p.get("url") or ""
     # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
