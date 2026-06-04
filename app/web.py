@@ -430,7 +430,9 @@ CSS = """
   .cd .u{color:rgba(255,255,255,.55);font-weight:700;margin:0 1px 0 1px}
   /* « soon » (match proche) : MÊME aspect blanc que les autres timers (plus de jaune) */
   .cd.soon{background:rgba(255,255,255,.10);color:#fff;border-color:rgba(255,255,255,.20)}
-  .cd.live{background:rgba(52,210,123,.18);color:#5fe39b;border-color:rgba(52,210,123,.40)}
+  /* Badge LIVE plus grand que le décompte (le timer des autres onglets ne change pas) */
+  .cd.live{background:rgba(52,210,123,.18);color:#5fe39b;border-color:rgba(52,210,123,.40);
+        font-size:12px;padding:5px 11px;letter-spacing:.04em}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
@@ -1409,8 +1411,10 @@ def _sport_row(r: dict) -> str:
              f'{mid}<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {e(r.get("away") or "")}{af}</div>{badge}</div>'
-             f'{probviz}{lscore}{r.get("sub", "")}'
-             f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")), lost=bool(r.get("live_lost")), lost2=bool(r.get("live_lost2")))}')
+             # LIVE : score SOUS les noms, puis cotes « Bookmakers live » (dans sub), puis les
+             # barres % ; À VENIR : barres % d'abord (comme avant).
+             f'{(lscore + r.get("sub", "") + probviz) if is_live else (probviz + lscore + r.get("sub", ""))}'
+             f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")), lost=bool(r.get("live_lost")), lost2=bool(r.get("live_lost2")), header=True)}')
     cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
     url = r.get("url") or ""
     # Tap -> déplie l'analyse complète À L'INTÉRIEUR de la carte (les 3 sports), sans changer
