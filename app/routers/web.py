@@ -119,7 +119,8 @@ def _all_sport_picks() -> list[dict]:
             if isinstance(pv, dict) and pv.get("selection"):
                 out.append({**base, "bet": pv["selection"], "odds": pv.get("odds"),
                             "edge": pv.get("edge"), "model_prob": pv.get("model_prob"),
-                            "side": None, "implied": None, "community": None, "perle": pv})
+                            "side": None, "implied": None, "community": None, "perle": pv,
+                            "pick_kind": "value"})
                 continue
             v = rec.get("value_pick")
             if not v:
@@ -192,7 +193,8 @@ def _confidence_picks() -> list[dict]:
                 out.append({**base, "bet": perle["selection"], "model_prob": perle.get("model_prob"),
                             "conf_pct": round((perle.get("model_prob") or 0) * 100),
                             "odds": perle.get("odds"), "side": None, "implied": None,
-                            "community": None, "perle": perle, "perle2": rec.get("perle2")})
+                            "community": None, "perle": perle, "perle2": rec.get("perle2"),
+                            "pick_kind": "confiance"})
                 continue
             fav = fav_fn(rec)
             if not fav or fav[1] is None or fav[1] < CONF_MIN_PROB:
@@ -307,11 +309,12 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
                           "conf_pct": round((perle.get("model_prob") or 0) * 100),
                           "odds": perle.get("odds"), "side": None, "implied": None,
                           "community": None, "perle": perle, "perle2": perle2,
-                          "score": perle.get("model_prob") or 0})
+                          "pick_kind": "confiance", "score": perle.get("model_prob") or 0})
         if isinstance(perle_value, dict) and perle_value.get("selection"):
             values.append({**base, "bet": perle_value["selection"], "odds": perle_value.get("odds"),
                            "edge": perle_value.get("edge"), "model_prob": perle_value.get("model_prob"),
-                           "side": None, "implied": None, "community": None, "perle": perle_value})
+                           "side": None, "implied": None, "community": None, "perle": perle_value,
+                           "pick_kind": "value"})
         elif perle is None and ndim == 2:
             # repli BASKET si aucune perle (forme/marchés indisponibles) : ancien favori/value
             if pk_data:
@@ -690,9 +693,10 @@ async def matches_page(
     upcoming_rows = [{**_tennis_trow(r), "perle": None, "perle2": None} for r in rows]
     live_rows = [{**_tennis_trow(r), "perle": None, "perle2": None} for r in live]
     # 🔥 Confiances = perle la plus probable ; 💎 Valeurs = perle au plus gros edge
-    conf_rows = [_tennis_trow(r) for r in rows
+    conf_rows = [{**_tennis_trow(r), "pick_kind": "confiance"} for r in rows
                  if isinstance(r.get("perle"), dict) and r["perle"].get("selection")]
-    value_rows = [{**_tennis_trow(r), "perle": r["perle_value"], "perle2": None} for r in rows
+    value_rows = [{**_tennis_trow(r), "perle": r["perle_value"], "perle2": None,
+                   "pick_kind": "value"} for r in rows
                   if isinstance(r.get("perle_value"), dict) and r["perle_value"].get("selection")]
     _, finished = _picks_and_finished(store)
     finished_rows = [{
