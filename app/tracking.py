@@ -507,14 +507,19 @@ def render_proof(reports: list[tuple]) -> str:
     pending = sum(p for _, p in parts)
     pct = min(round(settled / TARGET * 100), 100) if TARGET else 0
     solid = settled >= TARGET
-    prog = (f'<div class="ptab-prog"><span style="width:{pct}%"></span></div>')
     goal = ('<b class="pos">✓ preuve statistique atteinte</b>' if solid
-            else f'<b>{settled}</b>/{TARGET} paris réglés vers une preuve solide')
+            else f'<b>{settled}</b> / {TARGET} paris réglés vers une preuve solide')
     brk = " · ".join(f'{n} {p}' for n, p in parts if p)
-    tail = (f' · 🕓 {pending} d\'avant-match en attente'
-            + (f' ({brk})' if brk else '')) if pending else ''
-    cap = f'<div class="ptab-cap">📈 {goal}{tail}</div>'
-    table = f'<div class="ptab">{head}{rows}</div>{prog}{cap}'
+    # Pied de tableau À PART (pas accolé aux lignes des sports) : progression globale sur sa
+    # propre ligne, puis l'attente par sport sur une AUTRE ligne.
+    prog = (f'<div class="ptab-foot">'
+            f'<div class="ptab-prog"><span style="width:{pct}%"></span></div>'
+            f'<div class="ptab-cap">📈 {goal}</div>')
+    if pending:
+        prog += (f'<div class="ptab-cap">🕓 {pending} pari{"s" if pending > 1 else ""} '
+                 f'd\'avant-match en attente' + (f' ({brk})' if brk else '') + '</div>')
+    prog += '</div>'
+    table = f'<div class="ptab">{head}{rows}</div>{prog}'
     info = ('Sur les paris « perle » déjà réglés, sont-ils gagnants face au marché ? '
             '<b>Fiabilité</b> le dit (sur le ROI global) : <b>✓ Plus fiable</b> / '
             '<b>✗ Moins fiable</b> que le marché, <b>En rodage</b> = pas encore assez de recul, '
