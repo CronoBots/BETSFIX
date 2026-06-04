@@ -294,15 +294,16 @@ CSS = """
   /* Bloc « pari à jouer », SOUS les cotes : tête (type + pari + cote) puis barre de confiance.
      CONFIANCE = vert · VALUE = bleu · avant-match = neutre. */
   /* Paris GROUPÉS dans un seul cadre, coiffé d'un BANDEAU EN-TÊTE (type : Confiance/Value).
-     margin-top = l'ESPACE demandé sous les 4 barres. overflow:hidden -> le bandeau épouse
-     les coins arrondis du cadre. */
-  .plg{border-radius:12px;margin:15px 0 3px;overflow:hidden}
+     margin-top = l'ESPACE demandé sous les 4 barres. PAS d'overflow:hidden (sur iOS, combiné
+     au calque fixe body::before, il laisse des traces concentriques au scroll) : on arrondit
+     plutôt les coins HAUT du bandeau pour épouser le cadre. */
+  .plg{border-radius:12px;margin:15px 0 3px}
   .plg-conf{background:linear-gradient(180deg,rgba(25,196,106,.12),rgba(25,196,106,.04));
         border:1px solid rgba(25,196,106,.32)}
   .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
         border:1px solid rgba(46,155,255,.32)}
   .plg-head{text-align:center;padding:7px 12px;font-size:12px;font-weight:800;
-        text-transform:uppercase;letter-spacing:.07em;color:#fff;
+        text-transform:uppercase;letter-spacing:.07em;color:#fff;border-radius:11px 11px 0 0;
         text-shadow:0 1px 2px rgba(0,0,0,.28)}
   .plg-conf .plg-head{background:linear-gradient(90deg,#16a857,#22bf6c)}
   .plg-val .plg-head{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
@@ -1155,7 +1156,7 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     icon = "💎" if is_val else "🛡️"
     return (f'<div class="plg {gcls}">'
             f'<div class="plg-head">{icon} {lbl}</div>'
-            f'<div class="plg-body">{items}</div>')
+            f'<div class="plg-body">{items}</div></div>')
 
 
 def finished_picks(perle, perle_won, perle_value, value_won, winner_name,
