@@ -1374,8 +1374,16 @@ def finished_from_store(limit: int = 8) -> list[dict]:
               if rec.get("p_home") is not None else None)
         sc = (res.get("score") or "").split("-")
         hs, as_ = (sc[0], sc[1]) if len(sc) == 2 else (None, None)
+
+        def _won(k):
+            v = res.get(k)
+            return (v > 0) if v is not None else None    # None = pas de prono réglé
+        wn = {"home": rec.get("home", ""), "draw": "Match nul",
+              "away": rec.get("away", "")}[res["winner"]]
         out.append({"comp": rec.get("comp"), "home": rec.get("home", ""), "away": rec.get("away", ""),
-                    "winner": res["winner"], "probs": pr, "hs": hs, "as": as_,
+                    "winner": res["winner"], "winner_name": wn, "probs": pr, "hs": hs, "as": as_,
+                    "perle": rec.get("perle"), "perle_won": _won("perle_pnl"),
+                    "perle_value": rec.get("perle_value"), "value_won": _won("perle_value_pnl"),
                     "_at": res.get("settled_at", "")})
     out.sort(key=lambda g: g["_at"], reverse=True)
     return out[:limit]
@@ -1453,18 +1461,10 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
 
     fin = []
     for r in (finished_rows or []):
-        probs = r.get("probs")
-        sub, badge = "", ""
-        if probs:
-            names = [r["home"], "nul", r["away"]]
-            fav_i = max(range(3), key=lambda i: probs[i])
-            wi = {"home": 0, "draw": 1, "away": 2}[r["winner"]]
-            ok = fav_i == wi
-            badge = ('<span class="pos">✓ modèle ok</span>' if ok
-                     else '<span class="neg">✗ raté</span>')
-            wname = {"home": r["home"], "draw": "Match nul", "away": r["away"]}[r["winner"]]
-            sub = (f'<div class="dim">prédit : <b>{e(names[fav_i])}</b> {round(probs[fav_i]*100)}% '
-                   f'· résultat : <b>{e(wname)}</b></div>')
+        # PRONO joué (confiance/value) mis en évidence + ✓/✗ ; PAS de badge si aucun prono
+        badge, sub = web.finished_picks(r.get("perle"), r.get("perle_won"),
+                                        r.get("perle_value"), r.get("value_won"),
+                                        r.get("winner_name"))
         fin.append({"tour": r.get("comp"), "status": "finished", "home": r["home"], "away": r["away"],
                     "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
                     "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",

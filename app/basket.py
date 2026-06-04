@@ -850,9 +850,16 @@ def finished_from_store(limit: int = 8) -> list[dict]:
             continue
         sc = (res.get("score") or "").split("-")
         hs, as_ = (sc[0], sc[1]) if len(sc) == 2 else (None, None)
+
+        def _won(k):
+            v = res.get(k)
+            return (v > 0) if v is not None else None
+        wn = rec.get("home", "") if res["winner"] == "home" else rec.get("away", "")
         out.append({"league": (rec.get("tour") or "").upper() or "Basket",
                     "home": rec.get("home", ""), "away": rec.get("away", ""),
-                    "winner": res["winner"], "model_home": rec.get("model_home_prob"),
+                    "winner": res["winner"], "winner_name": wn, "model_home": rec.get("model_home_prob"),
+                    "perle": rec.get("perle"), "perle_won": _won("perle_pnl"),
+                    "perle_value": rec.get("perle_value"), "value_won": _won("perle_value_pnl"),
                     "hs": hs, "as": as_, "_at": res.get("settled_at", "")})
     out.sort(key=lambda g: g["_at"], reverse=True)
     return out[:limit]
@@ -920,17 +927,10 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
 
     fin = []
     for r in (finished_rows or []):
-        p = r.get("model_home")
-        if p is not None:
-            fav = r["home"] if p >= 0.5 else r["away"]
-            ok = (r["winner"] == "home") == (p >= 0.5)
-            wname = r["home"] if r["winner"] == "home" else r["away"]
-            badge = ('<span class="pos">✓ modèle ok</span>' if ok
-                     else '<span class="neg">✗ raté</span>')
-            sub = (f'<div class="dim">favori modèle : {e(fav)} {round(max(p,1-p)*100)}% '
-                   f'· vainqueur : <b>{e(wname)}</b></div>')
-        else:
-            badge, sub = "", ""
+        # PRONO joué (confiance/value) mis en évidence + ✓/✗ ; PAS de badge si aucun prono
+        badge, sub = web.finished_picks(r.get("perle"), r.get("perle_won"),
+                                        r.get("perle_value"), r.get("value_won"),
+                                        r.get("winner_name"))
         fin.append({"tour": r.get("league", "Basket"), "status": "finished",
                     "home": r["home"], "away": r["away"],
                     "female": (r.get("league") or "").upper() == "WNBA",

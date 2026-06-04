@@ -709,16 +709,9 @@ async def matches_page(
     _, finished = _picks_and_finished(store)
     finished_rows = []
     for f in finished:
-        pl, won = f.get("perle"), f.get("perle_won")
-        # Badge SEULEMENT s'il y avait un pronostic perle réglé (sinon rien — pas de « raté »)
-        badge = ('<span class="pos">✓ gagné</span>' if won is True
-                 else '<span class="neg">✗ perdu</span>' if won is False else "")
-        win_txt = f'vainqueur : <b>{ev(f.get("winner_name") or "")}</b>'
-        if isinstance(pl, dict) and pl.get("selection"):
-            od = f' @{pl["odds"]:g}' if pl.get("odds") else ""
-            sub = f'<div class="dim">Pari : <b>{ev(pl["selection"])}</b>{od} · {win_txt}</div>'
-        else:
-            sub = f'<div class="dim">{win_txt}</div>'
+        badge, sub = web.finished_picks(f.get("perle"), f.get("perle_won"),
+                                        f.get("perle_value"), f.get("value_won"),
+                                        f.get("winner_name"))
         finished_rows.append({
             "tour": f["tour"].upper(), "status": "finished", "score": f.get("score") or "terminé",
             "home": f["home"], "away": f["away"], "badge": badge, "sub": sub,
@@ -768,15 +761,18 @@ def _picks_and_finished(store: dict) -> tuple[list[dict], list[dict]]:
                 "side": side, "_sort": rec.get("start_time") or "",
             })
         elif res and not res.get("void") and res.get("winner") in ("home", "away"):
-            # Matchs terminés = on montre le PRONOSTIC perle joué (confiance) + son résultat.
-            perle = rec.get("perle") if isinstance(rec.get("perle"), dict) else None
-            pnl = res.get("perle_pnl")
-            won = (pnl > 0) if pnl is not None else None     # None = aucun prono réglé
+            # Matchs terminés = on montre les PRONOSTICS perle joués (confiance + value) + résultat.
+            def _won(k):
+                v = res.get(k)
+                return (v > 0) if v is not None else None     # None = pas de prono réglé
             finished.append({
                 "id": rec["match_id"], "tour": rec.get("tour", "atp"),
                 "home": rec.get("home", ""), "away": rec.get("away", ""),
                 "winner_name": rec["home"] if res["winner"] == "home" else rec["away"],
-                "perle": perle, "perle_won": won,
+                "perle": rec.get("perle") if isinstance(rec.get("perle"), dict) else None,
+                "perle_won": _won("perle_pnl"),
+                "perle_value": rec.get("perle_value") if isinstance(rec.get("perle_value"), dict) else None,
+                "value_won": _won("perle_value_pnl"),
                 "score": res.get("score"),
                 "_sort": res.get("settled_at", ""),
             })

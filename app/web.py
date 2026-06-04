@@ -319,6 +319,17 @@ CSS = """
   .cm-v{font-weight:800;white-space:nowrap;color:#cfe0f5}
   .cm-p{color:var(--muted);font-weight:700;margin-left:5px}
   .bdg .badge{white-space:nowrap}
+  /* Matchs terminés : prono JOUÉ mis en évidence (Confiance vert / Value bleu) + ✓/✗ */
+  .fpick{font-size:11.5px;font-weight:700;color:#cfe0f5;padding:5px 9px;border-radius:8px;
+         margin:3px 0;border:1px solid var(--cardline);line-height:1.4}
+  .fpick-t{font-weight:800;white-space:nowrap}
+  .fp-conf{background:rgba(25,196,106,.08);border-color:rgba(25,196,106,.32)}
+  .fp-conf .fpick-t{color:#34d27b}
+  .fp-val{background:rgba(46,155,255,.08);border-color:rgba(46,155,255,.32)}
+  .fp-val .fpick-t{color:#4aa8ff}
+  .fpick.fp-won{border-color:rgba(25,196,106,.6);box-shadow:0 0 10px rgba(25,196,106,.12)}
+  .fpick.fp-lost{opacity:.78}
+  .fp-w{color:#34d27b;font-weight:800} .fp-l{color:#ff6b6b;font-weight:800}
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
          letter-spacing:.02em}
   .b-val{background:rgba(46,226,127,.14);color:var(--accent);border:1px solid rgba(46,226,127,.25)}
@@ -1024,6 +1035,34 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     if isinstance(perle2, dict) and perle2.get("selection"):
         out += one(perle2, secondary=True, is_won=won2, is_lost=lost2)
     return out
+
+
+def finished_picks(perle, perle_won, perle_value, value_won, winner_name):
+    """(badge, sub) d'un match TERMINÉ : pronos JOUÉS mis en évidence — 🛡️ Confiance (vert) /
+    💎 Value (bleu) — avec ✓ gagné / ✗ perdu, puis le vainqueur. AUCUN badge si aucun prono joué
+    (on n'invente pas un « raté » sur un match sans pari conseillé)."""
+    e = html.escape
+
+    def chip(p, won, label, cls):
+        if not (isinstance(p, dict) and p.get("selection")):
+            return ""
+        od = f' <b>@{p["odds"]:g}</b>' if p.get("odds") else ""
+        res = (' <span class="fp-w">✓ gagné</span>' if won is True
+               else ' <span class="fp-l">✗ perdu</span>' if won is False else "")
+        wc = " fp-won" if won is True else " fp-lost" if won is False else ""
+        return (f'<div class="fpick {cls}{wc}"><span class="fpick-t">{label}</span> '
+                f'{e(str(p["selection"]))}{od}{res}</div>')
+    same = (isinstance(perle, dict) and isinstance(perle_value, dict)
+            and perle.get("selection") == perle_value.get("selection"))
+    chips = chip(perle, perle_won, "🛡️ Confiance", "fp-conf")
+    if not same:
+        chips += chip(perle_value, value_won, "💎 Value", "fp-val")
+    win = (f'<div class="dim" style="margin-top:4px">vainqueur : <b>{e(winner_name or "")}</b></div>'
+           if winner_name else "")
+    prim = perle_won if perle_won is not None else value_won      # badge = pari principal
+    badge = ('<span class="pos">✓ gagné</span>' if prim is True
+             else '<span class="neg">✗ perdu</span>' if prim is False else "")
+    return badge, ((chips + win) if chips else win)
 
 
 def _pick_card(p: dict, badge: str) -> str:
