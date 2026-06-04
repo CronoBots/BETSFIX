@@ -151,4 +151,29 @@ def test_foot_form_model_and_settle():
     assert foot.settle_perle({"kind": "btts", "side": "no"}, 0, 3) is True
     assert foot.settle_perle({"kind": "1x2", "side": "1"}, 2, 0) is True
     assert foot.settle_perle({"kind": "1x2", "side": "2"}, 2, 0) is False
+    # marchés PAR ÉQUIPE + pair/impair + score exact + nombre exact
+    assert foot.settle_perle({"kind": "team_ou", "side": "over", "line": 0.5, "team": "home"}, 2, 0) is True
+    assert foot.settle_perle({"kind": "team_ou", "side": "over", "line": 0.5, "team": "away"}, 2, 0) is False
+    assert foot.settle_perle({"kind": "team_ou", "side": "under", "line": 1.5, "team": "away"}, 3, 1) is True
+    assert foot.settle_perle({"kind": "parity", "side": "even"}, 2, 0) is True
+    assert foot.settle_perle({"kind": "parity", "side": "odd"}, 2, 1) is True
+    assert foot.settle_perle({"kind": "exact", "side": "2-1", "sc": [2, 1]}, 2, 1) is True
+    assert foot.settle_perle({"kind": "exact", "side": "2-1", "sc": [2, 1]}, 1, 1) is False
+    assert foot.settle_perle({"kind": "nbexact", "side": "3", "k": 3, "ge": True}, 2, 2) is True
+    assert foot.settle_perle({"kind": "nbexact", "side": "2", "k": 2, "ge": False}, 1, 1) is True
     assert foot.settle_perle(None, 1, 1) is None
+
+
+def test_foot_team_goals_markets():
+    """Le moteur évalue les marchés PAR ÉQUIPE (totaux d'un camp, but / pas de but)."""
+    from app.providers.unibet import UnibetMarket, UnibetOutcome
+    grid = foot._grid_l(2.2, 0.2)        # domicile fort, extérieur muet
+    assert foot._p_team_over(grid, "home", 0.5) > 0.8
+    assert foot._p_team_over(grid, "away", 0.5) < 0.45
+    # « Irak ne marque pas » sous-coté par le marché -> doit ressortir (côté away, under 0.5)
+    mk = [UnibetMarket(label="Nombre total de buts par Irak", type="Plus de/Moins de", outcomes=[
+              UnibetOutcome(label="Plus de", odds=3.5, line=0.5),
+              UnibetOutcome(label="Moins de", odds=1.7, line=0.5)])]
+    bb = foot.best_bet(1900, 1500, True, mk, lambdas=(2.2, 0.2), home="Espagne", away="Irak")
+    assert bb is not None and bb["kind"] == "team_ou" and bb["team"] == "away"
+    assert bb["side"] == "under" and "ne marque pas" in bb["selection"]

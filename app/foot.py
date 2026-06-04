@@ -17,6 +17,7 @@ import json
 import logging
 import math
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -207,23 +208,48 @@ def _p_btts(grid) -> float:
     return sum(v for i, row in enumerate(grid) for j, v in enumerate(row) if i >= 1 and j >= 1)
 
 
-# Marqueurs d'un marché qui n'est PAS le plein-temps standard (mi-temps, période, joueur,
-# corners, cartons, score exact, handicap…) : notre modèle price le RÉSULTAT SUR 90 MIN, donc
-# l'appliquer à une mi-temps fabriquerait une fausse value énorme. On les écarte.
+def _p_team_over(grid, team: str, line: float) -> float:
+    """P(buts d'UNE équipe > line). team='home' -> i ; 'away' -> j (marginale du camp)."""
+    return sum(v for i, row in enumerate(grid) for j, v in enumerate(row)
+               if (i if team == "home" else j) > line)
+
+
+def _p_total_eq(grid, k: int) -> float:
+    return sum(v for i, row in enumerate(grid) for j, v in enumerate(row) if i + j == k)
+
+
+def _p_parity(grid, even: bool) -> float:
+    return sum(v for i, row in enumerate(grid) for j, v in enumerate(row)
+              if ((i + j) % 2 == 0) == even)
+
+
+# Marqueurs d'un marché qu'on NE price PAS : sous-période (mi-temps, 15 min), joueur/buteur,
+# corners/cartons, prolongation, handicap (push/lignes asiatiques trop fragiles à régler), et
+# combinés « résultat & autre marché ». Notre modèle price le plein-temps -> tout le reste fausse.
 _NOT_FULLTIME = (
     "half", "mi-temps", "mi temps", "1ère", "1ere", "2ème", "2eme", "1st", "2nd",
     "période", "periode", "quart", "quarter", "minute", "15 min", "first", "second",
     "corner", "carton", "card", "buteur", "joueur", "player", "scorer", "prolongation",
-    "extra time", "exact", "handicap", "+/-", "pair", "impair", "odd/even",
-    # combinés (résultat & autre marché) : non standard, issues incohérentes avec notre modèle
+    "extra time", "handicap", "+/-", "asian", "asiatique",
     " and ", "&", " or ", " win and", "to win", " et ",
-    # totaux PAR ÉQUIPE (« buts par Irak ») : notre grille price le total du MATCH, pas d'un camp
-    " par ", " by ",
 )
 
 
-def _market_kind(m) -> str | None:
-    """Type de marché foot évaluable (PLEIN-TEMPS), depuis le libellé Unibet (FR/EN)."""
+def _team_side(label: str, home: str, away: str) -> str | None:
+    """'home'/'away' si le libellé nomme une équipe précise (marché PAR équipe), sinon None."""
+    toks = set(name_tokens(label or ""))
+    if home and set(name_tokens(home)) & toks:
+        return "home"
+    if away and set(name_tokens(away)) & toks:
+        return "away"
+    return None
+
+
+def _market_kind(m, home: str = "", away: str = "") -> str | None:
+    """Type de marché foot évaluable (PLEIN-TEMPS), depuis le libellé Unibet (FR/EN).
+    On couvre TOUS les paris priçables depuis la grille de score : résultat, totaux du match ET
+    PAR ÉQUIPE (but de l'équipe / pas de but / moins de buts), BTTS, double chance, pair/impair,
+    score exact, nombre exact de buts."""
     lbl = f"{m.label or ''} {m.type or ''}".lower()
     if any(k in lbl for k in _NOT_FULLTIME):
         return None
@@ -232,8 +258,20 @@ def _market_kind(m) -> str | None:
         return "1x2"
     if ("deux" in lbl and "marqu" in lbl) or ("both" in lbl and "score" in lbl):
         return "btts"
-    # NB : la double chance est volontairement écartée — issues non mutuellement exclusives
-    # (somme = 2.0) et trop sensible à la sous-estimation des nuls par le double Poisson.
+    # Marchés de RÉSULTAT dérivés (double chance) : volontairement non perle-éligibles. Le marché
+    # 1X2 est efficient -> le modèle n'y a aucun edge réel ; les « disagreements » sur le résultat
+    # sont du bruit (surévaluation d'un petit à domicile). La value réelle est sur les BUTS.
+    if (("pair" in lbl or "impair" in lbl or "odd" in lbl or "even" in lbl)
+            and ("but" in lbl or "goal" in lbl)):
+        return "parity"
+    if ("score exact" in lbl or "correct score" in lbl) and "buteur" not in lbl:
+        return "exact"
+    if "exact" in lbl and ("but" in lbl or "goal" in lbl):
+        return "nbexact"
+    # marché PAR ÉQUIPE : « Nombre total de buts par X », « X marque » (oui/non = but / pas de but)
+    if (_team_side(m.label or "", home, away)
+            and ("but" in lbl or "goal" in lbl or "marqu" in lbl or "score" in lbl)):
+        return "team_ou"
     if (("but" in lbl or "goal" in lbl)
             and ("plus de" in lbl or "moins de" in lbl or "total" in lbl
                  or "over" in lbl or "under" in lbl)):
@@ -241,64 +279,127 @@ def _market_kind(m) -> str | None:
     return None
 
 
-def _price_market(m, grid):
-    """Issues d'un marché Unibet évaluable : liste de dicts {sel, mp, odds, side, line}
-    (side/line servent au règlement ultérieur), sinon []."""
-    kind = _market_kind(m)
+def _is_over(label: str) -> bool:
+    lab = (label or "").lower()
+    return "plus" in lab or "over" in lab or "oui" in lab or "yes" in lab or "+" in lab
+
+
+def _price_market(m, grid, home: str = "", away: str = "") -> list:
+    """Issues d'un marché évaluable : dicts {sel, mp, odds, kind, side, line, team, sc, k, ge}.
+    Tout ce qui sert au règlement est porté par l'issue. Liste vide si non priçable."""
+    kind = _market_kind(m, home, away)
     outs = [o for o in (m.outcomes or []) if o.odds]
-    if not kind or not outs:
+    if not kind or len(outs) < 2:
         return []
     p1, px, p2 = _p_1x2(grid)
+
     if kind == "1x2" and len(outs) == 3:
-        probs = {"1": p1, "x": px, "2": p2}
-        alias = {"home": "1", "draw": "x", "away": "2"}
+        probs, alias = {"1": p1, "x": px, "2": p2}, {"home": "1", "draw": "x", "away": "2"}
         res = []
         for o in outs:
             key = (o.label or "").strip().lower()
             side = key if key in probs else alias.get(key)
             if side in probs:
-                res.append({"sel": o.label or o.participant or side.upper(),
-                            "mp": probs[side], "odds": o.odds, "side": side, "line": None})
+                res.append({"sel": o.label or side.upper(), "mp": probs[side], "odds": o.odds,
+                            "kind": kind, "side": side})
         return res if len(res) == 3 else []
+
     if kind == "btts" and len(outs) == 2:
         btts = _p_btts(grid)
-        res = []
-        for o in outs:
-            yes = "oui" in (o.label or "").lower() or "yes" in (o.label or "").lower()
-            res.append({"sel": "Les 2 équipes marquent" if yes else "Pas les 2 équipes marquent",
-                        "mp": btts if yes else 1 - btts, "odds": o.odds,
-                        "side": "yes" if yes else "no", "line": None})
-        return res
-    if kind == "dc" and len(outs) in (2, 3):
+        return [{"sel": "Les 2 équipes marquent" if _is_over(o.label) else "Pas les 2 équipes marquent",
+                 "mp": btts if _is_over(o.label) else 1 - btts, "odds": o.odds,
+                 "kind": kind, "side": "yes" if _is_over(o.label) else "no"} for o in outs]
+
+    if kind == "dc":
         dc = {"1x": p1 + px, "12": p1 + p2, "x2": px + p2}
         res = []
         for o in outs:
             key = (o.label or "").replace(" ", "").replace("/", "").lower()
             if key in dc:
-                res.append({"sel": o.label or key.upper(), "mp": dc[key],
-                            "odds": o.odds, "side": key, "line": None})
+                res.append({"sel": o.label or key.upper(), "mp": dc[key], "odds": o.odds,
+                            "kind": kind, "side": key})
         return res
+
+    if kind == "parity" and len(outs) == 2:
+        peven = _p_parity(grid, True)
+        res = []
+        for o in outs:
+            lab = (o.label or "").lower()
+            even = ("impair" not in lab and "odd" not in lab) and ("pair" in lab or "even" in lab)
+            res.append({"sel": f'Total {"pair" if even else "impair"}',
+                        "mp": peven if even else 1 - peven, "odds": o.odds,
+                        "kind": kind, "side": "even" if even else "odd"})
+        return res
+
+    if kind == "exact":
+        res, listed = [], 0.0
+        other = None
+        for o in outs:
+            sc = re.match(r"^\s*(\d+)\s*[-:]\s*(\d+)\s*$", o.label or "")
+            if sc:
+                i, j = int(sc.group(1)), int(sc.group(2))
+                mp = grid[i][j] if i < len(grid) and j < len(grid[0]) else 0.0
+                listed += mp
+                res.append({"sel": f"Score {i}-{j}", "mp": mp, "odds": o.odds,
+                            "kind": kind, "side": f"{i}-{j}", "sc": [i, j]})
+            else:
+                other = o      # « Tout autre score »
+        if other is not None:
+            res.append({"sel": "Autre score", "mp": max(0.0, 1 - listed), "odds": other.odds,
+                        "kind": kind, "side": "other", "sc": None})
+        return res
+
+    if kind == "nbexact":
+        res = []
+        for o in outs:
+            mm = re.match(r"^\s*(\d+)\s*(\+|\s*ou plus|\s*or more)?", o.label or "")
+            if not mm:
+                continue
+            k, ge = int(mm.group(1)), bool(mm.group(2))
+            mp = sum(_p_total_eq(grid, t) for t in range(k, 12)) if ge else _p_total_eq(grid, k)
+            res.append({"sel": f'{k}{"+" if ge else ""} but{"s" if k != 1 or ge else ""}',
+                        "mp": mp, "odds": o.odds, "kind": kind, "side": str(k), "k": k, "ge": ge})
+        return res
+
+    if kind == "team_ou":
+        team = _team_side(m.label or "", home, away)
+        if team is None:
+            return []
+        line = next((o.line for o in outs if o.line is not None), 0.5)
+        if len(outs) != 2:
+            return []
+        over = _p_team_over(grid, team, line)
+        name = home if team == "home" else away
+        res = []
+        for o in outs:
+            ov = _is_over(o.label)
+            if line == 0.5:
+                sel = f"{name} marque" if ov else f"{name} ne marque pas"
+            else:
+                sel = f'{name} : {"plus" if ov else "moins"} de {line:g} buts'
+            res.append({"sel": sel, "mp": over if ov else 1 - over, "odds": o.odds,
+                        "kind": kind, "side": "over" if ov else "under",
+                        "line": line, "team": team})
+        return res
+
     if kind == "ou":
-        # un betOffer = une ligne (2 issues over/under partageant o.line)
         line = next((o.line for o in outs if o.line is not None), None)
         if line is None or len(outs) != 2:
             return []
         over = _p_over(grid, line)
-        res = []
-        for o in outs:
-            is_over = "plus" in (o.label or "").lower() or "over" in (o.label or "").lower()
-            res.append({"sel": f'{"Plus" if is_over else "Moins"} de {line:g} buts',
-                        "mp": over if is_over else 1 - over, "odds": o.odds,
-                        "side": "over" if is_over else "under", "line": line})
-        return res
+        return [{"sel": f'{"Plus" if _is_over(o.label) else "Moins"} de {line:g} buts',
+                 "mp": over if _is_over(o.label) else 1 - over, "odds": o.odds,
+                 "kind": kind, "side": "over" if _is_over(o.label) else "under",
+                 "line": line} for o in outs]
     return []
 
 
-def best_bet(elo_home, elo_away, neutral, markets, lambdas=None) -> dict | None:
-    """La « perle rare » : parmi les marchés évaluables, le pari au meilleur équilibre
-    confiance × value (proba modèle ≥ seuil, cote ≥ 1.5, value ≥ seuil).
-    `lambdas=(lh, la)` (buts attendus par FORME réelle) prime sur l'Elo quand disponible.
-    Le dict renvoyé porte kind/side/line -> réglable automatiquement depuis le score final."""
+def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
+             home: str = "", away: str = "") -> dict | None:
+    """La « perle rare » : parmi TOUS les marchés Unibet plein-temps évaluables (résultat, totaux
+    du match ET par équipe, BTTS, double chance, pair/impair, score/ nombre exact), le pari au
+    meilleur équilibre confiance × value (proba `fair` ≥ seuil, cote ≥ 1.5, value ≥ seuil).
+    `lambdas=(lh, la)` (buts attendus par FORME réelle) prime sur l'Elo quand disponible."""
     if not markets:
         return None
     if lambdas is not None:
@@ -309,28 +410,30 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None) -> dict | None:
         return None
     cands = []
     for m in markets:
-        priced = _price_market(m, grid)
+        priced = _price_market(m, grid, home, away)
         if len(priced) < 2:
             continue
-        inv = [1 / c["odds"] for c in priced]                    # dévig PAR marché
-        tot = sum(inv) or 1.0
+        inv = [1 / c["odds"] for c in priced]
+        s = sum(inv) or 1.0
+        msum = sum(c["mp"] for c in priced) or 1.0   # base du modèle (1 si exhaustif, ~2 en DC…)
         for c, iv in zip(priced, inv):
-            implied = iv / tot
-            # On ne compare PAS la proba brute du modèle au marché (le marché agrège des infos
-            # que l'Elo seul ignore). On mélange modèle et marché (même prudence MODEL_TRUST que
-            # le pick value) -> une « fair » crédible ; l'edge en découle.
+            # dévig sur la MÊME base que le modèle (gère DC ~2 et marchés non exhaustifs)
+            implied = iv / s * msum
+            # on ne compare jamais la proba brute du modèle au marché : on mélange (MODEL_TRUST)
             fair = MODEL_TRUST * c["mp"] + (1 - MODEL_TRUST) * implied
             edge = fair - implied
             if fair >= PERLE_MIN_PROB and c["odds"] >= PERLE_MIN_ODDS and edge >= PERLE_MIN_EDGE:
                 cands.append({"market": m.label or "", "selection": c["sel"],
                               "odds": round(c["odds"], 2), "model_prob": round(fair, 4),
                               "edge": round(edge, 4), "score": round(fair * edge, 5),
-                              "kind": _market_kind(m), "side": c["side"], "line": c["line"]})
+                              "kind": c["kind"], "side": c.get("side"), "line": c.get("line"),
+                              "team": c.get("team"), "sc": c.get("sc"),
+                              "k": c.get("k"), "ge": c.get("ge")})
     return max(cands, key=lambda c: c["score"]) if cands else None
 
 
 def settle_perle(perle: dict, home_score: int, away_score: int):
-    """Gagné/perdu/None d'une perle rare d'après le score final (1X2, totaux, BTTS, double chance)."""
+    """Gagné/perdu/None d'une perle d'après le score final. Couvre tous les types priçables."""
     if not perle or home_score is None or away_score is None:
         return None
     side, line = perle.get("side"), perle.get("line")
@@ -346,6 +449,19 @@ def settle_perle(perle: dict, home_score: int, away_score: int):
         return btts if side == "yes" else (not btts)
     if kind == "ou" and line is not None:
         return tot > line if side == "over" else tot < line
+    if kind == "team_ou" and line is not None:
+        g = home_score if perle.get("team") == "home" else away_score
+        return g > line if side == "over" else g < line
+    if kind == "parity":
+        return (tot % 2 == 0) == (side == "even")
+    if kind == "exact":
+        sc = perle.get("sc")
+        if sc:
+            return [home_score, away_score] == sc
+        return None        # « autre score » : non réglé (jamais une perle de toute façon)
+    if kind == "nbexact":
+        k = perle.get("k")
+        return (tot >= k if perle.get("ge") else tot == k) if k is not None else None
     return None
 
 
@@ -1009,7 +1125,8 @@ async def _attach_perles(rows: list[dict]) -> None:
                                   UNIBET_PARAMS)   # libellés FR -> détection des marchés
                 offers = (data or {}).get("betOffers") or []
                 g["perle"] = best_bet(g["eh"], g["ea"], g.get("neutral", False),
-                                      [_market(bo) for bo in offers], lambdas=lambdas)
+                                      [_market(bo) for bo in offers], lambdas=lambdas,
+                                      home=g.get("home", ""), away=g.get("away", ""))
             except Exception:
                 pass
 
