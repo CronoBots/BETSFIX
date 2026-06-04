@@ -52,7 +52,10 @@ NEUTRAL_COMPS = {"Coupe du Monde", "Euro"}
 HOME_ADV = 35.0           # faible : beaucoup de venues neutres en grand tournoi
 GOALS_TOTAL = 2.7         # total de buts moyen (baseline)
 SUP_PER_100 = 0.45        # 100 pts Elo ~ 0.45 but de supériorité
-HORIZON_DAYS = 14         # la CdM démarre dans ~11 jours -> fenêtre large
+HORIZON_HOURS = 24        # fenêtre courte : seuls les matchs des prochaines 24 h sont traités
+                          # -> beaucoup moins de matchs = beaucoup moins d'appels (forme/SOS/corners/
+                          # votes), donc moins de risque de pause SofaScore. Un match entre dans la
+                          # fenêtre (et reçoit sa perle) ~24 h avant le coup d'envoi.
 MODEL_TRUST = 0.50
 VALUE_THRESHOLD = 0.05
 MIN_IMPLIED, MAX_IMPLIED = 0.12, 0.80
@@ -802,9 +805,9 @@ async def _season_id(client, tid):
 
 
 async def _upcoming_games(client) -> list[dict]:
-    """Matchs à venir des grandes compétitions (fenêtre HORIZON_DAYS)."""
+    """Matchs à venir des grandes compétitions (fenêtre HORIZON_HOURS)."""
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(days=HORIZON_DAYS)
+    horizon = now + timedelta(hours=HORIZON_HOURS)
     games, seen = [], set()
     for tid, label in MAJOR_TIDS.items():
         sid = await _season_id(client, tid)
@@ -926,7 +929,7 @@ def board_from_store() -> list[dict]:
     apparaissent dans les picks de l'accueil (qui lisent déjà le store)."""
     store = tracking.load(FOOT_TRACK_PATH)
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(days=HORIZON_DAYS)
+    horizon = now + timedelta(hours=HORIZON_HOURS)
     rows = []
     for rec in store.values():
         if rec.get("result"):
@@ -989,7 +992,7 @@ async def board_from_unibet() -> list[dict]:
     elo = load_elo()
     index = _elo_index(elo)
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(days=HORIZON_DAYS)
+    horizon = now + timedelta(hours=HORIZON_HOURS)
     async with httpx.AsyncClient(headers=UNIBET_H) as client:
         fr = await _get(client, UNIBET_B, "/listView/football.json", UNIBET_PARAMS)
         en = await _get(client, UNIBET_B, "/listView/football.json", UNIBET_PARAMS_EN)
