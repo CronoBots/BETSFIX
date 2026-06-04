@@ -366,8 +366,16 @@ def report(store: dict) -> dict:
     # 🎯 Performance des PERLES (ce qu'on recommande vraiment) : CONFIANCE (perle + 2e pari) et VALUE.
     conf_pnls = [r["result"][k] for r in settled for k in ("perle_pnl", "perle2_pnl")
                  if r["result"].get(k) is not None]
+
+    def _distinct_value(r):
+        # Value seulement si le pari DIFFÈRE de la confiance (sinon c'est le MÊME pari -> il est
+        # déjà compté en Confiance ; on ne le compte pas une 2e fois en Value).
+        pv, p = r.get("perle_value"), r.get("perle")
+        if not (isinstance(pv, dict) and pv.get("selection")):
+            return False
+        return not (isinstance(p, dict) and p.get("selection") == pv.get("selection"))
     val_pnls = [r["result"]["perle_value_pnl"] for r in settled
-                if r["result"].get("perle_value_pnl") is not None]
+                if r["result"].get("perle_value_pnl") is not None and _distinct_value(r)]
     cwins = sum(1 for x in conf_pnls if x > 0)
     vwins = sum(1 for x in val_pnls if x > 0)
     # Track record GLOBAL de la perle (depuis sa mise en place) : matchs réglés ayant
