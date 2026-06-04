@@ -138,6 +138,128 @@ def _devig3(o1, ox, o2):
     return [r / tot for r in raws]
 
 
+# ----------------------------------------------------------- moteur « perle rare » (foot)
+# On price, depuis la grille Poisson, les marchés que le modèle SAIT estimer (1X2, Plus/Moins
+# de buts, les 2 équipes marquent, double chance), on compare à la cote Unibet (dévig PAR marché),
+# et on sort le pari au meilleur ÉQUILIBRE confiance × value. (Pas les paris joueurs/corners :
+# aucun modèle pour ça.)
+PERLE_MIN_PROB = 0.52      # le pari doit rester plausible (plus probable que non)
+PERLE_MIN_ODDS = 1.50      # « confiance » ≠ pari à 1.1 -> on exige une cote qui paie
+PERLE_MIN_EDGE = 0.04      # value minimale (modèle > marché dévig)
+
+
+def _grid(elo_home: float, elo_away: float, neutral: bool = False, kmax: int = 8) -> list:
+    """Loi jointe P(buts_dom=i, buts_ext=j) (double Poisson), normalisée."""
+    lh, la = _lambdas(elo_home, elo_away, neutral)
+    ph = [_pois(i, lh) for i in range(kmax + 1)]
+    pa = [_pois(j, la) for j in range(kmax + 1)]
+    g = [[ph[i] * pa[j] for j in range(kmax + 1)] for i in range(kmax + 1)]
+    tot = sum(sum(r) for r in g) or 1.0
+    return [[v / tot for v in r] for r in g]
+
+
+def _p_1x2(grid):
+    p1 = px = p2 = 0.0
+    for i, row in enumerate(grid):
+        for j, v in enumerate(row):
+            p1, px, p2 = (p1 + v, px, p2) if i > j else \
+                ((p1, px + v, p2) if i == j else (p1, px, p2 + v))
+    return p1, px, p2
+
+
+def _p_over(grid, line: float) -> float:
+    return sum(v for i, row in enumerate(grid) for j, v in enumerate(row) if i + j > line)
+
+
+def _p_btts(grid) -> float:
+    return sum(v for i, row in enumerate(grid) for j, v in enumerate(row) if i >= 1 and j >= 1)
+
+
+def _market_kind(m) -> str | None:
+    """Type de marché foot évaluable, depuis le libellé Unibet (FR/EN)."""
+    lbl = f"{m.label or ''} {m.type or ''}".lower()
+    if "résultat du match" in lbl or "résultat final" in lbl or "1x2" in lbl:
+        return "1x2"
+    if ("deux" in lbl and "marqu" in lbl) or ("both" in lbl and "score" in lbl):
+        return "btts"
+    if "double chance" in lbl:
+        return "dc"
+    if "but" in lbl and ("plus de" in lbl or "moins de" in lbl or "total" in lbl
+                         or "over" in lbl or "under" in lbl):
+        return "ou"
+    return None
+
+
+def _price_market(m, grid):
+    """Liste [(sélection, proba_modèle, cote), …] pour un marché Unibet évaluable, sinon []."""
+    kind = _market_kind(m)
+    outs = [o for o in (m.outcomes or []) if o.odds]
+    if not kind or not outs:
+        return []
+    p1, px, p2 = _p_1x2(grid)
+    if kind == "1x2" and len(outs) == 3:
+        probs = {"1": p1, "x": px, "2": p2}
+        res = []
+        for o in outs:
+            key = (o.label or "").strip().lower()
+            mp = probs.get(key, probs.get({"home": "1", "draw": "x", "away": "2"}.get(key)))
+            if mp is not None:
+                res.append((o.label or o.participant or "", mp, o.odds))
+        return res if len(res) == 3 else []
+    if kind == "btts" and len(outs) == 2:
+        btts = _p_btts(grid)
+        res = []
+        for o in outs:
+            yes = "oui" in (o.label or "").lower() or "yes" in (o.label or "").lower()
+            res.append(("Les 2 équipes marquent" if yes else "Pas les 2 équipes",
+                        btts if yes else 1 - btts, o.odds))
+        return res
+    if kind == "dc" and len(outs) in (2, 3):
+        dc = {"1x": p1 + px, "12": p1 + p2, "x2": px + p2}
+        res = []
+        for o in outs:
+            key = (o.label or "").replace(" ", "").replace("/", "").lower()
+            mp = dc.get(key)
+            if mp is not None:
+                res.append((o.label or "", mp, o.odds))
+        return res
+    if kind == "ou":
+        # un betOffer = une ligne (2 issues over/under partageant o.line)
+        line = next((o.line for o in outs if o.line is not None), None)
+        if line is None or len(outs) != 2:
+            return []
+        over = _p_over(grid, line)
+        res = []
+        for o in outs:
+            is_over = "plus" in (o.label or "").lower() or "over" in (o.label or "").lower()
+            res.append((f'{"Plus" if is_over else "Moins"} de {line:g} buts',
+                        over if is_over else 1 - over, o.odds))
+        return res
+    return []
+
+
+def best_bet(elo_home, elo_away, neutral, markets) -> dict | None:
+    """La « perle rare » : parmi les marchés évaluables, le pari au meilleur équilibre
+    confiance × value (proba modèle ≥ seuil, cote ≥ 1.5, value ≥ seuil)."""
+    if elo_home is None or elo_away is None or not markets:
+        return None
+    grid = _grid(elo_home, elo_away, neutral)
+    cands = []
+    for m in markets:
+        priced = _price_market(m, grid)
+        if len(priced) < 2:
+            continue
+        inv = [1 / o for (_, _, o) in priced]                    # dévig PAR marché
+        tot = sum(inv) or 1.0
+        for (sel, mp, o), iv in zip(priced, inv):
+            edge = mp - iv / tot
+            if mp >= PERLE_MIN_PROB and o >= PERLE_MIN_ODDS and edge >= PERLE_MIN_EDGE:
+                cands.append({"market": m.label or "", "selection": sel, "odds": round(o, 2),
+                              "model_prob": round(mp, 4), "edge": round(edge, 4),
+                              "score": round(mp * edge, 5)})
+    return max(cands, key=lambda c: c["score"]) if cands else None
+
+
 # ----------------------------------------------------------------- données
 async def _get(client, base, path, params=None):
     key = base + path + (str(sorted(params.items())) if params else "")

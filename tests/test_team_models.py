@@ -112,3 +112,21 @@ def test_board_from_store_basket(monkeypatch):
     assert rows[0]["oh"] == 1.15
     assert rows[0]["pick"]["side"] == "home"
     assert rows[0]["model_home"] == 0.66
+
+
+def test_foot_best_bet():
+    """Moteur 'perle rare' foot : meilleur équilibre confiance×value, JAMAIS un pari < 1.5."""
+    from app import foot
+    from app.providers.unibet import UnibetMarket, UnibetOutcome
+    mk = [UnibetMarket(label="Résultat du match", type="Match", outcomes=[
+              UnibetOutcome(label="1", odds=1.30), UnibetOutcome(label="X", odds=5.5),
+              UnibetOutcome(label="2", odds=9.0)]),
+          UnibetMarket(label="Nombre total de buts", type="Plus de/Moins de", outcomes=[
+              UnibetOutcome(label="Plus de", odds=1.55, line=1.5),
+              UnibetOutcome(label="Moins de", odds=2.40, line=1.5)])]
+    bb = foot.best_bet(1900, 1500, True, mk)
+    assert bb is not None
+    assert bb["odds"] >= 1.5 and bb["model_prob"] >= 0.52 and bb["edge"] >= 0.04
+    assert bb["odds"] != 1.30                 # le favori sous 1.5 n'est PAS la perle
+    assert foot.best_bet(1900, 1500, True, []) is None
+    assert foot.best_bet(None, None, True, mk) is None
