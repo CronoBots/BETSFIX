@@ -237,7 +237,7 @@ def test_render_proof_honnete():
     assert "Fiabilité" in html and "Confiance" in html and "Value" in html   # colonnes
     assert "✓ Plus fiable" in html                # tennis : ROI perle global positif
     assert "En collecte" in html                  # foot : aucune perle réglée
-    assert "En rodage" in html and "12 matchs" in html   # basket : échantillon < 30
+    assert "En rodage" in html and "12 paris réglés" in html   # basket : échantillon < 30
     assert "45/64" in html                        # confiance : nb gagnés/total
     assert "15/36" in html                        # value : nb gagnés/total
     assert "+4%" in html and "ptab-pct" in html   # ROI value en petit % sous le nombre

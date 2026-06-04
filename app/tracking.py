@@ -484,12 +484,21 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
                     f'<span class="ptab-pct {"pos" if roi >= 0 else "neg"}">{roi_txt}</span></span>')
     else:
         val_cell = '<span class="ptab-val na">—</span>'
-    # Nb de matchs SOUS le verdict (colonne Fiabilité), sans le mot « noté »
-    sub = f'{n} match{"s" if n > 1 else ""}'
+    # Colonne Fiabilité : verdict + mini-barre de progression PROPRE À CE SPORT vers la preuve
+    # (100 paris réglés) — portion pleine = réglés, portion estompée = en attente d'avant-match.
+    TARGET = 100
+    wait_n = rep.get("perle_en_attente") or 0
+    sp = min(round(np / TARGET * 100), 100)
+    wp = min(round(wait_n / TARGET * 100), 100 - sp)
+    bar = (f'<span class="pbar2"><span class="pg-done" style="width:{sp}%"></span>'
+           f'<span class="pg-wait" style="width:{wp}%"></span></span>')
+    sub = (f'{np} réglé{"s" if np > 1 else ""} · {wait_n} à venir' if wait_n
+           else f'{np} pari{"s" if np > 1 else ""} réglé{"s" if np > 1 else ""}')
     style = f' style="--sc:{accent}"' if accent else ""
     return (f'<a class="ptab-row" href="{e(url)}"{style}>'
             f'<span class="ptab-sport">{icon} {e(name)}</span>'
-            f'<span class="ptab-verdict {vcls}">{verdict}<span class="ptab-vsub">{sub}</span></span>'
+            f'<span class="ptab-verdict {vcls}">{verdict}{bar}'
+            f'<span class="ptab-vsub">{sub}</span></span>'
             f'{conf_cell}{val_cell}</a>')
 
 
@@ -499,27 +508,10 @@ def render_proof(reports: list[tuple]) -> str:
     head = ('<div class="ptab-h"><span>Sport</span><span>Fiabilité</span>'
             '<span class="ph-conf">Confiance</span><span class="ph-val">Value</span></div>')
     rows = "".join(_proof_row(i, n, r, u) for i, n, r, u in reports)
-    # Pied de tableau : progression vers une PREUVE statistique (100 paris réglés) + paris
-    # d'avant-match en attente, détaillés par sport -> le palmarès paraît vivant, pas « vide ».
-    TARGET = 100
-    settled = sum((r.get("perle_paris_regles") or 0) for _, _, r, _ in reports)
-    parts = [(name, (r.get("perle_en_attente") or 0)) for _, name, r, _ in reports]
-    pending = sum(p for _, p in parts)
-    pct = min(round(settled / TARGET * 100), 100) if TARGET else 0
-    solid = settled >= TARGET
-    goal = ('<b class="pos">✓ preuve statistique atteinte</b>' if solid
-            else f'<b>{settled}</b> / {TARGET} paris réglés vers une preuve solide')
-    brk = " · ".join(f'{n} {p}' for n, p in parts if p)
-    # Pied de tableau À PART (pas accolé aux lignes des sports) : progression globale sur sa
-    # propre ligne, puis l'attente par sport sur une AUTRE ligne.
-    prog = (f'<div class="ptab-foot">'
-            f'<div class="ptab-prog"><span style="width:{pct}%"></span></div>'
-            f'<div class="ptab-cap">📈 {goal}</div>')
-    if pending:
-        prog += (f'<div class="ptab-cap">🕓 {pending} pari{"s" if pending > 1 else ""} '
-                 f'd\'avant-match en attente' + (f' ({brk})' if brk else '') + '</div>')
-    prog += '</div>'
-    table = f'<div class="ptab">{head}{rows}</div>{prog}'
+    # Légende des mini-barres (progression PAR SPORT dans la colonne Fiabilité).
+    cap = ('<div class="ptab-cap"><span class="pg-lg done"></span> réglés · '
+           '<span class="pg-lg wait"></span> en attente · objectif <b>100</b> = preuve solide</div>')
+    table = f'<div class="ptab">{head}{rows}</div>{cap}'
     info = ('Sur les paris « perle » déjà réglés, sont-ils gagnants face au marché ? '
             '<b>Fiabilité</b> le dit (sur le ROI global) : <b>✓ Plus fiable</b> / '
             '<b>✗ Moins fiable</b> que le marché, <b>En rodage</b> = pas encore assez de recul, '

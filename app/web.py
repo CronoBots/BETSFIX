@@ -523,13 +523,17 @@ CSS = """
   .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600;opacity:.5;font-size:16px}
   .ptab-pct{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
   .ptab-pct.pos{color:var(--green)} .ptab-pct.neg{color:var(--red)}
-  /* Pied de tableau DÉTACHÉ (preuve globale, indépendante des lignes sport/fiabilité) */
-  .ptab-foot{margin:14px 2px 2px}
-  .ptab-prog{height:6px;border-radius:99px;background:var(--border);overflow:hidden;margin:0 0 8px}
-  .ptab-prog>span{display:block;height:100%;border-radius:99px;min-width:2px;
-          background:linear-gradient(90deg,#34d27b,#4aa8ff);transition:width .4s}
-  .ptab-cap{font-size:11.5px;color:var(--muted);text-align:center;margin:0 4px 3px;line-height:1.5}
-  .ptab-cap b{color:#cfe0f5} .ptab-cap b.pos{color:var(--green)}
+  /* Mini-barre de progression PAR SPORT (colonne Fiabilité) : réglés (plein) + en attente (estompé) */
+  .pbar2{display:flex;width:86%;max-width:88px;height:5px;border-radius:99px;
+          background:var(--border);overflow:hidden;margin:5px auto 4px}
+  .pbar2 .pg-done{height:100%;background:linear-gradient(90deg,#34d27b,#4aa8ff)}
+  .pbar2 .pg-wait{height:100%;background:rgba(159,180,207,.32)}
+  /* Légende sous le tableau */
+  .ptab-cap{font-size:11px;color:var(--muted);text-align:center;margin:11px 4px 2px;line-height:1.5}
+  .ptab-cap b{color:#cfe0f5}
+  .pg-lg{display:inline-block;width:14px;height:5px;border-radius:99px;vertical-align:middle;margin-right:2px}
+  .pg-lg.done{background:linear-gradient(90deg,#34d27b,#4aa8ff)}
+  .pg-lg.wait{background:rgba(159,180,207,.32)}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);
