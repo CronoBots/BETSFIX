@@ -422,6 +422,30 @@ def _tennis_live_score(entry: dict, swapped: bool = False) -> str:
     return " ".join(f"{h}-{a}" for h, a in pairs)
 
 
+def _tennis_live_server(entry: dict, swapped: bool = False) -> str | None:
+    """Qui SERT actuellement ('home'/'away'/None) depuis le liveData Unibet : champ
+    `statistics.sets.homeServe` (booléen : True = home sert)."""
+    sets = (((entry.get("liveData") or {}).get("statistics") or {}).get("sets") or {})
+    hs = sets.get("homeServe")
+    if hs is None:
+        return None
+    side = "home" if hs else "away"
+    if swapped:
+        side = "away" if side == "home" else "home"
+    return side
+
+
+def _tennis_live_points(entry: dict, swapped: bool = False) -> tuple[str, str] | None:
+    """Points du JEU en cours (0/15/30/40/AD) depuis `liveData.score.home`/`away` -> colonne 🎾."""
+    sc = (entry.get("liveData") or {}).get("score") or {}
+    h, a = sc.get("home"), sc.get("away")
+    if h is None and a is None:
+        return None
+    if swapped:
+        h, a = a, h
+    return (str(h if h is not None else ""), str(a if a is not None else ""))
+
+
 def _two_way_odds(entry: dict) -> tuple[float | None, float | None]:
     """Cotes décimales (home, away) du marché vainqueur d'un événement Unibet 2 issues."""
     for bo in entry.get("betOffers") or []:
@@ -502,6 +526,8 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
             "status": "inprogress" if is_live else "notstarted",
             "time": web.fmt_local(start.isoformat(), with_date=True),
             "score": _tennis_live_score(entry, swapped) if is_live else "",
+            "server": _tennis_live_server(entry, swapped) if is_live else None,
+            "game_pts": _tennis_live_points(entry, swapped) if is_live else None,
             "fav": fav, "favp": favp, "confidence": rec.get("confidence"),
             "hp": hp, "implied": devig[0] if devig else None,
             "oh": oh, "oa": oa, "perle": rec.get("perle"), "perle2": rec.get("perle2"),
@@ -535,7 +561,9 @@ def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = 
     lw, lw2 = sp == "won", sp2 == "won"
     ll, ll2 = sp == "lost", sp2 == "lost"
     return {"tour": r["tour"].upper(), "status": r["status"], "time": r.get("time") or "",
-            "score": r.get("score") or "", "home": r["home"], "away": r["away"],
+            "score": r.get("score") or "", "server": r.get("server"),
+            "game_pts": r.get("game_pts"),
+            "home": r["home"], "away": r["away"],
             "prob": r.get("hp"), "prob_labels": labels,
             "sub": _tennis_fav_sub(r) if sub is None else sub, "badge": badge, "pick": pick,
             "start_ts": r.get("start_ts"), "female": r.get("female"), "pick_kind": "confiance",

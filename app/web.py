@@ -274,8 +274,14 @@ CSS = """
   .lboard-t .lb-c{min-width:22px}
   .lb-hdr .lb-c{color:var(--muted);font-size:11px;font-weight:800;padding-bottom:2px}
   .lb-hdr{padding-bottom:0}
-  .lb-box{min-width:22px;background:#157a3a;color:#fff;font-weight:800;border-radius:5px;
-          padding:1px 4px}
+  /* Set EN COURS : juste mis en évidence (clair + gras), PAS de case verte */
+  .lb-cur{color:#fff;font-weight:800}
+  .lb-row.lb-lead .lb-c.lb-cur{color:#fff}
+  /* 🎾 balle de service à droite du nom du serveur */
+  .lb-srv{font-size:10px;vertical-align:middle;margin-left:1px}
+  /* Colonne 🎾 = points du jeu en cours (0/15/30/40) : en évidence, SANS case verte */
+  .lb-pt{color:#fff;font-weight:800}
+  .lb-pt-h{font-size:12px}
   /* Libellé « cotes en direct » au-dessus des boutons de cotes */
   .live-odds-l{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
           color:var(--muted);margin:2px 2px 4px}
@@ -1330,10 +1336,12 @@ def _prob_bar(prob, labels=None) -> str:
             f'<span>{p2}% · 2</span></div>')
 
 
-def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False) -> str:
-    """Scoreboard LIVE. Tennis (`tennis=True`) : style « tableau » — en-tête numéros de set,
-    jeux par set, SET EN COURS en boîte verte, sets gagnés en gras. Foot/basket : 2 lignes
-    (nom + score), meneur en vert."""
+def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
+                     server: str | None = None, points: tuple | None = None) -> str:
+    """Scoreboard LIVE. Tennis (`tennis=True`) : style Unibet — en-tête numéros de set + 🎾, TOUS
+    les sets en colonnes (jeux par set), sets gagnés en gras, set en cours en évidence (PAS de
+    case verte), colonne 🎾 = points du jeu en cours (`points`), et une balle 🎾 à droite du
+    SERVEUR (`server` = 'home'/'away'). Foot/basket : 2 lignes (nom + score), meneur en vert."""
     if not score:
         return ""
     e = html.escape
@@ -1356,21 +1364,29 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False) -> 
 
     if tennis:
         n = len(cols)
+        has_pts = bool(points) and (points[0] or points[1])
         hdr = "".join(f'<span class="lb-c lb-h">{j + 1}</span>' for j in range(n))
+        if has_pts:
+            hdr += '<span class="lb-c lb-h lb-pt-h">🎾</span>'
 
-        def trow(i, name, lead):
+        def trow(i, name, lead, side):
             cs = ""
             for j, (h, a) in enumerate(cols):
                 v = h if i == 0 else a
                 won = (h > a) if i == 0 else (a > h)
-                cur = j == n - 1                       # set en cours -> boîte verte
-                kls = "lb-c" + (" lb-box" if cur else (" lb-win" if won else ""))
+                cur = j == n - 1 and not won           # set en cours = dernier, pas encore gagné
+                # PAS de case verte : set gagné en gras (lb-win), set en cours en évidence (lb-cur)
+                kls = "lb-c" + (" lb-cur" if cur else (" lb-win" if won else ""))
                 cs += f'<span class="{kls}">{v}</span>'
+            if has_pts:                                # colonne 🎾 = points du jeu en cours
+                cs += f'<span class="lb-c lb-pt">{e(str(points[i]))}</span>'
+            # 🎾 à DROITE du serveur
+            ball = ' <span class="lb-srv">🎾</span>' if server == side else ""
             return (f'<div class="lb-row{" lb-lead" if lead else ""}">'
-                    f'<span class="lb-n">{name}</span><span class="lb-s">{cs}</span></div>')
+                    f'<span class="lb-n">{name}{ball}</span><span class="lb-s">{cs}</span></div>')
         return (f'<div class="lboard lboard-t">'
                 f'<div class="lb-row lb-hdr"><span class="lb-n"></span><span class="lb-s">{hdr}</span></div>'
-                f'{trow(0, hn, home_lead)}{trow(1, an, away_lead)}</div>')
+                f'{trow(0, hn, home_lead, "home")}{trow(1, an, away_lead, "away")}</div>')
 
     def cells(i):
         return "".join(f'<span class="lb-c{" lb-win" if c[i] > c[1 - i] else ""}">{c[i]}</span>'
@@ -1415,7 +1431,8 @@ def _sport_row(r: dict) -> str:
     # Live : SCORE actuel en scoreboard 2 lignes + libellé « cotes en direct », au-dessus des cotes
     is_live = r.get("status") == "inprogress"
     _is_tennis = (r.get("tour") or "").upper() in ("WTA", "ATP")
-    lscore = (_live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "", tennis=_is_tennis)
+    lscore = (_live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "",
+                               tennis=_is_tennis, server=r.get("server"), points=r.get("game_pts"))
               if is_live else "")
     # Les cotes live sont présentées comme une barre « BOOKMAKERS LIVE » (cf. _model_line /
     # _card basket / _tennis_fav_sub) -> plus besoin d'un libellé « cotes en direct » séparé.
