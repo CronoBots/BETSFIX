@@ -1694,10 +1694,11 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
     # frag : accordéon sous la carte -> analyse SANS l'en-tête (matchup déjà sur la carte)
     # ni le bandeau layout. On garde tout le reste (la plus complète).
     if frag:
-        # Accordéon : MÊME présentation que foot/basket -> « 🎯 Paris conseillés » (depuis le
-        # suivi, cohérent avec la carte) puis l'analyse. On NE répète PAS favori/probas/cotes.
-        return ((recos or pari_html) + form_html + h2h_html + votes_html + factors + aces_html
-                + markets_html) \
+        # Accordéon sous la carte : l'analyse rédigée est ajoutée en tête par le routeur.
+        # On NE répète PAS le pari (déjà dans la box « 🎯 À jouer » de la carte) ni les
+        # pronostics des fans (déjà dans la barre PUBLIC). Ordre intuitif -> technique :
+        # forme -> face-à-face -> ce qui pèse -> aces.
+        return (form_html + h2h_html + factors + aces_html + markets_html) \
             or '<div class="dim">Analyse détaillée indisponible (SofaScore momentanément ' \
                'limité) — la prédiction reste celle de la carte.</div>'
     body = (head + pari_html + verdict + form_html + h2h_html + votes_html + paris_link

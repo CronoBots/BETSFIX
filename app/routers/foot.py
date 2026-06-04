@@ -229,9 +229,10 @@ async def foot_match(event_id: int, frag: int = 0,
             if probs[i] >= 0.65:
                 confidence = ([home, "Match nul", away][i], probs[i],
                               [rec.get("o1"), rec.get("ox"), rec.get("o2")][i])
-        # 🎯 Paris conseillés PILOTÉS PAR LA PERLE (source unique, cohérente avec la bannière)
+        # 🎯 Paris conseillés PILOTÉS PAR LA PERLE. Dans l'accordéon (frag), la box « À jouer »
+        # de la carte au-dessus l'affiche déjà -> on ne le répète PAS ici (uniquement page pleine).
         perle = rec.get("perle") if rec else None
-        extra = web.perle_advice(perle)
+        extra = "" if frag else web.perle_advice(perle)
         # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — contexte 1X2 + verdict perle
         if all(p is not None for p in probs):
             idx = max(range(3), key=lambda k: probs[k])

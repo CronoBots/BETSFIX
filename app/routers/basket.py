@@ -94,7 +94,8 @@ async def basket_match(event_id: int, frag: int = 0,
     mh = (rec or {}).get("model_home_prob")
     if rec and mh is not None:
         perle = rec.get("perle")
-        extra = web.perle_advice(perle)
+        # Doublon de la box « À jouer » de la carte dans l'accordéon -> page pleine seulement.
+        extra = "" if frag else web.perle_advice(perle)
         p_fav = max(mh, 1 - mh)
         # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — verdict piloté par la perle
         fav_h = mh >= 0.5
