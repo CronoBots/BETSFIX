@@ -833,6 +833,7 @@ def _card(r: dict) -> dict:
                       if r["status"] == "inprogress" and r.get("home_pts") is not None else ""),
             "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
             "sub": sub_html, "badge": badge, "pick": bool(pk),
+            "perle": r.get("perle"), "perle2": r.get("perle2"),
             **web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])}
 
 

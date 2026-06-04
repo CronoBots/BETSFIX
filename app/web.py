@@ -862,6 +862,27 @@ def _section(heading: str, body: str, open_: bool = True, info: str | None = Non
             f'<div class="secbody">{info_html}{body}</div></details>')
 
 
+def _perle_banner(perle: dict | None, perle2: dict | None = None) -> str:
+    """Bannière « 🎯 À JOUER » du pari à jouer (+ « + AUSSI » pour un 2e pari de confiance).
+    Réutilisée par l'accueil (_pick_card) ET les cartes des onglets (_sport_row)."""
+    e = html.escape
+    if not (isinstance(perle, dict) and perle.get("selection")):
+        return ""
+    pct = round((perle.get("model_prob") or 0) * 100)
+    edgep = round((perle.get("edge") or 0) * 100)
+    out = (f'<div class="perle"><span class="pl-tag">🎯 À JOUER</span>'
+           f'<span class="pl-sel">{e(str(perle["selection"]))}</span>'
+           f'<span class="pl-o">@{perle["odds"]:g}</span>'
+           f'<span class="pl-m">modèle <b>{pct}%</b> · value <b>+{edgep}%</b></span></div>')
+    if isinstance(perle2, dict) and perle2.get("selection"):
+        pct2 = round((perle2.get("model_prob") or 0) * 100)
+        out += (f'<div class="perle perle2"><span class="pl-tag">+ AUSSI</span>'
+                f'<span class="pl-sel">{e(str(perle2["selection"]))}</span>'
+                f'<span class="pl-o">@{perle2["odds"]:g}</span>'
+                f'<span class="pl-m">modèle <b>{pct2}%</b></span></div>')
+    return out
+
+
 def _pick_card(p: dict, badge: str) -> str:
     """Carte d'un pari pour l'accueil (value OU confiance), avec le tableau des chances.
     Titre = l'AFFICHE (les 2 équipes) ; le pari/cote n'est PAS répété (la cote pariée est
@@ -878,24 +899,8 @@ def _pick_card(p: dict, badge: str) -> str:
     hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""
     af = f'{p["away_flag"]} ' if p.get("away_flag") else ""
     # « perle rare » : le pari à jouer (meilleur équilibre confiance×value parmi TOUS les
-    # marchés Unibet), mis en avant au-dessus des barres de contexte 1X2.
-    perle = p.get("perle")
-    perle_html = ""
-    if isinstance(perle, dict) and perle.get("selection"):
-        pct = round(perle.get("model_prob", 0) * 100)
-        edgep = round(perle.get("edge", 0) * 100)
-        perle_html = (f'<div class="perle"><span class="pl-tag">🎯 À JOUER</span>'
-                      f'<span class="pl-sel">{e(perle["selection"])}</span>'
-                      f'<span class="pl-o">@{perle["odds"]:g}</span>'
-                      f'<span class="pl-m">modèle <b>{pct}%</b> · value <b>+{edgep}%</b></span></div>')
-    # 2e pari de confiance (type de marché distinct) — bannière secondaire, plus discrète
-    perle2 = p.get("perle2")
-    if isinstance(perle2, dict) and perle2.get("selection"):
-        pct2 = round(perle2.get("model_prob", 0) * 100)
-        perle_html += (f'<div class="perle perle2"><span class="pl-tag">+ AUSSI</span>'
-                       f'<span class="pl-sel">{e(perle2["selection"])}</span>'
-                       f'<span class="pl-o">@{perle2["odds"]:g}</span>'
-                       f'<span class="pl-m">modèle <b>{pct2}%</b></span></div>')
+    # marchés Unibet), mis en avant au-dessus des barres de contexte.
+    perle_html = _perle_banner(p.get("perle"), p.get("perle2"))
     inner = (f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
@@ -1021,8 +1026,8 @@ def _sport_row(r: dict) -> str:
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {af}{e(r.get("away") or "")}</div>{badge}</div>'
-             f'{probviz}{r.get("sub", "")}')
-    cls = "row pick" if r.get("pick") else "row"
+             f'{_perle_banner(r.get("perle"), r.get("perle2"))}{probviz}{r.get("sub", "")}')
+    cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
     url = r.get("url") or ""
     # Tap -> déplie l'analyse complète À L'INTÉRIEUR de la carte (les 3 sports), sans changer
     # de vue. L'analyse est chargée en AJAX (route détail ?frag=1).
