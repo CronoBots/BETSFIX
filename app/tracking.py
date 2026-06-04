@@ -410,6 +410,10 @@ def report(store: dict) -> dict:
         "perle_matchs_regles": len(perle_settled),
         "perle_paris_regles": len(all_pnls),
         "perle_roi_global": round(perle_roi, 3) if perle_roi is not None else None,
+        # Paris d'avant-match en attente de résultat (matchs non terminés ayant une perle) :
+        # montre que le palmarès va se remplir, plutôt qu'un tableau « vide ».
+        "perle_en_attente": sum(1 for r in store.values()
+                                if r.get("perle") and not r.get("result")),
         # Surconfiance globale : proba moyenne annoncée au favori − taux réel.
         # >0 = le modèle promet plus qu'il ne réalise (à corriger par recalibration).
         "surconfiance": overall["surconfiance"],
@@ -495,7 +499,17 @@ def render_proof(reports: list[tuple]) -> str:
     head = ('<div class="ptab-h"><span>Sport</span><span>Fiabilité</span>'
             '<span class="ph-conf">Confiance</span><span class="ph-val">Value</span></div>')
     rows = "".join(_proof_row(i, n, r, u) for i, n, r, u in reports)
-    table = f'<div class="ptab">{head}{rows}</div>'
+    # Légende vivante : combien de paris d'avant-match attendent leur résultat (palmarès à venir).
+    pending = sum((r.get("perle_en_attente") or 0) for _, _, r, _ in reports)
+    settled = sum((r.get("perle_matchs_regles") or 0) for _, _, r, _ in reports)
+    cap = ""
+    if settled == 0 and pending:
+        cap = (f'<div class="ptab-cap">🕓 <b>{pending}</b> pari{"s" if pending > 1 else ""} '
+               f'd\'avant-match en attente de résultat — le palmarès se remplit à leur règlement.</div>')
+    elif pending:
+        cap = (f'<div class="ptab-cap">🕓 {pending} autre{"s" if pending > 1 else ""} '
+               f'pari{"s" if pending > 1 else ""} d\'avant-match en cours.</div>')
+    table = f'<div class="ptab">{head}{rows}</div>{cap}'
     info = ('Sur les paris « perle » déjà réglés, sont-ils gagnants face au marché ? '
             '<b>Fiabilité</b> le dit (sur le ROI global) : <b>✓ Plus fiable</b> / '
             '<b>✗ Moins fiable</b> que le marché, <b>En rodage</b> = pas encore assez de recul, '

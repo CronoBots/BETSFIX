@@ -502,13 +502,13 @@ CSS = """
   .ptab-h,.ptab-row{display:grid;grid-template-columns:1.25fr 1fr .9fr .9fr;gap:6px;
           align-items:center;padding:11px 12px}
   .ptab-h{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
-          color:#eaf2ff;border-bottom:1px solid var(--border)}
+          color:#eaf2ff;border-bottom:1px solid var(--border);background:rgba(255,255,255,.022)}
   .ptab-h span{text-align:center} .ptab-h span:first-child{text-align:left}
   .ptab-h .ph-conf{color:#34d27b} .ptab-h .ph-val{color:#4aa8ff}   /* Confiance vert · Value bleu */
   .ptab-row{border-top:1px solid var(--border);border-left:3px solid var(--sc,var(--border2));
-          text-decoration:none;color:var(--text)}
+          text-decoration:none;color:var(--text);transition:background .15s}
   .ptab-row:first-of-type{border-top:none}
-  .ptab-row:active{background:var(--surface2)}
+  .ptab-row:active,.ptab-row:hover{background:rgba(255,255,255,.03)}
   .ptab-sport{font-weight:800;font-size:14px;line-height:1.25;min-width:0;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ptab-sub{display:block;font-size:10px;font-weight:600;color:var(--muted)}
@@ -520,9 +520,12 @@ CSS = """
   .ptab-verdict.na{color:var(--muted)}
   .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap;
           line-height:1.1}
-  .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600}
+  .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600;opacity:.5;font-size:16px}
   .ptab-pct{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
   .ptab-pct.pos{color:var(--green)} .ptab-pct.neg{color:var(--red)}
+  /* Légende vivante sous le tableau (paris d'avant-match en attente) */
+  .ptab-cap{font-size:11px;color:var(--muted);text-align:center;margin:8px 6px 2px;line-height:1.45}
+  .ptab-cap b{color:#cfe0f5}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);
