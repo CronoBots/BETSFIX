@@ -288,7 +288,7 @@ CSS = """
                overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* affiche (équipes) + badge à droite, badge aligné en haut, le matchup peut wraper */
   .mrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-  .mrow .players{flex:1;min-width:0}
+  .mrow .players{flex:1;min-width:0;text-align:center}   /* affiche centrée dans la carte */
   .bdg{flex:none}
   /* perle rare : le pari à jouer (confiance×value) mis en avant */
   /* Bloc « pari à jouer », SOUS les cotes : tête (type + pari + cote) puis barre de confiance.
