@@ -180,6 +180,26 @@ def test_foot_result_market_guard():
     assert bb is None or bb["kind"] != "dc"
 
 
+def test_foot_halftime_model_and_settle():
+    """Marchés MI-TEMPS : grille découpée, HT/FT joint, règlement sur le score de la période."""
+    # la grille mi-temps a moins de buts attendus que le plein-temps
+    assert foot._p_over(foot._grid_half(2.0, 1.4, 0.45), 1.5) < foot._p_over(foot._grid_l(2.0, 1.4), 1.5)
+    jt = foot._p_htft(foot._grid_half(2.4, 0.3, 0.45), foot._grid_half(2.4, 0.3, 0.55))
+    assert abs(sum(jt.values()) - 1.0) < 1e-6          # loi de proba
+    assert jt[("1", "1")] > jt[("2", "2")]             # gros favori : mène et gagne >> perd et perd
+    # règlement mi-temps : sur le score de la période, pas le score final
+    p_h1 = {"kind": "ou", "side": "over", "line": 0.5, "period": "h1"}
+    assert foot.settle_perle(p_h1, 2, 1, h1_home=1, h1_away=0) is True    # 1 but en 1re MT
+    assert foot.settle_perle(p_h1, 2, 1, h1_home=0, h1_away=0) is False   # 0 but en 1re MT
+    assert foot.settle_perle(p_h1, 2, 1) is None                          # score pause inconnu
+    p_h2 = {"kind": "team_ou", "side": "over", "line": 0.5, "team": "home", "period": "h2"}
+    assert foot.settle_perle(p_h2, 3, 0, h1_home=1, h1_away=0) is True    # dom marque en 2e MT (3-1=2)
+    # HT/FT : mène à la pause puis se fait remonter
+    p_htft = {"kind": "htft", "htft": ["1", "2"]}
+    assert foot.settle_perle(p_htft, 1, 2, h1_home=1, h1_away=0) is True
+    assert foot.settle_perle(p_htft, 1, 2, h1_home=0, h1_away=0) is False
+
+
 def test_foot_team_goals_markets():
     """Le moteur évalue les marchés PAR ÉQUIPE (totaux d'un camp, but / pas de but)."""
     from app.providers.unibet import UnibetMarket, UnibetOutcome

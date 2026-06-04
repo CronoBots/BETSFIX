@@ -239,15 +239,54 @@ def _p_handicap(grid, team: str, h: float) -> tuple[float, float]:
 # le marché si le modèle s'en écarte trop (garde-fou MAX_DISAGREEMENT) -> pas de faux edge.
 _RESULT_KINDS = {"1x2", "dc", "hasian"}
 
+# --- mi-temps : ~45 % des buts tombent en 1re période (stat foot stable). On découpe les lambdas
+# plein-temps et on price chaque mi-temps comme un double Poisson. Modèle APPROXIMATIF (ratio
+# constant, pas de profil par équipe) -> marchés mi-temps toujours sous garde-fou (pas de faux edge).
+HALF1_SHARE = 0.45
+_H1_MARK = ("1re mi", "1ère mi", "1ere mi", "première mi", "premiere mi", "1st half",
+            "first half", "1re période", "1re periode", "1ère période", "mi-temps 1")
+_H2_MARK = ("2e mi", "2ème mi", "2eme mi", "2nde mi", "2nd half", "second half",
+            "deuxième mi", "deuxieme mi", "mi-temps 2", "2e période", "2e periode")
+
+
+def _grid_half(lh: float, la: float, share: float, kmax: int = 8) -> list:
+    return _grid_l(lh * share, la * share, kmax)
+
+
+def _market_period(m) -> str | None:
+    """'h1'/'h2' si le marché porte sur une mi-temps précise, sinon None (plein-temps)."""
+    lbl = f"{m.label or ''} {m.type or ''}".lower()
+    if any(k in lbl for k in _H1_MARK):
+        return "h1"
+    if any(k in lbl for k in _H2_MARK):
+        return "h2"
+    return None
+
+
+def _p_htft(grid_h1: list, grid_h2: list) -> dict:
+    """Loi jointe (résultat à la PAUSE, résultat FINAL) -> {('1','1'): p, …} sur les 9 combinaisons.
+    MT1 et MT2 supposées indépendantes ; score final = MT1 + MT2."""
+    res = {}
+    sign = lambda a, b: "1" if a > b else ("2" if b > a else "x")
+    for i1, r1 in enumerate(grid_h1):
+        for j1, v1 in enumerate(r1):
+            ht = sign(i1, j1)
+            for i2, r2 in enumerate(grid_h2):
+                for j2, v2 in enumerate(r2):
+                    key = (ht, sign(i1 + i2, j1 + j2))
+                    res[key] = res.get(key, 0.0) + v1 * v2
+    return res
+
 
 # Marqueurs d'un marché qu'on NE price PAS : sous-période (mi-temps, 15 min), joueur/buteur,
 # corners/cartons, prolongation, handicap (push/lignes asiatiques trop fragiles à régler), et
 # combinés « résultat & autre marché ». Notre modèle price le plein-temps -> tout le reste fausse.
+# NB : les marqueurs de mi-temps NE sont PLUS ici (on price les mi-temps, cf. _market_period).
+# Restent exclus : segments courts (quart/minute/15min), corners/cartons/tirs, joueurs, combinés.
 _NOT_FULLTIME = (
-    "half", "mi-temps", "mi temps", "1ère", "1ere", "2ème", "2eme", "1st", "2nd",
-    "période", "periode", "quart", "quarter", "minute", "15 min", "first", "second",
-    "corner", "carton", "card", "buteur", "joueur", "player", "scorer", "prolongation",
-    "extra time",
+    "quart", "quarter", "minute", "15 min", "intervalle", "10 min",
+    "corner", "carton", "card", "buteur", "joueur", "player", "scorer", "tir", "shot",
+    "hors-jeu", "offside", "penalt", "poteau", "prolongation", "extra time",
     " and ", "&", " or ", " win and", "to win", " et ",
     "avance", "ahead",   # « Temps réglementaire - 2 buts d'avance » ≠ résultat 1X2
 )
@@ -271,9 +310,12 @@ def _market_kind(m, home: str = "", away: str = "") -> str | None:
     lbl = f"{m.label or ''} {m.type or ''}".lower()
     if any(k in lbl for k in _NOT_FULLTIME):
         return None
-    if ("résultat du match" in lbl or "résultat final" in lbl or "1x2" in lbl
+    if (("mi-temps" in lbl or "half" in lbl) and ("temps complet" in lbl or "fin de match" in lbl
+            or "full time" in lbl or "/temps" in lbl)):
+        return "htft"        # mi-temps / fin de match (double résultat)
+    if ("résultat" in lbl or "result" in lbl or "1x2" in lbl
             or "temps réglementaire" in lbl or "temps reglementaire" in lbl or "regular time" in lbl
-            or "full time result" in lbl or "match result" in lbl or "match odds" in lbl):
+            or "match odds" in lbl) and "exact" not in lbl:
         return "1x2"
     if ("deux" in lbl and "marqu" in lbl) or ("both" in lbl and "score" in lbl):
         return "btts"
@@ -304,7 +346,22 @@ def _is_over(label: str) -> bool:
     return "plus" in lab or "over" in lab or "oui" in lab or "yes" in lab or "+" in lab
 
 
-def _price_market(m, grid, home: str = "", away: str = "") -> list:
+_PERIOD_LBL = {"h1": " (1re MT)", "h2": " (2e MT)"}
+
+
+def _price_market(m, grid, home: str = "", away: str = "", period: str | None = None) -> list:
+    """Wrapper : price sur `grid` (déjà choisie plein-temps OU mi-temps), puis étiquette chaque
+    issue avec la période (libellé + champ `period` pour le règlement)."""
+    res = _price_market_raw(m, grid, home, away)
+    if period:
+        suf = _PERIOD_LBL.get(period, "")
+        for c in res:
+            c["period"] = period
+            c["sel"] += suf
+    return res
+
+
+def _price_market_raw(m, grid, home: str = "", away: str = "") -> list:
     """Issues d'un marché évaluable : dicts {sel, mp, odds, kind, side, line, team, sc, k, ge}.
     Tout ce qui sert au règlement est porté par l'issue. Liste vide si non priçable."""
     kind = _market_kind(m, home, away)
@@ -440,14 +497,21 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
     if not markets:
         return None
     if lambdas is not None:
-        grid = _grid_l(lambdas[0], lambdas[1])
+        lh, la = lambdas
     elif elo_home is not None and elo_away is not None:
-        grid = _grid(elo_home, elo_away, neutral)
+        lh, la = _lambdas(elo_home, elo_away, neutral)
     else:
         return None
+    grid = _grid_l(lh, la)                                   # plein-temps
+    grids = {"h1": _grid_half(lh, la, HALF1_SHARE),          # mi-temps (modèle approximatif)
+             "h2": _grid_half(lh, la, 1 - HALF1_SHARE)}
     cands = []
     for m in markets:
-        priced = _price_market(m, grid, home, away)
+        period = _market_period(m)
+        if _market_kind(m, home, away) == "htft":
+            priced = _price_htft(m, grids["h1"], grids["h2"])
+        else:
+            priced = _price_market(m, grids.get(period, grid), home, away, period=period)
         if len(priced) < 2:
             continue
         inv = [1 / c["odds"] for c in priced]
@@ -456,9 +520,10 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
         for c, iv in zip(priced, inv):
             # dévig sur la MÊME base que le modèle (gère DC ~2 et marchés non exhaustifs)
             implied = iv / s * msum
-            # marché de RÉSULTAT/marge : si le modèle s'écarte trop du marché (efficient), c'est le
-            # modèle qui a tort -> on s'aligne, pas de faux edge (cf. ancien « 1X @2.5 +24 % »).
-            if c["kind"] in _RESULT_KINDS and abs(c["mp"] - implied) > MAX_DISAGREEMENT:
+            # marché de RÉSULTAT/marge OU de MI-TEMPS (modèle approximatif) : si le modèle s'écarte
+            # trop du marché (efficient), c'est le modèle qui a tort -> on s'aligne (pas de faux edge).
+            guarded = c["kind"] in _RESULT_KINDS or c.get("period") or c["kind"] == "htft"
+            if guarded and abs(c["mp"] - implied) > MAX_DISAGREEMENT:
                 continue
             # on ne compare jamais la proba brute du modèle au marché : on mélange (MODEL_TRUST)
             fair = MODEL_TRUST * c["mp"] + (1 - MODEL_TRUST) * implied
@@ -468,20 +533,58 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
                               "odds": round(c["odds"], 2), "model_prob": round(fair, 4),
                               "edge": round(edge, 4), "score": round(fair * edge, 5),
                               "kind": c["kind"], "side": c.get("side"), "line": c.get("line"),
-                              "team": c.get("team"), "sc": c.get("sc"),
-                              "k": c.get("k"), "ge": c.get("ge")})
+                              "team": c.get("team"), "sc": c.get("sc"), "period": c.get("period"),
+                              "k": c.get("k"), "ge": c.get("ge"), "htft": c.get("htft")})
     return max(cands, key=lambda c: c["score"]) if cands else None
 
 
-def settle_perle(perle: dict, home_score: int, away_score: int):
-    """Gagné/perdu/None d'une perle d'après le score final. Couvre tous les types priçables."""
+def _price_htft(m, grid_h1, grid_h2) -> list:
+    """Marché mi-temps/fin de match : 9 issues (résultat pause / résultat final)."""
+    outs = [o for o in (m.outcomes or []) if o.odds]
+    jt = _p_htft(grid_h1, grid_h2)
+    res = []
+    for o in outs:
+        key = (o.label or "").replace(" ", "").replace(":", "/").lower()  # « 1/1 », « 1/x »…
+        parts = key.split("/")
+        if len(parts) == 2 and parts[0] in ("1", "x", "2") and parts[1] in ("1", "x", "2"):
+            res.append({"sel": f"Pause/Fin {parts[0].upper()}/{parts[1].upper()}",
+                        "mp": jt.get((parts[0], parts[1]), 0.0), "odds": o.odds,
+                        "kind": "htft", "side": f"{parts[0]}/{parts[1]}",
+                        "htft": [parts[0], parts[1]]})
+    return res
+
+
+def _sign(a, b):
+    return "1" if a > b else ("2" if b > a else "x")
+
+
+def settle_perle(perle: dict, home_score: int, away_score: int,
+                 h1_home: int | None = None, h1_away: int | None = None):
+    """Gagné/perdu/None d'une perle d'après le score final (+ score à la pause pour les marchés
+    mi-temps). Couvre tous les types priçables, plein-temps comme mi-temps."""
     if not perle or home_score is None or away_score is None:
         return None
+    kind = perle.get("kind")
+    # mi-temps / fin de match : double résultat (pause, final)
+    if kind == "htft":
+        ht = perle.get("htft")
+        if not ht or h1_home is None or h1_away is None:
+            return None
+        return [_sign(h1_home, h1_away), _sign(home_score, away_score)] == ht
+    # marché sur une mi-temps : on règle sur le score de CETTE période
+    period = perle.get("period")
+    if period == "h1":
+        if h1_home is None or h1_away is None:
+            return None
+        home_score, away_score = h1_home, h1_away
+    elif period == "h2":
+        if h1_home is None or h1_away is None:
+            return None
+        home_score, away_score = home_score - h1_home, away_score - h1_away
     side, line = perle.get("side"), perle.get("line")
     tot = home_score + away_score
-    res = "1" if home_score > away_score else ("2" if away_score > home_score else "x")
+    res = _sign(home_score, away_score)
     btts = home_score >= 1 and away_score >= 1
-    kind = perle.get("kind")
     if kind == "1x2":
         return side == res
     if kind == "dc":
@@ -1194,17 +1297,19 @@ async def run_settle() -> int:
                 winner = {1: "home", 2: "away", 3: "draw"}[wc]
                 hs = (ev.get("homeScore") or {}).get("current")
                 as_ = (ev.get("awayScore") or {}).get("current")
+                h1h = (ev.get("homeScore") or {}).get("period1")   # score à la pause (paris mi-temps)
+                h1a = (ev.get("awayScore") or {}).get("period1")
                 score = f"{hs}-{as_}" if hs is not None and as_ is not None else None
                 pnl = None
                 pk = rec.get("value_pick")
                 if pk and pk.get("odds"):
                     won = _CODE_TO_WINNER.get(pk["code"]) == winner
                     pnl = (pk["odds"] - 1) if won else -1.0
-                # règlement de la perle rare (1X2 / totaux / BTTS / double chance)
+                # règlement de la perle (tous marchés : résultat, buts, par équipe, mi-temps…)
                 perle_pnl = None
                 perle = rec.get("perle")
                 if perle and perle.get("odds") and hs is not None and as_ is not None:
-                    pw = settle_perle(perle, hs, as_)
+                    pw = settle_perle(perle, hs, as_, h1h, h1a)
                     if pw is not None:
                         perle_pnl = (perle["odds"] - 1) if pw else -1.0
                 rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl,
