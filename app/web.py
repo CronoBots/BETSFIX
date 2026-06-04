@@ -422,14 +422,12 @@ CSS = """
   .seg.pm,.seg.po,.seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
   /* Non-favori : % légèrement atténué + un poil plus petit */
   .seg.pba,.seg.pbd{color:rgba(255,255,255,.74);font-size:11px;font-weight:700}
-  /* 4e barre « Cotes Unibet » : 1 segment par issue (nom + cote), parts ÉGALES, pari surligné */
-  .sb-bar.ocbar .seg{flex:1 1 0;min-width:0;gap:5px;padding:0 7px}
-  .ocbar .seg .ocn{overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:700;
-        letter-spacing:.01em;opacity:.92}
-  .ocbar .seg b{font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
-  .seg.ocf{background:linear-gradient(90deg,#1f80e6,#2e9bff);color:#fff;
+  /* Barre « Bookmakers » : 1 segment par issue (cote seule), parts ÉGALES, fond GRIS
+     (écriture blanche bien lisible), pari surligné en gris plus clair. */
+  .sb-bar.ocbar .seg{flex:1 1 0;min-width:0;gap:5px;padding:0 7px;background:#6c7689;color:#fff}
+  .ocbar .seg b{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+  .seg.ocf{background:linear-gradient(90deg,#8b94a6,#a3acba);color:#fff;
         box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
-  .seg.ocf .ocn{opacity:1}
   .ptab2{margin:8px 0 2px}
   .pt2-h{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center;
          padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
@@ -984,7 +982,7 @@ def odds_bar(outcomes, highlight_idx: int | None = None) -> str:
     `outcomes` = [(libellé, cote), ...] ; `highlight_idx` = issue pronostiquée par BETSFIX."""
     valid = [(i, lbl, o) for i, (lbl, o) in enumerate(outcomes) if o]
     if not valid:
-        return ('<div class="sb"><span class="sb-l">Bookmaker</span>'
+        return ('<div class="sb"><span class="sb-l">Bookmakers</span>'
                 '<div class="sb-bar ocbar"><span class="seg pba">à venir</span></div></div>')
     if highlight_idx is not None and any(i == highlight_idx for i, _, _ in valid):
         hi = highlight_idx
@@ -993,7 +991,7 @@ def odds_bar(outcomes, highlight_idx: int | None = None) -> str:
     segs = "".join(
         f'<span class="seg {"ocf" if i == hi else "pba"}"><b>{o}</b></span>'
         for i, lbl, o in valid)
-    return (f'<div class="sb"><span class="sb-l">Bookmaker</span>'
+    return (f'<div class="sb"><span class="sb-l">Bookmakers</span>'
             f'<div class="sb-bar ocbar">{segs}</div></div>')
 
 
