@@ -409,28 +409,27 @@ CSS = """
   .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
   /* TABLEAU « Chances de gagner » : sources en LIGNES, issues en COLONNES + fine barre/ligne */
   .ptab2{margin:8px 0 2px}
-  .pt2-h,.pt2-row{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center}
-  .pt2-h{padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
+  .pt2-h{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center;
+         padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
          color:var(--muted);border-bottom:1px solid var(--border)}
-  /* en-tête : nul centré ; équipe gauche alignée à GAUCHE, équipe droite à DROITE (comme leurs
-     cotes en dessous). Les VALEURS %, elles, restent centrées (cf. .pt2-v). */
+  /* en-tête : Source à gauche ; les NOMS de joueurs CENTRÉS sur leurs % (comme .pt2-v) */
   .pt2-h span{text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .pt2-h span:first-child{text-align:left}
-  .pt2-h span:nth-child(2){text-align:left}
-  .pt2-h span:last-child{text-align:right}
-  .pt2-block{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.04)}
+  /* Bloc = grille 2 lignes : source (col 1, centrée verticalement) | % (ligne 1) | barre (ligne 2) */
+  .pt2-block{display:grid;grid-template-columns:var(--cols);column-gap:6px;align-items:center;
+         padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.04)}
   .pt2-block:last-child{border-bottom:none}
-  .pt2-s{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
+  .pt2-s{grid-column:1;grid-row:1/3;align-self:center;
+         font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
          color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pt2-v{text-align:center;font-size:13px;font-weight:600;color:var(--muted);
+  .pt2-v{grid-row:1;text-align:center;font-size:13px;font-weight:600;color:var(--muted);
          font-variant-numeric:tabular-nums}
   .pt2-v.hi{font-weight:800}
   .pt2-v.dim{color:var(--dim)}
   .t-pm{color:#4aa8ff} .t-po{color:#43dd8c} .t-pc{color:#e8c34d}   /* favori = couleur de la source */
-  /* La barre démarre APRÈS la colonne source : grille alignée sur --cols, 1re cellule vide */
-  .pt2-barwrap{display:grid;grid-template-columns:var(--cols);gap:6px;margin-top:6px}
-  .pt2-bar{grid-column:2/-1;display:flex;gap:1px;height:4px;border-radius:99px;overflow:hidden;
-         background:var(--surface)}
+  /* Barre : ligne 2, à partir de la colonne 2 (démarre donc après la source) */
+  .pt2-bar{grid-column:2/-1;grid-row:2;margin-top:5px;
+         display:flex;gap:1px;height:4px;border-radius:99px;overflow:hidden;background:var(--surface)}
   .pt2-bar > span{display:block;height:100%}
   .pb-row{display:flex;align-items:center;gap:7px;font-size:11px}
   .pb-l{width:64px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
@@ -882,10 +881,10 @@ def _pick_bars(p: dict) -> str:
             cls = scol if (v is not None and v == mx) else base
             return f'<span class="{cls}" style="width:{round((v or 0) * 100)}%"></span>'
         bar = seg(h, "pba") + (seg(d, "pbd") if has_draw else "") + seg(a, "pba")
-        # La barre démarre APRÈS la colonne « source » (1re cellule vide alignée sur --cols)
-        return (f'<div class="pt2-block"><div class="pt2-row">'
-                f'<span class="pt2-s">{label}</span>{cells}</div>'
-                f'<div class="pt2-barwrap"><span></span><div class="pt2-bar">{bar}</div></div></div>')
+        # Grille : source (col 1, centrée verticalement sur les 2 lignes) | valeurs (ligne 1) |
+        # barre (ligne 2, à partir de la colonne 2 -> démarre après la source).
+        return (f'<div class="pt2-block"><span class="pt2-s">{label}</span>{cells}'
+                f'<div class="pt2-bar">{bar}</div></div>')
 
     rows = (row("BETSFIX", "pm", mh, p.get("m_draw"), ma)
             + row("Cote Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
