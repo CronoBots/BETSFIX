@@ -367,10 +367,23 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
         st = p.get("start_ts")
         return st is None or st > now_ts
 
-    values = sorted([p for p in values + bv if _not_started(p)],
-                    key=lambda p: p.get("start_ts") or inf)[:8]
-    confidences = sorted([p for p in confidences + bc if _not_started(p)],
-                         key=lambda p: p.get("start_ts") or inf)[:6]
+    def _balanced(picks: list, cap: int) -> list:
+        """Round-robin par SPORT : chaque sport est représenté (sinon le sport au calendrier le
+        plus dense monopolise l'accueil), en piochant le plus proche de chaque sport tour à tour."""
+        from collections import defaultdict
+        bysport = defaultdict(list)
+        for p in sorted(picks, key=lambda p: p.get("start_ts") or inf):
+            bysport[p.get("sport")].append(p)
+        out, i = [], 0
+        while len(out) < cap and any(i < len(v) for v in bysport.values()):
+            for lst in bysport.values():
+                if i < len(lst) and len(out) < cap:
+                    out.append(lst[i])
+            i += 1
+        return out
+
+    values = _balanced([p for p in values + bv if _not_started(p)], 8)
+    confidences = _balanced([p for p in confidences + bc if _not_started(p)], 6)
     _enrich_picks_votes(values + confidences, provider)   # votes communauté (cache only)
     # 📊 Preuve : track record honnête des 3 sports (suivis séparés), exposé en haut de l'accueil.
     from app import basket, foot
@@ -820,16 +833,9 @@ async def match_detail(
     analysis_html = ""
     if frag:
         rec = tracking.load().get(str(match_id))
+        perle = rec.get("perle") if rec else None
         if rec:
-            vp = rec.get("value_pick")
-            value = (vp.get("player"), vp.get("odds"), vp.get("edge")) if vp and vp.get("odds") else None
-            mh = rec.get("model_home_prob")
-            confidence = None
-            if mh is not None and max(mh, 1 - mh) >= 0.65:
-                fav = rec.get("home") if mh >= 0.5 else rec.get("away")
-                odd = rec.get("unibet_home_odds") if mh >= 0.5 else rec.get("unibet_away_odds")
-                confidence = (fav, max(mh, 1 - mh), odd)
-            recos = web.recommended_bets(value, confidence)
+            recos = web.perle_advice(perle)   # 🎯 Paris conseillés = la perle (tous marchés)
         # 🧠 Analyse rédigée (gratuite, ou prose Claude si une clé API est configurée)
         ground = (analysis.ground_type or "").lower()
         surface = ("terre" if "clay" in ground else "gazon" if "grass" in ground
@@ -844,8 +850,7 @@ async def match_detail(
             "underdog": match.away.name if fav_home else match.home.name,
             "fav_prob": fav_prob,
             "fav_odds": winner_odds[0] if fav_home else winner_odds[1],
-            "confidence": analysis.confidence,
-            "value": ({"name": value[0], "odds": value[1], "edge": value[2]} if value else None),
+            "confidence": analysis.confidence, "perle": perle, "value": None,
             "surface": surface, "surface_edge": surf_edge,
             "fav_rank": (match.home.ranking if fav_home else match.away.ranking),
             "dog_rank": (match.away.ranking if fav_home else match.home.ranking),
