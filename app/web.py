@@ -249,13 +249,14 @@ CSS = """
   /* perle rare : le pari à jouer (confiance×value) mis en avant */
   /* Bloc « pari à jouer », SOUS les cotes : tête (type + pari + cote) puis barre de confiance.
      CONFIANCE = vert · VALUE = bleu · avant-match = neutre. */
-  .perle{display:block;margin:9px 0 3px;padding:9px 11px;border-radius:11px;
+  .perle{display:block;margin:9px 0 3px;padding:10px 12px;border-radius:11px;
          background:rgba(255,255,255,.03);border:1px solid var(--cardline)}
-  .pl-h{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+  .pl-top{display:flex;align-items:center;gap:7px}
   .pl-tag{font-size:10.5px;font-weight:800;letter-spacing:.04em;padding:2px 7px;
           border-radius:7px;white-space:nowrap}
-  .pl-sel{font-size:14.5px;font-weight:800;color:#eaf2ff;letter-spacing:-.01em}
-  .pl-o{font-size:14.5px;font-weight:800;margin-left:auto}
+  .pl-sel{display:block;text-align:center;font-size:15px;font-weight:800;color:#eaf2ff;
+          letter-spacing:-.01em;line-height:1.3;margin:8px 2px 1px}
+  .pl-o{font-size:15px;font-weight:800;margin-left:auto}
   /* CONFIANCE = vert */
   .perle-conf{background:linear-gradient(90deg,rgba(25,196,106,.13),rgba(25,196,106,.05));
               border-color:rgba(25,196,106,.45);box-shadow:0 0 14px rgba(25,196,106,.10)}
@@ -969,9 +970,9 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
         if live and not secondary:
             cls += " perle-pre"
             pre = '<span class="pl-pre">d\'avant-match</span>'
-        head = (f'<div class="pl-h"><span class="pl-tag">{tag}</span>{pre}'
-                f'<span class="pl-sel">{e(str(p["selection"]))}</span>'
-                f'<span class="pl-o">@{p["odds"]:g}</span></div>')
+        head = (f'<div class="pl-top"><span class="pl-tag">{tag}</span>{pre}'
+                f'<span class="pl-o">@{p["odds"]:g}</span></div>'
+                f'<div class="pl-sel">{e(str(p["selection"]))}</div>')
         return f'<div class="perle {cls}">{head}{_confidence_meter(p)}</div>'
     out = one(perle, k=kind)
     if isinstance(perle2, dict) and perle2.get("selection"):
@@ -1673,15 +1674,16 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
         if not form:
             return (f'<div class="frow"><div class="fn">{e(name.split()[-1])}</div>'
                     '<span class="dim">historique indisponible</span></div>')
+        # Le + RÉCENT à DROITE : on inverse (la source donne récent -> ancien)
         dots = "".join(f'<span class="dot {"w" if f["win"] else "l"}">'
-                       f'{"V" if f["win"] else "D"}</span>' for f in form)
+                       f'{"V" if f["win"] else "D"}</span>' for f in reversed(form))
         return (f'<div class="frow"><div class="players" style="font-size:14px;margin:0 0 6px">'
                 f'{e(name)}</div><div class="dots">{dots}</div></div>')
 
     form_html = ""
     if home_form or away_form:
         form_html = ('<h2>📈 Forme récente <span class="dim" style="font-weight:400;font-size:11px">'
-                     '· 🟢 V gagné · 🔴 D perdu · récent → ancien</span></h2>'
+                     '· 🟢 V · 🔴 D · le + récent à droite →</span></h2>'
                      f'<div class="row">{_form_block(a.home.name, home_form or [])}'
                      f'{_form_block(a.away.name, away_form or [])}</div>')
 
