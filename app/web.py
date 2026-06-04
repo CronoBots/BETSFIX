@@ -422,6 +422,14 @@ CSS = """
   .seg.pm,.seg.po,.seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
   /* Non-favori : % légèrement atténué + un poil plus petit */
   .seg.pba,.seg.pbd{color:rgba(255,255,255,.74);font-size:11px;font-weight:700}
+  /* 4e barre « Cotes Unibet » : 1 segment par issue (nom + cote), parts ÉGALES, pari surligné */
+  .sb-bar.ocbar .seg{flex:1 1 0;min-width:0;gap:5px;padding:0 7px}
+  .ocbar .seg .ocn{overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:700;
+        letter-spacing:.01em;opacity:.92}
+  .ocbar .seg b{font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
+  .seg.ocf{background:linear-gradient(90deg,#1f80e6,#2e9bff);color:#fff;
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
+  .seg.ocf .ocn{opacity:1}
   .ptab2{margin:8px 0 2px}
   .pt2-h{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center;
          padding:5px 2px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
@@ -969,6 +977,26 @@ def odds_row(outcomes, highlight_idx: int | None = None) -> str:
     return f'<div class="oddsrow2">{cells}</div>'
 
 
+def odds_bar(outcomes, highlight_idx: int | None = None) -> str:
+    """Cotes Unibet présentées comme une 4e BARRE (même style que BETSFIX/Unibet/Public) :
+    un segment par issue (nom + cote), répartis à parts ÉGALES, le pari/favori surligné en bleu.
+    `outcomes` = [(libellé, cote), ...] ; `highlight_idx` = issue pronostiquée par BETSFIX."""
+    valid = [(i, lbl, o) for i, (lbl, o) in enumerate(outcomes) if o]
+    if not valid:
+        return ('<div class="sb"><span class="sb-l">Cotes Unibet</span>'
+                '<div class="sb-bar ocbar"><span class="seg pba">à venir</span></div></div>')
+    if highlight_idx is not None and any(i == highlight_idx for i, _, _ in valid):
+        hi = highlight_idx
+    else:
+        hi = min(valid, key=lambda t: t[2])[0]   # repli : favori du book (cote mini)
+    segs = "".join(
+        f'<span class="seg {"ocf" if i == hi else "pba"}">'
+        f'<span class="ocn">{html.escape(str(lbl))}</span> <b>{o}</b></span>'
+        for i, lbl, o in valid)
+    return (f'<div class="sb"><span class="sb-l">Cotes Unibet</span>'
+            f'<div class="sb-bar ocbar">{segs}</div></div>')
+
+
 def _head(title: str, info: str | None = None) -> str:
     """Titre de section. Si `info` est fourni, un petit 'i' à droite déroule
     l'explication dessous (HTML natif <details>, sans JS)."""
@@ -1110,7 +1138,7 @@ def _pick_card(p: dict, badge: str) -> str:
     bdg = f'<span class="bdg">{badge}</span>' if badge else ""
     # surligne l'issue pariée (cohérent avec les barres), pas le favori du book
     _hi = {"1": 0, "X": 1, "2": 2, "home": 0, "away": 1}.get(p.get("side"))
-    oddsrow = odds_row(p["odds_cells"], highlight_idx=_hi) if p.get("odds_cells") else ""
+    oddsrow = odds_bar(p["odds_cells"], highlight_idx=_hi) if p.get("odds_cells") else ""
     hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""      # gauche : drapeau AVANT le nom
     af = f' {p["away_flag"]}' if p.get("away_flag") else ""       # droite : drapeau APRÈS le nom
     # « perle rare » : le pari à jouer (meilleur équilibre confiance×value parmi TOUS les
