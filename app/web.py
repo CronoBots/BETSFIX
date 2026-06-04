@@ -239,6 +239,16 @@ CSS = """
   .mrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .mrow .players{flex:1;min-width:0}
   .bdg{flex:none}
+  /* perle rare : le pari à jouer (confiance×value) mis en avant */
+  .perle{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:7px 0 9px;padding:8px 11px;
+         border-radius:11px;background:linear-gradient(90deg,rgba(25,196,106,.14),rgba(46,155,255,.10));
+         border:1px solid rgba(25,196,106,.45);box-shadow:0 0 14px rgba(25,196,106,.12)}
+  .pl-tag{font-size:10.5px;font-weight:800;letter-spacing:.04em;color:#19c46a;
+          background:rgba(25,196,106,.16);padding:2px 7px;border-radius:7px;white-space:nowrap}
+  .pl-sel{font-size:14.5px;font-weight:800;color:#eaf2ff;letter-spacing:-.01em}
+  .pl-o{font-size:14.5px;font-weight:800;color:#34d27b}
+  .pl-m{font-size:11.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
+  .pl-m b{color:#cfe0f5;font-weight:700}
   .bdg .badge{white-space:nowrap}
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
          letter-spacing:.02em}
@@ -861,11 +871,22 @@ def _pick_card(p: dict, badge: str) -> str:
     oddsrow = odds_row(p["odds_cells"], highlight_idx=_hi) if p.get("odds_cells") else ""
     hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""
     af = f'{p["away_flag"]} ' if p.get("away_flag") else ""
+    # « perle rare » : le pari à jouer (meilleur équilibre confiance×value parmi TOUS les
+    # marchés Unibet), mis en avant au-dessus des barres de contexte 1X2.
+    perle = p.get("perle")
+    perle_html = ""
+    if isinstance(perle, dict) and perle.get("selection"):
+        pct = round(perle.get("model_prob", 0) * 100)
+        edgep = round(perle.get("edge", 0) * 100)
+        perle_html = (f'<div class="perle"><span class="pl-tag">🎯 À JOUER</span>'
+                      f'<span class="pl-sel">{e(perle["selection"])}</span>'
+                      f'<span class="pl-o">@{perle["odds"]:g}</span>'
+                      f'<span class="pl-m">modèle <b>{pct}%</b> · value <b>+{edgep}%</b></span></div>')
     inner = (f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
              f'<span class="dim">vs</span> {af}{e(p.get("away") or "")}</div>{bdg}</div>'
-             f'{_pick_bars(p)}{oddsrow}')
+             f'{perle_html}{_pick_bars(p)}{oddsrow}')
     url = p.get("url") or ""
     # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
@@ -898,13 +919,15 @@ def render_home(rep: dict, source: dict | None = None,
     if conf_picks:
         rows = "".join(_pick_card(p, "") for p in conf_picks)  # pas de badge % (déjà dans la barre)
         conf_html = _section(f'🔥 Confiances ({len(conf_picks)})', rows, open_=True,
-                             info='Les matchs où <b>BETSFIX</b> voit un <b>grand favori</b> (forte '
-                                  'chance de gagner). C\'est le choix le plus <b>sûr</b>, mais comme '
-                                  'c\'est le favori la cote est <b>petite</b> : <b>petit gain</b>. '
-                                  f'Parfait pour viser la régularité. {bars_legend}')
+                             info='Pour chaque match, <b>BETSFIX</b> analyse <b>tous les paris '
+                                  'disponibles sur Unibet</b> (résultat, nombre de buts, '
+                                  'les 2 équipes marquent…) et fait ressortir la <b>perle rare</b> : '
+                                  'le pari au <b>meilleur équilibre confiance × value</b> — assez '
+                                  'probable <b>et</b> à une cote qui paie (jamais en dessous de 1,50). '
+                                  f'C\'est le 🎯 « À JOUER » en vert. {bars_legend}')
     else:
         conf_html = _section('🔥 Confiances (0)',
-                             '<div class="banner">Aucun favori net à venir pour le moment.</div>')
+                             '<div class="banner">Aucune perle rare détectée à venir pour le moment.</div>')
 
     # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders
     if picks:

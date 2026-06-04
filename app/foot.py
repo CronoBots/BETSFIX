@@ -175,15 +175,30 @@ def _p_btts(grid) -> float:
     return sum(v for i, row in enumerate(grid) for j, v in enumerate(row) if i >= 1 and j >= 1)
 
 
+# Marqueurs d'un marché qui n'est PAS le plein-temps standard (mi-temps, période, joueur,
+# corners, cartons, score exact, handicap…) : notre modèle price le RÉSULTAT SUR 90 MIN, donc
+# l'appliquer à une mi-temps fabriquerait une fausse value énorme. On les écarte.
+_NOT_FULLTIME = (
+    "half", "mi-temps", "mi temps", "1ère", "1ere", "2ème", "2eme", "1st", "2nd",
+    "période", "periode", "quart", "quarter", "minute", "15 min", "first", "second",
+    "corner", "carton", "card", "buteur", "joueur", "player", "scorer", "prolongation",
+    "extra time", "exact", "handicap", "+/-", "pair", "impair", "odd/even",
+    # combinés (résultat & autre marché) : non standard, issues incohérentes avec notre modèle
+    " and ", "&", " or ", " win and", "to win", " et ",
+)
+
+
 def _market_kind(m) -> str | None:
-    """Type de marché foot évaluable, depuis le libellé Unibet (FR/EN)."""
+    """Type de marché foot évaluable (PLEIN-TEMPS), depuis le libellé Unibet (FR/EN)."""
     lbl = f"{m.label or ''} {m.type or ''}".lower()
+    if any(k in lbl for k in _NOT_FULLTIME):
+        return None
     if "résultat du match" in lbl or "résultat final" in lbl or "1x2" in lbl:
         return "1x2"
     if ("deux" in lbl and "marqu" in lbl) or ("both" in lbl and "score" in lbl):
         return "btts"
-    if "double chance" in lbl:
-        return "dc"
+    # NB : la double chance est volontairement écartée — issues non mutuellement exclusives
+    # (somme = 2.0) et trop sensible à la sous-estimation des nuls par le double Poisson.
     if "but" in lbl and ("plus de" in lbl or "moins de" in lbl or "total" in lbl
                          or "over" in lbl or "under" in lbl):
         return "ou"
@@ -191,7 +206,8 @@ def _market_kind(m) -> str | None:
 
 
 def _price_market(m, grid):
-    """Liste [(sélection, proba_modèle, cote), …] pour un marché Unibet évaluable, sinon []."""
+    """Issues d'un marché Unibet évaluable : liste de dicts {sel, mp, odds, side, line}
+    (side/line servent au règlement ultérieur), sinon []."""
     kind = _market_kind(m)
     outs = [o for o in (m.outcomes or []) if o.odds]
     if not kind or not outs:
@@ -199,29 +215,32 @@ def _price_market(m, grid):
     p1, px, p2 = _p_1x2(grid)
     if kind == "1x2" and len(outs) == 3:
         probs = {"1": p1, "x": px, "2": p2}
+        alias = {"home": "1", "draw": "x", "away": "2"}
         res = []
         for o in outs:
             key = (o.label or "").strip().lower()
-            mp = probs.get(key, probs.get({"home": "1", "draw": "x", "away": "2"}.get(key)))
-            if mp is not None:
-                res.append((o.label or o.participant or "", mp, o.odds))
+            side = key if key in probs else alias.get(key)
+            if side in probs:
+                res.append({"sel": o.label or o.participant or side.upper(),
+                            "mp": probs[side], "odds": o.odds, "side": side, "line": None})
         return res if len(res) == 3 else []
     if kind == "btts" and len(outs) == 2:
         btts = _p_btts(grid)
         res = []
         for o in outs:
             yes = "oui" in (o.label or "").lower() or "yes" in (o.label or "").lower()
-            res.append(("Les 2 équipes marquent" if yes else "Pas les 2 équipes",
-                        btts if yes else 1 - btts, o.odds))
+            res.append({"sel": "Les 2 équipes marquent" if yes else "Pas les 2 équipes marquent",
+                        "mp": btts if yes else 1 - btts, "odds": o.odds,
+                        "side": "yes" if yes else "no", "line": None})
         return res
     if kind == "dc" and len(outs) in (2, 3):
         dc = {"1x": p1 + px, "12": p1 + p2, "x2": px + p2}
         res = []
         for o in outs:
             key = (o.label or "").replace(" ", "").replace("/", "").lower()
-            mp = dc.get(key)
-            if mp is not None:
-                res.append((o.label or "", mp, o.odds))
+            if key in dc:
+                res.append({"sel": o.label or key.upper(), "mp": dc[key],
+                            "odds": o.odds, "side": key, "line": None})
         return res
     if kind == "ou":
         # un betOffer = une ligne (2 issues over/under partageant o.line)
@@ -232,15 +251,17 @@ def _price_market(m, grid):
         res = []
         for o in outs:
             is_over = "plus" in (o.label or "").lower() or "over" in (o.label or "").lower()
-            res.append((f'{"Plus" if is_over else "Moins"} de {line:g} buts',
-                        over if is_over else 1 - over, o.odds))
+            res.append({"sel": f'{"Plus" if is_over else "Moins"} de {line:g} buts',
+                        "mp": over if is_over else 1 - over, "odds": o.odds,
+                        "side": "over" if is_over else "under", "line": line})
         return res
     return []
 
 
 def best_bet(elo_home, elo_away, neutral, markets) -> dict | None:
     """La « perle rare » : parmi les marchés évaluables, le pari au meilleur équilibre
-    confiance × value (proba modèle ≥ seuil, cote ≥ 1.5, value ≥ seuil)."""
+    confiance × value (proba modèle ≥ seuil, cote ≥ 1.5, value ≥ seuil).
+    Le dict renvoyé porte kind/side/line -> réglable automatiquement depuis le score final."""
     if elo_home is None or elo_away is None or not markets:
         return None
     grid = _grid(elo_home, elo_away, neutral)
@@ -249,15 +270,41 @@ def best_bet(elo_home, elo_away, neutral, markets) -> dict | None:
         priced = _price_market(m, grid)
         if len(priced) < 2:
             continue
-        inv = [1 / o for (_, _, o) in priced]                    # dévig PAR marché
+        inv = [1 / c["odds"] for c in priced]                    # dévig PAR marché
         tot = sum(inv) or 1.0
-        for (sel, mp, o), iv in zip(priced, inv):
-            edge = mp - iv / tot
-            if mp >= PERLE_MIN_PROB and o >= PERLE_MIN_ODDS and edge >= PERLE_MIN_EDGE:
-                cands.append({"market": m.label or "", "selection": sel, "odds": round(o, 2),
-                              "model_prob": round(mp, 4), "edge": round(edge, 4),
-                              "score": round(mp * edge, 5)})
+        for c, iv in zip(priced, inv):
+            implied = iv / tot
+            # On ne compare PAS la proba brute du modèle au marché (le marché agrège des infos
+            # que l'Elo seul ignore). On mélange modèle et marché (même prudence MODEL_TRUST que
+            # le pick value) -> une « fair » crédible ; l'edge en découle.
+            fair = MODEL_TRUST * c["mp"] + (1 - MODEL_TRUST) * implied
+            edge = fair - implied
+            if fair >= PERLE_MIN_PROB and c["odds"] >= PERLE_MIN_ODDS and edge >= PERLE_MIN_EDGE:
+                cands.append({"market": m.label or "", "selection": c["sel"],
+                              "odds": round(c["odds"], 2), "model_prob": round(fair, 4),
+                              "edge": round(edge, 4), "score": round(fair * edge, 5),
+                              "kind": _market_kind(m), "side": c["side"], "line": c["line"]})
     return max(cands, key=lambda c: c["score"]) if cands else None
+
+
+def settle_perle(perle: dict, home_score: int, away_score: int):
+    """Gagné/perdu/None d'une perle rare d'après le score final (1X2, totaux, BTTS, double chance)."""
+    if not perle or home_score is None or away_score is None:
+        return None
+    side, line = perle.get("side"), perle.get("line")
+    tot = home_score + away_score
+    res = "1" if home_score > away_score else ("2" if away_score > home_score else "x")
+    btts = home_score >= 1 and away_score >= 1
+    kind = perle.get("kind")
+    if kind == "1x2":
+        return side == res
+    if kind == "dc":
+        return res in (side or "")          # "1x" contient "1" et "x"
+    if kind == "btts":
+        return btts if side == "yes" else (not btts)
+    if kind == "ou" and line is not None:
+        return tot > line if side == "over" else tot < line
+    return None
 
 
 # ----------------------------------------------------------------- données
@@ -441,6 +488,7 @@ def board_from_store() -> list[dict]:
             "probs": pr, "goals": None, "o1": o1, "ox": ox, "o2": o2,
             "imp": _devig3(o1, ox, o2), "pick": pick, "start": dt.timestamp(),
             "votes": (ph, pa, rec.get("public_draw")) if ph is not None else None,
+            "perle": rec.get("perle"),
         })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows
@@ -547,6 +595,7 @@ async def board_from_unibet() -> list[dict]:
             "home_en": en_home, "away_en": en_away,   # noms anglais -> matcher SofaScore
             "probs": probs, "goals": goals_markets(eh, ea), "score": live_score,
             "o1": o1, "ox": ox, "o2": o2, "imp": imp, "pick": pick,
+            "eh": eh, "ea": ea, "neutral": any(n.lower() in ctx for n in NEUTRAL_COMPS),
             "start": start.timestamp(), "female": female,
         })
     rows.sort(key=lambda g: g["start"] or 0)
@@ -618,6 +667,8 @@ def _attach_from_store(rows: list[dict]) -> None:
                 r["sofa_ok"] = True     # id SofaScore résolu -> fiche détaillée cliquable
             if best.get("public_home") is not None:
                 r["votes"] = (best["public_home"], best["public_away"], best.get("public_draw"))
+            if best.get("perle"):
+                r["perle"] = best["perle"]
 
 
 async def board_resilient() -> list[dict]:
@@ -848,6 +899,7 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
         "goals": g.get("goals"),   # {over25, btts} : buts attendus (modèle) pour la fiche
         "value_pick": ({"code": pk["code"], "team": pk["team"], "odds": pk["odds"],
                         "edge": pk["edge"]} if pk else None),
+        "perle": g.get("perle"),   # perle rare (confiance×value) à jouer pour ce match
         "last_update": now,
     })
     vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)
@@ -871,12 +923,36 @@ async def run_snapshot() -> int:
     rows = await board_from_unibet()
     await _resolve_sofa_ids(rows)      # id SofaScore par nom+date (agenda du jour, large)
     await enrich_display(rows)         # votes + forme -> persistés dans le store
+    await _attach_perles(rows)         # perle rare par match (marchés complets Unibet)
     n = 0
     for g in rows:
         if g.get("o1") and g.get("probs") and _upsert(store, g, now):
             n += 1
     tracking.save(store, FOOT_TRACK_PATH)
     return n
+
+
+async def _attach_perles(rows: list[dict]) -> None:
+    """Pose g['perle'] (meilleur équilibre confiance×value) sur chaque match à venir, en tirant
+    les marchés COMPLETS Unibet (totaux/BTTS/double chance absents de la listView). Best-effort,
+    concurrence bornée pour ne pas marteler Kambi."""
+    from app.providers.unibet import _market
+    targets = [g for g in rows if g.get("status") == "notstarted"
+               and g.get("eh") is not None and g.get("ea") is not None]
+    sem = asyncio.Semaphore(6)
+
+    async def one(client, g):
+        async with sem:
+            try:
+                data = await _get(client, UNIBET_B, f"/betoffer/event/{g['id']}.json")
+                offers = (data or {}).get("betOffers") or []
+                g["perle"] = best_bet(g["eh"], g["ea"], g.get("neutral", False),
+                                      [_market(bo) for bo in offers])
+            except Exception:
+                pass
+
+    async with httpx.AsyncClient(headers=UNIBET_H) as client:
+        await asyncio.gather(*(one(client, g) for g in targets))
 
 
 async def run_settle() -> int:
@@ -901,7 +977,15 @@ async def run_settle() -> int:
                 if pk and pk.get("odds"):
                     won = _CODE_TO_WINNER.get(pk["code"]) == winner
                     pnl = (pk["odds"] - 1) if won else -1.0
-                rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl, "score": score}
+                # règlement de la perle rare (1X2 / totaux / BTTS / double chance)
+                perle_pnl = None
+                perle = rec.get("perle")
+                if perle and perle.get("odds") and hs is not None and as_ is not None:
+                    pw = settle_perle(perle, hs, as_)
+                    if pw is not None:
+                        perle_pnl = (perle["odds"] - 1) if pw else -1.0
+                rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl,
+                                 "perle_pnl": perle_pnl, "score": score}
                 s += 1
                 continue
             # Match jamais terminé longtemps après l'heure prévue -> annulé/reporté : on clôt.

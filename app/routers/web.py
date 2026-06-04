@@ -291,10 +291,22 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
             values.append({**base, "bet": team, "odds": odds, "edge": edge, "model_prob": mp,
                            "side": side, "implied": pimp, "community": _comm(side)})
         name, prob, side, implied, odds = fav
-        if prob >= CONF_MIN_PROB:
+        # FOOT : la « confiance » = la PERLE RARE (meilleur équilibre confiance×value parmi
+        # TOUS les marchés Unibet, pas le favori à petite cote). Les autres sports gardent le
+        # favori net tant que leur moteur de perles n'existe pas.
+        perle = r.get("perle")
+        if ndim == 3:
+            if isinstance(perle, dict) and perle.get("selection"):
+                confs.append({**base, "bet": perle["selection"],
+                              "model_prob": perle.get("model_prob"),
+                              "conf_pct": round((perle.get("model_prob") or 0) * 100),
+                              "odds": perle.get("odds"), "side": None, "implied": None,
+                              "community": None, "perle": perle,
+                              "score": perle.get("score") or 0})
+        elif prob >= CONF_MIN_PROB:
             confs.append({**base, "bet": name, "model_prob": prob, "side": side,
                           "conf_pct": round(prob * 100), "odds": odds,
-                          "implied": implied, "community": _comm(side)})
+                          "implied": implied, "community": _comm(side), "score": prob})
     return values, confs
 
 
