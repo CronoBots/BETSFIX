@@ -1685,20 +1685,16 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                      f'<div class="row">{_form_block(a.home.name, home_form or [])}'
                      f'{_form_block(a.away.name, away_form or [])}</div>')
 
-    # Face-à-face en BARRE
+    # Face-à-face en BOÎTES (même présentation que foot/basket). Tennis = 2 issues (pas de nul).
     h2h_html = ""
     if h2h:
         hh, aw = h2h.get("home") or 0, h2h.get("away") or 0
         if hh + aw > 0:
-            ph = round(hh / (hh + aw) * 100)
-            h2h_html = (
-                f'<h2>🤝 Face-à-face</h2><div class="row">'
-                f'<div class="pbar-l"><span>{e(a.home.name.split()[-1])} {hh}</span>'
-                f'<span>{aw} {e(a.away.name.split()[-1])}</span></div>'
-                f'<div class="mbar"><span class="a" style="width:{ph}%"></span>'
-                f'<span class="b" style="width:{100-ph}%"></span></div>'
-                f'<div class="dim" style="margin-top:6px">{hh + aw} confrontation'
-                f'{"s" if hh + aw > 1 else ""}</div></div>')
+            cells = (f'<span class="h2h-c"><b>{hh}</b>'
+                     f'<span class="dim">{e(a.home.name.split()[-1])}</span></span>'
+                     f'<span class="h2h-c"><b>{aw}</b>'
+                     f'<span class="dim">{e(a.away.name.split()[-1])}</span></span>')
+            h2h_html = f'<h2>🤝 Face-à-face</h2><div class="h2h">{cells}</div>'
 
     probs = ""
     if hp is not None:
