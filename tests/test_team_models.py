@@ -132,6 +132,27 @@ def test_foot_best_bet():
     assert foot.best_bet(None, None, True, mk) is None
 
 
+def test_foot_best_picks_conf_and_value():
+    """Values ET confiances depuis le MÊME pool : confiance = proba max, value = edge max."""
+    from app.providers.unibet import UnibetMarket, UnibetOutcome
+    mk = [UnibetMarket(label="Temps réglementaire", type="Match", outcomes=[
+              UnibetOutcome(label="1", odds=1.30), UnibetOutcome(label="X", odds=5.5),
+              UnibetOutcome(label="2", odds=9.0)]),
+          # marché sûr (proba haute, petit edge)
+          UnibetMarket(label="Nombre total de buts", type="Plus de/Moins de", outcomes=[
+              UnibetOutcome(label="Plus de", odds=1.55, line=1.5),
+              UnibetOutcome(label="Moins de", odds=2.40, line=1.5)]),
+          # marché plus risqué mais cote généreuse (edge plus gros)
+          UnibetMarket(label="Les deux équipes marquent", type="Oui/Non", outcomes=[
+              UnibetOutcome(label="Oui", odds=2.30), UnibetOutcome(label="Non", odds=1.62)])]
+    p = foot.best_picks(1850, 1480, True, mk, home="Espagne", away="Irak")
+    assert p is not None
+    # confiance = la plus probable ; value = le plus gros edge ; tirées du même pool
+    assert p["confidence"]["model_prob"] >= p["value"]["model_prob"]
+    assert p["value"]["edge"] >= p["confidence"]["edge"]
+    assert foot.best_picks(None, None, True, [], home="A", away="B") is None
+
+
 def test_foot_form_model_and_settle():
     """Modèle de buts par forme réelle + règlement automatique des perles."""
     from app import foot

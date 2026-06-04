@@ -915,16 +915,15 @@ def render_home(rep: dict, source: dict | None = None,
     conf_picks = conf_picks or []
     bars_legend = BARS_LEGEND
 
-    # 🔥 CONFIANCES du jour : favori NET du modèle (forte proba) — pas forcément une value
+    # 🔥 CONFIANCES : depuis le moteur perle, le pari le PLUS PROBABLE de chaque match (cote ≥ 1,50)
     if conf_picks:
         rows = "".join(_pick_card(p, "") for p in conf_picks)  # pas de badge % (déjà dans la barre)
         conf_html = _section(f'🔥 Confiances ({len(conf_picks)})', rows, open_=True,
                              info='Pour chaque match, <b>BETSFIX</b> analyse <b>tous les paris '
-                                  'disponibles sur Unibet</b> (résultat, nombre de buts, '
-                                  'les 2 équipes marquent…) et fait ressortir la <b>perle rare</b> : '
-                                  'le pari au <b>meilleur équilibre confiance × value</b> — assez '
-                                  'probable <b>et</b> à une cote qui paie (jamais en dessous de 1,50). '
-                                  f'C\'est le 🎯 « À JOUER » en vert. {bars_legend}')
+                                  'disponibles sur Unibet</b> (résultat, nombre de buts, les 2 équipes '
+                                  'marquent, mi-temps, corners…) et garde la <b>perle la plus '
+                                  'probable</b> : le pari le plus <b>sûr</b> à une cote qui paie '
+                                  f'(jamais en dessous de 1,50). C\'est le 🎯 « À JOUER » en vert. {bars_legend}')
     else:
         conf_html = _section('🔥 Confiances (0)',
                              '<div class="banner">Aucune perle rare détectée à venir pour le moment.</div>')
@@ -935,21 +934,20 @@ def render_home(rep: dict, source: dict | None = None,
             p, '<span class="badge b-val" title="Notre avantage estimé sur la cote (value)">'
                f'value +{round((p.get("edge") or 0)*100, 1)}%</span>') for p in picks)
         val_html = _section(f'💎 Valeurs ({len(picks)})', rows, open_=True,
-                            info='Les paris où la <b>cote Unibet est un peu trop généreuse</b> : '
-                                 'Unibet donne moins de chances que <b>BETSFIX</b> — une '
-                                 '« <b>value</b> ». Ça <b>gagne moins souvent mais rapporte plus</b> '
-                                 '(souvent un pari moins évident). Rentable <b>sur la durée</b>, '
-                                 'jamais garanti sur un seul match. Le badge <b>value +X%</b> = '
-                                 f'notre avantage estimé sur la cote. {bars_legend}')
+                            info='Même analyse que les Confiances (tous les paris Unibet du match), '
+                                 'mais on garde ici la <b>perle au plus gros edge</b> : le pari où la '
+                                 '<b>cote est la plus trop généreuse</b> (Unibet donne moins de chances '
+                                 'que <b>BETSFIX</b>). Ça <b>gagne moins souvent mais rapporte plus</b> : '
+                                 'rentable <b>sur la durée</b>, jamais garanti sur un match. Le badge '
+                                 f'<b>value +X%</b> = notre avantage estimé sur la cote. {bars_legend}')
     else:
         val_html = _section('💎 Valeurs (0)',
                             '<div class="banner">Aucune value détectée pour le moment '
                             '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
 
-    # Preuve EN HAUT, puis Confiances. Section « Valeurs » MASQUÉE pour l'instant (focus
-    # confiances) — les matchs restent visibles dans leurs onglets. `val_html` est conservé
-    # (calculé) mais non affiché : réactivation = remettre {val_html} dans le body.
-    body = f'{proof_html}{conf_html}'
+    # Preuve EN HAUT, puis Confiances (perle la plus probable), puis Valeurs (perle au plus gros
+    # edge) — mêmes paris analysés, deux classements du même moteur.
+    body = f'{proof_html}{conf_html}{val_html}'
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 

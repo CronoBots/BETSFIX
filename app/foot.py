@@ -612,21 +612,20 @@ def _price_market_raw(m, grid, home: str = "", away: str = "") -> list:
     return []
 
 
-def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
-             home: str = "", away: str = "", corner_form=None, card_form=None) -> dict | None:
-    """La « perle rare » : parmi TOUS les marchés Unibet plein-temps évaluables (résultat, totaux
-    du match ET par équipe, BTTS, double chance, pair/impair, score/nombre exact, mi-temps, ET
-    corners/cartons quand la forme est dispo), le pari au meilleur équilibre confiance × value.
-    `lambdas=(lh, la)` (buts par FORME) prime sur l'Elo ; `corner_form`/`card_form` = (forme_dom,
-    forme_ext) pour les marchés corners/cartons."""
+def _candidates(elo_home, elo_away, neutral, markets, lambdas=None,
+                home: str = "", away: str = "", corner_form=None, card_form=None) -> list:
+    """Pool COMMUN des paris jouables d'un match : tous les marchés Unibet évaluables (résultat,
+    totaux match ET par équipe, BTTS, double chance, pair/impair, score/nombre exact, mi-temps,
+    corners/cartons) qui passent les MÊMES garde-fous et seuils. C'est de ce pool unique qu'on tire
+    aussi bien la « confiance » (proba la plus haute) que la « value » (edge le plus élevé)."""
     if not markets:
-        return None
+        return []
     if lambdas is not None:
         lh, la = lambdas
     elif elo_home is not None and elo_away is not None:
         lh, la = _lambdas(elo_home, elo_away, neutral)
     else:
-        return None
+        return []
     grid = _grid_l(lh, la)                                   # plein-temps
     grids = {"h1": _grid_half(lh, la, HALF1_SHARE),          # mi-temps (modèle approximatif)
              "h2": _grid_half(lh, la, 1 - HALF1_SHARE)}
@@ -677,7 +676,28 @@ def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
                               "kind": c["kind"], "side": c.get("side"), "line": c.get("line"),
                               "team": c.get("team"), "sc": c.get("sc"), "period": c.get("period"),
                               "k": c.get("k"), "ge": c.get("ge"), "htft": c.get("htft")})
+    return cands
+
+
+def best_bet(elo_home, elo_away, neutral, markets, lambdas=None,
+             home: str = "", away: str = "", corner_form=None, card_form=None) -> dict | None:
+    """La perle « à jouer » : le meilleur ÉQUILIBRE confiance × value (score = proba × edge)."""
+    cands = _candidates(elo_home, elo_away, neutral, markets, lambdas, home, away,
+                        corner_form, card_form)
     return max(cands, key=lambda c: c["score"]) if cands else None
+
+
+def best_picks(elo_home, elo_away, neutral, markets, lambdas=None,
+               home: str = "", away: str = "", corner_form=None, card_form=None) -> dict | None:
+    """Depuis le MÊME pool de candidats : la CONFIANCE (proba la plus haute) et la VALUE (edge le
+    plus élevé). Même logique, deux classements. None si aucun pari jouable.
+    NB : confiance et value peuvent être le même pari (ex. un favori net ET sous-coté)."""
+    cands = _candidates(elo_home, elo_away, neutral, markets, lambdas, home, away,
+                        corner_form, card_form)
+    if not cands:
+        return None
+    return {"confidence": max(cands, key=lambda c: c["model_prob"]),
+            "value": max(cands, key=lambda c: c["edge"])}
 
 
 def _price_htft(m, grid_h1, grid_h2) -> list:
@@ -952,7 +972,7 @@ def board_from_store() -> list[dict]:
             "probs": pr, "goals": None, "o1": o1, "ox": ox, "o2": o2,
             "imp": _devig3(o1, ox, o2), "pick": pick, "start": dt.timestamp(),
             "votes": (ph, pa, rec.get("public_draw")) if ph is not None else None,
-            "perle": rec.get("perle"),
+            "perle": rec.get("perle"), "perle_value": rec.get("perle_value"),
         })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows
@@ -1136,6 +1156,8 @@ def _attach_from_store(rows: list[dict]) -> None:
                 r["votes"] = (best["public_home"], best["public_away"], best.get("public_draw"))
             if best.get("perle"):
                 r["perle"] = best["perle"]
+            if best.get("perle_value"):
+                r["perle_value"] = best["perle_value"]
 
 
 async def board_resilient() -> list[dict]:
@@ -1366,7 +1388,8 @@ def _upsert(store: dict, g: dict, now: str) -> bool:
         "goals": g.get("goals"),   # {over25, btts} : buts attendus (modèle) pour la fiche
         "value_pick": ({"code": pk["code"], "team": pk["team"], "odds": pk["odds"],
                         "edge": pk["edge"]} if pk else None),
-        "perle": g.get("perle"),   # perle rare (confiance×value) à jouer pour ce match
+        "perle": g.get("perle"),               # 🔥 Confiance : la perle la PLUS PROBABLE
+        "perle_value": g.get("perle_value"),   # 💎 Value : la perle au plus GROS EDGE
         "last_update": now,
     })
     vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)
@@ -1449,9 +1472,12 @@ async def _attach_perles(rows: list[dict]) -> None:
                    for m in offers):
                 cfh, cfa = await _cform(g.get("home_tid")), await _cform(g.get("away_tid"))
                 corner_form = (cfh, cfa) if (cfh and cfa) else None
-            g["perle"] = best_bet(g["eh"], g["ea"], g.get("neutral", False), offers,
-                                  lambdas=lambdas, home=g.get("home", ""),
-                                  away=g.get("away", ""), corner_form=corner_form)
+            # Même pool de candidats -> CONFIANCE (proba max) ET VALUE (edge max), même logique.
+            picks = best_picks(g["eh"], g["ea"], g.get("neutral", False), offers,
+                               lambdas=lambdas, home=g.get("home", ""),
+                               away=g.get("away", ""), corner_form=corner_form)
+            g["perle"] = picks["confidence"] if picks else None          # 🔥 Confiances
+            g["perle_value"] = picks["value"] if picks else None         # 💎 Valeurs
 
     async with httpx.AsyncClient(headers=UNIBET_H) as client:
         await asyncio.gather(*(one(client, g) for g in targets))
@@ -1481,21 +1507,24 @@ async def run_settle() -> int:
                 if pk and pk.get("odds"):
                     won = _CODE_TO_WINNER.get(pk["code"]) == winner
                     pnl = (pk["odds"] - 1) if won else -1.0
-                # règlement de la perle (résultat, buts, par équipe, mi-temps, corners/cartons…)
-                perle_pnl = None
-                perle = rec.get("perle")
-                if perle and perle.get("odds") and hs is not None and as_ is not None:
-                    mstats = None
-                    if (perle.get("kind") or "")[:2] in ("c_", "k_"):   # corners/cartons -> stats du match
-                        try:
-                            mstats = await get_provider().get_event_team_stats(rec["match_id"])
-                        except Exception:
-                            mstats = None
-                    pw = settle_perle(perle, hs, as_, h1h, h1a, mstats)
-                    if pw is not None:
-                        perle_pnl = (perle["odds"] - 1) if pw else -1.0
+                # règlement des perles CONFIANCE et VALUE (même moteur, tous marchés)
+                perles = [rec.get("perle"), rec.get("perle_value")]
+                mstats = None
+                if any((p or {}).get("kind", "")[:2] in ("c_", "k_") for p in perles):
+                    try:
+                        mstats = await get_provider().get_event_team_stats(rec["match_id"])
+                    except Exception:
+                        mstats = None
+
+                def _pnl(p):
+                    if not (p and p.get("odds") and hs is not None and as_ is not None):
+                        return None
+                    pw = settle_perle(p, hs, as_, h1h, h1a, mstats)
+                    return None if pw is None else ((p["odds"] - 1) if pw else -1.0)
+
                 rec["result"] = {"winner": winner, "settled_at": now, "value_pnl": pnl,
-                                 "perle_pnl": perle_pnl, "score": score}
+                                 "perle_pnl": _pnl(rec.get("perle")),
+                                 "perle_value_pnl": _pnl(rec.get("perle_value")), "score": score}
                 s += 1
                 continue
             # Match jamais terminé longtemps après l'heure prévue -> annulé/reporté : on clôt.

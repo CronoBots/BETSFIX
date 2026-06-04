@@ -288,27 +288,32 @@ def _board_picks(rows: list[dict], sport: str, icon: str, url: str,
                 "live": r.get("status") == "inprogress", "odds_cells": odds_cells,
                 "home_flag": hflag, "away_flag": aflag,
                 "time": web.fmt_local(iso, with_date=True), "start_ts": start, **split}
-        if pk_data:
-            team, odds, edge, mp, side, pimp = pk_data
-            values.append({**base, "bet": team, "odds": odds, "edge": edge, "model_prob": mp,
-                           "side": side, "implied": pimp, "community": _comm(side)})
         name, prob, side, implied, odds = fav
-        # FOOT : la « confiance » = la PERLE RARE (meilleur équilibre confiance×value parmi
-        # TOUS les marchés Unibet, pas le favori à petite cote). Les autres sports gardent le
-        # favori net tant que leur moteur de perles n'existe pas.
-        perle = r.get("perle")
         if ndim == 3:
+            # FOOT : values ET confiances depuis le MÊME moteur perle (même pool, même logique).
+            # Confiance = perle la plus probable ; Value = perle au plus gros edge.
+            perle, perle_value = r.get("perle"), r.get("perle_value")
             if isinstance(perle, dict) and perle.get("selection"):
                 confs.append({**base, "bet": perle["selection"],
                               "model_prob": perle.get("model_prob"),
                               "conf_pct": round((perle.get("model_prob") or 0) * 100),
                               "odds": perle.get("odds"), "side": None, "implied": None,
-                              "community": None, "perle": perle,
-                              "score": perle.get("score") or 0})
-        elif prob >= CONF_MIN_PROB:
-            confs.append({**base, "bet": name, "model_prob": prob, "side": side,
-                          "conf_pct": round(prob * 100), "odds": odds,
-                          "implied": implied, "community": _comm(side), "score": prob})
+                              "community": None, "perle": perle, "score": perle.get("model_prob") or 0})
+            if isinstance(perle_value, dict) and perle_value.get("selection"):
+                values.append({**base, "bet": perle_value["selection"], "odds": perle_value.get("odds"),
+                               "edge": perle_value.get("edge"), "model_prob": perle_value.get("model_prob"),
+                               "side": None, "implied": None, "community": None, "perle": perle_value})
+        else:
+            # BASKET : ancien système (favori net pour la confiance + value moneyline) tant que
+            # son moteur de perles multi-marchés n'existe pas.
+            if pk_data:
+                team, odds_v, edge, mp, side_v, pimp = pk_data
+                values.append({**base, "bet": team, "odds": odds_v, "edge": edge, "model_prob": mp,
+                               "side": side_v, "implied": pimp, "community": _comm(side_v)})
+            if prob >= CONF_MIN_PROB:
+                confs.append({**base, "bet": name, "model_prob": prob, "side": side,
+                              "conf_pct": round(prob * 100), "odds": odds,
+                              "implied": implied, "community": _comm(side), "score": prob})
     return values, confs
 
 
