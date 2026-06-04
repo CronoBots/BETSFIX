@@ -394,7 +394,7 @@ CSS = """
   /* badge décompte (timer avant le coup d'envoi), en haut à droite de la carte.
      Texte BLANC, unités jour/heure/minute bien distinctes. */
   .rt-r{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
-  .cd{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:800;
+  .cd{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:800;
       font-variant-numeric:tabular-nums;letter-spacing:.02em;background:rgba(255,255,255,.10);
       color:#fff;border:1px solid rgba(255,255,255,.20);white-space:nowrap}
   .cd .u{color:rgba(255,255,255,.55);font-weight:700;margin:0 1px 0 1px}
@@ -1106,15 +1106,15 @@ def _pick_card(p: dict, badge: str) -> str:
     # surligne l'issue pariée (cohérent avec les barres), pas le favori du book
     _hi = {"1": 0, "X": 1, "2": 2, "home": 0, "away": 1}.get(p.get("side"))
     oddsrow = odds_row(p["odds_cells"], highlight_idx=_hi) if p.get("odds_cells") else ""
-    hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""
-    af = f'{p["away_flag"]} ' if p.get("away_flag") else ""
+    hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""      # gauche : drapeau AVANT le nom
+    af = f' {p["away_flag"]}' if p.get("away_flag") else ""       # droite : drapeau APRÈS le nom
     # « perle rare » : le pari à jouer (meilleur équilibre confiance×value parmi TOUS les
     # marchés Unibet), mis en avant au-dessus des barres de contexte.
     # Le « pari à jouer » (perle + barre de confiance) va SOUS les cotes — différencié conf/value.
     inner = (f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
-             f'<span class="dim">vs</span> {af}{e(p.get("away") or "")}</div>{bdg}</div>'
+             f'<span class="dim">vs</span> {e(p.get("away") or "")}{af}</div>{bdg}</div>'
              f'{_pick_bars(p)}{oddsrow}'
              f'{_perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")), kind=p.get("pick_kind"), won=bool(p.get("live_won")), won2=bool(p.get("live_won2")), lost=bool(p.get("live_lost")), lost2=bool(p.get("live_lost2")))}')
     url = p.get("url") or ""
@@ -1285,8 +1285,8 @@ def _sport_row(r: dict) -> str:
     fem = (' <span class="fem">(F)</span>'
            if r.get("female") and (r.get("tour") or "").upper() not in ("WTA", "WNBA") else "")
     badge = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
-    hf = f'{r["home_flag"]} ' if r.get("home_flag") else ""
-    af = f'{r["away_flag"]} ' if r.get("away_flag") else ""
+    hf = f'{r["home_flag"]} ' if r.get("home_flag") else ""       # gauche : drapeau AVANT le nom
+    af = f' {r["away_flag"]}' if r.get("away_flag") else ""        # droite : drapeau APRÈS le nom
     # Live : SCORE actuel en scoreboard 2 lignes + libellé « cotes en direct », au-dessus des cotes
     is_live = r.get("status") == "inprogress"
     _is_tennis = (r.get("tour") or "").upper() in ("WTA", "ATP")
@@ -1301,7 +1301,7 @@ def _sport_row(r: dict) -> str:
              f'<span class="rt-when">{when}</span></span>'
              f'{mid}<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
-             f'<span class="dim">vs</span> {af}{e(r.get("away") or "")}</div>{badge}</div>'
+             f'<span class="dim">vs</span> {e(r.get("away") or "")}{af}</div>{badge}</div>'
              f'{probviz}{lscore}{odds_lbl}{r.get("sub", "")}'
              f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")), lost=bool(r.get("live_lost")), lost2=bool(r.get("live_lost2")))}')
     cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
@@ -1638,13 +1638,13 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     puis analyse SofaScore (forme des 2 équipes, confrontations directes).
     `frag=True` -> renvoie SEULEMENT l'analyse (forme + H2H) pour l'accordéon sous la carte."""
     e = html.escape
-    hf = f'{ctx.get("home_flag")} ' if ctx.get("home_flag") else ""
-    af = f'{ctx.get("away_flag")} ' if ctx.get("away_flag") else ""
+    hf = f'{ctx.get("home_flag")} ' if ctx.get("home_flag") else ""       # drapeau AVANT (gauche)
+    af = f' {ctx.get("away_flag")}' if ctx.get("away_flag") else ""        # drapeau APRÈS (droite)
     head = (f'<a class="dim" href="{ctx["back_url"]}">← {e(ctx["back_label"])}</a>'
             f'<div class="mdh"><div class="mdh-c">{e(ctx.get("comp") or "")}'
             f'<span class="dim"> · {ctx.get("when") or ""}</span></div>'
             f'<div class="mdh-t">{hf}{e(ctx["home"])} <span class="dim">vs</span> '
-            f'{af}{e(ctx["away"])}</div></div>')
+            f'{e(ctx["away"])}{af}</div></div>')
 
     pred = _pick_bars(ctx["prediction"]) if ctx.get("prediction") else ""
     odds = odds_row(ctx["odds_cells"]) if ctx.get("odds_cells") else ""
