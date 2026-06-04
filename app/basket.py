@@ -823,7 +823,7 @@ def _card(r: dict) -> dict:
     if fm:
         sub_html += web.form_compare(r["home"], fm[0], r["away"], fm[1])
     pk = r.get("pick")
-    badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>' if pk else "")
+    badge = ""   # plus de badge VALUE en haut à droite (value dans la bannière + l'analyse)
     female = r.get("female") if r.get("female") is not None \
         else (r.get("league") or "").upper() == "WNBA"
     return {"tour": r.get("league", "Basket"), "status": r["status"], "time": _fmt_time(r.get("start")),
@@ -845,17 +845,18 @@ async def live_cards() -> list[dict]:
 def render(rows: list[dict], finished_rows: list[dict] | None = None,
            paused: bool = False, frag: bool = False) -> str:
     e = html.escape
-    value, live, upcoming = [], [], []
+    confidences, value, live, upcoming = [], [], [], []
     for r in rows:
         card = _card(r)
-        (live if r["status"] == "inprogress" else upcoming).append(card)
-        pk = r.get("pick")
-        if pk:
-            _hi = 0 if pk.get("side") == "home" else 1
-            oddsrow = web.odds_row([(r["home"], r.get("oh")), (r["away"], r.get("oa"))], highlight_idx=_hi)
-            value.append({**card, "pick": True,
-                          "sub": oddsrow + f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
-                                 f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts (à confirmer)</div>'})
+        plain = {**card, "perle": None, "perle2": None}
+        (live if r["status"] == "inprogress" else upcoming).append(plain)
+        if r["status"] == "inprogress":
+            continue
+        if isinstance(r.get("perle"), dict) and r["perle"].get("selection"):
+            confidences.append(card)
+        pv = r.get("perle_value")
+        if isinstance(pv, dict) and pv.get("selection"):
+            value.append({**card, "perle": pv, "perle2": None})
 
     fin = []
     for r in (finished_rows or []):
@@ -877,9 +878,9 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
                     "sub": sub, "badge": badge})
 
     intro = ('🏀 <b>NBA & WNBA</b>. Touchez un match pour son analyse complète (forme, '
-             f'face-à-face, tous les paris Unibet). {web.BARS_LEGEND}')
+             f'face-à-face). {web.BARS_LEGEND}')
     return web.render_sport_matches("basket", "Basket NBA & WNBA", value, live, upcoming, fin,
-                                    intro=intro, paused=paused, frag=frag)
+                                    intro=intro, paused=paused, frag=frag, confidences=confidences)
 
 
 # ----------------------------------------------------------------- suivi (séparé)

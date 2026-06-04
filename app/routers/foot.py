@@ -253,21 +253,8 @@ async def foot_match(event_id: int, frag: int = 0,
                 "match_id": int(event_id),
             }
             extra = (await match_analysis.write_analysis(brief, get_settings())) + extra
-    # Cotes Unibet de l'événement (1 appel = TOUS les marchés du book) — best-effort
-    markets = []
-    try:
-        st = datetime.fromisoformat(rec["start_time"]) if rec and rec.get("start_time") else None
-        uo = await unibet.find_event_odds("football", home, away, event_id, st)
-        if uo.matched:
-            markets = uo.markets
-    except Exception:
-        pass
-    # NB : ancien bloc « Notre avis vs Unibet » (Over2.5/BTTS via Elo) RETIRÉ — il s'appuyait sur le
-    # modèle Elo générique (sans la forme par équipe) et produisait de fausses value sur les équipes
-    # extrêmes (ex. Andorre BTTS 55 %). La perle (moteur complet + garde-fous) est désormais l'unique
-    # signal de pari, cohérent partout.
-    # 💰 TOUS les paris Unibet de l'event (intuitif : un bloc par marché)
-    extra += web.render_unibet_markets(markets, result_only=True)
+    # NB : les marchés Unibet sont UTILISÉS pour calculer la perle (dans le snapshot), mais on ne
+    # les AFFICHE plus dans la fiche — l'analyse se résume à la perle conseillée + le contexte.
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
     try:
         extra += await team_context(event_id, home, away, unit="buts")

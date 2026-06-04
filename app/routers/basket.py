@@ -123,15 +123,7 @@ async def basket_match(event_id: int, frag: int = 0,
                   f'<div class="banner">BETSFIX voit <b>{fav}</b> gagner avec <b>~{abs(round(margin))} '
                   f'points</b> d\'écart en moyenne. <span class="dim">Utile pour les paris sur '
                   f'l\'écart (handicap).</span></div>')
-    # 💰 TOUS les paris Unibet de l'event (moneyline, handicaps, totaux, quart-temps…)
-    try:
-        from datetime import datetime
-        st = datetime.fromisoformat(rec["start_time"]) if rec and rec.get("start_time") else None
-        uo = await unibet.find_event_odds("basketball", home, away, event_id, st)
-        if uo.matched:
-            extra += web.render_unibet_markets(uo.markets, result_only=True)
-    except Exception:
-        pass
+    # NB : marchés Unibet UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
     # Classement + 5 derniers résultats détaillés (SofaScore, best-effort)
     try:
         from app.routers.foot import team_context

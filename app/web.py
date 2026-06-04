@@ -947,11 +947,11 @@ def render_home(rep: dict, source: dict | None = None,
         conf_html = _section('🔥 Confiances (0)',
                              '<div class="banner">Aucune perle rare détectée à venir pour le moment.</div>')
 
-    # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders
+    # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders.
+    # NB : pas de badge value en haut à droite — l'edge est déjà dans la bannière « À JOUER »
+    # (« value +X% ») et dans l'analyse (Paris conseillés). Le cadre haut-droite reste épuré.
     if picks:
-        rows = "".join(_pick_card(
-            p, '<span class="badge b-val" title="Notre avantage estimé sur la cote (value)">'
-               f'value +{round((p.get("edge") or 0)*100, 1)}%</span>') for p in picks)
+        rows = "".join(_pick_card(p, "") for p in picks)
         val_html = _section(f'💎 Valeurs ({len(picks)})', rows, open_=True,
                             info='Même analyse que les Confiances (tous les paris Unibet du match), '
                                  'mais on garde ici la <b>perle au plus gros edge</b> : le pari où la '
@@ -1060,16 +1060,18 @@ def _rows_by_day(rows: list) -> str:
 
 def render_sport_matches(sport: str, title: str, value: list, live: list,
                          upcoming: list, finished: list, intro: str = "",
-                         paused: bool = False, frag: bool = False) -> str:
+                         paused: bool = False, frag: bool = False,
+                         confidences: list | None = None) -> str:
     """Page Matchs UNIFIÉE pour tous les sports, sections REPLIABLES dans l'ordre logique :
-    Valeurs → En direct → À venir → Terminés (Terminés replié d'office).
+    Confiances → Valeurs → En direct → À venir → Terminés (Terminés replié d'office).
 
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
     « aucun match ». `frag=True` -> renvoie le corps seul (chargé en AJAX dans la SPA)."""
     out = []
     # (heading, rows, ouvert d'office ?, regrouper par jour ?) — « Terminés » plié par défaut ;
     # « À venir » regroupé par jour (Aujourd'hui / Demain / …) pour se repérer dans la liste.
-    sections = [("💎 Valeurs", value, True, False), ("🔴 En direct", live, True, False),
+    sections = [("🔥 Confiances", confidences or [], True, False),
+                ("💎 Valeurs", value, True, False), ("🔴 En direct", live, True, False),
                 ("📅 À venir", upcoming, True, True), ("✅ Terminés", finished, False, False)]
     info_done = False
     for heading, rows, open_, by_day in sections:

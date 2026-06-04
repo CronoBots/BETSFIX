@@ -1319,7 +1319,8 @@ def _model_line(r: dict) -> str:
 def _card(r: dict) -> dict:
     """Dict _sport_row d'une rencontre foot (live / à venir), réutilisé par render + Directs."""
     pk = r.get("pick")
-    badge = (f'<span class="badge b-val">VALUE +{round(pk["edge"]*100,1)} pts</span>' if pk else "")
+    # plus de badge VALUE en haut à droite : la value est dans la bannière « À JOUER » + l'analyse
+    badge = ""
     return {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
             "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
             "female": r.get("female"), "score": r.get("score", ""),
@@ -1338,18 +1339,19 @@ async def live_cards() -> list[dict]:
 def render(rows: list[dict], finished_rows: list[dict] | None = None,
            paused: bool = False, frag: bool = False) -> str:
     e = html.escape
-    value, live, upcoming = [], [], []
+    confidences, value, live, upcoming = [], [], [], []
     for r in rows:
-        card = _card(r)
-        (live if r["status"] == "inprogress" else upcoming).append(card)
-        pk = r.get("pick")
-        if pk:
-            _hi = {"1": 0, "X": 1, "2": 2}.get(pk.get("code"))
-            oddsrow = web.odds_row([(r["home"], r.get("o1")), ("Nul", r.get("ox")), (r["away"], r.get("o2"))],
-                                   highlight_idx=_hi)
-            value.append({**card, "pick": True,
-                          "sub": oddsrow + f'<div class="dim">pari : <b class="pos">{e(pk["team"])}</b> '
-                                 f'@{pk["odds"]} · +{round(pk["edge"]*100,1)} pts (à confirmer)</div>'})
+        card = _card(r)                                  # porte perle/perle2 (bannière)
+        plain = {**card, "perle": None, "perle2": None}  # version sans bannière (listes À venir/live)
+        (live if r["status"] == "inprogress" else upcoming).append(plain)
+        if r["status"] == "inprogress":
+            continue
+        # 🔥 Confiance = la perle la plus probable ; 💎 Value = la perle au plus gros edge
+        if isinstance(r.get("perle"), dict) and r["perle"].get("selection"):
+            confidences.append(card)
+        pv = r.get("perle_value")
+        if isinstance(pv, dict) and pv.get("selection"):
+            value.append({**card, "perle": pv, "perle2": None})
 
     fin = []
     for r in (finished_rows or []):
@@ -1371,11 +1373,11 @@ def render(rows: list[dict], finished_rows: list[dict] | None = None,
                     "sub": sub, "badge": badge})
 
     intro = ('⚽ <b>Foot international & grandes compétitions</b>. Touchez un match pour son '
-             f'analyse complète (forme, face-à-face, tous les paris Unibet). {web.BARS_LEGEND}')
-    if not (value or live or upcoming or fin):
+             f'analyse complète (forme, face-à-face). {web.BARS_LEGEND}')
+    if not (confidences or value or live or upcoming or fin):
         intro += ' La Coupe du Monde démarre le 11 juin.'
     return web.render_sport_matches("foot", "Football", value, live, upcoming, fin,
-                                    intro=intro, paused=paused, frag=frag)
+                                    intro=intro, paused=paused, frag=frag, confidences=confidences)
 
 
 # ----------------------------------------------------------------- suivi (3 issues)

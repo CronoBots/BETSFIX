@@ -686,24 +686,15 @@ async def matches_page(
     live.sort(key=lambda r: r["_sort"])
     rows.sort(key=lambda r: r["_sort"])
     ev = html.escape
-    upcoming_rows = [_tennis_trow(r) for r in rows]
-    live_rows = [_tennis_trow(r) for r in live]
-
-    value_picks, finished = _picks_and_finished(store)
-    value_rows = [{
-        "tour": v["tour"].upper(), "status": "notstarted", "time": v.get("time") or "",
-        "home": v["home"], "away": v["away"], "pick": True, "start_ts": v.get("start_ts"),
-        "female": False,
-        "badge": f'<span class="badge b-val">+{round((v.get("edge") or 0)*100,1)} pts</span>',
-        "sub": (web.odds_row(v.get("odds_cells") or [],
-                             highlight_idx={"home": 0, "away": 1}.get(v.get("side")))
-                + f'<div class="dim">pari : <b class="pos">{ev(v.get("player") or "")}</b> '
-                f'@{v.get("odds") or "—"} · mise '
-                f'{v.get("stake") if v.get("stake") is not None else "—"}%</div>'),
-        # 3 barres du côté parié (comme l'accueil)
-        "model_prob": v.get("model_prob"), "implied": v.get("implied"),
-        "community": v.get("community"), "bet": v.get("player"),
-        "url": f'/app/match/{v["id"]}?tour={v["tour"]}'} for v in value_picks]
+    # À venir / live SANS bannière (la perle est dans les sections Confiances/Valeurs)
+    upcoming_rows = [{**_tennis_trow(r), "perle": None, "perle2": None} for r in rows]
+    live_rows = [{**_tennis_trow(r), "perle": None, "perle2": None} for r in live]
+    # 🔥 Confiances = perle la plus probable ; 💎 Valeurs = perle au plus gros edge
+    conf_rows = [_tennis_trow(r) for r in rows
+                 if isinstance(r.get("perle"), dict) and r["perle"].get("selection")]
+    value_rows = [{**_tennis_trow(r), "perle": r["perle_value"], "perle2": None} for r in rows
+                  if isinstance(r.get("perle_value"), dict) and r["perle_value"].get("selection")]
+    _, finished = _picks_and_finished(store)
     finished_rows = [{
         "tour": f["tour"].upper(), "status": "finished", "score": f.get("score") or "terminé",
         "home": f["home"], "away": f["away"],
@@ -716,10 +707,10 @@ async def matches_page(
     intro = ('⚠️ SofaScore momentanément indisponible — scores via LiveScore (repli).'
              if fallback else
              'Touchez un match pour son analyse complète (forme, face-à-face, facteurs, '
-             f'aces, tous les paris Unibet). {web.BARS_LEGEND}')
+             f'aces). {web.BARS_LEGEND}')
     body = web.render_sport_matches(
         "tennis", "Matchs", value_rows, live_rows, upcoming_rows, finished_rows,
-        intro=intro, frag=bool(frag))
+        intro=intro, frag=bool(frag), confidences=conf_rows)
     if frag:
         fragcache.put("panel/tennis", body, ttl=PANEL_TTL)
     return HTMLResponse(body)
@@ -863,10 +854,8 @@ async def match_detail(
             "match_id": match_id,
         }
         analysis_html = await match_analysis.write_analysis(brief, get_settings())
-    # 💰 Unibet : on n'affiche QUE le « résultat du match » dans l'analyse (tous les marchés
-    # restent en mémoire/dans gather_context pour la value).
-    markets_html = (web.render_unibet_markets(odds.markets, sport="tennis", result_only=True)
-                    if (frag and odds and odds.matched) else "")
+    # Marchés Unibet UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
+    markets_html = ""
     html = web.render_match_detail(
         analysis, winner_odds, aces=aces, tour=tour,
         home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score, votes=votes,
@@ -1001,28 +990,12 @@ async def _tennis_light_frag(match_id, tour, unibet) -> HTMLResponse:
     """Accordéon tennis quand SofaScore est en pause : reco (depuis le suivi) + TOUS les paris
     Unibet (qui ne dépendent pas de SofaScore). Plus de « analyse indisponible » sec."""
     rec = tracking.load().get(str(match_id)) or {}
-    home, away = rec.get("home", ""), rec.get("away", "")
     parts = []
-    vp = rec.get("value_pick")
-    value = (vp.get("player"), vp.get("odds"), vp.get("edge")) if vp and vp.get("odds") else None
-    mh = rec.get("model_home_prob")
-    confidence = None
-    if mh is not None and max(mh, 1 - mh) >= 0.65:
-        fav = home if mh >= 0.5 else away
-        odd = rec.get("unibet_home_odds") if mh >= 0.5 else rec.get("unibet_away_odds")
-        confidence = (fav, max(mh, 1 - mh), odd)
     if rec:
-        parts.append(web.recommended_bets(value, confidence))
+        parts.append(web.perle_advice(rec.get("perle")))   # 🎯 la perle (depuis le suivi)
     parts.append('<div class="banner">Stats détaillées (forme, face-à-face, facteurs) '
-                 'momentanément indisponibles — source en pause. La prédiction (carte) et les '
-                 'paris ci-dessous restent à jour.</div>')
-    try:
-        st = datetime.fromisoformat(rec["start_time"]) if rec.get("start_time") else None
-        uo = await unibet.find_event_odds("tennis", home, away, match_id, st)
-        if uo.matched:
-            parts.append(web.render_unibet_markets(uo.markets, sport="tennis", result_only=True))
-    except Exception:
-        pass
+                 'momentanément indisponibles — source en pause. La prédiction (carte) reste '
+                 'à jour.</div>')
     return HTMLResponse("".join(parts) or '<div class="dim">Analyse indisponible pour le moment.</div>')
 
 
