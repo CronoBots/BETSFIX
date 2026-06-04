@@ -51,6 +51,24 @@ def day_label(d, today) -> str:
     return f"{jours[d.weekday()].capitalize()} {d.strftime('%d/%m')}"
 
 
+def fmt_live_clock(mc: dict | None) -> str:
+    """Horloge LIVE Unibet (matchClock) -> texte court. Foot : « 51' » / « Mi-temps » ;
+    basket : « Q3 · 5:42 » (temps restant) / « Prol. ». '' si rien d'exploitable."""
+    if not isinstance(mc, dict):
+        return ""
+    pid = (mc.get("periodId") or "").upper()
+    if "HALF_TIME" in pid or pid in ("PAUSE", "HALFTIME"):
+        return "Mi-temps"
+    if "OVERTIME" in pid or pid == "OT":
+        return "Prol."
+    if pid.startswith("QUARTER") or pid.startswith("PERIOD"):       # basket : quart + temps restant
+        q = "Q" + "".join(ch for ch in pid if ch.isdigit())
+        ml, sl = mc.get("minutesLeftInPeriod"), mc.get("secondsLeftInMinute")
+        return f"{q} · {ml}:{sl:02d}" if (ml is not None and sl is not None) else q
+    minute = mc.get("minute")                                       # foot : minute écoulée
+    return f"{minute}'" if minute is not None else ""
+
+
 def fmt_local(value, with_date: bool = True) -> str:
     """Formate un datetime/ISO en heure locale belge. '' si absent."""
     if value is None:
@@ -274,12 +292,6 @@ CSS = """
   /* Match commencé : on garde le type (vert/bleu) mais sans halo « action » + mention discrète */
   .perle-pre{box-shadow:none;opacity:.9}
   .pl-pre{font-size:9.5px;font-weight:700;font-style:italic;color:var(--muted);white-space:nowrap}
-  /* 2e pari de confiance : vert discret, plus petit */
-  .perle2{margin-top:5px;padding:7px 11px;background:rgba(25,196,106,.05);
-          border-color:rgba(25,196,106,.22);box-shadow:none}
-  .perle2 .pl-tag{color:#7fd6a6;background:rgba(25,196,106,.12)}
-  .perle2 .pl-sel{font-size:13px} .perle2 .pl-o{font-size:13px;color:#7fd6a6}
-  .perle2 .cm-bar>span{background:linear-gradient(90deg,#19c46a,#34d27b);opacity:.7}
   /* Barre de CONFIANCE (jauge) : niveau + % ; couleur héritée du type de pari ci-dessus */
   .cmeter{display:flex;align-items:center;gap:9px;margin:8px 0 1px;font-size:11px}
   .cm-l{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
@@ -447,6 +459,9 @@ CSS = """
   .pbar-l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Dataviz fiche match : pastilles de forme + mini-barres de facteurs */
   .dots{display:flex;gap:5px;justify-content:space-between}   /* réparti sur toute la largeur */
+  /* Nom d'équipe/joueur des formes récentes : MÊME présentation sur les 3 sports, centré */
+  .fm-name{font-size:14px;font-weight:800;text-align:center;margin:2px 0 8px;color:#eaf2ff}
+  .fm-name .dim{font-weight:600}
   .dot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;
        justify-content:center;font-size:11px;font-weight:800}
   .dot.w{background:var(--green);color:#04130a}
@@ -958,8 +973,8 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     def one(p: dict, secondary: bool = False, k: str | None = None) -> str:
         edgep = round((p.get("edge") or 0) * 100)
         is_value = _pick_kind(p, k)
-        if secondary:
-            cls, tag = "perle2", "+ AUSSI (confiance)"
+        if secondary:                                  # 2e confiance : MÊME style, badge « CONFIANCE 2 »
+            cls, tag = "perle-conf", "🛡️ CONFIANCE 2"
         elif is_value:
             cls, tag = "perle-value", f"💎 VALUE +{edgep}%"
         else:
@@ -1099,7 +1114,13 @@ def _sport_row(r: dict) -> str:
     # Pastille d'état en haut à droite, MÊME style que le décompte : décompte si à venir,
     # « EN DIRECT » (rouge) si live. Le badge value/✓ va, lui, sur la ligne de l'affiche.
     if r.get("status") == "inprogress":
-        top = f'<span class="dim">{e(r["score"])}</span>' if r.get("score") else ""
+        # Live : temps du match (foot 51' / basket Q3 · 5:42) + score
+        bits = []
+        if r.get("live_time"):
+            bits.append(f'<span class="live">{e(r["live_time"])}</span>')
+        if r.get("score"):
+            bits.append(f'<span class="dim">{e(r["score"])}</span>')
+        top = " · ".join(bits)
         state = '<span class="cd live">🟢 Live</span>'
     elif r.get("status") == "finished":
         top = e(r.get("score") or "terminé")
@@ -1676,8 +1697,8 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
         # Le + RÉCENT à DROITE : on inverse (la source donne récent -> ancien)
         dots = "".join(f'<span class="dot {"w" if f["win"] else "l"}">'
                        f'{"V" if f["win"] else "D"}</span>' for f in reversed(form))
-        return (f'<div class="frow"><div class="players" style="font-size:14px;margin:0 0 6px">'
-                f'{e(name)}</div><div class="dots">{dots}</div></div>')
+        return (f'<div class="frow"><div class="fm-name">{e(name)}</div>'
+                f'<div class="dots">{dots}</div></div>')
 
     form_html = ""
     if home_form or away_form:

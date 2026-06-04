@@ -136,8 +136,7 @@ async def team_context(event_id: int, home: str, away: str, unit: str = "buts",
         body = "".join(rows) or (web.form_dots((tf or {}).get("form")) if (tf or {}).get("form") else "")
         if not body:
             return ""
-        return (f'<div class="players" style="font-size:14px;margin:8px 0 2px">'
-                f'{web.html.escape(name)}{note}</div>{body}')
+        return (f'<div class="fm-name">{web.html.escape(name)}{note}</div>{body}')
     form_inner = team_block(home, hid, h_last, tf_home) + team_block(away, aid, a_last, tf_away)
     form_html = ""
     if form_inner:

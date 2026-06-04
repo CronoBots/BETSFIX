@@ -1143,13 +1143,16 @@ async def board_from_unibet() -> list[dict]:
                         and (not pick or edge > pick["edge"])):
                     pick = {"code": code, "team": nm, "odds": odd, "edge": edge}
         status = "notstarted" if ev.get("state") == "NOT_STARTED" else "inprogress"
-        sc = (entry.get("liveData") or {}).get("score") or {}
+        ld = entry.get("liveData") or {}
+        sc = ld.get("score") or {}
         live_score = (f'{sc.get("home")}-{sc.get("away")}'
                       if status == "inprogress" and sc.get("home") is not None else "")
+        live_time = web.fmt_live_clock(ld.get("matchClock")) if status == "inprogress" else ""
         rows.append({
             "id": kid, "comp": group, "status": status, "home": home, "away": away,
             "home_en": en_home, "away_en": en_away,   # noms anglais -> matcher SofaScore
             "probs": probs, "goals": goals_markets(eh, ea), "score": live_score,
+            "live_time": live_time,
             "o1": o1, "ox": ox, "o2": o2, "imp": imp, "pick": pick,
             "eh": eh, "ea": ea, "neutral": any(n.lower() in ctx for n in NEUTRAL_COMPS),
             "start": start.timestamp(), "female": female,
@@ -1378,7 +1381,7 @@ def _card(r: dict) -> dict:
     badge = ""
     return {"tour": r.get("comp"), "status": r["status"], "time": _fmt_time(r.get("start")),
             "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
-            "female": r.get("female"), "score": r.get("score", ""),
+            "female": r.get("female"), "score": r.get("score", ""), "live_time": r.get("live_time", ""),
             "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
             "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
             "prob": r.get("probs"), "sub": _model_line(r), "badge": badge, "pick": bool(pk),

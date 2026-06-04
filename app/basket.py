@@ -730,12 +730,14 @@ async def board_from_unibet() -> list[dict]:
                                     "odds": odds_s, "edge": edge, "stake": round(min(kf * 0.25 * 100, 3.0), 2)}
                 status = "notstarted" if ev.get("state") == "NOT_STARTED" else "inprogress"
                 hp_pts, ap_pts = _live_pts(entry) if status == "inprogress" else (None, None)
+                live_time = (web.fmt_live_clock((entry.get("liveData") or {}).get("matchClock"))
+                             if status == "inprogress" else "")
                 rows.append({
                     "id": kid, "league": league, "status": status, "home": home, "away": away,
                     "model_home": p, "margin": expected_margin(p, cfg.get("sigma", SPREAD_SIGMA)),
                     "oh": oh, "oa": oa, "imp_home": imp[0] if imp else None, "pick": pick,
                     "start": start.timestamp(), "votes": None, "female": league == "WNBA",
-                    "home_pts": hp_pts, "away_pts": ap_pts,
+                    "home_pts": hp_pts, "away_pts": ap_pts, "live_time": live_time,
                 })
     rows.sort(key=lambda g: g["start"] or 0)
     return rows
@@ -863,6 +865,7 @@ def _card(r: dict) -> dict:
             "url": f'/basket/match/{r["id"]}' if r.get("sofa_ok") else None,
             "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'
                       if r["status"] == "inprogress" and r.get("home_pts") is not None else ""),
+            "live_time": r.get("live_time", ""),
             "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
             "sub": sub_html, "badge": badge, "pick": bool(pk),
             "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
