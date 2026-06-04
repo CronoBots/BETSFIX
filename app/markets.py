@@ -377,3 +377,99 @@ def evaluate_markets(match: Match, unibet: UnibetOdds, sim: dict) -> list[Market
                 is_value=is_value,
             ))
     return out
+
+
+# ============================== moteur PERLE tennis (sélection sur les MarketEdge existants)
+# Le tennis évalue déjà TOUS les marchés (vainqueur, sets, jeux, aces, simulateur) avec un edge
+# ancré au marché. La « perle » = même logique que foot/basket : depuis ce pool, la CONFIANCE
+# (proba max) et la VALUE (edge max), cote conf ≥ 1,20 / value ≥ 1,50.
+T_MIN_PROB = 0.52
+T_MIN_ODDS = 1.20
+T_VALUE_MIN_ODDS = 1.50
+T_MIN_EDGE = 0.03
+T_N_CONFIANCES = 2
+
+
+def _edge_label(me) -> str:
+    """Libellé lisible d'un pari tennis (le marché donne le contexte que la sélection seule perd)."""
+    sel = (me.selection or "").strip()
+    mkt = (me.market or "").strip()
+    low = mkt.lower()
+    if sel.lower() in ("oui", "non"):                         # « X remporte au moins un set : Oui »
+        return mkt if sel.lower() == "oui" else f"NON — {mkt}"
+    if me.line is not None and sel.lower() in ("plus de", "moins de", "plus", "moins", "over", "under"):
+        unit = "jeux" if "jeu" in low else ("aces" if "ace" in low else "")
+        return f"{sel} {me.line:g} {unit}".strip()
+    if me.line is not None:                                    # handicap : « Joueur -4.5 »
+        return f"{sel} {me.line:+g}".strip()
+    return sel
+
+
+def best_picks_tennis(edges) -> dict | None:
+    """1-2 confiances (proba max, marchés distincts) + value (edge max, cote ≥ 1,50) depuis les
+    MarketEdge déjà calculés. None si aucun pari jouable."""
+    cands = []
+    for me in edges or []:
+        mp_raw, od, eg, imp = (me.model_probability, me.odds, me.edge, me.implied_probability)
+        if mp_raw is None or od is None or eg is None or imp is None:
+            continue
+        # proba ANCRÉE au marché (cohérente avec l'edge), pas la proba brute du simulateur
+        # (sur-confiante sur les petits tournois). Garde-fou : si le brut s'écarte trop du marché,
+        # c'est le modèle qui a tort -> on écarte (comme foot/basket).
+        fair = imp + eg
+        if abs(mp_raw - imp) > 0.20:
+            continue
+        if fair >= T_MIN_PROB and od >= T_MIN_ODDS and eg >= T_MIN_EDGE:
+            cands.append({"selection": _edge_label(me), "market": me.market,
+                          "odds": round(od, 2), "model_prob": round(fair, 4), "edge": round(eg, 4)})
+    if not cands:
+        return None
+    confidences, seen = [], set()
+    for c in sorted(cands, key=lambda c: -c["model_prob"]):
+        if c["market"] in seen:
+            continue
+        confidences.append(c)
+        seen.add(c["market"])
+        if len(confidences) >= T_N_CONFIANCES:
+            break
+    payed = [c for c in cands if c["odds"] >= T_VALUE_MIN_ODDS]
+    value = max(payed, key=lambda c: c["edge"]) if payed else None
+    return {"confidences": confidences, "confidence": confidences[0], "value": value}
+
+
+def tennis_all_edges(match, odds, analysis, tour, seed, home_stats=None, away_stats=None):
+    """TOUS les edges tennis d'un match (vainqueur, sets, jeux/handicap, aces, simulateur) en une
+    liste de MarketEdge — réutilisé par le détail ET le snapshot pour en tirer la perle."""
+    from app import ace_markets, set_markets, tendencies
+    best_of = 5 if tour == "atp" else 3
+    edges: list[MarketEdge] = []
+    for vb in (analysis.value_bets or []):
+        edges.append(MarketEdge(market="Vainqueur", selection=vb.player, odds=vb.odds,
+                                model_probability=vb.model_probability,
+                                implied_probability=vb.implied_probability, edge=vb.edge, line=None))
+    try:
+        edges += set_markets.evaluate(match, odds, best_of,
+                                      analysis.model_home_probability, analysis.model_away_probability)
+    except Exception:
+        pass
+    try:
+        store = tendencies.load_cached()
+        fav_prob = max(analysis.model_home_probability or 0.5, analysis.model_away_probability or 0.5)
+        rh = tendencies.ace_rate(store.get(str(match.home.id)), match.ground_type)
+        ra = tendencies.ace_rate(store.get(str(match.away.id)), match.ground_type)
+        edges += ace_markets.evaluate(match, odds, best_of, rh, ra, fav_prob)
+    except Exception:
+        pass
+    try:
+        levels = [v for v in (serve_win_pct(home_stats), serve_win_pct(away_stats)) if v is not None]
+        serve_level = sum(levels) / len(levels) if levels else DEFAULT_SERVE[tour]
+        home_tokens = _norm_name(match.home.name)
+        mkt_win, games_line, games_over = extract_market_anchors(odds, home_tokens)
+        model_p = analysis.model_home_probability
+        target = (0.7 * mkt_win + 0.3 * model_p) if (mkt_win is not None and model_p is not None) \
+            else (mkt_win if mkt_win is not None else (model_p or 0.5))
+        sim = calibrate_to_market(target, games_line, games_over, serve_level, best_of, seed=seed)
+        edges += evaluate_markets(match, odds, sim)
+    except Exception:
+        pass
+    return edges

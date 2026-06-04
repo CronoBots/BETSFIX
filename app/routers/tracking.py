@@ -65,6 +65,19 @@ async def run_snapshot(provider: SofaScoreProvider, unibet: UnibetProvider) -> i
             st_iso = m.start_time.isoformat() if m.start_time else None
             if tracking.upsert_prediction(store, analysis, tour, now.isoformat(), st_iso):
                 updated += 1
+            # 🎯 PERLE tennis : confiance (proba max) + value (edge max) depuis TOUS les marchés
+            try:
+                from app import markets as _mk
+                edges = _mk.tennis_all_edges(m, odds, analysis, tour, m.id, hs, as_)
+                picks = _mk.best_picks_tennis(edges)
+                rec = store.get(str(m.id))
+                if rec is not None:
+                    confs = picks["confidences"] if picks else []
+                    rec["perle"] = confs[0] if confs else None
+                    rec["perle2"] = confs[1] if len(confs) > 1 else None
+                    rec["perle_value"] = picks["value"] if picks else None
+            except Exception:
+                pass
             # Votes des fans -> persistés pour TOUS les matchs suivis (barre PUBLIC stable
             # et homogène avec le basket). En fond, throttlé, et caché 30 min.
             try:

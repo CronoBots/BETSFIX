@@ -103,31 +103,35 @@ def _all_sport_picks() -> list[dict]:
 
     def add(store, sport, icon, url_fn, bet_key, prob_fn):
         for rec in store.values():
-            v = rec.get("value_pick")
-            if (rec.get("result") or not v or not _is_upcoming(rec)
+            if (rec.get("result") or not _is_upcoming(rec)
                     or not window.within(rec.get("start_time"))):   # rien au-delà de la fenêtre 24 h
+                continue
+            nh = (rec.get("home", "").split() or [""])[-1]
+            na = (rec.get("away", "").split() or [""])[-1]
+            base = {"sport": sport, "icon": icon, "home": rec.get("home", ""),
+                    "away": rec.get("away", ""),
+                    "odds_cells": [(nh, rec.get("unibet_home_odds")), (na, rec.get("unibet_away_odds"))],
+                    "match_id": rec.get("match_id"),
+                    "time": web.fmt_local(rec.get("start_time"), with_date=True),
+                    "start_ts": _ts(rec.get("start_time")), "url": url_fn(rec), **_split_2way(rec)}
+            # 💎 VALUE = la PERLE au plus gros edge (tous marchés) quand elle existe
+            pv = rec.get("perle_value")
+            if isinstance(pv, dict) and pv.get("selection"):
+                out.append({**base, "bet": pv["selection"], "odds": pv.get("odds"),
+                            "edge": pv.get("edge"), "model_prob": pv.get("model_prob"),
+                            "side": None, "implied": None, "community": None, "perle": pv})
+                continue
+            v = rec.get("value_pick")
+            if not v:
                 continue
             odds = v.get("odds")
             model_p, side = prob_fn(rec, v)
-            # vote "public" persisté (si capté lors d'un snapshot) -> part du côté parié
             ph, pa = rec.get("public_home"), rec.get("public_away")
             community = ((ph if side == "home" else pa) / 100
                          if ph is not None and side in ("home", "away") else None)
-            nh = (rec.get("home", "").split() or [""])[-1]
-            na = (rec.get("away", "").split() or [""])[-1]
-            out.append({
-                "sport": sport, "icon": icon, "home": rec.get("home", ""),
-                "away": rec.get("away", ""), "bet": v.get(bet_key) or v.get("player") or "",
-                "odds": odds, "edge": v.get("edge"),
-                "model_prob": model_p, "side": side, "community": community,
-                "implied": (1 / odds) if odds else None,   # proba "officielle" (cote)
-                "odds_cells": [(nh, rec.get("unibet_home_odds")), (na, rec.get("unibet_away_odds"))],
-                "match_id": rec.get("match_id"),
-                "time": web.fmt_local(rec.get("start_time"), with_date=True),
-                "start_ts": _ts(rec.get("start_time")),
-                "url": url_fn(rec),
-                **_split_2way(rec),
-            })
+            out.append({**base, "bet": v.get(bet_key) or v.get("player") or "",
+                        "odds": odds, "edge": v.get("edge"), "model_prob": model_p, "side": side,
+                        "community": community, "implied": (1 / odds) if odds else None})
 
     # Tennis depuis le store (même source que l'onglet Tennis). Basket/foot viennent des
     # boards (board_resilient), agrégés à part dans home() -> cohérence accueil <-> onglets.
@@ -174,6 +178,22 @@ def _confidence_picks() -> list[dict]:
             if (rec.get("result") or not _is_upcoming(rec)
                     or not window.within(rec.get("start_time"))):   # rien au-delà de la fenêtre 24 h
                 continue
+            nh = (rec.get("home", "").split() or [""])[-1]
+            na = (rec.get("away", "").split() or [""])[-1]
+            base = {"sport": sport, "icon": icon, "home": rec.get("home", ""),
+                    "away": rec.get("away", ""),
+                    "odds_cells": [(nh, rec.get("unibet_home_odds")), (na, rec.get("unibet_away_odds"))],
+                    "match_id": rec.get("match_id"),
+                    "time": web.fmt_local(rec.get("start_time"), with_date=True),
+                    "start_ts": _ts(rec.get("start_time")), "url": url_fn(rec), **_split_2way(rec)}
+            # 🎯 CONFIANCE = la PERLE la plus probable (tous marchés) quand elle existe
+            perle = rec.get("perle")
+            if isinstance(perle, dict) and perle.get("selection"):
+                out.append({**base, "bet": perle["selection"], "model_prob": perle.get("model_prob"),
+                            "conf_pct": round((perle.get("model_prob") or 0) * 100),
+                            "odds": perle.get("odds"), "side": None, "implied": None,
+                            "community": None, "perle": perle, "perle2": rec.get("perle2")})
+                continue
             fav = fav_fn(rec)
             if not fav or fav[1] is None or fav[1] < CONF_MIN_PROB:
                 continue
@@ -181,20 +201,9 @@ def _confidence_picks() -> list[dict]:
             ph, pa = rec.get("public_home"), rec.get("public_away")
             community = ((ph if side == "home" else pa) / 100
                          if ph is not None and side in ("home", "away") else None)
-            nh = (rec.get("home", "").split() or [""])[-1]
-            na = (rec.get("away", "").split() or [""])[-1]
-            out.append({
-                "sport": sport, "icon": icon, "home": rec.get("home", ""),
-                "away": rec.get("away", ""), "bet": name, "model_prob": prob, "side": side,
-                "conf_pct": round(prob * 100), "odds": odds,
-                "implied": (1 / odds) if odds else None, "community": community,
-                "odds_cells": [(nh, rec.get("unibet_home_odds")), (na, rec.get("unibet_away_odds"))],
-                "match_id": rec.get("match_id"),
-                "time": web.fmt_local(rec.get("start_time"), with_date=True),
-                "start_ts": _ts(rec.get("start_time")),
-                "url": url_fn(rec),
-                **_split_2way(rec),
-            })
+            out.append({**base, "bet": name, "model_prob": prob, "side": side,
+                        "conf_pct": round(prob * 100), "odds": odds,
+                        "implied": (1 / odds) if odds else None, "community": community})
 
     # Tennis seul (basket/foot viennent des boards, agrégés dans home()).
     add(tracking.load(), "Tennis", "🎾",
