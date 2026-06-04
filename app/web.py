@@ -297,7 +297,8 @@ CSS = """
      margin-top = l'ESPACE demandé sous les 4 barres. PAS d'overflow:hidden (sur iOS, combiné
      au calque fixe body::before, il laisse des traces concentriques au scroll) : on arrondit
      plutôt les coins HAUT du bandeau pour épouser le cadre. */
-  .plg{border-radius:12px;margin:15px 0 3px}
+  /* margin-top = MÊME espace qu'entre 2 barres de % (.sb margin 8px) */
+  .plg{border-radius:12px;margin:8px 0 3px}
   .plg-conf{background:linear-gradient(180deg,rgba(25,196,106,.12),rgba(25,196,106,.04));
         border:1px solid rgba(25,196,106,.32)}
   .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
@@ -1088,6 +1089,22 @@ def _pick_kind(perle: dict, kind: str | None) -> bool:
     return not (pct >= 68 and edgep < 6)   # sûr (forte proba, faible value) sinon value
 
 
+def _same_pari(p, p2) -> bool:
+    """Deux paris du MÊME match sont-ils le même PARI/TYPE ? (même sélection, ou même type de
+    marché : `kind` foot/basket — ex. 2 totaux « Moins de X pts » — ou `market` tennis). Sert à
+    ne JAMAIS afficher/compter 2 paris du même type sur un match (un 2e pari doit être distinct)."""
+    if not (isinstance(p, dict) and isinstance(p2, dict)):
+        return False
+    s, s2 = p.get("selection"), p2.get("selection")
+    if s and s == s2:
+        return True
+    for key in ("kind", "market"):
+        a, b = p.get(key), p2.get(key)
+        if a and a == b:
+            return True
+    return False
+
+
 def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = False,
                   kind: str | None = None, won: bool = False, won2: bool = False,
                   lost: bool = False, lost2: bool = False, header: bool = False) -> str:
@@ -1149,9 +1166,9 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
                 f'<div class="plg-o">@{p["odds"]:g}</div>'
                 f'{_confidence_meter(p)}</div>')
     parts = [item(perle, won, lost)]
-    # 2e pari confiance UNIQUEMENT s'il DIFFÈRE du 1er (sinon c'est un doublon -> on l'enlève).
+    # 2e pari UNIQUEMENT s'il est d'un TYPE DIFFÉRENT du 1er (jamais 2 paris du même type).
     if (isinstance(perle2, dict) and perle2.get("selection")
-            and not (isinstance(perle, dict) and perle.get("selection") == perle2.get("selection"))):
+            and not _same_pari(perle, perle2)):
         parts.append(item(perle2, won2, lost2))
     parts = [x for x in parts if x]
     # Plusieurs paris dans le même cadre -> séparés par « et / ou » (jouer l'un et/ou l'autre).
@@ -1185,9 +1202,8 @@ def finished_picks(perle, perle_won, perle_value, value_won, winner_name,
         return p.get("selection") if isinstance(p, dict) else None
     same = _sel(perle) is not None and _sel(perle) == _sel(perle_value)
     chips = chip(perle, perle_won, "Confiance", "fp-conf")
-    # 2e pari confiance (perle2) : compté dans le tableau Preuve -> on l'affiche aussi (sauf
-    # s'il fait doublon avec la 1re confiance).
-    if _sel(perle2) is not None and _sel(perle2) != _sel(perle):
+    # 2e pari confiance (perle2) : affiché aussi, SAUF s'il est du même type que la 1re confiance.
+    if _sel(perle2) is not None and not _same_pari(perle, perle2):
         chips += chip(perle2, perle2_won, "Confiance 2", "fp-conf")
     if not same:
         chips += chip(perle_value, value_won, "Value", "fp-val")

@@ -365,11 +365,18 @@ def report(store: dict) -> dict:
 
     # 🎯 Performance des PERLES (ce qu'on recommande vraiment) : CONFIANCE (perle + 2e pari) et VALUE.
     def _distinct_perle2(r):
-        # 2e confiance comptée seulement si elle DIFFÈRE de la 1re (sinon doublon -> pas 2 fois).
+        # 2e confiance comptée seulement si elle est d'un TYPE DIFFÉRENT de la 1re (même sélection
+        # OU même type de marché `kind`/`market` -> pas comptée 2 fois).
         p, p2 = r.get("perle"), r.get("perle2")
         if not (isinstance(p2, dict) and p2.get("selection")):
             return False
-        return not (isinstance(p, dict) and p.get("selection") == p2.get("selection"))
+        if isinstance(p, dict):
+            if p.get("selection") == p2.get("selection"):
+                return False
+            for key in ("kind", "market"):
+                if p.get(key) and p.get(key) == p2.get(key):
+                    return False
+        return True
     conf_pnls = []
     for r in settled:
         if r["result"].get("perle_pnl") is not None:
