@@ -256,12 +256,31 @@ CSS = """
   .pl-o{font-size:14.5px;font-weight:800;color:#34d27b}
   .pl-m{font-size:11.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
   .pl-m b{color:#cfe0f5;font-weight:700}
+  /* Match commencé : le pari était d'avant-match -> ton neutre (gris-bleu), plus de halo « action » */
+  .perle-live{background:rgba(255,255,255,.04);border-color:var(--cardline);box-shadow:none}
+  .perle-live .pl-tag{color:#9fb4cf;background:rgba(159,180,207,.14)}
+  .perle-live .pl-o{color:#cfe0f5}
   /* 2e pari de confiance : plus discret, ton bleu (vs vert du pari principal) */
   .perle2{margin-top:-4px;padding:6px 11px;background:rgba(46,155,255,.08);
           border-color:rgba(46,155,255,.30);box-shadow:none}
   .perle2 .pl-tag{color:#2e9bff;background:rgba(46,155,255,.14)}
   .perle2 .pl-sel{font-size:13px}
   .perle2 .pl-o{font-size:13px;color:#4aa8ff}
+  /* Confiance du pari, SOUS les cotes : niveau + jauge colorée (présentation pro) */
+  .cmeter{display:flex;align-items:center;gap:9px;margin:9px 2px 3px;font-size:11px}
+  .cm-l{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+        color:var(--muted);white-space:nowrap}
+  .cm-bar{flex:1;height:6px;border-radius:99px;background:var(--border);overflow:hidden}
+  .cm-bar>span{display:block;height:100%;border-radius:99px}
+  .cm-v{font-weight:800;white-space:nowrap;color:#cfe0f5}
+  .cm-p{color:var(--muted);font-weight:700;margin-left:5px}
+  .cmeter-hi .cm-bar>span{background:linear-gradient(90deg,#19c46a,#34d27b)}
+  .cmeter-hi .cm-v{color:#34d27b}
+  .cmeter-good .cm-bar>span{background:linear-gradient(90deg,#2e9bff,#4aa8ff)}
+  .cmeter-good .cm-v{color:#7cc0ff}
+  .cmeter-mid .cm-bar>span{background:linear-gradient(90deg,#6c8cff,#8aa0ff)}
+  .cmeter-low .cm-bar>span{background:linear-gradient(90deg,#f0a93b,#f7c365)}
+  .cmeter-low .cm-v{color:#f0a93b}
   .bdg .badge{white-space:nowrap}
   .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800;
          letter-spacing:.02em}
@@ -872,9 +891,32 @@ def _section(heading: str, body: str, open_: bool = True, info: str | None = Non
             f'<div class="secbody">{info_html}{body}</div></details>')
 
 
-def _perle_banner(perle: dict | None, perle2: dict | None = None) -> str:
-    """Bannière « 🎯 À JOUER » du pari à jouer (+ « + AUSSI » pour un 2e pari de confiance).
-    Réutilisée par l'accueil (_pick_card) ET les cartes des onglets (_sport_row)."""
+def _confidence_meter(perle: dict | None) -> str:
+    """Barre de CONFIANCE du pari, affichée SOUS les cotes : proba modèle -> niveau + jauge
+    colorée. Présentation 'pro', cohérente avec la bannière. Repli silencieux si pas de perle."""
+    if not (isinstance(perle, dict) and perle.get("selection")):
+        return ""
+    p = perle.get("model_prob")
+    if p is None:
+        return ""
+    pct = round(p * 100)
+    if p >= 0.70:
+        lvl, cls = "Élevée", "cmeter-hi"
+    elif p >= 0.60:
+        lvl, cls = "Bonne", "cmeter-good"
+    elif p >= 0.50:
+        lvl, cls = "Modérée", "cmeter-mid"
+    else:
+        lvl, cls = "Audacieuse", "cmeter-low"
+    return (f'<div class="cmeter {cls}"><span class="cm-l">Confiance</span>'
+            f'<span class="cm-bar"><span style="width:{pct}%"></span></span>'
+            f'<span class="cm-v">{lvl}<span class="cm-p">{pct}%</span></span></div>')
+
+
+def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = False) -> str:
+    """Bannière du pari (+ « + AUSSI » pour un 2e pari de confiance). Réutilisée par l'accueil
+    (_pick_card) ET les cartes des onglets (_sport_row). `live=True` : le match a commencé, le
+    pari était d'AVANT-MATCH (on le garde en mémoire, mais ce n'est plus un « à jouer »)."""
     e = html.escape
     if not (isinstance(perle, dict) and perle.get("selection")):
         return ""
@@ -882,7 +924,8 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None) -> str:
     edgep = round((perle.get("edge") or 0) * 100)
     # pari SÛR (forte proba, faible value) vs vraie VALUE : on ne survend pas un +3 % à 1.2
     note = (f'🛡️ <b>pari sûr</b>' if (pct >= 68 and edgep < 6) else f'value <b>+{edgep}%</b>')
-    out = (f'<div class="perle"><span class="pl-tag">🎯 À JOUER</span>'
+    tag = "🎯 AVANT-MATCH" if live else "🎯 À JOUER"
+    out = (f'<div class="perle{" perle-live" if live else ""}"><span class="pl-tag">{tag}</span>'
            f'<span class="pl-sel">{e(str(perle["selection"]))}</span>'
            f'<span class="pl-o">@{perle["odds"]:g}</span>'
            f'<span class="pl-m">modèle <b>{pct}%</b> · {note}</span></div>')
@@ -912,12 +955,12 @@ def _pick_card(p: dict, badge: str) -> str:
     af = f'{p["away_flag"]} ' if p.get("away_flag") else ""
     # « perle rare » : le pari à jouer (meilleur équilibre confiance×value parmi TOUS les
     # marchés Unibet), mis en avant au-dessus des barres de contexte.
-    perle_html = _perle_banner(p.get("perle"), p.get("perle2"))
+    perle_html = _perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")))
     inner = (f'<div class="rowtop"><span>{p["icon"]} {e(p["sport"])}{fem} · {e(p.get("time") or "")}</span>'
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
              f'<span class="dim">vs</span> {af}{e(p.get("away") or "")}</div>{bdg}</div>'
-             f'{perle_html}{_pick_bars(p)}{oddsrow}')
+             f'{perle_html}{_pick_bars(p)}{oddsrow}{_confidence_meter(p.get("perle"))}')
     url = p.get("url") or ""
     # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
@@ -1038,7 +1081,8 @@ def _sport_row(r: dict) -> str:
              f'<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {af}{e(r.get("away") or "")}</div>{badge}</div>'
-             f'{_perle_banner(r.get("perle"), r.get("perle2"))}{probviz}{r.get("sub", "")}')
+             f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"))}'
+             f'{probviz}{r.get("sub", "")}{_confidence_meter(r.get("perle"))}')
     cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
     url = r.get("url") or ""
     # Tap -> déplie l'analyse complète À L'INTÉRIEUR de la carte (les 3 sports), sans changer

@@ -125,8 +125,9 @@ def _odds_for(analysis, side: str):
 
 
 def settle(store: dict, match_id: int, winner: str | None, total_games: int | None,
-           now_iso: str) -> bool:
-    """Enregistre le résultat réel d'un match suivi. Renvoie True si réglé."""
+           now_iso: str, sets_home: int | None = None, sets_away: int | None = None) -> bool:
+    """Enregistre le résultat réel d'un match suivi. Renvoie True si réglé.
+    Règle aussi les PERLES (confiance + 2e + value) -> alimente « BETSFIX bat le marché ?»."""
     rec = store.get(str(match_id))
     if not rec or rec.get("result") or winner not in ("home", "away"):
         return False
@@ -135,9 +136,18 @@ def settle(store: dict, match_id: int, winner: str | None, total_games: int | No
     if pick and pick.get("odds"):
         won = pick["side"] == winner
         pnl = (pick["odds"] - 1) if won else -1.0  # mise plate de 1 unité
+    # 🎯 P&L des perles tennis (None = marché non vérifiable -> exclu des stats)
+    from app.markets import settle_tennis_perle
+
+    def _pp(p):
+        return settle_tennis_perle(p, winner, sets_home, sets_away, total_games,
+                                   rec.get("home", ""), rec.get("away", ""))
     rec["result"] = {
         "winner": winner, "total_games": total_games, "settled_at": now_iso,
         "value_pnl": pnl,
+        "perle_pnl": _pp(rec.get("perle")),
+        "perle2_pnl": _pp(rec.get("perle2")),
+        "perle_value_pnl": _pp(rec.get("perle_value")),
     }
     store[str(match_id)] = rec
     return True

@@ -17,6 +17,7 @@ Fonctions pures (random seedé) → testables et déterministes.
 from __future__ import annotations
 
 import random
+import re
 
 from app.models import MarketEdge, Match, PlayerStatistics, UnibetOdds
 from app.providers.unibet import _norm_name
@@ -438,6 +439,53 @@ def best_picks_tennis(edges) -> dict | None:
     payed = [c for c in cands if c["odds"] >= T_VALUE_MIN_ODDS]
     value = max(payed, key=lambda c: c["edge"]) if payed else None
     return {"confidences": confidences, "confidence": confidences[0], "value": value}
+
+
+def settle_tennis_perle(perle, winner, sets_home, sets_away, total_games,
+                        home_name, away_name):
+    """Règle une perle tennis -> P&L (mise plate 1 u) ou None si NON vérifiable de façon fiable.
+    Marchés réglés : « au moins un set », Total de jeux (Plus/Moins), Vainqueur. Les autres
+    (aces, handicaps complexes…) renvoient None -> exclus des stats (on ne compte que le vérifiable).
+    `winner`='home'/'away' ; `sets_home/away` = sets gagnés ; `total_games` = total de jeux."""
+    if not (isinstance(perle, dict) and perle.get("odds")) or winner not in ("home", "away"):
+        return None
+    odds = perle["odds"]
+    market = (perle.get("market") or "").lower()
+    sel = perle.get("selection") or ""
+    sl = sel.lower()
+
+    def pnl(w):
+        return (odds - 1) if w else -1.0
+
+    def which():   # quel joueur la sélection désigne-t-elle ? (par les noms)
+        st = _norm_name(sel)
+        ht, at = _norm_name(home_name or ""), _norm_name(away_name or "")
+        if (st & ht) and not (st & at):
+            return "home"
+        if (st & at) and not (st & ht):
+            return "away"
+        return None
+
+    # « X remporte au moins un set »
+    if "au moins un set" in sl or "moins un set" in sl or "at least one set" in sl:
+        who = which()
+        if who is None or sets_home is None or sets_away is None:
+            return None
+        return pnl((sets_home if who == "home" else sets_away) >= 1)
+    # Total de jeux : « Plus de 20.5 jeux » / « Moins de … »
+    if "jeu" in sl and total_games is not None:
+        mo = re.search(r"(\d+(?:[.,]\d+)?)", sl)
+        if mo:
+            line = float(mo.group(1).replace(",", "."))
+            if "plus" in sl or "over" in sl:
+                return pnl(total_games > line)
+            if "moins" in sl or "under" in sl:
+                return pnl(total_games < line)
+    # Vainqueur (marché dédié, sélection = nom d'un joueur)
+    if "vainqueur" in market or "winner" in market:
+        who = which()
+        return pnl(winner == who) if who else None
+    return None
 
 
 def tennis_all_edges(match, odds, analysis, tour, seed, home_stats=None, away_stats=None):

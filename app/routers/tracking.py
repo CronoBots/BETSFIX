@@ -101,12 +101,17 @@ async def run_settle(provider: SofaScoreProvider) -> int:
         if rec.get("result"):
             continue
         winner = total = score = None
+        sets_h = sets_a = None
         try:
             m = await provider.get_match(rec.get("tour", "atp"), rec["match_id"])
             if m.status == "finished" and m.winner in ("home", "away"):
                 winner = m.winner
-                total = (sum(g for g in (m.home_score.sets or []) if g is not None) +
-                         sum(g for g in (m.away_score.sets or []) if g is not None)) or None
+                sh, sa = (m.home_score.sets or []), (m.away_score.sets or [])
+                total = (sum(g for g in sh if g is not None) +
+                         sum(g for g in sa if g is not None)) or None
+                # sets gagnés par chaque joueur (pour régler « au moins un set », handicaps…)
+                sets_h = sum(1 for h, a in zip(sh, sa) if h is not None and a is not None and h > a)
+                sets_a = sum(1 for h, a in zip(sh, sa) if h is not None and a is not None and a > h)
                 score = web.fmt_score(m.home_score, m.away_score) or None
         except ProviderError:
             # Repli LiveScore : on règle au moins le vainqueur (par noms + date)
@@ -116,7 +121,8 @@ async def run_settle(provider: SofaScoreProvider) -> int:
                     rec.get("start_time"))
             except Exception:
                 winner = None
-        if winner and tracking.settle(store, rec["match_id"], winner, total, now.isoformat()):
+        if winner and tracking.settle(store, rec["match_id"], winner, total, now.isoformat(),
+                                      sets_home=sets_h, sets_away=sets_a):
             if score and rec.get("result"):
                 rec["result"]["score"] = score
             settled += 1
