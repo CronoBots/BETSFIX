@@ -546,9 +546,9 @@ CSS = """
   .ptab{border:1px solid var(--cardline);border-radius:14px;overflow:hidden;margin:8px 0;
           background:linear-gradient(180deg,var(--surface2),var(--surface));
           box-shadow:var(--cardglow)}
-  .ptab-h,.ptab-row{display:grid;grid-template-columns:1.25fr 1fr .9fr .9fr;gap:6px;
+  .ptab-h,.ptab-row{display:grid;grid-template-columns:1.05fr 1fr .95fr .95fr;gap:6px;
           align-items:center;padding:11px 12px}
-  .ptab-h{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+  .ptab-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.01em;
           color:#eaf2ff;border-bottom:1px solid var(--border);background:rgba(255,255,255,.022)}
   .ptab-h span{text-align:center} .ptab-h span:first-child{text-align:left}
   .ptab-h .ph-conf{color:#34d27b} .ptab-h .ph-val{color:#4aa8ff}   /* Confiance vert · Value bleu */
