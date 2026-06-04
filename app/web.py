@@ -478,6 +478,13 @@ CSS = """
        max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .oc.fav .ocn{color:#9fd0ff}
   .ocv{font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums}
+  /* Cotes COMPACTES sur une ligne (cartes) : « Espagne 1.03 · Nul 16.0 · Irak 36.0 » */
+  .oddsrow2{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 14px;
+        margin-top:8px;padding:7px 12px;border-radius:10px;
+        background:rgba(46,155,255,.06);border:1px solid rgba(46,155,255,.22)}
+  .oc2{font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .oc2 b{color:#eaf2ff;font-weight:800;margin-left:3px;font-size:13.5px;font-variant-numeric:tabular-nums}
+  .oc2.fav{color:#9fd0ff} .oc2.fav b{color:#56b0ff}
   /* Tous les paris Unibet : un bloc par marché, cotes qui wrappent si nombreuses */
   .mkt{margin:9px 0}
   .mkt-l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
@@ -890,7 +897,7 @@ def _pick_bars(p: dict) -> str:
                 f'<div class="sb-bar">{bar}</div></div>')
 
     rows = (row("BETSFIX", "pm", mh, p.get("m_draw"), ma)
-            + row("Cote Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
+            + row("Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
             + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
     return f'<div class="sbars">{rows}</div>'
 
@@ -946,10 +953,9 @@ def bars_foot(probs, imp, votes, home, away) -> dict:
 
 
 def odds_row(outcomes, highlight_idx: int | None = None) -> str:
-    """Barre de cotes Unibet claire : `outcomes` = [(libellé, cote), ...] — 2 issues
-    (tennis/basket) ou 3 avec « Nul » (foot). On met en avant en bleu l'issue PRONOSTIQUÉE
-    par BETSFIX (`highlight_idx`, cohérent avec les barres) ; à défaut, la cote la plus basse
-    (favori du book). Chaque cellule : nom au-dessus, cote dessous."""
+    """Cotes Unibet COMPACTES sur une ligne : `outcomes` = [(libellé, cote), ...] — 2 issues
+    (tennis/basket) ou 3 avec « Nul » (foot). L'issue pronostiquée par BETSFIX (`highlight_idx`)
+    ou le favori du book (cote mini à défaut) est mise en avant."""
     valid = [(i, lbl, o) for i, (lbl, o) in enumerate(outcomes) if o]
     if not valid:
         return '<div class="dim">cotes Unibet à venir</div>'
@@ -958,11 +964,9 @@ def odds_row(outcomes, highlight_idx: int | None = None) -> str:
     else:
         hi = min(valid, key=lambda t: t[2])[0]   # repli : favori du book (cote mini)
     cells = "".join(
-        f'<span class="oc{" fav" if i == hi else ""}">'
-        f'<span class="ocn">{html.escape(str(lbl))}</span>'
-        f'<span class="ocv">{o}</span></span>'
+        f'<span class="oc2{" fav" if i == hi else ""}">{html.escape(str(lbl))} <b>{o}</b></span>'
         for i, lbl, o in valid)
-    return f'<div class="oddsrow">{cells}</div>'
+    return f'<div class="oddsrow2">{cells}</div>'
 
 
 def _head(title: str, info: str | None = None) -> str:
