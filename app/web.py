@@ -287,7 +287,7 @@ CSS = """
   .betline .bn{font-size:16px;font-weight:700;letter-spacing:-.01em;min-width:0;
                overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* affiche (équipes) + badge à droite, badge aligné en haut, le matchup peut wraper */
-  .mrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .mrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-top:6px}
   .mrow .players{flex:1;min-width:0;text-align:center}   /* affiche centrée dans la carte */
   .bdg{flex:none}
   /* perle rare : le pari à jouer (confiance×value) mis en avant */
@@ -394,7 +394,7 @@ CSS = """
   /* badge décompte (timer avant le coup d'envoi), en haut à droite de la carte.
      Texte BLANC, unités jour/heure/minute bien distinctes. */
   .rt-r{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
-  .cd{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:800;
+  .cd{display:inline-block;padding:2px 7px;border-radius:20px;font-size:9.5px;font-weight:800;
       font-variant-numeric:tabular-nums;letter-spacing:.02em;background:rgba(255,255,255,.10);
       color:#fff;border:1px solid rgba(255,255,255,.20);white-space:nowrap}
   .cd .u{color:rgba(255,255,255,.55);font-weight:700;margin:0 1px 0 1px}
