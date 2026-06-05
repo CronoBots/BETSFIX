@@ -528,6 +528,52 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
             f'{conf_cell}{val_cell}</a>')
 
 
+def _rate_chart(reports: list[tuple]) -> str:
+    """Graphique « Taux & ROI par sport » : pour chaque sport, une barre de TAUX de réussite
+    (confiance, repère à 50 %) + une barre ROI DIVERGENTE (value, origine centrée à 0 %).
+    Réutilise `reports` (même ordre que le tableau) -> reste cohérent avec « bat le marché »."""
+    accents = {"tennis": "#d7e64a", "foot": "#2ee27f", "basket": "#ff9f43"}
+    out = []
+    for icon, name, rep, _url in reports:
+        sc = accents.get(name.lower(), "var(--border)")
+        # Confiance : taux de réussite (doit dépasser 50 %) -> barre 0-100 % + repère médian.
+        cn = rep.get("perle_conf_regles") or 0
+        if cn:
+            taux = rep.get("perle_conf_taux") or 0.0
+            pct = round(taux * 100)
+            cls = "ok" if taux >= 0.5 else "ko"
+            conf = (f'<div class="rc-line"><span class="rc-lbl">Confiance</span>'
+                    f'<span class="rc-track"><span class="rc-fill {cls}" style="width:{pct}%"></span>'
+                    f'<span class="rc-tick"></span></span>'
+                    f'<span class="rc-val">{pct}%</span></div>')
+        else:
+            conf = ('<div class="rc-line"><span class="rc-lbl">Confiance</span>'
+                    '<span class="rc-track"></span><span class="rc-val na">—</span></div>')
+        # Value : ROI (seul juge de rentabilité) -> barre divergente, +droite (vert) / −gauche (rouge),
+        # bornée à ±50 % pour l'échelle visuelle ; le chiffre exact reste affiché à droite.
+        vn = rep.get("perle_value_regles") or 0
+        if vn:
+            roi = rep.get("perle_value_roi") or 0.0
+            w = round(min(abs(roi) / 0.5, 1.0) * 50)
+            seg = (f'<span class="rc-pos" style="width:{w}%"></span>' if roi >= 0
+                   else f'<span class="rc-neg" style="width:{w}%"></span>')
+            sign = "+" if roi >= 0 else "−"
+            vcls = "pos" if roi >= 0 else "neg"
+            arrow = "▲" if roi >= 0 else "▼"
+            val = (f'<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
+                   f'<span class="rc-roi"><span class="rc-zero"></span>{seg}</span>'
+                   f'<span class="rc-val {vcls}">{arrow} {sign}{abs(round(roi * 100))}%</span></div>')
+        else:
+            val = ('<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
+                   '<span class="rc-roi"><span class="rc-zero"></span></span>'
+                   '<span class="rc-val na">—</span></div>')
+        out.append(f'<div class="rc-row" style="--sc:{sc}">'
+                   f'<span class="rc-sport">{icon} {html.escape(name)}</span>'
+                   f'<div class="rc-bars">{conf}{val}</div></div>')
+    return ('<div class="rchart"><div class="rchart-t">📈 Taux de réussite & ROI par sport</div>'
+            + "".join(out) + '</div>')
+
+
 def render_proof(reports: list[tuple]) -> str:
     """Section « Preuve » : UN tableau (1 ligne par sport) pour comparer d'un coup d'œil.
     `reports` = [(icon, name, rep, url), ...]."""
@@ -537,7 +583,7 @@ def render_proof(reports: list[tuple]) -> str:
     # Légende des mini-barres (progression PAR SPORT dans la colonne Fiabilité).
     cap = ('<div class="ptab-cap"><span class="pg-lg done"></span> réglés · '
            '<span class="pg-lg wait"></span> en attente · objectif <b>100</b> = preuve solide</div>')
-    table = f'<div class="ptab">{head}{rows}</div>{cap}'
+    table = f'<div class="ptab">{head}{rows}</div>{cap}{_rate_chart(reports)}'
     info = ('Sur les paris « perle » déjà réglés, sont-ils gagnants face au marché ? '
             '<b>Fiabilité</b> le dit (sur le ROI global) : <b>✓ Plus fiable</b> / '
             '<b>✗ Moins fiable</b> que le marché, <b>En rodage</b> = pas encore assez de recul, '

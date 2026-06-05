@@ -701,6 +701,33 @@ CSS = """
   .pg-lg{display:inline-block;width:14px;height:5px;border-radius:99px;vertical-align:middle;margin-right:2px}
   .pg-lg.done{background:linear-gradient(90deg,#34d27b,#4aa8ff)}
   .pg-lg.wait{background:rgba(159,180,207,.32)}
+  /* Graphique « Taux & ROI par sport » (sous le tableau « bat le marché ») : barre de
+     taux pour la confiance (repère 50 %) + barre ROI divergente (origine centrée) pour la value. */
+  .rchart{margin:14px 2px 2px}
+  .rchart-t{font-size:11px;font-weight:800;color:#cfe0f5;text-align:center;
+       letter-spacing:.3px;margin-bottom:10px}
+  .rc-row{display:grid;grid-template-columns:62px 1fr;gap:9px;align-items:center;
+       padding:8px 0;border-top:1px solid var(--border);--sc:var(--border)}
+  .rc-row:first-of-type{border-top:0}
+  .rc-sport{font-weight:800;font-size:12px;white-space:nowrap;padding-left:8px;
+       border-left:3px solid var(--sc)}
+  .rc-bars{display:flex;flex-direction:column;gap:7px;min-width:0}
+  .rc-line{display:grid;grid-template-columns:56px 1fr 46px;gap:7px;align-items:center}
+  .rc-lbl{font-size:9.5px;font-weight:700;color:var(--muted);white-space:nowrap}
+  .rc-track,.rc-roi{position:relative;height:8px;border-radius:99px;
+       background:var(--border);overflow:hidden}
+  .rc-fill{position:absolute;left:0;top:0;height:100%}
+  .rc-fill.ok{background:linear-gradient(90deg,#34d27b,#4aa8ff)}
+  .rc-fill.ko{background:linear-gradient(90deg,#ff9f43,#ff7a7a)}
+  .rc-tick,.rc-zero{position:absolute;left:50%;top:0;width:1px;height:100%;
+       background:rgba(207,224,245,.5);z-index:2}
+  .rc-pos{position:absolute;left:50%;top:0;height:100%;
+       background:linear-gradient(90deg,#2ee27f,#34d27b)}
+  .rc-neg{position:absolute;right:50%;top:0;height:100%;
+       background:linear-gradient(270deg,#ff7a7a,#ff9f43)}
+  .rc-val{font-size:11px;font-weight:800;text-align:right;white-space:nowrap}
+  .rc-val.pos{color:var(--green)} .rc-val.neg{color:var(--red)}
+  .rc-val.na{color:var(--muted);opacity:.55}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);
