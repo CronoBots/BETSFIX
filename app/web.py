@@ -318,25 +318,23 @@ CSS = """
      au calque fixe body::before, il laisse des traces concentriques au scroll) : on arrondit
      plutôt les coins HAUT du bandeau pour épouser le cadre. */
   /* Fine ligne de séparation entre la barre Public et le cadre Confiance/Value */
-  .plg-div{height:1px;background:rgba(255,255,255,.12);margin:18px 2px 0}
+  .plg-div{height:1px;background:rgba(255,255,255,.12);margin:18px 2px 6px}
   /* Cadre Confiance/Value : MODULE distinct, fond DENSE + bordure marquée + ombre (surélevé)
      -> la bannière colorée se détache des barres de stats au lieu de s'y confondre. */
-  .plg{border-radius:12px;margin:11px 0 3px;box-shadow:0 5px 16px rgba(0,0,0,.42)}
+  .plg{position:relative;border-radius:12px;margin:30px 0 3px;box-shadow:0 5px 16px rgba(0,0,0,.42)}
   .plg-conf{background:linear-gradient(180deg,rgba(16,34,26,.92),rgba(11,22,44,.96));
         border:1px solid rgba(34,191,108,.55);--rc:#34d27b}
   .plg-val{background:linear-gradient(180deg,rgba(14,28,48,.92),rgba(11,22,44,.96));
         border:1px solid rgba(46,155,255,.55);--rc:#4aa8ff}
   /* Type (Confiance/Value) = PASTILLE centrée (pas un bandeau pleine largeur) -> ne ressemble
      plus à une barre de stats. */
-  /* Pastille type SORTIE du cadre (au-dessus), centrée, avec léger HALO (premium) */
-  .plg-cat{text-align:center;margin:9px 0 9px}
-  .plg-tag{display:inline-block;padding:4px 20px;border-radius:20px;font-size:11.5px;font-weight:800;
-        text-transform:uppercase;letter-spacing:.07em}
-  .plg-tag-conf{color:#34d27b;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.5);
-        box-shadow:0 0 16px rgba(25,196,106,.22)}
-  .plg-tag-val{color:#4aa8ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.5);
-        box-shadow:0 0 16px rgba(46,155,255,.22)}
-  .plg-body{padding:4px 13px 6px}
+  /* Type (Confiance/Value) = ONGLET attaché au coin SUP. GAUCHE du cadre (étiquette de dossier) */
+  .plg-tab{position:absolute;left:14px;bottom:100%;margin-bottom:-1px;padding:5px 16px 7px;
+        border-radius:10px 10px 0 0;font-size:11px;font-weight:800;text-transform:uppercase;
+        letter-spacing:.07em;border:1px solid var(--rc);border-bottom:none}
+  .plg-conf .plg-tab{color:#34d27b;background:linear-gradient(180deg,#13271d,#0e1d2a)}
+  .plg-val .plg-tab{color:#4aa8ff;background:linear-gradient(180deg,#122236,#0e1d2a)}
+  .plg-body{padding:6px 13px 6px}
   /* LISTE ALIGNÉE : pari (sélection + fiabilité) à GAUCHE, cote en bouton à DROITE */
   .plg-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 2px}
   /* Séparateur « et / ou » entre 2 paris du même cadre (filets de part et d'autre) */
@@ -1224,12 +1222,10 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     parts = [x for x in parts if x]
     # Plusieurs paris dans le même cadre -> séparés par « et / ou » (jouer l'un et/ou l'autre).
     items = '<div class="plg-sep">et / ou</div>'.join(parts)
-    # Le TYPE (Confiance/Value) = pastille SORTIE du cadre (au-dessus), entre la ligne de
-    # séparation et le cadre des paris.
-    tagcls = "plg-tag-val" if is_val else "plg-tag-conf"
+    # Le TYPE (Confiance/Value) = ONGLET attaché au coin supérieur gauche du cadre.
     return (f'<div class="plg-div"></div>'
-            f'<div class="plg-cat"><span class="plg-tag {tagcls}">{lbl}</span></div>'
-            f'<div class="plg {gcls}"><div class="plg-body">{items}</div></div>')
+            f'<div class="plg {gcls}"><div class="plg-tab">{lbl}</div>'
+            f'<div class="plg-body">{items}</div></div>')
 
 
 def finished_picks(perle, perle_won, perle_value, value_won, winner_name,
