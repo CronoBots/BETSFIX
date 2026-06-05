@@ -326,11 +326,13 @@ CSS = """
         border:1px solid rgba(34,191,108,.55)}
   .plg-val{background:linear-gradient(180deg,rgba(14,28,48,.92),rgba(11,22,44,.96));
         border:1px solid rgba(46,155,255,.55)}
-  .plg-head{text-align:center;padding:7px 12px;font-size:12px;font-weight:800;
-        text-transform:uppercase;letter-spacing:.07em;color:#fff;border-radius:11px 11px 0 0;
-        text-shadow:0 1px 2px rgba(0,0,0,.28)}
-  .plg-conf .plg-head{background:linear-gradient(90deg,#16a857,#22bf6c)}
-  .plg-val .plg-head{background:linear-gradient(90deg,#1f80e6,#2e9bff)}
+  /* Type (Confiance/Value) = PASTILLE centrée (pas un bandeau pleine largeur) -> ne ressemble
+     plus à une barre de stats. */
+  .plg-head{text-align:center;padding:11px 0 3px}
+  .plg-tag{display:inline-block;padding:4px 20px;border-radius:20px;font-size:11.5px;font-weight:800;
+        text-transform:uppercase;letter-spacing:.07em}
+  .plg-conf .plg-tag{color:#34d27b;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.5)}
+  .plg-val .plg-tag{color:#4aa8ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.5)}
   .plg-body{padding:4px 13px}
   .plg-item{padding:10px 0}
   /* Séparateur « et / ou » entre 2 paris du même cadre (filets de part et d'autre) */
@@ -1198,9 +1200,10 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     items = '<div class="plg-sep">et / ou</div>'.join(parts)
     # Le TYPE (Confiance/Value) = BANDEAU EN-TÊTE plein largeur en haut du cadre (icône + libellé).
     # Fine ligne de séparation entre les barres (Public) et le cadre Confiance/Value.
+    # Type = PASTILLE centrée (pas un bandeau pleine largeur, qui se confondrait avec les barres).
     return (f'<div class="plg-div"></div>'
             f'<div class="plg {gcls}">'
-            f'<div class="plg-head">{lbl}</div>'
+            f'<div class="plg-head"><span class="plg-tag">{lbl}</span></div>'
             f'<div class="plg-body">{items}</div></div>')
 
 
