@@ -29,7 +29,11 @@ Write-Log "Superviseur démarré (python=$Python, port=$Port, dir=$root)"
 while ($true) {
   Write-Log "Lancement de l'API uvicorn..."
   try {
-    & $Python -m uvicorn app.main:app --host 127.0.0.1 --port $Port
+    # --reload : uvicorn recharge le code TOUT SEUL quand un fichier change -> plus besoin
+    # de redémarrer le service (donc plus d'UAC) à chaque modif. --reload-dir app : on NE
+    # surveille QUE le code applicatif ; surveiller la racine rechargerait en boucle car
+    # data/*.json (tracking, caches) est réécrit en permanence au runtime.
+    & $Python -m uvicorn app.main:app --host 127.0.0.1 --port $Port --reload --reload-dir app
   } catch {
     Write-Log "Exception: $($_.Exception.Message)"
   }
