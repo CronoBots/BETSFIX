@@ -319,12 +319,13 @@ CSS = """
      plutôt les coins HAUT du bandeau pour épouser le cadre. */
   /* Fine ligne de séparation entre la barre Public et le cadre Confiance/Value */
   .plg-div{height:1px;background:rgba(255,255,255,.12);margin:18px 2px 0}
-  /* Cadre Confiance/Value, sous la ligne de séparation */
-  .plg{border-radius:12px;margin:11px 0 3px}
-  .plg-conf{background:linear-gradient(180deg,rgba(25,196,106,.12),rgba(25,196,106,.04));
-        border:1px solid rgba(25,196,106,.32)}
-  .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
-        border:1px solid rgba(46,155,255,.32)}
+  /* Cadre Confiance/Value : MODULE distinct, fond DENSE + bordure marquée + ombre (surélevé)
+     -> la bannière colorée se détache des barres de stats au lieu de s'y confondre. */
+  .plg{border-radius:12px;margin:11px 0 3px;box-shadow:0 5px 16px rgba(0,0,0,.42)}
+  .plg-conf{background:linear-gradient(180deg,rgba(16,34,26,.92),rgba(11,22,44,.96));
+        border:1px solid rgba(34,191,108,.55)}
+  .plg-val{background:linear-gradient(180deg,rgba(14,28,48,.92),rgba(11,22,44,.96));
+        border:1px solid rgba(46,155,255,.55)}
   .plg-head{text-align:center;padding:7px 12px;font-size:12px;font-weight:800;
         text-transform:uppercase;letter-spacing:.07em;color:#fff;border-radius:11px 11px 0 0;
         text-shadow:0 1px 2px rgba(0,0,0,.28)}
