@@ -336,28 +336,26 @@ CSS = """
         box-shadow:0 0 16px rgba(25,196,106,.22)}
   .plg-tag-val{color:#4aa8ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.5);
         box-shadow:0 0 16px rgba(46,155,255,.22)}
-  .plg-body{padding:6px 13px 10px}
-  /* Pari CENTRÉ : sélection, cote, anneau empilés et centrés horizontalement */
-  .plg-item{text-align:center;padding:11px 2px}
+  .plg-body{padding:4px 13px 6px}
+  /* LISTE ALIGNÉE : pari (sélection + fiabilité) à GAUCHE, cote en bouton à DROITE */
+  .plg-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 2px}
   /* Séparateur « et / ou » entre 2 paris du même cadre (filets de part et d'autre) */
   .plg-sep{display:flex;align-items:center;gap:9px;text-align:center;margin:1px 0;
         font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
   .plg-sep::before,.plg-sep::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.10)}
-  /* Pari : sélection mise en avant + cote en CHIP dessous (centrés) */
-  .plg-sel{font-size:15px;font-weight:800;color:#fff;line-height:1.28}
-  .plg-o{display:inline-block;margin-top:6px;padding:2px 10px;border-radius:8px;font-size:13px;
-        font-weight:800;font-variant-numeric:tabular-nums}
-  .plg-conf .plg-o{color:#5fe39b;background:rgba(25,196,106,.18)}
-  .plg-val .plg-o{color:#7cc0ff;background:rgba(46,155,255,.18)}
-  /* ANNEAU de confiance CENTRÉ sous le pari : disque conic-gradient + trou central, % au centre */
-  .plg-ringwrap{display:inline-flex;flex-direction:column;align-items:center;gap:4px;margin-top:10px}
-  .plg-ring{width:52px;height:52px;border-radius:50%;position:relative;display:flex;
-        align-items:center;justify-content:center;
-        background:conic-gradient(var(--rc) calc(var(--pct)*1%),rgba(255,255,255,.10) 0)}
-  .plg-ring::before{content:"";position:absolute;inset:4px;border-radius:50%;background:#0c1a30}
-  .plg-ring>span{position:relative;font-size:13.5px;font-weight:800;color:#fff;
+  /* Bloc pari (gauche) : sélection en avant + ligne de fiabilité (point coloré + niveau + %) */
+  .plg-bet{min-width:0;text-align:left}
+  .plg-sel{font-size:15px;font-weight:800;color:#fff;line-height:1.25}
+  .plg-rel{margin-top:6px;display:flex;align-items:center;gap:6px;font-size:11.5px;
+        font-weight:700;color:var(--muted)}
+  .plg-rel b{color:#dbe6f5;font-weight:800}
+  .plg-rel .plg-pct{font-variant-numeric:tabular-nums}
+  .plg-dot{width:7px;height:7px;border-radius:50%;background:var(--rc);flex:none}
+  /* Cote en gros BOUTON à droite (couleur du type) */
+  .plg-cote{flex:none;padding:9px 16px;border-radius:11px;font-size:16px;font-weight:800;
         font-variant-numeric:tabular-nums}
-  .plg-lvl{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--rc)}
+  .plg-conf .plg-cote{color:#7ff0b6;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.42)}
+  .plg-val .plg-cote{color:#9fd2ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.42)}
   /* Résultat live : halo/teinte vert (gagné) ou rouge (perdu) sur le pari concerné */
   .plg-item.pl-won{background:rgba(25,196,106,.10);border-radius:9px;
         box-shadow:inset 0 0 0 1px rgba(52,210,123,.45)}
@@ -1116,20 +1114,15 @@ def _confidence_meter(perle: dict | None) -> str:
             f'<span class="cm-v">{lvl}<span class="cm-p">{pct}%</span></span></div>')
 
 
-def _conf_ring(perle: dict | None) -> str:
-    """Confiance/fiabilité du pari en ANNEAU circulaire (% au centre) + niveau dessous.
-    La couleur de l'anneau suit le type (var --rc posée par .plg-conf/.plg-val)."""
-    if not (isinstance(perle, dict) and perle.get("selection")):
-        return ""
-    p = perle.get("model_prob")
+def _conf_level(perle: dict | None):
+    """(pct, niveau) de fiabilité du pari d'après la proba modèle, ou None."""
+    p = perle.get("model_prob") if isinstance(perle, dict) else None
     if p is None:
-        return ""
+        return None
     pct = round(p * 100)
     lvl = ("Élevée" if p >= 0.70 else "Bonne" if p >= 0.60
            else "Modérée" if p >= 0.50 else "Audacieuse")
-    return (f'<div class="plg-ringwrap">'
-            f'<div class="plg-ring" style="--pct:{pct}"><span>{pct}%</span></div>'
-            f'<span class="plg-lvl">{lvl}</span></div>')
+    return pct, lvl
 
 
 def _pick_kind(perle: dict, kind: str | None) -> bool:
@@ -1216,11 +1209,13 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
         if not (isinstance(p, dict) and p.get("selection")):
             return None
         hcls = " pl-won" if is_won else (" pl-lost" if is_lost else "")
-        # Pari CENTRÉ (horizontal/vertical) : sélection, cote puis anneau, empilés et centrés.
+        # LISTE ALIGNÉE : sélection + fiabilité à GAUCHE, cote en gros bouton à DROITE.
+        cl = _conf_level(p)
+        rel = (f'<div class="plg-rel"><span class="plg-dot"></span><b>{cl[1]}</b>'
+               f'<span class="plg-pct">{cl[0]}%</span></div>' if cl else "")
         return (f'<div class="plg-item{hcls}">'
-                f'<div class="plg-sel">{e(str(p["selection"]))}</div>'
-                f'<span class="plg-o">@{p["odds"]:g}</span>'
-                f'{_conf_ring(p)}</div>')
+                f'<div class="plg-bet"><div class="plg-sel">{e(str(p["selection"]))}</div>{rel}</div>'
+                f'<div class="plg-cote">@{p["odds"]:g}</div></div>')
     parts = [item(perle, won, lost)]
     # 2e pari UNIQUEMENT s'il est d'un TYPE DIFFÉRENT du 1er (jamais 2 paris du même type).
     if (isinstance(perle2, dict) and perle2.get("selection")
