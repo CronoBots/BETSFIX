@@ -321,20 +321,19 @@ CSS = """
   .plg-div{height:1px;background:rgba(255,255,255,.12);margin:18px 2px 6px}
   /* Cadre Confiance/Value : MODULE distinct, fond DENSE + bordure marquée + ombre (surélevé)
      -> la bannière colorée se détache des barres de stats au lieu de s'y confondre. */
-  .plg{position:relative;border-radius:12px;margin:30px 0 3px;box-shadow:0 5px 16px rgba(0,0,0,.42)}
+  .plg{border-radius:12px;margin:11px 0 3px;box-shadow:0 5px 16px rgba(0,0,0,.42)}
   .plg-conf{background:linear-gradient(180deg,rgba(16,34,26,.92),rgba(11,22,44,.96));
         border:1px solid rgba(34,191,108,.55);--rc:#34d27b}
   .plg-val{background:linear-gradient(180deg,rgba(14,28,48,.92),rgba(11,22,44,.96));
         border:1px solid rgba(46,155,255,.55);--rc:#4aa8ff}
   /* Type (Confiance/Value) = PASTILLE centrée (pas un bandeau pleine largeur) -> ne ressemble
      plus à une barre de stats. */
-  /* Type (Confiance/Value) = ONGLET attaché au coin SUP. GAUCHE du cadre (étiquette de dossier) */
-  .plg-tab{position:absolute;left:14px;bottom:100%;margin-bottom:-1px;padding:5px 16px 7px;
-        border-radius:10px 10px 0 0;font-size:11px;font-weight:800;text-transform:uppercase;
-        letter-spacing:.07em;border:1px solid var(--rc);border-bottom:none}
-  .plg-conf .plg-tab{color:#34d27b;background:linear-gradient(180deg,#13271d,#0e1d2a)}
-  .plg-val .plg-tab{color:#4aa8ff;background:linear-gradient(180deg,#122236,#0e1d2a)}
-  .plg-body{padding:6px 13px 6px}
+  /* Type (Confiance/Value) = simple LIBELLÉ coloré, en haut à gauche DANS le cadre (minimaliste) */
+  .plg-tab{padding:11px 14px 0;font-size:11px;font-weight:800;text-transform:uppercase;
+        letter-spacing:.1em}
+  .plg-conf .plg-tab{color:#34d27b}
+  .plg-val .plg-tab{color:#4aa8ff}
+  .plg-body{padding:2px 13px 6px}
   /* LISTE ALIGNÉE : pari (sélection + fiabilité) à GAUCHE, cote en bouton à DROITE */
   .plg-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 2px}
   /* Séparateur « et / ou » entre 2 paris du même cadre (filets de part et d'autre) */
