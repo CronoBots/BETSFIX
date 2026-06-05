@@ -13,3 +13,6 @@ env/
 
 # Données de suivi des prédictions (générées au runtime)
 data/
+
+# Fichiers runtime (PID de la boucle remote control, etc.)
+.remote-control.pid
