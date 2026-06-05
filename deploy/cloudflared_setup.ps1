@@ -54,9 +54,9 @@ $action = New-ScheduledTaskAction -Execute "powershell.exe" `
   -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcher`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-Register-ScheduledTask -TaskName "API-SPORT-mobile" -Action $action -Trigger $trigger `
+Register-ScheduledTask -TaskName "BETSFIX-mobile" -Action $action -Trigger $trigger `
   -Settings $settings -Force | Out-Null
-Write-Host "Tâche planifiée 'API-SPORT-mobile' créée (démarrage auto)." -ForegroundColor Green
+Write-Host "Tâche planifiée 'BETSFIX-mobile' créée (démarrage auto)." -ForegroundColor Green
 
 Write-Host "`nTerminé. Ton API sera accessible sur : https://$Hostname/docs" -ForegroundColor Cyan
 Write-Host "Démarre-la maintenant sans rebooter : ./deploy/run_server_tunnel.ps1" -ForegroundColor Cyan

@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 $root    = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $bat     = Join-Path $root "claude.bat"
 $startup = [Environment]::GetFolderPath("Startup")
-$lnk     = Join-Path $startup "Claude-API-SPORT.lnk"
+$lnk     = Join-Path $startup "Claude-BETSFIX.lnk"
 
 if ($Disable) {
   if (Test-Path $lnk) {
@@ -36,7 +36,7 @@ $sc = $ws.CreateShortcut($lnk)
 $sc.TargetPath       = $bat
 $sc.WorkingDirectory = $root
 $sc.WindowStyle      = 1
-$sc.Description       = "Ouvre Claude Code dans le projet API-SPORT"
+$sc.Description       = "Ouvre Claude Code dans le projet BETSFIX"
 $sc.Save()
 
 Write-Host "OK : Claude s'ouvrira à CHAQUE ouverture de session Windows." -ForegroundColor Green

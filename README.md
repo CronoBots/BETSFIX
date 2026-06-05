@@ -1,4 +1,4 @@
-# API-SPORT — Roland Garros API 🎾
+# BETSFIX — Roland Garros API 🎾
 
 API REST (Python / **FastAPI**) qui récupère **tous les matchs** et **toutes les
 statistiques** de Roland Garros (simple messieurs **ATP** et dames **WTA**).

@@ -21,9 +21,9 @@ $action = New-ScheduledTaskAction -Execute "powershell.exe" `
   -Argument "-NoProfile -WindowStyle Hidden -Command `"cd '$root'; python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-Register-ScheduledTask -TaskName "API-SPORT-server" -Action $action -Trigger $trigger `
+Register-ScheduledTask -TaskName "BETSFIX-server" -Action $action -Trigger $trigger `
   -Settings $settings -Force | Out-Null
-Write-Host "Tâche 'API-SPORT-server' créée (API au démarrage de session)." -ForegroundColor Green
+Write-Host "Tâche 'BETSFIX-server' créée (API au démarrage de session)." -ForegroundColor Green
 
 # 3) Démarre l'API tout de suite (sans attendre un redémarrage)
 Start-Process -WindowStyle Hidden powershell -ArgumentList @(

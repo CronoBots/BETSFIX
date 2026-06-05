@@ -1,5 +1,5 @@
 # Lanceur permanent : démarre l'API (uvicorn) + le tunnel Cloudflare nommé.
-# Exécuté automatiquement par la tâche planifiée "API-SPORT-mobile" à chaque
+# Exécuté automatiquement par la tâche planifiée "BETSFIX-mobile" à chaque
 # ouverture de session. Aucun droit admin requis.
 #
 # URL fixe publique : https://api.betsfix.com  (configurée dans le dashboard)

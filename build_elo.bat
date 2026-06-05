@@ -11,7 +11,7 @@ REM  dans l'analyse. A relancer de temps en temps pour rafraichir.
 REM  Duree : quelques minutes (beaucoup de requetes reseau).
 REM ============================================================
 
-title Build Elo - API-SPORT
+title Build Elo - BETSFIX
 cd /d "%~dp0"
 
 REM Choisit "python" si dispo, sinon "py" (lanceur Windows)

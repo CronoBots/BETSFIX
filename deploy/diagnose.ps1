@@ -11,7 +11,7 @@ function OK($t)   { Write-Host "[ OK ]  $t" -ForegroundColor Green }
 function BAD($t)  { Write-Host "[ KO ]  $t" -ForegroundColor Red }
 function INFO($t) { Write-Host "        $t" -ForegroundColor Gray }
 
-Write-Host "RAPPORT DE DIAGNOSTIC API-SPORT" -ForegroundColor White
+Write-Host "RAPPORT DE DIAGNOSTIC BETSFIX" -ForegroundColor White
 INFO ("Date        : " + (Get-Date))
 INFO ("Dossier     : " + $root)
 INFO ("Utilisateur : " + $env:USERNAME)
@@ -27,8 +27,8 @@ $cfg = Join-Path $env:USERPROFILE ".claude"
 if (Test-Path $cfg) { OK (".claude existe ($cfg)") } else { BAD "pas de dossier .claude -> jamais connecte ? Lance 'claude' une fois a la main." }
 
 # 3. Tache planifiee Remote Control
-Section "3. Tache 'API-SPORT-remote' (auto-relance Claude)"
-$t = Get-ScheduledTask -TaskName "API-SPORT-remote" -ErrorAction SilentlyContinue
+Section "3. Tache 'BETSFIX-remote' (auto-relance Claude)"
+$t = Get-ScheduledTask -TaskName "BETSFIX-remote" -ErrorAction SilentlyContinue
 if ($t) {
   OK "tache enregistree"
   INFO ("Etat        : " + $t.State)
@@ -39,7 +39,7 @@ if ($t) {
 
 # 4. Autres taches / services API + tunnel
 Section "4. API + tunnel Cloudflare"
-Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -like "*API-SPORT*" -or $_.TaskName -like "*sport*" -or $_.TaskName -like "*tunnel*" } | ForEach-Object { INFO ("Tache: " + $_.TaskName + "  [" + $_.State + "]") }
+Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -like "*BETSFIX*" -or $_.TaskName -like "*API-SPORT*" -or $_.TaskName -like "*sport*" -or $_.TaskName -like "*tunnel*" } | ForEach-Object { INFO ("Tache: " + $_.TaskName + "  [" + $_.State + "]") }
 Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*cloudflared*" -or $_.DisplayName -like "*cloudflare*" } | ForEach-Object { if ($_.Status -eq "Running") { OK ("Service " + $_.Name + " : RUNNING") } else { BAD ("Service " + $_.Name + " : " + $_.Status) } }
 
 # 5. Ouverture de session automatique
@@ -51,7 +51,7 @@ if ($auto -eq "1") { OK ("AutoAdminLogon = 1 (compte: " + $dun + ")") } else { B
 
 # 6. Processus claude actuellement en vie ?
 Section "6. Processus en cours"
-$procs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match "remote-control" -or $_.CommandLine -match "run_remote_control" }
+$procs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match "remote-control" }
 if ($procs) { $procs | ForEach-Object { OK ("PID " + $_.ProcessId + " : " + $_.CommandLine) } } else { BAD "aucun processus 'remote-control' en cours" }
 
 # 7. Journal

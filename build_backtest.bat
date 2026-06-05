@@ -12,7 +12,7 @@ REM  CALIB_SHRINK affiche dans app/analysis.py si tu veux l'appliquer.
 REM  Duree : quelques minutes (beaucoup de requetes reseau).
 REM ============================================================
 
-title Backtest modele - API-SPORT
+title Backtest modele - BETSFIX
 cd /d "%~dp0"
 
 REM Choisit "python" si dispo, sinon "py" (lanceur Windows)

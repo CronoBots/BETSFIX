@@ -10,11 +10,11 @@ REM  Garde la fenetre OUVERTE : tant qu'elle est ouverte, le
 REM  tunnel vit. La fermer = couper l'acces (Error 1033).
 REM ============================================================
 
-title API-SPORT - Reconnexion remote
+title BETSFIX - Reconnexion remote
 cd /d "%~dp0"
 
 echo ============================================================
-echo   API-SPORT : redemarrage API + tunnel
+echo   BETSFIX : redemarrage API + tunnel
 echo   Mobile : https://api.betsfix.com/docs
 echo ============================================================
 echo.

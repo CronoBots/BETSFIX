@@ -1,5 +1,5 @@
 # Superviseur de l'API : maintient uvicorn en vie, en boucle.
-# Lancé par la tâche planifiée "API-SPORT-api" (compte SYSTEM, au démarrage du
+# Lancé par la tâche planifiée "BETSFIX-api" (compte SYSTEM, au démarrage du
 # PC, AVANT toute ouverture de session). Si uvicorn s'arrête ou plante, il est
 # relancé automatiquement après quelques secondes.
 #

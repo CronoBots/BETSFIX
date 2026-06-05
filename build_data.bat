@@ -12,7 +12,7 @@ REM  eux-memes (plus long) : lance tools/explore_aces.py et
 REM  tools/explore_breaks.py.
 REM ============================================================
 
-title Build data - API-SPORT
+title Build data - BETSFIX
 cd /d "%~dp0"
 
 set "PY=python"

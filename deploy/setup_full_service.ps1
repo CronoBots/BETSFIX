@@ -67,7 +67,7 @@ try { & $cf service uninstall 2>$null } catch {}
 Write-Host "Tunnel installé comme service 'Cloudflared' (démarrage auto au boot)." -ForegroundColor Green
 
 # --- 4) Nettoie les anciennes tâches (évite les doublons de port 8000) -----
-foreach ($t in @("API-SPORT-server", "API-SPORT-mobile")) {
+foreach ($t in @("API-SPORT-server", "API-SPORT-mobile", "API-SPORT-api", "BETSFIX-server", "BETSFIX-mobile")) {
   if (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskName $t -Confirm:$false
     Write-Host "Ancienne tâche '$t' supprimée." -ForegroundColor DarkGray
@@ -85,9 +85,9 @@ $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
              -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1)
 
-Register-ScheduledTask -TaskName "API-SPORT-api" -Action $action -Trigger $trigger `
+Register-ScheduledTask -TaskName "BETSFIX-api" -Action $action -Trigger $trigger `
   -Principal $principal -Settings $settings -Force | Out-Null
-Write-Host "Tâche 'API-SPORT-api' créée (SYSTEM, AtStartup, auto-restart)." -ForegroundColor Green
+Write-Host "Tâche 'BETSFIX-api' créée (SYSTEM, AtStartup, auto-restart)." -ForegroundColor Green
 
 # --- 6) Démarre tout maintenant (sans rebooter) ----------------------------
 Write-Host "`n[3/3] Démarrage immédiat..." -ForegroundColor Cyan
@@ -96,7 +96,7 @@ $busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Silentl
 if ($busy) {
   Write-Host "Le port $Port est déjà occupé : la tâche réutilisera l'instance existante." -ForegroundColor DarkYellow
 }
-Start-ScheduledTask -TaskName "API-SPORT-api"
+Start-ScheduledTask -TaskName "BETSFIX-api"
 Start-Sleep -Seconds 5
 
 # --- 7) Vérifications ------------------------------------------------------

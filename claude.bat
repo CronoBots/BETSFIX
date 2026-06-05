@@ -11,7 +11,7 @@ REM    - Node.js 18+        : https://nodejs.org
 REM    - Claude Code        : npm install -g @anthropic-ai/claude-code
 REM ============================================================
 
-title Claude Code - API-SPORT
+title Claude Code - BETSFIX
 cd /d "%~dp0"
 
 where claude >nul 2>nul
