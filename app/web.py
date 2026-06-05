@@ -328,30 +328,29 @@ CSS = """
         border:1px solid rgba(46,155,255,.55);--rc:#4aa8ff}
   /* Type (Confiance/Value) = PASTILLE centrée (pas un bandeau pleine largeur) -> ne ressemble
      plus à une barre de stats. */
-  .plg-head{text-align:center;padding:12px 0 4px}
-  /* Pastille avec léger HALO (finition premium) */
+  /* Pastille type SORTIE du cadre (au-dessus), centrée, avec léger HALO (premium) */
+  .plg-cat{text-align:center;margin:9px 0 9px}
   .plg-tag{display:inline-block;padding:4px 20px;border-radius:20px;font-size:11.5px;font-weight:800;
         text-transform:uppercase;letter-spacing:.07em}
-  .plg-conf .plg-tag{color:#34d27b;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.5);
+  .plg-tag-conf{color:#34d27b;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.5);
         box-shadow:0 0 16px rgba(25,196,106,.22)}
-  .plg-val .plg-tag{color:#4aa8ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.5);
+  .plg-tag-val{color:#4aa8ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.5);
         box-shadow:0 0 16px rgba(46,155,255,.22)}
-  .plg-body{padding:4px 13px 7px}
-  /* Pari : texte à GAUCHE, ANNEAU de confiance à DROITE */
-  .plg-item{display:flex;align-items:center;gap:14px;padding:11px 2px}
+  .plg-body{padding:6px 13px 10px}
+  /* Pari CENTRÉ : sélection, cote, anneau empilés et centrés horizontalement */
+  .plg-item{text-align:center;padding:11px 2px}
   /* Séparateur « et / ou » entre 2 paris du même cadre (filets de part et d'autre) */
   .plg-sep{display:flex;align-items:center;gap:9px;text-align:center;margin:1px 0;
         font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
   .plg-sep::before,.plg-sep::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.10)}
-  /* Bloc pari (gauche) : sélection mise en avant + cote en CHIP dessous */
-  .plg-bet{flex:1;min-width:0;text-align:left}
+  /* Pari : sélection mise en avant + cote en CHIP dessous (centrés) */
   .plg-sel{font-size:15px;font-weight:800;color:#fff;line-height:1.28}
   .plg-o{display:inline-block;margin-top:6px;padding:2px 10px;border-radius:8px;font-size:13px;
         font-weight:800;font-variant-numeric:tabular-nums}
   .plg-conf .plg-o{color:#5fe39b;background:rgba(25,196,106,.18)}
   .plg-val .plg-o{color:#7cc0ff;background:rgba(46,155,255,.18)}
-  /* ANNEAU de confiance (droite) : disque en conic-gradient + trou central, % au centre */
-  .plg-ringwrap{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;width:54px}
+  /* ANNEAU de confiance CENTRÉ sous le pari : disque conic-gradient + trou central, % au centre */
+  .plg-ringwrap{display:inline-flex;flex-direction:column;align-items:center;gap:4px;margin-top:10px}
   .plg-ring{width:52px;height:52px;border-radius:50%;position:relative;display:flex;
         align-items:center;justify-content:center;
         background:conic-gradient(var(--rc) calc(var(--pct)*1%),rgba(255,255,255,.10) 0)}
@@ -1217,9 +1216,10 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
         if not (isinstance(p, dict) and p.get("selection")):
             return None
         hcls = " pl-won" if is_won else (" pl-lost" if is_lost else "")
+        # Pari CENTRÉ (horizontal/vertical) : sélection, cote puis anneau, empilés et centrés.
         return (f'<div class="plg-item{hcls}">'
-                f'<div class="plg-bet"><div class="plg-sel">{e(str(p["selection"]))}</div>'
-                f'<span class="plg-o">@{p["odds"]:g}</span></div>'
+                f'<div class="plg-sel">{e(str(p["selection"]))}</div>'
+                f'<span class="plg-o">@{p["odds"]:g}</span>'
                 f'{_conf_ring(p)}</div>')
     parts = [item(perle, won, lost)]
     # 2e pari UNIQUEMENT s'il est d'un TYPE DIFFÉRENT du 1er (jamais 2 paris du même type).
@@ -1229,13 +1229,12 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     parts = [x for x in parts if x]
     # Plusieurs paris dans le même cadre -> séparés par « et / ou » (jouer l'un et/ou l'autre).
     items = '<div class="plg-sep">et / ou</div>'.join(parts)
-    # Le TYPE (Confiance/Value) = BANDEAU EN-TÊTE plein largeur en haut du cadre (icône + libellé).
-    # Fine ligne de séparation entre les barres (Public) et le cadre Confiance/Value.
-    # Type = PASTILLE centrée (pas un bandeau pleine largeur, qui se confondrait avec les barres).
+    # Le TYPE (Confiance/Value) = pastille SORTIE du cadre (au-dessus), entre la ligne de
+    # séparation et le cadre des paris.
+    tagcls = "plg-tag-val" if is_val else "plg-tag-conf"
     return (f'<div class="plg-div"></div>'
-            f'<div class="plg {gcls}">'
-            f'<div class="plg-head"><span class="plg-tag">{lbl}</span></div>'
-            f'<div class="plg-body">{items}</div></div>')
+            f'<div class="plg-cat"><span class="plg-tag {tagcls}">{lbl}</span></div>'
+            f'<div class="plg {gcls}"><div class="plg-body">{items}</div></div>')
 
 
 def finished_picks(perle, perle_won, perle_value, value_won, winner_name,
