@@ -1495,9 +1495,9 @@ def _sport_row(r: dict) -> str:
              f'{mid}<span class="rt-r">{state}</span></div>'
              f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
              f'<span class="dim">vs</span> {e(r.get("away") or "")}{af}</div>{badge}</div>'
-             # LIVE : score SOUS les noms, puis cotes « Bookmakers live » (dans sub), puis les
-             # barres % ; À VENIR : barres % d'abord (comme avant).
-             f'{(lscore + r.get("sub", "") + probviz) if is_live else (probviz + lscore + r.get("sub", ""))}'
+             # COHÉRENT partout (accueil/live/onglets) : cotes « Bookmakers » EN HAUT, puis les
+             # barres %. LIVE : le score s'intercale entre les noms et les cotes.
+             f'{(lscore + r.get("sub", "") + probviz) if is_live else (r.get("sub", "") + probviz)}'
              f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")), lost=bool(r.get("live_lost")), lost2=bool(r.get("live_lost2")), header=True)}')
     cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
     url = r.get("url") or ""
