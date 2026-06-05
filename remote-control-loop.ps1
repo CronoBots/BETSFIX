@@ -1,47 +1,82 @@
 # remote-control-loop.ps1
-# Maintient Claude Remote Control actif en permanence POUR CE PROJET (BETSFIX).
-# Lance par le dossier Demarrage (claude-remote-control-betsfix.vbs).
-# Si la session s'arrete (timeout reseau, veille, crash...), elle est relancee.
+# BETSFIX -- keep-alive Remote Control (Windows / PowerShell).
+# MODELE IDENTIQUE A PRONOSTICS (nexbet-keepalive.ps1) QUI FONCTIONNE.
 #
-# Le PID de la boucle est ecrit dans .remote-control.pid pour qu'un
-# desinstallateur puisse arreter UNIQUEMENT ce projet.
-# (Methode identique a CRYPTONAUTS / NEXBET : pas d'admin, pas de mot de passe.)
+# Maintient la session "BETSFIX" en vie : si claude s'arrete/plante (crash,
+# timeout reseau >10min, veille...), on relance automatiquement.
+# A executer DETACHE (-Detach) pour SURVIVRE a la fermeture de la fenetre
+# PowerShell -- c'est CA qui faisait que rien ne "demarrait tout seul" avant :
+# l'ancienne version tournait au premier plan et mourait des qu'on fermait la
+# fenetre, et le .vbs cense la lancer cachee n'existait pas.
+#
+# Usage :
+#   # Lancer en tache de fond (survit a la fermeture du terminal) :
+#   .\remote-control-loop.ps1 -Detach
+#
+#   # Au premier plan (pour debug, Ctrl+C pour arreter) :
+#   .\remote-control-loop.ps1
+#
+#   # Arreter le keep-alive + la session claude :
+#   .\remote-control-loop.ps1 -Stop
+#
+#   # Forcer une session VIDE (sinon --continue reprend le dernier fil) :
+#   .\remote-control-loop.ps1 -Detach -Fresh
+#
+# Pour qu'il redemarre AUSSI apres un REBOOT (bonus que PRONOSTICS n'a pas),
+# installe le lanceur du dossier Demarrage :
+#   .\deploy\enable_remote_control_startup.ps1
 
-$ErrorActionPreference = "Continue"
-Set-Location $PSScriptRoot
+param(
+    [string]$RepoDir = $PSScriptRoot,
+    [string]$Name    = "BETSFIX",
+    [switch]$SafePermissions,   # garder la validation (sinon auto-accept)
+    [switch]$Fresh,             # demarrer une session vide (sinon --continue)
+    [switch]$Detach,            # relancer ce script en fenetre cachee, puis rendre la main
+    [switch]$Stop               # arreter le keep-alive + la session claude
+)
 
-# --- Nom de session : UNIQUE a ce projet (evite la confusion avec d'autres) ---
-$SessionName = "BETSFIX"
+$ErrorActionPreference = "SilentlyContinue"
+$flagFile = Join-Path $env:LOCALAPPDATA "BETSFIX\keepalive.run"
+New-Item -ItemType Directory -Force -Path (Split-Path $flagFile) | Out-Null
 
-# --- Localiser claude.exe ---
-$claude = (Get-Command claude -ErrorAction SilentlyContinue).Source
-if (-not $claude) {
-    $candidate = Join-Path $env:LOCALAPPDATA "Programs\Claude\claude.exe"
-    if (Test-Path $candidate) { $claude = $candidate }
+if ($Stop) {
+    Remove-Item $flagFile -Force -ErrorAction SilentlyContinue
+    Get-CimInstance Win32_Process -Filter "Name='node.exe' OR Name='claude.exe'" |
+        Where-Object { $_.CommandLine -match 'remote-control' } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+    Write-Host "Keep-alive arrete et session Remote Control fermee." -ForegroundColor Yellow
+    return
 }
-if (-not $claude) { $claude = "claude" }
 
-$pidFile = Join-Path $PSScriptRoot ".remote-control.pid"
+if ($Detach) {
+    # Relance CE script SANS -Detach, en fenetre cachee, comme process
+    # independant. Quand tu fermes ton PowerShell, ce process-la survit.
+    $self = $MyInvocation.MyCommand.Path
+    $a = @("-NoProfile","-ExecutionPolicy","Bypass","-WindowStyle","Hidden","-File",$self,
+           "-RepoDir",$RepoDir,"-Name",$Name)
+    if ($SafePermissions) { $a += "-SafePermissions" }
+    if ($Fresh)           { $a += "-Fresh" }
+    Start-Process -FilePath "powershell.exe" -ArgumentList $a -WindowStyle Hidden
+    Write-Host "Keep-alive lance en tache de fond (fenetre cachee)." -ForegroundColor Green
+    Write-Host "Tu peux FERMER ce PowerShell : la session 'BETSFIX' reste active." -ForegroundColor Green
+    Write-Host "Pour arreter plus tard :  .\remote-control-loop.ps1 -Stop" -ForegroundColor Gray
+    return
+}
 
-# Style IDENTIQUE au lanceur PRONOSTICS/NEXBET qui fonctionne :
-#   session remote-control FRAICHE, autonomie totale, SANS --continue.
-# IMPORTANT : --continue reprend une ancienne conversation LOCALE et n'etablit
-# PAS la session distante visible sur claude.ai/code. C'est pour ca que les
-# projets lances avec --continue ne montraient aucune session. On l'enleve.
-$argsFresh = @("--remote-control", $SessionName, "--dangerously-skip-permissions")
+# ---- Boucle keep-alive (process detache) -------------------------------
+Set-Content -Path $flagFile -Value "running" -Encoding ASCII
+# PID de la boucle (pour un desinstallateur / le diagnostic).
+Set-Content -Path (Join-Path $PSScriptRoot ".remote-control.pid") -Value $PID -Encoding ASCII
+Set-Location $RepoDir
+$permFlag = if ($SafePermissions) { @() } else { @("--dangerously-skip-permissions") }
+# Par defaut on REPREND le dernier fil du depot (--continue) pour garder le
+# contexte, EXACTEMENT comme PRONOSTICS. -Fresh force une session vide.
+$contFlag = if ($Fresh) { @() } else { @("--continue") }
 
-# PID de la boucle
-Set-Content -Path $pidFile -Value $PID -Encoding ASCII
-
-while ($true) {
-    try {
-        # On appelle claude DIRECTEMENT (operateur &), pas via Start-Process
-        # -WindowStyle Hidden. claude a besoin d'heriter de la console (cachee)
-        # de ce PowerShell pour le mode remote-control -- comme NEXBET. Avec
-        # Start-Process detache, claude perd sa console et ressort aussitot.
-        & $claude @argsFresh
-    } catch {
-        # crash/timeout reseau : on relance apres une courte pause
-    }
-    Start-Sleep -Seconds 10
+while (Test-Path $flagFile) {
+    # Session interactive remote (auto-accept). Tant que le flag existe, on
+    # relance si claude se termine (crash, timeout reseau >10min...).
+    claude --remote-control $Name @contFlag @permFlag
+    if (-not (Test-Path $flagFile)) { break }   # arret demande via -Stop
+    Start-Sleep -Seconds 5
 }
