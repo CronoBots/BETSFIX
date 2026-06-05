@@ -328,22 +328,32 @@ CSS = """
         border:1px solid rgba(46,155,255,.55)}
   /* Type (Confiance/Value) = PASTILLE centrée (pas un bandeau pleine largeur) -> ne ressemble
      plus à une barre de stats. */
-  .plg-head{text-align:center;padding:11px 0 3px}
+  .plg-head{text-align:center;padding:12px 0 4px}
+  /* Pastille avec léger HALO (finition premium) */
   .plg-tag{display:inline-block;padding:4px 20px;border-radius:20px;font-size:11.5px;font-weight:800;
         text-transform:uppercase;letter-spacing:.07em}
-  .plg-conf .plg-tag{color:#34d27b;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.5)}
-  .plg-val .plg-tag{color:#4aa8ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.5)}
-  .plg-body{padding:4px 13px}
-  .plg-item{padding:10px 0}
+  .plg-conf .plg-tag{color:#34d27b;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.5);
+        box-shadow:0 0 16px rgba(25,196,106,.22)}
+  .plg-val .plg-tag{color:#4aa8ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.5);
+        box-shadow:0 0 16px rgba(46,155,255,.22)}
+  .plg-body{padding:4px 13px 7px}
+  .plg-item{padding:9px 0}
   /* Séparateur « et / ou » entre 2 paris du même cadre (filets de part et d'autre) */
   .plg-sep{display:flex;align-items:center;gap:9px;text-align:center;margin:1px 0;
         font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
   .plg-sep::before,.plg-sep::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.10)}
-  .plg-sel{font-size:14px;font-weight:800;text-align:center;color:#fff;line-height:1.2}
-  .plg-o{text-align:center;font-size:13.5px;font-weight:800;margin:2px 0 7px;
-        font-variant-numeric:tabular-nums}
-  .plg-conf .plg-o{color:#34d27b}
-  .plg-val .plg-o{color:#4aa8ff}
+  /* Pari : sélection mise en avant + cote en CHIP à droite, sur une ligne centrée */
+  .plg-top{text-align:center;line-height:1.3;margin-bottom:3px}
+  .plg-sel{font-size:15px;font-weight:800;color:#fff}
+  .plg-o{display:inline-block;margin-left:7px;padding:2px 9px;border-radius:8px;font-size:13px;
+        font-weight:800;font-variant-numeric:tabular-nums;vertical-align:middle}
+  .plg-conf .plg-o{color:#5fe39b;background:rgba(25,196,106,.18)}
+  .plg-val .plg-o{color:#7cc0ff;background:rgba(46,155,255,.18)}
+  /* Jauge colorée selon le type DANS le cadre (cohérence visuelle) */
+  .plg-conf .cm-bar>span{background:linear-gradient(90deg,#19c46a,#34d27b)}
+  .plg-conf .cm-v{color:#34d27b}
+  .plg-val .cm-bar>span{background:linear-gradient(90deg,#2e9bff,#4aa8ff)}
+  .plg-val .cm-v{color:#7cc0ff}
   /* Résultat live : halo/teinte vert (gagné) ou rouge (perdu) sur le pari concerné */
   .plg-item.pl-won{background:rgba(25,196,106,.10);border-radius:9px;
         box-shadow:inset 0 0 0 1px rgba(52,210,123,.45)}
@@ -1097,7 +1107,7 @@ def _confidence_meter(perle: dict | None) -> str:
         lvl, cls = "Modérée", "cmeter-mid"
     else:
         lvl, cls = "Audacieuse", "cmeter-low"
-    return (f'<div class="cmeter {cls}"><span class="cm-l">Confiance</span>'
+    return (f'<div class="cmeter {cls}">'
             f'<span class="cm-bar"><span style="width:{pct}%"></span></span>'
             f'<span class="cm-v">{lvl}<span class="cm-p">{pct}%</span></span></div>')
 
@@ -1187,8 +1197,8 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
             return None
         hcls = " pl-won" if is_won else (" pl-lost" if is_lost else "")
         return (f'<div class="plg-item{hcls}">'
-                f'<div class="plg-sel">{e(str(p["selection"]))}</div>'
-                f'<div class="plg-o">@{p["odds"]:g}</div>'
+                f'<div class="plg-top"><span class="plg-sel">{e(str(p["selection"]))}</span>'
+                f'<span class="plg-o">@{p["odds"]:g}</span></div>'
                 f'{_confidence_meter(p)}</div>')
     parts = [item(perle, won, lost)]
     # 2e pari UNIQUEMENT s'il est d'un TYPE DIFFÉRENT du 1er (jamais 2 paris du même type).
