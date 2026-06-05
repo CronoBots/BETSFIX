@@ -318,10 +318,11 @@ CSS = """
      au calque fixe body::before, il laisse des traces concentriques au scroll) : on arrondit
      plutôt les coins HAUT du bandeau pour épouser le cadre. */
   /* Fine ligne de séparation entre la barre Public et le cadre Confiance/Value */
-  .plg-div{height:1px;background:rgba(255,255,255,.12);margin:18px 2px 6px}
+  /* Espace SYMÉTRIQUE au-dessus et en dessous de la ligne de séparation (14px de chaque côté) */
+  .plg-div{height:1px;background:rgba(255,255,255,.12);margin:14px 2px 14px}
   /* Cadre Confiance/Value : MODULE distinct, fond DENSE + bordure marquée + ombre (surélevé)
      -> la bannière colorée se détache des barres de stats au lieu de s'y confondre. */
-  .plg{border-radius:12px;margin:11px 0 3px;box-shadow:0 5px 16px rgba(0,0,0,.42)}
+  .plg{border-radius:12px;margin:0 0 3px;box-shadow:0 5px 16px rgba(0,0,0,.42)}
   .plg-conf{background:linear-gradient(180deg,rgba(16,34,26,.92),rgba(11,22,44,.96));
         border:1px solid rgba(34,191,108,.55);--rc:#34d27b}
   .plg-val{background:linear-gradient(180deg,rgba(14,28,48,.92),rgba(11,22,44,.96));
