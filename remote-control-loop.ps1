@@ -1,6 +1,8 @@
 # remote-control-loop.ps1
 # Maintient Claude Remote Control actif en permanence POUR CE PROJET (BETSFIX).
-# Lance par le dossier Demarrage (claude-remote-control-betsfix.vbs).
+# Lance par la TACHE PLANIFIEE "BETSFIX Remote Control" (User=vince, LogonTrigger),
+# (re)creee par deploy\setup_remote_control.ps1. PAS par le dossier Demarrage :
+# il n'y a aucun .vbs remote dans shell:startup, le seul vbs la-bas est l'API.
 # Si la session s'arrete (timeout reseau, veille, crash...), elle est relancee.
 #
 # Le PID de la boucle est ecrit dans .remote-control.pid pour qu'un
