@@ -190,12 +190,13 @@ def _market_compare(label: str, model_p: float, book_imp) -> str:
 
 @router.get("/foot/match/{event_id}", response_class=HTMLResponse,
             summary="Fiche détaillée d'un match foot (prédiction + forme + H2H)")
-async def foot_match(event_id: int, frag: int = 0,
+async def foot_match(event_id: int, frag: int = 0, pk: str = "",
                      provider: SofaScoreProvider = Depends(get_provider),
                      unibet: UnibetProvider = Depends(get_unibet)) -> HTMLResponse:
-    """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H)."""
+    """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H).
+    `pk` = type de pari de la carte tapée ('value' -> analyse sur la perle value, sinon confiance)."""
     if frag:   # cache partagé : même match ouvert N fois = 1 récupération
-        cached = fragcache.get(f"foot/{event_id}")
+        cached = fragcache.get(f"foot/{event_id}/{pk}")
         if cached:
             return HTMLResponse(cached)
     store = tracking.load(foot.FOOT_TRACK_PATH)
@@ -234,7 +235,10 @@ async def foot_match(event_id: int, frag: int = 0,
         vp = rec.get("value_pick")
         value = (vp["team"], vp["odds"], vp["edge"]) if vp and vp.get("odds") else None
         probs = [rec.get("p_home"), rec.get("p_draw"), rec.get("p_away")]
-        perle = rec.get("perle")
+        # COHÉRENCE carte/analyse : carte VALUE -> analyse sur la perle value (sinon confiance).
+        pv = rec.get("perle_value")
+        perle = (pv if (pk == "value" and isinstance(pv, dict) and pv.get("selection"))
+                 else rec.get("perle"))
         recos = web.perle_advice(perle)        # affiché en PAGE PLEINE uniquement (cf. renderer)
         # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — contexte 1X2 + verdict perle
         if all(p is not None for p in probs):
@@ -282,7 +286,7 @@ async def foot_match(event_id: int, frag: int = 0,
            "back_url": "/foot", "back_label": "Foot", "sport_key": "foot"}
     html = web.render_sport_match_detail(ctx, frag=bool(frag))
     if frag and (form_html or h2h or analysis_html or factors_html or context):   # cache si contenu utile
-        fragcache.put(f"foot/{event_id}", html)
+        fragcache.put(f"foot/{event_id}/{pk}", html)
     return HTMLResponse(html)
 
 

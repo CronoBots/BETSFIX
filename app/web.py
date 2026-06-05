@@ -1292,10 +1292,13 @@ def _pick_card(p: dict, badge: str) -> str:
              f'{oddsrow}{_pick_bars(p)}'
              f'{_perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")), kind=p.get("pick_kind"), won=bool(p.get("live_won")), won2=bool(p.get("live_won2")), lost=bool(p.get("live_lost")), lost2=bool(p.get("live_lost2")), header=True)}')
     url = p.get("url") or ""
+    # On passe le TYPE de pari (confiance/value) à l'analyse -> elle recommande LA MÊME perle
+    # que la carte (sinon l'analyse parlait d'un pari et la carte en jouait un autre).
+    pkp = f'&pk={p["pick_kind"]}' if p.get("pick_kind") else ""
     # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
         sep = "&" if "?" in url else "?"
-        return (f'<div class="row pick rowtap" data-exp="{url}{sep}frag=1">{inner}'
+        return (f'<div class="row pick rowtap" data-exp="{url}{sep}frag=1{pkp}">{inner}'
                 f'<div class="exp-c"><span class="exp-chev">▾</span> Voir l\'analyse</div>'
                 f'<div class="exp" hidden></div></div>')
     return f'<a class="row pick" href="{url}">{inner}</a>'
@@ -1497,11 +1500,12 @@ def _sport_row(r: dict) -> str:
              f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")), lost=bool(r.get("live_lost")), lost2=bool(r.get("live_lost2")), header=True)}')
     cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
     url = r.get("url") or ""
+    pkp = f'&pk={r["pick_kind"]}' if r.get("pick_kind") else ""   # type de pari -> analyse cohérente
     # Tap -> déplie l'analyse complète À L'INTÉRIEUR de la carte (les 3 sports), sans changer
     # de vue. L'analyse est chargée en AJAX (route détail ?frag=1).
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
         sep = "&" if "?" in url else "?"
-        return (f'<div class="{cls} rowtap" data-exp="{url}{sep}frag=1">{inner}'
+        return (f'<div class="{cls} rowtap" data-exp="{url}{sep}frag=1{pkp}">{inner}'
                 f'<div class="exp-c"><span class="exp-chev">▾</span> Voir l\'analyse</div>'
                 f'<div class="exp" hidden></div></div>')
     if url:

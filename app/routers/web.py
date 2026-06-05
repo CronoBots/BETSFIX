@@ -820,13 +820,14 @@ async def match_detail(
     match_id: int,
     tour: str = Query("atp"),
     frag: int = 0,
+    pk: str = Query(""),   # type de pari de la carte tapée : 'value' -> analyse sur la perle value
     provider: SofaScoreProvider = Depends(get_provider),
     unibet: UnibetProvider = Depends(get_unibet),
     rankings: RankingsProvider = Depends(get_rankings),
 ) -> HTMLResponse:
     tour = "wta" if tour == "wta" else "atp"
     if frag:
-        cached = fragcache.get(f"tennis/{match_id}")
+        cached = fragcache.get(f"tennis/{match_id}/{pk}")
         if cached:
             return HTMLResponse(cached)
     try:
@@ -875,7 +876,11 @@ async def match_detail(
     analysis_html = ""
     if frag:
         rec = tracking.load().get(str(match_id))
-        perle = rec.get("perle") if rec else None
+        # COHÉRENCE carte/analyse : si la carte tapée est une VALUE, l'analyse parle de la perle
+        # VALUE (sinon de la confiance) -> plus de « l'analyse joue un autre pari que la carte ».
+        pv = rec.get("perle_value") if rec else None
+        perle = (pv if (pk == "value" and isinstance(pv, dict) and pv.get("selection"))
+                 else (rec.get("perle") if rec else None))
         if rec:
             recos = web.perle_advice(perle)   # 🎯 Paris conseillés = la perle (tous marchés)
         # 🧠 Analyse rédigée (gratuite, ou prose Claude si une clé API est configurée)
@@ -918,7 +923,7 @@ async def match_detail(
         frag=bool(frag), recos=recos, markets_html=markets_html)
     if frag:
         html = analysis_html + html      # 🧠 l'analyse rédigée en tête de l'accordéon
-        fragcache.put(f"tennis/{match_id}", html)
+        fragcache.put(f"tennis/{match_id}/{pk}", html)
     return HTMLResponse(html)
 
 

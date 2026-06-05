@@ -55,12 +55,13 @@ async def basket_page(frag: int = 0) -> HTMLResponse:
 
 @router.get("/basket/match/{event_id}", response_class=HTMLResponse,
             summary="Fiche détaillée d'un match basket (prédiction + forme + H2H)")
-async def basket_match(event_id: int, frag: int = 0,
+async def basket_match(event_id: int, frag: int = 0, pk: str = "",
                        provider: SofaScoreProvider = Depends(get_provider),
                        unibet: UnibetProvider = Depends(get_unibet)) -> HTMLResponse:
-    """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H)."""
+    """Fiche : prédiction (issue du suivi) + analyse SofaScore (forme des 2 équipes, H2H).
+    `pk` = type de pari de la carte tapée ('value' -> analyse sur la perle value, sinon confiance)."""
     if frag:
-        cached = fragcache.get(f"basket/{event_id}")
+        cached = fragcache.get(f"basket/{event_id}/{pk}")
         if cached:
             return HTMLResponse(cached)
     store = tracking.load(basket.BASKET_TRACK_PATH)
@@ -95,7 +96,10 @@ async def basket_match(event_id: int, frag: int = 0,
     context = ""
     mh = (rec or {}).get("model_home_prob")
     if rec and mh is not None:
-        perle = rec.get("perle")
+        # COHÉRENCE carte/analyse : carte VALUE -> analyse sur la perle value (sinon confiance).
+        pv = rec.get("perle_value")
+        perle = (pv if (pk == "value" and isinstance(pv, dict) and pv.get("selection"))
+                 else rec.get("perle"))
         recos = web.perle_advice(perle)        # affiché en PAGE PLEINE uniquement (cf. renderer)
         p_fav = max(mh, 1 - mh)
         # 🧠 Analyse rédigée (gratuite, ou Claude si clé) — verdict piloté par la perle
@@ -149,7 +153,7 @@ async def basket_match(event_id: int, frag: int = 0,
            "back_label": "Basket", "sport_key": "basket"}
     html = web.render_sport_match_detail(ctx, frag=bool(frag))
     if frag and (form_html or h2h or analysis_html or factors_html or context):
-        fragcache.put(f"basket/{event_id}", html)
+        fragcache.put(f"basket/{event_id}/{pk}", html)
     return HTMLResponse(html)
 
 
