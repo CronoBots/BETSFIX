@@ -227,7 +227,7 @@ CSS = """
           font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
   .dayhdr::after{content:"";flex:1;height:1px;background:var(--border)}
   .row{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border-radius:var(--radius);padding:12px 14px;margin:8px 0;border:1px solid var(--cardline);
+       border-radius:var(--radius);padding:12px 14px;margin:15px 0;border:1px solid var(--cardline);
        box-shadow:var(--cardglow),var(--shadow-sm);transition:.16s}
   .row:active{transform:scale(.99);border-color:var(--border2)}
   /* Carte dépliable (foot/basket) : analyse en accordéon sous la carte */
@@ -318,7 +318,7 @@ CSS = """
      au calque fixe body::before, il laisse des traces concentriques au scroll) : on arrondit
      plutôt les coins HAUT du bandeau pour épouser le cadre. */
   /* Cadre Confiance/Value bien ÉCARTÉ de la barre Public au-dessus */
-  .plg{border-radius:12px;margin:18px 0 3px}
+  .plg{border-radius:12px;margin:26px 0 3px}
   .plg-conf{background:linear-gradient(180deg,rgba(25,196,106,.12),rgba(25,196,106,.04));
         border:1px solid rgba(25,196,106,.32)}
   .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
