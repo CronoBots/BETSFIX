@@ -354,10 +354,11 @@ CSS = """
         font-variant-numeric:tabular-nums}
   .plg-conf .plg-cote{color:#7ff0b6;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.42)}
   .plg-val .plg-cote{color:#9fd2ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.42)}
-  /* Résultat live : halo/teinte vert (gagné) ou rouge (perdu) sur le pari concerné */
-  .plg-item.pl-won{background:rgba(25,196,106,.10);border-radius:9px;
+  /* Résultat live : halo/teinte vert (gagné) ou rouge (perdu) sur le pari concerné.
+     NB : classes plg-won/plg-lost (PAS pl-won/pl-lost qui ont un white-space:nowrap parasite). */
+  .plg-item.plg-won{background:rgba(25,196,106,.10);border-radius:9px;
         box-shadow:inset 0 0 0 1px rgba(52,210,123,.45)}
-  .plg-item.pl-lost{background:rgba(242,93,110,.09);border-radius:9px;
+  .plg-item.plg-lost{background:rgba(242,93,110,.09);border-radius:9px;
         box-shadow:inset 0 0 0 1px rgba(242,93,110,.45)}
   .perle{display:block;margin:9px 0 3px;padding:10px 12px;border-radius:11px;
          background:rgba(255,255,255,.03);border:1px solid var(--cardline)}
@@ -1206,7 +1207,7 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     def item(p, is_won, is_lost):
         if not (isinstance(p, dict) and p.get("selection")):
             return None
-        hcls = " pl-won" if is_won else (" pl-lost" if is_lost else "")
+        hcls = " plg-won" if is_won else (" plg-lost" if is_lost else "")
         # LISTE ALIGNÉE : sélection + fiabilité à GAUCHE, cote en gros bouton à DROITE.
         cl = _conf_level(p)
         rel = (f'<div class="plg-rel"><span class="plg-dot"></span><b>{cl[1]}</b>'
