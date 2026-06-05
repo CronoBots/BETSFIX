@@ -317,8 +317,10 @@ CSS = """
      margin-top = l'ESPACE demandé sous les 4 barres. PAS d'overflow:hidden (sur iOS, combiné
      au calque fixe body::before, il laisse des traces concentriques au scroll) : on arrondit
      plutôt les coins HAUT du bandeau pour épouser le cadre. */
-  /* Cadre Confiance/Value bien ÉCARTÉ de la barre Public au-dessus */
-  .plg{border-radius:12px;margin:26px 0 3px}
+  /* Fine ligne de séparation entre la barre Public et le cadre Confiance/Value */
+  .plg-div{height:1px;background:rgba(255,255,255,.12);margin:18px 2px 0}
+  /* Cadre Confiance/Value, sous la ligne de séparation */
+  .plg{border-radius:12px;margin:11px 0 3px}
   .plg-conf{background:linear-gradient(180deg,rgba(25,196,106,.12),rgba(25,196,106,.04));
         border:1px solid rgba(25,196,106,.32)}
   .plg-val{background:linear-gradient(180deg,rgba(46,155,255,.12),rgba(46,155,255,.04));
@@ -1194,7 +1196,9 @@ def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = F
     # Plusieurs paris dans le même cadre -> séparés par « et / ou » (jouer l'un et/ou l'autre).
     items = '<div class="plg-sep">et / ou</div>'.join(parts)
     # Le TYPE (Confiance/Value) = BANDEAU EN-TÊTE plein largeur en haut du cadre (icône + libellé).
-    return (f'<div class="plg {gcls}">'
+    # Fine ligne de séparation entre les barres (Public) et le cadre Confiance/Value.
+    return (f'<div class="plg-div"></div>'
+            f'<div class="plg {gcls}">'
             f'<div class="plg-head">{lbl}</div>'
             f'<div class="plg-body">{items}</div></div>')
 
