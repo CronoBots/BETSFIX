@@ -143,8 +143,43 @@ async def _settle_loop():
         await asyncio.sleep(20 * 60)
 
 
+def _apply_pending_reset(data: str | None = None) -> bool:
+    """Si data/.reset-pending existe : vide les stores de suivi (tennis/foot/basket) + les analyses,
+    puis retire la sentinelle. Permet une remise à zéro PROPRE au PROCHAIN démarrage, sans devoir
+    rebooter dans l'instant (l'ancien process en mémoire ne peut plus la défaire)."""
+    import glob
+    import json
+    if data is None:
+        data = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+    sentinel = os.path.join(data, ".reset-pending")
+    if not os.path.exists(sentinel):
+        return False
+    for fn in ("tracking_tennis.json", "tracking_foot.json", "tracking_basket.json", "tracking.json"):
+        p = os.path.join(data, fn)
+        if os.path.exists(p):
+            try:
+                with open(p, "w", encoding="utf-8") as f:
+                    json.dump({}, f)
+            except OSError:
+                pass
+    removed = 0
+    for md in glob.glob(os.path.join(data, "analyses", "*.md")):
+        try:
+            os.remove(md)
+            removed += 1
+        except OSError:
+            pass
+    try:
+        os.remove(sentinel)
+    except OSError:
+        pass
+    log.info("Remise à zéro appliquée au démarrage : stores vidés, %d analyse(s) supprimée(s).", removed)
+    return True
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _apply_pending_reset()   # purge en attente (sentinelle) AVANT toute lecture des stores
     tasks = [asyncio.create_task(_tracking_loop()),
              asyncio.create_task(_settle_loop()),
              asyncio.create_task(_panel_warmer())]
