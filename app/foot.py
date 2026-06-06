@@ -1572,6 +1572,21 @@ async def run_snapshot() -> int:
     return n
 
 
+def _model_disagrees_market(g: dict, guard: float = MAX_DISAGREEMENT) -> bool:
+    """True si le modèle diverge TROP du marché sur le 1X2 (le marché le plus efficient) -> le
+    modèle est non fiable pour CE match, on ne propose AUCUNE perle. Cas typique : Elo de
+    sélections nationales trop compressé (ex. Belgique 1680 vs Tunisie 1607 = 73 pts d'écart
+    seulement -> modèle 49 % vs marché 71 % pour la Belgique). Le marché a raison."""
+    pr = g.get("probs")
+    o1, ox, o2 = g.get("o1"), g.get("ox"), g.get("o2")
+    if not pr or len(pr) < 3 or not (o1 and ox and o2):
+        return False
+    inv = [1.0 / o1, 1.0 / ox, 1.0 / o2]
+    s = sum(inv) or 1.0
+    implied = [x / s for x in inv]
+    return max(abs(pr[i] - implied[i]) for i in range(3)) > guard
+
+
 async def _attach_perles(rows: list[dict]) -> None:
     """Pose g['perle'] (meilleur équilibre confiance×value) sur chaque match à venir, en tirant
     les marchés COMPLETS Unibet (totaux/BTTS/double chance absents de la listView). Best-effort,
@@ -1626,6 +1641,10 @@ async def _attach_perles(rows: list[dict]) -> None:
             picks = best_picks(g["eh"], g["ea"], g.get("neutral", False), offers,
                                lambdas=lambdas, home=g.get("home", ""),
                                away=g.get("away", ""), corner_form=corner_form)
+            # Garde-fou MATCH : modèle incohérent avec le marché sur le 1X2 (ex. Elo sélections
+            # compressé) -> on n'expose AUCUNE perle (pas de prono à contre-courant du marché).
+            if _model_disagrees_market(g):
+                picks = None
             confs = picks["confidences"] if picks else []
             g["perle"] = confs[0] if confs else None                     # 🔥 Confiance principale
             g["perle2"] = confs[1] if len(confs) > 1 else None           # 🔥 2e pari (type distinct)

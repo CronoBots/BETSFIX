@@ -292,3 +292,15 @@ def test_foot_team_goals_markets():
     bb = foot.best_bet(1900, 1500, True, mk, lambdas=(2.2, 0.2), home="Espagne", away="Irak")
     assert bb is not None and bb["kind"] == "team_ou" and bb["team"] == "away"
     assert bb["side"] == "under" and "ne marque pas" in bb["selection"]
+
+
+def test_model_disagrees_market_guard():
+    """Garde-fou MATCH : modèle trop loin du marché 1X2 -> aucune perle (le marché a raison)."""
+    # Belgique 1.33 vs Tunisie : modèle 49 % vs marché ~71 % -> divergence -> True (perle coupée)
+    assert foot._model_disagrees_market(
+        {"probs": (0.49, 0.25, 0.26), "o1": 1.33, "ox": 5.0, "o2": 9.5}) is True
+    # Modèle ≈ marché -> False (perle autorisée)
+    assert foot._model_disagrees_market(
+        {"probs": (0.55, 0.25, 0.20), "o1": 1.7, "ox": 3.6, "o2": 5.0}) is False
+    # Données manquantes -> ne bloque pas
+    assert foot._model_disagrees_market({"probs": None, "o1": 1.5, "ox": 4.0, "o2": 6.0}) is False
