@@ -708,7 +708,10 @@ def best_picks(elo_home, elo_away, neutral, markets, lambdas=None,
     # corrélés type « Plus de 0.5 » + « Plus de 1.5 »). Le 2e pari (et +) doit rester SOLIDE
     # (≥ CONF2_MIN_PROB) -> pas de 2e pari trop optimiste (ex. handicap à 55 %).
     confidences, seen, seen_sel = [], set(), set()
-    for c in sorted(cands, key=lambda c: -c["model_prob"]):
+    # Tri par SCORE = proba × edge (pas la proba brute) : vise le ROI réel. Trier par proba seule
+    # favorise les gros favoris à petite cote (taux élevé mais ROI faible/négatif, ex. Foot 71%
+    # de réussite mais ROI < 0). On garde le même pool/seuils -> jamais d'ensemble vide.
+    for c in sorted(cands, key=lambda c: -c["score"]):
         if c["kind"] in seen:
             continue
         # 2e pari = type ET sélection DISTINCTS (sinon doublon -> rien : un 2e pari n'apparaît
@@ -716,8 +719,10 @@ def best_picks(elo_home, elo_away, neutral, markets, lambdas=None,
         sel = (c.get("selection") or "").strip().lower()
         if sel in seen_sel:
             continue
+        # 2e pari : doit rester SOLIDE (proba ≥ seuil). L'ordre n'étant plus par proba, on SAUTE
+        # les candidats trop justes (continue) au lieu d'arrêter la recherche (break).
         if confidences and c["model_prob"] < CONF2_MIN_PROB:
-            break
+            continue
         confidences.append(c)
         seen.add(c["kind"])
         seen_sel.add(sel)

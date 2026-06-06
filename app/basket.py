@@ -319,7 +319,9 @@ def best_picks_basket(elo_home, elo_away, sigma, markets, home, away, form_h=Non
     if not cands:
         return None
     confidences, seen, seen_sel = [], set(), set()
-    for c in sorted(cands, key=lambda c: -c["model_prob"]):
+    # Tri par SCORE = proba × edge (pas la proba brute) : vise le ROI réel, pas le taux brut qui
+    # favorise les petites cotes stériles. Même pool/seuils -> ne vide jamais l'ensemble.
+    for c in sorted(cands, key=lambda c: -(c["model_prob"] * c["edge"])):
         base_kind = c["kind"]
         if base_kind in seen:
             continue
@@ -328,8 +330,9 @@ def best_picks_basket(elo_home, elo_away, sigma, markets, home, away, form_h=Non
         sel = (c.get("selection") or "").strip().lower()
         if sel in seen_sel:
             continue
-        if confidences and c["model_prob"] < B_CONF2_MIN_PROB:   # 2e pari : solide aussi
-            break
+        # 2e pari : solide aussi. Ordre non trié par proba -> on SAUTE les trop justes (continue).
+        if confidences and c["model_prob"] < B_CONF2_MIN_PROB:
+            continue
         confidences.append(c)
         seen.add(base_kind)
         seen_sel.add(sel)

@@ -1,6 +1,7 @@
 """Tests du simulateur de match et de l'évaluation des marchés (sans réseau)."""
 
 from app.markets import (
+    best_picks_tennis,
     calibrate_and_simulate,
     evaluate_markets,
     hold_prob,
@@ -8,8 +9,24 @@ from app.markets import (
     _simulate,
 )
 from app.models import (
-    Match, Player, PlayerStatistics, UnibetMarket, UnibetOdds, UnibetOutcome,
+    Match, MarketEdge, Player, PlayerStatistics, UnibetMarket, UnibetOdds, UnibetOutcome,
 )
+
+
+def test_best_picks_tennis_sorts_by_score_not_prob():
+    """La perle en tête = meilleur proba×edge (vise le ROI), pas la proba brute (petites cotes
+    stériles). Deux paris qualifiés : un gros favori (proba haute, edge faible) vs un pari à
+    edge fort (proba moindre) -> c'est le 2e qui doit être en tête depuis le tri par score."""
+    def me(market, imp, eg, mp, od):
+        return MarketEdge(market=market, selection=market, implied_probability=imp,
+                          edge=eg, model_probability=mp, odds=od)
+    fav = me("Favori", 0.82, 0.03, 0.85, 1.25)    # score = 0.85 × 0.03 = 0.0255
+    val = me("EdgeFort", 0.55, 0.08, 0.63, 1.70)  # score = 0.63 × 0.08 = 0.0504 (gagne)
+    res = best_picks_tennis([fav, val])
+    assert res is not None
+    assert res["confidence"]["market"] == "EdgeFort"          # score > proba brute
+    # les deux restent proposés (marchés distincts, le favori reste solide en 2e)
+    assert {c["market"] for c in res["confidences"]} == {"EdgeFort", "Favori"}
 
 
 def test_hold_prob_monotonic():

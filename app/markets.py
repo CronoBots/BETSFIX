@@ -427,15 +427,18 @@ def best_picks_tennis(edges) -> dict | None:
     if not cands:
         return None
     confidences, seen, seen_sel = [], set(), set()
-    for c in sorted(cands, key=lambda c: -c["model_prob"]):
+    # Tri par SCORE = proba × edge (pas la proba brute) : vise le ROI réel, pas le taux brut qui
+    # favorise les petites cotes stériles. Même pool/seuils -> ne vide jamais l'ensemble.
+    for c in sorted(cands, key=lambda c: -(c["model_prob"] * c["edge"])):
         if c["market"] in seen:
             continue
         # 2e pari = marché ET sélection DISTINCTS (sinon doublon -> rien).
         sel = (c.get("selection") or "").strip().lower()
         if sel in seen_sel:
             continue
-        if confidences and c["model_prob"] < T_CONF2_MIN_PROB:   # 2e pari : solide aussi
-            break
+        # 2e pari : solide aussi. Ordre non trié par proba -> on SAUTE les trop justes (continue).
+        if confidences and c["model_prob"] < T_CONF2_MIN_PROB:
+            continue
         confidences.append(c)
         seen.add(c["market"])
         seen_sel.add(sel)
