@@ -694,22 +694,22 @@ def _evo_curve(ev: list, stake: float) -> tuple:
     if len(ev) < 2:
         return '<div class="evo-na">courbe : pas encore assez de paris réglés</div>', ""
     cc = cv = 0.0
-    conf, val, tot, times = [], [], [], []
-    for at, kind, pnl in ev:
+    conf, val, tot = [], [], []
+    for _at, kind, pnl in ev:
         if kind == "conf":
             cc += pnl * stake
         else:
             cv += pnl * stake
         conf.append(cc); val.append(cv); tot.append(cc + cv)
-        times.append(_epoch(at) or 0.0)
-    t0, t1 = times[0], times[-1]
-    span = (t1 - t0) or 1.0
-    xs = [(t - t0) / span for t in times]                  # position X par DATE réelle
+    # Espacement RÉGULIER (1 pas par pari) : les règlements arrivent par paquets le même jour,
+    # donc un axe par date réelle tasse les points et déforme la courbe -> on garde l'index.
+    n = len(ev)
+    xs = [i / (n - 1) for i in range(n)]
     marker_xs = []
     for date, _desc in PERLE_OPTIM_DATES:
-        td = _epoch(date)
-        if td is not None and t0 <= td <= t1:
-            marker_xs.append((td - t0) / span)
+        idx = next((i for i, (at, _k, _p) in enumerate(ev) if at[:10] >= date), None)
+        if idx is not None:
+            marker_xs.append(idx / (n - 1))
 
     def col(v, big=False):
         sz = ' style="font-size:13px"' if big else ''
