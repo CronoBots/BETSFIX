@@ -731,6 +731,7 @@ CSS = """
   /* ROI réel sous le taux de confiance (petit, coloré) : un taux élevé peut cacher un ROI négatif */
   .rc-roi-sub{display:block;font-size:9px;font-weight:700;line-height:1.15;margin-top:1px}
   .rc-roi-sub.pos{color:var(--green)} .rc-roi-sub.neg{color:var(--red)}
+  .rc-roi-sub.muted{color:var(--muted)}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);

@@ -509,9 +509,11 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
     vn = rep.get("perle_value_regles") or 0
     if vn:
         roi = rep.get("perle_value_roi") or 0
+        vtaux = round((rep.get("perle_value_taux") or 0) * 100)   # % de réussite (gagne peu mais peut payer)
         roi_txt = f'{"+" if roi >= 0 else ""}{round(roi * 100)}%'
         val_cell = (f'<span class="ptab-val">{rep.get("perle_value_gagnes") or 0}/{vn}'
-                    f'<span class="ptab-pct {"pos" if roi >= 0 else "neg"}">{roi_txt}</span></span>')
+                    f'<span class="ptab-pct">{vtaux}% · '
+                    f'<b class="{"pos" if roi >= 0 else "neg"}">{roi_txt}</b></span></span>')
     else:
         val_cell = '<span class="ptab-val na">—</span>'
     # Colonne Fiabilité : verdict + mini-barre de progression PROPRE À CE SPORT vers la preuve
@@ -567,9 +569,11 @@ def _rate_chart(reports: list[tuple]) -> str:
             sign = "+" if roi >= 0 else "−"
             vcls = "pos" if roi >= 0 else "neg"
             arrow = "▲" if roi >= 0 else "▼"
+            vtaux = round((rep.get("perle_value_taux") or 0) * 100)   # % de réussite (sous le ROI)
             val = (f'<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
                    f'<span class="rc-roi"><span class="rc-zero"></span>{seg}</span>'
-                   f'<span class="rc-val {vcls}">{arrow} {sign}{abs(round(roi * 100))}%</span></div>')
+                   f'<span class="rc-val {vcls}">{arrow} {sign}{abs(round(roi * 100))}%'
+                   f'<span class="rc-roi-sub muted">{vtaux}%</span></span></div>')
         else:
             val = ('<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
                    '<span class="rc-roi"><span class="rc-zero"></span></span>'
