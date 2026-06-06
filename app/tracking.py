@@ -651,8 +651,11 @@ def _evo_svg(conf: list, val: list, markers: list = ()) -> str:
         mlines += (f'<line x1="{mx:.1f}" y1="{TP}" x2="{mx:.1f}" y2="{H - BT}" stroke="#ffa94a" '
                    f'stroke-width="1" stroke-dasharray="2 2"/>')
     # Couleurs alignées sur le tableau : Confiance VERT (#34d27b), Value BLEU (#4aa8ff).
+    # Points de fin = valeur actuelle de chaque courbe (ancrage visuel).
+    dots = (f'<circle cx="{fx(n - 1):.1f}" cy="{fy(val[-1]):.1f}" r="2.1" fill="#4aa8ff"/>'
+            f'<circle cx="{fx(n - 1):.1f}" cy="{fy(conf[-1]):.1f}" r="2.1" fill="#34d27b"/>')
     return (f'<svg class="evo-svg" viewBox="0 0 {W:.0f} {H:.0f}" xmlns="http://www.w3.org/2000/svg">'
-            f'{grid}{mlines}{poly(val, "#4aa8ff", 1.9)}{poly(conf, "#34d27b", 1.9)}{ylab}</svg>')
+            f'{grid}{mlines}{poly(val, "#4aa8ff", 1.9)}{poly(conf, "#34d27b", 1.9)}{dots}{ylab}</svg>')
 
 
 def _evo_curve(ev: list, stake: float) -> tuple:
@@ -702,8 +705,7 @@ def render_sport_cards(data: list[tuple], stake: float = 5.0) -> str:
                 f'<div class="spc-sample">{sample}</div>')
         cards.append(f'<div class="spc" style="--sc:{sc}">{head}{curve}{cfoot}</div>')
     legend = ('<div class="evo-legend"><span class="evo-lg"><i style="background:#34d27b"></i>Confiance</span>'
-              '<span class="evo-lg"><i style="background:#4aa8ff"></i>Value</span>'
-              '<span class="evo-lg"><i style="background:#ffa94a"></i>Optim</span></div>')
+              '<span class="evo-lg"><i style="background:#4aa8ff"></i>Value</span></div>')
     # Légende explicite des optimisations (sous la section) : la ligne ambre du graphe = ces dates.
     optim = ""
     if PERLE_OPTIM_DATES:
