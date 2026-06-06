@@ -721,9 +721,15 @@ CSS = """
   .spc-name{font-weight:800;font-size:14px;white-space:nowrap}
   .spc-verdict{font-size:11px;font-weight:800;white-space:nowrap}
   .spc-verdict.ok{color:var(--green)} .spc-verdict.ko{color:var(--red)} .spc-verdict.na{color:var(--muted)}
-  .spc-sample{font-size:10px;color:var(--muted);font-weight:600;margin:1px 0 7px}
+  .spc-sample{font-size:10px;color:var(--muted);font-weight:600;margin:1px 0 7px;
+       display:flex;justify-content:space-between;align-items:center;gap:8px}
+  /* Badge de tendance récente (7 j) par sport */
+  .spc-trend{font-size:10px;font-weight:800;white-space:nowrap}
+  .spc-trend.up{color:var(--green)} .spc-trend.down{color:var(--red)} .spc-trend.flat{color:var(--muted)}
+  .spc-trend-l{font-weight:600;color:var(--muted);opacity:.8}
   .spc-foot{font-size:10px;color:var(--muted);text-align:center;margin-top:4px;line-height:1.5}
   .spc-foot b.pos{color:var(--green)} .spc-foot b.neg{color:var(--red)}
+  .spc-tot{font-weight:800}   /* P&L Total mis en avant */
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);

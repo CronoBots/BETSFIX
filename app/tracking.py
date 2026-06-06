@@ -17,6 +17,7 @@ import json
 import logging
 import math
 import os
+from datetime import datetime, timezone
 
 from app import web
 from app.analysis import remove_vig
@@ -616,72 +617,122 @@ PERLE_OPTIM_DATES = [
 ]
 
 
-def _evo_svg(conf: list, val: list, markers: list = ()) -> str:
-    """SVG compact d'un sport : 2 courbes (Confiance vert, Value bleu) + ligne zéro + bornes Y +
-    repères verticaux d'optimisation (`markers` = [(index, label), ...]). Le Total n'est PAS tracé
-    (il reste en chiffre dans le pied). Cadrage propre à CE sport."""
-    n = len(conf)
-    W, H, L, R, TP, BT = 324.0, 84.0, 34.0, 8.0, 8.0, 8.0
+def _epoch(iso: str) -> float | None:
+    """Timestamp (s) depuis un ISO (date ou datetime). Naïf -> UTC pour rester cohérent. None si KO."""
+    try:
+        dt = datetime.fromisoformat(iso)
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
+def _smooth_path(pts: list) -> str:
+    """Chemin SVG lissé (spline Catmull-Rom -> bézier cubique) passant par tous les points."""
+    if not pts:
+        return ""
+    d = f'M{pts[0][0]:.1f},{pts[0][1]:.1f}'
+    n = len(pts)
+    for i in range(n - 1):
+        p0 = pts[i - 1] if i > 0 else pts[0]
+        p1, p2 = pts[i], pts[i + 1]
+        p3 = pts[i + 2] if i + 2 < n else pts[n - 1]
+        c1x, c1y = p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6
+        c2x, c2y = p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6
+        d += f' C{c1x:.1f},{c1y:.1f} {c2x:.1f},{c2y:.1f} {p2[0]:.1f},{p2[1]:.1f}'
+    return d
+
+
+def _evo_svg(xs: list, conf: list, val: list, marker_xs: list = ()) -> str:
+    """SVG d'un sport : aires + courbes LISSÉES (Confiance vert, Value bleu), axe X par DATE RÉELLE
+    (`xs` = fractions 0..1), repères optim verticaux (`marker_xs` = fractions), points de fin,
+    ligne zéro + bornes Y. Le Total n'est pas tracé (chiffre dans le pied)."""
+    W, H, L, R, TP, BT = 324.0, 100.0, 34.0, 10.0, 11.0, 11.0
     ymin = min(0.0, min(conf), min(val))
     ymax = max(0.0, max(conf), max(val))
     if ymax - ymin < 1e-9:
         ymax = ymin + 1.0
-    fx = lambda i: L + (W - L - R) * (i / (n - 1))          # noqa: E731
+    fx = lambda fr: L + (W - L - R) * fr                    # noqa: E731
     fy = lambda v: TP + (H - TP - BT) * (1 - (v - ymin) / (ymax - ymin))   # noqa: E731
+    y0 = fy(0.0)
 
-    def poly(series, color, width):
-        pts = " ".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(series))
-        return (f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="{width}" '
-                f'stroke-linejoin="round" stroke-linecap="round"/>')
+    def pts_of(series):
+        return [(fx(xs[i]), fy(v)) for i, v in enumerate(series)]
+
+    def line(series, color):
+        return (f'<path d="{_smooth_path(pts_of(series))}" fill="none" stroke="{color}" '
+                f'stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>')
+
+    def area(series, color):
+        p = pts_of(series)
+        d = f'{_smooth_path(p)} L{p[-1][0]:.1f},{y0:.1f} L{p[0][0]:.1f},{y0:.1f} Z'
+        return f'<path d="{d}" fill="{color}" fill-opacity="0.11"/>'
 
     def txt(x, y, s):
         return (f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="end" fill="#9fb4cf" '
                 f'font-size="8" font-weight="600">{html.escape(s)}</text>')
 
-    y0 = fy(0.0)
     grid = (f'<line x1="{L}" y1="{y0:.1f}" x2="{W-R}" y2="{y0:.1f}" stroke="rgba(159,180,207,.4)" '
             f'stroke-width="1" stroke-dasharray="3 3"/>')
     ylab = (txt(L - 4, fy(ymax) + 3, f"{'+' if ymax > 0 else ''}{round(ymax)}€")
             + txt(L - 4, fy(ymin) + 3, f"{round(ymin)}€"))
-    # Repères verticaux ambre = dates d'optimisation perle (lignes SEULES ; le détail est listé
-    # dans la légende sous la section, pour garder le graphe épuré). `markers` = [index, ...].
-    mlines = ""
-    for idx in markers:
-        mx = fx(idx)
-        mlines += (f'<line x1="{mx:.1f}" y1="{TP}" x2="{mx:.1f}" y2="{H - BT}" stroke="#ffa94a" '
-                   f'stroke-width="1" stroke-dasharray="2 2"/>')
-    # Couleurs alignées sur le tableau : Confiance VERT (#34d27b), Value BLEU (#4aa8ff).
+    # Repères verticaux ambre = dates d'optimisation perle (détail listé sous la section).
+    mlines = "".join(
+        f'<line x1="{fx(mx):.1f}" y1="{TP}" x2="{fx(mx):.1f}" y2="{H-BT}" stroke="#ffa94a" '
+        f'stroke-width="1" stroke-dasharray="2 2"/>' for mx in marker_xs)
     # Points de fin = valeur actuelle de chaque courbe (ancrage visuel).
-    dots = (f'<circle cx="{fx(n - 1):.1f}" cy="{fy(val[-1]):.1f}" r="2.1" fill="#4aa8ff"/>'
-            f'<circle cx="{fx(n - 1):.1f}" cy="{fy(conf[-1]):.1f}" r="2.1" fill="#34d27b"/>')
+    dots = (f'<circle cx="{fx(xs[-1]):.1f}" cy="{fy(val[-1]):.1f}" r="2.1" fill="#4aa8ff"/>'
+            f'<circle cx="{fx(xs[-1]):.1f}" cy="{fy(conf[-1]):.1f}" r="2.1" fill="#34d27b"/>')
     return (f'<svg class="evo-svg" viewBox="0 0 {W:.0f} {H:.0f}" xmlns="http://www.w3.org/2000/svg">'
-            f'{grid}{mlines}{poly(val, "#4aa8ff", 1.9)}{poly(conf, "#34d27b", 1.9)}{dots}{ylab}</svg>')
+            f'{area(val, "#4aa8ff")}{area(conf, "#34d27b")}{grid}{mlines}'
+            f'{line(val, "#4aa8ff")}{line(conf, "#34d27b")}{dots}{ylab}</svg>')
 
 
 def _evo_curve(ev: list, stake: float) -> tuple:
-    """(svg_ou_message, foot) de la courbe d'UN sport. foot = totaux + période (vide si < 2 paris)."""
+    """(svg_ou_message, foot) de la courbe d'UN sport. Axe X par date réelle. Vide si < 2 paris."""
     if len(ev) < 2:
         return '<div class="evo-na">courbe : pas encore assez de paris réglés</div>', ""
     cc = cv = 0.0
-    conf, val, tot = [], [], []
-    for _at, kind, pnl in ev:
+    conf, val, tot, times = [], [], [], []
+    for at, kind, pnl in ev:
         if kind == "conf":
             cc += pnl * stake
         else:
             cv += pnl * stake
         conf.append(cc); val.append(cv); tot.append(cc + cv)
-
-    def col(v):
-        return f'<b class="{"pos" if v >= 0 else "neg"}">{"+" if v >= 0 else ""}{round(v)}€</b>'
-    foot = (f'<div class="spc-foot">Total {col(tot[-1])} · Conf {col(conf[-1])} · Val {col(val[-1])} '
-            f'· {_fr_date(ev[0][0])}→{_fr_date(ev[-1][0])}</div>')
-    # Repère par optimisation : index du 1er pari réglé À PARTIR de la date de déploiement.
-    markers = []
+        times.append(_epoch(at) or 0.0)
+    t0, t1 = times[0], times[-1]
+    span = (t1 - t0) or 1.0
+    xs = [(t - t0) / span for t in times]                  # position X par DATE réelle
+    marker_xs = []
     for date, _desc in PERLE_OPTIM_DATES:
-        idx = next((i for i, (at, _k, _p) in enumerate(ev) if at[:10] >= date), None)
-        if idx is not None:
-            markers.append(idx)
-    return _evo_svg(conf, val, markers), foot
+        td = _epoch(date)
+        if td is not None and t0 <= td <= t1:
+            marker_xs.append((td - t0) / span)
+
+    def col(v, big=False):
+        sz = ' style="font-size:13px"' if big else ''
+        return f'<b class="{"pos" if v >= 0 else "neg"}"{sz}>{"+" if v >= 0 else ""}{round(v)}€</b>'
+    foot = (f'<div class="spc-foot"><span class="spc-tot">Total {col(tot[-1], big=True)}</span> · '
+            f'Conf {col(conf[-1])} · Val {col(val[-1])} · {_fr_date(ev[0][0])}→{_fr_date(ev[-1][0])}</div>')
+    return _evo_svg(xs, conf, val, marker_xs), foot
+
+
+def _trend_badge(ev: list) -> str:
+    """Badge de tendance RÉCENTE : ROI des paris réglés sur les 7 derniers jours de données
+    (relatif au dernier règlement -> déterministe, sans horloge). ▲ vert / ▼ rouge / ▬ neutre."""
+    if not ev:
+        return ""
+    last = _epoch(ev[-1][0]) or 0.0
+    cutoff = last - 7 * 86400
+    recent = [p for at, _k, p in ev if (_epoch(at) or 0.0) >= cutoff]
+    if not recent:
+        return ""
+    roi = sum(recent) / len(recent)
+    cls, arr = ("up", "▲") if roi > 0.02 else ("down", "▼") if roi < -0.02 else ("flat", "▬")
+    return (f'<span class="spc-trend {cls}">{arr} {"+" if roi >= 0 else ""}{round(roi * 100)}% '
+            f'<span class="spc-trend-l">7j</span></span>')
 
 
 def render_sport_cards(data: list[tuple], stake: float = 5.0) -> str:
@@ -702,7 +753,7 @@ def render_sport_cards(data: list[tuple], stake: float = 5.0) -> str:
         curve, cfoot = _evo_curve(ev, stake)
         head = (f'<div class="spc-head"><span class="spc-name">{icon} {e(name)}</span>'
                 f'<span class="spc-verdict {vcls}">{vtext}</span></div>'
-                f'<div class="spc-sample">{sample}</div>')
+                f'<div class="spc-sample"><span>{sample}</span>{_trend_badge(ev)}</div>')
         cards.append(f'<div class="spc" style="--sc:{sc}">{head}{curve}{cfoot}</div>')
     legend = ('<div class="evo-legend"><span class="evo-lg"><i style="background:#34d27b"></i>Confiance</span>'
               '<span class="evo-lg"><i style="background:#4aa8ff"></i>Value</span></div>')

@@ -263,16 +263,17 @@ def test_evolution_cumulative_and_svg():
     store["3"] = {"perle": {"selection": "D"},
                   "result": {"void": True, "settled_at": "2026-06-03T10:00:00", "perle_pnl": 5.0}}
     assert len(tracking._perle_events(store)) == len(ev)
-    # Carte détail par sport : courbe à 2 lignes (Confiance vert + Value bleu) -> SVG bien formé
+    # Carte détail par sport : courbe lissée 2 lignes (Confiance vert + Value bleu) -> SVG bien formé
     rep = {"perle_paris_regles": 2, "perle_matchs_regles": 2}
     html = tracking.render_sport_cards([("🎾", "Tennis", rep, store)], stake=5.0)
     ET.fromstring(re.search(r"<svg.*?</svg>", html, re.S).group(0))
-    assert html.count("<polyline") == 2                  # Total non tracé (que Conf + Value)
+    assert "#34d27b" in html and "#4aa8ff" in html       # Confiance vert + Value bleu
+    assert html.count("<circle") == 2                    # un point de fin par courbe
     assert "Tennis" in html and "Confiance" in html and "Value" in html
-    # un 2e sport sans données : sa carte existe (message courbe), 1 seule courbe (2 polylines)
+    # un 2e sport sans données : sa carte existe (message courbe), 1 seule courbe (2 points de fin)
     mixed = tracking.render_sport_cards([("🎾", "Tennis", rep, store), ("⚽", "Foot", {}, {})])
     assert mixed.count('<div class="spc"') == 2          # 2 cartes
-    assert mixed.count("<polyline") == 2 and "pas encore assez" in mixed
+    assert mixed.count("<circle") == 2 and "pas encore assez" in mixed
     # Repère d'optimisation : un pari réglé À PARTIR d'une date d'optim -> ligne ambre + label
     post = {"X": {"perle": {"selection": "Z"},
                   "result": {"settled_at": "2099-01-02T10:00:00", "perle_pnl": 1.0}},
