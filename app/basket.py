@@ -1079,13 +1079,17 @@ async def run_settle() -> int:
                 hs = (ev.get("homeScore") or {}).get("current")
                 as_ = (ev.get("awayScore") or {}).get("current")
                 if tracking.settle(store, rec["match_id"], winner, None, now):
-                    if hs is not None and as_ is not None and rec.get("result"):
-                        rec["result"]["score"] = f"{hs}-{as_}"
-                        # règlement des perles (moneyline/handicap/totaux)
+                    if rec.get("result"):
+                        if hs is not None and as_ is not None:
+                            rec["result"]["score"] = f"{hs}-{as_}"
+                        # Règlement des perles : on écrit TOUJOURS les 3 clés (None si le score
+                        # manque) -> report() les voit, pas de perle silencieusement non réglée.
+                        have_score = hs is not None and as_ is not None
                         for key, p in (("perle_pnl", rec.get("perle")),
                                        ("perle2_pnl", rec.get("perle2")),
                                        ("perle_value_pnl", rec.get("perle_value"))):
-                            pw = settle_basket_perle(p, hs, as_) if (p and p.get("odds")) else None
+                            pw = (settle_basket_perle(p, hs, as_)
+                                  if (p and p.get("odds") and have_score) else None)
                             rec["result"][key] = None if pw is None else ((p["odds"] - 1) if pw else -1.0)
                     s += 1
                 continue

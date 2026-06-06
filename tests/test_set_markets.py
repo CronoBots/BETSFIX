@@ -1,7 +1,30 @@
 """Tests du modèle de marchés de sets (calibré) — fonctions pures."""
 
+from app import markets
 from app import set_markets as sm
 from app.models import Match, Player, UnibetMarket, UnibetOdds, UnibetOutcome
+
+
+def test_settle_set_handicap():
+    """Set Handicap réglé sur les SETS gagnés (bug corrigé : auparavant toujours None)."""
+    def s(line, sh, sa, who="Alcaraz"):
+        p = {"market": "Set Handicap", "selection": who, "line": line, "odds": 2.0}
+        return markets.settle_tennis_perle(p, "home", sh, sa, None, "Alcaraz", "Sinner")
+
+    # « Alcaraz -1.5 » : couvert seulement si écart de sets >= 2 (ex. 2-0), pas 2-1.
+    assert s(-1.5, 2, 0) == 1.0      # 2-0 -> marge +2, +2-1.5>0 : gagné
+    assert s(-1.5, 2, 1) == -1.0     # 2-1 -> marge +1, +1-1.5<0 : perdu
+    # « Alcaraz +1.5 » : couvert tant qu'il ne perd pas de plus de 2 sets.
+    assert s(1.5, 1, 2) == 1.0       # 1-2 -> marge -1, -1+1.5>0 : gagné
+    assert s(1.5, 0, 2) == -1.0      # 0-2 -> marge -2, -2+1.5<0 : perdu
+    # Côté adverse cité (Sinner +1.5), Sinner gagne 2-0 côté away.
+    p = {"market": "Set Handicap", "selection": "Sinner", "line": 1.5, "odds": 2.0}
+    assert markets.settle_tennis_perle(p, "away", 0, 2, None, "Alcaraz", "Sinner") == 1.0
+    # Non réglable proprement -> None (sets manquants ou joueur non identifié).
+    assert s(-1.5, None, None) is None
+    assert markets.settle_tennis_perle(
+        {"market": "Set Handicap", "selection": "Inconnu", "line": -1.5, "odds": 2.0},
+        "home", 2, 0, None, "Alcaraz", "Sinner") is None
 
 
 def test_match_set_inversion():

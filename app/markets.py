@@ -422,7 +422,7 @@ def best_picks_tennis(edges) -> dict | None:
         if abs(mp_raw - imp) > 0.20:
             continue
         if fair >= T_MIN_PROB and od >= T_MIN_ODDS and eg >= T_MIN_EDGE:
-            cands.append({"selection": _edge_label(me), "market": me.market,
+            cands.append({"selection": _edge_label(me), "market": me.market, "line": me.line,
                           "odds": round(od, 2), "model_prob": round(fair, 4), "edge": round(eg, 4)})
     if not cands:
         return None
@@ -481,6 +481,15 @@ def settle_tennis_perle(perle, winner, sets_home, sets_away, total_games,
             return "away"
         return None
 
+    # Handicap de SETS : « X -1.5 » / « X +2.5 » — réglé sur les SETS gagnés (pas les jeux).
+    # La perle porte désormais `line` (±1.5/±2.5) ; `which()` identifie le joueur cité.
+    if "handicap" in market and "set" in market and "jeu" not in market and "game" not in market:
+        who = which()
+        line = perle.get("line")
+        if who is None or line is None or sets_home is None or sets_away is None:
+            return None
+        margin = (sets_home - sets_away) if who == "home" else (sets_away - sets_home)
+        return pnl(margin + line > 0)              # lignes .5 -> jamais de push
     # Handicap de JEUX (match entier ou set 1) : « X -2.5 » / « X +3.5 »
     if "handicap" in market and ("jeu" in market or "game" in market):
         who = which()
