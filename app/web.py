@@ -708,6 +708,10 @@ CSS = """
   .evo-lg i{width:12px;height:3px;border-radius:99px;display:inline-block}
   .evo-lg b.pos{color:var(--green)} .evo-lg b.neg{color:var(--red)}
   .evo-na{font-size:10.5px;color:var(--muted);font-style:italic;text-align:center;padding:10px 0}
+  /* Légende des dates d'optimisation perle (sous la section ; = lignes ambre des courbes) */
+  .evo-optim{font-size:10.5px;color:var(--muted);text-align:center;margin-top:10px;padding-top:9px;
+       border-top:1px solid var(--border);line-height:1.7}
+  .evo-optim b{color:#cfe0f5} .evo-otag{color:#ffa94a;font-weight:800}
   /* Carte détail PAR SPORT : verdict + échantillon + barres taux/ROI + courbe P&L cumulé */
   .spc{margin:11px 0;padding:11px 13px 9px;border-radius:var(--radius);
        background:linear-gradient(180deg,var(--surface2),var(--surface));

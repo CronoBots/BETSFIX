@@ -281,7 +281,10 @@ def test_evolution_cumulative_and_svg():
     tracking.PERLE_OPTIM_DATES.append(("2099-01-03", "testoptim"))
     try:
         h = tracking.render_sport_cards([("🎾", "T", {"perle_paris_regles": 2}, post)])
-        assert "#ffa94a" in h and "testoptim" in h        # repère ambre + label rendus
+        svg = re.search(r"<svg.*?</svg>", h, re.S).group(0)
+        assert "#ffa94a" in svg            # ligne ambre tracée sur le graphe
+        assert "testoptim" not in svg      # plus de label SUR le graphe (épuré)
+        assert "testoptim" in h            # mais listé dans la légende sous la section
     finally:
         tracking.PERLE_OPTIM_DATES.pop()
 
