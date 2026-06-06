@@ -6,7 +6,7 @@ Après le match, on note le résultat. Le rapport calcule alors des métriques
 honnêtes : calibration (Brier/log-loss sur résultats réels), taux de réussite et
 **ROI** des paris value — le seul juge de la rentabilité.
 
-Stockage : data/tracking.json (dict indexé par match_id). Fonctions de calcul
+Stockage : data/tracking_tennis.json (dict indexé par match_id). Fonctions de calcul
 pures et testables ; l'orchestration réseau est dans le routeur.
 """
 
@@ -25,7 +25,8 @@ from app.analysis import remove_vig
 log = logging.getLogger("uvicorn")
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_PATH = os.path.join(_ROOT, "data", "tracking.json")
+DATA_PATH = os.path.join(_ROOT, "data", "tracking_tennis.json")
+_LEGACY_TENNIS = os.path.join(_ROOT, "data", "tracking.json")   # ancien nom (migré au 1er chargement)
 
 
 # Cache mémoire du store invalidé par la date de modif (mtime) : le store ne change que
@@ -37,6 +38,20 @@ _load_cache: dict[str, tuple[float, dict]] = {}
 def load(path: str = DATA_PATH) -> dict:
     """Charge le store de suivi (avec cache mtime). Un fichier CORROMPU est sauvegardé en .bak
     (jamais écrasé silencieusement par {}), pour ne pas perdre l'historique sans trace."""
+    # Migration douce tennis : tracking.json -> tracking_tennis.json, ROBUSTE à la transition.
+    # Tant que l'ancien process (pré-migration) tourne, il peut réécrire tracking.json : c'est
+    # alors LUI le plus récent et il fait foi. On migre la version la plus fraîche -> zéro perte.
+    if path == DATA_PATH and os.path.exists(_LEGACY_TENNIS):
+        try:
+            legacy_wins = (not os.path.exists(path)
+                           or os.path.getmtime(_LEGACY_TENNIS) >= os.path.getmtime(path))
+        except OSError:
+            legacy_wins = True
+        if legacy_wins:
+            try:
+                os.replace(_LEGACY_TENNIS, path)
+            except OSError:
+                path = _LEGACY_TENNIS
     try:
         mtime = os.path.getmtime(path)
     except OSError:

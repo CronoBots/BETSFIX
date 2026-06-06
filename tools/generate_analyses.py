@@ -56,16 +56,21 @@ METHODO = (
 )
 
 
-STORE_FILE = {"foot": "tracking_foot.json", "tennis": "tracking.json",
+STORE_FILE = {"foot": "tracking_foot.json", "tennis": "tracking_tennis.json",
               "basket": "tracking_basket.json"}
+_LEGACY = {"tennis": "tracking.json"}   # ancien nom, repli avant migration
 
 
 def _load_store(sport: str) -> dict:
-    try:
-        with open(os.path.join(ROOT, "data", STORE_FILE[sport]), encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError, KeyError):
-        return {}
+    for fn in (STORE_FILE.get(sport), _LEGACY.get(sport)):
+        if not fn:
+            continue
+        try:
+            with open(os.path.join(ROOT, "data", fn), encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            continue
+    return {}
 
 
 def _norm(s: str) -> set:
