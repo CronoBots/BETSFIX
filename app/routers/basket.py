@@ -10,7 +10,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import basket, fragcache, match_analysis, sportcache, tracking, web
+from app import analyses, basket, fragcache, match_analysis, sportcache, tracking, web
 from app.config import get_settings
 from app.dependencies import get_provider, get_unibet
 from app.models import (
@@ -120,7 +120,9 @@ async def basket_match(event_id: int, frag: int = 0, pk: str = "",
                            else None),
             "match_id": int(event_id),
         }
-        analysis_html = await match_analysis.write_analysis(brief, get_settings())
+        # Priorité à l'analyse « analyste » pré-générée (Claude headless) si elle existe.
+        deep = analyses.render("basket", event_id)
+        analysis_html = deep or await match_analysis.write_analysis(brief, get_settings())
         # 📊 Ce qui pèse : facteurs (proba modèle Elo + forme + classement + face-à-face)
         fh = forms[0][2] if forms else None
         fa = forms[1][2] if forms else None

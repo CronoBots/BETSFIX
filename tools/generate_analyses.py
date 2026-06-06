@@ -16,11 +16,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import time
+import unicodedata
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -51,6 +54,40 @@ METHODO = (
     "4. VERDICT : le plus sûr + le meilleur compromis ; dis \"SKIP\" si rien ne vaut le coup. "
     "Rappelle de ne jamais tout miser sur un ticket. Sois concis et direct, en français.\n\n"
 )
+
+
+STORE_FILE = {"foot": "tracking_foot.json", "tennis": "tracking.json",
+              "basket": "tracking_basket.json"}
+
+
+def _load_store(sport: str) -> dict:
+    try:
+        with open(os.path.join(ROOT, "data", STORE_FILE[sport]), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError, KeyError):
+        return {}
+
+
+def _norm(s: str) -> set:
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
+    return {t for t in re.findall(r"[a-z]+", s) if len(t) >= 3}
+
+
+def _fiche_id(sport: str, match: dict, store: dict) -> str | None:
+    """ID utilisé par la FICHE pour lier l'analyse. Foot : id Unibet (= clé du store, mappée via
+    match_id côté fiche). Tennis/basket : id Sofa (clé du store), retrouvé par correspondance de
+    noms UNIQUE (sinon None -> on ne génère pas, jamais de mauvaise liaison)."""
+    if sport == "foot":
+        return str(match["id"])
+    mh, ma = _norm(match.get("home")), _norm(match.get("away"))
+    if not mh or not ma:
+        return None
+    hits = []
+    for k, r in store.items():
+        rh, ra = _norm(r.get("home")), _norm(r.get("away"))
+        if (rh & mh and ra & ma) or (rh & ma and ra & mh):
+            hits.append(str(k))
+    return hits[0] if len(hits) == 1 else None
 
 
 def _fresh(path: str) -> bool:
@@ -115,9 +152,14 @@ async def main():
             except Exception as e:
                 print(f"[{sport}] sélection échouée : {e}")
                 continue
+            store = _load_store(sport)
             print(f"[{sport}] {len(top)} matchs sélectionnés (profondeur de marché).")
             for m in top:
-                path = os.path.join(OUT, f"{sport}_{m['id']}.md")
+                fid = _fiche_id(sport, m, store)   # id que la fiche utilise pour lier l'analyse
+                if not fid:
+                    print(f"  · {m['name']} : non lié à une fiche {sport} (pas dans le store), on saute.")
+                    continue
+                path = os.path.join(OUT, f"{sport}_{fid}.md")
                 if not args.force and _fresh(path):
                     print(f"  · {m['name']} : analyse fraîche en cache, on saute.")
                     continue

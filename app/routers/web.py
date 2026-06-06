@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from app import ace_markets, elo, flags, fragcache, match_analysis, serve_return, set_markets, tendencies, tracking, web, window
+from app import analyses, ace_markets, elo, flags, fragcache, match_analysis, serve_return, set_markets, tendencies, tracking, web, window
 from app.config import get_settings
 from app.analysis import build_analysis, prob_from_rankings, remove_vig
 from app.analysis import _match_winner_odds
@@ -922,7 +922,9 @@ async def match_detail(
             "public_fav": ((votes[0] if fav_home else votes[1]) / 100 if votes else None),
             "match_id": match_id,
         }
-        analysis_html = await match_analysis.write_analysis(brief, get_settings())
+        # Priorité à l'analyse « analyste » pré-générée (Claude headless) si elle existe.
+        deep = analyses.render("tennis", match_id)
+        analysis_html = deep or await match_analysis.write_analysis(brief, get_settings())
     # Marchés Unibet UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
     markets_html = ""
     html = web.render_match_detail(
