@@ -497,8 +497,12 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
     cn = rep.get("perle_conf_regles") or 0
     if cn:
         cw = rep.get("perle_conf_gagnes") or 0
+        ctaux = round((rep.get("perle_conf_taux") or 0) * 100)
+        croi = rep.get("perle_conf_roi") or 0      # ROI réel : un taux élevé peut cacher un ROI négatif
         conf_cell = (f'<span class="ptab-conf">{cw}/{cn}'
-                     f'<span class="ptab-pct">{round((rep.get("perle_conf_taux") or 0) * 100)}%</span></span>')
+                     f'<span class="ptab-pct">{ctaux}% · '
+                     f'<b class="{"pos" if croi >= 0 else "neg"}">{"+" if croi >= 0 else ""}{round(croi * 100)}%</b>'
+                     f'</span></span>')
     else:
         conf_cell = '<span class="ptab-conf na">—</span>'
     # Value : perles « value » réglées -> nb gagnés (gros) + ROI coloré (petit dessous)
@@ -542,10 +546,13 @@ def _rate_chart(reports: list[tuple]) -> str:
             taux = rep.get("perle_conf_taux") or 0.0
             pct = round(taux * 100)
             cls = "ok" if taux >= 0.5 else "ko"
+            croi = rep.get("perle_conf_roi") or 0.0   # ROI réel sous le taux (le juge de rentabilité)
+            rcls = "pos" if croi >= 0 else "neg"
+            rtxt = f'{"+" if croi >= 0 else ""}{round(croi * 100)}%'
             conf = (f'<div class="rc-line"><span class="rc-lbl">Confiance</span>'
                     f'<span class="rc-track"><span class="rc-fill {cls}" style="width:{pct}%"></span>'
                     f'<span class="rc-tick"></span></span>'
-                    f'<span class="rc-val">{pct}%</span></div>')
+                    f'<span class="rc-val">{pct}%<span class="rc-roi-sub {rcls}">{rtxt}</span></span></div>')
         else:
             conf = ('<div class="rc-line"><span class="rc-lbl">Confiance</span>'
                     '<span class="rc-track"></span><span class="rc-val na">—</span></div>')

@@ -689,7 +689,7 @@ CSS = """
           line-height:1.1;min-width:0}
   .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600;opacity:.5;font-size:16px}
   .ptab-pct{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
-  .ptab-pct.pos{color:var(--green)} .ptab-pct.neg{color:var(--red)}
+  .ptab-pct.pos,.ptab-pct .pos{color:var(--green)} .ptab-pct.neg,.ptab-pct .neg{color:var(--red)}
   /* Mini-barre de progression PAR SPORT (colonne Fiabilité) : réglés (plein) + en attente (estompé) */
   .pbar2{display:flex;width:86%;max-width:88px;height:5px;border-radius:99px;
           background:var(--border);overflow:hidden;margin:5px auto 4px}
@@ -712,7 +712,7 @@ CSS = """
   .rc-sport{font-weight:800;font-size:12px;white-space:nowrap;padding-left:8px;
        border-left:3px solid var(--sc)}
   .rc-bars{display:flex;flex-direction:column;gap:7px;min-width:0}
-  .rc-line{display:grid;grid-template-columns:56px 1fr 46px;gap:7px;align-items:center}
+  .rc-line{display:grid;grid-template-columns:56px 1fr 54px;gap:7px;align-items:center}
   .rc-lbl{font-size:9.5px;font-weight:700;color:var(--muted);white-space:nowrap}
   .rc-track,.rc-roi{position:relative;height:8px;border-radius:99px;
        background:var(--border);overflow:hidden}
@@ -728,6 +728,9 @@ CSS = """
   .rc-val{font-size:11px;font-weight:800;text-align:right;white-space:nowrap}
   .rc-val.pos{color:var(--green)} .rc-val.neg{color:var(--red)}
   .rc-val.na{color:var(--muted);opacity:.55}
+  /* ROI réel sous le taux de confiance (petit, coloré) : un taux élevé peut cacher un ROI négatif */
+  .rc-roi-sub{display:block;font-size:9px;font-weight:700;line-height:1.15;margin-top:1px}
+  .rc-roi-sub.pos{color:var(--green)} .rc-roi-sub.neg{color:var(--red)}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);
