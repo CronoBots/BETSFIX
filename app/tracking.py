@@ -608,13 +608,22 @@ def _perle_events(store: dict) -> list[tuple]:
     return ev
 
 
-def _evo_svg(conf: list, val: list, tot: list) -> str:
-    """SVG compact d'un sport : 3 polylines (Value/Confiance/Total) + ligne zéro + bornes Y.
-    Cadrage propre à CE sport (un petit P&L n'est pas écrasé par un gros)."""
-    n = len(tot)
+# Dates de DÉPLOIEMENT des optimisations du système perle (repères verticaux ambre sur les
+# courbes) -> on voit si la pente s'améliore après chaque optimisation. À compléter au fil des
+# déploiements. Format : (date ISO « AAAA-MM-JJ », label court).
+PERLE_OPTIM_DATES = [
+    ("2026-06-06", "tri score"),   # P2 : confiance triée par proba×edge
+]
+
+
+def _evo_svg(conf: list, val: list, markers: list = ()) -> str:
+    """SVG compact d'un sport : 2 courbes (Confiance vert, Value bleu) + ligne zéro + bornes Y +
+    repères verticaux d'optimisation (`markers` = [(index, label), ...]). Le Total n'est PAS tracé
+    (il reste en chiffre dans le pied). Cadrage propre à CE sport."""
+    n = len(conf)
     W, H, L, R, TP, BT = 324.0, 84.0, 34.0, 8.0, 8.0, 8.0
-    ymin = min(0.0, min(conf), min(val), min(tot))
-    ymax = max(0.0, max(conf), max(val), max(tot))
+    ymin = min(0.0, min(conf), min(val))
+    ymax = max(0.0, max(conf), max(val))
     if ymax - ymin < 1e-9:
         ymax = ymin + 1.0
     fx = lambda i: L + (W - L - R) * (i / (n - 1))          # noqa: E731
@@ -634,10 +643,18 @@ def _evo_svg(conf: list, val: list, tot: list) -> str:
             f'stroke-width="1" stroke-dasharray="3 3"/>')
     ylab = (txt(L - 4, fy(ymax) + 3, f"{'+' if ymax > 0 else ''}{round(ymax)}€")
             + txt(L - 4, fy(ymin) + 3, f"{round(ymin)}€"))
-    # Couleurs alignées sur le tableau : Confiance VERT (#34d27b), Value BLEU (#4aa8ff), Total blanc.
+    # Repères verticaux = dates d'optimisation perle (ambre pointillé + label au sommet).
+    mlines = mlabels = ""
+    for idx, label in markers:
+        mx = fx(idx)
+        anchor, lx = ("end", mx - 2) if mx > W * 0.6 else ("start", mx + 2)
+        mlines += (f'<line x1="{mx:.1f}" y1="{TP}" x2="{mx:.1f}" y2="{H - BT}" stroke="#ffa94a" '
+                   f'stroke-width="1" stroke-dasharray="2 2"/>')
+        mlabels += (f'<text x="{lx:.1f}" y="{TP + 6}" text-anchor="{anchor}" fill="#ffa94a" '
+                    f'font-size="7" font-weight="700">{html.escape(label)}</text>')
+    # Couleurs alignées sur le tableau : Confiance VERT (#34d27b), Value BLEU (#4aa8ff).
     return (f'<svg class="evo-svg" viewBox="0 0 {W:.0f} {H:.0f}" xmlns="http://www.w3.org/2000/svg">'
-            f'{grid}{poly(val, "#4aa8ff", 1.4)}{poly(conf, "#34d27b", 1.4)}'
-            f'{poly(tot, "#f0f3f7", 2.2)}{ylab}</svg>')
+            f'{grid}{mlines}{poly(val, "#4aa8ff", 1.9)}{poly(conf, "#34d27b", 1.9)}{ylab}{mlabels}</svg>')
 
 
 def _evo_curve(ev: list, stake: float) -> tuple:
@@ -657,7 +674,13 @@ def _evo_curve(ev: list, stake: float) -> tuple:
         return f'<b class="{"pos" if v >= 0 else "neg"}">{"+" if v >= 0 else ""}{round(v)}€</b>'
     foot = (f'<div class="spc-foot">Total {col(tot[-1])} · Conf {col(conf[-1])} · Val {col(val[-1])} '
             f'· {_fr_date(ev[0][0])}→{_fr_date(ev[-1][0])}</div>')
-    return _evo_svg(conf, val, tot), foot
+    # Repère par optimisation : index du 1er pari réglé À PARTIR de la date de déploiement.
+    markers = []
+    for date, label in PERLE_OPTIM_DATES:
+        idx = next((i for i, (at, _k, _p) in enumerate(ev) if at[:10] >= date), None)
+        if idx is not None:
+            markers.append((idx, label))
+    return _evo_svg(conf, val, markers), foot
 
 
 def render_sport_cards(data: list[tuple], stake: float = 5.0) -> str:
@@ -680,12 +703,13 @@ def render_sport_cards(data: list[tuple], stake: float = 5.0) -> str:
                 f'<span class="spc-verdict {vcls}">{vtext}</span></div>'
                 f'<div class="spc-sample">{sample}</div>')
         cards.append(f'<div class="spc" style="--sc:{sc}">{head}{curve}{cfoot}</div>')
-    legend = ('<div class="evo-legend"><span class="evo-lg"><i style="background:#f0f3f7"></i>Total</span>'
-              '<span class="evo-lg"><i style="background:#34d27b"></i>Confiance</span>'
-              '<span class="evo-lg"><i style="background:#4aa8ff"></i>Value</span></div>')
-    info = ('Détail par sport : verdict (ROI perle global), taux de réussite & ROI (confiance/value), '
-            'et courbe de P&L cumulé (5€/pari). Si une optimisation marche, la pente du sport ciblé '
-            'remonte après son déploiement.')
+    legend = ('<div class="evo-legend"><span class="evo-lg"><i style="background:#34d27b"></i>Confiance</span>'
+              '<span class="evo-lg"><i style="background:#4aa8ff"></i>Value</span>'
+              '<span class="evo-lg"><i style="background:#ffa94a"></i>Optim</span></div>')
+    info = ('Détail par sport : verdict (ROI perle global), et courbe de P&L cumulé (5€/pari) — '
+            'Confiance (vert) + Value (bleu), Total en chiffre dans le pied. Les repères ambre '
+            'verticaux marquent les dates d\'optimisation du système perle : si une optimisation '
+            'marche, la pente remonte après son repère.')
     return web._section('🎯 Détail par sport', legend + "".join(cards), open_=True, info=info)
 
 

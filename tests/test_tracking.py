@@ -263,18 +263,27 @@ def test_evolution_cumulative_and_svg():
     store["3"] = {"perle": {"selection": "D"},
                   "result": {"void": True, "settled_at": "2026-06-03T10:00:00", "perle_pnl": 5.0}}
     assert len(tracking._perle_events(store)) == len(ev)
-    # Carte détail par sport : barres (taux/ROI) + courbe -> SVG bien formé + 3 polylines
-    rep = {"perle_conf_regles": 1, "perle_conf_taux": 0.5, "perle_conf_roi": -0.1,
-           "perle_value_regles": 1, "perle_value_taux": 1.0, "perle_value_roi": 0.5,
-           "perle_paris_regles": 2, "perle_matchs_regles": 2}
+    # Carte détail par sport : courbe à 2 lignes (Confiance vert + Value bleu) -> SVG bien formé
+    rep = {"perle_paris_regles": 2, "perle_matchs_regles": 2}
     html = tracking.render_sport_cards([("🎾", "Tennis", rep, store)], stake=5.0)
     ET.fromstring(re.search(r"<svg.*?</svg>", html, re.S).group(0))
-    assert html.count("<polyline") == 3
+    assert html.count("<polyline") == 2                  # Total non tracé (que Conf + Value)
     assert "Tennis" in html and "Confiance" in html and "Value" in html
-    # un 2e sport sans données : sa carte existe (barres « — » + message courbe), 1 seule courbe
+    # un 2e sport sans données : sa carte existe (message courbe), 1 seule courbe (2 polylines)
     mixed = tracking.render_sport_cards([("🎾", "Tennis", rep, store), ("⚽", "Foot", {}, {})])
     assert mixed.count('<div class="spc"') == 2          # 2 cartes
-    assert mixed.count("<polyline") == 3 and "pas encore assez" in mixed
+    assert mixed.count("<polyline") == 2 and "pas encore assez" in mixed
+    # Repère d'optimisation : un pari réglé À PARTIR d'une date d'optim -> ligne ambre + label
+    post = {"X": {"perle": {"selection": "Z"},
+                  "result": {"settled_at": "2099-01-02T10:00:00", "perle_pnl": 1.0}},
+            "Y": {"perle": {"selection": "W"},
+                  "result": {"settled_at": "2099-01-03T10:00:00", "perle_pnl": -1.0}}}
+    tracking.PERLE_OPTIM_DATES.append(("2099-01-03", "testoptim"))
+    try:
+        h = tracking.render_sport_cards([("🎾", "T", {"perle_paris_regles": 2}, post)])
+        assert "#ffa94a" in h and "testoptim" in h        # repère ambre + label rendus
+    finally:
+        tracking.PERLE_OPTIM_DATES.pop()
 
 
 def test_load_cache(tmp_path):
