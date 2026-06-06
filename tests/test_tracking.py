@@ -263,17 +263,18 @@ def test_evolution_cumulative_and_svg():
     store["3"] = {"perle": {"selection": "D"},
                   "result": {"void": True, "settled_at": "2026-06-03T10:00:00", "perle_pnl": 5.0}}
     assert len(tracking._perle_events(store)) == len(ev)
-    # SVG bien formé + 3 polylines (Confiance / Value / Total) pour le sport
-    html = tracking.render_evolution([("🎾", "Tennis", store)], stake=5.0)
+    # Carte détail par sport : barres (taux/ROI) + courbe -> SVG bien formé + 3 polylines
+    rep = {"perle_conf_regles": 1, "perle_conf_taux": 0.5, "perle_conf_roi": -0.1,
+           "perle_value_regles": 1, "perle_value_taux": 1.0, "perle_value_roi": 0.5,
+           "perle_paris_regles": 2, "perle_matchs_regles": 2}
+    html = tracking.render_sport_cards([("🎾", "Tennis", rep, store)], stake=5.0)
     ET.fromstring(re.search(r"<svg.*?</svg>", html, re.S).group(0))
     assert html.count("<polyline") == 3
-    assert "Total" in html and "Confiance" in html and "Value" in html
-    assert "Tennis" in html
-    # un sport sans données : bloc présent mais message, pas de courbe
-    mixed = tracking.render_evolution([("🎾", "Tennis", store), ("⚽", "Foot", {})])
+    assert "Tennis" in html and "Confiance" in html and "Value" in html
+    # un 2e sport sans données : sa carte existe (barres « — » + message courbe), 1 seule courbe
+    mixed = tracking.render_sport_cards([("🎾", "Tennis", rep, store), ("⚽", "Foot", {}, {})])
+    assert mixed.count('<div class="spc"') == 2          # 2 cartes
     assert mixed.count("<polyline") == 3 and "pas encore assez" in mixed
-    # aucun sport avec >= 2 paris -> section vide globale
-    assert "Pas encore assez" in tracking.render_evolution([("⚽", "Foot", {})])
 
 
 def test_load_cache(tmp_path):

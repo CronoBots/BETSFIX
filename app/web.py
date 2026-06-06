@@ -701,16 +701,8 @@ CSS = """
   .pg-lg{display:inline-block;width:14px;height:5px;border-radius:99px;vertical-align:middle;margin-right:2px}
   .pg-lg.done{background:linear-gradient(90deg,#34d27b,#4aa8ff)}
   .pg-lg.wait{background:rgba(159,180,207,.32)}
-  /* Graphique « Taux & ROI par sport » (sous le tableau « bat le marché ») : barre de
-     taux pour la confiance (repère 50 %) + barre ROI divergente (origine centrée) pour la value. */
-  .rchart{margin:14px 2px 2px}
-  .rchart-t{font-size:11px;font-weight:800;color:#cfe0f5;text-align:center;
-       letter-spacing:.3px;margin-bottom:10px}
-  .rc-row{display:grid;grid-template-columns:62px 1fr;gap:9px;align-items:center;
-       padding:8px 0;border-top:1px solid var(--border);--sc:var(--border)}
-  .rc-row:first-of-type{border-top:0}
-  .rc-sport{font-weight:800;font-size:12px;white-space:nowrap;padding-left:8px;
-       border-left:3px solid var(--sc)}
+  /* Barres taux/ROI d'un sport (dans une carte « détail par sport ») : barre de taux pour la
+     confiance (repère 50 %) + barre ROI divergente (origine centrée) pour la value. */
   .rc-bars{display:flex;flex-direction:column;gap:7px;min-width:0}
   .rc-line{display:grid;grid-template-columns:56px 1fr 54px;gap:7px;align-items:center}
   .rc-lbl{font-size:9.5px;font-weight:700;color:var(--muted);white-space:nowrap}
@@ -738,16 +730,19 @@ CSS = """
   .evo-lg{font-size:11px;font-weight:700;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
   .evo-lg i{width:12px;height:3px;border-radius:99px;display:inline-block}
   .evo-lg b.pos{color:var(--green)} .evo-lg b.neg{color:var(--red)}
-  .evo-foot{font-size:10.5px;color:var(--muted);text-align:center;margin-top:3px;line-height:1.5}
-  .evo-empty{font-size:12px;color:var(--muted);text-align:center;padding:16px 8px}
-  /* Un bloc par sport (titre + totaux + mini-courbe + période) */
-  .evo-block{margin:10px 0 6px;padding-top:9px;border-top:1px solid var(--border)}
-  .evo-block:first-of-type{border-top:0;padding-top:2px}
-  .evo-sport{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
-  .evo-st{font-weight:800;font-size:12.5px;white-space:nowrap}
-  .evo-tot{font-size:10.5px;color:var(--muted);font-weight:600}
-  .evo-tot b.pos{color:var(--green)} .evo-tot b.neg{color:var(--red)}
-  .evo-na{font-size:10.5px;color:var(--muted);font-style:italic}
+  .evo-na{font-size:10.5px;color:var(--muted);font-style:italic;text-align:center;padding:10px 0}
+  /* Carte détail PAR SPORT : verdict + échantillon + barres taux/ROI + courbe P&L cumulé */
+  .spc{margin:11px 0;padding:11px 13px 9px;border-radius:var(--radius);
+       background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--cardline);border-left:3px solid var(--sc,var(--border));
+       box-shadow:var(--cardglow),var(--shadow)}
+  .spc-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .spc-name{font-weight:800;font-size:14px;white-space:nowrap}
+  .spc-verdict{font-size:11px;font-weight:800;white-space:nowrap}
+  .spc-verdict.ok{color:var(--green)} .spc-verdict.ko{color:var(--red)} .spc-verdict.na{color:var(--muted)}
+  .spc-sample{font-size:10px;color:var(--muted);font-weight:600;margin:1px 0 7px}
+  .spc-foot{font-size:10px;color:var(--muted);text-align:center;margin-top:4px;line-height:1.5}
+  .spc-foot b.pos{color:var(--green)} .spc-foot b.neg{color:var(--red)}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);

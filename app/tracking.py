@@ -473,25 +473,31 @@ def _signed_pct(x, dec: int = 1) -> str:
     return f"{'+' if x >= 0 else ''}{round(x * 100, dec)}%"
 
 
+def _verdict(rep: dict) -> tuple:
+    """(texte, classe) du verdict perle d'un sport : ✓ Plus fiable / ✗ Moins fiable / En rodage /
+    En collecte, d'après le ROI perle global et la taille d'échantillon."""
+    n = rep.get("perle_matchs_regles") or 0
+    np = rep.get("perle_paris_regles") or 0
+    roi_g = rep.get("perle_roi_global")
+    if n == 0:
+        return "En collecte", "na"
+    if np < 30:
+        return "En rodage", "na"
+    if roi_g is not None and roi_g > 0:
+        return "✓ Plus fiable", "ok"
+    if roi_g is not None and roi_g < 0:
+        return "✗ Moins fiable", "ko"
+    return "En rodage", "na"
+
+
 def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
     """Une LIGNE du tableau Preuve (1 sport) : sport (+ nb matchs) | fiabilité | confiance | value.
     Couleur du sport sur le liseré gauche. Détail complet au tap (dashboard)."""
     e = html.escape
     # Track record de la PERLE (depuis sa mise en place) : « matchs notés » = matchs
     # perle réglés, verdict = ROI perle global (la perle bat-elle le marché ?).
-    n = rep.get("perle_matchs_regles") or 0
     np = rep.get("perle_paris_regles") or 0
-    roi_g = rep.get("perle_roi_global")
-    if n == 0:
-        verdict, vcls = "En collecte", "na"
-    elif np < 30:
-        verdict, vcls = "En rodage", "na"
-    elif roi_g is not None and roi_g > 0:
-        verdict, vcls = "✓ Plus fiable", "ok"
-    elif roi_g is not None and roi_g < 0:
-        verdict, vcls = "✗ Moins fiable", "ko"
-    else:
-        verdict, vcls = "En rodage", "na"
+    verdict, vcls = _verdict(rep)
     accent = {"tennis": "#d7e64a", "foot": "#2ee27f", "basket": "#ff9f43"}.get(name.lower(), "")
     # Confiance : perles « À JOUER » réglées -> nb gagnés (gros) + taux de réussite (petit dessous)
     cn = rep.get("perle_conf_regles") or 0
@@ -534,55 +540,45 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
             f'{conf_cell}{val_cell}</a>')
 
 
-def _rate_chart(reports: list[tuple]) -> str:
-    """Graphique « Taux & ROI par sport » : pour chaque sport, une barre de TAUX de réussite
-    (confiance, repère à 50 %) + une barre ROI DIVERGENTE (value, origine centrée à 0 %).
-    Réutilise `reports` (même ordre que le tableau) -> reste cohérent avec « bat le marché »."""
-    accents = {"tennis": "#d7e64a", "foot": "#2ee27f", "basket": "#ff9f43"}
-    out = []
-    for icon, name, rep, _url in reports:
-        sc = accents.get(name.lower(), "var(--border)")
-        # Confiance : taux de réussite (doit dépasser 50 %) -> barre 0-100 % + repère médian.
-        cn = rep.get("perle_conf_regles") or 0
-        if cn:
-            taux = rep.get("perle_conf_taux") or 0.0
-            pct = round(taux * 100)
-            cls = "ok" if taux >= 0.5 else "ko"
-            croi = rep.get("perle_conf_roi") or 0.0   # ROI réel sous le taux (le juge de rentabilité)
-            rcls = "pos" if croi >= 0 else "neg"
-            rtxt = f'{"+" if croi >= 0 else ""}{round(croi * 100)}%'
-            conf = (f'<div class="rc-line"><span class="rc-lbl">Confiance</span>'
-                    f'<span class="rc-track"><span class="rc-fill {cls}" style="width:{pct}%"></span>'
-                    f'<span class="rc-tick"></span></span>'
-                    f'<span class="rc-val">{pct}%<span class="rc-roi-sub {rcls}">{rtxt}</span></span></div>')
-        else:
-            conf = ('<div class="rc-line"><span class="rc-lbl">Confiance</span>'
-                    '<span class="rc-track"></span><span class="rc-val na">—</span></div>')
-        # Value : ROI (seul juge de rentabilité) -> barre divergente, +droite (vert) / −gauche (rouge),
-        # bornée à ±50 % pour l'échelle visuelle ; le chiffre exact reste affiché à droite.
-        vn = rep.get("perle_value_regles") or 0
-        if vn:
-            roi = rep.get("perle_value_roi") or 0.0
-            w = round(min(abs(roi) / 0.5, 1.0) * 50)
-            seg = (f'<span class="rc-pos" style="width:{w}%"></span>' if roi >= 0
-                   else f'<span class="rc-neg" style="width:{w}%"></span>')
-            sign = "+" if roi >= 0 else "−"
-            vcls = "pos" if roi >= 0 else "neg"
-            arrow = "▲" if roi >= 0 else "▼"
-            vtaux = round((rep.get("perle_value_taux") or 0) * 100)   # % de réussite (sous le ROI)
-            val = (f'<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
-                   f'<span class="rc-roi"><span class="rc-zero"></span>{seg}</span>'
-                   f'<span class="rc-val {vcls}">{arrow} {sign}{abs(round(roi * 100))}%'
-                   f'<span class="rc-roi-sub muted">{vtaux}%</span></span></div>')
-        else:
-            val = ('<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
-                   '<span class="rc-roi"><span class="rc-zero"></span></span>'
-                   '<span class="rc-val na">—</span></div>')
-        out.append(f'<div class="rc-row" style="--sc:{sc}">'
-                   f'<span class="rc-sport">{icon} {html.escape(name)}</span>'
-                   f'<div class="rc-bars">{conf}{val}</div></div>')
-    return ('<div class="rchart"><div class="rchart-t">📈 Taux de réussite & ROI par sport</div>'
-            + "".join(out) + '</div>')
+def _rate_bars(rep: dict) -> str:
+    """Les 2 barres d'UN sport (sans label de sport, pour une carte) : barre de TAUX de réussite
+    (confiance, repère à 50 %, + ROI sous le taux) et barre ROI DIVERGENTE (value, + taux sous le ROI)."""
+    # Confiance : taux de réussite (doit dépasser 50 %) -> barre 0-100 % + repère médian + ROI réel.
+    cn = rep.get("perle_conf_regles") or 0
+    if cn:
+        taux = rep.get("perle_conf_taux") or 0.0
+        pct = round(taux * 100)
+        cls = "ok" if taux >= 0.5 else "ko"
+        croi = rep.get("perle_conf_roi") or 0.0
+        rcls = "pos" if croi >= 0 else "neg"
+        rtxt = f'{"+" if croi >= 0 else ""}{round(croi * 100)}%'
+        conf = (f'<div class="rc-line"><span class="rc-lbl">Confiance</span>'
+                f'<span class="rc-track"><span class="rc-fill {cls}" style="width:{pct}%"></span>'
+                f'<span class="rc-tick"></span></span>'
+                f'<span class="rc-val">{pct}%<span class="rc-roi-sub {rcls}">{rtxt}</span></span></div>')
+    else:
+        conf = ('<div class="rc-line"><span class="rc-lbl">Confiance</span>'
+                '<span class="rc-track"></span><span class="rc-val na">—</span></div>')
+    # Value : ROI (juge de rentabilité) -> barre divergente +droite (vert) / −gauche (rouge) + taux sous le ROI.
+    vn = rep.get("perle_value_regles") or 0
+    if vn:
+        roi = rep.get("perle_value_roi") or 0.0
+        w = round(min(abs(roi) / 0.5, 1.0) * 50)
+        seg = (f'<span class="rc-pos" style="width:{w}%"></span>' if roi >= 0
+               else f'<span class="rc-neg" style="width:{w}%"></span>')
+        sign = "+" if roi >= 0 else "−"
+        vcls = "pos" if roi >= 0 else "neg"
+        arrow = "▲" if roi >= 0 else "▼"
+        vtaux = round((rep.get("perle_value_taux") or 0) * 100)
+        val = (f'<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
+               f'<span class="rc-roi"><span class="rc-zero"></span>{seg}</span>'
+               f'<span class="rc-val {vcls}">{arrow} {sign}{abs(round(roi * 100))}%'
+               f'<span class="rc-roi-sub muted">{vtaux}%</span></span></div>')
+    else:
+        val = ('<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
+               '<span class="rc-roi"><span class="rc-zero"></span></span>'
+               '<span class="rc-val na">—</span></div>')
+    return f'<div class="rc-bars">{conf}{val}</div>'
 
 
 def render_proof(reports: list[tuple]) -> str:
@@ -594,7 +590,7 @@ def render_proof(reports: list[tuple]) -> str:
     # Légende des mini-barres (progression PAR SPORT dans la colonne Fiabilité).
     cap = ('<div class="ptab-cap"><span class="pg-lg done"></span> réglés · '
            '<span class="pg-lg wait"></span> en attente · objectif <b>100</b> = preuve solide</div>')
-    table = f'<div class="ptab">{head}{rows}</div>{cap}{_rate_chart(reports)}'
+    table = f'<div class="ptab">{head}{rows}</div>{cap}'
     info = ('Sur les paris « perle » déjà réglés, sont-ils gagnants face au marché ? '
             '<b>Fiabilité</b> le dit (sur le ROI global) : <b>✓ Plus fiable</b> / '
             '<b>✗ Moins fiable</b> que le marché, <b>En rodage</b> = pas encore assez de recul, '
@@ -684,12 +680,10 @@ def _evo_svg(conf: list, val: list, tot: list) -> str:
             f'{poly(tot, "#f0f3f7", 2.2)}{ylab}</svg>')
 
 
-def _evo_block(icon: str, name: str, ev: list, stake: float) -> str:
-    """Un sport : titre + totaux colorés + mini-courbe + période. Message si < 2 paris réglés."""
-    e = html.escape
+def _evo_curve(ev: list, stake: float) -> tuple:
+    """(svg_ou_message, foot) de la courbe d'UN sport. foot = totaux + période (vide si < 2 paris)."""
     if len(ev) < 2:
-        return (f'<div class="evo-block"><div class="evo-sport"><span class="evo-st">{icon} {e(name)}'
-                f'</span><span class="evo-na">pas encore assez de paris réglés</span></div></div>')
+        return '<div class="evo-na">courbe : pas encore assez de paris réglés</div>', ""
     cc = cv = 0.0
     conf, val, tot = [], [], []
     for _at, kind, pnl in ev:
@@ -701,33 +695,38 @@ def _evo_block(icon: str, name: str, ev: list, stake: float) -> str:
 
     def col(v):
         return f'<b class="{"pos" if v >= 0 else "neg"}">{"+" if v >= 0 else ""}{round(v)}€</b>'
-    head = (f'<div class="evo-sport"><span class="evo-st">{icon} {e(name)}</span>'
-            f'<span class="evo-tot">Total {col(tot[-1])} · Conf {col(conf[-1])} · Val {col(val[-1])}</span></div>')
-    foot = (f'<div class="evo-foot">{len(ev)} paris réglés · du {_fr_date(ev[0][0])} '
-            f'au {_fr_date(ev[-1][0])}</div>')
-    return f'<div class="evo-block">{head}{_evo_svg(conf, val, tot)}{foot}</div>'
+    foot = (f'<div class="spc-foot">P&amp;L cumulé : Total {col(tot[-1])} · Conf {col(conf[-1])} '
+            f'· Val {col(val[-1])} · du {_fr_date(ev[0][0])} au {_fr_date(ev[-1][0])}</div>')
+    return _evo_svg(conf, val, tot), foot
 
 
-def render_evolution(named_stores: list[tuple], stake: float = 5.0) -> str:
-    """UN graphique PAR SPORT : P&L cumulé Confiance/Value/Total au fil des règlements (5€/pari).
-    `named_stores` = [(icon, name, store), ...]. Permet de voir si la pente d'un sport remonte
-    après une optimisation qui le cible (ex. value Foot)."""
-    blocks, any_data = [], False
-    for icon, name, store in named_stores:
-        ev = sorted((e for e in _perle_events(store) if e[0]), key=lambda e: e[0])
-        blocks.append(_evo_block(icon, name, ev, stake))
-        any_data = any_data or len(ev) >= 2
-    if not any_data:
-        return web._section('📈 Évolution du P&L', '<div class="evo-empty">Pas encore assez de '
-                            'paris réglés pour tracer une courbe.</div>', open_=False)
+def render_sport_cards(data: list[tuple], stake: float = 5.0) -> str:
+    """UNE carte détail par sport (max d'info utile) : verdict + échantillon + barres taux/ROI
+    (confiance/value) + courbe de P&L cumulé. `data` = [(icon, name, rep, store), ...].
+    Complète le tableau « bat le marché » (comparaison) par le détail groupé par sport."""
+    e = html.escape
+    accents = {"tennis": "#d7e64a", "foot": "#2ee27f", "basket": "#ff9f43"}
+    cards = []
+    for icon, name, rep, store in data:
+        sc = accents.get(name.lower(), "var(--border)")
+        vtext, vcls = _verdict(rep)
+        np = rep.get("perle_paris_regles") or 0
+        wait = rep.get("perle_en_attente") or 0
+        sample = (f'{np} réglé{"s" if np > 1 else ""} · {wait} en cours' if wait
+                  else f'{np} pari{"s" if np > 1 else ""} réglé{"s" if np > 1 else ""}')
+        ev = sorted((x for x in _perle_events(store) if x[0]), key=lambda x: x[0])
+        curve, cfoot = _evo_curve(ev, stake)
+        head = (f'<div class="spc-head"><span class="spc-name">{icon} {e(name)}</span>'
+                f'<span class="spc-verdict {vcls}">{vtext}</span></div>'
+                f'<div class="spc-sample">{sample}</div>')
+        cards.append(f'<div class="spc" style="--sc:{sc}">{head}{_rate_bars(rep)}{curve}{cfoot}</div>')
     legend = ('<div class="evo-legend"><span class="evo-lg"><i style="background:#f0f3f7"></i>Total</span>'
               '<span class="evo-lg"><i style="background:#5ab0ff"></i>Confiance</span>'
               '<span class="evo-lg"><i style="background:#ffb454"></i>Value</span></div>')
-    info = ('P&L cumulé (mise plate 5€) des perles au fil de leur règlement, UN graphique par sport. '
-            'Si une optimisation marche, la pente du sport ciblé remonte après son déploiement. '
-            'Total = Confiance + Value.')
-    return web._section('📈 Évolution du P&L par sport (5€/pari)',
-                        legend + "".join(blocks), open_=True, info=info)
+    info = ('Détail par sport : verdict (ROI perle global), taux de réussite & ROI (confiance/value), '
+            'et courbe de P&L cumulé (5€/pari). Si une optimisation marche, la pente du sport ciblé '
+            'remonte après son déploiement.')
+    return web._section('🎯 Détail par sport', legend + "".join(cards), open_=True, info=info)
 
 
 def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
