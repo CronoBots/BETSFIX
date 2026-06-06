@@ -540,47 +540,6 @@ def _proof_row(icon: str, name: str, rep: dict, url: str) -> str:
             f'{conf_cell}{val_cell}</a>')
 
 
-def _rate_bars(rep: dict) -> str:
-    """Les 2 barres d'UN sport (sans label de sport, pour une carte) : barre de TAUX de réussite
-    (confiance, repère à 50 %, + ROI sous le taux) et barre ROI DIVERGENTE (value, + taux sous le ROI)."""
-    # Confiance : taux de réussite (doit dépasser 50 %) -> barre 0-100 % + repère médian + ROI réel.
-    cn = rep.get("perle_conf_regles") or 0
-    if cn:
-        taux = rep.get("perle_conf_taux") or 0.0
-        pct = round(taux * 100)
-        cls = "ok" if taux >= 0.5 else "ko"
-        croi = rep.get("perle_conf_roi") or 0.0
-        rcls = "pos" if croi >= 0 else "neg"
-        rtxt = f'{"+" if croi >= 0 else ""}{round(croi * 100)}%'
-        conf = (f'<div class="rc-line"><span class="rc-lbl">Confiance</span>'
-                f'<span class="rc-track"><span class="rc-fill {cls}" style="width:{pct}%"></span>'
-                f'<span class="rc-tick"></span></span>'
-                f'<span class="rc-val">{pct}%<span class="rc-roi-sub {rcls}">{rtxt}</span></span></div>')
-    else:
-        conf = ('<div class="rc-line"><span class="rc-lbl">Confiance</span>'
-                '<span class="rc-track"></span><span class="rc-val na">—</span></div>')
-    # Value : ROI (juge de rentabilité) -> barre divergente +droite (vert) / −gauche (rouge) + taux sous le ROI.
-    vn = rep.get("perle_value_regles") or 0
-    if vn:
-        roi = rep.get("perle_value_roi") or 0.0
-        w = round(min(abs(roi) / 0.5, 1.0) * 50)
-        seg = (f'<span class="rc-pos" style="width:{w}%"></span>' if roi >= 0
-               else f'<span class="rc-neg" style="width:{w}%"></span>')
-        sign = "+" if roi >= 0 else "−"
-        vcls = "pos" if roi >= 0 else "neg"
-        arrow = "▲" if roi >= 0 else "▼"
-        vtaux = round((rep.get("perle_value_taux") or 0) * 100)
-        val = (f'<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
-               f'<span class="rc-roi"><span class="rc-zero"></span>{seg}</span>'
-               f'<span class="rc-val {vcls}">{arrow} {sign}{abs(round(roi * 100))}%'
-               f'<span class="rc-roi-sub muted">{vtaux}%</span></span></div>')
-    else:
-        val = ('<div class="rc-line"><span class="rc-lbl">Value ROI</span>'
-               '<span class="rc-roi"><span class="rc-zero"></span></span>'
-               '<span class="rc-val na">—</span></div>')
-    return f'<div class="rc-bars">{conf}{val}</div>'
-
-
 def render_proof(reports: list[tuple]) -> str:
     """Section « Preuve » : UN tableau (1 ligne par sport) pour comparer d'un coup d'œil.
     `reports` = [(icon, name, rep, url), ...]."""
@@ -719,7 +678,7 @@ def render_sport_cards(data: list[tuple], stake: float = 5.0) -> str:
         head = (f'<div class="spc-head"><span class="spc-name">{icon} {e(name)}</span>'
                 f'<span class="spc-verdict {vcls}">{vtext}</span></div>'
                 f'<div class="spc-sample">{sample}</div>')
-        cards.append(f'<div class="spc" style="--sc:{sc}">{head}{_rate_bars(rep)}{curve}{cfoot}</div>')
+        cards.append(f'<div class="spc" style="--sc:{sc}">{head}{curve}{cfoot}</div>')
     legend = ('<div class="evo-legend"><span class="evo-lg"><i style="background:#f0f3f7"></i>Total</span>'
               '<span class="evo-lg"><i style="background:#5ab0ff"></i>Confiance</span>'
               '<span class="evo-lg"><i style="background:#ffb454"></i>Value</span></div>')

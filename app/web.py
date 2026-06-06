@@ -701,29 +701,6 @@ CSS = """
   .pg-lg{display:inline-block;width:14px;height:5px;border-radius:99px;vertical-align:middle;margin-right:2px}
   .pg-lg.done{background:linear-gradient(90deg,#34d27b,#4aa8ff)}
   .pg-lg.wait{background:rgba(159,180,207,.32)}
-  /* Barres taux/ROI d'un sport (dans une carte « détail par sport ») : barre de taux pour la
-     confiance (repère 50 %) + barre ROI divergente (origine centrée) pour la value. */
-  .rc-bars{display:flex;flex-direction:column;gap:7px;min-width:0}
-  .rc-line{display:grid;grid-template-columns:56px 1fr 54px;gap:7px;align-items:center}
-  .rc-lbl{font-size:9.5px;font-weight:700;color:var(--muted);white-space:nowrap}
-  .rc-track,.rc-roi{position:relative;height:8px;border-radius:99px;
-       background:var(--border);overflow:hidden}
-  .rc-fill{position:absolute;left:0;top:0;height:100%}
-  .rc-fill.ok{background:linear-gradient(90deg,#34d27b,#4aa8ff)}
-  .rc-fill.ko{background:linear-gradient(90deg,#ff9f43,#ff7a7a)}
-  .rc-tick,.rc-zero{position:absolute;left:50%;top:0;width:1px;height:100%;
-       background:rgba(207,224,245,.5);z-index:2}
-  .rc-pos{position:absolute;left:50%;top:0;height:100%;
-       background:linear-gradient(90deg,#2ee27f,#34d27b)}
-  .rc-neg{position:absolute;right:50%;top:0;height:100%;
-       background:linear-gradient(270deg,#ff7a7a,#ff9f43)}
-  .rc-val{font-size:11px;font-weight:800;text-align:right;white-space:nowrap}
-  .rc-val.pos{color:var(--green)} .rc-val.neg{color:var(--red)}
-  .rc-val.na{color:var(--muted);opacity:.55}
-  /* ROI réel sous le taux de confiance (petit, coloré) : un taux élevé peut cacher un ROI négatif */
-  .rc-roi-sub{display:block;font-size:9px;font-weight:700;line-height:1.15;margin-top:1px}
-  .rc-roi-sub.pos{color:var(--green)} .rc-roi-sub.neg{color:var(--red)}
-  .rc-roi-sub.muted{color:var(--muted)}
   /* Courbe d'équité (P&L cumulé dans le temps) : SVG généré côté serveur, sans JS */
   .evo-svg{width:100%;height:auto;display:block;margin:8px 0 2px}
   .evo-legend{display:flex;justify-content:center;gap:15px;flex-wrap:wrap;margin:7px 0 1px}
