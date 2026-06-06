@@ -263,13 +263,17 @@ def test_evolution_cumulative_and_svg():
     store["3"] = {"perle": {"selection": "D"},
                   "result": {"void": True, "settled_at": "2026-06-03T10:00:00", "perle_pnl": 5.0}}
     assert len(tracking._perle_events(store)) == len(ev)
-    # SVG bien formé + 3 polylines (Confiance / Value / Total)
-    html = tracking.render_evolution([store], stake=5.0)
+    # SVG bien formé + 3 polylines (Confiance / Value / Total) pour le sport
+    html = tracking.render_evolution([("🎾", "Tennis", store)], stake=5.0)
     ET.fromstring(re.search(r"<svg.*?</svg>", html, re.S).group(0))
     assert html.count("<polyline") == 3
     assert "Total" in html and "Confiance" in html and "Value" in html
-    # < 2 paris réglés -> message, pas de courbe
-    assert "Pas encore assez" in tracking.render_evolution([{}])
+    assert "Tennis" in html
+    # un sport sans données : bloc présent mais message, pas de courbe
+    mixed = tracking.render_evolution([("🎾", "Tennis", store), ("⚽", "Foot", {})])
+    assert mixed.count("<polyline") == 3 and "pas encore assez" in mixed
+    # aucun sport avec >= 2 paris -> section vide globale
+    assert "Pas encore assez" in tracking.render_evolution([("⚽", "Foot", {})])
 
 
 def test_load_cache(tmp_path):

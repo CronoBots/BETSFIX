@@ -653,69 +653,81 @@ def _perle_events(store: dict) -> list[tuple]:
     return ev
 
 
-def render_evolution(stores: list[dict], stake: float = 5.0) -> str:
-    """Courbe d'équité SVG : P&L CUMULÉ (Confiance / Value / Total) au fil des règlements, à
-    `stake` €/pari. Sert à voir si la pente remonte au fur et à mesure des optimisations perle."""
-    e = html.escape
-    events = [ev for s in stores for ev in _perle_events(s) if ev[0]]
-    events.sort(key=lambda ev: ev[0])
-    if len(events) < 2:
-        return web._section('📈 Évolution du P&L', '<div class="evo-empty">Pas encore assez de '
-                            'paris réglés pour tracer une courbe (il en faut au moins 2).</div>',
-                            open_=False)
-    cc = cv = 0.0
-    conf, val, tot = [], [], []
-    for _at, kind, pnl in events:
-        if kind == "conf":
-            cc += pnl * stake
-        else:
-            cv += pnl * stake
-        conf.append(cc); val.append(cv); tot.append(cc + cv)
-    n = len(events)
-    W, H, L, R, TP, BT = 324.0, 140.0, 34.0, 10.0, 12.0, 22.0
+def _evo_svg(conf: list, val: list, tot: list) -> str:
+    """SVG compact d'un sport : 3 polylines (Value/Confiance/Total) + ligne zéro + bornes Y.
+    Cadrage propre à CE sport (un petit P&L n'est pas écrasé par un gros)."""
+    n = len(tot)
+    W, H, L, R, TP, BT = 324.0, 84.0, 34.0, 8.0, 8.0, 8.0
     ymin = min(0.0, min(conf), min(val), min(tot))
     ymax = max(0.0, max(conf), max(val), max(tot))
     if ymax - ymin < 1e-9:
         ymax = ymin + 1.0
-
-    def fx(i):
-        return L + (W - L - R) * (i / (n - 1))
-
-    def fy(v):
-        return TP + (H - TP - BT) * (1 - (v - ymin) / (ymax - ymin))
+    fx = lambda i: L + (W - L - R) * (i / (n - 1))          # noqa: E731
+    fy = lambda v: TP + (H - TP - BT) * (1 - (v - ymin) / (ymax - ymin))   # noqa: E731
 
     def poly(series, color, width):
         pts = " ".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(series))
         return (f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="{width}" '
                 f'stroke-linejoin="round" stroke-linecap="round"/>')
 
-    def txt(x, y, anchor, s):
-        return (f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="{anchor}" fill="#9fb4cf" '
-                f'font-size="8" font-weight="600">{e(s)}</text>')
+    def txt(x, y, s):
+        return (f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="end" fill="#9fb4cf" '
+                f'font-size="8" font-weight="600">{html.escape(s)}</text>')
 
     y0 = fy(0.0)
     grid = (f'<line x1="{L}" y1="{y0:.1f}" x2="{W-R}" y2="{y0:.1f}" stroke="rgba(159,180,207,.4)" '
             f'stroke-width="1" stroke-dasharray="3 3"/>')
-    ylab = txt(L - 4, fy(ymax) + 3, "end", f"{'+' if ymax > 0 else ''}{round(ymax)}€") + \
-        txt(L - 4, fy(ymin) + 3, "end", f"{round(ymin)}€")
-    if ymin < 0 < ymax:
-        ylab += txt(L - 4, y0 + 3, "end", "0")
-    xlab = txt(L, H - 6, "start", _fr_date(events[0][0])) + \
-        txt(W - R, H - 6, "end", _fr_date(events[-1][0]))
-    svg = (f'<svg class="evo-svg" viewBox="0 0 {W:.0f} {H:.0f}" xmlns="http://www.w3.org/2000/svg">'
-           f'{grid}{poly(val, "#ffb454", 1.6)}{poly(conf, "#5ab0ff", 1.6)}'
-           f'{poly(tot, "#f0f3f7", 2.4)}{ylab}{xlab}</svg>')
+    ylab = (txt(L - 4, fy(ymax) + 3, f"{'+' if ymax > 0 else ''}{round(ymax)}€")
+            + txt(L - 4, fy(ymin) + 3, f"{round(ymin)}€"))
+    return (f'<svg class="evo-svg" viewBox="0 0 {W:.0f} {H:.0f}" xmlns="http://www.w3.org/2000/svg">'
+            f'{grid}{poly(val, "#ffb454", 1.4)}{poly(conf, "#5ab0ff", 1.4)}'
+            f'{poly(tot, "#f0f3f7", 2.2)}{ylab}</svg>')
 
-    def chip(color, label, v):
-        return (f'<span class="evo-lg"><i style="background:{color}"></i>{label} '
-                f'<b class="{"pos" if v >= 0 else "neg"}">{"+" if v >= 0 else ""}{round(v)}€</b></span>')
-    legend = (f'<div class="evo-legend">{chip("#f0f3f7", "Total", tot[-1])}'
-              f'{chip("#5ab0ff", "Confiance", conf[-1])}{chip("#ffb454", "Value", val[-1])}</div>')
-    foot = (f'<div class="evo-foot">{n} paris réglés · du {_fr_date(events[0][0])} '
-            f'au {_fr_date(events[-1][0])} · mise {round(stake)}€/pari</div>')
-    info = ('P&L cumulé (mise plate) des perles au fil de leur règlement. Si une optimisation '
-            'marche, la pente de la courbe remonte après son déploiement. Total = Confiance + Value.')
-    return web._section('📈 Évolution du P&L (5€/pari)', svg + legend + foot, open_=True, info=info)
+
+def _evo_block(icon: str, name: str, ev: list, stake: float) -> str:
+    """Un sport : titre + totaux colorés + mini-courbe + période. Message si < 2 paris réglés."""
+    e = html.escape
+    if len(ev) < 2:
+        return (f'<div class="evo-block"><div class="evo-sport"><span class="evo-st">{icon} {e(name)}'
+                f'</span><span class="evo-na">pas encore assez de paris réglés</span></div></div>')
+    cc = cv = 0.0
+    conf, val, tot = [], [], []
+    for _at, kind, pnl in ev:
+        if kind == "conf":
+            cc += pnl * stake
+        else:
+            cv += pnl * stake
+        conf.append(cc); val.append(cv); tot.append(cc + cv)
+
+    def col(v):
+        return f'<b class="{"pos" if v >= 0 else "neg"}">{"+" if v >= 0 else ""}{round(v)}€</b>'
+    head = (f'<div class="evo-sport"><span class="evo-st">{icon} {e(name)}</span>'
+            f'<span class="evo-tot">Total {col(tot[-1])} · Conf {col(conf[-1])} · Val {col(val[-1])}</span></div>')
+    foot = (f'<div class="evo-foot">{len(ev)} paris réglés · du {_fr_date(ev[0][0])} '
+            f'au {_fr_date(ev[-1][0])}</div>')
+    return f'<div class="evo-block">{head}{_evo_svg(conf, val, tot)}{foot}</div>'
+
+
+def render_evolution(named_stores: list[tuple], stake: float = 5.0) -> str:
+    """UN graphique PAR SPORT : P&L cumulé Confiance/Value/Total au fil des règlements (5€/pari).
+    `named_stores` = [(icon, name, store), ...]. Permet de voir si la pente d'un sport remonte
+    après une optimisation qui le cible (ex. value Foot)."""
+    blocks, any_data = [], False
+    for icon, name, store in named_stores:
+        ev = sorted((e for e in _perle_events(store) if e[0]), key=lambda e: e[0])
+        blocks.append(_evo_block(icon, name, ev, stake))
+        any_data = any_data or len(ev) >= 2
+    if not any_data:
+        return web._section('📈 Évolution du P&L', '<div class="evo-empty">Pas encore assez de '
+                            'paris réglés pour tracer une courbe.</div>', open_=False)
+    legend = ('<div class="evo-legend"><span class="evo-lg"><i style="background:#f0f3f7"></i>Total</span>'
+              '<span class="evo-lg"><i style="background:#5ab0ff"></i>Confiance</span>'
+              '<span class="evo-lg"><i style="background:#ffb454"></i>Value</span></div>')
+    info = ('P&L cumulé (mise plate 5€) des perles au fil de leur règlement, UN graphique par sport. '
+            'Si une optimisation marche, la pente du sport ciblé remonte après son déploiement. '
+            'Total = Confiance + Value.')
+    return web._section('📈 Évolution du P&L par sport (5€/pari)',
+                        legend + "".join(blocks), open_=True, info=info)
 
 
 def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:

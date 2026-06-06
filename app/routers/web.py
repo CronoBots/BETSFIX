@@ -400,9 +400,11 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
         ("⚽", "Foot", tracking.report(foot_store), "/tracking/dashboard?sport=foot"),
         ("🏀", "Basket", tracking.report(basket_store), "/tracking/dashboard?sport=basket"),
     ]
-    # Tableau « bat le marché » + courbe d'équité (P&L cumulé dans le temps, 3 sports confondus).
+    # Tableau « bat le marché » + courbe d'équité (P&L cumulé dans le temps, UN graphe par sport).
     proof_html = (tracking.render_proof(proof)
-                  + tracking.render_evolution([tennis_store, foot_store, basket_store]))
+                  + tracking.render_evolution([("🎾", "Tennis", tennis_store),
+                                               ("⚽", "Foot", foot_store),
+                                               ("🏀", "Basket", basket_store)]))
     body = web.render_home(
         tennis_rep, source=provider.breaker_status(),
         picks=values, conf_picks=confidences, frag=bool(frag),

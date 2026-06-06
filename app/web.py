@@ -738,8 +738,16 @@ CSS = """
   .evo-lg{font-size:11px;font-weight:700;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
   .evo-lg i{width:12px;height:3px;border-radius:99px;display:inline-block}
   .evo-lg b.pos{color:var(--green)} .evo-lg b.neg{color:var(--red)}
-  .evo-foot{font-size:10.5px;color:var(--muted);text-align:center;margin-top:5px;line-height:1.5}
+  .evo-foot{font-size:10.5px;color:var(--muted);text-align:center;margin-top:3px;line-height:1.5}
   .evo-empty{font-size:12px;color:var(--muted);text-align:center;padding:16px 8px}
+  /* Un bloc par sport (titre + totaux + mini-courbe + période) */
+  .evo-block{margin:10px 0 6px;padding-top:9px;border-top:1px solid var(--border)}
+  .evo-block:first-of-type{border-top:0;padding-top:2px}
+  .evo-sport{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .evo-st{font-weight:800;font-size:12.5px;white-space:nowrap}
+  .evo-tot{font-size:10.5px;color:var(--muted);font-weight:600}
+  .evo-tot b.pos{color:var(--green)} .evo-tot b.neg{color:var(--red)}
+  .evo-na{font-size:10.5px;color:var(--muted);font-style:italic}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);
