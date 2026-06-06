@@ -634,8 +634,9 @@ def _evo_svg(conf: list, val: list, tot: list) -> str:
             f'stroke-width="1" stroke-dasharray="3 3"/>')
     ylab = (txt(L - 4, fy(ymax) + 3, f"{'+' if ymax > 0 else ''}{round(ymax)}€")
             + txt(L - 4, fy(ymin) + 3, f"{round(ymin)}€"))
+    # Couleurs alignées sur le tableau : Confiance VERT (#34d27b), Value BLEU (#4aa8ff), Total blanc.
     return (f'<svg class="evo-svg" viewBox="0 0 {W:.0f} {H:.0f}" xmlns="http://www.w3.org/2000/svg">'
-            f'{grid}{poly(val, "#ffb454", 1.4)}{poly(conf, "#5ab0ff", 1.4)}'
+            f'{grid}{poly(val, "#4aa8ff", 1.4)}{poly(conf, "#34d27b", 1.4)}'
             f'{poly(tot, "#f0f3f7", 2.2)}{ylab}</svg>')
 
 
@@ -654,8 +655,8 @@ def _evo_curve(ev: list, stake: float) -> tuple:
 
     def col(v):
         return f'<b class="{"pos" if v >= 0 else "neg"}">{"+" if v >= 0 else ""}{round(v)}€</b>'
-    foot = (f'<div class="spc-foot">P&amp;L cumulé : Total {col(tot[-1])} · Conf {col(conf[-1])} '
-            f'· Val {col(val[-1])} · du {_fr_date(ev[0][0])} au {_fr_date(ev[-1][0])}</div>')
+    foot = (f'<div class="spc-foot">Total {col(tot[-1])} · Conf {col(conf[-1])} · Val {col(val[-1])} '
+            f'· {_fr_date(ev[0][0])}→{_fr_date(ev[-1][0])}</div>')
     return _evo_svg(conf, val, tot), foot
 
 
@@ -680,8 +681,8 @@ def render_sport_cards(data: list[tuple], stake: float = 5.0) -> str:
                 f'<div class="spc-sample">{sample}</div>')
         cards.append(f'<div class="spc" style="--sc:{sc}">{head}{curve}{cfoot}</div>')
     legend = ('<div class="evo-legend"><span class="evo-lg"><i style="background:#f0f3f7"></i>Total</span>'
-              '<span class="evo-lg"><i style="background:#5ab0ff"></i>Confiance</span>'
-              '<span class="evo-lg"><i style="background:#ffb454"></i>Value</span></div>')
+              '<span class="evo-lg"><i style="background:#34d27b"></i>Confiance</span>'
+              '<span class="evo-lg"><i style="background:#4aa8ff"></i>Value</span></div>')
     info = ('Détail par sport : verdict (ROI perle global), taux de réussite & ROI (confiance/value), '
             'et courbe de P&L cumulé (5€/pari). Si une optimisation marche, la pente du sport ciblé '
             'remonte après son déploiement.')
