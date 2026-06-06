@@ -605,6 +605,119 @@ def render_proof(reports: list[tuple]) -> str:
     return web._section('📊 BETSFIX bat le marché ?', table, open_=True, info=info)
 
 
+_FR_MONTHS = ["", "janv.", "févr.", "mars", "avr.", "mai", "juin",
+              "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+
+
+def _fr_date(iso: str) -> str:
+    """« 5 juin » depuis un ISO « 2026-06-05T… » (slicing, sans dépendance datetime)."""
+    try:
+        return f"{int(iso[8:10])} {_FR_MONTHS[int(iso[5:7])]}"
+    except (ValueError, IndexError):
+        return ""
+
+
+def _perle_events(store: dict) -> list[tuple]:
+    """(settled_at, kind, pnl) de CHAQUE perle distincte réglée d'un store. kind ∈ {conf, value}.
+    Même logique « distincte » que report() (perle + perle2 distinct ; value distincte du perle)."""
+    def d_perle2(r):
+        p, p2 = r.get("perle"), r.get("perle2")
+        if not (isinstance(p2, dict) and p2.get("selection")):
+            return False
+        if isinstance(p, dict):
+            if p.get("selection") == p2.get("selection"):
+                return False
+            for k in ("kind", "market"):
+                if p.get(k) and p.get(k) == p2.get(k):
+                    return False
+        return True
+
+    def d_value(r):
+        pv, p = r.get("perle_value"), r.get("perle")
+        if not (isinstance(pv, dict) and pv.get("selection")):
+            return False
+        return not (isinstance(p, dict) and p.get("selection") == pv.get("selection"))
+
+    ev = []
+    for r in store.values():
+        res = r.get("result")
+        if not res or res.get("void"):
+            continue
+        at = res.get("settled_at") or ""
+        if res.get("perle_pnl") is not None:
+            ev.append((at, "conf", res["perle_pnl"]))
+        if res.get("perle2_pnl") is not None and d_perle2(r):
+            ev.append((at, "conf", res["perle2_pnl"]))
+        if res.get("perle_value_pnl") is not None and d_value(r):
+            ev.append((at, "value", res["perle_value_pnl"]))
+    return ev
+
+
+def render_evolution(stores: list[dict], stake: float = 5.0) -> str:
+    """Courbe d'équité SVG : P&L CUMULÉ (Confiance / Value / Total) au fil des règlements, à
+    `stake` €/pari. Sert à voir si la pente remonte au fur et à mesure des optimisations perle."""
+    e = html.escape
+    events = [ev for s in stores for ev in _perle_events(s) if ev[0]]
+    events.sort(key=lambda ev: ev[0])
+    if len(events) < 2:
+        return web._section('📈 Évolution du P&L', '<div class="evo-empty">Pas encore assez de '
+                            'paris réglés pour tracer une courbe (il en faut au moins 2).</div>',
+                            open_=False)
+    cc = cv = 0.0
+    conf, val, tot = [], [], []
+    for _at, kind, pnl in events:
+        if kind == "conf":
+            cc += pnl * stake
+        else:
+            cv += pnl * stake
+        conf.append(cc); val.append(cv); tot.append(cc + cv)
+    n = len(events)
+    W, H, L, R, TP, BT = 324.0, 140.0, 34.0, 10.0, 12.0, 22.0
+    ymin = min(0.0, min(conf), min(val), min(tot))
+    ymax = max(0.0, max(conf), max(val), max(tot))
+    if ymax - ymin < 1e-9:
+        ymax = ymin + 1.0
+
+    def fx(i):
+        return L + (W - L - R) * (i / (n - 1))
+
+    def fy(v):
+        return TP + (H - TP - BT) * (1 - (v - ymin) / (ymax - ymin))
+
+    def poly(series, color, width):
+        pts = " ".join(f"{fx(i):.1f},{fy(v):.1f}" for i, v in enumerate(series))
+        return (f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="{width}" '
+                f'stroke-linejoin="round" stroke-linecap="round"/>')
+
+    def txt(x, y, anchor, s):
+        return (f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="{anchor}" fill="#9fb4cf" '
+                f'font-size="8" font-weight="600">{e(s)}</text>')
+
+    y0 = fy(0.0)
+    grid = (f'<line x1="{L}" y1="{y0:.1f}" x2="{W-R}" y2="{y0:.1f}" stroke="rgba(159,180,207,.4)" '
+            f'stroke-width="1" stroke-dasharray="3 3"/>')
+    ylab = txt(L - 4, fy(ymax) + 3, "end", f"{'+' if ymax > 0 else ''}{round(ymax)}€") + \
+        txt(L - 4, fy(ymin) + 3, "end", f"{round(ymin)}€")
+    if ymin < 0 < ymax:
+        ylab += txt(L - 4, y0 + 3, "end", "0")
+    xlab = txt(L, H - 6, "start", _fr_date(events[0][0])) + \
+        txt(W - R, H - 6, "end", _fr_date(events[-1][0]))
+    svg = (f'<svg class="evo-svg" viewBox="0 0 {W:.0f} {H:.0f}" xmlns="http://www.w3.org/2000/svg">'
+           f'{grid}{poly(val, "#ffb454", 1.6)}{poly(conf, "#5ab0ff", 1.6)}'
+           f'{poly(tot, "#f0f3f7", 2.4)}{ylab}{xlab}</svg>')
+
+    def chip(color, label, v):
+        return (f'<span class="evo-lg"><i style="background:{color}"></i>{label} '
+                f'<b class="{"pos" if v >= 0 else "neg"}">{"+" if v >= 0 else ""}{round(v)}€</b></span>')
+    legend = (f'<div class="evo-legend">{chip("#f0f3f7", "Total", tot[-1])}'
+              f'{chip("#5ab0ff", "Confiance", conf[-1])}{chip("#ffb454", "Value", val[-1])}</div>')
+    foot = (f'<div class="evo-foot">{n} paris réglés · du {_fr_date(events[0][0])} '
+            f'au {_fr_date(events[-1][0])} · mise {round(stake)}€/pari</div>')
+    info = ('P&L cumulé (mise plate) des perles au fil de leur règlement. Si une optimisation '
+            'marche, la pente de la courbe remonte après son déploiement. Total = Confiance + Value.')
+    return web._section('📈 Évolution du P&L (5€/pari)', svg + legend + foot, open_=True, info=info)
+
+
 def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
     """Page 'Fiabilité du modèle' : le modèle prédit-il bien ? (calibration).
 

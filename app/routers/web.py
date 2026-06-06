@@ -391,18 +391,22 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
     _enrich_picks_votes(values + confidences, provider)   # votes communauté (cache only)
     # 📊 Preuve : track record honnête des 3 sports (suivis séparés), exposé en haut de l'accueil.
     from app import basket, foot
-    tennis_rep = tracking.report(tracking.load())
+    tennis_store = tracking.load()
+    foot_store = tracking.load(foot.FOOT_TRACK_PATH)
+    basket_store = tracking.load(basket.BASKET_TRACK_PATH)
+    tennis_rep = tracking.report(tennis_store)
     proof = [
         ("🎾", "Tennis", tennis_rep, "/tracking/dashboard?sport=tennis"),
-        ("⚽", "Foot", tracking.report(tracking.load(foot.FOOT_TRACK_PATH)),
-         "/tracking/dashboard?sport=foot"),
-        ("🏀", "Basket", tracking.report(tracking.load(basket.BASKET_TRACK_PATH)),
-         "/tracking/dashboard?sport=basket"),
+        ("⚽", "Foot", tracking.report(foot_store), "/tracking/dashboard?sport=foot"),
+        ("🏀", "Basket", tracking.report(basket_store), "/tracking/dashboard?sport=basket"),
     ]
+    # Tableau « bat le marché » + courbe d'équité (P&L cumulé dans le temps, 3 sports confondus).
+    proof_html = (tracking.render_proof(proof)
+                  + tracking.render_evolution([tennis_store, foot_store, basket_store]))
     body = web.render_home(
         tennis_rep, source=provider.breaker_status(),
         picks=values, conf_picks=confidences, frag=bool(frag),
-        proof_html=tracking.render_proof(proof))
+        proof_html=proof_html)
     if frag:
         fragcache.put("panel/home", body, ttl=PANEL_TTL)
     return HTMLResponse(body)

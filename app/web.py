@@ -732,6 +732,14 @@ CSS = """
   .rc-roi-sub{display:block;font-size:9px;font-weight:700;line-height:1.15;margin-top:1px}
   .rc-roi-sub.pos{color:var(--green)} .rc-roi-sub.neg{color:var(--red)}
   .rc-roi-sub.muted{color:var(--muted)}
+  /* Courbe d'équité (P&L cumulé dans le temps) : SVG généré côté serveur, sans JS */
+  .evo-svg{width:100%;height:auto;display:block;margin:8px 0 2px}
+  .evo-legend{display:flex;justify-content:center;gap:15px;flex-wrap:wrap;margin:7px 0 1px}
+  .evo-lg{font-size:11px;font-weight:700;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+  .evo-lg i{width:12px;height:3px;border-radius:99px;display:inline-block}
+  .evo-lg b.pos{color:var(--green)} .evo-lg b.neg{color:var(--red)}
+  .evo-foot{font-size:10.5px;color:var(--muted);text-align:center;margin-top:5px;line-height:1.5}
+  .evo-empty{font-size:12px;color:var(--muted);text-align:center;padding:16px 8px}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);

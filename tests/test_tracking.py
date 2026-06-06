@@ -246,6 +246,32 @@ def test_render_proof_honnete():
     assert "--sc:#ff9f43" in html                 # basket orange
 
 
+def test_evolution_cumulative_and_svg():
+    """Courbe d'équité : cumul Confiance/Value correct, void exclu, SVG bien formé, cas vide géré."""
+    import re
+    import xml.etree.ElementTree as ET
+    store = {
+        "1": {"perle": {"selection": "A"},
+              "result": {"settled_at": "2026-06-01T10:00:00", "perle_pnl": 0.8, "perle_value_pnl": None}},
+        "2": {"perle": {"selection": "B"}, "perle_value": {"selection": "C"},
+              "result": {"settled_at": "2026-06-02T10:00:00", "perle_pnl": -1.0, "perle_value_pnl": 1.5}},
+    }
+    ev = tracking._perle_events(store)
+    assert sorted(p for _, k, p in ev if k == "conf") == [-1.0, 0.8]
+    assert [p for _, k, p in ev if k == "value"] == [1.5]
+    # un void ne doit RIEN ajouter
+    store["3"] = {"perle": {"selection": "D"},
+                  "result": {"void": True, "settled_at": "2026-06-03T10:00:00", "perle_pnl": 5.0}}
+    assert len(tracking._perle_events(store)) == len(ev)
+    # SVG bien formé + 3 polylines (Confiance / Value / Total)
+    html = tracking.render_evolution([store], stake=5.0)
+    ET.fromstring(re.search(r"<svg.*?</svg>", html, re.S).group(0))
+    assert html.count("<polyline") == 3
+    assert "Total" in html and "Confiance" in html and "Value" in html
+    # < 2 paris réglés -> message, pas de courbe
+    assert "Pas encore assez" in tracking.render_evolution([{}])
+
+
 def test_load_cache(tmp_path):
     p = str(tmp_path / "trk.json")
     tracking.save({"x": {"home": "A"}}, p)
