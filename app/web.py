@@ -730,6 +730,18 @@ CSS = """
   .spc-foot{font-size:10px;color:var(--muted);text-align:center;margin-top:4px;line-height:1.5}
   .spc-foot b.pos{color:var(--green)} .spc-foot b.neg{color:var(--red)}
   .spc-tot{font-weight:800}   /* P&L Total mis en avant */
+  /* Analyse « analyste » (markdown rendu) en fiche match */
+  .da{font-size:13px;line-height:1.55;color:#e8eaed}
+  .da-h{font-weight:800;color:#e8eaed;margin:13px 0 5px}
+  .da-h1{font-size:15px} .da-h2{font-size:13.5px} .da-h3{font-size:12.5px;color:#cfe0f5}
+  .da-p{margin:6px 0}
+  .da-ul{margin:5px 0;padding-left:17px} .da-ul li{margin:3px 0}
+  .da-quote{border-left:3px solid var(--gold);background:var(--gold-bg);padding:7px 10px;
+       margin:9px 0;border-radius:6px;font-size:12px;color:var(--gold)}
+  .da-tbl{width:100%;border-collapse:collapse;margin:9px 0;font-size:11.5px}
+  .da-tbl th,.da-tbl td{border:1px solid var(--border);padding:5px 7px;text-align:left;vertical-align:top}
+  .da-tbl th{background:var(--surface2);font-weight:700;color:#cfe0f5}
+  .da a{color:#5ab0ff;text-decoration:none}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);

@@ -101,7 +101,7 @@ def run_claude(prompt: str, timeout: int = 360) -> str:
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sport", default="foot", help="foot,tennis,basket (séparés par virgule)")
-    ap.add_argument("--top", type=int, default=10, help="top N matchs par sport")
+    ap.add_argument("--top", type=int, default=5, help="top N matchs par sport (défaut lean : 5)")
     ap.add_argument("--force", action="store_true", help="ignore le cache 6 h")
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)

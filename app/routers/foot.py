@@ -12,7 +12,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import flags, foot, fragcache, match_analysis, sportcache, tracking, web
+from app import analyses, flags, foot, fragcache, match_analysis, sportcache, tracking, web
 from app.config import get_settings
 from app.dependencies import get_provider, get_unibet
 from app.models import (
@@ -200,7 +200,8 @@ async def foot_match(event_id: int, frag: int = 0, pk: str = "",
         if cached:
             return HTMLResponse(cached)
     store = tracking.load(foot.FOOT_TRACK_PATH)
-    rec = next((r for r in store.values() if str(r.get("match_id")) == str(event_id)), None)
+    uid, rec = next(((k, r) for k, r in store.items()
+                     if str(r.get("match_id")) == str(event_id)), (None, None))
     home = away = ""
     prediction = odds_cells = when = None
     comp = "Football"
@@ -260,7 +261,10 @@ async def foot_match(event_id: int, frag: int = 0, pk: str = "",
                                else None),
                 "match_id": int(event_id),
             }
-            analysis_html = await match_analysis.write_analysis(brief, get_settings())
+            # Priorité à l'analyse « analyste » pré-générée (Claude headless, faits web + cotes
+            # réelles) si elle existe ; sinon repli sur l'analyse rédigée standard.
+            deep = analyses.render("foot", uid)
+            analysis_html = deep or await match_analysis.write_analysis(brief, get_settings())
         # 📊 Ce qui pèse : facteurs (Elo local + forme + classement + face-à-face), même bloc que le tennis
         fh = forms[0][2] if forms else None
         fa = forms[1][2] if forms else None
