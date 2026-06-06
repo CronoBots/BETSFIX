@@ -628,10 +628,26 @@ def _epoch(iso: str) -> float | None:
     return dt.timestamp()
 
 
+def _smooth_path(pts: list) -> str:
+    """Chemin SVG lissé (spline Catmull-Rom -> bézier cubique) passant par tous les points."""
+    if not pts:
+        return ""
+    d = f'M{pts[0][0]:.1f},{pts[0][1]:.1f}'
+    n = len(pts)
+    for i in range(n - 1):
+        p0 = pts[i - 1] if i > 0 else pts[0]
+        p1, p2 = pts[i], pts[i + 1]
+        p3 = pts[i + 2] if i + 2 < n else pts[n - 1]
+        c1x, c1y = p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6
+        c2x, c2y = p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6
+        d += f' C{c1x:.1f},{c1y:.1f} {c2x:.1f},{c2y:.1f} {p2[0]:.1f},{p2[1]:.1f}'
+    return d
+
+
 def _evo_svg(xs: list, conf: list, val: list, marker_xs: list = ()) -> str:
-    """SVG d'un sport : 2 courbes DROITES (Confiance vert, Value bleu) — sans lissage ni aplat,
-    propre pour une equity en dents de scie. `xs` = positions X (fractions 0..1), `marker_xs` =
-    repères optim verticaux, points de fin, ligne zéro + bornes Y. Total non tracé (chiffre au pied)."""
+    """SVG d'un sport : aires + courbes LISSÉES (Confiance vert, Value bleu), axe X par DATE RÉELLE
+    (`xs` = fractions 0..1), repères optim verticaux (`marker_xs` = fractions), points de fin,
+    ligne zéro + bornes Y. Le Total n'est pas tracé (chiffre dans le pied)."""
     W, H, L, R, TP, BT = 324.0, 100.0, 34.0, 10.0, 11.0, 11.0
     ymin = min(0.0, min(conf), min(val))
     ymax = max(0.0, max(conf), max(val))
@@ -641,10 +657,17 @@ def _evo_svg(xs: list, conf: list, val: list, marker_xs: list = ()) -> str:
     fy = lambda v: TP + (H - TP - BT) * (1 - (v - ymin) / (ymax - ymin))   # noqa: E731
     y0 = fy(0.0)
 
-    def poly(series, color):
-        pts = " ".join(f"{fx(xs[i]):.1f},{fy(v):.1f}" for i, v in enumerate(series))
-        return (f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="2" '
-                f'stroke-linejoin="round" stroke-linecap="round"/>')
+    def pts_of(series):
+        return [(fx(xs[i]), fy(v)) for i, v in enumerate(series)]
+
+    def line(series, color):
+        return (f'<path d="{_smooth_path(pts_of(series))}" fill="none" stroke="{color}" '
+                f'stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>')
+
+    def area(series, color):
+        p = pts_of(series)
+        d = f'{_smooth_path(p)} L{p[-1][0]:.1f},{y0:.1f} L{p[0][0]:.1f},{y0:.1f} Z'
+        return f'<path d="{d}" fill="{color}" fill-opacity="0.11"/>'
 
     def txt(x, y, s):
         return (f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="end" fill="#9fb4cf" '
@@ -662,7 +685,8 @@ def _evo_svg(xs: list, conf: list, val: list, marker_xs: list = ()) -> str:
     dots = (f'<circle cx="{fx(xs[-1]):.1f}" cy="{fy(val[-1]):.1f}" r="2.1" fill="#4aa8ff"/>'
             f'<circle cx="{fx(xs[-1]):.1f}" cy="{fy(conf[-1]):.1f}" r="2.1" fill="#34d27b"/>')
     return (f'<svg class="evo-svg" viewBox="0 0 {W:.0f} {H:.0f}" xmlns="http://www.w3.org/2000/svg">'
-            f'{grid}{mlines}{poly(val, "#4aa8ff")}{poly(conf, "#34d27b")}{dots}{ylab}</svg>')
+            f'{area(val, "#4aa8ff")}{area(conf, "#34d27b")}{grid}{mlines}'
+            f'{line(val, "#4aa8ff")}{line(conf, "#34d27b")}{dots}{ylab}</svg>')
 
 
 def _evo_curve(ev: list, stake: float) -> tuple:
