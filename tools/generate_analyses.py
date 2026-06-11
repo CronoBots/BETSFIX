@@ -37,6 +37,7 @@ for _s in (sys.stdout, sys.stderr):
 
 import httpx  # noqa: E402
 
+from app import sources  # noqa: E402
 from app.match_select import UNIBET_B, UNIBET_PARAMS, fetch_important  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -73,6 +74,10 @@ METHODO = (
     "DONNÉES FOURNIES CI-DESSOUS — ce sont des FAITS, sers-t'en en PRIORITÉ sur le narratif :\n"
     "• SÉRIES SOFASCORE (forme récente factuelle, déjà mappées aux marchés). Base principale. Si une "
     "série contredit ton intuition web, suis la série.\n"
+    "• DONNÉES MULTI-SOURCES (ESPN / FotMob / Understat) : forme avec adversaires+scores, classements "
+    "À JOUR, blessés/absents nominatifs, H2H, xG, météo, fatigue/back-to-back. Source indépendante "
+    "n°2 : un fait présent ici ET confirmé par ta recherche web (ou SofaScore) = 2 sources "
+    "concordantes. Les BLESSÉS listés ici sont fiables et récents — intègre-les TOUJOURS.\n"
     "• SENTIMENT (votes communauté) : signal d'appoint, jamais décisif seul.\n"
     "• H2H (confrontations directes) quand fourni.\n\n"
     "RÈGLE DE SÉLECTION (clé) : ne retiens un pari QUE s'il est soutenu par AU MOINS 2 éléments "
@@ -443,8 +448,12 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
                    + " — CALIBRE ta proba là-dessus : nettement AU-DESSUS = value (signale-la) ; "
                    "en dessous = écarte le pari.")
     extras, sx = await _sofa_extras(client, sport, sofa_id, home, away)
+    # Sources GRATUITES indépendantes (ESPN/FotMob/Understat) : forme+scores, classements frais,
+    # blessés, H2H, xG, météo — la source n°2 de la méthodo quand SofaScore est bloqué.
+    alt = await sources.extras(client, sport, match)
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
-            "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) :\n" + "\n".join(lines) + imp + extras)
+            "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) :\n" + "\n".join(lines)
+            + imp + extras + alt)
     meta = {"odds": odds, **sx}   # odds + streaks/h2h structurés -> sidecar
     return text, meta
 
