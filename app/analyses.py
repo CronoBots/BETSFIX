@@ -20,6 +20,7 @@ import re
 import time
 import unicodedata
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIR = os.path.join(_ROOT, "data", "analyses")
@@ -32,6 +33,16 @@ _MAX_BETS = 3   # tableau des paris plafonné : discipline (peu mais sûr), lisi
 
 
 _FID_CACHE: dict = {}   # sport -> (signature_dossier, {sofa_id: fid}) — index mis en cache
+
+
+def _dir_sig() -> tuple:
+    """Signature (noms + mtimes ns) de TOUS les sidecars — clé d'invalidation des caches agrégés
+    (calibration, stats). Un scandir par appel : exact et bien moins cher que re-parser N JSON."""
+    try:
+        return tuple(sorted((e.name, e.stat().st_mtime_ns) for e in os.scandir(DIR)
+                            if e.name.endswith(".json")))
+    except OSError:
+        return ()
 
 
 def _fid_index(sport: str) -> dict:
@@ -68,31 +79,61 @@ def _resolve_fid(sport: str, fiche_id):
     return _fid_index(sport).get(str(fiche_id), fiche_id)
 
 
+# Caches mtime PAR FICHIER : les pages relisent les MÊMES sidecars/analyses des dizaines de fois par
+# requête (boards, cartes, stats, simulation). Tant que le fichier n'a pas changé sur disque, on évite
+# re-open + re-parse (gros gain CPU/IO, invalidation automatique dès qu'un scan/règlement réécrit).
+_MD_CACHE: dict[str, tuple[float, str]] = {}     # path -> (mtime, markdown)
+_META_CACHE: dict[str, tuple[float, object]] = {}  # path -> (mtime, dict parsé)
+
+
+def _md_read(path: str) -> str | None:
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    hit = _MD_CACHE.get(path)
+    if hit and hit[0] == mtime:
+        return hit[1]
+    try:
+        with open(path, encoding="utf-8") as f:
+            txt = f.read()
+    except OSError:
+        return None
+    _MD_CACHE[path] = (mtime, txt)
+    return txt
+
+
 def load(sport: str, match_id) -> str | None:
     """Markdown de l'analyse pour ce match (None si absente). Résout aussi les id `sofa_id`."""
     if match_id is None:
         return None
-    try:
-        with open(os.path.join(DIR, f"{sport}_{match_id}.md"), encoding="utf-8") as f:
-            return f.read()
-    except OSError:
-        pass
+    txt = _md_read(os.path.join(DIR, f"{sport}_{match_id}.md"))
+    if txt is not None:
+        return txt
     rid = _resolve_fid(sport, match_id)
     if rid is None or str(rid) == str(match_id):
         return None
-    try:
-        with open(os.path.join(DIR, f"{sport}_{rid}.md"), encoding="utf-8") as f:
-            return f.read()
-    except OSError:
-        return None
+    return _md_read(os.path.join(DIR, f"{sport}_{rid}.md"))
 
 
 def _meta_load(path: str) -> dict | None:
     try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
+        mtime = os.path.getmtime(path)
+    except OSError:
         return None
+    hit = _META_CACHE.get(path)
+    if hit and hit[0] == mtime:
+        d = hit[1]
+    else:
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, ValueError):
+            return None
+        _META_CACHE[path] = (mtime, d)
+    # copie superficielle : les appelants posent des clés de travail (`_start_dt`…) sur le dict
+    # retourné — elles ne doivent pas polluer le cache partagé.
+    return dict(d) if isinstance(d, dict) else d
 
 
 def meta(sport: str, fiche_id) -> dict | None:
@@ -369,9 +410,16 @@ def _parse_bets(body: str) -> list[dict]:
     """Tableau markdown des paris -> liste STRUCTURÉE et ORDONNÉE (pari 1/2/3) :
     [{sel, cote(float|None), cote_txt, prob(int|None), risk_cls}]. Filtre cotes < 1.10 et 🔴
     risqué, plafonne à `_MAX_BETS`. Source unique pour le rendu ET le règlement par pari."""
+    # mémoïsé : le même corps markdown est re-parsé des dizaines de fois par page (cartes, reco,
+    # règlement). Copie par appel : les dicts retournés ne doivent pas être partagés/mutés.
+    return [dict(b) for b in _parse_bets_cached(body)]
+
+
+@lru_cache(maxsize=512)
+def _parse_bets_cached(body: str) -> tuple:
     rows = [ln.strip() for ln in body.splitlines() if ln.strip().startswith("|")]
     if len(rows) < 2:
-        return []
+        return ()
 
     def cells(r):
         return [c.strip() for c in r.strip().strip("|").split("|")]
@@ -396,7 +444,7 @@ def _parse_bets(body: str) -> list[dict]:
             "prob": min(int(pm.group(1)), 100) if pm else None,
             "risk_cls": next((cls for emo, cls in _RISK if emo in risk_cell), "mid"),
         })
-    return out[:_MAX_BETS]
+    return tuple(out[:_MAX_BETS])
 
 
 _SAFE_EMO = {"ok": "🟢", "mid": "🟠", "hi": "🔴"}
@@ -777,6 +825,11 @@ def result_board(d: dict, sport: str) -> dict:
 
 _BET_KEYS = ("pari1", "pari2", "pari3")   # positions de pari pour les stats (= ordre d'affichage)
 
+# Caches d'AGRÉGATS invalidés par la signature du dossier (cf. _dir_sig) : home/stats/reco refont
+# ces agrégations à chaque rendu alors que les sidecars ne changent qu'au scan/règlement.
+_STATS_CACHE: dict = {}    # "full" -> (sig, stats_full())
+_CALIB_RES_CACHE: dict = {}  # min_conf -> (sig, calibration()) — uniquement pour since_days=None
+
 
 def _agg_bets(events: list) -> dict:
     """Agrège une liste de paris (start, result, odds) -> bloc stats complet : courbe de profit
@@ -834,6 +887,11 @@ def stats_full(since_days: int | None = None) -> dict:
     - `by_sport` : {sport : {…bloc sport…, `paris`: {pari1/2/3 : bloc}}}.
     Chaque bloc = sortie de `_agg_bets` (courbe + ROI + réussite + cote moy. + série + drawdown).
     `since_days` : ne garde que les matchs dont le coup d'envoi est dans les N derniers jours."""
+    sig = _dir_sig() if since_days is None else None   # cache UNIQUEMENT la vue complète (pas de cutoff)
+    if sig is not None:
+        hit = _STATS_CACHE.get("full")
+        if hit and hit[0] == sig:
+            return hit[1]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     all_ev: list = []
     by_pari: dict = {i: [] for i in range(len(_BET_KEYS))}
@@ -866,6 +924,8 @@ def stats_full(since_days: int | None = None) -> dict:
         merged = [e for lst in byi.values() for e in lst]
         out["by_sport"][sport] = {**_agg_bets(merged),
                                   "paris": {_BET_KEYS[i]: _agg_bets(byi[i]) for i in sorted(byi)}}
+    if sig is not None:
+        _STATS_CACHE["full"] = (sig, out)
     return out
 
 
@@ -1025,6 +1085,11 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
     SPORT + par MARCHÉ -> on voit si l'edge est réel et OÙ il est. `prob` lue dans le sidecar (settle
     v7+), repli sur l'analyse parsée. `min_conf` : ne garder que les paris ≥ ce seuil (pour juger la
     population réellement jouée). Renvoie {rows,n,mae,verdict,…, by_sport:{}, by_market:{}}."""
+    sig = _dir_sig() if since_days is None else None   # cache UNIQUEMENT la vue complète (pas de cutoff)
+    if sig is not None:
+        hit = _CALIB_RES_CACHE.get(min_conf)
+        if hit and hit[0] == sig:
+            return hit[1]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     items: list = []   # (prob, won_bool, sport, market)
     for p in glob.glob(os.path.join(DIR, "*.json")):
@@ -1081,6 +1146,8 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
             by_market[mk] = _calib_agg(sub)
     out["by_sport"] = by_sport
     out["by_market"] = by_market
+    if sig is not None:
+        _CALIB_RES_CACHE[min_conf] = (sig, out)
     return out
 
 
