@@ -286,7 +286,7 @@ CSS = """
   @keyframes navradar{0%{transform:scale(.32);opacity:.9}100%{transform:scale(1);opacity:0}}
   /* SPA : panneaux par onglet (tout chargé à l'ouverture, bascule sans rechargement) */
   .panel{display:none}
-  .panel.on{display:block;animation:fadein .18s ease}
+  .panel.on{display:block;animation:panein .22s cubic-bezier(.22,.85,.3,1)}
   @keyframes fadein{from{opacity:.4}to{opacity:1}}
   .ldg{color:var(--dim);text-align:center;padding:40px 0;font-size:13px}
   .ldg::before{content:"";display:block;width:22px;height:22px;margin:0 auto 12px;border-radius:50%;
@@ -1699,6 +1699,57 @@ CSS = """
   .mb-play,.mb-del,.src,.paj-live,.dd-cote,.mb-stat,.dash-next,.paj-basis b,
   .da-bets-hint,.cal-v-t,.fpick-t,.plg-tab,.an-tag{
        text-transform:uppercase;letter-spacing:.03em}
+  /* ===== Animations premium (cascade d'apparition, skeleton, micro-interactions) =====
+     Gating : la cascade ne joue qu'au PREMIER rendu (body.boot, retirée ~1 s après par _ANIM_JS)
+     -> le refresh live 45 s (innerHTML remplacé) ne fait PAS re-clignoter les cartes. */
+  @keyframes cardin{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  body.boot .mc,body.boot .paj-bank,body.boot .dash-stat,body.boot .mb-reco,
+  body.boot .dash-h,body.boot .dash-top,body.boot .paj-h{
+       animation:cardin .42s cubic-bezier(.22,.85,.3,1) backwards}
+  body.boot .mc:nth-child(2){animation-delay:.03s}
+  body.boot .mc:nth-child(3){animation-delay:.06s}
+  body.boot .mc:nth-child(4){animation-delay:.09s}
+  body.boot .mc:nth-child(5){animation-delay:.12s}
+  body.boot .mc:nth-child(6){animation-delay:.15s}
+  body.boot .mc:nth-child(7){animation-delay:.18s}
+  body.boot .mc:nth-child(8){animation-delay:.21s}
+  body.boot .mc:nth-child(9){animation-delay:.24s}
+  body.boot .mc:nth-child(n+10){animation-delay:.27s}
+  /* Bascule d'onglet : glissement subtil en plus du fondu */
+  @keyframes panein{from{opacity:.35;transform:translateY(7px)}to{opacity:1;transform:none}}
+  /* Dépliage de carte : le corps apparaît en douceur + chevron à ressort */
+  .mc-open .mc-body{animation:bodyin .26s cubic-bezier(.22,.85,.3,1)}
+  @keyframes bodyin{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+  .mc-chev{transition:transform .24s cubic-bezier(.34,1.45,.5,1)}
+  /* SKELETON de chargement des panneaux (cartes fantômes + reflet) — remplace le spinner nu */
+  .skel{display:flex;flex-direction:column;gap:11px;padding:8px 0}
+  .sk{height:92px;border-radius:16px;border:1px solid var(--border);position:relative;overflow:hidden;
+       background:linear-gradient(180deg,var(--surface2),var(--surface))}
+  .sk::before{content:"";position:absolute;left:14px;top:16px;width:55%;height:11px;border-radius:6px;
+       background:rgba(255,255,255,.06);box-shadow:0 22px 0 -3px rgba(255,255,255,.045),
+       0 44px 0 -5px rgba(255,255,255,.03)}
+  .sk::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+       background:linear-gradient(90deg,transparent,rgba(255,255,255,.055),transparent);
+       animation:shimmer 1.25s infinite}
+  .sk+.sk{opacity:.72}.sk+.sk+.sk{opacity:.45}
+  @keyframes shimmer{to{transform:translateX(100%)}}
+  /* Badge LIVE : halo qui respire (discret) */
+  @keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(52,210,123,.35)}55%{box-shadow:0 0 0 6px rgba(52,210,123,0)}}
+  .mc-badge.mc-live{animation:livepulse 1.9s ease-out infinite}
+  /* Pari ✅ À JOUER : halo OR qui respire lentement (attire l'œil sans agresser) */
+  @keyframes recoglow{0%,100%{box-shadow:0 0 0 1px rgba(246,197,74,.30),0 8px 22px rgba(246,197,74,.14)}
+       50%{box-shadow:0 0 0 1px rgba(246,197,74,.48),0 8px 30px rgba(246,197,74,.30)}}
+  .da-bk-reco{animation:recoglow 3s ease-in-out infinite}
+  /* Desktop : léger lift au survol des cartes */
+  @media(hover:hover){
+    .mc{transition:transform .18s ease,box-shadow .18s ease}
+    .mc:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.5)}
+  }
+  /* Accessibilité : réduit toutes les animations si l'OS le demande */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+         transition-duration:.01ms!important}
+  }
 """
 
 
@@ -1747,6 +1798,24 @@ _COUNTDOWN_JS = (
 # SPA : tout est chargé à l'ouverture (le sport actif rendu côté serveur, les 3 autres
 # préchargés en arrière-plan via ?frag=1), puis la nav du bas bascule les panneaux SANS
 # rechargement. Vanilla JS, ~0 dépendance. history.pushState garde l'URL/refresh cohérents.
+# Phase « boot » : la cascade d'apparition (CSS body.boot) ne joue qu'au PREMIER rendu ; la classe
+# saute après ~1 s -> les refresh live (45 s, innerHTML remplacé) ne re-déclenchent rien. Ensuite,
+# compteur de BANKROLL (la valeur « monte » vers le solde, comme les apps finance) — désactivé si
+# l'OS demande moins d'animations.
+_ANIM_JS = (
+    "(function(){var b=document.body;b.classList.add('boot');"
+    "setTimeout(function(){b.classList.remove('boot');},950);"
+    "if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;"
+    "var el=document.querySelector('.paj-bank-v');if(!el)return;"
+    "var t=(el.textContent||'').trim(),m=t.match(/-?\\d+(?:[.,]\\d+)?/);if(!m)return;"
+    "var v=parseFloat(m[0].replace(',','.')),dp=(m[0].split(/[.,]/)[1]||'').length;"
+    "if(!isFinite(v))return;var s=null;"
+    "function f(ts){if(!s)s=ts;var p=Math.min(1,(ts-s)/750);p=1-Math.pow(1-p,3);"
+    "el.textContent=t.replace(m[0],(v*p).toFixed(dp).replace('.',','));"
+    "if(p<1)requestAnimationFrame(f);else el.textContent=t;}"
+    "requestAnimationFrame(f);})();"
+)
+
 _SPA_JS = (
     "(function(){var P=document.getElementById('panels');if(!P)return;"
     "function panel(t){return document.getElementById('pn-'+t);}"
@@ -1992,7 +2061,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 {menu_btn}{drawer}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_TERM_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
@@ -2013,7 +2082,8 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
     panels = []
     for k, href, _ico, _name in _SPA_TABS:
         on = " on" if k == active else ""
-        inner = body if k == active else '<div class="ldg">Chargement…</div>'
+        inner = (body if k == active else
+                 '<div class="skel"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>')
         panels.append(f'<section class="panel{on}" id="pn-{k}" data-tab="{k}" '
                       f'data-src="{href}">{inner}</section>')
     botnav = '<nav class="botnav">' + "".join(
@@ -2034,7 +2104,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {menu_btn}{drawer}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
 
 def bars_split(model, implied) -> dict:
