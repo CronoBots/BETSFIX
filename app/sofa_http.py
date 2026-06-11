@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from datetime import date
 
 from curl_cffi.requests import AsyncSession
@@ -19,14 +20,41 @@ from curl_cffi.requests import AsyncSession
 log = logging.getLogger("uvicorn")
 IMPERSONATE = "chrome"      # profil TLS/JA3 rejoué (Chrome récent)
 _session: AsyncSession | None = None
+_proxy_sess: AsyncSession | None = None
+
+# --- Garde-fous conso proxy (Go limités) ---------------------------------------------------
+# allow_proxy : coupe-circuit global ; les boucles de FOND (suivi 3h, warmer) le passent à
+#   False le temps de leur exécution pour ne jamais griller les Go sur du bulk.
+# allow_bulk_proxy : autorise les GROS endpoints (scheduled-events ~4 Mo, standings, stats) via
+#   proxy. False par défaut (app live) ; SEUL le scan le met à True (il les met en cache, 1/jour).
+allow_proxy = True
+allow_bulk_proxy = False
+_BULK_ENDPOINTS = ("scheduled-events", "/standings", "/statistics", "/events/last", "/events/next")
 
 
 def session() -> AsyncSession:
-    """Session curl_cffi partagée (créée à la 1ère utilisation, réutilisée ensuite)."""
+    """Session curl_cffi DIRECTE (sans proxy) — la voie normale, gratuite."""
     global _session
     if _session is None:
         _session = AsyncSession(impersonate=IMPERSONATE, timeout=20)
     return _session
+
+
+def _proxy_session() -> AsyncSession | None:
+    """Session curl_cffi via le proxy résidentiel `SOFA_PROXY` — DERNIER RECOURS uniquement.
+    None si aucun proxy configuré. N'est utilisée que quand SofaScore direct est bloqué ET que
+    RapidAPI ne rattrape pas (cf. get()), pour ne pas consommer les Go du proxy inutilement."""
+    global _proxy_sess
+    if "pytest" in sys.modules:      # jamais d'appel réseau réel (proxy) pendant les tests
+        return None
+    proxy = (_cfg().sofa_proxy or "").strip()
+    if not proxy:
+        return None
+    if _proxy_sess is None:
+        _proxy_sess = AsyncSession(impersonate=IMPERSONATE, timeout=25,
+                                   proxies={"http": proxy, "https": proxy})
+        log.info("Proxy SofaScore prêt (dernier recours, %s…)", proxy.split("@")[-1][:24])
+    return _proxy_sess
 
 
 # --------------------------------------------------------------- repli RapidAPI (SportAPI7)
@@ -90,12 +118,65 @@ async def _rapid_get(url: str, params):
         return None
 
 
+async def _via_proxy(url, params, headers):
+    """GET SofaScore via le proxy résidentiel (dernier recours). None si pas de proxy / échec /
+    coupe-circuit. ÉCONOMIE Go : refusé si le proxy est globalement coupé (boucles de fond) ou
+    si c'est un GROS endpoint bulk (scheduled-events ~4 Mo, standings, stats) non explicitement
+    autorisé — ces appels n'ont aucune raison de griller les Go en continu."""
+    if not allow_proxy:
+        return None
+    if not allow_bulk_proxy and any(b in url for b in _BULK_ENDPOINTS):
+        return None
+    ps = _proxy_session()
+    if ps is None:
+        return None
+    try:
+        r = await ps.get(url, params=params, headers=headers)
+        if r.status_code == 200:
+            log.info("SofaScore via PROXY (dernier recours) OK")
+        return r
+    except Exception:
+        return None
+
+
 async def get(url: str, params=None, headers=None):
-    """GET impersoné SofaScore. Sur 403/429, repli automatique RapidAPI (si clé + quota).
+    """GET SofaScore en CASCADE pour économiser le proxy :
+      1) DIRECT (curl_cffi, gratuit) — si 200, on s'arrête là.
+      2) sinon (403/429 ou timeout) -> repli RapidAPI (si clé + quota mensuel restant).
+      3) sinon SEULEMENT -> proxy résidentiel `SOFA_PROXY` (dernier recours, consomme les Go).
     Renvoie une réponse avec .status_code / .json() / .content / .headers."""
-    r = await session().get(url, params=params, headers=headers)
-    if r.status_code in (403, 429):
-        rr = await _rapid_get(url, params)
-        if rr is not None and rr.status_code == 200:
-            return rr
-    return r
+    try:
+        r = await session().get(url, params=params, headers=headers)
+    except Exception:
+        r = None
+    # 1) direct OK -> retour immédiat (ni RapidAPI ni proxy : aucun Go/quota consommé)
+    if r is not None and r.status_code not in (403, 429):
+        return r
+    # 1.5) NAVIGATEUR (Chrome headless + proxy -> SSR du site) AVANT RapidAPI, car GRATUIT + illimité.
+    # Couvre event/{id} et event/{id}/incidents (règlement, score). On NE brûle donc PLUS le quota
+    # RapidAPI MENSUEL (15000 req) sur ces appels répétitifs : on le RÉSERVE aux endpoints que le
+    # navigateur ne couvre PAS (stats, h2h, planning) — la donnée à VRAIE valeur pour les analyses.
+    try:
+        from app import sofa_browser
+        br = await sofa_browser.response_for(url)
+        if br is not None:
+            log.info("SofaScore via NAVIGATEUR (SSR) OK")
+            return br
+    except Exception:
+        pass
+    # 2) repli RapidAPI (mensuel) — réservé aux endpoints non couverts par le navigateur
+    rr = await _rapid_get(url, params)
+    if rr is not None and rr.status_code == 200:
+        return rr
+    # 3) proxy curl_cffi (uniquement si direct bloqué ET RapidAPI ne rattrape pas)
+    pr = await _via_proxy(url, params, headers)
+    if pr is not None and pr.status_code == 200:
+        return pr
+    # 4) rien n'a abouti -> meilleure réponse dispo (le 403 direct), ou on lève
+    if r is not None:
+        return r
+    if rr is not None:
+        return rr
+    if pr is not None:
+        return pr
+    raise RuntimeError("SofaScore injoignable (direct, RapidAPI et proxy tous en échec)")

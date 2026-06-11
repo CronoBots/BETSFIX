@@ -16,9 +16,6 @@ def test_classify_tag_natures():
     assert _classify_tag("/basket/match/{id}/odds") == TAG_BASKET_SRC
     # Modèle maison
     assert _classify_tag("/analysis/{id}") == TAG_MODELE_ANALYSE
-    assert _classify_tag("/foot/board") == TAG_MODELE_ANALYSE
-    assert _classify_tag("/basket/finished") == TAG_MODELE_ANALYSE
-    assert _classify_tag("/tracking/report") == TAG_MODELE_SUIVI
     # Sources
     assert _classify_tag("/matches") == TAG_TENNIS_SRC
     assert _classify_tag("/players/{id}/rankings") == TAG_TENNIS_SRC

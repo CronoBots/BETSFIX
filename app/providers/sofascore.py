@@ -234,6 +234,12 @@ class SofaScoreProvider:
                 data = rr.json()
                 self._cache.set(path, data, ttl=_ttl_for(path))
                 return data
+            # DERNIER recours (circuit ouvert + RapidAPI épuisé) : proxy résidentiel
+            pr = await sofa_http._via_proxy(self._base + path, None, None)
+            if pr is not None and pr.status_code == 200:
+                data = pr.json()
+                self._cache.set(path, data, ttl=_ttl_for(path))
+                return data
         try:
             # Le guard est vérifié APRÈS acquisition du sémaphore : si les 1ères requêtes
             # d'une rafale prennent un 403, les suivantes (en file) voient le circuit ouvert
@@ -245,11 +251,16 @@ class SofaScoreProvider:
                     await asyncio.sleep(gap)
                 self._last_req = time.monotonic()
                 resp = await self._client.get(self._base + path)
-            # SofaScore bloqué (403/429) -> repli RapidAPI sur le MÊME chemin, avant le circuit
+            # SofaScore bloqué (403/429) -> repli RapidAPI, puis proxy en DERNIER recours (ne
+            # consomme les Go que si direct bloqué ET RapidAPI ne rattrape pas).
             if resp.status_code in (403, 429):
                 rr = await sofa_http._rapid_get(self._base + path, None)
                 if rr is not None and rr.status_code == 200:
                     resp = rr
+                else:
+                    pr = await sofa_http._via_proxy(self._base + path, None, None)
+                    if pr is not None and pr.status_code == 200:
+                        resp = pr
             if resp.status_code == 404:
                 raise ProviderError("Ressource introuvable chez la source.", status_code=404)
             if resp.status_code in (403, 429):  # rate-limit -> ouvre le circuit

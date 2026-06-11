@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     unibet_lang: str = "fr_BE"
     unibet_market: str = "BE"
 
+    # Proxy SofaScore (OPTIONNEL) : route UNIQUEMENT les requêtes SofaScore (curl_cffi) via ce
+    # proxy, pour contourner un blocage IP Cloudflare. Mettre une IP RÉSIDENTIELLE (les datacenter
+    # sont souvent déjà bloqués). Format : http://user:pass@host:port (ou socks5://...). Vide = direct.
+    sofa_proxy: str = ""
+
     # Repli SofaScore via RapidAPI SportAPI7 (OPTIONNEL) : utilisé UNIQUEMENT quand SofaScore
     # renvoie 403/429 (rate-limit). Plafond/jour pour protéger le quota (Pro = 15 000/mois).
     rapidapi_key: str = ""

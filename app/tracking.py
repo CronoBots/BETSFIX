@@ -784,10 +784,11 @@ def render_sport_cards(data: list[tuple], stake: float = 5.0) -> str:
     return web._section('🎯 Détail par sport', legend + "".join(cards) + optim, open_=True, info=info)
 
 
-def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
-    """Page 'Fiabilité du modèle' : le modèle prédit-il bien ? (calibration).
+def dashboard_body(store: dict, rep: dict, sport: str = "tennis") -> str:
+    """Contenu (fragment) de la 'Fiabilité du modèle' : le modèle prédit-il bien ? (calibration).
+    Réutilisé en PAGE PLEINE (render_dashboard) ET en SECTION repliable d'un onglet sport.
 
-    `sport` = tennis / basket : suivis séparés, avec une bascule en tête de page.
+    `sport` = tennis / basket : suivis séparés.
     """
     e = html.escape
     recs = list(store.values())
@@ -982,7 +983,12 @@ def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
 <h2>Le modèle vs résultats réels</h2>
 <table><tr><td class="dim">match</td><td class="dim">prédiction</td>
 <td class="dim">vainqueur</td></tr>{settled_html}</table>"""
-    return web.layout("Fiabilité", sport, body, subnav="perf", refresh=True)
+    return body
+
+
+def render_dashboard(store: dict, rep: dict, sport: str = "tennis") -> str:
+    """Page pleine 'Fiabilité' = `dashboard_body` enveloppé dans le layout (route /tracking/dashboard)."""
+    return web.layout("Fiabilité", sport, dashboard_body(store, rep, sport), subnav="perf", refresh=True)
 
 
 def render_today(store: dict) -> str:

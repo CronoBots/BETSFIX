@@ -10,7 +10,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import analyses, basket, fragcache, match_analysis, sportcache, tracking, web
+from app import analyses, basket, fragcache, match_analysis, match_select, sportcache, tracking, web
 from app.config import get_settings
 from app.dependencies import get_provider, get_unibet
 from app.models import (
@@ -38,15 +38,60 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
     return sid
 
 
+async def _analyst_rows() -> tuple[list[dict], list[dict]]:
+    """(à-venir/en-cours, terminés) basket depuis les sidecars. Cotes Unibet rafraîchies à
+    l'affichage (listView, gratuit) ; SofaScore jamais touché."""
+    live = await match_select.fetch_live_odds("basket")
+    rows, fin = [], []
+    for d in analyses.list_for("basket"):
+        st = analyses.status_of(d)
+        dt = d.get("_start_dt")
+        # STATUT + HEURE pilotés par UNIBET (temps réel) : le coup d'envoi du sidecar peut être PÉRIMÉ
+        # -> match affiché « live » alors qu'il n'a pas commencé. Unibet a le score live ET l'heure fraîche.
+        lf = web.live_fields(match_select.live_state_for("basket", d.get("home"), d.get("away")), "basket")
+        st, usdt = match_select.fresh_status("basket", d.get("home"), d.get("away"), st, bool(lf.get("score")))
+        if usdt is not None:
+            dt = usdt
+        fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))
+        oh, oa = (fresh[0], fresh[2]) if fresh else (d.get("o1"), d.get("o2"))
+        imp = basket._devig(oh, oa) if (oh and oa) else None
+        sel, odds = analyses.pick_parts(d.get("pick") or "")
+        perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
+        base = {
+            "id": d.get("sofa_id") or d.get("id"), "league": (d.get("comp") or "").upper(),
+            "home": d.get("home", ""), "away": d.get("away", ""),
+            "model_home": None, "margin": None, "oh": oh, "oa": oa,
+            "imp_home": imp[0] if imp else None, "pick": None,
+            "start": dt.timestamp() if dt else None, "votes": analyses.votes_pct(d),
+            "perle": perle, "perle2": None, "perle_value": None, "pick_kind": "confiance",
+            "sofa_ok": True,
+        }
+        if st != "inprogress":
+            lf = {}                                         # pas en cours -> aucun champ live affiché
+        elif not lf.get("score"):                           # en cours SANS score Unibet -> REPLI SofaScore
+            lf = await match_select.fetch_sofa_live("basket", d.get("sofa_id") or d.get("id")) or lf
+        # Un « en cours » SANS score live Unibet : s'il a assez tourné (likely_finished) -> Terminés ;
+        # sinon on le GARDE en « En cours » (sans scoreboard) pour qu'il ne DISPARAISSE pas.
+        if st == "inprogress" and not lf.get("score") and analyses.likely_finished(d):
+            st = "finished"
+        if st == "finished":
+            bdg, sco = analyses.result_chip(d)
+            brd = analyses.result_board(d, "basket")     # score + détail par quart-temps (box-score)
+            fin.append({**base, "status": "finished", "res_badge": bdg,
+                        "res_score": brd["score"] or sco, "periods": brd["periods"]})
+        else:
+            rows.append({**base, "status": st, **lf})
+    return rows, fin
+
+
 @router.get("/basket", response_class=HTMLResponse, summary="Page Basket (HTML)")
 async def basket_page(frag: int = 0) -> HTMLResponse:
-    """Tableau NBA & WNBA : matchs à venir, proba modèle (Elo) vs cotes Unibet, value."""
+    """Matchs ANALYSÉS (à venir / en cours / terminés) — l'ancien board Elo est retiré."""
     if frag:   # panneau partagé -> cache court anti-rafale (pré-chargement SPA + refresh 45s)
         cached = fragcache.get("panel/basket")
         if cached:
             return HTMLResponse(cached)
-    rows = await basket.board_resilient()       # MÊME source que l'accueil (cohérence)
-    fin = basket.finished_from_store()          # terminés depuis le store (hors-SofaScore)
+    rows, fin = await _analyst_rows()
     body = basket.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag))
     if frag:
         fragcache.put("panel/basket", body, ttl=20)
@@ -66,8 +111,10 @@ async def basket_match(event_id: int, frag: int = 0, pk: str = "",
             return HTMLResponse(cached)
     store = tracking.load(basket.BASKET_TRACK_PATH)
     rec = next((r for r in store.values() if str(r.get("match_id")) == str(event_id)), None)
+    amd = analyses.meta("basket", event_id) if not rec else None   # match analysé hors store ?
     home = away = ""
     prediction = odds_cells = when = None
+    oh = oa = None
     comp = "Basket"
     if rec:
         home, away, comp = rec.get("home", ""), rec.get("away", ""), (rec.get("tour") or "Basket").upper()
@@ -79,21 +126,34 @@ async def basket_match(event_id: int, frag: int = 0, pk: str = "",
             votes = ((rec.get("public_home"), rec.get("public_away"))
                      if rec.get("public_home") is not None else None)
             prediction = web.bars_two_way(mh, (basket._devig(oh, oa) or (None, None))[0], votes, home, away)
-    forms = h2h = None
-    try:
-        pf = await provider.get_event_pregame_form(event_id)
-        forms = [("", home, pf.home.model_dump()), ("", away, pf.away.model_dump())]
-    except ProviderError:
-        pass
-    try:
-        d = await provider.get_event_h2h(event_id)
-        h2h = {"home_wins": d.get("homeWins"), "away_wins": d.get("awayWins"), "draws": None}
-    except ProviderError:
-        pass
+    elif amd:   # match analysé absent du store : métadonnées du sidecar
+        home, away = amd.get("home", ""), amd.get("away", "")
+        comp = (amd.get("comp") or "Basket").upper()
+        when = web.fmt_local(amd.get("start"), with_date=True)
+        oh, oa = amd.get("o1"), amd.get("o2")
+        if oh and oa:
+            odds_cells = [(home, oh), (away, oa)]
+    # AUCUN appel SofaScore : séries + H2H viennent du SIDECAR (capturés au scan).
+    msc = analyses.meta("basket", event_id) or {}
+    streaks = msc.get("streaks")
+    h2h = msc.get("h2h")
+    forms = None
+    # Cotes Unibet FRAÎCHES à l'affichage (listView, gratuit ; SofaScore jamais touché).
+    fresh = match_select.live_odds_for(await match_select.fetch_live_odds("basket"), home, away)
+    if fresh:
+        oh, oa = fresh[0], fresh[2]
+        odds_cells = [(home, oh), (away, oa)]
+    if oh and oa:                     # barres fiche : Unibet (fraîche) + Public (votes)
+        pubv = ((rec.get("public_home"), rec.get("public_away"))
+                if rec and rec.get("public_home") is not None else analyses.votes_pct(msc))
+        prediction = web.analyst_bars(oh, None, oa, pubv)
     # Squelette commun aux 3 sports : 🧠 analyse, 📊 ce qui pèse (facteurs), 🎯 reco (page pleine),
     # puis contexte (écart de points + classement + 5 derniers).
     analysis_html = recos = factors_html = ""
     context = ""
+    deep = analyses.render("basket", amd.get("id") if amd else event_id)   # store OU sidecar
+    if deep:
+        analysis_html = deep
     mh = (rec or {}).get("model_home_prob")
     if rec and mh is not None:
         # COHÉRENCE carte/analyse : carte VALUE -> analyse sur la perle value (sinon confiance).
@@ -120,62 +180,24 @@ async def basket_match(event_id: int, frag: int = 0, pk: str = "",
                            else None),
             "match_id": int(event_id),
         }
-        # Priorité à l'analyse « analyste » pré-générée (Claude headless) si elle existe.
-        deep = analyses.render("basket", event_id)
-        analysis_html = deep or await match_analysis.write_analysis(brief, get_settings())
-        # 📊 Ce qui pèse : facteurs (proba modèle Elo + forme + classement + face-à-face)
-        fh = forms[0][2] if forms else None
-        fa = forms[1][2] if forms else None
-        factors_html = web.render_factors(
-            basket.analysis_factors(model_home_prob=mh, h2h=h2h, form_home=fh, form_away=fa))
-    # Écart de points prévu (modèle) — spécifique basket
-    margin = (rec or {}).get("margin")
-    if margin and mh is not None:
-        fav = home if mh >= 0.5 else away
-        context += (f'<h2>🏀 Écart de points prévu</h2>'
-                    f'<div class="banner">BETSFIX voit <b>{fav}</b> gagner avec <b>~{abs(round(margin))} '
-                    f'points</b> d\'écart en moyenne. <span class="dim">Utile pour les paris sur '
-                    f'l\'écart (handicap).</span></div>')
-    # NB : marchés Unibet UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
-    # 📈 Forme récente FUSIONNÉE (note + 5 derniers détaillés) + 📊 Classement (SofaScore, best-effort)
+        # Analyse analyste déjà chargée plus haut (deep) ; sinon repli rédigé standard.
+        if not analysis_html:
+            analysis_html = await match_analysis.write_analysis(brief, get_settings())
+    # Facteurs Elo + forme/classement live SofaScore retirés : la fiche s'appuie sur l'analyste
+    # (forme/H2H dans « Les faits ») + le bloc Tendances vient du sidecar. Aucun appel SofaScore.
     form_html = ""
-    fh = forms[0][2] if forms else None
-    fa = forms[1][2] if forms else None
-    try:
-        from app.routers.foot import team_context
-        form_html, standings = await team_context(event_id, home, away, unit="points",
-                                                   tf_home=fh, tf_away=fa)
-        context += standings
-    except Exception:
-        pass
     ctx = {"home": home or "Match", "away": away, "home_flag": "", "away_flag": "",
            "comp": comp, "when": when, "prediction": prediction, "odds_cells": odds_cells,
            "forms": forms, "h2h": h2h, "back_url": "/basket", "form_html": form_html,
            "analysis": analysis_html, "factors_html": factors_html, "recos": recos, "extra": context,
-           "back_label": "Basket", "sport_key": "basket"}
+           "streaks": streaks, "back_label": "Basket", "sport_key": "basket",
+           "links": analyses.links_html("basket", amd.get("id") if amd else event_id),
+           "odds_move": web.odds_move_for("basket", home, away)}
     html = web.render_sport_match_detail(ctx, frag=bool(frag))
     if frag and (form_html or h2h or analysis_html or factors_html or context):
         fragcache.put(f"basket/{event_id}/{pk}", html)
     return HTMLResponse(html)
 
-
-# ------------------------------------------------------------------- API JSON
-@router.get("/basket/board", summary="Matchs WNBA à venir + proba (Elo) + marge attendue + cotes + value")
-async def basket_board() -> list[dict]:
-    """Tableau WNBA : par match, proba de victoire, marge attendue (points), cotes et value éventuelle."""
-    try:
-        return await basket.board()
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Données basket indisponibles: {exc}")
-
-
-@router.get("/basket/finished", summary="Matchs WNBA récemment terminés + prédiction du modèle")
-async def basket_finished() -> list[dict]:
-    """Derniers matchs WNBA terminés, avec le favori du modèle (Elo)."""
-    try:
-        return await basket.finished()
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Données basket indisponibles: {exc}")
 
 
 @router.get(

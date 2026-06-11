@@ -13,18 +13,12 @@ Sources gratuites : SofaScore (scheduled-events basket) + Unibet BE (nba.json / 
 
 from __future__ import annotations
 
-import asyncio
-import html
-import json
 import logging
-import math
 import os
 from datetime import datetime, timedelta, timezone
 
-import httpx
 
 from app import sofa_http, sportcache, tracking, web, window
-from app.dependencies import get_provider
 from app.textutil import name_tokens, names_match
 
 log = logging.getLogger("uvicorn")
@@ -58,91 +52,19 @@ UNIBET_H = {"User-Agent": "Mozilla/5.0", "Accept": "application/json",
 
 
 # ----------------------------------------------------------------- Elo / proba
-def load_elo(path: str = ELO_PATH) -> dict:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, ValueError):
-        return {}
 
 
-def expected(a: float, b: float) -> float:
-    return 1.0 / (1.0 + 10 ** ((b - a) / 400.0))
 
 
-def win_prob(elo_home: float | None, elo_away: float | None) -> float | None:
-    """Proba de victoire de l'équipe à domicile (avantage terrain inclus)."""
-    if elo_home is None or elo_away is None:
-        return None
-    return expected(elo_home + HOME_ADV, elo_away)
 
 
-def analysis_factors(model_home_prob=None, h2h=None, form_home=None, form_away=None):
-    """Facteurs « ce qui pèse » de la fiche basket — MÊMES barres que tennis/foot :
-    Force générale (Elo), Classement, Forme, Face-à-face. Chacun = part en faveur du
-    domicile (0-1). Données RÉELLES (proba modèle Elo, forme/classement SofaScore)."""
-    out = []
-    if model_home_prob is not None:
-        out.append({"name": "elo", "home": model_home_prob, "away": 1 - model_home_prob,
-                    "detail": "force générale (Elo + avantage terrain)"})
-    ph_pos, pa_pos = (form_home or {}).get("position"), (form_away or {}).get("position")
-    if ph_pos and pa_pos:
-        sh, sa = 1.0 / ph_pos, 1.0 / pa_pos
-        out.append({"name": "classement", "home": sh / (sh + sa), "away": sa / (sh + sa),
-                    "detail": f"{ph_pos}e vs {pa_pos}e au classement"})
-
-    def _fs(f):   # basket : 5 derniers en V/D (pas de nul)
-        seq = (f or {}).get("form") or []
-        return (sum(1 for r in seq if r == "W") / len(seq)) if seq else None
-    fh, fa = _fs(form_home), _fs(form_away)
-    if fh is not None and fa is not None and (fh + fa) > 0:
-        out.append({"name": "forme", "home": fh / (fh + fa), "away": fa / (fh + fa),
-                    "detail": "5 derniers résultats"})
-    if h2h:
-        hw, aw = h2h.get("home_wins") or 0, h2h.get("away_wins") or 0
-        if hw + aw > 0:
-            out.append({"name": "head_to_head", "home": hw / (hw + aw), "away": aw / (hw + aw),
-                        "detail": f"{hw + aw} confrontation{'s' if hw + aw > 1 else ''}"})
-    return out
 
 
 SPREAD_SIGMA = 11.0       # écart-type de la marge (points) en WNBA
 
 
-def _inv_norm(p: float) -> float:
-    """Quantile de la loi normale (algorithme d'Acklam)."""
-    p = min(max(p, 1e-6), 1 - 1e-6)
-    a = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2,
-         1.383577518672690e2, -3.066479806614716e1, 2.506628277459239e0]
-    b = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2,
-         6.680131188771972e1, -1.328068155288572e1]
-    cc = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838e0,
-          -2.549732539343734e0, 4.374664141464968e0, 2.938163982698783e0]
-    d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996e0,
-         3.754408661907416e0]
-    pl = 0.02425
-    if p < pl:
-        q = math.sqrt(-2 * math.log(p))
-        return (((((cc[0]*q+cc[1])*q+cc[2])*q+cc[3])*q+cc[4])*q+cc[5]) / \
-               ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)
-    if p <= 1 - pl:
-        q = p - 0.5
-        r = q * q
-        return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / \
-               (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1)
-    q = math.sqrt(-2 * math.log(1 - p))
-    return -(((((cc[0]*q+cc[1])*q+cc[2])*q+cc[3])*q+cc[4])*q+cc[5]) / \
-            ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)
 
 
-def expected_margin(p_home: float | None, sigma: float = SPREAD_SIGMA) -> float | None:
-    """Marge attendue (points) de l'équipe à domicile, dérivée de la proba de victoire.
-
-    `sigma` = écart-type de la marge de la ligue (WNBA ~11, NBA ~12.5).
-    """
-    if p_home is None:
-        return None
-    return sigma * _inv_norm(p_home)
 
 
 _norm = name_tokens  # normalisation centralisée (cf. app/textutil.py)
@@ -172,28 +94,10 @@ B_CONF2_MIN_PROB = 0.62    # le 2e pari de confiance doit rester solide
 MODEL_TRUST_B = 0.50
 
 
-def _phi(z: float) -> float:
-    """Fonction de répartition de la loi normale centrée réduite."""
-    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
 
-def team_points_form(matches: list) -> dict | None:
-    """Forme de scoring d'une équipe : points marqués/encaissés par match (moyennes), depuis ses
-    derniers matchs (mêmes données que le foot : get_team_recent_matches -> {gf, ga})."""
-    if not matches:
-        return None
-    n = len(matches)
-    return {"pf": sum(m["gf"] for m in matches) / n,
-            "pa": sum(m["ga"] for m in matches) / n, "n": n}
 
 
-def _team_side_b(label: str, home: str, away: str) -> str | None:
-    toks = set(name_tokens(label or ""))
-    if home and set(name_tokens(home)) & toks:
-        return "home"
-    if away and set(name_tokens(away)) & toks:
-        return "away"
-    return None
 
 
 _B_NOT = ("joueur", "player", "rebond", "rebound", "passe", "assist", "3 points", "three",
@@ -202,145 +106,14 @@ _B_NOT = ("joueur", "player", "rebond", "rebound", "passe", "assist", "3 points"
           " and ", "&", " or ")
 
 
-def _bmarket_kind(m, home: str, away: str) -> str | None:
-    """Type de marché basket évaluable PLEIN-TEMPS (prolongations incluses)."""
-    lbl = f"{m.label or ''} {m.type or ''}".lower()
-    if any(x in lbl for x in _B_NOT):
-        return None
-    if "point" in lbl and _team_side_b(m.label or "", home, away):
-        return "team_total"                                  # total de points d'une équipe
-    if "total" in lbl and "point" in lbl:
-        return "total"                                       # total de points du match
-    if "handicap" in lbl or "spread" in lbl:
-        return "handicap"
-    if ("cotes du match" in lbl or "vainqueur" in lbl or "moneyline" in lbl
-            or "match winner" in lbl or "résultat" in lbl or (m.type or "").lower() == "match"):
-        return "moneyline"
-    return None
 
 
-def _price_basket(m, home, away, p_home, mu_m, sig_m, mu_t, sig_t, home_exp, away_exp, team_sig):
-    """Issues d'un marché basket évaluable : dicts {sel, mp, odds, kind, side, line}."""
-    kind = _bmarket_kind(m, home, away)
-    outs = [o for o in (m.outcomes or []) if o.odds]
-    if not kind or len(outs) != 2:
-        return []
-    if kind == "moneyline":
-        res = []
-        for o in outs:
-            side = _team_side_b(o.label or o.participant or "", home, away)
-            if side is None:
-                return []
-            res.append({"sel": f'{home if side == "home" else away} vainqueur',
-                        "mp": p_home if side == "home" else 1 - p_home,
-                        "odds": o.odds, "kind": kind, "side": side})
-        return res
-    if kind == "handicap":
-        res = []
-        for o in outs:
-            side = _team_side_b(o.label or o.participant or "", home, away)
-            if side is None or o.line is None:
-                return []
-            mp = _phi((mu_m + o.line) / sig_m) if side == "home" else _phi((o.line - mu_m) / sig_m)
-            res.append({"sel": f'{home if side == "home" else away} {o.line:+g}',
-                        "mp": mp, "odds": o.odds, "kind": kind, "side": side, "line": o.line})
-        return res
-    if kind == "total" and mu_t is not None:
-        line = next((o.line for o in outs if o.line is not None), None)
-        if line is None:
-            return []
-        over = _phi((mu_t - line) / sig_t)
-        return [{"sel": f'{"Plus" if _b_over(o.label) else "Moins"} de {line:g} pts',
-                 "mp": over if _b_over(o.label) else 1 - over, "odds": o.odds,
-                 "kind": kind, "side": "over" if _b_over(o.label) else "under", "line": line}
-                for o in outs]
-    if kind == "team_total" and home_exp is not None:
-        side = _team_side_b(m.label or "", home, away)
-        line = next((o.line for o in outs if o.line is not None), None)
-        if side is None or line is None:
-            return []
-        exp = home_exp if side == "home" else away_exp
-        over = _phi((exp - line) / team_sig)
-        name = home if side == "home" else away
-        return [{"sel": f'{name} : {"plus" if _b_over(o.label) else "moins"} de {line:g} pts',
-                 "mp": over if _b_over(o.label) else 1 - over, "odds": o.odds,
-                 "kind": kind, "side": ("over" if _b_over(o.label) else "under") + ":" + side,
-                 "line": line} for o in outs]
-    return []
 
 
-def _b_over(label: str) -> bool:
-    lab = (label or "").lower()
-    return "plus" in lab or "over" in lab or "+" in lab
 
 
-def _basket_candidates(elo_home, elo_away, sigma, markets, home, away, form_h=None, form_a=None):
-    """Pool commun des paris basket jouables (mêmes garde-fous/seuils) -> confiance & value."""
-    p_home = win_prob(elo_home, elo_away)
-    if p_home is None or not markets:
-        return []
-    mu_m, sig_m = expected_margin(p_home, sigma), sigma          # écart (dom-ext) ~ N(mu_m, sigma)
-    team_sig = sigma                                              # σ des points d'une équipe ~ σ marge
-    sig_t = sigma * math.sqrt(2.0)                                # σ du total (2 équipes ~ indépendantes)
-    mu_t = home_exp = away_exp = None
-    if form_h and form_a:
-        home_exp = (form_h["pf"] + form_a["pa"]) / 2
-        away_exp = (form_a["pf"] + form_h["pa"]) / 2
-        mu_t = home_exp + away_exp
-    cands = []
-    for m in markets:
-        priced = _price_basket(m, home, away, p_home, mu_m, sig_m, mu_t, sig_t,
-                               home_exp, away_exp, team_sig)
-        if len(priced) < 2:
-            continue
-        inv = [1 / c["odds"] for c in priced]
-        s = sum(inv) or 1.0
-        msum = sum(c["mp"] for c in priced) or 1.0
-        for c, iv in zip(priced, inv):
-            implied = iv / s * msum
-            # garde-fou : strict sur l'écart (vainqueur/handicap, marché efficient), plus souple
-            # sur les totaux (le modèle de scoring a un vrai signal).
-            cap = B_MARGIN_DISAGREEMENT if c["kind"] in ("moneyline", "handicap") else B_TOTAL_DISAGREEMENT
-            if abs(c["mp"] - implied) > cap:
-                continue
-            fair = MODEL_TRUST_B * c["mp"] + (1 - MODEL_TRUST_B) * implied
-            edge = fair - implied
-            if fair >= B_MIN_PROB and c["odds"] >= B_MIN_ODDS and edge >= B_MIN_EDGE:
-                cands.append({"market": m.label or "", "selection": c["sel"],
-                              "odds": round(c["odds"], 2), "model_prob": round(fair, 4),
-                              "edge": round(edge, 4), "kind": c["kind"],
-                              "side": c.get("side"), "line": c.get("line")})
-    return cands
 
 
-def best_picks_basket(elo_home, elo_away, sigma, markets, home, away, form_h=None, form_a=None):
-    """1-2 confiances (proba max, types distincts) + value (edge max, cote ≥ 1,50). None si rien."""
-    cands = _basket_candidates(elo_home, elo_away, sigma, markets, home, away, form_h, form_a)
-    if not cands:
-        return None
-    confidences, seen, seen_sel = [], set(), set()
-    # Tri par SCORE = proba × edge (pas la proba brute) : vise le ROI réel, pas le taux brut qui
-    # favorise les petites cotes stériles. Même pool/seuils -> ne vide jamais l'ensemble.
-    for c in sorted(cands, key=lambda c: -(c["model_prob"] * c["edge"])):
-        base_kind = c["kind"]
-        if base_kind in seen:
-            continue
-        # 2e pari = type ET sélection DISTINCTS (sinon doublon -> on n'ajoute rien : un 2e pari
-        # n'apparaît QUE s'il est vraiment différent et intéressant).
-        sel = (c.get("selection") or "").strip().lower()
-        if sel in seen_sel:
-            continue
-        # 2e pari : solide aussi. Ordre non trié par proba -> on SAUTE les trop justes (continue).
-        if confidences and c["model_prob"] < B_CONF2_MIN_PROB:
-            continue
-        confidences.append(c)
-        seen.add(base_kind)
-        seen_sel.add(sel)
-        if len(confidences) >= B_N_CONFIANCES:
-            break
-    payed = [c for c in cands if c["odds"] >= B_VALUE_MIN_ODDS]
-    value = max(payed, key=lambda c: c["edge"]) if payed else None
-    return {"confidences": confidences, "confidence": confidences[0], "value": value}
 
 
 def perle_live_status(perle, hp, ap):
@@ -354,243 +127,28 @@ def perle_live_status(perle, hp, ap):
     return None
 
 
-def settle_basket_perle(perle: dict, home_pts: int, away_pts: int):
-    """Gagné/perdu/None (None = push/non réglable) d'une perle basket d'après le score final."""
-    if not perle or home_pts is None or away_pts is None:
-        return None
-    kind, side, line = perle.get("kind"), perle.get("side"), perle.get("line")
-    margin, total = home_pts - away_pts, home_pts + away_pts
-    if kind == "moneyline":
-        return (side == "home") == (margin > 0)
-    if kind == "handicap" and line is not None:
-        tm = margin if side == "home" else -margin
-        x = tm + line
-        return None if x == 0 else x > 0          # push (ligne entière atteinte) -> non réglé
-    if kind == "total" and line is not None:
-        return None if total == line else (total > line if side == "over" else total < line)
-    if kind == "team_total" and line is not None:
-        ou, sd = side.split(":")
-        pts = home_pts if sd == "home" else away_pts
-        return None if pts == line else (pts > line if ou == "over" else pts < line)
-    return None
 
 
 # ----------------------------------------------------------------- données
-async def _get(client, base, path, params=None):
-    key = base + path + (str(sorted(params.items())) if params else "")
-    cached = sportcache.get(key)
-    if cached is not None:
-        return cached
-    is_sofa = base == SOFA_B
-    if is_sofa and sportcache.blocked():
-        # disjoncteur ouvert : on tente DIRECTEMENT RapidAPI (repli) -> le règlement continue
-        rr = await sofa_http._rapid_get(base + path, params)
-        data = rr.json() if (rr is not None and rr.status_code == 200) else None
-        sportcache.put(key, data, ttl=sportcache.DEFAULT_TTL)
-        return data
-    try:
-        # SofaScore -> curl_cffi (empreinte TLS Chrome, anti-403) ; le reste -> httpx fourni.
-        if is_sofa:
-            r = await sofa_http.get(base + path, params=params)
-        else:
-            r = await client.get(base + path, params=params, timeout=20)
-        if is_sofa and r.status_code in (403, 429):
-            sportcache.trip()
-        data = r.json() if r.status_code == 200 else None
-    except Exception:
-        data = None
-    sportcache.put(key, data, ttl=3600 if "/seasons" in path else sportcache.DEFAULT_TTL)
-    return data
 
 
 # Fenêtre de récupération : logique COMMUNE aux 3 sports (cf. app/window.py).
 
 
-async def _season_id(client, tid: int):
-    data = await _get(client, SOFA_B, f"/unique-tournament/{tid}/seasons")
-    s = (data or {}).get("seasons") or []
-    return s[0]["id"] if s else None
 
 
-def _row_from_event(ev: dict, league: str) -> dict:
-    ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
-    return {
-        "id": ev["id"], "league": league, "home_id": ht.get("id"), "away_id": at.get("id"),
-        "home": ht.get("name", ""), "away": at.get("name", ""),
-        "start": ev.get("startTimestamp"), "status": (ev.get("status") or {}).get("type"),
-        "home_pts": (ev.get("homeScore") or {}).get("current"),
-        "away_pts": (ev.get("awayScore") or {}).get("current"),
-    }
 
 
-async def _upcoming_games(client) -> list[dict]:
-    """Matchs NBA + WNBA à venir / en cours (SofaScore).
-
-    Deux sources fusionnées : l'agenda du jour (scheduled-events, calendriers denses
-    comme la WNBA) ET les prochains matchs de chaque ligue (events/next, indispensable
-    pour les playoffs NBA dont les matchs sont espacés de plusieurs jours).
-    """
-    now = datetime.now(timezone.utc)
-    base = now.date()
-    horizon = window.cutoff(now)
-    games, seen = [], set()
-
-    def _add(ev: dict, league: str) -> None:
-        st = (ev.get("status") or {}).get("type")
-        if st not in ("notstarted", "inprogress") or ev.get("id") in seen:
-            return
-        ts = ev.get("startTimestamp")
-        start = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else None
-        if start and start > horizon:
-            return
-        seen.add(ev["id"])
-        games.append(_row_from_event(ev, league))
-
-    # Source 1 : agenda quotidien (aujourd'hui + demain) -> filtré ensuite à la fenêtre 24 h
-    for d in range(window.agenda_days()):
-        data = await _get(client, SOFA_B, f"/sport/basketball/scheduled-events/{(base + timedelta(days=d)).isoformat()}")
-        for ev in (data or {}).get("events", []) or []:
-            league = (ev.get("tournament") or {}).get("name")
-            if league in LEAGUES:
-                _add(ev, league)
-
-    # Source 2 : prochains matchs par ligue (capte les playoffs espacés)
-    for league, cfg in LEAGUES.items():
-        sid = await _season_id(client, cfg["tid"])
-        if not sid:
-            continue
-        data = await _get(client, SOFA_B, f"/unique-tournament/{cfg['tid']}/season/{sid}/events/next/0")
-        for ev in (data or {}).get("events", []) or []:
-            _add(ev, league)
-
-    games.sort(key=lambda g: g["start"] or 0)
-    return games
 
 
-async def _unibet_odds(client) -> list[dict]:
-    """Cotes moneyline NBA + WNBA Unibet : [{home_tokens, away_tokens, oh, oa}]."""
-    out = []
-    for cfg in LEAGUES.values():
-        data = await _get(client, UNIBET_B, cfg["unibet"], UNIBET_PARAMS)
-        for entry in (data or {}).get("events", []) or []:
-            ev = entry.get("event") or {}
-            offers = entry.get("betOffers") or []
-            money = next((b for b in offers if (b.get("betOfferType") or {}).get("name")
-                          in ("Match", "Head to Head", "Moneyline")), offers[0] if offers else None)
-            if not money:
-                continue
-            outs = money.get("outcomes") or []
-            if len(outs) != 2:
-                continue
-            def dec(o):
-                v = o.get("odds")
-                return round(v / 1000, 3) if isinstance(v, (int, float)) else None
-            # 'participant' / 'label' donne quelle équipe ; on relie via les noms de l'event
-            out.append({
-                "home_tokens": _norm(ev.get("homeName", "")),
-                "away_tokens": _norm(ev.get("awayName", "")),
-                "day": _odds_day(ev.get("start")),
-                "oh": dec(outs[0]), "oa": dec(outs[1]),
-            })
-    return out
 
 
-def _odds_day(value):
-    """Date (UTC) d'un événement Unibet, pour désambiguïser le matching par noms."""
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc).date()
-    except (ValueError, TypeError):
-        return None
 
 
-def _match_odds(game, odds_list):
-    """Relie un match SofaScore à ses cotes Unibet : noms NON génériques + même date.
-
-    names_match ignore les mots génériques (« los », « city »…) qui apparieraient deux
-    équipes différentes ; la date lève les dernières ambiguïtés."""
-    ht, at = _norm(game["home"]), _norm(game["away"])
-    ts = game.get("start")
-    gday = datetime.fromtimestamp(ts, tz=timezone.utc).date() if ts else None
-    for o in odds_list:
-        if gday is not None and o["day"] is not None and o["day"] != gday:
-            continue
-        if names_match(ht, o["home_tokens"]) and names_match(at, o["away_tokens"]):
-            return o["oh"], o["oa"]
-        if names_match(ht, o["away_tokens"]) and names_match(at, o["home_tokens"]):   # sens inversé
-            return o["oa"], o["oh"]
-    return None, None
 
 
-async def board() -> list[dict]:
-    """Tableau WNBA prêt à afficher : par match, proba modèle + cotes + value."""
-    elo = load_elo()
-    async with httpx.AsyncClient(headers={}) as client:
-        client.headers.update(SOFA_H)
-        games = await _upcoming_games(client)
-        client.headers.update(UNIBET_H)
-        odds = await _unibet_odds(client)
-
-    rows = []
-    for g in games:
-        eh = (elo.get(str(g["home_id"])) or {}).get("elo")
-        ea = (elo.get(str(g["away_id"])) or {}).get("elo")
-        if eh is None or ea is None:   # Elo absent (équipe non couverte par le build)
-            log.info("basket: Elo manquant pour %s vs %s -> pas de prédiction",
-                     g.get("home"), g.get("away"))
-        p = win_prob(eh, ea)
-        oh, oa = _match_odds(g, odds)
-        imp = _devig(oh, oa)
-        pick = None
-        if p is not None and imp is not None:
-            for side, model_p, odds_s, imp_s in (
-                ("home", p, oh, imp[0]), ("away", 1 - p, oa, imp[1])):
-                fair = MODEL_TRUST * model_p + (1 - MODEL_TRUST) * imp_s
-                edge = fair - imp_s
-                if (edge >= VALUE_THRESHOLD and MIN_IMPLIED <= imp_s <= MAX_IMPLIED
-                        and (model_p - imp_s) <= MAX_DISAGREEMENT   # modèle pas "aveugle"
-                        and odds_s and (not pick or edge > pick["edge"])):
-                    b = odds_s - 1
-                    kf = max(0.0, (b * fair - (1 - fair)) / b) if b > 0 else 0.0
-                    pick = {"side": side, "team": g[side], "odds": odds_s, "edge": edge,
-                            "stake": round(min(kf * 0.25 * 100, 3.0), 2)}
-        sigma = LEAGUES.get(g.get("league"), {}).get("sigma", SPREAD_SIGMA)
-        rows.append({**g, "model_home": p, "margin": expected_margin(p, sigma), "oh": oh, "oa": oa,
-                     "imp_home": imp[0] if imp else None, "pick": pick})
-    return rows
 
 
-async def enrich_display(rows: list[dict]) -> None:
-    """Ajoute votes des fans + forme d'avant-match (via provider SofaScore caché).
-
-    Même logique que le foot : seul le 1er affichage touche le réseau (stale-while-revalidate),
-    limité aux matchs jouables, tolérant aux erreurs.
-    """
-    prov = get_provider()
-    targets = [r for r in rows if r.get("status") in ("notstarted", "inprogress")][:12]
-
-    async def one(r: dict) -> None:
-        eid = r.get("id")
-        try:
-            v = await prov.get_votes(eid)
-            if v.home_percent is not None:
-                r["votes"] = (v.home_percent, v.away_percent)
-        except Exception:
-            pass
-        try:
-            pf = await prov.get_event_pregame_form(eid)
-            if pf.home.form or pf.away.form:
-                r["form"] = (pf.home.form, pf.away.form)
-        except Exception:
-            pass
-
-    if targets:
-        try:   # best-effort : si SofaScore traîne, on rend la page sans enrichissement
-            await asyncio.wait_for(
-                asyncio.gather(*[one(r) for r in targets], return_exceptions=True), timeout=3.0)
-        except asyncio.TimeoutError:
-            pass
 
 
 # ----------------------------------------------------------------- rendu (page)
@@ -600,279 +158,27 @@ def _fmt_time(ts) -> str:
     return web.fmt_local(datetime.fromtimestamp(ts, tz=timezone.utc).isoformat())
 
 
-async def _finished_games(client, days: int = 2) -> list[dict]:
-    """Matchs NBA + WNBA terminés récents (pour la section Terminés)."""
-    base = datetime.now(timezone.utc).date()
-    out = []
-    for d in range(1, days + 1):
-        day = (base - timedelta(days=d)).isoformat()
-        data = await _get(client, SOFA_B, f"/sport/basketball/scheduled-events/{day}")
-        for ev in (data or {}).get("events", []) or []:
-            league = (ev.get("tournament") or {}).get("name")
-            if league not in LEAGUES:
-                continue
-            if (ev.get("status") or {}).get("type") != "finished" or ev.get("winnerCode") not in (1, 2):
-                continue
-            ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
-            out.append({"league": league, "home_id": ht.get("id"), "away_id": at.get("id"),
-                        "home": ht.get("name", ""), "away": at.get("name", ""),
-                        "winner": "home" if ev["winnerCode"] == 1 else "away",
-                        "hs": (ev.get("homeScore") or {}).get("current"),
-                        "as": (ev.get("awayScore") or {}).get("current"),
-                        "ts": ev.get("startTimestamp") or 0})
-    out.sort(key=lambda g: g["ts"], reverse=True)
-    return out[:10]
 
 
-def board_from_store() -> list[dict]:
-    """Repli : reconstruit la board des matchs à venir depuis le SUIVI persisté
-    (tracking_basket.json), quand SofaScore est en pause et que la board live est vide.
-
-    Sans ça, l'onglet Basket apparaît vide alors que les mêmes matchs s'affichent dans
-    les picks de l'accueil (qui, eux, lisent déjà le store)."""
-    store = tracking.load(BASKET_TRACK_PATH)
-    now = datetime.now(timezone.utc)
-    horizon = window.cutoff(now)
-    rows = []
-    for rec in store.values():
-        if rec.get("result"):
-            continue
-        st = rec.get("start_time")
-        try:
-            dt = datetime.fromisoformat(st) if st else None
-        except ValueError:
-            dt = None
-        if dt is None or dt < now or dt > horizon:   # uniquement les matchs À VENIR
-            continue
-        league = (rec.get("tour") or "wnba").upper()
-        p = rec.get("model_home_prob")
-        sigma = LEAGUES.get(league, {}).get("sigma", SPREAD_SIGMA)
-        v = rec.get("value_pick")
-        pick = ({"side": v["side"], "team": v.get("player"), "odds": v.get("odds"),
-                 "edge": v.get("edge"), "stake": v.get("stake_pct")} if v else None)
-        ph, pa = rec.get("public_home"), rec.get("public_away")
-        oh, oa = rec.get("unibet_home_odds"), rec.get("unibet_away_odds")
-        imp = _devig(oh, oa)
-        rows.append({
-            "id": rec.get("match_id"), "league": league, "status": "notstarted",
-            "home": rec.get("home", ""), "away": rec.get("away", ""),
-            "model_home": p, "margin": expected_margin(p, sigma),
-            "oh": oh, "oa": oa,
-            "imp_home": imp[0] if imp else None, "pick": pick, "start": dt.timestamp(),
-            "votes": (ph, pa) if ph is not None else None,
-            "perle": rec.get("perle"), "perle2": rec.get("perle2"),
-            "perle_value": rec.get("perle_value"),
-        })
-    rows.sort(key=lambda g: g["start"] or 0)
-    return rows
 
 
 RENDER_NET_BUDGET = 2.5   # s max d'attente réseau au rendu (sinon repli)
 
 
-def _ub_dt(value):
-    """Horodatage ISO Unibet -> datetime UTC."""
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)
-    except (ValueError, TypeError):
-        return None
 
 
-def _live_pts(entry: dict) -> tuple[int | None, int | None]:
-    """Score live (points) depuis le liveData Unibet : (home, away) ou (None, None)."""
-    sc = (entry.get("liveData") or {}).get("score") or {}
-    try:
-        return int(sc.get("home")), int(sc.get("away"))
-    except (TypeError, ValueError):
-        return None, None
 
 
-async def board_from_unibet() -> list[dict]:
-    """Matchs basket depuis UNIBET (moneyline NBA+WNBA) + Elo par nom. SANS SofaScore.
-    Les noms d'équipes US sont identiques chez Unibet et SofaScore -> pas de bilingue."""
-    elo = load_elo()
-    # index AVEC la ligue : crucial car NBA et WNBA partagent les villes (« Atlanta Dream »
-    # WNBA ne doit PAS matcher « Atlanta Hawks » NBA via le token « atlanta »).
-    index = [(name_tokens(v.get("name", "")), v.get("elo"), v.get("league"))
-             for v in elo.values() if v.get("name")]
-
-    def elo_for(name, league):
-        q = name_tokens(name)
-        for toks, e, lg in index:
-            if lg == league and names_match(q, toks):
-                return e
-        return None
-
-    def _dec(o):
-        v = o.get("odds")
-        return round(v / 1000, 3) if isinstance(v, (int, float)) else None
-
-    now = datetime.now(timezone.utc)
-    horizon = window.cutoff(now)
-    rows, seen = [], set()
-    async with httpx.AsyncClient(headers=UNIBET_H) as client:
-        for league, cfg in LEAGUES.items():
-            data = await _get(client, UNIBET_B, cfg["unibet"], UNIBET_PARAMS)
-            for entry in (data or {}).get("events", []) or []:
-                ev = entry.get("event") or {}
-                kid = ev.get("id")
-                home = ev.get("homeName", "").replace(" (F)", "").replace(" (W)", "").strip()
-                away = ev.get("awayName", "").replace(" (F)", "").replace(" (W)", "").strip()
-                # NB : pas de filtre parenthèses ici -> les listViews nba/wnba.json sont des
-                # vraies ligues (le « (F) » des noms WNBA est juste un marqueur), pas d'esports.
-                if kid in seen:
-                    continue
-                start = _ub_dt(ev.get("start"))
-                if start is None or start > horizon:
-                    continue
-                eh, ea = elo_for(home, league), elo_for(away, league)
-                if eh is None or ea is None:
-                    continue
-                seen.add(kid)
-                offers = entry.get("betOffers") or []
-                money = next((b for b in offers if (b.get("betOfferType") or {}).get("name")
-                              in ("Match", "Head to Head", "Moneyline")), offers[0] if offers else None)
-                oh = oa = None
-                outs = (money or {}).get("outcomes") or []
-                if len(outs) == 2:
-                    oh, oa = _dec(outs[0]), _dec(outs[1])
-                p = win_prob(eh, ea)
-                imp = _devig(oh, oa)
-                pick = None
-                if p is not None and imp is not None:
-                    for side, mp, odds_s, imp_s in (("home", p, oh, imp[0]), ("away", 1 - p, oa, imp[1])):
-                        fair = MODEL_TRUST * mp + (1 - MODEL_TRUST) * imp_s
-                        edge = fair - imp_s
-                        if (edge >= VALUE_THRESHOLD and MIN_IMPLIED <= imp_s <= MAX_IMPLIED
-                                and (mp - imp_s) <= MAX_DISAGREEMENT and odds_s
-                                and (not pick or edge > pick["edge"])):
-                            b = odds_s - 1
-                            kf = max(0.0, (b * fair - (1 - fair)) / b) if b > 0 else 0.0
-                            pick = {"side": side, "team": home if side == "home" else away,
-                                    "odds": odds_s, "edge": edge, "stake": round(min(kf * 0.25 * 100, 3.0), 2)}
-                status = "notstarted" if ev.get("state") == "NOT_STARTED" else "inprogress"
-                hp_pts, ap_pts = _live_pts(entry) if status == "inprogress" else (None, None)
-                live_time = (web.fmt_live_clock((entry.get("liveData") or {}).get("matchClock"))
-                             if status == "inprogress" else "")
-                rows.append({
-                    "id": kid, "league": league, "status": status, "home": home, "away": away,
-                    "model_home": p, "margin": expected_margin(p, cfg.get("sigma", SPREAD_SIGMA)),
-                    "oh": oh, "oa": oa, "imp_home": imp[0] if imp else None, "pick": pick,
-                    "start": start.timestamp(), "votes": None, "female": league == "WNBA",
-                    "home_pts": hp_pts, "away_pts": ap_pts, "live_time": live_time,
-                })
-    rows.sort(key=lambda g: g["start"] or 0)
-    return rows
 
 
-async def _resolve_sofa_ids(rows: list[dict]) -> None:
-    """Pose l'id SofaScore (noms + date, via scheduled-events basket) dans row['id'] pour
-    l'enrichissement. Best-effort : ignoré si SofaScore est en pause."""
-    if not rows or sportcache.blocked():
-        return
-    days = sorted({datetime.fromtimestamp(r["start"], tz=timezone.utc).date().isoformat()
-                   for r in rows if r.get("start")})
-    index = []
-    async with httpx.AsyncClient(headers=SOFA_H) as c:
-        for day in days:
-            data = await _get(c, SOFA_B, f"/sport/basketball/scheduled-events/{day}")
-            for ev in (data or {}).get("events", []) or []:
-                ts = ev.get("startTimestamp")
-                d = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat() if ts else None
-                index.append((name_tokens((ev.get("homeTeam") or {}).get("name", "")),
-                              name_tokens((ev.get("awayTeam") or {}).get("name", "")), d, ev.get("id")))
-    for r in rows:
-        rd = datetime.fromtimestamp(r["start"], tz=timezone.utc).date().isoformat() if r.get("start") else None
-        rh, ra = name_tokens(r["home"]), name_tokens(r["away"])
-        for ht, at, d, sid in index:
-            if names_match(rh, ht) and names_match(ra, at) and (d is None or rd is None or d == rd):
-                r["id"] = sid
-                break
 
 
-def _attach_from_store(rows: list[dict]) -> None:
-    """Relie chaque match Unibet au suivi (par nom + date) -> id SofaScore + votes, SANS
-    aucun appel SofaScore (le store est peuplé en fond par la boucle de suivi). C'est ce
-    qui garde le RENDU des pages 100 % hors-SofaScore (plus de rafales -> plus de pauses)."""
-    store = tracking.load(BASKET_TRACK_PATH)
-    idx = []
-    for rec in store.values():
-        st = rec.get("start_time")
-        try:
-            d = datetime.fromisoformat(st).date() if st else None
-        except ValueError:
-            d = None
-        idx.append((name_tokens(rec.get("home", "")), name_tokens(rec.get("away", "")), d, rec))
-    for r in rows:
-        rd = datetime.fromtimestamp(r["start"], tz=timezone.utc).date() if r.get("start") else None
-        rh, ra = name_tokens(r["home"]), name_tokens(r["away"])
-        for sht, sat, d, rec in idx:
-            if d is not None and rd is not None and d != rd:
-                continue
-            if names_match(rh, sht) and names_match(ra, sat):
-                mid = rec.get("match_id")
-                if mid:
-                    r["id"] = mid
-                    r["sofa_ok"] = True     # id SofaScore résolu -> fiche détaillée cliquable
-                if rec.get("public_home") is not None:
-                    r["votes"] = (rec["public_home"], rec["public_away"])
-                for k in ("perle", "perle2", "perle_value"):
-                    if rec.get(k):
-                        r[k] = rec[k]
-                break
 
 
-async def board_resilient() -> list[dict]:
-    """SOURCE UNIQUE des matchs basket (onglet ET accueil). MATCHS + cotes via UNIBET + Elo,
-    enrichissement (id SofaScore + votes) lu dans le STORE -> rendu 100 % hors-SofaScore.
-    Replis : board SofaScore directe puis store."""
-    try:
-        rows = await asyncio.wait_for(board_from_unibet(), timeout=RENDER_NET_BUDGET)
-        if rows:
-            _attach_from_store(rows)       # store local, aucun appel SofaScore
-            return rows
-    except (Exception, asyncio.TimeoutError):
-        pass
-    return board_from_store()              # repli store (toujours hors-SofaScore au rendu)
 
 
-async def finished() -> list[dict]:
-    elo = load_elo()
-    async with httpx.AsyncClient(headers=SOFA_H) as c:
-        games = await _finished_games(c)
-    for g in games:
-        eh = (elo.get(str(g["home_id"])) or {}).get("elo")
-        ea = (elo.get(str(g["away_id"])) or {}).get("elo")
-        g["model_home"] = win_prob(eh, ea)
-    return games
 
 
-def finished_from_store(limit: int = 8) -> list[dict]:
-    """Matchs récemment terminés depuis le suivi (SANS appel SofaScore) — pour le rendu."""
-    store = tracking.load(BASKET_TRACK_PATH)
-    out = []
-    for rec in store.values():
-        res = rec.get("result")
-        if not res or res.get("winner") not in ("home", "away") or res.get("void"):
-            continue
-        sc = (res.get("score") or "").split("-")
-        hs, as_ = (sc[0], sc[1]) if len(sc) == 2 else (None, None)
-
-        def _won(k):
-            v = res.get(k)
-            return (v > 0) if v is not None else None
-        wn = rec.get("home", "") if res["winner"] == "home" else rec.get("away", "")
-        out.append({"league": (rec.get("tour") or "").upper() or "Basket",
-                    "home": rec.get("home", ""), "away": rec.get("away", ""),
-                    "winner": res["winner"], "winner_name": wn, "model_home": rec.get("model_home_prob"),
-                    "perle": rec.get("perle"), "perle_won": _won("perle_pnl"),
-                    "perle2": rec.get("perle2"), "perle2_won": _won("perle2_pnl"),
-                    "perle_value": rec.get("perle_value"), "value_won": _won("perle_value_pnl"),
-                    "hs": hs, "as": as_, "_at": res.get("settled_at", "")})
-    out.sort(key=lambda g: g["_at"], reverse=True)
-    return out[:limit]
 
 
 def _card(r: dict) -> dict:
@@ -883,10 +189,8 @@ def _card(r: dict) -> dict:
         lbl = "Bookmakers live" if r.get("status") == "inprogress" else "Bookmakers"
         sub_html = web.odds_bar([(r["home"], r.get("oh")), (r["away"], r.get("oa"))],
                                 highlight_idx=hi, label=lbl)
-    elif p is None:
-        sub_html = '<div class="dim">Elo indisponible</div>'
     else:
-        sub_html = ""
+        sub_html = ""   # 100 % analyste : l'ancien modèle Elo est retiré (plus de mention)
     fm = r.get("form")
     if fm:
         sub_html += web.form_compare(r["home"], fm[0], r["away"], fm[1])
@@ -906,210 +210,42 @@ def _card(r: dict) -> dict:
             "url": f'/basket/match/{r["id"]}' if r.get("sofa_ok") else None,
             "score": (f'{r.get("home_pts")}-{r.get("away_pts")}'
                       if r["status"] == "inprogress" and r.get("home_pts") is not None else ""),
-            "live_time": r.get("live_time", ""),
+            "live_time": r.get("live_time", ""), "periods": r.get("periods"),
             "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
             "sub": sub_html, "badge": badge, "pick": bool(pk),
             "live_won": sp == "won", "live_won2": sp2 == "won", "live_won_value": spv == "won",
             "live_lost": sp == "lost", "live_lost2": sp2 == "lost", "live_lost_value": spv == "lost",
             "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
-            **web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])}
+            **(web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])
+               if p is not None else
+               web.analyst_bars(r.get("oh"), None, r.get("oa"), r.get("votes")))}
 
 
-async def live_cards() -> list[dict]:
-    """Cartes des matchs basket EN DIRECT (pour l'onglet Directs)."""
-    return [_card(r) for r in await board_resilient() if r.get("status") == "inprogress"]
 
 
 def render(rows: list[dict], finished_rows: list[dict] | None = None,
            paused: bool = False, frag: bool = False) -> str:
-    e = html.escape
-    confidences, value, live, upcoming = [], [], [], []
+    # Cartes COMPLÈTES (barres + perle « à jouer ») dans chaque section À venir / En direct /
+    # Terminés (plus de section Confiances séparée). Terminés : ✓/✗ + score réel.
+    live, upcoming, fin = [], [], []
     for r in rows:
         card = _card(r)
-        if r["status"] == "inprogress":
-            live.append(card)                            # LIVE : on GARDE le prono d'avant-match (+ halo)
-            continue
-        upcoming.append({**card, "perle": None, "perle2": None})  # À venir : prono dans Confiances/Valeurs
-        if isinstance(r.get("perle"), dict) and r["perle"].get("selection"):
-            confidences.append(card)
-        pv = r.get("perle_value")
-        if isinstance(pv, dict) and pv.get("selection"):
-            value.append({**card, "perle": pv, "perle2": None, "pick_kind": "value",
-                          "live_won": card.get("live_won_value"),
-                          "live_lost": card.get("live_lost_value")})
-
-    fin = []
+        (live if r["status"] == "inprogress" else upcoming).append(card)
     for r in (finished_rows or []):
-        # PRONO joué (confiance/value) mis en évidence + ✓/✗ ; PAS de badge si aucun prono
-        badge, sub = web.finished_picks(r.get("perle"), r.get("perle_won"),
-                                        r.get("perle_value"), r.get("value_won"),
-                                        r.get("winner_name"),
-                                        perle2=r.get("perle2"), perle2_won=r.get("perle2_won"))
-        fin.append({"tour": r.get("league", "Basket"), "status": "finished",
-                    "home": r["home"], "away": r["away"],
-                    "female": (r.get("league") or "").upper() == "WNBA",
-                    "score": f'{r.get("hs")}-{r.get("as")}' if r.get("hs") is not None else "terminé",
-                    "sub": sub, "badge": badge})
+        card = _card({**r, "status": "finished"})
+        card["score"] = r.get("res_score") or "terminé"
+        card["badge"] = r.get("res_badge", "")
+        fin.append(card)
 
     intro = ('🏀 <b>NBA & WNBA</b>. Touchez un match pour son analyse complète (forme, '
              f'face-à-face). {web.BARS_LEGEND}')
-    return web.render_sport_matches("basket", "Basket NBA & WNBA", value, live, upcoming, fin,
-                                    intro=intro, paused=paused, frag=frag, confidences=confidences)
+    return web.render_sport_matches("basket", "Basket NBA & WNBA", [], live, upcoming, fin,
+                                    intro=intro, paused=paused, frag=frag, confidences=[])
 
 
 # ----------------------------------------------------------------- suivi (séparé)
 BASKET_TRACK_PATH = os.path.join(_ROOT, "data", "tracking_basket.json")
 
 
-def _upsert(store: dict, g: dict, now_iso: str) -> bool:
-    rec = store.get(str(g["id"]), {})
-    if rec.get("result"):
-        return False
-    pick = g.get("pick")
-    # 🔒 MÉMORISER les pronos et NE JAMAIS LES PERDRE : figé une fois commencé, et jamais
-    # écrasé par None avant match (échec transitoire de récupération des cotes).
-    started = (g.get("status") or "notstarted") != "notstarted"
-    new_pick = ({"side": pick["side"], "player": pick["team"], "odds": pick["odds"],
-                 "edge": pick["edge"], "stake_pct": pick.get("stake")} if pick else None)
-
-    def _keep(key, new):
-        if started:
-            return rec.get(key)
-        return new if new is not None else rec.get(key)
-    rec.update({
-        "match_id": g["id"], "sport": "basket", "tour": (g.get("league") or "").lower() or "wnba",
-        "home": g["home"], "away": g["away"], "model_home_prob": g["model_home"],
-        "start_time": (datetime.fromtimestamp(g["start"], tz=timezone.utc).isoformat()
-                       if g.get("start") else None),
-        "unibet_home_odds": g.get("oh"), "unibet_away_odds": g.get("oa"),
-        "margin": g.get("margin"),   # marge attendue (points) du favori, pour la fiche
-        "value_pick": _keep("value_pick", new_pick),
-        "perle": _keep("perle", g.get("perle")),
-        "perle2": _keep("perle2", g.get("perle2")),
-        "perle_value": _keep("perle_value", g.get("perle_value")),
-        "last_update": now_iso,
-    })
-    vt = g.get("votes")               # votes des fans (persistés -> barre PUBLIC stable)
-    if vt and vt[0] is not None:
-        rec["public_home"], rec["public_away"] = vt[0], vt[1]
-    rec.setdefault("first_logged", now_iso)
-    rec.setdefault("open_home_odds", g.get("oh"))
-    rec.setdefault("open_away_odds", g.get("oa"))
-    store[str(g["id"])] = rec
-    return True
 
 
-async def _attach_perles(rows: list[dict]) -> None:
-    """Pose perle/perle2/perle_value sur chaque match basket à venir : marchés complets Unibet
-    (moneyline, handicap, totaux, totaux par équipe) + forme de scoring des 2 équipes. Best-effort."""
-    from datetime import datetime as _dt
-    from app.dependencies import get_unibet
-    elo = load_elo()
-    prov, uni = get_provider(), get_unibet()
-    targets = [g for g in rows if g.get("status") == "notstarted"
-               and g.get("home_id") and g.get("away_id")]
-    sem = asyncio.Semaphore(4)
-
-    async def _form(tid):
-        try:
-            return team_points_form(await prov.get_team_recent_matches(tid, n=15))
-        except Exception:
-            return None
-
-    async def one(g):
-        async with sem:
-            eh = (elo.get(str(g["home_id"])) or {}).get("elo")
-            ea = (elo.get(str(g["away_id"])) or {}).get("elo")
-            if eh is None or ea is None:
-                return
-            sigma = LEAGUES.get(g.get("league"), {}).get("sigma", SPREAD_SIGMA)
-            fh, fa = await _form(g["home_id"]), await _form(g["away_id"])
-            try:
-                st = _dt.fromtimestamp(g["start"], tz=timezone.utc) if g.get("start") else None
-                uo = await uni.find_event_odds("basketball", g["home"], g["away"], g["id"], st)
-                markets = uo.markets if uo.matched else []
-            except Exception:
-                markets = []
-            if not markets:
-                return
-            picks = best_picks_basket(eh, ea, sigma, markets, g["home"], g["away"], fh, fa)
-            confs = picks["confidences"] if picks else []
-            g["perle"] = confs[0] if confs else None
-            g["perle2"] = confs[1] if len(confs) > 1 else None
-            g["perle_value"] = picks["value"] if picks else None
-
-    await asyncio.gather(*(one(g) for g in targets))
-
-
-async def run_snapshot() -> int:
-    """Logue les prédictions WNBA (proba + cotes + value + votes) -> tracking_basket.json."""
-    store = tracking.load(BASKET_TRACK_PATH)
-    now = datetime.now(timezone.utc).isoformat()
-    rows = await board()
-    await enrich_display(rows)         # capture les votes pour les persister
-    await _attach_perles(rows)         # perles (moneyline/handicap/totaux) par match
-    n = 0
-    for g in rows:
-        # UNIFORMISÉ avec le tennis : on ne log/MAJ que les matchs À VENIR (match commencé ->
-        # plus touché, pronos figés). Le garde-fou `_keep` dans _upsert reste un filet de sécurité.
-        if (g.get("status") == "notstarted" and g.get("oh")
-                and g.get("model_home") is not None and _upsert(store, g, now)):
-            n += 1
-    tracking.save(store, BASKET_TRACK_PATH)
-    return n
-
-
-async def run_settle() -> int:
-    """Renseigne le résultat des matchs terminés (vainqueur), clôt les annulés/reportés."""
-    store = tracking.load(BASKET_TRACK_PATH)
-    now_dt = datetime.now(timezone.utc)
-    now = now_dt.isoformat()
-    s = 0
-    async with httpx.AsyncClient(headers=SOFA_H) as c:
-        for rec in list(store.values()):
-            if rec.get("result"):
-                continue
-            st = rec.get("start_time")          # match futur -> pas terminable, on saute
-            try:
-                if st and datetime.fromisoformat(st) > now_dt:
-                    continue
-            except ValueError:
-                pass
-            data = await _get(c, SOFA_B, f"/event/{rec['match_id']}")
-            ev = (data or {}).get("event") or {}
-            if (ev.get("status") or {}).get("type") == "finished" and ev.get("winnerCode") in (1, 2):
-                winner = "home" if ev["winnerCode"] == 1 else "away"
-                hs = (ev.get("homeScore") or {}).get("current")
-                as_ = (ev.get("awayScore") or {}).get("current")
-                if tracking.settle(store, rec["match_id"], winner, None, now):
-                    if rec.get("result"):
-                        if hs is not None and as_ is not None:
-                            rec["result"]["score"] = f"{hs}-{as_}"
-                        # Règlement des perles : on écrit TOUJOURS les 3 clés (None si le score
-                        # manque) -> report() les voit, pas de perle silencieusement non réglée.
-                        have_score = hs is not None and as_ is not None
-                        for key, p in (("perle_pnl", rec.get("perle")),
-                                       ("perle2_pnl", rec.get("perle2")),
-                                       ("perle_value_pnl", rec.get("perle_value"))):
-                            pw = (settle_basket_perle(p, hs, as_)
-                                  if (p and p.get("odds") and have_score) else None)
-                            rec["result"][key] = None if pw is None else ((p["odds"] - 1) if pw else -1.0)
-                    s += 1
-                continue
-            if _stale(rec, now_dt) and tracking.void(
-                    store, rec["match_id"], "non terminé (reporté/annulé ?)", now):
-                s += 1
-    tracking.save(store, BASKET_TRACK_PATH)
-    return s
-
-
-def _stale(rec: dict, now_dt: datetime, days: int = 3) -> bool:
-    """Vrai si le match était prévu il y a plus de `days` jours et n'a pas abouti."""
-    st = rec.get("start_time")
-    if not st:
-        return False
-    try:
-        dt = datetime.fromisoformat(st)
-    except ValueError:
-        return False
-    return (now_dt - dt) > timedelta(days=days)

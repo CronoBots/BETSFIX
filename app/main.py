@@ -13,87 +13,14 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app import basket as basket_sport
-from app import foot as foot_sport
 from app import fragcache
 from app.dependencies import get_provider, get_rankings, get_unibet, shutdown_provider
 from app.routers import (
-    analysis, basket, flashscore, foot, matches, players, statistics, tracking, web,
+    analysis, basket, flashscore, foot, matches, players, statistics, web,
 )
-from app.routers.tracking import run_settle, run_snapshot
 
 log = logging.getLogger("uvicorn")
-TRACKING_INTERVAL_S = 3 * 3600   # rythme normal : toutes les 3h
-TRACKING_RETRY_S = 20 * 60       # SofaScore bloqué : on réessaie toutes les 20 min
-
-# Reconstruction automatique des notes du modèle (Elo/tendances/service-retour).
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_DATA_MARKER = os.path.join(_ROOT, "data", ".last_data_build")
-DATA_REBUILD_S = 7 * 24 * 3600   # une fois par semaine
-
-
-async def _maybe_rebuild_data() -> None:
-    """Relance build_data_all (sous-processus) si > 1 semaine depuis le dernier build.
-
-    Isolé en sous-processus : ne bloque pas la boucle et ne peut pas crasher l'app.
-    Un fichier marqueur (mtime) évite de relancer à chaque passe ou à chaque reboot.
-    """
-    try:
-        age = time.time() - os.path.getmtime(_DATA_MARKER)
-    except OSError:
-        age = None  # marqueur absent -> jamais construit (ou nouveau déploiement)
-    if age is not None and age < DATA_REBUILD_S:
-        return
-    os.makedirs(os.path.dirname(_DATA_MARKER), exist_ok=True)
-    with open(_DATA_MARKER, "w", encoding="utf-8") as f:  # touch -> évite re-déclenchement
-        f.write(str(int(time.time())))
-
-    async def _run():
-        log.info("data: reconstruction hebdo des notes (Elo/tendances/service-retour)...")
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable, os.path.join(_ROOT, "tools", "build_data_all.py"),
-                cwd=_ROOT, stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL)
-            await proc.wait()
-            log.info("data: reconstruction terminée (code %s)", proc.returncode)
-        except Exception as exc:  # ne jamais tuer la boucle
-            log.warning("data rebuild error: %s", exc)
-
-    asyncio.create_task(_run())   # lancement en tâche de fond, sans bloquer le suivi
-
-
-async def _tracking_loop():
-    """Tâche de fond : enregistre cotes/prédictions et règle les résultats.
-
-    Cadence adaptative : si SofaScore est bloqué (disjoncteur ouvert), on réessaie
-    plus souvent (1 tentative / 20 min) pour réchauffer le cache dès qu'une fenêtre
-    s'ouvre ; sinon rythme normal de 3h.
-    """
-    await asyncio.sleep(60)  # laisse l'app démarrer
-    while True:
-        try:
-            n = await run_snapshot(get_provider(), get_unibet())
-            s = await run_settle(get_provider())
-            log.info("tracking: %s prédictions loggées/màj, %s matchs réglés", n, s)
-            try:   # basket (WNBA) — suivi séparé, ne casse pas le tennis s'il échoue
-                nb, sb = await basket_sport.run_snapshot(), await basket_sport.run_settle()
-                log.info("basket: %s loggés/màj, %s réglés", nb, sb)
-            except Exception as exc:
-                log.warning("basket loop error: %s", exc)
-            try:   # foot (CdM + grandes compétitions) — suivi séparé
-                nf, sf = await foot_sport.run_snapshot(), await foot_sport.run_settle()
-                log.info("foot: %s loggés/màj, %s réglés", nf, sf)
-            except Exception as exc:
-                log.warning("foot loop error: %s", exc)
-            await _maybe_rebuild_data()   # reconstruit les notes 1x/semaine (auto)
-        except Exception as exc:  # ne jamais tuer la boucle
-            log.warning("tracking loop error: %s", exc)
-        healthy = get_provider().breaker_status()["ok"]
-        delay = TRACKING_INTERVAL_S if healthy else TRACKING_RETRY_S
-        log.info("tracking: SofaScore %s -> prochaine passe dans %s min",
-                 "OK" if healthy else "bloqué", delay // 60)
-        await asyncio.sleep(delay)
 
 
 async def _panel_warmer():
@@ -120,27 +47,36 @@ async def _panel_warmer():
 
 
 async def _settle_loop():
-    """Règlement FRÉQUENT (~20 min) des matchs terminés, pour les 3 sports : un match fini
-    apparaît vite dans « Terminés » et alimente les stats, sans attendre la grosse passe de 3h.
-    Léger : run_settle ne fetch (en frais) que les matchs DÉJÀ commencés."""
-    await asyncio.sleep(150)   # laisse démarrer (après la 1re passe complète)
+    """Boucle de fond du NOUVEAU système : règlement des matchs ANALYSÉS terminés (~10 min) ->
+    bilan, simulation et stats à jour rapidement. (L'ancien suivi Elo a été retiré.)"""
+    from app import settle_analyst
+    await asyncio.sleep(90)    # laisse l'app démarrer
     while True:
         try:
-            s = await run_settle(get_provider())
-            sb = sf = 0
-            try:
-                sb = await basket_sport.run_settle()
-            except Exception as exc:
-                log.warning("settle basket: %s", exc)
-            try:
-                sf = await foot_sport.run_settle()
-            except Exception as exc:
-                log.warning("settle foot: %s", exc)
-            if s or sb or sf:
-                log.info("settle rapide: %s tennis, %s basket, %s foot réglés", s, sb, sf)
+            na = await settle_analyst.settle_analyses()
+            if na:
+                log.info("analyses réglées : %s", na)
         except Exception as exc:
-            log.warning("settle loop error: %s", exc)
-        await asyncio.sleep(20 * 60)
+            log.warning("settle analyses error: %s", exc)
+        await asyncio.sleep(10 * 60)
+
+
+async def _odds_loop():
+    """Suivi des VARIATIONS de cote (Unibet, gratuit) : relève les matchs à venir des 3 sports.
+    Réveil toutes les 10 min ; `odds_history` décide quels matchs relever (1/h, resserré à 10 min
+    dans la dernière heure avant le coup d'envoi). Aucun appel SofaScore."""
+    from app import match_select, odds_history
+    await asyncio.sleep(40)    # laisse l'app démarrer
+    while True:
+        try:
+            for sp in ("foot", "tennis", "basket"):
+                events = await match_select.fetch_events_with_odds(sp)
+                n = odds_history.record_all(sp, events)
+                if n:
+                    log.info("odds history %s : %d relevé(s)", sp, n)
+        except Exception as exc:
+            log.warning("odds loop error: %s", exc)
+        await asyncio.sleep(10 * 60)
 
 
 def _apply_pending_reset(data: str | None = None) -> bool:
@@ -179,9 +115,10 @@ def _apply_pending_reset(data: str | None = None) -> bool:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _apply_pending_reset()   # purge en attente (sentinelle) AVANT toute lecture des stores
-    tasks = [asyncio.create_task(_tracking_loop()),
-             asyncio.create_task(_settle_loop()),
+    if "pytest" not in sys.modules:          # JAMAIS sur les données réelles pendant les tests
+        _apply_pending_reset()               # purge en attente (sentinelle) AVANT lecture des stores
+    tasks = [asyncio.create_task(_settle_loop()),       # nouveau système (analyste) uniquement
+             asyncio.create_task(_odds_loop()),         # suivi des variations de cote (Unibet)
              asyncio.create_task(_panel_warmer())]
     yield
     for t in tasks:
@@ -233,8 +170,7 @@ def _classify_tag(path: str) -> str | None:
     if p.endswith("/odds/unibet"):
         return TAG_COTES
     # 🔴 Modèle maison : analyse / value / prédictions
-    if p.startswith("/analysis") or p in (
-        "/basket/board", "/basket/finished", "/foot/board", "/foot/finished"):
+    if p.startswith("/analysis"):
         return TAG_MODELE_ANALYSE
     # 🔴 Modèle maison : suivi & performance
     if p.startswith("/tracking"):
@@ -283,22 +219,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# COMPRESSION : le HTML monospace (CSS inline + cartes répétitives) se comprime ~8×
+# (ex. accueil 172 Ko -> ~20 Ko). Gain majeur sur mobile/4G via le tunnel.
+from starlette.middleware.gzip import GZipMiddleware  # noqa: E402  (regroupé avec les middlewares)
+
+app.add_middleware(GZipMiddleware, minimum_size=512)
+
 
 @app.middleware("http")
 async def _no_cache_html(request, call_next):
     """Empêche le cache des pages HTML : on évite qu'un onglet affiche une vieille
     version (ex. ancien fond/logo) alors que le code a changé. Les fichiers statiques
-    (logos, versionnés par ?v=) gardent leur cache normal."""
+    (logos/icônes, versionnés par ?v=) sont au contraire mis en cache LONGTEMPS :
+    ils ne re-téléchargent plus à chaque visite (le ?v= casse le cache quand on change l'image)."""
     resp = await call_next(request)
     if resp.headers.get("content-type", "").startswith("text/html"):
         resp.headers["Cache-Control"] = "no-store, max-age=0"
+    elif request.url.path.startswith("/static"):
+        resp.headers["Cache-Control"] = "public, max-age=604800, immutable"   # 7 jours
     return resp
 
 app.include_router(matches.router)
 app.include_router(statistics.router)
 app.include_router(players.router)
 app.include_router(analysis.router)
-app.include_router(tracking.router)
 app.include_router(basket.router)
 app.include_router(foot.router)
 app.include_router(flashscore.router)
@@ -425,14 +369,6 @@ async def root() -> dict:
                               "Ne pas utiliser comme donnée factuelle.",
             "tennis_analyse_paris": "/analysis/{match_id}?tour=atp",
             "tennis_analyse_tous_marches": "/analysis/{match_id}/markets?tour=atp",
-            "foot_board": "/foot/board",
-            "foot_termines": "/foot/finished",
-            "basket_board": "/basket/board",
-            "basket_termines": "/basket/finished",
-            "suivi_rapport": "/tracking/report?sport=tennis",
-            "suivi_tableau_de_bord": "/tracking/dashboard?sport=tennis",
-            "suivi_journal": "/tracking/log",
-            "suivi_confiances_du_jour": "/tracking/today",
         },
     }
 

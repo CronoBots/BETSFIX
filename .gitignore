@@ -16,3 +16,13 @@ data/
 
 # Fichiers runtime (PID de la boucle remote control, etc.)
 .remote-control.pid
+
+# Réglages locaux Claude Code (settings.local.json, locks)
+.claude/
+
+# Brouillons d'images non référencés par l'app
+static/logo.orig.png
+static/sofascore.jpg
+static/sofascore_banner.png
+static/unibet.png
+static/unibet_banner.png

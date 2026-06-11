@@ -12,8 +12,83 @@ import re
 import time
 from datetime import datetime, timezone
 
+from . import analyses, match_select
+
 _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                      "static", "logo.png")
+
+
+def _bets_for_url(url: str, compact: bool = False) -> str:
+    """Cadres « paris à jouer » d'un match (sous les barres %, HORS analyse), depuis son URL de fiche.
+    Remplace l'ancienne bannière perle « Confiance » devenue redondante.
+    `compact` (live) : seulement les cartes, sans en-tête ni phrase verdict."""
+    m = re.match(r"/(foot|basket|app)/match/(\d+)", url or "")
+    if not m:
+        return ""
+    sport = {"foot": "foot", "basket": "basket", "app": "tennis"}[m.group(1)]
+    return analyses.bets_html(sport, m.group(2), compact=compact)
+
+
+def _links_for_url(url: str) -> str:
+    """Bannières SofaScore / Unibet (pleine largeur) d'un match, depuis son URL de fiche.
+    Posées SUR la carte -> ne sont plus rendues dans l'analyse dépliée (pas de doublon)."""
+    m = re.match(r"/(foot|basket|app)/match/(\d+)", url or "")
+    if not m:
+        return ""
+    sport = {"foot": "foot", "basket": "basket", "app": "tennis"}[m.group(1)]
+    return analyses.links_html(sport, m.group(2))
+
+
+def _summary_for_url(url: str) -> dict:
+    """Résumé compact (paris/confiance/à-jouer/résultat) d'un match depuis son URL de fiche."""
+    m = re.match(r"/(foot|basket|app)/match/(\d+)", url or "")
+    if not m:
+        return {}
+    sport = {"foot": "foot", "basket": "basket", "app": "tennis"}[m.group(1)]
+    return analyses.card_summary(sport, m.group(2))
+
+
+_OM_ARR = {"down": "▼", "up": "▲", "flat": "■"}
+_OM_CLS = {"down": "om-down", "up": "om-up", "flat": "om-flat"}
+_OM_COLOR = {"down": "#34d27b", "up": "#ff6b6b", "flat": "#9fb0c8"}
+
+
+def render_odds_movement(mv: dict | None) -> str:
+    """Mini-section « 📉 Mouvement de cote » : par issue, ouverture → cote actuelle/clôture, sens
+    (steam ▼ / drift ▲), variation %, et une mini-courbe. '' si pas d'historique exploitable."""
+    if not mv:
+        return ""
+    e = html.escape
+    labels = {"home": _noF(mv.get("home") or "1"), "draw": "Nul", "away": _noF(mv.get("away") or "2")}
+    rows = []
+    for key in ("home", "draw", "away"):
+        leg = (mv.get("legs") or {}).get(key)
+        if not leg:
+            continue
+        d = leg["dir"]
+        sign = "+" if leg["pct"] > 0 else ""
+        rows.append(
+            f'<div class="om-row">'
+            f'<span class="om-lbl">{e(labels[key])}</span>'
+            f'<span class="om-spk">{_sparkline(leg["series"], _OM_COLOR[d])}</span>'
+            f'<span class="om-vals"><span class="om-o">{leg["open"]:g}</span>'
+            f'<span class="om-arr {_OM_CLS[d]}">→ {leg["now"]:g} {_OM_ARR[d]}</span></span>'
+            f'<span class="om-pct {_OM_CLS[d]}">{sign}{leg["pct"]:g}%</span></div>')
+    if not rows:
+        return ""
+    when = "clôture (coup d'envoi atteint)" if mv.get("closed") else "cote actuelle"
+    sub = f'{mv.get("n")} relevés · ouverture → {when} · ▼ steam · ▲ drift · source Unibet'
+    return ('<div class="om"><div class="om-h">📉 Mouvement de cote'
+            f'<span class="om-sub">{e(sub)}</span></div>' + "".join(rows) + '</div>')
+
+
+def odds_move_for(sport: str, home: str, away: str) -> str:
+    """Mouvement de cote prêt à afficher pour un match (depuis l'historique). '' si rien/erreur."""
+    try:
+        from app import odds_history
+        return render_odds_movement(odds_history.movement(sport, home or "", away or ""))
+    except Exception:
+        return ""
 
 try:
     from zoneinfo import ZoneInfo
@@ -69,6 +144,38 @@ def fmt_live_clock(mc: dict | None) -> str:
     return f"{minute}'" if minute is not None else ""
 
 
+def live_fields(ld: dict | None, sport: str) -> dict:
+    """À partir du `liveData` Unibet (cf. match_select.live_state_for), renvoie les champs prêts pour
+    le scoreboard live d'une carte : {score, live_time} (foot/basket) ou {score, server, game_pts}
+    (tennis). {} si pas de données live. AUCUN appel réseau (donnée déjà en main)."""
+    if not isinstance(ld, dict):
+        return {}
+    sc = ld.get("score") or {}
+    if sport == "tennis":
+        sets = (ld.get("statistics") or {}).get("sets") or {}
+        sh, sa = sets.get("home") or [], sets.get("away") or []
+        # Unibet remplit les sets NON JOUÉS avec un placeholder négatif (-1) -> on les écarte, sinon le
+        # score live affiche « 2-1 -1--1 -1--1 ». On ne garde que les sets réellement entamés (>= 0).
+        pairs = [(h, a) for h, a in zip(sh, sa)
+                 if isinstance(h, (int, float)) and isinstance(a, (int, float)) and h >= 0 and a >= 0]
+        score = " ".join(f"{h}-{a}" for h, a in pairs)
+        hs = sets.get("homeServe")
+        server = "home" if hs is True else ("away" if hs is False else None)
+        h, a = sc.get("home"), sc.get("away")
+        pts = ((str(h) if h is not None else ""), (str(a) if a is not None else "")) \
+            if (h is not None or a is not None) else None
+        return {"score": score, "server": server, "game_pts": pts}
+    h, a = sc.get("home"), sc.get("away")                           # foot / basket : buts / points
+    score = f"{h}-{a}" if (h is not None and a is not None) else ""
+    out = {"score": score, "live_time": fmt_live_clock(ld.get("matchClock")),
+           "home_pts": h, "away_pts": a}
+    if sport == "basket":   # détail par quart-temps depuis score.info « Q1: 19-25 | Q2: 24-17 | … »
+        qs = re.findall(r"(\d+)\s*[-–]\s*(\d+)", sc.get("info") or "")
+        if qs:
+            out["periods"] = [(int(x), int(y)) for x, y in qs]
+    return out
+
+
 def fmt_local(value, with_date: bool = True) -> str:
     """Formate un datetime/ISO en heure locale belge. '' si absent."""
     if value is None:
@@ -97,27 +204,31 @@ def fmt_local(value, with_date: bool = True) -> str:
 
 CSS = """
   :root{
-    /* Thème « cronos » : fond navy profond + cartes à bordure bleue lumineuse */
-    --bg:#0a1124;--bg2:#0b1530;--surface:#0e1a36;--surface2:#16264c;
-    --border:#243f6e;--border2:#345f9e;--text:#eef1f7;--muted:#90a0bc;--dim:#5f6f8e;
-    --accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30);
+    /* Thème « néon » (inspiré OddScore) : fond quasi-noir + accent vert-lime + corail pour le négatif */
+    --bg:#070708;--bg2:#0d0d10;--surface:#141417;--surface2:#1d1d21;
+    --border:#2a2a31;--border2:#3b3b44;--text:#f4f5f7;--muted:#9a9aa6;--dim:#65656e;
+    /* ACCENT principal — UN SEUL endroit à changer pour reskin (cf. candidats en bas) */
+    --accent:#22b8ff;--accent2:#1496f0;--accent-ink:#001321;--glow:rgba(34,184,255,.28);
+    --halo:rgba(34,184,255,.09);
     --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
-    --red:#f25d6e;--green:#34d27b;--brand:#2e9bff;
-    --cardline:rgba(46,155,255,.40);--cardglow:0 0 20px rgba(46,155,255,.13);
-    --radius:16px;--shadow:0 6px 22px rgba(0,0,0,.45);--shadow-sm:0 2px 8px rgba(0,0,0,.30);
+    --red:#ff6b6b;--green:#a6e22e;--brand:var(--accent);
+    --cardline:rgba(34,184,255,.30);--cardglow:0 0 24px rgba(34,184,255,.10);
+    --radius:16px;--shadow:0 8px 26px rgba(0,0,0,.55);--shadow-sm:0 2px 8px rgba(0,0,0,.4);
   }
-  /* Identité couleur par sport : home bleu · tennis jaune · basket orange · foot vert */
-  body.sp-home{--accent:#2e9bff;--accent2:#1f80e6;--accent-ink:#02122b;--glow:rgba(46,155,255,.32)}
+  /* Home & Live = accent principal (hérité de :root). Les sports gardent leur teinte d'identité
+     (néon sur fond noir) : tennis lime-jaune · basket orange · foot vert. */
   body.sp-tennis{--accent:#d7e64a;--accent2:#aac72f;--accent-ink:#16180a;--glow:rgba(190,210,60,.30)}
   body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00;--glow:rgba(240,128,0,.30)}
   body.sp-foot{--accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30)}
-  /* Live = vue transversale, pas un sport -> thème NEUTRE (bleu) pour ne pas concurrencer le
-     vert du foot ; le « live » reste signalé par le seul point 🟢 clignotant de l'onglet. */
-  body.sp-directs{--accent:#2e9bff;--accent2:#1f80e6;--accent-ink:#02122b;--glow:rgba(46,155,255,.30)}
   *{box-sizing:border-box}
-  html{-webkit-text-size-adjust:100%}
-  body{margin:0;color:var(--text);font-size:15px;line-height:1.45;
-       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  html{-webkit-text-size-adjust:100%;overflow-x:clip}
+  /* Coquille NON-scrollante en COLONNE FLEX, hauteur = viewport DYNAMIQUE (100dvh) : le contenu
+     scrolle DANS .wrap (flex:1) et la barre du bas est un enfant flex STATIQUE collé au bas. Sur iOS
+     ça supprime le « saut » de la barre fixe quand la toolbar Safari apparaît/disparaît (dvh suit la
+     toolbar -> la barre reste toujours au bas visible) et le pied de page redevient atteignable. */
+  body{margin:0;color:var(--text);font-size:14.5px;line-height:1.45;width:100%;
+       height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+       font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
        -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
        -webkit-tap-highlight-color:transparent;touch-action:manipulation;
@@ -127,24 +238,28 @@ CSS = """
      (évite le bug iOS où background-attachment:fixed est ignoré.) */
   body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
        background:
-         radial-gradient(1100px 620px at 50% -4%,rgba(46,155,255,.12),transparent 60%),
-         radial-gradient(820px 520px at 100% 102%,rgba(46,155,255,.05),transparent 60%);}
+         radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
+         radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%);}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
-  .wrap{max-width:720px;margin:0 auto;
-        padding:calc(8px + env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom))}
+  /* Zone de contenu = SEUL élément qui scrolle (flex:1). La barre du bas étant désormais un frère
+     statique en dessous, plus besoin de réserver ~86px en bas : un petit espace suffit. */
+  .wrap{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;width:100%;
+        max-width:720px;margin:0 auto;
+        padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
   .toplogo{display:block;text-align:center;margin:0 0 16px}
-  .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 18px rgba(46,155,255,.40))}
+  .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   .pausewrap{text-align:right;margin:-10px 0 8px}
   .pausebadge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
               color:var(--dim);background:transparent;border:1px solid var(--border2);
               padding:2px 8px;border-radius:20px;opacity:.8}
-  /* Barre d'onglets fixée en bas (style app native) */
-  .botnav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:4px;
-          padding:7px 10px calc(7px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;
-          background:linear-gradient(0deg,rgba(10,12,17,.97),rgba(10,12,17,.86));
-          backdrop-filter:saturate(160%) blur(16px);-webkit-backdrop-filter:saturate(160%) blur(16px);
-          border-top:1px solid var(--border)}
+  /* Barre d'onglets en bas (style app native). PLUS de position:fixed : c'est un enfant flex STATIQUE
+     de <body> (flex:0 0 auto), donc toujours collé au bas du viewport DYNAMIQUE sans « sauter » sur
+     iOS. Centrée à 720px ; fond OPAQUE ; padding bas = safe-area (encoche/home-bar). */
+  .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;
+          display:flex;gap:4px;
+          padding:7px 10px calc(7px + env(safe-area-inset-bottom));
+          background:#0b0d12;border-top:1px solid var(--border)}
   .botnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
             padding:6px 0 4px;border-radius:14px;color:var(--muted);font-size:10px;
             font-weight:700;transition:.15s}
@@ -154,14 +269,21 @@ CSS = """
   /* Home et Live ne sont pas des sports -> onglet actif en BLANC/GRIS neutre (les sports gardent
      leur couleur : tennis citron, basket orange, foot vert). */
   .botnav a[data-tab="home"].on,.botnav a[data-tab="directs"].on{
-    background:linear-gradient(180deg,#eef2f8,#cdd6e4);color:#0a1124}
+    background:linear-gradient(180deg,var(--accent),var(--accent2));color:var(--accent-ink)}
   .botnav a.on .ic{transform:scale(1.06)}
   /* Onglet Live : SEUL le point 🟢 vire au vert et clignote, et UNIQUEMENT s'il y a du live
      (classe .has-live) ET que l'onglet n'est pas ouvert. Pas de fond vert -> quand on est dessus,
      l'onglet actif prend le thème neutre (bleu) comme les autres. */
   .botnav a[data-tab="directs"].has-live:not(.on){color:#34d27b}
-  .botnav a[data-tab="directs"].has-live:not(.on) .ic{animation:livepulse 1.4s ease-in-out infinite}
-  @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.86)}}
+  /* Icône LIVE = RADAR vert pulsant (point + anneaux), comme l'orbe de l'état vide « aucun match » */
+  .nav-radar{position:relative;display:inline-flex;align-items:center;justify-content:center;
+       width:24px;height:24px}
+  .nr-dot{width:11px;height:11px;border-radius:50%;background:#34d27b;
+       box-shadow:0 0 8px rgba(52,210,123,.9)}
+  .nr-ring{position:absolute;top:50%;left:50%;width:22px;height:22px;margin:-11px 0 0 -11px;
+       border-radius:50%;border:2px solid rgba(52,210,123,.55);animation:navradar 1.9s ease-out infinite}
+  .nr-ring2{animation-delay:.95s}
+  @keyframes navradar{0%{transform:scale(.32);opacity:.9}100%{transform:scale(1);opacity:0}}
   /* SPA : panneaux par onglet (tout chargé à l'ouverture, bascule sans rechargement) */
   .panel{display:none}
   .panel.on{display:block;animation:fadein .18s ease}
@@ -170,6 +292,63 @@ CSS = """
   .ldg::before{content:"";display:block;width:22px;height:22px;margin:0 auto 12px;border-radius:50%;
     border:2px solid var(--border2);border-top-color:var(--accent2);animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
+  /* ===== Menu tiroir ☰ (complet, premium) — présent sur toutes les pages ===== */
+  .menu-btn{position:fixed;top:calc(8px + env(safe-area-inset-top));left:12px;z-index:70;
+       width:42px;height:42px;border-radius:13px;border:1px solid var(--cardline);
+       background:rgba(20,20,24,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+       color:var(--text);font-size:17px;line-height:1;cursor:pointer;display:flex;
+       align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+  .menu-btn:active{transform:scale(.9)}
+  .drawer-ov{position:fixed;inset:0;z-index:80;background:rgba(4,8,16,.62);
+       opacity:0;visibility:hidden;transition:opacity .22s}
+  .drawer{position:fixed;top:0;bottom:0;left:0;z-index:90;width:82%;max-width:310px;
+       background:radial-gradient(130% 55% at 0% 0%,var(--halo),transparent 62%),
+                  linear-gradient(180deg,#121216,#08080b);
+       border-right:1px solid var(--cardline);
+       box-shadow:10px 0 44px rgba(0,0,0,.6);
+       padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom));
+       transform:translateX(-104%);transition:transform .26s cubic-bezier(.4,0,.2,1);overflow-y:auto}
+  body.dw-on .drawer-ov{opacity:1;visibility:visible}
+  body.dw-on .drawer{transform:translateX(0)}
+  .dw-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 14px;
+       padding:0 2px 14px;border-bottom:1px solid var(--border)}
+  .dw-logo{font-size:21px;font-weight:900;letter-spacing:-.02em;color:#fff}
+  .dw-logo b{color:var(--accent)}
+  .dw-x{background:none;border:none;color:var(--muted);font-size:17px;cursor:pointer;padding:6px;line-height:1}
+  .dw-grp{margin-bottom:14px}
+  .dw-gh{font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+       color:var(--dim);margin:0 0 6px 8px}
+  .dw-it{display:flex;align-items:center;gap:13px;padding:12px 12px;border-radius:13px;
+       font-size:14.5px;font-weight:700;color:var(--text);transition:.14s;
+       border:1px solid transparent;margin-bottom:2px}
+  .dw-it:active{transform:scale(.98)}
+  .dw-it .dw-ic{font-size:20px;width:26px;text-align:center;flex:none}
+  .dw-it.on{background:linear-gradient(180deg,rgba(34,184,255,.20),rgba(34,184,255,.05));
+       border-color:rgba(34,184,255,.45);color:#fff;box-shadow:0 0 22px rgba(34,184,255,.15)}
+  .dw-foot{margin-top:6px;font-size:10px;color:var(--dim);text-align:center}
+  /* État VIDE premium de l'onglet Live (aucun match en cours) : orbe « radar » + CTA */
+  .live-empty{position:relative;overflow:hidden;text-align:center;margin:18px 0;padding:48px 22px 42px;
+       border:1px solid var(--cardline);border-radius:18px;display:flex;flex-direction:column;
+       align-items:center;box-shadow:var(--cardglow),var(--shadow-sm);
+       background:radial-gradient(120% 75% at 50% 0%,var(--halo),transparent 60%),
+                  linear-gradient(180deg,var(--surface2),var(--surface))}
+  .le-orb{position:relative;width:62px;height:62px;display:flex;align-items:center;justify-content:center;
+       margin-bottom:20px}
+  .le-dot{width:15px;height:15px;border-radius:50%;background:#34d27b;
+       box-shadow:0 0 18px rgba(52,210,123,.85)}
+  .le-ping{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(52,210,123,.55);
+       animation:lep 2s ease-out infinite}
+  .le-ping2{animation-delay:1s}
+  @keyframes lep{0%{transform:scale(.42);opacity:.85}100%{transform:scale(1);opacity:0}}
+  .le-h{font-size:19px;font-weight:800;color:#fff;letter-spacing:.01em;text-transform:uppercase}
+  .le-sub{font-size:12.5px;color:var(--muted);max-width:290px;line-height:1.55;margin:9px 0 22px}
+  .le-cta{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .le-btn{padding:11px 17px;border-radius:12px;font-size:12px;font-weight:800;text-decoration:none;
+       border:1px solid var(--cardline);color:var(--text);background:rgba(255,255,255,.04);
+       text-transform:uppercase;letter-spacing:.03em}
+  .le-btn:active{transform:scale(.97)}
+  .le-btn-p{color:var(--accent-ink);border-color:transparent;
+       background:linear-gradient(180deg,var(--accent),var(--accent2));box-shadow:0 4px 16px var(--glow)}
   /* Header sticky premium */
   .hdr{position:sticky;top:0;z-index:50;
        background:linear-gradient(180deg,rgba(12,15,22,.92),rgba(12,15,22,.78));
@@ -178,12 +357,12 @@ CSS = """
   .hdr-in{max-width:720px;margin:0 auto;padding:12px 16px 10px}
   .brand{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:800;
          letter-spacing:-.02em}
-  .brand .logo{font-size:22px;filter:drop-shadow(0 2px 7px rgba(46,155,255,.5))}
+  .brand .logo{font-size:22px;filter:drop-shadow(0 2px 7px rgba(34,184,255,.5))}
   .brand img.logo{height:30px;width:auto;display:block}
   .brand img.wm{height:21px;width:auto;display:block;margin-left:-1px}
   .hero{text-align:center;padding:18px 0 6px}
   .hero-logo{max-width:230px;width:62%;height:auto;
-             filter:drop-shadow(0 6px 22px rgba(46,155,255,.35))}
+             filter:drop-shadow(0 6px 22px rgba(34,184,255,.35))}
   .hero-sub{margin-top:6px;font-size:12px;color:var(--muted);
             letter-spacing:.04em}
   .brand b{color:var(--brand)}
@@ -206,6 +385,42 @@ CSS = """
             font-weight:700;color:var(--muted);background:transparent;
             border:1px solid var(--border);transition:.16s}
   .subnav a.on{color:var(--text);background:var(--surface2);border-color:var(--border2)}
+  /* En-tête de page sport : titre + lien fiabilité (le changement de sport = barre du bas) */
+  .sporthd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:4px 0 6px}
+  .sporthd-t{font-size:18px;font-weight:900;color:var(--text)}
+  .sporthd-a{flex:none;font-size:11px;font-weight:700;color:var(--accent);text-decoration:none}
+  /* Carte PERF PREMIUM sous le titre du sport : ROI géant + forme + courbe d'équité + KPIs */
+  /* MÊME fond que les cartes de match (.row.pick) : dégradé cyan + bordure + glow cyan */
+  .spf{display:block;text-decoration:none;position:relative;overflow:hidden;margin:2px 0 16px;
+       padding:14px 15px 12px;border:1px solid rgba(34,184,255,.60);border-radius:16px;
+       box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);
+       background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02))}
+  .spf-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .spf-roi-wrap{display:flex;flex-direction:column;line-height:1}
+  .spf-roi{font-size:30px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .spf-roi-l{font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+       color:var(--dim);margin-top:4px}
+  .spf-kpis{display:flex;gap:8px;margin-top:10px}
+  .spf-k{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.04);border:1px solid var(--border);
+       border-radius:11px;padding:7px 3px}
+  .spf-kv{display:block;font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+  .spf-kl{display:block;font-size:8px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+       color:var(--muted);margin-top:2px}
+  /* Détail INTÉGRÉ au cadre (repliable) : fiabilité par-pari + calibration, séparé par un filet */
+  .spf-det{margin-top:12px;border-top:1px solid var(--border)}
+  .spf-det>summary{list-style:none;cursor:pointer;display:flex;align-items:center;
+       justify-content:space-between;padding:11px 2px 2px;font-size:11px;font-weight:800;
+       letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
+  .spf-det>summary::-webkit-details-marker{display:none}
+  .spf-det .chev{transition:.2s;color:var(--muted)}
+  .spf-det[open] .chev{transform:rotate(180deg)}
+  .spf-det-b{padding-top:6px}
+  /* Plus de cadre groupant autour des 3 paris : chaque pari devient une CARTE autonome (même style
+     que la carte de calibration en dessous) */
+  .spf-det-b .sx-sport{margin:0;background:none;border:0;border-radius:0;padding:0;box-shadow:none}
+  .spf-det-b .sx-rows{gap:7px;margin-top:0}
+  .spf-det-b .sx-row{background:var(--surface);border:1px solid var(--border);border-radius:11px;
+       padding:9px 11px}
   h2{font-size:13px;font-weight:700;margin:26px 0 11px;color:var(--muted);
      text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:8px}
   h2:before{content:"";width:3px;height:14px;border-radius:3px;
@@ -232,9 +447,11 @@ CSS = """
   .row:active{transform:scale(.99);border-color:var(--border2)}
   /* Carte dépliable (foot/basket) : analyse en accordéon sous la carte */
   .rowtap{cursor:pointer}
-  .exp-c{margin-top:10px;font-size:10.5px;color:var(--text);font-weight:800;display:flex;
-         align-items:center;justify-content:center;gap:5px;text-transform:uppercase;
-         letter-spacing:.05em}
+  .exp-c{margin-top:12px;padding:10px;border-radius:11px;font-size:10.5px;color:var(--accent);
+         font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;
+         text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--cardline);
+         background:rgba(255,255,255,.03);transition:.15s}
+  .row.open .exp-c{background:rgba(255,255,255,.05)}
   .exp-chev{display:inline-block;transition:transform .18s}
   .row.open .exp-chev{transform:rotate(180deg)}
   .exp{margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
@@ -243,11 +460,60 @@ CSS = """
      en plus (sinon 2 barres verticales). */
   .exp h2{margin:16px 0 9px;font-size:13.5px;font-weight:800;line-height:1.35}
   .exp .ldg{padding:16px 0}
-  .row.pick{border-color:rgba(46,155,255,.60);
-            background:linear-gradient(180deg,rgba(46,155,255,.09),rgba(46,155,255,.02));
-            box-shadow:0 0 26px rgba(46,155,255,.20)}
+  .row.pick{border-color:rgba(34,184,255,.60);
+            background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
+            box-shadow:0 0 26px rgba(34,184,255,.20)}
+  /* CARTE COMPACTE : en-tête toujours visible (statut + équipes + résumé) + corps replié au tap.
+     Liste dense -> peu de scroll ; on déplie un match pour voir paris/barres/liens/analyse. */
+  .row.mc{padding:0;margin:9px 0;overflow:hidden}
+  /* mc-head : colonne d'infos pleine largeur + chevron en ABSOLU (centré vertical) -> l'heure peut
+     aller dans le COIN haut-droit sans être décalée par la flèche. */
+  .mc-head{position:relative;padding:11px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .mc-line{display:flex;align-items:center;gap:7px}
+  .mc-ic{flex:none;font-size:13px;line-height:1}                 /* emoji sport DISCRET (plus petit) */
+  /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel, discret. */
+  .mc-comp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+       font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.02em}
+  .mc-badge{flex:none;font-size:11px;font-weight:800;padding:3px 8px;border-radius:8px;
+       white-space:nowrap;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1.3}
+  .mc-up{background:rgba(255,255,255,.06);color:var(--muted)}
+  .mc-live{background:rgba(52,210,123,.16);color:#5fe39b}
+  .mc-done{background:rgba(255,255,255,.06);color:#cfe0f5}
+  .mc-wait{background:rgba(246,197,74,.13);color:var(--gold)}
+  /* Chevron de dépli : EN BAS À DROITE du cadre replié. */
+  .mc-chev{position:absolute;right:12px;bottom:9px;color:var(--muted);font-size:15px;
+       transition:transform .18s}
+  .mc-open .mc-chev{transform:rotate(90deg)}
+  /* L2 : équipes (noms + prénoms complets) — ligne principale. */
+  .mc-teams{font-size:13.5px;font-weight:800;color:var(--text);margin-top:4px;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mc-teams .dim{color:var(--dim);font-weight:600}
+  /* L3 : LISTE des paris (intitulés, 1/ligne) — masquée une fois DÉPLIÉE (les paris détaillés s'affichent).
+     padding-right pour libérer le chevron en bas à droite. */
+  .mc-sub{margin-top:6px;padding-right:20px}
+  .mc-open .mc-sub{display:none}
+  .mc-betl{display:flex;align-items:baseline;gap:6px;font-size:11px;font-weight:600;color:#cfe0f5;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mc-betl + .mc-betl{margin-top:3px}
+  .mc-bi{flex:none;font-size:10px}
+  .mc-bt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mc-body{padding:2px 14px 13px}
+  .mc-body[hidden]{display:none}
+  /* Moins d'espace entre les équipes et le bloc « BOOKMAKERS » une fois déplié. */
+  .mc-open .mc-head{padding-bottom:5px}
   .live{color:#34d27b;font-weight:800;letter-spacing:.02em}
   .fem{color:#b08cf2;font-weight:800}
+  /* EN-TÊTE de fiche match : pastille sport + compétition (gauche) · statut (droite) · filet dessous */
+  .mh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;
+      padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .mh-comp{display:flex;align-items:center;gap:8px;min-width:0}
+  .mh-ic{flex:none;width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;
+      justify-content:center;font-size:15px;line-height:1;background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.09)}
+  .mh-comp-t{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+      color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mh-st{flex:none}
+  .mh-when{font-size:11px;color:var(--muted);font-weight:600;margin:1px 0 2px}
   .rowtop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;
           color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
   .rowtop > span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -260,26 +526,61 @@ CSS = """
   .rt-mid{text-align:center;white-space:nowrap;font-size:12px}
   /* Live : SCOREBOARD 2 lignes (nom + scores), meneur en vert, set gagné en gras */
   .lboard{background:rgba(255,255,255,.05);border:1px solid var(--cardline);border-radius:10px;
-          padding:8px 12px;margin:9px 0 5px}
+          padding:8px 12px;margin:9px 0 5px;max-width:100%;overflow-x:auto}
+  .lboard::-webkit-scrollbar{display:none}
+  /* Séparation horizontale entre le bloc score/barres % et les paris à jouer (écart égal dessus/dessous) */
+  .bets-sep{height:1px;background:rgba(255,255,255,.14);margin:12px 0;border-radius:1px}
+  /* Effet « terminal » : curseur clignotant pendant la frappe (pronostics + analyse) */
+  .tw-cur{display:inline-block;color:var(--accent);font-weight:400;margin:0 0 0 -1px;
+       animation:twblink 1s steps(1) infinite}
+  @keyframes twblink{50%{opacity:0}}
   /* Temps de jeu live (51', Q3·5:42) DANS le cadre des scores : centré, vert, bien visible */
   .lb-clk{text-align:center;font-size:12px;font-weight:800;color:#34d27b;letter-spacing:.04em;
           padding-bottom:5px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.08)}
   .lb-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 0;
           font-size:14px;font-weight:700;color:var(--muted)}
-  .lb-row.lb-lead .lb-n{color:#34d27b}            /* meneur : nom en vert */
-  .lb-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lb-n{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff} /* nom d'équipe : prend l'espace restant et TRONQUE -> les colonnes de score restent toujours visibles */
   .lb-s{display:flex;gap:13px;flex:none}
   .lb-c{min-width:13px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
   .lb-c.lb-win{color:#eaf2ff;font-weight:800}     /* set/score gagné : clair gras */
   .lb-row.lb-lead .lb-c.lb-win{color:#34d27b}     /* meneur : score gagné en vert */
-  /* Tennis : style tableau (colonnes par set), set EN COURS en boîte verte */
-  .lboard-t .lb-s{gap:9px}
-  .lboard-t .lb-c{min-width:22px}
+  /* Tennis : MÊME style que le box-score basket (taille, gap, baseline, colonne résultat) */
+  .lboard-t{position:relative}
+  .lboard-t .lb-s{gap:6px;align-items:baseline}
+  .lboard-t .lb-c{width:18px;min-width:18px;font-size:12px}
+  .lboard-t .lb-n{font-size:12.5px}
+  .lboard-t .lb-hdr .lb-c{font-size:10px}
+  /* Colonne SETS (résultat du match) = MÊME que TOT basket : taille/couleur/poids, gagnant en vert */
+  .lboard-t .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
+  .lboard-t .lb-hdr .lb-tot{font-size:9px}
+  .lboard-t .lb-row.lb-lead .lb-tot{color:#34d27b}
+  /* UNE seule ligne verticale continue à gauche de SETS (comme basket), même position */
+  .lboard-t::after{content:"";position:absolute;top:6px;bottom:6px;right:43px;width:1px;
+        background:rgba(255,255,255,.18)}
   .lb-hdr .lb-c{color:var(--muted);font-size:11px;font-weight:800;padding-bottom:2px}
+  /* Basket : box-score par quart-temps (Q1..Qn) + colonne TOTAL en évidence */
+  .lboard-q{position:relative}
+  .lboard-q .lb-s{gap:6px;align-items:baseline}  /* même LIGNE DE BASE -> quarts alignés avec le TOT */
+  .lboard-q .lb-c{width:18px;min-width:18px;font-size:12px}  /* points de quart un peu plus petits, colonnes fixes */
+  .lboard-q .lb-n{font-size:12.5px}             /* nom d'équipe (évite la troncature) */
+  .lboard-q .lb-hdr{border-bottom:1px solid rgba(255,255,255,.13);padding-bottom:3px;margin-bottom:2px}
+  .lboard-q .lb-hdr .lb-c{font-size:10px}       /* Q1..Qn + TOT : en-tête discret (plus petit) */
+  .lboard-q .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
+  .lboard-q .lb-row.lb-lead .lb-tot{color:#34d27b}   /* gagnant : SEUL son total en vert */
+  .lboard-q .lb-cur{color:#fff}                       /* quart en cours : score en blanc */
+  /* UNE seule ligne verticale continue à gauche de TOT, du haut au bas des 2 résultats */
+  .lboard-q::after{content:"";position:absolute;top:6px;bottom:6px;right:43px;width:1px;
+        background:rgba(255,255,255,.18)}
+  /* Horloge live (« Q4 · 0:05 ») : BLANCHE, même police que les n° de quart, alignée à GAUCHE */
+  .lboard-q .lb-clk-in{color:#fff;font-weight:800;font-size:11px;letter-spacing:.02em;
+        overflow:visible;text-overflow:clip}
   .lb-hdr{padding-bottom:0}
   /* Set EN COURS : juste mis en évidence (clair + gras), PAS de case verte */
   .lb-cur{color:#fff;font-weight:800}
   .lb-row.lb-lead .lb-c.lb-cur{color:#fff}
+  /* Quart / set À VENIR : 0 grisé (toujours visible : 4 quarts / 3 sets minimum) */
+  .lb-fut{color:var(--dim);opacity:.5}
+  .lb-row.lb-lead .lb-c.lb-fut{color:var(--dim)}
   /* 🎾 balle de service à droite du nom du serveur */
   .lb-srv{font-size:10px;vertical-align:middle;margin-left:1px}
   /* Colonne 🎾 = points du jeu en cours (0/15/30/40) : en évidence, SANS case verte */
@@ -291,24 +592,24 @@ CSS = """
   /* Colonne points : LARGEUR FIXE (🎾 en-tête et points alignés -> les n° de set restent centrés
      sur les jeux du dessous), SANS bordure par cellule. */
   .lboard-t .lb-pt,.lboard-t .lb-pt-h{min-width:26px;width:26px;text-align:center;padding-left:0;
-        margin-left:11px}
-  /* UNE seule ligne verticale CONTINUE à gauche de la colonne des points, avec de l'air de
-     chaque côté (ni collée aux points, ni aux jeux). */
-  .lboard-t::after{content:"";position:absolute;top:7px;bottom:7px;right:48px;width:1px;
-        background:rgba(255,255,255,.16)}
+        margin-left:0}
+  /* (la seule ligne verticale est celle à gauche de SETS, définie plus haut comme pour le basket) */
   /* Libellé « cotes en direct » au-dessus des boutons de cotes */
   .live-odds-l{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
           color:var(--muted);margin:2px 2px 4px}
   .live-odds-l .live{color:#34d27b;font-size:8px;vertical-align:middle}
   .rowtop-live .rt-r{justify-content:flex-end}
-  .players{font-size:15.5px;font-weight:700;margin:5px 0 2px;letter-spacing:-.01em}
+  /* Titre du match : « Équipe A vs Équipe B » sur UNE SEULE ligne, petit, aligné à GAUCHE (tronqué si long) */
+  .players{font-size:13.5px;font-weight:700;margin:5px 0 2px;letter-spacing:-.01em;color:#fff;
+           text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+  .players .dim{font-size:12px;font-weight:600}
   /* Ligne du pari : nom+cote à gauche, badge value à droite (toujours sur une ligne) */
   .betline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:5px 0 2px}
   .betline .bn{font-size:16px;font-weight:700;letter-spacing:-.01em;min-width:0;
                overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* affiche (équipes) + badge à droite, badge aligné en haut, le matchup peut wraper */
   .mrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-top:6px}
-  .mrow .players{flex:1;min-width:0;text-align:center}   /* affiche centrée dans la carte */
+  .mrow .players{flex:1;min-width:0;text-align:left}   /* affiche alignée à GAUCHE dans la carte */
   .bdg{flex:none}
   /* perle rare : le pari à jouer (confiance×value) mis en avant */
   /* Bloc « pari à jouer », SOUS les cotes : tête (type + pari + cote) puis barre de confiance.
@@ -326,7 +627,7 @@ CSS = """
   .plg-conf{background:linear-gradient(180deg,rgba(16,34,26,.92),rgba(11,22,44,.96));
         border:1px solid rgba(34,191,108,.55);--rc:#34d27b}
   .plg-val{background:linear-gradient(180deg,rgba(14,28,48,.92),rgba(11,22,44,.96));
-        border:1px solid rgba(46,155,255,.55);--rc:#4aa8ff}
+        border:1px solid rgba(34,184,255,.55);--rc:#4aa8ff}
   /* Type (Confiance/Value) = PASTILLE centrée (pas un bandeau pleine largeur) -> ne ressemble
      plus à une barre de stats. */
   /* Type (Confiance/Value) = simple LIBELLÉ coloré, en haut à gauche DANS le cadre (minimaliste) */
@@ -353,7 +654,7 @@ CSS = """
   .plg-cote{flex:none;padding:9px 16px;border-radius:11px;font-size:16px;font-weight:800;
         font-variant-numeric:tabular-nums}
   .plg-conf .plg-cote{color:#7ff0b6;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.42)}
-  .plg-val .plg-cote{color:#9fd2ff;background:rgba(46,155,255,.16);border:1px solid rgba(46,155,255,.42)}
+  .plg-val .plg-cote{color:#9fd2ff;background:rgba(34,184,255,.16);border:1px solid rgba(34,184,255,.42)}
   /* Résultat live : halo/teinte vert (gagné) ou rouge (perdu) sur le pari concerné.
      NB : classes plg-won/plg-lost (PAS pl-won/pl-lost qui ont un white-space:nowrap parasite). */
   .plg-item.plg-won{background:rgba(25,196,106,.10);border-radius:9px;
@@ -376,9 +677,9 @@ CSS = """
   .perle-conf .cm-bar>span{background:linear-gradient(90deg,#19c46a,#34d27b)}
   .perle-conf .cm-v{color:#34d27b}
   /* VALUE = bleu */
-  .perle-value{background:linear-gradient(90deg,rgba(46,155,255,.13),rgba(46,155,255,.05));
-               border-color:rgba(46,155,255,.45);box-shadow:0 0 14px rgba(46,155,255,.10)}
-  .perle-value .pl-tag{color:#4aa8ff;background:rgba(46,155,255,.16)}
+  .perle-value{background:linear-gradient(90deg,rgba(34,184,255,.13),rgba(34,184,255,.05));
+               border-color:rgba(34,184,255,.45);box-shadow:0 0 14px rgba(34,184,255,.10)}
+  .perle-value .pl-tag{color:#4aa8ff;background:rgba(34,184,255,.16)}
   .perle-value .pl-o{color:#4aa8ff}
   .perle-value .cm-bar>span{background:linear-gradient(90deg,#2e9bff,#4aa8ff)}
   .perle-value .cm-v{color:#7cc0ff}
@@ -426,8 +727,8 @@ CSS = """
          letter-spacing:.02em}
   .b-val{background:rgba(46,226,127,.14);color:var(--accent);border:1px solid rgba(46,226,127,.25)}
   .b-dim{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
-  .b-uni{background:rgba(46,155,255,.14);color:#56b0ff;border:1px solid rgba(46,155,255,.30)}
-  .b-conf{background:rgba(46,155,255,.16);color:#6cbcff;border:1px solid rgba(46,155,255,.32)}
+  .b-uni{background:rgba(34,184,255,.14);color:#56b0ff;border:1px solid rgba(34,184,255,.30)}
+  .b-conf{background:rgba(34,184,255,.16);color:#6cbcff;border:1px solid rgba(34,184,255,.32)}
   details.sec{margin:26px 0 11px}
   details.sec > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
     font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
@@ -437,7 +738,7 @@ CSS = """
   details.sec .i{margin-left:auto;width:21px;height:21px;border-radius:50%;flex:none;
     border:1px solid var(--border2);display:inline-flex;align-items:center;justify-content:center;
     font:italic 800 12px Georgia,serif;text-transform:none;color:var(--muted)}
-  details.sec[open] .i{color:#fff;border-color:var(--accent2);background:rgba(46,155,255,.16)}
+  details.sec[open] .i{color:#fff;border-color:var(--accent2);background:rgba(34,184,255,.16)}
   details.sec > .banner{margin-top:9px}
   /* Section repliable (Valeurs / En direct / À venir / Terminés). Titre = bouton. */
   details.sec2{margin:22px 0 4px}
@@ -469,12 +770,17 @@ CSS = """
   .cd.soon{background:rgba(255,255,255,.10);color:#fff;border-color:rgba(255,255,255,.20)}
   /* Badge LIVE plus grand que le décompte (le timer des autres onglets ne change pas) */
   .cd.live{background:rgba(52,210,123,.18);color:#5fe39b;border-color:rgba(52,210,123,.40);
-        font-size:12px;padding:5px 11px;letter-spacing:.04em}
+        font-size:10.5px;padding:4px 9px;letter-spacing:.04em}
+  .cd.done{background:rgba(255,255,255,.05);color:var(--muted);border-color:var(--border2);
+        font-size:10px;padding:3px 8px}
+  .cd.wait{background:rgba(246,197,74,.12);color:var(--gold);border-color:rgba(246,197,74,.32);
+        font-size:10px;padding:3px 8px}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
   .fd{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
-      border-radius:4px;font-size:9px;font-weight:800;color:#08110a}
+      border-radius:4px;font-size:9px;font-weight:800;color:#08110a;line-height:1;
+      text-transform:uppercase;text-align:center;padding-top:1px}
   .pbars{margin-top:7px;display:flex;flex-direction:column;gap:5px}
   .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
   /* TABLEAU « Chances de gagner » : sources en LIGNES, issues en COLONNES + fine barre/ligne */
@@ -546,8 +852,8 @@ CSS = """
   .oddsrow{display:flex;gap:6px;margin-top:7px}
   /* TOUS les boutons de cotes en encadré BLEU ; la cote pariée est un peu plus marquée */
   .oc{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
-      background:rgba(46,155,255,.07);border:1px solid rgba(46,155,255,.4);border-radius:10px;padding:5px 6px}
-  .oc.fav{border-color:#2e9bff;background:rgba(46,155,255,.16);box-shadow:0 0 12px rgba(46,155,255,.2)}
+      background:rgba(34,184,255,.07);border:1px solid rgba(34,184,255,.4);border-radius:10px;padding:5px 6px}
+  .oc.fav{border-color:#2e9bff;background:rgba(34,184,255,.16);box-shadow:0 0 12px rgba(34,184,255,.2)}
   .ocn{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
        max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .oc.fav .ocn{color:#9fd0ff}
@@ -555,7 +861,7 @@ CSS = """
   /* Cotes COMPACTES sur une ligne (cartes) : « Espagne 1.03 · Nul 16.0 · Irak 36.0 » */
   .oddsrow2{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 14px;
         margin-top:8px;padding:7px 12px;border-radius:10px;
-        background:rgba(46,155,255,.06);border:1px solid rgba(46,155,255,.22)}
+        background:rgba(34,184,255,.06);border:1px solid rgba(34,184,255,.22)}
   .oc2{font-size:12.5px;color:var(--muted);white-space:nowrap}
   .oc2 b{color:#eaf2ff;font-weight:800;margin-left:3px;font-size:13.5px;font-variant-numeric:tabular-nums}
   .oc2.fav{color:#9fd0ff} .oc2.fav b{color:#56b0ff}
@@ -656,7 +962,7 @@ CSS = """
   .an-tag{margin-left:auto;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;
           white-space:nowrap}
   .an-tag.val{background:rgba(46,226,127,.14);color:var(--green);border:1px solid rgba(46,226,127,.3)}
-  .an-tag.conf{background:rgba(46,155,255,.14);color:var(--brand);border:1px solid rgba(46,155,255,.32)}
+  .an-tag.conf{background:rgba(34,184,255,.14);color:var(--brand);border:1px solid rgba(34,184,255,.32)}
   .an-tag.no{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
   .an-body{font-size:13.5px;line-height:1.62;color:var(--text)}
   .an-note{font-size:10px;color:var(--muted);margin-top:9px;border-top:1px solid var(--border);
@@ -742,6 +1048,625 @@ CSS = """
   .da-tbl th,.da-tbl td{border:1px solid var(--border);padding:5px 7px;text-align:left;vertical-align:top}
   .da-tbl th{background:var(--surface2);font-weight:700;color:#cfe0f5}
   .da a{color:#5ab0ff;text-decoration:none}
+  /* === Habillage analyste premium : Verdict héro + tableau + faits + tendances === */
+  .da{font-size:13px;line-height:1.55;color:var(--text)}
+  /* Bandeau résultat (règlement après match) */
+  .da-res{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 12px;
+       padding:9px 13px;border-radius:12px;font-size:13px;font-weight:800;border:1px solid}
+  .da-res-win{background:rgba(52,210,123,.15);color:#3ee089;border-color:rgba(52,210,123,.35)}
+  .da-res-lose{background:rgba(242,93,110,.15);color:#ff7484;border-color:rgba(242,93,110,.35)}
+  .da-res-push{background:var(--gold-bg);color:var(--gold);border-color:var(--gold-bd)}
+  .da-res-nv{background:var(--surface2);color:var(--muted);border-color:var(--border)}
+  .da-res-sc{font-weight:800;color:#cfe0f5;font-size:12px}
+  /* Carte « Track record analyste » premium */
+  .arec{margin:2px 0 14px;padding:13px 14px 12px;border-radius:var(--radius);
+       background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--cardline);box-shadow:var(--cardglow),var(--shadow)}
+  .arec-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:9px}
+  .arec-h-l{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#cfe0f5}
+  .arec-h-sub{font-size:10.5px;color:var(--muted)}
+  .arec-tot{display:flex;align-items:center;gap:12px;padding:6px 0 10px;border-bottom:1px solid var(--border)}
+  .arec-big{font-size:30px;font-weight:900;line-height:1;letter-spacing:-.02em}
+  .arec-tot-v{font-size:13px;color:var(--muted)} .arec-tot-v b{color:var(--text);font-size:15px}
+  .arec-sports{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:11px}
+  .arec-sp{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:11px;
+       padding:9px 8px;text-align:center}
+  .arec-sp-h{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap}
+  .arec-sp-v{font-size:20px;font-weight:900;color:var(--text);margin:3px 0 1px}
+  .arec-sp-t{font-size:12px;font-weight:700;color:var(--muted)}
+  .arec-sp-p{font-size:12px;font-weight:800}
+  .arec-sp-u{font-size:11px;font-weight:700;color:#cfe0f5;margin-top:2px;font-variant-numeric:tabular-nums}
+  .arec-sp-roiv{font-size:23px;font-weight:900;line-height:1.05;margin-top:3px;font-variant-numeric:tabular-nums}
+  .arec-sp-roi{font-size:9px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+  .arec-sp-v2{font-size:11.5px;font-weight:700;color:#cfe0f5;margin-top:5px}
+  .arec-sp-o{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
+  .arec-hi{color:#3ee089} .arec-mid{color:var(--gold)} .arec-lo{color:#ff7484}
+  .arec-na{color:var(--muted)}   /* ROI peu fiable (échantillon trop faible) -> grisé */
+  /* Graphiques performance PAR PARI (SVG, courbes de profit cumulé) */
+  .bcharts{margin:2px 0 14px;display:flex;flex-direction:column;gap:10px}
+  .bcharts-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+       color:#cfe0f5;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .bcharts-sub{font-size:10px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
+  .bchart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+       padding:11px 12px 10px}
+  .bchart-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+  .bchart-t{font-size:13px;font-weight:800;color:var(--text)}
+  .bchart-tot{font-size:14px;font-weight:900}
+  .bchart{width:100%;height:auto;display:block;max-height:180px}
+  .bc-axis{stroke:rgba(255,255,255,.12);stroke-width:1}
+  .bc-zero{stroke:rgba(255,255,255,.5);stroke-width:1.3;stroke-dasharray:5 3}
+  .bc-zl{fill:rgba(255,255,255,.6);font-size:9px;font-weight:800;text-anchor:end}
+  .bc-line{stroke-width:2.2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+  .bc-yl{fill:var(--muted);font-size:9px;text-anchor:end;font-weight:700}
+  .bc-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .bc-lg{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);
+       border:1px solid var(--border);border-radius:9px;padding:4px 8px;font-size:11px}
+  .bc-dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .bc-lg-n{font-weight:800;color:var(--text)} .bc-lg-p{font-weight:800}
+  .bc-lg-u{font-weight:700;color:#cfe0f5;font-variant-numeric:tabular-nums}
+  .bc-lg-c{color:var(--muted);font-variant-numeric:tabular-nums}
+  .bc-grid{stroke:rgba(255,255,255,.06);stroke-width:1}
+  .bc-end{font-size:8.5px;font-weight:800;font-variant-numeric:tabular-nums}
+  .bc-xl{fill:var(--muted);font-size:8.5px;text-anchor:middle;font-weight:700}
+  /* ===== Statistiques accueil PREMIUM (sx) ===== */
+  .sx{margin:2px 0 16px}
+  .sx-body{display:flex;flex-direction:column;gap:14px}   /* stats sans onglets (filtres retirés) */
+  /* Onglets de période (CSS pur, sans JS) */
+  .sx-radio{position:absolute;width:0;height:0;opacity:0;pointer-events:none}
+  .sx-tabs{display:flex;gap:6px;margin-bottom:12px}
+  .sx-tabs label{flex:1;text-align:center;padding:7px 4px;border-radius:10px;font-size:12px;
+       font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--border);
+       cursor:pointer;transition:all .15s}
+  #sxp-all:checked ~ .sx-tabs label[for="sxp-all"],
+  #sxp-30:checked ~ .sx-tabs label[for="sxp-30"],
+  #sxp-7:checked ~ .sx-tabs label[for="sxp-7"]{color:#fff;background:var(--surface2);
+       border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .sx-period{display:none}
+  #sxp-all:checked ~ .sx-p-all,#sxp-30:checked ~ .sx-p-30,#sxp-7:checked ~ .sx-p-7{
+       display:flex;flex-direction:column;gap:14px}
+  .sx-empty{padding:26px 12px;text-align:center;color:var(--muted);font-size:12.5px;
+       background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+  /* Filtre SPORT (onglets CSS, transverse aux périodes) */
+  .sx-stabs{display:flex;gap:6px;margin-bottom:12px}
+  .sx-stabs label{flex:1;text-align:center;padding:6px 4px;border-radius:9px;font-size:13px;
+       font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--border);
+       cursor:pointer;transition:all .15s}
+  #sxs-all:checked ~ .sx-stabs label[for="sxs-all"],
+  #sxs-foot:checked ~ .sx-stabs label[for="sxs-foot"],
+  #sxs-tennis:checked ~ .sx-stabs label[for="sxs-tennis"],
+  #sxs-basket:checked ~ .sx-stabs label[for="sxs-basket"]{color:#fff;background:var(--surface2);
+       border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  /* sport choisi -> on masque les autres sections sport + la perf « tous sports » */
+  #sxs-foot:checked ~ .sx-period .sx-sport:not([data-sport="foot"]),
+  #sxs-tennis:checked ~ .sx-period .sx-sport:not([data-sport="tennis"]),
+  #sxs-basket:checked ~ .sx-period .sx-sport:not([data-sport="basket"]){display:none}
+  #sxs-foot:checked ~ .sx-period .sx-byp,
+  #sxs-tennis:checked ~ .sx-period .sx-byp,
+  #sxs-basket:checked ~ .sx-period .sx-byp{display:none}
+  /* Héro bilan global */
+  .sx-hero{background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--cardline);border-radius:var(--radius);
+       box-shadow:var(--cardglow),var(--shadow);padding:14px 15px 12px;position:relative;overflow:hidden}
+  .sx-hero::before{content:"";position:absolute;inset:0 0 auto auto;width:160px;height:160px;
+       background:radial-gradient(circle at top right,var(--glow),transparent 70%);pointer-events:none}
+  .sx-hero-top{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .sx-hero-roi{font-size:34px;font-weight:900;line-height:1;letter-spacing:-.02em}
+  .sx-hero-lbl{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+       color:var(--muted);margin-top:3px}
+  .sx-hero-r{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+  .sx-streak{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:99px;white-space:nowrap}
+  .sx-streak.hot{color:#3ee089;background:rgba(52,210,123,.14);border:1px solid rgba(52,210,123,.30)}
+  .sx-streak.cold{color:#ff7484;background:rgba(242,93,110,.13);border:1px solid rgba(242,93,110,.30)}
+  .sx-form{display:inline-flex;gap:4px;align-items:center}
+  .sx-fd{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .sx-fd.won{background:#34d27b} .sx-fd.lost{background:#ff6b6b} .sx-fd.push{background:#9fb0c8}
+  .sx-ind{font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);
+       background:rgba(246,197,74,.15);border:1px solid rgba(246,197,74,.3);padding:1px 5px;border-radius:99px;
+       vertical-align:middle;margin-left:4px}
+  .sx-bstreak{font-size:10.5px;color:var(--muted);font-weight:600} .sx-bstreak b{color:#3ee089;font-weight:800}
+  .sx-relnote{font-size:9.5px;color:var(--muted);font-weight:600;opacity:.85}
+  .sx-hero-foot{position:relative;display:flex;align-items:center;justify-content:space-between;
+       gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--border)}
+  .sx-hero-chart{position:relative;margin:10px 0 2px}
+  .sx-heroc{width:100%;height:auto;display:block;max-height:96px}
+  .sx-kpis{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px;
+       padding-top:12px;border-top:1px solid var(--border)}
+  .sx-kpi{text-align:center}
+  .sx-kpi b{display:block;font-size:15px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
+  .sx-kpi span{font-size:9.5px;color:var(--muted);font-weight:600}
+  /* Sections (perf par pari + détail par sport) : espacement titre↔contenu uniforme */
+  .sx-byp,.sx-bys{display:flex;flex-direction:column;gap:10px}
+  .sx-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:0 2px;
+       font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#cfe0f5}
+  .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
+  /* Cartes par pari */
+  .sx-paris{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .sx-pari{background:var(--surface);border:1px solid var(--border);border-radius:13px;
+       padding:10px 9px;text-align:center}
+  .sx-pari-h{display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;
+       font-weight:800;color:var(--muted)}
+  .sx-pari-roi{font-size:21px;font-weight:900;line-height:1.05;margin-top:5px;font-variant-numeric:tabular-nums}
+  .sx-pari-rl{font-size:8.5px;font-weight:800;letter-spacing:.07em;color:var(--muted)}
+  .sx-pari .sx-spark{height:26px;margin:5px 0 4px}
+  .sx-pari-l{font-size:11px;font-weight:700;color:#cfe0f5}
+  .sx-pari-l2{font-size:10px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:1px}
+  /* Section par sport */
+  .sx-sport{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+       padding:11px 12px 10px}
+  .sx-sport-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+  .sx-sport-t{font-size:13.5px;font-weight:800;color:var(--text)}
+  .sx-sport-roi{font-size:14px;font-weight:900;font-variant-numeric:tabular-nums}
+  .sx-sport-sub{font-size:10.5px;color:var(--muted);font-weight:600;margin-bottom:4px}
+  .sx-rows{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+  .sx-row{padding:6px 9px;border-radius:9px;background:rgba(255,255,255,.035);
+       border:1px solid var(--border);font-size:11.5px;cursor:pointer}
+  .sx-row-main{display:flex;align-items:center;gap:8px}
+  .sx-row-best{background:rgba(246,197,74,.08);border-color:rgba(246,197,74,.32)}
+  .sx-best{color:var(--gold);margin-left:3px}
+  .sx-row-n{font-weight:800;color:var(--text);min-width:46px}
+  .sx-row-roi{font-weight:900;min-width:50px;font-variant-numeric:tabular-nums}
+  .sx-row-wl{color:#cfe0f5;font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
+  .sx-row-c{color:var(--muted);font-weight:700;min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
+  .sx-row-chev{color:var(--muted);font-weight:900;transition:transform .18s;flex:none}
+  .sx-row.open .sx-row-chev{transform:rotate(90deg)}
+  .sx-spark{width:100%;display:block}
+  /* ===== Page « Mes paris » ===== */
+  .mb{margin:2px 0 16px;display:flex;flex-direction:column;gap:12px}
+  .mb-h{font-size:20px;font-weight:900;margin:2px 0}
+  .mb-bal{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--cardline);
+       border-radius:var(--radius);box-shadow:var(--cardglow),var(--shadow);padding:14px 15px 12px;text-align:center}
+  .mb-bal-v{font-size:32px;font-weight:900;line-height:1}
+  .mb-bal-l{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .mb-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px;padding-top:11px;
+       border-top:1px solid var(--border)}
+  .mb-kpis div{text-align:center}
+  .mb-kpis b{display:block;font-size:14px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
+  .mb-kpis span{font-size:9px;color:var(--muted);font-weight:600}
+  .mb-sec{font-size:12px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#cfe0f5;margin-top:4px}
+  .mb-note{font-size:10.5px;color:var(--muted);margin:-6px 0 0}
+  .mb-row{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 12px}
+  .mb-row-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .mb-match{font-size:13.5px;font-weight:800;color:var(--text)}
+  .mb-when{font-size:10px;color:var(--muted);white-space:nowrap}
+  .mb-sel{font-size:12.5px;font-weight:700;color:#cfe0f5;margin:4px 0 6px}
+  .mb-sim{font-size:9.5px;font-weight:900;letter-spacing:.5px;color:#0b0e14;background:#f4c64a;
+       border-radius:5px;padding:1px 5px;vertical-align:middle}
+  .mb-line{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .mb-stake{font-size:12.5px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+  .mb-stat{font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:99px;white-space:nowrap}
+  .mbs-w{color:#3ee089;background:rgba(52,210,123,.14)} .mbs-l{color:#ff7484;background:rgba(242,93,110,.13)}
+  .mbs-p{color:var(--muted);background:rgba(255,255,255,.05)} .mbs-up{color:#cfe0f5;background:rgba(255,255,255,.05)}
+  .mbs-live{color:#34d27b;background:rgba(52,210,123,.12)}
+  .mb-delf{margin-top:8px;text-align:right}
+  .mb-del{background:none;border:none;color:var(--muted);font-size:10.5px;font-weight:700;
+       text-decoration:underline;cursor:pointer}
+  .mb-empty{padding:22px 12px;text-align:center;color:var(--muted);font-size:12.5px;
+       background:var(--surface);border:1px solid var(--border);border-radius:12px}
+  .mb-cta{display:block;text-align:center;padding:11px;border-radius:12px;margin:0 0 14px;font-weight:800;
+       font-size:13.5px;color:#eaf2ff;text-decoration:none;background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--cardline)}
+  /* Assistant : bankroll + paris recommandés */
+  .mb-bk{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
+       border-radius:10px;padding:8px 11px}
+  .mb-bk label{font-size:12.5px;font-weight:800;color:#cfe0f5}
+  .mb-bk input{flex:1;min-width:0;padding:8px;border-radius:8px;background:var(--surface2);
+       border:1px solid var(--border2);color:var(--text);font-size:14px;font-weight:700}
+  .mb-bk span{color:var(--muted);font-weight:700}
+  .mb-bk button{flex:none;padding:8px 14px;border:none;border-radius:8px;font-weight:800;cursor:pointer;
+       color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
+  .mb-basis{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45}
+  .mb-basis b{color:#3ee089}
+  .mb-reco{background:linear-gradient(180deg,rgba(16,34,26,.5),rgba(11,22,44,.4));
+       border:1px solid rgba(52,210,123,.34);border-radius:12px;padding:11px 12px}
+  .mb-reco-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .mb-reco-sel{font-size:13.5px;font-weight:800;color:#fff;margin:5px 0 6px;line-height:1.3}
+  .mb-reco-l{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px}
+  .mb-reco-stake{color:#cfe0f5;font-weight:700}
+  .mb-play{display:block;text-align:center;margin-top:9px;padding:10px;border-radius:10px;font-weight:800;
+       font-size:13.5px;text-decoration:none;color:#06140d;
+       background:linear-gradient(180deg,#34d27b,#22b56c)}
+  /* ===== Accueil : section « Paris à jouer » (premium) ===== */
+  .paj-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 11px;
+       font-size:17px;font-weight:900;color:var(--text)}
+  .paj-h-tag{font-size:9px;font-weight:900;letter-spacing:.12em;color:#f4c64a;
+       background:rgba(244,198,74,.12);border:1px solid rgba(244,198,74,.34);
+       border-radius:99px;padding:3px 9px}
+  /* Bandeau bankroll simulée */
+  .paj-bank{background:linear-gradient(160deg,#16161b 0%,#0f0f13 100%);
+       border:1px solid var(--border2);border-radius:15px;padding:13px 15px;margin-bottom:11px;
+       box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 6px 18px rgba(0,0,0,.32);position:relative;overflow:hidden}
+  .paj-bank::before{content:"";position:absolute;inset:0 0 0 auto;width:120px;
+       background:radial-gradient(circle at 100% 0,var(--glow),transparent 70%)}
+  .paj-bank-top{display:flex;align-items:baseline;gap:10px;position:relative}
+  .paj-bank-v{font-size:27px;font-weight:900;color:#fff;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .paj-bank-chg{font-size:12px;font-weight:900;padding:2px 8px;border-radius:99px}
+  .paj-bank-chg.pos{color:#3ee089;background:rgba(52,210,123,.15)}
+  .paj-bank-chg.neg{color:#ff7484;background:rgba(242,93,110,.14)}
+  .paj-bank-chg.neu{color:var(--muted);background:rgba(255,255,255,.06)}
+  .paj-bank-sub{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:3px;position:relative}
+  .paj-basis{font-size:10px;color:var(--muted);font-weight:600;line-height:1.45;margin-bottom:10px}
+  .paj-basis b{color:#3ee089}
+  .paj-empty{text-align:center;color:var(--text);font-weight:800;font-size:14px;padding:26px 12px;
+       background:var(--surface);border:1px solid var(--border);border-radius:14px}
+  .paj-empty span{display:block;margin-top:6px;font-size:11.5px;font-weight:600;color:var(--muted)}
+  /* Carte pari */
+  .paj{background:linear-gradient(180deg,rgba(17,32,55,.85),rgba(11,20,38,.85));
+       border:1px solid var(--border);border-radius:16px;padding:13px 14px;margin-bottom:11px;
+       box-shadow:0 6px 18px rgba(0,0,0,.3)}
+  .paj.rowtap{cursor:pointer}
+  .paj-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:11px;min-width:0}
+  .paj-team{display:flex;align-items:center;gap:9px;min-width:0;flex:1 1 auto}
+  .paj-ic{flex:none;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;
+       justify-content:center;font-size:16px;background:rgba(255,255,255,.05);border:1px solid var(--border)}
+  .paj-names{font-size:13.5px;font-weight:800;color:var(--text);line-height:1.22;min-width:0;
+       overflow-wrap:anywhere}
+  .paj-names i{font-style:normal;color:var(--dim);font-weight:700;font-size:11px;margin:0 2px}
+  .paj-comp{display:block;font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;
+       letter-spacing:.05em;margin-top:2px}
+  .paj-when{font-size:10px;color:var(--muted);white-space:nowrap;text-align:right;flex:none}
+  .paj-live{display:block;margin-top:3px;color:#ff5470;font-weight:900;font-size:9.5px;letter-spacing:.06em}
+  .paj-pick{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;
+       background:rgba(46,226,127,.06);border:1px solid rgba(52,210,123,.22);
+       border-radius:12px;padding:9px 11px}
+  .paj-pick-l{min-width:0;flex:1 1 auto}
+  .paj-tag{display:inline-block;font-size:8.5px;font-weight:900;letter-spacing:.1em;color:#3ee089;
+       background:rgba(52,210,123,.13);border-radius:5px;padding:1px 6px;margin-bottom:4px}
+  .paj-sel{display:block;font-size:14.5px;font-weight:800;color:#fff;line-height:1.25;overflow-wrap:anywhere}
+  .paj-odd{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
+       min-width:62px;padding:6px 12px;border-radius:11px;font-size:19px;font-weight:900;color:#04130a;
+       line-height:1;background:linear-gradient(180deg,#34d27b,#1fb364);box-shadow:0 3px 10px rgba(31,179,100,.32)}
+  .paj-odd small{font-size:8px;font-weight:800;letter-spacing:.08em;opacity:.75;margin-top:3px}
+  /* Barre de confiance */
+  .paj-conf{margin:11px 0 0}
+  .paj-conf-head{display:flex;justify-content:space-between;font-size:10.5px;font-weight:800;
+       color:var(--muted);margin-bottom:4px}
+  .paj-conf-head b{color:#fff}
+  .paj-conf-bar{height:7px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}
+  .paj-conf-fill{display:block;height:100%;border-radius:99px}
+  .paj-conf-fill.hi{background:linear-gradient(90deg,#1fb364,#3ee089)}
+  .paj-conf-fill.mid{background:linear-gradient(90deg,#caa53a,#f4c64a)}
+  .paj-conf-fill.lo{background:linear-gradient(90deg,#c25a4a,#ef8a4a)}
+  .paj-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 0}
+  .paj-chip{font-size:11px;font-weight:800;color:#cfe0f5;background:rgba(255,255,255,.05);
+       border:1px solid var(--border);border-radius:99px;padding:3px 10px}
+  .paj-chip.pos{color:#3ee089;background:rgba(52,210,123,.13);border-color:rgba(52,210,123,.34)}
+  .paj-chip i{font-style:normal;font-size:8.5px;font-weight:900;letter-spacing:.06em;color:#f4c64a;
+       text-transform:uppercase;margin-left:2px}
+  .paj-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+  .paj-see{font-size:11px;font-weight:800;color:var(--muted);white-space:nowrap}
+  /* Liens SofaScore / Unibet : 2 boutons COMPACTS & SOBRES (fond dark, pastille de marque, nom + ↗) */
+  .da-links{display:flex;gap:8px;align-items:stretch;margin:12px 0 2px}
+  .lnk-bn{flex:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+       height:38px;border-radius:11px;text-decoration:none;font-size:12px;font-weight:800;
+       letter-spacing:.01em;color:#dce7f5;background:rgba(255,255,255,.035);
+       border:1px solid var(--cardline);transition:background .15s,border-color .15s}
+  .lnk-bn:active{transform:scale(.985)}
+  .lnk-dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .lnk-arr{color:var(--dim);font-weight:700;font-size:11px;margin-left:1px}
+  .lnk-bn-sofa .lnk-dot{background:#2c7bff;box-shadow:0 0 6px rgba(44,123,255,.55)}
+  .lnk-bn-uni  .lnk-dot{background:#1ea34a;box-shadow:0 0 6px rgba(30,163,74,.55)}
+  .lnk-bn-sofa:hover{border-color:rgba(44,123,255,.4);background:rgba(44,123,255,.07)}
+  .lnk-bn-uni:hover{border-color:rgba(30,163,74,.4);background:rgba(30,163,74,.07)}
+  /* 📉 Mouvement de cote : ouverture -> clôture, sens (steam/drift) + mini-courbe */
+  .om{background:rgba(255,255,255,.04);border:1px solid var(--cardline);border-radius:12px;
+      padding:9px 12px;margin:11px 0 2px}
+  .om-h{font-size:11.5px;font-weight:800;letter-spacing:.03em;color:#cfe0f5;text-transform:uppercase;
+        display:flex;flex-direction:column;gap:2px;margin-bottom:7px}
+  .om-sub{font-size:9px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
+  .om-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px;font-weight:700}
+  .om-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#eaf2ff}
+  .om-spk{flex:none;width:74px;height:22px;opacity:.95}
+  .om-spk .sx-spark{height:22px}
+  .om-vals{flex:none;display:flex;gap:5px;align-items:center;font-variant-numeric:tabular-nums}
+  .om-o{color:var(--muted)}
+  .om-arr{font-weight:800;white-space:nowrap}
+  .om-pct{flex:none;width:52px;text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
+  .om-down{color:#34d27b}
+  .om-up{color:#ff6b6b}
+  .om-flat{color:var(--muted)}
+  .paj.open .exp-chev{display:inline-block;transform:rotate(180deg)}
+  .paj .exp{margin-top:11px}
+  .paj-mblink{display:block;text-align:center;margin:6px 0 6px;font-size:12px;font-weight:700;
+       color:var(--muted);text-decoration:none}
+  /* ===== Tableau de bord (accueil) + en-têtes de page ===== */
+  .dash-top,.paj-h{display:flex;align-items:center;justify-content:space-between;gap:8px;
+       margin:2px 0 11px;font-size:17px;font-weight:900;color:var(--text)}
+  .dash-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:20px 0 9px;
+       font-size:15px;font-weight:900;color:var(--text)}
+  .dash-h-a,.dash-more{font-size:11.5px;font-weight:800;color:var(--accent);text-decoration:none}
+  .dash-more{display:block;text-align:center;margin:2px 0 4px;padding:11px;border-radius:12px;
+       background:rgba(34,184,255,.10);border:1px solid rgba(34,184,255,.28)}
+  .dash-stat{display:block;margin:2px 0 4px;padding:13px 14px;border-radius:15px;text-decoration:none;
+       background:linear-gradient(160deg,#16161b,#0f0f13);border:1px solid var(--border2);
+       box-shadow:0 5px 16px rgba(0,0,0,.28)}
+  .dash-stat-row{display:flex;gap:8px}
+  .ds-k{flex:1;display:flex;flex-direction:column;gap:2px}
+  .ds-v{font-size:20px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;line-height:1}
+  .ds-v.pos{color:#3ee089} .ds-v.neg{color:#ff7484} .ds-v.neu{color:#cfe0f5}
+  .ds-l{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .dash-stat-go{display:block;margin-top:9px;font-size:11.5px;font-weight:800;color:var(--accent)}
+  /* KPIs de la bankroll simulée (ligne sous le solde) + carte Performance (ROI + courbe + forme). */
+  .sim-kpis{margin-top:12px;border-top:1px solid rgba(255,255,255,.08);padding-top:11px}
+  .dperf-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .dperf-roi{font-size:26px}
+  .dperf-spk{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex:1;min-width:0;max-width:150px}
+  .dperf-spk .sx-spark{width:100%}
+  /* Taux de réussite par sport (tennis · basket · football). */
+  .dash-sports{display:flex;gap:8px;margin-top:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:11px}
+  .dsp{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+  .dsp-ic{font-size:15px;line-height:1}
+  .dsp-v{font-size:16px;font-weight:900;color:#eaf2ff;font-variant-numeric:tabular-nums}
+  .dsp-v.pos{color:#3ee089} .dsp-v.neg{color:#ff7484} .dsp-v.neu{color:#cfe0f5}
+  .dsp-l{font-size:8.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .dash-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:14px 0 4px}
+  .dash-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+       padding:15px 6px;border-radius:15px;text-decoration:none;font-size:11.5px;font-weight:800;
+       color:var(--text);background:var(--surface);border:1px solid var(--border);text-align:center}
+  .dash-tile:active{transform:scale(.95)}
+  .dash-tile .dt-ic{font-size:25px;line-height:1}
+  .dash-next{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;
+       padding:13px 14px;border-radius:13px;text-decoration:none;font-size:13px;font-weight:800;
+       color:var(--text);background:var(--surface);border:1px solid var(--border)}
+  .dash-next span{font-size:11px;font-weight:700;color:var(--accent)}
+  .pg-h{font-size:21px;font-weight:900;color:var(--text);margin:2px 0 3px}
+  .pg-sub{font-size:11.5px;color:var(--muted);font-weight:600;margin-bottom:14px}
+  /* Calibration : confiance annoncée vs réussite réelle */
+  .cal-h{font-size:15px;font-weight:900;color:var(--text);margin:24px 0 10px}
+  .cal-verdict{padding:13px 14px;border-radius:14px;border:1px solid var(--border2);
+       background:linear-gradient(160deg,#16161b,#0f0f13);margin-bottom:12px}
+  .cal-verdict.cal-ok{border-color:rgba(52,210,123,.4)}
+  .cal-verdict.cal-over{border-color:rgba(244,198,74,.4)}
+  .cal-verdict.cal-under{border-color:rgba(34,184,255,.4)}
+  .cal-v-t{font-size:15px;font-weight:900;color:#fff}
+  .cal-v-s{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px;line-height:1.4}
+  .cal-v-m{font-size:11px;color:var(--text);font-weight:700;margin-top:6px}
+  .cal{display:flex;flex-direction:column;gap:9px}
+  .cal-row{display:flex;align-items:center;gap:10px;background:var(--surface);
+       border:1px solid var(--border);border-radius:13px;padding:10px 12px}
+  .cal-band{flex:none;width:62px;font-size:12px;font-weight:900;color:var(--text);line-height:1.2}
+  .cal-band span{display:block;font-size:9px;font-weight:700;color:var(--muted)}
+  .cal-bars{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}
+  .cal-line{display:flex;align-items:center;gap:7px}
+  .cal-lab{flex:none;width:46px;font-size:9.5px;font-weight:700;color:var(--muted);text-align:right}
+  .cal-track{flex:1;height:8px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}
+  .cal-fill{display:block;height:100%;border-radius:99px}
+  .cal-fill.conf{background:linear-gradient(90deg,#5f6f8e,#90a0bc)}
+  .cal-fill.real.pos{background:linear-gradient(90deg,#1fb364,#3ee089)}
+  .cal-fill.real.neg{background:linear-gradient(90deg,#c25a4a,#ff7484)}
+  .cal-line b{flex:none;width:34px;text-align:right;font-size:11px;font-weight:800;
+       color:var(--text);font-variant-numeric:tabular-nums}
+  .cal-gap{flex:none;width:34px;text-align:center;font-size:12px;font-weight:900;
+       font-variant-numeric:tabular-nums}
+  .cal-gap.pos{color:#3ee089} .cal-gap.neg{color:#ff7484}
+  .cal-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.5;margin:12px 2px 0}
+  .cal-pos-t{color:#3ee089;font-weight:800} .cal-neg-t{color:#ff7484;font-weight:800}
+  /* Calibration par groupe (sport / marché) — lignes compactes */
+  .calg-h{font-size:12px;font-weight:900;color:var(--muted);text-transform:uppercase;
+       letter-spacing:.06em;margin:18px 2px 8px}
+  .calg{display:flex;flex-direction:column;gap:7px}
+  .calg-row{display:flex;align-items:center;gap:8px;background:var(--surface);
+       border:1px solid var(--border);border-radius:11px;padding:9px 11px}
+  /* hiérarchie : sport (en tête) puis ses types de paris en sous-catégorie indentée */
+  .calg-sport{background:linear-gradient(160deg,#16161b,#0f0f13);border-color:var(--border2);margin-top:4px}
+  .calg-sport .calg-name{font-size:13.5px;font-weight:900}
+  .calg-sub{margin-left:16px;background:rgba(255,255,255,.02);padding:7px 11px}
+  .calg-sub .calg-name{width:100px;font-size:11px;font-weight:700;color:var(--muted)}
+  .calg-sub .calg-name::before{content:"↳ ";color:var(--dim)}
+  .calg-name{flex:none;width:104px;font-size:12.5px;font-weight:800;color:var(--text);line-height:1.2;
+       overflow-wrap:anywhere}
+  .calg-name span{display:block;font-size:9px;font-weight:700;color:var(--muted)}
+  /* compare compact : confiance annoncée → réussite réelle (réel coloré selon le signe) */
+  .calg-cmp{flex:1;min-width:0;display:flex;align-items:baseline;gap:5px;font-size:13px;font-weight:900;
+       font-variant-numeric:tabular-nums}
+  .calg-cmp b:first-child{color:var(--muted)}
+  .calg-cmp i{font-style:normal;color:var(--dim);font-weight:700}
+  .calg-cmp b.pos{color:#3ee089} .calg-cmp b.neg{color:#ff7484}
+  .calg-leg{font-size:9px;font-weight:700;color:var(--dim);text-transform:none;letter-spacing:0}
+  .calg-v{flex:none;font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:99px;white-space:nowrap}
+  .calg-v.v-ok{color:#3ee089;background:rgba(52,210,123,.13)}
+  .calg-v.v-over{color:#f4c64a;background:rgba(244,198,74,.13)}
+  .calg-v.v-under{color:#9fd2ff;background:rgba(34,184,255,.13)}
+  .calg-v.v-unsure{color:var(--muted);background:rgba(255,255,255,.06)}   /* à confirmer (pas assez de paris) */
+  /* Liens vers le match (SofaScore / Unibet) en tête de l'analyse — mêmes carrés */
+  /* Drill-down : liste des matchs d'une catégorie */
+  .sx-dd{display:flex;flex-direction:column;gap:5px}
+  .sx-dd-empty{color:var(--muted);font-size:11.5px;padding:6px 2px}
+  .sx-dd-row{display:flex;align-items:center;gap:9px;padding:5px 2px}
+  .sx-dd-res{flex:none;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;
+       justify-content:center;font-size:11px;font-weight:900}
+  .sx-dd-res.dd-w{color:#06140d;background:#34d27b} .sx-dd-res.dd-l{color:#fff;background:#ff6b6b}
+  .sx-dd-res.dd-p{color:#0b1428;background:#9fb0c8}
+  .sx-dd-m{min-width:0;flex:1}
+  .sx-dd-t{font-size:11.5px;font-weight:700;color:var(--text);line-height:1.25}
+  .sx-dd-s{font-size:10px;color:var(--muted);font-weight:600}
+  .sx-dd-c{flex:none;font-size:11.5px;font-weight:800;color:#cfe0f5;font-variant-numeric:tabular-nums}
+  /* Animation d'apparition des courbes (tracé) */
+  .bc-line{stroke-dasharray:1400;stroke-dashoffset:1400;animation:bcdraw 1.1s ease-out forwards}
+  @keyframes bcdraw{to{stroke-dashoffset:0}}
+  /* Carte Verdict */
+  .da-vc{position:relative;margin:6px 0 14px;padding:13px 14px 12px;border-radius:var(--radius);
+       background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--cardline);border-left:3px solid var(--accent);
+       box-shadow:var(--cardglow),var(--shadow);overflow:hidden}
+  .da-vc::before{content:"";position:absolute;inset:0 0 auto auto;width:120px;height:120px;
+       background:radial-gradient(circle at top right,var(--glow),transparent 70%);pointer-events:none}
+  .da-vc-h{position:relative;font-size:10.5px;font-weight:800;letter-spacing:.06em;
+       text-transform:uppercase;color:var(--accent);margin-bottom:9px}
+  /* Héro « le plus sûr » */
+  .da-vc-top{position:relative;padding:10px 12px;margin-bottom:10px;border-radius:12px;
+       background:rgba(255,255,255,.04);border:1px solid var(--border)}
+  .da-vc-lbl{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+       color:var(--accent);margin-bottom:5px}
+  .da-vc-pick{font-size:17px;font-weight:800;color:#fff;line-height:1.25;
+       display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+  .da-vc-odds{display:inline-flex;align-items:center;padding:2px 11px;border-radius:99px;
+       font-size:14px;font-weight:900;color:var(--accent-ink);
+       background:linear-gradient(180deg,var(--accent),var(--accent2));
+       box-shadow:0 2px 10px var(--glow)}
+  .da-vc-why{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:6px}
+  /* Lignes secondaires (compromis / à éviter) */
+  .da-vc-row{position:relative;display:flex;gap:8px;font-size:12px;color:var(--muted);
+       line-height:1.5;padding:6px 0;border-top:1px solid rgba(255,255,255,.05)}
+  .da-vc-row b{color:#cfe0f5}
+  .da-vc-ic{flex:none;font-size:13px;line-height:1.4}
+  .da-vc-skip{color:#9aa6bd}
+  /* Encart Mise */
+  .da-mise{position:relative;display:flex;gap:9px;align-items:flex-start;margin-top:11px;
+       padding:9px 11px;border-radius:11px;font-size:11.5px;line-height:1.5;color:#dfe6f2;
+       background:var(--gold-bg);border:1px solid var(--gold-bd)}
+  .da-mise-ic{flex:none;font-size:14px}
+  .da-mise b{color:var(--gold)}
+  /* Tableau des paris */
+  .da-bets-h{font-size:12px;font-weight:800;letter-spacing:.02em;color:#cfe0f5;margin:14px 0 6px}
+  .da-bets{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px;
+       background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .da-bets th{background:var(--surface2);color:var(--muted);font-weight:700;text-align:left;
+       padding:7px 9px;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+  .da-bets td{padding:8px 9px;vertical-align:middle;border-top:1px solid rgba(255,255,255,.05)}
+  .da-bp{font-weight:700;color:var(--text);width:42%}
+  .da-bpr{width:34%}
+  .da-bet-top td{background:rgba(255,255,255,.035)}
+  .da-bet-top .da-bp{box-shadow:inset 3px 0 0 var(--accent)}
+  .da-odds{display:inline-block;padding:2px 9px;border-radius:7px;font-weight:800;font-size:12px;
+       color:#fff;background:var(--surface2);border:1px solid var(--border2)}
+  .da-prob{display:flex;align-items:center;gap:7px}
+  .da-prob .tk{flex:1;min-width:34px;height:7px;border-radius:99px;
+       background:rgba(255,255,255,.09);overflow:hidden}
+  .da-prob .tk span{display:block;height:100%;border-radius:99px;
+       background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .da-prob .pv{flex:none;min-width:30px;text-align:right;font-weight:800;font-size:11px;color:#cfe0f5}
+  .da-pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:10.5px;font-weight:800;
+       white-space:nowrap}
+  .da-pill.ok{background:rgba(52,210,123,.16);color:#3ee089;border:1px solid rgba(52,210,123,.32)}
+  .da-pill.mid{background:rgba(246,197,74,.15);color:var(--gold);border:1px solid rgba(246,197,74,.32)}
+  .da-pill.hi{background:rgba(242,93,110,.15);color:#ff7484;border:1px solid rgba(242,93,110,.32)}
+  /* Paris à jouer — un CADRE par pari (style « confiance ») au lieu d'un tableau */
+  .da-bks{display:flex;flex-direction:column;gap:11px}
+  /* Cadre d'un pari : bordure fine neutre + BANDE DE COULEUR à gauche (statut), fond sombre premium */
+  /* BANDE gauche : VERT par défaut (tous les paris proposés) ; OR uniquement pour le pari SIMULÉ
+     (à jouer, cf. .da-bk-reco) ; et RÉSULTAT (vert/rouge/gris) une fois le match terminé. */
+  .da-bk{position:relative;background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid rgba(255,255,255,.07);border-left:4px solid #34d27b;
+       border-radius:13px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.34)}
+  .da-bk-ok,.da-bk-mid,.da-bk-hi{border-left-color:#34d27b}   /* sûreté ne colore PLUS la bande (étoiles) */
+  .da-bk-tab{display:flex;align-items:center;gap:8px;padding:12px 14px 0;font-size:10.5px;
+       font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .da-bk-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px 13px}
+  .da-bk-l{min-width:0;flex:1}
+  /* Commentaire du Verdict, DANS la carte du pari, sous la ligne (séparé par un filet fin) */
+  /* Analyse du pari : SOUS l'affiche, AU-DESSUS des stats */
+  .da-bk-note{font-size:11.5px;line-height:1.55;color:var(--muted);padding:8px 14px 0}
+  .da-bk-note b{color:#cfe0f5;font-weight:800}
+  /* Résidu du Verdict (à éviter / mise) APRÈS les paris : cartes PREMIUM cohérentes (bande gauche +
+     pastille d'icône + titre majuscule + texte) */
+  .da-bets-extra{margin-top:11px;display:flex;flex-direction:column;gap:9px}
+  .da-bx{border:1px solid rgba(255,255,255,.07);border-left:4px solid var(--border2);border-radius:12px;
+       padding:11px 13px 12px;background:linear-gradient(180deg,var(--surface2),var(--surface))}
+  .da-bx.skip{border-left-color:#ff9f43}        /* à éviter -> orange (prudence) */
+  .da-bx.mise{border-left-color:var(--accent)}  /* mise -> accent (info) */
+  .da-bx-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .da-bx-ic{flex:none;width:24px;height:24px;border-radius:7px;display:inline-flex;align-items:center;
+       justify-content:center;font-size:13px;line-height:1;background:rgba(255,255,255,.05);
+       border:1px solid rgba(255,255,255,.08)}
+  .da-bx-lbl{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+  .da-bx.skip .da-bx-lbl{color:#ffb163}
+  .da-bx.mise .da-bx-lbl{color:var(--accent)}
+  .da-bx-t{font-size:11.5px;line-height:1.55;color:var(--muted)}
+  .da-bk-sel{font-size:14.5px;font-weight:800;color:#fff;line-height:1.3;padding:8px 14px 0}
+  /* Barre de CONFIANCE (proba) sous l'affiche du pari */
+  .da-cbar{margin:10px 14px 0;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+  .da-cbar>span{display:block;height:100%;border-radius:99px}
+  .da-cbar.grn>span{background:linear-gradient(90deg,#19c46a,#34d27b)}   /* autres paris : VERT */
+  .da-cbar.gold>span{background:linear-gradient(90deg,#d8a72a,#f6c54a)}  /* pari simulé : OR */
+  /* Sûreté en ÉTOILES dans l'en-tête (★ pleines = niveau) — OR, bien visibles */
+  .da-bk-stars{font-size:12.5px;letter-spacing:2px;color:#f6c54a;font-weight:400;margin-left:4px;
+       text-shadow:0 0 6px rgba(246,197,74,.45)}
+  /* Bandeau de STATS pro : Confiance · Cote · Value */
+  .da-bk-stats{display:flex;gap:7px;padding:12px 14px 14px}
+  .da-st{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.04);
+       border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:7px 3px}
+  .da-st-v{display:block;font-size:14px;font-weight:900;color:#eaf2ff;font-variant-numeric:tabular-nums;
+       line-height:1.1}
+  .da-st-l{display:block;font-size:7.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+       color:var(--muted);margin-top:3px}
+  .da-st-cote .da-st-v{color:#7ff0b6}        /* cote = vert pari */
+  .da-st-cote{border-color:rgba(34,191,108,.28);background:rgba(25,196,106,.08)}
+  .da-st-pos .da-st-v{color:#34d27b}         /* value EV+ vert */
+  .da-st-neg .da-st-v{color:var(--gold)}     /* value EV− ambre */
+  .da-bk-saf2{padding:9px 14px 0}
+  .da-bk-m{margin-top:8px;display:flex;flex-direction:column;gap:7px}
+  .da-bk-cote{flex:none;padding:9px 15px;border-radius:11px;font-size:16px;font-weight:800;
+       color:#7ff0b6;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.42)}
+  /* Badge de SÛRETÉ premium : pastille lumineuse + libellé MAJUSCULE, couleur = bande */
+  .da-saf{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:4px 11px;
+       border-radius:99px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;
+       white-space:nowrap}
+  .da-saf-dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .da-saf.ok{background:rgba(52,210,123,.12);color:#3ee089;border:1px solid rgba(52,210,123,.30)}
+  .da-saf.ok .da-saf-dot{background:#34d27b;box-shadow:0 0 7px rgba(52,210,123,.85)}
+  .da-saf.mid{background:rgba(255,159,67,.12);color:#ffb163;border:1px solid rgba(255,159,67,.32)}
+  .da-saf.mid .da-saf-dot{background:#ff9f43;box-shadow:0 0 7px rgba(255,159,67,.85)}
+  .da-saf.hi{background:rgba(242,93,110,.12);color:#ff7484;border:1px solid rgba(242,93,110,.30)}
+  .da-saf.hi .da-saf-dot{background:#ff6b6b;box-shadow:0 0 7px rgba(242,93,110,.85)}
+  .da-bk-tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .da-bets-hint{font-size:9.5px;font-weight:600;color:var(--muted)}
+  .da-ev{display:inline-block;padding:2px 9px;border-radius:99px;font-size:10.5px;font-weight:800;white-space:nowrap}
+  .da-ev.pos{background:rgba(52,210,123,.18);color:#3ee089;border:1px solid rgba(52,210,123,.4)}
+  .da-ev.neu{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)}
+  .da-ev.neg{background:rgba(246,197,74,.13);color:var(--gold);border:1px solid rgba(246,197,74,.3)}
+  /* Résultat PAR pari (après match) : cadre VERT (gagné) / ROUGE (perdu) / gris (remboursé) + halo */
+  .da-bk-mark{margin-left:auto;font-size:10px;font-weight:900;padding:2px 8px;border-radius:99px;
+       letter-spacing:.02em}
+  .da-bk-mark.mk-w{color:#06140d;background:#34d27b}
+  .da-bk-mark.mk-l{color:#fff;background:#ff6b6b}
+  .da-bk-mark.mk-p{color:#0b1428;background:#9fb0c8}
+  .da-bk-mark.mk-reco{color:#1a1304;background:var(--gold)}   /* badge ✅ À JOUER : OR */
+  /* MEILLEURE VALUE : même carte que les paris safe, mais encadré OR + halo OR (seul repère premium) */
+  /* À JOUER (meilleure value) : bande OR (le pari à jouer se distingue) + halo OR + badge + tab OR */
+  .da-bk-reco{border-left-color:var(--gold);
+       box-shadow:0 0 0 1px rgba(246,197,74,.30),0 8px 22px rgba(246,197,74,.16)}
+  .da-bk-reco .da-bk-tab{color:var(--gold)}
+  .da-reco{margin:0 0 9px;padding:9px 12px;border-radius:11px;font-size:12.5px;line-height:1.45}
+  .da-reco.play{background:rgba(52,210,123,.12);border:1px solid rgba(52,210,123,.36);color:#eaf2ff}
+  .da-reco.skip{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted)}
+  .da-reco-ev{color:#3ee089;font-weight:800;white-space:nowrap}
+  .da-bk-won{border-left-color:#34d27b;
+       box-shadow:0 0 0 1px rgba(52,210,123,.18),0 6px 20px rgba(25,196,106,.18)}
+  .da-bk-lost{border-left-color:#ff6b6b;
+       background:linear-gradient(180deg,rgba(42,16,22,.55),rgba(20,10,16,.4));
+       box-shadow:0 0 0 1px rgba(242,93,110,.16),0 6px 20px rgba(242,93,110,.16)}
+  .da-bk-lost .da-bk-tab{color:#ff8090}
+  .da-bk-lost .da-bk-cote{color:#ffb3bc;background:rgba(242,93,110,.16);
+       border:1px solid rgba(242,93,110,.45)}
+  .da-bk-push{border-left-color:#9fb0c8;filter:saturate(.7)}
+  /* Les faits (déroulés dans l'analyse, plus en accordéon) */
+  .da-faits-h{padding:11px 13px;font-size:12.5px;font-weight:800;color:#cfe0f5;
+       border-bottom:1px solid var(--border)}
+  .da-faits{margin:14px 0 4px;border:1px solid var(--border);border-radius:12px;
+       background:var(--surface);overflow:hidden}
+  .da-faits>summary{cursor:pointer;list-style:none;padding:11px 13px;font-size:12.5px;
+       font-weight:800;color:#cfe0f5;display:flex;align-items:center;justify-content:space-between}
+  .da-faits>summary::-webkit-details-marker{display:none}
+  .da-faits>summary::after{content:"▾";color:var(--muted);transition:transform .18s}
+  .da-faits[open]>summary{border-bottom:1px solid var(--border)}
+  .da-faits[open]>summary::after{transform:rotate(180deg)}
+  .da-faits-b{padding:8px 14px 12px;font-size:12.5px;line-height:1.65;color:var(--text)}
+  .da-faits-b .da-ul{padding-left:4px;list-style:none}
+  .da-faits-b .da-ul li{margin:9px 0;padding-left:15px;position:relative}
+  .da-faits-b .da-ul li::before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;
+       border-radius:99px;background:var(--accent)}
+  .da-faits-b a{display:inline-block;padding:1px 8px;margin:1px 2px 1px 0;border-radius:99px;
+       font-size:10px;font-weight:700;color:var(--accent);background:rgba(255,255,255,.05);
+       border:1px solid var(--border);text-decoration:none;vertical-align:baseline}
+  /* --- Bloc Tendances (séries SofaScore mappées aux marchés) --- */
+  .strk{display:flex;flex-direction:column;gap:9px}
+  .strk-team{background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+  .strk-h{font-size:12px;font-weight:800;color:#cfe0f5;margin-bottom:7px}
+  .strk-c{display:inline-flex;align-items:center;margin:3px 5px 0 0;padding:3px 10px;
+       border-radius:99px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.05);
+       border:1px solid var(--border)}
+  .strk-c b{color:var(--accent);margin-left:4px;font-weight:800}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);
@@ -753,6 +1678,27 @@ CSS = """
        border:1px solid var(--border)}
   .src.ok{background:rgba(46,226,127,.10);color:var(--accent);border-color:rgba(46,226,127,.22)}
   .src.ko{background:var(--gold-bg);color:var(--gold);border-color:var(--gold-bd)}
+  /* ===== Polish OddScore : chiffres mono · en-têtes « • » · titres majuscules ===== */
+  :root{--font-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+  .paj-odd,.da-bk-cote,.plg-cote,.paj-bank-v,.paj-bank-chg,.ds-v,.cal-gap,.cal-line b,.calg-vs b,
+  .mb-stake,.lb-clk,.cd,.paj-conf-head b,.da-prob .pv,.mb-stat,.dd-cote{
+       font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  /* En-têtes de SECTION façon « • TITRE » (accent, majuscules, espacé) */
+  details.sec2>summary,.cal-h,.calg-h{
+       text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}
+  details.sec2>summary::before,.cal-h::before,.calg-h::before{content:"• ";color:var(--accent);font-weight:900}
+  .dash-h>span:first-child::before{content:"• ";color:var(--accent);font-weight:900}
+  .dash-h>span:first-child{text-transform:uppercase;letter-spacing:.06em}
+  /* Grands TITRES de page en MAJUSCULES (Archivo black) — adapté à TOUT le site */
+  h1,h2,.pg-h,.mb-h,.mb-sec,.sporthd-t,.da-bets-h,.dash-top>span:first-child,
+  .paj-h>span:first-child{text-transform:uppercase;letter-spacing:.02em;font-weight:900}
+  /* INTERFACE en majuscules (nav, boutons, puces, tuiles, liens) — PAS les noms d'équipes ni
+     les textes d'analyse (lisibilité). Look 100 % cohérent façon OddScore. */
+  .botnav a .lb,.dw-it,.dash-tile,.dash-more,.dash-stat-go,.dash-h-a,.paj-mblink,.paj-see,.exp-c,
+  .paj-chip,.da-ev,.b-val,.b-uni,.b-conf,.calg-v,.mb-sim,.paj-tag,.paj-stake,.paj-conf-head,
+  .mb-play,.mb-del,.src,.paj-live,.dd-cote,.mb-stat,.dash-next,.paj-basis b,
+  .da-bets-hint,.cal-v-t,.fpick-t,.plg-tab,.an-tag{
+       text-transform:uppercase;letter-spacing:.03em}
 """
 
 
@@ -760,20 +1706,23 @@ CSS = """
 _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 
 # Onglets de la SPA (clé, URL, icône, libellé). L'URL sert AUSSI de source AJAX (?frag=1).
+# Icône LIVE = mini-radar vert pulsant (mêmes anneaux que l'orbe de l'état vide « aucun match »)
+_LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
+               '<span class="nr-ring nr-ring2"></span><span class="nr-dot"></span></span>')
 _SPA_TABS = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
              ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot"),
-             ("directs", "/directs", "🟢", "Live")]
+             ("directs", "/directs", _LIVE_RADAR, "Live")]
+
+
+_SPORT_TITLE = {"foot": "⚽ Football", "tennis": "🎾 Tennis", "basket": "🏀 Basket"}
 
 
 def _subnav(sport: str) -> str:
-    """Sous-menu d'un sport (Matchs / Fiabilité), inclus dans le corps du fragment."""
+    """En-tête des pages sport : titre du sport courant + accès « Fiabilité détaillée ». Le CHANGEMENT
+    de sport se fait par la barre du bas (pas de second menu de sélection -> on évite la redondance)."""
     if sport not in _SPORT_MATCH_URL:
         return ""
-    items = [("matchs", _SPORT_MATCH_URL[sport], "📋 Matchs"),
-             ("perf", f"/tracking/dashboard?sport={sport}", "📊 Fiabilité")]
-    return '<div class="subnav">' + "".join(
-        f'<a class="{"on" if k == "matchs" else ""}" href="{href}">{html.escape(lbl)}</a>'
-        for k, href, lbl in items) + "</div>"
+    return f'<div class="sporthd"><span class="sporthd-t">{_SPORT_TITLE.get(sport, "")}</span></div>'
 
 
 # Décompte avant le coup d'envoi (timer live), côté client : met à jour chaque badge
@@ -805,19 +1754,24 @@ _SPA_JS = (
     "c[i].classList.toggle('on',c[i].getAttribute('data-tab')===t);"
     "var n=document.querySelectorAll('.botnav a'),j;for(j=0;j<n.length;j++)"
     "n[j].classList.toggle('on',n[j].getAttribute('data-tab')===t);"
-    "document.body.className='sp-'+t;}"
+    "var dw=document.querySelectorAll('.dw-it[data-nav]'),k;for(k=0;k<dw.length;k++)"
+    "dw[k].classList.toggle('on',dw[k].getAttribute('data-nav')===t);"
+    "document.body.className='sp-'+t;"
+    "var sp=panel(t);if(sp){if(window._twCount)setTimeout(function(){window._twCount(sp);},50);"
+    "if(window._mcInit)window._mcInit(sp);}}"
     "function load(p){if(!p||p.getAttribute('data-loaded'))return;"
     "p.setAttribute('data-loaded','1');var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;"
     # onglet Directs : on n'allume le rouge clignotant QUE s'il y a du live dans le panneau
     "if((u||'').indexOf('/directs')>=0){var nv=document.querySelector('.botnav a[data-tab=\"directs\"]');"
-    "if(nv)nv.classList.toggle('has-live',h.indexOf('🟢 Live')>=0);}})"
+    "if(nv)nv.classList.toggle('has-live',h.indexOf('🟢 Live')>=0);}"
+    "if(window._twScan)window._twScan(p);if(window._mcInit)window._mcInit(p);})"
     ".catch(function(){p.removeAttribute('data-loaded');"
     "p.innerHTML='<div class=ldg>Erreur de chargement. Touchez l\\'onglet pour réessayer.</div>';});}"
     "function go(t,push){var p=panel(t);if(!p)return;load(p);show(t);"
     "if(push)try{history.pushState({tab:t},'',p.getAttribute('data-src'));}catch(e){}"
-    "window.scrollTo(0,0);}"
+    "var sc=document.querySelector('.wrap');if(sc)sc.scrollTop=0;else window.scrollTo(0,0);}"
     # panneau actif (rendu serveur) = déjà chargé ; on précharge les autres tout de suite
     "var c=P.children,i;for(i=0;i<c.length;i++){"
     "if(c[i].classList.contains('on'))c[i].setAttribute('data-loaded','1');else load(c[i]);}"
@@ -854,8 +1808,28 @@ _SPA_JS = (
     "if(!x.getAttribute('data-loaded')){x.setAttribute('data-loaded','1');"
     "x.innerHTML='<div class=ldg>Chargement de l\\'analyse…</div>';"
     "fetch(c.getAttribute('data-exp')).then(function(r){return r.text();})"
-    ".then(function(h){x.innerHTML=h;}).catch(function(){x.removeAttribute('data-loaded');"
+    ".then(function(h){x.innerHTML=h;"  # plus d'effet de frappe ; juste le compteur de chiffres
+    "if(window._twCount)window._twCount(x);})"
+    ".catch(function(){x.removeAttribute('data-loaded');"
     "x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}});"
+    # CARTE COMPACTE : un clic N'IMPORTE OÙ dans la carte la déplie/replie. À l'ouverture, l'ANALYSE
+    # est chargée D'OFFICE (plus de bouton « Voir l'analyse »). Les liens (a) restent cliquables.
+    "function _mcLoad(card){var a=card.querySelector('.mc-ana');if(!a||a.getAttribute('data-l'))return;"
+    "a.setAttribute('data-l','1');var x=a.querySelector('.exp');if(!x)return;"
+    "x.innerHTML='<div class=ldg>Chargement de l\\'analyse…</div>';"
+    "fetch(a.getAttribute('data-ana')).then(function(r){return r.text();}).then(function(h){"
+    "x.innerHTML=h;if(window._twCount)window._twCount(x);})"
+    ".catch(function(){a.removeAttribute('data-l');x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}"
+    "window._mcInit=function(root){var o=(root||document).querySelectorAll('.row.mc.mc-open'),i;"
+    "for(i=0;i<o.length;i++)_mcLoad(o[i]);};"
+    "document.addEventListener('click',function(e){"
+    "if(_mv)return;if(e.target.closest('a'))return;"  # scroll OU clic sur un lien -> on ne (re)plie pas
+    "var card=e.target.closest('.row.mc');if(!card)return;e.preventDefault();"
+    "var b=card.querySelector('.mc-body');if(!b)return;"
+    "if(b.hidden){b.hidden=false;card.classList.add('mc-open','mc-manual');_mcLoad(card);"
+    "if(window._twCount)window._twCount(b);}"
+    "else{b.hidden=true;card.classList.remove('mc-open','mc-manual');}});"
+    "window._mcInit(document);"  # cartes déjà ouvertes (live, rendu serveur) -> charge leur analyse
     # rafraîchissement auto des COTES/SCORES live : on ré-interroge le panneau actif toutes les
     # 45 s, UNIQUEMENT s'il contient un direct (.live) ET qu'aucun accordéon n'est ouvert
     # (on ne coupe pas une lecture). Le scroll est préservé. Pas de direct = aucun appel réseau.
@@ -863,23 +1837,123 @@ _SPA_JS = (
     "for(i=0;i<c.length;i++)if(c[i].classList.contains('on')){p=c[i];break;}"
     "if(!p||!p.getAttribute('data-loaded')||document.hidden)return;"
     "if(!p.querySelector('.live'))return;"
-    "if(p.querySelector('.exp:not([hidden])'))return;"
+    "if(p.querySelector('.mc-manual'))return;"  # ne pas perturber une carte ouverte À LA MAIN
     "var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){"
-    "var y=window.scrollY;p.innerHTML=h;window.scrollTo(0,y);}).catch(function(){});}"
+    "var sc=document.querySelector('.wrap');var y=sc?sc.scrollTop:window.scrollY;"
+    "p.innerHTML=h;if(window._mcInit)window._mcInit(p);if(sc)sc.scrollTop=y;else window.scrollTo(0,y);})"
+    ".catch(function(){});}"
     "setInterval(fresh,45000);})();"
 )
 
+# Effet « terminal » : les pronostics + l'analyse se TAPENT (caractère par caractère) à l'ouverture,
+# UNE fois, avec un curseur clignotant. Tap = saute l'animation. Sécurité : tout est révélé après 4,5 s
+# max et si une erreur survient (jamais de contenu vide). Non destructif si le JS ne tourne pas.
+_TERM_JS = (
+    "(function(){"
+    # COMPTEUR : un chiffre/valeur (.da-st-v) qui MONTE de 0 à sa valeur (formats « 87% », « 1.22 », « +6% »).
+    "function cnt(nd){if(nd._c)return;nd._c=1;var t=(nd.textContent||'').trim();"
+    "var m=t.match(/^([+\\-]?)(\\d+(?:[.,]\\d+)?)(.*)$/);if(!m)return;"
+    "var sg=m[1],n=parseFloat(m[2].replace(',','.')),sf=m[3],dp=(m[2].split(/[.,]/)[1]||'').length,s=null;"
+    "function st(ts){if(!s)s=ts;var p=Math.min(1,(ts-s)/650),e=p*p*(3-2*p);"
+    "nd.textContent=sg+(n*e).toFixed(dp)+sf;if(p<1)requestAnimationFrame(st);else nd.textContent=t;}"
+    "nd.textContent=sg+(0).toFixed(dp)+sf;requestAnimationFrame(st);"
+    "setTimeout(function(){nd.textContent=t;},2000);}"  # sécurité : valeur finale après 2 s
+    "function dig(n,o){for(var c=n.firstChild;c;c=c.nextSibling){"
+    "if(c.nodeType===3){var t=c.nodeValue;if(t&&/\\S/.test(t)){o.push([c,t]);c.nodeValue='';}}"
+    "else if(c.nodeType===1){var g=c.tagName;"
+    "if(g!=='SCRIPT'&&g!=='STYLE'&&g!=='svg'&&g!=='SVG'&&!c.getAttribute('data-tw')"
+    "&&(!c.classList||!c.classList.contains('da-st-v')))dig(c,o);}}}"  # .da-st-v = compteur, pas frappé
+    "function tw(el){if(!el||el.getAttribute('data-tw'))return;el.setAttribute('data-tw','1');"
+    "try{var nm=el.querySelectorAll('.da-st-v'),z;for(z=0;z<nm.length;z++)cnt(nm[z]);}catch(e){}"
+    "var nodes=[];try{dig(el,nodes);}catch(e){return;}if(!nodes.length)return;"
+    "var total=0,i;for(i=0;i<nodes.length;i++)total+=nodes[i][1].length;"
+    "var per=Math.max(2,Math.ceil(total/180));"  # ~ termine en ~1,5 s
+    "var cur=document.createElement('span');cur.className='tw-cur';cur.textContent='▋';"  # ▋
+    "el.classList.add('tw-on');var ni=0,ci=0,tmr=0;"
+    "function fin(){try{for(var k=0;k<nodes.length;k++)nodes[k][0].nodeValue=nodes[k][1];}catch(e){}"
+    "if(cur.parentNode)cur.parentNode.removeChild(cur);el.classList.remove('tw-on');"
+    "clearTimeout(tmr);el._twf=null;}"
+    "el._twf=fin;"
+    "function tick(){var r=per;"
+    "while(r>0&&ni<nodes.length){var nd=nodes[ni],f=nd[1];ci++;nd[0].nodeValue=f.slice(0,ci);"
+    "try{nd[0].parentNode.insertBefore(cur,nd[0].nextSibling);}catch(e){}"
+    "if(ci>=f.length){ni++;ci=0;}r--;}"
+    "if(ni<nodes.length)tmr=setTimeout(tick,8);else fin();}"
+    "tick();setTimeout(function(){if(el._twf)el._twf();},4500);}"
+    "window._twType=tw;"
+    "document.addEventListener('click',function(e){var t=e.target.closest('.tw-on');"
+    "if(t&&t._twf)t._twf();},true);"  # tap pendant l'anim -> révèle tout
+    "var obs=('IntersectionObserver'in window)?new IntersectionObserver(function(es){"
+    "es.forEach(function(en){if(en.isIntersecting){obs.unobserve(en.target);tw(en.target);}});},"
+    "{threshold:0.3}):null;"
+    "window._twScan=function(root){if(!obs)return;"
+    "var l=(root||document).querySelectorAll('.tw:not([data-tw])'),i;"
+    "for(i=0;i<l.length;i++)obs.observe(l[i]);};"
+    # compteurs : déclenchables explicitement (à l'affichage d'un panneau) -> effet toujours visible.
+    "window._twCount=function(root){try{var l=(root||document).querySelectorAll('.da-st-v'),i;"
+    "for(i=0;i<l.length;i++)cnt(l[i]);}catch(e){}};"
+    "window._twScan(document);window._twCount(document);})();"
+)
+
+
+# Menu tiroir « complet » (☰) — présent sur TOUTES les pages. Accès direct à tout : accueil, paris à
+# jouer, bilan, stats, et chaque sport + live. Les clés correspondent à l'item mis en évidence.
+_DRAWER_ITEMS = [
+    ("Principal", [
+        ("home", "/", "🏠", "Accueil"),
+        ("paris", "/paris", "🎯", "Paris à jouer"),
+        ("mybets", "/mybets", "💼", "Mes paris & bilan"),
+        ("stats", "/stats", "📊", "Statistiques"),
+    ]),
+    ("Sports", [
+        ("foot", "/foot", "⚽", "Foot"),
+        ("tennis", "/app", "🎾", "Tennis"),
+        ("basket", "/basket", "🏀", "Basket"),
+        ("directs", "/directs", "🟢", "Live"),
+    ]),
+]
+
+_DRAWER_JS = ("function dwOpen(){document.body.classList.add('dw-on')}"
+              "function dwClose(){document.body.classList.remove('dw-on')}"
+              "document.addEventListener('keydown',function(e){if(e.key==='Escape')dwClose()});"
+              # ZÉRO ZOOM : iOS ignore user-scalable=no -> on bloque le pinch (events gesture*),
+              # le double-tap (touch-action:manipulation gère déjà) et le ctrl+molette (desktop).
+              "['gesturestart','gesturechange','gestureend'].forEach(function(ev){"
+              "document.addEventListener(ev,function(e){e.preventDefault();},{passive:false});});"
+              "document.addEventListener('wheel',function(e){if(e.ctrlKey)e.preventDefault();},{passive:false});")
+
+
+def _drawer(active: str = "") -> tuple[str, str]:
+    """Renvoie (bouton ☰, panneau tiroir). L'item `active` est mis en évidence."""
+    e = html.escape
+    groups = []
+    for gname, items in _DRAWER_ITEMS:
+        rows = "".join(
+            f'<a class="dw-it{" on" if k == active else ""}" data-nav="{k}" href="{href}">'
+            f'<span class="dw-ic">{ico}</span><span>{e(lbl)}</span></a>'
+            for k, href, ico, lbl in items)
+        groups.append(f'<div class="dw-grp"><div class="dw-gh">{e(gname)}</div>{rows}</div>')
+    btn = '<button class="menu-btn" aria-label="Ouvrir le menu" onclick="dwOpen()">☰</button>'
+    panel = ('<div class="drawer-ov" onclick="dwClose()"></div>'
+             '<aside class="drawer" role="navigation" aria-label="Menu principal">'
+             '<div class="dw-head"><span class="dw-logo">BETS<b>FIX</b></span>'
+             '<button class="dw-x" aria-label="Fermer" onclick="dwClose()">✕</button></div>'
+             f'{"".join(groups)}'
+             '<div class="dw-foot">18+ · Jouez responsable</div></aside>')
+    return btn, panel
+
 
 def layout(title: str, sport: str, body: str, subnav: str | None = None,
-           refresh: bool = False, source: dict | None = None) -> str:
+           refresh: bool = False, source: dict | None = None, menu: str | None = None) -> str:
     """Page premium. `sport` ∈ home/tennis/basket/foot (onglet principal actif).
     `subnav` ∈ matchs/perf : affiche le sous-menu du sport (Matchs / Fiabilité).
     `source` : état SofaScore -> petit indicateur discret dans l'en-tête si en pause."""
     e = html.escape
+    menu_btn, drawer = _drawer(menu or sport)
     # Logo unique : réduit, centré, tout en haut de CHAQUE page (accueil + sports).
-    toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=2" alt="BETSFIX"></a>'
+    toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=3" alt="BETSFIX"></a>'
                if os.path.exists(_LOGO) else "")
     pausebar = ""
     if source and not source.get("ok"):
@@ -906,17 +1980,19 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#080a0f">
+<meta name="theme-color" content="#070708">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/static/icon-180.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="apple-touch-icon" href="/static/icon-180.png?v=3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
-<div class="wrap">{toplogo}{pausebar}{sub}{body}
+{menu_btn}{drawer}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_COUNTDOWN_JS}</script></body></html>"""
+</div>{botnav}<script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
@@ -924,7 +2000,8 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
     serveur (1er affichage rapide, marche sans JS) ; les 3 autres panneaux sont vides et
     remplis en AJAX dès l'ouverture. La nav du bas bascule les panneaux SANS rechargement."""
     e = html.escape
-    toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=2" alt="BETSFIX"></a>'
+    menu_btn, drawer = _drawer(active)
+    toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=3" alt="BETSFIX"></a>'
                if os.path.exists(_LOGO) else "")
     pausebar = ""
     if source and not source.get("ok"):
@@ -945,17 +2022,19 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#080a0f">
+<meta name="theme-color" content="#070708">
 <title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/static/icon-180.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="apple-touch-icon" href="/static/icon-180.png?v=3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(active)}">
-<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
+{menu_btn}{drawer}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_COUNTDOWN_JS}</script><script>{_SPA_JS}</script></body></html>"""
+</div>{botnav}<script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
 
 def bars_split(model, implied) -> dict:
@@ -988,10 +2067,9 @@ def _pick_bars(p: dict) -> str:
     issues en colonnes (joueur 1 · [Nul] · joueur 2). On lit une colonne pour comparer les 3
     sources sur une issue ; le favori de chaque ligne est en gras."""
     e = html.escape
-    mh, ma = p.get("m_home"), p.get("m_away")
-    if mh is None or ma is None:
-        return _pick_bars_legacy(p)
-    has_draw = p.get("m_draw") is not None
+    # Modèle Elo retiré : on n'exige PLUS la proba modèle. On affiche Unibet (cote implicite) +
+    # Public (votes) dès qu'on a la donnée. has_draw dérivé de n'importe quelle source.
+    has_draw = any(p.get(k) is not None for k in ("m_draw", "i_draw", "pub_draw"))
 
     def row(label, scol, h, d, a):
         if h is None or a is None:
@@ -1011,10 +2089,10 @@ def _pick_bars(p: dict) -> str:
         return (f'<div class="sb"><span class="sb-l">{label}</span>'
                 f'<div class="sb-bar">{bar}</div></div>')
 
-    rows = (row("BETSFIX", "pm", mh, p.get("m_draw"), ma)
-            + row("Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
+    # Barre BETSFIX (modèle Elo) retirée : on garde Cote Unibet (implicite) + Public (votes).
+    rows = (row("Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
             + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
-    return f'<div class="sbars">{rows}</div>'
+    return f'<div class="sbars">{rows}</div>' if rows else _pick_bars_legacy(p)
 
 
 def _pick_bars_legacy(p: dict) -> str:
@@ -1026,14 +2104,654 @@ def _pick_bars_legacy(p: dict) -> str:
         return (f'<div class="pb-row"><span class="pb-l">{label}</span>'
                 f'<div class="pb-t"><span class="{cls}" style="width:{min(pct,100)}%"></span></div>'
                 f'<span class="pb-v">{pct}%</span></div>')
-    inner = (bar("BETSFIX", p.get("model_prob"), "pm")
-             + bar("Cote Unibet", p.get("implied"), "po")
+    inner = (bar("Cote Unibet", p.get("implied"), "po")
              + bar("Public", p.get("community"), "pc"))
     if not inner:
         return ""
     bet = html.escape(p.get("bet") or "le pari")
     return (f'<div class="pbars"><div class="pb-h">Chances que <b>{bet}</b> gagne '
             f'<span class="dim">— selon :</span></div>{inner}</div>')
+
+
+def _pct_class(pct) -> str:
+    return "hi" if (pct is not None and pct >= 60) else ("mid" if (pct is not None and pct >= 45) else "lo")
+
+
+_BET_COLORS = ("#34d27b", "#4aa8ff", "#f6c54a")          # Pari 1 / 2 / 3
+_BET_NAMES = ("Pari 1", "Pari 2", "Pari 3")
+_STAT_KEYS = ("pari1", "pari2", "pari3")
+
+
+def _roicls(v) -> str:
+    return "hi" if (v or 0) > 0 else ("lo" if (v or 0) < 0 else "mid")
+
+
+def _roistr(v) -> str:
+    return "—" if v is None else f'{"+" if v >= 0 else ""}{v:g}%'
+
+
+_MIN_REL = 3   # en dessous (1-2 paris) : ROI non significatif -> grisé + « indicatif »
+
+
+def _roi_cls(roi, settled) -> str:
+    """Classe couleur du ROI, MAIS grisée (`na`) si l'échantillon est trop faible (< _MIN_REL)."""
+    return "na" if (not settled or settled < _MIN_REL) else _roicls(roi)
+
+
+def _ind(settled) -> str:
+    """Étiquette « indicatif » quand l'échantillon est trop faible pour un ROI fiable."""
+    return '<span class="sx-ind">indicatif</span>' if (settled or 0) < _MIN_REL else ""
+
+
+def _form_dots(form: list) -> str:
+    """Forme = 5 derniers résultats en pastilles (vert gagné / rouge perdu / gris remboursé)."""
+    if not form:
+        return ""
+    return ('<span class="sx-form">'
+            + "".join(f'<span class="sx-fd {r}"></span>' for r in form) + "</span>")
+
+
+def _sparkline(points: list, color: str) -> str:
+    """Mini courbe (SVG, sans axes) : ligne + aire teintée. Pour les cartes bilan/par-pari."""
+    if not points:
+        return ""
+    pts = points if len(points) > 1 else (points * 2)
+    lo, hi = min(pts), max(pts)
+    if hi - lo < 1e-9:
+        lo, hi = lo - 0.5, hi + 0.5
+    n = len(pts)
+    w, h = 100.0, 30.0
+
+    def X(i):
+        return 1 + i / (n - 1) * (w - 2)
+
+    def Y(v):
+        return 2 + (1 - (v - lo) / (hi - lo)) * (h - 4)
+
+    line = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(pts))
+    area = f"{X(0):.1f},{h - 1:g} {line} {X(n - 1):.1f},{h - 1:g}"
+    return (f'<svg viewBox="0 0 {w:g} {h:g}" class="sx-spark" preserveAspectRatio="none">'
+            f'<polygon points="{area}" fill="{color}" opacity="0.13"/>'
+            f'<polyline points="{line}" fill="none" stroke="{color}" stroke-width="1.7" '
+            'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>')
+
+
+def _svg_bet_chart(curves: list) -> str:
+    """Graphique TENDANCE (SVG pur) : forme de l'évolution par pari (sans chiffres d'unités — les
+    valeurs sont en ROI dans les tableaux). Grille horizontale, ligne du zéro, marqueur de fin,
+    nombre de paris en abscisse. `curves`=[{color,points}] (points = profit cumulé, départ à 0)."""
+    allv = [v for c in curves for v in c["points"]]
+    if not allv:
+        return ""
+    ymin, ymax = min(0.0, min(allv)), max(0.0, max(allv))
+    if ymax - ymin < 1e-9:
+        ymax = ymin + 1.0
+    pad = (ymax - ymin) * 0.16
+    ymin, ymax = ymin - pad, ymax + pad
+    maxlen = max((len(c["points"]) for c in curves), default=0)
+    W, H, L, R, T, B = 320.0, 140.0, 16.0, 12.0, 10.0, 8.0
+    iw, ih = W - L - R, H - T - B
+
+    def X(i):
+        return L + (iw * i / (maxlen - 1) if maxlen > 1 else iw / 2)
+
+    def Y(v):
+        return T + ih * (1 - (v - ymin) / (ymax - ymin))
+
+    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="bchart">']
+    for k in range(5):                                   # grille horizontale (4 intervalles)
+        gv = ymin + (ymax - ymin) * k / 4
+        if abs(gv) < 1e-6:                               # le zéro est tracé à part (bien visible)
+            continue
+        p.append(f'<line class="bc-grid" x1="{L:g}" y1="{Y(gv):.1f}" x2="{W - R:g}" y2="{Y(gv):.1f}"/>')
+    zy = Y(0.0)                                          # ligne du ZÉRO : marquée + label « 0 »
+    p.append(f'<line class="bc-zero" x1="{L:g}" y1="{zy:.1f}" x2="{W - R:g}" y2="{zy:.1f}"/>')
+    p.append(f'<text class="bc-zl" x="{L - 3:g}" y="{zy + 3:.1f}">0</text>')
+    for c in curves:
+        pts = c["points"]
+        if not pts:
+            continue
+        if len(pts) == 1:
+            p.append(f'<circle cx="{X(0):.1f}" cy="{Y(pts[0]):.1f}" r="3.4" fill="{c["color"]}"/>')
+            continue
+        d = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(pts))
+        p.append(f'<polyline class="bc-line" fill="none" stroke="{c["color"]}" points="{d}"/>')
+        p.append(f'<circle cx="{X(len(pts) - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="3" fill="{c["color"]}"/>')
+    p.append("</svg>")           # plus d'échelle de temps : la courbe est TOUJOURS depuis le début
+    return "".join(p)
+
+
+def _drill(url: str, inner: str, cls: str) -> str:
+    """Élément déroulant (drill-down) réutilisant le mécanisme `data-exp` global : tap -> charge la
+    liste des matchs de la catégorie dans `.exp`. `inner` = contenu visible (sans le chevron)."""
+    return (f'<div class="{cls} rowtap" data-exp="{url}">{inner}'
+            f'<div class="exp" hidden></div></div>')
+
+
+def _pari_card(i: int, r: dict) -> str:
+    """Carte d'un pari (1/2/3), tous sports : ROI (grisé si échantillon faible) + mini-courbe +
+    réussite + cote moyenne."""
+    dot = f'<span class="bc-dot" style="background:{_BET_COLORS[i]}"></span>'
+    roi, st = r.get("roi"), r.get("settled")
+    avg = f'@{r["avg_odds"]:g}' if r.get("avg_odds") else "—"
+    return (f'<div class="sx-pari"><div class="sx-pari-h">{dot}{_BET_NAMES[i]}</div>'
+            f'<div class="sx-pari-roi arec-{_roi_cls(roi, st)}">{_roistr(roi)}</div>'
+            f'<div class="sx-pari-rl">ROI {_ind(st)}</div>'
+            f'{_sparkline(r.get("points") or [], _BET_COLORS[i])}'
+            f'<div class="sx-pari-l"><b class="arec-{_pct_class(r["pct"])}">{r["pct"]}%</b> '
+            f'· {r["won"]}/{r["settled"]}</div>'
+            f'<div class="sx-pari-l2">cote moy. {avg}</div></div>')
+
+
+def _sport_card(s: dict, sport: str, label: str, icon: str, since: str,
+                chart: bool = True, header: bool = True) -> str:
+    """Section d'un sport : ligne bilan + graphe (1 courbe/pari) + tableau par pari (ROI grisé si
+    échantillon faible) avec ★ sur le MEILLEUR pari. Chaque ligne tap -> matchs du sport×pari."""
+    roi = s.get("roi")
+    paris = s.get("paris") or {}
+    best, bestroi = None, None
+    for key in _STAT_KEYS:                       # meilleur pari = ROI le plus haut (et positif)
+        st = paris.get(key)
+        if st and st.get("settled") and st.get("roi") is not None:
+            if bestroi is None or st["roi"] > bestroi:
+                best, bestroi = key, st["roi"]
+    if bestroi is None or bestroi <= 0:
+        best = None
+    curves, rows = [], []
+    for i, key in enumerate(_STAT_KEYS):
+        st = paris.get(key)
+        if not st or not st.get("settled"):
+            continue
+        curves.append({"color": _BET_COLORS[i], "points": st["points"]})
+        cote = f'@{st["avg_odds"]:g}' if st.get("avg_odds") else "—"
+        star = '<span class="sx-best">★</span>' if key == best else ""
+        main = (f'<div class="sx-row-main"><span class="bc-dot" style="background:{_BET_COLORS[i]}"></span>'
+                f'<span class="sx-row-n">{_BET_NAMES[i]}{star}</span>'
+                f'<span class="sx-row-roi arec-{_roi_cls(st.get("roi"), st["settled"])}">{_roistr(st.get("roi"))}</span>'
+                f'<span class="sx-row-wl">{st["won"]}/{st["settled"]} · {st["pct"]}%</span>'
+                f'<span class="sx-row-c">{cote}</span><span class="sx-row-chev">›</span></div>')
+        rows.append(_drill(f'/stats/detail?sport={sport}&pari={i}&since={since}', main,
+                           "sx-row" + (" sx-row-best" if key == best else "")))
+    sub = f'{s["settled"]} paris · {s["pct"]}% réussite · cote moy. {s.get("avg_odds") or "—"}'
+    hdr = (f'<div class="sx-sport-h"><span class="sx-sport-t">{icon} {label}</span>'
+           f'<span class="sx-sport-roi arec-{_roi_cls(roi, s.get("settled"))}">ROI {_roistr(roi)}</span></div>'
+           f'<div class="sx-sport-sub">{sub} {_ind(s.get("settled"))}</div>') if header else ""
+    return (f'<div class="sx-sport" data-sport="{sport}">{hdr}'
+            f'{_svg_bet_chart(curves) if chart else ""}<div class="sx-rows">{"".join(rows)}</div></div>')
+
+
+def _streak_chip(streak) -> str:
+    """Chip « série en cours » : 🔥 N gagnés / ❄️ N perdus d'affilée. '' si aucune série."""
+    if not streak:
+        return ""
+    if streak > 0:
+        return f'<span class="sx-streak hot">🔥 {streak} gagné{"s" if streak > 1 else ""} d\'affilée</span>'
+    n = -streak
+    return f'<span class="sx-streak cold">❄️ {n} perdu{"s" if n > 1 else ""} d\'affilée</span>'
+
+
+def _hero_chart(points: list, uid: str = "h") -> str:
+    """Grande courbe d'équité du bilan global : remplissage + courbe VERTS au-dessus de 0 et ROUGES
+    en dessous (dégradé SVG à coupure nette sur la ligne du zéro), grille + label « 0 ». `uid` rend
+    l'id du dégradé unique (plusieurs hero sur la page = un par période)."""
+    if not points:
+        return ""
+    pts = points if len(points) > 1 else (points * 2)
+    lo, hi = min(pts + [0.0]), max(pts + [0.0])
+    if hi - lo < 1e-9:
+        hi = lo + 1.0
+    pad = (hi - lo) * 0.16
+    lo, hi = lo - pad, hi + pad
+    n, W, H, L, R, T, B = len(pts), 320.0, 86.0, 16.0, 8.0, 8.0, 8.0
+    iw, ih = W - L - R, H - T - B
+    GR, RD = "#34d27b", "#ff6b6b"
+
+    def X(i):
+        return L + (iw * i / (n - 1) if n > 1 else iw / 2)
+
+    def Y(v):
+        return T + ih * (1 - (v - lo) / (hi - lo))
+
+    zy = Y(0.0)
+    off = max(0.0, min(1.0, zy / H))                     # position du zéro (0..1) pour la coupure
+    gid = f"sxg-{uid}"
+    line = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(pts))
+    # aire ENTRE la courbe et la ligne du zéro -> verte au-dessus, rouge en dessous
+    area = f"{X(0):.1f},{zy:.1f} {line} {X(n - 1):.1f},{zy:.1f}"
+    grad = (f'<defs><linearGradient id="{gid}" gradientUnits="userSpaceOnUse" '
+            f'x1="0" y1="0" x2="0" y2="{H:g}">'
+            f'<stop offset="0" stop-color="{GR}"/><stop offset="{off:.4f}" stop-color="{GR}"/>'
+            f'<stop offset="{off:.4f}" stop-color="{RD}"/><stop offset="1" stop-color="{RD}"/>'
+            '</linearGradient></defs>')
+    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="sx-heroc">', grad]
+    for k in range(4):                                   # grille horizontale (3 intervalles)
+        gv = lo + (hi - lo) * k / 3
+        if abs(gv) < 1e-6:
+            continue
+        p.append(f'<line class="bc-grid" x1="{L:g}" y1="{Y(gv):.1f}" x2="{W - R:g}" y2="{Y(gv):.1f}"/>')
+    p.append(f'<polygon points="{area}" fill="url(#{gid})" opacity="0.22"/>')
+    p.append(f'<line class="bc-zero" x1="{L:g}" y1="{zy:.1f}" x2="{W - R:g}" y2="{zy:.1f}"/>')
+    p.append(f'<text class="bc-zl" x="{L - 3:g}" y="{zy + 3:.1f}">0</text>')
+    p.append(f'<polyline points="{line}" fill="none" stroke="url(#{gid})" stroke-width="2.2" '
+             'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>')
+    p.append(f'<circle cx="{X(n - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="2.8" '
+             f'fill="{GR if pts[-1] >= 0 else RD}"/>')
+    p.append("</svg>")
+    return "".join(p)
+
+
+def render_stats(full: dict | None, since: str = "") -> str:
+    """Bloc statistiques d'UNE période : bilan global (hero ROI + courbe + forme + meilleure série +
+    KPI + pire repli) -> performance PAR PARI -> détail PAR SPORT. `since` = '' | '30' | '7' (propagé
+    aux liens drill-down). '' si rien de réglé."""
+    full = full or {}
+    ov = full.get("overall") or {}
+    if not ov.get("settled"):
+        return ""
+    dd = ov.get("dd_pct")
+    bstk = ov.get("best_streak") or 0
+    best_html = (f'<span class="sx-bstreak">Meilleure série : <b>{bstk}</b> gagné'
+                 f'{"s" if bstk > 1 else ""}</span>') if bstk else ""
+    hero = (
+        '<div class="sx-hero"><div class="sx-hero-top">'
+        f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
+        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
+        f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}{_form_dots(ov.get("form") or [])}</div></div>'
+        f'<div class="sx-hero-chart">{_hero_chart(ov.get("points") or [], since or "all")}</div>'
+        '<div class="sx-kpis">'
+        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
+        f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
+        f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
+        f'<div class="sx-kpi"><b class="arec-lo">{("−" + format(dd, "g") + "%") if dd else "—"}</b>'
+        '<span>pire repli</span></div>'
+        f'</div><div class="sx-hero-foot">{best_html}<span class="sx-relnote">ROI fiable dès ~20 paris</span></div>'
+        '</div>')
+    bp = full.get("by_pari") or {}
+    pcards = [_pari_card(i, bp[k]) for i, k in enumerate(_STAT_KEYS)
+              if (bp.get(k) or {}).get("settled")]
+    paris = (('<div class="sx-byp"><div class="sx-h">📊 Performance par pari'
+              '<span>tous sports · ROI</span></div>'
+              f'<div class="sx-paris">{"".join(pcards)}</div></div>') if pcards else "")
+    bs = full.get("by_sport") or {}
+    scards = [_sport_card(bs[sk], sk, lbl, ic, since)
+              for sk, lbl, ic in (("foot", "Football", "⚽"), ("tennis", "Tennis", "🎾"),
+                                  ("basket", "Basket", "🏀")) if (bs.get(sk) or {}).get("settled")]
+    sports = (('<div class="sx-bys"><div class="sx-h">📈 Détail par sport'
+               '<span>tap une ligne → les matchs</span></div>'
+               + "".join(scards) + '</div>') if scards else "")
+    return f'{hero}{paris}{sports}'
+
+
+def _mybet_status(it: dict) -> tuple:
+    """(classe, texte) du statut d'un pari joué pour l'affichage."""
+    res = it.get("result")
+    if res == "won":
+        return "mbs-w", f'✅ Gagné +{it["pnl"]:g} €'
+    if res == "lost":
+        return "mbs-l", f'❌ Perdu {it["pnl"]:g} €'
+    if res == "push":
+        return "mbs-p", "➖ Remboursé"
+    if it.get("status") == "inprogress":
+        return "mbs-live", "🟢 En direct"
+    if it.get("status") == "finished":
+        return "mbs-p", "⏳ Règlement en attente"
+    return "mbs-up", f'⏳ À venir · gain potentiel {it["potential"]:g} €'
+
+
+_SPORT_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+
+
+def _paj_bank(sim: dict | None) -> str:
+    """Bandeau BANKROLL SIMULÉE (départ 100 €, évolue avec les résultats — aucune saisie)."""
+    sim = sim or {"start": 100.0, "balance": 100.0, "pnl": 0.0, "count": 0, "pending": 0, "settled": 0}
+    pnl = sim.get("pnl") or 0.0
+    chg_cls = "pos" if pnl > 0 else ("neg" if pnl < 0 else "neu")
+    chg_ar = "▲" if pnl > 0 else ("▼" if pnl < 0 else "■")
+    nb = sim.get("count", 0)
+    sub = (f'Bankroll simulée · départ {sim["start"]:g} € · {nb} pari{"s" if nb != 1 else ""} '
+           f'({sim.get("pending", 0)} en attente)')
+    return (f'<div class="paj-bank"><div class="paj-bank-top">'
+            f'<span class="paj-bank-v">{sim["balance"]:g} €</span>'
+            f'<span class="paj-bank-chg {chg_cls}">{chg_ar} {abs(pnl):g} €</span></div>'
+            f'<div class="paj-bank-sub">{sub}</div></div>')
+
+
+def _paj_card(r: dict) -> str:
+    """Une carte « pari à jouer » premium : affiche, PRONOSTIC + grosse cote, barre de CONFIANCE,
+    value, mise simulée, boutons SofaScore/Unibet carrés, analyse dépliable au tap."""
+    e = html.escape
+    ic = _SPORT_ICON.get(r.get("sport"), "")
+    sport_lbl = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}.get(r.get("sport"), "")
+    when = fmt_local(r.get("start"), with_date=True) or ""
+    live = '<span class="paj-live">● LIVE</span>' if r.get("status") == "inprogress" else ""
+    prob = r.get("prob")
+    cbar = ""
+    if prob:
+        lvl = "hi" if prob >= 65 else ("mid" if prob >= 52 else "lo")
+        cbar = (f'<div class="paj-conf"><div class="paj-conf-head">'
+                f'<span>Confiance</span><b>{prob}%</b></div>'
+                f'<div class="paj-conf-bar"><span class="paj-conf-fill {lvl}" '
+                f'style="width:{min(int(prob), 100)}%"></span></div></div>')
+    # Mise EXPRIMÉE EN % DE BANKROLL (jamais en € ni en « unités ») — exigence utilisateur.
+    stakechip = (f'<span class="paj-chip">💰 {r["stake_pct"]:g}% bankroll <i>sim</i></span>'
+                 if r.get("stake_pct") is not None else "")
+    ev = r.get("ev")
+    valchip = f'<span class="paj-chip pos">📈 Value +{ev}%</span>' if ev else ""
+    # SofaScore : pas de target="_blank" (universal link -> app, sinon onglet about:blank orphelin).
+    sofa = (f'<a class="lnk-bn lnk-bn-sofa" href="{e(r["sofa_url"])}" '
+            'rel="noopener" aria-label="Voir sur SofaScore" title="Voir sur SofaScore">'
+            '<span class="lnk-dot"></span>SofaScore<span class="lnk-arr">↗</span></a>'
+            if r.get("sofa_url") else "")
+    # Unibet : NOUVEL onglet -> BETSFIX reste ouvert derrière (universal link ouvre l'app si dispo).
+    uni = (f'<a class="lnk-bn lnk-bn-uni" href="{e(r["unibet_url"])}" target="_blank" '
+           'rel="noopener" aria-label="Jouer sur Unibet" title="Jouer sur Unibet">'
+           '<span class="lnk-dot"></span>Unibet<span class="lnk-arr">↗</span></a>'
+           if r.get("unibet_url") else "")
+    links = f'<div class="da-links">{sofa}{uni}</div>' if (sofa or uni) else ""
+    url = r.get("url") or ""
+    exp, expand, attr = "", "", ""
+    if url:
+        sep = "&" if "?" in url else "?"
+        expand = '<span class="paj-see"><span class="exp-chev">▾</span> Analyse</span>'
+        exp = '<div class="exp" hidden></div>'
+        attr = f' rowtap" data-exp="{e(url)}{sep}frag=1'
+    return (
+        f'<div class="paj{attr}">'
+        f'<div class="paj-top">'
+        f'<span class="paj-team"><span class="paj-ic">{ic}</span>'
+        f'<span class="paj-names">{e(_noF(r["home"]))} <i>vs</i> {e(_noF(r["away"]))}'
+        f'<span class="paj-comp">{e(sport_lbl)}</span></span></span>'
+        f'<span class="paj-when">{e(when)}{live}</span></div>'
+        f'<div class="paj-pick">'
+        f'<span class="paj-pick-l"><span class="paj-tag">PRONOSTIC</span>'
+        f'<span class="paj-sel">{e(r["sel"])}</span></span>'
+        f'<span class="paj-odd">{r["cote"]:g}<small>cote</small></span></div>'
+        f'{cbar}'
+        f'<div class="paj-meta">{valchip}{stakechip}</div>'
+        f'{links}'
+        f'<div class="paj-foot">{expand}</div>'
+        f'{exp}</div>')
+
+
+def render_paris_a_jouer(reco: list, sim: dict | None = None, considered: int = 0) -> str:
+    """Page « 🎯 Paris à jouer » : bandeau bankroll simulée + une carte par value retenue."""
+    if reco:
+        cards = "".join(_paj_card(r) for r in reco)
+    else:
+        cards = ('<div class="paj-empty">😴 Aucun pari de value pour l\'instant.<br>'
+                 '<span>S\'abstenir quand il n\'y a pas de value, c\'est déjà gagner.</span></div>')
+    basis = (f'<div class="paj-basis">🔎 {considered} match(s) analysé(s) · top 3/sport · 24h · '
+             f'tout le marché Unibet → <b>{len(reco)} value</b> retenue(s), le reste écarté (SKIP).</div>')
+    return (f'<div class="paj-h"><span>🎯 Paris à jouer</span>'
+            f'<span class="paj-h-tag">SIMULATION</span></div>'
+            f'{_paj_bank(sim)}{basis}{cards}'
+            '<a class="paj-mblink" href="/mybets">💼 Détail & bilan des paris simulés →</a>')
+
+
+def _sim_overview(sim: dict | None) -> str:
+    """Aperçu SIMULATION (pro & complet) : solde simulé + variation + ligne de KPIs
+    (ROI, paris joués, réglés, en attente). Capital de départ 100 €, évolue avec les résultats."""
+    sim = sim or {"start": 100.0, "balance": 100.0, "pnl": 0.0, "staked": 0.0,
+                  "count": 0, "settled": 0, "pending": 0, "roi": None}
+    pnl = sim.get("pnl") or 0.0
+    cls = "pos" if pnl > 0 else ("neg" if pnl < 0 else "neu")
+    ar = "▲" if pnl > 0 else ("▼" if pnl < 0 else "■")
+    roi = sim.get("roi")
+    roicls = "pos" if (roi or 0) > 0 else ("neg" if (roi or 0) < 0 else "neu")
+    kpis = [(_roistr(roi), "ROI", roicls), (str(sim.get("count", 0)), "paris joués", ""),
+            (str(sim.get("settled", 0)), "réglés", ""), (str(sim.get("pending", 0)), "en attente", "")]
+    kp = "".join(f'<div class="ds-k"><span class="ds-v {c}">{v}</span>'
+                 f'<span class="ds-l">{l}</span></div>' for v, l, c in kpis)
+    return ('<div class="dash-top"><span>💰 Bankroll simulée</span>'
+            '<span class="paj-h-tag">SIMULATION</span></div>'
+            '<div class="paj-bank"><div class="paj-bank-top">'
+            f'<span class="paj-bank-v">{sim["balance"]:g} €</span>'
+            f'<span class="paj-bank-chg {cls}">{ar} {abs(pnl):g} €</span></div>'
+            f'<div class="paj-bank-sub">Capital de départ {sim["start"]:g} € · {sim.get("staked", 0):g} € misés</div>'
+            f'<div class="dash-stat-row sim-kpis">{kp}</div></div>')
+
+
+def _dash_stats(stats: dict | None) -> str:
+    """Carte STATS principale : ROI global + mini-courbe d'équité + forme (5 derniers) + KPIs
+    (réussite, paris réglés, cote moy., série max), cliquable vers /stats. '' si aucun pari réglé."""
+    ov = (stats or {}).get("overall") or {}
+    if not ov.get("settled"):
+        return ""
+    roi = ov.get("roi")
+    roicls = "pos" if (roi or 0) > 0 else ("neg" if (roi or 0) < 0 else "neu")
+    spark = _sparkline(ov.get("points") or [], "#34d27b" if (roi or 0) >= 0 else "#ff6b6b")
+    form = _form_dots(ov.get("form") or [])
+    kpis = [(f'{ov.get("pct", 0)}%', "réussite"), (str(ov.get("settled", 0)), "paris réglés"),
+            (f'{ov.get("avg_odds", 0):g}', "cote moy."), (str(ov.get("best_streak", 0)), "série max")]
+    kp = "".join(f'<div class="ds-k"><span class="ds-v">{v}</span>'
+                 f'<span class="ds-l">{l}</span></div>' for v, l in kpis)
+    # Taux de réussite PAR SPORT (ordre demandé : tennis · basket · football).
+    bs = (stats or {}).get("by_sport") or {}
+    cells = []
+    for key, ic, lbl in (("tennis", "🎾", "Tennis"), ("basket", "🏀", "Basket"), ("foot", "⚽", "Football")):
+        s = bs.get(key) or {}
+        if not s.get("settled"):
+            continue
+        pct = s.get("pct", 0)
+        pc = "pos" if pct >= 55 else ("neg" if pct < 50 else "neu")
+        cells.append(f'<div class="dsp"><span class="dsp-ic">{ic}</span>'
+                     f'<span class="dsp-v {pc}">{pct}%</span>'
+                     f'<span class="dsp-l">{lbl} · {s.get("won", 0)}/{s.get("settled", 0)}</span></div>')
+    sports = f'<div class="dash-sports">{"".join(cells)}</div>' if cells else ""
+    return ('<div class="dash-h"><span>📊 Performance</span>'
+            '<a href="/stats" class="dash-h-a">détail →</a></div>'
+            '<a class="dash-stat" href="/stats"><div class="dperf-top">'
+            f'<div class="ds-k"><span class="ds-v {roicls} dperf-roi">{_roistr(roi)}</span>'
+            f'<span class="ds-l">ROI global · {ov.get("won", 0)}/{ov.get("settled", 0)} gagnés</span></div>'
+            f'<div class="dperf-spk">{form}{spark}</div></div>'
+            f'<div class="dash-stat-row">{kp}</div>{sports}'
+            '<span class="dash-stat-go">Voir les statistiques détaillées →</span></a>')
+
+
+def render_dashboard(sim: dict, stats: dict | None, match_rows: list, *,
+                     frag: bool = False, source: dict | None = None) -> str:
+    """ACCUEIL : aperçu simulation + stats principales + TOUS les matchs à venir/en cours (format
+    compact des onglets sport, tous sports mélangés, triés par coup d'envoi). Pas de tuiles
+    raccourcis (le menu ☰ + la barre du bas suffisent)."""
+    if match_rows:
+        matches = ('<div class="dash-h"><span>🎯 Prochains matchs</span>'
+                   f'<span class="dash-h-a">{len(match_rows)}</span></div>'
+                   + _rows_by_day(match_rows))
+    else:
+        matches = ('<div class="dash-h"><span>🎯 Prochains matchs</span></div>'
+                   '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
+    body = _sim_overview(sim) + _dash_stats(stats) + matches
+    return body if frag else spa_shell("home", "Accueil", body, source=source)
+
+
+def _mybets_assistant(reco: list, bankroll, considered: int = 0) -> str:
+    """Section ASSISTANT : bankroll + paris ✅ À JOUER détectés (sport + mise € + bouton Jouer Unibet).
+    `considered` = nb de matchs analysés examinés (pour expliquer « X analysés · Y value »)."""
+    e = html.escape
+    basis = (f'<div class="mb-basis">🔎 {considered} match(s) analysé(s) (top 3/sport · 24h, tout le '
+             f'marché Unibet par match) → <b>{len(reco)} value</b> détectée(s) ; le reste = SKIP.</div>')
+    if not reco:
+        body = ('<div class="mb-empty">Aucun pari de value détecté pour l\'instant. '
+                'S\'abstenir quand il n\'y a pas de value est gagnant 👍</div>')
+    else:
+        cards = []
+        for r in reco:
+            ic = _SPORT_ICON.get(r.get("sport"), "")
+            when = fmt_local(r.get("start"), with_date=True) or ""
+            live = ' <span class="mbs-live mb-stat">🟢 live</span>' if r.get("status") == "inprogress" else ""
+            stake = (f'<b>{r["stake_pct"]:g}%</b> de bankroll'
+                     if r.get("stake_pct") is not None else "—")
+            play = (f'<a class="mb-play" href="{e(r["unibet_url"])}" target="_blank" rel="noopener">'
+                    '🟢 Jouer sur Unibet ↗</a>' if r.get("unibet_url") else "")
+            cards.append(
+                f'<div class="mb-reco"><div class="mb-reco-top">'
+                f'<span class="mb-match">{ic} {e(r["home"])} <span class="dim">v</span> {e(r["away"])}</span>'
+                f'<span class="mb-when">{e(when)}{live}</span></div>'
+                f'<div class="mb-reco-sel">✅ {e(r["sel"])} <span class="da-bk-cote">@{r["cote"]:g}</span></div>'
+                f'<div class="mb-reco-l"><span class="da-ev pos">📈 value +{r["ev"]}%</span> '
+                f'<span class="mb-reco-stake">mise conseillée : {stake}</span></div>'
+                f'{play}</div>')
+        body = "".join(cards)
+    return (f'<div class="mb-sec">🎯 Paris recommandés à jouer</div>{basis}'
+            '<div class="mb-note">Simulation : capital de départ 100 € · mise = ¼ Kelly plafonné à 3 % '
+            '(prudent). Les paris retenus sont joués automatiquement en simulation.</div>'
+            f'{body}')
+
+
+def render_mybets(s: dict, items: list, reco: list | None = None,
+                  bankroll=None, considered: int = 0) -> str:
+    """Page « Mes paris » = track record de la SIMULATION : bilan € + paris recommandés + historique.
+    Plus de saisie manuelle de pari joué ni d'assurance live (paris purement simulés, auto-enregistrés)."""
+    e = html.escape
+    pcls = "arec-hi" if s["pnl"] > 0 else ("arec-lo" if s["pnl"] < 0 else "")
+    roi = f'{s["roi"]:+g}%' if s["roi"] is not None else "—"
+    head = (f'<div class="mb-bal"><div class="mb-bal-v arec-{_roicls(s["pnl"])}">'
+            f'{"+" if s["pnl"] >= 0 else ""}{s["pnl"]:g} €</div>'
+            '<div class="mb-bal-l">résultat net</div>'
+            '<div class="mb-kpis">'
+            f'<div><b>{s["staked"]:g} €</b><span>misé</span></div>'
+            f'<div><b class="{pcls}">{roi}</b><span>ROI</span></div>'
+            f'<div><b>{s["won"]}/{s["settled"]}</b><span>gagnés</span></div>'
+            f'<div><b>{s["pending"]}</b><span>en cours</span></div></div></div>')
+    rows = []
+    for it in items:
+        cls, txt = _mybet_status(it)
+        when = fmt_local(it.get("start"), with_date=True) or ""
+        rows.append(
+            f'<div class="mb-row"><div class="mb-row-top"><span class="mb-match">'
+            f'{e(it.get("home", ""))} <span class="dim">v</span> {e(it.get("away", ""))}</span>'
+            f'<span class="mb-when">{e(when)}</span></div>'
+            f'<div class="mb-sel">{"<span class=\"mb-sim\">SIM</span> " if it.get("sim") else ""}'
+            f'P{it["pari"] + 1} · {e(it.get("sel", ""))}</div>'
+            f'<div class="mb-line"><span class="mb-stake">{it["stake"]:g} € @ {it["odds"]:g}</span>'
+            f'<span class="mb-stat {cls}">{txt}</span></div>'
+            f'<form class="mb-delf" method="post" action="/mybets/del">'
+            f'<input type="hidden" name="id" value="{it["id"]}">'
+            f'<button class="mb-del" type="submit">supprimer</button></form></div>')
+    lst = "".join(rows) or '<div class="mb-empty">Aucun pari simulé pour le moment.</div>'
+    return (f'<div class="mb"><h1 class="mb-h">💼 Mes paris</h1>{head}'
+            f'{_mybets_assistant(reco or [], bankroll, considered)}'
+            f'<div class="mb-sec">📋 Historique de la simulation ({s["count"]})</div>{lst}</div>')
+
+
+def render_calibration(c: dict) -> str:
+    """Page CALIBRATION : par tranche de confiance, confiance annoncée vs réussite réelle (barres),
+    + verdict global. Montre où le système est trop optimiste (à corriger) ou fiable."""
+    rows = c.get("rows") or []
+    if not rows or not c.get("n"):
+        return ('<div class="cal-h">🎯 Calibration</div>'
+                '<div class="banner">Pas encore assez de paris réglés pour mesurer la calibration. '
+                'Reviens après quelques journées de résultats.</div>')
+    vmap = {
+        "good": ("cal-ok", "✅ Bien calibré",
+                 "La confiance annoncée colle au taux de réussite réel — on peut s'y fier."),
+        "over": ("cal-over", "⚠️ Trop optimiste",
+                 "En moyenne, le système annonce plus de confiance qu'il ne réussit. "
+                 "→ resserrer les paris à faible confiance."),
+        "under": ("cal-under", "↗️ Prudent",
+                  "Le système gagne en fait plus souvent que la confiance annoncée — marge de progression."),
+    }
+    vc, vt, vs = vmap.get(c.get("verdict"), ("", "Calibration", ""))
+    head = (f'<div class="cal-verdict {vc}"><div class="cal-v-t">{vt}</div>'
+            f'<div class="cal-v-s">{vs}</div>'
+            f'<div class="cal-v-m">écart moyen <b>{c["mae"]} pts</b> · {c["n"]} paris réglés</div></div>')
+    bars = []
+    for r in rows:
+        gapcls = "pos" if r["gap"] >= 0 else "neg"   # réussite ≥ confiance = bon (vert)
+        bars.append(
+            f'<div class="cal-row"><div class="cal-band">{r["lo"]}–{r["hi"]}%'
+            f'<span>{r["n"]} pari{"s" if r["n"] != 1 else ""}</span></div>'
+            f'<div class="cal-bars">'
+            f'<div class="cal-line"><span class="cal-lab">annoncé</span>'
+            f'<div class="cal-track"><span class="cal-fill conf" style="width:{r["avg_conf"]}%"></span></div>'
+            f'<b>{r["avg_conf"]}%</b></div>'
+            f'<div class="cal-line"><span class="cal-lab">réel</span>'
+            f'<div class="cal-track"><span class="cal-fill real {gapcls}" style="width:{r["win_rate"]}%"></span></div>'
+            f'<b>{r["win_rate"]}%</b></div></div>'
+            f'<div class="cal-gap {gapcls}">{r["gap"]:+d}</div></div>')
+    note = ('<div class="cal-note">Chaque ligne = un niveau de confiance. <b>« annoncé »</b> = la '
+            'confiance moyenne donnée par BETSFIX ; <b>« réel »</b> = le % de paris réellement gagnés. '
+            'Quand le réel est <span class="cal-neg-t">en-dessous</span>, on a été trop optimiste sur '
+            'cette tranche ; <span class="cal-pos-t">au-dessus</span> = prudent.</div>')
+    # Un SEUL bloc : chaque sport, avec ses types de paris en sous-catégories indentées.
+    by_sport = _calib_by_sport(c.get("by_sport") or {})
+    return (f'<div class="cal-h">🎯 Calibration</div>{head}<div class="cal">{"".join(bars)}</div>'
+            f'{note}{by_sport}')
+
+
+_CALIB_VERDICT = {"good": ("v-ok", "fiable"), "over": ("v-over", "trop optimiste"),
+                  "under": ("v-under", "prudent"), "unsure": ("v-unsure", "à confirmer"),
+                  "no-data": ("", "—")}
+
+
+def _calib_line(name: str, g: dict, sub: bool = False) -> str:
+    """Une ligne de calibration (n, confiance annoncée vs réel, écart, verdict). `sub` = sous-catégorie."""
+    gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
+    gapcls = "pos" if gap >= 0 else "neg"
+    vcls, vlbl = _CALIB_VERDICT.get(g.get("verdict"), ("", "—"))
+    cls = "calg-row calg-sub" if sub else "calg-row calg-sport"
+    return (f'<div class="{cls}"><span class="calg-name">{html.escape(name)}'
+            f'<span>{g["n"]} pari{"s" if g["n"] != 1 else ""}</span></span>'
+            f'<span class="calg-cmp"><b>{g.get("avg_conf")}%</b><i>→</i>'
+            f'<b class="{gapcls}">{g.get("win_rate")}%</b></span>'
+            f'<span class="cal-gap {gapcls}">{gap:+d}</span>'
+            f'<span class="calg-v {vcls}">{vlbl}</span></div>')
+
+
+def _calib_by_sport(by_sport: dict) -> str:
+    """Calibration PAR SPORT, avec chaque TYPE DE PARI du sport en SOUS-CATÉGORIE indentée."""
+    if not by_sport:
+        return ""
+    rows = []
+    for name, g in by_sport.items():
+        if not g.get("n"):
+            continue
+        rows.append(_calib_line(name, g))
+        for mk, mg in (g.get("markets") or {}).items():
+            rows.append(_calib_line(mk, mg, sub=True))
+    if not rows:
+        return ""
+    return ('<div class="calg-h">Par sport &amp; type de pari '
+            '<span class="calg-leg">annoncé → réel</span></div>'
+            f'<div class="calg">{"".join(rows)}</div>')
+
+
+def render_bet_detail(items: list) -> str:
+    """Liste des matchs (drill-down) d'une catégorie : résultat ✓/✗ + pari + affiche + date + cote.
+    Triés du plus récent au plus ancien (cf. analyses.bet_detail)."""
+    if not items:
+        return '<div class="sx-dd-empty">Aucun match réglé dans cette catégorie.</div>'
+    e = html.escape
+    rows = []
+    for it in items:
+        cls, lbl = {"won": ("dd-w", "✓"), "lost": ("dd-l", "✗"),
+                    "push": ("dd-p", "➖")}.get(it["result"], ("dd-p", "·"))
+        when = fmt_local(it.get("start"), with_date=True) or ""
+        cote = f'@{it["odds"]:g}' if it.get("odds") else ""
+        rows.append(
+            f'<div class="sx-dd-row"><span class="sx-dd-res {cls}">{lbl}</span>'
+            f'<div class="sx-dd-m"><div class="sx-dd-t">P{it["pari"]} · {e(str(it["sel"]))}</div>'
+            f'<div class="sx-dd-s">{e(it["home"])} – {e(it["away"])} · {e(when)}</div></div>'
+            f'<span class="sx-dd-c">{cote}</span></div>')
+    return f'<div class="sx-dd">{"".join(rows)}</div>'
+
+
+def analyst_bars(o1, ox, o2, votes=None) -> dict:
+    """Champs de barres pour une carte/fiche ANALYSTE (sans modèle Elo) : Cote Unibet (proba
+    implicite dévig depuis les cotes) + Public (votes). `votes` = (pct_home, pct_away[, pct_draw])
+    en %, ou None. Rend des clés i_*/pub_* lues par _pick_bars."""
+    implied = None
+    if o1 and o2:
+        i1, ix, i2 = 1 / o1, (1 / ox if ox else 0.0), 1 / o2
+        s = i1 + ix + i2
+        if s > 0:
+            implied = (i1 / s, (ix / s if ox else None), i2 / s)
+    d = bars_split(None, implied)
+    if votes and votes[0] is not None:
+        d["pub_home"], d["pub_away"] = votes[0] / 100, votes[1] / 100
+        if len(votes) > 2 and votes[2] is not None:
+            d["pub_draw"] = votes[2] / 100
+    return d
 
 
 def bars_two_way(p_home, imp_home, votes, home, away) -> dict:
@@ -1096,7 +2814,7 @@ def odds_bar(outcomes, highlight_idx: int | None = None, label: str = "Bookmaker
         return (f'<div class="sb"><span class="sb-l">{lab}</span>'
                 '<div class="sb-bar ocbar"><span class="seg pba">à venir</span></div></div>')
     # Segments en navy .pba ; la MEILLEURE cote (la plus basse = le favori du book) ressort en
-    # gris clair .pbd (comme le segment « nul » des autres barres).
+    # BLEU BETSFIX .pm (l'ancien bleu du modèle), pour la mettre en avant.
     def _f(o):
         try:
             return float(o)
@@ -1104,7 +2822,7 @@ def odds_bar(outcomes, highlight_idx: int | None = None, label: str = "Bookmaker
             return float("inf")
     best_i = min(valid, key=lambda t: _f(t[2]))[0]
     segs = "".join(
-        f'<span class="seg {"pbd" if i == best_i else "pba"}"><b>{o}</b></span>'
+        f'<span class="seg {"pm" if i == best_i else "pba"}"><b>{o}</b></span>'
         for i, _, o in valid)
     return (f'<div class="sb"><span class="sb-l">{lab}</span>'
             f'<div class="sb-bar ocbar">{segs}</div></div>')
@@ -1132,178 +2850,40 @@ def _section(heading: str, body: str, open_: bool = True, info: str | None = Non
             f'<div class="secbody">{info_html}{body}</div></details>')
 
 
-def _confidence_meter(perle: dict | None) -> str:
-    """Barre de CONFIANCE du pari, affichée SOUS les cotes : proba modèle -> niveau + jauge
-    colorée. Présentation 'pro', cohérente avec la bannière. Repli silencieux si pas de perle."""
-    if not (isinstance(perle, dict) and perle.get("selection")):
+_SPORT_FR_LABEL = {"foot": ("Football", "⚽"), "tennis": ("Tennis", "🎾"), "basket": ("Basket", "🏀")}
+
+
+def render_sport_perf(sport: str) -> str:
+    """Carte PREMIUM UNIQUE de performance du sport, SOUS le titre, dans UN SEUL cadre : ROI géant +
+    forme + courbe d'équité + KPIs, puis (intégré au même cadre, repliable) le détail PAR PARI et la
+    CALIBRATION. '' si aucun résultat réglé pour ce sport (rien à montrer)."""
+    from app import analyses
+    label, icon = _SPORT_FR_LABEL.get(sport, (sport.title(), ""))
+    s = (analyses.stats_full().get("by_sport") or {}).get(sport)
+    if not s or not s.get("settled"):
         return ""
-    p = perle.get("model_prob")
-    if p is None:
-        return ""
-    pct = round(p * 100)
-    if p >= 0.70:
-        lvl, cls = "Élevée", "cmeter-hi"
-    elif p >= 0.60:
-        lvl, cls = "Bonne", "cmeter-good"
-    elif p >= 0.50:
-        lvl, cls = "Modérée", "cmeter-mid"
-    else:
-        lvl, cls = "Audacieuse", "cmeter-low"
-    return (f'<div class="cmeter {cls}">'
-            f'<span class="cm-bar"><span style="width:{pct}%"></span></span>'
-            f'<span class="cm-v">{lvl}<span class="cm-p">{pct}%</span></span></div>')
+    roi = s.get("roi")
+    forms = form_dots(s.get("form"))
+    chart = _hero_chart(s.get("points") or [], uid=f"sp-{sport}")
 
-
-def _conf_level(perle: dict | None):
-    """(pct, niveau) de fiabilité du pari d'après la proba modèle, ou None."""
-    p = perle.get("model_prob") if isinstance(perle, dict) else None
-    if p is None:
-        return None
-    pct = round(p * 100)
-    lvl = ("Élevée" if p >= 0.70 else "Bonne" if p >= 0.60
-           else "Modérée" if p >= 0.50 else "Audacieuse")
-    return pct, lvl
-
-
-def _pick_kind(perle: dict, kind: str | None) -> bool:
-    """True = pari VALUE (cote généreuse), False = pari CONFIANCE (favori sûr). On respecte le
-    `kind` fourni par la section (confiance/value) ; à défaut on dérive de la proba/edge."""
-    if kind == "value":
-        return True
-    if kind == "confiance":
-        return False
-    pct = round((perle.get("model_prob") or 0) * 100)
-    edgep = round((perle.get("edge") or 0) * 100)
-    return not (pct >= 68 and edgep < 6)   # sûr (forte proba, faible value) sinon value
-
-
-def _same_pari(p, p2) -> bool:
-    """Deux paris du MÊME match sont-ils le même PARI/TYPE ? (même sélection, ou même type de
-    marché : `kind` foot/basket — ex. 2 totaux « Moins de X pts » — ou `market` tennis). Sert à
-    ne JAMAIS afficher/compter 2 paris du même type sur un match (un 2e pari doit être distinct)."""
-    if not (isinstance(p, dict) and isinstance(p2, dict)):
-        return False
-    s, s2 = p.get("selection"), p2.get("selection")
-    if s and s == s2:
-        return True
-    for key in ("kind", "market"):
-        a, b = p.get(key), p2.get(key)
-        if a and a == b:
-            return True
-    return False
-
-
-def _perle_banner(perle: dict | None, perle2: dict | None = None, live: bool = False,
-                  kind: str | None = None, won: bool = False, won2: bool = False,
-                  lost: bool = False, lost2: bool = False, header: bool = False) -> str:
-    """Bloc « pari à jouer » placé SOUS les cotes : le pari (DIFFÉRENCIÉ Confiance/Value) +
-    sa barre de confiance, en un seul bloc. `live=True` : match commencé -> « avant-match »
-    (gardé en mémoire, plus « à jouer »). `kind` = 'confiance'/'value' (sinon dérivé).
-    `won/lost` : pari déjà gagné/perdu vu le score LIVE -> halo vert/rouge + ✓/✗.
-    `header=True` : un BADGE CATÉGORIE centré (Confiance/Value) coiffe les paris, et le tag
-    interne de chaque pari est allégé (pas de doublon avec le badge)."""
-    e = html.escape
-    if not (isinstance(perle, dict) and perle.get("selection")):
-        return ""
-
-    def one(p: dict, secondary=False, k=None, is_won=False, is_lost=False) -> str:
-        edgep = round((p.get("edge") or 0) * 100)
-        is_value = _pick_kind(p, k)
-        if secondary:                                  # 2e confiance : MÊME style, badge « CONFIANCE 2 »
-            cls, tag = "perle-conf", ("Pari 2" if header else "CONFIANCE 2")
-        elif is_value:
-            cls, tag = "perle-value", (f"+{edgep}%" if header else f"VALUE +{edgep}%")
-        else:
-            cls, tag = "perle-conf", ("" if header else "CONFIANCE")
-        # Match commencé : on GARDE le type (confiance/value) mais on indique que c'était un
-        # pari d'AVANT-MATCH (gardé en mémoire), ton légèrement atténué.
-        pre = ""
-        if live and not secondary:
-            cls += " perle-pre"
-            pre = '<span class="pl-pre">d\'avant-match</span>'
-        # En live : SEULE la couleur du halo indique le résultat (pas de texte « gagné/raté » —
-        # ce texte n'apparaît que dans les matchs TERMINÉS).
-        if is_won:
-            cls += " perle-won"          # 🟢 halo vert
-        elif is_lost:
-            cls += " perle-lost"         # 🔴 halo rouge
-        tag_html = f'<span class="pl-tag">{tag}</span>' if tag else ""
-        head = (f'<div class="pl-top">{tag_html}{pre}'
-                f'<span class="pl-o">@{p["odds"]:g}</span></div>'
-                f'<div class="pl-sel">{e(str(p["selection"]))}</div>')
-        return f'<div class="perle {cls}">{head}{_confidence_meter(p)}</div>'
-    if not header:
-        out = one(perle, k=kind, is_won=won, is_lost=lost)
-        if isinstance(perle2, dict) and perle2.get("selection"):
-            out += one(perle2, secondary=True, is_won=won2, is_lost=lost2)
-        return out
-
-    # MODE HEADER : badge catégorie centré + paris GROUPÉS dans un seul bloc. Chaque pari =
-    # sélection puis sa COTE en dessous (pas de label « Pari 2 », la catégorie est dans le badge).
-    is_val = _pick_kind(perle, kind)
-    lbl = "Value" if is_val else "Confiance"
-    ccls = "pcat-val" if is_val else "pcat-conf"
-    gcls = "plg-val" if is_val else "plg-conf"
-
-    def item(p, is_won, is_lost):
-        if not (isinstance(p, dict) and p.get("selection")):
-            return None
-        hcls = " plg-won" if is_won else (" plg-lost" if is_lost else "")
-        # LISTE ALIGNÉE : sélection + fiabilité à GAUCHE, cote en gros bouton à DROITE.
-        cl = _conf_level(p)
-        rel = (f'<div class="plg-rel"><span class="plg-dot"></span><b>{cl[1]}</b>'
-               f'<span class="plg-pct">{cl[0]}%</span></div>' if cl else "")
-        return (f'<div class="plg-item{hcls}">'
-                f'<div class="plg-bet"><div class="plg-sel">{e(str(p["selection"]))}</div>{rel}</div>'
-                f'<div class="plg-cote">@{p["odds"]:g}</div></div>')
-    parts = [item(perle, won, lost)]
-    # 2e pari UNIQUEMENT s'il est d'un TYPE DIFFÉRENT du 1er (jamais 2 paris du même type).
-    if (isinstance(perle2, dict) and perle2.get("selection")
-            and not _same_pari(perle, perle2)):
-        parts.append(item(perle2, won2, lost2))
-    parts = [x for x in parts if x]
-    # Plusieurs paris dans le même cadre -> séparés par « et / ou » (jouer l'un et/ou l'autre).
-    items = '<div class="plg-sep">et / ou</div>'.join(parts)
-    # Le TYPE (Confiance/Value) = ONGLET attaché au coin supérieur gauche du cadre.
-    return (f'<div class="plg-div"></div>'
-            f'<div class="plg {gcls}"><div class="plg-tab">{lbl}</div>'
-            f'<div class="plg-body">{items}</div></div>')
-
-
-def finished_picks(perle, perle_won, perle_value, value_won, winner_name,
-                   perle2=None, perle2_won=None):
-    """(badge, sub) d'un match TERMINÉ : pronos JOUÉS mis en évidence — 🛡️ Confiance (vert) /
-    💎 Value (bleu) — avec ✓ gagné / ✗ perdu, puis le vainqueur. AUCUN badge si aucun prono joué
-    (on n'invente pas un « raté » sur un match sans pari conseillé). `perle2` = 2e pari confiance
-    (compté dans le tableau Preuve) -> affiché aussi pour que les cartes = le tableau."""
-    e = html.escape
-
-    def chip(p, won, label, cls):
-        if not (isinstance(p, dict) and p.get("selection")):
-            return ""
-        od = f'<span class="fp-o">@{p["odds"]:g}</span>' if p.get("odds") else ""
-        # couleur de la BULLE selon le résultat : gagné -> vert+halo, perdu -> rouge+halo
-        wc = " fp-won" if won is True else " fp-lost" if won is False else ""
-        # Ligne 1 : TYPE (gauche) + cote verte (droite) ; ligne 2 : le PARI centré
-        return (f'<div class="fpick {cls}{wc}">'
-                f'<div class="fp-head"><span class="fpick-t">{label}</span>{od}</div>'
-                f'<div class="fpick-s">{e(str(p["selection"]))}</div></div>')
-
-    def _sel(p):
-        return p.get("selection") if isinstance(p, dict) else None
-    same = _sel(perle) is not None and _sel(perle) == _sel(perle_value)
-    chips = chip(perle, perle_won, "Confiance", "fp-conf")
-    # 2e pari confiance (perle2) : affiché aussi, SAUF s'il est du même type que la 1re confiance.
-    if _sel(perle2) is not None and not _same_pari(perle, perle2):
-        chips += chip(perle2, perle2_won, "Confiance 2", "fp-conf")
-    if not same:
-        chips += chip(perle_value, value_won, "Value", "fp-val")
-    win = (f'<div class="dim" style="margin-top:4px">vainqueur : <b>{e(winner_name or "")}</b></div>'
-           if winner_name else "")
-    prim = perle_won if perle_won is not None else value_won      # badge = pari principal
-    badge = ('<span class="pos">✓ gagné</span>' if prim is True
-             else '<span class="neg">✗ perdu</span>' if prim is False else "")
-    return badge, ((chips + win) if chips else win)
+    def kpi(v, lbl):
+        return f'<div class="spf-k"><span class="spf-kv">{v}</span><span class="spf-kl">{lbl}</span></div>'
+    kpis = (kpi(f'{s["pct"]}%', "Réussite") + kpi(s["settled"], "Paris")
+            + kpi(f'@{s.get("avg_odds") or "—"}', "Cote moy."))
+    # Détail INTÉGRÉ au MÊME cadre (repliable) : par pari + calibration par TYPE DE PARI de ce sport.
+    g = (analyses.calibration().get("by_sport") or {}).get(label) or {}
+    det = [_sport_card(s, sport, label, icon, "", chart=False, header=False)]
+    mk_rows = "".join(_calib_line(mk, mg, sub=True) for mk, mg in (g.get("markets") or {}).items())
+    if mk_rows:
+        det.append('<div class="calg-h">Calibration · par type de pari</div>'
+                   f'<div class="calg">{mk_rows}</div>')
+    details = (f'<details class="spf-det"><summary><span class="spf-det-t">📊 Fiabilité & calibration</span>'
+               f'<span class="chev">▾</span></summary><div class="spf-det-b">{"".join(det)}</div></details>')
+    return (f'<div class="spf">'
+            f'<div class="spf-top"><div class="spf-roi-wrap">'
+            f'<span class="spf-roi arec-{_roi_cls(roi, s.get("settled"))}">{_roistr(roi)}</span>'
+            f'<span class="spf-roi-l">ROI {_ind(s.get("settled"))}</span></div>{forms}</div>'
+            f'{chart}<div class="spf-kpis">{kpis}</div>{details}</div>')
 
 
 def _pick_card(p: dict, badge: str) -> str:
@@ -1329,10 +2909,11 @@ def _pick_card(p: dict, badge: str) -> str:
     sport_lbl = e(p["sport"]) + (f' · {e(p["league"])}' if p.get("league") else "")
     inner = (f'<div class="rowtop"><span>{p["icon"]} {sport_lbl}{fem} · {e(p.get("time") or "")}</span>'
              f'<span class="rt-r">{state}</span></div>'
-             f'<div class="mrow"><div class="players">{hf}{e(p.get("home") or "")} '
-             f'<span class="dim">vs</span> {e(p.get("away") or "")}{af}</div>{bdg}</div>'
+             f'<div class="mrow"><div class="players">{hf}{e(_noF(p.get("home")))} '
+             f'<span class="dim">vs</span> {e(_noF(p.get("away")))}{af}</div>{bdg}</div>'
              f'{oddsrow}{_pick_bars(p)}'
-             f'{_perle_banner(p.get("perle"), p.get("perle2"), live=bool(p.get("live")), kind=p.get("pick_kind"), won=bool(p.get("live_won")), won2=bool(p.get("live_won2")), lost=bool(p.get("live_lost")), lost2=bool(p.get("live_lost2")), header=True)}')
+             # Les « paris à jouer » (cadres) remplacent la bannière perle « Confiance », SOUS les barres.
+             f'{_bets_for_url(p.get("url") or "")}')
     url = p.get("url") or ""
     # On passe le TYPE de pari (confiance/value) à l'analyse -> elle recommande LA MÊME perle
     # que la carte (sinon l'analyse parlait d'un pari et la carte en jouait un autre).
@@ -1364,18 +2945,17 @@ def render_home(rep: dict, source: dict | None = None,
     conf_picks = conf_picks or []
     bars_legend = BARS_LEGEND
 
-    # 🔥 CONFIANCES : depuis le moteur perle, le pari le PLUS PROBABLE de chaque match (cote ≥ 1,50)
+    # 🎯 MATCHS ANALYSÉS — une SEULE liste, triée par COUP D'ENVOI le plus proche (tous sports
+    # mélangés). Plus de regroupement par sport : on veut « le prochain match » en haut.
     if conf_picks:
-        rows = "".join(_pick_card(p, "") for p in conf_picks)  # pas de badge % (déjà dans la barre)
-        conf_html = _section(f'🔥 Confiances ({len(conf_picks)})', rows, open_=True,
-                             info='Pour chaque match, <b>BETSFIX</b> analyse <b>tous les paris '
-                                  'disponibles sur Unibet</b> (résultat, nombre de buts, les 2 équipes '
-                                  'marquent, mi-temps, corners…) et garde la <b>perle la plus '
-                                  'probable</b> : le pari le plus <b>sûr</b> à une cote qui paie '
-                                  f'(jamais en dessous de 1,50). C\'est le 🎯 « À JOUER » en vert. {bars_legend}')
+        ordered = sorted(conf_picks,
+                         key=lambda p: (p.get("start_ts") is None, p.get("start_ts") or 0))
+        rows = "".join(_pick_card(p, "") for p in ordered)
+        conf_html = _section(f'🎯 Prochains matchs ({len(conf_picks)})', rows, open_=True)
     else:
-        conf_html = _section('🔥 Confiances (0)',
-                             '<div class="banner">Aucune perle rare détectée à venir pour le moment.</div>')
+        conf_html = _section('🎯 Matchs analysés (0)',
+                             '<div class="banner">Aucune analyse à venir pour le moment — '
+                             'les prochaines arrivent au prochain scan.</div>')
 
     # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders.
     # NB : pas de badge value en haut à droite — l'edge est déjà dans la bannière « À JOUER »
@@ -1394,9 +2974,9 @@ def render_home(rep: dict, source: dict | None = None,
                             '<div class="banner">Aucune value détectée pour le moment '
                             '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
 
-    # Preuve EN HAUT, puis Confiances (perle la plus probable), puis Valeurs (perle au plus gros
-    # edge) — mêmes paris analysés, deux classements du même moteur.
-    body = f'{proof_html}{conf_html}{val_html}'
+    # Accueil analyste : la section « Valeurs » (moteur Elo) n'apparaît que si des picks value
+    # sont fournis (plus le cas en mode analyste) ; sinon on ne montre que les matchs analysés.
+    body = f'{proof_html}{conf_html}' + (val_html if picks else "")
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 
@@ -1424,9 +3004,29 @@ def _prob_bar(prob, labels=None) -> str:
             f'<span>{p2}% · 2</span></div>')
 
 
+def _noF(name: str) -> str:
+    """Retire le suffixe « (F) » (féminin, WNBA/WTA) du nom d'équipe AFFICHÉ."""
+    return re.sub(r"\s*\(\s*F\s*\)\s*$", "", (name or "").strip())
+
+
+def _cap(s: str) -> str:
+    """Capitalise la 1re lettre (les villes/tournois Unibet arrivent souvent en minuscule, ex.
+    « s-Hertogenbosch » -> « S-Hertogenbosch ») sans toucher au reste (« Roland Garros » préservé)."""
+    s = (s or "").strip()
+    return (s[0].upper() + s[1:]) if (s and s[0].islower()) else s
+
+
+def _short_team(name: str, tennis: bool) -> str:
+    """Nom AFFICHÉ compact : au tennis -> nom de famille (dernier mot) pour tenir sur une ligne ;
+    foot/basket -> nom complet (sans « (F) »)."""
+    n = _noF(name or "")
+    return (n.split() or [n])[-1] if tennis else n
+
+
 def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                      server: str | None = None, points: tuple | None = None,
-                     clock: str | None = None) -> str:
+                     clock: str | None = None, periods: list | None = None,
+                     best_of: int | None = None) -> str:
     """Scoreboard LIVE. Tennis (`tennis=True`) : style Unibet — en-tête numéros de set + 🎾, TOUS
     les sets en colonnes (jeux par set), sets gagnés en gras, set en cours en évidence (PAS de
     case verte), colonne 🎾 = points du jeu en cours (`points`), et une balle 🎾 à droite du
@@ -1448,27 +3048,47 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
     as_ = sum(1 for h, a in cols if a > h)
     home_lead, away_lead = ((hs > as_, as_ > hs) if len(cols) > 1
                             else (cols[0][0] > cols[0][1], cols[0][1] > cols[0][0]))
-    hn = e((home.split() or [home or ""])[-1])
-    an = e((away.split() or [away or ""])[-1])
+    # Tennis : nom de famille (dernier mot) ; foot/basket : nom COMPLET (sans « (F) »).
+    def _shortname(n):
+        n = _noF(n)
+        return (n.split() or [n])[-1] if tennis else n
+    hn = e(_shortname(home))
+    an = e(_shortname(away))
 
     if tennis:
-        n = len(cols)
+        n_real = len(cols)
+        # TOUJOURS au moins 3 sets visibles (5 si best_of fourni / si déjà ≥4 sets joués) ; les sets
+        # à venir sont affichés GRISÉS à 0. Ne jamais cacher un set déjà joué.
+        n = max(best_of or 3, n_real)
         has_pts = bool(points) and (points[0] or points[1])
-        hdr = "".join(f'<span class="lb-c lb-h">{j + 1}</span>' for j in range(n))
+
+        def _set_done(h, a):    # set TERMINÉ ? (6 jeux + 2 d'écart, ou tie-break 7) -> compte le set
+            m = max(h, a)
+            return (m >= 6 and abs(h - a) >= 2) or m >= 7
+        sets_h = sum(1 for h, a in cols if _set_done(h, a) and h > a)
+        sets_a = sum(1 for h, a in cols if _set_done(h, a) and a > h)
+        # En-tête : « S1 S2 … » (toujours n colonnes) puis colonne SETS (résultat du match à droite).
+        hdr = "".join(f'<span class="lb-c lb-h">S{j + 1}</span>' for j in range(n))
         if has_pts:
             hdr += '<span class="lb-c lb-h lb-pt-h">🎾</span>'
+        hdr += '<span class="lb-c lb-h lb-tot">SETS</span>'
 
         def trow(i, name, lead, side):
             cs = ""
-            for j, (h, a) in enumerate(cols):
+            for j in range(n):
+                if j >= n_real:                        # set À VENIR : 0 grisé
+                    cs += '<span class="lb-c lb-fut">0</span>'
+                    continue
+                h, a = cols[j]
                 v = h if i == 0 else a
                 won = (h > a) if i == 0 else (a > h)
-                cur = j == n - 1 and not won           # set en cours = dernier, pas encore gagné
+                cur = j == n_real - 1 and not won      # set en cours = dernier JOUÉ, pas encore gagné
                 # PAS de case verte : set gagné en gras (lb-win), set en cours en évidence (lb-cur)
                 kls = "lb-c" + (" lb-cur" if cur else (" lb-win" if won else ""))
                 cs += f'<span class="{kls}">{v}</span>'
             if has_pts:                                # colonne 🎾 = points du jeu en cours
                 cs += f'<span class="lb-c lb-pt">{e(str(points[i]))}</span>'
+            cs += f'<span class="lb-c lb-tot">{sets_h if i == 0 else sets_a}</span>'   # SETS gagnés
             # 🎾 à DROITE du serveur
             ball = ' <span class="lb-srv">🎾</span>' if server == side else ""
             return (f'<div class="lb-row{" lb-lead" if lead else ""}">'
@@ -1476,6 +3096,33 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
         return (f'<div class="lboard lboard-t">'
                 f'<div class="lb-row lb-hdr"><span class="lb-n"></span><span class="lb-s">{hdr}</span></div>'
                 f'{trow(0, hn, home_lead, "home")}{trow(1, an, away_lead, "away")}</div>')
+
+    if periods:   # BASKET : colonnes par quart-temps (Q1..Qn) + total, façon box-score
+        n_real = len(periods)
+        n = max(4, n_real)                              # TOUJOURS 4 quart-temps (+ prolongations si jouées)
+        th, ta = sum(p[0] for p in periods), sum(p[1] for p in periods)
+        hdr = ("".join(
+                   f'<span class="lb-c lb-h{" lb-cur" if (clock and j == n_real - 1) else ""}">Q{j + 1}</span>'
+                   for j in range(n))
+               + '<span class="lb-c lb-h lb-tot">TOT</span>')
+
+        def qrow(i, name, lead):
+            cs = ""
+            for j in range(n):
+                if j >= n_real:                        # quart À VENIR : 0 grisé
+                    cs += '<span class="lb-c lb-fut">0</span>'
+                    continue
+                # quart EN COURS = dernier JOUÉ quand il y a une horloge -> score en blanc
+                cur = " lb-cur" if (clock and j == n_real - 1) else ""
+                cs += f'<span class="lb-c{cur}">{periods[j][i]}</span>'
+            cs += f'<span class="lb-c lb-tot">{th if i == 0 else ta}</span>'
+            return (f'<div class="lb-row{" lb-lead" if lead else ""}">'
+                    f'<span class="lb-n">{name}</span><span class="lb-s">{cs}</span></div>')
+        # Horloge (« Q4 · 0:05 ») à GAUCHE, sur la MÊME ligne que l'en-tête des quarts.
+        clk = f'<span class="lb-n lb-clk-in">{e(clock)}</span>' if clock else '<span class="lb-n"></span>'
+        return (f'<div class="lboard lboard-q">'
+                f'<div class="lb-row lb-hdr">{clk}<span class="lb-s">{hdr}</span></div>'
+                f'{qrow(0, hn, th > ta)}{qrow(1, an, ta > th)}</div>')
 
     def cells(i):
         return "".join(f'<span class="lb-c{" lb-win" if c[i] > c[1 - i] else ""}">{c[i]}</span>'
@@ -1501,58 +3148,116 @@ def _sport_row(r: dict) -> str:
         state = '<span class="cd live">🟢 Live</span>'
         top = ""
     elif r.get("status") == "finished":
-        top = e(r.get("score") or "terminé")
-        state = ""
+        top = ""    # le score FINAL passe dans le scoreboard (cf. lscore), plus dans l'en-tête
+        # Réglé (score chiffré) -> « Terminé » ; pas encore réglé -> « ⏳ En attente » (résultat à venir).
+        state = ('<span class="cd done">Terminé</span>'
+                 if any(c.isdigit() for c in str(r.get("score") or ""))
+                 else '<span class="cd wait">⏳ En attente</span>')
     else:
-        top = e(r.get("time") or "")
+        top = r.get("time") or ""        # échappé une seule fois au rendu (cf. e(top) plus bas)
         state = (f'<span class="cd" data-ts="{int(r["start_ts"])}"></span>'
                  if r.get("start_ts") and r["start_ts"] > time.time() else "")
-    # 3 barres (BETSFIX / Bookmaker / Public) comme sur l'accueil si on a les données,
-    # sinon la barre de proba simple (favori + %).
-    probviz = _pick_bars(r) if r.get("model_prob") is not None else \
-        _prob_bar(r.get("prob"), r.get("prob_labels"))
+    # Barres Bookmakers / Unibet / Public dès qu'on a la donnée (cotes implicites ou votes) —
+    # PARTOUT (à venir, en direct, terminés), sans exiger l'ancien modèle Elo.
+    probviz = (_pick_bars(r) if any(r.get(k) is not None for k in ("m_home", "i_home", "pub_home"))
+               else _prob_bar(r.get("prob"), r.get("prob_labels")))
     # « (F) » seulement utile au foot : WTA (tennis) et WNBA (basket) sont d'office féminines
     fem = (' <span class="fem">(F)</span>'
            if r.get("female") and (r.get("tour") or "").upper() not in ("WTA", "WNBA") else "")
-    badge = f'<span class="bdg">{r["badge"]}</span>' if r.get("badge") else ""
-    hf = f'{r["home_flag"]} ' if r.get("home_flag") else ""       # gauche : drapeau AVANT le nom
-    af = f' {r["away_flag"]}' if r.get("away_flag") else ""        # droite : drapeau APRÈS le nom
+    # Plus de badge résultat ✅/❌ en haut à droite : le résultat est désormais porté PAR pari
+    # (cadre vert/rouge + halo + ✓/✗), cf. analyses._bets_table. On garde juste le score (top).
+    badge = ""
+    # Drapeaux AUTOUR des noms — mais PAS sur les matchs terminés (carte épurée, le score prime).
+    _fin = r.get("status") == "finished"
+    hf = "" if _fin else (f'{r["home_flag"]} ' if r.get("home_flag") else "")
+    af = "" if _fin else (f' {r["away_flag"]}' if r.get("away_flag") else "")
     # Live : SCORE actuel en scoreboard 2 lignes + libellé « cotes en direct », au-dessus des cotes
     is_live = r.get("status") == "inprogress"
+    is_finished = r.get("status") == "finished"
     _is_tennis = (r.get("tour") or "").upper() in ("WTA", "ATP")
-    lscore = (_live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "",
-                               tennis=_is_tennis, server=r.get("server"), points=r.get("game_pts"),
-                               clock=r.get("live_time"))
-              if is_live else "")
-    # Les cotes live sont présentées comme une barre « BOOKMAKERS LIVE » (cf. _model_line /
-    # _card basket / _tennis_fav_sub) -> plus besoin d'un libellé « cotes en direct » séparé.
-    # En-tête : la compétition (souvent longue) se tronque, la date/heure (rt-when) reste visible.
-    when = f' · {top}' if top else ""
-    # TOUJOURS le sport (emoji + nom) AVANT la ligue / le type de match.
-    sport_pre = (f'{r.get("icon", "")} {e(r.get("sport"))} · ' if r.get("sport") else "")
-    inner = (f'<div class="rowtop{" rowtop-live" if mid else ""}"><span class="rt-l">'
-             f'<span class="rt-comp">{sport_pre}{e(r.get("tour") or "")}{fem}</span>'
-             f'<span class="rt-when">{when}</span></span>'
-             f'{mid}<span class="rt-r">{state}</span></div>'
-             f'<div class="mrow"><div class="players">{hf}{e(r.get("home") or "")} '
-             f'<span class="dim">vs</span> {e(r.get("away") or "")}{af}</div>{badge}</div>'
-             # COHÉRENT partout (accueil/live/onglets) : cotes « Bookmakers » EN HAUT, puis les
-             # barres %. LIVE : le score s'intercale entre les noms et les cotes.
-             f'{(lscore + r.get("sub", "") + probviz) if is_live else (r.get("sub", "") + probviz)}'
-             f'{_perle_banner(r.get("perle"), r.get("perle2"), live=(r.get("status") == "inprogress"), kind=r.get("pick_kind"), won=bool(r.get("live_won")), won2=bool(r.get("live_won2")), lost=bool(r.get("live_lost")), lost2=bool(r.get("live_lost2")), header=True)}')
-    cls = "row pick" if (r.get("pick") or r.get("perle")) else "row"
+    if is_live:
+        lscore = _live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "",
+                                  tennis=_is_tennis, server=r.get("server"), points=r.get("game_pts"),
+                                  clock=r.get("live_time"), periods=r.get("periods"),
+                                  best_of=r.get("best_of"))
+    elif is_finished and r.get("score"):
+        # Score FINAL présenté COMME en live, AVEC le détail : sets (tennis « 6-4 3-6 6-2 ») ou
+        # quart-temps (basket `periods`), sinon total 2 lignes. Sans horloge (match terminé).
+        sc = str(r.get("score"))
+        periods = r.get("periods")
+        tennis_cols = _is_tennis and len(sc.split()) > 1          # plusieurs sets -> colonnes
+        if _is_tennis and not tennis_cols and not periods:       # repli : total des sets en 2 lignes
+            sc = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", sc).strip()
+        lscore = _live_scoreboard(sc, r.get("home") or "", r.get("away") or "",
+                                  tennis=tennis_cols, periods=periods, best_of=r.get("best_of"))
+    else:
+        lscore = ""
+    # Paris à jouer (cadres) : compact en live. En live, on insère une ligne de séparation
+    # horizontale entre le scoreboard et les paris (seulement s'il y a effectivement des paris).
+    betshtml = _bets_for_url(r.get("url") or "", compact=is_live)
+    # Barre de séparation horizontale (écart égal dessus/dessous) entre le bloc score/barres % et
+    # les paris à jouer — présente en LIVE comme en À-venir/Terminés, dès qu'il y a des paris.
+    bets_sep = '<div class="bets-sep"></div>' if betshtml else ""
+    # Bannières SofaScore / Unibet pleine largeur, en bas du cadre (pas dans l'analyse -> 0 doublon)
+    linkshtml = _links_for_url(r.get("url") or "")
+    # ---- CARTE COMPACTE (résumé non ouvert) : L1 = nom du sport · circuit (ATP/WTA) · tournoi (ville
+    # capitalisée) + heure/score en haut à droite ; L2 = noms+prénoms des 2 ; L3 = nombre de paris (chip).
+    # Circuit/tournoi/heure pris FRAIS d'Unibet (path/group/start) si dispo, sinon repli sur le sidecar. ----
     url = r.get("url") or ""
+    sport_key = ("tennis" if "/app/match" in url else "foot" if "/foot/match" in url
+                 else "basket" if "/basket/match" in url else None)
+    um = (match_select.unibet_meta_for(sport_key, r.get("home"), r.get("away")) or {}) if sport_key else {}
+    summ = _summary_for_url(url)
+    sport_name = {"tennis": "Tennis", "foot": "Football", "basket": "Basket"}.get(sport_key, "")
+    circuit = um.get("circuit") or summ.get("circuit") or ""
+    comp = _cap(um.get("comp") or summ.get("comp") or r.get("tour") or "")
+    parts = [p for p in (sport_name, circuit if _is_tennis else "", comp) if p]
+    comp_only = " · ".join(e(p) for p in parts)
+    # Heure de début : Unibet frais (path/start) si dispo, sinon l'heure conviviale `top` -> HH:MM.
+    sdt = match_select._start_dt(um["start"]) if um.get("start") else None
+    starthm = fmt_local(sdt, with_date=False) if sdt else ""
+    if not starthm:
+        _mt = re.search(r"\d{1,2}:\d{2}", top or "")
+        starthm = _mt.group(0) if _mt else (top or "")
+    score_txt = e(str(r.get("score"))) if r.get("score") else ""
+    if is_live:                                          # live : score actuel
+        badge = f'<span class="mc-badge mc-live">🟢 {score_txt or "LIVE"}</span>'
+    elif is_finished:                                    # terminé : score FINAL, SANS drapeau 🏁
+        badge = (f'<span class="mc-badge mc-done">{score_txt}</span>' if score_txt
+                 else '<span class="mc-badge mc-wait">⏳ En attente</span>')
+    else:                                                # à venir : HEURE DE DÉBUT seule (HH:MM)
+        badge = f'<span class="mc-badge mc-up">{e(starthm) or "À venir"}</span>'
+    # L3 : LISTE des paris (une ligne par pari = juste l'intitulé, sans détail) ; terminé : ✅/❌ par pari.
+    rows3 = []
+    for b in (summ.get("bets") or []):
+        if is_finished:
+            ic = {"won": "✅", "lost": "❌", "push": "➖"}.get(b.get("result"), "•")
+        else:
+            ic = "•"
+        rows3.append(f'<div class="mc-betl"><span class="mc-bi">{ic}</span>'
+                     f'<span class="mc-bt">{e(b.get("sel", ""))}</span></div>')
+    line3 = "".join(rows3)
+    teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
+             f'{e(_noF(r.get("away")))}{fem}{af}')
+    head = (f'<div class="mc-head"><div class="mc-main">'
+            f'<div class="mc-line"><span class="mc-ic">{r.get("icon", "")}</span>'
+            f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
+            f'<div class="mc-teams">{teams}</div>'
+            f'<div class="mc-sub">{line3}</div></div>'
+            f'<span class="mc-chev">▸</span></div>')
+    # ---- CORPS (déplié au tap) : scoreboard + barres % + paris + liens + ANALYSE (chargée d'office
+    # à l'ouverture, plus de bouton « Voir l'analyse »). Un clic n'importe où dans la carte la replie. ----
     pkp = f'&pk={r["pick_kind"]}' if r.get("pick_kind") else ""   # type de pari -> analyse cohérente
-    # Tap -> déplie l'analyse complète À L'INTÉRIEUR de la carte (les 3 sports), sans changer
-    # de vue. L'analyse est chargée en AJAX (route détail ?frag=1).
+    ana = ""
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
         sep = "&" if "?" in url else "?"
-        return (f'<div class="{cls} rowtap" data-exp="{url}{sep}frag=1{pkp}">{inner}'
-                f'<div class="exp-c"><span class="exp-chev">▾</span> Voir l\'analyse</div>'
-                f'<div class="exp" hidden></div></div>')
-    if url:
-        return f'<a class="{cls}" href="{url}">{inner}</a>'
-    return f'<div class="{cls}">{inner}</div>'
+        ana = f'<div class="mc-ana" data-ana="{url}{sep}frag=1{pkp}"><div class="exp"></div></div>'
+    body = (f'{lscore}{"" if is_live else (r.get("sub", "") + probviz)}'
+            f'{bets_sep}{betshtml}{linkshtml}{ana}')
+    # TOUTES les cartes sont REPLIÉES au 1er chargement (y compris les directs) — le score live reste
+    # visible dans le badge ; on déplie au tap. Fond « pick » uniforme pour toutes les cartes.
+    return (f'<div class="row pick mc">{head}'
+            f'<div class="mc-body" hidden>{body}</div></div>')
 
 
 def _rows_by_day(rows: list) -> str:
@@ -1581,6 +3286,8 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
 
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
     « aucun match ». `frag=True` -> renvoie le corps seul (chargé en AJAX dans la SPA)."""
+    # Terminés : les PLUS RÉCENTS en HAUT (coup d'envoi le plus récent d'abord).
+    finished = sorted(finished or [], key=lambda r: r.get("start_ts") or 0, reverse=True)
     out = []
     # Info (bouton « i ») PROPRE à chaque section, comme sur l'accueil.
     conf_info = ('Pour chaque match, BETSFIX analyse <b>tous les paris Unibet</b> et garde la '
@@ -1611,7 +3318,8 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
                        'd\'ici quelques minutes. Rien à faire.</div>')
         else:
             out.append('<div class="dim">Aucun match à afficher pour le moment.</div>')
-    body = _subnav(sport) + "".join(out)
+    # Ordre PREMIUM : titre -> cadre de perf (graphe + fiabilité & calibration INTÉGRÉS) -> matchs.
+    body = _subnav(sport) + render_sport_perf(sport) + "".join(out)
     return body if frag else spa_shell(sport, title, body)
 
 
@@ -1627,8 +3335,17 @@ def render_directs(sections: list, frag: bool = False) -> str:
         out.append(_section(f'{icon} {html.escape(label)} ({len(cards)})',
                             "".join(_sport_row(c) for c in cards), open_=True))
     if not total:
-        out.append('<div class="banner">Aucun match en direct pour le moment — '
-                   'reviens pendant les rencontres. 🟢</div>')
+        out.append(
+            '<div class="live-empty">'
+            '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
+            '<span class="le-dot"></span></div>'
+            '<div class="le-h">Aucun match en direct</div>'
+            '<div class="le-sub">Les scores en temps réel — set par set, quart-temps — '
+            's\'affichent ici dès qu\'une rencontre analysée démarre.</div>'
+            '<div class="le-cta">'
+            '<a class="le-btn le-btn-p" href="/paris">🎯 Paris à jouer</a>'
+            '<a class="le-btn" href="/foot">🗓️ À venir</a>'
+            '</div></div>')
     body = "".join(out)
     return body if frag else spa_shell("directs", "Live", body)
 
@@ -1642,8 +3359,8 @@ def perf_toggle(active: str) -> str:
         for k, lbl in tabs) + "</div>")
 
 
-_FORM_COLOR = {"W": "#34d27b", "D": "#e0b341", "L": "#f25d6e",
-               "В": "#34d27b", "Н": "#e0b341", "П": "#f25d6e"}  # W/D/L (en/ru selon locale)
+_FORM_COLOR = {"W": "#34d27b", "D": "#e0b341", "L": "#ff6b6b",
+               "В": "#34d27b", "Н": "#e0b341", "П": "#ff6b6b"}  # W/D/L (en/ru selon locale)
 
 
 def form_dots(form) -> str:
@@ -1652,7 +3369,7 @@ def form_dots(form) -> str:
         return ""
     dots = "".join(
         f'<span class="fd" style="background:{_FORM_COLOR.get(str(x).upper()[:1], "#5a6472")}">'
-        f'{html.escape(str(x)[:1])}</span>'
+        f'{html.escape(str(x)[:1].upper())}</span>'   # W / L / N en MAJUSCULE
         for x in form[:5])
     return f'<span class="forms">{dots}</span>'
 
@@ -1870,6 +3587,65 @@ def perle_advice(perle: dict | None) -> str:
     return '<h2>🎯 Paris conseillés</h2>' + body
 
 
+# Libellés FR + emoji pour les séries SofaScore fréquentes (sinon nom brut). Mappées aux marchés.
+_STREAK_FIX = {
+    "both teams scoring": "🥅 Les 2 marquent (BTTS)",
+    "both teams not scoring": "🥅 Pas de BTTS",
+    "no losses": "✅ Sans défaite", "losses": "❌ Défaites",
+    "no wins": "⚠️ Sans victoire", "wins": "🏆 Victoires", "draws": "🤝 Nuls",
+    "without clean sheet": "🧤 Sans clean sheet", "clean sheets": "🧤 Clean sheets",
+    "first to score": "⏱️ Marque en premier", "first to concede": "⏱️ Encaisse en premier",
+    "scored in both halves": "⚽ Marque dans les 2 MT",
+    "first half winner": "⏱️ Gagne la 1re MT",
+}
+
+
+def _streak_label(name: str) -> str:
+    n = (name or "").strip()
+    low = n.lower()
+    if low in _STREAK_FIX:
+        return _STREAK_FIX[low]
+    m = re.match(r"(more|less) than ([\d.]+) (goals|cards|corners)", low)
+    if m:
+        sign = "+" if m.group(1) == "more" else "−"
+        unit = {"goals": "buts", "cards": "cartons", "corners": "corners"}[m.group(3)]
+        emoji = {"goals": "⚽", "cards": "🟨", "corners": "🚩"}[m.group(3)]
+        return f"{emoji} {sign}{m.group(2).replace('.', ',')} {unit}"
+    return html.escape(n)
+
+
+def render_streaks(home: str, away: str, streaks: dict | None) -> str:
+    """Bloc « Tendances » : séries SofaScore par équipe (mappées aux marchés) + confrontations.
+    `streaks` = {"home":[(name,value)…], "away":[…], "h2h":[…]} (préparé par le routeur)."""
+    if not streaks:
+        return ""
+    e = html.escape
+
+    def chips(items):
+        out = []
+        for name, value in items or []:
+            if not value:
+                continue
+            out.append(f'<span class="strk-c">{_streak_label(name)} '
+                       f'<b>{e(str(value))}</b></span>')
+        return "".join(out)
+
+    cols = []
+    for nm, key in ((home, "home"), (away, "away")):
+        c = chips(streaks.get(key))
+        if c:
+            cols.append(f'<div class="strk-team"><div class="strk-h">{e(nm)}</div>{c}</div>')
+    h2h = chips(streaks.get("h2h"))
+    if h2h:
+        cols.append(f'<div class="strk-team"><div class="strk-h">Confrontations</div>{h2h}</div>')
+    if not cols:
+        return ""
+    return ('<h2>📈 Tendances récentes</h2>'
+            '<div class="dim" style="font-size:11px;margin:-3px 0 6px">Séries SofaScore sur les '
+            'derniers matchs — base de l\'analyse.</div>'
+            f'<div class="strk">{"".join(cols)}</div>')
+
+
 def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     """Fiche détaillée d'un match foot/basket : prédiction (3 barres + divergence + cotes)
     puis analyse SofaScore (forme des 2 équipes, confrontations directes).
@@ -1905,18 +3681,20 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
         cells.append(f'<span class="h2h-c"><b>{aw}</b><span class="dim">{e(ctx["away"])}</span></span>')
         h2h_html = f'<h2>🤝 Face-à-face</h2><div class="h2h">{"".join(cells)}</div>'
 
-    # Squelette COMMUN aux 3 sports (même ordre que le tennis) :
-    #   analyse rédigée -> forme récente -> face-à-face -> ce qui pèse -> contexte (classement…)
-    analysis = ctx.get("analysis") or ""          # 🧠 prose
-    factors_html = ctx.get("factors_html") or ""  # 📊 ce qui pèse (barres de facteurs)
+    streaks_html = render_streaks(ctx.get("home") or "", ctx.get("away") or "", ctx.get("streaks"))
+
+    # Fiche centrée sur l'ANALYSTE : barres (Unibet/Public) -> analyse (Verdict, tableau, faits,
+    # sources) -> tendances (séries) -> forme récente -> face-à-face -> contexte. Perle/Elo retirés.
+    analysis = ctx.get("analysis") or ""          # 🧠 analyse analyste (Verdict + tableau + faits)
     extra = ctx.get("extra") or ""                # contexte + spécificités (classement, écart, buts)
-    recos = ctx.get("recos") or ""                # 🎯 reco perle (page pleine seulement)
     no_data = ('<div class="banner">Analyse SofaScore indisponible pour ce match '
                '(source momentanément en pause ou match non couvert).</div>')
-    if frag:   # accordéon sous la carte (la carte montre déjà la box « À jouer », proba + cotes)
-        return (analysis + h2h_html + form_html + factors_html + extra) or no_data
-    body = head + pred + odds + recos + analysis + h2h_html + form_html + factors_html + extra
-    if not (analysis or factors_html or extra or form_html or h2h_html):
+    odds_move = ctx.get("odds_move") or ""    # 📉 mouvement de cote (ouverture -> clôture)
+    if frag:   # accordéon sous la carte : la carte porte déjà bets + bannières -> PAS de liens ici
+        return (odds_move + analysis + streaks_html + h2h_html + form_html + extra) or no_data
+    links = ctx.get("links") or ""     # bannières SofaScore / Unibet (page pleine uniquement)
+    body = head + pred + odds + links + odds_move + analysis + streaks_html + h2h_html + form_html + extra
+    if not (analysis or streaks_html or extra or form_html or h2h_html):
         body += no_data
     return layout(ctx["home"] + " vs " + ctx["away"], ctx["sport_key"], body, subnav="matchs")
 
@@ -2228,11 +4006,12 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
         # On NE répète PAS le pari (déjà dans la box « 🎯 À jouer » de la carte) ni les
         # pronostics des fans (déjà dans la barre PUBLIC). Ordre intuitif -> technique :
         # forme -> face-à-face -> ce qui pèse -> aces.
-        return (h2h_html + form_html + factors + aces_html + markets_html) \
+        # Facteurs Elo retirés (fiche centrée analyste) : forme -> face-à-face -> aces.
+        return (h2h_html + form_html + aces_html + markets_html) \
             or '<div class="dim">Analyse détaillée indisponible (SofaScore momentanément ' \
                'limité) — la prédiction reste celle de la carte.</div>'
-    body = (head + pari_html + verdict + h2h_html + form_html + votes_html + paris_link
-            + probs + factors + aces_html + odds_html)
+    # Pari/verdict/probas du modèle + facteurs Elo retirés : la fiche s'appuie sur l'analyste.
+    body = (head + h2h_html + form_html + votes_html + paris_link + aces_html + odds_html)
     return layout(f"{a.home.name} vs {a.away.name}", "tennis", body, subnav="matchs")
 
 
