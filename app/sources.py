@@ -18,7 +18,6 @@ soit le nombre de matchs.
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
