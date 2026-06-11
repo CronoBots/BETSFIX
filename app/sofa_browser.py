@@ -47,7 +47,9 @@ _CHROME_CANDIDATES = (
 )
 _SITE = "https://www.sofascore.com"
 _NAV_TIMEOUT = 22.0        # s max pour qu'une page rende son __NEXT_DATA__ (challenge + SSR)
-_IDLE_CLOSE = 90.0         # s d'inactivité avant de fermer le Chrome (libère la RAM)
+_IDLE_CLOSE = 300.0        # s d'inactivité avant de fermer le Chrome (libère la RAM). 5 min :
+#                            à 90 s il repartait à froid (~5-10 s de démarrage+challenge) entre deux
+#                            consultations rapprochées ; 5 min couvre une session de navigation.
 _PROPS_TTL = 120.0         # s de cache des pageProps par event id (réutilisé entre sous-endpoints)
 
 _EVENT_RE = re.compile(r"/event/(\d+)(?:/(\w+))?(?:[/?#].*)?$")
