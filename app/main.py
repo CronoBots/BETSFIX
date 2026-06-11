@@ -123,6 +123,8 @@ async def lifespan(app: FastAPI):
     yield
     for t in tasks:
         t.cancel()
+    from app import sofa_browser
+    await sofa_browser.aclose()      # sinon le Chrome headless (+ profil temp) survit au reload
     await shutdown_provider()
 
 

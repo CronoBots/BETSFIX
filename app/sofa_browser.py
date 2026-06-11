@@ -78,6 +78,30 @@ def _enabled() -> bool:
     return "pytest" not in sys.modules and _chrome_path() is not None
 
 
+def _purge_stale_profiles(current: str | None = None) -> None:
+    """Supprime les profils `sofa_cdp_*` abandonnés dans %TEMP% (Chrome tué sans cleanup : reload
+    uvicorn, crash, terminate avant déverrouillage Windows). Les profils encore tenus par un Chrome
+    vivant résistent au rmtree (verrous NTFS) -> seuls les morts partent. Appelé une fois par
+    process, hors event loop."""
+    base = tempfile.gettempdir()
+    try:
+        names = os.listdir(base)
+    except OSError:
+        return
+    n = 0
+    for name in names:
+        if not name.startswith("sofa_cdp_"):
+            continue
+        path = os.path.join(base, name)
+        if current and os.path.normcase(path) == os.path.normcase(current):
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+        if not os.path.isdir(path):
+            n += 1
+    if n:
+        log.info("sofa_browser : %d profil(s) Chrome abandonné(s) purgé(s)", n)
+
+
 class _Session:
     """Une instance Chrome headless pilotée par CDP (via websocket). Gère l'auth proxy et continue
     automatiquement les requêtes interceptées (sinon la page ne finit jamais de charger)."""
@@ -102,6 +126,10 @@ class _Session:
 
         port = _free_port()
         self._profile = tempfile.mkdtemp(prefix="sofa_cdp_")
+        global _purged
+        if not _purged:                 # ménage des profils abandonnés (1 fois par process)
+            _purged = True
+            await asyncio.to_thread(_purge_stale_profiles, self._profile)
         args = [chrome, "--headless", f"--remote-debugging-port={port}",
                 f"--user-data-dir={self._profile}", "--no-first-run", "--no-default-browser-check",
                 "--disable-gpu", "--disable-dev-shm-usage", "--disable-extensions",
@@ -209,14 +237,24 @@ class _Session:
         try:
             if self.proc and self.proc.poll() is None:
                 self.proc.terminate()
+                try:  # attendre la mort réelle : tant que Chrome vit, ses verrous NTFS
+                    await asyncio.to_thread(self.proc.wait, 5)  # font échouer le rmtree en silence
+                except subprocess.TimeoutExpired:
+                    self.proc.kill()
+                    await asyncio.to_thread(self.proc.wait, 3)
         except Exception:
             pass
         if self._profile:
-            shutil.rmtree(self._profile, ignore_errors=True)
+            for _ in range(3):  # Windows relâche les verrous avec un léger différé
+                await asyncio.to_thread(shutil.rmtree, self._profile, ignore_errors=True)
+                if not os.path.isdir(self._profile):
+                    break
+                await asyncio.sleep(0.5)
         self.ws = self.proc = None
 
 
 # --- singleton + cache --------------------------------------------------------------------------
+_purged = False
 _session: _Session | None = None
 _lock = asyncio.Lock()
 _last_used = 0.0
