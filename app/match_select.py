@@ -17,8 +17,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-UNIBET_B = "https://eu-offering-api.kambicdn.com/offering/v2018/ubbe"
-UNIBET_PARAMS = {"lang": "fr_BE", "market": "BE", "client_id": "2", "channel_id": "1"}
+from app.netconst import UNIBET_B, UNIBET_PARAMS   # source unique (cf. app/netconst.py)
+
 # listView Unibet par sport de l'app.
 LISTVIEW = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 

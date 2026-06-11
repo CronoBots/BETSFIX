@@ -7,12 +7,12 @@
 """
 
 import asyncio
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
-from app import analyses, flags, foot, fragcache, match_analysis, match_select, sportcache, tracking, web
+from app import analyses, flags, foot, fragcache, match_analysis, match_select, sofa_http, sportcache, tracking, web
+from app.netconst import SOFA_B
 from app.config import get_settings
 from app.dependencies import get_provider, get_unibet
 from app.models import (
@@ -103,7 +103,7 @@ async def foot_page(frag: int = 0) -> HTMLResponse:
 async def _sofa(path: str):
     """GET SofaScore brut (curl_cffi) tolérant : renvoie le JSON ou None."""
     try:
-        r = await foot.sofa_http.get(foot.SOFA_B + path)
+        r = await sofa_http.get(SOFA_B + path)
         return r.json() if r.status_code == 200 else None
     except Exception:
         return None

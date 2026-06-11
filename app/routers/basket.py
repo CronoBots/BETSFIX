@@ -5,8 +5,6 @@
   et stats complètes SofaScore par match (statistiques, compositions, h2h, stats d'équipe).
 """
 
-import asyncio
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 

@@ -1,15 +1,13 @@
 """Plateforme de visionnage : pages HTML (accueil, matchs, détail match)."""
 
-import asyncio
-import html
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import analyses, ace_markets, elo, flags, fragcache, match_analysis, match_select, mybets, serve_return, set_markets, tendencies, tracking, web, window
+from app import analyses, ace_markets, elo, fragcache, match_analysis, match_select, mybets, serve_return, set_markets, tendencies, tracking, web, window
 from app.config import get_settings
-from app.analysis import build_analysis, prob_from_rankings, remove_vig
+from app.analysis import build_analysis, remove_vig
 from app.analysis import _match_winner_odds
 from app.markets import (
     DEFAULT_SERVE, calibrate_to_market, evaluate_markets, extract_market_anchors,
@@ -18,7 +16,7 @@ from app.markets import (
 from app.providers.unibet import _norm_name
 from app.textutil import name_tokens, names_match
 from app.dependencies import (
-    get_livescore, get_provider, get_rankings, get_unibet, matches_with_fallback,
+    get_livescore, get_provider, get_rankings, get_unibet,
 )
 from app.routers.analysis import _gather_context
 from app.providers.rankings import RankingsProvider
@@ -98,7 +96,6 @@ def _split_2way(rec: dict) -> dict:
 
 def _all_sport_picks() -> list[dict]:
     """Value 'à venir' des 3 sports, normalisées et classées par edge (pour l'accueil)."""
-    from app import basket, foot
     out = []
 
     def add(store, sport, icon, url_fn, bet_key, prob_fn):
@@ -171,7 +168,6 @@ def _confidence_picks() -> list[dict]:
 
     Différent des 'valeurs' : ici on cherche la proba la plus haute (favori), pas
     l'écart avec la cote. Souvent des favoris -> pas forcément une value."""
-    from app import basket, foot
     out = []
 
     def add(store, sport, icon, url_fn, fav_fn):
@@ -781,7 +777,6 @@ async def match_detail(
         pass
     # « 🎯 Paris conseillés » depuis le SUIVI (cohérent avec la carte), comme foot/basket.
     recos = ""
-    value = None
     analysis_html = ""
     if frag:
         rec = tracking.load().get(str(match_id))

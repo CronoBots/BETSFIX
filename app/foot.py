@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 
-from app import flags, sofa_http, sportcache, tracking, web, window
-from app.textutil import name_tokens, names_match
+from app import flags, web
+from app.textutil import name_tokens
 
 log = logging.getLogger("uvicorn")
 
@@ -51,14 +51,7 @@ MAX_DISAGREEMENT = 0.15    # résultat 1X2 / double chance / handicap : marché 
 GOALS_DISAGREEMENT = 0.20  # totaux, par équipe, BTTS : marché efficient, modèle a un vrai signal
 ANNEX_DISAGREEMENT = 0.25  # mi-temps, corners/cartons : marchés moins efficients, modèle approximatif
 
-SOFA_B = "https://api.sofascore.com/api/v1"
-SOFA_H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
-          "Origin": "https://www.sofascore.com"}
-UNIBET_B = "https://eu-offering-api.kambicdn.com/offering/v2018/ubbe"
-UNIBET_PARAMS = {"lang": "fr_BE", "market": "BE", "client_id": "2", "channel_id": "1"}
-UNIBET_PARAMS_EN = {**UNIBET_PARAMS, "lang": "en_GB"}   # noms anglais pour matcher l'Elo
-UNIBET_H = {"User-Agent": "Mozilla/5.0", "Accept": "application/json",
-            "Referer": "https://www.unibet.be/"}
+# Constantes réseau SofaScore/Unibet : centralisées dans app/netconst.py (importées en tête).
 
 
 # ----------------------------------------------------------------- modèle

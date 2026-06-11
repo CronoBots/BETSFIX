@@ -15,11 +15,11 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 
-from app import sofa_http, sportcache, tracking, web, window
-from app.textutil import name_tokens, names_match
+from app import web
+from app.textutil import name_tokens
 
 log = logging.getLogger("uvicorn")
 
@@ -42,13 +42,7 @@ LEAGUES = {
     "WNBA": {"tid": WNBA_TID, "unibet": "/listView/basketball/wnba.json", "sigma": 11.0},
 }
 
-SOFA_B = "https://api.sofascore.com/api/v1"
-SOFA_H = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.sofascore.com/",
-          "Origin": "https://www.sofascore.com"}
-UNIBET_B = "https://eu-offering-api.kambicdn.com/offering/v2018/ubbe"
-UNIBET_PARAMS = {"lang": "fr_BE", "market": "BE", "client_id": "2", "channel_id": "1"}
-UNIBET_H = {"User-Agent": "Mozilla/5.0", "Accept": "application/json",
-            "Referer": "https://www.unibet.be/"}
+# Constantes réseau SofaScore/Unibet : centralisées dans app/netconst.py (importées en tête).
 
 
 # ----------------------------------------------------------------- Elo / proba

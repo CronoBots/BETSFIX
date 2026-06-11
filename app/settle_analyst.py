@@ -16,10 +16,9 @@ import os
 import re
 
 from app import analyses, sofa_http
+from app.netconst import SOFA_B as _SOFA   # source unique (cf. app/netconst.py)
 
 log = logging.getLogger("betsfix.settle")
-
-_SOFA = "https://api.sofascore.com/api/v1"
 _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # Version de la LOGIQUE de règlement : à incrémenter quand de nouveaux marchés deviennent réglables
 # (-> re-règlement unique des sidecars depuis `result.raw` caché, sans appel réseau). v2 = + handicap
