@@ -240,6 +240,12 @@ def list_for(sport: str) -> list[dict]:
         # (> ~6 h après le coup d'envoi : match fini depuis longtemps sans résultat exploitable).
         if dt is not None and dt < now - timedelta(hours=6) and not is_settled(d):
             continue
+        # Mode strict : un match analysé SANS AUCUN pari ≥ seuil (SKIP assumé) n'apparaît PLUS dans
+        # l'app (demande utilisateur 2026-06-12) — on ne montre que ce qui se joue. (Le sidecar et
+        # le .md restent sur disque : cache du scan, pas de re-analyse inutile.)
+        if not is_settled(d) and load(sport, d.get("id")) is not None \
+                and not bets_of(sport, d.get("id")):
+            continue
         d["_start_dt"] = dt
         out.append(d)
     out.sort(key=lambda d: (d["_start_dt"] is None, d.get("_start_dt") or now))
