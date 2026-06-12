@@ -481,7 +481,11 @@ def _recommend(data: list, ok: set | None = None, cprobs: list | None = None) ->
     scored = [(i, _cp(i, b) / 100 * b["cote"] - 1, _cp(i, b))
               for i, b in enumerate(data)
               if b.get("prob") and b.get("cote") and (ok is None or i in ok)]
-    pool = [s for s in scored if s[2] >= _MIN_CONF]     # confiance ≥ 65 % EXIGÉE (sinon on s'abstient)
+    # Confiance ≥ 65 % EXIGÉE (sinon on s'abstient). GARDE-FOU cotes moyennes (mesuré 2026-06-12,
+    # n=23 réglés : cote 1.70-2.20 -> 39 % de réussite réelle, ROI -28 % = LA zone qui saigne) :
+    # à cote ≥ 1.70, on exige 70 % de confiance recalibrée, pas 65.
+    pool = [s for s in scored
+            if s[2] >= _MIN_CONF and ((data[s[0]].get("cote") or 0) < 1.70 or s[2] >= 70)]
     if not pool:
         return {"idx": None, "verdict": "skip", "ev": None, "stake_pct": 0.0}
     i, ev, _prob = max(pool, key=lambda s: s[1])

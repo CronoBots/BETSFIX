@@ -38,3 +38,17 @@ def test_handicap_et_vainqueur():
         == "HCAP HOME -6.5"
     assert settle_pick("HCAP HOME -6.5", _score(114, 106)) == "won"
     assert settle_pick("WIN AWAY", _score(89, 105)) == "won"
+
+
+# ------------------------------------------------------------------ garde-fou cotes moyennes
+def test_recommend_garde_fou_cote_170():
+    from app.analyses import _recommend
+    # 66 % @ 1.85 (EV +22 %) : AVANT il était joué -> zone 39 % de réussite réelle, désormais exclu
+    data = [{"sel": "X", "cote": 1.85, "prob": 66}]
+    assert _recommend(data)["verdict"] == "skip"
+    # 72 % @ 1.85 : confiance >= 70 exigée à cote >= 1.70 -> joué
+    data = [{"sel": "X", "cote": 1.85, "prob": 72}]
+    assert _recommend(data)["verdict"] == "play"
+    # 66 % @ 1.45 : cote < 1.70, seuil 65 inchangé -> joué si EV ok (66x1.45-1 = -4% -> skip EV)
+    data = [{"sel": "X", "cote": 1.60, "prob": 66}]
+    assert _recommend(data)["verdict"] == "play"   # 66%x1.60-1 = +5.6% EV
