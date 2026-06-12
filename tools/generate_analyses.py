@@ -694,6 +694,27 @@ async def main():
                 if not analysis:
                     print(f"  ✗ {m['name']} : sortie vide.")
                     continue
+                # MODE STRICT : tableau de paris VIDE (aucun pari ≥ seuil) -> match NON RETENU.
+                # On n'écrit RIEN (ni .md ni sidecar) et on RETIRE un éventuel scan précédent du
+                # même match s'il n'est pas réglé. Le match pourra être ré-analysé au scan suivant
+                # (compos/blessures publiées entre-temps peuvent débloquer un pari fiable).
+                from app import analyses as _an
+                if not _an._parse_bets(_an._bets_section(analysis) or ""):
+                    print(f"  · {m['name']} : aucun pari ≥ seuil -> match écarté (non retenu, {dt:.0f}s).")
+                    side_p = os.path.join(OUT, f"{sport}_{fid}.json")
+                    try:
+                        old = json.load(open(side_p, encoding="utf-8"))
+                        settled = (bool((old.get("result") or {}).get("score"))
+                                   or any(b.get("result") for b in (old.get("bets") or [])))
+                    except (OSError, ValueError):
+                        settled = False
+                    if not settled:                # jamais toucher un match réglé (historique)
+                        for ext in (".json", ".md"):
+                            try:
+                                os.remove(os.path.join(OUT, f"{sport}_{fid}{ext}"))
+                            except OSError:
+                                pass
+                    continue
                 # Pas d'entête « # {nom} » : la fiche affiche déjà le nom du match (doublon évité).
                 header = f"<!-- généré {datetime.now(timezone.utc).isoformat()} · {dt:.0f}s -->\n\n"
                 with open(path, "w", encoding="utf-8") as f:
