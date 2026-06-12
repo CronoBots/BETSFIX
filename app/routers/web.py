@@ -259,12 +259,6 @@ async def stats_detail(sport: str = "", pari: int = -1, since: str = "") -> HTML
     return HTMLResponse(web.render_bet_detail(analyses.bet_detail(sp, pk, days)))
 
 
-def _considered() -> int:
-    """Nb de matchs analysés à venir ou en cours (base du « X analysés → Y value »)."""
-    return sum(1 for sp in ("foot", "tennis", "basket") for d in analyses.list_for(sp)
-               if analyses.status_of(d) in ("notstarted", "inprogress"))
-
-
 async def _home_match_rows(include_finished: bool = False) -> list:
     """TOUTES les rencontres analysées À VENIR / EN COURS (tous sports confondus), au format
     `_sport_row`, triées par coup d'envoi (le plus proche d'abord). Réutilise les constructeurs de
@@ -348,13 +342,11 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
     return HTMLResponse(body)
 
 
-@router.get("/paris", response_class=HTMLResponse)
-async def paris_page() -> HTMLResponse:
-    """Page dédiée « 🎯 Paris à jouer » : tous les paris de value retenus + bankroll simulée."""
-    reco = mybets.recommended_bets()
-    mybets.sync_simulation(reco)            # enregistrement silencieux (track record)
-    body = web.render_paris_a_jouer(reco, _considered())
-    return HTMLResponse(web.layout("Paris à jouer", "home", body, menu="paris"))
+@router.get("/paris")
+async def paris_redirect() -> RedirectResponse:
+    """Page « Paris à jouer » RETIRÉE (2026-06-12) : les paris retenus restent dans les analyses,
+    marqués ⭐ (carte repliée + cadre déplié). Redirection douce pour les liens en cache mobile."""
+    return RedirectResponse("/", status_code=308)
 
 
 @router.get("/stats", response_class=HTMLResponse)

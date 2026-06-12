@@ -1990,7 +1990,6 @@ _TERM_JS = (
 _DRAWER_ITEMS = [
     ("Principal", [
         ("home", "/", "🏠", "Accueil"),
-        ("paris", "/paris", "🎯", "Paris à jouer"),
         ("stats", "/stats", "📊", "Statistiques"),
     ]),
     ("Sports", [
@@ -2460,75 +2459,6 @@ def render_stats(full: dict | None, since: str = "") -> str:
 _SPORT_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
 
 
-def _paj_card(r: dict) -> str:
-    """Une carte « pari à jouer » premium : affiche, PRONOSTIC + grosse cote, barre de CONFIANCE,
-    value, mise simulée, boutons SofaScore/Unibet carrés, analyse dépliable au tap."""
-    e = html.escape
-    ic = _SPORT_ICON.get(r.get("sport"), "")
-    sport_lbl = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}.get(r.get("sport"), "")
-    when = fmt_local(r.get("start"), with_date=True) or ""
-    live = '<span class="paj-live">● LIVE</span>' if r.get("status") == "inprogress" else ""
-    prob = r.get("prob")
-    cbar = ""
-    if prob:
-        lvl = "hi" if prob >= 65 else ("mid" if prob >= 52 else "lo")
-        cbar = (f'<div class="paj-conf"><div class="paj-conf-head">'
-                f'<span>Confiance</span><b>{prob}%</b></div>'
-                f'<div class="paj-conf-bar"><span class="paj-conf-fill {lvl}" '
-                f'style="width:{min(int(prob), 100)}%"></span></div></div>')
-    # Mise EXPRIMÉE EN % (jamais en € ni en « unités ») — exigence utilisateur.
-    stakechip = (f'<span class="paj-chip">💰 mise {r["stake_pct"]:g}%</span>'
-                 if r.get("stake_pct") is not None else "")
-    ev = r.get("ev")
-    valchip = f'<span class="paj-chip pos">📈 Value +{ev}%</span>' if ev else ""
-    # SofaScore : pas de target="_blank" (universal link -> app, sinon onglet about:blank orphelin).
-    sofa = (f'<a class="lnk-bn lnk-bn-sofa" href="{e(r["sofa_url"])}" '
-            'rel="noopener" aria-label="Voir sur SofaScore" title="Voir sur SofaScore">'
-            '<span class="lnk-dot"></span>SofaScore<span class="lnk-arr">↗</span></a>'
-            if r.get("sofa_url") else "")
-    # Unibet : NOUVEL onglet -> BETSFIX reste ouvert derrière (universal link ouvre l'app si dispo).
-    uni = (f'<a class="lnk-bn lnk-bn-uni" href="{e(r["unibet_url"])}" target="_blank" '
-           'rel="noopener" aria-label="Jouer sur Unibet" title="Jouer sur Unibet">'
-           '<span class="lnk-dot"></span>Unibet<span class="lnk-arr">↗</span></a>'
-           if r.get("unibet_url") else "")
-    links = f'<div class="da-links">{sofa}{uni}</div>' if (sofa or uni) else ""
-    url = r.get("url") or ""
-    exp, expand, attr = "", "", ""
-    if url:
-        sep = "&" if "?" in url else "?"
-        expand = '<span class="paj-see"><span class="exp-chev">▾</span> Analyse</span>'
-        exp = '<div class="exp" hidden></div>'
-        attr = f' rowtap" data-exp="{e(url)}{sep}frag=1'
-    return (
-        f'<div class="paj{attr}">'
-        f'<div class="paj-top">'
-        f'<span class="paj-team"><span class="paj-ic">{ic}</span>'
-        f'<span class="paj-names">{e(_noF(r["home"]))} <i>vs</i> {e(_noF(r["away"]))}'
-        f'<span class="paj-comp">{e(sport_lbl)}</span></span></span>'
-        f'<span class="paj-when">{e(when)}{live}</span></div>'
-        f'<div class="paj-pick">'
-        f'<span class="paj-pick-l"><span class="paj-tag">PRONOSTIC</span>'
-        f'<span class="paj-sel">{e(r["sel"])}</span></span>'
-        f'<span class="paj-odd">{r["cote"]:g}<small>cote</small></span></div>'
-        f'{cbar}'
-        f'<div class="paj-meta">{valchip}{stakechip}</div>'
-        f'{links}'
-        f'<div class="paj-foot">{expand}</div>'
-        f'{exp}</div>')
-
-
-def render_paris_a_jouer(reco: list, considered: int = 0) -> str:
-    """Page « 🎯 Paris à jouer » : une carte par value retenue (plus de bandeau bankroll —
-    UI simulation retirée le 2026-06-12 ; le pari retenu porte une ⭐ sur les cadres)."""
-    if reco:
-        cards = "".join(_paj_card(r) for r in reco)
-    else:
-        cards = ('<div class="paj-empty">😴 Aucun pari de value pour l\'instant.<br>'
-                 '<span>S\'abstenir quand il n\'y a pas de value, c\'est déjà gagner.</span></div>')
-    basis = (f'<div class="paj-basis">🔎 {considered} match(s) analysé(s) · top 3/sport · 24h · '
-             f'tout le marché Unibet → <b>{len(reco)} value</b> retenue(s), le reste écarté (SKIP).</div>')
-    return (f'<div class="paj-h"><span>🎯 Paris à jouer</span></div>'
-            f'{basis}{cards}')
 
 
 def _dash_stats(stats: dict | None) -> str:
@@ -3297,7 +3227,7 @@ def render_directs(sections: list, frag: bool = False) -> str:
             '<div class="le-sub">Les scores en temps réel — set par set, quart-temps — '
             's\'affichent ici dès qu\'une rencontre analysée démarre.</div>'
             '<div class="le-cta">'
-            '<a class="le-btn le-btn-p" href="/paris">🎯 Paris à jouer</a>'
+            '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
             '<a class="le-btn" href="/foot">🗓️ À venir</a>'
             '</div></div>')
     body = "".join(out)
