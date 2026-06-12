@@ -3174,7 +3174,6 @@ def render_directs(sections: list, frag: bool = False) -> str:
             's\'affichent ici dès qu\'une rencontre analysée démarre.</div>'
             '<div class="le-cta">'
             '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
-            '<a class="le-btn" href="/foot">🗓️ À venir</a>'
             '</div></div>')
     body = "".join(out)
     return body if frag else spa_shell("directs", "Live", body)
