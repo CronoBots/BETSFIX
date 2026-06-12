@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import glob
 import json
 import os
 import re
@@ -181,6 +182,41 @@ def _fiche_id(sport: str, match: dict, store: dict) -> str | None:
         if (rh & mh and ra & ma) or (rh & ma and ra & mh):
             hits.append(str(k))
     return hits[0] if len(hits) == 1 else None
+
+
+def _purge_duplicates(sport: str, fid: str, m: dict) -> None:
+    """REMPLACE l'ancien scan d'un MÊME match re-publié sous un AUTRE id (Unibet qui re-liste,
+    reprogrammation pluie, id Sofa résolu différemment) : supprime les sidecars du même sport aux
+    MÊMES équipes dont le coup d'envoi est à ≤ 30 h du nouveau — SAUF s'ils sont déjà RÉGLÉS
+    (un match d'une série de playoffs déjà joué = de l'historique, on n'y touche jamais)."""
+    new_ts = _kickoff_ts(m.get("start") or "")
+    mh, ma = _norm(m.get("home", "")), _norm(m.get("away", ""))
+    if new_ts is None or not mh or not ma:
+        return
+    for p in glob.glob(os.path.join(OUT, f"{sport}_*.json")):
+        oid = os.path.basename(p)[len(sport) + 1:-5]
+        if oid == str(fid):
+            continue
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        oh, oa = _norm(d.get("home", "")), _norm(d.get("away", ""))
+        if not ((oh & mh and oa & ma) or (oh & ma and oa & mh)):
+            continue
+        ots = _kickoff_ts(d.get("start") or "")
+        if ots is None or abs(ots - new_ts) > 30 * 3600:
+            continue                       # trop éloigné = autre manche de la série, on garde
+        settled = bool((d.get("result") or {}).get("score")) or any(
+            b.get("result") for b in (d.get("bets") or []))
+        if settled:
+            continue                       # déjà réglé = historique/track record, intouchable
+        for ext in (".json", ".md"):
+            try:
+                os.remove(p[:-5] + ext)
+            except OSError:
+                pass
+        print(f"  · doublon remplacé : {sport}_{oid} ({d.get('name', '?')}) -> {sport}_{fid}")
 
 
 def _fresh(path: str) -> bool:
@@ -665,6 +701,7 @@ async def main():
                 votes = await _fetch_votes(client, sport, sofa_id)
                 surl = await _sofa_url(sofa_id)
                 _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl)   # méta -> board
+                _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien
                 n_gen += 1
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
                 await asyncio.sleep(SCAN_GAP)   # lisse la charge SofaScore entre 2 matchs

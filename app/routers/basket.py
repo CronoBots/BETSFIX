@@ -47,7 +47,8 @@ async def _analyst_rows() -> tuple[list[dict], list[dict]]:
         # STATUT + HEURE pilotés par UNIBET (temps réel) : le coup d'envoi du sidecar peut être PÉRIMÉ
         # -> match affiché « live » alors qu'il n'a pas commencé. Unibet a le score live ET l'heure fraîche.
         lf = web.live_fields(match_select.live_state_for("basket", d.get("home"), d.get("away")), "basket")
-        st, usdt = match_select.fresh_status("basket", d.get("home"), d.get("away"), st, bool(lf.get("score")))
+        st, usdt = match_select.fresh_status("basket", d.get("home"), d.get("away"), st,
+                                             bool(lf.get("score")), start_iso=d.get("start"))
         if usdt is not None:
             dt = usdt
         fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))

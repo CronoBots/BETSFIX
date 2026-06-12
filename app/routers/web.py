@@ -289,7 +289,8 @@ async def _home_match_rows(include_finished: bool = False) -> list:
             st = analyses.status_of(d)
             # STATUT + HEURE pilotés par UNIBET (le sidecar peut être périmé -> faux « live »)
             lf0 = web.live_fields(match_select.live_state_for("tennis", d.get("home"), d.get("away")), "tennis")
-            st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st, bool(lf0.get("score")))
+            st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st,
+                                                 bool(lf0.get("score")), start_iso=d.get("start"))
             if st not in ("notstarted", "inprogress") and not include_finished:
                 continue
             dt = usdt or d.get("_start_dt")
@@ -562,7 +563,8 @@ async def directs_page(
             # STATUT piloté par UNIBET : un coup d'envoi sidecar périmé ne doit pas faire passer le
             # match en « live » s'il n'a pas commencé côté Unibet (heure fraîche / pas de score).
             lf = web.live_fields(match_select.live_state_for(sport, d.get("home"), d.get("away")), sport)
-            st, usdt = match_select.fresh_status(sport, d.get("home"), d.get("away"), st, bool(lf.get("score")))
+            st, usdt = match_select.fresh_status(sport, d.get("home"), d.get("away"), st,
+                                                 bool(lf.get("score")), start_iso=d.get("start"))
             if st != "inprogress":
                 continue
             dt = usdt or d.get("_start_dt")

@@ -1699,9 +1699,11 @@ CSS = """
   .mb-play,.mb-del,.src,.paj-live,.dd-cote,.mb-stat,.dash-next,.paj-basis b,
   .da-bets-hint,.cal-v-t,.fpick-t,.plg-tab,.an-tag{
        text-transform:uppercase;letter-spacing:.03em}
-  /* ⭐ pari RETENU par le moteur (ex-mode bankroll, UI retirée) : étoile à droite du nom du pari */
+  /* ⭐ pari RETENU par le moteur (ex-mode bankroll, UI retirée) : étoile à droite du nom du pari,
+     sur le CADRE déplié ET sur la ligne de la carte repliée */
   .da-bk-star{font-size:13px;vertical-align:1px;
        filter:drop-shadow(0 0 6px rgba(246,197,74,.65))}
+  .mc-star{font-size:10px;filter:drop-shadow(0 0 5px rgba(246,197,74,.6))}
   /* Graphique combiné /stats (3 sports sur 1 graphe) + légende */
   .sx-allchart{margin:2px 0 12px}
   .sx-legend{display:flex;gap:16px;justify-content:center;margin-top:5px}
@@ -3179,13 +3181,15 @@ def _sport_row(r: dict) -> str:
         badge = f'<span class="mc-badge mc-up">{e(starthm) or "À venir"}</span>'
     # L3 : LISTE des paris (une ligne par pari = juste l'intitulé, sans détail) ; terminé : ✅/❌ par pari.
     rows3 = []
-    for b in (summ.get("bets") or []):
+    reco_i = summ.get("reco_idx")          # pari RETENU par le moteur -> ⭐ aussi en mode replié
+    for i, b in enumerate(summ.get("bets") or []):
         if is_finished:
             ic = {"won": "✅", "lost": "❌", "push": "➖"}.get(b.get("result"), "•")
         else:
             ic = "•"
+        star = ' <span class="mc-star">⭐</span>' if i == reco_i else ""
         rows3.append(f'<div class="mc-betl"><span class="mc-bi">{ic}</span>'
-                     f'<span class="mc-bt">{e(b.get("sel", ""))}</span></div>')
+                     f'<span class="mc-bt">{e(b.get("sel", ""))}{star}</span></div>')
     line3 = "".join(rows3)
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')

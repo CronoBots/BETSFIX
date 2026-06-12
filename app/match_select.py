@@ -114,15 +114,22 @@ def unibet_meta_for(sport: str, home: str, away: str) -> dict | None:
 
 
 def fresh_status(sport: str, home: str, away: str, sidecar_status: str,
-                 has_live_score: bool, now=None) -> tuple:
+                 has_live_score: bool, now=None, start_iso: str | None = None) -> tuple:
     """Statut + heure de début EFFECTIFS, PILOTÉS PAR UNIBET (temps réel) plutôt que par l'heuristique
     de temps sur le sidecar (qui peut être PÉRIMÉE -> match affiché « live » alors qu'il n'a pas
     commencé). Renvoie (status, start_dt_unibet|None) :
-    - score live Unibet -> 'inprogress' ; coup d'envoi Unibet FUTUR -> 'notstarted' ; sinon le sidecar."""
+    - score live Unibet -> 'inprogress' ; coup d'envoi Unibet FUTUR -> 'notstarted' ; sinon le sidecar.
+    `start_iso` (coup d'envoi du SIDECAR) : si Unibet annonce un coup d'envoi à PLUS DE 12 H de
+    celui du sidecar, c'est un AUTRE match de la même affiche (série de playoffs : mêmes équipes
+    plusieurs fois) -> on IGNORE les données live Unibet (sinon le match du 10 « vole » le score
+    live de celui du 12 et un terminé remonte en En direct, bug vécu 2026-06-12)."""
     from datetime import datetime, timezone
     now = now or datetime.now(timezone.utc)
     um = unibet_meta_for(sport, home, away) or {}
     sdt = _start_dt(um.get("start")) if um.get("start") else None
+    own = _start_dt(start_iso) if start_iso else None
+    if sdt is not None and own is not None and abs((sdt - own).total_seconds()) > 12 * 3600:
+        return sidecar_status, None       # le live Unibet appartient à un autre match de la série
     if has_live_score:
         return "inprogress", sdt
     if sdt is not None and sdt > now:
