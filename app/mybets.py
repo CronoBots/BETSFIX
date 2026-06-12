@@ -80,7 +80,16 @@ def recommended_bets() -> list:
         if sport in ex_sports:                           # sport exclu par la calibration (preuve suffisante)
             continue
         for d in analyses.list_for(sport):
-            if analyses.status_of(d) not in ("notstarted", "inprogress"):
+            # Statut PILOTÉ PAR UNIBET (même logique que les cartes des onglets) : un match
+            # RETARDÉ est « finished » à l'horloge alors qu'il est réellement EN COURS -> il
+            # disparaissait de Paris à jouer tout en restant ⭐ sur sa carte (vécu 2026-06-12).
+            from app import match_select
+            st = analyses.status_of(d)
+            ls = match_select.live_state_for(sport, d.get("home"), d.get("away"))
+            st, _ = match_select.fresh_status(sport, d.get("home"), d.get("away"), st,
+                                              bool((ls or {}).get("score")),
+                                              start_iso=d.get("start"))
+            if st not in ("notstarted", "inprogress"):
                 continue
             bets = analyses.bets_of(sport, d.get("id"))
             # On ne recommande (et ne simule) QUE des paris : (a) RÉGLABLES (sinon track-record faux),
@@ -105,7 +114,7 @@ def recommended_bets() -> list:
                         "cote": b["cote"], "prob": b.get("prob"), "ev": reco["ev"],
                         "stake_pct": reco["stake_pct"],
                         "stake_eur": (round(bk * reco["stake_pct"] / 100, 2) if bk else None),
-                        "start": d.get("start", ""), "status": analyses.status_of(d),
+                        "start": d.get("start", ""), "status": st,
                         "comp": d.get("comp", ""), "url": url,
                         "sofa_url": d.get("sofa_url"), "unibet_url": d.get("unibet_url")})
     out.sort(key=lambda x: x["start"] or "")
