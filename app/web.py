@@ -1711,6 +1711,9 @@ CSS = """
        padding:9px 12px;border:1px solid var(--border);border-top:0;
        border-radius:0 0 14px 14px;background:var(--surface);font-size:11.5px}
   .mb-simstrip .mb-play{margin:0 0 0 auto;padding:8px 12px;font-size:10.5px}
+  .mb-simstrip .mb-delf{margin-left:auto}
+  .mb-strip-sel{color:var(--muted);max-width:46%;overflow:hidden;text-overflow:ellipsis;
+       white-space:nowrap}
   /* ===== Animations premium (cascade d'apparition, skeleton, micro-interactions) =====
      Gating : la cascade ne joue qu'au PREMIER rendu (body.boot, retirée ~1 s après par _ANIM_JS)
      -> le refresh live 45 s (innerHTML remplacé) ne fait PAS re-clignoter les cartes. */
@@ -2721,6 +2724,21 @@ def render_mybets(s: dict, items: list, reco: list | None = None,
     rows = []
     for it in items:
         cls, txt = _mybet_status(it)
+        delf = (f'<form class="mb-delf" method="post" action="/mybets/del">'
+                f'<input type="hidden" name="id" value="{it["id"]}">'
+                f'<button class="mb-del" type="submit">supprimer</button></form>')
+        row = (rows_by_match or {}).get((it.get("home"), it.get("away")))
+        if row:
+            # MÊME carte que le reste du site (à venir/en cours/terminé, ✅/❌ par pari, analyse
+            # dépliable) + bandeau simulation accolé : pari joué, mise @ cote, résultat €, suppr.
+            sim = '<span class="mb-sim">SIM</span>' if it.get("sim") else ""
+            strip = (f'<div class="mb-simstrip">{sim}'
+                     f'<span class="mb-strip-sel">{e(it.get("sel", ""))}</span>'
+                     f'<span class="mb-stake">{it["stake"]:g} € @ {it["odds"]:g}</span>'
+                     f'<span class="mb-stat {cls}">{txt}</span>{delf}</div>')
+            rows.append(f'<div class="mb-recowrap">{_sport_row(row)}{strip}</div>')
+            continue
+        # repli (match sorti des onglets : très ancien) : ancienne ligne compacte
         when = fmt_local(it.get("start"), with_date=True) or ""
         rows.append(
             f'<div class="mb-row"><div class="mb-row-top"><span class="mb-match">'
@@ -2730,9 +2748,7 @@ def render_mybets(s: dict, items: list, reco: list | None = None,
             f'P{it["pari"] + 1} · {e(it.get("sel", ""))}</div>'
             f'<div class="mb-line"><span class="mb-stake">{it["stake"]:g} € @ {it["odds"]:g}</span>'
             f'<span class="mb-stat {cls}">{txt}</span></div>'
-            f'<form class="mb-delf" method="post" action="/mybets/del">'
-            f'<input type="hidden" name="id" value="{it["id"]}">'
-            f'<button class="mb-del" type="submit">supprimer</button></form></div>')
+            f'{delf}</div>')
     lst = "".join(rows) or '<div class="mb-empty">Aucun pari simulé pour le moment.</div>'
     return (f'<div class="mb"><h1 class="mb-h">💼 Simulation bankroll</h1>{head}'
             f'{_mybets_assistant(reco or [], bankroll, considered, rows_by_match)}'

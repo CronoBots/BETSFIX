@@ -50,7 +50,7 @@ def _free_port() -> int:
     return port
 
 
-async def shoot(url: str, out: str, wait: float = 2.5) -> None:
+async def shoot(url: str, out: str, wait: float = 2.5, height: int = 844) -> None:
     import websockets
 
     port = _free_port()
@@ -89,7 +89,7 @@ async def shoot(url: str, out: str, wait: float = 2.5) -> None:
                         return m
 
             await cmd("Emulation.setDeviceMetricsOverride",
-                      {"width": 390, "height": 844, "deviceScaleFactor": 2, "mobile": True})
+                      {"width": 390, "height": height, "deviceScaleFactor": 2, "mobile": True})
             await cmd("Emulation.setTouchEmulationEnabled", {"enabled": True})
             await cmd("Page.enable")
             await cmd("Page.navigate", {"url": url})
@@ -114,5 +114,7 @@ if __name__ == "__main__":
     ap.add_argument("url", nargs="?", default="http://127.0.0.1:8000/")
     ap.add_argument("out", nargs="?", default=os.path.join("data", "screenshot_mobile.png"))
     ap.add_argument("--wait", type=float, default=2.5)
+    ap.add_argument("--height", type=int, default=844,
+                    help="hauteur du viewport (ex. 3000 pour voir le bas d'une longue page)")
     a = ap.parse_args()
-    asyncio.run(shoot(a.url, a.out, a.wait))
+    asyncio.run(shoot(a.url, a.out, a.wait, a.height))

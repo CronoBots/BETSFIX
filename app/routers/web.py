@@ -265,31 +265,32 @@ def _considered() -> int:
                if analyses.status_of(d) in ("notstarted", "inprogress"))
 
 
-async def _home_match_rows() -> list:
+async def _home_match_rows(include_finished: bool = False) -> list:
     """TOUTES les rencontres analysées À VENIR / EN COURS (tous sports confondus), au format
     `_sport_row`, triées par coup d'envoi (le plus proche d'abord). Réutilise les constructeurs de
-    lignes des onglets sport -> même rendu compact partout."""
+    lignes des onglets sport -> même rendu compact partout. `include_finished=True` ajoute AUSSI
+    les cartes « Terminés » (score réel + ✅/❌ par pari) — sert à la page Simulation bankroll."""
     from app import foot as foot_mod, basket as basket_mod
     from app.routers import foot as foot_r, basket as basket_r
     out = []
     try:
-        frows, _ = await foot_r._analyst_rows("foot")
-        out += [foot_mod._card(r) for r in frows]
+        frows, ffin = await foot_r._analyst_rows("foot")
+        out += [foot_mod._card(r) for r in (*frows, *(ffin if include_finished else ()))]
     except Exception:
         pass
     try:
-        brows, _ = await basket_r._analyst_rows()
-        out += [basket_mod._card(r) for r in brows]
+        brows, bfin = await basket_r._analyst_rows()
+        out += [basket_mod._card(r) for r in (*brows, *(bfin if include_finished else ()))]
     except Exception:
         pass
-    try:                                                   # tennis (à venir + en cours uniquement)
+    try:                                                   # tennis
         live = await match_select.fetch_live_odds("tennis")
         for d in analyses.list_for("tennis"):
             st = analyses.status_of(d)
             # STATUT + HEURE pilotés par UNIBET (le sidecar peut être périmé -> faux « live »)
             lf0 = web.live_fields(match_select.live_state_for("tennis", d.get("home"), d.get("away")), "tennis")
             st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st, bool(lf0.get("score")))
-            if st not in ("notstarted", "inprogress"):
+            if st not in ("notstarted", "inprogress") and not include_finished:
                 continue
             dt = usdt or d.get("_start_dt")
             tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
@@ -310,8 +311,16 @@ async def _home_match_rows() -> list:
                 # en cours sans score live : s'il a assez tourné -> il est en fait fini (Terminés du sport,
                 # pas l'accueil) ; sinon on le GARDE (« En cours », sans scoreboard) pour qu'il reste visible.
                 if not r.get("score") and analyses.likely_finished(d):
-                    continue
-            out.append({**_tennis_trow(r), **bars})
+                    if not include_finished:
+                        continue
+                    st = r["status"] = "finished"
+            card = {**_tennis_trow(r), **bars}
+            if st == "finished":         # carte « Terminés » (score réel + badge), comme l'onglet
+                brd = analyses.result_board(d, "tennis")
+                bdg, sco = analyses.result_chip(d)
+                card["score"] = brd["score"] or sco or "terminé"
+                card["badge"] = bdg
+            out.append(card)
     except Exception:
         pass
     out.sort(key=lambda x: x.get("start_ts") or 0)         # coup d'envoi le plus proche d'abord
@@ -363,9 +372,10 @@ async def my_bets_page() -> HTMLResponse:
     items.sort(key=lambda x: (x.get("pnl") is not None, x.get("start") or ""))
     considered = sum(1 for sp in ("foot", "tennis", "basket") for d in analyses.list_for(sp)
                      if analyses.status_of(d) in ("notstarted", "inprogress"))
-    # Lignes au FORMAT ACCUEIL pour les recos (même constructeur de carte -> rendu identique),
-    # indexées par (home, away) — mêmes chaînes (toutes deux issues du sidecar).
-    rows_by_match = {(r.get("home"), r.get("away")): r for r in await _home_match_rows()}
+    # Lignes au FORMAT DU SITE pour les recos ET l'historique (même constructeur de carte,
+    # terminés inclus), indexées par (home, away) — mêmes chaînes (toutes issues du sidecar).
+    rows_by_match = {(r.get("home"), r.get("away")): r
+                     for r in await _home_match_rows(include_finished=True)}
     body = web.render_mybets(mybets.summary(items), items,
                              mybets.recommended_bets(), mybets.bankroll(), considered,
                              rows_by_match)
