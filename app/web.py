@@ -2328,27 +2328,22 @@ def _drill(url: str, inner: str, cls: str) -> str:
 
 
 def _sport_card(s: dict, sport: str, label: str, icon: str, since: str,
-                chart: bool = True, header: bool = True, color: str | None = None) -> str:
-    """Section d'un sport : ligne bilan + courbe d'équité LISSÉE (tous les paris du sport
-    confondus — la distinction pari 1/2/3 est RETIRÉE depuis le 2026-06-12 : redondante avec la
-    calibration, et le mode strict ne liste souvent qu'un pari) + ligne drill-down vers les matchs.
-    `color` : couleur du sport (graphique combiné /stats) ; défaut = vert/rouge selon le ROI."""
+                color: str | None = None) -> str:
+    """UNE SEULE ligne bilan par sport (fusion en-tête + sous-titre + ligne « tous les paris »,
+    2026-06-12 : les mêmes chiffres apparaissaient 2-3 fois). Icône + nom + ROI + gagnés/réglés
+    · % + cote moy., tap -> liste des matchs. La courbe vit dans le graphique COMBINÉ au-dessus.
+    `color` : couleur d'identité du sport ; défaut = vert/rouge selon le ROI."""
     roi = s.get("roi")
     color = color or ("#34d27b" if (roi or 0) >= 0 else "#ff6b6b")
     cote = f'@{s["avg_odds"]:g}' if s.get("avg_odds") else "—"
     main = (f'<div class="sx-row-main"><span class="bc-dot" style="background:{color}"></span>'
-            f'<span class="sx-row-n">Tous les paris</span>'
+            f'<span class="sx-row-n">{icon} {label}{_ind(s.get("settled"))}</span>'
             f'<span class="sx-row-roi arec-{_roi_cls(roi, s.get("settled"))}">{_roistr(roi)}</span>'
             f'<span class="sx-row-wl">{s["won"]}/{s["settled"]} · {s["pct"]}%</span>'
             f'<span class="sx-row-c">{cote}</span><span class="sx-row-chev">›</span></div>')
-    rows = [_drill(f'/stats/detail?sport={sport}&since={since}', main, "sx-row")]
-    sub = f'{s["settled"]} paris · {s["pct"]}% réussite · cote moy. {s.get("avg_odds") or "—"}'
-    hdr = (f'<div class="sx-sport-h"><span class="sx-sport-t">{icon} {label}</span>'
-           f'<span class="sx-sport-roi arec-{_roi_cls(roi, s.get("settled"))}">ROI {_roistr(roi)}</span></div>'
-           f'<div class="sx-sport-sub">{sub} {_ind(s.get("settled"))}</div>') if header else ""
-    curves = [{"color": color, "points": s.get("points") or []}]
-    return (f'<div class="sx-sport" data-sport="{sport}">{hdr}'
-            f'{_svg_bet_chart(curves) if chart else ""}<div class="sx-rows">{"".join(rows)}</div></div>')
+    return (f'<div class="sx-sport" data-sport="{sport}"><div class="sx-rows">'
+            + _drill(f'/stats/detail?sport={sport}&since={since}', main, "sx-row")
+            + '</div></div>')
 
 
 def _streak_chip(streak) -> str:
@@ -2428,7 +2423,8 @@ def render_stats(full: dict | None, since: str = "") -> str:
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
         f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}{_form_dots(ov.get("form") or [])}</div></div>'
-        f'<div class="sx-hero-chart">{_hero_chart(ov.get("points") or [], since or "all")}</div>'
+        # (courbe globale RETIRÉE le 2026-06-12 : redondante avec le graphique combiné par sport
+        # juste en dessous — le global est la somme des 3 courbes.)
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
@@ -2451,7 +2447,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
         for _sk, lbl, ic, col in active)
     combined = (f'<div class="sx-allchart">{_svg_bet_chart(curves)}'
                 f'<div class="sx-legend">{legend}</div></div>') if curves else ""
-    scards = [_sport_card(bs[sk], sk, lbl, ic, since, chart=False, color=col)
+    scards = [_sport_card(bs[sk], sk, lbl, ic, since, color=col)
               for sk, lbl, ic, col in active]
     sports = (('<div class="sx-bys"><div class="sx-h">📈 Détail par sport'
                '<span>tap une ligne → les matchs</span></div>'
@@ -2826,7 +2822,7 @@ def render_sport_perf(sport: str) -> str:
             + kpi(f'@{s.get("avg_odds") or "—"}', "Cote moy."))
     # Détail INTÉGRÉ au MÊME cadre (repliable) : par pari + calibration par TYPE DE PARI de ce sport.
     g = (analyses.calibration().get("by_sport") or {}).get(label) or {}
-    det = [_sport_card(s, sport, label, icon, "", chart=False, header=False)]
+    det = [_sport_card(s, sport, label, icon, "")]
     mk_rows = "".join(_calib_line(mk, mg, sub=True) for mk, mg in (g.get("markets") or {}).items())
     if mk_rows:
         det.append('<div class="calg-h">Calibration · par type de pari</div>'
