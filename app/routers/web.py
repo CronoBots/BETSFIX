@@ -325,8 +325,10 @@ async def _home_match_rows(include_finished: bool = False) -> list:
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider),
                frag: int = 0) -> HTMLResponse:
-    """Accueil : aperçu de la simulation + stats principales + TOUS les matchs à venir/en cours
-    (format compact, tous sports mélangés, par ordre de passage). La nav passe par le menu ☰."""
+    """Accueil : stats principales + les matchs À VENIR uniquement (format compact, tous sports
+    mélangés, par ordre de passage). Les matchs EN COURS vivent dans l'onglet 🟢 Live (demande
+    utilisateur 2026-06-12 : pas de doublon accueil/live, et un live qui démarre n'a parfois pas
+    encore de score -> badge « LIVE » nu peu lisible). La nav passe par le menu ☰."""
     if frag:   # panneau partagé (pas de données par utilisateur) -> cache court anti-rafale
         cached = fragcache.get("panel/home")
         if cached:
@@ -334,8 +336,10 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
     # Track record SILENCIEUX : on continue d'enregistrer chaque pari retenu (calibration future),
     # mais l'UI bankroll/simulation est retirée (demande utilisateur 2026-06-12).
     mybets.sync_simulation()
-    rows = await _home_match_rows()
-    body = web.render_dashboard(analyses.stats_full(), rows,
+    all_rows = await _home_match_rows()
+    live_n = sum(1 for r in all_rows if r.get("status") == "inprogress")
+    rows = [r for r in all_rows if r.get("status") != "inprogress"]
+    body = web.render_dashboard(analyses.stats_full(), rows, live_count=live_n,
                                 frag=bool(frag), source=provider.breaker_status())
     if frag:
         fragcache.put("panel/home", body, ttl=PANEL_TTL)

@@ -1704,6 +1704,13 @@ CSS = """
   .da-bk-star{font-size:13px;vertical-align:1px;
        filter:drop-shadow(0 0 6px rgba(246,197,74,.65))}
   .mc-star{font-size:10px;filter:drop-shadow(0 0 5px rgba(246,197,74,.6))}
+  /* Bandeau « N matchs en direct -> Live » sur l'accueil (les lives ne sont plus listés ici) */
+  .dash-livebar{display:flex;align-items:center;gap:9px;margin:14px 0 4px;padding:11px 14px;
+       border:1px solid rgba(52,210,123,.4);border-radius:14px;font-size:12.5px;color:var(--text);
+       background:linear-gradient(180deg,rgba(52,210,123,.10),rgba(52,210,123,.03))}
+  .dash-livebar .nr-dot{width:9px;height:9px;flex:none}
+  .dash-livebar-go{margin-left:auto;font-size:10px;font-weight:800;color:#34d27b;
+       text-transform:uppercase;letter-spacing:.04em}
   /* Graphique combiné /stats (3 sports sur 1 graphe) + légende */
   .sx-allchart{margin:2px 0 12px}
   .sx-legend{display:flex;gap:16px;justify-content:center;margin-top:5px}
@@ -2498,11 +2505,15 @@ def _dash_stats(stats: dict | None) -> str:
             '<span class="dash-stat-go">Voir les statistiques détaillées →</span></a>')
 
 
-def render_dashboard(stats: dict | None, match_rows: list, *,
+def render_dashboard(stats: dict | None, match_rows: list, *, live_count: int = 0,
                      frag: bool = False, source: dict | None = None) -> str:
-    """ACCUEIL : stats principales + TOUS les matchs à venir/en cours (format compact des onglets
-    sport, tous sports mélangés, triés par coup d'envoi). Pas de tuiles raccourcis (le menu ☰ +
-    la barre du bas suffisent). UI bankroll retirée (2026-06-12)."""
+    """ACCUEIL : stats principales + les matchs À VENIR uniquement (format compact des onglets
+    sport, tous sports mélangés, triés par coup d'envoi). Les EN COURS vivent dans l'onglet Live —
+    un mini-bandeau « N en direct → Live » les garde à un tap. UI bankroll retirée (2026-06-12)."""
+    livebar = ((f'<a class="dash-livebar" href="/directs"><span class="nr-dot"></span>'
+                f'<b>{live_count} match{"s" if live_count > 1 else ""} en direct</b>'
+                '<span class="dash-livebar-go">suivre dans Live →</span></a>')
+               if live_count else "")
     if match_rows:
         matches = ('<div class="dash-h"><span>🎯 Prochains matchs</span>'
                    f'<span class="dash-h-a">{len(match_rows)}</span></div>'
@@ -2510,7 +2521,7 @@ def render_dashboard(stats: dict | None, match_rows: list, *,
     else:
         matches = ('<div class="dash-h"><span>🎯 Prochains matchs</span></div>'
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    body = _dash_stats(stats) + matches
+    body = _dash_stats(stats) + livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 
