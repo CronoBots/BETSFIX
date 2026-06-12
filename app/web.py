@@ -1687,7 +1687,7 @@ CSS = """
   details.sec2>summary,.cal-h,.calg-h{
        text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}
   details.sec2>summary::before,.cal-h::before,.calg-h::before{content:"• ";color:var(--accent);font-weight:900}
-  .dash-h>span:first-child::before{content:"• ";color:var(--accent);font-weight:900}
+  /* (puce « • » et emojis retirés des titres de l'accueil — demande utilisateur 2026-06-12) */
   .dash-h>span:first-child{text-transform:uppercase;letter-spacing:.06em}
   /* Grands TITRES de page en MAJUSCULES (Archivo black) — adapté à TOUT le site */
   h1,h2,.pg-h,.mb-h,.mb-sec,.sporthd-t,.da-bets-h,.dash-top>span:first-child,
@@ -1704,6 +1704,9 @@ CSS = """
   .da-bk-star{font-size:13px;vertical-align:1px;
        filter:drop-shadow(0 0 6px rgba(246,197,74,.65))}
   .mc-star{font-size:10px;filter:drop-shadow(0 0 5px rgba(246,197,74,.6))}
+  /* Grande courbe d'équité de la carte Performance (accueil) */
+  .dperf-chart{margin:10px 0 2px}
+  .dperf-chart .sx-heroc{display:block;width:100%;height:88px}
   /* Bandeau « N matchs en direct -> Live » sur l'accueil (les lives ne sont plus listés ici) */
   .dash-livebar{display:flex;align-items:center;gap:9px;margin:14px 0 4px;padding:11px 14px;
        border:1px solid rgba(52,210,123,.4);border-radius:14px;font-size:12.5px;color:var(--text);
@@ -2469,14 +2472,15 @@ _SPORT_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
 
 
 def _dash_stats(stats: dict | None) -> str:
-    """Carte STATS principale : ROI global + mini-courbe d'équité + forme (5 derniers) + KPIs
-    (réussite, paris réglés, cote moy., série max), cliquable vers /stats. '' si aucun pari réglé."""
+    """Carte STATS principale : ROI global + GRANDE courbe d'équité (lissée, verte au-dessus du
+    zéro / rouge en dessous, grille + ligne du 0 + point final) + forme (5 derniers) + KPIs,
+    cliquable vers /stats. '' si aucun pari réglé."""
     ov = (stats or {}).get("overall") or {}
     if not ov.get("settled"):
         return ""
     roi = ov.get("roi")
     roicls = "pos" if (roi or 0) > 0 else ("neg" if (roi or 0) < 0 else "neu")
-    spark = _sparkline(ov.get("points") or [], "#34d27b" if (roi or 0) >= 0 else "#ff6b6b")
+    chart = _hero_chart(ov.get("points") or [], uid="dash")
     form = _form_dots(ov.get("form") or [])
     kpis = [(f'{ov.get("pct", 0)}%', "réussite"), (str(ov.get("settled", 0)), "paris réglés"),
             (f'{ov.get("avg_odds", 0):g}', "cote moy."), (str(ov.get("best_streak", 0)), "série max")]
@@ -2495,12 +2499,13 @@ def _dash_stats(stats: dict | None) -> str:
                      f'<span class="dsp-v {pc}">{pct}%</span>'
                      f'<span class="dsp-l">{lbl} · {s.get("won", 0)}/{s.get("settled", 0)}</span></div>')
     sports = f'<div class="dash-sports">{"".join(cells)}</div>' if cells else ""
-    return ('<div class="dash-h"><span>📊 Performance</span>'
+    return ('<div class="dash-h"><span>Performance</span>'
             '<a href="/stats" class="dash-h-a">détail →</a></div>'
             '<a class="dash-stat" href="/stats"><div class="dperf-top">'
             f'<div class="ds-k"><span class="ds-v {roicls} dperf-roi">{_roistr(roi)}</span>'
             f'<span class="ds-l">ROI global · {ov.get("won", 0)}/{ov.get("settled", 0)} gagnés</span></div>'
-            f'<div class="dperf-spk">{form}{spark}</div></div>'
+            f'<div class="dperf-spk">{form}</div></div>'
+            f'<div class="dperf-chart">{chart}</div>'
             f'<div class="dash-stat-row">{kp}</div>{sports}'
             '<span class="dash-stat-go">Voir les statistiques détaillées →</span></a>')
 
@@ -2515,11 +2520,11 @@ def render_dashboard(stats: dict | None, match_rows: list, *, live_count: int = 
                 '<span class="dash-livebar-go">suivre dans Live →</span></a>')
                if live_count else "")
     if match_rows:
-        matches = ('<div class="dash-h"><span>🎯 Prochains matchs</span>'
+        matches = ('<div class="dash-h"><span>Prochains matchs</span>'
                    f'<span class="dash-h-a">{len(match_rows)}</span></div>'
                    + _rows_by_day(match_rows))
     else:
-        matches = ('<div class="dash-h"><span>🎯 Prochains matchs</span></div>'
+        matches = ('<div class="dash-h"><span>Prochains matchs</span></div>'
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
     body = _dash_stats(stats) + livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
