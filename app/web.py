@@ -1699,11 +1699,9 @@ CSS = """
   .mb-play,.mb-del,.src,.paj-live,.dd-cote,.mb-stat,.dash-next,.paj-basis b,
   .da-bets-hint,.cal-v-t,.fpick-t,.plg-tab,.an-tag{
        text-transform:uppercase;letter-spacing:.03em}
-  /* Bandeau bankroll de l'ACCUEIL cliquable -> /mybets (Simulation bankroll) */
-  .paj-bank-a{display:block;color:inherit}
-  .paj-bank-a:active .paj-bank{transform:scale(.99)}
-  .paj-bank-go{display:block;margin-top:10px;font-size:10px;font-weight:800;color:var(--accent);
-       text-transform:uppercase;letter-spacing:.05em}
+  /* ⭐ pari RETENU par le moteur (ex-mode bankroll, UI retirée) : étoile à droite du nom du pari */
+  .da-bk-star{font-size:13px;vertical-align:1px;
+       filter:drop-shadow(0 0 6px rgba(246,197,74,.65))}
   /* Reco simulation au FORMAT ACCUEIL : carte .mc + bandeau simulation accolé dessous */
   .mb-recowrap{margin:9px 0}
   .mb-recowrap .row.mc{margin:0;border-bottom-left-radius:0;border-bottom-right-radius:0}
@@ -1814,21 +1812,11 @@ _COUNTDOWN_JS = (
 # préchargés en arrière-plan via ?frag=1), puis la nav du bas bascule les panneaux SANS
 # rechargement. Vanilla JS, ~0 dépendance. history.pushState garde l'URL/refresh cohérents.
 # Phase « boot » : la cascade d'apparition (CSS body.boot) ne joue qu'au PREMIER rendu ; la classe
-# saute après ~1 s -> les refresh live (45 s, innerHTML remplacé) ne re-déclenchent rien. Ensuite,
-# compteur de BANKROLL (la valeur « monte » vers le solde, comme les apps finance) — désactivé si
-# l'OS demande moins d'animations.
+# saute après ~1 s -> les refresh live (45 s, innerHTML remplacé) ne re-déclenchent rien.
+# (Le compteur de bankroll a été retiré avec l'UI simulation, 2026-06-12.)
 _ANIM_JS = (
     "(function(){var b=document.body;b.classList.add('boot');"
-    "setTimeout(function(){b.classList.remove('boot');},950);"
-    "if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;"
-    "var el=document.querySelector('.paj-bank-v');if(!el)return;"
-    "var t=(el.textContent||'').trim(),m=t.match(/-?\\d+(?:[.,]\\d+)?/);if(!m)return;"
-    "var v=parseFloat(m[0].replace(',','.')),dp=(m[0].split(/[.,]/)[1]||'').length;"
-    "if(!isFinite(v))return;var s=null;"
-    "function f(ts){if(!s)s=ts;var p=Math.min(1,(ts-s)/750);p=1-Math.pow(1-p,3);"
-    "el.textContent=t.replace(m[0],(v*p).toFixed(dp).replace('.',','));"
-    "if(p<1)requestAnimationFrame(f);else el.textContent=t;}"
-    "requestAnimationFrame(f);})();"
+    "setTimeout(function(){b.classList.remove('boot');},950);})();"
 )
 
 # Handlers de CARTES partagés (layout ET spa_shell) : accordéons data-exp, cartes compactes .mc,
@@ -1996,7 +1984,6 @@ _DRAWER_ITEMS = [
     ("Principal", [
         ("home", "/", "🏠", "Accueil"),
         ("paris", "/paris", "🎯", "Paris à jouer"),
-        ("mybets", "/mybets", "💼", "Simulation bankroll"),
         ("stats", "/stats", "📊", "Statistiques"),
     ]),
     ("Sports", [
@@ -2475,38 +2462,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
     return f'{hero}{paris}{sports}'
 
 
-def _mybet_status(it: dict) -> tuple:
-    """(classe, texte) du statut d'un pari joué pour l'affichage."""
-    res = it.get("result")
-    if res == "won":
-        return "mbs-w", f'✅ Gagné +{it["pnl"]:g} €'
-    if res == "lost":
-        return "mbs-l", f'❌ Perdu {it["pnl"]:g} €'
-    if res == "push":
-        return "mbs-p", "➖ Remboursé"
-    if it.get("status") == "inprogress":
-        return "mbs-live", "🟢 En direct"
-    if it.get("status") == "finished":
-        return "mbs-p", "⏳ Règlement en attente"
-    return "mbs-up", f'⏳ À venir · gain potentiel {it["potential"]:g} €'
-
-
 _SPORT_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
-
-
-def _paj_bank(sim: dict | None) -> str:
-    """Bandeau BANKROLL SIMULÉE (départ 100 €, évolue avec les résultats — aucune saisie)."""
-    sim = sim or {"start": 100.0, "balance": 100.0, "pnl": 0.0, "count": 0, "pending": 0, "settled": 0}
-    pnl = sim.get("pnl") or 0.0
-    chg_cls = "pos" if pnl > 0 else ("neg" if pnl < 0 else "neu")
-    chg_ar = "▲" if pnl > 0 else ("▼" if pnl < 0 else "■")
-    nb = sim.get("count", 0)
-    sub = (f'Bankroll simulée · départ {sim["start"]:g} € · {nb} pari{"s" if nb != 1 else ""} '
-           f'({sim.get("pending", 0)} en attente)')
-    return (f'<div class="paj-bank"><div class="paj-bank-top">'
-            f'<span class="paj-bank-v">{sim["balance"]:g} €</span>'
-            f'<span class="paj-bank-chg {chg_cls}">{chg_ar} {abs(pnl):g} €</span></div>'
-            f'<div class="paj-bank-sub">{sub}</div></div>')
 
 
 def _paj_card(r: dict) -> str:
@@ -2525,8 +2481,8 @@ def _paj_card(r: dict) -> str:
                 f'<span>Confiance</span><b>{prob}%</b></div>'
                 f'<div class="paj-conf-bar"><span class="paj-conf-fill {lvl}" '
                 f'style="width:{min(int(prob), 100)}%"></span></div></div>')
-    # Mise EXPRIMÉE EN % DE BANKROLL (jamais en € ni en « unités ») — exigence utilisateur.
-    stakechip = (f'<span class="paj-chip">💰 {r["stake_pct"]:g}% bankroll <i>sim</i></span>'
+    # Mise EXPRIMÉE EN % (jamais en € ni en « unités ») — exigence utilisateur.
+    stakechip = (f'<span class="paj-chip">💰 mise {r["stake_pct"]:g}%</span>'
                  if r.get("stake_pct") is not None else "")
     ev = r.get("ev")
     valchip = f'<span class="paj-chip pos">📈 Value +{ev}%</span>' if ev else ""
@@ -2566,8 +2522,9 @@ def _paj_card(r: dict) -> str:
         f'{exp}</div>')
 
 
-def render_paris_a_jouer(reco: list, sim: dict | None = None, considered: int = 0) -> str:
-    """Page « 🎯 Paris à jouer » : bandeau bankroll simulée + une carte par value retenue."""
+def render_paris_a_jouer(reco: list, considered: int = 0) -> str:
+    """Page « 🎯 Paris à jouer » : une carte par value retenue (plus de bandeau bankroll —
+    UI simulation retirée le 2026-06-12 ; le pari retenu porte une ⭐ sur les cadres)."""
     if reco:
         cards = "".join(_paj_card(r) for r in reco)
     else:
@@ -2575,36 +2532,8 @@ def render_paris_a_jouer(reco: list, sim: dict | None = None, considered: int = 
                  '<span>S\'abstenir quand il n\'y a pas de value, c\'est déjà gagner.</span></div>')
     basis = (f'<div class="paj-basis">🔎 {considered} match(s) analysé(s) · top 3/sport · 24h · '
              f'tout le marché Unibet → <b>{len(reco)} value</b> retenue(s), le reste écarté (SKIP).</div>')
-    return (f'<div class="paj-h"><span>🎯 Paris à jouer</span>'
-            f'<span class="paj-h-tag">SIMULATION</span></div>'
-            f'{_paj_bank(sim)}{basis}{cards}'
-            '<a class="paj-mblink" href="/mybets">💼 Détail & bilan des paris simulés →</a>')
-
-
-def _sim_overview(sim: dict | None) -> str:
-    """Aperçu SIMULATION (pro & complet) : solde simulé + variation + ligne de KPIs
-    (ROI, paris joués, réglés, en attente). Capital de départ 100 €, évolue avec les résultats."""
-    sim = sim or {"start": 100.0, "balance": 100.0, "pnl": 0.0, "staked": 0.0,
-                  "count": 0, "settled": 0, "pending": 0, "roi": None}
-    pnl = sim.get("pnl") or 0.0
-    cls = "pos" if pnl > 0 else ("neg" if pnl < 0 else "neu")
-    ar = "▲" if pnl > 0 else ("▼" if pnl < 0 else "■")
-    roi = sim.get("roi")
-    roicls = "pos" if (roi or 0) > 0 else ("neg" if (roi or 0) < 0 else "neu")
-    kpis = [(_roistr(roi), "ROI", roicls), (str(sim.get("count", 0)), "paris joués", ""),
-            (str(sim.get("settled", 0)), "réglés", ""), (str(sim.get("pending", 0)), "en attente", "")]
-    kp = "".join(f'<div class="ds-k"><span class="ds-v {c}">{v}</span>'
-                 f'<span class="ds-l">{l}</span></div>' for v, l, c in kpis)
-    # Tout le bandeau est CLIQUABLE -> page Simulation bankroll (/mybets), demande utilisateur.
-    return ('<div class="dash-top"><span>💰 Bankroll simulée</span>'
-            '<span class="paj-h-tag">SIMULATION</span></div>'
-            '<a class="paj-bank-a" href="/mybets">'
-            '<div class="paj-bank"><div class="paj-bank-top">'
-            f'<span class="paj-bank-v">{sim["balance"]:g} €</span>'
-            f'<span class="paj-bank-chg {cls}">{ar} {abs(pnl):g} €</span></div>'
-            f'<div class="paj-bank-sub">Capital de départ {sim["start"]:g} € · {sim.get("staked", 0):g} € misés</div>'
-            f'<div class="dash-stat-row sim-kpis">{kp}</div>'
-            '<span class="paj-bank-go">Voir la simulation & l\'historique →</span></div></a>')
+    return (f'<div class="paj-h"><span>🎯 Paris à jouer</span></div>'
+            f'{basis}{cards}')
 
 
 def _dash_stats(stats: dict | None) -> str:
@@ -2644,11 +2573,11 @@ def _dash_stats(stats: dict | None) -> str:
             '<span class="dash-stat-go">Voir les statistiques détaillées →</span></a>')
 
 
-def render_dashboard(sim: dict, stats: dict | None, match_rows: list, *,
+def render_dashboard(stats: dict | None, match_rows: list, *,
                      frag: bool = False, source: dict | None = None) -> str:
-    """ACCUEIL : aperçu simulation + stats principales + TOUS les matchs à venir/en cours (format
-    compact des onglets sport, tous sports mélangés, triés par coup d'envoi). Pas de tuiles
-    raccourcis (le menu ☰ + la barre du bas suffisent)."""
+    """ACCUEIL : stats principales + TOUS les matchs à venir/en cours (format compact des onglets
+    sport, tous sports mélangés, triés par coup d'envoi). Pas de tuiles raccourcis (le menu ☰ +
+    la barre du bas suffisent). UI bankroll retirée (2026-06-12)."""
     if match_rows:
         matches = ('<div class="dash-h"><span>🎯 Prochains matchs</span>'
                    f'<span class="dash-h-a">{len(match_rows)}</span></div>'
@@ -2656,103 +2585,10 @@ def render_dashboard(sim: dict, stats: dict | None, match_rows: list, *,
     else:
         matches = ('<div class="dash-h"><span>🎯 Prochains matchs</span></div>'
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    body = _sim_overview(sim) + _dash_stats(stats) + matches
+    body = _dash_stats(stats) + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 
-def _mybets_assistant(reco: list, bankroll, considered: int = 0,
-                      rows_by_match: dict | None = None) -> str:
-    """Section ASSISTANT : paris ✅ À JOUER détectés, rendus au MÊME FORMAT que les cartes de
-    l'accueil (`_sport_row`, via `rows_by_match` = {(home, away): row}) + bandeau simulation accolé
-    (value · mise conseillée · bouton Unibet). Repli sur l'ancienne carte si la ligne manque.
-    `considered` = nb de matchs analysés examinés (pour expliquer « X analysés · Y value »)."""
-    e = html.escape
-    basis = (f'<div class="mb-basis">🔎 {considered} match(s) analysé(s) (top 3/sport · 24h, tout le '
-             f'marché Unibet par match) → <b>{len(reco)} value</b> détectée(s) ; le reste = SKIP.</div>')
-    if not reco:
-        body = ('<div class="mb-empty">Aucun pari de value détecté pour l\'instant. '
-                'S\'abstenir quand il n\'y a pas de value est gagnant 👍</div>')
-    else:
-        cards = []
-        for r in reco:
-            stake = (f'<b>{r["stake_pct"]:g}%</b> de bankroll'
-                     if r.get("stake_pct") is not None else "—")
-            play = (f'<a class="mb-play" href="{e(r["unibet_url"])}" target="_blank" rel="noopener">'
-                    '🟢 Jouer sur Unibet ↗</a>' if r.get("unibet_url") else "")
-            strip = (f'<div class="mb-simstrip"><span class="da-ev pos">📈 value +{r["ev"]}%</span>'
-                     f'<span class="mb-reco-stake">mise : {stake}</span>{play}</div>')
-            row = (rows_by_match or {}).get((r.get("home"), r.get("away")))
-            if row:
-                # MÊME carte compacte que l'accueil (format unifié) + bandeau simulation dessous
-                cards.append(f'<div class="mb-recowrap">{_sport_row(row)}{strip}</div>')
-                continue
-            # repli (match absent des lignes accueil, ex. déjà terminé) : ancienne carte compacte
-            ic = _SPORT_ICON.get(r.get("sport"), "")
-            when = fmt_local(r.get("start"), with_date=True) or ""
-            live = ' <span class="mbs-live mb-stat">🟢 live</span>' if r.get("status") == "inprogress" else ""
-            cards.append(
-                f'<div class="mb-reco"><div class="mb-reco-top">'
-                f'<span class="mb-match">{ic} {e(r["home"])} <span class="dim">v</span> {e(r["away"])}</span>'
-                f'<span class="mb-when">{e(when)}{live}</span></div>'
-                f'<div class="mb-reco-sel">✅ {e(r["sel"])} <span class="da-bk-cote">@{r["cote"]:g}</span></div>'
-                f'<div class="mb-reco-l"><span class="da-ev pos">📈 value +{r["ev"]}%</span> '
-                f'<span class="mb-reco-stake">mise conseillée : {stake}</span></div>'
-                f'{play}</div>')
-        body = "".join(cards)
-    return (f'<div class="mb-sec">🎯 Paris recommandés à jouer</div>{basis}'
-            '<div class="mb-note">Simulation : capital de départ 100 € · mise = ¼ Kelly plafonné à 3 % '
-            '(prudent). Les paris retenus sont joués automatiquement en simulation.</div>'
-            f'{body}')
-
-
-def render_mybets(s: dict, items: list, reco: list | None = None,
-                  bankroll=None, considered: int = 0,
-                  rows_by_match: dict | None = None) -> str:
-    """Page « Mes paris » = track record de la SIMULATION : bilan € + paris recommandés + historique.
-    Plus de saisie manuelle de pari joué ni d'assurance live (paris purement simulés, auto-enregistrés)."""
-    e = html.escape
-    pcls = "arec-hi" if s["pnl"] > 0 else ("arec-lo" if s["pnl"] < 0 else "")
-    roi = f'{s["roi"]:+g}%' if s["roi"] is not None else "—"
-    head = (f'<div class="mb-bal"><div class="mb-bal-v arec-{_roicls(s["pnl"])}">'
-            f'{"+" if s["pnl"] >= 0 else ""}{s["pnl"]:g} €</div>'
-            '<div class="mb-bal-l">résultat net</div>'
-            '<div class="mb-kpis">'
-            f'<div><b>{s["staked"]:g} €</b><span>misé</span></div>'
-            f'<div><b class="{pcls}">{roi}</b><span>ROI</span></div>'
-            f'<div><b>{s["won"]}/{s["settled"]}</b><span>gagnés</span></div>'
-            f'<div><b>{s["pending"]}</b><span>en cours</span></div></div></div>')
-    rows = []
-    for it in items:
-        cls, txt = _mybet_status(it)
-        delf = (f'<form class="mb-delf" method="post" action="/mybets/del">'
-                f'<input type="hidden" name="id" value="{it["id"]}">'
-                f'<button class="mb-del" type="submit">supprimer</button></form>')
-        row = (rows_by_match or {}).get((it.get("home"), it.get("away")))
-        if row:
-            # MÊME carte que le reste du site (à venir/en cours/terminé, ✅/❌ par pari, analyse
-            # dépliable) + bandeau simulation accolé : pari joué, mise @ cote, résultat €, suppr.
-            sim = '<span class="mb-sim">SIM</span>' if it.get("sim") else ""
-            strip = (f'<div class="mb-simstrip">{sim}'
-                     f'<span class="mb-strip-sel">{e(it.get("sel", ""))}</span>'
-                     f'<span class="mb-stake">{it["stake"]:g} € @ {it["odds"]:g}</span>'
-                     f'<span class="mb-stat {cls}">{txt}</span>{delf}</div>')
-            rows.append(f'<div class="mb-recowrap">{_sport_row(row)}{strip}</div>')
-            continue
-        # repli (match sorti des onglets : très ancien) : ancienne ligne compacte
-        when = fmt_local(it.get("start"), with_date=True) or ""
-        rows.append(
-            f'<div class="mb-row"><div class="mb-row-top"><span class="mb-match">'
-            f'{e(it.get("home", ""))} <span class="dim">v</span> {e(it.get("away", ""))}</span>'
-            f'<span class="mb-when">{e(when)}</span></div>'
-            f'<div class="mb-sel">{"<span class=\"mb-sim\">SIM</span> " if it.get("sim") else ""}'
-            f'P{it["pari"] + 1} · {e(it.get("sel", ""))}</div>'
-            f'<div class="mb-line"><span class="mb-stake">{it["stake"]:g} € @ {it["odds"]:g}</span>'
-            f'<span class="mb-stat {cls}">{txt}</span></div>'
-            f'{delf}</div>')
-    lst = "".join(rows) or '<div class="mb-empty">Aucun pari simulé pour le moment.</div>'
-    return (f'<div class="mb"><h1 class="mb-h">💼 Simulation bankroll</h1>{head}'
-            f'{_mybets_assistant(reco or [], bankroll, considered, rows_by_match)}'
-            f'<div class="mb-sec">📋 Historique de la simulation ({s["count"]})</div>{lst}</div>')
 
 
 def render_calibration(c: dict) -> str:

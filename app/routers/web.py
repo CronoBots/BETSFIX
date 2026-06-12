@@ -336,9 +336,11 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
         cached = fragcache.get("panel/home")
         if cached:
             return HTMLResponse(cached)
-    mybets.sync_simulation()        # SIMULATION 100€ : auto-joue tout pari retenu par le système
+    # Track record SILENCIEUX : on continue d'enregistrer chaque pari retenu (calibration future),
+    # mais l'UI bankroll/simulation est retirée (demande utilisateur 2026-06-12).
+    mybets.sync_simulation()
     rows = await _home_match_rows()
-    body = web.render_dashboard(mybets.sim_balance(), analyses.stats_full(), rows,
+    body = web.render_dashboard(analyses.stats_full(), rows,
                                 frag=bool(frag), source=provider.breaker_status())
     if frag:
         fragcache.put("panel/home", body, ttl=PANEL_TTL)
@@ -349,8 +351,8 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
 async def paris_page() -> HTMLResponse:
     """Page dédiée « 🎯 Paris à jouer » : tous les paris de value retenus + bankroll simulée."""
     reco = mybets.recommended_bets()
-    mybets.sync_simulation(reco)
-    body = web.render_paris_a_jouer(reco, mybets.sim_balance(), _considered())
+    mybets.sync_simulation(reco)            # enregistrement silencieux (track record)
+    body = web.render_paris_a_jouer(reco, _considered())
     return HTMLResponse(web.layout("Paris à jouer", "home", body, menu="paris"))
 
 
@@ -364,35 +366,9 @@ async def stats_page() -> HTMLResponse:
     return HTMLResponse(web.layout("Statistiques", "home", body, menu="stats"))
 
 
-@router.get("/mybets", response_class=HTMLResponse)
-async def my_bets_page() -> HTMLResponse:
-    """Page « Mes paris » : track record de la SIMULATION (bilan € + paris recommandés + historique).
-    Plus de saisie manuelle ni d'assurance live (paris purement simulés, auto-enregistrés)."""
-    items = [mybets.enrich(b) for b in mybets.load()]
-    items.sort(key=lambda x: (x.get("pnl") is not None, x.get("start") or ""))
-    considered = sum(1 for sp in ("foot", "tennis", "basket") for d in analyses.list_for(sp)
-                     if analyses.status_of(d) in ("notstarted", "inprogress"))
-    # Lignes au FORMAT DU SITE pour les recos ET l'historique (même constructeur de carte,
-    # terminés inclus), indexées par (home, away) — mêmes chaînes (toutes issues du sidecar).
-    rows_by_match = {(r.get("home"), r.get("away")): r
-                     for r in await _home_match_rows(include_finished=True)}
-    body = web.render_mybets(mybets.summary(items), items,
-                             mybets.recommended_bets(), mybets.bankroll(), considered,
-                             rows_by_match)
-    return HTMLResponse(web.layout("Simulation bankroll", "home", body, menu="mybets"))
-
-
-@router.post("/mybets/bankroll")
-async def my_bets_bankroll(bankroll: float = Form(...),
-                           next: str = Form("/mybets")) -> RedirectResponse:
-    mybets.set_bankroll(bankroll)
-    return RedirectResponse(next if next in ("/", "/mybets") else "/mybets", status_code=303)
-
-
-@router.post("/mybets/del")
-async def my_bets_del(id: str = Form(...)) -> RedirectResponse:
-    mybets.delete(id)
-    return RedirectResponse("/mybets", status_code=303)
+# (Page « Simulation bankroll » /mybets RETIRÉE le 2026-06-12 à la demande : le pari retenu est
+# désormais marqué d'une ⭐ sur les cadres de paris ; l'enregistrement du track record continue
+# en silence via mybets.sync_simulation pour la calibration.)
 
 
 def _tennis_live_score(entry: dict, swapped: bool = False) -> str:

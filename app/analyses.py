@@ -660,16 +660,17 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         mark = ('<span class="da-bk-mark mk-w">✓ Gagné</span>' if res == "won"
                 else '<span class="da-bk-mark mk-l">✗ Perdu</span>' if res == "lost"
                 else '<span class="da-bk-mark mk-p">➖ Remboursé</span>' if res == "push" else "")
-        # BANDE gauche : OR pour le pari simulé (à jouer), VERT pour les autres ; résultat surclasse.
+        # BANDE gauche : OR pour le pari RETENU par le moteur (ex-« mode bankroll », UI retirée
+        # 2026-06-12) ; le repère est désormais une ⭐ à DROITE du nom du pari (demande utilisateur).
         recocls = " da-bk-reco" if is_reco else ""
-        recobadge = '<span class="da-bk-mark mk-reco">✅ À JOUER</span>' if is_reco else ""
+        recostar = ' <span class="da-bk-star" title="Pari retenu par le moteur">⭐</span>' if is_reco else ""
         # Commentaire du Verdict déplacé SOUS le pari correspondant, DANS la même carte.
         note = note_by_idx.get(k)
         note_html = f'<div class="da-bk-note">{_inline(note)}</div>' if note else ""
         cards.append(
             f'<div class="da-bk{recocls}{rescls}">'
-            f'<div class="da-bk-tab">{tab}{stars}{recobadge}{mark}</div>'
-            f'<div class="da-bk-sel">{pari}</div>'
+            f'<div class="da-bk-tab">{tab}{stars}{mark}</div>'
+            f'<div class="da-bk-sel">{pari}{recostar}</div>'
             f'{note_html}{strip}</div>')   # affiche -> ANALYSE -> stats
     # LIVE (compact) : on ne garde QUE les cartes de paris (ni titre, ni légende, ni verdict ;
     # le repère « meilleure value » est déjà porté par le cadre OR + badge ✅ de la carte).
