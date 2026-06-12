@@ -439,6 +439,10 @@ def _parse_bets_cached(body: str) -> tuple:
             continue
         prob_cell = c[2] if len(c) > 2 else ""
         pm = re.search(r"(\d{1,3})", prob_cell)
+        # Ligne SANS cote NI proba = pas un pari (ex. note « aucun pari ne franchit le seuil »
+        # écrite dans le tableau par l'analyste en mode strict) -> ignorée.
+        if cote is None and not pm:
+            continue
         out.append({
             "sel": c[0] if len(c) > 0 else "", "cote": cote, "cote_txt": cote_txt,
             "prob": min(int(pm.group(1)), 100) if pm else None,

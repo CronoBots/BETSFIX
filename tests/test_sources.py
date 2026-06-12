@@ -132,3 +132,12 @@ def test_tennis_score_from_comp_sets_et_jeux():
     # orientation inversée (le sidecar a Sakkari en home)
     sc = sources._tennis_score_from_comp(cps, "Maria Sakkari", "Tatjana Maria")
     assert sc and sc["sets_home"] == 1 and sc["sets_away"] == 2
+
+
+def test_parse_bets_ignore_les_notes_sans_cote_ni_proba():
+    from app.analyses import _parse_bets
+    body = ('| Pari | Cote | Proba | Risque |\n|---|---|---|---|\n'
+            '| _(aucun pari ne franchit le seuil de 65 %)_ |  |  |  |\n'
+            '| Vrai pari @X | 1.41 | 78% | vert |\n')
+    bets = _parse_bets(body)
+    assert len(bets) == 1 and bets[0]['cote'] == 1.41
