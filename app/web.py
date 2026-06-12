@@ -1699,6 +1699,18 @@ CSS = """
   .mb-play,.mb-del,.src,.paj-live,.dd-cote,.mb-stat,.dash-next,.paj-basis b,
   .da-bets-hint,.cal-v-t,.fpick-t,.plg-tab,.an-tag{
        text-transform:uppercase;letter-spacing:.03em}
+  /* Bandeau bankroll de l'ACCUEIL cliquable -> /mybets (Simulation bankroll) */
+  .paj-bank-a{display:block;color:inherit}
+  .paj-bank-a:active .paj-bank{transform:scale(.99)}
+  .paj-bank-go{display:block;margin-top:10px;font-size:10px;font-weight:800;color:var(--accent);
+       text-transform:uppercase;letter-spacing:.05em}
+  /* Reco simulation au FORMAT ACCUEIL : carte .mc + bandeau simulation accolé dessous */
+  .mb-recowrap{margin:9px 0}
+  .mb-recowrap .row.mc{margin:0;border-bottom-left-radius:0;border-bottom-right-radius:0}
+  .mb-simstrip{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+       padding:9px 12px;border:1px solid var(--border);border-top:0;
+       border-radius:0 0 14px 14px;background:var(--surface);font-size:11.5px}
+  .mb-simstrip .mb-play{margin:0 0 0 auto;padding:8px 12px;font-size:10.5px}
   /* ===== Animations premium (cascade d'apparition, skeleton, micro-interactions) =====
      Gating : la cascade ne joue qu'au PREMIER rendu (body.boot, retirée ~1 s après par _ANIM_JS)
      -> le refresh live 45 s (innerHTML remplacé) ne fait PAS re-clignoter les cartes. */
@@ -1816,6 +1828,62 @@ _ANIM_JS = (
     "requestAnimationFrame(f);})();"
 )
 
+# Handlers de CARTES partagés (layout ET spa_shell) : accordéons data-exp, cartes compactes .mc,
+# bulles data-info/data-dvg, garde anti-scroll. Extraits de _SPA_JS (2026-06-12) : ils doivent
+# marcher aussi sur les pages layout() (/mybets, /stats…) qui n'ont PAS de panneaux SPA.
+_CARDS_JS = (
+    "(function(){"
+    # le « i » déplie/replie l'explication sans toucher au pliage de la section
+    "document.addEventListener('click',function(e){var b=e.target.closest('[data-info]');"
+    "if(!b)return;e.preventDefault();e.stopPropagation();"
+    "var d=b.closest('details.sec2'),inf=d&&d.querySelector('.sec-info');"
+    "if(inf)inf.hidden=!inf.hidden;});"
+    # l'emoji de divergence ouvre/ferme sa bulle d'explication (sans suivre le lien de la carte)
+    "document.addEventListener('click',function(e){var b=e.target.closest('[data-dvg]');"
+    "if(!b)return;e.preventDefault();e.stopPropagation();"
+    "var pb=b.closest('.pbars'),bub=pb&&pb.nextElementSibling;"
+    "if(bub&&bub.classList.contains('dvg-bubble'))bub.hidden=!bub.hidden;});"
+    # garde anti-scroll mobile : un glissement (>10px) n'est PAS un tap -> n'ouvre pas la carte
+    "var _mv=false,_sx=0,_sy=0;"
+    "document.addEventListener('touchstart',function(e){_mv=false;var t=e.touches[0];"
+    "_sx=t.clientX;_sy=t.clientY;},{passive:true});"
+    "document.addEventListener('touchmove',function(e){var t=e.touches[0];"
+    "if(Math.abs(t.clientX-_sx)>10||Math.abs(t.clientY-_sy)>10)_mv=true;},{passive:true});"
+    # accordéon data-exp : tap -> charge et déplie l'analyse à l'intérieur
+    "document.addEventListener('click',function(e){"
+    "if(_mv)return;"
+    "if(e.target.closest('[data-dvg]')||e.target.closest('.exp')||e.target.closest('a'))return;"
+    "var c=e.target.closest('[data-exp]');if(!c)return;e.preventDefault();"
+    "var x=c.querySelector('.exp');if(!x)return;"
+    "if(!x.hidden){x.hidden=true;c.classList.remove('open');return;}"
+    "c.classList.add('open');x.hidden=false;"
+    "if(!x.getAttribute('data-loaded')){x.setAttribute('data-loaded','1');"
+    "x.innerHTML='<div class=ldg>Chargement de l\\'analyse…</div>';"
+    "fetch(c.getAttribute('data-exp')).then(function(r){return r.text();})"
+    ".then(function(h){x.innerHTML=h;"
+    "if(window._twCount)window._twCount(x);})"
+    ".catch(function(){x.removeAttribute('data-loaded');"
+    "x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}});"
+    # CARTE COMPACTE : un clic N'IMPORTE OÙ dans la carte la déplie/replie. À l'ouverture, l'ANALYSE
+    # est chargée D'OFFICE. Les liens (a) restent cliquables.
+    "function _mcLoad(card){var a=card.querySelector('.mc-ana');if(!a||a.getAttribute('data-l'))return;"
+    "a.setAttribute('data-l','1');var x=a.querySelector('.exp');if(!x)return;"
+    "x.innerHTML='<div class=ldg>Chargement de l\\'analyse…</div>';"
+    "fetch(a.getAttribute('data-ana')).then(function(r){return r.text();}).then(function(h){"
+    "x.innerHTML=h;if(window._twCount)window._twCount(x);})"
+    ".catch(function(){a.removeAttribute('data-l');x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}"
+    "window._mcInit=function(root){var o=(root||document).querySelectorAll('.row.mc.mc-open'),i;"
+    "for(i=0;i<o.length;i++)_mcLoad(o[i]);};"
+    "document.addEventListener('click',function(e){"
+    "if(_mv)return;if(e.target.closest('a'))return;"
+    "var card=e.target.closest('.row.mc');if(!card)return;e.preventDefault();"
+    "var b=card.querySelector('.mc-body');if(!b)return;"
+    "if(b.hidden){b.hidden=false;card.classList.add('mc-open','mc-manual');_mcLoad(card);"
+    "if(window._twCount)window._twCount(b);}"
+    "else{b.hidden=true;card.classList.remove('mc-open','mc-manual');}});"
+    "window._mcInit(document);})();"
+)
+
 _SPA_JS = (
     "(function(){var P=document.getElementById('panels');if(!P)return;"
     "function panel(t){return document.getElementById('pn-'+t);}"
@@ -1850,55 +1918,7 @@ _SPA_JS = (
     "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
     "if(!t){var m={'/':'home','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot'};"
     "t=m[location.pathname]||'home';}go(t,false);});"
-    # le « i » déplie/replie l'explication sans toucher au pliage de la section
-    "document.addEventListener('click',function(e){var b=e.target.closest('[data-info]');"
-    "if(!b)return;e.preventDefault();e.stopPropagation();"
-    "var d=b.closest('details.sec2'),inf=d&&d.querySelector('.sec-info');"
-    "if(inf)inf.hidden=!inf.hidden;});"
-    # l'emoji de divergence ouvre/ferme sa bulle d'explication (sans suivre le lien de la carte)
-    "document.addEventListener('click',function(e){var b=e.target.closest('[data-dvg]');"
-    "if(!b)return;e.preventDefault();e.stopPropagation();"
-    "var pb=b.closest('.pbars'),bub=pb&&pb.nextElementSibling;"
-    "if(bub&&bub.classList.contains('dvg-bubble'))bub.hidden=!bub.hidden;});"
-    # garde anti-scroll mobile : un glissement (>10px) n'est PAS un tap -> n'ouvre pas la carte
-    "var _mv=false,_sx=0,_sy=0;"
-    "document.addEventListener('touchstart',function(e){_mv=false;var t=e.touches[0];"
-    "_sx=t.clientX;_sy=t.clientY;},{passive:true});"
-    "document.addEventListener('touchmove',function(e){var t=e.touches[0];"
-    "if(Math.abs(t.clientX-_sx)>10||Math.abs(t.clientY-_sy)>10)_mv=true;},{passive:true});"
-    # carte dépliable : tap N'IMPORTE OÙ sur la carte -> charge et déplie l'analyse à l'intérieur
-    "document.addEventListener('click',function(e){"
-    "if(_mv)return;"  # c'était un scroll, pas un tap
-    "if(e.target.closest('[data-dvg]')||e.target.closest('.exp')||e.target.closest('a'))return;"
-    "var c=e.target.closest('[data-exp]');if(!c)return;e.preventDefault();"
-    "var x=c.querySelector('.exp');if(!x)return;"
-    "if(!x.hidden){x.hidden=true;c.classList.remove('open');return;}"
-    "c.classList.add('open');x.hidden=false;"
-    "if(!x.getAttribute('data-loaded')){x.setAttribute('data-loaded','1');"
-    "x.innerHTML='<div class=ldg>Chargement de l\\'analyse…</div>';"
-    "fetch(c.getAttribute('data-exp')).then(function(r){return r.text();})"
-    ".then(function(h){x.innerHTML=h;"  # plus d'effet de frappe ; juste le compteur de chiffres
-    "if(window._twCount)window._twCount(x);})"
-    ".catch(function(){x.removeAttribute('data-loaded');"
-    "x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}});"
-    # CARTE COMPACTE : un clic N'IMPORTE OÙ dans la carte la déplie/replie. À l'ouverture, l'ANALYSE
-    # est chargée D'OFFICE (plus de bouton « Voir l'analyse »). Les liens (a) restent cliquables.
-    "function _mcLoad(card){var a=card.querySelector('.mc-ana');if(!a||a.getAttribute('data-l'))return;"
-    "a.setAttribute('data-l','1');var x=a.querySelector('.exp');if(!x)return;"
-    "x.innerHTML='<div class=ldg>Chargement de l\\'analyse…</div>';"
-    "fetch(a.getAttribute('data-ana')).then(function(r){return r.text();}).then(function(h){"
-    "x.innerHTML=h;if(window._twCount)window._twCount(x);})"
-    ".catch(function(){a.removeAttribute('data-l');x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}"
-    "window._mcInit=function(root){var o=(root||document).querySelectorAll('.row.mc.mc-open'),i;"
-    "for(i=0;i<o.length;i++)_mcLoad(o[i]);};"
-    "document.addEventListener('click',function(e){"
-    "if(_mv)return;if(e.target.closest('a'))return;"  # scroll OU clic sur un lien -> on ne (re)plie pas
-    "var card=e.target.closest('.row.mc');if(!card)return;e.preventDefault();"
-    "var b=card.querySelector('.mc-body');if(!b)return;"
-    "if(b.hidden){b.hidden=false;card.classList.add('mc-open','mc-manual');_mcLoad(card);"
-    "if(window._twCount)window._twCount(b);}"
-    "else{b.hidden=true;card.classList.remove('mc-open','mc-manual');}});"
-    "window._mcInit(document);"  # cartes déjà ouvertes (live, rendu serveur) -> charge leur analyse
+    # (handlers data-info/data-dvg/data-exp/.mc : déplacés dans _CARDS_JS, partagé avec layout)
     # rafraîchissement auto des COTES/SCORES live : on ré-interroge le panneau actif toutes les
     # 45 s, UNIQUEMENT s'il contient un direct (.live) ET qu'aucun accordéon n'est ouvert
     # (on ne coupe pas une lecture). Le scroll est préservé. Pas de direct = aucun appel réseau.
@@ -1973,7 +1993,7 @@ _DRAWER_ITEMS = [
     ("Principal", [
         ("home", "/", "🏠", "Accueil"),
         ("paris", "/paris", "🎯", "Paris à jouer"),
-        ("mybets", "/mybets", "💼", "Mes paris & bilan"),
+        ("mybets", "/mybets", "💼", "Simulation bankroll"),
         ("stats", "/stats", "📊", "Statistiques"),
     ]),
     ("Sports", [
@@ -2061,7 +2081,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 {menu_btn}{drawer}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_TERM_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
@@ -2104,7 +2124,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {menu_btn}{drawer}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
 
 def bars_split(model, implied) -> dict:
@@ -2572,13 +2592,16 @@ def _sim_overview(sim: dict | None) -> str:
             (str(sim.get("settled", 0)), "réglés", ""), (str(sim.get("pending", 0)), "en attente", "")]
     kp = "".join(f'<div class="ds-k"><span class="ds-v {c}">{v}</span>'
                  f'<span class="ds-l">{l}</span></div>' for v, l, c in kpis)
+    # Tout le bandeau est CLIQUABLE -> page Simulation bankroll (/mybets), demande utilisateur.
     return ('<div class="dash-top"><span>💰 Bankroll simulée</span>'
             '<span class="paj-h-tag">SIMULATION</span></div>'
+            '<a class="paj-bank-a" href="/mybets">'
             '<div class="paj-bank"><div class="paj-bank-top">'
             f'<span class="paj-bank-v">{sim["balance"]:g} €</span>'
             f'<span class="paj-bank-chg {cls}">{ar} {abs(pnl):g} €</span></div>'
             f'<div class="paj-bank-sub">Capital de départ {sim["start"]:g} € · {sim.get("staked", 0):g} € misés</div>'
-            f'<div class="dash-stat-row sim-kpis">{kp}</div></div>')
+            f'<div class="dash-stat-row sim-kpis">{kp}</div>'
+            '<span class="paj-bank-go">Voir la simulation & l\'historique →</span></div></a>')
 
 
 def _dash_stats(stats: dict | None) -> str:
@@ -2634,8 +2657,11 @@ def render_dashboard(sim: dict, stats: dict | None, match_rows: list, *,
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 
-def _mybets_assistant(reco: list, bankroll, considered: int = 0) -> str:
-    """Section ASSISTANT : bankroll + paris ✅ À JOUER détectés (sport + mise € + bouton Jouer Unibet).
+def _mybets_assistant(reco: list, bankroll, considered: int = 0,
+                      rows_by_match: dict | None = None) -> str:
+    """Section ASSISTANT : paris ✅ À JOUER détectés, rendus au MÊME FORMAT que les cartes de
+    l'accueil (`_sport_row`, via `rows_by_match` = {(home, away): row}) + bandeau simulation accolé
+    (value · mise conseillée · bouton Unibet). Repli sur l'ancienne carte si la ligne manque.
     `considered` = nb de matchs analysés examinés (pour expliquer « X analysés · Y value »)."""
     e = html.escape
     basis = (f'<div class="mb-basis">🔎 {considered} match(s) analysé(s) (top 3/sport · 24h, tout le '
@@ -2646,13 +2672,21 @@ def _mybets_assistant(reco: list, bankroll, considered: int = 0) -> str:
     else:
         cards = []
         for r in reco:
-            ic = _SPORT_ICON.get(r.get("sport"), "")
-            when = fmt_local(r.get("start"), with_date=True) or ""
-            live = ' <span class="mbs-live mb-stat">🟢 live</span>' if r.get("status") == "inprogress" else ""
             stake = (f'<b>{r["stake_pct"]:g}%</b> de bankroll'
                      if r.get("stake_pct") is not None else "—")
             play = (f'<a class="mb-play" href="{e(r["unibet_url"])}" target="_blank" rel="noopener">'
                     '🟢 Jouer sur Unibet ↗</a>' if r.get("unibet_url") else "")
+            strip = (f'<div class="mb-simstrip"><span class="da-ev pos">📈 value +{r["ev"]}%</span>'
+                     f'<span class="mb-reco-stake">mise : {stake}</span>{play}</div>')
+            row = (rows_by_match or {}).get((r.get("home"), r.get("away")))
+            if row:
+                # MÊME carte compacte que l'accueil (format unifié) + bandeau simulation dessous
+                cards.append(f'<div class="mb-recowrap">{_sport_row(row)}{strip}</div>')
+                continue
+            # repli (match absent des lignes accueil, ex. déjà terminé) : ancienne carte compacte
+            ic = _SPORT_ICON.get(r.get("sport"), "")
+            when = fmt_local(r.get("start"), with_date=True) or ""
+            live = ' <span class="mbs-live mb-stat">🟢 live</span>' if r.get("status") == "inprogress" else ""
             cards.append(
                 f'<div class="mb-reco"><div class="mb-reco-top">'
                 f'<span class="mb-match">{ic} {e(r["home"])} <span class="dim">v</span> {e(r["away"])}</span>'
@@ -2669,7 +2703,8 @@ def _mybets_assistant(reco: list, bankroll, considered: int = 0) -> str:
 
 
 def render_mybets(s: dict, items: list, reco: list | None = None,
-                  bankroll=None, considered: int = 0) -> str:
+                  bankroll=None, considered: int = 0,
+                  rows_by_match: dict | None = None) -> str:
     """Page « Mes paris » = track record de la SIMULATION : bilan € + paris recommandés + historique.
     Plus de saisie manuelle de pari joué ni d'assurance live (paris purement simulés, auto-enregistrés)."""
     e = html.escape
@@ -2699,8 +2734,8 @@ def render_mybets(s: dict, items: list, reco: list | None = None,
             f'<input type="hidden" name="id" value="{it["id"]}">'
             f'<button class="mb-del" type="submit">supprimer</button></form></div>')
     lst = "".join(rows) or '<div class="mb-empty">Aucun pari simulé pour le moment.</div>'
-    return (f'<div class="mb"><h1 class="mb-h">💼 Mes paris</h1>{head}'
-            f'{_mybets_assistant(reco or [], bankroll, considered)}'
+    return (f'<div class="mb"><h1 class="mb-h">💼 Simulation bankroll</h1>{head}'
+            f'{_mybets_assistant(reco or [], bankroll, considered, rows_by_match)}'
             f'<div class="mb-sec">📋 Historique de la simulation ({s["count"]})</div>{lst}</div>')
 
 

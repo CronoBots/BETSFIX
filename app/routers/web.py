@@ -363,9 +363,13 @@ async def my_bets_page() -> HTMLResponse:
     items.sort(key=lambda x: (x.get("pnl") is not None, x.get("start") or ""))
     considered = sum(1 for sp in ("foot", "tennis", "basket") for d in analyses.list_for(sp)
                      if analyses.status_of(d) in ("notstarted", "inprogress"))
+    # Lignes au FORMAT ACCUEIL pour les recos (même constructeur de carte -> rendu identique),
+    # indexées par (home, away) — mêmes chaînes (toutes deux issues du sidecar).
+    rows_by_match = {(r.get("home"), r.get("away")): r for r in await _home_match_rows()}
     body = web.render_mybets(mybets.summary(items), items,
-                             mybets.recommended_bets(), mybets.bankroll(), considered)
-    return HTMLResponse(web.layout("Mes paris", "home", body, menu="mybets"))
+                             mybets.recommended_bets(), mybets.bankroll(), considered,
+                             rows_by_match)
+    return HTMLResponse(web.layout("Simulation bankroll", "home", body, menu="mybets"))
 
 
 @router.post("/mybets/bankroll")
