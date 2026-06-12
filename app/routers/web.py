@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import analyses, ace_markets, elo, fragcache, match_analysis, match_select, mybets, serve_return, set_markets, tendencies, tracking, web, window
 from app.config import get_settings
@@ -366,9 +366,13 @@ async def stats_page() -> HTMLResponse:
     return HTMLResponse(web.layout("Statistiques", "home", body, menu="stats"))
 
 
-# (Page « Simulation bankroll » /mybets RETIRÉE le 2026-06-12 à la demande : le pari retenu est
+# Page « Simulation bankroll » /mybets RETIRÉE le 2026-06-12 à la demande : le pari retenu est
 # désormais marqué d'une ⭐ sur les cadres de paris ; l'enregistrement du track record continue
-# en silence via mybets.sync_simulation pour la calibration.)
+# en silence via mybets.sync_simulation pour la calibration. REDIRECTION douce vers l'accueil :
+# les pages encore en cache côté mobile gardent des liens /mybets -> jamais de 404 brut.
+@router.get("/mybets")
+async def my_bets_redirect() -> RedirectResponse:
+    return RedirectResponse("/", status_code=308)
 
 
 def _tennis_live_score(entry: dict, swapped: bool = False) -> str:
