@@ -1704,6 +1704,7 @@ CSS = """
   .da-bk-star{font-size:13px;vertical-align:1px;
        filter:drop-shadow(0 0 6px rgba(246,197,74,.65))}
   .mc-star{font-size:10px;filter:drop-shadow(0 0 5px rgba(246,197,74,.6))}
+  .mc-skip{color:var(--dim);font-style:italic}
   /* Grande courbe d'équité de la carte Performance (accueil) */
   .dperf-chart{margin:10px 0 2px}
   .dperf-chart .sx-heroc{display:block;width:100%;height:88px}
@@ -3136,6 +3137,9 @@ def _sport_row(r: dict) -> str:
         star = ' <span class="mc-star">⭐</span>' if i == reco_i else ""
         rows3.append(f'<div class="mc-betl"><span class="mc-bi">{ic}</span>'
                      f'<span class="mc-bt">{e(b.get("sel", ""))}{star}</span></div>')
+    if not rows3 and summ.get("skip"):     # mode strict : analysé mais AUCUN pari ≥ 65 % -> dit clairement
+        rows3 = ['<div class="mc-betl"><span class="mc-bi">⛔</span>'
+                 '<span class="mc-bt mc-skip">Aucun pari fiable — SKIP assumé</span></div>']
     line3 = "".join(rows3)
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')

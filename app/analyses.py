@@ -746,7 +746,12 @@ def card_summary(sport: str, match_id) -> dict:
     et le résultat réglé du pari joué (terminés). {} si pas d'analyse."""
     bets = bets_of(sport, match_id)
     if not bets:
-        return {}
+        # Analyse EXISTANTE mais aucun pari ≥ seuil (mode strict) -> SKIP EXPLICITE sur la carte
+        # (sinon une carte muette ressemble à un bug, remarque utilisateur 2026-06-12).
+        if load(sport, match_id) is None:
+            return {}
+        m0 = meta(sport, match_id) or {}
+        return {"n": 0, "skip": True, "comp": m0.get("comp"), "circuit": m0.get("circuit")}
     out = {"n": len(bets)}
     confs = [b.get("prob") for b in bets if b.get("prob") is not None]
     out["best_conf"] = max(confs) if confs else None
