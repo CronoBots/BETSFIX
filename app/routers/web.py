@@ -259,22 +259,21 @@ async def stats_detail(sport: str = "", pari: int = -1, since: str = "") -> HTML
     return HTMLResponse(web.render_bet_detail(analyses.bet_detail(sp, pk, days)))
 
 
-async def _home_match_rows(include_finished: bool = False) -> list:
+async def _home_match_rows() -> list:
     """TOUTES les rencontres analysées À VENIR / EN COURS (tous sports confondus), au format
     `_sport_row`, triées par coup d'envoi (le plus proche d'abord). Réutilise les constructeurs de
-    lignes des onglets sport -> même rendu compact partout. `include_finished=True` ajoute AUSSI
-    les cartes « Terminés » (score réel + ✅/❌ par pari) — sert à la page Simulation bankroll."""
+    lignes des onglets sport -> même rendu compact partout."""
     from app import foot as foot_mod, basket as basket_mod
     from app.routers import foot as foot_r, basket as basket_r
     out = []
     try:
-        frows, ffin = await foot_r._analyst_rows("foot")
-        out += [foot_mod._card(r) for r in (*frows, *(ffin if include_finished else ()))]
+        frows, _ffin = await foot_r._analyst_rows("foot")
+        out += [foot_mod._card(r) for r in frows]
     except Exception:
         pass
     try:
-        brows, bfin = await basket_r._analyst_rows()
-        out += [basket_mod._card(r) for r in (*brows, *(bfin if include_finished else ()))]
+        brows, _bfin = await basket_r._analyst_rows()
+        out += [basket_mod._card(r) for r in brows]
     except Exception:
         pass
     try:                                                   # tennis
@@ -285,7 +284,7 @@ async def _home_match_rows(include_finished: bool = False) -> list:
             lf0 = web.live_fields(match_select.live_state_for("tennis", d.get("home"), d.get("away")), "tennis")
             st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st,
                                                  bool(lf0.get("score")), start_iso=d.get("start"))
-            if st not in ("notstarted", "inprogress") and not include_finished:
+            if st not in ("notstarted", "inprogress"):
                 continue
             dt = usdt or d.get("_start_dt")
             tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
@@ -306,16 +305,8 @@ async def _home_match_rows(include_finished: bool = False) -> list:
                 # en cours sans score live : s'il a assez tourné -> il est en fait fini (Terminés du sport,
                 # pas l'accueil) ; sinon on le GARDE (« En cours », sans scoreboard) pour qu'il reste visible.
                 if not r.get("score") and analyses.likely_finished(d):
-                    if not include_finished:
-                        continue
-                    st = r["status"] = "finished"
-            card = {**_tennis_trow(r), **bars}
-            if st == "finished":         # carte « Terminés » (score réel + badge), comme l'onglet
-                brd = analyses.result_board(d, "tennis")
-                bdg, sco = analyses.result_chip(d)
-                card["score"] = brd["score"] or sco or "terminé"
-                card["badge"] = bdg
-            out.append(card)
+                    continue
+            out.append({**_tennis_trow(r), **bars})
     except Exception:
         pass
     out.sort(key=lambda x: x.get("start_ts") or 0)         # coup d'envoi le plus proche d'abord

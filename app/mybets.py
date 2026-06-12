@@ -17,7 +17,6 @@ from app import analyses
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(_ROOT, "data", "my_bets.json")
-_SETTINGS = os.path.join(_ROOT, "data", "settings.json")
 
 
 def load() -> list:
@@ -50,22 +49,6 @@ def sim_balance() -> dict:
             "staked": round(sum(x["stake"] for x in items), 2),
             "count": len(items), "settled": len(settled), "pending": len(items) - len(settled),
             "roi": (round(100 * pnl / settled_stake, 1) if settled_stake else None)}
-
-
-def set_bankroll(v) -> None:
-    try:
-        v = round(float(v), 2)
-    except (TypeError, ValueError):
-        return
-    d = {}
-    try:
-        d = json.load(open(_SETTINGS, encoding="utf-8")) or {}
-    except (OSError, ValueError):
-        pass
-    d["bankroll"] = max(0.0, v)
-    os.makedirs(os.path.dirname(_SETTINGS), exist_ok=True)
-    with open(_SETTINGS, "w", encoding="utf-8") as f:
-        json.dump(d, f, ensure_ascii=False)
 
 
 def recommended_bets() -> list:
@@ -165,9 +148,6 @@ def _derive_code(sport: str, match_id: str, sel: str) -> str:
     return code_from_pick(sel or "", sport, m.get("home", ""), m.get("away", "")) or ""
 
 
-def delete(bet_id) -> None:
-    _save([b for b in load() if str(b.get("id")) != str(bet_id)])
-
 
 def _bet_result(meta: dict, b: dict):
     """Résultat ('won'/'lost'/'push'/None) du pari simulé, retrouvé dans le règlement du sidecar PAR
@@ -208,13 +188,3 @@ def enrich(b: dict) -> dict:
             "code": code, "_meta": m}
 
 
-def summary(items: list) -> dict:
-    """Bilan € : misé, gagné/perdu net, ROI, en attente."""
-    settled = [x for x in items if x.get("pnl") is not None]
-    pnl = round(sum(x["pnl"] for x in settled), 2)
-    settled_stake = sum(x["stake"] for x in settled)
-    won = sum(1 for x in settled if x.get("result") == "won")
-    return {"count": len(items), "staked": round(sum(x["stake"] for x in items), 2),
-            "pnl": pnl, "settled": len(settled), "won": won,
-            "pending": sum(1 for x in items if x.get("pnl") is None),
-            "roi": (round(100 * pnl / settled_stake, 1) if settled_stake else None)}

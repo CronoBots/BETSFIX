@@ -222,7 +222,8 @@ CSS = """
   body.sp-foot{--accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30)}
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%;overflow-x:clip}
-  /* Coquille NON-scrollante en COLONNE FLEX, hauteur = viewport DYNAMIQUE (100dvh) : le contenu
+  /* Coquille NON-scrollante en COLONNE FLEX,
+  hauteur = viewport DYNAMIQUE (100dvh) : le contenu
      scrolle DANS .wrap (flex:1) et la barre du bas est un enfant flex STATIQUE collé au bas. Sur iOS
      ça supprime le « saut » de la barre fixe quand la toolbar Safari apparaît/disparaît (dvh suit la
      toolbar -> la barre reste toujours au bas visible) et le pied de page redevient atteignable. */
@@ -234,7 +235,8 @@ CSS = """
        -webkit-tap-highlight-color:transparent;touch-action:manipulation;
        background:var(--bg);}
   /* Thème premium UNIQUE : halo bleu via un calque FIXE collé au viewport (et non au
-     body) -> identique sur tous les onglets, quelle que soit la hauteur de la page.
+     body) -> identique sur tous les onglets,
+  quelle que soit la hauteur de la page.
      (évite le bug iOS où background-attachment:fixed est ignoré.) */
   body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
        background:
@@ -242,7 +244,8 @@ CSS = """
          radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%);}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   /* Zone de contenu = SEUL élément qui scrolle (flex:1). La barre du bas étant désormais un frère
-     statique en dessous, plus besoin de réserver ~86px en bas : un petit espace suffit. */
+     statique en dessous,
+  plus besoin de réserver ~86px en bas : un petit espace suffit. */
   .wrap{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;width:100%;
         max-width:720px;margin:0 auto;
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
@@ -254,7 +257,8 @@ CSS = """
               color:var(--dim);background:transparent;border:1px solid var(--border2);
               padding:2px 8px;border-radius:20px;opacity:.8}
   /* Barre d'onglets en bas (style app native). PLUS de position:fixed : c'est un enfant flex STATIQUE
-     de <body> (flex:0 0 auto), donc toujours collé au bas du viewport DYNAMIQUE sans « sauter » sur
+     de <body> (flex:0 0 auto),
+  donc toujours collé au bas du viewport DYNAMIQUE sans « sauter » sur
      iOS. Centrée à 720px ; fond OPAQUE ; padding bas = safe-area (encoche/home-bar). */
   .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;
           display:flex;gap:4px;
@@ -267,15 +271,20 @@ CSS = """
   .botnav a:active{transform:scale(.93)}
   .botnav a.on{color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
   /* Home et Live ne sont pas des sports -> onglet actif en BLANC/GRIS neutre (les sports gardent
-     leur couleur : tennis citron, basket orange, foot vert). */
-  .botnav a[data-tab="home"].on,.botnav a[data-tab="directs"].on{
+     leur couleur : tennis citron,
+  basket orange,
+  foot vert). */
+  .botnav a[data-tab="home"].on,
+  .botnav a[data-tab="directs"].on{
     background:linear-gradient(180deg,var(--accent),var(--accent2));color:var(--accent-ink)}
   .botnav a.on .ic{transform:scale(1.06)}
-  /* Onglet Live : SEUL le point 🟢 vire au vert et clignote, et UNIQUEMENT s'il y a du live
+  /* Onglet Live : SEUL le point 🟢 vire au vert et clignote,
+  et UNIQUEMENT s'il y a du live
      (classe .has-live) ET que l'onglet n'est pas ouvert. Pas de fond vert -> quand on est dessus,
-     l'onglet actif prend le thème neutre (bleu) comme les autres. */
+  l'onglet actif prend le thème neutre (bleu) comme les autres. */
   .botnav a[data-tab="directs"].has-live:not(.on){color:#34d27b}
-  /* Icône LIVE = RADAR vert pulsant (point + anneaux), comme l'orbe de l'état vide « aucun match » */
+  /* Icône LIVE = RADAR vert pulsant (point + anneaux),
+  comme l'orbe de l'état vide « aucun match » */
   .nav-radar{position:relative;display:inline-flex;align-items:center;justify-content:center;
        width:24px;height:24px}
   .nr-dot{width:11px;height:11px;border-radius:50%;background:#34d27b;
@@ -284,7 +293,8 @@ CSS = """
        border-radius:50%;border:2px solid rgba(52,210,123,.55);animation:navradar 1.9s ease-out infinite}
   .nr-ring2{animation-delay:.95s}
   @keyframes navradar{0%{transform:scale(.32);opacity:.9}100%{transform:scale(1);opacity:0}}
-  /* SPA : panneaux par onglet (tout chargé à l'ouverture, bascule sans rechargement) */
+  /* SPA : panneaux par onglet (tout chargé à l'ouverture,
+  bascule sans rechargement) */
   .panel{display:none}
   .panel.on{display:block;animation:panein .22s cubic-bezier(.22,.85,.3,1)}
   @keyframes fadein{from{opacity:.4}to{opacity:1}}
@@ -292,7 +302,8 @@ CSS = """
   .ldg::before{content:"";display:block;width:22px;height:22px;margin:0 auto 12px;border-radius:50%;
     border:2px solid var(--border2);border-top-color:var(--accent2);animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
-  /* ===== Menu tiroir ☰ (complet, premium) — présent sur toutes les pages ===== */
+  /* ===== Menu tiroir ☰ (complet,
+  premium) — présent sur toutes les pages ===== */
   .menu-btn{position:fixed;top:calc(8px + env(safe-area-inset-top));left:12px;z-index:70;
        width:42px;height:42px;border-radius:13px;border:1px solid var(--cardline);
        background:rgba(20,20,24,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
@@ -406,7 +417,8 @@ CSS = """
   .spf-kv{display:block;font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
   .spf-kl{display:block;font-size:8px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
        color:var(--muted);margin-top:2px}
-  /* Détail INTÉGRÉ au cadre (repliable) : fiabilité par-pari + calibration, séparé par un filet */
+  /* Détail INTÉGRÉ au cadre (repliable) : fiabilité par-pari + calibration,
+  séparé par un filet */
   .spf-det{margin-top:12px;border-top:1px solid var(--border)}
   .spf-det>summary{list-style:none;cursor:pointer;display:flex;align-items:center;
        justify-content:space-between;padding:11px 2px 2px;font-size:11px;font-weight:800;
@@ -471,7 +483,8 @@ CSS = """
   .mc-head{position:relative;padding:11px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .mc-line{display:flex;align-items:center;gap:7px}
   .mc-ic{flex:none;font-size:13px;line-height:1}                 /* emoji sport DISCRET (plus petit) */
-  /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel, discret. */
+  /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
+  discret. */
   .mc-comp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
        font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.02em}
   .mc-badge{flex:none;font-size:11px;font-weight:800;padding:3px 8px;border-radius:8px;
@@ -488,7 +501,8 @@ CSS = """
   .mc-teams{font-size:13.5px;font-weight:800;color:var(--text);margin-top:4px;
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mc-teams .dim{color:var(--dim);font-weight:600}
-  /* L3 : LISTE des paris (intitulés, 1/ligne) — masquée une fois DÉPLIÉE (les paris détaillés s'affichent).
+  /* L3 : LISTE des paris (intitulés,
+  1/ligne) — masquée une fois DÉPLIÉE (les paris détaillés s'affichent).
      padding-right pour libérer le chevron en bas à droite. */
   .mc-sub{margin-top:6px;padding-right:20px}
   .mc-open .mc-sub{display:none}
@@ -524,7 +538,9 @@ CSS = """
   /* Live : 3 zones (comp à gauche · score/temps CENTRÉS · badge Live à droite) */
   .rowtop-live{display:grid;grid-template-columns:1fr auto 1fr}
   .rt-mid{text-align:center;white-space:nowrap;font-size:12px}
-  /* Live : SCOREBOARD 2 lignes (nom + scores), meneur en vert, set gagné en gras */
+  /* Live : SCOREBOARD 2 lignes (nom + scores),
+  meneur en vert,
+  set gagné en gras */
   .lboard{background:rgba(255,255,255,.05);border:1px solid var(--cardline);border-radius:10px;
           padding:8px 12px;margin:9px 0 5px;max-width:100%;overflow-x:auto}
   .lboard::-webkit-scrollbar{display:none}
@@ -534,7 +550,10 @@ CSS = """
   .tw-cur{display:inline-block;color:var(--accent);font-weight:400;margin:0 0 0 -1px;
        animation:twblink 1s steps(1) infinite}
   @keyframes twblink{50%{opacity:0}}
-  /* Temps de jeu live (51', Q3·5:42) DANS le cadre des scores : centré, vert, bien visible */
+  /* Temps de jeu live (51',
+  Q3·5:42) DANS le cadre des scores : centré,
+  vert,
+  bien visible */
   .lb-clk{text-align:center;font-size:12px;font-weight:800;color:#34d27b;letter-spacing:.04em;
           padding-bottom:5px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.08)}
   .lb-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 0;
@@ -544,38 +563,48 @@ CSS = """
   .lb-c{min-width:13px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
   .lb-c.lb-win{color:#eaf2ff;font-weight:800}     /* set/score gagné : clair gras */
   .lb-row.lb-lead .lb-c.lb-win{color:#34d27b}     /* meneur : score gagné en vert */
-  /* Tennis : MÊME style que le box-score basket (taille, gap, baseline, colonne résultat) */
+  /* Tennis : MÊME style que le box-score basket (taille,
+  gap,
+  baseline,
+  colonne résultat) */
   .lboard-t{position:relative}
   .lboard-t .lb-s{gap:6px;align-items:baseline}
   .lboard-t .lb-c{width:18px;min-width:18px;font-size:12px}
   .lboard-t .lb-n{font-size:12.5px}
   .lboard-t .lb-hdr .lb-c{font-size:10px}
-  /* Colonne SETS (résultat du match) = MÊME que TOT basket : taille/couleur/poids, gagnant en vert */
+  /* Colonne SETS (résultat du match) = MÊME que TOT basket : taille/couleur/poids,
+  gagnant en vert */
   .lboard-t .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
   .lboard-t .lb-hdr .lb-tot{font-size:9px}
   .lboard-t .lb-row.lb-lead .lb-tot{color:#34d27b}
-  /* UNE seule ligne verticale continue à gauche de SETS (comme basket), même position */
+  /* UNE seule ligne verticale continue à gauche de SETS (comme basket),
+  même position */
   .lboard-t::after{content:"";position:absolute;top:6px;bottom:6px;right:43px;width:1px;
         background:rgba(255,255,255,.18)}
   .lb-hdr .lb-c{color:var(--muted);font-size:11px;font-weight:800;padding-bottom:2px}
   /* Basket : box-score par quart-temps (Q1..Qn) + colonne TOTAL en évidence */
   .lboard-q{position:relative}
   .lboard-q .lb-s{gap:6px;align-items:baseline}  /* même LIGNE DE BASE -> quarts alignés avec le TOT */
-  .lboard-q .lb-c{width:18px;min-width:18px;font-size:12px}  /* points de quart un peu plus petits, colonnes fixes */
+  .lboard-q .lb-c{width:18px;min-width:18px;font-size:12px}  /* points de quart un peu plus petits,
+  colonnes fixes */
   .lboard-q .lb-n{font-size:12.5px}             /* nom d'équipe (évite la troncature) */
   .lboard-q .lb-hdr{border-bottom:1px solid rgba(255,255,255,.13);padding-bottom:3px;margin-bottom:2px}
   .lboard-q .lb-hdr .lb-c{font-size:10px}       /* Q1..Qn + TOT : en-tête discret (plus petit) */
   .lboard-q .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
   .lboard-q .lb-row.lb-lead .lb-tot{color:#34d27b}   /* gagnant : SEUL son total en vert */
   .lboard-q .lb-cur{color:#fff}                       /* quart en cours : score en blanc */
-  /* UNE seule ligne verticale continue à gauche de TOT, du haut au bas des 2 résultats */
+  /* UNE seule ligne verticale continue à gauche de TOT,
+  du haut au bas des 2 résultats */
   .lboard-q::after{content:"";position:absolute;top:6px;bottom:6px;right:43px;width:1px;
         background:rgba(255,255,255,.18)}
-  /* Horloge live (« Q4 · 0:05 ») : BLANCHE, même police que les n° de quart, alignée à GAUCHE */
+  /* Horloge live (« Q4 · 0:05 ») : BLANCHE,
+  même police que les n° de quart,
+  alignée à GAUCHE */
   .lboard-q .lb-clk-in{color:#fff;font-weight:800;font-size:11px;letter-spacing:.02em;
         overflow:visible;text-overflow:clip}
   .lb-hdr{padding-bottom:0}
-  /* Set EN COURS : juste mis en évidence (clair + gras), PAS de case verte */
+  /* Set EN COURS : juste mis en évidence (clair + gras),
+  PAS de case verte */
   .lb-cur{color:#fff;font-weight:800}
   .lb-row.lb-lead .lb-c.lb-cur{color:#fff}
   /* Quart / set À VENIR : 0 grisé (toujours visible : 4 quarts / 3 sets minimum) */
@@ -583,84 +612,61 @@ CSS = """
   .lb-row.lb-lead .lb-c.lb-fut{color:var(--dim)}
   /* 🎾 balle de service à droite du nom du serveur */
   .lb-srv{font-size:10px;vertical-align:middle;margin-left:1px}
-  /* Colonne 🎾 = points du jeu en cours (0/15/30/40) : en évidence, SANS case verte */
+  /* Colonne 🎾 = points du jeu en cours (0/15/30/40) : en évidence,
+  SANS case verte */
   .lb-pt{color:#fff;font-weight:800}
   .lb-pt-h{font-size:12px}
   /* Trait horizontal FIN sous la ligne des sets (en-tête). */
   .lboard-t{position:relative}
   .lboard-t .lb-hdr{border-bottom:1px solid rgba(255,255,255,.13);padding-bottom:3px;margin-bottom:2px}
   /* Colonne points : LARGEUR FIXE (🎾 en-tête et points alignés -> les n° de set restent centrés
-     sur les jeux du dessous), SANS bordure par cellule. */
-  .lboard-t .lb-pt,.lboard-t .lb-pt-h{min-width:26px;width:26px;text-align:center;padding-left:0;
+     sur les jeux du dessous),
+  SANS bordure par cellule. */
+  .lboard-t .lb-pt,
+  .lboard-t .lb-pt-h{min-width:26px;width:26px;text-align:center;padding-left:0;
         margin-left:0}
-  /* (la seule ligne verticale est celle à gauche de SETS, définie plus haut comme pour le basket) */
+  /* (la seule ligne verticale est celle à gauche de SETS,
+  définie plus haut comme pour le basket) */
   /* Libellé « cotes en direct » au-dessus des boutons de cotes */
   .live-odds-l{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
           color:var(--muted);margin:2px 2px 4px}
   .live-odds-l .live{color:#34d27b;font-size:8px;vertical-align:middle}
   .rowtop-live .rt-r{justify-content:flex-end}
-  /* Titre du match : « Équipe A vs Équipe B » sur UNE SEULE ligne, petit, aligné à GAUCHE (tronqué si long) */
+  /* Titre du match : « Équipe A vs Équipe B » sur UNE SEULE ligne,
+  petit,
+  aligné à GAUCHE (tronqué si long) */
   .players{font-size:13.5px;font-weight:700;margin:5px 0 2px;letter-spacing:-.01em;color:#fff;
            text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
   .players .dim{font-size:12px;font-weight:600}
-  /* Ligne du pari : nom+cote à gauche, badge value à droite (toujours sur une ligne) */
+  /* Ligne du pari : nom+cote à gauche,
+  badge value à droite (toujours sur une ligne) */
   .betline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:5px 0 2px}
   .betline .bn{font-size:16px;font-weight:700;letter-spacing:-.01em;min-width:0;
                overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  /* affiche (équipes) + badge à droite, badge aligné en haut, le matchup peut wraper */
+  /* affiche (équipes) + badge à droite,
+  badge aligné en haut,
+  le matchup peut wraper */
   .mrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-top:6px}
   .mrow .players{flex:1;min-width:0;text-align:left}   /* affiche alignée à GAUCHE dans la carte */
   .bdg{flex:none}
   /* perle rare : le pari à jouer (confiance×value) mis en avant */
-  /* Bloc « pari à jouer », SOUS les cotes : tête (type + pari + cote) puis barre de confiance.
+  /* Bloc « pari à jouer »,
+  SOUS les cotes : tête (type + pari + cote) puis barre de confiance.
      CONFIANCE = vert · VALUE = bleu · avant-match = neutre. */
-  /* Paris GROUPÉS dans un seul cadre, coiffé d'un BANDEAU EN-TÊTE (type : Confiance/Value).
-     margin-top = l'ESPACE demandé sous les 4 barres. PAS d'overflow:hidden (sur iOS, combiné
-     au calque fixe body::before, il laisse des traces concentriques au scroll) : on arrondit
-     plutôt les coins HAUT du bandeau pour épouser le cadre. */
-  /* Fine ligne de séparation entre la barre Public et le cadre Confiance/Value */
-  /* Espace SYMÉTRIQUE au-dessus et en dessous de la ligne de séparation (14px de chaque côté) */
-  .plg-div{height:1px;background:rgba(255,255,255,.12);margin:14px 2px 14px}
-  /* Cadre Confiance/Value : MODULE distinct, fond DENSE + bordure marquée + ombre (surélevé)
+  /* Paris GROUPÉS dans un seul cadre,
+  coiffé d'un BANDEAU EN-TÊTE (type : Confiance/Value).
+     margin-top = l'ESPACE demandé sous les 4 barres. PAS d'overflow:hidden (sur iOS,
+  combiné
+     au calque fixe body::before{height:1px;background:rgba(255,255,255,.12);margin:14px 2px 14px}
+  /* Cadre Confiance/Value : MODULE distinct,
+  fond DENSE + bordure marquée + ombre (surélevé)
      -> la bannière colorée se détache des barres de stats au lieu de s'y confondre. */
   .plg{border-radius:12px;margin:0 0 3px;box-shadow:0 5px 16px rgba(0,0,0,.42)}
-  .plg-conf{background:linear-gradient(180deg,rgba(16,34,26,.92),rgba(11,22,44,.96));
-        border:1px solid rgba(34,191,108,.55);--rc:#34d27b}
-  .plg-val{background:linear-gradient(180deg,rgba(14,28,48,.92),rgba(11,22,44,.96));
-        border:1px solid rgba(34,184,255,.55);--rc:#4aa8ff}
   /* Type (Confiance/Value) = PASTILLE centrée (pas un bandeau pleine largeur) -> ne ressemble
      plus à une barre de stats. */
-  /* Type (Confiance/Value) = simple LIBELLÉ coloré, en haut à gauche DANS le cadre (minimaliste) */
-  .plg-tab{padding:11px 14px 0;font-size:11px;font-weight:800;text-transform:uppercase;
+  /* Type (Confiance/Value) = simple LIBELLÉ coloré{padding:11px 14px 0;font-size:11px;font-weight:800;text-transform:uppercase;
         letter-spacing:.1em}
-  .plg-conf .plg-tab{color:#34d27b}
-  .plg-val .plg-tab{color:#4aa8ff}
-  .plg-body{padding:2px 13px 6px}
-  /* LISTE ALIGNÉE : pari (sélection + fiabilité) à GAUCHE, cote en bouton à DROITE */
-  .plg-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 2px}
-  /* Séparateur « et / ou » entre 2 paris du même cadre (filets de part et d'autre) */
-  .plg-sep{display:flex;align-items:center;gap:9px;text-align:center;margin:1px 0;
-        font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-  .plg-sep::before,.plg-sep::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.10)}
-  /* Bloc pari (gauche) : sélection en avant + ligne de fiabilité (point coloré + niveau + %) */
-  .plg-bet{min-width:0;text-align:left}
-  .plg-sel{font-size:15px;font-weight:800;color:#fff;line-height:1.25}
-  .plg-rel{margin-top:6px;display:flex;align-items:center;gap:6px;font-size:11.5px;
-        font-weight:700;color:var(--muted)}
-  .plg-rel b{color:#dbe6f5;font-weight:800}
-  .plg-rel .plg-pct{font-variant-numeric:tabular-nums}
-  .plg-dot{width:7px;height:7px;border-radius:50%;background:var(--rc);flex:none}
-  /* Cote en gros BOUTON à droite (couleur du type) */
-  .plg-cote{flex:none;padding:9px 16px;border-radius:11px;font-size:16px;font-weight:800;
-        font-variant-numeric:tabular-nums}
-  .plg-conf .plg-cote{color:#7ff0b6;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.42)}
-  .plg-val .plg-cote{color:#9fd2ff;background:rgba(34,184,255,.16);border:1px solid rgba(34,184,255,.42)}
-  /* Résultat live : halo/teinte vert (gagné) ou rouge (perdu) sur le pari concerné.
-     NB : classes plg-won/plg-lost (PAS pl-won/pl-lost qui ont un white-space:nowrap parasite). */
-  .plg-item.plg-won{background:rgba(25,196,106,.10);border-radius:9px;
-        box-shadow:inset 0 0 0 1px rgba(52,210,123,.45)}
-  .plg-item.plg-lost{background:rgba(242,93,110,.09);border-radius:9px;
-        box-shadow:inset 0 0 0 1px rgba(242,93,110,.45)}
+  /* LISTE ALIGNÉE : pari (sélection + fiabilité) à GAUCHE{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 2px}
   .perle{display:block;margin:9px 0 3px;padding:10px 12px;border-radius:11px;
          background:rgba(255,255,255,.03);border:1px solid var(--cardline)}
   .pl-top{display:flex;align-items:center;gap:7px}
@@ -674,15 +680,11 @@ CSS = """
               border-color:rgba(25,196,106,.45);box-shadow:0 0 14px rgba(25,196,106,.10)}
   .perle-conf .pl-tag{color:#19c46a;background:rgba(25,196,106,.16)}
   .perle-conf .pl-o{color:#34d27b}
-  .perle-conf .cm-bar>span{background:linear-gradient(90deg,#19c46a,#34d27b)}
-  .perle-conf .cm-v{color:#34d27b}
   /* VALUE = bleu */
   .perle-value{background:linear-gradient(90deg,rgba(34,184,255,.13),rgba(34,184,255,.05));
                border-color:rgba(34,184,255,.45);box-shadow:0 0 14px rgba(34,184,255,.10)}
   .perle-value .pl-tag{color:#4aa8ff;background:rgba(34,184,255,.16)}
   .perle-value .pl-o{color:#4aa8ff}
-  .perle-value .cm-bar>span{background:linear-gradient(90deg,#2e9bff,#4aa8ff)}
-  .perle-value .cm-v{color:#7cc0ff}
   /* Match commencé : on garde le type (vert/bleu) mais sans halo « action » + mention discrète */
   .perle-pre{box-shadow:none;opacity:.9}
   .pl-pre{font-size:9.5px;font-weight:700;font-style:italic;color:var(--muted);white-space:nowrap}
@@ -696,26 +698,19 @@ CSS = """
   .perle-lost{border-color:rgba(244,73,73,.9)!important;
               box-shadow:0 0 18px rgba(244,73,73,.45)!important;
               background:linear-gradient(90deg,rgba(244,73,73,.18),rgba(244,73,73,.06))!important}
-  .perle-lost .cm-bar>span{background:linear-gradient(90deg,#f44949,#ff7a7a)!important}
-  .perle-lost .cm-v,.perle-lost .pl-o{color:#ff8a8a!important}
+  .perle-lost .pl-o{color:#ff8a8a!important}
   .pl-lost{font-size:10px;font-weight:800;color:#ff6b6b;background:rgba(244,73,73,.18);
           padding:2px 6px;border-radius:6px;white-space:nowrap}
-  /* Barre de CONFIANCE (jauge) : niveau + % ; couleur héritée du type de pari ci-dessus */
-  .cmeter{display:flex;align-items:center;gap:9px;margin:8px 0 1px;font-size:11px}
-  .cm-l{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
-        color:var(--muted);white-space:nowrap}
-  .cm-bar{flex:1;height:6px;border-radius:99px;background:var(--border);overflow:hidden}
-  .cm-bar>span{display:block;height:100%;border-radius:99px;background:var(--muted)}
-  .cm-v{font-weight:800;white-space:nowrap;color:#cfe0f5}
-  .cm-p{color:var(--muted);font-weight:700;margin-left:5px}
   .bdg .badge{white-space:nowrap}
   /* Matchs terminés : prono JOUÉ mis en évidence (Confiance vert / Value bleu) + ✓/✗ */
   .fpick{font-size:12.5px;color:#eaf2ff;padding:8px 11px;border-radius:9px;
          margin:4px 0;border:1px solid var(--cardline);line-height:1.35}
   .fp-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .fpick-t{font-weight:800;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
-  .fp-o{font-weight:800;color:#34d27b;white-space:nowrap}      /* cote en vert, à droite du type */
-  .fpick-s{font-weight:700;text-align:center;margin-top:5px}   /* le pari, centré sur 2e ligne */
+  .fp-o{font-weight:800;color:#34d27b;white-space:nowrap}      /* cote en vert,
+  à droite du type */
+  .fpick-s{font-weight:700;text-align:center;margin-top:5px}   /* le pari,
+  centré sur 2e ligne */
   .fp-conf .fpick-t{color:#34d27b}
   .fp-val .fpick-t{color:#4aa8ff}
   /* Couleur de la bulle selon le RÉSULTAT (prime sur le type) : vert+halo / rouge+halo */
@@ -759,8 +754,10 @@ CSS = """
   details.sec2 .sec-info{margin:8px 0 4px}
   details.sec2 > .secbody{margin-top:4px}
   .b-soon{background:var(--surface);color:var(--muted);border:1px solid var(--border);font-weight:700}
-  /* badge décompte (timer avant le coup d'envoi), en haut à droite de la carte.
-     Texte BLANC, unités jour/heure/minute bien distinctes. */
+  /* badge décompte (timer avant le coup d'envoi),
+  en haut à droite de la carte.
+     Texte BLANC,
+  unités jour/heure/minute bien distinctes. */
   .rt-r{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
   .cd{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:9.5px;font-weight:800;line-height:1;
       font-variant-numeric:tabular-nums;letter-spacing:.02em;background:rgba(255,255,255,.10);
@@ -783,8 +780,10 @@ CSS = """
       text-transform:uppercase;text-align:center;padding-top:1px}
   .pbars{margin-top:7px;display:flex;flex-direction:column;gap:5px}
   .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
-  /* TABLEAU « Chances de gagner » : sources en LIGNES, issues en COLONNES + fine barre/ligne */
-  /* Barres PLEINES : source au-dessus, % dans chaque segment (favori = couleur source) */
+  /* TABLEAU « Chances de gagner » : sources en LIGNES,
+  issues en COLONNES + fine barre/ligne */
+  /* Barres PLEINES : source au-dessus,
+  % dans chaque segment (favori = couleur source) */
   .sbars{margin:9px 0 2px}
   .sb{margin:8px 0}
   .sb-l{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
@@ -795,10 +794,14 @@ CSS = """
         font-size:12.5px;font-weight:800;min-width:34px;overflow:hidden;white-space:nowrap;
         text-shadow:0 1px 1px rgba(0,0,0,.28)}
   /* Favori (couleur de la source) : pilule mise en valeur (reflet en haut + légère ombre) */
-  .seg.pm,.seg.po,.seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
+  .seg.pm,
+  .seg.po,
+  .seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
   /* Non-favori : % légèrement atténué + un poil plus petit */
-  .seg.pba,.seg.pbd{color:rgba(255,255,255,.74);font-size:11px;font-weight:700}
-  /* Barre « Bookmakers » : 1 segment par issue (cote seule), parts ÉGALES. Les 3 ont le
+  .seg.pba,
+  .seg.pbd{color:rgba(255,255,255,.74);font-size:11px;font-weight:700}
+  /* Barre « Bookmakers » : 1 segment par issue (cote seule),
+  parts ÉGALES. Les 3 ont le
      MÊME fond que le segment le plus faible (non-favori) des autres barres -> navy .pba. */
   .sb-bar.ocbar .seg{flex:1 1 0;min-width:0;gap:5px;padding:0 7px}
   .ocbar .seg b{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -809,7 +812,8 @@ CSS = """
   /* en-tête : Source à gauche ; les NOMS de joueurs CENTRÉS sur leurs % (comme .pt2-v) */
   .pt2-h span{text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .pt2-h span:first-child{text-align:left}
-  /* Bloc = grille 2 lignes : source (col 1, centrée verticalement) | % (ligne 1) | barre (ligne 2) */
+  /* Bloc = grille 2 lignes : source (col 1,
+  centrée verticalement) | % (ligne 1) | barre (ligne 2) */
   .pt2-block{display:grid;grid-template-columns:var(--cols);column-gap:6px;align-items:center;
          padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.04)}
   .pt2-block:last-child{border-bottom:none}
@@ -821,24 +825,29 @@ CSS = """
   .pt2-v.hi{font-weight:800}
   .pt2-v.dim{color:var(--dim)}
   .t-pm{color:#4aa8ff} .t-po{color:#43dd8c} .t-pc{color:#e8c34d}   /* favori = couleur de la source */
-  /* Barre : ligne 2, à partir de la colonne 2 (démarre donc après la source) */
+  /* Barre : ligne 2,
+  à partir de la colonne 2 (démarre donc après la source) */
   .pt2-bar{grid-column:2/-1;grid-row:2;margin-top:5px;
          display:flex;gap:1px;height:4px;border-radius:99px;overflow:hidden;background:var(--surface)}
   .pt2-bar > span{display:block;height:100%}
   .pb-row{display:flex;align-items:center;gap:7px;font-size:11px}
   .pb-l{width:64px;flex:none;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
         font-weight:800;font-size:9px}
-  /* Piste = flex : segment home (couleur source) | nul | away (atténué), total 100% */
+  /* Piste = flex : segment home (couleur source) | nul | away (atténué),
+  total 100% */
   .pb-t{flex:1;height:8px;border-radius:99px;background:var(--surface);overflow:hidden;
         display:flex;gap:1px}
   .pb-t > span{display:block;height:100%}
   .pb-v{width:36px;flex:none;text-align:right;font-weight:800}
   /* Barres comparatives : couleurs FIXES (identiques tous sports/onglets) ->
-     BETSFIX bleu, BOOKMAKER gris, PUBLIC jaune. Ne pas thématiser par sport. */
+     BETSFIX bleu,
+  BOOKMAKER gris,
+  PUBLIC jaune. Ne pas thématiser par sport. */
   .pm{background:linear-gradient(90deg,#1f80e6,#2e9bff)}   /* BETSFIX bleu */
   .po{background:linear-gradient(90deg,#19c46a,#34d27b)}   /* Cote Unibet VERT */
   .pc{background:#e0b341}                                   /* Public jaune */
-  .pbd{background:#7a8094}             /* segment NUL (gris clair, bien distinct) */
+  .pbd{background:#7a8094}             /* segment NUL (gris clair,
+  bien distinct) */
   .pba{background:#2d3f66}             /* segment équipe NON-favorite (navy atténué) */
   /* Divergence public/modèle : emoji à droite de la barre PUBLIC + bulle au tap */
   .pb-x{width:20px;flex:none;text-align:center}
@@ -848,7 +857,8 @@ CSS = """
               background:var(--surface2);border:1px solid var(--border2);color:var(--muted)}
   .dvg-bubble b{color:var(--text)}
   /* Barre de cotes : une cellule par issue (joueur 1 / Nul / joueur 2) ; favori (cote la
-     plus basse) mis en avant en bleu. Nom au-dessus, cote dessous. */
+     plus basse) mis en avant en bleu. Nom au-dessus,
+  cote dessous. */
   .oddsrow{display:flex;gap:6px;margin-top:7px}
   /* TOUS les boutons de cotes en encadré BLEU ; la cote pariée est un peu plus marquée */
   .oc{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
@@ -865,7 +875,8 @@ CSS = """
   .oc2{font-size:12.5px;color:var(--muted);white-space:nowrap}
   .oc2 b{color:#eaf2ff;font-weight:800;margin-left:3px;font-size:13.5px;font-variant-numeric:tabular-nums}
   .oc2.fav{color:#9fd0ff} .oc2.fav b{color:#56b0ff}
-  /* Tous les paris Unibet : un bloc par marché, cotes qui wrappent si nombreuses */
+  /* Tous les paris Unibet : un bloc par marché,
+  cotes qui wrappent si nombreuses */
   .mkt{margin:9px 0}
   .mkt-l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
          font-weight:700;margin-bottom:4px}
@@ -915,7 +926,8 @@ CSS = """
   .pbar-l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Dataviz fiche match : pastilles de forme + mini-barres de facteurs */
   .dots{display:flex;gap:5px;justify-content:space-between}   /* réparti sur toute la largeur */
-  /* Nom d'équipe/joueur des formes récentes : MÊME présentation sur les 3 sports, centré */
+  /* Nom d'équipe/joueur des formes récentes : MÊME présentation sur les 3 sports,
+  centré */
   .fm-name{font-size:14px;font-weight:800;text-align:center;margin:2px 0 8px;color:#eaf2ff}
   .fm-name .dim{font-weight:600}
   .dot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;
@@ -943,7 +955,8 @@ CSS = """
                     letter-spacing:.05em}
   .dim{color:var(--muted);font-size:12px}
   .pos{color:var(--green);font-weight:700}.neg{color:var(--red);font-weight:700}
-  /* Banners — info discret par défaut, ambre seulement pour les vraies alertes (.warn) */
+  /* Banners — info discret par défaut,
+  ambre seulement pour les vraies alertes (.warn) */
   .banner{background:var(--surface);border:1px solid var(--border);
           border-left:3px solid var(--border2);color:var(--muted);border-radius:12px;
           padding:11px 14px;font-size:12.5px;line-height:1.55;margin:11px 0}
@@ -967,11 +980,13 @@ CSS = """
   .an-body{font-size:13.5px;line-height:1.62;color:var(--text)}
   .an-note{font-size:10px;color:var(--muted);margin-top:9px;border-top:1px solid var(--border);
           padding-top:7px}
-  /* « Preuve » — tableau unique (1 ligne/sport, colonnes alignées) façon tableau de bord */
+  /* « Preuve » — tableau unique (1 ligne/sport,
+  colonnes alignées) façon tableau de bord */
   .ptab{border:1px solid var(--cardline);border-radius:14px;overflow:hidden;margin:8px 0;
           background:linear-gradient(180deg,var(--surface2),var(--surface));
           box-shadow:var(--cardglow)}
-  .ptab-h,.ptab-row{display:grid;grid-template-columns:1fr 1.4fr .8fr .8fr;gap:5px;
+  .ptab-h,
+  .ptab-row{display:grid;grid-template-columns:1fr 1.4fr .8fr .8fr;gap:5px;
           align-items:center;padding:11px 12px}
   .ptab-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.01em;
           color:#eaf2ff;border-bottom:1px solid var(--border);background:rgba(255,255,255,.022)}
@@ -980,7 +995,8 @@ CSS = """
   .ptab-row{border-top:1px solid var(--border);border-left:3px solid var(--sc,var(--border2));
           text-decoration:none;color:var(--text);transition:background .15s}
   .ptab-row:first-of-type{border-top:none}
-  .ptab-row:active,.ptab-row:hover{background:rgba(255,255,255,.03)}
+  .ptab-row:active,
+  .ptab-row:hover{background:rgba(255,255,255,.03)}
   .ptab-sport{font-weight:800;font-size:12.5px;line-height:1.2;min-width:0;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ptab-sub{display:block;font-size:10px;font-weight:600;color:var(--muted)}
@@ -991,11 +1007,15 @@ CSS = """
   .ptab-vsub{font-size:9px;font-weight:600;color:var(--muted);white-space:nowrap;text-align:center}
   .ptab-verdict.ok{color:var(--green)} .ptab-verdict.ko{color:var(--red)}
   .ptab-verdict.na{color:var(--muted)}
-  .ptab-conf,.ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap;
+  .ptab-conf,
+  .ptab-val{font-size:14px;font-weight:800;text-align:center;white-space:nowrap;
           line-height:1.1;min-width:0}
-  .ptab-conf.na,.ptab-val.na{color:var(--muted);font-weight:600;opacity:.5;font-size:16px}
+  .ptab-conf.na,
+  .ptab-val.na{color:var(--muted);font-weight:600;opacity:.5;font-size:16px}
   .ptab-pct{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
-  .ptab-pct.pos,.ptab-pct .pos{color:var(--green)} .ptab-pct.neg,.ptab-pct .neg{color:var(--red)}
+  .ptab-pct.pos,
+  .ptab-pct .pos{color:var(--green)} .ptab-pct.neg,
+  .ptab-pct .neg{color:var(--red)}
   /* Mini-barre de progression PAR SPORT (colonne Fiabilité) : réglés (plein) + en attente (estompé) */
   .pbar2{display:flex;width:86%;max-width:88px;height:5px;border-radius:99px;
           background:var(--border);overflow:hidden;margin:5px auto 4px}
@@ -1007,7 +1027,8 @@ CSS = """
   .pg-lg{display:inline-block;width:14px;height:5px;border-radius:99px;vertical-align:middle;margin-right:2px}
   .pg-lg.done{background:linear-gradient(90deg,#34d27b,#4aa8ff)}
   .pg-lg.wait{background:rgba(159,180,207,.32)}
-  /* Courbe d'équité (P&L cumulé dans le temps) : SVG généré côté serveur, sans JS */
+  /* Courbe d'équité (P&L cumulé dans le temps) : SVG généré côté serveur,
+  sans JS */
   .evo-svg{width:100%;height:auto;display:block;margin:8px 0 2px}
   .evo-legend{display:flex;justify-content:center;gap:15px;flex-wrap:wrap;margin:7px 0 1px}
   .evo-lg{font-size:11px;font-weight:700;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
@@ -1045,7 +1066,8 @@ CSS = """
   .da-quote{border-left:3px solid var(--gold);background:var(--gold-bg);padding:7px 10px;
        margin:9px 0;border-radius:6px;font-size:12px;color:var(--gold)}
   .da-tbl{width:100%;border-collapse:collapse;margin:9px 0;font-size:11.5px}
-  .da-tbl th,.da-tbl td{border:1px solid var(--border);padding:5px 7px;text-align:left;vertical-align:top}
+  .da-tbl th,
+  .da-tbl td{border:1px solid var(--border);padding:5px 7px;text-align:left;vertical-align:top}
   .da-tbl th{background:var(--surface2);font-weight:700;color:#cfe0f5}
   .da a{color:#5ab0ff;text-decoration:none}
   /* === Habillage analyste premium : Verdict héro + tableau + faits + tendances === */
@@ -1082,7 +1104,8 @@ CSS = """
   .arec-sp-o{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
   .arec-hi{color:#3ee089} .arec-mid{color:var(--gold)} .arec-lo{color:#ff7484}
   .arec-na{color:var(--muted)}   /* ROI peu fiable (échantillon trop faible) -> grisé */
-  /* Graphiques performance PAR PARI (SVG, courbes de profit cumulé) */
+  /* Graphiques performance PAR PARI (SVG,
+  courbes de profit cumulé) */
   .bcharts{margin:2px 0 14px;display:flex;flex-direction:column;gap:10px}
   .bcharts-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
        color:#cfe0f5;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
@@ -1111,7 +1134,8 @@ CSS = """
   /* ===== Statistiques accueil PREMIUM (sx) ===== */
   .sx{margin:2px 0 16px}
   .sx-body{display:flex;flex-direction:column;gap:14px}   /* stats sans onglets (filtres retirés) */
-  /* Onglets de période (CSS pur, sans JS) */
+  /* Onglets de période (CSS pur,
+  sans JS) */
   .sx-radio{position:absolute;width:0;height:0;opacity:0;pointer-events:none}
   .sx-tabs{display:flex;gap:6px;margin-bottom:12px}
   .sx-tabs label{flex:1;text-align:center;padding:7px 4px;border-radius:10px;font-size:12px;
@@ -1122,11 +1146,14 @@ CSS = """
   #sxp-7:checked ~ .sx-tabs label[for="sxp-7"]{color:#fff;background:var(--surface2);
        border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
   .sx-period{display:none}
-  #sxp-all:checked ~ .sx-p-all,#sxp-30:checked ~ .sx-p-30,#sxp-7:checked ~ .sx-p-7{
+  #sxp-all:checked ~ .sx-p-all,
+  #sxp-30:checked ~ .sx-p-30,
+  #sxp-7:checked ~ .sx-p-7{
        display:flex;flex-direction:column;gap:14px}
   .sx-empty{padding:26px 12px;text-align:center;color:var(--muted);font-size:12.5px;
        background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
-  /* Filtre SPORT (onglets CSS, transverse aux périodes) */
+  /* Filtre SPORT (onglets CSS,
+  transverse aux périodes) */
   .sx-stabs{display:flex;gap:6px;margin-bottom:12px}
   .sx-stabs label{flex:1;text-align:center;padding:6px 4px;border-radius:9px;font-size:13px;
        font-weight:800;color:var(--muted);background:var(--surface);border:1px solid var(--border);
@@ -1140,9 +1167,6 @@ CSS = """
   #sxs-foot:checked ~ .sx-period .sx-sport:not([data-sport="foot"]),
   #sxs-tennis:checked ~ .sx-period .sx-sport:not([data-sport="tennis"]),
   #sxs-basket:checked ~ .sx-period .sx-sport:not([data-sport="basket"]){display:none}
-  #sxs-foot:checked ~ .sx-period .sx-byp,
-  #sxs-tennis:checked ~ .sx-period .sx-byp,
-  #sxs-basket:checked ~ .sx-period .sx-byp{display:none}
   /* Héro bilan global */
   .sx-hero{background:linear-gradient(180deg,var(--surface2),var(--surface));
        border:1px solid var(--cardline);border-radius:var(--radius);
@@ -1167,29 +1191,16 @@ CSS = """
   .sx-relnote{font-size:9.5px;color:var(--muted);font-weight:600;opacity:.85}
   .sx-hero-foot{position:relative;display:flex;align-items:center;justify-content:space-between;
        gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--border)}
-  .sx-hero-chart{position:relative;margin:10px 0 2px}
   .sx-heroc{width:100%;height:auto;display:block;max-height:96px}
   .sx-kpis{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px;
        padding-top:12px;border-top:1px solid var(--border)}
   .sx-kpi{text-align:center}
   .sx-kpi b{display:block;font-size:15px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
   .sx-kpi span{font-size:9.5px;color:var(--muted);font-weight:600}
-  /* Sections (perf par pari + détail par sport) : espacement titre↔contenu uniforme */
-  .sx-byp,.sx-bys{display:flex;flex-direction:column;gap:10px}
+  .sx-bys{display:flex;flex-direction:column;gap:10px}
   .sx-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:0 2px;
        font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#cfe0f5}
   .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
-  /* Cartes par pari */
-  .sx-paris{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .sx-pari{background:var(--surface);border:1px solid var(--border);border-radius:13px;
-       padding:10px 9px;text-align:center}
-  .sx-pari-h{display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;
-       font-weight:800;color:var(--muted)}
-  .sx-pari-roi{font-size:21px;font-weight:900;line-height:1.05;margin-top:5px;font-variant-numeric:tabular-nums}
-  .sx-pari-rl{font-size:8.5px;font-weight:800;letter-spacing:.07em;color:var(--muted)}
-  .sx-pari .sx-spark{height:26px;margin:5px 0 4px}
-  .sx-pari-l{font-size:11px;font-weight:700;color:#cfe0f5}
-  .sx-pari-l2{font-size:10px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:1px}
   /* Section par sport */
   .sx-sport{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
        padding:11px 12px 10px}
@@ -1201,8 +1212,6 @@ CSS = """
   .sx-row{padding:6px 9px;border-radius:9px;background:rgba(255,255,255,.035);
        border:1px solid var(--border);font-size:11.5px;cursor:pointer}
   .sx-row-main{display:flex;align-items:center;gap:8px}
-  .sx-row-best{background:rgba(246,197,74,.08);border-color:rgba(246,197,74,.32)}
-  .sx-best{color:var(--gold);margin-left:3px}
   .sx-row-n{font-weight:800;color:var(--text);min-width:46px}
   .sx-row-roi{font-weight:900;min-width:50px;font-variant-numeric:tabular-nums}
   .sx-row-wl{color:#cfe0f5;font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
@@ -1210,82 +1219,6 @@ CSS = """
   .sx-row-chev{color:var(--muted);font-weight:900;transition:transform .18s;flex:none}
   .sx-row.open .sx-row-chev{transform:rotate(90deg)}
   .sx-spark{width:100%;display:block}
-  /* ===== Page « Mes paris » ===== */
-  .mb{margin:2px 0 16px;display:flex;flex-direction:column;gap:12px}
-  .mb-h{font-size:20px;font-weight:900;margin:2px 0}
-  .mb-bal{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--cardline);
-       border-radius:var(--radius);box-shadow:var(--cardglow),var(--shadow);padding:14px 15px 12px;text-align:center}
-  .mb-bal-v{font-size:32px;font-weight:900;line-height:1}
-  .mb-bal-l{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-  .mb-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px;padding-top:11px;
-       border-top:1px solid var(--border)}
-  .mb-kpis div{text-align:center}
-  .mb-kpis b{display:block;font-size:14px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
-  .mb-kpis span{font-size:9px;color:var(--muted);font-weight:600}
-  .mb-sec{font-size:12px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#cfe0f5;margin-top:4px}
-  .mb-note{font-size:10.5px;color:var(--muted);margin:-6px 0 0}
-  .mb-row{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 12px}
-  .mb-row-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-  .mb-match{font-size:13.5px;font-weight:800;color:var(--text)}
-  .mb-when{font-size:10px;color:var(--muted);white-space:nowrap}
-  .mb-sel{font-size:12.5px;font-weight:700;color:#cfe0f5;margin:4px 0 6px}
-  .mb-sim{font-size:9.5px;font-weight:900;letter-spacing:.5px;color:#0b0e14;background:#f4c64a;
-       border-radius:5px;padding:1px 5px;vertical-align:middle}
-  .mb-line{display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .mb-stake{font-size:12.5px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
-  .mb-stat{font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:99px;white-space:nowrap}
-  .mbs-w{color:#3ee089;background:rgba(52,210,123,.14)} .mbs-l{color:#ff7484;background:rgba(242,93,110,.13)}
-  .mbs-p{color:var(--muted);background:rgba(255,255,255,.05)} .mbs-up{color:#cfe0f5;background:rgba(255,255,255,.05)}
-  .mbs-live{color:#34d27b;background:rgba(52,210,123,.12)}
-  .mb-delf{margin-top:8px;text-align:right}
-  .mb-del{background:none;border:none;color:var(--muted);font-size:10.5px;font-weight:700;
-       text-decoration:underline;cursor:pointer}
-  .mb-empty{padding:22px 12px;text-align:center;color:var(--muted);font-size:12.5px;
-       background:var(--surface);border:1px solid var(--border);border-radius:12px}
-  .mb-cta{display:block;text-align:center;padding:11px;border-radius:12px;margin:0 0 14px;font-weight:800;
-       font-size:13.5px;color:#eaf2ff;text-decoration:none;background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border:1px solid var(--cardline)}
-  /* Assistant : bankroll + paris recommandés */
-  .mb-bk{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
-       border-radius:10px;padding:8px 11px}
-  .mb-bk label{font-size:12.5px;font-weight:800;color:#cfe0f5}
-  .mb-bk input{flex:1;min-width:0;padding:8px;border-radius:8px;background:var(--surface2);
-       border:1px solid var(--border2);color:var(--text);font-size:14px;font-weight:700}
-  .mb-bk span{color:var(--muted);font-weight:700}
-  .mb-bk button{flex:none;padding:8px 14px;border:none;border-radius:8px;font-weight:800;cursor:pointer;
-       color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
-  .mb-basis{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45}
-  .mb-basis b{color:#3ee089}
-  .mb-reco{background:linear-gradient(180deg,rgba(16,34,26,.5),rgba(11,22,44,.4));
-       border:1px solid rgba(52,210,123,.34);border-radius:12px;padding:11px 12px}
-  .mb-reco-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-  .mb-reco-sel{font-size:13.5px;font-weight:800;color:#fff;margin:5px 0 6px;line-height:1.3}
-  .mb-reco-l{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px}
-  .mb-reco-stake{color:#cfe0f5;font-weight:700}
-  .mb-play{display:block;text-align:center;margin-top:9px;padding:10px;border-radius:10px;font-weight:800;
-       font-size:13.5px;text-decoration:none;color:#06140d;
-       background:linear-gradient(180deg,#34d27b,#22b56c)}
-  /* ===== Accueil : section « Paris à jouer » (premium) ===== */
-  .paj-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 11px;
-       font-size:17px;font-weight:900;color:var(--text)}
-  .paj-h-tag{font-size:9px;font-weight:900;letter-spacing:.12em;color:#f4c64a;
-       background:rgba(244,198,74,.12);border:1px solid rgba(244,198,74,.34);
-       border-radius:99px;padding:3px 9px}
-  /* Bandeau bankroll simulée */
-  .paj-bank{background:linear-gradient(160deg,#16161b 0%,#0f0f13 100%);
-       border:1px solid var(--border2);border-radius:15px;padding:13px 15px;margin-bottom:11px;
-       box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 6px 18px rgba(0,0,0,.32);position:relative;overflow:hidden}
-  .paj-bank::before{content:"";position:absolute;inset:0 0 0 auto;width:120px;
-       background:radial-gradient(circle at 100% 0,var(--glow),transparent 70%)}
-  .paj-bank-top{display:flex;align-items:baseline;gap:10px;position:relative}
-  .paj-bank-v{font-size:27px;font-weight:900;color:#fff;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
-  .paj-bank-chg{font-size:12px;font-weight:900;padding:2px 8px;border-radius:99px}
-  .paj-bank-chg.pos{color:#3ee089;background:rgba(52,210,123,.15)}
-  .paj-bank-chg.neg{color:#ff7484;background:rgba(242,93,110,.14)}
-  .paj-bank-chg.neu{color:var(--muted);background:rgba(255,255,255,.06)}
-  .paj-bank-sub{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:3px;position:relative}
-  .paj-basis{font-size:10px;color:var(--muted);font-weight:600;line-height:1.45;margin-bottom:10px}
-  .paj-basis b{color:#3ee089}
   .paj-empty{text-align:center;color:var(--text);font-weight:800;font-size:14px;padding:26px 12px;
        background:var(--surface);border:1px solid var(--border);border-radius:14px}
   .paj-empty span{display:block;margin-top:6px;font-size:11.5px;font-weight:600;color:var(--muted)}
@@ -1294,47 +1227,9 @@ CSS = """
        border:1px solid var(--border);border-radius:16px;padding:13px 14px;margin-bottom:11px;
        box-shadow:0 6px 18px rgba(0,0,0,.3)}
   .paj.rowtap{cursor:pointer}
-  .paj-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:11px;min-width:0}
-  .paj-team{display:flex;align-items:center;gap:9px;min-width:0;flex:1 1 auto}
-  .paj-ic{flex:none;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;
-       justify-content:center;font-size:16px;background:rgba(255,255,255,.05);border:1px solid var(--border)}
-  .paj-names{font-size:13.5px;font-weight:800;color:var(--text);line-height:1.22;min-width:0;
-       overflow-wrap:anywhere}
-  .paj-names i{font-style:normal;color:var(--dim);font-weight:700;font-size:11px;margin:0 2px}
-  .paj-comp{display:block;font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;
-       letter-spacing:.05em;margin-top:2px}
-  .paj-when{font-size:10px;color:var(--muted);white-space:nowrap;text-align:right;flex:none}
-  .paj-live{display:block;margin-top:3px;color:#ff5470;font-weight:900;font-size:9.5px;letter-spacing:.06em}
-  .paj-pick{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;
-       background:rgba(46,226,127,.06);border:1px solid rgba(52,210,123,.22);
-       border-radius:12px;padding:9px 11px}
-  .paj-pick-l{min-width:0;flex:1 1 auto}
-  .paj-tag{display:inline-block;font-size:8.5px;font-weight:900;letter-spacing:.1em;color:#3ee089;
-       background:rgba(52,210,123,.13);border-radius:5px;padding:1px 6px;margin-bottom:4px}
-  .paj-sel{display:block;font-size:14.5px;font-weight:800;color:#fff;line-height:1.25;overflow-wrap:anywhere}
-  .paj-odd{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
-       min-width:62px;padding:6px 12px;border-radius:11px;font-size:19px;font-weight:900;color:#04130a;
-       line-height:1;background:linear-gradient(180deg,#34d27b,#1fb364);box-shadow:0 3px 10px rgba(31,179,100,.32)}
-  .paj-odd small{font-size:8px;font-weight:800;letter-spacing:.08em;opacity:.75;margin-top:3px}
-  /* Barre de confiance */
-  .paj-conf{margin:11px 0 0}
-  .paj-conf-head{display:flex;justify-content:space-between;font-size:10.5px;font-weight:800;
-       color:var(--muted);margin-bottom:4px}
-  .paj-conf-head b{color:#fff}
-  .paj-conf-bar{height:7px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}
-  .paj-conf-fill{display:block;height:100%;border-radius:99px}
-  .paj-conf-fill.hi{background:linear-gradient(90deg,#1fb364,#3ee089)}
-  .paj-conf-fill.mid{background:linear-gradient(90deg,#caa53a,#f4c64a)}
-  .paj-conf-fill.lo{background:linear-gradient(90deg,#c25a4a,#ef8a4a)}
-  .paj-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 0}
-  .paj-chip{font-size:11px;font-weight:800;color:#cfe0f5;background:rgba(255,255,255,.05);
-       border:1px solid var(--border);border-radius:99px;padding:3px 10px}
-  .paj-chip.pos{color:#3ee089;background:rgba(52,210,123,.13);border-color:rgba(52,210,123,.34)}
-  .paj-chip i{font-style:normal;font-size:8.5px;font-weight:900;letter-spacing:.06em;color:#f4c64a;
-       text-transform:uppercase;margin-left:2px}
-  .paj-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
-  .paj-see{font-size:11px;font-weight:800;color:var(--muted);white-space:nowrap}
-  /* Liens SofaScore / Unibet : 2 boutons COMPACTS & SOBRES (fond dark, pastille de marque, nom + ↗) */
+  /* Liens SofaScore / Unibet : 2 boutons COMPACTS & SOBRES (fond dark,
+  pastille de marque,
+  nom + ↗) */
   .da-links{display:flex;gap:8px;align-items:stretch;margin:12px 0 2px}
   .lnk-bn{flex:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:7px;
        height:38px;border-radius:11px;text-decoration:none;font-size:12px;font-weight:800;
@@ -1347,7 +1242,8 @@ CSS = """
   .lnk-bn-uni  .lnk-dot{background:#1ea34a;box-shadow:0 0 6px rgba(30,163,74,.55)}
   .lnk-bn-sofa:hover{border-color:rgba(44,123,255,.4);background:rgba(44,123,255,.07)}
   .lnk-bn-uni:hover{border-color:rgba(30,163,74,.4);background:rgba(30,163,74,.07)}
-  /* 📉 Mouvement de cote : ouverture -> clôture, sens (steam/drift) + mini-courbe */
+  /* 📉 Mouvement de cote : ouverture -> clôture,
+  sens (steam/drift) + mini-courbe */
   .om{background:rgba(255,255,255,.04);border:1px solid var(--cardline);border-radius:12px;
       padding:9px 12px;margin:11px 0 2px}
   .om-h{font-size:11.5px;font-weight:800;letter-spacing:.03em;color:#cfe0f5;text-transform:uppercase;
@@ -1366,14 +1262,10 @@ CSS = """
   .om-flat{color:var(--muted)}
   .paj.open .exp-chev{display:inline-block;transform:rotate(180deg)}
   .paj .exp{margin-top:11px}
-  .paj-mblink{display:block;text-align:center;margin:6px 0 6px;font-size:12px;font-weight:700;
-       color:var(--muted);text-decoration:none}
-  /* ===== Tableau de bord (accueil) + en-têtes de page ===== */
-  .dash-top,.paj-h{display:flex;align-items:center;justify-content:space-between;gap:8px;
-       margin:2px 0 11px;font-size:17px;font-weight:900;color:var(--text)}
   .dash-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:20px 0 9px;
        font-size:15px;font-weight:900;color:var(--text)}
-  .dash-h-a,.dash-more{font-size:11.5px;font-weight:800;color:var(--accent);text-decoration:none}
+  .dash-h-a,
+  .dash-more{font-size:11.5px;font-weight:800;color:var(--accent);text-decoration:none}
   .dash-more{display:block;text-align:center;margin:2px 0 4px;padding:11px;border-radius:12px;
        background:rgba(34,184,255,.10);border:1px solid rgba(34,184,255,.28)}
   .dash-stat{display:block;margin:2px 0 4px;padding:13px 14px;border-radius:15px;text-decoration:none;
@@ -1385,8 +1277,6 @@ CSS = """
   .ds-v.pos{color:#3ee089} .ds-v.neg{color:#ff7484} .ds-v.neu{color:#cfe0f5}
   .ds-l{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
   .dash-stat-go{display:block;margin-top:9px;font-size:11.5px;font-weight:800;color:var(--accent)}
-  /* KPIs de la bankroll simulée (ligne sous le solde) + carte Performance (ROI + courbe + forme). */
-  .sim-kpis{margin-top:12px;border-top:1px solid rgba(255,255,255,.08);padding-top:11px}
   .dperf-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px}
   .dperf-roi{font-size:26px}
   .dperf-spk{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex:1;min-width:0;max-width:150px}
@@ -1542,19 +1432,26 @@ CSS = """
   .da-pill.hi{background:rgba(242,93,110,.15);color:#ff7484;border:1px solid rgba(242,93,110,.32)}
   /* Paris à jouer — un CADRE par pari (style « confiance ») au lieu d'un tableau */
   .da-bks{display:flex;flex-direction:column;gap:11px}
-  /* Cadre d'un pari : bordure fine neutre + BANDE DE COULEUR à gauche (statut), fond sombre premium */
+  /* Cadre d'un pari : bordure fine neutre + BANDE DE COULEUR à gauche (statut),
+  fond sombre premium */
   /* BANDE gauche : VERT par défaut (tous les paris proposés) ; OR uniquement pour le pari SIMULÉ
-     (à jouer, cf. .da-bk-reco) ; et RÉSULTAT (vert/rouge/gris) une fois le match terminé. */
+     (à jouer,
+  cf. .da-bk-reco) ; et RÉSULTAT (vert/rouge/gris) une fois le match terminé. */
   .da-bk{position:relative;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border:1px solid rgba(255,255,255,.07);border-left:4px solid #34d27b;
        border-radius:13px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.34)}
-  .da-bk-ok,.da-bk-mid,.da-bk-hi{border-left-color:#34d27b}   /* sûreté ne colore PLUS la bande (étoiles) */
+  .da-bk-ok,
+  .da-bk-mid,
+  .da-bk-hi{border-left-color:#34d27b}   /* sûreté ne colore PLUS la bande (étoiles) */
   .da-bk-tab{display:flex;align-items:center;gap:8px;padding:12px 14px 0;font-size:10.5px;
        font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
   .da-bk-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px 13px}
   .da-bk-l{min-width:0;flex:1}
-  /* Commentaire du Verdict, DANS la carte du pari, sous la ligne (séparé par un filet fin) */
-  /* Analyse du pari : SOUS l'affiche, AU-DESSUS des stats */
+  /* Commentaire du Verdict,
+  DANS la carte du pari,
+  sous la ligne (séparé par un filet fin) */
+  /* Analyse du pari : SOUS l'affiche,
+  AU-DESSUS des stats */
   .da-bk-note{font-size:11.5px;line-height:1.55;color:var(--muted);padding:8px 14px 0}
   .da-bk-note b{color:#cfe0f5;font-weight:800}
   /* Résidu du Verdict (à éviter / mise) APRÈS les paris : cartes PREMIUM cohérentes (bande gauche +
@@ -1578,7 +1475,8 @@ CSS = """
   .da-cbar>span{display:block;height:100%;border-radius:99px}
   .da-cbar.grn>span{background:linear-gradient(90deg,#19c46a,#34d27b)}   /* autres paris : VERT */
   .da-cbar.gold>span{background:linear-gradient(90deg,#d8a72a,#f6c54a)}  /* pari simulé : OR */
-  /* Sûreté en ÉTOILES dans l'en-tête (★ pleines = niveau) — OR, bien visibles */
+  /* Sûreté en ÉTOILES dans l'en-tête (★ pleines = niveau) — OR,
+  bien visibles */
   .da-bk-stars{font-size:12.5px;letter-spacing:2px;color:#f6c54a;font-weight:400;margin-left:4px;
        text-shadow:0 0 6px rgba(246,197,74,.45)}
   /* Bandeau de STATS pro : Confiance · Cote · Value */
@@ -1597,7 +1495,8 @@ CSS = """
   .da-bk-m{margin-top:8px;display:flex;flex-direction:column;gap:7px}
   .da-bk-cote{flex:none;padding:9px 15px;border-radius:11px;font-size:16px;font-weight:800;
        color:#7ff0b6;background:rgba(25,196,106,.16);border:1px solid rgba(34,191,108,.42)}
-  /* Badge de SÛRETÉ premium : pastille lumineuse + libellé MAJUSCULE, couleur = bande */
+  /* Badge de SÛRETÉ premium : pastille lumineuse + libellé MAJUSCULE,
+  couleur = bande */
   .da-saf{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:4px 11px;
        border-radius:99px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;
        white-space:nowrap}
@@ -1619,9 +1518,9 @@ CSS = """
        letter-spacing:.02em}
   .da-bk-mark.mk-w{color:#06140d;background:#34d27b}
   .da-bk-mark.mk-l{color:#fff;background:#ff6b6b}
-  .da-bk-mark.mk-p{color:#0b1428;background:#9fb0c8}
-  .da-bk-mark.mk-reco{color:#1a1304;background:var(--gold)}   /* badge ✅ À JOUER : OR */
-  /* MEILLEURE VALUE : même carte que les paris safe, mais encadré OR + halo OR (seul repère premium) */
+  .da-bk-mark.mk-p{color:#0b1428;background:#9fb0c8}   /* badge ✅ À JOUER : OR */
+  /* MEILLEURE VALUE : même carte que les paris safe,
+  mais encadré OR + halo OR (seul repère premium) */
   /* À JOUER (meilleure value) : bande OR (le pari à jouer se distingue) + halo OR + badge + tab OR */
   .da-bk-reco{border-left-color:var(--gold);
        box-shadow:0 0 0 1px rgba(246,197,74,.30),0 8px 22px rgba(246,197,74,.16)}
@@ -1639,7 +1538,8 @@ CSS = """
   .da-bk-lost .da-bk-cote{color:#ffb3bc;background:rgba(242,93,110,.16);
        border:1px solid rgba(242,93,110,.45)}
   .da-bk-push{border-left-color:#9fb0c8;filter:saturate(.7)}
-  /* Les faits (déroulés dans l'analyse, plus en accordéon) */
+  /* Les faits (déroulés dans l'analyse,
+  plus en accordéon) */
   .da-faits-h{padding:11px 13px;font-size:12.5px;font-weight:800;color:#cfe0f5;
        border-bottom:1px solid var(--border)}
   .da-faits{margin:14px 0 4px;border:1px solid var(--border);border-radius:12px;
@@ -1680,31 +1580,66 @@ CSS = """
   .src.ko{background:var(--gold-bg);color:var(--gold);border-color:var(--gold-bd)}
   /* ===== Polish OddScore : chiffres mono · en-têtes « • » · titres majuscules ===== */
   :root{--font-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
-  .paj-odd,.da-bk-cote,.plg-cote,.paj-bank-v,.paj-bank-chg,.ds-v,.cal-gap,.cal-line b,.calg-vs b,
-  .mb-stake,.lb-clk,.cd,.paj-conf-head b,.da-prob .pv,.mb-stat,.dd-cote{
+  .da-bk-cote,
+  .ds-v,
+  .cal-gap,
+  .cal-line b,
+  .calg-vs b,
+  .lb-clk,
+  .cd,
+  .da-prob .pv,
+  .dd-cote{
        font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  /* En-têtes de SECTION façon « • TITRE » (accent, majuscules, espacé) */
-  details.sec2>summary,.cal-h,.calg-h{
+  /* En-têtes de SECTION façon « • TITRE » (accent,
+  majuscules,
+  espacé) */
+  details.sec2>summary,
+  .cal-h,
+  .calg-h{
        text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}
-  details.sec2>summary::before,.cal-h::before,.calg-h::before{content:"• ";color:var(--accent);font-weight:900}
+  details.sec2>summary::before,
+  .cal-h::before,
+  .calg-h::before{content:"• ";color:var(--accent);font-weight:900}
   /* (puce « • » et emojis retirés des titres de l'accueil — demande utilisateur 2026-06-12) */
   .dash-h>span:first-child{text-transform:uppercase;letter-spacing:.06em}
   /* Grands TITRES de page en MAJUSCULES (Archivo black) — adapté à TOUT le site */
-  h1,h2,.pg-h,.mb-h,.mb-sec,.sporthd-t,.da-bets-h,.dash-top>span:first-child,
-  .paj-h>span:first-child{text-transform:uppercase;letter-spacing:.02em;font-weight:900}
-  /* INTERFACE en majuscules (nav, boutons, puces, tuiles, liens) — PAS les noms d'équipes ni
+  h1,
+  h2,
+  .pg-h,
+  .sporthd-t,
+  .da-bets-h{text-transform:uppercase;letter-spacing:.02em;font-weight:900}
+  /* INTERFACE en majuscules (nav,
+  boutons,
+  puces,
+  tuiles,
+  liens) — PAS les noms d'équipes ni
      les textes d'analyse (lisibilité). Look 100 % cohérent façon OddScore. */
-  .botnav a .lb,.dw-it,.dash-tile,.dash-more,.dash-stat-go,.dash-h-a,.paj-mblink,.paj-see,.exp-c,
-  .paj-chip,.da-ev,.b-val,.b-uni,.b-conf,.calg-v,.mb-sim,.paj-tag,.paj-stake,.paj-conf-head,
-  .mb-play,.mb-del,.src,.paj-live,.dd-cote,.mb-stat,.dash-next,.paj-basis b,
-  .da-bets-hint,.cal-v-t,.fpick-t,.plg-tab,.an-tag{
+  .botnav a .lb,
+  .dw-it,
+  .dash-tile,
+  .dash-more,
+  .dash-stat-go,
+  .dash-h-a,
+  .exp-c,
+  .da-ev,
+  .b-val,
+  .b-uni,
+  .b-conf,
+  .calg-v,
+  .src,
+  .dd-cote,
+  .dash-next,
+  .da-bets-hint,
+  .cal-v-t,
+  .fpick-t,
+  .an-tag{
        text-transform:uppercase;letter-spacing:.03em}
-  /* ⭐ pari RETENU par le moteur (ex-mode bankroll, UI retirée) : étoile à droite du nom du pari,
-     sur le CADRE déplié ET sur la ligne de la carte repliée */
+  /* ⭐ pari RETENU par le moteur (ex-mode bankroll,
+  UI retirée) : étoile à droite du nom du pari,
+  sur le CADRE déplié ET sur la ligne de la carte repliée */
   .da-bk-star{font-size:13px;vertical-align:1px;
        filter:drop-shadow(0 0 6px rgba(246,197,74,.65))}
   .mc-star{font-size:10px;filter:drop-shadow(0 0 5px rgba(246,197,74,.6))}
-  .mc-skip{color:var(--dim);font-style:italic}
   /* Grande courbe d'équité de la carte Performance (accueil) */
   .dperf-chart{margin:10px 0 2px}
   .dperf-chart .sx-heroc{display:block;width:100%;height:88px}
@@ -1720,22 +1655,16 @@ CSS = """
   .sx-legend{display:flex;gap:16px;justify-content:center;margin-top:5px}
   .sx-leg{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;
        color:var(--muted);font-weight:700}
-  /* Reco simulation au FORMAT ACCUEIL : carte .mc + bandeau simulation accolé dessous */
-  .mb-recowrap{margin:9px 0}
-  .mb-recowrap .row.mc{margin:0;border-bottom-left-radius:0;border-bottom-right-radius:0}
-  .mb-simstrip{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-       padding:9px 12px;border:1px solid var(--border);border-top:0;
-       border-radius:0 0 14px 14px;background:var(--surface);font-size:11.5px}
-  .mb-simstrip .mb-play{margin:0 0 0 auto;padding:8px 12px;font-size:10.5px}
-  .mb-simstrip .mb-delf{margin-left:auto}
-  .mb-strip-sel{color:var(--muted);max-width:46%;overflow:hidden;text-overflow:ellipsis;
-       white-space:nowrap}
-  /* ===== Animations premium (cascade d'apparition, skeleton, micro-interactions) =====
-     Gating : la cascade ne joue qu'au PREMIER rendu (body.boot, retirée ~1 s après par _ANIM_JS)
+  /* ===== Animations premium (cascade d'apparition,
+  skeleton,
+  micro-interactions) =====
+     Gating : la cascade ne joue qu'au PREMIER rendu (body.boot,
+  retirée ~1 s après par _ANIM_JS)
      -> le refresh live 45 s (innerHTML remplacé) ne fait PAS re-clignoter les cartes. */
   @keyframes cardin{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-  body.boot .mc,body.boot .paj-bank,body.boot .dash-stat,body.boot .mb-reco,
-  body.boot .dash-h,body.boot .dash-top,body.boot .paj-h{
+  body.boot .mc,
+  body.boot .dash-stat,
+  body.boot .dash-h{
        animation:cardin .42s cubic-bezier(.22,.85,.3,1) backwards}
   body.boot .mc:nth-child(2){animation-delay:.03s}
   body.boot .mc:nth-child(3){animation-delay:.06s}
@@ -3137,9 +3066,6 @@ def _sport_row(r: dict) -> str:
         star = ' <span class="mc-star">⭐</span>' if i == reco_i else ""
         rows3.append(f'<div class="mc-betl"><span class="mc-bi">{ic}</span>'
                      f'<span class="mc-bt">{e(b.get("sel", ""))}{star}</span></div>')
-    if not rows3 and summ.get("skip"):     # mode strict : analysé mais AUCUN pari ≥ 65 % -> dit clairement
-        rows3 = ['<div class="mc-betl"><span class="mc-bi">⛔</span>'
-                 '<span class="mc-bt mc-skip">Aucun pari fiable — SKIP assumé</span></div>']
     line3 = "".join(rows3)
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')
