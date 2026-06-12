@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
@@ -550,6 +551,165 @@ async def _basket_extras(client, match: dict) -> list[str]:
                 facts.append(f"⚠️ Back-to-back [{label}] : a joué HIER (fatigue) (ESPN)")
         break
     return facts
+
+
+# ================================================================== RÈGLEMENT DE SECOURS
+# Score FINAL d'un match terminé via les sources gratuites, au FORMAT EXACT attendu par
+# settle_analyst.settle_pick (mêmes clés que _score_from_event). Utilisé quand SofaScore est
+# bloqué : les paris se règlent quand même (sauf marchés stats : cartons/corners/HOLD1/FIRSTTO).
+_SCORE_TTL = 600.0          # un appel par (source, jour) max toutes les 10 min côté app
+_SCORE_CACHE: dict = {}     # clé -> (ts, data)
+
+
+async def _score_cached(key, fetch):
+    hit = _SCORE_CACHE.get(key)
+    now = time.time()
+    if hit and now - hit[0] < _SCORE_TTL:
+        return hit[1]
+    data = await fetch()
+    _SCORE_CACHE[key] = (now, data)
+    return data
+
+
+def _orient(n0: str, n1: str, home: str, away: str) -> int | None:
+    """Indice (0/1) du compétiteur correspondant à `home`, par MEILLEUR score de jetons exacts sur
+    les DEUX affectations — robuste aux noms partagés (« Tatjana Maria » vs « Maria Sakkari »).
+    None si ambigu (mieux vaut NE PAS régler que régler à l'envers)."""
+    t0, t1, th, ta = _tok(n0), _tok(n1), _tok(home), _tok(away)
+    direct = len(t0 & th) + len(t1 & ta)
+    flipped = len(t0 & ta) + len(t1 & th)
+    if direct == flipped:
+        return None
+    return 0 if direct > flipped else 1
+
+
+def _fm_score_from_match(m: dict, home: str, away: str) -> dict | None:
+    """Score settle_pick depuis un match FotMob FINI (orienté selon home/away du sidecar)."""
+    h, a = m.get("home") or {}, m.get("away") or {}
+    if not (m.get("status") or {}).get("finished"):
+        return None
+    fh, fa = h.get("longName") or h.get("name") or "", a.get("longName") or a.get("name") or ""
+    if not _teams_match(home, away, fh, fa):
+        return None
+    hs, as_ = h.get("score"), a.get("score")
+    if hs is None or as_ is None:
+        return None
+    i_h = _orient(fh, fa, home, away)
+    if i_h is None:                                  # ambigu -> on ne règle pas (jamais à l'envers)
+        return None
+    if i_h == 1:                                     # FotMob inverse home/away vs le sidecar
+        hs, as_ = as_, hs
+    return {"home": hs, "away": as_, "sets_home": None, "sets_away": None,
+            "periods": {}, "first_serve": None, "label": f"{hs}-{as_}", "src": "fotmob"}
+
+
+def _bb_score_from_event(ev: dict, home: str, away: str) -> dict | None:
+    """Score settle_pick depuis un event basket ESPN FINAL (totaux + points par quart-temps)."""
+    comp = (ev.get("competitions") or [{}])[0]
+    st = (((comp.get("status") or {}).get("type") or {}).get("name")) or ""
+    if st != "STATUS_FINAL":
+        return None
+    cps = comp.get("competitors") or []
+    if len(cps) != 2:
+        return None
+    names = [((c.get("team") or {}).get("displayName")) or "" for c in cps]
+    if not _teams_match(home, away, names[0], names[1]):
+        return None
+    i_h = _orient(names[0], names[1], home, away)            # oriente sur le sidecar
+    if i_h is None:
+        return None
+    try:
+        hs, as_ = int(cps[i_h].get("score")), int(cps[1 - i_h].get("score"))
+    except (TypeError, ValueError):
+        return None
+    periods = {}
+    lh = [int(x.get("value") or 0) for x in (cps[i_h].get("linescores") or [])]
+    la = [int(x.get("value") or 0) for x in (cps[1 - i_h].get("linescores") or [])]
+    for i, (ph, pa) in enumerate(zip(lh, la), start=1):
+        periods[i] = (ph, pa)
+    return {"home": hs, "away": as_, "sets_home": None, "sets_away": None,
+            "periods": periods, "first_serve": None, "label": f"{hs}-{as_}", "src": "espn"}
+
+
+def _tennis_score_from_comp(cps: list, home: str, away: str) -> dict | None:
+    """Score settle_pick depuis une rencontre tennis ESPN FINALE (sets + jeux par set)."""
+    if len(cps) != 2:
+        return None
+    names = [((c.get("athlete") or {}).get("displayName")) or "" for c in cps]
+    if not _teams_match(home, away, names[0], names[1]):
+        return None
+    i_h = _orient(names[0], names[1], home, away)
+    if i_h is None:
+        return None
+    gh = [int(x.get("value") or 0) for x in (cps[i_h].get("linescores") or [])]
+    ga = [int(x.get("value") or 0) for x in (cps[1 - i_h].get("linescores") or [])]
+    if not gh or len(gh) != len(ga):
+        return None
+    periods, sh, sa = {}, 0, 0
+    for i, (g1, g2) in enumerate(zip(gh, ga), start=1):
+        periods[i] = (g1, g2)
+        if g1 > g2:
+            sh += 1
+        elif g2 > g1:
+            sa += 1
+    if sh == sa:                                     # pas de vainqueur lisible -> on n'invente pas
+        return None
+    return {"home": None, "away": None, "sets_home": sh, "sets_away": sa,
+            "periods": periods, "first_serve": None,
+            "label": f"{sh}-{sa} (sets)", "src": "espn"}
+
+
+async def final_score(sport: str, d: dict) -> dict | None:
+    """Règlement de SECOURS : score final du match `d` (sidecar : home/away/start/circuit) via
+    FotMob (foot) ou ESPN (tennis ATP+WTA, basket NBA/WNBA). None si introuvable ou pas fini —
+    le règlement re-tentera (SofaScore reste la voie n°1)."""
+    import httpx
+    home, away = d.get("home", ""), d.get("away", "")
+    dt = _start_dt(d.get("start") or "")
+    if not (home and away and dt):
+        return None
+    days = [(dt + timedelta(days=k)).strftime("%Y%m%d") for k in (0, 1, -1)]
+    try:
+        async with httpx.AsyncClient(timeout=_T) as client:
+            if sport == "foot":
+                for ymd in days:
+                    j = await _score_cached(("fm", ymd),
+                                            lambda y=ymd: _get_json(client, f"{_FOTMOB}/matches?date={y}"))
+                    for lg in (j or {}).get("leagues") or []:
+                        for m in lg.get("matches") or []:
+                            sc = _fm_score_from_match(m, home, away)
+                            if sc:
+                                return sc
+            elif sport == "basket":
+                for league in ("wnba", "nba"):
+                    for ymd in days:
+                        j = await _score_cached(("bb", league, ymd), lambda l=league, y=ymd: _get_json(
+                            client, f"{_ESPN}/site/v2/sports/basketball/{l}/scoreboard?dates={y}"))
+                        for ev in (j or {}).get("events") or []:
+                            sc = _bb_score_from_event(ev, home, away)
+                            if sc:
+                                return sc
+            elif sport == "tennis":
+                circuit = (d.get("circuit") or "").upper()
+                tours = ("wta", "atp") if "WTA" in circuit else ("atp", "wta") if "ATP" in circuit \
+                    else ("atp", "wta")
+                for tour in tours:
+                    for ymd in days[:2]:             # le scoreboard d'un jour couvre tout le tournoi
+                        j = await _score_cached(("tn", tour, ymd), lambda t=tour, y=ymd: _get_json(
+                            client, f"{_ESPN}/site/v2/sports/tennis/{t}/scoreboard?dates={y}"))
+                        for ev in (j or {}).get("events") or []:
+                            for grp in ev.get("groupings") or []:
+                                for comp in grp.get("competitions") or []:
+                                    st = (((comp.get("status") or {}).get("type") or {}).get("name")) or ""
+                                    if st != "STATUS_FINAL":
+                                        continue
+                                    sc = _tennis_score_from_comp(comp.get("competitors") or [],
+                                                                 home, away)
+                                    if sc:
+                                        return sc
+    except Exception:
+        return None
+    return None
 
 
 # ================================================================== API publique

@@ -515,6 +515,18 @@ async def settle_analyses() -> int:
                         if (sport, day) not in sched_cache:
                             sched_cache[(sport, day)] = await _schedule_scores(sport, day)
                         score, _ = _find_score(sched_cache[(sport, day)], d)
+                if not score:                       # repli n°2 : sources GRATUITES (ESPN/FotMob) —
+                    # SofaScore bloqué ne doit plus laisser des paris « en attente » indéfiniment.
+                    # Couvre foot (FotMob), tennis ATP/WTA et basket NBA/WNBA (ESPN) ; les marchés
+                    # stats (cartons/corners/HOLD1/FIRSTTO) restent pour SofaScore.
+                    try:
+                        from app import sources
+                        score = await sources.final_score(sport, d)
+                        if score:
+                            log.info("règlement via %s : %s_%s %s", score.get("src", "alt"),
+                                     sport, d.get("id"), score.get("label"))
+                    except Exception:
+                        score = None
                 if not score:
                     continue
             # Pré-calcule les codes de TOUS les paris affichés -> on sait si on a besoin des STATS du
