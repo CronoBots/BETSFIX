@@ -2197,9 +2197,6 @@ def _pct_class(pct) -> str:
     return "hi" if (pct is not None and pct >= 60) else ("mid" if (pct is not None and pct >= 45) else "lo")
 
 
-_BET_COLORS = ("#34d27b", "#4aa8ff", "#f6c54a")          # Pari 1 / 2 / 3
-_BET_NAMES = ("Pari 1", "Pari 2", "Pari 3")
-_STAT_KEYS = ("pari1", "pari2", "pari3")
 
 
 def _roicls(v) -> str:
@@ -2231,8 +2228,24 @@ def _form_dots(form: list) -> str:
             + "".join(f'<span class="sx-fd {r}"></span>' for r in form) + "</span>")
 
 
+def _smooth_path(xy: list) -> str:
+    """Chemin SVG LISSÉ (Catmull-Rom -> Bézier cubique) passant par TOUS les points : adoucit les
+    marches d'escalier des courbes d'équité (1 point = 1 pari réglé) sans déplacer les extrémités."""
+    if len(xy) < 3:
+        return "M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in xy)
+    p = [f"M{xy[0][0]:.1f},{xy[0][1]:.1f}"]
+    for i in range(len(xy) - 1):
+        p0 = xy[i - 1] if i > 0 else xy[i]
+        p1, p2 = xy[i], xy[i + 1]
+        p3 = xy[i + 2] if i + 2 < len(xy) else p2
+        c1 = (p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6)
+        c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
+        p.append(f"C{c1[0]:.1f},{c1[1]:.1f} {c2[0]:.1f},{c2[1]:.1f} {p2[0]:.1f},{p2[1]:.1f}")
+    return " ".join(p)
+
+
 def _sparkline(points: list, color: str) -> str:
-    """Mini courbe (SVG, sans axes) : ligne + aire teintée. Pour les cartes bilan/par-pari."""
+    """Mini courbe LISSÉE (SVG, sans axes) : ligne + aire teintée. Pour les cartes bilan."""
     if not points:
         return ""
     pts = points if len(points) > 1 else (points * 2)
@@ -2248,11 +2261,12 @@ def _sparkline(points: list, color: str) -> str:
     def Y(v):
         return 2 + (1 - (v - lo) / (hi - lo)) * (h - 4)
 
-    line = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(pts))
-    area = f"{X(0):.1f},{h - 1:g} {line} {X(n - 1):.1f},{h - 1:g}"
+    xy = [(X(i), Y(v)) for i, v in enumerate(pts)]
+    d = _smooth_path(xy)
+    area = f'M{X(0):.1f},{h - 1:g} L' + d[1:] + f' L{X(n - 1):.1f},{h - 1:g} Z'
     return (f'<svg viewBox="0 0 {w:g} {h:g}" class="sx-spark" preserveAspectRatio="none">'
-            f'<polygon points="{area}" fill="{color}" opacity="0.13"/>'
-            f'<polyline points="{line}" fill="none" stroke="{color}" stroke-width="1.7" '
+            f'<path d="{area}" fill="{color}" opacity="0.13" stroke="none"/>'
+            f'<path d="{d}" fill="none" stroke="{color}" stroke-width="1.7" '
             'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>')
 
 
@@ -2294,8 +2308,8 @@ def _svg_bet_chart(curves: list) -> str:
         if len(pts) == 1:
             p.append(f'<circle cx="{X(0):.1f}" cy="{Y(pts[0]):.1f}" r="3.4" fill="{c["color"]}"/>')
             continue
-        d = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(pts))
-        p.append(f'<polyline class="bc-line" fill="none" stroke="{c["color"]}" points="{d}"/>')
+        d = _smooth_path([(X(i), Y(v)) for i, v in enumerate(pts)])   # courbe LISSÉE
+        p.append(f'<path class="bc-line" fill="none" stroke="{c["color"]}" d="{d}"/>')
         p.append(f'<circle cx="{X(len(pts) - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="3" fill="{c["color"]}"/>')
     p.append("</svg>")           # plus d'échelle de temps : la courbe est TOUJOURS depuis le début
     return "".join(p)
@@ -2308,54 +2322,25 @@ def _drill(url: str, inner: str, cls: str) -> str:
             f'<div class="exp" hidden></div></div>')
 
 
-def _pari_card(i: int, r: dict) -> str:
-    """Carte d'un pari (1/2/3), tous sports : ROI (grisé si échantillon faible) + mini-courbe +
-    réussite + cote moyenne."""
-    dot = f'<span class="bc-dot" style="background:{_BET_COLORS[i]}"></span>'
-    roi, st = r.get("roi"), r.get("settled")
-    avg = f'@{r["avg_odds"]:g}' if r.get("avg_odds") else "—"
-    return (f'<div class="sx-pari"><div class="sx-pari-h">{dot}{_BET_NAMES[i]}</div>'
-            f'<div class="sx-pari-roi arec-{_roi_cls(roi, st)}">{_roistr(roi)}</div>'
-            f'<div class="sx-pari-rl">ROI {_ind(st)}</div>'
-            f'{_sparkline(r.get("points") or [], _BET_COLORS[i])}'
-            f'<div class="sx-pari-l"><b class="arec-{_pct_class(r["pct"])}">{r["pct"]}%</b> '
-            f'· {r["won"]}/{r["settled"]}</div>'
-            f'<div class="sx-pari-l2">cote moy. {avg}</div></div>')
-
-
 def _sport_card(s: dict, sport: str, label: str, icon: str, since: str,
                 chart: bool = True, header: bool = True) -> str:
-    """Section d'un sport : ligne bilan + graphe (1 courbe/pari) + tableau par pari (ROI grisé si
-    échantillon faible) avec ★ sur le MEILLEUR pari. Chaque ligne tap -> matchs du sport×pari."""
+    """Section d'un sport : ligne bilan + UNE courbe d'équité LISSÉE (tous les paris du sport
+    confondus — la distinction pari 1/2/3 est RETIRÉE depuis le 2026-06-12 : redondante avec la
+    calibration, et le mode strict ne liste souvent qu'un pari) + ligne drill-down vers les matchs."""
     roi = s.get("roi")
-    paris = s.get("paris") or {}
-    best, bestroi = None, None
-    for key in _STAT_KEYS:                       # meilleur pari = ROI le plus haut (et positif)
-        st = paris.get(key)
-        if st and st.get("settled") and st.get("roi") is not None:
-            if bestroi is None or st["roi"] > bestroi:
-                best, bestroi = key, st["roi"]
-    if bestroi is None or bestroi <= 0:
-        best = None
-    curves, rows = [], []
-    for i, key in enumerate(_STAT_KEYS):
-        st = paris.get(key)
-        if not st or not st.get("settled"):
-            continue
-        curves.append({"color": _BET_COLORS[i], "points": st["points"]})
-        cote = f'@{st["avg_odds"]:g}' if st.get("avg_odds") else "—"
-        star = '<span class="sx-best">★</span>' if key == best else ""
-        main = (f'<div class="sx-row-main"><span class="bc-dot" style="background:{_BET_COLORS[i]}"></span>'
-                f'<span class="sx-row-n">{_BET_NAMES[i]}{star}</span>'
-                f'<span class="sx-row-roi arec-{_roi_cls(st.get("roi"), st["settled"])}">{_roistr(st.get("roi"))}</span>'
-                f'<span class="sx-row-wl">{st["won"]}/{st["settled"]} · {st["pct"]}%</span>'
-                f'<span class="sx-row-c">{cote}</span><span class="sx-row-chev">›</span></div>')
-        rows.append(_drill(f'/stats/detail?sport={sport}&pari={i}&since={since}', main,
-                           "sx-row" + (" sx-row-best" if key == best else "")))
+    color = "#34d27b" if (roi or 0) >= 0 else "#ff6b6b"
+    cote = f'@{s["avg_odds"]:g}' if s.get("avg_odds") else "—"
+    main = (f'<div class="sx-row-main"><span class="bc-dot" style="background:{color}"></span>'
+            f'<span class="sx-row-n">Tous les paris</span>'
+            f'<span class="sx-row-roi arec-{_roi_cls(roi, s.get("settled"))}">{_roistr(roi)}</span>'
+            f'<span class="sx-row-wl">{s["won"]}/{s["settled"]} · {s["pct"]}%</span>'
+            f'<span class="sx-row-c">{cote}</span><span class="sx-row-chev">›</span></div>')
+    rows = [_drill(f'/stats/detail?sport={sport}&since={since}', main, "sx-row")]
     sub = f'{s["settled"]} paris · {s["pct"]}% réussite · cote moy. {s.get("avg_odds") or "—"}'
     hdr = (f'<div class="sx-sport-h"><span class="sx-sport-t">{icon} {label}</span>'
            f'<span class="sx-sport-roi arec-{_roi_cls(roi, s.get("settled"))}">ROI {_roistr(roi)}</span></div>'
            f'<div class="sx-sport-sub">{sub} {_ind(s.get("settled"))}</div>') if header else ""
+    curves = [{"color": color, "points": s.get("points") or []}]
     return (f'<div class="sx-sport" data-sport="{sport}">{hdr}'
             f'{_svg_bet_chart(curves) if chart else ""}<div class="sx-rows">{"".join(rows)}</div></div>')
 
@@ -2395,9 +2380,9 @@ def _hero_chart(points: list, uid: str = "h") -> str:
     zy = Y(0.0)
     off = max(0.0, min(1.0, zy / H))                     # position du zéro (0..1) pour la coupure
     gid = f"sxg-{uid}"
-    line = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(pts))
+    line_d = _smooth_path([(X(i), Y(v)) for i, v in enumerate(pts)])   # courbe LISSÉE
     # aire ENTRE la courbe et la ligne du zéro -> verte au-dessus, rouge en dessous
-    area = f"{X(0):.1f},{zy:.1f} {line} {X(n - 1):.1f},{zy:.1f}"
+    area_d = f'M{X(0):.1f},{zy:.1f} L' + line_d[1:] + f' L{X(n - 1):.1f},{zy:.1f} Z'
     grad = (f'<defs><linearGradient id="{gid}" gradientUnits="userSpaceOnUse" '
             f'x1="0" y1="0" x2="0" y2="{H:g}">'
             f'<stop offset="0" stop-color="{GR}"/><stop offset="{off:.4f}" stop-color="{GR}"/>'
@@ -2409,10 +2394,10 @@ def _hero_chart(points: list, uid: str = "h") -> str:
         if abs(gv) < 1e-6:
             continue
         p.append(f'<line class="bc-grid" x1="{L:g}" y1="{Y(gv):.1f}" x2="{W - R:g}" y2="{Y(gv):.1f}"/>')
-    p.append(f'<polygon points="{area}" fill="url(#{gid})" opacity="0.22"/>')
+    p.append(f'<path d="{area_d}" fill="url(#{gid})" opacity="0.22" stroke="none"/>')
     p.append(f'<line class="bc-zero" x1="{L:g}" y1="{zy:.1f}" x2="{W - R:g}" y2="{zy:.1f}"/>')
     p.append(f'<text class="bc-zl" x="{L - 3:g}" y="{zy + 3:.1f}">0</text>')
-    p.append(f'<polyline points="{line}" fill="none" stroke="url(#{gid})" stroke-width="2.2" '
+    p.append(f'<path d="{line_d}" fill="none" stroke="url(#{gid})" stroke-width="2.2" '
              'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>')
     p.append(f'<circle cx="{X(n - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="2.8" '
              f'fill="{GR if pts[-1] >= 0 else RD}"/>')
@@ -2446,12 +2431,9 @@ def render_stats(full: dict | None, since: str = "") -> str:
         '<span>pire repli</span></div>'
         f'</div><div class="sx-hero-foot">{best_html}<span class="sx-relnote">ROI fiable dès ~20 paris</span></div>'
         '</div>')
-    bp = full.get("by_pari") or {}
-    pcards = [_pari_card(i, bp[k]) for i, k in enumerate(_STAT_KEYS)
-              if (bp.get(k) or {}).get("settled")]
-    paris = (('<div class="sx-byp"><div class="sx-h">📊 Performance par pari'
-              '<span>tous sports · ROI</span></div>'
-              f'<div class="sx-paris">{"".join(pcards)}</div></div>') if pcards else "")
+    # (Section « Performance par pari 1/2/3 » RETIRÉE le 2026-06-12 : redondante avec la
+    # calibration par sport/marché affichée en dessous, et le mode strict liste souvent 1 pari.)
+    paris = ""
     bs = full.get("by_sport") or {}
     scards = [_sport_card(bs[sk], sk, lbl, ic, since)
               for sk, lbl, ic in (("foot", "Football", "⚽"), ("tennis", "Tennis", "🎾"),
