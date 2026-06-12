@@ -2,8 +2,8 @@
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Form, Query
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import HTMLResponse
 
 from app import analyses, ace_markets, elo, fragcache, match_analysis, match_select, mybets, serve_return, set_markets, tendencies, tracking, web, window
 from app.config import get_settings
