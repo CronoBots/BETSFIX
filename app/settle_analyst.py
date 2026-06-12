@@ -31,7 +31,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 10
+_SETTLE_VERSION = 11   # v11 : total du match avec l'unité AVANT le nombre (« Nombre total de buts – Moins de 2.5 »)
 
 
 # --------------------------------------------------------------- règlement (pur, depuis le score)
@@ -259,6 +259,11 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     m = re.search(r"(plus|moins) de (\d+[.,]?\d*)\s*(?:buts?|points?|pts?)", t)
     if m and not team:
         return f"{'OVER' if m.group(1)=='plus' else 'UNDER'} {m.group(2).replace(',', '.')}"
+    # variante avec l'unité AVANT le nombre : « Nombre total de buts – Moins de 2.5 »
+    if not team and re.search(r"(?:nombre\s+)?total\w*\s+(?:de\s+)?(?:buts?|points?|pts?)", t):
+        m2 = re.search(r"(plus|moins) de (\d+[.,]?\d*)", t)
+        if m2:
+            return f"{'OVER' if m2.group(1)=='plus' else 'UNDER'} {m2.group(2).replace(',', '.')}"
     # handicap depuis le score final : « Équipe +X.X » / « Équipe -X.X » / « handicap Équipe +X.X »
     mh = re.search(r"([+\-−–]\s?\d+(?:[.,]\d+)?)", t)   # accepte le moins ASCII, Unicode (−) et tiret (–)
     if mh and team:
