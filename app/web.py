@@ -1702,6 +1702,11 @@ CSS = """
   /* ⭐ pari RETENU par le moteur (ex-mode bankroll, UI retirée) : étoile à droite du nom du pari */
   .da-bk-star{font-size:13px;vertical-align:1px;
        filter:drop-shadow(0 0 6px rgba(246,197,74,.65))}
+  /* Graphique combiné /stats (3 sports sur 1 graphe) + légende */
+  .sx-allchart{margin:2px 0 12px}
+  .sx-legend{display:flex;gap:16px;justify-content:center;margin-top:5px}
+  .sx-leg{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;
+       color:var(--muted);font-weight:700}
   /* Reco simulation au FORMAT ACCUEIL : carte .mc + bandeau simulation accolé dessous */
   .mb-recowrap{margin:9px 0}
   .mb-recowrap .row.mc{margin:0;border-bottom-left-radius:0;border-bottom-right-radius:0}
@@ -2323,12 +2328,13 @@ def _drill(url: str, inner: str, cls: str) -> str:
 
 
 def _sport_card(s: dict, sport: str, label: str, icon: str, since: str,
-                chart: bool = True, header: bool = True) -> str:
-    """Section d'un sport : ligne bilan + UNE courbe d'équité LISSÉE (tous les paris du sport
+                chart: bool = True, header: bool = True, color: str | None = None) -> str:
+    """Section d'un sport : ligne bilan + courbe d'équité LISSÉE (tous les paris du sport
     confondus — la distinction pari 1/2/3 est RETIRÉE depuis le 2026-06-12 : redondante avec la
-    calibration, et le mode strict ne liste souvent qu'un pari) + ligne drill-down vers les matchs."""
+    calibration, et le mode strict ne liste souvent qu'un pari) + ligne drill-down vers les matchs.
+    `color` : couleur du sport (graphique combiné /stats) ; défaut = vert/rouge selon le ROI."""
     roi = s.get("roi")
-    color = "#34d27b" if (roi or 0) >= 0 else "#ff6b6b"
+    color = color or ("#34d27b" if (roi or 0) >= 0 else "#ff6b6b")
     cote = f'@{s["avg_odds"]:g}' if s.get("avg_odds") else "—"
     main = (f'<div class="sx-row-main"><span class="bc-dot" style="background:{color}"></span>'
             f'<span class="sx-row-n">Tous les paris</span>'
@@ -2433,15 +2439,24 @@ def render_stats(full: dict | None, since: str = "") -> str:
         '</div>')
     # (Section « Performance par pari 1/2/3 » RETIRÉE le 2026-06-12 : redondante avec la
     # calibration par sport/marché affichée en dessous, et le mode strict liste souvent 1 pari.)
-    paris = ""
     bs = full.get("by_sport") or {}
-    scards = [_sport_card(bs[sk], sk, lbl, ic, since)
-              for sk, lbl, ic in (("foot", "Football", "⚽"), ("tennis", "Tennis", "🎾"),
-                                  ("basket", "Basket", "🏀")) if (bs.get(sk) or {}).get("settled")]
+    # UN SEUL graphique combiné : 3 courbes d'équité lissées aux COULEURS DES SPORTS (mêmes
+    # teintes que les onglets : foot vert, tennis citron, basket orange) + légende.
+    SPORTS = (("foot", "Football", "⚽", "#2ee27f"), ("tennis", "Tennis", "🎾", "#d7e64a"),
+              ("basket", "Basket", "🏀", "#ff9f43"))
+    active = [(sk, lbl, ic, col) for sk, lbl, ic, col in SPORTS if (bs.get(sk) or {}).get("settled")]
+    curves = [{"color": col, "points": (bs[sk].get("points") or [])} for sk, _l, _i, col in active]
+    legend = "".join(
+        f'<span class="sx-leg"><span class="bc-dot" style="background:{col}"></span>{ic} {lbl}</span>'
+        for _sk, lbl, ic, col in active)
+    combined = (f'<div class="sx-allchart">{_svg_bet_chart(curves)}'
+                f'<div class="sx-legend">{legend}</div></div>') if curves else ""
+    scards = [_sport_card(bs[sk], sk, lbl, ic, since, chart=False, color=col)
+              for sk, lbl, ic, col in active]
     sports = (('<div class="sx-bys"><div class="sx-h">📈 Détail par sport'
                '<span>tap une ligne → les matchs</span></div>'
-               + "".join(scards) + '</div>') if scards else "")
-    return f'{hero}{paris}{sports}'
+               + combined + "".join(scards) + '</div>') if scards else "")
+    return f'{hero}{sports}'
 
 
 _SPORT_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
