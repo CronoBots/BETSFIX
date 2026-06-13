@@ -137,43 +137,58 @@ async def lifespan(app: FastAPI):
 # Les tags sont assignés par chemin dans _retag_routes() (voir plus bas), donc les
 # tags posés au niveau des routeurs sont sans effet : seule cette liste fait foi.
 # --------------------------------------------------------------------------- #
-TAG_TENNIS_SRC = "🎾 Tennis · Données SofaScore (source)"
-TAG_FOOT_SRC = "⚽ Foot · Données SofaScore (source)"
-TAG_BASKET_SRC = "🏀 Basket · Données SofaScore (source)"
-TAG_COTES = "💰 Cotes & paris Unibet"
-TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
+# Organisation /docs PAR SPORT : pour chaque sport, ses 3 sources contiguës
+# (Données SofaScore -> Cotes Unibet -> Flashscore), puis les outils transverses.
+# Données SofaScore (faits bruts) :
+TAG_FOOT_SRC = "⚽ Football · Données SofaScore"
+TAG_TENNIS_SRC = "🎾 Tennis · Données SofaScore"
+TAG_BASKET_SRC = "🏀 Basket · Données SofaScore"
+# Cotes Unibet :
+TAG_FOOT_ODDS = "⚽ Football · Cotes Unibet"
+TAG_TENNIS_ODDS = "🎾 Tennis · Cotes Unibet"
+TAG_BASKET_ODDS = "🏀 Basket · Cotes Unibet"
 # Flashscore : un tag PAR SPORT (les chaînes EXACTES sont définies dans le routeur).
-from app.routers.flashscore import TAG_FOOT as TAG_FLASH_FOOT  # noqa: E402
-from app.routers.flashscore import TAG_TENNIS as TAG_FLASH_TENNIS  # noqa: E402
-from app.routers.flashscore import TAG_BASKET as TAG_FLASH_BASKET  # noqa: E402
+from app.routers.flashscore import TAG_FOOT as TAG_FLASH_FOOT  # noqa: E402  "⚽ Football · Flashscore"
+from app.routers.flashscore import TAG_TENNIS as TAG_FLASH_TENNIS  # noqa: E402  "🎾 Tennis · Flashscore"
+from app.routers.flashscore import TAG_BASKET as TAG_FLASH_BASKET  # noqa: E402  "🏀 Basket · Flashscore"
+# Transverses :
+TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
 TAG_INTERFACE = "🖥️ Interface (pages HTML)"
 TAG_META = "ℹ️ Méta"
 
-# Tags SANS description : le titre porte déjà l'info (source / cotes / modèle).
-# Seules les COTES UNIBET vivent dans la section dédiée ; les cotes SofaScore sont
-# purement informatives et restent dans la section « Données SofaScore » du sport.
+# Tags SANS description : le titre porte déjà l'info. Ordre = par SPORT (foot, tennis,
+# basket), chaque sport regroupant Données SofaScore -> Cotes Unibet -> Flashscore ;
+# puis Modèle maison, Interface, Méta.
 OPENAPI_TAGS = [
-    {"name": TAG_TENNIS_SRC},
     {"name": TAG_FOOT_SRC},
-    {"name": TAG_BASKET_SRC},
-    {"name": TAG_COTES},
-    {"name": TAG_MODELE_ANALYSE},
+    {"name": TAG_FOOT_ODDS},
     {"name": TAG_FLASH_FOOT},
+    {"name": TAG_TENNIS_SRC},
+    {"name": TAG_TENNIS_ODDS},
     {"name": TAG_FLASH_TENNIS},
+    {"name": TAG_BASKET_SRC},
+    {"name": TAG_BASKET_ODDS},
     {"name": TAG_FLASH_BASKET},
+    {"name": TAG_MODELE_ANALYSE},
     {"name": TAG_INTERFACE},
     {"name": TAG_META},
 ]
 
 
 def _classify_tag(path: str) -> str | None:
-    """Tag /docs d'un endpoint d'après son chemin (nature de la donnée, pas le sport)."""
+    """Tag /docs d'un endpoint d'après son chemin : regroupé PAR SPORT (foot/tennis/basket),
+    chaque sport ayant ses sous-sections Données SofaScore / Cotes Unibet ; Flashscore garde
+    ses propres tags par sport (posés au routeur). Transverses : Modèle, Interface, Méta."""
     p = path
-    # 🟡 Cotes UNIBET uniquement (les /odds SofaScore, informatifs, restent dans la
-    #    section « Données SofaScore » du sport via les règles plus bas).
+    # 💰 Cotes UNIBET, rangées DANS le sport (les /odds SofaScore, informatifs, restent dans
+    #    « Données SofaScore » du sport via les règles plus bas).
     if p.endswith("/odds/unibet"):
-        return TAG_COTES
-    # 🔴 Modèle maison : analyse / value / prédictions
+        if p.startswith("/foot"):
+            return TAG_FOOT_ODDS
+        if p.startswith("/basket"):
+            return TAG_BASKET_ODDS
+        return TAG_TENNIS_ODDS              # /matches/{id}/odds/unibet
+    # 🧠 Modèle maison : analyse / value / prédictions
     if p.startswith("/analysis"):
         return TAG_MODELE_ANALYSE
     # 🖥️ Pages HTML (dont les pages d'accueil sport /basket et /foot)

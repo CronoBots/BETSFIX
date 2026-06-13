@@ -15,10 +15,11 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app import flashscore as fs
 
-# Un tag /docs par sport -> les endpoints sont regroupés et triés par discipline.
-TAG_FOOT = "🟧 Flashscore · ⚽ Football"
-TAG_TENNIS = "🟧 Flashscore · 🎾 Tennis"
-TAG_BASKET = "🟧 Flashscore · 🏀 Basket"
+# Un tag /docs par sport -> les endpoints Flashscore se rangent SOUS leur sport dans /docs
+# (organisation par sport : « ⚽ Football · Flashscore », etc.).
+TAG_FOOT = "⚽ Football · Flashscore"
+TAG_TENNIS = "🎾 Tennis · Flashscore"
+TAG_BASKET = "🏀 Basket · Flashscore"
 
 router = APIRouter(prefix="/flashscore")
 
