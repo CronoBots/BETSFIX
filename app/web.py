@@ -281,14 +281,14 @@ CSS = """
   comme l'orbe de l'état vide « aucun match » */
   /* Live = CERCLE VERT + HALO permanent autour (+ radar qui pulse). TAILLE alignée aux emoji (~22px). */
   .nav-radar{position:relative;display:inline-flex;align-items:center;justify-content:center;
-       width:24px;height:24px}
+       width:30px;height:30px}
   /* halo PERMANENT (dégradé radial vert) toujours visible autour du point */
-  .nav-radar::before{content:"";position:absolute;top:50%;left:50%;width:24px;height:24px;
-       margin:-12px 0 0 -12px;border-radius:50%;
-       background:radial-gradient(circle,rgba(52,210,123,.5) 0%,rgba(52,210,123,.18) 48%,transparent 72%)}
-  .nr-dot{position:relative;z-index:1;width:15px;height:15px;border-radius:50%;background:#34d27b;
-       box-shadow:0 0 9px rgba(52,210,123,.95),0 0 2px rgba(52,210,123,1)}
-  .nr-ring{position:absolute;top:50%;left:50%;width:24px;height:24px;margin:-12px 0 0 -12px;
+  .nav-radar::before{content:"";position:absolute;top:50%;left:50%;width:30px;height:30px;
+       margin:-15px 0 0 -15px;border-radius:50%;
+       background:radial-gradient(circle,rgba(52,210,123,.5) 0%,rgba(52,210,123,.18) 50%,transparent 74%)}
+  .nr-dot{position:relative;z-index:1;width:19px;height:19px;border-radius:50%;background:#34d27b;
+       box-shadow:0 0 11px rgba(52,210,123,.95),0 0 2px rgba(52,210,123,1)}
+  .nr-ring{position:absolute;top:50%;left:50%;width:30px;height:30px;margin:-15px 0 0 -15px;
        border-radius:50%;border:2px solid rgba(52,210,123,.6);animation:navradar 1.9s ease-out infinite}
   .nr-ring2{animation-delay:.95s}
   @keyframes navradar{0%{transform:scale(.4);opacity:.95}100%{transform:scale(1);opacity:0}}
