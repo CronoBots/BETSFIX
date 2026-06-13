@@ -843,6 +843,7 @@ _BET_KEYS = ("pari1", "pari2", "pari3")   # positions de pari pour les stats (= 
 # ces agrégations à chaque rendu alors que les sidecars ne changent qu'au scan/règlement.
 _STATS_CACHE: dict = {}    # "full" -> (sig, stats_full())
 _CALIB_RES_CACHE: dict = {}  # min_conf -> (sig, calibration()) — uniquement pour since_days=None
+_PERF_CACHE: dict = {}     # "v" -> (sig, perf_breakdown()) — ROI par cote/marché/confiance
 
 
 # JALONS du modèle : dates (UTC) où la LOGIQUE de sélection a changé -> repères verticaux sur les
@@ -1209,6 +1210,82 @@ def bet_detail(sport: str | None = None, pari: int | None = None,
                             "comp": d.get("comp", ""), "sport": d.get("sport"), "pari": i + 1,
                             "sel": b.get("sel", ""), "result": res, "odds": od, "pnl": pnl})
     out.sort(key=lambda x: x["start"] or "", reverse=True)
+    return out
+
+
+_ODDS_BUCKETS = ((1.0, 1.30, "1.00–1.30"), (1.30, 1.50, "1.30–1.50"), (1.50, 1.70, "1.50–1.70"),
+                 (1.70, 2.00, "1.70–2.00"), (2.00, 99.0, "2.00 +"))
+_CONF_BANDS = ((0, 65, "< 65 %"), (65, 70, "65–70 %"), (70, 75, "70–75 %"),
+               (75, 80, "75–80 %"), (80, 101, "80 % +"))
+
+
+def perf_breakdown(since_days: int | None = None) -> dict:
+    """ANALYSES ACTIONNABLES (lecture seule) pour piloter l'amélioration du système : ROI + réussite
+    par TRANCHE DE COTE, par MARCHÉ et par TRANCHE DE CONFIANCE. Mise plate 1u ; ROI = profit ÷ misé.
+    N'altère AUCUNE donnée — sert l'affichage des stats. Caché par signature du dossier."""
+    sig = _dir_sig() if since_days is None else None
+    if sig is not None:
+        hit = _PERF_CACHE.get("v")
+        if hit and hit[0] == sig:
+            return hit[1]
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
+    items = []   # (odds, prob, market, result)
+    for p in glob.glob(os.path.join(DIR, "*.json")):
+        d = _meta_load(p)
+        if not d:
+            continue
+        start = d.get("start") or ""
+        if cutoff is not None:
+            try:
+                dt = datetime.fromisoformat(start.replace("Z", "+00:00")) if start else None
+            except (ValueError, AttributeError):
+                dt = None
+            if dt is None or dt < cutoff:
+                continue
+        for i, b in enumerate(d.get("bets") or []):
+            if i >= len(_BET_KEYS):
+                break
+            res = b.get("result")
+            if res not in ("won", "lost", "push"):
+                continue
+            mk = market_of(b.get("code") or "")
+            items.append((b.get("odds"), b.get("prob"), mk, res))
+
+    def agg(label, lst):
+        won = sum(1 for _o, r in lst if r == "won")
+        lost = sum(1 for _o, r in lst if r == "lost")
+        push = sum(1 for _o, r in lst if r == "push")
+        staked = won + lost + push
+        profit = sum((float(o) - 1) if (r == "won" and o) else (-1.0 if r == "lost" else 0.0)
+                     for o, r in lst)
+        sett = won + lost
+        return {"label": label, "n": len(lst), "won": won, "settled": sett,
+                "pct": (round(100 * won / sett) if sett else None),
+                "roi": (round(100 * profit / staked) if staked else None),
+                "profit": round(profit, 2)}
+
+    def bucketize(bands, key):
+        groups = {lbl: [] for *_, lbl in bands}
+        for od, prob, _mk, res in items:
+            v = od if key == "odds" else prob
+            if v is None:
+                continue
+            for lo, hi, lbl in bands:
+                if lo <= v < hi:
+                    groups[lbl].append((od, res))
+                    break
+        return [agg(lbl, lst) for lbl, lst in groups.items() if lst]
+
+    mkg = {}
+    for od, _prob, mk, res in items:
+        mkg.setdefault(mk, []).append((od, res))
+    by_market = sorted((agg(mk, lst) for mk, lst in mkg.items() if len(lst) >= 3),
+                       key=lambda x: (x["roi"] is None, -(x["roi"] or 0)))
+    out = {"by_odds": bucketize(_ODDS_BUCKETS, "odds"),
+           "by_conf": bucketize(_CONF_BANDS, "conf"),
+           "by_market": by_market}
+    if sig is not None:
+        _PERF_CACHE["v"] = (sig, out)
     return out
 
 

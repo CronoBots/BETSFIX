@@ -243,10 +243,9 @@ def _cached_votes(provider, mid) -> tuple | None:
 
 
 def _home_stats() -> str:
-    """Bloc stats accueil : bilan global (ROI/forme/série/drawdown) + perf par pari + détail par
-    sport (lignes drill-down). SANS filtres (période/sport retirés) : toujours depuis le début,
-    tous sports."""
-    inner = web.render_stats(analyses.stats_full())
+    """Bloc STATISTIQUES complet (depuis le début, tous sports) : bilan global + courbe d'équité +
+    détail par sport + analyses ROI actionnables (par cote / confiance / marché)."""
+    inner = web.render_stats(analyses.stats_full()) + web.render_perf(analyses.perf_breakdown())
     return f'<div class="sx"><div class="sx-body">{inner}</div></div>' if inner else ""
 
 

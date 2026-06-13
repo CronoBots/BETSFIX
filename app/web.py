@@ -1692,6 +1692,22 @@ CSS = """
        padding:12px 12px 10px;margin:12px 0}
   .sx-equity{margin:6px 0 0}
   .sx-equity .sx-heroc{display:block;width:100%;height:auto}
+  /* Barres ROI divergentes (par cote / confiance / marché) : 0 au centre, vert droite / rouge gauche */
+  .rb{display:flex;flex-direction:column;gap:9px;margin-top:8px}
+  .rb-row{display:flex;flex-direction:column;gap:3px}
+  .rb-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .rb-lbl{font-size:11.5px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+  .rb-meta{font-size:9.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+  .rb-line{display:flex;align-items:center;gap:9px}
+  .rb-track{position:relative;flex:1;height:9px;border-radius:99px;background:rgba(255,255,255,.05);
+       overflow:hidden}
+  .rb-zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.22)}
+  .rb-bar{position:absolute;top:0;height:100%}
+  .rb-bar.rb-pos{left:50%;border-radius:0 99px 99px 0;background:linear-gradient(90deg,#19c46a,#34d27b)}
+  .rb-bar.rb-neg{right:50%;border-radius:99px 0 0 99px;background:linear-gradient(270deg,#ff6b6b,#ff8f9a)}
+  .rb-roi{flex:none;width:48px;text-align:right;font-size:12px;font-weight:900;
+       font-variant-numeric:tabular-nums}
+  .rb-roi.rb-pos{color:#34d27b} .rb-roi.rb-neg{color:#ff6b6b} .rb-roi.rb-neu{color:var(--muted)}
   /* mini-courbe d'équité dans la ligne d'un sport */
   .sx-row-spk{flex:1 1 auto;min-width:0;height:22px;display:flex;align-items:center}
   .sx-row-spk .sx-spark{width:100%;height:22px}
@@ -2383,6 +2399,52 @@ def render_stats(full: dict | None, since: str = "") -> str:
                '<span>tap une ligne → les matchs</span></div>'
                + "".join(scards) + '</div>') if scards else "")
     return f'{hero}{equity}{sports}'
+
+
+def _roi_bars(rows: list) -> str:
+    """Barres ROI DIVERGENTES (0 au centre, vert à droite / rouge à gauche), échelle commune. Chaque
+    ligne : libellé + (n paris · réussite %) + ROI coloré. Pour les vues par cote/confiance/marché."""
+    vals = [abs(r["roi"]) for r in rows if r.get("roi") is not None]
+    scale = max(vals) if vals else 1
+    out = []
+    for r in rows:
+        roi = r.get("roi")
+        if roi is None:
+            bar, roistr, rcls = "", "—", "neu"
+        else:
+            rcls = "pos" if roi > 0 else ("neg" if roi < 0 else "neu")
+            w = round(abs(roi) / scale * 50)            # jusqu'à 50 % de la piste (une moitié)
+            bar = f'<span class="rb-bar rb-{rcls}" style="width:{w}%"></span>'
+            roistr = f'{"+" if roi >= 0 else "−"}{abs(roi)}%'
+        meta = (f'{r["n"]} pari{"s" if r["n"] > 1 else ""}'
+                + (f' · {r["pct"]}%' if r.get("pct") is not None else ""))
+        out.append(
+            f'<div class="rb-row"><div class="rb-top">'
+            f'<span class="rb-lbl">{html.escape(str(r["label"]))}</span>'
+            f'<span class="rb-meta">{meta}</span></div>'
+            f'<div class="rb-line"><div class="rb-track"><span class="rb-zero"></span>{bar}</div>'
+            f'<span class="rb-roi rb-{rcls}">{roistr}</span></div></div>')
+    return "".join(out)
+
+
+def _roi_section(title: str, sub: str, rows: list) -> str:
+    return (f'<div class="sx-card"><div class="sx-h">{title}<span>{sub}</span></div>'
+            f'<div class="rb">{_roi_bars(rows)}</div></div>') if rows else ""
+
+
+def render_perf(perf: dict | None) -> str:
+    """Analyses ACTIONNABLES (où est l'edge ?) : ROI par tranche de cote, par confiance, par marché.
+    Barres divergentes lisibles. '' si pas de données."""
+    perf = perf or {}
+    if not any(perf.get(k) for k in ("by_odds", "by_conf", "by_market")):
+        return ""
+    return (_roi_section("Rendement par cote", "ROI selon la cote jouée",
+                         perf.get("by_odds") or [])
+            + _roi_section("Rendement par confiance", "ROI selon la confiance annoncée",
+                           perf.get("by_conf") or [])
+            + _roi_section("Rendement par marché", "ROI par type de pari (≥ 3 paris)",
+                           perf.get("by_market") or []))
+
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
                      frag: bool = False, source: dict | None = None) -> str:
