@@ -143,7 +143,7 @@ TAG_BASKET_SRC = "🏀 Basket · Données SofaScore (source)"
 TAG_COTES = "💰 Cotes & paris Unibet"
 TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
 TAG_MODELE_SUIVI = "📊 Modèle maison · Suivi & performance"
-TAG_FLASH = "🟧 Flashscore (source alternative)"
+TAG_FLASH = "🟧 Flashscore (jeu-par-jeu)"
 TAG_INTERFACE = "🖥️ Interface (pages HTML)"
 TAG_META = "ℹ️ Méta"
 
@@ -157,7 +157,10 @@ OPENAPI_TAGS = [
     {"name": TAG_COTES},
     {"name": TAG_MODELE_ANALYSE},
     {"name": TAG_MODELE_SUIVI},
-    {"name": TAG_FLASH},
+    {"name": TAG_FLASH,
+     "description": "Données JEU PAR JEU / POINT PAR POINT (gratuit, sans clé) : agenda, déroulé "
+                    "des jeux (serveur/vainqueur), score par set, statistiques, face-à-face. Sert au "
+                    "règlement des marchés « 1er jeu de service »."},
     {"name": TAG_INTERFACE},
     {"name": TAG_META},
 ]

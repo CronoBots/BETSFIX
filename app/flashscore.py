@@ -129,6 +129,87 @@ def _games(match_id: str) -> list:
     return games
 
 
+def _feed(code: str, match_id: str) -> str | None:
+    """Récupère un feed Flashscore brut (`df_mh`/`df_su`/`df_st`/`df_hh`) pour un match. None si KO."""
+    return _get(f"https://global.flashscore.ninja/{_PROJECT}/x/feed/{code}_1_{match_id}",
+                headers={"x-fsign": _FSIGN, "Referer": "https://www.flashscore.com/"})
+
+
+def matches(offset: int = 0) -> list:
+    """Matchs tennis d'un jour (offset : 0=aujourd'hui, -1=hier…) : [{id, home, away}]."""
+    return [{"id": m, "home": h, "away": a} for m, h, a in _match_index(offset)]
+
+
+def points(match_id: str) -> list:
+    """Déroulé JEU PAR JEU d'un match : [{server, winner}] (du 1er au dernier jeu)."""
+    return _games(match_id)
+
+
+def score(match_id: str) -> dict | None:
+    """Score d'un match (depuis `df_su`) : {sets:[{home,away,tiebreak}], home_sets, away_sets,
+    duration, winner}. None si indisponible."""
+    feed = _feed("df_su", match_id)
+    if not feed:
+        return None
+    recs = re.findall(r"([A-Z]{2,3})" + _SEP_FLD + r"([^" + _SEP_REC + r"]*)", feed)
+    first = {}
+    for code, val in recs:
+        first.setdefault(code, val)
+    bvals = [first[c] for c in sorted(first) if re.fullmatch(r"B[A-Z]", c)]   # BA,BB,BC,BD… jeux/set
+    dvals = {c: first[c] for c in first if re.fullmatch(r"D[A-Z]", c)}        # tie-breaks
+    dletters = sorted(dvals)
+    sets, hs, as_ = [], 0, 0
+    for i in range(0, len(bvals) - 1, 2):
+        try:
+            h, a = int(bvals[i]), int(bvals[i + 1])
+        except ValueError:
+            continue
+        tb = None
+        di = i  # DA aligné sur BA, DB sur BB…
+        if di < len(dletters) and (di + 1) < len(dletters):
+            try:
+                tb = [int(dvals[dletters[di]]), int(dvals[dletters[di + 1]])]
+            except ValueError:
+                tb = None
+        sets.append({"home": h, "away": a, "tiebreak": tb})
+        hs += h > a
+        as_ += a > h
+    return {"sets": sets, "home_sets": hs, "away_sets": as_,
+            "duration": first.get("RB"), "winner": ("home" if hs > as_ else "away" if as_ > hs else None)}
+
+
+def statistics(match_id: str) -> dict | None:
+    """Statistiques d'un match (depuis `df_st`), groupées par SECTION (Match / Set 1 / Set 2…) :
+    {sections:[{name, categories:[{name, items:[{name,home,away}]}]}]}. Aces, doubles fautes,
+    % 1er service, balles de break, winners… None si indisponible."""
+    feed = _feed("df_st", match_id)
+    if not feed:
+        return None
+    sections, sec, cat = [], None, None
+    for rec in feed.split(_SEP_REC):
+        code, _, val = rec.partition(_SEP_FLD)
+        code = code.lstrip("~ ")
+        if code == "SE":                       # section (Match / Set 1 / Set 2…)
+            sec = {"name": val, "categories": []}
+            sections.append(sec)
+            cat = None
+        elif code == "SF" and sec is not None:  # catégorie (Service / Return / Points / Games)
+            cat = {"name": val, "items": []}
+            sec["categories"].append(cat)
+        elif code == "SG" and cat is not None:  # nom de la stat -> SH (home), SI (away)
+            cat["items"].append({"name": val, "home": None, "away": None})
+        elif code == "SH" and cat and cat["items"]:
+            cat["items"][-1]["home"] = val
+        elif code == "SI" and cat and cat["items"]:
+            cat["items"][-1]["away"] = val
+    return {"sections": sections} if sections else None
+
+
+def find_id(home: str, away: str, start_iso: str | None = None) -> str | None:
+    """Expose la résolution du matchId Flashscore par noms (+ jour) — pour l'API."""
+    return _find_match_id(home, away, start_iso)
+
+
 def settle_hold1(home: str, away: str, side: str, start_iso: str | None = None) -> str | None:
     """Règle « 1er jeu de service TENU » via Flashscore. `side` = 'HOME'/'AWAY' (le joueur concerné).
     Renvoie 'won'/'lost' ou None si données indisponibles. Le 1er jeu de service d'un joueur = le
