@@ -48,7 +48,66 @@ def sim_balance() -> dict:
     return {"start": START_BANKROLL, "balance": round(START_BANKROLL + pnl, 2), "pnl": pnl,
             "staked": round(sum(x["stake"] for x in items), 2),
             "count": len(items), "settled": len(settled), "pending": len(items) - len(settled),
-            "roi": (round(100 * pnl / settled_stake, 1) if settled_stake else None)}
+            "roi": (round(100 * pnl / settled_stake, 1) if settled_stake else None),
+            "clv": clv_stats()}
+
+
+def _parse_dt(s: str | None):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def capture_closing() -> int:
+    """Capture la cote de CLÔTURE des paris simulés dont le match approche du coup d'envoi (fenêtre
+    [start−25 min, start]) et calcule le CLV (cote prise vs clôture). FORWARD-ONLY : après le coup
+    d'envoi le marché pré-match disparaît -> pari marqué `clv_missed` (on n'insiste plus). Re-price
+    via les marchés Unibet (app.unibet + app.clv). Renvoie le nb de captures. Best-effort."""
+    from app import clv, unibet
+    bets = load()
+    now = datetime.now(timezone.utc)
+    changed = 0
+    for b in bets:
+        if b.get("close_odds") is not None or b.get("clv_missed"):
+            continue
+        m = analyses.meta(b.get("sport"), b.get("match_id")) or {}
+        start = _parse_dt(m.get("start"))
+        if not start:
+            continue
+        mins = (start - now).total_seconds() / 60.0
+        if mins > 25:                       # trop tôt -> on capturera à un prochain passage
+            continue
+        if mins < -2:                       # coup d'envoi passé -> clôture ratée, on arrête d'essayer
+            b["clv_missed"] = True
+            changed += 1
+            continue
+        home, away = m.get("home", ""), m.get("away", "")
+        eid = unibet.find_id(home, away, b.get("sport")) \
+            or (str(b.get("match_id")) if b.get("sport") == "foot" else None)
+        close = clv.price_pick(b.get("code", ""), home, away, unibet.markets(eid)) if eid else None
+        if close:
+            b["close_odds"] = round(float(close), 3)
+            b["clv"] = clv.clv_pct(b.get("odds"), close)
+            b["clv_at"] = now.isoformat()
+            changed += 1
+        # sinon (issue introuvable) : on retentera jusqu'à ce que mins<-2 -> missed
+    if changed:
+        _save(bets)
+    return changed
+
+
+def clv_stats() -> dict:
+    """Bilan CLV des paris simulés capturés : {n, avg_pct, beat_pct}. n=0 si rien encore capturé.
+    avg_pct = CLV moyen (%), beat_pct = % de paris ayant battu la clôture (CLV>0)."""
+    vals = [b["clv"] for b in load() if isinstance(b.get("clv"), (int, float))]
+    if not vals:
+        return {"n": 0, "avg_pct": None, "beat_pct": None}
+    pos = sum(1 for v in vals if v > 0)
+    return {"n": len(vals), "avg_pct": round(100 * sum(vals) / len(vals), 1),
+            "beat_pct": round(100 * pos / len(vals))}
 
 
 def recommended_bets() -> list:

@@ -47,8 +47,9 @@ async def _panel_warmer():
 
 async def _settle_loop():
     """Boucle de fond du NOUVEAU système : règlement des matchs ANALYSÉS terminés (~10 min) ->
-    bilan, simulation et stats à jour rapidement. (L'ancien suivi Elo a été retiré.)"""
-    from app import settle_analyst
+    bilan, simulation et stats à jour rapidement. Capture aussi la cote de CLÔTURE des paris
+    simulés près du coup d'envoi (CLV). (L'ancien suivi Elo a été retiré.)"""
+    from app import mybets, settle_analyst
     await asyncio.sleep(90)    # laisse l'app démarrer
     while True:
         try:
@@ -57,6 +58,12 @@ async def _settle_loop():
                 log.info("analyses réglées : %s", na)
         except Exception as exc:
             log.warning("settle analyses error: %s", exc)
+        try:
+            nc = await asyncio.to_thread(mybets.capture_closing)   # CLV : cote de clôture (forward-only)
+            if nc:
+                log.info("clôtures CLV capturées : %s", nc)
+        except Exception as exc:
+            log.warning("clv capture error: %s", exc)
         await asyncio.sleep(10 * 60)
 
 
