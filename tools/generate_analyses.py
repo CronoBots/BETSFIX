@@ -39,6 +39,7 @@ for _s in (sys.stdout, sys.stderr):
 import httpx  # noqa: E402
 
 from app import sources  # noqa: E402
+from app import value  # noqa: E402
 from app.match_select import UNIBET_B, UNIBET_PARAMS, fetch_important  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -93,6 +94,16 @@ METHODO = (
     "factuels CONCORDANTS (ex. série + contexte, ou stat + forme + H2H). Un seul argument = pas assez. "
     "Classe par CHANCE DE PASSER (probabilité réelle), PAS par edge contrarien. Sois HONNÊTE sur la "
     "proba (pas de gonflage). Un match incertain = moins de paris, voire SKIP.\n\n"
+    "VALUE — DÉTECTION SYSTÉMATIQUE (clé du ROI) : chaque issue du bloc COTES porte sa PROBA JUSTE "
+    "« (jXX%) » = la proba du marché MARGE RETIRÉE (de-vig), et chaque marché sa « [marge X%] ». "
+    "Procédure pour CHAQUE pari envisagé : (1) estime TA proba à partir des FAITS ; (2) compare-la à la "
+    "proba juste jXX% de cette issue ; il y a VALUE si TA proba dépasse jXX% d'AU MOINS ~5 points. "
+    "(3) Ne retiens que des paris à la fois SÛRS (ta proba ≥ 65 %) ET porteurs de value (ta proba > jXX%). "
+    "Si ta proba ≤ jXX%, le marché te paie MOINS que le risque -> écarte. Balaie TOUS les marchés fournis "
+    "(vainqueur, totaux, handicaps, sets/jeux, props joueur…), pas seulement le 1X2, et garde les "
+    "meilleures value. PRIVILÉGIE les marchés à FAIBLE marge (lignes principales, ~3-6 % : plus efficients "
+    "et fiables) ; MÉFIE-TOI des marges élevées (≥8 %, souvent props/exotiques : le book s'y protège). "
+    "Indique la value dans l'explication (ex. « ma proba ~72 % vs juste 64 % -> value +12 % d'EV »).\n\n"
     "Rends ensuite ton analyse en respectant EXACTEMENT la structure ci-dessous — MÊMES titres, MÊME "
     "ordre, MÊME tableau — pour TOUS les sports (affiché tel quel dans l'app). AUCUN titre en haut, "
     "AUCUNE autre section.\n\n"
@@ -470,17 +481,22 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         crit = (b.get("criterion") or {}).get("label", "")
         if not crit or any(s in crit for s in NOISE):
             continue
+        ocs = [o for o in (b.get("outcomes") or []) if o.get("odds")]
+        # DE-VIG : proba JUSTE (marge retirée) par issue + marge du marché -> ancre de value pour
+        # l'analyste (value = SA proba > proba juste « j% »). Calcul sur TOUTES les issues cotées.
+        _, margin = value.annotate([{"odds": o["odds"] / 1000} for o in ocs])
+        fair = value.devig([o["odds"] / 1000 for o in ocs])[0]
         outs = []
-        for o in b.get("outcomes") or []:
-            od = o.get("odds", 0) / 1000
+        for o, p in zip(ocs, fair):
+            od = o["odds"] / 1000
             if od < 1.10:          # cote < 1.10 = gain négligeable -> jamais un pari, on l'écarte
                 continue
             lbl = o.get("label") or o.get("englishLabel") or "?"
             ln = o.get("line")
             lns = f" {ln / 1000:g}" if ln is not None else ""
-            outs.append(f"{lbl}{lns}={od:.2f}")
+            outs.append(f"{lbl}{lns}={od:.2f} (j{p * 100:.0f}%)")
         if outs:
-            by_crit.setdefault(crit, []).append(" | ".join(outs))
+            by_crit.setdefault(crit, []).append(" | ".join(outs) + f"  [marge {margin * 100:.0f}%]")
     # Diversité (cf. _PER_CRIT/_MAX_MK_LINES) : éventail varié de marchés pour les 3 sports.
     lines = []
     for crit, variants in by_crit.items():
@@ -508,7 +524,9 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # blessés, H2H, xG, météo — la source n°2 de la méthodo quand SofaScore est bloqué.
     alt = await sources.extras(client, sport, match)
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
-            "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) :\n" + "\n".join(lines)
+            "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
+            "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
+            "(détaille la procédure value plus haut) :\n" + "\n".join(lines)
             + imp + extras + alt)
     meta = {"odds": odds, **sx}   # odds + streaks/h2h structurés -> sidecar
     return text, meta
