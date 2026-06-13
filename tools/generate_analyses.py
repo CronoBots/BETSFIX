@@ -79,7 +79,10 @@ METHODO = (
     "fréquents : un favori court SANS preuve de forme récente sur LA surface (cf. forme 14 jours des "
     "DONNÉES MULTI-SOURCES) n'est PAS un pari sûr — baisse ta proba ou SKIP.\n"
     "• BASKET : absents/blessés clés & temps de repos (back-to-back), rythme (pace) des 2 équipes, "
-    "forme à domicile/extérieur, enjeu (tanking, playoffs).\n"
+    "forme à domicile/extérieur, enjeu (tanking, playoffs). PROPS JOUEUR : compare la LIGNE du marché "
+    "(ex. « passes +5.5 ») à la MOYENNE SAISON et à la FORME 5 derniers du bloc DONNÉES JOUEURS — ne "
+    "joue un prop QUE si moyenne ET forme récente dépassent nettement la ligne (ou sont nettement en "
+    "dessous pour un « Moins »), et tiens compte des absents (rôle/minutes qui changent).\n"
     "Les cotes ci-dessous sont celles d'UNIBET (réelles) : ne les invente jamais.\n\n"
     "DONNÉES FOURNIES CI-DESSOUS — ce sont des FAITS, sers-t'en en PRIORITÉ sur le narratif :\n"
     "• SÉRIES SOFASCORE (forme récente factuelle, déjà mappées aux marchés). Base principale. Si une "
@@ -523,11 +526,21 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # Sources GRATUITES indépendantes (ESPN/FotMob/Understat) : forme+scores, classements frais,
     # blessés, H2H, xG, météo — la source n°2 de la méthodo quand SofaScore est bloqué.
     alt = await sources.extras(client, sport, match)
+    # DONNÉES JOUEURS (basket) : moyennes saison + forme des joueurs cités dans les PROPS -> parier
+    # les props (points/rebonds/passes…) avec des chiffres. Joueurs lus dans `participant` des marchés.
+    pblock = ""
+    if sport == "basket":
+        players = [o.get("participant") for b in bo.get("betOffers", []) or []
+                   if "joueur" in ((b.get("criterion") or {}).get("label") or "").lower()
+                   for o in (b.get("outcomes") or []) if o.get("participant")]
+        if players:
+            from app import player_stats
+            pblock = await asyncio.to_thread(player_stats.props_block, players)
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
             "(détaille la procédure value plus haut) :\n" + "\n".join(lines)
-            + imp + extras + alt)
+            + imp + extras + alt + pblock)
     meta = {"odds": odds, **sx}   # odds + streaks/h2h structurés -> sidecar
     return text, meta
 
