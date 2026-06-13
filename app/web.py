@@ -256,7 +256,8 @@ CSS = """
   .botnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
             padding:6px 0 4px;border-radius:14px;color:var(--muted);font-size:10px;
             font-weight:700;transition:.15s}
-  .botnav a .ic{font-size:24px;line-height:1}
+  /* `.ic` = boîte de hauteur FIXE qui CENTRE son contenu -> emoji ET radar Live alignés pareil */
+  .botnav a .ic{font-size:24px;line-height:1;height:26px;display:flex;align-items:center;justify-content:center}
   .botnav a:active{transform:scale(.93)}
   .botnav a.on{color:var(--accent-ink);background:linear-gradient(180deg,var(--accent),var(--accent2))}
   /* Home et Live ne sont pas des sports -> onglet actif en BLANC/GRIS neutre (les sports gardent
@@ -269,7 +270,7 @@ CSS = """
     background:linear-gradient(180deg,var(--accent),var(--accent2));color:var(--accent-ink)}
   /* 6 onglets -> labels un brin plus compacts pour tenir sur petit écran */
   .botnav a .lb{font-size:9px}
-  .botnav a .ic{font-size:22px}
+  .botnav a .ic{font-size:22px;height:24px}
   .botnav a.on .ic{transform:scale(1.06)}
   /* Onglet Live : SEUL le point 🟢 vire au vert et clignote,
   et UNIQUEMENT s'il y a du live
@@ -1361,18 +1362,29 @@ CSS = """
   .calg-v.v-under{color:#9fd2ff;background:rgba(34,184,255,.13)}
   .calg-v.v-unsure{color:var(--muted);background:rgba(255,255,255,.06)}   /* à confirmer (pas assez de paris) */
   /* Liens vers le match (SofaScore / Unibet) en tête de l'analyse — mêmes carrés */
-  /* Drill-down : liste des matchs d'une catégorie */
-  .sx-dd{display:flex;flex-direction:column;gap:5px}
+  /* Drill-down : liste premium des PARIS réglés d'un sport */
+  .sx-dd{display:flex;flex-direction:column;gap:6px;margin-top:7px}
   .sx-dd-empty{color:var(--muted);font-size:11.5px;padding:6px 2px}
-  .sx-dd-row{display:flex;align-items:center;gap:9px;padding:5px 2px}
-  .sx-dd-res{flex:none;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;
+  .sx-dd-head{display:flex;align-items:center;justify-content:space-between;
+       padding:2px 4px 7px;border-bottom:1px solid var(--border);margin-bottom:3px;
+       font-size:11px;color:var(--muted);font-weight:700}
+  .sx-dd-head b{color:var(--text)}
+  .sx-dd-pnl{font-weight:900;font-variant-numeric:tabular-nums}
+  .sx-dd-pnl.pos{color:#34d27b} .sx-dd-pnl.neg{color:#ff6b6b} .sx-dd-pnl.neu{color:var(--muted)}
+  .sx-dd-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:11px;
+       background:rgba(255,255,255,.035);border:1px solid var(--border)}
+  .sx-dd-res{flex:none;width:21px;height:21px;border-radius:50%;display:flex;align-items:center;
        justify-content:center;font-size:11px;font-weight:900}
   .sx-dd-res.dd-w{color:#06140d;background:#34d27b} .sx-dd-res.dd-l{color:#fff;background:#ff6b6b}
   .sx-dd-res.dd-p{color:#0b1428;background:#9fb0c8}
   .sx-dd-m{min-width:0;flex:1}
-  .sx-dd-t{font-size:11.5px;font-weight:700;color:var(--text);line-height:1.25}
-  .sx-dd-s{font-size:10px;color:var(--muted);font-weight:600}
-  .sx-dd-c{flex:none;font-size:11.5px;font-weight:800;color:#cfe0f5;font-variant-numeric:tabular-nums}
+  .sx-dd-t{font-size:12px;font-weight:800;color:var(--text);line-height:1.3}
+  .sx-dd-s{font-size:10px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;
+       text-overflow:ellipsis}
+  .sx-dd-r{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+  .sx-dd-c{font-size:11.5px;font-weight:800;color:#cfe0f5;font-variant-numeric:tabular-nums}
+  .sx-dd-u{font-size:10.5px;font-weight:900;font-variant-numeric:tabular-nums}
+  .sx-dd-u.pos{color:#34d27b} .sx-dd-u.neg{color:#ff6b6b} .sx-dd-u.neu{color:var(--dim)}
   /* Animation d'apparition des courbes (tracé) */
   .bc-line{stroke-dasharray:1400;stroke-dashoffset:1400;animation:bcdraw 1.1s ease-out forwards}
   @keyframes bcdraw{to{stroke-dashoffset:0}}
@@ -2437,23 +2449,36 @@ def _calib_by_sport(by_sport: dict) -> str:
             f'<div class="calg">{"".join(rows)}</div>')
 
 def render_bet_detail(items: list) -> str:
-    """Liste des matchs (drill-down) d'une catégorie : résultat ✓/✗ + pari + affiche + date + cote.
-    Triés du plus récent au plus ancien (cf. analyses.bet_detail)."""
+    """Liste des PARIS réglés (drill-down d'un sport) — vue premium : pastille résultat ✓/✗/➖ +
+    sélection + affiche·date + cote + gain/perte (unités, mise plate). Triés du + récent au + ancien.
+    En tête : un mini-bilan (gagnés/réglés · profit cumulé) de la catégorie."""
     if not items:
-        return '<div class="sx-dd-empty">Aucun match réglé dans cette catégorie.</div>'
+        return '<div class="sx-dd-empty">Aucun pari réglé dans cette catégorie.</div>'
     e = html.escape
+    won = sum(1 for it in items if it["result"] == "won")
+    settled = sum(1 for it in items if it["result"] in ("won", "lost"))
+    profit = round(sum(it.get("pnl") or 0 for it in items), 2)
+    pcls = "pos" if profit > 0 else ("neg" if profit < 0 else "neu")
+    head = (f'<div class="sx-dd-head"><span><b>{won}/{settled}</b> gagnés</span>'
+            f'<span class="sx-dd-pnl {pcls}">{"+" if profit >= 0 else "−"}{abs(profit):g} u</span></div>')
     rows = []
     for it in items:
         cls, lbl = {"won": ("dd-w", "✓"), "lost": ("dd-l", "✗"),
                     "push": ("dd-p", "➖")}.get(it["result"], ("dd-p", "·"))
         when = fmt_local(it.get("start"), with_date=True) or ""
         cote = f'@{it["odds"]:g}' if it.get("odds") else ""
+        pnl = it.get("pnl")
+        if pnl is None or it["result"] == "push":
+            pnlh = '<span class="sx-dd-u neu">0</span>'
+        else:
+            uc = "pos" if pnl > 0 else "neg"
+            pnlh = f'<span class="sx-dd-u {uc}">{"+" if pnl >= 0 else "−"}{abs(pnl):g} u</span>'
         rows.append(
             f'<div class="sx-dd-row"><span class="sx-dd-res {cls}">{lbl}</span>'
-            f'<div class="sx-dd-m"><div class="sx-dd-t">P{it["pari"]} · {e(str(it["sel"]))}</div>'
-            f'<div class="sx-dd-s">{e(it["home"])} – {e(it["away"])} · {e(when)}</div></div>'
-            f'<span class="sx-dd-c">{cote}</span></div>')
-    return f'<div class="sx-dd">{"".join(rows)}</div>'
+            f'<div class="sx-dd-m"><div class="sx-dd-t">{e(str(it["sel"]))}</div>'
+            f'<div class="sx-dd-s">{e(it["home"])} v {e(it["away"])} · {e(when)}</div></div>'
+            f'<div class="sx-dd-r"><span class="sx-dd-c">{cote}</span>{pnlh}</div></div>')
+    return f'<div class="sx-dd">{head}{"".join(rows)}</div>'
 
 def analyst_bars(o1, ox, o2, votes=None) -> dict:
     """Champs de barres pour une carte/fiche ANALYSTE (sans modèle Elo) : Cote Unibet (proba

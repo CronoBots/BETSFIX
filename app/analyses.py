@@ -1201,10 +1201,14 @@ def bet_detail(sport: str | None = None, pari: int | None = None,
         for i, b in enumerate(d.get("bets") or []):
             if i >= len(_BET_KEYS) or (pari is not None and i != pari):
                 continue
-            if b.get("result") in ("won", "lost", "push"):
+            res = b.get("result")
+            if res in ("won", "lost", "push"):
+                od = b.get("odds")
+                pnl = (round(float(od) - 1, 2) if (res == "won" and od)
+                       else (-1.0 if res == "lost" else 0.0))   # gain/perte mise plate 1u
                 out.append({"start": start, "home": d.get("home", ""), "away": d.get("away", ""),
                             "comp": d.get("comp", ""), "sport": d.get("sport"), "pari": i + 1,
-                            "sel": b.get("sel", ""), "result": b["result"], "odds": b.get("odds")})
+                            "sel": b.get("sel", ""), "result": res, "odds": od, "pnl": pnl})
     out.sort(key=lambda x: x["start"] or "", reverse=True)
     return out
 
