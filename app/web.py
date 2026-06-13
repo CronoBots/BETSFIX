@@ -1223,7 +1223,8 @@ CSS = """
   .sx-kpi span{font-size:9.5px;color:var(--muted);font-weight:600}
   .sx-bys{display:flex;flex-direction:column;gap:10px}
   .sx-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:0 2px;
-       font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#cfe0f5}
+       white-space:nowrap;font-size:12px;font-weight:800;letter-spacing:.04em;
+       text-transform:uppercase;color:#cfe0f5}
   .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
   /* Section par sport */
   .sx-sport{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -2383,8 +2384,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
     mleg = ("".join(f'<span class="sx-ml"><span class="sx-ml-n">{i}</span>{html.escape(lab)}</span>'
                     for i, (_iso, lab) in enumerate(miles, 1)))
     mlegend = f'<div class="sx-mlegend">Repères du modèle :{mleg}</div>' if mleg else ""
-    equity = ('<div class="sx-card"><div class="sx-h">Évolution du rendement'
-              '<span>rendement cumulé · mise constante</span></div>'
+    equity = ('<div class="sx-card"><div class="sx-h">Évolution du rendement</div>'
               f'<div class="sx-equity">{chart}</div>{mlegend}</div>') if chart else ""
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
     # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
@@ -2393,8 +2393,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
               ("basket", "Basket", "#ff9f43"))
     scards = [_sport_card(bs[sk], sk, lbl, since, color=col)
               for sk, lbl, col in SPORTS if (bs.get(sk) or {}).get("settled")]
-    sports = (('<div class="sx-bys"><div class="sx-h">Détail par sport'
-               '<span>tap une ligne → les matchs</span></div>'
+    sports = (('<div class="sx-bys"><div class="sx-h">Détail par sport</div>'
                + "".join(scards) + '</div>') if scards else "")
     return f'{hero}{equity}{sports}'
 
