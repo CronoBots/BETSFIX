@@ -307,6 +307,114 @@ def _parse_prematch(feed: str) -> dict | None:
     return {"home_form": home_f, "away_form": away_f, "h2h": h2h}
 
 
+def _recent_match_ids(feed: str) -> tuple:
+    """[(KP, side)] des matchs récents de CHAQUE joueur depuis df_hh (KP = id du match, KS = côté du
+    joueur DANS ce match). -> (home_ids, away_ids). Mêmes sections que _parse_prematch."""
+    home_ids, away_ids, phase, labels, got_h2h = [], [], None, [], False
+    for blk in feed.split("~"):
+        f = dict(re.findall(r"([A-Z]{2,4})" + _SEP_FLD + r"([^" + _SEP_REC + r"]*)", blk))
+        kb = f.get("KB")
+        if kb is not None:
+            if kb.startswith("Head-to-head"):
+                phase, got_h2h = ("done" if got_h2h else "h2h"), True
+            elif kb.startswith("Last matches"):
+                if kb not in labels:
+                    labels.append(kb)
+                phase = "done" if got_h2h else {1: "home", 2: "away"}.get(len(labels), "done")
+            else:
+                phase = "done"
+            continue
+        if f.get("KP") and f.get("KS") in ("home", "away"):
+            if phase == "home" and len(home_ids) < 4:
+                home_ids.append((f["KP"], f["KS"]))
+            elif phase == "away" and len(away_ids) < 4:
+                away_ids.append((f["KP"], f["KS"]))
+    return home_ids, away_ids
+
+
+def _serve_item(stats: dict, name_key: str, side: str):
+    """Valeur brute d'une stat de SERVICE (par nom) pour `side` (home/away) dans un df_st décodé."""
+    for sec in (stats or {}).get("sections", []):
+        if (sec.get("name") or "").lower() not in ("match", "full time", ""):
+            continue
+        for cat in sec.get("categories", []):
+            if "service" not in (cat.get("name") or "").lower():
+                continue
+            for it in cat.get("items", []):
+                if name_key in (it.get("name") or ""):
+                    return it.get(side)
+    return None
+
+
+def _agg_serve(ids_sides: list) -> dict | None:
+    """Moyenne des stats de service (aces, doubles fautes, 1er service %) sur les matchs `ids_sides`
+    = [(match_id, side)]. None si rien d'exploitable."""
+    aces, dfs, first = [], [], []
+    for mid, side in ids_sides:
+        st = statistics(mid)
+        if not st:
+            continue
+        a = _serve_item(st, "Aces", side)
+        d = _serve_item(st, "Double Faults", side)
+        fp = _serve_item(st, "1st serve percentage", side)
+        if a and a.isdigit():
+            aces.append(int(a))
+        if d and d.isdigit():
+            dfs.append(int(d))
+        if fp:
+            m = re.match(r"(\d+)", fp)
+            if m:
+                first.append(int(m.group(1)))
+    out = {}
+    if aces:
+        out["aces"] = round(sum(aces) / len(aces), 1)
+    if dfs:
+        out["double_faults"] = round(sum(dfs) / len(dfs), 1)
+    if first:
+        out["first_serve_pct"] = round(sum(first) / len(first))
+    out["matches"] = len(ids_sides)
+    return out if (aces or dfs or first) else None
+
+
+def serve_stats(match_id: str) -> dict | None:
+    """Stats de SERVICE moyennes (3-4 derniers matchs) des 2 joueurs d'un match tennis, via le df_hh
+    (ids des matchs récents) + df_st de chacun : {home:{aces, double_faults, first_serve_pct, matches},
+    away:{…}}. None si indisponible. Sert à parier les props service (aces, total jeux) + la fiche."""
+    feed = _feed("df_hh", match_id)
+    if not feed:
+        return None
+    home_ids, away_ids = _recent_match_ids(feed)
+    h = _agg_serve(home_ids[:3])
+    a = _agg_serve(away_ids[:3])
+    if not (h or a):
+        return None
+    return {"home": h, "away": a}
+
+
+def serve_facts(home: str, away: str, start_iso: str | None = None) -> list:
+    """Puces FR « stats de service » des 2 joueurs pour le dossier tennis. [] si indisponible."""
+    mid = _find_match_id(home, away, start_iso, "tennis")
+    if not mid:
+        return []
+    s = serve_stats(mid)
+    if not s:
+        return []
+
+    def _line(name, d):
+        if not d:
+            return None
+        parts = []
+        if "aces" in d:
+            parts.append(f"{d['aces']} aces/match")
+        if "first_serve_pct" in d:
+            parts.append(f"1er service {d['first_serve_pct']}%")
+        if "double_faults" in d:
+            parts.append(f"{d['double_faults']} doubles fautes")
+        return f"Service {name} ({d.get('matches', 0)} derniers matchs) : " + ", ".join(parts) if parts else None
+
+    return [x for x in (_line(home, s.get("home")), _line(away, s.get("away"))) if x]
+
+
 def prematch_facts(home: str, away: str, start_iso: str | None = None, sport: str = "tennis") -> list:
     """Faits pré-match prêts pour l'analyste (liste de puces FR) : forme des 5 derniers matchs de chaque
     camp + bilan du face-à-face direct. [] si match introuvable ou aucune donnée."""

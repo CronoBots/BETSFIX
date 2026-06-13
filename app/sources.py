@@ -744,14 +744,15 @@ async def _flashscore_block(sport: str, match: dict) -> str:
     fs_sport = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport)
     if not fs_sport:
         return ""
+    h, a, st = match.get("home", ""), match.get("away", ""), match.get("start")
     try:
         from app import flashscore
-        facts = await asyncio.to_thread(
-            flashscore.prematch_facts,
-            match.get("home", ""), match.get("away", ""), match.get("start"), fs_sport)
+        facts = await asyncio.to_thread(flashscore.prematch_facts, h, a, st, fs_sport)
+        if sport == "tennis":                  # + stats de SERVICE des 2 joueurs (aces, 1er service…)
+            facts = facts + await asyncio.to_thread(flashscore.serve_facts, h, a, st)
     except Exception:
         return ""
     if not facts:
         return ""
-    return ("\n\nDONNÉES FLASHSCORE (forme & face-à-face — source indépendante n°3, à CROISER avec "
-            "le bloc ci-dessus et ta recherche web) :\n- " + "\n- ".join(facts))
+    return ("\n\nDONNÉES FLASHSCORE (forme, face-à-face & service — source indépendante n°3, à CROISER "
+            "avec le bloc ci-dessus et ta recherche web) :\n- " + "\n- ".join(facts))

@@ -563,6 +563,16 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         if players:
             from app import player_stats
             pblock = await asyncio.to_thread(player_stats.props_block, players)
+    elif sport == "foot":
+        teams = {home.lower(), away.lower()}
+        players = [o.get("participant") for b in bo.get("betOffers", []) or []
+                   if any(k in ((b.get("criterion") or {}).get("label") or "").lower()
+                          for k in ("joueur", "buteur", "marque", "tir"))
+                   for o in (b.get("outcomes") or [])
+                   if o.get("participant") and o["participant"].lower() not in teams]
+        if players:
+            from app import player_stats
+            pblock = await asyncio.to_thread(player_stats.soccer_props_block, players)
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
