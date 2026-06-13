@@ -50,8 +50,10 @@ def test_parse_prematch_forme_et_h2h():
 
 def test_lineups_parse(monkeypatch):
     F, R = chr(0x00f7), chr(0x00ac)
-    feed = (f"LA{F}Formation{R}LB{F}Starting Lineups{R}LD{F}1-4-3-3{R}LN{F}X{R}"
-            f"LD{F}1-3-5-2{R}LD{F}1-4-3-3{R}")   # away formation + répétition (à dédupliquer)
+    # feed > 100 car. (seuil de garde de lineups) : formations home/away + répétition à dédupliquer
+    pad = R.join(f"LN{F}Joueur{i}" for i in range(12))
+    feed = (f"LA{F}Formation{R}LB{F}Starting Lineups{R}LD{F}1-4-3-3{R}{pad}{R}"
+            f"LD{F}1-3-5-2{R}LD{F}1-4-3-3{R}")
     monkeypatch.setattr(fs, "_feed", lambda code, mid: feed)
     lu = fs.lineups("ID")
     assert lu["home_formation"] == "1-4-3-3" and lu["away_formation"] == "1-3-5-2"
