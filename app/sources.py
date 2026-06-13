@@ -95,6 +95,25 @@ def _overlap(a: set, b: set) -> bool:
     return any(len(x) >= 5 and len(y) >= 5 and x[:5] == y[:5] for x in a for y in b)
 
 
+def _ov(a: str, b: str) -> int:
+    """Nombre de jetons communs entre 2 noms (départage robuste, mieux que « ≥1 jeton »)."""
+    return len(_tok(a) & _tok(b))
+
+
+def _is_home(name: str, home: str, away: str) -> bool:
+    """`name` correspond-il PLUTÔT à `home` qu'à `away` ? (meilleur recouvrement). Évite la confusion
+    sur les derbies/villes partagées (Man Utd/City, Real/Atletico Madrid) où « ≥1 jeton commun » suffit
+    à matcher le MAUVAIS camp."""
+    return _ov(name, home) >= _ov(name, away)
+
+
+def _side_of(name: str, home: str, away: str) -> str | None:
+    """'home'/'away' selon le camp au PLUS de jetons communs ; None si égalité/aucun (ambigu -> on
+    n'assigne pas plutôt que d'assigner au mauvais camp)."""
+    sh, sa = _ov(name, home), _ov(name, away)
+    return "home" if sh > sa else ("away" if sa > sh else None)
+
+
 def _teams_match(h1: str, a1: str, h2: str, a2: str) -> bool:
     """Vrai si {h1,a1} = {h2,a2} par recouvrement de jetons (les 2 orientations)."""
     th1, ta1, th2, ta2 = _tok(h1), _tok(a1), _tok(h2), _tok(a2)
@@ -164,12 +183,12 @@ def _fm_form_lines(team_form, idx: int, label: str) -> str:
     except (IndexError, TypeError):
         return ""
     parts = []
-    lt = _tok(label)
     for it in reversed(items[-5:]):                     # le plus récent d'abord
         tt = it.get("tooltipText") or {}
         rs = {"W": "V", "D": "N", "L": "D"}.get(it.get("resultString"), it.get("resultString") or "?")
-        # score orienté DU POINT DE VUE de l'équipe (« V 2-1 vs X » même à l'extérieur)
-        team_home = bool(_tok(tt.get("homeTeam") or "") & lt)
+        # score orienté DU POINT DE VUE de l'équipe (« V 2-1 vs X » même à l'extérieur). Meilleur
+        # recouvrement (pas « ≥1 jeton ») -> pas de flip sur un derby dans l'historique.
+        team_home = _ov(tt.get("homeTeam") or "", label) >= _ov(tt.get("awayTeam") or "", label)
         opp = tt.get("awayTeam") if team_home else tt.get("homeTeam")
         ts, osc = ((tt.get("homeScore"), tt.get("awayScore")) if team_home
                    else (tt.get("awayScore"), tt.get("homeScore")))
@@ -217,7 +236,7 @@ async def _foot_extras(client, match: dict) -> list[str]:
         fm_home = ((gen.get("homeTeam") or {}).get("name")) or home
         fm_away = ((gen.get("awayTeam") or {}).get("name")) or away
         l0, l1 = _fm_form_lines(tf, 0, fm_home), _fm_form_lines(tf, 1, fm_away)
-        if _tok(fm_home) & _tok(home):
+        if _is_home(fm_home, home, away):
             fh, fa = l0, l1
         else:                       # FotMob inverse home/away vs Unibet
             fh, fa = l1, l0
@@ -231,7 +250,7 @@ async def _foot_extras(client, match: dict) -> list[str]:
     if isinstance(summ, list) and len(summ) == 3 and any(summ):
         gen = j.get("general") or {}
         fm_home = ((gen.get("homeTeam") or {}).get("name")) or home
-        if _tok(fm_home) & _tok(home):
+        if _is_home(fm_home, home, away):
             w, d, l = summ
         else:
             l, d, w = summ
@@ -254,10 +273,10 @@ async def _foot_extras(client, match: dict) -> list[str]:
         teams = ((c.get("table") or {}).get("teams")) or []
         pos = {}
         for t in teams:
-            nm = t.get("name") or ""
-            if _tok(nm) & _tok(home):
+            side = _side_of(t.get("name") or "", home, away)
+            if side == "home":
                 pos[home] = (t.get("idx") or t.get("position"), t.get("pts"))
-            elif _tok(nm) & _tok(away):
+            elif side == "away":
                 pos[away] = (t.get("idx") or t.get("position"), t.get("pts"))
         if len(pos) == 2:
             (p1, pt1), (p2, pt2) = pos[home], pos[away]
@@ -302,8 +321,13 @@ async def _foot_xg(client, match: dict) -> list[str]:
     teams = await _understat_league(client, league, _us_season(match.get("start") or ""))
     facts = []
     for label in (match.get("home", ""), match.get("away", "")):
-        lt = _tok(label)
-        hist = next((h for nm, h in teams.items() if _tok(nm) & lt), None)
+        # MEILLEUR recouvrement (pas le 1er « ≥1 jeton ») : sinon « Manchester City » pouvait renvoyer
+        # « Manchester United », ou un Madrid l'autre. On prend l'équipe Understat la plus proche.
+        hist, best = None, 0
+        for nm, h in teams.items():
+            sc = _ov(nm, label)
+            if sc > best:
+                hist, best = h, sc
         if not hist:
             continue
         last5 = hist[-5:]

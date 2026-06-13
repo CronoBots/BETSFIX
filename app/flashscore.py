@@ -521,8 +521,13 @@ def prematch_facts(home: str, away: str, start_iso: str | None = None, sport: st
         facts.append(f"Forme {away} (5 derniers, + récent à gauche) : {_form_str(data['away_form'])}")
     if data["h2h"]:
         th, ta = _tok(home), _tok(away)
-        wh = sum(1 for m in data["h2h"] if m["winner_name"] and _tok(m["winner_name"]) & th)
-        wa = sum(1 for m in data["h2h"] if m["winner_name"] and _tok(m["winner_name"]) & ta)
+
+        def _wside(nm):                  # camp du vainqueur par MEILLEUR recouvrement (pas « ≥1 jeton » :
+            sh, sa = len(_tok(nm) & th), len(_tok(nm) & ta)   # sinon un derby Man Utd/City double-compte)
+            return "h" if sh > sa else ("a" if sa > sh else None)
+
+        wh = sum(1 for m in data["h2h"] if m["winner_name"] and _wside(m["winner_name"]) == "h")
+        wa = sum(1 for m in data["h2h"] if m["winner_name"] and _wside(m["winner_name"]) == "a")
         n = len(data["h2h"])
         last = data["h2h"][0]
         facts.append(f"Face-à-face direct ({n} derniers) : {home} {wh} – {wa} {away} "
