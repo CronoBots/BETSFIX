@@ -2329,15 +2329,15 @@ def render_stats(full: dict | None, since: str = "") -> str:
         '<span>pire repli</span></div>'
         f'</div><div class="sx-hero-foot">{best_html}<span class="sx-relnote">ROI fiable dès ~20 paris</span></div>'
         '</div>')
-    # (2) COURBE D'ÉQUITÉ UNIQUE (profit cumulé, mise plate 1u) + repères NUMÉROTÉS des jalons.
+    # (2) COURBE D'ÉQUITÉ UNIQUE (rendement cumulé, mise constante) + repères NUMÉROTÉS des jalons.
     miles = list(analyses.MODEL_MILESTONES)
     chart = _hero_chart(ov.get("points") or [], uid="all",
                         dates=ov.get("dates") or [], milestones=miles)
     mleg = ("".join(f'<span class="sx-ml"><span class="sx-ml-n">{i}</span>{html.escape(lab)}</span>'
                     for i, (_iso, lab) in enumerate(miles, 1)))
     mlegend = f'<div class="sx-mlegend">Repères du modèle :{mleg}</div>' if mleg else ""
-    equity = ('<div class="sx-card"><div class="sx-h">Évolution du profit'
-              '<span>profit cumulé · mise plate 1u</span></div>'
+    equity = ('<div class="sx-card"><div class="sx-h">Évolution du rendement'
+              '<span>rendement cumulé · mise constante</span></div>'
               f'<div class="sx-equity">{chart}</div>{mlegend}</div>') if chart else ""
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
     # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
@@ -2457,10 +2457,12 @@ def render_bet_detail(items: list) -> str:
     e = html.escape
     won = sum(1 for it in items if it["result"] == "won")
     settled = sum(1 for it in items if it["result"] in ("won", "lost"))
-    profit = round(sum(it.get("pnl") or 0 for it in items), 2)
-    pcls = "pos" if profit > 0 else ("neg" if profit < 0 else "neu")
+    profit = sum(it.get("pnl") or 0 for it in items)
+    staked = sum(1 for it in items if it["result"] in ("won", "lost", "push"))
+    roi = round(100 * profit / staked) if staked else 0    # ROI = profit ÷ total misé (mise constante)
+    pcls = "pos" if roi > 0 else ("neg" if roi < 0 else "neu")
     head = (f'<div class="sx-dd-head"><span><b>{won}/{settled}</b> gagnés</span>'
-            f'<span class="sx-dd-pnl {pcls}">{"+" if profit >= 0 else "−"}{abs(profit):g} u</span></div>')
+            f'<span class="sx-dd-pnl {pcls}">{"+" if roi >= 0 else "−"}{abs(roi)}% ROI</span></div>')
     rows = []
     for it in items:
         cls, lbl = {"won": ("dd-w", "✓"), "lost": ("dd-l", "✗"),
@@ -2468,11 +2470,13 @@ def render_bet_detail(items: list) -> str:
         when = fmt_local(it.get("start"), with_date=True) or ""
         cote = f'@{it["odds"]:g}' if it.get("odds") else ""
         pnl = it.get("pnl")
+        # ROI du pari (mise constante) : gagné = (cote−1)×100 %, perdu = −100 %, remboursé = 0 %.
         if pnl is None or it["result"] == "push":
-            pnlh = '<span class="sx-dd-u neu">0</span>'
+            pnlh = '<span class="sx-dd-u neu">0%</span>'
         else:
-            uc = "pos" if pnl > 0 else "neg"
-            pnlh = f'<span class="sx-dd-u {uc}">{"+" if pnl >= 0 else "−"}{abs(pnl):g} u</span>'
+            rb = round(pnl * 100)
+            uc = "pos" if rb > 0 else "neg"
+            pnlh = f'<span class="sx-dd-u {uc}">{"+" if rb >= 0 else "−"}{abs(rb)}%</span>'
         rows.append(
             f'<div class="sx-dd-row"><span class="sx-dd-res {cls}">{lbl}</span>'
             f'<div class="sx-dd-m"><div class="sx-dd-t">{e(str(it["sel"]))}</div>'
