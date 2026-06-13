@@ -48,6 +48,19 @@ def test_parse_prematch_forme_et_h2h():
     assert d["h2h"][1]["winner_name"] == "B"
 
 
+def test_lineups_parse(monkeypatch):
+    F, R = chr(0x00f7), chr(0x00ac)
+    feed = (f"LA{F}Formation{R}LB{F}Starting Lineups{R}LD{F}1-4-3-3{R}LN{F}X{R}"
+            f"LD{F}1-3-5-2{R}LD{F}1-4-3-3{R}")   # away formation + répétition (à dédupliquer)
+    monkeypatch.setattr(fs, "_feed", lambda code, mid: feed)
+    lu = fs.lineups("ID")
+    assert lu["home_formation"] == "1-4-3-3" and lu["away_formation"] == "1-3-5-2"
+    assert lu["status"] == "Starting Lineups"
+    monkeypatch.setattr(fs, "_find_match_id", lambda h, a, s=None, sport="football": "ID")
+    f = fs.lineup_facts("Lyon", "Paris")
+    assert f and "Lyon en 1-4-3-3" in f[0] and "Paris en 1-3-5-2" in f[0] and "confirmées" in f[0]
+
+
 def test_goals_for_against_et_tendances():
     # buts pour/contre selon le côté du sujet
     assert fs._goals_for_against("2:1", "home") == (2, 1)

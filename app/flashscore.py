@@ -426,6 +426,42 @@ def foot_match_stats_by_names(home: str, away: str, start_iso: str | None = None
     return foot_match_stats(mid) if mid else None
 
 
+def lineups(match_id: str) -> dict | None:
+    """Compositions FOOT (depuis df_li) : {home_formation, away_formation, status}. status = « Starting
+    Lineups » (confirmées) ou « Predicted… » (probables). None si indisponible (les compos n'apparaissent
+    qu'~1 h avant le coup d'envoi -> souvent absentes au scan, d'où best-effort)."""
+    feed = _feed("df_li", match_id)
+    if not feed or len(feed) < 100:
+        return None
+    forms = re.findall(r"LD" + _SEP_FLD + r"([0-9][0-9-]+)", feed)
+    if not forms:
+        return None
+    lb = re.search(r"LB" + _SEP_FLD + r"([^" + _SEP_REC + r"]+)", feed)
+    # dédup en gardant l'ordre (le feed répète parfois les formations) -> [home, away]
+    seen, uniq = set(), []
+    for f in forms:
+        if f not in seen:
+            seen.add(f)
+            uniq.append(f)
+    return {"home_formation": uniq[0], "away_formation": uniq[1] if len(uniq) > 1 else None,
+            "status": lb.group(1).strip() if lb else None}
+
+
+def lineup_facts(home: str, away: str, start_iso: str | None = None) -> list:
+    """Puce FR « compositions/formations » pour le dossier foot. [] si indisponible (match pas assez
+    proche du coup d'envoi)."""
+    mid = _find_match_id(home, away, start_iso, "football")
+    if not mid:
+        return []
+    lu = lineups(mid)
+    if not lu or not lu.get("home_formation"):
+        return []
+    st = (lu.get("status") or "").lower()
+    label = "confirmées" if "starting" in st else ("probables" if "predict" in st else "")
+    af = f", {away} en {lu['away_formation']}" if lu.get("away_formation") else ""
+    return [f"Compositions{(' ' + label) if label else ''} : {home} en {lu['home_formation']}{af}"]
+
+
 def serve_stats(match_id: str) -> dict | None:
     """Stats de SERVICE moyennes (3-4 derniers matchs) des 2 joueurs d'un match tennis, via le df_hh
     (ids des matchs récents) + df_st de chacun : {home:{aces, double_faults, first_serve_pct, matches},

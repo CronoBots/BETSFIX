@@ -750,6 +750,8 @@ async def _flashscore_block(sport: str, match: dict) -> str:
         facts = await asyncio.to_thread(flashscore.prematch_facts, h, a, st, fs_sport)
         if sport == "tennis":                  # + stats de SERVICE des 2 joueurs (aces, 1er service…)
             facts = facts + await asyncio.to_thread(flashscore.serve_facts, h, a, st)
+        elif sport == "foot":                  # + compositions/formations si dispo (~1 h avant le coup d'envoi)
+            facts = facts + await asyncio.to_thread(flashscore.lineup_facts, h, a, st)
     except Exception:
         return ""
     if not facts:
