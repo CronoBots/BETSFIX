@@ -1705,6 +1705,8 @@ CSS = """
   .rb-bar{position:absolute;top:0;height:100%}
   .rb-bar.rb-pos{left:50%;border-radius:0 99px 99px 0;background:linear-gradient(90deg,#19c46a,#34d27b)}
   .rb-bar.rb-neg{right:50%;border-radius:99px 0 0 99px;background:linear-gradient(270deg,#ff6b6b,#ff8f9a)}
+  /* ROI à l'équilibre : petit repère neutre centré sur le zéro */
+  .rb-bar.rb-even{left:50%;width:14px;margin-left:-7px;border-radius:99px;background:rgba(255,255,255,.34)}
   .rb-roi{flex:none;width:48px;text-align:right;font-size:12px;font-weight:900;
        font-variant-numeric:tabular-nums}
   .rb-roi.rb-pos{color:#34d27b} .rb-roi.rb-neg{color:#ff6b6b} .rb-roi.rb-neu{color:var(--muted)}
@@ -2411,9 +2413,12 @@ def _roi_bars(rows: list) -> str:
         roi = r.get("roi")
         if roi is None:
             bar, roistr, rcls = "", "—", "neu"
+        elif roi == 0:
+            # ROI à l'équilibre : repère NEUTRE centré sur le zéro (sinon la ligne paraît vide/cassée).
+            bar, roistr, rcls = '<span class="rb-bar rb-even"></span>', "≈0%", "neu"
         else:
-            rcls = "pos" if roi > 0 else ("neg" if roi < 0 else "neu")
-            w = round(abs(roi) / scale * 50)            # jusqu'à 50 % de la piste (une moitié)
+            rcls = "pos" if roi > 0 else "neg"
+            w = max(4, round(abs(roi) / scale * 50))    # largeur mini 4 % -> toujours visible
             bar = f'<span class="rb-bar rb-{rcls}" style="width:{w}%"></span>'
             roistr = f'{"+" if roi >= 0 else "−"}{abs(roi)}%'
         meta = (f'{r["n"]} pari{"s" if r["n"] > 1 else ""}'
