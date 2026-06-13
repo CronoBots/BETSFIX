@@ -31,7 +31,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 11   # v11 : total du match avec l'unité AVANT le nombre (« Nombre total de buts – Moins de 2.5 »)
+_SETTLE_VERSION = 12   # v12 : « 1er jeu de service » (HOLD1) réglé via le jeu-par-jeu Flashscore (repli gratuit, sans SofaScore)
 
 
 # --------------------------------------------------------------- règlement (pur, depuis le score)
@@ -377,6 +377,22 @@ async def _event_stats(sofa: str) -> dict | None:
     return out
 
 
+async def _settle_hold1_flashscore(code: str, d: dict) -> str | None:
+    """Repli GRATUIT pour « X tient son 1er jeu de service (Oui/Non) » via le jeu-par-jeu Flashscore
+    (quand SofaScore est indisponible). code = 'HOLD1 HOME|AWAY YES|NO'. None si données absentes."""
+    parts = code.upper().split()
+    if len(parts) < 3:
+        return None
+    want_yes = parts[2] != "NO"
+    import asyncio
+    from app import flashscore
+    held = await asyncio.to_thread(flashscore.settle_hold1,
+                                   d.get("home", ""), d.get("away", ""), parts[1], d.get("start"))
+    if held is None:
+        return None
+    return "won" if ((held == "won") == want_yes) else "lost"
+
+
 async def _settle_hold1(sofa: str, code: str, score: dict) -> str | None:
     """Règle « X tient son 1er jeu de service (Oui/Non) » via le point-by-point. NB : `firstToServe`
     est peu fiable -> on cherche directement le PREMIER jeu du set 1 où CE joueur sert."""
@@ -549,8 +565,13 @@ async def settle_analyses() -> int:
             async def _settle_one(c):
                 if not c:
                     return None
-                if c.startswith("HOLD1") and sofa and len(sofa) <= 8:
-                    return await _settle_hold1(sofa, c, score)
+                if c.startswith("HOLD1"):
+                    # SofaScore point-by-point d'abord (si id), SINON Flashscore (gratuit, jeu-par-jeu,
+                    # sans id ni SofaScore — règle « 1er jeu de service » même quand Sofa est bloqué).
+                    r = await _settle_hold1(sofa, c, score) if (sofa and len(sofa) <= 8) else None
+                    if r is None and d.get("sport") == "tennis":
+                        r = await _settle_hold1_flashscore(c, d)
+                    return r
                 if c.startswith("FIRSTTO") and sofa and len(sofa) <= 8:
                     return await _settle_firstto(sofa, c)   # premier à X points -> incidents SofaScore
                 return settle_pick(c, score)
