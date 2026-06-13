@@ -145,7 +145,7 @@ async def basket_match(event_id: int, frag: int = 0, pk: str = "",
     if oh and oa:                     # barres fiche : Unibet (fraîche) + Public (votes)
         pubv = ((rec.get("public_home"), rec.get("public_away"))
                 if rec and rec.get("public_home") is not None else analyses.votes_pct(msc))
-        prediction = web.analyst_bars(oh, None, oa, pubv)
+        prediction = web.analyst_bars(oh, None, oa, pubv, home=home, away=away)
     # Squelette commun aux 3 sports : 🧠 analyse, 📊 ce qui pèse (facteurs), 🎯 reco (page pleine),
     # puis contexte (écart de points + classement + 5 derniers).
     analysis_html = recos = factors_html = ""

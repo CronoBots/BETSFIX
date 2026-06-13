@@ -780,25 +780,34 @@ CSS = """
   issues en COLONNES + fine barre/ligne */
   /* Barres PLEINES : source au-dessus,
   % dans chaque segment (favori = couleur source) */
-  .sbars{margin:9px 0 2px}
-  .sb{margin:8px 0}
-  .sb-l{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
-        color:var(--muted);margin-bottom:3px}
-  .sb-bar{display:flex;gap:3px;height:34px}
-  /* min-width -> le % + la cote restent LISIBLES même sur un petit segment */
-  .sb-bar .seg{display:flex;flex-direction:column;align-items:center;justify-content:center;
-        gap:1px;color:#fff;border-radius:7px;min-width:42px;overflow:hidden;line-height:1.05;
-        text-shadow:0 1px 1px rgba(0,0,0,.28)}
-  .sb-bar .seg .seg-p{font-size:12.5px;font-weight:800}
-  .sb-bar .seg .seg-c{font-size:9.5px;font-weight:700;font-style:normal;opacity:.92;
+  /* ===== Bloc « Cotes & chances » PREMIUM : barre fine de proportion + chips par issue ===== */
+  .ocs{margin:10px 0 2px;display:flex;flex-direction:column;gap:11px}
+  .oc-h{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+        color:var(--muted);margin-bottom:6px}
+  .ocb{display:flex;gap:2px;height:6px;border-radius:99px;overflow:hidden;margin-bottom:8px}
+  .ocb-s{height:100%;border-radius:99px}
+  .ocb-po{background:linear-gradient(90deg,#19c46a,#34d27b)}
+  .ocb-pc{background:linear-gradient(90deg,#d8a93a,#e8c34d)}
+  .ocb-dim{background:rgba(255,255,255,.13)}
+  .ocp-row{display:flex;gap:6px}
+  .ocp{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
+        padding:8px 5px 7px;border-radius:12px;text-align:center;
+        background:rgba(255,255,255,.035);border:1px solid var(--border)}
+  .ocp-n{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        font-size:9.5px;font-weight:700;color:var(--muted);letter-spacing:.01em}
+  .ocp-v{font-size:16px;font-weight:900;color:var(--text);line-height:1.05;
         font-variant-numeric:tabular-nums}
-  /* Favori (couleur de la source) : pilule mise en valeur (reflet en haut + légère ombre) */
-  .seg.pm,
-  .seg.po,
-  .seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
-  /* Non-favori : segment légèrement atténué */
-  .seg.pba .seg-p,
-  .seg.pbd .seg-p{color:rgba(255,255,255,.78);font-size:11px;font-weight:700}
+  .ocp-c{font-size:10px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  /* chip FAVORI : liseré + fond teintés de la source, valeur en couleur */
+  .ocp-fav.ocb-po{border-color:rgba(52,210,123,.5);
+        background:linear-gradient(180deg,rgba(52,210,123,.16),rgba(52,210,123,.04))}
+  .ocp-fav.ocb-po .ocp-v{color:#5be08c} .ocp-fav.ocb-po .ocp-n{color:#cdeecf}
+  .ocp-fav.ocb-pc{border-color:rgba(232,195,77,.5);
+        background:linear-gradient(180deg,rgba(232,195,77,.16),rgba(232,195,77,.04))}
+  .ocp-fav.ocb-pc .ocp-v{color:#f0cf63} .ocp-fav.ocb-pc .ocp-n{color:#efe2b4}
+  /* barre Public compacte : libellés sous la barre fine */
+  .oc-pub{font-size:10.5px;color:var(--muted);font-weight:600}
+  .oc-pub b{color:#cfe0f5;font-weight:800}
   /* Barre « Bookmakers » : 1 segment par issue (cote seule),
   parts ÉGALES. Les 3 ont le
      MÊME fond que le segment le plus faible (non-favori) des autres barres -> navy .pba. */
@@ -2099,37 +2108,47 @@ def _abbr_team(name: str, maxlen: int = 11) -> str:
     return words[-1]
 
 def _pick_bars(p: dict) -> str:
-    """Barres « Chances de gagner » : une barre COMBINÉE Cotes Unibet où chaque issue montre la COTE
-    et le % de chance implicite (total 100 %, marge retirée), + une barre Public (votes). On lit une
-    barre pour comparer les issues ; le favori de chaque source est en couleur pleine."""
-    has_draw = any(p.get(k) is not None for k in ("m_draw", "i_draw", "pub_draw"))
+    """Bloc « Cotes & chances » PREMIUM : une barre fine de proportion (total 100 %, marge retirée)
+    surmontée de CHIPS par issue (nom · % de chance · cote), le favori mis en valeur. Suivi d'une
+    barre Public compacte (votes) si dispo. On lit d'un coup d'œil la chance ET la cote de chaque issue."""
+    e = html.escape
+    has_draw = any(p.get(k) is not None for k in ("i_draw", "pub_draw"))
+    home = _noF(p.get("home") or "") or "1"
+    away = _noF(p.get("away") or "") or "2"
 
-    def row(label, scol, h, d, a, odds=None):
-        if h is None or a is None:
+    def block(title, scol, probs, names, odds=None, chips=True):
+        # probs/names/odds alignés (home, [nul], away). Garde les issues à proba connue.
+        cells = [(v, n, (odds or [None] * len(probs))[i])
+                 for i, (v, n) in enumerate(zip(probs, names)) if v is not None]
+        if len(cells) < 2:
             return ""
-        vals = [h, d, a] if has_draw else [h, a]
-        mx = max(v for v in vals if v is not None)
-        oh, od, oa = odds or (None, None, None)
+        mx = max(v for v, _n, _o in cells)
+        seg = "".join(
+            f'<span class="ocb-s {scol if v == mx else "ocb-dim"}" style="width:{round(v * 100)}%"></span>'
+            for v, _n, _o in cells)
+        bar = f'<div class="ocb">{seg}</div>'
+        if not chips:
+            lab = " · ".join(f'<b>{e(n)}</b> {round(v * 100)}%' for v, n, _o in cells)
+            return f'<div class="oc"><div class="oc-h">{title}</div>{bar}<div class="oc-pub">{lab}</div></div>'
+        cs = "".join(
+            f'<div class="ocp{" ocp-fav " + scol if v == mx else ""}">'
+            f'<span class="ocp-n">{e(n)}</span>'
+            f'<span class="ocp-v">{round(v * 100)}%</span>'
+            + (f'<span class="ocp-c">@{c:g}</span>' if c else "")
+            + '</div>'
+            for v, n, c in cells)
+        return f'<div class="oc"><div class="oc-h">{title}</div>{bar}<div class="ocp-row">{cs}</div></div>'
 
-        # Segment PLEIN : % de chance + cote (si fournie) ; favori (max) = couleur pleine.
-        def seg(v, base, cote):
-            if v is None:
-                return ""
-            pct = round(v * 100)
-            cls = scol if v == mx else base
-            cot = (f'<i class="seg-c">@{cote:g}</i>' if cote else "")
-            return (f'<span class="seg {cls}" style="width:{pct}%">'
-                    f'<b class="seg-p">{pct}%</b>{cot}</span>')
-        bar = seg(h, "pba", oh) + (seg(d, "pbd", od) if has_draw else "") + seg(a, "pba", oa)
-        return (f'<div class="sb"><span class="sb-l">{label}</span>'
-                f'<div class="sb-bar">{bar}</div></div>')
-
-    # 1 barre COMBINÉE (cote + chance) + Public. (Modèle Elo retiré.)
-    rows = (row("Cotes & chances de victoire", "po",
-                p.get("i_home"), p.get("i_draw"), p.get("i_away"),
-                odds=(p.get("o_home"), p.get("o_draw"), p.get("o_away")))
-            + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
-    return f'<div class="sbars">{rows}</div>' if rows else _pick_bars_legacy(p)
+    nm = (home, "Nul", away) if has_draw else (home, away)
+    out = block("Cotes & chances de victoire", "ocb-po",
+                ([p.get("i_home"), p.get("i_draw"), p.get("i_away")] if has_draw
+                 else [p.get("i_home"), p.get("i_away")]), nm,
+                odds=([p.get("o_home"), p.get("o_draw"), p.get("o_away")] if has_draw
+                      else [p.get("o_home"), p.get("o_away")]))
+    out += block("Public", "ocb-pc",
+                 ([p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")] if has_draw
+                  else [p.get("pub_home"), p.get("pub_away")]), nm, chips=False)
+    return f'<div class="ocs">{out}</div>' if out else _pick_bars_legacy(p)
 
 def _pick_bars_legacy(p: dict) -> str:
     """Repli (anciennes barres, côté pari) si le détail home/away manque — SANS emoji."""
@@ -2490,10 +2509,11 @@ def render_bet_detail(items: list) -> str:
             f'<div class="sx-dd-r"><span class="sx-dd-c">{cote}</span>{pnlh}</div></div>')
     return f'<div class="sx-dd">{head}{"".join(rows)}</div>'
 
-def analyst_bars(o1, ox, o2, votes=None) -> dict:
+def analyst_bars(o1, ox, o2, votes=None, home=None, away=None) -> dict:
     """Champs de barres pour une carte/fiche ANALYSTE (sans modèle Elo) : Cote Unibet (proba
     implicite dévig depuis les cotes) + Public (votes). `votes` = (pct_home, pct_away[, pct_draw])
-    en %, ou None. Rend des clés i_*/pub_* lues par _pick_bars."""
+    en %, ou None. `home`/`away` : noms d'issue affichés dans les chips (sinon l'appelant doit
+    fournir home/away dans le dict, ex. les cartes). Rend des clés i_*/o_*/pub_* lues par _pick_bars."""
     implied = None
     if o1 and o2:
         i1, ix, i2 = 1 / o1, (1 / ox if ox else 0.0), 1 / o2
@@ -2502,6 +2522,10 @@ def analyst_bars(o1, ox, o2, votes=None) -> dict:
             implied = (i1 / s, (ix / s if ox else None), i2 / s)
     d = bars_split(None, implied)
     d["o_home"], d["o_draw"], d["o_away"] = o1, ox, o2   # cotes BRUTES -> affichées dans la barre
+    if home:
+        d["home"] = home
+    if away:
+        d["away"] = away
     if votes and votes[0] is not None:
         d["pub_home"], d["pub_away"] = votes[0] / 100, votes[1] / 100
         if len(votes) > 2 and votes[2] is not None:

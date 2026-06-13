@@ -712,7 +712,7 @@ async def match_detail(
             "analysis": analyses.render("tennis", match_id) or "",
             "streaks": amd.get("streaks"), "h2h": amd.get("h2h"),
             "form_html": "", "extra": "", "factors_html": "", "recos": "", "forms": None,
-            "prediction": web.analyst_bars(o1, None, o2, votes),
+            "prediction": web.analyst_bars(o1, None, o2, votes, home=amd.get("home"), away=amd.get("away")),
             "odds_cells": [(amd.get("home", ""), o1), (amd.get("away", ""), o2)] if (o1 and o2) else None,
             "back_url": "/app", "back_label": "Tennis", "sport_key": "tennis",
             "links": analyses.links_html("tennis", match_id),

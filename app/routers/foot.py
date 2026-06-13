@@ -283,7 +283,7 @@ async def foot_match(event_id: int, frag: int = 0, pk: str = "",
     if o1 and o2:                     # barres fiche : Unibet (fraîche) + Public (votes)
         pubv = ((rec.get("public_home"), rec.get("public_away"), rec.get("public_draw"))
                 if rec and rec.get("public_home") is not None else analyses.votes_pct(msc))
-        prediction = web.analyst_bars(o1, ox, o2, pubv)
+        prediction = web.analyst_bars(o1, ox, o2, pubv, home=home, away=away)
     # Squelette commun aux 3 sports : 🧠 analyse, 📊 ce qui pèse (facteurs), 🎯 reco (page pleine),
     # puis contexte (classement + 5 derniers). Forme/face-à-face sont rendus par render_sport_match_detail.
     analysis_html = recos = factors_html = ""
