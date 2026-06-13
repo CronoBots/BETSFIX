@@ -17,7 +17,6 @@ from . import analyses, match_select
 _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                      "static", "logo.png")
 
-
 def _bets_for_url(url: str, compact: bool = False) -> str:
     """Cadres « paris à jouer » d'un match (sous les barres %, HORS analyse), depuis son URL de fiche.
     Remplace l'ancienne bannière perle « Confiance » devenue redondante.
@@ -28,7 +27,6 @@ def _bets_for_url(url: str, compact: bool = False) -> str:
     sport = {"foot": "foot", "basket": "basket", "app": "tennis"}[m.group(1)]
     return analyses.bets_html(sport, m.group(2), compact=compact)
 
-
 def _links_for_url(url: str) -> str:
     """Bannières SofaScore / Unibet (pleine largeur) d'un match, depuis son URL de fiche.
     Posées SUR la carte -> ne sont plus rendues dans l'analyse dépliée (pas de doublon)."""
@@ -38,7 +36,6 @@ def _links_for_url(url: str) -> str:
     sport = {"foot": "foot", "basket": "basket", "app": "tennis"}[m.group(1)]
     return analyses.links_html(sport, m.group(2))
 
-
 def _summary_for_url(url: str) -> dict:
     """Résumé compact (paris/confiance/à-jouer/résultat) d'un match depuis son URL de fiche."""
     m = re.match(r"/(foot|basket|app)/match/(\d+)", url or "")
@@ -47,11 +44,9 @@ def _summary_for_url(url: str) -> dict:
     sport = {"foot": "foot", "basket": "basket", "app": "tennis"}[m.group(1)]
     return analyses.card_summary(sport, m.group(2))
 
-
 _OM_ARR = {"down": "▼", "up": "▲", "flat": "■"}
 _OM_CLS = {"down": "om-down", "up": "om-up", "flat": "om-flat"}
 _OM_COLOR = {"down": "#34d27b", "up": "#ff6b6b", "flat": "#9fb0c8"}
-
 
 def render_odds_movement(mv: dict | None) -> str:
     """Mini-section « 📉 Mouvement de cote » : par issue, ouverture → cote actuelle/clôture, sens
@@ -81,7 +76,6 @@ def render_odds_movement(mv: dict | None) -> str:
     return ('<div class="om"><div class="om-h">📉 Mouvement de cote'
             f'<span class="om-sub">{e(sub)}</span></div>' + "".join(rows) + '</div>')
 
-
 def odds_move_for(sport: str, home: str, away: str) -> str:
     """Mouvement de cote prêt à afficher pour un match (depuis l'historique). '' si rien/erreur."""
     try:
@@ -99,7 +93,6 @@ except Exception:  # tzdata manquant -> sans lui les heures s'afficheraient en U
         "tzdata introuvable -> heures en UTC. Installe le paquet 'tzdata' (pip install tzdata).")
     LOCAL_TZ = None
 
-
 def to_local(value):
     """Convertit un datetime/ISO en datetime local belge (ou None)."""
     if value is None:
@@ -114,7 +107,6 @@ def to_local(value):
         dt = dt.astimezone(LOCAL_TZ)
     return dt
 
-
 def day_label(d, today) -> str:
     """Libellé d'un jour : Aujourd'hui / Demain / jour de semaine + date."""
     delta = (d - today).days
@@ -124,7 +116,6 @@ def day_label(d, today) -> str:
         return f"Demain — {d.strftime('%d/%m')}"
     jours = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
     return f"{jours[d.weekday()].capitalize()} {d.strftime('%d/%m')}"
-
 
 def fmt_live_clock(mc: dict | None) -> str:
     """Horloge LIVE Unibet (matchClock) -> texte court. Foot : « 51' » / « Mi-temps » ;
@@ -142,7 +133,6 @@ def fmt_live_clock(mc: dict | None) -> str:
         return f"{q} · {ml}:{sl:02d}" if (ml is not None and sl is not None) else q
     minute = mc.get("minute")                                       # foot : minute écoulée
     return f"{minute}'" if minute is not None else ""
-
 
 def live_fields(ld: dict | None, sport: str) -> dict:
     """À partir du `liveData` Unibet (cf. match_select.live_state_for), renvoie les champs prêts pour
@@ -174,7 +164,6 @@ def live_fields(ld: dict | None, sport: str) -> dict:
         if qs:
             out["periods"] = [(int(x), int(y)) for x, y in qs]
     return out
-
 
 def fmt_local(value, with_date: bool = True) -> str:
     """Formate un datetime/ISO en heure locale belge. '' si absent."""
@@ -290,10 +279,10 @@ CSS = """
   /* Icône LIVE = RADAR vert pulsant (point + anneaux),
   comme l'orbe de l'état vide « aucun match » */
   .nav-radar{position:relative;display:inline-flex;align-items:center;justify-content:center;
-       width:24px;height:24px}
-  .nr-dot{width:11px;height:11px;border-radius:50%;background:#34d27b;
-       box-shadow:0 0 8px rgba(52,210,123,.9)}
-  .nr-ring{position:absolute;top:50%;left:50%;width:22px;height:22px;margin:-11px 0 0 -11px;
+       width:22px;height:22px}
+  .nr-dot{width:9px;height:9px;border-radius:50%;background:#34d27b;
+       box-shadow:0 0 7px rgba(52,210,123,.9)}
+  .nr-ring{position:absolute;top:50%;left:50%;width:18px;height:18px;margin:-9px 0 0 -9px;
        border-radius:50%;border:2px solid rgba(52,210,123,.55);animation:navradar 1.9s ease-out infinite}
   .nr-ring2{animation-delay:.95s}
   @keyframes navradar{0%{transform:scale(.32);opacity:.9}100%{transform:scale(1);opacity:0}}
@@ -1125,10 +1114,15 @@ CSS = """
   .bc-zl{fill:rgba(255,255,255,.6);font-size:9px;font-weight:800;text-anchor:end}
   .bc-line{stroke-width:2.2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
   /* Jalons du modèle : repère vertical + étiquette (changement de politique de paris) */
-  .bc-mile{stroke:rgba(34,184,255,.55);stroke-width:1.2;stroke-dasharray:2 3}
-  .bc-mile-l{fill:rgba(120,200,255,.95);font-size:7.5px;font-weight:800}
-  .sx-mlegend{text-align:center;font-size:10px;color:var(--dim);margin-top:4px}
-  .sx-mlegend b{color:rgba(120,200,255,.95);font-weight:800}
+  /* Repères de modèle sur la courbe : trait vertical + pastille numérotée */
+  .bc-mile{stroke:rgba(120,200,255,.5);stroke-width:1.1;stroke-dasharray:2 3}
+  .bc-mile-c{fill:#1496f0;stroke:#bfe2ff;stroke-width:.8}
+  .bc-mile-n{fill:#fff;font-size:7px;font-weight:900}
+  .sx-mlegend{display:flex;flex-wrap:wrap;align-items:center;gap:5px 12px;
+       font-size:10.5px;color:var(--muted);margin-top:9px}
+  .sx-ml{display:inline-flex;align-items:center;gap:5px}
+  .sx-ml-n{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+       border-radius:50%;background:#1496f0;color:#fff;font-size:9px;font-weight:900}
   .bc-yl{fill:var(--muted);font-size:9px;text-anchor:end;font-weight:700}
   .bc-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .bc-lg{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);
@@ -1221,9 +1215,9 @@ CSS = """
   .sx-row{padding:6px 9px;border-radius:9px;background:rgba(255,255,255,.035);
        border:1px solid var(--border);font-size:11.5px;cursor:pointer}
   .sx-row-main{display:flex;align-items:center;gap:8px}
-  .sx-row-n{font-weight:800;color:var(--text);min-width:46px}
-  .sx-row-roi{font-weight:900;min-width:50px;font-variant-numeric:tabular-nums}
-  .sx-row-wl{color:#cfe0f5;font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
+  .sx-row-n{font-weight:800;color:var(--text);flex:none}
+  .sx-row-roi{font-weight:900;min-width:50px;text-align:right;font-variant-numeric:tabular-nums;flex:none}
+  .sx-row-wl{color:#cfe0f5;font-weight:700;font-variant-numeric:tabular-nums;flex:none}
   .sx-row-c{color:var(--muted);font-weight:700;min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
   .sx-row-chev{color:var(--muted);font-weight:900;transition:transform .18s;flex:none}
   .sx-row.open .sx-row-chev{transform:rotate(90deg)}
@@ -1659,11 +1653,14 @@ CSS = """
   .dash-livebar .nr-dot{width:9px;height:9px;flex:none}
   .dash-livebar-go{margin-left:auto;font-size:10px;font-weight:800;color:#34d27b;
        text-transform:uppercase;letter-spacing:.04em}
-  /* Graphique combiné /stats (3 sports sur 1 graphe) + légende */
-  .sx-allchart{margin:2px 0 12px}
-  .sx-legend{display:flex;gap:16px;justify-content:center;margin-top:5px}
-  .sx-leg{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;
-       color:var(--muted);font-weight:700}
+  /* Carte « Évolution du profit » (/stats) : courbe d'équité unique + repères */
+  .sx-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+       padding:12px 12px 10px;margin:12px 0}
+  .sx-equity{margin:6px 0 0}
+  .sx-equity .sx-heroc{display:block;width:100%;height:auto}
+  /* mini-courbe d'équité dans la ligne d'un sport */
+  .sx-row-spk{flex:1 1 auto;min-width:0;height:22px;display:flex;align-items:center}
+  .sx-row-spk .sx-spark{width:100%;height:22px}
   /* ===== Animations premium (cascade d'apparition,
   skeleton,
   micro-interactions) =====
@@ -1721,7 +1718,6 @@ CSS = """
   }
 """
 
-
 # Menu principal groupé par SPORT ; chaque sport a son sous-menu (Matchs / Fiabilité).
 _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 
@@ -1729,13 +1725,11 @@ _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 # Icône LIVE = mini-radar vert pulsant (mêmes anneaux que l'orbe de l'état vide « aucun match »)
 _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
                '<span class="nr-ring nr-ring2"></span><span class="nr-dot"></span></span>')
-_SPA_TABS = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
+_SPA_TABS = [("home", "/", "📅", "À venir"), ("tennis", "/app", "🎾", "Tennis"),
              ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot"),
              ("directs", "/directs", _LIVE_RADAR, "Live"), ("stats", "/stats", "📊", "Stats")]
 
-
 _SPORT_TITLE = {"foot": "⚽ Football", "tennis": "🎾 Tennis", "basket": "🏀 Basket"}
-
 
 def _subnav(sport: str) -> str:
     """En-tête des pages sport : titre du sport courant + accès « Fiabilité détaillée ». Le CHANGEMENT
@@ -1743,7 +1737,6 @@ def _subnav(sport: str) -> str:
     if sport not in _SPORT_MATCH_URL:
         return ""
     return f'<div class="sporthd"><span class="sporthd-t">{_SPORT_TITLE.get(sport, "")}</span></div>'
-
 
 # Décompte avant le coup d'envoi (timer live), côté client : met à jour chaque badge
 # .cd[data-ts] (timestamp epoch s) toutes les secondes. Pas de dépendance, ~0 coût.
@@ -1762,7 +1755,6 @@ _COUNTDOWN_JS = (
     "e[i].className=ms<=0?'cd live':(ms<3600000?'cd soon':'cd');}}"
     "t();setInterval(t,1000);})();"
 )
-
 
 # SPA : tout est chargé à l'ouverture (le sport actif rendu côté serveur, les 3 autres
 # préchargés en arrière-plan via ?frag=1), puis la nav du bas bascule les panneaux SANS
@@ -1933,12 +1925,11 @@ _TERM_JS = (
     "window._twScan(document);window._twCount(document);})();"
 )
 
-
 # Menu tiroir « complet » (☰) — présent sur TOUTES les pages. Accès direct à tout : accueil, paris à
 # jouer, bilan, stats, et chaque sport + live. Les clés correspondent à l'item mis en évidence.
 _DRAWER_ITEMS = [
     ("Principal", [
-        ("home", "/", "🏠", "Accueil"),
+        ("home", "/", "📅", "À venir"),
         ("stats", "/stats", "📊", "Statistiques"),
     ]),
     ("Sports", [
@@ -1958,7 +1949,6 @@ _DRAWER_JS = ("function dwOpen(){document.body.classList.add('dw-on')}"
               "document.addEventListener(ev,function(e){e.preventDefault();},{passive:false});});"
               "document.addEventListener('wheel',function(e){if(e.ctrlKey)e.preventDefault();},{passive:false});")
 
-
 def _drawer(active: str = "") -> tuple[str, str]:
     """Renvoie (bouton ☰, panneau tiroir). L'item `active` est mis en évidence."""
     e = html.escape
@@ -1977,7 +1967,6 @@ def _drawer(active: str = "") -> tuple[str, str]:
              f'{"".join(groups)}'
              '<div class="dw-foot">18+ · Jouez responsable</div></aside>')
     return btn, panel
-
 
 def layout(title: str, sport: str, body: str, subnav: str | None = None,
            refresh: bool = False, source: dict | None = None, menu: str | None = None) -> str:
@@ -2028,7 +2017,6 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
-
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
     serveur (1er affichage rapide, marche sans JS) ; les 3 autres panneaux sont vides et
@@ -2071,7 +2059,6 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
-
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
     m = model or (None, None, None)
@@ -2079,9 +2066,7 @@ def bars_split(model, implied) -> dict:
     return {"m_home": m[0], "m_draw": m[1], "m_away": m[2],
             "i_home": i[0], "i_draw": i[1], "i_away": i[2]}
 
-
 _NAME_CONNECTORS = {"du", "de", "des", "da", "di", "of", "the", "und", "et", "and"}
-
 
 def _abbr_team(name: str, maxlen: int = 11) -> str:
     """Abrège un nom d'équipe trop long pour l'en-tête (1 ligne) : d'abord retire les connecteurs
@@ -2095,7 +2080,6 @@ def _abbr_team(name: str, maxlen: int = 11) -> str:
     if len(short) <= maxlen or not words:
         return short or name
     return words[-1]
-
 
 def _pick_bars(p: dict) -> str:
     """TABLEAU « Chances de gagner » : sources en lignes (BETSFIX / Cote Unibet / Public),
@@ -2129,7 +2113,6 @@ def _pick_bars(p: dict) -> str:
             + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
     return f'<div class="sbars">{rows}</div>' if rows else _pick_bars_legacy(p)
 
-
 def _pick_bars_legacy(p: dict) -> str:
     """Repli (anciennes barres, côté pari) si le détail home/away manque — SANS emoji."""
     def bar(label, val, cls):
@@ -2147,33 +2130,24 @@ def _pick_bars_legacy(p: dict) -> str:
     return (f'<div class="pbars"><div class="pb-h">Chances que <b>{bet}</b> gagne '
             f'<span class="dim">— selon :</span></div>{inner}</div>')
 
-
 def _pct_class(pct) -> str:
     return "hi" if (pct is not None and pct >= 60) else ("mid" if (pct is not None and pct >= 45) else "lo")
-
-
-
 
 def _roicls(v) -> str:
     return "hi" if (v or 0) > 0 else ("lo" if (v or 0) < 0 else "mid")
 
-
 def _roistr(v) -> str:
     return "—" if v is None else f'{"+" if v >= 0 else ""}{v:g}%'
 
-
 _MIN_REL = 3   # en dessous (1-2 paris) : ROI non significatif -> grisé + « indicatif »
-
 
 def _roi_cls(roi, settled) -> str:
     """Classe couleur du ROI, MAIS grisée (`na`) si l'échantillon est trop faible (< _MIN_REL)."""
     return "na" if (not settled or settled < _MIN_REL) else _roicls(roi)
 
-
 def _ind(settled) -> str:
     """Étiquette « indicatif » quand l'échantillon est trop faible pour un ROI fiable."""
     return '<span class="sx-ind">indicatif</span>' if (settled or 0) < _MIN_REL else ""
-
 
 def _form_dots(form: list) -> str:
     """Forme = 5 derniers résultats en pastilles (vert gagné / rouge perdu / gris remboursé)."""
@@ -2181,7 +2155,6 @@ def _form_dots(form: list) -> str:
         return ""
     return ('<span class="sx-form">'
             + "".join(f'<span class="sx-fd {r}"></span>' for r in form) + "</span>")
-
 
 def _smooth_path(xy: list) -> str:
     """Chemin SVG LISSÉ (Catmull-Rom -> Bézier cubique) passant par TOUS les points : adoucit les
@@ -2197,7 +2170,6 @@ def _smooth_path(xy: list) -> str:
         c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
         p.append(f"C{c1[0]:.1f},{c1[1]:.1f} {c2[0]:.1f},{c2[1]:.1f} {p2[0]:.1f},{p2[1]:.1f}")
     return " ".join(p)
-
 
 def _sparkline(points: list, color: str) -> str:
     """Mini courbe LISSÉE (SVG, sans axes) : ligne + aire teintée. Pour les cartes bilan."""
@@ -2224,154 +2196,30 @@ def _sparkline(points: list, color: str) -> str:
             f'<path d="{d}" fill="none" stroke="{color}" stroke-width="1.7" '
             'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>')
 
-
-def _epoch(iso: str):
-    """Timestamp (s) d'un coup d'envoi ISO, ou None."""
-    try:
-        return datetime.fromisoformat((iso or "").replace("Z", "+00:00")).timestamp()
-    except (ValueError, AttributeError):
-        return None
-
-
-def _multi_equity_chart(series: list, milestones: list) -> str:
-    """Courbe d'équité MULTI-SPORTS sur un MÊME axe de TEMPS (≠ par-pari) : chaque sport partage la
-    même échelle de dates -> on peut tracer les JALONS du modèle (lignes verticales pointillées +
-    petite étiquette) à la bonne position chronologique. `series`=[{color,points,dates}] (points =
-    profit cumulé départ 0, dates = coup d'envoi aligné sur points[1:]). `milestones`=[(iso,label)]."""
-    # (date_epoch, valeur) par courbe — on préfixe (t0, 0) pour que tout démarre à 0 au même instant.
-    built, allv, allt = [], [0.0], []
-    for c in series:
-        pts, ds = c.get("points") or [], c.get("dates") or []
-        xy = []
-        for j, d in enumerate(ds):
-            t = _epoch(d)
-            if t is None or j + 1 >= len(pts):
-                continue
-            xy.append((t, pts[j + 1]))
-            allv.append(pts[j + 1])
-            allt.append(t)
-        if xy:
-            built.append((c["color"], xy))
-    if not built or not allt:
-        return ""
-    t0, t1 = min(allt), max(allt)
-    if t1 - t0 < 1:
-        t1 = t0 + 1
-    ymin, ymax = min(0.0, min(allv)), max(0.0, max(allv))
-    if ymax - ymin < 1e-9:
-        ymax = ymin + 1.0
-    pad = (ymax - ymin) * 0.16
-    ymin, ymax = ymin - pad, ymax + pad
-    W, H, L, R, T, B = 320.0, 140.0, 16.0, 12.0, 16.0, 8.0
-    iw, ih = W - L - R, H - T - B
-
-    def X(t):
-        return L + iw * (t - t0) / (t1 - t0)
-
-    def Y(v):
-        return T + ih * (1 - (v - ymin) / (ymax - ymin))
-
-    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="bchart">']
-    for k in range(5):                                   # grille horizontale
-        gv = ymin + (ymax - ymin) * k / 4
-        if abs(gv) < 1e-6:
-            continue
-        p.append(f'<line class="bc-grid" x1="{L:g}" y1="{Y(gv):.1f}" x2="{W - R:g}" y2="{Y(gv):.1f}"/>')
-    zy = Y(0.0)
-    p.append(f'<line class="bc-zero" x1="{L:g}" y1="{zy:.1f}" x2="{W - R:g}" y2="{zy:.1f}"/>')
-    p.append(f'<text class="bc-zl" x="{L - 3:g}" y="{zy + 3:.1f}">0</text>')
-    # JALONS du modèle : ligne verticale pointillée + étiquette courte en haut (à la bonne date)
-    for iso, label in milestones:
-        mt = _epoch(iso if "T" in (iso or "") else f"{iso}T00:00:00Z")
-        if mt is None or mt < t0 or mt > t1:
-            continue
-        mx = X(mt)
-        p.append(f'<line class="bc-mile" x1="{mx:.1f}" y1="{T - 6:g}" x2="{mx:.1f}" y2="{H - B:g}"/>')
-        anchor = "start" if mx < W * 0.55 else "end"
-        dx = 3 if anchor == "start" else -3
-        p.append(f'<text class="bc-mile-l" x="{mx + dx:.1f}" y="{T - 8:g}" '
-                 f'text-anchor="{anchor}">{html.escape(label)}</text>')
-    for color, xy in built:
-        if len(xy) == 1:
-            p.append(f'<circle cx="{X(xy[0][0]):.1f}" cy="{Y(xy[0][1]):.1f}" r="3.2" fill="{color}"/>')
-            continue
-        d = _smooth_path([(X(t), Y(v)) for t, v in xy])
-        p.append(f'<path class="bc-line" fill="none" stroke="{color}" d="{d}"/>')
-        p.append(f'<circle cx="{X(xy[-1][0]):.1f}" cy="{Y(xy[-1][1]):.1f}" r="3" fill="{color}"/>')
-    p.append("</svg>")
-    return "".join(p)
-
-
-def _svg_bet_chart(curves: list) -> str:
-    """Graphique TENDANCE (SVG pur) : forme de l'évolution par pari (sans chiffres d'unités — les
-    valeurs sont en ROI dans les tableaux). Grille horizontale, ligne du zéro, marqueur de fin,
-    nombre de paris en abscisse. `curves`=[{color,points}] (points = profit cumulé, départ à 0)."""
-    allv = [v for c in curves for v in c["points"]]
-    if not allv:
-        return ""
-    ymin, ymax = min(0.0, min(allv)), max(0.0, max(allv))
-    if ymax - ymin < 1e-9:
-        ymax = ymin + 1.0
-    pad = (ymax - ymin) * 0.16
-    ymin, ymax = ymin - pad, ymax + pad
-    maxlen = max((len(c["points"]) for c in curves), default=0)
-    W, H, L, R, T, B = 320.0, 140.0, 16.0, 12.0, 10.0, 8.0
-    iw, ih = W - L - R, H - T - B
-
-    def X(i):
-        return L + (iw * i / (maxlen - 1) if maxlen > 1 else iw / 2)
-
-    def Y(v):
-        return T + ih * (1 - (v - ymin) / (ymax - ymin))
-
-    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="bchart">']
-    for k in range(5):                                   # grille horizontale (4 intervalles)
-        gv = ymin + (ymax - ymin) * k / 4
-        if abs(gv) < 1e-6:                               # le zéro est tracé à part (bien visible)
-            continue
-        p.append(f'<line class="bc-grid" x1="{L:g}" y1="{Y(gv):.1f}" x2="{W - R:g}" y2="{Y(gv):.1f}"/>')
-    zy = Y(0.0)                                          # ligne du ZÉRO : marquée + label « 0 »
-    p.append(f'<line class="bc-zero" x1="{L:g}" y1="{zy:.1f}" x2="{W - R:g}" y2="{zy:.1f}"/>')
-    p.append(f'<text class="bc-zl" x="{L - 3:g}" y="{zy + 3:.1f}">0</text>')
-    for c in curves:
-        pts = c["points"]
-        if not pts:
-            continue
-        if len(pts) == 1:
-            p.append(f'<circle cx="{X(0):.1f}" cy="{Y(pts[0]):.1f}" r="3.4" fill="{c["color"]}"/>')
-            continue
-        d = _smooth_path([(X(i), Y(v)) for i, v in enumerate(pts)])   # courbe LISSÉE
-        p.append(f'<path class="bc-line" fill="none" stroke="{c["color"]}" d="{d}"/>')
-        p.append(f'<circle cx="{X(len(pts) - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="3" fill="{c["color"]}"/>')
-    p.append("</svg>")           # plus d'échelle de temps : la courbe est TOUJOURS depuis le début
-    return "".join(p)
-
-
 def _drill(url: str, inner: str, cls: str) -> str:
     """Élément déroulant (drill-down) réutilisant le mécanisme `data-exp` global : tap -> charge la
     liste des matchs de la catégorie dans `.exp`. `inner` = contenu visible (sans le chevron)."""
     return (f'<div class="{cls} rowtap" data-exp="{url}">{inner}'
             f'<div class="exp" hidden></div></div>')
 
-
-def _sport_card(s: dict, sport: str, label: str, icon: str, since: str,
+def _sport_card(s: dict, sport: str, label: str, since: str,
                 color: str | None = None) -> str:
-    """UNE SEULE ligne bilan par sport (fusion en-tête + sous-titre + ligne « tous les paris »,
-    2026-06-12 : les mêmes chiffres apparaissaient 2-3 fois). Icône + nom + ROI + gagnés/réglés
-    · % + cote moy., tap -> liste des matchs. La courbe vit dans le graphique COMBINÉ au-dessus.
-    `color` : couleur d'identité du sport ; défaut = vert/rouge selon le ROI."""
+    """Une ligne bilan par sport (SANS emoji — pastille couleur + nom) : mini-courbe d'équité +
+    ROI + gagnés/réglés · % + cote moy., tap -> liste des matchs. `color` = teinte d'identité du
+    sport ; défaut = vert/rouge selon le ROI."""
     roi = s.get("roi")
     color = color or ("#34d27b" if (roi or 0) >= 0 else "#ff6b6b")
     cote = f'@{s["avg_odds"]:g}' if s.get("avg_odds") else "—"
+    spark = _sparkline(s.get("points") or [], color)
     main = (f'<div class="sx-row-main"><span class="bc-dot" style="background:{color}"></span>'
-            f'<span class="sx-row-n">{icon} {label}{_ind(s.get("settled"))}</span>'
+            f'<span class="sx-row-n">{label}{_ind(s.get("settled"))}</span>'
+            f'<span class="sx-row-spk">{spark}</span>'
             f'<span class="sx-row-roi arec-{_roi_cls(roi, s.get("settled"))}">{_roistr(roi)}</span>'
             f'<span class="sx-row-wl">{s["won"]}/{s["settled"]} · {s["pct"]}%</span>'
             f'<span class="sx-row-c">{cote}</span><span class="sx-row-chev">›</span></div>')
     return (f'<div class="sx-sport" data-sport="{sport}"><div class="sx-rows">'
             + _drill(f'/stats/detail?sport={sport}&since={since}', main, "sx-row")
             + '</div></div>')
-
 
 def _streak_chip(streak) -> str:
     """Chip « série en cours » : 🔥 N gagnés / ❄️ N perdus d'affilée. '' si aucune série."""
@@ -2382,11 +2230,12 @@ def _streak_chip(streak) -> str:
     n = -streak
     return f'<span class="sx-streak cold">❄️ {n} perdu{"s" if n > 1 else ""} d\'affilée</span>'
 
-
-def _hero_chart(points: list, uid: str = "h") -> str:
-    """Grande courbe d'équité du bilan global : remplissage + courbe VERTS au-dessus de 0 et ROUGES
-    en dessous (dégradé SVG à coupure nette sur la ligne du zéro), grille + label « 0 ». `uid` rend
-    l'id du dégradé unique (plusieurs hero sur la page = un par période)."""
+def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
+                milestones: list | None = None) -> str:
+    """Grande courbe d'équité (profit cumulé) : aire + courbe VERTE au-dessus de 0 / ROUGE en dessous
+    (dégradé à coupure nette sur le zéro), grille + label « 0 ». Si `dates` (coup d'envoi aligné sur
+    points[1:]) et `milestones`=[(iso,label)] sont fournis, trace des REPÈRES verticaux NUMÉROTÉS aux
+    dates de changement de modèle (la légende texte est rendue à côté, hors SVG)."""
     if not points:
         return ""
     pts = points if len(points) > 1 else (points * 2)
@@ -2395,7 +2244,7 @@ def _hero_chart(points: list, uid: str = "h") -> str:
         hi = lo + 1.0
     pad = (hi - lo) * 0.16
     lo, hi = lo - pad, hi + pad
-    n, W, H, L, R, T, B = len(pts), 320.0, 86.0, 16.0, 8.0, 8.0, 8.0
+    n, W, H, L, R, T, B = len(pts), 320.0, 104.0, 16.0, 8.0, 14.0, 8.0
     iw, ih = W - L - R, H - T - B
     GR, RD = "#34d27b", "#ff6b6b"
 
@@ -2429,14 +2278,24 @@ def _hero_chart(points: list, uid: str = "h") -> str:
              'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>')
     p.append(f'<circle cx="{X(n - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="2.8" '
              f'fill="{GR if pts[-1] >= 0 else RD}"/>')
+    # REPÈRES de modèle : trait vertical + pastille numérotée en haut (placés à l'index du 1er pari
+    # postérieur à la date du jalon). La correspondance numéro -> nom est dans la légende texte.
+    for num, (iso, _label) in enumerate(milestones or [], 1):
+        day = (iso or "")[:10]
+        k = sum(1 for d in (dates or []) if d and d[:10] < day)
+        if k <= 0 or k >= n:
+            continue
+        mx = X(k)
+        p.append(f'<line class="bc-mile" x1="{mx:.1f}" y1="{T - 4:g}" x2="{mx:.1f}" y2="{H - B:g}"/>')
+        p.append(f'<circle class="bc-mile-c" cx="{mx:.1f}" cy="{T - 5:g}" r="5.4"/>')
+        p.append(f'<text class="bc-mile-n" x="{mx:.1f}" y="{T - 2.6:g}" text-anchor="middle">{num}</text>')
     p.append("</svg>")
     return "".join(p)
 
-
 def render_stats(full: dict | None, since: str = "") -> str:
-    """Bloc statistiques d'UNE période : bilan global (hero ROI + courbe + forme + meilleure série +
-    KPI + pire repli) -> performance PAR PARI -> détail PAR SPORT. `since` = '' | '30' | '7' (propagé
-    aux liens drill-down). '' si rien de réglé."""
+    """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
+    UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
+    mini-courbe), (4) calibration en aval. `since` propagé aux liens drill-down. '' si rien réglé."""
     full = full or {}
     ov = full.get("overall") or {}
     if not ov.get("settled"):
@@ -2450,8 +2309,6 @@ def render_stats(full: dict | None, since: str = "") -> str:
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
         f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}{_form_dots(ov.get("form") or [])}</div></div>'
-        # (courbe globale RETIRÉE le 2026-06-12 : redondante avec le graphique combiné par sport
-        # juste en dessous — le global est la somme des 3 courbes.)
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
@@ -2460,38 +2317,27 @@ def render_stats(full: dict | None, since: str = "") -> str:
         '<span>pire repli</span></div>'
         f'</div><div class="sx-hero-foot">{best_html}<span class="sx-relnote">ROI fiable dès ~20 paris</span></div>'
         '</div>')
-    # (Section « Performance par pari 1/2/3 » RETIRÉE le 2026-06-12 : redondante avec la
-    # calibration par sport/marché affichée en dessous, et le mode strict liste souvent 1 pari.)
+    # (2) COURBE D'ÉQUITÉ UNIQUE (profit cumulé, mise plate 1u) + repères NUMÉROTÉS des jalons.
+    miles = list(analyses.MODEL_MILESTONES)
+    chart = _hero_chart(ov.get("points") or [], uid="all",
+                        dates=ov.get("dates") or [], milestones=miles)
+    mleg = ("".join(f'<span class="sx-ml"><span class="sx-ml-n">{i}</span>{html.escape(lab)}</span>'
+                    for i, (_iso, lab) in enumerate(miles, 1)))
+    mlegend = f'<div class="sx-mlegend">Repères du modèle :{mleg}</div>' if mleg else ""
+    equity = ('<div class="sx-card"><div class="sx-h">Évolution du profit'
+              '<span>profit cumulé · mise plate 1u</span></div>'
+              f'<div class="sx-equity">{chart}</div>{mlegend}</div>') if chart else ""
+    # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
+    # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
     bs = full.get("by_sport") or {}
-    # UN SEUL graphique combiné : 3 courbes d'équité lissées aux COULEURS DES SPORTS (mêmes
-    # teintes que les onglets : foot vert, tennis citron, basket orange) + légende.
-    SPORTS = (("foot", "Football", "⚽", "#2ee27f"), ("tennis", "Tennis", "🎾", "#d7e64a"),
-              ("basket", "Basket", "🏀", "#ff9f43"))
-    active = [(sk, lbl, ic, col) for sk, lbl, ic, col in SPORTS if (bs.get(sk) or {}).get("settled")]
-    series = [{"color": col, "points": (bs[sk].get("points") or []),
-               "dates": (bs[sk].get("dates") or [])} for sk, _l, _i, col in active]
-    legend = "".join(
-        f'<span class="sx-leg"><span class="bc-dot" style="background:{col}"></span>{ic} {lbl}</span>'
-        for _sk, lbl, ic, col in active)
-    # Repères verticaux = jalons du modèle (changements de politique de paris) -> légende dédiée.
-    miles = [(iso, lab) for iso, lab in analyses.MODEL_MILESTONES]
-    mlegend = ('<div class="sx-mlegend">⋮ repères : '
-               + " · ".join(f'<b>{html.escape(lab)}</b>' for _i, lab in miles) + '</div>') if miles else ""
-    chart = _multi_equity_chart(series, miles)
-    combined = (f'<div class="sx-allchart">{chart}'
-                f'<div class="sx-legend">{legend}</div>{mlegend}</div>') if chart else ""
-    scards = [_sport_card(bs[sk], sk, lbl, ic, since, color=col)
-              for sk, lbl, ic, col in active]
-    sports = (('<div class="sx-bys"><div class="sx-h">📈 Détail par sport'
+    SPORTS = (("foot", "Football", "#2ee27f"), ("tennis", "Tennis", "#d7e64a"),
+              ("basket", "Basket", "#ff9f43"))
+    scards = [_sport_card(bs[sk], sk, lbl, since, color=col)
+              for sk, lbl, col in SPORTS if (bs.get(sk) or {}).get("settled")]
+    sports = (('<div class="sx-bys"><div class="sx-h">Détail par sport'
                '<span>tap une ligne → les matchs</span></div>'
-               + combined + "".join(scards) + '</div>') if scards else "")
-    return f'{hero}{sports}'
-
-
-_SPORT_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
-
-
-
+               + "".join(scards) + '</div>') if scards else "")
+    return f'{hero}{equity}{sports}'
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
                      frag: bool = False, source: dict | None = None) -> str:
@@ -2511,9 +2357,6 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
     body = livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
-
-
-
 
 def render_calibration(c: dict) -> str:
     """Page CALIBRATION : par tranche de confiance, confiance annoncée vs réussite réelle (barres),
@@ -2559,11 +2402,9 @@ def render_calibration(c: dict) -> str:
     return (f'<div class="cal-h">🎯 Calibration</div>{head}<div class="cal">{"".join(bars)}</div>'
             f'{note}{by_sport}')
 
-
 _CALIB_VERDICT = {"good": ("v-ok", "fiable"), "over": ("v-over", "trop optimiste"),
                   "under": ("v-under", "prudent"), "unsure": ("v-unsure", "à confirmer"),
                   "no-data": ("", "—")}
-
 
 def _calib_line(name: str, g: dict, sub: bool = False) -> str:
     """Une ligne de calibration (n, confiance annoncée vs réel, écart, verdict). `sub` = sous-catégorie."""
@@ -2577,7 +2418,6 @@ def _calib_line(name: str, g: dict, sub: bool = False) -> str:
             f'<b class="{gapcls}">{g.get("win_rate")}%</b></span>'
             f'<span class="cal-gap {gapcls}">{gap:+d}</span>'
             f'<span class="calg-v {vcls}">{vlbl}</span></div>')
-
 
 def _calib_by_sport(by_sport: dict) -> str:
     """Calibration PAR SPORT, avec chaque TYPE DE PARI du sport en SOUS-CATÉGORIE indentée."""
@@ -2595,7 +2435,6 @@ def _calib_by_sport(by_sport: dict) -> str:
     return ('<div class="calg-h">Par sport &amp; type de pari '
             '<span class="calg-leg">annoncé → réel</span></div>'
             f'<div class="calg">{"".join(rows)}</div>')
-
 
 def render_bet_detail(items: list) -> str:
     """Liste des matchs (drill-down) d'une catégorie : résultat ✓/✗ + pari + affiche + date + cote.
@@ -2616,7 +2455,6 @@ def render_bet_detail(items: list) -> str:
             f'<span class="sx-dd-c">{cote}</span></div>')
     return f'<div class="sx-dd">{"".join(rows)}</div>'
 
-
 def analyst_bars(o1, ox, o2, votes=None) -> dict:
     """Champs de barres pour une carte/fiche ANALYSTE (sans modèle Elo) : Cote Unibet (proba
     implicite dévig depuis les cotes) + Public (votes). `votes` = (pct_home, pct_away[, pct_draw])
@@ -2634,7 +2472,6 @@ def analyst_bars(o1, ox, o2, votes=None) -> dict:
             d["pub_draw"] = votes[2] / 100
     return d
 
-
 def bars_two_way(p_home, imp_home, votes, home, away) -> dict:
     """Barres réparties — match à 2 issues (basket/tennis). `imp_home` = proba implicite dévig
     du domicile ; `votes` = (% home, % away)."""
@@ -2648,7 +2485,6 @@ def bars_two_way(p_home, imp_home, votes, home, away) -> dict:
     if votes and votes[0] is not None:
         d["pub_home"], d["pub_away"] = votes[0] / 100, votes[1] / 100
     return d
-
 
 def bars_foot(probs, imp, votes, home, away) -> dict:
     """Barres réparties — foot 1X2. `imp` = (p1,pX,p2) dévig ; `votes` = (% home, % away)."""
@@ -2665,7 +2501,6 @@ def bars_foot(probs, imp, votes, home, away) -> dict:
             d["pub_draw"] = votes[2] / 100
     return d
 
-
 def odds_row(outcomes, highlight_idx: int | None = None) -> str:
     """Cotes Unibet COMPACTES sur une ligne : `outcomes` = [(libellé, cote), ...] — 2 issues
     (tennis/basket) ou 3 avec « Nul » (foot). L'issue pronostiquée par BETSFIX (`highlight_idx`)
@@ -2681,7 +2516,6 @@ def odds_row(outcomes, highlight_idx: int | None = None) -> str:
         f'<span class="oc2{" fav" if i == hi else ""}">{html.escape(str(lbl))} <b>{o}</b></span>'
         for i, lbl, o in valid)
     return f'<div class="oddsrow2">{cells}</div>'
-
 
 def odds_bar(outcomes, highlight_idx: int | None = None, label: str = "Bookmakers") -> str:
     """Cotes Unibet présentées comme une BARRE (même style que BETSFIX/Unibet/Public), placée
@@ -2708,7 +2542,6 @@ def odds_bar(outcomes, highlight_idx: int | None = None, label: str = "Bookmaker
     return (f'<div class="sb"><span class="sb-l">{lab}</span>'
             f'<div class="sb-bar ocbar">{segs}</div></div>')
 
-
 def _head(title: str, info: str | None = None) -> str:
     """Titre de section. Si `info` est fourni, un petit 'i' à droite déroule
     l'explication dessous (HTML natif <details>, sans JS)."""
@@ -2717,7 +2550,6 @@ def _head(title: str, info: str | None = None) -> str:
     return (f'<details class="sec"><summary>{title}'
             '<span class="i" aria-label="Infos">i</span></summary>'
             f'<div class="banner">{info}</div></details>')
-
 
 def _section(heading: str, body: str, open_: bool = True, info: str | None = None) -> str:
     """Section repliable : le titre est un bouton (▾) qui plie/déplie la liste.
@@ -2730,9 +2562,7 @@ def _section(heading: str, body: str, open_: bool = True, info: str | None = Non
             f'<span class="sright">{i_btn}<span class="chev">▾</span></span></summary>'
             f'<div class="secbody">{info_html}{body}</div></details>')
 
-
 _SPORT_FR_LABEL = {"foot": ("Football", "⚽"), "tennis": ("Tennis", "🎾"), "basket": ("Basket", "🏀")}
-
 
 def render_sport_perf(sport: str) -> str:
     """Carte PREMIUM UNIQUE de performance du sport, SOUS le titre, dans UN SEUL cadre : ROI géant +
@@ -2765,7 +2595,6 @@ def render_sport_perf(sport: str) -> str:
             f'<span class="spf-roi arec-{_roi_cls(roi, s.get("settled"))}">{_roistr(roi)}</span>'
             f'<span class="spf-roi-l">ROI {_ind(s.get("settled"))}</span></div>{forms}</div>'
             f'{chart}<div class="spf-kpis">{kpis}</div>{details}</div>')
-
 
 def _pick_card(p: dict, badge: str) -> str:
     """Carte d'un pari pour l'accueil (value OU confiance), avec le tableau des chances.
@@ -2807,7 +2636,6 @@ def _pick_card(p: dict, badge: str) -> str:
                 f'<div class="exp" hidden></div></div>')
     return f'<a class="row pick" href="{url}">{inner}</a>'
 
-
 # Légende des 3 barres, réutilisée partout (accueil + intros des onglets) pour une explication
 # COHÉRENTE et claire pour le parieur.
 BARS_LEGEND = ('Chaque barre montre les <b>chances de chaque camp</b> (joueur 1 à gauche, '
@@ -2815,7 +2643,6 @@ BARS_LEGEND = ('Chaque barre montre les <b>chances de chaque camp</b> (joueur 1 
                'analyse), <b>Cote Unibet</b> (chances cachées derrière la cote) et le <b>Public</b> '
                '(votes des parieurs). Quand <b>BETSFIX donne plus de chances qu\'Unibet</b> à un '
                'camp, sa cote est peut-être trop généreuse — une <b>« value »</b>.')
-
 
 def render_home(rep: dict, source: dict | None = None,
                 picks: list[dict] | None = None,
@@ -2860,11 +2687,9 @@ def render_home(rep: dict, source: dict | None = None,
     body = f'{proof_html}{conf_html}' + (val_html if picks else "")
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
-
 def _bar(pct: float | None) -> str:
     p = round((pct or 0) * 100)
     return f'<div class="bar"><span style="width:{p}%"></span></div>'
-
 
 def _prob_bar(prob, labels=None) -> str:
     """Barre de proba visuelle : float = 2 issues (home/away) ; (p1,px,p2) = 1-N-2."""
@@ -2884,11 +2709,9 @@ def _prob_bar(prob, labels=None) -> str:
             f'<div class="pbar-l"><span>1 · {p1}%</span><span>N · {px}%</span>'
             f'<span>{p2}% · 2</span></div>')
 
-
 def _noF(name: str) -> str:
     """Retire le suffixe « (F) » (féminin, WNBA/WTA) du nom d'équipe AFFICHÉ."""
     return re.sub(r"\s*\(\s*F\s*\)\s*$", "", (name or "").strip())
-
 
 def _cap(s: str) -> str:
     """Capitalise la 1re lettre (les villes/tournois Unibet arrivent souvent en minuscule, ex.
@@ -2896,13 +2719,11 @@ def _cap(s: str) -> str:
     s = (s or "").strip()
     return (s[0].upper() + s[1:]) if (s and s[0].islower()) else s
 
-
 def _short_team(name: str, tennis: bool) -> str:
     """Nom AFFICHÉ compact : au tennis -> nom de famille (dernier mot) pour tenir sur une ligne ;
     foot/basket -> nom complet (sans « (F) »)."""
     n = _noF(name or "")
     return (n.split() or [n])[-1] if tennis else n
-
 
 def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                      server: str | None = None, points: tuple | None = None,
@@ -3015,7 +2836,6 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
             f'<span class="lb-n">{hn}</span><span class="lb-s">{cells(0)}</span></div>'
             f'<div class="lb-row{" lb-lead" if away_lead else ""}">'
             f'<span class="lb-n">{an}</span><span class="lb-s">{cells(1)}</span></div></div>')
-
 
 def _sport_row(r: dict) -> str:
     """Ligne de match unifiée (tous sports). r : tour, status, time, score, home,
@@ -3142,7 +2962,6 @@ def _sport_row(r: dict) -> str:
     return (f'<div class="row pick mc">{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
-
 def _rows_by_day(rows: list) -> str:
     """Rend les lignes avec un petit en-tête de jour (Aujourd'hui / Demain / Sam. …) à chaque
     changement de date. Les lignes doivent être triées par heure de début."""
@@ -3158,7 +2977,6 @@ def _rows_by_day(rows: list) -> str:
                 out.append(f'<div class="dayhdr">{html.escape(day_label(d, today))}</div>')
         out.append(_sport_row(r))
     return "".join(out)
-
 
 def render_sport_matches(sport: str, title: str, value: list, live: list,
                          upcoming: list, finished: list, intro: str = "",
@@ -3205,7 +3023,6 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     body = _subnav(sport) + render_sport_perf(sport) + "".join(out)
     return body if frag else spa_shell(sport, title, body)
 
-
 def render_directs(sections: list, frag: bool = False) -> str:
     """Onglet « Directs » : tous les matchs EN DIRECT regroupés par sport (ils restent aussi
     dans leur onglet respectif). `sections` = [(libellé, icône, cartes _sport_row), ...]."""
@@ -3231,7 +3048,6 @@ def render_directs(sections: list, frag: bool = False) -> str:
     body = "".join(out)
     return body if frag else spa_shell("directs", "Live", body)
 
-
 def perf_toggle(active: str) -> str:
     """Bascule de sport sur la page Perf (suivis séparés)."""
     tabs = [("tennis", "🎾 Tennis"), ("basket", "🏀 Basket"), ("foot", "⚽ Foot")]
@@ -3240,10 +3056,8 @@ def perf_toggle(active: str) -> str:
         f'href="/tracking/dashboard?sport={k}">{html.escape(lbl)}</a>'
         for k, lbl in tabs) + "</div>")
 
-
 _FORM_COLOR = {"W": "#34d27b", "D": "#e0b341", "L": "#ff6b6b",
                "В": "#34d27b", "Н": "#e0b341", "П": "#ff6b6b"}  # W/D/L (en/ru selon locale)
-
 
 def form_dots(form) -> str:
     """Pastilles colorées des derniers résultats (V/N/D). form = ['W','D','L',...]."""
@@ -3255,7 +3069,6 @@ def form_dots(form) -> str:
         for x in form[:5])
     return f'<span class="forms">{dots}</span>'
 
-
 def form_compare(home: str, home_form, away: str, away_form) -> str:
     """Forme des 2 équipes alignée : domicile à gauche, extérieur à droite (lisible)."""
     if not (home_form or away_form):
@@ -3264,7 +3077,6 @@ def form_compare(home: str, home_form, away: str, away_form) -> str:
     return ('<div class="formrow">'
             f'<span class="fc"><span class="dim">forme</span> {form_dots(home_form)}</span>'
             f'<span class="fc">{form_dots(away_form)}</span></div>')
-
 
 def votes_line(home_pct, away_pct, home, away) -> str:
     """Pronostics des fans (votes SofaScore) en mini-barre visuelle."""
@@ -3276,7 +3088,6 @@ def votes_line(home_pct, away_pct, home, away) -> str:
             f'<span>{e(away)} <b>{a}%</b></span></div>'
             f'<div class="vbar"><span class="vh" style="width:{h}%"></span>'
             f'<span class="va" style="width:{a}%"></span></div></div>')
-
 
 def _team_form_block(flag: str, name: str, tf: dict | None) -> str:
     """Bloc forme d'une équipe : 5 derniers résultats + note moyenne + classement."""
@@ -3293,7 +3104,6 @@ def _team_form_block(flag: str, name: str, tf: dict | None) -> str:
     return (f'<div class="frm"><div class="frm-t">{fl}{e(name)}</div>'
             f'{form_dots(tf.get("form"))}'
             f'<span class="dim">{" · ".join(meta) if meta else ""}</span></div>')
-
 
 # Catégories de paris, calquées sur Unibet. Ordre de MATCHING : du plus spécifique au plus
 # générique (un libellé prend la 1re catégorie qui colle). 2e nombre = rang d'AFFICHAGE.
@@ -3314,7 +3124,6 @@ _MKT_CATS = [
     ("Résultat du match", 0, ("temps réglementaire", "1x2", "résultat final", "vainqueur", "moneyline", "match")),
 ]
 
-
 # Tennis : Unibet groupe en Match / Jeu / Point / Set, déduits du LIBELLÉ (aucun champ dédié).
 # Ordre de matching : du plus spécifique au plus générique. 2e nombre = rang d'affichage.
 _TENNIS_GROUPS = [
@@ -3323,14 +3132,12 @@ _TENNIS_GROUPS = [
     ("Set", 3, re.compile(r"\bset\s+\d|\bmanche\s+\d")),        # rattaché à un set précis
 ]
 
-
 def _tennis_market_category(label: str) -> tuple[str, int]:
     s = (label or "").lower()
     for name, rank, rx in _TENNIS_GROUPS:
         if rx.search(s):
             return name, rank
     return "Match", 0   # cotes du match, pari de set, handicap du jeu, total de jeux… = niveau match
-
 
 def _market_category(label: str, mtype: str, sport: str | None = None) -> tuple[str, int]:
     if (sport or "").lower() in ("tennis", "atp", "wta"):
@@ -3340,7 +3147,6 @@ def _market_category(label: str, mtype: str, sport: str | None = None) -> tuple[
         if any(k in s for k in keys):
             return name, rank
     return "Autres marchés", 99
-
 
 def _oc_label(o) -> str:
     """Libellé d'un choix « comme Unibet » : nom du participant si dispo (sinon « Nul » pour X),
@@ -3353,7 +3159,6 @@ def _oc_label(o) -> str:
         else:                                   # total (Plus de / Moins de N) -> juste le seuil
             name = f"{name} {o.line:g}"
     return name.strip()
-
 
 def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet",
                           sport: str | None = None, result_only: bool = False) -> str:
@@ -3417,7 +3222,6 @@ def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet",
                    f'<div class="mktcat-b">{"".join(shown)}{more}</div></details>')
     return "".join(out)
 
-
 def recommended_bets(value=None, confidence=None) -> str:
     """Section « 🎯 Paris conseillés » : la value (cote sous-évaluée) et/ou la confiance
     (favori net du modèle), ou « aucun pari safe » si rien. `value`=(libellé,cote,edge) ;
@@ -3445,7 +3249,6 @@ def recommended_bets(value=None, confidence=None) -> str:
                      "<b>passer ce match</b>.</div>")
     return '<h2>🎯 Paris conseillés</h2>' + "".join(cards)
 
-
 def perle_advice(perle: dict | None) -> str:
     """Section « 🎯 Paris conseillés » PILOTÉE PAR LA PERLE : le pari à jouer (meilleur équilibre
     confiance × value parmi TOUS les marchés Unibet), ou s'abstenir. Source unique de vérité,
@@ -3468,7 +3271,6 @@ def perle_advice(perle: dict | None) -> str:
                 '<b>équilibre confiance × value</b>. Mieux vaut <b>s\'abstenir</b>.</div>')
     return '<h2>🎯 Paris conseillés</h2>' + body
 
-
 # Libellés FR + emoji pour les séries SofaScore fréquentes (sinon nom brut). Mappées aux marchés.
 _STREAK_FIX = {
     "both teams scoring": "🥅 Les 2 marquent (BTTS)",
@@ -3480,7 +3282,6 @@ _STREAK_FIX = {
     "scored in both halves": "⚽ Marque dans les 2 MT",
     "first half winner": "⏱️ Gagne la 1re MT",
 }
-
 
 def _streak_label(name: str) -> str:
     n = (name or "").strip()
@@ -3494,7 +3295,6 @@ def _streak_label(name: str) -> str:
         emoji = {"goals": "⚽", "cards": "🟨", "corners": "🚩"}[m.group(3)]
         return f"{emoji} {sign}{m.group(2).replace('.', ',')} {unit}"
     return html.escape(n)
-
 
 def render_streaks(home: str, away: str, streaks: dict | None) -> str:
     """Bloc « Tendances » : séries SofaScore par équipe (mappées aux marchés) + confrontations.
@@ -3526,7 +3326,6 @@ def render_streaks(home: str, away: str, streaks: dict | None) -> str:
             '<div class="dim" style="font-size:11px;margin:-3px 0 6px">Séries SofaScore sur les '
             'derniers matchs — base de l\'analyse.</div>'
             f'<div class="strk">{"".join(cols)}</div>')
-
 
 def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     """Fiche détaillée d'un match foot/basket : prédiction (3 barres + divergence + cotes)
@@ -3580,7 +3379,6 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
         body += no_data
     return layout(ctx["home"] + " vs " + ctx["away"], ctx["sport_key"], body, subnav="matchs")
 
-
 def fmt_score(home_score, away_score) -> str:
     """Score set par set d'un match en cours/terminé : '6-4 3-2'. '' si aucun."""
     hs = getattr(home_score, "sets", None) or []
@@ -3591,7 +3389,6 @@ def fmt_score(home_score, away_score) -> str:
             continue
         parts.append(f'{h if h is not None else 0}-{a if a is not None else 0}')
     return " ".join(parts)
-
 
 def _match_row(m: dict) -> str:
     """Ligne standard d'un match (à venir ou en direct). Cliquable -> détail."""
@@ -3609,7 +3406,6 @@ def _match_row(m: dict) -> str:
     if m.get("clickable", True):
         return f'<a class="row" href="/app/match/{m["id"]}?tour={m["tour"]}">{inner}</a>'
     return f'<div class="row">{inner}</div>'
-
 
 def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None = None,
                    finished: list[dict] | None = None,
@@ -3678,10 +3474,8 @@ def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None
 
     return layout("Matchs", "tennis", "".join(out), subnav="matchs", refresh=True)
 
-
 _FACTOR_NAMES = {"elo": "Force générale (Elo)", "classement": "Classement", "forme": "Forme",
                  "surface": "Surface", "head_to_head": "Face-à-face"}
-
 
 def render_factors(factors, intro: str | None = None) -> str:
     """Bloc PARTAGÉ « 📊 Ce qui pèse dans l'analyse » (tennis/foot/basket) : une barre de
@@ -3708,7 +3502,6 @@ def render_factors(factors, intro: str | None = None) -> str:
     return (f'<h2>📊 Ce qui pèse dans l\'analyse</h2>'
             f'<div class="dim" style="font-size:11px;margin:-2px 0 8px">{intro}</div>'
             '<div class="row">' + "".join(row(f) for f in factors) + '</div>')
-
 
 def render_match_detail(a, winner_odds: tuple[float | None, float | None],
                         aces: dict | None = None, tour: str = "atp",
@@ -3896,7 +3689,6 @@ def render_match_detail(a, winner_odds: tuple[float | None, float | None],
     body = (head + h2h_html + form_html + votes_html + paris_link + aces_html + odds_html)
     return layout(f"{a.home.name} vs {a.away.name}", "tennis", body, subnav="matchs")
 
-
 def _market_rows(rows: list[dict]) -> str:
     """Lignes d'un tableau de marché : sélection | cote | modèle/book | écart."""
     e = html.escape
@@ -3919,7 +3711,6 @@ def _market_rows(rows: list[dict]) -> str:
             f'<td><b>{r.get("odds") or "—"}</b></td>'
             f'<td>{mp_s} / {ip_s}</td><td>{edge_s}</td></tr>')
     return "".join(trs)
-
 
 def render_markets(match, winner_rows: list[dict], ace_rows: list[dict],
                    sim_rows: list[dict], odds_matched: bool, tour: str = "atp",
