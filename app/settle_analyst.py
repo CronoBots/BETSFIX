@@ -9,6 +9,7 @@ par jeu, qui sert (`serving`) et qui gagne (`scoring`). Permet de régler aussi 
 
 from __future__ import annotations
 
+import asyncio
 import glob
 import json
 import logging
@@ -31,7 +32,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 12   # v12 : « 1er jeu de service » (HOLD1) réglé via le jeu-par-jeu Flashscore (repli gratuit, sans SofaScore)
+_SETTLE_VERSION = 13   # v13 : repli de règlement n°3 = LiveScore (JSON propre, 3 sports, sans SofaScore)
 
 
 # --------------------------------------------------------------- règlement (pur, depuis le score)
@@ -545,6 +546,16 @@ async def settle_analyses() -> int:
                         score = await sources.final_score(sport, d)
                         if score:
                             log.info("règlement via %s : %s_%s %s", score.get("src", "alt"),
+                                     sport, d.get("id"), score.get("label"))
+                    except Exception:
+                        score = None
+                if not score:                       # repli n°3 : LiveScore (JSON propre, 3 sports,
+                    # indépendant de SofaScore ; score détaillé mi-temps/quart-temps/sets/tie-breaks).
+                    try:
+                        from app import livescore
+                        score = await asyncio.to_thread(livescore.final_score, sport, d)
+                        if score:
+                            log.info("règlement via livescore : %s_%s %s",
                                      sport, d.get("id"), score.get("label"))
                     except Exception:
                         score = None
