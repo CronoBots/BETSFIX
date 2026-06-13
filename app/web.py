@@ -2375,7 +2375,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
         f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
-        f'<div class="sx-kpi"><b class="arec-hi">{bstk}</b><span>meilleure série</span></div>'
+        f'<div class="sx-kpi"><b class="arec-hi">{bstk}</b><span>série max</span></div>'
         '</div></div>')
     # (2) COURBE D'ÉQUITÉ UNIQUE (rendement cumulé, mise constante) + repères NUMÉROTÉS des jalons.
     miles = list(analyses.MODEL_MILESTONES)

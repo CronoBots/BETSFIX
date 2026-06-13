@@ -352,7 +352,6 @@ async def stats_page(frag: int = 0) -> HTMLResponse:
         if cached:
             return HTMLResponse(cached)
     body = ('<div class="pg-h">Statistiques</div>'
-            '<div class="pg-sub">Performance du système depuis le début · tous sports · ROI.</div>'
             + _home_stats()
             + web.render_calibration(analyses.calibration()))
     if frag:
