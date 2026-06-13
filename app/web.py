@@ -25,7 +25,7 @@ def _bets_for_url(url: str, compact: bool = False) -> str:
     if not m:
         return ""
     sport = {"foot": "foot", "basket": "basket", "app": "tennis"}[m.group(1)]
-    return analyses.bets_html(sport, m.group(2), compact=compact)
+    return analyses.bets_html(sport, m.group(2), compact=compact) + analyses.combo_html(sport, m.group(2))
 
 def _links_for_url(url: str) -> str:
     """Bannières SofaScore / Unibet (pleine largeur) d'un match, depuis son URL de fiche.
@@ -1451,6 +1451,22 @@ CSS = """
   .da-mise b{color:var(--gold)}
   /* Tableau des paris */
   .da-bets-h{font-size:12px;font-weight:800;letter-spacing:.02em;color:#cfe0f5;margin:14px 0 6px}
+  /* 🎲 Combiné « grand tournoi » (Coupe du Monde…) : encadré distinct sous les paris. */
+  .da-combo{margin-top:10px;background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--border);border-left:3px solid #ffb020;border-radius:12px;padding:10px 12px}
+  .da-combo-won{border-left-color:#34d27b}
+  .da-combo-lost{border-left-color:#ff6b6b}
+  .da-combo-h{font-size:12px;font-weight:800;color:#ffd98a;display:flex;align-items:center;gap:8px;
+       margin-bottom:7px;text-transform:uppercase;letter-spacing:.03em}
+  .da-combo-c{background:#ffb020;color:#1a1200;border-radius:6px;padding:1px 7px;font-weight:800}
+  .da-combo-b{font-size:10px;border-radius:5px;padding:1px 7px;font-weight:800}
+  .da-combo-b.won{background:#34d27b;color:#04220f}
+  .da-combo-b.lost{background:#ff6b6b;color:#2a0606}
+  .da-cl{font-size:11.5px;color:#dfe9f7;padding:4px 0;border-top:1px solid rgba(255,255,255,.06)}
+  .da-cl:first-of-type{border-top:0}
+  .da-cl b{color:#fff;font-variant-numeric:tabular-nums}
+  .da-cl-won{color:#9be8bf}
+  .da-cl-lost{color:#ffb3b3;text-decoration:line-through;opacity:.8}
   .da-bets{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px;
        background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
   .da-bets th{background:var(--surface2);color:var(--muted);font-weight:700;text-align:left;

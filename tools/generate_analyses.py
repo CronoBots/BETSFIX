@@ -63,6 +63,34 @@ NOISE = ("corner", "ntervalle", "ntervalle", "0:00", "10:00", "14:59", "Premier 
 # _MAX_MK_LINES lignes au total.
 _PER_CRIT = 3
 _MAX_MK_LINES = 28
+
+# COMBINÉ « grand tournoi » (cas spécial demandé par l'utilisateur) : pour ces compétitions, l'analyste
+# ajoute EN PLUS un combiné de 2-4 sélections sûres et variées, cote combinée > 1.8 (esprit du coupon
+# Qatar-Suisse : corners, cartons, premier but…). Le système évite normalement les combinés -> exception.
+_BIG_TOURNEYS = ("coupe du monde", "world cup", "ligue des champions", "champions league",
+                 "europa league", "ligue europa", "conference league", "copa america", "copa américa",
+                 "ligue des nations", "nations league", "championnat d'europe")
+
+
+def _is_big_match(comp: str) -> bool:
+    c = (comp or "").lower()
+    return any(t in c for t in _BIG_TOURNEYS)
+
+
+COMBO_MISSION = (
+    "\n\nMISSION SPÉCIALE — COMBINÉ (grand tournoi) : EN PLUS de ton analyse normale, construis UN "
+    "combiné de 2 à 4 sélections SÛRES et VARIÉES de CE match (marchés Unibet : vainqueur / double "
+    "chance, total de buts, corners, cartons (total OU par équipe), premier but, props d'équipe…), "
+    "choisies pour leur FORTE probabilité (chacune justifiée par les faits/tendances ci-dessus), dont "
+    "la COTE COMBINÉE (produit des cotes) dépasse 1.80 (vise 1.80–2.60 ; ajoute des jambes seulement si "
+    "elles restent sûres). N'utilise QUE des cotes réelles du bloc ci-dessus. Ajoute À LA FIN, après la "
+    "section Mise, EXACTEMENT ce format :\n"
+    "## 🎲 Combiné\n"
+    "- <sélection exacte 1> @<cote>\n- <sélection exacte 2> @<cote>\n- <sélection exacte 3> @<cote>\n"
+    "**Cote combinée : <produit à 2 décimales>** — <1 phrase : pourquoi ces jambes sont sûres>.\n"
+    "Puis une TOUTE DERNIÈRE ligne technique (sous le PICK) au format EXACT :\n"
+    "`COMBO: <sel1> @<cote1> | <sel2> @<cote2> | <sel3> @<cote3> = <cote combinée>`"
+)
 # Consensus sharp : on ne montre Pinnacle comme « vraie proba » que si SA marge est faible (ligne
 # liquide/efficiente). Au-delà (petits marchés illiquides), le de-vig est bruité -> EV absurdes -> on
 # l'écarte plutôt que d'induire l'analyste en erreur.
@@ -573,11 +601,13 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         if players:
             from app import player_stats
             pblock = await asyncio.to_thread(player_stats.soccer_props_block, players)
+    # COMBINÉ « grand tournoi » : mission supplémentaire (cf. _is_big_match).
+    combo = COMBO_MISSION if _is_big_match(match.get("comp") or match.get("circuit") or "") else ""
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
             "(détaille la procédure value plus haut) :\n" + "\n".join(lines)
-            + imp + sharp + extras + alt + pblock)
+            + imp + sharp + extras + alt + pblock + combo)
     meta = {"odds": odds, **sx}   # odds + streaks/h2h structurés -> sidecar
     return text, meta
 
@@ -611,6 +641,33 @@ def _parse_pick(analysis: str) -> str:
         return ""
     code = re.sub(r"[`*]", "", m.group(1)).strip().upper()
     return "" if code in ("", "NONE") else code
+
+
+def _parse_combo(analysis: str, sport: str, home: str, away: str) -> dict | None:
+    """Parse la ligne technique `COMBO: s1 @c1 | s2 @c2 | … = total` -> {legs:[{sel, cote, code}],
+    total}. Le `code` (règlable) est dérivé de chaque sélection. None si absent/invalide."""
+    m = re.search(r"^\s*COMBO:\s*(.+?)\s*$", analysis, re.M)
+    if not m:
+        return None
+    from app.settle_analyst import code_from_pick
+    body = re.sub(r"[`*]", "", m.group(1)).strip()
+    body = re.split(r"=\s*[\d]+[.,]?[\d]*\s*$", body)[0]          # retire « = total » final
+    legs = []
+    for part in body.split("|"):
+        mm = re.search(r"(.+?)@\s*([\d]+[.,][\d]+)", part.strip())
+        if not mm:
+            continue
+        sel = mm.group(1).strip(" -–—")
+        cote = float(mm.group(2).replace(",", "."))
+        if sel and cote >= 1.01:
+            legs.append({"sel": sel, "cote": round(cote, 3),
+                         "code": code_from_pick(sel, sport, home, away)})
+    if len(legs) < 2:
+        return None
+    total = 1.0
+    for leg in legs:
+        total *= leg["cote"]
+    return {"legs": legs, "total": round(total, 2)}
 
 
 def _safe_pick(analysis: str) -> str:
@@ -690,6 +747,9 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     circuit = m.get("circuit") or (meta.get("circuit") if meta else None)   # Unibet (path) prioritaire
     if circuit:
         side["circuit"] = circuit
+    combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""))   # combiné grand tournoi
+    if combo:
+        side["combo"] = combo
     if votes and votes[0] is not None:
         side["pub_home"], side["pub_away"] = votes[0] / 100, votes[1] / 100
         if len(votes) > 2 and votes[2] is not None:
@@ -718,7 +778,9 @@ async def main():
     async with httpx.AsyncClient(timeout=20) as client:
         for sport in sports:
             try:
-                top = await fetch_important(sport, args.top, client, within_hours=args.hours)
+                # gros tournois (Coupe du Monde…) : inclus EN PLUS du top N s'ils sont dans la fenêtre.
+                always = _is_big_match if sport == "foot" else None
+                top = await fetch_important(sport, args.top, client, within_hours=args.hours, always=always)
             except Exception as e:
                 print(f"[{sport}] sélection échouée : {e}")
                 continue

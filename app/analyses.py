@@ -745,6 +745,37 @@ def bets_html(sport: str, match_id, compact: bool = False) -> str:
                        sport=sport, home=m.get("home", ""), away=m.get("away", ""))
 
 
+def combo_html(sport: str, match_id) -> str:
+    """Cadre « 🎲 Combiné » (grand tournoi) d'un match, depuis le sidecar `combo`. Chaque jambe + cote,
+    cote combinée, et résultat réglé (par jambe + global) si présent. '' si pas de combiné."""
+    import html as _h
+    m = meta(sport, match_id) or {}
+    combo = m.get("combo")
+    if not combo or not combo.get("legs"):
+        return ""
+    res = combo.get("result")            # 'won'/'lost'/None (global, posé au règlement)
+    rows = []
+    for leg in combo["legs"]:
+        lr = leg.get("result")
+        cls = " da-cl-won" if lr == "won" else (" da-cl-lost" if lr == "lost" else "")
+        mark = " ✅" if lr == "won" else (" ❌" if lr == "lost" else "")
+        try:
+            cote = f"{float(leg.get('cote')):.2f}"
+        except (TypeError, ValueError):
+            cote = "?"
+        rows.append(f'<div class="da-cl{cls}">{_h.escape(str(leg.get("sel", "")))} '
+                    f'<b>@{cote}</b>{mark}</div>')
+    hcls = " da-combo-won" if res == "won" else (" da-combo-lost" if res == "lost" else "")
+    badge = (' <span class="da-combo-b won">GAGNÉ</span>' if res == "won"
+             else ' <span class="da-combo-b lost">PERDU</span>' if res == "lost" else "")
+    try:
+        total = f"{float(combo.get('total')):.2f}"
+    except (TypeError, ValueError):
+        total = "?"
+    return (f'<div class="da-combo{hcls}"><div class="da-combo-h">🎲 Combiné '
+            f'<span class="da-combo-c">cote {total}</span>{badge}</div>{"".join(rows)}</div>')
+
+
 def card_summary(sport: str, match_id) -> dict:
     """Résumé COMPACT d'un match pour la ligne repliée (carte compacte) : nb de paris, meilleure
     confiance, s'il y a un pari ✅ À JOUER (même règle que la simulation : ≥65 %, EV≥+3 %, réglable),

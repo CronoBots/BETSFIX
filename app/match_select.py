@@ -50,11 +50,13 @@ def _start_dt(s):
         return None
 
 
-def rank_important(events: list, top_n: int = 10, within_hours: int | None = None) -> list:
+def rank_important(events: list, top_n: int = 10, within_hours: int | None = None,
+                   always=None) -> list:
     """Depuis les items `events` d'un listView Unibet, renvoie le TOP N matchs. eSports exclus.
     Tri : compétitif d'abord (les amicaux relégués), puis profondeur de marché (`nonLiveBoCount`)
     décroissante. `within_hours` : ne garde QUE les matchs à venir dans cette fenêtre (coup d'envoi
-    futur ≤ N h) — sinon on tomberait sur des matchs lointains (sélections nationales à 4-6 jours)."""
+    futur ≤ N h). `always(comp)` : prédicat -> inclut TOUS les matchs de ces compétitions dans la
+    fenêtre, MÊME au-delà du top N (cas spécial « gros tournois » : Coupe du Monde…)."""
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(hours=within_hours) if within_hours else None
     rows = []
@@ -81,7 +83,14 @@ def rank_important(events: list, top_n: int = 10, within_hours: int | None = Non
         })
     # Compétitif (non-amical) AVANT amical ; profondeur de marché en tri secondaire.
     rows.sort(key=lambda r: (not r["friendly"], r["markets"]), reverse=True)
-    return rows[:top_n]
+    top = rows[:top_n]
+    if always:                                  # force TOUS les gros tournois de la fenêtre (hors top N)
+        seen = {r["id"] for r in top}
+        for r in rows[top_n:]:
+            if r["id"] not in seen and always(r.get("comp") or ""):
+                top.append(r)
+                seen.add(r["id"])
+    return top
 
 
 import time as _time
@@ -314,9 +323,9 @@ async def fetch_events_with_odds(sport: str, client=None, within_hours: int = 48
 
 
 async def fetch_important(sport: str, top_n: int = 10, client=None,
-                          within_hours: int | None = None) -> list:
+                          within_hours: int | None = None, always=None) -> list:
     """Récupère le listView Unibet du sport et renvoie le top N matchs importants à venir dans
-    `within_hours` (cf. rank_important)."""
+    `within_hours` (cf. rank_important). `always(comp)` force l'inclusion des gros tournois."""
     import httpx
     path = LISTVIEW.get(sport, "football")
     own = client is None
@@ -328,4 +337,4 @@ async def fetch_important(sport: str, top_n: int = 10, client=None,
     finally:
         if own:
             await client.aclose()
-    return rank_important(events, top_n, within_hours)
+    return rank_important(events, top_n, within_hours, always=always)

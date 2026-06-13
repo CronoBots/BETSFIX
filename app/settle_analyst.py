@@ -32,7 +32,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 14   # v14 : cartons/corners foot réglés via Flashscore df_st (SofaScore bloqué)
+_SETTLE_VERSION = 15   # v15 : règlement des COMBINÉS « grand tournoi » (jambe par jambe)
 
 
 # --------------------------------------------------------------- règlement (pur, depuis le score)
@@ -567,7 +567,8 @@ async def settle_analyses() -> int:
             bet_list = analyses.bets_of(sport, mid)
             bet_codes = [code_from_pick(b["sel"], sport, d.get("home", ""), d.get("away", ""))
                          for b in bet_list]
-            if (any(c.startswith(("CARDS", "REDCARDS", "CORNERS")) for c in [code, *bet_codes])
+            combo_codes = [leg.get("code", "") for leg in ((d.get("combo") or {}).get("legs") or [])]
+            if (any(c.startswith(("CARDS", "REDCARDS", "CORNERS")) for c in [code, *bet_codes, *combo_codes])
                     and not score.get("stats")):
                 st = await _event_stats(sofa) if (sofa and len(sofa) <= 8) else None
                 if not st and sport == "foot":     # SofaScore bloqué -> repli GRATUIT Flashscore (df_st)
@@ -602,6 +603,20 @@ async def settle_analyses() -> int:
                 bets_out.append({"sel": b["sel"], "odds": b["cote"], "code": bc, "result": br,
                                  "prob": b.get("prob")})   # confiance annoncée -> page calibration
             d["bets"] = bets_out
+            # COMBINÉ (grand tournoi) : règle chaque jambe via son code -> résultat global (toutes
+            # gagnées = gagné ; une perdue = perdu ; sinon en attente). Les corners/cartons se règlent
+            # désormais (Flashscore), donc les combinés type Qatar-Suisse se valident.
+            combo = d.get("combo")
+            if combo and combo.get("legs"):
+                any_lost, all_won = False, True
+                for leg in combo["legs"]:
+                    lr = await _settle_one(leg.get("code", "")) if leg.get("code") else None
+                    leg["result"] = lr
+                    if lr == "lost":
+                        any_lost = True
+                    if lr != "won":
+                        all_won = False
+                combo["result"] = "lost" if any_lost else ("won" if all_won else None)
             d["settle_v"] = _SETTLE_VERSION
             # Backfill du sentiment public (barre « Public ») si le scan ne l'a pas capturé (SofaScore
             # bloqué au scan) -> FIGÉ une fois dans le sidecar, ne bouge plus ensuite. Si le sofa_id
