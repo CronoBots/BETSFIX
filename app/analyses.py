@@ -893,7 +893,9 @@ def _agg_bets(events: list) -> dict:
     for r in seq:
         run = run + 1 if r == "won" else 0
         best_streak = max(best_streak, run)
-    form = [res for _s, res, _o in events][-5:]    # 5 derniers résultats (forme)
+    _all_form = [res for _s, res, _o in events]
+    form = _all_form[-5:]            # 5 derniers (lignes par sport, compactes)
+    form12 = _all_form[-12:]         # 12 derniers (bandeau d'accueil des stats)
     # Drawdown MAX : pire repli pic -> creux de la courbe d'équité (en unités).
     peak, dd = pts[0], 0.0
     for v in pts:
@@ -904,7 +906,8 @@ def _agg_bets(events: list) -> dict:
             "pct": (round(100 * won / settled) if settled else None), "profit": round(cum, 2),
             "roi": (round(100 * cum / staked, 1) if staked else None),
             "avg_odds": (round(osum / settled, 2) if settled else None),
-            "streak": streak, "best_streak": best_streak, "form": form, "max_dd": round(dd, 2),
+            "streak": streak, "best_streak": best_streak, "form": form, "form12": form12,
+            "max_dd": round(dd, 2),
             "dd_pct": (round(100 * dd / staked, 1) if staked else None)}
 
 

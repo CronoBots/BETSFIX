@@ -1205,7 +1205,7 @@ CSS = """
   .sx-streak{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:99px;white-space:nowrap}
   .sx-streak.hot{color:#3ee089;background:rgba(52,210,123,.14);border:1px solid rgba(52,210,123,.30)}
   .sx-streak.cold{color:#ff7484;background:rgba(242,93,110,.13);border:1px solid rgba(242,93,110,.30)}
-  .sx-form{display:inline-flex;gap:4px;align-items:center}
+  .sx-form{display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:flex-end;max-width:172px}
   .sx-fd{width:9px;height:9px;border-radius:50%;background:var(--muted)}
   .sx-fd.won{background:#34d27b} .sx-fd.lost{background:#ff6b6b} .sx-fd.push{background:#9fb0c8}
   .sx-ind{font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);
@@ -2363,23 +2363,19 @@ def render_stats(full: dict | None, since: str = "") -> str:
     ov = full.get("overall") or {}
     if not ov.get("settled"):
         return ""
-    dd = ov.get("dd_pct")
     bstk = ov.get("best_streak") or 0
-    best_html = (f'<span class="sx-bstreak">Meilleure série : <b>{bstk}</b> gagné'
-                 f'{"s" if bstk > 1 else ""}</span>') if bstk else ""
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
-        f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}{_form_dots(ov.get("form") or [])}</div></div>'
+        f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}'
+        f'{_form_dots(ov.get("form12") or ov.get("form") or [])}</div></div>'
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
         f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
-        f'<div class="sx-kpi"><b class="arec-lo">{("−" + format(dd, "g") + "%") if dd else "—"}</b>'
-        '<span>pire repli</span></div>'
-        f'</div><div class="sx-hero-foot">{best_html}<span class="sx-relnote">ROI fiable dès ~20 paris</span></div>'
-        '</div>')
+        f'<div class="sx-kpi"><b class="arec-hi">{bstk}</b><span>meilleure série</span></div>'
+        '</div></div>')
     # (2) COURBE D'ÉQUITÉ UNIQUE (rendement cumulé, mise constante) + repères NUMÉROTÉS des jalons.
     miles = list(analyses.MODEL_MILESTONES)
     chart = _hero_chart(ov.get("points") or [], uid="all",
