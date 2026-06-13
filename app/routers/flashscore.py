@@ -41,7 +41,8 @@ def _records(code: str, match_id: str, what: str) -> dict:
 
 # ─────────────────────────── Commun ───────────────────────────
 
-@router.get("/find", tags=[TAG_TENNIS, TAG_FOOT, TAG_BASKET], summary=" ")
+@router.get("/find", tags=[TAG_TENNIS, TAG_FOOT, TAG_BASKET],
+            summary="Résoudre un matchId Flashscore depuis les noms (+ sport + jour)")
 def fs_find(
     home: str = Query(..., description="Équipe/joueur à domicile"),
     away: str = Query(..., description="Équipe/joueur à l'extérieur"),
@@ -55,7 +56,8 @@ def fs_find(
 
 # ─────────────────────────── ⚽ Football ───────────────────────────
 
-@router.get("/football/matches", tags=[TAG_FOOT], summary=" ")
+@router.get("/football/matches", tags=[TAG_FOOT],
+            summary="Agenda foot d'un jour (matchId + équipes + compétition + score)")
 def foot_matches(
     day: int = Query(0, ge=-10, le=2, description="Décalage de jour : 0 = aujourd'hui, -1 = hier…"),
 ) -> list[dict]:
@@ -63,33 +65,34 @@ def foot_matches(
     return fs.matches("football", day)
 
 
-@router.get("/football/match/{match_id}/score", tags=[TAG_FOOT], summary=" ")
+@router.get("/football/match/{match_id}/score", tags=[TAG_FOOT],
+            summary="Score par mi-temps (1re / 2e période, score final)")
 def foot_score(match_id: str) -> dict:
-    """Score par mi-temps (1re / 2e période, score final)."""
     return _need(fs.periods(match_id), "Score")
 
 
-@router.get("/football/match/{match_id}/statistics", tags=[TAG_FOOT], summary=" ")
+@router.get("/football/match/{match_id}/statistics", tags=[TAG_FOOT],
+            summary="Statistiques détaillées (possession, tirs, corners, fautes…)")
 def foot_statistics(match_id: str) -> dict:
-    """Statistiques détaillées (possession, tirs, corners, fautes…)."""
     return _need(fs.statistics(match_id), "Statistiques")
 
 
-@router.get("/football/match/{match_id}/incidents", tags=[TAG_FOOT], summary=" ")
+@router.get("/football/match/{match_id}/incidents", tags=[TAG_FOOT],
+            summary="Déroulé du match (buts, cartons, remplacements) — feed brut décodé")
 def foot_incidents(match_id: str) -> dict:
-    """Déroulé du match (buts, cartons, remplacements) — feed brut décodé."""
     return {"match_id": match_id, **_need(fs.incidents(match_id), "Déroulé")}
 
 
-@router.get("/football/match/{match_id}/h2h", tags=[TAG_FOOT], summary=" ")
+@router.get("/football/match/{match_id}/h2h", tags=[TAG_FOOT],
+            summary="Face-à-face (historique des confrontations) — feed brut décodé")
 def foot_h2h(match_id: str) -> dict:
-    """Face-à-face (historique des confrontations) — feed brut décodé."""
     return _records("df_hh", match_id, "Face-à-face")
 
 
 # ─────────────────────────── 🎾 Tennis ───────────────────────────
 
-@router.get("/tennis/matches", tags=[TAG_TENNIS], summary=" ")
+@router.get("/tennis/matches", tags=[TAG_TENNIS],
+            summary="Agenda tennis d'un jour (matchId + joueurs + tournoi + score)")
 def tennis_matches(
     day: int = Query(0, ge=-10, le=2, description="Décalage de jour : 0 = aujourd'hui, -1 = hier…"),
 ) -> list[dict]:
@@ -97,7 +100,8 @@ def tennis_matches(
     return fs.matches("tennis", day)
 
 
-@router.get("/tennis/match/{match_id}/points", tags=[TAG_TENNIS], summary=" ")
+@router.get("/tennis/match/{match_id}/points", tags=[TAG_TENNIS],
+            summary="Déroulé JEU PAR JEU : serveur et vainqueur de chaque jeu")
 def tennis_points(match_id: str) -> dict:
     """Pour chaque jeu (du 1er au dernier) : qui SERT (`server`) et qui GAGNE (`winner`).
     Source des règlements « 1er jeu de service tenu »."""
@@ -107,7 +111,8 @@ def tennis_points(match_id: str) -> dict:
     return {"match_id": match_id, "games": games}
 
 
-@router.get("/tennis/match/{match_id}/first-service", tags=[TAG_TENNIS], summary=" ")
+@router.get("/tennis/match/{match_id}/first-service", tags=[TAG_TENNIS],
+            summary="Régler « X remporte son 1er jeu de service » (won/lost)")
 def tennis_first_service(
     match_id: str,
     side: str = Query(..., pattern="^(?i)(home|away)$", description="Joueur concerné : home ou away"),
@@ -119,27 +124,28 @@ def tennis_first_service(
     return {"match_id": match_id, "side": want, "result": res}
 
 
-@router.get("/tennis/match/{match_id}/score", tags=[TAG_TENNIS], summary=" ")
+@router.get("/tennis/match/{match_id}/score", tags=[TAG_TENNIS],
+            summary="Score par set (+ tie-breaks, durée, vainqueur)")
 def tennis_score(match_id: str) -> dict:
-    """Score par set (+ tie-breaks, durée, vainqueur)."""
     return _need(fs.score(match_id), "Score")
 
 
-@router.get("/tennis/match/{match_id}/statistics", tags=[TAG_TENNIS], summary=" ")
+@router.get("/tennis/match/{match_id}/statistics", tags=[TAG_TENNIS],
+            summary="Statistiques détaillées (aces, 1er service %, balles de break…) par section")
 def tennis_statistics(match_id: str) -> dict:
-    """Statistiques détaillées (aces, 1er service %, balles de break…) par section."""
     return _need(fs.statistics(match_id), "Statistiques")
 
 
-@router.get("/tennis/match/{match_id}/h2h", tags=[TAG_TENNIS], summary=" ")
+@router.get("/tennis/match/{match_id}/h2h", tags=[TAG_TENNIS],
+            summary="Face-à-face (historique des confrontations) — feed brut décodé")
 def tennis_h2h(match_id: str) -> dict:
-    """Face-à-face (historique des confrontations) — feed brut décodé."""
     return _records("df_hh", match_id, "Face-à-face")
 
 
 # ─────────────────────────── 🏀 Basket ───────────────────────────
 
-@router.get("/basket/matches", tags=[TAG_BASKET], summary=" ")
+@router.get("/basket/matches", tags=[TAG_BASKET],
+            summary="Agenda basket d'un jour (matchId + équipes + ligue + score)")
 def basket_matches(
     day: int = Query(0, ge=-10, le=2, description="Décalage de jour : 0 = aujourd'hui, -1 = hier…"),
 ) -> list[dict]:
@@ -147,13 +153,14 @@ def basket_matches(
     return fs.matches("basket", day)
 
 
-@router.get("/basket/match/{match_id}/score", tags=[TAG_BASKET], summary=" ")
+@router.get("/basket/match/{match_id}/score", tags=[TAG_BASKET],
+            summary="Score par quart-temps (+ score final, vainqueur)")
 def basket_score(match_id: str) -> dict:
     """Le feed `df_su` du basket expose les quart-temps (rendus dans `sets`) et le total."""
     return _need(fs.score(match_id), "Score")
 
 
-@router.get("/basket/match/{match_id}/h2h", tags=[TAG_BASKET], summary=" ")
+@router.get("/basket/match/{match_id}/h2h", tags=[TAG_BASKET],
+            summary="Face-à-face (historique des confrontations) — feed brut décodé")
 def basket_h2h(match_id: str) -> dict:
-    """Face-à-face (historique des confrontations) — feed brut décodé."""
     return _records("df_hh", match_id, "Face-à-face")

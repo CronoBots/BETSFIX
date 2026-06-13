@@ -160,14 +160,9 @@ OPENAPI_TAGS = [
     {"name": TAG_COTES},
     {"name": TAG_MODELE_ANALYSE},
     {"name": TAG_MODELE_SUIVI},
-    {"name": TAG_FLASH_FOOT,
-     "description": "Flashscore ⚽ (gratuit, sans clé) : agenda du jour, score par mi-temps, "
-                    "statistiques, déroulé (buts/cartons), face-à-face."},
-    {"name": TAG_FLASH_TENNIS,
-     "description": "Flashscore 🎾 (gratuit, sans clé) : agenda, déroulé JEU PAR JEU (serveur/vainqueur), "
-                    "score par set, statistiques, face-à-face. Sert au règlement « 1er jeu de service »."},
-    {"name": TAG_FLASH_BASKET,
-     "description": "Flashscore 🏀 (gratuit, sans clé) : agenda du jour, score par quart-temps, face-à-face."},
+    {"name": TAG_FLASH_FOOT},
+    {"name": TAG_FLASH_TENNIS},
+    {"name": TAG_FLASH_BASKET},
     {"name": TAG_INTERFACE},
     {"name": TAG_META},
 ]
