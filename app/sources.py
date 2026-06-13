@@ -506,10 +506,24 @@ async def _bb_results_index(client, league: str, days: int = 10) -> dict:
     return idx
 
 
+def _nick(name: str) -> str:
+    """Surnom DISTINCTIF d'une équipe = dernier mot (Knicks, Pelicans, Spurs, Aces…). Unique en
+    NBA/WNBA -> évite la confusion « New York » / « New Orleans » (qui partagent « new »)."""
+    words = [w for w in re.split(r"\s+", (name or "").strip()) if w]
+    return words[-1].lower() if words else ""
+
+
 def _bb_team_rows(d: dict, team: str):
-    tt = _tok(team)
-    for nm, v in d.items():
-        if _tok(nm) & tt:
+    """Lignes d'une équipe par SURNOM (et non par n'importe quel token commun : sinon « New York
+    Knicks » matche « New Orleans Pelicans » via « new »). None si pas trouvé."""
+    nick = _nick(team)
+    if not nick:
+        return None
+    for nm, v in d.items():               # match exact du surnom (distinctif)
+        if _nick(nm) == nick:
+            return v
+    for nm, v in d.items():               # repli : surnom présent dans le nom complet
+        if nick in _tok(nm):
             return v
     return None
 
@@ -536,13 +550,13 @@ async def _basket_extras(client, match: dict) -> list[str]:
         start_dt = _start_dt(match.get("start") or "")
         yday = (start_dt - timedelta(days=1)).strftime("%Y%m%d") if start_dt else ""
         for label in (home, away):
-            tt = _tok(label)
+            # Lookup par SURNOM uniquement (pas tous les tokens) : « new » mélangeait New York &
+            # New Orleans dans la forme. Le surnom (knicks/pelicans…) est distinctif.
             seen, results = set(), []
-            for t in tt:
-                for r in idx.get(t, []):
-                    if (r[0], r[2]) not in seen:
-                        seen.add((r[0], r[2]))
-                        results.append(r)
+            for r in idx.get(_nick(label), []):
+                if (r[0], r[2]) not in seen:
+                    seen.add((r[0], r[2]))
+                    results.append(r)
             results.sort(key=lambda r: r[0], reverse=True)
             if results:
                 line = " ; ".join(f"{'V' if w else 'D'} {sc} vs {opp}"
