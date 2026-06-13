@@ -56,6 +56,12 @@ SCAN_GAP = 2.0     # secondes entre 2 matchs (lisse la charge ; négligeable vs 
 NOISE = ("corner", "ntervalle", "ntervalle", "0:00", "10:00", "14:59", "Premier buteur",
          "Premier but", "Score exact", "Score Exact", "Asiatique", "Marque au moins",
          "Pari remboursé", "buteur", "2ème mi-temps", "2e mi-temps", "remboursé")
+# Sélection des marchés Unibet pour le dossier : au plus _PER_CRIT lignes par TYPE de marché
+# (sinon basket/tennis — des centaines de lignes Handicap/Total quasi identiques — noient le dossier
+# sous un seul type ; l'analyste doit voir un ÉVENTAIL varié de marchés pour LES 3 SPORTS), et
+# _MAX_MK_LINES lignes au total.
+_PER_CRIT = 3
+_MAX_MK_LINES = 28
 
 METHODO = (
     "Tu es mon analyste paris sportifs PROFESSIONNEL. Objectif : des pronostics SÛRS et bien fondés, "
@@ -459,7 +465,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         bo = r.json()
     except Exception:
         return None
-    lines = []
+    by_crit: dict = {}   # type de marché -> [variantes] (préserve l'ordre Unibet)
     for b in bo.get("betOffers", []) or []:
         crit = (b.get("criterion") or {}).get("label", "")
         if not crit or any(s in crit for s in NOISE):
@@ -474,8 +480,13 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             lns = f" {ln / 1000:g}" if ln is not None else ""
             outs.append(f"{lbl}{lns}={od:.2f}")
         if outs:
-            lines.append(f"- {crit}: " + " | ".join(outs))
-        if len(lines) >= 22:
+            by_crit.setdefault(crit, []).append(" | ".join(outs))
+    # Diversité (cf. _PER_CRIT/_MAX_MK_LINES) : éventail varié de marchés pour les 3 sports.
+    lines = []
+    for crit, variants in by_crit.items():
+        for v in variants[:_PER_CRIT]:
+            lines.append(f"- {crit}: {v}")
+        if len(lines) >= _MAX_MK_LINES:
             break
     if not lines:
         return None
