@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import urllib.request
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.sources import _start_dt, _teams_match, _tok   # matching de noms robuste (réutilisé)
 
@@ -45,26 +45,46 @@ def _num(v):
         return None
 
 
-def _index(ls_sport: str, ymd: str) -> list:
-    """Agenda d'un jour pour un sport LiveScore : [{id, home, away, status}]. 1 appel caché par jour."""
-    key = (ls_sport, ymd)
-    if key in _index_cache:
-        return _index_cache[key]
+def _esd_iso(esd) -> str | None:
+    """Convertit un Esd LiveScore (« 20260613190000 », UTC) en ISO. None si invalide."""
+    s = str(esd or "")
+    if len(s) < 12 or not s.isdigit():
+        return None
+    try:
+        return datetime.strptime(s[:14].ljust(14, "0"), "%Y%m%d%H%M%S").replace(
+            tzinfo=timezone.utc).isoformat()
+    except ValueError:
+        return None
+
+
+def _parse_events(raw: str | None) -> list:
+    """Parse un feed LiveScore (date/live) Stages->Events -> [{id, home, away, league, status,
+    home_score, away_score, start}]."""
     out = []
-    raw = _get(f"{_BASE}/date/{ls_sport}/{ymd}/0")
-    if raw:
-        try:
-            j = json.loads(raw)
-        except Exception:
-            j = {}
-        for st in j.get("Stages") or []:
-            for ev in st.get("Events") or []:
-                t1 = ((ev.get("T1") or [{}])[0]).get("Nm")
-                t2 = ((ev.get("T2") or [{}])[0]).get("Nm")
-                if ev.get("Eid") and t1 and t2:
-                    out.append({"id": str(ev["Eid"]), "home": t1, "away": t2, "status": ev.get("Eps")})
-    _index_cache[key] = out
+    if not raw:
+        return out
+    try:
+        j = json.loads(raw)
+    except Exception:
+        return out
+    for st in j.get("Stages") or []:
+        league = st.get("Cnm") or st.get("Snm")
+        for ev in st.get("Events") or []:
+            t1 = ((ev.get("T1") or [{}])[0]).get("Nm")
+            t2 = ((ev.get("T2") or [{}])[0]).get("Nm")
+            if ev.get("Eid") and t1 and t2:
+                out.append({"id": str(ev["Eid"]), "home": t1, "away": t2, "league": league,
+                            "status": ev.get("Eps"), "home_score": ev.get("Tr1"),
+                            "away_score": ev.get("Tr2"), "start": _esd_iso(ev.get("Esd"))})
     return out
+
+
+def _index(ls_sport: str, ymd: str) -> list:
+    """Agenda d'un jour pour un sport LiveScore (enrichi). 1 appel caché par (sport, jour)."""
+    key = (ls_sport, ymd)
+    if key not in _index_cache:
+        _index_cache[key] = _parse_events(_get(f"{_BASE}/date/{ls_sport}/{ymd}/0"))
+    return _index_cache[key]
 
 
 def _find_event(home: str, away: str, start_iso: str | None, ls_sport: str) -> dict | None:
@@ -141,3 +161,68 @@ def _parse_scoreboard(ls: str, sb: dict, fallback_status: str | None = None) -> 
         base.update({"home": hc, "away": ac, "sets_home": None, "sets_away": None,
                      "label": f"{hc}-{ac}"})
     return base
+
+
+# ================================================================== API publique (routeur)
+def _ymd(day: int = 0) -> str:
+    """Date AAAAMMJJ (UTC) décalée de `day` jours (0 = aujourd'hui)."""
+    return (datetime.now(timezone.utc) + timedelta(days=day)).strftime("%Y%m%d")
+
+
+def matches(sport: str, day: int = 0) -> list:
+    """Agenda d'un jour (day : 0=aujourd'hui, -1=hier…) : [{id, home, away, league, status,
+    home_score, away_score, start}]. [] si sport inconnu."""
+    ls = _SPORT.get(sport)
+    return _index(ls, _ymd(day)) if ls else []
+
+
+def live(sport: str) -> list:
+    """Matchs EN DIRECT d'un sport (même format que matches()). [] si sport inconnu / aucun live."""
+    ls = _SPORT.get(sport)
+    return _parse_events(_get(f"{_BASE}/live/{ls}/0")) if ls else []
+
+
+def scoreboard(sport: str, event_id: str) -> dict | None:
+    """Détail d'un match (statut + score par période) : {id, status, finished, home, away,
+    home_score, away_score, periods}. None si introuvable. `periods` = mi-temps/quart-temps/jeux
+    par set selon le sport. Contrairement à final_score(), renvoie aussi les matchs EN COURS."""
+    ls = _SPORT.get(sport)
+    if not ls:
+        return None
+    raw = _get(f"{_BASE}/scoreboard/{ls}/{event_id}")
+    if not raw:
+        return None
+    try:
+        sb = json.loads(raw)
+    except Exception:
+        return None
+    periods: dict = {}
+    if ls == "basketball":
+        rng, fmt = range(1, 9), "Q{}"
+    elif ls == "tennis":
+        rng, fmt = range(1, 6), "S{}"
+    else:                                    # soccer : mi-temps (1re période)
+        rng, fmt = (), ""
+    for i in rng:
+        ph, pa = _num(sb.get(f"Tr1{fmt.format(i)}")), _num(sb.get(f"Tr2{fmt.format(i)}"))
+        if ph is not None and pa is not None:
+            periods[str(i)] = [ph, pa]
+    if ls == "soccer":
+        h1, a1 = _num(sb.get("Trh1")), _num(sb.get("Trh2"))
+        if h1 is not None and a1 is not None:
+            periods["1"] = [h1, a1]
+    eps = (sb.get("Eps") or "")
+    return {"id": str(event_id), "status": eps, "finished": eps.upper() in _FINISHED,
+            "home": ((sb.get("T1") or [{}])[0]).get("Nm"),
+            "away": ((sb.get("T2") or [{}])[0]).get("Nm"),
+            "home_score": _num(sb.get("Tr1")), "away_score": _num(sb.get("Tr2")),
+            "periods": periods}
+
+
+def find_id(home: str, away: str, start_iso: str | None = None, sport: str = "foot") -> str | None:
+    """Résout l'Eid LiveScore depuis les noms (+ sport + jour du coup d'envoi ±1). None si introuvable."""
+    ls = _SPORT.get(sport)
+    if not ls:
+        return None
+    ev = _find_event(home, away, start_iso, ls)
+    return ev["id"] if ev else None

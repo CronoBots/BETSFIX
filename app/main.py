@@ -15,7 +15,7 @@ from app import __version__
 from app import fragcache
 from app.dependencies import get_provider, get_rankings, get_unibet, shutdown_provider
 from app.routers import (
-    analysis, basket, flashscore, foot, matches, players, statistics, web,
+    analysis, basket, flashscore, foot, livescore, matches, players, statistics, web,
 )
 
 log = logging.getLogger("uvicorn")
@@ -147,10 +147,13 @@ TAG_BASKET_SRC = "🏀 Basket · Données SofaScore"
 TAG_FOOT_ODDS = "⚽ Football · Cotes Unibet"
 TAG_TENNIS_ODDS = "🎾 Tennis · Cotes Unibet"
 TAG_BASKET_ODDS = "🏀 Basket · Cotes Unibet"
-# Flashscore : un tag PAR SPORT (les chaînes EXACTES sont définies dans le routeur).
+# Flashscore & LiveScore : un tag PAR SPORT (chaînes EXACTES définies dans les routeurs).
 from app.routers.flashscore import TAG_FOOT as TAG_FLASH_FOOT  # noqa: E402  "⚽ Football · Flashscore"
 from app.routers.flashscore import TAG_TENNIS as TAG_FLASH_TENNIS  # noqa: E402  "🎾 Tennis · Flashscore"
 from app.routers.flashscore import TAG_BASKET as TAG_FLASH_BASKET  # noqa: E402  "🏀 Basket · Flashscore"
+from app.routers.livescore import TAG_FOOT as TAG_LIVE_FOOT  # noqa: E402  "⚽ Football · LiveScore"
+from app.routers.livescore import TAG_TENNIS as TAG_LIVE_TENNIS  # noqa: E402  "🎾 Tennis · LiveScore"
+from app.routers.livescore import TAG_BASKET as TAG_LIVE_BASKET  # noqa: E402  "🏀 Basket · LiveScore"
 # Transverses :
 TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
 TAG_INTERFACE = "🖥️ Interface (pages HTML)"
@@ -163,12 +166,15 @@ OPENAPI_TAGS = [
     {"name": TAG_FOOT_SRC},
     {"name": TAG_FOOT_ODDS},
     {"name": TAG_FLASH_FOOT},
+    {"name": TAG_LIVE_FOOT},
     {"name": TAG_TENNIS_SRC},
     {"name": TAG_TENNIS_ODDS},
     {"name": TAG_FLASH_TENNIS},
+    {"name": TAG_LIVE_TENNIS},
     {"name": TAG_BASKET_SRC},
     {"name": TAG_BASKET_ODDS},
     {"name": TAG_FLASH_BASKET},
+    {"name": TAG_LIVE_BASKET},
     {"name": TAG_MODELE_ANALYSE},
     {"name": TAG_INTERFACE},
     {"name": TAG_META},
@@ -197,9 +203,9 @@ def _classify_tag(path: str) -> str | None:
     # ℹ️ Méta
     if p in ("/api", "/health"):
         return TAG_META
-    # 🟧 Flashscore : on NE retague PAS (le routeur pose lui-même un tag PAR SPORT,
-    #    ⚽/🎾/🏀 ; renvoyer None préserve ces tags au lieu de tout réunir sous un seul).
-    if p.startswith("/flashscore"):
+    # 🟧 Flashscore / LiveScore : on NE retague PAS (les routeurs posent eux-mêmes un tag PAR
+    #    SPORT, ⚽/🎾/🏀 ; renvoyer None préserve ces tags au lieu de tout réunir sous un seul).
+    if p.startswith("/flashscore") or p.startswith("/livescore"):
         return None
     # 🟢 Sources SofaScore par sport (le reste)
     if p.startswith(("/matches", "/players", "/statistics")):
@@ -263,6 +269,7 @@ app.include_router(analysis.router)
 app.include_router(basket.router)
 app.include_router(foot.router)
 app.include_router(flashscore.router)
+app.include_router(livescore.router)
 app.include_router(web.router)
 
 # PWA : fichiers statiques (icônes) + manifest -> app installable sur l'écran d'accueil
