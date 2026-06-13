@@ -275,15 +275,9 @@ def _fmt_time(ts) -> str:
 
 
 def _model_line(r: dict) -> str:
-    # Barre de cotes Unibet claire 1-X-2 (home / Nul / away). (L'ancien modèle Elo est retiré :
-    # 100 % analyste -> plus de mention « Elo indisponible ».)
+    # La barre de cotes « Bookmakers » est RETIRÉE : la barre combinée « Cotes & chances » (_pick_bars)
+    # porte désormais les cotes ET le % de chance (total 100 %). On garde la comparaison de forme.
     sub = ""
-    if r.get("o1"):
-        pr = r.get("probs")
-        hi = max(range(3), key=lambda k: pr[k]) if pr else None   # issue pronostiquée
-        lbl = "Bookmakers live" if r.get("status") == "inprogress" else "Bookmakers"
-        sub += web.odds_bar([(r["home"], r["o1"]), ("Nul", r["ox"]), (r["away"], r["o2"])],
-                            highlight_idx=hi, label=lbl)
     fm = r.get("form")
     if fm:
         sub += web.form_compare(r["home"], fm[0], r["away"], fm[1])

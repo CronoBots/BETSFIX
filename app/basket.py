@@ -178,13 +178,9 @@ RENDER_NET_BUDGET = 2.5   # s max d'attente réseau au rendu (sinon repli)
 def _card(r: dict) -> dict:
     """Dict _sport_row d'une rencontre basket (live / à venir), réutilisé par render + Directs."""
     p = r.get("model_home")
-    if r.get("oh"):
-        hi = (0 if p >= 0.5 else 1) if p is not None else None   # équipe pronostiquée
-        lbl = "Bookmakers live" if r.get("status") == "inprogress" else "Bookmakers"
-        sub_html = web.odds_bar([(r["home"], r.get("oh")), (r["away"], r.get("oa"))],
-                                highlight_idx=hi, label=lbl)
-    else:
-        sub_html = ""   # 100 % analyste : l'ancien modèle Elo est retiré (plus de mention)
+    # Barre « Bookmakers » RETIRÉE : la barre combinée « Cotes & chances » (_pick_bars) porte les
+    # cotes ET le % de chance (total 100 %). On garde la comparaison de forme.
+    sub_html = ""
     fm = r.get("form")
     if fm:
         sub_html += web.form_compare(r["home"], fm[0], r["away"], fm[1])

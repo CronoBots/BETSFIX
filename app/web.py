@@ -784,18 +784,21 @@ CSS = """
   .sb{margin:8px 0}
   .sb-l{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
         color:var(--muted);margin-bottom:3px}
-  .sb-bar{display:flex;gap:3px;height:25px}
-  /* min-width -> le % reste LISIBLE même sur un petit segment (le favori se réduit un peu) */
-  .sb-bar .seg{display:flex;align-items:center;justify-content:center;color:#fff;border-radius:7px;
-        font-size:12.5px;font-weight:800;min-width:34px;overflow:hidden;white-space:nowrap;
+  .sb-bar{display:flex;gap:3px;height:34px}
+  /* min-width -> le % + la cote restent LISIBLES même sur un petit segment */
+  .sb-bar .seg{display:flex;flex-direction:column;align-items:center;justify-content:center;
+        gap:1px;color:#fff;border-radius:7px;min-width:42px;overflow:hidden;line-height:1.05;
         text-shadow:0 1px 1px rgba(0,0,0,.28)}
+  .sb-bar .seg .seg-p{font-size:12.5px;font-weight:800}
+  .sb-bar .seg .seg-c{font-size:9.5px;font-weight:700;font-style:normal;opacity:.92;
+        font-variant-numeric:tabular-nums}
   /* Favori (couleur de la source) : pilule mise en valeur (reflet en haut + légère ombre) */
   .seg.pm,
   .seg.po,
   .seg.pc{box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 7px rgba(0,0,0,.22)}
-  /* Non-favori : % légèrement atténué + un poil plus petit */
-  .seg.pba,
-  .seg.pbd{color:rgba(255,255,255,.74);font-size:11px;font-weight:700}
+  /* Non-favori : segment légèrement atténué */
+  .seg.pba .seg-p,
+  .seg.pbd .seg-p{color:rgba(255,255,255,.78);font-size:11px;font-weight:700}
   /* Barre « Bookmakers » : 1 segment par issue (cote seule),
   parts ÉGALES. Les 3 ont le
      MÊME fond que le segment le plus faible (non-favori) des autres barres -> navy .pba. */
@@ -2096,34 +2099,35 @@ def _abbr_team(name: str, maxlen: int = 11) -> str:
     return words[-1]
 
 def _pick_bars(p: dict) -> str:
-    """TABLEAU « Chances de gagner » : sources en lignes (BETSFIX / Cote Unibet / Public),
-    issues en colonnes (joueur 1 · [Nul] · joueur 2). On lit une colonne pour comparer les 3
-    sources sur une issue ; le favori de chaque ligne est en gras."""
-    e = html.escape
-    # Modèle Elo retiré : on n'exige PLUS la proba modèle. On affiche Unibet (cote implicite) +
-    # Public (votes) dès qu'on a la donnée. has_draw dérivé de n'importe quelle source.
+    """Barres « Chances de gagner » : une barre COMBINÉE Cotes Unibet où chaque issue montre la COTE
+    et le % de chance implicite (total 100 %, marge retirée), + une barre Public (votes). On lit une
+    barre pour comparer les issues ; le favori de chaque source est en couleur pleine."""
     has_draw = any(p.get(k) is not None for k in ("m_draw", "i_draw", "pub_draw"))
 
-    def row(label, scol, h, d, a):
+    def row(label, scol, h, d, a, odds=None):
         if h is None or a is None:
             return ""
         vals = [h, d, a] if has_draw else [h, a]
         mx = max(v for v in vals if v is not None)
+        oh, od, oa = odds or (None, None, None)
 
-        # Segment PLEIN avec le % DEDANS ; favori (max) = couleur de la source, sinon atténué.
-        def seg(v, base):
+        # Segment PLEIN : % de chance + cote (si fournie) ; favori (max) = couleur pleine.
+        def seg(v, base, cote):
             if v is None:
                 return ""
             pct = round(v * 100)
             cls = scol if v == mx else base
-            return f'<span class="seg {cls}" style="width:{pct}%">{pct}%</span>'
-        bar = seg(h, "pba") + (seg(d, "pbd") if has_draw else "") + seg(a, "pba")
-        # Source AU-DESSUS, barre complète en dessous
+            cot = (f'<i class="seg-c">@{cote:g}</i>' if cote else "")
+            return (f'<span class="seg {cls}" style="width:{pct}%">'
+                    f'<b class="seg-p">{pct}%</b>{cot}</span>')
+        bar = seg(h, "pba", oh) + (seg(d, "pbd", od) if has_draw else "") + seg(a, "pba", oa)
         return (f'<div class="sb"><span class="sb-l">{label}</span>'
                 f'<div class="sb-bar">{bar}</div></div>')
 
-    # Barre BETSFIX (modèle Elo) retirée : on garde Cote Unibet (implicite) + Public (votes).
-    rows = (row("Unibet", "po", p.get("i_home"), p.get("i_draw"), p.get("i_away"))
+    # 1 barre COMBINÉE (cote + chance) + Public. (Modèle Elo retiré.)
+    rows = (row("Cotes & chances de victoire", "po",
+                p.get("i_home"), p.get("i_draw"), p.get("i_away"),
+                odds=(p.get("o_home"), p.get("o_draw"), p.get("o_away")))
             + row("Public", "pc", p.get("pub_home"), p.get("pub_draw"), p.get("pub_away")))
     return f'<div class="sbars">{rows}</div>' if rows else _pick_bars_legacy(p)
 
@@ -2497,6 +2501,7 @@ def analyst_bars(o1, ox, o2, votes=None) -> dict:
         if s > 0:
             implied = (i1 / s, (ix / s if ox else None), i2 / s)
     d = bars_split(None, implied)
+    d["o_home"], d["o_draw"], d["o_away"] = o1, ox, o2   # cotes BRUTES -> affichées dans la barre
     if votes and votes[0] is not None:
         d["pub_home"], d["pub_away"] = votes[0] / 100, votes[1] / 100
         if len(votes) > 2 and votes[2] is not None:

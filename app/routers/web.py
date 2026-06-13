@@ -504,13 +504,9 @@ async def _tennis_unibet_rows(unibet, store: dict, now, horizon) -> tuple[list, 
 
 
 def _tennis_fav_sub(r: dict) -> str:
-    # noms de famille (matchup complet déjà au-dessus) ; surligne l'issue pronostiquée par BETSFIX.
-    nh = (r["home"].split() or [r["home"]])[-1]
-    na = (r["away"].split() or [r["away"]])[-1]
-    hp = r.get("hp")
-    hi = (0 if hp >= 0.5 else 1) if hp is not None else None
-    lbl = "Bookmakers live" if r.get("status") == "inprogress" else "Bookmakers"
-    return web.odds_bar([(nh, r.get("oh")), (na, r.get("oa"))], highlight_idx=hi, label=lbl)
+    # Barre « Bookmakers » RETIRÉE : la barre combinée « Cotes & chances » (web._pick_bars) porte
+    # désormais les cotes ET le % de chance (total 100 %). Plus de sous-ligne dédiée.
+    return ""
 
 
 def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = False) -> dict:
