@@ -1227,8 +1227,10 @@ CSS = """
        text-transform:uppercase;color:#cfe0f5}
   .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
   /* Section par sport */
-  .sx-sport{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-       padding:11px 12px 10px}
+  /* mêmes cadres que les cartes de match (.row) : dégradé + bordure cyan + glow */
+  .sx-sport{background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--cardline);border-radius:var(--radius);
+       box-shadow:var(--cardglow),var(--shadow-sm);padding:11px 12px 10px}
   .sx-sport-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
   .sx-sport-t{font-size:13.5px;font-weight:800;color:var(--text)}
   .sx-sport-roi{font-size:14px;font-weight:900;font-variant-numeric:tabular-nums}
@@ -1327,8 +1329,9 @@ CSS = """
   .pg-sub{font-size:11.5px;color:var(--muted);font-weight:600;margin-bottom:14px}
   /* Calibration : confiance annoncée vs réussite réelle */
   .cal-h{font-size:15px;font-weight:900;color:var(--text);margin:24px 0 10px}
-  .cal-verdict{padding:13px 14px;border-radius:14px;border:1px solid var(--border2);
-       background:linear-gradient(160deg,#16161b,#0f0f13);margin-bottom:12px}
+  .cal-verdict{padding:13px 14px;border-radius:var(--radius);border:1px solid var(--cardline);
+       background:linear-gradient(180deg,var(--surface2),var(--surface));
+       box-shadow:var(--cardglow),var(--shadow-sm);margin-bottom:12px}
   .cal-verdict.cal-ok{border-color:rgba(52,210,123,.4)}
   .cal-verdict.cal-over{border-color:rgba(244,198,74,.4)}
   .cal-verdict.cal-under{border-color:rgba(34,184,255,.4)}
@@ -1336,8 +1339,10 @@ CSS = """
   .cal-v-s{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px;line-height:1.4}
   .cal-v-m{font-size:11px;color:var(--text);font-weight:700;margin-top:6px}
   .cal{display:flex;flex-direction:column;gap:9px}
-  .cal-row{display:flex;align-items:center;gap:10px;background:var(--surface);
-       border:1px solid var(--border);border-radius:13px;padding:10px 12px}
+  .cal-row{display:flex;align-items:center;gap:10px;
+       background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--cardline);box-shadow:var(--cardglow),var(--shadow-sm);
+       border-radius:13px;padding:10px 12px}
   .cal-band{flex:none;width:62px;font-size:12px;font-weight:900;color:var(--text);line-height:1.2}
   .cal-band span{display:block;font-size:9px;font-weight:700;color:var(--muted)}
   .cal-bars{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}
@@ -1359,8 +1364,10 @@ CSS = """
   .calg-h{font-size:12px;font-weight:900;color:var(--muted);text-transform:uppercase;
        letter-spacing:.06em;margin:18px 2px 8px}
   .calg{display:flex;flex-direction:column;gap:7px}
-  .calg-row{display:flex;align-items:center;gap:8px;background:var(--surface);
-       border:1px solid var(--border);border-radius:11px;padding:9px 11px}
+  .calg-row{display:flex;align-items:center;gap:8px;
+       background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--cardline);box-shadow:var(--cardglow),var(--shadow-sm);
+       border-radius:11px;padding:9px 11px}
   /* hiérarchie : sport (en tête) puis ses types de paris en sous-catégorie indentée */
   .calg-sport{background:linear-gradient(160deg,#16161b,#0f0f13);border-color:var(--border2);margin-top:4px}
   .calg-sport .calg-name{font-size:13.5px;font-weight:900}
@@ -1689,8 +1696,9 @@ CSS = """
   .dash-livebar-go{margin-left:auto;font-size:10px;font-weight:800;color:#34d27b;
        text-transform:uppercase;letter-spacing:.04em}
   /* Carte « Évolution du profit » (/stats) : courbe d'équité unique + repères */
-  .sx-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-       padding:12px 12px 10px;margin:12px 0}
+  .sx-card{background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--cardline);border-radius:var(--radius);
+       box-shadow:var(--cardglow),var(--shadow-sm);padding:12px 12px 10px;margin:12px 0}
   .sx-equity{margin:6px 0 0}
   .sx-equity .sx-heroc{display:block;width:100%;height:auto}
   /* Barres ROI divergentes (par cote / confiance / marché) : 0 au centre, vert droite / rouge gauche */
@@ -1778,9 +1786,9 @@ _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 # Icône LIVE = mini-radar vert pulsant (mêmes anneaux que l'orbe de l'état vide « aucun match »)
 _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
                '<span class="nr-ring nr-ring2"></span><span class="nr-dot"></span></span>')
-_SPA_TABS = [("home", "/", "📅", "À venir"), ("tennis", "/app", "🎾", "Tennis"),
-             ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot"),
-             ("directs", "/directs", _LIVE_RADAR, "Live"), ("stats", "/stats", "📊", "Stats")]
+_SPA_TABS = [("home", "/", "📅", "À venir"), ("stats", "/stats", "📊", "Stats"),
+             ("tennis", "/app", "🎾", "Tennis"), ("basket", "/basket", "🏀", "Basket"),
+             ("foot", "/foot", "⚽", "Foot"), ("directs", "/directs", _LIVE_RADAR, "Live")]
 
 _SPORT_TITLE = {"foot": "⚽ Football", "tennis": "🎾 Tennis", "basket": "🏀 Basket"}
 
