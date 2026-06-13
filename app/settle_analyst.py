@@ -32,7 +32,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 13   # v13 : repli de règlement n°3 = LiveScore (JSON propre, 3 sports, sans SofaScore)
+_SETTLE_VERSION = 14   # v14 : cartons/corners foot réglés via Flashscore df_st (SofaScore bloqué)
 
 
 # --------------------------------------------------------------- règlement (pur, depuis le score)
@@ -568,8 +568,12 @@ async def settle_analyses() -> int:
             bet_codes = [code_from_pick(b["sel"], sport, d.get("home", ""), d.get("away", ""))
                          for b in bet_list]
             if (any(c.startswith(("CARDS", "REDCARDS", "CORNERS")) for c in [code, *bet_codes])
-                    and not score.get("stats") and sofa and len(sofa) <= 8):
-                st = await _event_stats(sofa)
+                    and not score.get("stats")):
+                st = await _event_stats(sofa) if (sofa and len(sofa) <= 8) else None
+                if not st and sport == "foot":     # SofaScore bloqué -> repli GRATUIT Flashscore (df_st)
+                    from app import flashscore
+                    st = await asyncio.to_thread(flashscore.foot_match_stats_by_names,
+                                                 d.get("home", ""), d.get("away", ""), d.get("start"))
                 if st:
                     score["stats"] = st
 

@@ -376,6 +376,45 @@ def _agg_serve(ids_sides: list) -> dict | None:
     return out if (aces or dfs or first) else None
 
 
+def foot_match_stats(match_id: str) -> dict | None:
+    """Stats de match FOOT (depuis df_st) au format du règlement : {corners_h/a, yc_h/a, rc_h/a,
+    cards_h/a}. Remplace SofaScore (bloqué) pour régler cartons/corners. None si indisponible."""
+    st = statistics(match_id)
+    if not st:
+        return None
+
+    def _num(v):
+        m = re.search(r"\d+", str(v or ""))
+        return int(m.group()) if m else None
+
+    out: dict = {}
+    for sec in st.get("sections", []):
+        if (sec.get("name") or "").lower() not in ("match", "full time", ""):
+            continue
+        for cat in sec.get("categories", []):
+            for it in cat.get("items", []):
+                nm = (it.get("name") or "").lower()
+                if "corner" in nm:
+                    out["corners_h"], out["corners_a"] = _num(it.get("home")), _num(it.get("away"))
+                elif "yellow card" in nm:
+                    out["yc_h"], out["yc_a"] = _num(it.get("home")), _num(it.get("away"))
+                elif "red card" in nm:
+                    out["rc_h"], out["rc_a"] = _num(it.get("home")), _num(it.get("away"))
+    if not out:
+        return None
+    out.setdefault("rc_h", 0)
+    out.setdefault("rc_a", 0)
+    out["cards_h"] = (out.get("yc_h") or 0) + out["rc_h"]
+    out["cards_a"] = (out.get("yc_a") or 0) + out["rc_a"]
+    return out
+
+
+def foot_match_stats_by_names(home: str, away: str, start_iso: str | None = None) -> dict | None:
+    """Stats cartons/corners d'un match foot retrouvé par NOMS (+ jour). None si introuvable."""
+    mid = _find_match_id(home, away, start_iso, "football")
+    return foot_match_stats(mid) if mid else None
+
+
 def serve_stats(match_id: str) -> dict | None:
     """Stats de SERVICE moyennes (3-4 derniers matchs) des 2 joueurs d'un match tennis, via le df_hh
     (ids des matchs récents) + df_st de chacun : {home:{aces, double_faults, first_serve_pct, matches},
