@@ -508,8 +508,10 @@ async def _bb_results_index(client, league: str, days: int = 10) -> dict:
 
 def _nick(name: str) -> str:
     """Surnom DISTINCTIF d'une équipe = dernier mot (Knicks, Pelicans, Spurs, Aces…). Unique en
-    NBA/WNBA -> évite la confusion « New York » / « New Orleans » (qui partagent « new »)."""
-    words = [w for w in re.split(r"\s+", (name or "").strip()) if w]
+    NBA/WNBA -> évite la confusion « New York » / « New Orleans » (qui partagent « new »). Retire les
+    suffixes parenthésés (« (F) » WNBA) pour ne pas prendre « (F) » comme surnom."""
+    cleaned = re.sub(r"\([^)]*\)", " ", name or "")
+    words = [w for w in re.split(r"\s+", cleaned.strip()) if w]
     return words[-1].lower() if words else ""
 
 
