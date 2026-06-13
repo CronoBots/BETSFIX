@@ -143,7 +143,10 @@ TAG_BASKET_SRC = "🏀 Basket · Données SofaScore (source)"
 TAG_COTES = "💰 Cotes & paris Unibet"
 TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
 TAG_MODELE_SUIVI = "📊 Modèle maison · Suivi & performance"
-TAG_FLASH = "🟧 Flashscore (jeu-par-jeu)"
+# Flashscore : un tag PAR SPORT (les chaînes EXACTES sont définies dans le routeur).
+from app.routers.flashscore import TAG_FOOT as TAG_FLASH_FOOT  # noqa: E402
+from app.routers.flashscore import TAG_TENNIS as TAG_FLASH_TENNIS  # noqa: E402
+from app.routers.flashscore import TAG_BASKET as TAG_FLASH_BASKET  # noqa: E402
 TAG_INTERFACE = "🖥️ Interface (pages HTML)"
 TAG_META = "ℹ️ Méta"
 
@@ -157,10 +160,14 @@ OPENAPI_TAGS = [
     {"name": TAG_COTES},
     {"name": TAG_MODELE_ANALYSE},
     {"name": TAG_MODELE_SUIVI},
-    {"name": TAG_FLASH,
-     "description": "Données JEU PAR JEU / POINT PAR POINT (gratuit, sans clé) : agenda, déroulé "
-                    "des jeux (serveur/vainqueur), score par set, statistiques, face-à-face. Sert au "
-                    "règlement des marchés « 1er jeu de service »."},
+    {"name": TAG_FLASH_FOOT,
+     "description": "Flashscore ⚽ (gratuit, sans clé) : agenda du jour, score par mi-temps, "
+                    "statistiques, déroulé (buts/cartons), face-à-face."},
+    {"name": TAG_FLASH_TENNIS,
+     "description": "Flashscore 🎾 (gratuit, sans clé) : agenda, déroulé JEU PAR JEU (serveur/vainqueur), "
+                    "score par set, statistiques, face-à-face. Sert au règlement « 1er jeu de service »."},
+    {"name": TAG_FLASH_BASKET,
+     "description": "Flashscore 🏀 (gratuit, sans clé) : agenda du jour, score par quart-temps, face-à-face."},
     {"name": TAG_INTERFACE},
     {"name": TAG_META},
 ]
@@ -185,9 +192,10 @@ def _classify_tag(path: str) -> str | None:
     # ℹ️ Méta
     if p in ("/api", "/health"):
         return TAG_META
-    # 🟧 Source alternative
+    # 🟧 Flashscore : on NE retague PAS (le routeur pose lui-même un tag PAR SPORT,
+    #    ⚽/🎾/🏀 ; renvoyer None préserve ces tags au lieu de tout réunir sous un seul).
     if p.startswith("/flashscore"):
-        return TAG_FLASH
+        return None
     # 🟢 Sources SofaScore par sport (le reste)
     if p.startswith(("/matches", "/players", "/statistics")):
         return TAG_TENNIS_SRC

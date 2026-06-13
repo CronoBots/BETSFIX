@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app.main import _classify_tag, TAG_COTES, TAG_MODELE_ANALYSE, TAG_MODELE_SUIVI, \
-    TAG_TENNIS_SRC, TAG_FOOT_SRC, TAG_BASKET_SRC, TAG_INTERFACE, TAG_META, TAG_FLASH
+    TAG_TENNIS_SRC, TAG_FOOT_SRC, TAG_BASKET_SRC, TAG_INTERFACE, TAG_META
 from app.routers.web import _is_upcoming
 
 
@@ -25,7 +25,8 @@ def test_classify_tag_natures():
     assert _classify_tag("/foot") == TAG_INTERFACE
     assert _classify_tag("/basket") == TAG_INTERFACE
     assert _classify_tag("/app/match/{id}") == TAG_INTERFACE
-    assert _classify_tag("/flashscore/{sport}/events") == TAG_FLASH
+    # Flashscore : non retagué (le routeur pose lui-même un tag PAR SPORT) -> None
+    assert _classify_tag("/flashscore/tennis/matches") is None
     assert _classify_tag("/api") == TAG_META
 
 

@@ -27,8 +27,10 @@ _SEP_REC = "¬"                 # ¬  séparateur d'enregistrements
 _SEP_FLD = "÷"                 # ÷  séparateur code/valeur
 _POINT = {"0": 0, "15": 1, "30": 2, "40": 3, "a": 4, "ad": 4}
 
-_index_cache: dict[int, list] = {}  # offset de jour (0=aujourd'hui, -1=hier…) -> [(matchId, home, away)]
-_games_cache: dict[str, list] = {}  # matchId -> games
+_SPORT_ID = {"football": 1, "foot": 1, "tennis": 2, "basket": 3, "basketball": 3}
+
+_index_cache: dict[tuple, list] = {}  # (sport, offset_jour) -> [{id, home, away, home_score, away_score, league, start_ts}]
+_games_cache: dict[str, list] = {}    # matchId -> games
 
 
 def _get(url: str, headers: dict | None = None, timeout: float = 12.0) -> str | None:
@@ -39,25 +41,42 @@ def _get(url: str, headers: dict | None = None, timeout: float = 12.0) -> str | 
         return None
 
 
-def _match_index(offset: int = 0) -> list:
-    """[(matchId, home, away)] des matchs tennis d'un JOUR (offset : 0=aujourd'hui, -1=hier…).
-    Flashscore mobile accepte `?d=<offset>`. 1 appel mis en cache par offset."""
-    if offset in _index_cache:
-        return _index_cache[offset]
-    suffix = f"?d={offset}" if offset else ""
-    html = _get("https://www.flashscore.mobi/tennis/" + suffix)
-    out = []
-    if html:
-        # « …</span>Nom A (Pays) - Nom B (Pays) <a href="/match/{id}/[?d=…]"… » (noms AVANT le lien ;
-        # sur les pages datées le lien porte un suffixe « ?d=-5 » -> rendu optionnel)
-        for home_raw, away_raw, mid in re.findall(
-                r'>([^<>]+?)\s+-\s+([^<>]+?)\s*<a href="/match/([A-Za-z0-9]{8})/(?:\?[^"]*)?"', html):
-            home = re.sub(r"\s*\([A-Za-z]{2,3}\)\s*$", "", home_raw).strip()
-            away = re.sub(r"\s*\([A-Za-z]{2,3}\)\s*$", "", away_raw).strip()
-            if home and away:
-                out.append((mid, home, away))
-    _index_cache[offset] = out
+def _clean_name(s: str) -> str:
+    """Retire le suffixe pays « (Ger) » des noms du feed."""
+    return re.sub(r"\s*\([A-Za-z]{2,3}\)\s*$", "", s or "").strip()
+
+
+def _match_index(sport: str = "tennis", offset: int = 0) -> list:
+    """Matchs d'un SPORT et d'un JOUR (offset : 0=aujourd'hui, -1=hier…) via le feed `f_{sport}_{jour}`.
+    -> [{id, home, away, home_score, away_score, league, start_ts}]. 1 appel caché par (sport, offset)."""
+    sid = _SPORT_ID.get(sport, 2)
+    key = (sid, offset)
+    if key in _index_cache:
+        return _index_cache[key]
+    feed = _feed_raw(f"f_{sid}_{offset}_3_en_1")
+    out, league = [], None
+    if feed:
+        for blk in feed.split("~"):
+            f = dict(re.findall(r"([A-Z]{2,3})" + _SEP_FLD + r"([^" + _SEP_REC + r"]*)", blk))
+            if "ZA" in f:                       # en-tête de compétition
+                league = f["ZA"]
+            mid = f.get("AA")
+            if mid and f.get("AE") and f.get("AF"):
+                try:
+                    ts = int(f["AD"]) if f.get("AD") else None
+                except ValueError:
+                    ts = None
+                out.append({"id": mid, "home": _clean_name(f["AE"]), "away": _clean_name(f["AF"]),
+                            "home_score": f.get("AG") or None, "away_score": f.get("AH") or None,
+                            "league": league, "start_ts": ts})
+    _index_cache[key] = out
     return out
+
+
+def _feed_raw(name: str) -> str | None:
+    """Récupère un feed Flashscore générique par NOM complet (ex. f_1_0_3_en_1). None si KO."""
+    return _get(f"https://global.flashscore.ninja/{_PROJECT}/x/feed/{name}",
+                headers={"x-fsign": _FSIGN, "Referer": "https://www.flashscore.com/"})
 
 
 def _day_offsets(start_iso: str | None) -> list:
@@ -70,19 +89,19 @@ def _day_offsets(start_iso: str | None) -> list:
     return [o for o in (base, base - 1, base + 1) if -10 <= o <= 1]
 
 
-def _find_match_id(home: str, away: str, start_iso: str | None = None) -> str | None:
-    """matchId Flashscore du match (correspondance de NOMS, robuste aux abréviations « Mannarino A. »),
-    cherché dans l'index du JOUR du match (±1)."""
+def _find_match_id(home: str, away: str, start_iso: str | None = None, sport: str = "tennis") -> str | None:
+    """matchId Flashscore (correspondance de NOMS, robuste aux abréviations « Mannarino A. »), cherché
+    dans l'index du SPORT au JOUR du match (±1)."""
     th, ta = _tok(home), _tok(away)
     for off in _day_offsets(start_iso):
-        idx = _match_index(off)
-        for mid, h, a in idx:
-            if _teams_match(home, away, h, a):
-                return mid
-        for mid, h, a in idx:          # repli : un nom de famille commun de chaque côté
-            fh, fa = _tok(h), _tok(a)
+        idx = _match_index(sport, off)
+        for m in idx:
+            if _teams_match(home, away, m["home"], m["away"]):
+                return m["id"]
+        for m in idx:                  # repli : un nom de famille commun de chaque côté
+            fh, fa = _tok(m["home"]), _tok(m["away"])
             if (th & fh and ta & fa) or (th & fa and ta & fh):
-                return mid
+                return m["id"]
     return None
 
 
@@ -135,9 +154,20 @@ def _feed(code: str, match_id: str) -> str | None:
                 headers={"x-fsign": _FSIGN, "Referer": "https://www.flashscore.com/"})
 
 
-def matches(offset: int = 0) -> list:
-    """Matchs tennis d'un jour (offset : 0=aujourd'hui, -1=hier…) : [{id, home, away}]."""
-    return [{"id": m, "home": h, "away": a} for m, h, a in _match_index(offset)]
+def matches(sport: str = "tennis", offset: int = 0) -> list:
+    """Matchs d'un sport (football/tennis/basket) et d'un jour (offset : 0=aujourd'hui, -1=hier…)."""
+    return _match_index(sport, offset)
+
+
+def incidents(match_id: str) -> dict | None:
+    """Déroulé d'un match FOOTBALL (depuis `df_in`) : buts, cartons, remplacements… en enregistrements
+    décodés (codes Flashscore -> valeurs). None si indisponible (sport sans incidents)."""
+    feed = _feed("df_in", match_id)
+    if not feed or len(feed) < 30:
+        return None
+    rows = [{"code": c, "value": v}
+            for c, v in re.findall(r"([A-Z]{2,3})" + _SEP_FLD + r"([^" + _SEP_REC + r"]*)", feed)]
+    return {"records": rows} if rows else None
 
 
 def points(match_id: str) -> list:
@@ -178,6 +208,35 @@ def score(match_id: str) -> dict | None:
             "duration": first.get("RB"), "winner": ("home" if hs > as_ else "away" if as_ > hs else None)}
 
 
+def periods(match_id: str) -> dict | None:
+    """Score par PÉRIODE d'un match foot (depuis `df_su`) : {periods:[{name,home,away}], home, away}.
+    Format Flashscore foot : `AC÷1st Half IG÷1 IH÷0`. None si indisponible."""
+    feed = _feed("df_su", match_id)
+    if not feed:
+        return None
+    out = []
+    # Une période = un BLOC « ~ » regroupant les enregistrements ¬ AC (nom) / IG (dom) / IH (ext).
+    for blk in feed.split("~"):
+        f = dict(re.findall(r"([A-Z]{2,3})" + _SEP_FLD + r"([^" + _SEP_REC + r"]*)", blk))
+        if f.get("AC") and ("IG" in f or "IH" in f):
+            out.append({"name": f["AC"].strip(), "home": (f.get("IG") or "").strip(),
+                        "away": (f.get("IH") or "").strip()})
+    if not out:
+        return None
+
+    def _sum(key):
+        tot = 0
+        for p in out:
+            try:
+                tot += int(p[key])
+            except (ValueError, TypeError):
+                pass
+        return tot
+
+    # Score final = SOMME des mi-temps (les valeurs IG/IH sont par période, pas cumulées).
+    return {"periods": out, "home": _sum("home"), "away": _sum("away")}
+
+
 def statistics(match_id: str) -> dict | None:
     """Statistiques d'un match (depuis `df_st`), groupées par SECTION (Match / Set 1 / Set 2…) :
     {sections:[{name, categories:[{name, items:[{name,home,away}]}]}]}. Aces, doubles fautes,
@@ -205,9 +264,9 @@ def statistics(match_id: str) -> dict | None:
     return {"sections": sections} if sections else None
 
 
-def find_id(home: str, away: str, start_iso: str | None = None) -> str | None:
-    """Expose la résolution du matchId Flashscore par noms (+ jour) — pour l'API."""
-    return _find_match_id(home, away, start_iso)
+def find_id(home: str, away: str, start_iso: str | None = None, sport: str = "tennis") -> str | None:
+    """Expose la résolution du matchId Flashscore par noms (+ sport + jour) — pour l'API."""
+    return _find_match_id(home, away, start_iso, sport)
 
 
 def settle_hold1(home: str, away: str, side: str, start_iso: str | None = None) -> str | None:
