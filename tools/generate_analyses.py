@@ -63,6 +63,10 @@ NOISE = ("corner", "ntervalle", "ntervalle", "0:00", "10:00", "14:59", "Premier 
 # _MAX_MK_LINES lignes au total.
 _PER_CRIT = 3
 _MAX_MK_LINES = 28
+# Consensus sharp : on ne montre Pinnacle comme « vraie proba » que si SA marge est faible (ligne
+# liquide/efficiente). Au-delà (petits marchés illiquides), le de-vig est bruité -> EV absurdes -> on
+# l'écarte plutôt que d'induire l'analyste en erreur.
+_SHARP_MAX_MARGIN = 0.08
 
 METHODO = (
     "Tu es mon analyste paris sportifs PROFESSIONNEL. Objectif : des pronostics SÛRS et bien fondés, "
@@ -535,7 +539,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
     except Exception:
         sp = None
-    if sp and o1 and o2:
+    if sp and o1 and o2 and (sp.get("margin") or 1) <= _SHARP_MAX_MARGIN:
         seg = [f"{home} {sp['home'] * 100:.0f}%"] \
             + ([f"nul {sp['draw'] * 100:.0f}%"] if sp.get("draw") else []) \
             + [f"{away} {sp['away'] * 100:.0f}%"]
