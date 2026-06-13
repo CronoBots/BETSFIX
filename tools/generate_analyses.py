@@ -78,13 +78,19 @@ def _is_big_match(comp: str) -> bool:
 
 
 COMBO_MISSION = (
-    "\n\nMISSION SPÉCIALE — COMBINÉ (grand tournoi) : EN PLUS de ton analyse normale, construis UN "
-    "combiné de 2 à 4 sélections SÛRES et VARIÉES de CE match (marchés Unibet : vainqueur / double "
-    "chance, total de buts, corners, cartons (total OU par équipe), premier but, props d'équipe…), "
-    "choisies pour leur FORTE probabilité (chacune justifiée par les faits/tendances ci-dessus), dont "
-    "la COTE COMBINÉE (produit des cotes) dépasse 1.80 (vise 1.80–2.60 ; ajoute des jambes seulement si "
-    "elles restent sûres). N'utilise QUE des cotes réelles du bloc ci-dessus. Ajoute À LA FIN, après la "
-    "section Mise, EXACTEMENT ce format :\n"
+    "\n\nMISSION SPÉCIALE — COMBINÉ (grand tournoi) : EN PLUS de ton analyse normale, construis le "
+    "combiné le plus SÛR possible. PRIORITÉ ABSOLUE = la probabilité que le combiné PASSE, pas la cote. "
+    "Règles STRICTES :\n"
+    "1) Choisis UNIQUEMENT les sélections qui ont la PLUS GRANDE chance de passer (chacune une "
+    "quasi-certitude appuyée par les faits/tendances : ta proba ≥ ~80 %). JAMAIS une jambe douteuse "
+    "pour gonfler la cote.\n"
+    "2) Utilise le MINIMUM de jambes pour que la cote combinée (produit des cotes) dépasse 1.80 "
+    "(moins de jambes = plus de chances de gagner). 2 jambes si ça suffit, sinon 3, 4 au MAXIMUM.\n"
+    "3) Jambes VARIÉES si possible (vainqueur/double chance, total de buts, corners, cartons (total OU "
+    "par équipe), premier but…) mais la SÉCURITÉ prime sur la variété.\n"
+    "4) N'utilise QUE des cotes réelles du bloc ci-dessus. Si tu ne peux pas atteindre 1.80 avec des "
+    "jambes quasi-sûres, donne quand même le combiné le plus sûr qui s'en approche (indique-le).\n"
+    "Ajoute À LA FIN, après la section Mise, EXACTEMENT ce format :\n"
     "## 🎲 Combiné\n"
     "- <sélection exacte 1> @<cote>\n- <sélection exacte 2> @<cote>\n- <sélection exacte 3> @<cote>\n"
     "**Cote combinée : <produit à 2 décimales>** — <1 phrase : pourquoi ces jambes sont sûres>.\n"
@@ -787,6 +793,12 @@ async def main():
             store = _load_store(sport)
             print(f"[{sport}] {len(top)} matchs sélectionnés (profondeur de marché).")
             for m in top:
+                # NE JAMAIS analyser un match DÉJÀ COMMENCÉ (garde : la sélection filtre déjà le futur,
+                # mais un match peut démarrer pendant le scan ; combinés/value = pré-match uniquement).
+                mts = _kickoff_ts(m.get("start") or "")
+                if mts and mts <= datetime.now(timezone.utc).timestamp():
+                    print(f"  · {m['name']} : déjà commencé -> ignoré (pré-match uniquement).")
+                    continue
                 fid = _fiche_id(sport, m, store)   # id que la fiche utilise pour lier l'analyse
                 if not fid and sport in ("tennis", "basket"):
                     # AUTONOME : pas dans le store -> on résout l'id SofaScore par noms + date
