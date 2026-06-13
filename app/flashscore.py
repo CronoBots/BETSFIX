@@ -264,6 +264,78 @@ def statistics(match_id: str) -> dict | None:
     return {"sections": sections} if sections else None
 
 
+def prematch(match_id: str) -> dict | None:
+    """Faits PRÉ-MATCH depuis le feed `df_hh` : forme récente de chaque camp + face-à-face direct.
+    -> {home_form:[{res,score}], away_form:[…], h2h:[{score, winner_name, a, b}]} (plus récent d'abord).
+    `res` = w/l/d (perspective du camp). En H2H le vainqueur est marqué par « * » (pas de WIS).
+    None si indisponible. Sections « filtrées par lieu » (répétées après le 1er H2H) ignorées."""
+    feed = _feed("df_hh", match_id)
+    if not feed:
+        return None
+    return _parse_prematch(feed)
+
+
+def _parse_prematch(feed: str) -> dict | None:
+    """Parse PUR (sans réseau) du feed `df_hh` -> {home_form, away_form, h2h}. Voir prematch()."""
+    home_f, away_f, h2h = [], [], []
+    phase, labels, got_h2h = None, [], False
+    for blk in feed.split("~"):
+        f = dict(re.findall(r"([A-Z]{2,4})" + _SEP_FLD + r"([^" + _SEP_REC + r"]*)", blk))
+        kb = f.get("KB")
+        if kb is not None:                          # changement de section
+            if kb.startswith("Head-to-head"):
+                phase = "done" if got_h2h else "h2h"
+                got_h2h = True
+            elif kb.startswith("Last matches"):
+                if kb not in labels:
+                    labels.append(kb)
+                phase = "done" if got_h2h else {1: "home", 2: "away"}.get(len(labels), "done")
+            else:
+                phase = "done"
+            continue
+        if phase == "home" and "WIS" in f and len(home_f) < 6:
+            home_f.append({"res": f["WIS"], "score": f.get("KL")})
+        elif phase == "away" and "WIS" in f and len(away_f) < 6:
+            away_f.append({"res": f["WIS"], "score": f.get("KL")})
+        elif phase == "h2h" and "KL" in f and len(h2h) < 8:
+            kj, kk = f.get("KJ", ""), f.get("KK", "")
+            winner = kj[1:] if kj.startswith("*") else kk[1:] if kk.startswith("*") else None
+            h2h.append({"score": f["KL"], "winner_name": winner,
+                        "a": kj.lstrip("*"), "b": kk.lstrip("*")})
+    if not (home_f or away_f or h2h):
+        return None
+    return {"home_form": home_f, "away_form": away_f, "h2h": h2h}
+
+
+def prematch_facts(home: str, away: str, start_iso: str | None = None, sport: str = "tennis") -> list:
+    """Faits pré-match prêts pour l'analyste (liste de puces FR) : forme des 5 derniers matchs de chaque
+    camp + bilan du face-à-face direct. [] si match introuvable ou aucune donnée."""
+    mid = _find_match_id(home, away, start_iso, sport)
+    if not mid:
+        return []
+    data = prematch(mid)
+    if not data:
+        return []
+    facts = []
+
+    def _form_str(rows):                     # res = w/l/d (foot/tennis) ou wo/lo (basket) -> 1re lettre
+        return " ".join((r["res"] or "?")[:1].upper() for r in rows[:5])
+
+    if data["home_form"]:
+        facts.append(f"Forme {home} (5 derniers, + récent à gauche) : {_form_str(data['home_form'])}")
+    if data["away_form"]:
+        facts.append(f"Forme {away} (5 derniers, + récent à gauche) : {_form_str(data['away_form'])}")
+    if data["h2h"]:
+        th, ta = _tok(home), _tok(away)
+        wh = sum(1 for m in data["h2h"] if m["winner_name"] and _tok(m["winner_name"]) & th)
+        wa = sum(1 for m in data["h2h"] if m["winner_name"] and _tok(m["winner_name"]) & ta)
+        n = len(data["h2h"])
+        last = data["h2h"][0]
+        facts.append(f"Face-à-face direct ({n} derniers) : {home} {wh} – {wa} {away} "
+                     f"(dernier : {last['a']} {last['score']} {last['b']})")
+    return facts
+
+
 def find_id(home: str, away: str, start_iso: str | None = None, sport: str = "tennis") -> str | None:
     """Expose la résolution du matchId Flashscore par noms (+ sport + jour) — pour l'API."""
     return _find_match_id(home, away, start_iso, sport)

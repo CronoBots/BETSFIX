@@ -1,9 +1,10 @@
-"""Sources de stats GRATUITES alternatives à SofaScore (ESPN, FotMob, Understat).
+"""Sources de stats GRATUITES alternatives à SofaScore (ESPN, FotMob, Understat, Flashscore).
 
 Enrichit le DOSSIER de l'analyste au scan (tools/generate_analyses.py) avec des FAITS
 indépendants : forme récente avec adversaire+score, classements frais, blessures détaillées
-(NBA/WNBA), H2H, xG (top-5 ligues), météo. Méthodologie « ≥2 sources » : ce bloc fournit la
-source indépendante n°2 quand SofaScore est bloqué.
+(NBA/WNBA), H2H, xG (top-5 ligues), météo. Méthodologie « ≥2 sources » : ESPN/FotMob/Understat
+fournissent la source n°2 et Flashscore (forme + face-à-face, foot/tennis/basket) la source n°3,
+indépendantes, quand SofaScore est bloqué.
 
 Endpoints (tous testés, sans clé, depuis cette machine) :
 - FotMob   : https://www.fotmob.com/api/data/{matches,matchDetails}   (foot, monde entier)
@@ -728,8 +729,29 @@ async def extras(client, sport: str, match: dict) -> str:
             facts = []
     except Exception:
         return ""
+    out = ""
+    if facts:
+        out += ("\n\nDONNÉES MULTI-SOURCES (ESPN / FotMob / Understat — source indépendante n°2, "
+                "à CROISER avec ta recherche web ; un fait présent ici ET confirmé ailleurs = 2 sources) :\n- "
+                + "\n- ".join(facts))
+    out += await _flashscore_block(sport, match)
+    return out
+
+
+async def _flashscore_block(sport: str, match: dict) -> str:
+    """Bloc FLASHSCORE (forme récente + face-à-face direct) — source INDÉPENDANTE n°3.
+    Best-effort : urllib synchrone déporté hors de la boucle ; toute panne -> ''."""
+    fs_sport = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport)
+    if not fs_sport:
+        return ""
+    try:
+        from app import flashscore
+        facts = await asyncio.to_thread(
+            flashscore.prematch_facts,
+            match.get("home", ""), match.get("away", ""), match.get("start"), fs_sport)
+    except Exception:
+        return ""
     if not facts:
         return ""
-    return ("\n\nDONNÉES MULTI-SOURCES (ESPN / FotMob / Understat — source indépendante n°2, "
-            "à CROISER avec ta recherche web ; un fait présent ici ET confirmé ailleurs = 2 sources) :\n- "
-            + "\n- ".join(facts))
+    return ("\n\nDONNÉES FLASHSCORE (forme & face-à-face — source indépendante n°3, à CROISER avec "
+            "le bloc ci-dessus et ta recherche web) :\n- " + "\n- ".join(facts))
