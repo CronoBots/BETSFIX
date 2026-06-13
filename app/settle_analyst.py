@@ -260,8 +260,10 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     m = re.search(r"(plus|moins) de (\d+[.,]?\d*)\s*(?:buts?|points?|pts?)", t)
     if m and not team:
         return f"{'OVER' if m.group(1)=='plus' else 'UNDER'} {m.group(2).replace(',', '.')}"
-    # variante avec l'unité AVANT le nombre : « Nombre total de buts – Moins de 2.5 »
-    if not team and re.search(r"(?:nombre\s+)?total\w*\s+(?:de\s+)?(?:buts?|points?|pts?)", t):
+    # variante avec l'unité AVANT le nombre : « Nombre total de buts – Moins de 2.5 », ou « Total
+    # Moins de 3.5 » sans unité (sets/jeux/cartons/corners déjà traités plus haut -> ici = total du
+    # MATCH, buts foot / points basket).
+    if not team and "total" in t:
         m2 = re.search(r"(plus|moins) de (\d+[.,]?\d*)", t)
         if m2:
             return f"{'OVER' if m2.group(1)=='plus' else 'UNDER'} {m2.group(2).replace(',', '.')}"
@@ -610,7 +612,10 @@ async def settle_analyses() -> int:
             if combo and combo.get("legs"):
                 any_lost, all_won = False, True
                 for leg in combo["legs"]:
-                    lr = await _settle_one(leg.get("code", "")) if leg.get("code") else None
+                    lc = leg.get("code") or code_from_pick(leg.get("sel", ""), sport,
+                                                           d.get("home", ""), d.get("away", ""))
+                    leg["code"] = lc                 # re-dérive si vide (couverture code élargie)
+                    lr = await _settle_one(lc) if lc else None
                     leg["result"] = lr
                     if lr == "lost":
                         any_lost = True
