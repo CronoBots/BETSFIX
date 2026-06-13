@@ -505,6 +505,8 @@ CSS = """
   .mc-betl + .mc-betl{margin-top:3px}
   .mc-bi{flex:none;font-size:10px}
   .mc-bt{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.3}
+  /* pari RETENU (⭐ en tête) : libellé mis en avant */
+  .mc-betl-reco .mc-bt{color:#fff;font-weight:800}
   .mc-body{padding:2px 14px 13px}
   .mc-body[hidden]{display:none}
   /* Moins d'espace entre les équipes et le bloc « BOOKMAKERS » une fois déplié. */
@@ -2959,15 +2961,18 @@ def _sport_row(r: dict) -> str:
         badge = f'<span class="mc-badge mc-up">{e(starthm) or "À venir"}</span>'
     # L3 : LISTE des paris (une ligne par pari = juste l'intitulé, sans détail) ; terminé : ✅/❌ par pari.
     rows3 = []
-    reco_i = summ.get("reco_idx")          # pari RETENU par le moteur -> ⭐ aussi en mode replié
+    reco_i = summ.get("reco_idx")          # pari RETENU par le moteur -> ⭐ EN TÊTE (à la place du •)
     for i, b in enumerate(summ.get("bets") or []):
+        is_reco = i == reco_i
         if is_finished:
             ic = {"won": "✅", "lost": "❌", "push": "➖"}.get(b.get("result"), "•")
+        elif is_reco:
+            ic = '<span class="mc-star">⭐</span>'
         else:
             ic = "•"
-        star = ' <span class="mc-star">⭐</span>' if i == reco_i else ""
-        rows3.append(f'<div class="mc-betl"><span class="mc-bi">{ic}</span>'
-                     f'<span class="mc-bt">{e(b.get("sel", ""))}{star}</span></div>')
+        rcls = " mc-betl-reco" if (is_reco and not is_finished) else ""
+        rows3.append(f'<div class="mc-betl{rcls}"><span class="mc-bi">{ic}</span>'
+                     f'<span class="mc-bt">{e(b.get("sel", ""))}</span></div>')
     line3 = "".join(rows3)
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')
