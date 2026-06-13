@@ -500,11 +500,11 @@ CSS = """
      padding-right pour libérer le chevron en bas à droite. */
   .mc-sub{margin-top:6px;padding-right:20px}
   .mc-open .mc-sub{display:none}
-  .mc-betl{display:flex;align-items:baseline;gap:6px;font-size:11px;font-weight:600;color:#cfe0f5;
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Ligne de pari de la carte : le libellé passe à la LIGNE s'il est trop long (plus de troncature) */
+  .mc-betl{display:flex;align-items:baseline;gap:6px;font-size:11px;font-weight:600;color:#cfe0f5}
   .mc-betl + .mc-betl{margin-top:3px}
   .mc-bi{flex:none;font-size:10px}
-  .mc-bt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mc-bt{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.3}
   .mc-body{padding:2px 14px 13px}
   .mc-body[hidden]{display:none}
   /* Moins d'espace entre les équipes et le bloc « BOOKMAKERS » une fois déplié. */
