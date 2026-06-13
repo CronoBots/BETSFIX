@@ -97,6 +97,11 @@ METHODO = (
     "factuels CONCORDANTS (ex. série + contexte, ou stat + forme + H2H). Un seul argument = pas assez. "
     "Classe par CHANCE DE PASSER (probabilité réelle), PAS par edge contrarien. Sois HONNÊTE sur la "
     "proba (pas de gonflage). Un match incertain = moins de paris, voire SKIP.\n\n"
+    "ANCRE SHARP (Pinnacle) : quand un « CONSENSUS SHARP » est fourni, c'est la proba la PLUS proche du "
+    "VRAI (book sharp à faible marge). Sers-t'en comme ancre PRIORITAIRE : si TA proba et Pinnacle "
+    "convergent et que la cote Unibet les BAT (EV+ indiqué), c'est le signal de value le plus fiable ; "
+    "si tu diverges FORTEMENT de Pinnacle sans raison factuelle solide, c'est probablement TOI qui as "
+    "tort -> prudence ou SKIP.\n\n"
     "VALUE — DÉTECTION SYSTÉMATIQUE (clé du ROI) : chaque issue du bloc COTES porte sa PROBA JUSTE "
     "« (jXX%) » = la proba du marché MARGE RETIRÉE (de-vig), et chaque marché sa « [marge X%] ». "
     "Procédure pour CHAQUE pari envisagé : (1) estime TA proba à partir des FAITS ; (2) compare-la à la "
@@ -522,6 +527,24 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             imp = ("\nPROBA IMPLICITE DU MARCHÉ (vainqueur, marge retirée) : " + " / ".join(parts)
                    + " — CALIBRE ta proba là-dessus : nettement AU-DESSUS = value (signale-la) ; "
                    "en dessous = écarte le pari.")
+    # CONSENSUS SHARP (Pinnacle) : proba la PLUS proche du vrai (book sharp, faible marge). EV au prix
+    # Unibet (proba_sharp × cote_unibet − 1) -> une EV+ ici = la cote Unibet bat le sharp = VALUE FORTE.
+    sharp = ""
+    try:
+        from app import pinnacle
+        sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
+    except Exception:
+        sp = None
+    if sp and o1 and o2:
+        seg = [f"{home} {sp['home'] * 100:.0f}%"] \
+            + ([f"nul {sp['draw'] * 100:.0f}%"] if sp.get("draw") else []) \
+            + [f"{away} {sp['away'] * 100:.0f}%"]
+        evh, eva = sp["home"] * o1 - 1, sp["away"] * o2 - 1
+        evseg = [f"{home} {evh * 100:+.0f}%", f"{away} {eva * 100:+.0f}%"]
+        sharp = ("\nCONSENSUS SHARP (Pinnacle, book de référence — proba la PLUS proche du vrai) : "
+                 + " / ".join(seg) + ". EV au prix Unibet : " + " / ".join(evseg)
+                 + " — une EV+ ICI = la cote Unibet BAT le sharp = VALUE FORTE ; ancre n°1 pour calibrer "
+                   "(si ta proba et Pinnacle convergent contre Unibet, c'est le meilleur signal).")
     extras, sx = await _sofa_extras(client, sport, sofa_id, home, away)
     # Sources GRATUITES indépendantes (ESPN/FotMob/Understat) : forme+scores, classements frais,
     # blessés, H2H, xG, météo — la source n°2 de la méthodo quand SofaScore est bloqué.
@@ -540,7 +563,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
             "(détaille la procédure value plus haut) :\n" + "\n".join(lines)
-            + imp + extras + alt + pblock)
+            + imp + sharp + extras + alt + pblock)
     meta = {"odds": odds, **sx}   # odds + streaks/h2h structurés -> sidecar
     return text, meta
 
