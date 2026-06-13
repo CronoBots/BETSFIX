@@ -846,13 +846,24 @@ _STATS_CACHE: dict = {}    # "full" -> (sig, stats_full())
 _CALIB_RES_CACHE: dict = {}  # min_conf -> (sig, calibration()) — uniquement pour since_days=None
 
 
+# JALONS du modèle : dates (UTC) où la LOGIQUE de sélection a changé -> repères verticaux sur les
+# courbes d'équité (pour corréler une inflexion de ROI avec un changement). Garder COURT (s'affiche
+# sur un petit graphe) et N'AJOUTER qu'un vrai changement de POLITIQUE de paris (pas l'UI).
+MODEL_MILESTONES = [
+    ("2026-06-09", "Seuil ≥65 %"),
+    ("2026-06-12", "Mode strict"),
+]
+
+
 def _agg_bets(events: list) -> dict:
     """Agrège une liste de paris (start, result, odds) -> bloc stats complet : courbe de profit
     cumulé (démarre à 0), won/lost/push/settled, % réussite, profit (u), ROI (%), cote moyenne.
-    Mise plate 1 u : gagné +(cote-1), perdu -1, remboursé 0. ROI = profit ÷ total misé."""
+    Mise plate 1 u : gagné +(cote-1), perdu -1, remboursé 0. ROI = profit ÷ total misé.
+    `dates` = coup d'envoi de chaque pari, ALIGNÉ sur points[1:] (points[0]=0 avant tout pari) ->
+    sert à placer les jalons MODEL_MILESTONES sur la courbe."""
     events = sorted(events, key=lambda x: x[0] or "")
     cum, osum = 0.0, 0.0
-    pts, won, lost, push = [0.0], 0, 0, 0
+    pts, dates, won, lost, push = [0.0], [], 0, 0, 0
     for _start, res, odds in events:
         if res == "won":
             cum += (float(odds) - 1) if odds else 0.0
@@ -865,6 +876,7 @@ def _agg_bets(events: list) -> dict:
         else:
             push += 1
         pts.append(round(cum, 3))
+        dates.append(_start or "")
     settled, staked = won + lost, won + lost + push
     # Série EN COURS (signée) : nb de gagnés (+) ou perdus (-) consécutifs en fin de période.
     seq = [res for _s, res, _o in events if res in ("won", "lost")]
@@ -887,7 +899,8 @@ def _agg_bets(events: list) -> dict:
     for v in pts:
         peak = max(peak, v)
         dd = max(dd, peak - v)
-    return {"points": pts, "won": won, "lost": lost, "push": push, "settled": settled,
+    return {"points": pts, "dates": dates, "won": won, "lost": lost, "push": push,
+            "settled": settled,
             "pct": (round(100 * won / settled) if settled else None), "profit": round(cum, 2),
             "roi": (round(100 * cum / staked, 1) if staked else None),
             "avg_odds": (round(osum / settled, 2) if settled else None),

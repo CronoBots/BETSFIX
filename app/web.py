@@ -275,8 +275,12 @@ CSS = """
   basket orange,
   foot vert). */
   .botnav a[data-tab="home"].on,
-  .botnav a[data-tab="directs"].on{
+  .botnav a[data-tab="directs"].on,
+  .botnav a[data-tab="stats"].on{
     background:linear-gradient(180deg,var(--accent),var(--accent2));color:var(--accent-ink)}
+  /* 6 onglets -> labels un brin plus compacts pour tenir sur petit écran */
+  .botnav a .lb{font-size:9px}
+  .botnav a .ic{font-size:22px}
   .botnav a.on .ic{transform:scale(1.06)}
   /* Onglet Live : SEUL le point 🟢 vire au vert et clignote,
   et UNIQUEMENT s'il y a du live
@@ -1120,6 +1124,11 @@ CSS = """
   .bc-zero{stroke:rgba(255,255,255,.5);stroke-width:1.3;stroke-dasharray:5 3}
   .bc-zl{fill:rgba(255,255,255,.6);font-size:9px;font-weight:800;text-anchor:end}
   .bc-line{stroke-width:2.2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+  /* Jalons du modèle : repère vertical + étiquette (changement de politique de paris) */
+  .bc-mile{stroke:rgba(34,184,255,.55);stroke-width:1.2;stroke-dasharray:2 3}
+  .bc-mile-l{fill:rgba(120,200,255,.95);font-size:7.5px;font-weight:800}
+  .sx-mlegend{text-align:center;font-size:10px;color:var(--dim);margin-top:4px}
+  .sx-mlegend b{color:rgba(120,200,255,.95);font-weight:800}
   .bc-yl{fill:var(--muted);font-size:9px;text-anchor:end;font-weight:700}
   .bc-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .bc-lg{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);
@@ -1722,7 +1731,7 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
                '<span class="nr-ring nr-ring2"></span><span class="nr-dot"></span></span>')
 _SPA_TABS = [("home", "/", "🏠", "Accueil"), ("tennis", "/app", "🎾", "Tennis"),
              ("basket", "/basket", "🏀", "Basket"), ("foot", "/foot", "⚽", "Foot"),
-             ("directs", "/directs", _LIVE_RADAR, "Live")]
+             ("directs", "/directs", _LIVE_RADAR, "Live"), ("stats", "/stats", "📊", "Stats")]
 
 
 _SPORT_TITLE = {"foot": "⚽ Football", "tennis": "🎾 Tennis", "basket": "🏀 Basket"}
@@ -1854,7 +1863,7 @@ _SPA_JS = (
     "nav[i].addEventListener('click',function(e){e.preventDefault();"
     "go(this.getAttribute('data-tab'),true);});}"
     "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
-    "if(!t){var m={'/':'home','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot'};"
+    "if(!t){var m={'/':'home','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot','/stats':'stats'};"
     "t=m[location.pathname]||'home';}go(t,false);});"
     # (handlers data-info/data-dvg/data-exp/.mc : déplacés dans _CARDS_JS, partagé avec layout)
     # rafraîchissement auto des COTES/SCORES live : on ré-interroge le panneau actif toutes les
@@ -2216,6 +2225,83 @@ def _sparkline(points: list, color: str) -> str:
             'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>')
 
 
+def _epoch(iso: str):
+    """Timestamp (s) d'un coup d'envoi ISO, ou None."""
+    try:
+        return datetime.fromisoformat((iso or "").replace("Z", "+00:00")).timestamp()
+    except (ValueError, AttributeError):
+        return None
+
+
+def _multi_equity_chart(series: list, milestones: list) -> str:
+    """Courbe d'équité MULTI-SPORTS sur un MÊME axe de TEMPS (≠ par-pari) : chaque sport partage la
+    même échelle de dates -> on peut tracer les JALONS du modèle (lignes verticales pointillées +
+    petite étiquette) à la bonne position chronologique. `series`=[{color,points,dates}] (points =
+    profit cumulé départ 0, dates = coup d'envoi aligné sur points[1:]). `milestones`=[(iso,label)]."""
+    # (date_epoch, valeur) par courbe — on préfixe (t0, 0) pour que tout démarre à 0 au même instant.
+    built, allv, allt = [], [0.0], []
+    for c in series:
+        pts, ds = c.get("points") or [], c.get("dates") or []
+        xy = []
+        for j, d in enumerate(ds):
+            t = _epoch(d)
+            if t is None or j + 1 >= len(pts):
+                continue
+            xy.append((t, pts[j + 1]))
+            allv.append(pts[j + 1])
+            allt.append(t)
+        if xy:
+            built.append((c["color"], xy))
+    if not built or not allt:
+        return ""
+    t0, t1 = min(allt), max(allt)
+    if t1 - t0 < 1:
+        t1 = t0 + 1
+    ymin, ymax = min(0.0, min(allv)), max(0.0, max(allv))
+    if ymax - ymin < 1e-9:
+        ymax = ymin + 1.0
+    pad = (ymax - ymin) * 0.16
+    ymin, ymax = ymin - pad, ymax + pad
+    W, H, L, R, T, B = 320.0, 140.0, 16.0, 12.0, 16.0, 8.0
+    iw, ih = W - L - R, H - T - B
+
+    def X(t):
+        return L + iw * (t - t0) / (t1 - t0)
+
+    def Y(v):
+        return T + ih * (1 - (v - ymin) / (ymax - ymin))
+
+    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="bchart">']
+    for k in range(5):                                   # grille horizontale
+        gv = ymin + (ymax - ymin) * k / 4
+        if abs(gv) < 1e-6:
+            continue
+        p.append(f'<line class="bc-grid" x1="{L:g}" y1="{Y(gv):.1f}" x2="{W - R:g}" y2="{Y(gv):.1f}"/>')
+    zy = Y(0.0)
+    p.append(f'<line class="bc-zero" x1="{L:g}" y1="{zy:.1f}" x2="{W - R:g}" y2="{zy:.1f}"/>')
+    p.append(f'<text class="bc-zl" x="{L - 3:g}" y="{zy + 3:.1f}">0</text>')
+    # JALONS du modèle : ligne verticale pointillée + étiquette courte en haut (à la bonne date)
+    for iso, label in milestones:
+        mt = _epoch(iso if "T" in (iso or "") else f"{iso}T00:00:00Z")
+        if mt is None or mt < t0 or mt > t1:
+            continue
+        mx = X(mt)
+        p.append(f'<line class="bc-mile" x1="{mx:.1f}" y1="{T - 6:g}" x2="{mx:.1f}" y2="{H - B:g}"/>')
+        anchor = "start" if mx < W * 0.55 else "end"
+        dx = 3 if anchor == "start" else -3
+        p.append(f'<text class="bc-mile-l" x="{mx + dx:.1f}" y="{T - 8:g}" '
+                 f'text-anchor="{anchor}">{html.escape(label)}</text>')
+    for color, xy in built:
+        if len(xy) == 1:
+            p.append(f'<circle cx="{X(xy[0][0]):.1f}" cy="{Y(xy[0][1]):.1f}" r="3.2" fill="{color}"/>')
+            continue
+        d = _smooth_path([(X(t), Y(v)) for t, v in xy])
+        p.append(f'<path class="bc-line" fill="none" stroke="{color}" d="{d}"/>')
+        p.append(f'<circle cx="{X(xy[-1][0]):.1f}" cy="{Y(xy[-1][1]):.1f}" r="3" fill="{color}"/>')
+    p.append("</svg>")
+    return "".join(p)
+
+
 def _svg_bet_chart(curves: list) -> str:
     """Graphique TENDANCE (SVG pur) : forme de l'évolution par pari (sans chiffres d'unités — les
     valeurs sont en ROI dans les tableaux). Grille horizontale, ligne du zéro, marqueur de fin,
@@ -2382,12 +2468,18 @@ def render_stats(full: dict | None, since: str = "") -> str:
     SPORTS = (("foot", "Football", "⚽", "#2ee27f"), ("tennis", "Tennis", "🎾", "#d7e64a"),
               ("basket", "Basket", "🏀", "#ff9f43"))
     active = [(sk, lbl, ic, col) for sk, lbl, ic, col in SPORTS if (bs.get(sk) or {}).get("settled")]
-    curves = [{"color": col, "points": (bs[sk].get("points") or [])} for sk, _l, _i, col in active]
+    series = [{"color": col, "points": (bs[sk].get("points") or []),
+               "dates": (bs[sk].get("dates") or [])} for sk, _l, _i, col in active]
     legend = "".join(
         f'<span class="sx-leg"><span class="bc-dot" style="background:{col}"></span>{ic} {lbl}</span>'
         for _sk, lbl, ic, col in active)
-    combined = (f'<div class="sx-allchart">{_svg_bet_chart(curves)}'
-                f'<div class="sx-legend">{legend}</div></div>') if curves else ""
+    # Repères verticaux = jalons du modèle (changements de politique de paris) -> légende dédiée.
+    miles = [(iso, lab) for iso, lab in analyses.MODEL_MILESTONES]
+    mlegend = ('<div class="sx-mlegend">⋮ repères : '
+               + " · ".join(f'<b>{html.escape(lab)}</b>' for _i, lab in miles) + '</div>') if miles else ""
+    chart = _multi_equity_chart(series, miles)
+    combined = (f'<div class="sx-allchart">{chart}'
+                f'<div class="sx-legend">{legend}</div>{mlegend}</div>') if chart else ""
     scards = [_sport_card(bs[sk], sk, lbl, ic, since, color=col)
               for sk, lbl, ic, col in active]
     sports = (('<div class="sx-bys"><div class="sx-h">📈 Détail par sport'
@@ -2401,50 +2493,11 @@ _SPORT_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
 
 
 
-def _dash_stats(stats: dict | None) -> str:
-    """Carte STATS principale : ROI global + GRANDE courbe d'équité (lissée, verte au-dessus du
-    zéro / rouge en dessous, grille + ligne du 0 + point final) + forme (5 derniers) + KPIs,
-    cliquable vers /stats. '' si aucun pari réglé."""
-    ov = (stats or {}).get("overall") or {}
-    if not ov.get("settled"):
-        return ""
-    roi = ov.get("roi")
-    roicls = "pos" if (roi or 0) > 0 else ("neg" if (roi or 0) < 0 else "neu")
-    chart = _hero_chart(ov.get("points") or [], uid="dash")
-    form = _form_dots(ov.get("form") or [])
-    kpis = [(f'{ov.get("pct", 0)}%', "réussite"), (str(ov.get("settled", 0)), "paris réglés"),
-            (f'{ov.get("avg_odds", 0):g}', "cote moy."), (str(ov.get("best_streak", 0)), "série max")]
-    kp = "".join(f'<div class="ds-k"><span class="ds-v">{v}</span>'
-                 f'<span class="ds-l">{l}</span></div>' for v, l in kpis)
-    # Taux de réussite PAR SPORT (ordre demandé : tennis · basket · football).
-    bs = (stats or {}).get("by_sport") or {}
-    cells = []
-    for key, ic, lbl in (("tennis", "🎾", "Tennis"), ("basket", "🏀", "Basket"), ("foot", "⚽", "Football")):
-        s = bs.get(key) or {}
-        if not s.get("settled"):
-            continue
-        pct = s.get("pct", 0)
-        pc = "pos" if pct >= 55 else ("neg" if pct < 50 else "neu")
-        cells.append(f'<div class="dsp"><span class="dsp-ic">{ic}</span>'
-                     f'<span class="dsp-v {pc}">{pct}%</span>'
-                     f'<span class="dsp-l">{lbl} · {s.get("won", 0)}/{s.get("settled", 0)}</span></div>')
-    sports = f'<div class="dash-sports">{"".join(cells)}</div>' if cells else ""
-    return ('<div class="dash-h"><span>Performance</span>'
-            '<a href="/stats" class="dash-h-a">détail →</a></div>'
-            '<a class="dash-stat" href="/stats"><div class="dperf-top">'
-            f'<div class="ds-k"><span class="ds-v {roicls} dperf-roi">{_roistr(roi)}</span>'
-            f'<span class="ds-l">ROI global · {ov.get("won", 0)}/{ov.get("settled", 0)} gagnés</span></div>'
-            f'<div class="dperf-spk">{form}</div></div>'
-            f'<div class="dperf-chart">{chart}</div>'
-            f'<div class="dash-stat-row">{kp}</div>{sports}'
-            '<span class="dash-stat-go">Voir les statistiques détaillées →</span></a>')
-
-
-def render_dashboard(stats: dict | None, match_rows: list, *, live_count: int = 0,
+def render_dashboard(match_rows: list, *, live_count: int = 0,
                      frag: bool = False, source: dict | None = None) -> str:
-    """ACCUEIL : stats principales + les matchs À VENIR uniquement (format compact des onglets
-    sport, tous sports mélangés, triés par coup d'envoi). Les EN COURS vivent dans l'onglet Live —
-    un mini-bandeau « N en direct → Live » les garde à un tap. UI bankroll retirée (2026-06-12)."""
+    """ACCUEIL épuré (2026-06-13) : UNIQUEMENT les matchs À VENIR (format compact, tous sports
+    mélangés, triés par coup d'envoi) + un petit bandeau « N en direct → Live ». Les statistiques
+    sont passées dans leur propre onglet 📊 de la barre du bas."""
     livebar = ((f'<a class="dash-livebar" href="/directs"><span class="nr-dot"></span>'
                 f'<b>{live_count} match{"s" if live_count > 1 else ""} en direct</b>'
                 '<span class="dash-livebar-go">suivre dans Live →</span></a>')
@@ -2456,7 +2509,7 @@ def render_dashboard(stats: dict | None, match_rows: list, *, live_count: int = 
     else:
         matches = ('<div class="dash-h"><span>Prochains matchs</span></div>'
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    body = _dash_stats(stats) + livebar + matches
+    body = livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 

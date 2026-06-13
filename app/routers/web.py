@@ -324,13 +324,13 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
         cached = fragcache.get("panel/home")
         if cached:
             return HTMLResponse(cached)
-    # Track record SILENCIEUX : on continue d'enregistrer chaque pari retenu (calibration future),
-    # mais l'UI bankroll/simulation est retirée (demande utilisateur 2026-06-12).
+    # Track record SILENCIEUX : on continue d'enregistrer chaque pari retenu (calibration future).
+    # ACCUEIL = paris À VENIR + petit bandeau live (les stats vivent dans l'onglet 📊, 2026-06-13).
     mybets.sync_simulation()
     all_rows = await _home_match_rows()
     live_n = sum(1 for r in all_rows if r.get("status") == "inprogress")
     rows = [r for r in all_rows if r.get("status") != "inprogress"]
-    body = web.render_dashboard(analyses.stats_full(), rows, live_count=live_n,
+    body = web.render_dashboard(rows, live_count=live_n,
                                 frag=bool(frag), source=provider.breaker_status())
     if frag:
         fragcache.put("panel/home", body, ttl=PANEL_TTL)
@@ -345,13 +345,21 @@ async def paris_redirect() -> RedirectResponse:
 
 
 @router.get("/stats", response_class=HTMLResponse)
-async def stats_page() -> HTMLResponse:
-    """Page dédiée « 📊 Statistiques » : bilan global + perf par pari + détail par sport."""
-    body = ('<div class="pg-h">📊 Statistiques</div>'
+async def stats_page(frag: int = 0) -> HTMLResponse:
+    """Onglet « Statistiques » (barre du bas) : bilan global + courbe multi-sports avec jalons +
+    détail par sport + calibration. Sert un FRAGMENT quand frag=1 (panneau SPA)."""
+    if frag:
+        cached = fragcache.get("panel/stats")
+        if cached:
+            return HTMLResponse(cached)
+    body = ('<div class="pg-h">Statistiques</div>'
             '<div class="pg-sub">Performance du système depuis le début · tous sports · ROI.</div>'
             + _home_stats()
             + web.render_calibration(analyses.calibration()))
-    return HTMLResponse(web.layout("Statistiques", "home", body, menu="stats"))
+    if frag:
+        fragcache.put("panel/stats", body, ttl=PANEL_TTL)
+        return HTMLResponse(body)
+    return HTMLResponse(web.spa_shell("stats", "Statistiques", body))
 
 
 # Page « Simulation bankroll » /mybets RETIRÉE le 2026-06-12 à la demande : le pari retenu est
