@@ -48,6 +48,21 @@ def test_parse_prematch_forme_et_h2h():
     assert d["h2h"][1]["winner_name"] == "B"
 
 
+def test_goals_for_against_et_tendances():
+    # buts pour/contre selon le côté du sujet
+    assert fs._goals_for_against("2:1", "home") == (2, 1)
+    assert fs._goals_for_against("2:1", "away") == (1, 2)
+    assert fs._goals_for_against("x", "home") == (None, None)
+    # tendances foot : moyennes + % +2.5 / BTTS
+    rows = [{"gf": 2, "ga": 1}, {"gf": 0, "ga": 0}, {"gf": 3, "ga": 2}, {"gf": 1, "ga": 1}]
+    t = fs._tendencies(rows, "foot")
+    assert "1.5 buts marqués/match" in t and "1.0 encaissés" in t
+    assert "50% +2.5 buts" in t          # 2 matchs sur 4 ont total >= 3
+    assert "75% BTTS" in t               # 3 matchs sur 4 ont les 2 équipes qui marquent
+    assert "pts marqués/match" in fs._tendencies(rows, "basket") and "total moyen" in fs._tendencies(rows, "basket")
+    assert fs._tendencies(rows[:2], "foot") is None      # <3 matchs -> None
+
+
 def test_settle_first_service_logique(monkeypatch):
     games = [{"server": "away", "winner": "away"},     # jeu 1 : away sert et tient
              {"server": "home", "winner": "away"},     # jeu 2 : home sert et se fait breaker

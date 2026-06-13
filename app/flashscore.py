@@ -275,6 +275,15 @@ def prematch(match_id: str) -> dict | None:
     return _parse_prematch(feed)
 
 
+def _goals_for_against(kl: str | None, ks: str | None) -> tuple:
+    """(buts marqués, buts encaissés) par le SUJET dans un match, depuis KL « h:a » + KS (home/away)."""
+    m = re.match(r"\s*(\d+)\s*:\s*(\d+)", kl or "")
+    if not m:
+        return (None, None)
+    h, a = int(m.group(1)), int(m.group(2))
+    return (h, a) if ks == "home" else (a, h)
+
+
 def _parse_prematch(feed: str) -> dict | None:
     """Parse PUR (sans réseau) du feed `df_hh` -> {home_form, away_form, h2h}. Voir prematch()."""
     home_f, away_f, h2h = [], [], []
@@ -293,10 +302,12 @@ def _parse_prematch(feed: str) -> dict | None:
             else:
                 phase = "done"
             continue
-        if phase == "home" and "WIS" in f and len(home_f) < 6:
-            home_f.append({"res": f["WIS"], "score": f.get("KL")})
-        elif phase == "away" and "WIS" in f and len(away_f) < 6:
-            away_f.append({"res": f["WIS"], "score": f.get("KL")})
+        if phase == "home" and "WIS" in f and len(home_f) < 10:
+            gf, ga = _goals_for_against(f.get("KL"), f.get("KS"))
+            home_f.append({"res": f["WIS"], "score": f.get("KL"), "gf": gf, "ga": ga})
+        elif phase == "away" and "WIS" in f and len(away_f) < 10:
+            gf, ga = _goals_for_against(f.get("KL"), f.get("KS"))
+            away_f.append({"res": f["WIS"], "score": f.get("KL"), "gf": gf, "ga": ga})
         elif phase == "h2h" and "KL" in f and len(h2h) < 8:
             kj, kk = f.get("KJ", ""), f.get("KK", "")
             winner = kj[1:] if kj.startswith("*") else kk[1:] if kk.startswith("*") else None
@@ -480,7 +491,32 @@ def prematch_facts(home: str, away: str, start_iso: str | None = None, sport: st
         last = data["h2h"][0]
         facts.append(f"Face-à-face direct ({n} derniers) : {home} {wh} – {wa} {away} "
                      f"(dernier : {last['a']} {last['score']} {last['b']})")
+    # TENDANCES SAISON (calculées sur les ~10 derniers résultats) : buts/points marqués & encaissés
+    # par match + % +2.5 buts / % BTTS (foot) — ce que SofaScore donnait pour bâtir l'analyse.
+    for name, rows in ((home, data["home_form"]), (away, data["away_form"])):
+        t = _tendencies(rows, sport)
+        if t:
+            facts.append(f"Tendances {name} {t}")
     return facts
+
+
+def _tendencies(rows: list, sport: str) -> str | None:
+    """Tendances chiffrées d'une équipe depuis ses derniers résultats (gf/ga) : moyennes pour/contre
+    + % +2.5 buts / % BTTS (foot) ou total moyen (basket). None si <3 matchs exploitables."""
+    vals = [(r["gf"], r["ga"]) for r in rows if r.get("gf") is not None and r.get("ga") is not None]
+    if len(vals) < 3:
+        return None
+    n = len(vals)
+    fr = sum(v[0] for v in vals) / n
+    ag = sum(v[1] for v in vals) / n
+    if sport in ("football", "foot"):
+        over = round(100 * sum(1 for v in vals if v[0] + v[1] >= 3) / n)
+        btts = round(100 * sum(1 for v in vals if v[0] > 0 and v[1] > 0) / n)
+        return (f"({n} matchs) : {fr:.1f} buts marqués/match, {ag:.1f} encaissés, "
+                f"{over}% +2.5 buts, {btts}% BTTS")
+    if sport in ("basket", "basketball"):
+        return f"({n} matchs) : {fr:.0f} pts marqués/match, {ag:.0f} encaissés, total moyen {fr + ag:.0f}"
+    return None
 
 
 def find_id(home: str, away: str, start_iso: str | None = None, sport: str = "tennis") -> str | None:
