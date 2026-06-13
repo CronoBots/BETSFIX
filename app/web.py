@@ -784,12 +784,13 @@ CSS = """
   .ocs{margin:10px 0 2px;display:flex;flex-direction:column;gap:11px}
   .oc-h{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
         color:var(--muted);margin-bottom:6px}
-  .ocb{display:flex;gap:2px;height:6px;border-radius:99px;overflow:hidden;margin-bottom:8px}
+  .oc{width:100%}
+  .ocb{display:flex;width:100%;gap:2px;height:6px;border-radius:99px;overflow:hidden;margin-bottom:8px}
   .ocb-s{height:100%;border-radius:99px}
   .ocb-po{background:linear-gradient(90deg,#19c46a,#34d27b)}
   .ocb-pc{background:linear-gradient(90deg,#d8a93a,#e8c34d)}
   .ocb-dim{background:rgba(255,255,255,.13)}
-  .ocp-row{display:flex;gap:6px}
+  .ocp-row{display:flex;width:100%;gap:6px}
   .ocp{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
         padding:8px 5px 7px;border-radius:12px;text-align:center;
         background:rgba(255,255,255,.035);border:1px solid var(--border)}
