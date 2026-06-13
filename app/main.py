@@ -142,7 +142,6 @@ TAG_FOOT_SRC = "⚽ Foot · Données SofaScore (source)"
 TAG_BASKET_SRC = "🏀 Basket · Données SofaScore (source)"
 TAG_COTES = "💰 Cotes & paris Unibet"
 TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
-TAG_MODELE_SUIVI = "📊 Modèle maison · Suivi & performance"
 # Flashscore : un tag PAR SPORT (les chaînes EXACTES sont définies dans le routeur).
 from app.routers.flashscore import TAG_FOOT as TAG_FLASH_FOOT  # noqa: E402
 from app.routers.flashscore import TAG_TENNIS as TAG_FLASH_TENNIS  # noqa: E402
@@ -159,7 +158,6 @@ OPENAPI_TAGS = [
     {"name": TAG_BASKET_SRC},
     {"name": TAG_COTES},
     {"name": TAG_MODELE_ANALYSE},
-    {"name": TAG_MODELE_SUIVI},
     {"name": TAG_FLASH_FOOT},
     {"name": TAG_FLASH_TENNIS},
     {"name": TAG_FLASH_BASKET},
@@ -178,9 +176,6 @@ def _classify_tag(path: str) -> str | None:
     # 🔴 Modèle maison : analyse / value / prédictions
     if p.startswith("/analysis"):
         return TAG_MODELE_ANALYSE
-    # 🔴 Modèle maison : suivi & performance
-    if p.startswith("/tracking"):
-        return TAG_MODELE_SUIVI
     # 🖥️ Pages HTML (dont les pages d'accueil sport /basket et /foot)
     if p == "/" or p.startswith("/app") or p in ("/basket", "/foot"):
         return TAG_INTERFACE

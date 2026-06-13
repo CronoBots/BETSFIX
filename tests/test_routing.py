@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 
-from app.main import _classify_tag, TAG_COTES, TAG_MODELE_ANALYSE, TAG_MODELE_SUIVI, \
+from app.main import _classify_tag, TAG_COTES, TAG_MODELE_ANALYSE, \
     TAG_TENNIS_SRC, TAG_FOOT_SRC, TAG_BASKET_SRC, TAG_INTERFACE, TAG_META
 from app.routers.web import _is_upcoming
 
