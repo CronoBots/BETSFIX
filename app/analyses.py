@@ -640,7 +640,8 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
     reco = _recommend(data, cprobs=cprobs)
     note_by_idx = _assign_notes([b["sel"] for b in data], notes)   # commentaire Verdict -> bon pari
     cards = []
-    _stars = {"ok": "★★★", "mid": "★★☆", "hi": "★☆☆"}     # sûreté en étoiles (≠ pastille)
+    # Sûreté en PASTILLE TEXTE (≠ étoiles, réservées au pari retenu ⭐) : élevée/moyenne/faible.
+    _safe_cls = {"ok": "saf-hi", "mid": "saf-mid", "hi": "saf-lo"}
     for k, b in enumerate(data):
         pari = _inline(b["sel"])
         cv, prob, rcls = b["cote"], b["prob"], b["risk_cls"]
@@ -658,7 +659,8 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
             f'<div class="da-st da-st-cote"><span class="da-st-v">{cote_v}</span><span class="da-st-l">Cote</span></div>'
             f'<div class="da-st{ev_c}"><span class="da-st-v">{ev_v}</span><span class="da-st-l">Value</span></div></div>')
         # SÛRETÉ = étoiles dans l'en-tête (★ pleines = niveau), libellé au survol — plus de pastille.
-        stars = f'<span class="da-bk-stars" title="{_SAFETY.get(rcls, "")}">{_stars.get(rcls, "★★☆")}</span>'
+        safe = (f'<span class="da-bk-safe {_safe_cls.get(rcls, "saf-mid")}">'
+                f'{_SAFETY.get(rcls, "Sûreté moyenne")}</span>')
         tab = _BET_LABELS[k] if k < len(_BET_LABELS) else f"Pari {k + 1}"
         res = results.get(_norm_sel(b["sel"]))
         rescls = " da-bk-won" if res == "won" else (" da-bk-lost" if res == "lost"
@@ -675,7 +677,7 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         note_html = f'<div class="da-bk-note">{_inline(note)}</div>' if note else ""
         cards.append(
             f'<div class="da-bk{recocls}{rescls}">'
-            f'<div class="da-bk-tab">{tab}{stars}{mark}</div>'
+            f'<div class="da-bk-tab">{tab}{safe}{mark}</div>'
             f'<div class="da-bk-sel">{pari}{recostar}</div>'
             f'{note_html}{strip}</div>')   # affiche -> ANALYSE -> stats
     # LIVE (compact) : on ne garde QUE les cartes de paris (ni titre, ni légende, ni verdict ;

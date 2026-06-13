@@ -1505,10 +1505,12 @@ CSS = """
   .da-cbar>span{display:block;height:100%;border-radius:99px}
   .da-cbar.grn>span{background:linear-gradient(90deg,#19c46a,#34d27b)}   /* autres paris : VERT */
   .da-cbar.gold>span{background:linear-gradient(90deg,#d8a72a,#f6c54a)}  /* pari simulé : OR */
-  /* Sûreté en ÉTOILES dans l'en-tête (★ pleines = niveau) — OR,
-  bien visibles */
-  .da-bk-stars{font-size:12.5px;letter-spacing:2px;color:#f6c54a;font-weight:400;margin-left:4px;
-       text-shadow:0 0 6px rgba(246,197,74,.45)}
+  /* Sûreté en PASTILLE texte (élevée/moyenne/faible) — l'étoile ⭐ est réservée au pari retenu */
+  .da-bk-safe{margin-left:4px;font-size:9px;font-weight:800;text-transform:uppercase;
+       letter-spacing:.04em;padding:2px 7px;border-radius:999px;border:1px solid transparent}
+  .da-bk-safe.saf-hi{color:#5be08c;background:rgba(52,210,123,.13);border-color:rgba(52,210,123,.32)}
+  .da-bk-safe.saf-mid{color:#f0cf63;background:rgba(232,195,77,.13);border-color:rgba(232,195,77,.32)}
+  .da-bk-safe.saf-lo{color:#ff8f9a;background:rgba(255,107,107,.13);border-color:rgba(255,107,107,.32)}
   /* Bandeau de STATS pro : Confiance · Cote · Value */
   .da-bk-stats{display:flex;gap:7px;padding:12px 14px 14px}
   .da-st{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.04);
@@ -2141,7 +2143,7 @@ def _pick_bars(p: dict) -> str:
         return f'<div class="oc"><div class="oc-h">{title}</div>{bar}<div class="ocp-row">{cs}</div></div>'
 
     nm = (home, "Nul", away) if has_draw else (home, away)
-    out = block("Cotes & chances de victoire", "ocb-po",
+    out = block("Cotes & chances", "ocb-po",
                 ([p.get("i_home"), p.get("i_draw"), p.get("i_away")] if has_draw
                  else [p.get("i_home"), p.get("i_away")]), nm,
                 odds=([p.get("o_home"), p.get("o_draw"), p.get("o_away")] if has_draw
