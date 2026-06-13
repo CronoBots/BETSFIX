@@ -646,18 +646,15 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         pari = _inline(b["sel"])
         cv, prob, rcls = b["cote"], b["prob"], b["risk_cls"]
         is_reco = reco.get("idx") == k          # LE pari simulé pour la bankroll (= « à jouer »)
-        # (Barre de confiance retirée : redondante avec le stat « Confiance % ».)
-        # Bandeau de STATS : Confiance % · Cote · Value (EV = proba×cote−1).
+        # Bandeau de STATS : Confiance % · Cote. (« Value »/EV RETIRÉ de l'affichage le 2026-06-13 :
+        # déductible de conf×cote, et un EV négatif sur un pari sûr est déroutant. Le moteur l'utilise
+        # toujours en interne pour choisir le pari ⭐ retenu.)
         conf_v = f"{prob}%" if prob is not None else "—"
         cote_v = f"{cv:g}" if cv is not None else (_inline(b["cote_txt"]) if b["cote_txt"] else "—")
-        ev_pct = round((prob / 100 * cv - 1) * 100) if (prob is not None and cv) else None
-        ev_v = (("+" if ev_pct > 0 else "") + f"{ev_pct}%") if ev_pct is not None else "—"
-        ev_c = " da-st-pos" if (ev_pct or 0) > 0 else (" da-st-neg" if (ev_pct or 0) < 0 else "")
         strip = (
             '<div class="da-bk-stats">'
             f'<div class="da-st"><span class="da-st-v">{conf_v}</span><span class="da-st-l">Confiance</span></div>'
-            f'<div class="da-st da-st-cote"><span class="da-st-v">{cote_v}</span><span class="da-st-l">Cote</span></div>'
-            f'<div class="da-st{ev_c}"><span class="da-st-v">{ev_v}</span><span class="da-st-l">Value</span></div></div>')
+            f'<div class="da-st da-st-cote"><span class="da-st-v">{cote_v}</span><span class="da-st-l">Cote</span></div></div>')
         # SÛRETÉ = étoiles dans l'en-tête (★ pleines = niveau), libellé au survol — plus de pastille.
         safe = (f'<span class="da-bk-safe {_safe_cls.get(rcls, "saf-mid")}">'
                 f'{_SAFETY.get(rcls, "Sûreté moyenne")}</span>')
