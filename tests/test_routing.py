@@ -4,15 +4,16 @@ from datetime import datetime, timedelta, timezone
 
 from app.main import _classify_tag, TAG_MODELE_ANALYSE, \
     TAG_TENNIS_SRC, TAG_FOOT_SRC, TAG_BASKET_SRC, \
-    TAG_TENNIS_ODDS, TAG_FOOT_ODDS, TAG_BASKET_ODDS, TAG_INTERFACE, TAG_META
+    TAG_TENNIS_UNIBET, TAG_FOOT_UNIBET, TAG_BASKET_UNIBET, TAG_INTERFACE, TAG_META
 from app.routers.web import _is_upcoming
 
 
 def test_classify_tag_natures():
-    # Cotes UNIBET rangées DANS le sport ; les /odds SofaScore restent dans la source du sport
-    assert _classify_tag("/matches/{id}/odds/unibet") == TAG_TENNIS_ODDS
-    assert _classify_tag("/foot/match/{id}/odds/unibet") == TAG_FOOT_ODDS
-    assert _classify_tag("/basket/match/{id}/odds/unibet") == TAG_BASKET_ODDS
+    # Cotes UNIBET 1X2 rangées dans la section « Unibet » du sport ; les /odds SofaScore restent
+    # dans la source du sport
+    assert _classify_tag("/matches/{id}/odds/unibet") == TAG_TENNIS_UNIBET
+    assert _classify_tag("/foot/match/{id}/odds/unibet") == TAG_FOOT_UNIBET
+    assert _classify_tag("/basket/match/{id}/odds/unibet") == TAG_BASKET_UNIBET
     assert _classify_tag("/matches/{id}/odds") == TAG_TENNIS_SRC
     assert _classify_tag("/foot/match/{id}/odds") == TAG_FOOT_SRC
     assert _classify_tag("/basket/match/{id}/odds") == TAG_BASKET_SRC

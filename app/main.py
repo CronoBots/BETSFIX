@@ -15,7 +15,7 @@ from app import __version__
 from app import fragcache
 from app.dependencies import get_provider, get_rankings, get_unibet, shutdown_provider
 from app.routers import (
-    analysis, basket, flashscore, foot, livescore, matches, players, statistics, web,
+    analysis, basket, flashscore, foot, livescore, matches, players, statistics, unibet, web,
 )
 
 log = logging.getLogger("uvicorn")
@@ -137,17 +137,16 @@ async def lifespan(app: FastAPI):
 # Les tags sont assignés par chemin dans _retag_routes() (voir plus bas), donc les
 # tags posés au niveau des routeurs sont sans effet : seule cette liste fait foi.
 # --------------------------------------------------------------------------- #
-# Organisation /docs PAR SPORT : pour chaque sport, ses 3 sources contiguës
-# (Données SofaScore -> Cotes Unibet -> Flashscore), puis les outils transverses.
+# Organisation /docs PAR SPORT : pour chaque sport, ses sources contiguës
+# (Données SofaScore -> Unibet -> Flashscore -> LiveScore), puis les outils transverses.
 # Données SofaScore (faits bruts) :
 TAG_FOOT_SRC = "⚽ Football · Données SofaScore"
 TAG_TENNIS_SRC = "🎾 Tennis · Données SofaScore"
 TAG_BASKET_SRC = "🏀 Basket · Données SofaScore"
-# Cotes Unibet :
-TAG_FOOT_ODDS = "⚽ Football · Cotes Unibet"
-TAG_TENNIS_ODDS = "🎾 Tennis · Cotes Unibet"
-TAG_BASKET_ODDS = "🏀 Basket · Cotes Unibet"
-# Flashscore & LiveScore : un tag PAR SPORT (chaînes EXACTES définies dans les routeurs).
+# Unibet / Flashscore / LiveScore : un tag PAR SPORT (chaînes EXACTES définies dans les routeurs).
+from app.routers.unibet import TAG_FOOT as TAG_FOOT_UNIBET  # noqa: E402  "⚽ Football · Unibet"
+from app.routers.unibet import TAG_TENNIS as TAG_TENNIS_UNIBET  # noqa: E402  "🎾 Tennis · Unibet"
+from app.routers.unibet import TAG_BASKET as TAG_BASKET_UNIBET  # noqa: E402  "🏀 Basket · Unibet"
 from app.routers.flashscore import TAG_FOOT as TAG_FLASH_FOOT  # noqa: E402  "⚽ Football · Flashscore"
 from app.routers.flashscore import TAG_TENNIS as TAG_FLASH_TENNIS  # noqa: E402  "🎾 Tennis · Flashscore"
 from app.routers.flashscore import TAG_BASKET as TAG_FLASH_BASKET  # noqa: E402  "🏀 Basket · Flashscore"
@@ -160,19 +159,19 @@ TAG_INTERFACE = "🖥️ Interface (pages HTML)"
 TAG_META = "ℹ️ Méta"
 
 # Tags SANS description : le titre porte déjà l'info. Ordre = par SPORT (foot, tennis,
-# basket), chaque sport regroupant Données SofaScore -> Cotes Unibet -> Flashscore ;
+# basket), chaque sport regroupant Données SofaScore -> Unibet -> Flashscore -> LiveScore ;
 # puis Modèle maison, Interface, Méta.
 OPENAPI_TAGS = [
     {"name": TAG_FOOT_SRC},
-    {"name": TAG_FOOT_ODDS},
+    {"name": TAG_FOOT_UNIBET},
     {"name": TAG_FLASH_FOOT},
     {"name": TAG_LIVE_FOOT},
     {"name": TAG_TENNIS_SRC},
-    {"name": TAG_TENNIS_ODDS},
+    {"name": TAG_TENNIS_UNIBET},
     {"name": TAG_FLASH_TENNIS},
     {"name": TAG_LIVE_TENNIS},
     {"name": TAG_BASKET_SRC},
-    {"name": TAG_BASKET_ODDS},
+    {"name": TAG_BASKET_UNIBET},
     {"name": TAG_FLASH_BASKET},
     {"name": TAG_LIVE_BASKET},
     {"name": TAG_MODELE_ANALYSE},
@@ -186,14 +185,14 @@ def _classify_tag(path: str) -> str | None:
     chaque sport ayant ses sous-sections Données SofaScore / Cotes Unibet ; Flashscore garde
     ses propres tags par sport (posés au routeur). Transverses : Modèle, Interface, Méta."""
     p = path
-    # 💰 Cotes UNIBET, rangées DANS le sport (les /odds SofaScore, informatifs, restent dans
-    #    « Données SofaScore » du sport via les règles plus bas).
+    # 💰 Cotes UNIBET 1X2 (sur id SofaScore), rangées dans la section « Unibet » du sport — aux
+    #    côtés des endpoints du routeur /unibet (marchés, agenda, live, compétitions).
     if p.endswith("/odds/unibet"):
         if p.startswith("/foot"):
-            return TAG_FOOT_ODDS
+            return TAG_FOOT_UNIBET
         if p.startswith("/basket"):
-            return TAG_BASKET_ODDS
-        return TAG_TENNIS_ODDS              # /matches/{id}/odds/unibet
+            return TAG_BASKET_UNIBET
+        return TAG_TENNIS_UNIBET            # /matches/{id}/odds/unibet
     # 🧠 Modèle maison : analyse / value / prédictions
     if p.startswith("/analysis"):
         return TAG_MODELE_ANALYSE
@@ -203,9 +202,9 @@ def _classify_tag(path: str) -> str | None:
     # ℹ️ Méta
     if p in ("/api", "/health"):
         return TAG_META
-    # 🟧 Flashscore / LiveScore : on NE retague PAS (les routeurs posent eux-mêmes un tag PAR
-    #    SPORT, ⚽/🎾/🏀 ; renvoyer None préserve ces tags au lieu de tout réunir sous un seul).
-    if p.startswith("/flashscore") or p.startswith("/livescore"):
+    # 🟧 Unibet / Flashscore / LiveScore : on NE retague PAS (les routeurs posent eux-mêmes un tag
+    #    PAR SPORT, ⚽/🎾/🏀 ; renvoyer None préserve ces tags au lieu de tout réunir sous un seul).
+    if p.startswith("/flashscore") or p.startswith("/livescore") or p.startswith("/unibet"):
         return None
     # 🟢 Sources SofaScore par sport (le reste)
     if p.startswith(("/matches", "/players", "/statistics")):
@@ -268,6 +267,7 @@ app.include_router(players.router)
 app.include_router(analysis.router)
 app.include_router(basket.router)
 app.include_router(foot.router)
+app.include_router(unibet.router)
 app.include_router(flashscore.router)
 app.include_router(livescore.router)
 app.include_router(web.router)
