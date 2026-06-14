@@ -218,6 +218,8 @@ def is_settled(d: dict) -> bool:
     pari réglé). Sert à garder ces matchs visibles dans « Terminés » même longtemps après la fin."""
     if (d.get("result") or {}).get("pick_result") is not None:
         return True
+    if (d.get("combo") or {}).get("result") in ("won", "lost", "push"):   # combiné CdM réglé = terminé
+        return True
     return any(b.get("result") in ("won", "lost", "push") for b in (d.get("bets") or []))
 
 
@@ -780,6 +782,18 @@ def card_summary(sport: str, match_id) -> dict:
     """Résumé COMPACT d'un match pour la ligne repliée (carte compacte) : nb de paris, meilleure
     confiance, s'il y a un pari ✅ À JOUER (même règle que la simulation : ≥65 %, EV≥+3 %, réglable),
     et le résultat réglé du pari joué (terminés). {} si pas d'analyse."""
+    m0 = meta(sport, match_id) or {}
+    combo = m0.get("combo")
+    if combo and combo.get("legs"):
+        # COMBINÉ (CdM) = LE pari du match -> résumé compact basé sur le combiné (1 pari, son résultat),
+        # cohérent avec l'affichage (le combiné remplace les paris simples).
+        res = combo.get("result")
+        sel = f"🎲 Combiné ({len(combo['legs'])} jambes) @{combo.get('total')}"
+        return {"n": 1, "best_conf": None, "comp": m0.get("comp"), "circuit": m0.get("circuit"),
+                "play": res is None, "ev": None, "reco_idx": 0 if res != "lost" else None,
+                "won": 1 if res == "won" else 0, "lost": 1 if res == "lost" else 0,
+                "settled": 1 if res in ("won", "lost", "push") else 0,
+                "play_result": res, "bets": [{"sel": sel, "result": res}], "is_combo": True}
     bets = bets_of(sport, match_id)
     if not bets:
         return {}
