@@ -57,6 +57,10 @@ SCAN_GAP = 2.0     # secondes entre 2 matchs (lisse la charge ; négligeable vs 
 NOISE = ("corner", "ntervalle", "ntervalle", "0:00", "10:00", "14:59", "Premier buteur",
          "Premier but", "Score exact", "Score Exact", "Asiatique", "Marque au moins",
          "Pari remboursé", "buteur", "2ème mi-temps", "2e mi-temps", "remboursé")
+# Pour les COMBINÉS Coupe du Monde, on GARDE corners / premier but / buteur (marchés INDÉPENDANTS,
+# essentiels pour un combiné non corrélé) — on ne filtre que le vrai bruit (intervalles, score exact…).
+NOISE_COMBO = ("ntervalle", "0:00", "10:00", "14:59", "Score exact", "Score Exact",
+               "Asiatique", "Pari remboursé", "remboursé")
 # Sélection des marchés Unibet pour le dossier : au plus _PER_CRIT lignes par TYPE de marché
 # (sinon basket/tennis — des centaines de lignes Handicap/Total quasi identiques — noient le dossier
 # sous un seul type ; l'analyste doit voir un ÉVENTAIL varié de marchés pour LES 3 SPORTS), et
@@ -85,9 +89,11 @@ COMBO_MISSION = (
     "Choisis donc des jambes pilotées par des ASPECTS DE MATCH INDÉPENDANTS, qui ne partagent PAS le "
     "même scénario : CORNERS, CARTONS, PREMIER BUT/buteur, total de buts, nombre de tirs… (≈ ton coupon "
     "gagnant « plus de corners X » + « total cartons +2.5 » + « premier but X », qui n'a EU AUCUNE "
-    "réduction, voire un boost). ÉVITE de cumuler des paris liés à l'issue/domination (résultat, mi-temps "
-    "résultat, handicap, double chance, une équipe marque / l'autre ne marque pas) : ils se corrèlent et "
-    "Unibet rabote la cote.\n"
+    "réduction, voire un boost). ⚠️ AU PLUS UNE jambe liée aux BUTS (total du match OU total d'une équipe "
+    "OU buts mi-temps — JAMAIS plusieurs : toutes corrélées « peu/beaucoup de buts »). Les autres jambes "
+    "d'aspects DIFFÉRENTS : CORNERS, CARTONS, PREMIER BUT, tirs. Un combiné de 4 marchés de buts = "
+    "INTERDIT. ÉVITE aussi les paris liés à l'issue/domination (résultat, mi-temps résultat, handicap, "
+    "double chance, une équipe marque / l'autre non) : corrélés -> rabotés.\n"
     "2) Chaque jambe = la sélection la PLUS PROBABLE de son aspect (proba ≥ ~75 %), appuyée par les "
     "faits/tendances (les TENDANCES corners/cartons/buts du bloc Flashscore sont idéales).\n"
     "3) COTE COMBINÉE (produit des cotes) > 2.20 (vise 2.2–3.0) : avec des jambes INDÉPENDANTES la cote "
@@ -525,10 +531,14 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         bo = r.json()
     except Exception:
         return None
+    # Coupe du Monde : filtre RELÂCHÉ -> corners / premier but restent dispo pour bâtir un combiné
+    # de marchés INDÉPENDANTS (non corrélés -> pas de réduction Unibet).
+    big = _is_big_match(match.get("comp") or match.get("circuit") or "")
+    noise = NOISE_COMBO if big else NOISE
     by_crit: dict = {}   # type de marché -> [variantes] (préserve l'ordre Unibet)
     for b in bo.get("betOffers", []) or []:
         crit = (b.get("criterion") or {}).get("label", "")
-        if not crit or any(s in crit for s in NOISE):
+        if not crit or any(s in crit for s in noise):
             continue
         ocs = [o for o in (b.get("outcomes") or []) if o.get("odds")]
         # DE-VIG : proba JUSTE (marge retirée) par issue + marge du marché -> ancre de value pour
@@ -546,12 +556,14 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             outs.append(f"{lbl}{lns}={od:.2f} (j{p * 100:.0f}%)")
         if outs:
             by_crit.setdefault(crit, []).append(" | ".join(outs) + f"  [marge {margin * 100:.0f}%]")
-    # Diversité (cf. _PER_CRIT/_MAX_MK_LINES) : éventail varié de marchés pour les 3 sports.
+    # Diversité (cf. _PER_CRIT/_MAX_MK_LINES) : éventail varié de marchés. Pour la CdM, plafond plus
+    # haut -> corners/cartons/premier but/tirs apparaissent TOUS (essentiels au combiné indépendant).
+    max_lines = 48 if big else _MAX_MK_LINES
     lines = []
     for crit, variants in by_crit.items():
         for v in variants[:_PER_CRIT]:
             lines.append(f"- {crit}: {v}")
-        if len(lines) >= _MAX_MK_LINES:
+        if len(lines) >= max_lines:
             break
     if not lines:
         return None
@@ -610,8 +622,8 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         if players:
             from app import player_stats
             pblock = await asyncio.to_thread(player_stats.soccer_props_block, players)
-    # COMBINÉ « grand tournoi » : mission supplémentaire (cf. _is_big_match).
-    combo = COMBO_MISSION if _is_big_match(match.get("comp") or match.get("circuit") or "") else ""
+    # COMBINÉ Coupe du Monde : mission supplémentaire (cf. `big` calculé plus haut).
+    combo = COMBO_MISSION if big else ""
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
