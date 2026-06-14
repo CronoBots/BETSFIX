@@ -753,6 +753,63 @@ async def final_score(sport: str, d: dict) -> dict | None:
     return None
 
 
+async def world_cup_extras(client, match: dict) -> str:
+    """Contexte COUPE DU MONDE (ESPN `fifa.world`) : ARBITRE désigné + phase/groupe + classement du
+    groupe (points, qualifs des 2 équipes). '' si match non trouvé. Sert à la méthodo CdM (cartons
+    selon l'arbitre, enjeux selon le classement/qualification)."""
+    home, away = match.get("home", ""), match.get("away", "")
+    dt = _start_dt(match.get("start") or "")
+    if not (home and away and dt):
+        return ""
+    base = f"{_ESPN}/site/v2/sports/soccer/fifa.world"
+    eid = None
+    for ymd in [(dt + timedelta(days=k)).strftime("%Y%m%d") for k in (0, -1, 1)]:
+        j = await _get_json(client, f"{base}/scoreboard?dates={ymd}")
+        for ev in (j or {}).get("events") or []:
+            comp = (ev.get("competitions") or [{}])[0]
+            nm = [((c.get("team") or {}).get("displayName")) or "" for c in (comp.get("competitors") or [])]
+            if len(nm) == 2 and _teams_match(home, away, nm[0], nm[1]):
+                eid = ev.get("id")
+                break
+        if eid:
+            break
+    if not eid:
+        return ""
+    facts = []
+    summ = await _get_json(client, f"{base}/summary?event={eid}")
+    # phase / tour
+    note = (((summ or {}).get("header") or {}).get("competitions") or [{}])[0].get("notes") or []
+    phase = note[0].get("headline") if note else None
+    # arbitre
+    refs = ((summ or {}).get("gameInfo") or {}).get("officials") or []
+    ref = next((o.get("displayName") for o in refs
+                if "referee" in ((o.get("position") or {}).get("name") or "").lower()), None)
+    ref = ref or (refs[0].get("displayName") if refs else None)
+    # classement du groupe (l'équipe qui matche -> bon groupe)
+    sj = await _get_json(client, f"{_ESPN}/v2/sports/soccer/fifa.world/standings")
+    th, ta = _tok(home), _tok(away)
+    for g in (sj or {}).get("children") or []:
+        entries = ((g.get("standings") or {}).get("entries")) or []
+        names = [((e.get("team") or {}).get("displayName")) or "" for e in entries]
+        if any(_overlap(th, _tok(n)) or _overlap(ta, _tok(n)) for n in names):
+            facts.append(f"Phase : {phase or g.get('name') or 'phase de groupes'} (Coupe du Monde)")
+            rows = []
+            for e in entries:
+                v = {s.get("abbreviation"): s.get("displayValue") for s in e.get("stats", [])}
+                rows.append(f"{((e.get('team') or {}).get('displayName'))} {v.get('P', '?')} pts "
+                            f"(J{v.get('GP', '?')}, {v.get('W', '?')}V-{v.get('D', '?')}N-{v.get('L', '?')}D)")
+            facts.append("Classement du groupe : " + " ; ".join(rows))
+            break
+    if not facts and phase:
+        facts.append(f"Phase : {phase} (Coupe du Monde)")
+    if ref:
+        facts.append(f"ARBITRE désigné : {ref} (RECHERCHE sa moyenne de CARTONS/match — décisif pour "
+                     f"le marché cartons)")
+    if not facts:
+        return ""
+    return "\n\nCONTEXTE COUPE DU MONDE (ESPN) :\n- " + "\n- ".join(facts)
+
+
 # ================================================================== API publique
 async def extras(client, sport: str, match: dict) -> str:
     """Bloc « DONNÉES MULTI-SOURCES » prêt à coller dans le dossier de l'analyste.

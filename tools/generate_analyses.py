@@ -80,6 +80,19 @@ def _is_big_match(comp: str) -> bool:
     return any(t in c for t in _BIG_TOURNEYS)
 
 
+WC_NOTE = (
+    "\n\nCONTEXTE COUPE DU MONDE — à INTÉGRER à l'analyse (bloc « CONTEXTE COUPE DU MONDE » ci-dessus) :\n"
+    "• ENJEU / QUALIFICATION : sers-toi du CLASSEMENT DU GROUPE + recherche web pour établir l'enjeu réel "
+    "(une équipe DÉJÀ qualifiée peut faire TOURNER son effectif et lever le pied ; une équipe qui DOIT "
+    "gagner attaque -> plus de buts/corners ; un match où un nul suffit aux deux = fermé). La PHASE "
+    "(poules / 8es / quart…) change l'intensité et la prudence. Calibre tes probas là-dessus.\n"
+    "• ⚠️ CARTONS = L'ARBITRE (capital) : c'est l'ARBITRE qui décide des cartons, et ça varie ÉNORMÉMENT "
+    "d'un arbitre à l'autre. Pour TOUTE jambe/pari CARTONS, base-toi sur la MOYENNE DE CARTONS/MATCH de "
+    "l'arbitre DÉSIGNÉ (donné ci-dessus ; recherche-la sur le web : « <arbitre> cartons par match / yellow "
+    "cards per game »). Arbitre sévère (≥5 cartons/match) -> penche « plus de cartons » ; arbitre clément "
+    "(≤3) -> « moins ». NE PROPOSE PAS de pari cartons sans cette donnée arbitre + l'enjeu (match tendu/"
+    "rival -> plus de cartons).\n")
+
 COMBO_MISSION = (
     "\n\nMISSION SPÉCIALE — COMBINÉ Coupe du Monde (même match) : construis LE combiné de ce match. "
     "C'est le pari PHARE (il REMPLACE le pari simple). Règles STRICTES :\n"
@@ -622,13 +635,14 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         if players:
             from app import player_stats
             pblock = await asyncio.to_thread(player_stats.soccer_props_block, players)
-    # COMBINÉ Coupe du Monde : mission supplémentaire (cf. `big` calculé plus haut).
-    combo = COMBO_MISSION if big else ""
+    # COUPE DU MONDE : contexte (arbitre + phase/groupe + classement) + mission combiné.
+    wc_ctx = await sources.world_cup_extras(client, match) if big else ""
+    combo = (WC_NOTE + COMBO_MISSION) if big else ""
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
             "(détaille la procédure value plus haut) :\n" + "\n".join(lines)
-            + imp + sharp + extras + alt + pblock + combo)
+            + imp + sharp + extras + alt + pblock + wc_ctx + combo)
     meta = {"odds": odds, **sx}   # odds + streaks/h2h structurés -> sidecar
     return text, meta
 
