@@ -25,7 +25,9 @@ def _bets_for_url(url: str, compact: bool = False) -> str:
     if not m:
         return ""
     sport = {"foot": "foot", "basket": "basket", "app": "tennis"}[m.group(1)]
-    return analyses.bets_html(sport, m.group(2), compact=compact) + analyses.combo_html(sport, m.group(2))
+    # Coupe du Monde : le COMBINÉ remplace les paris simples (s'il existe) ; sinon paris normaux.
+    combo = analyses.combo_html(sport, m.group(2))
+    return combo if combo else analyses.bets_html(sport, m.group(2), compact=compact)
 
 def _links_for_url(url: str) -> str:
     """Bannières SofaScore / Unibet (pleine largeur) d'un match, depuis son URL de fiche.

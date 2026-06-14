@@ -64,12 +64,11 @@ NOISE = ("corner", "ntervalle", "ntervalle", "0:00", "10:00", "14:59", "Premier 
 _PER_CRIT = 3
 _MAX_MK_LINES = 28
 
-# COMBINÉ « grand tournoi » (cas spécial demandé par l'utilisateur) : pour ces compétitions, l'analyste
-# ajoute EN PLUS un combiné de 2-4 sélections sûres et variées, cote combinée > 1.8 (esprit du coupon
-# Qatar-Suisse : corners, cartons, premier but…). Le système évite normalement les combinés -> exception.
-_BIG_TOURNEYS = ("coupe du monde", "world cup", "ligue des champions", "champions league",
-                 "europa league", "ligue europa", "conference league", "copa america", "copa américa",
-                 "ligue des nations", "nations league", "championnat d'europe")
+# COMBINÉ « Coupe du Monde 2026 » UNIQUEMENT (cas spécial demandé par l'utilisateur) : pour ces matchs,
+# l'analyste génère un combiné de 3-4 sélections les plus probables, de FAMILLES de marché DIFFÉRENTES
+# (qui ne se ressemblent pas -> combinable sur Unibet), cote combinée > 2.00. Affiché À LA PLACE du pari
+# simple. Le système évite normalement les combinés -> exception CdM seulement (pas les autres tournois).
+_BIG_TOURNEYS = ("coupe du monde", "world cup")
 
 
 def _is_big_match(comp: str) -> bool:
@@ -78,26 +77,21 @@ def _is_big_match(comp: str) -> bool:
 
 
 COMBO_MISSION = (
-    "\n\nMISSION SPÉCIALE — COMBINÉ même-match (grand tournoi) : EN PLUS de ton analyse normale, "
-    "construis le combiné le plus SÛR possible. PRIORITÉ = la probabilité que le combiné PASSE. "
-    "Règles STRICTES :\n"
-    "1) Chaque jambe = une quasi-certitude (proba ≥ ~80 %), appuyée par les faits/tendances. JAMAIS "
-    "une jambe douteuse pour gonfler la cote.\n"
-    "2) ⚠️ COMBINABILITÉ (capital) : c'est un combiné MÊME MATCH -> Unibet REFUSE les sélections "
-    "CORRÉLÉES. Prends donc AU PLUS UNE jambe PAR FAMILLE de marché, et choisis des familles "
-    "INDÉPENDANTES. Familles distinctes : (a) issue du match (vainqueur / double chance / handicap), "
-    "(b) total de buts du match, (c) CORNERS, (d) CARTONS, (e) premier but / buteur, (f) buts d'UNE "
-    "équipe. Ex. de combiné VALIDE (familles différentes) : « plus de corners pour X » + « total cartons "
-    "+2.5 » + « premier but X » (comme un coupon Coupe du Monde gagnant). INTERDIT : 2 marchés de buts "
-    "corrélés (ex. « total +0.5 MT1 » + « X marque en MT1 »), ou total du match + total d'équipe qui se "
-    "recouvrent, ou handicap + double chance du même camp. Si un doute de corrélation -> change de "
-    "famille.\n"
-    "3) La PROBABILITÉ prime, mais TOUJOURS dans des familles indépendantes (cf. 2). Tous les marchés "
-    "sont permis (y compris corners, cartons, premier but, mi-temps) tant qu'ils sont COMBINABLES. "
-    "Privilégie corners/cartons/premier but/totaux : ce sont des familles faciles à rendre indépendantes.\n"
-    "4) Utilise le MINIMUM de jambes pour que la cote combinée dépasse 1.80 (2-3 jambes idéal, 4 max). "
-    "N'utilise QUE des cotes réelles du bloc ci-dessus. Si tu ne peux pas atteindre 1.80 avec des jambes "
-    "quasi-sûres ET combinables, donne le meilleur combiné possible et indique-le.\n"
+    "\n\nMISSION SPÉCIALE — COMBINÉ Coupe du Monde (même match) : construis LE combiné de ce match. "
+    "C'est le pari PHARE de ce match (il REMPLACE le pari simple). Règles STRICTES :\n"
+    "1) COTE COMBINÉE > 2.00 OBLIGATOIRE (produit des cotes des jambes). Combine 3 à 4 jambes pour "
+    "l'atteindre.\n"
+    "2) Choisis les sélections les PLUS PROBABLES possibles (chacune appuyée par les faits/tendances) "
+    "qui, multipliées, dépassent 2.00. Entre deux jambes d'une même famille, garde la plus probable.\n"
+    "3) ⚠️ Les jambes NE DOIVENT PAS SE RESSEMBLER (combiné même-match -> Unibet REFUSE les sélections "
+    "corrélées). AU PLUS UNE jambe PAR FAMILLE, et des familles INDÉPENDANTES : (a) issue du match "
+    "(vainqueur / double chance / handicap), (b) total de buts, (c) CORNERS, (d) CARTONS, (e) premier "
+    "but / buteur, (f) buts d'UNE équipe, (g) mi-temps. Ex. VALIDE (familles différentes) : « plus de "
+    "corners pour X » + « total cartons +2.5 » + « premier but X » (coupon CdM gagnant type). INTERDIT : "
+    "2 marchés de buts corrélés, total du match + total d'équipe qui se recouvrent, handicap + double "
+    "chance du même camp. Au moindre doute de ressemblance -> change de famille.\n"
+    "4) N'utilise QUE des cotes réelles du bloc ci-dessus. Vise la cote combinée juste au-dessus de 2.00 "
+    "avec les jambes les plus sûres et indépendantes.\n"
     "Ajoute À LA FIN, après la section Mise, EXACTEMENT ce format :\n"
     "## 🎲 Combiné\n"
     "- <sélection exacte 1> @<cote>\n- <sélection exacte 2> @<cote>\n- <sélection exacte 3> @<cote>\n"

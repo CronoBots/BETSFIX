@@ -12,10 +12,11 @@ _spec.loader.exec_module(ga)
 
 
 def test_is_big_match():
+    # Coupe du Monde 2026 UNIQUEMENT (plus les autres grandes compétitions)
     assert ga._is_big_match("Coupe du Monde 2026")
     assert ga._is_big_match("FIFA World Cup")
-    assert ga._is_big_match("Ligue des Champions")
-    assert ga._is_big_match("UEFA Champions League")
+    assert not ga._is_big_match("Ligue des Champions")
+    assert not ga._is_big_match("UEFA Champions League")
     assert not ga._is_big_match("Primera B Argentina")
     assert not ga._is_big_match("")
 
