@@ -36,6 +36,13 @@ def test_parse_combo():
     assert all("code" in leg for leg in c["legs"])
 
 
+def test_parse_combo_entoure_de_backticks():
+    # l'analyste entoure parfois la ligne de `code` -> le préfixe backtick ne doit PAS casser le parse
+    analysis = "`COMBO: Total Moins de 3.5 @1.12 | Corners MT1 Moins de 5.5 @1.22 = 1.37`\n"
+    c = ga._parse_combo(analysis, "foot", "A", "B")
+    assert c is not None and len(c["legs"]) == 2 and c["legs"][0]["cote"] == 1.12
+
+
 def test_parse_combo_absent():
     assert ga._parse_combo("PICK: WIN HOME\n", "foot", "A", "B") is None
     # une seule jambe -> pas un combiné

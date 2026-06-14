@@ -671,7 +671,7 @@ def _result_odds(bo: dict) -> tuple:
 
 def _parse_pick(analysis: str) -> str:
     """Extrait le CODE de la ligne technique `PICK: <CODE>` (pour le règlement auto). '' sinon."""
-    m = re.search(r"^\s*PICK:\s*(.+?)\s*$", analysis, re.M)
+    m = re.search(r"^[\s`*>\-]*PICK:\s*(.+?)\s*$", analysis, re.M)
     if not m:
         return ""
     code = re.sub(r"[`*]", "", m.group(1)).strip().upper()
@@ -681,7 +681,8 @@ def _parse_pick(analysis: str) -> str:
 def _parse_combo(analysis: str, sport: str, home: str, away: str) -> dict | None:
     """Parse la ligne technique `COMBO: s1 @c1 | s2 @c2 | … = total` -> {legs:[{sel, cote, code}],
     total}. Le `code` (règlable) est dérivé de chaque sélection. None si absent/invalide."""
-    m = re.search(r"^\s*COMBO:\s*(.+?)\s*$", analysis, re.M)
+    # tolère un préfixe backtick/astérisque/«-»/«>» (l'analyste entoure parfois la ligne de `code`).
+    m = re.search(r"^[\s`*>\-]*COMBO:\s*(.+?)\s*$", analysis, re.M)
     if not m:
         return None
     from app.settle_analyst import code_from_pick
