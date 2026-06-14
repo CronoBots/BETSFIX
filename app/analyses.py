@@ -789,7 +789,7 @@ def card_summary(sport: str, match_id) -> dict:
     m = meta(sport, match_id) or {}
     out["comp"] = m.get("comp")            # tournoi/ville (tennis : ville ; foot/basket : ligue)
     out["circuit"] = m.get("circuit")      # tennis : WTA/ATP (capté au scan ; None sur d'anciennes analyses)
-    # reco À JOUER : on reproduit le filtre réglable/calibration de mybets.recommended_bets
+    # reco À JOUER (⭐) : filtre réglable/calibration -> LE pari mis en avant sur la carte du match
     try:
         from app.settle_analyst import code_from_pick
         ex_sports, ex_markets = auto_exclusions()

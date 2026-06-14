@@ -360,10 +360,9 @@ async def stats_page(frag: int = 0) -> HTMLResponse:
     return HTMLResponse(web.spa_shell("stats", "Statistiques", body))
 
 
-# Page « Simulation bankroll » /mybets RETIRÉE le 2026-06-12 à la demande : le pari retenu est
-# désormais marqué d'une ⭐ sur les cadres de paris ; l'enregistrement du track record continue
-# en silence via mybets.sync_simulation pour la calibration. REDIRECTION douce vers l'accueil :
-# les pages encore en cache côté mobile gardent des liens /mybets -> jamais de 404 brut.
+# Page « Simulation bankroll » /mybets + tout le module mybets/CLV SUPPRIMÉS (2026-06-14) : le pari
+# retenu est marqué d'une ⭐ sur les cadres (moteur d'analyse, intégré aux autres paris et aux stats).
+# On garde juste la redirection douce vers l'accueil (liens /mybets encore en cache mobile -> pas de 404).
 @router.get("/mybets")
 async def my_bets_redirect() -> RedirectResponse:
     return RedirectResponse("/", status_code=308)
