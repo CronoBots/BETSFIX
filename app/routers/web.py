@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import analyses, ace_markets, elo, fragcache, match_analysis, match_select, mybets, serve_return, set_markets, tendencies, tracking, web, window
+from app import analyses, ace_markets, elo, fragcache, match_analysis, match_select, serve_return, set_markets, tendencies, tracking, web, window
 from app.config import get_settings
 from app.analysis import build_analysis, remove_vig
 from app.analysis import _match_winner_odds
@@ -323,9 +323,9 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
         cached = fragcache.get("panel/home")
         if cached:
             return HTMLResponse(cached)
-    # Track record SILENCIEUX : on continue d'enregistrer chaque pari retenu (calibration future).
-    # ACCUEIL = paris À VENIR + petit bandeau live (les stats vivent dans l'onglet 📊, 2026-06-13).
-    mybets.sync_simulation()
+    # Simulation de bankroll DÉSACTIVÉE (2026-06-14, demande utilisateur) : on garde les paris MIS EN
+    # AVANT (⭐ moteur, indépendant) mais on n'enregistre plus de simulation/bankroll. ACCUEIL = paris
+    # À VENIR + petit bandeau live (les stats vivent dans l'onglet 📊).
     all_rows = await _home_match_rows()
     live_n = sum(1 for r in all_rows if r.get("status") == "inprogress")
     rows = [r for r in all_rows if r.get("status") != "inprogress"]

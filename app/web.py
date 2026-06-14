@@ -2391,19 +2391,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
     if not ov.get("settled"):
         return ""
     bstk = ov.get("best_streak") or 0
-    # KPI CLV (Closing Line Value) : preuve qu'on bat le marché. Affiché dès qu'au moins 1 clôture
-    # a été capturée. CLV moyen > 0 = on prend de meilleures cotes que la clôture = skill.
-    try:
-        from app import mybets
-        clv = mybets.clv_stats()
-    except Exception:
-        clv = {"n": 0}
-    clv_kpi = ""
-    if clv.get("n"):
-        cls = "arec-hi" if (clv["avg_pct"] or 0) > 0 else "arec-lo"
-        sign = "+" if (clv["avg_pct"] or 0) > 0 else ""
-        clv_kpi = (f'<div class="sx-kpi"><b class="{cls}">{sign}{clv["avg_pct"]}%</b>'
-                   f'<span>CLV moyen · {clv["n"]}</span></div>')
+    clv_kpi = ""   # KPI CLV retiré avec la simulation (2026-06-14, demande utilisateur)
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
