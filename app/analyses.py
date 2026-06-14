@@ -971,6 +971,17 @@ def stats_full(since_days: int | None = None) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
+        # COMBINÉ (Coupe du Monde) = UN SEUL pari (1 rond), peu importe le nb de jambes : il REMPLACE
+        # les paris simples de ce match dans les stats (cohérent avec l'affichage). Cote = produit.
+        combo = d.get("combo")
+        if combo and combo.get("result") in ("won", "lost", "push"):
+            ev = (start, combo["result"], combo.get("total"))
+            all_ev.append(ev)
+            by_pari[0].append(ev)
+            by_sport.setdefault(sport, {}).setdefault(0, []).append(ev)
+            continue
+        if combo:                  # combiné présent mais pas encore réglé -> on n'ajoute RIEN (ni les
+            continue               # paris simples cachés) : le combiné EST le pari de ce match.
         for i, b in enumerate(d.get("bets") or []):
             if i >= len(_BET_KEYS):
                 break
