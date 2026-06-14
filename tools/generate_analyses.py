@@ -569,15 +569,44 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             outs.append(f"{lbl}{lns}={od:.2f} (j{p * 100:.0f}%)")
         if outs:
             by_crit.setdefault(crit, []).append(" | ".join(outs) + f"  [marge {margin * 100:.0f}%]")
-    # Diversité (cf. _PER_CRIT/_MAX_MK_LINES) : éventail varié de marchés. Pour la CdM, plafond plus
-    # haut -> corners/cartons/premier but/tirs apparaissent TOUS (essentiels au combiné indépendant).
-    max_lines = 48 if big else _MAX_MK_LINES
-    lines = []
-    for crit, variants in by_crit.items():
-        for v in variants[:_PER_CRIT]:
-            lines.append(f"- {crit}: {v}")
-        if len(lines) >= max_lines:
-            break
+    # Diversité. Pour la CdM : on PRIORISE les familles indépendantes du combiné (corners, cartons,
+    # premier but, tirs, totaux, handicap, double chance…) et on en montre PLUS de lignes -> l'analyste
+    # choisit la plus sûre de CHAQUE aspect parmi un vrai éventail (et plus 0 premier but).
+    if big:
+        # CdM : part ÉQUITABLE par ASPECT (sinon les corners, 14 marchés, saturent le dossier et
+        # écrasent premier but/tirs). ~8 lignes max par aspect -> tous les aspects du combiné présents.
+        ASPECTS = [("Issue", ("vainqueur", "temps réglementaire", "double chance", "handicap")),
+                   ("Total buts", ("total de buts", "nombre total de buts")),
+                   ("Corners", ("corner",)), ("Cartons", ("carton",)),
+                   ("Premier but", ("premier but", "premier buteur", "buteur")),
+                   ("Tirs", ("tir",)), ("Mi-temps", ("mi-temps",)),
+                   ("But équipe", ("buts par", "marque"))]
+        lines, used = [], set()
+        for _lab, kws in ASPECTS:
+            cnt = 0
+            for crit, variants in by_crit.items():
+                if crit in used or not any(k in crit.lower() for k in kws):
+                    continue
+                for v in variants[:3]:
+                    lines.append(f"- {crit}: {v}")
+                    cnt += 1
+                used.add(crit)
+                if cnt >= 8:
+                    break
+        for crit, variants in by_crit.items():          # le reste des marchés (jusqu'au plafond)
+            if crit in used:
+                continue
+            for v in variants[:2]:
+                lines.append(f"- {crit}: {v}")
+            if len(lines) >= 80:
+                break
+    else:
+        lines = []
+        for crit, variants in by_crit.items():
+            for v in variants[:_PER_CRIT]:
+                lines.append(f"- {crit}: {v}")
+            if len(lines) >= _MAX_MK_LINES:
+                break
     if not lines:
         return None
     home, away = match.get("home", ""), match.get("away", "")
