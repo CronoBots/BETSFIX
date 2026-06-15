@@ -213,6 +213,17 @@ def pick_parts(pick: str) -> tuple[str, float | None]:
         return m.group(1).strip(), None
 
 
+_WC_TOURNEYS = ("coupe du monde", "world cup")   # Coupe du Monde 2026 (FR + EN)
+
+
+def _is_world_cup(d: dict) -> bool:
+    """Le match est-il un match de Coupe du Monde ? Les matchs CdM sont EXCLUS de TOUTES les stats
+    (suivi, ROI, calibration, perf, drill-down) — décision produit : on continue à AFFICHER leurs
+    combinés sur la fiche, mais ils ne pèsent dans AUCUN agrégat. Clé sur la compétition (robuste :
+    couvre même un éventuel match CdM sans combiné). Rétroactif : s'applique aux matchs déjà joués."""
+    return any(t in (d.get("comp") or "").lower() for t in _WC_TOURNEYS)
+
+
 def is_settled(d: dict) -> bool:
     """Le match a-t-il un résultat COMPTÉ dans les stats ? (pari « le plus sûr » réglé OU au moins un
     pari réglé). Sert à garder ces matchs visibles dans « Terminés » même longtemps après la fin."""
@@ -978,6 +989,8 @@ def stats_full(since_days: int | None = None) -> dict:
             continue
         sport = d.get("sport")
         start = d.get("start") or ""
+        if _is_world_cup(d):       # Coupe du Monde EXCLUE de toutes les stats (affichée mais non comptée).
+            continue
         if cutoff is not None:
             try:
                 dt = datetime.fromisoformat(start.replace("Z", "+00:00")) if start else None
@@ -985,17 +998,6 @@ def stats_full(since_days: int | None = None) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        # COMBINÉ (Coupe du Monde) = UN SEUL pari (1 rond), peu importe le nb de jambes : il REMPLACE
-        # les paris simples de ce match dans les stats (cohérent avec l'affichage). Cote = produit.
-        combo = d.get("combo")
-        if combo and combo.get("result") in ("won", "lost", "push"):
-            ev = (start, combo["result"], combo.get("total"))
-            all_ev.append(ev)
-            by_pari[0].append(ev)
-            by_sport.setdefault(sport, {}).setdefault(0, []).append(ev)
-            continue
-        if combo:                  # combiné présent mais pas encore réglé -> on n'ajoute RIEN (ni les
-            continue               # paris simples cachés) : le combiné EST le pari de ce match.
         for i, b in enumerate(d.get("bets") or []):
             if i >= len(_BET_KEYS):
                 break
@@ -1191,8 +1193,8 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        if d.get("combo"):           # match à combiné : le combiné REMPLACE les paris simples (et n'a
-            continue                 # pas de proba unique à calibrer) -> on n'inclut pas ses paris.
+        if _is_world_cup(d):         # Coupe du Monde EXCLUE de la calibration (combiné non calibrable +
+            continue                 # décision produit : la CdM ne pèse dans aucune stat).
         stored = d.get("bets") or []
         if not stored:
             continue
@@ -1259,7 +1261,7 @@ def bet_detail(sport: str | None = None, pari: int | None = None,
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        if d.get("combo"):           # combiné = remplace les paris simples -> non listés ici non plus
+        if _is_world_cup(d):         # Coupe du Monde EXCLUE du drill-down (non comptée dans les stats).
             continue
         for i, b in enumerate(d.get("bets") or []):
             if i >= len(_BET_KEYS) or (pari is not None and i != pari):
@@ -1305,7 +1307,7 @@ def perf_breakdown(since_days: int | None = None) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        if d.get("combo"):           # combiné = remplace les paris simples -> hors perf par marché
+        if _is_world_cup(d):         # Coupe du Monde EXCLUE de la perf par marché (non comptée).
             continue
         for i, b in enumerate(d.get("bets") or []):
             if i >= len(_BET_KEYS):
