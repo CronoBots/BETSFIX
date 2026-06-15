@@ -776,6 +776,16 @@ def _to_float(s):
         return None
 
 
+def _as_int(s):
+    """Compteur live en entier (Unibet renvoie le score en str ; df_st déjà en int). None si illisible."""
+    if isinstance(s, bool):
+        return None
+    if isinstance(s, int):
+        return s
+    m = re.search(r"-?\d+", str(s or ""))
+    return int(m.group()) if m else None
+
+
 def _leg_side(text: str, home: str, away: str) -> str | None:
     """HOME / AWAY / None selon l'équipe nommée dans `text` (jetons distinctifs, jetons communs ignorés)."""
     names = lambda s: [w for w in re.findall(r"[a-zà-ÿ]+", (s or "").lower()) if len(w) >= 4]
@@ -866,8 +876,8 @@ def _eval_leg(info: dict, vals: dict, final: bool = False):
         return (None if final else "pending"), None
     base = _METRIC_BASE[info["metric"]]
     suffix = "_1h" if info.get("scope") == "1H" else ""    # 1ère MT -> clés *_1h du df_st
-    hv, av = vals.get(f"{base}_h{suffix}"), vals.get(f"{base}_a{suffix}")
-    if hv is None or av is None:
+    hv, av = _as_int(vals.get(f"{base}_h{suffix}")), _as_int(vals.get(f"{base}_a{suffix}"))
+    if hv is None or av is None:                           # valeur absente OU non numérique -> on attend
         return (None if final else "pending"), None
     side = info.get("side")
     cur = hv if side == "HOME" else (av if side == "AWAY" else hv + av)
@@ -913,8 +923,9 @@ def _combo_live_vals(d: dict) -> dict:
     try:
         ld = match_select.live_state_for(d.get("sport", "foot"), home, away) or {}
         sc = ld.get("score") or {}
-        if sc.get("home") is not None and sc.get("away") is not None:
-            vals["goals_h"], vals["goals_a"] = sc.get("home"), sc.get("away")
+        gh, ga = _as_int(sc.get("home")), _as_int(sc.get("away"))   # Unibet renvoie le score en str
+        if gh is not None and ga is not None:
+            vals["goals_h"], vals["goals_a"] = gh, ga
     except Exception:
         pass
     key = f"{home}|{away}"

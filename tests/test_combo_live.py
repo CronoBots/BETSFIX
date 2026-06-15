@@ -96,3 +96,12 @@ def test_combo_live_status_global():
 
 def test_combo_live_status_sans_combo():
     assert A.combo_live_status({"home": "A", "away": "B"}, {}) is None
+
+
+def test_eval_tolere_valeurs_str():
+    # Unibet renvoie le score en chaîne ("1") -> ne doit PAS planter (str > float), coercition en int
+    info = {"metric": "goals", "side": None, "dir": "OVER", "line": 1.5,
+            "scope": "match", "live_ok": True}
+    assert A._eval_leg(info, {"goals_h": "1", "goals_a": "1"})[0] == "won"     # 1+1=2 > 1.5
+    assert A._eval_leg(info, {"goals_h": "1", "goals_a": "0"})[0] == "pending"  # 1 < 1.5
+    assert A._as_int("2") == 2 and A._as_int(3) == 3 and A._as_int(None) is None and A._as_int("x") is None
