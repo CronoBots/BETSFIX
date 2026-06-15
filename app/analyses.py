@@ -992,7 +992,9 @@ def combo_html(sport: str, match_id) -> str:
         st = lr or (ls if ls in ("won", "lost") else "")
         cls = (" da-cl-won" if st == "won" else " da-cl-lost" if st == "lost"
                else " da-cl-live" if ls == "pending" else "")
-        mark = ("✅" if st == "won" else "❌" if st == "lost" else "⏳" if ls == "pending" else "")
+        # En cours : PAS d'icône (le compteur cur/line + le badge d'en-tête « ● n/N en direct » suffisent) ;
+        # seules les jambes ACQUISES (✅) ou PERDUES (❌) portent une icône.
+        mark = ("✅" if st == "won" else "❌" if st == "lost" else "")
         mk = f'<span class="da-cl-mk">{mark}</span>' if mark else ""
         try:
             cote = f"{float(leg.get('cote')):.2f}"
