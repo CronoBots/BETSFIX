@@ -1464,14 +1464,19 @@ CSS = """
   .da-combo-b{font-size:10px;border-radius:5px;padding:1px 7px;font-weight:800}
   .da-combo-b.won{background:#34d27b;color:#04220f}
   .da-combo-b.lost{background:#ff6b6b;color:#2a0606}
-  .da-cl{font-size:11.5px;color:#dfe9f7;padding:4px 0;border-top:1px solid rgba(255,255,255,.06)}
+  .da-cl{display:flex;align-items:center;gap:8px;justify-content:space-between;
+       font-size:11.5px;color:#dfe9f7;padding:5px 0;border-top:1px solid rgba(255,255,255,.06)}
   .da-cl:first-of-type{border-top:0}
+  .da-cl-sel{flex:1 1 auto;min-width:0;line-height:1.3}     /* sélection : wrap propre à gauche */
+  .da-cl-meta{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .da-cl b{color:#fff;font-variant-numeric:tabular-nums}
+  .da-cl-mk{font-size:12px;line-height:1}
   .da-cl-won{color:#9be8bf}
-  .da-cl-lost{color:#ffb3b3;text-decoration:line-through;opacity:.8}
+  .da-cl-lost{color:#ffb3b3;opacity:.85}
+  .da-cl-lost .da-cl-sel{text-decoration:line-through}       /* barré : SEULEMENT le libellé */
   .da-cl-live{color:#ffd98a}
   .da-cl-p{font-variant-numeric:tabular-nums;font-size:10.5px;color:#9fb0c8;
-       background:rgba(255,255,255,.06);border-radius:5px;padding:0 5px;margin-left:2px}
+       background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
   .da-combo-live{border-left-color:#ffb020}
   .da-combo-b.live{background:#ffb020;color:#1a1200;animation:combopulse 1.6s ease-in-out infinite}
   @keyframes combopulse{0%,100%{opacity:1}50%{opacity:.55}}

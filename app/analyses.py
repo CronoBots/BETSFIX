@@ -988,18 +988,20 @@ def combo_html(sport: str, match_id) -> str:
             ll = live["legs"][i]
             ls = ll["status"]
             if ll.get("cur") is not None and ll.get("line") is not None:
-                prog = f' <span class="da-cl-p">{ll["cur"]:g}/{ll["line"]:g}</span>'
+                prog = f'<span class="da-cl-p">{ll["cur"]:g}/{ll["line"]:g}</span>'
         st = lr or (ls if ls in ("won", "lost") else "")
         cls = (" da-cl-won" if st == "won" else " da-cl-lost" if st == "lost"
                else " da-cl-live" if ls == "pending" else "")
-        mark = (" ✅" if st == "won" else " ❌" if st == "lost"
-                else " ⏳" if ls == "pending" else "")
+        mark = ("✅" if st == "won" else "❌" if st == "lost" else "⏳" if ls == "pending" else "")
+        mk = f'<span class="da-cl-mk">{mark}</span>' if mark else ""
         try:
             cote = f"{float(leg.get('cote')):.2f}"
         except (TypeError, ValueError):
             cote = "?"
-        rows.append(f'<div class="da-cl{cls}">{_h.escape(str(leg.get("sel", "")))} '
-                    f'<b>@{cote}</b>{prog}{mark}</div>')
+        # 2 colonnes : sélection (gauche, wrap propre) | bloc insécable cote · compteur · statut (droite)
+        rows.append(f'<div class="da-cl{cls}">'
+                    f'<span class="da-cl-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
+                    f'<span class="da-cl-meta"><b>@{cote}</b>{prog}{mk}</span></div>')
     # En-tête : résultat FINAL prioritaire ; sinon, en live, état du combiné (perdu dès qu'une jambe saute).
     lv = live["status"] if live else None
     hcls = (" da-combo-won" if res == "won" else " da-combo-lost" if res == "lost"
