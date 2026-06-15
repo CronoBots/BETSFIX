@@ -762,11 +762,11 @@ def bets_html(sport: str, match_id, compact: bool = False) -> str:
 # Le CODE d'une jambe (ex. « TEAMTOT HOME OVER 22.5 ») ne dit PAS sur quoi porte la ligne (buts ? tirs ?
 # tirs cadrés ?). La MÉTRIQUE se lit donc sur le TEXTE. Source UNIQUE pour le live ET le règlement final
 # -> les deux sont toujours d'accord. Marchés mi-temps / handicap / buteur = non verrouillables ici.
-_METRIC_STATS = {   # métrique -> (clé home, clé away) dans le dict de valeurs (live ou final)
-    "goals": ("goals_h", "goals_a"), "shots": ("shots_h", "shots_a"),
-    "sot": ("sot_h", "sot_a"), "corners": ("corners_h", "corners_a"),
-    "cards": ("cards_h", "cards_a"), "redcards": ("rc_h", "rc_a"),
+_METRIC_BASE = {   # métrique -> préfixe de clé dans le dict de valeurs (suffixe « _1h » pour la 1ère MT)
+    "goals": "goals", "shots": "shots", "sot": "sot",
+    "corners": "corners", "cards": "cards", "redcards": "rc",
 }
+_STATS_1H = {"shots", "sot", "corners", "cards", "redcards"}   # dispo en 1ère MT via df_st (PAS les buts)
 
 
 def _to_float(s):
@@ -846,8 +846,13 @@ def _leg_metric(leg: dict, home: str = "", away: str = "") -> dict:
         line = _to_float(mnum.group(1)) if mnum else None
     if side is None:
         side = _leg_side(sel, home, away)
-    live_ok = (metric in _METRIC_STATS and direction in ("OVER", "UNDER")
-               and line is not None and scope == "match" and not handicap)
+    base_ok = direction in ("OVER", "UNDER") and line is not None and not handicap
+    if scope == "match":
+        live_ok = base_ok and metric in _METRIC_BASE
+    elif scope == "1H":                                  # 1ère MT : seulement les métriques du df_st
+        live_ok = base_ok and metric in _STATS_1H
+    else:                                                # both / 2H : non couvert ici
+        live_ok = False
     return {"metric": metric, "side": side, "dir": direction, "line": line,
             "scope": scope, "handicap": handicap, "live_ok": live_ok}
 
@@ -859,8 +864,9 @@ def _eval_leg(info: dict, vals: dict, final: bool = False):
     la jambe n'est pas verrouillable ici ou si la valeur manque encore."""
     if not info or not info.get("live_ok"):
         return (None if final else "pending"), None
-    hk, ak = _METRIC_STATS[info["metric"]]
-    hv, av = vals.get(hk), vals.get(ak)
+    base = _METRIC_BASE[info["metric"]]
+    suffix = "_1h" if info.get("scope") == "1H" else ""    # 1ère MT -> clés *_1h du df_st
+    hv, av = vals.get(f"{base}_h{suffix}"), vals.get(f"{base}_a{suffix}")
     if hv is None or av is None:
         return (None if final else "pending"), None
     side = info.get("side")
@@ -922,10 +928,9 @@ def _combo_live_vals(d: dict) -> dict:
         except Exception:
             st = {}
         _COMBO_VALS_CACHE[key] = (now, st)
-    for k in ("corners_h", "corners_a", "cards_h", "cards_a", "rc_h", "rc_a",
-              "shots_h", "shots_a", "sot_h", "sot_a"):
-        if st.get(k) is not None:
-            vals[k] = st[k]
+    for k, v in (st or {}).items():            # corners_h, …, et les variantes 1ère MT (corners_h_1h…)
+        if v is not None:
+            vals[k] = v
     return vals
 
 

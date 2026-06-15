@@ -25,12 +25,27 @@ def test_metric_corners_cartons_rouge():
     assert _info("Total corners Plus de 7.5", "CORNERS OVER 7.5")["metric"] == "corners"
 
 
-def test_scope_mi_temps_non_verrouillable():
-    # 1ère mi-temps / deux mi-temps / handicap = pas verrouillables en live (live_ok False)
-    assert _info("Corners 1ère MT Plus de 2.5", "CORNERS OVER 2.5")["scope"] == "1H"
-    assert not _info("Corners 1ère MT Plus de 2.5", "CORNERS OVER 2.5")["live_ok"]
+def test_scope_1ere_mt_verrouillable_sur_stats():
+    # 1ère MT d'une métrique df_st (corners/cartons/tirs) = verrouillable via les stats 1ère mi-temps
+    i = _info("Corners 1ère MT Plus de 2.5", "CORNERS OVER 2.5")
+    assert i["scope"] == "1H" and i["live_ok"] and i["metric"] == "corners"
+
+
+def test_scope_non_verrouillable():
+    # 1ère MT en BUTS (pas dans df_st) / deux mi-temps / handicap = pas verrouillables (live_ok False)
+    assert not _info("Plus de 0.5 but en 1ère mi-temps", "")["live_ok"]   # buts 1H : pas de df_st
     assert _info("But dans les deux mi-temps Oui", "")["scope"] == "both"
+    assert not _info("But dans les deux mi-temps Oui", "")["live_ok"]
     assert not _info("Corners Handicap Allemagne +5", "")["live_ok"]
+
+
+def test_eval_1ere_mt_sur_cles_1h():
+    info = {"metric": "corners", "side": None, "dir": "OVER", "line": 2.5,
+            "scope": "1H", "live_ok": True}
+    # utilise corners_*_1h, PAS le total du match
+    assert A._eval_leg(info, {"corners_h_1h": 2, "corners_a_1h": 2, "corners_h": 9, "corners_a": 8})[0] == "won"
+    assert A._eval_leg(info, {"corners_h_1h": 1, "corners_a_1h": 1, "corners_h": 9, "corners_a": 8})[0] == "pending"
+    assert A._eval_leg(info, {"corners_h_1h": 1, "corners_a_1h": 1}, final=True)[0] == "lost"
 
 
 def test_metric_depuis_texte_seul():

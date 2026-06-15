@@ -387,42 +387,57 @@ def _agg_serve(ids_sides: list) -> dict | None:
     return out if (aces or dfs or first) else None
 
 
-def foot_match_stats(match_id: str) -> dict | None:
-    """Stats de match FOOT (depuis df_st) au format du règlement : {corners_h/a, yc_h/a, rc_h/a,
-    cards_h/a, shots_h/a (tirs), sot_h/a (tirs cadrés)}. Remplace SofaScore (bloqué) pour régler
-    cartons/corners/tirs. Se met aussi à jour EN COURS de match (validation live des combinés).
-    None si indisponible."""
-    st = statistics(match_id)
-    if not st:
-        return None
-
+def _foot_stat_section(sections: list, want: str, suffix: str = "") -> dict:
+    """Agrège les items corners/cartons/tirs d'un sous-ensemble de sections df_st (`want` = nom de
+    section recherché en minuscules, ex. « match » ou « 1st half »). `suffix` (« _1h ») distingue les
+    clés mi-temps. -> {corners_h{suffix}, yc_*, rc_*, sot_*, shots_*}."""
     def _num(v):
         m = re.search(r"\d+", str(v or ""))
         return int(m.group()) if m else None
 
+    s = suffix
     out: dict = {}
-    for sec in st.get("sections", []):
-        if (sec.get("name") or "").lower() not in ("match", "full time", ""):
+    for sec in sections:
+        nm_sec = (sec.get("name") or "").lower()
+        if want == "match":
+            if nm_sec not in ("match", "full time", ""):
+                continue
+        elif want not in nm_sec:                # « 1st half » présent dans le nom de section
             continue
         for cat in sec.get("categories", []):
             for it in cat.get("items", []):
                 nm = (it.get("name") or "").lower()
                 if "corner" in nm:
-                    out["corners_h"], out["corners_a"] = _num(it.get("home")), _num(it.get("away"))
+                    out[f"corners_h{s}"], out[f"corners_a{s}"] = _num(it.get("home")), _num(it.get("away"))
                 elif "yellow card" in nm:
-                    out["yc_h"], out["yc_a"] = _num(it.get("home")), _num(it.get("away"))
+                    out[f"yc_h{s}"], out[f"yc_a{s}"] = _num(it.get("home")), _num(it.get("away"))
                 elif "red card" in nm:
-                    out["rc_h"], out["rc_a"] = _num(it.get("home")), _num(it.get("away"))
+                    out[f"rc_h{s}"], out[f"rc_a{s}"] = _num(it.get("home")), _num(it.get("away"))
                 elif "on target" in nm or "on goal" in nm:        # tirs cadrés
-                    out["sot_h"], out["sot_a"] = _num(it.get("home")), _num(it.get("away"))
+                    out[f"sot_h{s}"], out[f"sot_a{s}"] = _num(it.get("home")), _num(it.get("away"))
                 elif "total shots" in nm or nm == "shots":         # tirs (total) — PAS « off target »
-                    out["shots_h"], out["shots_a"] = _num(it.get("home")), _num(it.get("away"))
+                    out[f"shots_h{s}"], out[f"shots_a{s}"] = _num(it.get("home")), _num(it.get("away"))
+    if out:                                     # cartons = jaunes + rouges (par portée)
+        out.setdefault(f"rc_h{s}", 0)
+        out.setdefault(f"rc_a{s}", 0)
+        out[f"cards_h{s}"] = (out.get(f"yc_h{s}") or 0) + out[f"rc_h{s}"]
+        out[f"cards_a{s}"] = (out.get(f"yc_a{s}") or 0) + out[f"rc_a{s}"]
+    return out
+
+
+def foot_match_stats(match_id: str) -> dict | None:
+    """Stats de match FOOT (depuis df_st) au format du règlement : {corners_h/a, yc_h/a, rc_h/a,
+    cards_h/a, shots_h/a (tirs), sot_h/a (tirs cadrés)} pour le MATCH, plus les mêmes en `*_1h`
+    pour la 1ère mi-temps (section « 1st Half » du df_st, dispo en cours/après la 1re période ->
+    valide les jambes « corners 1ère MT » etc.). Se met à jour EN COURS de match. None si indisponible."""
+    st = statistics(match_id)
+    if not st:
+        return None
+    secs = st.get("sections", [])
+    out = _foot_stat_section(secs, "match")
+    out.update(_foot_stat_section(secs, "1st half", "_1h"))   # 1ère MT (best-effort)
     if not out:
         return None
-    out.setdefault("rc_h", 0)
-    out.setdefault("rc_a", 0)
-    out["cards_h"] = (out.get("yc_h") or 0) + out["rc_h"]
-    out["cards_a"] = (out.get("yc_a") or 0) + out["rc_a"]
     return out
 
 

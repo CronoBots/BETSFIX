@@ -32,9 +32,9 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 16   # v16 : combinés réglés par MÉTRIQUE (buts/tirs/tirs cadrés/corners/cartons) via
-#                              analyses._leg_metric+_eval_leg (corrige tirs réglés comme des buts) +
-#                              cohérence avec la validation LIVE.
+_SETTLE_VERSION = 17   # v17 : jambes « 1ère mi-temps » réglées sur les stats 1ère MT du df_st (clés
+#                              *_1h), plus sur le total du match. v16 : combinés réglés par MÉTRIQUE
+#                              (buts/tirs/tirs cadrés/corners/cartons) via analyses._leg_metric+_eval_leg.
 
 
 # --------------------------------------------------------------- règlement (pur, depuis le score)
@@ -616,11 +616,8 @@ async def settle_analyses() -> int:
             # désormais (Flashscore), donc les combinés type Qatar-Suisse se valident.
             combo = d.get("combo")
             if combo and combo.get("legs"):
-                stats = score.get("stats") or {}
-                vals = {"goals_h": score.get("home"), "goals_a": score.get("away"),
-                        **{k: stats.get(k) for k in ("shots_h", "shots_a", "sot_h", "sot_a",
-                                                     "corners_h", "corners_a", "cards_h", "cards_a",
-                                                     "rc_h", "rc_a")}}
+                stats = score.get("stats") or {}    # corners/cartons/tirs MATCH + variantes 1ère MT (_1h)
+                vals = {"goals_h": score.get("home"), "goals_a": score.get("away"), **stats}
                 any_lost, all_won = False, True
                 for leg in combo["legs"]:
                     info = analyses._leg_metric(leg, d.get("home", ""), d.get("away", ""))
