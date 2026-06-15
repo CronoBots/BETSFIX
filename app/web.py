@@ -1469,6 +1469,12 @@ CSS = """
   .da-cl b{color:#fff;font-variant-numeric:tabular-nums}
   .da-cl-won{color:#9be8bf}
   .da-cl-lost{color:#ffb3b3;text-decoration:line-through;opacity:.8}
+  .da-cl-live{color:#ffd98a}
+  .da-cl-p{font-variant-numeric:tabular-nums;font-size:10.5px;color:#9fb0c8;
+       background:rgba(255,255,255,.06);border-radius:5px;padding:0 5px;margin-left:2px}
+  .da-combo-live{border-left-color:#ffb020}
+  .da-combo-b.live{background:#ffb020;color:#1a1200;animation:combopulse 1.6s ease-in-out infinite}
+  @keyframes combopulse{0%,100%{opacity:1}50%{opacity:.55}}
   .da-bets{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px;
        background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
   .da-bets th{background:var(--surface2);color:var(--muted);font-weight:700;text-align:left;

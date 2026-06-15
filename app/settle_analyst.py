@@ -32,7 +32,9 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 15   # v15 : règlement des COMBINÉS « grand tournoi » (jambe par jambe)
+_SETTLE_VERSION = 16   # v16 : combinés réglés par MÉTRIQUE (buts/tirs/tirs cadrés/corners/cartons) via
+#                              analyses._leg_metric+_eval_leg (corrige tirs réglés comme des buts) +
+#                              cohérence avec la validation LIVE.
 
 
 # --------------------------------------------------------------- règlement (pur, depuis le score)
@@ -570,8 +572,12 @@ async def settle_analyses() -> int:
             bet_codes = [code_from_pick(b["sel"], sport, d.get("home", ""), d.get("away", ""))
                          for b in bet_list]
             combo_codes = [leg.get("code", "") for leg in ((d.get("combo") or {}).get("legs") or [])]
-            if (any(c.startswith(("CARDS", "REDCARDS", "CORNERS")) for c in [code, *bet_codes, *combo_codes])
-                    and not score.get("stats")):
+            # Stats du match (corners/cartons/tirs) nécessaires si un code les vise OU si un combiné foot
+            # est présent (ses jambes tirs/tirs cadrés/corners/cartons se règlent sur les stats df_st).
+            need_stats = (any(c.startswith(("CARDS", "REDCARDS", "CORNERS"))
+                              for c in [code, *bet_codes, *combo_codes])
+                          or (sport == "foot" and (d.get("combo") or {}).get("legs")))
+            if need_stats and not score.get("stats"):
                 st = await _event_stats(sofa) if (sofa and len(sofa) <= 8) else None
                 if not st and sport == "foot":     # SofaScore bloqué -> repli GRATUIT Flashscore (df_st)
                     from app import flashscore
@@ -610,12 +616,21 @@ async def settle_analyses() -> int:
             # désormais (Flashscore), donc les combinés type Qatar-Suisse se valident.
             combo = d.get("combo")
             if combo and combo.get("legs"):
+                stats = score.get("stats") or {}
+                vals = {"goals_h": score.get("home"), "goals_a": score.get("away"),
+                        **{k: stats.get(k) for k in ("shots_h", "shots_a", "sot_h", "sot_a",
+                                                     "corners_h", "corners_a", "cards_h", "cards_a",
+                                                     "rc_h", "rc_a")}}
                 any_lost, all_won = False, True
                 for leg in combo["legs"]:
-                    lc = leg.get("code") or code_from_pick(leg.get("sel", ""), sport,
-                                                           d.get("home", ""), d.get("away", ""))
-                    leg["code"] = lc                 # re-dérive si vide (couverture code élargie)
-                    lr = await _settle_one(lc) if lc else None
+                    info = analyses._leg_metric(leg, d.get("home", ""), d.get("away", ""))
+                    if info.get("live_ok"):           # métrique connue, match entier -> évaluateur unique
+                        lr, _ = analyses._eval_leg(info, vals, final=True)
+                    else:                              # mi-temps / handicap / buteur -> ancien règlement code
+                        lc = leg.get("code") or code_from_pick(leg.get("sel", ""), sport,
+                                                               d.get("home", ""), d.get("away", ""))
+                        leg["code"] = lc
+                        lr = await _settle_one(lc) if lc else None
                     leg["result"] = lr
                     if lr == "lost":
                         any_lost = True

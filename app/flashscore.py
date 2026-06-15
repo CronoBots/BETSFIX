@@ -389,7 +389,9 @@ def _agg_serve(ids_sides: list) -> dict | None:
 
 def foot_match_stats(match_id: str) -> dict | None:
     """Stats de match FOOT (depuis df_st) au format du règlement : {corners_h/a, yc_h/a, rc_h/a,
-    cards_h/a}. Remplace SofaScore (bloqué) pour régler cartons/corners. None si indisponible."""
+    cards_h/a, shots_h/a (tirs), sot_h/a (tirs cadrés)}. Remplace SofaScore (bloqué) pour régler
+    cartons/corners/tirs. Se met aussi à jour EN COURS de match (validation live des combinés).
+    None si indisponible."""
     st = statistics(match_id)
     if not st:
         return None
@@ -411,6 +413,10 @@ def foot_match_stats(match_id: str) -> dict | None:
                     out["yc_h"], out["yc_a"] = _num(it.get("home")), _num(it.get("away"))
                 elif "red card" in nm:
                     out["rc_h"], out["rc_a"] = _num(it.get("home")), _num(it.get("away"))
+                elif "on target" in nm or "on goal" in nm:        # tirs cadrés
+                    out["sot_h"], out["sot_a"] = _num(it.get("home")), _num(it.get("away"))
+                elif "total shots" in nm or nm == "shots":         # tirs (total) — PAS « off target »
+                    out["shots_h"], out["shots_a"] = _num(it.get("home")), _num(it.get("away"))
     if not out:
         return None
     out.setdefault("rc_h", 0)

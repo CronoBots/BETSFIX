@@ -758,29 +758,228 @@ def bets_html(sport: str, match_id, compact: bool = False) -> str:
                        sport=sport, home=m.get("home", ""), away=m.get("away", ""))
 
 
+# ------------------------------------------------------------- combiné : métrique + statut par jambe
+# Le CODE d'une jambe (ex. « TEAMTOT HOME OVER 22.5 ») ne dit PAS sur quoi porte la ligne (buts ? tirs ?
+# tirs cadrés ?). La MÉTRIQUE se lit donc sur le TEXTE. Source UNIQUE pour le live ET le règlement final
+# -> les deux sont toujours d'accord. Marchés mi-temps / handicap / buteur = non verrouillables ici.
+_METRIC_STATS = {   # métrique -> (clé home, clé away) dans le dict de valeurs (live ou final)
+    "goals": ("goals_h", "goals_a"), "shots": ("shots_h", "shots_a"),
+    "sot": ("sot_h", "sot_a"), "corners": ("corners_h", "corners_a"),
+    "cards": ("cards_h", "cards_a"), "redcards": ("rc_h", "rc_a"),
+}
+
+
+def _to_float(s):
+    try:
+        return float(str(s).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+
+def _leg_side(text: str, home: str, away: str) -> str | None:
+    """HOME / AWAY / None selon l'équipe nommée dans `text` (jetons distinctifs, jetons communs ignorés)."""
+    names = lambda s: [w for w in re.findall(r"[a-zà-ÿ]+", (s or "").lower()) if len(w) >= 4]
+    h_all, a_all = names(home), names(away)
+    shared = set(h_all) & set(a_all)
+    h = [w for w in h_all if w not in shared] or h_all
+    a = [w for w in a_all if w not in shared] or a_all
+    t = (text or "").lower()
+    hin, ain = any(w in t for w in h), any(w in t for w in a)
+    return "HOME" if (hin and not ain) else ("AWAY" if (ain and not hin) else None)
+
+
+def _leg_metric(leg: dict, home: str = "", away: str = "") -> dict:
+    """Décrit une jambe pour l'évaluation : {metric, side, dir, line, scope, live_ok}. `live_ok` = la
+    jambe se valide sur un simple compteur (métrique connue, sur le match entier) -> verrouillable au
+    fil du jeu ET réglable proprement. Sinon (mi-temps, handicap, buteur, ligne illisible) : laissée à
+    l'ancien règlement par code (`live_ok=False`)."""
+    sel = leg.get("sel") or ""
+    t = sel.lower()
+    code = (leg.get("code") or "").upper()
+    if "carton rouge" in t or ("rouge" in t and "carton" in t):
+        metric = "redcards"
+    elif "carton" in t or "card" in t:
+        metric = "cards"
+    elif "corner" in t:
+        metric = "corners"
+    elif "cadré" in t or "cadre" in t or "on target" in t:
+        metric = "sot"
+    elif "buteur" in t or "premier but" in t:
+        metric = "special"
+    elif "tir" in t or "shot" in t:
+        metric = "shots"
+    elif "but" in t or "goal" in t:
+        metric = "goals"
+    else:
+        metric = "special"
+    if "deux mi-temps" in t or "2 mi-temps" in t or "both halves" in t:
+        scope = "both"
+    elif any(k in t for k in ("1ère mi", "1re mi", "1ere mi", "première mi", "mt1", "1ère mt",
+                              "1re mt", "1st half", "1ère période", "1ere periode")):
+        scope = "1H"
+    elif any(k in t for k in ("2ème mi", "2eme mi", "2nde mi", "seconde mi", "2e mi", "2nd half")):
+        scope = "2H"
+    else:
+        scope = "match"
+    handicap = "handicap" in t
+    side = direction = line = None
+    parts = code.split()
+    if parts:
+        k = parts[0]
+        if k in ("OVER", "UNDER") and len(parts) >= 2:
+            direction, line = k, _to_float(parts[1])
+        elif k == "TEAMTOT" and len(parts) >= 4:
+            side, direction, line = parts[1], parts[2], _to_float(parts[3])
+        elif k in ("CARDS", "REDCARDS", "CORNERS"):
+            rest = parts[1:]
+            if rest and rest[0] in ("HOME", "AWAY"):
+                side = rest.pop(0)
+            if len(rest) >= 2 and rest[0] in ("OVER", "UNDER"):
+                direction, line = rest[0], _to_float(rest[1])
+    if direction is None:
+        if "moins" in t or "under" in t:
+            direction = "UNDER"
+        elif "plus" in t or "over" in t or "+" in t:
+            direction = "OVER"
+    if line is None:
+        mnum = re.search(r"(\d+(?:[.,]\d+)?)", t)
+        line = _to_float(mnum.group(1)) if mnum else None
+    if side is None:
+        side = _leg_side(sel, home, away)
+    live_ok = (metric in _METRIC_STATS and direction in ("OVER", "UNDER")
+               and line is not None and scope == "match" and not handicap)
+    return {"metric": metric, "side": side, "dir": direction, "line": line,
+            "scope": scope, "handicap": handicap, "live_ok": live_ok}
+
+
+def _eval_leg(info: dict, vals: dict, final: bool = False):
+    """(statut, valeur_courante) d'une jambe. statut = 'won'/'lost'/'pending' (live) ou
+    'won'/'lost'/'push'/None (final). `vals` = compteurs {goals_h, sot_a, corners_h, …}. Logique de
+    verrouillage : Plus de X -> gagné dès cur > X ; Moins de X -> perdu dès cur > X. None/pending si
+    la jambe n'est pas verrouillable ici ou si la valeur manque encore."""
+    if not info or not info.get("live_ok"):
+        return (None if final else "pending"), None
+    hk, ak = _METRIC_STATS[info["metric"]]
+    hv, av = vals.get(hk), vals.get(ak)
+    if hv is None or av is None:
+        return (None if final else "pending"), None
+    side = info.get("side")
+    cur = hv if side == "HOME" else (av if side == "AWAY" else hv + av)
+    line, over = info["line"], info["dir"] == "OVER"
+    if cur > line:
+        return ("won" if over else "lost"), cur
+    if cur < line:
+        return (("lost" if over else "won") if final else "pending"), cur
+    return ("push" if final else "pending"), cur            # cur == line
+
+
+def combo_live_status(d: dict, vals: dict) -> dict | None:
+    """Statut LIVE d'un combiné : par jambe (won/lost/pending + valeur courante) et global. Le combiné
+    est PERDU dès qu'UNE jambe saute, GAGNÉ quand TOUTES sont acquises, sinon en cours. None si pas de
+    combiné."""
+    combo = (d or {}).get("combo")
+    if not combo or not combo.get("legs"):
+        return None
+    home, away = d.get("home", ""), d.get("away", "")
+    legs, any_lost, n_won = [], False, 0
+    for leg in combo["legs"]:
+        info = _leg_metric(leg, home, away)
+        status, cur = _eval_leg(info, vals, final=False)
+        legs.append({"sel": leg.get("sel", ""), "cote": leg.get("cote"), "status": status,
+                     "cur": cur, "line": info.get("line")})
+        if status == "won":
+            n_won += 1
+        elif status == "lost":
+            any_lost = True
+    overall = "lost" if any_lost else ("won" if n_won == len(legs) else "pending")
+    return {"legs": legs, "status": overall, "n_won": n_won, "n": len(legs)}
+
+
+_COMBO_VALS_CACHE: dict = {}    # clé match -> (ts, stats Flashscore)
+
+
+def _combo_live_vals(d: dict) -> dict:
+    """Valeurs LIVE d'un match foot en cours : {goals_h/a (Unibet, déjà en cache, sans réseau),
+    shots_h/a, sot_h/a, corners_h/a, cards_h/a, rc_h/a (Flashscore df_st, caché ~40 s)}."""
+    from app import match_select, flashscore   # imports locaux (évite les cycles au chargement)
+    home, away = d.get("home", ""), d.get("away", "")
+    vals: dict = {}
+    try:
+        ld = match_select.live_state_for(d.get("sport", "foot"), home, away) or {}
+        sc = ld.get("score") or {}
+        if sc.get("home") is not None and sc.get("away") is not None:
+            vals["goals_h"], vals["goals_a"] = sc.get("home"), sc.get("away")
+    except Exception:
+        pass
+    key = f"{home}|{away}"
+    now = time.time()
+    hit = _COMBO_VALS_CACHE.get(key)
+    if hit and now - hit[0] < 40:
+        st = hit[1]
+    else:
+        try:
+            st = flashscore.foot_match_stats_by_names(home, away, d.get("start")) or {}
+        except Exception:
+            st = {}
+        _COMBO_VALS_CACHE[key] = (now, st)
+    for k in ("corners_h", "corners_a", "cards_h", "cards_a", "rc_h", "rc_a",
+              "shots_h", "shots_a", "sot_h", "sot_a"):
+        if st.get(k) is not None:
+            vals[k] = st[k]
+    return vals
+
+
 def combo_html(sport: str, match_id) -> str:
     """Cadre « 🎲 Combiné » (grand tournoi) d'un match, depuis le sidecar `combo`. Chaque jambe + cote,
-    cote combinée, et résultat réglé (par jambe + global) si présent. '' si pas de combiné."""
+    cote combinée, et résultat réglé (par jambe + global) si présent. EN COURS de match : statut live
+    par jambe (✅ acquise / ❌ perdue / ⏳ en cours + compteur). '' si pas de combiné."""
     import html as _h
     m = meta(sport, match_id) or {}
     combo = m.get("combo")
     if not combo or not combo.get("legs"):
         return ""
-    res = combo.get("result")            # 'won'/'lost'/None (global, posé au règlement)
+    res = combo.get("result")            # 'won'/'lost'/None (global, posé au règlement post-match)
+    # EN COURS de match et pas encore réglé : on calcule le statut LIVE par jambe (best-effort).
+    live = None
+    if res is None and status_of(m) == "inprogress":
+        try:
+            live = combo_live_status(m, _combo_live_vals(m))
+        except Exception:
+            live = None
     rows = []
-    for leg in combo["legs"]:
-        lr = leg.get("result")
-        cls = " da-cl-won" if lr == "won" else (" da-cl-lost" if lr == "lost" else "")
-        mark = " ✅" if lr == "won" else (" ❌" if lr == "lost" else "")
+    for i, leg in enumerate(combo["legs"]):
+        lr = leg.get("result")                       # résultat FINAL réglé (post-match) s'il existe
+        ls = prog = ""
+        if lr is None and live:                      # sinon, statut live
+            ll = live["legs"][i]
+            ls = ll["status"]
+            if ll.get("cur") is not None and ll.get("line") is not None:
+                prog = f' <span class="da-cl-p">{ll["cur"]:g}/{ll["line"]:g}</span>'
+        st = lr or (ls if ls in ("won", "lost") else "")
+        cls = (" da-cl-won" if st == "won" else " da-cl-lost" if st == "lost"
+               else " da-cl-live" if ls == "pending" else "")
+        mark = (" ✅" if st == "won" else " ❌" if st == "lost"
+                else " ⏳" if ls == "pending" else "")
         try:
             cote = f"{float(leg.get('cote')):.2f}"
         except (TypeError, ValueError):
             cote = "?"
         rows.append(f'<div class="da-cl{cls}">{_h.escape(str(leg.get("sel", "")))} '
-                    f'<b>@{cote}</b>{mark}</div>')
-    hcls = " da-combo-won" if res == "won" else (" da-combo-lost" if res == "lost" else "")
-    badge = (' <span class="da-combo-b won">GAGNÉ</span>' if res == "won"
-             else ' <span class="da-combo-b lost">PERDU</span>' if res == "lost" else "")
+                    f'<b>@{cote}</b>{prog}{mark}</div>')
+    # En-tête : résultat FINAL prioritaire ; sinon, en live, état du combiné (perdu dès qu'une jambe saute).
+    lv = live["status"] if live else None
+    hcls = (" da-combo-won" if res == "won" else " da-combo-lost" if res == "lost"
+            else " da-combo-lost" if lv == "lost" else " da-combo-live" if live else "")
+    if res == "won":
+        badge = ' <span class="da-combo-b won">GAGNÉ</span>'
+    elif res == "lost":
+        badge = ' <span class="da-combo-b lost">PERDU</span>'
+    elif lv == "lost":
+        badge = ' <span class="da-combo-b lost">PERDU (live)</span>'
+    elif live:
+        badge = f' <span class="da-combo-b live">● {live["n_won"]}/{live["n"]} en direct</span>'
+    else:
+        badge = ""
     try:
         total = f"{float(combo.get('total')):.2f}"
     except (TypeError, ValueError):
