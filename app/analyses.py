@@ -1191,6 +1191,8 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
+        if d.get("combo"):           # match à combiné : le combiné REMPLACE les paris simples (et n'a
+            continue                 # pas de proba unique à calibrer) -> on n'inclut pas ses paris.
         stored = d.get("bets") or []
         if not stored:
             continue
@@ -1257,6 +1259,8 @@ def bet_detail(sport: str | None = None, pari: int | None = None,
                 dt = None
             if dt is None or dt < cutoff:
                 continue
+        if d.get("combo"):           # combiné = remplace les paris simples -> non listés ici non plus
+            continue
         for i, b in enumerate(d.get("bets") or []):
             if i >= len(_BET_KEYS) or (pari is not None and i != pari):
                 continue
@@ -1301,6 +1305,8 @@ def perf_breakdown(since_days: int | None = None) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
+        if d.get("combo"):           # combiné = remplace les paris simples -> hors perf par marché
+            continue
         for i, b in enumerate(d.get("bets") or []):
             if i >= len(_BET_KEYS):
                 break
