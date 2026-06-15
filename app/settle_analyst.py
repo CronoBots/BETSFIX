@@ -32,9 +32,9 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 18   # v18 : « but dans les deux mi-temps » réglé via les buts par mi-temps (df_su) +
+_SETTLE_VERSION = 19   # v19 : jambes HANDICAP (corners/cartons/tirs) réglées sur le différentiel (marge).
+#                              v18 : « but dans les deux mi-temps » via les buts par mi-temps (df_su) +
 #                              re-règlement des combinés au verdict incomplet (combo_tries, 8 essais).
-#                              v17 : jambes « 1ère mi-temps » sur les stats 1ère MT (clés *_1h).
 
 
 # --------------------------------------------------------------- règlement (pur, depuis le score)

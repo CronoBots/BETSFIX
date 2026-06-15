@@ -32,9 +32,10 @@ def test_scope_1ere_mt_verrouillable_sur_stats():
 
 
 def test_scope_non_verrouillable():
-    # 1ère MT en BUTS (pas dans df_st) / handicap = pas verrouillables (live_ok False)
+    # 1ère MT en BUTS (pas dans df_st) = pas suivable (live_ok False)
     assert not _info("Plus de 0.5 but en 1ère mi-temps", "")["live_ok"]   # buts 1H : pas de df_st
-    assert not _info("Corners Handicap Allemagne +5", "")["live_ok"]
+    # handicap en 1ère MT = hors périmètre (on ne suit le handicap que sur le match entier)
+    assert not _info("Corners Handicap Allemagne 1ère mi-temps +3", "")["live_ok"]
 
 
 def test_eval_1ere_mt_sur_cles_1h():
@@ -109,6 +110,21 @@ def test_bothhalves_metric_et_reglement():
     assert A._eval_leg(i, {"goals_1h_total": 0, "goals_2h_total": 2}, final=True)[0] == "lost"
     # 1ère MT en cours 0-0 (pas de 2e MT) -> en cours, pas verrouillé
     assert A._eval_leg(i, {"goals_1h_total": 0})[0] == "pending"
+
+
+def test_handicap_corners_suivi_et_reglement():
+    i = _info("Corners Handicap Allemagne +5", "")
+    assert i["dir"] == "HCAP" and i["side"] == "HOME" and i["line"] == 5.0 and i["live_ok"]
+    # marge = (corners home + 5) - corners away ; live -> en cours, mais marge renvoyée
+    s, m = A._eval_leg(i, {"corners_h": 2, "corners_a": 6})
+    assert s == "pending" and m == 1          # 2+5-6 = 1
+    # au final : marge > 0 -> gagné ; marge < 0 -> perdu
+    assert A._eval_leg(i, {"corners_h": 2, "corners_a": 6}, final=True)[0] == "won"
+    assert A._eval_leg(i, {"corners_h": 0, "corners_a": 6}, final=True)[0] == "lost"   # 0+5-6=-1
+    # handicap côté AWAY
+    j = _info("Corners Handicap Curaçao -3", "")
+    assert j["side"] == "AWAY" and j["line"] == -3.0
+    assert A._eval_leg(j, {"corners_h": 2, "corners_a": 6}, final=True)[0] == "won"    # 6-3-2=1
 
 
 def test_eval_tolere_valeurs_str():

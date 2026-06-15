@@ -863,6 +863,13 @@ def _leg_metric(leg: dict, home: str = "", away: str = "") -> dict:
     if scope == "both" and metric == "goals":
         return {"metric": "bothhalves", "side": None, "dir": None, "line": None,
                 "scope": "both", "handicap": False, "yes": "non" not in t, "live_ok": True}
+    # Handicap (corners/cartons/tirs) : réglé sur le DIFFÉRENTIEL d'une équipe (mien + ligne signée vs
+    # autre). Suivable en live (marge courante). Ligne signée « +5 » / « -5 » lue ici (pas de plus/moins).
+    if handicap and metric in _METRIC_BASE:
+        mh = re.search(r"([+\-−])\s*(\d+(?:[.,]\d+)?)", t)
+        hline = (-1 if (mh and mh.group(1) in "-−") else 1) * _to_float(mh.group(2)) if mh else None
+        return {"metric": metric, "side": side, "dir": "HCAP", "line": hline, "scope": scope,
+                "handicap": True, "live_ok": bool(side and hline is not None and scope == "match")}
     base_ok = direction in ("OVER", "UNDER") and line is not None and not handicap
     if scope == "match":
         live_ok = base_ok and metric in _METRIC_BASE
@@ -881,6 +888,17 @@ def _eval_leg(info: dict, vals: dict, final: bool = False):
     la jambe n'est pas verrouillable ici ou si la valeur manque encore."""
     if not info or not info.get("live_ok"):
         return (None if final else "pending"), None
+    if info.get("dir") == "HCAP":                          # handicap : marge = (mien + ligne) − autre
+        base = _METRIC_BASE.get(info["metric"])
+        suffix = "_1h" if info.get("scope") == "1H" else ""
+        hv, av = _as_int(vals.get(f"{base}_h{suffix}")), _as_int(vals.get(f"{base}_a{suffix}"))
+        if hv is None or av is None or base is None:
+            return (None if final else "pending"), None
+        mine, other = (hv, av) if info.get("side") == "HOME" else (av, hv)
+        margin = mine + info["line"] - other
+        if not final:                                      # la marge peut encore bouger -> en cours
+            return "pending", margin
+        return ("won" if margin > 0 else "lost" if margin < 0 else "push"), margin
     if info["metric"] == "bothhalves":                     # « but dans les deux mi-temps » (Oui/Non)
         g1, g2 = _as_int(vals.get("goals_1h_total")), _as_int(vals.get("goals_2h_total"))
         yes = info.get("yes", True)
@@ -919,8 +937,16 @@ def combo_live_status(d: dict, vals: dict) -> dict | None:
     for leg in combo["legs"]:
         info = _leg_metric(leg, home, away)
         status, cur = _eval_leg(info, vals, final=False)
+        if cur is None:                                    # rien à afficher (jambe non suivable / sans valeur)
+            disp = ""
+        elif info.get("dir") == "HCAP":                    # handicap -> marge signée (ex. « +1 »)
+            disp = f"{cur:+g}"
+        elif info.get("line") is not None:                 # over/under -> compteur « courant/seuil »
+            disp = f"{cur:g}/{info['line']:g}"
+        else:
+            disp = f"{cur:g}"
         legs.append({"sel": leg.get("sel", ""), "cote": leg.get("cote"), "status": status,
-                     "cur": cur, "line": info.get("line")})
+                     "cur": cur, "line": info.get("line"), "disp": disp})
         if status == "won":
             n_won += 1
         elif status == "lost":
@@ -987,8 +1013,8 @@ def combo_html(sport: str, match_id) -> str:
         if lr is None and live:                      # sinon, statut live
             ll = live["legs"][i]
             ls = ll["status"]
-            if ll.get("cur") is not None and ll.get("line") is not None:
-                prog = f'<span class="da-cl-p">{ll["cur"]:g}/{ll["line"]:g}</span>'
+            if ll.get("disp"):                       # compteur courant/seuil (ou marge handicap)
+                prog = f'<span class="da-cl-p">{ll["disp"]}</span>'
         st = lr or (ls if ls in ("won", "lost") else "")
         cls = (" da-cl-won" if st == "won" else " da-cl-lost" if st == "lost"
                else " da-cl-live" if ls == "pending" else "")
