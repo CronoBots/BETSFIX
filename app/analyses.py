@@ -852,16 +852,23 @@ def _leg_metric(leg: dict, home: str = "", away: str = "") -> dict:
         elif "plus" in t or "over" in t or "+" in t:
             direction = "OVER"
     if line is None:
-        mnum = re.search(r"(\d+(?:[.,]\d+)?)", t)
+        # la LIGNE suit « plus/moins de X » ou « +/-X » — NE PAS attraper le « 1 » de « 1ère mi-temps »
+        # ni le « 2 » de « 2ème », etc. (sinon ligne fausse sur les marchés mi-temps à code vide).
+        mnum = re.search(r"(?:plus|moins|over|under)\s+(?:de\s+)?(\d+(?:[.,]\d+)?)", t)
         line = _to_float(mnum.group(1)) if mnum else None
     if side is None:
         side = _leg_side(sel, home, away)
+    # « But dans les deux mi-temps Oui/Non » : marché OUI/NON (pas une ligne) -> métrique dédiée,
+    # réglée sur les buts PAR mi-temps (un but dans CHAQUE période). Réglable au final (df_su).
+    if scope == "both" and metric == "goals":
+        return {"metric": "bothhalves", "side": None, "dir": None, "line": None,
+                "scope": "both", "handicap": False, "yes": "non" not in t, "live_ok": True}
     base_ok = direction in ("OVER", "UNDER") and line is not None and not handicap
     if scope == "match":
         live_ok = base_ok and metric in _METRIC_BASE
     elif scope == "1H":                                  # 1ère MT : seulement les métriques du df_st
         live_ok = base_ok and metric in _STATS_1H
-    else:                                                # both / 2H : non couvert ici
+    else:                                                # 2H : non couvert ici
         live_ok = False
     return {"metric": metric, "side": side, "dir": direction, "line": line,
             "scope": scope, "handicap": handicap, "live_ok": live_ok}
@@ -874,6 +881,17 @@ def _eval_leg(info: dict, vals: dict, final: bool = False):
     la jambe n'est pas verrouillable ici ou si la valeur manque encore."""
     if not info or not info.get("live_ok"):
         return (None if final else "pending"), None
+    if info["metric"] == "bothhalves":                     # « but dans les deux mi-temps » (Oui/Non)
+        g1, g2 = _as_int(vals.get("goals_1h_total")), _as_int(vals.get("goals_2h_total"))
+        yes = info.get("yes", True)
+        if (final or g2 is not None) and g1 == 0:          # 1ère MT FINIE sans but -> « Oui » impossible
+            return ("lost" if yes else "won"), None        # (verrouillé : 2e MT entamée ou match fini)
+        if not final:
+            return "pending", None                         # « Oui » ne se confirme qu'au coup de sifflet
+        if g1 is None or g2 is None:
+            return None, None                              # données mi-temps absentes -> non réglable ici
+        both = g1 > 0 and g2 > 0
+        return ("won" if (both == yes) else "lost"), None
     base = _METRIC_BASE[info["metric"]]
     suffix = "_1h" if info.get("scope") == "1H" else ""    # 1ère MT -> clés *_1h du df_st
     hv, av = _as_int(vals.get(f"{base}_h{suffix}")), _as_int(vals.get(f"{base}_a{suffix}"))

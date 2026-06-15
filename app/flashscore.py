@@ -208,6 +208,12 @@ def score(match_id: str) -> dict | None:
             "duration": first.get("RB"), "winner": ("home" if hs > as_ else "away" if as_ > hs else None)}
 
 
+def _n(v):
+    """1er entier trouvé dans `v` (str/None) -> int, sinon None."""
+    m = re.search(r"-?\d+", str(v or ""))
+    return int(m.group()) if m else None
+
+
 def periods(match_id: str) -> dict | None:
     """Score par PÉRIODE d'un match foot (depuis `df_su`) : {periods:[{name,home,away}], home, away}.
     Format Flashscore foot : `AC÷1st Half IG÷1 IH÷0`. None si indisponible."""
@@ -436,6 +442,15 @@ def foot_match_stats(match_id: str) -> dict | None:
     secs = st.get("sections", [])
     out = _foot_stat_section(secs, "match")
     out.update(_foot_stat_section(secs, "1st half", "_1h"))   # 1ère MT (best-effort)
+    pr = periods(match_id)                                    # buts par mi-temps (df_su) -> « buts 2 MT »
+    if pr:
+        for per in pr.get("periods", []):
+            nm = (per.get("name") or "").lower()
+            g = (_n(per.get("home")) or 0) + (_n(per.get("away")) or 0)
+            if "1st" in nm:
+                out["goals_1h_total"] = g
+            elif "2nd" in nm:
+                out["goals_2h_total"] = g
     if not out:
         return None
     return out

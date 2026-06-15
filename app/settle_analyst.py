@@ -32,9 +32,9 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 17   # v17 : jambes « 1ère mi-temps » réglées sur les stats 1ère MT du df_st (clés
-#                              *_1h), plus sur le total du match. v16 : combinés réglés par MÉTRIQUE
-#                              (buts/tirs/tirs cadrés/corners/cartons) via analyses._leg_metric+_eval_leg.
+_SETTLE_VERSION = 18   # v18 : « but dans les deux mi-temps » réglé via les buts par mi-temps (df_su) +
+#                              re-règlement des combinés au verdict incomplet (combo_tries, 8 essais).
+#                              v17 : jambes « 1ère mi-temps » sur les stats 1ère MT (clés *_1h).
 
 
 # --------------------------------------------------------------- règlement (pur, depuis le score)
@@ -509,9 +509,14 @@ async def settle_analyses() -> int:
         # On retente le backfill des votes tant que le public manque (borné à 3 essais : la résolution
         # de l'id SofaScore par noms peut échouer si SofaScore est temporairement bloqué).
         votes_pending = (d.get("pub_home") is None and (d.get("votes_tries") or 0) < 3)
+        # Combiné dont le verdict GLOBAL manque encore (jambes réglées au compte-gouttes : stats df_st
+        # parfois en retard sur la fin du match) -> on retente jusqu'à 8 fois pour le compléter.
+        cmb = d.get("combo") or {}
+        combo_pending = (bool(cmb.get("legs")) and cmb.get("result") is None
+                         and (d.get("combo_tries") or 0) < 8)
         if (res and res.get("pick_result") is not None
                 and d.get("settle_v") == _SETTLE_VERSION
-                and not votes_pending):
+                and not votes_pending and not combo_pending):
             continue
         # On tente le règlement dès que le match est PROBABLEMENT fini (`likely_finished`), pas seulement
         # à la fin de la fenêtre `status_of` (souvent trop longue, ex. tennis 210 min) : SofaScore
@@ -577,14 +582,19 @@ async def settle_analyses() -> int:
             need_stats = (any(c.startswith(("CARDS", "REDCARDS", "CORNERS"))
                               for c in [code, *bet_codes, *combo_codes])
                           or (sport == "foot" and (d.get("combo") or {}).get("legs")))
-            if need_stats and not score.get("stats"):
+            # Combiné foot au verdict incomplet -> on REFETCH les stats même si le cache `result.raw`
+            # en a déjà : elles peuvent être PARTIELLES (df_st en retard à la fin du match, sans les
+            # tirs/1ère MT) et bloquer le règlement des jambes correspondantes.
+            cmb_inc = (sport == "foot" and (d.get("combo") or {}).get("result") is None
+                       and any(l.get("result") is None for l in (d.get("combo") or {}).get("legs") or []))
+            if need_stats and (not score.get("stats") or cmb_inc):
                 st = await _event_stats(sofa) if (sofa and len(sofa) <= 8) else None
                 if not st and sport == "foot":     # SofaScore bloqué -> repli GRATUIT Flashscore (df_st)
                     from app import flashscore
                     st = await asyncio.to_thread(flashscore.foot_match_stats_by_names,
                                                  d.get("home", ""), d.get("away", ""), d.get("start"))
                 if st:
-                    score["stats"] = st
+                    score["stats"] = {**(score.get("stats") or {}), **st}   # complète sans rien perdre
 
             async def _settle_one(c):
                 if not c:
@@ -634,6 +644,8 @@ async def settle_analyses() -> int:
                     if lr != "won":
                         all_won = False
                 combo["result"] = "lost" if any_lost else ("won" if all_won else None)
+                if combo["result"] is None:               # verdict encore incomplet -> compte l'essai
+                    d["combo_tries"] = (d.get("combo_tries") or 0) + 1
             d["settle_v"] = _SETTLE_VERSION
             # Backfill du sentiment public (barre « Public ») si le scan ne l'a pas capturé (SofaScore
             # bloqué au scan) -> FIGÉ une fois dans le sidecar, ne bouge plus ensuite. Si le sofa_id
