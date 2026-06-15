@@ -491,7 +491,11 @@ _MIN_CONF = 65   # seuil de confiance MINI pour recommander (calibration réelle
 #                  est sur-confiant et perd ; à partir de 65 % il est fiable). Pas de repli en-dessous.
 
 
-def _recommend(data: list, ok: set | None = None, cprobs: list | None = None) -> dict:
+_BAD_MARKETS = {"Total +/-", "Total équipe"}   # ROI mesuré -16% / -30% (n≥25) -> hors recommandation ⭐
+
+
+def _recommend(data: list, ok: set | None = None, cprobs: list | None = None,
+               codes: list | None = None) -> dict:
     """Choisit LE pari à jouer pour faire grimper le portefeuille : meilleure VALUE (EV = proba×cote−1)
     parmi les paris VRAIMENT fiables (proba ≥ 65 %, cf. _MIN_CONF — calibré sur l'historique). Joue si
     EV ≥ +3 %, sinon SKIP. `stake_pct` = mise conseillée en % de bankroll (¼ Kelly plafonné à 3 %).
@@ -504,11 +508,17 @@ def _recommend(data: list, ok: set | None = None, cprobs: list | None = None) ->
     scored = [(i, _cp(i, b) / 100 * b["cote"] - 1, _cp(i, b))
               for i, b in enumerate(data)
               if b.get("prob") and b.get("cote") and (ok is None or i in ok)]
-    # Confiance ≥ 65 % EXIGÉE (sinon on s'abstient). GARDE-FOU cotes moyennes (mesuré 2026-06-12,
-    # n=23 réglés : cote 1.70-2.20 -> 39 % de réussite réelle, ROI -28 % = LA zone qui saigne) :
-    # à cote ≥ 1.70, on exige 70 % de confiance recalibrée, pas 65.
+    # Confiance ≥ 65 % EXIGÉE (sinon on s'abstient). GARDE-FOUS mesurés (perf_breakdown 2026-06-15) :
+    #  • cote 1.70-2.00 = ROI -32 % -> on exige 72 % de confiance recalibrée dans cette zone ;
+    #  • cote ≥ 2.00 = ROI -13 % -> exclue de la reco (les grosses cotes saignent) ;
+    #  • marchés « Total +/- » (-16 %) et « Total équipe » (-30 %) -> exclus (`_BAD_MARKETS`).
+    def _mk(i):
+        return market_of(codes[i]) if (codes and i < len(codes) and codes[i]) else None
     pool = [s for s in scored
-            if s[2] >= _MIN_CONF and ((data[s[0]].get("cote") or 0) < 1.70 or s[2] >= 70)]
+            if s[2] >= _MIN_CONF
+            and (data[s[0]].get("cote") or 0) < 2.00
+            and ((data[s[0]].get("cote") or 0) < 1.70 or s[2] >= 72)
+            and _mk(s[0]) not in _BAD_MARKETS]
     if not pool:
         return {"idx": None, "verdict": "skip", "ev": None, "stake_pct": 0.0}
     i, ev, _prob = max(pool, key=lambda s: s[1])
@@ -645,12 +655,15 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
     if not data:
         return ""
     results = results or {}
-    cprobs = None        # confiances RECALIBRÉES (boucle de feedback) -> décision « à jouer » honnête
+    cprobs = codes = ok = None    # confiances RECALIBRÉES + codes + indices réglables (≈ card_summary)
     if sport:
         from app.settle_analyst import code_from_pick
-        cprobs = [calibrated_conf(b.get("prob"), sport,
-                                  code_from_pick(b.get("sel", ""), sport, home, away)) for b in data]
-    reco = _recommend(data, cprobs=cprobs)
+        ex_sports, ex_markets = auto_exclusions()
+        codes = [code_from_pick(b.get("sel", ""), sport, home, away) for b in data]
+        cprobs = [calibrated_conf(b.get("prob"), sport, codes[i]) for i, b in enumerate(data)]
+        ok = set() if sport in ex_sports else {
+            i for i, c in enumerate(codes) if c and market_of(c) not in ex_markets}
+    reco = _recommend(data, ok=ok, cprobs=cprobs, codes=codes)
     note_by_idx = _assign_notes([b["sel"] for b in data], notes)   # commentaire Verdict -> bon pari
     cards = []
     # Sûreté en PASTILLE TEXTE (≠ étoiles, réservées au pari retenu ⭐) : élevée/moyenne/faible.
@@ -1109,13 +1122,14 @@ def card_summary(sport: str, match_id) -> dict:
         if sport in ex_sports:
             reco = {"verdict": "skip", "idx": None, "ev": None}
         else:
-            ok, cprobs = set(), []
+            ok, cprobs, codes = set(), [], []
             for i, b in enumerate(bets):
                 code = code_from_pick(b.get("sel", ""), sport, m.get("home", ""), m.get("away", ""))
+                codes.append(code)
                 cprobs.append(calibrated_conf(b.get("prob"), sport, code))   # confiance recalibrée
                 if code and market_of(code) not in ex_markets:
                     ok.add(i)
-            reco = _recommend(bets, ok, cprobs)
+            reco = _recommend(bets, ok, cprobs, codes)
     except Exception:                                    # règlement indispo -> EV brut sans filtre
         reco = _recommend(bets)
     out["play"] = reco.get("verdict") == "play" and reco.get("idx") is not None
@@ -1255,12 +1269,40 @@ def _agg_bets(events: list) -> dict:
             "dd_pct": (round(100 * dd / staked, 1) if staked else None)}
 
 
+def _reco_event(d: dict, path: str, ex_sports: set, ex_markets: set) -> dict | None:
+    """Le pari RECOMMANDÉ (⭐ « à jouer ») et RÉGLÉ d'un match = ce que l'utilisateur jouerait vraiment,
+    avec EXACTEMENT le filtre de prod (≥65 % recalibré, EV≥+3 %, marché réglable/non exclu, garde-fous
+    cote). -> {start, result, odds, prob, code, idx} ou None. Sert au SUIVI : 1 seul event par match
+    (et non pari1/2/3), pour que le bilan affiché reflète le système suivi, pas les paris secondaires."""
+    sport = d.get("sport")
+    if not sport or sport in ex_sports:
+        return None
+    mid = os.path.basename(path)[len(sport) + 1:-5]
+    bets = bets_of(sport, mid)
+    if not bets:
+        return None
+    from app.settle_analyst import code_from_pick
+    home, away = d.get("home", ""), d.get("away", "")
+    codes = [code_from_pick(b.get("sel", ""), sport, home, away) for b in bets]
+    cprobs = [calibrated_conf(b.get("prob"), sport, codes[i]) for i, b in enumerate(bets)]
+    ok = {i for i, c in enumerate(codes) if c and market_of(c) not in ex_markets}
+    reco = _recommend(bets, ok, cprobs, codes)
+    if reco.get("verdict") != "play" or reco.get("idx") is None:
+        return None
+    ri = reco["idx"]
+    results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (d.get("bets") or [])}
+    res = results.get(_norm_sel(bets[ri].get("sel", "")))
+    if res not in ("won", "lost", "push"):
+        return None
+    return {"start": d.get("start") or "", "result": res, "odds": bets[ri].get("cote"),
+            "prob": bets[ri].get("prob"), "code": codes[ri], "idx": ri}
+
+
 def stats_full(since_days: int | None = None) -> dict:
-    """Statistiques complètes pour l'accueil, à 3 niveaux (chaque pari compté SÉPARÉMENT) :
-    - `overall` : tous sports + tous paris confondus ;
-    - `by_pari` : {pari1/2/3 : bloc} agrégé tous sports ;
-    - `by_sport` : {sport : {…bloc sport…, `paris`: {pari1/2/3 : bloc}}}.
-    Chaque bloc = sortie de `_agg_bets` (courbe + ROI + réussite + cote moy. + série + drawdown).
+    """Suivi pour l'accueil = LE PARI RECOMMANDÉ par match (le ⭐ « à jouer »), pas pari1/2/3 : le bilan
+    reflète le système RÉELLEMENT suivi (les paris secondaires <65 % que l'outil dit de ne PAS jouer ne
+    le plombent plus). 3 niveaux : `overall`, `by_pari` (recommandés ventilés par position 1/2/3),
+    `by_sport`. Chaque bloc = `_agg_bets` (courbe + ROI + réussite + cote moy. + série + drawdown).
     `since_days` : ne garde que les matchs dont le coup d'envoi est dans les N derniers jours."""
     sig = _dir_sig() if since_days is None else None   # cache UNIQUEMENT la vue complète (pas de cutoff)
     if sig is not None:
@@ -1268,6 +1310,7 @@ def stats_full(since_days: int | None = None) -> dict:
         if hit and hit[0] == sig:
             return hit[1]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
+    ex_sports, ex_markets = auto_exclusions()
     all_ev: list = []
     by_pari: dict = {i: [] for i in range(len(_BET_KEYS))}
     by_sport: dict = {}
@@ -1286,14 +1329,14 @@ def stats_full(since_days: int | None = None) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        for i, b in enumerate(d.get("bets") or []):
-            if i >= len(_BET_KEYS):
-                break
-            if b.get("result") in ("won", "lost", "push"):
-                ev = (start, b["result"], b.get("odds"))
-                all_ev.append(ev)
-                by_pari[i].append(ev)
-                by_sport.setdefault(sport, {}).setdefault(i, []).append(ev)
+        e = _reco_event(d, p, ex_sports, ex_markets)    # UN seul event/match : le pari recommandé
+        if not e:
+            continue
+        i = min(e["idx"], len(_BET_KEYS) - 1)
+        ev = (start, e["result"], e["odds"])
+        all_ev.append(ev)
+        by_pari[i].append(ev)
+        by_sport.setdefault(sport, {}).setdefault(i, []).append(ev)
     out = {"overall": _agg_bets(all_ev),
            "by_pari": {_BET_KEYS[i]: _agg_bets(by_pari[i]) for i in range(len(_BET_KEYS))},
            "by_sport": {}}
@@ -1590,7 +1633,8 @@ def perf_breakdown(since_days: int | None = None) -> dict:
         if hit and hit[0] == sig:
             return hit[1]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
-    items = []   # (odds, prob, market, result)
+    ex_sports, ex_markets = auto_exclusions()
+    items = []   # (odds, prob, market, result) — UN seul item/match : le pari recommandé (cohérent avec le suivi)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -1605,14 +1649,9 @@ def perf_breakdown(since_days: int | None = None) -> dict:
                 continue
         if _is_world_cup(d):         # Coupe du Monde EXCLUE de la perf par marché (non comptée).
             continue
-        for i, b in enumerate(d.get("bets") or []):
-            if i >= len(_BET_KEYS):
-                break
-            res = b.get("result")
-            if res not in ("won", "lost", "push"):
-                continue
-            mk = market_of(b.get("code") or "")
-            items.append((b.get("odds"), b.get("prob"), mk, res))
+        e = _reco_event(d, p, ex_sports, ex_markets)
+        if e:
+            items.append((e["odds"], e["prob"], market_of(e["code"] or ""), e["result"]))
 
     def agg(label, lst):
         won = sum(1 for _o, r in lst if r == "won")
