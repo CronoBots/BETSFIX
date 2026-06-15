@@ -115,16 +115,20 @@ def test_bothhalves_metric_et_reglement():
 def test_handicap_corners_suivi_et_reglement():
     i = _info("Corners Handicap Allemagne +5", "")
     assert i["dir"] == "HCAP" and i["side"] == "HOME" and i["line"] == 5.0 and i["live_ok"]
-    # marge = (corners home + 5) - corners away ; live -> en cours, mais marge renvoyée
-    s, m = A._eval_leg(i, {"corners_h": 2, "corners_a": 6})
-    assert s == "pending" and m == 1          # 2+5-6 = 1
-    # au final : marge > 0 -> gagné ; marge < 0 -> perdu
-    assert A._eval_leg(i, {"corners_h": 2, "corners_a": 6}, final=True)[0] == "won"
-    assert A._eval_leg(i, {"corners_h": 0, "corners_a": 6}, final=True)[0] == "lost"   # 0+5-6=-1
-    # handicap côté AWAY
+    # +5 = « l'adversaire ne mène pas de +5 corners » -> écart adverse = away - home, seuil 5
+    s, v = A._eval_leg(i, {"corners_h": 2, "corners_a": 6})
+    assert s == "pending" and v == 4          # écart adverse 6-2 = 4
+    assert A._eval_leg(i, {"corners_h": 2, "corners_a": 6}, final=True)[0] == "won"    # 4 < 5
+    assert A._eval_leg(i, {"corners_h": 0, "corners_a": 6}, final=True)[0] == "lost"   # 6 > 5
+    # affichage « écart/seuil », écart négatif (équipe devant) ramené à 0/5
+    d = {"home": "Allemagne", "away": "Curaçao", "combo": {"legs": [
+        {"sel": "Corners Handicap Allemagne +5", "code": "", "cote": 1.3}]}}
+    assert A.combo_live_status(d, {"corners_h": 0, "corners_a": 0})["legs"][0]["disp"] == "0/5"
+    assert A.combo_live_status(d, {"corners_h": 8, "corners_a": 1})["legs"][0]["disp"] == "0/5"  # devant -> 0
+    # handicap côté AWAY (-3 = mon équipe mène de +3)
     j = _info("Corners Handicap Curaçao -3", "")
     assert j["side"] == "AWAY" and j["line"] == -3.0
-    assert A._eval_leg(j, {"corners_h": 2, "corners_a": 6}, final=True)[0] == "won"    # 6-3-2=1
+    assert A._eval_leg(j, {"corners_h": 2, "corners_a": 6}, final=True)[0] == "won"    # écart 6-2=4 > 3
 
 
 def test_eval_tolere_valeurs_str():

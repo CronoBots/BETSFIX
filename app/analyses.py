@@ -888,17 +888,23 @@ def _eval_leg(info: dict, vals: dict, final: bool = False):
     la jambe n'est pas verrouillable ici ou si la valeur manque encore."""
     if not info or not info.get("live_ok"):
         return (None if final else "pending"), None
-    if info.get("dir") == "HCAP":                          # handicap : marge = (mien + ligne) − autre
+    if info.get("dir") == "HCAP":                          # handicap reformulé en ÉCART vs SEUIL
         base = _METRIC_BASE.get(info["metric"])
         suffix = "_1h" if info.get("scope") == "1H" else ""
         hv, av = _as_int(vals.get(f"{base}_h{suffix}")), _as_int(vals.get(f"{base}_a{suffix}"))
         if hv is None or av is None or base is None:
             return (None if final else "pending"), None
         mine, other = (hv, av) if info.get("side") == "HOME" else (av, hv)
-        margin = mine + info["line"] - other
-        if not final:                                      # la marge peut encore bouger -> en cours
-            return "pending", margin
-        return ("won" if margin > 0 else "lost" if margin < 0 else "push"), margin
+        ln = info["line"]
+        # +L (coussin) = « l'adversaire ne mène pas de plus de L » (UNDER L sur l'écart adverse) ;
+        # -L (à battre) = « mon équipe mène de plus de L » (OVER L sur mon écart).
+        val = (other - mine) if ln >= 0 else (mine - other)      # écart courant (compteur affiché)
+        line, over = abs(ln), ln < 0
+        if not final:                                      # l'écart peut encore bouger -> en cours
+            return "pending", val
+        if val == line:
+            return "push", val
+        return ("won" if ((val > line) == over) else "lost"), val
     if info["metric"] == "bothhalves":                     # « but dans les deux mi-temps » (Oui/Non)
         g1, g2 = _as_int(vals.get("goals_1h_total")), _as_int(vals.get("goals_2h_total"))
         yes = info.get("yes", True)
@@ -939,8 +945,8 @@ def combo_live_status(d: dict, vals: dict) -> dict | None:
         status, cur = _eval_leg(info, vals, final=False)
         if cur is None:                                    # rien à afficher (jambe non suivable / sans valeur)
             disp = ""
-        elif info.get("dir") == "HCAP":                    # handicap -> marge signée (ex. « +1 »)
-            disp = f"{cur:+g}"
+        elif info.get("dir") == "HCAP":                    # handicap -> écart courant / seuil (ex. « 0/5 »)
+            disp = f"{max(0, cur):g}/{abs(info['line']):g}"
         elif info.get("line") is not None:                 # over/under -> compteur « courant/seuil »
             disp = f"{cur:g}/{info['line']:g}"
         else:
