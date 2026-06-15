@@ -862,7 +862,8 @@ def _leg_metric(leg: dict, home: str = "", away: str = "") -> dict:
     # réglée sur les buts PAR mi-temps (un but dans CHAQUE période). Réglable au final (df_su).
     if scope == "both" and metric == "goals":
         return {"metric": "bothhalves", "side": None, "dir": None, "line": None,
-                "scope": "both", "handicap": False, "yes": "non" not in t, "live_ok": True}
+                "scope": "both", "handicap": False,
+                "yes": not re.search(r"\bnon\b", t), "live_ok": True}
     # Handicap (corners/cartons/tirs) : réglé sur le DIFFÉRENTIEL d'une équipe (mien + ligne signée vs
     # autre). Suivable en live (marge courante). Ligne signée « +5 » / « -5 » lue ici (pas de plus/moins).
     if handicap and metric in _METRIC_BASE:
@@ -981,8 +982,10 @@ _COMBO_VALS_CACHE: dict = {}    # clé match -> (ts, stats Flashscore)
 
 def _combo_live_vals(d: dict) -> dict:
     """Valeurs LIVE d'un match foot en cours : {goals_h/a (Unibet, déjà en cache, sans réseau),
-    shots_h/a, sot_h/a, corners_h/a, cards_h/a, rc_h/a (Flashscore df_st, caché ~40 s)}."""
-    from app import match_select, flashscore   # imports locaux (évite les cycles au chargement)
+    shots_h/a, sot_h/a, corners_h/a, cards_h/a, rc_h/a, goals_*_total (Flashscore df_st/df_su)}.
+    ⚠️ LECTURE SEULE du cache `_COMBO_VALS_CACHE` — AUCUN appel réseau ici (cette fonction tourne dans
+    le handler async au rendu). Le cache est pré-rempli hors boucle par `warm_combo_vals` (cf. main)."""
+    from app import match_select   # import local (évite les cycles au chargement)
     home, away = d.get("home", ""), d.get("away", "")
     vals: dict = {}
     try:
@@ -993,21 +996,22 @@ def _combo_live_vals(d: dict) -> dict:
             vals["goals_h"], vals["goals_a"] = gh, ga
     except Exception:
         pass
-    key = f"{home}|{away}"
-    now = time.time()
-    hit = _COMBO_VALS_CACHE.get(key)
-    if hit and now - hit[0] < 40:
-        st = hit[1]
-    else:
-        try:
-            st = flashscore.foot_match_stats_by_names(home, away, d.get("start")) or {}
-        except Exception:
-            st = {}
-        _COMBO_VALS_CACHE[key] = (now, st)
-    for k, v in (st or {}).items():            # corners_h, …, et les variantes 1ère MT (corners_h_1h…)
+    hit = _COMBO_VALS_CACHE.get(f"{home}|{away}")     # pur lookup (pas de fetch synchrone bloquant)
+    for k, v in ((hit[1] if hit else {}) or {}).items():   # corners_h, …, variantes 1ère MT (corners_h_1h…)
         if v is not None:
             vals[k] = v
     return vals
+
+
+def warm_combo_vals(home: str, away: str, start: str | None) -> None:
+    """Remplit le cache stats Flashscore d'un match (corners/cartons/tirs/buts par mi-temps). À appeler
+    HORS du handler (via asyncio.to_thread depuis une boucle de fond) — l'appel urllib est bloquant."""
+    from app import flashscore
+    try:
+        st = flashscore.foot_match_stats_by_names(home, away, start) or {}
+    except Exception:
+        st = {}
+    _COMBO_VALS_CACHE[f"{home}|{away}"] = (time.time(), st)
 
 
 def combo_html(sport: str, match_id) -> str:
@@ -1345,6 +1349,8 @@ def _calib_map() -> dict:
     m = {}
     for sport_label, g in (c.get("by_sport") or {}).items():
         sp = _SPORT_FR.get(sport_label, sport_label.lower())
+        m[(sp, "_SPORT_")] = {"n": g.get("n", 0), "won": g.get("won", 0),   # agrégat sport (repli)
+                              "win_rate": g.get("win_rate"), "avg_conf": g.get("avg_conf")}
         for mk, mg in (g.get("markets") or {}).items():
             m[(sp, mk)] = {"n": mg.get("n", 0), "won": mg.get("won", 0),
                            "win_rate": mg.get("win_rate"), "avg_conf": mg.get("avg_conf")}
@@ -1359,7 +1365,13 @@ def calibrated_conf(prob, sport: str, code: str):
     (EV/Kelly), pas à l'affichage de la confiance de l'analyste."""
     if prob is None:
         return prob
-    m = _calib_map().get((sport, market_of(code or "")))
+    cmap = _calib_map()
+    m = cmap.get((sport, market_of(code or "")))
+    # Repli niveau-SPORT quand le marché précis est trop maigre (ex. tennis : biais global net mais
+    # éclaté sur Sets/Jeux/Vainqueur, chacun n<min -> sans repli, la sur-confiance globale passe).
+    if not m or not m.get("n") or m["n"] < _CALIB_ADJ_MIN_N \
+            or m.get("win_rate") is None or m.get("avg_conf") is None:
+        m = cmap.get((sport, "_SPORT_"))
     if not m or not m.get("n") or m.get("win_rate") is None or m.get("avg_conf") is None:
         return prob
     # PRUDENCE 1 : assez de paris dans la catégorie (sinon échantillon non représentatif -> on ne touche pas).

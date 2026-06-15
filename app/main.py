@@ -45,6 +45,30 @@ async def _panel_warmer():
         await asyncio.sleep(15)        # < TTL 20s -> le cache ne se vide jamais
 
 
+async def _combo_warm_loop():
+    """Pré-remplit le cache des stats LIVE des combinés Coupe du Monde EN COURS (Flashscore), HORS de
+    l'event loop (asyncio.to_thread), pour que le rendu (`analyses._combo_live_vals`) reste un pur
+    lookup non bloquant. Sans ça, un combiné live en cache-miss gèlerait l'API (urllib synchrone ~12-24s
+    dans le handler). ~25 s, uniquement les rares matchs CdM en direct."""
+    from app import analyses
+    import glob
+    await asyncio.sleep(20)
+    while True:
+        try:
+            for p in glob.glob(os.path.join(analyses.DIR, "foot_*.json")):
+                d = analyses._meta_load(p)
+                combo = (d or {}).get("combo") or {}
+                if not combo.get("legs") or combo.get("result"):
+                    continue
+                if analyses.status_of(d) != "inprogress":
+                    continue
+                await asyncio.to_thread(analyses.warm_combo_vals,
+                                        d.get("home", ""), d.get("away", ""), d.get("start"))
+        except Exception as exc:
+            log.debug("combo warm: %s", exc)
+        await asyncio.sleep(25)
+
+
 async def _settle_loop():
     """Boucle de fond du NOUVEAU système : règlement des matchs ANALYSÉS terminés (~10 min) ->
     stats à jour rapidement. (Simulation de bankroll/CLV retirée le 2026-06-14 ; suivi Elo retiré.)"""
@@ -118,6 +142,7 @@ async def lifespan(app: FastAPI):
         _apply_pending_reset()               # purge en attente (sentinelle) AVANT lecture des stores
     tasks = [asyncio.create_task(_settle_loop()),       # nouveau système (analyste) uniquement
              asyncio.create_task(_odds_loop()),         # suivi des variations de cote (Unibet)
+             asyncio.create_task(_combo_warm_loop()),   # pré-chauffe stats live des combinés CdM
              asyncio.create_task(_panel_warmer())]
     yield
     for t in tasks:

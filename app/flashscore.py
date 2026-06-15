@@ -446,7 +446,10 @@ def foot_match_stats(match_id: str) -> dict | None:
     if pr:
         for per in pr.get("periods", []):
             nm = (per.get("name") or "").lower()
-            g = (_n(per.get("home")) or 0) + (_n(per.get("away")) or 0)
+            gh, ga = _n(per.get("home")), _n(per.get("away"))
+            if gh is None and ga is None:                     # période sans données -> NE PAS poser 0
+                continue                                      # (sinon « buts 2 MT » verrouillé à tort)
+            g = (gh or 0) + (ga or 0)
             if "1st" in nm:
                 out["goals_1h_total"] = g
             elif "2nd" in nm:

@@ -631,9 +631,10 @@ async def settle_analyses() -> int:
                 any_lost, all_won = False, True
                 for leg in combo["legs"]:
                     info = analyses._leg_metric(leg, d.get("home", ""), d.get("away", ""))
+                    lr = None
                     if info.get("live_ok"):           # métrique connue, match entier -> évaluateur unique
                         lr, _ = analyses._eval_leg(info, vals, final=True)
-                    else:                              # mi-temps / handicap / buteur -> ancien règlement code
+                    if lr is None:                     # non couvert OU données manquantes -> repli par code
                         lc = leg.get("code") or code_from_pick(leg.get("sel", ""), sport,
                                                                d.get("home", ""), d.get("away", ""))
                         leg["code"] = lc
