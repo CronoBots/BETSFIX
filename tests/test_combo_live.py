@@ -120,11 +120,11 @@ def test_handicap_corners_suivi_et_reglement():
     assert s == "pending" and v == 4          # écart adverse 6-2 = 4
     assert A._eval_leg(i, {"corners_h": 2, "corners_a": 6}, final=True)[0] == "won"    # 4 < 5
     assert A._eval_leg(i, {"corners_h": 0, "corners_a": 6}, final=True)[0] == "lost"   # 6 > 5
-    # affichage « écart/seuil », écart négatif (équipe devant) ramené à 0/5
+    # affichage = SCORE AJUSTÉ « mien+handicap - adverse » (ex. 4 corners +5 = 9 vs 1 -> « 9-1 »)
     d = {"home": "Allemagne", "away": "Curaçao", "combo": {"legs": [
         {"sel": "Corners Handicap Allemagne +5", "code": "", "cote": 1.3}]}}
-    assert A.combo_live_status(d, {"corners_h": 0, "corners_a": 0})["legs"][0]["disp"] == "0/5"
-    assert A.combo_live_status(d, {"corners_h": 8, "corners_a": 1})["legs"][0]["disp"] == "0/5"  # devant -> 0
+    assert A.combo_live_status(d, {"corners_h": 4, "corners_a": 1})["legs"][0]["disp"] == "9-1"
+    assert A.combo_live_status(d, {"corners_h": 0, "corners_a": 0})["legs"][0]["disp"] == "5-0"
     # handicap côté AWAY (-3 = mon équipe mène de +3)
     j = _info("Corners Handicap Curaçao -3", "")
     assert j["side"] == "AWAY" and j["line"] == -3.0

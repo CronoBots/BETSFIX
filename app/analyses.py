@@ -931,6 +931,20 @@ def _eval_leg(info: dict, vals: dict, final: bool = False):
     return ("push" if final else "pending"), cur            # cur == line
 
 
+def _hcap_adjusted(info: dict, vals: dict):
+    """(mon score AJUSTÉ du handicap, score adverse) ou None — pour l'affichage « 9-1 » (ex. corners
+    4 + handicap +5 = 9, vs 1). Le pari est gagné si le score ajusté dépasse celui de l'adversaire."""
+    base = _METRIC_BASE.get(info.get("metric"))
+    if base is None:
+        return None
+    suffix = "_1h" if info.get("scope") == "1H" else ""
+    hv, av = _as_int(vals.get(f"{base}_h{suffix}")), _as_int(vals.get(f"{base}_a{suffix}"))
+    if hv is None or av is None:
+        return None
+    mine, other = (hv, av) if info.get("side") == "HOME" else (av, hv)
+    return (mine + info["line"], other)
+
+
 def combo_live_status(d: dict, vals: dict) -> dict | None:
     """Statut LIVE d'un combiné : par jambe (won/lost/pending + valeur courante) et global. Le combiné
     est PERDU dès qu'UNE jambe saute, GAGNÉ quand TOUTES sont acquises, sinon en cours. None si pas de
@@ -943,10 +957,11 @@ def combo_live_status(d: dict, vals: dict) -> dict | None:
     for leg in combo["legs"]:
         info = _leg_metric(leg, home, away)
         status, cur = _eval_leg(info, vals, final=False)
-        if cur is None:                                    # rien à afficher (jambe non suivable / sans valeur)
+        if info.get("dir") == "HCAP":                      # handicap -> score AJUSTÉ « 9-1 »
+            adj = _hcap_adjusted(info, vals)
+            disp = f"{adj[0]:g}-{adj[1]:g}" if adj else ""
+        elif cur is None:                                  # rien à afficher (jambe non suivable / sans valeur)
             disp = ""
-        elif info.get("dir") == "HCAP":                    # handicap -> écart courant / seuil (ex. « 0/5 »)
-            disp = f"{max(0, cur):g}/{abs(info['line']):g}"
         elif info.get("line") is not None:                 # over/under -> compteur « courant/seuil »
             disp = f"{cur:g}/{info['line']:g}"
         else:
