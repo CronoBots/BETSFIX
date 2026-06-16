@@ -1470,9 +1470,10 @@ CSS = """
   .da-combo-b{font-size:10px;border-radius:5px;padding:1px 7px;font-weight:800}
   .da-combo-b.won{background:#34d27b;color:#04220f}
   .da-combo-b.lost{background:#ff6b6b;color:#2a0606}
+  .da-cl-leg{padding:7px 0;border-top:1px solid rgba(255,255,255,.07)}   /* 1 bloc = 1 jambe (rythme) */
+  .da-cl-leg:first-of-type{border-top:0;padding-top:2px}
   .da-cl{display:flex;align-items:center;gap:8px;justify-content:space-between;
-       font-size:11.5px;color:#dfe9f7;padding:5px 0;border-top:1px solid rgba(255,255,255,.06)}
-  .da-cl:first-of-type{border-top:0}
+       font-size:11.5px;color:#dfe9f7}
   .da-cl-sel{flex:1 1 auto;min-width:0;line-height:1.3;font-weight:700}   /* sélection : wrap propre à gauche, en GRAS pour bien la voir */
   .da-cl-meta{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .da-cl b{color:#fff;font-variant-numeric:tabular-nums}
@@ -1483,9 +1484,22 @@ CSS = """
   .da-cl-live{color:#ffd98a}
   .da-cl-p{font-variant-numeric:tabular-nums;font-size:10.5px;color:#9fb0c8;
        background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
-  .da-cl-why{font-size:11px;line-height:1.5;color:#b9c2cf;padding:3px 0 8px 2px}   /* pourquoi DE LA JAMBE */
-  .da-combo-why{font-size:11px;line-height:1.55;color:#cfe0f5;font-style:italic;
-       margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}   /* synthèse du combiné */
+  .da-cl-pr{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;border:1px solid;
+       font-variant-numeric:tabular-nums}                    /* pastille CHANCE de la jambe */
+  .da-cl-pr.hi{color:#2ec98a;border-color:rgba(46,201,138,.45);background:rgba(46,201,138,.12)}
+  .da-cl-pr.mid{color:#22b8ff;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
+  .da-cl-pr.lo{color:#ffb020;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.12)}
+  .da-cl-why{font-size:11px;line-height:1.5;color:#b9c2cf;padding:3px 0 0 2px}   /* pourquoi DE LA JAMBE (résumé) */
+  details.da-cl-why>summary{cursor:pointer;list-style:none}
+  details.da-cl-why>summary::-webkit-details-marker{display:none}
+  details.da-cl-why>summary::after{content:" ▸ détail";color:#22b8ff;font-size:10px;font-weight:700}
+  details.da-cl-why[open]>summary::after{content:" ▾ réduire"}
+  .da-cl-more{margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,255,255,.09);color:#a9b6c8}
+  .da-combo-recap{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}      /* bandeau récap en tête */
+  .da-combo-tag{font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;
+       background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cdd8e8}
+  .da-combo-tag.chance{color:#ffd98a;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.10)}
+  .da-combo-why{font-size:11px;line-height:1.55;color:#cfe0f5;font-style:italic;margin:0 0 9px}   /* synthèse (intro en tête) */
   .da-combo-live{border-left-color:#ffb020}
   .da-combo-b.live{background:#ffb020;color:#1a1200;animation:combopulse 1.6s ease-in-out infinite}
   @keyframes combopulse{0%,100%{opacity:1}50%{opacity:.55}}

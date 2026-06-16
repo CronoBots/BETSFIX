@@ -1052,6 +1052,23 @@ def warm_combo_vals(home: str, away: str, start: str | None) -> None:
     _COMBO_VALS_CACHE[f"{home}|{away}"] = (time.time(), st)
 
 
+def _why_parts(why) -> tuple[int | None, str, str]:
+    """Découpe le « pourquoi » d'une jambe en (proba %, résumé, détail).
+    - extrait « proba ~80 % » -> pastille, puis le retire du texte ;
+    - coupe à la 1ʳᵉ proposition (avant ' ; ' ou '. ') : résumé visible + détail repliable.
+    Chaque morceau est remis en phrase propre (majuscule initiale)."""
+    t = re.sub(r"\s+", " ", str(why or "")).strip()
+    pm = re.search(r"proba\s*[~≈]?\s*(\d{1,3})\s*%", t, re.I)
+    pct = int(pm.group(1)) if pm else None
+    t = re.sub(r"[;,]?\s*proba\s*[~≈]?\s*\d{1,3}\s*%\.?", "", t, flags=re.I).strip(" ;,.")
+    head, tail = t, ""
+    sm = re.search(r"\s*[;.]\s+", t)
+    if sm and sm.end() < len(t):
+        head, tail = t[:sm.start()].strip(" ;,."), t[sm.end():].strip(" ;,.")
+    cap = lambda s: (s[:1].upper() + s[1:]) if s else s
+    return pct, cap(head), cap(tail)
+
+
 def combo_html(sport: str, match_id) -> str:
     """Cadre « 🎲 Combiné » (grand tournoi) d'un match, depuis le sidecar `combo`. Chaque jambe + cote,
     cote combinée, et résultat réglé (par jambe + global) si présent. EN COURS de match : statut live
@@ -1070,6 +1087,7 @@ def combo_html(sport: str, match_id) -> str:
         except Exception:
             live = None
     rows = []
+    pcts: list[int | None] = []
     for i, leg in enumerate(combo["legs"]):
         lr = leg.get("result")                       # résultat FINAL réglé (post-match) s'il existe
         ls = prog = ""
@@ -1089,13 +1107,27 @@ def combo_html(sport: str, match_id) -> str:
             cote = f"{float(leg.get('cote')):.2f}"
         except (TypeError, ValueError):
             cote = "?"
-        # 2 colonnes : sélection (gauche, wrap propre) | bloc insécable cote · compteur · statut (droite),
-        # puis l'EXPLICATION de la jambe (pourquoi) en dessous si fournie.
-        why = leg.get("why")
-        why_html = f'<div class="da-cl-why">{_h.escape(_sentence_case(str(why)))}</div>' if why else ""
-        rows.append(f'<div class="da-cl{cls}">'
-                    f'<span class="da-cl-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
-                    f'<span class="da-cl-meta"><b>@{cote}</b>{prog}{mk}</span></div>{why_html}')
+        # Pastille CHANCE de la jambe (proba extraite du « pourquoi ») + explication condensée :
+        # résumé visible, détail repliable.
+        pct, head, tail = _why_parts(leg.get("why"))
+        pcts.append(pct)
+        if pct is None:
+            prchip = ""
+        else:
+            pc = "hi" if pct >= 75 else "mid" if pct >= 65 else "lo"
+            prchip = f'<span class="da-cl-pr {pc}">{pct}%</span>'
+        if head and tail:
+            why_html = (f'<details class="da-cl-why"><summary>{_h.escape(head)}</summary>'
+                        f'<div class="da-cl-more">{_h.escape(tail)}</div></details>')
+        elif head:
+            why_html = f'<div class="da-cl-why">{_h.escape(head)}</div>'
+        else:
+            why_html = ""
+        # 2 colonnes : sélection (gauche, wrap propre) | bloc insécable cote · chance · compteur · statut (droite).
+        rows.append(f'<div class="da-cl-leg{cls}">'
+                    f'<div class="da-cl"><span class="da-cl-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
+                    f'<span class="da-cl-meta"><b>@{cote}</b>{prchip}{prog}{mk}</span></div>'
+                    f'{why_html}</div>')
     # En-tête : résultat FINAL prioritaire ; sinon, en live, état du combiné (perdu dès qu'une jambe saute).
     lv = live["status"] if live else None
     hcls = (" da-combo-won" if res == "won" else " da-combo-lost" if res == "lost"
@@ -1114,10 +1146,21 @@ def combo_html(sport: str, match_id) -> str:
         total = f"{float(combo.get('total')):.2f}"
     except (TypeError, ValueError):
         total = "?"
+    # Bandeau récap EN TÊTE : chance globale estimée (produit des jambes, si toutes connues) + nb de jambes.
+    tags = []
+    if pcts and all(p is not None for p in pcts):
+        prod = 1.0
+        for p in pcts:
+            prod *= p / 100.0
+        tags.append(f'<span class="da-combo-tag chance">🎯 chance estimée ~{round(prod * 100)}%</span>')
+    tags.append(f'<span class="da-combo-tag">🧩 {len(combo["legs"])} jambes</span>')
+    recap_html = f'<div class="da-combo-recap">{"".join(tags)}</div>'
+    # Synthèse remontée en INTRO (sous le bandeau), avant la liste des jambes.
     synth = combo.get("why")
-    synth_html = f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>' if synth else ""
+    intro_html = f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>' if synth else ""
     return (f'<div class="da-combo{hcls}"><div class="da-combo-h">🎲 Combiné '
-            f'<span class="da-combo-c">cote {total}</span>{badge}</div>{"".join(rows)}{synth_html}</div>')
+            f'<span class="da-combo-c">cote {total}</span>{badge}</div>'
+            f'{recap_html}{intro_html}{"".join(rows)}</div>')
 
 
 def card_summary(sport: str, match_id) -> dict:
