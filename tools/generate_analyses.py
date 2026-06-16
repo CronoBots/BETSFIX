@@ -113,7 +113,8 @@ COMBO_MISSION = (
     "same-match (~10-15 %) même sur des jambes indépendantes, donc avec un produit > 2.30 la cote RÉELLE "
     "Unibet reste > 2.00. Combine 3 à 4 jambes. N'utilise QUE des cotes réelles du bloc ci-dessus.\n"
     "Ajoute À LA FIN, après la section Mise, EXACTEMENT ce format (CHAQUE jambe avec SON explication "
-    "détaillée APRÈS le tiret — pourquoi CETTE jambe passe, factuel et chiffré) :\n"
+    "détaillée APRÈS le tiret — pourquoi CETTE jambe passe, factuel et chiffré ; chaque explication est "
+    "une PHRASE COMPLÈTE : MAJUSCULE au début, point final, ponctuation et virgules correctes) :\n"
     "## 🎲 Combiné\n"
     "- <sélection exacte 1> @<cote> — <pourquoi cette jambe : 1 à 2 phrases factuelles et chiffrées>\n"
     "- <sélection exacte 2> @<cote> — <pourquoi cette jambe>\n"
@@ -749,7 +750,7 @@ def _parse_combo(analysis: str, sport: str, home: str, away: str) -> dict | None
     sec = re.search(r"##[^\n]*[Cc]ombin[ée](.*?)(?:\n##|\Z)", analysis, re.S)
     if sec:
         for ln in sec.group(1).splitlines():
-            bm = re.match(r"[>*\-\s]+(.+?)@\s*[\d.,]+\s*[—–:-]\s*(.+)$", ln.strip())
+            bm = re.match(r"[>*\-\s]+(.+?)@\s*[\d.,]+[\s*`]*[—–:-]\s*(.+)$", ln.strip())
             if bm:
                 whys[_ck(bm.group(1))] = re.sub(r"[*`]", "", bm.group(2)).strip()
             sm = re.search(r"[Cc]ote\s+combin[ée].*?[—–]\s*(.+)$", ln.strip())   # texte APRÈS le tiret

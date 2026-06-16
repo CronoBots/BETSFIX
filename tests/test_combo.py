@@ -43,6 +43,22 @@ def test_parse_combo_entoure_de_backticks():
     assert c is not None and len(c["legs"]) == 2 and c["legs"][0]["cote"] == 1.12
 
 
+def test_parse_combo_explication_par_jambe():
+    # la section « 🎲 Combiné » porte l'explication PAR JAMBE (format gras « **sel @cote** — pourquoi »)
+    # + la synthèse « Cote combinée : X — … » -> rattachées à chaque jambe + au combiné.
+    analysis = (
+        "## 🎲 Combiné\n"
+        "- **Total des corners Plus de 6.5 @1.19** — France dominante accumule les corners.\n"
+        "- **Premier but France @1.40** — France ouvre le score le plus souvent.\n"
+        "**Cote combinée : 1.67** — deux aspects indépendants.\n"
+        "COMBO: Total des corners Plus de 6.5 @1.19 | Premier but France @1.40 = 1.67\n")
+    c = ga._parse_combo(analysis, "foot", "France", "Sénégal")
+    assert c is not None and len(c["legs"]) == 2
+    assert c["legs"][0].get("why", "").startswith("France dominante")
+    assert c["legs"][1].get("why", "").startswith("France ouvre")
+    assert c.get("why", "").startswith("deux aspects")
+
+
 def test_parse_combo_absent():
     assert ga._parse_combo("PICK: WIN HOME\n", "foot", "A", "B") is None
     # une seule jambe -> pas un combiné

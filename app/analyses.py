@@ -1092,7 +1092,7 @@ def combo_html(sport: str, match_id) -> str:
         # 2 colonnes : sélection (gauche, wrap propre) | bloc insécable cote · compteur · statut (droite),
         # puis l'EXPLICATION de la jambe (pourquoi) en dessous si fournie.
         why = leg.get("why")
-        why_html = f'<div class="da-cl-why">{_h.escape(str(why))}</div>' if why else ""
+        why_html = f'<div class="da-cl-why">{_h.escape(_sentence_case(str(why)))}</div>' if why else ""
         rows.append(f'<div class="da-cl{cls}">'
                     f'<span class="da-cl-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
                     f'<span class="da-cl-meta"><b>@{cote}</b>{prog}{mk}</span></div>{why_html}')
@@ -1115,7 +1115,7 @@ def combo_html(sport: str, match_id) -> str:
     except (TypeError, ValueError):
         total = "?"
     synth = combo.get("why")
-    synth_html = f'<div class="da-combo-why">{_h.escape(str(synth))}</div>' if synth else ""
+    synth_html = f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>' if synth else ""
     return (f'<div class="da-combo{hcls}"><div class="da-combo-h">🎲 Combiné '
             f'<span class="da-combo-c">cote {total}</span>{badge}</div>{"".join(rows)}{synth_html}</div>')
 
