@@ -614,7 +614,6 @@ def _verdict_notes(md: str) -> tuple[list, str]:
     (conseil général, sans pari précis) rendu en petit, à mettre APRÈS les cartes de pari."""
     secs = _sections(_strip(md))
     verdict = _find(secs, "🎯", "Verdict")
-    mise = _find(secs, "💰", "Mise")
     notes, resid = [], []
     for it in _bullets(verdict):
         label, _, content = it.partition(":")
@@ -632,9 +631,7 @@ def _verdict_notes(md: str) -> tuple[list, str]:
             sel = re.split(r"\s*@", label)[0].strip()    # le LABEL porte le nom du pari
             if content and content != label:
                 notes.append((sel, _sentence_case(_units_to_pct(_strip_sources(content)))))
-    if mise.strip():
-        resid.append(("💰", "Mise conseillée",
-                      _sentence_case(_units_to_pct(_strip_sources(_strip(mise).strip()))), "mise"))
+    # « Mise conseillée » RETIRÉE de l'affichage (demande utilisateur 2026-06-16) -> on ne la rend plus.
     resid_html = ""
     if resid:
         rows = "".join(
