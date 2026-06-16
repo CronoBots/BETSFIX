@@ -1087,7 +1087,6 @@ def combo_html(sport: str, match_id) -> str:
         except Exception:
             live = None
     rows = []
-    pcts: list[int | None] = []
     for i, leg in enumerate(combo["legs"]):
         lr = leg.get("result")                       # résultat FINAL réglé (post-match) s'il existe
         ls = prog = ""
@@ -1110,7 +1109,6 @@ def combo_html(sport: str, match_id) -> str:
         # Pastille CHANCE de la jambe (proba extraite du « pourquoi ») + explication condensée :
         # résumé visible, détail repliable.
         pct, head, tail = _why_parts(leg.get("why"))
-        pcts.append(pct)
         if pct is None:
             prchip = ""
         else:
@@ -1146,15 +1144,9 @@ def combo_html(sport: str, match_id) -> str:
         total = f"{float(combo.get('total')):.2f}"
     except (TypeError, ValueError):
         total = "?"
-    # Bandeau récap EN TÊTE : chance globale estimée (produit des jambes, si toutes connues) + nb de jambes.
-    tags = []
-    if pcts and all(p is not None for p in pcts):
-        prod = 1.0
-        for p in pcts:
-            prod *= p / 100.0
-        tags.append(f'<span class="da-combo-tag chance">🎯 chance estimée ~{round(prod * 100)}%</span>')
-    tags.append(f'<span class="da-combo-tag">🧩 {len(combo["legs"])} jambes</span>')
-    recap_html = f'<div class="da-combo-recap">{"".join(tags)}</div>'
+    # Bandeau récap EN TÊTE : nb de jambes (PAS de chance globale : le produit des jambes sous-estime un
+    # combiné corrélé -> chiffre trompeur ; la chance fiable reste celle PAR jambe, en pastille).
+    recap_html = f'<div class="da-combo-recap"><span class="da-combo-tag">🧩 {len(combo["legs"])} jambes</span></div>'
     # Synthèse remontée en INTRO (sous le bandeau), avant la liste des jambes.
     synth = combo.get("why")
     intro_html = f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>' if synth else ""
