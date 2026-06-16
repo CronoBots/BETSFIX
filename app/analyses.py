@@ -1212,6 +1212,7 @@ _PERF_CACHE: dict = {}     # "v" -> (sig, perf_breakdown()) — ROI par cote/mar
 MODEL_MILESTONES = [
     ("2026-06-09", "Seuil ≥65 %"),
     ("2026-06-12", "Mode strict"),
+    ("2026-06-16", "1 pari/match"),   # suivi = pari recommandé + garde-fous marchés/cote + 1 pari le + probable
 ]
 
 
