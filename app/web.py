@@ -1144,9 +1144,10 @@ CSS = """
   .sx-mlegend{display:flex;flex-direction:column;align-items:stretch;gap:6px;
        font-size:10.5px;color:var(--muted);margin-top:10px}
   .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);opacity:.8}
-  .sx-ml{display:flex;align-items:flex-start;gap:7px}                 /* explication peut passer à la ligne */
-  .sx-ml-x{flex:1;min-width:0;line-height:1.35}
-  .sx-ml-t{color:var(--text);font-weight:700}
+  .sx-ml{display:flex;align-items:flex-start;gap:8px}
+  .sx-ml-x{flex:1;min-width:0}
+  .sx-ml-t{color:var(--text);font-weight:800;font-size:11px}          /* TITRE de la modif */
+  .sx-ml-d{color:var(--muted);line-height:1.35;margin-top:1px}        /* explication SOUS le titre */
   .sx-ml-n{flex:0 0 auto;margin-top:1px;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
        border-radius:50%;background:#1496f0;color:#fff;font-size:9px;font-weight:900}
   .sx-divider{height:1px;background:var(--border);margin:14px 0 2px}
@@ -1201,9 +1202,8 @@ CSS = """
   /* Héro bilan global */
   .sx-hero{background:linear-gradient(180deg,var(--surface2),var(--surface));
        border:1px solid var(--cardline);border-radius:var(--radius);
-       box-shadow:var(--cardglow),var(--shadow);padding:14px 15px 12px;position:relative;overflow:hidden}
-  .sx-hero::before{content:"";position:absolute;inset:0 0 auto auto;width:160px;height:160px;
-       background:radial-gradient(circle at top right,var(--glow),transparent 70%);pointer-events:none}
+       box-shadow:var(--cardglow),var(--shadow-sm);padding:14px 15px 12px;position:relative;overflow:hidden}
+  /* (halo radial retiré : fond identique aux cartes de match `.row`, demande utilisateur) */
   .sx-hero-top{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .sx-hero-roi{font-size:34px;font-weight:900;line-height:1;letter-spacing:-.02em}
   .sx-hero-lbl{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
@@ -2423,7 +2423,8 @@ def render_stats(full: dict | None, since: str = "") -> str:
     mleg = "".join(
         f'<div class="sx-ml">'
         f'<span class="sx-ml-n">{i}</span>'
-        f'<span class="sx-ml-x"><b class="sx-ml-t">{html.escape(lab)}</b> — {html.escape(desc)}</span></div>'
+        f'<div class="sx-ml-x"><div class="sx-ml-t">{html.escape(lab)}</div>'
+        f'<div class="sx-ml-d">{html.escape(desc)}</div></div></div>'
         for i, (_iso, lab, desc) in enumerate(miles, 1))
     mlegend = (f'<div class="sx-mlegend"><div class="sx-ml-h">Repères du modèle</div>{mleg}</div>'
                if mleg else "")
