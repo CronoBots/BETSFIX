@@ -1144,12 +1144,11 @@ CSS = """
   .sx-mlegend{display:flex;flex-direction:column;align-items:stretch;gap:6px;
        font-size:10.5px;color:var(--muted);margin-top:10px}
   .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);opacity:.8}
-  .sx-ml{display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden}
-  .sx-ml-t{color:var(--text);font-weight:700;flex:0 0 auto}
-  .sx-ml-d{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-  .sx-ml-n{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+  .sx-ml{display:flex;align-items:flex-start;gap:7px}                 /* explication peut passer à la ligne */
+  .sx-ml-x{flex:1;min-width:0;line-height:1.35}
+  .sx-ml-t{color:var(--text);font-weight:700}
+  .sx-ml-n{flex:0 0 auto;margin-top:1px;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
        border-radius:50%;background:#1496f0;color:#fff;font-size:9px;font-weight:900}
-  .sx-formrow{display:flex;justify-content:flex-start;margin:9px 0 2px}
   .sx-divider{height:1px;background:var(--border);margin:14px 0 2px}
   .sx-h2{margin-top:8px}
   .bc-yl{fill:var(--muted);font-size:9px;text-anchor:end;font-weight:700}
@@ -1213,8 +1212,8 @@ CSS = """
   .sx-streak{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:99px;white-space:nowrap}
   .sx-streak.hot{color:#3ee089;background:rgba(52,210,123,.14);border:1px solid rgba(52,210,123,.30)}
   .sx-streak.cold{color:#ff7484;background:rgba(242,93,110,.13);border:1px solid rgba(242,93,110,.30)}
-  .sx-form{display:flex;flex-wrap:nowrap;gap:5px;align-items:center;justify-content:flex-start}
-  .sx-fd{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .sx-form{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:flex-end}
+  .sx-fd{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:0 0 auto}
   .sx-fd.won{background:#34d27b} .sx-fd.lost{background:#ff6b6b} .sx-fd.push{background:#9fb0c8}
   .sx-ind{font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);
        background:rgba(246,197,74,.15);border:1px solid rgba(246,197,74,.3);padding:1px 5px;border-radius:99px;
@@ -2422,10 +2421,9 @@ def render_stats(full: dict | None, since: str = "") -> str:
     chart = _hero_chart(ov.get("points") or [], uid="all",
                         dates=ov.get("dates") or [], milestones=miles)
     mleg = "".join(
-        f'<div class="sx-ml" title="{html.escape(f"{lab} — {desc}")}">'
+        f'<div class="sx-ml">'
         f'<span class="sx-ml-n">{i}</span>'
-        f'<b class="sx-ml-t">{html.escape(lab)}</b>'
-        f'<span class="sx-ml-d">{html.escape(desc)}</span></div>'
+        f'<span class="sx-ml-x"><b class="sx-ml-t">{html.escape(lab)}</b> — {html.escape(desc)}</span></div>'
         for i, (_iso, lab, desc) in enumerate(miles, 1))
     mlegend = (f'<div class="sx-mlegend"><div class="sx-ml-h">Repères du modèle</div>{mleg}</div>'
                if mleg else "")
@@ -2437,8 +2435,8 @@ def render_stats(full: dict | None, since: str = "") -> str:
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
-        f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}</div></div>'
-        f'<div class="sx-formrow">{_form_dots(ov.get("form12") or ov.get("form") or [])}</div>'
+        f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}'
+        f'{_form_dots(ov.get("form12") or ov.get("form") or [])}</div></div>'
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'

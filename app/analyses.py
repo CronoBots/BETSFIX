@@ -1319,9 +1319,8 @@ def stats_full(since_days: int | None = None) -> dict:
             return hit[1]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     all_ev: list = []         # TOUS les paris réglés depuis le début -> courbe d'équité COMPLÈTE
-    since_ev: list = []       # paris depuis le passage au NOUVEAU système (repère du 16/06) -> KPI à suivre
+    since_ev: list = []       # paris du NOUVEAU système (validés 3 agents) -> KPI à suivre
     by_sport: dict = {}
-    change_iso = MODEL_MILESTONES[-1][0] if MODEL_MILESTONES else None   # date du dernier changement majeur
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -1337,6 +1336,9 @@ def stats_full(since_days: int | None = None) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
+        # « Nouveau système » = analyse passée par la VALIDATION 3 agents (signature fiable), pas une
+        # simple date de match (un match du 16/06 a pu être généré la veille en ancien système).
+        is_new = bool(d.get("validation"))
         for i, b in enumerate(d.get("bets") or []):    # TOUS les paris réglés (courbe complète)
             if i >= len(_BET_KEYS):
                 break
@@ -1344,7 +1346,7 @@ def stats_full(since_days: int | None = None) -> dict:
                 ev = (start, b["result"], b.get("odds"))
                 all_ev.append(ev)
                 by_sport.setdefault(sport, []).append(ev)
-                if change_iso and start[:10] >= change_iso:   # depuis le nouveau système (1 pari/match + 3 agents)
+                if is_new:
                     since_ev.append(ev)
     out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
            "since_change": _agg_bets(since_ev),        # nouveau système (s'enrichit au fil des scans)
