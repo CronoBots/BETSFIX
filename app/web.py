@@ -3587,11 +3587,12 @@ def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
     extra = ctx.get("extra") or ""                # contexte + spécificités (classement, écart, buts)
     no_data = ('<div class="banner">Analyse SofaScore indisponible pour ce match '
                '(source momentanément en pause ou match non couvert).</div>')
-    odds_move = ctx.get("odds_move") or ""    # 📉 mouvement de cote (ouverture -> clôture)
+    # 📉 « Mouvement de cote » RETIRÉ de la fiche (info secondaire, alourdissait la carte — demande
+    # utilisateur 2026-06-16). L'historique reste enregistré (odds_history), juste plus affiché ici.
     if frag:   # accordéon sous la carte : la carte porte déjà bets + bannières -> PAS de liens ici
-        return (odds_move + analysis + streaks_html + h2h_html + form_html + extra) or no_data
+        return (analysis + streaks_html + h2h_html + form_html + extra) or no_data
     links = ctx.get("links") or ""     # bannières SofaScore / Unibet (page pleine uniquement)
-    body = head + pred + odds + links + odds_move + analysis + streaks_html + h2h_html + form_html + extra
+    body = head + pred + odds + links + analysis + streaks_html + h2h_html + form_html + extra
     if not (analysis or streaks_html or extra or form_html or h2h_html):
         body += no_data
     return layout(ctx["home"] + " vs " + ctx["away"], ctx["sport_key"], body, subnav="matchs")

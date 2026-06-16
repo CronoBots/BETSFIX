@@ -741,11 +741,15 @@ def _structured(md: str) -> str | None:
     if faits:
         parts.append('<div class="da-faits"><div class="da-faits-h">📋 Les faits</div>'
                      f'<div class="da-faits-b">{_render_blocks(faits)}</div></div>')
+    # Section « 🎲 Combiné » : NON rendue ici -> elle est DÉJÀ affichée dans son propre cadre (combo_html)
+    # sur la carte. La re-rendre dans l'analyse = doublon (le détail du combiné doit être dans le cadre
+    # du combiné, pas répété). On l'écarte (et la ligne `COMBO:` brute aussi).
+    combo = _find(secs, "🎲", "Combiné", "combiné")
     # toute autre section non prévue : rendue à la suite (sécurité, ne rien perdre)
-    known = {"", verdict, bets, faits, mise}
+    known = {"", verdict, bets, faits, mise, combo}
     for title, b in secs.items():
         if b and b not in known and title not in ("", ):
-            if title in (t for t in ("Verdict", "Paris", "faits", "Mise")):
+            if any(k in title or k in title.lower() for k in ("Verdict", "Paris", "faits", "Mise", "🎲", "ombiné")):
                 continue
             parts.append(f'<div class="da-h da-h2">{_inline(title)}</div>{_render_blocks(b)}')
     return '<div class="da">' + "".join(parts) + "</div>"
