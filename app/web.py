@@ -1736,6 +1736,13 @@ CSS = """
   .sx-card{background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
        border:1px solid rgba(34,184,255,.60);border-radius:16px;
        box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);padding:12px 12px 10px;margin:12px 0}
+  /* ONGLET STATS (.statsx) : fond cyan (comme la carte .spf des onglets sport) sur TOUTES les lignes —
+     scopé pour NE PAS toucher les mêmes composants affichés DANS les onglets sport (qui restent sombres
+     pour contraster avec la carte .spf cyan qui les contient). */
+  .statsx .sx-sport,.statsx .calg-row,.statsx .calg-sport{
+       background:linear-gradient(180deg,rgba(34,184,255,.10),rgba(34,184,255,.025));
+       border-color:rgba(34,184,255,.45)}
+  .statsx .calg-sub{background:linear-gradient(180deg,rgba(34,184,255,.05),rgba(34,184,255,.015))}
   .sx-equity{margin:6px 0 0}
   .sx-equity .sx-heroc{display:block;width:100%;height:auto}
   /* Barres ROI divergentes (par cote / confiance / marché) : 0 au centre, vert droite / rouge gauche */

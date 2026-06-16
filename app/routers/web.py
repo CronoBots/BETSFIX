@@ -352,8 +352,10 @@ async def stats_page(frag: int = 0) -> HTMLResponse:
         if cached:
             return HTMLResponse(cached)
     body = ('<div class="pg-h">Statistiques</div>'
+            '<div class="statsx">'        # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
             + _home_stats()
-            + web.render_calibration(analyses.calibration()))
+            + web.render_calibration(analyses.calibration())
+            + '</div>')
     if frag:
         fragcache.put("panel/stats", body, ttl=PANEL_TTL)
         return HTMLResponse(body)
