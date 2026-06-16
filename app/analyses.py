@@ -693,9 +693,10 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # 2026-06-12) ; le repère est désormais une ⭐ à DROITE du nom du pari (demande utilisateur).
         recocls = " da-bk-reco" if is_reco else ""
         recostar = ' <span class="da-bk-star" title="Pari retenu par le moteur">⭐</span>' if is_reco else ""
-        # Badge VALIDATION (panel de 3 agents) sur le pari retenu : ✓ Validé n/N + consensus.
+        # Badge VALIDATION (panel de 3 agents) sur le pari (la validation porte sur LE pari du match,
+        # affichée même si le moteur EV ne l'a pas marqué ⭐ — c'est le panel qui l'a retenu).
         valbadge = ""
-        if is_reco and validation and validation.get("n_ok") is not None:
+        if k == 0 and validation and validation.get("n_ok") is not None:
             no, nt = validation["n_ok"], validation.get("n", 3)
             cp = validation.get("consensus_prob")
             tip = " · ".join(f'{v.get("emoji", "")}{v.get("verdict", "")[:3]}' for v in validation.get("votes", []))
