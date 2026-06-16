@@ -1141,9 +1141,10 @@ CSS = """
   .bc-mile{stroke:rgba(120,200,255,.5);stroke-width:1.1;stroke-dasharray:2 3}
   .bc-mile-c{fill:#1496f0;stroke:#bfe2ff;stroke-width:.8}
   .bc-mile-n{fill:#fff;font-size:7px;font-weight:900}
-  .sx-mlegend{display:flex;flex-wrap:wrap;align-items:center;gap:5px 12px;
+  .sx-mlegend{display:flex;flex-direction:column;align-items:flex-start;gap:5px;
        font-size:10.5px;color:var(--muted);margin-top:9px}
-  .sx-ml{display:inline-flex;align-items:center;gap:5px}
+  .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);opacity:.8}
+  .sx-ml{display:flex;align-items:center;gap:6px}
   .sx-ml-n{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
        border-radius:50%;background:#1496f0;color:#fff;font-size:9px;font-weight:900}
   .bc-yl{fill:var(--muted);font-size:9px;text-anchor:end;font-weight:700}
@@ -1207,7 +1208,7 @@ CSS = """
   .sx-streak{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:99px;white-space:nowrap}
   .sx-streak.hot{color:#3ee089;background:rgba(52,210,123,.14);border:1px solid rgba(52,210,123,.30)}
   .sx-streak.cold{color:#ff7484;background:rgba(242,93,110,.13);border:1px solid rgba(242,93,110,.30)}
-  .sx-form{display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:flex-end;max-width:172px}
+  .sx-form{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:flex-end}
   .sx-fd{width:9px;height:9px;border-radius:50%;background:var(--muted)}
   .sx-fd.won{background:#34d27b} .sx-fd.lost{background:#ff6b6b} .sx-fd.push{background:#9fb0c8}
   .sx-ind{font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);
@@ -2406,17 +2407,17 @@ def render_stats(full: dict | None, since: str = "") -> str:
         return ""
     bstk = ov.get("best_streak") or 0
     sc = full.get("since_change") or {}
-    # KPI à SUIVRE : performance depuis le passage au NOUVEAU système (1 pari/match + 3 agents, repère 16/06).
-    new_kpi = (f'<div class="sx-kpi"><b class="arec-{_roi_cls(sc.get("roi"), sc.get("settled"))}">'
-               f'{_roistr(sc.get("roi"))}</b><span>nouveau système ({sc.get("settled") or 0})</span></div>'
-               if sc.get("settled") else
-               '<div class="sx-kpi"><b class="arec-hi">•</b><span>nouveau système (à venir)</span></div>')
+    # KPI à SUIVRE : nouveau système (1 pari/match + 3 agents). Libellé COURT (pas de retour à la ligne).
+    nv_val = _roistr(sc.get("roi")) if sc.get("settled") else "—"
+    nv_cls = _roi_cls(sc.get("roi"), sc.get("settled")) if sc.get("settled") else "hi"
+    new_kpi = (f'<div class="sx-kpi" title="Nouveau système ({sc.get("settled") or 0} paris réglés)">'
+               f'<b class="arec-{nv_cls}">{nv_val}</b><span>nouv. système</span></div>')
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
-        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global · tous les paris {_ind(ov.get("settled"))}</div></div>'
+        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
         f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}'
-        f'{_form_dots(ov.get("form12") or ov.get("form") or [])}</div></div>'
+        f'{_form_dots(ov.get("form") or [])}</div></div>'
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
@@ -2427,13 +2428,11 @@ def render_stats(full: dict | None, since: str = "") -> str:
     miles = list(analyses.MODEL_MILESTONES)
     chart = _hero_chart(ov.get("points") or [], uid="all",
                         dates=ov.get("dates") or [], milestones=miles)
-    mleg = ("".join(f'<span class="sx-ml"><span class="sx-ml-n">{i}</span>{html.escape(lab)}</span>'
+    mleg = ("".join(f'<div class="sx-ml"><span class="sx-ml-n">{i}</span>{html.escape(lab)}</div>'
                     for i, (_iso, lab) in enumerate(miles, 1)))
-    mlegend = f'<div class="sx-mlegend">Repères du modèle :{mleg}</div>' if mleg else ""
+    mlegend = (f'<div class="sx-mlegend"><div class="sx-ml-h">Repères du modèle</div>{mleg}</div>'
+               if mleg else "")
     equity = ('<div class="sx-card"><div class="sx-h">Évolution du rendement</div>'
-              '<div class="sx-sub">Profit cumulé sur <b>tous les paris depuis le début</b> (mise plate). '
-              'Le repère <b>« 1 pari/match »</b> marque le passage au nouveau système (1 pari/match + '
-              'validation 3 agents) : ses paris s\'ajoutent à droite — on regarde s\'il redresse la courbe.</div>'
               f'<div class="sx-equity">{chart}</div>{mlegend}</div>') if chart else ""
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
     # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
