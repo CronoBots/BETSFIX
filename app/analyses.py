@@ -624,10 +624,14 @@ def _verdict_notes(md: str) -> tuple[list, str]:
         low = label.lower()
         if "évit" in low or "skip" in low or "evit" in low:
             resid.append(("⛔", "À éviter / Skip", _sentence_case(_units_to_pct(_strip_sources(why or content))), "skip"))
-        else:                                            # pick : « X @cote — pourquoi »
+        elif "@" in content:                             # ANCIEN format : « Pari 1 : <sel> @cote — why »
             sel = re.split(r"\s*@", content)[0].strip().rstrip("(").strip()
             if why and why != content:
                 notes.append((sel, _sentence_case(_units_to_pct(_strip_sources(why)))))
+        else:                                            # NOUVEAU format : « <sel> @cote : <explication> »
+            sel = re.split(r"\s*@", label)[0].strip()    # le LABEL porte le nom du pari
+            if content and content != label:
+                notes.append((sel, _sentence_case(_units_to_pct(_strip_sources(content)))))
     if mise.strip():
         resid.append(("💰", "Mise conseillée",
                       _sentence_case(_units_to_pct(_strip_sources(_strip(mise).strip()))), "mise"))
@@ -682,7 +686,6 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # SÛRETÉ = étoiles dans l'en-tête (★ pleines = niveau), libellé au survol — plus de pastille.
         safe = (f'<span class="da-bk-safe {_safe_cls.get(rcls, "saf-mid")}">'
                 f'{_SAFETY.get(rcls, "Sûreté moyenne")}</span>')
-        tab = _BET_LABELS[k] if k < len(_BET_LABELS) else f"Pari {k + 1}"
         res = results.get(_norm_sel(b["sel"]))
         rescls = " da-bk-won" if res == "won" else (" da-bk-lost" if res == "lost"
                                                     else (" da-bk-push" if res == "push" else ""))
@@ -704,11 +707,13 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # Commentaire du Verdict déplacé SOUS le pari correspondant, DANS la même carte.
         note = note_by_idx.get(k)
         note_html = f'<div class="da-bk-note">{_inline(note)}</div>' if note else ""
+        # 1 pari/match -> plus de « Pari 1/2/3 » : NOM du pari en titre, puis la SÛRETÉ, puis
+        # l'explication complète, puis les stats (confiance · cote).
         cards.append(
             f'<div class="da-bk{recocls}{rescls}">'
-            f'<div class="da-bk-tab">{tab}{safe}{valbadge}{mark}</div>'
-            f'<div class="da-bk-sel">{pari}{recostar}</div>'
-            f'{note_html}{strip}</div>')   # affiche -> ANALYSE -> stats
+            f'<div class="da-bk-sel">{pari}{recostar}{mark}</div>'
+            f'<div class="da-bk-tab">{safe}{valbadge}</div>'
+            f'{note_html}{strip}</div>')   # nom -> sûreté -> explication -> stats
     # LIVE (compact) : on ne garde QUE les cartes de paris (ni titre, ni légende, ni verdict ;
     # le repère « meilleure value » est déjà porté par le cadre OR + badge ✅ de la carte).
     if compact:

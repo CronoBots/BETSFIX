@@ -1521,7 +1521,7 @@ CSS = """
   .da-bk-ok,
   .da-bk-mid,
   .da-bk-hi{border-left-color:#34d27b}   /* sûreté ne colore PLUS la bande (étoiles) */
-  .da-bk-tab{display:flex;align-items:center;gap:8px;padding:12px 14px 0;font-size:10.5px;
+  .da-bk-tab{display:flex;align-items:center;gap:8px;padding:5px 14px 0;font-size:10.5px;
        font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
   .da-bk-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px 13px}
   .da-bk-l{min-width:0;flex:1}
@@ -1530,7 +1530,7 @@ CSS = """
   sous la ligne (séparé par un filet fin) */
   /* Analyse du pari : SOUS l'affiche,
   AU-DESSUS des stats */
-  .da-bk-note{font-size:11.5px;line-height:1.55;color:var(--muted);padding:8px 14px 0}
+  .da-bk-note{font-size:11.5px;line-height:1.55;color:#c3cad6;padding:8px 14px 2px}
   .da-bk-note b{color:#cfe0f5;font-weight:800}
   /* Résidu du Verdict (à éviter / mise) APRÈS les paris : cartes PREMIUM cohérentes (bande gauche +
      pastille d'icône + titre majuscule + texte) */
