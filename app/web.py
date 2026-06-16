@@ -1141,12 +1141,17 @@ CSS = """
   .bc-mile{stroke:rgba(120,200,255,.5);stroke-width:1.1;stroke-dasharray:2 3}
   .bc-mile-c{fill:#1496f0;stroke:#bfe2ff;stroke-width:.8}
   .bc-mile-n{fill:#fff;font-size:7px;font-weight:900}
-  .sx-mlegend{display:flex;flex-direction:column;align-items:flex-start;gap:5px;
-       font-size:10.5px;color:var(--muted);margin-top:9px}
+  .sx-mlegend{display:flex;flex-direction:column;align-items:stretch;gap:6px;
+       font-size:10.5px;color:var(--muted);margin-top:10px}
   .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);opacity:.8}
-  .sx-ml{display:flex;align-items:center;gap:6px}
-  .sx-ml-n{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+  .sx-ml{display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden}
+  .sx-ml-t{color:var(--text);font-weight:700;flex:0 0 auto}
+  .sx-ml-d{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .sx-ml-n{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
        border-radius:50%;background:#1496f0;color:#fff;font-size:9px;font-weight:900}
+  .sx-formrow{display:flex;justify-content:flex-start;margin:9px 0 2px}
+  .sx-divider{height:1px;background:var(--border);margin:14px 0 2px}
+  .sx-h2{margin-top:8px}
   .bc-yl{fill:var(--muted);font-size:9px;text-anchor:end;font-weight:700}
   .bc-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .bc-lg{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);
@@ -1208,7 +1213,7 @@ CSS = """
   .sx-streak{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:99px;white-space:nowrap}
   .sx-streak.hot{color:#3ee089;background:rgba(52,210,123,.14);border:1px solid rgba(52,210,123,.30)}
   .sx-streak.cold{color:#ff7484;background:rgba(242,93,110,.13);border:1px solid rgba(242,93,110,.30)}
-  .sx-form{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:flex-end}
+  .sx-form{display:flex;flex-wrap:nowrap;gap:5px;align-items:center;justify-content:flex-start}
   .sx-fd{width:9px;height:9px;border-radius:50%;background:var(--muted)}
   .sx-fd.won{background:#34d27b} .sx-fd.lost{background:#ff6b6b} .sx-fd.push{background:#9fb0c8}
   .sx-ind{font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);
@@ -2385,7 +2390,8 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
              f'fill="{GR if pts[-1] >= 0 else RD}"/>')
     # REPÈRES de modèle : trait vertical + pastille numérotée en haut (placés à l'index du 1er pari
     # postérieur à la date du jalon). La correspondance numéro -> nom est dans la légende texte.
-    for num, (iso, _label) in enumerate(milestones or [], 1):
+    for num, ms in enumerate(milestones or [], 1):
+        iso = ms[0]
         day = (iso or "")[:10]
         k = sum(1 for d in (dates or []) if d and d[:10] < day)
         if k <= 0 or k >= n:
@@ -2405,35 +2411,43 @@ def render_stats(full: dict | None, since: str = "") -> str:
     ov = full.get("overall") or {}
     if not ov.get("settled"):
         return ""
-    bstk = ov.get("best_streak") or 0
     sc = full.get("since_change") or {}
     # KPI à SUIVRE : nouveau système (1 pari/match + 3 agents). Libellé COURT (pas de retour à la ligne).
     nv_val = _roistr(sc.get("roi")) if sc.get("settled") else "—"
     nv_cls = _roi_cls(sc.get("roi"), sc.get("settled")) if sc.get("settled") else "hi"
     new_kpi = (f'<div class="sx-kpi" title="Nouveau système ({sc.get("settled") or 0} paris réglés)">'
                f'<b class="arec-{nv_cls}">{nv_val}</b><span>nouv. système</span></div>')
+    # COURBE + repères (≥1 explication d'1 ligne par mise à jour du modèle).
+    miles = list(analyses.MODEL_MILESTONES)
+    chart = _hero_chart(ov.get("points") or [], uid="all",
+                        dates=ov.get("dates") or [], milestones=miles)
+    mleg = "".join(
+        f'<div class="sx-ml" title="{html.escape(f"{lab} — {desc}")}">'
+        f'<span class="sx-ml-n">{i}</span>'
+        f'<b class="sx-ml-t">{html.escape(lab)}</b>'
+        f'<span class="sx-ml-d">{html.escape(desc)}</span></div>'
+        for i, (_iso, lab, desc) in enumerate(miles, 1))
+    mlegend = (f'<div class="sx-mlegend"><div class="sx-ml-h">Repères du modèle</div>{mleg}</div>'
+               if mleg else "")
+    chart_block = (f'<div class="sx-divider"></div>'
+                   f'<div class="sx-h sx-h2">Évolution du rendement</div>'
+                   f'<div class="sx-equity">{chart}</div>{mlegend}') if chart else ""
+    # UN SEUL cadre : ROI + forme (≥10 bulles) + KPIs + courbe + repères expliqués.
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
-        f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}'
-        f'{_form_dots(ov.get("form") or [])}</div></div>'
+        f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}</div></div>'
+        f'<div class="sx-formrow">{_form_dots(ov.get("form12") or ov.get("form") or [])}</div>'
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
         f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
         f'{new_kpi}'
-        '</div></div>')
-    # (2) COURBE D'ÉQUITÉ UNIQUE (rendement cumulé, mise constante) + repères NUMÉROTÉS des jalons.
-    miles = list(analyses.MODEL_MILESTONES)
-    chart = _hero_chart(ov.get("points") or [], uid="all",
-                        dates=ov.get("dates") or [], milestones=miles)
-    mleg = ("".join(f'<div class="sx-ml"><span class="sx-ml-n">{i}</span>{html.escape(lab)}</div>'
-                    for i, (_iso, lab) in enumerate(miles, 1)))
-    mlegend = (f'<div class="sx-mlegend"><div class="sx-ml-h">Repères du modèle</div>{mleg}</div>'
-               if mleg else "")
-    equity = ('<div class="sx-card"><div class="sx-h">Évolution du rendement</div>'
-              f'<div class="sx-equity">{chart}</div>{mlegend}</div>') if chart else ""
+        '</div>'
+        f'{chart_block}'
+        '</div>')
+    equity = ""   # fusionné dans `hero` (un seul cadre)
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
     # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
     bs = full.get("by_sport") or {}

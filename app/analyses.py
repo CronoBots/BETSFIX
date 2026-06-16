@@ -1214,10 +1214,10 @@ _PERF_CACHE: dict = {}     # "v" -> (sig, perf_breakdown()) — ROI par cote/mar
 # JALONS du modèle : dates (UTC) où la LOGIQUE de sélection a changé -> repères verticaux sur les
 # courbes d'équité (pour corréler une inflexion de ROI avec un changement). Garder COURT (s'affiche
 # sur un petit graphe) et N'AJOUTER qu'un vrai changement de POLITIQUE de paris (pas l'UI).
-MODEL_MILESTONES = [
-    ("2026-06-09", "Seuil ≥65 %"),
-    ("2026-06-12", "Mode strict"),
-    ("2026-06-16", "1 pari/match"),   # suivi = pari recommandé + garde-fous marchés/cote + 1 pari le + probable
+MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne) — repères sur la courbe d'équité
+    ("2026-06-09", "Seuil ≥65 %", "aucun pari sous 65 % de confiance honnête"),
+    ("2026-06-12", "Mode strict", "rien de solide = SKIP ; cote ≥1.70 exige 70 %+"),
+    ("2026-06-16", "1 pari/match", "1 pari, le plus probable, validé par 3 agents"),
 ]
 
 
