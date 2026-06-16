@@ -1467,14 +1467,15 @@ CSS = """
   .da-combo-lost{border-left-color:#ff6b6b}
   .da-combo-h{font-size:12px;font-weight:800;color:#ffd98a;display:flex;align-items:center;gap:8px;
        margin-bottom:7px;text-transform:uppercase;letter-spacing:.03em}
-  .da-combo-c{background:#ffb020;color:#1a1200;border-radius:6px;padding:1px 7px;font-weight:800}
+  .da-combo-n{font-weight:700;color:#cdb98a;opacity:.85}     /* « · N jambes » à côté de Combiné */
+  .da-combo-c{margin-left:auto;background:#ffb020;color:#1a1200;border-radius:6px;padding:1px 7px;font-weight:800}  /* cote totale : coin haut-droite */
   .da-combo-b{font-size:10px;border-radius:5px;padding:1px 7px;font-weight:800}
   .da-combo-b.won{background:#34d27b;color:#04220f}
   .da-combo-b.lost{background:#ff6b6b;color:#2a0606}
   .da-cl-leg{padding:7px 0;border-top:1px solid rgba(255,255,255,.07)}   /* 1 bloc = 1 jambe (rythme) */
   .da-cl-leg:first-of-type{border-top:0;padding-top:2px}
-  .da-cl{display:flex;align-items:center;gap:8px;justify-content:space-between;
-       font-size:11.5px;color:#dfe9f7}
+  .da-cl{display:flex;align-items:flex-start;gap:8px;justify-content:space-between;
+       font-size:11.5px;color:#dfe9f7}   /* cote+proba alignées sur la 1re ligne, pas centrées */
   .da-cl-sel{flex:1 1 auto;min-width:0;line-height:1.3;font-weight:700}   /* sélection : wrap propre à gauche, en GRAS pour bien la voir */
   .da-cl-meta{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .da-cl b{color:#fff;font-variant-numeric:tabular-nums}
@@ -1491,10 +1492,6 @@ CSS = """
   .da-cl-pr.mid{color:#22b8ff;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
   .da-cl-pr.lo{color:#ffb020;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.12)}
   .da-cl-why{font-size:11px;line-height:1.5;color:#b9c2cf;padding:3px 0 0 2px}   /* pourquoi DE LA JAMBE (complet) */
-  .da-combo-recap{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}      /* bandeau récap en tête */
-  .da-combo-tag{font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;
-       background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cdd8e8}
-  .da-combo-tag.chance{color:#ffd98a;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.10)}
   .da-combo-why{font-size:11px;line-height:1.55;color:#cfe0f5;font-style:italic;margin:0 0 9px}   /* synthèse (intro en tête) */
   .da-combo-live{border-left-color:#ffb020}
   .da-combo-b.live{background:#ffb020;color:#1a1200;animation:combopulse 1.6s ease-in-out infinite}

@@ -1141,15 +1141,17 @@ def combo_html(sport: str, match_id) -> str:
         total = f"{float(combo.get('total')):.2f}"
     except (TypeError, ValueError):
         total = "?"
-    # Bandeau récap EN TÊTE : nb de jambes (PAS de chance globale : le produit des jambes sous-estime un
-    # combiné corrélé -> chiffre trompeur ; la chance fiable reste celle PAR jambe, en pastille).
-    recap_html = f'<div class="da-combo-recap"><span class="da-combo-tag">🧩 {len(combo["legs"])} jambes</span></div>'
-    # Synthèse remontée en INTRO (sous le bandeau), avant la liste des jambes.
+    # En-tête : « 🎲 Combiné · N jambes » à gauche, cote totale dans le coin HAUT-DROITE.
+    # (PAS de chance globale : le produit des jambes sous-estime un combiné corrélé -> trompeur ;
+    # la chance fiable reste celle PAR jambe, en pastille.)
+    n_legs = len(combo["legs"])
+    # Synthèse en INTRO, avant la liste des jambes.
     synth = combo.get("why")
     intro_html = f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>' if synth else ""
     return (f'<div class="da-combo{hcls}"><div class="da-combo-h">🎲 Combiné '
-            f'<span class="da-combo-c">cote {total}</span>{badge}</div>'
-            f'{recap_html}{intro_html}{"".join(rows)}</div>')
+            f'<span class="da-combo-n">· {n_legs} jambes</span>{badge}'
+            f'<span class="da-combo-c">cote {total}</span></div>'
+            f'{intro_html}{"".join(rows)}</div>')
 
 
 def card_summary(sport: str, match_id) -> dict:
