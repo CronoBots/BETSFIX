@@ -468,6 +468,7 @@ CSS = """
   .exp-chev{display:inline-block;transition:transform .18s}
   .row.open .exp-chev{transform:rotate(180deg)}
   .exp{margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
+  .mc-ana>.exp{border-top:0;padding-top:0}   /* carte : PAS de filet entre le cadre Paris et le cadre Infos */
   .exp h2:first-child{margin-top:4px}
   /* Titres de section de l'analyse : UNE seule barre (le liseré h2:before) — pas de border-left
      en plus (sinon 2 barres verticales). */
@@ -1489,12 +1490,7 @@ CSS = """
   .da-cl-pr.hi{color:#2ec98a;border-color:rgba(46,201,138,.45);background:rgba(46,201,138,.12)}
   .da-cl-pr.mid{color:#22b8ff;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
   .da-cl-pr.lo{color:#ffb020;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.12)}
-  .da-cl-why{font-size:11px;line-height:1.5;color:#b9c2cf;padding:3px 0 0 2px}   /* pourquoi DE LA JAMBE (résumé) */
-  details.da-cl-why>summary{cursor:pointer;list-style:none}
-  details.da-cl-why>summary::-webkit-details-marker{display:none}
-  details.da-cl-why>summary::after{content:" ▸ détail";color:#22b8ff;font-size:10px;font-weight:700}
-  details.da-cl-why[open]>summary::after{content:" ▾ réduire"}
-  .da-cl-more{margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,255,255,.09);color:#a9b6c8}
+  .da-cl-why{font-size:11px;line-height:1.5;color:#b9c2cf;padding:3px 0 0 2px}   /* pourquoi DE LA JAMBE (complet) */
   .da-combo-recap{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}      /* bandeau récap en tête */
   .da-combo-tag{font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;
        background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cdd8e8}

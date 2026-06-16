@@ -1106,21 +1106,18 @@ def combo_html(sport: str, match_id) -> str:
             cote = f"{float(leg.get('cote')):.2f}"
         except (TypeError, ValueError):
             cote = "?"
-        # Pastille CHANCE de la jambe (proba extraite du « pourquoi ») + explication condensée :
-        # résumé visible, détail repliable.
+        # Pastille CHANCE de la jambe (proba extraite du « pourquoi ») + explication COMPLÈTE affichée
+        # sous le pari (pas de repli).
         pct, head, tail = _why_parts(leg.get("why"))
         if pct is None:
             prchip = ""
         else:
             pc = "hi" if pct >= 75 else "mid" if pct >= 65 else "lo"
             prchip = f'<span class="da-cl-pr {pc}">{pct}%</span>'
-        if head and tail:
-            why_html = (f'<details class="da-cl-why"><summary>{_h.escape(head)}</summary>'
-                        f'<div class="da-cl-more">{_h.escape(tail)}</div></details>')
-        elif head:
-            why_html = f'<div class="da-cl-why">{_h.escape(head)}</div>'
-        else:
-            why_html = ""
+        full = f"{head}. {tail}" if (head and tail) else (head or tail)
+        if full and full[-1] not in ".!?":
+            full += "."
+        why_html = f'<div class="da-cl-why">{_h.escape(full)}</div>' if full else ""
         # 2 colonnes : sélection (gauche, wrap propre) | bloc insécable cote · chance · compteur · statut (droite).
         rows.append(f'<div class="da-cl-leg{cls}">'
                     f'<div class="da-cl"><span class="da-cl-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
