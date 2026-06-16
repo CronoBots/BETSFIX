@@ -1957,7 +1957,9 @@ _CARDS_JS = (
     "window._mcInit=function(root){var o=(root||document).querySelectorAll('.row.mc.mc-open'),i;"
     "for(i=0;i<o.length;i++)_mcLoad(o[i]);};"
     "document.addEventListener('click',function(e){"
-    "if(_mv)return;if(e.target.closest('a'))return;"
+    # un clic DANS l'analyse (.exp : détails repliables, bulles, etc.) ne doit PAS replier la carte :
+    # on (dé)plie via l'en-tête de la carte uniquement. (cf. accordéon data-exp, même garde)
+    "if(_mv)return;if(e.target.closest('a,.exp'))return;"
     "var card=e.target.closest('.row.mc');if(!card)return;e.preventDefault();"
     "var b=card.querySelector('.mc-body');if(!b)return;"
     "if(b.hidden){b.hidden=false;card.classList.add('mc-open','mc-manual');_mcLoad(card);"
