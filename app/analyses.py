@@ -736,9 +736,19 @@ def _structured(md: str) -> str | None:
     # cf. analyses._verdict_notes + _bets_table) et le résidu (à éviter / mise) suit les paris. Les
     # « paris à jouer » ne sont pas non plus rendus ici (ils sont SUR la carte). `verdict`/`bets`/`mise`
     # restent dans `known` pour ne pas être re-rendus par la boucle « sections imprévues » ci-dessous.
-    if faits:
-        parts.append('<div class="da-faits"><div class="da-faits-h">ℹ️ Informations</div>'
-                     f'<div class="da-faits-b">{_render_blocks(faits)}</div></div>')
+    # « À éviter / SKIP » : INTÉGRÉ au cadre « Informations » (plus un bloc séparé) — demande utilisateur.
+    avoid = ""
+    for it in _bullets(verdict):
+        lab, _, cont = it.partition(":")
+        if any(k in lab.lower() for k in ("évit", "evit", "skip")):
+            avoid = _sentence_case(_units_to_pct(_strip_sources(re.sub(r"\*", "", cont).strip())))
+            break
+    if faits or avoid:
+        inner = f'<div class="da-faits-b">{_render_blocks(faits)}</div>' if faits else ""
+        if avoid:
+            inner += ('<div class="da-faits-avoid"><span class="da-fa-ic">⚠️</span>'
+                      f'<span><b>À éviter</b> — {_inline(avoid)}</span></div>')
+        parts.append(f'<div class="da-faits"><div class="da-faits-h">ℹ️ Informations</div>{inner}</div>')
     # Section « 🎲 Combiné » : NON rendue ici -> elle est DÉJÀ affichée dans son propre cadre (combo_html)
     # sur la carte. La re-rendre dans l'analyse = doublon (le détail du combiné doit être dans le cadre
     # du combiné, pas répété). On l'écarte (et la ligne `COMBO:` brute aussi).
@@ -779,8 +789,9 @@ def bets_html(sport: str, match_id, compact: bool = False) -> str:
         return ""
     m = meta(sport, match_id) or {}      # sofa_id-aware -> résultats par pari du bon sidecar
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
-    notes, residual = _verdict_notes(md)   # commentaire Verdict -> sous chaque pari ; résidu après
-    return _bets_table(body, results, compact=compact, notes=notes, residual=residual,
+    notes, _resid = _verdict_notes(md)     # commentaire Verdict -> sous chaque pari. Le résidu
+    # « à éviter » n'est PLUS rendu ici : il est intégré au cadre « Informations » (cf. _structured).
+    return _bets_table(body, results, compact=compact, notes=notes, residual="",
                        sport=sport, home=m.get("home", ""), away=m.get("away", ""),
                        validation=m.get("validation"))
 

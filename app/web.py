@@ -1638,6 +1638,12 @@ CSS = """
   .da-faits[open]>summary{border-bottom:1px solid var(--border)}
   .da-faits[open]>summary::after{transform:rotate(180deg)}
   .da-faits-b{padding:8px 14px 12px;font-size:12.5px;line-height:1.65;color:var(--text)}
+  /* « À éviter » intégré au cadre Informations : encart discret en bas, filet + icône. */
+  .da-faits-avoid{display:flex;gap:7px;margin:0 12px 11px;padding:9px 11px;border-radius:9px;
+       background:rgba(255,176,32,.07);border:1px solid rgba(255,176,32,.28);
+       font-size:11.5px;line-height:1.5;color:#e7d7b3}
+  .da-faits-avoid b{color:#ffcf72}
+  .da-fa-ic{flex:0 0 auto}
   .da-faits-b .da-ul{padding-left:4px;list-style:none}
   .da-faits-b .da-ul li{margin:9px 0;padding-left:15px;position:relative}
   .da-faits-b .da-ul li::before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;
