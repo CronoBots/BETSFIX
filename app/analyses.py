@@ -1323,10 +1323,10 @@ def stats_full(since_days: int | None = None) -> dict:
         if hit and hit[0] == sig:
             return hit[1]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
-    ex_sports, ex_markets = auto_exclusions()
-    method_ev: list = []      # LA MÉTHODE = LE pari (le + probable, joué) par match -> suivi principal
-    legacy_ev: list = []      # TOUS les paris réglés (ancienne méthode 3 paris/match) -> KPI transparence
+    all_ev: list = []         # TOUS les paris réglés depuis le début -> courbe d'équité COMPLÈTE
+    since_ev: list = []       # paris depuis le passage au NOUVEAU système (repère du 16/06) -> KPI à suivre
     by_sport: dict = {}
+    change_iso = MODEL_MILESTONES[-1][0] if MODEL_MILESTONES else None   # date du dernier changement majeur
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -1342,18 +1342,17 @@ def stats_full(since_days: int | None = None) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        for i, b in enumerate(d.get("bets") or []):    # transparence : tous les paris réglés
+        for i, b in enumerate(d.get("bets") or []):    # TOUS les paris réglés (courbe complète)
             if i >= len(_BET_KEYS):
                 break
             if b.get("result") in ("won", "lost", "push"):
-                legacy_ev.append((start, b["result"], b.get("odds")))
-        e = _reco_event(d, p, ex_sports, ex_markets)   # LE pari de la méthode (1/match, joué)
-        if e:
-            ev = (start, e["result"], e["odds"])
-            method_ev.append(ev)
-            by_sport.setdefault(sport, []).append(ev)
-    out = {"overall": _agg_bets(method_ev),            # suivi = la MÉTHODE (1 pari/match)
-           "all_bets": _agg_bets(legacy_ev),           # tous paris confondus (héritage, transparence)
+                ev = (start, b["result"], b.get("odds"))
+                all_ev.append(ev)
+                by_sport.setdefault(sport, []).append(ev)
+                if change_iso and start[:10] >= change_iso:   # depuis le nouveau système (1 pari/match + 3 agents)
+                    since_ev.append(ev)
+    out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
+           "since_change": _agg_bets(since_ev),        # nouveau système (s'enrichit au fil des scans)
            "by_sport": {sport: _agg_bets(evs) for sport, evs in by_sport.items()}}
     if sig is not None:
         _STATS_CACHE["full"] = (sig, out)

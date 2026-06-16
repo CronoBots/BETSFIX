@@ -2405,22 +2405,23 @@ def render_stats(full: dict | None, since: str = "") -> str:
     if not ov.get("settled"):
         return ""
     bstk = ov.get("best_streak") or 0
-    allb = full.get("all_bets") or {}
-    # KPI transparence : « tous paris confondus » (héritage ancienne méthode 3 paris/match), à côté de la méthode.
-    legacy_kpi = (f'<div class="sx-kpi"><b class="arec-{_roi_cls(allb.get("roi"), allb.get("settled"))}">'
-                  f'{_roistr(allb.get("roi"))}</b><span>tous paris ({allb.get("settled") or 0})</span></div>'
-                  if allb.get("settled") else "")
+    sc = full.get("since_change") or {}
+    # KPI à SUIVRE : performance depuis le passage au NOUVEAU système (1 pari/match + 3 agents, repère 16/06).
+    new_kpi = (f'<div class="sx-kpi"><b class="arec-{_roi_cls(sc.get("roi"), sc.get("settled"))}">'
+               f'{_roistr(sc.get("roi"))}</b><span>nouveau système ({sc.get("settled") or 0})</span></div>'
+               if sc.get("settled") else
+               '<div class="sx-kpi"><b class="arec-hi">•</b><span>nouveau système (à venir)</span></div>')
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
-        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI de la méthode · 1 pari/match {_ind(ov.get("settled"))}</div></div>'
+        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global · tous les paris {_ind(ov.get("settled"))}</div></div>'
         f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}'
         f'{_form_dots(ov.get("form12") or ov.get("form") or [])}</div></div>'
         '<div class="sx-kpis">'
-        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris méthode</span></div>'
+        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
         f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
-        f'{legacy_kpi or f"<div class=\"sx-kpi\"><b class=\"arec-hi\">{bstk}</b><span>série max</span></div>"}'
+        f'{new_kpi}'
         '</div></div>')
     # (2) COURBE D'ÉQUITÉ UNIQUE (rendement cumulé, mise constante) + repères NUMÉROTÉS des jalons.
     miles = list(analyses.MODEL_MILESTONES)
@@ -2429,10 +2430,10 @@ def render_stats(full: dict | None, since: str = "") -> str:
     mleg = ("".join(f'<span class="sx-ml"><span class="sx-ml-n">{i}</span>{html.escape(lab)}</span>'
                     for i, (_iso, lab) in enumerate(miles, 1)))
     mlegend = f'<div class="sx-mlegend">Repères du modèle :{mleg}</div>' if mleg else ""
-    equity = ('<div class="sx-card"><div class="sx-h">Rendement de la méthode</div>'
-              '<div class="sx-sub"><b>Un seul pari par match</b> (le plus probable, validé), tous sports — '
-              '<b>chaque pari compté, gains ET pertes</b>. Le repère « 1 pari/match » marque le passage à '
-              'la validation par 3 agents. (« tous paris » = héritage de l\'ancienne méthode.)</div>'
+    equity = ('<div class="sx-card"><div class="sx-h">Évolution du rendement</div>'
+              '<div class="sx-sub">Profit cumulé sur <b>tous les paris depuis le début</b> (mise plate). '
+              'Le repère <b>« 1 pari/match »</b> marque le passage au nouveau système (1 pari/match + '
+              'validation 3 agents) : ses paris s\'ajoutent à droite — on regarde s\'il redresse la courbe.</div>'
               f'<div class="sx-equity">{chart}</div>{mlegend}</div>') if chart else ""
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
     # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
