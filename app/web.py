@@ -2405,19 +2405,22 @@ def render_stats(full: dict | None, since: str = "") -> str:
     if not ov.get("settled"):
         return ""
     bstk = ov.get("best_streak") or 0
-    clv_kpi = ""   # KPI CLV retiré avec la simulation (2026-06-14, demande utilisateur)
+    rec = full.get("recommended") or {}
+    # KPI séparé : bilan des seuls paris ⭐ recommandés (ce qu'on jouerait), à côté du ROI global.
+    reco_kpi = (f'<div class="sx-kpi"><b class="arec-{_roi_cls(rec.get("roi"), rec.get("settled"))}">'
+                f'{_roistr(rec.get("roi"))}</b><span>ROI paris ⭐ ({rec.get("settled") or 0})</span></div>'
+                if rec.get("settled") else "")
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
-        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI · paris recommandés {_ind(ov.get("settled"))}</div></div>'
+        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global · tous les paris {_ind(ov.get("settled"))}</div></div>'
         f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}'
         f'{_form_dots(ov.get("form12") or ov.get("form") or [])}</div></div>'
         '<div class="sx-kpis">'
-        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris ⭐ retenus</span></div>'
+        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
         f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
-        f'<div class="sx-kpi"><b class="arec-hi">{bstk}</b><span>série max</span></div>'
-        f'{clv_kpi}'
+        f'{reco_kpi or f"<div class=\"sx-kpi\"><b class=\"arec-hi\">{bstk}</b><span>série max</span></div>"}'
         '</div></div>')
     # (2) COURBE D'ÉQUITÉ UNIQUE (rendement cumulé, mise constante) + repères NUMÉROTÉS des jalons.
     miles = list(analyses.MODEL_MILESTONES)
@@ -2426,9 +2429,9 @@ def render_stats(full: dict | None, since: str = "") -> str:
     mleg = ("".join(f'<span class="sx-ml"><span class="sx-ml-n">{i}</span>{html.escape(lab)}</span>'
                     for i, (_iso, lab) in enumerate(miles, 1)))
     mlegend = f'<div class="sx-mlegend">Repères du modèle :{mleg}</div>' if mleg else ""
-    equity = ('<div class="sx-card"><div class="sx-h">Rendement des paris recommandés</div>'
-              '<div class="sx-sub">Le pari ⭐ retenu par match (ce que tu jouerais). '
-              'Le diagnostic complet — tous les paris, par cote &amp; marché — est plus bas.</div>'
+    equity = ('<div class="sx-card"><div class="sx-h">Évolution du rendement</div>'
+              '<div class="sx-sub">Profit cumulé sur <b>tous les paris</b> (mise plate). Le ROI des seuls '
+              'paris ⭐ recommandés est en KPI ci-dessus ; le détail par cote &amp; marché est plus bas.</div>'
               f'<div class="sx-equity">{chart}</div>{mlegend}</div>') if chart else ""
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
     # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.

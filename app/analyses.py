@@ -1312,10 +1312,10 @@ def _reco_event(d: dict, path: str, ex_sports: set, ex_markets: set) -> dict | N
 
 
 def stats_full(since_days: int | None = None) -> dict:
-    """Suivi pour l'accueil = LE PARI RECOMMANDÉ par match (le ⭐ « à jouer »), pas pari1/2/3 : le bilan
-    reflète le système RÉELLEMENT suivi (les paris secondaires <65 % que l'outil dit de ne PAS jouer ne
-    le plombent plus). 3 niveaux : `overall`, `by_pari` (recommandés ventilés par position 1/2/3),
-    `by_sport`. Chaque bloc = `_agg_bets` (courbe + ROI + réussite + cote moy. + série + drawdown).
+    """Suivi pour l'accueil = TOUS les paris réglés (pari1/2/3), pour une courbe d'équité HONNÊTE et
+    complète (pertes comprises). En plus, `recommended` = le bilan des seuls paris ⭐ « à jouer » (ce
+    qu'on jouerait en suivant le système), à titre indicatif. 3 niveaux : `overall`, `by_pari`
+    (pari1/2/3), `by_sport`. Chaque bloc = `_agg_bets` (courbe + ROI + réussite + cote moy. + drawdown).
     `since_days` : ne garde que les matchs dont le coup d'envoi est dans les N derniers jours."""
     sig = _dir_sig() if since_days is None else None   # cache UNIQUEMENT la vue complète (pas de cutoff)
     if sig is not None:
@@ -1325,6 +1325,7 @@ def stats_full(since_days: int | None = None) -> dict:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     ex_sports, ex_markets = auto_exclusions()
     all_ev: list = []
+    reco_ev: list = []        # sous-ensemble : le pari ⭐ recommandé par match (KPI indicatif)
     by_pari: dict = {i: [] for i in range(len(_BET_KEYS))}
     by_sport: dict = {}
     for p in glob.glob(os.path.join(DIR, "*.json")):
@@ -1342,15 +1343,19 @@ def stats_full(since_days: int | None = None) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        e = _reco_event(d, p, ex_sports, ex_markets)    # UN seul event/match : le pari recommandé
-        if not e:
-            continue
-        i = min(e["idx"], len(_BET_KEYS) - 1)
-        ev = (start, e["result"], e["odds"])
-        all_ev.append(ev)
-        by_pari[i].append(ev)
-        by_sport.setdefault(sport, {}).setdefault(i, []).append(ev)
+        for i, b in enumerate(d.get("bets") or []):    # TOUS les paris réglés du match
+            if i >= len(_BET_KEYS):
+                break
+            if b.get("result") in ("won", "lost", "push"):
+                ev = (start, b["result"], b.get("odds"))
+                all_ev.append(ev)
+                by_pari[i].append(ev)
+                by_sport.setdefault(sport, {}).setdefault(i, []).append(ev)
+        e = _reco_event(d, p, ex_sports, ex_markets)   # + le pari recommandé (KPI séparé)
+        if e:
+            reco_ev.append((start, e["result"], e["odds"]))
     out = {"overall": _agg_bets(all_ev),
+           "recommended": _agg_bets(reco_ev),
            "by_pari": {_BET_KEYS[i]: _agg_bets(by_pari[i]) for i in range(len(_BET_KEYS))},
            "by_sport": {}}
     for sport, byi in by_sport.items():
