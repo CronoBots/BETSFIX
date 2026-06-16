@@ -1739,7 +1739,7 @@ CSS = """
   /* ONGLET STATS (.statsx) : fond cyan (comme la carte .spf des onglets sport) sur TOUTES les lignes —
      scopé pour NE PAS toucher les mêmes composants affichés DANS les onglets sport (qui restent sombres
      pour contraster avec la carte .spf cyan qui les contient). */
-  .statsx .sx-sport,.statsx .calg-row,.statsx .calg-sport{
+  .statsx .sx-sport,.statsx .cal-row,.statsx .calg-row,.statsx .calg-sport,.statsx .sx-dd-row{
        background:linear-gradient(180deg,rgba(34,184,255,.10),rgba(34,184,255,.025));
        border-color:rgba(34,184,255,.45)}
   .statsx .calg-sub{background:linear-gradient(180deg,rgba(34,184,255,.05),rgba(34,184,255,.015))}
