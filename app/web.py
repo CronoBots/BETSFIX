@@ -1742,6 +1742,9 @@ CSS = """
   .statsx .sx-sport,.statsx .cal-row,.statsx .calg-row,.statsx .calg-sport{
        background:linear-gradient(180deg,rgba(34,184,255,.10),rgba(34,184,255,.025));
        border-color:rgba(34,184,255,.45)}
+  /* UN SEUL cadre par sport : la ligne résumé interne (.sx-row) est APLATIE (pas de 2e cadre dans le
+     cadre cyan du sport). Le sport = la carte .sx-sport, point. */
+  .statsx .sx-sport .sx-row{background:transparent;border:0;border-radius:0;padding:0}
   .statsx .calg-sub{background:linear-gradient(180deg,rgba(34,184,255,.05),rgba(34,184,255,.015))}
   /* Paris dépliés DANS le cadre sport : PAS de cadre-dans-un-cadre -> lignes PLATES (sans fond ni
      bordure de carte), juste un filet de séparation. Le seul « cadre » est la carte du sport. */
