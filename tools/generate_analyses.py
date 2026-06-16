@@ -192,8 +192,11 @@ METHODO = (
     "RÈGLES DURES (notre historique RÉEL de règlements l'exige) :\n"
     "• Ne liste PAS ce pari si ta proba honnête est < 65 % — sur notre historique, les paris annoncés "
     "50-64 % ne passent qu'à ~50 %. Mieux vaut tableau VIDE et SKIP qu'un pari médiocre.\n"
-    "• Privilégie un marché RÉGLABLE et ÉVITE les marchés perdants chez nous (« Total buts/points » et "
-    "« total d'une équipe » saignent : ROI −16 % à −30 %) ; cote idéale 1.30-1.70.\n"
+    "• Privilégie un marché RÉGLABLE, cote idéale 1.30-1.70. Méfie-toi des « Total buts/points » et "
+    "« total d'une équipe » (historiquement moins bons chez nous) : ne les retiens QUE sur une value "
+    "claire et bien étayée — mais ne t'interdis PAS un bon pari (vainqueur, double chance, handicap, "
+    "sets/jeux, premier but… restent pleinement ouverts). L'objectif n'est PAS zéro pari : si un pari "
+    "solide ≥ 65 % existe, retiens-le.\n"
     "• Cote ≥ 1.70 : zone TRÈS dangereuse (39 % de réussite réelle chez nous). N'en liste un QUE si ta "
     "proba ≥ 70 % ET ≥ 3 éléments factuels concordants dont AU MOINS UN des DONNÉES MULTI-SOURCES "
     "(blessure adverse majeure, fatigue/back-to-back, série limpide). Sinon, ne le liste pas.\n"
@@ -827,18 +830,20 @@ _VALIDATORS = [
      "stats par équipe/joueur) soutiennent-ils VRAIMENT ce pari, SANS contradiction ? Un fait qui va à "
      "l'encontre, un échantillon trop faible, ou des sources qui divergent -> REJETÉ."),
     ("value", "💰",
-     "ANGLE — VALUE & COTE : ta proba honnête dépasse-t-elle NETTEMENT la proba implicite de la cote "
-     "(marge retirée) ? La cote est-elle dans une zone saine (méfiance forte ≥ 1.70, zone qui saigne chez "
-     "nous) ? Sans value claire ET sûre -> REJETÉ."),
+     "ANGLE — VALUE & COTE : la proba estimée dépasse-t-elle la proba juste de la cote, ou au moins "
+     "l'égale sur un favori solide ? La cote est-elle raisonnable ? Rejette seulement si la value est "
+     "CLAIREMENT absente (cote sous le sharp, pari payé moins que le risque)."),
     ("diable", "😈",
-     "ANGLE — AVOCAT DU DIABLE : cherche ACTIVEMENT tout ce qui ferait PERDRE ce pari (piège du marché, "
-     "blessure/repos/turnover de dernière minute, enjeu/motivation, météo, arbitre, variance, "
-     "sur-confiance de l'analyste). Si un scénario de perte est crédible -> REJETÉ."),
+     "ANGLE — AVOCAT DU DIABLE : cherche un scénario de perte CRÉDIBLE et DOCUMENTÉ (blessure/repos/"
+     "turnover avéré, piège net, enjeu inversé). Rejette seulement si ce risque est RÉEL et étayé par les "
+     "faits — pas une simple possibilité théorique (tout pari a une part de variance)."),
 ]
 _VALIDATOR_BASE = (
-    "Tu es un VALIDATEUR de pari sportif INDÉPENDANT et SCEPTIQUE. On te donne le DOSSIER FACTUEL d'un "
-    "match et UN pari proposé par un autre analyste. Juge UNIQUEMENT selon ton angle ci-dessous ; sois "
-    "EXIGEANT : dans le doute, REJETTE (ne valide qu'un pari réellement solide).\n{angle}\n\n"
+    "Tu es un VALIDATEUR de pari sportif INDÉPENDANT et lucide. On te donne le DOSSIER FACTUEL d'un "
+    "match et UN pari proposé par un autre analyste. Juge selon ton angle ci-dessous. VALIDE un pari "
+    "RAISONNABLE et soutenu par les faits ; ne REJETTE QUE si tu identifies un PROBLÈME CONCRET et sérieux "
+    "(une donnée qui contredit clairement le pari, une value absente, un piège net). PAS de rejet « par "
+    "prudence » ou « dans le doute » sans raison précise — un pari correct doit passer.\n{angle}\n\n"
     "Réponds en 3 lignes EXACTEMENT, RIEN d'autre :\n"
     "VERDICT: VALIDÉ   (ou REJETÉ)\n"
     "PROBA: <ta proba honnête de gain, juste le nombre en %>\n"
