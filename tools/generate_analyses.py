@@ -976,12 +976,16 @@ async def main():
                 # (compos/blessures publiées entre-temps peuvent débloquer un pari fiable).
                 from app import analyses as _an
                 bets = _an._parse_bets(_an._bets_section(analysis) or "")
+                # Pour un match CdM, c'est le COMBINÉ qui fait foi (pas le pari simple) -> on RETIENT
+                # le match s'il a un combiné, même si la table de paris simples est vide.
+                is_wc = _is_big_match(m.get("comp") or m.get("circuit") or "")
+                combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", "")) if is_wc else None
                 # VALIDATION PAR PANEL (3 agents) du pari retenu — sauf combiné CdM (structure à part).
                 validation = None
                 skip_reason = None
-                if not bets:
+                if not bets and not combo:
                     skip_reason = "aucun pari ≥ seuil"
-                elif not _is_big_match(m.get("comp") or m.get("circuit") or ""):
+                elif not is_wc:                  # CdM = combiné déjà construit/validé à part -> pas de panel
                     validation = await _validate_bet(doss, bets[0], bets[0].get("prob"), sport)
                     if validation["verdict"] == "rejete":
                         skip_reason = f"pari REJETÉ par le panel ({validation['n_ok']}/{validation['n']})"
