@@ -514,7 +514,12 @@ async def settle_analyses() -> int:
         cmb = d.get("combo") or {}
         combo_pending = (bool(cmb.get("legs")) and cmb.get("result") is None
                          and (d.get("combo_tries") or 0) < 8)
-        if (res and res.get("pick_result") is not None
+        # Pari « le plus sûr » NON réglable sur un match pourtant fini (ex. tennis abandonné avant le 1er
+        # set : 0-0 en sets, pas de vainqueur) -> on retente quelques fois puis on ABANDONNE (sinon le
+        # sidecar n'est jamais figé et on le re-traite à chaque boucle indéfiniment).
+        pick_settled = bool(res and res.get("pick_result") is not None)
+        pick_giveup = (not pick_settled and (d.get("pick_tries") or 0) >= 6)
+        if ((pick_settled or pick_giveup)
                 and d.get("settle_v") == _SETTLE_VERSION
                 and not votes_pending and not combo_pending):
             continue
@@ -612,6 +617,8 @@ async def settle_analyses() -> int:
 
             pr = await _settle_one(code)
             d["result"] = {"score": score.get("label"), "pick_result": pr, "raw": score}
+            if pr is None and analyses.status_of(d) == "finished":   # non réglable (abandon…) -> compte l'essai
+                d["pick_tries"] = (d.get("pick_tries") or 0) + 1
             # Règle CHAQUE pari affiché séparément (stats par pari 1/2/3, cadres verts/rouges).
             bets_out = []
             for b, bc in zip(bet_list, bet_codes):

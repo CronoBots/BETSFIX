@@ -29,7 +29,9 @@ _LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+)\)")
 _BOLD = re.compile(r"\*\*([^*]+)\*\*")
 _LIST = re.compile(r"^\s*([-*]|\d+[.)])\s+")
 _BLOCK = re.compile(r"^(#{1,6}\s|\s*[-*]\s|\s*\d+[.)]\s|>|\|)")
-_MAX_BETS = 3   # tableau des paris plafonné : discipline (peu mais sûr), lisibilité mobile
+_MAX_BETS = 1   # UN SEUL pari par match : le PLUS PROBABLE de tout le marché (qualité > quantité,
+#                 choix utilisateur 2026-06-16). Le tableau étant ordonné du + au − probable, on garde
+#                 la 1re ligne. (Hors combiné CdM, géré à part.)
 
 
 _FID_CACHE: dict = {}   # sport -> (signature_dossier, {sofa_id: fid}) — index mis en cache
