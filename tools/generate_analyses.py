@@ -69,9 +69,10 @@ _PER_CRIT = 3
 _MAX_MK_LINES = 28
 
 # COMBINÉ « Coupe du Monde 2026 » UNIQUEMENT (cas spécial demandé par l'utilisateur) : pour ces matchs,
-# l'analyste génère un combiné de 3-4 sélections les plus probables, de FAMILLES de marché DIFFÉRENTES
-# (qui ne se ressemblent pas -> combinable sur Unibet), cote combinée > 2.00. Affiché À LA PLACE du pari
-# simple. Le système évite normalement les combinés -> exception CdM seulement (pas les autres tournois).
+# l'analyste génère un combiné de 3-4 sélections TRÈS probables qui expriment la MÊME domination du
+# favori (jambes corrélées positivement qui passent ensemble), ZÉRO carton, marchés RÉGLABLES seulement.
+# On privilégie la chance de passer, pas la grosse cote (Unibet rabote la cote corrélée -> assumé).
+# Affiché À LA PLACE du pari simple. Exception CdM seulement (pas les autres tournois). Cf. COMBO_MISSION.
 _BIG_TOURNEYS = ("coupe du monde", "world cup")
 
 
@@ -86,32 +87,49 @@ WC_NOTE = (
     "(une équipe DÉJÀ qualifiée peut faire TOURNER son effectif et lever le pied ; une équipe qui DOIT "
     "gagner attaque -> plus de buts/corners ; un match où un nul suffit aux deux = fermé). La PHASE "
     "(poules / 8es / quart…) change l'intensité et la prudence. Calibre tes probas là-dessus.\n"
-    "• ⚠️ CARTONS = L'ARBITRE (capital) : c'est l'ARBITRE qui décide des cartons, et ça varie ÉNORMÉMENT "
-    "d'un arbitre à l'autre. Pour TOUTE jambe/pari CARTONS, base-toi sur la MOYENNE DE CARTONS/MATCH de "
-    "l'arbitre DÉSIGNÉ (donné ci-dessus ; recherche-la sur le web : « <arbitre> cartons par match / yellow "
-    "cards per game »). Arbitre sévère (≥5 cartons/match) -> penche « plus de cartons » ; arbitre clément "
-    "(≤3) -> « moins ». NE PROPOSE PAS de pari cartons sans cette donnée arbitre + l'enjeu (match tendu/"
-    "rival -> plus de cartons).\n")
+    "• ⚠️ CARTONS = MARCHÉ À ÉVITER (capital) : c'est l'ARBITRE qui décide des cartons et ça varie "
+    "ÉNORMÉMENT d'un arbitre à l'autre — nos données ne le captent quasiment pas. C'est notre marché le "
+    "MOINS FIABLE et il a fait perdre nos derniers combinés. RÈGLE : JAMAIS de jambe cartons dans un "
+    "combiné (interdit). En pari simple, ne retiens un pari cartons que dans le cas EXCEPTIONNEL où tu as "
+    "À LA FOIS la moyenne cartons/match de l'arbitre DÉSIGNÉ (donnée ci-dessus ou recherche web « <arbitre> "
+    "yellow cards per game ») ET un enjeu clair (match tendu/rival) ; au moindre doute, SKIP les cartons.\n")
 
 COMBO_MISSION = (
     "\n\nMISSION SPÉCIALE — COMBINÉ Coupe du Monde (même match) : construis LE combiné de ce match. "
-    "C'est le pari PHARE (il REMPLACE le pari simple). Règles STRICTES :\n"
-    "1) ⚠️ INDÉPENDANCE (le point CAPITAL) : sur un combiné MÊME MATCH, Unibet réduit FORTEMENT la cote "
-    "si les jambes dépendent du MÊME scénario (ex. « Allemagne gagne la 1re MT » + « Curaçao ne marque "
-    "pas » + « buts dans les 2 MT » -> tout dépend de la domination allemande -> cote 2.02 tombe à 1.65). "
-    "Choisis donc des jambes pilotées par des ASPECTS DE MATCH INDÉPENDANTS, qui ne partagent PAS le "
-    "même scénario : CORNERS, CARTONS, PREMIER BUT/buteur, total de buts, nombre de tirs… (≈ ton coupon "
-    "gagnant « plus de corners X » + « total cartons +2.5 » + « premier but X », qui n'a EU AUCUNE "
-    "réduction, voire un boost). ⚠️ AU PLUS UNE jambe liée aux BUTS (total du match OU total d'une équipe "
-    "OU buts mi-temps — JAMAIS plusieurs : toutes corrélées « peu/beaucoup de buts »). Les autres jambes "
-    "d'aspects DIFFÉRENTS : CORNERS, CARTONS, PREMIER BUT, tirs. Un combiné de 4 marchés de buts = "
-    "INTERDIT. ÉVITE aussi les paris liés à l'issue/domination (résultat, mi-temps résultat, handicap, "
-    "double chance, une équipe marque / l'autre non) : corrélés -> rabotés.\n"
-    "2) Chaque jambe = la sélection la PLUS PROBABLE de son aspect (proba ≥ ~75 %), appuyée par les "
-    "faits/tendances (les TENDANCES corners/cartons/buts du bloc Flashscore sont idéales).\n"
-    "3) COTE COMBINÉE (produit des cotes) > 2.30 (vise 2.3–3.2) : Unibet applique une PETITE réduction "
-    "same-match (~10-15 %) même sur des jambes indépendantes, donc avec un produit > 2.30 la cote RÉELLE "
-    "Unibet reste > 2.00. Combine 3 à 4 jambes. N'utilise QUE des cotes réelles du bloc ci-dessus.\n"
+    "C'est le pari PHARE (il REMPLACE le pari simple). PHILOSOPHIE (PRIORITAIRE) : on privilégie la "
+    "CHANCE DE PASSER, PAS la grosse cote. Mieux vaut un combiné à cote modeste qui PASSE qu'un combiné "
+    "à grosse cote qui saute sur une jambe instable. Règles STRICTES :\n"
+    "1) ⚠️ ZÉRO CARTON (le point CAPITAL) : AUCUNE jambe sur les cartons (jaunes/rouges/total/équipe). "
+    "C'est notre marché le moins fiable (arbitre-dépendant) et il a fait perdre TOUS nos derniers "
+    "combinés. Interdit. Évite de même tout marché tributaire d'un fait isolé.\n"
+    "2) UNE SEULE LECTURE DE MATCH, déclinée en jambes CORRÉLÉES POSITIVEMENT : identifie le FAVORI "
+    "NET du match et exprime SA DOMINATION sous plusieurs angles qui tombent ENSEMBLE quand il domine "
+    "(c'est l'esprit du coupon gagnant « premier but FAVORI » + « le plus de corners FAVORI » + "
+    "« l'adversaire ne gagne aucune mi-temps »). Comme ces jambes vont dans le même sens, elles PASSENT "
+    "ensemble dans le scénario probable. Jambes idéales — TOUTES RÉGLABLES, à exprimer avec une LIGNE "
+    "CHIFFRÉE EXPLICITE :\n"
+    "   • Double chance / vainqueur du favori : « <Favori> ou nul » ou « <Favori> gagne ».\n"
+    "   • Handicap du favori : « <Favori> -1.5 » (gagne par 2+ buts).\n"
+    "   • Total d'ÉQUIPE du favori : « <Favori> marque plus de 1.5 ».\n"
+    "   • Corners du favori AVEC un nombre : « <Favori> plus de 5.5 corners » (JAMAIS « le plus de "
+    "corners » sans chiffre — non réglable).\n"
+    "   • Les deux équipes marquent : NON, si l'adversaire est faible offensivement.\n"
+    "   • AU PLUS UNE jambe de total de buts du match (« plus de 1.5 / 2.5 »).\n"
+    "   ⛔ N'utilise PAS « premier but / premier buteur », « gagne une mi-temps / mi-temps », ni « tirs / "
+    "tirs cadrés » : non réglables chez nous (le site les laisserait éternellement « en attente », ou un "
+    "« tirs » serait confondu avec des buts). Reformule l'idée en un marché réglable ci-dessus.\n"
+    "   ⛔ COHÉRENCE OBLIGATOIRE : TOUTES les jambes vont dans le MÊME SENS (la domination du MÊME camp). "
+    "JAMAIS deux jambes CONTRADICTOIRES — ex. « Angleterre +0.5 » (ne perd pas) AVEC « Croatie -1.5 » "
+    "(gagne par 2+) = impossibles ensemble, le combiné ne peut PAS passer. Choisis UN favori et tiens-t'y "
+    "sur toutes les jambes.\n"
+    "3) Chaque jambe = sélection TRÈS PROBABLE (proba ≥ ~75 %), appuyée par les faits/tendances du dossier "
+    "(forme, classement, blessés, tendances corners/buts Flashscore). 3 jambes (4 seulement si chacune "
+    "reste ≥ 75 %).\n"
+    "4) COTE : comme les jambes sont corrélées, Unibet RÉDUIT la cote combinée — c'est ASSUMÉ et ACCEPTÉ "
+    "(on achète de la fiabilité, pas du rendement). Vise une cote combinée (produit des cotes réelles) "
+    "≈ 1.70–2.60. N'utilise QUE des cotes réelles du bloc ci-dessus. Si le match n'a PAS de favori net "
+    "(coin-flip), NE FORCE PAS la domination : construis 2-3 totaux/corners prudents, ou écris qu'aucun "
+    "combiné solide n'existe sur ce match.\n"
     "Ajoute À LA FIN, après la section Mise, EXACTEMENT ce format (CHAQUE jambe avec SON explication "
     "détaillée APRÈS le tiret — pourquoi CETTE jambe passe, factuel et chiffré ; chaque explication est "
     "une PHRASE COMPLÈTE : MAJUSCULE au début, point final, ponctuation et virgules correctes) :\n"
@@ -119,8 +137,8 @@ COMBO_MISSION = (
     "- <sélection exacte 1> @<cote> — <pourquoi cette jambe : 1 à 2 phrases factuelles et chiffrées>\n"
     "- <sélection exacte 2> @<cote> — <pourquoi cette jambe>\n"
     "- <sélection exacte 3> @<cote> — <pourquoi cette jambe>\n"
-    "**Cote combinée : <produit à 2 décimales>** — <1 phrase : pourquoi ces jambes sont INDÉPENDANTES "
-    "(aspects de match différents) donc combinables sans rabotage>.\n"
+    "**Cote combinée : <produit à 2 décimales>** — <1 phrase : pourquoi ces jambes expriment la MÊME "
+    "domination du favori et passent donc ensemble dans le scénario probable>.\n"
     "Puis une TOUTE DERNIÈRE ligne technique (sous le PICK) au format EXACT :\n"
     "`COMBO: <sel1> @<cote1> | <sel2> @<cote2> | <sel3> @<cote3> = <cote combinée>`"
 )

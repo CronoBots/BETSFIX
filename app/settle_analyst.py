@@ -248,7 +248,15 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         if red:   # marché binaire oui/non sans ligne -> seuil 0.5
             neg = any(w in t for w in ("aucun", "sans", " non", "pas de"))
             return f"{base} {'UNDER' if neg else 'OVER'} 0.5"
+        # ligne SIGNÉE sans « plus/moins de » : « Total corners +7.5 » -> OVER, « ... -7.5 » -> UNDER.
+        sgn = re.search(r"([+\-])\s*(\d+[.,]?\d*)", t)
+        if sgn:
+            return f"{base} {'UNDER' if sgn.group(1) == '-' else 'OVER'} {sgn.group(2).replace(',', '.')}"
         return ""    # carton/corner sans ligne exploitable -> on s'abstient
+    # TIRS / TIRS CADRÉS : pas de famille de règlement dédiée ici -> NE PAS confondre avec des BUTS
+    # (TEAMTOT plus bas réglerait « tirs +4.5 » comme « +4.5 BUTS » -> perdu à coup sûr). On s'abstient.
+    if re.search(r"\btirs?\b", t) or "shot" in t or "cadré" in t:
+        return ""
     team = which()
     # total d'une ÉQUIPE (le score par équipe est connu) : « X marque +1.5 », « X +/- de N buts/pts »
     if team:
