@@ -1324,9 +1324,8 @@ def stats_full(since_days: int | None = None) -> dict:
             return hit[1]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     ex_sports, ex_markets = auto_exclusions()
-    all_ev: list = []
-    reco_ev: list = []        # sous-ensemble : le pari ⭐ recommandé par match (KPI indicatif)
-    by_pari: dict = {i: [] for i in range(len(_BET_KEYS))}
+    method_ev: list = []      # LA MÉTHODE = LE pari (le + probable, joué) par match -> suivi principal
+    legacy_ev: list = []      # TOUS les paris réglés (ancienne méthode 3 paris/match) -> KPI transparence
     by_sport: dict = {}
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
@@ -1343,25 +1342,19 @@ def stats_full(since_days: int | None = None) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        for i, b in enumerate(d.get("bets") or []):    # TOUS les paris réglés du match
+        for i, b in enumerate(d.get("bets") or []):    # transparence : tous les paris réglés
             if i >= len(_BET_KEYS):
                 break
             if b.get("result") in ("won", "lost", "push"):
-                ev = (start, b["result"], b.get("odds"))
-                all_ev.append(ev)
-                by_pari[i].append(ev)
-                by_sport.setdefault(sport, {}).setdefault(i, []).append(ev)
-        e = _reco_event(d, p, ex_sports, ex_markets)   # + le pari recommandé (KPI séparé)
+                legacy_ev.append((start, b["result"], b.get("odds")))
+        e = _reco_event(d, p, ex_sports, ex_markets)   # LE pari de la méthode (1/match, joué)
         if e:
-            reco_ev.append((start, e["result"], e["odds"]))
-    out = {"overall": _agg_bets(all_ev),
-           "recommended": _agg_bets(reco_ev),
-           "by_pari": {_BET_KEYS[i]: _agg_bets(by_pari[i]) for i in range(len(_BET_KEYS))},
-           "by_sport": {}}
-    for sport, byi in by_sport.items():
-        merged = [e for lst in byi.values() for e in lst]
-        out["by_sport"][sport] = {**_agg_bets(merged),
-                                  "paris": {_BET_KEYS[i]: _agg_bets(byi[i]) for i in sorted(byi)}}
+            ev = (start, e["result"], e["odds"])
+            method_ev.append(ev)
+            by_sport.setdefault(sport, []).append(ev)
+    out = {"overall": _agg_bets(method_ev),            # suivi = la MÉTHODE (1 pari/match)
+           "all_bets": _agg_bets(legacy_ev),           # tous paris confondus (héritage, transparence)
+           "by_sport": {sport: _agg_bets(evs) for sport, evs in by_sport.items()}}
     if sig is not None:
         _STATS_CACHE["full"] = (sig, out)
     return out
