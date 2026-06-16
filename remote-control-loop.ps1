@@ -25,25 +25,37 @@ if (-not $claude) { $claude = "claude" }
 
 $pidFile = Join-Path $PSScriptRoot ".remote-control.pid"
 
-# Style IDENTIQUE au lanceur PRONOSTICS/NEXBET qui fonctionne :
-#   session remote-control FRAICHE, autonomie totale, SANS --continue.
-# IMPORTANT : --continue reprend une ancienne conversation LOCALE et n'etablit
-# PAS la session distante visible sur claude.ai/code. C'est pour ca que les
-# projets lances avec --continue ne montraient aucune session. On l'enleve.
-$argsFresh = @("--remote-control", $SessionName, "--dangerously-skip-permissions")
+# But : la session remote doit REPRENDRE automatiquement la derniere
+# conversation BETSFIX a chaque boot (et non repartir de zero).
+#   --remote-control <name> : etablit la session distante VISIBLE sur claude.ai/code
+#   --continue              : reprend la derniere conversation de CE dossier
+# Les deux flags se CUMULENT : la session distante reste visible ET reprend le fil.
+# (L'ancien probleme "aucune session visible" venait d'un --continue utilise
+#  SANS --remote-control ; tant que --remote-control est present, c'est bon.)
+# Repli : si --continue ressort en <30 s (rien a reprendre, ex. 1er boot apres
+#  purge de l'historique), on relance une session FRAICHE -> voir la boucle.
+$argsResume = @("--remote-control", $SessionName, "--continue", "--dangerously-skip-permissions")
+$argsFresh  = @("--remote-control", $SessionName, "--dangerously-skip-permissions")
 
 # PID de la boucle
 Set-Content -Path $pidFile -Value $PID -Encoding ASCII
 
 while ($true) {
+    $start = Get-Date
     try {
         # On appelle claude DIRECTEMENT (operateur &), pas via Start-Process
         # -WindowStyle Hidden. claude a besoin d'heriter de la console (cachee)
         # de ce PowerShell pour le mode remote-control -- comme NEXBET. Avec
         # Start-Process detache, claude perd sa console et ressort aussitot.
-        & $claude @argsFresh
+        & $claude @argsResume
     } catch {
         # crash/timeout reseau : on relance apres une courte pause
+    }
+    # Si --continue ressort tout de suite (<30 s), c'est qu'il n'y avait aucune
+    # conversation a reprendre : on bascule sur une session FRAICHE pour ne pas
+    # boucler dans le vide, puis on continue normalement.
+    if (((Get-Date) - $start).TotalSeconds -lt 30) {
+        try { & $claude @argsFresh } catch { }
     }
     Start-Sleep -Seconds 10
 }
