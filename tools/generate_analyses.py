@@ -112,10 +112,14 @@ COMBO_MISSION = (
     "3) COTE COMBINÉE (produit des cotes) > 2.30 (vise 2.3–3.2) : Unibet applique une PETITE réduction "
     "same-match (~10-15 %) même sur des jambes indépendantes, donc avec un produit > 2.30 la cote RÉELLE "
     "Unibet reste > 2.00. Combine 3 à 4 jambes. N'utilise QUE des cotes réelles du bloc ci-dessus.\n"
-    "Ajoute À LA FIN, après la section Mise, EXACTEMENT ce format :\n"
+    "Ajoute À LA FIN, après la section Mise, EXACTEMENT ce format (CHAQUE jambe avec SON explication "
+    "détaillée APRÈS le tiret — pourquoi CETTE jambe passe, factuel et chiffré) :\n"
     "## 🎲 Combiné\n"
-    "- <sélection exacte 1> @<cote>\n- <sélection exacte 2> @<cote>\n- <sélection exacte 3> @<cote>\n"
-    "**Cote combinée : <produit à 2 décimales>** — <1 phrase : pourquoi ces jambes sont sûres>.\n"
+    "- <sélection exacte 1> @<cote> — <pourquoi cette jambe : 1 à 2 phrases factuelles et chiffrées>\n"
+    "- <sélection exacte 2> @<cote> — <pourquoi cette jambe>\n"
+    "- <sélection exacte 3> @<cote> — <pourquoi cette jambe>\n"
+    "**Cote combinée : <produit à 2 décimales>** — <1 phrase : pourquoi ces jambes sont INDÉPENDANTES "
+    "(aspects de match différents) donc combinables sans rabotage>.\n"
     "Puis une TOUTE DERNIÈRE ligne technique (sous le PICK) au format EXACT :\n"
     "`COMBO: <sel1> @<cote1> | <sel2> @<cote2> | <sel3> @<cote3> = <cote combinée>`"
 )
@@ -734,7 +738,28 @@ def _parse_combo(analysis: str, sport: str, home: str, away: str) -> dict | None
     total = 1.0
     for leg in legs:
         total *= leg["cote"]
-    return {"legs": legs, "total": round(total, 2)}
+    # Explication PAR JAMBE (« - <sel> @cote — <pourquoi> ») + synthèse (« Cote combinée : X — … »)
+    # depuis la section « 🎲 Combiné » -> à afficher SOUS le combiné (détail de chaque jambe).
+    def _ck(s):
+        return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+    whys, synth = {}, ""
+    sec = re.search(r"##[^\n]*[Cc]ombin[ée](.*?)(?:\n##|\Z)", analysis, re.S)
+    if sec:
+        for ln in sec.group(1).splitlines():
+            bm = re.match(r"[>*\-\s]+(.+?)@\s*[\d.,]+\s*[—–:-]\s*(.+)$", ln.strip())
+            if bm:
+                whys[_ck(bm.group(1))] = re.sub(r"[*`]", "", bm.group(2)).strip()
+            sm = re.search(r"[Cc]ote\s+combin[ée].*?[—–]\s*(.+)$", ln.strip())   # texte APRÈS le tiret
+            if sm:
+                synth = re.sub(r"[*`]", "", sm.group(1)).strip()
+    for leg in legs:
+        w = whys.get(_ck(leg["sel"]))
+        if w:
+            leg["why"] = w
+    out = {"legs": legs, "total": round(total, 2)}
+    if synth:
+        out["why"] = synth
+    return out
 
 
 def _safe_pick(analysis: str) -> str:

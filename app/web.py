@@ -1483,6 +1483,9 @@ CSS = """
   .da-cl-live{color:#ffd98a}
   .da-cl-p{font-variant-numeric:tabular-nums;font-size:10.5px;color:#9fb0c8;
        background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
+  .da-cl-why{font-size:11px;line-height:1.5;color:#b9c2cf;padding:3px 0 8px 2px}   /* pourquoi DE LA JAMBE */
+  .da-combo-why{font-size:11px;line-height:1.55;color:#cfe0f5;font-style:italic;
+       margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}   /* synthèse du combiné */
   .da-combo-live{border-left-color:#ffb020}
   .da-combo-b.live{background:#ffb020;color:#1a1200;animation:combopulse 1.6s ease-in-out infinite}
   @keyframes combopulse{0%,100%{opacity:1}50%{opacity:.55}}
@@ -1622,10 +1625,12 @@ CSS = """
   .da-bk-push{border-left-color:#9fb0c8;filter:saturate(.7)}
   /* Les faits (déroulés dans l'analyse,
   plus en accordéon) */
-  .da-faits-h{padding:11px 13px;font-size:12.5px;font-weight:800;color:#cfe0f5;
-       border-bottom:1px solid var(--border)}
-  .da-faits{margin:14px 0 4px;border:1px solid var(--border);border-radius:12px;
-       background:var(--surface);overflow:hidden}
+  .da-faits-h{padding:9px 12px 0;font-size:12px;font-weight:800;color:#9fd0ff;
+       text-transform:uppercase;letter-spacing:.03em}
+  /* « Informations » : même style que le combiné mais ligne LATÉRALE bleue (demande utilisateur). */
+  .da-faits{margin:12px 0 4px;background:linear-gradient(180deg,var(--surface2),var(--surface));
+       border:1px solid var(--border);border-left:3px solid #22b8ff;border-radius:12px;
+       padding:1px 0 4px;overflow:hidden}
   .da-faits>summary{cursor:pointer;list-style:none;padding:11px 13px;font-size:12.5px;
        font-weight:800;color:#cfe0f5;display:flex;align-items:center;justify-content:space-between}
   .da-faits>summary::-webkit-details-marker{display:none}

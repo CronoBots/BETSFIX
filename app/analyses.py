@@ -739,7 +739,7 @@ def _structured(md: str) -> str | None:
     # « paris à jouer » ne sont pas non plus rendus ici (ils sont SUR la carte). `verdict`/`bets`/`mise`
     # restent dans `known` pour ne pas être re-rendus par la boucle « sections imprévues » ci-dessous.
     if faits:
-        parts.append('<div class="da-faits"><div class="da-faits-h">📋 Les faits</div>'
+        parts.append('<div class="da-faits"><div class="da-faits-h">ℹ️ Informations</div>'
                      f'<div class="da-faits-b">{_render_blocks(faits)}</div></div>')
     # Section « 🎲 Combiné » : NON rendue ici -> elle est DÉJÀ affichée dans son propre cadre (combo_html)
     # sur la carte. La re-rendre dans l'analyse = doublon (le détail du combiné doit être dans le cadre
@@ -1080,10 +1080,13 @@ def combo_html(sport: str, match_id) -> str:
             cote = f"{float(leg.get('cote')):.2f}"
         except (TypeError, ValueError):
             cote = "?"
-        # 2 colonnes : sélection (gauche, wrap propre) | bloc insécable cote · compteur · statut (droite)
+        # 2 colonnes : sélection (gauche, wrap propre) | bloc insécable cote · compteur · statut (droite),
+        # puis l'EXPLICATION de la jambe (pourquoi) en dessous si fournie.
+        why = leg.get("why")
+        why_html = f'<div class="da-cl-why">{_h.escape(str(why))}</div>' if why else ""
         rows.append(f'<div class="da-cl{cls}">'
                     f'<span class="da-cl-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
-                    f'<span class="da-cl-meta"><b>@{cote}</b>{prog}{mk}</span></div>')
+                    f'<span class="da-cl-meta"><b>@{cote}</b>{prog}{mk}</span></div>{why_html}')
     # En-tête : résultat FINAL prioritaire ; sinon, en live, état du combiné (perdu dès qu'une jambe saute).
     lv = live["status"] if live else None
     hcls = (" da-combo-won" if res == "won" else " da-combo-lost" if res == "lost"
@@ -1102,8 +1105,10 @@ def combo_html(sport: str, match_id) -> str:
         total = f"{float(combo.get('total')):.2f}"
     except (TypeError, ValueError):
         total = "?"
+    synth = combo.get("why")
+    synth_html = f'<div class="da-combo-why">{_h.escape(str(synth))}</div>' if synth else ""
     return (f'<div class="da-combo{hcls}"><div class="da-combo-h">🎲 Combiné '
-            f'<span class="da-combo-c">cote {total}</span>{badge}</div>{"".join(rows)}</div>')
+            f'<span class="da-combo-c">cote {total}</span>{badge}</div>{"".join(rows)}{synth_html}</div>')
 
 
 def card_summary(sport: str, match_id) -> dict:
@@ -1746,11 +1751,7 @@ def _links_bar(m: dict | None) -> str:
         btns.append(f'<a class="lnk-bn lnk-bn-sofa" href="{html.escape(m["sofa_url"])}" '
                     'rel="noopener" aria-label="Voir sur SofaScore" title="Voir sur SofaScore">'
                     '<span class="lnk-dot"></span>SofaScore<span class="lnk-arr">↗</span></a>')
-    if m.get("unibet_url"):
-        # Unibet : NOUVEL onglet -> BETSFIX reste ouvert derrière (l'utilisateur ne quitte pas l'app).
-        btns.append(f'<a class="lnk-bn lnk-bn-uni" href="{html.escape(m["unibet_url"])}" target="_blank" '
-                    'rel="noopener" aria-label="Jouer sur Unibet" title="Jouer sur Unibet">'
-                    '<span class="lnk-dot"></span>Unibet<span class="lnk-arr">↗</span></a>')
+    # Lien Unibet RETIRÉ de la carte (demande utilisateur 2026-06-16).
     return f'<div class="da-links">{"".join(btns)}</div>' if btns else ""
 
 
