@@ -1200,10 +1200,10 @@ CSS = """
   #sxs-tennis:checked ~ .sx-period .sx-sport:not([data-sport="tennis"]),
   #sxs-basket:checked ~ .sx-period .sx-sport:not([data-sport="basket"]){display:none}
   /* Héro bilan global */
-  .sx-hero{background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border:1px solid var(--cardline);border-radius:var(--radius);
-       box-shadow:var(--cardglow),var(--shadow-sm);padding:14px 15px 12px;position:relative;overflow:hidden}
-  /* (halo radial retiré : fond identique aux cartes de match `.row`, demande utilisateur) */
+  /* MÊME fond que la carte PERF des onglets sport (.spf) : dégradé cyan + bordure + glow cyan */
+  .sx-hero{background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
+       border:1px solid rgba(34,184,255,.60);border-radius:16px;
+       box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);padding:14px 15px 12px;position:relative;overflow:hidden}
   .sx-hero-top{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .sx-hero-roi{font-size:34px;font-weight:900;line-height:1;letter-spacing:-.02em}
   .sx-hero-lbl{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
@@ -1337,9 +1337,9 @@ CSS = """
   .pg-sub{font-size:11.5px;color:var(--muted);font-weight:600;margin-bottom:14px}
   /* Calibration : confiance annoncée vs réussite réelle */
   .cal-h{font-size:15px;font-weight:900;color:var(--text);margin:24px 0 10px}
-  .cal-verdict{padding:13px 14px;border-radius:var(--radius);border:1px solid var(--cardline);
-       background:linear-gradient(180deg,var(--surface2),var(--surface));
-       box-shadow:var(--cardglow),var(--shadow-sm);margin-bottom:12px}
+  .cal-verdict{padding:13px 14px;border-radius:16px;border:1px solid rgba(34,184,255,.60);
+       background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
+       box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);margin-bottom:12px}
   .cal-verdict.cal-ok{border-color:rgba(52,210,123,.4)}
   .cal-verdict.cal-over{border-color:rgba(244,198,74,.4)}
   .cal-verdict.cal-under{border-color:rgba(34,184,255,.4)}
@@ -1733,9 +1733,9 @@ CSS = """
   .dash-livebar-go{margin-left:auto;font-size:10px;font-weight:800;color:#34d27b;
        text-transform:uppercase;letter-spacing:.04em}
   /* Carte « Évolution du profit » (/stats) : courbe d'équité unique + repères */
-  .sx-card{background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border:1px solid var(--cardline);border-radius:var(--radius);
-       box-shadow:var(--cardglow),var(--shadow-sm);padding:12px 12px 10px;margin:12px 0}
+  .sx-card{background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
+       border:1px solid rgba(34,184,255,.60);border-radius:16px;
+       box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);padding:12px 12px 10px;margin:12px 0}
   .sx-equity{margin:6px 0 0}
   .sx-equity .sx-heroc{display:block;width:100%;height:auto}
   /* Barres ROI divergentes (par cote / confiance / marché) : 0 au centre, vert droite / rouge gauche */
@@ -2432,12 +2432,14 @@ def render_stats(full: dict | None, since: str = "") -> str:
                    f'<div class="sx-h sx-h2">Évolution du rendement</div>'
                    f'<div class="sx-equity">{chart}</div>{mlegend}') if chart else ""
     # UN SEUL cadre : ROI + forme (≥10 bulles) + KPIs + courbe + repères expliqués.
+    # Forme = 10 dernières (mêmes pastilles W/L que les onglets sport, lettre majuscule, récent à DROITE).
+    _LET = {"won": "W", "lost": "L", "push": "N"}
+    forms = form_dots([_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10)
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
-        f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}'
-        f'{_form_dots(ov.get("form12") or ov.get("form") or [])}</div></div>'
+        f'<div class="sx-hero-r">{forms}</div></div>'
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
@@ -3253,14 +3255,15 @@ def perf_toggle(active: str) -> str:
 _FORM_COLOR = {"W": "#34d27b", "D": "#e0b341", "L": "#ff6b6b",
                "В": "#34d27b", "Н": "#e0b341", "П": "#ff6b6b"}  # W/D/L (en/ru selon locale)
 
-def form_dots(form) -> str:
-    """Pastilles colorées des derniers résultats (V/N/D). form = ['W','D','L',...]."""
+def form_dots(form, n: int = 5) -> str:
+    """Pastilles colorées des derniers résultats (V/N/D), lettre en MAJUSCULE. form = ['W','D','L',…].
+    `n` = nb max de pastilles (les N dernières -> le plus récent à DROITE)."""
     if not form:
         return ""
     dots = "".join(
         f'<span class="fd" style="background:{_FORM_COLOR.get(str(x).upper()[:1], "#5a6472")}">'
         f'{html.escape(str(x)[:1].upper())}</span>'   # W / L / N en MAJUSCULE
-        for x in form[:5])
+        for x in form[-n:])
     return f'<span class="forms">{dots}</span>'
 
 def form_compare(home: str, home_form, away: str, away_form) -> str:
