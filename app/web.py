@@ -1473,7 +1473,7 @@ CSS = """
   .da-cl{display:flex;align-items:center;gap:8px;justify-content:space-between;
        font-size:11.5px;color:#dfe9f7;padding:5px 0;border-top:1px solid rgba(255,255,255,.06)}
   .da-cl:first-of-type{border-top:0}
-  .da-cl-sel{flex:1 1 auto;min-width:0;line-height:1.3}     /* sélection : wrap propre à gauche */
+  .da-cl-sel{flex:1 1 auto;min-width:0;line-height:1.3;font-weight:700}   /* sélection : wrap propre à gauche, en GRAS pour bien la voir */
   .da-cl-meta{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .da-cl b{color:#fff;font-variant-numeric:tabular-nums}
   .da-cl-mk{font-size:12px;line-height:1}
