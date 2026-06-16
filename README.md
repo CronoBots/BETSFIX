@@ -249,28 +249,6 @@ réseau n'est nécessaire pour les exécuter :
 pytest -q
 ```
 
-## Déploiement (accès mobile)
-
-Pour utiliser l'API depuis ton téléphone, déploie-la en ligne. Le repo est
-prêt pour **Render** (gratuit) via `render.yaml` :
-
-1. Crée un compte sur **https://render.com** et connecte ton GitHub.
-2. **New → Blueprint**, choisis le repo `CronoBots/API-SPORT`.
-3. Render lit `render.yaml`, build et déploie automatiquement.
-4. Tu obtiens une URL publique du type `https://api-sport-xxxx.onrender.com`
-   → ouvre `…/docs` sur ton mobile.
-
-> Le plan gratuit se met en veille après inactivité : la 1ʳᵉ requête peut
-> prendre ~30 s à réveiller le service, ensuite c'est instantané.
-
-> ⚠️ Les cotes **Unibet** peuvent être géo-restreintes à la Belgique : depuis un
-> serveur hors BE, l'endpoint Unibet peut renvoyer `matched: false`. La région
-> `frankfurt` (EU) est choisie pour limiter ça. Les données SofaScore, elles,
-> fonctionnent partout.
-
-Alternatives : un `Procfile` est fourni pour **Railway** / **Fly.io** (même
-commande de démarrage).
-
 ## Accès mobile via TON PC (tunnel Cloudflare)
 
 Pour que les requêtes partent de **ton PC** (IP belge → cotes Unibet OK) tout en
