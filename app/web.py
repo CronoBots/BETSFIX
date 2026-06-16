@@ -303,41 +303,6 @@ CSS = """
   .ldg::before{content:"";display:block;width:22px;height:22px;margin:0 auto 12px;border-radius:50%;
     border:2px solid var(--border2);border-top-color:var(--accent2);animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
-  /* ===== Menu tiroir ☰ (complet,
-  premium) — présent sur toutes les pages ===== */
-  .menu-btn{position:fixed;top:calc(8px + env(safe-area-inset-top));left:12px;z-index:70;
-       width:42px;height:42px;border-radius:13px;border:1px solid var(--cardline);
-       background:rgba(20,20,24,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-       color:var(--text);font-size:17px;line-height:1;cursor:pointer;display:flex;
-       align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.3)}
-  .menu-btn:active{transform:scale(.9)}
-  .drawer-ov{position:fixed;inset:0;z-index:80;background:rgba(4,8,16,.62);
-       opacity:0;visibility:hidden;transition:opacity .22s}
-  .drawer{position:fixed;top:0;bottom:0;left:0;z-index:90;width:82%;max-width:310px;
-       background:radial-gradient(130% 55% at 0% 0%,var(--halo),transparent 62%),
-                  linear-gradient(180deg,#121216,#08080b);
-       border-right:1px solid var(--cardline);
-       box-shadow:10px 0 44px rgba(0,0,0,.6);
-       padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom));
-       transform:translateX(-104%);transition:transform .26s cubic-bezier(.4,0,.2,1);overflow-y:auto}
-  body.dw-on .drawer-ov{opacity:1;visibility:visible}
-  body.dw-on .drawer{transform:translateX(0)}
-  .dw-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 14px;
-       padding:0 2px 14px;border-bottom:1px solid var(--border)}
-  .dw-logo{font-size:21px;font-weight:900;letter-spacing:-.02em;color:#fff}
-  .dw-logo b{color:var(--accent)}
-  .dw-x{background:none;border:none;color:var(--muted);font-size:17px;cursor:pointer;padding:6px;line-height:1}
-  .dw-grp{margin-bottom:14px}
-  .dw-gh{font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
-       color:var(--dim);margin:0 0 6px 8px}
-  .dw-it{display:flex;align-items:center;gap:13px;padding:12px 12px;border-radius:13px;
-       font-size:14.5px;font-weight:700;color:var(--text);transition:.14s;
-       border:1px solid transparent;margin-bottom:2px}
-  .dw-it:active{transform:scale(.98)}
-  .dw-it .dw-ic{font-size:20px;width:26px;text-align:center;flex:none}
-  .dw-it.on{background:linear-gradient(180deg,rgba(34,184,255,.20),rgba(34,184,255,.05));
-       border-color:rgba(34,184,255,.45);color:#fff;box-shadow:0 0 22px rgba(34,184,255,.15)}
-  .dw-foot{margin-top:6px;font-size:10px;color:var(--dim);text-align:center}
   /* État VIDE premium de l'onglet Live (aucun match en cours) : orbe « radar » + CTA */
   .live-empty{position:relative;overflow:hidden;text-align:center;margin:18px 0;padding:48px 22px 42px;
        border:1px solid var(--cardline);border-radius:18px;display:flex;flex-direction:column;
@@ -1715,7 +1680,6 @@ CSS = """
   liens) — PAS les noms d'équipes ni
      les textes d'analyse (lisibilité). Look 100 % cohérent façon OddScore. */
   .botnav a .lb,
-  .dw-it,
   .dash-tile,
   .dash-more,
   .dash-stat-go,
@@ -1968,8 +1932,6 @@ _SPA_JS = (
     "c[i].classList.toggle('on',c[i].getAttribute('data-tab')===t);"
     "var n=document.querySelectorAll('.botnav a'),j;for(j=0;j<n.length;j++)"
     "n[j].classList.toggle('on',n[j].getAttribute('data-tab')===t);"
-    "var dw=document.querySelectorAll('.dw-it[data-nav]'),k;for(k=0;k<dw.length;k++)"
-    "dw[k].classList.toggle('on',dw[k].getAttribute('data-nav')===t);"
     "document.body.className='sp-'+t;"
     "var sp=panel(t);if(sp){if(window._twCount)setTimeout(function(){window._twCount(sp);},50);"
     "if(window._mcInit)window._mcInit(sp);}}"
@@ -2065,46 +2027,12 @@ _TERM_JS = (
 
 # Menu tiroir « complet » (☰) — présent sur TOUTES les pages. Accès direct à tout : accueil, paris à
 # jouer, bilan, stats, et chaque sport + live. Les clés correspondent à l'item mis en évidence.
-_DRAWER_ITEMS = [
-    ("Principal", [
-        ("home", "/", "📅", "À venir"),
-        ("stats", "/stats", "📊", "Statistiques"),
-    ]),
-    ("Sports", [
-        ("foot", "/foot", "⚽", "Foot"),
-        ("tennis", "/app", "🎾", "Tennis"),
-        ("basket", "/basket", "🏀", "Basket"),
-        ("directs", "/directs", "🟢", "Live"),
-    ]),
-]
-
-_DRAWER_JS = ("function dwOpen(){document.body.classList.add('dw-on')}"
-              "function dwClose(){document.body.classList.remove('dw-on')}"
-              "document.addEventListener('keydown',function(e){if(e.key==='Escape')dwClose()});"
-              # ZÉRO ZOOM : iOS ignore user-scalable=no -> on bloque le pinch (events gesture*),
-              # le double-tap (touch-action:manipulation gère déjà) et le ctrl+molette (desktop).
-              "['gesturestart','gesturechange','gestureend'].forEach(function(ev){"
+# Anti-zoom (ex-_DRAWER_JS — le tiroir ☰ a été retiré, redondant avec la barre du bas).
+# iOS ignore user-scalable=no -> on bloque le pinch (events gesture*), le double-tap
+# (touch-action:manipulation gère déjà) et le ctrl+molette (desktop).
+_NOZOOM_JS = ("['gesturestart','gesturechange','gestureend'].forEach(function(ev){"
               "document.addEventListener(ev,function(e){e.preventDefault();},{passive:false});});"
               "document.addEventListener('wheel',function(e){if(e.ctrlKey)e.preventDefault();},{passive:false});")
-
-def _drawer(active: str = "") -> tuple[str, str]:
-    """Renvoie (bouton ☰, panneau tiroir). L'item `active` est mis en évidence."""
-    e = html.escape
-    groups = []
-    for gname, items in _DRAWER_ITEMS:
-        rows = "".join(
-            f'<a class="dw-it{" on" if k == active else ""}" data-nav="{k}" href="{href}">'
-            f'<span class="dw-ic">{ico}</span><span>{e(lbl)}</span></a>'
-            for k, href, ico, lbl in items)
-        groups.append(f'<div class="dw-grp"><div class="dw-gh">{e(gname)}</div>{rows}</div>')
-    btn = '<button class="menu-btn" aria-label="Ouvrir le menu" onclick="dwOpen()">☰</button>'
-    panel = ('<div class="drawer-ov" onclick="dwClose()"></div>'
-             '<aside class="drawer" role="navigation" aria-label="Menu principal">'
-             '<div class="dw-head"><span class="dw-logo">BETS<b>FIX</b></span>'
-             '<button class="dw-x" aria-label="Fermer" onclick="dwClose()">✕</button></div>'
-             f'{"".join(groups)}'
-             '<div class="dw-foot">18+ · Jouez responsable</div></aside>')
-    return btn, panel
 
 def layout(title: str, sport: str, body: str, subnav: str | None = None,
            refresh: bool = False, source: dict | None = None, menu: str | None = None) -> str:
@@ -2112,7 +2040,6 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     `subnav` ∈ matchs/perf : affiche le sous-menu du sport (Matchs / Fiabilité).
     `source` : état SofaScore -> petit indicateur discret dans l'en-tête si en pause."""
     e = html.escape
-    menu_btn, drawer = _drawer(menu or sport)
     # Logo unique : réduit, centré, tout en haut de CHAQUE page (accueil + sports).
     toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=3" alt="BETSFIX"></a>'
                if os.path.exists(_LOGO) else "")
@@ -2151,16 +2078,15 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
-{menu_btn}{drawer}<div class="wrap">{toplogo}{pausebar}{sub}{body}
+<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
     serveur (1er affichage rapide, marche sans JS) ; les 3 autres panneaux sont vides et
     remplis en AJAX dès l'ouverture. La nav du bas bascule les panneaux SANS rechargement."""
     e = html.escape
-    menu_btn, drawer = _drawer(active)
     toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=3" alt="BETSFIX"></a>'
                if os.path.exists(_LOGO) else "")
     pausebar = ""
@@ -2193,9 +2119,9 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(active)}">
-{menu_btn}{drawer}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
+<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_DRAWER_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
