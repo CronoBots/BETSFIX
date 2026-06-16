@@ -1747,10 +1747,15 @@ CSS = """
   .statsx .sx-sport .sx-row{background:transparent;border:0;border-radius:0;padding:0}
   .statsx .calg-sub{background:linear-gradient(180deg,rgba(34,184,255,.05),rgba(34,184,255,.015))}
   /* Paris dépliés DANS le cadre sport : PAS de cadre-dans-un-cadre -> lignes PLATES (sans fond ni
-     bordure de carte), juste un filet de séparation. Le seul « cadre » est la carte du sport. */
+     bordure de carte), juste un filet CYAN de séparation (plus de gris/brun). */
   .statsx .sx-dd{gap:0}
   .statsx .sx-dd-row{background:transparent;border:0;border-radius:0;padding:9px 2px;
-       border-top:1px solid rgba(255,255,255,.08)}
+       border-top:1px solid rgba(34,184,255,.18)}
+  .statsx .sx-dd-head{border-bottom-color:rgba(34,184,255,.28)}   /* filet « X/Y gagnés » -> cyan */
+  .statsx .sx-divider{background:rgba(34,184,255,.28)}            /* séparateur courbe -> cyan */
+  /* Graphiques des 3 sports ALIGNÉS : nom du sport en largeur FIXE -> la sparkline démarre au même x
+     et a la MÊME largeur sur Football / Tennis / Basket. */
+  .statsx .sx-row-n{flex:0 0 62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sx-equity{margin:6px 0 0}
   .sx-equity .sx-heroc{display:block;width:100%;height:auto}
   /* Barres ROI divergentes (par cote / confiance / marché) : 0 au centre, vert droite / rouge gauche */
