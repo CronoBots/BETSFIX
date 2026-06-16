@@ -1646,8 +1646,10 @@ def perf_breakdown(since_days: int | None = None) -> dict:
         if hit and hit[0] == sig:
             return hit[1]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
-    ex_sports, ex_markets = auto_exclusions()
-    items = []   # (odds, prob, market, result) — UN seul item/match : le pari recommandé (cohérent avec le suivi)
+    # DIAGNOSTIC : on prend TOUS les paris réglés (pas seulement le recommandé) — c'est l'outil qui
+    # montre OÙ le système fuit (zones de cote, marchés perdants) ; il a besoin de tout l'échantillon.
+    # (Le suivi/courbe `stats_full`, lui, ne compte QUE le pari recommandé = « ce que tu jouerais ».)
+    items = []   # (odds, prob, market, result)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -1662,9 +1664,12 @@ def perf_breakdown(since_days: int | None = None) -> dict:
                 continue
         if _is_world_cup(d):         # Coupe du Monde EXCLUE de la perf par marché (non comptée).
             continue
-        e = _reco_event(d, p, ex_sports, ex_markets)
-        if e:
-            items.append((e["odds"], e["prob"], market_of(e["code"] or ""), e["result"]))
+        for i, b in enumerate(d.get("bets") or []):
+            if i >= len(_BET_KEYS):
+                break
+            res = b.get("result")
+            if res in ("won", "lost", "push"):
+                items.append((b.get("odds"), b.get("prob"), market_of(b.get("code") or ""), res))
 
     def agg(label, lst):
         won = sum(1 for _o, r in lst if r == "won")

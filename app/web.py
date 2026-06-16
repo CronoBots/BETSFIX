@@ -1228,6 +1228,7 @@ CSS = """
        white-space:nowrap;font-size:12px;font-weight:800;letter-spacing:.04em;
        text-transform:uppercase;color:#cfe0f5}
   .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
+  .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
   /* Section par sport */
   /* mêmes cadres que les cartes de match (.row) : dégradé + bordure cyan + glow */
   .sx-sport{background:linear-gradient(180deg,var(--surface2),var(--surface));
@@ -2408,11 +2409,11 @@ def render_stats(full: dict | None, since: str = "") -> str:
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
-        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
+        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI · paris recommandés {_ind(ov.get("settled"))}</div></div>'
         f'<div class="sx-hero-r">{_streak_chip(ov.get("streak"))}'
         f'{_form_dots(ov.get("form12") or ov.get("form") or [])}</div></div>'
         '<div class="sx-kpis">'
-        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
+        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris ⭐ retenus</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
         f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
         f'<div class="sx-kpi"><b class="arec-hi">{bstk}</b><span>série max</span></div>'
@@ -2425,7 +2426,9 @@ def render_stats(full: dict | None, since: str = "") -> str:
     mleg = ("".join(f'<span class="sx-ml"><span class="sx-ml-n">{i}</span>{html.escape(lab)}</span>'
                     for i, (_iso, lab) in enumerate(miles, 1)))
     mlegend = f'<div class="sx-mlegend">Repères du modèle :{mleg}</div>' if mleg else ""
-    equity = ('<div class="sx-card"><div class="sx-h">Évolution du rendement</div>'
+    equity = ('<div class="sx-card"><div class="sx-h">Rendement des paris recommandés</div>'
+              '<div class="sx-sub">Le pari ⭐ retenu par match (ce que tu jouerais). '
+              'Le diagnostic complet — tous les paris, par cote &amp; marché — est plus bas.</div>'
               f'<div class="sx-equity">{chart}</div>{mlegend}</div>') if chart else ""
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
     # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
