@@ -493,9 +493,6 @@ _MIN_CONF = 65   # seuil de confiance MINI pour recommander (calibration réelle
 #                  est sur-confiant et perd ; à partir de 65 % il est fiable). Pas de repli en-dessous.
 
 
-_BAD_MARKETS = {"Total +/-", "Total équipe"}   # ROI mesuré -16% / -30% (n≥25) -> hors recommandation ⭐
-
-
 def _recommend(data: list, ok: set | None = None, cprobs: list | None = None,
                codes: list | None = None) -> dict:
     """Choisit LE pari à jouer pour faire grimper le portefeuille : meilleure VALUE (EV = proba×cote−1)
@@ -510,17 +507,15 @@ def _recommend(data: list, ok: set | None = None, cprobs: list | None = None,
     scored = [(i, _cp(i, b) / 100 * b["cote"] - 1, _cp(i, b))
               for i, b in enumerate(data)
               if b.get("prob") and b.get("cote") and (ok is None or i in ok)]
-    # Confiance ≥ 65 % EXIGÉE (sinon on s'abstient). GARDE-FOUS mesurés (perf_breakdown 2026-06-15) :
-    #  • cote 1.70-2.00 = ROI -32 % -> on exige 72 % de confiance recalibrée dans cette zone ;
-    #  • cote ≥ 2.00 = ROI -13 % -> exclue de la reco (les grosses cotes saignent) ;
-    #  • marchés « Total +/- » (-16 %) et « Total équipe » (-30 %) -> exclus (`_BAD_MARKETS`).
-    def _mk(i):
-        return market_of(codes[i]) if (codes and i < len(codes) and codes[i]) else None
+    # Confiance ≥ 65 % EXIGÉE (sinon on s'abstient). GARDE-FOUS de COTE mesurés (perf_breakdown) :
+    #  • cote 1.70-2.00 = ROI négatif -> on exige 72 % de confiance recalibrée dans cette zone ;
+    #  • cote ≥ 2.00 = ROI négatif -> exclue de la reco (les grosses cotes saignent).
+    # L'exclusion par MARCHÉ n'est plus codée en dur : elle passe par `ok` (cf. auto_exclusions, qui
+    # exclut un marché DATA-DRIVEN si n ≥ 25 ET ROI/calibration mauvais — pas de surapprentissage).
     pool = [s for s in scored
             if s[2] >= _MIN_CONF
             and (data[s[0]].get("cote") or 0) < 2.00
-            and ((data[s[0]].get("cote") or 0) < 1.70 or s[2] >= 72)
-            and _mk(s[0]) not in _BAD_MARKETS]
+            and ((data[s[0]].get("cote") or 0) < 1.70 or s[2] >= 72)]
     if not pool:
         return {"idx": None, "verdict": "skip", "ev": None, "stake_pct": 0.0}
     i, ev, _prob = max(pool, key=lambda s: s[1])
@@ -1440,11 +1435,17 @@ def calibrated_conf(prob, sport: str, code: str):
     return max(1.0, min(99.0, prob + bias * m["n"] / (_CALIB_SHRINK_K + m["n"])))
 
 
+CALIB_ROI_MAX = -15   # ROI réel (%) sous lequel un marché est exclu — SI l'échantillon est suffisant
+#                       (n ≥ CALIB_MIN_N). Un marché peut être bien CALIBRÉ mais EV-négatif (cotes courtes) :
+#                       le gap de calibration ne le capte pas, le ROI oui. Data-driven, auto-révisable.
+
+
 def auto_exclusions() -> tuple[set, set]:
-    """(sports exclus, marchés exclus) déduits de la calibration des PARIS RÉELLEMENT JOUABLES
-    (confiance ≥ seuil _MIN_CONF), et uniquement quand c'est statistiquement défendable
-    (n ≥ CALIB_MIN_N et écart ≤ CALIB_GAP_MAX). On juge donc une catégorie sur les paris qu'on jouerait
-    vraiment — pas sur les paris faibles déjà écartés par le seuil. Vide tant qu'on manque de recul."""
+    """(sports exclus, marchés exclus) déduits des PARIS RÉELLEMENT JOUABLES, et UNIQUEMENT quand c'est
+    statistiquement défendable (n ≥ CALIB_MIN_N=25). Deux raisons d'exclure un marché : (a) SUR-CONFIANCE
+    nette (écart calibration ≤ CALIB_GAP_MAX) ; (b) ROI réel ≤ CALIB_ROI_MAX (perd de l'argent même bien
+    calibré). On juge sur un VRAI échantillon — pas de liste codée en dur, pas de petit n. Auto-révisable :
+    un marché se ré-inclut seul s'il repasse au-dessus des seuils. Vide tant qu'on manque de recul."""
     c = calibration(min_conf=_MIN_CONF)
     sports, markets = set(), set()
     for name, g in (c.get("by_sport") or {}).items():
@@ -1455,6 +1456,10 @@ def auto_exclusions() -> tuple[set, set]:
         gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
         if (g.get("n") or 0) >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:
             markets.add(name)
+    # (b) exclusion par ROI RÉEL (diagnostic sur tous les paris), même garde-fou de taille n ≥ 25.
+    for g in (perf_breakdown().get("by_market") or []):
+        if (g.get("settled") or 0) >= CALIB_MIN_N and (g.get("roi") or 0) <= CALIB_ROI_MAX:
+            markets.add(g.get("label"))
     return sports, markets
 
 
