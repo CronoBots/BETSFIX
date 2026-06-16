@@ -1739,10 +1739,13 @@ CSS = """
   /* ONGLET STATS (.statsx) : fond cyan (comme la carte .spf des onglets sport) sur TOUTES les lignes —
      scopé pour NE PAS toucher les mêmes composants affichés DANS les onglets sport (qui restent sombres
      pour contraster avec la carte .spf cyan qui les contient). */
-  .statsx .sx-sport,.statsx .cal-row,.statsx .calg-row,.statsx .calg-sport,.statsx .sx-dd-row{
+  .statsx .sx-sport,.statsx .cal-row,.statsx .calg-row,.statsx .calg-sport{
        background:linear-gradient(180deg,rgba(34,184,255,.10),rgba(34,184,255,.025));
        border-color:rgba(34,184,255,.45)}
   .statsx .calg-sub{background:linear-gradient(180deg,rgba(34,184,255,.05),rgba(34,184,255,.015))}
+  /* Cartes par pari DANS le cadre sport cyan : fond SOMBRE + bordure nette pour CONTRASTER (sinon
+     cyan-sur-cyan illisible) — même logique que les lignes sombres dans la carte .spf des onglets sport. */
+  .statsx .sx-dd-row{background:linear-gradient(180deg,#16161d,#0f0f14);border:1px solid rgba(34,184,255,.40)}
   .sx-equity{margin:6px 0 0}
   .sx-equity .sx-heroc{display:block;width:100%;height:auto}
   /* Barres ROI divergentes (par cote / confiance / marché) : 0 au centre, vert droite / rouge gauche */
