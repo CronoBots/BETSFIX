@@ -1743,9 +1743,11 @@ CSS = """
        background:linear-gradient(180deg,rgba(34,184,255,.10),rgba(34,184,255,.025));
        border-color:rgba(34,184,255,.45)}
   .statsx .calg-sub{background:linear-gradient(180deg,rgba(34,184,255,.05),rgba(34,184,255,.015))}
-  /* Cartes par pari DANS le cadre sport cyan : fond SOMBRE + bordure nette pour CONTRASTER (sinon
-     cyan-sur-cyan illisible) — même logique que les lignes sombres dans la carte .spf des onglets sport. */
-  .statsx .sx-dd-row{background:linear-gradient(180deg,#16161d,#0f0f14);border:1px solid rgba(34,184,255,.40)}
+  /* Paris dépliés DANS le cadre sport : PAS de cadre-dans-un-cadre -> lignes PLATES (sans fond ni
+     bordure de carte), juste un filet de séparation. Le seul « cadre » est la carte du sport. */
+  .statsx .sx-dd{gap:0}
+  .statsx .sx-dd-row{background:transparent;border:0;border-radius:0;padding:9px 2px;
+       border-top:1px solid rgba(255,255,255,.08)}
   .sx-equity{margin:6px 0 0}
   .sx-equity .sx-heroc{display:block;width:100%;height:auto}
   /* Barres ROI divergentes (par cote / confiance / marché) : 0 au centre, vert droite / rouge gauche */
