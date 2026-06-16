@@ -1593,6 +1593,8 @@ CSS = """
   .da-bk-mark.mk-w{color:#06140d;background:#34d27b}
   .da-bk-mark.mk-l{color:#fff;background:#ff6b6b}
   .da-bk-mark.mk-p{color:#0b1428;background:#9fb0c8}   /* badge ✅ À JOUER : OR */
+  .da-bk-val{margin-left:6px;font-size:9px;font-weight:800;letter-spacing:.02em;padding:2px 7px;
+       border-radius:99px;color:#06140d;background:linear-gradient(90deg,#34d27b,#22b8ff);white-space:nowrap}
   /* MEILLEURE VALUE : même carte que les paris safe,
   mais encadré OR + halo OR (seul repère premium) */
   /* À JOUER (meilleure value) : bande OR (le pari à jouer se distingue) + halo OR + badge + tab OR */

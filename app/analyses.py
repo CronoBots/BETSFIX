@@ -649,7 +649,8 @@ def _verdict_notes(md: str) -> tuple[list, str]:
 
 def _bets_table(body: str, results: dict | None = None, compact: bool = False,
                 notes: list | None = None, residual: str = "",
-                sport: str | None = None, home: str = "", away: str = "") -> str:
+                sport: str | None = None, home: str = "", away: str = "",
+                validation: dict | None = None) -> str:
     """Paris à jouer : un CADRE par pari (style « confiance ») = label + sélection + barre de
     probabilité + indice de sûreté + cote. `results` = {sélection normalisée: 'won'/'lost'/'push'/
     None} -> cadre VERT/ROUGE + halo + ✓/✗ selon le résultat de CE pari (chaque pari réglé à part)."""
@@ -697,12 +698,20 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # 2026-06-12) ; le repère est désormais une ⭐ à DROITE du nom du pari (demande utilisateur).
         recocls = " da-bk-reco" if is_reco else ""
         recostar = ' <span class="da-bk-star" title="Pari retenu par le moteur">⭐</span>' if is_reco else ""
+        # Badge VALIDATION (panel de 3 agents) sur le pari retenu : ✓ Validé n/N + consensus.
+        valbadge = ""
+        if is_reco and validation and validation.get("n_ok") is not None:
+            no, nt = validation["n_ok"], validation.get("n", 3)
+            cp = validation.get("consensus_prob")
+            tip = " · ".join(f'{v.get("emoji", "")}{v.get("verdict", "")[:3]}' for v in validation.get("votes", []))
+            valbadge = (f'<span class="da-bk-val" title="Validé par {no}/{nt} agents — {html.escape(tip)}">'
+                        f'✓ Validé {no}/{nt}{f" · {cp}%" if cp else ""}</span>')
         # Commentaire du Verdict déplacé SOUS le pari correspondant, DANS la même carte.
         note = note_by_idx.get(k)
         note_html = f'<div class="da-bk-note">{_inline(note)}</div>' if note else ""
         cards.append(
             f'<div class="da-bk{recocls}{rescls}">'
-            f'<div class="da-bk-tab">{tab}{safe}{mark}</div>'
+            f'<div class="da-bk-tab">{tab}{safe}{valbadge}{mark}</div>'
             f'<div class="da-bk-sel">{pari}{recostar}</div>'
             f'{note_html}{strip}</div>')   # affiche -> ANALYSE -> stats
     # LIVE (compact) : on ne garde QUE les cartes de paris (ni titre, ni légende, ni verdict ;
@@ -770,7 +779,8 @@ def bets_html(sport: str, match_id, compact: bool = False) -> str:
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
     notes, residual = _verdict_notes(md)   # commentaire Verdict -> sous chaque pari ; résidu après
     return _bets_table(body, results, compact=compact, notes=notes, residual=residual,
-                       sport=sport, home=m.get("home", ""), away=m.get("away", ""))
+                       sport=sport, home=m.get("home", ""), away=m.get("away", ""),
+                       validation=m.get("validation"))
 
 
 # ------------------------------------------------------------- combiné : métrique + statut par jambe

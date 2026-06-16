@@ -790,8 +790,70 @@ async def _sofa_url(sofa_id) -> str | None:
     return f"https://www.sofascore.com/{slug}/{cid}" if (cid and slug) else None
 
 
+# ------------------------------------------------------ VALIDATION PAR PANEL (3 agents indépendants)
+# Après l'analyse, 3 validateurs SCEPTIQUES jugent le pari retenu selon un ANGLE distinct (pour ne pas se
+# répéter). Le pari n'est gardé que si la MAJORITÉ valide (≥2/3) ; sinon le match passe en SKIP (choix
+# utilisateur 2026-06-16 : qualité > quantité). La proba de consensus alimente une calibration plus juste.
+_VALIDATORS = [
+    ("donnees", "🔍",
+     "ANGLE — COHÉRENCE DES DONNÉES : les faits multi-sources (forme récente, blessés, classement, H2H, "
+     "stats par équipe/joueur) soutiennent-ils VRAIMENT ce pari, SANS contradiction ? Un fait qui va à "
+     "l'encontre, un échantillon trop faible, ou des sources qui divergent -> REJETÉ."),
+    ("value", "💰",
+     "ANGLE — VALUE & COTE : ta proba honnête dépasse-t-elle NETTEMENT la proba implicite de la cote "
+     "(marge retirée) ? La cote est-elle dans une zone saine (méfiance forte ≥ 1.70, zone qui saigne chez "
+     "nous) ? Sans value claire ET sûre -> REJETÉ."),
+    ("diable", "😈",
+     "ANGLE — AVOCAT DU DIABLE : cherche ACTIVEMENT tout ce qui ferait PERDRE ce pari (piège du marché, "
+     "blessure/repos/turnover de dernière minute, enjeu/motivation, météo, arbitre, variance, "
+     "sur-confiance de l'analyste). Si un scénario de perte est crédible -> REJETÉ."),
+]
+_VALIDATOR_BASE = (
+    "Tu es un VALIDATEUR de pari sportif INDÉPENDANT et SCEPTIQUE. On te donne le DOSSIER FACTUEL d'un "
+    "match et UN pari proposé par un autre analyste. Juge UNIQUEMENT selon ton angle ci-dessous ; sois "
+    "EXIGEANT : dans le doute, REJETTE (ne valide qu'un pari réellement solide).\n{angle}\n\n"
+    "Réponds en 3 lignes EXACTEMENT, RIEN d'autre :\n"
+    "VERDICT: VALIDÉ   (ou REJETÉ)\n"
+    "PROBA: <ta proba honnête de gain, juste le nombre en %>\n"
+    "RAISON: <une seule phrase factuelle>\n\n")
+
+
+def _parse_validation(out: str) -> dict:
+    """Sortie d'un validateur -> {verdict('valide'/'rejete'), prob(int|None), reason}. Sortie illisible
+    ou sans VERDICT clair -> REJETÉ (prudence)."""
+    txt = out or ""
+    mv = re.search(r"VERDICT\s*:\s*\**\s*(VALID|REJET)", txt, re.I)
+    verdict = "valide" if (mv and mv.group(1).upper().startswith("VALID")) else "rejete"
+    mp = re.search(r"PROBA\s*:\s*\**\s*(\d{1,3})", txt)
+    prob = min(int(mp.group(1)), 100) if mp else None
+    mr = re.search(r"RAISON\s*:\s*\**\s*(.+)", txt)
+    reason = (mr.group(1).strip().lstrip("*").strip() if mr else "").split("\n")[0][:200]
+    return {"verdict": verdict, "prob": prob, "reason": reason}
+
+
+async def _validate_bet(doss: str, bet: dict, analyst_prob, sport: str) -> dict:
+    """3 validateurs (angles distincts) jugent le pari retenu, séquentiellement (limites de débit Pro Max).
+    -> {verdict('valide'/'rejete'), n_ok, n, consensus_prob, votes:[{angle,emoji,verdict,prob,reason}]}.
+    Règle : VALIDÉ si MAJORITÉ (≥2 sur 3)."""
+    head = (f"PARI PROPOSÉ À VALIDER : « {bet.get('sel', '')} » @ {bet.get('cote')} "
+            f"(proba annoncée par l'analyste : {analyst_prob}%).\n\n")
+    votes = []
+    for key, emoji, angle in _VALIDATORS:
+        try:
+            out = await asyncio.to_thread(run_claude, _VALIDATOR_BASE.format(angle=angle) + head + doss, 240)
+        except Exception:
+            out = ""
+        v = _parse_validation(out)
+        v["angle"], v["emoji"] = key, emoji
+        votes.append(v)
+    n_ok = sum(1 for v in votes if v["verdict"] == "valide")
+    probs = [v["prob"] for v in votes if v["prob"] is not None]
+    return {"verdict": "valide" if n_ok >= 2 else "rejete", "n_ok": n_ok, "n": len(votes),
+            "consensus_prob": (round(sum(probs) / len(probs)) if probs else None), "votes": votes}
+
+
 def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, analysis: str,
-                   votes=None, sofa_url: str | None = None) -> None:
+                   votes=None, sofa_url: str | None = None, validation: dict | None = None) -> None:
     """Métadonnées de l'analyse (équipes, compétition, coup d'envoi, cotes 1X2, pick, votes, +
     séries/H2H STRUCTURÉS + liens SofaScore/Unibet) -> sidecar JSON. La fiche rend tout depuis ce
     fichier, SANS rappeler SofaScore (une fois analysé, plus aucune raison d'appeler SofaScore)."""
@@ -815,6 +877,8 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""))   # combiné grand tournoi
     if combo:
         side["combo"] = combo
+    if validation:                       # verdict du panel de validateurs (3 agents) sur le pari retenu
+        side["validation"] = validation
     if votes and votes[0] is not None:
         side["pub_home"], side["pub_away"] = votes[0] / 100, votes[1] / 100
         if len(votes) > 2 and votes[2] is not None:
@@ -911,8 +975,21 @@ async def main():
                 # même match s'il n'est pas réglé. Le match pourra être ré-analysé au scan suivant
                 # (compos/blessures publiées entre-temps peuvent débloquer un pari fiable).
                 from app import analyses as _an
-                if not _an._parse_bets(_an._bets_section(analysis) or ""):
-                    print(f"  · {m['name']} : aucun pari ≥ seuil -> match écarté (non retenu, {dt:.0f}s).")
+                bets = _an._parse_bets(_an._bets_section(analysis) or "")
+                # VALIDATION PAR PANEL (3 agents) du pari retenu — sauf combiné CdM (structure à part).
+                validation = None
+                skip_reason = None
+                if not bets:
+                    skip_reason = "aucun pari ≥ seuil"
+                elif not _is_big_match(m.get("comp") or m.get("circuit") or ""):
+                    validation = await _validate_bet(doss, bets[0], bets[0].get("prob"), sport)
+                    if validation["verdict"] == "rejete":
+                        skip_reason = f"pari REJETÉ par le panel ({validation['n_ok']}/{validation['n']})"
+                    else:
+                        print(f"    ✓ panel : {validation['n_ok']}/{validation['n']} validé "
+                              f"(consensus {validation['consensus_prob']}%)")
+                if skip_reason:
+                    print(f"  · {m['name']} : {skip_reason} -> match écarté (non retenu, {dt:.0f}s).")
                     side_p = os.path.join(OUT, f"{sport}_{fid}.json")
                     try:
                         old = json.load(open(side_p, encoding="utf-8"))
@@ -933,7 +1010,7 @@ async def main():
                     f.write(header + analysis + "\n")
                 votes = await _fetch_votes(client, sport, sofa_id)
                 surl = await _sofa_url(sofa_id)
-                _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl)   # méta -> board
+                _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation)  # -> board
                 _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien
                 n_gen += 1
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
