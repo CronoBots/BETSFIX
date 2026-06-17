@@ -241,7 +241,7 @@ CSS = """
         max-width:720px;margin:0 auto;
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
-  .toplogo{display:block;text-align:center;margin:0 0 16px}
+  .toplogo{display:block;text-align:center;margin:20px 0 18px}
   .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   .pausewrap{text-align:right;margin:-10px 0 8px}
   .pausebadge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
