@@ -243,7 +243,7 @@ CSS = """
         max-width:720px;margin:0 auto;
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
-  .toplogo{display:block;text-align:center;margin:20px 0 18px}
+  .toplogo{display:block;text-align:center;margin:20px 0 12px}
   .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   /* Intro au chargement : logo principal centré, puis fondu -> le site apparaît. */
   .splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
