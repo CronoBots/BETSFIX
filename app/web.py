@@ -1472,6 +1472,8 @@ CSS = """
   .da-cl-pr.lo{color:#ffb020;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.12)}
   .da-cl-why{font-size:11px;line-height:1.5;color:#b9c2cf;padding:3px 0 0 2px}   /* pourquoi DE LA JAMBE (complet) */
   .da-combo-why{font-size:11px;line-height:1.55;color:#cfe0f5;font-style:italic;margin:0 0 9px}   /* synthèse (intro en tête) */
+  .da-combo-warn{font-size:10.5px;line-height:1.5;color:#ffcf8a;background:rgba(255,176,32,.10);   /* combiné même-match : cote réelle Unibet souvent plus basse (corrélation) */
+                 border:1px solid rgba(255,176,32,.28);border-radius:9px;padding:6px 9px;margin:0 0 10px}
   .da-combo-live{border-left-color:#ffb020}
   .da-combo-b.live{background:#ffb020;color:#1a1200;animation:combopulse 1.6s ease-in-out infinite}
   @keyframes combopulse{0%,100%{opacity:1}50%{opacity:.55}}
