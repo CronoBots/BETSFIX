@@ -14,8 +14,8 @@ from datetime import datetime, timezone
 
 from . import analyses, match_select
 
-_LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                     "static", "logo.png")
+_WORDMARK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "static", "wordmark.png")
 
 def _bets_for_url(url: str, compact: bool = False) -> str:
     """Cadres « paris à jouer » d'un match (sous les barres %, HORS analyse), depuis son URL de fiche.
@@ -242,7 +242,7 @@ CSS = """
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
   .toplogo{display:block;text-align:center;margin:0 0 16px}
-  .toplogo img{height:80px;width:auto;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
+  .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   .pausewrap{text-align:right;margin:-10px 0 8px}
   .pausebadge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
               color:var(--dim);background:transparent;border:1px solid var(--border2);
@@ -2041,8 +2041,8 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     `source` : état SofaScore -> petit indicateur discret dans l'en-tête si en pause."""
     e = html.escape
     # Logo unique : réduit, centré, tout en haut de CHAQUE page (accueil + sports).
-    toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=3" alt="BETSFIX"></a>'
-               if os.path.exists(_LOGO) else "")
+    toplogo = ('<a class="toplogo" href="/"><img src="/static/wordmark.png?v=1" alt="BETSFIX"></a>'
+               if os.path.exists(_WORDMARK) else "")
     pausebar = ""
     if source and not source.get("ok"):
         s = source.get("paused_seconds", 0)
@@ -2087,8 +2087,8 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
     serveur (1er affichage rapide, marche sans JS) ; les 3 autres panneaux sont vides et
     remplis en AJAX dès l'ouverture. La nav du bas bascule les panneaux SANS rechargement."""
     e = html.escape
-    toplogo = ('<a class="toplogo" href="/"><img src="/static/logo.png?v=3" alt="BETSFIX"></a>'
-               if os.path.exists(_LOGO) else "")
+    toplogo = ('<a class="toplogo" href="/"><img src="/static/wordmark.png?v=1" alt="BETSFIX"></a>'
+               if os.path.exists(_WORDMARK) else "")
     pausebar = ""
     if source and not source.get("ok"):
         s = source.get("paused_seconds", 0)
