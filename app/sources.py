@@ -437,12 +437,25 @@ def _tennis_form(idx: dict, player: str) -> tuple[str, int]:
 
 async def _tennis_extras(client, match: dict) -> list[str]:
     home, away = match.get("home", ""), match.get("away", "")
-    circuit = (match.get("circuit") or "").upper()
-    tour = "wta" if "WTA" in circuit else "atp"
+    # Le circuit (WTA/ATP) n'est plus fourni de façon fiable (champ 'circuit' ex-SofaScore
+    # vide, 'comp' = ville type « Berlin »). On le DÉDUIT : on cherche les joueurs dans les
+    # DEUX classements ESPN (cachés -> gratuit) et on garde celui qui les place.
+    hint = (match.get("circuit") or match.get("comp") or "").upper()
+    cand = ["wta"] if "WTA" in hint else ["atp"] if "ATP" in hint else ["wta", "atp"]
+    tour, ranks, rh, ra = None, {}, None, None
+    for t in cand:
+        rk = await _espn_rankings(client, t)
+        a, _ = _rank_of(rk, home)
+        b, _ = _rank_of(rk, away)
+        if a or b:
+            tour, ranks, rh, ra = t, rk, a, b
+            break
+    if tour is None:                       # aucun joueur placé : repli sur le 1er candidat
+        tour = cand[0]
+        ranks = await _espn_rankings(client, tour)
+        rh, _ = _rank_of(ranks, home)
+        ra, _ = _rank_of(ranks, away)
     facts = []
-    ranks = await _espn_rankings(client, tour)
-    rh, nh = _rank_of(ranks, home)
-    ra, na = _rank_of(ranks, away)
     if rh or ra:
         facts.append(f"Classement {tour.upper()} (ESPN, à jour) : "
                      f"{home} #{rh or '?'} vs {away} #{ra or '?'}")
