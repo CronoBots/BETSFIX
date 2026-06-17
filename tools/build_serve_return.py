@@ -115,6 +115,11 @@ def main():
         }
 
     os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
+    # Garde-fou anti-perte : ne pas ecraser un fichier de notes existant par un
+    # resultat VIDE (source indisponible -> 0 collecte). Cf. incident 2026-06-17.
+    if not store and os.path.exists(OUT_PATH) and os.path.getsize(OUT_PATH) > 2:
+        print(f"  [!] 0 entree collectee -> {OUT_PATH} CONSERVE (pas d'ecrasement)")
+        return
     tmp = OUT_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(store, f, ensure_ascii=False)

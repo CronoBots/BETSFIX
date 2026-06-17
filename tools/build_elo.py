@@ -117,6 +117,11 @@ def main():
                 home_name=ht.get("name", ""), away_name=at.get("name", ""),
             )
 
+    # Garde-fou anti-perte : ne pas ecraser elo_ratings.json par un resultat VIDE
+    # (SofaScore indisponible -> 0 collecte). Cf. incident 2026-06-17.
+    if not store and os.path.exists(elo.RATINGS_PATH) and os.path.getsize(elo.RATINGS_PATH) > 2:
+        print(f"  [!] 0 joueur collecte -> {elo.RATINGS_PATH} CONSERVE (pas d'ecrasement)")
+        return
     elo.save(store)
     print(f"\n✓ {len(store)} joueurs notés -> {elo.RATINGS_PATH}")
     # Aperçu : top 10 Elo global
