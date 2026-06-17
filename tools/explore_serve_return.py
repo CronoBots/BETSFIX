@@ -28,7 +28,7 @@ except (AttributeError, ValueError):  # pragma: no cover
 
 import httpx  # noqa: E402
 
-from build_elo import B, H  # noqa: E402
+from sofa_client import B, H  # noqa: E402
 from explore_breaks import _load_cache, collect_events, collect_players  # noqa: E402
 
 MIN_HISTORY = 6          # nb de matchs d'historique requis pour évaluer un joueur

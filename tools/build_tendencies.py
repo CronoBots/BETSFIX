@@ -28,7 +28,6 @@ except (AttributeError, ValueError):  # pragma: no cover
 
 import httpx  # noqa: E402
 
-from app import elo  # réutilise is_clay  # noqa: E402
 from explore_aces import collect_events, collect_players, _load_cache  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -75,7 +74,7 @@ def main():
             continue
         used += 1
         ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
-        clay = elo.is_clay(ev.get("groundType"))
+        clay = "clay" in ((ev.get("groundType")) or "").lower()
         bump(ht.get("id"), ht.get("name"), st["ha"], st["hg"], clay)
         bump(at.get("id"), at.get("name"), st["aa"], st["ag"], clay)
 

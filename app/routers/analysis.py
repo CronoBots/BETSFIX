@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app import elo, serve_return
+from app import serve_return
 from app.analysis import build_analysis
 from app.dependencies import get_provider, get_unibet
 from app.markets import (
@@ -68,14 +68,13 @@ async def analyze_match(
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
-    elo_home, elo_away = elo.ratings_for_match(match)
     sr_home, sr_away = serve_return.ratings_for_match(match)
     return build_analysis(
         match=match, home_matches=hm or [], away_matches=am or [],
         home_stats=hs, away_stats=as_,
         home_wins_h2h=h2h.home_wins if h2h else None,
         away_wins_h2h=h2h.away_wins if h2h else None,
-        unibet=odds, elo_home=elo_home, elo_away=elo_away,
+        unibet=odds,
         sr_home=sr_home, sr_away=sr_away,
     )
 
@@ -100,14 +99,13 @@ async def analyze_markets(
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
-    elo_home, elo_away = elo.ratings_for_match(match)
     sr_home, sr_away = serve_return.ratings_for_match(match)
     analysis = build_analysis(
         match=match, home_matches=hm or [], away_matches=am or [],
         home_stats=hs, away_stats=as_,
         home_wins_h2h=h2h.home_wins if h2h else None,
         away_wins_h2h=h2h.away_wins if h2h else None,
-        unibet=odds, elo_home=elo_home, elo_away=elo_away,
+        unibet=odds,
         sr_home=sr_home, sr_away=sr_away,
     )
     result = MatchMarketsAnalysis(

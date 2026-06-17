@@ -3638,7 +3638,7 @@ def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None
 
     return layout("Matchs", "tennis", "".join(out), subnav="matchs", refresh=True)
 
-_FACTOR_NAMES = {"elo": "Force générale (Elo)", "classement": "Classement", "forme": "Forme",
+_FACTOR_NAMES = {"classement": "Classement", "forme": "Forme",
                  "surface": "Surface", "head_to_head": "Face-à-face"}
 
 def render_factors(factors, intro: str | None = None) -> str:

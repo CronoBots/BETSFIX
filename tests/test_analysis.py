@@ -108,32 +108,22 @@ def test_recalibrate_shrinks_toward_half():
 
 
 def test_recalibration_is_wired_in_build_analysis():
-    # Match SANS rang/forme/stats/h2h : seul le facteur Elo subsiste, donc le mélange
-    # = proba Elo. La proba finale doit être exactement la version recalibrée.
+    # Match SANS rang/forme/stats/h2h : seul le facteur service/retour subsiste, donc
+    # le mélange = proba service/retour. La proba finale doit être exactement la
+    # version recalibrée.
     from app.analysis import CALIB_SHRINK
-    from app.elo import expected_score
+    from app.serve_return import prob_from_serve_return
 
     match = Match(id=1, tour="atp", ground_type="Red clay", status="notstarted",
                   home=Player(id=100, name="A"), away=Player(id=200, name="B"))
     a = build_analysis(match, [], [], None, None, None, None,
                        UnibetOdds(match_id=1, matched=False),
-                       elo_home=2000, elo_away=1400)
-    assert {f.name for f in a.factors} == {"elo"}      # seul l'Elo est présent
-    p_elo = expected_score(2000, 1400)
-    # La proba finale = version recalibrée du mélange (ici = proba Elo), quel que
-    # soit CALIB_SHRINK. Prouve que recalibrate() est bien branché dans le pipeline.
-    assert abs((a.model_home_probability or 0) - recalibrate(p_elo, CALIB_SHRINK)) < 1e-4
-
-
-def test_build_analysis_uses_elo_factor():
-    match = _match(home_rank=10, away_rank=10)
-    # Elo nettement favorable à 'home' alors que les rangs sont égaux
-    a = build_analysis(match, [], [], None, None, None, None,
-                       UnibetOdds(match_id=1, matched=False),
-                       elo_home=1900, elo_away=1500)
-    assert "elo" in {f.name for f in a.factors}
-    # Le facteur Elo (poids dominant) tire la proba home au-dessus du 50/50 des rangs
-    assert (a.model_home_probability or 0) > 0.55
+                       sr_home=1.20, sr_away=0.80)
+    assert {f.name for f in a.factors} == {"surface"}  # seul le service/retour subsiste
+    p_sr = prob_from_serve_return(1.20, 0.80)
+    # La proba finale = version recalibrée du mélange (ici = proba service/retour),
+    # quel que soit CALIB_SHRINK. Prouve que recalibrate() est bien branché.
+    assert abs((a.model_home_probability or 0) - recalibrate(p_sr, CALIB_SHRINK)) < 1e-4
 
 
 def test_serve_return_drives_surface_factor():

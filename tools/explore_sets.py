@@ -32,7 +32,7 @@ except (AttributeError, ValueError):  # pragma: no cover
 import httpx  # noqa: E402
 
 from app.analysis import prob_from_rankings  # noqa: E402
-from build_elo import B, H  # noqa: E402
+from sofa_client import B, H  # noqa: E402
 from explore_breaks import collect_events, collect_players  # noqa: E402
 
 

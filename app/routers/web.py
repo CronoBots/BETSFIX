@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import analyses, ace_markets, elo, fragcache, match_analysis, match_select, serve_return, set_markets, tendencies, tracking, web, window
+from app import analyses, ace_markets, fragcache, match_analysis, match_select, serve_return, set_markets, tendencies, tracking, web, window
 from app.config import get_settings
 from app.analysis import build_analysis, remove_vig
 from app.analysis import _match_winner_odds
@@ -731,14 +731,13 @@ async def match_detail(
         return await _light_detail(match_id, tour, unibet, rankings, frag=bool(frag))
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
-    elo_home, elo_away = elo.ratings_for_match(match)
     sr_home, sr_away = serve_return.ratings_for_match(match)
     analysis = build_analysis(
         match=match, home_matches=hm or [], away_matches=am or [],
         home_stats=hs, away_stats=as_,
         home_wins_h2h=h2h.home_wins if h2h else None,
         away_wins_h2h=h2h.away_wins if h2h else None,
-        unibet=odds, elo_home=elo_home, elo_away=elo_away,
+        unibet=odds,
         sr_home=sr_home, sr_away=sr_away,
     )
     winner_odds = _match_winner_odds(odds, match) if (odds and odds.matched) else (None, None)
@@ -888,14 +887,13 @@ async def markets_page(
             '<a class="dim" href="/app">← Retour</a>'))
 
     hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
-    elo_home, elo_away = elo.ratings_for_match(match)
     sr_home, sr_away = serve_return.ratings_for_match(match)
     analysis = build_analysis(
         match=match, home_matches=hm or [], away_matches=am or [],
         home_stats=hs, away_stats=as_,
         home_wins_h2h=h2h.home_wins if h2h else None,
         away_wins_h2h=h2h.away_wins if h2h else None,
-        unibet=odds, elo_home=elo_home, elo_away=elo_away,
+        unibet=odds,
         sr_home=sr_home, sr_away=sr_away,
     )
     odds_matched = bool(odds and odds.matched)

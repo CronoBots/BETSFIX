@@ -28,7 +28,6 @@ except (AttributeError, ValueError):  # pragma: no cover
 
 import httpx  # noqa: E402
 
-from app import elo  # is_clay  # noqa: E402
 from explore_breaks import _load_cache, collect_events, collect_players  # noqa: E402
 from explore_serve_return import per_match  # noqa: E402
 
@@ -65,7 +64,7 @@ def main():
         doms = per_match(st)
         if doms is None:
             continue
-        clay = elo.is_clay(ev.get("groundType"))
+        clay = "clay" in ((ev.get("groundType")) or "").lower()
         ts = ev.get("startTimestamp") or 0
         # Taux de break (force de retour) de chaque joueur ce match-là.
         br_h = st["bch"] / st["rgh"] if st.get("rgh") else None

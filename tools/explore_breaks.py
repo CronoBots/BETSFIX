@@ -31,7 +31,7 @@ except (AttributeError, ValueError):  # pragma: no cover
 
 import httpx  # noqa: E402
 
-from build_elo import _get, _is_singles, B, H, TOURNAMENTS  # noqa: E402
+from sofa_client import _get, _is_singles, B, H, TOURNAMENTS  # noqa: E402
 from explore_aces import _to_int  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

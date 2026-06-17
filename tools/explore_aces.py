@@ -37,7 +37,7 @@ except (AttributeError, ValueError):  # pragma: no cover
 
 import httpx  # noqa: E402
 
-from build_elo import _get, _is_singles, B, H, TOURNAMENTS  # noqa: E402
+from sofa_client import _get, _is_singles, B, H, TOURNAMENTS  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_PATH = os.path.join(_ROOT, "data", "cache_aces.json")

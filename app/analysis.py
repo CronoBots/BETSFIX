@@ -1,11 +1,10 @@
 """Modèle d'aide à la décision de pari (pré-match tennis).
 
 Approche **transparente et calibrée sur données réelles** :
-1. Deux facteurs de force à quasi-égalité : le **classement** calibré par régression
-   logistique sur ~1150 matchs RG (cf. tools/backtest.py, log-loss ≈ 0.64) et l'**Elo
-   par surface** (force réelle pondérée par la qualité des adversaires, note terre
-   distincte ; cf. tools/build_elo.py). Le back-test (tools/backtest_model.py) montre
-   que le classement prédit un peu mieux — d'où des poids rééquilibrés (cf. WEIGHTS).
+1. Le **classement** calibré par régression logistique sur ~1150 matchs RG
+   (cf. tools/backtest.py, log-loss ≈ 0.64) porte la force générale du joueur.
+   (Le facteur **Elo par surface** a été RETIRÉ le 2026-06-17 : source SofaScore
+   morte, données perdues et non régénérables.)
 2. Des facteurs **forme vs attente** (sur-/sous-performance par rapport au rang de
    l'adversaire, pondérée par récence + spécifique terre), **surface**
    (service/retour) et **head-to-head** qui ajustent la base.
@@ -22,7 +21,6 @@ from __future__ import annotations
 
 import math
 
-from app.elo import prob_from_elo
 from app.serve_return import prob_from_serve_return
 from app.models import (
     AnalysisFactor,
@@ -45,9 +43,10 @@ RANK_B1 = 0.3668
 #    meilleur seul (68%), service/retour ~0.20 du trio, Elo redondant quand le
 #    classement est là.
 # Les deux convergent : moins d'Elo, plus de classement, un peu plus de service/retour.
-# On ne prend PAS la solution de coin (Elo=0, sur-ajustement sur petit échantillon) :
-# l'Elo garde sa valeur sur les cas que le rang rate (blessures, spécialistes surface).
-WEIGHTS = {"elo": 0.20, "classement": 0.40, "forme": 0.20, "surface": 0.15,
+# Signal Elo tennis RETIRÉ (2026-06-17) : source SofaScore morte, données perdues
+# et non régénérables. Le classement (calibré) porte la force générale ; le
+# service/retour porte la surface.
+WEIGHTS = {"classement": 0.40, "forme": 0.20, "surface": 0.15,
            "head_to_head": 0.05}
 
 # Ancrage au marché : confiance accordée au modèle vs aux cotes du bookmaker.
@@ -252,24 +251,12 @@ def build_analysis(
     home_wins_h2h: int | None,
     away_wins_h2h: int | None,
     unibet: UnibetOdds | None,
-    elo_home: float | None = None,
-    elo_away: float | None = None,
     sr_home: float | None = None,
     sr_away: float | None = None,
 ) -> MatchAnalysis:
     factors: list[AnalysisFactor] = []
 
-    # 0) Elo par surface (force réelle pondérée par les adversaires)
-    pe = prob_from_elo(elo_home, elo_away)
-    if pe is not None:
-        surf = "terre" if "clay" in (match.ground_type or "").lower() else "global"
-        factors.append(AnalysisFactor(
-            name="elo", home=round(pe, 4), away=round(1 - pe, 4),
-            weight=WEIGHTS["elo"],
-            detail=f"Elo {surf} {round(elo_home)} vs {round(elo_away)}",
-        ))
-
-    # 1) Classement (calibré) — repli et complément de l'Elo
+    # 1) Classement (calibré) — porte la force générale du joueur
     p = prob_from_rankings(match.home.ranking, match.away.ranking)
     if p is not None:
         factors.append(AnalysisFactor(

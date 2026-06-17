@@ -21,15 +21,13 @@ except (AttributeError, ValueError):  # pragma: no cover
     pass
 
 import build_basket_elo  # noqa: E402
-import build_elo  # noqa: E402
 import build_foot_elo  # noqa: E402
 import build_serve_return  # noqa: E402
 import build_tendencies  # noqa: E402
 
 
 def main():
-    steps = (("Elo (force des joueurs)", build_elo.main),
-             ("tendances d'aces", build_tendencies.main),
+    steps = (("tendances d'aces", build_tendencies.main),
              ("domination service/retour", build_serve_return.main),
              ("Elo d'équipe basket (WNBA)", build_basket_elo.main),
              ("Elo des sélections (foot)", build_foot_elo.main))
