@@ -53,6 +53,48 @@ Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
   ? { $_.CommandLine -match 'remote-control BETSFIX' } | Select ProcessId
 ```
 
+## Sources de données & analyse (état réel — 2026-06-17)
+
+### Sources par rôle (toutes vérifiées vivantes, sauf SofaScore)
+| Source | Rôle | Statut |
+|---|---|---|
+| **Unibet** | cotes + marchés + **sélection** des matchs (les 3 sports) | ✅ |
+| **Pinnacle** | ancre « sharp » (proba de référence, faible marge) | ✅ |
+| **FotMob** | foot : forme / blessés / H2H / météo | ✅ |
+| **ESPN** | tennis (classement + forme) · basket (bilans + blessés WNBA/NBA) | ✅ |
+| **Understat** | foot : xG (top-5 ligues) | ✅ |
+| **Flashscore** | foot/tennis/basket : forme + H2H + service + compos | ✅ |
+| **LiveScore** | scores **live** (onglet radar) + **règlement** des paris | ✅ |
+| **SofaScore** | ex-source principale | ❌ **MORTE** |
+
+### ⚠️ SofaScore est MORT — NE PAS re-diagnostiquer à chaque fois
+- `app/sofa_http`, `_sofa_extras`, `_resolve_sofa`, `tools/build_*elo` appellent
+  ENCORE SofaScore → renvoient 0 / 403, **gérés sans planter** (vestige).
+- Donc : `/{sport}/match/{id}/streaks|h2h|statistics` renvoient `{}` pour les 3 sports,
+  et le scan logue « id SofaScore introuvable → repli id Unibet ». **C'est normal.**
+- NE PAS conclure « tennis/basket cassés » : la **sélection (Unibet)** et
+  l'**enrichissement (multi-sources)** marchent pour les 3 sports.
+- Déjà acté : **Elo tennis RETIRÉ** (commit 4ee2d45) ; les builds Elo/tendances/
+  serve-return collectent 0 → **garde-fou anti-écrasement** (ba61e1b). **Ne PAS
+  relancer ces builds en espérant un résultat.** (cf. mémoire `build-sofascore-dead`.)
+
+### L'enrichissement vivant = `app/sources.py`
+- `sources.extras(client, sport, match)` → FotMob/ESPN/Understat + Flashscore,
+  **branché au scan** (`tools/generate_analyses.py:674`), pour les **3 sports**.
+- Tennis : le circuit ATP/WTA est **DÉDUIT** en cherchant les joueurs dans les 2
+  classements ESPN (le champ `circuit` ex-SofaScore est vide) — fix commit b60710d.
+  Avant ce fix, les matchs WTA n'avaient AUCUNE donnée ESPN (chute sur ATP par défaut).
+
+### Le scan = `tools/generate_analyses.py`
+- Pilote Claude headless (`claude -p`), **confidence-first**, faits web ≥2 sources.
+  **DOIT** tourner en session `vince` (authentifiée) + **réseau requis**
+  (lancer avec sandbox désactivé).
+- Usage : `python tools/generate_analyses.py --sport foot,tennis,basket --top 3 --hours 24`
+- Les **3 sports sont scannables**. Un `getaddrinfo failed` ponctuel = hoquet réseau
+  transitoire (pas structurel) → relancer.
+- Méthodo combinés : BANNIR les marchés cartons ; privilégier la « domination corrélée »
+  (jambes qui tombent ensemble : vainqueur + corners + buts/1re MT).
+
 ## Git
 - Remote : `origin` = https://github.com/CronoBots/BETSFIX.git (branche `main`).
 - Aucun push/commit automatique : rien dans les scripts ne fait de `git`,
