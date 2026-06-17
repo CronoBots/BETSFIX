@@ -16,6 +16,8 @@ from . import analyses, match_select
 
 _WORDMARK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "static", "wordmark.png")
+_LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "static", "logo.png")
 
 def _bets_for_url(url: str, compact: bool = False) -> str:
     """Cadres « paris à jouer » d'un match (sous les barres %, HORS analyse), depuis son URL de fiche.
@@ -243,6 +245,18 @@ CSS = """
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
   .toplogo{display:block;text-align:center;margin:20px 0 18px}
   .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
+  /* Intro au chargement : logo principal centré, puis fondu -> le site apparaît. */
+  .splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+          background:var(--bg);animation:splashOut .5s ease 1.15s forwards}
+  .splash::after{content:"";position:absolute;inset:0;pointer-events:none;
+          background:radial-gradient(900px 560px at 50% 40%,var(--halo),transparent 62%)}
+  .splash img{position:relative;width:46%;max-width:208px;height:auto;
+          filter:drop-shadow(0 10px 32px rgba(34,184,255,.5));
+          animation:splashIn .75s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes splashIn{0%{opacity:0;transform:scale(.82)}60%{opacity:1}100%{opacity:1;transform:scale(1)}}
+  @keyframes splashOut{to{opacity:0;visibility:hidden}}
+  @media (prefers-reduced-motion:reduce){
+    .splash{animation:splashOut .3s ease .4s forwards}.splash img{animation:none}}
   .pausewrap{text-align:right;margin:-10px 0 8px}
   .pausebadge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
               color:var(--dim);background:transparent;border:1px solid var(--border2);
@@ -2043,6 +2057,8 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     # Logo unique : réduit, centré, tout en haut de CHAQUE page (accueil + sports).
     toplogo = ('<a class="toplogo" href="/"><img src="/static/wordmark.png?v=1" alt="BETSFIX"></a>'
                if os.path.exists(_WORDMARK) else "")
+    splash = ('<div class="splash" aria-hidden="true"><img src="/static/logo.png?v=3" alt=""></div>'
+              if os.path.exists(_LOGO) else "")
     pausebar = ""
     if source and not source.get("ok"):
         s = source.get("paused_seconds", 0)
@@ -2078,7 +2094,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
-<div class="wrap">{toplogo}{pausebar}{sub}{body}
+{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
@@ -2089,6 +2105,8 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
     e = html.escape
     toplogo = ('<a class="toplogo" href="/"><img src="/static/wordmark.png?v=1" alt="BETSFIX"></a>'
                if os.path.exists(_WORDMARK) else "")
+    splash = ('<div class="splash" aria-hidden="true"><img src="/static/logo.png?v=3" alt=""></div>'
+              if os.path.exists(_LOGO) else "")
     pausebar = ""
     if source and not source.get("ok"):
         s = source.get("paused_seconds", 0)
@@ -2119,7 +2137,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(active)}">
-<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
+{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
