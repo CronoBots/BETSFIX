@@ -214,14 +214,14 @@ CSS = """
   body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00;--glow:rgba(240,128,0,.30)}
   body.sp-foot{--accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30)}
   *{box-sizing:border-box}
-  html{-webkit-text-size-adjust:100%;overflow-x:clip}
+  html{-webkit-text-size-adjust:100%;overflow:hidden;overscroll-behavior:none}
   /* Coquille NON-scrollante en COLONNE FLEX,
   hauteur = viewport DYNAMIQUE (100dvh) : le contenu
      scrolle DANS .wrap (flex:1) et la barre du bas est un enfant flex STATIQUE collé au bas. Sur iOS
      ça supprime le « saut » de la barre fixe quand la toolbar Safari apparaît/disparaît (dvh suit la
      toolbar -> la barre reste toujours au bas visible) et le pied de page redevient atteignable. */
   body{margin:0;color:var(--text);font-size:14.5px;line-height:1.45;width:100%;
-       height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+       height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none;
        font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
        -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
@@ -239,7 +239,7 @@ CSS = """
   /* Zone de contenu = SEUL élément qui scrolle (flex:1). La barre du bas étant désormais un frère
      statique en dessous,
   plus besoin de réserver ~86px en bas : un petit espace suffit. */
-  .wrap{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;width:100%;
+  .wrap{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;width:100%;
         max-width:720px;margin:0 auto;
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
@@ -265,7 +265,7 @@ CSS = """
      de <body> (flex:0 0 auto),
   donc toujours collé au bas du viewport DYNAMIQUE sans « sauter » sur
      iOS. Centrée à 720px ; fond OPAQUE ; padding bas = safe-area (encoche/home-bar). */
-  .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;
+  .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;touch-action:none;
           display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));
           background:#0b0d12;border-top:1px solid var(--border)}
