@@ -1384,8 +1384,6 @@ def stats_full(since_days: int | None = None) -> dict:
             continue
         sport = d.get("sport")
         start = d.get("start") or ""
-        if _is_world_cup(d):       # Coupe du Monde EXCLUE de toutes les stats (affichée mais non comptée).
-            continue
         if cutoff is not None:
             try:
                 dt = datetime.fromisoformat(start.replace("Z", "+00:00")) if start else None
@@ -1396,6 +1394,18 @@ def stats_full(since_days: int | None = None) -> dict:
         # « Nouveau système » = analyse passée par la VALIDATION 3 agents (signature fiable), pas une
         # simple date de match (un match du 16/06 a pu être généré la veille en ancien système).
         is_new = bool(d.get("validation"))
+        if _is_world_cup(d):
+            # Coupe du Monde : on compte le COMBINÉ comme UN SEUL événement (son résultat GLOBAL
+            # won/lost), JAMAIS ses jambes ni les paris simples — 1 combiné = 1 résultat (demande
+            # utilisateur). Combiné non réglé -> match non compté (reste « en attente »).
+            combo = d.get("combo")
+            if combo and combo.get("legs") and combo.get("result") in ("won", "lost", "push"):
+                ev = (start, combo["result"], combo.get("total"))
+                all_ev.append(ev)
+                by_sport.setdefault(sport, []).append(ev)
+                if is_new:
+                    since_ev.append(ev)
+            continue
         for i, b in enumerate(d.get("bets") or []):    # TOUS les paris réglés (courbe complète)
             if i >= len(_BET_KEYS):
                 break

@@ -32,7 +32,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 19   # v19 : jambes HANDICAP (corners/cartons/tirs) réglées sur le différentiel (marge).
+_SETTLE_VERSION = 20   # v20 : double chance « <équipe> ou nul » reconnue (DC 1X/X2) -> jambes/paris réglés.
 #                              v18 : « but dans les deux mi-temps » via les buts par mi-temps (df_su) +
 #                              re-règlement des combinés au verdict incomplet (combo_tries, 8 essais).
 
@@ -290,6 +290,14 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         for k in ("1x", "12", "x2"):
             if k in t:
                 return f"DC {k.upper()}"
+    # Double chance phrasée « <équipe> ou nul » (= domicile/extérieur OU match nul) — fréquent en
+    # jambe de combiné (« Angleterre ou nul »), échappait au filtre « double chance » -> code vide.
+    if "ou nul" in t or "ou match nul" in t or "ou le nul" in t:
+        w = which()
+        if w == "HOME":
+            return "DC 1X"
+        if w == "AWAY":
+            return "DC X2"
     if any(x in t for x in ("vainqueur", "gagne", "victoire")):
         if sport == "foot":
             s = side("X")
