@@ -32,7 +32,9 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 24   # v24 : « Total de buts +1.5 » (ligne signée) reconnu OVER/UNDER.
+_SETTLE_VERSION = 25   # v25 : « <équipe> -1.5 buts » (ligne signée d'ÉQUIPE) = TEAMTOT UNDER, plus un
+#                              handicap (corrige combinés CdM mal réglés, ex. Tchéquie-Afrique du Sud).
+# v24 : « Total de buts +1.5 » (ligne signée) reconnu OVER/UNDER.
 #                              v18 : « but dans les deux mi-temps » via les buts par mi-temps (df_su) +
 #                              re-règlement des combinés au verdict incomplet (combo_tries, 8 essais).
 
@@ -269,6 +271,14 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             return f"TEAMTOT {team} {'OVER' if mt.group(1)=='plus' else 'UNDER'} {mt.group(2).replace(',', '.')}"
         if mm:
             return f"TEAMTOT {team} OVER {mm.group(1).replace(',', '.')}"
+        # ligne SIGNÉE d'un total d'ÉQUIPE : « <équipe> -1.5 buts » (= MOINS de 1.5) / « <équipe> +1.5 buts »
+        # (= PLUS de). Le mot but/point distingue du HANDICAP (« <équipe> -1.5 » SANS unité, traité plus bas).
+        # Vital : l'analyste abrège « moins de 1.5 buts » en « -1.5 buts » dans la ligne COMBO: -> sans ça,
+        # c'était lu comme un handicap (ex. « Afrique du Sud -1.5 buts » réglé HCAP AWAY -1.5 = faux).
+        if "handicap" not in t:
+            sgn = re.search(r"([+\-−–])\s?(\d+[.,]?\d*)\s*(?:buts?|points?|pts?)", t)
+            if sgn:
+                return f"TEAMTOT {team} {'UNDER' if sgn.group(1) in ('-', '−', '–') else 'OVER'} {sgn.group(2).replace(',', '.')}"
     # total du MATCH (sans équipe nommée) — accepte buts/points + abréviations « pt / pts »
     m = re.search(r"(plus|moins) de (\d+[.,]?\d*)\s*(?:buts?|points?|pts?)", t)
     if m and not team:

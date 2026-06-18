@@ -146,7 +146,11 @@ COMBO_MISSION = (
     "**Cote combinée : <produit à 2 décimales>** — <1 phrase : pourquoi ces jambes expriment la MÊME "
     "domination du favori et passent donc ensemble dans le scénario probable>.\n"
     "Puis une TOUTE DERNIÈRE ligne technique (sous le PICK) au format EXACT :\n"
-    "`COMBO: <sel1> @<cote1> | <sel2> @<cote2> | <sel3> @<cote3> = <cote combinée>`"
+    "`COMBO: <sel1> @<cote1> | <sel2> @<cote2> | <sel3> @<cote3> = <cote combinée>`\n"
+    "⚠️ Dans CETTE ligne COMBO:, pour un total d'ÉQUIPE écris TOUJOURS « <équipe> moins de 1.5 buts » / "
+    "« <équipe> plus de 1.5 buts » EN TOUTES LETTRES — JAMAIS « <équipe> -1.5 buts » ni « +1.5 buts » "
+    "(le « -1.5 » serait lu comme un HANDICAP et le pari réglé À L'ENVERS). Réserve « <équipe> -1.5 » "
+    "(sans « buts ») au seul vrai HANDICAP de résultat."
 )
 # Consensus sharp : on ne montre Pinnacle comme « vraie proba » que si SA marge est faible (ligne
 # liquide/efficiente). Au-delà (petits marchés illiquides), le de-vig est bruité -> EV absurdes -> on
