@@ -1277,6 +1277,9 @@ MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne) — repère
     ("2026-06-16", "1 pari/match", "1 pari, le plus probable, validé par 3 agents"),
     ("2026-06-18", "Combinés comptés", "chaque combiné compte pour 1 résultat dans le suivi"),
 ]
+# Les combinés ne comptent dans le palmarès qu'à partir de la date de DÉCISION (NON rétroactif) :
+# les combinés antérieurs (placés quand ils ne comptaient pas) ne polluent pas le suivi.
+_COMBO_COUNT_FROM = "2026-06-18"
 
 
 def _agg_bets(events: list) -> dict:
@@ -1398,9 +1401,11 @@ def stats_full(since_days: int | None = None) -> dict:
         if _is_world_cup(d):
             # Coupe du Monde : on compte le COMBINÉ comme UN SEUL événement (son résultat GLOBAL
             # won/lost), JAMAIS ses jambes ni les paris simples — 1 combiné = 1 résultat (demande
-            # utilisateur). Combiné non réglé -> match non compté (reste « en attente »).
+            # utilisateur). NON RÉTROACTIF : seuls les combinés à partir de _COMBO_COUNT_FROM comptent.
+            # Combiné non réglé -> match non compté (reste « en attente »).
             combo = d.get("combo")
-            if combo and combo.get("legs") and combo.get("result") in ("won", "lost", "push"):
+            if (combo and combo.get("legs") and combo.get("result") in ("won", "lost", "push")
+                    and (d.get("start") or "")[:10] >= _COMBO_COUNT_FROM):
                 ev = (start, combo["result"], combo.get("total"))
                 all_ev.append(ev)
                 by_sport.setdefault(sport, []).append(ev)
