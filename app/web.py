@@ -477,7 +477,7 @@ CSS = """
   /* Chevron de dépli : EN BAS À DROITE du cadre replié. */
   .mc-chev{position:absolute;right:12px;bottom:9px;color:var(--muted);font-size:15px;
        transition:transform .18s}
-  .mc-open .mc-chev{transform:rotate(90deg)}
+  .mc-open .mc-chev{display:none}   /* carte ouverte : chevron caché ; il ne réapparaît qu'une fois repliée */
   /* L2 : équipes (noms + prénoms complets) — ligne principale. */
   .mc-teams{font-size:13.5px;font-weight:800;color:var(--text);margin-top:4px;
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3113,10 +3113,8 @@ def _sport_row(r: dict) -> str:
         is_reco = i == reco_i and not is_combo
         if is_finished:
             ic = {"won": "✅", "lost": "❌", "push": "➖"}.get(b.get("result"), "•")
-        elif is_reco:
-            ic = '<span class="mc-star">⭐</span>'
         else:
-            ic = "•"
+            ic = "•"                              # plus d'⭐ devant les paris (demande user)
         rcls = " mc-betl-reco" if (is_reco and not is_finished) else ""
         rows3.append(f'<div class="mc-betl{rcls}"><span class="mc-bi">{ic}</span>'
                      f'<span class="mc-bt">{e(b.get("sel", ""))}</span></div>')

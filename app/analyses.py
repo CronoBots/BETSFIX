@@ -692,7 +692,7 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # BANDE gauche : OR pour le pari RETENU par le moteur (ex-« mode bankroll », UI retirée
         # 2026-06-12) ; le repère est désormais une ⭐ à DROITE du nom du pari (demande utilisateur).
         recocls = " da-bk-reco" if is_reco else ""
-        recostar = ' <span class="da-bk-star" title="Pari retenu par le moteur">⭐</span>' if is_reco else ""
+        recostar = ""                                # ⭐ « pari retenu » retiré devant le pari (demande user)
         # Badge VALIDATION (panel de 3 agents) sur le pari (la validation porte sur LE pari du match,
         # affichée même si le moteur EV ne l'a pas marqué ⭐ — c'est le panel qui l'a retenu).
         # Badge COMBINÉ : sûreté + validation (panel de 3 agents) en UNE seule pastille.
@@ -748,7 +748,7 @@ def _structured(md: str) -> str | None:
     # stopPropagation pour que le clic n'affecte pas l'ouverture/fermeture de la carte).
     if faits:
         inner = f'<div class="da-faits-b">{_render_blocks(faits)}</div>'
-        parts.append('<details class="da-faits" open>'
+        parts.append('<details class="da-faits">'   # RÉDUIT par défaut (demande user) : déplier au tap
                      '<summary onclick="event.stopPropagation()">ℹ️ Informations</summary>'
                      f'{inner}</details>')
     # Section « 🎲 Combiné » : NON rendue ici -> elle est DÉJÀ affichée dans son propre cadre (combo_html)
