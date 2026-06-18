@@ -393,6 +393,7 @@ CSS = """
        background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02))}
   .spf-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .spf-roi-wrap{display:flex;flex-direction:column;line-height:1}
+  .spf-forms{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
   .spf-roi{font-size:30px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .spf-roi-l{font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
        color:var(--dim);margin-top:4px}
@@ -2773,7 +2774,17 @@ def render_sport_perf(sport: str) -> str:
     if not s or not s.get("settled"):
         return ""
     roi = s.get("roi")
-    forms = form_dots(s.get("form"))
+    # Forme en 2 lignes (Simples / Combinés) comme le graphe principal. Combinés = foot (CdM) seulement
+    # -> la ligne ne s'affiche que si elle a des résultats ; repli sur l'ancienne ligne unique sinon.
+    _LET = {"won": "W", "lost": "L", "push": "N"}
+    _fs = form_dots([_LET.get(x, x) for x in (s.get("form_simple") or [])], n=8)
+    _fc = form_dots([_LET.get(x, x) for x in (s.get("form_combo") or [])], n=8)
+    _rows = []
+    if _fs:
+        _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Simples</span>{_fs}</div>')
+    if _fc:
+        _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Combinés</span>{_fc}</div>')
+    forms = f'<div class="spf-forms">{"".join(_rows)}</div>' if _rows else form_dots(s.get("form"))
     chart = _hero_chart(s.get("points") or [], uid=f"sp-{sport}")
 
     def kpi(v, lbl):
