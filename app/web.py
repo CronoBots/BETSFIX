@@ -1519,15 +1519,8 @@ CSS = """
   sous la ligne (séparé par un filet fin) */
   /* Analyse du pari : SOUS l'affiche,
   AU-DESSUS des stats */
-  /* Analyse REPLIÉE par défaut (élément <details>) : un petit toggle « Analyse ▾ ». */
-  .da-bk-note{padding:6px 14px 4px}
-  .da-bk-note>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
-       font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-  .da-bk-note>summary::-webkit-details-marker{display:none}
-  .da-bk-note>summary::after{content:"▾";font-size:9px;opacity:.85;transition:transform .2s}
-  .da-bk-note[open]>summary::after{transform:rotate(180deg)}
-  .da-bk-note-b{font-size:11.5px;line-height:1.55;color:#c3cad6;padding-top:7px}
-  .da-bk-note-b b{color:#cfe0f5;font-weight:800}
+  .da-bk-note{font-size:11.5px;line-height:1.55;color:#c3cad6;padding:8px 14px 2px}
+  .da-bk-note b{color:#cfe0f5;font-weight:800}
   /* Résidu du Verdict (à éviter / mise) APRÈS les paris : cartes PREMIUM cohérentes (bande gauche +
      pastille d'icône + titre majuscule + texte) */
   .da-bets-extra{margin-top:11px;display:flex;flex-direction:column;gap:9px}
@@ -3115,8 +3108,9 @@ def _sport_row(r: dict) -> str:
     # L3 : LISTE des paris (une ligne par pari = juste l'intitulé, sans détail) ; terminé : ✅/❌ par pari.
     rows3 = []
     reco_i = summ.get("reco_idx")          # pari RETENU par le moteur -> ⭐ EN TÊTE (à la place du •)
+    is_combo = summ.get("is_combo")        # combiné = • comme les autres paris (ni ⭐ ni 🎲, demande user)
     for i, b in enumerate(summ.get("bets") or []):
-        is_reco = i == reco_i
+        is_reco = i == reco_i and not is_combo
         if is_finished:
             ic = {"won": "✅", "lost": "❌", "push": "➖"}.get(b.get("result"), "•")
         elif is_reco:

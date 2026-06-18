@@ -710,9 +710,8 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
                  + html.escape(combo_title) + '">' + ' · '.join(combo_parts) + '</span>')
         # Commentaire du Verdict déplacé SOUS le pari correspondant, DANS la même carte.
         note = note_by_idx.get(k)
-        # Analyse REPLIÉE par défaut (infos réduites) : dépliable au clic.
-        note_html = (f'<details class="da-bk-note"><summary>Analyse</summary>'
-                     f'<div class="da-bk-note-b">{_inline(note)}</div></details>') if note else ""
+        # Analyse TOUJOURS affichée (pas de repli sur le pari ; seul le cadre « Informations » se plie).
+        note_html = f'<div class="da-bk-note">{_inline(note)}</div>' if note else ""
         # 1 pari/match -> plus de « Pari 1/2/3 » : NOM du pari en titre, puis le badge combiné
         # (sûreté + validation), puis l'analyse repliée, puis les stats (confiance · cote).
         cards.append(
@@ -1165,7 +1164,7 @@ def card_summary(sport: str, match_id) -> dict:
         # COMBINÉ (CdM) = LE pari du match -> résumé compact basé sur le combiné (1 pari, son résultat),
         # cohérent avec l'affichage (le combiné remplace les paris simples).
         res = combo.get("result")
-        sel = f"🎲 Combiné ({len(combo['legs'])} jambes) @{combo.get('total')}"
+        sel = f"Combiné ({len(combo['legs'])} jambes) @{combo.get('total')}"
         return {"n": 1, "best_conf": None, "comp": m0.get("comp"), "circuit": m0.get("circuit"),
                 "play": res is None, "ev": None, "reco_idx": 0 if res != "lost" else None,
                 "won": 1 if res == "won" else 0, "lost": 1 if res == "lost" else 0,
