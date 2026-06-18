@@ -1133,9 +1133,7 @@ def combo_html(sport: str, match_id) -> str:
         badge = ' <span class="da-combo-b lost">PERDU</span>'
     elif lv == "lost":
         badge = ' <span class="da-combo-b lost">PERDU (live)</span>'
-    elif live:
-        badge = f' <span class="da-combo-b live">● {live["n_won"]}/{live["n"]} en direct</span>'
-    else:
+    else:                                          # live en cours : badge « ● N/N en direct » RETIRÉ (demande user)
         badge = ""
     try:
         total = f"{float(combo.get('total')):.2f}"
@@ -1148,17 +1146,10 @@ def combo_html(sport: str, match_id) -> str:
     # Synthèse en INTRO, avant la liste des jambes.
     synth = combo.get("why")
     intro_html = f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>' if synth else ""
-    # ⚠️ Combiné MÊME MATCH : la cote affichée = PRODUIT des jambes ; Unibet RABOTE la cote
-    # réelle quand les jambes sont corrélées (même scénario). Aucun endpoint Kambi ne donne la
-    # vraie cote same-match -> on prévient. Caché une fois le combiné réglé.
-    warn_html = ('<div class="da-combo-warn">⚠️ Cote théorique (produit des jambes). Sur un '
-                 'combiné même match, Unibet rabote souvent la cote réelle (jambes corrélées) — '
-                 'vérifie le prix dans ton panier.</div>'
-                 if res not in ("won", "lost", "push") else "")
     return (f'<div class="da-combo{hcls}"><div class="da-combo-h">🎲 Combiné '
             f'<span class="da-combo-n">· {n_legs} jambes</span>{badge}'
             f'<span class="da-combo-c">cote {total}</span></div>'
-            f'{intro_html}{warn_html}{"".join(rows)}</div>')
+            f'{intro_html}{"".join(rows)}</div>')
 
 
 def card_summary(sport: str, match_id) -> dict:
