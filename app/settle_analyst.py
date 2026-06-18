@@ -32,7 +32,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 20   # v20 : double chance « <équipe> ou nul » reconnue (DC 1X/X2) -> jambes/paris réglés.
+_SETTLE_VERSION = 21   # v21 : noms d'équipe courts (TPS/VPS) reconnus -> handicap/1X2 réglés (côté détecté).
 #                              v18 : « but dans les deux mi-temps » via les buts par mi-temps (df_su) +
 #                              re-règlement des combinés au verdict incomplet (combo_tries, 8 essais).
 
@@ -175,7 +175,10 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     # cite souvent l'AUTRE camp (« Eala remporte un set (Zhang gagne le match) ») et fausserait la
     # détection. Le MARCHÉ (over/under, double chance, ligne…) se lit sur le texte ENTIER `t`.
     t_side = t.split("(")[0]
-    names = lambda s: [w for w in re.findall(r"[a-zà-ÿ]+", (s or "").lower()) if len(w) >= 4]
+    # Jetons du nom : mots >= 4 lettres ; REPLI sur >= 2 si aucun (équipes à sigle court : TPS, VPS,
+    # PSG…) -> sinon le côté HOME/AWAY reste indéterminé et le handicap/1X2 ne se règle jamais.
+    names = lambda s: ([w for w in re.findall(r"[a-zà-ÿ]+", (s or "").lower()) if len(w) >= 4]
+                       or [w for w in re.findall(r"[a-zà-ÿ]+", (s or "").lower()) if len(w) >= 2])
     h_all, a_all = names(home), names(away)
     # Désambiguïsation : ignore les jetons COMMUNS aux deux camps (ex. « Ironi » dans
     # « Elitzur Ironi Netanya » vs « Ironi Ness Ziona », ou « Maria » dans « Maria Sakkari »
@@ -209,7 +212,7 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         s = which()
         return f"SETWIN {m.group(1)} {s}" if s else ""
     # au moins un set (« un » ou « 1 »)
-    if re.search(r"au moins (?:un|1) set", t):
+    if re.search(r"au moins (?:un|1) set", t) or re.search(r"(?:≥|>=)\s*1\s*set", t):
         return side("SET")
     # score exact en sets (tennis), ex. « pari de set 2-0 Kasatkina » -> sets du vainqueur nommé
     m = re.search(r"set\s*(\d)\s*[-–]\s*(\d)", t)
