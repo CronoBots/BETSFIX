@@ -32,7 +32,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 23   # v23 : le pari principal réutilise le résultat du pick (synchro bets[0]=pick).
+_SETTLE_VERSION = 24   # v24 : « Total de buts +1.5 » (ligne signée) reconnu OVER/UNDER.
 #                              v18 : « but dans les deux mi-temps » via les buts par mi-temps (df_su) +
 #                              re-règlement des combinés au verdict incomplet (combo_tries, 8 essais).
 
@@ -280,6 +280,10 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         m2 = re.search(r"(plus|moins) de (\d+[.,]?\d*)", t)
         if m2:
             return f"{'OVER' if m2.group(1)=='plus' else 'UNDER'} {m2.group(2).replace(',', '.')}"
+        # ligne SIGNÉE « Total de buts +1.5 » -> OVER, « ... -1.5 » -> UNDER (notation sans « plus de »).
+        sgn = re.search(r"([+\-−–])\s?(\d+[.,]?\d*)", t)
+        if sgn:
+            return f"{'UNDER' if sgn.group(1) in ('-', '−', '–') else 'OVER'} {sgn.group(2).replace(',', '.')}"
     # handicap depuis le score final : « Équipe +X.X » / « Équipe -X.X » / « handicap Équipe +X.X »
     mh = re.search(r"([+\-−–]\s?\d+(?:[.,]\d+)?)", t)   # accepte le moins ASCII, Unicode (−) et tiret (–)
     if mh and team:

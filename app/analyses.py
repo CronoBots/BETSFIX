@@ -1402,7 +1402,7 @@ def stats_full(since_days: int | None = None) -> dict:
         _mr = (_c0.get("result") if (_c0 and _c0.get("legs"))
                else ((d.get("bets") or [{}])[0].get("result")))
         if _mr in ("won", "lost", "push"):
-            match_form.append((start, _mr))
+            match_form.append((start, _mr, sport))
         # « Nouveau système » = analyse passée par la VALIDATION 3 agents (signature fiable), pas une
         # simple date de match (un match du 16/06 a pu être généré la veille en ancien système).
         is_new = bool(d.get("validation"))
@@ -1435,9 +1435,15 @@ def stats_full(since_days: int | None = None) -> dict:
     # Bulles de FORME : 1 par match (combiné OU pari principal), TOUS les matchs (défaites de combinés
     # incluses) -> honnête, INDÉPENDANT de la borne combiné du ROI/courbe (demande utilisateur).
     match_form.sort(key=lambda x: x[0] or "")
-    _mf = [r for _s, r in match_form]
+    _mf = [r for _s, r, _sp in match_form]
     out["overall"]["form"] = _mf[-5:]
     out["overall"]["form12"] = _mf[-12:]
+    # Idem pour les mini-formes PAR SPORT : 1 par match, défaites de combinés INCLUSES (sinon le
+    # bandeau d'un sport affiche une fausse série de victoires alors que des combinés ont perdu).
+    for _sp, blk in out["by_sport"].items():
+        _spf = [r for _s, r, sp in match_form if sp == _sp]
+        blk["form"] = _spf[-5:]
+        blk["form12"] = _spf[-12:]
     if sig is not None:
         _STATS_CACHE["full"] = (sig, out)
     return out
