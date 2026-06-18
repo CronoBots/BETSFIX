@@ -1427,6 +1427,8 @@ def stats_full(since_days: int | None = None) -> dict:
     all_ev: list = []         # TOUS les paris réglés depuis le début -> courbe d'équité COMPLÈTE
     since_ev: list = []       # paris du NOUVEAU système (validés 3 agents) -> KPI à suivre
     match_form: list = []     # 1 résultat PAR MATCH (combiné OU pari principal) -> bulles de forme HONNÊTES
+    simple_form: list = []    # forme des paris SIMPLES (non-CdM principal + simple RETENU CdM) -> ligne dédiée
+    combo_form: list = []     # forme des COMBINÉS (CdM) -> 2e ligne dédiée (demande user, graphe principal)
     by_sport: dict = {}
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
@@ -1444,10 +1446,23 @@ def stats_full(since_days: int | None = None) -> dict:
         # FORME « 1 par match » (TOUS les matchs, SANS la borne combiné) : un combiné = son résultat
         # GLOBAL, sinon le pari principal (1er) -> 1 bulle par combiné / par match (demande user).
         _c0 = d.get("combo")
-        _mr = (_c0.get("result") if (_c0 and _c0.get("legs"))
+        _has_combo = bool(_c0 and _c0.get("legs"))
+        _mr = (_c0.get("result") if _has_combo
                else ((d.get("bets") or [{}])[0].get("result")))
         if _mr in ("won", "lost", "push"):
             match_form.append((start, _mr, sport))
+        # DEUX lignes de forme distinctes (graphe principal) : SIMPLES vs COMBINÉS. CdM = combiné +
+        # éventuel simple RETENU ; hors CdM = le pari principal compte comme un simple.
+        if _has_combo:
+            if _c0.get("result") in ("won", "lost", "push"):
+                combo_form.append((start, _c0["result"]))
+            _rbf = retained_bet(sport, d.get("id"))
+            if _rbf and _rbf.get("result") in ("won", "lost", "push"):
+                simple_form.append((start, _rbf["result"]))
+        else:
+            _sr = (d.get("bets") or [{}])[0].get("result")
+            if _sr in ("won", "lost", "push"):
+                simple_form.append((start, _sr))
         # « Nouveau système » = analyse passée par la VALIDATION 3 agents (signature fiable), pas une
         # simple date de match (un match du 16/06 a pu être généré la veille en ancien système).
         is_new = bool(d.get("validation"))
@@ -1493,6 +1508,11 @@ def stats_full(since_days: int | None = None) -> dict:
     _mf = [r for _s, r, _sp in match_form]
     out["overall"]["form"] = _mf[-5:]
     out["overall"]["form12"] = _mf[-12:]
+    # Deux lignes SÉPARÉES pour le graphe principal : simples d'un côté, combinés de l'autre.
+    simple_form.sort(key=lambda x: x[0] or "")
+    combo_form.sort(key=lambda x: x[0] or "")
+    out["overall"]["form_simple"] = [r for _s, r in simple_form][-12:]
+    out["overall"]["form_combo"] = [r for _s, r in combo_form][-12:]
     # Idem pour les mini-formes PAR SPORT : 1 par match, défaites de combinés INCLUSES (sinon le
     # bandeau d'un sport affiche une fausse série de victoires alors que des combinés ont perdu).
     for _sp, blk in out["by_sport"].items():

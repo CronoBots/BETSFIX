@@ -1194,6 +1194,8 @@ CSS = """
   .sx-hero-lbl{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
        color:var(--muted);margin-top:3px}
   .sx-hero-r{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+  .sx-formrow{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+  .sx-formk{font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
   .sx-streak{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:99px;white-space:nowrap}
   .sx-streak.hot{color:#3ee089;background:rgba(52,210,123,.14);border:1px solid rgba(52,210,123,.30)}
   .sx-streak.cold{color:#ff7484;background:rgba(242,93,110,.13);border:1px solid rgba(242,93,110,.30)}
@@ -2428,7 +2430,17 @@ def render_stats(full: dict | None, since: str = "") -> str:
     # UN SEUL cadre : ROI + forme (≥10 bulles) + KPIs + courbe + repères expliqués.
     # Forme = 10 dernières (mêmes pastilles W/L que les onglets sport, lettre majuscule, récent à DROITE).
     _LET = {"won": "W", "lost": "L", "push": "N"}
-    forms = form_dots([_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10)
+    # DEUX lignes de forme distinctes (demande user) : SIMPLES et COMBINÉS, chacune labellisée. On
+    # n'affiche une ligne que si elle a des résultats. Repli : ancienne ligne unique si aucune des deux.
+    _fs = form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=8)
+    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=8)
+    _rows = []
+    if _fs:
+        _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Simples</span>{_fs}</div>')
+    if _fc:
+        _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Combinés</span>{_fc}</div>')
+    forms = ("".join(_rows) if _rows
+             else form_dots([_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10))
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
