@@ -1154,6 +1154,41 @@ def combo_html(sport: str, match_id) -> str:
             f'{intro_html}{"".join(rows)}</div>')
 
 
+def retained_bet(sport: str, match_id) -> dict | None:
+    """Le pari SIMPLE « retenu » par la LOGIQUE NORMALE du site (filtre ⭐ : conf recalibrée ≥ 65 %,
+    EV ≥ +3 %, garde-fous de cote, marché réglable/non exclu) = ce que l'app aurait gardé pour un
+    match ordinaire. None si AUCUN simple ne passe : on ne FORCE alors PAS de pari simple. Utile en
+    CdM, où le combiné force l'affichage de TOUS les matchs : on n'exhibe le simple que s'il aurait
+    réellement été récupéré (sinon ce sont des « ancres » à cote plate / EV négatif jamais retenues
+    ailleurs → seul le combiné reste à l'affiche). {sel, prob, cote, result, idx} ou None."""
+    bets = bets_of(sport, match_id)
+    if not bets:
+        return None
+    m = meta(sport, match_id) or {}
+    try:
+        from app.settle_analyst import code_from_pick
+        ex_sports, ex_markets = auto_exclusions()
+        if sport in ex_sports:
+            return None
+        ok, cprobs, codes = set(), [], []
+        for i, b in enumerate(bets):
+            code = code_from_pick(b.get("sel", ""), sport, m.get("home", ""), m.get("away", ""))
+            codes.append(code)
+            cprobs.append(calibrated_conf(b.get("prob"), sport, code))
+            if code and market_of(code) not in ex_markets:
+                ok.add(i)
+        reco = _recommend(bets, ok, cprobs, codes)
+    except Exception:
+        reco = _recommend(bets)
+    ri = reco.get("idx")
+    if reco.get("verdict") != "play" or ri is None:
+        return None
+    results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
+    b = bets[ri]
+    return {"idx": ri, "sel": b.get("sel", ""), "prob": b.get("prob"), "cote": b.get("cote"),
+            "result": results.get(_norm_sel(b.get("sel", "")))}
+
+
 def card_summary(sport: str, match_id) -> dict:
     """Résumé COMPACT d'un match pour la ligne repliée (carte compacte) : nb de paris, meilleure
     confiance, s'il y a un pari ✅ À JOUER (même règle que la simulation : ≥65 %, EV≥+3 %, réglable),
@@ -1166,9 +1201,10 @@ def card_summary(sport: str, match_id) -> dict:
         # HEADLINE de la carte (play_result/badge) reste celui du COMBINÉ (le pari phare du match).
         res = combo.get("result")
         sel = f"Combiné ({len(combo['legs'])} jambes) @{combo.get('total')}"
-        results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m0.get("bets") or [])}
-        bet_rows = [{"sel": b.get("sel", ""), "result": results.get(_norm_sel(b.get("sel", "")))}
-                    for b in bets_of(sport, match_id)]
+        rb = retained_bet(sport, match_id)   # simple AFFICHÉ seulement s'il aurait été RETENU (sinon combiné seul)
+        bet_rows = []
+        if rb:
+            bet_rows.append({"sel": rb["sel"], "result": rb["result"]})
         bet_rows.append({"sel": sel, "result": res})
         return {"n": len(bet_rows), "best_conf": None, "comp": m0.get("comp"), "circuit": m0.get("circuit"),
                 "play": res is None, "ev": None, "reco_idx": None,
@@ -1428,17 +1464,16 @@ def stats_full(since_days: int | None = None) -> dict:
                     by_sport.setdefault(sport, []).append(ev)
                     if is_new:
                         since_ev.append(ev)
-                # Pari(s) SIMPLE(s) « le plus sûr » comptés AUSSI = 2e résultat distinct (demande user :
-                # le simple ET le combiné = 2 paris). Même borne de date, jamais les jambes du combiné.
-                for i, b in enumerate(d.get("bets") or []):
-                    if i >= len(_BET_KEYS):
-                        break
-                    if b.get("result") in ("won", "lost", "push"):
-                        ev = (start, b["result"], b.get("odds"))
-                        all_ev.append(ev)
-                        by_sport.setdefault(sport, []).append(ev)
-                        if is_new:
-                            since_ev.append(ev)
+                # Pari SIMPLE compté en plus = 2e résultat distinct, MAIS seulement s'il aurait été
+                # RETENU par la logique normale du site (cf. retained_bet) — on ne FORCE pas une ancre
+                # à cote plate jamais récupérée ailleurs. Jamais les jambes du combiné. Même borne date.
+                rb = retained_bet(sport, d.get("id"))
+                if rb and rb.get("result") in ("won", "lost", "push"):
+                    ev = (start, rb["result"], rb.get("cote"))
+                    all_ev.append(ev)
+                    by_sport.setdefault(sport, []).append(ev)
+                    if is_new:
+                        since_ev.append(ev)
             continue
         for i, b in enumerate(d.get("bets") or []):    # TOUS les paris réglés (courbe complète)
             if i >= len(_BET_KEYS):

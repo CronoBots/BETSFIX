@@ -27,12 +27,15 @@ def _bets_for_url(url: str, compact: bool = False) -> str:
     if not m:
         return ""
     sport = {"foot": "foot", "basket": "basket", "app": "tennis"}[m.group(1)]
-    # Coupe du Monde : on affiche LES DEUX paris DISTINCTS -> le pari SIMPLE (« le plus sûr »)
-    # PUIS le COMBINÉ (demande user : ne plus masquer le simple derrière le combiné). Hors CdM :
-    # paris simples seuls (pas de combiné).
+    # Coupe du Monde (combiné présent) : on affiche le pari SIMPLE *seulement s'il aurait été RETENU*
+    # par la logique normale (cf. analyses.retained_bet) — sinon le combiné reste seul à l'affiche (on
+    # ne force pas une ancre à cote plate). Puis le COMBINÉ. Hors CdM : paris simples seuls.
     combo = analyses.combo_html(sport, m.group(2))
-    bets = analyses.bets_html(sport, m.group(2), compact=compact)
-    return (bets + combo) if combo else bets
+    if combo:
+        bets = (analyses.bets_html(sport, m.group(2), compact=compact)
+                if analyses.retained_bet(sport, m.group(2)) else "")
+        return bets + combo
+    return analyses.bets_html(sport, m.group(2), compact=compact)
 
 def _links_for_url(url: str) -> str:
     """Bannières SofaScore / Unibet (pleine largeur) d'un match, depuis son URL de fiche.
