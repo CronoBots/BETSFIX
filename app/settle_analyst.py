@@ -32,7 +32,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 21   # v21 : noms d'équipe courts (TPS/VPS) reconnus -> handicap/1X2 réglés (côté détecté).
+_SETTLE_VERSION = 23   # v23 : le pari principal réutilise le résultat du pick (synchro bets[0]=pick).
 #                              v18 : « but dans les deux mi-temps » via les buts par mi-temps (df_su) +
 #                              re-règlement des combinés au verdict incomplet (combo_tries, 8 essais).
 
@@ -620,6 +620,21 @@ async def settle_analyses() -> int:
                 if st:
                     score["stats"] = {**(score.get("stats") or {}), **st}   # complète sans rien perdre
 
+            # PÉRIODES (jeux par set tennis : SETGAMES/TOTGAMES/SETSCORE ; mi-temps foot *_1H) : si le
+            # score (souvent ESPN = score final seul) n'a PAS les périodes, LiveScore les fournit ->
+            # on les récupère et fusionne. Sinon ces marchés restent « non réglables » alors que la
+            # donnée EXISTE (re-sourcing : ne JAMAIS exclure un marché faute de pouvoir le valider).
+            need_periods = (not score.get("periods")) and any(
+                c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE")) or "1H" in c
+                for c in [code, *bet_codes, *combo_codes] if c)
+            if need_periods:
+                from app import livescore as _lsmod
+                lsc = await asyncio.to_thread(_lsmod.final_score, sport, d)
+                if lsc and lsc.get("periods"):
+                    score = {**score, "periods": lsc["periods"]}
+                    if score.get("sets_home") is None and lsc.get("sets_home") is not None:
+                        score["sets_home"], score["sets_away"] = lsc["sets_home"], lsc["sets_away"]
+
             async def _settle_one(c):
                 if not c:
                     return None
@@ -639,11 +654,17 @@ async def settle_analyses() -> int:
             if pr is None and analyses.status_of(d) == "finished":   # non réglable (abandon…) -> compte l'essai
                 d["pick_tries"] = (d.get("pick_tries") or 0) + 1
             # Règle CHAQUE pari affiché séparément (stats par pari 1/2/3, cadres verts/rouges).
+            # Le 1er pari EST le pick « le plus sûr » -> on réutilise son code/résultat DÉJÀ résolus
+            # (sinon un code de pari vide ou divergent le laisse « en attente » alors que le pick est
+            # réglé : cas vu sur handicap noms courts / SETGAMES). Les paris suivants : réglés normalement.
             bets_out = []
-            for b, bc in zip(bet_list, bet_codes):
-                if not bc:   # pari d'un match FINI qu'on ne sait pas régler -> à corriger (pas silencieux)
-                    log.warning("règlement impossible (code vide) : %s_%s · %r", sport, mid, b.get("sel"))
-                br = await _settle_one(bc)
+            for i_b, (b, bc) in enumerate(zip(bet_list, bet_codes)):
+                if i_b == 0:
+                    bc, br = (code or bc), pr
+                else:
+                    if not bc:   # pari FINI qu'on ne sait pas régler -> à corriger (pas silencieux)
+                        log.warning("règlement impossible (code vide) : %s_%s · %r", sport, mid, b.get("sel"))
+                    br = await _settle_one(bc)
                 bets_out.append({"sel": b["sel"], "odds": b["cote"], "code": bc, "result": br,
                                  "prob": b.get("prob")})   # confiance annoncée -> page calibration
             d["bets"] = bets_out
