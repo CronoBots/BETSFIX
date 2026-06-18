@@ -32,7 +32,9 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 26   # v26 : 1er pari réglé sur SON propre code (plus forcé au résultat du pick quand ils
+_SETTLE_VERSION = 27   # v27 : jeux d'UN joueur (« <joueur> moins de X.5 jeux ») = TEAMGAMES (≠ TOTGAMES) ;
+#                              jambes de combiné réglées sur le code RE-DÉRIVÉ frais (code stocké périmé).
+# v26 : 1er pari réglé sur SON propre code (plus forcé au résultat du pick quand ils
 #                              divergent) + badge headline aligné sur le pari affiché (ex. CRB « moins 4.5 »).
 # v25 : « <équipe> -1.5 buts » (ligne signée d'ÉQUIPE) = TEAMTOT UNDER, plus un
 #                              handicap (corrige combinés CdM mal réglés, ex. Tchéquie-Afrique du Sud).
@@ -102,6 +104,14 @@ def settle_pick(code: str, score: dict) -> str | None:
             return None
         total = sum(x[0] + x[1] for x in periods.values())
         return "push" if total == line else ("won" if ((total > line) == (parts[1] == "OVER")) else "lost")
+    if kind == "TEAMGAMES" and len(parts) >= 4 and periods:   # TEAMGAMES HOME/AWAY OVER/UNDER <ligne>
+        try:                                                   # jeux gagnés par UN joueur (somme des sets)
+            line = float(parts[3])
+        except ValueError:
+            return None
+        idx = 0 if parts[1] == "HOME" else 1
+        total = sum(x[idx] for x in periods.values())
+        return "push" if total == line else ("won" if ((total > line) == (parts[2] == "OVER")) else "lost")
     if kind == "SETWIN" and len(parts) >= 3:            # SETWIN <n> HOME/AWAY
         p = _per(_int(parts[1]))
         if not p:
@@ -223,11 +233,20 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     if m and which():
         big, small = m.group(1), m.group(2)
         return f"SETSCORE {big} {small}" if which() == "HOME" else f"SETSCORE {small} {big}"
-    # total jeux du match
+    # total jeux du MATCH (« Total de jeux moins de X.5 ») OU jeux d'UN JOUEUR (« <joueur> moins de X.5
+    # jeux » = jeux gagnés par ce joueur -> TEAMGAMES, réglé sur la somme de SA colonne par set ; sinon
+    # un « X moins de 10.5 jeux » serait réglé sur le total du MATCH = à l'envers).
     if "jeux" in t and ("plus" in t or "moins" in t) and "set" not in t:
         ln = re.search(r"(plus|moins) de (\d+[.,]?\d*)", t)
         if ln:
-            return f"TOTGAMES {'OVER' if ln.group(1)=='plus' else 'UNDER'} {ln.group(2).replace(',', '.')}"
+            dirn = "OVER" if ln.group(1) == "plus" else "UNDER"
+            line = ln.group(2).replace(",", ".")
+            w = which()
+            is_match_total = any(k in t for k in ("total de jeux", "total des jeux", "jeux du match",
+                                                  "jeux dans le match", "nombre de jeux"))
+            if w and not is_match_total:
+                return f"TEAMGAMES {w} {dirn} {line}"
+            return f"TOTGAMES {dirn} {line}"
     # total de SETS du match (tennis) : « plus/moins de N sets » OU « (nombre) total de sets : moins de N »
     m = re.search(r"(plus|moins) de (\d+[.,]?\d*)\s*sets?\b", t)
     if not m and re.search(r"(?:total|nombre)[^.]{0,14}sets?", t):
@@ -707,8 +726,10 @@ async def settle_analyses() -> int:
                     if info.get("live_ok"):           # métrique connue, match entier -> évaluateur unique
                         lr, _ = analyses._eval_leg(info, vals, final=True)
                     if lr is None:                     # non couvert OU données manquantes -> repli par code
-                        lc = leg.get("code") or code_from_pick(leg.get("sel", ""), sport,
-                                                               d.get("home", ""), d.get("away", ""))
+                        # Code RE-DÉRIVÉ frais prioritaire (le code stocké peut être périmé : ancienne
+                        # version du parseur -> mauvais marché, cf. audit). Repli sur le stocké si vide.
+                        lc = (code_from_pick(leg.get("sel", ""), sport, d.get("home", ""), d.get("away", ""))
+                              or leg.get("code"))
                         leg["code"] = lc
                         lr = await _settle_one(lc) if lc else None
                     leg["result"] = lr
