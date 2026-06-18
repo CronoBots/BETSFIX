@@ -32,7 +32,9 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 25   # v25 : « <équipe> -1.5 buts » (ligne signée d'ÉQUIPE) = TEAMTOT UNDER, plus un
+_SETTLE_VERSION = 26   # v26 : 1er pari réglé sur SON propre code (plus forcé au résultat du pick quand ils
+#                              divergent) + badge headline aligné sur le pari affiché (ex. CRB « moins 4.5 »).
+# v25 : « <équipe> -1.5 buts » (ligne signée d'ÉQUIPE) = TEAMTOT UNDER, plus un
 #                              handicap (corrige combinés CdM mal réglés, ex. Tchéquie-Afrique du Sud).
 # v24 : « Total de buts +1.5 » (ligne signée) reconnu OVER/UNDER.
 #                              v18 : « but dans les deux mi-temps » via les buts par mi-temps (df_su) +
@@ -673,8 +675,13 @@ async def settle_analyses() -> int:
             # réglé : cas vu sur handicap noms courts / SETGAMES). Les paris suivants : réglés normalement.
             bets_out = []
             for i_b, (b, bc) in enumerate(zip(bet_list, bet_codes)):
-                if i_b == 0:
-                    bc, br = (code or bc), pr
+                # Le 1er pari EST le pick « le plus sûr ». On n'hérite du résultat DÉJÀ résolu du pick
+                # QUE si ce pari n'a PAS de code propre (sinon « en attente » alors que le pick est réglé,
+                # cf. handicap noms courts / SETGAMES). S'il a son PROPRE code, on le règle dessus — même
+                # s'il DIVERGE du pick (ex. ligne `pick` « moins de 5.5 » vs table « moins de 4.5 ») : sinon
+                # le résultat du pick s'affiche À TORT sur un pari différent (faux gagné/perdu).
+                if i_b == 0 and not bc:
+                    bc, br = code, pr
                 else:
                     if not bc:   # pari FINI qu'on ne sait pas régler -> à corriger (pas silencieux)
                         log.warning("règlement impossible (code vide) : %s_%s · %r", sport, mid, b.get("sel"))
@@ -682,6 +689,10 @@ async def settle_analyses() -> int:
                 bets_out.append({"sel": b["sel"], "odds": b["cote"], "code": bc, "result": br,
                                  "prob": b.get("prob")})   # confiance annoncée -> page calibration
             d["bets"] = bets_out
+            # Le BADGE headline (pick_result) suit le pari AFFICHÉ « le plus sûr » (= 1er pari de la table),
+            # pas une ligne `pick` éventuellement DIVERGENTE -> carte, badge et stats restent cohérents.
+            if bets_out and bets_out[0].get("result") is not None:
+                d["result"]["pick_result"] = bets_out[0]["result"]
             # COMBINÉ (grand tournoi) : règle chaque jambe via son code -> résultat global (toutes
             # gagnées = gagné ; une perdue = perdu ; sinon en attente). Les corners/cartons se règlent
             # désormais (Flashscore), donc les combinés type Qatar-Suisse se valident.
