@@ -680,9 +680,9 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
             '<div class="da-bk-stats">'
             f'<div class="da-st"><span class="da-st-v">{conf_v}</span><span class="da-st-l">Confiance</span></div>'
             f'<div class="da-st da-st-cote"><span class="da-st-v">{cote_v}</span><span class="da-st-l">Cote</span></div></div>')
-        # SÛRETÉ = étoiles dans l'en-tête (★ pleines = niveau), libellé au survol — plus de pastille.
-        safe = (f'<span class="da-bk-safe {_safe_cls.get(rcls, "saf-mid")}">'
-                f'{_SAFETY.get(rcls, "Sûreté moyenne")}</span>')
+        # Niveau de sûreté (libellé + classe couleur) — fusionné plus bas dans le badge combiné.
+        saf_cls = _safe_cls.get(rcls, "saf-mid")
+        saf_lbl = _SAFETY.get(rcls, "Sûreté moyenne")
         res = results.get(_norm_sel(b["sel"]))
         rescls = " da-bk-won" if res == "won" else (" da-bk-lost" if res == "lost"
                                                     else (" da-bk-push" if res == "push" else ""))
@@ -695,23 +695,31 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         recostar = ' <span class="da-bk-star" title="Pari retenu par le moteur">⭐</span>' if is_reco else ""
         # Badge VALIDATION (panel de 3 agents) sur le pari (la validation porte sur LE pari du match,
         # affichée même si le moteur EV ne l'a pas marqué ⭐ — c'est le panel qui l'a retenu).
-        valbadge = ""
+        # Badge COMBINÉ : sûreté + validation (panel de 3 agents) en UNE seule pastille.
+        combo_parts = [saf_lbl]
+        combo_title = saf_lbl
         if k == 0 and validation and validation.get("n_ok") is not None:
             no, nt = validation["n_ok"], validation.get("n", 3)
             cp = validation.get("consensus_prob")
             tip = " · ".join(f'{v.get("emoji", "")}{v.get("verdict", "")[:3]}' for v in validation.get("votes", []))
-            valbadge = (f'<span class="da-bk-val" title="Validé par {no}/{nt} agents — {html.escape(tip)}">'
-                        f'✓ Validé {no}/{nt}{f" · {cp}%" if cp else ""}</span>')
+            combo_parts.append(f'✓ {no}/{nt}')
+            if cp:
+                combo_parts.append(f'{cp}%')
+            combo_title = f'{saf_lbl} · validé {no}/{nt} agents — {tip}'
+        combo = ('<span class="da-bk-combo ' + saf_cls + '" title="'
+                 + html.escape(combo_title) + '">' + ' · '.join(combo_parts) + '</span>')
         # Commentaire du Verdict déplacé SOUS le pari correspondant, DANS la même carte.
         note = note_by_idx.get(k)
-        note_html = f'<div class="da-bk-note">{_inline(note)}</div>' if note else ""
-        # 1 pari/match -> plus de « Pari 1/2/3 » : NOM du pari en titre, puis la SÛRETÉ, puis
-        # l'explication complète, puis les stats (confiance · cote).
+        # Analyse REPLIÉE par défaut (infos réduites) : dépliable au clic.
+        note_html = (f'<details class="da-bk-note"><summary>Analyse</summary>'
+                     f'<div class="da-bk-note-b">{_inline(note)}</div></details>') if note else ""
+        # 1 pari/match -> plus de « Pari 1/2/3 » : NOM du pari en titre, puis le badge combiné
+        # (sûreté + validation), puis l'analyse repliée, puis les stats (confiance · cote).
         cards.append(
             f'<div class="da-bk{recocls}{rescls}">'
             f'<div class="da-bk-sel">{pari}{recostar}{mark}</div>'
-            f'<div class="da-bk-tab">{safe}{valbadge}</div>'
-            f'{note_html}{strip}</div>')   # nom -> sûreté -> explication -> stats
+            f'<div class="da-bk-tab">{combo}</div>'
+            f'{note_html}{strip}</div>')   # nom -> badge combiné -> analyse repliée -> stats
     # LIVE (compact) : on ne garde QUE les cartes de paris (ni titre, ni légende, ni verdict ;
     # le repère « meilleure value » est déjà porté par le cadre OR + badge ✅ de la carte).
     if compact:

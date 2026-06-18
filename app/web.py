@@ -1519,8 +1519,15 @@ CSS = """
   sous la ligne (séparé par un filet fin) */
   /* Analyse du pari : SOUS l'affiche,
   AU-DESSUS des stats */
-  .da-bk-note{font-size:11.5px;line-height:1.55;color:#c3cad6;padding:8px 14px 2px}
-  .da-bk-note b{color:#cfe0f5;font-weight:800}
+  /* Analyse REPLIÉE par défaut (élément <details>) : un petit toggle « Analyse ▾ ». */
+  .da-bk-note{padding:6px 14px 4px}
+  .da-bk-note>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+       font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .da-bk-note>summary::-webkit-details-marker{display:none}
+  .da-bk-note>summary::after{content:"▾";font-size:9px;opacity:.85;transition:transform .2s}
+  .da-bk-note[open]>summary::after{transform:rotate(180deg)}
+  .da-bk-note-b{font-size:11.5px;line-height:1.55;color:#c3cad6;padding-top:7px}
+  .da-bk-note-b b{color:#cfe0f5;font-weight:800}
   /* Résidu du Verdict (à éviter / mise) APRÈS les paris : cartes PREMIUM cohérentes (bande gauche +
      pastille d'icône + titre majuscule + texte) */
   .da-bets-extra{margin-top:11px;display:flex;flex-direction:column;gap:9px}
@@ -1548,6 +1555,12 @@ CSS = """
   .da-bk-safe.saf-hi{color:#5be08c;background:rgba(52,210,123,.13);border-color:rgba(52,210,123,.32)}
   .da-bk-safe.saf-mid{color:#f0cf63;background:rgba(232,195,77,.13);border-color:rgba(232,195,77,.32)}
   .da-bk-safe.saf-lo{color:#ff8f9a;background:rgba(255,107,107,.13);border-color:rgba(255,107,107,.32)}
+  /* Badge COMBINÉ (sûreté + validation panel) : une seule pastille, couleur = niveau de sûreté. */
+  .da-bk-combo{margin-left:4px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+       padding:2px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+  .da-bk-combo.saf-hi{color:#5be08c;background:rgba(52,210,123,.13);border-color:rgba(52,210,123,.32)}
+  .da-bk-combo.saf-mid{color:#f0cf63;background:rgba(232,195,77,.13);border-color:rgba(232,195,77,.32)}
+  .da-bk-combo.saf-lo{color:#ff8f9a;background:rgba(255,107,107,.13);border-color:rgba(255,107,107,.32)}
   /* Bandeau de STATS pro : Confiance · Cote · Value */
   .da-bk-stats{display:flex;gap:7px;padding:12px 14px 14px}
   .da-st{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.04);
