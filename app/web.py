@@ -1932,7 +1932,12 @@ _CARDS_JS = (
     "if(_mv)return;if(e.target.closest('a,.exp'))return;"
     "var card=e.target.closest('.row.mc');if(!card)return;e.preventDefault();"
     "var b=card.querySelector('.mc-body');if(!b)return;"
-    "if(b.hidden){b.hidden=false;card.classList.add('mc-open','mc-manual');_mcLoad(card);"
+    "if(b.hidden){"
+    # ACCORDÉON : ouvrir une carte ferme celle(s) déjà ouverte(s) (demande user).
+    "var _op=document.querySelectorAll('.row.mc.mc-open'),_k;"
+    "for(_k=0;_k<_op.length;_k++){if(_op[_k]!==card){var _ob=_op[_k].querySelector('.mc-body');"
+    "if(_ob)_ob.hidden=true;_op[_k].classList.remove('mc-open','mc-manual');}}"
+    "b.hidden=false;card.classList.add('mc-open','mc-manual');_mcLoad(card);"
     "if(window._twCount)window._twCount(b);}"
     "else{b.hidden=true;card.classList.remove('mc-open','mc-manual');}});"
     "window._mcInit(document);})();"
