@@ -1861,12 +1861,17 @@ def perf_breakdown(since_days: int | None = None) -> dict:
     return out
 
 
-def _result_badge(res: dict | None) -> str:
-    """Bandeau résultat du pari « le plus sûr » après match : ✅ réussi / ❌ perdu / ➖ remboursé,
-    ou simplement le score si non vérifiable. '' si pas encore réglé."""
+def _result_badge(m: dict | None) -> str:
+    """Bandeau résultat HEADLINE du match après règlement : ✅ réussi / ❌ perdu / ➖ remboursé, ou
+    le score seul si non vérifiable. '' si pas encore réglé. Match CdM : le pari PHARE est le COMBINÉ
+    -> le bandeau suit SON résultat, jamais le simple (sinon « Pari réussi » trompeur quand le combiné
+    perd mais que le simple passe, ex. Ghana-Panama 1-0 : combiné perdu / simple gagné)."""
+    res = (m or {}).get("result") or {}
     if not res:
         return ""
-    pr, sc = res.get("pick_result"), res.get("score") or ""
+    combo = (m or {}).get("combo") or {}
+    pr = combo.get("result") if combo.get("legs") else res.get("pick_result")
+    sc = res.get("score") or ""
     cls, txt = {"won": ("win", "✅ Pari réussi"), "lost": ("lose", "❌ Pari perdu"),
                 "push": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
     sco = f'<span class="da-res-sc">{html.escape(sc)}</span>' if sc else ""
@@ -1902,4 +1907,4 @@ def render(sport: str, match_id) -> str | None:
     if not md:
         return None
     m = meta(sport, match_id) or {}
-    return _result_badge(m.get("result")) + to_html(md)
+    return _result_badge(m) + to_html(md)
