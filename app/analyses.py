@@ -1227,9 +1227,13 @@ _RESULT_CHIP = {"won": "✅ Réussi", "lost": "❌ Perdu", "push": "➖ Rembours
 
 
 def result_chip(d: dict) -> tuple[str, str]:
-    """(badge court ✅/❌/➖, score) du pari réglé pour les cartes « Terminés ». ('', '') si non réglé."""
+    """(badge court ✅/❌/➖, score) du pari réglé pour les cartes « Terminés ». ('', '') si non réglé.
+    Match CdM : le pari AFFICHÉ est le COMBINÉ -> le badge suit SON résultat, jamais le pari simple
+    (qui peut diverger : combiné perdu mais BTTS Non gagné = « Pari réussi » trompeur, ex. 0-0)."""
     res = (d or {}).get("result") or {}
-    return (_RESULT_CHIP.get(res.get("pick_result"), ""), res.get("score") or "")
+    combo = (d or {}).get("combo") or {}
+    outcome = combo.get("result") if combo.get("legs") else res.get("pick_result")
+    return (_RESULT_CHIP.get(outcome, ""), res.get("score") or "")
 
 
 def result_board(d: dict, sport: str) -> dict:
