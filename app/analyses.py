@@ -1275,6 +1275,7 @@ MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne) — repère
     ("2026-06-09", "Seuil ≥65 %", "aucun pari sous 65 % de confiance honnête"),
     ("2026-06-12", "Mode strict", "rien de solide = SKIP ; cote ≥1.70 exige 70 %+"),
     ("2026-06-16", "1 pari/match", "1 pari, le plus probable, validé par 3 agents"),
+    ("2026-06-18", "Combinés comptés", "chaque combiné compte pour 1 résultat dans le suivi"),
 ]
 
 
