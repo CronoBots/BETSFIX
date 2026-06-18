@@ -1476,11 +1476,11 @@ def stats_full(since_days: int | None = None) -> dict:
         # « Nouveau système » = analyse passée par la VALIDATION 3 agents (signature fiable), pas une
         # simple date de match (un match du 16/06 a pu être généré la veille en ancien système).
         is_new = bool(d.get("validation"))
-        if _is_world_cup(d):
-            # Coupe du Monde : on compte le COMBINÉ comme UN SEUL événement (son résultat GLOBAL
-            # won/lost), JAMAIS ses jambes ni les paris simples — 1 combiné = 1 résultat (demande
+        if _has_combo:
+            # MATCH À COMBINÉ (CdM foot OU favori net tennis/basket) : on compte le COMBINÉ comme UN SEUL
+            # événement (son résultat GLOBAL won/lost), JAMAIS ses jambes — 1 combiné = 1 résultat (demande
             # utilisateur). NON RÉTROACTIF : seuls les combinés à partir de _COMBO_COUNT_FROM comptent.
-            # Combiné non réglé -> match non compté (reste « en attente »).
+            # Combiné non réglé -> match non compté (reste « en attente »). + le pari simple RETENU à part.
             if (d.get("start") or "")[:10] >= _COMBO_COUNT_FROM:
                 combo = d.get("combo")
                 if combo and combo.get("legs") and combo.get("result") in ("won", "lost", "push"):

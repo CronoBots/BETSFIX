@@ -152,6 +152,71 @@ COMBO_MISSION = (
     "(le « -1.5 » serait lu comme un HANDICAP et le pari réglé À L'ENVERS). Réserve « <équipe> -1.5 » "
     "(sans « buts ») au seul vrai HANDICAP de résultat."
 )
+
+# COMBINÉS TENNIS / BASKET (demande utilisateur) — MÊME esprit que le foot : domination corrélée d'un
+# FAVORI NET, 2-3 jambes très probables, cote visée ~1.70-2.40, marchés RÉGLABLES seulement. Déclenchés
+# UNIQUEMENT s'il y a un favori net (cote du favori ≤ _COMBO_FAV_MAX) ; l'analyste décline si coin-flip.
+_COMBO_FAV_MAX = 1.50      # cote max du favori pour proposer un combiné (≈ proba implicite ≥ 67 %)
+
+_COMBO_OUTPUT_FORMAT = (
+    "\nAjoute À LA FIN, après la section Mise, EXACTEMENT ce format (CHAQUE jambe avec SON explication "
+    "APRÈS le tiret — pourquoi CETTE jambe passe, factuel et chiffré ; chaque explication = une PHRASE "
+    "COMPLÈTE : majuscule au début, point final) :\n"
+    "## 🎲 Combiné\n"
+    "- <sélection exacte 1> @<cote> — <pourquoi cette jambe>\n"
+    "- <sélection exacte 2> @<cote> — <pourquoi cette jambe>\n"
+    "**Cote combinée : <produit à 2 décimales>** — <1 phrase : pourquoi ces jambes expriment la MÊME "
+    "domination du favori et passent donc ensemble dans le scénario probable>.\n"
+    "Puis une TOUTE DERNIÈRE ligne technique (sous le PICK) au format EXACT :\n"
+    "`COMBO: <sel1> @<cote1> | <sel2> @<cote2> = <cote combinée>`\n"
+    "⚠️ Dans la ligne COMBO:, écris les TOTAUX EN TOUTES LETTRES (« Total de jeux moins de 20.5 », « Total "
+    "de points plus de 165.5 », « <équipe> plus de 80.5 points ») — JAMAIS « -20.5 »/« +165.5 » pour un "
+    "TOTAL (le signe « - » serait lu comme un HANDICAP et réglé à l'envers). Réserve « <Favori> -X.5 » au "
+    "seul HANDICAP (sets au tennis, points au basket)."
+)
+
+COMBO_MISSION_TENNIS = (
+    "\n\nMISSION SPÉCIALE — COMBINÉ (FAVORI NET). Construis LE combiné de ce match UNIQUEMENT s'il y a un "
+    "favori NET et une domination LISIBLE ; sinon écris CLAIREMENT qu'aucun combiné solide n'existe (ne "
+    "FORCE jamais). Philosophie : on achète la CHANCE DE PASSER, pas la grosse cote. Règles STRICTES :\n"
+    "1) UNE SEULE LECTURE : le favori s'impose nettement (idéalement 2 sets à 0). Décline CETTE domination "
+    "en 2 à 3 jambes CORRÉLÉES POSITIVEMENT (elles passent ENSEMBLE si le favori roule), TOUTES réglables, "
+    "chacune avec une LIGNE CHIFFRÉE — choisis parmi :\n"
+    "   • Vainqueur du favori : « <Favori> gagne ».\n"
+    "   • Handicap de SETS : « <Favori> -1.5 set » (gagne 2-0) — si la domination est franche.\n"
+    "   • Total de JEUX du match : « Total de jeux moins de X.5 » (un 2-0 maîtrisé = match court).\n"
+    "   • Le favori gagne le 1er set.\n"
+    "   ⛔ JAMAIS : aces, doubles fautes, points exacts, « tie-break oui/non », nombre EXACT de jeux/sets "
+    "(volatils ou non réglables chez nous).\n"
+    "   ⛔ COHÉRENCE : toutes les jambes vont dans le sens du MÊME favori. JAMAIS de jambes contradictoires "
+    "(ex. « -1.5 set » = 2-0 court AVEC « Total de jeux plus de 22.5 » = match long).\n"
+    "2) Chaque jambe = TRÈS PROBABLE (proba ≥ ~72 %), appuyée par le classement, la forme/surface, le H2H "
+    "et la fatigue/calendrier. 2 jambes (3 si CHACUNE reste ≥ 72 %).\n"
+    "3) COTE combinée visée ≈ 1.70-2.40 (produit des cotes RÉELLES du dossier UNIQUEMENT). Si le favori est "
+    "trop écrasant (cotes trop basses pour atteindre 1.70) ou s'il n'y a pas de favori net, n'écris PAS de "
+    "combiné — dis-le explicitement."
+    + _COMBO_OUTPUT_FORMAT
+)
+
+COMBO_MISSION_BASKET = (
+    "\n\nMISSION SPÉCIALE — COMBINÉ (FAVORI NET). Construis LE combiné de ce match UNIQUEMENT s'il y a un "
+    "favori NET ; sinon écris CLAIREMENT qu'aucun combiné solide n'existe (ne FORCE jamais). On achète la "
+    "CHANCE DE PASSER, pas la grosse cote. Règles STRICTES :\n"
+    "1) UNE SEULE LECTURE : le favori contrôle le match. Décline-la en 2 à 3 jambes CORRÉLÉES, réglables, "
+    "chacune avec une LIGNE CHIFFRÉE — choisis parmi :\n"
+    "   • Handicap du favori : « <Favori> -X.5 » (couvre l'écart) — X = un handicap où tu estimes ≥ 72 %.\n"
+    "   • Total de POINTS du match : « Total de points plus de Y.5 » ou « Total de points moins de Y.5 ».\n"
+    "   • Total d'ÉQUIPE du favori : « <Favori> plus de Z.5 points ».\n"
+    "   ⛔ JAMAIS : props joueurs exotiques, écart EXACT, score d'un quart-temps, vainqueur d'un "
+    "quart-temps (volatils).\n"
+    "   ⛔ COHÉRENCE : même favori, scénario cohérent (un gros handicap « -12.5 » suppose un match où il "
+    "creuse l'écart — ne le combine pas avec un total de points TRÈS bas).\n"
+    "2) Chaque jambe = TRÈS PROBABLE (≥ ~72 %), appuyée par le bilan, la forme, les blessés, le repos/"
+    "déplacement et le rythme (pace) des deux équipes. 2 jambes (3 si CHACUNE reste ≥ 72 %).\n"
+    "3) COTE combinée visée ≈ 1.70-2.40 (cotes RÉELLES UNIQUEMENT). Si impossible (favori trop écrasant) "
+    "ou s'il n'y a pas de favori net, n'écris PAS de combiné."
+    + _COMBO_OUTPUT_FORMAT
+)
 # Consensus sharp : on ne montre Pinnacle comme « vraie proba » que si SA marge est faible (ligne
 # liquide/efficiente). Au-delà (petits marchés illiquides), le de-vig est bruité -> EV absurdes -> on
 # l'écarte plutôt que d'induire l'analyste en erreur.
@@ -654,6 +719,10 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     odds = _result_odds(bo)
     imp = ""   # proba IMPLICITE du marché (marge retirée) = ancre de calibrage + détection de value
     o1, ox, o2 = odds if odds else (None, None, None)
+    # FAVORI NET (tennis/basket) : cote du favori ≤ seuil -> on propose un combiné « domination corrélée »
+    # (l'analyste décline si coin-flip). Le foot garde son combiné CdM (big).
+    _fav = min([o for o in (o1, o2) if o], default=None)
+    combo_tb = (sport in ("tennis", "basket") and _fav is not None and _fav <= _COMBO_FAV_MAX)
     if o1 and o2:
         inv = [1 / o1, (1 / ox if ox else 0.0), 1 / o2]
         s = sum(inv)
@@ -707,7 +776,14 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             pblock = await asyncio.to_thread(player_stats.soccer_props_block, players)
     # COUPE DU MONDE : contexte (arbitre + phase/groupe + classement) + mission combiné.
     wc_ctx = await sources.world_cup_extras(client, match) if big else ""
-    combo = (WC_NOTE + COMBO_MISSION) if big else ""
+    if big:
+        combo = WC_NOTE + COMBO_MISSION
+    elif combo_tb and sport == "tennis":
+        combo = COMBO_MISSION_TENNIS
+    elif combo_tb and sport == "basket":
+        combo = COMBO_MISSION_BASKET
+    else:
+        combo = ""
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
@@ -1053,16 +1129,16 @@ async def main():
                 # (compos/blessures publiées entre-temps peuvent débloquer un pari fiable).
                 from app import analyses as _an
                 bets = _an._parse_bets(_an._bets_section(analysis) or "")
-                # Pour un match CdM, c'est le COMBINÉ qui fait foi (pas le pari simple) -> on RETIENT
-                # le match s'il a un combiné, même si la table de paris simples est vide.
-                is_wc = _is_big_match(m.get("comp") or m.get("circuit") or "")
-                combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", "")) if is_wc else None
-                # VALIDATION PAR PANEL (3 agents) du pari retenu — sauf combiné CdM (structure à part).
+                # Si un COMBINÉ existe (CdM foot OU favori net tennis/basket), c'est LUI qui fait foi -> on
+                # RETIENT le match même si la table de paris simples est vide.
+                combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""))
+                # VALIDATION PAR PANEL (3 agents) du pari simple — SAUF si un combiné porte le match
+                # (le combiné est le pari phare, structure validée à part — comme la CdM).
                 validation = None
                 skip_reason = None
                 if not bets and not combo:
                     skip_reason = "aucun pari ≥ seuil"
-                elif not is_wc:                  # CdM = combiné déjà construit/validé à part -> pas de panel
+                elif not combo:                  # pas de combiné -> le simple EST le pari -> panel
                     validation = await _validate_bet(doss, bets[0], bets[0].get("prob"), sport)
                     if validation["verdict"] == "rejete":
                         skip_reason = f"pari REJETÉ par le panel ({validation['n_ok']}/{validation['n']})"
