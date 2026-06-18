@@ -574,6 +574,17 @@ def _sentence_case(s: str) -> str:
     return re.sub(r"([.!?]\s+)([a-zà-ÿ])", lambda m: m.group(1) + m.group(2).upper(), s)
 
 
+def _note_paras(txt: str, render=None) -> str:
+    """Explication d'un pari découpée en PHRASES = une ligne par phrase (lisible, plus un pavé continu
+    « qui ne donne pas envie d'être lu »). Coupe sur «. ! ? » suivi d'une MAJUSCULE (pas sur les
+    décimales « 0,9 » — virgule en français). `render` = fonction d'échappement HTML (def. _inline)."""
+    r = render or _inline
+    parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-ÝÉÈÊ«])", (txt or "").strip()) if p.strip()]
+    if len(parts) <= 1:
+        return r(txt or "")
+    return "".join(f'<div class="da-bk-line">{r(p)}</div>' for p in parts)
+
+
 def _keys(s: str) -> tuple[set, set]:
     """(entités, nombres) significatifs d'une sélection -> pour rapprocher un commentaire Verdict du
     bon pari. Entités = noms (joueur/équipe), nombres = lignes (2.5, 9…)."""
@@ -616,21 +627,20 @@ def _verdict_notes(md: str) -> tuple[list, str]:
     verdict = _find(secs, "🎯", "Verdict")
     notes, resid = [], []
     for it in _bullets(verdict):
-        label, _, content = it.partition(":")
-        label = re.sub(r"\*", "", label).strip()
-        content = re.sub(r"\*", "", content).strip() or label
-        why = re.sub(r"^.*?@\s*[\d.,]+\s*", "", content).strip(" ().—–-").strip()
-        low = label.lower()
+        raw = re.sub(r"\*", "", it).strip()
+        low = raw.lower()
         if "évit" in low or "skip" in low or "evit" in low:
             continue                                     # « À éviter / SKIP » RETIRÉ de l'affichage (demande user)
-        elif "@" in content:                             # ANCIEN format : « Pari 1 : <sel> @cote — why »
-            sel = re.split(r"\s*@", content)[0].strip().rstrip("(").strip()
-            if why and why != content:
-                notes.append((sel, _sentence_case(_units_to_pct(_strip_sources(why)))))
-        else:                                            # NOUVEAU format : « <sel> @cote : <explication> »
-            sel = re.split(r"\s*@", label)[0].strip()    # le LABEL porte le nom du pari
-            if content and content != label:
-                notes.append((sel, _sentence_case(_units_to_pct(_strip_sources(content)))))
+        # ANCRE FIABLE = la cote « @x.xx » : le NOM du pari peut contenir un « : » (« Total de buts :
+        # Moins de 3.5 ») -> on NE découpe PAS sur le premier « : » (sinon sel tronquée + « : » qui
+        # traîne en tête de l'explication). Tout AVANT @cote = sélection, tout APRÈS = pourquoi.
+        m = re.search(r"@\s*[\d.,]+", raw)
+        if not m:
+            continue
+        sel = re.sub(r"^pari\s*\d+\s*[:.\-—–]\s*", "", raw[:m.start()], flags=re.I).strip().rstrip("(").strip()
+        why = raw[m.end():].strip(" :—–-().").strip()    # retire le « : »/tiret de liaison en tête
+        if sel and why:
+            notes.append((sel, _sentence_case(_units_to_pct(_strip_sources(why)))))
     # « Mise conseillée » RETIRÉE de l'affichage (demande utilisateur 2026-06-16) -> on ne la rend plus.
     resid_html = ""
     if resid:
@@ -711,7 +721,7 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # Commentaire du Verdict déplacé SOUS le pari correspondant, DANS la même carte.
         note = note_by_idx.get(k)
         # Analyse TOUJOURS affichée (pas de repli sur le pari ; seul le cadre « Informations » se plie).
-        note_html = f'<div class="da-bk-note">{_inline(note)}</div>' if note else ""
+        note_html = f'<div class="da-bk-note">{_note_paras(note)}</div>' if note else ""
         # 1 pari/match -> plus de « Pari 1/2/3 » : NOM du pari en titre, puis le badge combiné
         # (sûreté + validation), puis l'analyse repliée, puis les stats (confiance · cote).
         cards.append(

@@ -1528,6 +1528,9 @@ CSS = """
   /* Analyse du pari : SOUS l'affiche,
   AU-DESSUS des stats */
   .da-bk-note{font-size:11.5px;line-height:1.55;color:#c3cad6;padding:8px 14px 2px}
+  .da-bk-line{position:relative;padding-left:11px;margin:0 0 7px}
+  .da-bk-line:before{content:"";position:absolute;left:0;top:7px;width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.55}
+  .da-bk-line:last-child{margin-bottom:0}
   .da-bk-note b{color:#cfe0f5;font-weight:800}
   /* Résidu du Verdict (à éviter / mise) APRÈS les paris : cartes PREMIUM cohérentes (bande gauche +
      pastille d'icône + titre majuscule + texte) */
