@@ -1161,15 +1161,20 @@ def card_summary(sport: str, match_id) -> dict:
     m0 = meta(sport, match_id) or {}
     combo = m0.get("combo")
     if combo and combo.get("legs"):
-        # COMBINÉ (CdM) = LE pari du match -> résumé compact basé sur le combiné (1 pari, son résultat),
-        # cohérent avec l'affichage (le combiné remplace les paris simples).
+        # COMBINÉ (CdM) : on liste DEUX paris distincts dans le résumé compact -> le(s) pari(s) SIMPLE(s)
+        # « le plus sûr » PUIS le combiné (demande user : le simple ne doit plus être masqué). Le résultat
+        # HEADLINE de la carte (play_result/badge) reste celui du COMBINÉ (le pari phare du match).
         res = combo.get("result")
         sel = f"Combiné ({len(combo['legs'])} jambes) @{combo.get('total')}"
-        return {"n": 1, "best_conf": None, "comp": m0.get("comp"), "circuit": m0.get("circuit"),
-                "play": res is None, "ev": None, "reco_idx": 0 if res != "lost" else None,
+        results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m0.get("bets") or [])}
+        bet_rows = [{"sel": b.get("sel", ""), "result": results.get(_norm_sel(b.get("sel", "")))}
+                    for b in bets_of(sport, match_id)]
+        bet_rows.append({"sel": sel, "result": res})
+        return {"n": len(bet_rows), "best_conf": None, "comp": m0.get("comp"), "circuit": m0.get("circuit"),
+                "play": res is None, "ev": None, "reco_idx": None,
                 "won": 1 if res == "won" else 0, "lost": 1 if res == "lost" else 0,
                 "settled": 1 if res in ("won", "lost", "push") else 0,
-                "play_result": res, "bets": [{"sel": sel, "result": res}], "is_combo": True}
+                "play_result": res, "bets": bet_rows, "is_combo": True}
     bets = bets_of(sport, match_id)
     if not bets:
         return {}
@@ -1415,14 +1420,25 @@ def stats_full(since_days: int | None = None) -> dict:
             # won/lost), JAMAIS ses jambes ni les paris simples — 1 combiné = 1 résultat (demande
             # utilisateur). NON RÉTROACTIF : seuls les combinés à partir de _COMBO_COUNT_FROM comptent.
             # Combiné non réglé -> match non compté (reste « en attente »).
-            combo = d.get("combo")
-            if (combo and combo.get("legs") and combo.get("result") in ("won", "lost", "push")
-                    and (d.get("start") or "")[:10] >= _COMBO_COUNT_FROM):
-                ev = (start, combo["result"], combo.get("total"))
-                all_ev.append(ev)
-                by_sport.setdefault(sport, []).append(ev)
-                if is_new:
-                    since_ev.append(ev)
+            if (d.get("start") or "")[:10] >= _COMBO_COUNT_FROM:
+                combo = d.get("combo")
+                if combo and combo.get("legs") and combo.get("result") in ("won", "lost", "push"):
+                    ev = (start, combo["result"], combo.get("total"))
+                    all_ev.append(ev)
+                    by_sport.setdefault(sport, []).append(ev)
+                    if is_new:
+                        since_ev.append(ev)
+                # Pari(s) SIMPLE(s) « le plus sûr » comptés AUSSI = 2e résultat distinct (demande user :
+                # le simple ET le combiné = 2 paris). Même borne de date, jamais les jambes du combiné.
+                for i, b in enumerate(d.get("bets") or []):
+                    if i >= len(_BET_KEYS):
+                        break
+                    if b.get("result") in ("won", "lost", "push"):
+                        ev = (start, b["result"], b.get("odds"))
+                        all_ev.append(ev)
+                        by_sport.setdefault(sport, []).append(ev)
+                        if is_new:
+                            since_ev.append(ev)
             continue
         for i, b in enumerate(d.get("bets") or []):    # TOUS les paris réglés (courbe complète)
             if i >= len(_BET_KEYS):
