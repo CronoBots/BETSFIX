@@ -768,22 +768,35 @@ def _parse_combo(analysis: str, sport: str, home: str, away: str) -> dict | None
         total *= leg["cote"]
     # Explication PAR JAMBE (« - <sel> @cote — <pourquoi> ») + synthèse (« Cote combinée : X — … »)
     # depuis la section « 🎲 Combiné » -> à afficher SOUS le combiné (détail de chaque jambe).
-    def _ck(s):
-        return re.sub(r"[^a-z0-9]", "", (s or "").lower())
-    whys, synth = {}, ""
+    # La ligne technique COMBO: ABRÈGE souvent les sels (« Canada » vs prose « Canada vainqueur ») :
+    # on matche par RECOUVREMENT DE TOKENS (mots ≥4 lettres + nombres), pas par clé exacte (sinon why
+    # toujours None et le combiné s'affiche sans explication par jambe).
+    def _toks(s):
+        s = (s or "").lower()
+        words = {w for w in re.findall(r"[a-zà-ÿ]{4,}", s)}
+        nums = {n.replace(",", ".") for n in re.findall(r"\d+(?:[.,]\d+)?", s)}
+        return words | nums
+    prose, synth = [], ""        # prose = [(tokens, why)] par jambe de la section prose
     sec = re.search(r"##[^\n]*[Cc]ombin[ée](.*?)(?:\n##|\Z)", analysis, re.S)
     if sec:
         for ln in sec.group(1).splitlines():
             bm = re.match(r"[>*\-\s]+(.+?)@\s*[\d.,]+[\s*`]*[—–:-]\s*(.+)$", ln.strip())
             if bm:
-                whys[_ck(bm.group(1))] = re.sub(r"[*`]", "", bm.group(2)).strip()
+                prose.append((_toks(bm.group(1)), re.sub(r"[*`]", "", bm.group(2)).strip()))
             sm = re.search(r"[Cc]ote\s+combin[ée].*?[—–]\s*(.+)$", ln.strip())   # texte APRÈS le tiret
             if sm:
                 synth = re.sub(r"[*`]", "", sm.group(1)).strip()
     for leg in legs:
-        w = whys.get(_ck(leg["sel"]))
-        if w:
-            leg["why"] = w
+        lt = _toks(leg["sel"])
+        if not lt:
+            continue
+        best, best_score = "", 0.0
+        for ptoks, w in prose:
+            score = len(lt & ptoks) / len(lt)   # part des tokens de la jambe retrouvés dans la prose
+            if score > best_score:
+                best, best_score = w, score
+        if best and best_score >= 0.5:
+            leg["why"] = best
     out = {"legs": legs, "total": round(total, 2)}
     if synth:
         out["why"] = synth
