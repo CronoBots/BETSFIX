@@ -1327,10 +1327,10 @@ _PERF_CACHE: dict = {}     # "v" -> (sig, perf_breakdown()) — ROI par cote/mar
 # courbes d'équité (pour corréler une inflexion de ROI avec un changement). Garder COURT (s'affiche
 # sur un petit graphe) et N'AJOUTER qu'un vrai changement de POLITIQUE de paris (pas l'UI).
 MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne) — repères sur la courbe d'équité
-    ("2026-06-09", "Seuil ≥65 %", "aucun pari sous 65 % de confiance honnête"),
-    ("2026-06-12", "Mode strict", "rien de solide = SKIP ; cote ≥1.70 exige 70 %+"),
-    ("2026-06-16", "1 pari/match", "1 pari, le plus probable, validé par 3 agents"),
-    ("2026-06-18", "Combinés comptés", "chaque combiné compte pour 1 résultat dans le suivi"),
+    ("2026-06-09", "Seuil ≥65 %", "Aucun pari n'est retenu sous 65 % de confiance honnête."),
+    ("2026-06-12", "Mode strict", "Sans pari solide, le modèle s'abstient ; au-delà de 1.70 de cote, il exige 70 % de confiance."),
+    ("2026-06-16", "1 pari/match", "Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents."),
+    ("2026-06-18", "Combinés comptés", "Chaque combiné compte pour un seul résultat dans le suivi, quel que soit le nombre de jambes."),
 ]
 # Les combinés ne comptent dans le palmarès qu'à partir de la date de DÉCISION (NON rétroactif) :
 # les combinés antérieurs (placés quand ils ne comptaient pas) ne polluent pas le suivi.
