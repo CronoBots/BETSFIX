@@ -92,8 +92,14 @@ Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
 - Usage : `python tools/generate_analyses.py --sport foot,tennis,basket --top 3 --hours 24`
 - Les **3 sports sont scannables**. Un `getaddrinfo failed` ponctuel = hoquet réseau
   transitoire (pas structurel) → relancer.
-- Méthodo combinés : BANNIR les marchés cartons ; privilégier la « domination corrélée »
-  (jambes qui tombent ensemble : vainqueur + corners + buts/1re MT).
+- Méthodo combinés : privilégier la « domination corrélée » (jambes qui tombent ensemble).
+  **Taux de réussite par jambe mesuré 2026-06-18 (53 jambes réglées, 14 combinés)** :
+  - 🔴 **BANNIR** : tirs TOTAUX (0/2), cartons (57 %), **corners PAR ÉQUIPE + handicaps corners**
+    (le marché le plus perdant, ~58 % ; coupable dans 5/13 combinés perdus), premier but / mi-temps
+    (non réglables).
+  - 🟢 **PRIVILÉGIER** : résultat / double chance (83 %), tirs **cadrés** (83 %), buts total / équipe
+    marque (79 %), **corners TOTAUX over** (≠ par équipe), corners 1ère MT (75 %).
+  - Gravé dans `tools/generate_analyses.py` (COMBO_MISSION) ; cf. mémoire `combo-construction-rules`.
 
 ## Git
 - Remote : `origin` = https://github.com/CronoBots/BETSFIX.git (branche `main`).
