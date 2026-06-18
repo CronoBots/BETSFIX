@@ -622,7 +622,7 @@ def _verdict_notes(md: str) -> tuple[list, str]:
         why = re.sub(r"^.*?@\s*[\d.,]+\s*", "", content).strip(" ().—–-").strip()
         low = label.lower()
         if "évit" in low or "skip" in low or "evit" in low:
-            resid.append(("⛔", "À éviter / Skip", _sentence_case(_units_to_pct(_strip_sources(why or content))), "skip"))
+            continue                                     # « À éviter / SKIP » RETIRÉ de l'affichage (demande user)
         elif "@" in content:                             # ANCIEN format : « Pari 1 : <sel> @cote — why »
             sel = re.split(r"\s*@", content)[0].strip().rstrip("(").strip()
             if why and why != content:
@@ -736,19 +736,14 @@ def _structured(md: str) -> str | None:
     # cf. analyses._verdict_notes + _bets_table) et le résidu (à éviter / mise) suit les paris. Les
     # « paris à jouer » ne sont pas non plus rendus ici (ils sont SUR la carte). `verdict`/`bets`/`mise`
     # restent dans `known` pour ne pas être re-rendus par la boucle « sections imprévues » ci-dessous.
-    # « À éviter / SKIP » : INTÉGRÉ au cadre « Informations » (plus un bloc séparé) — demande utilisateur.
-    avoid = ""
-    for it in _bullets(verdict):
-        lab, _, cont = it.partition(":")
-        if any(k in lab.lower() for k in ("évit", "evit", "skip")):
-            avoid = _sentence_case(_units_to_pct(_strip_sources(re.sub(r"\*", "", cont).strip())))
-            break
-    if faits or avoid:
-        inner = f'<div class="da-faits-b">{_render_blocks(faits)}</div>' if faits else ""
-        if avoid:
-            inner += ('<div class="da-faits-avoid"><span class="da-fa-ic">⚠️</span>'
-                      f'<span><b>À éviter</b> — {_inline(avoid)}</span></div>')
-        parts.append(f'<div class="da-faits"><div class="da-faits-h">ℹ️ Informations</div>{inner}</div>')
+    # « À éviter / SKIP » RETIRÉ (demande utilisateur). Cadre « Informations » désormais PLIABLE :
+    # <details>/<summary> (le CSS `.da-faits>summary` gère déjà le chevron + la rotation au toggle ;
+    # stopPropagation pour que le clic n'affecte pas l'ouverture/fermeture de la carte).
+    if faits:
+        inner = f'<div class="da-faits-b">{_render_blocks(faits)}</div>'
+        parts.append('<details class="da-faits" open>'
+                     '<summary onclick="event.stopPropagation()">ℹ️ Informations</summary>'
+                     f'{inner}</details>')
     # Section « 🎲 Combiné » : NON rendue ici -> elle est DÉJÀ affichée dans son propre cadre (combo_html)
     # sur la carte. La re-rendre dans l'analyse = doublon (le détail du combiné doit être dans le cadre
     # du combiné, pas répété). On l'écarte (et la ligne `COMBO:` brute aussi).
