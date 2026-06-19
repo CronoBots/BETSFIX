@@ -311,8 +311,8 @@ async def manifest() -> JSONResponse:
         "orientation": "portrait",
         "background_color": "#080a0f", "theme_color": "#080a0f",
         "icons": [
-            {"src": "/static/icon-192.png?v=2", "sizes": "192x192", "type": "image/png"},
-            {"src": "/static/icon-512.png?v=2", "sizes": "512x512", "type": "image/png",
+            {"src": "/static/icon-192.png?v=3", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/icon-512.png?v=3", "sizes": "512x512", "type": "image/png",
              "purpose": "any maskable"},
         ],
     }, media_type="application/manifest+json")
