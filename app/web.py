@@ -246,7 +246,7 @@ CSS = """
      statique en dessous,
   plus besoin de réserver ~86px en bas : un petit espace suffit. */
   .wrap{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;width:100%;
-        max-width:720px;margin:0 auto;
+        max-width:720px;margin:0 auto;display:flex;flex-direction:column;
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
   .toplogo{display:block;text-align:center;margin:20px 0 12px}
@@ -1661,7 +1661,9 @@ CSS = """
        font-size:16px;font-weight:700;box-shadow:var(--cardglow),var(--shadow);transition:.16s}
   .big:active{transform:scale(.99)}
   .big .d{font-size:12.5px;color:var(--muted);font-weight:400;margin-top:5px;line-height:1.5}
-  .foot{color:var(--dim);font-size:10.5px;margin-top:22px;text-align:center;line-height:1.6}
+  /* Footer ancré EN BAS de la zone scrollable (margin-top:auto) : plus de gros vide sous le contenu
+     court -> le « 18+ » occupe le bas, juste au-dessus de la barre. Contenu long : padding = espacement. */
+  .foot{color:var(--dim);font-size:10.5px;margin-top:auto;padding-top:22px;text-align:center;line-height:1.6}
   .src{font-size:12px;font-weight:600;padding:9px 13px;border-radius:12px;margin:4px 0 2px;
        border:1px solid var(--border)}
   .src.ok{background:rgba(46,226,127,.10);color:var(--accent);border-color:rgba(46,226,127,.22)}
@@ -2099,7 +2101,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="apple-touch-icon" href="/static/icon-180.png?v=4">
+<link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
@@ -2142,7 +2144,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="apple-touch-icon" href="/static/icon-180.png?v=4">
+<link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
