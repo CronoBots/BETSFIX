@@ -324,12 +324,12 @@ CSS = """
     border:2px solid var(--border2);border-top-color:var(--accent2);animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
   /* État VIDE premium de l'onglet Live (aucun match en cours) : orbe « radar » + CTA */
-  /* MÊME cadre que les cartes des onglets sport (.row) : bordure cardline + dégradé surface2->surface
-     + glow cardglow (demande user : garder le cadre comme les autres). */
+  /* EXACTEMENT le cadre d'une carte de match (.row.pick) : bordure cyan .60 + dégradé CYAN + glow cyan
+     -> uniforme avec les onglets sport (demande user). Mêmes valeurs littérales que .row.pick. */
   .live-empty{position:relative;overflow:hidden;text-align:center;margin:18px 0;padding:48px 22px 42px;
-       border:1px solid var(--cardline);border-radius:var(--radius);display:flex;flex-direction:column;
-       align-items:center;box-shadow:var(--cardglow),var(--shadow-sm);
-       background:linear-gradient(180deg,var(--surface2),var(--surface))}
+       border:1px solid rgba(34,184,255,.60);border-radius:var(--radius);display:flex;flex-direction:column;
+       align-items:center;box-shadow:0 0 26px rgba(34,184,255,.20);
+       background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02))}
   .le-orb{position:relative;width:62px;height:62px;display:flex;align-items:center;justify-content:center;
        margin-bottom:20px}
   .le-dot{width:15px;height:15px;border-radius:50%;background:#34d27b;
