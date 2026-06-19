@@ -324,10 +324,12 @@ CSS = """
     border:2px solid var(--border2);border-top-color:var(--accent2);animation:spin .7s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
   /* État VIDE premium de l'onglet Live (aucun match en cours) : orbe « radar » + CTA */
-  /* Fond IDENTIQUE au reste de l'app (pas de cadre/dégradé distinct, demande user) : transparent,
-     sans bordure ni ombre -> se fond dans le fond sombre + halo comme l'onglet Stats. */
+  /* MÊME cadre que les cartes des onglets sport (.row) : bordure cardline + dégradé surface2->surface
+     + glow cardglow (demande user : garder le cadre comme les autres). */
   .live-empty{position:relative;overflow:hidden;text-align:center;margin:18px 0;padding:48px 22px 42px;
-       border:0;display:flex;flex-direction:column;align-items:center;background:transparent}
+       border:1px solid var(--cardline);border-radius:var(--radius);display:flex;flex-direction:column;
+       align-items:center;box-shadow:var(--cardglow),var(--shadow-sm);
+       background:linear-gradient(180deg,var(--surface2),var(--surface))}
   .le-orb{position:relative;width:62px;height:62px;display:flex;align-items:center;justify-content:center;
        margin-bottom:20px}
   .le-dot{width:15px;height:15px;border-radius:50%;background:#34d27b;
