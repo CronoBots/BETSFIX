@@ -1610,9 +1610,7 @@ CSS = """
   /* MEILLEURE VALUE : même carte que les paris safe,
   mais encadré OR + halo OR (seul repère premium) */
   /* À JOUER (meilleure value) : bande OR (le pari à jouer se distingue) + halo OR + badge + tab OR */
-  .da-bk-reco{border-left-color:var(--gold);
-       box-shadow:0 0 0 1px rgba(246,197,74,.30),0 8px 22px rgba(246,197,74,.16)}
-  .da-bk-reco .da-bk-tab{color:var(--gold)}
+  /* Pari retenu : plus de halo OR (demande user) -> rendu identique à un pari normal. */
   .da-reco{margin:0 0 9px;padding:9px 12px;border-radius:11px;font-size:12.5px;line-height:1.45}
   .da-reco.play{background:rgba(52,210,123,.12);border:1px solid rgba(52,210,123,.36);color:#eaf2ff}
   .da-reco.skip{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted)}
@@ -1827,10 +1825,6 @@ CSS = """
   /* Badge LIVE : halo qui respire (discret) */
   @keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(52,210,123,.35)}55%{box-shadow:0 0 0 6px rgba(52,210,123,0)}}
   .mc-badge.mc-live{animation:livepulse 1.9s ease-out infinite}
-  /* Pari ✅ À JOUER : halo OR qui respire lentement (attire l'œil sans agresser) */
-  @keyframes recoglow{0%,100%{box-shadow:0 0 0 1px rgba(246,197,74,.30),0 8px 22px rgba(246,197,74,.14)}
-       50%{box-shadow:0 0 0 1px rgba(246,197,74,.48),0 8px 30px rgba(246,197,74,.30)}}
-  .da-bk-reco{animation:recoglow 3s ease-in-out infinite}
   /* Desktop : léger lift au survol des cartes */
   @media(hover:hover){
     .mc{transition:transform .18s ease,box-shadow .18s ease}

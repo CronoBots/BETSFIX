@@ -1101,15 +1101,13 @@ def combo_html(sport: str, match_id) -> str:
     rows = []
     for i, leg in enumerate(combo["legs"]):
         lr = leg.get("result")                       # résultat FINAL réglé (post-match) s'il existe
-        ls = prog = ""
-        if lr is None and live:                      # sinon, statut live
-            ll = live["legs"][i]
-            ls = ll["status"]
-            if ll.get("disp"):                       # compteur courant/seuil (ou marge handicap)
-                prog = f'<span class="da-cl-p">{ll["disp"]}</span>'
-        st = lr or (ls if ls in ("won", "lost") else "")
+        prog = ""
+        in_live = lr is None and live is not None
+        if in_live and live["legs"][i].get("disp"):  # compteur courant/seuil (ou marge handicap)
+            prog = f'<span class="da-cl-p">{live["legs"][i]["disp"]}</span>'
+        st = lr if lr in ("won", "lost") else ""     # SEUL le résultat FINAL -> aucun gagné/perdu LIVE (demande user)
         cls = (" da-cl-won" if st == "won" else " da-cl-lost" if st == "lost"
-               else " da-cl-live" if ls == "pending" else "")
+               else " da-cl-live" if in_live else "")
         # En cours : PAS d'icône (le compteur cur/line + le badge d'en-tête « ● n/N en direct » suffisent) ;
         # seules les jambes ACQUISES (✅) ou PERDUES (❌) portent une icône.
         mark = ("✅" if st == "won" else "❌" if st == "lost" else "")
@@ -1135,17 +1133,15 @@ def combo_html(sport: str, match_id) -> str:
                     f'<div class="da-cl"><span class="da-cl-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
                     f'<span class="da-cl-meta"><b>@{cote}</b>{prchip}{prog}{mk}</span></div>'
                     f'{why_html}</div>')
-    # En-tête : résultat FINAL prioritaire ; sinon, en live, état du combiné (perdu dès qu'une jambe saute).
-    lv = live["status"] if live else None
+    # En-tête : SEUL le résultat FINAL (post-match) affiche un statut gagné/perdu. En live : aucun
+    # badge ni couleur gagné/perdu (demande user) -> en-tête neutre « en direct ».
     hcls = (" da-combo-won" if res == "won" else " da-combo-lost" if res == "lost"
-            else " da-combo-lost" if lv == "lost" else " da-combo-live" if live else "")
+            else " da-combo-live" if live else "")
     if res == "won":
         badge = ' <span class="da-combo-b won">GAGNÉ</span>'
     elif res == "lost":
         badge = ' <span class="da-combo-b lost">PERDU</span>'
-    elif lv == "lost":
-        badge = ' <span class="da-combo-b lost">PERDU (live)</span>'
-    else:                                          # live en cours : badge « ● N/N en direct » RETIRÉ (demande user)
+    else:
         badge = ""
     try:
         total = f"{float(combo.get('total')):.2f}"
