@@ -1478,16 +1478,10 @@ def stats_full(since_days: int | None = None) -> dict:
             # utilisateur). NON RÉTROACTIF : seuls les combinés à partir de _COMBO_COUNT_FROM comptent.
             # Combiné non réglé -> match non compté (reste « en attente »). + le pari simple RETENU à part.
             if (d.get("start") or "")[:10] >= _COMBO_COUNT_FROM:
-                combo = d.get("combo")
-                if combo and combo.get("legs") and combo.get("result") in ("won", "lost", "push"):
-                    ev = (start, combo["result"], combo.get("total"))
-                    all_ev.append(ev)
-                    by_sport.setdefault(sport, []).append(ev)
-                    if is_new:
-                        since_ev.append(ev)
-                # Pari SIMPLE compté en plus = 2e résultat distinct, MAIS seulement s'il aurait été
-                # RETENU par la logique normale du site (cf. retained_bet) — on ne FORCE pas une ancre
-                # à cote plate jamais récupérée ailleurs. Jamais les jambes du combiné. Même borne date.
+                # Le COMBINÉ n'entre PLUS dans la courbe d'équité / ROI / réussite (demande user :
+                # « supprime les combinés des stats graphiques mais pas des calibrages »). Il reste
+                # suivi via la LIGNE DE FORME « Combinés » (combo_form, plus haut) + la calibration.
+                # Seul le pari SIMPLE RETENU (logique normale du site) compte dans le graphe.
                 rb = retained_bet(sport, d.get("id"))
                 if rb and rb.get("result") in ("won", "lost", "push"):
                     ev = (start, rb["result"], rb.get("cote"))
