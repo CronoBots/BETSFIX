@@ -32,7 +32,8 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 36   # v36 : props joueur basket COMBINÉS (PRA/PR/PA/RA) + format seuil « X+ ».
+_SETTLE_VERSION = 37   # v37 : BTTS par mi-temps (BTTSHALF) via les périodes.
+# v36 : props joueur basket COMBINÉS (PRA/PR/PA/RA) + format seuil « X+ ».
 # v35 : premier BUTEUR (FIRSTSCORER) + arrêts du gardien par équipe (GKSAVES) via FotMob.
 # v34 : props JOUEUR foot (PLAYERFB : arrêts/tirs/passes/tacles/fautes) via FotMob (Opta).
 # v33 : props JOUEUR basket (PLAYERBK PTS/REB/AST) via box-score ESPN (matching strict).
@@ -170,6 +171,12 @@ def settle_pick(code: str, score: dict) -> str | None:
             return None
         i = 0 if parts[1] == "HOME" else 1
         return "won" if (p1[i] >= 1 and p2[i] >= 1) else "lost"
+    if kind == "BTTSHALF" and len(parts) >= 3:          # les 2 équipes marquent dans une MI-TEMPS
+        p = _per(1 if parts[1] == "1H" else 2)
+        if not p:
+            return None
+        both = p[0] >= 1 and p[1] >= 1
+        return "won" if (both == (parts[2] == "YES")) else "lost"
     if kind == "SCORE" and has_ha and len(parts) >= 3:  # score EXACT (foot)
         try:
             th, ta = int(parts[1]), int(parts[2])
@@ -493,6 +500,10 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     if "mi-temps" in t or "mi temps" in t:
         if "deux mi" in t or "2 mi-temps" in t or "both halves" in t:
             return ""                              # « but dans les DEUX mi-temps » -> métrique bothhalves
+        if "deux équipes marquent" in t or "btts" in t:   # BTTS dans UNE mi-temps -> périodes
+            half = "2H" if any(k in t for k in ("2e mi", "2ème mi", "2eme mi", "seconde mi",
+                                                "deuxième mi", "2nde mi")) else "1H"
+            return f"BTTSHALF {half} {'NO' if 'non' in t else 'YES'}"
         team = which()
         if ("gagne" in t or "remporte" in t or "vainqueur" in t) and team and "but" not in t:
             return f"WINHALF {team}"               # gagne AU MOINS une mi-temps
@@ -576,6 +587,10 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         val = (mh.group(1).replace(" ", "").replace(",", ".").replace("−", "-").replace("–", "-"))
         return f"{kind_h} {team} {val}"
     if "deux équipes marquent" in t or "btts" in t:
+        if ("mi-temps" in t or "mi temps" in t) and "deux mi" not in t:   # BTTS dans UNE mi-temps -> périodes
+            half = "2H" if any(k in t for k in ("2e mi", "2ème mi", "2eme mi", "seconde mi",
+                                                "deuxième mi", "2nde mi")) else "1H"
+            return f"BTTSHALF {half} {'NO' if 'non' in t else 'YES'}"
         return "BTTS NO" if "non" in t else "BTTS YES"
     if "double chance" in t:
         for k in ("1x", "12", "x2"):
@@ -915,7 +930,7 @@ async def settle_analyses() -> int:
             shadow_codes = [s.get("code", "") for s in (d.get("shadow") or [])]
             need_periods = (not score.get("periods")) and any(
                 c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE", "TEAMHALF", "HALFTOT", "WINHALF",
-                              "TEAMBOTH", "BQTOT", "BQTEAM", "BQWIN", "BQHCAP", "GAMESHCAP", "TIEBREAK"))
+                              "TEAMBOTH", "BTTSHALF", "BQTOT", "BQTEAM", "BQWIN", "BQHCAP", "GAMESHCAP", "TIEBREAK"))
                 or "1H" in c or "2H" in c
                 for c in [code, *bet_codes, *combo_codes, *shadow_codes] if c)
             if need_periods:
