@@ -1720,13 +1720,22 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        if _is_world_cup(d):         # Coupe du Monde EXCLUE de la calibration (combiné non calibrable +
-            continue                 # décision produit : la CdM ne pèse dans aucune stat).
+        sport = d.get("sport") or ""
+        mid = os.path.basename(p)[len(sport) + 1:-5]
+        # PRÉDICTIONS FANTÔMES (shadow) : prédictions de l'analyste NON jouées, réglées après match ->
+        # calibrage sur TOUT le spectre de proba (corrige le biais de sélection « 1 pari joué/match »).
+        # TOUS sports, CdM INCLUSE (ce sont des prédictions de MARCHÉ individuelles, calibrables). Jamais
+        # dans l'affichage/ROI/forme — UNIQUEMENT ici.
+        for _sp in (d.get("shadow") or []):
+            _r, _pr = _sp.get("result"), _sp.get("prob")
+            if _r in ("won", "lost") and _pr is not None and _pr >= min_conf:
+                _mk = _MARKET_FAMILY.get((_sp.get("code") or "").split()[0] if _sp.get("code") else "", "Autre")
+                items.append((_pr, _r == "won", sport, _mk))
+        if _is_world_cup(d):         # CdM : paris simples/combiné EXCLUS (shadow ci-dessus INCLUS).
+            continue
         stored = d.get("bets") or []
         if not stored:
             continue
-        sport = d.get("sport") or ""
-        mid = os.path.basename(p)[len(sport) + 1:-5]
         parsed = None
         for i, b in enumerate(stored):
             res = b.get("result")

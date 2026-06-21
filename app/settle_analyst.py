@@ -32,7 +32,8 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 27   # v27 : jeux d'UN joueur (« <joueur> moins de X.5 jeux ») = TEAMGAMES (≠ TOTGAMES) ;
+_SETTLE_VERSION = 28   # v28 : règlement des PRÉDICTIONS FANTÔMES (shadow) pour le calibrage.
+# v27 : jeux d'UN joueur (« <joueur> moins de X.5 jeux ») = TEAMGAMES (≠ TOTGAMES) ;
 #                              jambes de combiné réglées sur le code RE-DÉRIVÉ frais (code stocké périmé).
 # v26 : 1er pari réglé sur SON propre code (plus forcé au résultat du pick quand ils
 #                              divergent) + badge headline aligné sur le pari affiché (ex. CRB « moins 4.5 »).
@@ -740,6 +741,25 @@ async def settle_analyses() -> int:
                 combo["result"] = "lost" if any_lost else ("won" if all_won else None)
                 if combo["result"] is None:               # verdict encore incomplet -> compte l'essai
                     d["combo_tries"] = (d.get("combo_tries") or 0) + 1
+            # PRÉDICTIONS FANTÔMES (calibrage) : on règle CHAQUE prédiction (métrique live OU code) ->
+            # result. Elles ne pèsent QUE dans la calibration — jamais dans l'affichage/ROI/forme.
+            shadow = d.get("shadow")
+            if shadow:
+                svals = {"goals_h": score.get("home"), "goals_a": score.get("away"),
+                         **(score.get("stats") or {})}
+                for sp in shadow:
+                    if sp.get("result") in ("won", "lost", "push"):
+                        continue
+                    info = analyses._leg_metric(sp, d.get("home", ""), d.get("away", ""))
+                    r = None
+                    if info.get("live_ok"):
+                        r, _ = analyses._eval_leg(info, svals, final=True)
+                    if r is None:
+                        c = (sp.get("code")
+                             or code_from_pick(sp.get("sel", ""), sport, d.get("home", ""), d.get("away", "")))
+                        sp["code"] = c
+                        r = await _settle_one(c) if c else None
+                    sp["result"] = r
             d["settle_v"] = _SETTLE_VERSION
             # Backfill du sentiment public (barre « Public ») si le scan ne l'a pas capturé (SofaScore
             # bloqué au scan) -> FIGÉ une fois dans le sidecar, ne bouge plus ensuite. Si le sofa_id

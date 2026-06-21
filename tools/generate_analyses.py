@@ -342,6 +342,20 @@ METHODO = (
     "- Total jeux du match : `TOTGAMES OVER 20.5` / `TOTGAMES UNDER 22.5`\n"
     "- 1er jeu de service tenu : `HOLD1 HOME YES` / `HOLD1 AWAY NO`\n"
     "Si ton Pari 1 n'entre dans AUCUN code, écris `PICK: NONE`. Une seule ligne.\n"
+    "\n\nTABLE DE CALIBRATION (ENREGISTREMENT INTERNE — ces prédictions ne sont NI affichées NI jouées ; "
+    "elles servent UNIQUEMENT à calibrer le modèle : on vérifie après match si ta confiance tient, sur "
+    "TOUT l'éventail de proba). APRÈS la ligne PICK, ajoute 6 à 8 lignes au format EXACT, une par "
+    "prédiction :\n"
+    "`CALIB: <sélection RÉGLABLE exacte> @<cote réelle> | <TA proba honnête %>`\n"
+    "RÈGLES : (a) couvre TOUT le spectre — des quasi-certaines (~85-90 %) aux serrées (~45-55 %), PAS "
+    "seulement les sûres ; sois HONNÊTE et calibré, JAMAIS optimiste (l'intérêt est de mesurer si tes "
+    "55 % passent vraiment à 55 %). (b) marchés VARIÉS et RÉGLABLES (résultat, double chance, totaux, "
+    "total d'équipe, handicaps, BTTS, sets/jeux — formulés comme les CODES ci-dessus pour être réglables), "
+    "au plus 1 par marché. (c) UNIQUEMENT des cotes RÉELLES du dossier. (d) la value n'importe PAS ici : "
+    "on mesure la justesse de TA proba, pas le rendement. Exemples : `CALIB: Allemagne gagne @1.55 | 71%` "
+    "puis `CALIB: Plus de 2.5 buts @1.95 | 52%`, etc. Tous les marchés RÉGLABLES sont les bienvenus "
+    "(résultat, totaux, équipe, handicaps, BTTS, sets/jeux, corners) — c'est justement le but de mesurer "
+    "ta calibration PARTOUT.\n"
 )
 
 
@@ -895,6 +909,30 @@ def _parse_combo(analysis: str, sport: str, home: str, away: str) -> dict | None
     return out
 
 
+def _parse_calib(analysis: str, sport: str, home: str, away: str) -> list[dict]:
+    """Prédictions « fantômes » pour le CALIBRAGE (lignes `CALIB: <sel> @<cote> | <proba>%`). NON
+    affichées, NON jouées : réglées après match pour enrichir la courbe de calibration sur TOUT le
+    spectre de proba (corrige le biais de sélection du « 1 pari joué / match »). On ne garde que les
+    prédictions RÉGLABLES (code non vide) ; déduplication par code."""
+    from app.settle_analyst import code_from_pick
+    out, seen = [], set()
+    for m in re.finditer(r"^[\s`*>\-]*CALIB:\s*(.+?)@\s*(\d+[.,]\d+)\s*\|\s*(\d{1,3})\s*%?", analysis, re.M):
+        sel = re.sub(r"[`*]", "", m.group(1)).strip(" -–—:")
+        try:
+            cote = float(m.group(2).replace(",", "."))
+            prob = int(m.group(3))
+        except ValueError:
+            continue
+        if not sel or cote < 1.01 or not (1 <= prob <= 99):
+            continue
+        code = code_from_pick(sel, sport, home, away)
+        if not code or code in seen:        # non réglable ou doublon -> ignoré
+            continue
+        seen.add(code)
+        out.append({"sel": sel, "cote": round(cote, 3), "prob": prob, "code": code, "result": None})
+    return out
+
+
 def _safe_pick(analysis: str) -> str:
     """Extrait le Pari 1 (le plus probable) du Verdict : « sélection @ cote ». '' sinon. Gère le
     nouveau libellé « Pari 1 » ET l'ancien « Le plus sûr » (analyses déjà générées)."""
@@ -1039,6 +1077,9 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""))   # combiné grand tournoi
     if combo:
         side["combo"] = combo
+    calib = _parse_calib(analysis, sport, m.get("home", ""), m.get("away", ""))   # prédictions fantômes (calibrage)
+    if calib:
+        side["shadow"] = calib
     if validation:                       # verdict du panel de validateurs (3 agents) sur le pari retenu
         side["validation"] = validation
     if votes and votes[0] is not None:
