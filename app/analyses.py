@@ -1154,7 +1154,18 @@ def combo_html(sport: str, match_id) -> str:
         total = f"{float(combo.get('total')):.2f}"
     except (TypeError, ValueError):
         total = "?"
-    # En-tête : « 🎲 Combiné · N jambes » à gauche, cote totale dans le coin HAUT-DROITE.
+    # Cote affichée : la VRAIE cote Unibet (combiné corrélé) si on l'a re-pricée via les prepacks,
+    # sinon le produit des jambes (repli). La vraie cote est marquée « Unibet » pour la distinguer.
+    real = combo.get("real_odds")
+    if real:
+        try:
+            odds_html = (f'<span class="da-combo-c" title="Vraie cote Unibet (combiné corrélé)">'
+                         f'cote Unibet {float(real):.2f}</span>')
+        except (TypeError, ValueError):
+            odds_html = f'<span class="da-combo-c">cote {total}</span>'
+    else:
+        odds_html = f'<span class="da-combo-c">cote {total}</span>'
+    # En-tête : « 🎲 Combiné · N jambes » à gauche, cote dans le coin HAUT-DROITE.
     # (PAS de chance globale : le produit des jambes sous-estime un combiné corrélé -> trompeur ;
     # la chance fiable reste celle PAR jambe, en pastille.)
     n_legs = len(combo["legs"])
@@ -1163,7 +1174,7 @@ def combo_html(sport: str, match_id) -> str:
     intro_html = f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>' if synth else ""
     return (f'<div class="da-combo{hcls}"><div class="da-combo-h">🎲 Combiné '
             f'<span class="da-combo-n">· {n_legs} jambes</span>{badge}'
-            f'<span class="da-combo-c">cote {total}</span></div>'
+            f'{odds_html}</div>'
             f'{intro_html}{"".join(rows)}</div>')
 
 

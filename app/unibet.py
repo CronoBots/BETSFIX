@@ -53,6 +53,71 @@ def _line(v):
         return None
 
 
+def _pp_label(o: dict, crit_label: str) -> str:
+    """Issue Kambi -> libellé lisible « Critère : Issue [ligne] »."""
+    ln = o.get("line")
+    txt = f"{crit_label} : {o.get('label', '')}"
+    if ln is not None:
+        txt += f" {int(ln) / 1000:g}"
+    return txt.strip()
+
+
+def _pp_legs(group: dict) -> list:
+    """Récupère les outcome ids d'un `group` prepack (jambes sous group.groups[].outcomes[].id)."""
+    res = [o["id"] for o in group.get("outcomes", [])]
+    for g in group.get("groups", []):
+        res += _pp_legs(g)
+    return res
+
+
+def prepack_combos(event_id: str) -> list[dict]:
+    """Combinés MÊME-MATCH pré-construits par Unibet (`prepackcoupon/event`) avec leur **vraie cote
+    corrélée** (le moteur Bet Builder rabote/booste les jambes corrélées : la cote n'est PAS le produit).
+    Renvoie [{prepack_id, real_odds, legs:[{sel,odds,outcome_id}], naive, shave_pct, n}] (≥2 jambes),
+    trié par cote réelle croissante. [] si indisponible (best-effort, sans navigateur)."""
+    pp = _get(f"prepackcoupon/event/{event_id}.json")
+    if not pp:
+        return []
+    omap: dict = {}
+    full = _get(f"betoffer/event/{event_id}.json") or {}
+    for src in (pp.get("betOffers") or [], full.get("betOffers") or []):
+        for bo in src:
+            crit = (bo.get("criterion") or {}).get("label", "")
+            for o in bo.get("outcomes", []):
+                omap[o["id"]] = (_pp_label(o, crit), _odds(o.get("odds")))
+    combos, seen = [], set()
+    for cp in pp.get("prePackCoupons", []):
+        if cp.get("status") != "OPEN":
+            continue
+        for row in cp.get("prePackCouponRows", []):
+            ids = _pp_legs(row.get("group", {}))
+            if len(ids) < 2:
+                continue
+            real = _odds((row.get("odds") or {}).get("decimal"))
+            if not real:
+                continue
+            legs, naive, ok = [], 1.0, True
+            for i in ids:
+                hit = omap.get(i)
+                if not hit:
+                    ok = False
+                    break
+                legs.append({"sel": hit[0], "odds": hit[1], "outcome_id": i})
+                naive *= (hit[1] or 1)
+            if not ok:
+                continue
+            key = tuple(sorted(ids))
+            if key in seen:
+                continue
+            seen.add(key)
+            combos.append({"prepack_id": row.get("id"), "real_odds": real, "legs": legs,
+                           "naive": round(naive, 3),
+                           "shave_pct": round(100 * (1 - real / naive), 1) if naive else None,
+                           "n": len(legs)})
+    combos.sort(key=lambda c: c["real_odds"])
+    return combos
+
+
 def _event_row(ev: dict) -> dict:
     return {"id": str(ev.get("id")), "home": ev.get("homeName"), "away": ev.get("awayName"),
             "name": ev.get("name"), "league": ev.get("group"), "league_id": ev.get("groupId"),

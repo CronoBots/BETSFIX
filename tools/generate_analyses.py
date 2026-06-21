@@ -39,8 +39,13 @@ for _s in (sys.stdout, sys.stderr):
 import httpx  # noqa: E402
 
 from app import sources  # noqa: E402
+from app import unibet  # noqa: E402
 from app import value  # noqa: E402
 from app.match_select import UNIBET_B, UNIBET_PARAMS, fetch_important  # noqa: E402
+
+# Combinés même-match pré-construits Unibet (prepackcoupon), par event_id : VRAIE cote corrélée.
+# Rempli dans build_dossier, relu dans _parse_combo pour re-pricer le combiné de l'analyste.
+_PREPACK_CACHE: dict[str, list] = {}
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "analyses")
@@ -811,6 +816,14 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         combo = COMBO_MISSION_BASKET
     else:
         combo = ""
+    # Combinés pré-construits Unibet (vraie cote corrélée) : on les met en cache (pour re-pricer le
+    # combiné de l'analyste après coup) ET on injecte le menu pour BIAISER l'analyste vers un combiné
+    # qui en fait partie (-> on connaîtra sa vraie cote). Foot/basket seulement (tennis : 0 prepack).
+    if combo and sport in ("foot", "basket"):
+        prepacks = await asyncio.to_thread(unibet.prepack_combos, str(match["id"]))
+        if prepacks:
+            _PREPACK_CACHE[str(match["id"])] = prepacks
+            combo += _prepack_menu(prepacks, sport, match.get("home", ""), match.get("away", ""))
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
@@ -851,9 +864,84 @@ def _parse_pick(analysis: str) -> str:
     return "" if code in ("", "NONE") else code
 
 
-def _parse_combo(analysis: str, sport: str, home: str, away: str) -> dict | None:
+def _cb_toks(s: str):
+    """(mots ≥4 lettres, nombres) d'une sélection — séparés car le NOMBRE (ligne) est discriminant
+    (« Plus de 2.5 » ≠ « Plus de 1.5 ») : on l'exige égal au matching, pas juste un recouvrement de mots."""
+    s = (s or "").lower()
+    words = {w for w in re.findall(r"[a-zà-ÿ]{4,}", s)}
+    nums = {n.replace(",", ".") for n in re.findall(r"\d+(?:[.,]\d+)?", s)}
+    return words, nums
+
+
+def _prepack_menu(combos: list, sport: str, home: str, away: str) -> str:
+    """Menu (pour le dossier analyste) des combinés pré-construits Unibet AVEC leur VRAIE cote.
+    On NE garde que les combos dont TOUTES les jambes sont RÉGLABLES (code_from_pick non vide) et
+    sans cartons/corners, cap à 14 entrées variées (-> combiné à la fois vraie cote ET réglable)."""
+    if not combos:
+        return ""
+    from app.settle_analyst import code_from_pick
+    rows, n = [], 0
+    for c in combos:
+        if not (2 <= c["n"] <= 3):
+            continue
+        sels = [l["sel"] for l in c["legs"]]
+        if any(re.search(r"carton|jaune|rouge|corner", s, re.I) for s in sels):
+            continue
+        if not all(code_from_pick(s, sport, home, away) for s in sels):   # une jambe non réglable -> exclu
+            continue
+        n += 1
+        legs = " + ".join(f"{l['sel']} @{l['odds']}" for l in c["legs"])
+        rows.append(f"  [BB{n}] cote RÉELLE {c['real_odds']:.2f} : {legs}")
+        if n >= 14:
+            break
+    if not rows:
+        return ""
+    return ("\n\nCOMBINÉS PRÉ-CONSTRUITS UNIBET (vraie cote corrélée, déjà combinables) — PRIVILÉGIE-LES "
+            "FORTEMENT : choisis le MEILLEUR de cette liste selon ta méthodo (chance de passer d'abord, "
+            "jambes fiables/réglables, PAS de cartons/corners), et REPRENDS SES JAMBES EXACTES dans ta "
+            "ligne COMBO: et la section 🎲. La « cote RÉELLE » indiquée EST la vraie cote Unibet (déjà "
+            "rabotée) : c'est elle qu'il faut viser/citer, pas le produit. Ne bâtis un combiné HORS liste "
+            "que si AUCUN d'ici n'est jouable.\n" + "\n".join(rows) + "\n")
+
+
+def _match_prepack(legs: list, prepacks: list):
+    """Re-price le combiné de l'analyste : si ses jambes correspondent à un prepack, renvoie
+    (real_odds, shave_pct, prepack_id). Match = chaque jambe analyste retrouvée (≥60 % de tokens)
+    dans une jambe DISTINCTE du prepack, et même nombre de jambes. None sinon."""
+    leg_tok = [_cb_toks(l["sel"]) for l in legs]
+    for pp in prepacks:
+        if pp["n"] != len(legs):
+            continue
+        pp_tok = [_cb_toks(l["sel"]) for l in pp["legs"]]
+        used, ok = set(), True
+        for lw, ln in leg_tok:
+            if not lw:
+                ok = False
+                break
+            best_j, best_s = -1, 0.0
+            for j, (pw, pn) in enumerate(pp_tok):
+                if j in used or not pw:
+                    continue
+                if ln and ln != pn:          # NOMBRE/ligne présent mais différent -> jambe différente
+                    continue
+                s = len(lw & pw) / len(lw)   # recouvrement des MOTS
+                if s > best_s:
+                    best_j, best_s = j, s
+            if best_j < 0 or best_s < 0.6:
+                ok = False
+                break
+            used.add(best_j)
+        if ok:
+            return pp["real_odds"], pp["shave_pct"], pp["prepack_id"]
+    return None
+
+
+def _parse_combo(analysis: str, sport: str, home: str, away: str,
+                 event_id: str | None = None) -> dict | None:
     """Parse la ligne technique `COMBO: s1 @c1 | s2 @c2 | … = total` -> {legs:[{sel, cote, code}],
-    total}. Le `code` (règlable) est dérivé de chaque sélection. None si absent/invalide."""
+    total}. Le `code` (règlable) est dérivé de chaque sélection. None si absent/invalide.
+    Si `event_id` a des prepacks en cache ET que le combiné y correspond, ajoute la VRAIE cote
+    Unibet (`real_odds`/`shave`) — sinon `total` reste le produit des cotes (repli)."""
     # tolère un préfixe backtick/astérisque/«-»/«>» (l'analyste entoure parfois la ligne de `code`).
     m = re.search(r"^[\s`*>\-]*COMBO:\s*(.+?)\s*$", analysis, re.M)
     if not m:
@@ -910,6 +998,12 @@ def _parse_combo(analysis: str, sport: str, home: str, away: str) -> dict | None
     out = {"legs": legs, "total": round(total, 2)}
     if synth:
         out["why"] = synth
+    # Re-pricing : si le combiné correspond à un prepack Unibet, on attache la VRAIE cote corrélée.
+    prepacks = _PREPACK_CACHE.get(str(event_id)) if event_id else None
+    if prepacks:
+        hit = _match_prepack(legs, prepacks)
+        if hit:
+            out["real_odds"], out["shave"], out["prepack_id"] = round(hit[0], 2), hit[1], hit[2]
     return out
 
 
@@ -1104,7 +1198,8 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     circuit = m.get("circuit") or (meta.get("circuit") if meta else None)   # Unibet (path) prioritaire
     if circuit:
         side["circuit"] = circuit
-    combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""))   # combiné grand tournoi
+    combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""),   # combiné grand tournoi
+                         event_id=str(m.get("id")))
     if combo:
         side["combo"] = combo
     calib = _parse_calib(analysis, sport, m.get("home", ""), m.get("away", ""))   # prédictions fantômes (calibrage)
@@ -1226,7 +1321,8 @@ async def main():
                     print(f"  · {m['name']} : {_before - len(bets)} pari(s) NON vérifiable(s) écarté(s).")
                 # Si un COMBINÉ existe (CdM foot OU favori net tennis/basket), c'est LUI qui fait foi -> on
                 # RETIENT le match même si la table de paris simples est vide.
-                combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""))
+                combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""),
+                                     event_id=str(m.get("id")))
                 # VALIDATION PAR PANEL (3 agents) du pari simple — SAUF si un combiné porte le match
                 # (le combiné est le pari phare, structure validée à part — comme la CdM).
                 validation = None
@@ -1272,7 +1368,9 @@ async def main():
                     _line += f"\n   • Simple : {_pick}"
                 if combo and combo.get("legs"):
                     _legs = combo["legs"]
-                    _line += f"\n   • Combiné @{combo.get('total', '?')} ({len(_legs)} jambes) :"
+                    _cote = (f"Unibet {combo['real_odds']:.2f}" if combo.get("real_odds")
+                             else f"{combo.get('total', '?')}")
+                    _line += f"\n   • Combiné @{_cote} ({len(_legs)} jambes) :"
                     for _lg in _legs:
                         _c = _lg.get("cote")
                         _line += f"\n      – {_lg.get('sel', '?')}" + (f" @{_c}" if _c else "")
