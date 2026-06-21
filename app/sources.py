@@ -772,28 +772,38 @@ async def first_goal_side(d: dict) -> str | None:
     return "HOME" if first_is_home else "AWAY"
 
 
-def _bb_player_stat(summary: dict, qtok: set, label: str):
-    """Valeur d'une stat (label ESPN : PTS/REB/AST) pour LE joueur dont les jetons `qtok` sont TOUS
-    présents dans le nom. Matching STRICT : renvoie la valeur SEULEMENT si UN SEUL joueur correspond
-    (sinon None -> jamais de faux règlement sur une homonymie/ambiguïté)."""
+_BB_COMBO = {"PTS": ("PTS",), "REB": ("REB",), "AST": ("AST",),         # combinés points/rebonds/passes
+             "PR": ("PTS", "REB"), "PA": ("PTS", "AST"), "RA": ("REB", "AST"),
+             "PRA": ("PTS", "REB", "AST")}
+
+
+def _bb_player_stat(summary: dict, qtok: set, stat: str):
+    """Valeur d'une stat (PTS/REB/AST OU combiné PR/PA/RA/PRA = SOMME) pour LE joueur dont les jetons
+    `qtok` sont TOUS dans le nom. Matching STRICT : valeur SEULEMENT si UN SEUL joueur correspond (sinon
+    None -> jamais de faux règlement sur une homonymie)."""
+    wanted = _BB_COMBO.get(stat, (stat,))
     bx = (summary or {}).get("boxscore") or {}
-    found = []
+    per_player: dict = {}
     for team in bx.get("players") or []:
         for grp in team.get("statistics") or []:
             labels = grp.get("labels") or grp.get("names") or []
-            if label not in labels:
+            idxs = {lb: labels.index(lb) for lb in wanted if lb in labels}
+            if len(idxs) != len(wanted):
                 continue
-            idx = labels.index(label)
             for ath in grp.get("athletes") or []:
                 nm = ((ath.get("athlete") or {}).get("displayName")) or ""
-                if qtok and qtok <= _tok(nm):
-                    stats = ath.get("stats") or []
-                    if idx < len(stats):
-                        try:
-                            found.append(int(str(stats[idx]).strip()))
-                        except (ValueError, TypeError):
-                            pass
-    return found[0] if len(found) == 1 else None
+                if not (qtok and qtok <= _tok(nm)):
+                    continue
+                stats = ath.get("stats") or []
+                tot, ok = 0, True
+                for lb in wanted:
+                    try:
+                        tot += int(str(stats[idxs[lb]]).strip())
+                    except (ValueError, TypeError, IndexError):
+                        ok = False
+                if ok:
+                    per_player[nm] = tot
+    return list(per_player.values())[0] if len(per_player) == 1 else None
 
 
 async def basket_player_stat(d: dict, player_query: str, label: str):

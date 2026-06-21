@@ -32,7 +32,8 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 35   # v35 : premier BUTEUR (FIRSTSCORER) + arrêts du gardien par équipe (GKSAVES) via FotMob.
+_SETTLE_VERSION = 36   # v36 : props joueur basket COMBINÉS (PRA/PR/PA/RA) + format seuil « X+ ».
+# v35 : premier BUTEUR (FIRSTSCORER) + arrêts du gardien par équipe (GKSAVES) via FotMob.
 # v34 : props JOUEUR foot (PLAYERFB : arrêts/tirs/passes/tacles/fautes) via FotMob (Opta).
 # v33 : props JOUEUR basket (PLAYERBK PTS/REB/AST) via box-score ESPN (matching strict).
 # v32 : PREMIER BUT du match (FIRSTGOAL) réglé via les events FotMob (1er buteur).
@@ -316,27 +317,36 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         s = which()
         return f"{kind} {s}{(' ' + yesno) if (s and yesno) else ''}" if s else ""
 
-    # PROPS JOUEUR non couverts par le box-score basique ESPN (interceptions, contres, double-double) ->
-    # ABSTENTION : jamais un code réglé sur le total du match (= faux).
-    if any(k in t for k in ("interception", "double-double", "triple-double", "contre de ", "contres")):
+    # PROPS JOUEUR non couverts par le box-score basique ESPN (interceptions, contres) -> ABSTENTION.
+    if any(k in t for k in ("interception", "contre de ", "contres", "double-double", "triple-double")):
         return ""
-    # BASKET — props JOUEUR (points/rebonds/passes d'un joueur NOMMÉ) -> PLAYERBK (box-score ESPN, matching
-    # strict). Puis marchés par QUART-TEMPS / MI-TEMPS (périodes). Tout AVANT les handlers génériques.
+    # BASKET — props JOUEUR (points/rebonds/passes — y compris COMBINÉS « points, rebonds & passes » et
+    # format SEUIL « 20+ points ») d'un joueur NOMMÉ -> PLAYERBK (box-score ESPN, matching strict). Puis
+    # marchés par QUART-TEMPS / MI-TEMPS (périodes). Tout AVANT les handlers génériques.
     if sport == "basket":
-        _stat = ("PTS" if ("point" in t or "panier" in t) else "REB" if "rebond" in t
-                 else "AST" if ("passe" in t and ("déc" in t or "decis" in t)) else None)
+        _has = {"P": ("point" in t or "panier" in t), "R": "rebond" in t,
+                "A": "passe" in t}      # au basket « passe(s) » = passe(s) décisive(s) (assists)
+        _combo = "".join(s for s in ("P", "R", "A") if _has[s])
+        _stat = {"P": "PTS", "R": "REB", "A": "AST", "PR": "PR", "PA": "PA",
+                 "RA": "RA", "PRA": "PRA"}.get(_combo)
         _lead = (pick.strip().split() or [""])[0].lower()
         _kw = ("total", "nombre", "plus", "moins", "score", "le", "les", "over", "under", "écart",
                "ecart", "différence", "difference", "premier", "1er", "handicap")
         if _stat and not which() and _lead not in _kw:
             ln = re.search(r"(plus|moins)\s+de\s+(\d+[.,]?\d*)", t)
-            if ln:                                      # joueur = texte AVANT « plus/moins de »
-                who = re.split(r"\s+(?:plus|moins)\s+de\s+", pick, maxsplit=1, flags=re.I)[0]
-                who = re.sub(r"\s*(points?|paniers?|rebonds?|passes?\s*(?:décisives?|decis\w*)?)\s*$",
+            thr = re.search(r"(\d+)\s*\+", t)            # format seuil « 20+ points » -> plus de 19.5
+            if ln:
+                dirn, line = ("OVER" if ln.group(1) == "plus" else "UNDER"), ln.group(2).replace(",", ".")
+            elif thr:
+                dirn, line = "OVER", str(int(thr.group(1)) - 0.5)
+            else:
+                dirn = line = None
+            if line is not None:                         # joueur = texte AVANT la ligne (« plus de » ou « X+ »)
+                who = re.split(r"\s+(?:plus|moins)\s+de\s+|\s+\d+\s*\+", pick, maxsplit=1, flags=re.I)[0]
+                who = re.sub(r"\s*(points?|paniers?|rebonds?|passes?\s*(?:décisives?|decis\w*)?|[,&et\s])+$",
                              "", who.strip(), flags=re.I).strip(" :-–—")
-                if who:
-                    dirn = "OVER" if ln.group(1) == "plus" else "UNDER"
-                    return f"PLAYERBK {_stat} {dirn} {ln.group(2).replace(',', '.')}|{who}"
+                if who and len(who) >= 2:
+                    return f"PLAYERBK {_stat} {dirn} {line}|{who}"
         spec = None
         if "quart" in t:
             for pat, sp in [(("1er", "premier", "q1", "1 quart"), "1"),
