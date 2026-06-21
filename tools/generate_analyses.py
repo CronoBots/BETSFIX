@@ -938,17 +938,43 @@ def _parse_calib(analysis: str, sport: str, home: str, away: str) -> list[dict]:
 
 
 def _safe_pick(analysis: str) -> str:
-    """Extrait le Pari 1 (le plus probable) du Verdict : « sélection @ cote ». '' sinon. Gère le
-    nouveau libellé « Pari 1 » ET l'ancien « Le plus sûr » (analyses déjà générées)."""
+    """Extrait le pari retenu (le plus probable) sous forme « sélection @ cote ». '' sinon.
+    Gère 3 formats par ordre de priorité :
+      1) section actuelle « ## 🎯 Le pari à jouer » → 1er point en gras `**sél @cote :**` ;
+      2) anciens libellés « Pari 1 » / « Le plus sûr » (analyses déjà générées) ;
+      3) repli : 1re ligne de données du tableau « Paris classés par chance de passer »."""
+    def _clean(txt: str) -> str:
+        txt = re.sub(r"\*\*|\*", "", txt).strip()
+        mm = re.search(r"(.+?@\s*[\d]+[.,][\d]+)", txt)   # garde tout jusqu'à « @ cote » inclus
+        if mm:
+            return mm.group(1).strip()
+        txt = re.split(r"\s[—–-]\s|\s*:\s*$|\s*:\s", txt)[0].strip()   # coupe à la justification
+        return txt[:90]
+
+    def _is_skip(s: str) -> bool:
+        return bool(re.match(r"(?i)\s*(skip|aucun|pas de pari|abst)", s))
+
+    # 1) Nouveau format : 1er bullet en gras sous « Le pari à jouer »
+    m = re.search(r"##\s*🎯[^\n]*\n+\s*[-*]\s*\*\*(.+)", analysis)
+    if m:
+        if _is_skip(m.group(1)):
+            return ""                       # SKIP explicite du pari simple → pas de repli tableau
+        cand = _clean(m.group(1))
+        if cand:
+            return cand
+    # 2) Anciens libellés explicites
     m = re.search(r"(?:Pari\s*1|Le plus s[ûu]r)\s*:?\**\s*(.+)", analysis)
-    if not m:
-        return ""
-    txt = re.sub(r"\*\*|\*", "", m.group(1)).strip()
-    mm = re.search(r"(.+?@\s*[\d]+[.,][\d]+)", txt)   # garde tout jusqu'à « @ cote » inclus
-    if mm:
-        return mm.group(1).strip()
-    txt = re.split(r"\s[—–-]\s", txt)[0].strip()       # sinon coupe à la justification (—/–/-)
-    return txt[:90]
+    if m:
+        cand = _clean(m.group(1))
+        if cand:
+            return cand
+    # 3) Repli : 1re ligne de données du tableau de classement (| Pari | Cote | … |)
+    m = re.search(r"^\|\s*([^|]+?)\s*\|\s*([\d]+[.,][\d]+)\s*\|", analysis, re.M)
+    if m:
+        sel = re.sub(r"\*\*|\*", "", m.group(1)).strip()
+        if sel and sel.lower() not in ("pari", "sélection", "selection"):
+            return f"{sel} @{m.group(2).replace(',', '.')}"[:90]
+    return ""
 
 
 _VOTES_CACHE: dict = {}   # (sport, sofa_id) -> votes : évite de récupérer les votes 2× par match
