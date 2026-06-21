@@ -32,6 +32,7 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
+_settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un même process (anti double-notif)
 _SETTLE_VERSION = 37   # v37 : BTTS par mi-temps (BTTSHALF) via les périodes.
 # v36 : props joueur basket COMBINÉS (PRA/PR/PA/RA) + format seuil « X+ ».
 # v35 : premier BUTEUR (FIRSTSCORER) + arrêts du gardien par équipe (GKSAVES) via FotMob.
@@ -816,6 +817,13 @@ async def settle_analyses() -> int:
     """Règle TOUS les matchs analysés terminés. Code = `pick_code` sinon dérivé. Score via
     event/{id} (id Sofa valide : donne aussi jeux par set + 1er service) ; repli scheduled-events
     par noms (foot non résolu). HOLD1 -> point-by-point. Renvoie le nombre de sidecars écrits."""
+    if _settle_lock.locked():          # une passe tourne déjà -> ne pas en lancer une 2e en parallèle
+        return 0
+    async with _settle_lock:
+        return await _settle_analyses_impl()
+
+
+async def _settle_analyses_impl() -> int:
     pending = []
     for side in glob.glob(os.path.join(analyses.DIR, "*.json")):
         try:
@@ -1138,16 +1146,20 @@ async def settle_analyses() -> int:
             new_pick = (d.get("result") or {}).get("pick_result")
             new_combo = (d.get("combo") or {}).get("result")
             _parts = []
-            if prev_pick is None and new_pick in _chip:
+            # Flags PERSISTANTS écrits avec le résultat -> notification IDEMPOTENTE : une fois notifié,
+            # plus jamais re-notifié (re-règlement après bump de version, redémarrage, reload uvicorn…).
+            if prev_pick is None and new_pick in _chip and not d.get("notified_pick"):
                 _pl = (d.get("pick") or "").strip()
                 _parts.append(f"Simple {_chip[new_pick]}" + (f" — {_pl}" if _pl else ""))
-            if prev_combo is None and new_combo in _chip:
+                d["notified_pick"] = True
+            if prev_combo is None and new_combo in _chip and not d.get("notified_combo"):
                 _legmark = {"won": "✅", "lost": "❌", "push": "➖"}
                 _cl = f"Combiné {_chip[new_combo]}"
                 for _lg in (d.get("combo") or {}).get("legs", []):
                     _lr = _lg.get("result")
                     _cl += f"\n      {_legmark.get(_lr, '·')} {_lg.get('sel', '?')}"
                 _parts.append(_cl)
+                d["notified_combo"] = True
             if _parts:
                 notify_msgs.append(f"{_emo} {_match}" + (f"  ({_sc})" if _sc else "")
                                    + "\n   " + "\n   ".join(_parts))
