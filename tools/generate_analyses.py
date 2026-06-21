@@ -1271,7 +1271,11 @@ async def main():
                 if _pick:
                     _line += f"\n   • Simple : {_pick}"
                 if combo and combo.get("legs"):
-                    _line += f"\n   • Combiné : {len(combo['legs'])} jambes @{combo.get('total', '?')}"
+                    _legs = combo["legs"]
+                    _line += f"\n   • Combiné @{combo.get('total', '?')} ({len(_legs)} jambes) :"
+                    for _lg in _legs:
+                        _c = _lg.get("cote")
+                        _line += f"\n      – {_lg.get('sel', '?')}" + (f" @{_c}" if _c else "")
                 if not _pick and not (combo and combo.get("legs")):
                     _line += "\n   • (calibration seule)"
                 notif_lines.append(_line)

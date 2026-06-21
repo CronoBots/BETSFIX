@@ -1142,7 +1142,12 @@ async def settle_analyses() -> int:
                 _pl = (d.get("pick") or "").strip()
                 _parts.append(f"Simple {_chip[new_pick]}" + (f" — {_pl}" if _pl else ""))
             if prev_combo is None and new_combo in _chip:
-                _parts.append(f"Combiné {_chip[new_combo]}")
+                _legmark = {"won": "✅", "lost": "❌", "push": "➖"}
+                _cl = f"Combiné {_chip[new_combo]}"
+                for _lg in (d.get("combo") or {}).get("legs", []):
+                    _lr = _lg.get("result")
+                    _cl += f"\n      {_legmark.get(_lr, '·')} {_lg.get('sel', '?')}"
+                _parts.append(_cl)
             if _parts:
                 notify_msgs.append(f"{_emo} {_match}" + (f"  ({_sc})" if _sc else "")
                                    + "\n   " + "\n   ".join(_parts))
