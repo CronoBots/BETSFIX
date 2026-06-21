@@ -855,19 +855,11 @@ async def foot_player_stat(d: dict, player_query: str, stat: str, side: str | No
     ps = cont.get("playerStats") or {}
     if not isinstance(ps, dict):
         return None
-    gen = (j or {}).get("general") or {}
-    fm_home = ((gen.get("homeTeam") or {}).get("name")) or home
-    home_is_first = _is_home(fm_home, home, away)        # FotMob respecte-t-il l'ordre Unibet ?
-    lu = cont.get("lineup") or {}
-    # ids des joueurs par équipe (pour l'agrégation par `side`)
-    side_ids: dict = {"HOME": set(), "AWAY": set()}
-    for k, lbl in (("homeTeam", "HOME" if home_is_first else "AWAY"),
-                   ("awayTeam", "AWAY" if home_is_first else "HOME")):
-        for grp in ((lu.get(k) or {}).get("players") or []):
-            for pl in (grp if isinstance(grp, list) else [grp]):
-                pid = pl.get("id") or pl.get("pid")
-                if pid is not None:
-                    side_ids[lbl].add(str(pid))
+
+    def _player_side(pl):                                # équipe du joueur via teamName (fiable)
+        tn = pl.get("teamName") or ""
+        oh, oa = _ov(tn, home), _ov(tn, away)
+        return "HOME" if oh > oa else ("AWAY" if oa > oh else None)
 
     def _val(pl):
         tot, got = 0, False
@@ -887,7 +879,7 @@ async def foot_player_stat(d: dict, player_query: str, stat: str, side: str | No
             if not (qtok <= _tok(nm)):
                 continue
         elif side:
-            if str(pid) not in side_ids.get(side, set()):
+            if _player_side(pl) != side:
                 continue
         v = _val(pl)
         if v is not None:
@@ -897,6 +889,32 @@ async def foot_player_stat(d: dict, player_query: str, stat: str, side: str | No
     if qtok:
         return found[0] if len(found) == 1 else None     # nom STRICT : un seul joueur
     return sum(found)                                     # agrégation équipe (gardien/total)
+
+
+async def first_scorer(d: dict) -> str | None:
+    """Nom du PREMIER BUTEUR du match (FotMob events). '' si AUCUN but (0-0). None si indisponible ->
+    le règlement re-tentera. Sert au marché « Premier buteur <joueur> » (matching STRICT côté caller)."""
+    import httpx
+    home, away = d.get("home", ""), d.get("away", "")
+    if not (home and away):
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_T) as cl:
+            mid = await _fotmob_find(cl, home, away, d.get("start") or "")
+            if not mid:
+                return None
+            j = await _get_json(cl, f"{_FOTMOB}/matchDetails?matchId={mid}")
+    except Exception:
+        return None
+    ev = (((j or {}).get("content") or {}).get("matchFacts") or {}).get("events") or {}
+    evs = ev.get("events") if isinstance(ev, dict) else ev
+    if not isinstance(evs, list):
+        return None
+    goals = [e for e in evs if isinstance(e, dict) and e.get("type") == "Goal"]
+    if not goals:
+        return ""
+    goals.sort(key=lambda e: (e.get("time") if isinstance(e.get("time"), (int, float)) else 999))
+    return ((goals[0].get("player") or {}).get("name")) or None
 
 
 async def final_score(sport: str, d: dict) -> dict | None:
