@@ -32,7 +32,10 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 29   # v29 : marchés MI-TEMPS foot réglés (TEAMHALF/HALFTOT/WINHALF) via le score par
+_SETTLE_VERSION = 30   # v30 : couverture EXHAUSTIVE — basket quart-temps/mi-temps (BQ*), tennis score
+#                              exact/handicap jeux/tie-break (SETSCORE/GAMESHCAP/TIEBREAK), foot score
+#                              exact + marque 2 MT (SCORE/TEAMBOTH). Plus de marché mal codé/non réglable.
+# v29 : marchés MI-TEMPS foot réglés (TEAMHALF/HALFTOT/WINHALF) via le score par
 #                              mi-temps ET par équipe (LiveScore periods) -> plus de « non réglable ».
 # v28 : règlement des PRÉDICTIONS FANTÔMES (shadow) pour le calibrage.
 # v27 : jeux d'UN joueur (« <joueur> moins de X.5 jeux ») = TEAMGAMES (≠ TOTGAMES) ;
@@ -154,6 +157,59 @@ def settle_pick(code: str, score: dict) -> str | None:
         i = 0 if parts[1] == "HOME" else 1
         o = 1 - i
         return "won" if (p1[i] > p1[o] or p2[i] > p2[o]) else "lost"
+    if kind == "TEAMBOTH" and len(parts) >= 2:          # équipe marque dans les DEUX mi-temps
+        p1, p2 = _per(1), _per(2)
+        if not p1 or not p2:
+            return None
+        i = 0 if parts[1] == "HOME" else 1
+        return "won" if (p1[i] >= 1 and p2[i] >= 1) else "lost"
+    if kind == "SCORE" and has_ha and len(parts) >= 3:  # score EXACT (foot)
+        try:
+            th, ta = int(parts[1]), int(parts[2])
+        except ValueError:
+            return None
+        return "won" if (h == th and a == ta) else "lost"
+    # --- BASKET : marchés par SEGMENT (quart-temps OU mi-temps) depuis les périodes LiveScore
+    #     (periods[1..4] = Q1..Q4). `spec` = "1".."4" (quart) ou "H1"=Q1+Q2 / "H2"=Q3+Q4 (mi-temps). ---
+    def _seg(spec):
+        qs = {"H1": [1, 2], "H2": [3, 4]}.get(spec, [int(spec)] if spec.isdigit() else [])
+        sh_, sa_, got = 0, 0, False
+        for q in qs:
+            pp = _per(q)
+            if pp:
+                sh_ += pp[0]; sa_ += pp[1]; got = True
+        return (sh_, sa_) if got else None
+    if kind in ("BQTOT", "BQTEAM", "BQWIN", "BQHCAP"):
+        try:
+            if kind == "BQTOT" and len(parts) >= 4:         # BQTOT <spec> OVER/UNDER <ligne>
+                seg = _seg(parts[1])
+                if not seg:
+                    return None
+                tot, line = seg[0] + seg[1], float(parts[3])
+                return "push" if tot == line else ("won" if ((tot > line) == (parts[2] == "OVER")) else "lost")
+            if kind == "BQTEAM" and len(parts) >= 5:        # BQTEAM HOME/AWAY <spec> OVER/UNDER <ligne>
+                seg = _seg(parts[2])
+                if not seg:
+                    return None
+                g, line = (seg[0] if parts[1] == "HOME" else seg[1]), float(parts[4])
+                return "push" if g == line else ("won" if ((g > line) == (parts[3] == "OVER")) else "lost")
+            if kind == "BQWIN" and len(parts) >= 3:         # BQWIN <spec> HOME/AWAY
+                seg = _seg(parts[1])
+                if not seg:
+                    return None
+                if seg[0] == seg[1]:
+                    return "push"
+                return "won" if ((parts[2] == "HOME") == (seg[0] > seg[1])) else "lost"
+            if kind == "BQHCAP" and len(parts) >= 4:        # BQHCAP HOME/AWAY <spec> <ligne signée>
+                seg = _seg(parts[2])
+                if not seg:
+                    return None
+                line = float(parts[3])
+                diff = (seg[0] + line - seg[1]) if parts[1] == "HOME" else (seg[1] + line - seg[0])
+                return "push" if diff == 0 else ("won" if diff > 0 else "lost")
+        except ValueError:
+            return None
+        return None
     # --- handicap & total d'équipe (depuis le score final h/a : basket points, foot buts) ---
     if kind == "HCAP" and has_ha and len(parts) >= 3:   # HCAP HOME/AWAY <ligne signée>
         try:
@@ -183,6 +239,18 @@ def settle_pick(code: str, score: dict) -> str | None:
             return None
         total = sh + sa
         return "push" if total == line else ("won" if ((total > line) == (parts[1] == "OVER")) else "lost")
+    if kind == "GAMESHCAP" and len(parts) >= 3 and periods:   # handicap de JEUX (tennis) sur l'écart TOTAL
+        try:
+            line = float(parts[2])
+        except ValueError:
+            return None
+        th = sum(p[0] for p in periods.values())
+        ta = sum(p[1] for p in periods.values())
+        diff = (th + line - ta) if parts[1] == "HOME" else (ta + line - th)
+        return "push" if diff == 0 else ("won" if diff > 0 else "lost")
+    if kind == "TIEBREAK" and len(parts) >= 2 and periods:    # un tie-break a-t-il eu lieu ? (set 7-6/6-7)
+        tb = any({p[0], p[1]} == {6, 7} for p in periods.values())
+        return "won" if (tb == (parts[1] == "YES")) else "lost"
     # --- cartons / corners : depuis les STATS du match (event/{id}/statistics), cf. _event_stats ---
     if kind in ("CARDS", "REDCARDS", "CORNERS"):
         stats = score.get("stats") or {}
@@ -242,10 +310,86 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         s = which()
         return f"{kind} {s}{(' ' + yesno) if (s and yesno) else ''}" if s else ""
 
+    # PROPS JOUEUR (stats individuelles : rebonds, passes, interceptions… box-score NON dispo) ->
+    # ABSTENTION : jamais un code réglé sur le total du match (= faux).
+    if any(k in t for k in ("rebond", "passe déc", "passes déc", "interception", "double-double",
+                            "triple-double", "contre de ")):
+        return ""
+    # BASKET — marchés par QUART-TEMPS ou MI-TEMPS (réglés sur les périodes, PAS le match entier) :
+    # spec "1".."4" = quart ; "H1"/"H2" = mi-temps (Q1+Q2 / Q3+Q4). DOIT passer AVANT les handlers
+    # génériques (sinon un « 1er quart » serait réglé sur le match complet).
+    if sport == "basket":
+        # prop joueur « <Joueur> … points/paniers » (≠ « Total points » du match, ≠ une ÉQUIPE) -> abstention.
+        _lead = (pick.strip().split() or [""])[0].lower()
+        if ("point" in t or "panier" in t) and not which() and _lead not in (
+                "total", "nombre", "plus", "moins", "score", "le", "les", "over", "under",
+                "écart", "ecart", "différence", "difference", "premier", "1er"):
+            return ""
+        spec = None
+        if "quart" in t:
+            for pat, sp in [(("1er", "premier", "q1", "1 quart"), "1"),
+                            (("2e ", "2ème", "2eme", "deuxième", "q2"), "2"),
+                            (("3e ", "3ème", "3eme", "troisième", "q3"), "3"),
+                            (("4e ", "4ème", "4eme", "quatrième", "q4"), "4")]:
+                if any(k in t for k in pat):
+                    spec = sp
+                    break
+        elif "mi-temps" in t or "mi temps" in t:
+            spec = "H2" if any(k in t for k in ("2e mi", "2ème mi", "2eme mi", "seconde mi",
+                                                "deuxième mi", "2nde mi")) else "H1"
+        if spec:
+            team = which()
+            if "handicap" in t:
+                sgn = re.search(r"([+\-−–])\s?(\d+(?:[.,]\d+)?)", t)
+                if team and sgn:
+                    val = (sgn.group(1).replace("−", "-").replace("–", "-") + sgn.group(2).replace(",", "."))
+                    return f"BQHCAP {team} {spec} {val}"
+            if any(k in t for k in ("gagne", "vainqueur", "remporte")) and team:
+                return f"BQWIN {spec} {team}"
+            ln = re.search(r"(plus|moins)\s+de\s+(\d+[.,]?\d*)", t)
+            sg = ln or re.search(r"([+\-])\s?(\d+[.,]?\d*)", t)
+            if ln:
+                dirn, line = ("OVER" if ln.group(1) == "plus" else "UNDER"), ln.group(2).replace(",", ".")
+            elif sg:
+                dirn, line = ("UNDER" if sg.group(1) == "-" else "OVER"), sg.group(2).replace(",", ".")
+            else:
+                return ""
+            return f"BQTEAM {team} {spec} {dirn} {line}" if team else f"BQTOT {spec} {dirn} {line}"
+
+    # FOOT — score EXACT (depuis h/a final) et « <équipe> marque dans les DEUX mi-temps » (depuis les
+    # périodes : but de l'équipe en 1ère ET en 2e MT).
+    if sport == "foot":
+        ms = re.search(r"score\s+exact\s+(\d+)\s*[-–]\s*(\d+)", t)
+        if ms:
+            return f"SCORE {ms.group(1)} {ms.group(2)}"
+        if "marque" in t and ("mi-temps" in t or "mi temps" in t) and (
+                "deux mi" in t or "2 mi-temps" in t or ("1ère" in t and ("2e" in t or "2ème" in t))):
+            team = which()
+            if team:
+                return f"TEAMBOTH {team}"
+
     # 1er jeu de service tenu (Oui/Non)
     if "jeu de service" in t or ("1er jeu" in t and "service" in t):
         yn = "NO" if (" non" in t or "perd" in t) else "YES"
         return side("HOLD1", yn)
+    # TENNIS — marchés spécifiques (AVANT les handlers génériques qui régleraient sur h/a, indéfinis
+    # au tennis = mauvais code). Aces/doubles fautes : stats joueur non dispo -> abstention.
+    if sport == "tennis":
+        if any(k in t for k in ("ace", "double faute", "double-faute")):
+            return ""
+        if "tie-break" in t or "tie break" in t or "jeu décisif" in t or "jeu decisif" in t:
+            return "TIEBREAK NO" if (" non" in t or "aucun" in t or "sans" in t or "pas de" in t) else "TIEBREAK YES"
+        # score exact en sets « Score 2-0 », « 2-1 <joueur> » (sans le mot « set »)
+        ms = re.search(r"\b([0-3])\s*[-–]\s*([0-3])\b", t)
+        if ms and which() and "jeux" not in t and "corner" not in t:
+            big, small = ms.group(1), ms.group(2)
+            return f"SETSCORE {big} {small}" if which() == "HOME" else f"SETSCORE {small} {big}"
+        # handicap de JEUX « <joueur> -3.5 jeux » -> GAMESHCAP (écart total de jeux), JAMAIS HCAP.
+        if "jeux" in t and "set" not in t and not ("plus" in t or "moins" in t):
+            sgn = re.search(r"([+\-−–])\s?(\d+(?:[.,]\d+)?)", t)
+            if sgn and which():
+                val = (sgn.group(1).replace("−", "-").replace("–", "-") + sgn.group(2).replace(",", "."))
+                return f"GAMESHCAP {which()} {val}"
     # total jeux d'un set (gère les deux ordres, y compris « Set 1 — Plus de 8.5 jeux »)
     m = re.search(r"jeux?\s+(?:du\s+)?set\s*(\d)", t) or re.search(r"set\s*(\d).*?jeux", t)
     if m and ("plus" in t or "moins" in t):
@@ -712,7 +856,8 @@ async def settle_analyses() -> int:
             # donnée EXISTE (re-sourcing : ne JAMAIS exclure un marché faute de pouvoir le valider).
             shadow_codes = [s.get("code", "") for s in (d.get("shadow") or [])]
             need_periods = (not score.get("periods")) and any(
-                c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE", "TEAMHALF", "HALFTOT", "WINHALF"))
+                c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE", "TEAMHALF", "HALFTOT", "WINHALF",
+                              "TEAMBOTH", "BQTOT", "BQTEAM", "BQWIN", "BQHCAP", "GAMESHCAP", "TIEBREAK"))
                 or "1H" in c or "2H" in c
                 for c in [code, *bet_codes, *combo_codes, *shadow_codes] if c)
             if need_periods:
