@@ -258,7 +258,10 @@ def list_for(sport: str) -> list[dict]:
         # Mode strict : un match analysé SANS AUCUN pari ≥ seuil (SKIP assumé) n'apparaît PLUS dans
         # l'app (demande utilisateur 2026-06-12) — on ne montre que ce qui se joue. (Le sidecar et
         # le .md restent sur disque : cache du scan, pas de re-analyse inutile.)
-        if not is_settled(d) and load(sport, d.get("id")) is not None \
+        # EXCEPTION : un match avec un COMBINÉ (ex. CdM, où le combiné REMPLACE le pari simple) doit
+        # rester visible même sans pari simple retenu — sinon les matchs CdM combiné-seul disparaissent.
+        _has_combo = bool((d.get("combo") or {}).get("legs"))
+        if not is_settled(d) and not _has_combo and load(sport, d.get("id")) is not None \
                 and not bets_of(sport, d.get("id")):
             continue
         d["_start_dt"] = dt
