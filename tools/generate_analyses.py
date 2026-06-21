@@ -46,6 +46,8 @@ from app.match_select import UNIBET_B, UNIBET_PARAMS, fetch_important  # noqa: E
 # Combinés même-match pré-construits Unibet (prepackcoupon), par event_id : VRAIE cote corrélée.
 # Rempli dans build_dossier, relu dans _parse_combo pour re-pricer le combiné de l'analyste.
 _PREPACK_CACHE: dict[str, list] = {}
+# Catalogue des issues éligibles Bet Builder par event_id (pour pricer un combiné ARBITRAIRE exactement).
+_CATALOG_CACHE: dict[str, list] = {}
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "analyses")
@@ -824,6 +826,10 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         if prepacks:
             _PREPACK_CACHE[str(match["id"])] = prepacks
             combo += _prepack_menu(prepacks, sport, match.get("home", ""), match.get("away", ""))
+        # Catalogue Bet Builder -> pricing EXACT du combiné de l'analyste (vraie cote corrélée).
+        catalog = await asyncio.to_thread(unibet.betbuilder_catalog, str(match["id"]))
+        if catalog:
+            _CATALOG_CACHE[str(match["id"])] = catalog
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
@@ -936,6 +942,49 @@ def _match_prepack(legs: list, prepacks: list):
     return None
 
 
+def _normalize_leg_sel(sel: str, home: str, away: str) -> str:
+    """Réécrit certaines formulations de l'analyste vers le libellé du catalogue Bet Builder.
+    Surtout la DOUBLE CHANCE (« <équipe> ou nul » -> « double chance 1X/X2 » ; « <A> ou <B> » -> 12)."""
+    s = (sel or "").lower()
+    ht = {w for w in re.findall(r"[a-zà-ÿ]{4,}", (home or "").lower())}
+    at = {w for w in re.findall(r"[a-zà-ÿ]{4,}", (away or "").lower())}
+    if re.search(r"\bou\b.*\bnul\b", s) or "double chance" in s:
+        left = {w for w in re.findall(r"[a-zà-ÿ]{4,}", s.split(" ou ")[0])}
+        if "1x" in s or (ht & left):
+            return "double chance 1X"
+        if "x2" in s or (at & left):
+            return "double chance X2"
+    if re.search(r"\bou\b", s) and (ht & {w for w in re.findall(r'[a-zà-ÿ]{4,}', s)}) and \
+            (at & {w for w in re.findall(r'[a-zà-ÿ]{4,}', s)}):
+        return "double chance 12"
+    return sel
+
+
+def _resolve_combo(legs: list, catalog: list, home: str = "", away: str = "", tol: float = 0.12):
+    """Résout les jambes d'un combiné en outcome_ids du Bet Builder (pour pricer exactement).
+    STRICT : Jaccard de mots (pénalise les tokens en trop), MÊME ensemble de nombres (ligne exacte),
+    et AUTO-VÉRIF par la cote (la cote résolue doit coller à celle de la jambe à ±tol, sinon résolution
+    douteuse -> on abandonne le combiné entier). Renvoie [outcome_ids] ou None (alors repli)."""
+    ids = []
+    for leg in legs:
+        lw, ln = _cb_toks(_normalize_leg_sel(leg.get("sel", ""), home, away))
+        lc = leg.get("cote")
+        best, bj = None, 0.0
+        for c in catalog:
+            cw, cn = _cb_toks(c.get("text", ""))
+            if ln != cn or not (lw | cw):
+                continue
+            jac = len(lw & cw) / len(lw | cw)
+            if jac > bj:
+                best, bj = c, jac
+        if not best or bj < 0.5:
+            return None
+        if lc and best.get("odds") and abs(best["odds"] - lc) / lc > tol:
+            return None                          # cote incohérente -> mauvaise résolution probable
+        ids.append(best["id"])
+    return ids if len(ids) == len(legs) else None
+
+
 def _parse_combo(analysis: str, sport: str, home: str, away: str,
                  event_id: str | None = None) -> dict | None:
     """Parse la ligne technique `COMBO: s1 @c1 | s2 @c2 | … = total` -> {legs:[{sel, cote, code}],
@@ -998,12 +1047,29 @@ def _parse_combo(analysis: str, sport: str, home: str, away: str,
     out = {"legs": legs, "total": round(total, 2)}
     if synth:
         out["why"] = synth
-    # Re-pricing : si le combiné correspond à un prepack Unibet, on attache la VRAIE cote corrélée.
-    prepacks = _PREPACK_CACHE.get(str(event_id)) if event_id else None
-    if prepacks:
-        hit = _match_prepack(legs, prepacks)
-        if hit:
-            out["real_odds"], out["shave"], out["prepack_id"] = round(hit[0], 2), hit[1], hit[2]
+    # Pricing de la VRAIE cote corrélée, par ordre de fiabilité :
+    naive = 1.0
+    for leg in legs:
+        naive *= leg["cote"]
+    eid = str(event_id) if event_id else None
+    # 1) EXACT — Bet Builder : on résout les jambes en outcome_ids et on demande la vraie cote à Kambi.
+    catalog = _CATALOG_CACHE.get(eid) if eid else None
+    if catalog:
+        ids = _resolve_combo(legs, catalog, home, away)
+        if ids:
+            real = unibet.betbuilder_odds(eid, ids)
+            if real:
+                out["real_odds"] = round(real, 2)
+                out["shave"] = round(100 * (1 - real / naive), 1) if naive else None
+                out["priced_by"] = "betbuilder"
+    # 2) Repli — correspondance avec un combiné pré-construit (prepack).
+    if "real_odds" not in out and eid:
+        prepacks = _PREPACK_CACHE.get(eid)
+        if prepacks:
+            hit = _match_prepack(legs, prepacks)
+            if hit:
+                out["real_odds"], out["shave"], out["prepack_id"] = round(hit[0], 2), hit[1], hit[2]
+                out["priced_by"] = "prepack"
     return out
 
 

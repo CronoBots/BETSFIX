@@ -119,6 +119,43 @@ def prepack_combos(event_id: str) -> list[dict]:
     return combos
 
 
+def betbuilder_catalog(event_id: str) -> list[dict]:
+    """Issues ÉLIGIBLES au Bet Builder d'un match (via l'offering ShapeGames qui les tague
+    `bet_builder`) -> [{id, text ('Critère Issue ligne'), odds}]. Sert à résoudre les jambes d'un
+    combiné en outcome_ids pour les pricer via betbuilder_odds. [] si indisponible."""
+    base = "https://offering.sbo.fra-hub.workload.shapegamescloud.com/ubbe/api"
+    url = f"{base}/events/{event_id}?" + urllib.parse.urlencode({"market": UNIBET_PARAMS.get("market", "BE"),
+                                                                 "lang": UNIBET_PARAMS.get("lang", "fr_BE")})
+    hdr = {**UNIBET_H, "Origin": "https://fr.unibetsports.be", "Referer": "https://fr.unibetsports.be/"}
+    try:
+        ev = json.loads(urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=15)
+                        .read().decode("utf-8", "replace"))
+    except Exception:
+        return []
+    out: list = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            if o.get("id") and isinstance(o.get("tags"), list) and "bet_builder" in o["tags"] and o.get("outcomes"):
+                crit = o.get("name", "")
+                for oc in o["outcomes"]:
+                    if oc.get("id") and not oc.get("suspended"):
+                        nm = oc.get("name") or oc.get("label") or ""
+                        try:
+                            od = float(oc.get("current_decimal_odds"))
+                        except (TypeError, ValueError):
+                            od = None
+                        out.append({"id": int(oc["id"]), "text": f"{crit} {nm}".strip(), "odds": od})
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x)
+
+    walk(ev)
+    return out
+
+
 def betbuilder_odds(event_id: str, outcome_ids: list) -> float | None:
     """VRAIE cote corrélée d'un combiné MÊME-MATCH **arbitraire** (Bet Builder Unibet/Kambi), via
     l'endpoint de validation de coupon `coupon/validate.json`. SANS login (isUserLoggedIn=false).
