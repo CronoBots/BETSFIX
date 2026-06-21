@@ -23,6 +23,22 @@ import httpx
 log = logging.getLogger("betsfix.notify")
 
 _CFG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "notify.json")
+# IDs des messages envoyés par le bot -> supprimés AVANT chaque nouveau post (chat propre).
+_SENT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "notify_sent.json")
+
+
+def _load_sent() -> list:
+    try:
+        return json.load(open(_SENT_PATH, encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
+def _save_sent(lst: list) -> None:
+    try:
+        json.dump(lst, open(_SENT_PATH, "w", encoding="utf-8"))
+    except OSError:
+        pass
 
 
 def _config() -> tuple[str | None, list[str]]:
@@ -47,50 +63,75 @@ def configured() -> bool:
     return bool(tok and chats)
 
 
-async def send(text: str) -> bool:
-    """Envoie `text` à tous les chats configurés. Renvoie True si au moins un envoi a réussi.
-    No-op silencieux si non configuré ; n'élève jamais."""
+async def send(text: str, clean: bool = True) -> bool:
+    """Envoie `text` à tous les chats configurés. Si `clean`, SUPPRIME d'abord les messages du post
+    précédent (chat propre : seul le dernier reste). Renvoie True si ≥1 envoi a réussi. No-op si non
+    configuré ; n'élève jamais."""
     tok, chats = _config()
     if not (tok and chats):
         return False
-    url = f"https://api.telegram.org/bot{tok}/sendMessage"
-    ok = False
+    base = f"https://api.telegram.org/bot{tok}"
+    ok, sent = False, []
     try:
         async with httpx.AsyncClient(timeout=12) as cl:
+            if clean:                                         # efface le post précédent
+                for s in _load_sent():
+                    try:
+                        await cl.post(base + "/deleteMessage",
+                                      json={"chat_id": s.get("chat"), "message_id": s.get("mid")})
+                    except Exception:
+                        pass
+                _save_sent([])
             for ch in chats:
                 try:
-                    r = await cl.post(url, json={
-                        "chat_id": ch, "text": text[:4000],
-                        "disable_web_page_preview": True,
-                    })
+                    r = await cl.post(base + "/sendMessage", json={
+                        "chat_id": ch, "text": text[:4000], "disable_web_page_preview": True})
                     ok = ok or (r.status_code == 200)
-                    if r.status_code != 200:
+                    if r.status_code == 200:
+                        mid = (r.json().get("result") or {}).get("message_id")
+                        if mid:
+                            sent.append({"chat": ch, "mid": mid})
+                    else:
                         log.warning("notif Telegram %s -> HTTP %s : %s", ch, r.status_code, r.text[:200])
                 except Exception as exc:                      # réseau / DNS transitoire
                     log.warning("notif Telegram %s échouée : %s", ch, exc)
+            if sent:
+                _save_sent(sent)
     except Exception as exc:
         log.warning("notif Telegram (client) échouée : %s", exc)
     return ok
 
 
-def send_sync(text: str) -> bool:
-    """Variante synchrone (contextes hors boucle asyncio). Mêmes garanties de tolérance."""
+def send_sync(text: str, clean: bool = True) -> bool:
+    """Variante synchrone (contextes hors boucle asyncio). Mêmes garanties + nettoyage du post précédent."""
     tok, chats = _config()
     if not (tok and chats):
         return False
-    url = f"https://api.telegram.org/bot{tok}/sendMessage"
-    ok = False
+    base = f"https://api.telegram.org/bot{tok}"
+    ok, sent = False, []
     try:
         with httpx.Client(timeout=12) as cl:
+            if clean:
+                for s in _load_sent():
+                    try:
+                        cl.post(base + "/deleteMessage",
+                                json={"chat_id": s.get("chat"), "message_id": s.get("mid")})
+                    except Exception:
+                        pass
+                _save_sent([])
             for ch in chats:
                 try:
-                    r = cl.post(url, json={
-                        "chat_id": ch, "text": text[:4000],
-                        "disable_web_page_preview": True,
-                    })
+                    r = cl.post(base + "/sendMessage", json={
+                        "chat_id": ch, "text": text[:4000], "disable_web_page_preview": True})
                     ok = ok or (r.status_code == 200)
+                    if r.status_code == 200:
+                        mid = (r.json().get("result") or {}).get("message_id")
+                        if mid:
+                            sent.append({"chat": ch, "mid": mid})
                 except Exception as exc:
                     log.warning("notif Telegram %s échouée : %s", ch, exc)
+            if sent:
+                _save_sent(sent)
     except Exception as exc:
         log.warning("notif Telegram (client) échouée : %s", exc)
     return ok
