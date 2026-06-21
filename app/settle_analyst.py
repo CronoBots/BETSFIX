@@ -32,7 +32,9 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 30   # v30 : couverture EXHAUSTIVE — basket quart-temps/mi-temps (BQ*), tennis score
+_SETTLE_VERSION = 31   # v31 : totaux de buts par mi-temps dérivés des PÉRIODES (bothhalves/1H/2H réglés
+#                              même sans Flashscore).
+# v30 : couverture EXHAUSTIVE — basket quart-temps/mi-temps (BQ*), tennis score
 #                              exact/handicap jeux/tie-break (SETSCORE/GAMESHCAP/TIEBREAK), foot score
 #                              exact + marque 2 MT (SCORE/TEAMBOTH). Plus de marché mal codé/non réglable.
 # v29 : marchés MI-TEMPS foot réglés (TEAMHALF/HALFTOT/WINHALF) via le score par
@@ -914,6 +916,16 @@ async def settle_analyses() -> int:
             # gagnées = gagné ; une perdue = perdu ; sinon en attente). Les corners/cartons se règlent
             # désormais (Flashscore), donc les combinés type Qatar-Suisse se valident.
             combo = d.get("combo")
+            # Totaux de buts PAR MI-TEMPS dérivés des PÉRIODES (LiveScore) si absents des stats df_st ->
+            # « but dans les 2 mi-temps » et marchés 1H/2H foot se règlent même sans Flashscore.
+            _per = score.get("periods") or {}
+            if sport == "foot" and _per:
+                _st = dict(score.get("stats") or {})
+                if _per.get(1) and _st.get("goals_1h_total") is None:
+                    _st["goals_1h_total"] = _per[1][0] + _per[1][1]
+                if _per.get(2) and _st.get("goals_2h_total") is None:
+                    _st["goals_2h_total"] = _per[2][0] + _per[2][1]
+                score["stats"] = _st
             if combo and combo.get("legs"):
                 stats = score.get("stats") or {}    # corners/cartons/tirs MATCH + variantes 1ère MT (_1h)
                 vals = {"goals_h": score.get("home"), "goals_a": score.get("away"), **stats}
