@@ -855,11 +855,16 @@ async def settle_analyses() -> int:
         return 0
     n = 0
     sched_cache: dict = {}
+    notify_msgs: list[str] = []   # transitions « en attente -> réglé » -> notif Telegram (fin de boucle)
     prev_bulk = sofa_http.allow_bulk_proxy
     sofa_http.allow_bulk_proxy = True   # autorise scheduled-events (repli) pendant le règlement
     try:
         for side, d in pending:
             sport = d.get("sport")
+            # État AVANT règlement (lu du disque) -> dédup naturel : un re-règlement (bump de version)
+            # ne re-notifie pas, l'ancien résultat n'étant plus None.
+            prev_pick = (d.get("result") or {}).get("pick_result")
+            prev_combo = (d.get("combo") or {}).get("result")
             code = (d.get("pick_code")
                     or code_from_pick(d.get("pick", ""), sport, d.get("home", ""), d.get("away", "")))
             sofa = str(d.get("sofa_id") or "")
@@ -1125,6 +1130,22 @@ async def settle_analyses() -> int:
                         if len(v) > 2 and v[2] is not None:
                             d["pub_draw"] = v[2] / 100
                 d["votes_tries"] = (d.get("votes_tries") or 0) + 1
+            # Transition « en attente -> réglé » -> notification (simple ET/OU combiné).
+            _chip = {"won": "✅ Réussi", "lost": "❌ Perdu", "push": "➖ Remboursé"}
+            _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
+            _match = f"{d.get('home', '')} - {d.get('away', '')}"
+            _sc = (d.get("result") or {}).get("score") or ""
+            new_pick = (d.get("result") or {}).get("pick_result")
+            new_combo = (d.get("combo") or {}).get("result")
+            _parts = []
+            if prev_pick is None and new_pick in _chip:
+                _pl = (d.get("pick") or "").strip()
+                _parts.append(f"Simple {_chip[new_pick]}" + (f" — {_pl}" if _pl else ""))
+            if prev_combo is None and new_combo in _chip:
+                _parts.append(f"Combiné {_chip[new_combo]}")
+            if _parts:
+                notify_msgs.append(f"{_emo} {_match}" + (f"  ({_sc})" if _sc else "")
+                                   + "\n   " + "\n   ".join(_parts))
             try:
                 json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
                 n += 1
@@ -1132,4 +1153,13 @@ async def settle_analyses() -> int:
                 pass
     finally:
         sofa_http.allow_bulk_proxy = prev_bulk
+    # Notification Telegram des paris fraîchement réglés (no-op si non configuré ; n'élève jamais).
+    if notify_msgs:
+        try:
+            from app import notify
+            if notify.configured():
+                head = f"🏁 BETSFIX — {len(notify_msgs)} pari(s) réglé(s)"
+                await notify.send(head + "\n\n" + "\n\n".join(notify_msgs))
+        except Exception as exc:
+            log.warning("notif règlement ignorée : %s", exc)
     return n

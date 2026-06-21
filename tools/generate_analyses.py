@@ -1137,6 +1137,7 @@ async def main():
     sports = [s.strip() for s in args.sport.split(",") if s.strip()]
     total_t0 = time.time()
     n_gen = 0
+    notif_lines: list[str] = []   # récap Telegram (1 ligne par match retenu) -> envoyé à la fin
     async with httpx.AsyncClient(timeout=20) as client:
         for sport in sports:
             try:
@@ -1264,9 +1265,28 @@ async def main():
                 _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation)  # -> board
                 _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien
                 n_gen += 1
+                _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
+                _pick = _safe_pick(analysis)
+                _line = f"{_emo} {m['name']}"
+                if _pick:
+                    _line += f"\n   • Simple : {_pick}"
+                if combo and combo.get("legs"):
+                    _line += f"\n   • Combiné : {len(combo['legs'])} jambes @{combo.get('total', '?')}"
+                if not _pick and not (combo and combo.get("legs")):
+                    _line += "\n   • (calibration seule)"
+                notif_lines.append(_line)
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
                 await asyncio.sleep(SCAN_GAP)   # lisse la charge SofaScore entre 2 matchs
     print(f"\nTerminé : {n_gen} analyse(s) générée(s) en {time.time() - total_t0:.0f}s. Dossier : {OUT}")
+    # Notification Telegram (no-op si non configuré) : récap des paris du scan.
+    if notif_lines:
+        try:
+            from app import notify
+            if notify.configured():
+                head = f"🆕 BETSFIX — scan terminé : {n_gen} match(s) analysé(s)"
+                await notify.send(head + "\n\n" + "\n\n".join(notif_lines))
+        except Exception as _exc:
+            print(f"  (notif Telegram ignorée : {_exc})")
 
 
 if __name__ == "__main__":
