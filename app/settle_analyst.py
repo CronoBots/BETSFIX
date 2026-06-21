@@ -32,7 +32,8 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 33   # v33 : props JOUEUR basket (PLAYERBK PTS/REB/AST) via box-score ESPN (matching strict).
+_SETTLE_VERSION = 34   # v34 : props JOUEUR foot (PLAYERFB : arrêts/tirs/passes/tacles/fautes) via FotMob (Opta).
+# v33 : props JOUEUR basket (PLAYERBK PTS/REB/AST) via box-score ESPN (matching strict).
 # v32 : PREMIER BUT du match (FIRSTGOAL) réglé via les events FotMob (1er buteur).
 # v31 : totaux de buts par mi-temps dérivés des PÉRIODES (bothhalves/1H/2H réglés
 #                              même sans Flashscore).
@@ -383,6 +384,23 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             team = which()
             if team:
                 return f"TEAMBOTH {team}"
+        # PROPS JOUEUR foot (Opta via FotMob) : arrêts(GK)/passe décisive/tacle/faute + tirs (cadrés) d'un
+        # joueur NOMMÉ -> PLAYERFB. Le total d'ÉQUIPE (tirs cadrés équipe) reste à la métrique (which()).
+        _fs = ("ASSISTS" if ("passe déc" in t or "passe decis" in t or "passes déc" in t or "passes decis" in t)
+               else "TACKLES" if "tacle" in t else "FOULS" if "faute" in t
+               else "SOT" if ("tir" in t and ("cadré" in t or "cadre" in t))
+               else "SHOTS" if ("tir" in t and "cadr" not in t) else None)
+        if _fs and not which():
+            ln = re.search(r"(plus|moins)\s+de\s+(\d+[.,]?\d*)", t)
+            lead = (pick.strip().split() or [""])[0].lower()
+            if ln and lead not in ("total", "nombre", "le", "les", "plus", "moins", "arrêts", "arrets",
+                                    "nombre", "premier", "1er"):
+                who = re.split(r"\s+(?:plus|moins)\s+de\s+", pick, maxsplit=1, flags=re.I)[0]
+                who = re.sub(r"\s*(passes?\s*décisives?|passes?\s*decis\w*|tacles?|fautes?|tirs?\s*"
+                             r"(?:cadrés?|cadres?)?)\s*$", "", who.strip(), flags=re.I).strip(" -:–—")
+                if who and len(who) >= 3:
+                    dirn = "OVER" if ln.group(1) == "plus" else "UNDER"
+                    return f"PLAYERFB {_fs} {dirn} {ln.group(2).replace(',', '.')}|{who}"
 
     # 1er jeu de service tenu (Oui/Non)
     if "jeu de service" in t or ("1er jeu" in t and "service" in t):
@@ -916,6 +934,20 @@ async def settle_analyses() -> int:
                         return None
                     from app import sources as _src
                     val = await _src.basket_player_stat(d, who, hp[1])
+                    if val is None:
+                        return None                         # indispo OU joueur ambigu -> retente (jamais faux)
+                    return "push" if val == line else ("won" if ((val > line) == (hp[2] == "OVER")) else "lost")
+                if c.startswith("PLAYERFB"):                # prop joueur foot (Opta) -> FotMob playerStats
+                    head, _, who = c.partition("|")
+                    hp = head.split()
+                    if len(hp) < 4 or not who:
+                        return None
+                    try:
+                        line = float(hp[3])
+                    except ValueError:
+                        return None
+                    from app import sources as _src
+                    val = await _src.foot_player_stat(d, who, hp[1])
                     if val is None:
                         return None                         # indispo OU joueur ambigu -> retente (jamais faux)
                     return "push" if val == line else ("won" if ((val > line) == (hp[2] == "OVER")) else "lost")

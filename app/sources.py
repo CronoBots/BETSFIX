@@ -800,6 +800,79 @@ async def basket_player_stat(d: dict, player_query: str, label: str):
     return None
 
 
+_FB_STAT_KEYS = {                       # stat analyste -> clé(s) FotMob playerStats (Opta) à SOMMER
+    "SAVES": ("saves",), "ASSISTS": ("assists",), "SOT": ("ShotsOnTarget",),
+    "SHOTS": ("ShotsOnTarget", "ShotsOffTarget"), "TACKLES": ("matchstats.headers.tackles",),
+    "FOULS": ("fouls",), "PASSES": ("AccuratePasses", "accurate_passes"),
+}
+
+
+async def foot_player_stat(d: dict, player_query: str, stat: str, side: str | None = None):
+    """Stat OPTA d'un JOUEUR de foot via FotMob playerStats (gratuit, Opta-powered). stat ∈ _FB_STAT_KEYS.
+    `side` (HOME/AWAY) : si fourni SANS nom de joueur -> agrège l'équipe (ex. arrêts du GARDIEN de l'équipe).
+    Matching de nom STRICT sinon (un seul joueur -> valeur ; ambigu/introuvable -> None, jamais de faux)."""
+    import httpx
+    home, away = d.get("home", ""), d.get("away", "")
+    want = _FB_STAT_KEYS.get(stat)
+    qtok = _tok(player_query) if player_query else set()
+    if not (home and away and want and (qtok or side)):
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_T) as cl:
+            mid = await _fotmob_find(cl, home, away, d.get("start") or "")
+            if not mid:
+                return None
+            j = await _get_json(cl, f"{_FOTMOB}/matchDetails?matchId={mid}")
+    except Exception:
+        return None
+    cont = (j or {}).get("content") or {}
+    ps = cont.get("playerStats") or {}
+    if not isinstance(ps, dict):
+        return None
+    gen = (j or {}).get("general") or {}
+    fm_home = ((gen.get("homeTeam") or {}).get("name")) or home
+    home_is_first = _is_home(fm_home, home, away)        # FotMob respecte-t-il l'ordre Unibet ?
+    lu = cont.get("lineup") or {}
+    # ids des joueurs par équipe (pour l'agrégation par `side`)
+    side_ids: dict = {"HOME": set(), "AWAY": set()}
+    for k, lbl in (("homeTeam", "HOME" if home_is_first else "AWAY"),
+                   ("awayTeam", "AWAY" if home_is_first else "HOME")):
+        for grp in ((lu.get(k) or {}).get("players") or []):
+            for pl in (grp if isinstance(grp, list) else [grp]):
+                pid = pl.get("id") or pl.get("pid")
+                if pid is not None:
+                    side_ids[lbl].add(str(pid))
+
+    def _val(pl):
+        tot, got = 0, False
+        for g in pl.get("stats") or []:
+            items = g.get("stats") or {}
+            for st in (items.values() if isinstance(items, dict) else []):
+                if isinstance(st, dict) and st.get("key") in want:
+                    v = (st.get("stat") or {}).get("value")
+                    if isinstance(v, (int, float)):
+                        tot += v; got = True
+        return tot if got else None
+
+    found = []
+    for pid, pl in ps.items():
+        nm = pl.get("name") or ""
+        if qtok:
+            if not (qtok <= _tok(nm)):
+                continue
+        elif side:
+            if str(pid) not in side_ids.get(side, set()):
+                continue
+        v = _val(pl)
+        if v is not None:
+            found.append(v)
+    if not found:
+        return None
+    if qtok:
+        return found[0] if len(found) == 1 else None     # nom STRICT : un seul joueur
+    return sum(found)                                     # agrégation équipe (gardien/total)
+
+
 async def final_score(sport: str, d: dict) -> dict | None:
     """Règlement de SECOURS : score final du match `d` (sidecar : home/away/start/circuit) via
     FotMob (foot) ou ESPN (tennis ATP+WTA, basket NBA/WNBA). None si introuvable ou pas fini —

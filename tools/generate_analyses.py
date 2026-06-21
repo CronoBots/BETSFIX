@@ -354,11 +354,12 @@ METHODO = (
     "on mesure la justesse de TA proba, pas le rendement. Exemples : `CALIB: Allemagne gagne @1.55 | 71%` "
     "puis `CALIB: Plus de 2.5 buts @1.95 | 52%`, etc. Tous les marchés RÉGLABLES sont les bienvenus, "
     "VARIE-les un maximum pour calibrer PARTOUT : résultat, double chance, totaux, total d'équipe, "
-    "handicaps, BTTS, corners, cartons, tirs cadrés ; MI-TEMPS (buts équipe/match en 1ère/2e MT, gagne "
-    "une mi-temps, marque dans les 2 MT) ; foot score exact ; tennis sets/jeux, score exact, handicap de "
-    "jeux, tie-break ; basket QUART-TEMPS et mi-temps (vainqueur/total/équipe/handicap du quart). ÉVITE "
-    "seulement « premier but » et les props JOUEUR (rebonds/passes/aces/points d'un joueur) : pas encore "
-    "réglables.\n"
+    "handicaps, BTTS, corners, cartons, tirs cadrés ; MI-TEMPS (buts équipe/match, gagne une MT, marque "
+    "dans les 2 MT) ; foot score exact, PREMIER BUT (équipe) ; tennis sets/jeux, score exact, handicap de "
+    "jeux, tie-break ; basket QUART-TEMPS et mi-temps ; et désormais les PROPS JOUEUR (foot : tirs/tirs "
+    "cadrés/passes décisives/tacles/fautes d'un joueur NOMMÉ ; basket : points/rebonds/passes d'un joueur "
+    "NOMMÉ) — réglés via les données Opta (FotMob) / box-score ESPN. ÉVITE seulement : aces tennis, "
+    "interceptions/contres/double-double basket, et premier BUTEUR (joueur) — pas de source.\n"
 )
 
 
