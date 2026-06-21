@@ -283,6 +283,32 @@ async def _foot_extras(client, match: dict) -> list[str]:
             facts.append(f"Classement : {home} {p1}e ({pt1} pts) / {away} {p2}e ({pt2} pts) (FotMob)")
     except Exception:
         pass
+    # INSIGHTS OPTA (FotMob) : faits décisifs pré-match prêts à l'emploi (séries, H2H, formes, clean
+    # sheets, BTTS récents…) -> contexte FORT pour l'analyse, sur TOUTES les ligues (≠ Understat top-5).
+    _gen = (j or {}).get("general") or {}
+    _id2lbl = {((_gen.get("homeTeam") or {}).get("id")): (home if _is_home(((_gen.get("homeTeam") or {})
+               .get("name")) or home, home, away) else away),
+               ((_gen.get("awayTeam") or {}).get("id")): (away if _is_home(((_gen.get("homeTeam") or {})
+               .get("name")) or home, home, away) else home)}
+    for ins in (mf.get("insights") or [])[:7]:
+        txt = (ins.get("text") or "").strip()
+        if not txt:
+            continue
+        lbl = _id2lbl.get(ins.get("teamId"))
+        # préfixe l'équipe si l'insight la concerne mais ne la nomme pas dans le texte
+        if lbl and lbl.split()[0].lower() not in txt.lower() and ins.get("type") == "team":
+            txt = f"[{lbl}] {txt}"
+        facts.append(f"Opta : {txt} (FotMob)")
+    # BUTEUR CLÉ par équipe (top scorer du tournoi/saison) : buts + passes décisives + tirs cadrés.
+    ts = mf.get("topScorers") or {}
+    for key, label in (("homePlayer", home), ("awayPlayer", away)):
+        p = ts.get(key) or {}
+        sp = p.get("stats") or {}
+        nm = p.get("fullName") or p.get("lastName")
+        if nm and sp.get("goals") is not None:
+            facts.append(f"Buteur clé [{label}] : {nm} — {sp.get('goals')} but(s), "
+                         f"{sp.get('goalAssist', 0)} passe(s) déc., {sp.get('ontargetScoringAtt', 0)} "
+                         f"tir(s) cadré(s) (FotMob)")
     return facts
 
 
