@@ -240,9 +240,11 @@ async def probe(event_id: str, visible: bool, wait: float, click: str | None,
                                         "status": info.get("status"), "mime": info.get("mime"),
                                         "postData": info.get("postData")})
 
+            all_js = sorted({info.get("url") for info in reqs.values()
+                             if info.get("url") and (info["url"].endswith(".js") or ".js?" in info["url"])})
             out = {"event_id": event_id, "url": url, "n_requests": len(reqs),
                    "hosts": dict(sorted(hosts.items(), key=lambda x: -x[1])),
-                   "tabs_visibles": tabs, "interesting": interesting}
+                   "tabs_visibles": tabs, "interesting": interesting, "all_js": all_js}
             log_path = os.path.join(OUTDIR, f"net_{event_id}.json")
             with open(log_path, "w", encoding="utf-8") as f:
                 json.dump(out, f, ensure_ascii=False, indent=2)
