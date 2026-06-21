@@ -32,7 +32,9 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 28   # v28 : règlement des PRÉDICTIONS FANTÔMES (shadow) pour le calibrage.
+_SETTLE_VERSION = 29   # v29 : marchés MI-TEMPS foot réglés (TEAMHALF/HALFTOT/WINHALF) via le score par
+#                              mi-temps ET par équipe (LiveScore periods) -> plus de « non réglable ».
+# v28 : règlement des PRÉDICTIONS FANTÔMES (shadow) pour le calibrage.
 # v27 : jeux d'UN joueur (« <joueur> moins de X.5 jeux ») = TEAMGAMES (≠ TOTGAMES) ;
 #                              jambes de combiné réglées sur le code RE-DÉRIVÉ frais (code stocké périmé).
 # v26 : 1er pari réglé sur SON propre code (plus forcé au résultat du pick quand ils
@@ -123,6 +125,35 @@ def settle_pick(code: str, score: dict) -> str | None:
         if tsh is None or tsa is None:
             return None
         return "won" if (sh == tsh and sa == tsa) else "lost"
+    # --- marchés MI-TEMPS foot (score PAR mi-temps ET PAR équipe via LiveScore : periods[1]=(h1,a1),
+    #     periods[2]=(h2,a2)). Rend réglables les paris « buts par équipe/MT », « gagne une MT », etc.
+    if kind == "TEAMHALF" and len(parts) >= 5:          # TEAMHALF HOME/AWAY 1H/2H OVER/UNDER <ligne>
+        p = _per(1 if parts[2] == "1H" else 2)
+        if not p:
+            return None
+        try:
+            line = float(parts[4])
+        except ValueError:
+            return None
+        g = p[0] if parts[1] == "HOME" else p[1]
+        return "push" if g == line else ("won" if ((g > line) == (parts[3] == "OVER")) else "lost")
+    if kind == "HALFTOT" and len(parts) >= 4:           # HALFTOT 1H/2H OVER/UNDER <ligne> (total du MATCH dans une MT)
+        p = _per(1 if parts[1] == "1H" else 2)
+        if not p:
+            return None
+        try:
+            line = float(parts[3])
+        except ValueError:
+            return None
+        tot = p[0] + p[1]
+        return "push" if tot == line else ("won" if ((tot > line) == (parts[2] == "OVER")) else "lost")
+    if kind == "WINHALF" and len(parts) >= 2:           # WINHALF HOME/AWAY (gagne AU MOINS une mi-temps)
+        p1, p2 = _per(1), _per(2)
+        if not p1 or not p2:
+            return None
+        i = 0 if parts[1] == "HOME" else 1
+        o = 1 - i
+        return "won" if (p1[i] > p1[o] or p2[i] > p2[o]) else "lost"
     # --- handicap & total d'équipe (depuis le score final h/a : basket points, foot buts) ---
     if kind == "HCAP" and has_ha and len(parts) >= 3:   # HCAP HOME/AWAY <ligne signée>
         try:
@@ -254,9 +285,28 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         m = re.search(r"(plus|moins) de (\d+[.,]?\d*)", t)
     if m:
         return f"SETSTOT {'OVER' if m.group(1)=='plus' else 'UNDER'} {m.group(2).replace(',', '.')}"
-    # marché mi-temps -> non géré (segment court)
-    if "mi-temps" in t:
-        return ""
+    # marchés MI-TEMPS (réglés via le score PAR mi-temps ET PAR équipe — LiveScore periods[1]/[2]) :
+    # buts d'une équipe/du match dans une MT, « gagne une mi-temps ». Corners/cartons/tirs en MT :
+    # laissés à la MÉTRIQUE (abstention "") comme avant.
+    if "mi-temps" in t or "mi temps" in t:
+        if "deux mi" in t or "2 mi-temps" in t or "both halves" in t:
+            return ""                              # « but dans les DEUX mi-temps » -> métrique bothhalves
+        team = which()
+        if ("gagne" in t or "remporte" in t or "vainqueur" in t) and team and "but" not in t:
+            return f"WINHALF {team}"               # gagne AU MOINS une mi-temps
+        if "but" in t and not any(k in t for k in ("corner", "carton", "tir")):
+            half = "2H" if any(k in t for k in ("2e mi", "2ème mi", "2eme mi", "2nde mi",
+                                                "seconde mi", "deuxième mi")) else "1H"
+            ln = re.search(r"(plus|moins)\s+de\s+(\d+[.,]?\d*)", t)
+            if ln:
+                dirn, line = ("OVER" if ln.group(1) == "plus" else "UNDER"), ln.group(2).replace(",", ".")
+            else:
+                sgn = re.search(r"([+\-])\s?(\d+[.,]?\d*)", t)
+                if not sgn:
+                    return ""
+                dirn, line = ("UNDER" if sgn.group(1) == "-" else "OVER"), sgn.group(2).replace(",", ".")
+            return f"TEAMHALF {team} {half} {dirn} {line}" if team else f"HALFTOT {half} {dirn} {line}"
+        return ""                                  # autres marchés mi-temps -> inchangé
     # PREMIER À X POINTS (course au score) : 1re équipe à atteindre X points — réglé via les incidents
     # (event/{id}/incidents donne le score cumulé à chaque panier). Équipe nommée obligatoire.
     m = re.search(r"premi\w*\s+à\s+(\d+)\s*point", t) or re.search(r"first\s+to\s+(\d+)", t)
@@ -660,9 +710,11 @@ async def settle_analyses() -> int:
             # score (souvent ESPN = score final seul) n'a PAS les périodes, LiveScore les fournit ->
             # on les récupère et fusionne. Sinon ces marchés restent « non réglables » alors que la
             # donnée EXISTE (re-sourcing : ne JAMAIS exclure un marché faute de pouvoir le valider).
+            shadow_codes = [s.get("code", "") for s in (d.get("shadow") or [])]
             need_periods = (not score.get("periods")) and any(
-                c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE")) or "1H" in c
-                for c in [code, *bet_codes, *combo_codes] if c)
+                c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE", "TEAMHALF", "HALFTOT", "WINHALF"))
+                or "1H" in c or "2H" in c
+                for c in [code, *bet_codes, *combo_codes, *shadow_codes] if c)
             if need_periods:
                 from app import livescore as _lsmod
                 lsc = await asyncio.to_thread(_lsmod.final_score, sport, d)
