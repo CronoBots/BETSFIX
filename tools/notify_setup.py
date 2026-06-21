@@ -21,6 +21,11 @@ import sys
 
 import httpx
 
+try:                                  # console Windows (cp1252) -> évite UnicodeEncodeError sur ✓/✗
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _CFG = os.path.join(_ROOT, "data", "notify.json")
 
