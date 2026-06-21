@@ -746,6 +746,60 @@ async def first_goal_side(d: dict) -> str | None:
     return "HOME" if first_is_home else "AWAY"
 
 
+def _bb_player_stat(summary: dict, qtok: set, label: str):
+    """Valeur d'une stat (label ESPN : PTS/REB/AST) pour LE joueur dont les jetons `qtok` sont TOUS
+    présents dans le nom. Matching STRICT : renvoie la valeur SEULEMENT si UN SEUL joueur correspond
+    (sinon None -> jamais de faux règlement sur une homonymie/ambiguïté)."""
+    bx = (summary or {}).get("boxscore") or {}
+    found = []
+    for team in bx.get("players") or []:
+        for grp in team.get("statistics") or []:
+            labels = grp.get("labels") or grp.get("names") or []
+            if label not in labels:
+                continue
+            idx = labels.index(label)
+            for ath in grp.get("athletes") or []:
+                nm = ((ath.get("athlete") or {}).get("displayName")) or ""
+                if qtok and qtok <= _tok(nm):
+                    stats = ath.get("stats") or []
+                    if idx < len(stats):
+                        try:
+                            found.append(int(str(stats[idx]).strip()))
+                        except (ValueError, TypeError):
+                            pass
+    return found[0] if len(found) == 1 else None
+
+
+async def basket_player_stat(d: dict, player_query: str, label: str):
+    """Stat (PTS/REB/AST) d'un JOUEUR de basket via le box-score ESPN (WNBA/NBA). None si match non
+    fini/introuvable OU joueur ambigu (matching STRICT). Sert aux props joueur (« X plus de 25.5 points »)."""
+    import httpx
+    home, away = d.get("home", ""), d.get("away", "")
+    dt = _start_dt(d.get("start") or "")
+    qtok = _tok(player_query)
+    if not (home and away and dt and qtok):
+        return None
+    days = [(dt + timedelta(days=k)).strftime("%Y%m%d") for k in (0, 1, -1)]
+    try:
+        async with httpx.AsyncClient(timeout=_T) as cl:
+            for league in ("wnba", "nba"):
+                for ymd in days:
+                    j = await _get_json(cl, f"{_ESPN}/site/v2/sports/basketball/{league}/scoreboard?dates={ymd}")
+                    for ev in (j or {}).get("events") or []:
+                        comp = (ev.get("competitions") or [{}])[0]
+                        nm = [((c.get("team") or {}).get("displayName")) or "" for c in (comp.get("competitors") or [])]
+                        if len(nm) == 2 and _teams_match(home, away, nm[0], nm[1]):
+                            st = (((ev.get("status") or {}).get("type") or {}).get("name")) or ""
+                            if st != "STATUS_FINAL":
+                                return None
+                            s = await _get_json(cl,
+                                                f"{_ESPN}/site/v2/sports/basketball/{league}/summary?event={ev.get('id')}")
+                            return _bb_player_stat(s, qtok, label)
+    except Exception:
+        return None
+    return None
+
+
 async def final_score(sport: str, d: dict) -> dict | None:
     """Règlement de SECOURS : score final du match `d` (sidecar : home/away/start/circuit) via
     FotMob (foot) ou ESPN (tennis ATP+WTA, basket NBA/WNBA). None si introuvable ou pas fini —

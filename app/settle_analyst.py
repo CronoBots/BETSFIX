@@ -32,7 +32,8 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 32   # v32 : PREMIER BUT du match (FIRSTGOAL) réglé via les events FotMob (1er buteur).
+_SETTLE_VERSION = 33   # v33 : props JOUEUR basket (PLAYERBK PTS/REB/AST) via box-score ESPN (matching strict).
+# v32 : PREMIER BUT du match (FIRSTGOAL) réglé via les events FotMob (1er buteur).
 # v31 : totaux de buts par mi-temps dérivés des PÉRIODES (bothhalves/1H/2H réglés
 #                              même sans Flashscore).
 # v30 : couverture EXHAUSTIVE — basket quart-temps/mi-temps (BQ*), tennis score
@@ -313,21 +314,27 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         s = which()
         return f"{kind} {s}{(' ' + yesno) if (s and yesno) else ''}" if s else ""
 
-    # PROPS JOUEUR (stats individuelles : rebonds, passes, interceptions… box-score NON dispo) ->
+    # PROPS JOUEUR non couverts par le box-score basique ESPN (interceptions, contres, double-double) ->
     # ABSTENTION : jamais un code réglé sur le total du match (= faux).
-    if any(k in t for k in ("rebond", "passe déc", "passes déc", "interception", "double-double",
-                            "triple-double", "contre de ")):
+    if any(k in t for k in ("interception", "double-double", "triple-double", "contre de ", "contres")):
         return ""
-    # BASKET — marchés par QUART-TEMPS ou MI-TEMPS (réglés sur les périodes, PAS le match entier) :
-    # spec "1".."4" = quart ; "H1"/"H2" = mi-temps (Q1+Q2 / Q3+Q4). DOIT passer AVANT les handlers
-    # génériques (sinon un « 1er quart » serait réglé sur le match complet).
+    # BASKET — props JOUEUR (points/rebonds/passes d'un joueur NOMMÉ) -> PLAYERBK (box-score ESPN, matching
+    # strict). Puis marchés par QUART-TEMPS / MI-TEMPS (périodes). Tout AVANT les handlers génériques.
     if sport == "basket":
-        # prop joueur « <Joueur> … points/paniers » (≠ « Total points » du match, ≠ une ÉQUIPE) -> abstention.
+        _stat = ("PTS" if ("point" in t or "panier" in t) else "REB" if "rebond" in t
+                 else "AST" if ("passe" in t and ("déc" in t or "decis" in t)) else None)
         _lead = (pick.strip().split() or [""])[0].lower()
-        if ("point" in t or "panier" in t) and not which() and _lead not in (
-                "total", "nombre", "plus", "moins", "score", "le", "les", "over", "under",
-                "écart", "ecart", "différence", "difference", "premier", "1er"):
-            return ""
+        _kw = ("total", "nombre", "plus", "moins", "score", "le", "les", "over", "under", "écart",
+               "ecart", "différence", "difference", "premier", "1er", "handicap")
+        if _stat and not which() and _lead not in _kw:
+            ln = re.search(r"(plus|moins)\s+de\s+(\d+[.,]?\d*)", t)
+            if ln:                                      # joueur = texte AVANT « plus/moins de »
+                who = re.split(r"\s+(?:plus|moins)\s+de\s+", pick, maxsplit=1, flags=re.I)[0]
+                who = re.sub(r"\s*(points?|paniers?|rebonds?|passes?\s*(?:décisives?|decis\w*)?)\s*$",
+                             "", who.strip(), flags=re.I).strip(" :-–—")
+                if who:
+                    dirn = "OVER" if ln.group(1) == "plus" else "UNDER"
+                    return f"PLAYERBK {_stat} {dirn} {ln.group(2).replace(',', '.')}|{who}"
         spec = None
         if "quart" in t:
             for pat, sp in [(("1er", "premier", "q1", "1 quart"), "1"),
@@ -898,6 +905,20 @@ async def settle_analyses() -> int:
                         return "push" if (score.get("home") == 0 and score.get("away") == 0) else None
                     pcs = c.split()
                     return "won" if (len(pcs) >= 2 and pcs[1] == fg) else "lost"
+                if c.startswith("PLAYERBK"):                # prop joueur basket (PTS/REB/AST) -> box-score ESPN
+                    head, _, who = c.partition("|")
+                    hp = head.split()
+                    if len(hp) < 4 or not who:
+                        return None
+                    try:
+                        line = float(hp[3])
+                    except ValueError:
+                        return None
+                    from app import sources as _src
+                    val = await _src.basket_player_stat(d, who, hp[1])
+                    if val is None:
+                        return None                         # indispo OU joueur ambigu -> retente (jamais faux)
+                    return "push" if val == line else ("won" if ((val > line) == (hp[2] == "OVER")) else "lost")
                 return settle_pick(c, score)
 
             pr = await _settle_one(code)
