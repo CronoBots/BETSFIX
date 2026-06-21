@@ -1178,7 +1178,21 @@ async def main():
                 # même match s'il n'est pas réglé. Le match pourra être ré-analysé au scan suivant
                 # (compos/blessures publiées entre-temps peuvent débloquer un pari fiable).
                 from app import analyses as _an
+                from app.settle_analyst import code_from_pick
                 bets = _an._parse_bets(_an._bets_section(analysis) or "")
+                # GARDE-FOU RÈGLEMENT (demande user : ne JAMAIS garder un pari non vérifiable) : on ne
+                # conserve un pari simple QUE s'il est VÉRIFIABLE — code de règlement non vide OU métrique
+                # live (corners/tirs cadrés…). Sinon il resterait « en attente » à jamais -> on l'écarte.
+                def _verifiable(b):
+                    sel = b.get("sel", "")
+                    if code_from_pick(sel, sport, m.get("home", ""), m.get("away", "")):
+                        return True
+                    return bool(_an._leg_metric({"sel": sel, "code": ""},
+                                                m.get("home", ""), m.get("away", "")).get("live_ok"))
+                _before = len(bets)
+                bets = [b for b in bets if _verifiable(b)]
+                if len(bets) < _before:
+                    print(f"  · {m['name']} : {_before - len(bets)} pari(s) NON vérifiable(s) écarté(s).")
                 # Si un COMBINÉ existe (CdM foot OU favori net tennis/basket), c'est LUI qui fait foi -> on
                 # RETIENT le match même si la table de paris simples est vide.
                 combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""))

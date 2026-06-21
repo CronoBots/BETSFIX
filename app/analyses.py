@@ -905,7 +905,11 @@ def _leg_metric(leg: dict, home: str = "", away: str = "") -> dict:
         # la LIGNE suit « plus/moins de X » ou « +/-X » — NE PAS attraper le « 1 » de « 1ère mi-temps »
         # ni le « 2 » de « 2ème », etc. (sinon ligne fausse sur les marchés mi-temps à code vide).
         mnum = re.search(r"(?:plus|moins|over|under)\s+(?:de\s+)?(\d+(?:[.,]\d+)?)", t)
-        line = _to_float(mnum.group(1)) if mnum else None
+        if mnum:
+            line = _to_float(mnum.group(1))
+        elif not handicap:        # notation SIGNÉE d'un TOTAL (« +4.5 tirs cadrés », « +7.5 corners »)
+            sgn = re.search(r"[+\-]\s?(\d+(?:[.,]\d+)?)", t)
+            line = _to_float(sgn.group(1)) if sgn else None
     if side is None:
         side = _leg_side(sel, home, away)
     # « But dans les deux mi-temps Oui/Non » : marché OUI/NON (pas une ligne) -> métrique dédiée,
