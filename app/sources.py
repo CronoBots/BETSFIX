@@ -713,6 +713,39 @@ def _tennis_score_from_comp(cps: list, home: str, away: str) -> dict | None:
             "label": f"{sh}-{sa} (sets)", "src": "espn"}
 
 
+async def first_goal_side(d: dict) -> str | None:
+    """Côté ayant marqué le PREMIER but du match (FotMob events) : 'HOME' / 'AWAY', ou '' si AUCUN but
+    (0-0). None si indisponible -> le règlement re-tentera (jamais de devinette). Sert au marché
+    « Premier but <équipe> »."""
+    import httpx
+    home, away = d.get("home", ""), d.get("away", "")
+    if not (home and away):
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_T) as client:
+            mid = await _fotmob_find(client, home, away, d.get("start") or "")
+            if not mid:
+                return None
+            j = await _get_json(client, f"{_FOTMOB}/matchDetails?matchId={mid}")
+    except Exception:
+        return None
+    ev = (((j or {}).get("content") or {}).get("matchFacts") or {}).get("events") or {}
+    evs = ev.get("events") if isinstance(ev, dict) else ev
+    if not isinstance(evs, list):
+        return None
+    goals = [e for e in evs if isinstance(e, dict) and e.get("type") == "Goal" and e.get("isHome") is not None]
+    if not goals:
+        return ""                       # aucun but -> 0-0 (le caller vérifie le score final pour confirmer)
+    goals.sort(key=lambda e: (e.get("time") if isinstance(e.get("time"), (int, float)) else 999))
+    # FotMob : home/away des events suit l'ordre FotMob -> on réaligne sur Unibet (home/away du sidecar).
+    gen = (j or {}).get("general") or {}
+    fm_home = ((gen.get("homeTeam") or {}).get("name")) or home
+    first_is_home = bool(goals[0].get("isHome"))
+    if not _is_home(fm_home, home, away):      # FotMob inverse home/away vs Unibet
+        first_is_home = not first_is_home
+    return "HOME" if first_is_home else "AWAY"
+
+
 async def final_score(sport: str, d: dict) -> dict | None:
     """Règlement de SECOURS : score final du match `d` (sidecar : home/away/start/circuit) via
     FotMob (foot) ou ESPN (tennis ATP+WTA, basket NBA/WNBA). None si introuvable ou pas fini —

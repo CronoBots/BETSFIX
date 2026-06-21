@@ -32,7 +32,8 @@ _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
 # v8 = « premier à X points » réglé via event/{id}/incidents (FIRSTTO).
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
-_SETTLE_VERSION = 31   # v31 : totaux de buts par mi-temps dérivés des PÉRIODES (bothhalves/1H/2H réglés
+_SETTLE_VERSION = 32   # v32 : PREMIER BUT du match (FIRSTGOAL) réglé via les events FotMob (1er buteur).
+# v31 : totaux de buts par mi-temps dérivés des PÉRIODES (bothhalves/1H/2H réglés
 #                              même sans Flashscore).
 # v30 : couverture EXHAUSTIVE — basket quart-temps/mi-temps (BQ*), tennis score
 #                              exact/handicap jeux/tie-break (SETSCORE/GAMESHCAP/TIEBREAK), foot score
@@ -364,6 +365,12 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         ms = re.search(r"score\s+exact\s+(\d+)\s*[-–]\s*(\d+)", t)
         if ms:
             return f"SCORE {ms.group(1)} {ms.group(2)}"
+        # PREMIER BUT du match par une ÉQUIPE (≠ premier BUTEUR = joueur) -> FIRSTGOAL (events FotMob).
+        if ("premier but" in t or "1er but" in t or "ouvre le score" in t or "ouvre la marque" in t) \
+                and "buteur" not in t and "mi-temps" not in t:
+            team = which()
+            if team:
+                return f"FIRSTGOAL {team}"
         if "marque" in t and ("mi-temps" in t or "mi temps" in t) and (
                 "deux mi" in t or "2 mi-temps" in t or ("1ère" in t and ("2e" in t or "2ème" in t))):
             team = which()
@@ -882,6 +889,15 @@ async def settle_analyses() -> int:
                     return r
                 if c.startswith("FIRSTTO") and sofa and len(sofa) <= 8:
                     return await _settle_firstto(sofa, c)   # premier à X points -> incidents SofaScore
+                if c.startswith("FIRSTGOAL"):               # premier but du match -> events FotMob
+                    from app import sources as _src
+                    fg = await _src.first_goal_side(d)
+                    if fg is None:
+                        return None                         # indispo -> on retentera
+                    if fg == "":                            # aucun but trouvé
+                        return "push" if (score.get("home") == 0 and score.get("away") == 0) else None
+                    pcs = c.split()
+                    return "won" if (len(pcs) >= 2 and pcs[1] == fg) else "lost"
                 return settle_pick(c, score)
 
             pr = await _settle_one(code)
