@@ -1149,9 +1149,15 @@ async def _settle_analyses_impl() -> int:
             # Flags PERSISTANTS écrits avec le résultat -> notification IDEMPOTENTE : une fois notifié,
             # plus jamais re-notifié (re-règlement après bump de version, redémarrage, reload uvicorn…).
             if prev_pick is None and new_pick in _chip and not d.get("notified_pick"):
-                _pl = (d.get("pick") or "").strip()
-                _parts.append(f"Simple {_chip[new_pick]}" + (f" — {_pl}" if _pl else ""))
                 d["notified_pick"] = True
+                # On ne notifie le SIMPLE que s'il est AFFICHÉ sur l'app (cohérence Telegram/app) :
+                # sur un match à combiné (CdM), le simple n'apparaît que s'il aurait été RETENU
+                # (analyses.retained_bet) — sinon seul le combiné est à l'affiche.
+                _has_combo = bool((d.get("combo") or {}).get("legs"))
+                _simple_shown = (not _has_combo) or (analyses.retained_bet(sport, mid) is not None)
+                if _simple_shown:
+                    _pl = (d.get("pick") or "").strip()
+                    _parts.append(f"Simple {_chip[new_pick]}" + (f" — {_pl}" if _pl else ""))
             if prev_combo is None and new_combo in _chip and not d.get("notified_combo"):
                 _legmark = {"won": "✅", "lost": "❌", "push": "➖"}
                 _cl = f"Combiné {_chip[new_combo]}"

@@ -1363,6 +1363,11 @@ async def main():
                 n_gen += 1
                 _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
                 _pick = _safe_pick(analysis)
+                # Cohérence app/Telegram : sur un match à combiné, on n'annonce le simple que s'il
+                # est AFFICHÉ (retenu par la logique du site) — sinon seul le combiné est à l'affiche.
+                if _pick and combo and combo.get("legs"):
+                    if _an.retained_bet(sport, str(m.get("id"))) is None:
+                        _pick = ""
                 _line = f"{_emo} {m['name']}"
                 if _pick:
                     _line += f"\n   • Simple : {_pick}"
