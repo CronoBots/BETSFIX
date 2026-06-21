@@ -11,6 +11,7 @@ Best-effort STRICT : timeout court, toute panne -> [] / None.
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -116,6 +117,46 @@ def prepack_combos(event_id: str) -> list[dict]:
                            "n": len(legs)})
     combos.sort(key=lambda c: c["real_odds"])
     return combos
+
+
+def betbuilder_odds(event_id: str, outcome_ids: list) -> float | None:
+    """VRAIE cote corrélée d'un combiné MÊME-MATCH **arbitraire** (Bet Builder Unibet/Kambi), via
+    l'endpoint de validation de coupon `coupon/validate.json`. SANS login (isUserLoggedIn=false).
+    Astuce : on envoie une cote BIDON -> Kambi rejette avec ODDS_CHANGED qui contient la VRAIE cote.
+    Renvoie la cote décimale, ou None si non combinable / indisponible. (≥2 issues éligibles bet_builder.)"""
+    if not outcome_ids or len(outcome_ids) < 2:
+        return None
+    group = {"operation": "AND",
+             "groups": [{"operation": "AND", "outcomeIds": [int(o)]} for o in outcome_ids]}
+    payload = {"couponRows": [{"index": 0, "odds": 2000, "group": group, "type": "BET_BUILDER"}],
+               "bets": [{"couponRowIndexes": [0], "eachWay": False}], "isUserLoggedIn": False}
+    url = ("https://cf-mt-auth-api.kambicdn.com/player/api/v2019/ubbe/coupon/validate.json?"
+           + urllib.parse.urlencode(UNIBET_PARAMS))
+    headers = {**UNIBET_H, "Content-Type": "application/json",
+               "Origin": "https://fr.unibetsports.be", "Referer": "https://fr.unibetsports.be/"}
+    try:
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                     headers=headers, method="POST")
+        body = urllib.request.urlopen(req, timeout=15).read().decode("utf-8", "replace")
+        j = json.loads(body)
+    except urllib.error.HTTPError as e:
+        if e.code != 409:                       # 409 = FAIL avec détails (dont ODDS_CHANGED) -> exploitable
+            return None
+        try:
+            j = json.loads(e.read().decode("utf-8", "replace"))
+        except ValueError:
+            return None
+    except Exception:
+        return None
+    if j.get("status") == "SUCCESS":            # par chance la cote bidon 2.00 était la vraie
+        return 2.0
+    for rerr in j.get("couponRowErrors", []):
+        for err in rerr.get("errors", []):
+            if err.get("type") == "ODDS_CHANGED":
+                for arg in err.get("arguments", []):
+                    if arg.get("type") == "ODDS":
+                        return _odds(arg.get("value"))
+    return None                                  # NOT_COMBINABLE / autre -> pas de cote
 
 
 def _event_row(ev: dict) -> dict:
