@@ -343,7 +343,7 @@ METHODO = (
     "Si ton Pari 1 n'entre dans AUCUN code, écris `PICK: NONE`. Une seule ligne.\n"
     "\n\nTABLE DE CALIBRATION (ENREGISTREMENT INTERNE — ces prédictions ne sont NI affichées NI jouées ; "
     "elles servent UNIQUEMENT à calibrer le modèle : on vérifie après match si ta confiance tient, sur "
-    "TOUT l'éventail de proba). APRÈS la ligne PICK, ajoute 6 à 8 lignes au format EXACT, une par "
+    "TOUT l'éventail de proba). APRÈS la ligne PICK, ajoute 10 à 14 lignes au format EXACT, une par "
     "prédiction :\n"
     "`CALIB: <sélection RÉGLABLE exacte> @<cote réelle> | <TA proba honnête %>`\n"
     "RÈGLES : (a) couvre TOUT le spectre — des quasi-certaines (~85-90 %) aux serrées (~45-55 %), PAS "
