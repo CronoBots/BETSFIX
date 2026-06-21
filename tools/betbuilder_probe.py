@@ -78,7 +78,8 @@ class CDP:
         return await asyncio.wait_for(fut, timeout=30)
 
 
-async def probe(event_id: str, visible: bool, wait: float, click: str | None) -> None:
+async def probe(event_id: str, visible: bool, wait: float, click: str | None,
+                grab: str | None = None, bbflow: bool = False) -> None:
     import websockets
 
     os.makedirs(OUTDIR, exist_ok=True)
@@ -143,6 +144,29 @@ async def probe(event_id: str, visible: bool, wait: float, click: str | None) ->
                 print("  clic:", r.get("result", {}).get("result", {}).get("value"))
                 await asyncio.sleep(wait)
 
+            # Flux Bet Builder : ouvrir l'onglet Créa-combiné, cliquer 2 issues -> déclenche le POST de prix
+            if bbflow:
+                js_open = (
+                    "(()=>{const t=/cr[ée]a|bet builder|combin[ée]|construis/i;"
+                    "const els=[...document.querySelectorAll('button,a,[role=tab],div,span,li')]"
+                    ".filter(e=>e.offsetParent&&t.test(e.textContent||'')&&(e.textContent||'').length<30);"
+                    "if(els[0]){els[0].click();return 'ouvert: '+els[0].textContent.trim();}return 'BB tab introuvable';})()"
+                )
+                r = await c.cmd("Runtime.evaluate", {"expression": js_open, "returnByValue": True})
+                print("  BB open:", r.get("result", {}).get("result", {}).get("value"))
+                await asyncio.sleep(wait)
+                for k in range(2):   # clique 2 boutons d'issue (texte = une cote décimale style 1.50)
+                    js_pick = (
+                        "(()=>{const od=/^\\s*\\d+[.,]\\d{2}\\s*$/;"
+                        "const b=[...document.querySelectorAll('button,[role=button],div')]"
+                        ".filter(e=>e.offsetParent&&od.test(e.textContent||'')&&!e.dataset._bbk);"
+                        "if(b[%d]){b[%d].dataset._bbk=1;b[%d].click();return 'clic issue: '+b[%d].textContent.trim();}"
+                        "return 'issue introuvable';})()" % (0, 0, 0, 0)
+                    )
+                    r = await c.cmd("Runtime.evaluate", {"expression": js_pick, "returnByValue": True})
+                    print(f"  BB pick {k+1}:", r.get("result", {}).get("result", {}).get("value"))
+                    await asyncio.sleep(2.5)
+
             # Inventaire des onglets/sections visibles (pour repérer le créa-combiné)
             js_tabs = (
                 "[...document.querySelectorAll('button,a,[role=tab],li')]"
@@ -168,12 +192,32 @@ async def probe(event_id: str, visible: bool, wait: float, click: str | None) ->
                     reqs.setdefault(rid, {})["url"] = rq.get("url")
                     reqs[rid]["method"] = rq.get("method")
                     if rq.get("postData"):
-                        reqs[rid]["postData"] = rq["postData"][:500]
+                        reqs[rid]["postData"] = rq["postData"][:2000]
                 elif method == "Network.responseReceived":
                     rid = p.get("requestId")
                     resp = p.get("response", {})
                     reqs.setdefault(rid, {})["status"] = resp.get("status")
                     reqs[rid]["mime"] = resp.get("mimeType")
+
+            # Corps de réponse pour les hôtes ciblés (ShapeGames / Kambi bet builder)
+            if grab:
+                grabbed = {}
+                for rid, info in reqs.items():
+                    u = info.get("url", "")
+                    if grab in u:
+                        try:
+                            r = await c.cmd("Network.getResponseBody", {"requestId": rid})
+                            body = r.get("result", {}).get("body", "")
+                            grabbed[u] = {"method": info.get("method"), "status": info.get("status"),
+                                          "postData": info.get("postData"), "body": body[:4000]}
+                        except Exception:
+                            pass
+                gp = os.path.join(OUTDIR, f"grab_{event_id}.json")
+                with open(gp, "w", encoding="utf-8") as f:
+                    json.dump(grabbed, f, ensure_ascii=False, indent=2)
+                print(f"  corps capturés ({grab}) : {len(grabbed)} -> {gp}")
+                for u in list(grabbed)[:20]:
+                    print(f"    [{grabbed[u]['method']} {grabbed[u]['status']}] {u[:120]}")
 
             # Hôtes uniques + endpoints "intéressants"
             from urllib.parse import urlparse
@@ -225,5 +269,7 @@ if __name__ == "__main__":
     ap.add_argument("--visible", action="store_true", help="navigateur visible (anti-bot)")
     ap.add_argument("--wait", type=float, default=6.0)
     ap.add_argument("--click", default=None, help="texte d'onglet/bouton à cliquer (ex. 'Créa')")
+    ap.add_argument("--grab", default=None, help="sous-chaîne d'URL : capturer les corps de réponse (ex. 'shapegames')")
+    ap.add_argument("--bbflow", action="store_true", help="ouvrir le Créa-combiné + cliquer 2 issues (capture le POST de prix)")
     a = ap.parse_args()
-    asyncio.run(probe(a.event_id, a.visible, a.wait, a.click))
+    asyncio.run(probe(a.event_id, a.visible, a.wait, a.click, a.grab, a.bbflow))
