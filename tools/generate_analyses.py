@@ -1464,7 +1464,8 @@ async def main():
     sports = [s.strip() for s in args.sport.split(",") if s.strip()]
     total_t0 = time.time()
     n_gen = 0
-    notif_lines: list[str] = []   # récap Telegram (1 ligne par match retenu) -> envoyé à la fin
+    notif_lines: list[str] = []   # texte Telegram (repli si la carte image échoue) — 1 par match
+    notif_cards: list = []        # données de la CARTE IMAGE par match (Option 2 : tout dans l'image)
     async with httpx.AsyncClient(timeout=20) as client:
         for sport in sports:
             try:
@@ -1640,6 +1641,35 @@ async def main():
                 if not _pick_shown and not _has_combo:
                     _line += "\n<i>(calibration seule)</i>"
                 notif_lines.append(_line)
+                # --- Données de la CARTE IMAGE (Option 2 : tout dans l'image) ---
+                _sn = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}.get(sport, sport)
+                _meta_dt = ""
+                try:
+                    _dt2 = datetime.fromisoformat((m.get("start") or "").replace("Z", "+00:00"))
+                    _dd2 = (_dt2.date() - datetime.now(timezone.utc).date()).days
+                    _dy2 = "aujourd'hui" if _dd2 == 0 else ("demain" if _dd2 == 1 else _dt2.strftime("%d/%m"))
+                    _meta_dt = f"{_dy2} · {_dt2.strftime('%H:%M')}"
+                except ValueError:
+                    pass
+                _card = {"emoji": _emo,
+                         "cat": f"{_sn} · {m['comp']}" if m.get("comp") else _sn,
+                         "match": str(m.get("name", "")).replace(" - ", " — "), "meta": _meta_dt}
+                if _has_combo:
+                    _card.update(type="combo", cote=_cote,
+                                 legs=[(str(_lg.get("sel", "")), str(_lg.get("cote", "")))
+                                       for _lg in _legs])
+                elif _pick_shown and _rb:
+                    _card.update(type="simple", pick=str(_rb.get("sel", "")),
+                                 cote=(f"{_rb['cote']:g}" if _rb.get("cote") else ""),
+                                 conf=_rb.get("prob"))
+                elif _pick_shown:
+                    _mm2 = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", _pick)
+                    _card.update(type="simple",
+                                 pick=(_mm2.group(1).strip() if _mm2 else _pick),
+                                 cote=(_mm2.group(2).replace(",", ".") if _mm2 else ""), conf=None)
+                else:
+                    _card = None   # calibration seule -> pas de carte (repli texte)
+                notif_cards.append(_card)
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
                 await asyncio.sleep(SCAN_GAP)   # lisse la charge SofaScore entre 2 matchs
     print(f"\nTerminé : {n_gen} analyse(s) générée(s) en {time.time() - total_t0:.0f}s. Dossier : {OUT}")
@@ -1649,8 +1679,19 @@ async def main():
         try:
             from app import notify
             if notify.configured():
-                for _line in notif_lines:
-                    await notify.send(_line)
+                import card_image   # tools/card_image.py (même dossier que ce script)
+                os.makedirs("data/_cards", exist_ok=True)
+                for _i, (_line, _card) in enumerate(zip(notif_lines, notif_cards)):
+                    _sent = False
+                    if _card:                       # carte image (Option 2 : tout dans l'image)
+                        try:
+                            _png = f"data/_cards/scan_{_i}.png"
+                            await card_image.render_card(_card, _png)
+                            _sent = notify.send_photo_sync(_png, "")
+                        except Exception as _ce:
+                            print(f"  (carte image échouée, repli texte : {_ce})")
+                    if not _sent:                   # repli texte si pas de carte / échec rendu
+                        await notify.send(_line)
         except Exception as _exc:
             print(f"  (notif Telegram ignorée : {_exc})")
 
