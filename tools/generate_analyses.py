@@ -1031,6 +1031,7 @@ def _resolve_combo(legs: list, catalog: list, home: str = "", away: str = "", to
 
 _COMBO_REAL_MIN = 1.80      # vraie cote minimale visée pour le combiné (valeur, pas du produit illusoire)
 _COMBO_REAL_MAX = 4.20      # au-delà = trop long (proba trop faible) -> on évite
+_COMBO_PROB_MIN = 0.33      # chance de passer minimale (évite les longshots quand on maximise l'EV)
 
 
 def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
@@ -1055,15 +1056,16 @@ def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
 
 
 def _build_combo_from_pool(eid: str, cands: list, max_legs: int = 3) -> dict | None:
-    """Choisit, dans le VIVIER, la meilleure combinaison COMBINABLE qui vise une VRAIE cote
-    ≥ _COMBO_REAL_MIN avec la CHANCE DE PASSER maximale (produit des probas annoncées). Si rien
-    n'atteint le seuil, prend la combinaison combinable à la plus HAUTE vraie cote. None sinon."""
+    """Choisit, dans le VIVIER, la meilleure combinaison COMBINABLE par EV (= vraie cote × proba :
+    capture À LA FOIS la value/le faible rabot ET la chance), sous contraintes vraie cote ≥
+    _COMBO_REAL_MIN et chance ≥ _COMBO_PROB_MIN. Si rien ne tient les seuils, prend la combinaison
+    combinable à la plus HAUTE vraie cote. None sinon."""
     from itertools import combinations
     cands = [c for c in cands if c.get("oid")][:6]
     n = len(cands)
     if n < 2:
         return None
-    best, fallback = None, None     # best = (prob, real, idx) ≥ seuil ; fallback = plus haute vraie cote
+    best, fallback = None, None     # best = (ev, real, prob, idx) ; fallback = plus haute vraie cote
     for size in range(min(max_legs, n), 1, -1):
         for idx in combinations(range(n), size):
             real = unibet.betbuilder_odds(eid, [cands[i]["oid"] for i in idx])
@@ -1074,14 +1076,18 @@ def _build_combo_from_pool(eid: str, cands: list, max_legs: int = 3) -> dict | N
                 prob *= cands[i]["prob"] / 100
             if fallback is None or real > fallback[1]:
                 fallback = (prob, real, idx)
-            # parmi TOUTES les combinaisons ≥ seuil (toutes tailles), on garde la CHANCE DE PASSER
-            # maximale -> le meilleur compromis value/probabilité, peu importe le nombre de jambes.
-            if real >= _COMBO_REAL_MIN and (best is None or prob > best[0]):
-                best = (prob, real, idx)
-    chosen = best or fallback
-    if not chosen:
+            # EV maximale parmi les combinaisons qui tiennent la value (≥1.80) ET une chance correcte
+            # -> meilleur rendement attendu (favorise les jambes peu corrélées = cote réelle plus haute).
+            if real >= _COMBO_REAL_MIN and prob >= _COMBO_PROB_MIN:
+                ev = real * prob
+                if best is None or ev > best[0]:
+                    best = (ev, real, prob, idx)
+    if best:
+        _, real, prob, idx = best
+    elif fallback:
+        prob, real, idx = fallback
+    else:
         return None
-    prob, real, idx = chosen
     legs = []
     for i in idx:
         lg = {"sel": cands[i]["sel"], "cote": cands[i]["cote"], "code": cands[i]["code"]}
