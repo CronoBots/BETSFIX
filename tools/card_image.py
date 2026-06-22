@@ -30,9 +30,9 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
   border:1px solid rgba(34,184,255,.22);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden}
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
   background:radial-gradient(circle,rgba(34,184,255,.20),transparent 70%)}
-.hd{display:flex;justify-content:space-between;align-items:center;gap:18px;position:relative}
+.brandbar{position:relative;margin-bottom:20px}
+.wm{height:58px;width:auto;opacity:1;filter:drop-shadow(0 5px 18px rgba(34,184,255,.55))}
 .top{font-size:21px;font-weight:800;letter-spacing:.14em;color:#5fd0ff;text-transform:uppercase}
-.wm{height:30px;width:auto;flex:none;opacity:.96;filter:drop-shadow(0 3px 10px rgba(34,184,255,.35))}
 .match{font-size:48px;font-weight:900;margin-top:12px;line-height:1.08;position:relative}
 .meta{font-size:23px;color:#90a4be;margin-top:12px;font-weight:600;position:relative}
 .sep{height:1px;background:rgba(255,255,255,.09);margin:30px 0 26px}
@@ -45,9 +45,17 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 .cote .v{font-size:58px;font-weight:900;color:#fff;line-height:1}
 .conf{font-size:23px;color:#90a4be;font-weight:600;margin-top:10px}
 .conf b{color:#e9f1fb}
+.leg.headl{font-weight:900;font-size:26px;color:#9fe7c0;margin-top:0}
+.leg.sub{font-size:26px;color:#cdd9e8;margin-top:16px}
+.mk{flex:none;border-radius:12px;padding:5px 16px;font-weight:900;font-size:25px;line-height:1.2}
+.mk.won{background:rgba(25,196,106,.18);color:#7ff0b6}
+.mk.lost{background:rgba(255,80,90,.16);color:#ff8a92}
+.mk.push{background:rgba(150,165,185,.18);color:#c0cbdb}
 .brand{position:absolute;bottom:30px;right:50px;font-size:21px;font-weight:900;letter-spacing:.22em;
   color:rgba(255,255,255,.22)}
 """
+
+_MK = {"won": "✅", "lost": "❌", "push": "➖"}
 
 
 def _wordmark_uri() -> str:
@@ -65,11 +73,31 @@ def _card_html(d: dict) -> str:
     _wm = _wordmark_uri()
     _wm_img = f'<img class="wm" src="{_wm}">' if _wm else ''
     inner = (f'<div class="glow"></div>'
-             f'<div class="hd"><div class="top">{e(d.get("emoji",""))} {e(d.get("cat",""))}</div>{_wm_img}</div>'
+             f'<div class="brandbar">{_wm_img}</div>'
+             f'<div class="top">{e(d.get("emoji",""))} {e(d.get("cat",""))}</div>'
              f'<div class="match">{e(d.get("match",""))}</div>'
              f'<div class="meta">{e(d.get("meta",""))}</div>'
              f'<div class="sep"></div>')
-    if d.get("type") == "combo":
+    if d.get("type") == "result":
+        sp, cb = d.get("simple"), d.get("combo")
+        if sp:
+            mk = sp.get("mark", "")
+            inner += (f'<div class="leg"><span>{e(str(sp.get("label","")))}</span>'
+                      f'<span class="mk {mk}">{_MK.get(mk,"")}</span></div>')
+            if sp.get("cote"):
+                inner += f'<div class="conf">Cote <b>{e(str(sp["cote"]))}</b></div>'
+        if cb:
+            mk = cb.get("mark", "")
+            inner += (f'<div class="leg headl"><span>Combiné · {len(cb.get("legs",[]))} sélections</span>'
+                      f'<span class="mk {mk}">{_MK.get(mk,"")}</span></div>')
+            for lbl, lm in cb.get("legs", []):
+                inner += (f'<div class="leg sub"><span>{e(str(lbl))}</span>'
+                          f'<span class="mk {lm}">{_MK.get(lm,"")}</span></div>')
+            if cb.get("cote"):
+                inner += f'<div class="conf">Cote combinée <b>{e(str(cb["cote"]))}</b></div>'
+        inner += (f'<div class="cote"><span class="l">Score final</span>'
+                  f'<span class="v">{e(str(d.get("score","")))}</span></div>')
+    elif d.get("type") == "combo":
         inner += f'<div class="beth">Combiné · {len(d.get("legs",[]))} sélections</div>'
         for sel, cote in d.get("legs", []):
             inner += f'<div class="leg"><span>{e(sel)}</span><span class="o">{e(str(cote))}</span></div>'
@@ -177,7 +205,17 @@ if __name__ == "__main__":
     simple = {"emoji": "🎾", "cat": "Tennis · Roland-Garros", "match": "Pegula — Noskova",
               "meta": "aujourd'hui · 14:00", "type": "simple",
               "pick": "Pegula remporte au moins un set", "cote": "1.21", "conf": 85}
+    res_combo = {"emoji": "⚽", "cat": "Football · Coupe du Monde", "match": "Argentine — Autriche",
+                 "meta": "terminé · 17:00", "type": "result", "score": "3 – 1",
+                 "combo": {"cote": "1.64", "mark": "won",
+                           "legs": [("Double chance 1X", "won"), ("Plus de 2.5 buts", "won"),
+                                    ("Argentine marque en 1re MT", "won")]}}
+    res_simple = {"emoji": "🎾", "cat": "Tennis · Roland-Garros", "match": "Pegula — Noskova",
+                  "meta": "terminé · 14:00", "type": "result", "score": "2 – 0 (sets)",
+                  "simple": {"label": "Pegula remporte au moins un set", "cote": "1.21", "mark": "won"}}
     os.makedirs("data/_cards", exist_ok=True)
     render_card_sync(combo, "data/_cards/combo.png")
     render_card_sync(simple, "data/_cards/simple.png")
-    print("OK -> data/_cards/combo.png, simple.png")
+    render_card_sync(res_combo, "data/_cards/res_combo.png")
+    render_card_sync(res_simple, "data/_cards/res_simple.png")
+    print("OK -> data/_cards/combo.png, simple.png, res_combo.png, res_simple.png")

@@ -866,6 +866,7 @@ async def _settle_analyses_impl() -> int:
     n = 0
     sched_cache: dict = {}
     notify_msgs: list[str] = []   # transitions « en attente -> réglé » -> notif Telegram (fin de boucle)
+    notify_cards: list = []       # données CARTE IMAGE de résultat (parallèle à notify_msgs)
     prev_bulk = sofa_http.allow_bulk_proxy
     sofa_http.allow_bulk_proxy = True   # autorise scheduled-events (repli) pendant le règlement
     try:
@@ -1149,6 +1150,7 @@ async def _settle_analyses_impl() -> int:
             new_pick = (d.get("result") or {}).get("pick_result")
             new_combo = (d.get("combo") or {}).get("result")
             _parts = []
+            _card_simple = _card_combo = None   # données carte image (résultat simple / combiné)
             # Flags PERSISTANTS écrits avec le résultat -> notification IDEMPOTENTE : une fois notifié,
             # plus jamais re-notifié (re-règlement après bump de version, redémarrage, reload uvicorn…).
             if prev_pick is None and new_pick in _chip and not d.get("notified_pick"):
@@ -1160,8 +1162,13 @@ async def _settle_analyses_impl() -> int:
                 _simple_shown = (not _has_combo) or (analyses.retained_bet(sport, mid) is not None)
                 if _simple_shown:
                     _m = _MARK.get(new_pick, "")   # ✅/❌ APRÈS le prono
-                    _pl = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape((d.get("pick") or "").strip()))
+                    _raw = (d.get("pick") or "").strip()
+                    _pl = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape(_raw))
                     _parts.append(f"• {_pl} {_m}".strip() if _pl else f"• Pari simple {_m}".strip())
+                    _sm = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", _raw)
+                    _card_simple = {"label": (_sm.group(1).strip() if _sm else _raw) or "Pari simple",
+                                    "cote": (_sm.group(2).replace(",", ".") if _sm else ""),
+                                    "mark": new_pick}
             if prev_combo is None and new_combo in _chip and not d.get("notified_combo"):
                 _m = _MARK.get(new_combo, "")
                 _cb = d.get("combo") or {}
@@ -1172,6 +1179,10 @@ async def _settle_analyses_impl() -> int:
                     _lr = _lg.get("result")
                     _cl += f"\n• {html.escape(str(_lg.get('sel', '')))} {_MARK.get(_lr, '·')}"
                 _parts.append(_cl)
+                _card_combo = {"cote": (f"{_cco:.2f}" if isinstance(_cco, float) else str(_cco or "")),
+                               "mark": new_combo,
+                               "legs": [(str(_lg.get("sel", "")), _lg.get("result"))
+                                        for _lg in _cb.get("legs", [])]}
                 d["notified_combo"] = True
             if _parts:
                 # En-tête : match (gras) + score, puis lieu/compétition · heure (comme le scan).
@@ -1189,6 +1200,20 @@ async def _settle_analyses_impl() -> int:
                 if _sc:                              # score du match sur sa propre ligne, AVANT le prono
                     _hdr += f"\nScore : <b>{html.escape(_sc)}</b>"
                 notify_msgs.append(_hdr + "\n\n" + "\n".join(_parts))
+                # --- données CARTE IMAGE de résultat (Option 2 : tout dans l'image) ---
+                _sn = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}.get(sport, sport or "")
+                _mt = ""
+                try:
+                    _mt = datetime.fromisoformat((d.get("start") or "")
+                                                 .replace("Z", "+00:00")).strftime("%H:%M")
+                except ValueError:
+                    pass
+                notify_cards.append({
+                    "emoji": _emo, "cat": f"{_sn} · {d['comp']}" if d.get("comp") else _sn,
+                    "match": str(_match).replace(" - ", " — "),
+                    "meta": (f"terminé · {_mt}" if _mt else "terminé"),
+                    "type": "result", "score": _sc,
+                    "simple": _card_simple, "combo": _card_combo})
             try:
                 json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
                 n += 1
@@ -1202,8 +1227,23 @@ async def _settle_analyses_impl() -> int:
         try:
             from app import notify
             if notify.configured():
-                for msg in notify_msgs:
-                    await notify.send(msg)
+                import sys
+                _tools = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tools")
+                if _tools not in sys.path:
+                    sys.path.insert(0, _tools)
+                import card_image
+                os.makedirs("data/_cards", exist_ok=True)
+                for _i, (msg, card) in enumerate(zip(notify_msgs, notify_cards)):
+                    sent = False
+                    if card:                        # carte image (Option 2 : tout dans l'image)
+                        try:
+                            png = f"data/_cards/res_{_i}.png"
+                            await card_image.render_card(card, png)
+                            sent = notify.send_photo_sync(png, "")
+                        except Exception as ce:
+                            log.warning("carte résultat échouée, repli texte : %s", ce)
+                    if not sent:                    # repli texte si pas de carte / échec rendu
+                        await notify.send(msg)
         except Exception as exc:
             log.warning("notif règlement ignorée : %s", exc)
     return n
