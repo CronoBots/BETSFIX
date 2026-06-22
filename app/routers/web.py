@@ -245,10 +245,12 @@ def _cached_votes(provider, mid) -> tuple | None:
 def _home_stats(since_days: int | None = None) -> str:
     """Bloc STATISTIQUES complet : synthèse actionnable + bilan global + courbe d'équité + détail par
     sport + ROI actionnables (cote/confiance/marché) + bilan combinés. `since_days` filtre la fenêtre."""
+    # Ordre : synthèse -> bilan global + par sport -> combinés (catégorie de perf) -> ROI granulaire
+    # (cote/confiance/marché) -> [calibration ajoutée par la route]. Du résumé au détail.
     inner = (web.render_insights(analyses.stats_insights(since_days))
              + web.render_stats(analyses.stats_full(since_days))
-             + web.render_perf(analyses.perf_breakdown(since_days))
-             + web.render_combos(analyses.combo_stats(since_days)))
+             + web.render_combos(analyses.combo_stats(since_days))
+             + web.render_perf(analyses.perf_breakdown(since_days)))
     return f'<div class="sx"><div class="sx-body">{inner}</div></div>' if inner else ""
 
 
