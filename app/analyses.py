@@ -281,6 +281,7 @@ def _strip(md: str) -> str:
     md = re.sub(r"<!--.*?-->", "", md, flags=re.S)          # vire l'en-tête commentaire
     md = re.sub(r"^---+\s*$", "", md, flags=re.M)            # séparateurs ---
     md = re.sub(r"^\s*PICK:.*$", "", md, flags=re.M)         # ligne technique de règlement (cachée)
+    md = re.sub(r"^\s*(?:POOL|CALIB|COMBO):.*$", "", md, flags=re.M)   # lignes techniques (vivier/calib/combo)
     return md
 
 

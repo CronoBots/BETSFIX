@@ -934,18 +934,21 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
             break
     if len(rows) < 4:
         return ""
-    return ("\n\nCATALOGUE COMBINABLE BET BUILDER (vraie cote garantie) — construis TON combiné "
-            "UNIQUEMENT avec des jambes de CETTE liste, choisies selon ta méthodo (domination "
-            "corrélée, jambes fiables/réglables, PAS de cartons/corners).\n"
-            "⚠️ RÈGLE DE COMBINABILITÉ (sinon Unibet REFUSE le combiné et il n'a aucune cote) :\n"
-            "  • AU PLUS UNE seule jambe de type « total de buts/points » — JAMAIS un total d'ÉQUIPE "
-            "ET un total de MATCH ensemble (ex. « Portugal +1.5 buts » + « total +1.5 buts » = refusé).\n"
-            "  • VARIE les TYPES de jambe : 1 résultat (vainqueur/double chance) + 1 total + 1 marché "
-            "mi-temps/équipe-marque. Ne répète pas deux fois le même type de marché.\n"
-            "⚠️ OBLIGATOIRE : dans la section 🎲 ET la ligne technique COMBO:, écris ta sélection "
-            "normalement PUIS ajoute l'id de l'issue ENTRE CROCHETS juste après la cote : "
-            "`COMBO: <sel> @<cote> [<id>] | <sel2> @<cote2> [<id2>]`. C'est l'id qui donne la VRAIE "
-            "cote du combiné :\n" + "\n".join(rows) + "\n")
+    return ("\n\nCATALOGUE COMBINABLE BET BUILDER — au lieu d'un combiné figé, propose un VIVIER de "
+            "4 à 6 JAMBES CANDIDATES prises DANS CETTE LISTE. Un OPTIMISEUR choisira ensuite la "
+            "meilleure combinaison combinable visant une VRAIE cote ≥ 1.80 avec la CHANCE DE PASSER "
+            "maximale. Pour que la vraie cote reste intéressante (pas rabotée à mort), tes candidates "
+            "doivent être PEU CORRÉLÉES :\n"
+            "  • VARIE les TYPES : résultat (vainqueur/double chance), total de buts/points, marché "
+            "mi-temps, une équipe marque, props joueur… PAS 4 jambes de « domination » du même camp.\n"
+            "  • Ne propose pas à la fois un total d'ÉQUIPE et un total de MATCH (Unibet refuse de les "
+            "combiner).\n"
+            "  • Chaque candidate ≥ ~65 % de proba selon ton analyse ; PAS de cartons/corners.\n"
+            "⚠️ FORMAT EXACT, une ligne par candidate (après la section Mise), avec l'id du catalogue "
+            "ENTRE CROCHETS et ta proba honnête :\n"
+            "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi cette jambe, factuel et chiffré>`\n"
+            "(NE produis PAS de ligne COMBO: ni de section 🎲 : l'optimiseur bâtit le combiné final à "
+            "partir de ton vivier.) Catalogue :\n" + "\n".join(rows) + "\n")
 
 
 def _match_prepack(legs: list, prepacks: list):
@@ -1021,6 +1024,87 @@ def _resolve_combo(legs: list, catalog: list, home: str = "", away: str = "", to
             return None                          # cote incohérente -> mauvaise résolution probable
         ids.append(best["id"])
     return ids if len(ids) == len(legs) else None
+
+
+_COMBO_REAL_MIN = 1.80      # vraie cote minimale visée pour le combiné (valeur, pas du produit illusoire)
+_COMBO_REAL_MAX = 4.20      # au-delà = trop long (proba trop faible) -> on évite
+
+
+def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
+    """Parse le VIVIER de jambes candidates `POOL: <sel> @<cote> [<id>] (<prob>%) — <why>`."""
+    from app.settle_analyst import code_from_pick
+    out = []
+    for m in re.finditer(r"^[\s`*>\-]*POOL:\s*(.+?)\s*$", analysis, re.M):
+        part = re.sub(r"[`*]", "", m.group(1))
+        mm = re.search(r"(.+?)@\s*([\d]+[.,][\d]+)\s*[\[#(]\s*(\d{6,})\s*[\])]?", part)
+        if not mm:
+            continue
+        sel = mm.group(1).strip(" -–—")
+        cote = float(mm.group(2).replace(",", "."))
+        pm = re.search(r"(\d{1,3})\s*%", part)
+        wm = re.search(r"[—–]\s*(.+)$", part)
+        if sel and cote >= 1.01:
+            out.append({"sel": sel, "cote": round(cote, 3),
+                        "code": code_from_pick(sel, sport, home, away),
+                        "oid": int(mm.group(3)), "prob": int(pm.group(1)) if pm else 70,
+                        "why": wm.group(1).strip() if wm else ""})
+    return out
+
+
+def _build_combo_from_pool(eid: str, cands: list, max_legs: int = 3) -> dict | None:
+    """Choisit, dans le VIVIER, la meilleure combinaison COMBINABLE qui vise une VRAIE cote
+    ≥ _COMBO_REAL_MIN avec la CHANCE DE PASSER maximale (produit des probas annoncées). Si rien
+    n'atteint le seuil, prend la combinaison combinable à la plus HAUTE vraie cote. None sinon."""
+    from itertools import combinations
+    cands = [c for c in cands if c.get("oid")][:6]
+    n = len(cands)
+    if n < 2:
+        return None
+    best, fallback = None, None     # best = (prob, real, idx) ≥ seuil ; fallback = plus haute vraie cote
+    for size in range(min(max_legs, n), 1, -1):
+        for idx in combinations(range(n), size):
+            real = unibet.betbuilder_odds(eid, [cands[i]["oid"] for i in idx])
+            if not real or real > _COMBO_REAL_MAX:
+                continue
+            prob = 1.0
+            for i in idx:
+                prob *= cands[i]["prob"] / 100
+            if fallback is None or real > fallback[1]:
+                fallback = (prob, real, idx)
+            # parmi TOUTES les combinaisons ≥ seuil (toutes tailles), on garde la CHANCE DE PASSER
+            # maximale -> le meilleur compromis value/probabilité, peu importe le nombre de jambes.
+            if real >= _COMBO_REAL_MIN and (best is None or prob > best[0]):
+                best = (prob, real, idx)
+    chosen = best or fallback
+    if not chosen:
+        return None
+    prob, real, idx = chosen
+    legs = []
+    for i in idx:
+        lg = {"sel": cands[i]["sel"], "cote": cands[i]["cote"], "code": cands[i]["code"]}
+        if cands[i].get("why"):
+            lg["why"] = cands[i]["why"]
+        legs.append(lg)
+    nv = 1.0
+    for lg in legs:
+        nv *= lg["cote"]
+    return {"legs": legs, "total": round(nv, 2), "real_odds": round(real, 2),
+            "shave": round(100 * (1 - real / nv), 1) if nv else None,
+            "priced_by": "betbuilder_pool", "prob": round(prob * 100),
+            "why": f"Combiné optimisé sur la VRAIE cote Unibet ({real:.2f}) — "
+                   f"jambes variées peu corrélées, chance estimée {round(prob * 100)}%."}
+
+
+def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str | None):
+    """Combiné du match : d'abord l'OPTIMISEUR sur le vivier (vraie cote ≥1.80, chance max) ; à défaut
+    de vivier exploitable, repli sur l'ancien parsing `COMBO:` (avec pricing/auto-trim)."""
+    eid = str(event_id) if event_id else None
+    if eid and _CATALOG_CACHE.get(eid):
+        cands = _parse_pool(analysis, sport, home, away)
+        built = _build_combo_from_pool(eid, cands) if cands else None
+        if built:
+            return built
+    return _parse_combo(analysis, sport, home, away, event_id)
 
 
 def _parse_combo(analysis: str, sport: str, home: str, away: str,
@@ -1336,8 +1420,8 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     circuit = m.get("circuit") or (meta.get("circuit") if meta else None)   # Unibet (path) prioritaire
     if circuit:
         side["circuit"] = circuit
-    combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""),   # combiné grand tournoi
-                         event_id=str(m.get("id")))
+    combo = _make_combo(analysis, sport, m.get("home", ""), m.get("away", ""),   # combiné grand tournoi
+                        event_id=str(m.get("id")))
     if combo:
         side["combo"] = combo
     calib = _parse_calib(analysis, sport, m.get("home", ""), m.get("away", ""))   # prédictions fantômes (calibrage)
@@ -1459,8 +1543,8 @@ async def main():
                     print(f"  · {m['name']} : {_before - len(bets)} pari(s) NON vérifiable(s) écarté(s).")
                 # Si un COMBINÉ existe (CdM foot OU favori net tennis/basket), c'est LUI qui fait foi -> on
                 # RETIENT le match même si la table de paris simples est vide.
-                combo = _parse_combo(analysis, sport, m.get("home", ""), m.get("away", ""),
-                                     event_id=str(m.get("id")))
+                combo = _make_combo(analysis, sport, m.get("home", ""), m.get("away", ""),
+                                    event_id=str(m.get("id")))
                 # VALIDATION PAR PANEL (3 agents) du pari simple — SAUF si un combiné porte le match
                 # (le combiné est le pari phare, structure validée à part — comme la CdM).
                 validation = None
