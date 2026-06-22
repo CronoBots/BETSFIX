@@ -1142,7 +1142,7 @@ async def _settle_analyses_impl() -> int:
                 d["votes_tries"] = (d.get("votes_tries") or 0) + 1
             # Transition « en attente -> réglé » -> notification (simple ET/OU combiné).
             _chip = {"won": "✅ Réussi", "lost": "❌ Perdu", "push": "➖ Remboursé"}
-            _RES = {"won": ("🟢", "GAGNÉ"), "lost": ("🔴", "PERDU"), "push": ("⚪", "REMBOURSÉ")}
+            _MARK = {"won": "✅", "lost": "❌", "push": "➖"}   # validation/croix APRÈS le prono
             _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
             _match = f"{d.get('home', '')} - {d.get('away', '')}"
             _sc = (d.get("result") or {}).get("score") or ""
@@ -1159,19 +1159,18 @@ async def _settle_analyses_impl() -> int:
                 _has_combo = bool((d.get("combo") or {}).get("legs"))
                 _simple_shown = (not _has_combo) or (analyses.retained_bet(sport, mid) is not None)
                 if _simple_shown:
-                    _e = _RES.get(new_pick, ("", ""))[0]   # emoji APRÈS le prono
+                    _m = _MARK.get(new_pick, "")   # ✅/❌ APRÈS le prono
                     _pl = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape((d.get("pick") or "").strip()))
-                    _parts.append((f"{_pl} {_e}".strip()) if _pl else f"Pari simple {_e}".strip())
+                    _parts.append(f"• {_pl} {_m}".strip() if _pl else f"• Pari simple {_m}".strip())
             if prev_combo is None and new_combo in _chip and not d.get("notified_combo"):
-                _legmark = {"won": "✅", "lost": "❌", "push": "➖"}
-                _e = _RES.get(new_combo, ("", ""))[0]
+                _m = _MARK.get(new_combo, "")
                 _cb = d.get("combo") or {}
                 _cco = _cb.get("real_odds") or _cb.get("total")
-                _cl = (f"<b>Combiné · cote {_cco}</b> {_e}".strip() if _cco
-                       else f"<b>Combiné</b> {_e}".strip())
+                _cl = (f"• <b>Combiné · cote {_cco}</b> {_m}".strip() if _cco
+                       else f"• <b>Combiné</b> {_m}".strip())
                 for _lg in _cb.get("legs", []):
                     _lr = _lg.get("result")
-                    _cl += f"\n{_legmark.get(_lr, '·')} {html.escape(str(_lg.get('sel', '')))}"
+                    _cl += f"\n• {html.escape(str(_lg.get('sel', '')))} {_MARK.get(_lr, '·')}"
                 _parts.append(_cl)
                 d["notified_combo"] = True
             if _parts:

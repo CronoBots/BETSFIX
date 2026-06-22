@@ -1621,19 +1621,19 @@ async def main():
                         _stat = " · ".join(x for x in (
                             f"Cote <b>{_co:g}</b>" if _co else "",
                             f"Confiance <b>{_pr}%</b>" if _pr else "") if x)
-                        _line += f"\n\n<b>{_sel}</b>" + (f"\n{_stat}" if _stat else "")
+                        _line += f"\n\n• <b>{_sel}</b>" + (f"\n{_stat}" if _stat else "")
                     else:
                         _mm = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", _pick)
                         if _mm:
-                            _line += (f"\n\n<b>{html.escape(_mm.group(1).strip())}</b>"
+                            _line += (f"\n\n• <b>{html.escape(_mm.group(1).strip())}</b>"
                                       f"\nCote <b>{_mm.group(2).replace(',', '.')}</b>")
                         else:
-                            _line += f"\n\n<b>{html.escape(_pick)}</b>"
+                            _line += f"\n\n• <b>{html.escape(_pick)}</b>"
                 if _has_combo:
                     _legs = combo["legs"]
                     _cote = (f"{combo['real_odds']:.2f}" if combo.get("real_odds")
                              else f"{combo.get('total', '?')}")
-                    _line += f"\n\n<b>Combiné · cote {_cote}</b>"
+                    _line += f"\n\n• <b>Combiné · cote {_cote}</b>"
                     for _lg in _legs:
                         _c = _lg.get("cote")
                         _line += f"\n• {html.escape(str(_lg.get('sel', '')))}" + (f" — <b>{_c}</b>" if _c else "")
