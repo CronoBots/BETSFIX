@@ -102,6 +102,31 @@ async def send(text: str, clean: bool = False) -> bool:
     return ok
 
 
+def send_photo_sync(png_path: str, caption: str = "") -> bool:
+    """Envoie une IMAGE (carte graphique du prono) avec légende HTML à tous les chats. No-op si non
+    configuré ; n'élève jamais. Légende ≤ 1024 car. (limite Telegram)."""
+    tok, chats = _config()
+    if not (tok and chats):
+        return False
+    ok = False
+    try:
+        with httpx.Client(timeout=30) as cl:
+            for ch in chats:
+                try:
+                    with open(png_path, "rb") as f:
+                        r = cl.post(f"https://api.telegram.org/bot{tok}/sendPhoto",
+                                    data={"chat_id": ch, "caption": caption[:1024], "parse_mode": "HTML"},
+                                    files={"photo": ("card.png", f, "image/png")})
+                    ok = ok or (r.status_code == 200)
+                    if r.status_code != 200:
+                        log.warning("sendPhoto %s -> HTTP %s : %s", ch, r.status_code, r.text[:200])
+                except Exception as exc:
+                    log.warning("sendPhoto %s échoué : %s", ch, exc)
+    except Exception as exc:
+        log.warning("sendPhoto (client) échoué : %s", exc)
+    return ok
+
+
 def send_sync(text: str, clean: bool = False) -> bool:
     """Variante synchrone (contextes hors boucle asyncio). Mêmes garanties + nettoyage du post précédent."""
     tok, chats = _config()
