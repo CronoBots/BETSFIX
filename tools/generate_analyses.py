@@ -936,11 +936,16 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
         return ""
     return ("\n\nCATALOGUE COMBINABLE BET BUILDER (vraie cote garantie) — construis TON combiné "
             "UNIQUEMENT avec des jambes de CETTE liste, choisies selon ta méthodo (domination "
-            "corrélée, jambes fiables/réglables, PAS de cartons/corners). ⚠️ OBLIGATOIRE : dans la "
-            "section 🎲 ET la ligne technique COMBO:, écris ta sélection normalement PUIS ajoute l'id "
-            "de l'issue ENTRE CROCHETS juste après la cote : `COMBO: <sel> @<cote> [<id>] | <sel2> "
-            "@<cote2> [<id2>]`. C'est l'id qui permet de récupérer la VRAIE cote du combiné :\n"
-            + "\n".join(rows) + "\n")
+            "corrélée, jambes fiables/réglables, PAS de cartons/corners).\n"
+            "⚠️ RÈGLE DE COMBINABILITÉ (sinon Unibet REFUSE le combiné et il n'a aucune cote) :\n"
+            "  • AU PLUS UNE seule jambe de type « total de buts/points » — JAMAIS un total d'ÉQUIPE "
+            "ET un total de MATCH ensemble (ex. « Portugal +1.5 buts » + « total +1.5 buts » = refusé).\n"
+            "  • VARIE les TYPES de jambe : 1 résultat (vainqueur/double chance) + 1 total + 1 marché "
+            "mi-temps/équipe-marque. Ne répète pas deux fois le même type de marché.\n"
+            "⚠️ OBLIGATOIRE : dans la section 🎲 ET la ligne technique COMBO:, écris ta sélection "
+            "normalement PUIS ajoute l'id de l'issue ENTRE CROCHETS juste après la cote : "
+            "`COMBO: <sel> @<cote> [<id>] | <sel2> @<cote2> [<id2>]`. C'est l'id qui donne la VRAIE "
+            "cote du combiné :\n" + "\n".join(rows) + "\n")
 
 
 def _match_prepack(legs: list, prepacks: list):
@@ -1084,34 +1089,50 @@ def _parse_combo(analysis: str, sport: str, home: str, away: str,
     if synth:
         out["why"] = synth
     # Pricing de la VRAIE cote corrélée, par ordre de fiabilité :
-    naive = 1.0
-    for leg in legs:
-        naive *= leg["cote"]
     eid = str(event_id) if event_id else None
     catalog = _CATALOG_CACHE.get(eid) if eid else None
 
-    def _price_exact(ids):
-        real = unibet.betbuilder_odds(eid, ids)
-        if real:
-            out["real_odds"] = round(real, 2)
-            out["shave"] = round(100 * (1 - real / naive), 1) if naive else None
-            return True
+    def _apply_price(ids):
+        """Price le PLUS GRAND sous-ensemble COMBINABLE (≥2 jambes) de `ids` (parallèle à `legs`) via
+        Kambi, et ramène le combiné AFFICHÉ à cette version réellement plaçable (Unibet refuse certaines
+        combinaisons -> on garde le plus de jambes possible). True si pricé."""
+        from itertools import combinations
+        n = len(ids)
+        for k in range(n, 1, -1):                  # taille décroissante : on garde le MAX de jambes
+            cands = []
+            for idx in combinations(range(n), k):
+                real = unibet.betbuilder_odds(eid, [ids[i] for i in idx])
+                if real:
+                    cands.append((real, idx))
+            if cands:                              # à cette taille, on prend la cote la plus HAUTE
+                real, idx = max(cands, key=lambda x: x[0])
+                kept = [legs[i] for i in idx]
+                nv = 1.0
+                for lg in kept:
+                    nv *= lg["cote"]
+                out["legs"] = kept
+                out["total"] = round(nv, 2)
+                out["real_odds"] = round(real, 2)
+                out["shave"] = round(100 * (1 - real / nv), 1) if nv else None
+                if k < n:
+                    out["trimmed"] = n - k         # jambes retirées (non combinables sur Unibet)
+                return True
         return False
 
-    # 1a) IDs CITÉS par l'analyste (depuis le catalogue) -> pricing EXACT direct. On vérifie d'abord
-    # que chaque id existe dans le catalogue et que sa cote colle à la jambe (anti-erreur de citation).
+    # 1a) IDs CITÉS par l'analyste (depuis le catalogue) -> pricing EXACT. On vérifie d'abord que
+    # chaque id existe dans le catalogue et que sa cote colle à la jambe (anti-erreur de citation).
     if eid and catalog and cited_ids and all(cited_ids) and len(cited_ids) == len(legs):
         odds_by_id = {c["id"]: c.get("odds") for c in catalog}
         good = all(
             oid in odds_by_id and odds_by_id[oid]
             and abs(odds_by_id[oid] - leg["cote"]) / leg["cote"] <= 0.12
             for oid, leg in zip(cited_ids, legs))
-        if good and _price_exact(cited_ids):
+        if good and _apply_price(cited_ids):
             out["priced_by"] = "betbuilder_id"
     # 1b) sinon : résolution texte des jambes -> outcome_ids -> vraie cote.
     if "real_odds" not in out and catalog:
         ids = _resolve_combo(legs, catalog, home, away)
-        if ids and _price_exact(ids):
+        if ids and _apply_price(ids):
             out["priced_by"] = "betbuilder"
     # 2) Repli — correspondance avec un combiné pré-construit (prepack).
     if "real_odds" not in out and eid:
