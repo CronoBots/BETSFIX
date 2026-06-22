@@ -1807,7 +1807,8 @@ def _calib_agg(pairs: list) -> dict:
         wr, conf = round(100 * bk["won"] / n), round(bk["conf"] / n)
         rows.append({"lo": lo, "hi": hi, "n": n, "won": bk["won"], "win_rate": wr,
                      "avg_conf": conf, "gap": wr - conf,
-                     "roi": round(100 * bk["pf"] / bk["stk"]) if bk["stk"] else None,
+                     # ROI masqué sous 3 paris joués (1-2 = bruit trompeur, ex. +96% sur 1 pari)
+                     "roi": round(100 * bk["pf"] / bk["stk"]) if bk["stk"] >= 3 else None,
                      "roi_n": bk["stk"]})
         total += n
         mae_num += abs(wr - conf) * n
@@ -1835,7 +1836,7 @@ def _calib_agg(pairs: list) -> dict:
             verdict = "unsure"        # pas assez concluant -> à confirmer
     return {"rows": rows, "n": total, "won": won_total, "mae": mae, "verdict": verdict,
             "win_rate": wr, "avg_conf": ac,
-            "roi": round(100 * tot_pf / tot_stk) if tot_stk else None, "roi_n": tot_stk}
+            "roi": round(100 * tot_pf / tot_stk) if tot_stk >= 3 else None, "roi_n": tot_stk}
 
 
 def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
