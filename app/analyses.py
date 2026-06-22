@@ -1780,10 +1780,14 @@ def _wilson(won: int, n: int, z: float = 1.28) -> tuple:
 
 
 def _calib_agg(pairs: list) -> dict:
-    """pairs = [(prob, won_bool)] -> tranches de confiance avec confiance annoncée vs réussite réelle,
-    écart moyen pondéré (mae) et verdict (good ≤6 pts, sinon over/under selon le signe dominant)."""
-    buckets = {b: {"n": 0, "won": 0, "conf": 0.0} for b in _CALIB_BANDS}
-    for prob, won in pairs:
+    """pairs = [(prob, won_bool[, odds, played])] -> tranches de confiance : confiance annoncée vs
+    réussite réelle (TOUTES prédictions, fantômes inclus), + **ROI** calculé sur les seuls paris JOUÉS
+    (mise plate 1u ; jamais les fantômes). mae pondéré + verdict (good ≤6 pts sinon over/under)."""
+    buckets = {b: {"n": 0, "won": 0, "conf": 0.0, "pf": 0.0, "stk": 0} for b in _CALIB_BANDS}
+    for pair in pairs:
+        prob, won = pair[0], pair[1]
+        odds = pair[2] if len(pair) > 2 else None
+        played = pair[3] if len(pair) > 3 else False
         band = next(((lo, hi) for lo, hi in _CALIB_BANDS if lo <= prob < hi), None)
         if not band:
             continue
@@ -1791,6 +1795,9 @@ def _calib_agg(pairs: list) -> dict:
         bk["n"] += 1
         bk["conf"] += prob
         bk["won"] += 1 if won else 0
+        if played and odds:                       # ROI : UNIQUEMENT les paris réellement joués
+            bk["stk"] += 1
+            bk["pf"] += (float(odds) - 1) if won else -1.0
     rows, total, mae_num = [], 0, 0.0
     for lo, hi in _CALIB_BANDS:
         bk = buckets[(lo, hi)]
@@ -1799,10 +1806,14 @@ def _calib_agg(pairs: list) -> dict:
             continue
         wr, conf = round(100 * bk["won"] / n), round(bk["conf"] / n)
         rows.append({"lo": lo, "hi": hi, "n": n, "won": bk["won"], "win_rate": wr,
-                     "avg_conf": conf, "gap": wr - conf})
+                     "avg_conf": conf, "gap": wr - conf,
+                     "roi": round(100 * bk["pf"] / bk["stk"]) if bk["stk"] else None,
+                     "roi_n": bk["stk"]})
         total += n
         mae_num += abs(wr - conf) * n
     mae = round(mae_num / total, 1) if total else None
+    tot_pf = sum(buckets[b]["pf"] for b in _CALIB_BANDS)
+    tot_stk = sum(buckets[b]["stk"] for b in _CALIB_BANDS)
     won_total = sum(r["won"] for r in rows)
     wr = round(100 * won_total / total) if total else None
     ac = round(sum(r["avg_conf"] * r["n"] for r in rows) / total) if total else None
@@ -1823,7 +1834,8 @@ def _calib_agg(pairs: list) -> dict:
         else:
             verdict = "unsure"        # pas assez concluant -> à confirmer
     return {"rows": rows, "n": total, "won": won_total, "mae": mae, "verdict": verdict,
-            "win_rate": wr, "avg_conf": ac}
+            "win_rate": wr, "avg_conf": ac,
+            "roi": round(100 * tot_pf / tot_stk) if tot_stk else None, "roi_n": tot_stk}
 
 
 def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
@@ -1862,7 +1874,7 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
             _r, _pr = _sp.get("result"), _sp.get("prob")
             if _r in ("won", "lost") and _pr is not None and _pr >= min_conf:
                 _mk = _MARKET_FAMILY.get((_sp.get("code") or "").split()[0] if _sp.get("code") else "", "Autre")
-                items.append((_pr, _r == "won", sport, _mk))
+                items.append((_pr, _r == "won", sport, _mk, _sp.get("cote"), False))
                 if _pr >= _CALIB_BANDS[0][0]:      # compté seulement s'il entre dans une bande (cohérent avec n)
                     n_shadow += 1
         if _is_world_cup(d):         # CdM : paris simples/combiné EXCLUS (shadow ci-dessus INCLUS).
@@ -1883,30 +1895,30 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
             if prob is None or prob < min_conf:
                 continue
             mkt = _MARKET_FAMILY.get((b.get("code") or "").split()[0] if b.get("code") else "", "Autre")
-            items.append((prob, res == "won", sport, mkt))
+            items.append((prob, res == "won", sport, mkt, b.get("odds"), True))
             if prob >= _CALIB_BANDS[0][0]:        # idem : cohérent avec le n des bandes
                 n_played += 1
 
-    out = _calib_agg([(p, w) for p, w, _s, _m in items])
+    out = _calib_agg([(p, w, o, pl) for p, w, _s, _m, o, pl in items])
     out["n_shadow"] = n_shadow     # fantômes (calibration UNIQUEMENT)
     out["n_played"] = n_played     # paris JOUÉS (= base des gains/ROI)
     _SPL = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
     by_sport = {}            # par SPORT, avec les TYPES DE PARIS du sport en SOUS-CATÉGORIE (`markets`)
     for sp in ("foot", "tennis", "basket"):
-        sub = [(p, w) for p, w, s, _m in items if s == sp]
+        sub = [(p, w, o, pl) for p, w, s, _m, o, pl in items if s == sp]
         if not sub:
             continue
         agg = _calib_agg(sub)
         mkts = {}            # sous-catégories : chaque type de pari DE CE SPORT (≥3 paris)
-        for mk in sorted({m for _p, _w, s, m in items if s == sp}):
-            msub = [(p, w) for p, w, s, m in items if s == sp and m == mk]
+        for mk in sorted({m for _p, _w, s, m, _o, _pl in items if s == sp}):
+            msub = [(p, w, o, pl) for p, w, s, m, o, pl in items if s == sp and m == mk]
             if len(msub) >= 3:
                 mkts[mk] = _calib_agg(msub)
         agg["markets"] = mkts
         by_sport[_SPL[sp]] = agg
     by_market = {}           # par FAMILLE (tous sports) -> sert à l'optimisation (auto_exclusions)
-    for mk in sorted({m for _p, _w, _s, m in items}):
-        sub = [(p, w) for p, w, _s, m in items if m == mk]
+    for mk in sorted({m for _p, _w, _s, m, _o, _pl in items}):
+        sub = [(p, w, o, pl) for p, w, _s, m, o, pl in items if m == mk]
         if len(sub) >= 3:        # marché avec trop peu de paris -> pas affiché (bruit)
             by_market[mk] = _calib_agg(sub)
     out["by_sport"] = by_sport

@@ -1384,6 +1384,11 @@ CSS = """
   .cal-gap{flex:none;width:34px;text-align:center;font-size:12px;font-weight:900;
        font-variant-numeric:tabular-nums}
   .cal-gap.pos{color:#3ee089} .cal-gap.neg{color:#ff7484}
+  .cal-side{flex:none;width:62px;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .cal-side .cal-gap{width:auto}
+  .cal-roi{font-size:11px;font-weight:900;font-variant-numeric:tabular-nums;text-align:center;line-height:1.1}
+  .cal-roi span{display:block;font-size:7.5px;font-weight:700;color:var(--muted);letter-spacing:.02em}
+  .cal-roi-pos{color:#3ee089} .cal-roi-neg{color:#ff7484}
   .cal-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.5;margin:12px 2px 0}
   .cal-pos-t{color:#3ee089;font-weight:800} .cal-neg-t{color:#ff7484;font-weight:800}
   /* Calibration par groupe (sport / marché) — lignes compactes */
@@ -2540,17 +2545,10 @@ def _roi_section(title: str, sub: str, rows: list) -> str:
 
 
 def render_perf(perf: dict | None) -> str:
-    """Analyses ACTIONNABLES (où est l'edge ?) : ROI par tranche de cote, par confiance, par marché.
-    Barres divergentes lisibles. '' si pas de données."""
+    """Rendement par tranche de COTE (axe unique, absent de la calibration). Le ROI par CONFIANCE et
+    par MARCHÉ a été FUSIONNÉ dans la calibration (une seule vue par axe, non redondante). '' si vide."""
     perf = perf or {}
-    if not any(perf.get(k) for k in ("by_odds", "by_conf", "by_market")):
-        return ""
-    return (_roi_section("Rendement par cote", "ROI selon la cote jouée",
-                         perf.get("by_odds") or [])
-            + _roi_section("Rendement par confiance", "ROI selon la confiance annoncée",
-                           perf.get("by_conf") or [])
-            + _roi_section("Rendement par marché", "ROI par type de pari (≥ 3 paris)",
-                           perf.get("by_market") or []))
+    return _roi_section("Rendement par cote", "ROI selon la cote jouée", perf.get("by_odds") or [])
 
 
 def render_insights(items: list) -> str:
@@ -2649,9 +2647,13 @@ def render_calibration(c: dict) -> str:
     bars = []
     for r in rows:
         gapcls = "pos" if r["gap"] >= 0 else "neg"   # réussite ≥ confiance = bon (vert)
+        roi = r.get("roi")
+        roi_html = (f'<div class="cal-roi cal-roi-{"pos" if roi >= 0 else "neg"}">{roi:+d}%'
+                    f'<span>ROI · {r["roi_n"]} joué{"s" if r["roi_n"] != 1 else ""}</span></div>'
+                    if roi is not None else '')
         bars.append(
             f'<div class="cal-row"><div class="cal-band">{r["lo"]}–{r["hi"]}%'
-            f'<span>{r["n"]} pari{"s" if r["n"] != 1 else ""}</span></div>'
+            f'<span>{r["n"]} préd.</span></div>'
             f'<div class="cal-bars">'
             f'<div class="cal-line"><span class="cal-lab">annoncé</span>'
             f'<div class="cal-track"><span class="cal-fill conf" style="width:{r["avg_conf"]}%"></span></div>'
@@ -2659,11 +2661,11 @@ def render_calibration(c: dict) -> str:
             f'<div class="cal-line"><span class="cal-lab">réel</span>'
             f'<div class="cal-track"><span class="cal-fill real {gapcls}" style="width:{r["win_rate"]}%"></span></div>'
             f'<b>{r["win_rate"]}%</b></div></div>'
-            f'<div class="cal-gap {gapcls}">{r["gap"]:+d}</div></div>')
-    note = ('<div class="cal-note">Chaque ligne = un niveau de confiance. <b>« annoncé »</b> = la '
-            'confiance moyenne donnée par BETSFIX ; <b>« réel »</b> = le % de paris réellement gagnés. '
-            'Quand le réel est <span class="cal-neg-t">en-dessous</span>, on a été trop optimiste sur '
-            'cette tranche ; <span class="cal-pos-t">au-dessus</span> = prudent.</div>')
+            f'<div class="cal-side"><div class="cal-gap {gapcls}">{r["gap"]:+d}</div>{roi_html}</div></div>')
+    note = ('<div class="cal-note">Chaque ligne = un niveau de confiance. <b>« annoncé»</b> vs '
+            '<b>«réel»</b> (réussite, fantômes inclus) ; le <b>ROI</b> à droite ne compte que les paris '
+            '<b>joués</b>. Réel <span class="cal-neg-t">sous</span> l\'annoncé = trop optimiste ; '
+            '<span class="cal-pos-t">au-dessus</span> = prudent.</div>')
     # Un SEUL bloc : chaque sport, avec ses types de paris en sous-catégories indentées.
     by_sport = _calib_by_sport(c.get("by_sport") or {})
     return (f'<div class="cal-h">🎯 Calibration</div>{head}<div class="cal">{"".join(bars)}</div>'
@@ -2679,8 +2681,11 @@ def _calib_line(name: str, g: dict, sub: bool = False) -> str:
     gapcls = "pos" if gap >= 0 else "neg"
     vcls, vlbl = _CALIB_VERDICT.get(g.get("verdict"), ("", "—"))
     cls = "calg-row calg-sub" if sub else "calg-row calg-sport"
+    roi = g.get("roi")
+    roi_txt = (f' · <span class="{"cal-pos-t" if roi >= 0 else "cal-neg-t"}">ROI {roi:+d}%</span>'
+               if roi is not None else '')
     return (f'<div class="{cls}"><span class="calg-name">{html.escape(name)}'
-            f'<span>{g["n"]} pari{"s" if g["n"] != 1 else ""}</span></span>'
+            f'<span>{g["n"]} préd.{roi_txt}</span></span>'
             f'<span class="calg-cmp"><b>{g.get("avg_conf")}%</b><i>→</i>'
             f'<b class="{gapcls}">{g.get("win_rate")}%</b></span>'
             f'<span class="cal-gap {gapcls}">{gap:+d}</span>'
