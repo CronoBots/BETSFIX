@@ -1593,38 +1593,51 @@ async def main():
                 _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation)  # -> board
                 _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien
                 n_gen += 1
+                # === Message Telegram PRO (HTML) : en-tête match + lieu/jour/heure, puis le(s) pari(s) ===
                 _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
                 _pick = _safe_pick(analysis)
-                # Cohérence app/Telegram : sur un match à combiné, on n'annonce le simple que s'il
-                # est AFFICHÉ (retenu par la logique du site) — sinon seul le combiné est à l'affiche.
-                if _pick and combo and combo.get("legs"):
-                    if _an.retained_bet(sport, str(m.get("id"))) is None:
-                        _pick = ""
-                # Message Telegram soigné (HTML) : titre en gras + compétition/heure, puis le(s) pari(s)
-                # avec les cotes en gras.
+                _rb = _an.retained_bet(sport, str(m.get("id")))   # pari simple AFFICHÉ (sel/cote/prob) ou None
+                _has_combo = bool(combo and combo.get("legs"))
+                # Le simple n'est annoncé que s'il est à l'affiche sur l'app : à combiné -> seulement s'il
+                # aurait été RETENU ; hors combiné -> le « plus sûr ».
+                _pick_shown = bool(_rb) if _has_combo else bool(_pick or _rb)
                 _bits = []
                 if m.get("comp"):
                     _bits.append(html.escape(str(m["comp"])))
                 try:
-                    _bits.append(datetime.fromisoformat((m.get("start") or "")
-                                 .replace("Z", "+00:00")).strftime("%H:%M"))
+                    _dt = datetime.fromisoformat((m.get("start") or "").replace("Z", "+00:00"))
+                    _dd = (_dt.date() - datetime.now(timezone.utc).date()).days
+                    _day = "aujourd'hui" if _dd == 0 else ("demain" if _dd == 1 else _dt.strftime("%d/%m"))
+                    _bits.append(f"{_day} {_dt.strftime('%H:%M')}")
                 except ValueError:
                     pass
                 _line = f"{_emo} <b>{html.escape(m['name'])}</b>"
                 if _bits:
                     _line += f"\n<i>{' · '.join(_bits)}</i>"
-                if _pick:
-                    _ph = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape(_pick))
-                    _line += f"\n\n• <b>Simple</b> · {_ph}"
-                if combo and combo.get("legs"):
+                if _pick_shown:
+                    if _rb:
+                        _sel = html.escape(str(_rb.get("sel", "")))
+                        _co, _pr = _rb.get("cote"), _rb.get("prob")
+                        _stat = " · ".join(x for x in (
+                            f"Cote <b>{_co:g}</b>" if _co else "",
+                            f"Confiance <b>{_pr}%</b>" if _pr else "") if x)
+                        _line += f"\n\n<b>{_sel}</b>" + (f"\n{_stat}" if _stat else "")
+                    else:
+                        _mm = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", _pick)
+                        if _mm:
+                            _line += (f"\n\n<b>{html.escape(_mm.group(1).strip())}</b>"
+                                      f"\nCote <b>{_mm.group(2).replace(',', '.')}</b>")
+                        else:
+                            _line += f"\n\n<b>{html.escape(_pick)}</b>"
+                if _has_combo:
                     _legs = combo["legs"]
                     _cote = (f"{combo['real_odds']:.2f}" if combo.get("real_odds")
                              else f"{combo.get('total', '?')}")
-                    _line += f"\n\n• <b>Combiné</b> · {len(_legs)} jambes · cote <b>{_cote}</b>"
+                    _line += f"\n\n<b>Combiné · cote {_cote}</b>"
                     for _lg in _legs:
                         _c = _lg.get("cote")
-                        _line += f"\n– {html.escape(str(_lg.get('sel', '')))}" + (f" · <b>{_c}</b>" if _c else "")
-                if not _pick and not (combo and combo.get("legs")):
+                        _line += f"\n• {html.escape(str(_lg.get('sel', '')))}" + (f" — <b>{_c}</b>" if _c else "")
+                if not _pick_shown and not _has_combo:
                     _line += "\n<i>(calibration seule)</i>"
                 notif_lines.append(_line)
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")

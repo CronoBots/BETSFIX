@@ -1142,6 +1142,7 @@ async def _settle_analyses_impl() -> int:
                 d["votes_tries"] = (d.get("votes_tries") or 0) + 1
             # Transition « en attente -> réglé » -> notification (simple ET/OU combiné).
             _chip = {"won": "✅ Réussi", "lost": "❌ Perdu", "push": "➖ Remboursé"}
+            _RES = {"won": ("🟢", "GAGNÉ"), "lost": ("🔴", "PERDU"), "push": ("⚪", "REMBOURSÉ")}
             _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
             _match = f"{d.get('home', '')} - {d.get('away', '')}"
             _sc = (d.get("result") or {}).get("score") or ""
@@ -1158,11 +1159,13 @@ async def _settle_analyses_impl() -> int:
                 _has_combo = bool((d.get("combo") or {}).get("legs"))
                 _simple_shown = (not _has_combo) or (analyses.retained_bet(sport, mid) is not None)
                 if _simple_shown:
+                    _d, _l = _RES.get(new_pick, ("•", str(new_pick)))
                     _pl = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape((d.get("pick") or "").strip()))
-                    _parts.append(f"• <b>Simple</b> {_chip[new_pick]}" + (f"\n{_pl}" if _pl else ""))
+                    _parts.append(f"{_d} <b>{_l}</b>" + (f"\n{_pl}" if _pl else ""))
             if prev_combo is None and new_combo in _chip and not d.get("notified_combo"):
                 _legmark = {"won": "✅", "lost": "❌", "push": "➖"}
-                _cl = f"• <b>Combiné</b> {_chip[new_combo]}"
+                _d, _l = _RES.get(new_combo, ("•", str(new_combo)))
+                _cl = f"{_d} <b>Combiné {_l}</b>"
                 for _lg in (d.get("combo") or {}).get("legs", []):
                     _lr = _lg.get("result")
                     _cl += f"\n{_legmark.get(_lr, '·')} {html.escape(str(_lg.get('sel', '')))}"
