@@ -1553,9 +1553,21 @@ _MARKET_FAMILY = {   # 1er token du code -> famille de marché lisible (pour la 
     "OVER": "Total +/-", "UNDER": "Total +/-", "BTTS": "Les 2 marquent",
     "HCAP": "Handicap", "SETHCAP": "Handicap", "TEAMTOT": "Total équipe",
     "SET": "Sets", "SETWIN": "Sets", "SETSCORE": "Sets", "SETSTOT": "Sets",
-    "SETGAMES": "Jeux", "TOTGAMES": "Jeux", "HOLD1": "Jeux",
+    "SETGAMES": "Jeux", "TOTGAMES": "Jeux", "TEAMGAMES": "Jeux", "GAMESHCAP": "Jeux", "HOLD1": "Jeux",
+    "TIEBREAK": "Tie-break",
     "CARDS": "Cartons", "REDCARDS": "Cartons", "CORNERS": "Corners",
     "FIRSTTO": "Premier à X pts",
+    # mi-temps (foot)
+    "TEAMHALF": "Mi-temps", "HALFTOT": "Mi-temps", "WINHALF": "Mi-temps",
+    "BTTSHALF": "Mi-temps", "TEAMBOTH": "Mi-temps",
+    # quart-temps / mi-temps (basket)
+    "BQTOT": "Quart-temps/MT", "BQTEAM": "Quart-temps/MT", "BQWIN": "Quart-temps/MT",
+    "BQHCAP": "Quart-temps/MT",
+    # props joueur (foot Opta + basket box-score)
+    "PLAYERBK": "Props joueur", "PLAYERFB": "Props joueur",
+    # but/buteur/gardien/score exact
+    "FIRSTGOAL": "Premier but", "FIRSTSCORER": "Premier buteur",
+    "GKSAVES": "Arrêts gardien", "SCORE": "Score exact",
 }
 
 
