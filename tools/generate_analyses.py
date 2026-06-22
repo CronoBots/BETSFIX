@@ -50,6 +50,15 @@ _PREPACK_CACHE: dict[str, list] = {}
 # Catalogue des issues éligibles Bet Builder par event_id (pour pricer un combiné ARBITRAIRE exactement).
 _CATALOG_CACHE: dict[str, list] = {}
 
+# Date courte FR pour les cartes Telegram (« sam. 21 juin »).
+_FR_J = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
+_FR_M = ("janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc.")
+
+
+def _fr_date(dt) -> str:
+    return f"{_FR_J[dt.weekday()]} {dt.day} {_FR_M[dt.month - 1]}"
+
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "analyses")
 UA = {"User-Agent": "Mozilla/5.0"}
@@ -1646,9 +1655,7 @@ async def main():
                 _meta_dt = ""
                 try:
                     _dt2 = datetime.fromisoformat((m.get("start") or "").replace("Z", "+00:00"))
-                    _dd2 = (_dt2.date() - datetime.now(timezone.utc).date()).days
-                    _dy2 = "aujourd'hui" if _dd2 == 0 else ("demain" if _dd2 == 1 else _dt2.strftime("%d/%m"))
-                    _meta_dt = f"{_dy2} · {_dt2.strftime('%H:%M')}"
+                    _meta_dt = f"{_fr_date(_dt2)} · {_dt2.strftime('%H:%M')}"
                 except ValueError:
                     pass
                 _card = {"emoji": _emo,

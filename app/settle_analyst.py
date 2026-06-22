@@ -23,6 +23,13 @@ from app.netconst import SOFA_B as _SOFA   # source unique (cf. app/netconst.py)
 
 log = logging.getLogger("betsfix.settle")
 _SPORT_PATH = {"foot": "football", "tennis": "tennis", "basket": "basketball"}
+# Date courte FR pour les cartes Telegram (« sam. 21 juin »).
+_FR_J = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
+_FR_M = ("janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc.")
+
+
+def _fr_date(dt) -> str:
+    return f"{_FR_J[dt.weekday()]} {dt.day} {_FR_M[dt.month - 1]}"
 # Version de la LOGIQUE de règlement : à incrémenter quand de nouveaux marchés deviennent réglables
 # (-> re-règlement unique des sidecars depuis `result.raw` caché, sans appel réseau). v2 = + handicap
 # (HCAP), total d'équipe (TEAMTOT), score exact en sets (SETSCORE). v3 = parseur durci : abréviation
@@ -1205,8 +1212,8 @@ async def _settle_analyses_impl() -> int:
                 _sn = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}.get(sport, sport or "")
                 _mt = ""
                 try:
-                    _mt = datetime.fromisoformat((d.get("start") or "")
-                                                 .replace("Z", "+00:00")).strftime("%H:%M")
+                    _d0 = datetime.fromisoformat((d.get("start") or "").replace("Z", "+00:00"))
+                    _mt = f"{_fr_date(_d0)} · {_d0.strftime('%H:%M')}"
                 except ValueError:
                     pass
                 notify_cards.append({

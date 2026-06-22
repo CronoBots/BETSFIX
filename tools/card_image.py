@@ -70,6 +70,12 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 .combohd{font-size:28px;font-weight:900;color:#d3edff;letter-spacing:.02em;text-transform:uppercase;
   background:rgba(34,184,255,.13);border-left:6px solid #3fb8ff;border-radius:12px;
   padding:16px 22px;margin:6px 0 10px}
+.mark{display:block;flex:none}
+.cchero{display:flex;justify-content:space-between;align-items:center;margin-top:24px;
+  border-top:1px solid rgba(255,255,255,.07);padding-top:20px}
+.cchero .l{font-size:20px;color:#90a4be;font-weight:800;text-transform:uppercase;letter-spacing:.10em}
+.cchero .v2{font-size:48px;font-weight:900;color:#6fe3ff;line-height:1;
+  text-shadow:0 3px 16px rgba(34,184,255,.4)}
 .ico{display:inline-block;vertical-align:-5px;margin-right:6px}
 /* accent verdict sur TOUTE la carte (résultats) — inset pour ne pas être rogné */
 .card.won{border-color:rgba(25,196,106,.55);box-shadow:inset 0 0 0 2px rgba(25,196,106,.30),inset 0 0 140px rgba(25,196,106,.12)}
@@ -100,6 +106,25 @@ _SVG = {
 
 def _sport_icon(emoji: str) -> str:
     return _SVG.get(emoji, _html.escape(emoji or ""))
+
+
+def _mark(mk: str, size: int = 38) -> str:
+    """Coche/croix RONDE « maison » (SVG) — cohérente avec les icônes sport, plus premium que l'emoji."""
+    if mk == "won":
+        return (f'<svg class="mark" width="{size}" height="{size}" viewBox="0 0 36 36"><circle cx="18" cy="18" '
+                'r="17" fill="#16b863"/><circle cx="18" cy="18" r="16.4" fill="none" stroke="#9ff5c4" '
+                'stroke-opacity=".55" stroke-width="1.1"/><path d="M10 18.6l5 5 11-11.2" fill="none" '
+                'stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+    if mk == "lost":
+        return (f'<svg class="mark" width="{size}" height="{size}" viewBox="0 0 36 36"><circle cx="18" cy="18" '
+                'r="17" fill="#e23b46"/><circle cx="18" cy="18" r="16.4" fill="none" stroke="#ffb0b5" '
+                'stroke-opacity=".55" stroke-width="1.1"/><path d="M12 12l12 12M24 12L12 24" fill="none" '
+                'stroke="#fff" stroke-width="3.5" stroke-linecap="round"/></svg>')
+    if mk == "push":
+        return (f'<svg class="mark" width="{size}" height="{size}" viewBox="0 0 36 36"><circle cx="18" cy="18" '
+                'r="17" fill="#8595a8"/><path d="M11 18h14" fill="none" stroke="#fff" stroke-width="3.5" '
+                'stroke-linecap="round"/></svg>')
+    return ""
 
 
 def _wordmark_uri() -> str:
@@ -134,9 +159,9 @@ def _card_html(d: dict) -> str:
             _wl = "win" if mk == "won" else ("lose" if mk == "lost" else "")
             _oc = f'<span class="oc">{e(str(sp["cote"]))}</span>' if sp.get("cote") else ""
             inner += (f'<div class="leg {_wl}"><span>{e(str(sp.get("label","")))}</span>'
-                      f'<span class="rgt">{_oc}<span class="mk {mk}">{_MK.get(mk,"")}</span></span></div>')
+                      f'<span class="rgt">{_oc}{_mark(mk)}</span></div>')
         if cb:
-            # ligne « Combiné » = bandeau qui RESSORT, SANS emoji à droite
+            # ligne « Combiné » = bandeau qui RESSORT, SANS marque à droite
             inner += f'<div class="combohd">Combiné · {len(cb.get("legs",[]))} sélections</div>'
             for leg in cb.get("legs", []):
                 lbl, lm = leg[0], leg[1]
@@ -144,14 +169,15 @@ def _card_html(d: dict) -> str:
                 _wl = "win" if lm == "won" else ("lose" if lm == "lost" else "")
                 _oc = f'<span class="oc">{e(str(lc))}</span>' if lc else ""
                 inner += (f'<div class="leg sub {_wl}"><span>{e(str(lbl))}</span>'
-                          f'<span class="rgt">{_oc}<span class="mk {lm}">{_MK.get(lm,"")}</span></span></div>')
-            if cb.get("cote"):
-                inner += f'<div class="conf">Cote combinée <b>{e(str(cb["cote"]))}</b></div>'
+                          f'<span class="rgt">{_oc}{_mark(lm)}</span></div>')
+            if cb.get("cote"):                         # cote combinée = HÉROS (gros chiffre cyan)
+                inner += (f'<div class="cchero"><span class="l">Cote combinée</span>'
+                          f'<span class="v2">{e(str(cb["cote"]))}</span></div>')
         # --- BAS de carte : le RÉSULTAT (verdict + score) ---
         inner += '<div class="sep"></div>'
-        _vtxt = {"won": "✅ Pari gagné", "lost": "❌ Pari perdu", "push": "➖ Remboursé"}.get(_verdict, "")
+        _vtxt = {"won": "Pari gagné", "lost": "Pari perdu", "push": "Remboursé"}.get(_verdict, "")
         if _vtxt:
-            inner += f'<div class="verdict {_verdict}">{e(_vtxt)}</div>'
+            inner += f'<div class="verdict {_verdict}">{_mark(_verdict, 34)}{e(_vtxt)}</div>'
         inner += (f'<div class="cote"><span class="l">Score final</span>'
                   f'<span class="v">{e(str(d.get("score","")))}</span></div>')
     elif d.get("type") == "combo":
@@ -258,20 +284,20 @@ if __name__ == "__main__":
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     combo = {"emoji": "⚽", "cat": "Football · Coupe du Monde", "match": "Argentine — Autriche",
-             "meta": "aujourd'hui · 17:00", "type": "combo", "cote": "1.64",
+             "meta": "sam. 21 juin · 17:00", "type": "combo", "cote": "1.64",
              "legs": [("Double chance 1X", "1.07"), ("Plus de 2.5 buts", "1.86"),
                       ("Argentine marque en 1re MT", "1.23")]}
     simple = {"emoji": "🎾", "cat": "Tennis · Roland-Garros", "match": "Pegula — Noskova",
-              "meta": "aujourd'hui · 14:00", "type": "simple",
+              "meta": "sam. 21 juin · 14:00", "type": "simple",
               "pick": "Pegula remporte au moins un set", "cote": "1.21", "conf": 85}
     res_combo = {"emoji": "⚽", "cat": "Football · Coupe du Monde", "match": "Argentine — Autriche",
-                 "meta": "terminé · 17:00", "type": "result", "score": "3 – 1",
+                 "meta": "terminé · sam. 21 juin · 17:00", "type": "result", "score": "3 – 1",
                  "combo": {"cote": "1.64", "mark": "won",
                            "legs": [("Double chance 1X", "won", "1.07"),
                                     ("Plus de 2.5 buts", "won", "1.86"),
                                     ("Argentine marque en 1re MT", "won", "1.23")]}}
     res_simple = {"emoji": "🎾", "cat": "Tennis · Roland-Garros", "match": "Pegula — Noskova",
-                  "meta": "terminé · 14:00", "type": "result", "score": "2 – 0 (sets)",
+                  "meta": "terminé · sam. 21 juin · 14:00", "type": "result", "score": "2 – 0 (sets)",
                   "simple": {"label": "Pegula remporte au moins un set", "cote": "1.21", "mark": "won"}}
     os.makedirs("data/_cards", exist_ok=True)
     render_card_sync(combo, "data/_cards/combo.png")
