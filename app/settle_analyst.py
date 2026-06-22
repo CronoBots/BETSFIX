@@ -1176,13 +1176,14 @@ async def _settle_analyses_impl() -> int:
                 pass
     finally:
         sofa_http.allow_bulk_proxy = prev_bulk
-    # Notification Telegram des paris fraîchement réglés (no-op si non configuré ; n'élève jamais).
+    # Notification Telegram des paris fraîchement réglés : UN MESSAGE PAR MATCH (pas de groupage,
+    # pas de suppression). No-op si non configuré ; n'élève jamais.
     if notify_msgs:
         try:
             from app import notify
             if notify.configured():
-                head = f"🏁 BETSFIX — {len(notify_msgs)} pari(s) réglé(s)"
-                await notify.send(head + "\n\n" + "\n\n".join(notify_msgs))
+                for msg in notify_msgs:
+                    await notify.send("🏁 " + msg)
         except Exception as exc:
             log.warning("notif règlement ignorée : %s", exc)
     return n

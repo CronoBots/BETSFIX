@@ -1616,13 +1616,14 @@ async def main():
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
                 await asyncio.sleep(SCAN_GAP)   # lisse la charge SofaScore entre 2 matchs
     print(f"\nTerminé : {n_gen} analyse(s) générée(s) en {time.time() - total_t0:.0f}s. Dossier : {OUT}")
-    # Notification Telegram (no-op si non configuré) : récap des paris du scan.
+    # Notification Telegram (no-op si non configuré) : UN MESSAGE PAR MATCH (pas de récap groupé,
+    # pas de suppression). Chaque message est autonome (sport + match + pari(s)).
     if notif_lines:
         try:
             from app import notify
             if notify.configured():
-                head = f"🆕 BETSFIX — scan terminé : {n_gen} match(s) analysé(s)"
-                await notify.send(head + "\n\n" + "\n\n".join(notif_lines))
+                for _line in notif_lines:
+                    await notify.send("🆕 " + _line)
         except Exception as _exc:
             print(f"  (notif Telegram ignorée : {_exc})")
 
