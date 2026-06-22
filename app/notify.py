@@ -84,7 +84,8 @@ async def send(text: str, clean: bool = False) -> bool:
             for ch in chats:
                 try:
                     r = await cl.post(base + "/sendMessage", json={
-                        "chat_id": ch, "text": text[:4000], "disable_web_page_preview": True})
+                        "chat_id": ch, "text": text[:4000], "disable_web_page_preview": True,
+                        "parse_mode": "HTML"})
                     ok = ok or (r.status_code == 200)
                     if r.status_code == 200:
                         mid = (r.json().get("result") or {}).get("message_id")
@@ -121,7 +122,8 @@ def send_sync(text: str, clean: bool = False) -> bool:
             for ch in chats:
                 try:
                     r = cl.post(base + "/sendMessage", json={
-                        "chat_id": ch, "text": text[:4000], "disable_web_page_preview": True})
+                        "chat_id": ch, "text": text[:4000], "disable_web_page_preview": True,
+                        "parse_mode": "HTML"})
                     ok = ok or (r.status_code == 200)
                     if r.status_code == 200:
                         mid = (r.json().get("result") or {}).get("message_id")

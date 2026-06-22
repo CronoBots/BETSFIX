@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import glob
+import html
 import json
 import os
 import re
@@ -1599,19 +1600,32 @@ async def main():
                 if _pick and combo and combo.get("legs"):
                     if _an.retained_bet(sport, str(m.get("id"))) is None:
                         _pick = ""
-                _line = f"{_emo} {m['name']}"
+                # Message Telegram soigné (HTML) : titre en gras + compétition/heure, puis le(s) pari(s)
+                # avec les cotes en gras.
+                _bits = []
+                if m.get("comp"):
+                    _bits.append(html.escape(str(m["comp"])))
+                try:
+                    _bits.append(datetime.fromisoformat((m.get("start") or "")
+                                 .replace("Z", "+00:00")).strftime("%H:%M"))
+                except ValueError:
+                    pass
+                _line = f"{_emo} <b>{html.escape(m['name'])}</b>"
+                if _bits:
+                    _line += f"\n<i>{' · '.join(_bits)}</i>"
                 if _pick:
-                    _line += f"\n   • Simple : {_pick}"
+                    _ph = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape(_pick))
+                    _line += f"\n\n✅ <b>Simple</b>\n   {_ph}"
                 if combo and combo.get("legs"):
                     _legs = combo["legs"]
-                    _cote = (f"Unibet {combo['real_odds']:.2f}" if combo.get("real_odds")
+                    _cote = (f"{combo['real_odds']:.2f}" if combo.get("real_odds")
                              else f"{combo.get('total', '?')}")
-                    _line += f"\n   • Combiné @{_cote} ({len(_legs)} jambes) :"
+                    _line += f"\n\n🎲 <b>Combiné</b> · {len(_legs)} jambes · cote <b>{_cote}</b>"
                     for _lg in _legs:
                         _c = _lg.get("cote")
-                        _line += f"\n      – {_lg.get('sel', '?')}" + (f" @{_c}" if _c else "")
+                        _line += f"\n   • {html.escape(str(_lg.get('sel', '')))}" + (f" · <b>{_c}</b>" if _c else "")
                 if not _pick and not (combo and combo.get("legs")):
-                    _line += "\n   • (calibration seule)"
+                    _line += "\n<i>(calibration seule)</i>"
                 notif_lines.append(_line)
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
                 await asyncio.sleep(SCAN_GAP)   # lisse la charge SofaScore entre 2 matchs

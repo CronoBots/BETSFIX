@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import glob
+import html
 import json
 import logging
 import os
@@ -1156,19 +1157,19 @@ async def _settle_analyses_impl() -> int:
                 _has_combo = bool((d.get("combo") or {}).get("legs"))
                 _simple_shown = (not _has_combo) or (analyses.retained_bet(sport, mid) is not None)
                 if _simple_shown:
-                    _pl = (d.get("pick") or "").strip()
-                    _parts.append(f"Simple {_chip[new_pick]}" + (f" — {_pl}" if _pl else ""))
+                    _pl = html.escape((d.get("pick") or "").strip())
+                    _parts.append(f"<b>Simple</b> {_chip[new_pick]}" + (f"\n   {_pl}" if _pl else ""))
             if prev_combo is None and new_combo in _chip and not d.get("notified_combo"):
                 _legmark = {"won": "✅", "lost": "❌", "push": "➖"}
-                _cl = f"Combiné {_chip[new_combo]}"
+                _cl = f"<b>Combiné</b> {_chip[new_combo]}"
                 for _lg in (d.get("combo") or {}).get("legs", []):
                     _lr = _lg.get("result")
-                    _cl += f"\n      {_legmark.get(_lr, '·')} {_lg.get('sel', '?')}"
+                    _cl += f"\n   {_legmark.get(_lr, '·')} {html.escape(str(_lg.get('sel', '')))}"
                 _parts.append(_cl)
                 d["notified_combo"] = True
             if _parts:
-                notify_msgs.append(f"{_emo} {_match}" + (f"  ({_sc})" if _sc else "")
-                                   + "\n   " + "\n   ".join(_parts))
+                _hdr = f"{_emo} <b>{html.escape(_match)}</b>" + (f"  <i>{html.escape(_sc)}</i>" if _sc else "")
+                notify_msgs.append(_hdr + "\n\n" + "\n\n".join(_parts))
             try:
                 json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
                 n += 1
