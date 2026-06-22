@@ -1158,13 +1158,13 @@ async def _settle_analyses_impl() -> int:
                 _simple_shown = (not _has_combo) or (analyses.retained_bet(sport, mid) is not None)
                 if _simple_shown:
                     _pl = html.escape((d.get("pick") or "").strip())
-                    _parts.append(f"<b>Simple</b> {_chip[new_pick]}" + (f"\n   {_pl}" if _pl else ""))
+                    _parts.append(f"<b>Simple</b> {_chip[new_pick]}" + (f"\n{_pl}" if _pl else ""))
             if prev_combo is None and new_combo in _chip and not d.get("notified_combo"):
                 _legmark = {"won": "✅", "lost": "❌", "push": "➖"}
                 _cl = f"<b>Combiné</b> {_chip[new_combo]}"
                 for _lg in (d.get("combo") or {}).get("legs", []):
                     _lr = _lg.get("result")
-                    _cl += f"\n   {_legmark.get(_lr, '·')} {html.escape(str(_lg.get('sel', '')))}"
+                    _cl += f"\n{_legmark.get(_lr, '·')} {html.escape(str(_lg.get('sel', '')))}"
                 _parts.append(_cl)
                 d["notified_combo"] = True
             if _parts:

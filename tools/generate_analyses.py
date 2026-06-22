@@ -1615,15 +1615,15 @@ async def main():
                     _line += f"\n<i>{' · '.join(_bits)}</i>"
                 if _pick:
                     _ph = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape(_pick))
-                    _line += f"\n\n✅ <b>Simple</b>\n   {_ph}"
+                    _line += f"\n\n✅ <b>Simple</b> · {_ph}"
                 if combo and combo.get("legs"):
                     _legs = combo["legs"]
                     _cote = (f"{combo['real_odds']:.2f}" if combo.get("real_odds")
                              else f"{combo.get('total', '?')}")
-                    _line += f"\n\n🎲 <b>Combiné</b> · {len(_legs)} jambes · cote <b>{_cote}</b>"
+                    _line += f"\n\n<b>Combiné</b> · {len(_legs)} jambes · cote <b>{_cote}</b>"
                     for _lg in _legs:
                         _c = _lg.get("cote")
-                        _line += f"\n   • {html.escape(str(_lg.get('sel', '')))}" + (f" · <b>{_c}</b>" if _c else "")
+                        _line += f"\n• {html.escape(str(_lg.get('sel', '')))}" + (f" · <b>{_c}</b>" if _c else "")
                 if not _pick and not (combo and combo.get("legs")):
                     _line += "\n<i>(calibration seule)</i>"
                 notif_lines.append(_line)
@@ -1637,7 +1637,7 @@ async def main():
             from app import notify
             if notify.configured():
                 for _line in notif_lines:
-                    await notify.send("🆕 " + _line)
+                    await notify.send(_line)
         except Exception as _exc:
             print(f"  (notif Telegram ignorée : {_exc})")
 
