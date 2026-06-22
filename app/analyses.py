@@ -1763,7 +1763,8 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
             if _r in ("won", "lost") and _pr is not None and _pr >= min_conf:
                 _mk = _MARKET_FAMILY.get((_sp.get("code") or "").split()[0] if _sp.get("code") else "", "Autre")
                 items.append((_pr, _r == "won", sport, _mk))
-                n_shadow += 1
+                if _pr >= _CALIB_BANDS[0][0]:      # compté seulement s'il entre dans une bande (cohérent avec n)
+                    n_shadow += 1
         if _is_world_cup(d):         # CdM : paris simples/combiné EXCLUS (shadow ci-dessus INCLUS).
             continue
         stored = d.get("bets") or []
@@ -1783,7 +1784,8 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
                 continue
             mkt = _MARKET_FAMILY.get((b.get("code") or "").split()[0] if b.get("code") else "", "Autre")
             items.append((prob, res == "won", sport, mkt))
-            n_played += 1
+            if prob >= _CALIB_BANDS[0][0]:        # idem : cohérent avec le n des bandes
+                n_played += 1
 
     out = _calib_agg([(p, w) for p, w, _s, _m in items])
     out["n_shadow"] = n_shadow     # fantômes (calibration UNIQUEMENT)
