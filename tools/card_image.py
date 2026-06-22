@@ -64,8 +64,12 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 .verdict.push{color:#c7d2e0;border:1px solid rgba(150,165,185,.42);background:rgba(150,165,185,.14)}
 .leg.win span:first-child{color:#bff6d8}
 .leg.lose span:first-child{color:#ffc2c6}
-.rgt{flex:none;display:flex;align-items:center;gap:14px}
-.oc{background:rgba(255,255,255,.07);color:#aebccd;border-radius:11px;padding:5px 14px;font-size:23px;font-weight:800}
+.rgt{flex:none;display:flex;align-items:center;gap:16px}
+.oc{background:rgba(255,255,255,.13);color:#f2f7fc;border:1px solid rgba(255,255,255,.22);border-radius:11px;
+  padding:6px 17px;font-size:26px;font-weight:900;min-width:74px;text-align:center}
+.combohd{font-size:28px;font-weight:900;color:#d3edff;letter-spacing:.02em;text-transform:uppercase;
+  background:rgba(34,184,255,.13);border-left:6px solid #3fb8ff;border-radius:12px;
+  padding:16px 22px;margin:6px 0 10px}
 .ico{display:inline-block;vertical-align:-5px;margin-right:6px}
 /* accent verdict sur TOUTE la carte (résultats) — inset pour ne pas être rogné */
 .card.won{border-color:rgba(25,196,106,.55);box-shadow:inset 0 0 0 2px rgba(25,196,106,.30),inset 0 0 140px rgba(25,196,106,.12)}
@@ -125,9 +129,6 @@ def _card_html(d: dict) -> str:
         sp, cb = d.get("simple"), d.get("combo")
         _verdict = (cb or {}).get("mark") or (sp or {}).get("mark") or ""
         _cardcls = _verdict                            # accent (bordure + halo) sur TOUTE la carte
-        _vtxt = {"won": "✅ Pari gagné", "lost": "❌ Pari perdu", "push": "➖ Remboursé"}.get(_verdict, "")
-        if _vtxt:
-            inner += f'<div class="verdict {_verdict}">{e(_vtxt)}</div>'
         if sp:
             mk = sp.get("mark", "")
             _wl = "win" if mk == "won" else ("lose" if mk == "lost" else "")
@@ -135,9 +136,8 @@ def _card_html(d: dict) -> str:
             inner += (f'<div class="leg {_wl}"><span>{e(str(sp.get("label","")))}</span>'
                       f'<span class="rgt">{_oc}<span class="mk {mk}">{_MK.get(mk,"")}</span></span></div>')
         if cb:
-            mk = cb.get("mark", "")
-            inner += (f'<div class="leg headl"><span>Combiné · {len(cb.get("legs",[]))} sélections</span>'
-                      f'<span class="mk {mk}">{_MK.get(mk,"")}</span></div>')
+            # ligne « Combiné » = bandeau qui RESSORT, SANS emoji à droite
+            inner += f'<div class="combohd">Combiné · {len(cb.get("legs",[]))} sélections</div>'
             for leg in cb.get("legs", []):
                 lbl, lm = leg[0], leg[1]
                 lc = leg[2] if len(leg) > 2 else ""
@@ -147,6 +147,11 @@ def _card_html(d: dict) -> str:
                           f'<span class="rgt">{_oc}<span class="mk {lm}">{_MK.get(lm,"")}</span></span></div>')
             if cb.get("cote"):
                 inner += f'<div class="conf">Cote combinée <b>{e(str(cb["cote"]))}</b></div>'
+        # --- BAS de carte : le RÉSULTAT (verdict + score) ---
+        inner += '<div class="sep"></div>'
+        _vtxt = {"won": "✅ Pari gagné", "lost": "❌ Pari perdu", "push": "➖ Remboursé"}.get(_verdict, "")
+        if _vtxt:
+            inner += f'<div class="verdict {_verdict}">{e(_vtxt)}</div>'
         inner += (f'<div class="cote"><span class="l">Score final</span>'
                   f'<span class="v">{e(str(d.get("score","")))}</span></div>')
     elif d.get("type") == "combo":
