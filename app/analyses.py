@@ -690,10 +690,12 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # toujours en interne pour choisir le pari ⭐ retenu.)
         conf_v = f"{prob}%" if prob is not None else "—"
         cote_v = f"{cv:g}" if cv is not None else (_inline(b["cote_txt"]) if b["cote_txt"] else "—")
+        # Badge COTE bien visible en haut (comme le combiné). La cote est retirée du bandeau du bas
+        # (plus de doublon) ; le bandeau ne garde que la Confiance.
+        cote_badge = (f'<span class="da-bk-cote">cote {cote_v}</span>' if cote_v != "—" else "")
         strip = (
             '<div class="da-bk-stats">'
-            f'<div class="da-st"><span class="da-st-v">{conf_v}</span><span class="da-st-l">Confiance</span></div>'
-            f'<div class="da-st da-st-cote"><span class="da-st-v">{cote_v}</span><span class="da-st-l">Cote</span></div></div>')
+            f'<div class="da-st"><span class="da-st-v">{conf_v}</span><span class="da-st-l">Confiance</span></div></div>')
         # Niveau de sûreté (libellé + classe couleur) — fusionné plus bas dans le badge combiné.
         saf_cls = _safe_cls.get(rcls, "saf-mid")
         saf_lbl = _SAFETY.get(rcls, "Sûreté moyenne")
@@ -730,9 +732,9 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # (sûreté + validation), puis l'analyse repliée, puis les stats (confiance · cote).
         cards.append(
             f'<div class="da-bk{recocls}{rescls}">'
-            f'<div class="da-bk-sel">{pari}{recostar}{mark}</div>'
+            f'<div class="da-bk-sel"><span class="da-bk-name">{pari}{recostar}{mark}</span>{cote_badge}</div>'
             f'<div class="da-bk-tab">{combo}</div>'
-            f'{note_html}{strip}</div>')   # nom -> badge combiné -> analyse repliée -> stats
+            f'{note_html}{strip}</div>')   # nom + badge cote -> badge combiné -> analyse repliée -> confiance
     # LIVE (compact) : on ne garde QUE les cartes de paris (ni titre, ni légende, ni verdict ;
     # le repère « meilleure value » est déjà porté par le cadre OR + badge ✅ de la carte).
     if compact:
@@ -1225,12 +1227,13 @@ def card_summary(sport: str, match_id) -> dict:
         # « le plus sûr » PUIS le combiné (demande user : le simple ne doit plus être masqué). Le résultat
         # HEADLINE de la carte (play_result/badge) reste celui du COMBINÉ (le pari phare du match).
         res = combo.get("result")
-        sel = f"Combiné ({len(combo['legs'])} jambes) @{combo.get('total')}"
+        sel = f"Combiné ({len(combo['legs'])} jambes)"
+        c_cote = combo.get("real_odds") or combo.get("total")   # VRAIE cote Unibet si dispo
         rb = retained_bet(sport, match_id)   # simple AFFICHÉ seulement s'il aurait été RETENU (sinon combiné seul)
         bet_rows = []
         if rb:
-            bet_rows.append({"sel": rb["sel"], "result": rb["result"]})
-        bet_rows.append({"sel": sel, "result": res})
+            bet_rows.append({"sel": rb["sel"], "result": rb["result"], "cote": rb.get("cote")})
+        bet_rows.append({"sel": sel, "result": res, "cote": c_cote})
         return {"n": len(bet_rows), "best_conf": None, "comp": m0.get("comp"), "circuit": m0.get("circuit"),
                 "play": res is None, "ev": None, "reco_idx": None,
                 "won": 1 if res == "won" else 0, "lost": 1 if res == "lost" else 0,
@@ -1275,7 +1278,8 @@ def card_summary(sport: str, match_id) -> dict:
     if out["reco_idx"] is not None:                      # résultat du pari EFFECTIVEMENT joué
         out["play_result"] = results.get(_norm_sel(bets[out["reco_idx"]].get("sel", "")))
     # LISTE des paris (intitulé + résultat) pour le résumé compact (une ligne par pari, sans détail).
-    out["bets"] = [{"sel": b.get("sel", ""), "result": results.get(_norm_sel(b.get("sel", "")))}
+    out["bets"] = [{"sel": b.get("sel", ""), "result": results.get(_norm_sel(b.get("sel", ""))),
+                    "cote": b.get("cote")}
                    for b in bets]
     return out
 

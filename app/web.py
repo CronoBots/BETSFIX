@@ -500,6 +500,8 @@ CSS = """
   .mc-betl + .mc-betl{margin-top:3px}
   .mc-bi{flex:none;font-size:10px}
   .mc-bt{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.3}
+  .mc-bc{flex:none;align-self:center;background:rgba(25,196,106,.14);color:#7ff0b6;border-radius:6px;
+       padding:1px 7px;font-size:10.5px;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
   /* pari RETENU (⭐ en tête) : libellé mis en avant */
   .mc-betl-reco .mc-bt{color:#fff;font-weight:800}
   .mc-body{padding:2px 14px 13px}
@@ -1582,7 +1584,12 @@ CSS = """
   .da-bx.skip .da-bx-lbl{color:#ffb163}
   .da-bx.mise .da-bx-lbl{color:var(--accent)}
   .da-bx-t{font-size:11.5px;line-height:1.55;color:var(--muted)}
-  .da-bk-sel{font-size:14.5px;font-weight:800;color:#fff;line-height:1.3;padding:8px 14px 0}
+  .da-bk-sel{display:flex;align-items:flex-start;gap:8px;padding:8px 14px 0}
+  .da-bk-name{flex:1;min-width:0;font-size:14.5px;font-weight:800;color:#fff;line-height:1.3}
+  /* Badge COTE proéminent en haut-droite du pari simple (comme la cote du combiné) */
+  .da-bk-cote{flex:none;align-self:flex-start;background:#19c46a;color:#06210f;border-radius:7px;
+       padding:2px 9px;font-size:12.5px;font-weight:900;font-variant-numeric:tabular-nums;
+       white-space:nowrap;letter-spacing:.01em}
   /* Barre de CONFIANCE (proba) sous l'affiche du pari */
   .da-cbar{margin:10px 14px 0;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
   .da-cbar>span{display:block;height:100%;border-radius:99px}
@@ -3244,8 +3251,11 @@ def _sport_row(r: dict) -> str:
         else:
             ic = "•"                              # plus d'⭐ devant les paris (demande user)
         rcls = " mc-betl-reco" if (is_reco and not is_finished) else ""
+        # Badge COTE après l'intitulé (comme la cote du combiné). Le combiné a déjà sa cote dans le sel.
+        cote = b.get("cote")
+        cote_html = f'<span class="mc-bc">@{cote:g}</span>' if cote else ""
         rows3.append(f'<div class="mc-betl{rcls}"><span class="mc-bi">{ic}</span>'
-                     f'<span class="mc-bt">{e(b.get("sel", ""))}</span></div>')
+                     f'<span class="mc-bt">{e(b.get("sel", ""))}</span>{cote_html}</div>')
     line3 = "".join(rows3)
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')
