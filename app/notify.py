@@ -63,9 +63,8 @@ def configured() -> bool:
     return bool(tok and chats)
 
 
-async def send(text: str, clean: bool = True) -> bool:
-    """Envoie `text` à tous les chats configurés. Si `clean`, SUPPRIME d'abord les messages du post
-    précédent (chat propre : seul le dernier reste). Renvoie True si ≥1 envoi a réussi. No-op si non
+async def send(text: str, clean: bool = False) -> bool:
+    """Envoie `text` à tous les chats configurés. Si `clean=True`, supprime d'abord le post précédent (désactivé par défaut : on garde l'historique). Renvoie True si ≥1 envoi a réussi. No-op si non
     configuré ; n'élève jamais."""
     tok, chats = _config()
     if not (tok and chats):
@@ -102,7 +101,7 @@ async def send(text: str, clean: bool = True) -> bool:
     return ok
 
 
-def send_sync(text: str, clean: bool = True) -> bool:
+def send_sync(text: str, clean: bool = False) -> bool:
     """Variante synchrone (contextes hors boucle asyncio). Mêmes garanties + nettoyage du post précédent."""
     tok, chats = _config()
     if not (tok and chats):
