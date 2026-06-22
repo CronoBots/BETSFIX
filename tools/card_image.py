@@ -30,8 +30,11 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
   border:1px solid rgba(34,184,255,.22);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden}
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
   background:radial-gradient(circle,rgba(34,184,255,.20),transparent 70%)}
-.brandbar{position:relative;margin-bottom:20px}
-.wm{height:58px;width:auto;opacity:1;filter:drop-shadow(0 5px 18px rgba(34,184,255,.55))}
+.hero{margin:-46px -50px 28px;padding:40px 60px 32px;text-align:center;position:relative;
+  background:linear-gradient(180deg,rgba(34,184,255,.14) 0%,rgba(34,184,255,.04) 55%,rgba(8,12,19,0) 100%);
+  border-bottom:1px solid rgba(34,184,255,.20)}
+.hero img{width:100%;max-width:780px;height:auto;display:block;margin:0 auto;
+  filter:drop-shadow(0 6px 24px rgba(34,184,255,.55))}
 .top{font-size:21px;font-weight:800;letter-spacing:.14em;color:#5fd0ff;text-transform:uppercase}
 .match{font-size:48px;font-weight:900;margin-top:12px;line-height:1.08;position:relative}
 .meta{font-size:23px;color:#90a4be;margin-top:12px;font-weight:600;position:relative}
@@ -47,10 +50,20 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 .conf b{color:#e9f1fb}
 .leg.headl{font-weight:900;font-size:26px;color:#9fe7c0;margin-top:0}
 .leg.sub{font-size:26px;color:#cdd9e8;margin-top:16px}
-.mk{flex:none;border-radius:12px;padding:5px 16px;font-weight:900;font-size:25px;line-height:1.2}
-.mk.won{background:rgba(25,196,106,.18);color:#7ff0b6}
-.mk.lost{background:rgba(255,80,90,.16);color:#ff8a92}
+.mk{flex:none;border-radius:12px;padding:6px 18px;font-weight:900;font-size:26px;line-height:1.2}
+.mk.won{background:rgba(25,196,106,.22);color:#8df3c0}
+.mk.lost{background:rgba(255,80,90,.18);color:#ff9aa1}
 .mk.push{background:rgba(150,165,185,.18);color:#c0cbdb}
+.verdict{display:flex;align-items:center;justify-content:center;gap:16px;margin:0 0 28px;
+  padding:20px 26px;border-radius:20px;font-size:36px;font-weight:900;letter-spacing:.05em;
+  text-transform:uppercase}
+.verdict.won{color:#8df3c0;border:1px solid rgba(25,196,106,.55);
+  background:linear-gradient(180deg,rgba(25,196,106,.30),rgba(25,196,106,.10))}
+.verdict.lost{color:#ff9aa1;border:1px solid rgba(255,80,90,.48);
+  background:linear-gradient(180deg,rgba(255,80,90,.24),rgba(255,80,90,.09))}
+.verdict.push{color:#c7d2e0;border:1px solid rgba(150,165,185,.42);background:rgba(150,165,185,.14)}
+.leg.win span:first-child{color:#bff6d8}
+.leg.lose span:first-child{color:#ffc2c6}
 .brand{position:absolute;bottom:30px;right:50px;font-size:21px;font-weight:900;letter-spacing:.22em;
   color:rgba(255,255,255,.22)}
 """
@@ -72,17 +85,23 @@ def _card_html(d: dict) -> str:
     e = _html.escape
     _wm = _wordmark_uri()
     _wm_img = f'<img class="wm" src="{_wm}">' if _wm else ''
+    _wm_hero = f'<div class="hero">{_wm_img}</div>' if _wm_img else ''
     inner = (f'<div class="glow"></div>'
-             f'<div class="brandbar">{_wm_img}</div>'
+             f'{_wm_hero}'
              f'<div class="top">{e(d.get("emoji",""))} {e(d.get("cat",""))}</div>'
              f'<div class="match">{e(d.get("match",""))}</div>'
              f'<div class="meta">{e(d.get("meta",""))}</div>'
              f'<div class="sep"></div>')
     if d.get("type") == "result":
         sp, cb = d.get("simple"), d.get("combo")
+        _verdict = (cb or {}).get("mark") or (sp or {}).get("mark") or ""
+        _vtxt = {"won": "✅ Pari gagné", "lost": "❌ Pari perdu", "push": "➖ Remboursé"}.get(_verdict, "")
+        if _vtxt:
+            inner += f'<div class="verdict {_verdict}">{e(_vtxt)}</div>'
         if sp:
             mk = sp.get("mark", "")
-            inner += (f'<div class="leg"><span>{e(str(sp.get("label","")))}</span>'
+            _wl = "win" if mk == "won" else ("lose" if mk == "lost" else "")
+            inner += (f'<div class="leg {_wl}"><span>{e(str(sp.get("label","")))}</span>'
                       f'<span class="mk {mk}">{_MK.get(mk,"")}</span></div>')
             if sp.get("cote"):
                 inner += f'<div class="conf">Cote <b>{e(str(sp["cote"]))}</b></div>'
@@ -91,7 +110,8 @@ def _card_html(d: dict) -> str:
             inner += (f'<div class="leg headl"><span>Combiné · {len(cb.get("legs",[]))} sélections</span>'
                       f'<span class="mk {mk}">{_MK.get(mk,"")}</span></div>')
             for lbl, lm in cb.get("legs", []):
-                inner += (f'<div class="leg sub"><span>{e(str(lbl))}</span>'
+                _wl = "win" if lm == "won" else ("lose" if lm == "lost" else "")
+                inner += (f'<div class="leg sub {_wl}"><span>{e(str(lbl))}</span>'
                           f'<span class="mk {lm}">{_MK.get(lm,"")}</span></div>')
             if cb.get("cote"):
                 inner += f'<div class="conf">Cote combinée <b>{e(str(cb["cote"]))}</b></div>'
