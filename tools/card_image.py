@@ -64,11 +64,38 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 .verdict.push{color:#c7d2e0;border:1px solid rgba(150,165,185,.42);background:rgba(150,165,185,.14)}
 .leg.win span:first-child{color:#bff6d8}
 .leg.lose span:first-child{color:#ffc2c6}
+.rgt{flex:none;display:flex;align-items:center;gap:14px}
+.oc{background:rgba(255,255,255,.07);color:#aebccd;border-radius:11px;padding:5px 14px;font-size:23px;font-weight:800}
+.ico{display:inline-block;vertical-align:-5px;margin-right:6px}
+/* accent verdict sur TOUTE la carte (résultats) — inset pour ne pas être rogné */
+.card.won{border-color:rgba(25,196,106,.55);box-shadow:inset 0 0 0 2px rgba(25,196,106,.30),inset 0 0 140px rgba(25,196,106,.12)}
+.card.won .glow{background:radial-gradient(circle,rgba(25,196,106,.22),transparent 70%)}
+.card.lost{border-color:rgba(255,80,90,.50);box-shadow:inset 0 0 0 2px rgba(255,80,90,.26),inset 0 0 140px rgba(255,80,90,.10)}
+.card.lost .glow{background:radial-gradient(circle,rgba(255,80,90,.18),transparent 70%)}
+.card.push{border-color:rgba(150,165,185,.42);box-shadow:inset 0 0 0 2px rgba(150,165,185,.22)}
 .brand{position:absolute;bottom:30px;right:50px;font-size:21px;font-weight:900;letter-spacing:.22em;
   color:rgba(255,255,255,.22)}
 """
 
 _MK = {"won": "✅", "lost": "❌", "push": "➖"}
+
+# Icônes sport en COULEUR (SVG inline) — l'emoji ⚽/🎾/🏀 sort en N&B sous Chrome headless.
+_SVG = {
+    "⚽": ('<svg class="ico" width="28" height="28" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" '
+          'fill="#f2f6fa" stroke="#0b1118" stroke-width="1"/><path d="M12 6.2l3.4 2.5-1.3 4h-4.2l-1.3-4z" '
+          'fill="#10202f"/><path d="M12 6.2V3.5M15.4 8.7l2.6-1M14.1 12.7l1.7 2.2M9.9 12.7l-1.7 2.2'
+          'M8.6 8.7l-2.6-1" stroke="#10202f" stroke-width="1.1" fill="none"/></svg>'),
+    "🎾": ('<svg class="ico" width="28" height="28" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" '
+          'fill="#d4ff52"/><path d="M4.2 6.5c4.5 2.8 4.5 8.2 0 11M19.8 6.5c-4.5 2.8-4.5 8.2 0 11" '
+          'fill="none" stroke="#ffffff" stroke-width="1.7"/></svg>'),
+    "🏀": ('<svg class="ico" width="28" height="28" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" '
+          'fill="#ff8a33"/><path d="M1.3 12h21.4M12 1v22M4.3 4.2c4.3 4.3 4.3 11.3 0 15.6M19.7 4.2'
+          'c-4.3 4.3-4.3 11.3 0 15.6" fill="none" stroke="#7a3a12" stroke-width="1.2"/></svg>'),
+}
+
+
+def _sport_icon(emoji: str) -> str:
+    return _SVG.get(emoji, _html.escape(emoji or ""))
 
 
 def _wordmark_uri() -> str:
@@ -86,33 +113,38 @@ def _card_html(d: dict) -> str:
     _wm = _wordmark_uri()
     _wm_img = f'<img class="wm" src="{_wm}">' if _wm else ''
     _wm_hero = f'<div class="hero">{_wm_img}</div>' if _wm_img else ''
+    _icon = _sport_icon(d.get("emoji", ""))
+    _cardcls = ""
     inner = (f'<div class="glow"></div>'
              f'{_wm_hero}'
-             f'<div class="top">{e(d.get("emoji",""))} {e(d.get("cat",""))}</div>'
+             f'<div class="top">{_icon}{e(d.get("cat",""))}</div>'
              f'<div class="match">{e(d.get("match",""))}</div>'
              f'<div class="meta">{e(d.get("meta",""))}</div>'
              f'<div class="sep"></div>')
     if d.get("type") == "result":
         sp, cb = d.get("simple"), d.get("combo")
         _verdict = (cb or {}).get("mark") or (sp or {}).get("mark") or ""
+        _cardcls = _verdict                            # accent (bordure + halo) sur TOUTE la carte
         _vtxt = {"won": "✅ Pari gagné", "lost": "❌ Pari perdu", "push": "➖ Remboursé"}.get(_verdict, "")
         if _vtxt:
             inner += f'<div class="verdict {_verdict}">{e(_vtxt)}</div>'
         if sp:
             mk = sp.get("mark", "")
             _wl = "win" if mk == "won" else ("lose" if mk == "lost" else "")
+            _oc = f'<span class="oc">{e(str(sp["cote"]))}</span>' if sp.get("cote") else ""
             inner += (f'<div class="leg {_wl}"><span>{e(str(sp.get("label","")))}</span>'
-                      f'<span class="mk {mk}">{_MK.get(mk,"")}</span></div>')
-            if sp.get("cote"):
-                inner += f'<div class="conf">Cote <b>{e(str(sp["cote"]))}</b></div>'
+                      f'<span class="rgt">{_oc}<span class="mk {mk}">{_MK.get(mk,"")}</span></span></div>')
         if cb:
             mk = cb.get("mark", "")
             inner += (f'<div class="leg headl"><span>Combiné · {len(cb.get("legs",[]))} sélections</span>'
                       f'<span class="mk {mk}">{_MK.get(mk,"")}</span></div>')
-            for lbl, lm in cb.get("legs", []):
+            for leg in cb.get("legs", []):
+                lbl, lm = leg[0], leg[1]
+                lc = leg[2] if len(leg) > 2 else ""
                 _wl = "win" if lm == "won" else ("lose" if lm == "lost" else "")
+                _oc = f'<span class="oc">{e(str(lc))}</span>' if lc else ""
                 inner += (f'<div class="leg sub {_wl}"><span>{e(str(lbl))}</span>'
-                          f'<span class="mk {lm}">{_MK.get(lm,"")}</span></div>')
+                          f'<span class="rgt">{_oc}<span class="mk {lm}">{_MK.get(lm,"")}</span></span></div>')
             if cb.get("cote"):
                 inner += f'<div class="conf">Cote combinée <b>{e(str(cb["cote"]))}</b></div>'
         inner += (f'<div class="cote"><span class="l">Score final</span>'
@@ -129,7 +161,9 @@ def _card_html(d: dict) -> str:
                   f'<span class="v">{e(str(d.get("cote","")))}</span></div>')
         if d.get("conf"):
             inner += f'<div class="conf">Confiance <b>{e(str(d["conf"]))}%</b></div>'
-    return f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}</style></head><body><div class=card>{inner}</div></body></html>"
+    _cc = f"card {_cardcls}".strip()
+    return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}</style></head>"
+            f'<body><div class="{_cc}">{inner}</div></body></html>')
 
 
 def _chrome() -> str:
@@ -228,8 +262,9 @@ if __name__ == "__main__":
     res_combo = {"emoji": "⚽", "cat": "Football · Coupe du Monde", "match": "Argentine — Autriche",
                  "meta": "terminé · 17:00", "type": "result", "score": "3 – 1",
                  "combo": {"cote": "1.64", "mark": "won",
-                           "legs": [("Double chance 1X", "won"), ("Plus de 2.5 buts", "won"),
-                                    ("Argentine marque en 1re MT", "won")]}}
+                           "legs": [("Double chance 1X", "won", "1.07"),
+                                    ("Plus de 2.5 buts", "won", "1.86"),
+                                    ("Argentine marque en 1re MT", "won", "1.23")]}}
     res_simple = {"emoji": "🎾", "cat": "Tennis · Roland-Garros", "match": "Pegula — Noskova",
                   "meta": "terminé · 14:00", "type": "result", "score": "2 – 0 (sets)",
                   "simple": {"label": "Pegula remporte au moins un set", "cote": "1.21", "mark": "won"}}

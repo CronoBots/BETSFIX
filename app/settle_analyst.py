@@ -1181,7 +1181,8 @@ async def _settle_analyses_impl() -> int:
                 _parts.append(_cl)
                 _card_combo = {"cote": (f"{_cco:.2f}" if isinstance(_cco, float) else str(_cco or "")),
                                "mark": new_combo,
-                               "legs": [(str(_lg.get("sel", "")), _lg.get("result"))
+                               "legs": [(str(_lg.get("sel", "")), _lg.get("result"),
+                                         _lg.get("cote") or "")
                                         for _lg in _cb.get("legs", [])]}
                 d["notified_combo"] = True
             if _parts:
