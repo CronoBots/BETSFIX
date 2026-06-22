@@ -1159,14 +1159,17 @@ async def _settle_analyses_impl() -> int:
                 _has_combo = bool((d.get("combo") or {}).get("legs"))
                 _simple_shown = (not _has_combo) or (analyses.retained_bet(sport, mid) is not None)
                 if _simple_shown:
-                    _d, _l = _RES.get(new_pick, ("•", str(new_pick)))
+                    _e = _RES.get(new_pick, ("", ""))[0]   # emoji APRÈS le prono
                     _pl = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape((d.get("pick") or "").strip()))
-                    _parts.append(f"{_d} <b>{_l}</b>" + (f"\n{_pl}" if _pl else ""))
+                    _parts.append((f"{_pl} {_e}".strip()) if _pl else f"Pari simple {_e}".strip())
             if prev_combo is None and new_combo in _chip and not d.get("notified_combo"):
                 _legmark = {"won": "✅", "lost": "❌", "push": "➖"}
-                _d, _l = _RES.get(new_combo, ("•", str(new_combo)))
-                _cl = f"{_d} <b>Combiné {_l}</b>"
-                for _lg in (d.get("combo") or {}).get("legs", []):
+                _e = _RES.get(new_combo, ("", ""))[0]
+                _cb = d.get("combo") or {}
+                _cco = _cb.get("real_odds") or _cb.get("total")
+                _cl = (f"<b>Combiné · cote {_cco}</b> {_e}".strip() if _cco
+                       else f"<b>Combiné</b> {_e}".strip())
+                for _lg in _cb.get("legs", []):
                     _lr = _lg.get("result")
                     _cl += f"\n{_legmark.get(_lr, '·')} {html.escape(str(_lg.get('sel', '')))}"
                 _parts.append(_cl)
@@ -1181,9 +1184,11 @@ async def _settle_analyses_impl() -> int:
                                  .replace("Z", "+00:00")).strftime("%H:%M"))
                 except ValueError:
                     pass
-                _hdr = f"{_emo} <b>{html.escape(_match)}</b>" + (f"  <i>{html.escape(_sc)}</i>" if _sc else "")
+                _hdr = f"{_emo} <b>{html.escape(_match)}</b>"
                 if _bits:
                     _hdr += f"\n<i>{' · '.join(_bits)}</i>"
+                if _sc:                              # score du match sur sa propre ligne, AVANT le prono
+                    _hdr += f"\nScore : <b>{html.escape(_sc)}</b>"
                 notify_msgs.append(_hdr + "\n\n" + "\n".join(_parts))
             try:
                 json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
