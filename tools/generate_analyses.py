@@ -935,20 +935,23 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
     if len(rows) < 4:
         return ""
     return ("\n\nCATALOGUE COMBINABLE BET BUILDER — au lieu d'un combiné figé, propose un VIVIER de "
-            "4 à 6 JAMBES CANDIDATES prises DANS CETTE LISTE. Un OPTIMISEUR choisira ensuite la "
-            "meilleure combinaison combinable visant une VRAIE cote ≥ 1.80 avec la CHANCE DE PASSER "
-            "maximale. Pour que la vraie cote reste intéressante (pas rabotée à mort), tes candidates "
-            "doivent être PEU CORRÉLÉES :\n"
-            "  • VARIE les TYPES : résultat (vainqueur/double chance), total de buts/points, marché "
-            "mi-temps, une équipe marque, props joueur… PAS 4 jambes de « domination » du même camp.\n"
-            "  • Ne propose pas à la fois un total d'ÉQUIPE et un total de MATCH (Unibet refuse de les "
-            "combiner).\n"
-            "  • Chaque candidate ≥ ~65 % de proba selon ton analyse ; PAS de cartons/corners.\n"
-            "⚠️ FORMAT EXACT, une ligne par candidate (après la section Mise), avec l'id du catalogue "
-            "ENTRE CROCHETS et ta proba honnête :\n"
+            "5 à 6 JAMBES CANDIDATES prises DANS CETTE LISTE. Un OPTIMISEUR choisira la meilleure "
+            "combinaison combinable visant une VRAIE cote ≥ 1.80 avec la chance de passer maximale.\n"
+            "⚠️⚠️ CHANGEMENT DE LOGIQUE — ceci REMPLACE toute consigne de « domination corrélée » plus "
+            "haut. On calcule désormais la VRAIE cote Unibet, et Unibet RABOTE LOURDEMENT les jambes "
+            "CORRÉLÉES (ex. « équipe gagne » + « équipe marque 2 buts » + « +1.5 buts » = 3 fois le même "
+            "scénario buts -> cote rabotée de 30 %, value détruite). Il faut désormais des jambes "
+            "INDÉPENDANTES (qui ne décrivent PAS le même scénario) :\n"
+            "  • Mélange des ANGLES SANS LIEN : 1 résultat (double chance) + 1 total de buts + 1 jambe "
+            "d'un AUTRE registre (une équipe marque, mi-temps, props joueur…). JAMAIS 3 jambes « buts ».\n"
+            "  • Inclus AU MOINS 1-2 candidates à cote 1.5-2.5 (sinon impossible d'atteindre 1.80 réel).\n"
+            "  • Pas deux totaux qui se recoupent (équipe + match) ; chaque candidate ≥ ~65 % ; "
+            "PAS de cartons/corners.\n"
+            "⚠️ FORMAT EXACT, une ligne par candidate (après la section Mise), id du catalogue ENTRE "
+            "CROCHETS + ta proba honnête :\n"
             "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi cette jambe, factuel et chiffré>`\n"
-            "(NE produis PAS de ligne COMBO: ni de section 🎲 : l'optimiseur bâtit le combiné final à "
-            "partir de ton vivier.) Catalogue :\n" + "\n".join(rows) + "\n")
+            "(NE produis PAS de ligne COMBO: ni de section 🎲 : l'optimiseur bâtit le combiné final.) "
+            "Catalogue :\n" + "\n".join(rows) + "\n")
 
 
 def _match_prepack(legs: list, prepacks: list):
