@@ -242,10 +242,13 @@ def _cached_votes(provider, mid) -> tuple | None:
 
 
 
-def _home_stats() -> str:
-    """Bloc STATISTIQUES complet (depuis le début, tous sports) : bilan global + courbe d'équité +
-    détail par sport + analyses ROI actionnables (par cote / confiance / marché)."""
-    inner = web.render_stats(analyses.stats_full()) + web.render_perf(analyses.perf_breakdown())
+def _home_stats(since_days: int | None = None) -> str:
+    """Bloc STATISTIQUES complet : synthèse actionnable + bilan global + courbe d'équité + détail par
+    sport + ROI actionnables (cote/confiance/marché) + bilan combinés. `since_days` filtre la fenêtre."""
+    inner = (web.render_insights(analyses.stats_insights(since_days))
+             + web.render_stats(analyses.stats_full(since_days))
+             + web.render_perf(analyses.perf_breakdown(since_days))
+             + web.render_combos(analyses.combo_stats(since_days)))
     return f'<div class="sx"><div class="sx-body">{inner}</div></div>' if inner else ""
 
 
@@ -343,21 +346,33 @@ async def paris_redirect() -> RedirectResponse:
     return RedirectResponse("/", status_code=308)
 
 
+def _period_filter(since: str) -> str:
+    """Boutons de fenêtre temporelle (7 j / 30 j / Tout) — rechargent le panneau stats (data-since)."""
+    opts = [("7", "7 jours"), ("30", "30 jours"), ("", "Tout")]
+    return ('<div class="sx-period">' + "".join(
+        f'<a data-since="{v}"{" class=\"on\"" if v == since else ""}>{lab}</a>'
+        for v, lab in opts) + '</div>')
+
+
 @router.get("/stats", response_class=HTMLResponse)
-async def stats_page(frag: int = 0) -> HTMLResponse:
-    """Onglet « Statistiques » (barre du bas) : bilan global + courbe multi-sports avec jalons +
-    détail par sport + calibration. Sert un FRAGMENT quand frag=1 (panneau SPA)."""
+async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
+    """Onglet « Statistiques » (barre du bas) : synthèse + bilan + courbe + ROI + combinés + calibration.
+    `since` ∈ {7,30,''} = fenêtre temporelle. Sert un FRAGMENT quand frag=1 (panneau SPA)."""
+    since = since if since in ("7", "30") else ""
+    days = {"7": 7, "30": 30}.get(since)
+    ckey = f"panel/stats:{since or 'all'}"
     if frag:
-        cached = fragcache.get("panel/stats")
+        cached = fragcache.get(ckey)
         if cached:
             return HTMLResponse(cached)
     body = ('<div class="pg-h">Statistiques</div>'
             '<div class="statsx">'        # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
-            + _home_stats()
-            + web.render_calibration(analyses.calibration())
+            + _period_filter(since)
+            + _home_stats(days)
+            + web.render_calibration(analyses.calibration(days))
             + '</div>')
     if frag:
-        fragcache.put("panel/stats", body, ttl=PANEL_TTL)
+        fragcache.put(ckey, body, ttl=PANEL_TTL)
         return HTMLResponse(body)
     return HTMLResponse(web.spa_shell("stats", "Statistiques", body))
 

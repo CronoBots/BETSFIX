@@ -1546,6 +1546,106 @@ def stats_full(since_days: int | None = None) -> dict:
     return out
 
 
+def combo_stats(since_days: int | None = None) -> dict:
+    """Bilan dédié des COMBINÉS réglés (exclus du ROI général, suivis ici) : W/L, profit (mise plate
+    1u sur la VRAIE cote), ROI, vraie cote moyenne, rabot moyen vs produit, EV moyenne, et détail
+    par NOMBRE DE JAMBES. Non rétroactif (≥ _COMBO_COUNT_FROM). `since_days` filtre la fenêtre."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
+    rows = []   # (result, real_odds, shave, n_legs, prob)
+    for p in glob.glob(os.path.join(DIR, "*.json")):
+        d = _meta_load(p)
+        if not d:
+            continue
+        c = d.get("combo") or {}
+        if not c.get("legs"):
+            continue
+        start = d.get("start") or ""
+        if start[:10] < _COMBO_COUNT_FROM:
+            continue
+        if cutoff is not None:
+            try:
+                dt = datetime.fromisoformat(start.replace("Z", "+00:00")) if start else None
+            except (ValueError, AttributeError):
+                dt = None
+            if dt is None or dt < cutoff:
+                continue
+        res = c.get("result")
+        if res not in ("won", "lost", "push"):
+            continue
+        odds = c.get("real_odds") or c.get("total")
+        rows.append((res, float(odds) if odds else None, c.get("shave"), len(c["legs"]), c.get("prob")))
+    won = sum(1 for r, o, s, n, pr in rows if r == "won")
+    lost = sum(1 for r, o, s, n, pr in rows if r == "lost")
+    push = sum(1 for r, o, s, n, pr in rows if r == "push")
+    settled, staked = won + lost, won + lost + push
+    profit = sum((o - 1) if r == "won" else (-1 if r == "lost" else 0.0)
+                 for r, o, s, n, pr in rows if o)
+    odds_vals = [o for r, o, s, n, pr in rows if o]
+    shaves = [s for r, o, s, n, pr in rows if s is not None]
+    evs = [o * pr / 100 - 1 for r, o, s, n, pr in rows if o and pr]
+    by_legs = {}
+    for k in sorted({n for r, o, s, n, pr in rows}):
+        sub = [r for r, o, s, n, pr in rows if n == k]
+        sw = sum(1 for r in sub if r == "won")
+        sset = sum(1 for r in sub if r in ("won", "lost"))
+        by_legs[k] = {"n": len(sub), "won": sw,
+                      "wr": round(100 * sw / sset) if sset else None}
+    return {"n": len(rows), "won": won, "lost": lost, "push": push,
+            "win_rate": round(100 * won / settled) if settled else None,
+            "profit": round(profit, 2),
+            "roi": round(100 * profit / staked, 1) if staked else None,
+            "avg_odds": round(sum(odds_vals) / len(odds_vals), 2) if odds_vals else None,
+            "avg_shave": round(sum(shaves) / len(shaves), 1) if shaves else None,
+            "avg_ev": round(100 * sum(evs) / len(evs)) if evs else None,
+            "by_legs": by_legs}
+
+
+def stats_insights(since_days: int | None = None) -> list[dict]:
+    """Synthèse ACTIONNABLE auto-distillée : meilleur segment, pire segment, sur-confiance la plus
+    nette, bilan combinés. Renvoie une liste [{kind:good/bad/warn, text}] (vide si pas assez de data).
+    `_MIN_SEG` = échantillon mini pour oser une conclusion (sinon = bruit)."""
+    _MIN_SEG = 5
+    perf = perf_breakdown(since_days)
+    out: list = []
+    segs = []   # (catégorie, label, n, roi)
+    for cat, rows in (("marché", perf.get("by_market")), ("cote", perf.get("by_odds")),
+                      ("confiance", perf.get("by_conf"))):
+        for r in (rows or []):
+            if (r.get("n") or 0) >= _MIN_SEG and r.get("roi") is not None:
+                segs.append((cat, r["label"], r["n"], r["roi"]))
+    if segs:
+        best = max(segs, key=lambda x: x[3])
+        worst = min(segs, key=lambda x: x[3])
+        if best[3] > 5:
+            out.append({"kind": "good",
+                        "text": f"Ton point fort : <b>{html.escape(str(best[1]))}</b> — ROI "
+                                f"<b>{best[3]:+.0f}%</b> sur {best[2]} paris (par {best[0]})."})
+        if worst[3] < -10 and worst[1] != best[1]:
+            out.append({"kind": "bad",
+                        "text": f"À éviter : <b>{html.escape(str(worst[1]))}</b> — ROI "
+                                f"<b>{worst[3]:+.0f}%</b> sur {worst[2]} paris. Le segment qui te coûte le plus."})
+    # Sur-confiance la plus nette (calibration par marché : réel nettement sous l'annoncé)
+    cal = calibration(since_days)
+    over = []
+    for mk, g in ((cal.get("by_market") or {}).items() if isinstance(cal.get("by_market"), dict) else []):
+        gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
+        if (g.get("n") or 0) >= _MIN_SEG and gap <= -10:
+            over.append((mk, g["avg_conf"], g["win_rate"], g["n"], gap))
+    if over:
+        mk, ac, wr, n_, gap = min(over, key=lambda x: x[4])
+        out.append({"kind": "warn",
+                    "text": f"Sur-confiance sur <b>{html.escape(str(mk))}</b> : annoncé {ac}%, réussite réelle "
+                            f"<b>{wr}%</b> ({n_} paris) — viser plus haut le seuil sur ce marché."})
+    # Bilan combinés
+    cs = combo_stats(since_days)
+    if (cs.get("n") or 0) >= _MIN_SEG and cs.get("roi") is not None:
+        kind = "bad" if cs["roi"] < -10 else ("good" if cs["roi"] > 0 else "warn")
+        out.append({"kind": kind,
+                    "text": f"Combinés : <b>{cs['win_rate']}%</b> de réussite, ROI "
+                            f"<b>{cs['roi']:+.0f}%</b> ({cs['n']} réglés, vraie cote moy. {cs['avg_odds']})."})
+    return out
+
+
 _CALIB_BANDS = [(45, 55), (55, 65), (65, 75), (75, 85), (85, 101)]
 
 _MARKET_FAMILY = {   # 1er token du code -> famille de marché lisible (pour la calibration par marché)

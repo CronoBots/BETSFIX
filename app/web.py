@@ -1218,6 +1218,29 @@ CSS = """
   .sx-kpi{text-align:center}
   .sx-kpi b{display:block;font-size:15px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
   .sx-kpi span{font-size:9.5px;color:var(--muted);font-weight:600}
+  .sx-kpi.sx-pos b{color:#34d27b} .sx-kpi.sx-neg b{color:#ff6b6b}
+  /* Synthèse actionnable « À retenir » */
+  .sx-insights{display:flex;flex-direction:column;gap:0}
+  .sx-ins{display:flex;gap:9px;align-items:flex-start;font-size:11.5px;line-height:1.45;
+       font-weight:600;color:var(--text);padding:9px 2px;border-top:1px solid var(--border)}
+  .sx-ins:first-of-type{border-top:1px solid var(--border);margin-top:9px}
+  .sx-ins-i{flex:0 0 auto;font-size:12px}
+  .sx-ins b{font-weight:900}
+  .sx-ins-good b{color:#34d27b} .sx-ins-bad b{color:#ff6b6b} .sx-ins-warn b{color:#f4c64a}
+  /* Combinés : sous-ligne + réussite par nb de jambes */
+  .sx-combo-sub{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:9px}
+  .sx-combo-sub b{color:var(--text)}
+  .sx-legs{display:flex;flex-direction:column;gap:7px;margin-top:10px;
+       padding-top:10px;border-top:1px solid var(--border)}
+  .sx-leg{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;
+       font-weight:700;color:var(--text)}
+  .sx-leg-n{flex:1;text-align:left;margin-left:10px;font-size:9.5px;color:var(--muted);font-weight:600}
+  .sx-leg b{font-variant-numeric:tabular-nums}
+  /* Filtre temporel */
+  .sx-period{display:flex;gap:7px;margin:0 0 4px}
+  .sx-period a{flex:1;text-align:center;padding:8px 0;border-radius:11px;font-size:11px;font-weight:800;
+       border:1px solid var(--border);color:var(--muted);background:rgba(255,255,255,.02);text-decoration:none}
+  .sx-period a.on{color:var(--text);border-color:rgba(34,184,255,.55);background:rgba(34,184,255,.10)}
   .sx-bys{display:flex;flex-direction:column;gap:10px}
   .sx-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:0 2px;
        white-space:nowrap;font-size:12px;font-weight:800;letter-spacing:.04em;
@@ -1990,6 +2013,14 @@ _SPA_JS = (
     "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
     "if(!t){var m={'/':'home','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot','/stats':'stats'};"
     "t=m[location.pathname]||'home';}go(t,false);});"
+    # Filtre temporel des stats : clic sur un bouton période -> recharge le panneau stats (since)
+    "P.addEventListener('click',function(e){var a=e.target&&e.target.closest?"
+    "e.target.closest('a[data-since]'):null;if(!a)return;e.preventDefault();"
+    "var sp=panel('stats');if(!sp)return;"
+    "fetch('/stats?frag=1&since='+a.getAttribute('data-since'),{headers:{'X-Frag':'1'}})"
+    ".then(function(r){return r.text();}).then(function(h){sp.innerHTML=h;"
+    "if(window._twScan)window._twScan(sp);if(window._mcInit)window._mcInit(sp);"
+    "var sc=sp.querySelector('.wrap')||document.querySelector('.wrap');if(sc)sc.scrollTop=0;});});"
     # (handlers data-info/data-dvg/data-exp/.mc : déplacés dans _CARDS_JS, partagé avec layout)
     # rafraîchissement auto des COTES/SCORES live : on ré-interroge le panneau actif toutes les
     # 45 s, UNIQUEMENT s'il contient un direct (.live) ET qu'aucun accordéon n'est ouvert
@@ -2520,6 +2551,51 @@ def render_perf(perf: dict | None) -> str:
                            perf.get("by_conf") or [])
             + _roi_section("Rendement par marché", "ROI par type de pari (≥ 3 paris)",
                            perf.get("by_market") or []))
+
+
+def render_insights(items: list) -> str:
+    """Synthèse ACTIONNABLE en haut des stats : points forts / à éviter / sur-confiance, auto-distillés."""
+    if not items:
+        return ""
+    icon = {"good": "🟢", "bad": "🔴", "warn": "🟠"}
+    rows = "".join(f'<div class="sx-ins sx-ins-{i.get("kind","")}">'
+                   f'<span class="sx-ins-i">{icon.get(i.get("kind"), "•")}</span>'
+                   f'<span>{i.get("text","")}</span></div>' for i in items)
+    return ('<div class="sx-card sx-insights"><div class="sx-h">💡 À retenir'
+            '<span>synthèse automatique</span></div>' + rows + '</div>')
+
+
+def render_combos(cs: dict) -> str:
+    """Bilan dédié des COMBINÉS (exclus du ROI général) : W/L, ROI sur la vraie cote, rabot moyen,
+    EV, et réussite par nombre de jambes."""
+    if not cs or not cs.get("n"):
+        return ""
+    roi = cs.get("roi")
+    roicls = "pos" if (roi or 0) >= 0 else "neg"
+    kpis = (f'<div class="sx-kpi"><b>{cs["n"]}</b><span>combinés</span></div>'
+            f'<div class="sx-kpi"><b>{cs.get("win_rate") if cs.get("win_rate") is not None else "—"}%</b>'
+            f'<span>réussite</span></div>'
+            f'<div class="sx-kpi"><b>{cs.get("avg_odds") or "—"}</b><span>cote réelle moy.</span></div>'
+            f'<div class="sx-kpi sx-{roicls}"><b>{roi:+.0f}%</b><span>ROI</span></div>' if roi is not None
+            else '')
+    extra = []
+    if cs.get("avg_shave") is not None:
+        extra.append(f'rabot moyen <b>{cs["avg_shave"]}%</b> vs produit')
+    if cs.get("profit") is not None:
+        extra.append(f'profit <b>{cs["profit"]:+.1f} u</b>')
+    sub = " · ".join(extra)
+    # réussite par nombre de jambes
+    legrows = ""
+    for k, g in sorted((cs.get("by_legs") or {}).items()):
+        wr = g.get("wr")
+        legrows += (f'<div class="sx-leg"><span>{k} jambes</span>'
+                    f'<span class="sx-leg-n">{g["n"]} combiné{"s" if g["n"] > 1 else ""}</span>'
+                    f'<b>{wr if wr is not None else "—"}%</b></div>')
+    return ('<div class="sx-card"><div class="sx-h">🎲 Combinés'
+            '<span>vraie cote · hors ROI général</span></div>'
+            f'<div class="sx-kpis">{kpis}</div>'
+            + (f'<div class="sx-combo-sub">{sub}</div>' if sub else "")
+            + (f'<div class="sx-legs">{legrows}</div>' if legrows else "") + '</div>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
