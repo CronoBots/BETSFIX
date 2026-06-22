@@ -1739,6 +1739,7 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
             return hit[1]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     items: list = []   # (prob, won_bool, sport, market)
+    n_shadow = n_played = 0   # part fantômes (calibration seule) vs paris JOUÉS (= ceux des gains/ROI)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -1762,6 +1763,7 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
             if _r in ("won", "lost") and _pr is not None and _pr >= min_conf:
                 _mk = _MARKET_FAMILY.get((_sp.get("code") or "").split()[0] if _sp.get("code") else "", "Autre")
                 items.append((_pr, _r == "won", sport, _mk))
+                n_shadow += 1
         if _is_world_cup(d):         # CdM : paris simples/combiné EXCLUS (shadow ci-dessus INCLUS).
             continue
         stored = d.get("bets") or []
@@ -1781,8 +1783,11 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
                 continue
             mkt = _MARKET_FAMILY.get((b.get("code") or "").split()[0] if b.get("code") else "", "Autre")
             items.append((prob, res == "won", sport, mkt))
+            n_played += 1
 
     out = _calib_agg([(p, w) for p, w, _s, _m in items])
+    out["n_shadow"] = n_shadow     # fantômes (calibration UNIQUEMENT)
+    out["n_played"] = n_played     # paris JOUÉS (= base des gains/ROI)
     _SPL = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
     by_sport = {}            # par SPORT, avec les TYPES DE PARIS du sport en SOUS-CATÉGORIE (`markets`)
     for sp in ("foot", "tennis", "basket"):

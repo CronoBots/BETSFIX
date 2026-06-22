@@ -1336,6 +1336,11 @@ CSS = """
   .cal-v-t{font-size:15px;font-weight:900;color:#fff}
   .cal-v-s{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px;line-height:1.4}
   .cal-v-m{font-size:11px;color:var(--text);font-weight:700;margin-top:6px}
+  .cal-src{color:var(--muted);font-weight:600}
+  .cal-ghost{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.5;
+    margin:8px 2px 0;padding:9px 11px;border-radius:12px;background:rgba(34,184,255,.06);
+    border:1px solid rgba(34,184,255,.18)}
+  .cal-ghost b{color:var(--text)}
   .cal{display:flex;flex-direction:column;gap:9px}
   .cal-row{display:flex;align-items:center;gap:10px;
        background:linear-gradient(180deg,var(--surface2),var(--surface));
@@ -2554,9 +2559,17 @@ def render_calibration(c: dict) -> str:
                   "Le système gagne en fait plus souvent que la confiance annoncée — marge de progression."),
     }
     vc, vt, vs = vmap.get(c.get("verdict"), ("", "Calibration", ""))
+    _np, _ns = c.get("n_played") or 0, c.get("n_shadow") or 0
+    src = (f' <span class="cal-src">(<b>{_np}</b> joués + <b>{_ns}</b> fantômes)</span>' if _ns else "")
     head = (f'<div class="cal-verdict {vc}"><div class="cal-v-t">{vt}</div>'
             f'<div class="cal-v-s">{vs}</div>'
-            f'<div class="cal-v-m">écart moyen <b>{c["mae"]} pts</b> · {c["n"]} paris réglés</div></div>')
+            f'<div class="cal-v-m">écart moyen <b>{c["mae"]} pts</b> · {c["n"]} paris réglés{src}</div></div>')
+    if _ns:
+        head += ('<div class="cal-ghost">🔎 La calibration s\'appuie sur les paris <b>joués</b> '
+                 '<b>ET</b> sur des prédictions <b>fantômes</b> (non jouées, réglées après match) pour '
+                 'couvrir tout le spectre de proba. Ces fantômes <b>n\'entrent JAMAIS</b> dans les '
+                 'gains / le ROI / la courbe — qui ne comptent que les '
+                 f'<b>{_np}</b> paris réellement joués.</div>')
     bars = []
     for r in rows:
         gapcls = "pos" if r["gap"] >= 0 else "neg"   # réussite ≥ confiance = bon (vert)
