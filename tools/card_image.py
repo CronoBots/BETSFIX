@@ -30,7 +30,9 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
   border:1px solid rgba(34,184,255,.22);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden}
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
   background:radial-gradient(circle,rgba(34,184,255,.20),transparent 70%)}
-.top{font-size:21px;font-weight:800;letter-spacing:.14em;color:#5fd0ff;text-transform:uppercase;position:relative}
+.hd{display:flex;justify-content:space-between;align-items:center;gap:18px;position:relative}
+.top{font-size:21px;font-weight:800;letter-spacing:.14em;color:#5fd0ff;text-transform:uppercase}
+.wm{height:30px;width:auto;flex:none;opacity:.96;filter:drop-shadow(0 3px 10px rgba(34,184,255,.35))}
 .match{font-size:48px;font-weight:900;margin-top:12px;line-height:1.08;position:relative}
 .meta{font-size:23px;color:#90a4be;margin-top:12px;font-weight:600;position:relative}
 .sep{height:1px;background:rgba(255,255,255,.09);margin:30px 0 26px}
@@ -48,10 +50,22 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 """
 
 
+def _wordmark_uri() -> str:
+    """Logo BETSFIX (wordmark) en data-URI base64 -> carte autonome (rendu Chrome sans serveur)."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "wordmark.png")
+    try:
+        with open(path, "rb") as f:
+            return "data:image/png;base64," + base64.b64encode(f.read()).decode()
+    except OSError:
+        return ""
+
+
 def _card_html(d: dict) -> str:
     e = _html.escape
+    _wm = _wordmark_uri()
+    _wm_img = f'<img class="wm" src="{_wm}">' if _wm else ''
     inner = (f'<div class="glow"></div>'
-             f'<div class="top">{e(d.get("emoji",""))} {e(d.get("cat",""))}</div>'
+             f'<div class="hd"><div class="top">{e(d.get("emoji",""))} {e(d.get("cat",""))}</div>{_wm_img}</div>'
              f'<div class="match">{e(d.get("match",""))}</div>'
              f'<div class="meta">{e(d.get("meta",""))}</div>'
              f'<div class="sep"></div>')
@@ -67,7 +81,6 @@ def _card_html(d: dict) -> str:
                   f'<span class="v">{e(str(d.get("cote","")))}</span></div>')
         if d.get("conf"):
             inner += f'<div class="conf">Confiance <b>{e(str(d["conf"]))}%</b></div>'
-    inner += '<div class="brand">BETSFIX</div>'
     return f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}</style></head><body><div class=card>{inner}</div></body></html>"
 
 
