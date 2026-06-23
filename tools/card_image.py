@@ -30,9 +30,9 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
   border:1px solid rgba(34,184,255,.22);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden}
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
   background:radial-gradient(circle,rgba(34,184,255,.20),transparent 70%)}
-.hero{margin:-46px -50px 28px;padding:24px 40px;text-align:center;position:relative;background:#000;
-  border-bottom:1px solid rgba(34,184,255,.22)}
-.hero img{height:132px;width:auto;max-width:100%;display:block;margin:0 auto}
+.hero{margin:-22px -30px 22px;text-align:center;position:relative}
+.hero img{width:100%;height:auto;display:block;margin:0 auto;
+  filter:drop-shadow(0 6px 22px rgba(34,184,255,.35))}
 .top{font-size:21px;font-weight:800;letter-spacing:.14em;color:#5fd0ff;text-transform:uppercase}
 .match{font-size:48px;font-weight:900;margin-top:12px;line-height:1.08;position:relative}
 .meta{font-size:23px;color:#90a4be;margin-top:12px;font-weight:600;position:relative}
