@@ -258,7 +258,26 @@ async def facts(client, sport: str, home: str, away: str, start: str) -> list[st
                                       f"{away} : {oa}" if oa else "") if x)
         if line:
             out.append(f"Moyennes saison Sportradar — {line}")
+    # --- compositions confirmées (match_squads) — foot, si dispo (proche du coup d'envoi) ---
+    if sport == "foot":
+        sq = await _gismo(client, "match_squads", mid)
+        fl = _formations(sq, hid, aid, home, away) if isinstance(sq, dict) else ""
+        if fl:
+            out.append(fl)
     return out
+
+
+def _formations(sq: dict, hid, aid, hn: str, an: str) -> str:
+    """'Compositions confirmées — home 4-3-3 · away 4-2-3-1' si les compos sont posées (sinon '')."""
+    sq_home_id = (((sq.get("match") or {}).get("teams") or {}).get("home") or {}).get("_id")
+
+    def form(tid):
+        side = "home" if sq_home_id == tid else "away"
+        return ((sq.get(side) or {}).get("startinglineup") or {}).get("formation")
+
+    fh, fa = form(hid), form(aid)
+    parts = [x for x in (f"{hn} {fh}" if fh else "", f"{an} {fa}" if fa else "") if x]
+    return "Compositions confirmées (Sportradar) — " + " · ".join(parts) if parts else ""
 
 
 def _h2h_record(vs: dict, hid, aid, hn: str, an: str) -> str:
