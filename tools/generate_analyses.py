@@ -1658,11 +1658,11 @@ async def main():
                     _meta_dt = f"{_fr_date(_dt2)} · {_dt2.strftime('%H:%M')}"
                 except ValueError:
                     pass
-                _card = {"emoji": _emo, "_mid": str(m.get("id")),
+                _card = {"emoji": _emo, "_mid": str(m.get("id")), "_start": str(m.get("start") or ""),
                          "cat": f"{_sn} · {m['comp']}" if m.get("comp") else _sn,
                          "match": str(m.get("name", "")).replace(" - ", " — "), "meta": _meta_dt}
                 if _has_combo:
-                    _card.update(type="combo", cote=_cote,
+                    _card.update(type="combo", cote=_cote, conf=combo.get("prob"),
                                  legs=[(str(_lg.get("sel", "")), str(_lg.get("cote", "")))
                                        for _lg in _legs])
                 elif _pick_shown and _rb:
@@ -1688,7 +1688,11 @@ async def main():
             if notify.configured():
                 import card_image   # tools/card_image.py (même dossier que ce script)
                 os.makedirs("data/_cards", exist_ok=True)
-                for _i, (_line, _card) in enumerate(zip(notif_lines, notif_cards)):
+                # ORDRE CHRONOLOGIQUE des coups d'envoi (les cartes les plus tôt en premier)
+                _order = sorted(range(len(notif_cards)),
+                                key=lambda i: (notif_cards[i] or {}).get("_start") or "zzz")
+                for _i in _order:
+                    _line, _card = notif_lines[_i], notif_cards[_i]
                     _sent = None
                     if _card:                       # carte image (Option 2 : tout dans l'image)
                         try:
