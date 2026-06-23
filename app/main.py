@@ -417,7 +417,7 @@ async def root() -> dict:
                           "Le VRAI upstream de SofaScore (mort).",
                 "resoudre_match": "/sportradar/find?home=&away=&sport=foot&start=ISO  -> match_id",
                 "faits_analyse": "/sportradar/facts?home=&away=&sport=foot&start=ISO  "
-                                 "(forme V/N/D · série · H2H · classement)",
+                                 "(forme V/N/D · streaks de pari · H2H · classement · moyennes buts/over 2.5)",
                 "match_info": "/sportradar/match/{match_id}/info",
                 "forme": "/sportradar/match/{match_id}/form",
                 "passerelle_gismo_brute": "/sportradar/gismo/{endpoint}/{ident}  "
