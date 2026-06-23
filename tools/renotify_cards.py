@@ -54,7 +54,7 @@ def _card_for(d: dict) -> dict | None:
             "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta}
     if has_combo:
         cote = (f"{combo['real_odds']:.2f}" if combo.get("real_odds") else f"{combo.get('total', '?')}")
-        card.update(type="combo", cote=cote, conf=combo.get("prob"),
+        card.update(type="combo", cote=cote,
                     legs=[(str(l.get("sel", "")), str(l.get("cote", ""))) for l in combo["legs"]])
     elif pick_shown and rb:
         card.update(type="simple", pick=str(rb.get("sel", "")),

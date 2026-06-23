@@ -197,8 +197,6 @@ def _card_html(d: dict) -> str:
         inner += f'<div class="beth">Combiné · {len(d.get("legs",[]))} sélections</div>'
         for sel, cote in d.get("legs", []):
             inner += f'<div class="leg"><span>{e(sel)}</span><span class="o">{e(str(cote))}</span></div>'
-        if d.get("conf"):                              # confiance AU-DESSUS de la cote totale
-            inner += f'<div class="conf">Confiance <b>{e(str(d["conf"]))}%</b></div>'
         inner += (f'<div class="cote"><span class="l">Cote combinée</span>'
                   f'<span class="v">{e(str(d.get("cote","")))}</span></div>')
     else:

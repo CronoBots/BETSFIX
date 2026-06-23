@@ -1662,7 +1662,7 @@ async def main():
                          "cat": f"{_sn} · {m['comp']}" if m.get("comp") else _sn,
                          "match": str(m.get("name", "")).replace(" - ", " — "), "meta": _meta_dt}
                 if _has_combo:
-                    _card.update(type="combo", cote=_cote, conf=combo.get("prob"),
+                    _card.update(type="combo", cote=_cote,
                                  legs=[(str(_lg.get("sel", "")), str(_lg.get("cote", "")))
                                        for _lg in _legs])
                 elif _pick_shown and _rb:
