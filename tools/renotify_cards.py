@@ -126,6 +126,10 @@ def _clear_channel():
                 except Exception:
                     pass
     notify._save_sent([])
+    try:                                       # purge le suivi prono->résultat (ids supprimés)
+        json.dump({}, open(notify._PRONO_PATH, "w", encoding="utf-8"))
+    except OSError:
+        pass
 
 
 def main():
@@ -170,17 +174,28 @@ def main():
     os.makedirs("data/_cards", exist_ok=True)
     n = 0
     for i, d in enumerate(sides):
-        card = _result_card_for(d) if _settled(d) else _card_for(d)
-        if not card:
+        prono = _card_for(d)
+        if not prono:
             print(f"  - {d.get('name')} : calibration seule -> ignoré"); continue
-        png = f"data/_cards/renotify_{i}.png"
         try:
-            card_image.render_card_sync(card, png)
-            ok = notify.send_photo_sync(png, "")
-            print(f"  ✓ {card['match']} ({card.get('type')}) -> {'posté' if ok else 'ÉCHEC envoi'}")
-            n += ok
+            ppng = f"data/_cards/renotify_{i}p.png"
+            card_image.render_card_sync(prono, ppng)
+            sent = notify.send_photo_sync(ppng, "")           # carte PRONO
+            if sent:
+                notify.remember_prono(str(d.get("id")), sent)
+                n += 1
+            print(f"  ✓ {prono['match']} (prono) -> {'posté' if sent else 'ÉCHEC'}")
+            if _settled(d):                                   # résultat EN RÉPONSE au prono
+                res = _result_card_for(d)
+                if res:
+                    rpng = f"data/_cards/renotify_{i}r.png"
+                    card_image.render_card_sync(res, rpng)
+                    rsent = notify.send_photo_sync(rpng, "", reply_to=sent)
+                    if rsent:
+                        n += 1
+                    print(f"      ↳ résultat {res['score']} -> {'posté (reply)' if rsent else 'ÉCHEC'}")
         except Exception as exc:
-            print(f"  ✗ {card['match']} : {exc}")
+            print(f"  ✗ {prono['match']} : {exc}")
     print(f"Terminé : {n} carte(s) postée(s).")
 
 

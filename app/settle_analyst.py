@@ -1217,7 +1217,7 @@ async def _settle_analyses_impl() -> int:
                 except ValueError:
                     pass
                 notify_cards.append({
-                    "emoji": _emo, "cat": f"{_sn} · {d['comp']}" if d.get("comp") else _sn,
+                    "emoji": _emo, "_mid": mid, "cat": f"{_sn} · {d['comp']}" if d.get("comp") else _sn,
                     "match": str(_match).replace(" - ", " — "),
                     "meta": (f"terminé · {_mt}" if _mt else "terminé"),
                     "type": "result", "score": _sc,
@@ -1242,12 +1242,14 @@ async def _settle_analyses_impl() -> int:
                 import card_image
                 os.makedirs("data/_cards", exist_ok=True)
                 for _i, (msg, card) in enumerate(zip(notify_msgs, notify_cards)):
-                    sent = False
+                    sent = None
                     if card:                        # carte image (Option 2 : tout dans l'image)
                         try:
                             png = f"data/_cards/res_{_i}.png"
                             await card_image.render_card(card, png)
-                            sent = notify.send_photo_sync(png, "")
+                            # répond à la carte PRONO du même match (fil prono -> résultat)
+                            _reply = notify.get_prono(card.get("_mid"))
+                            sent = notify.send_photo_sync(png, "", reply_to=_reply)
                         except Exception as ce:
                             log.warning("carte résultat échouée, repli texte : %s", ce)
                     if not sent:                    # repli texte si pas de carte / échec rendu

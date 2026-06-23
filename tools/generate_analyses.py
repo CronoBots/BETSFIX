@@ -1658,7 +1658,7 @@ async def main():
                     _meta_dt = f"{_fr_date(_dt2)} · {_dt2.strftime('%H:%M')}"
                 except ValueError:
                     pass
-                _card = {"emoji": _emo,
+                _card = {"emoji": _emo, "_mid": str(m.get("id")),
                          "cat": f"{_sn} · {m['comp']}" if m.get("comp") else _sn,
                          "match": str(m.get("name", "")).replace(" - ", " — "), "meta": _meta_dt}
                 if _has_combo:
@@ -1689,12 +1689,14 @@ async def main():
                 import card_image   # tools/card_image.py (même dossier que ce script)
                 os.makedirs("data/_cards", exist_ok=True)
                 for _i, (_line, _card) in enumerate(zip(notif_lines, notif_cards)):
-                    _sent = False
+                    _sent = None
                     if _card:                       # carte image (Option 2 : tout dans l'image)
                         try:
                             _png = f"data/_cards/scan_{_i}.png"
                             await card_image.render_card(_card, _png)
                             _sent = notify.send_photo_sync(_png, "")
+                            if _sent:                # mémorise l'id du prono -> le résultat y répondra
+                                notify.remember_prono(_card.get("_mid"), _sent)
                         except Exception as _ce:
                             print(f"  (carte image échouée, repli texte : {_ce})")
                     if not _sent:                   # repli texte si pas de carte / échec rendu

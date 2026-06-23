@@ -25,6 +25,33 @@ log = logging.getLogger("betsfix.notify")
 _CFG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "notify.json")
 # IDs des messages envoyés par le bot -> supprimés AVANT chaque nouveau post (chat propre).
 _SENT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "notify_sent.json")
+# message_id de la carte PRONO par match -> le règlement y répond (fil Telegram prono->résultat).
+# Forme : {match_id: {chat_id: message_id}}.
+_PRONO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "notify_pronos.json")
+
+
+def _load_pronos() -> dict:
+    try:
+        return json.load(open(_PRONO_PATH, encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def remember_prono(match_id: str, sent: dict) -> None:
+    """Mémorise les message_id de la carte prono d'un match (par chat) pour y répondre au règlement."""
+    if not (match_id and sent):
+        return
+    store = _load_pronos()
+    store[str(match_id)] = {str(k): v for k, v in sent.items()}
+    try:
+        json.dump(store, open(_PRONO_PATH, "w", encoding="utf-8"))
+    except OSError:
+        pass
+
+
+def get_prono(match_id: str) -> dict:
+    """{chat_id: message_id} de la carte prono d'un match (pour reply_to), ou {} si inconnu."""
+    return _load_pronos().get(str(match_id), {})
 
 
 def _load_sent() -> list:
@@ -102,29 +129,38 @@ async def send(text: str, clean: bool = False) -> bool:
     return ok
 
 
-def send_photo_sync(png_path: str, caption: str = "") -> bool:
-    """Envoie une IMAGE (carte graphique du prono) avec légende HTML à tous les chats. No-op si non
-    configuré ; n'élève jamais. Légende ≤ 1024 car. (limite Telegram)."""
+def send_photo_sync(png_path: str, caption: str = "", reply_to: dict | None = None) -> dict:
+    """Envoie une IMAGE (carte) avec légende HTML à tous les chats. Renvoie {chat_id: message_id}
+    des envois réussis (dict vide si rien). `reply_to` = {chat_id: message_id} -> la carte répond
+    à ce message (fil prono->résultat). No-op si non configuré ; n'élève jamais. Légende ≤ 1024 car."""
     tok, chats = _config()
     if not (tok and chats):
-        return False
-    ok = False
+        return {}
+    reply_to = reply_to or {}
+    sent: dict = {}
     try:
         with httpx.Client(timeout=30) as cl:
             for ch in chats:
                 try:
+                    data = {"chat_id": ch, "caption": caption[:1024], "parse_mode": "HTML"}
+                    rid = reply_to.get(str(ch)) or reply_to.get(ch)
+                    if rid:                                   # répond au message prono lié
+                        data["reply_to_message_id"] = rid
+                        data["allow_sending_without_reply"] = True
                     with open(png_path, "rb") as f:
                         r = cl.post(f"https://api.telegram.org/bot{tok}/sendPhoto",
-                                    data={"chat_id": ch, "caption": caption[:1024], "parse_mode": "HTML"},
-                                    files={"photo": ("card.png", f, "image/png")})
-                    ok = ok or (r.status_code == 200)
-                    if r.status_code != 200:
+                                    data=data, files={"photo": ("card.png", f, "image/png")})
+                    if r.status_code == 200:
+                        mid = (r.json().get("result") or {}).get("message_id")
+                        if mid:
+                            sent[str(ch)] = mid
+                    else:
                         log.warning("sendPhoto %s -> HTTP %s : %s", ch, r.status_code, r.text[:200])
                 except Exception as exc:
                     log.warning("sendPhoto %s échoué : %s", ch, exc)
     except Exception as exc:
         log.warning("sendPhoto (client) échoué : %s", exc)
-    return ok
+    return sent
 
 
 def send_sync(text: str, clean: bool = False) -> bool:
