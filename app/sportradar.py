@@ -26,6 +26,9 @@ _T = 12
 _PAGE_IDS: dict[int, list[int]] = {}
 _INFO: dict[int, dict] = {}
 _RESOLVED: dict[tuple, int | None] = {}
+_SEASON_TB: dict = {}     # seasonid -> doc classement (partagé par tous les matchs du championnat)
+_SEASON_OU: dict = {}     # seasonid -> {uid: stats over/under} (idem)
+_STREAKS: dict = {}       # uid -> doc streaks
 
 
 def _deacc(s: str) -> str:
@@ -112,7 +115,9 @@ async def _resolve(client, sport: str, home: str, away: str, start: str) -> int 
             continue
         th = (m.get("teams") or {}).get("home", {}).get("name", "")
         ta = (m.get("teams") or {}).get("away", {}).get("name", "")
-        if not (_overlap(home, th) and _overlap(away, ta)):
+        # accepte les 2 orientations (matchs neutres : home/away parfois inversés entre sources)
+        if not ((_overlap(home, th) and _overlap(away, ta))
+                or (_overlap(home, ta) and _overlap(away, th))):
             continue
         if target_day:                                   # confirme par le jour du coup d'envoi (±1)
             try:
@@ -136,50 +141,123 @@ def _form_str(side: dict) -> str:
     return "".join(seq)
 
 
-def _streak_str(side: dict) -> str:
-    st = side.get("streak") or {}
-    t, v = _FORM_FR.get(st.get("type")), st.get("value")
-    return f"{v} {'victoire' if t=='V' else 'défaite' if t=='D' else 'nul'}{'s' if (v or 0) > 1 else ''} d'affilée" \
-        if (t and v) else ""
+# Séries de pari (stats_team_streaks) -> libellés FR. value >= 3 pour être notable.
+_STREAK_FR = {
+    "nolosing": "matchs sans défaite", "nowin": "matchs sans victoire",
+    "winning": "victoires de rang", "losing": "défaites de rang", "draw": "nuls de rang",
+    "scored": "matchs à marquer", "notscored": "matchs sans marquer", "noscore": "matchs sans marquer",
+    "conceded": "matchs à encaisser", "notconceded": "matchs sans encaisser (clean sheets)",
+    "cleansheet": "clean sheets de rang", "bothscored": "matchs avec BTTS",
+    "over15": "matchs à +1,5 but", "over25": "matchs à +2,5 buts", "under25": "matchs à −2,5 buts",
+}
+_STREAK_PRIO = ["winning", "losing", "nolosing", "nowin", "scored", "notconceded",
+                "noscore", "bothscored", "over25", "under25", "conceded"]
+
+
+async def _team_streaks(client, uid) -> list[str]:
+    """Séries notables (≥3) d'une équipe : 'X matchs sans défaite', 'Y à marquer'…"""
+    if uid in _STREAKS:
+        d = _STREAKS[uid]
+    else:
+        d = await _gismo(client, "stats_team_streaks", uid)
+        _STREAKS[uid] = d
+    st = (d or {}).get("streaks") or {} if isinstance(d, dict) else {}
+    out = []
+    for key in _STREAK_PRIO:
+        v = ((st.get(key) or {}).get("total") or {}).get("value")
+        if v and v >= 3 and key in _STREAK_FR:
+            out.append(f"{v} {_STREAK_FR[key]}")
+        if len(out) >= 3:
+            break
+    return out
+
+
+async def _season_overunder(client, seasonid) -> dict:
+    if seasonid in _SEASON_OU:
+        return _SEASON_OU[seasonid]
+    d = await _gismo(client, "stats_season_overunder", seasonid)
+    stats = (d or {}).get("stats") or {} if isinstance(d, dict) else {}
+    _SEASON_OU[seasonid] = stats
+    return stats
+
+
+def _ou_team(stats: dict, uid, sport: str) -> str:
+    """'X.X marqués / Y.Y encaissés /match (n) [· +2,5 buts Z%]' pour une équipe, ou ''."""
+    e = stats.get(str(uid)) or stats.get(uid)
+    if not isinstance(e, dict):
+        return ""
+    gs = ((e.get("goalsscored") or {}).get("ft") or {}).get("average")
+    gc = ((e.get("conceded") or {}).get("ft") or {}).get("average")
+    n = e.get("matches")
+    if gs is None and gc is None:
+        return ""
+    unit = "pts" if sport == "basket" else "buts"
+    fmt = lambda x: (f"{round(x, 1):g}" if isinstance(x, (int, float)) else "?")
+    s = f"{fmt(gs)} {unit} marqués / {fmt(gc)} encaissés /match" + (f" ({n})" if n else "")
+    if sport == "foot":
+        t = ((e.get("total") or {}).get("ft") or {}).get("2.5") or {}
+        o, u = t.get("over") or 0, t.get("under") or 0
+        if o + u:
+            s += f" · +2,5 buts {round(100 * o / (o + u))}%"
+    return s
 
 
 async def facts(client, sport: str, home: str, away: str, start: str) -> list[str]:
-    """Faits Sportradar (forme, série, H2H, classement) pour ce match. [] si non résolu / rien."""
+    """Faits Sportradar (forme, séries, H2H, classement, moyennes buts) pour ce match. [] si rien."""
     mid = await _resolve(client, sport, home, away, start)
     if not mid:
         return []
     m = await _info(client, mid) or {}
     teams = m.get("teams") or {}
-    hid = (teams.get("home") or {}).get("_id")
-    aid = (teams.get("away") or {}).get("_id")
-    uh = (teams.get("home") or {}).get("uid")
-    ua = (teams.get("away") or {}).get("uid")
+    sr_h = teams.get("home") or {}
+    sr_a = teams.get("away") or {}
+    # Aligne l'orientation Sportradar sur la requête (par nom) -> libellés home/away toujours corrects.
+    if _overlap(home, sr_a.get("name", "")) and not _overlap(home, sr_h.get("name", "")):
+        sr_h, sr_a = sr_a, sr_h
+    hid, aid = sr_h.get("_id"), sr_a.get("_id")
+    uh, ua = sr_h.get("uid"), sr_a.get("uid")
     seasonid = m.get("_seasonid")
     out: list[str] = []
-    # --- forme + série en cours (stats_match_form) ---
+    # --- forme 5 derniers (stats_match_form) — côté sélectionné par _id (orientation sûre) ---
     fm = await _gismo(client, "stats_match_form", mid)
     if isinstance(fm, dict):
-        th = (fm.get("teams") or {}).get("home") or {}
-        ta = (fm.get("teams") or {}).get("away") or {}
-        fh, fa = _form_str(th), _form_str(ta)
+        _fsides = [(fm.get("teams") or {}).get("home") or {}, (fm.get("teams") or {}).get("away") or {}]
+        _by_id = {(s.get("team") or {}).get("_id"): s for s in _fsides}
+        fh = _form_str(_by_id.get(hid) or {})
+        fa = _form_str(_by_id.get(aid) or {})
         if fh or fa:
             out.append(f"Forme Sportradar (5 derniers, V/N/D) — {home} : {fh or '?'} · {away} : {fa or '?'}")
-        sh, sa = _streak_str(th), _streak_str(ta)
-        ser = " · ".join(x for x in (f"{home} : {sh}" if sh else "", f"{away} : {sa}" if sa else "") if x)
+    # --- séries de pari (stats_team_streaks) — foot & basket ---
+    if sport in ("foot", "basket") and uh and ua:
+        sh, sa = await _team_streaks(client, uh), await _team_streaks(client, ua)
+        ser = " · ".join(x for x in (f"{home} : {', '.join(sh)}" if sh else "",
+                                     f"{away} : {', '.join(sa)}" if sa else "") if x)
         if ser:
-            out.append(f"Série en cours — {ser}")
-    # --- H2H : bilan des confrontations directes (stats_team_versus par uid) ---
+            out.append(f"Séries Sportradar — {ser}")
+    # --- H2H : confrontations directes (stats_team_versus par uid) ---
     if uh and ua:
         vs = await _gismo(client, "stats_team_versus", f"{uh}/{ua}")
         rec = _h2h_record(vs, hid, aid, home, away) if isinstance(vs, dict) else ""
         if rec:
             out.append(rec)
-    # --- position au classement (stats_season_tables) ---
+    # --- position au classement (stats_season_tables, caché par saison) ---
     if seasonid:
-        tb = await _gismo(client, "stats_season_tables", seasonid)
+        if seasonid in _SEASON_TB:
+            tb = _SEASON_TB[seasonid]
+        else:
+            tb = await _gismo(client, "stats_season_tables", seasonid)
+            _SEASON_TB[seasonid] = tb
         pos = _table_pos(tb, home, away) if isinstance(tb, dict) else ""
         if pos:
             out.append(pos)
+    # --- moyennes marqués/encaissés + over 2,5 (stats_season_overunder) — foot & basket ---
+    if sport in ("foot", "basket") and seasonid and uh and ua:
+        ou = await _season_overunder(client, seasonid)
+        oh, oa = _ou_team(ou, uh, sport), _ou_team(ou, ua, sport)
+        line = " · ".join(x for x in (f"{home} : {oh}" if oh else "",
+                                      f"{away} : {oa}" if oa else "") if x)
+        if line:
+            out.append(f"Moyennes saison Sportradar — {line}")
     return out
 
 
