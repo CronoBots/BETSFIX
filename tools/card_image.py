@@ -13,6 +13,7 @@ import base64
 import html as _html
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -51,7 +52,7 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 .mk.won{background:rgba(25,196,106,.22);color:#8df3c0}
 .mk.lost{background:rgba(255,80,90,.18);color:#ff9aa1}
 .mk.push{background:rgba(150,165,185,.18);color:#c0cbdb}
-.verdict{display:flex;align-items:center;justify-content:center;gap:16px;margin:0 0 28px;
+.verdict{display:flex;align-items:center;justify-content:center;gap:16px;margin:26px 0 2px;
   padding:20px 26px;border-radius:20px;font-size:36px;font-weight:900;letter-spacing:.05em;
   text-transform:uppercase}
 .verdict.won{color:#8df3c0;border:1px solid rgba(25,196,106,.55);
@@ -148,7 +149,9 @@ def _banner_uri(emoji: str) -> str:
 
 
 def _card_html(d: dict) -> str:
-    e = _html.escape
+    # Échappe + retire le suffixe « (F) » des équipes féminines (WNBA) — affichage seulement.
+    def e(x):
+        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
     _wm = _banner_uri(d.get("emoji", ""))
     _wm_img = f'<img class="wm" src="{_wm}">' if _wm else ''
     _wm_hero = f'<div class="hero">{_wm_img}</div>' if _wm_img else ''
@@ -183,13 +186,13 @@ def _card_html(d: dict) -> str:
             if cb.get("cote"):                         # cote combinée = HÉROS (gros chiffre cyan)
                 inner += (f'<div class="cchero"><span class="l">Cote combinée</span>'
                           f'<span class="v2">{e(str(cb["cote"]))}</span></div>')
-        # --- BAS de carte : le RÉSULTAT (verdict + score) ---
+        # --- BAS de carte : SCORE d'abord, puis le cadre VERDICT tout en bas ---
         inner += '<div class="sep"></div>'
+        inner += (f'<div class="cote"><span class="l">Score final</span>'
+                  f'<span class="v">{e(str(d.get("score","")))}</span></div>')
         _vtxt = {"won": "Pari gagné", "lost": "Pari perdu", "push": "Remboursé"}.get(_verdict, "")
         if _vtxt:
             inner += f'<div class="verdict {_verdict}">{_mark(_verdict, 34)}{e(_vtxt)}</div>'
-        inner += (f'<div class="cote"><span class="l">Score final</span>'
-                  f'<span class="v">{e(str(d.get("score","")))}</span></div>')
     elif d.get("type") == "combo":
         inner += f'<div class="beth">Combiné · {len(d.get("legs",[]))} sélections</div>'
         for sel, cote in d.get("legs", []):

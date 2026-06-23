@@ -68,6 +68,47 @@ def _card_for(d: dict) -> dict | None:
     return card
 
 
+def _settled(d: dict) -> bool:
+    return bool((d.get("result") or {}).get("pick_result")) or bool((d.get("combo") or {}).get("result"))
+
+
+def _result_card_for(d: dict) -> dict | None:
+    """Carte RÉSULTAT d'un sidecar réglé (mirror de app/settle_analyst), avec score + verdict."""
+    sport = d.get("sport")
+    combo = d.get("combo") or {}
+    has_combo = bool(combo.get("legs"))
+    res = d.get("result") or {}
+    pick_result = res.get("pick_result")
+    combo_result = combo.get("result")
+    simple_shown = (not has_combo) or (analyses.retained_bet(sport, str(d.get("id"))) is not None)
+
+    card_simple = card_combo = None
+    if pick_result and simple_shown:
+        raw = (d.get("pick") or "").strip()
+        m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", raw)
+        card_simple = {"label": (m.group(1).strip() if m else raw) or "Pari simple",
+                       "cote": (m.group(2).replace(",", ".") if m else ""), "mark": pick_result}
+    if combo_result:
+        cco = combo.get("real_odds") or combo.get("total")
+        card_combo = {"cote": (f"{cco:.2f}" if isinstance(cco, float) else str(cco or "")),
+                      "mark": combo_result,
+                      "legs": [(str(l.get("sel", "")), l.get("result"), l.get("cote") or "")
+                               for l in combo.get("legs", [])]}
+    if not (card_simple or card_combo):
+        return None
+    meta = "terminé"
+    try:
+        dt = datetime.fromisoformat((d.get("start") or "").replace("Z", "+00:00"))
+        meta = f"terminé · {_fr_date(dt)} · {dt.strftime('%H:%M')}"
+    except ValueError:
+        pass
+    return {"emoji": _EMO.get(sport, "•"),
+            "cat": f"{_SN.get(sport, sport)} · {d['comp']}" if d.get("comp") else _SN.get(sport, sport),
+            "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta,
+            "type": "result", "score": res.get("score") or "",
+            "simple": card_simple, "combo": card_combo}
+
+
 def _clear_channel():
     tok, chats = notify._config()
     if not (tok and chats):
@@ -129,7 +170,7 @@ def main():
     os.makedirs("data/_cards", exist_ok=True)
     n = 0
     for i, d in enumerate(sides):
-        card = _card_for(d)
+        card = _result_card_for(d) if _settled(d) else _card_for(d)
         if not card:
             print(f"  - {d.get('name')} : calibration seule -> ignoré"); continue
         png = f"data/_cards/renotify_{i}.png"
