@@ -250,6 +250,20 @@ def _table_pos(tb: dict, hn: str, an: str) -> str:
     return "Classement Sportradar — " + " · ".join(parts) if parts else ""
 
 
+# --- API publique (utilisée par le routeur app/routers/sportradar.py et le scan) ---
+async def resolve(client, sport: str, home: str, away: str, start: str) -> int | None:
+    return await _resolve(client, sport, home, away, start)
+
+
+async def info(client, mid: int) -> dict | None:
+    return await _info(client, mid)
+
+
+async def gismo(client, endpoint: str, ident) -> dict | list | None:
+    """Passerelle brute vers le feed GISMO (ex. endpoint='stats_season_tables', ident=101177)."""
+    return await _gismo(client, endpoint, ident)
+
+
 async def block(client, sport: str, match: dict) -> str:
     """Bloc texte 'SPORTRADAR' à coller dans le dossier de l'analyste. '' si rien."""
     try:

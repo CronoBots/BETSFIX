@@ -15,7 +15,7 @@ from app import __version__
 from app import fragcache
 from app.dependencies import get_provider, get_rankings, get_unibet, shutdown_provider
 from app.routers import (
-    analysis, basket, flashscore, foot, livescore, matches, players, statistics, unibet, web,
+    analysis, basket, flashscore, foot, livescore, matches, players, sportradar, statistics, unibet, web,
 )
 
 log = logging.getLogger("uvicorn")
@@ -178,6 +178,9 @@ from app.routers.flashscore import TAG_BASKET as TAG_FLASH_BASKET  # noqa: E402 
 from app.routers.livescore import TAG_FOOT as TAG_LIVE_FOOT  # noqa: E402  "⚽ Football · LiveScore"
 from app.routers.livescore import TAG_TENNIS as TAG_LIVE_TENNIS  # noqa: E402  "🎾 Tennis · LiveScore"
 from app.routers.livescore import TAG_BASKET as TAG_LIVE_BASKET  # noqa: E402  "🏀 Basket · LiveScore"
+from app.routers.sportradar import TAG_FOOT as TAG_SR_FOOT  # noqa: E402  "⚽ Football · Sportradar"
+from app.routers.sportradar import TAG_TENNIS as TAG_SR_TENNIS  # noqa: E402  "🎾 Tennis · Sportradar"
+from app.routers.sportradar import TAG_BASKET as TAG_SR_BASKET  # noqa: E402  "🏀 Basket · Sportradar"
 # Transverses :
 TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
 TAG_INTERFACE = "🖥️ Interface (pages HTML)"
@@ -191,14 +194,17 @@ OPENAPI_TAGS = [
     {"name": TAG_FOOT_UNIBET},
     {"name": TAG_FLASH_FOOT},
     {"name": TAG_LIVE_FOOT},
+    {"name": TAG_SR_FOOT},
     {"name": TAG_TENNIS_SRC},
     {"name": TAG_TENNIS_UNIBET},
     {"name": TAG_FLASH_TENNIS},
     {"name": TAG_LIVE_TENNIS},
+    {"name": TAG_SR_TENNIS},
     {"name": TAG_BASKET_SRC},
     {"name": TAG_BASKET_UNIBET},
     {"name": TAG_FLASH_BASKET},
     {"name": TAG_LIVE_BASKET},
+    {"name": TAG_SR_BASKET},
     {"name": TAG_MODELE_ANALYSE},
     {"name": TAG_INTERFACE},
     {"name": TAG_META},
@@ -229,7 +235,8 @@ def _classify_tag(path: str) -> str | None:
         return TAG_META
     # 🟧 Unibet / Flashscore / LiveScore : on NE retague PAS (les routeurs posent eux-mêmes un tag
     #    PAR SPORT, ⚽/🎾/🏀 ; renvoyer None préserve ces tags au lieu de tout réunir sous un seul).
-    if p.startswith("/flashscore") or p.startswith("/livescore") or p.startswith("/unibet"):
+    if (p.startswith("/flashscore") or p.startswith("/livescore") or p.startswith("/unibet")
+            or p.startswith("/sportradar")):
         return None
     # 🟢 Sources SofaScore par sport (le reste)
     if p.startswith(("/matches", "/players", "/statistics")):
@@ -295,6 +302,7 @@ app.include_router(foot.router)
 app.include_router(unibet.router)
 app.include_router(flashscore.router)
 app.include_router(livescore.router)
+app.include_router(sportradar.router)
 app.include_router(web.router)
 
 # PWA : fichiers statiques (icônes) + manifest -> app installable sur l'écran d'accueil
