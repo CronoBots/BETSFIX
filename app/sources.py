@@ -1059,6 +1059,11 @@ async def extras(client, sport: str, match: dict) -> str:
                 "à CROISER avec ta recherche web ; un fait présent ici ET confirmé ailleurs = 2 sources) :\n- "
                 + "\n- ".join(facts))
     out += await _flashscore_block(sport, match)
+    try:                                   # Sportradar (GISMO) : forme/série/H2H/classement
+        from app import sportradar
+        out += await sportradar.block(client, sport, match)
+    except Exception:
+        pass
     return out
 
 

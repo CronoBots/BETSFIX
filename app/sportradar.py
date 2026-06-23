@@ -1,0 +1,263 @@
+"""Source d'enrichissement n°N : feed GISMO de Sportradar (le moteur en amont des sites de stats).
+
+Accès LIBRE (aucun token) : `https://lsc.fn.sportradar.com/common/{lang}/Etc:UTC/gismo/{endpoint}/{id}`.
+On l'interroge en **français** (`fr`) pour que les noms d'équipes matchent ceux du scan (Unibet FR).
+
+Rôle : 2e/3e source indépendante pour des FAITS concrets (forme récente, série en cours, H2H,
+position au classement) — utile depuis la mort de SofaScore. Le module est TOLÉRANT : toute panne
+réseau / format renvoie '' ou [] et n'élève jamais (ne doit jamais casser un scan).
+
+Mapping match Unibet -> id Sportradar : la page StatsHub du sport liste les /match/{id} du jour ;
+on lit `match_info` (FR) de chaque candidat et on matche par noms (déaccentués) + jour du coup d'envoi.
+"""
+from __future__ import annotations
+
+import re
+import unicodedata
+from datetime import datetime
+
+_GISMO = "https://lsc.fn.sportradar.com/common/fr/Etc:UTC/gismo"
+_PAGE = "https://statshub.sportradar.com/unibet/en/sport"   # liste des /match/{id} (ids indép. de la langue)
+_SPORT_ID = {"foot": 1, "tennis": 5, "basket": 2}
+_UA = {"User-Agent": "Mozilla/5.0"}
+_T = 12
+
+# Caches mémoire (durée de vie = process scan) : évite de re-télécharger pendant un même scan.
+_PAGE_IDS: dict[int, list[int]] = {}
+_INFO: dict[int, dict] = {}
+_RESOLVED: dict[tuple, int | None] = {}
+
+
+def _deacc(s: str) -> str:
+    return unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower().strip()
+
+
+def _toks(s: str) -> set:
+    return {w for w in re.findall(r"[a-z0-9]+", _deacc(s)) if len(w) >= 3}
+
+
+def _overlap(a: str, b: str) -> bool:
+    ta, tb = _toks(a), _toks(b)
+    if not ta or not tb:
+        return False
+    if ta & tb:
+        return True
+    # repli préfixe 5 lettres (Norvège/Norway ne s'appliquent pas — on est en FR des 2 côtés)
+    return any(len(x) >= 5 and len(y) >= 5 and x[:5] == y[:5] for x in ta for y in tb)
+
+
+async def _gismo(client, endpoint: str, ident) -> dict | list | None:
+    """GET GISMO best-effort -> doc[0].data, ou None (exception / réseau / format)."""
+    try:
+        r = await client.get(f"{_GISMO}/{endpoint}/{ident}", headers=_UA, timeout=_T)
+        if r.status_code != 200:
+            return None
+        doc = (r.json() or {}).get("doc") or []
+        if not doc:
+            return None
+        d = doc[0].get("data")
+        if isinstance(d, dict) and d.get("_doc") == "exception":
+            return None
+        if doc[0].get("event") == "exception":
+            return None
+        return d
+    except Exception:
+        return None
+
+
+async def _match_ids(client, sport: str) -> list[int]:
+    sid = _SPORT_ID.get(sport)
+    if not sid:
+        return []
+    if sid in _PAGE_IDS:
+        return _PAGE_IDS[sid]
+    ids: list[int] = []
+    try:
+        r = await client.get(f"{_PAGE}/{sid}", headers=_UA, timeout=20)
+        if r.status_code == 200:
+            seen = set()
+            for m in re.findall(r"/match/(\d{6,9})", r.text):
+                if m not in seen:
+                    seen.add(m)
+                    ids.append(int(m))
+    except Exception:
+        ids = []
+    _PAGE_IDS[sid] = ids
+    return ids
+
+
+async def _info(client, mid: int) -> dict | None:
+    if mid in _INFO:
+        return _INFO[mid]
+    d = await _gismo(client, "match_info", mid)
+    m = (d or {}).get("match") if isinstance(d, dict) else None
+    _INFO[mid] = m or {}
+    return _INFO[mid]
+
+
+async def _resolve(client, sport: str, home: str, away: str, start: str) -> int | None:
+    """id de match Sportradar pour ce match Unibet (noms FR + jour), ou None."""
+    key = (sport, _deacc(home), _deacc(away))
+    if key in _RESOLVED:
+        return _RESOLVED[key]
+    target_day = None
+    try:
+        target_day = datetime.fromisoformat((start or "").replace("Z", "+00:00")).date()
+    except ValueError:
+        pass
+    found = None
+    for mid in (await _match_ids(client, sport))[:60]:
+        m = await _info(client, mid)
+        if not m:
+            continue
+        th = (m.get("teams") or {}).get("home", {}).get("name", "")
+        ta = (m.get("teams") or {}).get("away", {}).get("name", "")
+        if not (_overlap(home, th) and _overlap(away, ta)):
+            continue
+        if target_day:                                   # confirme par le jour du coup d'envoi (±1)
+            try:
+                uts = (m.get("_dt") or {}).get("uts")
+                md = datetime.utcfromtimestamp(uts).date() if uts else None
+                if md and abs((md - target_day).days) > 1:
+                    continue
+            except Exception:
+                pass
+        found = mid
+        break
+    _RESOLVED[key] = found
+    return found
+
+
+_FORM_FR = {"W": "V", "D": "N", "L": "D"}   # Win/Draw/Loss -> Victoire/Nul/Défaite
+
+
+def _form_str(side: dict) -> str:
+    seq = [_FORM_FR.get((f or {}).get("type"), "?") for f in (side.get("form") or [])][:5]
+    return "".join(seq)
+
+
+def _streak_str(side: dict) -> str:
+    st = side.get("streak") or {}
+    t, v = _FORM_FR.get(st.get("type")), st.get("value")
+    return f"{v} {'victoire' if t=='V' else 'défaite' if t=='D' else 'nul'}{'s' if (v or 0) > 1 else ''} d'affilée" \
+        if (t and v) else ""
+
+
+async def facts(client, sport: str, home: str, away: str, start: str) -> list[str]:
+    """Faits Sportradar (forme, série, H2H, classement) pour ce match. [] si non résolu / rien."""
+    mid = await _resolve(client, sport, home, away, start)
+    if not mid:
+        return []
+    m = await _info(client, mid) or {}
+    teams = m.get("teams") or {}
+    hid = (teams.get("home") or {}).get("_id")
+    aid = (teams.get("away") or {}).get("_id")
+    uh = (teams.get("home") or {}).get("uid")
+    ua = (teams.get("away") or {}).get("uid")
+    seasonid = m.get("_seasonid")
+    out: list[str] = []
+    # --- forme + série en cours (stats_match_form) ---
+    fm = await _gismo(client, "stats_match_form", mid)
+    if isinstance(fm, dict):
+        th = (fm.get("teams") or {}).get("home") or {}
+        ta = (fm.get("teams") or {}).get("away") or {}
+        fh, fa = _form_str(th), _form_str(ta)
+        if fh or fa:
+            out.append(f"Forme Sportradar (5 derniers, V/N/D) — {home} : {fh or '?'} · {away} : {fa or '?'}")
+        sh, sa = _streak_str(th), _streak_str(ta)
+        ser = " · ".join(x for x in (f"{home} : {sh}" if sh else "", f"{away} : {sa}" if sa else "") if x)
+        if ser:
+            out.append(f"Série en cours — {ser}")
+    # --- H2H : bilan des confrontations directes (stats_team_versus par uid) ---
+    if uh and ua:
+        vs = await _gismo(client, "stats_team_versus", f"{uh}/{ua}")
+        rec = _h2h_record(vs, hid, aid, home, away) if isinstance(vs, dict) else ""
+        if rec:
+            out.append(rec)
+    # --- position au classement (stats_season_tables) ---
+    if seasonid:
+        tb = await _gismo(client, "stats_season_tables", seasonid)
+        pos = _table_pos(tb, home, away) if isinstance(tb, dict) else ""
+        if pos:
+            out.append(pos)
+    return out
+
+
+def _h2h_record(vs: dict, hid, aid, hn: str, an: str) -> str:
+    """Bilan H2H depuis la liste `matches` des confrontations (avec résultats)."""
+    hw = aw = dr = 0
+    for mt in vs.get("matches") or []:
+        res = mt.get("result") or {}
+        rh, ra = res.get("home"), res.get("away")
+        if rh is None or ra is None:
+            continue
+        mt_teams = mt.get("teams") or {}
+        mh = (mt_teams.get("home") or {}).get("_id")
+        ma = (mt_teams.get("away") or {}).get("_id")
+        if rh == ra:
+            dr += 1
+            continue
+        win = mh if rh > ra else ma
+        if win == hid:
+            hw += 1
+        elif win == aid:
+            aw += 1
+    tot = hw + aw + dr
+    if not tot:
+        return ""
+    return f"H2H Sportradar ({tot} confrontation(s)) — {hn} {hw}, {an} {aw}, {dr} nul(s)"
+
+
+def _table_pos(tb: dict, hn: str, an: str) -> str:
+    """Position + points de chaque équipe dans les tables du classement (ligues & groupes de coupe)."""
+    rows: list = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            rws = o.get("tablerows") or o.get("tablerow")
+            if isinstance(rws, list):
+                rows.extend(rws)
+            for v in o.values():
+                if isinstance(v, (dict, list)):
+                    walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+
+    walk(tb)
+
+    def find(name):
+        for r in rows:
+            if _overlap(name, (r.get("team") or {}).get("name", "")):
+                pos = r.get("pos") or r.get("position")
+                pts = r.get("pointsTotal") if r.get("pointsTotal") is not None else r.get("points")
+                won = r.get("winner") if r.get("winner") is not None else r.get("won")
+                lost = r.get("loser") if r.get("loser") is not None else r.get("lost")
+                return pos, pts, won, lost
+        return None
+
+    def fmt(name, p):
+        if not (p and p[0]):
+            return ""
+        pos, pts, won, lost = p
+        if pts is not None:                          # ligues à points (foot)
+            return f"{name} {pos}e ({pts} pts)"
+        if won is not None and lost is not None:     # basket : bilan victoires-défaites
+            return f"{name} {pos}e ({won}-{lost})"
+        return f"{name} {pos}e"
+
+    parts = [x for x in (fmt(hn, find(hn)), fmt(an, find(an))) if x]
+    return "Classement Sportradar — " + " · ".join(parts) if parts else ""
+
+
+async def block(client, sport: str, match: dict) -> str:
+    """Bloc texte 'SPORTRADAR' à coller dans le dossier de l'analyste. '' si rien."""
+    try:
+        f = await facts(client, sport, match.get("home", ""), match.get("away", ""),
+                        match.get("start", ""))
+    except Exception:
+        return ""
+    if not f:
+        return ""
+    return ("\n\nSPORTRADAR (source indépendante — faits à CROISER avec le reste ; "
+            "présent ici ET confirmé ailleurs = 2 sources) :\n- " + "\n- ".join(f))
