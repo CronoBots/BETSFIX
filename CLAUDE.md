@@ -65,7 +65,8 @@ Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
 | **Understat** | foot : xG (top-5 ligues) | ✅ |
 | **Flashscore** | foot/tennis/basket : forme + H2H + service + compos | ✅ |
 | **LiveScore** | scores **live** (onglet radar) + **règlement** des paris | ✅ |
-| **SofaScore** | ex-source principale | ❌ **MORTE** |
+| **Sportradar (GISMO)** | foot/tennis/basket : forme · série · H2H · classement — feed LIBRE `lsc.fn.sportradar.com` (locale FR), `app/sportradar.py` branché à `sources.extras` | ✅ |
+| **SofaScore** | ex-source principale (Sportradar GISMO = le vrai upstream, le remplace en partie) | ❌ **MORTE** |
 
 ### ⚠️ SofaScore est MORT — NE PAS re-diagnostiquer à chaque fois
 - `app/sofa_http`, `_sofa_extras`, `_resolve_sofa`, `tools/build_*elo` appellent
