@@ -3,10 +3,26 @@
 API REST (Python / **FastAPI**) qui récupère **tous les matchs** et **toutes les
 statistiques** de Roland Garros (simple messieurs **ATP** et dames **WTA**).
 
-Les données proviennent d'une **source gratuite et sans clé** : l'API publique
-**SofaScore**. Toute la logique réseau est isolée dans une couche *provider*
-(`app/providers/sofascore.py`), ce qui permet de brancher une autre source sans
-toucher aux endpoints.
+> **Note (2026) :** le projet a évolué d'une simple API Roland Garros vers une **PWA de paris
+> multi-sports** (foot / tennis / basket). Les données ne proviennent **plus de SofaScore**
+> (source morte) mais d'une **couche multi-sources gratuite et sans clé** (`app/sources.py`),
+> croisée par l'analyste avant chaque pronostic.
+
+### Sources de données (état réel)
+
+| Source | Rôle | Statut |
+|---|---|---|
+| **Unibet** (Kambi) | cotes + marchés + **sélection** des matchs (3 sports) | ✅ |
+| **Pinnacle** | ancre « sharp » (proba de référence) | ✅ |
+| **FotMob** | foot : forme / blessés / H2H | ✅ |
+| **ESPN** | tennis (classement / forme) · basket (bilans / blessés WNBA-NBA) | ✅ |
+| **Understat** | foot : xG (top-5 ligues) | ✅ |
+| **Flashscore** | foot / tennis / basket : forme + H2H + compos | ✅ |
+| **LiveScore** | scores **live** + **règlement** des paris | ✅ |
+| **Sportradar (GISMO)** | foot / tennis / basket : forme · série · H2H · classement — feed libre `lsc.fn.sportradar.com` (`app/sportradar.py`) | ✅ |
+| **SofaScore** | ex-source principale | ❌ **morte** |
+
+> Carte des sources canonique et tenue à jour : voir **`CLAUDE.md` § « Sources de données & analyse »**.
 
 ## Fonctionnalités
 
