@@ -37,11 +37,33 @@ def _load_pronos() -> dict:
         return {}
 
 
+def _delete_messages(sent: dict) -> None:
+    """Supprime des messages {chat_id: message_id} (best-effort ; n'élève jamais)."""
+    tok, _ = _config()
+    if not (tok and sent):
+        return
+    try:
+        with httpx.Client(timeout=12) as cl:
+            for ch, mid in sent.items():
+                try:
+                    cl.post(f"https://api.telegram.org/bot{tok}/deleteMessage",
+                            json={"chat_id": ch, "message_id": mid})
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 def remember_prono(match_id: str, sent: dict) -> None:
-    """Mémorise les message_id de la carte prono d'un match (par chat) pour y répondre au règlement."""
+    """Mémorise les message_id de la carte prono d'un match (par chat) pour y répondre au règlement.
+    JAMAIS 2 cartes pour le même match : si une carte prono existait déjà, on SUPPRIME l'ancienne
+    (la nouvelle vient d'être postée) avant de mémoriser la nouvelle."""
     if not (match_id and sent):
         return
     store = _load_pronos()
+    old = store.get(str(match_id))
+    if old:                                   # doublon -> supprime la plus ANCIENNE carte
+        _delete_messages(old)
     store[str(match_id)] = {str(k): v for k, v in sent.items()}
     try:
         json.dump(store, open(_PRONO_PATH, "w", encoding="utf-8"))
