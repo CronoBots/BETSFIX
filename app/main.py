@@ -412,6 +412,18 @@ async def root() -> dict:
                 "resume": "/flashscore/match/{match_id}/summary",
                 "h2h": "/flashscore/match/{match_id}/h2h",
             },
+            "sportradar_gismo": {
+                "_acces": "Feed GISMO Sportradar LIBRE (sans clé) — enrichissement du scan, 3 sports. "
+                          "Le VRAI upstream de SofaScore (mort).",
+                "resoudre_match": "/sportradar/find?home=&away=&sport=foot&start=ISO  -> match_id",
+                "faits_analyse": "/sportradar/facts?home=&away=&sport=foot&start=ISO  "
+                                 "(forme V/N/D · série · H2H · classement)",
+                "match_info": "/sportradar/match/{match_id}/info",
+                "forme": "/sportradar/match/{match_id}/form",
+                "passerelle_gismo_brute": "/sportradar/gismo/{endpoint}/{ident}  "
+                                          "(ex: stats_season_tables/{seasonid}, stats_team_versus/{uid}/{uid}, "
+                                          "match_squads/{id}, match_timeline/{id})",
+            },
         },
         # 🟡 COTES — prix réels du marché : UNIBET uniquement (tous marchés par sport).
         # Les cotes SofaScore sont seulement informatives -> rangées dans `sources`.
