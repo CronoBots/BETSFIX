@@ -30,11 +30,9 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
   border:1px solid rgba(34,184,255,.22);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden}
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
   background:radial-gradient(circle,rgba(34,184,255,.20),transparent 70%)}
-.hero{margin:-46px -50px 28px;padding:40px 60px 32px;text-align:center;position:relative;
-  background:linear-gradient(180deg,rgba(34,184,255,.14) 0%,rgba(34,184,255,.04) 55%,rgba(8,12,19,0) 100%);
-  border-bottom:1px solid rgba(34,184,255,.20)}
-.hero img{width:100%;max-width:780px;height:auto;display:block;margin:0 auto;
-  filter:drop-shadow(0 6px 24px rgba(34,184,255,.55))}
+.hero{margin:-46px -50px 28px;padding:24px 40px;text-align:center;position:relative;background:#000;
+  border-bottom:1px solid rgba(34,184,255,.22)}
+.hero img{height:132px;width:auto;max-width:100%;display:block;margin:0 auto}
 .top{font-size:21px;font-weight:800;letter-spacing:.14em;color:#5fd0ff;text-transform:uppercase}
 .match{font-size:48px;font-weight:900;margin-top:12px;line-height:1.08;position:relative}
 .meta{font-size:23px;color:#90a4be;margin-top:12px;font-weight:600;position:relative}
@@ -127,9 +125,10 @@ def _mark(mk: str, size: int = 38) -> str:
     return ""
 
 
-def _wordmark_uri() -> str:
-    """Logo BETSFIX (wordmark) en data-URI base64 -> carte autonome (rendu Chrome sans serveur)."""
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "wordmark.png")
+_SPORT_OF = {"⚽": "foot", "🎾": "tennis", "🏀": "basket"}
+
+
+def _img_uri(path: str) -> str:
     try:
         with open(path, "rb") as f:
             return "data:image/png;base64," + base64.b64encode(f.read()).decode()
@@ -137,9 +136,21 @@ def _wordmark_uri() -> str:
         return ""
 
 
+def _banner_uri(emoji: str) -> str:
+    """Bannière BETSFIX du SPORT (en-tête de carte) en data-URI base64. Repli sur le wordmark
+    générique si la bannière du sport est absente -> carte autonome (rendu Chrome sans serveur)."""
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
+    sport = _SPORT_OF.get(emoji or "")
+    for name in ([f"banner_{sport}.png"] if sport else []) + ["wordmark.png"]:
+        uri = _img_uri(os.path.join(root, name))
+        if uri:
+            return uri
+    return ""
+
+
 def _card_html(d: dict) -> str:
     e = _html.escape
-    _wm = _wordmark_uri()
+    _wm = _banner_uri(d.get("emoji", ""))
     _wm_img = f'<img class="wm" src="{_wm}">' if _wm else ''
     _wm_hero = f'<div class="hero">{_wm_img}</div>' if _wm_img else ''
     _icon = _sport_icon(d.get("emoji", ""))
