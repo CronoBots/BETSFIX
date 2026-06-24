@@ -17,6 +17,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
+import unicodedata
 
 import httpx
 
@@ -54,17 +56,36 @@ def _delete_messages(sent: dict) -> None:
         pass
 
 
-def remember_prono(match_id: str, sent: dict) -> None:
+def _norm_name(name: str) -> str:
+    """Clé d'unicité d'un match = paire d'équipes déaccentuée, sans « (F) » ni ponctuation."""
+    if not name:
+        return ""
+    s = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode().lower()
+    s = s.replace("(f)", " ")
+    return re.sub(r"[^a-z0-9]+", " ", s).strip()
+
+
+def _msgs_of(entry) -> dict:
+    """Extrait {chat: message_id} d'une entrée de store (nouveau format {msgs,name} OU ancien plat)."""
+    if not isinstance(entry, dict):
+        return {}
+    if "msgs" in entry:
+        return entry.get("msgs") or {}
+    return {k: v for k, v in entry.items() if k != "name"}   # ancien format : {chat: mid}
+
+
+def remember_prono(match_id: str, sent: dict, name: str | None = None) -> None:
     """Mémorise les message_id de la carte prono d'un match (par chat) pour y répondre au règlement.
-    JAMAIS 2 cartes pour le même match : si une carte prono existait déjà, on SUPPRIME l'ancienne
-    (la nouvelle vient d'être postée) avant de mémoriser la nouvelle."""
+    JAMAIS 2 cartes pour le MÊME match : supprime toute carte existante de même id OU de même paire
+    d'équipes (la nouvelle vient d'être postée) avant de mémoriser la nouvelle."""
     if not (match_id and sent):
         return
     store = _load_pronos()
-    old = store.get(str(match_id))
-    if old:                                   # doublon -> supprime la plus ANCIENNE carte
-        _delete_messages(old)
-    store[str(match_id)] = {str(k): v for k, v in sent.items()}
+    nm = _norm_name(name)
+    for k in [k for k, v in list(store.items())
+              if k == str(match_id) or (nm and isinstance(v, dict) and v.get("name") == nm)]:
+        _delete_messages(_msgs_of(store.pop(k)))      # supprime l'ancienne carte (même match)
+    store[str(match_id)] = {"msgs": {str(c): m for c, m in sent.items()}, "name": nm}
     try:
         json.dump(store, open(_PRONO_PATH, "w", encoding="utf-8"))
     except OSError:
@@ -73,7 +94,7 @@ def remember_prono(match_id: str, sent: dict) -> None:
 
 def get_prono(match_id: str) -> dict:
     """{chat_id: message_id} de la carte prono d'un match (pour reply_to), ou {} si inconnu."""
-    return _load_pronos().get(str(match_id), {})
+    return _msgs_of(_load_pronos().get(str(match_id), {}))
 
 
 def _load_sent() -> list:

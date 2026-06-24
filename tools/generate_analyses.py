@@ -1700,7 +1700,7 @@ async def main():
                             await card_image.render_card(_card, _png)
                             _sent = notify.send_photo_sync(_png, "")
                             if _sent:                # mémorise l'id du prono -> le résultat y répondra
-                                notify.remember_prono(_card.get("_mid"), _sent)
+                                notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
                         except Exception as _ce:
                             print(f"  (carte image échouée, repli texte : {_ce})")
                     if not _sent:                   # repli texte si pas de carte / échec rendu

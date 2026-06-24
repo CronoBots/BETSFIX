@@ -167,7 +167,12 @@ def main():
     if not sides:
         print("aucun sidecar à reposter"); return
     sides.sort(key=lambda d: d.get("start") or "")   # ORDRE CHRONOLOGIQUE des coups d'envoi
-    print(f"{len(sides)} carte(s) à reposter")
+    # DÉDUP par paire d'équipes : jamais 2 fois le même match -> on garde le PLUS RÉCENT
+    _seen = {}
+    for d in sides:
+        _seen[notify._norm_name(d.get("name"))] = d   # le dernier (start le + tard) écrase
+    sides = sorted(_seen.values(), key=lambda d: d.get("start") or "")
+    print(f"{len(sides)} carte(s) à reposter (dédupliquées par match)")
     if not notify.configured():
         print("notify non configuré"); return
     if not args.no_clear:
@@ -183,7 +188,7 @@ def main():
             card_image.render_card_sync(prono, ppng)
             sent = notify.send_photo_sync(ppng, "")           # carte PRONO
             if sent:
-                notify.remember_prono(str(d.get("id")), sent)
+                notify.remember_prono(str(d.get("id")), sent, d.get("name"))
                 n += 1
             print(f"  ✓ {prono['match']} (prono) -> {'posté' if sent else 'ÉCHEC'}")
             if _settled(d):                                   # résultat EN RÉPONSE au prono
