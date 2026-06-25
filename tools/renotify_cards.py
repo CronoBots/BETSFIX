@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import glob
 import os
 import re
 import sys
@@ -142,7 +143,7 @@ def main():
     sides = []
     if args.ids:
         wanted = [s.strip() for s in args.ids.split(",") if s.strip()]
-        for f in __import__("glob").glob(os.path.join(analyses.DIR, "*.json")):
+        for f in glob.glob(os.path.join(analyses.DIR, "*.json")):
             try:
                 d = json.load(open(f, encoding="utf-8"))
             except (OSError, ValueError):
@@ -154,7 +155,7 @@ def main():
     else:
         cutoff = datetime.now(timezone.utc).timestamp() - args.hours * 3600
         rows = []
-        for f in __import__("glob").glob(os.path.join(analyses.DIR, "*.json")):
+        for f in glob.glob(os.path.join(analyses.DIR, "*.json")):
             try:
                 d = json.load(open(f, encoding="utf-8"))
             except (OSError, ValueError):

@@ -970,7 +970,8 @@ async def _settle_analyses_impl() -> int:
             shadow_codes = [s.get("code", "") for s in (d.get("shadow") or [])]
             need_periods = (not score.get("periods")) and any(
                 c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE", "TEAMHALF", "HALFTOT", "WINHALF",
-                              "TEAMBOTH", "BTTSHALF", "BQTOT", "BQTEAM", "BQWIN", "BQHCAP", "GAMESHCAP", "TIEBREAK"))
+                              "TEAMBOTH", "BTTSHALF", "BQTOT", "BQTEAM", "BQWIN", "BQHCAP", "GAMESHCAP",
+                              "TIEBREAK", "REGTIME"))   # REGTIME : 90 min (somme des mi-temps), exclut la prolongation
                 or "1H" in c or "2H" in c
                 for c in [code, *bet_codes, *combo_codes, *shadow_codes] if c)
             if need_periods:
@@ -1266,7 +1267,8 @@ async def _settle_analyses_impl() -> int:
                             await card_image.render_card(card, png)
                             # répond à la carte PRONO du même match (fil prono -> résultat)
                             _reply = notify.get_prono(card.get("_mid"))
-                            sent = notify.send_photo_sync(png, "", reply_to=_reply)
+                            # envoi BLOQUANT (httpx upload) -> hors event loop pour ne pas figer l'API
+                            sent = await asyncio.to_thread(notify.send_photo_sync, png, "", _reply)
                         except Exception as ce:
                             log.warning("carte résultat échouée, repli texte : %s", ce)
                     if not sent:                    # repli texte si pas de carte / échec rendu

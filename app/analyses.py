@@ -1095,25 +1095,43 @@ _COMBO_LIVE_CACHE: dict = {}     # (eid, oids) -> (ts, real_odds live)
 _COMBO_LIVE_TTL = 180            # 3 min : cote re-pricée fraîche sans marteler Kambi
 
 
-def _combo_live_odds(event_id, combo):
-    """VRAIE cote Unibet du combiné re-pricée MAINTENANT (via les oids stockés au scan). None si pas
-    d'oids, match fini/indispo, ou échec. Cachée ~3 min. Évite la cote figée au moment du scan."""
+def _combo_oids_key(event_id, combo):
     legs = (combo or {}).get("legs") or []
     oids = [l.get("oid") for l in legs if l.get("oid")]
     if not event_id or not legs or len(oids) != len(legs) or len(oids) < 2:
         return None
-    key = (str(event_id), tuple(oids))
-    now = time.time()
+    return (str(event_id), tuple(oids))
+
+
+def _combo_live_odds(event_id, combo):
+    """VRAIE cote Unibet du combiné re-pricée récemment — LECTURE SEULE du cache (AUCUN appel réseau :
+    cette fonction tourne dans le handler async). None si pas en cache/périmé -> l'appelant retombe sur
+    `combo.real_odds` (figé au scan). Le pricing réel est fait hors event loop par `warm_combo_odds`."""
+    key = _combo_oids_key(event_id, combo)
+    if not key:
+        return None
     hit = _COMBO_LIVE_CACHE.get(key)
-    if hit and now - hit[0] < _COMBO_LIVE_TTL:
+    if hit and time.time() - hit[0] < _COMBO_LIVE_TTL:
         return hit[1]
+    return None
+
+
+def warm_combo_odds(event_id, combo) -> None:
+    """Re-price la VRAIE cote du combiné via Kambi (urllib BLOQUANT) et remplit `_COMBO_LIVE_CACHE`.
+    À appeler UNIQUEMENT depuis une boucle de fond (asyncio.to_thread), jamais dans le rendu. No-op si
+    l'entrée est encore fraîche (évite de marteler Kambi)."""
+    key = _combo_oids_key(event_id, combo)
+    if not key:
+        return
+    hit = _COMBO_LIVE_CACHE.get(key)
+    if hit and time.time() - hit[0] < _COMBO_LIVE_TTL * 0.6:   # encore frais -> rien à faire
+        return
     try:
         from app import unibet
-        real = unibet.betbuilder_odds(str(event_id), list(oids))
+        real = unibet.betbuilder_odds(key[0], list(key[1]))
     except Exception:
         real = None
-    _COMBO_LIVE_CACHE[key] = (now, real)
-    return real
+    _COMBO_LIVE_CACHE[key] = (time.time(), real)
 
 
 def combo_html(sport: str, match_id) -> str:
@@ -1633,52 +1651,6 @@ def combo_stats(since_days: int | None = None) -> dict:
             "by_legs": by_legs}
 
 
-def stats_insights(since_days: int | None = None) -> list[dict]:
-    """Synthèse ACTIONNABLE auto-distillée : meilleur segment, pire segment, sur-confiance la plus
-    nette, bilan combinés. Renvoie une liste [{kind:good/bad/warn, text}] (vide si pas assez de data).
-    `_MIN_SEG` = échantillon mini pour oser une conclusion (sinon = bruit)."""
-    _MIN_SEG = 5
-    perf = perf_breakdown(since_days)
-    out: list = []
-    segs = []   # (catégorie, label, n, roi)
-    for cat, rows in (("marché", perf.get("by_market")), ("cote", perf.get("by_odds")),
-                      ("confiance", perf.get("by_conf"))):
-        for r in (rows or []):
-            if (r.get("n") or 0) >= _MIN_SEG and r.get("roi") is not None:
-                segs.append((cat, r["label"], r["n"], r["roi"]))
-    if segs:
-        best = max(segs, key=lambda x: x[3])
-        worst = min(segs, key=lambda x: x[3])
-        if best[3] > 5:
-            out.append({"kind": "good",
-                        "text": f"Ton point fort : <b>{html.escape(str(best[1]))}</b> — ROI "
-                                f"<b>{best[3]:+.0f}%</b> sur {best[2]} paris (par {best[0]})."})
-        if worst[3] < -10 and worst[1] != best[1]:
-            out.append({"kind": "bad",
-                        "text": f"À éviter : <b>{html.escape(str(worst[1]))}</b> — ROI "
-                                f"<b>{worst[3]:+.0f}%</b> sur {worst[2]} paris. Le segment qui te coûte le plus."})
-    # Sur-confiance la plus nette (calibration par marché : réel nettement sous l'annoncé)
-    cal = calibration(since_days)
-    over = []
-    for mk, g in ((cal.get("by_market") or {}).items() if isinstance(cal.get("by_market"), dict) else []):
-        gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
-        if (g.get("n") or 0) >= _MIN_SEG and gap <= -10:
-            over.append((mk, g["avg_conf"], g["win_rate"], g["n"], gap))
-    if over:
-        mk, ac, wr, n_, gap = min(over, key=lambda x: x[4])
-        out.append({"kind": "warn",
-                    "text": f"Sur-confiance sur <b>{html.escape(str(mk))}</b> : annoncé {ac}%, réussite réelle "
-                            f"<b>{wr}%</b> ({n_} paris) — viser plus haut le seuil sur ce marché."})
-    # Bilan combinés
-    cs = combo_stats(since_days)
-    if (cs.get("n") or 0) >= _MIN_SEG and cs.get("roi") is not None:
-        kind = "bad" if cs["roi"] < -10 else ("good" if cs["roi"] > 0 else "warn")
-        out.append({"kind": kind,
-                    "text": f"Combinés : <b>{cs['win_rate']}%</b> de réussite, ROI "
-                            f"<b>{cs['roi']:+.0f}%</b> ({cs['n']} réglés, vraie cote moy. {cs['avg_odds']})."})
-    return out
-
-
 _CALIB_BANDS = [(45, 55), (55, 65), (65, 75), (75, 85), (85, 101)]
 
 _MARKET_FAMILY = {   # 1er token du code -> famille de marché lisible (pour la calibration par marché)
@@ -1784,7 +1756,9 @@ def auto_exclusions() -> tuple[set, set]:
     calibré). On juge sur un VRAI échantillon — pas de liste codée en dur, pas de petit n. Auto-révisable :
     un marché se ré-inclut seul s'il repasse au-dessus des seuils. Vide tant qu'on manque de recul."""
     c = calibration(min_conf=_MIN_CONF)
-    sports, markets = set(), set()
+    # BAN EN DUR : « Corners » bannis TOTALEMENT (demande user 2026-06-19, marché le plus perdant) —
+    # vaut pour le pari simple ⭐ ET les combinés, indépendamment de la stat.
+    sports, markets = set(), {"Corners"}
     for name, g in (c.get("by_sport") or {}).items():
         gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
         if (g.get("n") or 0) >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:

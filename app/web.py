@@ -253,6 +253,7 @@ CSS = """
   .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   /* Intro au chargement : logo principal centré, puis fondu -> le site apparaît. */
   .splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+          pointer-events:none;  /* n'intercepte JAMAIS les taps (sinon ~1,65s de taps avalés au chargement) */
           background:var(--bg);animation:splashOut .5s ease 1.15s forwards}
   .splash::after{content:"";position:absolute;inset:0;pointer-events:none;
           background:radial-gradient(900px 560px at 50% 40%,var(--halo),transparent 62%)}
@@ -2556,18 +2557,6 @@ def render_perf(perf: dict | None) -> str:
     par MARCHÉ a été FUSIONNÉ dans la calibration (une seule vue par axe, non redondante). '' si vide."""
     perf = perf or {}
     return _roi_section("Rendement par cote", "ROI selon la cote jouée", perf.get("by_odds") or [])
-
-
-def render_insights(items: list) -> str:
-    """Synthèse ACTIONNABLE en haut des stats : points forts / à éviter / sur-confiance, auto-distillés."""
-    if not items:
-        return ""
-    icon = {"good": "🟢", "bad": "🔴", "warn": "🟠"}
-    rows = "".join(f'<div class="sx-ins sx-ins-{i.get("kind","")}">'
-                   f'<span class="sx-ins-i">{icon.get(i.get("kind"), "•")}</span>'
-                   f'<span>{i.get("text","")}</span></div>' for i in items)
-    return ('<div class="sx-card sx-insights"><div class="sx-h">💡 À retenir'
-            '<span>synthèse automatique</span></div>' + rows + '</div>')
 
 
 def render_combos(cs: dict) -> str:

@@ -56,15 +56,21 @@ async def _combo_warm_loop():
     await asyncio.sleep(20)
     while True:
         try:
-            for p in glob.glob(os.path.join(analyses.DIR, "foot_*.json")):
+            for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
                 d = analyses._meta_load(p)
                 combo = (d or {}).get("combo") or {}
                 if not combo.get("legs") or combo.get("result"):
                     continue
-                if analyses.status_of(d) != "inprogress":
+                st = analyses.status_of(d)
+                if st not in ("notstarted", "inprogress"):
                     continue
-                await asyncio.to_thread(analyses.warm_combo_vals,
-                                        d.get("home", ""), d.get("away", ""), d.get("start"))
+                # cote LIVE du combiné -> cache app (hors event loop) ; à venir + en cours, si oids
+                if any(l.get("oid") for l in combo["legs"]):
+                    await asyncio.to_thread(analyses.warm_combo_odds, d.get("id"), combo)
+                # stats live des jambes (foot CdM en cours uniquement)
+                if st == "inprogress" and os.path.basename(p).startswith("foot_"):
+                    await asyncio.to_thread(analyses.warm_combo_vals,
+                                            d.get("home", ""), d.get("away", ""), d.get("start"))
         except Exception as exc:
             log.debug("combo warm: %s", exc)
         await asyncio.sleep(25)

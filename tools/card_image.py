@@ -222,7 +222,7 @@ def _chrome() -> str:
             return c
     found = shutil.which("chrome") or shutil.which("chrome.exe")
     if not found:
-        raise SystemExit("Chrome introuvable")
+        raise RuntimeError("Chrome introuvable")   # PAS SystemExit (BaseException échappe à except Exception -> tuerait le scan/règlement)
     return found
 
 
@@ -256,7 +256,7 @@ async def render_card(d: dict, out_png: str) -> str:
                 break
             await asyncio.sleep(0.3)
         if not ws:
-            raise SystemExit("CDP : aucun onglet")
+            raise RuntimeError("CDP : aucun onglet")   # repli texte au lieu de tuer le process appelant
         async with websockets.connect(ws, max_size=80_000_000) as sock:
             mid = 0
 

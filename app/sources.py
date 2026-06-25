@@ -1041,18 +1041,20 @@ async def world_cup_extras(client, match: dict) -> str:
 async def extras(client, sport: str, match: dict) -> str:
     """Bloc « DONNÉES MULTI-SOURCES » prêt à coller dans le dossier de l'analyste.
     '' si rien trouvé / tout en échec (le scan continue sans)."""
-    try:
-        if sport == "foot":
-            facts = await _foot_extras(client, match)
-            facts += await _foot_xg(client, match)
-        elif sport == "tennis":
-            facts = await _tennis_extras(client, match)
-        elif sport == "basket":
-            facts = await _basket_extras(client, match)
-        else:
-            facts = []
-    except Exception:
-        return ""
+    async def _safe(coro):
+        """Une sous-source qui échoue ne doit JAMAIS jeter les faits des autres déjà collectés."""
+        try:
+            return await coro or []
+        except Exception:
+            return []
+    facts: list = []
+    if sport == "foot":
+        facts += await _safe(_foot_extras(client, match))
+        facts += await _safe(_foot_xg(client, match))      # un échec xG ne détruit plus les faits FotMob
+    elif sport == "tennis":
+        facts += await _safe(_tennis_extras(client, match))
+    elif sport == "basket":
+        facts += await _safe(_basket_extras(client, match))
     out = ""
     if facts:
         out += ("\n\nDONNÉES MULTI-SOURCES (ESPN / FotMob / Understat — source indépendante n°2, "
