@@ -18,6 +18,10 @@ from datetime import date
 from curl_cffi.requests import AsyncSession
 
 log = logging.getLogger("uvicorn")
+
+# SofaScore est MORT -> on n'essaie plus le repli Chrome headless (étape 1.5 de get()), qui lançait
+# un navigateur ~22 s pour 403. Repasser à True si la source ressuscitait. (cf. mémoire build-sofascore-dead)
+_SOFA_BROWSER_ENABLED = False
 IMPERSONATE = "chrome"      # profil TLS/JA3 rejoué (Chrome récent)
 _session: AsyncSession | None = None
 _proxy_sess: AsyncSession | None = None
@@ -152,18 +156,18 @@ async def get(url: str, params=None, headers=None):
     # 1) direct OK -> retour immédiat (ni RapidAPI ni proxy : aucun Go/quota consommé)
     if r is not None and r.status_code not in (403, 429):
         return r
-    # 1.5) NAVIGATEUR (Chrome headless + proxy -> SSR du site) AVANT RapidAPI, car GRATUIT + illimité.
-    # Couvre event/{id} et event/{id}/incidents (règlement, score). On NE brûle donc PLUS le quota
-    # RapidAPI MENSUEL (15000 req) sur ces appels répétitifs : on le RÉSERVE aux endpoints que le
-    # navigateur ne couvre PAS (stats, h2h, planning) — la donnée à VRAIE valeur pour les analyses.
-    try:
-        from app import sofa_browser
-        br = await sofa_browser.response_for(url)
-        if br is not None:
-            log.info("SofaScore via NAVIGATEUR (SSR) OK")
-            return br
-    except Exception:
-        pass
+    # 1.5) NAVIGATEUR (Chrome headless -> SSR du site). DÉSACTIVÉ : SofaScore est MORT (403 partout),
+    # donc cette étape lançait Chrome (~22 s) pour RIEN, plusieurs fois par match au règlement.
+    # Flag réversible si la source revenait un jour. (cf. mémoire build-sofascore-dead)
+    if _SOFA_BROWSER_ENABLED:
+        try:
+            from app import sofa_browser
+            br = await sofa_browser.response_for(url)
+            if br is not None:
+                log.info("SofaScore via NAVIGATEUR (SSR) OK")
+                return br
+        except Exception:
+            pass
     # 2) repli RapidAPI (mensuel) — réservé aux endpoints non couverts par le navigateur
     rr = await _rapid_get(url, params)
     if rr is not None and rr.status_code == 200:

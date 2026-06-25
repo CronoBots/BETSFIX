@@ -962,7 +962,8 @@ async def final_score(sport: str, d: dict) -> dict | None:
                 tours = ("wta", "atp") if "WTA" in circuit else ("atp", "wta") if "ATP" in circuit \
                     else ("atp", "wta")
                 for tour in tours:
-                    for ymd in days[:2]:             # le scoreboard d'un jour couvre tout le tournoi
+                    for ymd in days:                 # J, J+1 ET J-1 (comme foot/basket) : un match de
+                        #                              nuit fini après minuit UTC reste retrouvable
                         j = await _score_cached(("tn", tour, ymd), lambda t=tour, y=ymd: _get_json(
                             client, f"{_ESPN}/site/v2/sports/tennis/{t}/scoreboard?dates={y}"))
                         for ev in (j or {}).get("events") or []:

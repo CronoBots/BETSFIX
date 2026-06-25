@@ -2058,8 +2058,10 @@ _SPA_JS = (
 # max et si une erreur survient (jamais de contenu vide). Non destructif si le JS ne tourne pas.
 _TERM_JS = (
     "(function(){"
+    # Respect de « Réduire le mouvement » AUSSI côté JS (le @media CSS ne stoppe pas requestAnimationFrame) :
+    "var _rm=false;try{_rm=window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches;}catch(e){}"
     # COMPTEUR : un chiffre/valeur (.da-st-v) qui MONTE de 0 à sa valeur (formats « 87% », « 1.22 », « +6% »).
-    "function cnt(nd){if(nd._c)return;nd._c=1;var t=(nd.textContent||'').trim();"
+    "function cnt(nd){if(nd._c||_rm)return;nd._c=1;var t=(nd.textContent||'').trim();"
     "var m=t.match(/^([+\\-]?)(\\d+(?:[.,]\\d+)?)(.*)$/);if(!m)return;"
     "var sg=m[1],n=parseFloat(m[2].replace(',','.')),sf=m[3],dp=(m[2].split(/[.,]/)[1]||'').length,s=null;"
     "function st(ts){if(!s)s=ts;var p=Math.min(1,(ts-s)/650),e=p*p*(3-2*p);"
@@ -2072,6 +2074,7 @@ _TERM_JS = (
     "if(g!=='SCRIPT'&&g!=='STYLE'&&g!=='svg'&&g!=='SVG'&&!c.getAttribute('data-tw')"
     "&&(!c.classList||!c.classList.contains('da-st-v')))dig(c,o);}}}"  # .da-st-v = compteur, pas frappé
     "function tw(el){if(!el||el.getAttribute('data-tw'))return;el.setAttribute('data-tw','1');"
+    "if(_rm)return;"  # reduced-motion : on laisse le texte/compteurs à leur valeur finale, pas d'animation
     "try{var nm=el.querySelectorAll('.da-st-v'),z;for(z=0;z<nm.length;z++)cnt(nm[z]);}catch(e){}"
     "var nodes=[];try{dig(el,nodes);}catch(e){return;}if(!nodes.length)return;"
     "var total=0,i;for(i=0;i<nodes.length;i++)total+=nodes[i][1].length;"
