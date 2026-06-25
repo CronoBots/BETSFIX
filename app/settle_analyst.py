@@ -839,6 +839,26 @@ def _find_score(sched, d: dict) -> tuple:
 
 
 # --------------------------------------------------------------- passe de règlement
+def _mark_notified(side: str, flags: list) -> None:
+    """R2 — FIGE les flags `notified_*` sur le sidecar, mais SEULEMENT après envoi Telegram réussi.
+    Relit le sidecar (qui porte déjà le résultat persisté par la passe), pose les flags, réécrit en
+    ATOMIQUE (.tmp + os.replace) pour ne jamais laisser un fichier à moitié écrit. No-op si échec :
+    le pari reste « réglé non notifié » et sera re-tenté à la passe suivante (borné par notify_tries)."""
+    try:
+        dd = json.load(open(side, encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    for fl in flags:
+        dd[fl] = True
+    try:
+        tmp = side + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(dd, f, ensure_ascii=False)
+        os.replace(tmp, side)
+    except OSError:
+        pass
+
+
 async def settle_analyses() -> int:
     """Règle TOUS les matchs analysés terminés. Code = `pick_code` sinon dérivé. Score via
     event/{id} (id Sofa valide : donne aussi jeux par set + 1er service) ; repli scheduled-events
@@ -875,9 +895,19 @@ async def _settle_analyses_impl() -> int:
         # sidecar n'est jamais figé et on le re-traite à chaque boucle indéfiniment).
         pick_settled = bool(res and res.get("pick_result") is not None)
         pick_giveup = (not pick_settled and (d.get("pick_tries") or 0) >= 6)
+        # R2 — notif perdue à renvoyer : un pari réglé dont la notif n'est PAS encore PARTIE
+        # (carte construite mais crash/échec d'envoi AVANT l'envoi) doit être re-traité. `notified_*`
+        # est posé SEULEMENT après envoi réussi (cf. boucle de notif) -> « réglé ET non notifié »
+        # = à ré-émettre. Le simple NON affiché pose son flag tout de suite (rien à envoyer) -> exclu.
+        # Borné (notify_tries < 5) pour ne pas boucler si Telegram reste injoignable.
+        _NRES = ("won", "lost", "push")
+        notify_pending = ((((res or {}).get("pick_result") in _NRES and not d.get("notified_pick"))
+                           or (bool(cmb.get("legs")) and cmb.get("result") in _NRES
+                               and not d.get("notified_combo")))
+                          and (d.get("notify_tries") or 0) < 5)
         if ((pick_settled or pick_giveup)
                 and d.get("settle_v") == _SETTLE_VERSION
-                and not votes_pending and not combo_pending):
+                and not votes_pending and not combo_pending and not notify_pending):
             continue
         # On tente le règlement dès que le match est PROBABLEMENT fini (`likely_finished`), pas seulement
         # à la fin de la fenêtre `status_of` (souvent trop longue, ex. tennis 210 min) : SofaScore
@@ -1176,16 +1206,21 @@ async def _settle_analyses_impl() -> int:
             new_combo = (d.get("combo") or {}).get("result")
             _parts = []
             _card_simple = _card_combo = None   # données carte image (résultat simple / combiné)
+            _flags_to_set = []   # R2 : flags notified_* à POSER seulement APRÈS envoi Telegram réussi
             # Flags PERSISTANTS écrits avec le résultat -> notification IDEMPOTENTE : une fois notifié,
             # plus jamais re-notifié (re-règlement après bump de version, redémarrage, reload uvicorn…).
-            if prev_pick is None and new_pick in _chip and not d.get("notified_pick"):
-                d["notified_pick"] = True
+            # R2 : on ne se fie plus à `prev_pick is None` (transition) mais au flag `notified_pick`
+            # (= notif RÉELLEMENT partie), pour pouvoir RÉ-ÉMETTRE une notif perdue par crash.
+            if new_pick in _chip and not d.get("notified_pick"):
                 # On ne notifie le SIMPLE que s'il est AFFICHÉ sur l'app (cohérence Telegram/app) :
                 # sur un match à combiné (CdM), le simple n'apparaît que s'il aurait été RETENU
                 # (analyses.retained_bet) — sinon seul le combiné est à l'affiche.
                 _has_combo = bool((d.get("combo") or {}).get("legs"))
                 _simple_shown = (not _has_combo) or (analyses.retained_bet(sport, mid) is not None)
+                if not _simple_shown:
+                    d["notified_pick"] = True   # non affiché -> rien à envoyer, on FIGE tout de suite
                 if _simple_shown:
+                    _flags_to_set.append("notified_pick")   # affiché -> figé APRÈS envoi réussi
                     _m = _MARK.get(new_pick, "")   # ✅/❌ APRÈS le prono
                     _raw = (d.get("pick") or "").strip()
                     _pl = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape(_raw))
@@ -1194,7 +1229,8 @@ async def _settle_analyses_impl() -> int:
                     _card_simple = {"label": (_sm.group(1).strip() if _sm else _raw) or "Pari simple",
                                     "cote": (_sm.group(2).replace(",", ".") if _sm else ""),
                                     "mark": new_pick}
-            if prev_combo is None and new_combo in _chip and not d.get("notified_combo"):
+            if new_combo in _chip and not d.get("notified_combo"):
+                _flags_to_set.append("notified_combo")   # R2 : figé APRÈS envoi réussi
                 _m = _MARK.get(new_combo, "")
                 _cb = d.get("combo") or {}
                 _cco = _cb.get("real_odds") or _cb.get("total")
@@ -1209,7 +1245,10 @@ async def _settle_analyses_impl() -> int:
                                "legs": [(str(_lg.get("sel", "")), _lg.get("result"),
                                          _lg.get("cote") or "")
                                         for _lg in _cb.get("legs", [])]}
-                d["notified_combo"] = True
+            if _parts and _flags_to_set:
+                # R2 — compteur d'essais d'envoi (borne le re-traitement « réglé non notifié ») :
+                # incrémenté à CHAQUE construction de carte, qu'on parvienne à l'envoyer ou non.
+                d["notify_tries"] = (d.get("notify_tries") or 0) + 1
             if _parts:
                 # En-tête : match (gras) + score, puis lieu/compétition · heure (comme le scan).
                 _bits = []
@@ -1239,7 +1278,8 @@ async def _settle_analyses_impl() -> int:
                     "match": str(_match).replace(" - ", " — "),
                     "meta": (f"terminé · {_mt}" if _mt else "terminé"),
                     "type": "result", "score": _sc,
-                    "simple": _card_simple, "combo": _card_combo})
+                    "simple": _card_simple, "combo": _card_combo,
+                    "_side": side, "_flags": list(_flags_to_set)})   # R2 : flags figés APRÈS envoi
             try:
                 json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
                 n += 1
@@ -1271,8 +1311,14 @@ async def _settle_analyses_impl() -> int:
                             sent = await asyncio.to_thread(notify.send_photo_sync, png, "", _reply)
                         except Exception as ce:
                             log.warning("carte résultat échouée, repli texte : %s", ce)
+                    _ok = bool(sent)
                     if not sent:                    # repli texte si pas de carte / échec rendu
-                        await notify.send(msg)
+                        _ok = bool(await notify.send(msg))
+                    # R2 — on FIGE les flags notified_* SEULEMENT maintenant (envoi confirmé). Si l'envoi
+                    # a échoué (ou crash avant cette ligne), les flags restent à False -> le pari réglé
+                    # sera re-traité à la passe suivante (borné par notify_tries) : zéro perte, zéro doublon.
+                    if _ok and card and card.get("_flags") and card.get("_side"):
+                        _mark_notified(card["_side"], card["_flags"])
         except Exception as exc:
             log.warning("notif règlement ignorée : %s", exc)
     return n
