@@ -1133,7 +1133,7 @@ async def _settle_analyses_impl() -> int:
             if combo and combo.get("legs"):
                 stats = score.get("stats") or {}    # corners/cartons/tirs MATCH + variantes 1ère MT (_1h)
                 vals = {"goals_h": score.get("home"), "goals_a": score.get("away"), **stats}
-                any_lost, all_won = False, True
+                any_lost, all_won, any_pending = False, True, False
                 for leg in combo["legs"]:
                     info = analyses._leg_metric(leg, d.get("home", ""), d.get("away", ""))
                     lr = None
@@ -1151,9 +1151,21 @@ async def _settle_analyses_impl() -> int:
                         any_lost = True
                     if lr != "won":
                         all_won = False
-                combo["result"] = "lost" if any_lost else ("won" if all_won else None)
-                if combo["result"] is None:               # verdict encore incomplet -> compte l'essai
+                    if lr is None:
+                        any_pending = True
+                # CHAQUE JAMBE doit être VALIDÉE avant publication : tant qu'une jambe n'a pas son
+                # résultat (ex. « but dans les 2 mi-temps » réglé seulement quand les scores PAR
+                # mi-temps arrivent), on n'annonce PAS le verdict global — MÊME si une jambe déjà
+                # perdue rend le combiné mathématiquement perdu. Sinon on publie une carte avec une
+                # jambe sans ✅/❌ (cas Équateur-Allemagne). On réessaie (borné à 8) le temps que les
+                # données de la dernière jambe arrivent ; au-delà, on tranche avec ce qu'on a.
+                if any_pending and (d.get("combo_tries") or 0) < 8:
+                    combo["result"] = None
                     d["combo_tries"] = (d.get("combo_tries") or 0) + 1
+                else:
+                    combo["result"] = "lost" if any_lost else ("won" if all_won else None)
+                    if combo["result"] is None:           # toujours pas tranchable après essais -> compte
+                        d["combo_tries"] = (d.get("combo_tries") or 0) + 1
             # PRÉDICTIONS FANTÔMES (calibrage) : on règle CHAQUE prédiction (métrique live OU code) ->
             # result. Elles ne pèsent QUE dans la calibration — jamais dans l'affichage/ROI/forme.
             shadow = d.get("shadow")
