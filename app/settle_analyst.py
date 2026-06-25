@@ -42,7 +42,9 @@ def _fr_date(dt) -> str:
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
 _settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un même process (anti double-notif)
-_SETTLE_VERSION = 38   # v38 : « Temps réglementaire <équipe>/nul » (REGTIME) réglé sur les 90 min.
+_SETTLE_VERSION = 39   # v39 : VAINQUEUR d'une mi-temps (HALFRES, « Mi-temps <équipe> ») via les périodes +
+#                              HANDICAP 3 voies (HCAP3, « 3-Way Handicap (X-Y) ») via le score final ajusté.
+# v38 : « Temps réglementaire <équipe>/nul » (REGTIME) réglé sur les 90 min.
 # v37 : BTTS par mi-temps (BTTSHALF) via les périodes.
 # v36 : props joueur basket COMBINÉS (PRA/PR/PA/RA) + format seuil « X+ ».
 # v35 : premier BUTEUR (FIRSTSCORER) + arrêts du gardien par équipe (GKSAVES) via FotMob.
@@ -107,6 +109,13 @@ def settle_pick(code: str, score: dict) -> str | None:
             return None
         res = "HOME" if rh > ra else ("AWAY" if ra > rh else "DRAW")
         return "won" if parts[1] == res else "lost"
+    if kind == "HCAP3" and has_ha and len(parts) >= 4:   # handicap 3 voies « (X-Y) » : 1X2 sur le score AJUSTÉ
+        try:
+            ah, aa = h + int(parts[2]), a + int(parts[3])   # score de départ ajouté au score réel
+        except ValueError:
+            return None
+        win = "HOME" if ah > aa else ("AWAY" if aa > ah else "DRAW")
+        return "won" if parts[1] == win else "lost"
     if kind == "DC" and has_ha and len(parts) > 1:
         ok = {"1X": h >= a, "12": h != a, "X2": a >= h}.get(parts[1])
         return None if ok is None else ("won" if ok else "lost")
@@ -186,6 +195,14 @@ def settle_pick(code: str, score: dict) -> str | None:
         i = 0 if parts[1] == "HOME" else 1
         o = 1 - i
         return "won" if (p1[i] > p1[o] or p2[i] > p2[o]) else "lost"
+    if kind == "HALFRES" and len(parts) >= 3:           # HALFRES HOME/AWAY/DRAW 1H/2H : vainqueur (1X2) d'UNE
+        p = _per(1 if parts[2] == "1H" else 2)          # mi-temps, sur le score de CETTE période (≠ WINHALF)
+        if not p:
+            return None
+        if parts[1] == "DRAW":
+            return "won" if p[0] == p[1] else "lost"
+        i = 0 if parts[1] == "HOME" else 1
+        return "won" if p[i] > p[1 - i] else "lost"
     if kind == "TEAMBOTH" and len(parts) >= 2:          # équipe marque dans les DEUX mi-temps
         p1, p2 = _per(1), _per(2)
         if not p1 or not p2:
@@ -546,6 +563,15 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
                     return ""
                 dirn, line = ("UNDER" if sgn.group(1) == "-" else "OVER"), sgn.group(2).replace(",", ".")
             return f"TEAMHALF {team} {half} {dirn} {line}" if team else f"HALFTOT {half} {dirn} {line}"
+        # « (2ème) mi-temps <équipe|nul> » SANS autre marché = VAINQUEUR (résultat 1X2) de CETTE
+        # mi-temps -> HALFRES, réglé sur le score de la période. (≠ WINHALF « gagne AU MOINS une ».)
+        if not any(k in t for k in ("corner", "carton", "tir", "but")):
+            half = "2H" if any(k in t for k in ("2e mi", "2ème mi", "2eme mi", "2nde mi",
+                                                "seconde mi", "deuxième mi")) else "1H"
+            if team:
+                return f"HALFRES {team} {half}"
+            if "nul" in t:
+                return f"HALFRES DRAW {half}"
         return ""                                  # autres marchés mi-temps -> inchangé
     # PREMIER À X POINTS (course au score) : 1re équipe à atteindre X points — réglé via les incidents
     # (event/{id}/incidents donne le score cumulé à chaque panier). Équipe nommée obligatoire.
@@ -606,6 +632,21 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         sgn = re.search(r"([+\-−–])\s?(\d+[.,]?\d*)", t)
         if sgn:
             return f"{'UNDER' if sgn.group(1) in ('-', '−', '–') else 'OVER'} {sgn.group(2).replace(',', '.')}"
+    # HANDICAP 3 VOIES « (X-Y) » : handicap avec score de DÉPART (ex. « 3-Way Handicap (1-0) <équipe> »).
+    # Réglé sur le score FINAL ajusté (h+X vs a+Y) -> 1X2. DOIT passer AVANT le handicap générique :
+    # « (1-0) » contient « -0 » qui serait sinon lu comme un handicap simple.
+    if "handicap" in t and re.search(r"3[\s-]?way|3\s*voies|trois\s*voies", t):
+        m3 = re.search(r"\(\s*(\d+)\s*[-:]\s*(\d+)\s*\)", t)
+        if m3:
+            x, y = m3.group(1), m3.group(2)
+            if "nul" in t:
+                return f"HCAP3 DRAW {x} {y}"
+            # le nom d'équipe vient APRÈS « (X-Y) » -> which() (qui ne lit qu'AVANT la parenthèse) le
+            # rate ; on détecte le camp sur le texte ENTIER.
+            hin, ain = any(w in t for w in h), any(w in t for w in a)
+            w = "HOME" if (hin and not ain) else ("AWAY" if (ain and not hin) else "")
+            if w:
+                return f"HCAP3 {w} {x} {y}"
     # handicap depuis le score final : « Équipe +X.X » / « Équipe -X.X » / « handicap Équipe +X.X »
     mh = re.search(r"([+\-−–]\s?\d+(?:[.,]\d+)?)", t)   # accepte le moins ASCII, Unicode (−) et tiret (–)
     if mh and team:
@@ -1000,8 +1041,8 @@ async def _settle_analyses_impl() -> int:
             shadow_codes = [s.get("code", "") for s in (d.get("shadow") or [])]
             need_periods = (not score.get("periods")) and any(
                 c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE", "TEAMHALF", "HALFTOT", "WINHALF",
-                              "TEAMBOTH", "BTTSHALF", "BQTOT", "BQTEAM", "BQWIN", "BQHCAP", "GAMESHCAP",
-                              "TIEBREAK", "REGTIME"))   # REGTIME : 90 min (somme des mi-temps), exclut la prolongation
+                              "TEAMBOTH", "BTTSHALF", "HALFRES", "BQTOT", "BQTEAM", "BQWIN", "BQHCAP",
+                              "GAMESHCAP", "TIEBREAK", "REGTIME"))   # REGTIME : 90 min (somme des mi-temps)
                 or "1H" in c or "2H" in c
                 for c in [code, *bet_codes, *combo_codes, *shadow_codes] if c)
             if need_periods:
