@@ -6,6 +6,8 @@ cours, H2H, position au classement — plus une **passerelle GISMO brute** pour 
 Résolution match Unibet -> id Sportradar : `/sportradar/find` (noms + jour). Les ids GISMO sont propres
 à Sportradar ; on les obtient via `/find`. Les noms doivent être en FRANÇAIS (comme l'app).
 """
+import re
+
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 
@@ -79,10 +81,19 @@ async def match_form(match_id: int) -> dict:
         return await sr.gismo(cl, "stats_match_form", match_id) or {}
 
 
+_GISMO_EP_RE = re.compile(r"^[a-z][a-z0-9_]{2,40}$")     # nom d'endpoint GISMO (anti-traversal)
+_GISMO_ID_RE = re.compile(r"^[0-9]{1,12}(/[0-9]{1,12}){0,3}$")   # ident = 1 à 4 ids numériques séparés par /
+
+
 @router.get("/gismo/{endpoint}/{ident:path}", tags=_ALL, summary=" ")
 async def gismo_raw(endpoint: str, ident: str) -> dict:
     """Passerelle BRUTE vers le feed GISMO. Ex : `stats_season_tables/101177`,
-    `stats_team_versus/4475/4739`, `match_squads/66457012`, `match_timeline/66457012`."""
+    `stats_team_versus/4475/4739`, `match_squads/66457012`, `match_timeline/66457012`.
+    `endpoint`/`ident` STRICTEMENT validés (anti path-traversal / relais ouvert : httpx normalise les
+    `../`, ce qui sinon atteindrait n'importe quel chemin de l'hôte Sportradar)."""
+    if not _GISMO_EP_RE.match(endpoint) or not _GISMO_ID_RE.match(ident):
+        raise HTTPException(status_code=422,
+                            detail="endpoint = ^[a-z][a-z0-9_]+$ ; ident = ids numériques séparés par '/'.")
     async with httpx.AsyncClient() as cl:
         d = await sr.gismo(cl, endpoint, ident)
     if d is None:

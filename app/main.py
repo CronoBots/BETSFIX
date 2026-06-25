@@ -5,6 +5,7 @@ import logging
 import os
 import socket
 import sys
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -402,6 +403,38 @@ app.add_middleware(
 from starlette.middleware.gzip import GZipMiddleware  # noqa: E402  (regroupé avec les middlewares)
 
 app.add_middleware(GZipMiddleware, minimum_size=512)
+
+
+# Rate-limit léger PAR IP réelle (Cloudflare) sur les PROXIES de données externes (Unibet/Sportradar/
+# Flashscore/LiveScore…) — empêche qu'un tiers fasse marteler ces sources via l'API publique (ban IP /
+# DoS gratuit). Généreux (un humain n'atteint jamais le seuil) ; fail-open ; PAS sur les pages PWA.
+_RL_HITS: dict = {}
+_RL_WINDOW = 60.0
+_RL_MAX = 150
+_RL_PREFIXES = ("/sportradar", "/unibet", "/flashscore", "/livescore",
+                "/matches", "/players", "/statistics", "/analysis")
+
+
+@app.middleware("http")
+async def _rate_limit(request, call_next):
+    try:
+        path = request.url.path
+        if any(path.startswith(p) for p in _RL_PREFIXES):
+            ip = (request.headers.get("cf-connecting-ip")
+                  or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+                  or (request.client.host if request.client else "?"))
+            now = time.time()
+            hits = [t for t in _RL_HITS.get(ip, ()) if now - t < _RL_WINDOW]
+            if len(hits) >= _RL_MAX:
+                return JSONResponse({"detail": "Trop de requêtes, réessaie dans un instant."},
+                                    status_code=429, headers={"Retry-After": "30"})
+            hits.append(now)
+            _RL_HITS[ip] = hits
+            if len(_RL_HITS) > 5000:        # garde-fou mémoire : purge globale des IP inactives
+                _RL_HITS.clear()
+    except Exception:
+        pass                               # fail-open : la sécurité ne doit jamais casser l'API
+    return await call_next(request)
 
 
 @app.middleware("http")
