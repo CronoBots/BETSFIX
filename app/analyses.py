@@ -1091,6 +1091,31 @@ def _why_parts(why) -> tuple[int | None, str, str]:
     return pct, cap(head), cap(tail)
 
 
+_COMBO_LIVE_CACHE: dict = {}     # (eid, oids) -> (ts, real_odds live)
+_COMBO_LIVE_TTL = 180            # 3 min : cote re-pricée fraîche sans marteler Kambi
+
+
+def _combo_live_odds(event_id, combo):
+    """VRAIE cote Unibet du combiné re-pricée MAINTENANT (via les oids stockés au scan). None si pas
+    d'oids, match fini/indispo, ou échec. Cachée ~3 min. Évite la cote figée au moment du scan."""
+    legs = (combo or {}).get("legs") or []
+    oids = [l.get("oid") for l in legs if l.get("oid")]
+    if not event_id or not legs or len(oids) != len(legs) or len(oids) < 2:
+        return None
+    key = (str(event_id), tuple(oids))
+    now = time.time()
+    hit = _COMBO_LIVE_CACHE.get(key)
+    if hit and now - hit[0] < _COMBO_LIVE_TTL:
+        return hit[1]
+    try:
+        from app import unibet
+        real = unibet.betbuilder_odds(str(event_id), list(oids))
+    except Exception:
+        real = None
+    _COMBO_LIVE_CACHE[key] = (now, real)
+    return real
+
+
 def combo_html(sport: str, match_id) -> str:
     """Cadre « 🎲 Combiné » (grand tournoi) d'un match, depuis le sidecar `combo`. Chaque jambe + cote,
     cote combinée, et résultat réglé (par jambe + global) si présent. EN COURS de match : statut live
@@ -1160,9 +1185,13 @@ def combo_html(sport: str, match_id) -> str:
     # Cote affichée : la VRAIE cote Unibet (combiné corrélé) si on l'a re-pricée via les prepacks,
     # sinon le produit des jambes (repli). La vraie cote est marquée « Unibet » pour la distinguer.
     real = combo.get("real_odds")
+    _live = _combo_live_odds(match_id, combo)      # re-pricing LIVE (cote fraîche, pas figée au scan)
+    if _live:
+        real = _live
     if real:
         try:
-            odds_html = (f'<span class="da-combo-c" title="Vraie cote Unibet (combiné corrélé)">'
+            _t = "Vraie cote Unibet EN DIRECT" if _live else "Vraie cote Unibet (combiné corrélé)"
+            odds_html = (f'<span class="da-combo-c" title="{_t}">'
                          f'cote Unibet {float(real):.2f}</span>')
         except (TypeError, ValueError):
             odds_html = f'<span class="da-combo-c">cote {total}</span>'

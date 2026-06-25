@@ -1101,6 +1101,8 @@ def _build_combo_from_pool(eid: str, cands: list, max_legs: int = 3) -> dict | N
     legs = []
     for i in idx:
         lg = {"sel": cands[i]["sel"], "cote": cands[i]["cote"], "code": cands[i]["code"]}
+        if cands[i].get("oid"):
+            lg["oid"] = cands[i]["oid"]      # outcome_id Kambi -> re-pricing live de la cote (1 appel)
         if cands[i].get("why"):
             lg["why"] = cands[i]["why"]
         legs.append(lg)
@@ -1210,6 +1212,9 @@ def _parse_combo(analysis: str, sport: str, home: str, away: str,
             if cands:                              # à cette taille, on prend la cote la plus HAUTE
                 real, idx = max(cands, key=lambda x: x[0])
                 kept = [legs[i] for i in idx]
+                for _j, _i in enumerate(idx):
+                    if ids[_i]:
+                        kept[_j]["oid"] = ids[_i]   # outcome_id Kambi -> re-pricing live
                 nv = 1.0
                 for lg in kept:
                     nv *= lg["cote"]
