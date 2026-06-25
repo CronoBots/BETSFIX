@@ -165,6 +165,12 @@ def _card_html(d: dict) -> str:
              f'<div class="sep"></div>')
     if d.get("type") == "result":
         sp, cb = d.get("simple"), d.get("combo")
+        # JAMAIS 2 fois le même prono : si le simple est DÉJÀ une jambe du combiné, on ne l'affiche pas.
+        if sp and cb:
+            _n = lambda s: re.sub(r"[^a-z0-9]+", " ", str(s).lower()).strip()
+            _sl = _n(sp.get("label", ""))
+            if any(_n(l[0]) == _sl for l in cb.get("legs", [])):
+                sp = None
         _verdict = (cb or {}).get("mark") or (sp or {}).get("mark") or ""
         _cardcls = _verdict                            # accent (bordure + halo) sur TOUTE la carte
         if sp:

@@ -42,7 +42,8 @@ def _fr_date(dt) -> str:
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
 _settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un même process (anti double-notif)
-_SETTLE_VERSION = 37   # v37 : BTTS par mi-temps (BTTSHALF) via les périodes.
+_SETTLE_VERSION = 38   # v38 : « Temps réglementaire <équipe>/nul » (REGTIME) réglé sur les 90 min.
+# v37 : BTTS par mi-temps (BTTSHALF) via les périodes.
 # v36 : props joueur basket COMBINÉS (PRA/PR/PA/RA) + format seuil « X+ ».
 # v35 : premier BUTEUR (FIRSTSCORER) + arrêts du gardien par équipe (GKSAVES) via FotMob.
 # v34 : props JOUEUR foot (PLAYERFB : arrêts/tirs/passes/tacles/fautes) via FotMob (Opta).
@@ -95,6 +96,16 @@ def settle_pick(code: str, score: dict) -> str | None:
         return "won" if (both == (len(parts) < 2 or parts[1] == "YES")) else "lost"
     if kind == "1X2" and has_ha and len(parts) > 1:
         res = "1" if h > a else ("2" if a > h else "X")
+        return "won" if parts[1] == res else "lost"
+    if kind == "REGTIME" and len(parts) > 1:           # résultat du TEMPS RÉGLEMENTAIRE (90 min, hors prol.)
+        p1, p2 = _per(1), _per(2)
+        if p1 and p2:                                  # somme des 2 mi-temps (exclut une éventuelle prolongation)
+            rh, ra = p1[0] + p2[0], p1[1] + p2[1]
+        elif has_ha:
+            rh, ra = h, a                              # repli : phase de groupes = pas de prolongation
+        else:
+            return None
+        res = "HOME" if rh > ra else ("AWAY" if ra > rh else "DRAW")
         return "won" if parts[1] == res else "lost"
     if kind == "DC" and has_ha and len(parts) > 1:
         ok = {"1X": h >= a, "12": h != a, "X2": a >= h}.get(parts[1])
@@ -398,6 +409,12 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     # FOOT — score EXACT (depuis h/a final) et « <équipe> marque dans les DEUX mi-temps » (depuis les
     # périodes : but de l'équipe en 1ère ET en 2e MT).
     if sport == "foot":
+        # TEMPS RÉGLEMENTAIRE <équipe>/nul (résultat 90 min, hors prolongation) -> REGTIME
+        if "temps réglementaire" in t or "temps reglementaire" in t:
+            if "nul" in t or "match nul" in t or "draw" in t or "égalité" in t:
+                return "REGTIME DRAW"
+            s = which()
+            return f"REGTIME {s}" if s else ""
         ms = re.search(r"score\s+exact\s+(\d+)\s*[-–]\s*(\d+)", t)
         if ms:
             return f"SCORE {ms.group(1)} {ms.group(2)}"
