@@ -741,8 +741,8 @@ CSS = """
   details.sec2 .sright{margin-left:auto;display:inline-flex;align-items:center;gap:10px;flex:none}
   details.sec2 .chev{color:var(--muted);font-size:20px;line-height:1;transition:transform .18s}
   details.sec2[open] .chev{transform:rotate(180deg)}
-  details.sec2 .i{width:22px;height:22px;border-radius:50%;flex:none;border:1px solid var(--border2);
-    display:inline-flex;align-items:center;justify-content:center;font:italic 800 12px Georgia,serif;
+  details.sec2 .i{width:30px;height:30px;border-radius:50%;flex:none;border:1px solid var(--border2);
+    display:inline-flex;align-items:center;justify-content:center;font:italic 800 13px Georgia,serif;
     text-transform:none;color:var(--muted);cursor:pointer}
   details.sec2 .i:active{transform:scale(.92)}
   details.sec2 .sec-info{margin:8px 0 4px}
@@ -780,7 +780,7 @@ CSS = """
   % dans chaque segment (favori = couleur source) */
   /* ===== Bloc « Cotes & chances » PREMIUM : barre fine de proportion + chips par issue ===== */
   .ocs{margin:10px 0 2px;display:flex;flex-direction:column;gap:11px}
-  .oc-h{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  .oc-h{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
         color:var(--muted);margin-bottom:6px}
   .oc{width:100%}
   .ocb{display:flex;width:100%;gap:2px;height:6px;border-radius:99px;overflow:hidden;margin-bottom:8px}
@@ -793,7 +793,7 @@ CSS = """
         padding:8px 5px 7px;border-radius:12px;text-align:center;
         background:rgba(255,255,255,.035);border:1px solid var(--border)}
   .ocp-n{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-        font-size:9.5px;font-weight:700;color:var(--muted);letter-spacing:.01em}
+        font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.01em}
   .ocp-v{font-size:16px;font-weight:900;color:var(--text);line-height:1.05;
         font-variant-numeric:tabular-nums}
   .ocp-c{font-size:10px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -858,7 +858,8 @@ CSS = """
   .pba{background:#2d3f66}             /* segment équipe NON-favorite (navy atténué) */
   /* Divergence public/modèle : emoji à droite de la barre PUBLIC + bulle au tap */
   .pb-x{width:20px;flex:none;text-align:center}
-  .dvg-i{cursor:pointer;font-size:14px;line-height:1;-webkit-tap-highlight-color:transparent}
+  .dvg-i{cursor:pointer;font-size:14px;line-height:1;-webkit-tap-highlight-color:transparent;
+    padding:11px;margin:-11px;display:inline-block}  /* zone tactile ~40px sans changer le visuel */
   .dvg-i:active{opacity:.6}
   .dvg-bubble{margin-top:8px;padding:9px 12px;border-radius:10px;font-size:12px;line-height:1.5;
               background:var(--surface2);border:1px solid var(--border2);color:var(--muted)}
@@ -1106,7 +1107,7 @@ CSS = """
   .arec-sp-p{font-size:12px;font-weight:800}
   .arec-sp-u{font-size:11px;font-weight:700;color:#cfe0f5;margin-top:2px;font-variant-numeric:tabular-nums}
   .arec-sp-roiv{font-size:23px;font-weight:900;line-height:1.05;margin-top:3px;font-variant-numeric:tabular-nums}
-  .arec-sp-roi{font-size:9px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+  .arec-sp-roi{font-size:10.5px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
   .arec-sp-v2{font-size:11.5px;font-weight:700;color:#cfe0f5;margin-top:5px}
   .arec-sp-o{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
   .arec-hi{color:#3ee089} .arec-mid{color:var(--gold)} .arec-lo{color:#ff7484}
@@ -1220,7 +1221,7 @@ CSS = """
        padding-top:12px;border-top:1px solid var(--border)}
   .sx-kpi{text-align:center}
   .sx-kpi b{display:block;font-size:15px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
-  .sx-kpi span{font-size:9.5px;color:var(--muted);font-weight:600}
+  .sx-kpi span{font-size:11px;color:var(--muted);font-weight:600}
   .sx-kpi.sx-pos b{color:#34d27b} .sx-kpi.sx-neg b{color:#ff6b6b}
   /* Synthèse actionnable « À retenir » */
   .sx-insights{display:flex;flex-direction:column;gap:0}
@@ -1338,7 +1339,7 @@ CSS = """
   .dsp-ic{font-size:15px;line-height:1}
   .dsp-v{font-size:16px;font-weight:900;color:#eaf2ff;font-variant-numeric:tabular-nums}
   .dsp-v.pos{color:#3ee089} .dsp-v.neg{color:#ff7484} .dsp-v.neu{color:#cfe0f5}
-  .dsp-l{font-size:8.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .dsp-l{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
   .dash-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:14px 0 4px}
   .dash-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
        padding:15px 6px;border-radius:15px;text-decoration:none;font-size:11.5px;font-weight:800;
@@ -2105,11 +2106,9 @@ _TERM_JS = (
 # Menu tiroir « complet » (☰) — présent sur TOUTES les pages. Accès direct à tout : accueil, paris à
 # jouer, bilan, stats, et chaque sport + live. Les clés correspondent à l'item mis en évidence.
 # Anti-zoom (ex-_DRAWER_JS — le tiroir ☰ a été retiré, redondant avec la barre du bas).
-# iOS ignore user-scalable=no -> on bloque le pinch (events gesture*), le double-tap
-# (touch-action:manipulation gère déjà) et le ctrl+molette (desktop).
-_NOZOOM_JS = ("['gesturestart','gesturechange','gestureend'].forEach(function(ev){"
-              "document.addEventListener(ev,function(e){e.preventDefault();},{passive:false});});"
-              "document.addEventListener('wheel',function(e){if(e.ctrlKey)e.preventDefault();},{passive:false});")
+# Le PINCH-ZOOM est VOLONTAIREMENT autorisé (accessibilité WCAG 1.4.4) -> on ne bloque plus les
+# events gesture*. `touch-action:manipulation` neutralise déjà le double-tap-zoom accidentel.
+_NOZOOM_JS = ""
 
 def layout(title: str, sport: str, body: str, subnav: str | None = None,
            refresh: bool = False, source: dict | None = None, menu: str | None = None) -> str:
@@ -2146,7 +2145,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
@@ -2189,7 +2188,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span></a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
 <title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
@@ -3324,7 +3323,7 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
                        '(trop de requêtes) — les matchs reviennent <b>automatiquement</b> '
                        'd\'ici quelques minutes. Rien à faire.</div>')
         else:
-            out.append('<div class="dim">Aucun match à afficher pour le moment.</div>')
+            out.append('<div class="paj-empty">Aucun match à afficher pour le moment.</div>')
     # Ordre PREMIUM : titre -> cadre de perf (graphe + fiabilité & calibration INTÉGRÉS) -> matchs.
     body = _subnav(sport) + render_sport_perf(sport) + "".join(out)
     return body if frag else spa_shell(sport, title, body)
