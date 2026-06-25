@@ -39,6 +39,7 @@ for _s in (sys.stdout, sys.stderr):
 
 import httpx  # noqa: E402
 
+from app import card_data as _cd  # noqa: E402  (POINT UNIQUE de construction des cartes)
 from app import sources  # noqa: E402
 from app import unibet  # noqa: E402
 from app import value  # noqa: E402
@@ -49,15 +50,6 @@ from app.match_select import UNIBET_B, UNIBET_PARAMS, fetch_important  # noqa: E
 _PREPACK_CACHE: dict[str, list] = {}
 # Catalogue des issues éligibles Bet Builder par event_id (pour pricer un combiné ARBITRAIRE exactement).
 _CATALOG_CACHE: dict[str, list] = {}
-
-# Date courte FR pour les cartes Telegram (« sam. 21 juin »).
-_FR_J = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
-_FR_M = ("janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc.")
-
-
-def _fr_date(dt) -> str:
-    return f"{_FR_J[dt.weekday()]} {dt.day} {_FR_M[dt.month - 1]}"
-
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "analyses")
@@ -1655,32 +1647,10 @@ async def main():
                 if not _pick_shown and not _has_combo:
                     _line += "\n<i>(calibration seule)</i>"
                 notif_lines.append(_line)
-                # --- Données de la CARTE IMAGE (Option 2 : tout dans l'image) ---
-                _sn = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}.get(sport, sport)
-                _meta_dt = ""
-                try:
-                    _dt2 = datetime.fromisoformat((m.get("start") or "").replace("Z", "+00:00"))
-                    _meta_dt = f"{_fr_date(_dt2)} · {_dt2.strftime('%H:%M')}"
-                except ValueError:
-                    pass
-                _card = {"emoji": _emo, "_mid": str(m.get("id")), "_start": str(m.get("start") or ""),
-                         "cat": f"{_sn} · {m['comp']}" if m.get("comp") else _sn,
-                         "match": str(m.get("name", "")).replace(" - ", " — "), "meta": _meta_dt}
-                if _has_combo:
-                    _card.update(type="combo", cote=_cote,
-                                 legs=[(str(_lg.get("sel", "")), str(_lg.get("cote", "")))
-                                       for _lg in _legs])
-                elif _pick_shown and _rb:
-                    _card.update(type="simple", pick=str(_rb.get("sel", "")),
-                                 cote=(f"{_rb['cote']:g}" if _rb.get("cote") else ""),
-                                 conf=_rb.get("prob"))
-                elif _pick_shown:
-                    _mm2 = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", _pick)
-                    _card.update(type="simple",
-                                 pick=(_mm2.group(1).strip() if _mm2 else _pick),
-                                 cote=(_mm2.group(2).replace(",", ".") if _mm2 else ""), conf=None)
-                else:
-                    _card = None   # calibration seule -> pas de carte (repli texte)
+                # --- Données de la CARTE IMAGE — POINT UNIQUE app/card_data (mêmes données qu'au repost) ---
+                _card = _cd.build_prono_card({
+                    "sport": sport, "id": m.get("id"), "name": m.get("name"), "comp": m.get("comp"),
+                    "start": m.get("start"), "pick": _pick, "combo": combo})
                 notif_cards.append(_card)
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
                 await asyncio.sleep(SCAN_GAP)   # lisse la charge SofaScore entre 2 matchs

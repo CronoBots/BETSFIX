@@ -24,90 +24,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 
 import card_image  # noqa: E402
 from app import analyses, notify  # noqa: E402
-
-_FR_J = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
-_FR_M = ("janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc.")
-_EMO = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
-_SN = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
-
-
-def _fr_date(dt) -> str:
-    return f"{_FR_J[dt.weekday()]} {dt.day} {_FR_M[dt.month - 1]}"
-
-
-def _card_for(d: dict) -> dict | None:
-    """Reconstruit les données de carte d'un sidecar, à l'identique du scan."""
-    sport = d.get("sport")
-    combo = d.get("combo") or {}
-    has_combo = bool(combo.get("legs"))
-    pick = d.get("pick") or ""
-    rb = analyses.retained_bet(sport, str(d.get("id")))
-    pick_shown = bool(rb) if has_combo else bool(pick or rb)
-
-    meta = ""
-    try:
-        dt = datetime.fromisoformat((d.get("start") or "").replace("Z", "+00:00"))
-        meta = f"{_fr_date(dt)} · {dt.strftime('%H:%M')}"
-    except ValueError:
-        pass
-    card = {"emoji": _EMO.get(sport, "•"),
-            "cat": f"{_SN.get(sport, sport)} · {d['comp']}" if d.get("comp") else _SN.get(sport, sport),
-            "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta}
-    if has_combo:
-        cote = (f"{combo['real_odds']:.2f}" if combo.get("real_odds") else f"{combo.get('total', '?')}")
-        card.update(type="combo", cote=cote,
-                    legs=[(str(l.get("sel", "")), str(l.get("cote", ""))) for l in combo["legs"]])
-    elif pick_shown and rb:
-        card.update(type="simple", pick=str(rb.get("sel", "")),
-                    cote=(f"{rb['cote']:g}" if rb.get("cote") else ""), conf=rb.get("prob"))
-    elif pick_shown:
-        m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", pick)
-        card.update(type="simple", pick=(m.group(1).strip() if m else pick),
-                    cote=(m.group(2).replace(",", ".") if m else ""), conf=None)
-    else:
-        return None
-    return card
-
-
-def _settled(d: dict) -> bool:
-    return bool((d.get("result") or {}).get("pick_result")) or bool((d.get("combo") or {}).get("result"))
-
-
-def _result_card_for(d: dict) -> dict | None:
-    """Carte RÉSULTAT d'un sidecar réglé (mirror de app/settle_analyst), avec score + verdict."""
-    sport = d.get("sport")
-    combo = d.get("combo") or {}
-    has_combo = bool(combo.get("legs"))
-    res = d.get("result") or {}
-    pick_result = res.get("pick_result")
-    combo_result = combo.get("result")
-    simple_shown = (not has_combo) or (analyses.retained_bet(sport, str(d.get("id"))) is not None)
-
-    card_simple = card_combo = None
-    if pick_result and simple_shown:
-        raw = (d.get("pick") or "").strip()
-        m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", raw)
-        card_simple = {"label": (m.group(1).strip() if m else raw) or "Pari simple",
-                       "cote": (m.group(2).replace(",", ".") if m else ""), "mark": pick_result}
-    if combo_result:
-        cco = combo.get("real_odds") or combo.get("total")
-        card_combo = {"cote": (f"{cco:.2f}" if isinstance(cco, float) else str(cco or "")),
-                      "mark": combo_result,
-                      "legs": [(str(l.get("sel", "")), l.get("result"), l.get("cote") or "")
-                               for l in combo.get("legs", [])]}
-    if not (card_simple or card_combo):
-        return None
-    meta = "terminé"
-    try:
-        dt = datetime.fromisoformat((d.get("start") or "").replace("Z", "+00:00"))
-        meta = f"terminé · {_fr_date(dt)} · {dt.strftime('%H:%M')}"
-    except ValueError:
-        pass
-    return {"emoji": _EMO.get(sport, "•"),
-            "cat": f"{_SN.get(sport, sport)} · {d['comp']}" if d.get("comp") else _SN.get(sport, sport),
-            "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta,
-            "type": "result", "score": res.get("score") or "",
-            "simple": card_simple, "combo": card_combo}
+from app import card_data as _cd  # noqa: E402  (POINT UNIQUE de construction des cartes)
 
 
 def _clear_channel():
@@ -178,7 +95,7 @@ def main():
     os.makedirs("data/_cards", exist_ok=True)
     n = 0
     for i, d in enumerate(sides):
-        prono = _card_for(d)
+        prono = _cd.build_prono_card(d)
         if not prono:
             print(f"  - {d.get('name')} : calibration seule -> ignoré"); continue
         try:
@@ -189,8 +106,8 @@ def main():
                 notify.remember_prono(str(d.get("id")), sent, d.get("name"))
                 n += 1
             print(f"  ✓ {prono['match']} (prono) -> {'posté' if sent else 'ÉCHEC'}")
-            if _settled(d):                                   # résultat EN RÉPONSE au prono
-                res = _result_card_for(d)
+            if _cd.is_settled(d):                                   # résultat EN RÉPONSE au prono
+                res = _cd.build_result_card(d)
                 if res:
                     rpng = f"data/_cards/renotify_{i}r.png"
                     card_image.render_card_sync(res, rpng)
