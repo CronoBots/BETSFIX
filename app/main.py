@@ -118,6 +118,89 @@ async def _settle_loop():
         await asyncio.sleep(10 * 60)
 
 
+def _refresh_due_combos() -> int:
+    """~1h avant le coup d'envoi : re-price les cotes du combiné (jambes + corrélée) avec les vraies
+    cotes Kambi DU MOMENT, met à jour le sidecar, et RE-POSTE la carte fraîche (la dédup remplace
+    l'ancienne). Une seule fois par match (`combo_refreshed`). Sync -> appelé via asyncio.to_thread."""
+    import glob
+    import json as _json
+    from datetime import datetime, timezone
+    _tools = os.path.join(_ROOT, "tools")
+    if _tools not in sys.path:
+        sys.path.insert(0, _tools)
+    import card_image
+    import renotify_cards as _rn
+    from app import analyses, notify, unibet
+    now = datetime.now(timezone.utc)
+    n = 0
+    for f in glob.glob(os.path.join(analyses.DIR, "*.json")):
+        try:
+            d = _json.load(open(f, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        c = d.get("combo") or {}
+        legs = c.get("legs") or []
+        if not legs or d.get("combo_refreshed") or not all(l.get("oid") for l in legs):
+            continue
+        try:
+            st = datetime.fromisoformat((d.get("start") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        mins = (st - now).total_seconds() / 60
+        if not (0 < mins <= 75):                       # fenêtre ~1h avant le coup d'envoi
+            continue
+        eid = str(d.get("id"))
+        try:
+            cat = unibet.betbuilder_catalog(eid)
+            by_oid = {x["id"]: x.get("odds") for x in (cat or [])}
+            for l in legs:                             # cotes des jambes -> valeurs live
+                if by_oid.get(l["oid"]):
+                    l["cote"] = by_oid[l["oid"]]
+            real = unibet.betbuilder_odds(eid, [l["oid"] for l in legs])
+        except Exception as exc:
+            log.warning("combo refresh price %s: %s", eid, exc)
+            continue
+        d["combo_refreshed"] = True                    # une seule tentative, même si rien à reposter
+        old = c.get("real_odds")
+        if real:
+            prod = 1.0
+            for l in legs:
+                prod *= l.get("cote") or 1
+            c["real_odds"], c["total"] = round(real, 2), round(prod, 2)
+        try:
+            _json.dump(d, open(f, "w", encoding="utf-8"), ensure_ascii=False)
+        except OSError:
+            pass
+        if real and old and abs(real - old) / old < 0.02:   # cote quasi inchangée -> pas de repost inutile
+            continue
+        try:                                            # re-rend la carte prono fraîche + repost (dédup)
+            card = _rn._card_for(d)
+            if card:
+                png = os.path.join(_ROOT, "data", "_cards", f"refresh_{eid}.png")
+                card_image.render_card_sync(card, png)
+                sent = notify.send_photo_sync(png, "")
+                if sent:
+                    notify.remember_prono(eid, sent, d.get("name"))
+                    n += 1
+                    log.info("combo %s re-posté (cote %s -> %s)", d.get("name"), old, real)
+        except Exception as exc:
+            log.warning("combo refresh repost %s: %s", eid, exc)
+    return n
+
+
+async def _combo_refresh_loop():
+    """Boucle : ~1h avant le coup d'envoi, rafraîchit la cote des combinés à venir et re-poste la carte.
+    Singleton (réutilise le garde-fou règlement) -> une seule instance reposte (pas de doublon)."""
+    await asyncio.sleep(150)    # laisse l'app démarrer
+    while True:
+        if _become_settle_leader():
+            try:
+                await asyncio.to_thread(_refresh_due_combos)
+            except Exception as exc:
+                log.warning("combo refresh loop error: %s", exc)
+        await asyncio.sleep(10 * 60)
+
+
 async def _odds_loop():
     """Suivi des VARIATIONS de cote (Unibet, gratuit) : relève les matchs à venir des 3 sports.
     Réveil toutes les 10 min ; `odds_history` décide quels matchs relever (1/h, resserré à 10 min
@@ -176,6 +259,7 @@ async def lifespan(app: FastAPI):
         _apply_pending_reset()               # purge en attente (sentinelle) AVANT lecture des stores
     tasks = [asyncio.create_task(_settle_loop()),       # nouveau système (analyste) uniquement
              asyncio.create_task(_odds_loop()),         # suivi des variations de cote (Unibet)
+             asyncio.create_task(_combo_refresh_loop()),  # ~1h avant : cote combiné fraîche + repost carte
              asyncio.create_task(_combo_warm_loop()),   # pré-chauffe stats live des combinés CdM
              asyncio.create_task(_panel_warmer())]
     yield
