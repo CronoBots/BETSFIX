@@ -236,25 +236,23 @@ async def _foot_extras(client, match: dict) -> list[str]:
         fm_home = ((gen.get("homeTeam") or {}).get("name")) or home
         fm_away = ((gen.get("awayTeam") or {}).get("name")) or away
         l0, l1 = _fm_form_lines(tf, 0, fm_home), _fm_form_lines(tf, 1, fm_away)
-        if _is_home(fm_home, home, away):
-            fh, fa = l0, l1
-        else:                       # FotMob inverse home/away vs Unibet
-            fh, fa = l1, l0
-        if fh:
-            facts.append(f"Forme [{home}] (5 derniers) : {fh} (FotMob)")
-        if fa:
-            facts.append(f"Forme [{away}] (5 derniers) : {fa} (FotMob)")
+        _so = _side_of(fm_home, home, away)   # None si ambigu (derby/homonyme) -> on n'affiche PAS
+        if _so is not None:
+            fh, fa = (l0, l1) if _so == "home" else (l1, l0)   # FotMob inverse parfois home/away vs Unibet
+            if fh:
+                facts.append(f"Forme [{home}] (5 derniers) : {fh} (FotMob)")
+            if fa:
+                facts.append(f"Forme [{away}] (5 derniers) : {fa} (FotMob)")
     # H2H : summary = [victoires_home, nuls, victoires_away]
     h2h = c.get("h2h") or {}
     summ = h2h.get("summary")
     if isinstance(summ, list) and len(summ) == 3 and any(summ):
         gen = j.get("general") or {}
         fm_home = ((gen.get("homeTeam") or {}).get("name")) or home
-        if _is_home(fm_home, home, away):
-            w, d, l = summ
-        else:
-            l, d, w = summ
-        facts.append(f"H2H : {home} {w} victoire(s), {d} nul(s), {away} {l} victoire(s) (FotMob)")
+        _so = _side_of(fm_home, home, away)   # None si ambigu -> on n'affiche pas le H2H (anti-inversion)
+        if _so is not None:
+            w, d, l = summ if _so == "home" else summ[::-1]
+            facts.append(f"H2H : {home} {w} victoire(s), {d} nul(s), {away} {l} victoire(s) (FotMob)")
     # Absents (si exposés)
     lu = c.get("lineup") or {}
     for side_key, label in (("homeTeam", home), ("awayTeam", away)):

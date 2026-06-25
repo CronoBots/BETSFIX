@@ -49,6 +49,20 @@ def _overlap(a: str, b: str) -> bool:
     return any(len(x) >= 5 and len(y) >= 5 and x[:5] == y[:5] for x in ta for y in tb)
 
 
+def _score(a: str, b: str) -> int:
+    """Force de recouvrement de 2 noms : 2×(jetons communs) ; 1 si seulement préfixe 5 lettres ; 0 sinon.
+    Sert à DÉPARTAGER plusieurs fixtures candidates (homonymes) au lieu de prendre la 1re venue."""
+    ta, tb = _toks(a), _toks(b)
+    if not ta or not tb:
+        return 0
+    common = len(ta & tb)
+    if common:
+        return common * 2
+    if any(len(x) >= 5 and len(y) >= 5 and x[:5] == y[:5] for x in ta for y in tb):
+        return 1
+    return 0
+
+
 async def _gismo(client, endpoint: str, ident) -> dict | list | None:
     """GET GISMO best-effort -> doc[0].data, ou None (exception / réseau / format)."""
     try:
@@ -108,16 +122,16 @@ async def _resolve(client, sport: str, home: str, away: str, start: str) -> int 
         target_day = datetime.fromisoformat((start or "").replace("Z", "+00:00")).date()
     except ValueError:
         pass
-    found = None
+    cands = []   # (score, mid) : on ne prend PAS le 1er venu (anti homonymes), on classe par recouvrement
     for mid in (await _match_ids(client, sport))[:60]:
         m = await _info(client, mid)
         if not m:
             continue
         th = (m.get("teams") or {}).get("home", {}).get("name", "")
         ta = (m.get("teams") or {}).get("away", {}).get("name", "")
-        # accepte les 2 orientations (matchs neutres : home/away parfois inversés entre sources)
-        if not ((_overlap(home, th) and _overlap(away, ta))
-                or (_overlap(home, ta) and _overlap(away, th))):
+        # meilleure des 2 orientations (matchs neutres : home/away parfois inversés entre sources)
+        sc = max(_score(home, th) + _score(away, ta), _score(home, ta) + _score(away, th))
+        if sc < 2:                                       # les 2 équipes doivent recouvrir (comme avant)
             continue
         if target_day:                                   # confirme par le jour du coup d'envoi (±1)
             try:
@@ -127,8 +141,10 @@ async def _resolve(client, sport: str, home: str, away: str, start: str) -> int 
                     continue
             except Exception:
                 pass
-        found = mid
-        break
+        cands.append((sc, mid))
+    cands.sort(key=lambda x: -x[0])
+    # meilleur score ; mais REFUS si égalité au sommet (2 fixtures homonymes) -> pas de données plutôt que fausses
+    found = cands[0][1] if (cands and not (len(cands) > 1 and cands[0][0] == cands[1][0])) else None
     _RESOLVED[key] = found
     return found
 
