@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import socket
 import sys
 from contextlib import asynccontextmanager
 
@@ -69,18 +70,51 @@ async def _combo_warm_loop():
         await asyncio.sleep(25)
 
 
+_SETTLE_GUARD = None   # socket singleton cross-process : 1 SEULE instance règle/notifie (anti double-notif)
+
+
+def _become_settle_leader() -> bool:
+    """True si CE process tient le rôle de règlement. Garde-fou cross-process via un port local
+    EXCLUSIF : si deux uvicorn tournent (ex. doublon d'autostart), un seul décroche le port -> un seul
+    notifie. Idempotent (re-True si déjà leader) ; ré-essaie -> si le leader meurt, un autre reprend."""
+    global _SETTLE_GUARD
+    if _SETTLE_GUARD is not None:
+        return True
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):          # Windows : bind réellement exclusif
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        s.bind(("127.0.0.1", 8766))
+        _SETTLE_GUARD = s                                   # gardé vivant tout le process
+        return True
+    except OSError:
+        try:
+            s.close()
+        except Exception:
+            pass
+        return False
+
+
 async def _settle_loop():
     """Boucle de fond du NOUVEAU système : règlement des matchs ANALYSÉS terminés (~10 min) ->
-    stats à jour rapidement. (Simulation de bankroll/CLV retirée le 2026-06-14 ; suivi Elo retiré.)"""
+    stats à jour rapidement. (Simulation de bankroll/CLV retirée le 2026-06-14 ; suivi Elo retiré.)
+    GARDE-FOU : une SEULE instance (leader) règle, même si plusieurs uvicorn tournent -> jamais de
+    double notification Telegram."""
     from app import settle_analyst
     await asyncio.sleep(90)    # laisse l'app démarrer
+    _warned = False
     while True:
-        try:
-            na = await settle_analyst.settle_analyses()
-            if na:
-                log.info("analyses réglées : %s", na)
-        except Exception as exc:
-            log.warning("settle analyses error: %s", exc)
+        if _become_settle_leader():
+            try:
+                na = await settle_analyst.settle_analyses()
+                if na:
+                    log.info("analyses réglées : %s", na)
+            except Exception as exc:
+                log.warning("settle analyses error: %s", exc)
+        elif not _warned:
+            log.warning("règlement : une autre instance est leader -> cette instance NE règle PAS "
+                        "(anti double-notif). Retente au cas où le leader s'arrête.")
+            _warned = True
         await asyncio.sleep(10 * 60)
 
 
