@@ -127,10 +127,7 @@ def _clear_channel():
                 except Exception:
                     pass
     notify._save_sent([])
-    try:                                       # purge le suivi prono->résultat (ids supprimés)
-        json.dump({}, open(notify._PRONO_PATH, "w", encoding="utf-8"))
-    except OSError:
-        pass
+    notify.reset_pronos()                      # purge le suivi prono->résultat (atomique)
 
 
 def main():

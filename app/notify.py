@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import threading
 import unicodedata
 
 import httpx
@@ -32,11 +33,35 @@ _SENT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "n
 _PRONO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "notify_pronos.json")
 
 
+_STORE_LOCK = threading.Lock()   # sérialise les écritures des stores (boucles dans des threads to_thread)
+
+
+def _atomic_write(path: str, obj) -> None:
+    """Écrit du JSON de façon ATOMIQUE (.tmp + os.replace) : un crash en plein écrit ne laisse JAMAIS
+    un fichier tronqué (sinon _load_* renvoie {} -> perte de tout le mapping prono->résultat)."""
+    tmp = f"{path}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
 def _load_pronos() -> dict:
     try:
         return json.load(open(_PRONO_PATH, encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def reset_pronos() -> None:
+    """Vide le store prono->résultat (utilisé au vidage du canal)."""
+    with _STORE_LOCK:
+        _atomic_write(_PRONO_PATH, {})
 
 
 def _delete_messages(sent: dict) -> None:
@@ -80,16 +105,14 @@ def remember_prono(match_id: str, sent: dict, name: str | None = None) -> None:
     d'équipes (la nouvelle vient d'être postée) avant de mémoriser la nouvelle."""
     if not (match_id and sent):
         return
-    store = _load_pronos()
-    nm = _norm_name(name)
-    for k in [k for k, v in list(store.items())
-              if k == str(match_id) or (nm and isinstance(v, dict) and v.get("name") == nm)]:
-        _delete_messages(_msgs_of(store.pop(k)))      # supprime l'ancienne carte (même match)
-    store[str(match_id)] = {"msgs": {str(c): m for c, m in sent.items()}, "name": nm}
-    try:
-        json.dump(store, open(_PRONO_PATH, "w", encoding="utf-8"))
-    except OSError:
-        pass
+    with _STORE_LOCK:
+        store = _load_pronos()
+        nm = _norm_name(name)
+        for k in [k for k, v in list(store.items())
+                  if k == str(match_id) or (nm and isinstance(v, dict) and v.get("name") == nm)]:
+            _delete_messages(_msgs_of(store.pop(k)))      # supprime l'ancienne carte (même match)
+        store[str(match_id)] = {"msgs": {str(c): m for c, m in sent.items()}, "name": nm}
+        _atomic_write(_PRONO_PATH, store)
 
 
 def get_prono(match_id: str) -> dict:
@@ -105,10 +128,8 @@ def _load_sent() -> list:
 
 
 def _save_sent(lst: list) -> None:
-    try:
-        json.dump(lst, open(_SENT_PATH, "w", encoding="utf-8"))
-    except OSError:
-        pass
+    with _STORE_LOCK:
+        _atomic_write(_SENT_PATH, lst)
 
 
 def _config() -> tuple[str | None, list[str]]:
