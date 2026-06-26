@@ -1491,11 +1491,12 @@ def _reco_event(d: dict, path: str, ex_sports: set, ex_markets: set) -> dict | N
 
 
 def stats_full(since_days: int | None = None) -> dict:
-    """Suivi pour l'accueil = TOUS les paris réglés (pari1/2/3), pour une courbe d'équité HONNÊTE et
-    complète (pertes comprises). En plus, `recommended` = le bilan des seuls paris ⭐ « à jouer » (ce
-    qu'on jouerait en suivant le système), à titre indicatif. 3 niveaux : `overall`, `by_pari`
-    (pari1/2/3), `by_sport`. Chaque bloc = `_agg_bets` (courbe + ROI + réussite + cote moy. + drawdown).
-    `since_days` : ne garde que les matchs dont le coup d'envoi est dans les N derniers jours."""
+    """Suivi pour l'accueil = LE pari JOUÉ (retenu) de chaque match — celui qui passe le seuil de jeu,
+    = le pari par défaut du match. Les matchs où le système s'abstient (aucun pari retenu) ne comptent
+    PAS (avant : on comptait le pari même sur les abstentions -> courbe sur-pessimiste). Courbe HONNÊTE
+    (les défaites des paris joués restent comptées). Combinés exclus (suivis à part). Niveaux :
+    `overall`, `since_change` (nouveau système), `by_sport`. Chaque bloc = `_agg_bets` (courbe + ROI +
+    réussite + cote moy. + drawdown). `since_days` : ne garde que les coups d'envoi des N derniers jours."""
     sig = _dir_sig() if since_days is None else None   # cache UNIQUEMENT la vue complète (pas de cutoff)
     if sig is not None:
         hit = _STATS_CACHE.get("full")
@@ -1544,33 +1545,22 @@ def stats_full(since_days: int | None = None) -> dict:
         # « Nouveau système » = analyse passée par la VALIDATION 3 agents (signature fiable), pas une
         # simple date de match (un match du 16/06 a pu être généré la veille en ancien système).
         is_new = bool(d.get("validation"))
-        if _has_combo:
-            # MATCH À COMBINÉ (CdM foot OU favori net tennis/basket) : on compte le COMBINÉ comme UN SEUL
-            # événement (son résultat GLOBAL won/lost), JAMAIS ses jambes — 1 combiné = 1 résultat (demande
-            # utilisateur). NON RÉTROACTIF : seuls les combinés à partir de _COMBO_COUNT_FROM comptent.
-            # Combiné non réglé -> match non compté (reste « en attente »). + le pari simple RETENU à part.
-            if (d.get("start") or "")[:10] >= _COMBO_COUNT_FROM:
-                # Le COMBINÉ n'entre PLUS dans la courbe d'équité / ROI / réussite (demande user :
-                # « supprime les combinés des stats graphiques mais pas des calibrages »). Il reste
-                # suivi via la LIGNE DE FORME « Combinés » (combo_form, plus haut) + la calibration.
-                # Seul le pari SIMPLE RETENU (logique normale du site) compte dans le graphe.
-                rb = retained_bet(sport, d.get("id"))
-                if rb and rb.get("result") in ("won", "lost", "push"):
-                    ev = (start, rb["result"], rb.get("cote"))
-                    all_ev.append(ev)
-                    by_sport.setdefault(sport, []).append(ev)
-                    if is_new:
-                        since_ev.append(ev)
-            continue
-        for i, b in enumerate(d.get("bets") or []):    # TOUS les paris réglés (courbe complète)
-            if i >= len(_BET_KEYS):
-                break
-            if b.get("result") in ("won", "lost", "push"):
-                ev = (start, b["result"], b.get("odds"))
-                all_ev.append(ev)
-                by_sport.setdefault(sport, []).append(ev)
-                if is_new:
-                    since_ev.append(ev)
+        # Le pari COMPTÉ dans la courbe / ROI / réussite = LE pari JOUÉ (RETENU) du match : celui qui
+        # passe le seuil de jeu (confiance ≥65 % + EV ≥3 % + garde-fous de cote + marché non exclu).
+        # C'est LE pari par défaut du match QUAND il est retenu. Si AUCUN pari n'est retenu (le système
+        # s'abstient sur ce match), le match N'ENTRE PAS dans la courbe — avant, on comptait le pari
+        # même sur les abstentions, ce qui sur-dramatisait la perte (vestige de l'ère « Pari 1/2/3 »).
+        # Combiné : exclu de la courbe (suivi à part via combo_form + calibration) ; seul son éventuel
+        # SIMPLE retenu compte, et uniquement à partir de la bascule _COMBO_COUNT_FROM (non rétroactif).
+        if _has_combo and (d.get("start") or "")[:10] < _COMBO_COUNT_FROM:
+            continue                                   # combiné antérieur à la bascule -> match non compté
+        rb = retained_bet(sport, d.get("id"))          # = le pari par défaut s'il est retenu, sinon None
+        if rb and rb.get("result") in ("won", "lost", "push"):
+            ev = (start, rb["result"], rb.get("cote") or rb.get("odds"))
+            all_ev.append(ev)
+            by_sport.setdefault(sport, []).append(ev)
+            if is_new:
+                since_ev.append(ev)
     out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
            "since_change": _agg_bets(since_ev),        # nouveau système (s'enrichit au fil des scans)
            "by_sport": {sport: _agg_bets(evs) for sport, evs in by_sport.items()}}
