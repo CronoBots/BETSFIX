@@ -1354,10 +1354,12 @@ async def _settle_analyses_impl() -> int:
                 os.makedirs("data/_cards", exist_ok=True)
                 for _i, (msg, card) in enumerate(zip(notify_msgs, notify_cards)):
                     sent = None
+                    render_ok = False
                     if card:                        # carte image (Option 2 : tout dans l'image)
                         try:
                             png = f"data/_cards/res_{_i}.png"
                             await card_image.render_card(card, png)
+                            render_ok = True        # la carte EXISTE -> le texte n'est plus un repli
                             # répond à la carte PRONO du même match (fil prono -> résultat)
                             _reply = notify.get_prono(card.get("_mid"))
                             # envoi BLOQUANT (httpx upload) -> hors event loop pour ne pas figer l'API
@@ -1365,7 +1367,12 @@ async def _settle_analyses_impl() -> int:
                         except Exception as ce:
                             log.warning("carte résultat échouée, repli texte : %s", ce)
                     _ok = bool(sent)
-                    if not sent:                    # repli texte si pas de carte / échec rendu
+                    # Repli texte UNIQUEMENT si la CARTE n'a pas pu être PRODUITE (pas de carte / rendu
+                    # échoué). Si la carte est rendue mais l'ENVOI photo échoue/expire (sent vide alors
+                    # que la photo a PU partir : rafale -> timeout Telegram), on NE poste PAS le texte ->
+                    # plus de DOUBLON image+texte. _ok reste False -> R2 ré-essaie la CARTE à la passe
+                    # suivante (flag non figé), bornée par notify_tries : zéro perte, zéro doublon.
+                    if not render_ok:
                         _ok = bool(await notify.send(msg))
                     # R2 — on FIGE les flags notified_* SEULEMENT maintenant (envoi confirmé). Si l'envoi
                     # a échoué (ou crash avant cette ligne), les flags restent à False -> le pari réglé

@@ -203,7 +203,9 @@ def send_photo_sync(png_path: str, caption: str = "", reply_to: dict | None = No
     reply_to = reply_to or {}
     sent: dict = {}
     try:
-        with httpx.Client(timeout=30) as cl:
+        # Timeout LARGE (upload photo) : pendant une rafale de règlements, un timeout trop court fait
+        # croire à un échec alors que Telegram a DÉJÀ reçu la photo -> re-tentative = DOUBLON. 60 s.
+        with httpx.Client(timeout=60) as cl:
             for ch in chats:
                 try:
                     data = {"chat_id": ch, "caption": caption[:1024], "parse_mode": "HTML"}

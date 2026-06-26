@@ -94,6 +94,44 @@ def test_notif_zero_perte_zero_doublon(tmp_path, monkeypatch):
     assert d3.get("notified_pick") is True
 
 
+def test_pas_de_doublon_image_texte(tmp_path, monkeypatch):
+    """Anti-doublon image+texte : si la carte est RENDUE mais l'envoi PHOTO échoue (rafale -> timeout
+    Telegram alors que la photo a pu partir), on NE poste PAS le texte. Le texte ne part QUE si le
+    RENDU lui-même échoue (carte impossible)."""
+    side = _sidecar(str(tmp_path))
+    monkeypatch.setattr(settle_analyst, "settle_pick", lambda c, score: "won")
+    monkeypatch.setattr(analyses, "DIR", str(tmp_path))
+    monkeypatch.setattr(analyses, "bets_of", lambda sport, mid: [])
+    monkeypatch.setattr(analyses, "status_of", lambda d: "finished")
+    monkeypatch.setattr(analyses, "likely_finished", lambda d: True)
+    monkeypatch.setattr(notify, "configured", lambda: True)
+    monkeypatch.setattr(notify, "get_prono", lambda mid: None)
+
+    text_calls = {"n": 0}
+
+    async def _fake_send(text, clean=False):
+        text_calls["n"] += 1
+        return True
+    monkeypatch.setattr(notify, "send", _fake_send)
+    # l'envoi PHOTO échoue toujours (renvoie {} = aucun chat confirmé)
+    monkeypatch.setattr(notify, "send_photo_sync", lambda png, caption="", reply_to=None: {})
+
+    # cas 1 : RENDU OK + envoi photo échoué -> AUCUN texte (sinon doublon), flag NON figé (R2 réessaie)
+    async def _render_ok(card, png):
+        return None
+    monkeypatch.setattr(card_image, "render_card", _render_ok)
+    asyncio.run(settle_analyst._settle_analyses_impl())
+    assert text_calls["n"] == 0, "carte rendue mais envoi photo échoué -> PAS de texte (zéro doublon)"
+    assert not _load(side).get("notified_pick"), "envoi non confirmé -> non figé -> R2 ré-essaiera la carte"
+
+    # cas 2 : le RENDU échoue (Chrome indispo…) -> le texte EST le repli légitime
+    async def _render_fail(card, png):
+        raise RuntimeError("rendu indisponible")
+    monkeypatch.setattr(card_image, "render_card", _render_fail)
+    asyncio.run(settle_analyst._settle_analyses_impl())
+    assert text_calls["n"] == 1, "rendu impossible -> repli texte (seule option restante)"
+
+
 def test_notif_borne_apres_5_echecs(tmp_path, monkeypatch):
     """Garde-fou : si Telegram reste injoignable, on n'essaie pas indéfiniment (notify_tries < 5)."""
     side = _sidecar(str(tmp_path))
