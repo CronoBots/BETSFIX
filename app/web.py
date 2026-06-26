@@ -1361,6 +1361,12 @@ CSS = """
   .cal-verdict.cal-over{border-color:rgba(244,198,74,.4)}
   .cal-verdict.cal-under{border-color:rgba(34,184,255,.4)}
   .cal-v-t{font-size:15px;font-weight:900;color:#fff}
+  /* Bandeau « ce que la boucle écarte EN CE MOMENT » (action concrète, pas juste le diagnostic) */
+  .cal-excl{padding:11px 13px;border-radius:14px;border:1px solid rgba(244,120,120,.40);
+       background:rgba(244,120,120,.07);font-size:11.5px;color:var(--text);font-weight:650;
+       line-height:1.45;margin-bottom:12px}
+  .cal-excl b{color:#fff} .cal-excl span{color:var(--muted);font-weight:600}
+  .cal-excl.cal-excl-none{border-color:rgba(52,210,123,.35);background:rgba(52,210,123,.06)}
   .cal-v-s{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px;line-height:1.4}
   .cal-v-m{font-size:11px;color:var(--text);font-weight:700;margin-top:6px}
   .cal-src{color:var(--muted);font-weight:600}
@@ -2664,9 +2670,27 @@ def render_calibration(c: dict) -> str:
             '<b>«réel»</b> (réussite, fantômes inclus) ; le <b>ROI</b> à droite ne compte que les paris '
             '<b>joués</b>. Réel <span class="cal-neg-t">sous</span> l\'annoncé = trop optimiste ; '
             '<span class="cal-pos-t">au-dessus</span> = prudent.</div>')
+    # BANDEAU « ce que la boucle écarte EN CE MOMENT » : l'ACTION concrète (auto_exclusions), pas
+    # seulement le diagnostic. Rend visible l'apprentissage -> on surveille sans rien décider à la main.
+    try:
+        ex_sports, ex_markets = analyses.auto_exclusions()
+    except Exception:
+        ex_sports, ex_markets = set(), set()
+    if ex_markets or ex_sports:
+        _it = []
+        if ex_markets:
+            _it.append("marchés : <b>" + "</b>, <b>".join(sorted(html.escape(m) for m in ex_markets)) + "</b>")
+        if ex_sports:
+            _it.append("sports : <b>" + "</b>, <b>".join(sorted(html.escape(s) for s in ex_sports)) + "</b>")
+        excl = ('<div class="cal-excl">🚫 <b>Écartés automatiquement</b> des recommandations (échantillon '
+                'suffisant + sur-confiance ou ROI négatif) — ' + " · ".join(_it) +
+                '. <span>Auto-révisable : une catégorie se ré-inclut seule si elle redevient bonne.</span></div>')
+    else:
+        excl = ('<div class="cal-excl cal-excl-none">✓ <b>Aucune catégorie écartée</b> pour l\'instant '
+                '<span>(pas encore assez de recul, ou tout est dans les clous).</span></div>')
     # Un SEUL bloc : chaque sport, avec ses types de paris en sous-catégories indentées.
     by_sport = _calib_by_sport(c.get("by_sport") or {})
-    return (f'<div class="cal-h">🎯 Calibration</div>{head}<div class="cal">{"".join(bars)}</div>'
+    return (f'<div class="cal-h">🎯 Calibration</div>{head}{excl}<div class="cal">{"".join(bars)}</div>'
             f'{note}{by_sport}')
 
 _CALIB_VERDICT = {"good": ("v-ok", "fiable"), "over": ("v-over", "trop optimiste"),
