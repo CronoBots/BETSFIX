@@ -1227,6 +1227,17 @@ async def _settle_analyses_impl() -> int:
                         r = await _settle_one(c) if c else None
                     sp["result"] = r
             d["settle_v"] = _SETTLE_VERSION
+            # CLV (Closing Line Value) du pari RÉSULTAT : figé UNE FOIS, ici au règlement — tant
+            # qu'odds_history a encore la cote de clôture (purge à 48 h, le règlement tombe avant).
+            # Stocké -> persiste après la purge. Juge d'edge le plus rapide. No-op si non calculable.
+            if d.get("clv") is None:
+                try:
+                    from app import clv as _clvmod
+                    _cv = _clvmod.clv_for_sidecar(d)
+                    if _cv is not None:
+                        d["clv"] = round(_cv, 4)
+                except Exception:
+                    pass
             # Backfill du sentiment public (barre « Public ») si le scan ne l'a pas capturé (SofaScore
             # bloqué au scan) -> FIGÉ une fois dans le sidecar, ne bouge plus ensuite. Si le sofa_id
             # n'est pas exploitable (résolution échouée au scan), on le RÉSOUT par noms via

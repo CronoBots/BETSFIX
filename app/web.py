@@ -2493,6 +2493,21 @@ def render_stats(full: dict | None, since: str = "") -> str:
     # n'affiche une ligne que si elle a des résultats. Repli : ancienne ligne unique si aucune des deux.
     _fs = form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=8)
     _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=8)
+    # KPI CLV (Closing Line Value) : se remplit à mesure que de nouveaux paris RÉSULTAT se règlent.
+    # >0 = on prend en moyenne de meilleures cotes que la clôture = edge réel. '—' tant que vide.
+    from app import clv as _clvmod
+    _cs = _clvmod.clv_stats()
+    if _cs.get("n"):
+        _cv = _cs["avg_pct"]
+        clv_kpi = (f'<div class="sx-kpi" title="CLV : cote prise vs cote de clôture du marché. '
+                   f'&gt;0 = on bat le marché. {_cs.get("beat_pct")}% des paris au-dessus, sur '
+                   f'{_cs["n"]} paris résultat.">'
+                   f'<b class="arec-{_roi_cls(_cv, _cs["n"])}">{"+" if (_cv or 0) >= 0 else ""}{_cv}%</b>'
+                   f'<span>CLV ({_cs["n"]})</span></div>')
+    else:
+        clv_kpi = ('<div class="sx-kpi" title="CLV (Closing Line Value) : battre la cote de clôture du '
+                   'marché = juge d\'edge le plus rapide. Se remplit dès que des paris résultat se règlent.">'
+                   '<b>—</b><span>CLV</span></div>')
     _rows = []
     if _fs:
         _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Simples</span>{_fs}</div>')
@@ -2510,6 +2525,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
         f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
         f'{new_kpi}'
+        f'{clv_kpi}'
         '</div>'
         f'{chart_block}'
         '</div>')
