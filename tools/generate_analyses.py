@@ -842,9 +842,32 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     return text, meta
 
 
+def _resolve_claude() -> str:
+    """Chemin du VRAI binaire claude, résolu depuis le PATH en SAUTANT le cwd et le dossier projet.
+    Pourquoi : un `claude.bat` vit dans le dossier BETSFIX (lanceur double-clic INTERACTIF). Sous
+    tâche planifiée (cwd=projet, Windows cherche le cwd en premier), `shutil.which('claude')` tombait
+    sur ce .bat -> lançait un claude INTERACTIF qui se bloque jusqu'au timeout (0 analyse, exit 1).
+    On cherche donc dir par dir dans le PATH, en ignorant cwd/projet, pour ne prendre que le vrai
+    claude (npm `claude.CMD`). Repli sur shutil.which puis 'claude' si rien."""
+    skip = {os.path.abspath(os.getcwd()),
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}
+    # Windows : EXÉCUTABLE = une extension PATHEXT (.CMD/.EXE…) ; le fichier `claude` SANS extension
+    # (script shell Unix) n'est PAS lançable par subprocess (WinError 193) -> on l'exclut. POSIX : ext "".
+    pathext = os.environ.get("PATHEXT", "")
+    exts = pathext.split(os.pathsep) if pathext else [""]
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        if not d or os.path.abspath(d) in skip:
+            continue
+        for ext in exts:
+            cand = os.path.join(d, "claude" + ext)
+            if os.path.isfile(cand):
+                return cand
+    return shutil.which("claude") or "claude"
+
+
 def run_claude(prompt: str, timeout: int = 360) -> str:
     """Lance Claude en headless sur l'abonnement et renvoie l'analyse (stdout)."""
-    exe = shutil.which("claude") or "claude"
+    exe = _resolve_claude()
     p = subprocess.run([exe, "-p", "--dangerously-skip-permissions"], input=prompt,
                        text=True, capture_output=True, timeout=timeout, encoding="utf-8")
     return (p.stdout or "").strip()
