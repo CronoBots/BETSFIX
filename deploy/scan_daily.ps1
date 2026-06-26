@@ -21,5 +21,8 @@ if ($running) {
 }
 
 Log 'START scan foot,tennis,basket --top 3 --hours 24'
-& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 *>> $log
+# 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (le `*>>` ne récupérait pas la
+# sortie sous tâche cachée). Out-File étant un cmdlet, $LASTEXITCODE reste celui de python.
+& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 2>&1 |
+    Out-File -Append -Encoding utf8 $log
 Log ("DONE (exit {0})" -f $LASTEXITCODE)
