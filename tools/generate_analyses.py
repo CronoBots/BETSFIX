@@ -1057,17 +1057,29 @@ def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
     return out
 
 
-def _build_combo_from_pool(eid: str, cands: list, max_legs: int = 3) -> dict | None:
+def _build_combo_from_pool(eid: str, cands: list, sport: str, max_legs: int = 3) -> dict | None:
     """Choisit, dans le VIVIER, la meilleure combinaison COMBINABLE par EV (= vraie cote × proba :
     capture À LA FOIS la value/le faible rabot ET la chance), sous contraintes vraie cote ≥
-    _COMBO_REAL_MIN et chance ≥ _COMBO_PROB_MIN. Si rien ne tient les seuils, prend la combinaison
-    combinable à la plus HAUTE vraie cote. None sinon."""
+    _COMBO_REAL_MIN et chance ≥ _COMBO_PROB_MIN.
+
+    La proba de CHAQUE jambe est RECALIBRÉE (`calibrated_conf`, MÊME boucle de feedback que le pari
+    simple) AVANT le produit : la sur-confiance du LLM se COMPOSE en combiné (3 jambes gonflées de
+    7 pts → produit largement gonflé), donc sans ça l'EV est systématiquement surévaluée (cause du
+    ROI combiné négatif). Le plancher de chance _COMBO_PROB_MIN est désormais une BARRIÈRE DURE (best
+    ET repli) : fini le repli « longshot à haute cote » qui sortait un combiné sous la chance mini.
+    None si aucune combinaison ne tient la chance calibrée."""
     from itertools import combinations
+    from app.analyses import calibrated_conf
     cands = [c for c in cands if c.get("oid")][:6]
     n = len(cands)
     if n < 2:
         return None
-    best, fallback = None, None     # best = (ev, real, prob, idx) ; fallback = plus haute vraie cote
+    # proba de jambe RECALIBRÉE (réduit la sur-confiance ; no-op tant que l'échantillon de la
+    # catégorie est trop maigre -> jamais de sur-correction sur du bruit).
+    for c in cands:
+        cp = calibrated_conf(c.get("prob"), sport, c.get("code", ""))
+        c["_cprob"] = (cp if cp is not None else (c.get("prob") or 70)) / 100
+    best, fallback = None, None     # best = (ev, real, prob, idx) ; fallback = + haute vraie cote (≥ chance mini)
     for size in range(min(max_legs, n), 1, -1):
         for idx in combinations(range(n), size):
             real = unibet.betbuilder_odds(eid, [cands[i]["oid"] for i in idx])
@@ -1075,12 +1087,14 @@ def _build_combo_from_pool(eid: str, cands: list, max_legs: int = 3) -> dict | N
                 continue
             prob = 1.0
             for i in idx:
-                prob *= cands[i]["prob"] / 100
+                prob *= cands[i]["_cprob"]
+            if prob < _COMBO_PROB_MIN:       # BARRIÈRE DURE : jamais sous la chance mini (calibrée)
+                continue
             if fallback is None or real > fallback[1]:
                 fallback = (prob, real, idx)
-            # EV maximale parmi les combinaisons qui tiennent la value (≥1.80) ET une chance correcte
-            # -> meilleur rendement attendu (favorise les jambes peu corrélées = cote réelle plus haute).
-            if real >= _COMBO_REAL_MIN and prob >= _COMBO_PROB_MIN:
+            # EV maximale parmi les combinaisons qui tiennent AUSSI la value (≥1.80) -> meilleur
+            # rendement attendu (favorise les jambes peu corrélées = cote réelle plus haute).
+            if real >= _COMBO_REAL_MIN:
                 ev = real * prob
                 if best is None or ev > best[0]:
                     best = (ev, real, prob, idx)
@@ -1114,7 +1128,7 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
     eid = str(event_id) if event_id else None
     if eid and _CATALOG_CACHE.get(eid):
         cands = _parse_pool(analysis, sport, home, away)
-        built = _build_combo_from_pool(eid, cands) if cands else None
+        built = _build_combo_from_pool(eid, cands, sport) if cands else None
         if built:
             return built
     return _parse_combo(analysis, sport, home, away, event_id)
