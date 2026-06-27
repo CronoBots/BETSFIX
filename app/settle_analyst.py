@@ -42,7 +42,9 @@ def _fr_date(dt) -> str:
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
 _settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un même process (anti double-notif)
-_SETTLE_VERSION = 39   # v39 : VAINQUEUR d'une mi-temps (HALFRES, « Mi-temps <équipe> ») via les périodes +
+_SETTLE_VERSION = 40   # v40 : FIX combiné resté « en attente » à vie alors qu'une jambe avait perdu
+#                              (off-by-one : finalisation skippée au 8e essai) -> re-règle les coincés.
+# v39 : VAINQUEUR d'une mi-temps (HALFRES, « Mi-temps <équipe> ») via les périodes +
 #                              HANDICAP 3 voies (HCAP3, « 3-Way Handicap (X-Y) ») via le score final ajusté.
 # v38 : « Temps réglementaire <équipe>/nul » (REGTIME) réglé sur les 90 min.
 # v37 : BTTS par mi-temps (BTTSHALF) via les périodes.
@@ -929,8 +931,12 @@ async def _settle_analyses_impl() -> int:
         # Combiné dont le verdict GLOBAL manque encore (jambes réglées au compte-gouttes : stats df_st
         # parfois en retard sur la fin du match) -> on retente jusqu'à 8 fois pour le compléter.
         cmb = d.get("combo") or {}
+        # < 9 (pas 8) : le combiné ATTEND les jambes jusqu'à 8 essais ; il faut UNE passe de PLUS
+        # pour que la FINALISATION tourne (au 8e essai, le bloc plus bas tranche : jambe perdue ->
+        # « perdu », même si une autre jambe reste non réglable). Sans ce +1, le combiné était skippé
+        # à 8 AVANT de finaliser -> resté « en attente » à vie alors qu'une jambe avait perdu (régression).
         combo_pending = (bool(cmb.get("legs")) and cmb.get("result") is None
-                         and (d.get("combo_tries") or 0) < 8)
+                         and (d.get("combo_tries") or 0) < 9)
         # Pari « le plus sûr » NON réglable sur un match pourtant fini (ex. tennis abandonné avant le 1er
         # set : 0-0 en sets, pas de vainqueur) -> on retente quelques fois puis on ABANDONNE (sinon le
         # sidecar n'est jamais figé et on le re-traite à chaque boucle indéfiniment).

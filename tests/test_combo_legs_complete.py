@@ -97,9 +97,11 @@ def test_combo_attend_chaque_jambe_avant_publication(tmp_path, monkeypatch):
     assert photo["n"] == 1, "exactement une carte combiné envoyée"
 
 
-def test_combo_jamais_publie_si_jambe_jamais_validable(tmp_path, monkeypatch):
-    """Consigne stricte : si une jambe reste NON validable, on NE publie PAS une carte incomplète —
-    et on ne boucle pas indéfiniment (essais bornés à 8 puis le sidecar est laissé en attente)."""
+def test_combo_jambe_perdue_tranche_apres_budget(tmp_path, monkeypatch):
+    """Jambe PERDUE + jambe jamais validable : on attend les 8 essais (au cas où la jambe se réglerait),
+    PUIS on TRANCHE -> « perdu » (une jambe perdue suffit). Sinon le combiné resterait « en attente » à
+    vie alors qu'il est déjà perdu (régression du off-by-one, corrigée). La jambe non réglée s'affiche
+    en neutre."""
     side = _sidecar(str(tmp_path))
     monkeypatch.setattr(settle_analyst, "settle_pick",
                         lambda c, score: {"1": "lost", "L1": "lost", "L2": None}.get(c))
@@ -132,6 +134,6 @@ def test_combo_jamais_publie_si_jambe_jamais_validable(tmp_path, monkeypatch):
         asyncio.run(settle_analyst._settle_analyses_impl())
     d = _load(side)
     assert d.get("combo_tries") == 8, "essais bornés à 8 (pas de boucle infinie)"
-    assert d["combo"]["result"] is None, "verdict jamais tranché tant qu'une jambe n'est pas validée"
-    assert not d.get("notified_combo"), "JAMAIS publié si une jambe n'est pas validable"
-    assert photo["n"] == 0, "aucune carte combiné envoyée"
+    assert d["combo"]["result"] == "lost", "après le budget, une jambe perdue -> combiné TRANCHÉ perdu"
+    assert d.get("notified_combo") is True, "tranché -> publié (plus de combiné coincé en attente à vie)"
+    assert photo["n"] == 1, "exactement une carte combiné envoyée"
