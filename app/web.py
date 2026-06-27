@@ -220,7 +220,9 @@ CSS = """
   body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00;--glow:rgba(240,128,0,.30)}
   body.sp-foot{--accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30)}
   *{box-sizing:border-box}
-  html{-webkit-text-size-adjust:100%;overflow:hidden;overscroll-behavior:none}
+  /* Fond html = COULEUR DE LA NAV (#0b0d12) : la zone du home-indicator iPhone (PWA standalone), non
+     couverte par body/nav, montrait sinon un TROU NOIR sous la barre du bas. Là elle se fond dedans. */
+  html{-webkit-text-size-adjust:100%;overflow:hidden;overscroll-behavior:none;background:#0b0d12}
   /* Coquille NON-scrollante en COLONNE FLEX,
   hauteur = viewport DYNAMIQUE (100dvh) : le contenu
      scrolle DANS .wrap (flex:1) et la barre du bas est un enfant flex STATIQUE collé au bas. Sur iOS
@@ -1713,7 +1715,10 @@ CSS = """
   .big .d{font-size:12.5px;color:var(--muted);font-weight:400;margin-top:5px;line-height:1.5}
   /* Footer ancré EN BAS de la zone scrollable (margin-top:auto) : plus de gros vide sous le contenu
      court -> le « 18+ » occupe le bas, juste au-dessus de la barre. Contenu long : padding = espacement. */
-  .foot{color:var(--dim);font-size:10.5px;margin-top:auto;padding-top:22px;text-align:center;line-height:1.6}
+  /* Pas de `margin-top:auto` : sinon, dans le .wrap flex-column étiré, le pied de page est POUSSÉ tout
+     en bas et laisse un GROS VIDE sous la liste quand elle ne remplit pas l'écran. Il suit le contenu. */
+  .foot{color:var(--dim);font-size:10.5px;margin-top:22px;padding-top:14px;text-align:center;line-height:1.6;
+        border-top:1px solid rgba(255,255,255,.05)}
   .src{font-size:12px;font-weight:600;padding:9px 13px;border-radius:12px;margin:4px 0 2px;
        border:1px solid var(--border)}
   .src.ok{background:rgba(46,226,127,.10);color:var(--accent);border-color:rgba(46,226,127,.22)}
@@ -2518,10 +2523,10 @@ def render_stats(full: dict | None, since: str = "") -> str:
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
-        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI global {_ind(ov.get("settled"))}</div></div>'
+        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI · paris simples {_ind(ov.get("settled"))}</div></div>'
         f'<div class="sx-hero-r">{forms}</div></div>'
         '<div class="sx-kpis">'
-        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>paris réglés</span></div>'
+        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>simples réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
         f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
         f'{new_kpi}'
@@ -2539,7 +2544,11 @@ def render_stats(full: dict | None, since: str = "") -> str:
               for sk, lbl, col in SPORTS if (bs.get(sk) or {}).get("settled")]
     sports = (('<div class="sx-bys"><div class="sx-h">Détail par sport</div>'
                + "".join(scards) + '</div>') if scards else "")
-    return f'{hero}{equity}{sports}'
+    # Bloc COMBINÉS SÉPARÉ et VISIBLE (demande user) : n, réussite, vraie cote moy., ROI + par nb de
+    # jambes. Hors ROI des simples (ils ont leur propre rendement). render_combos était défini mais
+    # JAMAIS appelé -> le suivi combinés était invisible.
+    combos = render_combos(analyses.combo_stats())
+    return f'{hero}{equity}{combos}{sports}'
 
 
 def _roi_bars(rows: list) -> str:
