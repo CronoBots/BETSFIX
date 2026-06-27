@@ -2489,7 +2489,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
     mlegend = (f'<div class="sx-mlegend"><div class="sx-ml-h">Repères du modèle</div>{mleg}</div>'
                if mleg else "")
     chart_block = (f'<div class="sx-divider"></div>'
-                   f'<div class="sx-h sx-h2">Évolution du rendement</div>'
+                   f'<div class="sx-h sx-h2">📈 Simples<span>évolution du rendement</span></div>'
                    f'<div class="sx-equity">{chart}</div>{mlegend}') if chart else ""
     # UN SEUL cadre : ROI + forme (≥10 bulles) + KPIs + courbe + repères expliqués.
     # Forme = 10 dernières (mêmes pastilles W/L que les onglets sport, lettre majuscule, récent à DROITE).
@@ -2533,6 +2533,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
         f'{clv_kpi}'
         '</div>'
         f'{chart_block}'
+        f'{render_combos(analyses.combo_stats())}'   # bloc Combinés DANS LE MÊME CADRE (2e graphique)
         '</div>')
     equity = ""   # fusionné dans `hero` (un seul cadre)
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
@@ -2544,11 +2545,8 @@ def render_stats(full: dict | None, since: str = "") -> str:
               for sk, lbl, col in SPORTS if (bs.get(sk) or {}).get("settled")]
     sports = (('<div class="sx-bys"><div class="sx-h">Détail par sport</div>'
                + "".join(scards) + '</div>') if scards else "")
-    # Bloc COMBINÉS SÉPARÉ et VISIBLE (demande user) : n, réussite, vraie cote moy., ROI + par nb de
-    # jambes. Hors ROI des simples (ils ont leur propre rendement). render_combos était défini mais
-    # JAMAIS appelé -> le suivi combinés était invisible.
-    combos = render_combos(analyses.combo_stats())
-    return f'{hero}{equity}{combos}{sports}'
+    # Simples ET Combinés sont DANS LE MÊME CADRE (hero) — 2 graphiques organisés, plus 2 cartes.
+    return f'{hero}{equity}{sports}'
 
 
 def _roi_bars(rows: list) -> str:
@@ -2623,12 +2621,13 @@ def render_combos(cs: dict) -> str:
     pts = cs.get("points") or []
     combo_chart = (f'<div class="sx-equity">{_hero_chart(pts, uid="combos")}</div>'
                    if len([p for p in pts if p]) else "")
-    return ('<div class="sx-card"><div class="sx-h">🎲 Combinés'
-            '<span>vraie cote · hors ROI général</span></div>'
+    # FRAGMENT (pas une carte à part) : s'insère DANS le même cadre que les simples, sous un séparateur.
+    return ('<div class="sx-divider"></div>'
+            '<div class="sx-h sx-h2">🎲 Combinés<span>vraie cote · suivi séparé</span></div>'
             f'<div class="sx-kpis">{kpis}</div>'
             f'{combo_chart}'
             + (f'<div class="sx-combo-sub">{sub}</div>' if sub else "")
-            + (f'<div class="sx-legs">{legrows}</div>' if legrows else "") + '</div>')
+            + (f'<div class="sx-legs">{legrows}</div>' if legrows else ""))
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
