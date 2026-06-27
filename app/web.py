@@ -2618,9 +2618,15 @@ def render_combos(cs: dict) -> str:
         legrows += (f'<div class="sx-leg"><span>{k} jambes</span>'
                     f'<span class="sx-leg-n">{g["n"]} combiné{"s" if g["n"] > 1 else ""}</span>'
                     f'<b>{wr if wr is not None else "—"}%</b></div>')
+    # Courbe d'équité PROPRE aux combinés (cumul P&L sur la vraie cote) — graphique séparé de celui
+    # des simples (demande user : 2 graphiques distincts, chacun avec ses stats).
+    pts = cs.get("points") or []
+    combo_chart = (f'<div class="sx-equity">{_hero_chart(pts, uid="combos")}</div>'
+                   if len([p for p in pts if p]) else "")
     return ('<div class="sx-card"><div class="sx-h">🎲 Combinés'
             '<span>vraie cote · hors ROI général</span></div>'
             f'<div class="sx-kpis">{kpis}</div>'
+            f'{combo_chart}'
             + (f'<div class="sx-combo-sub">{sub}</div>' if sub else "")
             + (f'<div class="sx-legs">{legrows}</div>' if legrows else "") + '</div>')
 

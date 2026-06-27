@@ -1595,6 +1595,7 @@ def combo_stats(since_days: int | None = None) -> dict:
     par NOMBRE DE JAMBES. Non rétroactif (≥ _COMBO_COUNT_FROM). `since_days` filtre la fenêtre."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     rows = []   # (result, real_odds, shave, n_legs, prob)
+    curve = []  # (start, result, real_odds) -> courbe d'équité cumulée (mise plate 1u, chronologique)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -1617,6 +1618,7 @@ def combo_stats(since_days: int | None = None) -> dict:
             continue
         odds = c.get("real_odds") or c.get("total")
         rows.append((res, float(odds) if odds else None, c.get("shave"), len(c["legs"]), c.get("prob")))
+        curve.append((start, res, float(odds) if odds else None))
     won = sum(1 for r, o, s, n, pr in rows if r == "won")
     lost = sum(1 for r, o, s, n, pr in rows if r == "lost")
     push = sum(1 for r, o, s, n, pr in rows if r == "push")
@@ -1633,6 +1635,15 @@ def combo_stats(since_days: int | None = None) -> dict:
         sset = sum(1 for r in sub if r in ("won", "lost"))
         by_legs[k] = {"n": len(sub), "won": sw,
                       "wr": round(100 * sw / sset) if sset else None}
+    # Courbe d'équité COMBINÉS : cumul P&L (mise plate 1u sur la VRAIE cote), ordre chronologique.
+    curve.sort(key=lambda x: x[0] or "")
+    pts, cum = [0.0], 0.0
+    for _s, r, o in curve:
+        if r == "won" and o:
+            cum += o - 1
+        elif r == "lost":
+            cum -= 1
+        pts.append(round(cum, 3))
     return {"n": len(rows), "won": won, "lost": lost, "push": push,
             "win_rate": round(100 * won / settled) if settled else None,
             "profit": round(profit, 2),
@@ -1640,7 +1651,7 @@ def combo_stats(since_days: int | None = None) -> dict:
             "avg_odds": round(sum(odds_vals) / len(odds_vals), 2) if odds_vals else None,
             "avg_shave": round(sum(shaves) / len(shaves), 1) if shaves else None,
             "avg_ev": round(100 * sum(evs) / len(evs)) if evs else None,
-            "by_legs": by_legs}
+            "by_legs": by_legs, "points": pts}
 
 
 _CALIB_BANDS = [(45, 55), (55, 65), (65, 75), (75, 85), (85, 101)]
