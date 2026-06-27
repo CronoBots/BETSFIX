@@ -35,6 +35,19 @@ def test_halfres_settle():
 
 
 # --------------------------------------------------------------- HCAP3 (handicap 3 voies « (X-Y) »)
+def test_jambe_code_vide_moneyline_et_total_sans_unite():
+    # combinés WNBA coincés : « Las Vegas Aces (F) » seul = moneyline ; « Plus de 162.5 » = total match
+    assert C("Las Vegas Aces (F)", "basket", "Las Vegas Aces", "Dallas Wings") == "WIN HOME"
+    assert C("New York Liberty (F)", "basket", "Seattle Storm", "New York Liberty") == "WIN AWAY"
+    assert C("Belgique", "foot", "Belgique", "France") == "1X2 1"        # foot -> 1X2
+    assert C("Plus de 162.5", "basket", "Seattle", "New York") == "OVER 162.5"
+    assert C("Moins de 173.5", "basket", "A", "B") == "UNDER 173.5"
+    # NON-RÉGRESSION : un marché à mot-clé ne doit PAS être détourné en moneyline/total
+    assert C("Plus de 20.5 tirs", "foot", "A", "B") == ""                # tirs -> abstention
+    assert C("Total corners Plus de 7.5", "foot", "A", "B") == "CORNERS OVER 7.5"
+    assert C("Belgique ou nul", "foot", "Belgique", "France") == "DC 1X"
+
+
 def test_walkover_le_joueur_qui_avance_gagne():
     # walkover/forfait : le joueur qui AVANCE gagne -> pari SUR lui = gagné, sur le forfait = perdu.
     # JAMAIS de void (demande user).

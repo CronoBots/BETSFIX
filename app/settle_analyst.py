@@ -42,7 +42,9 @@ def _fr_date(dt) -> str:
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
 _settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un même process (anti double-notif)
-_SETTLE_VERSION = 42   # v42 : WALKOVER/forfait (le joueur qui avance gagne -> pari sur lui = gagné),
+_SETTLE_VERSION = 43   # v43 : jambes à CODE VIDE débloquées — nom d'équipe seul = moneyline (WIN/1X2)
+#                              + « Plus de X » sans unité = total du match (combinés WNBA coincés).
+# v42 : WALKOVER/forfait (le joueur qui avance gagne -> pari sur lui = gagné),
 #                              détecté via Flashscore (champ AM « withdrawn/retired »). Jamais de void.
 # v41 : FIX « gagne au moins une mi-temps NON » (WINHALF NO, était réglé comme
 #                              « Oui » -> faux) + FLASHSCORE branché en repli (couverture universelle
@@ -654,6 +656,14 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         sgn = re.search(r"([+\-−–])\s?(\d+[.,]?\d*)", t)
         if sgn:
             return f"{'UNDER' if sgn.group(1) in ('-', '−', '–') else 'OVER'} {sgn.group(2).replace(',', '.')}"
+    # « Plus de X » / « Moins de X » SEUL (sans unité, sans équipe) = total du MATCH (points basket
+    # « Plus de 162.5 », buts foot). Les marchés à mot-clé (corners/cartons/tirs/sets/jeux) ont déjà
+    # été traités/abstenus -> ici, un simple seuil chiffré = le total du match. (Vu : combiné basket
+    # WNBA resté coincé sur « Plus de 162.5 » à code vide.)
+    if not team:
+        mu = re.search(r"(plus|moins)\s+de\s+(\d+(?:[.,]\d+)?)", t)
+        if mu:
+            return f"{'OVER' if mu.group(1) == 'plus' else 'UNDER'} {mu.group(2).replace(',', '.')}"
     # HANDICAP 3 VOIES « (X-Y) » : handicap avec score de DÉPART (ex. « 3-Way Handicap (1-0) <équipe> »).
     # Réglé sur le score FINAL ajusté (h+X vs a+Y) -> 1X2. DOIT passer AVANT le handicap générique :
     # « (1-0) » contient « -0 » qui serait sinon lu comme un handicap simple.
@@ -699,6 +709,13 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             s = side("X")
             return "1X2 1" if s.endswith("HOME") else ("1X2 2" if s.endswith("AWAY") else "")
         return side("WIN")
+    # NOM D'ÉQUIPE SEUL (sans mot « gagne ») = MONEYLINE : cette équipe gagne. Fréquent en jambe de
+    # combiné (« Las Vegas Aces (F) »). En DERNIER recours UNIQUEMENT, et seulement s'il ne reste AUCUN
+    # mot-clé de marché (chiffre/seuil/…) -> aucun faux positif. (Vu : combinés WNBA à code vide.)
+    w = which()
+    if w and not re.search(r"\d|plus|moins|but|point|corner|carton|\btir|set|jeu|handicap|chance|"
+                           r"mi.?temps|marque|over|under|cadr|total|nul", t):
+        return ("1X2 1" if w == "HOME" else "1X2 2") if sport == "foot" else f"WIN {w}"
     return ""
 
 
