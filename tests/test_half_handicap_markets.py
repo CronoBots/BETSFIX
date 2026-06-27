@@ -35,6 +35,22 @@ def test_halfres_settle():
 
 
 # --------------------------------------------------------------- HCAP3 (handicap 3 voies « (X-Y) »)
+def test_walkover_le_joueur_qui_avance_gagne():
+    # walkover/forfait : le joueur qui AVANCE gagne -> pari SUR lui = gagné, sur le forfait = perdu.
+    # JAMAIS de void (demande user).
+    sc = {"walkover": True, "winner": "home"}
+    assert S("SET HOME", sc) == "won"          # « remporte un set » sur le vainqueur
+    assert S("SET AWAY", sc) == "lost"         # sur le joueur forfait
+    assert S("WIN HOME", sc) == "won"
+    assert S("WIN AWAY", sc) == "lost"
+    assert S("1X2 1", sc) == "won"
+    assert S("1X2 2", sc) == "lost"
+    assert S("SETHCAP AWAY -1.5", sc) == "lost"
+    # marché SANS côté (total de jeux/sets) -> la règle ne s'applique pas -> non réglable (reste en attente)
+    assert S("TOTGAMES OVER 20.5", sc) is None
+    assert S("SETSTOT OVER 2.5", sc) is None
+
+
 def test_winhalf_non_negation():
     # bug NZ-Belgique : « gagne au moins une mi-temps NON » était réglé comme « Oui » -> faux.
     # NZ perd les 2 MT (0-1 puis 1-4) -> « NZ gagne une MT : Non » est VRAI.

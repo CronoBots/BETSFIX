@@ -68,6 +68,7 @@ def _match_index(sport: str = "tennis", offset: int = 0) -> list:
                     ts = None
                 out.append({"id": mid, "home": _clean_name(f["AE"]), "away": _clean_name(f["AF"]),
                             "home_score": f.get("AG") or None, "away_score": f.get("AH") or None,
+                            "note": f.get("AM"),   # ex. « X - withdrawn/retired » -> walkover/forfait
                             "league": league, "start_ts": ts})
     _index_cache[key] = out
     return out
@@ -640,6 +641,17 @@ def final_score(sport: str, d: dict) -> dict | None:
                 continue
             hs, as_ = _n(m.get("home_score")), _n(m.get("away_score"))
             if hs is None or as_ is None:
+                # Pas de score -> WALKOVER/FORFAIT ? Le champ `note` (AM) = « <joueur> - withdrawn/
+                # retired/walkover ». Le joueur CITÉ a déclaré forfait -> l'AUTRE AVANCE (= vainqueur).
+                note = (m.get("note") or "").lower()
+                if any(w in note for w in ("withdrawn", "retired", "walkover", "w.o", "abandon", "forfait", "défaut")):
+                    nt = _tok(note)
+                    th, ta = _tok(m["home"]), _tok(m["away"])
+                    loser = "home" if (th and th & nt) else ("away" if (ta and ta & nt) else None)
+                    if loser:
+                        return {"walkover": True, "winner": ("away" if loser == "home" else "home"),
+                                "home": None, "away": None,
+                                "label": "Forfait", "src": "flashscore"}
                 return None        # match trouvé MAIS pas de score (pas fini/suspendu) -> on s'abstient
             if sport == "tennis":
                 return {"home": None, "away": None, "sets_home": hs, "sets_away": as_,

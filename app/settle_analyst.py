@@ -42,7 +42,9 @@ def _fr_date(dt) -> str:
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
 _settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un même process (anti double-notif)
-_SETTLE_VERSION = 41   # v41 : FIX « gagne au moins une mi-temps NON » (WINHALF NO, était réglé comme
+_SETTLE_VERSION = 42   # v42 : WALKOVER/forfait (le joueur qui avance gagne -> pari sur lui = gagné),
+#                              détecté via Flashscore (champ AM « withdrawn/retired »). Jamais de void.
+# v41 : FIX « gagne au moins une mi-temps NON » (WINHALF NO, était réglé comme
 #                              « Oui » -> faux) + FLASHSCORE branché en repli (couverture universelle
 #                              des ligues -> règle les tickets obscurs). Re-règle tout.
 # v40 : FIX combiné resté « en attente » à vie alors qu'une jambe avait perdu
@@ -83,6 +85,16 @@ def settle_pick(code: str, score: dict) -> str | None:
         return None
     parts = code.upper().split()
     kind = parts[0]
+    # WALKOVER / FORFAIT (tennis surtout) : le joueur qui AVANCE gagne. RÈGLE (demande user, jamais de
+    # void) : tout pari SUR le vainqueur = gagné, sur le perdant = perdu. On lit le côté HOME/AWAY du
+    # code (vainqueur/sets/jeux/handicap…). Marché sans côté clair (total de jeux/sets) -> non réglable.
+    if score.get("walkover") and score.get("winner") in ("home", "away"):
+        side = next((p for p in parts if p in ("HOME", "AWAY")), None)
+        if side is None and kind == "1X2" and len(parts) > 1:
+            side = {"1": "HOME", "2": "AWAY"}.get(parts[1])
+        if side is None:
+            return None
+        return "won" if (score["winner"] == side.lower()) else "lost"
     h, a = score.get("home"), score.get("away")
     sh, sa = score.get("sets_home"), score.get("sets_away")
     periods = score.get("periods") or {}
