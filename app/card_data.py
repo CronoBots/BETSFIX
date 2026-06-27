@@ -51,7 +51,10 @@ def build_prono_card(d: dict) -> dict | None:
     has_combo = bool(combo.get("legs"))
     pick = d.get("pick") or ""
     rb = analyses.retained_bet(sport, str(d.get("id")))
-    pick_shown = bool(rb) if has_combo else bool(pick or rb)
+    # On ne publie un SIMPLE que s'il est RETENU (passe confiance+EV+garde-fous) — combiné OU non.
+    # Sinon Telegram postait des paris (favoris sans value, ex. @1.14) que les stats ne comptent PAS
+    # -> incohérence. Désormais : posté = compté. Si rien n'est retenu, on s'abstient (pas de carte).
+    pick_shown = bool(rb)
 
     dt = _dt(d)
     meta = f"{fr_date(dt)} · {dt.strftime('%H:%M')}" if dt else ""
@@ -83,7 +86,9 @@ def build_result_card(d: dict) -> dict | None:
     res = d.get("result") or {}
     pick_result = res.get("pick_result")
     combo_result = combo.get("result")
-    simple_shown = (not has_combo) or (analyses.retained_bet(sport, str(d.get("id"))) is not None)
+    # Cohérent avec la carte prono : le résultat du SIMPLE n'est montré que s'il était RETENU (donc
+    # publié). Un simple non retenu n'a pas de carte prono -> pas de carte résultat non plus.
+    simple_shown = analyses.retained_bet(sport, str(d.get("id"))) is not None
 
     card_simple = card_combo = None
     if pick_result and simple_shown:

@@ -1331,11 +1331,10 @@ async def _settle_analyses_impl() -> int:
             # R2 : on ne se fie plus à `prev_pick is None` (transition) mais au flag `notified_pick`
             # (= notif RÉELLEMENT partie), pour pouvoir RÉ-ÉMETTRE une notif perdue par crash.
             if new_pick in _chip and not d.get("notified_pick"):
-                # On ne notifie le SIMPLE que s'il est AFFICHÉ sur l'app (cohérence Telegram/app) :
-                # sur un match à combiné (CdM), le simple n'apparaît que s'il aurait été RETENU
-                # (analyses.retained_bet) — sinon seul le combiné est à l'affiche.
-                _has_combo = bool((d.get("combo") or {}).get("legs"))
-                _simple_shown = (not _has_combo) or (analyses.retained_bet(sport, mid) is not None)
+                # On ne notifie le SIMPLE que s'il a été PUBLIÉ = RETENU (confiance+EV+garde-fous),
+                # combiné OU non. Un simple non retenu n'a pas de carte prono -> pas de carte résultat
+                # non plus (cohérence Telegram/stats : posté = compté).
+                _simple_shown = analyses.retained_bet(sport, mid) is not None
                 if not _simple_shown:
                     d["notified_pick"] = True   # non affiché -> rien à envoyer, on FIGE tout de suite
                 if _simple_shown:

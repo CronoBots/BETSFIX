@@ -48,6 +48,7 @@ def test_notif_zero_perte_zero_doublon(tmp_path, monkeypatch):
     monkeypatch.setattr(settle_analyst, "settle_pick", lambda c, score: "won")
     monkeypatch.setattr(analyses, "DIR", str(tmp_path))
     monkeypatch.setattr(analyses, "bets_of", lambda sport, mid: [])
+    monkeypatch.setattr(analyses, "retained_bet", lambda s, m: {"result": "won"})  # simple RETENU -> affiché
     monkeypatch.setattr(analyses, "status_of", lambda d: "finished")
     monkeypatch.setattr(analyses, "likely_finished", lambda d: True)
 
@@ -102,6 +103,7 @@ def test_pas_de_doublon_image_texte(tmp_path, monkeypatch):
     monkeypatch.setattr(settle_analyst, "settle_pick", lambda c, score: "won")
     monkeypatch.setattr(analyses, "DIR", str(tmp_path))
     monkeypatch.setattr(analyses, "bets_of", lambda sport, mid: [])
+    monkeypatch.setattr(analyses, "retained_bet", lambda s, m: {"result": "won"})  # simple RETENU -> affiché
     monkeypatch.setattr(analyses, "status_of", lambda d: "finished")
     monkeypatch.setattr(analyses, "likely_finished", lambda d: True)
     monkeypatch.setattr(notify, "configured", lambda: True)
@@ -138,6 +140,7 @@ def test_notif_borne_apres_5_echecs(tmp_path, monkeypatch):
     monkeypatch.setattr(settle_analyst, "settle_pick", lambda c, score: "won")
     monkeypatch.setattr(analyses, "DIR", str(tmp_path))
     monkeypatch.setattr(analyses, "bets_of", lambda sport, mid: [])
+    monkeypatch.setattr(analyses, "retained_bet", lambda s, m: {"result": "won"})  # simple RETENU -> affiché
     monkeypatch.setattr(analyses, "status_of", lambda d: "finished")
     monkeypatch.setattr(analyses, "likely_finished", lambda d: True)
     monkeypatch.setattr(notify, "configured", lambda: True)
