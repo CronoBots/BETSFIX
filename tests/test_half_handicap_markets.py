@@ -35,6 +35,20 @@ def test_halfres_settle():
 
 
 # --------------------------------------------------------------- HCAP3 (handicap 3 voies « (X-Y) »)
+def test_winhalf_non_negation():
+    # bug NZ-Belgique : « gagne au moins une mi-temps NON » était réglé comme « Oui » -> faux.
+    # NZ perd les 2 MT (0-1 puis 1-4) -> « NZ gagne une MT : Non » est VRAI.
+    sc = {"home": 1, "away": 5, "periods": {1: (0, 1), 2: (1, 4)}}
+    assert C("Nouvelle Zelande gagne au moins une mi-temps Non", "foot", "Nouvelle Zelande", "Belgique") \
+        == "WINHALF HOME NO"
+    assert S("WINHALF HOME NO", sc) == "won"        # NZ n'a gagné aucune MT -> « Non » gagne
+    assert S("WINHALF HOME", sc) == "lost"          # version « Oui » -> perdu
+    # équipe qui gagne la 1ère MT : « Oui » gagne, « Non » perd
+    sc2 = {"home": 3, "away": 1, "periods": {1: (2, 0), 2: (1, 1)}}
+    assert S("WINHALF HOME", sc2) == "won"
+    assert S("WINHALF HOME NO", sc2) == "lost"
+
+
 def test_hcap3_parsing():
     # le nom d'équipe est APRÈS la parenthèse « (1-0) » -> détecté sur le texte entier
     assert C("3-Way Handicap (1-0) Algérie", "foot", "Jordan", "Algérie") == "HCAP3 AWAY 1 0"

@@ -618,3 +618,42 @@ def settle_hold1(home: str, away: str, side: str, start_iso: str | None = None) 
         if g["server"] == want:                # 1er jeu où le joueur sert
             return "won" if g["winner"] == want else "lost"
     return None
+
+
+def final_score(sport: str, d: dict) -> dict | None:
+    """Score FINAL d'un match via l'INDEX Flashscore (couverture quasi UNIVERSELLE des ligues) — pour
+    RÉGLER les pronos quand toutes les autres sources échouent (ligues obscures, etc.). Cherche le match
+    par NOMS au jour du coup d'envoi (±1), SANS la borne -10 de _day_offsets : on veut rattraper un match
+    ancien tant que Flashscore sert ce jour (borné -45). Renvoie un dict compatible règlement, ou None.
+    foot/basket : home/away = buts/points ; tennis : sets_home/sets_away. None si trouvé sans score
+    (pas fini) -> on ne règle JAMAIS sur un score partiel."""
+    home, away, start = d.get("home", ""), d.get("away", ""), d.get("start")
+    dt = _start_dt(start) if start else None
+    if dt is not None:
+        base = (dt.date() - datetime.now(timezone.utc).date()).days
+        offs = [o for o in (base, base - 1, base + 1) if -45 <= o <= 1]
+    else:
+        offs = [0, -1]
+    for off in offs:
+        for m in _match_index(sport, off):
+            if not _teams_match(home, away, m["home"], m["away"]):
+                continue
+            hs, as_ = _n(m.get("home_score")), _n(m.get("away_score"))
+            if hs is None or as_ is None:
+                return None        # match trouvé MAIS pas de score (pas fini/suspendu) -> on s'abstient
+            if sport == "tennis":
+                return {"home": None, "away": None, "sets_home": hs, "sets_away": as_,
+                        "label": f"{hs}-{as_} (sets)", "src": "flashscore"}
+            out = {"home": hs, "away": as_, "sets_home": None, "sets_away": None,
+                   "label": f"{hs}-{as_}", "src": "flashscore"}
+            if sport == "foot":    # mi-temps -> rend réglables les marchés 1H/2H + « 2 mi-temps »
+                pp = {}
+                for i, p in enumerate((periods(m["id"]) or {}).get("periods", [])[:2], 1):
+                    try:
+                        pp[i] = (int(p["home"]), int(p["away"]))
+                    except (ValueError, TypeError, KeyError):
+                        pass
+                if pp:
+                    out["periods"] = pp
+            return out
+    return None

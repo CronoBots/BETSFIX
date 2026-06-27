@@ -42,7 +42,10 @@ def _fr_date(dt) -> str:
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
 _settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un même process (anti double-notif)
-_SETTLE_VERSION = 40   # v40 : FIX combiné resté « en attente » à vie alors qu'une jambe avait perdu
+_SETTLE_VERSION = 41   # v41 : FIX « gagne au moins une mi-temps NON » (WINHALF NO, était réglé comme
+#                              « Oui » -> faux) + FLASHSCORE branché en repli (couverture universelle
+#                              des ligues -> règle les tickets obscurs). Re-règle tout.
+# v40 : FIX combiné resté « en attente » à vie alors qu'une jambe avait perdu
 #                              (off-by-one : finalisation skippée au 8e essai) -> re-règle les coincés.
 # v39 : VAINQUEUR d'une mi-temps (HALFRES, « Mi-temps <équipe> ») via les périodes +
 #                              HANDICAP 3 voies (HCAP3, « 3-Way Handicap (X-Y) ») via le score final ajusté.
@@ -190,13 +193,15 @@ def settle_pick(code: str, score: dict) -> str | None:
             return None
         tot = p[0] + p[1]
         return "push" if tot == line else ("won" if ((tot > line) == (parts[2] == "OVER")) else "lost")
-    if kind == "WINHALF" and len(parts) >= 2:           # WINHALF HOME/AWAY (gagne AU MOINS une mi-temps)
+    if kind == "WINHALF" and len(parts) >= 2:           # WINHALF HOME/AWAY [NO] (gagne AU MOINS une MT)
         p1, p2 = _per(1), _per(2)
         if not p1 or not p2:
             return None
         i = 0 if parts[1] == "HOME" else 1
         o = 1 - i
-        return "won" if (p1[i] > p1[o] or p2[i] > p2[o]) else "lost"
+        won_half = p1[i] > p1[o] or p2[i] > p2[o]        # l'équipe gagne au moins UNE mi-temps
+        neg = len(parts) >= 3 and parts[2] == "NO"       # « … Non » = elle ne gagne AUCUNE mi-temps
+        return "won" if (won_half != neg) else "lost"    # NO inverse le résultat
     if kind == "HALFRES" and len(parts) >= 3:           # HALFRES HOME/AWAY/DRAW 1H/2H : vainqueur (1X2) d'UNE
         p = _per(1 if parts[2] == "1H" else 2)          # mi-temps, sur le score de CETTE période (≠ WINHALF)
         if not p:
@@ -552,7 +557,10 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             return f"BTTSHALF {half} {'NO' if 'non' in t else 'YES'}"
         team = which()
         if ("gagne" in t or "remporte" in t or "vainqueur" in t) and team and "but" not in t:
-            return f"WINHALF {team}"               # gagne AU MOINS une mi-temps
+            # « … Non » = l'équipe ne gagne AUCUNE mi-temps -> WINHALF … NO (sinon réglé comme « Oui »,
+            # bug vu sur NZ-Belgique : « NZ gagne une MT Non » marqué perdu alors que NZ a perdu les 2).
+            neg = "non" in re.findall(r"[a-zà-ÿ]+", t)
+            return f"WINHALF {team} NO" if neg else f"WINHALF {team}"   # gagne AU MOINS une mi-temps
         if "but" in t and not any(k in t for k in ("corner", "carton", "tir")):
             half = "2H" if any(k in t for k in ("2e mi", "2ème mi", "2eme mi", "2nde mi",
                                                 "seconde mi", "deuxième mi")) else "1H"
@@ -1009,6 +1017,18 @@ async def _settle_analyses_impl() -> int:
                         score = await asyncio.to_thread(livescore.final_score, sport, d)
                         if score:
                             log.info("règlement via livescore : %s_%s %s",
+                                     sport, d.get("id"), score.get("label"))
+                    except Exception:
+                        score = None
+                if not score:                       # repli n°4 : FLASHSCORE — couverture quasi UNIVERSELLE
+                    # des ligues (NBL, BSN, ligues mineures…). Le score final est dans l'index ; le match
+                    # est cherché par NOMS au jour du coup d'envoi. Règle les tickets qu'aucune autre
+                    # source ne couvre (« régler tous les tickets »).
+                    try:
+                        from app import flashscore
+                        score = await asyncio.to_thread(flashscore.final_score, sport, d)
+                        if score:
+                            log.info("règlement via flashscore : %s_%s %s",
                                      sport, d.get("id"), score.get("label"))
                     except Exception:
                         score = None
