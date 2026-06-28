@@ -1705,17 +1705,22 @@ async def main():
                                 key=lambda i: (notif_cards[i] or {}).get("_start") or "zzz")
                 for _i in _order:
                     _line, _card = notif_lines[_i], notif_cards[_i]
+                    # PAS de carte = build_prono_card a décidé de NE RIEN publier (pari simple NON retenu
+                    # / « calibration seule ») -> on s'ABSTIENT. Sinon le repli texte re-postait des
+                    # favoris sans value (@1.1-1.4) que les stats ne comptent pas -> incohérence
+                    # « posté ≠ compté » (cf. card_data : pick_shown = bool(rb)).
+                    if not _card:
+                        continue
                     _sent = None
-                    if _card:                       # carte image (Option 2 : tout dans l'image)
-                        try:
-                            _png = f"data/_cards/scan_{_i}.png"
-                            await card_image.render_card(_card, _png)
-                            _sent = notify.send_photo_sync(_png, "")
-                            if _sent:                # mémorise l'id du prono -> le résultat y répondra
-                                notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
-                        except Exception as _ce:
-                            print(f"  (carte image échouée, repli texte : {_ce})")
-                    if not _sent:                   # repli texte si pas de carte / échec rendu
+                    try:                            # carte image (Option 2 : tout dans l'image)
+                        _png = f"data/_cards/scan_{_i}.png"
+                        await card_image.render_card(_card, _png)
+                        _sent = notify.send_photo_sync(_png, "")
+                        if _sent:                    # mémorise l'id du prono -> le résultat y répondra
+                            notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
+                    except Exception as _ce:
+                        print(f"  (carte image échouée, repli texte : {_ce})")
+                    if not _sent:                   # la carte EXISTE mais rendu/envoi KO -> repli texte
                         await notify.send(_line)
         except Exception as _exc:
             print(f"  (notif Telegram ignorée : {_exc})")
