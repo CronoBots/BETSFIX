@@ -1238,6 +1238,10 @@ CSS = """
   .sx-combo-sub b{color:var(--text)}
   /* Panneau « Volume de données » (transparence) : KPIs en 3 colonnes + note */
   .sx-kpis3{grid-template-columns:repeat(3,1fr)}
+  /* Badge VARIATION 24 h sous chaque compteur du panneau Volume */
+  .sx-d24{display:block;margin-top:2px;font-size:9.5px;font-weight:800;letter-spacing:.02em;
+       color:#34d27b;font-variant-numeric:tabular-nums}
+  .sx-d24.z{color:var(--muted);opacity:.55}
   .sx-data .sx-kpis:first-of-type{border-top:0;padding-top:0;margin-top:11px}
   .sx-data-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:11px;
        padding-top:10px;border-top:1px solid var(--border)}
@@ -2501,23 +2505,29 @@ def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict |
     vol = (full or {}).get("volume") or {}
     _cf = combo_full if combo_full is not None else analyses.combo_stats()
     cal = cal if cal is not None else analyses.calibration()
+    d24 = analyses.volume_24h()                       # variation des dernières 24 h (par coup d'envoi)
+
+    def _kpi(val: int, label: str, delta: int) -> str:
+        d = (f'<i class="sx-d24">+{delta}</i>' if delta else '<i class="sx-d24 z">±0</i>')
+        return f'<div class="sx-kpi"><b>{val}</b><span>{label}</span>{d}</div>'
+
     return (
         '<div class="sx-card sx-data"><div class="sx-h">📊 Volume de données'
-        '<span>ce que le modèle a vu</span></div>'
+        '<span>cumul · variation 24 h</span></div>'
         '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{vol.get("matches", 0)}</b><span>matchs joués</span></div>'
-        f'<div class="sx-kpi"><b>{ov.get("settled", 0)}</b><span>simples joués</span></div>'
-        f'<div class="sx-kpi"><b>{_cf.get("n", 0)}</b><span>combinés joués</span></div>'
-        '</div>'
-        '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{cal.get("n", 0)}</b><span>paris calibrés</span></div>'
-        f'<div class="sx-kpi"><b>{cal.get("n_shadow", 0)}</b><span>pronos fantômes</span></div>'
-        f'<div class="sx-kpi"><b>{vol.get("analysed", 0)}</b><span>matchs analysés</span></div>'
-        '</div>'
-        '<div class="sx-data-note">Les <b>simples</b> et <b>combinés joués</b> sont les seuls comptés '
-        'dans le ROI et la courbe. Les <b>pronos fantômes</b> (prédictions non jouées, réglées après '
-        'match) affinent la <b>calibration</b> sur tout le spectre de cotes — ils n\'entrent JAMAIS '
-        'dans le bilan.</div></div>')
+        + _kpi(vol.get("matches", 0), "matchs joués", d24["matches"])
+        + _kpi(ov.get("settled", 0), "simples joués", d24["simples"])
+        + _kpi(_cf.get("n", 0), "combinés joués", d24["combos"])
+        + '</div><div class="sx-kpis sx-kpis3">'
+        + _kpi(cal.get("n", 0), "paris calibrés", d24["calibrated"])
+        + _kpi(cal.get("n_shadow", 0), "pronos fantômes", d24["ghosts"])
+        + _kpi(vol.get("analysed", 0), "matchs analysés", d24["analysed"])
+        + '</div>'
+        '<div class="sx-data-note">Le <b>+N vert</b> = entrées des dernières <b>24 h</b>. Les '
+        '<b>simples</b> et <b>combinés joués</b> sont les seuls comptés dans le ROI et la courbe. Les '
+        '<b>pronos fantômes</b> (prédictions SIMPLES non jouées, réglées après match) affinent la '
+        '<b>calibration</b> sur tout le spectre de cotes — ils n\'entrent JAMAIS dans le bilan, et il '
+        'n\'existe pas de combiné fantôme.</div></div>')
 
 
 def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:

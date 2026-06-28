@@ -1600,6 +1600,48 @@ def stats_full(since_days: int | None = None) -> dict:
     return out
 
 
+def volume_24h() -> dict:
+    """Activité des dernières 24 h (par coup d'envoi) : combien de matchs/paris/fantômes sont entrés
+    dans le volume de données. Sert à afficher la VARIATION 24 h sous chaque compteur du panneau
+    « Volume ». TOUJOURS la vraie fenêtre des 24 dernières heures (indépendant du filtre de période).
+    Compté à l'IDENTIQUE des compteurs cumulés (matchs 1/match, simple via for_history, calibration
+    = fantômes tous sports + paris joués hors-CdM, dans une bande ≥45 %)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    lo0 = _CALIB_BANDS[0][0]
+    out = {"analysed": 0, "matches": 0, "simples": 0, "combos": 0, "calibrated": 0, "ghosts": 0}
+    for p in glob.glob(os.path.join(DIR, "*.json")):
+        d = _meta_load(p)
+        if not d:
+            continue
+        start = d.get("start") or ""
+        try:
+            dt = datetime.fromisoformat(start.replace("Z", "+00:00")) if start else None
+        except (ValueError, AttributeError):
+            dt = None
+        if dt is None or dt < cutoff:
+            continue
+        out["analysed"] += 1
+        c = d.get("combo") or {}
+        has = bool(c.get("legs"))
+        if has and c.get("result") in ("won", "lost", "push"):
+            out["matches"] += 1
+            out["combos"] += 1
+        elif not has and (d.get("result") or {}).get("pick_result") in ("won", "lost", "push"):
+            out["matches"] += 1
+        rb = retained_bet(d.get("sport"), d.get("id"), for_history=True)
+        if rb and rb.get("result") in ("won", "lost", "push"):
+            out["simples"] += 1
+        for sp in (d.get("shadow") or []):           # fantômes (calibration) — tous sports, CdM incluse
+            if sp.get("result") in ("won", "lost") and (sp.get("prob") or 0) >= lo0:
+                out["calibrated"] += 1
+                out["ghosts"] += 1
+        if not _is_world_cup(d):                      # paris JOUÉS dans la calibration (hors CdM)
+            for b in (d.get("bets") or []):
+                if b.get("result") in ("won", "lost") and (b.get("prob") or 0) >= lo0:
+                    out["calibrated"] += 1
+    return out
+
+
 def combo_stats(since_days: int | None = None) -> dict:
     """Bilan dédié des COMBINÉS réglés (exclus du ROI général, suivis ici) : W/L, profit (mise plate
     1u sur la VRAIE cote), ROI, vraie cote moyenne, rabot moyen vs produit, EV moyenne, et détail
