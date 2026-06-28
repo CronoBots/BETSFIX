@@ -1228,20 +1228,27 @@ def combo_html(sport: str, match_id) -> str:
             f'{intro_html}{"".join(rows)}</div>')
 
 
-def retained_bet(sport: str, match_id) -> dict | None:
+def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None:
     """Le pari SIMPLE « retenu » par la LOGIQUE NORMALE du site (filtre ⭐ : conf recalibrée ≥ 65 %,
     EV ≥ +3 %, garde-fous de cote, marché réglable/non exclu) = ce que l'app aurait gardé pour un
     match ordinaire. None si AUCUN simple ne passe : on ne FORCE alors PAS de pari simple. Utile en
     CdM, où le combiné force l'affichage de TOUS les matchs : on n'exhibe le simple que s'il aurait
     réellement été récupéré (sinon ce sont des « ancres » à cote plate / EV négatif jamais retenues
-    ailleurs → seul le combiné reste à l'affiche). {sel, prob, cote, result, idx} ou None."""
+    ailleurs → seul le combiné reste à l'affiche). {sel, prob, cote, result, idx} ou None.
+
+    `for_history=True` : pour le SUIVI (stats/courbe). Les exclusions auto (Sets/Total/Corners…)
+    sont FORWARD-LOOKING — elles bloquent les PROCHAINS paris (publication), mais ne doivent PAS
+    effacer un pari DÉJÀ joué et posté. Sinon le compteur « réglés » BAISSE quand un marché vient
+    d'être banni (un pari posté la semaine dernière sort rétroactivement du compte → « posté ≠ compté »).
+    En mode historique on garde donc le filtre de base (65 %+EV+garde-fous+calibration) SANS l'overlay
+    d'exclusion : un pari réellement publié reste compté à vie (track record honnête, défaites incluses)."""
     bets = bets_of(sport, match_id)
     if not bets:
         return None
     m = meta(sport, match_id) or {}
     try:
         from app.settle_analyst import code_from_pick
-        ex_sports, ex_markets = auto_exclusions()
+        ex_sports, ex_markets = (set(), set()) if for_history else auto_exclusions()
         if sport in ex_sports:
             return None
         ok, cprobs, codes = set(), [], []
@@ -1535,7 +1542,7 @@ def stats_full(since_days: int | None = None) -> dict:
         if _has_combo:
             if _c0.get("result") in ("won", "lost", "push"):
                 combo_form.append((start, _c0["result"], sport))
-            _rbf = retained_bet(sport, d.get("id"))
+            _rbf = retained_bet(sport, d.get("id"), for_history=True)
             if _rbf and _rbf.get("result") in ("won", "lost", "push"):
                 simple_form.append((start, _rbf["result"], sport))
         else:
@@ -1554,7 +1561,7 @@ def stats_full(since_days: int | None = None) -> dict:
         # SIMPLE retenu compte, et uniquement à partir de la bascule _COMBO_COUNT_FROM (non rétroactif).
         if _has_combo and (d.get("start") or "")[:10] < _COMBO_COUNT_FROM:
             continue                                   # combiné antérieur à la bascule -> match non compté
-        rb = retained_bet(sport, d.get("id"))          # = le pari par défaut s'il est retenu, sinon None
+        rb = retained_bet(sport, d.get("id"), for_history=True)   # track record : ce qui a VRAIMENT été joué/posté
         if rb and rb.get("result") in ("won", "lost", "push"):
             ev = (start, rb["result"], rb.get("cote") or rb.get("odds"))
             all_ev.append(ev)
