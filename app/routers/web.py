@@ -264,7 +264,8 @@ def _home_stats(since_days: int | None = None) -> str:
         web.render_stats(full, combo_full=combo)                                   # 1. vue d'ensemble
         + _sec("Où se trouve l'edge", "performance par sport et par cote", edge)   # 2.
         + _sec("Fiabilité du modèle", "la confiance tient-elle ses promesses ?",   # 3.
-               web.render_calibration(cal))
+               web.render_reliability(analyses.calibration_reliability())
+               + web.render_calibration(cal))
         + _sec("Transparence", "tout ce que le modèle a observé",                  # 4.
                web.render_volume(full, combo, cal)))
     return f'<div class="sx"><div class="sx-body">{inner}</div></div>'

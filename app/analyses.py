@@ -1650,6 +1650,55 @@ def volume_24h() -> dict:
     return out
 
 
+def calibration_reliability(buckets: int = 7) -> dict:
+    """INDICE DE FIABILITÉ de la calibration + sa TENDANCE chronologique = preuve MESURÉE que le modèle
+    s'auto-améliore. On mesure l'écart moyen (MAE) confiance-annoncée ↔ réussite-réelle sur TOUTES les
+    prédictions réglées datées (fantômes + jouées, mêmes que la calibration), trié par coup d'envoi.
+    L'indice = 100 − MAE·3 (borné 0-100 : 0 pt d'écart = 100). La tendance compare l'écart de la 1ʳᵉ
+    moitié à celui de la 2ᵉ (robuste au bruit). HONNÊTE : si ça n'améliore pas, le delta est ≤0 et la
+    tendance « flat »/« down ». {} si pas assez de recul. Renvoie {index, mae, series[], delta_mae,
+    mae_first, mae_last, trend, n, first, last}."""
+    items = []   # (start, prob, won)
+    for p in glob.glob(os.path.join(DIR, "*.json")):
+        d = _meta_load(p)
+        if not d:
+            continue
+        st = d.get("start") or ""
+        if not st:
+            continue
+        for sp in (d.get("shadow") or []):
+            if sp.get("result") in ("won", "lost") and sp.get("prob") is not None:
+                items.append((st, sp["prob"], sp["result"] == "won"))
+        if not _is_world_cup(d):
+            for b in (d.get("bets") or []):
+                if b.get("result") in ("won", "lost") and b.get("prob") is not None:
+                    items.append((st, b["prob"], b["result"] == "won"))
+    items.sort(key=lambda x: x[0])
+    n = len(items)
+    if n < 50:
+        return {}
+
+    def _mae(sub):
+        return _calib_agg([(p, w) for _s, p, w in sub]).get("mae")
+
+    def _idx(mae):
+        return None if mae is None else max(0, min(100, round(100 - mae * 3)))
+
+    mae = _mae(items)
+    if mae is None:
+        return {}
+    h = n // 2
+    mae1, mae2 = _mae(items[:h]), _mae(items[h:])
+    delta_mae = (round(mae1 - mae2, 1) if (mae1 is not None and mae2 is not None) else None)  # >0 = mieux
+    bk = max(3, min(buckets, n // 30))               # ≥ ~30 prédictions / point -> série stable
+    series = [r for r in (_idx(_mae(items[i * n // bk:(i + 1) * n // bk])) for i in range(bk))
+              if r is not None]
+    trend = ("up" if (delta_mae or 0) >= 0.7 else "down" if (delta_mae or 0) <= -0.7 else "flat")
+    return {"index": _idx(mae), "mae": mae, "series": series, "delta_mae": delta_mae,
+            "mae_first": mae1, "mae_last": mae2, "trend": trend, "n": n,
+            "first": items[0][0], "last": items[-1][0]}
+
+
 def combo_stats(since_days: int | None = None) -> dict:
     """Bilan dédié des COMBINÉS réglés (exclus du ROI général, suivis ici) : W/L, profit (mise plate
     1u sur la VRAIE cote), ROI, vraie cote moyenne, rabot moyen vs produit, EV moyenne, et détail

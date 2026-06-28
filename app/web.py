@@ -1245,6 +1245,18 @@ CSS = """
   /* Ligne PÉRIODE DE MESURE (contexte du nombre calibré) */
   .sx-data-period{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:9px}
   .sx-data-period b{color:var(--accent);font-weight:900}
+  /* INDICE DE FIABILITÉ (preuve d'auto-amélioration) : gros score + tendance + mini-courbe */
+  .sx-rel-top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:11px}
+  .sx-rel-idx{font-size:34px;font-weight:900;letter-spacing:-.02em;color:var(--text);
+       font-variant-numeric:tabular-nums;line-height:1}
+  .sx-rel-idx small{font-size:14px;font-weight:800;color:var(--muted)}
+  .sx-rel-tr{font-size:11.5px;font-weight:800;margin-top:5px}
+  .sx-rel-tr.up{color:#34d27b} .sx-rel-tr.flat{color:var(--muted)} .sx-rel-tr.down{color:#ff6b6b}
+  .sx-rel-spark{flex:0 0 130px;max-width:130px}
+  .sx-rel-spark .sx-spark{display:block;width:100%;height:40px}
+  .sx-rel-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:11px;
+       padding-top:10px;border-top:1px solid var(--border)}
+  .sx-rel-note b{color:var(--text)}
   .sx-data .sx-kpis:first-of-type{border-top:0;padding-top:0;margin-top:11px}
   .sx-data-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:11px;
        padding-top:10px;border-top:1px solid var(--border)}
@@ -2730,6 +2742,32 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
     body = livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
+
+def render_reliability(rel: dict | None) -> str:
+    """INDICE DE FIABILITÉ de la calibration + tendance (preuve mesurée d'auto-amélioration) : gros
+    score /100, flèche de tendance, mini-courbe de l'écart qui se resserre. '' si pas assez de recul."""
+    if not rel or rel.get("index") is None:
+        return ""
+    idx = rel["index"]
+    _T = {"up": ("▲", "en amélioration", "up"), "flat": ("→", "stable", "flat"),
+          "down": ("▼", "en recul", "down")}
+    arrow, word, cls = _T.get(rel.get("trend"), ("→", "", "flat"))
+    spark = _sparkline(rel.get("series") or [], "#34d27b")
+    m1, m2 = rel.get("mae_first"), rel.get("mae_last")
+    ecart = (f'écart moyen <b>{m1} → {m2} pts</b>' if (m1 is not None and m2 is not None)
+             else f'écart moyen <b>{rel.get("mae")} pts</b>')
+    return (
+        '<div class="sx-card sx-rel"><div class="sx-h">Indice de fiabilité'
+        '<span>calibration · auto-évolution</span></div>'
+        '<div class="sx-rel-top">'
+        f'<div class="sx-rel-main"><div class="sx-rel-idx">{idx}<small>/100</small></div>'
+        f'<div class="sx-rel-tr {cls}">{arrow} {word}</div></div>'
+        f'<div class="sx-rel-spark">{spark}</div></div>'
+        f'<div class="sx-rel-note">L\'écart entre la confiance annoncée et la réussite réelle se '
+        f'resserre dans le temps ({ecart}) : le modèle <b>se recalibre seul</b> à chaque résultat '
+        f'(rétrécissement bayésien sur <b>{rel.get("n")}</b> prédictions) et écarte tout seul les '
+        f'marchés perdants. Plus l\'indice monte, plus la confiance affichée tient ses promesses.</div>'
+        '</div>')
 
 def render_calibration(c: dict) -> str:
     """Page CALIBRATION : par tranche de confiance, confiance annoncée vs réussite réelle (barres),
