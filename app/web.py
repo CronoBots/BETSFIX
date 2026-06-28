@@ -1242,6 +1242,9 @@ CSS = """
   .sx-d24{display:block;margin-top:2px;font-size:9.5px;font-weight:800;letter-spacing:.02em;
        color:#34d27b;font-variant-numeric:tabular-nums}
   .sx-d24.z{color:var(--muted);opacity:.55}
+  /* Ligne PÉRIODE DE MESURE (contexte du nombre calibré) */
+  .sx-data-period{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:9px}
+  .sx-data-period b{color:var(--accent);font-weight:900}
   .sx-data .sx-kpis:first-of-type{border-top:0;padding-top:0;margin-top:11px}
   .sx-data-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:11px;
        padding-top:10px;border-top:1px solid var(--border)}
@@ -2511,10 +2514,29 @@ def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict |
         d = (f'<i class="sx-d24">+{delta}</i>' if delta else '<i class="sx-d24 z">±0</i>')
         return f'<div class="sx-kpi"><b>{val}</b><span>{label}</span>{d}</div>'
 
+    # PÉRIODE DE MESURE : plage de coups d'envoi couverte -> contexte du nb calibré (« X paris sur N j »).
+    _M = ("janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc.")
+
+    def _fr(iso: str):
+        try:
+            return datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            return None
+
+    _d1, _d2 = _fr(vol.get("first")), _fr(vol.get("last"))
+    period = ""
+    if _d1 and _d2:
+        _days = (_d2.date() - _d1.date()).days + 1
+        _rng = (f'{_d1.day} {_M[_d1.month - 1]} → {_d2.day} {_M[_d2.month - 1]} {_d2.year}'
+                if _d1.date() != _d2.date() else f'{_d1.day} {_M[_d1.month - 1]} {_d1.year}')
+        period = (f'<div class="sx-data-period">🗓 Mesuré sur <b>{_days} jour{"s" if _days > 1 else ""}</b>'
+                  f' · {_rng}</div>')
+
     return (
         '<div class="sx-card sx-data"><div class="sx-h">📊 Volume de données'
         '<span>cumul · variation 24 h</span></div>'
-        '<div class="sx-kpis sx-kpis3">'
+        + period
+        + '<div class="sx-kpis sx-kpis3">'
         + _kpi(vol.get("matches", 0), "matchs joués", d24["matches"])
         + _kpi(ov.get("settled", 0), "simples joués", d24["simples"])
         + _kpi(_cf.get("n", 0), "combinés joués", d24["combos"])

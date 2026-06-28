@@ -1517,6 +1517,7 @@ def stats_full(since_days: int | None = None) -> dict:
     combo_form: list = []     # forme des COMBINÉS (CdM) -> 2e ligne dédiée (demande user, graphe principal)
     by_sport: dict = {}
     n_analysed = 0            # matchs analysés (sidecars dans la fenêtre) -> panneau « volume de données »
+    _first = _last = None     # plage de coups d'envoi couverte (période de mesure du volume/calibration)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -1531,6 +1532,11 @@ def stats_full(since_days: int | None = None) -> dict:
             if dt is None or dt < cutoff:
                 continue
         n_analysed += 1
+        if start:                                 # plage couverte (start = ISO triable lexicalement)
+            if _first is None or start < _first:
+                _first = start
+            if _last is None or start > _last:
+                _last = start
         # FORME « 1 par match » (TOUS les matchs, SANS la borne combiné) : un combiné = son résultat
         # GLOBAL, sinon le pari principal (1er) -> 1 bulle par combiné / par match (demande user).
         _c0 = d.get("combo")
@@ -1573,8 +1579,10 @@ def stats_full(since_days: int | None = None) -> dict:
     out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
            "since_change": _agg_bets(since_ev),        # nouveau système (s'enrichit au fil des scans)
            "by_sport": {sport: _agg_bets(evs) for sport, evs in by_sport.items()},
-           # « Volume de données » (panneau transparence) : matchs analysés vs matchs réglés (1 par match).
-           "volume": {"analysed": n_analysed, "matches": len(match_form)}}
+           # « Volume de données » (panneau transparence) : matchs analysés vs matchs réglés (1 par match),
+           # + plage de coups d'envoi couverte (période de mesure -> contexte du nombre calibré).
+           "volume": {"analysed": n_analysed, "matches": len(match_form),
+                      "first": _first, "last": _last}}
     # Bulles de FORME : 1 par match (combiné OU pari principal), TOUS les matchs (défaites de combinés
     # incluses) -> honnête, INDÉPENDANT de la borne combiné du ROI/courbe (demande utilisateur).
     match_form.sort(key=lambda x: x[0] or "")
