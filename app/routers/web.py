@@ -252,7 +252,8 @@ def _home_stats(since_days: int | None = None) -> str:
     # (sinon le bloc Combinés + sa courbe s'affichent en DOUBLE). On lui passe les stats combinés
     # filtrées sur la même fenêtre pour que le filtre 7/30 j s'applique aussi aux combinés.
     inner = (web.render_stats(analyses.stats_full(since_days),
-                              combo_full=analyses.combo_stats(since_days))
+                              combo_full=analyses.combo_stats(since_days),
+                              cal_full=analyses.calibration(since_days))
              + web.render_perf(analyses.perf_breakdown(since_days)))
     return f'<div class="sx"><div class="sx-body">{inner}</div></div>' if inner else ""
 

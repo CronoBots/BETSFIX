@@ -1236,6 +1236,12 @@ CSS = """
   /* Combinés : sous-ligne + réussite par nb de jambes */
   .sx-combo-sub{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:9px}
   .sx-combo-sub b{color:var(--text)}
+  /* Panneau « Volume de données » (transparence) : KPIs en 3 colonnes + note */
+  .sx-kpis3{grid-template-columns:repeat(3,1fr)}
+  .sx-data .sx-kpis:first-of-type{border-top:0;padding-top:0;margin-top:11px}
+  .sx-data-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:11px;
+       padding-top:10px;border-top:1px solid var(--border)}
+  .sx-data-note b{color:var(--text)}
   .sx-legs{display:flex;flex-direction:column;gap:7px;margin-top:10px;
        padding-top:10px;border-top:1px solid var(--border)}
   .sx-leg{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;
@@ -2462,7 +2468,8 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
     p.append("</svg>")
     return "".join(p)
 
-def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
+def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None,
+                 cal_full: dict | None = None) -> str:
     """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
     UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
     mini-courbe), (4) calibration en aval. `since` propagé aux liens drill-down. '' si rien réglé."""
@@ -2543,8 +2550,31 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
               for sk, lbl, col in SPORTS if (bs.get(sk) or {}).get("settled")]
     sports = (('<div class="sx-bys"><div class="sx-h">Détail par sport</div>'
                + "".join(scards) + '</div>') if scards else "")
+    # (4) VOLUME DE DONNÉES (transparence, demande user) : combien de matchs/paris le modèle a vus, et
+    # la part de prédictions FANTÔMES (calibration seule, jamais dans le ROI). Distingue clairement
+    # « ce qui compte dans le bilan » (matchs/simples/combinés joués) de « ce qui sert à calibrer ».
+    vol = full.get("volume") or {}
+    _cf = combo_full if combo_full is not None else analyses.combo_stats()
+    cal = cal_full if cal_full is not None else analyses.calibration()
+    data = (
+        '<div class="sx-card sx-data"><div class="sx-h">📊 Volume de données'
+        '<span>ce que le modèle a vu</span></div>'
+        '<div class="sx-kpis sx-kpis3">'
+        f'<div class="sx-kpi"><b>{vol.get("matches", 0)}</b><span>matchs joués</span></div>'
+        f'<div class="sx-kpi"><b>{ov.get("settled", 0)}</b><span>simples joués</span></div>'
+        f'<div class="sx-kpi"><b>{_cf.get("n", 0)}</b><span>combinés joués</span></div>'
+        '</div>'
+        '<div class="sx-kpis sx-kpis3">'
+        f'<div class="sx-kpi"><b>{cal.get("n", 0)}</b><span>paris calibrés</span></div>'
+        f'<div class="sx-kpi"><b>{cal.get("n_shadow", 0)}</b><span>pronos fantômes</span></div>'
+        f'<div class="sx-kpi"><b>{vol.get("analysed", 0)}</b><span>matchs analysés</span></div>'
+        '</div>'
+        '<div class="sx-data-note">Les <b>simples</b> et <b>combinés joués</b> sont les seuls comptés '
+        'dans le ROI et la courbe. Les <b>pronos fantômes</b> (prédictions non jouées, réglées après '
+        'match) affinent la <b>calibration</b> sur tout le spectre de cotes — ils n\'entrent JAMAIS '
+        'dans le bilan.</div></div>')
     # Simples ET Combinés sont DANS LE MÊME CADRE (hero) — 2 graphiques organisés, plus 2 cartes.
-    return f'{hero}{equity}{sports}'
+    return f'{hero}{equity}{sports}{data}'
 
 
 def _roi_bars(rows: list) -> str:
