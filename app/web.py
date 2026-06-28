@@ -2513,18 +2513,15 @@ def render_stats(full: dict | None, since: str = "") -> str:
         clv_kpi = ('<div class="sx-kpi" title="CLV (Closing Line Value) : battre la cote de clôture du '
                    'marché = juge d\'edge le plus rapide. Se remplit dès que des paris résultat se règlent.">'
                    '<b>—</b><span>CLV</span></div>')
-    _rows = []
-    if _fs:
-        _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Simples</span>{_fs}</div>')
-    if _fc:
-        _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Combinés</span>{_fc}</div>')
-    forms = ("".join(_rows) if _rows
-             else form_dots([_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10))
+    # Forme PROPRE à chaque bloc : simples dans le hero simples, combinés dans le hero combinés.
+    _simples_form = (f'<div class="sx-formrow"><span class="sx-formk">Forme</span>{_fs}</div>' if _fs
+                     else form_dots([_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10))
+    _combo_form = f'<div class="sx-formrow"><span class="sx-formk">Forme</span>{_fc}</div>' if _fc else ""
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI · paris simples {_ind(ov.get("settled"))}</div></div>'
-        f'<div class="sx-hero-r">{forms}</div></div>'
+        f'<div class="sx-hero-r">{_simples_form}</div></div>'
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>simples réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
@@ -2533,9 +2530,10 @@ def render_stats(full: dict | None, since: str = "") -> str:
         f'{clv_kpi}'
         '</div>'
         f'{chart_block}'
-        f'{render_combos(analyses.combo_stats())}'   # bloc Combinés DANS LE MÊME CADRE (2e graphique)
         '</div>')
-    equity = ""   # fusionné dans `hero` (un seul cadre)
+    # BLOC COMBINÉS = MIROIR du bloc simples (même style : gros ROI + forme + KPIs + courbe), JUSTE EN
+    # DESSOUS (demande user). render_combos renvoie un hero complet identique en structure.
+    equity = render_combos(analyses.combo_stats(), _combo_form)
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
     # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
     bs = full.get("by_sport") or {}
@@ -2590,44 +2588,45 @@ def render_perf(perf: dict | None) -> str:
     return _roi_section("Rendement par cote", "ROI selon la cote jouée", perf.get("by_odds") or [])
 
 
-def render_combos(cs: dict) -> str:
-    """Bilan dédié des COMBINÉS (exclus du ROI général) : W/L, ROI sur la vraie cote, rabot moyen,
-    EV, et réussite par nombre de jambes."""
+def render_combos(cs: dict, form_html: str = "") -> str:
+    """Bloc COMBINÉS = MIROIR EXACT du bloc simples (même style : gros ROI + forme + KPIs + courbe),
+    affiché JUSTE EN DESSOUS (demande user). Vraie cote, ROI séparé des simples, + réussite par nb de
+    jambes en info supplémentaire."""
     if not cs or not cs.get("n"):
         return ""
     roi = cs.get("roi")
-    roicls = "pos" if (roi or 0) >= 0 else "neg"
-    kpis = (f'<div class="sx-kpi"><b>{cs["n"]}</b><span>combinés</span></div>'
-            f'<div class="sx-kpi"><b>{cs.get("win_rate") if cs.get("win_rate") is not None else "—"}%</b>'
-            f'<span>réussite</span></div>'
-            f'<div class="sx-kpi"><b>{cs.get("avg_odds") or "—"}</b><span>cote réelle moy.</span></div>'
-            f'<div class="sx-kpi sx-{roicls}"><b>{roi:+.0f}%</b><span>ROI</span></div>' if roi is not None
-            else '')
-    extra = []
-    if cs.get("avg_shave") is not None:
-        extra.append(f'rabot moyen <b>{cs["avg_shave"]}%</b> vs produit')
-    if cs.get("profit") is not None:
-        extra.append(f'profit <b>{cs["profit"]:+.1f} u</b>')
-    sub = " · ".join(extra)
-    # réussite par nombre de jambes
+    wr = cs.get("win_rate")
+    pts = cs.get("points") or []
+    chart = (f'<div class="sx-equity">{_hero_chart(pts, uid="combos")}</div>'
+             if len([p for p in pts if p]) else "")
+    prof = cs.get("profit")
+    kpis = (
+        f'<div class="sx-kpi"><b>{cs["n"]}</b><span>combinés réglés</span></div>'
+        f'<div class="sx-kpi"><b class="arec-{_pct_class(wr)}">{wr if wr is not None else "—"}%</b>'
+        f'<span>réussite</span></div>'
+        f'<div class="sx-kpi"><b>{cs.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
+        f'<div class="sx-kpi"><b>{cs.get("avg_shave") if cs.get("avg_shave") is not None else "—"}%</b>'
+        f'<span>rabot moyen</span></div>'
+        + (f'<div class="sx-kpi"><b class="arec-{_roi_cls(prof, cs["n"])}">{prof:+.1f}u</b>'
+           f'<span>profit</span></div>' if prof is not None else ''))
+    # réussite par nombre de jambes (info en plus, propre aux combinés)
     legrows = ""
     for k, g in sorted((cs.get("by_legs") or {}).items()):
-        wr = g.get("wr")
+        w = g.get("wr")
         legrows += (f'<div class="sx-leg"><span>{k} jambes</span>'
                     f'<span class="sx-leg-n">{g["n"]} combiné{"s" if g["n"] > 1 else ""}</span>'
-                    f'<b>{wr if wr is not None else "—"}%</b></div>')
-    # Courbe d'équité PROPRE aux combinés (cumul P&L sur la vraie cote) — graphique séparé de celui
-    # des simples (demande user : 2 graphiques distincts, chacun avec ses stats).
-    pts = cs.get("points") or []
-    combo_chart = (f'<div class="sx-equity">{_hero_chart(pts, uid="combos")}</div>'
-                   if len([p for p in pts if p]) else "")
-    # FRAGMENT (pas une carte à part) : s'insère DANS le même cadre que les simples, sous un séparateur.
-    return ('<div class="sx-divider"></div>'
-            '<div class="sx-h sx-h2">🎲 Combinés<span>vraie cote · suivi séparé</span></div>'
-            f'<div class="sx-kpis">{kpis}</div>'
-            f'{combo_chart}'
-            + (f'<div class="sx-combo-sub">{sub}</div>' if sub else "")
-            + (f'<div class="sx-legs">{legrows}</div>' if legrows else ""))
+                    f'<b>{w if w is not None else "—"}%</b></div>')
+    return (
+        '<div class="sx-hero"><div class="sx-hero-top">'
+        f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(roi, cs["n"])}">'
+        f'{_roistr(roi)}</div><div class="sx-hero-lbl">ROI · combinés {_ind(cs["n"])}</div></div>'
+        f'<div class="sx-hero-r">{form_html}</div></div>'
+        f'<div class="sx-kpis">{kpis}</div>'
+        '<div class="sx-divider"></div>'
+        '<div class="sx-h sx-h2">🎲 Combinés<span>évolution · vraie cote</span></div>'
+        f'{chart}'
+        + (f'<div class="sx-legs">{legrows}</div>' if legrows else '')
+        + '</div>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
