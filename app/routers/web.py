@@ -248,8 +248,11 @@ def _home_stats(since_days: int | None = None) -> str:
     # Ordre : bilan global + par sport -> combinés (catégorie de perf) -> ROI granulaire
     # (cote/confiance/marché) -> [calibration ajoutée par la route]. Du résumé au détail.
     # (Cadre « À retenir » retiré sur demande : synthèse auto sur petits échantillons trompeuse.)
-    inner = (web.render_stats(analyses.stats_full(since_days))
-             + web.render_combos(analyses.combo_stats(since_days))
+    # render_stats inclut DÉJÀ le bloc Combinés (empilé sous les Simples) -> NE PAS le re-rendre ici
+    # (sinon le bloc Combinés + sa courbe s'affichent en DOUBLE). On lui passe les stats combinés
+    # filtrées sur la même fenêtre pour que le filtre 7/30 j s'applique aussi aux combinés.
+    inner = (web.render_stats(analyses.stats_full(since_days),
+                              combo_full=analyses.combo_stats(since_days))
              + web.render_perf(analyses.perf_breakdown(since_days)))
     return f'<div class="sx"><div class="sx-body">{inner}</div></div>' if inner else ""
 

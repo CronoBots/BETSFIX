@@ -2462,7 +2462,7 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
     p.append("</svg>")
     return "".join(p)
 
-def render_stats(full: dict | None, since: str = "") -> str:
+def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
     """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
     UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
     mini-courbe), (4) calibration en aval. `since` propagé aux liens drill-down. '' si rien réglé."""
@@ -2533,7 +2533,7 @@ def render_stats(full: dict | None, since: str = "") -> str:
         '</div>')
     # BLOC COMBINÉS = MIROIR du bloc simples (même style : gros ROI + forme + KPIs + courbe), JUSTE EN
     # DESSOUS (demande user). render_combos renvoie un hero complet identique en structure.
-    equity = render_combos(analyses.combo_stats(), _combo_form)
+    equity = render_combos(combo_full if combo_full is not None else analyses.combo_stats(), _combo_form)
     # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
     # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
     bs = full.get("by_sport") or {}
