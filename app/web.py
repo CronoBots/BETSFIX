@@ -1242,6 +1242,12 @@ CSS = """
   .sx-data-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:11px;
        padding-top:10px;border-top:1px solid var(--border)}
   .sx-data-note b{color:var(--text)}
+  /* En-tête de SECTION (hiérarchie pro de la page Stats) : libellé majuscule accentué + sous-titre */
+  .sx-sec{display:flex;align-items:baseline;gap:9px;margin:8px 2px 0;padding-top:6px;
+       font-size:11px;font-weight:900;letter-spacing:.10em;text-transform:uppercase;color:var(--accent)}
+  .sx-sec::before{content:"";flex:0 0 14px;height:2px;border-radius:2px;background:var(--accent);
+       align-self:center;opacity:.85}
+  .sx-sec span{font-size:10px;font-weight:700;letter-spacing:.01em;text-transform:none;color:var(--muted)}
   .sx-legs{display:flex;flex-direction:column;gap:7px;margin-top:10px;
        padding-top:10px;border-top:1px solid var(--border)}
   .sx-leg{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;
@@ -2468,8 +2474,53 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
     p.append("</svg>")
     return "".join(p)
 
-def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None,
-                 cal_full: dict | None = None) -> str:
+def sx_section(label: str, sub: str = "") -> str:
+    """En-tête de SECTION de la page Stats (hiérarchie pro : vue d'ensemble → détail → fiabilité →
+    transparence). Petit libellé majuscule accentué + sous-titre discret, posé au-dessus d'un groupe."""
+    s = f'<span>{html.escape(sub)}</span>' if sub else ""
+    return f'<div class="sx-sec">{html.escape(label)}{s}</div>'
+
+
+def render_sports_breakdown(full: dict | None, since: str = "") -> str:
+    """« Détail par sport » : une ligne par sport (pastille + mini-courbe + ROI + bilan + cote). '' si
+    aucun sport réglé. Extrait de render_stats pour pouvoir le placer dans sa propre section."""
+    bs = (full or {}).get("by_sport") or {}
+    SPORTS = (("foot", "Football", "#2ee27f"), ("tennis", "Tennis", "#d7e64a"),
+              ("basket", "Basket", "#ff9f43"))
+    scards = [_sport_card(bs[sk], sk, lbl, since, color=col)
+              for sk, lbl, col in SPORTS if (bs.get(sk) or {}).get("settled")]
+    return (('<div class="sx-bys"><div class="sx-h">Détail par sport</div>'
+             + "".join(scards) + '</div>') if scards else "")
+
+
+def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict | None = None) -> str:
+    """Panneau « Volume de données » (transparence, demande user) : combien de matchs/paris le modèle
+    a vus, et la part de prédictions FANTÔMES (calibration seule, jamais dans le ROI). Placé en BAS de
+    la page (c'est de la transparence, pas du bilan)."""
+    ov = (full or {}).get("overall") or {}
+    vol = (full or {}).get("volume") or {}
+    _cf = combo_full if combo_full is not None else analyses.combo_stats()
+    cal = cal if cal is not None else analyses.calibration()
+    return (
+        '<div class="sx-card sx-data"><div class="sx-h">📊 Volume de données'
+        '<span>ce que le modèle a vu</span></div>'
+        '<div class="sx-kpis sx-kpis3">'
+        f'<div class="sx-kpi"><b>{vol.get("matches", 0)}</b><span>matchs joués</span></div>'
+        f'<div class="sx-kpi"><b>{ov.get("settled", 0)}</b><span>simples joués</span></div>'
+        f'<div class="sx-kpi"><b>{_cf.get("n", 0)}</b><span>combinés joués</span></div>'
+        '</div>'
+        '<div class="sx-kpis sx-kpis3">'
+        f'<div class="sx-kpi"><b>{cal.get("n", 0)}</b><span>paris calibrés</span></div>'
+        f'<div class="sx-kpi"><b>{cal.get("n_shadow", 0)}</b><span>pronos fantômes</span></div>'
+        f'<div class="sx-kpi"><b>{vol.get("analysed", 0)}</b><span>matchs analysés</span></div>'
+        '</div>'
+        '<div class="sx-data-note">Les <b>simples</b> et <b>combinés joués</b> sont les seuls comptés '
+        'dans le ROI et la courbe. Les <b>pronos fantômes</b> (prédictions non jouées, réglées après '
+        'match) affinent la <b>calibration</b> sur tout le spectre de cotes — ils n\'entrent JAMAIS '
+        'dans le bilan.</div></div>')
+
+
+def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
     """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
     UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
     mini-courbe), (4) calibration en aval. `since` propagé aux liens drill-down. '' si rien réglé."""
@@ -2541,40 +2592,10 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # BLOC COMBINÉS = MIROIR du bloc simples (même style : gros ROI + forme + KPIs + courbe), JUSTE EN
     # DESSOUS (demande user). render_combos renvoie un hero complet identique en structure.
     equity = render_combos(combo_full if combo_full is not None else analyses.combo_stats(), _combo_form)
-    # (3) DÉTAIL PAR SPORT : une ligne par sport (pastille couleur + nom SANS emoji + mini-courbe +
-    # ROI + gagnés/réglés·% + cote), tap -> liste des matchs.
-    bs = full.get("by_sport") or {}
-    SPORTS = (("foot", "Football", "#2ee27f"), ("tennis", "Tennis", "#d7e64a"),
-              ("basket", "Basket", "#ff9f43"))
-    scards = [_sport_card(bs[sk], sk, lbl, since, color=col)
-              for sk, lbl, col in SPORTS if (bs.get(sk) or {}).get("settled")]
-    sports = (('<div class="sx-bys"><div class="sx-h">Détail par sport</div>'
-               + "".join(scards) + '</div>') if scards else "")
-    # (4) VOLUME DE DONNÉES (transparence, demande user) : combien de matchs/paris le modèle a vus, et
-    # la part de prédictions FANTÔMES (calibration seule, jamais dans le ROI). Distingue clairement
-    # « ce qui compte dans le bilan » (matchs/simples/combinés joués) de « ce qui sert à calibrer ».
-    vol = full.get("volume") or {}
-    _cf = combo_full if combo_full is not None else analyses.combo_stats()
-    cal = cal_full if cal_full is not None else analyses.calibration()
-    data = (
-        '<div class="sx-card sx-data"><div class="sx-h">📊 Volume de données'
-        '<span>ce que le modèle a vu</span></div>'
-        '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{vol.get("matches", 0)}</b><span>matchs joués</span></div>'
-        f'<div class="sx-kpi"><b>{ov.get("settled", 0)}</b><span>simples joués</span></div>'
-        f'<div class="sx-kpi"><b>{_cf.get("n", 0)}</b><span>combinés joués</span></div>'
-        '</div>'
-        '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{cal.get("n", 0)}</b><span>paris calibrés</span></div>'
-        f'<div class="sx-kpi"><b>{cal.get("n_shadow", 0)}</b><span>pronos fantômes</span></div>'
-        f'<div class="sx-kpi"><b>{vol.get("analysed", 0)}</b><span>matchs analysés</span></div>'
-        '</div>'
-        '<div class="sx-data-note">Les <b>simples</b> et <b>combinés joués</b> sont les seuls comptés '
-        'dans le ROI et la courbe. Les <b>pronos fantômes</b> (prédictions non jouées, réglées après '
-        'match) affinent la <b>calibration</b> sur tout le spectre de cotes — ils n\'entrent JAMAIS '
-        'dans le bilan.</div></div>')
-    # Simples ET Combinés sont DANS LE MÊME CADRE (hero) — 2 graphiques organisés, plus 2 cartes.
-    return f'{hero}{equity}{sports}{data}'
+    # render_stats = la VUE D'ENSEMBLE seule (Simples + Combinés). Le détail par sport, le rendement
+    # par cote, la calibration et le volume de données sont ajoutés en SECTIONS distinctes par la route
+    # (_home_stats) -> hiérarchie pro : synthèse → détail → fiabilité → transparence.
+    return f'{hero}{equity}'
 
 
 def _roi_bars(rows: list) -> str:

@@ -243,19 +243,31 @@ def _cached_votes(provider, mid) -> tuple | None:
 
 
 def _home_stats(since_days: int | None = None) -> str:
-    """Bloc STATISTIQUES complet : synthèse actionnable + bilan global + courbe d'équité + détail par
-    sport + ROI actionnables (cote/confiance/marché) + bilan combinés. `since_days` filtre la fenêtre."""
-    # Ordre : bilan global + par sport -> combinés (catégorie de perf) -> ROI granulaire
-    # (cote/confiance/marché) -> [calibration ajoutée par la route]. Du résumé au détail.
-    # (Cadre « À retenir » retiré sur demande : synthèse auto sur petits échantillons trompeuse.)
-    # render_stats inclut DÉJÀ le bloc Combinés (empilé sous les Simples) -> NE PAS le re-rendre ici
-    # (sinon le bloc Combinés + sa courbe s'affichent en DOUBLE). On lui passe les stats combinés
-    # filtrées sur la même fenêtre pour que le filtre 7/30 j s'applique aussi aux combinés.
-    inner = (web.render_stats(analyses.stats_full(since_days),
-                              combo_full=analyses.combo_stats(since_days),
-                              cal_full=analyses.calibration(since_days))
-             + web.render_perf(analyses.perf_breakdown(since_days)))
-    return f'<div class="sx"><div class="sx-body">{inner}</div></div>' if inner else ""
+    """Page STATISTIQUES, organisée en SECTIONS du résumé au détail (hiérarchie pro) :
+      1. VUE D'ENSEMBLE   — Simples + Combinés (gros ROI + courbe d'équité)            [render_stats]
+      2. OÙ EST L'EDGE    — détail par sport + rendement par cote
+      3. FIABILITÉ        — calibration (la confiance tient-elle ses promesses ?)
+      4. TRANSPARENCE     — volume de données (matchs/paris vus, part des fantômes)    [tout en bas]
+    `since_days` filtre toute la page sur la même fenêtre (Tout / 7 j / 30 j)."""
+    full = analyses.stats_full(since_days)
+    if not (full.get("overall") or {}).get("settled"):
+        return ""
+    combo = analyses.combo_stats(since_days)
+    cal = analyses.calibration(since_days)
+
+    def _sec(label: str, sub: str, body: str) -> str:    # libellé de section UNIQUEMENT si non vide
+        return (web.sx_section(label, sub) + body) if (body or "").strip() else ""
+
+    # 2. OÙ EST L'EDGE : par sport puis par cote (mêmes données, granularité croissante).
+    edge = web.render_sports_breakdown(full) + web.render_perf(analyses.perf_breakdown(since_days))
+    inner = (
+        web.render_stats(full, combo_full=combo)                                   # 1. vue d'ensemble
+        + _sec("Où se trouve l'edge", "performance par sport et par cote", edge)   # 2.
+        + _sec("Fiabilité du modèle", "la confiance tient-elle ses promesses ?",   # 3.
+               web.render_calibration(cal))
+        + _sec("Transparence", "tout ce que le modèle a observé",                  # 4.
+               web.render_volume(full, combo, cal)))
+    return f'<div class="sx"><div class="sx-body">{inner}</div></div>'
 
 
 @router.get("/stats/detail", response_class=HTMLResponse)
@@ -374,8 +386,7 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
     body = ('<div class="pg-h">Statistiques</div>'
             '<div class="statsx">'        # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
             + _period_filter(since)
-            + _home_stats(days)
-            + web.render_calibration(analyses.calibration(days))
+            + _home_stats(days)           # vue d'ensemble + edge + calibration + transparence (en sections)
             + '</div>')
     if frag:
         fragcache.put(ckey, body, ttl=PANEL_TTL)
