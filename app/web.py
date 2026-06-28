@@ -12,7 +12,7 @@ import re
 import time
 from datetime import datetime, timezone
 
-from . import analyses, match_select
+from . import analyses, match_select, paywall
 
 _WORDMARK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "static", "wordmark.png")
@@ -34,8 +34,8 @@ def _bets_for_url(url: str, compact: bool = False) -> str:
     if combo:
         bets = (analyses.bets_html(sport, m.group(2), compact=compact)
                 if analyses.retained_bet(sport, m.group(2)) else "")
-        return bets + combo
-    return analyses.bets_html(sport, m.group(2), compact=compact)
+        return paywall.wrap(bets + combo)         # PRONO -> masqué aux non-abonnés (cf. middleware)
+    return paywall.wrap(analyses.bets_html(sport, m.group(2), compact=compact))
 
 def _links_for_url(url: str) -> str:
     """Bannières SofaScore / Unibet (pleine largeur) d'un match, depuis son URL de fiche.
@@ -248,6 +248,7 @@ CSS = """
      statique en dessous,
   plus besoin de réserver ~86px en bas : un petit espace suffit. */
   .wrap{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;width:100%;
+        position:relative;
         max-width:720px;margin:0 auto;display:flex;flex-direction:column;
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
@@ -709,6 +710,20 @@ CSS = """
   centré sur 2e ligne */
   .fp-conf .fpick-t{color:#34d27b}
   .fp-val .fpick-t{color:#4aa8ff}
+  /* Cache PAYWALL : remplace le pari pour un non-abonné (cf. app/paywall.py + middleware) */
+  .prono-lock{display:flex;align-items:center;gap:11px;margin:8px 0;padding:11px 13px;border-radius:11px;
+    text-decoration:none;background:linear-gradient(100deg,rgba(34,184,255,.10),rgba(34,184,255,.03));
+    border:1px solid rgba(34,184,255,.35)}
+  .prono-lock-i{font-size:19px;line-height:1}
+  .prono-lock-t{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+  .prono-lock-t b{font-size:12.5px;font-weight:800;color:#eaf2ff}
+  .prono-lock-t small{font-size:10.5px;color:#90a4be;font-weight:600}
+  .prono-lock-go{font-size:11px;font-weight:800;color:#5fd0ff;white-space:nowrap}
+  /* Lien Compte (en-tête) */
+  .acct{position:absolute;top:10px;right:12px;z-index:5;display:inline-flex;align-items:center;gap:5px;
+    text-decoration:none;font-size:11px;font-weight:800;color:#9fb6cf;background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:5px 11px}
+  .acct:active{background:rgba(34,184,255,.14)}
   /* Couleur de la bulle selon le RÉSULTAT (prime sur le type) : vert+halo / rouge+halo */
   .fpick.fp-won{background:linear-gradient(90deg,rgba(25,196,106,.16),rgba(25,196,106,.05));
                 border-color:rgba(25,196,106,.75);box-shadow:0 0 15px rgba(25,196,106,.32)}
@@ -2201,7 +2216,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
-{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
+{splash}<div class="wrap"><a class="acct" href="/compte">👤 Compte</a>{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script></body></html>"""
 
@@ -2244,7 +2259,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(active)}">
-{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
+{splash}<div class="wrap"><a class="acct" href="/compte">👤 Compte</a>{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
 

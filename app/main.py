@@ -17,8 +17,10 @@ from app import __version__
 from app import fragcache
 from app.dependencies import get_provider, get_rankings, get_unibet, shutdown_provider
 from app.routers import (
-    analysis, basket, flashscore, foot, livescore, matches, players, sportradar, statistics, unibet, web,
+    analysis, auth, basket, billing, flashscore, foot, livescore, matches, players, sportradar,
+    statistics, unibet, web,
 )
+from app import accounts, paywall
 
 log = logging.getLogger("uvicorn")
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -398,6 +400,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# PAYWALL PRONOS : réécrit le HTML avant l'envoi (et AVANT gzip -> ajouté ici, donc « intérieur »
+# de GZip dans la pile). Abonné/propriétaire -> pari visible ; non-abonné -> bloc « 🔒 abonnés ».
+# Le non-abonné ne reçoit jamais les octets du pari. Les pages SANS marqueur passent inchangées.
+from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
+from starlette.responses import Response as _Response  # noqa: E402
+
+
+async def _paywall_dispatch(request, call_next):
+    resp = await call_next(request)
+    try:
+        ct = resp.headers.get("content-type", "")
+        if not ct.startswith("text/html"):
+            return resp
+        body = b""
+        async for chunk in resp.body_iterator:
+            body += chunk
+        if paywall.MARK_OPEN.encode() in body:
+            can_see = accounts.can_see_picks(request)
+            body = paywall.apply(body.decode("utf-8", "replace"), can_see).encode("utf-8")
+        headers = dict(resp.headers)
+        headers.pop("content-length", None)        # le corps a pu changer de taille
+        return _Response(content=body, status_code=resp.status_code, headers=headers, media_type=ct)
+    except Exception:                              # fail-open : ne jamais casser la réponse
+        return resp
+
+
+app.add_middleware(BaseHTTPMiddleware, dispatch=_paywall_dispatch)
+
 # COMPRESSION : le HTML monospace (CSS inline + cartes répétitives) se comprime ~8×
 # (ex. accueil 172 Ko -> ~20 Ko). Gain majeur sur mobile/4G via le tunnel.
 from starlette.middleware.gzip import GZipMiddleware  # noqa: E402  (regroupé avec les middlewares)
@@ -460,6 +490,8 @@ app.include_router(unibet.router)
 app.include_router(flashscore.router)
 app.include_router(livescore.router)
 app.include_router(sportradar.router)
+app.include_router(auth.router)
+app.include_router(billing.router)
 app.include_router(web.router)
 
 # PWA : fichiers statiques (icônes) + manifest -> app installable sur l'écran d'accueil
