@@ -176,6 +176,16 @@ def is_subscriber(email: str) -> bool:
     return bool(until and until > time.time())
 
 
+def find_by_stripe_customer(customer_id: str) -> str | None:
+    """Email local rattaché à un customer Stripe (pour le webhook). None si inconnu."""
+    if not customer_id:
+        return None
+    for em, u in _load().items():
+        if u.get("stripe_customer") == customer_id:
+            return em
+    return None
+
+
 def set_subscription(email: str, active: bool, until: float | None = None,
                      stripe_customer: str | None = None, stripe_sub: str | None = None) -> None:
     """Met à jour le statut d'abonnement (appelé par le webhook Stripe en Phase 2)."""
