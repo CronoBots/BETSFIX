@@ -1750,14 +1750,25 @@ CSS = """
        font-size:10px;font-weight:700;color:var(--accent);background:rgba(255,255,255,.05);
        border:1px solid var(--border);text-decoration:none;vertical-align:baseline}
   /* --- Bloc Tendances (séries SofaScore mappées aux marchés) --- */
-  .strk{display:flex;flex-direction:column;gap:9px}
+  .strk{display:flex;flex-direction:column;gap:10px}
   .strk-team{background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border:1px solid var(--border);border-radius:12px;padding:10px 12px}
-  .strk-h{font-size:12px;font-weight:800;color:#cfe0f5;margin-bottom:7px}
-  .strk-c{display:inline-flex;align-items:center;margin:3px 5px 0 0;padding:3px 10px;
-       border-radius:99px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.05);
-       border:1px solid var(--border)}
-  .strk-c b{color:var(--accent);margin-left:4px;font-weight:800}
+       border:1px solid var(--border);border-radius:13px;padding:11px 12px}
+  .strk-h2h{border-color:rgba(34,184,255,.30)}
+  .strk-h{font-size:12.5px;font-weight:800;color:#eaf2ff;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .strk-cs{display:flex;flex-wrap:wrap;gap:6px}
+  /* Chaque série = une JAUGE : barre verte proportionnelle au ratio + couleur selon la force */
+  .strk-c{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:7px;
+       padding:5px 11px;border-radius:10px;font-size:11px;color:#cfe0f5;
+       background:rgba(255,255,255,.035);border:1px solid var(--border)}
+  .strk-fill{position:absolute;left:0;top:0;bottom:0;z-index:0;background:rgba(52,210,123,.14)}
+  .strk-t,.strk-c b{position:relative;z-index:1}
+  .strk-c b{font-weight:800;font-variant-numeric:tabular-nums}
+  .strk-c.s-strong{border-color:rgba(52,210,123,.55)}
+  .strk-c.s-strong b{color:#46e08a} .strk-c.s-strong .strk-fill{background:rgba(52,210,123,.22)}
+  .strk-c.s-mid b{color:#5fd0ff} .strk-c.s-mid .strk-fill{background:rgba(34,184,255,.13)}
+  .strk-c.s-low{opacity:.7} .strk-c.s-low b{color:var(--muted)}
+  .strk-c.s-low .strk-fill{background:rgba(255,255,255,.05)}
+  .strk-c.s-count b{color:#5fd0ff}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);
@@ -3846,19 +3857,42 @@ def _streak_label(name: str) -> str:
         return f"{emoji} {sign}{m.group(2).replace('.', ',')} {unit}"
     return html.escape(n)
 
+def _streak_strength(value) -> tuple:
+    """(ratio 0..1 ou None, classe de force). « X/Y » -> ratio coloré (forte ≥80 % / moyenne ≥60 % /
+    faible) ; un nombre seul = compteur de série (pas de jauge)."""
+    m = re.match(r"\s*(\d+)\s*/\s*(\d+)", str(value or ""))
+    if not m:
+        return None, "s-count"
+    num, den = int(m.group(1)), int(m.group(2))
+    r = (num / den) if den else 0.0
+    cls = "s-strong" if r >= 0.8 else ("s-mid" if r >= 0.6 else "s-low")
+    return r, cls
+
+
 def render_streaks(home: str, away: str, streaks: dict | None) -> str:
-    """Bloc « Tendances » : séries SofaScore par équipe (mappées aux marchés) + confrontations.
+    """Bloc « Tendances récentes » : séries de pari par équipe (mappées aux marchés) + confrontations.
+    Chaque série = une JAUGE (barre proportionnelle au ratio + couleur selon la force). Source =
+    Sportradar GISMO (SofaScore est mort) ; on ne nomme plus de source dans l'UI.
     `streaks` = {"home":[(name,value)…], "away":[…], "h2h":[…]} (préparé par le routeur)."""
     if not streaks:
         return ""
     e = html.escape
 
     def chips(items):
-        out = []
+        # trie pour mettre les séries les PLUS FORTES en tête (lecture immédiate du signal)
+        rows = []
         for name, value in items or []:
             if not value:
                 continue
-            out.append(f'<span class="strk-c">{_streak_label(name)} '
+            ratio, cls = _streak_strength(value)
+            rows.append((ratio if ratio is not None else -1, cls, name, value))
+        rows.sort(key=lambda x: x[0], reverse=True)
+        out = []
+        for ratio, cls, name, value in rows:
+            fill = (f'<span class="strk-fill" style="width:{round(ratio * 100)}%"></span>'
+                    if ratio is not None and ratio >= 0 else "")
+            out.append(f'<span class="strk-c {cls}">{fill}'
+                       f'<span class="strk-t">{_streak_label(name)}</span>'
                        f'<b>{e(str(value))}</b></span>')
         return "".join(out)
 
@@ -3866,15 +3900,18 @@ def render_streaks(home: str, away: str, streaks: dict | None) -> str:
     for nm, key in ((home, "home"), (away, "away")):
         c = chips(streaks.get(key))
         if c:
-            cols.append(f'<div class="strk-team"><div class="strk-h">{e(nm)}</div>{c}</div>')
+            cols.append(f'<div class="strk-team"><div class="strk-h">{e(nm)}</div>'
+                        f'<div class="strk-cs">{c}</div></div>')
     h2h = chips(streaks.get("h2h"))
     if h2h:
-        cols.append(f'<div class="strk-team"><div class="strk-h">Confrontations</div>{h2h}</div>')
+        cols.append('<div class="strk-team strk-h2h"><div class="strk-h">🤝 Confrontations directes</div>'
+                    f'<div class="strk-cs">{h2h}</div></div>')
     if not cols:
         return ""
     return ('<h2>📈 Tendances récentes</h2>'
-            '<div class="dim" style="font-size:11px;margin:-3px 0 6px">Séries SofaScore sur les '
-            'derniers matchs — base de l\'analyse.</div>'
+            '<div class="dim" style="font-size:11px;margin:-3px 0 8px">Régularité sur les derniers '
+            'matchs — plus la barre est <b style="color:#46e08a">verte/pleine</b>, plus la série '
+            'est forte.</div>'
             f'<div class="strk">{"".join(cols)}</div>')
 
 def render_sport_match_detail(ctx: dict, frag: bool = False) -> str:
