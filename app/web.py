@@ -1979,7 +1979,11 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
                '<span class="nr-ring nr-ring2"></span><span class="nr-dot"></span></span>')
 _SPA_TABS = [("home", "/", "📅", "À venir"), ("stats", "/stats", "📊", "Stats"),
              ("tennis", "/app", "🎾", "Tennis"), ("basket", "/basket", "🏀", "Basket"),
-             ("foot", "/foot", "⚽", "Foot"), ("directs", "/directs", _LIVE_RADAR, "Live")]
+             ("foot", "/foot", "⚽", "Foot"), ("directs", "/directs", _LIVE_RADAR, "Live"),
+             ("compte", "/compte", "👤", "Compte")]
+# « Compte » est un onglet de la barre du bas mais PAS un panneau SPA (c'est une page autonome :
+# connexion / abonnement). On l'EXCLUT des panneaux ; le JS le laisse naviguer normalement (cf. _SPA_JS).
+_NAV_ONLY = {"compte"}
 
 _SPORT_TITLE = {"foot": "⚽ Football", "tennis": "🎾 Tennis", "basket": "🏀 Basket"}
 
@@ -2109,8 +2113,9 @@ _SPA_JS = (
     "var c=P.children,i;for(i=0;i<c.length;i++){"
     "if(c[i].classList.contains('on'))c[i].setAttribute('data-loaded','1');else load(c[i]);}"
     "var nav=document.querySelectorAll('.botnav a');for(i=0;i<nav.length;i++){"
-    "nav[i].addEventListener('click',function(e){e.preventDefault();"
-    "go(this.getAttribute('data-tab'),true);});}"
+    "nav[i].addEventListener('click',function(e){var t=this.getAttribute('data-tab');"
+    "if(!panel(t))return;"  # onglet sans panneau SPA (Compte) -> navigation normale (page autonome)
+    "e.preventDefault();go(t,true);});}"
     "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
     "if(!t){var m={'/':'home','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot','/stats':'stats'};"
     "t=m[location.pathname]||'home';}go(t,false);});"
@@ -2265,7 +2270,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
-{splash}<div class="wrap"><a class="acct" href="/compte">👤 Compte</a>{toplogo}{pausebar}{sub}{body}
+{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
 
@@ -2287,6 +2292,8 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
                     f'⏸ Source en pause</span></div>')
     panels = []
     for k, href, _ico, _name in _SPA_TABS:
+        if k in _NAV_ONLY:                  # Compte : onglet de nav, pas de panneau SPA (page autonome)
+            continue
         on = " on" if k == active else ""
         inner = (body if k == active else
                  '<div class="skel"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>')
@@ -2308,7 +2315,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(active)}">
-{splash}<div class="wrap"><a class="acct" href="/compte">👤 Compte</a>{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
+{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
 
