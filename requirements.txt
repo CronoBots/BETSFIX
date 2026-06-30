@@ -6,6 +6,7 @@ pydantic==2.7.1
 pydantic-settings==2.3.0
 python-dotenv==1.0.1
 tzdata==2026.2  # fuseaux horaires (Windows n'a pas de base zoneinfo système) — INDISPENSABLE
+stripe==10.1.0  # abonnement (Phase 2) — facultatif tant que non configuré (le code se replie sans)
 
 # Dev / tests
 pytest==8.2.2
