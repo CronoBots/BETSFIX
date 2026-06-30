@@ -1649,6 +1649,37 @@ def volume_24h() -> dict:
     return out
 
 
+def volume_pending() -> dict:
+    """Pronos EN COURS (analysés, PAS encore réglés) : simples retenus, combinés et fantômes en
+    attente de résultat. Garde-fou : coup d'envoi À VENIR ou < 2 jours (couvre le délai de règlement
+    et l'attente des jambes de combiné) -> exclut les vieux matchs bloqués non réglés, pour refléter
+    le pipeline RÉELLEMENT actif. Renvoie {simples, combos, ghosts}."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=2)
+    lo0 = _CALIB_BANDS[0][0]
+    out = {"simples": 0, "combos": 0, "ghosts": 0}
+    for p in glob.glob(os.path.join(DIR, "*.json")):
+        d = _meta_load(p)
+        if not d:
+            continue
+        start = d.get("start") or ""
+        try:
+            dt = datetime.fromisoformat(start.replace("Z", "+00:00")) if start else None
+        except (ValueError, AttributeError):
+            dt = None
+        if dt is None or dt < cutoff:                 # futur -> toujours gardé ; passé -> seulement < 2 j
+            continue
+        c = d.get("combo") or {}
+        if c.get("legs") and c.get("result") not in ("won", "lost", "push"):
+            out["combos"] += 1
+        rb = retained_bet(d.get("sport"), d.get("id"), for_history=True)
+        if rb and rb.get("result") not in ("won", "lost", "push"):
+            out["simples"] += 1
+        for sp in (d.get("shadow") or []):
+            if sp.get("result") not in ("won", "lost") and (sp.get("prob") or 0) >= lo0:
+                out["ghosts"] += 1
+    return out
+
+
 def calibration_reliability(buckets: int = 7) -> dict:
     """INDICE DE FIABILITÉ de la calibration + sa TENDANCE chronologique = preuve MESURÉE que le modèle
     s'auto-améliore. On mesure l'écart moyen (MAE) confiance-annoncée ↔ réussite-réelle sur TOUTES les

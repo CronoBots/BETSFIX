@@ -1260,6 +1260,9 @@ CSS = """
   /* Ligne PÉRIODE DE MESURE (contexte du nombre calibré) */
   .sx-data-period{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:9px}
   .sx-data-period b{color:var(--accent);font-weight:900}
+  /* Sous-titre « En cours » (pipeline en attente de résultat) dans le panneau Volume */
+  .sx-data-sub{font-size:10.5px;font-weight:800;letter-spacing:.04em;color:#9fb6cf;margin:14px 0 0;
+       padding-top:11px;border-top:1px solid var(--border)}
   /* INDICE DE FIABILITÉ (preuve d'auto-amélioration) : gros score + tendance + mini-courbe */
   .sx-rel-top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:11px}
   .sx-rel-idx{font-size:34px;font-weight:900;letter-spacing:-.02em;color:var(--text);
@@ -2552,6 +2555,7 @@ def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict |
     _cf = combo_full if combo_full is not None else analyses.combo_stats()
     cal = cal if cal is not None else analyses.calibration()
     d24 = analyses.volume_24h()                       # variation des dernières 24 h (par coup d'envoi)
+    pend = analyses.volume_pending()                  # pronos en attente de résultat (pipeline actif)
 
     def _kpi(val: int, label: str, delta: int) -> str:
         d = (f'<i class="sx-d24">+{delta}</i>' if delta else '<i class="sx-d24 z">±0</i>')
@@ -2588,7 +2592,15 @@ def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict |
         + _kpi(cal.get("n_shadow", 0), "pronos fantômes", d24["ghosts"])
         + _kpi(vol.get("analysed", 0), "matchs analysés", d24["analysed"])
         + '</div>'
-        '<div class="sx-data-note">Le <b>+N vert</b> = entrées des dernières <b>24 h</b>. Les '
+        # EN COURS : pronos analysés en attente de résultat (pipeline actif) — distinct du cumul réglé.
+        '<div class="sx-data-sub">⏳ En cours · en attente de résultat</div>'
+        '<div class="sx-kpis sx-kpis3">'
+        f'<div class="sx-kpi"><b>{pend["simples"]}</b><span>simples en cours</span></div>'
+        f'<div class="sx-kpi"><b>{pend["combos"]}</b><span>combinés en cours</span></div>'
+        f'<div class="sx-kpi"><b>{pend["ghosts"]}</b><span>fantômes en cours</span></div>'
+        '</div>'
+        '<div class="sx-data-note">Le <b>+N vert</b> = entrées des dernières <b>24 h</b>. '
+        '« <b>En cours</b> » = pronos analysés en attente de résultat (matchs à venir / récents). Les '
         '<b>simples</b> et <b>combinés joués</b> sont les seuls comptés dans le ROI et la courbe. Les '
         '<b>pronos fantômes</b> (prédictions SIMPLES non jouées, réglées après match) affinent la '
         '<b>calibration</b> sur tout le spectre de cotes — ils n\'entrent JAMAIS dans le bilan, et il '
