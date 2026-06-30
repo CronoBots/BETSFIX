@@ -509,6 +509,7 @@ CSS = """
        padding:1px 7px;font-size:10.5px;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
   /* pari RETENU (⭐ en tête) : libellé mis en avant */
   .mc-betl-reco .mc-bt{color:#fff;font-weight:800}
+  .mc-noplay .mc-bt,.mc-noplay .mc-bi{color:var(--muted);font-weight:600;font-style:italic;opacity:.85}
   .mc-body{padding:2px 14px 13px}
   .mc-body[hidden]{display:none}
   /* Moins d'espace entre les équipes et le bloc « BOOKMAKERS » une fois déplié. */
@@ -3531,11 +3532,21 @@ def _sport_row(r: dict) -> str:
                  else '<span class="mc-badge mc-wait">⏳ En attente</span>')
     else:                                                # à venir : HEURE DE DÉBUT seule (HH:MM)
         badge = f'<span class="mc-badge mc-up">{e(starthm) or "À venir"}</span>'
-    # L3 : LISTE des paris (une ligne par pari = juste l'intitulé, sans détail) ; terminé : ✅/❌ par pari.
-    rows3 = []
+    # L3 : prono(s) PUBLIABLE(s) seulement — APP = TELEGRAM (strict). Un match SANS combiné n'affiche
+    # QUE son simple RETENU (⭐, quand « play ») ; sinon abstention -> « pas de pari conseillé ». Les
+    # matchs à combiné gardent [simple retenu ?, combiné] (déjà filtré par card_summary). Résultat :
+    # ce qui s'affiche dans l'app = ce qui est posté sur Telegram = ce qui est compté dans les stats.
     reco_i = summ.get("reco_idx")          # pari RETENU par le moteur -> ⭐ EN TÊTE (à la place du •)
     is_combo = summ.get("is_combo")        # combiné = • comme les autres paris (ni ⭐ ni 🎲, demande user)
-    for i, b in enumerate(summ.get("bets") or []):
+    bets3 = summ.get("bets") or []
+    if not is_combo:                       # hors combiné : on ne montre QUE le simple retenu (s'il y en a)
+        if summ.get("play") and reco_i is not None and 0 <= reco_i < len(bets3):
+            bets3 = [bets3[reco_i]]
+            reco_i = 0
+        else:
+            bets3 = []                     # aucun pari retenu -> abstention assumée
+    rows3 = []
+    for i, b in enumerate(bets3):
         is_reco = i == reco_i and not is_combo
         if is_finished:
             ic = {"won": "✅", "lost": "❌", "push": "➖"}.get(b.get("result"), "•")
@@ -3547,7 +3558,11 @@ def _sport_row(r: dict) -> str:
         cote_html = f'<span class="mc-bc">@{cote:g}</span>' if cote else ""
         rows3.append(f'<div class="mc-betl{rcls}"><span class="mc-bi">{ic}</span>'
                      f'<span class="mc-bt">{e(b.get("sel", ""))}</span>{cote_html}</div>')
-    line3 = "".join(rows3)
+    # Abstention (aucun prono publiable) : libellé discret à venir ; rien sur les terminés (le score suffit).
+    line3 = ("".join(rows3) if rows3 else
+             ('' if is_finished else
+              '<div class="mc-betl mc-noplay"><span class="mc-bi">·</span>'
+              '<span class="mc-bt">Analysé · pas de pari conseillé</span></div>'))
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')
     head = (f'<div class="mc-head"><div class="mc-main">'
