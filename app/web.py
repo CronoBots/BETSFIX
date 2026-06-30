@@ -234,15 +234,16 @@ CSS = """
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
        -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
        -webkit-tap-highlight-color:transparent;touch-action:manipulation;
-       background:var(--bg);}
-  /* Thème premium UNIQUE : halo bleu via un calque FIXE collé au viewport (et non au
-     body) -> identique sur tous les onglets,
-  quelle que soit la hauteur de la page.
-     (évite le bug iOS où background-attachment:fixed est ignoré.) */
-  body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+       /* Thème premium : halos bleus POSÉS DIRECTEMENT sur le fond du body (au-dessus de --bg).
+          AVANT ils étaient sur un body::before en z-index:-1 ; mais depuis que html a son propre
+          fond (#0b0d12, fix safe-area iOS), le fond du body ne se propage plus au canvas et le
+          pseudo z-index:-1 passait DERRIÈRE le fond opaque -> halos masqués (page toute noire).
+          Sur le body même, ils s'affichent toujours. Le body ne scrolle pas (.wrap scrolle) ->
+          le dégradé reste fixe visuellement. */
        background:
          radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
-         radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%);}
+         radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%),
+         var(--bg);}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   /* Zone de contenu = SEUL élément qui scrolle (flex:1). La barre du bas étant désormais un frère
      statique en dessous,
