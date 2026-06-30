@@ -165,7 +165,7 @@ def is_subscriber(email: str) -> bool:
     email = _norm(email)
     if not email:
         return False
-    if email in _OWNERS:
+    if email in _owners():                         # propriétaire -> toujours abonné (immunisé Stripe)
         return True
     u = get_user(email)
     if not u:

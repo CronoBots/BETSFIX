@@ -17,7 +17,8 @@ def store(monkeypatch):
     monkeypatch.setattr(accounts, "_STORE", os.path.join(d, "accounts.json"))
     monkeypatch.setattr(accounts, "_SECRET_FILE", os.path.join(d, ".secret"))
     monkeypatch.setenv("BETSFIX_SESSION_SECRET", "test-secret-123")
-    monkeypatch.setattr(accounts, "_OWNERS", set())
+    monkeypatch.setattr(accounts, "_OWNERS_ENV", set())
+    monkeypatch.setattr(accounts, "_OWNERS_FILE", os.path.join(d, "owners.json"))
     return d
 
 
