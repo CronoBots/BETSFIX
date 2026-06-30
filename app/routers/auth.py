@@ -26,7 +26,9 @@ def _page(title: str, body: str, frag: bool = False) -> str:
     if frag:
         return inner
     from app import web                       # import paresseux (évite tout cycle à l'import)
-    return web.layout(title, "compte", inner)
+    # Coquille SPA complète (onglet 'compte' actif) -> depuis cette page aussi, taper un autre onglet
+    # bascule SANS rechargement (cohérent avec tout le reste).
+    return web.spa_shell("compte", title, inner)
 
 
 def _safe_next(nxt: str | None) -> str:
@@ -130,4 +132,4 @@ async def account_page(request: Request, frag: int = 0):
 <div class=arow><span>Abonnement</span>{badge}</div>
 {action}
 <form method=post action='/logout'><button class=ghost type=submit style='margin-top:12px'>Se déconnecter</button></form>
-</div>"""))
+</div>""", frag=bool(frag)))
