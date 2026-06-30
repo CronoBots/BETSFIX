@@ -29,8 +29,41 @@ _SESSION_MAX_AGE = 60 * 24 * 3600          # 60 jours
 _PBKDF2_ROUNDS = 200_000
 _lock = threading.Lock()
 
-# Emails TOUJOURS considérés abonnés (le propriétaire). Séparés par virgule dans BETSFIX_OWNER_EMAIL.
-_OWNERS = {e.strip().lower() for e in (os.environ.get("BETSFIX_OWNER_EMAIL") or "").split(",") if e.strip()}
+# PROPRIÉTAIRES : emails TOUJOURS considérés abonnés (immunisés Stripe). Deux sources cumulées :
+#  • env BETSFIX_OWNER_EMAIL (lue au démarrage, séparée par virgules) ;
+#  • fichier persistant data/owners.json (liste d'emails) — modifiable À CHAUD, sans redémarrage.
+_OWNERS_FILE = os.path.join(_DATA, "owners.json")
+_OWNERS_ENV = {e.strip().lower() for e in (os.environ.get("BETSFIX_OWNER_EMAIL") or "").split(",") if e.strip()}
+
+
+def _owners() -> set:
+    owners = set(_OWNERS_ENV)
+    try:
+        with open(_OWNERS_FILE, encoding="utf-8") as f:
+            owners |= {_norm(e) for e in (json.load(f) or []) if str(e).strip()}
+    except (OSError, ValueError):
+        pass
+    return owners
+
+
+def add_owner(email: str) -> None:
+    """Déclare un email PROPRIÉTAIRE (toujours abonné). Persistant, pris en compte immédiatement."""
+    email = _norm(email)
+    if not email:
+        return
+    with _lock:
+        try:
+            with open(_OWNERS_FILE, encoding="utf-8") as f:
+                cur = json.load(f) or []
+        except (OSError, ValueError):
+            cur = []
+        if email not in {_norm(e) for e in cur}:
+            cur.append(email)
+            os.makedirs(_DATA, exist_ok=True)
+            tmp = _OWNERS_FILE + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(cur, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, _OWNERS_FILE)
 
 
 # --------------------------------------------------------------------------- secret de signature
