@@ -1267,8 +1267,13 @@ CSS = """
   .sx-rel-idx small{font-size:14px;font-weight:800;color:var(--muted)}
   .sx-rel-tr{font-size:11.5px;font-weight:800;margin-top:5px}
   .sx-rel-tr.up{color:#34d27b} .sx-rel-tr.flat{color:var(--muted)} .sx-rel-tr.down{color:#ff6b6b}
-  .sx-rel-spark{flex:0 0 130px;max-width:130px}
-  .sx-rel-spark .sx-spark{display:block;width:100%;height:40px}
+  .sx-rel-kpi{text-align:right}
+  .sx-rel-kpi b{display:block;font-size:14px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
+  .sx-rel-kpi span{font-size:10px;color:var(--muted);font-weight:600}
+  .sx-rel-chart{margin-top:12px}
+  .sx-relc{width:100%;height:auto;display:block}
+  .sx-relc-yl{fill:var(--muted);font-size:8px;font-weight:700;opacity:.8}
+  .sx-relc-xl{fill:var(--muted);font-size:8px;font-weight:700;opacity:.7;text-transform:uppercase;letter-spacing:.04em}
   .sx-rel-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:11px;
        padding-top:10px;border-top:1px solid var(--border)}
   .sx-rel-note b{color:var(--text)}
@@ -2758,30 +2763,77 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     body = livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
+def _reliability_chart(series: list, uid: str = "rel") -> str:
+    """VRAI graphique de fiabilité : courbe de l'indice (0-100) dans le temps, pleine largeur, avec
+    grille + axe Y (graduations 0-100), aire dégradée et points début/récent. Montre VISUELLEMENT que
+    la fiabilité progresse. '' si moins de 2 points."""
+    series = [v for v in (series or []) if v is not None]
+    if len(series) < 2:
+        return ""
+    n = len(series)
+    W, H, L, R, T, B = 320.0, 122.0, 24.0, 8.0, 12.0, 16.0
+    iw, ih = W - L - R, H - T - B
+    lo = max(0.0, min(series) - 6)                       # fenêtre Y : contexte 0-100 + marge pour voir la variation
+    hi = min(100.0, max(series) + 6)
+    if hi - lo < 6:
+        lo, hi = max(0.0, hi - 6), min(100.0, lo + 6)
+    col = "#34d27b"
+    gid = f"relg-{uid}"
+
+    def X(i):
+        return L + iw * i / (n - 1)
+
+    def Y(v):
+        return T + ih * (1 - (v - lo) / (hi - lo))
+
+    line_d = _smooth_path([(X(i), Y(v)) for i, v in enumerate(series)])
+    area_d = f'M{X(0):.1f},{H - B:.1f} L' + line_d[1:] + f' L{X(n - 1):.1f},{H - B:.1f} Z'
+    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="sx-relc">',
+         f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1">'
+         f'<stop offset="0" stop-color="{col}" stop-opacity="0.32"/>'
+         f'<stop offset="1" stop-color="{col}" stop-opacity="0"/></linearGradient></defs>']
+    for k in range(3):                                   # grille + graduations Y (bas / milieu / haut)
+        gv = lo + (hi - lo) * k / 2
+        gy = Y(gv)
+        p.append(f'<line class="bc-grid" x1="{L:g}" y1="{gy:.1f}" x2="{W - R:g}" y2="{gy:.1f}"/>')
+        p.append(f'<text class="sx-relc-yl" x="{L - 4:g}" y="{gy + 3:.1f}" text-anchor="end">{round(gv)}</text>')
+    p.append(f'<path d="{area_d}" fill="url(#{gid})" stroke="none"/>')
+    p.append(f'<path d="{line_d}" fill="none" stroke="{col}" stroke-width="2.4" '
+             'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>')
+    p.append(f'<circle cx="{X(0):.1f}" cy="{Y(series[0]):.1f}" r="2.4" fill="{col}" opacity="0.55"/>')
+    p.append(f'<circle cx="{X(n - 1):.1f}" cy="{Y(series[-1]):.1f}" r="3.4" fill="{col}"/>')
+    p.append(f'<text class="sx-relc-xl" x="{L:g}" y="{H - 4:g}" text-anchor="start">début</text>')
+    p.append(f'<text class="sx-relc-xl" x="{W - R:g}" y="{H - 4:g}" text-anchor="end">récent</text>')
+    p.append("</svg>")
+    return "".join(p)
+
+
 def render_reliability(rel: dict | None) -> str:
-    """INDICE DE FIABILITÉ de la calibration + tendance (preuve mesurée d'auto-amélioration) : gros
-    score /100, flèche de tendance, mini-courbe de l'écart qui se resserre. '' si pas assez de recul."""
+    """INDICE DE FIABILITÉ de la calibration + VRAI graphique d'évolution (preuve mesurée d'auto-
+    amélioration) : gros score /100, flèche de tendance, et courbe pleine largeur de l'indice dans le
+    temps. '' si pas assez de recul."""
     if not rel or rel.get("index") is None:
         return ""
     idx = rel["index"]
     _T = {"up": ("▲", "en amélioration", "up"), "flat": ("→", "stable", "flat"),
           "down": ("▼", "en recul", "down")}
     arrow, word, cls = _T.get(rel.get("trend"), ("→", "", "flat"))
-    spark = _sparkline(rel.get("series") or [], "#34d27b")
+    chart = _reliability_chart(rel.get("series") or [], uid="rel")
     m1, m2 = rel.get("mae_first"), rel.get("mae_last")
-    ecart = (f'écart moyen <b>{m1} → {m2} pts</b>' if (m1 is not None and m2 is not None)
-             else f'écart moyen <b>{rel.get("mae")} pts</b>')
+    ecart = (f'{m1} → {m2} pts' if (m1 is not None and m2 is not None) else f'{rel.get("mae")} pts')
     return (
         '<div class="sx-card sx-rel"><div class="sx-h">Indice de fiabilité'
         '<span>calibration · auto-évolution</span></div>'
         '<div class="sx-rel-top">'
         f'<div class="sx-rel-main"><div class="sx-rel-idx">{idx}<small>/100</small></div>'
         f'<div class="sx-rel-tr {cls}">{arrow} {word}</div></div>'
-        f'<div class="sx-rel-spark">{spark}</div></div>'
-        f'<div class="sx-rel-note">L\'écart entre la confiance annoncée et la réussite réelle se '
-        f'resserre dans le temps ({ecart}) : le modèle <b>se recalibre seul</b> à chaque résultat '
-        f'(rétrécissement bayésien sur <b>{rel.get("n")}</b> prédictions) et écarte tout seul les '
-        f'marchés perdants. Plus l\'indice monte, plus la confiance affichée tient ses promesses.</div>'
+        f'<div class="sx-rel-kpi"><b>{ecart}</b><span>écart confiance↔réel</span></div></div>'
+        f'<div class="sx-rel-chart">{chart}</div>'
+        f'<div class="sx-rel-note">Courbe de l\'indice dans le temps (gauche = début, droite = récent). '
+        f'L\'écart entre la confiance annoncée et la réussite réelle se resserre : le modèle '
+        f'<b>se recalibre seul</b> à chaque résultat (rétrécissement bayésien sur <b>{rel.get("n")}</b> '
+        f'prédictions) et écarte tout seul les marchés perdants. Plus la courbe monte, plus la confiance '
+        f'affichée tient ses promesses.</div>'
         '</div>')
 
 def render_calibration(c: dict) -> str:

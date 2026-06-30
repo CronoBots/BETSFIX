@@ -1399,11 +1399,10 @@ _PERF_CACHE: dict = {}     # "v" -> (sig, perf_breakdown()) — ROI par cote/mar
 # JALONS du modèle : dates (UTC) où la LOGIQUE de sélection a changé -> repères verticaux sur les
 # courbes d'équité (pour corréler une inflexion de ROI avec un changement). Garder COURT (s'affiche
 # sur un petit graphe) et N'AJOUTER qu'un vrai changement de POLITIQUE de paris (pas l'UI).
-MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne) — repères sur la courbe d'équité
+MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne) — SEULS les repères DÉCISIFS (qui ont
+    #                      vraiment changé la sélection / l'edge), pour ne pas surcharger la courbe.
     ("2026-06-09", "Seuil ≥65 %", "Aucun pari n'est retenu sous 65 % de confiance honnête."),
-    ("2026-06-12", "Mode strict", "Sans pari solide, le modèle s'abstient ; au-delà de 1.70 de cote, il exige 70 % de confiance."),
     ("2026-06-16", "1 pari/match", "Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents."),
-    ("2026-06-18", "Combinés comptés", "Chaque combiné compte pour un seul résultat dans le suivi, quel que soit le nombre de jambes."),
     ("2026-06-19", "Corners bannis", "Les corners, le marché le plus perdant, sont exclus de tous les paris (simple et combiné)."),
     ("2026-06-26", "Combinés calibrés", "Jambes de combiné recalibrées comme les simples ; les marchés perdants (Total, Sets) s'écartent automatiquement."),
 ]
@@ -1690,9 +1689,21 @@ def calibration_reliability(buckets: int = 7) -> dict:
     h = n // 2
     mae1, mae2 = _mae(items[:h]), _mae(items[h:])
     delta_mae = (round(mae1 - mae2, 1) if (mae1 is not None and mae2 is not None) else None)  # >0 = mieux
-    bk = max(3, min(buckets, n // 30))               # ≥ ~30 prédictions / point -> série stable
-    series = [r for r in (_idx(_mae(items[i * n // bk:(i + 1) * n // bk])) for i in range(bk))
-              if r is not None]
+    # Série pour la COURBE : FENÊTRE GLISSANTE (chevauchante) plutôt que des tranches disjointes ->
+    # chaque point = la fiabilité des `win` dernières prédictions à cet instant. Lissé et honnête
+    # (pas le bruit de petites tranches), montre la vraie tendance. `buckets` = nb de points voulus.
+    npts = max(4, buckets)
+    win = max(120, min(n // 2, 450))                 # assez d'échantillon par point pour être stable
+    if n <= win:
+        series = [r for r in [_idx(mae)] if r is not None]
+    else:
+        step = (n - win) / (npts - 1)
+        series = []
+        for j in range(npts):
+            s0 = round(j * step)
+            r = _idx(_mae(items[s0:s0 + win]))
+            if r is not None:
+                series.append(r)
     trend = ("up" if (delta_mae or 0) >= 0.7 else "down" if (delta_mae or 0) <= -0.7 else "flat")
     return {"index": _idx(mae), "mae": mae, "series": series, "delta_mae": delta_mae,
             "mae_first": mae1, "mae_last": mae2, "trend": trend, "n": n,
