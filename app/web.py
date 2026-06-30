@@ -721,6 +721,32 @@ CSS = """
   .prono-lock-t b{font-size:12.5px;font-weight:800;color:#eaf2ff}
   .prono-lock-t small{font-size:10.5px;color:#90a4be;font-weight:600}
   .prono-lock-go{font-size:11px;font-weight:800;color:#5fd0ff;white-space:nowrap}
+  /* Page COMPTE (connexion / abonnement) — onglet du bas, rendu dans la coquille app. Scopé .acctwrap */
+  .acctwrap{max-width:400px;margin:6px auto 0;width:100%}
+  .acctwrap .acard{background:linear-gradient(180deg,rgba(34,184,255,.07),rgba(34,184,255,.02));
+    border:1px solid rgba(34,184,255,.22);border-radius:18px;padding:22px 20px}
+  .acctwrap h1{font-size:19px;font-weight:800;margin:0 0 4px;color:#e9f1fb}
+  .acctwrap .sub{font-size:12px;color:#90a4be;margin:0 0 18px;line-height:1.5}
+  .acctwrap label{display:block;font-size:11px;font-weight:700;color:#90a4be;text-transform:uppercase;
+    letter-spacing:.04em;margin:14px 0 6px}
+  .acctwrap input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
+    border-radius:11px;padding:12px 13px;color:#e9f1fb;font-family:inherit;font-size:14px}
+  .acctwrap input:focus{outline:none;border-color:rgba(34,184,255,.6)}
+  .acctwrap button{width:100%;margin-top:20px;background:#22b8ff;color:#04121c;border:0;border-radius:12px;
+    padding:13px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer}
+  .acctwrap button.ghost{background:transparent;color:#5fd0ff;border:1px solid rgba(34,184,255,.35)}
+  .acctwrap .err{background:rgba(255,80,90,.12);border:1px solid rgba(255,80,90,.4);color:#ff9aa1;
+    border-radius:10px;padding:10px 12px;font-size:12px;margin-bottom:14px;line-height:1.4}
+  .acctwrap .ok{background:rgba(25,196,106,.12);border:1px solid rgba(25,196,106,.4);color:#8df3c0;
+    border-radius:10px;padding:10px 12px;font-size:12px;margin-bottom:14px;line-height:1.4}
+  .acctwrap .alt{text-align:center;font-size:12px;color:#90a4be;margin-top:18px}
+  .acctwrap a{color:#5fd0ff;text-decoration:none}
+  .acctwrap .arow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;
+    padding:11px 0;border-top:1px solid rgba(255,255,255,.08);color:#e9f1fb}
+  .acctwrap .arow b{font-weight:800}
+  .acctwrap .abadge{font-size:11px;font-weight:800;border-radius:7px;padding:3px 9px}
+  .acctwrap .abadge.on{background:rgba(25,196,106,.18);color:#8df3c0}
+  .acctwrap .abadge.off{background:rgba(150,165,185,.16);color:#c0cbdb}
   /* Couleur de la bulle selon le RÉSULTAT (prime sur le type) : vert+halo / rouge+halo */
   .fpick.fp-won{background:linear-gradient(90deg,rgba(25,196,106,.16),rgba(25,196,106,.05));
                 border-color:rgba(25,196,106,.75);box-shadow:0 0 15px rgba(25,196,106,.32)}
@@ -1976,9 +2002,8 @@ _SPA_TABS = [("home", "/", "📅", "À venir"), ("stats", "/stats", "📊", "Sta
              ("tennis", "/app", "🎾", "Tennis"), ("basket", "/basket", "🏀", "Basket"),
              ("foot", "/foot", "⚽", "Foot"), ("directs", "/directs", _LIVE_RADAR, "Live"),
              ("compte", "/compte", "👤", "Compte")]
-# « Compte » est un onglet de la barre du bas mais PAS un panneau SPA (c'est une page autonome :
-# connexion / abonnement). On l'EXCLUT des panneaux ; le JS le laisse naviguer normalement (cf. _SPA_JS).
-_NAV_ONLY = {"compte"}
+# Compte est un onglet SPA À PART ENTIÈRE : son panneau charge /compte?frag=1 (contenu seul) en AJAX,
+# comme les onglets sport -> bascule sans rechargement. (Plus de _NAV_ONLY : il a son panneau.)
 
 _SPORT_TITLE = {"foot": "⚽ Football", "tennis": "🎾 Tennis", "basket": "🏀 Basket"}
 
@@ -2287,8 +2312,6 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
                     f'⏸ Source en pause</span></div>')
     panels = []
     for k, href, _ico, _name in _SPA_TABS:
-        if k in _NAV_ONLY:                  # Compte : onglet de nav, pas de panneau SPA (page autonome)
-            continue
         on = " on" if k == active else ""
         inner = (body if k == active else
                  '<div class="skel"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>')
