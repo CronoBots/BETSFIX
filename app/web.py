@@ -1148,17 +1148,26 @@ CSS = """
   /* Jalons du modèle : repère vertical + étiquette (changement de politique de paris) */
   /* Repères de modèle sur la courbe : trait vertical + pastille numérotée */
   .bc-mile{stroke:rgba(120,200,255,.5);stroke-width:1.1;stroke-dasharray:2 3}
+  .bc-mile-g{cursor:pointer}
+  .bc-mile-g .bc-mile-c{transition:r .12s}
+  .bc-mile-g.on .bc-mile-c{fill:#46e08a;stroke:#bdf6d4}
+  .bc-mile-g.on .bc-mile{stroke:rgba(70,224,138,.7)}
   .bc-mile-c{fill:#1496f0;stroke:#bfe2ff;stroke-width:.8}
-  .bc-mile-n{fill:#fff;font-size:7px;font-weight:900}
-  .sx-mlegend{display:flex;flex-direction:column;align-items:stretch;gap:6px;
-       font-size:10.5px;color:var(--muted);margin-top:10px}
-  .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);opacity:.8}
-  .sx-ml{display:flex;align-items:flex-start;gap:8px}
-  .sx-ml-x{flex:1;min-width:0}
-  .sx-ml-t{color:var(--text);font-weight:800;font-size:11px}          /* TITRE de la modif */
-  .sx-ml-d{color:var(--muted);line-height:1.35;margin-top:1px}        /* explication SOUS le titre */
-  .sx-ml-n{flex:0 0 auto;margin-top:1px;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
-       border-radius:50%;background:#1496f0;color:#fff;font-size:9px;font-weight:900}
+  .bc-mile-n{fill:#fff;font-size:7px;font-weight:900;pointer-events:none}
+  /* Repères ALLÉGÉS : pastilles cliquables + panneau d'info au clic (page plus légère) */
+  .sx-miles{margin-top:10px}
+  .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+       opacity:.85;display:flex;align-items:baseline;gap:8px}
+  .sx-ml-hint{font-size:9px;font-weight:600;letter-spacing:0;text-transform:none;opacity:.7}
+  .sx-mile-bs{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+  .sx-mile-b{width:24px;height:24px;border-radius:50%;border:1px solid rgba(34,184,255,.4);
+       background:rgba(34,184,255,.10);color:#9fd2ff;font-family:inherit;font-size:11px;font-weight:900;
+       cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
+  .sx-mile-b.on{background:#46e08a;border-color:#46e08a;color:#04220f}
+  .sx-mile-info{font-size:11px;line-height:1.4;color:var(--muted);margin-top:0;max-height:0;overflow:hidden;
+       transition:max-height .18s ease,margin-top .18s ease}
+  .sx-mile-info.show{max-height:120px;margin-top:9px}
+  .sx-mile-info b{color:var(--text);font-weight:800}
   .sx-divider{height:1px;background:var(--border);margin:14px 0 2px}
   .sx-h2{margin-top:8px}
   .bc-yl{fill:var(--muted);font-size:9px;text-anchor:end;font-weight:700}
@@ -2182,6 +2191,25 @@ _TERM_JS = (
     "window._twScan(document);window._twCount(document);})();"
 )
 
+# Repères du modèle : clic sur une pastille OU un marqueur du graphe -> affiche/masque l'explication
+# (toggle) dans le panneau dédié. Délégué sur document -> marche aussi pour les panneaux chargés en AJAX.
+_MILE_JS = (
+    "(function(){document.addEventListener('click',function(e){"
+    "var t=e.target.closest('[data-mile]');if(!t)return;"
+    "var scope=t.closest('.sx-hero')||t.closest('.sx-card');if(!scope)return;"
+    "var n=t.getAttribute('data-mile');"
+    "var info=scope.querySelector('.sx-mile-info');"
+    "var data=scope.querySelector('.sx-mile-d[data-mile=\"'+n+'\"]');"
+    "if(!info||!data)return;"
+    "var was=info.getAttribute('data-on');"
+    "scope.querySelectorAll('.sx-mile-b.on,.bc-mile-g.on').forEach(function(el){el.classList.remove('on');});"
+    "if(was===n){info.classList.remove('show');info.removeAttribute('data-on');info.innerHTML='';return;}"
+    "info.innerHTML=data.innerHTML;info.setAttribute('data-on',n);info.classList.add('show');"
+    "scope.querySelectorAll('[data-mile=\"'+n+'\"]').forEach(function(el){"
+    "if(el.classList.contains('sx-mile-b')||el.classList.contains('bc-mile-g'))el.classList.add('on');});"
+    "});})();"
+)
+
 # Menu tiroir « complet » (☰) — présent sur TOUTES les pages. Accès direct à tout : accueil, paris à
 # jouer, bilan, stats, et chaque sport + live. Les clés correspondent à l'item mis en évidence.
 # Anti-zoom (ex-_DRAWER_JS — le tiroir ☰ a été retiré, redondant avec la barre du bas).
@@ -2237,7 +2265,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 {splash}<div class="wrap"><a class="acct" href="/compte">👤 Compte</a>{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
@@ -2280,7 +2308,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {splash}<div class="wrap"><a class="acct" href="/compte">👤 Compte</a>{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -2521,9 +2549,13 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
         if k <= 0 or k >= n:
             continue
         mx = X(k)
+        # groupe cliquable (data-mile) : trait + pastille numérotée + ZONE DE TAP large transparente
+        p.append(f'<g class="bc-mile-g" data-mile="{num}">')
         p.append(f'<line class="bc-mile" x1="{mx:.1f}" y1="{T - 4:g}" x2="{mx:.1f}" y2="{H - B:g}"/>')
+        p.append(f'<circle class="bc-mile-hit" cx="{mx:.1f}" cy="{T - 5:g}" r="11" fill="transparent"/>')
         p.append(f'<circle class="bc-mile-c" cx="{mx:.1f}" cy="{T - 5:g}" r="5.4"/>')
         p.append(f'<text class="bc-mile-n" x="{mx:.1f}" y="{T - 2.6:g}" text-anchor="middle">{num}</text>')
+        p.append('</g>')
     p.append("</svg>")
     return "".join(p)
 
@@ -2625,14 +2657,17 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     miles = list(analyses.MODEL_MILESTONES)
     chart = _hero_chart(ov.get("points") or [], uid="all",
                         dates=ov.get("dates") or [], milestones=miles)
-    mleg = "".join(
-        f'<div class="sx-ml">'
-        f'<span class="sx-ml-n">{i}</span>'
-        f'<div class="sx-ml-x"><div class="sx-ml-t">{html.escape(lab)}</div>'
-        f'<div class="sx-ml-d">{html.escape(desc)}</div></div></div>'
-        for i, (_iso, lab, desc) in enumerate(miles, 1))
-    mlegend = (f'<div class="sx-mlegend"><div class="sx-ml-h">Repères du modèle</div>{mleg}</div>'
-               if mleg else "")
+    # Repères ALLÉGÉS : pastilles numérotées cliquables (+ marqueurs du graphe) ; l'explication ne
+    # s'affiche QU'AU CLIC dans un panneau dédié (toggle, JS délégué _MILE_JS). Données en DOM caché.
+    mchips = "".join(f'<button type="button" class="sx-mile-b" data-mile="{i}">{i}</button>'
+                     for i in range(1, len(miles) + 1))
+    mdata = "".join(f'<div class="sx-mile-d" data-mile="{i}" hidden>'
+                    f'<b>{html.escape(lab)}</b> — {html.escape(desc)}</div>'
+                    for i, (_iso, lab, desc) in enumerate(miles, 1))
+    mlegend = (f'<div class="sx-miles"><div class="sx-ml-h">Repères du modèle'
+               f'<span class="sx-ml-hint">touchez un repère pour le détail</span></div>'
+               f'<div class="sx-mile-bs">{mchips}</div>'
+               f'<div class="sx-mile-info"></div>{mdata}</div>') if miles else ""
     chart_block = (f'<div class="sx-divider"></div>'
                    f'<div class="sx-h sx-h2">📈 Simples<span>évolution du rendement</span></div>'
                    f'<div class="sx-equity">{chart}</div>{mlegend}') if chart else ""
