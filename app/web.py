@@ -721,11 +721,6 @@ CSS = """
   .prono-lock-t b{font-size:12.5px;font-weight:800;color:#eaf2ff}
   .prono-lock-t small{font-size:10.5px;color:#90a4be;font-weight:600}
   .prono-lock-go{font-size:11px;font-weight:800;color:#5fd0ff;white-space:nowrap}
-  /* Lien Compte (en-tête) */
-  .acct{position:absolute;top:10px;right:12px;z-index:5;display:inline-flex;align-items:center;gap:5px;
-    text-decoration:none;font-size:11px;font-weight:800;color:#9fb6cf;background:rgba(255,255,255,.05);
-    border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:5px 11px}
-  .acct:active{background:rgba(34,184,255,.14)}
   /* Couleur de la bulle selon le RÉSULTAT (prime sur le type) : vert+halo / rouge+halo */
   .fpick.fp-won{background:linear-gradient(90deg,rgba(25,196,106,.16),rgba(25,196,106,.05));
                 border-color:rgba(25,196,106,.75);box-shadow:0 0 15px rgba(25,196,106,.32)}
