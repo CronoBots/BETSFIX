@@ -17,8 +17,8 @@ tournent en compte SYSTEM et sont INVISIBLES depuis une session non-admin**
 - Le PID de la boucle remote est dans `.remote-control.pid`.
 - Python utilisé : `C:\Users\vince\AppData\Local\Programs\Python\Python312\python.exe`
   (uvicorn/fastapi sont dans son `Lib\site-packages`, donc accessibles à SYSTEM).
-- Voisins similaires sur la même machine : `PRONOSTICS`, `CRYPTONAUTS`
-  (chacun a sa tâche `<NOM> Remote Control`).
+- Voisin similaire sur la même machine : `CRYPTONAUTS`
+  (il a sa tâche `<NOM> Remote Control`).
 
 ## ⚠️ Piège récurrent : les tâches SYSTEM sont invisibles sans élévation
 
