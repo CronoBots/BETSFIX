@@ -677,6 +677,7 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         ok = set() if sport in ex_sports else {
             i for i, c in enumerate(codes) if c and market_of(c) not in ex_markets}
     reco = _recommend(data, ok=ok, cprobs=cprobs, codes=codes)
+    has_play = reco.get("verdict") == "play"     # y a-t-il un pari RETENU (value + confiance OK) ?
     note_by_idx = _assign_notes([b["sel"] for b in data], notes)   # commentaire Verdict -> bon pari
     cards = []
     # Sûreté en PASTILLE TEXTE (≠ étoiles, réservées au pari retenu ⭐) : élevée/moyenne/faible.
