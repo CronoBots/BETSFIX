@@ -35,6 +35,10 @@ def _bets_for_url(url: str, compact: bool = False) -> str:
         bets = (analyses.bets_html(sport, m.group(2), compact=compact)
                 if analyses.retained_bet(sport, m.group(2)) else "")
         return paywall.wrap(bets + combo)         # PRONO -> masqué aux non-abonnés (cf. middleware)
+    # Hors combiné : on n'affiche la carte « pari à jouer » QUE si un pari est RETENU. Sinon abstention
+    # -> AUCUNE carte (clarté : pas de « pari sans value » qui embrouille). Le match reste analysé.
+    if not analyses.retained_bet(sport, m.group(2)):
+        return ""
     return paywall.wrap(analyses.bets_html(sport, m.group(2), compact=compact))
 
 def _links_for_url(url: str) -> str:
