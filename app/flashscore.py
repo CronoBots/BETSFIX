@@ -622,6 +622,22 @@ def settle_hold1(home: str, away: str, side: str, start_iso: str | None = None) 
     return None
 
 
+def match_status(sport: str, home: str, away: str, start: str | None = None) -> str | None:
+    """Statut Flashscore d'un match (`AB` : '1'=à venir · '2'=LIVE · '3'=terminé), ou None si introuvable.
+    Sert à DÉTECTER un règlement prématuré (match réglé mais encore en cours) pour l'auto-réparation."""
+    dt = _start_dt(start) if start else None
+    if dt is not None:
+        base = (dt.date() - datetime.now(timezone.utc).date()).days
+        offs = [o for o in (base, base - 1, base + 1) if -45 <= o <= 1]
+    else:
+        offs = [0, -1]
+    for off in offs:
+        for m in _match_index(sport, off):
+            if _teams_match(home, away, m["home"], m["away"]):
+                return str(m.get("status") or "") or None
+    return None
+
+
 def final_score(sport: str, d: dict) -> dict | None:
     """Score FINAL d'un match via l'INDEX Flashscore (couverture quasi UNIVERSELLE des ligues) — pour
     RÉGLER les pronos quand toutes les autres sources échouent (ligues obscures, etc.). Cherche le match

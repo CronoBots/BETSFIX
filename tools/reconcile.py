@@ -65,7 +65,53 @@ async def _repost(d: dict) -> bool:
     return False
 
 
+def _reset_premature() -> int:
+    """AUTO-RÉPARATION d'un règlement PRÉMATURÉ : un match réglé alors qu'il est encore dans sa fenêtre
+    de jeu ET confirmé **LIVE** par Flashscore = réglé à tort (score live pris pour final). On le remet
+    à « non réglé » -> il se re-règlera CORRECTEMENT une fois fini. On GARDE `result_msg` : la carte
+    résultat erronée déjà postée sera alors SUPPRIMÉE automatiquement (cf. settle_analyst). Précis : on
+    ne reset QUE si le statut Flashscore == LIVE (jamais un vrai match fini vite). Renvoie le nb réparé."""
+    from app import flashscore
+    from app.analyses import _DUR_MIN
+    n = 0
+    for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not analyses.is_settled(d):
+            continue
+        st = _start(d)
+        if not st or (_now() - st).total_seconds() / 60 >= _DUR_MIN.get(d.get("sport"), 150):
+            continue                       # hors fenêtre de jeu -> forcément fini, on ne touche pas
+        try:
+            live = flashscore.match_status(d.get("sport"), d.get("home", ""),
+                                           d.get("away", ""), d.get("start")) == "2"
+        except Exception:
+            live = False
+        if not live:
+            continue                       # statut ≠ LIVE (fini / introuvable) -> on n'annule pas
+        for k in ("result", "stat_bet", "clv", "settle_v", "notified_pick", "notified_combo",
+                  "pick_tries", "combo_tries", "notify_tries", "pick_giveup"):
+            d.pop(k, None)                 # on GARDE result_msg -> suppression auto de l'ancienne carte
+        for b in (d.get("bets") or []):
+            b.pop("result", None)
+        if d.get("combo"):
+            d["combo"]["result"] = None
+            for leg in d["combo"].get("legs") or []:
+                leg["result"] = None
+        tmp = p + ".tmp"
+        json.dump(d, open(tmp, "w", encoding="utf-8"), ensure_ascii=False)
+        os.replace(tmp, p)
+        n += 1
+        print(f"  ⚠ règlement prématuré ANNULÉ (match encore LIVE) : {_label(d)}")
+    return n
+
+
 async def reconcile(dry: bool = False) -> dict:
+    # 0) AUTO-RÉPARATION : annule les règlements prématurés (match encore live) -> re-réglés à l'étape 1.
+    n_reset = 0 if dry else _reset_premature()
+
     # 1) RÈGLEMENT : règle tout ce qui peut l'être (poste les résultats, idempotent via notified_*).
     n_settled = 0
     if not dry:
@@ -105,6 +151,8 @@ async def reconcile(dry: bool = False) -> dict:
     # 4) BILAN Telegram.
     tout_ok = not stuck and not unposted
     lines = ["🔄 <b>Réconciliation BETSFIX — 09h</b>"]
+    if n_reset:
+        lines.append(f"🔧 Règlements prématurés corrigés : <b>{n_reset}</b>")
     lines.append(f"✅ Réglés à l'instant : <b>{n_settled}</b>")
     lines.append(f"📅 En attente de résultat (matchs à venir/en cours) : <b>{len(upcoming)}</b>")
     if stuck:
@@ -124,7 +172,7 @@ async def reconcile(dry: bool = False) -> dict:
             notify.send_sync(msg)
         except Exception as exc:
             print(f"  (bilan Telegram ignoré : {exc})")
-    return {"settled": n_settled, "upcoming": len(upcoming),
+    return {"reset": n_reset, "settled": n_settled, "upcoming": len(upcoming),
             "stuck": len(stuck), "reposted": reposted}
 
 
