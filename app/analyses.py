@@ -768,7 +768,13 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         return '<div class="da-bks">' + "".join(cards) + "</div>"
     # NON-live : titre simple « Les paris à jouer » + les cartes (chacune avec son commentaire Verdict),
     # puis le résidu du Verdict (à éviter / mise). La barre de séparation est ajoutée par web._sport_row.
-    _title = "📊 Les paris à jouer" if has_play else "📊 Analyse du match · aucun pari retenu"
+    # Libellé « pari joué » (terminé) / « pari à jouer » (à venir) — plus d'étoile ni de « retenu ».
+    _reco_res = (results.get(_norm_sel(data[reco["idx"]]["sel"]))
+                 if (has_play and reco.get("idx") is not None) else None)
+    if has_play:
+        _title = "📊 Le pari joué" if _reco_res in ("won", "lost", "push") else "📊 Le pari à jouer"
+    else:
+        _title = "📊 Analyse du match"
     return (f'<div class="da-bets-h">{_title}</div>'
             '<div class="da-bks">' + "".join(cards) + "</div>" + (residual or ""))
 

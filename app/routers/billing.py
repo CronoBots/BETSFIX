@@ -72,7 +72,7 @@ _WAIT = ("<!doctype html><html lang=fr><head><meta charset=utf-8>"
          "font-size:14px;color:#cfe0f5}.t{font-size:18px;font-weight:800}</style></head><body>"
          "<div class=t>💳 Abonnement bientôt disponible</div>"
          "<div class=b>Le paiement par abonnement est en cours de mise en place. "
-         "Reviens très bientôt pour débloquer tous les pronos ⭐.</div>"
+         "Reviens très bientôt pour débloquer tous les pronos joués.</div>"
          "<a href='/compte'>← Mon compte</a></body></html>")
 
 

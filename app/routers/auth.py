@@ -45,7 +45,7 @@ def _login_form(nxt: str = "/", err: str = "", email: str = "", frag: bool = Fal
     e = _html.escape
     err_html = f'<div class=err>{e(err)}</div>' if err else ""
     return _page("Connexion", f"""<div class=acard><h1>Connexion</h1>
-<div class=sub>Accède aux pronos ⭐ réservés aux abonnés. Les statistiques et résultats restent ouverts à tous.</div>
+<div class=sub>Accède aux pronos joués réservés aux abonnés. Les statistiques et résultats restent ouverts à tous.</div>
 {err_html}<form method=post action='/login'>
 <input type=hidden name=next value='{e(nxt)}'>
 <label>Email</label><input name=email type=email autocomplete=email value='{e(email)}' required>
@@ -119,11 +119,11 @@ async def account_page(request: Request, frag: int = 0):
     badge = ('<span class="abadge on">✓ Abonné</span>' if sub
              else '<span class="abadge off">Non abonné</span>')
     if sub:
-        action = ('<div class=ok>Ton abonnement est actif — tu vois tous les pronos ⭐.</div>'
+        action = ('<div class=ok>Ton abonnement est actif — tu vois tous les pronos joués.</div>'
                   '<form method=post action="/billing/portal"><button class=ghost type=submit>'
                   'Gérer mon abonnement</button></form>')
     else:
-        action = ('<div class=sub>Débloque tous les pronos ⭐ (simples + combinés). '
+        action = ('<div class=sub>Débloque tous les pronos joués (simples + combinés). '
                   'Les stats et résultats sont déjà ouverts.</div>'
                   '<form method=post action="/billing/subscribe"><button type=submit>'
                   "S'abonner</button></form>")
