@@ -2913,6 +2913,21 @@ def render_reliability(rel: dict | None) -> str:
     chart = _reliability_chart(rel.get("series") or [], uid="rel")
     m1, m2 = rel.get("mae_first"), rel.get("mae_last")
     ecart = (f'{m1} → {m2} pts' if (m1 is not None and m2 is not None) else f'{rel.get("mae")} pts')
+    # PÉRIODE couverte (« depuis quand ») : plage des prédictions datées de la calibration.
+    _M = ("janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc.")
+
+    def _fr(iso):
+        try:
+            return datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            return None
+
+    _d1, _d2 = _fr(rel.get("first")), _fr(rel.get("last"))
+    period = ""
+    if _d1 and _d2:
+        _days = (_d2.date() - _d1.date()).days + 1
+        period = (f'<div class="sx-rel-period">🗓 Depuis le <b>{_d1.day} {_M[_d1.month - 1]}</b> · '
+                  f'{_days} jour{"s" if _days > 1 else ""} · <b>{rel.get("n")}</b> prédictions</div>')
     return (
         '<div class="sx-card sx-rel"><div class="sx-h">Indice de fiabilité'
         '<span>calibration · auto-évolution</span></div>'
@@ -2920,12 +2935,13 @@ def render_reliability(rel: dict | None) -> str:
         f'<div class="sx-rel-main"><div class="sx-rel-idx">{idx}<small>/100</small></div>'
         f'<div class="sx-rel-tr {cls}">{arrow} {word}</div></div>'
         f'<div class="sx-rel-kpi"><b>{ecart}</b><span>écart confiance↔réel</span></div></div>'
+        f'{period}'
         f'<div class="sx-rel-chart">{chart}</div>'
-        f'<div class="sx-rel-note">Courbe de l\'indice dans le temps (gauche = début, droite = récent). '
-        f'L\'écart entre la confiance annoncée et la réussite réelle se resserre : le modèle '
-        f'<b>se recalibre seul</b> à chaque résultat (rétrécissement bayésien sur <b>{rel.get("n")}</b> '
-        f'prédictions) et écarte tout seul les marchés perdants. Plus la courbe monte, plus la confiance '
-        f'affichée tient ses promesses.</div>'
+        f'<div class="sx-rel-note">Courbe CUMULATIVE : chaque point = la fiabilité sur <b>tout</b> depuis '
+        f'le début jusqu\'à cet instant → le dernier point (à droite) = l\'indice global. '
+        f'L\'écart confiance↔réel se resserre à mesure que le modèle <b>se recalibre seul</b> (sur '
+        f'<b>{rel.get("n")}</b> prédictions) : plus la courbe monte, plus la confiance affichée tient '
+        f'ses promesses.</div>'
         '</div>')
 
 def render_calibration(c: dict) -> str:

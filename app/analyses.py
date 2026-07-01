@@ -1763,27 +1763,25 @@ def calibration_reliability(buckets: int = 7) -> dict:
     mae = _mae(items)
     if mae is None:
         return {}
-    h = n // 2
-    mae1, mae2 = _mae(items[:h]), _mae(items[h:])
-    delta_mae = (round(mae1 - mae2, 1) if (mae1 is not None and mae2 is not None) else None)  # >0 = mieux
-    # Série pour la COURBE : FENÊTRE GLISSANTE (chevauchante) plutôt que des tranches disjointes ->
-    # chaque point = la fiabilité des `win` dernières prédictions à cet instant. Lissé et honnête
-    # (pas le bruit de petites tranches), montre la vraie tendance. `buckets` = nb de points voulus.
+    # Série CUMULATIVE : chaque point = fiabilité sur TOUT depuis le début jusqu'à cet instant. Le
+    # DERNIER point = tout l'échantillon = l'INDICE GLOBAL -> la courbe FINIT sur le gros chiffre
+    # (cohérence : avant, la courbe (fenêtres) ne collait pas à l'indice (global), d'où « 92 mais le
+    # point est plus bas que 86 »). Monte à mesure que la calibration se resserre.
     npts = max(4, buckets)
-    win = max(120, min(n // 2, 450))                 # assez d'échantillon par point pour être stable
-    if n <= win:
-        series = [r for r in [_idx(mae)] if r is not None]
-    else:
-        step = (n - win) / (npts - 1)
-        series = []
-        for j in range(npts):
-            s0 = round(j * step)
-            r = _idx(_mae(items[s0:s0 + win]))
-            if r is not None:
-                series.append(r)
-    trend = ("up" if (delta_mae or 0) >= 0.7 else "down" if (delta_mae or 0) <= -0.7 else "flat")
-    return {"index": _idx(mae), "mae": mae, "series": series, "delta_mae": delta_mae,
-            "mae_first": mae1, "mae_last": mae2, "trend": trend, "n": n,
+    series, maes = [], []
+    for j in range(1, npts + 1):
+        cut = max(40, round(j * n / npts))
+        m = _mae(items[:cut])
+        if m is not None:
+            series.append(_idx(m))
+            maes.append(m)
+    idx = series[-1] if series else _idx(mae)        # = fiabilité globale = fin de courbe (cohérent)
+    mae_first = maes[0] if maes else mae             # écart des débuts (peu de données)
+    mae_last = maes[-1] if maes else mae             # écart global (fin, = indice)
+    delta = (series[-1] - series[0]) if len(series) >= 2 else 0
+    trend = "up" if delta >= 2 else "down" if delta <= -2 else "flat"
+    return {"index": idx, "mae": mae, "series": series, "delta_mae": round(mae_first - mae_last, 1),
+            "mae_first": mae_first, "mae_last": mae_last, "trend": trend, "n": n,
             "first": items[0][0], "last": items[-1][0]}
 
 
