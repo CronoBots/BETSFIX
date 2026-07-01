@@ -78,6 +78,26 @@ def test_goals_for_against_et_tendances():
     assert fs._tendencies(rows[:2], "foot") is None      # <3 matchs -> None
 
 
+def test_final_score_ignore_match_en_cours(monkeypatch):
+    """Régression 2026-07-01 : un match LIVE (statut Flashscore AB=2) a DÉJÀ un score partiel dans
+    l'index -> `final_score` doit s'ABSTENIR (None), sinon règlement FAUX. Terminé (AB=3) -> score."""
+    d = {"sport": "foot", "home": "Angleterre", "away": "Congo DR", "start": "2026-07-01T16:00:00Z"}
+    row = lambda status, hs, as_: [{"id": "X", "home": "Angleterre", "away": "Congo DR",
+                                    "home_score": hs, "away_score": as_, "status": status,
+                                    "note": None, "league": None, "start_ts": None}]
+    monkeypatch.setattr(fs, "periods", lambda mid: None)
+    # AB=2 (live, 1-1 transitoire) -> abstention
+    monkeypatch.setattr(fs, "_match_index", lambda sport, off: row("2", "1", "1"))
+    assert fs.final_score("foot", d) is None
+    # AB=1 (pas commencé) -> abstention
+    monkeypatch.setattr(fs, "_match_index", lambda sport, off: row("1", None, None))
+    assert fs.final_score("foot", d) is None
+    # AB=3 (terminé, 2-1) -> score final rendu
+    monkeypatch.setattr(fs, "_match_index", lambda sport, off: row("3", "2", "1"))
+    out = fs.final_score("foot", d)
+    assert out and out["home"] == 2 and out["away"] == 1
+
+
 def test_settle_first_service_logique(monkeypatch):
     games = [{"server": "away", "winner": "away"},     # jeu 1 : away sert et tient
              {"server": "home", "winner": "away"},     # jeu 2 : home sert et se fait breaker
