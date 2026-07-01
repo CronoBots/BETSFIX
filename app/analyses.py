@@ -1853,9 +1853,10 @@ def combo_stats(since_days: int | None = None) -> dict:
 _CALIB_BANDS = [(45, 55), (55, 65), (65, 75), (75, 85), (85, 101)]
 
 _MARKET_FAMILY = {   # 1er token du code -> famille de marché lisible (pour la calibration par marché)
-    "1X2": "Vainqueur", "WIN": "Vainqueur", "DC": "Double chance",
+    "1X2": "Vainqueur", "WIN": "Vainqueur", "DC": "Double chance", "REGTIME": "Vainqueur",
     "OVER": "Total +/-", "UNDER": "Total +/-", "BTTS": "Les 2 marquent",
-    "HCAP": "Handicap", "SETHCAP": "Handicap", "TEAMTOT": "Total équipe",
+    "HCAP": "Handicap", "SETHCAP": "Handicap", "HCAP3": "Handicap", "TEAMTOT": "Total équipe",
+    "HALFRES": "Mi-temps",
     "SET": "Sets", "SETWIN": "Sets", "SETSCORE": "Sets", "SETSTOT": "Sets",
     "SETGAMES": "Jeux", "TOTGAMES": "Jeux", "TEAMGAMES": "Jeux", "GAMESHCAP": "Jeux", "HOLD1": "Jeux",
     "TIEBREAK": "Tie-break",
