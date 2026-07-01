@@ -42,7 +42,9 @@ def _fr_date(dt) -> str:
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
 _settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un même process (anti double-notif)
-_SETTLE_VERSION = 43   # v43 : jambes à CODE VIDE débloquées — nom d'équipe seul = moneyline (WIN/1X2)
+_SETTLE_VERSION = 44   # v44 : PÉRIODES via Sportradar GISMO (repli) — jeux/sets/tie-breaks tennis &
+#                              quart-temps basket enfin réglables quand LiveScore/Flashscore échouent.
+# v43 : jambes à CODE VIDE débloquées — nom d'équipe seul = moneyline (WIN/1X2)
 #                              + « Plus de X » sans unité = total du match (combinés WNBA coincés).
 # v42 : WALKOVER/forfait (le joueur qui avance gagne -> pari sur lui = gagné),
 #                              détecté via Flashscore (champ AM « withdrawn/retired »). Jamais de void.
@@ -1107,6 +1109,23 @@ async def _settle_analyses_impl() -> int:
                     score = {**score, "periods": lsc["periods"]}
                     if score.get("sets_home") is None and lsc.get("sets_home") is not None:
                         score["sets_home"], score["sets_away"] = lsc["sets_home"], lsc["sets_away"]
+            if need_periods and not score.get("periods"):
+                # Repli SPORTRADAR (GISMO, gratuit) : `match_info.periods` fournit les jeux par set
+                # (tennis), les points par quart-temps (basket) et les mi-temps (foot) là où LiveScore/
+                # Flashscore échouent -> rend enfin réglables jeux/tie-breaks/sets & quart-temps.
+                try:
+                    from app import sportradar as _sr
+                    import httpx as _httpx
+                    async with _httpx.AsyncClient() as _src_c:
+                        srs = await _sr.final_score(_src_c, sport, d)
+                    if srs and srs.get("periods"):
+                        score = {**score, "periods": srs["periods"]}
+                        if score.get("sets_home") is None and srs.get("sets_home") is not None:
+                            score["sets_home"], score["sets_away"] = srs["sets_home"], srs["sets_away"]
+                        log.info("périodes via sportradar : %s_%s %s",
+                                 sport, d.get("id"), srs.get("label"))
+                except Exception:
+                    pass
 
             async def _settle_one(c):
                 if not c:

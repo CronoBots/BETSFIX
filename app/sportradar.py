@@ -372,6 +372,51 @@ async def info(client, mid: int) -> dict | None:
     return await _info(client, mid)
 
 
+async def final_score(client, sport: str, match: dict) -> dict | None:
+    """Score final DÉTAILLÉ par PÉRIODES via GISMO `match_info` — comble le trou que LiveScore/
+    Flashscore laissent souvent (jeux par set tennis, points par quart-temps basket, mi-temps foot).
+
+    Renvoie le format attendu par `settle_analyst.settle_pick` :
+      {home, away, sets_home, sets_away, periods:{n:(h,a)}, winner, label, src} — ou None.
+    - **tennis** : `periods[n]` = (jeux domicile, jeux extérieur) du set n ; `sets_home/away` = sets gagnés.
+    - **basket** : `periods[n]` = (points, points) du quart-temps n ; `home/away` = score final.
+    - **foot**   : `periods[1]`/`periods[2]` = score de chaque mi-temps.
+    Tolérant : toute panne réseau / match non fini -> None (ne casse jamais un règlement).
+    """
+    try:
+        mid = await _resolve(client, sport, match.get("home", ""), match.get("away", ""),
+                             match.get("start", ""))
+        if not mid:
+            return None
+        m = await _info(client, mid)
+        if not m:
+            return None
+        res = m.get("result") or {}
+        praw = m.get("periods") or {}
+        finished = ("ft" in praw) or res.get("winner") in ("home", "away")
+        if not finished:
+            return None                       # match encore en cours -> pas de score final
+        periods: dict[int, tuple] = {}
+        for k, v in praw.items():
+            mo = re.match(r"p(\d+)$", str(k))  # p1, p2, … (ignore 'ft', 'ap', 'pen'…)
+            if not mo or not isinstance(v, dict):
+                continue
+            h, a = v.get("home"), v.get("away")
+            if h is None or a is None:
+                continue
+            periods[int(mo.group(1))] = (h, a)
+        rh, ra = res.get("home"), res.get("away")
+        out = {"periods": periods, "winner": res.get("winner"),
+               "src": "sportradar", "label": f"{rh}-{ra}" if rh is not None else None}
+        if sport == "tennis":
+            out.update({"home": None, "away": None, "sets_home": rh, "sets_away": ra})
+        else:                                  # basket / foot : score en points/buts
+            out.update({"home": rh, "away": ra, "sets_home": None, "sets_away": None})
+        return out
+    except Exception:
+        return None
+
+
 async def gismo(client, endpoint: str, ident) -> dict | list | None:
     """Passerelle brute vers le feed GISMO (ex. endpoint='stats_season_tables', ident=101177)."""
     return await _gismo(client, endpoint, ident)
