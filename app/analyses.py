@@ -2236,15 +2236,29 @@ def _result_badge(m: dict | None) -> str:
     le score seul si non vérifiable. '' si pas encore réglé. Match CdM : le pari PHARE est le COMBINÉ
     -> le bandeau suit SON résultat, jamais le simple (sinon « Pari réussi » trompeur quand le combiné
     perd mais que le simple passe, ex. Ghana-Panama 1-0 : combiné perdu / simple gagné)."""
-    res = (m or {}).get("result") or {}
+    m = m or {}
+    res = m.get("result") or {}
     if not res:
         return ""
-    combo = (m or {}).get("combo") or {}
-    pr = combo.get("result") if combo.get("legs") else res.get("pick_result")
+    combo = m.get("combo") or {}
     sc = res.get("score") or ""
-    cls, txt = {"won": ("win", "✅ Pari réussi"), "lost": ("lose", "❌ Pari perdu"),
-                "push": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
     sco = f'<span class="da-res-sc">{html.escape(sc)}</span>' if sc else ""
+    if combo.get("legs"):                        # CdM : le bandeau suit le COMBINÉ (pari phare)
+        pr = combo.get("result")
+        cls, txt = {"won": ("win", "✅ Pari réussi"), "lost": ("lose", "❌ Pari perdu"),
+                    "push": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
+        return f'<div class="da-res da-res-{cls}">{txt} {sco}</div>'
+    # SIMPLE : « Pari réussi/perdu » UNIQUEMENT si le pari était RETENU. Sinon ABSTENTION -> on n'a pas
+    # parié : bandeau NEUTRE (sinon « ✅ Pari réussi » sur un match qu'on n'a pas joué = trompeur).
+    pr = res.get("pick_result")
+    if retained_bet(m.get("sport"), m.get("id")):
+        cls, txt = {"won": ("win", "✅ Pari réussi"), "lost": ("lose", "❌ Pari perdu"),
+                    "push": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
+    else:
+        cls = "nv"
+        txt = ("Analysé · pas de pari (aurait gagné)" if pr == "won"
+               else "Analysé · pas de pari (aurait perdu)" if pr == "lost"
+               else "Analysé · pas de pari retenu")
     return f'<div class="da-res da-res-{cls}">{txt} {sco}</div>'
 
 
