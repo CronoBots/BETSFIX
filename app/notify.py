@@ -81,6 +81,13 @@ def _delete_messages(sent: dict) -> None:
         pass
 
 
+def delete_messages(sent: dict) -> None:
+    """Supprime des messages déjà envoyés {chat_id: message_id} (best-effort ; n'élève jamais).
+    Sert à RETIRER une carte résultat ERRONÉE avant d'en poster la version corrigée (auto-réparation
+    d'un règlement faux). No-op si vide/non configuré."""
+    _delete_messages(sent or {})
+
+
 def _norm_name(name: str) -> str:
     """Clé d'unicité d'un match = paire d'équipes déaccentuée, sans « (F) » ni ponctuation."""
     if not name:

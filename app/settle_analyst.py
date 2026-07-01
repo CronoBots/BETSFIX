@@ -921,17 +921,21 @@ def _find_score(sched, d: dict) -> tuple:
 
 
 # --------------------------------------------------------------- passe de règlement
-def _mark_notified(side: str, flags: list) -> None:
+def _mark_notified(side: str, flags: list, result_msg: dict | None = None) -> None:
     """R2 — FIGE les flags `notified_*` sur le sidecar, mais SEULEMENT après envoi Telegram réussi.
     Relit le sidecar (qui porte déjà le résultat persisté par la passe), pose les flags, réécrit en
     ATOMIQUE (.tmp + os.replace) pour ne jamais laisser un fichier à moitié écrit. No-op si échec :
-    le pari reste « réglé non notifié » et sera re-tenté à la passe suivante (borné par notify_tries)."""
+    le pari reste « réglé non notifié » et sera re-tenté à la passe suivante (borné par notify_tries).
+    `result_msg` = {chat: message_id} de la carte résultat envoyée -> mémorisé pour AUTO-RÉPARATION
+    (suppression de cette carte si le règlement est corrigé plus tard)."""
     try:
         dd = json.load(open(side, encoding="utf-8"))
     except (OSError, ValueError):
         return
     for fl in flags:
         dd[fl] = True
+    if result_msg:
+        dd["result_msg"] = result_msg
     try:
         tmp = side + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -1432,6 +1436,10 @@ async def _settle_analyses_impl() -> int:
                     "meta": (f"terminé · {_mt}" if _mt else "terminé"),
                     "type": "result", "score": _sc,
                     "simple": _card_simple, "combo": _card_combo,
+                    # AUTO-RÉPARATION : si une carte résultat a DÉJÀ été postée pour ce match (règlement
+                    # corrigé -> reset puis re-règlement), on garde ses message_id pour la SUPPRIMER avant
+                    # de poster la version corrigée (plus de « perdu » fantôme qui traîne dans le canal).
+                    "_old_result_msg": d.get("result_msg"),
                     "_side": side, "_flags": list(_flags_to_set)})   # R2 : flags figés APRÈS envoi
             try:
                 json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
@@ -1460,6 +1468,10 @@ async def _settle_analyses_impl() -> int:
                             png = f"data/_cards/res_{_i}.png"
                             await card_image.render_card(card, png)
                             render_ok = True        # la carte EXISTE -> le texte n'est plus un repli
+                            # AUTO-RÉPARATION : carte résultat déjà postée pour ce match (correction) ->
+                            # on la SUPPRIME avant d'envoyer la version corrigée (sinon 2 cartes en conflit).
+                            if card.get("_old_result_msg"):
+                                await asyncio.to_thread(notify.delete_messages, card["_old_result_msg"])
                             # répond à la carte PRONO du même match (fil prono -> résultat)
                             _reply = notify.get_prono(card.get("_mid"))
                             # envoi BLOQUANT (httpx upload) -> hors event loop pour ne pas figer l'API
@@ -1478,7 +1490,7 @@ async def _settle_analyses_impl() -> int:
                     # a échoué (ou crash avant cette ligne), les flags restent à False -> le pari réglé
                     # sera re-traité à la passe suivante (borné par notify_tries) : zéro perte, zéro doublon.
                     if _ok and card and card.get("_flags") and card.get("_side"):
-                        _mark_notified(card["_side"], card["_flags"])
+                        _mark_notified(card["_side"], card["_flags"], sent if isinstance(sent, dict) else None)
         except Exception as exc:
             log.warning("notif règlement ignorée : %s", exc)
     return n
