@@ -102,6 +102,31 @@ Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
     marque (79 %).
   - Gravé dans `tools/generate_analyses.py` (COMBO_MISSION) ; cf. mémoire `combo-construction-rules`.
 
+## ⚠️ 3 COUCHES à NE JAMAIS confondre (Affichage / Stats / Calibration) — juillet 2026
+
+Après plusieurs allers-retours, la logique est figée. **Ne jamais les mélanger ni casser :**
+
+1. **AFFICHAGE** (listes À venir / Terminés) = `analyses.list_for()`. On ne montre QUE ce sur quoi on
+   mise : **combiné OU simple retenu**. Les **abstentions** (favori analysé mais SANS value → non retenu)
+   sont **CACHÉES**. Mode par état : **à venir = publication** (avec exclusions, = Telegram) ·
+   **terminé = for_history** (sans exclusions, = ce qui a été joué). `_sport_row`, `_result_badge`,
+   `bets_html` s'alignent. **Confiance ≠ value** : un favori à cote courte (76 %@1.21) a une value
+   NÉGATIVE → jamais affiché comme « à jouer ». Titres : « 📊 Le pari joué / à venir » / « Analyse du match ».
+
+2. **STATS** (ROI / courbe / réussite) = `analyses.stat_bet(d)`, **FIGÉ** dans `d["stat_bet"]` au règlement
+   (+ backfill). **Compteur MONOTONE : ne rebaisse JAMAIS.** ⛔ NE PAS revenir à un `retained_bet(for_history)`
+   recalculé en direct dans `stats_full` → ça faisait valser le nombre (47↔59) et le ROI (biais du
+   survivant). On ne fige QUE les comptés → on ne RETIRE jamais un pari.
+
+3. **CALIBRATION** = `analyses.calibration()` lit **TOUTES** les prédictions (fantômes `d["shadow"]` +
+   paris `d["bets"]`). **Indépendante** de l'affichage/du gel, **jamais filtrée**. Les abstentions la
+   nourrissent via leurs fantômes.
+
+**3 types de prédictions** : ⭐ **pari joué** (retenu → affiché + Telegram + ROI) · ⏸ **abstention**
+(caché, PAS au ROI, mais réglé + calibré) · 👻 **fantôme** (10-14/match, calibration seule). Ne PAS
+fusionner abstention et fantôme. **Vocabulaire UI : « pari joué » — plus d'étoile ⭐ ni de « retenu ».**
+**Rien n'est jamais supprimé** (sidecars/.md/calibration intacts).
+
 ## Git
 - Remote : `origin` = https://github.com/CronoBots/BETSFIX.git (branche `main`).
 - Aucun push/commit automatique : rien dans les scripts ne fait de `git`,
