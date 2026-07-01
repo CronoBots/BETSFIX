@@ -1703,6 +1703,8 @@ CSS = """
   .da-bk-combo.saf-hi{color:#5be08c;background:rgba(52,210,123,.13);border-color:rgba(52,210,123,.32)}
   .da-bk-combo.saf-mid{color:#f0cf63;background:rgba(232,195,77,.13);border-color:rgba(232,195,77,.32)}
   .da-bk-combo.saf-lo{color:#ff8f9a;background:rgba(255,107,107,.13);border-color:rgba(255,107,107,.32)}
+  /* Abstention (pas de value) : badge NEUTRE + résultat conditionnel « aurait gagné/perdu » */
+  .da-bk-combo.saf-abst{color:#9fb6cf;background:rgba(150,165,185,.12);border-color:rgba(150,165,185,.30)}
   /* Bandeau de STATS pro : Confiance · Cote · Value */
   .da-bk-stats{display:flex;gap:7px;padding:12px 14px 14px}
   .da-st{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.04);
@@ -1743,6 +1745,7 @@ CSS = """
   .da-bk-mark.mk-w{color:#06140d;background:#34d27b}
   .da-bk-mark.mk-l{color:#fff;background:#ff6b6b}
   .da-bk-mark.mk-p{color:#0b1428;background:#9fb0c8}   /* badge ✅ À JOUER : OR */
+  .da-bk-mark.mk-abst{color:#9fb6cf;background:rgba(150,165,185,.14);font-weight:700}  /* abstention : « aurait gagné » neutre */
   .da-bk-val{margin-left:6px;font-size:9px;font-weight:800;letter-spacing:.02em;padding:2px 7px;
        border-radius:99px;color:#06140d;background:linear-gradient(90deg,#34d27b,#22b8ff);white-space:nowrap}
   /* MEILLEURE VALUE : même carte que les paris safe,
