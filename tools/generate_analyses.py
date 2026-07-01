@@ -1685,9 +1685,17 @@ async def main():
                     _line += "\n<i>(calibration seule)</i>"
                 notif_lines.append(_line)
                 # --- Données de la CARTE IMAGE — POINT UNIQUE app/card_data (mêmes données qu'au repost) ---
-                _card = _cd.build_prono_card({
-                    "sport": sport, "id": m.get("id"), "name": m.get("name"), "comp": m.get("comp"),
-                    "start": m.get("start"), "pick": _pick, "combo": combo})
+                # Carte construite depuis le SIDECAR FRAÎCHEMENT ÉCRIT (source de vérité, combiné FINAL
+                # inclus) plutôt que des variables de boucle : _make_combo est appelé 2× (sidecar + notif)
+                # et le pricing Kambi est flaky réseau -> un combiné pouvait manquer à l'envoi Telegram
+                # (bug récurrent : Winnipeg, combinés tennis…). Repli sur les variables si lecture KO.
+                try:
+                    _side_fresh = json.load(open(os.path.join(OUT, f"{sport}_{fid}.json"), encoding="utf-8"))
+                except (OSError, ValueError):
+                    _side_fresh = {"sport": sport, "id": m.get("id"), "name": m.get("name"),
+                                   "comp": m.get("comp"), "start": m.get("start"), "pick": _pick,
+                                   "combo": combo}
+                _card = _cd.build_prono_card(_side_fresh)
                 notif_cards.append(_card)
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
                 await asyncio.sleep(SCAN_GAP)   # lisse la charge SofaScore entre 2 matchs
