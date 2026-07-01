@@ -260,9 +260,12 @@ def list_for(sport: str) -> list[dict]:
         # aurait) été RETENU (≥65 % + value positive + garde-fous). Un favori sans value = ABSTENTION
         # -> caché (avant : on vérifiait juste qu'un pari EXISTE, donc les abstentions passaient). On
         # ne montre QUE ce sur quoi on mise vraiment. (Sidecar/.md gardés sur disque : cache du scan.)
+        # Mode selon l'état : TERMINÉ -> pari JOUÉ (for_history = ce qui est dans les stats, marchés
+        # exclus après coup INCLUS) ; À VENIR -> pari RECOMMANDÉ maintenant (publication = ce qu'on
+        # poste, marchés exclus retirés). -> liste = bannière = carte = Telegram = stats, cohérent.
         _has_combo = bool((d.get("combo") or {}).get("legs"))
         if not _has_combo and load(sport, d.get("id")) is not None \
-                and retained_bet(sport, d.get("id"), for_history=True) is None:
+                and retained_bet(sport, d.get("id"), for_history=is_settled(d)) is None:
             continue
         d["_start_dt"] = dt
         out.append(d)
@@ -2251,10 +2254,12 @@ def _result_badge(m: dict | None) -> str:
     # SIMPLE : « Pari réussi/perdu » UNIQUEMENT si le pari était RETENU. Sinon ABSTENTION -> on n'a pas
     # parié : bandeau NEUTRE (sinon « ✅ Pari réussi » sur un match qu'on n'a pas joué = trompeur).
     pr = res.get("pick_result")
-    if retained_bet(m.get("sport"), m.get("id")):
+    # Match terminé -> on juge sur le pari JOUÉ (for_history), pas la reco du jour : un pari dans un
+    # marché exclu APRÈS coup reste un vrai pari de l'historique (sinon « pas de pari » sur un pari joué).
+    if retained_bet(m.get("sport"), m.get("id"), for_history=True):
         cls, txt = {"won": ("win", "✅ Pari réussi"), "lost": ("lose", "❌ Pari perdu"),
                     "push": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
-    else:                                        # abstention : bandeau NEUTRE, sans langage « pari »
+    else:                                        # vraie abstention : bandeau NEUTRE, sans langage « pari »
         cls, txt = "nv", "Match analysé · pas de pari"
     return f'<div class="da-res da-res-{cls}">{txt} {sco}</div>'
 

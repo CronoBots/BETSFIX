@@ -3571,9 +3571,18 @@ def _sport_row(r: dict) -> str:
     reco_i = summ.get("reco_idx")          # pari RETENU par le moteur -> ⭐ EN TÊTE (à la place du •)
     is_combo = summ.get("is_combo")        # combiné = • comme les autres paris (ni ⭐ ni 🎲, demande user)
     bets3 = summ.get("bets") or []
-    if not is_combo:                       # hors combiné : on ne montre QUE le simple retenu (s'il y en a)
-        if summ.get("play") and reco_i is not None and 0 <= reco_i < len(bets3):
-            bets3 = [bets3[reco_i]]
+    if not is_combo:
+        if is_finished:                    # TERMINÉ : le pari RÉELLEMENT JOUÉ (for_history = stats),
+            _mid = re.search(r"/(\d+)", url)   # marché exclu APRÈS coup inclus (sinon « pas de pari » à tort)
+            _rbh = (analyses.retained_bet(sport_key, _mid.group(1), for_history=True)
+                    if (sport_key and _mid) else None)
+            if _rbh and _rbh.get("result") in ("won", "lost", "push"):
+                bets3 = [{"sel": _rbh["sel"], "result": _rbh["result"], "cote": _rbh.get("cote")}]
+                reco_i = 0
+            else:
+                bets3 = []
+        elif summ.get("play") and reco_i is not None and 0 <= reco_i < len(bets3):
+            bets3 = [bets3[reco_i]]        # À VENIR : le simple RECOMMANDÉ maintenant (publication)
             reco_i = 0
         else:
             bets3 = []                     # aucun pari retenu -> abstention assumée
