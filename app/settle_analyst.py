@@ -1212,6 +1212,22 @@ async def _settle_analyses_impl() -> int:
             # pas une ligne `pick` éventuellement DIVERGENTE -> carte, badge et stats restent cohérents.
             if bets_out and bets_out[0].get("result") is not None:
                 d["result"]["pick_result"] = bets_out[0]["result"]
+            # FREEZE stats : dès qu'un simple RÉGLÉ est RETENU (for_history), on FIGE son statut + ses
+            # détails dans d["stat_bet"] -> il reste compté À VIE (compteur MONOTONE, immunisé à la dérive
+            # de calibration : plus de « nombre qui rebaisse »). On ne fige QUE les comptés -> on ne
+            # RETIRE JAMAIS un pari. La calibration n'est pas touchée (elle garde toutes les prédictions).
+            if not isinstance(d.get("stat_bet"), dict):
+                try:
+                    _sf = analyses.retained_bet(sport, mid, for_history=True)
+                    if _sf:
+                        _rr = next((bb.get("result") for bb in bets_out
+                                    if analyses._norm_sel(bb.get("sel", "")) == analyses._norm_sel(_sf.get("sel", ""))),
+                                   _sf.get("result"))
+                        if _rr in ("won", "lost", "push"):
+                            d["stat_bet"] = {"sel": _sf.get("sel"), "prob": _sf.get("prob"),
+                                             "cote": _sf.get("cote"), "result": _rr}
+                except Exception:
+                    pass
             # COMBINÉ (grand tournoi) : règle chaque jambe via son code -> résultat global (toutes
             # gagnées = gagné ; une perdue = perdu ; sinon en attente). Les corners/cartons se règlent
             # désormais (Flashscore), donc les combinés type Qatar-Suisse se valident.

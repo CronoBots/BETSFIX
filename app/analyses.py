@@ -1614,7 +1614,7 @@ def stats_full(since_days: int | None = None) -> dict:
         # SIMPLE retenu compte, et uniquement à partir de la bascule _COMBO_COUNT_FROM (non rétroactif).
         if _has_combo and (d.get("start") or "")[:10] < _COMBO_COUNT_FROM:
             continue                                   # combiné antérieur à la bascule -> match non compté
-        rb = retained_bet(sport, d.get("id"), for_history=True)   # track record : ce qui a VRAIMENT été joué/posté
+        rb = stat_bet(d)                               # pari FIGÉ (track record stable, monotone)
         if rb and rb.get("result") in ("won", "lost", "push"):
             ev = (start, rb["result"], rb.get("cote") or rb.get("odds"))
             all_ev.append(ev)
