@@ -26,3 +26,10 @@ Log 'START scan foot,tennis,basket --top 3 --hours 24'
 & $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("DONE (exit {0})" -f $LASTEXITCODE)
+
+# RÉCONCILIATION : après le scan, on règle tout ce qui est réglable (poste les résultats),
+# on re-poste les pronos imminents dont l'envoi a été manqué, et on envoie un BILAN Telegram
+# (réglés / en attente / BLOQUÉS / re-postés). Garantit qu'au matin tout est réglé ET posté.
+Log 'RECONCILE : règlement + vérif Telegram'
+& $py 'tools\reconcile.py' 2>&1 | Out-File -Append -Encoding utf8 $log
+Log ("RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
