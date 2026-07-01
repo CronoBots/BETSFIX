@@ -1309,6 +1309,8 @@ CSS = """
   .sx-rel-kpi{text-align:right}
   .sx-rel-kpi b{display:block;font-size:14px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
   .sx-rel-kpi span{font-size:10px;color:var(--muted);font-weight:600}
+  .sx-rel-period{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:9px}
+  .sx-rel-period b{color:var(--accent);font-weight:900}
   .sx-rel-chart{margin-top:12px}
   .sx-relc{width:100%;height:auto;display:block}
   .sx-relc-yl{fill:var(--muted);font-size:8px;font-weight:700;opacity:.8}
