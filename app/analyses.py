@@ -2254,11 +2254,8 @@ def _result_badge(m: dict | None) -> str:
     if retained_bet(m.get("sport"), m.get("id")):
         cls, txt = {"won": ("win", "✅ Pari réussi"), "lost": ("lose", "❌ Pari perdu"),
                     "push": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
-    else:
-        cls = "nv"
-        txt = ("Analysé · pas de pari (aurait gagné)" if pr == "won"
-               else "Analysé · pas de pari (aurait perdu)" if pr == "lost"
-               else "Analysé · pas de pari retenu")
+    else:                                        # abstention : bandeau NEUTRE, sans langage « pari »
+        cls, txt = "nv", "Match analysé · pas de pari"
     return f'<div class="da-res da-res-{cls}">{txt} {sco}</div>'
 
 
