@@ -1304,6 +1304,18 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
             "result": results.get(_norm_sel(b.get("sel", "")))}
 
 
+def stat_bet(d: dict) -> dict | None:
+    """Pari du match FIGÉ pour les stats (courbe / ROI / réussite). Une fois qu'un pari est COMPTÉ, il
+    est gelé dans `d["stat_bet"]` et le RESTE à vie -> le compteur ne fait plus que MONTER (fini le
+    « nombre qui rebaisse » quand la calibration recalcule). NE PERD RIEN : rien de compté n'est jamais
+    retiré. N'affecte PAS la calibration (qui garde toutes les prédictions, séparément). Repli sur le
+    calcul live for_history tant qu'un pari n'a pas encore été gelé (il le sera au règlement / backfill)."""
+    sb = d.get("stat_bet")
+    if isinstance(sb, dict):
+        return sb                              # figé « compté » -> immuable
+    return retained_bet(d.get("sport"), d.get("id"), for_history=True)
+
+
 def card_summary(sport: str, match_id) -> dict:
     """Résumé COMPACT d'un match pour la ligne repliée (carte compacte) : nb de paris, meilleure
     confiance, s'il y a un pari ✅ À JOUER (même règle que la simulation : ≥65 %, EV≥+3 %, réglable),
@@ -1583,7 +1595,7 @@ def stats_full(since_days: int | None = None) -> dict:
         if _has_combo:
             if _c0.get("result") in ("won", "lost", "push"):
                 combo_form.append((start, _c0["result"], sport))
-            _rbf = retained_bet(sport, d.get("id"), for_history=True)
+            _rbf = stat_bet(d)                          # pari figé (compteur monotone)
             if _rbf and _rbf.get("result") in ("won", "lost", "push"):
                 simple_form.append((start, _rbf["result"], sport))
         else:
