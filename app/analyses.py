@@ -255,14 +255,14 @@ def list_for(sport: str) -> list[dict]:
         # (> ~6 h après le coup d'envoi : match fini depuis longtemps sans résultat exploitable).
         if dt is not None and dt < now - timedelta(hours=6) and not is_settled(d):
             continue
-        # Mode strict : un match analysé SANS AUCUN pari ≥ seuil (SKIP assumé) n'apparaît PLUS dans
-        # l'app (demande utilisateur 2026-06-12) — on ne montre que ce qui se joue. (Le sidecar et
-        # le .md restent sur disque : cache du scan, pas de re-analyse inutile.)
-        # EXCEPTION : un match avec un COMBINÉ (ex. CdM, où le combiné REMPLACE le pari simple) doit
-        # rester visible même sans pari simple retenu — sinon les matchs CdM combiné-seul disparaissent.
+        # Mode strict RENFORCÉ (demande user 2026-07-01) : un match sans pari PUBLIABLE n'apparaît
+        # PLUS DU TOUT dans l'app — même terminé. « Publiable » = un COMBINÉ, OU un simple qui a (ou
+        # aurait) été RETENU (≥65 % + value positive + garde-fous). Un favori sans value = ABSTENTION
+        # -> caché (avant : on vérifiait juste qu'un pari EXISTE, donc les abstentions passaient). On
+        # ne montre QUE ce sur quoi on mise vraiment. (Sidecar/.md gardés sur disque : cache du scan.)
         _has_combo = bool((d.get("combo") or {}).get("legs"))
-        if not is_settled(d) and not _has_combo and load(sport, d.get("id")) is not None \
-                and not bets_of(sport, d.get("id")):
+        if not _has_combo and load(sport, d.get("id")) is not None \
+                and retained_bet(sport, d.get("id"), for_history=True) is None:
             continue
         d["_start_dt"] = dt
         out.append(d)
