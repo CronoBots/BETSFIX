@@ -33,3 +33,10 @@ Log ("DONE (exit {0})" -f $LASTEXITCODE)
 Log 'RECONCILE : règlement + vérif Telegram'
 & $py 'tools\reconcile.py' 2>&1 | Out-File -Append -Encoding utf8 $log
 Log ("RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
+
+# AUTO-AUDIT d'intégrité (100 % lecture seule) : vérifie qu'aucune confusion de stats/règlement ne s'est
+# glissée (chaque contrôle encode une régression déjà survenue). Avance le filigrane de monotonicité et
+# alerte Telegram UNIQUEMENT en cas d'ERREUR. Ne bloque jamais le scan (Continue).
+Log 'SELFCHECK : auto-audit d''intégrité'
+& $py 'tools\selfcheck.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+Log ("SELFCHECK DONE (exit {0})" -f $LASTEXITCODE)

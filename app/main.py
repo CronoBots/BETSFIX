@@ -636,6 +636,14 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/health/selfcheck", tags=["ℹ️ Méta"], summary="Auto-audit d'intégrité (lecture seule)")
+async def health_selfcheck() -> dict:
+    """Batterie de contrôles d'INTÉGRITÉ (aucun effet de bord) : chaque règle encode une régression
+    déjà survenue (cf. app/selfcheck.py). status = ok/info/warn/error, avec le détail par contrôle."""
+    from app import selfcheck
+    return selfcheck.run(persist=False)
+
+
 # Une fois TOUTES les routes enregistrées, on (re)classe chaque endpoint par nature
 # de donnée pour /docs (source SofaScore / cotes / modèle / …). À faire en dernier.
 _retag_routes(app)
