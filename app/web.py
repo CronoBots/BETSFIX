@@ -1272,6 +1272,7 @@ CSS = """
   .sx-hero-hint{font-size:9.5px;font-weight:600;color:var(--muted);opacity:.72;margin-top:2px;max-width:200px}
   .sx-hero-r{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
   .sx-formrow{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+  .sx-formrow-c{margin:2px 0 6px}   /* forme W/L posée JUSTE au-dessus de sa courbe (près du graphe) */
   .sx-formk{font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
   .sx-streak{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:99px;white-space:nowrap}
   .sx-streak.hot{color:#3ee089;background:rgba(52,210,123,.14);border:1px solid rgba(52,210,123,.30)}
