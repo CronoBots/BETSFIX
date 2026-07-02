@@ -647,6 +647,16 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
                     return ""
                 dirn, line = ("UNDER" if sgn.group(1) == "-" else "OVER"), sgn.group(2).replace(",", ".")
             return f"TEAMHALF {team} {half} {dirn} {line}" if team else f"HALFTOT {half} {dirn} {line}"
+        # DOUBLE CHANCE sur une mi-temps -> DCHALF (réglé sur le score de la période). Doit passer AVANT
+        # le HALFRES/return "" ci-dessous (sinon « Double Chance - 1ère mi-temps X2 » finissait à code vide).
+        if "double chance" in t or "ou nul" in t or "ou match nul" in t:
+            half = "2H" if any(k in t for k in ("2e mi", "2ème mi", "2eme mi", "2nde mi",
+                                                "seconde mi", "deuxième mi")) else "1H"
+            dc = ("1X" if ("1x" in t or (team == "HOME" and "nul" in t))
+                  else "X2" if ("x2" in t or (team == "AWAY" and "nul" in t))
+                  else "12" if "12" in t else None)
+            if dc:
+                return f"DCHALF {half} {dc}"
         # « (2ème) mi-temps <équipe|nul> » SANS autre marché = VAINQUEUR (résultat 1X2) de CETTE
         # mi-temps -> HALFRES, réglé sur le score de la période. (≠ WINHALF « gagne AU MOINS une ».)
         if not any(k in t for k in ("corner", "carton", "tir", "but")):
