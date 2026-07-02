@@ -423,7 +423,8 @@ CSS = """
   .spf-cv-roi{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
   .spf-cv-none{font-size:11px;color:var(--muted);padding:16px 2px;text-align:center}
   /* Forme W/L PROPRE à chaque graphe (juste au-dessus de la courbe) */
-  .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px}
+  .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px;overflow:hidden}
+  .spf-cv-form .forms{flex-wrap:nowrap}   /* jamais de retour à la ligne : le max qui tient s'affiche */
   /* Stats PROPRES à chaque graphe (juste sous la courbe) : réussite · paris · cote moy. */
   .spf-cv-kpis{display:flex;justify-content:space-between;gap:8px;margin-top:8px;
        font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
@@ -2731,9 +2732,9 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                f'<div class="sx-mile-info"></div>{mdata}</div>') if miles else ""
     # Forme W/L (mêmes pastilles que les onglets sport, récent à DROITE), JUSTE au-dessus de sa courbe.
     _LET = {"won": "W", "lost": "L", "push": "N"}
-    _fs = (form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=10)
-           or form_dots([_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10))
-    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=10)
+    _fs = (form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=14)
+           or form_dots([_LET.get(x, x) for x in (ov.get("form_run") or ov.get("form") or [])], n=14))
+    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=14)
     _simples_form = f'<div class="spf-cv-form">{_fs}</div>' if _fs else ""
     _combo_form = f'<div class="spf-cv-form">{_fc}</div>' if _fc else ""
     # CLV (Closing Line Value) : chip EXTRA sous la courbe (>0 = on bat la cote de clôture). '—' si vide.
@@ -3237,7 +3238,7 @@ def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
             f'<span class="spf-cv-roi arec-{_roi_cls(roi, blk.get("settled"))}">'
             f'ROI {_roistr(roi)}</span></div>')
     _LET = {"won": "W", "lost": "L", "push": "N"}
-    dots = form_dots([_LET.get(x, x) for x in (form or [])], n=10)
+    dots = form_dots([_LET.get(x, x) for x in (form or [])], n=14)  # max de résultats sur 1 ligne
     formrow = f'<div class="spf-cv-form">{dots}</div>' if dots else ""
     kpis = (f'<div class="spf-cv-kpis">'
             f'<span><b>{blk.get("pct")}%</b> réussite</span>'
@@ -3263,7 +3264,7 @@ def render_sport_perf(sport: str) -> str:
                                   form=s.get("form_simple") or s.get("form"))
               + _perf_curve_block("Combinés", combo_bs, f"sp-{sport}-c",
                                   "Aucun combiné réglé pour ce sport",
-                                  form=(combo_bs or {}).get("form12"))
+                                  form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"))
               + '</div>')
     # Détail INTÉGRÉ au MÊME cadre (repliable) : par pari + calibration par TYPE DE PARI de ce sport.
     g = (analyses.calibration().get("by_sport") or {}).get(label) or {}

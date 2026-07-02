@@ -1498,6 +1498,7 @@ def _agg_bets(events: list) -> dict:
     _all_form = [res for _s, res, _o in events]
     form = _all_form[-5:]            # 5 derniers (lignes par sport, compactes)
     form12 = _all_form[-12:]         # 12 derniers (bandeau d'accueil des stats)
+    form_run = _all_form[-24:]       # série longue (courbes perf : on affiche le MAX qui tient/ligne)
     # Drawdown MAX : pire repli pic -> creux de la courbe d'équité (en unités).
     peak, dd = pts[0], 0.0
     for v in pts:
@@ -1509,6 +1510,7 @@ def _agg_bets(events: list) -> dict:
             "roi": (round(100 * cum / staked, 1) if staked else None),
             "avg_odds": (round(osum / settled, 2) if settled else None),
             "streak": streak, "best_streak": best_streak, "form": form, "form12": form12,
+            "form_run": form_run,
             "max_dd": round(dd, 2),
             "dd_pct": (round(100 * dd / staked, 1) if staked else None)}
 
@@ -1638,16 +1640,16 @@ def stats_full(since_days: int | None = None) -> dict:
     # l'autre. Les combinés n'existent qu'en foot (CdM) -> la ligne combinés ne s'affiche que là.
     simple_form.sort(key=lambda x: x[0] or "")
     combo_form.sort(key=lambda x: x[0] or "")
-    out["overall"]["form_simple"] = [r for _s, r, _sp in simple_form][-12:]
-    out["overall"]["form_combo"] = [r for _s, r, _sp in combo_form][-12:]
+    out["overall"]["form_simple"] = [r for _s, r, _sp in simple_form][-24:]
+    out["overall"]["form_combo"] = [r for _s, r, _sp in combo_form][-24:]
     # Idem pour les mini-formes PAR SPORT : 1 par match, défaites de combinés INCLUSES (sinon le
     # bandeau d'un sport affiche une fausse série de victoires alors que des combinés ont perdu).
     for _sp, blk in out["by_sport"].items():
         _spf = [r for _s, r, sp in match_form if sp == _sp]
         blk["form"] = _spf[-5:]
         blk["form12"] = _spf[-12:]
-        blk["form_simple"] = [r for _s, r, sp in simple_form if sp == _sp][-12:]
-        blk["form_combo"] = [r for _s, r, sp in combo_form if sp == _sp][-12:]
+        blk["form_simple"] = [r for _s, r, sp in simple_form if sp == _sp][-24:]
+        blk["form_combo"] = [r for _s, r, sp in combo_form if sp == _sp][-24:]
     if sig is not None:
         _STATS_CACHE["full"] = (sig, out)
     return out
