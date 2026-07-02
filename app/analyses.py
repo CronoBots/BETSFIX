@@ -1970,28 +1970,55 @@ CALIB_ROI_MAX = -15   # ROI réel (%) sous lequel un marché est exclu — SI l'
 #                       le gap de calibration ne le capte pas, le ROI oui. Data-driven, auto-révisable.
 
 
+def _excluded_by_sport() -> dict:
+    """{sport: set(marchés écartés POUR CE SPORT)} — les exclusions de marché sont désormais PROPRES À
+    CHAQUE SPORT (demande user 2026-07-02). Un marché mauvais en basket n'écarte PAS le même marché en
+    foot. Trois raisons d'écarter un marché DANS UN SPORT : (a) SUR-CONFIANCE nette dans la calibration
+    DU SPORT (n ≥ CALIB_MIN_N ET écart réel−annoncé ≤ CALIB_GAP_MAX) ; (b) ban dur « Corners » (foot,
+    demande user 2026-06-19) ; (c) ROI réel ≤ CALIB_ROI_MAX (garde-fou EV global, appliqué au sport où le
+    marché est réellement joué). Data-driven, auto-révisable dans les deux sens. Vide tant qu'on manque de
+    recul PAR SPORT (le petit n ne conclut pas). NB : avant, l'exclusion était globale et DILUAIT les
+    problèmes d'un sport (ex. basket Vainqueur/Total sur-confiants, invisibles noyés dans le foot/tennis)."""
+    cal = calibration(min_conf=_MIN_CONF)
+    # (c) garde-fou ROI GLOBAL : marchés qui perdent de l'argent malgré une calibration correcte. Appliqué
+    #     au sport où le marché apparaît (il n'existe pas de ROI par (sport,marché) — le ROI reste global).
+    roi_bad = {g.get("label") for g in (perf_breakdown().get("by_market") or [])
+               if (g.get("settled") or 0) >= CALIB_MIN_N and (g.get("roi") or 0) <= CALIB_ROI_MAX}
+    out: dict[str, set] = {}
+    for fr, g in (cal.get("by_sport") or {}).items():
+        sp = _SPORT_FR.get(fr, fr.lower())
+        ms = {"Corners"} if sp == "foot" else set()      # (b) ban dur foot
+        for name, mg in (g.get("markets") or {}).items():
+            gap = (mg.get("win_rate") or 0) - (mg.get("avg_conf") or 0)
+            if (mg.get("n") or 0) >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:   # (a) sur-confiance du sport
+                ms.add(name)
+            if name in roi_bad:                          # (c) ROI perdant -> écarté là où il est joué
+                ms.add(name)
+        out[sp] = ms
+    out.setdefault("foot", {"Corners"})                  # foot garde au minimum le ban dur
+    return out
+
+
+def excluded_markets(sport: str) -> set:
+    """Marchés écartés POUR CE SPORT (per-sport, auto-révisable) — cf. _excluded_by_sport. C'est CE filtre
+    (et non un filtre global) qu'utilise la SÉLECTION du pari simple et des combinés pour chaque sport."""
+    return _excluded_by_sport().get(sport, {"Corners"} if sport == "foot" else set())
+
+
 def auto_exclusions() -> tuple[set, set]:
-    """(sports exclus, marchés exclus) déduits des PARIS RÉELLEMENT JOUABLES, et UNIQUEMENT quand c'est
-    statistiquement défendable (n ≥ CALIB_MIN_N=25). Deux raisons d'exclure un marché : (a) SUR-CONFIANCE
-    nette (écart calibration ≤ CALIB_GAP_MAX) ; (b) ROI réel ≤ CALIB_ROI_MAX (perd de l'argent même bien
-    calibré). On juge sur un VRAI échantillon — pas de liste codée en dur, pas de petit n. Auto-révisable :
-    un marché se ré-inclut seul s'il repasse au-dessus des seuils. Vide tant qu'on manque de recul."""
+    """(sports exclus, marchés exclus — UNION per-sport, pour l'APERÇU global uniquement). Les sports sont
+    exclus quand la calibration GLOBALE du sport est mauvaise (n ≥ CALIB_MIN_N, écart ≤ CALIB_GAP_MAX). Les
+    marchés, eux, sont désormais PER-SPORT (cf. excluded_markets) : on renvoie ici leur UNION pour les
+    bandeaux d'aperçu. ⚠️ La SÉLECTION doit utiliser excluded_markets(sport), PAS cette union globale."""
     c = calibration(min_conf=_MIN_CONF)
-    # BAN EN DUR : « Corners » bannis TOTALEMENT (demande user 2026-06-19, marché le plus perdant) —
-    # vaut pour le pari simple ⭐ ET les combinés, indépendamment de la stat.
-    sports, markets = set(), {"Corners"}
+    sports = set()
     for name, g in (c.get("by_sport") or {}).items():
         gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
         if (g.get("n") or 0) >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:
             sports.add(_SPORT_FR.get(name, name.lower()))
-    for name, g in (c.get("by_market") or {}).items():
-        gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
-        if (g.get("n") or 0) >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:
-            markets.add(name)
-    # (b) exclusion par ROI RÉEL (diagnostic sur tous les paris), même garde-fou de taille n ≥ 25.
-    for g in (perf_breakdown().get("by_market") or []):
-        if (g.get("settled") or 0) >= CALIB_MIN_N and (g.get("roi") or 0) <= CALIB_ROI_MAX:
-            markets.add(g.get("label"))
+    markets: set = set()
+    for ms in _excluded_by_sport().values():
+        markets |= ms
     return sports, markets
 
 
