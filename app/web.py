@@ -430,6 +430,13 @@ CSS = """
   .spf-cv-kpis span{flex:1;text-align:center}
   .spf-cv-kpis b{display:block;color:var(--text);font-weight:800;font-size:13px;
        font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
+  /* Ligne d'EXTRAS sous les stats (Stats : nouv. système · CLV / profit · rabot) — inline compact */
+  .spf-cv-extra{display:flex;justify-content:center;flex-wrap:wrap;gap:5px 16px;margin-top:6px;
+       font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+  .spf-cv-extra b{color:var(--text);font-weight:800;font-size:11px;text-transform:none;
+       letter-spacing:0;font-variant-numeric:tabular-nums}
+  /* Repères de modèle & détail par jambes gardés DANS la carte compacte (onglet Stats) */
+  .spf-cv .sx-miles,.spf-cv .sx-legs{margin-top:10px}
   /* Détail INTÉGRÉ au cadre (repliable) : fiabilité par-pari + calibration,
   séparé par un filet */
   .spf-det{margin-top:12px;border-top:1px solid var(--border)}
@@ -2815,15 +2822,11 @@ def render_combos(cs: dict, form_html: str = "") -> str:
     chart = (f'<div class="sx-equity">{_hero_chart(pts, uid="combos")}</div>'
              if len([p for p in pts if p]) else "")
     prof = cs.get("profit")
-    kpis = (
-        f'<div class="sx-kpi"><b>{cs["n"]}</b><span>combinés réglés</span></div>'
-        f'<div class="sx-kpi"><b class="arec-{_pct_class(wr)}">{wr if wr is not None else "—"}%</b>'
-        f'<span>réussite</span></div>'
-        f'<div class="sx-kpi"><b>{cs.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
-        f'<div class="sx-kpi"><b>{cs.get("avg_shave") if cs.get("avg_shave") is not None else "—"}%</b>'
-        f'<span>rabot moyen</span></div>'
-        + (f'<div class="sx-kpi"><b class="arec-{_roi_cls(prof, cs["n"])}">{prof:+.1f}u</b>'
-           f'<span>profit</span></div>' if prof is not None else ''))
+    shave = cs.get("avg_shave")
+    # EXTRAS conservés (ligne secondaire sous les stats) : profit (u) + rabot moyen vs produit.
+    extra = (f'<span>profit <b class="arec-{_roi_cls(prof, cs["n"])}">{prof:+.1f}u</b></span>'
+             if prof is not None else '')
+    extra += f'<span>rabot <b>{shave if shave is not None else "—"}%</b></span>'
     # réussite par nombre de jambes (info en plus, propre aux combinés)
     legrows = ""
     for k, g in sorted((cs.get("by_legs") or {}).items()):
@@ -2831,19 +2834,20 @@ def render_combos(cs: dict, form_html: str = "") -> str:
         legrows += (f'<div class="sx-leg"><span>{k} jambes</span>'
                     f'<span class="sx-leg-n">{g["n"]} combiné{"s" if g["n"] > 1 else ""}</span>'
                     f'<b>{w if w is not None else "—"}%</b></div>')
+    legs = f'<div class="sx-legs">{legrows}</div>' if legrows else ''
+    # Carte compacte IDENTIQUE aux onglets sport : en-tête (titre + ROI), W/L au-dessus de la courbe,
+    # courbe (vraie cote), stats dessous, puis les extras (profit/rabot + réussite par nb de jambes).
     return (
-        '<div class="sx-hero"><div class="sx-hero-top">'
-        f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(roi, cs["n"])}">'
-        f'{_roistr(roi)}</div><div class="sx-hero-lbl">ROI · paris combinés {_ind(cs["n"])}</div>'
-        '<div class="sx-hero-hint">Suivi séparé des simples (variance plus élevée)</div></div>'
-        '</div>'
-        f'<div class="sx-kpis">{kpis}</div>'
-        '<div class="sx-divider"></div>'
-        '<div class="sx-h sx-h2">🎲 Combinés<span>évolution · vraie cote</span></div>'
-        f'{form_html}'
-        f'{chart}'
-        + (f'<div class="sx-legs">{legrows}</div>' if legrows else '')
-        + '</div>')
+        '<div class="spf-cv">'
+        f'<div class="spf-cv-h"><span class="spf-cv-t">🎲 Combinés</span>'
+        f'<span class="spf-cv-roi arec-{_roi_cls(roi, cs["n"])}">ROI {_roistr(roi)}</span></div>'
+        f'{form_html}{chart}'
+        '<div class="spf-cv-kpis">'
+        f'<span><b class="arec-{_pct_class(wr)}">{wr if wr is not None else "—"}%</b> réussite</span>'
+        f'<span><b>{cs["n"]}</b> paris</span>'
+        f'<span><b>@{cs.get("avg_odds") or "—"}</b> cote</span></div>'
+        f'<div class="spf-cv-extra">{extra}</div>'
+        f'{legs}</div>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
