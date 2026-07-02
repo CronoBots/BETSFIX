@@ -982,8 +982,9 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
     if len(rows) < 4:
         return ""
     return ("\n\nCATALOGUE COMBINABLE BET BUILDER — au lieu d'un combiné figé, propose un VIVIER de "
-            "5 à 6 JAMBES CANDIDATES prises DANS CETTE LISTE. Un OPTIMISEUR choisira la meilleure "
-            "combinaison combinable visant une VRAIE cote ≥ 1.80 avec la chance de passer maximale.\n"
+            "6 à 8 JAMBES CANDIDATES prises DANS CETTE LISTE. Un OPTIMISEUR choisira la meilleure "
+            "combinaison combinable visant une VRAIE cote ENTRE 1.50 ET 2.10, chance de passer MAXIMALE "
+            "(on achète la FIABILITÉ, PAS la grosse cote : un combiné à 44 % @2.14 perd de l'argent).\n"
             "⚠️⚠️ CHANGEMENT DE LOGIQUE — ceci REMPLACE toute consigne de « domination corrélée » plus "
             "haut. On calcule désormais la VRAIE cote Unibet, et Unibet RABOTE LOURDEMENT les jambes "
             "CORRÉLÉES (ex. « équipe gagne » + « équipe marque 2 buts » + « +1.5 buts » = 3 fois le même "
@@ -992,8 +993,10 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
             "  • Mélange des ANGLES SANS LIEN : 1 résultat (double chance) + 1 total de buts + 1 jambe "
             "d'un AUTRE registre (une équipe marque, mi-temps, props joueur…). JAMAIS 3 jambes « buts ».\n"
             "  • Inclus AU MOINS 1-2 candidates à cote 1.5-2.5 (sinon impossible d'atteindre 1.80 réel).\n"
-            "  • Pas deux totaux qui se recoupent (équipe + match) ; chaque candidate ≥ ~65 % ; "
-            "PAS de cartons/corners.\n"
+            "  • Pas deux totaux qui se recoupent (équipe + match) ; chaque candidate ≥ ~75 % (cote "
+            "basse) ; PAS de cartons/corners ; PAS de props JOUEUR individuelles (tirs/tirs cadrés/passes/"
+            "points d'UN joueur nommé — trop de variance, elles ont plombé le ROI) : privilégie les "
+            "marchés d'ÉQUIPE / de MATCH.\n"
             "⚠️ FORMAT EXACT, une ligne par candidate (après la section Mise), id du catalogue ENTRE "
             "CROCHETS + ta proba honnête :\n"
             "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi cette jambe, factuel et chiffré>`\n"
@@ -1117,8 +1120,15 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, max_legs: int = 3)
     ET repli) : fini le repli « longshot à haute cote » qui sortait un combiné sous la chance mini.
     None si aucune combinaison ne tient la chance calibrée."""
     from itertools import combinations
-    from app.analyses import calibrated_conf
-    cands = [c for c in cands if c.get("oid")][:6]
+    from app.analyses import calibrated_conf, combo_player_props_allowed
+    cands = [c for c in cands if c.get("oid")]
+    # FILTRE DÉTERMINISTE (le LLM ne respecte pas toujours le prompt) : props JOUEUR écartées du vivier
+    # tant qu'elles n'ont pas fait leurs preuves (auto-révisable via les fantômes). La sécurité par jambe
+    # vient du plancher de CHANCE COMBINÉE (_COMBO_PROB_MIN) — pas d'un couperet par jambe qui viderait
+    # le vivier et empêcherait tout combiné.
+    if not combo_player_props_allowed()[0]:
+        cands = [c for c in cands if not (c.get("code") or "").startswith(("PLAYERFB", "PLAYERBK"))]
+    cands = cands[:6]
     n = len(cands)
     if n < 2:
         return None
