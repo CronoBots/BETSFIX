@@ -493,9 +493,17 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             lead = (pick.strip().split() or [""])[0].lower()
             if ln and lead not in ("total", "nombre", "le", "les", "plus", "moins", "arrêts", "arrets",
                                     "premier", "1er", "gardien"):
-                who = re.split(r"\s+(?:plus|moins)\s+de\s+", pick, maxsplit=1, flags=re.I)[0]
-                who = re.sub(r"\s*(arrêts?|arrets?|passes?\s*décisives?|passes?\s*decis\w*|tacles?|fautes?"
-                             r"|tirs?\s*(?:cadrés?|cadres?)?)\s*$", "", who.strip(), flags=re.I).strip(" -:–—")
+                who = re.split(r"\s+(?:plus|moins)\s+de\s+", pick, maxsplit=1, flags=re.I)[0].strip()
+                # Format Unibet « <Joueur> - <marché> » (ex. « Ismaïla Sarr - Tirs cadrés du joueur ») :
+                # le NOM est AVANT le « - », le marché APRÈS. Sinon (pas de séparateur), on retire le
+                # marché collé en suffixe. Bug vécu 2026-07-01 : sans ça, `who` gardait « - Tirs cadrés
+                # du joueur » -> aucun joueur trouvé chez FotMob -> jambe jamais réglée (carte vide).
+                if " - " in who:
+                    who = who.split(" - ", 1)[0].strip()
+                else:
+                    who = re.sub(r"\s*(arrêts?|arrets?|passes?\s*décisives?|passes?\s*decis\w*|tacles?|fautes?"
+                                 r"|tirs?\s*(?:cadrés?|cadres?)?(?:\s*du\s*joueur)?)\s*$",
+                                 "", who, flags=re.I).strip(" -:–—")
                 if who and len(who) >= 3:
                     dirn = "OVER" if ln.group(1) == "plus" else "UNDER"
                     return f"PLAYERFB {_fs} {dirn} {ln.group(2).replace(',', '.')}|{who}"
