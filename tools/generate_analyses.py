@@ -1108,7 +1108,16 @@ def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
     return out
 
 
-def _build_combo_from_pool(eid: str, cands: list, sport: str, max_legs: int = 3) -> dict | None:
+def _clean_leg_text(t: str) -> str:
+    """Nettoie le libellé d'un outcome du catalogue Bet Builder (verbeux) pour l'affichage, SANS en
+    changer le sens : retire « du joueur », la mention « (Réglé selon les données Opta) », espaces."""
+    t = re.sub(r"\s*\(R[ée]gl[ée]\s+selon[^)]*\)", "", t or "")
+    t = re.sub(r"\s+du\s+joueur\b", "", t, flags=re.I)
+    return re.sub(r"\s{2,}", " ", t).strip(" -–—:")
+
+
+def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", away: str = "",
+                           max_legs: int = 3) -> dict | None:
     """Choisit, dans le VIVIER, la meilleure combinaison COMBINABLE par EV (= vraie cote × proba :
     capture À LA FOIS la value/le faible rabot ET la chance), sous contraintes vraie cote ≥
     _COMBO_REAL_MIN et chance ≥ _COMBO_PROB_MIN.
