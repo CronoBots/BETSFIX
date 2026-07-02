@@ -2721,16 +2721,20 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                f'<span class="sx-ml-hint">touchez un repère pour le détail</span></div>'
                f'<div class="sx-mile-bs">{mchips}</div>'
                f'<div class="sx-mile-info"></div>{mdata}</div>') if miles else ""
+    # Forme W/L (mêmes pastilles que les onglets sport, récent à DROITE) — PLACÉE JUSTE AU-DESSUS de sa
+    # courbe (demande user : W/L près du graphe, comme les onglets sport). Simples ↕ Combinés séparés.
+    _LET = {"won": "W", "lost": "L", "push": "N"}
+    _fs = form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=10)
+    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=10)
+    _simples_form = (f'<div class="sx-formrow sx-formrow-c"><span class="sx-formk">Forme</span>{_fs}</div>'
+                     if _fs else form_dots(
+                         [_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10))
+    _combo_form = (f'<div class="sx-formrow sx-formrow-c"><span class="sx-formk">Forme</span>{_fc}</div>'
+                   if _fc else "")
     chart_block = (f'<div class="sx-divider"></div>'
                    f'<div class="sx-h sx-h2">📈 Simples<span>évolution du rendement</span></div>'
+                   f'{_simples_form}'
                    f'<div class="sx-equity">{chart}</div>{mlegend}') if chart else ""
-    # UN SEUL cadre : ROI + forme (≥10 bulles) + KPIs + courbe + repères expliqués.
-    # Forme = 10 dernières (mêmes pastilles W/L que les onglets sport, lettre majuscule, récent à DROITE).
-    _LET = {"won": "W", "lost": "L", "push": "N"}
-    # DEUX lignes de forme distinctes (demande user) : SIMPLES et COMBINÉS, chacune labellisée. On
-    # n'affiche une ligne que si elle a des résultats. Repli : ancienne ligne unique si aucune des deux.
-    _fs = form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=8)
-    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=8)
     # KPI CLV (Closing Line Value) : se remplit à mesure que de nouveaux paris RÉSULTAT se règlent.
     # >0 = on prend en moyenne de meilleures cotes que la clôture = edge réel. '—' tant que vide.
     from app import clv as _clvmod
@@ -2746,16 +2750,12 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         clv_kpi = ('<div class="sx-kpi" title="CLV (Closing Line Value) : battre la cote de clôture du '
                    'marché = juge d\'edge le plus rapide. Se remplit dès que des paris résultat se règlent.">'
                    '<b>—</b><span>CLV</span></div>')
-    # Forme PROPRE à chaque bloc : simples dans le hero simples, combinés dans le hero combinés.
-    _simples_form = (f'<div class="sx-formrow"><span class="sx-formk">Forme</span>{_fs}</div>' if _fs
-                     else form_dots([_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10))
-    _combo_form = f'<div class="sx-formrow"><span class="sx-formk">Forme</span>{_fc}</div>' if _fc else ""
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI · paris simples {_ind(ov.get("settled"))}</div>'
         '<div class="sx-hero-hint">Combinés suivis à part ↓ (un combiné gagné n\'entre PAS ici)</div></div>'
-        f'<div class="sx-hero-r">{_simples_form}</div></div>'
+        '</div>'
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>simples réglés</span></div>'
         f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
@@ -2848,10 +2848,11 @@ def render_combos(cs: dict, form_html: str = "") -> str:
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(roi, cs["n"])}">'
         f'{_roistr(roi)}</div><div class="sx-hero-lbl">ROI · paris combinés {_ind(cs["n"])}</div>'
         '<div class="sx-hero-hint">Suivi séparé des simples (variance plus élevée)</div></div>'
-        f'<div class="sx-hero-r">{form_html}</div></div>'
+        '</div>'
         f'<div class="sx-kpis">{kpis}</div>'
         '<div class="sx-divider"></div>'
         '<div class="sx-h sx-h2">🎲 Combinés<span>évolution · vraie cote</span></div>'
+        f'{form_html}'
         f'{chart}'
         + (f'<div class="sx-legs">{legrows}</div>' if legrows else '')
         + '</div>')
