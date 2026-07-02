@@ -76,15 +76,13 @@ while ($true) {
         # -WindowStyle Hidden. claude a besoin d'heriter de la console (cachee)
         # de ce PowerShell pour le mode remote-control -- comme NEXBET. Avec
         # Start-Process detache, claude perd sa console et ressort aussitot.
-        & $claude @argsResume
+        #
+        # Session FRAICHE (pas de --continue) : comme CRYPTONAUTS. Le flag
+        # --continue reprenait une conversation LOCALE et laissait la session
+        # remote se figer (0 connexion Anthropic -> kills watchdog en boucle).
+        & $claude @argsFresh
     } catch {
         # crash/timeout reseau : on relance apres une courte pause
-    }
-    # Si --continue ressort tout de suite (<30 s), c'est qu'il n'y avait aucune
-    # conversation a reprendre : on bascule sur une session FRAICHE pour ne pas
-    # boucler dans le vide, puis on continue normalement.
-    if (((Get-Date) - $start).TotalSeconds -lt 30) {
-        try { & $claude @argsFresh } catch { }
     }
     Start-Sleep -Seconds 3
 }
