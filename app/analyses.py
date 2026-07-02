@@ -1994,6 +1994,27 @@ def auto_exclusions() -> tuple[set, set]:
     return sports, markets
 
 
+def combo_player_props_allowed() -> tuple[bool, dict]:
+    """Props JOUEUR dans les COMBINÉS : EXCLUES par défaut (variance qui a plombé le ROI), RÉ-INTÉGRÉES
+    automatiquement DÈS QUE les FANTÔMES le prouvent — famille « Props joueur » bien calibrée sur un
+    VRAI échantillon (n ≥ CALIB_MIN_N ET écart réel−annoncé au-dessus du seuil de sur-confiance). Logique
+    INVERSE d'auto_exclusions (exclu par défaut → inclus si prouvé), auto-révisable dans les deux sens.
+    Les fantômes prédisent DÉJÀ des props joueur (bloc CALIB du scan) -> la donnée s'accumule même
+    exclues. Renvoie (autorisé, {n, gap, win_rate, avg_conf}) — le dict sert au message du scan."""
+    g = (calibration(min_conf=_MIN_CONF).get("by_market") or {}).get("Props joueur") or {}
+    n = g.get("n") or 0
+    gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
+    info = {"n": n, "gap": round(gap, 1), "win_rate": g.get("win_rate"), "avg_conf": g.get("avg_conf")}
+    if n < CALIB_MIN_N or gap <= CALIB_GAP_MAX:            # pas assez de recul OU sur-confiance -> exclues
+        return False, info
+    # garde-fou ROI (paris joués, si assez) : les props joueur ne doivent pas perdre d'argent.
+    for pm in (perf_breakdown().get("by_market") or []):
+        if pm.get("label") == "Props joueur" and (pm.get("settled") or 0) >= CALIB_MIN_N \
+                and (pm.get("roi") or 0) < 0:
+            return False, info
+    return True, info
+
+
 def _wilson(won: int, n: int, z: float = 1.28) -> tuple:
     """Intervalle de Wilson (fourchette réaliste d'une proportion) — robuste sur petits échantillons.
     z=1.28 ≈ 80%. Sert à ne pas conclure sur du bruit (ex. 4 paris gagnés ≠ « fiable à 100% »)."""

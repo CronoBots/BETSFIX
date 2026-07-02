@@ -827,6 +827,21 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         combo = COMBO_MISSION_BASKET
     else:
         combo = ""
+    # PROPS JOUEUR auto-révisables : interdites par défaut (règle 3 du COMBO_MISSION), mais RÉ-INTÉGRÉES
+    # automatiquement dès que les FANTÔMES les prouvent (calibration « Props joueur » fiable). On lève
+    # alors l'interdiction, en gardant le seuil ≥80 %/cote ≤~1.30 (pas de retour aux jambes à 1.60/1.95).
+    if combo:
+        from app import analyses as _an
+        _pp_ok, _pp = _an.combo_player_props_allowed()
+        if _pp_ok:
+            combo += (
+                "\n\n⚠️ MISE À JOUR DATA (auto-révisable) : les PROPS JOUEUR ont désormais FAIT LEURS "
+                f"PREUVES en calibration ({_pp['n']} prédictions fantômes, réussite {_pp.get('win_rate')}% "
+                f"vs {_pp.get('avg_conf')}% annoncés). L'interdiction des props joueur (règle 3) est LEVÉE : "
+                "tu PEUX réintégrer UNE prop joueur comme jambe — MAIS seulement si elle respecte la règle "
+                "3 (ta proba ≥ 80 % ET cote réelle ≤ ~1.30) et reste CORRÉLÉE à la domination du favori "
+                "(ex. « <buteur du favori> - tirs cadrés +0.5 » à cote basse). Une prop à cote > 1.30 reste "
+                "INTERDITE.\n")
     # Combinés pré-construits Unibet (vraie cote corrélée) : on les met en cache (pour re-pricer le
     # combiné de l'analyste après coup) ET on injecte le menu pour BIAISER l'analyste vers un combiné
     # qui en fait partie (-> on connaîtra sa vraie cote). Foot/basket seulement (tennis : 0 prepack).
