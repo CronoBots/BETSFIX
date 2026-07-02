@@ -1003,8 +1003,8 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
             "INDÉPENDANTES (qui ne décrivent PAS le même scénario) :\n"
             "  • Mélange des ANGLES SANS LIEN : 1 résultat (double chance) + 1 total de buts + 1 jambe "
             "d'un AUTRE registre (une équipe marque, mi-temps, props joueur…). JAMAIS 3 jambes « buts ».\n"
-            + _range)
-            "⚠️ FORMAT EXACT, une ligne par candidate (après la section Mise), id du catalogue ENTRE "
+            + _range
+            + "⚠️ FORMAT EXACT, une ligne par candidate (après la section Mise), id du catalogue ENTRE "
             "CROCHETS + ta proba honnête :\n"
             "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi cette jambe, factuel et chiffré>`\n"
             "(NE produis PAS de ligne COMBO: ni de section 🎲 : l'optimiseur bâtit le combiné final.) "
