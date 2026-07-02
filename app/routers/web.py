@@ -255,13 +255,15 @@ def _home_stats(since_days: int | None = None) -> str:
     combo = analyses.combo_stats(since_days)
     cal = analyses.calibration(since_days)
 
-    def _sec(label: str, sub: str, body: str) -> str:    # libellé de section UNIQUEMENT si non vide
-        return (web.sx_section(label, sub) + body) if (body or "").strip() else ""
+    # Sections de DÉTAIL repliables (accordéon) pour raccourcir la page (demande user 2026-07-02) : la
+    # VUE D'ENSEMBLE reste toujours ouverte, le reste se déplie à la demande.
+    def _sec(label: str, sub: str, body: str, open: bool = False) -> str:
+        return web.sx_section_collapsible(label, sub, body, open=open)
 
     # 2. OÙ EST L'EDGE : par sport puis par cote (mêmes données, granularité croissante).
     edge = web.render_sports_breakdown(full) + web.render_perf(analyses.perf_breakdown(since_days))
     inner = (
-        web.render_stats(full, combo_full=combo)                                   # 1. vue d'ensemble
+        web.render_stats(full, combo_full=combo)                                   # 1. vue d'ensemble (ouverte)
         + _sec("Où se trouve l'edge", "performance par sport et par cote", edge)   # 2.
         + _sec("Fiabilité du modèle", "la confiance tient-elle ses promesses ?",   # 3.
                web.render_reliability(analyses.calibration_reliability(buckets=12))

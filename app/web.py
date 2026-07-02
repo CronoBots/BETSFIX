@@ -1376,6 +1376,15 @@ CSS = """
   .sx-sec::before{content:"";flex:0 0 14px;height:2px;border-radius:2px;background:var(--accent);
        align-self:center;opacity:.85}
   .sx-sec span{font-size:10px;font-weight:700;letter-spacing:.01em;text-transform:none;color:var(--muted)}
+  .sx-acc{margin:0;border:0}
+  .sx-acc>summary.sx-sec-sum{cursor:pointer;list-style:none;user-select:none;-webkit-user-select:none}
+  .sx-acc>summary.sx-sec-sum::-webkit-details-marker{display:none}
+  .sx-acc>summary.sx-sec-sum::marker{content:""}
+  .sx-sec-chev{margin-left:auto;font-size:11px;font-weight:700;color:var(--muted);
+       transition:transform .18s ease;transform:rotate(-90deg)}
+  .sx-acc[open]>summary .sx-sec-chev{transform:rotate(0deg)}
+  .sx-acc>summary.sx-sec-sum:hover{color:var(--text)}
+  .sx-acc-body{margin-top:4px}
   .sx-legs{display:flex;flex-direction:column;gap:7px;margin-top:10px;
        padding-top:10px;border-top:1px solid var(--border)}
   .sx-leg{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;
@@ -2652,6 +2661,18 @@ def sx_section(label: str, sub: str = "") -> str:
     transparence). Petit libellé majuscule accentué + sous-titre discret, posé au-dessus d'un groupe."""
     s = f'<span>{html.escape(sub)}</span>' if sub else ""
     return f'<div class="sx-sec">{html.escape(label)}{s}</div>'
+
+
+def sx_section_collapsible(label: str, sub: str, body: str, open: bool = False) -> str:
+    """Section de la page Stats REPLIABLE (accordéon natif <details>, sans JS) : le détail est masqué par
+    défaut pour raccourcir une page devenue longue (demande user 2026-07-02). La VUE D'ENSEMBLE reste
+    toujours visible ; seules les sections de détail sont pliées. '' si le corps est vide."""
+    if not (body or "").strip():
+        return ""
+    s = f'<span>{html.escape(sub)}</span>' if sub else ""
+    op = " open" if open else ""
+    return (f'<details class="sx-acc"{op}><summary class="sx-sec sx-sec-sum">{html.escape(label)}{s}'
+            f'<span class="sx-sec-chev">▾</span></summary><div class="sx-acc-body">{body}</div></details>')
 
 
 def render_sports_breakdown(full: dict | None, since: str = "") -> str:
