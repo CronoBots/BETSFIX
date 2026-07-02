@@ -1171,11 +1171,25 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
         prob, real, idx = fallback
     else:
         return None
+    # LIAISON À L'OUTCOME BET BUILDER RÉEL : la jambe affichée (texte + cote) est celle du CATALOGUE
+    # pour l'oid pricé, JAMAIS le texte/cote tapé par le LLM (qui peut diverger -> carte à cote fantôme,
+    # ex. « Autriche -1.5 @1.11 » affiché alors que l'oid pricé = « -2.5 @1.58 » -> combiné 2.07 ≠ 1.17
+    # réel). Le CODE de règlement est re-dérivé du VRAI libellé. Ainsi carte = oid pricé = Unibet.
+    from app.settle_analyst import code_from_pick
+    cat = {str(c.get("id")): c for c in _CATALOG_CACHE.get(eid, []) if c.get("id")}
     legs = []
     for i in idx:
-        lg = {"sel": cands[i]["sel"], "cote": cands[i]["cote"], "code": cands[i]["code"]}
-        if cands[i].get("oid"):
-            lg["oid"] = cands[i]["oid"]      # outcome_id Kambi -> re-pricing live de la cote (1 appel)
+        oid = cands[i].get("oid")
+        real_out = cat.get(str(oid)) if oid else None
+        if real_out and real_out.get("odds"):
+            sel = _clean_leg_text(real_out.get("text") or cands[i]["sel"])
+            cote = real_out["odds"]
+            code = code_from_pick(sel, sport, home, away)
+        else:                                # oid absent du catalogue -> on garde ce que le LLM a écrit
+            sel, cote, code = cands[i]["sel"], cands[i]["cote"], cands[i]["code"]
+        lg = {"sel": sel, "cote": cote, "code": code}
+        if oid:
+            lg["oid"] = oid                  # outcome_id Kambi -> re-pricing live de la cote (1 appel)
         if cands[i].get("why"):
             lg["why"] = cands[i]["why"]
         legs.append(lg)
@@ -1195,7 +1209,7 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
     eid = str(event_id) if event_id else None
     if eid and _CATALOG_CACHE.get(eid):
         cands = _parse_pool(analysis, sport, home, away)
-        built = _build_combo_from_pool(eid, cands, sport) if cands else None
+        built = _build_combo_from_pool(eid, cands, sport, home, away) if cands else None
         if built:
             return built
     return _parse_combo(analysis, sport, home, away, event_id)
