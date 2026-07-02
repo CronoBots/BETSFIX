@@ -1085,6 +1085,8 @@ def _resolve_combo(legs: list, catalog: list, home: str = "", away: str = "", to
 _COMBO_REAL_MIN = 1.55      # vraie cote minimale visée pour le combiné (valeur, pas du produit illusoire)
 _COMBO_REAL_MAX = 2.80      # au-delà = trop gourmand -> on évite (mais laisse de la marge : sinon 0 combiné)
 _COMBO_PROB_MIN = 0.50      # chance de passer minimale (BARRIÈRE DURE) — moins gourmand qu'avant (0.33)
+_COMBO_MEANINGFUL = 1.40    # cote combinée plancher pour le repli « le plus sûr » (sinon combiné à 1.03
+#                             sur un archi-favori = aucun sens : on veut au moins un vrai rendement)
 
 
 def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
@@ -1149,7 +1151,7 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     # best = meilleure EV parmi les combos « value » (real ≥ MIN ET chance ≥ MIN) ; safest = le PLUS SÛR
     # (plus haute chance), repli MOINS GOURMAND quand aucun combo value n'existe -> on ne force JAMAIS un
     # longshot à haute cote, et on produit TOUJOURS un combiné si le vivier a ≥2 jambes (pas de suppression).
-    best, safest = None, None
+    best, safest, any_safe = None, None, None
     for size in range(min(max_legs, n), 1, -1):
         for idx in combinations(range(n), size):
             real = unibet.betbuilder_odds(eid, [cands[i]["oid"] for i in idx])
@@ -1158,7 +1160,11 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
             prob = 1.0
             for i in idx:
                 prob *= cands[i]["_cprob"]
-            if safest is None or prob > safest[0]:       # repli = le PLUS SÛR (chance maximale)
+            if any_safe is None or prob > any_safe[0]:   # tout dernier recours (n'importe quelle cote)
+                any_safe = (prob, real, idx)
+            # repli PRINCIPAL = le PLUS SÛR PARMI les cotes SIGNIFICATIVES (≥ _COMBO_MEANINGFUL) : évite le
+            # combiné dégénéré à 1.03 sur un archi-favori (une cote plancher, sinon le pari n'a aucun sens).
+            if real >= _COMBO_MEANINGFUL and (safest is None or prob > safest[0]):
                 safest = (prob, real, idx)
             # EV maximale parmi les combinaisons qui tiennent la VALUE (≥ MIN) ET la chance mini.
             if real >= _COMBO_REAL_MIN and prob >= _COMBO_PROB_MIN:
@@ -1168,7 +1174,9 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     if best:
         _, real, prob, idx = best
     elif safest:
-        prob, real, idx = safest        # aucun combo value -> le PLUS SÛR (jamais le plus gourmand)
+        prob, real, idx = safest        # aucun combo value -> le PLUS SÛR à cote significative
+    elif any_safe:
+        prob, real, idx = any_safe      # légendes très courtes seulement -> on prend le plus sûr
     else:
         return None
     # LIAISON À L'OUTCOME BET BUILDER RÉEL : la jambe affichée (texte + cote) est celle du CATALOGUE
