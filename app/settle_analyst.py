@@ -17,7 +17,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app import analyses, sofa_http
 from app.netconst import SOFA_B as _SOFA   # source unique (cf. app/netconst.py)
@@ -43,6 +43,25 @@ def _fr_date(dt) -> str:
 # v9 = handicap en SETS (tennis) réglé via SETHCAP (sur sets_home/away).
 # v10 = handicap au moins Unicode (−) + « total de sets : moins de N » (SETSTOT).
 _settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un même process (anti double-notif)
+# Void = ULTIME RECOURS : on ne « tranche nul » une jambe indéterminable QUE si le match est fini depuis
+# plus de N jours (le score/les stats arrivent souvent en retard -> d'ici là on continue de RÉGLER pour
+# de vrai). En pratique quasi tout se règle bien avant -> void rarissime (donnée réellement morte).
+_VOID_AFTER_DAYS = 3.0
+
+
+def _match_age_days(d: dict) -> float:
+    """Âge du match en jours depuis le coup d'envoi (`start` = ISO ou epoch). 0 si inconnu/futur."""
+    start = d.get("start")
+    if not start:
+        return 0.0
+    try:
+        if isinstance(start, (int, float)):
+            dt = datetime.fromtimestamp(start, tz=timezone.utc)
+        else:
+            dt = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+        return max(0.0, (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0)
+    except (ValueError, OverflowError, OSError):
+        return 0.0
 _SETTLE_VERSION = 44   # v44 : PÉRIODES via Sportradar GISMO (repli) — jeux/sets/tie-breaks tennis &
 #                              quart-temps basket enfin réglables quand LiveScore/Flashscore échouent.
 # v43 : jambes à CODE VIDE débloquées — nom d'équipe seul = moneyline (WIN/1X2)
@@ -1312,7 +1331,7 @@ async def _settle_analyses_impl() -> int:
                 # le match est fini DEPUIS LONGTEMPS (> _VOID_AFTER_DAYS) : d'ici là on continue d'essayer.
                 # Quand TOUTES les jambes sont réglées, on finalise immédiatement (pas d'attente).
                 _strict_fin = analyses.status_of(d) == "finished"
-                _age_d = ((time.time() - float(d["start"])) / 86400.0) if d.get("start") else 0.0
+                _age_d = _match_age_days(d)
                 if any_pending and ((d.get("combo_tries") or 0) < 8 or not _strict_fin
                                     or _age_d < _VOID_AFTER_DAYS):
                     combo["result"] = None
