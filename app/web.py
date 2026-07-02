@@ -2719,21 +2719,14 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # KPI à SUIVRE : nouveau système (1 pari/match + 3 agents) -> chip EXTRA sous la courbe.
     nv_val = _roistr(sc.get("roi")) if sc.get("settled") else "—"
     nv_cls = _roi_cls(sc.get("roi"), sc.get("settled")) if sc.get("settled") else "hi"
-    # COURBE + repères (≥1 explication d'1 ligne par mise à jour du modèle).
-    miles = list(analyses.MODEL_MILESTONES)
+    # COURBE + repères. Chaque repère a une PORTÉE (simple/combo/both) -> les repères des SIMPLES vont
+    # sur le graphe Simples, ceux des COMBINÉS sur le graphe Combinés (demande user). « both » sur les 2.
+    _all_miles = list(analyses.MODEL_MILESTONES)
+    _ms_simple = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("simple", "both")]
+    _ms_combo = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("combo", "both")]
     chart = _hero_chart(ov.get("points") or [], uid="all",
-                        dates=ov.get("dates") or [], milestones=miles)
-    # Repères ALLÉGÉS : pastilles numérotées cliquables (+ marqueurs du graphe) ; l'explication ne
-    # s'affiche QU'AU CLIC dans un panneau dédié (toggle, JS délégué _MILE_JS). Données en DOM caché.
-    mchips = "".join(f'<button type="button" class="sx-mile-b" data-mile="{i}">{i}</button>'
-                     for i in range(1, len(miles) + 1))
-    mdata = "".join(f'<div class="sx-mile-d" data-mile="{i}" hidden>'
-                    f'<b>{html.escape(lab)}</b> — {html.escape(desc)}</div>'
-                    for i, (_iso, lab, desc) in enumerate(miles, 1))
-    mlegend = (f'<div class="sx-miles"><div class="sx-ml-h">Repères du modèle'
-               f'<span class="sx-ml-hint">touchez un repère pour le détail</span></div>'
-               f'<div class="sx-mile-bs">{mchips}</div>'
-               f'<div class="sx-mile-info"></div>{mdata}</div>') if miles else ""
+                        dates=ov.get("dates") or [], milestones=_ms_simple)
+    mlegend = _mile_legend(_ms_simple)
     # Forme W/L (mêmes pastilles que les onglets sport, récent à DROITE), JUSTE au-dessus de sa courbe.
     _LET = {"won": "W", "lost": "L", "push": "N"}
     _fs = (form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=14)

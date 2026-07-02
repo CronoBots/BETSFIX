@@ -1458,12 +1458,12 @@ _PERF_CACHE: dict = {}     # "v" -> (sig, perf_breakdown()) — ROI par cote/mar
 # JALONS du modèle : dates (UTC) où la LOGIQUE de sélection a changé -> repères verticaux sur les
 # courbes d'équité (pour corréler une inflexion de ROI avec un changement). Garder COURT (s'affiche
 # sur un petit graphe) et N'AJOUTER qu'un vrai changement de POLITIQUE de paris (pas l'UI).
-MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne) — SEULS les repères DÉCISIFS (qui ont
-    #                      vraiment changé la sélection / l'edge), pour ne pas surcharger la courbe.
-    ("2026-06-09", "Seuil ≥65 %", "Aucun pari n'est retenu sous 65 % de confiance honnête."),
-    ("2026-06-16", "1 pari/match", "Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents."),
-    ("2026-06-19", "Corners bannis", "Les corners, le marché le plus perdant, sont exclus de tous les paris (simple et combiné)."),
-    ("2026-06-26", "Combinés calibrés", "Jambes de combiné recalibrées comme les simples ; les marchés perdants (Total, Sets) s'écartent automatiquement."),
+MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne, portée) — SEULS les repères DÉCISIFS ;
+    #  portée ∈ {"simple","combo","both"} -> le repère s'affiche sur le graphe Simples et/ou Combinés.
+    ("2026-06-09", "Seuil ≥65 %", "Aucun pari n'est retenu sous 65 % de confiance honnête.", "simple"),
+    ("2026-06-16", "1 pari/match", "Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents.", "simple"),
+    ("2026-06-19", "Corners bannis", "Les corners, le marché le plus perdant, sont exclus de tous les paris (simple et combiné).", "both"),
+    ("2026-06-26", "Combinés calibrés", "Jambes de combiné recalibrées comme les simples ; les marchés perdants (Total, Sets) s'écartent automatiquement.", "combo"),
 ]
 # Les combinés ne comptent dans le palmarès qu'à partir de la date de DÉCISION (NON rétroactif) :
 # les combinés antérieurs (placés quand ils ne comptaient pas) ne polluent pas le suivi.
@@ -1850,14 +1850,15 @@ def combo_stats(since_days: int | None = None) -> dict:
                       "wr": round(100 * sw / sset) if sset else None}
     # Courbe d'équité COMBINÉS : cumul P&L (mise plate 1u sur la VRAIE cote), ordre chronologique.
     curve.sort(key=lambda x: x[0] or "")
-    pts, cum = [0.0], 0.0
+    pts, dates, cum = [0.0], [], 0.0    # `dates` aligné sur points[1:] -> place les repères MODEL_MILESTONES
     for _s, r, o in curve:
         if r == "won" and o:
             cum += o - 1
         elif r == "lost":
             cum -= 1
         pts.append(round(cum, 3))
-    return {"n": len(rows), "won": won, "lost": lost, "push": push,
+        dates.append(_s or "")
+    return {"n": len(rows), "won": won, "lost": lost, "push": push, "dates": dates,
             "win_rate": round(100 * won / settled) if settled else None,
             "profit": round(profit, 2),
             "roi": round(100 * profit / staked, 1) if staked else None,
