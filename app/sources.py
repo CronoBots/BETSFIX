@@ -925,6 +925,40 @@ async def first_scorer(d: dict) -> str | None:
     return ((goals[0].get("player") or {}).get("name")) or None
 
 
+async def player_scored_or_assisted(d: dict, player_query: str) -> str | None:
+    """« <joueur> marque OU passe décisive » via les events FotMob (buts = buteur `player.name` +
+    passeur `assistStr`). 'won' si le joueur a marqué ou passé, 'lost' sinon (0 but OU non impliqué),
+    None si events indisponibles -> le règlement re-tentera. Matching STRICT par jetons (aucun faux)."""
+    import httpx
+    home, away = d.get("home", ""), d.get("away", "")
+    qtok = _tok(player_query) if player_query else set()
+    if not (home and away and qtok):
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_T) as cl:
+            mid = await _fotmob_find(cl, home, away, d.get("start") or "")
+            if not mid:
+                return None
+            j = await _get_json(cl, f"{_FOTMOB}/matchDetails?matchId={mid}")
+    except Exception:
+        return None
+    ev = (((j or {}).get("content") or {}).get("matchFacts") or {}).get("events") or {}
+    evs = ev.get("events") if isinstance(ev, dict) else ev
+    if not isinstance(evs, list):
+        return None                                        # events indispo -> retente
+    names = set()                                          # buteurs + passeurs du match
+    for e in evs:
+        if not isinstance(e, dict) or e.get("type") != "Goal" or e.get("ownGoal"):
+            continue
+        sc = (e.get("player") or {}).get("name") or e.get("nameStr")
+        if sc:
+            names.add(sc)
+        a = e.get("assistStr")
+        if isinstance(a, str) and a:
+            names.add(a)
+    return "won" if any(qtok <= _tok(n) for n in names if n) else "lost"
+
+
 async def final_score(sport: str, d: dict) -> dict | None:
     """Règlement de SECOURS : score final du match `d` (sidecar : home/away/start/circuit) via
     FotMob (foot) ou ESPN (tennis ATP+WTA, basket NBA/WNBA). None si introuvable ou pas fini —

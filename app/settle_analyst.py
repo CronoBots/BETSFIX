@@ -174,6 +174,13 @@ def settle_pick(code: str, score: dict) -> str | None:
     if kind == "DC" and has_ha and len(parts) > 1:
         ok = {"1X": h >= a, "12": h != a, "X2": a >= h}.get(parts[1])
         return None if ok is None else ("won" if ok else "lost")
+    if kind == "DCHALF" and len(parts) >= 3:           # double chance sur une MI-TEMPS (1H/2H)
+        per = _per(1 if parts[1] == "1H" else 2)       # score de CETTE période (periods LiveScore/SR)
+        if not per:
+            return None
+        ph, pa = per
+        ok = {"1X": ph >= pa, "12": ph != pa, "X2": pa >= ph}.get(parts[2])
+        return None if ok is None else ("won" if ok else "lost")
     if kind == "WIN" and len(parts) > 1:
         if sh is not None and sa is not None and (sh or sa):
             hwin = sh > sa
@@ -497,6 +504,15 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             who = re.sub(r"(?i)\b(?:le\s+)?(?:premier|1er)\s+buteur\b", "", pick).strip(" :-–—")
             if who and len(who) >= 3:
                 return f"FIRSTSCORER|{who}"
+        # JOUEUR « marque OU passe décisive » (buteur OU passeur) -> SCOREASSIST (events FotMob).
+        # Nécessite les DEUX mots (« marque » ET « passe ») pour ne pas capter « passe déc. » (PLAYERFB)
+        # ni « marque dans les 2 MT » (TEAMBOTH). Nom = avant le séparateur « - » (sinon avant « marque »).
+        if "marque" in t and "passe" in t and "mi-temps" not in t and "mi temps" not in t:
+            who = re.split(r"\s+[-–—:]\s+", pick.strip())[0].strip()
+            if "marque" in who.lower():
+                who = re.split(r"(?i)\bmarque\b", who)[0].strip(" :-–—")
+            if who and len(who) >= 3:
+                return f"SCOREASSIST|{who}"
         # PREMIER BUT du match par une ÉQUIPE (≠ premier BUTEUR) -> FIRSTGOAL (events FotMob).
         if ("premier but" in t or "1er but" in t or "ouvre le score" in t or "ouvre la marque" in t) \
                 and "buteur" not in t and "mi-temps" not in t:
@@ -739,6 +755,10 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     if "double chance" in t:
         for k in ("1x", "12", "x2"):
             if k in t:
+                if "mi-temps" in t or "mi temps" in t:   # double chance sur UNE mi-temps -> DCHALF
+                    half = "2H" if any(x in t for x in ("2e mi", "2ème mi", "2eme mi", "seconde mi",
+                                                        "deuxième mi", "2nde mi")) else "1H"
+                    return f"DCHALF {half} {k.upper()}"
                 return f"DC {k.upper()}"
     # Double chance phrasée « <équipe> ou nul » (= domicile/extérieur OU match nul) — fréquent en
     # jambe de combiné (« Angleterre ou nul »), échappait au filtre « double chance » -> code vide.
@@ -1196,6 +1216,12 @@ async def _settle_analyses_impl() -> int:
                     return r
                 if c.startswith("FIRSTTO") and sofa and len(sofa) <= 8:
                     return await _settle_firstto(sofa, c)   # premier à X points -> incidents SofaScore
+                if c.startswith("SCOREASSIST"):             # « joueur marque ou passe déc. » -> events FotMob
+                    _, _, who = c.partition("|")
+                    if not who:
+                        return None
+                    from app import sources as _src
+                    return await _src.player_scored_or_assisted(d, who)
                 if c.startswith("FIRSTGOAL"):               # premier but du match -> events FotMob
                     from app import sources as _src
                     fg = await _src.first_goal_side(d)
