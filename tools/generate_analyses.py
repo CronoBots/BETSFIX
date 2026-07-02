@@ -981,10 +981,21 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
             break
     if len(rows) < 4:
         return ""
+    # Cible/contraintes NOUVELLES au FOOT uniquement (demande user) ; le basket garde son texte d'avant.
+    _foot = sport == "foot"
+    _target = ("une VRAIE cote ENTRE 1.75 ET 2.25 (cible ferme), chance de passer MAXIMALE dans cette "
+               "fourchette (fiabilité + rendement)" if _foot
+               else "une VRAIE cote ≥ 1.80 avec la chance de passer maximale")
+    _range = ("  • Inclus AU MOINS 2-3 candidates à cote 1.35-1.80 (sinon impossible d'atteindre "
+              "1.75-2.25 réel une fois Unibet raboté). AUCUNE jambe sous 1.10 (inutile : n'apporte rien).\n"
+              "  • Pas deux totaux qui se recoupent (équipe + match) ; PAS de cartons/corners ; PAS de "
+              "props JOUEUR individuelles (tirs/tirs cadrés/passes/points d'UN joueur nommé — trop de "
+              "variance) : privilégie les marchés d'ÉQUIPE / de MATCH.\n" if _foot
+              else "  • Inclus AU MOINS 1-2 candidates à cote 1.5-2.5 (sinon impossible d'atteindre 1.80 "
+              "réel). Pas deux totaux qui se recoupent ; chaque candidate ≥ ~65 % ; PAS de cartons/corners.\n")
     return ("\n\nCATALOGUE COMBINABLE BET BUILDER — au lieu d'un combiné figé, propose un VIVIER de "
             "6 à 8 JAMBES CANDIDATES prises DANS CETTE LISTE. Un OPTIMISEUR choisira la meilleure "
-            "combinaison combinable visant une VRAIE cote ENTRE 1.75 ET 2.25 (cible ferme), chance de "
-            "passer MAXIMALE dans cette fourchette (fiabilité + rendement).\n"
+            "combinaison combinable visant " + _target + ".\n"
             "⚠️⚠️ CHANGEMENT DE LOGIQUE — ceci REMPLACE toute consigne de « domination corrélée » plus "
             "haut. On calcule désormais la VRAIE cote Unibet, et Unibet RABOTE LOURDEMENT les jambes "
             "CORRÉLÉES (ex. « équipe gagne » + « équipe marque 2 buts » + « +1.5 buts » = 3 fois le même "
@@ -992,11 +1003,7 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
             "INDÉPENDANTES (qui ne décrivent PAS le même scénario) :\n"
             "  • Mélange des ANGLES SANS LIEN : 1 résultat (double chance) + 1 total de buts + 1 jambe "
             "d'un AUTRE registre (une équipe marque, mi-temps, props joueur…). JAMAIS 3 jambes « buts ».\n"
-            "  • Inclus AU MOINS 2-3 candidates à cote 1.35-1.80 (sinon impossible d'atteindre 1.75-2.25 "
-            "réel une fois Unibet raboté). AUCUNE jambe sous 1.10 (inutile : n'apporte rien à la cote).\n"
-            "  • Pas deux totaux qui se recoupent (équipe + match) ; PAS de cartons/corners ; PAS de props "
-            "JOUEUR individuelles (tirs/tirs cadrés/passes/points d'UN joueur nommé — trop de variance, "
-            "elles ont plombé le ROI) : privilégie les marchés d'ÉQUIPE / de MATCH.\n"
+            + _range)
             "⚠️ FORMAT EXACT, une ligne par candidate (après la section Mise), id du catalogue ENTRE "
             "CROCHETS + ta proba honnête :\n"
             "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi cette jambe, factuel et chiffré>`\n"
@@ -1134,17 +1141,22 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     None si aucune combinaison ne tient la chance calibrée."""
     from itertools import combinations
     from app.analyses import calibrated_conf, combo_player_props_allowed
+    # PORTÉE FOOT SEULEMENT (demande user) : la cible 1.75-2.25, le filtre props joueur et le couperet
+    # « jambe < 1.10 » ne s'appliquent qu'au FOOT. Le basket garde son comportement d'avant (fourchette
+    # large 1.80-4.20, chance ≥0.33, props joueur autorisées) -> zéro régression basket.
+    _foot = sport == "foot"
+    r_min = _COMBO_REAL_MIN if _foot else 1.80
+    r_max = _COMBO_REAL_MAX if _foot else 4.20
+    p_min = _COMBO_PROB_MIN if _foot else 0.33
+    r_mean = _COMBO_MEANINGFUL if _foot else 1.60
     cands = [c for c in cands if c.get("oid")]
-    # FILTRE DÉTERMINISTE (le LLM ne respecte pas toujours le prompt) : props JOUEUR écartées du vivier
-    # tant qu'elles n'ont pas fait leurs preuves (auto-révisable via les fantômes). La sécurité par jambe
-    # vient du plancher de CHANCE COMBINÉE (_COMBO_PROB_MIN) — pas d'un couperet par jambe qui viderait
-    # le vivier et empêcherait tout combiné.
-    if not combo_player_props_allowed()[0]:
-        cands = [c for c in cands if not (c.get("code") or "").startswith(("PLAYERFB", "PLAYERBK"))]
-    # JAMBES INUTILES écartées : une jambe sous _COMBO_LEG_MIN (1.10) n'apporte rien à la cote (demande
-    # user) -> on ne la garde pas dans le vivier (évite « Double chance 1X @1.03 » qui gonfle la liste
-    # sans monter la cote combinée).
-    cands = [c for c in cands if (c.get("cote") or 0) >= _COMBO_LEG_MIN][:6]
+    if _foot:
+        # FILTRE DÉTERMINISTE : props JOUEUR écartées du vivier tant qu'elles n'ont pas fait leurs preuves
+        # (auto-révisable via les fantômes). ET jambe inutile < 1.10 écartée (n'apporte rien à la cote).
+        if not combo_player_props_allowed()[0]:
+            cands = [c for c in cands if not (c.get("code") or "").startswith(("PLAYERFB", "PLAYERBK"))]
+        cands = [c for c in cands if (c.get("cote") or 0) >= _COMBO_LEG_MIN]
+    cands = cands[:6]
     n = len(cands)
     if n < 2:
         return None
@@ -1160,19 +1172,19 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     for size in range(min(max_legs, n), 1, -1):
         for idx in combinations(range(n), size):
             real = unibet.betbuilder_odds(eid, [cands[i]["oid"] for i in idx])
-            if not real or real > _COMBO_REAL_MAX:
+            if not real or real > r_max:
                 continue
             prob = 1.0
             for i in idx:
                 prob *= cands[i]["_cprob"]
             if any_safe is None or prob > any_safe[0]:   # tout dernier recours (n'importe quelle cote)
                 any_safe = (prob, real, idx)
-            # repli PRINCIPAL = le PLUS SÛR PARMI les cotes SIGNIFICATIVES (≥ _COMBO_MEANINGFUL) : évite le
-            # combiné dégénéré à 1.03 sur un archi-favori (une cote plancher, sinon le pari n'a aucun sens).
-            if real >= _COMBO_MEANINGFUL and (safest is None or prob > safest[0]):
+            # repli PRINCIPAL = le PLUS SÛR PARMI les cotes SIGNIFICATIVES (≥ r_mean) : évite le combiné
+            # dégénéré à 1.03 sur un archi-favori (une cote plancher, sinon le pari n'a aucun sens).
+            if real >= r_mean and (safest is None or prob > safest[0]):
                 safest = (prob, real, idx)
             # EV maximale parmi les combinaisons qui tiennent la VALUE (≥ MIN) ET la chance mini.
-            if real >= _COMBO_REAL_MIN and prob >= _COMBO_PROB_MIN:
+            if real >= r_min and prob >= p_min:
                 ev = real * prob
                 if best is None or ev > best[0]:
                     best = (ev, real, prob, idx)
