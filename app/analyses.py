@@ -2016,6 +2016,48 @@ def combo_player_props_allowed() -> tuple[bool, dict]:
     return True, info
 
 
+def exclusions_report() -> dict:
+    """TRANSPARENCE (lecture seule) : pour CHAQUE famille de marché, dit si elle est ÉCARTÉE ou non et
+    POURQUOI, avec les valeurs vs les SEUILS (n, écart de calibration réel−annoncé, ROI). + le cas
+    spécial « Props joueur en combiné » (logique INVERSE : exclu par défaut, réintégré si prouvé).
+    Reflète l'état RÉEL des recommandations (auto_exclusions sur données complètes), jamais filtré."""
+    cal = calibration(min_conf=_MIN_CONF)
+    bm = cal.get("by_market") or {}
+    perf = {g.get("label"): g for g in (perf_breakdown().get("by_market") or [])}
+    _sports, ex_markets = auto_exclusions()
+    HARD = {"Corners"}
+    rows = []
+    for name in sorted(set(bm) | set(perf)):
+        g, p = bm.get(name) or {}, perf.get(name) or {}
+        n = g.get("n") or 0
+        wr, ac = g.get("win_rate"), g.get("avg_conf")
+        gap = (wr - ac) if (wr is not None and ac is not None) else None
+        settled, roi = p.get("settled") or 0, p.get("roi")
+        excluded = name in ex_markets
+        if name in HARD:
+            kind, reason = "ban", "Banni (marché le plus perdant — décision produit, jamais réintégré)."
+        elif excluded and gap is not None and n >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:
+            kind, reason = "gap", (f"Sur-confiance : réussite {wr}% sous la confiance annoncée {ac}% "
+                                   f"(écart {gap:+d} pts ≤ {CALIB_GAP_MAX}).")
+        elif excluded and settled >= CALIB_MIN_N and roi is not None and roi <= CALIB_ROI_MAX:
+            kind, reason = "roi", f"ROI réel {roi:+d}% ≤ {CALIB_ROI_MAX}% (perd de l'argent même bien calibré)."
+        elif excluded:
+            kind, reason = "excl", "Écarté (seuil de fiabilité franchi)."
+        elif n < CALIB_MIN_N:
+            kind, reason = "watch", (f"Sous surveillance — échantillon insuffisant ({n}/{CALIB_MIN_N} "
+                                     f"prédictions) : on ne conclut pas sur du bruit.")
+        else:
+            _g = f"{gap:+d}" if gap is not None else "?"
+            kind, reason = "ok", f"Fiable (écart {_g} pts > {CALIB_GAP_MAX} et ROI OK)."
+        rows.append({"market": name, "excluded": excluded, "kind": kind, "reason": reason,
+                     "n": n, "win_rate": wr, "avg_conf": ac, "gap": gap, "roi": roi, "settled": settled})
+    order = {"ban": 0, "gap": 1, "roi": 1, "excl": 1, "watch": 2, "ok": 3}
+    rows.sort(key=lambda r: (order.get(r["kind"], 9), -(r["n"] or 0)))
+    pp_ok, pp = combo_player_props_allowed()
+    return {"rows": rows, "player_props": {"allowed": pp_ok, **pp},
+            "thresholds": {"min_n": CALIB_MIN_N, "gap_max": CALIB_GAP_MAX, "roi_max": CALIB_ROI_MAX}}
+
+
 def _wilson(won: int, n: int, z: float = 1.28) -> tuple:
     """Intervalle de Wilson (fourchette réaliste d'une proportion) — robuste sur petits échantillons.
     z=1.28 ≈ 80%. Sert à ne pas conclure sur du bruit (ex. 4 paris gagnés ≠ « fiable à 100% »)."""
