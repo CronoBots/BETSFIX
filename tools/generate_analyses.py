@@ -1183,13 +1183,18 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
             # dégénéré à 1.03 sur un archi-favori (une cote plancher, sinon le pari n'a aucun sens).
             if real >= r_mean and (safest is None or prob > safest[0]):
                 safest = (prob, real, idx)
-            # EV maximale parmi les combinaisons qui tiennent la VALUE (≥ MIN) ET la chance mini.
-            if real >= r_min and prob >= p_min:
+            # EV maximale parmi les combinaisons qui tiennent la VALUE (≥ MIN) ET la chance mini. HORS
+            # FOOT (basket/tennis) : on n'accepte QUE la VRAIE value (EV = cote×chance calibrée > 1) —
+            # on ne FORCE jamais un combiné sans confiance réelle ET value (demande user ; la CdM foot,
+            # elle, garde son combiné phare via le repli plus bas).
+            if real >= r_min and prob >= p_min and (_foot or real * prob > 1.0):
                 ev = real * prob
                 if best is None or ev > best[0]:
                     best = (ev, real, prob, idx)
     if best:
         _, real, prob, idx = best
+    elif not _foot:
+        return None                     # basket/tennis sans value réelle -> ABSTENTION (pas de combiné forcé)
     elif safest:
         prob, real, idx = safest        # aucun combo value -> le PLUS SÛR à cote significative
     elif any_safe:
