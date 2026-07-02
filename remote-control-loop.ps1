@@ -25,6 +25,25 @@ if (-not $claude) { $claude = "claude" }
 
 $pidFile = Join-Path $PSScriptRoot ".remote-control.pid"
 
+# --- GARDE-FOU ANTI-DOUBLON (singleton) ------------------------------------
+# Piege vecu (2026-07-02) : un superviseur ORPHELIN (son parent Task Scheduler
+# est mort) + son claude survivent a un precedent logon. La tache "BETSFIX
+# Remote Control" (IgnoreNew) ne "voit" PAS cet orphelin -> au logon suivant
+# elle relance une 2e instance, et DEUX "claude --remote-control BETSFIX" se
+# disputent le meme nom de session => session invisible/instable cote claude.ai.
+# Regle : au demarrage, CE superviseur devient le SEUL proprietaire du projet.
+# Il tue tout AUTRE superviseur BETSFIX (hors lui-meme) et TOUT claude remote
+# BETSFIX preexistant (le sien n'est pas encore lance) avant de continuer.
+try {
+    Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" |
+        Where-Object { $_.CommandLine -match 'BETSFIX\\remote-control-loop' -and $_.ProcessId -ne $PID } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
+        Where-Object { $_.CommandLine -match "remote-control $SessionName" } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+} catch { }
+# ---------------------------------------------------------------------------
+
 # But : la session remote doit REPRENDRE automatiquement la derniere
 # conversation BETSFIX a chaque boot (et non repartir de zero).
 #   --remote-control <name> : etablit la session distante VISIBLE sur claude.ai/code
