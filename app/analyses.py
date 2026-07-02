@@ -1792,6 +1792,7 @@ def combo_stats(since_days: int | None = None) -> dict:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     rows = []   # (result, real_odds, shave, n_legs, prob)
     curve = []  # (start, result, real_odds) -> courbe d'équité cumulée (mise plate 1u, chronologique)
+    by_sp: dict = {}   # sport -> [(start, result, real_odds)] -> courbe combinés PAR SPORT (onglets)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -1799,6 +1800,7 @@ def combo_stats(since_days: int | None = None) -> dict:
         c = d.get("combo") or {}
         if not c.get("legs"):
             continue
+        sport = d.get("sport")
         start = d.get("start") or ""
         if start[:10] < _COMBO_COUNT_FROM:
             continue
@@ -1815,6 +1817,7 @@ def combo_stats(since_days: int | None = None) -> dict:
         odds = c.get("real_odds") or c.get("total")
         rows.append((res, float(odds) if odds else None, c.get("shave"), len(c["legs"]), c.get("prob")))
         curve.append((start, res, float(odds) if odds else None))
+        by_sp.setdefault(sport, []).append((start, res, float(odds) if odds else None))
     won = sum(1 for r, o, s, n, pr in rows if r == "won")
     lost = sum(1 for r, o, s, n, pr in rows if r == "lost")
     push = sum(1 for r, o, s, n, pr in rows if r == "push")
@@ -1847,7 +1850,10 @@ def combo_stats(since_days: int | None = None) -> dict:
             "avg_odds": round(sum(odds_vals) / len(odds_vals), 2) if odds_vals else None,
             "avg_shave": round(sum(shaves) / len(shaves), 1) if shaves else None,
             "avg_ev": round(100 * sum(evs) / len(evs)) if evs else None,
-            "by_legs": by_legs, "points": pts}
+            "by_legs": by_legs, "points": pts,
+            # Bilan combinés PAR SPORT (mêmes clés que stats_full.by_sport via _agg_bets :
+            # points/roi/pct/settled/avg_odds) -> courbe combinés dédiée dans chaque onglet sport.
+            "by_sport": {sp: _agg_bets(evs) for sp, evs in by_sp.items() if sp}}
 
 
 _CALIB_BANDS = [(45, 55), (55, 65), (65, 75), (75, 85), (85, 101)]

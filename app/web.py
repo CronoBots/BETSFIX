@@ -414,6 +414,14 @@ CSS = """
   .spf-kv{display:block;font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
   .spf-kl{display:block;font-size:8px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
        color:var(--muted);margin-top:2px}
+  /* Deux courbes d'équité ÉTIQUETÉES (Simples / Combinés) empilées dans l'onglet sport */
+  .spf-charts{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+  .spf-cv{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;
+       padding:8px 10px 6px}
+  .spf-cv-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:3px}
+  .spf-cv-t{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .spf-cv-roi{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
+  .spf-cv-none{font-size:11px;color:var(--muted);padding:16px 2px;text-align:center}
   /* Détail INTÉGRÉ au cadre (repliable) : fiabilité par-pari + calibration,
   séparé par un filet */
   .spf-det{margin-top:12px;border-top:1px solid var(--border)}
@@ -3211,6 +3219,20 @@ def _section(heading: str, body: str, open_: bool = True, info: str | None = Non
 
 _SPORT_FR_LABEL = {"foot": ("Football", "⚽"), "tennis": ("Tennis", "🎾"), "basket": ("Basket", "🏀")}
 
+def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str) -> str:
+    """Un bloc COURBE ÉTIQUETÉ (Simples / Combinés) d'un onglet sport : titre + ROI + nb de paris,
+    puis la courbe d'équité (profit cumulé). Si aucun pari réglé de ce type -> message discret à la
+    place de la courbe (ex. tennis/basket sans combiné). `blk` = bloc `_agg_bets` (points/roi/settled)."""
+    if blk and blk.get("settled"):
+        roi = blk.get("roi")
+        head = (f'<div class="spf-cv-h"><span class="spf-cv-t">{label}</span>'
+                f'<span class="spf-cv-roi arec-{_roi_cls(roi, blk.get("settled"))}">'
+                f'ROI {_roistr(roi)} · {blk["settled"]} paris</span></div>')
+        return f'<div class="spf-cv">{head}{_hero_chart(blk.get("points") or [], uid=uid)}</div>'
+    return (f'<div class="spf-cv spf-cv-empty"><div class="spf-cv-h">'
+            f'<span class="spf-cv-t">{label}</span></div>'
+            f'<div class="spf-cv-none">{empty_msg}</div></div>')
+
 def render_sport_perf(sport: str) -> str:
     """Carte PREMIUM UNIQUE de performance du sport, SOUS le titre, dans UN SEUL cadre : ROI géant +
     forme + courbe d'équité + KPIs, puis (intégré au même cadre, repliable) le détail PAR PARI et la
@@ -3232,7 +3254,14 @@ def render_sport_perf(sport: str) -> str:
     if _fc:
         _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Combinés</span>{_fc}</div>')
     forms = f'<div class="spf-forms">{"".join(_rows)}</div>' if _rows else form_dots(s.get("form"))
-    chart = _hero_chart(s.get("points") or [], uid=f"sp-{sport}")
+    # DEUX courbes d'équité étiquetées (demande user) : Simples (= le suivi ROI du sport) + Combinés
+    # (segment dédié de combo_stats). Combinés = foot/CdM aujourd'hui -> placeholder pour les autres.
+    combo_bs = (analyses.combo_stats().get("by_sport") or {}).get(sport)
+    chart = ('<div class="spf-charts">'
+             + _perf_curve_block("Simples", s, f"sp-{sport}-s", "Aucun simple réglé")
+             + _perf_curve_block("Combinés", combo_bs, f"sp-{sport}-c",
+                                 "Aucun combiné réglé pour ce sport")
+             + '</div>')
 
     def kpi(v, lbl):
         return f'<div class="spf-k"><span class="spf-kv">{v}</span><span class="spf-kl">{lbl}</span></div>'
