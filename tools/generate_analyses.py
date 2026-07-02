@@ -1082,9 +1082,9 @@ def _resolve_combo(legs: list, catalog: list, home: str = "", away: str = "", to
 # Recalibrage « Équilibré » (2026-07-02) : les combinés perdaient (ROI −11 %, 44 % réussite @2.14) car
 # le plancher de chance était bien trop bas (0.33 -> longshots -EV). On resserre : chance combinée ≥ 58 %
 # (au-dessus du seuil de rentabilité de la zone de cote visée) et cote 1.50–2.10 (fini les 3.90/4.20).
-_COMBO_REAL_MIN = 1.50      # vraie cote minimale visée pour le combiné (valeur, pas du produit illusoire)
-_COMBO_REAL_MAX = 2.10      # au-delà = trop gourmand (proba trop faible) -> on évite
-_COMBO_PROB_MIN = 0.58      # chance de passer minimale (BARRIÈRE DURE) — bat le seuil de rentabilité
+_COMBO_REAL_MIN = 1.55      # vraie cote minimale visée pour le combiné (valeur, pas du produit illusoire)
+_COMBO_REAL_MAX = 2.80      # au-delà = trop gourmand -> on évite (mais laisse de la marge : sinon 0 combiné)
+_COMBO_PROB_MIN = 0.50      # chance de passer minimale (BARRIÈRE DURE) — moins gourmand qu'avant (0.33)
 
 
 def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
