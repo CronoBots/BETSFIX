@@ -1076,14 +1076,15 @@ async def _settle_analyses_impl() -> int:
                         score = None
                 if not score:
                     # Aucune source n'a le score. Match encore en cours / pas trouvé -> on repasse.
-                    # MAIS si le match est CERTAINEMENT terminé (temps largement dépassé) et qu'un
-                    # combiné traîne encore sans verdict après assez d'essais, on ne peut PLUS jamais
-                    # lire son résultat -> on laisse la FINALISATION plus bas TRANCHER (void/remboursé)
-                    # pour ne pas rester bloqué à vie (« régler quoi qu'il arrive »).
+                    # MAIS si le match est CERTAINEMENT terminé et qu'un combiné traîne sans verdict,
+                    # on laisse le flux continuer avec un score VIDE : la finalisation plus bas attend
+                    # encore quelques essais (au cas où une source arrive) puis TRANCHE (void/remboursé)
+                    # pour ne jamais rester bloqué à vie (« régler quoi qu'il arrive »). L'incrément des
+                    # essais + la sauvegarde se font par le flux normal (pas de continue ici).
                     _cmb0 = d.get("combo") or {}
                     if (analyses.status_of(d) == "finished" and _cmb0.get("legs")
-                            and _cmb0.get("result") is None and (d.get("combo_tries") or 0) >= 8):
-                        score = {"home": None, "away": None}   # pas de données -> jambes VOID
+                            and _cmb0.get("result") is None):
+                        score = {"home": None, "away": None}   # pas de données -> jambes non réglables
                     else:
                         continue
             # Pré-calcule les codes de TOUS les paris affichés -> on sait si on a besoin des STATS du
@@ -1105,12 +1106,19 @@ async def _settle_analyses_impl() -> int:
                        and any(l.get("result") is None for l in (d.get("combo") or {}).get("legs") or []))
             if need_stats and (not score.get("stats") or cmb_inc):
                 st = await _event_stats(sofa) if (sofa and len(sofa) <= 8) else None
-                if not st and sport == "foot":     # SofaScore bloqué -> repli GRATUIT Flashscore (df_st)
-                    from app import flashscore
-                    st = await asyncio.to_thread(flashscore.foot_match_stats_by_names,
-                                                 d.get("home", ""), d.get("away", ""), d.get("start"))
                 if st:
                     score["stats"] = {**(score.get("stats") or {}), **st}   # complète sans rien perdre
+                # Foot : on complète TOUJOURS par Flashscore si les TIRS/TIRS CADRÉS manquent encore
+                # (SofaScore mort renvoie {} ; ou `_event_stats` ne donne que corners/cartons sans SOT).
+                # Sans ça, une jambe « tirs cadrés » réglable (donnée dispo chez Flashscore) était VOID
+                # à tort -> pouvait transformer un combiné perdu en gagné.
+                cur = score.get("stats") or {}
+                if sport == "foot" and ("sot_h" not in cur or "shots_h" not in cur):
+                    from app import flashscore
+                    fs = await asyncio.to_thread(flashscore.foot_match_stats_by_names,
+                                                 d.get("home", ""), d.get("away", ""), d.get("start"))
+                    if fs:
+                        score["stats"] = {**cur, **fs}   # complète SOT/tirs sans rien perdre
 
             # PÉRIODES (jeux par set tennis : SETGAMES/TOTGAMES/SETSCORE ; mi-temps foot *_1H) : si le
             # score (souvent ESPN = score final seul) n'a PAS les périodes, LiveScore les fournit ->
