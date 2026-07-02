@@ -425,10 +425,12 @@ CSS = """
   /* Forme W/L PROPRE à chaque graphe (juste au-dessus de la courbe) */
   .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px}
   /* Stats PROPRES à chaque graphe (juste sous la courbe) : réussite · paris · cote moy. */
-  .spf-cv-kpis{display:flex;justify-content:space-between;gap:6px;margin-top:6px;
-       font-size:10px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
-  .spf-cv-kpis span{flex:1;text-align:center}
-  .spf-cv-kpis b{display:block;color:var(--text);font-weight:800;font-size:13px;
+  .spf-cv-kpis{display:flex;justify-content:space-between;gap:8px;margin-top:8px;
+       font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  /* Stats du graphe présentées en BOUTONS encadrés (demande user) — même look que les KPIs cartes */
+  .spf-cv-kpis span{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.04);
+       border:1px solid var(--border);border-radius:11px;padding:7px 3px}
+  .spf-cv-kpis b{display:block;color:var(--text);font-weight:800;font-size:14px;margin-bottom:2px;
        font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
   /* Ligne d'EXTRAS sous les stats (Stats : nouv. système · CLV / profit · rabot) — inline compact */
   .spf-cv-extra{display:flex;justify-content:center;flex-wrap:wrap;gap:5px 16px;margin-top:6px;
