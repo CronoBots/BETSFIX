@@ -2702,11 +2702,9 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     if not ov.get("settled"):
         return ""
     sc = full.get("since_change") or {}
-    # KPI à SUIVRE : nouveau système (1 pari/match + 3 agents). Libellé COURT (pas de retour à la ligne).
+    # KPI à SUIVRE : nouveau système (1 pari/match + 3 agents) -> chip EXTRA sous la courbe.
     nv_val = _roistr(sc.get("roi")) if sc.get("settled") else "—"
     nv_cls = _roi_cls(sc.get("roi"), sc.get("settled")) if sc.get("settled") else "hi"
-    new_kpi = (f'<div class="sx-kpi" title="Nouveau système ({sc.get("settled") or 0} paris réglés)">'
-               f'<b class="arec-{nv_cls}">{nv_val}</b><span>nouv. système</span></div>')
     # COURBE + repères (≥1 explication d'1 ligne par mise à jour du modèle).
     miles = list(analyses.MODEL_MILESTONES)
     chart = _hero_chart(ov.get("points") or [], uid="all",
@@ -2722,57 +2720,46 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                f'<span class="sx-ml-hint">touchez un repère pour le détail</span></div>'
                f'<div class="sx-mile-bs">{mchips}</div>'
                f'<div class="sx-mile-info"></div>{mdata}</div>') if miles else ""
-    # Forme W/L (mêmes pastilles que les onglets sport, récent à DROITE) — PLACÉE JUSTE AU-DESSUS de sa
-    # courbe (demande user : W/L près du graphe, comme les onglets sport). Simples ↕ Combinés séparés.
+    # Forme W/L (mêmes pastilles que les onglets sport, récent à DROITE), JUSTE au-dessus de sa courbe.
     _LET = {"won": "W", "lost": "L", "push": "N"}
-    _fs = form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=10)
+    _fs = (form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=10)
+           or form_dots([_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10))
     _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=10)
-    _simples_form = (f'<div class="sx-formrow sx-formrow-c"><span class="sx-formk">Forme</span>{_fs}</div>'
-                     if _fs else form_dots(
-                         [_LET.get(x, x) for x in (ov.get("form12") or ov.get("form") or [])], n=10))
-    _combo_form = (f'<div class="sx-formrow sx-formrow-c"><span class="sx-formk">Forme</span>{_fc}</div>'
-                   if _fc else "")
-    chart_block = (f'<div class="sx-divider"></div>'
-                   f'<div class="sx-h sx-h2">📈 Simples<span>évolution du rendement</span></div>'
-                   f'{_simples_form}'
-                   f'<div class="sx-equity">{chart}</div>{mlegend}') if chart else ""
-    # KPI CLV (Closing Line Value) : se remplit à mesure que de nouveaux paris RÉSULTAT se règlent.
-    # >0 = on prend en moyenne de meilleures cotes que la clôture = edge réel. '—' tant que vide.
+    _simples_form = f'<div class="spf-cv-form">{_fs}</div>' if _fs else ""
+    _combo_form = f'<div class="spf-cv-form">{_fc}</div>' if _fc else ""
+    # CLV (Closing Line Value) : chip EXTRA sous la courbe (>0 = on bat la cote de clôture). '—' si vide.
     from app import clv as _clvmod
     _cs = _clvmod.clv_stats()
     if _cs.get("n"):
         _cv = _cs["avg_pct"]
-        clv_kpi = (f'<div class="sx-kpi" title="CLV : cote prise vs cote de clôture du marché. '
-                   f'&gt;0 = on bat le marché. {_cs.get("beat_pct")}% des paris au-dessus, sur '
-                   f'{_cs["n"]} paris résultat.">'
-                   f'<b class="arec-{_roi_cls(_cv, _cs["n"])}">{"+" if (_cv or 0) >= 0 else ""}{_cv}%</b>'
-                   f'<span>CLV ({_cs["n"]})</span></div>')
+        _clv_txt = (f'<span title="CLV : cote prise vs cote de clôture. &gt;0 = on bat le marché. '
+                    f'{_cs.get("beat_pct")}% des paris au-dessus, sur {_cs["n"]} résultats.">CLV '
+                    f'<b class="arec-{_roi_cls(_cv, _cs["n"])}">{"+" if (_cv or 0) >= 0 else ""}{_cv}%'
+                    f'</b> ({_cs["n"]})</span>')
     else:
-        clv_kpi = ('<div class="sx-kpi" title="CLV (Closing Line Value) : battre la cote de clôture du '
-                   'marché = juge d\'edge le plus rapide. Se remplit dès que des paris résultat se règlent.">'
-                   '<b>—</b><span>CLV</span></div>')
-    hero = (
-        '<div class="sx-hero"><div class="sx-hero-top">'
-        f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
-        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI · paris simples {_ind(ov.get("settled"))}</div>'
-        '<div class="sx-hero-hint">Combinés suivis à part ↓ (un combiné gagné n\'entre PAS ici)</div></div>'
-        '</div>'
-        '<div class="sx-kpis">'
-        f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>simples réglés</span></div>'
-        f'<div class="sx-kpi"><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b><span>réussite</span></div>'
-        f'<div class="sx-kpi"><b>{ov.get("avg_odds") or "—"}</b><span>cote moy.</span></div>'
-        f'{new_kpi}'
-        f'{clv_kpi}'
-        '</div>'
-        f'{chart_block}'
-        '</div>')
-    # BLOC COMBINÉS = MIROIR du bloc simples (même style : gros ROI + forme + KPIs + courbe), JUSTE EN
-    # DESSOUS (demande user). render_combos renvoie un hero complet identique en structure.
-    equity = render_combos(combo_full if combo_full is not None else analyses.combo_stats(), _combo_form)
-    # render_stats = la VUE D'ENSEMBLE seule (Simples + Combinés). Le détail par sport, le rendement
-    # par cote, la calibration et le volume de données sont ajoutés en SECTIONS distinctes par la route
-    # (_home_stats) -> hiérarchie pro : synthèse → détail → fiabilité → transparence.
-    return f'{hero}{equity}'
+        _clv_txt = ('<span title="CLV (Closing Line Value) : battre la cote de clôture du marché. Se '
+                    'remplit dès que des paris résultat se règlent.">CLV <b>—</b></span>')
+    # BLOC SIMPLES compact (présentation alignée sur les onglets sport, demande user) : en-tête
+    # (titre + ROI), W/L au-dessus de la courbe, courbe (avec repères), stats dessous. EXTRAS conservés :
+    # nouv. système + CLV (ligne secondaire) et repères de modèle sous la courbe.
+    simples_block = (
+        '<div class="spf-cv">'
+        f'<div class="spf-cv-h"><span class="spf-cv-t">📈 Simples</span>'
+        f'<span class="spf-cv-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
+        f'ROI {_roistr(ov.get("roi"))}</span></div>'
+        f'{_simples_form}<div class="sx-equity">{chart}</div>'
+        '<div class="spf-cv-kpis">'
+        f'<span><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b> réussite</span>'
+        f'<span><b>{ov["settled"]}</b> paris</span>'
+        f'<span><b>@{ov.get("avg_odds") or "—"}</b> cote</span></div>'
+        f'<div class="spf-cv-extra"><span>nouv. système <b class="arec-{nv_cls}">{nv_val}</b></span>'
+        f'{_clv_txt}</div>'
+        f'{mlegend}</div>')
+    # BLOC COMBINÉS : même carte compacte, juste en dessous (render_combos), + ses extras (profit,
+    # rabot, réussite par nb de jambes). Le tout dans UNE carte .spf, comme les onglets sport.
+    combos_block = render_combos(combo_full if combo_full is not None else analyses.combo_stats(),
+                                 _combo_form)
+    return f'<div class="spf"><div class="spf-charts">{simples_block}{combos_block}</div></div>'
 
 
 def _roi_bars(rows: list) -> str:
