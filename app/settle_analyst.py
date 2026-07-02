@@ -62,6 +62,20 @@ def _match_age_days(d: dict) -> float:
         return max(0.0, (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0)
     except (ValueError, OverflowError, OSError):
         return 0.0
+
+
+def _score_incomplete(sc: dict | None, sport: str) -> bool:
+    """Un score CACHÉ (result.raw) capté quand le match était encore EN COURS (0-0 / vide) doit être
+    RE-FETCHÉ, sinon il masque le vrai score final. Bug vécu 2026-07-02 : un cache tennis « 0-0 sets »
+    (pris avant le 1er set) figeait le vainqueur -> WIN/SETWIN jamais réglés alors que Flashscore
+    donnait 2-0. Un VRAI 0-0 foot final a home=0/away=0 (≠ None) -> considéré COMPLET (non re-fetché)."""
+    if not sc:
+        return True
+    sh, sa = sc.get("sets_home") or 0, sc.get("sets_away") or 0
+    if sport == "tennis":
+        return sh == 0 and sa == 0                     # aucun set gagné -> capture en cours
+    h, a = sc.get("home"), sc.get("away")
+    return h is None and a is None and sh == 0 and sa == 0   # aucun score numérique capté
 _SETTLE_VERSION = 44   # v44 : PÉRIODES via Sportradar GISMO (repli) — jeux/sets/tie-breaks tennis &
 #                              quart-temps basket enfin réglables quand LiveScore/Flashscore échouent.
 # v43 : jambes à CODE VIDE débloquées — nom d'équipe seul = moneyline (WIN/1X2)
@@ -1051,6 +1065,8 @@ async def _settle_analyses_impl() -> int:
                     or code_from_pick(d.get("pick", ""), sport, d.get("home", ""), d.get("away", "")))
             sofa = str(d.get("sofa_id") or "")
             score = (d.get("result") or {}).get("raw")
+            if _score_incomplete(score, sport):        # cache périmé (capté en cours) -> re-fetch frais
+                score = None
             if not score:
                 if sofa and len(sofa) <= 8:
                     score = await _event_data(sport, sofa)
