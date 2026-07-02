@@ -1498,6 +1498,8 @@ async def main():
     ap.add_argument("--hours", type=int, default=24,
                     help="fenêtre : ne scanner que les matchs à venir dans N heures (défaut 24)")
     ap.add_argument("--force", action="store_true", help="ignore le cache 6 h")
+    ap.add_argument("--only-big", action="store_true",
+                    help="scanner UNIQUEMENT les gros tournois (Coupe du Monde)")
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
     # Le scan AUTORISE les gros endpoints (scheduled-events) via proxy : il les met en cache
@@ -1518,6 +1520,8 @@ async def main():
             except Exception as e:
                 print(f"[{sport}] sélection échouée : {e}")
                 continue
+            if args.only_big:      # CdM uniquement : on écarte tout match hors gros tournoi
+                top = [m for m in top if _is_big_match(m.get("comp") or m.get("circuit") or "")]
             store = _load_store(sport)
             print(f"[{sport}] {len(top)} matchs sélectionnés (profondeur de marché).")
             for m in top:
