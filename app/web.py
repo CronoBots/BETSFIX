@@ -1619,6 +1619,7 @@ CSS = """
        border:1px solid var(--border);border-left:3px solid #ffb020;border-radius:12px;padding:10px 12px}
   .da-combo-won{border-left-color:#34d27b}
   .da-combo-lost{border-left-color:#ff6b6b}
+  .da-combo-void{border-left-color:#9fb0c8}   /* combiné remboursé (jambe indéterminable) : gris neutre */
   .da-combo-h{font-size:12px;font-weight:800;color:#ffd98a;display:flex;align-items:center;gap:8px;
        margin-bottom:7px;text-transform:uppercase;letter-spacing:.03em}
   .da-combo-n{font-weight:700;color:#cdb98a;opacity:.85}     /* « · N jambes » à côté de Combiné */
@@ -1626,6 +1627,7 @@ CSS = """
   .da-combo-b{font-size:10px;border-radius:5px;padding:1px 7px;font-weight:800}
   .da-combo-b.won{background:#34d27b;color:#04220f}
   .da-combo-b.lost{background:#ff6b6b;color:#2a0606}
+  .da-combo-b.void{background:#9fb0c8;color:#0b1428}
   .da-cl-leg{padding:7px 0;border-top:1px solid rgba(255,255,255,.07)}   /* 1 bloc = 1 jambe (rythme) */
   .da-cl-leg:first-of-type{border-top:0;padding-top:2px}
   .da-cl{display:flex;align-items:flex-start;gap:8px;justify-content:space-between;

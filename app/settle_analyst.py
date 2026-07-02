@@ -1406,8 +1406,8 @@ async def _settle_analyses_impl() -> int:
                             d["pub_draw"] = v[2] / 100
                 d["votes_tries"] = (d.get("votes_tries") or 0) + 1
             # Transition « en attente -> réglé » -> notification (simple ET/OU combiné).
-            _chip = {"won": "✅ Réussi", "lost": "❌ Perdu", "push": "➖ Remboursé"}
-            _MARK = {"won": "✅", "lost": "❌", "push": "➖"}   # validation/croix APRÈS le prono
+            _chip = {"won": "✅ Réussi", "lost": "❌ Perdu", "push": "➖ Remboursé", "void": "➖ Remboursé"}
+            _MARK = {"won": "✅", "lost": "❌", "push": "➖", "void": "➖"}   # validation/croix APRÈS le prono
             _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
             _match = f"{d.get('home', '')} - {d.get('away', '')}"
             _sc = (d.get("result") or {}).get("score") or ""

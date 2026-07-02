@@ -1192,12 +1192,13 @@ def combo_html(sport: str, match_id) -> str:
         in_live = lr is None and live is not None
         if in_live and live["legs"][i].get("disp"):  # compteur courant/seuil (ou marge handicap)
             prog = f'<span class="da-cl-p">{live["legs"][i]["disp"]}</span>'
-        st = lr if lr in ("won", "lost") else ""     # SEUL le résultat FINAL -> aucun gagné/perdu LIVE (demande user)
+        # void = jambe INDÉTERMINABLE (donnée introuvable) -> annulée/remboursée (neutre) : marqueur ➖
+        # explicite, JAMAIS vide (sinon la jambe paraît « oubliée »).
+        st = lr if lr in ("won", "lost", "void") else ""   # SEUL le résultat FINAL (aucun gagné/perdu LIVE)
         cls = (" da-cl-won" if st == "won" else " da-cl-lost" if st == "lost"
-               else " da-cl-live" if in_live else "")
-        # En cours : PAS d'icône (le compteur cur/line + le badge d'en-tête « ● n/N en direct » suffisent) ;
-        # seules les jambes ACQUISES (✅) ou PERDUES (❌) portent une icône.
-        mark = ("✅" if st == "won" else "❌" if st == "lost" else "")
+               else " da-cl-void" if st == "void" else " da-cl-live" if in_live else "")
+        # En cours : PAS d'icône ; seules les jambes ACQUISES (✅), PERDUES (❌) ou ANNULÉES (➖) en portent.
+        mark = ("✅" if st == "won" else "❌" if st == "lost" else "➖" if st == "void" else "")
         mk = f'<span class="da-cl-mk">{mark}</span>' if mark else ""
         try:
             cote = f"{float(leg.get('cote')):.2f}"
@@ -1223,11 +1224,13 @@ def combo_html(sport: str, match_id) -> str:
     # En-tête : SEUL le résultat FINAL (post-match) affiche un statut gagné/perdu. En live : aucun
     # badge ni couleur gagné/perdu (demande user) -> en-tête neutre « en direct ».
     hcls = (" da-combo-won" if res == "won" else " da-combo-lost" if res == "lost"
-            else " da-combo-live" if live else "")
+            else " da-combo-void" if res == "void" else " da-combo-live" if live else "")
     if res == "won":
         badge = ' <span class="da-combo-b won">GAGNÉ</span>'
     elif res == "lost":
         badge = ' <span class="da-combo-b lost">PERDU</span>'
+    elif res == "void":                              # aucune jambe réglable -> remboursé (mise rendue)
+        badge = ' <span class="da-combo-b void">REMBOURSÉ</span>'
     else:
         badge = ""
     try:
@@ -1393,7 +1396,7 @@ def to_html(md: str) -> str:
     return '<div class="da">' + _render_blocks(md) + "</div>"
 
 
-_RESULT_CHIP = {"won": "✅ Réussi", "lost": "❌ Perdu", "push": "➖ Remboursé"}
+_RESULT_CHIP = {"won": "✅ Réussi", "lost": "❌ Perdu", "push": "➖ Remboursé", "void": "➖ Remboursé"}
 
 
 def result_chip(d: dict) -> tuple[str, str]:
@@ -2273,7 +2276,8 @@ def _result_badge(m: dict | None) -> str:
     if combo.get("legs"):                        # CdM : le bandeau suit le COMBINÉ (pari phare)
         pr = combo.get("result")
         cls, txt = {"won": ("win", "✅ Pari réussi"), "lost": ("lose", "❌ Pari perdu"),
-                    "push": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
+                    "push": ("push", "➖ Pari remboursé"),
+                    "void": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
         return f'<div class="da-res da-res-{cls}">{txt} {sco}</div>'
     # SIMPLE : « Pari réussi/perdu » UNIQUEMENT si le pari était RETENU. Sinon ABSTENTION -> on n'a pas
     # parié : bandeau NEUTRE (sinon « ✅ Pari réussi » sur un match qu'on n'a pas joué = trompeur).
