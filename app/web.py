@@ -1209,6 +1209,19 @@ CSS = """
   .bc-mile-n{fill:#fff;font-size:7px;font-weight:900;pointer-events:none}
   /* Repères ALLÉGÉS : pastilles cliquables + panneau d'info au clic (page plus légère) */
   .sx-miles{margin-top:10px}
+  /* Transparence : marchés écartés (type de pari · raison · seuils) */
+  .exq{display:flex;flex-direction:column;gap:8px}
+  .exq-intro{font-size:11px;line-height:1.5;color:var(--muted);margin-bottom:2px}
+  .exq-intro b{color:var(--text);font-weight:800}
+  .exq-row{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:9px 11px}
+  .exq-top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .exq-mk{font-size:13px;font-weight:800;color:var(--text)}
+  .exq-bdg{font-size:9.5px;font-weight:800;letter-spacing:.03em;border-radius:6px;padding:2px 7px;white-space:nowrap}
+  .exq-ex{background:rgba(255,107,107,.16);color:#ff9b9b;border:1px solid rgba(255,107,107,.35)}
+  .exq-watch{background:rgba(224,179,65,.14);color:#e6c463;border:1px solid rgba(224,179,65,.32)}
+  .exq-ok{background:rgba(52,210,123,.14);color:#7fe0a8;border:1px solid rgba(52,210,123,.30)}
+  .exq-reason{font-size:11px;line-height:1.45;color:#cfe0f5}
+  .exq-meta{font-size:10px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
   .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
        opacity:.85;display:flex;align-items:baseline;gap:8px}
   .sx-ml-hint{font-size:9px;font-weight:600;letter-spacing:0;text-transform:none;opacity:.7}
@@ -2932,6 +2945,55 @@ def _reliability_chart(series: list, uid: str = "rel") -> str:
     p.append(f'<text class="sx-relc-xl" x="{W - R:g}" y="{H - 4:g}" text-anchor="end">récent</text>')
     p.append("</svg>")
     return "".join(p)
+
+
+def render_exclusions(rep: dict | None) -> str:
+    """TRANSPARENCE — quels TYPES DE PARIS sont écartés et POURQUOI, avec les seuils d'exclusion et de
+    réintégration (auto-révisable selon le taux de réussite). '' si rien à montrer."""
+    if not rep or not rep.get("rows"):
+        return ""
+    th = rep.get("thresholds") or {}
+    gmax = abs(th.get("gap_max", 8))
+    intro = (f'<div class="exq-intro">Un type de pari est <b>écarté automatiquement</b> dès qu\'il PROUVE '
+             f'qu\'il perd : au moins <b>{th.get("min_n")} prédictions</b> réglées ET soit une '
+             f'<b>sur-confiance</b> (réussite réelle ≥ {gmax} pts SOUS la confiance annoncée), soit un '
+             f'<b>ROI ≤ {th.get("roi_max")}%</b>. Sous ce seuil de données, on ne conclut pas (bruit). '
+             f'<b>Auto-révisable</b> : un marché se ré-intègre seul dès qu\'il repasse au-dessus.</div>')
+    _bdg = {"ban": ("exq-ex", "⛔ Banni"), "gap": ("exq-ex", "⛔ Écarté"), "roi": ("exq-ex", "⛔ Écarté"),
+            "excl": ("exq-ex", "⛔ Écarté"), "watch": ("exq-watch", "👁 Surveillé"),
+            "ok": ("exq-ok", "✅ Fiable")}
+    body = intro
+    for r in rep["rows"]:
+        cls, lbl = _bdg.get(r["kind"], ("exq-ok", "✅"))
+        wr, ac, roi = r.get("win_rate"), r.get("avg_conf"), r.get("roi")
+        meta = [f'{r["n"]} préd.']
+        if wr is not None and ac is not None:
+            meta.append(f'réussite {wr}% vs {ac}% annoncé')
+        if roi is not None and r.get("settled"):
+            meta.append(f'ROI {roi:+d}% ({r["settled"]} joués)')
+        body += (f'<div class="exq-row"><div class="exq-top">'
+                 f'<span class="exq-bdg {cls}">{lbl}</span>'
+                 f'<span class="exq-mk">{html.escape(str(r["market"]))}</span></div>'
+                 f'<div class="exq-reason">{html.escape(str(r["reason"]))}</div>'
+                 f'<div class="exq-meta">{" · ".join(meta)}</div></div>')
+    # PROPS JOUEUR en COMBINÉ : logique INVERSE (exclu par défaut, réintégré si prouvé) -> ligne dédiée.
+    pp = rep.get("player_props") or {}
+    ppn, ppgap = pp.get("n") or 0, pp.get("gap")
+    if pp.get("allowed"):
+        cls, lbl = "exq-ok", "✅ Réintégrées"
+        reason = (f'Props joueur validées en calibration ({ppn} préd., écart {ppgap:+.0f}) → '
+                  f'autorisées comme jambe de combiné.')
+    else:
+        cls, lbl = "exq-watch", "⏸ Hors combiné"
+        _pg = f", écart {ppgap:+.0f}" if ppgap is not None else ""
+        reason = (f'Exclues des combinés par défaut (variance). Ré-intégration dès {th.get("min_n")} '
+                  f'prédictions fantômes bien calibrées — actuellement {ppn}/{th.get("min_n")}{_pg}.')
+    body += (f'<div class="exq-row"><div class="exq-top">'
+             f'<span class="exq-bdg {cls}">{lbl}</span>'
+             f'<span class="exq-mk">Props joueur (en combiné)</span></div>'
+             f'<div class="exq-reason">{html.escape(reason)}</div>'
+             f'<div class="exq-meta">réintégration selon les fantômes (calibration)</div></div>')
+    return f'<div class="exq">{body}</div>'
 
 
 def render_reliability(rel: dict | None) -> str:

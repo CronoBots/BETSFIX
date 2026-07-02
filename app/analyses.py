@@ -2048,7 +2048,14 @@ def exclusions_report() -> dict:
                                      f"prédictions) : on ne conclut pas sur du bruit.")
         else:
             _g = f"{gap:+d}" if gap is not None else "?"
-            kind, reason = "ok", f"Fiable (écart {_g} pts > {CALIB_GAP_MAX} et ROI OK)."
+            if roi is not None and settled and settled < CALIB_MIN_N and roi <= CALIB_ROI_MAX:
+                # ROI négatif MAIS sur trop peu de paris joués -> pas encore concluant (pas d'exclusion)
+                _rn = f" ; ROI {roi:+d}% mais sur {settled} paris joués seulement (< {CALIB_MIN_N} : non concluant)"
+            elif roi is not None and settled >= CALIB_MIN_N:
+                _rn = f" ; ROI réel {roi:+d}% (au-dessus du seuil {CALIB_ROI_MAX}%)"
+            else:
+                _rn = ""
+            kind, reason = "ok", f"Fiable : bien calibré (écart {_g} pts > {CALIB_GAP_MAX}){_rn}."
         rows.append({"market": name, "excluded": excluded, "kind": kind, "reason": reason,
                      "n": n, "win_rate": wr, "avg_conf": ac, "gap": gap, "roi": roi, "settled": settled})
     order = {"ban": 0, "gap": 1, "roi": 1, "excl": 1, "watch": 2, "ok": 3}
