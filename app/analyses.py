@@ -1592,18 +1592,15 @@ def stats_full(since_days: int | None = None) -> dict:
                else ((d.get("bets") or [{}])[0].get("result")))
         if _mr in ("won", "lost", "push"):
             match_form.append((start, _mr, sport))
-        # DEUX lignes de forme distinctes (graphe principal) : SIMPLES vs COMBINÉS. CdM = combiné +
-        # éventuel simple RETENU ; hors CdM = le pari principal compte comme un simple.
-        if _has_combo:
-            if _c0.get("result") in ("won", "lost", "push"):
-                combo_form.append((start, _c0["result"], sport))
-            _rbf = stat_bet(d)                          # pari figé (compteur monotone)
-            if _rbf and _rbf.get("result") in ("won", "lost", "push"):
-                simple_form.append((start, _rbf["result"], sport))
-        else:
-            _sr = (d.get("bets") or [{}])[0].get("result")
-            if _sr in ("won", "lost", "push"):
-                simple_form.append((start, _sr, sport))
+        # DEUX lignes de forme distinctes (graphe principal) : SIMPLES vs COMBINÉS.
+        # La forme SIMPLES doit refléter EXACTEMENT le pari JOUÉ (retenu) de chaque match — la MÊME base
+        # que la courbe/réussite (stat_bet). Avant, hors combiné on prenait bets[0] (1er pari), souvent
+        # gagnant alors que le pari retenu perdait -> W/L incohérents avec le ROI (bug vu 2026-07-02).
+        if _has_combo and _c0.get("result") in ("won", "lost", "push"):
+            combo_form.append((start, _c0["result"], sport))
+        _rbf = stat_bet(d)                              # LE pari joué/retenu (figé, compteur monotone)
+        if _rbf and _rbf.get("result") in ("won", "lost", "push"):
+            simple_form.append((start, _rbf["result"], sport))
         # « Nouveau système » = analyse passée par la VALIDATION 3 agents (signature fiable), pas une
         # simple date de match (un match du 16/06 a pu être généré la veille en ancien système).
         is_new = bool(d.get("validation"))
