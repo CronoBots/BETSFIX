@@ -983,8 +983,8 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
         return ""
     return ("\n\nCATALOGUE COMBINABLE BET BUILDER — au lieu d'un combiné figé, propose un VIVIER de "
             "6 à 8 JAMBES CANDIDATES prises DANS CETTE LISTE. Un OPTIMISEUR choisira la meilleure "
-            "combinaison combinable visant une VRAIE cote ENTRE 1.50 ET 2.10, chance de passer MAXIMALE "
-            "(on achète la FIABILITÉ, PAS la grosse cote : un combiné à 44 % @2.14 perd de l'argent).\n"
+            "combinaison combinable visant une VRAIE cote ENTRE 1.75 ET 2.25 (cible ferme), chance de "
+            "passer MAXIMALE dans cette fourchette (fiabilité + rendement).\n"
             "⚠️⚠️ CHANGEMENT DE LOGIQUE — ceci REMPLACE toute consigne de « domination corrélée » plus "
             "haut. On calcule désormais la VRAIE cote Unibet, et Unibet RABOTE LOURDEMENT les jambes "
             "CORRÉLÉES (ex. « équipe gagne » + « équipe marque 2 buts » + « +1.5 buts » = 3 fois le même "
@@ -992,11 +992,11 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
             "INDÉPENDANTES (qui ne décrivent PAS le même scénario) :\n"
             "  • Mélange des ANGLES SANS LIEN : 1 résultat (double chance) + 1 total de buts + 1 jambe "
             "d'un AUTRE registre (une équipe marque, mi-temps, props joueur…). JAMAIS 3 jambes « buts ».\n"
-            "  • Inclus AU MOINS 1-2 candidates à cote 1.5-2.5 (sinon impossible d'atteindre 1.80 réel).\n"
-            "  • Pas deux totaux qui se recoupent (équipe + match) ; chaque candidate ≥ ~75 % (cote "
-            "basse) ; PAS de cartons/corners ; PAS de props JOUEUR individuelles (tirs/tirs cadrés/passes/"
-            "points d'UN joueur nommé — trop de variance, elles ont plombé le ROI) : privilégie les "
-            "marchés d'ÉQUIPE / de MATCH.\n"
+            "  • Inclus AU MOINS 2-3 candidates à cote 1.35-1.80 (sinon impossible d'atteindre 1.75-2.25 "
+            "réel une fois Unibet raboté). AUCUNE jambe sous 1.10 (inutile : n'apporte rien à la cote).\n"
+            "  • Pas deux totaux qui se recoupent (équipe + match) ; PAS de cartons/corners ; PAS de props "
+            "JOUEUR individuelles (tirs/tirs cadrés/passes/points d'UN joueur nommé — trop de variance, "
+            "elles ont plombé le ROI) : privilégie les marchés d'ÉQUIPE / de MATCH.\n"
             "⚠️ FORMAT EXACT, une ligne par candidate (après la section Mise), id du catalogue ENTRE "
             "CROCHETS + ta proba honnête :\n"
             "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi cette jambe, factuel et chiffré>`\n"
@@ -1082,11 +1082,13 @@ def _resolve_combo(legs: list, catalog: list, home: str = "", away: str = "", to
 # Recalibrage « Équilibré » (2026-07-02) : les combinés perdaient (ROI −11 %, 44 % réussite @2.14) car
 # le plancher de chance était bien trop bas (0.33 -> longshots -EV). On resserre : chance combinée ≥ 58 %
 # (au-dessus du seuil de rentabilité de la zone de cote visée) et cote 1.50–2.10 (fini les 3.90/4.20).
-_COMBO_REAL_MIN = 1.55      # vraie cote minimale visée pour le combiné (valeur, pas du produit illusoire)
-_COMBO_REAL_MAX = 2.80      # au-delà = trop gourmand -> on évite (mais laisse de la marge : sinon 0 combiné)
-_COMBO_PROB_MIN = 0.50      # chance de passer minimale (BARRIÈRE DURE) — moins gourmand qu'avant (0.33)
-_COMBO_MEANINGFUL = 1.40    # cote combinée plancher pour le repli « le plus sûr » (sinon combiné à 1.03
-#                             sur un archi-favori = aucun sens : on veut au moins un vrai rendement)
+# CIBLE combiné (demande user 2026-07-02) : cote combinée entre 1.75 et 2.25 — ni trop court (aucun
+# rendement), ni trop gourmand (proba trop faible). Et AUCUNE jambe inutile sous 1.10 (n'apporte rien).
+_COMBO_REAL_MIN = 1.75      # bas de la fourchette cible
+_COMBO_REAL_MAX = 2.25      # haut de la fourchette cible
+_COMBO_PROB_MIN = 0.40      # chance mini pour un combo « value » dans la fourchette (au-delà = longshot)
+_COMBO_MEANINGFUL = 1.70    # cote plancher du repli « le plus sûr » (proche de la cible, jamais 1.03)
+_COMBO_LEG_MIN = 1.10       # cote MINIMALE d'une jambe : sous 1.10 = jambe inutile (n'apporte rien) -> écartée
 
 
 def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
@@ -1139,7 +1141,10 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     # le vivier et empêcherait tout combiné.
     if not combo_player_props_allowed()[0]:
         cands = [c for c in cands if not (c.get("code") or "").startswith(("PLAYERFB", "PLAYERBK"))]
-    cands = cands[:6]
+    # JAMBES INUTILES écartées : une jambe sous _COMBO_LEG_MIN (1.10) n'apporte rien à la cote (demande
+    # user) -> on ne la garde pas dans le vivier (évite « Double chance 1X @1.03 » qui gonfle la liste
+    # sans monter la cote combinée).
+    cands = [c for c in cands if (c.get("cote") or 0) >= _COMBO_LEG_MIN][:6]
     n = len(cands)
     if n < 2:
         return None
