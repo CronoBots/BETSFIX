@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime
 
 from app import analyses, sofa_http
@@ -1075,18 +1076,10 @@ async def _settle_analyses_impl() -> int:
                     except Exception:
                         score = None
                 if not score:
-                    # Aucune source n'a le score. Match encore en cours / pas trouvé -> on repasse.
-                    # MAIS si le match est CERTAINEMENT terminé et qu'un combiné traîne sans verdict,
-                    # on laisse le flux continuer avec un score VIDE : la finalisation plus bas attend
-                    # encore quelques essais (au cas où une source arrive) puis TRANCHE (void/remboursé)
-                    # pour ne jamais rester bloqué à vie (« régler quoi qu'il arrive »). L'incrément des
-                    # essais + la sauvegarde se font par le flux normal (pas de continue ici).
-                    _cmb0 = d.get("combo") or {}
-                    if (analyses.status_of(d) == "finished" and _cmb0.get("legs")
-                            and _cmb0.get("result") is None):
-                        score = {"home": None, "away": None}   # pas de données -> jambes non réglables
-                    else:
-                        continue
+                    # Aucune source n'a ENCORE le score -> on RÉ-ESSAIE à la passe suivante (le score/
+                    # les sets arrivent souvent avec du retard : ne JAMAIS trancher « nul » sur un score
+                    # manquant, on veut le VRAI résultat). Le combiné reste simplement en attente.
+                    continue
             # Pré-calcule les codes de TOUS les paris affichés -> on sait si on a besoin des STATS du
             # match (cartons/corners). SofaScore les expose même APRÈS le match (event/{id}/statistics).
             mid = os.path.basename(side)[len(sport) + 1:-5]    # {sport}_{id}.json -> id
@@ -1313,17 +1306,15 @@ async def _settle_analyses_impl() -> int:
                         all_won = False
                     if lr is None:
                         any_pending = True
-                # CHAQUE JAMBE doit être VALIDÉE avant publication : tant qu'une jambe n'a pas son
-                # résultat (ex. « but dans les 2 mi-temps » réglé seulement quand les scores PAR
-                # mi-temps arrivent), on n'annonce PAS le verdict global — MÊME si une jambe déjà
-                # perdue rend le combiné mathématiquement perdu. Sinon on publie une carte avec une
-                # jambe sans ✅/❌. On réessaie (borné à 8) le temps que les données arrivent.
-                # AU-DELÀ, si le match est réellement TERMINÉ : on TRANCHE quoi qu'il arrive — une jambe
-                # encore indéterminée devient VOID (donnée introuvable) et le combiné se règle sur les
-                # jambes restantes (règle bookmaker standard : cote de la jambe void -> 1). Aucun combiné
-                # ne reste bloqué « en attente » à vie (demande user : « régler quoi qu'il arrive »).
+                # OBJECTIF : RÉGLER pour de vrai (gagné/perdu). Tant qu'une jambe manque, on RÉ-ESSAIE —
+                # le score/les stats/les sets arrivent SOUVENT avec du retard (ne jamais trancher trop
+                # tôt). On ne « tranche » (void = ULTIME RECOURS pour une donnée réellement morte) QUE si
+                # le match est fini DEPUIS LONGTEMPS (> _VOID_AFTER_DAYS) : d'ici là on continue d'essayer.
+                # Quand TOUTES les jambes sont réglées, on finalise immédiatement (pas d'attente).
                 _strict_fin = analyses.status_of(d) == "finished"
-                if any_pending and ((d.get("combo_tries") or 0) < 8 or not _strict_fin):
+                _age_d = ((time.time() - float(d["start"])) / 86400.0) if d.get("start") else 0.0
+                if any_pending and ((d.get("combo_tries") or 0) < 8 or not _strict_fin
+                                    or _age_d < _VOID_AFTER_DAYS):
                     combo["result"] = None
                     d["combo_tries"] = (d.get("combo_tries") or 0) + 1
                 else:
