@@ -420,8 +420,16 @@ CSS = """
        padding:8px 10px 6px}
   .spf-cv-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:3px}
   .spf-cv-t{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
-  .spf-cv-roi{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
+  .spf-cv-roi{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
   .spf-cv-none{font-size:11px;color:var(--muted);padding:16px 2px;text-align:center}
+  /* Forme W/L PROPRE à chaque graphe (juste au-dessus de la courbe) */
+  .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px}
+  /* Stats PROPRES à chaque graphe (juste sous la courbe) : réussite · paris · cote moy. */
+  .spf-cv-kpis{display:flex;justify-content:space-between;gap:6px;margin-top:6px;
+       font-size:10px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+  .spf-cv-kpis span{flex:1;text-align:center}
+  .spf-cv-kpis b{display:block;color:var(--text);font-weight:800;font-size:13px;
+       font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
   /* Détail INTÉGRÉ au cadre (repliable) : fiabilité par-pari + calibration,
   séparé par un filet */
   .spf-det{margin-top:12px;border-top:1px solid var(--border)}
@@ -3219,54 +3227,49 @@ def _section(heading: str, body: str, open_: bool = True, info: str | None = Non
 
 _SPORT_FR_LABEL = {"foot": ("Football", "⚽"), "tennis": ("Tennis", "🎾"), "basket": ("Basket", "🏀")}
 
-def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str) -> str:
-    """Un bloc COURBE ÉTIQUETÉ (Simples / Combinés) d'un onglet sport : titre + ROI + nb de paris,
-    puis la courbe d'équité (profit cumulé). Si aucun pari réglé de ce type -> message discret à la
-    place de la courbe (ex. tennis/basket sans combiné). `blk` = bloc `_agg_bets` (points/roi/settled)."""
-    if blk and blk.get("settled"):
-        roi = blk.get("roi")
-        head = (f'<div class="spf-cv-h"><span class="spf-cv-t">{label}</span>'
-                f'<span class="spf-cv-roi arec-{_roi_cls(roi, blk.get("settled"))}">'
-                f'ROI {_roistr(roi)} · {blk["settled"]} paris</span></div>')
-        return f'<div class="spf-cv">{head}{_hero_chart(blk.get("points") or [], uid=uid)}</div>'
-    return (f'<div class="spf-cv spf-cv-empty"><div class="spf-cv-h">'
-            f'<span class="spf-cv-t">{label}</span></div>'
-            f'<div class="spf-cv-none">{empty_msg}</div></div>')
+def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
+                      form: list | None = None) -> str:
+    """Bloc COURBE AUTONOME d'un onglet sport (Simples / Combinés) : en-tête (titre + ROI), la forme
+    W/L PROPRE à ce type JUSTE au-dessus du graphe, la courbe d'équité, puis les stats DE CE graphe
+    (réussite · paris · cote moy.) juste en dessous. Message discret si aucun pari réglé de ce type.
+    `blk` = bloc `_agg_bets` (points/roi/pct/settled/avg_odds)."""
+    if not (blk and blk.get("settled")):
+        return (f'<div class="spf-cv spf-cv-empty"><div class="spf-cv-h">'
+                f'<span class="spf-cv-t">{label}</span></div>'
+                f'<div class="spf-cv-none">{empty_msg}</div></div>')
+    roi = blk.get("roi")
+    head = (f'<div class="spf-cv-h"><span class="spf-cv-t">{label}</span>'
+            f'<span class="spf-cv-roi arec-{_roi_cls(roi, blk.get("settled"))}">'
+            f'ROI {_roistr(roi)}</span></div>')
+    _LET = {"won": "W", "lost": "L", "push": "N"}
+    dots = form_dots([_LET.get(x, x) for x in (form or [])], n=10)
+    formrow = f'<div class="spf-cv-form">{dots}</div>' if dots else ""
+    kpis = (f'<div class="spf-cv-kpis">'
+            f'<span><b>{blk.get("pct")}%</b> réussite</span>'
+            f'<span><b>{blk.get("settled")}</b> paris</span>'
+            f'<span><b>@{blk.get("avg_odds") or "—"}</b> cote</span></div>')
+    return (f'<div class="spf-cv">{head}{formrow}'
+            f'{_hero_chart(blk.get("points") or [], uid=uid)}{kpis}</div>')
 
 def render_sport_perf(sport: str) -> str:
-    """Carte PREMIUM UNIQUE de performance du sport, SOUS le titre, dans UN SEUL cadre : ROI géant +
-    forme + courbe d'équité + KPIs, puis (intégré au même cadre, repliable) le détail PAR PARI et la
-    CALIBRATION. '' si aucun résultat réglé pour ce sport (rien à montrer)."""
+    """Carte de performance du sport : DEUX courbes AUTONOMES (Simples / Combinés), CHACUNE avec sa
+    propre forme W/L au-dessus et ses propres stats (réussite · paris · cote moy.) en dessous, puis
+    (repliable, même cadre) le détail par pari + la CALIBRATION. '' si aucun résultat réglé."""
     from app import analyses
     label, icon = _SPORT_FR_LABEL.get(sport, (sport.title(), ""))
     s = (analyses.stats_full().get("by_sport") or {}).get(sport)
     if not s or not s.get("settled"):
         return ""
-    roi = s.get("roi")
-    # Forme en 2 lignes (Simples / Combinés) comme le graphe principal. Combinés = foot (CdM) seulement
-    # -> la ligne ne s'affiche que si elle a des résultats ; repli sur l'ancienne ligne unique sinon.
-    _LET = {"won": "W", "lost": "L", "push": "N"}
-    _fs = form_dots([_LET.get(x, x) for x in (s.get("form_simple") or [])], n=8)
-    _fc = form_dots([_LET.get(x, x) for x in (s.get("form_combo") or [])], n=8)
-    _rows = []
-    if _fs:
-        _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Simples</span>{_fs}</div>')
-    if _fc:
-        _rows.append(f'<div class="sx-formrow"><span class="sx-formk">Combinés</span>{_fc}</div>')
-    forms = f'<div class="spf-forms">{"".join(_rows)}</div>' if _rows else form_dots(s.get("form"))
-    # DEUX courbes d'équité étiquetées (demande user) : Simples (= le suivi ROI du sport) + Combinés
-    # (segment dédié de combo_stats). Combinés = foot/CdM aujourd'hui -> placeholder pour les autres.
+    # DEUX courbes d'équité AUTONOMES (demande user) : chaque graphe porte SA forme W/L + SES stats.
+    # Simples = suivi ROI du sport ; Combinés = segment dédié de combo_stats (foot/tennis/basket).
     combo_bs = (analyses.combo_stats().get("by_sport") or {}).get(sport)
-    chart = ('<div class="spf-charts">'
-             + _perf_curve_block("Simples", s, f"sp-{sport}-s", "Aucun simple réglé")
-             + _perf_curve_block("Combinés", combo_bs, f"sp-{sport}-c",
-                                 "Aucun combiné réglé pour ce sport")
-             + '</div>')
-
-    def kpi(v, lbl):
-        return f'<div class="spf-k"><span class="spf-kv">{v}</span><span class="spf-kl">{lbl}</span></div>'
-    kpis = (kpi(f'{s["pct"]}%', "Réussite") + kpi(s["settled"], "Paris")
-            + kpi(f'@{s.get("avg_odds") or "—"}', "Cote moy."))
+    charts = ('<div class="spf-charts">'
+              + _perf_curve_block("Simples", s, f"sp-{sport}-s", "Aucun simple réglé",
+                                  form=s.get("form_simple") or s.get("form"))
+              + _perf_curve_block("Combinés", combo_bs, f"sp-{sport}-c",
+                                  "Aucun combiné réglé pour ce sport",
+                                  form=(combo_bs or {}).get("form12"))
+              + '</div>')
     # Détail INTÉGRÉ au MÊME cadre (repliable) : par pari + calibration par TYPE DE PARI de ce sport.
     g = (analyses.calibration().get("by_sport") or {}).get(label) or {}
     det = [_sport_card(s, sport, label, icon, "")]
@@ -3276,11 +3279,7 @@ def render_sport_perf(sport: str) -> str:
                    f'<div class="calg">{mk_rows}</div>')
     details = (f'<details class="spf-det"><summary><span class="spf-det-t">📊 Fiabilité & calibration</span>'
                f'<span class="chev">▾</span></summary><div class="spf-det-b">{"".join(det)}</div></details>')
-    return (f'<div class="spf">'
-            f'<div class="spf-top"><div class="spf-roi-wrap">'
-            f'<span class="spf-roi arec-{_roi_cls(roi, s.get("settled"))}">{_roistr(roi)}</span>'
-            f'<span class="spf-roi-l">ROI {_ind(s.get("settled"))}</span></div>{forms}</div>'
-            f'{chart}<div class="spf-kpis">{kpis}</div>{details}</div>')
+    return f'<div class="spf">{charts}{details}</div>'
 
 def _pick_card(p: dict, badge: str) -> str:
     """Carte d'un pari pour l'accueil (value OU confiance), avec le tableau des chances.
