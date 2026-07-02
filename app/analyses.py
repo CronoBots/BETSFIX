@@ -952,6 +952,16 @@ def _leg_metric(leg: dict, home: str = "", away: str = "") -> dict:
             line = _to_float(sgn.group(1)) if sgn else None
     if side is None:
         side = _leg_side(sel, home, away)
+    # PROP JOUEUR (« <Nom joueur> - Tirs (cadrés) … ») : NE PAS le régler comme un total MATCH (faux :
+    # sot/tirs du match > 0.5 = quasi toujours « gagné »). Segment avant « - » = un nom qui n'est NI une
+    # équipe NI un libellé de total -> on laisse au code (PLAYERFB via FotMob), donc live_ok=False.
+    if " - " in sel and metric in ("sot", "shots"):
+        _head = sel.split(" - ", 1)[0].strip()
+        if (_head and _leg_side(_head, home, away) is None
+                and not any(w in _head.lower() for w in
+                            ("total", "nombre", "but", "corner", "carton", "tir", "mi-temps", "équipe"))):
+            return {"metric": metric, "side": None, "dir": direction, "line": line, "scope": scope,
+                    "handicap": handicap, "live_ok": False}
     # « But dans les deux mi-temps Oui/Non » : marché OUI/NON (pas une ligne) -> métrique dédiée,
     # réglée sur les buts PAR mi-temps (un but dans CHAQUE période). Réglable au final (df_su).
     if scope == "both" and metric == "goals":
