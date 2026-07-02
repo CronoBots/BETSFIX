@@ -33,6 +33,13 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-02** — Stats : nouvelle section **« Marchés écartés »** (transparence : quels types de paris
+  sont exclus, pourquoi, seuils d'exclusion/réintégration selon le taux de réussite). — pourquoi : demande
+  user (voir ce qui est écarté et pourquoi) · fichiers : `app/analyses.py` (`exclusions_report()` — READ
+  ONLY), `app/web.py` (`render_exclusions()` + CSS), `app/routers/web.py` (section dans `_home_stats`) ·
+  **régression vérifiée** : additif pur (aucune logique règlement/sélection touchée), AST+imports OK,
+  endpoints /,/foot,/app,/basket,/stats,/directs tous 200, section rendue avec vraies données (14 lignes) ;
+  corrigé au passage un libellé trompeur (« ROI OK » alors que ROI<0 sur <25 joués) · résultat : OK.
 - **2026-07-02** — Mise en place du process anti-régression + `HISTORIQUE.md`. — pourquoi : trop de
   régressions au fil des optimisations (demande user) · fichiers : `HISTORIQUE.md` (doc, aucun code
   applicatif touché) · **régression vérifiée** : sans objet (documentation) · résultat : règle active,
