@@ -1213,6 +1213,13 @@ CSS = """
   .exq{display:flex;flex-direction:column;gap:8px}
   .exq-intro{font-size:11px;line-height:1.5;color:var(--muted);margin-bottom:2px}
   .exq-intro b{color:var(--text);font-weight:800}
+  .exq-sport{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);
+       border-radius:14px;background:rgba(255,255,255,.015)}
+  .exq-sphead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:1px 3px 2px}
+  .exq-spname{font-size:13px;font-weight:900;letter-spacing:.01em;color:var(--text)}
+  .exq-sptag{font-size:9.5px;font-weight:800;border-radius:6px;padding:2px 8px;white-space:nowrap}
+  .exq-sptag-ex{background:rgba(255,107,107,.14);color:#ff9b9b;border:1px solid rgba(255,107,107,.32)}
+  .exq-sptag-ok{background:rgba(52,210,123,.12);color:#7fe0a8;border:1px solid rgba(52,210,123,.28)}
   .exq-row{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:9px 11px}
   .exq-top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
   .exq-mk{font-size:13px;font-weight:800;color:var(--text)}
@@ -2950,32 +2957,42 @@ def _reliability_chart(series: list, uid: str = "rel") -> str:
 def render_exclusions(rep: dict | None) -> str:
     """TRANSPARENCE — quels TYPES DE PARIS sont écartés et POURQUOI, avec les seuils d'exclusion et de
     réintégration (auto-révisable selon le taux de réussite). '' si rien à montrer."""
-    if not rep or not rep.get("rows"):
+    if not rep or not rep.get("sports"):
         return ""
     th = rep.get("thresholds") or {}
     gmax = abs(th.get("gap_max", 8))
-    intro = (f'<div class="exq-intro">Un type de pari est <b>écarté automatiquement</b> dès qu\'il PROUVE '
-             f'qu\'il perd : au moins <b>{th.get("min_n")} prédictions</b> réglées ET soit une '
-             f'<b>sur-confiance</b> (réussite réelle ≥ {gmax} pts SOUS la confiance annoncée), soit un '
-             f'<b>ROI ≤ {th.get("roi_max")}%</b>. Sous ce seuil de données, on ne conclut pas (bruit). '
-             f'<b>Auto-révisable</b> : un marché se ré-intègre seul dès qu\'il repasse au-dessus.</div>')
+    intro = (f'<div class="exq-intro">Les marchés écartés sont <b>propres à chaque sport</b> : un marché '
+             f'mauvais en basket n\'écarte PAS le même marché en foot. Un type de pari est <b>écarté '
+             f'automatiquement</b> dès qu\'il PROUVE qu\'il perd <b>sur ce sport</b> : au moins '
+             f'<b>{th.get("min_n")} prédictions</b> réglées ET soit une <b>sur-confiance</b> (réussite '
+             f'réelle ≥ {gmax} pts SOUS la confiance annoncée), soit un <b>ROI ≤ {th.get("roi_max")}%</b>. '
+             f'Sous ce seuil de données, on ne conclut pas (bruit). <b>Auto-révisable</b> : un marché se '
+             f'ré-intègre seul dès qu\'il repasse au-dessus.</div>')
     _bdg = {"ban": ("exq-ex", "⛔ Banni"), "gap": ("exq-ex", "⛔ Écarté"), "roi": ("exq-ex", "⛔ Écarté"),
             "excl": ("exq-ex", "⛔ Écarté"), "watch": ("exq-watch", "👁 Surveillé"),
             "ok": ("exq-ok", "✅ Fiable")}
     body = intro
-    for r in rep["rows"]:
-        cls, lbl = _bdg.get(r["kind"], ("exq-ok", "✅"))
-        wr, ac, roi = r.get("win_rate"), r.get("avg_conf"), r.get("roi")
-        meta = [f'{r["n"]} préd.']
-        if wr is not None and ac is not None:
-            meta.append(f'réussite {wr}% vs {ac}% annoncé')
-        if roi is not None and r.get("settled"):
-            meta.append(f'ROI {roi:+d}% ({r["settled"]} joués)')
-        body += (f'<div class="exq-row"><div class="exq-top">'
-                 f'<span class="exq-bdg {cls}">{lbl}</span>'
-                 f'<span class="exq-mk">{html.escape(str(r["market"]))}</span></div>'
-                 f'<div class="exq-reason">{html.escape(str(r["reason"]))}</div>'
-                 f'<div class="exq-meta">{" · ".join(meta)}</div></div>')
+    for sec in rep["sports"]:
+        nex = sec.get("n_excluded") or 0
+        tag = (f'<span class="exq-sptag exq-sptag-ex">{nex} écarté{"s" if nex > 1 else ""}</span>'
+               if nex else '<span class="exq-sptag exq-sptag-ok">aucun écarté</span>')
+        body += (f'<div class="exq-sport"><div class="exq-sphead">'
+                 f'<span class="exq-spname">{sec.get("icon","")} {html.escape(str(sec.get("label","")))}</span>'
+                 f'{tag}</div>')
+        for r in sec["rows"]:
+            cls, lbl = _bdg.get(r["kind"], ("exq-ok", "✅"))
+            wr, ac, roi = r.get("win_rate"), r.get("avg_conf"), r.get("roi")
+            meta = [f'{r["n"]} préd.']
+            if wr is not None and ac is not None:
+                meta.append(f'réussite {wr}% vs {ac}% annoncé')
+            if roi is not None and r.get("settled"):
+                meta.append(f'ROI {roi:+d}% ({r["settled"]} joués)')
+            body += (f'<div class="exq-row"><div class="exq-top">'
+                     f'<span class="exq-bdg {cls}">{lbl}</span>'
+                     f'<span class="exq-mk">{html.escape(str(r["market"]))}</span></div>'
+                     f'<div class="exq-reason">{html.escape(str(r["reason"]))}</div>'
+                     f'<div class="exq-meta">{" · ".join(meta)}</div></div>')
+        body += '</div>'
     # PROPS JOUEUR en COMBINÉ : logique INVERSE (exclu par défaut, réintégré si prouvé) -> ligne dédiée.
     pp = rep.get("player_props") or {}
     ppn, ppgap = pp.get("n") or 0, pp.get("gap")
@@ -2988,11 +3005,13 @@ def render_exclusions(rep: dict | None) -> str:
         _pg = f", écart {ppgap:+.0f}" if ppgap is not None else ""
         reason = (f'Exclues des combinés par défaut (variance). Ré-intégration dès {th.get("min_n")} '
                   f'prédictions fantômes bien calibrées — actuellement {ppn}/{th.get("min_n")}{_pg}.')
-    body += (f'<div class="exq-row"><div class="exq-top">'
+    body += (f'<div class="exq-sport"><div class="exq-sphead">'
+             f'<span class="exq-spname">🎲 Combinés (tous sports)</span></div>'
+             f'<div class="exq-row"><div class="exq-top">'
              f'<span class="exq-bdg {cls}">{lbl}</span>'
              f'<span class="exq-mk">Props joueur (en combiné)</span></div>'
              f'<div class="exq-reason">{html.escape(reason)}</div>'
-             f'<div class="exq-meta">réintégration selon les fantômes (calibration)</div></div>')
+             f'<div class="exq-meta">réintégration selon les fantômes (calibration)</div></div></div>')
     return f'<div class="exq">{body}</div>'
 
 

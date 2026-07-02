@@ -674,7 +674,8 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
     cprobs = codes = ok = None    # confiances RECALIBRÉES + codes + indices réglables (≈ card_summary)
     if sport:
         from app.settle_analyst import code_from_pick
-        ex_sports, ex_markets = auto_exclusions()
+        ex_sports, _ = auto_exclusions()
+        ex_markets = excluded_markets(sport)          # marchés écartés PROPRES À CE SPORT (per-sport)
         codes = [code_from_pick(b.get("sel", ""), sport, home, away) for b in data]
         cprobs = [calibrated_conf(b.get("prob"), sport, codes[i]) for i, b in enumerate(data)]
         ok = set() if sport in ex_sports else {
@@ -1295,7 +1296,8 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     m = meta(sport, match_id) or {}
     try:
         from app.settle_analyst import code_from_pick
-        ex_sports, ex_markets = (set(), set()) if for_history else auto_exclusions()
+        ex_sports, _ = (set(), set()) if for_history else auto_exclusions()
+        ex_markets = set() if for_history else excluded_markets(sport)   # per-sport (vide en historique)
         if sport in ex_sports:
             return None
         ok, cprobs, codes = set(), [], []
@@ -1364,7 +1366,8 @@ def card_summary(sport: str, match_id) -> dict:
     # reco À JOUER (⭐) : filtre réglable/calibration -> LE pari mis en avant sur la carte du match
     try:
         from app.settle_analyst import code_from_pick
-        ex_sports, ex_markets = auto_exclusions()
+        ex_sports, _ = auto_exclusions()
+        ex_markets = excluded_markets(sport)          # marchés écartés PROPRES À CE SPORT (per-sport)
         if sport in ex_sports:
             reco = {"verdict": "skip", "idx": None, "ev": None}
         else:
@@ -1544,7 +1547,8 @@ def _reco_event(d: dict, path: str, ex_sports: set, ex_markets: set) -> dict | N
     home, away = d.get("home", ""), d.get("away", "")
     codes = [code_from_pick(b.get("sel", ""), sport, home, away) for b in bets]
     cprobs = [calibrated_conf(b.get("prob"), sport, codes[i]) for i, b in enumerate(bets)]
-    ok = {i for i, c in enumerate(codes) if c and market_of(c) not in ex_markets}
+    _exm = excluded_markets(sport)                     # per-sport (ex_markets param = union globale, ignoré)
+    ok = {i for i, c in enumerate(codes) if c and market_of(c) not in _exm}
     reco = _recommend(bets, ok, cprobs, codes)
     if reco.get("verdict") != "play" or reco.get("idx") is None:
         return None
@@ -2044,51 +2048,66 @@ def combo_player_props_allowed() -> tuple[bool, dict]:
 
 
 def exclusions_report() -> dict:
-    """TRANSPARENCE (lecture seule) : pour CHAQUE famille de marché, dit si elle est ÉCARTÉE ou non et
-    POURQUOI, avec les valeurs vs les SEUILS (n, écart de calibration réel−annoncé, ROI). + le cas
-    spécial « Props joueur en combiné » (logique INVERSE : exclu par défaut, réintégré si prouvé).
-    Reflète l'état RÉEL des recommandations (auto_exclusions sur données complètes), jamais filtré."""
+    """TRANSPARENCE (lecture seule), PROPRE À CHAQUE SPORT (demande user 2026-07-02) : pour chaque sport
+    et chaque famille de marché DE CE SPORT, dit si elle est ÉCARTÉE ou non et POURQUOI, avec les valeurs
+    vs les SEUILS (n, écart de calibration réel−annoncé du sport, ROI global). + le cas « Props joueur en
+    combiné » (global, logique INVERSE : exclu par défaut, réintégré si prouvé). Reflète l'état RÉEL des
+    recommandations per-sport (excluded_markets), jamais filtré. Le ROI reste global (pas de ROI par
+    (sport,marché)) mais l'écart de calibration, lui, est bien celui DU SPORT."""
     cal = calibration(min_conf=_MIN_CONF)
-    bm = cal.get("by_market") or {}
-    perf = {g.get("label"): g for g in (perf_breakdown().get("by_market") or [])}
-    _sports, ex_markets = auto_exclusions()
+    bysport = cal.get("by_sport") or {}
+    perf = {g.get("label"): g for g in (perf_breakdown().get("by_market") or [])}   # ROI = GLOBAL
     HARD = {"Corners"}
-    rows = []
-    for name in sorted(set(bm) | set(perf)):
-        g, p = bm.get(name) or {}, perf.get(name) or {}
-        n = g.get("n") or 0
-        wr, ac = g.get("win_rate"), g.get("avg_conf")
-        gap = (wr - ac) if (wr is not None and ac is not None) else None
-        settled, roi = p.get("settled") or 0, p.get("roi")
-        excluded = name in ex_markets
-        if name in HARD:
-            kind, reason = "ban", "Banni (marché le plus perdant — décision produit, jamais réintégré)."
-        elif excluded and gap is not None and n >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:
-            kind, reason = "gap", (f"Sur-confiance : réussite {wr}% sous la confiance annoncée {ac}% "
-                                   f"(écart {gap:+d} pts ≤ {CALIB_GAP_MAX}).")
-        elif excluded and settled >= CALIB_MIN_N and roi is not None and roi <= CALIB_ROI_MAX:
-            kind, reason = "roi", f"ROI réel {roi:+d}% ≤ {CALIB_ROI_MAX}% (perd de l'argent même bien calibré)."
-        elif excluded:
-            kind, reason = "excl", "Écarté (seuil de fiabilité franchi)."
-        elif n < CALIB_MIN_N:
-            kind, reason = "watch", (f"Sous surveillance — échantillon insuffisant ({n}/{CALIB_MIN_N} "
-                                     f"prédictions) : on ne conclut pas sur du bruit.")
-        else:
-            _g = f"{gap:+d}" if gap is not None else "?"
-            if roi is not None and settled and settled < CALIB_MIN_N and roi <= CALIB_ROI_MAX:
-                # ROI négatif MAIS sur trop peu de paris joués -> pas encore concluant (pas d'exclusion)
-                _rn = f" ; ROI {roi:+d}% mais sur {settled} paris joués seulement (< {CALIB_MIN_N} : non concluant)"
-            elif roi is not None and settled >= CALIB_MIN_N:
-                _rn = f" ; ROI réel {roi:+d}% (au-dessus du seuil {CALIB_ROI_MAX}%)"
+    _order = {"ban": 0, "gap": 1, "roi": 1, "excl": 1, "watch": 2, "ok": 3}
+    _LABELS = [("foot", "Football", "⚽"), ("tennis", "Tennis", "🎾"), ("basket", "Basket", "🏀")]
+    sports_out = []
+    for sp, fr, icon in _LABELS:
+        g_sport = bysport.get(fr) or {}
+        bm = g_sport.get("markets") or {}
+        ex_m = excluded_markets(sp)
+        rows, seen = [], set()
+        names = set(bm)
+        if sp == "foot":
+            names.add("Corners")                        # garantir la ligne du ban dur même sans prédiction
+        for name in names:
+            seen.add(name)
+            g, p = bm.get(name) or {}, perf.get(name) or {}
+            n = g.get("n") or 0
+            wr, ac = g.get("win_rate"), g.get("avg_conf")
+            gap = (wr - ac) if (wr is not None and ac is not None) else None
+            settled, roi = p.get("settled") or 0, p.get("roi")
+            excluded = name in ex_m
+            if name in HARD:
+                kind, reason = "ban", "Banni (marché le plus perdant — décision produit, jamais réintégré)."
+            elif excluded and gap is not None and n >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:
+                kind, reason = "gap", (f"Sur-confiance sur ce sport : réussite {wr}% sous la confiance "
+                                       f"annoncée {ac}% (écart {gap:+d} pts ≤ {CALIB_GAP_MAX}).")
+            elif excluded and settled >= CALIB_MIN_N and roi is not None and roi <= CALIB_ROI_MAX:
+                kind, reason = "roi", (f"ROI réel {roi:+d}% ≤ {CALIB_ROI_MAX}% (perd de l'argent même bien "
+                                       f"calibré — ROI global du marché).")
+            elif excluded:
+                kind, reason = "excl", "Écarté sur ce sport (seuil de fiabilité franchi)."
+            elif n < CALIB_MIN_N:
+                kind, reason = "watch", (f"Sous surveillance — échantillon insuffisant sur ce sport "
+                                         f"({n}/{CALIB_MIN_N} prédictions) : on ne conclut pas sur du bruit.")
             else:
-                _rn = ""
-            kind, reason = "ok", f"Fiable : bien calibré (écart {_g} pts > {CALIB_GAP_MAX}){_rn}."
-        rows.append({"market": name, "excluded": excluded, "kind": kind, "reason": reason,
-                     "n": n, "win_rate": wr, "avg_conf": ac, "gap": gap, "roi": roi, "settled": settled})
-    order = {"ban": 0, "gap": 1, "roi": 1, "excl": 1, "watch": 2, "ok": 3}
-    rows.sort(key=lambda r: (order.get(r["kind"], 9), -(r["n"] or 0)))
+                _g = f"{gap:+d}" if gap is not None else "?"
+                if roi is not None and settled and settled < CALIB_MIN_N and roi <= CALIB_ROI_MAX:
+                    _rn = (f" ; ROI {roi:+d}% mais sur {settled} paris joués seulement "
+                           f"(< {CALIB_MIN_N} : non concluant)")
+                elif roi is not None and settled >= CALIB_MIN_N:
+                    _rn = f" ; ROI réel {roi:+d}% (au-dessus du seuil {CALIB_ROI_MAX}%)"
+                else:
+                    _rn = ""
+                kind, reason = "ok", f"Fiable sur ce sport : bien calibré (écart {_g} pts > {CALIB_GAP_MAX}){_rn}."
+            rows.append({"market": name, "excluded": excluded, "kind": kind, "reason": reason,
+                         "n": n, "win_rate": wr, "avg_conf": ac, "gap": gap, "roi": roi, "settled": settled})
+        rows.sort(key=lambda r: (_order.get(r["kind"], 9), -(r["n"] or 0)))
+        if rows:
+            sports_out.append({"key": sp, "label": fr, "icon": icon, "rows": rows,
+                               "n_excluded": sum(1 for r in rows if r["excluded"])})
     pp_ok, pp = combo_player_props_allowed()
-    return {"rows": rows, "player_props": {"allowed": pp_ok, **pp},
+    return {"sports": sports_out, "player_props": {"allowed": pp_ok, **pp},
             "thresholds": {"min_n": CALIB_MIN_N, "gap_max": CALIB_GAP_MAX, "roi_max": CALIB_ROI_MAX}}
 
 
