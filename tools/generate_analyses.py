@@ -200,8 +200,10 @@ _COMBO_OUTPUT_FORMAT = (
 
 COMBO_MISSION_TENNIS = (
     "\n\nMISSION SPÉCIALE — COMBINÉ (FAVORI NET). Construis LE combiné de ce match UNIQUEMENT s'il y a un "
-    "favori NET et une domination LISIBLE ; sinon écris CLAIREMENT qu'aucun combiné solide n'existe (ne "
-    "FORCE jamais). Philosophie : on achète la CHANCE DE PASSER, pas la grosse cote. Règles STRICTES :\n"
+    "favori NET, une domination LISIBLE **ET une VALUE réelle** (TA proba nettement au-dessus de la cote "
+    "implicite — pas un favori à cote courte sans edge). SINON écris CLAIREMENT qu'aucun combiné solide "
+    "n'existe : hors Coupe du Monde, l'ABSTENTION est la BONNE réponse par défaut — ne FORCE JAMAIS un "
+    "combiné sans confiance réelle ET value. Philosophie : on achète la CHANCE DE PASSER + la value.\n"
     "1) UNE SEULE LECTURE : le favori s'impose nettement (idéalement 2 sets à 0). Décline CETTE domination "
     "en 2 à 3 jambes CORRÉLÉES POSITIVEMENT (elles passent ENSEMBLE si le favori roule), TOUTES réglables, "
     "chacune avec une LIGNE CHIFFRÉE — choisis parmi :\n"
@@ -224,8 +226,10 @@ COMBO_MISSION_TENNIS = (
 
 COMBO_MISSION_BASKET = (
     "\n\nMISSION SPÉCIALE — COMBINÉ (FAVORI NET). Construis LE combiné de ce match UNIQUEMENT s'il y a un "
-    "favori NET ; sinon écris CLAIREMENT qu'aucun combiné solide n'existe (ne FORCE jamais). On achète la "
-    "CHANCE DE PASSER, pas la grosse cote. Règles STRICTES :\n"
+    "favori NET **ET une VALUE réelle** (TA proba nettement au-dessus de la cote implicite — pas un favori "
+    "à cote courte sans edge). SINON écris CLAIREMENT qu'aucun combiné solide n'existe : hors Coupe du "
+    "Monde, l'ABSTENTION est la BONNE réponse par défaut — ne FORCE JAMAIS un combiné sans confiance réelle "
+    "ET value. On achète la CHANCE DE PASSER + la value.\n"
     "1) UNE SEULE LECTURE : le favori contrôle le match. Décline-la en 2 à 3 jambes CORRÉLÉES, réglables, "
     "chacune avec une LIGNE CHIFFRÉE — choisis parmi :\n"
     "   • Handicap du favori : « <Favori> -X.5 » (couvre l'écart) — X = un handicap où tu estimes ≥ 72 %.\n"
