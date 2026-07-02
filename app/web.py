@@ -1639,6 +1639,8 @@ CSS = """
   .da-cl-won{color:#9be8bf}
   .da-cl-lost{color:#ffb3b3;opacity:.85}
   .da-cl-lost .da-cl-sel{text-decoration:line-through}       /* barré : SEULEMENT le libellé */
+  .da-cl-void{color:#aeb9c9;opacity:.7}                      /* jambe annulée/remboursée : gris estompé */
+  .da-cl-void .da-cl-sel{text-decoration:line-through;text-decoration-style:dotted}
   .da-cl-live{color:#ffd98a}
   .da-cl-p{font-variant-numeric:tabular-nums;font-size:10.5px;color:#9fb0c8;
        background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
