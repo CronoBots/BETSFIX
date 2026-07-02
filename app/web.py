@@ -1253,6 +1253,7 @@ CSS = """
   .sx-hero-roi{font-size:34px;font-weight:900;line-height:1;letter-spacing:-.02em}
   .sx-hero-lbl{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
        color:var(--muted);margin-top:3px}
+  .sx-hero-hint{font-size:9.5px;font-weight:600;color:var(--muted);opacity:.72;margin-top:2px;max-width:200px}
   .sx-hero-r{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
   .sx-formrow{display:flex;align-items:center;gap:6px;justify-content:flex-end}
   .sx-formk{font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
@@ -2736,7 +2737,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     hero = (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
-        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI · paris simples {_ind(ov.get("settled"))}</div></div>'
+        f'{_roistr(ov.get("roi"))}</div><div class="sx-hero-lbl">ROI · paris simples {_ind(ov.get("settled"))}</div>'
+        '<div class="sx-hero-hint">Combinés suivis à part ↓ (un combiné gagné n\'entre PAS ici)</div></div>'
         f'<div class="sx-hero-r">{_simples_form}</div></div>'
         '<div class="sx-kpis">'
         f'<div class="sx-kpi"><b>{ov["settled"]}</b><span>simples réglés</span></div>'
@@ -2828,7 +2830,8 @@ def render_combos(cs: dict, form_html: str = "") -> str:
     return (
         '<div class="sx-hero"><div class="sx-hero-top">'
         f'<div class="sx-hero-main"><div class="sx-hero-roi arec-{_roi_cls(roi, cs["n"])}">'
-        f'{_roistr(roi)}</div><div class="sx-hero-lbl">ROI · combinés {_ind(cs["n"])}</div></div>'
+        f'{_roistr(roi)}</div><div class="sx-hero-lbl">ROI · paris combinés {_ind(cs["n"])}</div>'
+        '<div class="sx-hero-hint">Suivi séparé des simples (variance plus élevée)</div></div>'
         f'<div class="sx-hero-r">{form_html}</div></div>'
         f'<div class="sx-kpis">{kpis}</div>'
         '<div class="sx-divider"></div>'
