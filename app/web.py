@@ -2264,7 +2264,7 @@ _TERM_JS = (
 _MILE_JS = (
     "(function(){document.addEventListener('click',function(e){"
     "var t=e.target.closest('[data-mile]');if(!t)return;"
-    "var scope=t.closest('.sx-hero')||t.closest('.sx-card');if(!scope)return;"
+    "var scope=t.closest('.spf-cv')||t.closest('.sx-hero')||t.closest('.sx-card');if(!scope)return;"
     "var n=t.getAttribute('data-mile');"
     "var info=scope.querySelector('.sx-mile-info');"
     "var data=scope.querySelector('.sx-mile-d[data-mile=\"'+n+'\"]');"
