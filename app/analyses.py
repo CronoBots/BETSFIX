@@ -1812,8 +1812,10 @@ def combo_stats(since_days: int | None = None) -> dict:
                 continue
         res = c.get("result")
         if res not in ("won", "lost", "push"):
-            continue
-        odds = c.get("real_odds") or c.get("total")
+            continue                                       # 'void' (remboursé) = neutre -> pas au ROI
+        # Cote EFFECTIVE si des jambes ont été retirées au règlement (void/push -> cote 1) : le payout
+        # d'un combiné gagné amputé d'une jambe indéterminée utilise le produit des jambes gagnées.
+        odds = c.get("settle_odds") or c.get("real_odds") or c.get("total")
         rows.append((res, float(odds) if odds else None, c.get("shave"), len(c["legs"]), c.get("prob")))
         curve.append((start, res, float(odds) if odds else None))
         by_sp.setdefault(sport, []).append((start, res, float(odds) if odds else None))

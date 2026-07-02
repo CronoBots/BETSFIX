@@ -980,14 +980,13 @@ async def _settle_analyses_impl() -> int:
         # de l'id SofaScore par noms peut échouer si SofaScore est temporairement bloqué).
         votes_pending = (d.get("pub_home") is None and (d.get("votes_tries") or 0) < 3)
         # Combiné dont le verdict GLOBAL manque encore (jambes réglées au compte-gouttes : stats df_st
-        # parfois en retard sur la fin du match) -> on retente jusqu'à 8 fois pour le compléter.
+        # parfois en retard sur la fin du match) -> on retente pour le compléter.
         cmb = d.get("combo") or {}
-        # < 9 (pas 8) : le combiné ATTEND les jambes jusqu'à 8 essais ; il faut UNE passe de PLUS
-        # pour que la FINALISATION tourne (au 8e essai, le bloc plus bas tranche : jambe perdue ->
-        # « perdu », même si une autre jambe reste non réglable). Sans ce +1, le combiné était skippé
-        # à 8 AVANT de finaliser -> resté « en attente » à vie alors qu'une jambe avait perdu (régression).
-        combo_pending = (bool(cmb.get("legs")) and cmb.get("result") is None
-                         and (d.get("combo_tries") or 0) < 9)
+        # TANT que le verdict global manque, on RE-TRAITE (plus de plafond d'abandon) : la finalisation
+        # ci-dessous GARANTIT désormais un verdict une fois le match réellement terminé (jambe
+        # indéterminée -> VOID, on règle sur le reste). Donc pas de boucle infinie : un match fini est
+        # tranché en une passe ; un match pas encore fini est simplement re-tenté (comme avant).
+        combo_pending = (bool(cmb.get("legs")) and cmb.get("result") is None)
         # Pari « le plus sûr » NON réglable sur un match pourtant fini (ex. tennis abandonné avant le 1er
         # set : 0-0 en sets, pas de vainqueur) -> on retente quelques fois puis on ABANDONNE (sinon le
         # sidecar n'est jamais figé et on le re-traite à chaque boucle indéfiniment).
@@ -1076,7 +1075,17 @@ async def _settle_analyses_impl() -> int:
                     except Exception:
                         score = None
                 if not score:
-                    continue
+                    # Aucune source n'a le score. Match encore en cours / pas trouvé -> on repasse.
+                    # MAIS si le match est CERTAINEMENT terminé (temps largement dépassé) et qu'un
+                    # combiné traîne encore sans verdict après assez d'essais, on ne peut PLUS jamais
+                    # lire son résultat -> on laisse la FINALISATION plus bas TRANCHER (void/remboursé)
+                    # pour ne pas rester bloqué à vie (« régler quoi qu'il arrive »).
+                    _cmb0 = d.get("combo") or {}
+                    if (analyses.status_of(d) == "finished" and _cmb0.get("legs")
+                            and _cmb0.get("result") is None and (d.get("combo_tries") or 0) >= 8):
+                        score = {"home": None, "away": None}   # pas de données -> jambes VOID
+                    else:
+                        continue
             # Pré-calcule les codes de TOUS les paris affichés -> on sait si on a besoin des STATS du
             # match (cartons/corners). SofaScore les expose même APRÈS le match (event/{id}/statistics).
             mid = os.path.basename(side)[len(sport) + 1:-5]    # {sport}_{id}.json -> id
@@ -1300,15 +1309,41 @@ async def _settle_analyses_impl() -> int:
                 # résultat (ex. « but dans les 2 mi-temps » réglé seulement quand les scores PAR
                 # mi-temps arrivent), on n'annonce PAS le verdict global — MÊME si une jambe déjà
                 # perdue rend le combiné mathématiquement perdu. Sinon on publie une carte avec une
-                # jambe sans ✅/❌ (cas Équateur-Allemagne). On réessaie (borné à 8) le temps que les
-                # données de la dernière jambe arrivent ; au-delà, on tranche avec ce qu'on a.
-                if any_pending and (d.get("combo_tries") or 0) < 8:
+                # jambe sans ✅/❌. On réessaie (borné à 8) le temps que les données arrivent.
+                # AU-DELÀ, si le match est réellement TERMINÉ : on TRANCHE quoi qu'il arrive — une jambe
+                # encore indéterminée devient VOID (donnée introuvable) et le combiné se règle sur les
+                # jambes restantes (règle bookmaker standard : cote de la jambe void -> 1). Aucun combiné
+                # ne reste bloqué « en attente » à vie (demande user : « régler quoi qu'il arrive »).
+                _strict_fin = analyses.status_of(d) == "finished"
+                if any_pending and ((d.get("combo_tries") or 0) < 8 or not _strict_fin):
                     combo["result"] = None
                     d["combo_tries"] = (d.get("combo_tries") or 0) + 1
                 else:
-                    combo["result"] = "lost" if any_lost else ("won" if all_won else None)
-                    if combo["result"] is None:           # toujours pas tranchable après essais -> compte
-                        d["combo_tries"] = (d.get("combo_tries") or 0) + 1
+                    # VERDICT GARANTI : une jambe encore indéterminée -> VOID ; on règle sur les jambes
+                    # tranchées (push/void = cote 1, neutre). Perdant si une jambe perd ; gagnant si au
+                    # moins une gagne et aucune ne perd ; remboursé si rien n'a pu être réglé.
+                    won_odds, n_won, n_lost, n_void, nlegs = 1.0, 0, 0, 0, len(combo["legs"])
+                    for leg in combo["legs"]:
+                        r = leg.get("result")
+                        if r is None:
+                            leg["result"] = "void"; r = "void"
+                        if r == "won":
+                            won_odds *= float(leg.get("cote") or 1.0); n_won += 1
+                        elif r == "lost":
+                            n_lost += 1
+                        elif r == "void":
+                            n_void += 1
+                    if n_lost:
+                        combo["result"] = "lost"
+                    elif n_won:
+                        combo["result"] = "won"
+                        if n_won < nlegs:                  # des jambes retirées (push/void) -> cote EFFECTIVE
+                            combo["settle_odds"] = round(won_odds, 2)
+                    else:
+                        combo["result"] = "void"           # aucune jambe gagnante/perdante -> remboursé
+                    if n_void:
+                        log.info("combo %s_%s tranché (void=%d/%d) -> %s",
+                                 sport, d.get("id"), n_void, nlegs, combo["result"])
             # PRÉDICTIONS FANTÔMES (calibrage) : on règle CHAQUE prédiction (métrique live OU code) ->
             # result. Elles ne pèsent QUE dans la calibration — jamais dans l'affichage/ROI/forme.
             shadow = d.get("shadow")
