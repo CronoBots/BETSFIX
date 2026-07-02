@@ -1146,7 +1146,10 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     for c in cands:
         cp = calibrated_conf(c.get("prob"), sport, c.get("code", ""))
         c["_cprob"] = (cp if cp is not None else (c.get("prob") or 70)) / 100
-    best, fallback = None, None     # best = (ev, real, prob, idx) ; fallback = + haute vraie cote (≥ chance mini)
+    # best = meilleure EV parmi les combos « value » (real ≥ MIN ET chance ≥ MIN) ; safest = le PLUS SÛR
+    # (plus haute chance), repli MOINS GOURMAND quand aucun combo value n'existe -> on ne force JAMAIS un
+    # longshot à haute cote, et on produit TOUJOURS un combiné si le vivier a ≥2 jambes (pas de suppression).
+    best, safest = None, None
     for size in range(min(max_legs, n), 1, -1):
         for idx in combinations(range(n), size):
             real = unibet.betbuilder_odds(eid, [cands[i]["oid"] for i in idx])
@@ -1155,20 +1158,17 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
             prob = 1.0
             for i in idx:
                 prob *= cands[i]["_cprob"]
-            if prob < _COMBO_PROB_MIN:       # BARRIÈRE DURE : jamais sous la chance mini (calibrée)
-                continue
-            if fallback is None or real > fallback[1]:
-                fallback = (prob, real, idx)
-            # EV maximale parmi les combinaisons qui tiennent AUSSI la value (≥1.80) -> meilleur
-            # rendement attendu (favorise les jambes peu corrélées = cote réelle plus haute).
-            if real >= _COMBO_REAL_MIN:
+            if safest is None or prob > safest[0]:       # repli = le PLUS SÛR (chance maximale)
+                safest = (prob, real, idx)
+            # EV maximale parmi les combinaisons qui tiennent la VALUE (≥ MIN) ET la chance mini.
+            if real >= _COMBO_REAL_MIN and prob >= _COMBO_PROB_MIN:
                 ev = real * prob
                 if best is None or ev > best[0]:
                     best = (ev, real, prob, idx)
     if best:
         _, real, prob, idx = best
-    elif fallback:
-        prob, real, idx = fallback
+    elif safest:
+        prob, real, idx = safest        # aucun combo value -> le PLUS SÛR (jamais le plus gourmand)
     else:
         return None
     # LIAISON À L'OUTCOME BET BUILDER RÉEL : la jambe affichée (texte + cote) est celle du CATALOGUE
