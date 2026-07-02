@@ -2707,6 +2707,23 @@ def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict |
         'n\'existe pas de combiné fantôme.</div></div>')
 
 
+def _mile_legend(miles: list) -> str:
+    """Légende repliable des repères de modèle (pastilles numérotées cliquables + explications cachées au
+    clic) pour un SOUS-ENSEMBLE de MODEL_MILESTONES (Simples OU Combinés). Numérotation LOCALE 1..N, et le
+    JS (_MILE_JS) est scopé au bloc `.spf-cv` -> les 2 séries de repères ne se confondent pas. '' si vide."""
+    if not miles:
+        return ""
+    chips = "".join(f'<button type="button" class="sx-mile-b" data-mile="{i}">{i}</button>'
+                    for i in range(1, len(miles) + 1))
+    data = "".join(f'<div class="sx-mile-d" data-mile="{i}" hidden>'
+                   f'<b>{html.escape(m[1])}</b> — {html.escape(m[2])}</div>'
+                   for i, m in enumerate(miles, 1))
+    return (f'<div class="sx-miles"><div class="sx-ml-h">Repères du modèle'
+            f'<span class="sx-ml-hint">touchez un repère pour le détail</span></div>'
+            f'<div class="sx-mile-bs">{chips}</div>'
+            f'<div class="sx-mile-info"></div>{data}</div>')
+
+
 def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
     """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
     UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
@@ -2765,7 +2782,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # BLOC COMBINÉS : même carte compacte, juste en dessous (render_combos), + ses extras (profit,
     # rabot, réussite par nb de jambes). Le tout dans UNE carte .spf, comme les onglets sport.
     combos_block = render_combos(combo_full if combo_full is not None else analyses.combo_stats(),
-                                 _combo_form)
+                                 _combo_form, milestones=_ms_combo)
     return f'<div class="spf"><div class="spf-charts">{simples_block}{combos_block}</div></div>'
 
 
@@ -2810,16 +2827,19 @@ def render_perf(perf: dict | None) -> str:
     return _roi_section("Rendement par cote", "ROI selon la cote jouée", perf.get("by_odds") or [])
 
 
-def render_combos(cs: dict, form_html: str = "") -> str:
+def render_combos(cs: dict, form_html: str = "", milestones: list | None = None) -> str:
     """Bloc COMBINÉS = MIROIR EXACT du bloc simples (même style : gros ROI + forme + KPIs + courbe),
     affiché JUSTE EN DESSOUS (demande user). Vraie cote, ROI séparé des simples, + réussite par nb de
-    jambes en info supplémentaire."""
+    jambes en info supplémentaire. `milestones` = repères de modèle PROPRES aux combinés (sur la courbe
+    combinés, + légende sous le graphe) — demande user : repères simples sur graphe simples, combinés ici."""
     if not cs or not cs.get("n"):
         return ""
     roi = cs.get("roi")
     wr = cs.get("win_rate")
     pts = cs.get("points") or []
-    chart = (f'<div class="sx-equity">{_hero_chart(pts, uid="combos")}</div>'
+    _mc = milestones or []
+    chart = (f'<div class="sx-equity">'
+             f'{_hero_chart(pts, uid="combos", dates=cs.get("dates") or [], milestones=_mc)}</div>'
              if len([p for p in pts if p]) else "")
     prof = cs.get("profit")
     shave = cs.get("avg_shave")
@@ -2847,7 +2867,7 @@ def render_combos(cs: dict, form_html: str = "") -> str:
         f'<span><b>{cs["n"]}</b> paris</span>'
         f'<span><b>@{cs.get("avg_odds") or "—"}</b> cote</span></div>'
         f'<div class="spf-cv-extra">{extra}</div>'
-        f'{legs}</div>')
+        f'{legs}{_mile_legend(_mc)}</div>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
