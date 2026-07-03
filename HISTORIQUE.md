@@ -353,3 +353,15 @@ void garanti). Le CONTENU rédigé par Claude varie (normal, LLM). 3 points durc
 - Le warn « total≠produit » (Angleterre-Congo) = faux positif : écart 3,2% dû au RAFRAÎCHISSEMENT des cotes
   de jambes après figement du `total` (pas une cote fantôme). Seuil dur `_check_combo_pricing` élargi
   0.03→0.05·prod (5%) : absorbe les décalages normaux, attrape toujours le grossier (×2). Selfcheck = 10/10 ✅.
+
+## 2026-07-03 — Phase 4 : Santé des sources (surveillance proactive)
+Nouveau module `app/source_health.py` : ping LÉGER en parallèle des 8 sources (analyse + règlement),
+avec latence + statut. CRITIQUES = Unibet (sélection+cotes) + FotMob (foot analyse+règlement tirs) →
+down = error ; les 6 autres (Pinnacle/ESPN/Understat/Flashscore/LiveScore/Sportradar) → down = warn.
+Pings validés en réseau (réutilise `unibet.matches`/`livescore.matches`/`sportradar.gismo` + GET stables
+FotMob/ESPN/Understat/Pinnacle/Flashscore). Complète la traçabilité de complétude PAR FICHE par une
+surveillance GLOBALE en amont (détecte une source morte AVANT qu'elle dégrade les analyses).
+- Surfaces : `GET /health/sources` (+ gaté en mode public) · CLI `tools/source_health.py` (journal
+  `data/source_health_log.jsonl` + alerte Telegram SI source critique down) · branché fin `scan_daily.ps1`.
+- Testé : 8/8 vertes (Unibet 214 matchs, FotMob/ESPN/Understat/Pinnacle/Flashscore/Sportradar OK,
+  LiveScore 89), latences 180–700ms. AST + imports OK, endpoint enregistré, journal écrit.
