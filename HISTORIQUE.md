@@ -304,3 +304,28 @@
   (Allemagne +4.5 tirs cadrés=won, Cap-Vert -2.5=won, Total +8.5=won, etc.). FORWARD-only.
 - **Docs** : `docs/SOURCES.md` §2 (FotMob règlement) + §3 (tirs ✅) + §4 (trou n°1 barré). Mémoires
   `markets-resolvability-sources` + `check-connected-sources-first` (nouvelle) + index MEMORY.md.
+
+## 2026-07-03 (soir) — Correction complète du passé + garanties de règlement
+Demande user : « corriger tout le passé, que tous les pronos non réglés le soient ». Méthode : dry-run
+AVANT toute écriture (aucune régression tolérée).
+- **Audit du passé (lecture seule)** : 14 combos + 21 paris re-vérifiés via le VRAI moteur (mêmes fonctions
+  `_leg_metric`/`_eval_leg`/`settle_pick`) sur score cache + FotMob. Verdict : **0 combo au verdict faux**
+  (les jambes tirs étaient déjà réglées via la métrique live ; seul le `code` stocké était vide = cosmétique)
+  et **0 pari simple mal réglé** (les « 22 au code changé » = faux signaux : divergence ligne `pick` vs pari
+  affiché `bets[0]`, le moteur suit `bets[0]`). Rien à réécrire sur l'historique.
+- **Régression attrapée PAR le dry-run** : `foot_match_stats` renvoyait 0/0 sur un match FotMob non couvert
+  (Série B brésilienne) → le merge `{**cur, **fm}` écrasait les vrais cartons du cache (faux won→lost sur
+  Ceará-Avaí). FIX : (1) `foot_match_stats` renvoie None si tirs tous nuls (garde anti-faux-zéros) ;
+  (2) merge `{**fm, **cur}` (FotMob COMBLE, n'écrase jamais le cache fiable). Dry-run re-vérifié : 0 faux.
+- **Bug de complétude corrigé** : un combo dont AUCUNE source n'a jamais le score (ligues obscures : basket
+  féminin « petits pays », qualifs FIBA) restait pending À VIE (le `continue` du bloc `not score`
+  court-circuitait avant l'incrément de tries et la logique void). AJOUT d'un VOID de dernier recours dans
+  ce bloc : match fini + âge ≥ `_VOID_AFTER_DAYS` (3j) + score introuvable partout → void (remboursé).
+  Appliqué à Malte(F)-Arménie(W) (6j, introuvable partout) ; les 2 matchs du jour restent en ré-essai.
+- **Compteur monotone (selfcheck)** : l'alerte « 72 < 73 » était un FAUX positif préexistant — le check
+  lisait `stats_full().settled` (proxy qui exclut les combos pré-`_COMBO_COUNT_FROM` et retombe sur un
+  recalcul live fluctuant). FIX : le check mesure désormais le VRAI invariant = nb de `stat_bet` FIGÉS
+  (immuables, monotones). Backfill du seul pari réglé non figé (tennis Mochizuki). Filigrane recalé à 77.
+- **Anti-régression** : AST OK (5 fichiers) ; imports globaux OK ; `settle_pick` standard OK (OVER/SHOTSOT/
+  BOTHHALVES) ; selfcheck 8/9 ✅ (reste 1 warn PRÉEXISTANT : cote combo Angleterre-Congo = bet builder
+  même-match, total≠produit normal, résultat lost correct — non lié). Backups sidecars dans scratchpad.
