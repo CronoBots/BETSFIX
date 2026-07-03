@@ -33,6 +33,16 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **Cartes Telegram : suppression du bord noir + largeur uniforme**. — pourquoi : demande
+  user (bord noir à droite/bas ; tous les tickets doivent faire la même largeur peu importe le sport, seule
+  la hauteur varie) · cause : le rendu fixait le viewport à `carte + 40px` puis capturait TOUT le viewport
+  → la marge (+ marge du body) apparaissait en bande sombre · fichiers : `tools/card_image.py`
+  (`html,body{margin:0;background:transparent}` ; capture CLIPPÉE sur le boundingRect EXACT de la carte
+  via `Page.captureScreenshot(clip={x,y,w,h,scale:1})`, `deviceScaleFactor=2` conservé pour la HD) ·
+  **régression vérifiée** : purement rendu image ; AST OK ; 3 sports rendus → **largeur identique 1840px**
+  (foot/tennis/basket), hauteur variable (2612/2070/2008) ; inspection visuelle → plus aucun bord noir,
+  carte pleine largeur · résultat : OK. NB : le fix s'applique aux PROCHAINES cartes ; republication des
+  cartes déjà postées = sur demande (éviter de re-vider le canal sans nécessité).
 - **2026-07-03** — **FIX bug encodage `renotify_cards.py` (canal vidé sans republication)**. — pourquoi :
   le script plantait sur `UnicodeEncodeError` (✓/✗ en cp1252) au 1er `print` APRÈS `_clear_channel()` →
   canal VIDÉ mais republication avortée (l'utilisateur a vu ses messages récents disparaître) · fichiers :
