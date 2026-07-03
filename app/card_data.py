@@ -40,6 +40,27 @@ def _clean_synth(w) -> str:
     return t
 
 
+def _split_leg(sel: str, home: str, away: str) -> tuple[str, str]:
+    """Sépare un libellé de pari en (MARCHÉ, SÉLECTION) pour l'afficher sur DEUX lignes (marché discret
+    « … : » puis sélection en avant), ex. « Cotes du match - Prolongations incluses » + « Corée du Sud ».
+    Marché = '' si le libellé est déjà atomique/court (« Syrie gagne », « Andorre -18.5 ») -> une ligne.
+    Découpe fiable : nom d'équipe (home/away) en fin de libellé, sinon marqueur de total « Plus/Moins de »."""
+    s = str(sel or "").strip()
+    for team in (home, away):
+        t = str(team or "").strip()
+        if t and s != t and s.endswith(t):
+            market = s[:-len(t)].strip(" -–—:·")
+            if market:
+                return market, t
+    m = re.search(r"\b(plus de|moins de|over|under)\b", s, re.I)
+    if m and m.start() > 0:
+        market = s[:m.start()].strip(" -–—:·")
+        pick = s[m.start():].strip()
+        if market and pick:
+            return market, pick[:1].upper() + pick[1:]
+    return "", s
+
+
 def _pick_why(d: dict, sel: str) -> str:
     """« Pourquoi » du pari SIMPLE retenu, extrait du Verdict de l'analyse (.md) — comme sur l'app
     (_verdict_notes + _assign_notes, déjà nettoyés/sans sources). '' si introuvable."""
@@ -101,16 +122,20 @@ def build_prono_card(d: dict) -> dict | None:
     card = {"emoji": SPORT_EMOJI.get(sport, "•"), "_mid": str(d.get("id")),
             "_start": str(d.get("start") or ""), "cat": _cat(d),
             "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta}
+    home, away = str(d.get("home", "")), str(d.get("away", ""))
     if has_combo:
         cote = (f"{combo['real_odds']:.2f}" if combo.get("real_odds") else f"{combo.get('total', '?')}")
         # ANALYSE PAR JAMBE (comme l'app) : chaque sélection porte son « pourquoi » sérieux + la synthèse
         # du combiné (corrélation). Uniquement sur la carte de PUBLICATION (pas la carte résultat).
-        card.update(type="combo", cote=cote,
-                    legs=[(str(l.get("sel", "")), str(l.get("cote", "")), _clean_why(l.get("why")))
-                          for l in combo["legs"]],
-                    synth=_clean_synth(combo.get("why")))
+        # La sélection est scindée en (marché, pick) pour un affichage sur 2 lignes.
+        _legs = []
+        for l in combo["legs"]:
+            mkt, pk = _split_leg(l.get("sel", ""), home, away)
+            _legs.append((mkt, pk, str(l.get("cote", "")), _clean_why(l.get("why"))))
+        card.update(type="combo", cote=cote, legs=_legs, synth=_clean_synth(combo.get("why")))
     elif pick_shown and rb:
-        card.update(type="simple", pick=str(rb.get("sel", "")),
+        mkt, pk = _split_leg(str(rb.get("sel", "")), home, away)
+        card.update(type="simple", market=mkt, pick=pk,
                     cote=(f"{rb['cote']:g}" if rb.get("cote") else ""), conf=rb.get("prob"),
                     why=_pick_why(d, str(rb.get("sel", ""))))
     elif pick_shown:

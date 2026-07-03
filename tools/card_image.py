@@ -41,6 +41,9 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 .leg{display:flex;justify-content:space-between;align-items:center;gap:20px;font-size:29px;font-weight:700;
   margin-top:20px;line-height:1.2}
 .leg .o{flex:none;background:rgba(25,196,106,.15);color:#7ff0b6;border-radius:12px;padding:5px 18px;font-weight:900}
+.legsel{display:flex;flex-direction:column;gap:5px;min-width:0}
+.legsel .mkt{font-size:20px;font-weight:600;color:#8fa6c2;line-height:1.25}
+.legsel .pk{font-size:30px;font-weight:800;color:#eef4fb;line-height:1.15}
 .legwhy{font-size:21px;font-weight:500;color:#a7bcd6;line-height:1.34;margin:9px 0 6px 2px;
   padding-left:18px;border-left:3px solid rgba(63,184,255,.38)}
 .synth{font-size:22px;font-weight:600;color:#d0dfef;line-height:1.36;margin:2px 0 20px;
@@ -152,6 +155,15 @@ def _banner_uri(emoji: str) -> str:
     return ""
 
 
+def _selh(e, market: str, pick: str) -> str:
+    """Libellé de sélection : marché discret « … : » PUIS la sélection en avant, sur DEUX lignes, si un
+    marché est fourni ; sinon la sélection seule sur une ligne (libellés déjà courts)."""
+    if market:
+        return (f'<span class="legsel"><span class="mkt">{e(market)} :</span>'
+                f'<span class="pk">{e(pick)}</span></span>')
+    return f'<span>{e(pick)}</span>'
+
+
 def _card_html(d: dict) -> str:
     # Échappe + retire le suffixe « (F) » des équipes féminines (WNBA) — affichage seulement.
     def e(x):
@@ -207,16 +219,17 @@ def _card_html(d: dict) -> str:
         if d.get("synth"):                             # synthèse du combiné (corrélation) — pro, en tête
             inner += f'<div class="synth">{e(d["synth"])}</div>'
         inner += f'<div class="beth">Combiné · {len(d.get("legs",[]))} sélections</div>'
-        for leg in d.get("legs", []):                  # legs = (sel, cote[, why])
-            sel, cote = leg[0], leg[1]
-            why = leg[2] if len(leg) > 2 else ""
-            inner += f'<div class="leg"><span>{e(sel)}</span><span class="o">{e(str(cote))}</span></div>'
+        for leg in d.get("legs", []):                  # legs = (marché, pick, cote[, why])
+            mkt, pk, cote = leg[0], leg[1], leg[2]
+            why = leg[3] if len(leg) > 3 else ""
+            inner += (f'<div class="leg">{_selh(e, mkt, pk)}'
+                      f'<span class="o">{e(str(cote))}</span></div>')
             if why:                                    # ANALYSE de la jambe (comme l'app)
                 inner += f'<div class="legwhy">{e(why)}</div>'
         inner += (f'<div class="cote"><span class="l">Cote combinée</span>'
                   f'<span class="v">{e(str(d.get("cote","")))}</span></div>')
     else:
-        inner += f'<div class="leg"><span>{e(d.get("pick",""))}</span></div>'
+        inner += f'<div class="leg">{_selh(e, d.get("market",""), d.get("pick",""))}</div>'
         if d.get("why"):                               # ANALYSE du pari simple (comme l'app)
             inner += f'<div class="legwhy">{e(d["why"])}</div>'
         if d.get("conf"):                              # confiance AU-DESSUS de la cote
