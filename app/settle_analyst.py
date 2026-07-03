@@ -1174,6 +1174,34 @@ async def _settle_analyses_impl() -> int:
                     # Aucune source n'a ENCORE le score -> on RÉ-ESSAIE à la passe suivante (le score/
                     # les sets arrivent souvent avec du retard : ne JAMAIS trancher « nul » sur un score
                     # manquant, on veut le VRAI résultat). Le combiné reste simplement en attente.
+                    # DERNIER RECOURS (complétude) : si le match est fini DEPUIS LONGTEMPS (> _VOID_AFTER_DAYS)
+                    # et qu'AUCUNE source (tous les replis ci-dessus) n'a JAMAIS eu le score (ligues obscures :
+                    # basket féminin « petits pays », qualifs mineures…), le prono resterait pending À VIE —
+                    # le `continue` ne faisait jamais monter les tries ni atteindre la logique void du bloc
+                    # combo, qui EXIGE un score. On VOID (remboursé = neutre) pour GARANTIR que tout prono
+                    # d'un match terminé finit réglé. (cf. mémoire combo-settlement-void-guarantee : void =
+                    # ULTIME recours, jamais sur score simplement en retard.)
+                    if analyses.status_of(d) == "finished" and _match_age_days(d) >= _VOID_AFTER_DAYS:
+                        _cmb = d.get("combo") or {}
+                        if _cmb.get("legs") and _cmb.get("result") is None:
+                            for _lg in _cmb["legs"]:
+                                if _lg.get("result") is None:
+                                    _lg["result"] = "void"
+                            _cmb["result"] = "void"
+                        if (d.get("result") or {}).get("pick_result") is None:
+                            d.setdefault("result", {})["pick_result"] = "void"
+                        for _b in (d.get("bets") or []):
+                            if _b.get("result") is None:
+                                _b["result"] = "void"
+                        d["settle_v"] = _SETTLE_VERSION
+                        d["noscore_void"] = True          # trace : réglé faute de score (pas un vrai résultat)
+                        try:
+                            json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
+                            n += 1
+                            log.info("VOID dernier recours %s_%s (score introuvable, match +%.1fj)",
+                                     sport, d.get("id"), _match_age_days(d))
+                        except OSError:
+                            pass
                     continue
             # Pré-calcule les codes de TOUS les paris affichés -> on sait si on a besoin des STATS du
             # match (cartons/corners). SofaScore les expose même APRÈS le match (event/{id}/statistics).
