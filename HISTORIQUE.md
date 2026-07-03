@@ -33,6 +33,16 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **Cartes Telegram : coins BLEU-NOIR (fini le blanc) + largeur d'affichage UNIFORME**. —
+  pourquoi : (1) sur Telegram les coins arrondis TRANSPARENTS étaient composés sur BLANC ; (2) Telegram
+  réduit les images plus HAUTES → cartes de largeurs différentes selon la longueur du contenu · fix :
+  `tools/card_image.py` nouveau post-traitement PIL `_normalize_card()` appelé après le screenshot : aplatit
+  l'alpha sur un fond BLEU-NOIR `(8,12,20)` (coins sombres au lieu de blancs) ET normalise l'image à un
+  RATIO FIXE `_CARD_RATIO=1.3` (padding de fond bleu-noir : vertical si carte courte, horizontal si haute)
+  → **toutes les images ont le même ratio donc la MÊME largeur d'affichage Telegram**, seule la hauteur du
+  contenu change · **régression vérifiée** : rendu image seul, no-op si PIL absent (jamais bloquant) ; AST
+  OK ; 3 sports rendus → **ratio identique 1.3** (basket/foot/tennis), **coins = (8,12,20)** non blancs ;
+  inspection visuelle foot+basket OK · résultat : OK ; republication en cours.
 - **2026-07-03** — **Cartes Telegram : suppression du bord noir + largeur uniforme**. — pourquoi : demande
   user (bord noir à droite/bas ; tous les tickets doivent faire la même largeur peu importe le sport, seule
   la hauteur varie) · cause : le rendu fixait le viewport à `carte + 40px` puis capturait TOUT le viewport
