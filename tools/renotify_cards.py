@@ -9,6 +9,7 @@ Usage : python tools/renotify_cards.py            # tous les sidecars générés
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import glob
 import os
@@ -17,6 +18,10 @@ import sys
 from datetime import datetime, timezone
 
 import httpx
+
+# Console Windows en cp1252 : les ✓/✗/… des print faisaient planter le script APRÈS le vidage du canal
+# (canal vidé mais republication avortée). On force stdout en UTF-8 tolérant.
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
