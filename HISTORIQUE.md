@@ -33,6 +33,16 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **Bug notif Portugal-Croatie + garde-fou audit + scan/republication**. — (a) validation
+  du **combiné gagné Portugal-Croatie** renvoyée sur Telegram (carte résultat jamais postée distinctement :
+  `result_msg` pointait sur l'id du prono ; flags `notified_*` figés → aucune re-tentative) ; `result_msg`
+  corrigé (nouvel id 704) ; (b) NOUVEAU contrôle `app/selfcheck.py:_check_result_card_posted` (détecte
+  `notified_* && result_msg == id prono` = carte résultat non postée ; critère PRÉCIS → zéro faux positif,
+  contrairement à « aucun result_msg » qui attrape 280 vieux matchs légitimes) ; (c) scan complet `--force`
+  + republication au nouveau modèle via `renotify_cards.py`. — **régression vérifiée** : garde-fou read-only
+  additif (9 checks, AST OK, vert après correction Portugal) ; diagnostic AVANT action → refus de reposter
+  280 « suspects » (faux positifs, aurait spammé le canal de doublons) ; seul Portugal (symptôme précis)
+  renvoyé · résultat : garde-fou OK ; scan+republication en cours.
 - **2026-07-03** — **Telegram : lisibilité titre + libellé marché** (ajustement). — pourquoi : demande user
   (« Qualification… » trop petite ; le libellé marché « Cotes du match - Prolongations incluses » doit être
   de même taille que le pick et en blanc) · fichiers : `tools/card_image.py` (CSS `.topcomp` 17→20px ;
