@@ -35,7 +35,7 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 .hero img{width:100%;height:auto;display:block;filter:drop-shadow(0 6px 20px rgba(34,184,255,.30))}
 .top{font-size:30px;font-weight:900;letter-spacing:.05em;color:#5fd0ff;text-transform:uppercase;line-height:1.25}
 .top .ico{width:30px;height:30px;vertical-align:-5px;margin-right:8px}
-.topcomp{font-size:17px;font-weight:700;letter-spacing:.02em;color:#93b7db;text-transform:none;margin-left:5px}
+.topcomp{font-size:20px;font-weight:700;letter-spacing:.02em;color:#93b7db;text-transform:none;margin-left:5px}
 .match{font-size:48px;font-weight:900;margin-top:20px;line-height:1.08;position:relative}
 .meta{font-size:23px;color:#90a4be;margin-top:12px;font-weight:600;position:relative}
 .sep{height:1px;background:rgba(255,255,255,.09);margin:30px 0 26px}
