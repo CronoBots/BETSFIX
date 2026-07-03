@@ -76,9 +76,10 @@ def _score_incomplete(sc: dict | None, sport: str) -> bool:
         return sh == 0 and sa == 0                     # aucun set gagné -> capture en cours
     h, a = sc.get("home"), sc.get("away")
     return h is None and a is None and sh == 0 and sa == 0   # aucun score numérique capté
-_SETTLE_VERSION = 45   # v45 : TIRS CADRÉS / TIRS (total & équipe) -> SHOTSOT/SHOTS (stats Flashscore
-#                              sot_h/a, shots_h/a) + BUT DANS LES 2 MI-TEMPS (total) -> BOTHHALVES (periods).
-# v44 : PÉRIODES via Sportradar GISMO (repli) — jeux/sets/tie-breaks tennis & quart-temps basket réglables.
+_SETTLE_VERSION = 44   # v44 : PÉRIODES via Sportradar GISMO (repli) — jeux/sets/tie-breaks tennis &
+#                              quart-temps basket enfin réglables quand LiveScore/Flashscore échouent.
+# (v45 tirs/BOTHHALVES ANNULÉ le 2026-07-03 : le re-règlement de masse dé-réglait des combos historiques
+#  faute de source de tirs sur les vieux matchs. Le mapping code_from_pick reste — forward only.)
 # v43 : jambes à CODE VIDE débloquées — nom d'équipe seul = moneyline (WIN/1X2)
 #                              + « Plus de X » sans unité = total du match (combinés WNBA coincés).
 # v42 : WALKOVER/forfait (le joueur qui avance gagne -> pari sur lui = gagné),
