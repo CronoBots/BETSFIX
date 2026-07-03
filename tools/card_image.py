@@ -318,6 +318,10 @@ async def render_card(d: dict, out_png: str) -> str:
             vh = int(box["y"] + box["h"]) + 8          # (position incluse) avant de la clipper au pixel près
             await cmd("Emulation.setDeviceMetricsOverride",
                       {"width": vw, "height": vh, "deviceScaleFactor": 2, "mobile": False})
+            # Fond TRANSPARENT (alpha 0) : sinon Chrome comble les coins ARRONDIS (hors carte) en BLANC.
+            # Avec l'alpha, les coins deviennent transparents et se fondent dans le fond du chat Telegram.
+            await cmd("Emulation.setDefaultBackgroundColorOverride",
+                      {"color": {"r": 0, "g": 0, "b": 0, "a": 0}})
             await asyncio.sleep(0.2)
             # clip.scale=1 : la haute résolution vient DÉJÀ du deviceScaleFactor=2 (sinon on double l'échelle)
             shot = await cmd("Page.captureScreenshot", {"format": "png", "captureBeyondViewport": True,
