@@ -40,3 +40,9 @@ Log ("RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 Log 'SELFCHECK : auto-audit d''intégrité'
 & $py 'tools\selfcheck.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
 Log ("SELFCHECK DONE (exit {0})" -f $LASTEXITCODE)
+
+# JOURNAL D'APPRENTISSAGE : photo du jour + deltas vs la veille + auto-écriture des événements notables
+# (marché écarté / ré-intégré, mouvement de fiabilité/ROI) dans LEARNING.md. Lecture seule.
+Log 'LEARNING : journal d''apprentissage'
+& $py 'tools\learning.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+Log ("LEARNING DONE (exit {0})" -f $LASTEXITCODE)

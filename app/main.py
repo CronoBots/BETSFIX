@@ -644,6 +644,14 @@ async def health_selfcheck() -> dict:
     return selfcheck.run(persist=False)
 
 
+@app.get("/health/learning", tags=["ℹ️ Méta"], summary="Journal d'apprentissage (progression jour/jour)")
+async def health_learning() -> dict:
+    """État APPRENANT du modèle : métriques du jour, deltas vs la veille, série historique et événements
+    d'auto-révision (exclusions, fiabilité). Lecture seule (cf. app/learning.py)."""
+    from app import learning
+    return learning.report()
+
+
 # Une fois TOUTES les routes enregistrées, on (re)classe chaque endpoint par nature
 # de donnée pour /docs (source SofaScore / cotes / modèle / …). À faire en dernier.
 _retag_routes(app)
