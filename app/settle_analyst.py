@@ -1207,6 +1207,20 @@ async def _settle_analyses_impl() -> int:
                                                  d.get("home", ""), d.get("away", ""), d.get("start"))
                     if fs:
                         score["stats"] = {**cur, **fs}   # complète SOT/tirs sans rien perdre
+                # Dernier repli TIRS : Sportradar GISMO `match_details` (tirs cadrés/tirs/corners par équipe)
+                # quand Flashscore ne couvre pas le match. Tolérant (None si non résolu) -> ne bloque rien.
+                cur = score.get("stats") or {}
+                if sport == "foot" and ("sot_h" not in cur or "shots_h" not in cur):
+                    try:
+                        from app import sportradar as _srx
+                        import httpx as _hx
+                        async with _hx.AsyncClient() as _sc:
+                            gs = await _srx.match_stats(_sc, sport, d.get("home", ""), d.get("away", ""),
+                                                        d.get("start"))
+                        if gs:
+                            score["stats"] = {**cur, **gs}
+                    except Exception:
+                        pass
 
             # PÉRIODES (jeux par set tennis : SETGAMES/TOTGAMES/SETSCORE ; mi-temps foot *_1H) : si le
             # score (souvent ESPN = score final seul) n'a PAS les périodes, LiveScore les fournit ->
