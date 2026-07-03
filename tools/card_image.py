@@ -265,6 +265,34 @@ def _free_port() -> int:
     s = socket.socket(); s.bind(("127.0.0.1", 0)); p = s.getsockname()[1]; s.close(); return p
 
 
+_CARD_BG = (8, 12, 20)          # fond bleu-noir (coins arrondis + marges de normalisation)
+_CARD_RATIO = 1.3               # hauteur/largeur VISÉ pour TOUTES les cartes -> même largeur sur Telegram
+
+
+def _normalize_card(png: str) -> None:
+    """Uniformise l'affichage Telegram : (1) APLATIT l'alpha sur un fond BLEU-NOIR — les coins arrondis
+    (transparents) deviennent sombres au lieu de BLANCS (Telegram compose l'alpha sur blanc) ; (2) normalise
+    l'image à un RATIO FIXE en ajoutant du fond bleu-noir (padding vertical si la carte est plus courte,
+    horizontal si plus haute) -> toutes les cartes ont le MÊME ratio donc la MÊME largeur d'affichage, seule
+    la hauteur du CONTENU change. No-op si PIL absent / erreur (jamais bloquant pour le scan/règlement)."""
+    try:
+        from PIL import Image
+    except Exception:
+        return
+    try:
+        card = Image.open(png).convert("RGBA")
+        w, h = card.size
+        if h / w <= _CARD_RATIO:
+            cw, ch = w, round(w * _CARD_RATIO)          # compléter en HAUTEUR (carte pleine largeur)
+        else:
+            cw, ch = round(h / _CARD_RATIO), h          # compléter en LARGEUR (carte plus haute que le ratio)
+        canvas = Image.new("RGBA", (cw, ch), _CARD_BG + (255,))
+        canvas.alpha_composite(card, ((cw - w) // 2, (ch - h) // 2))
+        canvas.convert("RGB").save(png)                 # RGB (sans alpha) -> Telegram n'ajoute pas de blanc
+    except Exception:
+        pass
+
+
 async def render_card(d: dict, out_png: str) -> str:
     """Rend la carte du prono `d` en PNG (out_png). Renvoie le chemin."""
     import websockets
@@ -330,6 +358,7 @@ async def render_card(d: dict, out_png: str) -> str:
             os.makedirs(os.path.dirname(os.path.abspath(out_png)) or ".", exist_ok=True)
             with open(out_png, "wb") as f:
                 f.write(base64.b64decode(shot["result"]["data"]))
+        _normalize_card(out_png)       # fond bleu-noir (coins) + ratio fixe (même largeur pour tous)
         return out_png
     finally:
         proc.terminate()
