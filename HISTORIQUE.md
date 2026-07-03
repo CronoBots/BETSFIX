@@ -48,6 +48,15 @@
   ajoute `Emulation.setDefaultBackgroundColorOverride({r,g,b,a:0})` avant la capture → PNG en RGBA, coins
   alpha 0 (se fondent dans le fond du chat) · **régression vérifiée** : test PIL sur le PNG rendu → mode
   RGBA, **4 coins alpha=0 (transparents)**, centre opaque (couleur carte) ; AST OK · résultat : OK.
+- **2026-07-03** — **Cartes Telegram : CADRE BLEU style app + republication**. — pourquoi : demande user
+  (cadre du même style que les cadres bleus de l'app) · l'app utilise `border:1px solid rgba(34,184,255,.60)`
+  + halo accent ; reproduit sur `.card` : `border:2px solid rgba(34,184,255,.55)` + `box-shadow:inset 0 0 0
+  1px rgba(34,184,255,.28), inset 0 0 80px rgba(34,184,255,.07)` (halo INSET car le clip exact couperait un
+  halo externe ; cartes résultat gardent leur accent vert/rouge) · fichiers : `tools/card_image.py` (CSS
+  `.card`) · **régression vérifiée** : rendu image seul ; AST OK ; carte rendue et inspectée (cadre bleu net,
+  coins transparents, pas de bord) ; **republication faite** (`renotify_cards.py --hours 3`, sans crash grâce
+  au fix encodage) : 7 cartes re-postées (Portugal prono+résultat, Corée, Australie-Égypte, Argentine-Cap-Vert,
+  Colombie-Ghana, Las Vegas-Chicago ; 3 tennis abstention) · résultat : canal à jour au rendu final.
 - **2026-07-03** — **FIX bug encodage `renotify_cards.py` (canal vidé sans republication)**. — pourquoi :
   le script plantait sur `UnicodeEncodeError` (✓/✗ en cp1252) au 1er `print` APRÈS `_clear_channel()` →
   canal VIDÉ mais republication avortée (l'utilisateur a vu ses messages récents disparaître) · fichiers :
