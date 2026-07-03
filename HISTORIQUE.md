@@ -33,6 +33,16 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **FIX bug encodage `renotify_cards.py` (canal vidé sans republication)**. — pourquoi :
+  le script plantait sur `UnicodeEncodeError` (✓/✗ en cp1252) au 1er `print` APRÈS `_clear_channel()` →
+  canal VIDÉ mais republication avortée (l'utilisateur a vu ses messages récents disparaître) · fichiers :
+  `tools/renotify_cards.py` (ajout `sys.stdout = io.TextIOWrapper(..., encoding='utf-8', errors='replace')`)
+  · **régression vérifiée** : AST OK ; relancé → **7 cartes republiées** (Portugal prono+résultat, Corée,
+  Australie-Égypte, Argentine-Cap-Vert, Colombie-Ghana, Las Vegas-Chicago ; 3 tennis en abstention ignorés)
+  · résultat : canal restauré au nouveau format. **LEÇON** : le SCAN publie DÉJÀ au nouveau format
+  (card_image à jour) → « supprime+republie » redondant pour les pronos frais ; renotify n'est utile que
+  pour reformater d'ANCIENNES cartes postées avant une refonte du gabarit. Ne pas vider tout le canal sans
+  nécessité.
 - **2026-07-03** — **Bug notif Portugal-Croatie + garde-fou audit + scan/republication**. — (a) validation
   du **combiné gagné Portugal-Croatie** renvoyée sur Telegram (carte résultat jamais postée distinctement :
   `result_msg` pointait sur l'id du prono ; flags `notified_*` figés → aucune re-tentative) ; `result_msg`
