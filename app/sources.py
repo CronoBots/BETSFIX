@@ -528,8 +528,15 @@ async def _tennis_extras(client, match: dict) -> list[str]:
              for r in idx.get(t, []) if len(r) > 4 and r[4]]
     surf = _surface_hint(*_trns, match.get("comp", ""), match.get("name", ""))
     if surf:
-        facts.insert(0, f"Surface : {surf} — pondérer la SPÉCIALISATION surface des joueurs (un même joueur "
-                     f"peut être bien plus fort/faible sur cette surface que ne le dit son classement).")
+        head = [f"Surface : {surf} — pondérer la SPÉCIALISATION surface des joueurs (un même joueur peut "
+                f"être bien plus fort/faible sur cette surface que ne le dit son classement)."]
+        # BILAN PAR SURFACE des 2 joueurs (TennisExplorer — gratuit, à jour) : le vrai niveau surface.
+        try:
+            from app import tennisexplorer
+            head += await tennisexplorer.surface_facts(client, home, away, surf)
+        except Exception:
+            pass
+        facts = head + facts       # surface + bilans surface en TÊTE (facteur n°1 au tennis)
     for label in (home, away):
         form, fatigue = _tennis_form(idx, label)
         if form:
