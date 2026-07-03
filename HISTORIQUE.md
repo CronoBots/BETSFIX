@@ -33,6 +33,14 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **Telegram : titre du sport agrandi + retour à la ligne logique**. — pourquoi : demande
+  user (titre « Basket • Qualification… » trop petit, « - ASIE » coupé n'importe où) · fichiers :
+  `tools/card_image.py` (`_card_html` : split de `cat` sur ` · ` → SPORT en gros sur une ligne, COMPÉTITION
+  en casse normale sur la ligne suivante ; CSS `.top` 30px/900/flex + `.top .ico` 32px + nouvelle `.topcomp`
+  23px) · **régression vérifiée** : purement AFFICHAGE (titre), aucune donnée/règlement touché ; `cat`
+  conservé dans le dict (rétrocompat), simplement scindé au rendu ; `.top` est dans la partie COMMUNE de
+  `_card_html` → titre cohérent sur publication ET résultat (vérifié visuellement sur combo « Qualification
+  pour la Coupe du Monde - Asie » + résultat « NBL1 North ») ; AST OK · résultat : OK.
 - **2026-07-03** — **Telegram : passage à la ligne marché/sélection + confirmation suppression du
   boilerplate synth**. — pourquoi : demande user (afficher « Marché - … : » sur une ligne PUIS la
   sélection dessous ; ne plus voir « Combiné optimisé sur la vraie cote… ») · fichiers : `app/card_data.py`
