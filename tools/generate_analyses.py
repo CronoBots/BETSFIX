@@ -800,7 +800,8 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     extras, sx = await _sofa_extras(client, sport, sofa_id, home, away)
     # Sources GRATUITES indépendantes (ESPN/FotMob/Understat) : forme+scores, classements frais,
     # blessés, H2H, xG, météo — la source n°2 de la méthodo quand SofaScore est bloqué.
-    alt = await sources.extras(client, sport, match)
+    src_prov: dict = {}   # traçabilité COMPLÉTUDE : sources multi ayant réellement répondu -> sidecar
+    alt = await sources.extras(client, sport, match, prov=src_prov)
     # DONNÉES JOUEURS (basket) : moyennes saison + forme des joueurs cités dans les PROPS -> parier
     # les props (points/rebonds/passes…) avec des chiffres. Joueurs lus dans `participant` des marchés.
     pblock = ""
@@ -864,7 +865,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
             "(détaille la procédure value plus haut) :\n" + "\n".join(lines)
             + imp + sharp + extras + alt + pblock + wc_ctx + combo)
-    meta = {"odds": odds, **sx}   # odds + streaks/h2h structurés -> sidecar
+    meta = {"odds": odds, "sources_prov": src_prov, **sx}   # odds + streaks/h2h + provenance -> sidecar
     return text, meta
 
 
@@ -1558,6 +1559,12 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
                            if m.get("id") else None),
             "sofa_url": sofa_url,
             "generated": datetime.now(timezone.utc).isoformat()}
+    # COMPLÉTUDE des données : quelles sources multi ont répondu + score (0 = analyse sur cotes seules,
+    # sans enrichissement -> l'invariant selfcheck le signale). Rend la démarche AUDITABLE : on sait, fiche
+    # par fiche, si l'analyse a été faite « de la même manière » (données riches) ou dégradée.
+    _prov = (meta or {}).get("sources_prov") or {}
+    side["sources"] = sorted(k for k, v in _prov.items() if v)
+    side["data_score"] = len(side["sources"])
     if meta and meta.get("streaks"):
         side["streaks"] = meta["streaks"]
     if meta and meta.get("h2h"):

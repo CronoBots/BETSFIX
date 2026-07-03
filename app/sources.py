@@ -1167,32 +1167,47 @@ async def world_cup_extras(client, match: dict) -> str:
 
 
 # ================================================================== API publique
-async def extras(client, sport: str, match: dict) -> str:
+async def extras(client, sport: str, match: dict, prov: dict | None = None) -> str:
     """Bloc « DONNÉES MULTI-SOURCES » prêt à coller dans le dossier de l'analyste.
-    '' si rien trouvé / tout en échec (le scan continue sans)."""
-    async def _safe(coro):
-        """Une sous-source qui échoue ne doit JAMAIS jeter les faits des autres déjà collectés."""
+    '' si rien trouvé / tout en échec (le scan continue sans).
+    `prov` (dict optionnel) est REMPLI avec les sources ayant réellement répondu (traçabilité de la
+    COMPLÉTUDE des données : {'fotmob':True,...}) -> écrit dans le sidecar (`sources`/`data_score`) pour
+    savoir a posteriori si l'analyse a été faite sur données riches ou dégradées. Non-cassant (défaut None)."""
+    tracker = prov if prov is not None else {}
+
+    async def _safe(coro, key):
+        """Une sous-source qui échoue ne doit JAMAIS jeter les faits des autres déjà collectés.
+        Marque `tracker[key]` dès qu'elle a réellement renvoyé des faits (traçabilité provenance)."""
         try:
-            return await coro or []
+            r = await coro or []
         except Exception:
-            return []
+            r = []
+        if r:
+            tracker[key] = True
+        return r
     facts: list = []
     if sport == "foot":
-        facts += await _safe(_foot_extras(client, match))
-        facts += await _safe(_foot_xg(client, match))      # un échec xG ne détruit plus les faits FotMob
+        facts += await _safe(_foot_extras(client, match), "fotmob")
+        facts += await _safe(_foot_xg(client, match), "understat")   # un échec xG ne détruit plus FotMob
     elif sport == "tennis":
-        facts += await _safe(_tennis_extras(client, match))
+        facts += await _safe(_tennis_extras(client, match), "espn")
     elif sport == "basket":
-        facts += await _safe(_basket_extras(client, match))
+        facts += await _safe(_basket_extras(client, match), "espn")
     out = ""
     if facts:
         out += ("\n\nDONNÉES MULTI-SOURCES (ESPN / FotMob / Understat — source indépendante n°2, "
                 "à CROISER avec ta recherche web ; un fait présent ici ET confirmé ailleurs = 2 sources) :\n- "
                 + "\n- ".join(facts))
-    out += await _flashscore_block(sport, match)
+    fb = await _flashscore_block(sport, match)
+    if fb and fb.strip():
+        tracker["flashscore"] = True
+    out += fb
     try:                                   # Sportradar (GISMO) : forme/série/H2H/classement
         from app import sportradar
-        out += await sportradar.block(client, sport, match)
+        sb = await sportradar.block(client, sport, match)
+        if sb and sb.strip():
+            tracker["sportradar"] = True
+        out += sb
     except Exception:
         pass
     return out

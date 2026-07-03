@@ -49,6 +49,22 @@ _settle_lock = asyncio.Lock()   # sérialise les passes de règlement dans un m�
 _VOID_AFTER_DAYS = 3.0
 
 
+def _merge_stats(cur: dict | None, new: dict | None) -> dict:
+    """Fusionne des stats de match en COMBLANT `cur` sans jamais l'écraser, et en IGNORANT les faux zéros
+    de tirs d'une source qui ne couvre pas le match : sot/shots TOUS nuls = donnée ABSENTE (pas un vrai 0)
+    -> injectés, ils dé-régleraient une jambe « tirs cadrés » (0 < seuil = LOST à tort). Garde généralisée
+    à TOUTES les sources de stats (FotMob/Flashscore/GISMO). `cur` (cache fiable) reste prioritaire."""
+    cur = cur or {}
+    if not new:
+        return cur
+    new = dict(new)
+    if (new.get("sot_h", 0) + new.get("sot_a", 0)
+            + new.get("shots_h", 0) + new.get("shots_a", 0)) == 0:
+        for k in ("sot_h", "sot_a", "shots_h", "shots_a"):
+            new.pop(k, None)
+    return {**new, **cur}   # cur (cache) prioritaire -> comble sans écraser
+
+
 def _match_age_days(d: dict) -> float:
     """Âge du match en jours depuis le coup d'envoi (`start` = ISO ou epoch). 0 si inconnu/futur."""
     start = d.get("start")
@@ -1016,9 +1032,14 @@ def _find_score(sched, d: dict) -> tuple:
     mh, ma = _toks(d.get("home", "")), _toks(d.get("away", ""))
     if not mh or not ma:
         return None, None
-    for h, a, sc, eid in by_name:
-        if (h & mh and a & ma) or (h & ma and a & mh):
-            return sc, eid
+    # Matching par NOMS renforcé : on collecte TOUS les candidats des events du jour (la date est déjà
+    # filtrée en amont). Si PLUSIEURS matchent (sigles courts ambigus type PSG/PSV, ou un tournoi avec
+    # équipes homonymes), on S'ABSTIENT (None) plutôt que d'accepter le 1er au hasard -> jamais un FAUX
+    # score sur un mauvais match ; le règlement re-tente via les autres sources / à la passe suivante.
+    cands = [(sc, eid) for h, a, sc, eid in by_name
+             if (h & mh and a & ma) or (h & ma and a & mh)]
+    if len(cands) == 1:
+        return cands[0]
     return None, None
 
 
@@ -1235,9 +1256,7 @@ async def _settle_analyses_impl() -> int:
                             fm = await _srcf.foot_match_stats(_fc, d.get("home", ""), d.get("away", ""),
                                                               d.get("start"))
                         if fm:
-                            # FotMob COMPLÈTE (cur prioritaire) : ne jamais écraser une stat déjà
-                            # présente dans le cache fiable (Flashscore/GISMO) par une valeur FotMob.
-                            score["stats"] = {**fm, **cur}
+                            score["stats"] = _merge_stats(cur, fm)   # comble sans écraser, anti-faux-zéros
                     except Exception:
                         pass
                 # Repli : Flashscore si les TIRS/TIRS CADRÉS manquent encore
@@ -1250,7 +1269,7 @@ async def _settle_analyses_impl() -> int:
                     fs = await asyncio.to_thread(flashscore.foot_match_stats_by_names,
                                                  d.get("home", ""), d.get("away", ""), d.get("start"))
                     if fs:
-                        score["stats"] = {**cur, **fs}   # complète SOT/tirs sans rien perdre
+                        score["stats"] = _merge_stats(cur, fs)   # comble SOT/tirs, anti-faux-zéros
                 # Dernier repli TIRS : Sportradar GISMO `match_details` (tirs cadrés/tirs/corners par équipe)
                 # quand Flashscore ne couvre pas le match. Tolérant (None si non résolu) -> ne bloque rien.
                 cur = score.get("stats") or {}
@@ -1262,7 +1281,7 @@ async def _settle_analyses_impl() -> int:
                             gs = await _srx.match_stats(_sc, sport, d.get("home", ""), d.get("away", ""),
                                                         d.get("start"))
                         if gs:
-                            score["stats"] = {**cur, **gs}
+                            score["stats"] = _merge_stats(cur, gs)   # comble tirs GISMO, anti-faux-zéros
                     except Exception:
                         pass
 
