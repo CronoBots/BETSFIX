@@ -33,6 +33,23 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **Telegram : ANALYSE PAR JAMBE sur les cartes de PUBLICATION** (comme l'app), RIEN sur
+  la carte résultat. — pourquoi : demande user (explication sérieuse/fiable/professionnelle par jambe) ·
+  fichiers : `app/card_data.py` (`build_prono_card` : legs = (sel, cote, **why**) + `synth` du combiné ;
+  `_pick_why` extrait le « pourquoi » du simple depuis le Verdict du .md via `_verdict_notes`+`_assign_notes`
+  comme l'app ; `_clean_why` = pipeline app `_strip_sources`+`_units_to_pct`+`_sentence_case` **+ dé-branding
+  `branding.debrand`** ; `_clean_synth` DROP la note technique auto-générée « Combiné optimisé sur la VRAIE
+  cote … peu corrélées, chance estimée X% » et ne garde que les vraies synthèses de corrélation),
+  `tools/card_image.py` (rendu `.legwhy` sous chaque jambe + `.synth` en tête pour type combo, `.legwhy`
+  pour type simple ; **type result INCHANGÉ**) + CSS. · **régression vérifiée** : carte RÉSULTAT
+  (`build_result_card`/type=="result") NON touchée (vérifié : aucun champ why, rendu sobre identique) ;
+  legs de publication passées de 2-uple à 3-uple gérées dans le seul renderer `card_image` (les autres
+  consommateurs — reconcile/renotify/settle — itèrent les legs SIDECAR (dicts), pas les tuples de carte →
+  pas d'impact) ; 3 cartes réelles rendues et **inspectées visuellement** (combo : analyse par jambe pro +
+  synth réelle, boilerplate supprimé, Pinnacle→« référence sharp » ; simple : rationnel complet ; résultat :
+  sobre) ; imports à froid OK ; de-brand testé sur texte plat · **NB** : le dé-branding des cartes Telegram
+  est INCONDITIONNEL (le produit ne doit jamais nommer une source, indépendamment du flag web public) ·
+  résultat : OK.
 - **2026-07-03** — **MODE PUBLIC / MASQUAGE DES SOURCES** (`app/branding.py`) : le stack de données =
   avantage compétitif → en public, personne ne doit voir les sources. UN SEUL interrupteur
   `hide_sources()` (env `BETSFIX_HIDE_SOURCES` OU fichier `data/hide_sources.flag`), **OFF par défaut**
