@@ -43,6 +43,11 @@
   (foot/tennis/basket), hauteur variable (2612/2070/2008) ; inspection visuelle → plus aucun bord noir,
   carte pleine largeur · résultat : OK. NB : le fix s'applique aux PROCHAINES cartes ; republication des
   cartes déjà postées = sur demande (éviter de re-vider le canal sans nécessité).
+- **2026-07-03** — **Cartes Telegram : coins arrondis BLANCS → transparents**. — pourquoi : après le clip
+  exact, Chrome comblait les coins (hors carte arrondie) en BLANC par défaut · fix : `card_image.render_card`
+  ajoute `Emulation.setDefaultBackgroundColorOverride({r,g,b,a:0})` avant la capture → PNG en RGBA, coins
+  alpha 0 (se fondent dans le fond du chat) · **régression vérifiée** : test PIL sur le PNG rendu → mode
+  RGBA, **4 coins alpha=0 (transparents)**, centre opaque (couleur carte) ; AST OK · résultat : OK.
 - **2026-07-03** — **FIX bug encodage `renotify_cards.py` (canal vidé sans republication)**. — pourquoi :
   le script plantait sur `UnicodeEncodeError` (✓/✗ en cp1252) au 1er `print` APRÈS `_clear_channel()` →
   canal VIDÉ mais republication avortée (l'utilisateur a vu ses messages récents disparaître) · fichiers :
