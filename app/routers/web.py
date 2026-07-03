@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import analyses, ace_markets, fragcache, match_analysis, match_select, serve_return, set_markets, tendencies, tracking, web, window
@@ -377,6 +377,49 @@ def _period_filter(since: str) -> str:
         for v, lab in opts) + '</div>')
 
 
+async def _system_health_html() -> str:
+    """Panneau « Santé du système » (privé) : santé LIVE des sources (ping) + auto-audit d'intégrité, dans
+    une section repliable de la page Stats. Rend visible d'un coup d'œil ce que surveillaient les CLI."""
+    import html as _h
+    from app import selfcheck, source_health
+    sc = selfcheck.run(persist=False)
+    sh = await source_health.check_all()
+    lvlc = {"ok": "#22c55e", "info": "#38bdf8", "warn": "#f59e0b", "error": "#ef4444"}
+
+    def _dot(color):
+        return f'<span style="color:{color};font-size:1.05em">●</span>'
+
+    def _row(left, right):
+        return ('<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;'
+                'border-bottom:1px solid rgba(255,255,255,.06);font-size:.92em">'
+                f'<span>{left}</span><span style="opacity:.72;text-align:right">{right}</span></div>')
+    src = "".join(
+        _row(f'{_dot("#22c55e" if s["ok"] else "#ef4444")} {_h.escape(s["label"])}'
+             + (' <b style="color:#f87171">critique</b>' if s["critical"] else ""),
+             f'{s["latency_ms"]} ms · {_h.escape(str(s["detail"]))}')
+        for s in sh["sources"])
+    chk = "".join(
+        _row(f'{_dot(lvlc.get(c["level"], "#999"))} {_h.escape(c["title"])}',
+             _h.escape((c.get("detail") or "")[:64]))
+        for c in sc["checks"])
+    online = len(sh["sources"]) - len(sh["down"])
+    body = (f'<div style="margin:2px 0 8px;font-weight:600">{_dot(lvlc.get(sh["status"], "#999"))} '
+            f'Sources — {online}/{len(sh["sources"])} en ligne</div>' + src
+            + f'<div style="margin:16px 0 8px;font-weight:600">{_dot(lvlc.get(sc["status"], "#999"))} '
+            f'Auto-audit — {sc["counts"]["ok"]}/{len(sc["checks"])} ✅</div>' + chk)
+    return web.sx_section_collapsible("🩺 Santé du système", "sources en ligne + auto-audit (privé)", body)
+
+
+@router.get("/stats/health", response_class=HTMLResponse)
+async def stats_health(request: Request) -> HTMLResponse:
+    """Panneau santé — PRIVÉ (propriétaire uniquement) : il nomme les sources (avantage compétitif à
+    masquer). Chaîne VIDE pour tout visiteur non-propriétaire -> le bloc reste invisible dans la page."""
+    from app import accounts
+    if not accounts.is_owner(request):
+        return HTMLResponse("")
+    return HTMLResponse(await _system_health_html())
+
+
 @router.get("/stats", response_class=HTMLResponse)
 async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
     """Onglet « Statistiques » (barre du bas) : synthèse + bilan + courbe + ROI + combinés + calibration.
@@ -392,6 +435,13 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
             '<div class="statsx">'        # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
             + _period_filter(since)
             + _home_stats(days)           # vue d'ensemble + edge + calibration + transparence (en sections)
+            # Panneau SANTÉ (privé) chargé en AJAX : hors du cache commun (le fragment est mutualisé) et
+            # servi UNIQUEMENT au propriétaire (route /stats/health, is_owner) -> pas de fuite du stack de
+            # sources. Vide (donc invisible) pour les visiteurs. Données LIVE (ping sources) sans bloquer.
+            + '<div id="syshealth"></div>'
+            + '<script>fetch("/stats/health").then(r=>r.text()).then(function(h){'
+              'if(h){document.getElementById("syshealth").innerHTML=h;}})'
+              '.catch(function(){});</script>'
             + '</div>')
     if frag:
         fragcache.put(ckey, body, ttl=PANEL_TTL)
