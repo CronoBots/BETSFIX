@@ -33,6 +33,21 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **Règlement : BUT DANS LES 2 MI-TEMPS comblé + tirs mappés + INCIDENT re-règlement évité**.
+  — objectif user : combler les trous de règlement « sans rien abîmer ». · **FAIT** : (1) `code_from_pick`
+  mappe désormais tirs→`SHOTSOT/SHOTS` (au lieu de `return ""`) et « but dans les 2 MT »→`BOTHHALVES` ;
+  règleur `settle_pick` gère SHOTSOT/SHOTS (stats sot_h/a, shots_h/a — même logique que CORNERS) et
+  BOTHHALVES (periods, calqué sur TEAMBOTH) ; `need_stats`/`need_periods` étendus ; `sportradar.match_stats()`
+  (NEW — tirs/tirs cadrés/corners via GISMO `match_details`) branché en repli après Flashscore. · **RÉSULTAT
+  vérifié** : **BOTHHALVES = 72/72 corrects** (periods dispo) ✅ ; TIRS = mapping correct MAIS ni Flashscore
+  ni GISMO ne couvrent les matchs CdM de cet env (0/6) → tirs non réglables ICI (void), réglables en prod
+  réelle. · **⚠️ INCIDENT (leçon)** : bumper `_SETTLE_VERSION` 44→45 a déclenché un **re-règlement de masse**
+  (297 sidecars) qui, faute de source de tirs sur les vieux matchs, aurait dé-réglé des combos. **DÉTECTÉ**
+  (test « combos finis avec jambe non réglée ») → **bump ANNULÉ (retour v44)** → vérifié **0 combo dé-réglé,
+  historique INTACT** (le settle loop ne re-traite PAS les combos déjà réglés, il garde leur résultat figé).
+  · **régression vérifiée** : mapping = FORWARD-only (v44, pas de rétroactif) ; BOTHHALVES 72/72 ; codes
+  existants inchangés (seuls tirs/2MT touchés) ; état stable settle_v={44:300} · **RÈGLE** : NE JAMAIS
+  bumper `_SETTLE_VERSION` sans certitude que la donnée existe pour TOUS les matchs (sinon dé-réglage).
 - **2026-07-03** — **AUDIT résolubilité des marchés + DOC des sources**. — pourquoi : demande user
   (revérifier tous les marchés Unibet, voir si nos sources les règlent, sourcer les trous, documenter,
   mémoriser) · **AUDIT data-driven** (codes/résultats des sidecars) : règlement quasi complet ✅ (vainqueur/
