@@ -33,6 +33,20 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **Telegram : passage à la ligne marché/sélection + confirmation suppression du
+  boilerplate synth**. — pourquoi : demande user (afficher « Marché - … : » sur une ligne PUIS la
+  sélection dessous ; ne plus voir « Combiné optimisé sur la vraie cote… ») · fichiers : `app/card_data.py`
+  (`_split_leg(sel, home, away)` → (marché, pick) : découpe sur le nom d'équipe en fin de libellé ou le
+  marqueur « Plus/Moins de » ; combo legs = (marché, pick, cote, why), simple = market+pick),
+  `tools/card_image.py` (helper `_selh` : marché discret « … : » + pick en avant sur 2 lignes ; CSS
+  `.legsel/.mkt/.pk`) · **régression vérifiée (AVERTISSEMENT user : ne pas corrompre le règlement)** :
+  (1) `_split_leg` appelé UNIQUEMENT dans `build_prono_card` (affichage) ; (2) le règlement lit
+  `code_from_pick(leg['sel'])`+`leg['code']` du **SIDECAR**, jamais le libellé de carte ; `settle_analyst`
+  n'importe pas `card_data` ; (3) `build_result_card` garde le `sel` ORIGINAL (pas de split) ; (4) **test de
+  non-mutation : 60/60 sidecars → sel/code de règlement INCHANGÉS avant/après `build_prono_card`** ; AST OK,
+  rendu combo inspecté (2 lignes OK, boilerplate absent) · **boilerplate** : `_clean_synth` droppe déjà
+  62/62 des combo.why « optimisé… » (généré en dur ligne 1236 de generate_analyses, retiré à l'affichage) ;
+  repli texte vérifié = ne contient pas le why · résultat : OK. + mémoire « penser en français » créée.
 - **2026-07-03** — **Telegram : ANALYSE PAR JAMBE sur les cartes de PUBLICATION** (comme l'app), RIEN sur
   la carte résultat. — pourquoi : demande user (explication sérieuse/fiable/professionnelle par jambe) ·
   fichiers : `app/card_data.py` (`build_prono_card` : legs = (sel, cote, **why**) + `synth` du combiné ;
