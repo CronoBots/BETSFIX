@@ -76,8 +76,9 @@ def _score_incomplete(sc: dict | None, sport: str) -> bool:
         return sh == 0 and sa == 0                     # aucun set gagné -> capture en cours
     h, a = sc.get("home"), sc.get("away")
     return h is None and a is None and sh == 0 and sa == 0   # aucun score numérique capté
-_SETTLE_VERSION = 44   # v44 : PÉRIODES via Sportradar GISMO (repli) — jeux/sets/tie-breaks tennis &
-#                              quart-temps basket enfin réglables quand LiveScore/Flashscore échouent.
+_SETTLE_VERSION = 45   # v45 : TIRS CADRÉS / TIRS (total & équipe) -> SHOTSOT/SHOTS (stats Flashscore
+#                              sot_h/a, shots_h/a) + BUT DANS LES 2 MI-TEMPS (total) -> BOTHHALVES (periods).
+# v44 : PÉRIODES via Sportradar GISMO (repli) — jeux/sets/tie-breaks tennis & quart-temps basket réglables.
 # v43 : jambes à CODE VIDE débloquées — nom d'équipe seul = moneyline (WIN/1X2)
 #                              + « Plus de X » sans unité = total du match (combinés WNBA coincés).
 # v42 : WALKOVER/forfait (le joueur qui avance gagne -> pari sur lui = gagné),
@@ -1182,7 +1183,7 @@ async def _settle_analyses_impl() -> int:
             combo_codes = [leg.get("code", "") for leg in ((d.get("combo") or {}).get("legs") or [])]
             # Stats du match (corners/cartons/tirs) nécessaires si un code les vise OU si un combiné foot
             # est présent (ses jambes tirs/tirs cadrés/corners/cartons se règlent sur les stats df_st).
-            need_stats = (any(c.startswith(("CARDS", "REDCARDS", "CORNERS"))
+            need_stats = (any(c.startswith(("CARDS", "REDCARDS", "CORNERS", "SHOTSOT", "SHOTS"))
                               for c in [code, *bet_codes, *combo_codes])
                           or (sport == "foot" and (d.get("combo") or {}).get("legs")))
             # Combiné foot au verdict incomplet -> on REFETCH les stats même si le cache `result.raw`
@@ -1213,8 +1214,8 @@ async def _settle_analyses_impl() -> int:
             shadow_codes = [s.get("code", "") for s in (d.get("shadow") or [])]
             need_periods = (not score.get("periods")) and any(
                 c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE", "TEAMHALF", "HALFTOT", "WINHALF",
-                              "TEAMBOTH", "BTTSHALF", "HALFRES", "BQTOT", "BQTEAM", "BQWIN", "BQHCAP",
-                              "GAMESHCAP", "TIEBREAK", "REGTIME"))   # REGTIME : 90 min (somme des mi-temps)
+                              "TEAMBOTH", "BOTHHALVES", "BTTSHALF", "HALFRES", "BQTOT", "BQTEAM", "BQWIN",
+                              "BQHCAP", "GAMESHCAP", "TIEBREAK", "REGTIME"))   # REGTIME : 90 min (somme des mi-temps)
                 or "1H" in c or "2H" in c
                 for c in [code, *bet_codes, *combo_codes, *shadow_codes] if c)
             if need_periods:
