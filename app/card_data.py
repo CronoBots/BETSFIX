@@ -14,13 +14,30 @@ import os
 import re
 from datetime import datetime
 
-from app import analyses
+from app import analyses, branding
 
 
 def _clean_why(w) -> str:
     """Explication PROFESSIONNELLE et fiable d'une sélection : même pipeline que l'app (retire la liste
-    « Sources : … », met les mises en % de bankroll, remet en phrase propre). '' si vide."""
-    return analyses._sentence_case(analyses._units_to_pct(analyses._strip_sources(str(w or "")))).strip()
+    « Sources : … », met les mises en % de bankroll, remet en phrase propre) PUIS masque tout NOM DE
+    SOURCE (dé-branding) — une carte prono ne doit jamais nommer une source. '' si vide."""
+    t = analyses._sentence_case(analyses._units_to_pct(analyses._strip_sources(str(w or "")))).strip()
+    return branding.debrand(t)
+
+
+# Synthèse de combiné AUTO-générée (note technique interne, ex. « Combiné optimisé sur la VRAIE cote … —
+# jambes variées peu corrélées, chance estimée X% ») : ce N'EST PAS une analyse -> on ne l'affiche pas.
+# On ne garde que les vraies synthèses de CORRÉLATION rédigées par l'analyste.
+_SYNTH_BOILER = re.compile(r"optimis\w+ sur la (?:vraie )?cote|jambes? vari[ée]es? peu corr[ée]l|"
+                           r"chance estim[ée]e\s*\d", re.I)
+
+
+def _clean_synth(w) -> str:
+    """Synthèse de combiné, nettoyée + dé-brandée ; '' si vide OU si c'est la note technique auto-générée."""
+    t = _clean_why(w)
+    if not t or _SYNTH_BOILER.search(t):
+        return ""
+    return t
 
 
 def _pick_why(d: dict, sel: str) -> str:
@@ -91,7 +108,7 @@ def build_prono_card(d: dict) -> dict | None:
         card.update(type="combo", cote=cote,
                     legs=[(str(l.get("sel", "")), str(l.get("cote", "")), _clean_why(l.get("why")))
                           for l in combo["legs"]],
-                    synth=_clean_why(combo.get("why")))
+                    synth=_clean_synth(combo.get("why")))
     elif pick_shown and rb:
         card.update(type="simple", pick=str(rb.get("sel", "")),
                     cote=(f"{rb['cote']:g}" if rb.get("cote") else ""), conf=rb.get("prob"),
