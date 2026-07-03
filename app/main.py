@@ -687,6 +687,14 @@ async def health_backtest() -> dict:
     return backtest.analyze()
 
 
+@app.get("/health/markets", tags=["ℹ️ Méta"], summary="Résolubilité des marchés (sources de règlement)")
+async def health_markets() -> dict:
+    """MATRICE VIVANTE (data-driven) : pour chaque (sport, marché), taux de règlement et trous éventuels
+    (marché non réglable → source à ajouter). Doc de référence : docs/SOURCES.md (matrice complète +
+    quelle source règle quoi + trous priorisés)."""
+    return analyses.markets_coverage()
+
+
 # Une fois TOUTES les routes enregistrées, on (re)classe chaque endpoint par nature
 # de donnée pour /docs (source SofaScore / cotes / modèle / …). À faire en dernier.
 _retag_routes(app)
