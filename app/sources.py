@@ -459,6 +459,44 @@ def _tennis_form(idx: dict, player: str) -> tuple[str, int]:
     return (" ; ".join(parts), fatigue)
 
 
+# SURFACE du tournoi (facteur n°1 au tennis, non fourni par les sources live) : table des tournois/lieux
+# connus + repli mots-clés. La surface conditionne fortement le résultat (un spécialiste terre battue est
+# diminué sur gazon) -> on la donne EXPLICITEMENT à l'analyste pour qu'il pondère la spécialisation.
+_TENNIS_SURFACE = {
+    # gazon
+    "wimbledon": "Gazon", "halle": "Gazon", "queen": "Gazon", "hertogenbosch": "Gazon", "eastbourne": "Gazon",
+    "mallorca": "Gazon", "newport": "Gazon", "nottingham": "Gazon", "birmingham": "Gazon", "bad homburg": "Gazon",
+    # terre battue
+    "roland": "Terre battue", "french open": "Terre battue", "monte": "Terre battue", "rome": "Terre battue",
+    "madrid": "Terre battue", "barcelona": "Terre battue", "hamburg": "Terre battue", "munich": "Terre battue",
+    "estoril": "Terre battue", "geneva": "Terre battue", "kitzbuhel": "Terre battue", "gstaad": "Terre battue",
+    "bucharest": "Terre battue", "umag": "Terre battue", "bastad": "Terre battue", "cordoba": "Terre battue",
+    "buenos aires": "Terre battue", "rio": "Terre battue", "santiago": "Terre battue", "stuttgart": "Terre battue",
+    # dur (extérieur)
+    "australian open": "Dur", "us open": "Dur", "indian wells": "Dur", "miami": "Dur", "cincinnati": "Dur",
+    "shanghai": "Dur", "beijing": "Dur", "tokyo": "Dur", "dubai": "Dur", "doha": "Dur", "acapulco": "Dur",
+    "toronto": "Dur", "montreal": "Dur", "washington": "Dur", "winston": "Dur", "chengdu": "Dur",
+    # dur indoor
+    "paris": "Dur (indoor)", "bercy": "Dur (indoor)", "vienna": "Dur (indoor)", "basel": "Dur (indoor)",
+    "metz": "Dur (indoor)", "stockholm": "Dur (indoor)", "antwerp": "Dur (indoor)", "turin": "Dur (indoor)",
+    "rotterdam": "Dur (indoor)", "marseille": "Dur (indoor)", "montpellier": "Dur (indoor)",
+}
+
+
+def _surface_hint(*names) -> str | None:
+    """Surface déduite du nom du tournoi/ville. Repli mots-clés (grass/clay/hard…). None si inconnu."""
+    for name in names:
+        n = (name or "").lower()
+        for kw, su in (("grass", "Gazon"), ("gazon", "Gazon"), ("clay", "Terre battue"),
+                       ("terre", "Terre battue"), ("indoor hard", "Dur (indoor)"), ("hard", "Dur"), ("dur", "Dur")):
+            if kw in n:
+                return su
+        for k, su in _TENNIS_SURFACE.items():
+            if k in n:
+                return su
+    return None
+
+
 async def _tennis_extras(client, match: dict) -> list[str]:
     home, away = match.get("home", ""), match.get("away", "")
     # Le circuit (WTA/ATP) n'est plus fourni de façon fiable (champ 'circuit' ex-SofaScore
@@ -484,6 +522,14 @@ async def _tennis_extras(client, match: dict) -> list[str]:
         facts.append(f"Classement {tour.upper()} (ESPN, à jour) : "
                      f"{home} #{rh or '?'} vs {away} #{ra or '?'}")
     idx = await _tennis_results_index(client, tour)
+    # SURFACE (facteur n°1) : déduite du NOM DE TOURNOI des matchs récents ESPN (fiable, ≠ la ville 'comp'
+    # ambiguë : « Londres » = Wimbledon/gazon). L'analyste pondère alors la spécialisation surface.
+    _trns = [r[4] for label in (home, away) for t in _tok(label)
+             for r in idx.get(t, []) if len(r) > 4 and r[4]]
+    surf = _surface_hint(*_trns, match.get("comp", ""), match.get("name", ""))
+    if surf:
+        facts.insert(0, f"Surface : {surf} — pondérer la SPÉCIALISATION surface des joueurs (un même joueur "
+                     f"peut être bien plus fort/faible sur cette surface que ne le dit son classement).")
     for label in (home, away):
         form, fatigue = _tennis_form(idx, label)
         if form:
