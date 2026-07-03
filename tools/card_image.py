@@ -27,6 +27,7 @@ CHROME = (r"C:\Program Files\Google\Chrome\Application\chrome.exe",
 _CSS = """
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+html,body{margin:0;padding:0;background:transparent}
 .card{width:920px;padding:46px 50px 40px;background:linear-gradient(160deg,#101b29 0%,#0a0f17 60%,#080c13 100%);
   border:1px solid rgba(34,184,255,.22);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden}
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
@@ -305,16 +306,22 @@ async def render_card(d: dict, out_png: str) -> str:
             await cmd("Page.enable")
             await cmd("Page.navigate", {"url": "file:///" + htmlf.replace("\\", "/")})
             await asyncio.sleep(1.0)
-            # hauteur réelle de la carte -> viewport ajusté (largeur 920 + marges)
+            # Boîte EXACTE de la carte -> capture CLIPPÉE dessus : le PNG épouse la carte, AUCUN bord noir.
+            # La carte a une largeur FIXE (920px) -> tous les tickets font la MÊME largeur (peu importe le
+            # sport / la longueur des textes) ; seule la HAUTEUR varie avec le contenu.
             r = await cmd("Runtime.evaluate", {"expression":
                 "(function(){var c=document.querySelector('.card');var b=c.getBoundingClientRect();"
-                "return JSON.stringify({w:Math.ceil(b.width)+40,h:Math.ceil(b.height)+40});})()",
+                "return JSON.stringify({x:b.left,y:b.top,w:b.width,h:b.height});})()",
                 "returnByValue": True})
-            dims = json.loads(r["result"]["result"]["value"])
+            box = json.loads(r["result"]["result"]["value"])
+            vw = int(box["x"] + box["w"]) + 8          # viewport assez grand pour rendre la carte entière
+            vh = int(box["y"] + box["h"]) + 8          # (position incluse) avant de la clipper au pixel près
             await cmd("Emulation.setDeviceMetricsOverride",
-                      {"width": dims["w"], "height": dims["h"], "deviceScaleFactor": 2, "mobile": False})
+                      {"width": vw, "height": vh, "deviceScaleFactor": 2, "mobile": False})
             await asyncio.sleep(0.2)
-            shot = await cmd("Page.captureScreenshot", {"format": "png", "captureBeyondViewport": True})
+            # clip.scale=1 : la haute résolution vient DÉJÀ du deviceScaleFactor=2 (sinon on double l'échelle)
+            shot = await cmd("Page.captureScreenshot", {"format": "png", "captureBeyondViewport": True,
+                "clip": {"x": box["x"], "y": box["y"], "width": box["w"], "height": box["h"], "scale": 1}})
             os.makedirs(os.path.dirname(os.path.abspath(out_png)) or ".", exist_ok=True)
             with open(out_png, "wb") as f:
                 f.write(base64.b64decode(shot["result"]["data"]))
