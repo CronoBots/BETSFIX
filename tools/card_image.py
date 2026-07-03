@@ -44,7 +44,7 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
   margin-top:20px;line-height:1.2}
 .leg .o{flex:none;background:rgba(25,196,106,.15);color:#7ff0b6;border-radius:12px;padding:5px 18px;font-weight:900}
 .legsel{display:flex;flex-direction:column;gap:5px;min-width:0}
-.legsel .mkt{font-size:20px;font-weight:600;color:#8fa6c2;line-height:1.25}
+.legsel .mkt{font-size:30px;font-weight:700;color:#eef4fb;line-height:1.2}
 .legsel .pk{font-size:30px;font-weight:800;color:#eef4fb;line-height:1.15}
 .legwhy{font-size:21px;font-weight:500;color:#a7bcd6;line-height:1.34;margin:9px 0 6px 2px;
   padding-left:18px;border-left:3px solid rgba(63,184,255,.38)}

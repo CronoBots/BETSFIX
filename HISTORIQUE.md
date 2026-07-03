@@ -33,6 +33,11 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **Telegram : lisibilité titre + libellé marché** (ajustement). — pourquoi : demande user
+  (« Qualification… » trop petite ; le libellé marché « Cotes du match - Prolongations incluses » doit être
+  de même taille que le pick et en blanc) · fichiers : `tools/card_image.py` (CSS `.topcomp` 17→20px ;
+  `.legsel .mkt` 20→30px, couleur #8fa6c2→#eef4fb blanc, weight 600→700) · **régression vérifiée** :
+  purement affichage, aucune donnée/règlement touché ; AST OK ; rendu inspecté · résultat : OK.
 - **2026-07-03** — **Telegram : titre sport sur UNE ligne + air avant le nom des équipes** (ajustement du
   précédent). — pourquoi : demande user (pas de retour à la ligne après le sport ; compétition en plus petit
   à la suite pour tenir sur une ligne ; un peu plus d'espace au-dessus des 2 équipes) · fichiers :
