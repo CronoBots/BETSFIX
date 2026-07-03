@@ -33,6 +33,20 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **AUDIT résolubilité des marchés + DOC des sources**. — pourquoi : demande user
+  (revérifier tous les marchés Unibet, voir si nos sources les règlent, sourcer les trous, documenter,
+  mémoriser) · **AUDIT data-driven** (codes/résultats des sidecars) : règlement quasi complet ✅ (vainqueur/
+  DC/total/handicap/total équipe/BTTS, mi-temps foot, corners+cartons, sets/jeux/tie-break tennis, quart-
+  temps+props basket). **1 trou** : foot « sans code » = 15 paris (tirs cadrés ~9, but 2 mi-temps ×3,
+  corners 1re MT, props buteur). · **SOURCE trouvée** pour le trou n°1 : Sportradar GISMO `match_details`
+  donne « Tirs cadrés / Tirs / Corners / Possession » (home/away, foot) — comme les aces au tennis. · **DOC**
+  livrée : `docs/SOURCES.md` (NEW — matrice complète source×marché×règlement + trous §4) + endpoint
+  `/health/markets` (`analyses.markets_coverage()`, matrice VIVANTE data-driven, dans /docs) · fichiers :
+  `docs/SOURCES.md`, `app/analyses.py` (`markets_coverage()`), `app/main.py` (endpoint + import local
+  `analyses`) · **régression vérifiée** : additif/lecture seule ; AST OK ; fix 500 (import `analyses`
+  manquant dans main → import local comme les autres) → `/health/markets`=200 ; endpoints /selfcheck /stats
+  =200 · mémoire `markets-resolvability-sources` créée · résultat : OK. **RESTE (à coder)** : règlement tirs
+  cadrés (GISMO match_details → codes SOT) + but 2 mi-temps (periods déjà dispo → mapping).
 - **2026-07-03** — **NOUVELLE SOURCE TENNIS : TennisExplorer (bilan par surface, gratuit + À JOUR)**. —
   pourquoi : le tennis manquait du facteur n°1 (niveau par surface) ; UTS/Sackmann périmés, RapidAPI/
   SofaScore en quota épuisé (429, 15000/mois plan PRO dépassé) · **TROUVÉ** après fouille : `tennisexplorer.com`
