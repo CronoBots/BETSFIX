@@ -692,6 +692,7 @@ async def health_markets() -> dict:
     """MATRICE VIVANTE (data-driven) : pour chaque (sport, marché), taux de règlement et trous éventuels
     (marché non réglable → source à ajouter). Doc de référence : docs/SOURCES.md (matrice complète +
     quelle source règle quoi + trous priorisés)."""
+    from app import analyses
     return analyses.markets_coverage()
 
 
