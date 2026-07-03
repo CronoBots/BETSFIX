@@ -10,10 +10,33 @@ au fil prono->résultat (reply Telegram) et au tri chronologique ; elles sont ig
 """
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime
 
 from app import analyses
+
+
+def _clean_why(w) -> str:
+    """Explication PROFESSIONNELLE et fiable d'une sélection : même pipeline que l'app (retire la liste
+    « Sources : … », met les mises en % de bankroll, remet en phrase propre). '' si vide."""
+    return analyses._sentence_case(analyses._units_to_pct(analyses._strip_sources(str(w or "")))).strip()
+
+
+def _pick_why(d: dict, sel: str) -> str:
+    """« Pourquoi » du pari SIMPLE retenu, extrait du Verdict de l'analyse (.md) — comme sur l'app
+    (_verdict_notes + _assign_notes, déjà nettoyés/sans sources). '' si introuvable."""
+    try:
+        md = os.path.join(analyses.DIR, f"{d.get('sport')}_{d.get('id')}.md")
+        if not sel or not os.path.exists(md):
+            return ""
+        notes, _ = analyses._verdict_notes(open(md, encoding="utf-8").read())
+        if not notes:
+            return ""
+        assigned = analyses._assign_notes([sel], notes)      # {0: why} si apparié
+        return _clean_why(assigned.get(0, ""))
+    except Exception:
+        return ""
 
 # Date courte FR + maps sport (centralisées ici — étaient copiées dans 3-4 fichiers).
 _FR_J = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
@@ -63,11 +86,16 @@ def build_prono_card(d: dict) -> dict | None:
             "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta}
     if has_combo:
         cote = (f"{combo['real_odds']:.2f}" if combo.get("real_odds") else f"{combo.get('total', '?')}")
+        # ANALYSE PAR JAMBE (comme l'app) : chaque sélection porte son « pourquoi » sérieux + la synthèse
+        # du combiné (corrélation). Uniquement sur la carte de PUBLICATION (pas la carte résultat).
         card.update(type="combo", cote=cote,
-                    legs=[(str(l.get("sel", "")), str(l.get("cote", ""))) for l in combo["legs"]])
+                    legs=[(str(l.get("sel", "")), str(l.get("cote", "")), _clean_why(l.get("why")))
+                          for l in combo["legs"]],
+                    synth=_clean_why(combo.get("why")))
     elif pick_shown and rb:
         card.update(type="simple", pick=str(rb.get("sel", "")),
-                    cote=(f"{rb['cote']:g}" if rb.get("cote") else ""), conf=rb.get("prob"))
+                    cote=(f"{rb['cote']:g}" if rb.get("cote") else ""), conf=rb.get("prob"),
+                    why=_pick_why(d, str(rb.get("sel", ""))))
     elif pick_shown:
         m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", pick)
         card.update(type="simple", pick=(m.group(1).strip() if m else pick),

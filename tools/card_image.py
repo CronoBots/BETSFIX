@@ -41,6 +41,10 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
 .leg{display:flex;justify-content:space-between;align-items:center;gap:20px;font-size:29px;font-weight:700;
   margin-top:20px;line-height:1.2}
 .leg .o{flex:none;background:rgba(25,196,106,.15);color:#7ff0b6;border-radius:12px;padding:5px 18px;font-weight:900}
+.legwhy{font-size:21px;font-weight:500;color:#a7bcd6;line-height:1.34;margin:9px 0 6px 2px;
+  padding-left:18px;border-left:3px solid rgba(63,184,255,.38)}
+.synth{font-size:22px;font-weight:600;color:#d0dfef;line-height:1.36;margin:2px 0 20px;
+  background:rgba(34,184,255,.07);border:1px solid rgba(34,184,255,.16);border-radius:14px;padding:16px 20px}
 .cote{display:flex;justify-content:space-between;align-items:flex-end;margin-top:34px}
 .cote .l{font-size:19px;color:#90a4be;font-weight:700;text-transform:uppercase;letter-spacing:.10em}
 .cote .v{font-size:58px;font-weight:900;color:#fff;line-height:1}
@@ -200,13 +204,21 @@ def _card_html(d: dict) -> str:
         if _vtxt:
             inner += f'<div class="verdict {_verdict}">{_mark(_verdict, 34)}{e(_vtxt)}</div>'
     elif d.get("type") == "combo":
+        if d.get("synth"):                             # synthèse du combiné (corrélation) — pro, en tête
+            inner += f'<div class="synth">{e(d["synth"])}</div>'
         inner += f'<div class="beth">Combiné · {len(d.get("legs",[]))} sélections</div>'
-        for sel, cote in d.get("legs", []):
+        for leg in d.get("legs", []):                  # legs = (sel, cote[, why])
+            sel, cote = leg[0], leg[1]
+            why = leg[2] if len(leg) > 2 else ""
             inner += f'<div class="leg"><span>{e(sel)}</span><span class="o">{e(str(cote))}</span></div>'
+            if why:                                    # ANALYSE de la jambe (comme l'app)
+                inner += f'<div class="legwhy">{e(why)}</div>'
         inner += (f'<div class="cote"><span class="l">Cote combinée</span>'
                   f'<span class="v">{e(str(d.get("cote","")))}</span></div>')
     else:
         inner += f'<div class="leg"><span>{e(d.get("pick",""))}</span></div>'
+        if d.get("why"):                               # ANALYSE du pari simple (comme l'app)
+            inner += f'<div class="legwhy">{e(d["why"])}</div>'
         if d.get("conf"):                              # confiance AU-DESSUS de la cote
             inner += f'<div class="conf">Confiance <b>{e(str(d["conf"]))}%</b></div>'
         inner += (f'<div class="cote"><span class="l">Cote</span>'
