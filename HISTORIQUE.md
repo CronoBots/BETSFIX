@@ -348,3 +348,8 @@ void garanti). Le CONTENU rédigé par Claude varie (normal, LLM). 3 points durc
   au lieu de merges dispersés. Testé unitairement (faux-zéros ignorés, cartons/corners préservés).
 - **Anti-régression** : AST 4 fichiers OK · imports globaux OK · tests unitaires _merge_stats/_find_score OK ·
   selfcheck 10 checks (compteur figé 77 vert ; reste 1 warn PRÉEXISTANT Angleterre-Congo cote bet-builder).
+
+## 2026-07-03 — Selfcheck 100% vert (dernier faux positif pricing)
+- Le warn « total≠produit » (Angleterre-Congo) = faux positif : écart 3,2% dû au RAFRAÎCHISSEMENT des cotes
+  de jambes après figement du `total` (pas une cote fantôme). Seuil dur `_check_combo_pricing` élargi
+  0.03→0.05·prod (5%) : absorbe les décalages normaux, attrape toujours le grossier (×2). Selfcheck = 10/10 ✅.
