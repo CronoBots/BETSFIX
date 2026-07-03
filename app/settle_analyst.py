@@ -1196,7 +1196,21 @@ async def _settle_analyses_impl() -> int:
                 st = await _event_stats(sofa) if (sofa and len(sofa) <= 8) else None
                 if st:
                     score["stats"] = {**(score.get("stats") or {}), **st}   # complète sans rien perdre
-                # Foot : on complète TOUJOURS par Flashscore si les TIRS/TIRS CADRÉS manquent encore
+                # Foot : STATS via FotMob (source n°1 foot, couvre les CdM) — tirs cadrés/tirs/corners/cartons.
+                # Testé 8/8 sur les combos tirs alors que Flashscore/GISMO ne couvraient pas ces matchs.
+                cur = score.get("stats") or {}
+                if sport == "foot" and ("sot_h" not in cur or "shots_h" not in cur):
+                    try:
+                        from app import sources as _srcf
+                        import httpx as _hxf
+                        async with _hxf.AsyncClient() as _fc:
+                            fm = await _srcf.foot_match_stats(_fc, d.get("home", ""), d.get("away", ""),
+                                                              d.get("start"))
+                        if fm:
+                            score["stats"] = {**cur, **fm}
+                    except Exception:
+                        pass
+                # Repli : Flashscore si les TIRS/TIRS CADRÉS manquent encore
                 # (SofaScore mort renvoie {} ; ou `_event_stats` ne donne que corners/cartons sans SOT).
                 # Sans ça, une jambe « tirs cadrés » réglable (donnée dispo chez Flashscore) était VOID
                 # à tort -> pouvait transformer un combiné perdu en gagné.
