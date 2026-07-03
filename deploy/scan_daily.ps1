@@ -46,3 +46,9 @@ Log ("SELFCHECK DONE (exit {0})" -f $LASTEXITCODE)
 Log 'LEARNING : journal d''apprentissage'
 & $py 'tools\learning.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
 Log ("LEARNING DONE (exit {0})" -f $LASTEXITCODE)
+
+# BACKTEST de la politique de sélection (lecture seule) : rejoue les seuils sur l'historique, propose un
+# changement SEULEMENT s'il est significatif hors-échantillon (alerte Telegram). N'applique JAMAIS rien.
+Log 'BACKTEST : politique de sélection'
+& $py 'tools\policy_backtest.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+Log ("BACKTEST DONE (exit {0})" -f $LASTEXITCODE)

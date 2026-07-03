@@ -652,6 +652,15 @@ async def health_learning() -> dict:
     return learning.report()
 
 
+@app.get("/health/backtest", tags=["ℹ️ Méta"], summary="Backtest de la politique de sélection (lecture seule)")
+async def health_backtest() -> dict:
+    """Rejoue la porte de décision sur l'historique des prédictions, balaye les seuils clés et propose un
+    changement UNIQUEMENT s'il améliore le ROI hors-échantillon de façon significative. N'applique rien
+    (cf. app/backtest.py). Inclut la fidélité porte↔prod (garde-fou : le miroir doit reproduire prod)."""
+    from app import backtest
+    return backtest.analyze()
+
+
 # Une fois TOUTES les routes enregistrées, on (re)classe chaque endpoint par nature
 # de donnée pour /docs (source SofaScore / cotes / modèle / …). À faire en dernier.
 _retag_routes(app)
