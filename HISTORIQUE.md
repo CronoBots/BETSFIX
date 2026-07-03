@@ -290,3 +290,17 @@
   régressions au fil des optimisations (demande user) · fichiers : `HISTORIQUE.md` (doc, aucun code
   applicatif touché) · **régression vérifiée** : sans objet (documentation) · résultat : règle active,
   journal démarré.
+
+## 2026-07-03 — Tirs cadrés/tirs foot : comblés par FotMob (source déjà branchée)
+- **Contexte** : reproche user justifié — j'ai cherché longtemps une source externe pour régler les
+  tirs cadrés (Flashscore/GISMO/TennisExplorer/RapidAPI…) alors que **FotMob**, DÉJÀ branché, expose
+  ces stats. Leçon notée en mémoire (`check-connected-sources-first`).
+- **Fait** : `sources.foot_match_stats(client, home, away, start)` (app/sources.py) lit FotMob
+  `matchDetails` (`content.stats.Periods.All`, clés `ShotsOnTarget`/`total_shots`/`corners`/
+  `yellow_cards`/`red_cards`) → `sot_h/a`, `shots_h/a`, `corners_h/a`, `cards_h/a`.
+  Branché en **source n°1** du règlement foot dans `settle_analyst` (avant Flashscore → repli GISMO).
+- **Anti-régression** : AST OK (settle_analyst + sources) ; `settle_v` stable {44:300, None:16} (aucun
+  re-règlement de masse, pas de bump). Test ciblé : **8/8** combos tirs réglés correctement via FotMob
+  (Allemagne +4.5 tirs cadrés=won, Cap-Vert -2.5=won, Total +8.5=won, etc.). FORWARD-only.
+- **Docs** : `docs/SOURCES.md` §2 (FotMob règlement) + §3 (tirs ✅) + §4 (trou n°1 barré). Mémoires
+  `markets-resolvability-sources` + `check-connected-sources-first` (nouvelle) + index MEMORY.md.
