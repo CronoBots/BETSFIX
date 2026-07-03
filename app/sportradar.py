@@ -372,6 +372,37 @@ async def info(client, mid: int) -> dict | None:
     return await _info(client, mid)
 
 
+_SHOT_STAT = {"tirs cadrés": "sot", "tirs cadres": "sot", "shots on target": "sot",
+              "tirs": "shots", "shots": "shots", "corners": "corners", "corner": "corners"}
+
+
+async def match_stats(client, sport: str, home: str, away: str, start: str) -> dict | None:
+    """STATS de match GISMO (foot) via `match_details` : tirs cadrés / tirs / corners PAR ÉQUIPE ->
+    {sot_h/a, shots_h/a, corners_h/a}. Comble le trou de règlement des marchés « tirs (cadrés) » quand
+    Flashscore ne couvre pas le match. None si non résolu / pas de stats. Tolérant (jamais d'exception)."""
+    try:
+        mid = await resolve(client, sport, home, away, start)
+        if not mid:
+            return None
+        md = await _gismo(client, "match_details", mid)
+        vals = md.get("values") if isinstance(md, dict) else None
+        if not isinstance(vals, dict):
+            return None
+        out: dict = {}
+        for v in vals.values():
+            if not isinstance(v, dict):
+                continue
+            key = _SHOT_STAT.get((v.get("name") or "").strip().lower())
+            val = v.get("value") if key else None
+            if key and isinstance(val, dict):
+                h, a = val.get("home"), val.get("away")
+                if isinstance(h, (int, float)) and isinstance(a, (int, float)):
+                    out[f"{key}_h"], out[f"{key}_a"] = int(h), int(a)
+        return out or None
+    except Exception:
+        return None
+
+
 async def final_score(client, sport: str, match: dict) -> dict | None:
     """Score final DÉTAILLÉ par PÉRIODES via GISMO `match_info` — comble le trou que LiveScore/
     Flashscore laissent souvent (jeux par set tennis, points par quart-temps basket, mi-temps foot).
