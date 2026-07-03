@@ -20,7 +20,7 @@ from app.routers import (
     analysis, auth, basket, billing, flashscore, foot, livescore, matches, players, sportradar,
     statistics, unibet, web,
 )
-from app import accounts, paywall
+from app import accounts, branding, paywall
 
 log = logging.getLogger("uvicorn")
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -419,6 +419,10 @@ async def _paywall_dispatch(request, call_next):
         if paywall.MARK_OPEN.encode() in body:
             can_see = accounts.can_see_picks(request)
             body = paywall.apply(body.decode("utf-8", "replace"), can_see).encode("utf-8")
+        # MODE PUBLIC : masque les SOURCES à tout visiteur NON propriétaire (dé-branding). OFF par défaut
+        # -> aucun impact tant que le mode public n'est pas activé ; le propriétaire voit toujours tout.
+        if branding.hide_sources() and not accounts.is_owner(request):
+            body = branding.debrand(body.decode("utf-8", "replace")).encode("utf-8")
         headers = dict(resp.headers)
         headers.pop("content-length", None)        # le corps a pu changer de taille
         return _Response(content=body, status_code=resp.status_code, headers=headers, media_type=ct)
@@ -427,6 +431,25 @@ async def _paywall_dispatch(request, call_next):
 
 
 app.add_middleware(BaseHTTPMiddleware, dispatch=_paywall_dispatch)
+
+# GATE MODE PUBLIC : quand le masquage des sources est actif, ces surfaces révèlent le stack (Swagger
+# nomme les sources dans ses tags/endpoints ; les outils internes = audit/apprentissage/backtest) ->
+# 404 pour les visiteurs NON propriétaires. OFF par défaut (aucun impact en phase de test).
+_PRIVATE_WHEN_PUBLIC = ("/docs", "/redoc", "/openapi.json",
+                        "/health/selfcheck", "/health/learning", "/health/backtest")
+
+
+@app.middleware("http")
+async def _gate_private(request, call_next):
+    try:
+        if branding.hide_sources():
+            path = request.url.path
+            if (any(path == p or path.startswith(p + "/") or path == p for p in _PRIVATE_WHEN_PUBLIC)
+                    and not accounts.is_owner(request)):
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
+    except Exception:
+        pass                                   # fail-open : ne jamais casser l'API
+    return await call_next(request)
 
 # COMPRESSION : le HTML monospace (CSS inline + cartes répétitives) se comprime ~8×
 # (ex. accueil 172 Ko -> ~20 Ko). Gain majeur sur mobile/4G via le tunnel.

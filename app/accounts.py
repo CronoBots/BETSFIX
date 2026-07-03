@@ -258,3 +258,12 @@ def can_see_picks(request) -> bool:
     if _is_local(request):
         return True
     return is_subscriber(session_email(request) or "")
+
+
+def is_owner(request) -> bool:
+    """Le VISITEUR est-il le PROPRIÉTAIRE ? (machine locale OU email connecté listé dans owners.json).
+    Sert à ne montrer les SOURCES réelles qu'au propriétaire et une version neutre au public (le
+    stack de données = avantage compétitif, caché dès que le mode public est activé)."""
+    if _is_local(request):
+        return True
+    return _norm(session_email(request) or "") in _owners()
