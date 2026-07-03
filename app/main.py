@@ -437,6 +437,7 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=_paywall_dispatch)
 # 404 pour les visiteurs NON propriétaires. OFF par défaut (aucun impact en phase de test).
 _PRIVATE_WHEN_PUBLIC = ("/docs", "/redoc", "/openapi.json",
                         "/health/selfcheck", "/health/learning", "/health/backtest",
+                        "/health/sources", "/health/markets",
                         # proxies dont le CHEMIN nomme la source (le client public ne les appelle jamais —
                         # il ne fait que /stats + fragments de match) : 404 en mode public.
                         "/sportradar", "/unibet", "/flashscore", "/livescore", "/pinnacle")
@@ -694,6 +695,15 @@ async def health_markets() -> dict:
     quelle source règle quoi + trous priorisés)."""
     from app import analyses
     return analyses.markets_coverage()
+
+
+@app.get("/health/sources", tags=["ℹ️ Méta"], summary="Santé des sources (ping live)")
+async def health_sources() -> dict:
+    """Ping LIVE de chaque source (analyse + règlement) : disponible ? latence ? Détecte PROACTIVEMENT une
+    source morte avant qu'elle dégrade les analyses. status = error si une source CRITIQUE (Unibet/FotMob)
+    est down, warn si une autre, sinon ok (cf. app/source_health.py). 100 % lecture, aucun effet de bord."""
+    from app import source_health
+    return await source_health.check_all()
 
 
 # Une fois TOUTES les routes enregistrées, on (re)classe chaque endpoint par nature
