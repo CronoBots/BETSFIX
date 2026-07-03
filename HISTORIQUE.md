@@ -329,3 +329,22 @@ AVANT toute écriture (aucune régression tolérée).
 - **Anti-régression** : AST OK (5 fichiers) ; imports globaux OK ; `settle_pick` standard OK (OVER/SHOTSOT/
   BOTHHALVES) ; selfcheck 8/9 ✅ (reste 1 warn PRÉEXISTANT : cote combo Angleterre-Congo = bet builder
   même-match, total≠produit normal, résultat lost correct — non lié). Backups sidecars dans scratchpad.
+
+## 2026-07-03 (soir) — Audit démarche + durcissement structurel (analyse & règlement)
+Audit complet des 2 pipelines (2 agents Explore) : démarche STRUCTURÉE et reproductible dans son squelette
+(déclenchement à params fixes ; analyse = séquence fixe + méthodo centralisée METHODO/COMBO_MISSION per-sport ;
+règlement = code_from_pick unique + chaîne de repli stricte + idempotence _SETTLE_VERSION/settle_v/tries +
+void garanti). Le CONTENU rédigé par Claude varie (normal, LLM). 3 points durcis :
+- **(1) Traçabilité de complétude** : `sources.extras(client, sport, match, prov=dict)` (param OPTIONNEL,
+  non-cassant pour probe_sources) remplit `prov` avec les sources ayant répondu ; `build_dossier` la met
+  dans `meta["sources_prov"]` ; `_write_sidecar` écrit `side["sources"]` + `side["data_score"]`. Nouvel
+  invariant selfcheck `_check_data_completeness` (10e check, forward-only, warn dès 3 fiches à data_score 0
+  = analysées sur COTES SEULES). Testé : Australie-Égypte → {fotmob,flashscore,sportradar}=3.
+- **(2) Matching par noms strict** (`settle_analyst._find_score`) : collecte TOUS les candidats des events
+  du jour ; si PLUSIEURS matchent (sigles courts ambigus) → s'ABSTIENT (None) au lieu d'accepter le 1er →
+  jamais un faux score sur un mauvais match.
+- **(3) Garde anti-faux-zéros GÉNÉRALISÉE** : helper unique `settle_analyst._merge_stats(cur,new)` (comble
+  sans écraser + ignore sot/shots tous nuls = donnée absente) appliqué aux 3 merges (FotMob/Flashscore/GISMO)
+  au lieu de merges dispersés. Testé unitairement (faux-zéros ignorés, cartons/corners préservés).
+- **Anti-régression** : AST 4 fichiers OK · imports globaux OK · tests unitaires _merge_stats/_find_score OK ·
+  selfcheck 10 checks (compteur figé 77 vert ; reste 1 warn PRÉEXISTANT Angleterre-Congo cote bet-builder).
