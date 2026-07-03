@@ -1974,6 +1974,45 @@ CALIB_ROI_MAX = -15   # ROI réel (%) sous lequel un marché est exclu — SI l'
 #                       le gap de calibration ne le capte pas, le ROI oui. Data-driven, auto-révisable.
 
 
+def markets_coverage() -> dict:
+    """MATRICE DE RÉSOLUBILITÉ (data-driven, doc vivante) : par (sport, marché), combien de paris/jambes
+    au TOTAL, combien RÉGLÉS, et combien NON réglés sur un match FINI (= trou de règlement) + les paris
+    SANS code (marché non mappé). `resolvable` = tout réglé et code présent. Référence : docs/SOURCES.md."""
+    from collections import defaultdict
+
+    def _fin(d):
+        r = d.get("result")
+        return bool((r or {}).get("pick_result") if isinstance(r, dict) else r) \
+            or bool((d.get("combo") or {}).get("result"))
+
+    agg = defaultdict(lambda: {"total": 0, "settled": 0, "unresolved": 0})
+    for p in glob.glob(os.path.join(DIR, "*.json")):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        sport, fin = d.get("sport"), _fin(d)
+        items = [(b.get("code"), b.get("result")) for b in (d.get("bets") or [])]
+        items += [(l.get("code"), l.get("result")) for l in ((d.get("combo") or {}).get("legs") or [])]
+        for code, res in items:
+            mk = market_of(code) if code else "(sans code)"
+            a = agg[(sport, mk)]
+            a["total"] += 1
+            if res in ("won", "lost", "push"):
+                a["settled"] += 1
+            elif fin:
+                a["unresolved"] += 1
+    by_sport, gaps = defaultdict(list), []
+    for (sp, mk), a in sorted(agg.items(), key=lambda x: (x[0][0], -x[1]["total"])):
+        resolvable = a["unresolved"] == 0 and mk != "(sans code)"
+        by_sport[sp].append({"market": mk, "total": a["total"], "settled": a["settled"],
+                             "unresolved_on_finished": a["unresolved"], "resolvable": resolvable})
+        if not resolvable and (a["unresolved"] >= 2 or mk == "(sans code)"):
+            gaps.append({"sport": sp, "market": mk, "unresolved_on_finished": a["unresolved"], "total": a["total"]})
+    return {"by_sport": dict(by_sport), "gaps": gaps, "doc": "docs/SOURCES.md",
+            "note": "resolvable=False -> voir docs/SOURCES.md §4 (trous à combler)"}
+
+
 def _excluded_by_sport() -> dict:
     """{sport: set(marchés écartés POUR CE SPORT)} — les exclusions de marché sont désormais PROPRES À
     CHAQUE SPORT (demande user 2026-07-02). Un marché mauvais en basket n'écarte PAS le même marché en
