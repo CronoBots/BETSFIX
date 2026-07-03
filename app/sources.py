@@ -207,6 +207,13 @@ async def foot_match_stats(client, home: str, away: str, start_iso: str) -> dict
         if "yc_h" in out:                                # marché CARTONS = jaunes + rouges
             out["cards_h"] = out.get("yc_h", 0) + out.get("rc_h", 0)
             out["cards_a"] = out.get("yc_a", 0) + out.get("rc_a", 0)
+        # GARDE anti-faux-zéros : un match NON couvert par FotMob (ligues mineures, mauvais mid) renvoie une
+        # structure vide -> toutes les stats à 0. Ne JAMAIS injecter ces zéros (ils écraseraient les vraies
+        # stats du cache Flashscore/GISMO). Un vrai match a forcément des tirs -> si tirs tous nuls, on
+        # considère la donnée ABSENTE. (Cas vécu : Ceará-Avaí, cartons réels 6 -> FotMob 0/0 aurait dé-réglé.)
+        if (out.get("sot_h", 0) + out.get("sot_a", 0)
+                + out.get("shots_h", 0) + out.get("shots_a", 0)) == 0:
+            return None
         return out or None
     except Exception:
         return None

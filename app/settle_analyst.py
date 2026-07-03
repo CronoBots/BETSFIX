@@ -1207,7 +1207,9 @@ async def _settle_analyses_impl() -> int:
                             fm = await _srcf.foot_match_stats(_fc, d.get("home", ""), d.get("away", ""),
                                                               d.get("start"))
                         if fm:
-                            score["stats"] = {**cur, **fm}
+                            # FotMob COMPLÈTE (cur prioritaire) : ne jamais écraser une stat déjà
+                            # présente dans le cache fiable (Flashscore/GISMO) par une valeur FotMob.
+                            score["stats"] = {**fm, **cur}
                     except Exception:
                         pass
                 # Repli : Flashscore si les TIRS/TIRS CADRÉS manquent encore
