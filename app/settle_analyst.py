@@ -273,6 +273,12 @@ def settle_pick(code: str, score: dict) -> str | None:
             return None
         i = 0 if parts[1] == "HOME" else 1
         return "won" if (p1[i] >= 1 and p2[i] >= 1) else "lost"
+    if kind == "BOTHHALVES" and len(parts) >= 2:        # un BUT (total, peu importe l'équipe) dans CHAQUE MT
+        p1, p2 = _per(1), _per(2)
+        if not p1 or not p2:
+            return None
+        both = (p1[0] + p1[1] >= 1) and (p2[0] + p2[1] >= 1)
+        return "won" if (both == (parts[1] == "YES")) else "lost"
     if kind == "BTTSHALF" and len(parts) >= 3:          # les 2 équipes marquent dans une MI-TEMPS
         p = _per(1 if parts[1] == "1H" else 2)
         if not p:
@@ -368,10 +374,11 @@ def settle_pick(code: str, score: dict) -> str | None:
         tb = any({p[0], p[1]} == {6, 7} for p in periods.values())
         return "won" if (tb == (parts[1] == "YES")) else "lost"
     # --- cartons / corners : depuis les STATS du match (event/{id}/statistics), cf. _event_stats ---
-    if kind in ("CARDS", "REDCARDS", "CORNERS"):
+    if kind in ("CARDS", "REDCARDS", "CORNERS", "SHOTSOT", "SHOTS"):
         stats = score.get("stats") or {}
         kh, ka = {"CARDS": ("cards_h", "cards_a"), "REDCARDS": ("rc_h", "rc_a"),
-                  "CORNERS": ("corners_h", "corners_a")}[kind]
+                  "CORNERS": ("corners_h", "corners_a"),
+                  "SHOTSOT": ("sot_h", "sot_a"), "SHOTS": ("shots_h", "shots_a")}[kind]
         hv, av = stats.get(kh), stats.get(ka)
         if hv is None or av is None:
             return None                                   # stats pas encore récupérées -> on retentera
@@ -632,7 +639,11 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     # laissés à la MÉTRIQUE (abstention "") comme avant.
     if "mi-temps" in t or "mi temps" in t:
         if "deux mi" in t or "2 mi-temps" in t or "both halves" in t:
-            return ""                              # « but dans les DEUX mi-temps » -> métrique bothhalves
+            team = which()
+            if team:                               # « <équipe> (marque un but) dans les 2 MT » -> TEAMBOTH
+                return f"TEAMBOTH {team}"
+            # « But dans les deux mi-temps Oui/Non » (total, n'importe quelle équipe) -> BOTHHALVES
+            return f"BOTHHALVES {'NO' if (' non' in t or 'aucun' in t) else 'YES'}"
         if "deux équipes marquent" in t or "btts" in t:   # BTTS dans UNE mi-temps -> périodes
             half = "2H" if any(k in t for k in ("2e mi", "2ème mi", "2eme mi", "seconde mi",
                                                 "deuxième mi", "2nde mi")) else "1H"
@@ -698,10 +709,19 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         if sgn:
             return f"{base} {'UNDER' if sgn.group(1) == '-' else 'OVER'} {sgn.group(2).replace(',', '.')}"
         return ""    # carton/corner sans ligne exploitable -> on s'abstient
-    # TIRS / TIRS CADRÉS : pas de famille de règlement dédiée ici -> NE PAS confondre avec des BUTS
-    # (TEAMTOT plus bas réglerait « tirs +4.5 » comme « +4.5 BUTS » -> perdu à coup sûr). On s'abstient.
-    if re.search(r"\btirs?\b", t) or "shot" in t or "cadré" in t:
-        return ""
+    # TIRS / TIRS CADRÉS (total du match ou d'une ÉQUIPE) -> SHOTSOT (cadrés) / SHOTS (tous), réglés sur
+    # les STATS du match (Flashscore sot_h/a & shots_h/a, DÉJÀ récupérées, cf. _settle bloc need_stats).
+    # Le pari JOUEUR est capté plus haut (PLAYERFB). NE JAMAIS laisser tomber dans TEAMTOT/OVER (= BUTS,
+    # réglé à l'envers) : d'où le handler dédié ici, comme CORNERS/CARTONS.
+    if re.search(r"\btirs?\b", t) or "shot" in t or "cadré" in t or "cadre" in t:
+        base = (("SHOTSOT" if ("cadr" in t or "on target" in t) else "SHOTS") + " " + which()).strip()
+        ln = re.search(r"(plus|moins) de (\d+[.,]?\d*)", t)
+        if ln:
+            return f"{base} {'OVER' if ln.group(1) == 'plus' else 'UNDER'} {ln.group(2).replace(',', '.')}"
+        sgn = re.search(r"([+\-−–])\s*(\d+[.,]?\d*)", t)
+        if sgn:
+            return f"{base} {'UNDER' if sgn.group(1) in ('-', '−', '–') else 'OVER'} {sgn.group(2).replace(',', '.')}"
+        return ""    # tirs sans ligne exploitable -> abstention
     team = which()
     # total d'une ÉQUIPE (le score par équipe est connu) : « X marque +1.5 », « X +/- de N buts/pts »
     if team:
