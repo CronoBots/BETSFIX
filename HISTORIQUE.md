@@ -365,3 +365,17 @@ surveillance GLOBALE en amont (détecte une source morte AVANT qu'elle dégrade 
   `data/source_health_log.jsonl` + alerte Telegram SI source critique down) · branché fin `scan_daily.ps1`.
 - Testé : 8/8 vertes (Unibet 214 matchs, FotMob/ESPN/Understat/Pinnacle/Flashscore/Sportradar OK,
   LiveScore 89), latences 180–700ms. AST + imports OK, endpoint enregistré, journal écrit.
+
+## 2026-07-03 — Tableau de bord santé dans l'onglet Stats (privé)
+Visibilité de l'auto-surveillance dans l'UI (fini les CLI pour vérifier l'état) : section repliable
+« 🩺 Santé du système » en bas de l'onglet Stats = santé LIVE des 8 sources (pastille + latence + détail)
++ les 10 contrôles d'auto-audit (pastille par check). 
+- **Confidentialité** : le panneau NOMME les sources (avantage compétitif) → servi via une route AJAX
+  dédiée `/stats/health` protégée `accounts.is_owner` (chaîne VIDE = bloc invisible pour les visiteurs).
+  Chargé en AJAX pour rester HORS du fragment Stats mutualisé (cache) et ne pas bloquer le rendu (ping
+  sources ~1-2s). `/health/sources` + `/health/markets` ajoutés au gate `_PRIVATE_WHEN_PUBLIC`.
+- **Impl** : `_system_health_html()` (selfcheck.run + source_health.check_all) rendu via
+  `web.sx_section_collapsible` (styles inline, cohérent thème sombre/cyan) ; conteneur `#syshealth` +
+  fetch injectés dans `stats_page`. `Request` ajouté aux imports de routers/web.py.
+- **Testé** : AST + import app OK ; routes `/stats/health` + `/health/sources` enregistrées ; endpoint live
+  8/8 sources en ligne ; `/stats/health` (localhost=propriétaire) → 200, 6.5 Ko ; aperçu visuel validé.
