@@ -29,7 +29,8 @@ _CSS = """
 body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 html,body{margin:0;padding:0;background:transparent}
 .card{width:920px;padding:46px 50px 40px;background:linear-gradient(160deg,#101b29 0%,#0a0f17 60%,#080c13 100%);
-  border:1px solid rgba(34,184,255,.22);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden}
+  border:2px solid rgba(34,184,255,.55);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(34,184,255,.28),inset 0 0 80px rgba(34,184,255,.07)}
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
   background:radial-gradient(circle,rgba(34,184,255,.20),transparent 70%)}
 .hero{margin:-40px -50px 18px;text-align:center;position:relative}
