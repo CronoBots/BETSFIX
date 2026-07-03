@@ -176,6 +176,42 @@ async def _fotmob_find(client, home: str, away: str, start_iso: str):
     return None
 
 
+# Clés FotMob (stables) -> stats de RÈGLEMENT (par équipe [home, away]).
+_FM_STAT = {"ShotsOnTarget": ("sot_h", "sot_a"), "total_shots": ("shots_h", "shots_a"),
+            "corners": ("corners_h", "corners_a"), "yellow_cards": ("yc_h", "yc_a"),
+            "red_cards": ("rc_h", "rc_a")}
+
+
+async def foot_match_stats(client, home: str, away: str, start_iso: str) -> dict | None:
+    """STATS de match FOOT via FotMob (déjà source n°1 foot) : tirs cadrés / tirs / corners / cartons PAR
+    ÉQUIPE -> {sot_h/a, shots_h/a, corners_h/a, cards_h/a}. Comble le règlement des marchés tirs (cadrés)
+    là où Flashscore/GISMO ne couvrent pas. Cible le TOTAL du match (`content.stats.Periods.All`). None si
+    introuvable. Tolérant (jamais d'exception)."""
+    try:
+        mid = await _fotmob_find(client, home, away, start_iso or "")
+        if not mid:
+            return None
+        j = await _get_json(client, f"{_FOTMOB}/matchDetails?matchId={mid}")
+        if not isinstance(j, dict):
+            return None
+        allp = (((j.get("content") or {}).get("stats") or {}).get("Periods") or {}).get("All") or {}
+        out: dict = {}
+        for grp in (allp.get("stats") or []):
+            for it in (grp.get("stats") or []) if isinstance(grp, dict) else []:
+                k, v = it.get("key"), it.get("stats")
+                if k in _FM_STAT and isinstance(v, list) and len(v) == 2 and _FM_STAT[k][0] not in out:
+                    try:
+                        out[_FM_STAT[k][0]], out[_FM_STAT[k][1]] = int(v[0]), int(v[1])
+                    except (TypeError, ValueError):
+                        pass
+        if "yc_h" in out:                                # marché CARTONS = jaunes + rouges
+            out["cards_h"] = out.get("yc_h", 0) + out.get("rc_h", 0)
+            out["cards_a"] = out.get("yc_a", 0) + out.get("rc_a", 0)
+        return out or None
+    except Exception:
+        return None
+
+
 def _fm_form_lines(team_form, idx: int, label: str) -> str:
     """Forme 5 derniers d'un camp depuis content.matchFacts.teamForm : « V 2-1 vs X (date) »."""
     try:
