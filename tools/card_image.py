@@ -33,7 +33,10 @@ body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-f
   background:radial-gradient(circle,rgba(34,184,255,.20),transparent 70%)}
 .hero{margin:-40px -50px 18px;text-align:center;position:relative}
 .hero img{width:100%;height:auto;display:block;filter:drop-shadow(0 6px 20px rgba(34,184,255,.30))}
-.top{font-size:21px;font-weight:800;letter-spacing:.14em;color:#5fd0ff;text-transform:uppercase}
+.top{font-size:30px;font-weight:900;letter-spacing:.05em;color:#5fd0ff;text-transform:uppercase;
+  display:flex;align-items:center;gap:12px;line-height:1.1}
+.top .ico{width:32px;height:32px;vertical-align:middle;margin:0}
+.topcomp{font-size:23px;font-weight:700;color:#96b9dd;margin-top:11px;line-height:1.32;letter-spacing:.01em}
 .match{font-size:48px;font-weight:900;margin-top:12px;line-height:1.08;position:relative}
 .meta{font-size:23px;color:#90a4be;margin-top:12px;font-weight:600;position:relative}
 .sep{height:1px;background:rgba(255,255,255,.09);margin:30px 0 26px}
@@ -173,10 +176,15 @@ def _card_html(d: dict) -> str:
     _wm_hero = f'<div class="hero">{_wm_img}</div>' if _wm_img else ''
     _icon = _sport_icon(d.get("emoji", ""))
     _cardcls = ""
+    # Titre du sport : SPORT (gros, en avant) sur une ligne, COMPÉTITION (casse normale) sur la suivante
+    # -> retour à la ligne LOGIQUE (fini « … MONDE - ASIE » coupé n'importe où). cat = « Sport · Compét. ».
+    _cat = str(d.get("cat", ""))
+    _sp, _cp = _cat.split(" · ", 1) if " · " in _cat else (_cat, "")
     inner = (f'<div class="glow"></div>'
              f'{_wm_hero}'
-             f'<div class="top">{_icon}{e(d.get("cat",""))}</div>'
-             f'<div class="match">{e(d.get("match",""))}</div>'
+             f'<div class="top">{_icon}<span class="topsport">{e(_sp)}</span></div>'
+             + (f'<div class="topcomp">{e(_cp)}</div>' if _cp else "")
+             + f'<div class="match">{e(d.get("match",""))}</div>'
              f'<div class="meta">{e(d.get("meta",""))}</div>'
              f'<div class="sep"></div>')
     if d.get("type") == "result":
