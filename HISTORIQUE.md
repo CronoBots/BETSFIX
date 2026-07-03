@@ -33,6 +33,18 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **NOUVELLE SOURCE TENNIS : TennisExplorer (bilan par surface, gratuit + À JOUR)**. —
+  pourquoi : le tennis manquait du facteur n°1 (niveau par surface) ; UTS/Sackmann périmés, RapidAPI/
+  SofaScore en quota épuisé (429, 15000/mois plan PRO dépassé) · **TROUVÉ** après fouille : `tennisexplorer.com`
+  est **à jour (données 2026)** et publie le bilan V/D **par surface** (Terre/Dur/Indoor/Gazon), carrière +
+  année · fichiers : `app/tennisexplorer.py` (NEW — scrape HTML tolérant, cache, matching de noms par tokens,
+  parse du tableau « Summary » ; UA explicite), `app/sources.py` (`_tennis_extras` : surface + `tennisexplorer.
+  surface_facts()` en TÊTE des faits tennis) · **régression vérifiée** : additif + tolérant (try/except, jamais
+  d'exception) ; AST OK ; testé en direct → Wimbledon : **Safiullin 23-16 gazon (9-3 en 2026) vs Fonseca 7-9
+  (alors que Fonseca est #27 vs #132 ATP !)** ; extras() tennis 1075→2147 car., pas de plantage ; ~2 req/joueur
+  cachées, gratuit (pas de quota) · résultat : OK, forward-looking (prochains scans tennis). **NB RapidAPI** :
+  SofaScore RÉACTIVABLE via RapidAPI SportAPI7 (déjà branché `sofa_http.py`) mais quota mensuel épuisé → réserver
+  au tennis si réactivé.
 - **2026-07-03** — **Tennis : ajout de la SURFACE aux faits** (data la plus prédictive qui manquait) +
   constat sources. — pourquoi : tennis = pire ROI (**−38 %** sur 19 paris, sport aux données les + pauvres
   depuis SofaScore mort) ; user a choisi « trouver une source tennis » · **DIAGNOSTIC** : les archives Elo/
