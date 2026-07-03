@@ -436,7 +436,10 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=_paywall_dispatch)
 # nomme les sources dans ses tags/endpoints ; les outils internes = audit/apprentissage/backtest) ->
 # 404 pour les visiteurs NON propriétaires. OFF par défaut (aucun impact en phase de test).
 _PRIVATE_WHEN_PUBLIC = ("/docs", "/redoc", "/openapi.json",
-                        "/health/selfcheck", "/health/learning", "/health/backtest")
+                        "/health/selfcheck", "/health/learning", "/health/backtest",
+                        # proxies dont le CHEMIN nomme la source (le client public ne les appelle jamais —
+                        # il ne fait que /stats + fragments de match) : 404 en mode public.
+                        "/sportradar", "/unibet", "/flashscore", "/livescore", "/pinnacle")
 
 
 @app.middleware("http")
