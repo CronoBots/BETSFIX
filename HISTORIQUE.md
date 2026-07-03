@@ -33,6 +33,19 @@
 - CAUSE : changements **enchaînés sans vérifier l'impact global**. → d'où cette procédure.
 
 ## Journal (à partir de maintenant)
+- **2026-07-03** — **Tennis : ajout de la SURFACE aux faits** (data la plus prédictive qui manquait) +
+  constat sources. — pourquoi : tennis = pire ROI (**−38 %** sur 19 paris, sport aux données les + pauvres
+  depuis SofaScore mort) ; user a choisi « trouver une source tennis » · **DIAGNOSTIC** : les archives Elo/
+  surface idéales (**Ultimate Tennis Statistics, Jeff Sackmann GitHub**) sont **PÉRIMÉES** dans cet env
+  (arrêtées ~nov 2024 : Alcaraz « Retired 2024 », Sackmann 2025/2026 = 404) → **NE PAS les brancher**
+  (fausseraient l'analyse). Sources live OK : ESPN (classement+forme), Sportradar (forme+H2H+streaks),
+  Flashscore. · **LIVRÉ** : `app/sources.py` `_surface_hint()` + `_TENNIS_SURFACE` (table tournois→surface)
+  ; surface détectée via le **nom de TOURNOI ESPN** de la forme récente (fiable, ≠ la ville `comp` ambiguë :
+  « Londres »=Wimbledon/gazon, « Stuttgart » a un tournoi terre ET un gazon) ; injectée en tête des faits
+  tennis (`_tennis_extras`) · **régression vérifiée** : additif ; AST OK ; testé en direct → Wimbledon=Gazon
+  sur 3 matchs, détection sur 81/112 sidecars (les non-détectés = tournois hors table, sans faux positif) ·
+  résultat : OK, forward-looking (prochains scans tennis). **RESTE** : stats de service (Sportradar/
+  Flashscore, à jour) ; surveiller si le tennis reste perdant (19 paris = petit échantillon).
 - **2026-07-03** — **Cartes Telegram : coins BLEU-NOIR (fini le blanc) + largeur d'affichage UNIFORME**. —
   pourquoi : (1) sur Telegram les coins arrondis TRANSPARENTS étaient composés sur BLANC ; (2) Telegram
   réduit les images plus HAUTES → cartes de largeurs différentes selon la longueur du contenu · fix :
