@@ -1259,7 +1259,17 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
         built = _build_combo_from_pool(eid, cands, sport, home, away) if cands else None
         if built:
             return built
-    return _parse_combo(analysis, sport, home, away, event_id)
+    combo = _parse_combo(analysis, sport, home, away, event_id)
+    # GARDE-FOU (2026-07-04) : un combiné BETSFIX est TOUJOURS même-match -> ses jambes sont CORRÉLÉES ->
+    # sa cote = la VRAIE cote corrélée Unibet (Bet Builder), JAMAIS le produit naïf (qui SUR-évalue -> fausse
+    # value/EV -> combiné retenu à tort). Si on n'a pas pu obtenir cette cote réelle (`real_odds` absent, p.ex.
+    # match sans Bet Builder = combiné non plaçable), on NE PROPOSE PAS le combiné : mieux vaut pas de combiné
+    # qu'une cote fausse. (Cause du bug tennis pricé 1.83 au lieu de 1.44 corrélé.) cf. [[kambi-betbuilder-pricing]].
+    if combo and not combo.get("real_odds"):
+        print(f"  · combiné écarté : pas de vraie cote corrélée Unibet (produit {combo.get('total')}) "
+              f"-> abstention (jamais de cote sur-évaluée).")
+        return None
+    return combo
 
 
 def _parse_combo(analysis: str, sport: str, home: str, away: str,
