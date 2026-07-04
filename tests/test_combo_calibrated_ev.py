@@ -18,10 +18,11 @@ def _cands():
 
 
 def _fake_bb(eid, oids):
-    # cote « corrélée » simulée = produit des cotes des jambes (2.0 chacune) -> 4.0 à 2 jambes, 8.0 à 3
+    # cote « corrélée » simulée -> 1.40 par jambe : 1.96 à 2 jambes (DANS la fourchette foot 1.75-2.25),
+    # 2.74 à 3 jambes (AU-DESSUS de _COMBO_REAL_MAX=2.25 -> écarté). (Fourchette resserrée le 2026-07-02.)
     p = 1.0
     for _ in oids:
-        p *= 2.0
+        p *= 1.40
     return round(p, 2)
 
 
@@ -31,7 +32,7 @@ def test_combo_recalibre_la_proba_des_jambes(monkeypatch):
     monkeypatch.setattr(analyses, "calibrated_conf", lambda prob, sport, code: 75)
     res = gen._build_combo_from_pool("123", _cands(), "foot")
     assert res is not None
-    # 3 jambes -> vraie cote 8.0 > _COMBO_REAL_MAX (4.20) -> écarté ; reste le 2 jambes (cote 4.0)
+    # 3 jambes -> vraie cote 2.74 > _COMBO_REAL_MAX (2.25) -> écarté ; reste le 2 jambes (cote 1.96)
     assert len(res["legs"]) == 2
     # proba = produit des probas CALIBRÉES (0.75² = 56 %), PAS des brutes (0.80² = 64 %)
     assert res["prob"] == 56, "la proba combinée doit refléter la calibration, pas la confiance brute"
@@ -41,10 +42,10 @@ def test_combo_barre_les_longshots_apres_calibration(monkeypatch):
     monkeypatch.setattr(gen.unibet, "betbuilder_odds", _fake_bb)
     # forte sur-confiance corrigée : 80 % annoncé -> 50 % réel
     monkeypatch.setattr(analyses, "calibrated_conf", lambda prob, sport, code: 50)
-    res = gen._build_combo_from_pool("123", _cands(), "foot")
-    # 0.50² = 25 % et 0.50³ = 12.5 % : tous SOUS le plancher _COMBO_PROB_MIN (33 %) -> AUCUN combiné
-    # (avant : le repli aurait sorti le longshot à plus haute cote malgré la chance ridicule).
-    assert res is None, "sous la chance mini calibrée, on ne publie PAS de combiné (fini le longshot)"
+    # BASKET/TENNIS : la chance mini est une BARRIÈRE DURE (pas de combiné phare de repli, contrairement au
+    # FOOT/CdM qui garde toujours son combiné le plus sûr). 0.50² = 25 % < p_min -> ABSTENTION.
+    res = gen._build_combo_from_pool("123", _cands(), "basket")
+    assert res is None, "sous la chance mini calibrée, basket/tennis ne publient PAS de combiné (fini le longshot)"
 
 
 def test_combo_sans_calibration_dispo_garde_la_proba_brute(monkeypatch):
