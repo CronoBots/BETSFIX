@@ -379,3 +379,18 @@ Visibilité de l'auto-surveillance dans l'UI (fini les CLI pour vérifier l'éta
   fetch injectés dans `stats_page`. `Request` ajouté aux imports de routers/web.py.
 - **Testé** : AST + import app OK ; routes `/stats/health` + `/health/sources` enregistrées ; endpoint live
   8/8 sources en ligne ; `/stats/health` (localhost=propriétaire) → 200, 6.5 Ko ; aperçu visuel validé.
+
+## 2026-07-04 — Résolution doublon de tâches de scan (cause des SKIP quotidiens)
+Diag après reconnexion : le scan planifié de 09h SKIP tous les jours depuis le 27/06. CAUSE = DEUX tâches
+de scan concurrentes en compte vince :
+- `BETSFIX-analyses` (créée 06/06, ANCIENNE) : `generate_analyses --top 5`, 2×/jour (09h+16h). Tourne
+  longtemps → fait SKIP la nouvelle.
+- `BETSFIX Scan` (créée 26/06, COMPLÈTE) : `scan_daily.ps1` (scan+reconcile+selfcheck+learning+backtest+
+  source_health), 1×/jour 09h. SKIP car l'ancienne tournait déjà → le pipeline d'auto-surveillance ne
+  tournait JAMAIS via sa tâche (règlement quand même assuré par le settle loop de l'API en continu).
+FIX (choix user = scan complet 2×/jour) : `Disable-ScheduledTask BETSFIX-analyses` (réversible, pas
+supprimée) + `Set-ScheduledTask BETSFIX Scan` triggers 09h **+ 16h**. Résultat : pipeline COMPLET 2×/jour,
+plus de SKIP. Le scan 11404 en cours (lancé par l'ancienne avant désactivation) non interrompu.
+NB vérifié ce jour : traçage `data_score` opérationnel en prod (fiches à data_score=3, sources fotmob/
+flashscore/sportradar) ; règlements rattrapés par le settle loop (3 combos CdM réglés : Australie-Égypte
+gagné, Argentine-Cap-Vert perdu, Colombie-Ghana gagné).
