@@ -395,20 +395,21 @@ NB vérifié ce jour : traçage `data_score` opérationnel en prod (fiches à da
 flashscore/sportradar) ; règlements rattrapés par le settle loop (3 combos CdM réglés : Australie-Égypte
 gagné, Argentine-Cap-Vert perdu, Colombie-Ghana gagné).
 
-## 2026-07-04 — Règlement combinés : décision anticipée + props joueur réglables + garde carte
-Suite au cas Las Vegas-Chicago (combo bloqué « en attente » alors qu'une jambe était perdue) :
-- **(A) Décision anticipée** (settle_analyst, verdict combo) : `if any_lost: combo["result"]="lost"` AVANT
-  la logique d'attente → un combiné avec une jambe DÉJÀ perdue est tranché « perdu » immédiatement (le
-  résultat ne peut plus changer), sans attendre 3j les jambes lentes. Cohérent avec l'auto-audit.
-- **(B) Props joueur réglables** (`code_from_pick` PLAYERBK) : le nom du joueur était POLLUÉ par le format
+## 2026-07-04 — Règlement combinés : PROPS JOUEUR réglables (cause racine Las Vegas)
+Cas Las Vegas-Chicago (combo bloqué « en attente » alors qu'une jambe était perdue).
+- **(A) Décision anticipée — ANNULÉE** : j'avais ajouté `if any_lost: combo["result"]="lost"` (trancher
+  perdu dès qu'une jambe perd) + une garde carte. Les TESTS (`test_combo_legs_complete.py`) ont révélé que
+  ça CONTREDIT la règle métier établie [[combo-publish-all-legs]] : on attend CHAQUE jambe (budget 8 essais)
+  avant de trancher/publier. **Reverté** (A + garde). Le vrai bug était (B), qui résout Las Vegas seul.
+- **(B) Props joueur réglables** (`code_from_pick` PLAYERBK) — GARDÉ : le nom du joueur était POLLUÉ par le format
   Unibet « {Joueur} - {stat} - Prolongations incluses » → `basket_player_stat` renvoyait None → jambe jamais
   réglée. Fix : couper au 1er tiret SÉPARATEUR (` - `, espaces → épargne « Jean-Pierre ») + retrait
   « prolongations incluses ». Testé 6 formats (Jackie Young/Chelsea Gray/LeBron/Jokic/seuil 20+/PRA) OK.
   Box-score ESPN avait les données (Jackie Young AST=5→won, Chelsea Gray AST=6→won). Audit : SEULES 2 jambes
   affectées (toutes Las Vegas) — aucun autre combo/pari/shadow historique.
-- **(Garde carte)** : la carte combiné se postait dès `combo.result` réglé, SANS vérifier les jambes → (A)
-  pouvait poster une carte incomplète (jambe props « · »). Ajout garde : poster QUE si toutes les jambes
-  réglées OU match > _VOID_AFTER_DAYS. Le résultat reste figé tôt (stats), la carte attend d'être complète.
-- **Rattrapage Las Vegas** : 2 jambes réglées (won/won), combo=lost, notif ré-armée → carte complète re-postée
-  (auto-réparation). Backup sidecar.
-- Anti-régression : AST OK ; fix testé sur 6 formats de props ; audit historique = 0 autre cas.
+- **Rattrapage Las Vegas** : 2 jambes réglées (won/won), combo=lost (toutes jambes réglées, une perdue),
+  notif ré-armée → carte complète re-postée (auto-réparation). Backup sidecar.
+- Anti-régression : AST OK ; fix B testé sur 6 formats de props ; audit historique = 0 autre cas ;
+  **13 tests de règlement combiné PASSENT** (dont test_combo_legs_complete qui a bloqué le revert de A).
+  MAJ test_half_handicap : « Plus de 20.5 tirs » → `SHOTS OVER 20.5` (tirs réglables depuis le 03/07).
+  LEÇON : lancer les tests AVANT de valider un changement de logique de règlement (A aurait cassé la règle).
