@@ -1619,7 +1619,15 @@ async def _settle_analyses_impl() -> int:
                     _card_simple = {"label": (_sm.group(1).strip() if _sm else _raw) or "Pari simple",
                                     "cote": (_sm.group(2).replace(",", ".") if _sm else ""),
                                     "mark": new_pick}
-            if new_combo in _chip and not d.get("notified_combo"):
+            # GARDE carte combiné : le résultat peut être figé TÔT (décision anticipée « perdu » dès qu'une
+            # jambe perd), mais on ne POSTE la carte que quand TOUTES les jambes sont réglées (sinon une jambe
+            # lente = props joueur en retard afficherait « · » -> carte incomplète). Sécurité : au-delà de
+            # _VOID_AFTER_DAYS on poste quand même (jambe non réglable -> void, cf. combo-publish-all-legs).
+            _cb0 = d.get("combo") or {}
+            _legs_ok = all(_lg.get("result") in ("won", "lost", "push", "void")
+                           for _lg in _cb0.get("legs", []))
+            if (new_combo in _chip and not d.get("notified_combo")
+                    and (_legs_ok or _match_age_days(d) >= _VOID_AFTER_DAYS)):
                 _flags_to_set.append("notified_combo")   # R2 : figé APRÈS envoi réussi
                 _m = _MARK.get(new_combo, "")
                 _cb = d.get("combo") or {}
