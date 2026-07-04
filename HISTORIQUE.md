@@ -429,3 +429,17 @@ CAUSE (2 bugs) :
 - **Forward-only** : les prochains scans tennis pricent la vraie cote corrélée. Existant : 3 basket qualifs
   Afrique = pas de Bet Builder (produit légitime) ; Lehecka en cours = re-pricing live rejeté (cotes bougées)
   -> `real_odds` figé à 1.44 (valeur avant-match vérifiée). AST OK.
+
+## 2026-07-04 — Prévention : garde-fou « combiné TOUJOURS à la vraie cote corrélée »
+Demande user (suite du bug tennis 1.83≠1.44) : ne plus refaire l'erreur + en tenir compte à la CRÉATION.
+- **Garde-fou création** (`_make_combo`) : un combiné BETSFIX est toujours même-match -> jambes corrélées ->
+  sa cote DOIT être la vraie cote corrélée Unibet. Si `real_odds` absent (repli produit = SUR-évaluation ->
+  fausse value/EV), le combiné n'est PAS retenu (abstention, log). Impact mesuré : n'écarte que les combinés
+  non plaçables (matchs sans Bet Builder, ex. 3 basket qualifs Afrique) ; foot/tennis à venir tous déjà
+  pricés corrélé -> zéro régression sur les combinés légitimes.
+- **Invariant selfcheck n°11** `_check_combo_correlated_pricing` : combiné À VENIR encore au produit
+  (real_odds=None) -> warn. Filet qui aurait capté le bug tennis + toute future régression du pricing.
+- **Anti-régression** : AST OK ; **21 tests combiné PASSENT**. 2 tests `test_combo_calibrated_ev` étaient
+  DÉJÀ rouges AVANT mes edits (confirmé par stash) — PÉRIMÉS depuis `_COMBO_REAL_MAX` 4.20→2.25 (02/07) :
+  `_fake_bb` renvoyait 4.0 > 2.25. Corrigés (cote test 1.40 -> 1.96 dans la fourchette) ; test « barrière
+  longshot » repositionné foot->basket (le FOOT garde un combiné phare de repli, la barrière dure = non-foot).
