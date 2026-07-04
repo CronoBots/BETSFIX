@@ -1491,8 +1491,15 @@ async def _settle_analyses_impl() -> int:
                 # Quand TOUTES les jambes sont réglées, on finalise immédiatement (pas d'attente).
                 _strict_fin = analyses.status_of(d) == "finished"
                 _age_d = _match_age_days(d)
-                if any_pending and ((d.get("combo_tries") or 0) < 8 or not _strict_fin
-                                    or _age_d < _VOID_AFTER_DAYS):
+                if any_lost:
+                    # DÉCISION ANTICIPÉE : une jambe DÉJÀ perdue = combiné DÉFINITIVEMENT perdu. On tranche
+                    # « perdu » tout de suite (le résultat ne peut PLUS changer), sans attendre les jambes
+                    # encore indéterminées (props joueur en retard, etc.). Cohérent avec l'auto-audit qui
+                    # juge LÉGITIME un 'perdu' avec des jambes non réglées. On continue toutefois de régler
+                    # les jambes restantes tant qu'on peut (pour la carte) : leg["result"] déjà tenté ci-dessus.
+                    combo["result"] = "lost"
+                elif any_pending and ((d.get("combo_tries") or 0) < 8 or not _strict_fin
+                                      or _age_d < _VOID_AFTER_DAYS):
                     combo["result"] = None
                     d["combo_tries"] = (d.get("combo_tries") or 0) + 1
                 else:
