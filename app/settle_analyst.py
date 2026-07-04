@@ -477,7 +477,13 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
                 dirn = line = None
             if line is not None:                         # joueur = texte AVANT la ligne (« plus de » ou « X+ »)
                 who = re.split(r"\s+(?:plus|moins)\s+de\s+|\s+\d+\s*\+", pick, maxsplit=1, flags=re.I)[0]
-                who = re.sub(r"\s*(points?|paniers?|rebonds?|passes?\s*(?:décisives?|decis\w*)?|[,&et\s])+$",
+                # Format Unibet « {Joueur} - {stat} - {mention, ex. Prolongations incluses} » : le NOM est
+                # AVANT le 1er tiret SÉPARATEUR (entouré d'espaces -> ne coupe pas un « Jean-Pierre »). Sans
+                # ça, `who` = « Jackie Young - Passes décisives - Prolongations incluses » -> box-score
+                # introuvable -> jambe jamais réglée (bug vécu Las Vegas-Chicago).
+                who = re.split(r"\s+[-–—]\s+", who, maxsplit=1)[0]
+                who = re.sub(r"\s*(points?|paniers?|rebonds?|passes?\s*(?:décisives?|decis\w*)?"
+                             r"|prolongations?\s*inclus\w*|[,&et\s])+$",
                              "", who.strip(), flags=re.I).strip(" :-–—")
                 if who and len(who) >= 2:
                     return f"PLAYERBK {_stat} {dirn} {line}|{who}"
