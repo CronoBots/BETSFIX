@@ -42,8 +42,9 @@ def test_jambe_code_vide_moneyline_et_total_sans_unite():
     assert C("Belgique", "foot", "Belgique", "France") == "1X2 1"        # foot -> 1X2
     assert C("Plus de 162.5", "basket", "Seattle", "New York") == "OVER 162.5"
     assert C("Moins de 173.5", "basket", "A", "B") == "UNDER 173.5"
-    # NON-RÉGRESSION : un marché à mot-clé ne doit PAS être détourné en moneyline/total
-    assert C("Plus de 20.5 tirs", "foot", "A", "B") == ""                # tirs -> abstention
+    # NON-RÉGRESSION : un marché à mot-clé ne doit PAS être détourné en moneyline/TOTAL BUTS (« OVER »).
+    # Les TIRS sont désormais RÉGLABLES (FotMob, 2026-07-03) -> code dédié SHOTS, pas « OVER » (total buts).
+    assert C("Plus de 20.5 tirs", "foot", "A", "B") == "SHOTS OVER 20.5"
     assert C("Total corners Plus de 7.5", "foot", "A", "B") == "CORNERS OVER 7.5"
     assert C("Belgique ou nul", "foot", "Belgique", "France") == "DC 1X"
 

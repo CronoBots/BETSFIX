@@ -1497,15 +1497,8 @@ async def _settle_analyses_impl() -> int:
                 # Quand TOUTES les jambes sont réglées, on finalise immédiatement (pas d'attente).
                 _strict_fin = analyses.status_of(d) == "finished"
                 _age_d = _match_age_days(d)
-                if any_lost:
-                    # DÉCISION ANTICIPÉE : une jambe DÉJÀ perdue = combiné DÉFINITIVEMENT perdu. On tranche
-                    # « perdu » tout de suite (le résultat ne peut PLUS changer), sans attendre les jambes
-                    # encore indéterminées (props joueur en retard, etc.). Cohérent avec l'auto-audit qui
-                    # juge LÉGITIME un 'perdu' avec des jambes non réglées. On continue toutefois de régler
-                    # les jambes restantes tant qu'on peut (pour la carte) : leg["result"] déjà tenté ci-dessus.
-                    combo["result"] = "lost"
-                elif any_pending and ((d.get("combo_tries") or 0) < 8 or not _strict_fin
-                                      or _age_d < _VOID_AFTER_DAYS):
+                if any_pending and ((d.get("combo_tries") or 0) < 8 or not _strict_fin
+                                    or _age_d < _VOID_AFTER_DAYS):
                     combo["result"] = None
                     d["combo_tries"] = (d.get("combo_tries") or 0) + 1
                 else:
@@ -1619,15 +1612,7 @@ async def _settle_analyses_impl() -> int:
                     _card_simple = {"label": (_sm.group(1).strip() if _sm else _raw) or "Pari simple",
                                     "cote": (_sm.group(2).replace(",", ".") if _sm else ""),
                                     "mark": new_pick}
-            # GARDE carte combiné : le résultat peut être figé TÔT (décision anticipée « perdu » dès qu'une
-            # jambe perd), mais on ne POSTE la carte que quand TOUTES les jambes sont réglées (sinon une jambe
-            # lente = props joueur en retard afficherait « · » -> carte incomplète). Sécurité : au-delà de
-            # _VOID_AFTER_DAYS on poste quand même (jambe non réglable -> void, cf. combo-publish-all-legs).
-            _cb0 = d.get("combo") or {}
-            _legs_ok = all(_lg.get("result") in ("won", "lost", "push", "void")
-                           for _lg in _cb0.get("legs", []))
-            if (new_combo in _chip and not d.get("notified_combo")
-                    and (_legs_ok or _match_age_days(d) >= _VOID_AFTER_DAYS)):
+            if new_combo in _chip and not d.get("notified_combo"):
                 _flags_to_set.append("notified_combo")   # R2 : figé APRÈS envoi réussi
                 _m = _MARK.get(new_combo, "")
                 _cb = d.get("combo") or {}
