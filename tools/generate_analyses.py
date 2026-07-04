@@ -849,8 +849,10 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
                 "INTERDITE.\n")
     # Combinés pré-construits Unibet (vraie cote corrélée) : on les met en cache (pour re-pricer le
     # combiné de l'analyste après coup) ET on injecte le menu pour BIAISER l'analyste vers un combiné
-    # qui en fait partie (-> on connaîtra sa vraie cote). Foot/basket seulement (tennis : 0 prepack).
-    if combo and sport in ("foot", "basket"):
+    # qui en fait partie (-> on connaîtra sa vraie cote). TENNIS INCLUS (2026-07-04) : il A un catalogue
+    # Bet Builder (196 outcomes vérifiés) -> ses combinés même-match étaient sur-cotés au PRODUIT (ex.
+    # Lehecka Set 1 + match : produit 1.83 alors que la vraie cote corrélée Unibet = 1.44).
+    if combo and sport in ("foot", "basket", "tennis"):
         # Catalogue Bet Builder : l'analyste construit son combiné DEDANS et cite l'id de chaque jambe
         # -> pricing TOUJOURS exact (vraie cote corrélée, jamais de repli produit).
         catalog = await asyncio.to_thread(unibet.betbuilder_catalog, str(match["id"]))
@@ -1063,6 +1065,16 @@ def _normalize_leg_sel(sel: str, home: str, away: str) -> str:
     if re.search(r"\bou\b", s) and (ht & {w for w in re.findall(r'[a-zà-ÿ]{4,}', s)}) and \
             (at & {w for w in re.findall(r'[a-zà-ÿ]{4,}', s)}):
         return "double chance 12"
+    # VAINQUEUR DU MATCH (tennis/2-way) : « X gagne » / « X vainqueur » / « X remporte le match » -> libellé
+    # catalogue Bet Builder « Cotes du match X ». On EXCLUT les marchés de SET/JEU/MI-TEMPS (« gagne le
+    # set 1 » = autre marché, déjà bien matché). Le nom du joueur/équipe est ce qui reste après nettoyage.
+    if (re.search(r"\b(gagne|vainqueur|remporte|l'emporte)\b", s)
+            and not re.search(r"\bset\b|\bjeux?\b|\bmanche\b|mi-?temps|\bquart\b|\bmt\b|but", s)):
+        name = re.sub(r"\b(gagne|gagnant|vainqueur|remporte|l'emporte|le|du|au|ce)\b|\bmatch\b|\bcotes?\b",
+                      " ", s)
+        name = re.sub(r"\s+", " ", name).strip(" :-–—")
+        if name and len(name) >= 2:
+            return f"cotes du match {name}"
     return sel
 
 
