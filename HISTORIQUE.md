@@ -413,3 +413,19 @@ Cas Las Vegas-Chicago (combo bloqué « en attente » alors qu'une jambe était 
   **13 tests de règlement combiné PASSENT** (dont test_combo_legs_complete qui a bloqué le revert de A).
   MAJ test_half_handicap : « Plus de 20.5 tirs » → `SHOTS OVER 20.5` (tirs réglables depuis le 03/07).
   LEÇON : lancer les tests AVANT de valider un changement de logique de règlement (A aurait cassé la règle).
+
+## 2026-07-04 — Combinés TENNIS sur-cotés (produit au lieu de la cote corrélée Unibet)
+User (screenshots) : app BETSFIX affiche combiné Lehecka Set1+Match @ **1.83** (produit 1.28×1.43), Unibet
+affiche **1.44** (vraie cote corrélée Bet Builder). Notre `unibet.betbuilder_odds` confirme 1.44.
+CAUSE (2 bugs) :
+1. **Tennis exclu du pricing** : `build_dossier` ne récupérait le catalogue Bet Builder que pour
+   `sport in ("foot","basket")` (commentaire faux « tennis : 0 prepack ») → le tennis A un catalogue (196
+   outcomes) → étendu à `("foot","basket","tennis")`.
+2. **Vainqueur de match non canonisé** : `_resolve_combo` ne matchait pas « X gagne » ↔ catalogue « Cotes
+   du match X » (Jaccard trop faible) → jambe match non résolue → tout le combiné retombait au produit.
+   Fix `_normalize_leg_sel` : « X gagne / vainqueur / remporte » (hors set/jeu/mi-temps) -> « cotes du match X ».
+   Testé : `_resolve_combo` résout maintenant les 2 jambes -> `betbuilder_odds` OK. Non-régression : libellés
+   non-vainqueur INCHANGÉS (total/BTTS/set/tirs/corners), double chance intacte, auto-vérif cote ±12% protège.
+- **Forward-only** : les prochains scans tennis pricent la vraie cote corrélée. Existant : 3 basket qualifs
+  Afrique = pas de Bet Builder (produit légitime) ; Lehecka en cours = re-pricing live rejeté (cotes bougées)
+  -> `real_odds` figé à 1.44 (valeur avant-match vérifiée). AST OK.
