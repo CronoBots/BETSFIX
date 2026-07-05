@@ -12,6 +12,27 @@
 
 ---
 
+## 2026-07-05 — Combinés : proba conjointe corrigée de la corrélation + garde-fou PICK NONE
+- **Quoi** : dans `_build_combo_from_pool` (`tools/generate_analyses.py`), la proba d'un combiné same-match
+  n'est plus le **produit** des probas de jambes (= hypothèse d'**indépendance**) mais ce produit **ajusté**
+  par la corrélation que le marché price déjà dans la **vraie cote Bet Builder** : `k = produit_cotes / real`
+  (`k<1` = jambes anti-corrélées → proba abaissée ; `k>1` = domination corrélée → proba relevée). En plus,
+  si l'analyste a écarté le match (`PICK: NONE`), on n'accepte un combiné **que** s'il a une vraie value
+  (`best`) — plus de repli « le plus sûr » forcé.
+- **Pourquoi** : combiné tennis FAA/ADF affiché « chance 41 % » alors que le match était **SKIP** (PICK NONE)
+  et que les 2 jambes (FAA +1.5 set @1.23 · ADF +2.5 jeux @2.10) sont **anti-corrélées** (Unibet cote le
+  combiné **3.70 > produit 2.58**) → proba réelle ~28 %, EV en réalité **nulle/négative**. Faux positif.
+- **Fichiers** : `tools/generate_analyses.py` (`_build_combo_from_pool` +param `pick_none`, `_make_combo`
+  passe `_parse_pick`) ; sidecar `data/analyses/tennis_16385335.json` (combo bidon retiré ; shadow/calibration
+  intacts ; match à venir, rien de figé au ROI).
+- **Régression vérifiée** : AST + import OK ; **test unitaire ciblé** (rejoue FAA/ADF) → REJETÉ à real 3.40
+  ET 3.70, ET même avec un PICK réel (proba corrigée 28,5 % < seuil 33 %) ; **contrôle inverse** : combiné
+  positivement corrélé (real 1.90 < produit 2.58) → proba **relevée** 41 %→55 %, EV 1.04, **gardé** (foot non
+  cassé, mieux valorisé) ; **selfcheck 10/10 OK** avant et après ; compteur monotone 82 et calibration 1973
+  inchangés.
+- **Résultat** : le faux combiné disparaît ; règle de fond qui tue ce type de faux positif partout (pas
+  seulement ce match). cf. [[kambi-betbuilder-pricing]], [[combo-construction-rules]].
+
 ## 2026-07-02 (session) — condensé
 - **Remote-control** : garde-fou singleton anti-doublon (`remote-control-loop.ps1`).
 - **Onglets sport** : 2 courbes (Simples/Combinés), W/L + stats par courbe, en boutons, 14 pastilles.

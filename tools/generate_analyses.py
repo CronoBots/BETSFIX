@@ -1271,7 +1271,7 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
     """Combiné du match : d'abord l'OPTIMISEUR sur le vivier (vraie cote ≥1.80, chance max) ; à défaut
     de vivier exploitable, repli sur l'ancien parsing `COMBO:` (avec pricing/auto-trim)."""
     eid = str(event_id) if event_id else None
-    _pick_none = not _pick_code(analysis)   # PICK: NONE / SKIP -> pas de combiné de repli forcé (garde-fou)
+    _pick_none = not _parse_pick(analysis)   # PICK: NONE / SKIP -> pas de combiné de repli forcé (garde-fou)
     if eid and _CATALOG_CACHE.get(eid):
         cands = _parse_pool(analysis, sport, home, away)
         built = (_build_combo_from_pool(eid, cands, sport, home, away, pick_none=_pick_none)
