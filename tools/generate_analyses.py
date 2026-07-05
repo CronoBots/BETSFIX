@@ -1042,6 +1042,9 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
             "et chiffré ; PAS de tournure ambiguë du type « ne perd pas mais bascule sur un but adverse »>`\n"
             "PUIS, sur UNE ligne, TA DÉCISION de combiné :\n"
             "`COMBOPICK: <id>+<id>[+<id>]`  = les 2-3 ids DU POOL qui forment TA domination corrélée, "
+            "à cotes PROCHES (chacune ~1.25-1.65) et d'ANGLES DIFFÉRENTS. ⚠️ NE choisis JAMAIS une jambe à "
+            "cote ÉLEVÉE (≥ ~1.55) corrélée aux autres : elle ABSORBE le combiné (la cote combinée tombe SOUS "
+            "cette jambe -> combiné inutile). La cote combinée doit rester au-dessus de CHAQUE jambe.  "
             "OU  `COMBOPICK: NONE`  s'il n'existe AUCUN combiné cohérent ET porteur de value (coin-flip, "
             "jambes non corrélées, marché à éviter, no-bet). Ne fabrique JAMAIS un combiné « juste pour "
             "parier » : NONE est la bonne réponse quand le match ne s'y prête pas.\n"
@@ -1187,7 +1190,8 @@ def _clean_leg_text(t: str) -> str:
 
 
 def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", away: str = "",
-                           max_legs: int = 3, pick_none: bool = False, is_wc: bool = False) -> dict | None:
+                           max_legs: int = 3, pick_none: bool = False, is_wc: bool = False,
+                           must_include: set | None = None) -> dict | None:
     """Choisit, dans le VIVIER, la meilleure combinaison COMBINABLE par EV (= vraie cote × proba :
     capture À LA FOIS la value/le faible rabot ET la chance), sous contraintes vraie cote ≥
     _COMBO_REAL_MIN et chance ≥ _COMBO_PROB_MIN.
@@ -1238,9 +1242,15 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     # best = meilleure EV parmi les combos « value » (real ≥ MIN ET chance ≥ MIN) ; safest = le PLUS SÛR
     # (plus haute chance), repli MOINS GOURMAND quand aucun combo value n'existe -> on ne force JAMAIS un
     # longshot à haute cote, et on produit TOUJOURS un combiné si le vivier a ≥2 jambes (pas de suppression).
+    # ANCRAGE sur la désignation de l'analyste (fix 2026-07-06) : si `must_include` est fourni, on ne
+    # considère QUE les combinaisons qui contiennent TOUTES ses jambes -> le combiné final reste SON choix
+    # (au pire enrichi d'une jambe pour dé-dominer), jamais un combiné de remplacement décorrélé de sa prose.
+    _must_idx = ({i for i, c in enumerate(cands) if c.get("oid") in must_include} if must_include else set())
     best, safest, any_safe = None, None, None
     for size in range(min(max_legs, n), 1, -1):
         for idx in combinations(range(n), size):
+            if _must_idx and not _must_idx.issubset(idx):
+                continue
             real = unibet.betbuilder_odds(eid, [cands[i]["oid"] for i in idx])
             if not real or real > r_max:
                 continue
@@ -1362,8 +1372,16 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
         if _designation:
             picked = [c for c in cands if c.get("oid") in set(_designation)]
             if len(picked) >= 2:
+                _pick_oids = {c.get("oid") for c in picked}
+                # a) la désignation TELLE QUELLE (ses jambes exactes).
                 built = _build_combo_from_pool(eid, picked, sport, home, away,
                                                pick_none=False, is_wc=_is_wc)
+                if built:
+                    return built
+                # b) désignation dominée/invalide -> combiné ANCRÉ : on GARDE ses jambes et on en ajoute une
+                # du vivier pour dé-dominer, plutôt que de repartir sur un combiné qui ignore son choix.
+                built = _build_combo_from_pool(eid, cands, sport, home, away,
+                                               pick_none=False, is_wc=_is_wc, must_include=_pick_oids)
                 if built:
                     return built
                 if not _is_wc:
