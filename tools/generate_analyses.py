@@ -1353,7 +1353,11 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
                  if cands else None)
         if built:
             return built
-    combo = _parse_combo(analysis, sport, home, away, event_id)
+        # Catalogue Bet Builder PRÉSENT -> le combiné ne peut venir QUE de COMBOPICK/optimiseur (tous deux
+        # passés aux filtres logique). On NE retombe PAS sur le parseur legacy `COMBO:` (non filtré : il
+        # laissait passer des combinés sans proba ni contrôle de corrélation, cf. fuite Chine-Taipei 2026-07-05).
+        return None
+    combo = _parse_combo(analysis, sport, home, away, event_id)   # legacy : UNIQUEMENT si pas de catalogue
     # GARDE-FOU (2026-07-04) : un combiné BETSFIX est TOUJOURS même-match -> ses jambes sont CORRÉLÉES ->
     # sa cote = la VRAIE cote corrélée Unibet (Bet Builder), JAMAIS le produit naïf (qui SUR-évalue -> fausse
     # value/EV -> combiné retenu à tort). Si on n'a pas pu obtenir cette cote réelle (`real_odds` absent, p.ex.
