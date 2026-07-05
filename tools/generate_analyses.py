@@ -1266,11 +1266,21 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     nv = 1.0
     for lg in legs:
         nv *= lg["cote"]
+    # Libellé HONNÊTE sur la corrélation réelle (fini le « peu corrélées » systématique) : k = total/real
+    # = ce que le marché price. k>1 -> cote corrélée RABOTÉE sous le produit = jambes qui tombent ensemble
+    # (bon signe) ; k<1 -> cote GONFLÉE = jambes peu liées, retenu seulement pour la value.
+    k = nv / real if real else 1.0
+    if k >= 1.03:
+        corr = "jambes à domination corrélée (tendent à tomber ensemble)"
+    elif k <= 0.97:
+        corr = "jambes peu liées à cote pleine (retenu pour la value)"
+    else:
+        corr = "jambes quasi indépendantes"
     return {"legs": legs, "total": round(nv, 2), "real_odds": round(real, 2),
             "shave": round(100 * (1 - real / nv), 1) if nv else None,
             "priced_by": "betbuilder_pool", "prob": round(prob * 100),
-            "why": f"Combiné optimisé sur la VRAIE cote Unibet ({real:.2f}) — "
-                   f"jambes variées peu corrélées, chance estimée {round(prob * 100)}%."}
+            "why": f"Combiné optimisé sur la VRAIE cote Unibet ({real:.2f}) — {corr}, "
+                   f"chance estimée {round(prob * 100)}%."}
 
 
 def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str | None):

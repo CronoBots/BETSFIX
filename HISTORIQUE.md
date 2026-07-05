@@ -33,6 +33,27 @@
 - **Résultat** : le faux combiné disparaît ; règle de fond qui tue ce type de faux positif partout (pas
   seulement ce match). cf. [[kambi-betbuilder-pricing]], [[combo-construction-rules]].
 
+### 2026-07-05 (suite) — audit post-scan + 3 raffinements
+- **Audit auto** (scratchpad `audit_scan.py`) : re-price chaque combiné via Bet Builder (cote affichée ==
+  vraie cote corrélée live ? → **drift 0,0 %** sur les 3 combinés du scan), `total==produit`, proba
+  recalculée depuis le POOL, EV, garde-fou PICK NONE. A **révélé** un écart de proba (4-5 pts) sur le foot.
+- **Raffinement 1 — `k` basé CATALOGUE** : le facteur `k` (et le `total`) utilisaient les cotes POOL (LLM)
+  d'un côté, catalogue de l'autre → proba incohérente avec le total affiché. Désormais `k = nvp/real` avec
+  `nvp` = produit des **vraies cotes catalogue Unibet** (`_leg_odds`, mêmes cotes que le `total`) → proba
+  cohérente ET plus correcte (catalogue = vérité Unibet). Vérifié : coïncidence `total==produit`, proba
+  auditable. `tools/generate_analyses.py`.
+- **Raffinement 2 — invariant selfcheck `combo_ev_value`** : grave la règle → un combiné **à venir**
+  tennis/basket doit porter une value réelle (`EV = real×prob/100 ≥ 0,95`) ; foot exclu (repli sûr autorisé) ;
+  forward-only. `app/selfcheck.py` (11e invariant, **OK** au run).
+- **Raffinement 3 — libellé honnête** : fini le « jambes variées peu corrélées » systématique ; le texte
+  reflète `k` (domination corrélée / quasi indépendantes / peu liées à cote pleine).
+- **Incident corrigé** : le script de recompute hors-scan effaçait un combo si `betbuilder_catalog` revenait
+  vide (saturation transitoire) → rendu **non-destructif** (skip si catalogue indispo, jamais d'effacement).
+  2 combos effacés → régénérés par un nouveau scan complet (code final).
+- **Régression vérifiée** : AST + imports OK ; test unitaire corrélation (cotes catalogue ≠ POOL) → FAA/ADF
+  toujours REJETÉ, corrélé+ gardé, `total==produit` OK ; selfcheck **11/11**, monotone 82, calibration
+  inchangés.
+
 ## 2026-07-02 (session) — condensé
 - **Remote-control** : garde-fou singleton anti-doublon (`remote-control-loop.ps1`).
 - **Onglets sport** : 2 courbes (Simples/Combinés), W/L + stats par courbe, en boutons, 14 pastilles.
