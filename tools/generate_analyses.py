@@ -1113,6 +1113,14 @@ _COMBO_REAL_MAX = 2.25      # haut de la fourchette cible
 _COMBO_PROB_MIN = 0.40      # chance mini pour un combo « value » dans la fourchette (au-delà = longshot)
 _COMBO_MEANINGFUL = 1.70    # cote plancher du repli « le plus sûr » (proche de la cible, jamais 1.03)
 _COMBO_LEG_MIN = 1.10       # cote MINIMALE d'une jambe : sous 1.10 = jambe inutile (n'apporte rien) -> écartée
+# GARDE-FOUS LOGIQUE (2026-07-05, après audit adversarial : 4 combinés/5 illogiques). Un combiné même-match
+# n'a de sens QUE s'il est une « domination corrélée » (les jambes tombent ENSEMBLE) ET pas un coin-flip.
+_COMBO_CORR_MIN = 0.999     # k = produit_cotes/vraie_cote ; seuil ≈ 1 (0.999 = tolérance flottante pour ne pas
+#   rejeter l'indépendance stricte k=1.0). k < ~1 = jambes ANTI-corrélées (couverture, la vraie cote est
+#   GONFLÉE au-dessus du produit) -> combiné illogique (cas Fritz/Bublik k=0.86, De Minaur 0.96, Mexique 0.99)
+#   -> ÉCARTÉ. On n'accepte qu'une corrélation NON négative (domination, pas hedge).
+_COMBO_CONJ_MIN = 0.55      # proba conjointe MINIMALE d'un combiné « value » : au-dessus du coin-flip (écarte
+#   Toronto 46 %, Fritz 47 %). Le repli CdM (1 combiné/match) n'est PAS soumis à ce seuil.
 
 
 def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
@@ -1215,19 +1223,21 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
             # (real rabotée SOUS le produit = domination corrélée). Sans ça, un combiné anti-corrélé affiche
             # une FAUSSE value (cas FAA/ADF : 41 % produit vs ~28 % réel car Unibet cote 3.70 > produit 2.58).
             # Cohérent avec le pricing Bet Builder déjà capté. cf. [[kambi-betbuilder-pricing]].
-            if real and nvp:
-                prob = max(0.0, min(1.0, prob * nvp / real))
+            k = (nvp / real) if (real and nvp) else 1.0   # facteur de corrélation MARCHÉ (>1 = domination)
+            prob = max(0.0, min(1.0, prob * k))
             if any_safe is None or prob > any_safe[0]:   # tout dernier recours (n'importe quelle cote)
                 any_safe = (prob, real, idx)
-            # repli PRINCIPAL = le PLUS SÛR PARMI les cotes SIGNIFICATIVES (≥ r_mean) : évite le combiné
-            # dégénéré à 1.03 sur un archi-favori (une cote plancher, sinon le pari n'a aucun sens).
-            if real >= r_mean and (safest is None or prob > safest[0]):
+            # repli PRINCIPAL (CdM) = le PLUS SÛR PARMI les combos CORRÉLÉS POSITIVEMENT (k ≥ _COMBO_CORR_MIN)
+            # et à cote significative (≥ r_mean) : garantit un combiné « domination corrélée » par match de CdM,
+            # jamais un hedge anti-corrélé ni un combiné dégénéré à 1.03. (Repli sur any_safe si aucun corrélé.)
+            if real >= r_mean and k >= _COMBO_CORR_MIN and (safest is None or prob > safest[0]):
                 safest = (prob, real, idx)
-            # EV maximale parmi les combinaisons qui tiennent la VALUE (≥ MIN) ET la chance mini. HORS
-            # FOOT (basket/tennis) : on n'accepte QUE la VRAIE value (EV = cote×chance calibrée > 1) —
-            # on ne FORCE jamais un combiné sans confiance réelle ET value (demande user ; la CdM foot,
-            # elle, garde son combiné phare via le repli plus bas).
-            if real >= r_min and prob >= p_min and (_wc_foot or real * prob > 1.0):
+            # BEST = value réelle STRICTE. Un combiné même-match n'est retenu que s'il est (1) CORRÉLÉ
+            # POSITIVEMENT (k ≥ _COMBO_CORR_MIN : domination, pas hedge), (2) au-dessus du coin-flip
+            # (prob ≥ _COMBO_CONJ_MIN) et (3) porteur de value (EV>1, sauf repli CdM). Sinon ABSTENTION.
+            # Encode l'audit 2026-07-05 : écarte Fritz/De Minaur (anti-corrélés), Toronto (proba 46 %).
+            if (real >= r_min and k >= _COMBO_CORR_MIN and prob >= _COMBO_CONJ_MIN
+                    and (_wc_foot or real * prob > 1.0)):
                 ev = real * prob
                 if best is None or ev > best[0]:
                     best = (ev, real, prob, idx)

@@ -82,6 +82,30 @@
   cote corrélée/jambe → k=1 → teste bien la calibration) + **ajout `test_combo_correlation_ajuste_la_proba`**
   (corrélé→proba relevée / anti→abaissée, EV ~constante). **Suite complète : 237 passed.**
 
+### 2026-07-05 (suite 4) — Garde-fous LOGIQUE des combinés (audit adversarial)
+- **Constat** (demande user « plus d'erreurs de paris illogiques ») : audit adversarial de 5 combinés
+  proposés → **4/5 illogiques**. Cause racine : le combiné est fabriqué MÉCANIQUEMENT depuis le vivier
+  `POOL` par l'optimiseur EV, **découplé du verdict de la fiche** (l'analyste écrit « no-bet »,
+  « jamais en combiné », « PICK: NONE », « éviter les jeux » en prose, mais l'optimiseur ne lit que les
+  lignes `POOL:` + le code `PICK:`). D'où des combinés qui CONTREDISENT leur propre fiche.
+- **Erreurs types** : (a) combiné construit contre le verdict (Toronto « jamais en combiné », De Minaur
+  PICK NONE) ; (b) jambes ANTI-corrélées = hedge, pas domination (Fritz k=0.86, De Minaur 0.96) ;
+  (c) proba conjointe coin-flip (Toronto 46 %, Fritz 47 %) ; (d) jambe « passagère » @1.11 qui gonfle la
+  cote sans edge ; (e) sélection « pas la moins mauvaise » (Mexique empile les 2 pires jambes, -20 %).
+- **Fix A — filtres déterministes** (`tools/generate_analyses.py`, `_build_combo_from_pool`) :
+  - `_COMBO_CORR_MIN = 0.999` : **corrélation positive obligatoire** (k = produit_cotes/vraie_cote ≥ ~1).
+    k<1 = anti-corrélé = hedge → ÉCARTÉ. Tue Fritz/De Minaur/Mexique-v1. Le repli CdM ne prend QUE des
+    combos corrélés (k≥0.999).
+  - `_COMBO_CONJ_MIN = 0.55` : **proba conjointe ≥ 55 %** (au-dessus du coin-flip). Tue Toronto/Fritz.
+    Le repli CdM (1 combiné/match) n'y est PAS soumis (garde un combiné).
+  - Épargne la vraie domination corrélée (Brésil k=1.25, gardé).
+- **Retrait immédiat** (fiches pas encore commencées) : De Minaur & Fritz combos RETIRÉS ; Mexique CdM
+  corrigé (anti-corrélé -20 % k=0.99 → corrélé k=1.0, prob 48 %). Toronto/Brésil = inprogress, non touchés.
+- **Régression vérifiée** : AST OK ; test `test_combo_correlation_ajuste` adapté (anti-corrélé → ÉCARTÉ) ;
+  **237 tests passent** ; selfcheck **11/11 OK**. cf. [[combo-construction-rules]], [[combo-prob-market-correlation]].
+- **Reste (fix B, non fait)** : faire décider l'analyste (ligne `COMBO: OUI/NON` explicite) pour respecter
+  ses réserves en prose ; étendre le panel de validation au combiné. À cadrer.
+
 ## 2026-07-02 (session) — condensé
 - **Remote-control** : garde-fou singleton anti-doublon (`remote-control-loop.ps1`).
 - **Onglets sport** : 2 courbes (Simples/Combinés), W/L + stats par courbe, en boutons, 14 pastilles.

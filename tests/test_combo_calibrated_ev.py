@@ -78,13 +78,14 @@ def test_combo_correlation_ajuste_la_proba(monkeypatch):
         monkeypatch.setattr(gen.unibet, "betbuilder_odds", lambda eid, oids: real)
         return gen._build_combo_from_pool("123", _cands2(), "basket")
 
-    corr = build(1.90)   # vraie cote SOUS le produit 2.25 -> corrélation positive -> proba relevée
-    neut = build(2.25)   # vraie cote == produit -> indépendantes -> proba = produit (56 %)
-    anti = build(2.70)   # vraie cote AU-DESSUS du produit -> anti-corrélées -> proba abaissée
-    assert corr and neut and anti
-    assert corr["prob"] == 67 and neut["prob"] == 56 and anti["prob"] == 47
-    assert corr["prob"] > neut["prob"] > anti["prob"]
+    corr = build(1.90)   # vraie cote SOUS le produit 2.25 -> corrélation positive -> proba relevée, GARDÉ
+    neut = build(2.25)   # vraie cote == produit -> indépendantes (k=1) -> proba = produit (56 %), GARDÉ
+    anti = build(2.70)   # vraie cote AU-DESSUS du produit -> ANTI-corrélées (k<1) -> ÉCARTÉ (garde-fou)
+    assert corr and neut, "corrélé positif et indépendant (k>=1) doivent produire un combiné"
+    assert anti is None, "anti-corrélé (k<1) = hedge same-match illogique -> doit être ÉCARTÉ"
+    assert corr["prob"] == 67 and neut["prob"] == 56
+    assert corr["prob"] > neut["prob"]
     # EV réelle = real × prob = produit_probas × produit_cotes -> quasi CONSTANTE (~1.27), indépendante de
     # la corrélation : la correction ne « crée » pas de value, elle corrige la PROBA affichée.
-    for r in (corr, neut, anti):
+    for r in (corr, neut):
         assert abs(r["real_odds"] * r["prob"] / 100 - 1.27) <= 0.02
