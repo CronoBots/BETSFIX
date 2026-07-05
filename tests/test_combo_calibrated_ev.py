@@ -12,9 +12,14 @@ from app import analyses  # noqa: E402
 
 
 def _cands():
-    return [{"sel": "A", "cote": 2.0, "code": "OVER 2.5", "oid": 101, "prob": 80},
-            {"sel": "B", "cote": 2.0, "code": "DC 1X", "oid": 102, "prob": 80},
-            {"sel": "C", "cote": 2.0, "code": "1X2 1", "oid": 103, "prob": 80}]
+    # Cote de jambe = 1.40 = la cote corrélée PAR jambe simulée par _fake_bb. La cohérence est REQUISE
+    # depuis la correction de corrélation (2026-07-05) : la proba conjointe est ajustée par k = produit
+    # des cotes / vraie cote combinée. Ici produit (1.40²=1.96) == vraie cote (_fake_bb) -> k=1 -> la proba
+    # reste le PRODUIT DES PROBAS CALIBRÉES (ce que ces tests ciblent). Des cotes incohérentes (ex. 2.0
+    # avec une cote combinée 1.96, physiquement impossible) feraient exploser k et fausseraient le test.
+    return [{"sel": "A", "cote": 1.40, "code": "OVER 2.5", "oid": 101, "prob": 80},
+            {"sel": "B", "cote": 1.40, "code": "DC 1X", "oid": 102, "prob": 80},
+            {"sel": "C", "cote": 1.40, "code": "1X2 1", "oid": 103, "prob": 80}]
 
 
 def _fake_bb(eid, oids):
@@ -54,3 +59,32 @@ def test_combo_sans_calibration_dispo_garde_la_proba_brute(monkeypatch):
     monkeypatch.setattr(analyses, "calibrated_conf", lambda prob, sport, code: prob)
     res = gen._build_combo_from_pool("123", _cands(), "foot")
     assert res is not None and res["prob"] == 64, "sans données de calibration, on garde la proba brute"
+
+
+def _cands2():
+    # 2 jambes @1.50 (produit 2.25), proba calibrée 75 % chacune (produit 0.5625 = 56 %).
+    return [{"sel": "A", "cote": 1.50, "code": "OVER 150.5", "oid": 201, "prob": 75},
+            {"sel": "B", "cote": 1.50, "code": "HCAP HOME", "oid": 202, "prob": 75}]
+
+
+def test_combo_correlation_ajuste_la_proba(monkeypatch):
+    """Correction de corrélation (2026-07-05) : la proba conjointe = produit des probas AJUSTÉ par
+    k = produit_cotes / vraie_cote. k>1 (cote combinée SOUS le produit = jambes corrélées) -> proba
+    RELEVÉE ; k<1 (cote AU-DESSUS = anti-corrélées) -> proba ABAISSÉE. Sans ça, un combiné anti-corrélé
+    afficherait une fausse value (cas FAA/ADF)."""
+    monkeypatch.setattr(analyses, "calibrated_conf", lambda prob, sport, code: 75)
+
+    def build(real):
+        monkeypatch.setattr(gen.unibet, "betbuilder_odds", lambda eid, oids: real)
+        return gen._build_combo_from_pool("123", _cands2(), "basket")
+
+    corr = build(1.90)   # vraie cote SOUS le produit 2.25 -> corrélation positive -> proba relevée
+    neut = build(2.25)   # vraie cote == produit -> indépendantes -> proba = produit (56 %)
+    anti = build(2.70)   # vraie cote AU-DESSUS du produit -> anti-corrélées -> proba abaissée
+    assert corr and neut and anti
+    assert corr["prob"] == 67 and neut["prob"] == 56 and anti["prob"] == 47
+    assert corr["prob"] > neut["prob"] > anti["prob"]
+    # EV réelle = real × prob = produit_probas × produit_cotes -> quasi CONSTANTE (~1.27), indépendante de
+    # la corrélation : la correction ne « crée » pas de value, elle corrige la PROBA affichée.
+    for r in (corr, neut, anti):
+        assert abs(r["real_odds"] * r["prob"] / 100 - 1.27) <= 0.02
