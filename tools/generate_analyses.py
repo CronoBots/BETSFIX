@@ -101,7 +101,14 @@ WC_NOTE = (
     "MOINS FIABLE et il a fait perdre nos derniers combinés. RÈGLE : JAMAIS de jambe cartons dans un "
     "combiné (interdit). En pari simple, ne retiens un pari cartons que dans le cas EXCEPTIONNEL où tu as "
     "À LA FOIS la moyenne cartons/match de l'arbitre DÉSIGNÉ (donnée ci-dessus ou recherche web « <arbitre> "
-    "yellow cards per game ») ET un enjeu clair (match tendu/rival) ; au moindre doute, SKIP les cartons.\n")
+    "yellow cards per game ») ET un enjeu clair (match tendu/rival) ; au moindre doute, SKIP les cartons.\n"
+    "• COMBINÉ OBLIGATOIRE (CdM) : un combiné est joué sur CHAQUE match de Coupe du Monde. Tu DOIS donc "
+    "désigner TON combiné via `COMBOPICK: <ids>` (2-3 jambes du POOL formant une VRAIE domination corrélée, "
+    "cohérentes avec TON scénario du match) — JAMAIS `COMBOPICK: NONE` ici. Choisis-le toi (cohérent) "
+    "plutôt que de laisser un empilement automatique. La cote combinée doit rester SUPÉRIEURE à celle de "
+    "chaque jambe seule ; si 2 jambes sont quasi-redondantes (ex. « moins de 2,5 buts » + « moins de 1,5 en "
+    "1re MT » = presque le même événement), la cote s'effondre sous la jambe seule -> combiné inutile, "
+    "prends plutôt des jambes d'angles DIFFÉRENTS du même scénario (résultat + total + une équipe marque).\n")
 
 COMBO_MISSION = (
     "\n\nMISSION SPÉCIALE — COMBINÉ Coupe du Monde (même match) : construis LE combiné de ce match. "
@@ -1031,7 +1038,8 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
             + _range
             + "⚠️ FORMAT EXACT. D'abord le VIVIER (6-8 candidates du catalogue, pour la calibration), une "
             "ligne chacune, id ENTRE CROCHETS + ta proba honnête :\n"
-            "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi, factuel et chiffré>`\n"
+            "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi : CLAIR, UNE seule idée nette, factuel "
+            "et chiffré ; PAS de tournure ambiguë du type « ne perd pas mais bascule sur un but adverse »>`\n"
             "PUIS, sur UNE ligne, TA DÉCISION de combiné :\n"
             "`COMBOPICK: <id>+<id>[+<id>]`  = les 2-3 ids DU POOL qui forment TA domination corrélée, "
             "OU  `COMBOPICK: NONE`  s'il n'existe AUCUN combiné cohérent ET porteur de value (coin-flip, "
