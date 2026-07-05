@@ -925,6 +925,21 @@ def _parse_pick(analysis: str) -> str:
     return "" if code in ("", "NONE") else code
 
 
+def _parse_combo_designation(analysis: str):
+    """DÉCISION de combiné de l'analyste (fix B 2026-07-05 : le combiné reflète SON jugement, pas un
+    empilement mécanique). `COMBOPICK: <id>+<id>[+<id>]` -> [oids choisis dans le POOL] ; `COMBOPICK: NONE`
+    -> [] (abstention EXPLICITE : l'analyste ne veut pas de combiné) ; ligne absente -> None (repli
+    optimiseur, rétrocompat avec les anciennes fiches)."""
+    m = re.search(r"^[\s`*>\-]*COMBOPICK:\s*(.+?)\s*$", analysis, re.M)
+    if not m:
+        return None
+    body = re.sub(r"[`*]", "", m.group(1)).strip()
+    if body.upper().startswith("NONE"):
+        return []
+    ids = [int(x) for x in re.findall(r"\d{5,}", body)]
+    return ids if ids else []
+
+
 def _cb_toks(s: str):
     """(mots ≥4 lettres, nombres) d'une sélection — séparés car le NOMBRE (ligne) est discriminant
     (« Plus de 2.5 » ≠ « Plus de 1.5 ») : on l'exige égal au matching, pas juste un recouvrement de mots."""
@@ -1000,21 +1015,28 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
               "variance) : privilégie les marchés d'ÉQUIPE / de MATCH.\n" if _foot
               else "  • Inclus AU MOINS 1-2 candidates à cote 1.5-2.5 (sinon impossible d'atteindre 1.80 "
               "réel). Pas deux totaux qui se recoupent ; chaque candidate ≥ ~65 % ; PAS de cartons/corners.\n")
-    return ("\n\nCATALOGUE COMBINABLE BET BUILDER — au lieu d'un combiné figé, propose un VIVIER de "
-            "6 à 8 JAMBES CANDIDATES prises DANS CETTE LISTE. Un OPTIMISEUR choisira la meilleure "
-            "combinaison combinable visant " + _target + ".\n"
-            "⚠️⚠️ CHANGEMENT DE LOGIQUE — ceci REMPLACE toute consigne de « domination corrélée » plus "
-            "haut. On calcule désormais la VRAIE cote Unibet, et Unibet RABOTE LOURDEMENT les jambes "
-            "CORRÉLÉES (ex. « équipe gagne » + « équipe marque 2 buts » + « +1.5 buts » = 3 fois le même "
-            "scénario buts -> cote rabotée de 30 %, value détruite). Il faut désormais des jambes "
-            "INDÉPENDANTES (qui ne décrivent PAS le même scénario) :\n"
-            "  • Mélange des ANGLES SANS LIEN : 1 résultat (double chance) + 1 total de buts + 1 jambe "
-            "d'un AUTRE registre (une équipe marque, mi-temps, props joueur…). JAMAIS 3 jambes « buts ».\n"
+    return ("\n\nCATALOGUE COMBINABLE BET BUILDER — construis ton combiné À PARTIR de cette liste (cite "
+            "l'id de chaque jambe -> pricing exact). Objectif : " + _target + ".\n"
+            "⚠️ PRINCIPE — DOMINATION CORRÉLÉE (c'est TOI qui décides le combiné, pas un optimiseur "
+            "aveugle) : un combiné même-match doit parier UN SEUL scénario cohérent, décliné en jambes qui "
+            "TOMBENT ENSEMBLE (ex. le favori domine -> il ne perd pas + gagne une mi-temps + son total). "
+            "Fait mathématique : l'EV d'un combiné = le PRODUIT des value de chaque jambe, INDÉPENDANT de la "
+            "corrélation (Unibet rabote la cote des jambes corrélées MAIS leur proba conjointe monte d'autant "
+            "-> la value NE change PAS). Donc la corrélation ne « détruit » RIEN : elle AUGMENTE la chance de "
+            "passer. Conséquences IMPÉRATIVES :\n"
+            "  • Chaque jambe doit être crédible et cohérente avec le MÊME scénario que les autres.\n"
+            "  • INTERDIT : des jambes qui gagnent dans des scénarios OPPOSÉS (ex. « X n'est pas balayé » + "
+            "« son adversaire reste tout proche » = hedge incohérent), ou une jambe hors-sujet juste pour "
+            "gonfler la cote.\n"
             + _range
-            + "⚠️ FORMAT EXACT, une ligne par candidate (après la section Mise), id du catalogue ENTRE "
-            "CROCHETS + ta proba honnête :\n"
-            "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi cette jambe, factuel et chiffré>`\n"
-            "(NE produis PAS de ligne COMBO: ni de section 🎲 : l'optimiseur bâtit le combiné final.) "
+            + "⚠️ FORMAT EXACT. D'abord le VIVIER (6-8 candidates du catalogue, pour la calibration), une "
+            "ligne chacune, id ENTRE CROCHETS + ta proba honnête :\n"
+            "`POOL: <sélection> @<cote> [<id>] (<prob>%) — <pourquoi, factuel et chiffré>`\n"
+            "PUIS, sur UNE ligne, TA DÉCISION de combiné :\n"
+            "`COMBOPICK: <id>+<id>[+<id>]`  = les 2-3 ids DU POOL qui forment TA domination corrélée, "
+            "OU  `COMBOPICK: NONE`  s'il n'existe AUCUN combiné cohérent ET porteur de value (coin-flip, "
+            "jambes non corrélées, marché à éviter, no-bet). Ne fabrique JAMAIS un combiné « juste pour "
+            "parier » : NONE est la bonne réponse quand le match ne s'y prête pas.\n"
             "Catalogue :\n" + "\n".join(rows) + "\n")
 
 
@@ -1299,14 +1321,33 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
 
 def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str | None,
                 comp: str = ""):
-    """Combiné du match : d'abord l'OPTIMISEUR sur le vivier (vraie cote ≥1.80, chance max) ; à défaut
-    de vivier exploitable, repli sur l'ancien parsing `COMBO:` (avec pricing/auto-trim).
-    `comp` = compétition -> détecte la Coupe du Monde (repli « un combiné par match » réservé à la CdM)."""
+    """Combiné du match. PRIORITÉ (fix B 2026-07-05) à la DÉCISION de l'analyste (`COMBOPICK:`) : il désigne
+    LUI-MÊME son combiné (domination corrélée) ou s'abstient (`NONE`). Repli sur l'optimiseur du vivier si
+    pas de désignation (rétrocompat) ou pour garantir le combiné CdM. Filtres logique appliqués dans tous
+    les cas. `comp` -> détecte la Coupe du Monde (1 combiné/match réservé à la CdM)."""
     eid = str(event_id) if event_id else None
     _pick_none = not _parse_pick(analysis)   # PICK: NONE / SKIP -> pas de combiné de repli forcé (garde-fou)
     _is_wc = _is_big_match(comp)             # CdM -> garde un combiné par match ; hors CdM -> aligné value-only
+    _designation = _parse_combo_designation(analysis)   # [oids] | [] (COMBOPICK: NONE) | None (absent)
     if eid and _CATALOG_CACHE.get(eid):
         cands = _parse_pool(analysis, sport, home, away)
+        # 1) DÉCISION EXPLICITE de l'analyste : NONE hors CdM = abstention (respecte sa réserve « no-bet /
+        #    jamais en combiné » que l'optimiseur mécanique ignorait -> cause des combinés illogiques).
+        if _designation == [] and not _is_wc:
+            return None
+        # 2) COMBOPICK: <ids> -> on ne price QUE les jambes qu'il a désignées (son scénario corrélé), puis
+        #    on passe les MÊMES filtres logique. Une désignation incohérente (anti-corrélée, coin-flip) est
+        #    donc quand même écartée hors CdM.
+        if _designation:
+            picked = [c for c in cands if c.get("oid") in set(_designation)]
+            if len(picked) >= 2:
+                built = _build_combo_from_pool(eid, picked, sport, home, away,
+                                               pick_none=False, is_wc=_is_wc)
+                if built:
+                    return built
+                if not _is_wc:
+                    return None
+        # 3) repli OPTIMISEUR sur tout le vivier (pas de désignation lisible, ou CdM à garantir).
         built = (_build_combo_from_pool(eid, cands, sport, home, away,
                                         pick_none=_pick_none, is_wc=_is_wc)
                  if cands else None)

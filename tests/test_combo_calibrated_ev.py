@@ -89,3 +89,24 @@ def test_combo_correlation_ajuste_la_proba(monkeypatch):
     # la corrélation : la correction ne « crée » pas de value, elle corrige la PROBA affichée.
     for r in (corr, neut):
         assert abs(r["real_odds"] * r["prob"] / 100 - 1.27) <= 0.02
+
+
+def test_combopick_designation(monkeypatch):
+    """Fix B : l'analyste DÉCIDE son combiné via `COMBOPICK:`. La désignation est prioritaire, mais passe
+    quand même les filtres logique (corrélation) -> une désignation incohérente est écartée."""
+    monkeypatch.setattr(analyses, "calibrated_conf", lambda prob, sport, code: None)
+    monkeypatch.setattr(analyses, "combo_player_props_allowed", lambda: (True, ""))
+    O1, O2 = 100001, 100002
+    gen._CATALOG_CACHE["E"] = [{"id": O1, "text": "Favori ne perd pas", "odds": 1.30},
+                               {"id": O2, "text": "Favori gagne une MT", "odds": 1.55}]
+    pool = (f"POOL: Favori ne perd pas @1.30 [{O1}] (78%) - x\n"
+            f"POOL: Favori gagne une MT @1.55 [{O2}] (70%) - y\n")
+
+    def mk(desig, comp="Ligue", real=1.90):
+        monkeypatch.setattr(gen.unibet, "betbuilder_odds", lambda eid, oids: real)
+        return gen._make_combo(pool + f"PICK: WIN HOME\n{desig}\n", "foot", "A", "B", event_id="E", comp=comp)
+
+    assert mk("COMBOPICK: 100001+100002") is not None          # corrélé (real<produit -> k>1) -> retenu
+    assert mk("COMBOPICK: NONE") is None                        # abstention explicite hors CdM -> respectée
+    assert mk("COMBOPICK: NONE", comp="Coupe du Monde 2026") is not None   # CdM -> combiné garanti
+    assert mk("COMBOPICK: 100001+100002", real=2.20) is None    # anti-corrélé (real>produit -> k<1) -> écarté

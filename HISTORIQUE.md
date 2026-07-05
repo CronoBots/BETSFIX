@@ -106,6 +106,27 @@
 - **Reste (fix B, non fait)** : faire décider l'analyste (ligne `COMBO: OUI/NON` explicite) pour respecter
   ses réserves en prose ; étendre le panel de validation au combiné. À cadrer.
 
+### 2026-07-05 (suite 5) — Fix B : le COMBINÉ est DÉCIDÉ par l'analyste + prompt « domination corrélée »
+- **Découverte** : le prompt (`_betbuilder_menu`) ordonnait des jambes **INDÉPENDANTES** (« ⚠️ CHANGEMENT DE
+  LOGIQUE… Unibet rabote les corrélées -> value détruite ») — prémisse **FAUSSE** : `EV = real × proba =
+  produit des value individuelles`, **indépendant de la corrélation**. Viser l'indépendance BAISSE la proba
+  conjointe et fabrique des hedges anti-corrélés = les 4/5 illogismes de l'audit. Le prompt se battait contre
+  le filtre A.
+- **Fix (2 volets)** :
+  1. **Prompt corrigé** (`_betbuilder_menu`) : retour à **DOMINATION CORRÉLÉE** (jambes qui tombent ENSEMBLE
+     dans UN scénario), explication que la corrélation n'altère pas la value (elle monte la chance), interdit
+     les jambes de scénarios OPPOSÉS.
+  2. **Décision par l'analyste** : nouvelle ligne `COMBOPICK: <id>+<id>[+<id>]` (SON combiné, ids du POOL) ou
+     `COMBOPICK: NONE` (abstention). `_parse_combo_designation` + `_make_combo` : la désignation est
+     PRIORITAIRE (on ne price que ses jambes), NONE hors CdM = abstention respectée (résout Toronto « jamais
+     en combiné » / De Minaur PICK NONE) ; en CdM, repli optimiseur garantit 1 combiné. Les filtres A
+     (corrélation k, proba ≥55 %) restent le garde-fou -> une désignation incohérente est quand même écartée.
+- **Point 3 (value/jambe) ABANDONNÉ** : casserait l'ancre légitime d'une domination corrélée (Brésil @1.18,
+  value 0.94) et ne visait pas juste (De Minaur @1.11 a value 1.01>1). Le filtre corrélation le couvre.
+- **Régression vérifiée** : AST OK ; test `test_combopick_designation` (désigné corrélé retenu, NONE
+  hors-CdM abstenu, NONE CdM garanti, désigné anti-corrélé écarté) ; **238 tests OK**. Validation réelle =
+  scan complet (en cours). Rétrocompat : fiches sans `COMBOPICK:` -> repli optimiseur (comportement A).
+
 ## 2026-07-02 (session) — condensé
 - **Remote-control** : garde-fou singleton anti-doublon (`remote-control-loop.ps1`).
 - **Onglets sport** : 2 courbes (Simples/Combinés), W/L + stats par courbe, en boutons, 14 pastilles.
