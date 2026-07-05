@@ -129,5 +129,13 @@ fusionner abstention et fantôme. **Vocabulaire UI : « pari joué » — plus d
 
 ## Git
 - Remote : `origin` = https://github.com/CronoBots/BETSFIX.git (branche `main`).
-- Aucun push/commit automatique : rien dans les scripts ne fait de `git`,
-  aucun hook actif. Pousser reste une action manuelle/explicite.
+- **Politique (depuis 2026-07-05) : chaque commit descriptif est poussé sur `main` automatiquement**
+  via le hook git local `post-commit` (`.git/hooks/post-commit` → `git push origin HEAD`, best-effort).
+  Donc : faire un vrai commit = c'est poussé. Pas besoin de `git push` explicite.
+- **L'auto-commit périodique « travail live » est DÉSACTIVÉ pour BETSFIX.** Un script global
+  `C:\Users\vince\.claude\claude-autocommit.ps1` (partagé par 4 projets, boucle 180 s : `git add -u` +
+  commit `auto: travail live …` + push) tournait pour tous. Il reste actif pour les 3 autres projets,
+  mais le hook local `commit-msg` (`.git/hooks/commit-msg`) **rejette** tout commit `auto: travail live`
+  sur BETSFIX → plus de commits génériques bruyants ici. (Les hooks ne sont pas versionnés : locaux à
+  cette copie. Pour réactiver l'auto-commit : supprimer les 2 hooks.)
+- ⚠️ La note « aucun commit/push automatique » d'avant était FAUSSE (l'autocommit poussait en douce).
