@@ -1182,6 +1182,13 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     for c in cands:
         cp = calibrated_conf(c.get("prob"), sport, c.get("code", ""))
         c["_cprob"] = (cp if cp is not None else (c.get("prob") or 70)) / 100
+    # VRAIES cotes de jambes = CATALOGUE Bet Builder (vérité Unibet), pas les cotes POOL tapées par le LLM
+    # (qui peuvent diverger). Sert au facteur de corrélation k ET au produit `total` affiché -> les deux
+    # coïncident -> proba conjointe cohérente et auditable.
+    _cat = {str(c.get("id")): c for c in _CATALOG_CACHE.get(eid, []) if c.get("id")}
+    def _leg_odds(i):
+        o = _cat.get(str(cands[i].get("oid")), {}).get("odds")
+        return o if o else cands[i]["cote"]
     # best = meilleure EV parmi les combos « value » (real ≥ MIN ET chance ≥ MIN) ; safest = le PLUS SÛR
     # (plus haute chance), repli MOINS GOURMAND quand aucun combo value n'existe -> on ne force JAMAIS un
     # longshot à haute cote, et on produit TOUJOURS un combiné si le vivier a ≥2 jambes (pas de suppression).
@@ -1195,7 +1202,7 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
             nvp = 1.0
             for i in idx:
                 prob *= cands[i]["_cprob"]
-                nvp *= cands[i]["cote"]
+                nvp *= _leg_odds(i)          # cote CATALOGUE (= produit `total` affiché) -> k cohérent
             # CORRÉLATION MARCHÉ (2026-07-05) : les jambes d'un combiné same-match sont corrélées, donc la
             # proba conjointe honnête n'est PAS le produit des probas (= hypothèse d'INDÉPENDANCE) mais ce
             # produit AJUSTÉ par la corrélation que le marché price déjà dans la VRAIE cote Bet Builder.
@@ -1240,11 +1247,10 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     # ex. « Autriche -1.5 @1.11 » affiché alors que l'oid pricé = « -2.5 @1.58 » -> combiné 2.07 ≠ 1.17
     # réel). Le CODE de règlement est re-dérivé du VRAI libellé. Ainsi carte = oid pricé = Unibet.
     from app.settle_analyst import code_from_pick
-    cat = {str(c.get("id")): c for c in _CATALOG_CACHE.get(eid, []) if c.get("id")}
     legs = []
     for i in idx:
         oid = cands[i].get("oid")
-        real_out = cat.get(str(oid)) if oid else None
+        real_out = _cat.get(str(oid)) if oid else None
         if real_out and real_out.get("odds"):
             sel = _clean_leg_text(real_out.get("text") or cands[i]["sel"])
             cote = real_out["odds"]
