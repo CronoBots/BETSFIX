@@ -1145,7 +1145,7 @@ def _clean_leg_text(t: str) -> str:
 
 
 def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", away: str = "",
-                           max_legs: int = 3) -> dict | None:
+                           max_legs: int = 3, pick_none: bool = False) -> dict | None:
     """Choisit, dans le VIVIER, la meilleure combinaison COMBINABLE par EV (= vraie cote × proba :
     capture À LA FOIS la value/le faible rabot ET la chance), sous contraintes vraie cote ≥
     _COMBO_REAL_MIN et chance ≥ _COMBO_PROB_MIN.
@@ -1192,8 +1192,20 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
             if not real or real > r_max:
                 continue
             prob = 1.0
+            nvp = 1.0
             for i in idx:
                 prob *= cands[i]["_cprob"]
+                nvp *= cands[i]["cote"]
+            # CORRÉLATION MARCHÉ (2026-07-05) : les jambes d'un combiné same-match sont corrélées, donc la
+            # proba conjointe honnête n'est PAS le produit des probas (= hypothèse d'INDÉPENDANCE) mais ce
+            # produit AJUSTÉ par la corrélation que le marché price déjà dans la VRAIE cote Bet Builder.
+            # k = nvp/real = (proba produit implicite) / (proba corrélée implicite) : k<1 si jambes
+            # ANTI-corrélées (real gonflée AU-DESSUS du produit des cotes), k>1 si corrélées positivement
+            # (real rabotée SOUS le produit = domination corrélée). Sans ça, un combiné anti-corrélé affiche
+            # une FAUSSE value (cas FAA/ADF : 41 % produit vs ~28 % réel car Unibet cote 3.70 > produit 2.58).
+            # Cohérent avec le pricing Bet Builder déjà capté. cf. [[kambi-betbuilder-pricing]].
+            if real and nvp:
+                prob = max(0.0, min(1.0, prob * nvp / real))
             if any_safe is None or prob > any_safe[0]:   # tout dernier recours (n'importe quelle cote)
                 any_safe = (prob, real, idx)
             # repli PRINCIPAL = le PLUS SÛR PARMI les cotes SIGNIFICATIVES (≥ r_mean) : évite le combiné
@@ -1210,6 +1222,11 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
                     best = (ev, real, prob, idx)
     if best:
         _, real, prob, idx = best
+    elif pick_none:
+        # L'analyste a écarté ce match (PICK: NONE) : on n'accepte un combiné QUE s'il a une VRAIE value
+        # (best trouvé ci-dessus). Pas de repli « le plus sûr » forcé sur un match jugé sans signal ->
+        # aligné sur la discipline « coin-flip -> on passe » (fix 2026-07-05, cas FAA/ADF).
+        return None
     elif not _foot:
         return None                     # basket/tennis sans value réelle -> ABSTENTION (pas de combiné forcé)
     elif safest:
@@ -1254,9 +1271,11 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
     """Combiné du match : d'abord l'OPTIMISEUR sur le vivier (vraie cote ≥1.80, chance max) ; à défaut
     de vivier exploitable, repli sur l'ancien parsing `COMBO:` (avec pricing/auto-trim)."""
     eid = str(event_id) if event_id else None
+    _pick_none = not _pick_code(analysis)   # PICK: NONE / SKIP -> pas de combiné de repli forcé (garde-fou)
     if eid and _CATALOG_CACHE.get(eid):
         cands = _parse_pool(analysis, sport, home, away)
-        built = _build_combo_from_pool(eid, cands, sport, home, away) if cands else None
+        built = (_build_combo_from_pool(eid, cands, sport, home, away, pick_none=_pick_none)
+                 if cands else None)
         if built:
             return built
     combo = _parse_combo(analysis, sport, home, away, event_id)
