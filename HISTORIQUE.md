@@ -54,6 +54,21 @@
   toujours REJETÉ, corrélé+ gardé, `total==produit` OK ; selfcheck **11/11**, monotone 82, calibration
   inchangés.
 
+### 2026-07-05 (suite 2) — Combiné foot : CdM only pour le repli forcé
+- **Quoi** (demande user) : le repli « **un combiné par match** » (safest forcé, sans exigence de value)
+  est désormais réservé aux matchs de **Coupe du Monde**. **Hors CdM, le foot s'ALIGNE sur tennis/basket** :
+  combiné uniquement si VRAIE value (EV>1), sinon abstention.
+- **Comment** : `_build_combo_from_pool` reçoit `is_wc` ; nouveau `_wc_foot = _foot and is_wc` remplace `_foot`
+  aux 2 points de RELÂCHEMENT de value (filtre `best` et repli `safest/any_safe`). Les réglages de CIBLE foot
+  (fourchette 1.75-2.25, filtre props, jambe ≥1.10) restent sur tout le foot. `_make_combo(comp=…)` détecte la
+  CdM via `_is_big_match` (déjà existant, `_BIG_TOURNEYS`). Les 2 appels passent `comp=m.comp||m.circuit`.
+  Invariant `combo_ev_value` affiné : n'exempte QUE le foot CdM (le foot hors CdM est désormais vérifié).
+- **Fichiers** : `tools/generate_analyses.py`, `app/selfcheck.py`.
+- **Régression vérifiée** : AST + imports OK ; **test unitaire** : foot CdM sans value → COMBO gardé (EV 0.72) ;
+  foot hors-CdM sans value → ABSTENTION ; foot hors-CdM AVEC value → COMBO ; tennis inchangé. selfcheck
+  **11/11 OK**. État actuel conforme sans re-scan (Brésil/Mexique = CdM → combo gardé ; Náutico Serie B = pas
+  de combo). cf. [[combo-construction-rules]].
+
 ## 2026-07-02 (session) — condensé
 - **Remote-control** : garde-fou singleton anti-doublon (`remote-control-loop.ps1`).
 - **Onglets sport** : 2 courbes (Simples/Combinés), W/L + stats par courbe, en boutons, 14 pastilles.
