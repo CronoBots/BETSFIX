@@ -69,6 +69,19 @@
   **11/11 OK**. État actuel conforme sans re-scan (Brésil/Mexique = CdM → combo gardé ; Náutico Serie B = pas
   de combo). cf. [[combo-construction-rules]].
 
+### 2026-07-05 (suite 3) — vérif affichage + suite de tests
+- **Couche AFFICHAGE vérifiée** (`combo_html`) : la carte combiné n'affiche NI proba globale NI shave (par
+  choix : le produit sous-estime) → la proba corrigée ne sert qu'à la **sélection** (scan), pas au rendu →
+  **rien cassé** côté UI. Le badge de sûreté des paris SIMPLES est indépendant.
+- **Point mathématique confirmé** : après correction, `EV = real × prob = produit_probas × produit_cotes`
+  → **indépendante de `real`**. La correction ne « crée » pas de value (elle ne récompense plus un `real`
+  gonflé par l'anti-corrélation) ; elle corrige la PROBA affichée et sélectionne sur l'EV RÉELLE.
+- **Anti-régression tests** : les signatures modifiées (`_make_combo(comp=…)`, `_build_combo_from_pool(is_wc,
+  pick_none)`) ont des appelants dans `tests/`. 2 tests cassaient — cause : cotes de jambes (2.0) physiquement
+  incohérentes avec la cote combinée simulée (1.96), ce qui faisait exploser `k`. Corrigé (cotes = 1.40 =
+  cote corrélée/jambe → k=1 → teste bien la calibration) + **ajout `test_combo_correlation_ajuste_la_proba`**
+  (corrélé→proba relevée / anti→abaissée, EV ~constante). **Suite complète : 237 passed.**
+
 ## 2026-07-02 (session) — condensé
 - **Remote-control** : garde-fou singleton anti-doublon (`remote-control-loop.ps1`).
 - **Onglets sport** : 2 courbes (Simples/Combinés), W/L + stats par courbe, en boutons, 14 pastilles.
