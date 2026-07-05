@@ -127,6 +127,25 @@
   hors-CdM abstenu, NONE CdM garanti, désigné anti-corrélé écarté) ; **238 tests OK**. Validation réelle =
   scan complet (en cours). Rétrocompat : fiches sans `COMBOPICK:` -> repli optimiseur (comportement A).
 
+### 2026-07-05 (suite 6) — Garde-fou DOMINATION (combiné ≤ une de ses jambes) + fuite legacy
+- **Signalé user (capture)** : combiné Mexique affiché **@1.47** alors que sa jambe « Moins de 2.5 » vaut
+  **@1.58** -> la cote combinée est INFÉRIEURE à une jambe seule : jouer la jambe seule rapporte plus AVEC
+  moins de risque. Combiné **DOMINÉ** = illogique. Cause : 2 jambes quasi-redondantes (« match fermé » ×2)
+  -> rabotage de corrélation extrême. Mon filtre corrélation avait un plancher (pas d'anti-corrélation) mais
+  **pas de plafond**.
+- **Fix** : `_COMBO_MIN_LIFT = 1.10` — la vraie cote combinée doit dépasser d'au moins +10 % la cote de sa
+  jambe la plus haute, SINON écarté (dans la boucle, s'applique à best/safest/dernier recours CdM). Écarte
+  Mexique (1.47<1.74) ET Portugal (1.95 vs 1.87, +4 %). Les replis CdM ont rechoisi des combinés NON dominés
+  (Mexique 1.70/lift 1.18, Portugal 1.90/lift 1.41).
+- **Fuite legacy fermée** : avec catalogue Bet Builder présent, le combiné vient UNIQUEMENT de
+  COMBOPICK/optimiseur (filtrés) — plus de repli sur le parseur `COMBO:` legacy non filtré (cas Chine-Taipei
+  retiré).
+- **Invariant selfcheck `combo_not_dominated`** (12e) : combiné à venir à `real_odds ≤ max(cote jambes)` = warn.
+- **Régression vérifiée** : AST OK ; test `test_combo_rejette_domine_par_une_jambe` ; **11 tests combo OK** ;
+  selfcheck **12/12**. Sidecars Mexique/Portugal recalculés (non dominés), Chine-Taipei retiré.
+- **En suspens** : le repli CdM force encore un combiné même sur `COMBOPICK: NONE` (Portugal) -> à trancher
+  (respecter le NONE en CdM, ou garder « 1 combiné/match »).
+
 ## 2026-07-02 (session) — condensé
 - **Remote-control** : garde-fou singleton anti-doublon (`remote-control-loop.ps1`).
 - **Onglets sport** : 2 courbes (Simples/Combinés), W/L + stats par courbe, en boutons, 14 pastilles.

@@ -330,6 +330,32 @@ def _check_combo_ev_value(rows) -> dict:
             "items": bad[:20]}
 
 
+def _check_combo_not_dominated(rows) -> dict:
+    """Un combiné À VENIR doit PAYER PLUS que chacune de ses jambes seule : `real_odds` > max(cote des
+    jambes). Sinon il est DOMINÉ — jouer la jambe seule rapporte davantage AVEC moins de risque (arrive
+    quand 2 jambes sont quasi-redondantes -> rabotage extrême de la cote corrélée, cas Mexique 1.47 < jambe
+    1.58). Forward-only : seulement les combinés à venir."""
+    bad = []
+    for p, d in rows:
+        c = d.get("combo") or {}
+        legs = c.get("legs") or []
+        if not legs or c.get("result") is not None:
+            continue
+        if analyses.status_of(d) == "finished":
+            continue
+        real = _f(c.get("real_odds"))
+        legodds = [_f(l.get("cote")) for l in legs if _f(l.get("cote"))]
+        if real is None or not legodds:
+            continue
+        if real <= max(legodds):
+            bad.append(f"{d.get('sport')} {d.get('home', '?')}–{d.get('away', '?')} : "
+                       f"combiné @{real} ≤ jambe @{max(legodds)} (dominé)")
+    return {"key": "combo_not_dominated", "level": "warn" if bad else "ok",
+            "title": "Combiné non dominé par une jambe",
+            "detail": f"{len(bad)} combiné(s) à venir à cote ≤ leur jambe la plus haute (dominé).",
+            "items": bad[:20]}
+
+
 def _check_data_completeness(rows) -> dict:
     """Complétude des données d'analyse : chaque fiche RÉCENTE trace les sources multi ayant réellement
     répondu (`data_score` = nb de sources). Une fiche à data_score 0 a été analysée sur les COTES SEULES
@@ -370,6 +396,7 @@ def run(persist: bool = False) -> dict:
         _check_data_completeness(rows),
         _check_combo_correlated_pricing(rows),
         _check_combo_ev_value(rows),
+        _check_combo_not_dominated(rows),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]

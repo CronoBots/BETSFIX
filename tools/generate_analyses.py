@@ -1143,6 +1143,10 @@ _COMBO_CORR_MIN = 0.999     # k = produit_cotes/vraie_cote ; seuil ≈ 1 (0.999 
 #   -> ÉCARTÉ. On n'accepte qu'une corrélation NON négative (domination, pas hedge).
 _COMBO_CONJ_MIN = 0.55      # proba conjointe MINIMALE d'un combiné « value » : au-dessus du coin-flip (écarte
 #   Toronto 46 %, Fritz 47 %). Le repli CdM (1 combiné/match) n'est PAS soumis à ce seuil.
+_COMBO_MIN_LIFT = 1.10      # la vraie cote combinée DOIT dépasser d'au moins +10 % la cote de sa jambe la plus
+#   haute — sinon le combiné est DOMINÉ (jouer cette jambe SEULE rapporte plus AVEC moins de risque). Arrive
+#   quand 2 jambes sont quasi-REDONDANTES -> rabotage extrême (cas Mexique signalé user : combiné 1.47 <
+#   jambe « Moins 2.5 » @1.58). S'applique à TOUS les combos (best/safest/dernier recours CdM inclus).
 
 
 def _parse_pool(analysis: str, sport: str, home: str, away: str) -> list[dict]:
@@ -1234,9 +1238,18 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
                 continue
             prob = 1.0
             nvp = 1.0
+            max_leg = 1.0
             for i in idx:
                 prob *= cands[i]["_cprob"]
-                nvp *= _leg_odds(i)          # cote CATALOGUE (= produit `total` affiché) -> k cohérent
+                lo = _leg_odds(i)            # cote CATALOGUE (= produit `total` affiché) -> k cohérent
+                nvp *= lo
+                if lo > max_leg:
+                    max_leg = lo
+            # GARDE-FOU DOMINATION (2026-07-05, signalé user) : un combiné DOIT payer plus que n'importe
+            # laquelle de ses jambes seule. Sinon (2 jambes redondantes -> rabotage extrême) la cote combinée
+            # tombe sous une jambe -> jouer la jambe SEULE est strictement meilleur -> combiné écarté.
+            if real < max_leg * _COMBO_MIN_LIFT:
+                continue
             # CORRÉLATION MARCHÉ (2026-07-05) : les jambes d'un combiné same-match sont corrélées, donc la
             # proba conjointe honnête n'est PAS le produit des probas (= hypothèse d'INDÉPENDANCE) mais ce
             # produit AJUSTÉ par la corrélation que le marché price déjà dans la VRAIE cote Bet Builder.

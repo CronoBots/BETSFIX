@@ -91,6 +91,27 @@ def test_combo_correlation_ajuste_la_proba(monkeypatch):
         assert abs(r["real_odds"] * r["prob"] / 100 - 1.27) <= 0.02
 
 
+def _cands3():
+    return [{"sel": "A", "cote": 1.70, "code": "X", "oid": 301, "prob": 70},
+            {"sel": "B", "cote": 1.30, "code": "Y", "oid": 302, "prob": 80}]
+
+
+def test_combo_rejette_domine_par_une_jambe(monkeypatch):
+    """Un combiné dont la vraie cote ne dépasse pas d'au moins +10 % sa jambe la plus haute est DOMINÉ
+    (jouer la jambe seule rapporte plus AVEC moins de risque) -> écarté. Cas réel signalé : Mexique
+    combiné @1.47 alors que la jambe « Moins de 2.5 » vaut @1.58."""
+    monkeypatch.setattr(analyses, "calibrated_conf", lambda prob, sport, code: None)
+    monkeypatch.setattr(analyses, "combo_player_props_allowed", lambda: (True, ""))
+    gen._CATALOG_CACHE.pop("E2", None)               # pas de catalogue -> _leg_odds = cote POOL (max = 1.70)
+
+    def build(real):
+        monkeypatch.setattr(gen.unibet, "betbuilder_odds", lambda eid, oids: real)
+        return gen._build_combo_from_pool("E2", _cands3(), "basket")
+
+    assert build(1.85) is None       # 1.85 < 1.70×1.10=1.87 -> DOMINÉ (passe pourtant la fourchette) -> écarté
+    assert build(2.05) is not None   # 2.05 > 1.87 -> le combiné apporte un vrai gain de cote -> retenu
+
+
 def test_combopick_designation(monkeypatch):
     """Fix B : l'analyste DÉCIDE son combiné via `COMBOPICK:`. La désignation est prioritaire, mais passe
     quand même les filtres logique (corrélation) -> une désignation incohérente est écartée."""
