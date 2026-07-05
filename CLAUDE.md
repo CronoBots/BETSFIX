@@ -140,5 +140,7 @@ fusionner abstention et fantôme. **Vocabulaire UI : « pari joué » — plus d
   si `.autocommit-off` est retiré un jour). Les hooks ne sont pas versionnés (locaux à cette copie) → à
   recréer si le repo est recloné.
 - ⚠️ La note « aucun commit/push automatique » d'avant était FAUSSE (l'autocommit poussait en douce).
-- Note : les 3 autres projets n'ont plus de push auto non plus (à committer/pousser à la main, ou leur
-  ajouter le même hook `post-commit`).
+- **Politique appliquée aux 4 projets** (choix user : « push auto à chaque commit, pas de commit auto ») :
+  hook `post-commit` posé sur BETSFIX, CRYPTONAUTS, DIGITALCONCEPT.BE. **TOUKIN** n'est pas un repo git
+  (aucun push tant que `git init`+remote non faits). ⚠️ **CRYPTONAUTS** : local en retard sur `origin`
+  → un push peut être rejeté jusqu'à `git pull` (à réconcilier à part).
