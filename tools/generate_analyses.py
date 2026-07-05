@@ -1145,7 +1145,7 @@ def _clean_leg_text(t: str) -> str:
 
 
 def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", away: str = "",
-                           max_legs: int = 3, pick_none: bool = False) -> dict | None:
+                           max_legs: int = 3, pick_none: bool = False, is_wc: bool = False) -> dict | None:
     """Choisit, dans le VIVIER, la meilleure combinaison COMBINABLE par EV (= vraie cote × proba :
     capture À LA FOIS la value/le faible rabot ET la chance), sous contraintes vraie cote ≥
     _COMBO_REAL_MIN et chance ≥ _COMBO_PROB_MIN.
@@ -1162,6 +1162,10 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     # « jambe < 1.10 » ne s'appliquent qu'au FOOT. Le basket garde son comportement d'avant (fourchette
     # large 1.80-4.20, chance ≥0.33, props joueur autorisées) -> zéro régression basket.
     _foot = sport == "foot"
+    # REPLI « un combiné par match » = Coupe du Monde SEULEMENT (demande user 2026-07-05). Hors CdM, le foot
+    # s'ALIGNE sur tennis/basket : combiné uniquement si VRAIE value (EV>1), sinon abstention. Seul le foot
+    # CdM garde le repli « le plus sûr » forcé (le combiné phare de chaque match de Coupe du Monde).
+    _wc_foot = _foot and is_wc
     r_min = _COMBO_REAL_MIN if _foot else 1.80
     r_max = _COMBO_REAL_MAX if _foot else 4.20
     p_min = _COMBO_PROB_MIN if _foot else 0.33
@@ -1223,7 +1227,7 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
             # FOOT (basket/tennis) : on n'accepte QUE la VRAIE value (EV = cote×chance calibrée > 1) —
             # on ne FORCE jamais un combiné sans confiance réelle ET value (demande user ; la CdM foot,
             # elle, garde son combiné phare via le repli plus bas).
-            if real >= r_min and prob >= p_min and (_foot or real * prob > 1.0):
+            if real >= r_min and prob >= p_min and (_wc_foot or real * prob > 1.0):
                 ev = real * prob
                 if best is None or ev > best[0]:
                     best = (ev, real, prob, idx)
@@ -1234,8 +1238,8 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
         # (best trouvé ci-dessus). Pas de repli « le plus sûr » forcé sur un match jugé sans signal ->
         # aligné sur la discipline « coin-flip -> on passe » (fix 2026-07-05, cas FAA/ADF).
         return None
-    elif not _foot:
-        return None                     # basket/tennis sans value réelle -> ABSTENTION (pas de combiné forcé)
+    elif not _wc_foot:
+        return None                     # tennis/basket ET foot HORS CdM sans value réelle -> ABSTENTION
     elif safest:
         prob, real, idx = safest        # aucun combo value -> le PLUS SÛR à cote significative
     elif any_safe:
@@ -1283,14 +1287,18 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
                    f"chance estimée {round(prob * 100)}%."}
 
 
-def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str | None):
+def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str | None,
+                comp: str = ""):
     """Combiné du match : d'abord l'OPTIMISEUR sur le vivier (vraie cote ≥1.80, chance max) ; à défaut
-    de vivier exploitable, repli sur l'ancien parsing `COMBO:` (avec pricing/auto-trim)."""
+    de vivier exploitable, repli sur l'ancien parsing `COMBO:` (avec pricing/auto-trim).
+    `comp` = compétition -> détecte la Coupe du Monde (repli « un combiné par match » réservé à la CdM)."""
     eid = str(event_id) if event_id else None
     _pick_none = not _parse_pick(analysis)   # PICK: NONE / SKIP -> pas de combiné de repli forcé (garde-fou)
+    _is_wc = _is_big_match(comp)             # CdM -> garde un combiné par match ; hors CdM -> aligné value-only
     if eid and _CATALOG_CACHE.get(eid):
         cands = _parse_pool(analysis, sport, home, away)
-        built = (_build_combo_from_pool(eid, cands, sport, home, away, pick_none=_pick_none)
+        built = (_build_combo_from_pool(eid, cands, sport, home, away,
+                                        pick_none=_pick_none, is_wc=_is_wc)
                  if cands else None)
         if built:
             return built
@@ -1630,7 +1638,8 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     if circuit:
         side["circuit"] = circuit
     combo = _make_combo(analysis, sport, m.get("home", ""), m.get("away", ""),   # combiné grand tournoi
-                        event_id=str(m.get("id")))
+                        event_id=str(m.get("id")),
+                        comp=m.get("comp") or m.get("circuit") or "")
     if combo:
         side["combo"] = combo
     calib = _parse_calib(analysis, sport, m.get("home", ""), m.get("away", ""))   # prédictions fantômes (calibrage)
@@ -1758,7 +1767,8 @@ async def main():
                 # Si un COMBINÉ existe (CdM foot OU favori net tennis/basket), c'est LUI qui fait foi -> on
                 # RETIENT le match même si la table de paris simples est vide.
                 combo = _make_combo(analysis, sport, m.get("home", ""), m.get("away", ""),
-                                    event_id=str(m.get("id")))
+                                    event_id=str(m.get("id")),
+                                    comp=m.get("comp") or m.get("circuit") or "")
                 # VALIDATION PAR PANEL (3 agents) du pari simple — SAUF si un combiné porte le match
                 # (le combiné est le pari phare, structure validée à part — comme la CdM).
                 validation = None
