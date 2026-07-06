@@ -39,7 +39,14 @@ for _s in (sys.stdout, sys.stderr):
 
 import httpx  # noqa: E402
 
+for _s in (sys.stdout, sys.stderr):   # console Windows cp1252 -> emojis (✓ · ⚠) sans UnicodeEncodeError
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from app import card_data as _cd  # noqa: E402  (POINT UNIQUE de construction des cartes)
+from app import notify as _notify  # noqa: E402  (gel des pronos déjà publiés)
 from app import sources  # noqa: E402
 from app import unibet  # noqa: E402
 from app import value  # noqa: E402
@@ -1801,6 +1808,16 @@ async def main():
                 mts = _kickoff_ts(m.get("start") or "")
                 if mts and mts <= datetime.now(timezone.utc).timestamp():
                     print(f"  · {m['name']} : déjà commencé -> ignoré (pré-match uniquement).")
+                    continue
+                # GEL DES PRONOS PUBLIÉS (fix 2026-07-06) : un match DÉJÀ posté sur Telegram et PAS encore
+                # commencé n'est PLUS ré-analysé — sinon une nouvelle analyse peut CHANGER le combiné/pick que
+                # les abonnés ont déjà VU (et parié), créant l'écart prédit≠réglé (cas Portugal-Espagne :
+                # combiné 3 jambes @1.79 posté à 00:47 puis réécrit en 2 jambes @1.49 au re-scan 09h). Le
+                # `_fresh` (cache 6 h) ne suffit pas : 8 h peuvent séparer 2 scans d'un même match. La COTE
+                # reste rafraîchie live (app/main combo-refresh, mêmes jambes) et le résultat est réglé.
+                # `--force` outrepasse (re-analyse volontaire, ex. match reprogrammé).
+                if not args.force and _notify.get_prono(str(m.get("id"))):
+                    print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
                     continue
                 fid = _fiche_id(sport, m, store)   # id que la fiche utilise pour lier l'analyse
                 if not fid and sport in ("tennis", "basket"):

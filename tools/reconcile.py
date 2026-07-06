@@ -19,6 +19,14 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # racine projet -> app.*
 
+# Console Windows (cp1252) : un print() d'emoji (🔄 🔧 ⚠…) lève UnicodeEncodeError et FAISAIT PLANTER la
+# réconciliation avant son bilan (crash vu 2026-07-06, exit 1). On force stdout/stderr en UTF-8 tolérant.
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from app import analyses, card_data, notify, settle_analyst  # noqa: E402
 
 _STUCK_H = 5     # match commencé il y a plus de N h et toujours pas réglé = bloqué (marge tennis long)
