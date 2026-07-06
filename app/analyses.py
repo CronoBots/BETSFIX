@@ -1467,6 +1467,7 @@ MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne, portée) �
     ("2026-06-16", "1 pari/match", "Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents.", "simple"),
     ("2026-06-19", "Corners bannis", "Les corners, le marché le plus perdant, sont exclus de tous les paris (simple et combiné).", "both"),
     ("2026-06-26", "Combinés calibrés", "Jambes de combiné recalibrées comme les simples ; les marchés perdants (Total, Sets) s'écartent automatiquement.", "combo"),
+    ("2026-07-06", "Prédit = réglé", "Fiabilité renforcée : le pari et le combiné réglés sont exactement ceux publiés — combiné ancré sur la désignation de l'analyste (jamais remplacé) et prono figé dès sa publication.", "both"),
 ]
 # Les combinés ne comptent dans le palmarès qu'à partir de la date de DÉCISION (NON rétroactif) :
 # les combinés antérieurs (placés quand ils ne comptaient pas) ne polluent pas le suivi.
