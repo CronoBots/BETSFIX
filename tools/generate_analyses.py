@@ -1809,16 +1809,6 @@ async def main():
                 if mts and mts <= datetime.now(timezone.utc).timestamp():
                     print(f"  · {m['name']} : déjà commencé -> ignoré (pré-match uniquement).")
                     continue
-                # GEL DES PRONOS PUBLIÉS (fix 2026-07-06) : un match DÉJÀ posté sur Telegram et PAS encore
-                # commencé n'est PLUS ré-analysé — sinon une nouvelle analyse peut CHANGER le combiné/pick que
-                # les abonnés ont déjà VU (et parié), créant l'écart prédit≠réglé (cas Portugal-Espagne :
-                # combiné 3 jambes @1.79 posté à 00:47 puis réécrit en 2 jambes @1.49 au re-scan 09h). Le
-                # `_fresh` (cache 6 h) ne suffit pas : 8 h peuvent séparer 2 scans d'un même match. La COTE
-                # reste rafraîchie live (app/main combo-refresh, mêmes jambes) et le résultat est réglé.
-                # `--force` outrepasse (re-analyse volontaire, ex. match reprogrammé).
-                if not args.force and _notify.get_prono(str(m.get("id"))):
-                    print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
-                    continue
                 fid = _fiche_id(sport, m, store)   # id que la fiche utilise pour lier l'analyse
                 if not fid and sport in ("tennis", "basket"):
                     # AUTONOME : pas dans le store -> on résout l'id SofaScore par noms + date
@@ -1837,6 +1827,17 @@ async def main():
                         continue
                     unibet_fallback = True
                     print(f"  · {m['name']} : id SofaScore introuvable -> repli id Unibet (réglage différé).")
+                # GEL DES PRONOS PUBLIÉS (fix 2026-07-06) : un match DÉJÀ posté sur Telegram et PAS encore
+                # commencé n'est PLUS ré-analysé — sinon une nouvelle analyse peut CHANGER le combiné/pick que
+                # les abonnés ont déjà VU (et parié), créant l'écart prédit≠réglé (cas Portugal-Espagne :
+                # combiné 3 jambes @1.79 posté à 00:47 puis réécrit en 2 jambes @1.49 au re-scan 09h). Le
+                # `_fresh` (cache 6 h) ne suffit pas : 8 h peuvent séparer 2 scans d'un même match. On teste
+                # ICI (après résolution de `fid`) car le registre notify est clé par `fid` (= id SofaScore en
+                # tennis/basket, ≠ id Unibet `m['id']`). La COTE reste rafraîchie live (app/main combo-refresh,
+                # mêmes jambes) et le résultat est réglé. `--force` outrepasse (re-analyse volontaire).
+                if not args.force and _notify.get_prono(str(fid)):
+                    print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
+                    continue
                 path = os.path.join(OUT, f"{sport}_{fid}.md")
                 if not args.force and _fresh(path):
                     print(f"  · {m['name']} : analyse fraîche en cache, on saute.")
