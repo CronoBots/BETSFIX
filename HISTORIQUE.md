@@ -12,6 +12,22 @@
 
 ---
 
+## 2026-07-06 — CdM : combiné OBLIGATOIRE par match (règle user) + exception domination
+- **Quoi** : (1) `_make_combo`/`_build_combo_from_pool` — en CdM on ne s'abstient plus quand la désignation
+  n'est pas combinable : repli optimiseur garanti + dernier recours `wc_any` (combiné priçable le plus sûr
+  même dominé). Hors CdM = abstention inchangée. (2) `app/selfcheck.py` `_check_combo_not_dominated` : un
+  combiné dominé en CdM est ACCEPTÉ (dernier recours, règle 1 combiné/match) ; hors CdM il reste une alerte.
+  (3) USA-Belgique (CdM, joue avant le prochain scan) régénéré + reposté (msg 799).
+- **Pourquoi** (demande user) : « Pour la CdM il faut ABSOLUMENT un combiné par match, exception à la règle. »
+  Mon fix anti-substitution 332fd39 avait rendu l'abstention possible en CdM (cas USA-Belgique).
+- **Fichiers** : `tools/generate_analyses.py`, `app/selfcheck.py`, sidecar+post USA-Belgique.
+- **Vérif** : USA-Belgique/PT-ES/Argentine (CdM) -> combiné garanti ; hors CdM sans value -> abstention.
+  `selfcheck` 13/13 (0 non-ok ; le dominé CdM d'USA-Belgique = exception acceptée). Source unique conservée
+  (publié==réglé). AST OK.
+- **⚠️ Tradeoff signalé au user** : le seul combiné possible d'USA-Belgique est MARGINALEMENT dominé
+  (1.41 ≤ jambe 1.43) car Belgique = gros favori (tous ses marchés courts/corrélés) -> value < jambe seule.
+  Accepté par la règle CdM, mais à arbitrer (forcer un combiné dominé vs abstention dans ce cas rare).
+
 ## 2026-07-06 — Re-scan --force des matchs à venir (nouveau système) + reconcile channel
 - **Quoi** : `generate_analyses.py --force` (demande user) pour réanalyser les matchs à venir avec le
   nouveau système. 7 analyses (3 foot re-analysés, 2 tennis, 2 basket) en 33 min. Résultat posté :

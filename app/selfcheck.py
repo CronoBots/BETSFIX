@@ -335,7 +335,7 @@ def _check_combo_not_dominated(rows) -> dict:
     jambes). Sinon il est DOMINÉ — jouer la jambe seule rapporte davantage AVEC moins de risque (arrive
     quand 2 jambes sont quasi-redondantes -> rabotage extrême de la cote corrélée, cas Mexique 1.47 < jambe
     1.58). Forward-only : seulement les combinés à venir."""
-    bad = []
+    bad, wc_ok = [], []
     for p, d in rows:
         c = d.get("combo") or {}
         legs = c.get("legs") or []
@@ -348,12 +348,19 @@ def _check_combo_not_dominated(rows) -> dict:
         if real is None or not legodds:
             continue
         if real <= max(legodds):
-            bad.append(f"{d.get('sport')} {d.get('home', '?')}–{d.get('away', '?')} : "
-                       f"combiné @{real} ≤ jambe @{max(legodds)} (dominé)")
+            line = (f"{d.get('sport')} {d.get('home', '?')}–{d.get('away', '?')} : "
+                    f"combiné @{real} ≤ jambe @{max(legodds)} (dominé)")
+            # CdM : EXCEPTION (règle user « un combiné OBLIGATOIRE par match ») -> un combiné dominé y est
+            # ACCEPTÉ en dernier recours (vivier tout corrélé, ex. gros favori). Hors CdM il ne devrait
+            # JAMAIS arriver (le garde-fou de création le rejette) -> reste une ALERTE.
+            (wc_ok if analyses._is_world_cup(d) else bad).append(line)
+    _det = f"{len(bad)} combiné(s) HORS CdM dominé(s) (anormal)."
+    if wc_ok:
+        _det += f" {len(wc_ok)} en CdM (dominé accepté — règle 1 combiné/match)."
     return {"key": "combo_not_dominated", "level": "warn" if bad else "ok",
             "title": "Combiné non dominé par une jambe",
-            "detail": f"{len(bad)} combiné(s) à venir à cote ≤ leur jambe la plus haute (dominé).",
-            "items": bad[:20]}
+            "detail": _det,
+            "items": (bad + wc_ok)[:20]}
 
 
 def _check_data_completeness(rows) -> dict:
