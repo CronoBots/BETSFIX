@@ -12,6 +12,22 @@
 
 ---
 
+## 2026-07-06 — Re-scan --force des matchs à venir (nouveau système) + reconcile channel
+- **Quoi** : `generate_analyses.py --force` (demande user) pour réanalyser les matchs à venir avec le
+  nouveau système. 7 analyses (3 foot re-analysés, 2 tennis, 2 basket) en 33 min. Résultat posté :
+  **PT-ES (795, combo 1.79)**, **Auger-Aliassime–Djokovic (796, « Djokovic vainqueur » — PAS « Jeux »)**,
+  **Argentine-Égypte (797, combo 2.00)**. Abstentions (nouveau système, correct) : USA-Belgique (combo
+  non combinable + simple non valué), Sinner-Struff, 2 basket.
+- **Reconcile channel** : supprimé les anciens posts superséd/périmés (787, 791, 792) — vérifié via API
+  qu'ils étaient bien absents (bot admin `can_delete_messages=True`, testé). Retiré du registre USA-Belgique
+  (abstention) et Suisse-Colombie (hors fenêtre 24 h, sa carte 09:34 n'existait plus → sera reposté au
+  prochain scan quand il entre dans la fenêtre). Sonde non-destructive (`editMessageReplyMarkup`) :
+  795/796/797 EXISTENT, tous les anciens ABSENTS.
+- **Fichiers** : `data/analyses/*` (sidecars re-générés) ; `data/notify_pronos.json`.
+- **Vérif** : `selfcheck` 13/13 · chaque prono à venir cohérent (carte=sidecar=règlement) · Auger = marché
+  « Vainqueur » (exclusion « Jeux » respectée). Zéro doublon restant.
+- **Résultat** : channel aligné sur le nouveau système = 3 pronos frais corrects, abstentions non affichées.
+
 ## 2026-07-06 — Nettoyage channel Telegram (ciblé, validé user) après passage au nouveau système
 - **Quoi** : supprimé 3 messages du channel — **790** (🎾 Fritz-Bublik « Total jeux +37.5 », marché « Jeux »
   désormais EXCLU → devenu abstention), **786** (⚽ PT-ES ancien combiné 3j, doublon périmé remplacé par 791),
