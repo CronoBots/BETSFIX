@@ -123,7 +123,9 @@ async def _resolve(client, sport: str, home: str, away: str, start: str) -> int 
     except ValueError:
         pass
     cands = []   # (score, mid) : on ne prend PAS le 1er venu (anti homonymes), on classe par recouvrement
-    for mid in (await _match_ids(client, sport))[:60]:
+    # Plafond LARGE (2026-07-07) : la page GISMO liste tous les matchs DU JOUR (foot ~69) ; l'ancien cap 60
+    # coupait des matchs du jour sur les journées chargées. `_info` est mis en cache (mid) -> coût borné.
+    for mid in (await _match_ids(client, sport))[:150]:
         m = await _info(client, mid)
         if not m:
             continue
