@@ -59,6 +59,13 @@ Log 'METHODO : doc méthodologie par sport'
 & $py 'tools\methodology_doc.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
 Log ("METHODO DONE (exit {0})" -f $LASTEXITCODE)
 
+# REVUE QUOTIDIENNE (propriétaire, lecture seule) : consolide l'état par sport + détecte les écarts à
+# l'optimum -> propositions. Écrit docs/REVUE.md + journal. `--telegram` = push PRIVÉ si data/owner_chat.txt
+# existe (JAMAIS le canal abonnés). Placé APRÈS methodo/backtest pour reprendre leurs verdicts frais.
+Log 'REVUE : revue quotidienne proprietaire'
+& $py 'tools\daily_review.py' --quiet --telegram 2>&1 | Out-File -Append -Encoding utf8 $log
+Log ("REVUE DONE (exit {0})" -f $LASTEXITCODE)
+
 # SANTÉ DES SOURCES (Phase 4) : ping live de chaque source (analyse + règlement). Détecte une source
 # morte AVANT qu'elle dégrade les analyses. Alerte Telegram UNIQUEMENT si une source CRITIQUE (Unibet/
 # FotMob) est down. Journal data/source_health_log.jsonl. Ne bloque jamais le scan (Continue).
