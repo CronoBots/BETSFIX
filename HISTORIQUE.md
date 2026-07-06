@@ -12,6 +12,18 @@
 
 ---
 
+## 2026-07-06 — Basket : abstention si 0 source d'enrichissement (règle « faits ≥2 sources »)
+- **Quoi** : dans le scan (`generate_analyses.py`, après `build_dossier`), un match **basket** sans AUCUNE
+  source d'enrichissement (`sources_prov` tout vide → data_score 0) est ÉCARTÉ **avant** l'analyse Claude.
+- **Pourquoi** (demande user, réponse au check bleu `data_completeness`) : le basket international obscur
+  (AfroBasket, qualifs asiatiques : RD Congo-Côte d'Ivoire, Syrie-Iran) n'est couvert par aucune source
+  (ESPN basket = NBA/WNBA seulement) → analyse sur cotes seules. On ne parie pas un match invérifiable.
+- **Portée** : basket UNIQUEMENT. Foot/tennis gardés (un 0 y est un hoquet réseau transitoire, pas
+  structurel ; FotMob/ESPN couvrent).
+- **Vérif** : AST OK · condition testée (AfroBasket→écarté, NBA/WNBA→gardé, foot/tennis 0→gardés). Les 2
+  fiches data_score 0 existantes (déjà jouées, aucun pari compté) sortiront de la fenêtre d'audit seules.
+- **Résultat** : plus de nouvelle fiche basket analysée sur cotes seules → le check bleu se tarit à la racine.
+
 ## 2026-07-06 — Combiné JAMAIS dominé (garde-fou ABSOLU) — vraie cause = cap `cands[:6]`
 - **Quoi** : CAUSE RACINE trouvée — `_build_combo_from_pool` faisait `cands = cands[:6]` (top confiance), ce
   qui COUPAIT les jambes à COTE HAUTE (BTTS @1.50, USA-MT @1.64 pour USA-Belgique). Il ne restait que des

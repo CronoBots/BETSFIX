@@ -1875,6 +1875,14 @@ async def main():
                     print(f"  · {m['name']} : pas de marchés exploitables, on saute.")
                     continue
                 doss, meta = built
+                # GARDE-FOU « faits ≥2 sources » (demande user 2026-07-06) : le BASKET INTERNATIONAL obscur
+                # (AfroBasket, qualifs asiatiques…) n'est couvert par AUCUNE source d'enrichissement (ESPN
+                # basket = NBA/WNBA seulement) -> analyse sur cotes seules (data_score 0). On ne PARIE PAS un
+                # match qu'on ne peut pas vérifier : on l'écarte AVANT l'analyse (économise le run Claude).
+                # Ne s'applique qu'au basket (foot/tennis : un 0 est un hoquet réseau transitoire, pas structurel).
+                if sport == "basket" and not [k for k, v in (meta.get("sources_prov") or {}).items() if v]:
+                    print(f"  · {m['name']} : basket sans aucune source d'enrichissement -> écarté (cotes seules).")
+                    continue
                 t0 = time.time()
                 try:
                     analysis = run_claude(METHODO + doss)
