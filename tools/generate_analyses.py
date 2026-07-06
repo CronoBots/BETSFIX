@@ -1253,7 +1253,7 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     # considère QUE les combinaisons qui contiennent TOUTES ses jambes -> le combiné final reste SON choix
     # (au pire enrichi d'une jambe pour dé-dominer), jamais un combiné de remplacement décorrélé de sa prose.
     _must_idx = ({i for i, c in enumerate(cands) if c.get("oid") in must_include} if must_include else set())
-    best, safest, any_safe = None, None, None
+    best, safest, any_safe, wc_any = None, None, None, None
     for size in range(min(max_legs, n), 1, -1):
         for idx in combinations(range(n), size):
             if _must_idx and not _must_idx.issubset(idx):
@@ -1270,6 +1270,11 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
                 nvp *= lo
                 if lo > max_leg:
                     max_leg = lo
+            # DERNIER RECOURS CdM (règle user : « un combiné OBLIGATOIRE par match ») : on mémorise le combiné
+            # priçable le PLUS SÛR MÊME s'il est dominé. Utilisé UNIQUEMENT si aucun combiné non-dominé ne
+            # survit (sinon on préfère toujours un non-dominé). Proba brute = suffit pour classer un repli rare.
+            if _wc_foot and (wc_any is None or prob > wc_any[0]):
+                wc_any = (prob, real, idx)
             # GARDE-FOU DOMINATION (2026-07-05, signalé user) : un combiné DOIT payer plus que n'importe
             # laquelle de ses jambes seule. Sinon (2 jambes redondantes -> rabotage extrême) la cote combinée
             # tombe sous une jambe -> jouer la jambe SEULE est strictement meilleur -> combiné écarté.
@@ -1303,19 +1308,21 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
                     best = (ev, real, prob, idx)
     if best:
         _, real, prob, idx = best
+    elif _wc_foot:
+        # CdM : EXCEPTION (règle user) -> un combiné OBLIGATOIRE par match, même sans value réelle et même
+        # si l'analyste n'a pas donné de pari simple (PICK: NONE). Priorité : le PLUS SÛR corrélé (safest),
+        # sinon n'importe quel combiné priçable non-dominé (any_safe), sinon (tout dominé) le DERNIER RECOURS
+        # (wc_any, même dominé). None UNIQUEMENT si le vivier n'a aucune paire priçable (< 2 jambes).
+        _wc_pick = safest or any_safe or wc_any
+        if not _wc_pick:
+            return None
+        prob, real, idx = _wc_pick
     elif pick_none:
-        # L'analyste a écarté ce match (PICK: NONE) : on n'accepte un combiné QUE s'il a une VRAIE value
-        # (best trouvé ci-dessus). Pas de repli « le plus sûr » forcé sur un match jugé sans signal ->
-        # aligné sur la discipline « coin-flip -> on passe » (fix 2026-07-05, cas FAA/ADF).
+        # HORS CdM + PICK: NONE : on n'accepte un combiné QUE s'il a une VRAIE value (best ci-dessus). Pas
+        # de repli forcé sur un match jugé sans signal -> discipline « coin-flip -> on passe » (cas FAA/ADF).
         return None
-    elif not _wc_foot:
-        return None                     # tennis/basket ET foot HORS CdM sans value réelle -> ABSTENTION
-    elif safest:
-        prob, real, idx = safest        # aucun combo value -> le PLUS SÛR à cote significative
-    elif any_safe:
-        prob, real, idx = any_safe      # légendes très courtes seulement -> on prend le plus sûr
     else:
-        return None
+        return None                     # tennis/basket ET foot HORS CdM sans value réelle -> ABSTENTION
     # LIAISON À L'OUTCOME BET BUILDER RÉEL : la jambe affichée (texte + cote) est celle du CATALOGUE
     # pour l'oid pricé, JAMAIS le texte/cote tapé par le LLM (qui peut diverger -> carte à cote fantôme,
     # ex. « Autriche -1.5 @1.11 » affiché alors que l'oid pricé = « -2.5 @1.58 » -> combiné 2.07 ≠ 1.17
@@ -1391,14 +1398,16 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
                                                pick_none=False, is_wc=_is_wc, must_include=_pick_oids)
                 if built:
                     return built
-                # (a) ET (b) ont échoué (typiquement pricing Kambi flaky sur SES jambes) : on N'IGNORE PAS
-                # sa désignation au profit de l'optimiseur brut (branche 3) qui renverrait un combiné
-                # DÉCORRÉLÉ de sa prose. C'était la cause du mismatch prédit≠réglé (Mexique-Angleterre
-                # 2026-07-06 : COMBOPICK 2 jambes publié, sidecar optimiseur 3 jambes réglé). On s'abstient
-                # ici (même en CdM) -> le prochain scan / le refresh live re-pricera. Mieux vaut pas de
-                # combiné qu'un combiné qui contredit l'analyste et la carte déjà publiée.
-                return None
-        # 3) repli OPTIMISEUR sur tout le vivier (pas de désignation LISIBLE ≥2 jambes, ou CdM à garantir).
+                # (a) ET (b) ont échoué (désignation dominée/non priçable).
+                #  • HORS CdM : on N'IGNORE PAS sa désignation au profit de l'optimiseur brut (branche 3)
+                #    qui renverrait un combiné DÉCORRÉLÉ -> ABSTENTION (évite le mismatch Mexique-Angleterre).
+                #  • EN CdM : EXCEPTION (règle user) -> il faut ABSOLUMENT un combiné par match. On tombe donc
+                #    sur le repli optimiseur (branche 3) qui GARANTIT un combiné. Le combiné est calculé UNE
+                #    fois et écrit tel quel (source unique) -> pas de mismatch publié≠réglé même s'il finit
+                #    différent de la désignation exacte.
+                if not _is_wc:
+                    return None
+        # 3) repli OPTIMISEUR sur tout le vivier (CdM à GARANTIR, ou pas de désignation lisible ≥2 jambes).
         built = (_build_combo_from_pool(eid, cands, sport, home, away,
                                         pick_none=_pick_none, is_wc=_is_wc)
                  if cands else None)
