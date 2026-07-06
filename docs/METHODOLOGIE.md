@@ -1,7 +1,7 @@
 # BETSFIX — Méthodologie d'analyse & sélection des pronos (par sport)
 
 > Écrit **automatiquement** par `tools/methodology_doc.py` (run quotidien). Objectif : voir, **sport par sport**, quand la méthode d'analyse et de sélection se stabilise (= **optimale**). Lecture seule.
-> Généré le 2026-07-06 11:14 UTC.
+> Généré le 2026-07-06 11:38 UTC.
 
 ## Méthode commune (les 3 sports)
 - **Confidence-first** : on classe par *probabilité honnête de gagner vs cote*, pas par cote.
@@ -28,6 +28,16 @@ MAE **2.4** (good) · réussite réelle **69%** vs confiance annoncée **67%** �
 
 **Marchés écartés (auto)** : Corners
 
+**ROI par marché (fantômes inclus — mûrit sans attendre les paris réels)**  
+| Marché | n | Réussite | ROI |
+|---|---|---|---|
+| Double chance | 43 | 84% | -4% |
+| Cartons | 11 | 45% | +1% |
+| Total équipe | 169 | 71% | +2% |
+| Total +/- | 173 | 68% | +11% 🟢 |
+| Vainqueur | 55 | 71% | +18% 🟢 |
+| Handicap | 66 | 76% | +35% 🟢 |
+
 **Repères méthodo (ce sport)**
 - `2026-06-09` **Seuil ≥65 %** — Aucun pari n'est retenu sous 65 % de confiance honnête.
 - `2026-06-16` **1 pari/match** — Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents.
@@ -50,6 +60,13 @@ MAE **1.3** (good) · réussite réelle **63%** vs confiance annoncée **64%** �
 
 **Marchés écartés (auto)** : aucune
 
+**ROI par marché (fantômes inclus — mûrit sans attendre les paris réels)**  
+| Marché | n | Réussite | ROI |
+|---|---|---|---|
+| Jeux | 297 | 61% | -21% 🔴 |
+| Sets | 297 | 65% | -12% |
+| Vainqueur | 116 | 63% | -1% |
+
 **Repères méthodo (ce sport)**
 - `2026-06-09` **Seuil ≥65 %** — Aucun pari n'est retenu sous 65 % de confiance honnête.
 - `2026-06-16` **1 pari/match** — Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents.
@@ -70,6 +87,13 @@ ROI **+4.2%** · réussite **69%** · **16** réglés (11✓/5✗) · cote moy *
 MAE **3.6** (good) · réussite réelle **58%** vs confiance annoncée **60%** · n=548
 
 **Marchés écartés (auto)** : Total +/-, Vainqueur
+
+**ROI par marché (fantômes inclus — mûrit sans attendre les paris réels)**  
+| Marché | n | Réussite | ROI |
+|---|---|---|---|
+| Total +/- | 154 | 55% | -64% 🔴 |
+| Vainqueur | 85 | 64% | +2% |
+| Handicap | 160 | 60% | +6% 🟢 |
 
 **Repères méthodo (ce sport)**
 - `2026-06-09` **Seuil ≥65 %** — Aucun pari n'est retenu sous 65 % de confiance honnête.

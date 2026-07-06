@@ -143,6 +143,18 @@ def build() -> str:
         L.append("")
         L.append(f"**Marchés écartés (auto)** : {', '.join(excl)}")
         L.append("")
+        # ROI par marché FANTÔMES INCLUS : le signal qui MÛRIT VITE (sans attendre les paris réels).
+        mkts = cal.get("markets") or {}
+        _rows = [(name, mg) for name, mg in mkts.items() if mg.get("roi") is not None]
+        if _rows:
+            L.append("**ROI par marché (fantômes inclus — mûrit sans attendre les paris réels)**  ")
+            L.append("| Marché | n | Réussite | ROI |")
+            L.append("|---|---|---|---|")
+            for name, mg in sorted(_rows, key=lambda x: (x[1].get("roi") or 0)):
+                flag = " 🔴" if (mg.get("roi") or 0) <= -15 else (" 🟢" if (mg.get("roi") or 0) >= 5 else "")
+                L.append(f"| {name} | {mg.get('n')} | {mg.get('win_rate')}% | "
+                         f"{_fmt_pct(mg.get('roi'))}{flag} |")
+            L.append("")
         L.append("**Repères méthodo (ce sport)**")
         _sm = [m for m in miles if (m[4] if len(m) > 4 else "all") in ("all", short)]
         for m in _sm:
