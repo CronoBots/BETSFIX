@@ -12,6 +12,18 @@
 
 ---
 
+## 2026-07-06 — Nettoyage channel Telegram (ciblé, validé user) après passage au nouveau système
+- **Quoi** : supprimé 3 messages du channel — **790** (🎾 Fritz-Bublik « Total jeux +37.5 », marché « Jeux »
+  désormais EXCLU → devenu abstention), **786** (⚽ PT-ES ancien combiné 3j, doublon périmé remplacé par 791),
+  **780** (🎾 Fritz ancien, orphelin). Retiré Fritz (16385342) du registre `notify_pronos.json`.
+- **Pourquoi** (demande user) : aligner le channel sur le nouveau système (combiné ancré + exclusion « Jeux »),
+  retirer les doublons de la session (double-post 00:47/09:34) et le pari d'un marché maintenant écarté.
+- **Fichiers** : `data/notify_pronos.json` (gitignore) ; suppressions via `notify.delete_messages`.
+- **Vérif** : `retained_bet(Fritz)=None` (bien abstention) · suppressions CONFIRMÉES via API (deleteMessage →
+  « message not found ») · 786/780 orphelins (non pointés → aucun règlement cassé). Périmètre ciblé validé
+  par le user (pas de reset lourd). Reste à venir = 4 combinés foot corrects (787/788/791/792), tous cohérents.
+- **Résultat** : channel propre, seuls les pronos valides du nouveau système subsistent. Historique réglé intact.
+
 ## 2026-07-06 — Exclusion de marché : ROI par (sport,marché) FANTÔMES INCLUS (mûrir sans paris réels)
 - **Quoi** : dans `_excluded_by_sport` (`app/analyses.py`), le garde-fou (c) « ROI perdant » ne lit plus
   le ROI **global des paris joués** (`perf_breakdown`, lent ~1 pari/match) mais le **ROI par (sport,marché)
