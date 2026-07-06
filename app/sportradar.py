@@ -26,6 +26,7 @@ _T = 12
 _PAGE_IDS: dict[int, list[int]] = {}
 _INFO: dict[int, dict] = {}
 _RESOLVED: dict[tuple, int | None] = {}
+_POOL: dict[str, dict] = {}   # sport -> {mid: (home, away, uts)} : vivier ÉLARGI (jour + fixtures futurs)
 _SEASON_TB: dict = {}     # seasonid -> doc classement (partagé par tous les matchs du championnat)
 _SEASON_OU: dict = {}     # seasonid -> {uid: stats over/under} (idem)
 _STREAKS: dict = {}       # uid -> doc streaks
@@ -112,8 +113,59 @@ async def _info(client, mid: int) -> dict | None:
     return _INFO[mid]
 
 
+def _match_uts(m: dict):
+    """uts du coup d'envoi, que l'objet soit un match_info (`_dt.uts`) ou un fixture de saison (`time.uts`)."""
+    return ((m.get("_dt") or {}).get("uts")) or ((m.get("time") or {}).get("uts"))
+
+
+def _iter_season_matches(o):
+    """Rend les objets `match` d'une réponse `stats_season_fixtures2` (structure imbriquée)."""
+    if isinstance(o, dict):
+        if o.get("_doc") == "match" and o.get("teams"):
+            yield o
+        for v in o.values():
+            yield from _iter_season_matches(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from _iter_season_matches(v)
+
+
+async def _candidate_pool(client, sport: str) -> dict:
+    """{mid: (home, away, uts)} — vivier de résolution ÉLARGI : matchs DU JOUR (page statshub) PLUS tous les
+    matchs (FUTURS inclus) des compétitions ACTIVES aujourd'hui, via `stats_season_fixtures2/{seasonid}`.
+    Corrige le trou « la page ne liste qu'aujourd'hui » (2026-07-07) : le scan analyse à +24 h, or les matchs
+    de demain d'une compétition en cours (CdM, tournoi ATP/WTA, playoffs NBA…) sont ainsi couverts. Cache /run."""
+    if sport in _POOL:
+        return _POOL[sport]
+    pool: dict = {}
+    seasons: set = set()
+    for mid in (await _match_ids(client, sport))[:150]:   # matchs du jour (page)
+        m = await _info(client, mid)
+        if not m:
+            continue
+        pool[mid] = ((m.get("teams") or {}).get("home", {}).get("name", ""),
+                     (m.get("teams") or {}).get("away", {}).get("name", ""), _match_uts(m))
+        if m.get("_seasonid"):
+            seasons.add(m["_seasonid"])
+    for sid in list(seasons)[:25]:                        # fixtures des compétitions actives (futurs inclus)
+        try:
+            d = await _gismo(client, "stats_season_fixtures2", sid)
+        except Exception:
+            continue
+        for m in _iter_season_matches(d):
+            try:
+                mid = int(m.get("_id"))
+            except (TypeError, ValueError):
+                continue
+            if mid not in pool:
+                pool[mid] = ((m.get("teams") or {}).get("home", {}).get("name", ""),
+                             (m.get("teams") or {}).get("away", {}).get("name", ""), _match_uts(m))
+    _POOL[sport] = pool
+    return pool
+
+
 async def _resolve(client, sport: str, home: str, away: str, start: str) -> int | None:
-    """id de match Sportradar pour ce match Unibet (noms FR + jour), ou None."""
+    """id de match Sportradar pour ce match Unibet (noms FR + jour), ou None. Vivier = jour + fixtures futurs."""
     key = (sport, _deacc(home), _deacc(away))
     if key in _RESOLVED:
         return _RESOLVED[key]
@@ -123,23 +175,14 @@ async def _resolve(client, sport: str, home: str, away: str, start: str) -> int 
     except ValueError:
         pass
     cands = []   # (score, mid) : on ne prend PAS le 1er venu (anti homonymes), on classe par recouvrement
-    # Plafond LARGE (2026-07-07) : la page GISMO liste tous les matchs DU JOUR (foot ~69) ; l'ancien cap 60
-    # coupait des matchs du jour sur les journées chargées. `_info` est mis en cache (mid) -> coût borné.
-    for mid in (await _match_ids(client, sport))[:150]:
-        m = await _info(client, mid)
-        if not m:
-            continue
-        th = (m.get("teams") or {}).get("home", {}).get("name", "")
-        ta = (m.get("teams") or {}).get("away", {}).get("name", "")
+    for mid, (th, ta, uts) in (await _candidate_pool(client, sport)).items():
         # meilleure des 2 orientations (matchs neutres : home/away parfois inversés entre sources)
         sc = max(_score(home, th) + _score(away, ta), _score(home, ta) + _score(away, th))
-        if sc < 2:                                       # les 2 équipes doivent recouvrir (comme avant)
+        if sc < 2:                                       # les 2 équipes doivent recouvrir
             continue
-        if target_day:                                   # confirme par le jour du coup d'envoi (±1)
+        if target_day and uts:                           # confirme par le jour du coup d'envoi (±1)
             try:
-                uts = (m.get("_dt") or {}).get("uts")
-                md = datetime.utcfromtimestamp(uts).date() if uts else None
-                if md and abs((md - target_day).days) > 1:
+                if abs((datetime.utcfromtimestamp(uts).date() - target_day).days) > 1:
                     continue
             except Exception:
                 pass

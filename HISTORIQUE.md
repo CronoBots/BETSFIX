@@ -12,6 +12,20 @@
 
 ---
 
+## 2026-07-07 — Sportradar couvre les matchs FUTURS (fixtures de saison) — les 3 sports
+- **Quoi** : `app/sportradar.py` — nouveau vivier de résolution ÉLARGI (`_candidate_pool`) : matchs DU JOUR
+  (page statshub, comme avant) PLUS tous les matchs des compétitions ACTIVES aujourd'hui, FUTURS inclus,
+  via `stats_season_fixtures2/{seasonid}`. `_resolve` matche contre ce vivier (noms + jour ±1, anti-homonyme).
+- **Pourquoi** (demande user « trouver comment sélectionner le jour suivant sur Sportradar ») : la page
+  statshub ne liste que le JOUR (foot ~69 ids, tous aujourd'hui) → les matchs de demain (scan à +24 h)
+  étaient ratés. Mécanisme trouvé : chaque match porte `_seasonid` → `stats_season_fixtures2` renvoie toute
+  la compétition, futurs inclus (date sous `time.uts`).
+- **Vérif** : vivier foot 69 → 2326 (1027 futurs) · tennis 457 (91 futurs) · basket 1037 (331 futurs).
+  France-Maroc (07-09) résout + `block()` produit forme/séries/H2H. Imports OK. Anti-régression : `_resolve`
+  garde son scoring (score≥2, jour±1, refus si égalité au sommet) ; matchs du jour résolvent toujours.
+- **Résultat** : Sportradar enrichit désormais les matchs de DEMAIN pour les 3 sports → relève data_score
+  foot/tennis/basket (Sportradar n'est plus « jour même seulement »).
+
 ## 2026-07-06 — Basket : abstention si 0 source d'enrichissement (règle « faits ≥2 sources »)
 - **Quoi** : dans le scan (`generate_analyses.py`, après `build_dossier`), un match **basket** sans AUCUNE
   source d'enrichissement (`sources_prov` tout vide → data_score 0) est ÉCARTÉ **avant** l'analyse Claude.
