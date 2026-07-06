@@ -53,6 +53,12 @@ Log 'BACKTEST : politique de sélection'
 & $py 'tools\policy_backtest.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
 Log ("BACKTEST DONE (exit {0})" -f $LASTEXITCODE)
 
+# DOC MÉTHODOLOGIE par sport (lecture seule) : régénère docs/METHODOLOGIE.md — méthode + état mesuré
+# (ROI/calibration) + scorecard d'optimalité par sport. Placé APRÈS le backtest pour reprendre son verdict.
+Log 'METHODO : doc méthodologie par sport'
+& $py 'tools\methodology_doc.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+Log ("METHODO DONE (exit {0})" -f $LASTEXITCODE)
+
 # SANTÉ DES SOURCES (Phase 4) : ping live de chaque source (analyse + règlement). Détecte une source
 # morte AVANT qu'elle dégrade les analyses. Alerte Telegram UNIQUEMENT si une source CRITIQUE (Unibet/
 # FotMob) est down. Journal data/source_health_log.jsonl. Ne bloque jamais le scan (Continue).
