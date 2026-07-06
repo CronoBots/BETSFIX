@@ -1,7 +1,7 @@
 # BETSFIX — Méthodologie d'analyse & sélection des pronos (par sport)
 
 > Écrit **automatiquement** par `tools/methodology_doc.py` (run quotidien). Objectif : voir, **sport par sport**, quand la méthode d'analyse et de sélection se stabilise (= **optimale**). Lecture seule.
-> Généré le 2026-07-06 11:38 UTC.
+> Généré le 2026-07-06 12:09 UTC.
 
 ## Méthode commune (les 3 sports)
 - **Confidence-first** : on classe par *probabilité honnête de gagner vs cote*, pas par cote.
@@ -58,7 +58,7 @@ ROI **-33.8%** · réussite **45%** · **20** réglés (9✓/11✗) · cote moy 
 **Calibration** (toutes prédictions, fantômes inclus)  
 MAE **1.3** (good) · réussite réelle **63%** vs confiance annoncée **64%** · n=775
 
-**Marchés écartés (auto)** : aucune
+**Marchés écartés (auto)** : Jeux
 
 **ROI par marché (fantômes inclus — mûrit sans attendre les paris réels)**  
 | Marché | n | Réussite | ROI |

@@ -12,6 +12,22 @@
 
 ---
 
+## 2026-07-06 — Exclusion de marché : ROI par (sport,marché) FANTÔMES INCLUS (mûrir sans paris réels)
+- **Quoi** : dans `_excluded_by_sport` (`app/analyses.py`), le garde-fou (c) « ROI perdant » ne lit plus
+  le ROI **global des paris joués** (`perf_breakdown`, lent ~1 pari/match) mais le **ROI par (sport,marché)
+  de la calibration** (`calibration()['by_sport'][sport]['markets'][…]['roi']`, **fantômes inclus**).
+  Mêmes seuils (`CALIB_MIN_N=25`, `CALIB_ROI_MAX=-15`).
+- **Pourquoi** (demande user) : optimiser sur les **fantômes** (10-14/match) pour ne PAS attendre le
+  goutte-à-goutte des paris réellement joués. Un marché bien calibré mais EV-négatif (tennis « Jeux »
+  -21 % sur n=87) était invisible pour l'ancien garde-fou (calibration bonne + trop peu de paris joués).
+- **Fichiers** : `app/analyses.py` (`_excluded_by_sport`) ; `tools/methodology_doc.py` (déjà surfacé le
+  ROI fantôme par marché) ; doc régénéré.
+- **Régression vérifiée** : AST OK · AVANT/APRÈS exclusions = seul **tennis {Jeux}** s'ajoute (foot/basket
+  inchangés) · `selfcheck` 13/13 (0 non-ok hors info) · `exclusions_report()` OK. Auto-révisable (si le
+  marché redevient rentable, il se réintègre).
+- **Résultat** : tennis « Jeux » écarté de la sélection dès maintenant, sur un vrai échantillon fantôme,
+  sans sur-couper (Sets -12 % > seuil, gardé). Chantier tennis (calibré mais ROI négatif) traité à la racine.
+
 ## 2026-07-05 — Combinés : proba conjointe corrigée de la corrélation + garde-fou PICK NONE
 - **Quoi** : dans `_build_combo_from_pool` (`tools/generate_analyses.py`), la proba d'un combiné same-match
   n'est plus le **produit** des probas de jambes (= hypothèse d'**indépendance**) mais ce produit **ajusté**

@@ -2021,24 +2021,27 @@ def _excluded_by_sport() -> dict:
     CHAQUE SPORT (demande user 2026-07-02). Un marché mauvais en basket n'écarte PAS le même marché en
     foot. Trois raisons d'écarter un marché DANS UN SPORT : (a) SUR-CONFIANCE nette dans la calibration
     DU SPORT (n ≥ CALIB_MIN_N ET écart réel−annoncé ≤ CALIB_GAP_MAX) ; (b) ban dur « Corners » (foot,
-    demande user 2026-06-19) ; (c) ROI réel ≤ CALIB_ROI_MAX (garde-fou EV global, appliqué au sport où le
-    marché est réellement joué). Data-driven, auto-révisable dans les deux sens. Vide tant qu'on manque de
-    recul PAR SPORT (le petit n ne conclut pas). NB : avant, l'exclusion était globale et DILUAIT les
-    problèmes d'un sport (ex. basket Vainqueur/Total sur-confiants, invisibles noyés dans le foot/tennis)."""
+    demande user 2026-06-19) ; (c) ROI ≤ CALIB_ROI_MAX PAR (sport,marché), calculé sur la calibration
+    FANTÔMES INCLUS. Data-driven, auto-révisable dans les deux sens. Vide tant qu'on manque de recul PAR
+    SPORT (le petit n ne conclut pas). NB : avant, l'exclusion était globale et DILUAIT les problèmes d'un
+    sport (ex. basket Vainqueur/Total sur-confiants, invisibles noyés dans le foot/tennis).
+    (c) 2026-07-06 : on ne lit PLUS le ROI GLOBAL des paris JOUÉS (perf_breakdown, lent : ~1 pari/match)
+    mais le ROI PAR (sport,marché) de la calibration, qui INCLUT les FANTÔMES (10-14/match). Un marché
+    bien calibré mais EV-négatif (ex. tennis « Jeux » -21 %) est ainsi écarté sur un VRAI échantillon
+    (n ≥ CALIB_MIN_N) SANS attendre 25 paris réellement joués. (La calibration agrège fantômes + joués :
+    le signal réel-argent y est déjà contenu.)"""
     cal = calibration(min_conf=_MIN_CONF)
-    # (c) garde-fou ROI GLOBAL : marchés qui perdent de l'argent malgré une calibration correcte. Appliqué
-    #     au sport où le marché apparaît (il n'existe pas de ROI par (sport,marché) — le ROI reste global).
-    roi_bad = {g.get("label") for g in (perf_breakdown().get("by_market") or [])
-               if (g.get("settled") or 0) >= CALIB_MIN_N and (g.get("roi") or 0) <= CALIB_ROI_MAX}
     out: dict[str, set] = {}
     for fr, g in (cal.get("by_sport") or {}).items():
         sp = _SPORT_FR.get(fr, fr.lower())
         ms = {"Corners"} if sp == "foot" else set()      # (b) ban dur foot
         for name, mg in (g.get("markets") or {}).items():
+            n = mg.get("n") or 0
             gap = (mg.get("win_rate") or 0) - (mg.get("avg_conf") or 0)
-            if (mg.get("n") or 0) >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:   # (a) sur-confiance du sport
+            roi = mg.get("roi")
+            if n >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:                # (a) sur-confiance du sport
                 ms.add(name)
-            if name in roi_bad:                          # (c) ROI perdant -> écarté là où il est joué
+            if roi is not None and n >= CALIB_MIN_N and roi <= CALIB_ROI_MAX:   # (c) ROI fantôme-inclus perdant
                 ms.add(name)
         out[sp] = ms
     out.setdefault("foot", {"Corners"})                  # foot garde au minimum le ban dur
