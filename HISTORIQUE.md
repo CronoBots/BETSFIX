@@ -12,6 +12,18 @@
 
 ---
 
+## 2026-07-07 — Flashscore : couvrir les matchs FUTURS (cap jour +1 -> +10) — les 3 sports
+- **Quoi** : `app/flashscore.py` `_day_offsets` — borne haute passée de **+1 à +10**. Un match à +2 jours ou
+  plus était cherché sur le mauvais jour (offset clampé à 1) -> pas de forme/H2H Flashscore sur les matchs
+  futurs (même trou « aujourd'hui/demain seulement » que Sportradar avait).
+- **Pourquoi** (demande user « optimiser les sources au max ») : le cap venait du besoin RÈGLEMENT (archive
+  passée [-10,1]). Pour l'ENRICHISSEMENT pré-match, il faut chercher le jour réel du match, futur inclus.
+  Flashscore liste bien les jours futurs (offset +2 : 36 matchs, +3 : 56).
+- **Vérif** : matchs à +2/+3/+4 j (Utah-Oklahoma, New Orleans-Minnesota…) résolvent maintenant. Anti-régression :
+  borne basse -10 inchangée -> règlement (offsets ≤0) intact ; AST OK.
+- **Résultat** : Flashscore enrichit les matchs de plusieurs jours à l'avance pour les 3 sports (complète le
+  fix Sportradar du même jour).
+
 ## 2026-07-07 — Sportradar couvre les matchs FUTURS (fixtures de saison) — les 3 sports
 - **Quoi** : `app/sportradar.py` — nouveau vivier de résolution ÉLARGI (`_candidate_pool`) : matchs DU JOUR
   (page statshub, comme avant) PLUS tous les matchs des compétitions ACTIVES aujourd'hui, FUTURS inclus,

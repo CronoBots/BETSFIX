@@ -82,13 +82,15 @@ def _feed_raw(name: str) -> str | None:
 
 
 def _day_offsets(start_iso: str | None) -> list:
-    """Offsets de jour à interroger pour un match : le jour du coup d'envoi ±1 (fuseau FS),
-    sinon aujourd'hui + hier. Bornés à [-10, 1] (archive récente)."""
+    """Offsets de jour à interroger pour un match : le jour du coup d'envoi ±1 (fuseau FS), sinon
+    aujourd'hui + hier. Bornés à [-10, +10] : côté passé = archive de règlement ; côté FUTUR = enrichissement
+    pré-match (fix 2026-07-07 : l'ancien cap +1 empêchait de trouver un match à +2 j ou plus -> pas de forme
+    Flashscore sur les matchs futurs, comme le trou Sportradar. Flashscore liste bien les jours futurs)."""
     dt = _start_dt(start_iso) if start_iso else None
     if dt is None:
         return [0, -1]
     base = (dt.date() - datetime.now(timezone.utc).date()).days
-    return [o for o in (base, base - 1, base + 1) if -10 <= o <= 1]
+    return [o for o in (base, base - 1, base + 1) if -10 <= o <= 10]
 
 
 def _find_match_id(home: str, away: str, start_iso: str | None = None, sport: str = "tennis") -> str | None:
