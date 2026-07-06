@@ -12,6 +12,22 @@
 
 ---
 
+## 2026-07-06 — Combiné JAMAIS dominé (garde-fou ABSOLU) — vraie cause = cap `cands[:6]`
+- **Quoi** : CAUSE RACINE trouvée — `_build_combo_from_pool` faisait `cands = cands[:6]` (top confiance), ce
+  qui COUPAIT les jambes à COTE HAUTE (BTTS @1.50, USA-MT @1.64 pour USA-Belgique). Il ne restait que des
+  marchés courts/corrélés -> TOUS les combinés dominés. Fix : garder aussi les 3 jambes à plus haute cote
+  (diversité de cotes) -> un combiné NON-DOMINÉ redevient possible (15 existaient pour USA-Belgique !).
+  Puis : SUPPRESSION du dernier recours `wc_any` (qui acceptait un combiné dominé en CdM) -> garde-fou
+  domination ABSOLU. selfcheck revenu strict (dominé = alerte, même CdM : ça ne doit JAMAIS arriver).
+- **Pourquoi** (reproche user, à raison) : un combiné dont une jambe paye plus que le total est ABSURDE
+  (jouer la jambe seule est strictement meilleur). Mon « exception CdM dominée acceptée » était une ERREUR.
+  La bonne réponse : CONSTRUIRE un combiné non-dominé (inclure une jambe haute), pas accepter le dominé.
+- **Fichiers** : `tools/generate_analyses.py` (cap + suppression wc_any), `app/selfcheck.py` (revert strict),
+  sidecar+post USA-Belgique.
+- **Vérif** : USA-Belgique 3j real 1.75 > jambe 1.50 NON-DOMINÉ · Argentine 1.95 > 1.64 · hors CdM abstention
+  gardée · `selfcheck` 13/13 (0 dominé). USA-Belgique reposté (799 dominé supprimé -> 800 non-dominé).
+- **Résultat** : CdM = un combiné par match ET jamais dominé. Le garde-fou est absolu pour tous les sports.
+
 ## 2026-07-06 — CdM : combiné OBLIGATOIRE par match (règle user) + exception domination
 - **Quoi** : (1) `_make_combo`/`_build_combo_from_pool` — en CdM on ne s'abstient plus quand la désignation
   n'est pas combinable : repli optimiseur garanti + dernier recours `wc_any` (combiné priçable le plus sûr

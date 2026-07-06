@@ -1230,7 +1230,16 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
         if not combo_player_props_allowed()[0]:
             cands = [c for c in cands if not (c.get("code") or "").startswith(("PLAYERFB", "PLAYERBK"))]
         cands = [c for c in cands if (c.get("cote") or 0) >= _COMBO_LEG_MIN]
+    # CAP pour borner le nb de combinaisons (chaque combinaison = 1 appel pricing). MAIS on GARANTIT la
+    # DIVERSITÉ DE COTES : on garde les meilleures par confiance ET les jambes à COTE HAUTE. Sans ces
+    # dernières, un gros favori (marchés tous courts + corrélés) ne produirait QUE des combinés DOMINÉS
+    # (cote combinée ≤ la jambe la plus haute -> absurde). Avec une jambe haute, un combiné NON-DOMINÉ
+    # devient possible (ex. USA-Belgique : Total -3.5 @1.46 + BTTS @1.50 -> 2.65). cf. garde-fou domination.
+    _top_odds = sorted(cands, key=lambda c: -(c.get("cote") or 0))[:3]   # 3 plus hautes cotes
     cands = cands[:6]
+    for c in _top_odds:
+        if c not in cands:
+            cands.append(c)
     n = len(cands)
     if n < 2:
         return None
@@ -1253,7 +1262,7 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     # considère QUE les combinaisons qui contiennent TOUTES ses jambes -> le combiné final reste SON choix
     # (au pire enrichi d'une jambe pour dé-dominer), jamais un combiné de remplacement décorrélé de sa prose.
     _must_idx = ({i for i, c in enumerate(cands) if c.get("oid") in must_include} if must_include else set())
-    best, safest, any_safe, wc_any = None, None, None, None
+    best, safest, any_safe = None, None, None
     for size in range(min(max_legs, n), 1, -1):
         for idx in combinations(range(n), size):
             if _must_idx and not _must_idx.issubset(idx):
@@ -1270,16 +1279,7 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
                 nvp *= lo
                 if lo > max_leg:
                     max_leg = lo
-            # DERNIER RECOURS CdM (règle user : « un combiné OBLIGATOIRE par match, mais LOGIQUE ») : on
-            # mémorise, parmi les combinés priçables, le MOINS DOMINÉ (plus haut ratio cote/jambe-max) —
-            # utilisé seulement si aucun combiné non-dominé ne survit (gros favori au vivier tout corrélé).
-            # Classer par ratio (pas par proba brute) évite le combiné dégénéré « jambe la plus courte » et
-            # garde le combiné le plus SENSÉ possible (le plus proche de payer plus que sa jambe seule).
-            if _wc_foot:
-                _ratio = (real / max_leg) if max_leg else 0.0
-                if wc_any is None or _ratio > wc_any[0]:
-                    wc_any = (_ratio, prob, real, idx)
-            # GARDE-FOU DOMINATION (2026-07-05, signalé user) : un combiné DOIT payer plus que n'importe
+            # GARDE-FOU DOMINATION (2026-07-05, signalé user — ABSOLU) : un combiné DOIT payer plus que n'importe
             # laquelle de ses jambes seule. Sinon (2 jambes redondantes -> rabotage extrême) la cote combinée
             # tombe sous une jambe -> jouer la jambe SEULE est strictement meilleur -> combiné écarté.
             if real < max_leg * _COMBO_MIN_LIFT:
@@ -1313,16 +1313,16 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
     if best:
         _, real, prob, idx = best
     elif _wc_foot:
-        # CdM : EXCEPTION (règle user) -> un combiné OBLIGATOIRE par match, même sans value réelle et même
-        # si l'analyste n'a pas donné de pari simple (PICK: NONE). Priorité : le PLUS SÛR corrélé (safest),
-        # sinon n'importe quel combiné priçable non-dominé (any_safe), sinon (tout dominé) le DERNIER RECOURS
-        # (wc_any = le MOINS dominé). None UNIQUEMENT si le vivier n'a aucune paire priçable (< 2 jambes).
+        # CdM : un combiné par match, même sans value réelle et même si PICK: NONE. Priorité : le PLUS SÛR
+        # corrélé (safest), sinon n'importe quel combiné priçable (any_safe). TOUS DEUX SONT NON-DOMINÉS
+        # (le garde-fou domination est ABSOLU -> un dominé n'entre jamais dans safest/any_safe). Un combiné
+        # dont une jambe paye plus que le total est ABSURDE -> JAMAIS renvoyé. La diversité de cotes du
+        # vivier (jambes hautes gardées) garantit qu'un combiné non-dominé existe presque toujours ; sinon
+        # (vivier vraiment inexploitable) on renvoie None plutôt qu'un combiné dégénéré.
         if safest:
             prob, real, idx = safest
         elif any_safe:
             prob, real, idx = any_safe
-        elif wc_any:
-            _, prob, real, idx = wc_any     # 4-uplet (ratio, prob, real, idx) -> le combiné le moins dominé
         else:
             return None
     elif pick_none:
