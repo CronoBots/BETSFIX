@@ -1384,9 +1384,14 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
                                                pick_none=False, is_wc=_is_wc, must_include=_pick_oids)
                 if built:
                     return built
-                if not _is_wc:
-                    return None
-        # 3) repli OPTIMISEUR sur tout le vivier (pas de désignation lisible, ou CdM à garantir).
+                # (a) ET (b) ont échoué (typiquement pricing Kambi flaky sur SES jambes) : on N'IGNORE PAS
+                # sa désignation au profit de l'optimiseur brut (branche 3) qui renverrait un combiné
+                # DÉCORRÉLÉ de sa prose. C'était la cause du mismatch prédit≠réglé (Mexique-Angleterre
+                # 2026-07-06 : COMBOPICK 2 jambes publié, sidecar optimiseur 3 jambes réglé). On s'abstient
+                # ici (même en CdM) -> le prochain scan / le refresh live re-pricera. Mieux vaut pas de
+                # combiné qu'un combiné qui contredit l'analyste et la carte déjà publiée.
+                return None
+        # 3) repli OPTIMISEUR sur tout le vivier (pas de désignation LISIBLE ≥2 jambes, ou CdM à garantir).
         built = (_build_combo_from_pool(eid, cands, sport, home, away,
                                         pick_none=_pick_none, is_wc=_is_wc)
                  if cands else None)
@@ -1704,7 +1709,8 @@ async def _validate_bet(doss: str, bet: dict, analyst_prob, sport: str) -> dict:
 
 
 def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, analysis: str,
-                   votes=None, sofa_url: str | None = None, validation: dict | None = None) -> None:
+                   votes=None, sofa_url: str | None = None, validation: dict | None = None,
+                   combo=None) -> None:
     """Métadonnées de l'analyse (équipes, compétition, coup d'envoi, cotes 1X2, pick, votes, +
     séries/H2H STRUCTURÉS + liens SofaScore/Unibet) -> sidecar JSON. La fiche rend tout depuis ce
     fichier, SANS rappeler SofaScore (une fois analysé, plus aucune raison d'appeler SofaScore)."""
@@ -1731,9 +1737,15 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     circuit = m.get("circuit") or (meta.get("circuit") if meta else None)   # Unibet (path) prioritaire
     if circuit:
         side["circuit"] = circuit
-    combo = _make_combo(analysis, sport, m.get("home", ""), m.get("away", ""),   # combiné grand tournoi
-                        event_id=str(m.get("id")),
-                        comp=m.get("comp") or m.get("circuit") or "")
+    # SOURCE UNIQUE (fix 2026-07-06) : le combiné est calculé UNE fois dans la boucle et passé ici, pour que
+    # la carte PUBLIÉE (notif) == le sidecar (carte image) == le RÈGLEMENT. Le recalculer ici appelait
+    # _make_combo une 2e fois ; or il dépend du pricing Kambi FLAKY -> les 2 appels pouvaient diverger
+    # (COMBOPICK 2 jambes publié vs optimiseur 3 jambes réglé : Mexique-Angleterre 2026-07-06). Repli calcul
+    # local UNIQUEMENT si non fourni (rétrocompat pour un éventuel autre appelant).
+    if combo is None:
+        combo = _make_combo(analysis, sport, m.get("home", ""), m.get("away", ""),   # combiné grand tournoi
+                            event_id=str(m.get("id")),
+                            comp=m.get("comp") or m.get("circuit") or "")
     if combo:
         side["combo"] = combo
     calib = _parse_calib(analysis, sport, m.get("home", ""), m.get("away", ""))   # prédictions fantômes (calibrage)
@@ -1898,7 +1910,7 @@ async def main():
                     f.write(header + analysis + "\n")
                 votes = await _fetch_votes(client, sport, sofa_id)
                 surl = await _sofa_url(sofa_id)
-                _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation)  # -> board
+                _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation, combo)  # -> board (MÊME combo que la notif)
                 _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien
                 n_gen += 1
                 # === Message Telegram PRO (HTML) : en-tête match + lieu/jour/heure, puis le(s) pari(s) ===
