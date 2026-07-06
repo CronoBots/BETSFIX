@@ -1270,11 +1270,15 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
                 nvp *= lo
                 if lo > max_leg:
                     max_leg = lo
-            # DERNIER RECOURS CdM (règle user : « un combiné OBLIGATOIRE par match ») : on mémorise le combiné
-            # priçable le PLUS SÛR MÊME s'il est dominé. Utilisé UNIQUEMENT si aucun combiné non-dominé ne
-            # survit (sinon on préfère toujours un non-dominé). Proba brute = suffit pour classer un repli rare.
-            if _wc_foot and (wc_any is None or prob > wc_any[0]):
-                wc_any = (prob, real, idx)
+            # DERNIER RECOURS CdM (règle user : « un combiné OBLIGATOIRE par match, mais LOGIQUE ») : on
+            # mémorise, parmi les combinés priçables, le MOINS DOMINÉ (plus haut ratio cote/jambe-max) —
+            # utilisé seulement si aucun combiné non-dominé ne survit (gros favori au vivier tout corrélé).
+            # Classer par ratio (pas par proba brute) évite le combiné dégénéré « jambe la plus courte » et
+            # garde le combiné le plus SENSÉ possible (le plus proche de payer plus que sa jambe seule).
+            if _wc_foot:
+                _ratio = (real / max_leg) if max_leg else 0.0
+                if wc_any is None or _ratio > wc_any[0]:
+                    wc_any = (_ratio, prob, real, idx)
             # GARDE-FOU DOMINATION (2026-07-05, signalé user) : un combiné DOIT payer plus que n'importe
             # laquelle de ses jambes seule. Sinon (2 jambes redondantes -> rabotage extrême) la cote combinée
             # tombe sous une jambe -> jouer la jambe SEULE est strictement meilleur -> combiné écarté.
@@ -1312,11 +1316,15 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
         # CdM : EXCEPTION (règle user) -> un combiné OBLIGATOIRE par match, même sans value réelle et même
         # si l'analyste n'a pas donné de pari simple (PICK: NONE). Priorité : le PLUS SÛR corrélé (safest),
         # sinon n'importe quel combiné priçable non-dominé (any_safe), sinon (tout dominé) le DERNIER RECOURS
-        # (wc_any, même dominé). None UNIQUEMENT si le vivier n'a aucune paire priçable (< 2 jambes).
-        _wc_pick = safest or any_safe or wc_any
-        if not _wc_pick:
+        # (wc_any = le MOINS dominé). None UNIQUEMENT si le vivier n'a aucune paire priçable (< 2 jambes).
+        if safest:
+            prob, real, idx = safest
+        elif any_safe:
+            prob, real, idx = any_safe
+        elif wc_any:
+            _, prob, real, idx = wc_any     # 4-uplet (ratio, prob, real, idx) -> le combiné le moins dominé
+        else:
             return None
-        prob, real, idx = _wc_pick
     elif pick_none:
         # HORS CdM + PICK: NONE : on n'accepte un combiné QUE s'il a une VRAIE value (best ci-dessus). Pas
         # de repli forcé sur un match jugé sans signal -> discipline « coin-flip -> on passe » (cas FAA/ADF).
