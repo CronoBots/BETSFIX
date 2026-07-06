@@ -1461,14 +1461,15 @@ _PERF_CACHE: dict = {}     # "v" -> (sig, perf_breakdown()) — ROI par cote/mar
 # JALONS du modèle : dates (UTC) où la LOGIQUE de sélection a changé -> repères verticaux sur les
 # courbes d'équité (pour corréler une inflexion de ROI avec un changement). Garder COURT (s'affiche
 # sur un petit graphe) et N'AJOUTER qu'un vrai changement de POLITIQUE de paris (pas l'UI).
-MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne, portée) — SEULS les repères DÉCISIFS ;
-    #  portée ∈ {"simple","combo","both"} -> le repère s'affiche sur le graphe Simples et/ou Combinés.
-    ("2026-06-09", "Seuil ≥65 %", "Aucun pari n'est retenu sous 65 % de confiance honnête.", "simple"),
-    ("2026-06-16", "1 pari/match", "Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents.", "simple"),
-    ("2026-06-19", "Corners bannis", "Les corners, le marché le plus perdant, sont exclus de tous les paris (simple et combiné).", "both"),
-    ("2026-06-26", "Combinés calibrés", "Jambes de combiné recalibrées comme les simples ; les marchés perdants (Total, Sets) s'écartent automatiquement.", "combo"),
-    ("2026-07-06", "Combiné = pari désigné", "Le combiné proposé est exactement celui désigné par l'analyste, jamais un combiné de remplacement ; s'il n'est pas combinable, on s'abstient plutôt que de forcer.", "combo"),
-    ("2026-07-06", "Prono figé", "Le pari publié ne change plus après coup : ce qui est affiché est exactement ce qui sera réglé.", "simple"),
+MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne, portée, sport) — SEULS les repères DÉCISIFS.
+    #  Ces repères tracent la MÉTHODOLOGIE d'analyse et de SÉLECTION des pronos (ce qui change le ROI) —
+    #  PAS la fiabilité/technique/UI. But : voir, PAR SPORT, quand la méthode se stabilise (= optimale).
+    #  portée ∈ {"simple","combo","both"} (sur quel graphe) · sport ∈ {"all","foot","tennis","basket"}.
+    ("2026-06-09", "Seuil ≥65 %", "Aucun pari n'est retenu sous 65 % de confiance honnête.", "simple", "all"),
+    ("2026-06-16", "1 pari/match", "Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents.", "simple", "all"),
+    ("2026-06-19", "Corners bannis", "Les corners, le marché le plus perdant au foot, sont exclus de tous les paris (simple et combiné).", "both", "foot"),
+    ("2026-06-26", "Combinés calibrés", "Jambes de combiné recalibrées comme les simples ; les marchés perdants (Total, Sets) s'écartent automatiquement.", "combo", "all"),
+    ("2026-07-06", "Combiné = pari désigné", "Le combiné proposé est exactement celui désigné par l'analyste, jamais un combiné de remplacement ; s'il n'est pas combinable, on s'abstient plutôt que de forcer.", "combo", "all"),
 ]
 # Les combinés ne comptent dans le palmarès qu'à partir de la date de DÉCISION (NON rétroactif) :
 # les combinés antérieurs (placés quand ils ne comptaient pas) ne polluent pas le suivi.
