@@ -236,6 +236,14 @@ def is_settled(d: dict) -> bool:
     return any(b.get("result") in ("won", "lost", "push") for b in (d.get("bets") or []))
 
 
+# Au-delà de N h APRÈS le coup d'envoi PROGRAMMÉ, un match NON réglé est jeté du board (fini depuis
+# longtemps sans résultat exploitable). Fenêtre PAR SPORT : le tennis (best-of-5) + les démarrages
+# TARDIFS (ordre des courts à Wimbledon : un match « prévu 13h40 » peut débuter à 16h30) dépassent 6 h
+# EN PLEIN JEU -> il faut plus large, sinon un match en direct disparaît du site (bug Auger-Aliassime–
+# Djokovic). Le live COLLANT (match_select.sticky_live) prolonge encore tant que le flux renvoie un score.
+_STALE_AFTER_H = {"foot": 6, "basket": 6, "tennis": 9}
+
+
 def list_for(sport: str) -> list[dict]:
     """Liste des matchs ANALYSÉS (sidecars) à venir / récents, triés par coup d'envoi.
     C'est la SOURCE du board : seuls les matchs analysés avec la nouvelle technique y figurent."""
@@ -252,9 +260,17 @@ def list_for(sport: str) -> list[dict]:
             dt = None
         # on garde l'à-venir, l'en-cours ET les terminés. Les matchs RÉGLÉS (présents dans les stats)
         # restent visibles indéfiniment dans « Terminés » ; on ne jette que les NON réglés trop vieux
-        # (> ~6 h après le coup d'envoi : match fini depuis longtemps sans résultat exploitable).
-        if dt is not None and dt < now - timedelta(hours=6) and not is_settled(d):
-            continue
+        # (fenêtre PAR SPORT après le coup d'envoi : match fini depuis longtemps sans résultat exploitable)
+        # — SAUF s'il a été VU EN DIRECT très récemment (démarrage tardif encore en cours -> live collant).
+        if (dt is not None and dt < now - timedelta(hours=_STALE_AFTER_H.get(sport, 6))
+                and not is_settled(d)):
+            try:
+                from app import match_select as _ms
+                _still_live = _ms.sticky_live(sport, d.get("home"), d.get("away"))
+            except Exception:
+                _still_live = False
+            if not _still_live:
+                continue
         # Mode strict RENFORCÉ (demande user 2026-07-01) : un match sans pari PUBLIABLE n'apparaît
         # PLUS DU TOUT dans l'app — même terminé. « Publiable » = un COMBINÉ, OU un simple qui a (ou
         # aurait) été RETENU (≥65 % + value positive + garde-fous). Un favori sans value = ABSTENTION
@@ -266,7 +282,17 @@ def list_for(sport: str) -> list[dict]:
         _has_combo = bool((d.get("combo") or {}).get("legs"))
         if not _has_combo and load(sport, d.get("id")) is not None \
                 and retained_bet(sport, d.get("id"), for_history=is_settled(d)) is None:
-            continue
+            # SAUF si un prono a DÉJÀ été PUBLIÉ sur Telegram pour ce match : posté aux abonnés = visible
+            # sur le site (cohérence Telegram = site). Couvre les sidecars à `pick` hérité (« … @cote »)
+            # SANS `bets` structurés -> retained_bet=None les cachait alors que le prono était bien posté
+            # (bug vécu Auger-Aliassime–Djokovic : prono Telegram mais match introuvable sur le site).
+            try:
+                from app import notify as _notify
+                _published = bool(_notify.get_prono(str(d.get("id"))))
+            except Exception:
+                _published = False
+            if not _published:
+                continue
         d["_start_dt"] = dt
         out.append(d)
     out.sort(key=lambda d: (d["_start_dt"] is None, d.get("_start_dt") or now))

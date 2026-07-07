@@ -100,6 +100,27 @@ _LIVE_STATE_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: liveData}) —
 _META_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: {circuit, comp, start}}) — Unibet path/group/heure
 _ODDS_TTL = 25           # s : cotes Unibet rafraîchies au plus toutes les 25 s (gratuit, mais lean)
 
+# LIVE « COLLANT » : mémoire du DERNIER instant où un score live a été vu pour un match. Sert à ne PAS
+# éjecter du direct un match RÉELLEMENT en cours lors d'un hoquet BREF du flux (score momentanément
+# absent) : sans ça, dès qu'un match tourne depuis plus que le seuil `likely_finished`, la moindre
+# coupure réseau le bascule en « terminé » et il DISPARAÎT du Live (bug vécu Auger-Aliassime–Djokovic,
+# match commencé en retard puis évincé en plein 4e set). Fenêtre courte -> un match VRAIMENT fini finit
+# bien par sortir du direct (le flux ne renvoie plus de score pendant > STICKY_S).
+_LIVE_SEEN: dict = {}     # "sport:clé_noms" -> epoch du dernier score live observé
+_LIVE_STICKY_S = 360      # 6 min de tolérance aux hoquets du flux live
+
+
+def note_live(sport: str, home: str, away: str, has_score: bool) -> None:
+    """Mémorise qu'un score live vient d'être vu pour ce match (pour le live « collant »)."""
+    if has_score:
+        _LIVE_SEEN[f"{sport}:{_okey(home, away)}"] = _time.time()
+
+
+def sticky_live(sport: str, home: str, away: str) -> bool:
+    """Un score live a-t-il été vu pour ce match il y a MOINS de _LIVE_STICKY_S ? (tolérance aux hoquets)."""
+    ts = _LIVE_SEEN.get(f"{sport}:{_okey(home, away)}")
+    return ts is not None and (_time.time() - ts) < _LIVE_STICKY_S
+
 
 def _okey(home: str, away: str) -> str:
     return f"{(home or '').strip().lower()}|{(away or '').strip().lower()}"

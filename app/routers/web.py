@@ -640,8 +640,14 @@ async def directs_page(
             # STATUT piloté par UNIBET : un coup d'envoi sidecar périmé ne doit pas faire passer le
             # match en « live » s'il n'a pas commencé côté Unibet (heure fraîche / pas de score).
             lf = web.live_fields(match_select.live_state_for(sport, d.get("home"), d.get("away")), sport)
+            match_select.note_live(sport, d.get("home"), d.get("away"), bool(lf.get("score")))
+            # LIVE COLLANT : pendant un hoquet BREF du flux (score momentanément absent), si on a vu ce
+            # match en direct il y a < 6 min et qu'il n'est PAS réglé, on le considère encore en cours
+            # (sinon un match tournant depuis > seuil disparaît du Live à la moindre coupure réseau).
+            has_sc = (bool(lf.get("score")) or (not analyses.is_settled(d)
+                      and match_select.sticky_live(sport, d.get("home"), d.get("away"))))
             st, usdt = match_select.fresh_status(sport, d.get("home"), d.get("away"), st,
-                                                 bool(lf.get("score")), start_iso=d.get("start"))
+                                                 has_sc, start_iso=d.get("start"))
             if st != "inprogress":
                 continue
             dt = usdt or d.get("_start_dt")
@@ -651,9 +657,11 @@ async def directs_page(
             perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
             if not lf.get("score"):                        # REPLI SofaScore si Unibet n'a pas le live
                 lf = await match_select.fetch_sofa_live(sport, sid) or lf
+                match_select.note_live(sport, d.get("home"), d.get("away"), bool(lf.get("score")))
             # en cours sans score live : s'il a assez tourné -> il est en fait fini (Terminés du sport),
-            # sinon on le GARDE en « En cours » (sans scoreboard) pour qu'il reste visible.
-            if not lf.get("score") and analyses.likely_finished(d):
+            # sinon on le GARDE en « En cours ». Sticky : un score vu très récemment évite l'éviction sur hoquet.
+            if (not lf.get("score") and analyses.likely_finished(d)
+                    and not match_select.sticky_live(sport, d.get("home"), d.get("away"))):
                 continue
             if sport == "foot":
                 o1, ox, o2 = d.get("o1"), d.get("ox"), d.get("o2")
@@ -720,7 +728,10 @@ async def matches_page(
         st = analyses.status_of(d)
         # STATUT + HEURE pilotés par UNIBET (le sidecar peut être périmé -> faux « live »)
         lf0 = web.live_fields(match_select.live_state_for("tennis", d.get("home"), d.get("away")), "tennis")
-        st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st, bool(lf0.get("score")))
+        match_select.note_live("tennis", d.get("home"), d.get("away"), bool(lf0.get("score")))
+        has_sc = (bool(lf0.get("score")) or (not analyses.is_settled(d)
+                  and match_select.sticky_live("tennis", d.get("home"), d.get("away"))))
+        st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st, has_sc)
         dt = usdt or d.get("_start_dt")
         tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
         fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))
@@ -740,9 +751,11 @@ async def matches_page(
             r.update(lf0)
             if not r.get("score"):   # REPLI SofaScore si Unibet n'a pas le live
                 r.update(await match_select.fetch_sofa_live("tennis", d.get("sofa_id") or d.get("id")) or {})
-            # En cours SANS score live Unibet : s'il a assez tourné (likely_finished) -> Terminés ;
-            # sinon on le GARDE en « En cours » (sans scoreboard) pour qu'il ne DISPARAISSE pas.
-            if not r.get("score") and analyses.likely_finished(d):
+            match_select.note_live("tennis", d.get("home"), d.get("away"), bool(r.get("score")))
+            # En cours SANS score live Unibet : s'il a assez tourné (likely_finished) -> Terminés ; sinon
+            # GARDÉ en « En cours ». Sticky : un score vu très récemment évite l'éviction sur un hoquet du flux.
+            if (not r.get("score") and analyses.likely_finished(d)
+                    and not match_select.sticky_live("tennis", d.get("home"), d.get("away"))):
                 st = "finished"
                 r["status"] = "finished"
         if st == "finished":
