@@ -1209,6 +1209,9 @@ CSS = """
   /* Jalons du modèle : repère vertical + étiquette (changement de politique de paris) */
   /* Repères de modèle sur la courbe : trait vertical + pastille numérotée */
   .bc-mile{stroke:rgba(120,200,255,.5);stroke-width:1.1;stroke-dasharray:2 3}
+  /* Repère AUTO (marché auto-ajusté) : ambré, pour le distinguer d'un jalon méthodo (bleu) */
+  .bc-mile-g.mauto .bc-mile-c{fill:#ff9f43;stroke:#ffe0bd}
+  .bc-mile-g.mauto .bc-mile{stroke:rgba(255,159,67,.55)}
   .bc-mile-g{cursor:pointer}
   .bc-mile-g .bc-mile-c{transition:r .12s}
   .bc-mile-g.on .bc-mile-c{fill:#46e08a;stroke:#bdf6d4}
@@ -1245,10 +1248,33 @@ CSS = """
        background:rgba(34,184,255,.10);color:#9fd2ff;font-family:inherit;font-size:11px;font-weight:900;
        cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
   .sx-mile-b.on{background:#46e08a;border-color:#46e08a;color:#04220f}
-  .sx-mile-info{font-size:11px;line-height:1.4;color:var(--muted);margin-top:0;max-height:0;overflow:hidden;
+  .sx-mile-b.mauto{border-color:rgba(255,159,67,.5);background:rgba(255,159,67,.12);color:#ffca8a}
+  .sx-mile-b.mauto.on{background:#46e08a;border-color:#46e08a;color:#04220f}
+  .sx-mile-info{font-size:11px;line-height:1.5;color:var(--muted);margin-top:0;max-height:0;overflow:hidden;
        transition:max-height .18s ease,margin-top .18s ease}
-  .sx-mile-info.show{max-height:120px;margin-top:9px}
+  .sx-mile-info.show{max-height:160px;margin-top:9px}
   .sx-mile-info b{color:var(--text);font-weight:800}
+  .sx-mile-date{font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;margin-right:7px}
+  .sx-mile-tag{font-size:9px;font-weight:800;border-radius:6px;padding:1px 6px;
+       background:rgba(20,150,240,.14);color:#9fd2ff}
+  .sx-mile-tag.mauto{background:rgba(255,159,67,.16);color:#ffca8a}
+  .sx-mile-key{display:flex;gap:14px;margin-top:8px;font-size:9.5px;color:var(--muted)}
+  .sx-mile-key .km{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
+  .sx-mile-key .kmeth{background:#1496f0} .sx-mile-key .kauto{background:#ff9f43}
+  /* Journal des ajustements automatiques (marchés auto-écartés / auto-réintégrés, datés) */
+  .exq-journal{display:flex;flex-direction:column;gap:6px;padding:9px 10px;border:1px solid var(--border);
+       border-radius:14px;background:rgba(255,159,67,.045)}
+  .exq-jhead{font-size:12px;font-weight:900;color:var(--text);display:flex;align-items:baseline;
+       justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .exq-jsince{font-size:9.5px;font-weight:600;color:var(--muted)}
+  .exq-jempty{font-size:11px;color:var(--muted);line-height:1.45}
+  .exq-jrow{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;padding:7px 9px}
+  .exq-jtop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .exq-jdate{font-size:10px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+  .exq-jmk{font-size:12.5px;font-weight:800;color:var(--text)}
+  .exq-jbase{font-size:9px;font-weight:700;color:var(--muted);border:1px solid var(--border);
+       border-radius:5px;padding:1px 5px}
+  .exq-jreason{font-size:10.5px;color:#cfe0f5;margin-top:3px;line-height:1.4}
   .sx-divider{height:1px;background:var(--border);margin:14px 0 2px}
   .sx-h2{margin-top:8px}
   .bc-yl{fill:var(--muted);font-size:9px;text-anchor:end;font-weight:700}
@@ -2649,13 +2675,15 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
     # postérieur à la date du jalon). La correspondance numéro -> nom est dans la légende texte.
     for num, ms in enumerate(milestones or [], 1):
         iso = ms[0]
+        kind = ms[5] if len(ms) > 5 else "methodo"       # "auto" = marché auto-ajusté (ambré), sinon méthodo
         day = (iso or "")[:10]
         k = sum(1 for d in (dates or []) if d and d[:10] < day)
         if k <= 0 or k >= n:
             continue
         mx = X(k)
         # groupe cliquable (data-mile) : trait + pastille numérotée + ZONE DE TAP large transparente
-        p.append(f'<g class="bc-mile-g" data-mile="{num}">')
+        gcls = "bc-mile-g mauto" if kind == "auto" else "bc-mile-g"
+        p.append(f'<g class="{gcls}" data-mile="{num}">')
         p.append(f'<line class="bc-mile" x1="{mx:.1f}" y1="{T - 4:g}" x2="{mx:.1f}" y2="{H - B:g}"/>')
         p.append(f'<circle class="bc-mile-hit" cx="{mx:.1f}" cy="{T - 5:g}" r="11" fill="transparent"/>')
         p.append(f'<circle class="bc-mile-c" cx="{mx:.1f}" cy="{T - 5:g}" r="5.4"/>')
@@ -2762,14 +2790,26 @@ def _mile_legend(miles: list) -> str:
     JS (_MILE_JS) est scopé au bloc `.spf-cv` -> les 2 séries de repères ne se confondent pas. '' si vide."""
     if not miles:
         return ""
-    chips = "".join(f'<button type="button" class="sx-mile-b" data-mile="{i}">{i}</button>'
-                    for i in range(1, len(miles) + 1))
-    data = "".join(f'<div class="sx-mile-d" data-mile="{i}" hidden>'
-                   f'<b>{html.escape(m[1])}</b> — {html.escape(m[2])}</div>'
-                   for i, m in enumerate(miles, 1))
+
+    def _auto(m):
+        return len(m) > 5 and m[5] == "auto"
+    chips = "".join(f'<button type="button" class="sx-mile-b{" mauto" if _auto(m) else ""}" '
+                    f'data-mile="{i}">{i}</button>' for i, m in enumerate(miles, 1))
+    data = "".join(
+        f'<div class="sx-mile-d" data-mile="{i}" hidden>'
+        f'<span class="sx-mile-date">{html.escape((m[0] or "")[:10])}</span>'
+        f'<span class="sx-mile-tag{" mauto" if _auto(m) else ""}">'
+        f'{"🟠 auto" if _auto(m) else "🔵 méthodo"}</span><br>'
+        f'<b>{html.escape(m[1])}</b> — {html.escape(m[2])}</div>'
+        for i, m in enumerate(miles, 1))
+    # Clé de lecture (montrée seulement s'il y a des deux types) : intuitif d'un coup d'œil.
+    key = ""
+    if any(_auto(m) for m in miles) and any(not _auto(m) for m in miles):
+        key = ('<div class="sx-mile-key"><span><i class="km kmeth"></i>réglage méthodo</span>'
+               '<span><i class="km kauto"></i>marché auto-ajusté</span></div>')
     return (f'<div class="sx-miles"><div class="sx-ml-h">Repères du modèle'
             f'<span class="sx-ml-hint">touchez un repère pour le détail</span></div>'
-            f'<div class="sx-mile-bs">{chips}</div>'
+            f'{key}<div class="sx-mile-bs">{chips}</div>'
             f'<div class="sx-mile-info"></div>{data}</div>')
 
 
@@ -2813,9 +2853,13 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # KPI à SUIVRE : nouveau système (1 pari/match + 3 agents) -> chip EXTRA sous la courbe.
     nv_val = _roistr(sc.get("roi")) if sc.get("settled") else "—"
     nv_cls = _roi_cls(sc.get("roi"), sc.get("settled")) if sc.get("settled") else "hi"
-    # COURBE + repères. Chaque repère a une PORTÉE (simple/combo/both) -> les repères des SIMPLES vont
-    # sur le graphe Simples, ceux des COMBINÉS sur le graphe Combinés (demande user). « both » sur les 2.
-    _all_miles = list(analyses.MODEL_MILESTONES)
+    # COURBE + repères. DEUX familles fusionnées et triées par date : 🔵 JALONS MÉTHODO (changements
+    # DÉLIBÉRÉS de l'analyse / de la création des tickets) + 🟠 AJUSTEMENTS AUTO (marchés que le système
+    # écarte ou ré-intègre TOUT SEUL, datés — ils changent aussi la fabrication des tickets). Chaque repère
+    # a une PORTÉE (simple/combo/both) -> repères SIMPLES sur le graphe Simples, COMBINÉS sur le graphe
+    # Combinés, « both » sur les 2. Le 6e champ = type ("methodo"/"auto") pilote la couleur de la pastille.
+    _methodo = [tuple(m) + ("methodo",) for m in analyses.MODEL_MILESTONES]
+    _all_miles = sorted(_methodo + analyses.exclusion_events(), key=lambda m: (m[0] or ""))
     _ms_simple = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("simple", "both")]
     _ms_combo = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("combo", "both")]
     chart = _hero_chart(ov.get("points") or [], uid="all",
@@ -3012,9 +3056,42 @@ def _reliability_chart(series: list, uid: str = "rel") -> str:
     return "".join(p)
 
 
+_EXCL_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀", "combo": "🎲"}
+
+
+def _excl_journal_html(rep: dict) -> str:
+    """JOURNAL DATÉ des ajustements automatiques (marché auto-écarté / auto-réintégré) : chronologie
+    lisible, récent d'abord. Rend visible et traçable l'auto-révision du système (le pendant « détail »
+    des repères ambrés des courbes). Toujours affiché (même vide -> message « sélection stable »)."""
+    j = rep.get("journal") or {}
+    evs = j.get("events") or []
+    started = j.get("started")
+    since = (f'<span class="exq-jsince">suivi depuis le {html.escape(str(started))}</span>'
+             if started else "")
+    head = f'<div class="exq-jhead">📋 Journal des ajustements automatiques{since}</div>'
+    if not evs:
+        return (f'<div class="exq-journal">{head}<div class="exq-jempty">Aucun ajustement automatique '
+                f'à ce jour — la sélection de marchés est <b>stable</b>. Dès que le système écarte ou '
+                f'ré-intègre un marché tout seul, l\'événement daté apparaît ici et sur les courbes.</div></div>')
+    _AB = {"exclu": ("exq-ex", "⛔ écarté"), "réintégré": ("exq-ok", "✅ réintégré")}
+    rows = []
+    for e in evs[:14]:
+        cls, lbl = _AB.get(e.get("action"), ("exq-watch", "•"))
+        icon = _EXCL_ICON.get(e.get("sport"), "")
+        base = ' <span class="exq-jbase">état initial</span>' if e.get("baseline") else ""
+        rows.append(
+            f'<div class="exq-jrow"><div class="exq-jtop">'
+            f'<span class="exq-jdate">{html.escape((e.get("date") or "")[:10])}</span>'
+            f'<span class="exq-bdg {cls}">{lbl}</span>'
+            f'<span class="exq-jmk">{icon} {html.escape(str(e.get("market", "")))}</span>{base}</div>'
+            f'<div class="exq-jreason">{html.escape(str(e.get("reason") or ""))}</div></div>')
+    return f'<div class="exq-journal">{head}{"".join(rows)}</div>'
+
+
 def render_exclusions(rep: dict | None) -> str:
     """TRANSPARENCE — quels TYPES DE PARIS sont écartés et POURQUOI, avec les seuils d'exclusion et de
-    réintégration (auto-révisable selon le taux de réussite). '' si rien à montrer."""
+    réintégration (auto-révisable selon le taux de réussite). En tête : le JOURNAL daté des ajustements
+    automatiques (le « quand »), suivi de l'état courant par sport (le « quoi/pourquoi »). '' si rien."""
     if not rep or not rep.get("sports"):
         return ""
     th = rep.get("thresholds") or {}
@@ -3029,7 +3106,7 @@ def render_exclusions(rep: dict | None) -> str:
     _bdg = {"ban": ("exq-ex", "⛔ Banni"), "gap": ("exq-ex", "⛔ Écarté"), "roi": ("exq-ex", "⛔ Écarté"),
             "excl": ("exq-ex", "⛔ Écarté"), "watch": ("exq-watch", "👁 Surveillé"),
             "ok": ("exq-ok", "✅ Fiable")}
-    body = intro
+    body = intro + _excl_journal_html(rep)             # JOURNAL daté (le « quand ») avant l'état courant
     for sec in rep["sports"]:
         nex = sec.get("n_excluded") or 0
         tag = (f'<span class="exq-sptag exq-sptag-ex">{nex} écarté{"s" if nex > 1 else ""}</span>'

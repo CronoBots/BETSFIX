@@ -160,6 +160,15 @@ def build() -> str:
         for m in _sm:
             L.append(f"- `{m[0]}` **{m[1]}** — {m[2]}")
         L.append("")
+        # Ajustements AUTOMATIQUES de marché (auto-exclu / auto-réintégré) datés, propres à ce sport.
+        _aj = [e for e in (analyses.exclusion_journal().get("events") or [])
+               if e.get("sport") == short and not e.get("baseline")]
+        if _aj:
+            L.append("**Ajustements automatiques (ce sport)**")
+            for e in _aj:
+                _v = "réintégré" if e.get("action") == "réintégré" else "écarté"
+                L.append(f"- `{e.get('date')}` marché « {e.get('market')} » **{_v}** — {e.get('reason')}")
+            L.append("")
         L.append("**Scorecard d'optimalité**")
         L.extend(sclines)
         L.append("")

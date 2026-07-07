@@ -1473,8 +1473,12 @@ MODEL_MILESTONES = [   # (date, libellé court, explication 1 ligne, portée, sp
     ("2026-06-16", "1 pari/match", "Le modèle ne retient qu'un seul pari par match, le plus probable, validé par trois agents.", "simple", "all"),
     ("2026-06-19", "Corners bannis", "Les corners, le marché le plus perdant au foot, sont exclus de tous les paris (simple et combiné).", "both", "foot"),
     ("2026-06-26", "Combinés calibrés", "Jambes de combiné recalibrées comme les simples ; les marchés perdants (Total, Sets) s'écartent automatiquement.", "combo", "all"),
+    ("2026-07-05", "Combiné = cote réelle corrélée", "La probabilité d'un combiné est ajustée par la vraie cote Bet Builder (corrélation du marché) au lieu du produit naïf des probabilités : un combiné anti-corrélé est refusé, une domination corrélée est valorisée.", "combo", "all"),
     ("2026-07-06", "Combiné = pari désigné", "Le combiné proposé est exactement celui désigné par l'analyste, jamais un combiné de remplacement ; s'il n'est pas combinable, on s'abstient plutôt que de forcer.", "combo", "all"),
 ]
+# Icônes/noms de sport partagés (repères auto, journaux). "combo" = props joueur en jambe de combiné.
+_SPORT_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀", "combo": "🎲"}
+_SPORT_NOM = {"foot": "Foot", "tennis": "Tennis", "basket": "Basket", "combo": "Combiné"}
 # Les combinés ne comptent dans le palmarès qu'à partir de la date de DÉCISION (NON rétroactif) :
 # les combinés antérieurs (placés quand ils ne comptaient pas) ne polluent pas le suivi.
 _COMBO_COUNT_FROM = "2026-06-18"
@@ -2157,7 +2161,95 @@ def exclusions_report() -> dict:
                                "n_excluded": sum(1 for r in rows if r["excluded"])})
     pp_ok, pp = combo_player_props_allowed()
     return {"sports": sports_out, "player_props": {"allowed": pp_ok, **pp},
-            "thresholds": {"min_n": CALIB_MIN_N, "gap_max": CALIB_GAP_MAX, "roi_max": CALIB_ROI_MAX}}
+            "thresholds": {"min_n": CALIB_MIN_N, "gap_max": CALIB_GAP_MAX, "roi_max": CALIB_ROI_MAX},
+            "journal": exclusion_journal()}
+
+
+# ─── AJUSTEMENTS AUTOMATIQUES de marché (auto-exclu / auto-réintégré), DATÉS ───────────────────────
+# Ces changements MODIFIENT la création des tickets (simples & combinés) : quand le système écarte ou
+# ré-intègre TOUT SEUL un marché, la sélection change. On les surface comme REPÈRES « auto » (ambrés)
+# sur les courbes — à côté des jalons méthodo manuels (MODEL_MILESTONES, bleus) — et dans un journal
+# lisible sous « Marchés écartés ». Source = data/learning_log.json (photo QUOTIDIENNE déjà prise par
+# app/learning.py à chaque scan) : on n'ajoute AUCUN nouveau fichier ni tâche, on RECONSTRUIT la
+# chronologie en diffant les photos jour à jour. Le ban dur « Corners » (décision produit) est un jalon
+# méthodo, PAS un ajustement auto -> filtré ici pour ne pas doublonner le repère « Corners bannis ».
+_EXCL_HARD_BAN = {"Corners"}
+
+
+def _excl_reason(e: dict) -> str:
+    """Phrase courte et claire pour un événement d'ajustement (repère + journal)."""
+    if e.get("baseline"):
+        return "Écarté au démarrage du suivi (état initial des exclusions par sport)."
+    if e.get("action") == "réintégré":
+        return "Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport."
+    return "Écarté automatiquement : sur-confiance ou ROI perdant prouvés sur ce sport (échantillon suffisant)."
+
+
+def _exclusion_transitions() -> list[dict]:
+    """Reconstruit la CHRONOLOGIE des ajustements auto à partir des photos quotidiennes du journal
+    d'apprentissage. Pour chaque jour où l'ensemble écarté d'un sport (ou les props joueur en combiné)
+    change vs la veille -> un événement daté {date, sport, market, action, baseline, reason}. Le premier
+    jour connu = BASELINE (état de départ). Filtre le ban dur « Corners ». [] si pas d'historique."""
+    from app import learning                    # import local : évite le cycle analyses<->learning
+    log = learning._load()
+    if not log:
+        return []
+    evs, prev = [], None
+    for day in sorted(log):
+        snap = log[day]
+        exl = snap.get("exclusions") or {}
+        cur = {sp: set(exl.get(sp) or []) - _EXCL_HARD_BAN for sp in ("foot", "tennis", "basket")}
+        pp = bool(snap.get("combo_props_allowed"))
+        if prev is None:                         # ── baseline (état initial, pas un « changement »)
+            for sp in ("foot", "tennis", "basket"):
+                for mk in sorted(cur[sp]):
+                    evs.append({"date": day, "sport": sp, "market": mk, "action": "exclu", "baseline": True})
+            if not pp:
+                evs.append({"date": day, "sport": "combo", "market": "Props joueur",
+                            "action": "exclu", "baseline": True})
+        else:
+            for sp in ("foot", "tennis", "basket"):
+                for mk in sorted(cur[sp] - prev["ex"][sp]):
+                    evs.append({"date": day, "sport": sp, "market": mk, "action": "exclu", "baseline": False})
+                for mk in sorted(prev["ex"][sp] - cur[sp]):
+                    evs.append({"date": day, "sport": sp, "market": mk, "action": "réintégré", "baseline": False})
+            if pp != prev["pp"]:
+                evs.append({"date": day, "sport": "combo", "market": "Props joueur",
+                            "action": ("réintégré" if pp else "exclu"), "baseline": False})
+        prev = {"ex": cur, "pp": pp}
+    for e in evs:
+        e["reason"] = _excl_reason(e)
+    return evs
+
+
+def exclusion_events() -> list:
+    """Les ajustements auto (hors baseline) au format REPÈRE de courbe :
+    (date, libellé court, explication, portée, sport, "auto"). Fusionnés avec MODEL_MILESTONES à
+    l'affichage -> pastilles ambrées datées sur les courbes. Un marché écarté/réintégré vaut pour le
+    simple ET le combiné (portée « both ») ; les props joueur ne concernent que le combiné."""
+    out = []
+    for e in _exclusion_transitions():
+        if e.get("baseline"):
+            continue
+        sp = e["sport"]
+        scope = "combo" if sp == "combo" else "both"
+        sport = sp if sp in ("foot", "tennis", "basket") else "all"
+        verb = "réintégré" if e["action"] == "réintégré" else "écarté"
+        label = f'{e["market"]} {verb}'
+        expl = f'{_SPORT_NOM.get(sp, sp)} : {e["reason"]}'
+        out.append((e["date"], label, expl, scope, sport, "auto"))
+    return out
+
+
+def exclusion_journal() -> dict:
+    """Journal LISIBLE (récent d'abord) de tous les ajustements auto, baseline incluse, + date de début
+    de suivi. Pour le panneau « Marchés écartés » (transparence complète)."""
+    from app import learning
+    log = learning._load()
+    started = min(log) if log else None
+    evs = sorted(_exclusion_transitions(), key=lambda e: (e.get("date") or "", 0 if e.get("baseline") else 1),
+                 reverse=True)
+    return {"started": started, "events": evs}
 
 
 def _wilson(won: int, n: int, z: float = 1.28) -> tuple:
