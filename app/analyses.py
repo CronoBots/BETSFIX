@@ -1342,7 +1342,24 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
         reco = _recommend(bets)
     ri = reco.get("idx")
     if reco.get("verdict") != "play" or ri is None:
-        return None
+        ri = None
+        # GEL DES PRONOS PUBLIÉS (SUIVI/historique uniquement) : un simple DÉJÀ posté aux abonnés reste
+        # « retenu » pour le suivi même si la calibration a DÉRIVÉ sous le seuil depuis -> il est bien
+        # COMPTÉ dans les stats et AFFICHÉ en terminé (posté = compté = visible). Ne touche PAS la
+        # publication de NOUVEAUX paris (for_history=False reste strict), ni les matchs à COMBINÉ.
+        if for_history and not ((m.get("combo") or {}).get("legs")):
+            try:
+                from app import notify as _notify
+                if _notify.get_prono(str(match_id)):
+                    _pk = _norm_sel(re.sub(r"\s*@.*$", "", str(m.get("pick") or "")))
+                    ri = next((i for i, b in enumerate(bets)
+                               if _pk and _norm_sel(b.get("sel", "")) == _pk), None)
+                    if ri is None:
+                        ri = max(range(len(bets)), key=lambda i: bets[i].get("prob") or 0)
+            except Exception:
+                ri = None
+        if ri is None:
+            return None
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
     b = bets[ri]
     return {"idx": ri, "sel": b.get("sel", ""), "prob": b.get("prob"), "cote": b.get("cote"),
@@ -1414,6 +1431,24 @@ def card_summary(sport: str, match_id) -> dict:
     out["play"] = reco.get("verdict") == "play" and reco.get("idx") is not None
     out["ev"] = reco.get("ev")
     out["reco_idx"] = reco.get("idx")
+    # COHÉRENCE TELEGRAM = SITE (gel des pronos publiés) : si un prono a DÉJÀ été PUBLIÉ aux abonnés
+    # mais que la CALIBRATION a DÉRIVÉ depuis (recalibrage sous le seuil) au point que le moteur
+    # abstiendrait AUJOURD'HUI, on GÈLE quand même le pari publié -> le site affiche le MÊME pari que la
+    # carte Telegram reçue (sinon « pas de pari conseillé » alors que l'abonné a le pick). N'affecte QUE
+    # l'affichage : les stats (stat_bet figé) et la calibration (toutes prédictions) restent intactes.
+    if not out["play"]:
+        try:
+            from app import notify as _notify
+            if _notify.get_prono(str(match_id)):
+                _pk = _norm_sel(re.sub(r"\s*@.*$", "", str(m.get("pick") or "")))
+                _idx = next((i for i, b in enumerate(bets)
+                             if _pk and _norm_sel(b.get("sel", "")) == _pk), None)
+                if _idx is None and bets:        # repli : le pari le plus probable (celui publié par défaut)
+                    _idx = max(range(len(bets)), key=lambda i: bets[i].get("prob") or 0)
+                if _idx is not None:
+                    out["play"], out["reco_idx"] = True, _idx
+        except Exception:
+            pass
     # résultats réglés (terminés) : par sélection
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
     rl = [results.get(_norm_sel(b.get("sel", ""))) for b in bets]
