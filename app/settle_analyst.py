@@ -402,6 +402,13 @@ def settle_pick(code: str, score: dict) -> str | None:
             return None                                   # stats pas encore récupérées -> on retentera
         rest = parts[1:]
         side = rest.pop(0) if (rest and rest[0] in ("HOME", "AWAY")) else None
+        # « LE PLUS DE … » (marché COMPARATIF, ex. « Le plus de tirs cadrés Maroc ») : l'équipe désignée
+        # en a-t-elle STRICTEMENT plus que l'adverse ? push si égalité. Pas de seuil (≠ OVER/UNDER).
+        if rest and rest[0] == "MOST":
+            if side not in ("HOME", "AWAY"):
+                return None
+            tv, ov = (hv, av) if side == "HOME" else (av, hv)
+            return "push" if tv == ov else ("won" if tv > ov else "lost")
         if len(rest) < 2 or rest[0] not in ("OVER", "UNDER"):
             return None
         try:
@@ -745,6 +752,16 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         sgn = re.search(r"([+\-−–])\s*(\d+[.,]?\d*)", t)
         if sgn:
             return f"{base} {'UNDER' if sgn.group(1) in ('-', '−', '–') else 'OVER'} {sgn.group(2).replace(',', '.')}"
+        # « LE PLUS DE tirs (cadrés) <équipe> » = COMPARATIF (cette équipe en a le PLUS), SANS seuil chiffré.
+        # Réglé en comparant sot_h/sot_a (ou shots_h/a), déjà dans les stats. L'équipe peut être APRÈS une
+        # parenthèse NEUTRE (« (réglé selon Opta Data) Maroc ») que which() (partie avant « ( ») rate -> on
+        # la détecte sur le TEXTE ENTIER. Sans ça : code vide -> jamais réglé -> combiné retenu des JOURS
+        # puis voidé à J+3 (bug vécu Canada-Maroc, jambe « tirs cadrés Maroc »).
+        if re.search(r"le plus de|plus de tirs?|the most", t):
+            hin, ain = any(w in t for w in h), any(w in t for w in a)
+            w = "HOME" if (hin and not ain) else ("AWAY" if (ain and not hin) else "")
+            if w:
+                return f"{'SHOTSOT' if ('cadr' in t or 'on target' in t) else 'SHOTS'} {w} MOST"
         return ""    # tirs sans ligne exploitable -> abstention
     team = which()
     # total d'une ÉQUIPE (le score par équipe est connu) : « X marque +1.5 », « X +/- de N buts/pts »

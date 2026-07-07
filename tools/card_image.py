@@ -129,7 +129,7 @@ def _mark(mk: str, size: int = 38) -> str:
                 'r="17" fill="#e23b46"/><circle cx="18" cy="18" r="16.4" fill="none" stroke="#ffb0b5" '
                 'stroke-opacity=".55" stroke-width="1.1"/><path d="M12 12l12 12M24 12L12 24" fill="none" '
                 'stroke="#fff" stroke-width="3.5" stroke-linecap="round"/></svg>')
-    if mk == "push":
+    if mk in ("push", "void"):                 # void (remboursé) = même pastille grise que push -> jamais blanc
         return (f'<svg class="mark" width="{size}" height="{size}" viewBox="0 0 36 36"><circle cx="18" cy="18" '
                 'r="17" fill="#8595a8"/><path d="M11 18h14" fill="none" stroke="#fff" stroke-width="3.5" '
                 'stroke-linecap="round"/></svg>')
