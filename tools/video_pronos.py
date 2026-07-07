@@ -29,7 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -279,9 +279,13 @@ def _concat(segments: list, out_mp4: str, workdir: str):
 
 # ───────────────────────────── collecte des pronos du jour ─────────────────────────────
 def _collect(hours: float, ids: str) -> list:
-    """Mêmes sidecars que la publication Telegram : retenus, dédupliqués par match, chronologiques."""
+    """LES PARIS DU JOUR = pronos À VENIR (pas encore joués), dans la fenêtre du scan (prochaines `hours`),
+    exactement comme le board « À venir » / la publication Telegram. ⚠️ On NE filtre PAS sur le mtime du
+    sidecar : le règlement le touche en permanence -> ça ramassait des matchs DÉJÀ JOUÉS de la semaine.
+    On filtre sur le COUP D'ENVOI : `status_of == 'notstarted'` ET start ≤ maintenant + `hours`."""
+    now = datetime.now(timezone.utc)
     sides = []
-    if ids:
+    if ids:                                        # sélection EXPLICITE : pas de filtre temporel
         wanted = [s.strip() for s in ids.split(",") if s.strip()]
         for f in glob.glob(os.path.join(analyses.DIR, "*.json")):
             try:
@@ -292,16 +296,21 @@ def _collect(hours: float, ids: str) -> list:
                 sides.append((wanted.index(str(d.get("id"))), d))
         sides = [d for _, d in sorted(sides, key=lambda x: x[0])]
     else:
-        cutoff = datetime.now(timezone.utc).timestamp() - hours * 3600
-        rows = []
+        horizon = now + timedelta(hours=hours)
         for f in glob.glob(os.path.join(analyses.DIR, "*.json")):
             try:
                 d = json.load(open(f, encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            if os.path.getmtime(f) >= cutoff:
-                rows.append(d)
-        sides = rows
+            if analyses.status_of(d) != "notstarted":     # à venir seulement (exclut en cours / terminés)
+                continue
+            dt = _cd._dt(d)
+            if dt is None:
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if now <= dt <= horizon:                       # dans la fenêtre du scan (paris DU JOUR)
+                sides.append(d)
     sides.sort(key=lambda d: d.get("start") or "")
     seen = {}
     for d in sides:
@@ -318,7 +327,8 @@ def _collect(hours: float, ids: str) -> list:
 def main() -> int:
     global FFMPEG, ffprobe
     ap = argparse.ArgumentParser(description="Vidéo YouTube des pronos du jour (voix + analyses).")
-    ap.add_argument("--hours", type=float, default=24.0, help="sidecars des N dernières heures (défaut 24)")
+    ap.add_argument("--hours", type=float, default=24.0,
+                    help="fenêtre des matchs À VENIR : coup d'envoi dans les N prochaines heures (défaut 24)")
     ap.add_argument("--ids", default="", help="ids de match précis, séparés par des virgules")
     ap.add_argument("--voice", default=VOICE_DEFAULT, help="voix edge-tts (défaut fr-FR-HenriNeural)")
     ap.add_argument("--rate", default=RATE_DEFAULT, help="tempo de la voix (ex. +6%%)")
