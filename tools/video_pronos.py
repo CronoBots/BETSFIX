@@ -340,6 +340,11 @@ def main() -> int:
     except RuntimeError as e:
         print(f"✗ {e}")
         return 2
+    try:                                  # pré-check edge-tts (comme ffmpeg) : message clair plutôt qu'un
+        import edge_tts  # noqa: F401     # traceback en pleine génération avec un dossier de travail partiel.
+    except ImportError:
+        print("✗ edge-tts introuvable — installe-le : pip install edge-tts")
+        return 2
 
     cards = _collect(args.hours, args.ids)
     if not cards:

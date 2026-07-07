@@ -198,6 +198,9 @@ def _card_html(d: dict) -> str:
             if any(_n(l[0]) == _sl for l in cb.get("legs", [])):
                 sp = None
         _verdict = (cb or {}).get("mark") or (sp or {}).get("mark") or ""
+        if _verdict == "void":                         # remboursé (void) = MÊME rendu visuel que push :
+            _verdict = "push"                          # bannière « ➖ Remboursé » + accent gris (sinon
+        #                                                aucune bannière ni CSS .card.void -> carte muette).
         _cardcls = _verdict                            # accent (bordure + halo) sur TOUTE la carte
         if sp:
             mk = sp.get("mark", "")

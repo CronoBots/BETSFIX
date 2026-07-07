@@ -264,11 +264,18 @@ def list_for(sport: str) -> list[dict]:
         # — SAUF s'il a été VU EN DIRECT très récemment (démarrage tardif encore en cours -> live collant).
         if (dt is not None and dt < now - timedelta(hours=_STALE_AFTER_H.get(sport, 6))
                 and not is_settled(d)):
-            try:
-                from app import match_select as _ms
-                _still_live = _ms.sticky_live(sport, d.get("home"), d.get("away"))
-            except Exception:
-                _still_live = False
+            # « Live collant » borné : on ne sauve un match périmé QUE s'il a été vu en direct récemment
+            # ET que son coup d'envoi date de MOINS de 15 h. Sans ce plafond, sticky_live (clé par NOMS
+            # d'équipes seulement) ressusciterait un ANCIEN match d'une série (mêmes équipes) qu'un match
+            # ULTÉRIEUR en direct fait apparaître « vu récemment » (bug audit). 15 h couvre un démarrage
+            # très tardif + un match long, mais exclut la manche de la veille.
+            _still_live = False
+            if dt > now - timedelta(hours=15):
+                try:
+                    from app import match_select as _ms
+                    _still_live = _ms.sticky_live(sport, d.get("home"), d.get("away"))
+                except Exception:
+                    _still_live = False
             if not _still_live:
                 continue
         # Mode strict RENFORCÉ (demande user 2026-07-01) : un match sans pari PUBLIABLE n'apparaît
@@ -1359,12 +1366,10 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
                         _anchor = re.sub(r"\s*@.*$", "", str(m.get("pick") or ""))
                 except Exception:
                     _anchor = None
-            if _anchor:
+            if _anchor:                          # match EXACT du pari compté/publié UNIQUEMENT (pas de max-prob deviné)
                 _pk = _norm_sel(_anchor)
                 ri = next((i for i, b in enumerate(bets)
                            if _pk and _norm_sel(b.get("sel", "")) == _pk), None)
-                if ri is None:
-                    ri = max(range(len(bets)), key=lambda i: bets[i].get("prob") or 0)
         if ri is None:
             return None
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
@@ -1455,9 +1460,10 @@ def card_summary(sport: str, match_id) -> dict:
                 _anchor = None
         if _anchor:
             _pk = _norm_sel(_anchor)
+            # Match EXACT du pari ancré UNIQUEMENT (jamais un pari « deviné » par max-prob : sinon on
+            # afficherait comme « à jouer » une sélection jamais publiée, souvent un favori sans value
+            # ou un marché exclu — bug audit). Si le pari ancré ne matche aucune ligne, on n'affiche rien.
             _idx = next((i for i, b in enumerate(bets) if _pk and _norm_sel(b.get("sel", "")) == _pk), None)
-            if _idx is None and bets:        # repli : le pari le plus probable (celui publié par défaut)
-                _idx = max(range(len(bets)), key=lambda i: bets[i].get("prob") or 0)
             if _idx is not None:
                 out["play"], out["reco_idx"] = True, _idx
     # résultats réglés (terminés) : par sélection

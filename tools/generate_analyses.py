@@ -550,18 +550,45 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
     matches = []
+    # Repli PAR SPORT : programme précédent, pour ne pas effacer un sport dont la sélection échoue.
+    prev_by_sport: dict = {}
+    try:
+        _pv = json.load(open(PROGRAMME_PATH, encoding="utf-8"))
+        for _m in (_pv.get("matches") or []):
+            prev_by_sport.setdefault(_m.get("sport"), []).append(_m)
+    except (OSError, ValueError):
+        pass
+    n_ok = 0
     for sport in sports:
         always = _is_big_match if sport == "foot" else None
-        try:
-            top = await fetch_important(sport, args.top, client, within_hours=args.hours, always=always)
-        except Exception as e:
-            print(f"[{sport}] sélection programme échouée : {e}")
+        top = None
+        for _attempt in range(3):                 # getaddrinfo = hoquet fréquent (cf. CLAUDE.md) -> on retente
+            try:
+                top = await fetch_important(sport, args.top, client, within_hours=args.hours, always=always)
+                break
+            except Exception as e:
+                top = None
+                if _attempt < 2:
+                    await asyncio.sleep(2)
+                else:
+                    print(f"[{sport}] sélection programme échouée (3 essais) : {e}")
+        if top is None:                           # réseau KO -> on CONSERVE le programme précédent de CE sport
+            if prev_by_sport.get(sport):
+                matches.extend(prev_by_sport[sport])
+                print(f"[{sport}] réseau KO -> programme précédent conservé ({len(prev_by_sport[sport])} match(s)).")
             continue
+        n_ok += 1
         if args.only_big:
             top = [m for m in top if _is_big_match(m.get("comp") or m.get("circuit") or "")]
         for m in top:
             matches.append({"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
                             "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""})
+    # ⛔ NE JAMAIS écraser un programme valide par du VIDE : si AUCUN sport n'a été récupéré (échec réseau
+    # TOTAL), on garde le fichier précédent INTACT (mtime compris) -> les vagues continuent sur l'ancien
+    # programme au lieu de rester muettes toute la journée (bug audit : point de défaillance unique matinal).
+    if n_ok == 0:
+        print("Programme : AUCUN sport récupéré (réseau ?) -> programme précédent conservé intact.")
+        return
     matches.sort(key=lambda x: x.get("start") or "")
     prog = {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "matches": matches}
     tmp = PROGRAMME_PATH + ".tmp"
@@ -2056,7 +2083,12 @@ async def main():
                                    or any(b.get("result") for b in (old.get("bets") or [])))
                     except (OSError, ValueError):
                         settled = False
-                    if not settled:                # jamais toucher un match réglé (historique)
+                    # Ne JAMAIS effacer un match RÉGLÉ (historique) NI un prono DÉJÀ PUBLIÉ : si une
+                    # ré-analyse (--refresh-early / --force) bascule en abstention, on GARDE le sidecar
+                    # publié -> le site continue d'afficher EXACTEMENT le pari reçu par l'abonné (cohérence
+                    # Telegram = site ; sinon le match disparaissait du site, bug audit).
+                    _published = bool(_notify.get_prono(str(fid)))
+                    if not settled and not _published:
                         for ext in (".json", ".md"):
                             try:
                                 os.remove(os.path.join(OUT, f"{sport}_{fid}{ext}"))
