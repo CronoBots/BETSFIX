@@ -282,16 +282,18 @@ def list_for(sport: str) -> list[dict]:
         _has_combo = bool((d.get("combo") or {}).get("legs"))
         if not _has_combo and load(sport, d.get("id")) is not None \
                 and retained_bet(sport, d.get("id"), for_history=is_settled(d)) is None:
-            # SAUF si un prono a DÉJÀ été PUBLIÉ sur Telegram pour ce match : posté aux abonnés = visible
-            # sur le site (cohérence Telegram = site). Couvre les sidecars à `pick` hérité (« … @cote »)
-            # SANS `bets` structurés -> retained_bet=None les cachait alors que le prono était bien posté
-            # (bug vécu Auger-Aliassime–Djokovic : prono Telegram mais match introuvable sur le site).
-            try:
-                from app import notify as _notify
-                _published = bool(_notify.get_prono(str(d.get("id"))))
-            except Exception:
-                _published = False
-            if not _published:
+            # SAUF si le pari a DÉJÀ été COMPTÉ (stat_bet figé, survit à un reset du canal ET à la dérive de
+            # calibration) OU si un prono a été PUBLIÉ (get_prono, pour les À-VENIR pas encore réglés) :
+            # cohérence Telegram = site = stats. `stat_bet` est l'ancre ROBUSTE des terminés (un reset des
+            # pronos ne doit PAS faire disparaître un terminé déjà compté — bug vécu Auger-Aliassime–Djokovic).
+            _kept = isinstance(d.get("stat_bet"), dict)
+            if not _kept:
+                try:
+                    from app import notify as _notify
+                    _kept = bool(_notify.get_prono(str(d.get("id"))))
+                except Exception:
+                    _kept = False
+            if not _kept:
                 continue
         d["_start_dt"] = dt
         out.append(d)
@@ -1343,21 +1345,26 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     ri = reco.get("idx")
     if reco.get("verdict") != "play" or ri is None:
         ri = None
-        # GEL DES PRONOS PUBLIÉS (SUIVI/historique uniquement) : un simple DÉJÀ posté aux abonnés reste
-        # « retenu » pour le suivi même si la calibration a DÉRIVÉ sous le seuil depuis -> il est bien
-        # COMPTÉ dans les stats et AFFICHÉ en terminé (posté = compté = visible). Ne touche PAS la
-        # publication de NOUVEAUX paris (for_history=False reste strict), ni les matchs à COMBINÉ.
+        # ANCRE ROBUSTE (SUIVI/historique uniquement) : un pari DÉJÀ COMPTÉ (stat_bet figé — survit à un
+        # reset du canal ET à la dérive de calibration) OU un prono PUBLIÉ (get_prono, pour les à-venir)
+        # reste « retenu » -> il est bien COMPTÉ et AFFICHÉ en terminé (posté/compté = visible). Ne touche
+        # PAS la publication de NOUVEAUX paris (for_history=False reste strict), ni les matchs à COMBINÉ.
         if for_history and not ((m.get("combo") or {}).get("legs")):
-            try:
-                from app import notify as _notify
-                if _notify.get_prono(str(match_id)):
-                    _pk = _norm_sel(re.sub(r"\s*@.*$", "", str(m.get("pick") or "")))
-                    ri = next((i for i, b in enumerate(bets)
-                               if _pk and _norm_sel(b.get("sel", "")) == _pk), None)
-                    if ri is None:
-                        ri = max(range(len(bets)), key=lambda i: bets[i].get("prob") or 0)
-            except Exception:
-                ri = None
+            _sb = m.get("stat_bet")
+            _anchor = _sb.get("sel") if (isinstance(_sb, dict) and _sb.get("sel")) else None
+            if not _anchor:
+                try:
+                    from app import notify as _notify
+                    if _notify.get_prono(str(match_id)):
+                        _anchor = re.sub(r"\s*@.*$", "", str(m.get("pick") or ""))
+                except Exception:
+                    _anchor = None
+            if _anchor:
+                _pk = _norm_sel(_anchor)
+                ri = next((i for i, b in enumerate(bets)
+                           if _pk and _norm_sel(b.get("sel", "")) == _pk), None)
+                if ri is None:
+                    ri = max(range(len(bets)), key=lambda i: bets[i].get("prob") or 0)
         if ri is None:
             return None
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
@@ -1437,18 +1444,22 @@ def card_summary(sport: str, match_id) -> dict:
     # carte Telegram reçue (sinon « pas de pari conseillé » alors que l'abonné a le pick). N'affecte QUE
     # l'affichage : les stats (stat_bet figé) et la calibration (toutes prédictions) restent intactes.
     if not out["play"]:
-        try:
-            from app import notify as _notify
-            if _notify.get_prono(str(match_id)):
-                _pk = _norm_sel(re.sub(r"\s*@.*$", "", str(m.get("pick") or "")))
-                _idx = next((i for i, b in enumerate(bets)
-                             if _pk and _norm_sel(b.get("sel", "")) == _pk), None)
-                if _idx is None and bets:        # repli : le pari le plus probable (celui publié par défaut)
-                    _idx = max(range(len(bets)), key=lambda i: bets[i].get("prob") or 0)
-                if _idx is not None:
-                    out["play"], out["reco_idx"] = True, _idx
-        except Exception:
-            pass
+        _sb = m.get("stat_bet")           # ancre ROBUSTE : pari déjà COMPTÉ (figé, survit reset+dérive)…
+        _anchor = _sb.get("sel") if (isinstance(_sb, dict) and _sb.get("sel")) else None
+        if not _anchor:                   # …sinon prono PUBLIÉ (get_prono, pour les à-venir pas encore réglés)
+            try:
+                from app import notify as _notify
+                if _notify.get_prono(str(match_id)):
+                    _anchor = re.sub(r"\s*@.*$", "", str(m.get("pick") or ""))
+            except Exception:
+                _anchor = None
+        if _anchor:
+            _pk = _norm_sel(_anchor)
+            _idx = next((i for i, b in enumerate(bets) if _pk and _norm_sel(b.get("sel", "")) == _pk), None)
+            if _idx is None and bets:        # repli : le pari le plus probable (celui publié par défaut)
+                _idx = max(range(len(bets)), key=lambda i: bets[i].get("prob") or 0)
+            if _idx is not None:
+                out["play"], out["reco_idx"] = True, _idx
     # résultats réglés (terminés) : par sélection
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
     rl = [results.get(_norm_sel(b.get("sel", ""))) for b in bets]
