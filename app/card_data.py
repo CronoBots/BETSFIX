@@ -156,9 +156,12 @@ def build_result_card(d: dict) -> dict | None:
     res = d.get("result") or {}
     pick_result = res.get("pick_result")
     combo_result = combo.get("result")
-    # Cohérent avec la carte prono : le résultat du SIMPLE n'est montré que s'il était RETENU (donc
-    # publié). Un simple non retenu n'a pas de carte prono -> pas de carte résultat non plus.
-    simple_shown = analyses.retained_bet(sport, str(d.get("id"))) is not None
+    # Cohérent avec la carte prono (posté = réglé) : `build_prono_card` n'affiche QUE le combiné quand il
+    # y en a un (le simple est masqué). La carte résultat doit REFLÉTER ça -> le simple n'est montré que
+    # s'il N'Y A PAS de combiné ET qu'il était RETENU. Sinon on ajoutait un pari simple JAMAIS proposé
+    # (souvent un doublon d'une jambe du combiné) -> incohérence vécue Suisse-Colombie (« Moins de 2.5 »
+    # affiché en simple ET en jambe 1). Un simple non retenu n'a pas de carte prono -> pas de résultat non plus.
+    simple_shown = (not has_combo) and analyses.retained_bet(sport, str(d.get("id"))) is not None
 
     card_simple = card_combo = None
     if pick_result and simple_shown:
