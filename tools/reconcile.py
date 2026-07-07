@@ -144,9 +144,11 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 stuck.append(d)            # match fini depuis longtemps mais toujours pas réglé
             else:
                 upcoming.append(d)         # attend légitimement son résultat
-        # posté ? un match À VENIR IMMINENT (< 36 h) sans carte Telegram = envoi manqué -> à re-poster.
-        # Borne 36 h : on ne re-poste pas des matchs lointains (et on ne re-spamme pas tout l'historique).
-        if st and _now() < st < _now() + timedelta(hours=36) and not notify.get_prono(str(d.get("id"))):
+        # posté ? un match À VENIR IMMINENT (< 3 h) analysé mais SANS carte Telegram = envoi manqué -> à
+        # re-poster. Borne 3 h alignée sur le nouveau système « pari publié ~2 h avant le match » (dispatcher) :
+        # on ne rattrape QUE les envois ratés imminents, JAMAIS republier le backlog (bug vécu : la borne
+        # 36 h héritée du « tout publier le matin » republiait tous les matchs à venir d'un coup après reset).
+        if st and _now() < st < _now() + timedelta(hours=3) and not notify.get_prono(str(d.get("id"))):
             unposted.append(d)
 
     # 3) RE-POST des pronos à venir manqués (sauf --dry).

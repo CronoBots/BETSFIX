@@ -530,8 +530,12 @@ def _analyzed_too_early(path: str, start: str, window_h: float) -> bool:
 
 
 def _load_programme_ids() -> set:
-    """IDs (Unibet) des matchs du programme du jour. Vide si absent -> --from-programme ne garde rien."""
+    """IDs (Unibet) des matchs du programme du jour. Vide si absent OU PÉRIMÉ (> 30 h : scan du matin
+    manqué -> on n'analyse pas un vieux programme). 30 h couvre les matchs d'après-minuit d'un programme
+    posé la veille au matin. -> --from-programme ne garde alors rien."""
     try:
+        if (time.time() - os.path.getmtime(PROGRAMME_PATH)) / 3600 > 30:
+            return set()
         d = json.load(open(PROGRAMME_PATH, encoding="utf-8"))
         return {str(m.get("id")) for m in (d.get("matches") or [])}
     except (OSError, ValueError):
