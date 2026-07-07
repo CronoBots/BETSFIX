@@ -1226,7 +1226,10 @@ def combo_html(sport: str, match_id) -> str:
         full = f"{head}. {tail}" if (head and tail) else (head or tail)
         if full and full[-1] not in ".!?":
             full += "."
-        why_html = f'<div class="da-cl-why">{_h.escape(full)}</div>' if full else ""
+        # DENSITÉ (2026-07-07) : le raisonnement PRÉ-MATCH par jambe n'a plus d'utilité une fois le combiné
+        # RÉGLÉ (le match est fini) et allonge énormément la carte résultat -> masqué si `res`. Gardé
+        # avant-match / en live (aide à décider).
+        why_html = f'<div class="da-cl-why">{_h.escape(full)}</div>' if (full and not res) else ""
         # 2 colonnes : sélection (gauche, wrap propre) | bloc insécable cote · chance · compteur · statut (droite).
         rows.append(f'<div class="da-cl-leg{cls}">'
                     f'<div class="da-cl"><span class="da-cl-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
@@ -1269,7 +1272,8 @@ def combo_html(sport: str, match_id) -> str:
     n_legs = len(combo["legs"])
     # Synthèse en INTRO, avant la liste des jambes.
     synth = combo.get("why")
-    intro_html = f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>' if synth else ""
+    intro_html = (f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>'
+                  if (synth and not res) else "")   # synth = raisonnement pré-match -> masqué une fois réglé
     return (f'<div class="da-combo{hcls}"><div class="da-combo-h">🎲 Combiné '
             f'<span class="da-combo-n">· {n_legs} jambes</span>{badge}'
             f'{odds_html}</div>'
