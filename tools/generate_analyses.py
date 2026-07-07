@@ -512,6 +512,21 @@ def _kickoff_ts(start: str):
         return None
 
 
+def _analyzed_too_early(path: str, start: str, window_h: float) -> bool:
+    """L'analyse EXISTANTE a-t-elle été faite quand le match était ENCORE HORS fenêtre (lead au moment de
+    l'analyse > window_h) ? Si oui, elle est « trop en avance » sur le coup d'envoi -> à rafraîchir UNE
+    fois quand le match approche. AUTO-LIMITÉ : une fois analysé DANS la fenêtre, le lead <= window_h ->
+    plus de refresh (pas de re-post en boucle). mtime du .md = instant de la dernière analyse."""
+    ko = _kickoff_ts(start)
+    if ko is None:
+        return False
+    try:
+        analyzed = os.path.getmtime(path)
+    except OSError:
+        return False
+    return (ko - analyzed) / 3600 > window_h
+
+
 async def _resolve_sofa(sport: str, match: dict) -> str | None:
     """Résout l'id SofaScore d'un match (noms + DATE/HEURE). On scanne le planning de jour-1/jour/
     jour+1 (un match à 00:30 UTC peut être listé la VEILLE côté SofaScore) et, parmi les events aux
@@ -1800,6 +1815,9 @@ async def main():
                          "force la ré-analyse de CE match seul (contourne gel + cache), sans toucher les autres")
     ap.add_argument("--no-notify", action="store_true",
                     help="régénère l'analyse SANS re-poster sur Telegram (publication à décider ensuite)")
+    ap.add_argument("--refresh-early", action="store_true",
+                    help="ré-analyse UNE fois un match déjà publié mais analysé TROP TÔT (lead > --hours) "
+                         "quand il approche du coup d'envoi -> pick frais. Les matchs déjà frais sont gelés.")
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
     # Le scan AUTORISE les gros endpoints (scheduled-events) via proxy : il les met en cache
@@ -1862,11 +1880,19 @@ async def main():
                 # ICI (après résolution de `fid`) car le registre notify est clé par `fid` (= id SofaScore en
                 # tennis/basket, ≠ id Unibet `m['id']`). La COTE reste rafraîchie live (app/main combo-refresh,
                 # mêmes jambes) et le résultat est réglé. `--force` outrepasse (re-analyse volontaire).
-                if not (args.force or args.match) and _notify.get_prono(str(fid)):
+                path = os.path.join(OUT, f"{sport}_{fid}.md")
+                # REFRESH « analysé trop tôt » (--refresh-early, vagues rapprochées) : un match PUBLIÉ dont
+                # l'analyse a été faite quand il était ENCORE hors fenêtre (lead > --hours) est ré-analysé
+                # UNE fois à l'approche -> pick FRAIS près du coup d'envoi, puis re-posté. Auto-limité (voir
+                # _analyzed_too_early). Sinon le GEL protège intégralement le pick déjà publié (inchangé).
+                _refresh = (args.refresh_early and _notify.get_prono(str(fid))
+                            and _analyzed_too_early(path, m.get("start"), args.hours))
+                if not (args.force or args.match or _refresh) and _notify.get_prono(str(fid)):
                     print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
                     continue
-                path = os.path.join(OUT, f"{sport}_{fid}.md")
-                if not (args.force or args.match) and _fresh(path):
+                if _refresh:
+                    print(f"  ↻ {m['name']} : publié mais analysé trop tôt -> ré-analyse fraîche (refresh).")
+                if not (args.force or args.match or _refresh) and _fresh(path):
                     print(f"  · {m['name']} : analyse fraîche en cache, on saute.")
                     continue
                 # id SofaScore pour les séries/H2H/votes. tennis/basket : la clé du store EST l'id
