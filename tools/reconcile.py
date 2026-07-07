@@ -116,7 +116,7 @@ def _reset_premature() -> int:
     return n
 
 
-async def reconcile(dry: bool = False) -> dict:
+async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
     # 0) AUTO-RÉPARATION : annule les règlements prématurés (match encore live) -> re-réglés à l'étape 1.
     n_reset = 0 if dry else _reset_premature()
 
@@ -175,7 +175,9 @@ async def reconcile(dry: bool = False) -> dict:
     msg = "\n".join(lines)
 
     print(msg.replace("<b>", "").replace("</b>", "").replace("&gt;", ">"))
-    if not dry:
+    # `--no-bilan` (vagues rapprochées, ~toutes les 30 min) : on RÈGLE et poste les résultats, mais on
+    # NE POSTE PAS le bilan récap à chaque passage (sinon spam du canal). Le bilan reste au run du matin.
+    if not dry and not no_bilan:
         try:
             notify.send_sync(msg)
         except Exception as exc:
@@ -185,4 +187,4 @@ async def reconcile(dry: bool = False) -> dict:
 
 
 if __name__ == "__main__":
-    asyncio.run(reconcile(dry="--dry" in sys.argv))
+    asyncio.run(reconcile(dry="--dry" in sys.argv, no_bilan="--no-bilan" in sys.argv))

@@ -60,6 +60,8 @@ _CATALOG_CACHE: dict[str, list] = {}
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "analyses")
+PROGRAMME_PATH = os.path.join(ROOT, "data", "day_programme.json")   # sélection du jour (matin) : liste
+#   des matchs que BETSFIX couvrira. Le pari de chacun est publié ~2 h avant SON coup d'envoi (vagues).
 UA = {"User-Agent": "Mozilla/5.0"}
 CACHE_HOURS = 6
 # API locale (uvicorn SYSTEM, port 8000) : réutilise le chemin SofaScore qui marche déjà
@@ -525,6 +527,67 @@ def _analyzed_too_early(path: str, start: str, window_h: float) -> bool:
     except OSError:
         return False
     return (ko - analyzed) / 3600 > window_h
+
+
+def _load_programme_ids() -> set:
+    """IDs (Unibet) des matchs du programme du jour. Vide si absent -> --from-programme ne garde rien."""
+    try:
+        d = json.load(open(PROGRAMME_PATH, encoding="utf-8"))
+        return {str(m.get("id")) for m in (d.get("matches") or [])}
+    except (OSError, ValueError):
+        return set()
+
+
+async def _build_and_post_programme(client, sports: list, args) -> None:
+    """MATIN : sélectionne les matchs du jour (top N/sport dans la fenêtre), les enregistre dans
+    data/day_programme.json et poste le « programme du jour » sur Telegram — SANS analyser. Le pari de
+    chaque match sera publié ~2 h avant SON coup d'envoi par les vagues (--from-programme --refresh-early)."""
+    from app import notify
+    _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
+    matches = []
+    for sport in sports:
+        always = _is_big_match if sport == "foot" else None
+        try:
+            top = await fetch_important(sport, args.top, client, within_hours=args.hours, always=always)
+        except Exception as e:
+            print(f"[{sport}] sélection programme échouée : {e}")
+            continue
+        if args.only_big:
+            top = [m for m in top if _is_big_match(m.get("comp") or m.get("circuit") or "")]
+        for m in top:
+            matches.append({"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
+                            "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""})
+    matches.sort(key=lambda x: x.get("start") or "")
+    prog = {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "matches": matches}
+    tmp = PROGRAMME_PATH + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(prog, f, ensure_ascii=False)
+        os.replace(tmp, PROGRAMME_PATH)
+    except OSError as e:
+        print(f"  (écriture programme échouée : {e})")
+    print(f"Programme du jour : {len(matches)} match(s) sélectionné(s).")
+    if not matches or args.no_notify:
+        return
+    lines = [f"📋 <b>Programme du jour</b> — {len(matches)} match(s)"]
+    cur = None
+    for m in matches:
+        if m["sport"] != cur:
+            cur = m["sport"]
+            lines.append(f"\n{_ICON.get(cur, '')} <b>{_NOM.get(cur, cur)}</b>")
+        hm = ""
+        try:
+            hm = datetime.fromisoformat(m["start"].replace("Z", "+00:00")).astimezone().strftime("%H:%M")
+        except (ValueError, AttributeError):
+            pass
+        nm = str(m["name"]).replace(" - ", " — ")
+        lines.append(f"• {nm}" + (f" — {hm}" if hm else ""))
+    lines.append("\n<i>Le pari de chaque match est publié ~2 h avant son coup d'envoi.</i>")
+    try:
+        notify.send_sync("\n".join(lines))
+    except Exception as exc:
+        print(f"  (programme Telegram ignoré : {exc})")
 
 
 async def _resolve_sofa(sport: str, match: dict) -> str | None:
@@ -1818,6 +1881,11 @@ async def main():
     ap.add_argument("--refresh-early", action="store_true",
                     help="ré-analyse UNE fois un match déjà publié mais analysé TROP TÔT (lead > --hours) "
                          "quand il approche du coup d'envoi -> pick frais. Les matchs déjà frais sont gelés.")
+    ap.add_argument("--programme", action="store_true",
+                    help="MATIN : sélectionne les matchs du jour (top N/sport), enregistre le programme et "
+                         "poste la LISTE sur Telegram, SANS analyser (les paris viennent ~2 h avant chacun).")
+    ap.add_argument("--from-programme", action="store_true",
+                    help="ne (ré-)analyser QUE les matchs du programme du jour (data/day_programme.json).")
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
     # Le scan AUTORISE les gros endpoints (scheduled-events) via proxy : il les met en cache
@@ -1825,6 +1893,12 @@ async def main():
     from app import sofa_http
     sofa_http.allow_bulk_proxy = True
     sports = [s.strip() for s in args.sport.split(",") if s.strip()]
+    # MODE PROGRAMME (matin) : sélectionne + poste la LISTE du jour, SANS analyser, puis sort.
+    if args.programme:
+        async with httpx.AsyncClient(timeout=20) as client:
+            await _build_and_post_programme(client, sports, args)
+        return
+    _prog_ids = _load_programme_ids() if args.from_programme else None
     total_t0 = time.time()
     n_gen = 0
     notif_lines: list[str] = []   # texte Telegram (repli si la carte image échoue) — 1 par match
@@ -1834,8 +1908,8 @@ async def main():
             try:
                 # gros tournois (Coupe du Monde…) : inclus EN PLUS du top N s'ils sont dans la fenêtre.
                 always = _is_big_match if sport == "foot" else None
-                # --match : pool ÉLARGI pour garantir que le match ciblé y figure (même hors top-N profondeur).
-                _nsel = 40 if args.match else args.top
+                # --match / --from-programme : pool ÉLARGI pour ne rater aucun match ciblé (hors top-N).
+                _nsel = 40 if (args.match or args.from_programme) else args.top
                 top = await fetch_important(sport, _nsel, client, within_hours=args.hours, always=always)
             except Exception as e:
                 print(f"[{sport}] sélection échouée : {e}")
@@ -1845,6 +1919,8 @@ async def main():
             if args.match:         # cible : ne garder que les matchs dont le nom contient le texte demandé
                 _q = args.match.lower()
                 top = [m for m in top if _q in (m.get("name") or "").lower()]
+            if args.from_programme:   # ne garder QUE les matchs du programme du jour (matin)
+                top = [m for m in top if str(m.get("id")) in (_prog_ids or set())]
             store = _load_store(sport)
             print(f"[{sport}] {len(top)} matchs sélectionnés (profondeur de marché).")
             for m in top:

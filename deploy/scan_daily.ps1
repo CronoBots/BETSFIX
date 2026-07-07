@@ -20,12 +20,15 @@ if ($running) {
     exit 0
 }
 
-Log 'START scan foot,tennis,basket --top 3 --hours 24'
-# 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (le `*>>` ne récupérait pas la
-# sortie sous tâche cachée). Out-File étant un cmdlet, $LASTEXITCODE reste celui de python.
-& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 2>&1 |
+# MATIN = PROGRAMME DU JOUR (pas d'analyse ici) : on sélectionne les matchs du jour (top 3/sport) et on
+# poste la LISTE sur Telegram. Le PARI de chaque match est publié ~2 h avant SON coup d'envoi par le
+# dispatcher (tâche « BETSFIX Scan Wave », scan_wave.ps1, --from-programme). -> pick au plus frais, publié
+# une seule fois, jamais re-changé (confiance abonnés). Choix user 2026-07-08.
+Log 'PROGRAMME : sélection des matchs du jour + liste Telegram (paris ~2 h avant chacun)'
+# 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (Out-File = cmdlet, $LASTEXITCODE reste python).
+& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 --programme 2>&1 |
     Out-File -Append -Encoding utf8 $log
-Log ("DONE (exit {0})" -f $LASTEXITCODE)
+Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 
 # RÉCONCILIATION : après le scan, on règle tout ce qui est réglable (poste les résultats),
 # on re-poste les pronos imminents dont l'envoi a été manqué, et on envoie un BILAN Telegram

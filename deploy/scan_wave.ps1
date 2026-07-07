@@ -1,12 +1,12 @@
-# BETSFIX — VAGUE de scan rapprochée (tâche « BETSFIX Scan Wave », compte vince).
-# But : analyser/publier chaque match PRÈS de son coup d'envoi (données fraîches : cotes/compos/blessures/
-# calibration), sans toucher les matchs déjà frais. FENÊTRE COURTE (défaut 4 h) + --refresh-early :
-#   - un match encore NON publié qui entre dans la fenêtre -> analysé + publié (1re fois) ;
-#   - un match DÉJÀ publié mais analysé TROP TÔT (le matin) -> ré-analysé UNE fois (pick frais, re-posté) ;
-#   - un match déjà analysé DANS la fenêtre (frais) -> GELÉ (jamais re-changé -> confiance abonnés).
-# Version LÉGÈRE : scan + réconciliation + selfcheck seulement. Les gros calculs quotidiens (méthodo/
-# revue/backtest/apprentissage/santé sources) restent dans scan_daily.ps1 (1×/jour, matin).
-param([double]$WindowHours = 4)
+# BETSFIX — DISPATCHER « ~2 h avant chaque match » (tâche « BETSFIX Scan Wave », compte vince).
+# Tourne FRÉQUEMMENT (~toutes les 30 min). Fenêtre COURTE (défaut 2 h) + --from-programme : n'analyse QUE
+# les matchs du PROGRAMME du jour (posé le matin) qui entrent dans les ~2 h avant LEUR coup d'envoi ->
+# chaque match est publié une fois, au plus frais. --refresh-early rattrape un match publié trop tôt.
+# Un match déjà analysé DANS la fenêtre = GELÉ (jamais re-changé -> confiance abonnés).
+# Version LÉGÈRE : scan + règlement SILENCIEUX (--no-bilan : poste les résultats, pas de récap à chaque
+# passage) + selfcheck. Les gros calculs quotidiens (programme, méthodo, revue, backtest, apprentissage,
+# santé sources, bilan) restent dans scan_daily.ps1 (1×/jour, matin).
+param([double]$WindowHours = 2)
 
 $ErrorActionPreference = 'Continue'
 $root = 'C:\Users\vince\BETSFIX'
@@ -26,16 +26,16 @@ if ($running) {
     exit 0
 }
 
-Log ("WAVE START scan foot,tennis,basket --hours {0} --refresh-early" -f $WindowHours)
-& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours $WindowHours --refresh-early 2>&1 |
+Log ("WAVE START scan foot,tennis,basket --hours {0} --from-programme --refresh-early" -f $WindowHours)
+& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours $WindowHours --from-programme --refresh-early 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("WAVE SCAN DONE (exit {0})" -f $LASTEXITCODE)
 
 # RÉCONCILIATION : règle tout ce qui est réglable (poste les résultats peu après la fin des matchs),
 # re-poste les pronos imminents dont l'envoi a été manqué, et envoie un BILAN Telegram. Passages
 # fréquents -> résultats postés VITE (fini le « posté 3 jours après »).
-Log 'WAVE RECONCILE : règlement + vérif Telegram'
-& $py 'tools\reconcile.py' 2>&1 | Out-File -Append -Encoding utf8 $log
+Log 'WAVE RECONCILE : règlement SILENCIEUX (résultats postés, pas de bilan)'
+& $py 'tools\reconcile.py' --no-bilan 2>&1 | Out-File -Append -Encoding utf8 $log
 Log ("WAVE RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 
 # AUTO-AUDIT d'intégrité (lecture seule) : garde-fou anti-régression, alerte Telegram seulement si ERREUR.
