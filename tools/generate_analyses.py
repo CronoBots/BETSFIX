@@ -1795,6 +1795,11 @@ async def main():
     ap.add_argument("--force", action="store_true", help="ignore le cache 6 h")
     ap.add_argument("--only-big", action="store_true",
                     help="scanner UNIQUEMENT les gros tournois (Coupe du Monde)")
+    ap.add_argument("--match", default="",
+                    help="ne (ré-)analyser QUE les matchs dont le nom contient ce texte (ex. « Suisse ») ; "
+                         "force la ré-analyse de CE match seul (contourne gel + cache), sans toucher les autres")
+    ap.add_argument("--no-notify", action="store_true",
+                    help="régénère l'analyse SANS re-poster sur Telegram (publication à décider ensuite)")
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
     # Le scan AUTORISE les gros endpoints (scheduled-events) via proxy : il les met en cache
@@ -1811,12 +1816,17 @@ async def main():
             try:
                 # gros tournois (Coupe du Monde…) : inclus EN PLUS du top N s'ils sont dans la fenêtre.
                 always = _is_big_match if sport == "foot" else None
-                top = await fetch_important(sport, args.top, client, within_hours=args.hours, always=always)
+                # --match : pool ÉLARGI pour garantir que le match ciblé y figure (même hors top-N profondeur).
+                _nsel = 40 if args.match else args.top
+                top = await fetch_important(sport, _nsel, client, within_hours=args.hours, always=always)
             except Exception as e:
                 print(f"[{sport}] sélection échouée : {e}")
                 continue
             if args.only_big:      # CdM uniquement : on écarte tout match hors gros tournoi
                 top = [m for m in top if _is_big_match(m.get("comp") or m.get("circuit") or "")]
+            if args.match:         # cible : ne garder que les matchs dont le nom contient le texte demandé
+                _q = args.match.lower()
+                top = [m for m in top if _q in (m.get("name") or "").lower()]
             store = _load_store(sport)
             print(f"[{sport}] {len(top)} matchs sélectionnés (profondeur de marché).")
             for m in top:
@@ -1852,11 +1862,11 @@ async def main():
                 # ICI (après résolution de `fid`) car le registre notify est clé par `fid` (= id SofaScore en
                 # tennis/basket, ≠ id Unibet `m['id']`). La COTE reste rafraîchie live (app/main combo-refresh,
                 # mêmes jambes) et le résultat est réglé. `--force` outrepasse (re-analyse volontaire).
-                if not args.force and _notify.get_prono(str(fid)):
+                if not (args.force or args.match) and _notify.get_prono(str(fid)):
                     print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
                     continue
                 path = os.path.join(OUT, f"{sport}_{fid}.md")
-                if not args.force and _fresh(path):
+                if not (args.force or args.match) and _fresh(path):
                     print(f"  · {m['name']} : analyse fraîche en cache, on saute.")
                     continue
                 # id SofaScore pour les séries/H2H/votes. tennis/basket : la clé du store EST l'id
@@ -2021,7 +2031,11 @@ async def main():
     print(f"\nTerminé : {n_gen} analyse(s) générée(s) en {time.time() - total_t0:.0f}s. Dossier : {OUT}")
     # Notification Telegram (no-op si non configuré) : UN MESSAGE PAR MATCH (pas de récap groupé,
     # pas de suppression). Chaque message est autonome (sport + match + pari(s)).
-    if notif_lines:
+    # --no-notify : régénère l'analyse SANS re-poster (ré-analyse ciblée d'un match déjà publié -> on
+    # évite un doublon/prono changé chez les abonnés ; la décision de publier reste manuelle).
+    if args.no_notify and notif_lines:
+        print("  (--no-notify : analyse régénérée, AUCUN envoi Telegram)")
+    if notif_lines and not args.no_notify:
         try:
             from app import notify
             if notify.configured():
