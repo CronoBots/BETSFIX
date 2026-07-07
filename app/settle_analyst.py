@@ -620,8 +620,11 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
         if ms and which() and "jeux" not in t and "corner" not in t:
             big, small = ms.group(1), ms.group(2)
             return f"SETSCORE {big} {small}" if which() == "HOME" else f"SETSCORE {small} {big}"
-        # handicap de JEUX « <joueur> -3.5 jeux » -> GAMESHCAP (écart total de jeux), JAMAIS HCAP.
-        if "jeux" in t and "set" not in t and not ("plus" in t or "moins" in t):
+        # handicap de JEUX « <joueur> -3.5 jeux » ou « Handicap du JEU <joueur> +7.5 » -> GAMESHCAP (écart
+        # total de jeux), JAMAIS HCAP (points, indéfini au tennis). `\bjeux?\b` couvre le SINGULIER (« du
+        # jeu ») ET le pluriel — bug vécu Safiullin-Djokovic : « Handicap du jeu … +7.5 » codé HCAP -> non
+        # réglé -> combiné coincé (point gris sur le site).
+        if re.search(r"\bjeux?\b", t) and "set" not in t and not ("plus" in t or "moins" in t):
             sgn = re.search(r"([+\-−–])\s?(\d+(?:[.,]\d+)?)", t)
             if sgn and which():
                 val = (sgn.group(1).replace("−", "-").replace("–", "-") + sgn.group(2).replace(",", "."))
