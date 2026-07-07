@@ -440,6 +440,14 @@ CSS = """
        letter-spacing:0;font-variant-numeric:tabular-nums}
   /* Repères de modèle & détail par jambes gardés DANS la carte compacte (onglet Stats) */
   .spf-cv .sx-miles,.spf-cv .sx-legs{margin-top:10px}
+  /* Bandeau PERF PAR SPORT en tête des Stats (le global masque un sport fort). */
+  .spf-sports .spf-sp-row{display:flex;align-items:center;gap:10px;padding:8px 4px;
+    border-bottom:1px solid rgba(255,255,255,.05);text-decoration:none}
+  .spf-sports .spf-sp-row:last-child{border-bottom:0}
+  .spf-sp-n{flex:1;font-size:12.5px;font-weight:700;color:var(--text)}
+  .spf-sp-roi{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;min-width:58px;text-align:right}
+  .spf-sp-pct{font-size:11px;color:var(--dim);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
+  .spf-sp-k{font-size:10px;color:var(--muted);min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
   /* Détail INTÉGRÉ au cadre (repliable) : fiabilité par-pari + calibration,
   séparé par un filet */
   .spf-det{margin-top:12px;border-top:1px solid var(--border)}
@@ -2765,6 +2773,34 @@ def _mile_legend(miles: list) -> str:
             f'<div class="sx-mile-info"></div>{data}</div>')
 
 
+def _sport_summary(full: dict | None) -> str:
+    """Bandeau PERF PAR SPORT en tête des Stats. Le ROI GLOBAL (simples/combos mélangés) masque qu'un sport
+    est fort et un autre faible (ex. foot +12 % vs tennis −34 %) -> on surface le détail par sport, plus
+    parlant et plus honnête. Lignes triées par ROI décroissant ; sports sans pari réglé masqués."""
+    by = (full or {}).get("by_sport") or {}
+    _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    _nom = {"foot": "Foot", "tennis": "Tennis", "basket": "Basket"}
+    rows = []
+    for sp in ("foot", "tennis", "basket"):
+        b = by.get(sp) or {}
+        if not b.get("settled"):
+            continue
+        rows.append((b.get("roi") if b.get("roi") is not None else -999, sp, b))
+    if not rows:
+        return ""
+    rows.sort(key=lambda x: -x[0])
+    out = ['<div class="spf-cv spf-sports"><div class="spf-cv-h">'
+           '<span class="spf-cv-t">🎯 Par sport</span></div>']
+    for _roi, sp, b in rows:
+        out.append(
+            f'<div class="spf-sp-row"><span class="spf-sp-n">{_emo[sp]} {_nom[sp]}</span>'
+            f'<span class="spf-sp-roi arec-{_roi_cls(b.get("roi"), b.get("settled"))}">{_roistr(b.get("roi"))}</span>'
+            f'<span class="spf-sp-pct">{b.get("pct", "—")}%</span>'
+            f'<span class="spf-sp-k">{b.get("settled")} paris</span></div>')
+    out.append("</div>")
+    return "".join(out)
+
+
 def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
     """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
     UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
@@ -2824,7 +2860,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # rabot, réussite par nb de jambes). Le tout dans UNE carte .spf, comme les onglets sport.
     combos_block = render_combos(combo_full if combo_full is not None else analyses.combo_stats(),
                                  _combo_form, milestones=_ms_combo)
-    return f'<div class="spf"><div class="spf-charts">{simples_block}{combos_block}</div></div>'
+    return (f'<div class="spf"><div class="spf-charts">'
+            f'{_sport_summary(full)}{simples_block}{combos_block}</div></div>')
 
 
 def _roi_bars(rows: list) -> str:
