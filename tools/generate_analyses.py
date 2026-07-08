@@ -1099,12 +1099,24 @@ def _resolve_claude() -> str:
     return shutil.which("claude") or "claude"
 
 
+CLAUDE_MODEL = "opus"   # analyse ET panel 3 agents : on épingle le modèle le PLUS CAPABLE (qualité > vitesse,
+                        # demande user 2026-07-08 : analyses complètes & professionnelles, pas rapides).
+
+
 def run_claude(prompt: str, timeout: int = 360) -> str:
-    """Lance Claude en headless sur l'abonnement et renvoie l'analyse (stdout)."""
+    """Lance Claude en headless sur l'abonnement et renvoie l'analyse (stdout). Épingle le modèle le PLUS
+    CAPABLE (CLAUDE_MODEL) pour des analyses complètes et professionnelles. REPLI sur le modèle par défaut
+    du CLI si l'appel avec --model rend une sortie vide (renommage/indispo du modèle) -> le scan ne tombe
+    JAMAIS à zéro. Un timeout se propage tel quel (le match est sauté par l'appelant, pas de double run)."""
     exe = _resolve_claude()
-    p = subprocess.run([exe, "-p", "--dangerously-skip-permissions"], input=prompt,
-                       text=True, capture_output=True, timeout=timeout, encoding="utf-8")
-    return (p.stdout or "").strip()
+    base = [exe, "-p", "--dangerously-skip-permissions"]
+    for cmd in ([*base, "--model", CLAUDE_MODEL], base):
+        p = subprocess.run(cmd, input=prompt, text=True, capture_output=True,
+                           timeout=timeout, encoding="utf-8")   # TimeoutExpired -> propagé (voulu)
+        out = (p.stdout or "").strip()
+        if out:
+            return out
+    return ""
 
 
 def _result_odds(bo: dict) -> tuple:

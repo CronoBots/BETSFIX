@@ -6,9 +6,11 @@
 # ⏰ DÉCLENCHEMENT PAR MATCH (depuis 2026-07-08, demande user) : plus de sondage 30 min. scan_daily.ps1 pose
 # chaque matin, via deploy/schedule_reana.ps1, UN déclencheur ponctuel à (coup d'envoi − 1 h) par match du
 # programme. Ce script reste identique (fenêtre 1.5 h -> ne cible QUE le match imminent au moment du tir).
-# Version LÉGÈRE : scan + règlement SILENCIEUX (--no-bilan : poste les résultats, pas de récap à chaque
-# passage) + selfcheck. Les gros calculs quotidiens (programme, scan matin, méthodo, revue, backtest,
-# apprentissage, santé sources, bilan) restent dans scan_daily.ps1 (1×/jour, matin).
+# ⚠️ « LÉGÈRE » NE concerne QUE le REPORTING, PAS l'analyse : la ré-analyse est une analyse COMPLÈTE,
+# identique au scan du matin (même build_dossier = TOUTES les sources, même modèle Opus, même budget Claude
+# 360 s, même panel 3 agents). Seuls sont allégés ici : le règlement est SILENCIEUX (--no-bilan : poste les
+# résultats sans récap) et les gros calculs quotidiens (méthodo, revue, backtest, apprentissage, santé
+# sources, bilan) restent dans scan_daily.ps1 (1×/jour, matin) — inutiles à répéter à chaque match.
 param([double]$WindowHours = 1.5)
 
 $ErrorActionPreference = 'Continue'

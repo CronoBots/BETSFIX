@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, timezone
 
 UA = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                      "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")}
-_T = 12.0          # timeout (s) par requête — best-effort, jamais bloquant
+_T = 18.0          # timeout (s) par requête — tolérant (qualité > vitesse) mais jamais bloquant
 _GAP = 0.35        # politesse entre 2 appels d'une même rafale (scoreboards datés)
 
 _ESPN = "https://site.api.espn.com/apis"
@@ -130,13 +130,23 @@ def _start_dt(iso: str):
         return None
 
 
-async def _get_json(client, url: str, headers: dict | None = None):
-    """GET JSON best-effort (None si échec). `client` = httpx.AsyncClient du scan."""
-    try:
-        r = await client.get(url, headers={**UA, **(headers or {})}, timeout=_T)
-        return r.json() if r.status_code == 200 else None
-    except Exception:
-        return None
+async def _get_json(client, url: str, headers: dict | None = None, tries: int = 3):
+    """GET JSON best-effort (None si échec). RE-ESSAIE en cas de hoquet TRANSITOIRE (timeout, coupure
+    réseau, 429/5xx, JSON tronqué) pour ne PAS perdre silencieusement une source utile -> analyses
+    complètes, TOUTES les sources exploitées (demande user 2026-07-08). Un 4xx définitif (hors 429)
+    n'est PAS retenté. `client` = httpx.AsyncClient du scan."""
+    for i in range(max(1, tries)):
+        try:
+            r = await client.get(url, headers={**UA, **(headers or {})}, timeout=_T)
+            if r.status_code == 200:
+                return r.json()                       # JSON tronqué -> lève -> retry (except ci-dessous)
+            if r.status_code < 500 and r.status_code != 429:
+                return None                           # 4xx définitif (introuvable/interdit) -> inutile de retenter
+        except Exception:
+            pass                                      # transitoire -> on retente
+        if i + 1 < tries:
+            await asyncio.sleep(0.7 * (i + 1))        # petit backoff progressif
+    return None
 
 
 def _fmt_day(dt) -> str:
