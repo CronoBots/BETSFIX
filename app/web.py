@@ -1515,9 +1515,14 @@ CSS = """
        border:1px solid rgba(34,184,255,.28);border-radius:8px;padding:1px 8px}
   .prog-sp{font-size:12px;font-weight:900;color:var(--accent);letter-spacing:.02em;margin:11px 0 4px}
   .prog-row{padding:7px 2px;border-top:1px solid rgba(255,255,255,.05)}
+  .prog-rtop{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .prog-t{font-size:11px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums;
        letter-spacing:.02em}
-  .prog-m{font-size:14px;font-weight:800;color:var(--text);line-height:1.25;margin-top:2px}
+  .prog-st{font-size:9px;font-weight:800;border-radius:7px;padding:1px 7px;white-space:nowrap;flex:none}
+  .prog-st-bet{background:rgba(52,210,123,.15);color:#7fe0a8;border:1px solid rgba(52,210,123,.32)}
+  .prog-st-abs{background:rgba(150,165,185,.14);color:#c0cbdb;border:1px solid rgba(150,165,185,.28)}
+  .prog-st-wait{background:rgba(34,184,255,.10);color:#9fd2ff;border:1px solid rgba(34,184,255,.24)}
+  .prog-m{font-size:14px;font-weight:800;color:var(--text);line-height:1.25;margin-top:3px}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* Cadre « Matchs analysés » (les picks du jour) */
@@ -3054,8 +3059,17 @@ def render_programme(open_default: bool = True) -> str:
         out.append(f'<div class="prog-sp">{_ICON.get(sp, "")} {html.escape(_NOM.get(sp, sp))}</div>')
         for dt, m in rows:
             nm = html.escape(str(m.get("name", "")).replace(" - ", " — "))
-            # heure/date SUR SA LIGNE, puis le match SUR LA LIGNE EN DESSOUS (demande user).
-            out.append(f'<div class="prog-row"><div class="prog-t">{html.escape(fmt_local(dt, with_date=True))}</div>'
+            # STATUT (transparence, demande user) : chaque match indique où il en est.
+            _st = m.get("status")
+            if _st == "bet":
+                pill = '<span class="prog-st prog-st-bet">✅ Pari publié</span>'
+            elif _st == "abstained":
+                pill = '<span class="prog-st prog-st-abs">➖ Pas de value</span>'
+            else:
+                pill = '<span class="prog-st prog-st-wait">⏳ analyse ~1 h avant</span>'
+            # heure/date + statut SUR LA 1re LIGNE, puis le match SUR LA LIGNE EN DESSOUS (demande user).
+            out.append(f'<div class="prog-row"><div class="prog-rtop">'
+                       f'<span class="prog-t">{html.escape(fmt_local(dt, with_date=True))}</span>{pill}</div>'
                        f'<div class="prog-m">{nm}</div></div>')
     out.append("<div class=\"prog-note\">Le pari de chaque match est publié <b>~1 h avant</b> "
                "son coup d'envoi.</div></div></details>")

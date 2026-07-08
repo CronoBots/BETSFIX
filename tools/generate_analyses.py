@@ -542,6 +542,34 @@ def _load_programme_ids() -> set:
         return set()
 
 
+def _set_programme_status(match_id: str, status: str) -> None:
+    """Marque le STATUT d'un match dans le programme du jour (data/day_programme.json) pour l'affichage
+    site : 'bet' (un pari a été retenu/publié) ou 'abstained' (analysé mais aucun pari ≥ seuil = pas de
+    value). No-op si le match n'y figure pas. Écriture atomique (les vagues ne se chevauchent pas)."""
+    try:
+        with open(PROGRAMME_PATH, encoding="utf-8") as f:
+            prog = json.load(f)
+    except (OSError, ValueError):
+        return
+    hit = False
+    for m in (prog.get("matches") or []):
+        if str(m.get("id")) == str(match_id):
+            if m.get("status") == status:
+                return                       # déjà à jour
+            m["status"] = status
+            hit = True
+            break
+    if not hit:
+        return
+    tmp = PROGRAMME_PATH + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(prog, f, ensure_ascii=False)
+        os.replace(tmp, PROGRAMME_PATH)
+    except OSError:
+        pass
+
+
 async def _build_and_post_programme(client, sports: list, args) -> None:
     """MATIN : sélectionne les matchs du jour (top N/sport dans la fenêtre), les enregistre dans
     data/day_programme.json et poste le « programme du jour » sur Telegram — SANS analyser. Le pari de
@@ -2076,6 +2104,7 @@ async def main():
                               f"(consensus {validation['consensus_prob']}%)")
                 if skip_reason:
                     print(f"  · {m['name']} : {skip_reason} -> match écarté (non retenu, {dt:.0f}s).")
+                    _set_programme_status(str(m.get("id")), "abstained")   # site : « analysé, pas de value »
                     side_p = os.path.join(OUT, f"{sport}_{fid}.json")
                     try:
                         old = json.load(open(side_p, encoding="utf-8"))
@@ -2103,6 +2132,7 @@ async def main():
                 surl = await _sofa_url(sofa_id)
                 _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation, combo)  # -> board (MÊME combo que la notif)
                 _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien
+                _set_programme_status(str(m.get("id")), "bet")   # site : « pari publié »
                 n_gen += 1
                 # === Message Telegram PRO (HTML) : en-tête match + lieu/jour/heure, puis le(s) pari(s) ===
                 _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
