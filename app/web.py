@@ -1513,16 +1513,11 @@ CSS = """
   details.prog[open] .prog-chev{transform:rotate(180deg)}
   .prog-n{font-size:11.5px;font-weight:800;color:var(--accent);background:rgba(34,184,255,.12);
        border:1px solid rgba(34,184,255,.28);border-radius:8px;padding:1px 8px}
-  .prog-sp{font-size:12px;font-weight:900;color:var(--accent);letter-spacing:.02em;margin:11px 0 4px}
-  .prog-row{padding:7px 2px;border-top:1px solid rgba(255,255,255,.05)}
-  .prog-rtop{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .prog-t{font-size:11px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums;
-       letter-spacing:.02em}
-  .prog-st{font-size:9px;font-weight:800;border-radius:7px;padding:1px 7px;white-space:nowrap;flex:none}
-  .prog-st-bet{background:rgba(52,210,123,.15);color:#7fe0a8;border:1px solid rgba(52,210,123,.32)}
-  .prog-st-abs{background:rgba(150,165,185,.14);color:#c0cbdb;border:1px solid rgba(150,165,185,.28)}
-  .prog-st-wait{background:rgba(34,184,255,.10);color:#9fd2ff;border:1px solid rgba(34,184,255,.24)}
-  .prog-m{font-size:14px;font-weight:800;color:var(--text);line-height:1.25;margin-top:3px}
+  .prog-sp{font-size:12px;font-weight:900;color:var(--accent);letter-spacing:.02em;margin:12px 0 6px}
+  /* Chaque match du programme = carte `.mc-*` comme un pari analysé, mais NON dépliable (pas d'analyse). */
+  .prog-card{margin:6px 0}
+  .prog-card .mc-head{cursor:default;padding:10px 12px}
+  .prog-card .mc-betl.mc-noplay{opacity:.72}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* Cadre « Matchs analysés » (les picks du jour) */
@@ -3052,25 +3047,32 @@ def render_programme(open_default: bool = True) -> str:
     out = [f'<details class="prog"{op}><summary class="prog-h"><span>📋 Programme du jour</span>'
            f'<span class="prog-hr"><span class="prog-n">{n}</span><span class="prog-chev">▾</span></span>'
            f'</summary><div class="prog-body">']
+    # STATUT -> (icône, texte, classe). Chaque match du programme est rendu comme une CARTE `.mc-*`
+    # IDENTIQUE aux paris analysés (demande user), avec le statut à la place de la ligne de pari.
+    _STAT = {"bet": ("✅", "Pari publié", ""),
+             "abstained": ("➖", "Pas de value", " mc-noplay")}
     for sp in ("foot", "tennis", "basket"):
         rows = sorted(by.get(sp) or [], key=lambda x: x[0])
         if not rows:
             continue
         out.append(f'<div class="prog-sp">{_ICON.get(sp, "")} {html.escape(_NOM.get(sp, sp))}</div>')
         for dt, m in rows:
-            nm = html.escape(str(m.get("name", "")).replace(" - ", " — "))
-            # STATUT (transparence, demande user) : chaque match indique où il en est.
-            _st = m.get("status")
-            if _st == "bet":
-                pill = '<span class="prog-st prog-st-bet">✅ Pari publié</span>'
-            elif _st == "abstained":
-                pill = '<span class="prog-st prog-st-abs">➖ Pas de value</span>'
-            else:
-                pill = '<span class="prog-st prog-st-wait">⏳ analyse ~1 h avant</span>'
-            # heure/date + statut SUR LA 1re LIGNE, puis le match SUR LA LIGNE EN DESSOUS (demande user).
-            out.append(f'<div class="prog-row"><div class="prog-rtop">'
-                       f'<span class="prog-t">{html.escape(fmt_local(dt, with_date=True))}</span>{pill}</div>'
-                       f'<div class="prog-m">{nm}</div></div>')
+            name = str(m.get("name", ""))
+            home, _sep, away = name.partition(" - ")
+            teams = (f'{html.escape(home)} <span class="dim">vs</span> {html.escape(away)}'
+                     if away else html.escape(home))
+            comp = html.escape(str(m.get("comp") or ""))
+            ic, txt, cls = _STAT.get(m.get("status"), ("⏳", "analyse ~1 h avant", " mc-noplay"))
+            out.append(
+                f'<div class="row pick mc prog-card">'
+                f'<div class="mc-head"><div class="mc-main">'
+                f'<div class="mc-line"><span class="mc-ic">{_ICON.get(sp, "")}</span>'
+                f'<span class="mc-comp">{comp}</span>'
+                f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=True))}</span></div>'
+                f'<div class="mc-teams">{teams}</div>'
+                f'<div class="mc-sub"><div class="mc-betl{cls}"><span class="mc-bi">{ic}</span>'
+                f'<span class="mc-bt">{html.escape(txt)}</span></div></div>'
+                f'</div></div></div>')
     out.append("<div class=\"prog-note\">Le pari de chaque match est publié <b>~1 h avant</b> "
                "son coup d'envoi.</div></div></details>")
     return "".join(out)
