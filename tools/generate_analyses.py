@@ -2103,6 +2103,18 @@ async def main():
                         _old_sig = None
                 if not (args.force or args.match or _refresh) and _fresh(path):
                     print(f"  · {m['name']} : analyse fraîche en cache, on saute.")
+                    # STATUT programme : REFLÉTER l'analyse EXISTANTE (sinon le site affiche « à analyser »
+                    # pour un match DÉJÀ analysé — cas d'un programme réécrit puis scan sautant le cache).
+                    # bet si un pari est retenu/combiné dans le sidecar, sinon abstained.
+                    from app import analyses as _an_fc
+                    try:
+                        _sc_fc = json.load(open(os.path.join(OUT, f"{sport}_{fid}.json"), encoding="utf-8"))
+                        _has_c_fc = bool((_sc_fc.get("combo") or {}).get("legs"))
+                    except (OSError, ValueError):
+                        _has_c_fc = False
+                    _set_programme_status(str(m.get("id")),
+                                          "bet" if (_has_c_fc or _an_fc.retained_bet(sport, str(fid)))
+                                          else "abstained")
                     continue
                 # id SofaScore pour les séries/H2H/votes. tennis/basket : la clé du store EST l'id
                 # Sofa. foot : champ match_id du store si présent, sinon résolution autonome
