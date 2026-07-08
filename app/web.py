@@ -10,7 +10,7 @@ import html
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from . import analyses, match_select, paywall
 
@@ -1503,7 +1503,7 @@ CSS = """
        font-size:15px;font-weight:900;color:var(--text)}
   /* Programme du jour (accueil) : CADRE DÉPLIABLE (details/summary), matchs groupés par sport ;
      par ligne = heure PUIS match en dessous. Pari publié ~1 h avant chacun. */
-  /* CADRE UNIQUE des matchs du jour : « 🎯 Paris à jouer » PUIS « 📋 Programme du jour », même boîte. */
+  /* CADRE UNIQUE « 📅 Programme du jour » : paris à jouer + reste du slate FUSIONNÉS, ordre chronologique. */
   .anz{margin-top:14px;border:1px solid var(--border);border-radius:16px;padding:10px 12px 6px;
        background:linear-gradient(160deg,rgba(34,184,255,.04),rgba(255,255,255,.012))}
   .prog-sec{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:15px;
@@ -1511,7 +1511,6 @@ CSS = """
   .prog-sec:first-child{margin-top:2px}
   .prog-n{font-size:11.5px;font-weight:800;color:var(--accent);background:rgba(34,184,255,.12);
        border:1px solid rgba(34,184,255,.28);border-radius:8px;padding:1px 8px}
-  .prog-sp{font-size:12px;font-weight:900;color:var(--accent);letter-spacing:.02em;margin:11px 2px 5px}
   /* Chaque match du programme = carte `.mc-*` comme un pari analysé, mais NON dépliable (pas d'analyse). */
   .prog-card{margin:6px 0}
   .prog-card .mc-head{cursor:default;padding:10px 12px}
@@ -3009,71 +3008,59 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
         f'{legs}{_mile_legend(_mc)}</div>')
 
 
-def render_programme() -> str:
-    """PROGRAMME DU JOUR : sous-section (cartes `.mc-*` groupées par sport) à intégrer DANS le cadre unifié
-    des paris à jouer (demande user). Liste les matchs du jour (data/day_programme.json) NON encore publiés,
-    avec leur statut (Pas de value si proche / Analyse ~1 h avant si lointain). Renvoie juste le contenu
-    (sous-titre + cartes + note), sans cadre propre. '' si aucun match à afficher."""
+def _programme_items() -> list:
+    """Cartes du PROGRAMME DU JOUR (matchs SANS pari publié) à FUSIONNER — dans l'ordre chronologique —
+    avec les paris à jouer, dans le MÊME cadre (demande user). Renvoie une liste de dicts
+    {"start_ts", "_html"} : le tri global et les en-têtes de jour sont gérés par le cadre unifié
+    (_rows_by_day), donc PAS de regroupement par sport ici. [] si aucun match à afficher.
+
+    Statut HONNÊTE : chaque match est analysé au scan du matin (les tops par sport) puis RÉ-ANALYSÉ
+    ~1 h avant son coup d'envoi. On affiche donc l'HEURE EXACTE de cette (ré)analyse (coup d'envoi − 1 h)
+    au lieu d'un vague « ~1 h avant ». « Pas de value » n'est montré que si cette échéance est déjà
+    passée (verdict quasi-final) ; sinon on annonce à quelle heure l'analyse (re)tombera."""
     import json
     path = os.path.join(analyses._ROOT, "data", "day_programme.json")
     try:
         with open(path, encoding="utf-8") as f:
             prog = json.load(f)
     except (OSError, ValueError):
-        return ""
+        return []
     now = datetime.now(timezone.utc)
     _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
-    _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
-    by: dict = {}
+    items: list = []
     for m in (prog.get("matches") or []):
+        if m.get("status") == "bet":            # pari publié -> déjà dans les paris à jouer (fusionnés)
+            continue
         try:
             dt = datetime.fromisoformat((m.get("start") or "").replace("Z", "+00:00"))
         except (ValueError, AttributeError):
             continue
-        if dt <= now:                       # à venir uniquement (les passés sortent d'eux-mêmes)
+        if dt <= now:                           # à venir uniquement (les passés sortent d'eux-mêmes)
             continue
-        by.setdefault(m.get("sport"), []).append((dt, m))
-    # ne compte QUE les matchs affichés ici (les paris publiés vont dans « Paris du jour », pas ici)
-    n = sum(1 for v in by.values() for (_d, _m) in v if _m.get("status") != "bet")
-    if not n:
-        return ""
-    # Sous-section « Programme du jour » DANS le cadre unifié des paris (pas de cadre séparé, demande user).
-    out = [f'<div class="prog-sec"><span>📋 Programme du jour</span><span class="prog-n">{n}</span></div>']
-    # Chaque match NON encore joué est rendu comme une CARTE `.mc-*` (comme les paris analysés). Les matchs
-    # avec un PARI PUBLIÉ sont montrés à part (« Paris du jour ») -> ici on n'affiche QUE le reste du slate.
-    # Statut HONNÊTE : « Pas de value » n'est FINAL que si le match est PROCHE (≤ _FINAL_H) — au-delà,
-    # l'abstention du matin est PROVISOIRE (le match est ré-analysé ~1-1.5 h avant) -> « Analyse ~1 h avant ».
-    _FINAL_H = 2
-    for sp in ("foot", "tennis", "basket"):
-        rows = sorted(by.get(sp) or [], key=lambda x: x[0])
-        rows = [(dt, m) for dt, m in rows if m.get("status") != "bet"]   # publiés -> « Paris du jour »
-        if not rows:
-            continue
-        out.append(f'<div class="prog-sp">{_ICON.get(sp, "")} {html.escape(_NOM.get(sp, sp))}</div>')
-        for dt, m in rows:
-            name = str(m.get("name", ""))
-            home, _sep, away = name.partition(" - ")
-            teams = (f'{html.escape(home)} <span class="dim">vs</span> {html.escape(away)}'
-                     if away else html.escape(home))
-            comp = html.escape(str(m.get("comp") or ""))
-            _final = (dt - now).total_seconds() / 3600 <= _FINAL_H
-            if m.get("status") == "abstained" and _final:
-                ic, txt = "➖", "Pas de value"          # verdict FINAL (match proche)
-            else:
-                ic, txt = "⏳", "Analyse ~1 h avant"     # pas encore analysé / abstention provisoire (lointain)
-            out.append(
-                f'<div class="row pick mc prog-card">'
-                f'<div class="mc-head"><div class="mc-main">'
-                f'<div class="mc-line"><span class="mc-ic">{_ICON.get(sp, "")}</span>'
-                f'<span class="mc-comp">{comp}</span>'
-                f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=True))}</span></div>'
-                f'<div class="mc-teams">{teams}</div>'
-                f'<div class="mc-sub"><div class="mc-betl mc-noplay"><span class="mc-bi">{ic}</span>'
-                f'<span class="mc-bt">{html.escape(txt)}</span></div></div>'
-                f'</div></div></div>')
-    out.append("<div class=\"prog-note\">Le pari de chaque match est publié <b>~1 h avant</b> "
-               "son coup d'envoi.</div>")
-    return "".join(out)
+        sp = m.get("sport")
+        ic = _ICON.get(sp, "")
+        name = str(m.get("name", ""))
+        home, _sep, away = name.partition(" - ")
+        teams = (f'{html.escape(home)} <span class="dim">vs</span> {html.escape(away)}'
+                 if away else html.escape(home))
+        comp = html.escape(str(m.get("comp") or ""))
+        reanalyse = dt - timedelta(hours=1)     # la (ré)analyse rapprochée = coup d'envoi − 1 h
+        if m.get("status") == "abstained" and now >= reanalyse:
+            bic, btxt = "➖", "Pas de value"                                  # échéance passée -> quasi-final
+        else:
+            bic, btxt = "🔄", f"Analyse à {fmt_local(reanalyse, with_date=False)}"   # heure exacte
+        card = (
+            f'<div class="row pick mc prog-card">'
+            f'<div class="mc-head"><div class="mc-main">'
+            f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
+            f'<span class="mc-comp">{comp}</span>'
+            f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=True))}</span></div>'
+            f'<div class="mc-teams">{teams}</div>'
+            f'<div class="mc-sub"><div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
+            f'<span class="mc-bt">{html.escape(btxt)}</span></div></div>'
+            f'</div></div></div>')
+        items.append({"start_ts": dt.timestamp(), "_html": card})
+    return items
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
@@ -3085,14 +3072,17 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
                 f'<b>{live_count} match{"s" if live_count > 1 else ""} en direct</b>'
                 '<span class="dash-livebar-go">suivre dans Live →</span></a>')
                if live_count else "")
-    # UN SEUL CADRE (demande user) : « 🎯 Paris à jouer » (picks retenus, cartes dépliables) PUIS
-    # « 📋 Programme du jour » (reste du slate, cartes + statut) — tout dans le même cadre `.anz`.
-    prog = render_programme()
-    if match_rows or prog:
-        picks = ('<div class="prog-sec"><span>🎯 Paris à jouer</span>'
-                 f'<span class="prog-n">{len(match_rows)}</span></div>' + _rows_by_day(match_rows)
-                 ) if match_rows else ""
-        matches = f'<div class="anz">{picks}{prog}</div>'
+    # UN SEUL CADRE, ORDRE CHRONOLOGIQUE (demande user) : les paris à jouer (cartes vertes dépliables)
+    # ET le reste du programme (cartes + heure de ré-analyse) FUSIONNÉS et triés par coup d'envoi, avec
+    # en-têtes de jour (Aujourd'hui / Demain …). Un pari publié n'apparaît qu'une fois (via match_rows).
+    items = sorted(list(match_rows) + _programme_items(), key=lambda r: r.get("start_ts") or 0)
+    if items:
+        header = ('<div class="prog-sec"><span>📅 Programme du jour</span>'
+                  f'<span class="prog-n">{len(items)}</span></div>')
+        note = ("<div class=\"prog-note\">Chaque match est analysé au scan du matin puis "
+                "<b>ré-analysé ~1 h avant</b> son coup d'envoi ; le pari n'est publié que s'il y a "
+                "de la <b>valeur</b>.</div>")
+        matches = f'<div class="anz">{header}{_rows_by_day(items)}{note}</div>'
     else:
         matches = ('<div class="dash-h"><span>Prochains matchs</span></div>'
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
@@ -3994,7 +3984,8 @@ def _sport_row(r: dict) -> str:
 
 def _rows_by_day(rows: list) -> str:
     """Rend les lignes avec un petit en-tête de jour (Aujourd'hui / Demain / Sam. …) à chaque
-    changement de date. Les lignes doivent être triées par heure de début."""
+    changement de date. Les lignes doivent être triées par heure de début. Une ligne peut porter
+    un HTML déjà rendu (`_html`, ex. carte du programme) — sinon elle est rendue via `_sport_row`."""
     today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
     out, cur = [], object()
     for r in rows:
@@ -4005,7 +3996,7 @@ def _rows_by_day(rows: list) -> str:
             cur = d
             if d is not None:
                 out.append(f'<div class="dayhdr">{html.escape(day_label(d, today))}</div>')
-        out.append(_sport_row(r))
+        out.append(r.get("_html") or _sport_row(r))
     return "".join(out)
 
 def render_sport_matches(sport: str, title: str, value: list, live: list,
