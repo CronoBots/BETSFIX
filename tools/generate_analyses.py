@@ -2093,14 +2093,18 @@ async def main():
                     print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
                     _set_programme_status(str(m.get("id")), "bet")   # publié -> statut « bet » même si sauté
                     continue
-                _old_sig = _old_side = None   # pick du MATIN : signature (repost si CHANGÉ) + sidecar (report fantôme)
-                if _refresh:
-                    print(f"  ↻ {m['name']} : publié le matin -> re-vérification (~1 h avant).")
+                # Analyse PRÉCÉDENTE mémorisée AVANT écrasement (ré-analyse : re-check 1 h avant OU --force) :
+                # (a) _old_sig -> ne RE-POSTER que si le prono a CHANGÉ (jamais de spam d'un pick inchangé) ;
+                # (b) _old_side -> report de l'ancien pick/prédictions en FANTÔMES si changé (calibrage).
+                _old_sig = _old_side = None
+                if _refresh or args.force:
                     try:
                         _old_side = json.load(open(os.path.join(OUT, f"{sport}_{fid}.json"), encoding="utf-8"))
                         _old_sig = _card_sig(_cd.build_prono_card(_old_side))
                     except (OSError, ValueError):
-                        _old_sig = None
+                        _old_side = None
+                if _refresh:
+                    print(f"  ↻ {m['name']} : publié le matin -> re-vérification (~1 h avant).")
                 if not (args.force or args.match or _refresh) and _fresh(path):
                     print(f"  · {m['name']} : analyse fraîche en cache, on saute.")
                     # STATUT programme : REFLÉTER l'analyse EXISTANTE (sinon le site affiche « à analyser »
@@ -2217,7 +2221,7 @@ async def main():
                 votes = await _fetch_votes(client, sport, sofa_id)
                 surl = await _sofa_url(sofa_id)
                 _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation, combo)  # -> board (MÊME combo que la notif)
-                if _refresh and _old_side:         # ré-analyse : l'ancien pick/prédictions -> fantômes (calibrage)
+                if _old_side:                      # ré-analyse (refresh/force) : ancien pick/prédictions -> fantômes
                     _carry_shadow_from_old(sport, fid, _old_side)
                 _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien
                 n_gen += 1
@@ -2287,15 +2291,16 @@ async def main():
                                    "comp": m.get("comp"), "start": m.get("start"), "pick": _pick,
                                    "combo": combo}
                 _card = _cd.build_prono_card(_side_fresh)
-                # RE-CHECK (~1 h avant, refresh) : ne REPUBLIER QUE si le prono a CHANGÉ vs le pick du matin.
-                # Si identique -> on ne reposte rien (le pick du matin reste, pas de spam) ; le sidecar est
-                # déjà réécrit (mtime frais) -> pas de nouvelle ré-analyse en boucle. (demande user 2026-07-08)
-                if _refresh and _old_sig is not None and _card_sig(_card) == _old_sig:
-                    print(f"  = {m['name']} : prono INCHANGÉ au re-check -> pas de repost.")
+                # RÉ-ANALYSE (re-check 1 h avant OU --force) : ne REPUBLIER QUE si le prono a CHANGÉ vs ce qui
+                # était déjà publié. Identique -> rien reposté (pas de spam abonnés) ; le sidecar est déjà
+                # réécrit (mtime frais) -> pas de boucle. Un NOUVEAU match (jamais publié) a _old_sig=None
+                # -> posté normalement. (demande user 2026-07-08)
+                if _old_sig is not None and _card_sig(_card) == _old_sig:
+                    print(f"  = {m['name']} : prono INCHANGÉ à la ré-analyse -> pas de repost.")
                     await asyncio.sleep(SCAN_GAP)
                     continue
-                if _refresh:
-                    print(f"  🔄 {m['name']} : prono MIS À JOUR au re-check -> republié.")
+                if _refresh or (args.force and _old_sig is not None):
+                    print(f"  🔄 {m['name']} : prono MIS À JOUR -> republié.")
                 notif_lines.append(_line)
                 notif_cards.append(_card)
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
