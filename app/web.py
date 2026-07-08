@@ -1501,6 +1501,20 @@ CSS = """
   .paj .exp{margin-top:11px}
   .dash-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:20px 0 9px;
        font-size:15px;font-weight:900;color:var(--text)}
+  /* Programme du jour (accueil) : liste des matchs prévus, groupés par sport (pari ~1 h avant chacun) */
+  .prog{margin-top:14px;border:1px solid var(--border);border-radius:16px;padding:12px 13px;
+       background:linear-gradient(160deg,rgba(34,184,255,.05),rgba(255,255,255,.012))}
+  .prog-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:15px;
+       font-weight:900;color:var(--text);margin-bottom:8px}
+  .prog-n{font-size:11.5px;font-weight:800;color:var(--accent);background:rgba(34,184,255,.12);
+       border:1px solid rgba(34,184,255,.28);border-radius:8px;padding:1px 8px}
+  .prog-sp{font-size:12px;font-weight:900;color:var(--accent);letter-spacing:.02em;margin:11px 0 5px}
+  .prog-row{display:flex;align-items:baseline;gap:10px;padding:6px 2px;border-top:1px solid rgba(255,255,255,.05)}
+  .prog-t{flex:none;font-size:11.5px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums;
+       min-width:88px}
+  .prog-m{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.25}
+  .prog-note{font-size:11px;color:var(--muted);margin-top:11px;line-height:1.45}
+  .prog-note b{color:var(--text);font-weight:800}
   .dash-h-a,
   .dash-more{font-size:11.5px;font-weight:800;color:var(--accent);text-decoration:none}
   .dash-more{display:block;text-align:center;margin:2px 0 4px;padding:11px;border-radius:12px;
@@ -2992,6 +3006,49 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
         f'{legs}{_mile_legend(_mc)}</div>')
 
 
+def render_programme() -> str:
+    """PROGRAMME DU JOUR sur l'accueil : la LISTE des matchs sélectionnés le matin (data/day_programme.json),
+    groupés par sport avec l'heure locale. Le pari de chacun est publié ~1 h avant son coup d'envoi (par les
+    vagues). Donne l'aperçu de la journée quand aucun match n'est encore analysé. '' si pas de programme ou
+    plus aucun match à venir."""
+    import json
+    path = os.path.join(analyses._ROOT, "data", "day_programme.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            prog = json.load(f)
+    except (OSError, ValueError):
+        return ""
+    now = datetime.now(timezone.utc)
+    _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
+    by: dict = {}
+    for m in (prog.get("matches") or []):
+        try:
+            dt = datetime.fromisoformat((m.get("start") or "").replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            continue
+        if dt <= now:                       # à venir uniquement (les passés sortent d'eux-mêmes)
+            continue
+        by.setdefault(m.get("sport"), []).append((dt, m))
+    if not by:
+        return ""
+    n = sum(len(v) for v in by.values())
+    out = [f'<div class="prog"><div class="prog-h"><span>📋 Programme du jour</span>'
+           f'<span class="prog-n">{n}</span></div>']
+    for sp in ("foot", "tennis", "basket"):
+        rows = sorted(by.get(sp) or [], key=lambda x: x[0])
+        if not rows:
+            continue
+        out.append(f'<div class="prog-sp">{_ICON.get(sp, "")} {html.escape(_NOM.get(sp, sp))}</div>')
+        for dt, m in rows:
+            nm = html.escape(str(m.get("name", "")).replace(" - ", " — "))
+            out.append(f'<div class="prog-row"><span class="prog-t">{html.escape(fmt_local(dt, with_date=True))}</span>'
+                       f'<span class="prog-m">{nm}</span></div>')
+    out.append("<div class=\"prog-note\">Le pari de chaque match est publié <b>~1 h avant</b> "
+               "son coup d'envoi.</div></div>")
+    return "".join(out)
+
+
 def render_dashboard(match_rows: list, *, live_count: int = 0,
                      frag: bool = False, source: dict | None = None) -> str:
     """ACCUEIL épuré (2026-06-13) : UNIQUEMENT les matchs À VENIR (format compact, tous sports
@@ -3001,14 +3058,17 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
                 f'<b>{live_count} match{"s" if live_count > 1 else ""} en direct</b>'
                 '<span class="dash-livebar-go">suivre dans Live →</span></a>')
                if live_count else "")
+    prog = render_programme()
     if match_rows:
         matches = ('<div class="dash-h"><span>Prochains matchs</span>'
                    f'<span class="dash-h-a">{len(match_rows)}</span></div>'
                    + _rows_by_day(match_rows))
+    elif prog:
+        matches = ""                        # le PROGRAMME DU JOUR remplace le message « aucun match »
     else:
         matches = ('<div class="dash-h"><span>Prochains matchs</span></div>'
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    body = livebar + matches
+    body = livebar + matches + prog
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:
