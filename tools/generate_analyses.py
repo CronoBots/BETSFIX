@@ -2132,13 +2132,16 @@ async def main():
                 surl = await _sofa_url(sofa_id)
                 _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation, combo)  # -> board (MÊME combo que la notif)
                 _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien
-                _set_programme_status(str(m.get("id")), "bet")   # site : « pari publié »
                 n_gen += 1
                 # === Message Telegram PRO (HTML) : en-tête match + lieu/jour/heure, puis le(s) pari(s) ===
                 _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
                 _pick = _safe_pick(analysis)
                 _rb = _an.retained_bet(sport, str(m.get("id")))   # pari simple AFFICHÉ (sel/cote/prob) ou None
                 _has_combo = bool(combo and combo.get("legs"))
+                # STATUT programme (site) : « bet » SEULEMENT si un pari est PUBLIABLE (combiné OU simple
+                # RETENU = ≥65 % + EV+ + garde-fous) — pas juste « analysé ». Sinon (ex. favori @1.16 sans
+                # value : analysé mais non retenu) -> « abstained » comme une vraie abstention (bug Kairat).
+                _set_programme_status(str(m.get("id")), "bet" if (_has_combo or _rb) else "abstained")
                 # Le simple n'est annoncé que s'il est à l'affiche sur l'app : à combiné -> seulement s'il
                 # aurait été RETENU ; hors combiné -> le « plus sûr ».
                 _pick_shown = bool(_rb) if _has_combo else bool(_pick or _rb)
