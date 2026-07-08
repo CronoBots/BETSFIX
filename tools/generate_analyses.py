@@ -2157,9 +2157,13 @@ async def main():
                 _rb = _an.retained_bet(sport, str(m.get("id")))   # pari simple AFFICHÉ (sel/cote/prob) ou None
                 _has_combo = bool(combo and combo.get("legs"))
                 # STATUT programme (site) : « bet » SEULEMENT si un pari est PUBLIABLE (combiné OU simple
-                # RETENU = ≥65 % + EV+ + garde-fous) — pas juste « analysé ». Sinon (ex. favori @1.16 sans
-                # value : analysé mais non retenu) -> « abstained » comme une vraie abstention (bug Kairat).
-                _set_programme_status(str(m.get("id")), "bet" if (_has_combo or _rb) else "abstained")
+                # RETENU = ≥65 % + EV+ + garde-fous) — pas juste « analysé » (ex. favori @1.16 sans value ->
+                # « abstained »). ⚠️ retained_bet doit utiliser `fid` (clé du sidecar = id SofaScore en
+                # basket/tennis), PAS l'id Unibet `m['id']` : sinon un pari retenu basket/tennis est vu
+                # « None » -> statut « abstained » à tort -> DOUBLON (match dans « Paris du jour » ET dans
+                # le programme). Bug vécu Connecticut Sun (id Unibet 1026378520 ≠ sidecar 15415798).
+                _rb_status = _an.retained_bet(sport, str(fid))
+                _set_programme_status(str(m.get("id")), "bet" if (_has_combo or _rb_status) else "abstained")
                 # Le simple n'est annoncé que s'il est à l'affiche sur l'app : à combiné -> seulement s'il
                 # aurait été RETENU ; hors combiné -> le « plus sûr ».
                 _pick_shown = bool(_rb) if _has_combo else bool(_pick or _rb)
