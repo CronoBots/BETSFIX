@@ -3040,19 +3040,22 @@ def render_programme(open_default: bool = True) -> str:
         if dt <= now:                       # à venir uniquement (les passés sortent d'eux-mêmes)
             continue
         by.setdefault(m.get("sport"), []).append((dt, m))
-    if not by:
+    # ne compte QUE les matchs affichés ici (les paris publiés vont dans « Paris du jour », pas ici)
+    n = sum(1 for v in by.values() for (_d, _m) in v if _m.get("status") != "bet")
+    if not n:
         return ""
-    n = sum(len(v) for v in by.values())
     op = " open" if open_default else ""
     out = [f'<details class="prog"{op}><summary class="prog-h"><span>📋 Programme du jour</span>'
            f'<span class="prog-hr"><span class="prog-n">{n}</span><span class="prog-chev">▾</span></span>'
            f'</summary><div class="prog-body">']
-    # STATUT -> (icône, texte, classe). Chaque match du programme est rendu comme une CARTE `.mc-*`
-    # IDENTIQUE aux paris analysés (demande user), avec le statut à la place de la ligne de pari.
-    _STAT = {"bet": ("✅", "Pari publié", ""),
-             "abstained": ("➖", "Pas de value", " mc-noplay")}
+    # Chaque match NON encore joué est rendu comme une CARTE `.mc-*` (comme les paris analysés). Les matchs
+    # avec un PARI PUBLIÉ sont montrés à part (« Paris du jour ») -> ici on n'affiche QUE le reste du slate.
+    # Statut HONNÊTE : « Pas de value » n'est FINAL que si le match est PROCHE (≤ _FINAL_H) — au-delà,
+    # l'abstention du matin est PROVISOIRE (le match est ré-analysé ~1-1.5 h avant) -> « Analyse ~1 h avant ».
+    _FINAL_H = 2
     for sp in ("foot", "tennis", "basket"):
         rows = sorted(by.get(sp) or [], key=lambda x: x[0])
+        rows = [(dt, m) for dt, m in rows if m.get("status") != "bet"]   # publiés -> « Paris du jour »
         if not rows:
             continue
         out.append(f'<div class="prog-sp">{_ICON.get(sp, "")} {html.escape(_NOM.get(sp, sp))}</div>')
@@ -3062,7 +3065,11 @@ def render_programme(open_default: bool = True) -> str:
             teams = (f'{html.escape(home)} <span class="dim">vs</span> {html.escape(away)}'
                      if away else html.escape(home))
             comp = html.escape(str(m.get("comp") or ""))
-            ic, txt, cls = _STAT.get(m.get("status"), ("⏳", "analyse ~1 h avant", " mc-noplay"))
+            _final = (dt - now).total_seconds() / 3600 <= _FINAL_H
+            if m.get("status") == "abstained" and _final:
+                ic, txt = "➖", "Pas de value"          # verdict FINAL (match proche)
+            else:
+                ic, txt = "⏳", "Analyse ~1 h avant"     # pas encore analysé / abstention provisoire (lointain)
             out.append(
                 f'<div class="row pick mc prog-card">'
                 f'<div class="mc-head"><div class="mc-main">'
@@ -3070,7 +3077,7 @@ def render_programme(open_default: bool = True) -> str:
                 f'<span class="mc-comp">{comp}</span>'
                 f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=True))}</span></div>'
                 f'<div class="mc-teams">{teams}</div>'
-                f'<div class="mc-sub"><div class="mc-betl{cls}"><span class="mc-bi">{ic}</span>'
+                f'<div class="mc-sub"><div class="mc-betl mc-noplay"><span class="mc-bi">{ic}</span>'
                 f'<span class="mc-bt">{html.escape(txt)}</span></div></div>'
                 f'</div></div></div>')
     out.append("<div class=\"prog-note\">Le pari de chaque match est publié <b>~1 h avant</b> "
@@ -3087,11 +3094,11 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
                 f'<b>{live_count} match{"s" if live_count > 1 else ""} en direct</b>'
                 '<span class="dash-livebar-go">suivre dans Live →</span></a>')
                if live_count else "")
-    # PROGRAMME DU JOUR : cadre dépliable, OUVERT tant que rien n'est analysé, REPLIÉ dès qu'il y a des
-    # matchs analysés (ils passent en avant). Puis CADRE « Matchs analysés » (les picks du jour).
+    # EN TÊTE : « Paris du jour » = les picks RETENUS (cartes analysées, dépliables). PUIS le PROGRAMME
+    # (reste du slate, cadre dépliable) — ouvert tant qu'aucun pari n'est publié, replié sinon.
     prog = render_programme(open_default=not match_rows)
     if match_rows:
-        matches = ('<div class="anz"><div class="anz-h"><span>✅ Matchs analysés</span>'
+        matches = ('<div class="anz"><div class="anz-h"><span>🎯 Paris du jour</span>'
                    f'<span class="prog-n">{len(match_rows)}</span></div>'
                    + _rows_by_day(match_rows) + '</div>')
     elif prog:
@@ -3099,7 +3106,7 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     else:
         matches = ('<div class="dash-h"><span>Prochains matchs</span></div>'
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    body = livebar + prog + matches
+    body = livebar + matches + prog
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:
