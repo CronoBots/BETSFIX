@@ -526,6 +526,39 @@ def _card_sig(card) -> tuple | None:
     return ("simple", str(card.get("market")), str(card.get("pick")), str(card.get("cote")))
 
 
+def _carry_shadow_from_old(sport: str, fid: str, old_side: dict) -> None:
+    """FANTÔMES DU PICK PRÉCÉDENT (demande user 2026-07-08). À la ré-analyse rapprochée (~1 h avant), le
+    pari RETENU pour le ROI/stats est TOUJOURS le dernier généré (le nouveau sidecar vient d'être réécrit).
+    Mais les prédictions conseillées AVANT ne doivent pas disparaître du calibrage : on les reporte en
+    « fantômes » (shadow) dans le nouveau sidecar. Union par CODE : on n'ajoute QUE les codes absents du
+    nouveau shadow (0 doublon, 0 double-comptage ROI car le nouveau pick seul finit dans `bets`). result
+    remis à None (match pré-coup d'envoi). No-op si le prono est INCHANGÉ (mêmes codes)."""
+    old = old_side.get("shadow") or []
+    if not old:
+        return
+    p = os.path.join(OUT, f"{sport}_{fid}.json")
+    try:
+        new = json.load(open(p, encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    cur = new.get("shadow") or []
+    have = {s.get("code") for s in cur if s.get("code")}
+    added = 0
+    for s in old:
+        c = s.get("code")
+        if not c or c in have:
+            continue
+        have.add(c)
+        cur.append({"sel": s.get("sel"), "cote": s.get("cote"), "prob": s.get("prob"),
+                    "code": c, "result": None, "ghost_from": "pre_refresh"})
+        added += 1
+    if added:
+        new["shadow"] = cur
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(new, f, ensure_ascii=False)
+        print(f"    👻 {added} prédiction(s) précédente(s) reportée(s) en fantôme (calibrage).")
+
+
 def _analyzed_too_early(path: str, start: str, window_h: float) -> bool:
     """L'analyse EXISTANTE a-t-elle été faite quand le match était ENCORE HORS fenêtre (lead au moment de
     l'analyse > window_h) ? Si oui, elle est « trop en avance » sur le coup d'envoi -> à rafraîchir UNE
@@ -2048,7 +2081,7 @@ async def main():
                     print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
                     _set_programme_status(str(m.get("id")), "bet")   # publié -> statut « bet » même si sauté
                     continue
-                _old_sig = None            # signature du pick du MATIN (pour ne republier au re-check que si CHANGÉ)
+                _old_sig = _old_side = None   # pick du MATIN : signature (repost si CHANGÉ) + sidecar (report fantôme)
                 if _refresh:
                     print(f"  ↻ {m['name']} : publié le matin -> re-vérification (~1 h avant).")
                     try:
@@ -2160,6 +2193,8 @@ async def main():
                 votes = await _fetch_votes(client, sport, sofa_id)
                 surl = await _sofa_url(sofa_id)
                 _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation, combo)  # -> board (MÊME combo que la notif)
+                if _refresh and _old_side:         # ré-analyse : l'ancien pick/prédictions -> fantômes (calibrage)
+                    _carry_shadow_from_old(sport, fid, _old_side)
                 _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien
                 n_gen += 1
                 # === Message Telegram PRO (HTML) : en-tête match + lieu/jour/heure, puis le(s) pari(s) ===
