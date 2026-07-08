@@ -61,7 +61,7 @@ _CATALOG_CACHE: dict[str, list] = {}
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "analyses")
 PROGRAMME_PATH = os.path.join(ROOT, "data", "day_programme.json")   # sélection du jour (matin) : liste
-#   des matchs que BETSFIX couvrira. Le pari de chacun est publié ~2 h avant SON coup d'envoi (vagues).
+#   des matchs que BETSFIX couvrira. Le pari de chacun est publié ~1 h avant SON coup d'envoi (vagues).
 UA = {"User-Agent": "Mozilla/5.0"}
 CACHE_HOURS = 6
 # API locale (uvicorn SYSTEM, port 8000) : réutilise le chemin SofaScore qui marche déjà
@@ -545,7 +545,7 @@ def _load_programme_ids() -> set:
 async def _build_and_post_programme(client, sports: list, args) -> None:
     """MATIN : sélectionne les matchs du jour (top N/sport dans la fenêtre), les enregistre dans
     data/day_programme.json et poste le « programme du jour » sur Telegram — SANS analyser. Le pari de
-    chaque match sera publié ~2 h avant SON coup d'envoi par les vagues (--from-programme --refresh-early)."""
+    chaque match sera publié ~1 h avant SON coup d'envoi par les vagues (--from-programme --refresh-early)."""
     from app import notify
     _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
@@ -614,7 +614,7 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
             pass
         nm = str(m["name"]).replace(" - ", " — ")
         lines.append(f"• {nm}" + (f" — {hm}" if hm else ""))
-    lines.append("\n<i>Le pari de chaque match est publié ~2 h avant son coup d'envoi.</i>")
+    lines.append("\n<i>Le pari de chaque match est publié ~1 h avant son coup d'envoi.</i>")
     try:
         notify.send_sync("\n".join(lines))
     except Exception as exc:
@@ -1914,7 +1914,7 @@ async def main():
                          "quand il approche du coup d'envoi -> pick frais. Les matchs déjà frais sont gelés.")
     ap.add_argument("--programme", action="store_true",
                     help="MATIN : sélectionne les matchs du jour (top N/sport), enregistre le programme et "
-                         "poste la LISTE sur Telegram, SANS analyser (les paris viennent ~2 h avant chacun).")
+                         "poste la LISTE sur Telegram, SANS analyser (les paris viennent ~1 h avant chacun).")
     ap.add_argument("--from-programme", action="store_true",
                     help="ne (ré-)analyser QUE les matchs du programme du jour (data/day_programme.json).")
     args = ap.parse_args()

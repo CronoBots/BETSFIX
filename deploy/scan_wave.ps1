@@ -1,12 +1,13 @@
-# BETSFIX — DISPATCHER « ~2 h avant chaque match » (tâche « BETSFIX Scan Wave », compte vince).
-# Tourne FRÉQUEMMENT (~toutes les 30 min). Fenêtre COURTE (défaut 2 h) + --from-programme : n'analyse QUE
-# les matchs du PROGRAMME du jour (posé le matin) qui entrent dans les ~2 h avant LEUR coup d'envoi ->
-# chaque match est publié une fois, au plus frais. --refresh-early rattrape un match publié trop tôt.
+# BETSFIX — DISPATCHER « ~1 h avant chaque match » (tâche « BETSFIX Scan Wave », compte vince).
+# Tourne FRÉQUEMMENT (~toutes les 30 min, sur :10 et :40 — JAMAIS :00, cf. collision avec le scan 09h).
+# Fenêtre COURTE (défaut 1 h) + --from-programme : n'analyse QUE les matchs du PROGRAMME du jour (posé le
+# matin à 09h) qui entrent dans la ~1 h avant LEUR coup d'envoi -> chaque match est publié une fois, au plus
+# frais (~1 h avant). --refresh-early rattrape un match publié trop tôt (ex. coup d'envoi retardé).
 # Un match déjà analysé DANS la fenêtre = GELÉ (jamais re-changé -> confiance abonnés).
 # Version LÉGÈRE : scan + règlement SILENCIEUX (--no-bilan : poste les résultats, pas de récap à chaque
 # passage) + selfcheck. Les gros calculs quotidiens (programme, méthodo, revue, backtest, apprentissage,
 # santé sources, bilan) restent dans scan_daily.ps1 (1×/jour, matin).
-param([double]$WindowHours = 2)
+param([double]$WindowHours = 1)
 
 $ErrorActionPreference = 'Continue'
 $root = 'C:\Users\vince\BETSFIX'
