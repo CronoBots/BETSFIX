@@ -1503,28 +1503,21 @@ CSS = """
        font-size:15px;font-weight:900;color:var(--text)}
   /* Programme du jour (accueil) : CADRE DÉPLIABLE (details/summary), matchs groupés par sport ;
      par ligne = heure PUIS match en dessous. Pari publié ~1 h avant chacun. */
-  .prog{margin-top:14px;border:1px solid var(--border);border-radius:16px;padding:6px 13px 12px;
-       background:linear-gradient(160deg,rgba(34,184,255,.05),rgba(255,255,255,.012))}
-  .prog-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:15px;
-       font-weight:900;color:var(--text);padding:8px 0;cursor:pointer;list-style:none}
-  .prog-h::-webkit-details-marker{display:none}
-  .prog-hr{display:flex;align-items:center;gap:9px}
-  .prog-chev{font-size:12px;color:var(--muted);transition:transform .18s ease}
-  details.prog[open] .prog-chev{transform:rotate(180deg)}
+  /* CADRE UNIQUE des matchs du jour : « 🎯 Paris à jouer » PUIS « 📋 Programme du jour », même boîte. */
+  .anz{margin-top:14px;border:1px solid var(--border);border-radius:16px;padding:10px 12px 6px;
+       background:linear-gradient(160deg,rgba(34,184,255,.04),rgba(255,255,255,.012))}
+  .prog-sec{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:15px;
+       font-weight:900;color:var(--text);margin:14px 2px 6px}
+  .prog-sec:first-child{margin-top:2px}
   .prog-n{font-size:11.5px;font-weight:800;color:var(--accent);background:rgba(34,184,255,.12);
        border:1px solid rgba(34,184,255,.28);border-radius:8px;padding:1px 8px}
-  .prog-sp{font-size:12px;font-weight:900;color:var(--accent);letter-spacing:.02em;margin:12px 0 6px}
+  .prog-sp{font-size:12px;font-weight:900;color:var(--accent);letter-spacing:.02em;margin:11px 2px 5px}
   /* Chaque match du programme = carte `.mc-*` comme un pari analysé, mais NON dépliable (pas d'analyse). */
   .prog-card{margin:6px 0}
   .prog-card .mc-head{cursor:default;padding:10px 12px}
   .prog-card .mc-betl.mc-noplay{opacity:.72}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
-  /* Cadre « Matchs analysés » (les picks du jour) */
-  .anz{margin-top:14px;border:1px solid var(--border);border-radius:16px;padding:10px 12px 6px;
-       background:rgba(52,210,123,.035)}
-  .anz-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:15px;
-       font-weight:900;color:var(--text);margin-bottom:6px}
   .dash-h-a,
   .dash-more{font-size:11.5px;font-weight:800;color:var(--accent);text-decoration:none}
   .dash-more{display:block;text-align:center;margin:2px 0 4px;padding:11px;border-radius:12px;
@@ -3016,11 +3009,11 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
         f'{legs}{_mile_legend(_mc)}</div>')
 
 
-def render_programme(open_default: bool = True) -> str:
-    """PROGRAMME DU JOUR sur l'accueil : CADRE DÉPLIABLE (details/summary) listant les matchs sélectionnés le
-    matin (data/day_programme.json), groupés par sport ; par ligne, l'heure locale PUIS le match en dessous.
-    Le pari de chacun est publié ~1 h avant son coup d'envoi (par les vagues). Ouvert par défaut quand aucun
-    match n'est encore analysé, replié sinon. '' si pas de programme ou plus aucun match à venir."""
+def render_programme() -> str:
+    """PROGRAMME DU JOUR : sous-section (cartes `.mc-*` groupées par sport) à intégrer DANS le cadre unifié
+    des paris à jouer (demande user). Liste les matchs du jour (data/day_programme.json) NON encore publiés,
+    avec leur statut (Pas de value si proche / Analyse ~1 h avant si lointain). Renvoie juste le contenu
+    (sous-titre + cartes + note), sans cadre propre. '' si aucun match à afficher."""
     import json
     path = os.path.join(analyses._ROOT, "data", "day_programme.json")
     try:
@@ -3044,10 +3037,8 @@ def render_programme(open_default: bool = True) -> str:
     n = sum(1 for v in by.values() for (_d, _m) in v if _m.get("status") != "bet")
     if not n:
         return ""
-    op = " open" if open_default else ""
-    out = [f'<details class="prog"{op}><summary class="prog-h"><span>📋 Programme du jour</span>'
-           f'<span class="prog-hr"><span class="prog-n">{n}</span><span class="prog-chev">▾</span></span>'
-           f'</summary><div class="prog-body">']
+    # Sous-section « Programme du jour » DANS le cadre unifié des paris (pas de cadre séparé, demande user).
+    out = [f'<div class="prog-sec"><span>📋 Programme du jour</span><span class="prog-n">{n}</span></div>']
     # Chaque match NON encore joué est rendu comme une CARTE `.mc-*` (comme les paris analysés). Les matchs
     # avec un PARI PUBLIÉ sont montrés à part (« Paris du jour ») -> ici on n'affiche QUE le reste du slate.
     # Statut HONNÊTE : « Pas de value » n'est FINAL que si le match est PROCHE (≤ _FINAL_H) — au-delà,
@@ -3081,7 +3072,7 @@ def render_programme(open_default: bool = True) -> str:
                 f'<span class="mc-bt">{html.escape(txt)}</span></div></div>'
                 f'</div></div></div>')
     out.append("<div class=\"prog-note\">Le pari de chaque match est publié <b>~1 h avant</b> "
-               "son coup d'envoi.</div></div></details>")
+               "son coup d'envoi.</div>")
     return "".join(out)
 
 
@@ -3094,19 +3085,18 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
                 f'<b>{live_count} match{"s" if live_count > 1 else ""} en direct</b>'
                 '<span class="dash-livebar-go">suivre dans Live →</span></a>')
                if live_count else "")
-    # EN TÊTE : « Paris du jour » = les picks RETENUS (cartes analysées, dépliables). PUIS le PROGRAMME
-    # (reste du slate, cadre dépliable) — ouvert tant qu'aucun pari n'est publié, replié sinon.
-    prog = render_programme(open_default=not match_rows)
-    if match_rows:
-        matches = ('<div class="anz"><div class="anz-h"><span>🎯 Paris du jour</span>'
-                   f'<span class="prog-n">{len(match_rows)}</span></div>'
-                   + _rows_by_day(match_rows) + '</div>')
-    elif prog:
-        matches = ""                        # le PROGRAMME DU JOUR remplace le message « aucun match »
+    # UN SEUL CADRE (demande user) : « 🎯 Paris à jouer » (picks retenus, cartes dépliables) PUIS
+    # « 📋 Programme du jour » (reste du slate, cartes + statut) — tout dans le même cadre `.anz`.
+    prog = render_programme()
+    if match_rows or prog:
+        picks = ('<div class="prog-sec"><span>🎯 Paris à jouer</span>'
+                 f'<span class="prog-n">{len(match_rows)}</span></div>' + _rows_by_day(match_rows)
+                 ) if match_rows else ""
+        matches = f'<div class="anz">{picks}{prog}</div>'
     else:
         matches = ('<div class="dash-h"><span>Prochains matchs</span></div>'
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    body = livebar + matches + prog
+    body = livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:
