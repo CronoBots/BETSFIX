@@ -1948,8 +1948,9 @@ async def main():
     ap.add_argument("--sport", default="foot", help="foot,tennis,basket (séparés par virgule)")
     ap.add_argument("--top", type=int, default=3,
                     help="top N matchs par sport/jour (défaut lean : 3 — qualité > quantité)")
-    ap.add_argument("--hours", type=int, default=24,
-                    help="fenêtre : ne scanner que les matchs à venir dans N heures (défaut 24)")
+    ap.add_argument("--hours", type=float, default=24.0,
+                    help="fenêtre : ne scanner que les matchs à venir dans N heures (défaut 24). "
+                         "Accepte les décimaux (ex. 1.5 pour les vagues rapprochées).")
     ap.add_argument("--force", action="store_true", help="ignore le cache 6 h")
     ap.add_argument("--only-big", action="store_true",
                     help="scanner UNIQUEMENT les gros tournois (Coupe du Monde)")

@@ -27,8 +27,12 @@ if ($running) {
     exit 0
 }
 
-Log ("WAVE START scan foot,tennis,basket --hours {0} --from-programme --refresh-early" -f $WindowHours)
-& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours $WindowHours --from-programme --refresh-early 2>&1 |
+# ⚠️ Le point décimal DOIT être un « . » (jamais « , ») : en locale FR, "$WindowHours" -> "1,5" et
+# argparse (float) le REJETTE -> la vague plantait à chaque passage (exit 2, ré-analyse jamais faite,
+# bug 2026-07-08). On formate donc en InvariantCulture -> "1.5".
+$hours = $WindowHours.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+Log ("WAVE START scan foot,tennis,basket --hours {0} --from-programme --refresh-early" -f $hours)
+& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours $hours --from-programme --refresh-early 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("WAVE SCAN DONE (exit {0})" -f $LASTEXITCODE)
 

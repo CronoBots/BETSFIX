@@ -1515,6 +1515,9 @@ CSS = """
   .prog-card{margin:6px 0}
   .prog-card .mc-head{cursor:default;padding:10px 12px}
   .prog-card .mc-betl.mc-noplay{opacity:.72}
+  /* Mention « pari provisoire » sous le pari : discrète, avec l'heure de la ré-analyse (coup d'envoi − 1 h). */
+  .mc-reana{font-size:11px;color:var(--accent);margin-top:3px;font-weight:700;letter-spacing:.01em}
+  .mc-reana .dim{font-weight:600}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   .dash-h-a,
@@ -3960,6 +3963,14 @@ def _sport_row(r: dict) -> str:
              ('' if is_finished else
               '<div class="mc-betl mc-noplay"><span class="mc-bi">·</span>'
               '<span class="mc-bt">Analysé · pas de pari conseillé</span></div>'))
+    # PARI PROVISOIRE : le match est ré-analysé ~1 h avant son coup d'envoi -> le pick affiché peut encore
+    # changer (pick FINAL = le dernier généré). On l'indique avec l'HEURE EXACTE de cette ré-analyse
+    # (coup d'envoi − 1 h), tant qu'elle est à venir. (demande user 2026-07-08)
+    _ts = r.get("start_ts")
+    if (not is_live) and (not is_finished) and rows3 and _ts and (_ts - 3600) > time.time():
+        _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
+        line3 += (f'<div class="mc-reana">🔄 Ré-analyse à {e(_hhmm)} '
+                  f'<span class="dim">· le pari peut encore changer</span></div>')
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')
     head = (f'<div class="mc-head"><div class="mc-main">'
