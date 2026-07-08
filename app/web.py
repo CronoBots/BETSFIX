@@ -3011,17 +3011,30 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
         f'{legs}{_mile_legend(_mc)}</div>')
 
 
-def _programme_items() -> list:
-    """Cartes du PROGRAMME DU JOUR (matchs SANS pari publié) à FUSIONNER — dans l'ordre chronologique —
-    avec les paris à jouer, dans le MÊME cadre (demande user). Renvoie une liste de dicts
+def _prog_pair(home, away) -> frozenset:
+    """Clé DÉDOUBLONNAGE d'un match = paire de noms d'équipes normalisés (robuste à l'écart d'id
+    Unibet↔sidecar). Sert à exclure du programme un match déjà affiché en pari à jouer."""
+    def _n(s: str) -> str:
+        return re.sub(r"\W+", "", (s or "").lower())
+    return frozenset(x for x in (_n(home), _n(away)) if x)
+
+
+def _programme_items(exclude_pairs: set | None = None) -> list:
+    """Cartes du PROGRAMME DU JOUR (matchs SANS pari à jouer affiché) à FUSIONNER — dans l'ordre
+    chronologique — avec les paris à jouer, dans le MÊME cadre (demande user). Renvoie une liste de dicts
     {"start_ts", "_html"} : le tri global et les en-têtes de jour sont gérés par le cadre unifié
     (_rows_by_day), donc PAS de regroupement par sport ici. [] si aucun match à afficher.
+
+    `exclude_pairs` : paires de noms (cf. `_prog_pair`) des matchs DÉJÀ affichés en pari à jouer
+    (match_rows) -> exclus d'office pour ne JAMAIS afficher un match 2× (bug doublon : un match publié
+    dont le statut retombe « abstained » après ré-analyse apparaissait en pari ET en programme).
 
     Statut HONNÊTE : chaque match est analysé au scan du matin (les tops par sport) puis RÉ-ANALYSÉ
     ~1 h avant son coup d'envoi. On affiche donc l'HEURE EXACTE de cette (ré)analyse (coup d'envoi − 1 h)
     au lieu d'un vague « ~1 h avant ». « Pas de value » n'est montré que si cette échéance est déjà
     passée (verdict quasi-final) ; sinon on annonce à quelle heure l'analyse (re)tombera."""
     import json
+    exclude_pairs = exclude_pairs or set()
     path = os.path.join(analyses._ROOT, "data", "day_programme.json")
     try:
         with open(path, encoding="utf-8") as f:
@@ -3033,6 +3046,10 @@ def _programme_items() -> list:
     items: list = []
     for m in (prog.get("matches") or []):
         if m.get("status") == "bet":            # pari publié -> déjà dans les paris à jouer (fusionnés)
+            continue
+        _nm = str(m.get("name", ""))
+        _h, _s, _a = _nm.partition(" - ")
+        if _prog_pair(_h, _a) in exclude_pairs:  # déjà affiché en pari à jouer -> pas de doublon
             continue
         try:
             dt = datetime.fromisoformat((m.get("start") or "").replace("Z", "+00:00"))
@@ -3077,8 +3094,10 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
                if live_count else "")
     # UN SEUL CADRE, ORDRE CHRONOLOGIQUE (demande user) : les paris à jouer (cartes vertes dépliables)
     # ET le reste du programme (cartes + heure de ré-analyse) FUSIONNÉS et triés par coup d'envoi, avec
-    # en-têtes de jour (Aujourd'hui / Demain …). Un pari publié n'apparaît qu'une fois (via match_rows).
-    items = sorted(list(match_rows) + _programme_items(), key=lambda r: r.get("start_ts") or 0)
+    # en-têtes de jour (Aujourd'hui / Demain …). Un match affiché en pari à jouer est EXCLU du programme
+    # (dédoublonnage par noms d'équipes) -> jamais 2× (même si son statut retombe « abstained »).
+    _paj_pairs = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
+    items = sorted(list(match_rows) + _programme_items(_paj_pairs), key=lambda r: r.get("start_ts") or 0)
     if items:
         header = ('<div class="prog-sec"><span>📅 Programme du jour</span>'
                   f'<span class="prog-n">{len(items)}</span></div>')
