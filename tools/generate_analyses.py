@@ -591,11 +591,17 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
     matches = []
     # Repli PAR SPORT : programme précédent, pour ne pas effacer un sport dont la sélection échoue.
+    # + PRÉSERVATION DES STATUTS (bet/abstained) au re-run : régénérer le programme ne doit PAS remettre à
+    # zéro le statut d'un match déjà analysé/publié (sinon un pari publié repasse « pending » -> doublon
+    # « Paris du jour » vs programme). On reporte le statut existant par id.
     prev_by_sport: dict = {}
+    prev_status: dict = {}
     try:
         _pv = json.load(open(PROGRAMME_PATH, encoding="utf-8"))
         for _m in (_pv.get("matches") or []):
             prev_by_sport.setdefault(_m.get("sport"), []).append(_m)
+            if _m.get("status"):
+                prev_status[str(_m.get("id"))] = _m.get("status")
     except (OSError, ValueError):
         pass
     n_ok = 0
@@ -621,8 +627,11 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         if args.only_big:
             top = [m for m in top if _is_big_match(m.get("comp") or m.get("circuit") or "")]
         for m in top:
-            matches.append({"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
-                            "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""})
+            _e = {"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
+                  "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""}
+            if str(m.get("id")) in prev_status:          # préserve le statut au re-run (bet/abstained)
+                _e["status"] = prev_status[str(m.get("id"))]
+            matches.append(_e)
     # ⛔ NE JAMAIS écraser un programme valide par du VIDE : si AUCUN sport n'a été récupéré (échec réseau
     # TOTAL), on garde le fichier précédent INTACT (mtime compris) -> les vagues continuent sur l'ancien
     # programme au lieu de rester muettes toute la journée (bug audit : point de défaillance unique matinal).
@@ -2036,6 +2045,7 @@ async def main():
                             and _analyzed_too_early(path, m.get("start"), args.hours))
                 if not (args.force or args.match or _refresh) and _notify.get_prono(str(fid)):
                     print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
+                    _set_programme_status(str(m.get("id")), "bet")   # publié -> statut « bet » même si sauté
                     continue
                 _old_sig = None            # signature du pick du MATIN (pour ne republier au re-check que si CHANGÉ)
                 if _refresh:
