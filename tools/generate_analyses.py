@@ -514,6 +514,18 @@ def _kickoff_ts(start: str):
         return None
 
 
+def _card_sig(card) -> tuple | None:
+    """Signature du CONTENU PUBLIÉ d'une carte prono (simple/combiné) -> détecter si le prono a CHANGÉ à un
+    re-check. None si pas de carte (abstention). Combiné : cote + (marché, sélection) de chaque jambe.
+    Simple : marché + sélection + cote. Ignore les libellés cosmétiques (heure, etc.)."""
+    if not card:
+        return None
+    if card.get("type") == "combo":
+        return ("combo", str(card.get("cote")),
+                tuple((str(l[0]), str(l[1])) for l in (card.get("legs") or [])))
+    return ("simple", str(card.get("market")), str(card.get("pick")), str(card.get("cote")))
+
+
 def _analyzed_too_early(path: str, start: str, window_h: float) -> bool:
     """L'analyse EXISTANTE a-t-elle été faite quand le match était ENCORE HORS fenêtre (lead au moment de
     l'analyse > window_h) ? Si oui, elle est « trop en avance » sur le coup d'envoi -> à rafraîchir UNE
@@ -2025,8 +2037,14 @@ async def main():
                 if not (args.force or args.match or _refresh) and _notify.get_prono(str(fid)):
                     print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
                     continue
+                _old_sig = None            # signature du pick du MATIN (pour ne republier au re-check que si CHANGÉ)
                 if _refresh:
-                    print(f"  ↻ {m['name']} : publié mais analysé trop tôt -> ré-analyse fraîche (refresh).")
+                    print(f"  ↻ {m['name']} : publié le matin -> re-vérification (~1 h avant).")
+                    try:
+                        _old_side = json.load(open(os.path.join(OUT, f"{sport}_{fid}.json"), encoding="utf-8"))
+                        _old_sig = _card_sig(_cd.build_prono_card(_old_side))
+                    except (OSError, ValueError):
+                        _old_sig = None
                 if not (args.force or args.match or _refresh) and _fresh(path):
                     print(f"  · {m['name']} : analyse fraîche en cache, on saute.")
                     continue
@@ -2183,7 +2201,6 @@ async def main():
                         _line += f"\n• {html.escape(str(_lg.get('sel', '')))}" + (f" — <b>{_c}</b>" if _c else "")
                 if not _pick_shown and not _has_combo:
                     _line += "\n<i>(calibration seule)</i>"
-                notif_lines.append(_line)
                 # --- Données de la CARTE IMAGE — POINT UNIQUE app/card_data (mêmes données qu'au repost) ---
                 # Carte construite depuis le SIDECAR FRAÎCHEMENT ÉCRIT (source de vérité, combiné FINAL
                 # inclus) plutôt que des variables de boucle : _make_combo est appelé 2× (sidecar + notif)
@@ -2196,6 +2213,16 @@ async def main():
                                    "comp": m.get("comp"), "start": m.get("start"), "pick": _pick,
                                    "combo": combo}
                 _card = _cd.build_prono_card(_side_fresh)
+                # RE-CHECK (~1 h avant, refresh) : ne REPUBLIER QUE si le prono a CHANGÉ vs le pick du matin.
+                # Si identique -> on ne reposte rien (le pick du matin reste, pas de spam) ; le sidecar est
+                # déjà réécrit (mtime frais) -> pas de nouvelle ré-analyse en boucle. (demande user 2026-07-08)
+                if _refresh and _old_sig is not None and _card_sig(_card) == _old_sig:
+                    print(f"  = {m['name']} : prono INCHANGÉ au re-check -> pas de repost.")
+                    await asyncio.sleep(SCAN_GAP)
+                    continue
+                if _refresh:
+                    print(f"  🔄 {m['name']} : prono MIS À JOUR au re-check -> republié.")
+                notif_lines.append(_line)
                 notif_cards.append(_card)
                 print(f"  ✓ {m['name']} : {len(analysis)} car. en {dt:.0f}s -> {os.path.basename(path)}")
                 await asyncio.sleep(SCAN_GAP)   # lisse la charge SofaScore entre 2 matchs
