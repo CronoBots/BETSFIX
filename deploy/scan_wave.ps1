@@ -1,9 +1,11 @@
-# BETSFIX — RE-VÉRIFICATION « ~1 h avant chaque match » (tâche « BETSFIX Scan Wave », compte vince).
+# BETSFIX — RE-VÉRIFICATION « exactement 1 h avant chaque match » (tâche « BETSFIX Scan Wave », compte vince).
 # Système HYBRIDE (choix user 2026-07-08) : les picks sont DÉJÀ publiés le matin (scan_daily). Ici on
-# RE-ANALYSE chaque match du programme ~1-1.5 h avant SON coup d'envoi (--refresh-early : un match publié
+# RE-ANALYSE le(s) match(s) imminent(s) ~1-1.5 h avant leur coup d'envoi (--refresh-early : un match publié
 # le matin = analysé « trop tôt » -> ré-analysé quand il approche) et on ne REPUBLIE QUE SI LE PRONO A
-# CHANGÉ (cotes/compos/blessures). Si inchangé : rien n'est reposté (le pick du matin reste). Tourne
-# FRÉQUEMMENT (~toutes les 30 min, sur :10 et :40 — JAMAIS :00, cf. collision avec le scan 09h).
+# CHANGÉ (cotes/compos/blessures). Si inchangé : rien n'est reposté (le pick du matin reste).
+# ⏰ DÉCLENCHEMENT PAR MATCH (depuis 2026-07-08, demande user) : plus de sondage 30 min. scan_daily.ps1 pose
+# chaque matin, via deploy/schedule_reana.ps1, UN déclencheur ponctuel à (coup d'envoi − 1 h) par match du
+# programme. Ce script reste identique (fenêtre 1.5 h -> ne cible QUE le match imminent au moment du tir).
 # Version LÉGÈRE : scan + règlement SILENCIEUX (--no-bilan : poste les résultats, pas de récap à chaque
 # passage) + selfcheck. Les gros calculs quotidiens (programme, scan matin, méthodo, revue, backtest,
 # apprentissage, santé sources, bilan) restent dans scan_daily.ps1 (1×/jour, matin).

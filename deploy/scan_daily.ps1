@@ -33,6 +33,10 @@ Log 'PROGRAMME : liste du jour (accueil site)'
 & $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 --programme --no-notify 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
+# PLANIFIE LA RÉ-ANALYSE PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le programme
+# tout juste écrit -> remplace le sondage 30 min par un déclenchement précis, un par match.
+Log 'REANA SCHED : planification des ré-analyses (coup d''envoi - 1 h)'
+& 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Out-File -Append -Encoding utf8 $log
 Log 'SCAN MATIN : analyse de TOUT le programme + publication des picks'
 & $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 --from-programme 2>&1 |
     Out-File -Append -Encoding utf8 $log
