@@ -12,6 +12,33 @@
 
 ---
 
+## 2026-07-09 — Audit complet du dépôt + nettoyage du code mort
+
+**Quoi** (demande user : « check complet de ce qui est en place, nettoyer le mort, vérifier chaque fichier »).
+Audit read-only (3 agents Explore parallèles : app/, tools/+deploy/, racine/docs/static + pyflakes global +
+compile/import de tous les .py). Puis nettoyage validé.
+
+**État vérifié** : tout compile ; 49 modules `app/` s'importent ; 242 tests passent ; `/health` OK ;
+selfcheck (8 invariants) OK ; **aucun module orphelin** (69 fichiers app/ tous référencés).
+
+**Nettoyé (commits 2e23066, 864dde1)** :
+- `app/analyses.py` : 5 fonctions mortes (0 call-site vérifié) — `_verdict_card`, `_ev_chip`, `_reco_event`
+  + helpers orphelinés en cascade `_vc_icon`, `_odds_in`.
+- 5 imports top-level inutilisés (time/io/2×math/re). Pré-checks `stripe`/`edge_tts` (noqa) conservés.
+- 3 PNG junk (noms GUID, ~1,6 Mo). `build_backtest.bat` (cassé : appelait `backtest_model.py` inexistant,
+  backtest Elo/SofaScore mort). `RAPPORT_AUDIT_PERLE.md` + `OPTIMISATIONS.md` (docs figées juin, remplacées
+  par ce journal). `start_mobile.ps1` (remplacé par reconnexion.bat + deploy/run_mobile.ps1). README : retrait
+  du paragraphe au lien mort (backtest_model.py/build_backtest.bat).
+
+**CONSERVÉ volontairement (mort mais intentionnel)** : vestiges SofaScore/Elo (sofa_http, sofa_browser,
+build_*_elo, explore_*, garde-fous réversibles cf. [[build-sofascore-dead-data-loss]]) ; outils manuels
+setup/maintenance (make_icons, notify_setup, stripe_setup, video_pronos, screenshot_mobile, renotify_cards,
+probe_sources) ; `static/banner_*.png` (utilisés par card_image) ; `mark.png` (choix user) ; `claude.bat` ;
+tools non commités que le user gère en local (learning/policy_backtest/selfcheck/source_health).
+
+**Régression vérifiée** : après chaque suppression — AST + import + pyflakes + **242 tests** + `/health`.
+Reste noté : commentaires `backtest_model.py` dans app/analysis.py (justif. de CALIB_SHRINK) laissés exprès.
+
 ## 2026-07-09 — Provisoire = pari le plus PROBABLE (analysé) + tennis « commencé » = état réel
 
 **Quoi** (2 retours user 2026-07-09) :
