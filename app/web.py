@@ -418,16 +418,17 @@ CSS = """
   .spf-charts{display:flex;flex-direction:column;gap:10px;margin-top:10px}
   .spf-cv{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;
        padding:8px 10px 6px}
-  .spf-cv-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:3px}
+  .spf-cv-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
   .spf-cv-t{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
   .spf-cv-roi{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
   .spf-cv-none{font-size:11px;color:var(--muted);padding:16px 2px;text-align:center}
   /* Forme W/L PROPRE à chaque graphe (juste au-dessus de la courbe) */
-  .spf-cv-form{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 5px;overflow:hidden}
-  .spf-cv-form .forms{flex-wrap:nowrap}   /* jamais de retour à la ligne : le max qui tient s'affiche */
-  .spf-cv-stk{flex:none}
-  /* dots alignés à DROITE : si ça déborde, on rogne les VIEUX (gauche) et on garde les RÉCENTS (droite). */
-  .spf-cv-dots{min-width:0;overflow:hidden;display:flex;justify-content:flex-end}
+  /* Forme W/L (dots) alignée à DROITE : si ça déborde, on rogne les VIEUX (gauche), on garde les récents. */
+  .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px;overflow:hidden}
+  .spf-cv-form .forms{flex-wrap:nowrap}
+  /* Groupe de gauche de l'en-tête : titre + badge SÉRIE côte à côte (le badge n'est PAS dans la ligne W/L). */
+  .spf-cv-hl{display:flex;align-items:center;gap:7px;min-width:0}
+  .spf-cv-hl .sx-streak{flex:none}
   /* Graphe CLIQUABLE (details) -> déplie les derniers paris. Marqueur natif retiré, curseur main. */
   details.spf-cv-x>summary{list-style:none;cursor:pointer}
   details.spf-cv-x>summary::-webkit-details-marker{display:none}
@@ -2922,13 +2923,9 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _fs = (form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=14)
            or form_dots([_LET.get(x, x) for x in (ov.get("form_run") or ov.get("form") or [])], n=14))
     _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=14)
-    _stk_s = _streak_chip(ov.get("streak"))                        # série EN COURS des simples
-    _stk_c = _streak_chip((combo_full or {}).get("streak") if combo_full is not None
-                          else analyses.combo_stats().get("streak"))
-    _simples_form = (f'<div class="spf-cv-form"><span class="spf-cv-stk">{_stk_s}</span>'
-                     f'<span class="spf-cv-dots">{_fs}</span></div>' if (_fs or _stk_s) else "")
-    _combo_form = (f'<div class="spf-cv-form"><span class="spf-cv-stk">{_stk_c}</span>'
-                   f'<span class="spf-cv-dots">{_fc}</span></div>' if (_fc or _stk_c) else "")
+    _stk_s = _streak_chip(ov.get("streak"))                        # série EN COURS des simples (dans l'en-tête)
+    _simples_form = f'<div class="spf-cv-form">{_fs}</div>' if _fs else ""   # dots seuls, alignés à droite
+    _combo_form = f'<div class="spf-cv-form">{_fc}</div>' if _fc else ""     # série combinés -> en-tête (render_combos)
     # CLV (Closing Line Value) : chip EXTRA sous la courbe (>0 = on bat la cote de clôture). '—' si vide.
     from app import clv as _clvmod
     _cs = _clvmod.clv_stats()
@@ -2946,7 +2943,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # nouv. système + CLV (ligne secondaire) et repères de modèle sous la courbe.
     _rec_s = _recent_bets_html(list(reversed(ov.get("recent") or [])))
     _s_inner = (
-        f'<div class="spf-cv-h"><span class="spf-cv-t">📈 Simples</span>'
+        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">📈 Simples</span>{_stk_s}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'ROI {_roistr(ov.get("roi"))}</span></div>'
         f'{_simples_form}<div class="sx-equity">{chart}</div>'
@@ -3041,7 +3038,8 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
     # Carte compacte IDENTIQUE aux onglets sport : en-tête (titre + ROI), W/L au-dessus de la courbe,
     # courbe (vraie cote), stats dessous, puis les extras (profit/rabot + réussite par nb de jambes).
     _c_inner = (
-        f'<div class="spf-cv-h"><span class="spf-cv-t">🎲 Combinés</span>'
+        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">🎲 Combinés</span>'
+        f'{_streak_chip(cs.get("streak"))}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(roi, cs["n"])}">ROI {_roistr(roi)}</span></div>'
         f'{form_html}{chart}'
         '<div class="spf-cv-kpis">'
@@ -3677,14 +3675,13 @@ def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
                 f'<span class="spf-cv-t">{label}</span></div>'
                 f'<div class="spf-cv-none">{empty_msg}</div></div>')
     roi = blk.get("roi")
-    head = (f'<div class="spf-cv-h"><span class="spf-cv-t">{label}</span>'
+    _stk = _streak_chip(blk.get("streak"))                          # 🔥 N gagnés / ❄️ N perdus — À CÔTÉ du titre
+    head = (f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">{label}</span>{_stk}</span>'
             f'<span class="spf-cv-roi arec-{_roi_cls(roi, blk.get("settled"))}">'
             f'ROI {_roistr(roi)}</span></div>')
     _LET = {"won": "W", "lost": "L", "push": "N"}
     dots = form_dots([_LET.get(x, x) for x in (form or [])], n=14)  # max de résultats sur 1 ligne
-    _stk = _streak_chip(blk.get("streak"))                          # 🔥 N gagnés / ❄️ N perdus d'affilée
-    formrow = (f'<div class="spf-cv-form"><span class="spf-cv-stk">{_stk}</span>'
-               f'<span class="spf-cv-dots">{dots}</span></div>' if (dots or _stk) else "")
+    formrow = f'<div class="spf-cv-form">{dots}</div>' if dots else ""
     kpis = (f'<div class="spf-cv-kpis">'
             f'<span><b>{blk.get("pct")}%</b> réussite</span>'
             f'<span><b>{blk.get("settled")}</b> paris</span>'
