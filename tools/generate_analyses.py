@@ -1848,9 +1848,9 @@ def _provisional_pick(analysis: str, meta: dict | None, m: dict) -> dict | None:
     abstention). Repli ULTIME seulement si aucun tableau exploitable : favori 1X2 des cotes. Purement
     AFFICHAGE (programme) — JAMAIS écrit dans paris/stat_bet/shadow -> JAMAIS compté au ROI/stats/
     calibration (demande user 2026-07-09). None si rien d'exploitable. Renvoie {"sel", "cote": float|None}."""
-    # 1) Le pari le plus probable = 1re ligne de données du tableau classé par chance (| sél | cote | … |).
+    # 1) Le pari le plus probable = 1re ligne de données du tableau classé par chance (| sél | cote | proba | … |).
     #    Le tableau est déjà trié par l'analyste (proba décroissante) -> row[0] = le plus probable.
-    for mm in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*([\d]+[.,][\d]+)\s*\|", analysis or "", re.M):
+    for mm in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*([\d]+[.,][\d]+)\s*\|\s*([^|]*?)\s*\|", analysis or "", re.M):
         sel = re.sub(r"\*\*|\*", "", mm.group(1)).strip()
         if not sel or sel.lower() in ("pari", "sélection", "selection", "marché", "marche"):
             continue                              # en-tête du tableau
@@ -1860,7 +1860,9 @@ def _provisional_pick(analysis: str, meta: dict | None, m: dict) -> dict | None:
             cote = float(mm.group(2).replace(",", "."))
         except ValueError:
             cote = None
-        return {"sel": sel[:90], "cote": cote}
+        _pm = re.search(r"(\d{1,3})", mm.group(3) or "")   # confiance (proba) de l'analyste, comme un vrai pari
+        prob = min(int(_pm.group(1)), 100) if _pm else None
+        return {"sel": sel[:90], "cote": cote, "prob": prob}
     # 2) Repli ULTIME (aucun tableau exploitable, ex. backfill sans analyse) : favori 1X2 des cotes.
     o1, ox, o2 = (meta.get("odds") if meta else None) or (None, None, None)
     home, away = m.get("home", ""), m.get("away", "")
@@ -1869,7 +1871,7 @@ def _provisional_pick(analysis: str, meta: dict | None, m: dict) -> dict | None:
     if not cands:
         return None
     o, s = min(cands, key=lambda x: x[0])       # favori = cote la plus basse
-    return {"sel": s, "cote": round(float(o), 2)}
+    return {"sel": s, "cote": round(float(o), 2), "prob": round(100 / o) if o else None}   # proba implicite
 
 
 def _track_provisional(sport, m, prov) -> None:

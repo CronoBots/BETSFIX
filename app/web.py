@@ -1551,6 +1551,9 @@ CSS = """
   .mc-prov .mc-bt{color:var(--gold);font-weight:800}
   .mc-bc-prov{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd)}
   .mc-reana-prov{color:var(--gold)}
+  /* Confiance du provisoire (comme un vrai pari) — dorée, avec rappel « hors ROI » pour ne pas tromper. */
+  .mc-prov-conf{font-size:11px;color:var(--gold);font-weight:600;margin-top:2px}
+  .mc-prov-conf b{font-weight:800}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   .dash-h-a,
@@ -3141,6 +3144,13 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             _cote = prov.get("cote")
             _cote_html = (f'<span class="mc-bc mc-bc-prov">@{_cote:g}</span>'
                           if isinstance(_cote, (int, float)) and _cote else "")
+            # CONFIANCE (comme un vrai pari à jouer) : la proba de l'analyste, en teinte DORÉE. Enrichit
+            # l'affichage sans tromper — le libellé « provisoire · hors ROI » reste bien présent (choix user
+            # 2026-07-10 : construire/afficher comme un pari à jouer, mais clairement hors ROI).
+            _pconf = prov.get("prob")
+            _conf_html = (f'<div class="mc-prov-conf">Confiance <b>{_pconf}%</b> '
+                          f'<span class="dim">· info, hors ROI</span></div>'
+                          if isinstance(_pconf, (int, float)) and _pconf else "")
             if now >= reanalyse:
                 _note = "pari provisoire · pas de value détectée"          # échéance passée -> verdict
             else:
@@ -3148,6 +3158,7 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
                          f'<span class="dim">· provisoire, peut changer</span>')
             sub = (f'<div class="mc-betl mc-prov"><span class="mc-bi">•</span>'
                    f'<span class="mc-bt">{html.escape(prov_sel)}</span>{_cote_html}</div>'
+                   f'{_conf_html}'
                    f'<div class="mc-reana mc-reana-prov">🔄 {_note}</div>')
         else:
             if m.get("status") == "abstained" and now >= reanalyse:
