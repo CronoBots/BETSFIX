@@ -2253,8 +2253,20 @@ async def main():
                     # quand même « le pari si l'on devait en jouer un » sur le programme (demande user
                     # 2026-07-09). Stocké dans le programme, JAMAIS dans les paris/stats -> ROI intact.
                     _prov = _provisional_pick(analysis, meta, m)
+                    if _prov:
+                        _prov["fid"] = str(fid)   # clé du .md -> la carte provisoire peut ouvrir l'analyse
                     _set_programme_status(str(m.get("id")), "abstained", provisional=_prov)   # + pari indicatif
                     _track_provisional(sport, m, _prov)   # suivi SÉPARÉ info-seule (jamais dans le ROI réel)
+                    # PROVISOIRE : on GARDE le .md (analyse consultable au clic sur la carte). Le .md est
+                    # PUREMENT AFFICHAGE — list_for/stats/calibration ne lisent QUE les .json -> ROI/calib
+                    # INCHANGÉS. On (ré)écrit le .md et on ne le supprime pas ; on ne retire QUE le .json.
+                    if _prov:
+                        try:
+                            with open(path, "w", encoding="utf-8") as _fmd:
+                                _fmd.write(f"<!-- provisoire · {datetime.now(timezone.utc).isoformat()} -->\n\n"
+                                           + analysis + "\n")
+                        except OSError:
+                            pass
                     side_p = os.path.join(OUT, f"{sport}_{fid}.json")
                     try:
                         old = json.load(open(side_p, encoding="utf-8"))
@@ -2268,7 +2280,9 @@ async def main():
                     # Telegram = site ; sinon le match disparaissait du site, bug audit).
                     _published = bool(_notify.get_prono(str(fid)))
                     if not settled and not _published:
-                        for ext in (".json", ".md"):
+                        # provisoire -> on GARDE le .md (analyse), on ne retire que le .json (aucun stat/calib).
+                        _exts = (".json",) if _prov else (".json", ".md")
+                        for ext in _exts:
                             try:
                                 os.remove(os.path.join(OUT, f"{sport}_{fid}{ext}"))
                             except OSError:

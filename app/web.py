@@ -1538,6 +1538,11 @@ CSS = """
   .prog-card{margin:6px 0}
   .prog-card .mc-head{cursor:default;padding:10px 12px}
   .prog-card .mc-betl.mc-noplay{opacity:.72}
+  /* Carte PROVISOIRE cliquable (details) -> déplie la fiche d'analyse (comme un pari à jouer). */
+  details.prog-card-x>summary{list-style:none;cursor:pointer;position:relative}
+  details.prog-card-x>summary::-webkit-details-marker{display:none}
+  details.prog-card-x[open]>summary .mc-chev{transform:rotate(90deg)}
+  .prog-ana{padding:2px 13px 13px;border-top:1px solid var(--border);margin-top:2px}
   /* Mention « pari provisoire » sous le pari : discrète, avec l'heure de la ré-analyse (coup d'envoi − 1 h). */
   .mc-reana{font-size:11px;color:var(--accent);margin-top:3px;font-weight:700;letter-spacing:.01em}
   .mc-reana .dim{font-weight:600}
@@ -3151,9 +3156,8 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
                 bic, btxt = "🔄", f"Analyse à {fmt_local(reanalyse, with_date=False)}"   # heure exacte
             sub = (f'<div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
                    f'<span class="mc-bt">{html.escape(btxt)}</span></div>')
-        card = (
-            f'<div class="row pick mc prog-card">'
-            f'<div class="mc-head"><div class="mc-main">'
+        _inner = (
+            f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
             f'<span class="mc-comp">{comp}</span>'
             # Programme DÉJÀ groupé par en-tête de jour (Aujourd'hui / Demain …) -> l'heure seule (HH:MM)
@@ -3161,8 +3165,19 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             # programme sur les cartes de pari (qui montrent aussi l'heure seule).
             f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=False))}</span></div>'
             f'<div class="mc-teams">{teams}</div>'
-            f'<div class="mc-sub">{sub}</div>'
-            f'</div></div></div>')
+            f'<div class="mc-sub">{sub}</div></div>')
+        # PROVISOIRE CLIQUABLE (demande user 2026-07-10) : si l'analyse du match est disponible (le scan
+        # GARDE le .md des provisoires), la carte devient un <details> qui déplie la fiche d'analyse — comme
+        # les paris à jouer. Le .md est purement AFFICHAGE (aucun impact ROI/stats/calibration). Sinon carte
+        # simple non cliquable (ex. provisoire d'avant ce build, ou .md pas encore régénéré au prochain scan).
+        _fid = str(prov.get("fid") or "") if prov_sel else ""
+        _ana = analyses.render(sp, _fid) if _fid else None
+        if _ana:
+            card = (f'<details class="row pick mc prog-card prog-card-x">'
+                    f'<summary class="mc-head">{_inner}<span class="mc-chev">▸</span></summary>'
+                    f'<div class="mc-body prog-ana">{_ana}</div></details>')
+        else:
+            card = f'<div class="row pick mc prog-card"><div class="mc-head">{_inner}</div></div>'
         items.append({"start_ts": dt.timestamp(), "_html": card, "_sport": sp,
                       "_prov": bool(prov_sel), "home": home, "away": away})
     return items

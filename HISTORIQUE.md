@@ -12,6 +12,25 @@
 
 ---
 
+## 2026-07-10 — Provisoires : cartes CLIQUABLES (fiche d'analyse) + badge série repositionné
+
+**Quoi** (retours user, 2 screenshots) :
+1. **Badge série mal placé/rogné** : le chip 🔥/❄️ était dans la ligne des dots (overflow:hidden) -> bords
+   coupés + décalait la série W/L. Déplacé dans l'EN-TÊTE, à côté de « Simples/Combinés » (`.spf-cv-hl`,
+   pas d'overflow). Ligne W/L = dots seuls, alignés à droite (récents visibles).
+2. **Provisoires non cliquables** : cliquer une carte provisoire ne faisait rien. Désormais la carte est un
+   `<details>` qui déplie la FICHE D'ANALYSE (comme un pari à jouer). Le scan GARDE le `.md` des provisoires
+   (`_prov["fid"]` stocké dans day_programme) ; `_programme_items` rend `analyses.render(sport, fid)` inline.
+   ⚠️ Le `.md` est PUREMENT AFFICHAGE : list_for/stats/calibration ne lisent QUE les `.json` -> le provisoire
+   n'a PAS de `.json` -> **0 impact ROI/stats/calibration** (vérifié : absent de list_for). Provisoire d'avant
+   ce build = carte simple non cliquable jusqu'à la prochaine (ré)analyse.
+
+**Question user tranchée** : les provisoires ne sont PAS comptés dans les stats/« derniers paris » — vérifié
+0 fuite (les paris à handicap type Connecticut/Toronto sont des paris PUBLIÉS gagnés, comptés à juste titre).
+
+**Régression vérifiée** : AST · **242 tests** · pages / /stats /foot /basket /app en 200 · **selfcheck OK** ·
+test intégration (carte dépliable + analyse inline + match ABSENT de list_for). Purement affichage.
+
 ## 2026-07-10 — Graphes simple/combiné CLIQUABLES : derniers paris (W/L) + série en cours
 
 **Quoi** (demande user) : en cliquant sur les graphiques Simples/Combinés des stats, voir les DERNIERS
