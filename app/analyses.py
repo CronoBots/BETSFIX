@@ -1305,10 +1305,18 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
                         _anchor = re.sub(r"\s*@.*$", "", str(m.get("pick") or ""))
                 except Exception:
                     _anchor = None
-            if _anchor:                          # match EXACT du pari compté/publié UNIQUEMENT (pas de max-prob deviné)
+            if _anchor:                          # rapprochement au pari compté/publié (jamais de max-prob deviné)
                 _pk = _norm_sel(_anchor)
-                ri = next((i for i, b in enumerate(bets)
-                           if _pk and _norm_sel(b.get("sel", "")) == _pk), None)
+                _nbs = [_norm_sel(b.get("sel", "")) for b in bets]
+                # EXACT d'abord, puis PRÉFIXE/INCLUSION : le `pick` publié est souvent une forme COURTE
+                # (« Connecticut Sun +14.5 ») tandis que la sélection structurée porte le suffixe du marché
+                # (« … (hand., prol. incl.) ») -> l'égalité stricte ratait le gel, et un pari PUBLIÉ + GAGNÉ
+                # n'était jamais compté (bug Connecticut Sun–Minnesota, demande user 2026-07-09). On retient
+                # la 1re jambe qui commence par (ou est contenue dans) l'ancre.
+                ri = next((i for i, nb in enumerate(_nbs) if _pk and nb == _pk), None)
+                if ri is None:
+                    ri = next((i for i, nb in enumerate(_nbs)
+                               if _pk and (nb.startswith(_pk) or _pk.startswith(nb))), None)
         if ri is None:
             return None
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}

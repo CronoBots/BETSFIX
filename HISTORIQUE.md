@@ -12,6 +12,27 @@
 
 ---
 
+## 2026-07-09 — Gel des pronos publiés : ancre par PRÉFIXE (pari publié+gagné enfin compté)
+
+**Quoi** (suite du cas Connecticut Sun–Minnesota) : le filet « prono publié = compté » (`retained_bet`
+for_history via une ANCRE) rapprochait le champ `pick` de la sélection `bets[].sel` en **égalité stricte**.
+Or `pick` est une forme COURTE (« Connecticut Sun +14.5 ») et `sel` porte le suffixe du marché
+(« … (hand., prol. incl.) ») -> l'ancre ratait -> un pari PUBLIÉ + GAGNÉ n'était jamais compté (affiché
+« pas de pari »).
+
+**Fix** (`app/analyses.py:retained_bet`) : rapprochement EXACT puis **PRÉFIXE/INCLUSION** (`startswith`
+dans les deux sens). `for_history=False` (publication) **reste strict** (inchangé). + backfill `stat_bet`
+des matchs sauvés : **1 seul** concerné (Connecticut, gagné @1.32) -> désormais compté (+1 victoire au ROI,
+honnête) et affiché « ✓ Gagné » (play=True, dans list_for via stat_bet).
+
+**Décisions user** : (a) COMPTER le pari (corriger l'ancre) plutôt que le masquer — cohérence Telegram=site=
+stats, ROI honnête ; (b) NE PAS baisser le seuil EV (3 % reste : le backtest quotidien dit « politique
+optimale », et ce cas était à 2,96 % correctement rejeté — le vrai bug était l'ancre, pas l'EV) ; (c)
+arrondi EV d'affichage laissé tel quel (la rétention utilise la valeur précise `ev<0.03`).
+
+**Régression vérifiée** : impact 1 match, `retained_bet(strict)` toujours None (publication intacte),
+AST OK · **242 tests** · `/health` OK. Compteur MONOTONE respecté (on AJOUTE un compté, jamais retiré).
+
 ## 2026-07-09 — Affichage : un match RÉGLÉ non compté ne s'affiche plus (même publié)
 
 **Quoi** (demande user, screenshot Connecticut Sun–Minnesota Lynx montrant « Match analysé · pas de pari »
