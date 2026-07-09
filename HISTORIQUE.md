@@ -12,6 +12,25 @@
 
 ---
 
+## 2026-07-09 — Affichage : un match RÉGLÉ non compté ne s'affiche plus (même publié)
+
+**Quoi** (demande user, screenshot Connecticut Sun–Minnesota Lynx montrant « Match analysé · pas de pari »
+sur un terminé) : une abstention n'a aucun intérêt affiché, elle ne sert qu'en fantôme (calibration).
+
+**Diagnostic** : les VRAIES abstentions étaient DÉJÀ masquées par `list_for`. Ce match précis restait
+visible car il avait été PUBLIÉ sur Telegram (`get_prono` True) mais son pari (EV pile au seuil 3 %,
+78 % conf, publié + gagné) n'était ni retenu (`retained_bet`=None) ni compté (`stat_bet`=None). `list_for`
+gardait tout match publié, même réglé et non compté -> carte « pas de pari » sur un terminé.
+
+**Fix** (`app/analyses.py:list_for`) : la survie « par publication » (`get_prono`) ne s'applique plus qu'aux
+matchs **PAS ENCORE RÉGLÉS** (cohérence Telegram=site pour l'à-venir). Un match **réglé mais non compté**
+(stat_bet vide, pas de combiné, pas de pari retenu for_history) n'apparaît plus — le site ne montre QUE ce
+qui est dans les stats. L'ancre `stat_bet` (terminés comptés) est intacte -> le fix Auger-Aliassime tient.
+
+**Régression vérifiée** : impact chirurgical — EXACTEMENT 1 match masqué (le Connecticut), 0 match compté
+ou à-venir publié touché (foot 108 / tennis 31 / basket 41 inchangés hors ce 1). Le match reste réglé +
+calibré en coulisses (fantômes). AST OK · **242 tests** · `/health` OK.
+
 ## 2026-07-09 — Audit complet du dépôt + nettoyage du code mort
 
 **Quoi** (demande user : « check complet de ce qui est en place, nettoyer le mort, vérifier chaque fichier »).

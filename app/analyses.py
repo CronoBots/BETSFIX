@@ -290,11 +290,14 @@ def list_for(sport: str) -> list[dict]:
         if not _has_combo and load(sport, d.get("id")) is not None \
                 and retained_bet(sport, d.get("id"), for_history=is_settled(d)) is None:
             # SAUF si le pari a DÉJÀ été COMPTÉ (stat_bet figé, survit à un reset du canal ET à la dérive de
-            # calibration) OU si un prono a été PUBLIÉ (get_prono, pour les À-VENIR pas encore réglés) :
-            # cohérence Telegram = site = stats. `stat_bet` est l'ancre ROBUSTE des terminés (un reset des
-            # pronos ne doit PAS faire disparaître un terminé déjà compté — bug vécu Auger-Aliassime–Djokovic).
+            # calibration ; ancre ROBUSTE des terminés — bug vécu Auger-Aliassime–Djokovic) OU si un prono a
+            # été PUBLIÉ et que le match n'est PAS ENCORE RÉGLÉ (cohérence Telegram=site pour l'à-venir).
+            # RÈGLE (demande user 2026-07-09) : un match RÉGLÉ mais NON COMPTÉ (stat_bet vide) ne s'affiche
+            # PLUS, même s'il a été publié — le site ne montre QUE ce qui est dans les stats. Un pari publié
+            # mais non retenu au règlement (ex. EV pile au seuil) n'a aucun intérêt affiché (« pas de pari ») ;
+            # il reste réglé + calibré en coulisses (fantômes). Évite les cartes « pas de pari » sur terminés.
             _kept = isinstance(d.get("stat_bet"), dict)
-            if not _kept:
+            if not _kept and not is_settled(d):
                 try:
                     from app import notify as _notify
                     _kept = bool(_notify.get_prono(str(d.get("id"))))
