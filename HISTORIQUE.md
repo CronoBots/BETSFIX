@@ -12,6 +12,34 @@
 
 ---
 
+## 2026-07-09 — Scan 09h : ré-analyse AUSSI les matchs déjà affichés (`--force` au matin)
+
+**Quoi** : la passe « SCAN MATIN » de `deploy/scan_daily.ps1` passe de `--from-programme` à
+`--from-programme --force`. Au matin, TOUT le programme est (ré)analysé, y compris les matchs déjà
+affichés/publiés sur le site (le gel et le cache 6 h ne les sautent plus) -> chaque match a son pari du
+jour dès 09h.
+
+**Pourquoi** : demande user 2026-07-09 (« à 09h, donner déjà des paris à jouer pour tous les matchs, même
+ceux déjà affichés, en précisant qu'une autre analyse sera faite 1h avant »). Q2 tranchée : ré-analyser à
+09h aussi. Q1 : on garde l'abstention pour les vrais no-value (invariant « posté = compté » + garde-fou
+value négative intacts) ; un match retenu montre déjà son pari.
+
+**Fichiers** : `deploy/scan_daily.ps1` (flag + commentaires d'entête).
+
+**Régression vérifiée** :
+- `--force` × `--from-programme` sont orthogonaux (grep l.2027-2302) : from-programme FILTRE la liste
+  (l.2048), force CONTOURNE gel (l.2092) + cache (l.2108), charge l'ancien pick (l.2100) et ne re-poste
+  QUE si le pick a CHANGÉ (l.2298 skip-si-identique + l.2302). Donc pas de spam abonnés, ancien pick ->
+  fantôme (calibration) si changé. Aucune exclusivité mutuelle des deux flags.
+- La mention « une autre analyse sera faite ~1h avant » existe DÉJÀ côté site (`app/web.py:3985-3992`
+  « 🔄 Ré-analyse à HH:MM · le pari peut encore changer », affichée pour tout pari à >1h du coup d'envoi)
+  -> rien à ajouter, et elle apparaîtra désormais AUSSI sur les matchs jadis sautés.
+- Parse PowerShell OK (`Parser::ParseFile` = PARSE OK). Pas de modif Python -> pas de risque AST.
+
+**Résultat** : au scan de 09h, aucun match du programme n'est laissé sans (ré)analyse ; les picks du matin
+portent la mention de ré-analyse rapprochée. Coût marginal (seuls les matchs jadis gelés/en-cache sont
+re-analysés en plus). Comportement `--force` déjà éprouvé (commit 97c20cc).
+
 ## 2026-07-07 — Flashscore : couvrir les matchs FUTURS (cap jour +1 -> +10) — les 3 sports
 - **Quoi** : `app/flashscore.py` `_day_offsets` — borne haute passée de **+1 à +10**. Un match à +2 jours ou
   plus était cherché sur le mauvais jour (offset clampé à 1) -> pas de forme/H2H Flashscore sur les matchs

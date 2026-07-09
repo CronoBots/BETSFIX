@@ -26,6 +26,9 @@ if ($running) {
 #   2) SCAN MATIN COMPLET : analyse TOUS les matchs DU PROGRAMME (--from-programme = exactement la liste
 #      écrite en 1, aucune dérive de sélection) et PUBLIE les picks retenus -> CHAQUE match du jour a son
 #      pari prêt dès le matin (demande user 2026-07-08). Pose le statut (bet/abstained) sur le programme.
+#      --force (demande user 2026-07-09) : ré-analyse AUSSI les matchs DÉJÀ AFFICHÉS/publiés (contourne le
+#      gel + le cache 6 h) -> aucun match du programme n'est sauté au matin. Sans spam : un pick INCHANGÉ
+#      n'est PAS re-posté ; un pick CHANGÉ est republié et l'ancien devient un fantôme (calibration).
 #   Puis les vagues (scan_wave.ps1, ~1 h avant chaque match) RE-VÉRIFIENT : le pari retenu pour le ROI/stats
 #   est TOUJOURS le DERNIER généré ; si le prono a CHANGÉ, l'ancien devient un « fantôme » (calibration).
 Log 'PROGRAMME : liste du jour (accueil site)'
@@ -37,8 +40,8 @@ Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # tout juste écrit -> remplace le sondage 30 min par un déclenchement précis, un par match.
 Log 'REANA SCHED : planification des ré-analyses (coup d''envoi - 1 h)'
 & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Out-File -Append -Encoding utf8 $log
-Log 'SCAN MATIN : analyse de TOUT le programme + publication des picks'
-& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 --from-programme 2>&1 |
+Log 'SCAN MATIN : analyse de TOUT le programme (y compris matchs deja affiches) + publication des picks'
+& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 --from-programme --force 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 
