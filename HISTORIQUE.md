@@ -12,6 +12,25 @@
 
 ---
 
+## 2026-07-10 — Graphes simple/combiné CLIQUABLES : derniers paris (W/L) + série en cours
+
+**Quoi** (demande user) : en cliquant sur les graphiques Simples/Combinés des stats, voir les DERNIERS
+paris gagnés/perdus (les W/L) + une indication de la SÉRIE en cours (nb gagnés/perdus d'affilée).
+
+**Données** : `_agg_bets` accepte un 4e élément optionnel (meta {name,sel,sport}) par event et expose une
+liste `recent` (15 derniers paris détaillés) ; la série `streak` était déjà calculée. Callers de stats_full
+enrichis (nom + sel via stat_bet). `combo_stats` : `recent` + `streak` ajoutés à l'overall ET au by_sport.
+
+**Affichage** : `_perf_curve_block` (courbes Simples/Combinés des ONGLETS SPORT) et les blocs Simples/
+Combinés de l'ONGLET /stats deviennent des `<details>` : le graphe = résumé cliquable, le clic déplie
+`_recent_bets_html` (pastille W/L/N + affiche + sélection + cote + date). La SÉRIE en cours (`_streak_chip`
+🔥/❄️) est ajoutée au-dessus de chaque graphe. `_hero_chart` : `onclick=stopPropagation` sur les repères de
+modèle -> taper un repère ne déplie pas le panneau. CSS `.spf-rec*`/`.spf-cv-x`/`.spf-cv-more`.
+
+**Régression vérifiée** : décompactages 3-tuples de `_agg_bets` corrigés (tolèrent le 4e élément) ; AST OK ·
+**242 tests** · pages /stats /foot /basket /app en 200 · selfcheck OK. Purement AFFICHAGE (stat_bet/ROI/
+calibration inchangés).
+
 ## 2026-07-09 — Provisoires : affichés dans les onglets sport + suivi SÉPARÉ (info seule)
 
 **Quoi** (demande user) : (A) afficher les cadres provisoires dans les onglets sport ; (B) NE PAS les

@@ -1518,7 +1518,14 @@ def _agg_bets(events: list) -> dict:
     events = sorted(events, key=lambda x: x[0] or "")
     cum, osum = 0.0, 0.0
     pts, dates, won, lost, push = [0.0], [], 0, 0, 0
-    for _start, res, odds in events:
+    recent = []                                          # détails par pari (si fournis en 4e élément)
+    for _ev in events:
+        _start, res, odds = _ev[0], _ev[1], _ev[2]
+        _meta = _ev[3] if len(_ev) > 3 else None
+        if _meta and res in ("won", "lost", "push"):     # pour le panneau « derniers paris » (au clic)
+            recent.append({"start": _start, "result": res, "cote": odds,
+                           "name": _meta.get("name"), "sel": _meta.get("sel"),
+                           "sport": _meta.get("sport")})
         if res == "won":
             cum += (float(odds) - 1) if odds else 0.0
             won += 1
@@ -1533,7 +1540,7 @@ def _agg_bets(events: list) -> dict:
         dates.append(_start or "")
     settled, staked = won + lost, won + lost + push
     # Série EN COURS (signée) : nb de gagnés (+) ou perdus (-) consécutifs en fin de période.
-    seq = [res for _s, res, _o in events if res in ("won", "lost")]
+    seq = [ev[1] for ev in events if ev[1] in ("won", "lost")]
     streak = 0
     if seq:
         last, c = seq[-1], 0
@@ -1547,7 +1554,7 @@ def _agg_bets(events: list) -> dict:
     for r in seq:
         run = run + 1 if r == "won" else 0
         best_streak = max(best_streak, run)
-    _all_form = [res for _s, res, _o in events]
+    _all_form = [ev[1] for ev in events]
     form = _all_form[-5:]            # 5 derniers (lignes par sport, compactes)
     form12 = _all_form[-12:]         # 12 derniers (bandeau d'accueil des stats)
     form_run = _all_form[-24:]       # série longue (courbes perf : on affiche le MAX qui tient/ligne)
@@ -1563,6 +1570,7 @@ def _agg_bets(events: list) -> dict:
             "avg_odds": (round(osum / settled, 2) if settled else None),
             "streak": streak, "best_streak": best_streak, "form": form, "form12": form12,
             "form_run": form_run,
+            "recent": recent[-15:],                      # 15 derniers paris détaillés (W/L + nom + sel + cote)
             "max_dd": round(dd, 2),
             "dd_pct": (round(100 * dd / staked, 1) if staked else None)}
 
@@ -1639,7 +1647,8 @@ def stats_full(since_days: int | None = None) -> dict:
             continue                                   # combiné antérieur à la bascule -> match non compté
         rb = stat_bet(d)                               # pari FIGÉ (track record stable, monotone)
         if rb and rb.get("result") in ("won", "lost", "push"):
-            ev = (start, rb["result"], rb.get("cote") or rb.get("odds"))
+            ev = (start, rb["result"], rb.get("cote") or rb.get("odds"),
+                  {"name": d.get("name"), "sel": rb.get("sel"), "sport": sport})   # détails -> panneau « derniers paris »
             all_ev.append(ev)
             by_sport.setdefault(sport, []).append(ev)
             if is_new:
@@ -1815,6 +1824,7 @@ def combo_stats(since_days: int | None = None) -> dict:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     rows = []   # (result, real_odds, shave, n_legs, prob)
     curve = []  # (start, result, real_odds) -> courbe d'équité cumulée (mise plate 1u, chronologique)
+    crecent = []   # (start, result, real_odds, meta) -> panneau « derniers combinés » (au clic)
     by_sp: dict = {}   # sport -> [(start, result, real_odds)] -> courbe combinés PAR SPORT (onglets)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
@@ -1842,7 +1852,9 @@ def combo_stats(since_days: int | None = None) -> dict:
         odds = c.get("settle_odds") or c.get("real_odds") or c.get("total")
         rows.append((res, float(odds) if odds else None, c.get("shave"), len(c["legs"]), c.get("prob")))
         curve.append((start, res, float(odds) if odds else None))
-        by_sp.setdefault(sport, []).append((start, res, float(odds) if odds else None))
+        _cmeta = {"name": d.get("name"), "sel": f"Combiné {len(c['legs'])} jambes", "sport": sport}
+        by_sp.setdefault(sport, []).append((start, res, float(odds) if odds else None, _cmeta))
+        crecent.append((start, res, float(odds) if odds else None, _cmeta))
     won = sum(1 for r, o, s, n, pr in rows if r == "won")
     lost = sum(1 for r, o, s, n, pr in rows if r == "lost")
     push = sum(1 for r, o, s, n, pr in rows if r == "push")
@@ -1869,7 +1881,22 @@ def combo_stats(since_days: int | None = None) -> dict:
             cum -= 1
         pts.append(round(cum, 3))
         dates.append(_s or "")
+    # Série EN COURS (signée) + 15 derniers combinés détaillés (panneau au clic sur le graphe).
+    _cseq = [r for _s, r, _o in curve if r in ("won", "lost")]
+    cstreak = 0
+    if _cseq:
+        _cl, _cc = _cseq[-1], 0
+        for r in reversed(_cseq):
+            if r != _cl:
+                break
+            _cc += 1
+        cstreak = _cc if _cl == "won" else -_cc
+    crecent.sort(key=lambda x: x[0] or "")
+    crec = [{"start": s, "result": r, "cote": o, "name": (mt or {}).get("name"),
+             "sel": (mt or {}).get("sel"), "sport": (mt or {}).get("sport")}
+            for s, r, o, mt in crecent if r in ("won", "lost", "push")][-15:]
     return {"n": len(rows), "won": won, "lost": lost, "push": push, "dates": dates,
+            "streak": cstreak, "recent": crec,
             "win_rate": round(100 * won / settled) if settled else None,
             "profit": round(profit, 2),
             "roi": round(100 * profit / staked, 1) if staked else None,

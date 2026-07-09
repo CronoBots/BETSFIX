@@ -423,8 +423,28 @@ CSS = """
   .spf-cv-roi{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
   .spf-cv-none{font-size:11px;color:var(--muted);padding:16px 2px;text-align:center}
   /* Forme W/L PROPRE à chaque graphe (juste au-dessus de la courbe) */
-  .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px;overflow:hidden}
+  .spf-cv-form{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 5px;overflow:hidden}
   .spf-cv-form .forms{flex-wrap:nowrap}   /* jamais de retour à la ligne : le max qui tient s'affiche */
+  .spf-cv-stk{flex:none} .spf-cv-dots{min-width:0;overflow:hidden}
+  /* Graphe CLIQUABLE (details) -> déplie les derniers paris. Marqueur natif retiré, curseur main. */
+  details.spf-cv-x>summary{list-style:none;cursor:pointer}
+  details.spf-cv-x>summary::-webkit-details-marker{display:none}
+  .spf-cv-more{margin-top:7px;text-align:center;font-size:10px;font-weight:800;letter-spacing:.04em;
+       text-transform:uppercase;color:var(--accent)}
+  .spf-cv-more span{border-bottom:1px dotted var(--accent)}
+  details.spf-cv-x[open] .spf-cv-more{color:var(--muted)}
+  /* Liste des derniers paris (révélée) : pastille W/L/N + affiche + sélection + date. */
+  .spf-recent{margin-top:8px;border-top:1px solid var(--border);padding-top:8px;display:flex;
+       flex-direction:column;gap:5px}
+  .spf-rec{display:flex;align-items:center;gap:8px;font-size:11px}
+  .spf-rec-b{flex:none;width:19px;height:19px;border-radius:6px;display:flex;align-items:center;
+       justify-content:center;font-size:10px;font-weight:900;color:#0a0a0a}
+  .spf-rec.rec-w .spf-rec-b{background:#34d27b} .spf-rec.rec-l .spf-rec-b{background:#ff6b6b}
+  .spf-rec.rec-n .spf-rec-b{background:var(--muted)}
+  .spf-rec-m{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+  .spf-rec-m b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spf-rec-s{color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spf-rec-d{flex:none;color:var(--dim);font-size:9.5px;font-variant-numeric:tabular-nums}
   /* Stats PROPRES à chaque graphe (juste sous la courbe) : réussite · paris · cote moy. */
   .spf-cv-kpis{display:flex;justify-content:space-between;gap:8px;margin-top:8px;
        font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
@@ -2707,7 +2727,9 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
         mx = X(k)
         # groupe cliquable (data-mile) : trait + pastille numérotée + ZONE DE TAP large transparente
         gcls = "bc-mile-g mauto" if kind == "auto" else "bc-mile-g"
-        p.append(f'<g class="{gcls}" data-mile="{num}">')
+        # onclick stopPropagation : taper un repère de modèle ne doit PAS déplier le <details> parent
+        # (graphe cliquable « derniers paris ») — le repère garde sa propre action (légende).
+        p.append(f'<g class="{gcls}" data-mile="{num}" onclick="event.stopPropagation()">')
         p.append(f'<line class="bc-mile" x1="{mx:.1f}" y1="{T - 4:g}" x2="{mx:.1f}" y2="{H - B:g}"/>')
         p.append(f'<circle class="bc-mile-hit" cx="{mx:.1f}" cy="{T - 5:g}" r="11" fill="transparent"/>')
         p.append(f'<circle class="bc-mile-c" cx="{mx:.1f}" cy="{T - 5:g}" r="5.4"/>')
@@ -2894,8 +2916,13 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _fs = (form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=14)
            or form_dots([_LET.get(x, x) for x in (ov.get("form_run") or ov.get("form") or [])], n=14))
     _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=14)
-    _simples_form = f'<div class="spf-cv-form">{_fs}</div>' if _fs else ""
-    _combo_form = f'<div class="spf-cv-form">{_fc}</div>' if _fc else ""
+    _stk_s = _streak_chip(ov.get("streak"))                        # série EN COURS des simples
+    _stk_c = _streak_chip((combo_full or {}).get("streak") if combo_full is not None
+                          else analyses.combo_stats().get("streak"))
+    _simples_form = (f'<div class="spf-cv-form"><span class="spf-cv-stk">{_stk_s}</span>'
+                     f'<span class="spf-cv-dots">{_fs}</span></div>' if (_fs or _stk_s) else "")
+    _combo_form = (f'<div class="spf-cv-form"><span class="spf-cv-stk">{_stk_c}</span>'
+                   f'<span class="spf-cv-dots">{_fc}</span></div>' if (_fc or _stk_c) else "")
     # CLV (Closing Line Value) : chip EXTRA sous la courbe (>0 = on bat la cote de clôture). '—' si vide.
     from app import clv as _clvmod
     _cs = _clvmod.clv_stats()
@@ -2911,8 +2938,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # BLOC SIMPLES compact (présentation alignée sur les onglets sport, demande user) : en-tête
     # (titre + ROI), W/L au-dessus de la courbe, courbe (avec repères), stats dessous. EXTRAS conservés :
     # nouv. système + CLV (ligne secondaire) et repères de modèle sous la courbe.
-    simples_block = (
-        '<div class="spf-cv">'
+    _rec_s = _recent_bets_html(list(reversed(ov.get("recent") or [])))
+    _s_inner = (
         f'<div class="spf-cv-h"><span class="spf-cv-t">📈 Simples</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'ROI {_roistr(ov.get("roi"))}</span></div>'
@@ -2923,7 +2950,11 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         f'<span><b>@{ov.get("avg_odds") or "—"}</b> cote</span></div>'
         f'<div class="spf-cv-extra"><span>nouv. système <b class="arec-{nv_cls}">{nv_val}</b></span>'
         f'{_clv_txt}</div>'
-        f'{mlegend}</div>')
+        f'{mlegend}')
+    simples_block = (
+        (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
+         f'<div class="spf-cv-more"><span>Derniers paris</span> ▾</div></summary>{_rec_s}</details>')
+        if _rec_s else f'<div class="spf-cv">{_s_inner}</div>')
     # BLOC COMBINÉS : même carte compacte, juste en dessous (render_combos), + ses extras (profit,
     # rabot, réussite par nb de jambes). Le tout dans UNE carte .spf, comme les onglets sport.
     combos_block = render_combos(combo_full if combo_full is not None else analyses.combo_stats(),
@@ -3003,8 +3034,7 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
     legs = f'<div class="sx-legs">{legrows}</div>' if legrows else ''
     # Carte compacte IDENTIQUE aux onglets sport : en-tête (titre + ROI), W/L au-dessus de la courbe,
     # courbe (vraie cote), stats dessous, puis les extras (profit/rabot + réussite par nb de jambes).
-    return (
-        '<div class="spf-cv">'
+    _c_inner = (
         f'<div class="spf-cv-h"><span class="spf-cv-t">🎲 Combinés</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(roi, cs["n"])}">ROI {_roistr(roi)}</span></div>'
         f'{form_html}{chart}'
@@ -3013,7 +3043,12 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
         f'<span><b>{cs["n"]}</b> paris</span>'
         f'<span><b>@{cs.get("avg_odds") or "—"}</b> cote</span></div>'
         f'<div class="spf-cv-extra">{extra}</div>'
-        f'{legs}{_mile_legend(_mc)}</div>')
+        f'{legs}{_mile_legend(_mc)}')
+    _rec_c = _recent_bets_html(list(reversed(cs.get("recent") or [])))
+    if _rec_c:
+        return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_c_inner}'
+                f'<div class="spf-cv-more"><span>Derniers combinés</span> ▾</div></summary>{_rec_c}</details>')
+    return f'<div class="spf-cv">{_c_inner}</div>'
 
 
 def _prog_pair(home, away) -> frozenset:
@@ -3603,12 +3638,34 @@ def _section(heading: str, body: str, open_: bool = True, info: str | None = Non
 
 _SPORT_FR_LABEL = {"foot": ("Football", "⚽"), "tennis": ("Tennis", "🎾"), "basket": ("Basket", "🏀")}
 
+def _recent_bets_html(recent: list) -> str:
+    """Liste des DERNIERS paris réglés (plus récent en haut) : pastille W/L/N + affiche + sélection +
+    cote + date. Révélée au CLIC sur le graphe (panneau `<details>`). '' si vide."""
+    if not recent:
+        return ""
+    _B = {"won": ("W", "rec-w"), "lost": ("L", "rec-l"), "push": ("N", "rec-n")}
+    rows = []
+    for b in recent:
+        letter, cls = _B.get(b.get("result"), ("?", ""))
+        name = html.escape(str(b.get("name") or "").replace(" - ", " — "))
+        sel = html.escape(str(b.get("sel") or ""))
+        cote = b.get("cote")
+        cote_txt = f'@{cote:g}' if isinstance(cote, (int, float)) and cote else ""
+        day = fmt_local(b.get("start"), with_date=True) if b.get("start") else ""
+        rows.append(
+            f'<div class="spf-rec {cls}"><span class="spf-rec-b">{letter}</span>'
+            f'<span class="spf-rec-m"><b>{name}</b>'
+            f'<span class="spf-rec-s">{sel}{f" · {cote_txt}" if cote_txt else ""}</span></span>'
+            f'<span class="spf-rec-d">{html.escape(day)}</span></div>')
+    return f'<div class="spf-recent">{"".join(rows)}</div>'
+
+
 def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
                       form: list | None = None) -> str:
-    """Bloc COURBE AUTONOME d'un onglet sport (Simples / Combinés) : en-tête (titre + ROI), la forme
-    W/L PROPRE à ce type JUSTE au-dessus du graphe, la courbe d'équité, puis les stats DE CE graphe
-    (réussite · paris · cote moy.) juste en dessous. Message discret si aucun pari réglé de ce type.
-    `blk` = bloc `_agg_bets` (points/roi/pct/settled/avg_odds)."""
+    """Bloc COURBE AUTONOME d'un onglet sport (Simples / Combinés) : en-tête (titre + ROI), la SÉRIE en
+    cours + la forme W/L au-dessus du graphe, la courbe d'équité, puis les stats (réussite · paris · cote).
+    CLIQUABLE (`<details>`) -> révèle les DERNIERS PARIS réglés (W/L + affiche + sélection). Message
+    discret si aucun pari réglé. `blk` = bloc `_agg_bets` (points/roi/pct/settled/streak/recent…)."""
     if not (blk and blk.get("settled")):
         return (f'<div class="spf-cv spf-cv-empty"><div class="spf-cv-h">'
                 f'<span class="spf-cv-t">{label}</span></div>'
@@ -3619,13 +3676,20 @@ def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
             f'ROI {_roistr(roi)}</span></div>')
     _LET = {"won": "W", "lost": "L", "push": "N"}
     dots = form_dots([_LET.get(x, x) for x in (form or [])], n=14)  # max de résultats sur 1 ligne
-    formrow = f'<div class="spf-cv-form">{dots}</div>' if dots else ""
+    _stk = _streak_chip(blk.get("streak"))                          # 🔥 N gagnés / ❄️ N perdus d'affilée
+    formrow = (f'<div class="spf-cv-form"><span class="spf-cv-stk">{_stk}</span>'
+               f'<span class="spf-cv-dots">{dots}</span></div>' if (dots or _stk) else "")
     kpis = (f'<div class="spf-cv-kpis">'
             f'<span><b>{blk.get("pct")}%</b> réussite</span>'
             f'<span><b>{blk.get("settled")}</b> paris</span>'
             f'<span><b>@{blk.get("avg_odds") or "—"}</b> cote</span></div>')
-    return (f'<div class="spf-cv">{head}{formrow}'
-            f'{_hero_chart(blk.get("points") or [], uid=uid)}{kpis}</div>')
+    chart = _hero_chart(blk.get("points") or [], uid=uid)
+    rec = _recent_bets_html(list(reversed(blk.get("recent") or [])))
+    if not rec:                                                     # pas de détail -> bloc simple (non cliquable)
+        return f'<div class="spf-cv">{head}{formrow}{chart}{kpis}</div>'
+    # CLIQUABLE : le graphe (résumé) déplie la liste des derniers paris.
+    return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{head}{formrow}{chart}{kpis}'
+            f'<div class="spf-cv-more"><span>Derniers paris</span> ▾</div></summary>{rec}</details>')
 
 def render_sport_perf(sport: str) -> str:
     """Carte de performance du sport : DEUX courbes AUTONOMES (Simples / Combinés), CHACUNE avec sa
