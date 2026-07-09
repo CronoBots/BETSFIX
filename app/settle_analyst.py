@@ -16,7 +16,6 @@ import json
 import logging
 import os
 import re
-import time
 from datetime import datetime, timezone
 
 from app import analyses, sofa_http

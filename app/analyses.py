@@ -407,57 +407,6 @@ def _bullets(body: str) -> list[str]:
     return [_LIST.sub("", ln).strip() for ln in body.splitlines() if _LIST.match(ln.strip())]
 
 
-def _vc_icon(label: str) -> tuple[str, str]:
-    """(emoji, classe) selon le type de puce du Verdict."""
-    low = label.lower()
-    if "plus s" in low:
-        return "🎯", "safe"
-    if "compromis" in low or "rendement" in low or "rapport" in low:
-        return "⚖️", "mid"
-    if "évit" in low or "skip" in low or "éviter" in low:
-        return "🚫", "skip"
-    return "•", "mid"
-
-
-def _odds_in(text: str) -> str:
-    m = re.search(r"@\s*\*?\*?\s*([\d]+[.,]\d+)", text)
-    return m.group(1) if m else ""
-
-
-def _verdict_card(verdict: str, mise: str) -> str:
-    """Carte Verdict premium : « le plus sûr » en HÉRO (pick large + cote + raison), puis les
-    autres lignes avec icône. Teinte sport via var(--accent)."""
-    items = _bullets(verdict)
-    if not items:
-        return ""
-    rows = []
-    for k, it in enumerate(items):
-        label, _, content = it.partition(":")
-        label = re.sub(r"\*", "", label).strip()
-        content = re.sub(r"\*", "", content).strip() or label   # gras markdown retiré (re-stylé)
-        icon, kind = _vc_icon(label)
-        odds = _odds_in(content)
-        odds_html = f'<span class="da-vc-odds">{html.escape(odds)}</span>' if odds else ""
-        if k == 0:   # le plus sûr -> héro
-            pick = re.split(r"\s*@", content)[0].strip().rstrip("(").strip()
-            why = re.sub(r"^.*?@\s*[\d.,]+\s*", "", content).strip(" ().—–-").strip()
-            rows.append(
-                '<div class="da-vc-top">'
-                f'<div class="da-vc-lbl">{icon} {html.escape(label)}</div>'
-                f'<div class="da-vc-pick">{_inline(pick)}{odds_html}</div>'
-                + (f'<div class="da-vc-why">{_inline(why)}</div>' if why else "")
-                + '</div>')
-        else:
-            disp = re.sub(r"\s*@\s*[\d.,]+", "", content).strip() if odds else content
-            rows.append(
-                f'<div class="da-vc-row da-vc-{kind}"><span class="da-vc-ic">{icon}</span>'
-                f'<span><b>{html.escape(label)}</b> {_inline(disp)}{odds_html}</span></div>')
-    mise_html = (f'<div class="da-mise"><span class="da-mise-ic">💰</span>'
-                 f'<span>{_inline(_strip(mise).strip())}</span></div>'
-                 if mise.strip() else "")
-    return ('<div class="da-vc"><div class="da-vc-h">🎯 Verdict</div>'
-            + "".join(rows) + mise_html + "</div>")
-
 
 _RISK = (("🟢", "ok"), ("🟠", "mid"), ("🔴", "hi"))
 _SAFETY = {"ok": "Sûreté élevée", "mid": "Sûreté moyenne", "hi": "Sûreté faible"}
@@ -516,19 +465,6 @@ def _parse_bets_cached(body: str) -> tuple:
 
 _SAFE_EMO = {"ok": "🟢", "mid": "🟠", "hi": "🔴"}
 
-
-def _ev_chip(prob, cote) -> str:
-    """Indicateur EV/VALUE d'un pari = proba × cote − 1. C'est CE qui fait grimper le ROI à long
-    terme (≠ « sûreté »). 📈 vert = value (EV+) ; ≈ marché ; ⚠️ ambre = cote chère (EV−, sûr mais
-    perdant à long terme). '' si proba/cote manquante."""
-    if not prob or not cote or cote <= 1:
-        return ""
-    ev = round((prob / 100 * cote - 1) * 100)
-    if ev >= 3:
-        return f'<span class="da-ev pos">📈 Value +{ev}%</span>'
-    if ev <= -3:
-        return f'<span class="da-ev neg">⚠️ EV {ev}%</span>'
-    return '<span class="da-ev neu">≈ marché</span>'
 
 
 _MIN_CONF = 65   # seuil de confiance MINI pour recommander (calibration réelle : sous 65 %, le système
@@ -1619,35 +1555,6 @@ def _agg_bets(events: list) -> dict:
             "max_dd": round(dd, 2),
             "dd_pct": (round(100 * dd / staked, 1) if staked else None)}
 
-
-def _reco_event(d: dict, path: str, ex_sports: set, ex_markets: set) -> dict | None:
-    """Le pari RECOMMANDÉ (⭐ « à jouer ») et RÉGLÉ d'un match = ce que l'utilisateur jouerait vraiment,
-    avec EXACTEMENT le filtre de prod (≥65 % recalibré, EV≥+3 %, marché réglable/non exclu, garde-fous
-    cote). -> {start, result, odds, prob, code, idx} ou None. Sert au SUIVI : 1 seul event par match
-    (et non pari1/2/3), pour que le bilan affiché reflète le système suivi, pas les paris secondaires."""
-    sport = d.get("sport")
-    if not sport or sport in ex_sports:
-        return None
-    mid = os.path.basename(path)[len(sport) + 1:-5]
-    bets = bets_of(sport, mid)
-    if not bets:
-        return None
-    from app.settle_analyst import code_from_pick
-    home, away = d.get("home", ""), d.get("away", "")
-    codes = [code_from_pick(b.get("sel", ""), sport, home, away) for b in bets]
-    cprobs = [calibrated_conf(b.get("prob"), sport, codes[i]) for i, b in enumerate(bets)]
-    _exm = excluded_markets(sport)                     # per-sport (ex_markets param = union globale, ignoré)
-    ok = {i for i, c in enumerate(codes) if c and market_of(c) not in _exm}
-    reco = _recommend(bets, ok, cprobs, codes)
-    if reco.get("verdict") != "play" or reco.get("idx") is None:
-        return None
-    ri = reco["idx"]
-    results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (d.get("bets") or [])}
-    res = results.get(_norm_sel(bets[ri].get("sel", "")))
-    if res not in ("won", "lost", "push"):
-        return None
-    return {"start": d.get("start") or "", "result": res, "odds": bets[ri].get("cote"),
-            "prob": bets[ri].get("prob"), "code": codes[ri], "idx": ri}
 
 
 def stats_full(since_days: int | None = None) -> dict:

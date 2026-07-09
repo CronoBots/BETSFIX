@@ -6,7 +6,6 @@ re-lancer seulement si on change le design. python tools/make_icons.py
 
 from __future__ import annotations
 
-import math
 import os
 
 from PIL import Image, ImageDraw

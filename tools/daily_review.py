@@ -9,7 +9,6 @@ Usage :  python tools/daily_review.py            # (ré)génère la revue + impr
          python tools/daily_review.py --telegram  # pousse AUSSI en privé SI un chat proprio est configuré
                                                    #   (data/owner_chat.txt = chat_id perso, JAMAIS le canal abonnés)
 """
-import io
 import json
 import os
 import sys

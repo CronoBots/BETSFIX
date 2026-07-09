@@ -13,7 +13,6 @@ import io
 import json
 import glob
 import os
-import re
 import sys
 from datetime import datetime, timezone
 
