@@ -444,6 +444,29 @@ def _provisional_card() -> str:
     _hit = s.get("hit_rate")
     _col = "var(--muted)" if _roi is None else ("var(--green)" if _roi >= 0 else "var(--red)")
     _roi_txt = "—" if _roi is None else f'{"+" if _roi >= 0 else ""}{_roi}%'
+    # LISTE des provisoires suivis (le « en attente » en tête, badge ⏳) : sinon un provisoire dont le match
+    # a COMMENCÉ n'est visible nulle part (il a quitté « À venir »). Demande user 2026-07-10.
+    import html as _h
+    _B = {"won": ("W", "#34d27b"), "lost": ("L", "#ff6b6b"), "push": ("N", "#9a9aa6")}
+    _rows = []
+    for e in _pvt.entries():
+        _lt, _c = _B.get(e.get("result"), ("⏳", "#f6c54a"))          # pas de résultat -> ⏳ en attente
+        _nm = _h.escape(str(e.get("name") or "").replace(" - ", " — "))
+        _sel = _h.escape(str(e.get("sel") or ""))
+        _co = e.get("cote")
+        _cot = f' · @{_co:g}' if isinstance(_co, (int, float)) and _co else ""
+        _dt = web.fmt_local(e.get("start"), with_date=True) if e.get("start") else ""
+        _tag = ('<i style="color:#f6c54a;font-style:normal"> · en attente</i>'
+                if e.get("result") is None else "")
+        _rows.append(
+            '<div style="display:flex;align-items:center;gap:8px;font-size:11px;padding:4px 0;'
+            'border-top:1px solid rgba(255,255,255,.05)">'
+            f'<span style="flex:none;width:19px;height:19px;border-radius:6px;background:{_c};color:#0a0a0a;'
+            f'font-weight:900;font-size:10px;display:flex;align-items:center;justify-content:center">{_lt}</span>'
+            f'<span style="flex:1;min-width:0;line-height:1.25"><b>{_nm}</b>{_tag}<br>'
+            f'<span style="color:var(--muted);font-size:10px">{_sel}{_cot}</span></span>'
+            f'<span style="flex:none;color:var(--dim);font-size:9.5px">{_h.escape(_dt)}</span></div>')
+    _list = (f'<div style="margin-top:8px">{"".join(_rows)}</div>') if _rows else ""
     return (
         '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
         '<span>info seule · hors ROI</span></div>'
@@ -459,6 +482,7 @@ def _provisional_card() -> str:
         f'<div class="sx-kpi"><b style="color:{_col}">{_roi_txt}</b><span>ROI (info)</span></div>'
         f'<div class="sx-kpi"><b>{s.get("avg_cote") or "—"}</b><span>cote moyenne</span></div>'
         '</div>'
+        + _list +
         '<div class="sx-data-note">Si ce ROI reste <b>négatif</b> sur la durée, il confirme par les chiffres '
         'qu\'il faut <b>s\'abstenir</b> plutôt que jouer ces favoris.</div></div>')
 
