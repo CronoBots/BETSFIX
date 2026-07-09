@@ -12,6 +12,41 @@
 
 ---
 
+## 2026-07-09 — Programme : heure seule (sans « Aujourd'hui ») + PARI PROVISOIRE sur chaque match
+
+**Quoi** (2 demandes user 2026-07-09, capture accueil) :
+1. **Badge horaire** : les cartes du programme affichaient « Aujourd'hui HH:MM » / « Demain HH:MM ». Comme
+   le programme est DÉJÀ groupé par en-tête de jour, la date est redondante -> `fmt_local(dt, with_date=
+   False)` = heure seule (HH:MM), aligné sur les cartes de pari vertes. (`app/web.py:_programme_items`)
+2. **Pari provisoire** : un match analysé SANS value (abstention, ex. Gaubas/Kostyuk/Pelicans) n'affichait
+   « Analyse à HH:MM » / « Pas de value ». Désormais il montre « le pari si l'on devait en jouer un »
+   (avis analyste via `_safe_pick`, repli FAVORI 1X2 des cotes), en TEINTE DORÉE (≠ vert value confirmée)
+   + mention de ré-analyse. (« comme pour Gauff », demande user.)
+
+**Comment (sans casser les 3 couches Affichage/Stats/Calibration)** :
+- Scan : nouveau `_provisional_pick(analysis, meta, m)` ; `_set_programme_status` prend un arg
+  `provisional` écrit dans `data/day_programme.json` UNIQUEMENT (jamais dans un sidecar). Posé dans le
+  bloc d'abstention (skip_reason) ET le cas « analysé non retenu ». Effacé quand le match passe « bet ».
+- Site : `_programme_items` rend le provisoire comme une ligne de pari dorée `.mc-prov` + `.mc-reana-prov`
+  (nouveau CSS, réutilise `--gold`). Repli sur l'ancien libellé si pas de provisoire. Note du bloc mise à
+  jour (pari confirmé vert = value / provisoire doré = indicatif).
+
+**Régression vérifiée — POINT CLÉ : ROI/stats/calibration INTACTS** :
+- `day_programme.json` n'est lu QUE par l'affichage (`web.py:_programme_items`) et la lecture d'ids
+  (`_load_programme_ids`) — grep exhaustif : AUCUN lecteur côté stats/ROI/calibration/règlement/selfcheck.
+  Le provisoire ne peut donc PAS être compté (invariant « posté = compté » préservé : il n'est ni dans
+  `bets`, ni `stat_bet`, ni `shadow`, ni `combo`).
+- `_provisional_pick` : 4 cas testés (avis analyste, repli favori, vide->None, table). ✓
+- `_set_programme_status` : transitions testées (abst+prov -> bet efface prov -> abst sans prov -> abst+
+  prov2). ✓ Anciens appelants (statut seul) inchangés (arg optionnel, défaut None).
+- `_programme_items` : rendu testé (provisoire doré avant ET après l'échéance -1h ; repli si absent). ✓
+- AST OK (2 fichiers) · `import app.web` OK · `render_dashboard` OK · **suite complète 242 passed**.
+
+**Résultat** : chaque match du programme montre un pari (confirmé vert OU provisoire doré) dès qu'il est
+analysé, avec l'heure seule. Le provisoire se peuple aux vagues (-1 h) et au scan du matin ; il ne fausse
+jamais le ROI/les stats. App en --reload -> l'affichage (badge horaire + rendu doré) est déjà actif ; les
+picks provisoires apparaissent au fil des ré-analyses du jour.
+
 ## 2026-07-09 — Scan 09h : ré-analyse AUSSI les matchs déjà affichés (`--force` au matin)
 
 **Quoi** : la passe « SCAN MATIN » de `deploy/scan_daily.ps1` passe de `--from-programme` à

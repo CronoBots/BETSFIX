@@ -587,10 +587,12 @@ def _load_programme_ids() -> set:
         return set()
 
 
-def _set_programme_status(match_id: str, status: str) -> None:
+def _set_programme_status(match_id: str, status: str, provisional: dict | None = None) -> None:
     """Marque le STATUT d'un match dans le programme du jour (data/day_programme.json) pour l'affichage
     site : 'bet' (un pari a été retenu/publié) ou 'abstained' (analysé mais aucun pari ≥ seuil = pas de
-    value). No-op si le match n'y figure pas. Écriture atomique (les vagues ne se chevauchent pas)."""
+    value). `provisional` = pari INDICATIF affiché sur les abstentions (jamais compté au ROI/stats). Il
+    n'est retenu QUE pour un statut 'abstained' ; sinon on le retire (un match qui devient 'bet' n'a plus
+    de provisoire). No-op si le match n'y figure pas. Écriture atomique (les vagues ne se chevauchent pas)."""
     try:
         with open(PROGRAMME_PATH, encoding="utf-8") as f:
             prog = json.load(f)
@@ -599,9 +601,14 @@ def _set_programme_status(match_id: str, status: str) -> None:
     hit = False
     for m in (prog.get("matches") or []):
         if str(m.get("id")) == str(match_id):
-            if m.get("status") == status:
-                return                       # déjà à jour
+            new_prov = provisional if status == "abstained" else None
+            if m.get("status") == status and m.get("provisional") == new_prov:
+                return                       # déjà à jour (statut + provisoire)
             m["status"] = status
+            if new_prov:
+                m["provisional"] = new_prov
+            else:
+                m.pop("provisional", None)
             hit = True
             break
     if not hit:
@@ -1830,6 +1837,31 @@ def _safe_pick(analysis: str) -> str:
     return ""
 
 
+def _provisional_pick(analysis: str, meta: dict | None, m: dict) -> dict | None:
+    """Pari PROVISOIRE (indicatif) pour un match ANALYSÉ mais SANS value retenue (abstention) : « si l'on
+    devait jouer un pari ». Priorité à l'avis de l'analyste (`_safe_pick`), repli sur le FAVORI 1X2 des
+    cotes. Purement AFFICHAGE (programme) — JAMAIS écrit dans les paris/stat_bet/shadow, donc JAMAIS
+    compté au ROI/stats/calibration (demande user 2026-07-09 : un pari à jouer sur chaque match). None si
+    rien d'exploitable. Renvoie {"sel": str, "cote": float|None}."""
+    sp = _safe_pick(analysis)
+    if sp:
+        mm = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", sp)
+        if mm:
+            try:
+                return {"sel": mm.group(1).strip(), "cote": float(mm.group(2).replace(",", "."))}
+            except ValueError:
+                pass
+        return {"sel": sp[:90], "cote": None}
+    o1, ox, o2 = (meta.get("odds") if meta else None) or (None, None, None)
+    home, away = m.get("home", ""), m.get("away", "")
+    cands = [(o, s) for o, s in ((o1, f"Victoire {home}"), (ox, "Match nul"),
+                                 (o2, f"Victoire {away}")) if o]
+    if not cands:
+        return None
+    o, s = min(cands, key=lambda x: x[0])       # favori = cote la plus basse
+    return {"sel": s, "cote": round(float(o), 2)}
+
+
 _VOTES_CACHE: dict = {}   # (sport, sofa_id) -> votes : évite de récupérer les votes 2× par match
 
 
@@ -2194,7 +2226,11 @@ async def main():
                               f"(consensus {validation['consensus_prob']}%)")
                 if skip_reason:
                     print(f"  · {m['name']} : {skip_reason} -> match écarté (non retenu, {dt:.0f}s).")
-                    _set_programme_status(str(m.get("id")), "abstained")   # site : « analysé, pas de value »
+                    # PARI PROVISOIRE (affichage seul) : le match est analysé mais sans value -> on propose
+                    # quand même « le pari si l'on devait en jouer un » sur le programme (demande user
+                    # 2026-07-09). Stocké dans le programme, JAMAIS dans les paris/stats -> ROI intact.
+                    _prov = _provisional_pick(analysis, meta, m)
+                    _set_programme_status(str(m.get("id")), "abstained", provisional=_prov)   # + pari indicatif
                     side_p = os.path.join(OUT, f"{sport}_{fid}.json")
                     try:
                         old = json.load(open(side_p, encoding="utf-8"))
@@ -2237,7 +2273,11 @@ async def main():
                 # « None » -> statut « abstained » à tort -> DOUBLON (match dans « Paris du jour » ET dans
                 # le programme). Bug vécu Connecticut Sun (id Unibet 1026378520 ≠ sidecar 15415798).
                 _rb_status = _an.retained_bet(sport, str(fid))
-                _set_programme_status(str(m.get("id")), "bet" if (_has_combo or _rb_status) else "abstained")
+                if _has_combo or _rb_status:
+                    _set_programme_status(str(m.get("id")), "bet")
+                else:                              # analysé, pari dans le tableau mais non RETENU -> provisoire
+                    _set_programme_status(str(m.get("id")), "abstained",
+                                          provisional=_provisional_pick(analysis, meta, m))
                 # Le simple n'est annoncé que s'il est à l'affiche sur l'app : à combiné -> seulement s'il
                 # aurait été RETENU ; hors combiné -> le « plus sûr ».
                 _pick_shown = bool(_rb) if _has_combo else bool(_pick or _rb)

@@ -1518,6 +1518,11 @@ CSS = """
   /* Mention « pari provisoire » sous le pari : discrète, avec l'heure de la ré-analyse (coup d'envoi − 1 h). */
   .mc-reana{font-size:11px;color:var(--accent);margin-top:3px;font-weight:700;letter-spacing:.01em}
   .mc-reana .dim{font-weight:600}
+  /* Pari PROVISOIRE (abstention sans value) : teinte DORÉE -> clairement distinct d'un pari de value
+     confirmé (vert). Montre « le pari si l'on devait en jouer un » sans le vendre comme une value. */
+  .mc-prov .mc-bt{color:var(--gold);font-weight:800}
+  .mc-bc-prov{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd)}
+  .mc-reana-prov{color:var(--gold)}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   .dash-h-a,
@@ -3065,19 +3070,42 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
                  if away else html.escape(home))
         comp = html.escape(str(m.get("comp") or ""))
         reanalyse = dt - timedelta(hours=1)     # la (ré)analyse rapprochée = coup d'envoi − 1 h
-        if m.get("status") == "abstained" and now >= reanalyse:
-            bic, btxt = "➖", "Pas de value"                                  # échéance passée -> quasi-final
+        # PARI PROVISOIRE (demande user 2026-07-09) : un match analysé SANS value affiche quand même « le
+        # pari si l'on devait en jouer un » (favori/avis de l'analyste), comme un vrai pari — mais en TEINTE
+        # DORÉE « provisoire » (≠ pari de value confirmé, vert) + la mention de ré-analyse. Ce pari vit
+        # UNIQUEMENT dans le programme -> jamais compté au ROI/stats. Repli sur l'ancien libellé si absent.
+        prov = m.get("provisional") or {}
+        prov_sel = str(prov.get("sel") or "").strip()
+        if prov_sel:
+            _cote = prov.get("cote")
+            _cote_html = (f'<span class="mc-bc mc-bc-prov">@{_cote:g}</span>'
+                          if isinstance(_cote, (int, float)) and _cote else "")
+            if now >= reanalyse:
+                _note = "pari provisoire · pas de value détectée"          # échéance passée -> verdict
+            else:
+                _note = (f"Ré-analyse à {fmt_local(reanalyse, with_date=False)} "
+                         f'<span class="dim">· provisoire, peut changer</span>')
+            sub = (f'<div class="mc-betl mc-prov"><span class="mc-bi">•</span>'
+                   f'<span class="mc-bt">{html.escape(prov_sel)}</span>{_cote_html}</div>'
+                   f'<div class="mc-reana mc-reana-prov">🔄 {_note}</div>')
         else:
-            bic, btxt = "🔄", f"Analyse à {fmt_local(reanalyse, with_date=False)}"   # heure exacte
+            if m.get("status") == "abstained" and now >= reanalyse:
+                bic, btxt = "➖", "Pas de value"                              # échéance passée -> quasi-final
+            else:
+                bic, btxt = "🔄", f"Analyse à {fmt_local(reanalyse, with_date=False)}"   # heure exacte
+            sub = (f'<div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
+                   f'<span class="mc-bt">{html.escape(btxt)}</span></div>')
         card = (
             f'<div class="row pick mc prog-card">'
             f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
             f'<span class="mc-comp">{comp}</span>'
-            f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=True))}</span></div>'
+            # Programme DÉJÀ groupé par en-tête de jour (Aujourd'hui / Demain …) -> l'heure seule (HH:MM)
+            # suffit, sans redite « Aujourd'hui HH:MM » (demande user 2026-07-09). Aligne les cartes du
+            # programme sur les cartes de pari (qui montrent aussi l'heure seule).
+            f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=False))}</span></div>'
             f'<div class="mc-teams">{teams}</div>'
-            f'<div class="mc-sub"><div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
-            f'<span class="mc-bt">{html.escape(btxt)}</span></div></div>'
+            f'<div class="mc-sub">{sub}</div>'
             f'</div></div></div>')
         items.append({"start_ts": dt.timestamp(), "_html": card})
     return items
@@ -3102,8 +3130,9 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
         header = ('<div class="prog-sec"><span>📅 Programme du jour</span>'
                   f'<span class="prog-n">{len(items)}</span></div>')
         note = ("<div class=\"prog-note\">Chaque match est analysé au scan du matin puis "
-                "<b>ré-analysé ~1 h avant</b> son coup d'envoi ; le pari n'est publié que s'il y a "
-                "de la <b>valeur</b>.</div>")
+                "<b>ré-analysé ~1 h avant</b> son coup d'envoi. Un pari <b>confirmé</b> (vert) = value "
+                "détectée ; sinon un pari <b>provisoire</b> (doré, indicatif) est proposé et peut "
+                "changer à la ré-analyse.</div>")
         matches = f'<div class="anz">{header}{_rows_by_day(items)}{note}</div>'
     else:
         matches = ('<div class="dash-h"><span>Prochains matchs</span></div>'
