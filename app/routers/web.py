@@ -393,9 +393,13 @@ async def _system_health_html() -> str:
         return ('<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;'
                 'border-bottom:1px solid rgba(255,255,255,.06);font-size:.92em">'
                 f'<span>{left}</span><span style="opacity:.72;text-align:right">{right}</span></div>')
+    # « critique » = source PILIER (Unibet=cotes/sélection, FotMob=stats foot) : label de RÔLE, pas une
+    # alerte. Rouge UNIQUEMENT si un pilier est DOWN (là c'est grave) ; en ligne -> teinte neutre/muette.
     src = "".join(
         _row(f'{_dot("#22c55e" if s["ok"] else "#ef4444")} {_h.escape(s["label"])}'
-             + (' <b style="color:#f87171">critique</b>' if s["critical"] else ""),
+             + ((f' <span style="color:{"#f87171" if not s["ok"] else "#8a8a95"};font-weight:700;'
+                 f'font-size:.85em" title="Source pilier — indispensable aux analyses">'
+                 f'{"⚠ critique" if not s["ok"] else "critique"}</span>') if s["critical"] else ""),
              f'{s["latency_ms"]} ms · {_h.escape(str(s["detail"]))}')
         for s in sh["sources"])
     chk = "".join(
@@ -403,10 +407,16 @@ async def _system_health_html() -> str:
              _h.escape((c.get("detail") or "")[:64]))
         for c in sc["checks"])
     online = len(sh["sources"]) - len(sh["down"])
+    # AUDIT : un contrôle « info » (ex. data_completeness) N'EST PAS un échec -> il compte comme sain.
+    # On n'alerte que sur error/warn. Sinon un simple info faisait « 12/13 » et ressemblait à une panne.
+    _alerts = sc["counts"].get("error", 0) + sc["counts"].get("warn", 0)
+    _pass = len(sc["checks"]) - _alerts
+    _audit_dot = lvlc["ok"] if _alerts == 0 else lvlc.get(sc["status"], "#999")
+    _audit_mark = "✅" if _alerts == 0 else "⚠️"
     body = (f'<div style="margin:2px 0 8px;font-weight:600">{_dot(lvlc.get(sh["status"], "#999"))} '
             f'Sources — {online}/{len(sh["sources"])} en ligne</div>' + src
-            + f'<div style="margin:16px 0 8px;font-weight:600">{_dot(lvlc.get(sc["status"], "#999"))} '
-            f'Auto-audit — {sc["counts"]["ok"]}/{len(sc["checks"])} ✅</div>' + chk)
+            + f'<div style="margin:16px 0 8px;font-weight:600">{_dot(_audit_dot)} '
+            f'Auto-audit — {_pass}/{len(sc["checks"])} {_audit_mark}</div>' + chk)
     return web.sx_section_collapsible("🩺 Santé du système", "sources en ligne + auto-audit (privé)", body)
 
 
