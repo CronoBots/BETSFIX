@@ -1872,6 +1872,19 @@ def _provisional_pick(analysis: str, meta: dict | None, m: dict) -> dict | None:
     return {"sel": s, "cote": round(float(o), 2)}
 
 
+def _track_provisional(sport, m, prov) -> None:
+    """Enregistre le provisoire dans le SUIVI SÉPARÉ (app/provisional.py) — info seule, JAMAIS le ROI réel.
+    Best-effort : ne casse jamais le scan. No-op si pas de provisoire (ou non réglable côté module)."""
+    if not prov or not prov.get("sel"):
+        return
+    try:
+        from app import provisional as _pvt
+        _pvt.record(sport, m.get("id"), m.get("home", ""), m.get("away", ""), m.get("start", ""),
+                    m.get("name", ""), m.get("comp", ""), prov.get("sel"), prov.get("cote"))
+    except Exception:
+        pass
+
+
 _VOTES_CACHE: dict = {}   # (sport, sofa_id) -> votes : évite de récupérer les votes 2× par match
 
 
@@ -2241,6 +2254,7 @@ async def main():
                     # 2026-07-09). Stocké dans le programme, JAMAIS dans les paris/stats -> ROI intact.
                     _prov = _provisional_pick(analysis, meta, m)
                     _set_programme_status(str(m.get("id")), "abstained", provisional=_prov)   # + pari indicatif
+                    _track_provisional(sport, m, _prov)   # suivi SÉPARÉ info-seule (jamais dans le ROI réel)
                     side_p = os.path.join(OUT, f"{sport}_{fid}.json")
                     try:
                         old = json.load(open(side_p, encoding="utf-8"))
@@ -2286,8 +2300,9 @@ async def main():
                 if _has_combo or _rb_status:
                     _set_programme_status(str(m.get("id")), "bet")
                 else:                              # analysé, pari dans le tableau mais non RETENU -> provisoire
-                    _set_programme_status(str(m.get("id")), "abstained",
-                                          provisional=_provisional_pick(analysis, meta, m))
+                    _prov2 = _provisional_pick(analysis, meta, m)
+                    _set_programme_status(str(m.get("id")), "abstained", provisional=_prov2)
+                    _track_provisional(sport, m, _prov2)   # suivi SÉPARÉ info-seule
                 # Le simple n'est annoncé que s'il est à l'affiche sur l'app : à combiné -> seulement s'il
                 # aurait été RETENU ; hors combiné -> le « plus sûr ».
                 _pick_shown = bool(_rb) if _has_combo else bool(_pick or _rb)

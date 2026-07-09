@@ -12,6 +12,31 @@
 
 ---
 
+## 2026-07-09 — Provisoires : affichés dans les onglets sport + suivi SÉPARÉ (info seule)
+
+**Quoi** (demande user) : (A) afficher les cadres provisoires dans les onglets sport ; (B) NE PAS les
+compter comme des paris à jouer, mais les suivre À PART pour mesurer « et si on jouait chaque provisoire ? ».
+
+**A — Affichage onglets sport** : `render_sport_matches` injecte les items du programme du sport
+(abstentions à venir + pari provisoire doré) dans « À venir », dédoublonnés par équipes avec les paris
+retenus. `_programme_items` expose `_sport/_prov/home/away`. Testé : basket montre ses 3 provisoires.
+
+**B — Suivi séparé (info seule)** : nouveau `app/provisional.py` — écrit UNIQUEMENT dans
+`data/provisional_track.json`, JAMAIS dans sidecars/`stat_bet`/calibration/`list_for` -> **ROI réel
+intact**. `record()` (posé par le scan quand un provisoire est calculé, code réglable seulement),
+`settle_pending()` (règle les terminés via `flashscore.final_score`+`settle_pick`, repli LiveScore ;
+branché dans `reconcile.py` après le règlement principal), `stats()` (n/réglés/réussite/ROI/cote moy,
+mise à plat 1 u). Bloc « 🧪 Paris provisoires — info seule · hors ROI » dans l'onglet Stats
+(`routers/web.py:_provisional_card`), avec la mention « ne compte PAS dans le ROI réel » + « si ce ROI
+reste négatif, ça confirme qu'il faut s'abstenir ». Backfill initial : 5 suivis, 2 réglés (gagnés).
+
+**Décision** : les provisoires ne sont JAMAIS des paris à jouer (value négative/marginale par
+construction — piège « confiance ≠ value »). Le suivi séparé le PROUVERA par les données.
+
+**Régression vérifiée** : AST (4 fichiers) · **242 tests** · `/health` OK · **selfcheck OK** (les 8
+invariants du ROI réel intacts — le suivi est totalement isolé). Best-effort partout (try/except) : le
+suivi ne peut jamais casser le scan ni la réconciliation.
+
 ## 2026-07-09 — Gel des pronos publiés : ancre par PRÉFIXE (pari publié+gagné enfin compté)
 
 **Quoi** (suite du cas Connecticut Sun–Minnesota) : le filet « prono publié = compté » (`retained_bet`

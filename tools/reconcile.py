@@ -127,6 +127,14 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
             n_settled = await settle_analyst.settle_analyses()
         except Exception as exc:
             print(f"  (règlement ignoré : {exc})")
+        # SUIVI SÉPARÉ des provisoires (info seule, hors ROI réel) : règle les provisoires terminés.
+        try:
+            from app import provisional as _pvt
+            _npv = await asyncio.to_thread(_pvt.settle_pending)
+            if _npv:
+                print(f"  · {_npv} pari(s) provisoire(s) réglé(s) (suivi info-seule).")
+        except Exception as exc:
+            print(f"  (suivi provisoires ignoré : {exc})")
 
     # 2) INVENTAIRE : parcourt les fiches, classe chaque match JOUÉ.
     stuck, upcoming, unposted = [], [], []

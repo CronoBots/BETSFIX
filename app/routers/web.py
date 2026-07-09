@@ -420,6 +420,39 @@ async def stats_health(request: Request) -> HTMLResponse:
     return HTMLResponse(await _system_health_html())
 
 
+def _provisional_card() -> str:
+    """Cadre « info seule » (onglet Stats) : ce qu'aurait donné « jouer chaque provisoire ». Mesure la
+    discipline d'abstention (favoris sans value) SANS jamais entrer dans le ROI réel. '' si aucun suivi."""
+    try:
+        from app import provisional as _pvt
+        s = _pvt.stats()
+    except Exception:
+        s = {}
+    if not s or not s.get("n"):
+        return ""
+    _roi = s.get("roi_pct")
+    _hit = s.get("hit_rate")
+    _col = "var(--muted)" if _roi is None else ("var(--green)" if _roi >= 0 else "var(--red)")
+    _roi_txt = "—" if _roi is None else f'{"+" if _roi >= 0 else ""}{_roi}%'
+    return (
+        '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
+        '<span>info seule · hors ROI</span></div>'
+        '<div class="sx-data-note">« Et si on jouait <b>chaque provisoire</b> ? » — le pari le plus probable '
+        'affiché sur les matchs <b>sans value</b> (favoris à cote courte). Mesuré à titre indicatif pour '
+        'valider la discipline d\'abstention : <b>ne compte PAS</b> dans le ROI réel (mise à plat 1 u).</div>'
+        '<div class="sx-kpis sx-kpis3">'
+        f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>provisoires suivis</span></div>'
+        f'<div class="sx-kpi"><b>{s.get("settled", 0)}</b><span>réglés</span></div>'
+        f'<div class="sx-kpi"><b>{s.get("pending", 0)}</b><span>en attente</span></div>'
+        '</div><div class="sx-kpis sx-kpis3">'
+        f'<div class="sx-kpi"><b>{"—" if _hit is None else str(_hit) + "%"}</b><span>réussite</span></div>'
+        f'<div class="sx-kpi"><b style="color:{_col}">{_roi_txt}</b><span>ROI (info)</span></div>'
+        f'<div class="sx-kpi"><b>{s.get("avg_cote") or "—"}</b><span>cote moyenne</span></div>'
+        '</div>'
+        '<div class="sx-data-note">Si ce ROI reste <b>négatif</b> sur la durée, il confirme par les chiffres '
+        'qu\'il faut <b>s\'abstenir</b> plutôt que jouer ces favoris.</div></div>')
+
+
 @router.get("/stats", response_class=HTMLResponse)
 async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
     """Onglet « Statistiques » (barre du bas) : synthèse + bilan + courbe + ROI + combinés + calibration.
@@ -435,6 +468,7 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
             '<div class="statsx">'        # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
             + _period_filter(since)
             + _home_stats(days)           # vue d'ensemble + edge + calibration + transparence (en sections)
+            + _provisional_card()         # « info seule » : perf hypothétique des provisoires (hors ROI réel)
             # Panneau SANTÉ (privé) chargé en AJAX : hors du cache commun (le fragment est mutualisé) et
             # servi UNIQUEMENT au propriétaire (route /stats/health, is_owner) -> pas de fuite du stack de
             # sources. Vide (donc invisible) pour les visiteurs. Données LIVE (ping sources) sans bloquer.
