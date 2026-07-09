@@ -210,16 +210,6 @@ l'Elo chronologiquement et écrit `data/elo_ratings.json`. Tant que ce fichier n
 pas, le modèle fonctionne en repli sur le classement. À relancer périodiquement pour
 garder les notes fraîches.
 
-Pour **évaluer et améliorer** le modèle à grande échelle, `tools/backtest_model.py`
-(ou double-clic `build_backtest.bat`) rejoue l'historique en **walk-forward** : il
-prédit chaque match avec l'Elo construit *uniquement sur le passé*, puis met l'Elo à
-jour (aucune fuite). Il imprime le Brier/log-loss/précision de chaque variante
-(classement seul, Elo seul, Elo+classement), l'**ablation par facteur** (combiner
-aide-t-il ?), la **calibration**, la perf **par surface**, et le **shrink optimal**
-anti-surconfiance à reporter dans `CALIB_SHRINK` (`app/analysis.py`). Cette dernière
-constante tempère la proba du modèle vers 0,5 pour corriger la surconfiance détectée
-(le modèle annonçant plus que le taux réel de victoire du favori).
-
 ### Détection de value (prudente)
 
 - La marge du bookmaker (*vig*) est retirée → probabilité implicite « juste ».
