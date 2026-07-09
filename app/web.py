@@ -425,7 +425,9 @@ CSS = """
   /* Forme W/L PROPRE à chaque graphe (juste au-dessus de la courbe) */
   .spf-cv-form{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 5px;overflow:hidden}
   .spf-cv-form .forms{flex-wrap:nowrap}   /* jamais de retour à la ligne : le max qui tient s'affiche */
-  .spf-cv-stk{flex:none} .spf-cv-dots{min-width:0;overflow:hidden}
+  .spf-cv-stk{flex:none}
+  /* dots alignés à DROITE : si ça déborde, on rogne les VIEUX (gauche) et on garde les RÉCENTS (droite). */
+  .spf-cv-dots{min-width:0;overflow:hidden;display:flex;justify-content:flex-end}
   /* Graphe CLIQUABLE (details) -> déplie les derniers paris. Marqueur natif retiré, curseur main. */
   details.spf-cv-x>summary{list-style:none;cursor:pointer}
   details.spf-cv-x>summary::-webkit-details-marker{display:none}
@@ -2659,13 +2661,17 @@ def _sport_card(s: dict, sport: str, label: str, since: str,
             + '</div></div>')
 
 def _streak_chip(streak) -> str:
-    """Chip « série en cours » : 🔥 N gagnés / ❄️ N perdus d'affilée. '' si aucune série."""
+    """Chip COMPACT « série en cours » : 🔥 N (gagnés) / ❄️ N (perdus) d'affilée. Texte COURT (icône +
+    nombre) + libellé complet en `title` : le libellé long élargissait le badge et rognait la série W/L
+    à côté (fix 2026-07-10). '' si aucune série."""
     if not streak:
         return ""
     if streak > 0:
-        return f'<span class="sx-streak hot">🔥 {streak} gagné{"s" if streak > 1 else ""} d\'affilée</span>'
+        _t = f'{streak} gagné{"s" if streak > 1 else ""} d\'affilée'
+        return f'<span class="sx-streak hot" title="{_t}">🔥 {streak}</span>'
     n = -streak
-    return f'<span class="sx-streak cold">❄️ {n} perdu{"s" if n > 1 else ""} d\'affilée</span>'
+    _t = f'{n} perdu{"s" if n > 1 else ""} d\'affilée'
+    return f'<span class="sx-streak cold" title="{_t}">❄️ {n}</span>'
 
 def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
                 milestones: list | None = None) -> str:
