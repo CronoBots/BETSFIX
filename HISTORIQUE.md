@@ -12,6 +12,38 @@
 
 ---
 
+## 2026-07-09 — Provisoire = pari le plus PROBABLE (analysé) + tennis « commencé » = état réel
+
+**Quoi** (2 retours user 2026-07-09) :
+1. **Pari provisoire mal sourcé** : le backfill/`_provisional_pick` mettait « Victoire [favori] » (favori 1X2
+   brut), et une abstention basket ressortait même en « À éviter / SKIP » (garbage). Cause : on lisait
+   `_safe_pick` (section « Le pari à jouer », qui dit SKIP/à éviter en abstention). Fix : `_provisional_pick`
+   lit désormais la **TÊTE du tableau « Paris classés par chance de passer »** (le pari #1 par probabilité,
+   ANALYSÉ comme les vrais pronos), saute les lignes SKIP/à-éviter/en-tête ; le favori 1X2 n'est plus qu'un
+   ultime repli (backfill sans analyse). Vérifié en live : Kostyuk -> « remporte au moins un set @1.28 »
+   (tableau 76 % 🟢), plus « Victoire Kostyuk ».
+2. **Tennis considéré « commencé » à l'heure PRÉVUE** : `_programme_items` retirait un match tennis dès son
+   coup d'envoi programmé (figé au matin) — or au tennis un match est souvent DÉCALÉ (le précédent traîne).
+   Fix : pour le tennis, « commencé » = **état réel Unibet** (`live_state_for` score live + `fresh_status`
+   coup d'envoi ré-estimé), PAS l'heure figée. Un tennis pas encore live reste affiché (même heure passée) ;
+   retiré seulement s'il est live OU >6 h après (sûrement fini). Foot/basket (coup d'envoi fixe) inchangés.
+
+**Fichiers** : `tools/generate_analyses.py` (`_provisional_pick` réécrit + `_PROV_SKIP_RE`),
+`app/web.py` (`_programme_items` : bloc tennis état-réel). Data : ré-analyse basket (3) + Kostyuk reposé
+avec pari analysé (leurs provisoires d'avant venaient du backfill sans analyse / d'une vague sautée).
+
+**Régression vérifiée** :
+- `_provisional_pick` : 4 cas testés (tête de tableau vs SKIP en reco, 1re ligne à-éviter -> suivante, pas
+  de tableau -> favori, vide -> None). Diag live Kostyuk : tableau -> pari analysé extrait. ✓
+- `_programme_items` tennis : testé (tennis décalé non-live GARDÉ, tennis live RETIRÉ, basket inchangé). ✓
+  Cache `live_state_for` chaud (home() appelle `fetch_live_odds('tennis')` avant `render_dashboard`) -> 0
+  appel réseau ajouté. `fresh_status` déjà la référence temps-réel (cf. [[settle-never-on-live-score]]).
+- AST OK (2 fichiers) · **suite complète 242 passed**.
+
+**Résultat** : chaque match affiche le pari le plus probable ANALYSÉ (fini le favori brut/SKIP) ; un match
+de tennis décalé ne disparaît plus de l'accueil avant d'avoir réellement commencé, et son heure suit
+l'estimation Unibet.
+
 ## 2026-07-09 — Programme : heure seule (sans « Aujourd'hui ») + PARI PROVISOIRE sur chaque match
 
 **Quoi** (2 demandes user 2026-07-09, capture accueil) :

@@ -1837,21 +1837,31 @@ def _safe_pick(analysis: str) -> str:
     return ""
 
 
+_PROV_SKIP_RE = re.compile(r"(?i)^\s*(skip|aucun|pas de pari|abst|à\s*[ée]viter|a\s*eviter|—|-)\b")
+
+
 def _provisional_pick(analysis: str, meta: dict | None, m: dict) -> dict | None:
-    """Pari PROVISOIRE (indicatif) pour un match ANALYSÉ mais SANS value retenue (abstention) : « si l'on
-    devait jouer un pari ». Priorité à l'avis de l'analyste (`_safe_pick`), repli sur le FAVORI 1X2 des
-    cotes. Purement AFFICHAGE (programme) — JAMAIS écrit dans les paris/stat_bet/shadow, donc JAMAIS
-    compté au ROI/stats/calibration (demande user 2026-07-09 : un pari à jouer sur chaque match). None si
-    rien d'exploitable. Renvoie {"sel": str, "cote": float|None}."""
-    sp = _safe_pick(analysis)
-    if sp:
-        mm = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", sp)
-        if mm:
-            try:
-                return {"sel": mm.group(1).strip(), "cote": float(mm.group(2).replace(",", "."))}
-            except ValueError:
-                pass
-        return {"sel": sp[:90], "cote": None}
+    """Pari PROVISOIRE (indicatif) pour un match ANALYSÉ mais SANS value retenue (abstention) : le pari
+    le PLUS PROBABLE « si l'on devait en jouer un ». Source = TÊTE du tableau « Paris classés par chance
+    de passer » (le pari #1 par probabilité, ANALYSÉ de la même manière que les vrais pronos), quelle que
+    soit sa value/vérifiabilité. On NE lit PAS la section « Le pari à jouer » (elle dit SKIP/à éviter en
+    abstention). Repli ULTIME seulement si aucun tableau exploitable : favori 1X2 des cotes. Purement
+    AFFICHAGE (programme) — JAMAIS écrit dans paris/stat_bet/shadow -> JAMAIS compté au ROI/stats/
+    calibration (demande user 2026-07-09). None si rien d'exploitable. Renvoie {"sel", "cote": float|None}."""
+    # 1) Le pari le plus probable = 1re ligne de données du tableau classé par chance (| sél | cote | … |).
+    #    Le tableau est déjà trié par l'analyste (proba décroissante) -> row[0] = le plus probable.
+    for mm in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*([\d]+[.,][\d]+)\s*\|", analysis or "", re.M):
+        sel = re.sub(r"\*\*|\*", "", mm.group(1)).strip()
+        if not sel or sel.lower() in ("pari", "sélection", "selection", "marché", "marche"):
+            continue                              # en-tête du tableau
+        if _PROV_SKIP_RE.match(sel):
+            continue                              # ligne « à éviter / SKIP » -> pas un pari
+        try:
+            cote = float(mm.group(2).replace(",", "."))
+        except ValueError:
+            cote = None
+        return {"sel": sel[:90], "cote": cote}
+    # 2) Repli ULTIME (aucun tableau exploitable, ex. backfill sans analyse) : favori 1X2 des cotes.
     o1, ox, o2 = (meta.get("odds") if meta else None) or (None, None, None)
     home, away = m.get("home", ""), m.get("away", "")
     cands = [(o, s) for o, s in ((o1, f"Victoire {home}"), (ox, "Match nul"),

@@ -3060,9 +3060,26 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             dt = datetime.fromisoformat((m.get("start") or "").replace("Z", "+00:00"))
         except (ValueError, AttributeError):
             continue
-        if dt <= now:                           # à venir uniquement (les passés sortent d'eux-mêmes)
-            continue
         sp = m.get("sport")
+        # « COMMENCÉ » = ÉTAT RÉEL UNIBET, PAS L'HEURE PRÉVUE. En TENNIS les matchs sont souvent DÉCALÉS
+        # (le match précédent sur le court traîne) et l'heure du programme est FIGÉE au matin -> se fier à
+        # l'heure prévue retirerait à tort un match pas encore commencé. On lit donc l'état live Unibet
+        # (score live = en cours) + son coup d'envoi FRAÎCHEMENT ré-estimé. (demande user 2026-07-09)
+        # Foot/basket : coup d'envoi fixe -> comportement inchangé (retrait au coup d'envoi prévu).
+        if sp == "tennis":
+            _has_live = bool(match_select.live_state_for("tennis", _h, _a))
+            _st, _usdt = match_select.fresh_status("tennis", _h, _a, "notstarted",
+                                                   _has_live, start_iso=m.get("start"))
+            if _st == "inprogress":             # réellement en cours (Unibet) -> plus « à venir »
+                continue
+            if _usdt is not None:               # heure Unibet fraîche (reflète le décalage éventuel)
+                dt = _usdt
+            # pas commencé : on GARDE même si l'heure prévue est passée (décalé) ; garde-fou anti-fantôme :
+            # retiré seulement s'il est si vieux (6 h après le coup d'envoi) qu'il est sûrement terminé.
+            if not _has_live and dt <= now - timedelta(hours=6):
+                continue
+        elif dt <= now:                         # à venir uniquement (les passés sortent d'eux-mêmes)
+            continue
         ic = _ICON.get(sp, "")
         name = str(m.get("name", ""))
         home, _sep, away = name.partition(" - ")
