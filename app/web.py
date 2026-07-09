@@ -3124,7 +3124,8 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{sub}</div>'
             f'</div></div></div>')
-        items.append({"start_ts": dt.timestamp(), "_html": card})
+        items.append({"start_ts": dt.timestamp(), "_html": card, "_sport": sp,
+                      "_prov": bool(prov_sel), "home": home, "away": away})
     return items
 
 
@@ -4086,6 +4087,13 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     « aucun match ». `frag=True` -> renvoie le corps seul (chargé en AJAX dans la SPA)."""
     # Terminés : les PLUS RÉCENTS en HAUT (coup d'envoi le plus récent d'abord).
     finished = sorted(finished or [], key=lambda r: r.get("start_ts") or 0, reverse=True)
+    # Cartes PROGRAMME du sport (abstentions à venir + pari PROVISOIRE indicatif, doré) : mêmes cadres que
+    # l'accueil, injectés dans « À venir » de l'onglet sport (demande user 2026-07-09). Dédoublonnage par
+    # noms d'équipes avec les paris déjà à l'affiche (retenus) -> jamais 2×. `_rows_by_day` rend l'_html.
+    if sport in ("foot", "tennis", "basket"):
+        _paj = {_prog_pair(r.get("home"), r.get("away")) for r in (upcoming or [])}
+        upcoming = list(upcoming or []) + [it for it in _programme_items(_paj)
+                                           if it.get("_sport") == sport]
     out = []
     # Info (bouton « i ») PROPRE à chaque section, comme sur l'accueil.
     conf_info = ('Pour chaque match, BETSFIX analyse <b>tous les paris Unibet</b> et garde la '
