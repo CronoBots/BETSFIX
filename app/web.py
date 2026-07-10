@@ -3108,25 +3108,19 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
         except (ValueError, AttributeError):
             continue
         sp = m.get("sport")
-        # « COMMENCÉ » = ÉTAT RÉEL UNIBET, PAS L'HEURE PRÉVUE. En TENNIS les matchs sont souvent DÉCALÉS
-        # (le match précédent sur le court traîne) et l'heure du programme est FIGÉE au matin -> se fier à
-        # l'heure prévue retirerait à tort un match pas encore commencé. On lit donc l'état live Unibet
-        # (score live = en cours) + son coup d'envoi FRAÎCHEMENT ré-estimé. (demande user 2026-07-09)
-        # Foot/basket : coup d'envoi fixe -> comportement inchangé (retrait au coup d'envoi prévu).
-        if sp == "tennis":
-            _has_live = bool(match_select.live_state_for("tennis", _h, _a))
-            _st, _usdt = match_select.fresh_status("tennis", _h, _a, "notstarted",
-                                                   _has_live, start_iso=m.get("start"))
-            if _st == "inprogress":             # réellement en cours (Unibet) -> plus « à venir »
+        # ÉTAT RÉEL UNIBET (pas l'heure prévue) : score live = EN COURS. Un provisoire EN COURS n'est plus
+        # « à venir » -> on le marque `_is_live` pour l'onglet LIVE + section « En direct » (demande user
+        # 2026-07-10). Tennis souvent DÉCALÉ (heure figée) -> on se fie au live + coup d'envoi Unibet frais.
+        _has_live = bool(match_select.live_state_for(sp, _h, _a))
+        _st, _usdt = match_select.fresh_status(sp, _h, _a, "notstarted", _has_live, start_iso=m.get("start"))
+        if _usdt is not None:                   # heure Unibet fraîche (reflète un éventuel décalage)
+            dt = _usdt
+        _is_live = (_st == "inprogress") or _has_live
+        if not _is_live and dt <= now:
+            # coup d'envoi passé mais PAS live : tennis décalé (pas encore commencé) -> garder ≤ 6 h ;
+            # sinon (foot/basket au coup d'envoi fixe, ou tennis très vieux) = sûrement terminé -> sortir.
+            if not (sp == "tennis" and dt > now - timedelta(hours=6)):
                 continue
-            if _usdt is not None:               # heure Unibet fraîche (reflète le décalage éventuel)
-                dt = _usdt
-            # pas commencé : on GARDE même si l'heure prévue est passée (décalé) ; garde-fou anti-fantôme :
-            # retiré seulement s'il est si vieux (6 h après le coup d'envoi) qu'il est sûrement terminé.
-            if not _has_live and dt <= now - timedelta(hours=6):
-                continue
-        elif dt <= now:                         # à venir uniquement (les passés sortent d'eux-mêmes)
-            continue
         ic = _ICON.get(sp, "")
         name = str(m.get("name", ""))
         home, _sep, away = name.partition(" - ")
@@ -3171,10 +3165,11 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
             f'<span class="mc-comp">{comp}</span>'
-            # Programme DÉJÀ groupé par en-tête de jour (Aujourd'hui / Demain …) -> l'heure seule (HH:MM)
-            # suffit, sans redite « Aujourd'hui HH:MM » (demande user 2026-07-09). Aligne les cartes du
-            # programme sur les cartes de pari (qui montrent aussi l'heure seule).
-            f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=False))}</span></div>'
+            # Badge : « 🟢 en cours » si le match est LIVE (onglet Live/section En direct), sinon l'heure
+            # seule (le programme est déjà groupé par jour -> pas de redite « Aujourd'hui HH:MM »).
+            + (f'<span class="mc-badge mc-live">🟢 en cours</span>' if _is_live
+               else f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=False))}</span>')
+            + '</div>'
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{sub}</div></div>')
         # PROVISOIRE CLIQUABLE (demande user 2026-07-10) : si l'analyse du match est disponible (le scan
@@ -3190,7 +3185,7 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
         else:
             card = f'<div class="row pick mc prog-card"><div class="mc-head">{_inner}</div></div>'
         items.append({"start_ts": dt.timestamp(), "_html": card, "_sport": sp,
-                      "_prov": bool(prov_sel), "home": home, "away": away})
+                      "_prov": bool(prov_sel), "_live": _is_live, "home": home, "away": away})
     return items
 
 
@@ -3208,7 +3203,9 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     # en-têtes de jour (Aujourd'hui / Demain …). Un match affiché en pari à jouer est EXCLU du programme
     # (dédoublonnage par noms d'équipes) -> jamais 2× (même si son statut retombe « abstained »).
     _paj_pairs = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
-    items = sorted(list(match_rows) + _programme_items(_paj_pairs), key=lambda r: r.get("start_ts") or 0)
+    # Accueil = « à venir » : on écarte les provisoires EN COURS (ils vivent dans l'onglet Live).
+    _prog = [it for it in _programme_items(_paj_pairs) if not it.get("_live")]
+    items = sorted(list(match_rows) + _prog, key=lambda r: r.get("start_ts") or 0)
     if items:
         header = ('<div class="prog-sec"><span>📅 Programme du jour</span>'
                   f'<span class="prog-n">{len(items)}</span></div>')
@@ -3994,6 +3991,8 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
 def _sport_row(r: dict) -> str:
     """Ligne de match unifiée (tous sports). r : tour, status, time, score, home,
     away, prob (float ou 3-tuple), sub, badge, url, pick."""
+    if r.get("_html"):        # carte DÉJÀ rendue (ex. provisoire programme/live) -> rendue telle quelle
+        return r["_html"]
     e = html.escape
     # Pastille d'état en haut à droite, MÊME style que le décompte : décompte si à venir,
     # « EN DIRECT » (rouge) si live. Le badge value/✓ va, lui, sur la ligne de l'affiche.
@@ -4184,9 +4183,11 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     # l'accueil, injectés dans « À venir » de l'onglet sport (demande user 2026-07-09). Dédoublonnage par
     # noms d'équipes avec les paris déjà à l'affiche (retenus) -> jamais 2×. `_rows_by_day` rend l'_html.
     if sport in ("foot", "tennis", "basket"):
-        _paj = {_prog_pair(r.get("home"), r.get("away")) for r in (upcoming or [])}
-        upcoming = list(upcoming or []) + [it for it in _programme_items(_paj)
-                                           if it.get("_sport") == sport]
+        _paj = {_prog_pair(r.get("home"), r.get("away")) for r in (list(upcoming or []) + list(live or []))}
+        _pit = [it for it in _programme_items(_paj) if it.get("_sport") == sport]
+        # Provisoire EN COURS -> section « En direct » ; à venir -> « À venir » (demande user 2026-07-10).
+        live = list(live or []) + [it for it in _pit if it.get("_live")]
+        upcoming = list(upcoming or []) + [it for it in _pit if not it.get("_live")]
     out = []
     # Info (bouton « i ») PROPRE à chaque section, comme sur l'accueil.
     conf_info = ('Pour chaque match, BETSFIX analyse <b>tous les paris Unibet</b> et garde la '

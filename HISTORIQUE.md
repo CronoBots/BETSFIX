@@ -12,6 +12,23 @@
 
 ---
 
+## 2026-07-10 — Provisoires : confiance affichée + visibles dans onglets sport ET Live
+
+**Quoi** (retours user) :
+1. **Enrichir l'affichage** (choix user parmi 3 options) : montrer la CONFIANCE du provisoire comme un vrai
+   pari à jouer, MAIS clairement « hors ROI ». `_provisional_pick` capture la proba (3e col. du tableau ;
+   repli = proba implicite de la cote). Carte : « Confiance N% · info, hors ROI » en doré (`.mc-prov-conf`).
+2. **Voir les provisoires en cours dans le LIVE + section « En direct » des onglets sport** : un provisoire
+   dont le match a COMMENCÉ quittait « À venir » et n'était visible nulle part. `_programme_items` marque
+   désormais `_live` (état réel Unibet : score live) au lieu de jeter le match ; badge « 🟢 en cours ».
+   Routage : accueil = à venir seul (live exclus) ; onglet sport = live→En direct / à venir→À venir ;
+   onglet Live (`directs_page`) = injection des provisoires `_live` par sport. `_sport_row` rend un `_html`
+   déjà prêt (1 ligne) -> débloque les sections live + `render_directs`.
+
+**Régression vérifiée** : AST · **242 tests** · pages / /basket /directs /stats en 200 · tests d'intégration
+(routage live/à-venir OK, badge en cours). Purement AFFICHAGE — provisoires toujours hors ROI/stats/calib
+(pas de `.json`). Sur données actuelles : proba backfillée (implicite) pour affichage immédiat.
+
 ## 2026-07-10 — Provisoires : cartes CLIQUABLES (fiche d'analyse) + badge série repositionné
 
 **Quoi** (retours user, 2 screenshots) :

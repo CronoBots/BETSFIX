@@ -766,9 +766,16 @@ async def directs_page(
 
     for _sp in ("tennis", "basket", "foot"):   # peuple le cache score/horloge live (1 listView/sport)
         await match_select.fetch_live_odds(_sp)
-    sections = [("Tennis", "🎾", await _live_cards("tennis")),
-                ("Basket", "🏀", await _live_cards("basket")),
-                ("Foot", "⚽", await _live_cards("foot"))]
+    # Provisoires EN COURS (demande user 2026-07-10) : ils n'ont pas de sidecar (absents de list_for) ->
+    # on les ajoute au Live depuis le programme (cartes _html dorées « en cours », hors ROI). Le cache
+    # live est chaud (fetch_live_odds ci-dessus) -> _programme_items détecte correctement _live.
+    _prov_live: dict = {}
+    for _it in web._programme_items(set()):
+        if _it.get("_live"):
+            _prov_live.setdefault(_it.get("_sport"), []).append(_it)
+    sections = [("Tennis", "🎾", (await _live_cards("tennis")) + _prov_live.get("tennis", [])),
+                ("Basket", "🏀", (await _live_cards("basket")) + _prov_live.get("basket", [])),
+                ("Foot", "⚽", (await _live_cards("foot")) + _prov_live.get("foot", []))]
     body = web.render_directs(sections, frag=bool(frag))
     if frag:
         fragcache.put("panel/directs", body, ttl=PANEL_TTL)
