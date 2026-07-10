@@ -492,31 +492,7 @@ def _provisional_card() -> str:
         'qu\'il faut <b>s\'abstenir</b> plutôt que jouer ces favoris.</div></div>')
 
 
-_SPORT_EMO = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
-
-
-def _combo_legs_html(cb: dict, *, compact: bool = False) -> str:
-    """Rendu des jambes d'un combiné du jour : une ligne par jambe (emoji sport, sélection, cote, badge
-    de résultat W/L/N/⏳). `compact` = version accueil (police plus petite)."""
-    import html as _h
-    _B = {"won": ("W", "#34d27b"), "lost": ("L", "#ff6b6b"), "push": ("N", "#9a9aa6")}
-    fs = "10.5px" if compact else "11.5px"
-    rows = []
-    for l in cb.get("legs") or []:
-        _lt, _c = _B.get(l.get("result"), ("⏳", "#f6c54a"))
-        emo = _SPORT_EMO.get(l.get("sport"), "•")
-        nm = _h.escape(str(l.get("name") or "").replace(" - ", " — "))
-        sel = _h.escape(str(l.get("sel") or ""))
-        co = l.get("cote")
-        cot = f' · @{co:g}' if isinstance(co, (int, float)) and co else ""
-        rows.append(
-            '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;'
-            'border-top:1px solid rgba(255,255,255,.05)">'
-            f'<span style="flex:none;width:19px;height:19px;border-radius:6px;background:{_c};color:#0a0a0a;'
-            f'font-weight:900;font-size:10px;display:flex;align-items:center;justify-content:center">{_lt}</span>'
-            f'<span style="flex:1;min-width:0;line-height:1.25;font-size:{fs}">{emo} <b>{sel}</b>{cot}<br>'
-            f'<span style="color:var(--muted);font-size:9.5px">{nm}</span></span></div>')
-    return "".join(rows)
+_combo_legs_html = web.combo_legs_html   # rendu UNIFIÉ (accueil/Stats/Live) — défini dans app/web.py
 
 
 def _combo_daily_card() -> str:

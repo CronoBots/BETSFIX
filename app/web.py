@@ -3251,7 +3251,13 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             _bars = (_pick_bars(analyst_bars(_pm.get("o1"), _pm.get("ox"), _pm.get("o2"),
                                              analyses.votes_pct(_pm), home=home, away=away))
                      if (_pm.get("o1") and _pm.get("o2")) else "")
-            _body = _bars + analyses.bets_html(sp, _fid) + _ana
+            # SCOREBOARD LIVE DÉTAILLÉ (sets/quart-temps/horloge) EN TÊTE du corps — comme un pari à jouer
+            # (l'affichage du score doit être AUSSI complet). En live, on masque les barres (comme _sport_row).
+            _lscore = (_live_scoreboard(_lf.get("score"), home, away, tennis=(sp == "tennis"),
+                                        server=_lf.get("server"), points=_lf.get("game_pts"),
+                                        clock=_lf.get("live_time"), periods=_lf.get("periods"))
+                       if (_is_live and _lf.get("score")) else "")
+            _body = _lscore + ("" if _is_live else _bars) + analyses.bets_html(sp, _fid) + _ana
             # Analyse INLINE dans `.exp` (un clic dedans ne replie pas). PAS de classe `.mc-ana` : elle
             # déclencherait `_mcLoad` -> `fetch(data-ana=null)` -> /null -> 404 « {detail: Not Found} »
             # qui écrasait l'analyse (bug vu 2026-07-10). Ici l'analyse est déjà là -> aucun fetch.
@@ -3265,9 +3271,45 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
     return items
 
 
-def _combo_daily_banner() -> str:
-    """Bandeau « Combiné du jour » en TÊTE de l'accueil (compact, cliquable -> onglet Stats). Le combiné
-    multisport du jour : jambes les plus probables, cote ≥ 1.9. Info seule (hors ROI). '' si aucun."""
+def combo_legs_html(cb: dict, *, compact: bool = False) -> str:
+    """Rendu UNIFIÉ (accueil/Stats/Live) des jambes d'un combiné du jour : badge de résultat W/L/N/⏳,
+    emoji sport, sélection, cote, nom du match, et le SCORE EN DIRECT (🟢 …) de chaque jambe tant qu'elle
+    court (ou le score final une fois réglée). Le cache live est réchauffé en continu par le warmer
+    (directs_page) -> score frais partout. `compact` = police plus petite (accueil/bandeau)."""
+    import html as _h
+    _B = {"won": ("W", "#34d27b"), "lost": ("L", "#ff6b6b"), "push": ("N", "#9a9aa6")}
+    _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    fs = "10.5px" if compact else "11.5px"
+    rows = []
+    for l in cb.get("legs") or []:
+        _lt, _c = _B.get(l.get("result"), ("⏳", "#f6c54a"))
+        emo = _emo.get(l.get("sport"), "•")
+        nm = _h.escape(str(l.get("name") or "").replace(" - ", " — "))
+        sel = _h.escape(str(l.get("sel") or ""))
+        co = l.get("cote")
+        cot = f' · @{co:g}' if isinstance(co, (int, float)) and co else ""
+        _sco = ""
+        if l.get("result") is None:
+            _lfz = live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
+                                                           l.get("away", "")), l.get("sport"))
+            if _lfz.get("score"):
+                _sco = ('<span style="flex:none;color:#5fe39b;font-weight:800;font-size:10.5px">'
+                        f'🟢 {_h.escape(_lfz["score"])}</span>')
+        elif l.get("score"):
+            _sco = f'<span style="flex:none;color:var(--dim);font-size:10px">{_h.escape(str(l.get("score")))}</span>'
+        rows.append(
+            '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;'
+            'border-top:1px solid rgba(255,255,255,.05)">'
+            f'<span style="flex:none;width:19px;height:19px;border-radius:6px;background:{_c};color:#0a0a0a;'
+            f'font-weight:900;font-size:10px;display:flex;align-items:center;justify-content:center">{_lt}</span>'
+            f'<span style="flex:1;min-width:0;line-height:1.25;font-size:{fs}">{emo} <b>{sel}</b>{cot}<br>'
+            f'<span style="color:var(--muted);font-size:9.5px">{nm}</span></span>{_sco}</div>')
+    return "".join(rows)
+
+
+def _combo_daily_banner(*, href: str = "/stats") -> str:
+    """Bandeau « Combiné du jour » (TÊTE de l'accueil ET de l'onglet Live). Le combiné multisport du jour :
+    jambes les plus probables (avec SCORE LIVE), cote ≥ 1.9. Info seule (hors ROI). '' si aucun."""
     try:
         import datetime as _dt
         from app import combo_daily as _cd
@@ -3277,20 +3319,10 @@ def _combo_daily_banner() -> str:
         cb = None
     if not cb or not cb.get("legs"):
         return ""
-    import html as _h
-    _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     _bad = {"won": ("✅", "var(--green)"), "lost": ("❌", "var(--red)"),
             "void": ("➖", "var(--muted)")}.get(cb.get("result"), ("⏳", "#f6c54a"))
-    legs = "".join(
-        f'<div style="display:flex;gap:7px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05);'
-        f'font-size:11px;line-height:1.25">{_emo.get(l.get("sport"), "•")} '
-        f'<span style="flex:1;min-width:0"><b>{_h.escape(str(l.get("sel") or ""))}</b>'
-        f'<span style="color:var(--muted)"> · @{l.get("cote")}</span><br>'
-        f'<span style="color:var(--dim);font-size:9.5px">'
-        f'{_h.escape(str(l.get("name") or "").replace(" - ", " — "))}</span></span></div>'
-        for l in cb.get("legs") or [])
     return (
-        '<a class="combo-day" href="/stats" style="display:block;text-decoration:none;color:inherit;'
+        f'<a class="combo-day" href="{href}" style="display:block;text-decoration:none;color:inherit;'
         'margin-bottom:12px;padding:12px 14px;border:1px solid rgba(246,197,74,.4);border-radius:14px;'
         'background:linear-gradient(180deg,rgba(246,197,74,.08),rgba(246,197,74,.02))">'
         '<div style="display:flex;justify-content:space-between;align-items:center">'
@@ -3300,7 +3332,7 @@ def _combo_daily_banner() -> str:
         f'<span>cote <b style="color:#f6c54a">@{cb.get("cote")}</b></span>'
         f'<span>chances <b>{round((cb.get("prob") or 0) * 100)}%</b></span>'
         f'<span style="color:var(--muted)">{len(cb.get("legs") or [])} jambes · multisport</span></div>'
-        + legs + '</a>')
+        + combo_legs_html(cb, compact=True) + '</a>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
@@ -4358,7 +4390,8 @@ def render_directs(sections: list, frag: bool = False) -> str:
             '<div class="le-cta">'
             '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
             '</div></div>')
-    body = "".join(out)
+    # Combiné du jour EN TÊTE du Live (choix user : carte dédiée enrichie, jambes avec score live).
+    body = _combo_daily_banner() + "".join(out)
     return body if frag else spa_shell("directs", "Live", body)
 
 def perf_toggle(active: str) -> str:

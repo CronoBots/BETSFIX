@@ -12,6 +12,31 @@
 
 ---
 
+## 2026-07-10 — Cohérence d'affichage : provisoires & combiné du jour = comme les paris à jouer
+
+**Quoi** (demande user : « pourquoi des présentations différentes ? je veux les provisoires et le combiné du
+jour aussi complets que les paris à jouer, dans les onglets sport ET Live ») :
+
+1. **Provisoires = carte aussi complète qu'un pari à jouer** (`app/web.py:_programme_items`) : le corps
+   déplié avait déjà barres « Cotes & chances » + tableau des paris + analyse ; il manquait le SCOREBOARD
+   LIVE DÉTAILLÉ (sets/quart-temps/horloge). Ajouté via `_live_scoreboard(...)` en tête du corps quand le
+   match est live (barres masquées en live, comme `_sport_row`). Le badge de tête montre déjà « 🟢 <score> ».
+   Le marquage DORÉ « provisoire · hors ROI » est PRÉSERVÉ (un provisoire n'est pas un pari de value —
+   ne pas confondre avec le vert « à jouer », cf. [[provisional-bet-per-match]]).
+2. **Combiné du jour = carte dédiée enrichie sur accueil + Stats + LIVE** (choix user AskUserQuestion) :
+   rendu des jambes UNIFIÉ dans `app/web.py:combo_legs_html` (badge résultat W/L/N/⏳ + SCORE LIVE 🟢 par
+   jambe, ou score final si réglée) — utilisé par le bandeau accueil (`_combo_daily_banner`), la carte Stats
+   (`routers/web._combo_daily_card` via alias `web.combo_legs_html`) ET l'onglet Live (bandeau ajouté en tête
+   de `render_directs`). Cache live réchauffé en continu par le warmer -> score frais partout.
+
+**Pourquoi la différence existait** : les provisoires et le combiné sont ISOLÉS du ROI (stockés à part, hors
+`list_for`) -> je leur avais fait un rendu simplifié séparé. Corrigé : même richesse d'affichage, isolation
+ROI intacte.
+
+**Régression vérifiée** : AST OK ; combiné présent sur accueil+Live+Stats (rendu unifié) ; scoreboard
+provisoire ajouté (badge « 🟢 6-4 0-0 » sur Sinner en cours) ; **265 tests** ; selfcheck **12 ✅** ; compteur
+ROI **monotone 110/105 INCHANGÉ** (affichage seul, 0 impact ROI/stats/calibration).
+
 ## 2026-07-10 — Score EN DIRECT sur les cartes provisoires (onglet Live)
 
 **Quoi** (demande user) : les cartes provisoires « en cours » (onglet Live) n'affichaient pas le score en
