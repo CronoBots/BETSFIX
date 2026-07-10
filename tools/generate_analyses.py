@@ -357,8 +357,9 @@ METHODO = (
     "concrets, français impeccable, ZÉRO généralité ni remplissage ni redite — mais une analyse FOUILLÉE.\n"
     "- **À éviter / SKIP :** ce qui est piégeux ; si le match est un coin-flip, dis-le et recommande "
     "de SKIP (ne rien jouer est une décision gagnante).\n\n"
-    "## 🧪 Pari provisoire (indicatif — À REMPLIR UNIQUEMENT si tu as SKIP le pari à jouer ci-dessus)\n"
-    "Si aucun pari n'a de VALUE (abstention/SKIP), désigne ICI le MEILLEUR pari « si l'on devait absolument "
+    "## 🧪 Pari provisoire (indicatif — OBLIGATOIRE dès que tu SKIP le pari à jouer ci-dessus)\n"
+    "Dès que tu SKIP (aucun pari de VALUE), tu DOIS remplir cette section (sinon le match n'a AUCUN pari à "
+    "afficher et disparaît). Désigne ICI le MEILLEUR pari « si l'on devait absolument "
     "en jouer un » : celui que TON analyse identifie comme le plus solide factuellement — L'ANGLE QUE TU AS "
     "TOI-MÊME POINTÉ dans ton raisonnement (JAMAIS le favori des cotes par défaut s'il ne tient pas ; si tu "
     "as écrit « l'angle le plus solide serait un under », alors le provisoire EST cet under, PAS la victoire "
@@ -1889,15 +1890,12 @@ def _provisional_pick(analysis: str, meta: dict | None, m: dict) -> dict | None:
         _pm = re.search(r"(\d{1,3})", mm.group(3) or "")   # confiance (proba) de l'analyste, comme un vrai pari
         prob = min(int(_pm.group(1)), 100) if _pm else None
         return {"sel": sel[:90], "cote": cote, "prob": prob}
-    # 2) Repli ULTIME (aucun tableau exploitable, ex. backfill sans analyse) : favori 1X2 des cotes.
-    o1, ox, o2 = (meta.get("odds") if meta else None) or (None, None, None)
-    home, away = m.get("home", ""), m.get("away", "")
-    cands = [(o, s) for o, s in ((o1, f"Victoire {home}"), (ox, "Match nul"),
-                                 (o2, f"Victoire {away}")) if o]
-    if not cands:
-        return None
-    o, s = min(cands, key=lambda x: x[0])       # favori = cote la plus basse
-    return {"sel": s, "cote": round(float(o), 2), "prob": round(100 / o) if o else None}   # proba implicite
+    # PLUS DE REPLI « favori 1X2 brut » (retour user 2026-07-11) : il CONTREDISAIT l'analyse (« Victoire
+    # favori » alors que le raisonnement dit « ne joue pas le favori »). Un provisoire vient DÉSORMAIS
+    # UNIQUEMENT de l'analyse : la section « 🧪 Pari provisoire » (priorité) ou la tête du tableau classé.
+    # Si l'analyste n'a désigné NI l'un NI l'autre -> None (pas de provisoire, match caché) plutôt qu'un
+    # favori incohérent. La qualité/cohérence prime sur la quantité.
+    return None
 
 
 def _track_provisional(sport, m, prov) -> None:
