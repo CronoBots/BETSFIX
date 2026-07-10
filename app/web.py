@@ -2214,9 +2214,16 @@ _COUNTDOWN_JS = (
 _ANIM_JS = (
     "(function(){var b=document.body;b.classList.add('boot');"
     "setTimeout(function(){b.classList.remove('boot');},950);"
-    # Le splash (logo) couvre l'écran ~1,65 s -> on (re)joue les animations graphes/stats APRÈS sa
-    # disparition, pour qu'elles soient VISIBLES sur un chargement direct (ex. /stats). (demande user)
-    "setTimeout(function(){if(window._sxAnim)window._sxAnim(document);},1700);})();"
+    # Les animations graphes/stats se déclenchent QUAND LE SPLASH A RÉELLEMENT DISPARU (event
+    # `animationend` sur `splashOut`), PAS sur un timer fixe (demande user 2026-07-10 : le splash peut
+    # durer +/- selon reduced-motion). Filet de sécurité si l'event ne se déclenche pas ; si pas de
+    # splash (frag / déjà passé), on joue tout de suite.
+    "function fire(){if(window._sxAnim)window._sxAnim(document);}"
+    "var sp=document.querySelector('.splash');"
+    "if(sp){var done=false;function f(){if(!done){done=true;fire();}}"
+    "sp.addEventListener('animationend',function(e){"
+    "if((e.animationName||'').indexOf('splashOut')>=0)f();});"
+    "setTimeout(f,2500);}else{fire();}})();"
 )
 
 # Handlers de CARTES partagés (layout ET spa_shell) : accordéons data-exp, cartes compactes .mc,
