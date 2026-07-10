@@ -3179,10 +3179,12 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
         _fid = str(prov.get("fid") or "") if prov_sel else ""
         _ana = analyses.render(sp, _fid) if _fid else None
         if _ana:
+            # Analyse INLINE dans `.exp` (un clic dedans ne replie pas). PAS de classe `.mc-ana` : elle
+            # déclencherait `_mcLoad` -> `fetch(data-ana=null)` -> /null -> 404 « {detail: Not Found} »
+            # qui écrasait l'analyse (bug vu 2026-07-10). Ici l'analyse est déjà là -> aucun fetch.
             card = (f'<div class="row pick mc prog-card prog-card-x">'
                     f'<div class="mc-head">{_inner}<span class="mc-chev">▸</span></div>'
-                    f'<div class="mc-body" hidden><div class="mc-ana"><div class="exp">{_ana}</div></div>'
-                    f'</div></div>')
+                    f'<div class="mc-body" hidden><div class="exp">{_ana}</div></div></div>')
         else:
             card = f'<div class="row pick mc prog-card"><div class="mc-head">{_inner}</div></div>'
         items.append({"start_ts": dt.timestamp(), "_html": card, "_sport": sp,
