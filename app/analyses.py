@@ -334,7 +334,7 @@ def _strip(md: str) -> str:
     md = re.sub(r"<!--.*?-->", "", md, flags=re.S)          # vire l'en-tête commentaire
     md = re.sub(r"^---+\s*$", "", md, flags=re.M)            # séparateurs ---
     md = re.sub(r"^\s*PICK:.*$", "", md, flags=re.M)         # ligne technique de règlement (cachée)
-    md = re.sub(r"^\s*(?:POOL|CALIB|COMBO):.*$", "", md, flags=re.M)   # lignes techniques (vivier/calib/combo)
+    md = re.sub(r"^\s*(?:POOL|CALIB|COMBO|PROV):.*$", "", md, flags=re.M)  # lignes techniques (vivier/calib/combo/prov)
     return md
 
 
@@ -792,31 +792,41 @@ def _structured(md: str) -> str | None:
     # sur la carte. La re-rendre dans l'analyse = doublon (le détail du combiné doit être dans le cadre
     # du combiné, pas répété). On l'écarte (et la ligne `COMBO:` brute aussi).
     combo = _find(secs, "🎲", "Combiné", "combiné")
+    # Section « 🧪 Pari provisoire » : NON rendue ici -> elle est affichée par `reasoning_html` (bloc du
+    # provisoire) uniquement sur les cartes provisoires. La re-rendre ici = doublon sur toutes les cartes.
+    prov = _find(secs, "🧪", "provisoire", "Provisoire")
     # toute autre section non prévue : rendue à la suite (sécurité, ne rien perdre)
-    known = {"", verdict, bets, faits, mise, combo}
+    known = {"", verdict, bets, faits, mise, combo, prov}
     for title, b in secs.items():
         if b and b not in known and title not in ("", ):
-            if any(k in title or k in title.lower() for k in ("Verdict", "Paris", "faits", "Mise", "🎲", "ombiné")):
+            if any(k in title or k in title.lower()
+                   for k in ("Verdict", "Paris", "faits", "Mise", "🎲", "ombiné", "🧪", "rovisoire")):
                 continue
             parts.append(f'<div class="da-h da-h2">{_inline(title)}</div>{_render_blocks(b)}')
     return '<div class="da">' + "".join(parts) + "</div>"
 
 
 def reasoning_html(sport: str, match_id) -> str:
-    """Le RAISONNEMENT « 🎯 Le pari à jouer » (verdict de l'analyste) rendu en HTML, dans un bloc déplié.
-    Pour les PROVISOIRES/abstentions : ce contenu (pourquoi le pari / le SKIP, l'angle le plus solide) est
-    normalement distribué SOUS les paris de la carte (`bets_html` + `_verdict_notes`), mais une abstention
-    n'a pas de paris affichés (tableau « SKIP ») -> le raisonnement disparaissait. On le restitue ici. ''
-    si absent. NE PAS l'ajouter aux cartes à-jouer (doublon avec les notes par pari)."""
+    """Le RAISONNEMENT du pari PROVISOIRE rendu en HTML, dans un bloc déplié — pour les abstentions, dont
+    le pari est INDICATIF (hors ROI). Priorité à la section « 🧪 Pari provisoire » (le meilleur angle
+    DÉSIGNÉ + ANALYSÉ par l'analyste, COHÉRENT avec ses faits) ; repli sur « 🎯 Le pari à jouer » (analyses
+    d'avant l'ajout de la section provisoire). La ligne technique `PROV:` est retirée. '' si absent.
+    NE PAS l'ajouter aux cartes à-jouer (doublon avec les notes par pari)."""
     md = load(sport, match_id)
     if not md:
         return ""
-    verdict = _find(_sections(md), "🎯", "Verdict")
-    if not verdict:
+    secs = _sections(md)
+    prov = _find(secs, "🧪", "provisoire", "Provisoire")
+    body = prov or _find(secs, "🎯", "Verdict")
+    if not body:
         return ""
+    body = re.sub(r"(?im)^\s*PROV:.*$", "", body).strip()   # ligne technique de règlement -> cachée
+    if not body:
+        return ""
+    title = "🧪 Le pari provisoire (indicatif)" if prov else "🎯 L'analyse du pari"
     return ('<details class="da-faits" open>'
-            '<summary onclick="event.stopPropagation()">🎯 L\'analyse du pari</summary>'
-            f'<div class="da-faits-b">{_render_blocks(verdict)}</div></details>')
+            f'<summary onclick="event.stopPropagation()">{title}</summary>'
+            f'<div class="da-faits-b">{_render_blocks(body)}</div></details>')
 
 
 def _bets_section(md: str) -> str:

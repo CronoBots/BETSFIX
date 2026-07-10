@@ -357,6 +357,18 @@ METHODO = (
     "concrets, français impeccable, ZÉRO généralité ni remplissage ni redite — mais une analyse FOUILLÉE.\n"
     "- **À éviter / SKIP :** ce qui est piégeux ; si le match est un coin-flip, dis-le et recommande "
     "de SKIP (ne rien jouer est une décision gagnante).\n\n"
+    "## 🧪 Pari provisoire (indicatif — À REMPLIR UNIQUEMENT si tu as SKIP le pari à jouer ci-dessus)\n"
+    "Si aucun pari n'a de VALUE (abstention/SKIP), désigne ICI le MEILLEUR pari « si l'on devait absolument "
+    "en jouer un » : celui que TON analyse identifie comme le plus solide factuellement — L'ANGLE QUE TU AS "
+    "TOI-MÊME POINTÉ dans ton raisonnement (JAMAIS le favori des cotes par défaut s'il ne tient pas ; si tu "
+    "as écrit « l'angle le plus solide serait un under », alors le provisoire EST cet under, PAS la victoire "
+    "du favori). Analyse-le AUSSI SÉRIEUSEMENT qu'un vrai pari : 3 à 5 phrases COMPLÈTES, chiffrées et "
+    "AUTONOMES (scénario+forme, stats/H2H, ta proba vs cote, risque), COHÉRENTES avec tes faits — en "
+    "rappelant qu'il est INDICATIF (hors ROI, PAS de mise : on s'abstient faute de value, mais voici le "
+    "meilleur angle). Format EXACT :\n"
+    "`- **<Sélection exacte réglable> @<cote> — <TA proba honnête %> :** <explication fouillée>`\n"
+    "puis, en DERNIÈRE ligne de cette section, `PROV: <CODE>` (MÊME liste de codes que le PICK plus bas). "
+    "Si tu AS un pari à jouer (value), N'ÉCRIS PAS cette section du tout.\n\n"
     "## 💰 Mise\n"
     "Une phrase : mise PLATE et petite EXPRIMÉE EN % DE BANKROLL (ex. « 1 à 2 % de la bankroll »), "
     "JAMAIS en « unités »/« u » ni en €, JAMAIS de combiné, 1 à 2 paris max par jour. Factuel, en français.\n\n"
@@ -1848,6 +1860,20 @@ def _provisional_pick(analysis: str, meta: dict | None, m: dict) -> dict | None:
     abstention). Repli ULTIME seulement si aucun tableau exploitable : favori 1X2 des cotes. Purement
     AFFICHAGE (programme) — JAMAIS écrit dans paris/stat_bet/shadow -> JAMAIS compté au ROI/stats/
     calibration (demande user 2026-07-09). None si rien d'exploitable. Renvoie {"sel", "cote": float|None}."""
+    # 0) PRIORITÉ : la section « 🧪 Pari provisoire » que l'analyste DÉSIGNE + ANALYSE lui-même en cas de SKIP
+    #    (le meilleur angle indicatif, COHÉRENT avec son raisonnement). Sinon on retombait sur le favori 1X2
+    #    BRUT (repli), qui CONTREDIT l'analyse (« Victoire favori » vs « ne jouez pas le favori, jouez l'under »).
+    _mprov = re.search(r"##\s*🧪[^\n]*\n+\s*[-*]\s*\*\*(.+?)@\s*([\d]+[.,]?[\d]*)\s*"
+                       r"(?:[—–-]\s*(\d{1,3})\s*%)?[^:]*:", analysis or "", re.M)
+    if _mprov:
+        _psel = re.sub(r"\*\*|\*", "", _mprov.group(1)).strip(" —–-:")
+        if _psel and not _PROV_SKIP_RE.match(_psel):
+            try:
+                _pc = float(_mprov.group(2).replace(",", "."))
+            except ValueError:
+                _pc = None
+            _pp = min(int(_mprov.group(3)), 100) if _mprov.group(3) else None
+            return {"sel": _psel[:90], "cote": _pc, "prob": _pp}
     # 1) Le pari le plus probable = 1re ligne de données du tableau classé par chance (| sél | cote | proba | … |).
     #    Le tableau est déjà trié par l'analyste (proba décroissante) -> row[0] = le plus probable.
     for mm in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*([\d]+[.,][\d]+)\s*\|\s*([^|]*?)\s*\|", analysis or "", re.M):
