@@ -2454,16 +2454,16 @@ async def main():
     # comme les autres pronos. record_daily fige dès l'envoi (published = frozen -> pas de re-scan changeant).
     try:
         import datetime as _dt
-        from app import combo_daily as _cd
+        from app import combo_daily as _cdaily
         _day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
-        _combo = _cd.build_for_day(_day)
-        if _combo and _cd.record_daily(_combo, _day):
+        _combo = _cdaily.build_for_day(_day)
+        if _combo and _cdaily.record_daily(_combo, _day):
             print(f"  🎯 Combiné du jour : cote {_combo['cote']} · {round(_combo['prob'] * 100)}% · "
                   f"{len(_combo['legs'])} jambes.")
             if not args.no_notify:
                 from app import notify
-                if notify.configured() and await notify.send(_cd.telegram_text(_combo)):
-                    _cd.mark_sent(_day)          # figé après publication aux abonnés
+                if notify.configured() and await notify.send(_cdaily.telegram_text(_combo)):
+                    _cdaily.mark_sent(_day)       # figé après publication aux abonnés
         elif _combo:
             print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")
         else:
