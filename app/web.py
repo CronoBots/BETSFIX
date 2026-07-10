@@ -2359,7 +2359,10 @@ _TERM_JS = (
     # Respect de « Réduire le mouvement » AUSSI côté JS (le @media CSS ne stoppe pas requestAnimationFrame) :
     "var _rm=false;try{_rm=window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches;}catch(e){}"
     # COMPTEUR : un chiffre/valeur (.da-st-v) qui MONTE de 0 à sa valeur (formats « 87% », « 1.22 », « +6% »).
-    "function cnt(nd){if(nd._c||_rm)return;nd._c=1;var t=(nd.textContent||'').trim();"
+    # cible MÉMORISÉE (nd._tv) : sinon un rejeu (_sxAnim) PENDANT la montée re-lirait la valeur
+    # intermédiaire courante (« 2 ») comme nouvelle cible -> le compteur se FIGE à 2 au lieu de 66.
+    "function cnt(nd){if(nd._c||_rm)return;nd._c=1;"
+    "var t=nd._tv;if(t==null){t=(nd.textContent||'').trim();nd._tv=t;}"
     "var m=t.match(/^([+\\-]?)(\\d+(?:[.,]\\d+)?)(.*)$/);if(!m)return;"
     "var sg=m[1],n=parseFloat(m[2].replace(',','.')),sf=m[3],dp=(m[2].split(/[.,]/)[1]||'').length,s=null;"
     "function st(ts){if(!s)s=ts;var p=Math.min(1,(ts-s)/650),e=p*p*(3-2*p);"

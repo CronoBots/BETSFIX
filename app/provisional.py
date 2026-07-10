@@ -112,6 +112,21 @@ def entries(d: dict | None = None) -> list:
     return out
 
 
+def equity_curve(d: dict | None = None) -> list:
+    """Série du PROFIT CUMULÉ (unités, mise à plat 1 u) des provisoires RÉGLÉS, ordonnée par coup
+    d'envoi, commençant à 0 — pour le graphe d'équité « info seule ». Snapshot partagé avec stats()."""
+    d = _load() if d is None else d
+    settled = sorted((p for p in d.values()
+                      if isinstance(p, dict) and p.get("result") in ("won", "lost")),
+                     key=lambda p: p.get("start") or "")
+    cur, out = 0.0, [0.0]
+    for p in settled:
+        c = p.get("cote")
+        cur += (c - 1) if (p.get("result") == "won" and isinstance(c, (int, float))) else -1.0
+        out.append(round(cur, 2))
+    return out
+
+
 def stats(d: dict | None = None) -> dict:
     """Agrégat INFO-SEULE : {n, settled, won, lost, pending, hit_rate, roi_pct, profit_units, avg_cote}.
     Mise à plat 1 unité. ROI = profit / n_réglés × 100. {} si aucun provisoire suivi. `d` = snapshot

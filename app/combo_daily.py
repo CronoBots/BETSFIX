@@ -336,6 +336,20 @@ def entries(d: dict | None = None) -> list:
     return out
 
 
+def equity_curve(d: dict | None = None) -> list:
+    """Série du PROFIT CUMULÉ (unités, mise à plat 1 u) des combinés du jour RÉGLÉS, ordonnée par date,
+    commençant à 0 — pour le graphe d'équité « info seule ». Snapshot partagé avec stats()."""
+    d = _load() if d is None else d
+    settled = sorted((cb for cb in d.values()
+                      if isinstance(cb, dict) and cb.get("result") in ("won", "lost")),
+                     key=lambda cb: cb.get("date") or "")
+    cur, out = 0.0, [0.0]
+    for cb in settled:
+        cur += _combo_result_profit(cb)
+        out.append(round(cur, 2))
+    return out
+
+
 def stats(d: dict | None = None) -> dict:
     """Agrégat INFO-SEULE : {n, settled, won, lost, void, pending, hit_rate, roi_pct, profit_units,
     avg_cote}. Mise à plat 1 u. ROI = profit / n_tranchés (hors void) × 100. {} si aucun combiné.

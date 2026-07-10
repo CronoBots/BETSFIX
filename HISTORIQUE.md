@@ -12,6 +12,26 @@
 
 ---
 
+## 2026-07-10 — Graphes provisoires + combiné du jour & FIX compteur bloqué
+
+**Quoi** (demande user) : ajouter une courbe d'équité aux blocs « Paris provisoires » et « Combiné du jour »
+(onglet Stats), comme les blocs Simples/Combinés. + retour user : « lors de l'animation les chiffres se
+bloquent dans les graphiques » (ex. SIMPLES affichait « 2 % réussite · 3 paris » au lieu de 47 % · 66).
+
+1. **Graphes d'équité** : `provisional.equity_curve()` + `combo_daily.equity_curve()` = profit cumulé
+   (mise à plat 1 u) des réglés, ordonné, démarrant à 0. Rendus via `web._hero_chart(pts, uid)` (même
+   composant animé vert/rouge que les Simples) dans `_provisional_card` (uid=prov) et `_combo_daily_card`
+   (uid=combod), affichés dès 2 réglés (`len(curve) >= 3`). Snapshot partagé (compteur == liste == courbe).
+2. **FIX compteur qui se fige** (`app/web.py` `cnt`) — CAUSE : `cnt` lisait sa cible depuis `textContent`
+   À CHAQUE appel ; or `_sxAnim` (déclenché plusieurs fois : fin splash + tab-show + filet) fait
+   `_c=0; cnt()` pour REJOUER l'anim -> s'il rejouait PENDANT la montée (« 2 »), il relisait « 2 » comme
+   nouvelle cible -> figé à 2. Fix : cible MÉMORISÉE dans `nd._tv` (capturée 1×), toujours réutilisée ->
+   un rejeu repart de la VRAIE valeur. Corrige aussi les KPI des nouvelles cartes (mêmes `.sx-kpi>b`).
+
+**Régression vérifiée** : AST OK ; courbe provisoire réelle [0→1.66→1.02] (7 réglés) ; graphe combiné caché
+tant que < 2 réglés ; `nd._tv` présent dans le bundle JS ; 13 tests (provisional+combo) OK. Aucun impact ROI
+(equity_curve = info seule, lecture seule).
+
 ## 2026-07-10 — Combiné multisport DU JOUR (info seule, hors ROI)
 
 **Quoi** (demande user) : chaque jour, UN seul combiné multisport reprenant les paris LES PLUS PROBABLES de

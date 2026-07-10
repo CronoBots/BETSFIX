@@ -468,6 +468,10 @@ def _provisional_card() -> str:
             f'<span style="color:var(--muted);font-size:10px">{_sel}{_cot}</span></span>'
             f'<span style="flex:none;color:var(--dim);font-size:9.5px">{_h.escape(_dt)}</span></div>')
     _list = (f'<div style="margin-top:8px">{"".join(_rows)}</div>') if _rows else ""
+    # courbe d'équité (profit cumulé, info seule) — dès 2 provisoires réglés
+    _eq = _pvt.equity_curve(_snap)
+    _graph = (f'<div class="sx-equity" style="margin-top:10px">{web._hero_chart(_eq, uid="prov")}</div>'
+              if len(_eq) >= 3 else "")
     return (
         '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
         '<span>info seule · hors ROI</span></div>'
@@ -483,7 +487,7 @@ def _provisional_card() -> str:
         f'<div class="sx-kpi"><b style="color:{_col}">{_roi_txt}</b><span>ROI (info)</span></div>'
         f'<div class="sx-kpi"><b>{s.get("avg_cote") or "—"}</b><span>cote moyenne</span></div>'
         '</div>'
-        + _list +
+        + _graph + _list +
         '<div class="sx-data-note">Si ce ROI reste <b>négatif</b> sur la durée, il confirme par les chiffres '
         'qu\'il faut <b>s\'abstenir</b> plutôt que jouer ces favoris.</div></div>')
 
@@ -562,6 +566,10 @@ def _combo_daily_card() -> str:
             f'<span style="flex:1;min-width:0">{cb.get("date")}</span>'
             f'<span style="color:var(--dim)">@{cb.get("cote")} · {len(cb.get("legs") or [])} j.</span></div>')
     _hist_html = (f'<div style="margin-top:8px">{"".join(_hrows)}</div>') if _hrows else ""
+    # courbe d'équité (profit cumulé, info seule) — dès 2 combinés du jour réglés
+    _eqc = _cd.equity_curve(_snap)
+    _graph_c = (f'<div class="sx-equity" style="margin-top:10px">{web._hero_chart(_eqc, uid="combod")}</div>'
+                if len(_eqc) >= 3 else "")
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Combiné du jour '
         '<span>info seule · hors ROI</span></div>'
@@ -578,7 +586,7 @@ def _combo_daily_card() -> str:
         f'<div class="sx-kpi"><b style="color:{_col}">{_roi_txt}</b><span>ROI (info)</span></div>'
         f'<div class="sx-kpi"><b>{s.get("avg_cote") or "—"}</b><span>cote moyenne</span></div>'
         '</div>'
-        + _hist_html + '</div>')
+        + _graph_c + _hist_html + '</div>')
 
 
 @router.get("/stats", response_class=HTMLResponse)
