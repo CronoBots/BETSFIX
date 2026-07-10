@@ -3179,12 +3179,20 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
         _fid = str(prov.get("fid") or "") if prov_sel else ""
         _ana = analyses.render(sp, _fid) if _fid else None
         if _ana:
+            # Corps IDENTIQUE à une vraie carte (demande user 2026-07-10) : BARRES « Cotes & chances »
+            # (Unibet + Public) + TABLEAU « Paris classés » (bets_html) + ANALYSE (faits). to_html/render
+            # retire le tableau (affiché à part sur une carte) -> on le rajoute ; sinon le corps semblait vide.
+            _pm = analyses.meta(sp, _fid) or {}
+            _bars = (_pick_bars(analyst_bars(_pm.get("o1"), _pm.get("ox"), _pm.get("o2"),
+                                             analyses.votes_pct(_pm), home=home, away=away))
+                     if (_pm.get("o1") and _pm.get("o2")) else "")
+            _body = _bars + analyses.bets_html(sp, _fid) + _ana
             # Analyse INLINE dans `.exp` (un clic dedans ne replie pas). PAS de classe `.mc-ana` : elle
             # déclencherait `_mcLoad` -> `fetch(data-ana=null)` -> /null -> 404 « {detail: Not Found} »
             # qui écrasait l'analyse (bug vu 2026-07-10). Ici l'analyse est déjà là -> aucun fetch.
             card = (f'<div class="row pick mc prog-card prog-card-x">'
                     f'<div class="mc-head">{_inner}<span class="mc-chev">▸</span></div>'
-                    f'<div class="mc-body" hidden><div class="exp">{_ana}</div></div></div>')
+                    f'<div class="mc-body" hidden><div class="exp">{_body}</div></div></div>')
         else:
             card = f'<div class="row pick mc prog-card"><div class="mc-head">{_inner}</div></div>'
         items.append({"start_ts": dt.timestamp(), "_html": card, "_sport": sp,
