@@ -1375,6 +1375,19 @@ CSS = """
   .sx-hero-foot{position:relative;display:flex;align-items:center;justify-content:space-between;
        gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--border)}
   .sx-heroc{width:100%;height:auto;display:block;max-height:96px}
+  /* Animations PRO de la courbe d'équité : la ligne se TRACE (draw-in), puis l'aire et le point final
+     apparaissent. `pathLength=1` sur la ligne -> le tracé marche quelle que soit sa longueur réelle. */
+  .sx-heroc-line{stroke-dasharray:1;stroke-dashoffset:1;animation:sxdraw 1.15s cubic-bezier(.55,.08,.25,1) forwards}
+  @keyframes sxdraw{to{stroke-dashoffset:0}}
+  .sx-heroc-area{opacity:0;animation:sxarea .7s ease .5s forwards}
+  @keyframes sxarea{to{opacity:.22}}
+  .sx-heroc-pt{opacity:0;transform-box:fill-box;transform-origin:center;
+       animation:sxpt .45s cubic-bezier(.2,1.6,.4,1) .95s forwards}
+  @keyframes sxpt{0%{opacity:0;transform:scale(0)}100%{opacity:1;transform:scale(1)}}
+  @media (prefers-reduced-motion:reduce){
+    .sx-heroc-line{animation:none;stroke-dashoffset:0}
+    .sx-heroc-area{animation:none;opacity:.22}
+    .sx-heroc-pt{animation:none;opacity:1;transform:none}}
   .sx-kpis{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px;
        padding-top:12px;border-top:1px solid var(--border)}
   .sx-kpi{text-align:center}
@@ -2373,7 +2386,10 @@ _TERM_JS = (
     "var l=(root||document).querySelectorAll('.tw:not([data-tw])'),i;"
     "for(i=0;i<l.length;i++)obs.observe(l[i]);};"
     # compteurs : déclenchables explicitement (à l'affichage d'un panneau) -> effet toujours visible.
-    "window._twCount=function(root){try{var l=(root||document).querySelectorAll('.da-st-v'),i;"
+    # Compteurs MONTANTS aussi sur les KPI des stats (.sx-kpi>b, .spf-cv-kpis b) + les libellés ROI/pct
+    # (.arec-* qui portent la valeur). `cnt` ignore proprement le non-numérique (« — », « @1.42 »).
+    "window._twCount=function(root){try{var l=(root||document).querySelectorAll("
+    "'.da-st-v,.sx-kpi>b,.spf-cv-kpis b'),i;"
     "for(i=0;i<l.length;i++)cnt(l[i]);}catch(e){}};"
     "window._twScan(document);window._twCount(document);})();"
 )
@@ -2724,12 +2740,14 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
         if abs(gv) < 1e-6:
             continue
         p.append(f'<line class="bc-grid" x1="{L:g}" y1="{Y(gv):.1f}" x2="{W - R:g}" y2="{Y(gv):.1f}"/>')
-    p.append(f'<path d="{area_d}" fill="url(#{gid})" opacity="0.22" stroke="none"/>')
+    p.append(f'<path class="sx-heroc-area" d="{area_d}" fill="url(#{gid})" opacity="0.22" stroke="none"/>')
     p.append(f'<line class="bc-zero" x1="{L:g}" y1="{zy:.1f}" x2="{W - R:g}" y2="{zy:.1f}"/>')
     p.append(f'<text class="bc-zl" x="{L - 3:g}" y="{zy + 3:.1f}">0</text>')
-    p.append(f'<path d="{line_d}" fill="none" stroke="url(#{gid})" stroke-width="2.2" '
-             'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>')
-    p.append(f'<circle cx="{X(n - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="2.8" '
+    # Ligne TRACÉE (draw-in) : `pathLength="1"` normalise -> `sxdraw` marche quelle que soit la longueur.
+    p.append(f'<path class="sx-heroc-line" pathLength="1" d="{line_d}" fill="none" stroke="url(#{gid})" '
+             'stroke-width="2.2" vector-effect="non-scaling-stroke" stroke-linejoin="round" '
+             'stroke-linecap="round"/>')
+    p.append(f'<circle class="sx-heroc-pt" cx="{X(n - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="2.8" '
              f'fill="{GR if pts[-1] >= 0 else RD}"/>')
     # REPÈRES de modèle : trait vertical + pastille numérotée en haut (placés à l'index du 1er pari
     # postérieur à la date du jalon). La correspondance numéro -> nom est dans la légende texte.
