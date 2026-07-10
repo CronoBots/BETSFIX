@@ -1548,9 +1548,13 @@ CSS = """
   .mc-prov .mc-bt{color:var(--gold);font-weight:800}
   .mc-bc-prov{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd)}
   .mc-reana-prov{color:var(--gold)}
-  /* Confiance du provisoire (comme un vrai pari) — dorée, avec rappel « hors ROI » pour ne pas tromper. */
-  .mc-prov-conf{font-size:11px;color:var(--gold);font-weight:600;margin-top:2px}
-  .mc-prov-conf b{font-weight:800}
+  /* Provisoire — présentation épurée : pastille de RÔLE (dit « hors ROI » une fois) + puce confiance. */
+  .mc-prov-tag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+       color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:7px;
+       padding:2px 7px;margin:1px 0 5px}
+  .mc-prov-tag span{opacity:.72;font-weight:600;letter-spacing:.02em}
+  .mc-prov-cf{flex:none;align-self:center;background:var(--gold-bg);color:var(--gold);
+       border:1px solid var(--gold-bd);border-radius:6px;padding:1px 6px;font-size:10px;font-weight:800}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   .dash-h-a,
@@ -3138,19 +3142,18 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             # CONFIANCE (comme un vrai pari à jouer) : la proba de l'analyste, en teinte DORÉE. Enrichit
             # l'affichage sans tromper — le libellé « provisoire · hors ROI » reste bien présent (choix user
             # 2026-07-10 : construire/afficher comme un pari à jouer, mais clairement hors ROI).
+            # Présentation ÉPURÉE (demande user 2026-07-10) : une PASTILLE « PROVISOIRE · hors ROI » (dit
+            # UNE fois, comme le libellé Confiance/Value des vraies cartes), puis la ligne pari + cote +
+            # puce confiance, puis la ré-analyse en une ligne. Fini la répétition « info/provisoire ».
             _pconf = prov.get("prob")
-            _conf_html = (f'<div class="mc-prov-conf">Confiance <b>{_pconf}%</b> '
-                          f'<span class="dim">· info, hors ROI</span></div>'
+            _conf_chip = (f'<span class="mc-prov-cf">{_pconf}%</span>'
                           if isinstance(_pconf, (int, float)) and _pconf else "")
-            if now >= reanalyse:
-                _note = "pari provisoire · pas de value détectée"          # échéance passée -> verdict
-            else:
-                _note = (f"Ré-analyse à {fmt_local(reanalyse, with_date=False)} "
-                         f'<span class="dim">· provisoire, peut changer</span>')
-            sub = (f'<div class="mc-betl mc-prov"><span class="mc-bi">•</span>'
-                   f'<span class="mc-bt">{html.escape(prov_sel)}</span>{_cote_html}</div>'
-                   f'{_conf_html}'
-                   f'<div class="mc-reana mc-reana-prov">🔄 {_note}</div>')
+            _reana = ("pas de value détectée" if now >= reanalyse
+                      else f"Ré-analyse à {fmt_local(reanalyse, with_date=False)} · peut changer")
+            sub = ('<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>'
+                   f'<div class="mc-betl mc-prov"><span class="mc-bi">•</span>'
+                   f'<span class="mc-bt">{html.escape(prov_sel)}</span>{_cote_html}{_conf_chip}</div>'
+                   f'<div class="mc-reana mc-reana-prov">🔄 {_reana}</div>')
         else:
             if m.get("status") == "abstained" and now >= reanalyse:
                 bic, btxt = "➖", "Pas de value"                              # échéance passée -> quasi-final
