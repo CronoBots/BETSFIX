@@ -2317,6 +2317,8 @@ async def main():
                     _set_programme_status(str(m.get("id")), "bet")
                 else:                              # analysé, pari dans le tableau mais non RETENU -> provisoire
                     _prov2 = _provisional_pick(analysis, meta, m)
+                    if _prov2:
+                        _prov2["fid"] = str(fid)   # .md/sidecar déjà écrits ici -> carte provisoire cliquable
                     _set_programme_status(str(m.get("id")), "abstained", provisional=_prov2)
                     _track_provisional(sport, m, _prov2)   # suivi SÉPARÉ info-seule
                 # Le simple n'est annoncé que s'il est à l'affiche sur l'app : à combiné -> seulement s'il
