@@ -21,14 +21,28 @@ TRACK_PATH = os.path.join(_ROOT, "data", "combo_daily_track.json")
 MIN_ODDS = 1.9            # cote minimale du combiné (demande user)
 MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)
 MIN_LEGS = 2             # un « combiné » = au moins 2 jambes
-MIN_LEG_PROB = 0.60      # « les plus probables » : jambe fiable seulement
+MIN_LEG_PROB = 0.65      # « les plus probables » : jambe fiable seulement (relevé pour la sécurité)
 MIN_LEG_ODDS = 1.06      # une jambe quasi-sûre à cote ~1.01 n'apporte rien vers le seuil
 
-# Marchés AUTORISÉS en combiné (liste blanche, cf. COMBO_MISSION : privilégier résultat/DC 83 %, tirs
-# cadrés 83 %, buts total/équipe 79 % ; BANNIR corners/cartons/tirs totaux/mi-temps/props/1er but).
-# On compare le PREMIER jeton du code (ex. "SETWIN 1 HOME" -> "SETWIN").
-_ALLOWED = {"WIN", "DC", "OVER", "UNDER", "TEAMTOT", "SET", "SETWIN", "SETSCORE",
-            "SHOTSOT", "TOTGAMES", "TEAMGAMES", "REGTIME"}
+# Marchés en PALIERS DE FIABILITÉ (taux de réussite MESURÉS, cf. COMBO_MISSION). On compare le PREMIER
+# jeton du code (ex. "SETWIN 1 HOME" -> "SETWIN"). Le combiné se construit d'abord AVEC LE PALIER 1 SEUL
+# (les jambes les plus SAFE) et ne descend d'un palier QUE s'il ne peut pas atteindre la cote min sinon.
+_TIER1 = {"WIN", "DC", "REGTIME"}                       # résultat / double chance (~83 %) = le plus fiable
+_TIER2 = {"SHOTSOT", "TEAMTOT", "SET", "SETWIN"}        # tirs cadrés (83 %), équipe marque / au moins un set (~79 %)
+_TIER3 = {"OVER", "UNDER", "TOTGAMES", "TEAMGAMES", "SETSCORE"}   # totaux (points/buts/jeux), score de sets (+ variance)
+_ALLOWED = _TIER1 | _TIER2 | _TIER3
+
+
+def _tier(code: str) -> int:
+    """Palier de fiabilité (1 = le plus safe) du marché d'un code. 9 si hors liste blanche."""
+    tok = (code or "").split()[0] if code else ""
+    if tok in _TIER1:
+        return 1
+    if tok in _TIER2:
+        return 2
+    if tok in _TIER3:
+        return 3
+    return 9
 
 
 def _load() -> dict:
@@ -192,8 +206,17 @@ def _candidates_for_day(day: str) -> list[dict]:
 
 
 def build_for_day(day: str) -> dict | None:
-    """Construit LE combiné du jour depuis les analyses. None si aucun combiné fiable ≥ 1.9 possible."""
-    combo = pick_combo(_candidates_for_day(day))
+    """Construit LE combiné du jour depuis les analyses, en privilégiant les jambes LES PLUS SAFE : on
+    tente d'abord avec le PALIER 1 SEUL (résultat/double chance), puis 1+2 (tirs cadrés/équipe/sets),
+    puis 1+2+3 (totaux) — on ne descend d'un palier que si la cote ≥ 1.9 est INATTEIGNABLE au précédent.
+    None si aucun combiné fiable possible."""
+    cands = _candidates_for_day(day)
+    combo = None
+    for max_tier in (1, 2, 3):
+        sub = [c for c in cands if _tier(c["code"]) <= max_tier]
+        combo = pick_combo(sub)
+        if combo:
+            break
     if not combo:
         return None
     legs = [{"mid": l["mid"], "sport": l["sport"], "name": l.get("name"), "home": l.get("home"),

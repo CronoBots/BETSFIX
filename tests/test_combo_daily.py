@@ -99,6 +99,30 @@ def test_stats_et_entries_coherents(monkeypatch):
     assert s["won"] == 1 and s["hit_rate"] == 100
 
 
+def test_tiers_de_fiabilite():
+    # résultat/DC = palier 1 (le plus safe) ; totaux = palier 3
+    assert CD._tier("WIN HOME") == 1 and CD._tier("DC 1X") == 1
+    assert CD._tier("TEAMTOT HOME UNDER 89.5") == 2 and CD._tier("SET AWAY") == 2
+    assert CD._tier("OVER 144.5") == 3 and CD._tier("TOTGAMES OVER 20.5") == 3
+
+
+def test_build_privilegie_les_marches_safe(monkeypatch):
+    # résultats/DC (palier 1) suffisent à atteindre 1.9 -> le combiné NE DOIT PAS descendre aux totaux
+    cands = [
+        {"mid": "1", "sport": "foot", "sel": "Real vainqueur", "cote": 1.45, "prob": 0.78,
+         "code": "WIN HOME", "name": "Real-x", "home": "Real", "away": "x", "start": "s", "comp": ""},
+        {"mid": "2", "sport": "tennis", "sel": "Alcaraz vainqueur", "cote": 1.4, "prob": 0.80,
+         "code": "WIN HOME", "name": "Alca-x", "home": "Alca", "away": "x", "start": "s", "comp": ""},
+        {"mid": "3", "sport": "basket", "sel": "Over 210.5", "cote": 1.9, "prob": 0.72,
+         "code": "OVER 210.5", "name": "b-c", "home": "b", "away": "c", "start": "s", "comp": ""},
+    ]
+    monkeypatch.setattr(CD, "_candidates_for_day", lambda day: cands)
+    combo = CD.build_for_day("2026-07-10")
+    assert combo is not None
+    # toutes les jambes sont du palier 1 (aucun total de points, pourtant présent et à cote élevée)
+    assert all(CD._tier(l["code"]) == 1 for l in combo["legs"])
+
+
 def test_telegram_text_ne_plante_pas():
     cb = {"cote": 2.18, "prob": 0.41,
           "legs": [_leg("1", "foot", "PSG & <b>", 1.3, 0.8, "WIN HOME")]}
