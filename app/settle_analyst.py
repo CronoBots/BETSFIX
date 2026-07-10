@@ -1523,6 +1523,12 @@ async def _settle_analyses_impl() -> int:
                               or leg.get("code"))
                         leg["code"] = lc
                         lr = await _settle_one(lc) if lc else None
+                        # Jambe à CODE VIDE (non dérivable, ex. « 3-Way Handicap 1ère MT (1-0) ») sur un match
+                        # FINI = IRRÉCUPÉRABLE : elle ne sera JAMAIS réglable (≠ donnée temporairement
+                        # manquante qui, elle, a un code). -> VOID IMMÉDIAT (sans attendre 3 j) pour que le
+                        # combiné se règle sur les autres jambes, au lieu de rester bloqué « en attente ».
+                        if lr is None and not lc and analyses.status_of(d) == "finished":
+                            lr = "void"
                     leg["result"] = lr
                     if lr == "lost":
                         any_lost = True
