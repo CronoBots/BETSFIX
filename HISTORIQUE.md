@@ -12,6 +12,30 @@
 
 ---
 
+## 2026-07-11 — Combiné du jour : analyse dédiée par jambe + robustesse règlement
+
+**Quoi** (demande user : « toutes les jambes du combiné du jour doivent être analysées comme les paris à
+jouer et les provisoires » + « vérifie les bugs possibles + le règlement des terminés, ex. Espagne-Belgique ») :
+
+1. **Analyse DÉDIÉE par jambe** (`generate_analyses.py:_analyze_combo_legs`) : en fin de scan, UN appel Claude
+   produit une justification chiffrée PAR jambe (à partir des faits de chaque match) + une SYNTHÈSE. Stocké
+   `leg['why']` / `combo['synth']`. N'analyse qu'1×/jour (figé après publication). Best-effort (jamais de
+   crash si l'appel échoue). Validé sur appel RÉEL : chaque jambe a une analyse pro chiffrée (ex. « Connecticut
+   amputé de 3 cadres, Golden State 16-7… Pinnacle 70 % »).
+2. **Affichage** (`web.combo_legs_html(expandable=True)`) : dans l'onglet Stats, chaque jambe DOTÉE d'un `why`
+   devient un `<details>` CLIQUABLE qui déplie sa justification ; la synthèse coiffe la carte. Bandeau
+   accueil/Live = aperçu non cliquable (mène à Stats, pas de `<details>` dans un `<a>`).
+3. **Règlement — jambe IRRÉCUPÉRABLE = VOID** (2 fixes) :
+   - `settle_analyst` (combinés same-match) : une jambe à CODE VIDE (non dérivable, ex.
+     « 3-Way Handicap 1ère MT (1-0) ») sur un match FINI est voidée IMMÉDIATEMENT (≠ donnée temporairement
+     manquante qui attend 3 j). **Débloque Espagne-Belgique** (terminé 2-1) → GAGNÉ (cote eff. 2.11).
+   - `combo_daily.settle_pending` : score trouvé mais code non réglable → void la jambe ; borne 8 essais si
+     match introuvable. Le combiné du jour ne peut plus rester bloqué « en attente ».
+
+**Vérifié** : 0 match terminé non réglé (pick + combiné) ; selfcheck **12 ✅** (cohérence combiné↔jambes OK) ;
+compteur ROI **monotone 110/105 INCHANGÉ** ; tests (analyse leg + void irrécupérable). Le combiné du jour
+reste 100 % hors ROI.
+
 ## 2026-07-11 — Provisoire ANALYSÉ et cohérent + reset du tracker
 
 **Quoi** (retour user : « le provisoire est Victoire Juventude mais l'analyse dit qu'il n'y a pas de pari à

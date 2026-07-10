@@ -86,6 +86,26 @@ def test_combo_gagne_si_toutes_gagnees(monkeypatch):
     assert abs(CD._combo_result_profit(cb) - (1.4 * 1.5 - 1)) < 1e-9
 
 
+def test_combo_void_jambe_irrecuperable(monkeypatch):
+    # score trouvé mais code non réglable (jambe irrécupérable) -> void, le combiné se règle sur le reste
+    legs = [_leg("1", "foot", "A", 1.5, 0.7, "WIN HOME"), _leg("2", "foot", "B", 1.4, 0.7, "")]
+    for l in legs:
+        l["result"] = None
+    store = {"2026-07-09": {"date": "2026-07-09", "cote": 2.0, "prob": 0.5, "legs": legs,
+                            "result": None, "sent": True, "created": None}}
+    monkeypatch.setattr(CD, "_load", lambda: store)
+    monkeypatch.setattr(CD, "_save", lambda d: None)
+    import app.flashscore, app.livescore, app.settle_analyst
+    monkeypatch.setattr(app.flashscore, "final_score", lambda sport, q: {"label": "1-0", "home": 1, "away": 0})
+    monkeypatch.setattr(app.livescore, "final_score", lambda sport, q: None)
+    monkeypatch.setattr(app.settle_analyst, "settle_pick",
+                        lambda code, score: "won" if code == "WIN HOME" else None)
+    CD.settle_pending()
+    cb = store["2026-07-09"]
+    assert cb["legs"][1]["result"] == "void"       # jambe à code vide -> voidée
+    assert cb["result"] == "won"                   # combiné réglé sur la jambe gagnante
+
+
 def test_stats_et_entries_coherents(monkeypatch):
     legs = [_leg("1", "foot", "A", 1.4, 0.7, "WIN HOME"), _leg("2", "foot", "B", 1.5, 0.7, "WIN HOME")]
     for l in legs:

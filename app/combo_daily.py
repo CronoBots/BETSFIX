@@ -277,7 +277,7 @@ def settle_pending() -> int:
         if not isinstance(cb, dict) or cb.get("result") in ("won", "lost", "void"):
             continue
         for leg in cb.get("legs") or []:
-            if leg.get("result") in ("won", "lost", "push"):
+            if leg.get("result") in ("won", "lost", "push", "void"):
                 continue
             q = {"home": leg.get("home", ""), "away": leg.get("away", ""),
                  "start": leg.get("start"), "sofa_id": ""}
@@ -288,22 +288,31 @@ def settle_pending() -> int:
             except Exception:
                 score = None
             if not score:
-                continue                              # pas de score final fiable -> on retente plus tard
+                continue                              # pas de score final fiable -> on retente (borné plus bas)
             try:
                 res = settle_pick(leg.get("code", ""), score)
             except Exception:
                 res = None
-            if res in ("won", "lost", "push"):
-                leg["result"] = res
-                leg["score"] = score.get("label") or ""
+            # SCORE TROUVÉ : si settle_pick tranche -> résultat ; sinon le code est IRRÉCUPÉRABLE
+            # (non réglable sur ce match fini) -> VOID, on ne bloque pas le combiné dessus.
+            leg["result"] = res if res in ("won", "lost", "push") else "void"
+            leg["score"] = score.get("label") or ""
+        cb["tries"] = (cb.get("tries") or 0) + 1
         legs = cb.get("legs") or []
+        if cb["tries"] >= 8:                          # borne : match introuvable trop longtemps -> void
+            for l in legs:
+                if l.get("result") not in ("won", "lost", "push", "void"):
+                    l["result"] = "void"
         results = [l.get("result") for l in legs]
-        if "lost" in results:
+        if any(r not in ("won", "lost", "push", "void") for r in results):
+            continue                                  # encore des jambes VRAIMENT en attente (< 8 essais)
+        if "lost" in results:                         # verdict GARANTI (toutes les jambes tranchées)
             cb["result"] = "lost"
-            n += 1
-        elif all(r in ("won", "push") for r in results):
-            cb["result"] = "won" if any(r == "won" for r in results) else "void"
-            n += 1
+        elif any(r == "won" for r in results):
+            cb["result"] = "won"                      # cote effective (push/void neutres) via _combo_result_profit
+        else:
+            cb["result"] = "void"                     # que des push/void -> remboursé
+        n += 1
         # sinon : des jambes encore en attente -> on ne tranche pas
     if n:
         _save(d)
