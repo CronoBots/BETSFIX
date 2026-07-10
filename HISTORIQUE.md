@@ -12,6 +12,25 @@
 
 ---
 
+## 2026-07-11 — Fin des cartes « Analysé · pas de pari conseillé » (publié devenu abstention)
+
+**Quoi** (retour user : « pourquoi garder le match pas de pari conseillé ? ») : Juventude–Vila Nova
+s'affichait « Analysé · pas de pari conseillé » alors qu'il A un provisoire (« Victoire Juventude-RS »
+@1.74). Cause : le match avait été PUBLIÉ (get_prono) à un scan antérieur puis est devenu une ABSTENTION
+(bets vidés au rescan). La règle « publié = affiché » (`list_for`, `get_prono AND not settled`) le gardait
+au board -> `_sport_row` « pas de pari conseillé », et son provisoire était dédoublonné (déjà au board).
+
+**Fix** (`app/analyses.py:list_for`) : un match publié+non réglé n'est gardé au board QUE s'il reste un
+pari à AFFICHER (`retained_bet(for_history=True) is not None`). Si les bets ont été vidés (abstention pure),
+il SORT de `list_for` -> son PROVISOIRE doré l'affiche (comme les autres abstentions, ex. NY Knicks). Le cas
+« publié + pari encore figé » (Auger-Aliassime–Djokovic, [[published-pick-frozen-consistency]]) reste gardé
+car `retained_bet(for_history=True)` renvoie le pari. Aucune perte : le match non compté (stat_bet vide)
+reste sur disque + calibré (fantômes).
+
+**Régression vérifiée** : Juventude hors `list_for` -> affiché en provisoire doré (mc-prov-tag) ; 5 tests
+published/frozen/provisional OK ; **265 tests** ; selfcheck **12 ✅** ; compteur ROI **monotone 110/105
+INCHANGÉ**.
+
 ## 2026-07-10 — Cohérence d'affichage : provisoires & combiné du jour = comme les paris à jouer
 
 **Quoi** (demande user : « pourquoi des présentations différentes ? je veux les provisoires et le combiné du

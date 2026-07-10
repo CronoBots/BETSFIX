@@ -305,7 +305,14 @@ def list_for(sport: str) -> list[dict]:
             if not _kept and not is_settled(d):
                 try:
                     from app import notify as _notify
-                    _kept = bool(_notify.get_prono(str(d.get("id"))))
+                    # PUBLIÉ (à venir) -> gardé SEULEMENT s'il reste un pari à AFFICHER (figé for_history).
+                    # Si les bets ont été VIDÉS au rescan (abstention pure), on ne garde PAS ici : le
+                    # PROVISOIRE doré l'affichera à la place (comme les autres abstentions), au lieu d'une
+                    # carte « Analysé · pas de pari conseillé » = bruit (retour user 2026-07-11). Le cas
+                    # « publié + pari encore figé » (Auger-Aliassime–Djokovic) reste gardé car
+                    # retained_bet(for_history=True) renvoie le pari publié.
+                    _kept = (bool(_notify.get_prono(str(d.get("id"))))
+                             and retained_bet(sport, d.get("id"), for_history=True) is not None)
                 except Exception:
                     _kept = False
             if not _kept:
