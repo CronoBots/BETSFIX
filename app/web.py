@@ -3162,7 +3162,9 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
         # ÉTAT RÉEL UNIBET (pas l'heure prévue) : score live = EN COURS. Un provisoire EN COURS n'est plus
         # « à venir » -> on le marque `_is_live` pour l'onglet LIVE + section « En direct » (demande user
         # 2026-07-10). Tennis souvent DÉCALÉ (heure figée) -> on se fie au live + coup d'envoi Unibet frais.
-        _has_live = bool(match_select.live_state_for(sp, _h, _a))
+        _lstate = match_select.live_state_for(sp, _h, _a)
+        _has_live = bool(_lstate)
+        _lf = live_fields(_lstate, sp)          # score live (buts/points/sets) — AUCUN réseau (cache)
         _st, _usdt = match_select.fresh_status(sp, _h, _a, "notstarted", _has_live, start_iso=m.get("start"))
         if _usdt is not None:                   # heure Unibet fraîche (reflète un éventuel décalage)
             dt = _usdt
@@ -3221,9 +3223,13 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
             f'<span class="mc-comp">{comp}</span>'
-            # Badge : « 🟢 en cours » si le match est LIVE (onglet Live/section En direct), sinon l'heure
-            # seule (le programme est déjà groupé par jour -> pas de redite « Aujourd'hui HH:MM »).
-            + (f'<span class="mc-badge mc-live">🟢 en cours</span>' if _is_live
+            # Badge : LIVE (onglet Live/section En direct) -> « 🟢 <score en direct> » (buts/points/sets,
+            # comme les vraies cartes ; + horloge foot/basket si dispo), sinon « 🟢 en cours » tant que le
+            # score n'est pas encore capté, sinon l'heure seule (le programme est groupé par jour).
+            + (f'<span class="mc-badge mc-live">🟢 {html.escape(_lf["score"])}'
+               + (f' · {html.escape(_lf["live_time"])}' if _lf.get("live_time") else "") + '</span>'
+               if (_is_live and _lf.get("score"))
+               else '<span class="mc-badge mc-live">🟢 en cours</span>' if _is_live
                else f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=False))}</span>')
             + '</div>'
             f'<div class="mc-teams">{teams}</div>'

@@ -12,6 +12,19 @@
 
 ---
 
+## 2026-07-10 — Score EN DIRECT sur les cartes provisoires (onglet Live)
+
+**Quoi** (demande user) : les cartes provisoires « en cours » (onglet Live) n'affichaient pas le score en
+direct, contrairement aux vraies cartes. Fix (`app/web.py:_programme_items`) : on capture l'état live
+(`match_select.live_state_for`, déjà appelé pour `_is_live`) et on en extrait le score via `live_fields`
+(buts/points/sets, AUCUN réseau — cache). Le badge live passe de « 🟢 en cours » à « 🟢 <score> » (+ horloge
+foot/basket si dispo), et retombe sur « 🟢 en cours » tant que le score n'est pas encore capté. Le cache live
+est chaud dans `directs_page` (`fetch_live_odds` avant `_programme_items`) -> score frais.
+
+**Régression vérifiée** : AST OK ; `/directs` affiche « 🟢 2-3 » sur la carte provisoire (Sinner-Djokovic en
+cours) ; accueil/directs 200 (cache froid -> `live_fields`={} -> badge « en cours », pas de crash) ; 44 tests
+(web/provisional/combo) OK. Aucun impact ROI (affichage seul).
+
 ## 2026-07-10 — Graphes provisoires + combiné du jour & FIX compteur bloqué
 
 **Quoi** (demande user) : ajouter une courbe d'équité aux blocs « Paris provisoires » et « Combiné du jour »
