@@ -91,12 +91,20 @@ def settle_pending() -> int:
     return n
 
 
-def entries() -> list:
+def load() -> dict:
+    """Snapshot du suivi provisoire (dict brut). Sert à dériver `stats()` ET `entries()` du MÊME état pour
+    garantir que le compteur (n/réglés/en attente) et la liste affichée soient TOUJOURS cohérents — sinon
+    deux `_load()` séparés peuvent tomber de part et d'autre d'une écriture (scan/règlement) et diverger
+    (bug vécu : compteur « 7 » vs liste de 11). Cf. `app/routers/web.py:_provisional_card`."""
+    return _load()
+
+
+def entries(d: dict | None = None) -> list:
     """Liste des provisoires suivis, PLUS RÉCENT (coup d'envoi) en premier : {name, sel, cote, result,
     start, sport}. `result` = None => EN ATTENTE (match pas encore réglé). Sert à AFFICHER le détail (au
     clic sur le bloc) : sinon un provisoire « en attente » n'est visible nulle part une fois le match
-    commencé (il a quitté « À venir »). Demande user 2026-07-10."""
-    d = _load()
+    commencé (il a quitté « À venir »). Demande user 2026-07-10. `d` = snapshot partagé (cf. `load()`)."""
+    d = _load() if d is None else d
     out = [{"name": p.get("name"), "sel": p.get("sel"), "cote": p.get("cote"),
             "result": p.get("result"), "start": p.get("start"), "sport": p.get("sport")}
            for p in d.values() if isinstance(p, dict)]
@@ -104,10 +112,11 @@ def entries() -> list:
     return out
 
 
-def stats() -> dict:
+def stats(d: dict | None = None) -> dict:
     """Agrégat INFO-SEULE : {n, settled, won, lost, pending, hit_rate, roi_pct, profit_units, avg_cote}.
-    Mise à plat 1 unité. ROI = profit / n_réglés × 100. {} si aucun provisoire suivi."""
-    d = _load()
+    Mise à plat 1 unité. ROI = profit / n_réglés × 100. {} si aucun provisoire suivi. `d` = snapshot
+    partagé avec `entries()` (cf. `load()`) → compteur et liste TOUJOURS cohérents."""
+    d = _load() if d is None else d
     if not d:
         return {}
     won = lost = push = pending = 0

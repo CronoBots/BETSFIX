@@ -12,6 +12,31 @@
 
 ---
 
+## 2026-07-10 — Stats « fausses 1x sur 2 » + compteur provisoire ≠ liste
+
+**Quoi** (retour user, 3 captures) : le bloc provisoires annonçait « 7 suivis / 3 réglés / 4 en attente »
+(+ « cote moyenne 0.95 » impossible) alors que la LISTE en dessous contenait 11 entrées ; et les stats
+générales étaient « pas les bonnes 1 fois sur 2 ». Diagnostic : `stats_full`/`provisional` sont
+DÉTERMINISTES (vérifié : 5 appels stables) → ce n'était pas un calcul faux mais **deux problèmes de
+cohérence/cache** :
+
+1. **Compteur provisoire ≠ liste** (`app/provisional.py` + `app/routers/web.py:_provisional_card`) :
+   `_provisional_card` appelait `stats()` PUIS `entries()` = **deux `_load()` séparés** du track. Si le scan
+   (`record()`) ou le règlement (`settle_pending()`) réécrivait `provisional_track.json` ENTRE les deux, le
+   compteur et la liste tombaient de part et d'autre de l'écriture → divergence (7 vs 11). Fix : `load()`
+   public + `stats(d)`/`entries(d)` acceptent un **snapshot partagé** ; `_provisional_card` prend UN snapshot
+   et le passe aux deux → compteur == liste TOUJOURS.
+2. **Stats « 1x sur 2 »** (`app/routers/web.py:stats_page` + `app/main.py`) : la charge DIRECTE (`frag=0`,
+   reload) rendait un corps FRAIS non caché, tandis que la navigation SPA (`frag=1`, clic onglet) servait un
+   fragment CACHÉ 20 s → l'utilisateur alternait frais/périmé selon reload vs clic. Fix : `frag=0` et `frag=1`
+   servent EXACTEMENT le même corps (cache partagé sous `panel/stats:*`) ; le warmer (`main.py`) garde
+   `panel/stats:all` chaud (recalcul 15 s < TTL 20 s) → stats fraîches ET cohérentes quel que soit le mode.
+
+**Régression vérifiée** : AST OK ; cohérence prouvée (compteur == liste = 11/5/6, `avg_cote`=1.51 jamais <1) ;
+`frag=0` == `frag=1` stable sur 6 appels alternés (fini le « 1x sur 2 ») ; warmer `stats_page(frag=1)` OK ;
+**255 tests** (3 nouveaux : cohérence snapshot + avg_cote≥1 + isolation d'écriture). Aucun impact ROI/stats
+figées (les provisoires restent hors ROI ; le fix ne touche que l'AFFICHAGE et le cache).
+
 ## 2026-07-10 — Garde-fou selfcheck : fantômes non réglés (« pour ne plus que ça arrive »)
 
 **Quoi** (demande user « Enregistre pour ne plus que cela arrive ») : rendre AUTOMATIQUE la détection d'un

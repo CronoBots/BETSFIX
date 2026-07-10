@@ -435,9 +435,10 @@ def _provisional_card() -> str:
     discipline d'abstention (favoris sans value) SANS jamais entrer dans le ROI réel. '' si aucun suivi."""
     try:
         from app import provisional as _pvt
-        s = _pvt.stats()
+        _snap = _pvt.load()               # UN seul snapshot -> compteur ET liste dérivés du MÊME état
+        s = _pvt.stats(_snap)
     except Exception:
-        s = {}
+        _snap, s = {}, {}
     if not s or not s.get("n"):
         return ""
     _roi = s.get("roi_pct")
@@ -449,7 +450,7 @@ def _provisional_card() -> str:
     import html as _h
     _B = {"won": ("W", "#34d27b"), "lost": ("L", "#ff6b6b"), "push": ("N", "#9a9aa6")}
     _rows = []
-    for e in _pvt.entries():
+    for e in _pvt.entries(_snap):
         _lt, _c = _B.get(e.get("result"), ("⏳", "#f6c54a"))          # pas de résultat -> ⏳ en attente
         _nm = _h.escape(str(e.get("name") or "").replace(" - ", " — "))
         _sel = _h.escape(str(e.get("sel") or ""))
@@ -494,25 +495,26 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
     since = since if since in ("7", "30") else ""
     days = {"7": 7, "30": 30}.get(since)
     ckey = f"panel/stats:{since or 'all'}"
-    if frag:
-        cached = fragcache.get(ckey)
-        if cached:
-            return HTMLResponse(cached)
-    body = ('<div class="pg-h">Statistiques</div>'
-            '<div class="statsx">'        # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
-            + _period_filter(since)
-            + _home_stats(days)           # vue d'ensemble + edge + calibration + transparence (en sections)
-            + _provisional_card()         # « info seule » : perf hypothétique des provisoires (hors ROI réel)
-            # Panneau SANTÉ (privé) chargé en AJAX : hors du cache commun (le fragment est mutualisé) et
-            # servi UNIQUEMENT au propriétaire (route /stats/health, is_owner) -> pas de fuite du stack de
-            # sources. Vide (donc invisible) pour les visiteurs. Données LIVE (ping sources) sans bloquer.
-            + '<div id="syshealth"></div>'
-            + '<script>fetch("/stats/health").then(r=>r.text()).then(function(h){'
-              'if(h){document.getElementById("syshealth").innerHTML=h;}})'
-              '.catch(function(){});</script>'
-            + '</div>')
-    if frag:
+    # Cache PARTAGÉ entre la charge directe (frag=0, enveloppée dans le shell) et le fragment SPA (frag=1) :
+    # les deux servent EXACTEMENT le même corps -> plus de divergence « frais (reload) vs périmé (clic
+    # onglet) » qui faisait « 1x sur 2 » les stats fausses. Le warmer (main.py) le garde chaud (≤15s).
+    body = fragcache.get(ckey)
+    if body is None:
+        body = ('<div class="pg-h">Statistiques</div>'
+                '<div class="statsx">'    # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
+                + _period_filter(since)
+                + _home_stats(days)       # vue d'ensemble + edge + calibration + transparence (en sections)
+                + _provisional_card()     # « info seule » : perf hypothétique des provisoires (hors ROI réel)
+                # Panneau SANTÉ (privé) chargé en AJAX : hors du cache commun (le fragment est mutualisé) et
+                # servi UNIQUEMENT au propriétaire (route /stats/health, is_owner) -> pas de fuite du stack de
+                # sources. Vide (donc invisible) pour les visiteurs. Données LIVE (ping sources) sans bloquer.
+                + '<div id="syshealth"></div>'
+                + '<script>fetch("/stats/health").then(r=>r.text()).then(function(h){'
+                  'if(h){document.getElementById("syshealth").innerHTML=h;}})'
+                  '.catch(function(){});</script>'
+                + '</div>')
         fragcache.put(ckey, body, ttl=PANEL_TTL)
+    if frag:
         return HTMLResponse(body)
     return HTMLResponse(web.spa_shell("stats", "Statistiques", body))
 

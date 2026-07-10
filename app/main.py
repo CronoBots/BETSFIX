@@ -38,6 +38,9 @@ async def _panel_warmer():
         ("panel/directs", lambda: web.directs_page(unibet=get_unibet(), frag=1)),
         ("panel/foot", lambda: foot.foot_page(frag=1)),
         ("panel/basket", lambda: basket.basket_page(frag=1)),
+        # stats gardées chaudes (défaut « tout ») : évite qu'un règlement/scan laisse le cache périmé
+        # jusqu'à 20 s (les stats affichées suivent les changements en ≤15 s, cohérentes frag=0/frag=1).
+        ("panel/stats:all", lambda: web.stats_page(frag=1)),
     ]
     while True:
         for key, call in panels:
