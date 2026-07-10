@@ -387,9 +387,17 @@ def settle_pick(code: str, score: dict) -> str | None:
         ta = sum(p[1] for p in periods.values())
         diff = (th + line - ta) if parts[1] == "HOME" else (ta + line - th)
         return "push" if diff == 0 else ("won" if diff > 0 else "lost")
-    if kind == "TIEBREAK" and len(parts) >= 2 and periods:    # un tie-break a-t-il eu lieu ? (set 7-6/6-7)
-        tb = any({p[0], p[1]} == {6, 7} for p in periods.values())
-        return "won" if (tb == (parts[1] == "YES")) else "lost"
+    if kind == "TIEBREAK" and len(parts) >= 2 and periods:    # tie-break(s) : YES/NO ou nombre OVER/UNDER
+        ntb = sum(1 for p in periods.values() if {p[0], p[1]} == {6, 7})   # nb de sets 7-6/6-7
+        if parts[1] in ("YES", "NO"):
+            return "won" if ((ntb > 0) == (parts[1] == "YES")) else "lost"
+        if parts[1] in ("OVER", "UNDER") and len(parts) >= 3:  # « Total tiebreaks +/- X.5 »
+            try:
+                line = float(parts[2])
+            except ValueError:
+                return None
+            return "push" if ntb == line else ("won" if ((ntb > line) == (parts[1] == "OVER")) else "lost")
+        return None
     # --- cartons / corners : depuis les STATS du match (event/{id}/statistics), cf. _event_stats ---
     if kind in ("CARDS", "REDCARDS", "CORNERS", "SHOTSOT", "SHOTS"):
         stats = score.get("stats") or {}
@@ -612,7 +620,11 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     if sport == "tennis":
         if any(k in t for k in ("ace", "double faute", "double-faute")):
             return ""
-        if "tie-break" in t or "tie break" in t or "jeu décisif" in t or "jeu decisif" in t:
+        if any(k in t for k in ("tie-break", "tie break", "tiebreak", "jeu décisif", "jeu decisif")):
+            # « (Nombre total de) Tiebreaks plus/moins de X.5 » -> compte OVER/UNDER ; sinon Oui/Non.
+            ln = re.search(r"(plus|moins)\s+de\s+(\d+[.,]?\d*)", t)
+            if ln:
+                return f"TIEBREAK {'OVER' if ln.group(1) == 'plus' else 'UNDER'} {ln.group(2).replace(',', '.')}"
             return "TIEBREAK NO" if (" non" in t or "aucun" in t or "sans" in t or "pas de" in t) else "TIEBREAK YES"
         # score exact en sets « Score 2-0 », « 2-1 <joueur> » (sans le mot « set »)
         ms = re.search(r"\b([0-3])\s*[-–]\s*([0-3])\b", t)
@@ -628,8 +640,9 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             if sgn and which():
                 val = (sgn.group(1).replace("−", "-").replace("–", "-") + sgn.group(2).replace(",", "."))
                 return f"GAMESHCAP {which()} {val}"
-    # total jeux d'un set (gère les deux ordres, y compris « Set 1 — Plus de 8.5 jeux »)
-    m = re.search(r"jeux?\s+(?:du\s+)?set\s*(\d)", t) or re.search(r"set\s*(\d).*?jeux", t)
+    # total jeux d'un set (gère les deux ordres : « Set 1 — Plus de 8.5 jeux » ET « 9.5 jeux dans le set 1 »)
+    m = (re.search(r"jeux?\s+(?:du\s+)?set\s*(\d)", t) or re.search(r"set\s*(\d).*?jeux", t)
+         or re.search(r"jeux?\b.{0,12}\bset\s*(\d)", t))
     if m and ("plus" in t or "moins" in t):
         ln = re.search(r"(plus|moins) de (\d+[.,]?\d*)", t)
         if ln:
@@ -1142,9 +1155,17 @@ async def _settle_analyses_impl() -> int:
                            or (bool(cmb.get("legs")) and cmb.get("result") in _NRES
                                and not d.get("notified_combo")))
                           and (d.get("notify_tries") or 0) < 5)
+        # Fantômes (calibrage) encore en attente sur un match FINI -> on retente le règlement, BORNÉ
+        # (shadow_tries < 4) : certains marchés restent non calculables (services breakés, box-score
+        # absent) et ne doivent pas re-boucler indéfiniment. Réutilise result.raw caché (0 réseau pour
+        # tiebreaks/jeux/mi-temps ; réseau seulement pour les props joueur PLAYERBK/PLAYERFB).
+        shadow_pending = (any(s.get("result") not in ("won", "lost", "push", "void")
+                              for s in (d.get("shadow") or []))
+                          and (d.get("shadow_tries") or 0) < 4)
         if ((pick_settled or pick_giveup)
                 and d.get("settle_v") == _SETTLE_VERSION
-                and not votes_pending and not combo_pending and not notify_pending):
+                and not votes_pending and not combo_pending and not notify_pending
+                and not shadow_pending):
             continue
         # On tente le règlement dès que le match est PROBABLEMENT fini (`likely_finished`), pas seulement
         # à la fin de la fenêtre `status_of` (souvent trop longue, ex. tennis 210 min) : SofaScore
@@ -1564,7 +1585,18 @@ async def _settle_analyses_impl() -> int:
                              or code_from_pick(sp.get("sel", ""), sport, d.get("home", ""), d.get("away", "")))
                         sp["code"] = c
                         r = await _settle_one(c) if c else None
+                        if r is None:      # code FIGÉ périmé (fantôme d'avant un fix de code_from_pick) ->
+                            # re-dériver du libellé (code_from_pick amélioré : tiebreaks OVER/UNDER, jeux
+                            # du set, handicap de jeux…) et ne remplacer QUE si ça règle réellement.
+                            c2 = code_from_pick(sp.get("sel", ""), sport, d.get("home", ""), d.get("away", ""))
+                            if c2 and c2 != c:
+                                r2 = await _settle_one(c2)
+                                if r2 is not None:
+                                    sp["code"], r = c2, r2
                     sp["result"] = r
+                # borne la re-tentative : compte l'essai s'il reste des fantômes non réglables
+                if any(s.get("result") not in ("won", "lost", "push", "void") for s in shadow):
+                    d["shadow_tries"] = (d.get("shadow_tries") or 0) + 1
             d["settle_v"] = _SETTLE_VERSION
             # CLV (Closing Line Value) du pari RÉSULTAT : figé UNE FOIS, ici au règlement — tant
             # qu'odds_history a encore la cote de clôture (purge à 48 h, le règlement tombe avant).

@@ -12,6 +12,41 @@
 
 ---
 
+## 2026-07-10 — Résoudre les fantômes non réglés (traduction FR→EN + marchés tennis)
+
+**Quoi** (demande user : « résoudre les pronos fantôme non résolus et trouver des sources si les nôtres ne
+suffisent pas ») : diagnostic de 146 fantômes en attente → **2 causes**, corrigées SANS nouvelle source.
+
+1. **Traduction FR→EN des noms de pays** (`app/sources.py`) — CAUSE RACINE de 34 fantômes (3 matchs basket
+   internationaux voidés à tort : Syrie-Irak, Suède-Rép.Tchèque, Roumanie-Grèce). Unibet nomme en FRANÇAIS
+   (« Syrie », « Rép.Tchèque »), LiveScore/Flashscore en ANGLAIS → aucun match trouvé → void. Fix : (a) table
+   `_FR_EN` COMPLÉTÉE (~60 pays manquants : syrie, roumanie, malte, armenie, georgie, lettonie… + abréviations
+   « rep.tcheque ») ; (b) `_tok()` traduit désormais **jeton à jeton** (pas seulement le nom entier) → gère les
+   suffixes « Malte (F) » et abréviations. LiveScore trouve alors 91-81 / 87-76 / 73-66 avec les noms FR. Ces
+   sources étaient DÉJÀ branchées au règlement — c'était un défaut de matching de noms, pas un manque de source.
+   (Malte(F)-Armenia(W) reste introuvable partout = vrai trou de source, laissé void.)
+
+2. **Marchés tennis calculables mais mal codés** (`app/settle_analyst.py`) — ~23 fantômes tennis (tiebreaks,
+   handicap de jeux, jeux du set 1) avaient un code FIGÉ générique (`OVER 0.5`, `HCAP HOME -4.5`) issu d'un
+   `code_from_pick` d'AVANT les fixes GAMESHCAP/tiebreak → non réglables, alors que les données (jeux par set
+   dans `result.raw.periods`) étaient DÉJÀ là. Fix : (a) `code_from_pick` reconnaît « (Nombre total de)
+   Tiebreaks plus/moins de X » → `TIEBREAK OVER/UNDER X` (orthographe collée incluse) et « X jeux dans le set
+   N » → `SETGAMES` ; (b) `settle_pick` gère `TIEBREAK OVER/UNDER <ligne>` en COMPTANT les sets 7-6/6-7 ; (c) le
+   règlement des fantômes RE-DÉRIVE le code du libellé quand le code figé échoue (ne remplace que si ça règle) ;
+   (d) trigger `shadow_pending` BORNÉ (`shadow_tries<4`) pour re-traiter un match fini aux fantômes en attente
+   (0 réseau : raw en cache). Résout tiebreaks/handicap-jeux/jeux-set du backlog + tout futur fantôme.
+
+**Résultat** : fantômes en attente **146 → 86**, dont **66 sur les matchs d'AUJOURD'HUI pas encore joués**
+(normal). Résiduel réel = 20 : Malte-Armenia (10, aucune source), props joueur basket malformés au scan (4,
+noms tronqués/joueuse hors match — bruit calibration, non corrigé), stats foot Série B brésilienne (4, FotMob
+ne couvre pas → `stats=None`), services breakés tennis (1, non dérivable des sets). Tous BORNÉS (shadow_tries).
+
+**Régression vérifiée** : AST OK (sources.py + settle_analyst.py) ; `settle_pick`/`code_from_pick` testés sur
+données réelles (Safiullin-Djokovic : GAMESHCAP -4.5 lost / +7.5 won, TIEBREAK OVER 0.5 won — set 6-7) ;
+selfcheck **12 ✅ / 0 erreur** ; compteur ROI **monotone 110 figés / 105 affichés INCHANGÉ** (fantômes hors
+ROI) ; calibration exhaustive **2480 prédictions (2218 fantômes)** enrichie. Les 3 matchs re-réglés n'étaient
+pas des paris retenus (`retained_bet=None`) → 0 impact ROI, seulement calibration/affichage.
+
 ## 2026-07-10 — Sans value : ni retenu ni affiché, mais nourrit les fantômes
 
 **Quoi** (demande user, ex. Manas–Damas à Liège affiché sans raison) : un match SANS value ne doit être ni

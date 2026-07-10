@@ -61,6 +61,29 @@ _FR_EN = {
     "jordanie": "jordan", "ouzbekistan": "uzbekistan", "jamaique": "jamaica",
     "haiti": "haiti", "cap-vert": "cape verde", "cap vert": "cape verde",
     "irak": "iraq", "iran": "iran", "qatar": "qatar", "canada": "canada",
+    # Europe (manquants) — sélections nationales fréquentes en basket/foot
+    "syrie": "syria", "roumanie": "romania", "malte": "malta", "armenie": "armenia",
+    "georgie": "georgia", "azerbaidjan": "azerbaijan", "lettonie": "latvia",
+    "lituanie": "lithuania", "estonie": "estonia", "bielorussie": "belarus",
+    "russie": "russia", "moldavie": "moldova", "bulgarie": "bulgaria",
+    "bosnie": "bosnia herzegovina", "bosnie-herzegovine": "bosnia herzegovina",
+    "montenegro": "montenegro", "macedoine": "north macedonia macedonia",
+    "macedoine du nord": "north macedonia", "albanie": "albania", "kosovo": "kosovo",
+    "chypre": "cyprus", "luxembourg": "luxembourg", "portugal": "portugal",
+    "france": "france", "roumanie du nord": "romania",
+    "rep tcheque": "czech republic czechia", "rep.tcheque": "czech republic czechia",
+    # abréviation jeton -> pays (résolue aussi par la traduction jeton-à-jeton)
+    "tcheque": "czech republic czechia",
+    # Proche/Moyen-Orient, Asie, Afrique, Amériques (manquants courants)
+    "israel": "israel", "liban": "lebanon", "koweit": "kuwait", "bahrein": "bahrain",
+    "oman": "oman", "emirats arabes unis": "united arab emirates uae",
+    "inde": "india", "indonesie": "indonesia", "philippines": "philippines",
+    "thailande": "thailand", "vietnam": "vietnam", "taiwan": "taiwan chinese taipei",
+    "nigeria": "nigeria", "ghana": "ghana", "angola": "angola", "soudan": "sudan",
+    "soudan du sud": "south sudan", "mali": "mali", "guinee": "guinea",
+    "venezuela": "venezuela", "uruguay": "uruguay", "paraguay": "paraguay",
+    "porto rico": "puerto rico", "republique dominicaine": "dominican republic",
+    "costa rica": "costa rica", "panama": "panama",
 }
 
 
@@ -80,9 +103,16 @@ def _tok(s: str) -> set:
     traduction anglaise (sélections nationales françaises, villes francisées)."""
     base = _deacc_low(s)
     toks = {t for t in re.findall(r"[a-z]+", base) if len(t) >= 3}
+    # traduction FR->EN sur le NOM ENTIER (ex. "cote d'ivoire" -> "ivory coast")
     en = _FR_EN.get(base)
     if en:
         toks |= {t for t in re.findall(r"[a-z]+", en) if len(t) >= 3}
+    # ET jeton à jeton (ex. "Malte (F)" -> "malte" -> "malta", "Rép.Tchèque" -> "tcheque" -> "czech")
+    # — indispensable quand un suffixe (F)/(W) ou une abréviation casse le lookup nom-entier.
+    for t in list(toks):
+        en2 = _FR_EN.get(t)
+        if en2:
+            toks |= {x for x in re.findall(r"[a-z]+", en2) if len(x) >= 3}
     toks |= {_TOK_ALIAS[t] for t in toks if t in _TOK_ALIAS}
     return toks
 
