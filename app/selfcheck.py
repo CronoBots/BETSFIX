@@ -382,6 +382,51 @@ def _check_data_completeness(rows) -> dict:
             "items": items}
 
 
+def _finished_days_ago(d) -> int | None:
+    """Nb de jours depuis le coup d'envoi (None si date illisible). Sert à ne PAS alerter sur un match
+    tout juste fini (règlement encore en cours)."""
+    s = (d.get("start") or "")[:10]
+    try:
+        dt = datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return (datetime.now(timezone.utc) - dt).days
+
+
+def _check_ghost_resolution(rows) -> dict:
+    """Fantômes (calibrage) non réglés sur un match TERMINÉ depuis >2 j. Normal : 1-2 marchés exotiques
+    restent par match (services breakés, box-score absent, stats non couvertes). ANORMAL : un match dont la
+    MAJORITÉ des fantômes sont en attente = TROU de résolution SYSTÉMIQUE — c'est le signal exact qu'a
+    produit l'incident 2026-07-10 (3 matchs basket voidés à tort faute de traduction FR→EN des noms de
+    pays : chacun ~100 % de fantômes pending). Seuil anti-bruit calqué sur data_completeness : INFO à 1-2
+    matchs suspects (trou isolé/irréductible, ex. Malte-Armenia sans aucune source), WARN dès 3 (plusieurs
+    d'un coup = régression du pipeline de résolution, ex. nouveau marché mal codé ou noms non traduits).
+    Forward-safe : détecte le trou TÔT (auto) au lieu de le découvrir à la main. Cf. [[markets-resolvability-sources]]."""
+    SETTLED = ("won", "lost", "push", "void")
+    suspect = []
+    for _, d in rows:
+        sh = d.get("shadow") or []
+        if len(sh) < 4:                            # trop peu de fantômes pour juger un « ratio »
+            continue
+        age = _finished_days_ago(d)
+        if age is None or age < 2:                 # pas assez vieux -> règlement peut être en cours
+            continue
+        if analyses.status_of(d) != "finished":
+            continue
+        pend = sum(1 for s in sh if s.get("result") not in SETTLED)
+        if pend >= 5 and pend >= 0.5 * len(sh):    # majorité en attente = trou, pas 1-2 marchés exotiques
+            suspect.append((d, pend, len(sh)))
+    n = len(suspect)
+    lvl = "warn" if n >= 3 else ("info" if n else "ok")
+    items = [f"{d.get('sport')} {d.get('home', '?')}–{d.get('away', '?')} : {p}/{t} fantômes en attente"
+             for d, p, t in suspect[:10]]
+    return {"key": "ghost_resolution", "level": lvl,
+            "title": "Fantômes réglés sur match terminé",
+            "detail": (f"{n} match(s) terminé(s) avec une MAJORITÉ de fantômes non réglés "
+                       f"(trou de résolution : noms non traduits ? marché non codé ? source absente ?)."),
+            "items": items}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -400,6 +445,7 @@ def run(persist: bool = False) -> dict:
         _check_combo_correlated_pricing(rows),
         _check_combo_ev_value(rows),
         _check_combo_not_dominated(rows),
+        _check_ghost_resolution(rows),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]

@@ -12,6 +12,25 @@
 
 ---
 
+## 2026-07-10 — Garde-fou selfcheck : fantômes non réglés (« pour ne plus que ça arrive »)
+
+**Quoi** (demande user « Enregistre pour ne plus que cela arrive ») : rendre AUTOMATIQUE la détection d'un
+trou de résolution des fantômes, au lieu de le découvrir à la main (cas Syrie-Irak & co, voidés faute de
+traduction FR→EN des noms).
+
+- **13e check** `app/selfcheck.py::_check_ghost_resolution` (+ helper `_finished_days_ago`, ajouté à `run()`) :
+  repère un match TERMINÉ depuis >2 j dont la MAJORITÉ des fantômes (`shadow`) restent en attente (≥5 pending
+  ET ≥50 % du total). Seuil anti-bruit calqué sur `data_completeness` : **info** à 1-2 matchs suspects (trou
+  isolé/irréductible, ex. Malte-Armenia sans aucune source), **WARN dès 3** (plusieurs d'un coup = régression
+  du pipeline → alerte Telegram via le run quotidien de `tools/selfcheck.py`). 100 % lecture seule.
+- **Tests** `tests/test_selfcheck_ghosts.py` (5) : ok (fantômes réglés) · info (1 trou isolé) · **warn (3 matchs
+  = scénario incident FR→EN)** · ignore les matchs récents (age<2j) · run complet reste ok/info.
+
+**Régression vérifiée** : AST OK ; le check renvoie **info=1** (Malte-Armenia) sur l'état réel → `run()` reste
+`status=info`, `counts` inchangés (0 error/warn) ; test synthétique 3 matchs → **warn** confirmé ; 252 tests
+(5 nouveaux) ; aucun effet de bord (le check ne touche ni sélection ni règlement). Mémoire
+[[ghost-resolution-guard]] créée. S'active au run quotidien (alerte si un futur trou apparaît).
+
 ## 2026-07-10 — Résoudre les fantômes non réglés (traduction FR→EN + marchés tennis)
 
 **Quoi** (demande user : « résoudre les pronos fantôme non résolus et trouver des sources si les nôtres ne
