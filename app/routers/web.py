@@ -475,9 +475,10 @@ def _provisional_card() -> str:
     return (
         '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
         '<span>info seule · hors ROI</span></div>'
-        '<div class="sx-data-note">« Et si on jouait <b>chaque provisoire</b> ? » — le pari le plus probable '
-        'affiché sur les matchs <b>sans value</b> (favoris à cote courte). Mesuré à titre indicatif pour '
-        'valider la discipline d\'abstention : <b>ne compte PAS</b> dans le ROI réel (mise à plat 1 u).</div>'
+        '<div class="sx-data-note">« Et si on jouait <b>chaque provisoire</b> ? » — sur les matchs '
+        '<b>sans value</b>, le MEILLEUR angle indicatif <b>analysé</b> (l\'angle le plus solide du match, '
+        'pas un favori par défaut). Mesuré à titre indicatif pour valider la discipline d\'abstention : '
+        '<b>ne compte PAS</b> dans le ROI réel (mise à plat 1 u).</div>'
         '<div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>provisoires suivis</span></div>'
         f'<div class="sx-kpi"><b>{s.get("settled", 0)}</b><span>réglés</span></div>'

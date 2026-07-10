@@ -12,6 +12,32 @@
 
 ---
 
+## 2026-07-11 — Provisoire ANALYSÉ et cohérent + reset du tracker
+
+**Quoi** (retour user : « le provisoire est Victoire Juventude mais l'analyse dit qu'il n'y a pas de pari à
+jouer — c'est incohérent ; le provisoire doit être analysé comme un pari à jouer, juste hors ROI ») :
+
+**Cause** : en abstention le tableau « Paris classés » est VIDE (le prompt dit « mieux vaut vide + SKIP »),
+donc `_provisional_pick` retombait sur le REPLI favori 1X2 BRUT — décorrélé du raisonnement (« Victoire
+favori » vs « ne joue pas le favori, l'angle le plus solide serait un under »).
+
+**Fix (0 impact sur les paris à jouer / le ROI)** :
+1. Prompt (`generate_analyses.py`) : nouvelle section `## 🧪 Pari provisoire` OBLIGATOIRE dès un SKIP =
+   le MEILLEUR angle que l'analyste a lui-même pointé (jamais un favori par défaut), analysé aussi
+   sérieusement qu'un vrai pari + `PROV: <CODE>`.
+2. `_provisional_pick` : lit cette section EN PRIORITÉ ; **repli favori brut SUPPRIMÉ** (plus jamais de
+   provisoire incohérent — si l'analyste n'a rien désigné → None → match caché).
+3. Affichage (`analyses.reasoning_html`) : montre « 🧪 Le pari provisoire » (l'analyse cohérente) en
+   priorité ; `_structured` l'exclut (pas de doublon) ; `PROV:` retiré via `_strip`. Description du bloc
+   Stats mise à jour (« favoris à cote courte » → « le meilleur angle indicatif analysé »).
+4. **Tracker RÉINITIALISÉ** (choix user) : `data/provisional_track.json` vidé (sauvegarde `.pre-reset.bak`)
+   car il mélangeait ~10 favoris bruts (ancienne méthode) + ~11 analysés -> le ROI provisoire n'était pas
+   représentatif. Repart propre, se re-remplit cohéremment aux prochains scans.
+
+**Validé** : re-scan complet -> **5/5 abstentions ont une section 🧪 cohérente** (Norvège-Angleterre → Plus
+de 2.5 buts ; Giustino → au moins un set hand.+1.5 ; LA Sparks → moins de 92.5 pts…), 0 favori brut, le modèle
+obéit à 100 % ; `reasoning_html` les affiche ; selfcheck **12 ✅** ; ROI réel **monotone 110/105 INCHANGÉ**.
+
 ## 2026-07-11 — Analyse des provisoires de nouveau visible (raisonnement restitué)
 
 **Quoi** (retour user : « de nouveau aucune analyse des paris provisoires visible ») : déplier un provisoire
