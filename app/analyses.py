@@ -802,6 +802,23 @@ def _structured(md: str) -> str | None:
     return '<div class="da">' + "".join(parts) + "</div>"
 
 
+def reasoning_html(sport: str, match_id) -> str:
+    """Le RAISONNEMENT « 🎯 Le pari à jouer » (verdict de l'analyste) rendu en HTML, dans un bloc déplié.
+    Pour les PROVISOIRES/abstentions : ce contenu (pourquoi le pari / le SKIP, l'angle le plus solide) est
+    normalement distribué SOUS les paris de la carte (`bets_html` + `_verdict_notes`), mais une abstention
+    n'a pas de paris affichés (tableau « SKIP ») -> le raisonnement disparaissait. On le restitue ici. ''
+    si absent. NE PAS l'ajouter aux cartes à-jouer (doublon avec les notes par pari)."""
+    md = load(sport, match_id)
+    if not md:
+        return ""
+    verdict = _find(_sections(md), "🎯", "Verdict")
+    if not verdict:
+        return ""
+    return ('<details class="da-faits" open>'
+            '<summary onclick="event.stopPropagation()">🎯 L\'analyse du pari</summary>'
+            f'<div class="da-faits-b">{_render_blocks(verdict)}</div></details>')
+
+
 def _bets_section(md: str) -> str:
     return _find(_sections(_strip(md)), "📊", "Paris class", "paris")
 

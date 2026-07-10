@@ -3257,7 +3257,12 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
                                         server=_lf.get("server"), points=_lf.get("game_pts"),
                                         clock=_lf.get("live_time"), periods=_lf.get("periods"))
                        if (_is_live and _lf.get("score")) else "")
-            _body = _lscore + ("" if _is_live else _bars) + analyses.bets_html(sp, _fid) + _ana
+            # RAISONNEMENT « 🎯 Le pari à jouer » : pour une abstention, le tableau des paris est « SKIP »
+            # (bets_html vide) et `render` retire le verdict -> l'analyse semblait réduite à « Informations »
+            # (retour user 2026-07-11). On restitue le raisonnement (pourquoi le pari / le SKIP) via
+            # `reasoning_html`, entre les paris et les faits.
+            _body = (_lscore + ("" if _is_live else _bars) + analyses.bets_html(sp, _fid)
+                     + analyses.reasoning_html(sp, _fid) + _ana)
             # Analyse INLINE dans `.exp` (un clic dedans ne replie pas). PAS de classe `.mc-ana` : elle
             # déclencherait `_mcLoad` -> `fetch(data-ana=null)` -> /null -> 404 « {detail: Not Found} »
             # qui écrasait l'analyse (bug vu 2026-07-10). Ici l'analyse est déjà là -> aucun fetch.

@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-11 — Analyse des provisoires de nouveau visible (raisonnement restitué)
+
+**Quoi** (retour user : « de nouveau aucune analyse des paris provisoires visible ») : déplier un provisoire
+ne montrait que les barres « Cotes & chances » + « Informations » (les faits), SANS le raisonnement.
+
+**Cause** : pour une abstention, la section « 📊 Paris classés » du `.md` = « *(aucun pari retenu — SKIP)* »
+-> `bets_html` la filtre (vide) ; ET `_structured`/`render` RETIRE la section « 🎯 Le pari à jouer » (le
+verdict/raisonnement) car pour un pari à jouer elle est distribuée SOUS les paris (`_verdict_notes`). Une
+abstention n'ayant pas de paris affichés, ce raisonnement (1236 c : pourquoi le SKIP, l'angle le plus solide)
+disparaissait complètement.
+
+**Fix** : `analyses.reasoning_html(sport, id)` rend la section « 🎯 Le pari à jouer » dans un bloc déplié ;
+ajouté au corps du provisoire (`app/web.py:_programme_items`) entre les paris et les faits. NE PAS l'ajouter
+aux cartes à-jouer (doublon avec les notes par pari).
+
+**Régression vérifiée** : provisoire Juventude affiche le raisonnement (« L'analyse du pari » + SKIP assumé)
++ les faits ; **265 tests** ; selfcheck **12 ✅** ; ROI **monotone 110/105 INCHANGÉ** (affichage seul).
+
 ## 2026-07-11 — Fin des cartes « Analysé · pas de pari conseillé » (publié devenu abstention)
 
 **Quoi** (retour user : « pourquoi garder le match pas de pari conseillé ? ») : Juventude–Vila Nova
