@@ -2213,7 +2213,10 @@ _COUNTDOWN_JS = (
 # (Le compteur de bankroll a été retiré avec l'UI simulation, 2026-06-12.)
 _ANIM_JS = (
     "(function(){var b=document.body;b.classList.add('boot');"
-    "setTimeout(function(){b.classList.remove('boot');},950);})();"
+    "setTimeout(function(){b.classList.remove('boot');},950);"
+    # Le splash (logo) couvre l'écran ~1,65 s -> on (re)joue les animations graphes/stats APRÈS sa
+    # disparition, pour qu'elles soient VISIBLES sur un chargement direct (ex. /stats). (demande user)
+    "setTimeout(function(){if(window._sxAnim)window._sxAnim(document);},1700);})();"
 )
 
 # Handlers de CARTES partagés (layout ET spa_shell) : accordéons data-exp, cartes compactes .mc,
@@ -2287,7 +2290,9 @@ _SPA_JS = (
     "var n=document.querySelectorAll('.botnav a'),j;for(j=0;j<n.length;j++)"
     "n[j].classList.toggle('on',n[j].getAttribute('data-tab')===t);"
     "document.body.className='sp-'+t;"
-    "var sp=panel(t);if(sp){if(window._twCount)setTimeout(function(){window._twCount(sp);},50);"
+    # À l'affichage de l'onglet : REDÉMARRE les animations graphes/stats (courbe + compteurs) — donc APRÈS
+    # le splash, et à chaque revisite -> toujours visibles (les panneaux sont préchargés derrière le splash).
+    "var sp=panel(t);if(sp){if(window._sxAnim)setTimeout(function(){window._sxAnim(sp);},60);"
     "if(window._mcInit)window._mcInit(sp);}}"
     "function load(p){if(!p||p.getAttribute('data-loaded'))return;"
     "p.setAttribute('data-loaded','1');var u=p.getAttribute('data-src');"
@@ -2296,7 +2301,8 @@ _SPA_JS = (
     # onglet Directs : on n'allume le rouge clignotant QUE s'il y a du live dans le panneau
     "if((u||'').indexOf('/directs')>=0){var nv=document.querySelector('.botnav a[data-tab=\"directs\"]');"
     "if(nv)nv.classList.toggle('has-live',h.indexOf('🟢 Live')>=0);}"
-    "if(window._twScan)window._twScan(p);if(window._mcInit)window._mcInit(p);})"
+    "if(window._twScan)window._twScan(p);if(window._mcInit)window._mcInit(p);"
+    "if(window._sxAnim)window._sxAnim(p);})"
     ".catch(function(){p.removeAttribute('data-loaded');"
     "p.innerHTML='<div class=ldg>Erreur de chargement. Touchez l\\'onglet pour réessayer.</div>';});}"
     "function go(t,push){var p=panel(t);if(!p)return;load(p);show(t);"
@@ -2391,6 +2397,15 @@ _TERM_JS = (
     "window._twCount=function(root){try{var l=(root||document).querySelectorAll("
     "'.da-st-v,.sx-kpi>b,.spf-cv-kpis b'),i;"
     "for(i=0;i<l.length;i++)cnt(l[i]);}catch(e){}};"
+    # ANIMATIONS graphes/stats : (re)JOUÉES à CHAQUE affichage d'onglet (donc APRÈS le splash — sinon la
+    # courbe se traçait DERRIÈRE le logo d'intro et les compteurs montaient invisibles). Redémarre le tracé
+    # de la courbe (retire/réapplique l'animation) + relance les compteurs. Idempotent, respecte reduced-motion.
+    "window._sxAnim=function(root){if(_rm)return;var r=root||document;"
+    "try{var g=r.querySelectorAll('.sx-heroc-line,.sx-heroc-area,.sx-heroc-pt'),i;"
+    "for(i=0;i<g.length;i++){var el=g[i];el.style.animation='none';el.getBoundingClientRect();"
+    "el.style.animation='';}}catch(e){}"
+    "try{var c=r.querySelectorAll('.da-st-v,.sx-kpi>b,.spf-cv-kpis b'),j;"
+    "for(j=0;j<c.length;j++){c[j]._c=0;cnt(c[j]);}}catch(e){}};"
     "window._twScan(document);window._twCount(document);})();"
 )
 
