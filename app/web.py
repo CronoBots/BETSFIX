@@ -3276,11 +3276,12 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
     return items
 
 
-def combo_legs_html(cb: dict, *, compact: bool = False) -> str:
+def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False) -> str:
     """Rendu UNIFIÉ (accueil/Stats/Live) des jambes d'un combiné du jour : badge de résultat W/L/N/⏳,
     emoji sport, sélection, cote, nom du match, et le SCORE EN DIRECT (🟢 …) de chaque jambe tant qu'elle
-    court (ou le score final une fois réglée). Le cache live est réchauffé en continu par le warmer
-    (directs_page) -> score frais partout. `compact` = police plus petite (accueil/bandeau)."""
+    court (ou le score final une fois réglée). `compact` = police plus petite (accueil/bandeau).
+    `expandable` (onglet Stats) : chaque jambe DOTÉE d'une justification (`leg['why']`, analyse dédiée
+    générée par le scan) devient un `<details>` cliquable qui déplie son analyse — comme un pari à jouer."""
     import html as _h
     _B = {"won": ("W", "#34d27b"), "lost": ("L", "#ff6b6b"), "push": ("N", "#9a9aa6")}
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
@@ -3302,13 +3303,24 @@ def combo_legs_html(cb: dict, *, compact: bool = False) -> str:
                         f'🟢 {_h.escape(_lfz["score"])}</span>')
         elif l.get("score"):
             _sco = f'<span style="flex:none;color:var(--dim);font-size:10px">{_h.escape(str(l.get("score")))}</span>'
-        rows.append(
-            '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;'
-            'border-top:1px solid rgba(255,255,255,.05)">'
-            f'<span style="flex:none;width:19px;height:19px;border-radius:6px;background:{_c};color:#0a0a0a;'
-            f'font-weight:900;font-size:10px;display:flex;align-items:center;justify-content:center">{_lt}</span>'
-            f'<span style="flex:1;min-width:0;line-height:1.25;font-size:{fs}">{emo} <b>{sel}</b>{cot}<br>'
-            f'<span style="color:var(--muted);font-size:9.5px">{nm}</span></span>{_sco}</div>')
+        _badge = (f'<span style="flex:none;width:19px;height:19px;border-radius:6px;background:{_c};'
+                  f'color:#0a0a0a;font-weight:900;font-size:10px;display:flex;align-items:center;'
+                  f'justify-content:center">{_lt}</span>')
+        _txt = (f'<span style="flex:1;min-width:0;line-height:1.25;font-size:{fs}">{emo} <b>{sel}</b>{cot}<br>'
+                f'<span style="color:var(--muted);font-size:9.5px">{nm}</span></span>')
+        _why = l.get("why")
+        if expandable and _why:                     # jambe cliquable -> déplie sa justification dédiée
+            rows.append(
+                '<details class="da-faits" style="border-top:1px solid rgba(255,255,255,.05)">'
+                '<summary onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px;'
+                f'padding:5px 0;list-style:none;cursor:pointer">{_badge}{_txt}{_sco}'
+                '<span style="flex:none;color:var(--dim);font-size:10px">▸</span></summary>'
+                '<div class="da-faits-b" style="font-size:11px;color:var(--muted);line-height:1.4;'
+                f'padding:2px 2px 9px 27px">{_h.escape(_why)}</div></details>')
+        else:
+            rows.append(
+                '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;'
+                f'border-top:1px solid rgba(255,255,255,.05)">{_badge}{_txt}{_sco}</div>')
     return "".join(rows)
 
 

@@ -1911,6 +1911,49 @@ def _track_provisional(sport, m, prov) -> None:
         pass
 
 
+def _analyze_combo_legs(combo: dict) -> None:
+    """Enrichit CHAQUE jambe du combiné du jour d'une JUSTIFICATION DÉDIÉE (`leg['why']`) + une SYNTHÈSE
+    (`combo['synth']`), via UN appel Claude — les jambes sont analysées comme des paris à jouer (demande
+    user 2026-07-11). Best-effort : ne casse jamais le scan si l'appel échoue (les jambes restent affichées
+    sans justification). Appelé UNE fois par jour (le combiné est figé après publication)."""
+    from app import analyses as _an
+    legs = combo.get("legs") or []
+    if not legs:
+        return
+    blocs = []
+    for i, l in enumerate(legs, 1):
+        md = _an.load(l.get("sport"), l.get("mid")) or ""
+        try:
+            faits = (_an._find(_an._sections(md), "📋", "Les faits", "faits") or "")[:600]
+        except Exception:
+            faits = ""
+        blocs.append(f"[{i}] {l.get('sport')} — {l.get('home')} vs {l.get('away')} — "
+                     f"pari : {l.get('sel')} @{l.get('cote')} (proba estimée ~{round((l.get('prob') or 0) * 100)}%)\n"
+                     f"    Faits du match : {faits or '(pas de faits captés)'}")
+    prompt = (
+        "Tu analyses le COMBINÉ MULTISPORT DU JOUR (info seule, hors ROI) de BETSFIX. Pour CHAQUE jambe "
+        "ci-dessous, écris une JUSTIFICATION propre à CE pari précis : 2 à 3 phrases COMPLÈTES et AUTONOMES, "
+        "chiffrées, ton de pro du pari sportif, français impeccable, ZÉRO généralité ni remplissage — "
+        "explique pourquoi ce pari est solide en t'appuyant sur les faits fournis (forme, H2H, absents, "
+        "cote vs proba). Puis une SYNTHÈSE (1 à 2 phrases : ce qui rend ces jambes solides ENSEMBLE). "
+        "Réponds AU FORMAT EXACT, une entrée par ligne, RIEN d'autre :\n"
+        "LEG1: <justification jambe 1>\nLEG2: <justification jambe 2>\n(… une ligne LEGn par jambe)\n"
+        "SYNTH: <synthèse>\n\nJambes :\n" + "\n".join(blocs))
+    try:
+        out = run_claude(prompt, timeout=200)
+    except Exception:
+        out = ""
+    if not out:
+        return
+    for i, l in enumerate(legs, 1):
+        mm = re.search(rf"^\s*LEG\s*{i}\s*:\s*(.+)", out, re.M)
+        if mm:
+            l["why"] = mm.group(1).strip()
+    ms = re.search(r"^\s*SYNTH\s*:\s*(.+)", out, re.M)
+    if ms:
+        combo["synth"] = ms.group(1).strip()
+
+
 _VOTES_CACHE: dict = {}   # (sport, sofa_id) -> votes : évite de récupérer les votes 2× par match
 
 
@@ -2480,18 +2523,23 @@ async def main():
         import datetime as _dt
         from app import combo_daily as _cdaily
         _day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
-        _combo = _cdaily.build_for_day(_day)
-        if _combo and _cdaily.record_daily(_combo, _day):
-            print(f"  🎯 Combiné du jour : cote {_combo['cote']} · {round(_combo['prob'] * 100)}% · "
-                  f"{len(_combo['legs'])} jambes.")
-            if not args.no_notify:
-                from app import notify
-                if notify.configured() and await notify.send(_cdaily.telegram_text(_combo)):
-                    _cdaily.mark_sent(_day)       # figé après publication aux abonnés
-        elif _combo:
-            print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")
+        _prev = _cdaily.today(_day)
+        if _prev and (_prev.get("sent") or _prev.get("result")):
+            print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")     # pas de re-analyse Claude
         else:
-            print("  🎯 Combiné du jour : aucun combiné fiable ≥ 1.9 possible aujourd'hui.")
+            _combo = _cdaily.build_for_day(_day)
+            if _combo:
+                _analyze_combo_legs(_combo)          # ANALYSE DÉDIÉE par jambe (comme un pari à jouer)
+                if _cdaily.record_daily(_combo, _day):
+                    print(f"  🎯 Combiné du jour : cote {_combo['cote']} · {round(_combo['prob'] * 100)}% · "
+                          f"{len(_combo['legs'])} jambes"
+                          f"{' (jambes analysées)' if any(l.get('why') for l in _combo['legs']) else ''}.")
+                    if not args.no_notify:
+                        from app import notify
+                        if notify.configured() and await notify.send(_cdaily.telegram_text(_combo)):
+                            _cdaily.mark_sent(_day)  # figé après publication aux abonnés
+            else:
+                print("  🎯 Combiné du jour : aucun combiné fiable ≥ 1.9 possible aujourd'hui.")
     except Exception as _exc:
         print(f"  (combiné du jour ignoré : {_exc})")
 

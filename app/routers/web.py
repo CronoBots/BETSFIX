@@ -530,7 +530,14 @@ def _combo_daily_card() -> str:
             f'<span>cote <b>@{_cur.get("cote")}</b></span>'
             f'<span>chances <b>{round((_cur.get("prob") or 0) * 100)}%</b></span>'
             f'<span>{len(_cur.get("legs") or [])} jambes</span></div>'
-            + _combo_legs_html(_cur) + '</div>')
+            # SYNTHÈSE du combiné (analyse dédiée générée au scan) + jambes CLIQUABLES (chaque jambe déplie
+            # sa justification propre, comme un pari à jouer) — demande user 2026-07-11.
+            + (f'<div style="font-size:11px;color:var(--muted);line-height:1.4;margin:2px 0 6px;'
+               f'font-style:italic">💡 {__import__("html").escape(str(_cur.get("synth")))}</div>'
+               if _cur.get("synth") else "")
+            + '<div style="font-size:9.5px;color:var(--dim);margin-bottom:2px">Touchez une jambe pour '
+              'son analyse ▸</div>'
+            + web.combo_legs_html(_cur, expandable=True) + '</div>')
     _hist = [cb for cb in _all if cb.get("date") != _today_key and cb.get("result")]
     _hrows = []
     for cb in _hist[:8]:
