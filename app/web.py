@@ -1377,17 +1377,22 @@ CSS = """
   .sx-heroc{width:100%;height:auto;display:block;max-height:96px}
   /* Animations PRO de la courbe d'équité : la ligne se TRACE (draw-in), puis l'aire et le point final
      apparaissent. `pathLength=1` sur la ligne -> le tracé marche quelle que soit sa longueur réelle. */
-  .sx-heroc-line{stroke-dasharray:1;stroke-dashoffset:1;animation:sxdraw 1.15s cubic-bezier(.55,.08,.25,1) forwards}
+  /* État de REPOS : la courbe est VIDE (ligne masquée, aire + point invisibles) et NE s'anime PAS toute
+     seule au rendu. L'animation ne se lance QUE quand le JS ajoute `.sx-go` (via _sxAnim, après le splash
+     / à l'affichage de l'onglet) -> plus de courbe déjà tracée qui « clignote » avant l'animation. */
+  .sx-heroc-line{stroke-dasharray:1;stroke-dashoffset:1}
   @keyframes sxdraw{to{stroke-dashoffset:0}}
-  .sx-heroc-area{opacity:0;animation:sxarea .7s ease .5s forwards}
+  .sx-heroc-area{opacity:0}
   @keyframes sxarea{to{opacity:.22}}
-  .sx-heroc-pt{opacity:0;transform-box:fill-box;transform-origin:center;
-       animation:sxpt .45s cubic-bezier(.2,1.6,.4,1) .95s forwards}
+  .sx-heroc-pt{opacity:0;transform-box:fill-box;transform-origin:center}
   @keyframes sxpt{0%{opacity:0;transform:scale(0)}100%{opacity:1;transform:scale(1)}}
+  .sx-heroc-line.sx-go{animation:sxdraw 1.15s cubic-bezier(.55,.08,.25,1) forwards}
+  .sx-heroc-area.sx-go{animation:sxarea .7s ease .5s forwards}
+  .sx-heroc-pt.sx-go{animation:sxpt .45s cubic-bezier(.2,1.6,.4,1) .95s forwards}
   @media (prefers-reduced-motion:reduce){
-    .sx-heroc-line{animation:none;stroke-dashoffset:0}
-    .sx-heroc-area{animation:none;opacity:.22}
-    .sx-heroc-pt{animation:none;opacity:1;transform:none}}
+    .sx-heroc-line{stroke-dashoffset:0}
+    .sx-heroc-area{opacity:.22}
+    .sx-heroc-pt{opacity:1;transform:none}}
   .sx-kpis{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px;
        padding-top:12px;border-top:1px solid var(--border)}
   .sx-kpi{text-align:center}
@@ -2411,9 +2416,11 @@ _TERM_JS = (
     # courbe se traçait DERRIÈRE le logo d'intro et les compteurs montaient invisibles). Redémarre le tracé
     # de la courbe (retire/réapplique l'animation) + relance les compteurs. Idempotent, respecte reduced-motion.
     "window._sxAnim=function(root){if(_rm)return;var r=root||document;"
+    # (re)DÉCLENCHE le tracé : retire `.sx-go` (courbe redevient VIDE), force un reflow, puis rajoute
+    # `.sx-go` -> l'animation repart de zéro. Avant le 1er appel, la courbe reste vide (pas de `.sx-go`).
     "try{var g=r.querySelectorAll('.sx-heroc-line,.sx-heroc-area,.sx-heroc-pt'),i;"
-    "for(i=0;i<g.length;i++){var el=g[i];el.style.animation='none';el.getBoundingClientRect();"
-    "el.style.animation='';}}catch(e){}"
+    "for(i=0;i<g.length;i++){var el=g[i];el.classList.remove('sx-go');el.getBoundingClientRect();"
+    "el.classList.add('sx-go');}}catch(e){}"
     "try{var c=r.querySelectorAll('.da-st-v,.sx-kpi>b,.spf-cv-kpis b'),j;"
     "for(j=0;j<c.length;j++){c[j]._c=0;cnt(c[j]);}}catch(e){}};"
     "window._twScan(document);window._twCount(document);})();"
