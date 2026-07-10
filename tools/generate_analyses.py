@@ -2448,6 +2448,29 @@ async def main():
         except Exception as _exc:
             print(f"  (notif Telegram ignorée : {_exc})")
 
+    # COMBINÉ MULTISPORT DU JOUR (info seule, hors ROI réel) — 1 par jour : reprend les paris LES PLUS
+    # PROBABLES de tous les matchs analysés du jour, cote ≥ 1.9, taux de réussite maximal (peut mélanger
+    # sports et marchés). Construit en FIN de scan (tous les sidecars écrits). Publié aux abonnés (Telegram)
+    # comme les autres pronos. record_daily fige dès l'envoi (published = frozen -> pas de re-scan changeant).
+    try:
+        import datetime as _dt
+        from app import combo_daily as _cd
+        _day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+        _combo = _cd.build_for_day(_day)
+        if _combo and _cd.record_daily(_combo, _day):
+            print(f"  🎯 Combiné du jour : cote {_combo['cote']} · {round(_combo['prob'] * 100)}% · "
+                  f"{len(_combo['legs'])} jambes.")
+            if not args.no_notify:
+                from app import notify
+                if notify.configured() and await notify.send(_cd.telegram_text(_combo)):
+                    _cd.mark_sent(_day)          # figé après publication aux abonnés
+        elif _combo:
+            print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")
+        else:
+            print("  🎯 Combiné du jour : aucun combiné fiable ≥ 1.9 possible aujourd'hui.")
+    except Exception as _exc:
+        print(f"  (combiné du jour ignoré : {_exc})")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

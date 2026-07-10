@@ -3249,6 +3249,44 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
     return items
 
 
+def _combo_daily_banner() -> str:
+    """Bandeau « Combiné du jour » en TÊTE de l'accueil (compact, cliquable -> onglet Stats). Le combiné
+    multisport du jour : jambes les plus probables, cote ≥ 1.9. Info seule (hors ROI). '' si aucun."""
+    try:
+        import datetime as _dt
+        from app import combo_daily as _cd
+        day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+        cb = _cd.today(day)
+    except Exception:
+        cb = None
+    if not cb or not cb.get("legs"):
+        return ""
+    import html as _h
+    _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    _bad = {"won": ("✅", "var(--green)"), "lost": ("❌", "var(--red)"),
+            "void": ("➖", "var(--muted)")}.get(cb.get("result"), ("⏳", "#f6c54a"))
+    legs = "".join(
+        f'<div style="display:flex;gap:7px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05);'
+        f'font-size:11px;line-height:1.25">{_emo.get(l.get("sport"), "•")} '
+        f'<span style="flex:1;min-width:0"><b>{_h.escape(str(l.get("sel") or ""))}</b>'
+        f'<span style="color:var(--muted)"> · @{l.get("cote")}</span><br>'
+        f'<span style="color:var(--dim);font-size:9.5px">'
+        f'{_h.escape(str(l.get("name") or "").replace(" - ", " — "))}</span></span></div>'
+        for l in cb.get("legs") or [])
+    return (
+        '<a class="combo-day" href="/stats" style="display:block;text-decoration:none;color:inherit;'
+        'margin-bottom:12px;padding:12px 14px;border:1px solid rgba(246,197,74,.4);border-radius:14px;'
+        'background:linear-gradient(180deg,rgba(246,197,74,.08),rgba(246,197,74,.02))">'
+        '<div style="display:flex;justify-content:space-between;align-items:center">'
+        '<b style="color:#f6c54a;font-size:13px">🎯 Combiné du jour</b>'
+        f'<span style="font-size:10px;color:var(--muted)">info · hors ROI {_bad[0]}</span></div>'
+        '<div style="display:flex;gap:14px;margin:5px 0 2px;font-size:12px">'
+        f'<span>cote <b style="color:#f6c54a">@{cb.get("cote")}</b></span>'
+        f'<span>chances <b>{round((cb.get("prob") or 0) * 100)}%</b></span>'
+        f'<span style="color:var(--muted)">{len(cb.get("legs") or [])} jambes · multisport</span></div>'
+        + legs + '</a>')
+
+
 def render_dashboard(match_rows: list, *, live_count: int = 0,
                      frag: bool = False, source: dict | None = None) -> str:
     """ACCUEIL épuré (2026-06-13) : UNIQUEMENT les matchs À VENIR (format compact, tous sports
@@ -3277,7 +3315,7 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     else:
         matches = ('<div class="dash-h"><span>Prochains matchs</span></div>'
                    '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    body = livebar + matches
+    body = _combo_daily_banner() + livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:

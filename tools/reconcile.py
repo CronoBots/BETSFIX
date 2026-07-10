@@ -135,6 +135,14 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 print(f"  · {_npv} pari(s) provisoire(s) réglé(s) (suivi info-seule).")
         except Exception as exc:
             print(f"  (suivi provisoires ignoré : {exc})")
+        # COMBINÉ MULTISPORT DU JOUR (info seule, hors ROI réel) : règle les jambes terminées + tranche.
+        try:
+            from app import combo_daily as _cd
+            _ncd = await asyncio.to_thread(_cd.settle_pending)
+            if _ncd:
+                print(f"  · {_ncd} combiné(s) du jour tranché(s) (suivi info-seule).")
+        except Exception as exc:
+            print(f"  (suivi combiné du jour ignoré : {exc})")
 
     # 2) INVENTAIRE : parcourt les fiches, classe chaque match JOUÉ.
     stuck, upcoming, unposted = [], [], []

@@ -1,0 +1,350 @@
+"""COMBINÉ MULTISPORT DU JOUR (info seule) — demande user 2026-07-10.
+
+Chaque jour, UN seul combiné cross-sport reprenant les paris LES PLUS PROBABLES parmi tous les matchs
+analysés, optimisé pour un TAUX DE RÉUSSITE maximal sous contrainte cote ≥ 1.9. Peut mélanger sports et
+types de paris. AU PLUS une jambe par match (jambes indépendantes -> cote = produit, proba = produit).
+
+⚠️ TOTALEMENT ISOLÉ du ROI/stats/calibration réels (comme app/provisional.py) : ce module écrit UNIQUEMENT
+dans `data/combo_daily_track.json`, ne touche JAMAIS aux sidecars, à `stat_bet`, à la calibration ni à
+`list_for`. Suivi « info seule », mise à plat 1 unité. On mesurera le taux avant toute intégration au ROI.
+"""
+from __future__ import annotations
+
+import glob
+import json
+import math
+import os
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TRACK_PATH = os.path.join(_ROOT, "data", "combo_daily_track.json")
+
+MIN_ODDS = 1.9            # cote minimale du combiné (demande user)
+MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)
+MIN_LEGS = 2             # un « combiné » = au moins 2 jambes
+MIN_LEG_PROB = 0.60      # « les plus probables » : jambe fiable seulement
+MIN_LEG_ODDS = 1.06      # une jambe quasi-sûre à cote ~1.01 n'apporte rien vers le seuil
+
+# Marchés AUTORISÉS en combiné (liste blanche, cf. COMBO_MISSION : privilégier résultat/DC 83 %, tirs
+# cadrés 83 %, buts total/équipe 79 % ; BANNIR corners/cartons/tirs totaux/mi-temps/props/1er but).
+# On compare le PREMIER jeton du code (ex. "SETWIN 1 HOME" -> "SETWIN").
+_ALLOWED = {"WIN", "DC", "OVER", "UNDER", "TEAMTOT", "SET", "SETWIN", "SETSCORE",
+            "SHOTSOT", "TOTGAMES", "TEAMGAMES", "REGTIME"}
+
+
+def _load() -> dict:
+    try:
+        with open(TRACK_PATH, encoding="utf-8") as f:
+            d = json.load(f)
+            return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save(d: dict) -> None:
+    tmp = TRACK_PATH + ".tmp"
+    try:
+        os.makedirs(os.path.dirname(TRACK_PATH), exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False)
+        os.replace(tmp, TRACK_PATH)
+    except OSError:
+        pass
+
+
+def load() -> dict:
+    """Snapshot brut du suivi (dict par date). Sert à dériver `stats()` ET `entries()` du MÊME état."""
+    return _load()
+
+
+# ------------------------------------------------------------------ moteur de sélection
+def _prod(xs):
+    p = 1.0
+    for x in xs:
+        p *= x
+    return p
+
+
+def pick_combo(cands: list[dict], min_odds: float = MIN_ODDS, max_legs: int = MAX_LEGS,
+               min_legs: int = MIN_LEGS, min_leg_prob: float = MIN_LEG_PROB,
+               min_leg_odds: float = MIN_LEG_ODDS) -> dict | None:
+    """Choisit les jambes MAXIMISANT le produit des probabilités sous contrainte produit des cotes
+    ≥ min_odds, ≤ 1 jambe/match (`mid`), 2..max_legs jambes. Glouton par efficacité
+    log(cote)/(−log(prob)) [pousse vers le seuil de cote en perdant le moins de proba] + raffinement
+    (retrait des jambes superflues + swaps). None si irréalisable. cands : [{mid, sport, sel, cote,
+    prob(0-1), code, name, home, away, start, comp}]."""
+    pool = [c for c in cands
+            if c.get("code") and isinstance(c.get("cote"), (int, float))
+            and isinstance(c.get("prob"), (int, float))
+            and c["prob"] >= min_leg_prob and c["cote"] >= min_leg_odds]
+    if not pool:
+        return None
+    # jusqu'à 3 marchés par match (laisse « grosse jambe sûre » vs « petite très sûre » à l'optimiseur)
+    by_mid: dict = {}
+    for c in sorted(pool, key=lambda x: -x["prob"]):
+        by_mid.setdefault(c["mid"], [])
+        if len(by_mid[c["mid"]]) < 3:
+            by_mid[c["mid"]].append(c)
+    flat = [c for lst in by_mid.values() for c in lst]
+
+    def odds(ls):
+        return _prod([x["cote"] for x in ls])
+
+    def prob(ls):
+        return _prod([x["prob"] for x in ls])
+
+    def eff(c):
+        risk = -math.log(c["prob"])
+        return math.log(c["cote"]) / risk if risk > 1e-9 else float("inf")
+
+    chosen: list = []
+    used: set = set()
+    while odds(chosen) < min_odds and len(chosen) < max_legs:
+        avail = [c for c in flat if c["mid"] not in used]
+        if not avail:
+            break
+        nxt = max(avail, key=eff)
+        chosen.append(nxt)
+        used.add(nxt["mid"])
+    while len(chosen) < min_legs:                    # force le minimum de jambes (jambe la + sûre dispo)
+        avail = [c for c in flat if c["mid"] not in used]
+        if not avail:
+            break
+        nxt = max(avail, key=lambda c: c["prob"])
+        chosen.append(nxt)
+        used.add(nxt["mid"])
+    if odds(chosen) < min_odds or len(chosen) < min_legs:
+        return None
+
+    improved = True
+    while improved:                                  # retire toute jambe superflue (reste ≥ seuil) -> +proba
+        improved = False
+        for c in sorted(chosen, key=lambda x: x["prob"]):
+            if len(chosen) <= min_legs:
+                break
+            rest = [x for x in chosen if x is not c]
+            if odds(rest) >= min_odds and prob(rest) > prob(chosen):
+                chosen, used, improved = rest, {x["mid"] for x in rest}, True
+                break
+    improved = True
+    while improved:                                  # swaps 1-pour-1 qui gardent ≥ seuil et augmentent la proba
+        improved = False
+        for c in list(chosen):
+            for r in flat:
+                if r["mid"] in (used - {c["mid"]}) or r is c:
+                    continue
+                cand = [r if x is c else x for x in chosen]
+                if len({x["mid"] for x in cand}) != len(cand):
+                    continue
+                if odds(cand) >= min_odds and prob(cand) > prob(chosen):
+                    chosen, used, improved = cand, {x["mid"] for x in cand}, True
+                    break
+            if improved:
+                break
+
+    chosen.sort(key=lambda x: -x["prob"])
+    return {"legs": chosen, "cote": round(odds(chosen), 2), "prob": prob(chosen)}
+
+
+def _candidates_for_day(day: str) -> list[dict]:
+    """Extrait les jambes candidates (marchés autorisés, réglables, prob ≥ seuil) de TOUS les matchs
+    du jour `day` (YYYY-MM-DD) encore À VENIR. Source = fantômes `shadow` + pari retenu `bets`
+    (dédup par (match, code), meilleure proba). `prob` renvoyé en fraction 0-1."""
+    from app import analyses
+    from app.settle_analyst import code_from_pick
+    out: list[dict] = []
+    for side in glob.glob(os.path.join(analyses.DIR, "*.json")):
+        try:
+            d = json.load(open(side, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if (d.get("start") or "")[:10] != day:
+            continue
+        if analyses.status_of(d) != "notstarted":      # déjà commencé/fini -> pas jouable au combiné du jour
+            continue
+        mid = str(d.get("id") or "")
+        if not mid:
+            continue
+        preds = list(d.get("shadow") or [])
+        for b in (d.get("bets") or []):                 # le pari retenu compte aussi (cote sous `odds`)
+            preds.append({"sel": b.get("sel"), "cote": b.get("odds"), "prob": b.get("prob"),
+                          "code": b.get("code")})
+        best: dict = {}
+        for p in preds:
+            # RE-DÉRIVER le code depuis le LIBELLÉ (le code stocké peut être périmé/générique : un
+            # fantôme « Tiebreaks +0.5 » a l'ancien code `OVER 0.5` qui réglerait un total de BUTS =
+            # FAUX). code_from_pick reflète la logique de règlement ACTUELLE -> code correct + à jour.
+            code = code_from_pick(p.get("sel") or "", d.get("sport"), d.get("home", ""),
+                                  d.get("away", "")).strip()
+            if not code or code.split()[0] not in _ALLOWED:
+                continue
+            pr, co = p.get("prob"), p.get("cote")
+            if not isinstance(pr, (int, float)) or not isinstance(co, (int, float)):
+                continue
+            prf = pr / 100.0 if pr > 1 else float(pr)   # sidecars stockent la proba en %
+            prev = best.get(code)
+            if prev is None or prf > prev["prob"]:
+                best[code] = {"mid": mid, "sport": d.get("sport"), "sel": p.get("sel"),
+                              "cote": float(co), "prob": prf, "code": code, "name": d.get("name"),
+                              "home": d.get("home"), "away": d.get("away"), "start": d.get("start"),
+                              "comp": d.get("comp")}
+        out.extend(best.values())
+    return out
+
+
+def build_for_day(day: str) -> dict | None:
+    """Construit LE combiné du jour depuis les analyses. None si aucun combiné fiable ≥ 1.9 possible."""
+    combo = pick_combo(_candidates_for_day(day))
+    if not combo:
+        return None
+    legs = [{"mid": l["mid"], "sport": l["sport"], "name": l.get("name"), "home": l.get("home"),
+             "away": l.get("away"), "start": l.get("start"), "comp": l.get("comp"),
+             "sel": l["sel"], "cote": l["cote"], "prob": round(l["prob"], 4),
+             "code": l["code"], "result": None, "score": None} for l in combo["legs"]]
+    return {"date": day, "cote": combo["cote"], "prob": round(combo["prob"], 4),
+            "legs": legs, "result": None, "sent": False, "created": None}
+
+
+def telegram_text(cb: dict) -> str:
+    """Message HTML (parse_mode=HTML) du combiné du jour pour Telegram. Noms échappés."""
+    import html as _h
+    emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    out = ["🎯 <b>COMBINÉ DU JOUR</b> — multisport",
+           f"Cote <b>@{cb.get('cote')}</b> · chances <b>{round((cb.get('prob') or 0) * 100)}%</b> "
+           f"· {len(cb.get('legs') or [])} jambes", ""]
+    for l in cb.get("legs") or []:
+        out.append(f"{emo.get(l.get('sport'), '•')} <b>{_h.escape(str(l.get('sel') or ''))}</b> "
+                   f"@{l.get('cote')}")
+        out.append(f"   <i>{_h.escape(str(l.get('name') or ''))}</i>")
+    out += ["", "ℹ️ <i>Info seule (hors ROI) — les paris les plus probables du jour, à titre indicatif.</i>"]
+    return "\n".join(out)
+
+
+def record_daily(combo: dict, day: str) -> bool:
+    """Enregistre le combiné du jour (UN par date). Ne réécrit PAS s'il est déjà ENVOYÉ (figé = ce qui a
+    été posté aux abonnés) ou déjà réglé. Renvoie True si (ré)écrit."""
+    if not combo or not combo.get("legs"):
+        return False
+    d = _load()
+    prev = d.get(day)
+    if isinstance(prev, dict) and (prev.get("sent") or prev.get("result") in ("won", "lost", "void")):
+        return False                                  # figé (posté/réglé) -> jamais réécrit
+    d[day] = combo
+    _save(d)
+    return True
+
+
+def mark_sent(day: str) -> None:
+    """Marque le combiné du jour comme ENVOYÉ (Telegram) -> figé (published = frozen)."""
+    d = _load()
+    if isinstance(d.get(day), dict):
+        d[day]["sent"] = True
+        _save(d)
+
+
+def settle_pending() -> int:
+    """Règle les jambes des combinés dont les matchs sont terminés (Flashscore + repli LiveScore +
+    `settle_pick`), puis tranche le combiné : lost si ≥1 jambe perdue ; won si toutes réglées et ≥1
+    gagnée (push retirées) ; void si toutes push. Idempotent. Renvoie le nombre de combinés
+    nouvellement tranchés."""
+    from app import flashscore, livescore
+    from app.settle_analyst import settle_pick
+    d = _load()
+    n = 0
+    for day, cb in list(d.items()):
+        if not isinstance(cb, dict) or cb.get("result") in ("won", "lost", "void"):
+            continue
+        for leg in cb.get("legs") or []:
+            if leg.get("result") in ("won", "lost", "push"):
+                continue
+            q = {"home": leg.get("home", ""), "away": leg.get("away", ""),
+                 "start": leg.get("start"), "sofa_id": ""}
+            score = None
+            try:
+                score = flashscore.final_score(leg.get("sport"), q) or \
+                    livescore.final_score(leg.get("sport"), q)
+            except Exception:
+                score = None
+            if not score:
+                continue                              # pas de score final fiable -> on retente plus tard
+            try:
+                res = settle_pick(leg.get("code", ""), score)
+            except Exception:
+                res = None
+            if res in ("won", "lost", "push"):
+                leg["result"] = res
+                leg["score"] = score.get("label") or ""
+        legs = cb.get("legs") or []
+        results = [l.get("result") for l in legs]
+        if "lost" in results:
+            cb["result"] = "lost"
+            n += 1
+        elif all(r in ("won", "push") for r in results):
+            cb["result"] = "won" if any(r == "won" for r in results) else "void"
+            n += 1
+        # sinon : des jambes encore en attente -> on ne tranche pas
+    if n:
+        _save(d)
+    return n
+
+
+def _combo_result_profit(cb: dict) -> float:
+    """Profit info-seule (mise à plat 1 u) d'un combiné réglé : cote EFFECTIVE (push retirées) − 1 si
+    gagné, −1 si perdu, 0 si remboursé."""
+    if cb.get("result") == "won":
+        eff = _prod([l["cote"] for l in cb.get("legs") or [] if l.get("result") == "won"])
+        return eff - 1
+    if cb.get("result") == "lost":
+        return -1.0
+    return 0.0
+
+
+def today(day: str, d: dict | None = None) -> dict | None:
+    """Le combiné enregistré pour `day` (ou None). `d` = snapshot partagé (cf. `load()`)."""
+    d = _load() if d is None else d
+    cb = d.get(day)
+    return cb if isinstance(cb, dict) else None
+
+
+def entries(d: dict | None = None) -> list:
+    """Combinés suivis, PLUS RÉCENT en premier : {date, cote, prob, result, legs}. Snapshot partagé."""
+    d = _load() if d is None else d
+    out = [cb for cb in d.values() if isinstance(cb, dict) and cb.get("legs")]
+    out.sort(key=lambda x: x.get("date") or "", reverse=True)
+    return out
+
+
+def stats(d: dict | None = None) -> dict:
+    """Agrégat INFO-SEULE : {n, settled, won, lost, void, pending, hit_rate, roi_pct, profit_units,
+    avg_cote}. Mise à plat 1 u. ROI = profit / n_tranchés (hors void) × 100. {} si aucun combiné.
+    Snapshot partagé avec `entries()` -> compteur et liste TOUJOURS cohérents."""
+    d = _load() if d is None else d
+    cbs = [cb for cb in d.values() if isinstance(cb, dict) and cb.get("legs")]
+    if not cbs:
+        return {}
+    won = lost = void = pending = 0
+    profit = 0.0
+    cotes = []
+    for cb in cbs:
+        r = cb.get("result")
+        if r == "won":
+            won += 1
+            profit += _combo_result_profit(cb)
+            cotes.append(cb.get("cote"))
+        elif r == "lost":
+            lost += 1
+            profit -= 1
+            cotes.append(cb.get("cote"))
+        elif r == "void":
+            void += 1
+        else:
+            pending += 1
+    graded = won + lost
+    cotes = [c for c in cotes if isinstance(c, (int, float))]
+    return {
+        "n": len(cbs), "settled": won + lost + void, "won": won, "lost": lost, "void": void,
+        "pending": pending,
+        "hit_rate": round(won / graded * 100) if graded else None,
+        "roi_pct": round(profit / graded * 100, 1) if graded else None,
+        "profit_units": round(profit, 2),
+        "avg_cote": round(sum(cotes) / len(cotes), 2) if cotes else None,
+    }

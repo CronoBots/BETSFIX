@@ -12,6 +12,39 @@
 
 ---
 
+## 2026-07-10 — Combiné multisport DU JOUR (info seule, hors ROI)
+
+**Quoi** (demande user) : chaque jour, UN seul combiné multisport reprenant les paris LES PLUS PROBABLES de
+tous les matchs analysés, cote ≥ 1.9, taux de réussite maximal (mélange sports ET types de paris). Choix
+user (AskUserQuestion) : **hors ROI réel** (suivi « info seule » d'abord, comme les provisoires) + **site +
+Telegram** aux abonnés.
+
+- **Nouveau module `app/combo_daily.py`** (calqué sur `provisional.py`, TOTALEMENT isolé : écrit seulement
+  `data/combo_daily_track.json`, ne touche jamais sidecars/stat_bet/calibration/list_for) :
+  - `pick_combo()` = moteur d'optimisation : MAXIMISE le produit des probabilités sous contrainte produit
+    des cotes ≥ 1.9, ≤ 1 jambe/match, 2..5 jambes. Glouton par efficacité `log(cote)/(−log(prob))` +
+    raffinement (retrait des jambes superflues + swaps). Validé sur cas synthétiques.
+  - `_candidates_for_day()` = jambes des matchs À VENIR du jour, depuis `shadow`+`bets`, marchés en LISTE
+    BLANCHE fiable (WIN/DC/OVER/UNDER/TEAMTOT/SET*/SHOTSOT/TOTGAMES… ; cf. COMBO_MISSION), prob ≥ 60 %.
+    ⚠️ le code est RE-DÉRIVÉ du libellé via `code_from_pick` (un fantôme « Tiebreaks +0.5 » a l'ancien code
+    générique `OVER 0.5` qui réglerait un total de BUTS = FAUX) → règlement correct garanti.
+  - `settle_pending()` (branché reconcile.py après les provisoires) : règle les jambes (Flashscore+LiveScore
+    +`settle_pick`), tranche lost si ≥1 perdue / won si toutes gagnées / void si toutes push.
+  - `stats()`/`entries()`/`today()` sur snapshot partagé (compteur == liste), `telegram_text()` (HTML échappé).
+- **Scan** (`generate_analyses.py` fin de `main()`) : construit + `record_daily` (figé dès l'envoi = published
+  frozen) + notif Telegram `notify.send`. **Reconcile** : `settle_pending` branché.
+- **Affichage** : bandeau doré « 🎯 Combiné du jour » en TÊTE de l'accueil (`web._combo_daily_banner`,
+  cliquable → Stats) + carte détaillée dans l'onglet Stats (`routers/web._combo_daily_card` : jambes du jour
+  + perf info-seule + historique), à côté du bloc provisoires.
+
+**Résultat (état réel du jour)** : combiné 2026-07-10 = cote 2.18 · 41 % · 3 jambes multisport (foot DC 1X +
+foot total équipe + tennis « au moins un set »). Le taux montera au scan du matin (beaucoup plus de matchs).
+
+**Régression vérifiée** : AST OK (5 fichiers) ; **263 tests** (8 nouveaux : moteur cote≥1.9/≤1 par match/min 2
+jambes/irréalisable, tranchage won/lost/void, cohérence stats==liste, telegram échappé) ; selfcheck **12 ✅** ;
+compteur ROI **monotone 110/105 INCHANGÉ** (combiné du jour 100 % isolé, hors ROI/stats/calibration) ; rendu
+accueil + Stats OK. Mémoire [[combo-daily-multisport]] créée.
+
 ## 2026-07-10 — Stats « fausses 1x sur 2 » + compteur provisoire ≠ liste
 
 **Quoi** (retour user, 3 captures) : le bloc provisoires annonçait « 7 suivis / 3 réglés / 4 en attente »
