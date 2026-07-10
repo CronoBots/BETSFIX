@@ -2282,13 +2282,35 @@ async def main():
                     # Telegram = site ; sinon le match disparaissait du site, bug audit).
                     _published = bool(_notify.get_prono(str(fid)))
                     if not settled and not _published:
-                        # provisoire -> on GARDE le .md (analyse), on ne retire que le .json (aucun stat/calib).
-                        _exts = (".json",) if _prov else (".json", ".md")
-                        for ext in _exts:
+                        # FANTÔMES (demande user 2026-07-10) : une abstention nourrit la CALIBRATION. On écrit
+                        # un sidecar MINIMAL `abstained` (méta + shadow SEULS -> aucun pari/stat_bet/combo) au
+                        # lieu de le supprimer -> les fantômes entrent dans la calibration. list_for IGNORE les
+                        # sidecars `abstained` et les stats ne comptent que les paris -> ROI/affichage INCHANGÉS.
+                        _shadow = _parse_calib(analysis, sport, m.get("home", ""), m.get("away", ""))
+                        if _shadow:
+                            _o = (meta.get("odds") if meta else None) or (None, None, None)
                             try:
-                                os.remove(os.path.join(OUT, f"{sport}_{fid}{ext}"))
+                                json.dump({"sport": sport, "id": str(fid), "sofa_id": str(sofa_id or ""),
+                                           "home": m.get("home", ""), "away": m.get("away", ""),
+                                           "name": m.get("name", ""), "comp": m.get("comp", ""),
+                                           "start": m.get("start", ""), "o1": _o[0], "ox": _o[1], "o2": _o[2],
+                                           "shadow": _shadow, "abstained": True,
+                                           "generated": datetime.now(timezone.utc).isoformat()},
+                                          open(side_p, "w", encoding="utf-8"), ensure_ascii=False)
                             except OSError:
                                 pass
+                            if not _prov:               # pas de provisoire -> pas d'analyse à consulter -> .md inutile
+                                try:
+                                    os.remove(path)
+                                except OSError:
+                                    pass
+                        else:                           # aucun fantôme exploitable -> comportement d'avant
+                            _exts = (".json",) if _prov else (".json", ".md")
+                            for ext in _exts:
+                                try:
+                                    os.remove(os.path.join(OUT, f"{sport}_{fid}{ext}"))
+                                except OSError:
+                                    pass
                     continue
                 # Pas d'entête « # {nom} » : la fiche affiche déjà le nom du match (doublon évité).
                 header = f"<!-- généré {datetime.now(timezone.utc).isoformat()} · {dt:.0f}s -->\n\n"

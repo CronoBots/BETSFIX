@@ -253,6 +253,11 @@ def list_for(sport: str) -> list[dict]:
         d = _meta_load(p)
         if not d:
             continue
+        # ABSTENTION shadow-only (sidecar `abstained` = méta + fantômes SEULS, aucun pari) : JAMAIS au board
+        # (demande user 2026-07-10 : un match sans value n'est ni retenu ni affiché). Il nourrit UNIQUEMENT
+        # la calibration (fantômes). Garde-fou : un stat_bet figé le garderait (ne devrait pas arriver).
+        if d.get("abstained") and not isinstance(d.get("stat_bet"), dict):
+            continue
         st = d.get("start")
         try:
             dt = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None

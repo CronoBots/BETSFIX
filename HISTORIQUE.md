@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-10 — Sans value : ni retenu ni affiché, mais nourrit les fantômes
+
+**Quoi** (demande user, ex. Manas–Damas à Liège affiché sans raison) : un match SANS value ne doit être ni
+retenu ni affiché, mais PEUT alimenter les fantômes (calibration).
+
+1. **Plus d'affichage des abstentions sans provisoire** (`app/web.py:_programme_items`) : une abstention
+   analysée sans même un pari provisoire (« pas de value ») est SAUTÉE du programme (accueil/onglets). On
+   garde les provisoires (pick doré) et les matchs pas encore analysés (« Analyse à … »). -> Manas disparaît.
+2. **Abstentions nourrissent les fantômes** (`tools/generate_analyses.py` + `app/analyses.py:list_for`) : au
+   lieu de SUPPRIMER le sidecar d'une abstention « aucun pari ≥ seuil » (path-1, qui perdait son `shadow`), on
+   écrit un sidecar MINIMAL `abstained` = méta + `shadow` SEULS (aucun pari/stat_bet/combo). `list_for` IGNORE
+   les sidecars `abstained` -> jamais au board. `calibration()` lit leur `shadow` -> fantômes inclus. Le
+   règlement (glob de tous les .json) règle leurs fantômes comme ceux des path-2.
+
+**Régression vérifiée** : Manas absent du programme ; sidecar `abstained` absent de `list_for` mais lu par
+calibration ; ROI/stats INCHANGÉS (ne comptent que les paris/stat_bet). AST · **242 tests** · selfcheck OK ·
+`/health` OK. S'active pleinement au prochain scan (persistance des nouveaux `abstained`).
+
 ## 2026-07-10 — Provisoires : confiance affichée + visibles dans onglets sport ET Live
 
 **Quoi** (retours user) :

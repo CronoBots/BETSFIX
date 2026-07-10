@@ -3175,6 +3175,12 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
         # UNIQUEMENT dans le programme -> jamais compté au ROI/stats. Repli sur l'ancien libellé si absent.
         prov = m.get("provisional") or {}
         prov_sel = str(prov.get("sel") or "").strip()
+        # NO-VALUE SANS PROVISOIRE = PAS AFFICHÉ (demande user 2026-07-10) : une abstention analysée qui n'a
+        # même pas de pari provisoire (« pas de value ») n'a aucune raison d'être affichée -> on la SAUTE.
+        # Elle reste gardée sur disque UNIQUEMENT pour nourrir les fantômes (calibration). On garde les
+        # provisoires (pick doré) et les matchs PAS ENCORE analysés (statut ≠ abstained -> « Analyse à … »).
+        if not prov_sel and m.get("status") == "abstained":
+            continue
         if prov_sel:
             _cote = prov.get("cote")
             _cote_html = (f'<span class="mc-bc mc-bc-prov">@{_cote:g}</span>'
