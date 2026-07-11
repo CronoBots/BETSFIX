@@ -1881,6 +1881,10 @@ CSS = """
   .tkt-cote .v{font-size:27px;font-weight:900;color:#fff;line-height:1;font-variant-numeric:tabular-nums}
   .tkt.won{border-color:rgba(52,210,123,.5)} .tkt.lost{border-color:rgba(255,107,107,.45)}
   .tkt.void{border-color:rgba(159,176,200,.4)}
+  .tkt-subs{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+  .tkt-sub{font-size:9.5px;font-weight:700;color:#90a4be;background:rgba(255,255,255,.05);
+       border:1px solid rgba(255,255,255,.09);border-radius:99px;padding:2px 9px}
+  .tkt-simple .tkt-leg:first-of-type{margin-top:9px}
   .da-bets{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px;
        background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
   .da-bets th{background:var(--surface2);color:var(--muted);font-weight:700;text-align:left;

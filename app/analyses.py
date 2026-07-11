@@ -669,101 +669,69 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
     reco = _recommend(data, ok=ok, cprobs=cprobs, codes=codes)
     has_play = reco.get("verdict") == "play"     # y a-t-il un pari RETENU (value + confiance OK) ?
     note_by_idx = _assign_notes([b["sel"] for b in data], notes)   # commentaire Verdict -> bon pari
+    # RENDU TICKET PREMIUM (style carte Telegram, sans logo — demande user 2026-07-12) : chaque pari =
+    # sélection (gras) + pastille de cote + pastille de chance + justification (barre latérale) + badges
+    # (value, sûreté/validation). Toute la logique retenu/abstention/résultat/panel est PRÉSERVÉE.
     cards = []
-    # Sûreté en PASTILLE TEXTE (≠ étoiles, réservées au pari retenu ⭐) : élevée/moyenne/faible.
-    _safe_cls = {"ok": "saf-hi", "mid": "saf-mid", "hi": "saf-lo"}
     for k, b in enumerate(data):
         pari = _inline(b["sel"])
         cv, prob, rcls = b["cote"], b["prob"], b["risk_cls"]
         is_reco = reco.get("idx") == k and has_play   # VRAI pari retenu (value + conf OK) ; sinon abstention
-        # VALUE (EV) de CE pari sur sa confiance RECALIBRÉE — c'est CE qui manquait à l'affichage et
-        # créait la confusion : une conf. élevée à cote COURTE peut avoir une value NÉGATIVE (le marché
-        # price l'issue plus haut que nous) -> pari sûr en apparence mais perdant sur la durée.
         _cp = cprobs[k] if (cprobs and k < len(cprobs) and cprobs[k] is not None) else prob
         ev_pct = round((_cp / 100 * cv - 1) * 100) if (_cp is not None and cv) else None
-        # Bandeau de STATS : Confiance % · Cote. (« Value »/EV RETIRÉ de l'affichage le 2026-06-13 :
-        # déductible de conf×cote, et un EV négatif sur un pari sûr est déroutant. Le moteur l'utilise
-        # toujours en interne pour choisir le pari ⭐ retenu.)
         conf_v = f"{prob}%" if prob is not None else "—"
         cote_v = f"{cv:g}" if cv is not None else (_inline(b["cote_txt"]) if b["cote_txt"] else "—")
-        # Badge COTE bien visible en haut (comme le combiné). La cote est retirée du bandeau du bas
-        # (plus de doublon) ; le bandeau ne garde que la Confiance.
-        cote_badge = (f'<span class="da-bk-cote">cote {cote_v}</span>' if cote_v != "—" else "")
-        ev_html = ""
-        if ev_pct is not None:
-            ev_cls = "da-st-pos" if ev_pct >= 3 else "da-st-neg"    # ≥+3% = value jouable (vert), sinon ambre
-            ev_html = (f'<div class="da-st {ev_cls}"><span class="da-st-v">'
-                       f'{"+" if ev_pct >= 0 else ""}{ev_pct}%</span><span class="da-st-l">Value</span></div>')
-        strip = (
-            '<div class="da-bk-stats">'
-            f'<div class="da-st"><span class="da-st-v">{conf_v}</span><span class="da-st-l">Confiance</span></div>'
-            f'{ev_html}</div>')
-        # Niveau de sûreté (libellé + classe couleur) — fusionné plus bas dans le badge combiné.
-        saf_cls = _safe_cls.get(rcls, "saf-mid")
-        saf_lbl = _SAFETY.get(rcls, "Sûreté moyenne")
         res = results.get(_norm_sel(b["sel"]))
-        if is_reco:                              # pari RÉELLEMENT joué -> résultat coloré + bord
-            rescls = (" da-bk-won" if res == "won" else " da-bk-lost" if res == "lost"
-                      else " da-bk-push" if res == "push" else "")
-            mark = ('<span class="da-bk-mark mk-w">✓ Gagné</span>' if res == "won"
-                    else '<span class="da-bk-mark mk-l">✗ Perdu</span>' if res == "lost"
-                    else '<span class="da-bk-mark mk-p">➖ Remboursé</span>' if res == "push" else "")
-        else:                                    # ABSTENTION : pas de bord coloré ; résultat CONDITIONNEL
-            rescls = ""
-            mark = ('<span class="da-bk-mark mk-abst">aurait gagné</span>' if res == "won"
-                    else '<span class="da-bk-mark mk-abst">aurait perdu</span>' if res == "lost" else "")
-        # BANDE gauche : OR pour le pari RETENU par le moteur (ex-« mode bankroll », UI retirée
-        # 2026-06-12) ; le repère est désormais une ⭐ à DROITE du nom du pari (demande utilisateur).
-        recocls = " da-bk-reco" if is_reco else ""
-        recostar = ""                                # ⭐ « pari retenu » retiré devant le pari (demande user)
-        # Badge VALIDATION (panel de 3 agents) sur le pari (la validation porte sur LE pari du match,
-        # affichée même si le moteur EV ne l'a pas marqué ⭐ — c'est le panel qui l'a retenu).
-        # Badge COMBINÉ : sûreté + validation (panel de 3 agents) en UNE seule pastille.
-        if is_reco:                              # pari RETENU : sûreté (+ validation du panel d'agents)
-            combo_parts = [saf_lbl]
-            combo_title = saf_lbl
-            badge_cls = saf_cls
-            if k == 0 and validation and validation.get("n_ok") is not None:
-                no, nt = validation["n_ok"], validation.get("n", 3)
-                cp = validation.get("consensus_prob")
-                tip = " · ".join(f'{v.get("emoji", "")}{v.get("verdict", "")[:3]}' for v in validation.get("votes", []))
-                combo_parts.append(f'✓ {no}/{nt}')
-                if cp:
-                    combo_parts.append(f'{cp}%')
-                combo_title = f'{saf_lbl} · validé {no}/{nt} agents — {tip}'
-        else:                                    # ABSTENTION : la value ne justifie pas de parier
-            combo_parts = ["⏸ Pas de value → abstention"]
-            badge_cls = "saf-abst"
-            combo_title = ("Analysé mais NON retenu : à cette cote, la value est négative/nulle "
-                           "(le marché price l'issue plus haut que nous) → on s'abstient.")
-        combo = ('<span class="da-bk-combo ' + badge_cls + '" title="'
-                 + html.escape(combo_title) + '">' + ' · '.join(combo_parts) + '</span>')
-        # Commentaire du Verdict déplacé SOUS le pari correspondant, DANS la même carte.
+        # État + marqueur : pari RETENU -> résultat coloré + ✅/❌/➖ ; abstention -> « aurait gagné/perdu ».
+        if is_reco:
+            legcls = (" won" if res == "won" else " lost" if res == "lost"
+                      else " void" if res == "push" else "")
+            mark = ('<span class="tkt-mk">✅</span>' if res == "won"
+                    else '<span class="tkt-mk">❌</span>' if res == "lost"
+                    else '<span class="tkt-mk">➖</span>' if res == "push" else "")
+        else:
+            legcls = ""
+            mark = ('<span class="tkt-p">aurait gagné</span>' if res == "won"
+                    else '<span class="tkt-p">aurait perdu</span>' if res == "lost" else "")
+        pc = "hi" if (prob and prob >= 75) else "mid" if (prob and prob >= 65) else "lo"
+        conf_chip = f'<span class="tkt-pr {pc}">{conf_v}</span>' if prob is not None else ""
+        o_chip = f'<span class="tkt-o">@{cote_v}</span>' if cote_v != "—" else ""
         note = note_by_idx.get(k)
-        # Analyse TOUJOURS affichée (pas de repli sur le pari ; seul le cadre « Informations » se plie).
-        note_html = f'<div class="da-bk-note">{_note_paras(note)}</div>' if note else ""
-        # 1 pari/match -> plus de « Pari 1/2/3 » : NOM du pari en titre, puis le badge combiné
-        # (sûreté + validation), puis l'analyse repliée, puis les stats (confiance · cote).
-        cards.append(
-            f'<div class="da-bk{recocls}{rescls}">'
-            f'<div class="da-bk-sel"><span class="da-bk-name">{pari}{recostar}{mark}</span>{cote_badge}</div>'
-            f'<div class="da-bk-tab">{combo}</div>'
-            f'{note_html}{strip}</div>')   # nom + badge cote -> badge combiné -> analyse repliée -> confiance
-    # LIVE (compact) : on ne garde QUE les cartes de paris (ni titre, ni légende, ni verdict ;
-    # le repère « meilleure value » est déjà porté par le cadre OR + badge ✅ de la carte).
+        note_html = f'<div class="tkt-why">{_note_paras(note)}</div>' if note else ""
+        # Badges secondaires : VALUE (EV recalibré) + sûreté (+ validation du panel de 3 agents).
+        subs = []
+        if ev_pct is not None:
+            subs.append(f'<span class="tkt-pr {"hi" if ev_pct >= 3 else "lo"}">'
+                        f'value {"+" if ev_pct >= 0 else ""}{ev_pct}%</span>')
+        if is_reco:
+            _sb = [_SAFETY.get(rcls, "Sûreté moyenne")]
+            if k == 0 and validation and validation.get("n_ok") is not None:
+                _sb.append(f'✓ {validation["n_ok"]}/{validation.get("n", 3)} agents')
+            subs.append(f'<span class="tkt-sub">{" · ".join(_sb)}</span>')
+        else:
+            subs.append('<span class="tkt-sub">⏸ pas de value → abstention</span>')
+        subs_html = f'<div class="tkt-subs">{"".join(subs)}</div>'
+        cards.append(f'<div class="tkt-leg{legcls}"><div class="tkt-leg-top">'
+                     f'<span class="tkt-sel">{pari}</span>'
+                     f'<span class="tkt-r">{conf_chip}{o_chip}{mark}</span></div>'
+                     f'{note_html}{subs_html}</div>')
+    # LIVE (compact) : cartes de paris seules (ni titre ni cote pied), fondu dans la carte live.
     if compact:
-        return '<div class="da-bks">' + "".join(cards) + "</div>"
-    # NON-live : titre simple « Les paris à jouer » + les cartes (chacune avec son commentaire Verdict),
-    # puis le résidu du Verdict (à éviter / mise). La barre de séparation est ajoutée par web._sport_row.
-    # Libellé « pari joué » (terminé) / « pari à jouer » (à venir) — plus d'étoile ni de « retenu ».
-    _reco_res = (results.get(_norm_sel(data[reco["idx"]]["sel"]))
-                 if (has_play and reco.get("idx") is not None) else None)
+        return '<div class="tkt tkt-simple">' + "".join(cards) + "</div>"
+    # NON-live : en-tête « Pari à jouer / joué / Analyse du match » + cartes + cote du pari retenu (gros).
+    _ri = reco.get("idx") if (has_play and reco.get("idx") is not None) else None
+    _reco_res = results.get(_norm_sel(data[_ri]["sel"])) if _ri is not None else None
     if has_play:
-        _title = "📊 Le pari joué" if _reco_res in ("won", "lost", "push") else "📊 Le pari à jouer"
+        _title = "Pari joué" if _reco_res in ("won", "lost", "push") else "Pari à jouer"
+        _rc = data[_ri]["cote"]
+        cote_foot = (f'<div class="tkt-cote"><span class="l">Cote</span>'
+                     f'<span class="v">{_rc:g}</span></div>' if _rc else "")
     else:
-        _title = "📊 Analyse du match"
-    return (f'<div class="da-bets-h">{_title}</div>'
-            '<div class="da-bks">' + "".join(cards) + "</div>" + (residual or ""))
+        _title = "Analyse du match"
+        cote_foot = ""
+    gcls = " won" if _reco_res == "won" else " lost" if _reco_res == "lost" else ""
+    return (f'<div class="tkt tkt-simple{gcls}"><div class="tkt-h">{_title}</div>'
+            + "".join(cards) + cote_foot + (residual or "") + "</div>")
 
 
 def _structured(md: str) -> str | None:
