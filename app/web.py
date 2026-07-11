@@ -1843,6 +1843,44 @@ CSS = """
   .da-combo-live{border-left-color:#ffb020}
   .da-combo-b.live{background:#ffb020;color:#1a1200;animation:combopulse 1.6s ease-in-out infinite}
   @keyframes combopulse{0%,100%{opacity:1}50%{opacity:.55}}
+  /* TICKET PREMIUM (style carte Telegram, sans logo) — demande user 2026-07-12 : combinés ET simples.
+     Fond sombre dégradé + accent cyan, pastilles de cote vertes, justif. par jambe (barre latérale). */
+  .tkt{background:linear-gradient(160deg,#101b29,#0a0f17 60%,#080c13);border:1px solid rgba(34,184,255,.5);
+       border-radius:15px;padding:13px 14px 12px;margin-top:10px;box-shadow:inset 0 0 50px rgba(34,184,255,.05)}
+  .tkt-h{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:800;letter-spacing:.08em;
+       color:#9fe7c0;text-transform:uppercase}
+  .tkt-h .n{color:#7fbfa4;opacity:.8;font-weight:700}
+  .tkt-h .b{font-size:9.5px;border-radius:6px;padding:2px 8px;font-weight:800;letter-spacing:.03em}
+  .tkt-h .b.won{background:#34d27b;color:#04220f}
+  .tkt-h .b.lost{background:#ff6b6b;color:#2a0606}
+  .tkt-h .b.void{background:#9fb0c8;color:#0b1428}
+  .tkt-h .b.live{background:rgba(52,210,123,.2);color:#7ff0b6;animation:combopulse 1.6s ease-in-out infinite}
+  .tkt-h .top{margin-left:auto;color:#6fb4d8;font-weight:700;text-transform:none;letter-spacing:0;font-size:10px}
+  .tkt-synth{font-size:11.5px;font-weight:500;color:#d0dfef;line-height:1.42;margin:9px 0 2px;
+       background:rgba(34,184,255,.07);border:1px solid rgba(34,184,255,.16);border-radius:10px;padding:9px 11px}
+  .tkt-leg{margin-top:12px}
+  .tkt-leg-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .tkt-sel{font-size:13.5px;font-weight:800;color:#eef4fb;line-height:1.25;min-width:0}
+  .tkt-r{flex:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .tkt-o{background:rgba(25,196,106,.15);color:#7ff0b6;border-radius:8px;padding:2px 9px;
+       font-weight:900;font-size:12.5px;font-variant-numeric:tabular-nums}
+  .tkt-pr{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:99px;border:1px solid;font-variant-numeric:tabular-nums}
+  .tkt-pr.hi{color:#2ec98a;border-color:rgba(46,201,138,.45);background:rgba(46,201,138,.12)}
+  .tkt-pr.mid{color:#22b8ff;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
+  .tkt-pr.lo{color:#ffb020;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.12)}
+  .tkt-p{font-size:10px;color:#9fb0c8;background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
+  .tkt-mk{font-size:12px;line-height:1}
+  .tkt-why{font-size:11px;font-weight:400;color:#a7bcd6;line-height:1.42;margin:5px 0 2px;
+       padding-left:10px;border-left:2px solid rgba(63,184,255,.4)}
+  .tkt-leg.won .tkt-sel{color:#bff6d8}
+  .tkt-leg.lost .tkt-sel{text-decoration:line-through;color:#ffb3b3;opacity:.85}
+  .tkt-leg.void .tkt-sel{text-decoration:line-through dotted;color:#aeb9c9;opacity:.7}
+  .tkt-cote{display:flex;justify-content:space-between;align-items:flex-end;margin-top:15px;padding-top:12px;
+       border-top:1px solid rgba(255,255,255,.08)}
+  .tkt-cote .l{font-size:10px;color:#90a4be;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+  .tkt-cote .v{font-size:27px;font-weight:900;color:#fff;line-height:1;font-variant-numeric:tabular-nums}
+  .tkt.won{border-color:rgba(52,210,123,.5)} .tkt.lost{border-color:rgba(255,107,107,.45)}
+  .tkt.void{border-color:rgba(159,176,200,.4)}
   .da-bets{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px;
        background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
   .da-bets th{background:var(--surface2);color:var(--muted);font-weight:700;text-align:left;

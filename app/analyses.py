@@ -1216,88 +1216,75 @@ def combo_html(sport: str, match_id) -> str:
             live = combo_live_status(m, _combo_live_vals(m))
         except Exception:
             live = None
+    # RENDU TICKET PREMIUM (style carte Telegram, sans logo — demande user 2026-07-12) : accent cyan,
+    # pastilles de cote vertes, justification par jambe (barre latérale), cote combinée en gros en bas.
+    # Toute la logique live/résultat (badges ✅/❌/➖, scores en direct, masquage post-règlement) est PRÉSERVÉE.
     rows = []
     for i, leg in enumerate(combo["legs"]):
         lr = leg.get("result")                       # résultat FINAL réglé (post-match) s'il existe
         prog = ""
         in_live = lr is None and live is not None
         if in_live and live["legs"][i].get("disp"):  # compteur courant/seuil (ou marge handicap)
-            prog = f'<span class="da-cl-p">{live["legs"][i]["disp"]}</span>'
-        # void = jambe INDÉTERMINABLE (donnée introuvable) -> annulée/remboursée (neutre) : marqueur ➖
-        # explicite, JAMAIS vide (sinon la jambe paraît « oubliée »).
+            prog = f'<span class="tkt-p">{live["legs"][i]["disp"]}</span>'
         st = lr if lr in ("won", "lost", "void") else ""   # SEUL le résultat FINAL (aucun gagné/perdu LIVE)
-        cls = (" da-cl-won" if st == "won" else " da-cl-lost" if st == "lost"
-               else " da-cl-void" if st == "void" else " da-cl-live" if in_live else "")
-        # En cours : PAS d'icône ; seules les jambes ACQUISES (✅), PERDUES (❌) ou ANNULÉES (➖) en portent.
+        cls = (" won" if st == "won" else " lost" if st == "lost" else " void" if st == "void" else "")
         mark = ("✅" if st == "won" else "❌" if st == "lost" else "➖" if st == "void" else "")
-        mk = f'<span class="da-cl-mk">{mark}</span>' if mark else ""
+        mk = f'<span class="tkt-mk">{mark}</span>' if mark else ""
         try:
             cote = f"{float(leg.get('cote')):.2f}"
         except (TypeError, ValueError):
             cote = "?"
-        # Pastille CHANCE de la jambe (proba extraite du « pourquoi ») + explication COMPLÈTE affichée
-        # sous le pari (pas de repli).
         pct, head, tail = _why_parts(leg.get("why"))
         if pct is None:
             prchip = ""
         else:
             pc = "hi" if pct >= 75 else "mid" if pct >= 65 else "lo"
-            prchip = f'<span class="da-cl-pr {pc}">{pct}%</span>'
+            prchip = f'<span class="tkt-pr {pc}">{pct}%</span>'
         full = f"{head}. {tail}" if (head and tail) else (head or tail)
         if full and full[-1] not in ".!?":
             full += "."
-        # DENSITÉ (2026-07-07) : le raisonnement PRÉ-MATCH par jambe n'a plus d'utilité une fois le combiné
-        # RÉGLÉ (le match est fini) et allonge énormément la carte résultat -> masqué si `res`. Gardé
-        # avant-match / en live (aide à décider).
-        why_html = f'<div class="da-cl-why">{_h.escape(full)}</div>' if (full and not res) else ""
-        # 2 colonnes : sélection (gauche, wrap propre) | bloc insécable cote · chance · compteur · statut (droite).
-        rows.append(f'<div class="da-cl-leg{cls}">'
-                    f'<div class="da-cl"><span class="da-cl-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
-                    f'<span class="da-cl-meta"><b>@{cote}</b>{prchip}{prog}{mk}</span></div>'
+        # Raisonnement pré-match masqué une fois RÉGLÉ (le match est fini -> allègement de la carte résultat).
+        why_html = f'<div class="tkt-why">{_h.escape(full)}</div>' if (full and not res) else ""
+        rows.append(f'<div class="tkt-leg{cls}"><div class="tkt-leg-top">'
+                    f'<span class="tkt-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
+                    f'<span class="tkt-r">{prchip}{prog}<span class="tkt-o">@{cote}</span>{mk}</span></div>'
                     f'{why_html}</div>')
-    # En-tête : SEUL le résultat FINAL (post-match) affiche un statut gagné/perdu. En live : aucun
-    # badge ni couleur gagné/perdu (demande user) -> en-tête neutre « en direct ».
-    hcls = (" da-combo-won" if res == "won" else " da-combo-lost" if res == "lost"
-            else " da-combo-void" if res == "void" else " da-combo-live" if live else "")
+    # En-tête : SEUL le résultat FINAL (post-match) affiche un statut ; en live -> badge « en direct » neutre.
+    gcls = (" won" if res == "won" else " lost" if res == "lost" else " void" if res == "void" else "")
     if res == "won":
-        badge = ' <span class="da-combo-b won">GAGNÉ</span>'
+        badge = '<span class="b won">Gagné</span>'
     elif res == "lost":
-        badge = ' <span class="da-combo-b lost">PERDU</span>'
+        badge = '<span class="b lost">Perdu</span>'
     elif res == "void":                              # aucune jambe réglable -> remboursé (mise rendue)
-        badge = ' <span class="da-combo-b void">REMBOURSÉ</span>'
+        badge = '<span class="b void">Remboursé</span>'
+    elif live:
+        badge = '<span class="b live">● en direct</span>'
     else:
         badge = ""
     try:
         total = f"{float(combo.get('total')):.2f}"
     except (TypeError, ValueError):
         total = "?"
-    # Cote affichée : la VRAIE cote Unibet (combiné corrélé) si on l'a re-pricée via les prepacks,
-    # sinon le produit des jambes (repli). La vraie cote est marquée « Unibet » pour la distinguer.
+    # Cote affichée : VRAIE cote Unibet corrélée (re-pricée live si possible), sinon produit des jambes.
     real = combo.get("real_odds")
     _live = _combo_live_odds(match_id, combo)      # re-pricing LIVE (cote fraîche, pas figée au scan)
     if _live:
         real = _live
-    if real:
-        try:
-            _t = "Vraie cote Unibet EN DIRECT" if _live else "Vraie cote Unibet (combiné corrélé)"
-            odds_html = (f'<span class="da-combo-c" title="{_t}">'
-                         f'cote Unibet {float(real):.2f}</span>')
-        except (TypeError, ValueError):
-            odds_html = f'<span class="da-combo-c">cote {total}</span>'
-    else:
-        odds_html = f'<span class="da-combo-c">cote {total}</span>'
-    # En-tête : « 🎲 Combiné · N jambes » à gauche, cote dans le coin HAUT-DROITE.
-    # (PAS de chance globale : le produit des jambes sous-estime un combiné corrélé -> trompeur ;
-    # la chance fiable reste celle PAR jambe, en pastille.)
+    try:
+        cote_val = f"{float(real):.2f}" if real else total
+    except (TypeError, ValueError):
+        cote_val = total
+    _tag = (' <span class="top">Unibet en direct</span>' if _live
+            else ' <span class="top">cote Unibet</span>' if real else "")
     n_legs = len(combo["legs"])
-    # Synthèse en INTRO, avant la liste des jambes.
     synth = combo.get("why")
-    intro_html = (f'<div class="da-combo-why">{_h.escape(_sentence_case(str(synth)))}</div>'
-                  if (synth and not res) else "")   # synth = raisonnement pré-match -> masqué une fois réglé
-    return (f'<div class="da-combo{hcls}"><div class="da-combo-h">🎲 Combiné '
-            f'<span class="da-combo-n">· {n_legs} jambes</span>{badge}'
-            f'{odds_html}</div>'
-            f'{intro_html}{"".join(rows)}</div>')
+    synth_html = (f'<div class="tkt-synth">{_h.escape(_sentence_case(str(synth)))}</div>'
+                  if (synth and not res) else "")   # synthèse = raisonnement pré-match -> masqué une fois réglé
+    return (f'<div class="tkt{gcls}"><div class="tkt-h">Combiné '
+            f'<span class="n">· {n_legs} sélections</span> {badge}{_tag}</div>'
+            f'{synth_html}{"".join(rows)}'
+            f'<div class="tkt-cote"><span class="l">Cote combinée</span>'
+            f'<span class="v">{cote_val}</span></div></div>')
 
 
 def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None:
