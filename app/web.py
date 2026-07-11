@@ -1598,8 +1598,15 @@ CSS = """
   .zone-indic .zone-dot{background:var(--gold);box-shadow:0 0 8px rgba(246,197,74,.55)}
   .zone-indic .zone-n{color:var(--gold);background:var(--gold-bg)}
   .zone-indic .zone-tag{color:var(--gold);opacity:.9}
+  .zone-live .zone-dot{background:#34d27b;box-shadow:0 0 8px rgba(52,210,123,.6);animation:livepulse 1.9s ease-out infinite}
+  .zone-live .zone-n{color:#5fe39b;background:rgba(52,210,123,.14)}
   .zone-todo{opacity:.88}
   .zone-todo .zone-t{font-size:14.5px;font-weight:700;color:var(--muted)}
+  /* Zone repliable (Terminés) : summary cliquable + chevron, même en-tête épuré. */
+  details.zone-col > summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  details.zone-col > summary::-webkit-details-marker{display:none}
+  .zone-chev{margin-left:auto;color:var(--muted);font-size:18px;line-height:1;transition:transform .18s}
+  details.zone-col[open] .zone-chev{transform:rotate(180deg)}
   /* Carte PROVISOIRE en zone dédiée : habillage DORÉ cohérent (au lieu du cyan des paris à jouer) ->
      lisible d'un coup d'œil « hors ROI » sans pastille répétée. */
   .row.mc.mc-prov-c{border-color:var(--gold-bd);
@@ -3433,18 +3440,27 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
         + combo_legs_html(cb) + '</a>')
 
 
-def _zone(kind: str, title: str, tag: str, count: int, body: str) -> str:
-    """ZONE de l'accueil (regroupement par nature de pari) — en-tête PREMIUM ÉPURÉ : un point de couleur
-    (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé sur un
-    filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les cartes
-    déjà triées (chrono, en-têtes de jour internes). '' si corps vide. Pur affichage."""
+def _zone(kind: str, title: str, tag: str, count: int, body: str,
+          *, collapsible: bool = False, open_: bool = True, empty: str | None = None) -> str:
+    """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
+    de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
+    sur un filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les
+    cartes déjà triées. `collapsible` -> zone repliable (`<details>`, ex. Terminés). `empty` -> message si
+    corps vide (état honnête, ex. « aucun pari de value »). '' si corps vide ET sans `empty`. Pur affichage."""
     if not (body and body.strip()):
-        return ""
+        if not empty:
+            return ""
+        body, count = f'<div class="zone-empty">{empty}</div>', 0
     n = f'<span class="zone-n">{count}</span>' if count else ""
     t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
-    return (f'<section class="zone zone-{kind}"><div class="zone-h">'
-            f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>'
-            f'{n}{t}</div><div class="zone-b">{body}</div></section>')
+    head = f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{n}{t}'
+    if collapsible:
+        op = " open" if open_ else ""
+        return (f'<details class="zone zone-{kind} zone-col"{op}>'
+                f'<summary class="zone-h">{head}<span class="zone-chev">▾</span></summary>'
+                f'<div class="zone-b">{body}</div></details>')
+    return (f'<section class="zone zone-{kind}"><div class="zone-h">{head}</div>'
+            f'<div class="zone-b">{body}</div></section>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
@@ -3468,22 +3484,18 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
     combo_daily = _combo_daily_banner()          # carte du combiné du jour (multisport, hors ROI) ou ''
     has_any = bool(play or prov or todo or combo_daily)
-    out = []
-    # ZONE 1 — À JOUER (ROI). Montrée même vide (état honnête) dès qu'il y a du contenu indicatif.
-    if play:
-        out.append(_zone("play", "À jouer", "comptés au ROI", len(play), _rows_by_day(play)))
-    elif has_any:
-        out.append('<section class="zone zone-play"><div class="zone-h">'
-                   '<span class="zone-dot"></span><span class="zone-t">À jouer</span>'
-                   '<span class="zone-tag">comptés au ROI</span></div>'
-                   '<div class="zone-b"><div class="zone-empty">Aucun pari de <b>value</b> sur les '
-                   'matchs à venir pour l\'instant — c\'est la discipline qui protège le ROI. '
-                   'Le programme <b>indicatif</b> est juste en dessous.</div></div></section>')
-    # ZONE 2 — INDICATIF (hors ROI) : combiné du jour puis provisoires.
-    _ind_n = len(prov) + (1 if combo_daily else 0)
-    out.append(_zone("indic", "Indicatif", "hors ROI", _ind_n, combo_daily + _rows_by_day(prov)))
-    # ZONE 3 — À ANALYSER (matchs pas encore analysés) : discrète, en bas.
-    out.append(_zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo)))
+    _empty_play = ('Aucun pari de <b>value</b> sur les matchs à venir pour l\'instant — c\'est la '
+                   'discipline qui protège le ROI. Le programme <b>indicatif</b> est juste en dessous.'
+                   ) if has_any else None
+    out = [
+        # ZONE 1 — À JOUER (ROI). Montrée même vide (état honnête) dès qu'il y a du contenu ailleurs.
+        _zone("play", "À jouer", "comptés au ROI", len(play), _rows_by_day(play), empty=_empty_play),
+        # ZONE 2 — INDICATIF (hors ROI) : combiné du jour puis provisoires.
+        _zone("indic", "Indicatif", "hors ROI", len(prov) + (1 if combo_daily else 0),
+              combo_daily + _rows_by_day(prov)),
+        # ZONE 3 — À ANALYSER (matchs pas encore analysés) : discrète, en bas.
+        _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo)),
+    ]
     inner = "".join(x for x in out if x)
     matches = (f'<div class="dash-zones">{inner}</div>' if inner
                else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
@@ -4442,69 +4454,71 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
                          upcoming: list, finished: list, intro: str = "",
                          paused: bool = False, frag: bool = False,
                          confidences: list | None = None) -> str:
-    """Page Matchs UNIFIÉE pour tous les sports, sections REPLIABLES dans l'ordre logique :
-    Confiances → Valeurs → En direct → À venir → Terminés (Terminés replié d'office).
+    """Page Matchs UNIFIÉE pour tous les sports — MÊMES ZONES PREMIUM que l'accueil (refonte 2026-07-11) :
+    « À jouer » (retenus à venir, ROI) → « En direct » → « Indicatif · hors ROI » (provisoires) → « Terminés »
+    (repliée d'office). En-têtes épurés (point d'état + titre casse normale + filet), pas de répétition du
+    libellé sur les cartes.
 
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
     « aucun match ». `frag=True` -> renvoie le corps seul (chargé en AJAX dans la SPA)."""
-    # Terminés : les PLUS RÉCENTS en HAUT (coup d'envoi le plus récent d'abord).
     finished = sorted(finished or [], key=lambda r: r.get("start_ts") or 0, reverse=True)
-    # Cartes PROGRAMME du sport (abstentions à venir + pari PROVISOIRE indicatif, doré) : mêmes cadres que
-    # l'accueil, injectés dans « À venir » de l'onglet sport (demande user 2026-07-09). Dédoublonnage par
-    # noms d'équipes avec les paris déjà à l'affiche (retenus) -> jamais 2×. `_rows_by_day` rend l'_html.
+    # PROVISOIRES du sport (doré, hors ROI) : zone « Indicatif » DÉDIÉE (framed=True retire la pastille par
+    # carte). Un provisoire EN COURS reste avec les matchs « En direct » (le temps réel prime) ; les matchs
+    # pas encore analysés rejoignent « À jouer » / « En direct ». Dédoublonnage par noms d'équipes -> jamais 2×.
+    prov_up: list = []
     if sport in ("foot", "tennis", "basket"):
         _paj = {_prog_pair(r.get("home"), r.get("away")) for r in (list(upcoming or []) + list(live or []))}
-        _pit = [it for it in _programme_items(_paj) if it.get("_sport") == sport]
-        # Provisoire EN COURS -> section « En direct » ; à venir -> « À venir » (demande user 2026-07-10).
-        live = list(live or []) + [it for it in _pit if it.get("_live")]
-        upcoming = list(upcoming or []) + [it for it in _pit if not it.get("_live")]
-    out = []
-    # Info (bouton « i ») PROPRE à chaque section, comme sur l'accueil.
-    conf_info = ('Pour chaque match, BETSFIX analyse <b>tous les paris Unibet</b> et garde la '
-                 '<b>perle la plus probable</b> : le pari le plus <b>sûr</b> à une cote qui paie. '
-                 'C\'est le 🛡️ <b>CONFIANCE</b> (vert). ' + BARS_LEGEND)
-    val_info = ('La <b>perle au plus gros edge</b> : la cote où Unibet est le plus <b>trop '
-                'généreux</b> vs BETSFIX. Ça <b>gagne moins souvent mais rapporte plus</b> '
-                '(badge 💎 <b>VALUE +X%</b>), rentable sur la durée. ' + BARS_LEGEND)
-    # (heading, rows, ouvert d'office ?, regrouper par jour ?, info) — « Terminés » plié par défaut ;
-    # « À venir » regroupé par jour (Aujourd'hui / Demain / …) pour se repérer dans la liste.
-    sections = [("🔥 Confiances", confidences or [], True, False, conf_info),
-                ("💎 Valeurs", value, True, False, val_info),
-                ("🟢 En direct", live, True, False, intro or None),
-                ("📅 À venir", upcoming, True, True, None),
-                ("✅ Terminés", finished, False, False, None)]
-    for heading, rows, open_, by_day, info in sections:
-        if not rows:
-            continue
-        content = _rows_by_day(rows) if by_day else "".join(_sport_row(r) for r in rows)
-        out.append(_section(f'{heading} ({len(rows)})', content, open_=open_, info=info))
+        _pit = [it for it in _programme_items(_paj, framed=True) if it.get("_sport") == sport]
+        prov_up = sorted([it for it in _pit if it.get("_prov") and not it.get("_live")],
+                         key=lambda r: r.get("start_ts") or 0)
+        _rest = [it for it in _pit if not (it.get("_prov") and not it.get("_live"))]
+        live = list(live or []) + [it for it in _rest if it.get("_live")]
+        upcoming = list(upcoming or []) + [it for it in _rest if not it.get("_live")]
+    # « À jouer » = paris RETENUS à venir (confiances/valeurs y sont fusionnés — vides pour les onglets).
+    play_up = sorted(list(confidences or []) + list(value or []) + list(upcoming or []),
+                     key=lambda r: r.get("start_ts") or 0)
+    live = sorted(list(live or []), key=lambda r: r.get("start_ts") or 0)
 
-    if not (value or live or upcoming or finished):
-        if intro:
-            out.append(f'<div class="banner">{intro}</div>')
+    def _cards(rows: list) -> str:                      # rend _html (programme) ou _sport_row (pari/live)
+        return "".join(r.get("_html") or _sport_row(r) for r in rows)
+
+    _has = bool(play_up or live or prov_up or finished)
+    out = [
+        _zone("play", "À jouer", "comptés au ROI", len(play_up), _rows_by_day(play_up),
+              empty=("Aucun pari de <b>value</b> à venir pour l'instant. Le programme <b>indicatif</b> "
+                     "est plus bas." if _has else None)),
+        _zone("live", "En direct", "temps réel", len(live), _cards(live)),
+        _zone("indic", "Indicatif", "hors ROI", len(prov_up), _rows_by_day(prov_up)),
+        _zone("todo", "Terminés", "", len(finished), _cards(finished), collapsible=True, open_=False),
+    ]
+    body_zones = "".join(x for x in out if x)
+    if not _has:
         if paused:
-            out.append('<div class="banner warn">⏸️ Source SofaScore momentanément en pause '
-                       '(trop de requêtes) — les matchs reviennent <b>automatiquement</b> '
-                       'd\'ici quelques minutes. Rien à faire.</div>')
+            body_zones = ('<div class="banner warn">⏸️ Source SofaScore momentanément en pause '
+                          '(trop de requêtes) — les matchs reviennent <b>automatiquement</b> '
+                          'd\'ici quelques minutes. Rien à faire.</div>')
+        elif intro:
+            body_zones = f'<div class="banner">{intro}</div>'
         else:
-            out.append('<div class="paj-empty">Aucun match à afficher pour le moment.</div>')
+            body_zones = '<div class="paj-empty">Aucun match à afficher pour le moment.</div>'
     # Ordre PREMIUM : titre -> cadre de perf (graphe + fiabilité & calibration INTÉGRÉS) -> matchs.
-    body = _subnav(sport) + render_sport_perf(sport) + "".join(out)
+    body = _subnav(sport) + render_sport_perf(sport) + f'<div class="dash-zones">{body_zones}</div>'
     return body if frag else spa_shell(sport, title, body)
 
 def render_directs(sections: list, frag: bool = False) -> str:
-    """Onglet « Directs » : tous les matchs EN DIRECT regroupés par sport (ils restent aussi
-    dans leur onglet respectif). `sections` = [(libellé, icône, cartes _sport_row), ...]."""
+    """Onglet « Directs » : matchs EN DIRECT regroupés par sport, en ZONES premium (point live vert + titre
+    casse normale) cohérentes avec l'accueil/onglets sport (refonte 2026-07-11). `sections` = [(libellé,
+    icône, cartes), ...] ; une carte peut être un dict `_sport_row` (pari) ou porter un `_html` (provisoire)."""
     out, total = [], 0
     for label, icon, cards in sections:
         if not cards:
             continue
         total += len(cards)
         cards = sorted(cards, key=lambda c: c.get("start_ts") or 0)
-        out.append(_section(f'{icon} {html.escape(label)} ({len(cards)})',
-                            "".join(_sport_row(c) for c in cards), open_=True))
+        content = "".join(c.get("_html") or _sport_row(c) for c in cards)
+        out.append(_zone("live", f"{icon} {label}", "en direct", len(cards), content))
     if not total:
-        out.append(
+        zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
             '<span class="le-dot"></span></div>'
@@ -4514,8 +4528,10 @@ def render_directs(sections: list, frag: bool = False) -> str:
             '<div class="le-cta">'
             '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
             '</div></div>')
+    else:
+        zones = f'<div class="dash-zones">{"".join(out)}</div>'
     # Combiné du jour EN TÊTE du Live (choix user : carte dédiée enrichie, jambes avec score live).
-    body = _combo_daily_banner() + "".join(out)
+    body = _combo_daily_banner() + zones
     return body if frag else spa_shell("directs", "Live", body)
 
 def perf_toggle(active: str) -> str:
