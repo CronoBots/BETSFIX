@@ -504,8 +504,8 @@ CSS = """
   .sub{font-size:11px;color:var(--muted)}
   /* Rows / list cards */
   /* En-tête de jour dans les listes (regroupement par date) */
-  .dayhdr{display:flex;align-items:center;gap:9px;margin:16px 2px 4px;font-size:10.5px;
-          font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+  .dayhdr{display:flex;align-items:center;gap:9px;margin:11px 2px 3px;font-size:9.5px;
+          font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;opacity:.85}
   .dayhdr::after{content:"";flex:1;height:1px;background:var(--border)}
   .row{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:12px 14px;margin:15px 0;border:1px solid var(--cardline);
@@ -532,7 +532,7 @@ CSS = """
             box-shadow:0 0 26px rgba(34,184,255,.20)}
   /* CARTE COMPACTE : en-tête toujours visible (statut + équipes + résumé) + corps replié au tap.
      Liste dense -> peu de scroll ; on déplie un match pour voir paris/barres/liens/analyse. */
-  .row.mc{padding:0;margin:9px 0;overflow:hidden}
+  .row.mc{padding:0;margin:7px 0;overflow:hidden}
   /* mc-head : colonne d'infos pleine largeur + chevron en ABSOLU (centré vertical) -> l'heure peut
      aller dans le COIN haut-droit sans être décalée par la flèche. */
   .mc-head{position:relative;padding:11px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -1566,7 +1566,9 @@ CSS = """
      confirmé (vert). Montre « le pari si l'on devait en jouer un » sans le vendre comme une value. */
   .mc-prov .mc-bt{color:var(--gold);font-weight:800}
   .mc-bc-prov{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd)}
-  .mc-reana-prov{color:var(--gold)}
+  /* Provisoire : ligne « ré-analyse » DISCRÈTE (allègement 2026-07-11) — petite, grisée, non grasse :
+     info présente mais qui ne pèse plus visuellement (la carte dorée + la zone disent déjà l'essentiel). */
+  .mc-reana-prov{color:var(--muted);font-size:10px;font-weight:600;opacity:.92;margin-top:2px}
   /* Provisoire — présentation épurée : pastille de RÔLE (dit « hors ROI » une fois) + puce confiance. */
   .mc-prov-tag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
        color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:7px;
@@ -1579,9 +1581,9 @@ CSS = """
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
      (point d'état + titre casse normale + compteur + mot-clé), filet fin, aucune barre/majuscule criarde. */
   .dash-zones{margin-top:4px}
-  .zone{margin-top:28px}
-  .zone:first-child{margin-top:12px}
-  .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 13px;padding-bottom:11px;
+  .zone{margin-top:22px}
+  .zone:first-child{margin-top:10px}
+  .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px;padding-bottom:9px;
        border-bottom:1px solid var(--border)}
   .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
   .zone-t{font-size:16.5px;font-weight:800;color:var(--text);letter-spacing:-.01em}
@@ -1607,6 +1609,19 @@ CSS = """
   details.zone-col > summary::-webkit-details-marker{display:none}
   .zone-chev{margin-left:auto;color:var(--muted);font-size:18px;line-height:1;transition:transform .18s}
   details.zone-col[open] .zone-chev{transform:rotate(180deg)}
+  /* Cadre de perf REPLIÉ par défaut sur les onglets sport (allègement 2026-07-11) : summary sobre gardant
+     le ROI en une ligne ; déplie les 2 courbes + calibration (cadre .spf riche) en 1 tap. */
+  .perf-fold{margin:8px 0 6px}
+  .perf-fold > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;
+       padding:11px 14px;border:1px solid var(--border);border-radius:13px;
+       background:rgba(255,255,255,.025);-webkit-tap-highlight-color:transparent}
+  .perf-fold > summary::-webkit-details-marker{display:none}
+  .perf-sum-t{font-size:12.5px;font-weight:800;color:var(--text)}
+  .perf-sum-k{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums}
+  .perf-sum .chev{margin-left:auto;color:var(--muted);font-size:18px;line-height:1;transition:transform .18s}
+  .perf-fold[open] .chev{transform:rotate(180deg)}
+  .perf-fold[open] > summary{margin-bottom:3px}
+  .perf-fold .spf{margin:0}
   /* Carte PROVISOIRE en zone dédiée : habillage DORÉ cohérent (au lieu du cyan des paris à jouer) ->
      lisible d'un coup d'œil « hors ROI » sans pastille répétée. */
   .row.mc.mc-prov-c{border-color:var(--gold-bd);
@@ -3432,7 +3447,7 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
         f'<a class="combo-day" href="{href}">'
         '<div class="combo-day-h">'
         '<b class="sx-gold" style="font-size:13px">🎯 Combiné du jour</b>'
-        f'<span class="sx-hint">info · hors ROI {_bad}</span></div>'
+        f'<span class="sx-hint">{_bad}</span></div>'
         '<div class="sx-meta">'
         f'<span>cote <b class="sx-gold">@{cb.get("cote")}</b></span>'
         f'<span>chances <b>{round((cb.get("prob") or 0) * 100)}%</b></span>'
@@ -3484,8 +3499,7 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
     combo_daily = _combo_daily_banner()          # carte du combiné du jour (multisport, hors ROI) ou ''
     has_any = bool(play or prov or todo or combo_daily)
-    _empty_play = ('Aucun pari de <b>value</b> sur les matchs à venir pour l\'instant — c\'est la '
-                   'discipline qui protège le ROI. Le programme <b>indicatif</b> est juste en dessous.'
+    _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir l\'<b>indicatif</b> ci-dessous.'
                    ) if has_any else None
     out = [
         # ZONE 1 — À JOUER (ROI). Montrée même vide (état honnête) dès qu'il y a du contenu ailleurs.
@@ -4027,7 +4041,17 @@ def render_sport_perf(sport: str) -> str:
                    f'<div class="calg">{mk_rows}</div>')
     details = (f'<details class="spf-det"><summary><span class="spf-det-t">📊 Fiabilité & calibration</span>'
                f'<span class="chev">▾</span></summary><div class="spf-det-b">{"".join(det)}</div></details>')
-    return f'<div class="spf">{charts}{details}</div>'
+    # ALLÈGEMENT (demande user 2026-07-11) : tout le cadre de perf est REPLIÉ par défaut sur les onglets
+    # sport (on vient voir les MATCHS). Le summary garde l'ESSENTIEL visible en une ligne — le ROI Simples
+    # (+ Combinés) — et déplie les 2 courbes + la calibration en 1 tap. Fini le gros bloc stats imposé.
+    roi_s, roi_c = s.get("roi"), (combo_bs or {}).get("roi")
+    _rs = f'<span class="perf-sum-k arec-{_roi_cls(roi_s, s.get("settled"))}">S {_roistr(roi_s)}</span>'
+    _rc = (f'<span class="perf-sum-k arec-{_roi_cls(roi_c, (combo_bs or {}).get("settled"))}">C {_roistr(roi_c)}</span>'
+           if combo_bs and combo_bs.get("settled") else "")
+    return (f'<details class="perf-fold"><summary class="perf-sum">'
+            f'<span class="perf-sum-t">📊 Mes performances</span>{_rs}{_rc}'
+            f'<span class="chev">▾</span></summary>'
+            f'<div class="spf perf-fold-b">{charts}{details}</div></details>')
 
 def _pick_card(p: dict, badge: str) -> str:
     """Carte d'un pari pour l'accueil (value OU confiance), avec le tableau des chances.
@@ -4485,8 +4509,8 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     _has = bool(play_up or live or prov_up or finished)
     out = [
         _zone("play", "À jouer", "comptés au ROI", len(play_up), _rows_by_day(play_up),
-              empty=("Aucun pari de <b>value</b> à venir pour l'instant. Le programme <b>indicatif</b> "
-                     "est plus bas." if _has else None)),
+              empty=("Aucune <b>value</b> à venir pour l'instant — voir l'<b>indicatif</b> plus bas."
+                     if _has else None)),
         _zone("live", "En direct", "temps réel", len(live), _cards(live)),
         _zone("indic", "Indicatif", "hors ROI", len(prov_up), _rows_by_day(prov_up)),
         _zone("todo", "Terminés", "", len(finished), _cards(finished), collapsible=True, open_=False),
