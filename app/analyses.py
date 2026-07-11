@@ -698,7 +698,8 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         o_chip = f'<span class="tkt-o">@{cote_v}</span>' if cote_v != "—" else ""
         note = note_by_idx.get(k)
         note_html = f'<div class="tkt-why">{_note_paras(note)}</div>' if note else ""
-        # Badges secondaires : VALUE (EV recalibré) + sûreté (+ validation du panel de 3 agents).
+        # Badges secondaires : VALUE (EV recalibré) + sûreté (+ validation du panel de 3 agents). TOUJOURS
+        # visibles (courts, essentiels) ; seule la NOTE (analyse) est repliable (compacité, demande user).
         subs = []
         if ev_pct is not None:
             subs.append(f'<span class="tkt-pr {"hi" if ev_pct >= 3 else "lo"}">'
@@ -711,10 +712,15 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         else:
             subs.append('<span class="tkt-sub">⏸ pas de value → abstention</span>')
         subs_html = f'<div class="tkt-subs">{"".join(subs)}</div>'
-        cards.append(f'<div class="tkt-leg{legcls}"><div class="tkt-leg-top">'
-                     f'<span class="tkt-sel">{pari}</span>'
-                     f'<span class="tkt-r">{conf_chip}{o_chip}{mark}</span></div>'
-                     f'{note_html}{subs_html}</div>')
+        _top = (f'<span class="tkt-sel">{pari}</span>'
+                f'<span class="tkt-r">{conf_chip}{o_chip}{mark}'
+                + ('<span class="tkt-chev">▾</span>' if note_html else '') + '</span>')
+        if note_html:
+            cards.append(f'<details class="tkt-leg tkt-fold{legcls}">'
+                         f'<summary class="tkt-leg-top" onclick="event.stopPropagation()">{_top}</summary>'
+                         f'{note_html}</details>{subs_html}')
+        else:
+            cards.append(f'<div class="tkt-leg{legcls}"><div class="tkt-leg-top">{_top}</div></div>{subs_html}')
     # LIVE (compact) : cartes de paris seules (ni titre ni cote pied), fondu dans la carte live.
     if compact:
         return '<div class="tkt tkt-simple">' + "".join(cards) + "</div>"
@@ -1212,11 +1218,18 @@ def combo_html(sport: str, match_id) -> str:
         if full and full[-1] not in ".!?":
             full += "."
         # Raisonnement pré-match masqué une fois RÉGLÉ (le match est fini -> allègement de la carte résultat).
+        # REPLIABLE (demande user 2026-07-12) : la justification est cachée par défaut (ticket compact) et se
+        # déplie au clic sur la jambe (chevron). `stopPropagation` -> ne referme pas la carte du match.
         why_html = f'<div class="tkt-why">{_h.escape(full)}</div>' if (full and not res) else ""
-        rows.append(f'<div class="tkt-leg{cls}"><div class="tkt-leg-top">'
-                    f'<span class="tkt-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
-                    f'<span class="tkt-r">{prchip}{prog}<span class="tkt-o">@{cote}</span>{mk}</span></div>'
-                    f'{why_html}</div>')
+        _top = (f'<span class="tkt-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
+                f'<span class="tkt-r">{prchip}{prog}<span class="tkt-o">@{cote}</span>{mk}'
+                + ('<span class="tkt-chev">▾</span>' if why_html else '') + '</span>')
+        if why_html:
+            rows.append(f'<details class="tkt-leg tkt-fold{cls}">'
+                        f'<summary class="tkt-leg-top" onclick="event.stopPropagation()">{_top}</summary>'
+                        f'{why_html}</details>')
+        else:
+            rows.append(f'<div class="tkt-leg{cls}"><div class="tkt-leg-top">{_top}</div></div>')
     # En-tête : SEUL le résultat FINAL (post-match) affiche un statut ; en live -> badge « en direct » neutre.
     gcls = (" won" if res == "won" else " lost" if res == "lost" else " void" if res == "void" else "")
     if res == "won":
@@ -1246,8 +1259,11 @@ def combo_html(sport: str, match_id) -> str:
             else ' <span class="top">cote Unibet</span>' if real else "")
     n_legs = len(combo["legs"])
     synth = combo.get("why")
-    synth_html = (f'<div class="tkt-synth">{_h.escape(_sentence_case(str(synth)))}</div>'
-                  if (synth and not res) else "")   # synthèse = raisonnement pré-match -> masqué une fois réglé
+    # Synthèse REPLIABLE (compacité) : cachée par défaut, dépliée au clic. Masquée une fois le combiné réglé.
+    synth_html = (f'<details class="tkt-synth-d"><summary onclick="event.stopPropagation()">'
+                  f'<span class="tkt-synth-t">💡 Pourquoi ce combiné</span><span class="tkt-chev">▾</span></summary>'
+                  f'<div class="tkt-synth">{_h.escape(_sentence_case(str(synth)))}</div></details>'
+                  if (synth and not res) else "")
     return (f'<div class="tkt{gcls}"><div class="tkt-h">Combiné '
             f'<span class="n">· {n_legs} sélections</span> {badge}{_tag}</div>'
             f'{synth_html}{"".join(rows)}'

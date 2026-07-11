@@ -1885,6 +1885,21 @@ CSS = """
   .tkt-sub{font-size:9.5px;font-weight:700;color:#90a4be;background:rgba(255,255,255,.05);
        border:1px solid rgba(255,255,255,.09);border-radius:99px;padding:2px 9px}
   .tkt-simple .tkt-leg:first-of-type{margin-top:9px}
+  /* Ticket : analyses REPLIABLES (compacité — demande user 2026-07-12) : justif/synthèse cachées par
+     défaut, dépliées au clic (chevron). stopPropagation dans le HTML -> ne referme pas la carte du match. */
+  details.tkt-fold>summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  details.tkt-fold>summary::-webkit-details-marker{display:none}
+  .tkt-chev{color:#6a86a8;font-size:11px;line-height:1;flex:none;transition:transform .2s}
+  details.tkt-fold[open] .tkt-chev,.tkt-synth-d[open] .tkt-chev{transform:rotate(180deg)}
+  details.tkt-fold>.tkt-why{margin-top:6px;animation:tktfade .2s ease}
+  @keyframes tktfade{from{opacity:0}to{opacity:1}}
+  .tkt-synth-d{margin:9px 0 2px}
+  .tkt-synth-d>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+       background:rgba(34,184,255,.07);border:1px solid rgba(34,184,255,.16);border-radius:10px;padding:9px 11px;
+       -webkit-tap-highlight-color:transparent}
+  .tkt-synth-d>summary::-webkit-details-marker{display:none}
+  .tkt-synth-t{font-size:11.5px;font-weight:700;color:#9fe7c0;flex:1}
+  .tkt-synth-d>.tkt-synth{margin-top:7px;animation:tktfade .2s ease}
   .da-bets{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px;
        background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
   .da-bets th{background:var(--surface2);color:var(--muted);font-weight:700;text-align:left;
