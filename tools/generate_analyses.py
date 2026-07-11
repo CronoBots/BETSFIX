@@ -2018,6 +2018,46 @@ def _analyze_combo_legs(combo: dict) -> None:
         combo["synth"] = ms.group(1).strip()
 
 
+def _analyze_samematch_legs(combo: dict, analysis: str, home: str, away: str) -> None:
+    """Justification DÉDIÉE par jambe (`leg['why']`) + synthèse (`combo['why']`) pour un combiné SAME-MATCH
+    (Coupe du Monde) dont des jambes n'ont PAS de why — cas du combiné de REPLI construit par l'optimiseur
+    (`_wc_fallback_vivier`), dont les jambes ne figurent pas dans la prose « 🎲 Combiné » de l'analyste. UN
+    appel Claude, faits tirés de l'analyse du match. Best-effort. Garantit qu'AUCUN combiné affiché n'est
+    sans analyse par jambe (demande user 2026-07-11). No-op si toutes les jambes ont déjà un why."""
+    legs = combo.get("legs") or []
+    if not legs or all(l.get("why") for l in legs):
+        return
+    faits = ""
+    m = re.search(r"##[^\n]*[Ff]aits(.*?)(?:\n##|\Z)", analysis, re.S)
+    if m:
+        faits = re.sub(r"[*`>]", "", m.group(1)).strip()[:1200]
+    blocs = [f"[{i}] {l.get('sel')} @{l.get('cote')} (proba estimée ~{l.get('prob')}%)"
+             for i, l in enumerate(legs, 1)]
+    prompt = (
+        f"Tu analyses le COMBINÉ Coupe du Monde de {home} vs {away} (pari PHARE du match, compté au ROI). "
+        "Pour CHAQUE jambe ci-dessous, écris une JUSTIFICATION propre à CE pari précis : 2 à 3 phrases "
+        "COMPLÈTES et AUTONOMES, chiffrées, ton de pro du pari sportif, français impeccable, ZÉRO généralité "
+        "ni remplissage — explique pourquoi ce pari est solide en t'appuyant sur les faits du match (forme, "
+        "H2H, absents, style de jeu). Puis une SYNTHÈSE (1 à 2 phrases : pourquoi ces jambes tombent ENSEMBLE "
+        "= domination corrélée). Réponds AU FORMAT EXACT, une entrée par ligne, RIEN d'autre :\n"
+        "LEG1: <justification jambe 1>\nLEG2: <justification jambe 2>\n(… une ligne LEGn par jambe)\n"
+        "SYNTH: <synthèse>\n\nFaits du match :\n" + (faits or "(pas de faits captés)")
+        + "\n\nJambes :\n" + "\n".join(blocs))
+    try:
+        out = run_claude(prompt, timeout=200)
+    except Exception:
+        out = ""
+    if not out:
+        return
+    for i, l in enumerate(legs, 1):
+        mm = re.search(rf"^\s*LEG\s*{i}\s*:\s*(.+)", out, re.M)
+        if mm:
+            l["why"] = mm.group(1).strip()
+    ms = re.search(r"^\s*SYNTH\s*:\s*(.+)", out, re.M)
+    if ms:
+        combo["why"] = ms.group(1).strip()
+
+
 _VOTES_CACHE: dict = {}   # (sport, sofa_id) -> votes : évite de récupérer les votes 2× par match
 
 
@@ -2367,6 +2407,11 @@ async def main():
                 combo = _make_combo(analysis, sport, m.get("home", ""), m.get("away", ""),
                                     event_id=str(m.get("id")),
                                     comp=m.get("comp") or m.get("circuit") or "")
+                # ANALYSE PAR JAMBE GARANTIE (demande user 2026-07-11 : « aucune analyse de jambe ne doit
+                # manquer ») : un combiné de REPLI (optimiseur) a des jambes sans why -> on les enrichit via
+                # un appel Claude dédié. No-op si toutes ont déjà un why (COMBOPICK/prose de l'analyste).
+                if combo and combo.get("legs") and not all(l.get("why") for l in combo["legs"]):
+                    _analyze_samematch_legs(combo, analysis, m.get("home", ""), m.get("away", ""))
                 # VALIDATION PAR PANEL (3 agents) du pari simple — SAUF si un combiné porte le match
                 # (le combiné est le pari phare, structure validée à part — comme la CdM).
                 validation = None
