@@ -234,7 +234,7 @@ CSS = """
      toolbar -> la barre reste toujours au bas visible) et le pied de page redevient atteignable. */
   body{margin:0;color:var(--text);font-size:14.5px;line-height:1.45;width:100%;
        height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none;
-       font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+       font-family:'Segoe UI',Roboto,Arial,sans-serif;   /* police des cartes Telegram (demande user 2026-07-12) */
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
        -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
        -webkit-tap-highlight-color:transparent;touch-action:manipulation;
@@ -2093,7 +2093,7 @@ CSS = """
   .src.ok{background:rgba(46,226,127,.10);color:var(--accent);border-color:rgba(46,226,127,.22)}
   .src.ko{background:var(--gold-bg);color:var(--gold);border-color:var(--gold-bd)}
   /* ===== Polish OddScore : chiffres mono · en-têtes « • » · titres majuscules ===== */
-  :root{--font-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+  :root{--font-mono:'Segoe UI',Roboto,Arial,sans-serif}   /* aligné sur la police Telegram ; tabular-nums garde l'alignement des chiffres */
   .da-bk-cote,
   .ds-v,
   .cal-gap,
@@ -2628,8 +2628,6 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="theme-color" content="#070708">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2671,8 +2669,6 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="theme-color" content="#070708">
 <title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
