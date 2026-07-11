@@ -2095,6 +2095,37 @@ CSS = """
   .statsx .sx-row-n{flex:0 0 62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sx-equity{margin:6px 0 0}
   .sx-equity .sx-heroc{display:block;width:100%;height:auto}
+  /* ---- Blocs « suivis indicatifs » (combiné du jour, provisoires) : classes réutilisables (fin des
+     styles inline hétérogènes) pour un rendu HOMOGÈNE avec le reste du design system. --- */
+  .sx-chart{margin-top:10px}                                   /* espacement UNIFORME des courbes */
+  .sx-gold{color:var(--gold)}
+  .sx-meta{display:flex;gap:14px;margin:6px 0 2px;font-size:12px;color:var(--muted)}
+  .sx-meta b{color:var(--text);font-variant-numeric:tabular-nums}
+  .sx-synth{font-size:11px;color:var(--muted);line-height:1.45;margin:5px 0 8px;font-style:italic}
+  .sx-today{margin-top:10px;padding:11px 12px;border:1px solid var(--gold-bd);border-radius:12px;
+       background:linear-gradient(180deg,rgba(246,197,74,.09),rgba(246,197,74,.02))}
+  .sx-today-h{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:800}
+  .sx-hint{font-size:9.5px;color:var(--dim);margin:1px 0 3px}
+  /* Ligne (jambe / résultat) : badge carré coloré + libellé + score/méta à droite */
+  .sx-leg{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06)}
+  .sx-leg-t{flex:1;min-width:0;line-height:1.28;font-size:11.5px}
+  .sx-leg-t small{display:block;color:var(--muted);font-size:9.5px}
+  .sx-leg-x{flex:none;font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .sx-leg-live{flex:none;color:#5fe39b;font-weight:800;font-size:10.5px}
+  .sx-bdg{flex:none;width:19px;height:19px;border-radius:6px;color:#0a0a0a;font-weight:900;font-size:10px;
+       display:flex;align-items:center;justify-content:center}
+  .sx-bdg.w{background:#34d27b}.sx-bdg.l{background:#ff6b6b}.sx-bdg.n{background:#9a9aa6}
+  .sx-bdg.p{background:var(--gold)}
+  /* Séparateur de GRAND groupe (ex. « Suivis indicatifs · hors ROI ») — plus marqué qu'une section */
+  .sx-group{display:flex;align-items:center;gap:10px;margin:18px 2px 2px;font-size:11px;font-weight:900;
+       letter-spacing:.10em;text-transform:uppercase;color:var(--gold)}
+  .sx-group::before{content:"";flex:0 0 14px;height:2px;border-radius:2px;background:var(--gold);opacity:.8}
+  .sx-group span{font-size:10px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0}
+  /* Bandeau « Combiné du jour » (accueil/Live) : lien compact doré */
+  .combo-day{display:block;text-decoration:none;color:inherit;margin-bottom:12px;padding:12px 14px;
+       border:1px solid var(--gold-bd);border-radius:14px;
+       background:linear-gradient(180deg,rgba(246,197,74,.08),rgba(246,197,74,.02))}
+  .combo-day-h{display:flex;justify-content:space-between;align-items:center}
   /* Barres ROI divergentes (par cote / confiance / marché) : 0 au centre, vert droite / rouge gauche */
   .rb{display:flex;flex-direction:column;gap:9px;margin-top:8px}
   .rb-row{display:flex;flex-direction:column;gap:3px}
@@ -3283,12 +3314,11 @@ def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False
     `expandable` (onglet Stats) : chaque jambe DOTÉE d'une justification (`leg['why']`, analyse dédiée
     générée par le scan) devient un `<details>` cliquable qui déplie son analyse — comme un pari à jouer."""
     import html as _h
-    _B = {"won": ("W", "#34d27b"), "lost": ("L", "#ff6b6b"), "push": ("N", "#9a9aa6")}
+    _B = {"won": ("W", "w"), "lost": ("L", "l"), "push": ("N", "n")}
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
-    fs = "10.5px" if compact else "11.5px"
     rows = []
     for l in cb.get("legs") or []:
-        _lt, _c = _B.get(l.get("result"), ("⏳", "#f6c54a"))
+        _lt, _bc = _B.get(l.get("result"), ("⏳", "p"))   # p = en attente (badge doré)
         emo = _emo.get(l.get("sport"), "•")
         nm = _h.escape(str(l.get("name") or "").replace(" - ", " — "))
         sel = _h.escape(str(l.get("sel") or ""))
@@ -3299,28 +3329,20 @@ def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False
             _lfz = live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
                                                            l.get("away", "")), l.get("sport"))
             if _lfz.get("score"):
-                _sco = ('<span style="flex:none;color:#5fe39b;font-weight:800;font-size:10.5px">'
-                        f'🟢 {_h.escape(_lfz["score"])}</span>')
+                _sco = f'<span class="sx-leg-live">🟢 {_h.escape(_lfz["score"])}</span>'
         elif l.get("score"):
-            _sco = f'<span style="flex:none;color:var(--dim);font-size:10px">{_h.escape(str(l.get("score")))}</span>'
-        _badge = (f'<span style="flex:none;width:19px;height:19px;border-radius:6px;background:{_c};'
-                  f'color:#0a0a0a;font-weight:900;font-size:10px;display:flex;align-items:center;'
-                  f'justify-content:center">{_lt}</span>')
-        _txt = (f'<span style="flex:1;min-width:0;line-height:1.25;font-size:{fs}">{emo} <b>{sel}</b>{cot}<br>'
-                f'<span style="color:var(--muted);font-size:9.5px">{nm}</span></span>')
+            _sco = f'<span class="sx-leg-x">{_h.escape(str(l.get("score")))}</span>'
+        _badge = f'<span class="sx-bdg {_bc}">{_lt}</span>'
+        _txt = f'<span class="sx-leg-t">{emo} <b>{sel}</b>{cot}<small>{nm}</small></span>'
         _why = l.get("why")
         if expandable and _why:                     # jambe cliquable -> déplie sa justification dédiée
             rows.append(
-                '<details class="da-faits" style="border-top:1px solid rgba(255,255,255,.05)">'
-                '<summary onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px;'
-                f'padding:5px 0;list-style:none;cursor:pointer">{_badge}{_txt}{_sco}'
-                '<span style="flex:none;color:var(--dim);font-size:10px">▸</span></summary>'
-                '<div class="da-faits-b" style="font-size:11px;color:var(--muted);line-height:1.4;'
-                f'padding:2px 2px 9px 27px">{_h.escape(_why)}</div></details>')
+                '<details class="da-faits">'
+                '<summary onclick="event.stopPropagation()" class="sx-leg" style="list-style:none;cursor:pointer">'
+                f'{_badge}{_txt}{_sco}<span class="sx-leg-x">▸</span></summary>'
+                f'<div class="da-faits-b" style="padding-left:27px">{_h.escape(_why)}</div></details>')
         else:
-            rows.append(
-                '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;'
-                f'border-top:1px solid rgba(255,255,255,.05)">{_badge}{_txt}{_sco}</div>')
+            rows.append(f'<div class="sx-leg">{_badge}{_txt}{_sco}</div>')
     return "".join(rows)
 
 
@@ -3336,20 +3358,17 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
         cb = None
     if not cb or not cb.get("legs"):
         return ""
-    _bad = {"won": ("✅", "var(--green)"), "lost": ("❌", "var(--red)"),
-            "void": ("➖", "var(--muted)")}.get(cb.get("result"), ("⏳", "#f6c54a"))
+    _bad = {"won": "✅", "lost": "❌", "void": "➖"}.get(cb.get("result"), "⏳")
     return (
-        f'<a class="combo-day" href="{href}" style="display:block;text-decoration:none;color:inherit;'
-        'margin-bottom:12px;padding:12px 14px;border:1px solid rgba(246,197,74,.4);border-radius:14px;'
-        'background:linear-gradient(180deg,rgba(246,197,74,.08),rgba(246,197,74,.02))">'
-        '<div style="display:flex;justify-content:space-between;align-items:center">'
-        '<b style="color:#f6c54a;font-size:13px">🎯 Combiné du jour</b>'
-        f'<span style="font-size:10px;color:var(--muted)">info · hors ROI {_bad[0]}</span></div>'
-        '<div style="display:flex;gap:14px;margin:5px 0 2px;font-size:12px">'
-        f'<span>cote <b style="color:#f6c54a">@{cb.get("cote")}</b></span>'
+        f'<a class="combo-day" href="{href}">'
+        '<div class="combo-day-h">'
+        '<b class="sx-gold" style="font-size:13px">🎯 Combiné du jour</b>'
+        f'<span class="sx-hint">info · hors ROI {_bad}</span></div>'
+        '<div class="sx-meta">'
+        f'<span>cote <b class="sx-gold">@{cb.get("cote")}</b></span>'
         f'<span>chances <b>{round((cb.get("prob") or 0) * 100)}%</b></span>'
-        f'<span style="color:var(--muted)">{len(cb.get("legs") or [])} jambes · multisport</span></div>'
-        + combo_legs_html(cb, compact=True) + '</a>')
+        f'<span>{len(cb.get("legs") or [])} jambes · multisport</span></div>'
+        + combo_legs_html(cb) + '</a>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,

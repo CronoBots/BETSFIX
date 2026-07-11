@@ -466,36 +466,31 @@ def _provisional_card() -> str:
         _snap, s = {}, {}
     if not s or not s.get("n"):
         return ""
+    import html as _h
     _roi = s.get("roi_pct")
     _hit = s.get("hit_rate")
-    _col = "var(--muted)" if _roi is None else ("var(--green)" if _roi >= 0 else "var(--red)")
+    _roicls = "" if _roi is None else (" sx-pos" if _roi >= 0 else " sx-neg")
     _roi_txt = "—" if _roi is None else f'{"+" if _roi >= 0 else ""}{_roi}%'
     # LISTE des provisoires suivis (le « en attente » en tête, badge ⏳) : sinon un provisoire dont le match
     # a COMMENCÉ n'est visible nulle part (il a quitté « À venir »). Demande user 2026-07-10.
-    import html as _h
-    _B = {"won": ("W", "#34d27b"), "lost": ("L", "#ff6b6b"), "push": ("N", "#9a9aa6")}
+    _B = {"won": ("W", "w"), "lost": ("L", "l"), "push": ("N", "n")}
     _rows = []
     for e in _pvt.entries(_snap):
-        _lt, _c = _B.get(e.get("result"), ("⏳", "#f6c54a"))          # pas de résultat -> ⏳ en attente
+        _lt, _bc = _B.get(e.get("result"), ("⏳", "p"))          # pas de résultat -> ⏳ en attente (doré)
         _nm = _h.escape(str(e.get("name") or "").replace(" - ", " — "))
         _sel = _h.escape(str(e.get("sel") or ""))
         _co = e.get("cote")
         _cot = f' · @{_co:g}' if isinstance(_co, (int, float)) and _co else ""
         _dt = web.fmt_local(e.get("start"), with_date=True) if e.get("start") else ""
-        _tag = ('<i style="color:#f6c54a;font-style:normal"> · en attente</i>'
-                if e.get("result") is None else "")
+        _tag = '<span class="sx-gold"> · en attente</span>' if e.get("result") is None else ""
         _rows.append(
-            '<div style="display:flex;align-items:center;gap:8px;font-size:11px;padding:4px 0;'
-            'border-top:1px solid rgba(255,255,255,.05)">'
-            f'<span style="flex:none;width:19px;height:19px;border-radius:6px;background:{_c};color:#0a0a0a;'
-            f'font-weight:900;font-size:10px;display:flex;align-items:center;justify-content:center">{_lt}</span>'
-            f'<span style="flex:1;min-width:0;line-height:1.25"><b>{_nm}</b>{_tag}<br>'
-            f'<span style="color:var(--muted);font-size:10px">{_sel}{_cot}</span></span>'
-            f'<span style="flex:none;color:var(--dim);font-size:9.5px">{_h.escape(_dt)}</span></div>')
-    _list = (f'<div style="margin-top:8px">{"".join(_rows)}</div>') if _rows else ""
+            f'<div class="sx-leg"><span class="sx-bdg {_bc}">{_lt}</span>'
+            f'<span class="sx-leg-t"><b>{_nm}</b>{_tag}<small>{_sel}{_cot}</small></span>'
+            f'<span class="sx-leg-x">{_h.escape(_dt)}</span></div>')
+    _list = "".join(_rows)
     # courbe d'équité (profit cumulé, info seule) — dès 2 provisoires réglés
     _eq = _pvt.equity_curve(_snap)
-    _graph = (f'<div class="sx-equity" style="margin-top:10px">{web._hero_chart(_eq, uid="prov")}</div>'
+    _graph = (f'<div class="sx-chart">{web._hero_chart(_eq, uid="prov")}</div>'
               if len(_eq) >= 3 else "")
     return (
         '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
@@ -510,7 +505,7 @@ def _provisional_card() -> str:
         f'<div class="sx-kpi"><b>{s.get("pending", 0)}</b><span>en attente</span></div>'
         '</div><div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{"—" if _hit is None else str(_hit) + "%"}</b><span>réussite</span></div>'
-        f'<div class="sx-kpi"><b style="color:{_col}">{_roi_txt}</b><span>ROI (info)</span></div>'
+        f'<div class="sx-kpi{_roicls}"><b>{_roi_txt}</b><span>ROI (info)</span></div>'
         f'<div class="sx-kpi"><b>{s.get("avg_cote") or "—"}</b><span>cote moyenne</span></div>'
         '</div>'
         + _graph + _list +
@@ -547,8 +542,8 @@ def _selectivity_card() -> str:
         '<div class="sx-card"><div class="sx-h">🎯 Sélectivité du jour '
         '<span>matchs analysés</span></div>'
         '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b style="color:var(--green)">{pj}</b><span>paris à jouer</span></div>'
-        f'<div class="sx-kpi"><b style="color:#f6c54a">{ab}</b><span>abstentions</span></div>'
+        f'<div class="sx-kpi sx-pos"><b>{pj}</b><span>paris à jouer</span></div>'
+        f'<div class="sx-kpi"><b class="sx-gold">{ab}</b><span>abstentions</span></div>'
         f'<div class="sx-kpi"><b>{pct}%</b><span>de sélection</span></div>'
         '</div>'
         '<div class="sx-data-note">Un pari n\'est retenu que s\'il a de la <b>VALUE</b> (proba ≥ 65 % ET '
@@ -569,51 +564,45 @@ def _combo_daily_card() -> str:
     if not s or not s.get("n"):
         return ""
     import datetime as _dt
+    import html as _h
     _roi = s.get("roi_pct")
     _hit = s.get("hit_rate")
-    _col = "var(--muted)" if _roi is None else ("var(--green)" if _roi >= 0 else "var(--red)")
+    _roicls = "" if _roi is None else (" sx-pos" if _roi >= 0 else " sx-neg")
     _roi_txt = "—" if _roi is None else f'{"+" if _roi >= 0 else ""}{_roi}%'
     _today_key = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
     _all = _cd.entries(_snap)
     _cur = _cd.today(_today_key, _snap)
-    # combiné du jour EN TÊTE (jambes visibles) ; puis l'historique des combinés passés (réglés)
+    # combiné du jour EN TÊTE (jambes visibles + analyse dédiée) ; puis l'historique des combinés réglés
     _cur_html = ""
     if _cur:
-        _pb = {"won": ("✅ Gagné", "var(--green)"), "lost": ("❌ Perdu", "var(--red)"),
-               "void": ("➖ Remboursé", "var(--muted)")}.get(_cur.get("result"), ("⏳ En attente", "#f6c54a"))
+        _st = {"won": "✅ Gagné", "lost": "❌ Perdu", "void": "➖ Remboursé"}.get(
+            _cur.get("result"), "⏳ En attente")
+        _synth = (f'<div class="sx-synth">💡 {_h.escape(str(_cur.get("synth")))}</div>'
+                  if _cur.get("synth") else "")
         _cur_html = (
-            f'<div style="margin-top:10px;padding:10px;border:1px solid rgba(246,197,74,.35);'
-            'border-radius:10px;background:rgba(246,197,74,.05)">'
-            '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">'
-            f'<b style="color:#f6c54a">🎯 Aujourd\'hui</b>'
-            f'<span style="color:{_pb[1]};font-weight:800">{_pb[0]}</span></div>'
-            '<div style="display:flex;gap:14px;margin:6px 0;font-size:12px">'
+            '<div class="sx-today">'
+            '<div class="sx-today-h"><b class="sx-gold">🎯 Aujourd\'hui</b>'
+            f'<span style="font-weight:800">{_st}</span></div>'
+            '<div class="sx-meta">'
             f'<span>cote <b>@{_cur.get("cote")}</b></span>'
             f'<span>chances <b>{round((_cur.get("prob") or 0) * 100)}%</b></span>'
             f'<span>{len(_cur.get("legs") or [])} jambes</span></div>'
-            # SYNTHÈSE du combiné (analyse dédiée générée au scan) + jambes CLIQUABLES (chaque jambe déplie
-            # sa justification propre, comme un pari à jouer) — demande user 2026-07-11.
-            + (f'<div style="font-size:11px;color:var(--muted);line-height:1.4;margin:2px 0 6px;'
-               f'font-style:italic">💡 {__import__("html").escape(str(_cur.get("synth")))}</div>'
-               if _cur.get("synth") else "")
-            + '<div style="font-size:9.5px;color:var(--dim);margin-bottom:2px">Touchez une jambe pour '
-              'son analyse ▸</div>'
+            + _synth
+            + '<div class="sx-hint">Touchez une jambe pour son analyse ▸</div>'
             + web.combo_legs_html(_cur, expandable=True) + '</div>')
     _hist = [cb for cb in _all if cb.get("date") != _today_key and cb.get("result")]
     _hrows = []
     for cb in _hist[:8]:
-        _pb = {"won": ("W", "#34d27b"), "lost": ("L", "#ff6b6b")}.get(cb.get("result"), ("➖", "#9a9aa6"))
+        _bc = {"won": "w", "lost": "l"}.get(cb.get("result"), "n")
+        _lt = {"won": "W", "lost": "L"}.get(cb.get("result"), "➖")
         _hrows.append(
-            '<div style="display:flex;align-items:center;gap:8px;font-size:11px;padding:4px 0;'
-            'border-top:1px solid rgba(255,255,255,.05)">'
-            f'<span style="flex:none;width:19px;height:19px;border-radius:6px;background:{_pb[1]};color:#0a0a0a;'
-            f'font-weight:900;font-size:10px;display:flex;align-items:center;justify-content:center">{_pb[0]}</span>'
-            f'<span style="flex:1;min-width:0">{cb.get("date")}</span>'
-            f'<span style="color:var(--dim)">@{cb.get("cote")} · {len(cb.get("legs") or [])} j.</span></div>')
-    _hist_html = (f'<div style="margin-top:8px">{"".join(_hrows)}</div>') if _hrows else ""
+            f'<div class="sx-leg"><span class="sx-bdg {_bc}">{_lt}</span>'
+            f'<span class="sx-leg-t"><b>{cb.get("date")}</b></span>'
+            f'<span class="sx-leg-x">@{cb.get("cote")} · {len(cb.get("legs") or [])} j.</span></div>')
+    _hist_html = "".join(_hrows)
     # courbe d'équité (profit cumulé, info seule) — dès 2 combinés du jour réglés
     _eqc = _cd.equity_curve(_snap)
-    _graph_c = (f'<div class="sx-equity" style="margin-top:10px">{web._hero_chart(_eqc, uid="combod")}</div>'
+    _graph_c = (f'<div class="sx-chart">{web._hero_chart(_eqc, uid="combod")}</div>'
                 if len(_eqc) >= 3 else "")
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Combiné du jour '
@@ -622,13 +611,13 @@ def _combo_daily_card() -> str:
         'probables</b> de tous les matchs analysés (cote ≥ 1.9, taux de réussite maximal). Mélange sports '
         'et marchés. Mesuré à titre indicatif : <b>ne compte PAS</b> dans le ROI réel (mise à plat 1 u).</div>'
         + _cur_html +
-        '<div class="sx-kpis sx-kpis3" style="margin-top:10px">'
+        '<div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>jours suivis</span></div>'
         f'<div class="sx-kpi"><b>{s.get("settled", 0)}</b><span>réglés</span></div>'
         f'<div class="sx-kpi"><b>{s.get("pending", 0)}</b><span>en attente</span></div>'
         '</div><div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{"—" if _hit is None else str(_hit) + "%"}</b><span>réussite</span></div>'
-        f'<div class="sx-kpi"><b style="color:{_col}">{_roi_txt}</b><span>ROI (info)</span></div>'
+        f'<div class="sx-kpi{_roicls}"><b>{_roi_txt}</b><span>ROI (info)</span></div>'
         f'<div class="sx-kpi"><b>{s.get("avg_cote") or "—"}</b><span>cote moyenne</span></div>'
         '</div>'
         + _graph_c + _hist_html + '</div>')
@@ -650,6 +639,9 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 '<div class="statsx">'    # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
                 + _period_filter(since)
                 + _home_stats(days)       # vue d'ensemble + edge + calibration + transparence (en sections)
+                # SÉPARATEUR de groupe : tout ce qui suit est du JOUR / INDICATIF, distinct du ROI réel.
+                + '<div class="sx-group">🧪 Le jour &amp; suivis indicatifs '
+                  '<span>à titre informatif — hors ROI réel</span></div>'
                 + _selectivity_card()     # ratio paris à jouer / abstentions du jour (rend la sélectivité visible)
                 + _combo_daily_card()     # « info seule » : le combiné multisport du jour (hors ROI réel)
                 + _provisional_card()     # « info seule » : perf hypothétique des provisoires (hors ROI réel)
