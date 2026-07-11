@@ -1192,6 +1192,13 @@ def warm_combo_odds(event_id, combo) -> None:
     _COMBO_LIVE_CACHE[key] = (time.time(), real)
 
 
+def has_combo(sport: str, match_id) -> bool:
+    """Vrai si le match porte un combiné same-match (Coupe du Monde) — jambes présentes dans le sidecar.
+    Test LÉGER (via `meta`, mémoïsé) pour classer une carte dans le cadre « Combinés » vs « Paris à jouer »
+    sans rendre le HTML complet. Cohérent avec `combo_html` (même condition `combo.legs`)."""
+    return bool(((meta(sport, match_id) or {}).get("combo") or {}).get("legs"))
+
+
 def combo_html(sport: str, match_id) -> str:
     """Cadre « 🎲 Combiné » (grand tournoi) d'un match, depuis le sidecar `combo`. Chaque jambe + cote,
     cote combinée, et résultat réglé (par jambe + global) si présent. EN COURS de match : statut live

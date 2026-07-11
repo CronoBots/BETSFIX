@@ -1576,6 +1576,35 @@ CSS = """
        border:1px solid var(--gold-bd);border-radius:6px;padding:1px 6px;font-size:10px;font-weight:800}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
+  /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
+     (point d'état + titre casse normale + compteur + mot-clé), filet fin, aucune barre/majuscule criarde. */
+  .dash-zones{margin-top:4px}
+  .zone{margin-top:28px}
+  .zone:first-child{margin-top:12px}
+  .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 13px;padding-bottom:11px;
+       border-bottom:1px solid var(--border)}
+  .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
+  .zone-t{font-size:16.5px;font-weight:800;color:var(--text);letter-spacing:-.01em}
+  .zone-n{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
+       display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
+       background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
+  .zone-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
+  .zone-b{margin-top:2px}
+  .zone-b .dayhdr:first-child{margin-top:4px}
+  .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
+  .zone-empty b{color:var(--text);font-weight:800}
+  .zone-play .zone-dot{background:var(--green);box-shadow:0 0 8px rgba(166,226,46,.55)}
+  .zone-play .zone-n{color:var(--green);background:rgba(166,226,46,.12)}
+  .zone-indic .zone-dot{background:var(--gold);box-shadow:0 0 8px rgba(246,197,74,.55)}
+  .zone-indic .zone-n{color:var(--gold);background:var(--gold-bg)}
+  .zone-indic .zone-tag{color:var(--gold);opacity:.9}
+  .zone-todo{opacity:.88}
+  .zone-todo .zone-t{font-size:14.5px;font-weight:700;color:var(--muted)}
+  /* Carte PROVISOIRE en zone dédiée : habillage DORÉ cohérent (au lieu du cyan des paris à jouer) ->
+     lisible d'un coup d'œil « hors ROI » sans pastille répétée. */
+  .row.mc.mc-prov-c{border-color:var(--gold-bd);
+       background:linear-gradient(180deg,rgba(246,197,74,.06),rgba(246,197,74,.015));
+       box-shadow:0 0 20px rgba(246,197,74,.10)}
   .dash-h-a,
   .dash-more{font-size:11.5px;font-weight:800;color:var(--accent);text-decoration:none}
   .dash-more{display:block;text-align:center;margin:2px 0 4px;padding:11px;border-radius:12px;
@@ -3174,11 +3203,16 @@ def _prog_pair(home, away) -> frozenset:
     return frozenset(x for x in (_n(home), _n(away)) if x)
 
 
-def _programme_items(exclude_pairs: set | None = None) -> list:
+def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) -> list:
     """Cartes du PROGRAMME DU JOUR (matchs SANS pari à jouer affiché) à FUSIONNER — dans l'ordre
     chronologique — avec les paris à jouer, dans le MÊME cadre (demande user). Renvoie une liste de dicts
     {"start_ts", "_html"} : le tri global et les en-têtes de jour sont gérés par le cadre unifié
     (_rows_by_day), donc PAS de regroupement par sport ici. [] si aucun match à afficher.
+
+    `framed=True` (zone dédiée « Indicatif · hors ROI ») : la carte vit dans une zone qui porte le libellé
+    UNE fois -> on n'affiche PLUS la pastille « 🧪 PROVISOIRE · indicatif, hors ROI » sur CHAQUE carte
+    (fin de la répétition, demande user 2026-07-11). Le reste (pari + cote + confiance + ré-analyse) est
+    identique. Les cartes prennent la classe `.mc-prov-c` (accent doré discret) pour rester identifiables.
 
     `exclude_pairs` : paires de noms (cf. `_prog_pair`) des matchs DÉJÀ affichés en pari à jouer
     (match_rows) -> exclus d'office pour ne JAMAIS afficher un match 2× (bug doublon : un match publié
@@ -3260,8 +3294,12 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
                           if isinstance(_pconf, (int, float)) and _pconf else "")
             _reana = ("pas de value détectée" if now >= reanalyse
                       else f"Ré-analyse à {fmt_local(reanalyse, with_date=False)} · peut changer")
-            sub = ('<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>'
-                   f'<div class="mc-betl mc-prov"><span class="mc-bi">•</span>'
+            # Pastille « 🧪 PROVISOIRE » par carte : OMISE en mode `framed` (la zone « Indicatif · hors ROI »
+            # porte déjà le libellé une fois) — demande user 2026-07-11, fin de la répétition.
+            _prov_tag = ('' if framed else
+                         '<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>')
+            sub = (_prov_tag
+                   + f'<div class="mc-betl mc-prov"><span class="mc-bi">•</span>'
                    f'<span class="mc-bt">{html.escape(prov_sel)}</span>{_cote_html}{_conf_chip}</div>'
                    f'<div class="mc-reana mc-reana-prov">🔄 {_reana}</div>')
         else:
@@ -3286,6 +3324,9 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             + '</div>'
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{sub}</div></div>')
+        # Accent doré discret (bord gauche) sur les cartes PROVISOIRES en zone dédiée -> identifiables sans
+        # la pastille répétée (demande user 2026-07-11). Uniquement en mode `framed` et si c'est un provisoire.
+        _acc = " mc-prov-c" if (framed and prov_sel) else ""
         # PROVISOIRE CLIQUABLE (demande user 2026-07-10) : si l'analyse du match est disponible (le scan
         # GARDE le .md des provisoires), la carte devient un <details> qui déplie la fiche d'analyse — comme
         # les paris à jouer. Le .md est purement AFFICHAGE (aucun impact ROI/stats/calibration). Sinon carte
@@ -3318,11 +3359,11 @@ def _programme_items(exclude_pairs: set | None = None) -> list:
             # Analyse INLINE dans `.exp` (un clic dedans ne replie pas). PAS de classe `.mc-ana` : elle
             # déclencherait `_mcLoad` -> `fetch(data-ana=null)` -> /null -> 404 « {detail: Not Found} »
             # qui écrasait l'analyse (bug vu 2026-07-10). Ici l'analyse est déjà là -> aucun fetch.
-            card = (f'<div class="row pick mc prog-card prog-card-x">'
+            card = (f'<div class="row pick mc prog-card prog-card-x{_acc}">'
                     f'<div class="mc-head">{_inner}<span class="mc-chev">▸</span></div>'
                     f'<div class="mc-body" hidden><div class="exp">{_body}</div></div></div>')
         else:
-            card = f'<div class="row pick mc prog-card"><div class="mc-head">{_inner}</div></div>'
+            card = f'<div class="row pick mc prog-card{_acc}"><div class="mc-head">{_inner}</div></div>'
         items.append({"start_ts": dt.timestamp(), "_html": card, "_sport": sp,
                       "_prov": bool(prov_sel), "_live": _is_live, "home": home, "away": away})
     return items
@@ -3392,35 +3433,61 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
         + combo_legs_html(cb) + '</a>')
 
 
+def _zone(kind: str, title: str, tag: str, count: int, body: str) -> str:
+    """ZONE de l'accueil (regroupement par nature de pari) — en-tête PREMIUM ÉPURÉ : un point de couleur
+    (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé sur un
+    filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les cartes
+    déjà triées (chrono, en-têtes de jour internes). '' si corps vide. Pur affichage."""
+    if not (body and body.strip()):
+        return ""
+    n = f'<span class="zone-n">{count}</span>' if count else ""
+    t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
+    return (f'<section class="zone zone-{kind}"><div class="zone-h">'
+            f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>'
+            f'{n}{t}</div><div class="zone-b">{body}</div></section>')
+
+
 def render_dashboard(match_rows: list, *, live_count: int = 0,
                      frag: bool = False, source: dict | None = None) -> str:
-    """ACCUEIL épuré (2026-06-13) : UNIQUEMENT les matchs À VENIR (format compact, tous sports
-    mélangés, triés par coup d'envoi) + un petit bandeau « N en direct → Live ». Les statistiques
-    sont passées dans leur propre onglet 📊 de la barre du bas."""
+    """ACCUEIL (refonte PREMIUM 2026-07-11) : deux zones hiérarchisées et épurées — d'abord « À jouer »
+    (les paris comptés au ROI : simples + combinés Coupe du Monde), puis « Indicatif · hors ROI » (le
+    combiné du jour + les paris provisoires). Chaque zone est triée par coup d'envoi (en-têtes de jour
+    internes) et porte son libellé UNE fois (fini la pastille répétée sur chaque carte). Pur affichage —
+    la sélection ROI est inchangée. Une 3ᵉ zone discrète liste les matchs pas encore analysés."""
     livebar = ((f'<a class="dash-livebar" href="/directs"><span class="nr-dot"></span>'
                 f'<b>{live_count} match{"s" if live_count > 1 else ""} en direct</b>'
                 '<span class="dash-livebar-go">suivre dans Live →</span></a>')
                if live_count else "")
-    # UN SEUL CADRE, ORDRE CHRONOLOGIQUE (demande user) : les paris à jouer (cartes vertes dépliables)
-    # ET le reste du programme (cartes + heure de ré-analyse) FUSIONNÉS et triés par coup d'envoi, avec
-    # en-têtes de jour (Aujourd'hui / Demain …). Un match affiché en pari à jouer est EXCLU du programme
-    # (dédoublonnage par noms d'équipes) -> jamais 2× (même si son statut retombe « abstained »).
-    _paj_pairs = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
-    # Accueil = « à venir » : on écarte les provisoires EN COURS (ils vivent dans l'onglet Live).
-    _prog = [it for it in _programme_items(_paj_pairs) if not it.get("_live")]
-    items = sorted(list(match_rows) + _prog, key=lambda r: r.get("start_ts") or 0)
-    if items:
-        header = ('<div class="prog-sec"><span>📅 Programme du jour</span>'
-                  f'<span class="prog-n">{len(items)}</span></div>')
-        note = ("<div class=\"prog-note\">Chaque match est analysé au scan du matin puis "
-                "<b>ré-analysé ~1 h avant</b> son coup d'envoi. Un pari <b>confirmé</b> (vert) = value "
-                "détectée ; sinon un pari <b>provisoire</b> (doré, indicatif) est proposé et peut "
-                "changer à la ré-analyse.</div>")
-        matches = f'<div class="anz">{header}{_rows_by_day(items)}{note}</div>'
-    else:
-        matches = ('<div class="dash-h"><span>Prochains matchs</span></div>'
-                   '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    body = _combo_daily_banner() + livebar + matches
+    # À JOUER (ROI) : les paris retenus (simples + combinés CdM), triés par coup d'envoi.
+    play = sorted(list(match_rows), key=lambda r: r.get("start_ts") or 0)
+    # PROGRAMME : provisoires (doré, hors ROI) + reste (pas encore analysé). Accueil = « à venir » -> on
+    # écarte les EN COURS (onglet Live). `framed=True` retire la pastille répétée sur chaque carte.
+    _paj = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
+    _prog = [it for it in _programme_items(_paj, framed=True) if not it.get("_live")]
+    prov = sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
+    todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
+    combo_daily = _combo_daily_banner()          # carte du combiné du jour (multisport, hors ROI) ou ''
+    has_any = bool(play or prov or todo or combo_daily)
+    out = []
+    # ZONE 1 — À JOUER (ROI). Montrée même vide (état honnête) dès qu'il y a du contenu indicatif.
+    if play:
+        out.append(_zone("play", "À jouer", "comptés au ROI", len(play), _rows_by_day(play)))
+    elif has_any:
+        out.append('<section class="zone zone-play"><div class="zone-h">'
+                   '<span class="zone-dot"></span><span class="zone-t">À jouer</span>'
+                   '<span class="zone-tag">comptés au ROI</span></div>'
+                   '<div class="zone-b"><div class="zone-empty">Aucun pari de <b>value</b> sur les '
+                   'matchs à venir pour l\'instant — c\'est la discipline qui protège le ROI. '
+                   'Le programme <b>indicatif</b> est juste en dessous.</div></div></section>')
+    # ZONE 2 — INDICATIF (hors ROI) : combiné du jour puis provisoires.
+    _ind_n = len(prov) + (1 if combo_daily else 0)
+    out.append(_zone("indic", "Indicatif", "hors ROI", _ind_n, combo_daily + _rows_by_day(prov)))
+    # ZONE 3 — À ANALYSER (matchs pas encore analysés) : discrète, en bas.
+    out.append(_zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo)))
+    inner = "".join(x for x in out if x)
+    matches = (f'<div class="dash-zones">{inner}</div>' if inner
+               else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
+    body = livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:
