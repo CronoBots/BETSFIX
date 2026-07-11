@@ -432,14 +432,6 @@ async def paris_redirect() -> RedirectResponse:
     return RedirectResponse("/", status_code=308)
 
 
-def _period_filter(since: str) -> str:
-    """Boutons de fenêtre temporelle (7 j / 30 j / Tout) — rechargent le panneau stats (data-since)."""
-    opts = [("7", "7 jours"), ("30", "30 jours"), ("", "Tout")]
-    return ('<div class="sx-period">' + "".join(
-        f'<a data-since="{v}"{" class=\"on\"" if v == since else ""}>{lab}</a>'
-        for v, lab in opts) + '</div>')
-
-
 async def _system_health_html() -> str:
     """Panneau « Santé du système » (privé) : santé LIVE des sources (ping) + auto-audit d'intégrité, dans
     une section repliable de la page Stats. Rend visible d'un coup d'œil ce que surveillaient les CLI."""
@@ -675,7 +667,8 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
     if body is None:
         body = ('<div class="pg-h">Statistiques</div>'
                 '<div class="statsx">'    # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
-                + _period_filter(since)
+                # Filtres de période (7 / 30 / Tout) RETIRÉS (demande user 2026-07-11) : les stats affichent
+                # toujours TOUT l'historique (since="" -> days=None). Vue unique, plus simple.
                 + _home_stats(days)       # vue d'ensemble + edge + calibration + transparence (en sections)
                 # SÉPARATEUR de groupe : tout ce qui suit est du JOUR / INDICATIF, distinct du ROI réel.
                 + '<div class="sx-group">🧪 Le jour &amp; suivis indicatifs '
