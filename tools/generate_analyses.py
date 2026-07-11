@@ -2025,7 +2025,11 @@ def _analyze_samematch_legs(combo: dict, analysis: str, home: str, away: str) ->
     appel Claude, faits tirés de l'analyse du match. Best-effort. Garantit qu'AUCUN combiné affiché n'est
     sans analyse par jambe (demande user 2026-07-11). No-op si toutes les jambes ont déjà un why."""
     legs = combo.get("legs") or []
-    if not legs or all(l.get("why") for l in legs):
+    # Régénérer si des jambes n'ont PAS de justification OU si la synthèse est GÉNÉRIQUE (texte automatique
+    # de l'optimiseur « Combiné optimisé sur la VRAIE cote… ») : dans les deux cas l'analyse n'est pas au
+    # niveau premium (demande user 2026-07-12 : que TOUS les combinés aient une vraie analyse par jambe).
+    _generic = (combo.get("why") or "").startswith("Combiné optimisé")
+    if not legs or (all(l.get("why") for l in legs) and not _generic):
         return
     faits = ""
     m = re.search(r"##[^\n]*[Ff]aits(.*?)(?:\n##|\Z)", analysis, re.S)
@@ -2407,10 +2411,13 @@ async def main():
                 combo = _make_combo(analysis, sport, m.get("home", ""), m.get("away", ""),
                                     event_id=str(m.get("id")),
                                     comp=m.get("comp") or m.get("circuit") or "")
-                # ANALYSE PAR JAMBE GARANTIE (demande user 2026-07-11 : « aucune analyse de jambe ne doit
-                # manquer ») : un combiné de REPLI (optimiseur) a des jambes sans why -> on les enrichit via
-                # un appel Claude dédié. No-op si toutes ont déjà un why (COMBOPICK/prose de l'analyste).
-                if combo and combo.get("legs") and not all(l.get("why") for l in combo["legs"]):
+                # ANALYSE PAR JAMBE GARANTIE & PREMIUM (demande user 2026-07-11/12) : tout combiné dont les
+                # jambes n'ont pas de why OU dont la synthèse est GÉNÉRIQUE (texte auto de l'optimiseur) est
+                # enrichi via un appel Claude dédié (justification chiffrée par jambe + vraie synthèse). No-op
+                # si déjà premium (COMBOPICK avec prose riche). -> tous les combinés au MÊME niveau.
+                _cw = (combo or {}).get("why") or ""
+                if combo and combo.get("legs") and (_cw.startswith("Combiné optimisé")
+                                                    or not all(l.get("why") for l in combo["legs"])):
                     _analyze_samematch_legs(combo, analysis, m.get("home", ""), m.get("away", ""))
                 # VALIDATION PAR PANEL (3 agents) du pari simple — SAUF si un combiné porte le match
                 # (le combiné est le pari phare, structure validée à part — comme la CdM).
