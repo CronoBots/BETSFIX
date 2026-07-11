@@ -1243,6 +1243,7 @@ CSS = """
   .bc-mile-n{fill:#fff;font-size:7px;font-weight:900;pointer-events:none}
   /* Repères ALLÉGÉS : pastilles cliquables + panneau d'info au clic (page plus légère) */
   .sx-miles{margin-top:10px}
+  .sx-miles-c{margin-top:0}
   /* Transparence : marchés écartés (type de pari · raison · seuils) */
   .exq{display:flex;flex-direction:column;gap:8px}
   .exq-intro{font-size:11px;line-height:1.5;color:var(--muted);margin-bottom:2px}
@@ -2121,6 +2122,18 @@ CSS = """
        letter-spacing:.10em;text-transform:uppercase;color:var(--gold)}
   .sx-group::before{content:"";flex:0 0 14px;height:2px;border-radius:2px;background:var(--gold);opacity:.8}
   .sx-group span{font-size:10px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0}
+  /* HERO en tête de la page Stats : le chiffre clé (ROI global) + courbe globale — l'argument n°1. */
+  .sx-hero{text-align:center;padding:15px 14px 12px;margin:2px 0 8px;border-radius:18px;
+       border:1px solid rgba(34,184,255,.55);
+       background:linear-gradient(180deg,rgba(34,184,255,.13),rgba(34,184,255,.02));
+       box-shadow:0 0 34px rgba(34,184,255,.18),var(--shadow-sm)}
+  .sx-hero-lbl{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .sx-hero-roi{font-size:48px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:5px 0 3px;
+       font-variant-numeric:tabular-nums}
+  .sx-hero-roi.pos{color:#34d27b}.sx-hero-roi.neg{color:#ff6b6b}
+  .sx-hero-sub{font-size:12px;color:var(--muted);font-weight:600}
+  .sx-hero-sub b{color:var(--text);font-variant-numeric:tabular-nums}
+  .sx-hero .sx-chart{margin-top:10px}
   /* Bandeau « Combiné du jour » (accueil/Live) : lien compact doré */
   .combo-day{display:block;text-decoration:none;color:inherit;margin-bottom:12px;padding:12px 14px;
        border:1px solid var(--gold-bd);border-radius:14px;
@@ -2927,10 +2940,15 @@ def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict |
         'n\'existe pas de combiné fantôme.</div></div>')
 
 
-def _mile_legend(miles: list) -> str:
+def _mile_legend(miles: list, *, compact: bool = False) -> str:
     """Légende repliable des repères de modèle (pastilles numérotées cliquables + explications cachées au
     clic) pour un SOUS-ENSEMBLE de MODEL_MILESTONES (Simples OU Combinés). Numérotation LOCALE 1..N, et le
-    JS (_MILE_JS) est scopé au bloc `.spf-cv` -> les 2 séries de repères ne se confondent pas. '' si vide."""
+    JS (_MILE_JS) est scopé au bloc `.spf-cv` -> les 2 séries de repères ne se confondent pas. '' si vide.
+
+    `compact=True` (bloc Combinés) : on N'AFFICHE PAS l'en-tête « Repères du modèle » ni la grille de
+    pastilles (redondants avec le bloc Simples juste au-dessus). On garde SEULEMENT le panneau d'info + les
+    divs de données cachées -> les marqueurs numérotés de la COURBE combinés restent cliquables (le JS
+    cherche `.sx-mile-d` dans le même scope `.spf-cv`). Condense le haut de la page sans perdre l'interaction."""
     if not miles:
         return ""
 
@@ -2950,6 +2968,9 @@ def _mile_legend(miles: list) -> str:
     if any(_auto(m) for m in miles) and any(not _auto(m) for m in miles):
         key = ('<div class="sx-mile-key"><span><i class="km kmeth"></i>réglage méthodo</span>'
                '<span><i class="km kauto"></i>marché auto-ajusté</span></div>')
+    if compact:
+        # Combinés : que le panneau d'info + les données cachées (marqueurs de courbe cliquables).
+        return f'<div class="sx-miles sx-miles-c"><div class="sx-mile-info"></div>{data}</div>'
     return (f'<div class="sx-miles"><div class="sx-ml-h">Repères du modèle'
             f'<span class="sx-ml-hint">touchez un repère pour le détail</span></div>'
             f'{key}<div class="sx-mile-bs">{chips}</div>'
@@ -3137,7 +3158,7 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
         f'<span><b>{cs["n"]}</b> paris</span>'
         f'<span><b>@{cs.get("avg_odds") or "—"}</b> cote</span></div>'
         f'<div class="spf-cv-extra">{extra}</div>'
-        f'{legs}{_mile_legend(_mc)}')
+        f'{legs}{_mile_legend(_mc, compact=True)}')
     _rec_c = _recent_bets_html(list(reversed(cs.get("recent") or [])))
     if _rec_c:
         return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_c_inner}'

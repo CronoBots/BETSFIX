@@ -242,6 +242,43 @@ def _cached_votes(provider, mid) -> tuple | None:
 
 
 
+def _hero_card(full: dict, combo: dict) -> str:
+    """HERO en tête de la page Stats : le CHIFFRE CLÉ (rentabilité globale, tous paris confondus) + profit
+    total + une courbe d'équité GLOBALE (simples + combinés fusionnés par date). L'argument n°1, en un
+    coup d'œil, avant le détail par catégorie/sport."""
+    ov = full.get("overall") or {}
+    cb = combo.get("overall") or combo or {}
+    n_s, n_c = ov.get("settled") or 0, cb.get("n") or 0
+    bets = n_s + n_c
+    if not bets:
+        return ""
+    profit = (ov.get("profit") or 0) + (cb.get("profit") or 0)
+    won = (ov.get("won") or 0) + (cb.get("won") or 0)
+    roi = round(profit / bets * 100, 1)
+    pct = round(won / bets * 100)
+
+    def _deltas(pts, dts):                         # cumul -> deltas datés (pts[0]=0, pts[i+1] à dts[i])
+        if not dts or not pts or len(pts) < 2:
+            return []
+        return [(dts[i], pts[i + 1] - pts[i]) for i in range(min(len(dts), len(pts) - 1))]
+    evs = (_deltas(ov.get("points") or [], ov.get("dates") or [])
+           + _deltas(cb.get("points") or [], cb.get("dates") or []))
+    evs.sort(key=lambda x: x[0] or "")             # fusion chronologique simples + combinés
+    gpts, curv = [0.0], 0.0
+    for _, dlt in evs:
+        curv += dlt
+        gpts.append(round(curv, 2))
+    _chart = f'<div class="sx-chart">{web._hero_chart(gpts, uid="hero")}</div>' if len(gpts) >= 3 else ""
+    _cls = "pos" if roi >= 0 else "neg"
+    return (
+        '<div class="sx-hero">'
+        '<div class="sx-hero-lbl">Rentabilité globale · tous paris</div>'
+        f'<div class="sx-hero-roi {_cls}">{"+" if roi >= 0 else ""}{roi}%</div>'
+        f'<div class="sx-hero-sub"><b>{bets}</b> paris réglés · <b>{pct}%</b> de réussite · '
+        f'<b>{"+" if profit >= 0 else ""}{round(profit, 1)} u</b> de profit</div>'
+        + _chart + '</div>')
+
+
 _HOMESTATS_CACHE: dict = {}   # since_days -> (signature_données, html) — évite ~1.4 s de recalcul par rendu
 
 
@@ -288,7 +325,8 @@ def _home_stats_compute(since_days: int | None = None) -> str:
     # 2. OÙ EST L'EDGE : par sport puis par cote (mêmes données, granularité croissante).
     edge = web.render_sports_breakdown(full) + web.render_perf(analyses.perf_breakdown(since_days))
     inner = (
-        web.render_stats(full, combo_full=combo)                                   # 1. vue d'ensemble (ouverte)
+        _hero_card(full, combo)                                                    # 0. HERO : rentabilité globale
+        + web.render_stats(full, combo_full=combo)                                 # 1. vue d'ensemble (ouverte)
         + _sec("Où se trouve l'edge", "performance par sport et par cote", edge)   # 2.
         + _sec("Fiabilité du modèle", "la confiance tient-elle ses promesses ?",   # 3.
                web.render_reliability(analyses.calibration_reliability(buckets=12))
