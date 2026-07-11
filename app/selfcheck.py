@@ -427,6 +427,30 @@ def _check_ghost_resolution(rows) -> dict:
             "items": items}
 
 
+def _check_provisional_dedup() -> dict:
+    """Un provisoire NON réglé ne doit JAMAIS être suivi si son match a DÉJÀ un pari RETENU (combiné ou
+    simple) : sinon le même match est suivi 2× et une seule erreur se répercote à deux endroits, avec deux
+    résultats possibles (demande user 2026-07-11). La dédup est assurée par `provisional.prune_retained` ;
+    ce check détecte tout contournement futur. Ignore les provisoires déjà réglés (compteur monotone)."""
+    dup = []
+    try:
+        from app import provisional
+        d = provisional.load()
+        for mid, p in d.items():
+            if not isinstance(p, dict) or p.get("result") in ("won", "lost", "push"):
+                continue
+            sport = p.get("sport")
+            if analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None:
+                dup.append(f"{p.get('name', '?')} : provisoire « {p.get('sel')} » alors que le match a "
+                           f"un pari retenu (doublon)")
+    except Exception:
+        pass
+    return {"key": "provisional_dedup", "level": "error" if dup else "ok",
+            "title": "Provisoire non dupliqué d'un pari retenu",
+            "detail": f"{len(dup)} provisoire(s) suivi(s) dont le match a déjà un pari retenu (doublon).",
+            "items": dup[:20]}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -446,6 +470,7 @@ def run(persist: bool = False) -> dict:
         _check_combo_ev_value(rows),
         _check_combo_not_dominated(rows),
         _check_ghost_resolution(rows),
+        _check_provisional_dedup(),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]
