@@ -51,10 +51,40 @@ def record(sport: str, match_id, home: str, away: str, start: str, name: str,
     prev = d.get(mid)
     if isinstance(prev, dict) and prev.get("result") in ("won", "lost", "push"):
         return                                    # déjà réglé -> figé (jamais réécrit)
+    # DÉDUP (demande user 2026-07-11) : si le match a DÉJÀ un pari RETENU (combiné ou simple), il ne doit
+    # PAS être suivi EN DOUBLE comme provisoire — sinon une seule erreur se répercute aux deux endroits, avec
+    # deux résultats possibles pour un seul match. On n'enregistre pas (et on retire une entrée NON réglée).
+    from app import analyses
+    if analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None:
+        if isinstance(prev, dict) and prev.get("result") is None:
+            d.pop(mid, None)
+            _save(d)
+        return
     d[mid] = {"sport": sport, "id": mid, "home": home, "away": away, "start": start,
               "name": name, "comp": comp, "sel": sel, "cote": cote, "code": code,
               "result": (prev or {}).get("result")}
     _save(d)
+
+
+def prune_retained() -> int:
+    """Retire du suivi les provisoires NON ENCORE RÉGLÉS dont le match a désormais un PARI RETENU (combiné
+    ou simple). Un match ne doit être suivi que par UN SEUL type de pari (dédup, demande user 2026-07-11) :
+    sinon la même erreur se répercute à deux endroits, avec deux résultats contradictoires possibles pour un
+    seul match. Ne touche JAMAIS un provisoire déjà réglé (compteur monotone préservé). Renvoie le nb retiré."""
+    from app import analyses
+    d = _load()
+    removed = 0
+    for mid in list(d.keys()):
+        p = d.get(mid)
+        if not isinstance(p, dict) or p.get("result") in ("won", "lost", "push"):
+            continue                              # réglé = figé, jamais retiré (monotone)
+        sport = p.get("sport")
+        if analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None:
+            d.pop(mid, None)
+            removed += 1
+    if removed:
+        _save(d)
+    return removed
 
 
 def settle_pending() -> int:
@@ -63,6 +93,7 @@ def settle_pending() -> int:
     Renvoie le nombre nouvellement réglé. Sûr à rejouer (idempotent : ne retouche pas un déjà réglé)."""
     from app import flashscore, livescore
     from app.settle_analyst import settle_pick
+    prune_retained()          # DÉDUP d'abord : un match devenu retenu (combiné/simple) sort du suivi provisoire
     d = _load()
     n = 0
     for mid, p in list(d.items()):
