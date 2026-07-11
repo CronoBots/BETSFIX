@@ -496,6 +496,42 @@ def _provisional_card() -> str:
 _combo_legs_html = web.combo_legs_html   # rendu UNIFIÉ (accueil/Stats/Live) — défini dans app/web.py
 
 
+def _selectivity_card() -> str:
+    """Petit bloc « Sélectivité du jour » : combien de matchs analysés aujourd'hui ont donné un PARI À
+    JOUER (value) vs une ABSTENTION (favori sans marge -> provisoire indicatif). Rend visible, d'un coup
+    d'œil, que « beaucoup d'abstentions » = une période de matchs sans value (normal, discipline), pas un
+    bug. '' si aucun match analysé aujourd'hui."""
+    import glob
+    import os
+    import datetime as _dt
+    day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+    pj = ab = 0
+    for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
+        d = analyses._meta_load(p)
+        if not d or (d.get("start") or "")[:10] != day:
+            continue
+        if d.get("bets"):
+            pj += 1
+        else:
+            ab += 1
+    tot = pj + ab
+    if tot == 0:
+        return ""
+    pct = round(100 * pj / tot)
+    return (
+        '<div class="sx-card"><div class="sx-h">🎯 Sélectivité du jour '
+        '<span>matchs analysés</span></div>'
+        '<div class="sx-kpis sx-kpis3">'
+        f'<div class="sx-kpi"><b style="color:var(--green)">{pj}</b><span>paris à jouer</span></div>'
+        f'<div class="sx-kpi"><b style="color:#f6c54a">{ab}</b><span>abstentions</span></div>'
+        f'<div class="sx-kpi"><b>{pct}%</b><span>de sélection</span></div>'
+        '</div>'
+        '<div class="sx-data-note">Un pari n\'est retenu que s\'il a de la <b>VALUE</b> (proba ≥ 65 % ET '
+        'marge réelle sur la cote). Une journée de <b>favoris à cotes courtes</b> (ex. WNBA / tennis serré) '
+        '= beaucoup d\'abstentions — chacune reçoit un <b>pari provisoire</b> indicatif (le meilleur angle, '
+        'hors ROI). C\'est la discipline qui protège le ROI, pas un bug.</div></div>')
+
+
 def _combo_daily_card() -> str:
     """Bloc « Combiné du jour » (onglet Stats) : le combiné multisport du jour (jambes détaillées) +
     perf info-seule (hors ROI) + historique. '' si aucun combiné suivi."""
@@ -589,6 +625,7 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 '<div class="statsx">'    # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
                 + _period_filter(since)
                 + _home_stats(days)       # vue d'ensemble + edge + calibration + transparence (en sections)
+                + _selectivity_card()     # ratio paris à jouer / abstentions du jour (rend la sélectivité visible)
                 + _combo_daily_card()     # « info seule » : le combiné multisport du jour (hors ROI réel)
                 + _provisional_card()     # « info seule » : perf hypothétique des provisoires (hors ROI réel)
                 # Panneau SANTÉ (privé) chargé en AJAX : hors du cache commun (le fragment est mutualisé) et
