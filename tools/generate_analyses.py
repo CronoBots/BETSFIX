@@ -1595,6 +1595,51 @@ def _build_combo_from_pool(eid: str, cands: list, sport: str, home: str = "", aw
                    f"chance estimée {round(prob * 100)}%."}
 
 
+# Vivier de repli CdM : marchés de DOMINATION SÛRS (liste blanche de préfixes de code) — résultat, double
+# chance, temps réglementaire, totaux buts, buts d'équipe, mi-temps, handicap, premier but. Le RÈGLEMENT
+# d'un combiné se fait sur les CODES (pas les oids), donc un code en liste blanche = jambe réglable sûre.
+_WC_FB_CODES = ("1X2", "DC", "REGTIME", "OVER", "UNDER", "TEAMTOT", "TEAMHALF",
+                "WINHALF", "HALFRES", "HALFTOT", "FIRSTGOAL", "HCAP", "HCAP3", "BTTS")
+# Liste NOIRE de textes : marchés au code AMBIGU/non fiable (« moins de 0.5 penalty » -> UNDER 0.5 réglerait
+# un total de BUTS = FAUX) ou bannis (tirs/corners/cartons/props joueur). Filtre le sel ET le texte catalogue.
+_WC_FB_BAN = ("penalt", "tir ", "tirs", "corner", "carton", "joueur", "faute", "hors-jeu", "hors jeu", "opta")
+
+
+def _wc_fallback_vivier(analysis: str, eid: str, sport: str, home: str, away: str) -> list:
+    """Vivier de DOMINATION de repli (CdM SEULEMENT) : construit depuis les FANTÔMES de l'analyse (codes
+    déjà dérivés/validés par le pipeline), filtrés en LISTE BLANCHE de marchés sûrs + LISTE NOIRE de textes
+    ambigus, puis mappés à leur oid Bet Builder (code identique + cote la plus proche). Garantit qu'un match
+    de Coupe du Monde a TOUJOURS un combiné, même quand le pool cité par l'analyste est pauvre (props/mauvais
+    identifiants). Le règlement reste sûr (il s'appuie sur les CODES, en liste blanche). [] si rien d'exploitable."""
+    from app.settle_analyst import code_from_pick
+    cal = _parse_calib(analysis, sport, home, away)
+    cat = _CATALOG_CACHE.get(eid) or []
+    cat_by_code: dict = {}
+    for c in cat:
+        t = (c.get("text") or "")
+        if any(w in t.lower() for w in _WC_FB_BAN):
+            continue
+        code = code_from_pick(t, sport, home, away)
+        if code:
+            cat_by_code.setdefault(code, []).append(c)
+    out, seen = [], set()
+    for s in cal:
+        code, sel = s.get("code") or "", s.get("sel") or ""
+        if not code or code in seen or not code.startswith(_WC_FB_CODES):
+            continue
+        if any(w in sel.lower() for w in _WC_FB_BAN):
+            continue
+        opts = cat_by_code.get(code)
+        if not opts:
+            continue
+        cote = s.get("cote") or 0
+        best = min(opts, key=lambda c: abs((c.get("odds") or 0) - cote))   # même code, cote la plus proche
+        out.append({"oid": best.get("id"), "sel": sel, "cote": best.get("odds") or cote,
+                    "code": code, "prob": s.get("prob")})
+        seen.add(code)
+    return out
+
+
 def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str | None,
                 comp: str = ""):
     """Combiné du match. PRIORITÉ (fix B 2026-07-05) à la DÉCISION de l'analyste (`COMBOPICK:`) : il désigne
@@ -1602,6 +1647,15 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
     pas de désignation (rétrocompat) ou pour garantir le combiné CdM. Filtres logique appliqués dans tous
     les cas. `comp` -> détecte la Coupe du Monde (1 combiné/match réservé à la CdM)."""
     eid = str(event_id) if event_id else None
+    # ROBUSTESSE (a) 2026-07-11 : recharger le catalogue Bet Builder s'il manque (hoquet réseau au chargement
+    # du doss) -> un combiné CdM (obligatoire) n'est jamais perdu sur un hoquet ponctuel. cf. Argentine-Suisse.
+    if eid and not _CATALOG_CACHE.get(eid):
+        try:
+            _reload = unibet.betbuilder_catalog(eid)
+            if _reload:
+                _CATALOG_CACHE[eid] = _reload
+        except Exception:
+            pass
     _pick_none = not _parse_pick(analysis)   # PICK: NONE / SKIP -> pas de combiné de repli forcé (garde-fou)
     _is_wc = _is_big_match(comp)             # CdM -> garde un combiné par match ; hors CdM -> aligné value-only
     _designation = _parse_combo_designation(analysis)   # [oids] | [] (COMBOPICK: NONE) | None (absent)
@@ -1644,6 +1698,16 @@ def _make_combo(analysis: str, sport: str, home: str, away: str, event_id: str |
                  if cands else None)
         if built:
             return built
+        # ROBUSTESSE (b) 2026-07-11 : en CdM, si le pool de l'analyste est trop pauvre (props/mauvais ids)
+        # pour bâtir un combiné, REPLI sur un vivier de DOMINATION reconstruit depuis les FANTÔMES (codes
+        # validés, liste blanche) -> garantit VRAIMENT le combiné CdM obligatoire (cf. Argentine-Suisse, où
+        # l'analyste avait cité des props joueur). Le règlement reste sûr (jambes en liste blanche de codes).
+        if _is_wc:
+            _fb = _wc_fallback_vivier(analysis, eid, sport, home, away)
+            if _fb:
+                built = _build_combo_from_pool(eid, _fb, sport, home, away, pick_none=False, is_wc=True)
+                if built:
+                    return built
         # Catalogue Bet Builder PRÉSENT -> le combiné ne peut venir QUE de COMBOPICK/optimiseur (tous deux
         # passés aux filtres logique). On NE retombe PAS sur le parseur legacy `COMBO:` (non filtré : il
         # laissait passer des combinés sans proba ni contrôle de corrélation, cf. fuite Chine-Taipei 2026-07-05).
