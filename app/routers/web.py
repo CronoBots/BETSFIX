@@ -242,13 +242,38 @@ def _cached_votes(provider, mid) -> tuple | None:
 
 
 
+_HOMESTATS_CACHE: dict = {}   # since_days -> (signature_données, html) — évite ~1.4 s de recalcul par rendu
+
+
+def _stats_signature() -> tuple:
+    """Signature LÉGÈRE des sidecars (nb fichiers + mtime max) : change dès qu'un match est réglé (mtime)
+    ou ajouté/supprimé (nb) -> invalide le cache des stats au bon moment, sans relire les 391 JSON."""
+    import glob
+    import os
+    files = glob.glob(os.path.join(analyses.DIR, "*.json"))
+    return (len(files), max((os.path.getmtime(f) for f in files), default=0.0))
+
+
 def _home_stats(since_days: int | None = None) -> str:
     """Page STATISTIQUES, organisée en SECTIONS du résumé au détail (hiérarchie pro) :
       1. VUE D'ENSEMBLE   — Simples + Combinés (gros ROI + courbe d'équité)            [render_stats]
       2. OÙ EST L'EDGE    — détail par sport + rendement par cote
       3. FIABILITÉ        — calibration (la confiance tient-elle ses promesses ?)
       4. TRANSPARENCE     — volume de données (matchs/paris vus, part des fantômes)    [tout en bas]
-    `since_days` filtre toute la page sur la même fenêtre (Tout / 7 j / 30 j)."""
+    `since_days` filtre toute la page sur la même fenêtre (Tout / 7 j / 30 j).
+    CACHE signature-based : ces agrégats (stats_full+combo+calibration+edge…) re-parcourent chacun les 391
+    sidecars (~1.4 s). On mémorise le HTML tant que les DONNÉES n'ont pas changé (le warmer rafraîchit le
+    fragment toutes les 15 s -> on évite de tout recalculer à vide)."""
+    _sig = _stats_signature()
+    _c = _HOMESTATS_CACHE.get(since_days)
+    if _c and _c[0] == _sig:
+        return _c[1]
+    _html = _home_stats_compute(since_days)
+    _HOMESTATS_CACHE[since_days] = (_sig, _html)
+    return _html
+
+
+def _home_stats_compute(since_days: int | None = None) -> str:
     full = analyses.stats_full(since_days)
     if not (full.get("overall") or {}).get("settled"):
         return ""
