@@ -573,6 +573,11 @@ CSS = """
      padding-right pour libérer le chevron en bas à droite. */
   .mc-sub{margin-top:6px;padding-right:20px}
   .mc-open .mc-sub{display:none}
+  /* LIVE (demande user 2026-07-12) : intitulé du pari sur UNE seule ligne (ellipsis) + scoreboard des
+     résultats juste en dessous, visible dans la carte repliée. */
+  .mc-islive .mc-sub .mc-betl{flex-wrap:nowrap}
+  .mc-islive .mc-sub .mc-bt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mc-livesc{margin-top:10px}
   /* Ligne de pari : libellé à gauche (peut passer à la ligne), pastilles cote/confiance À DROITE,
      VERTICALEMENT CENTRÉES contre le libellé (fini le désalignement quand le libellé fait 2 lignes). */
   .mc-betl{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:600;color:#cfe0f5}
@@ -4579,8 +4584,8 @@ def _sport_row(r: dict) -> str:
         _mt = re.search(r"\d{1,2}:\d{2}", top or "")
         starthm = _mt.group(0) if _mt else (top or "")
     score_txt = e(str(r.get("score"))) if r.get("score") else ""
-    if is_live:                                          # live : score actuel
-        badge = f'<span class="mc-badge mc-live">🟢 {score_txt or "LIVE"}</span>'
+    if is_live:                                          # live : badge « Live » (le score va dans le scoreboard sous le pari)
+        badge = '<span class="mc-badge mc-live">🟢 Live</span>'
     elif is_finished:                                    # terminé : score FINAL, SANS drapeau 🏁
         badge = (f'<span class="mc-badge mc-done">{score_txt}</span>' if score_txt
                  else '<span class="mc-badge mc-wait">⏳ En attente</span>')
@@ -4636,11 +4641,15 @@ def _sport_row(r: dict) -> str:
                   f'<span class="dim">· le pari peut encore changer</span></div>')
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')
+    # LIVE (demande user 2026-07-12) : intitulé du pari sur UNE ligne EN HAUT, puis le SCOREBOARD (résultats
+    # — le tableau qu'on voit d'habitude au dépli) EN DESSOUS, visible dans la carte repliée. Badge = « Live ».
+    _live_score_row = f'<div class="mc-livesc">{lscore}</div>' if (is_live and lscore) else ""
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{r.get("icon", "")}</span>'
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
             f'<div class="mc-teams">{teams}</div>'
-            f'<div class="mc-sub">{line3}</div></div>'
+            f'<div class="mc-sub">{line3}</div>'
+            f'{_live_score_row}</div>'
             f'<span class="mc-chev">▸</span></div>')
     # ---- CORPS (déplié au tap) : scoreboard + barres % + paris + liens + ANALYSE (chargée d'office
     # à l'ouverture, plus de bouton « Voir l'analyse »). Un clic n'importe où dans la carte la replie. ----
@@ -4649,11 +4658,12 @@ def _sport_row(r: dict) -> str:
     if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
         sep = "&" if "?" in url else "?"
         ana = f'<div class="mc-ana" data-ana="{url}{sep}frag=1{pkp}"><div class="exp"></div></div>'
-    body = (f'{lscore}{"" if is_live else (r.get("sub", "") + probviz)}'
+    # LIVE : le scoreboard est déjà montré dans la carte repliée (head) -> on ne le REMET pas dans le corps.
+    body = (f'{"" if is_live else lscore}{"" if is_live else (r.get("sub", "") + probviz)}'
             f'{bets_sep}{betshtml}{linkshtml}{ana}')
-    # TOUTES les cartes sont REPLIÉES au 1er chargement (y compris les directs) — le score live reste
-    # visible dans le badge ; on déplie au tap. Fond « pick » uniforme pour toutes les cartes.
-    return (f'<div class="row pick mc">{head}'
+    # TOUTES les cartes sont REPLIÉES au 1er chargement (y compris les directs) — pour le LIVE le pari + le
+    # scoreboard sont visibles repliés ; on déplie au tap pour l'analyse. Fond « pick » uniforme.
+    return (f'<div class="row pick mc{" mc-islive" if is_live else ""}">{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
 def _rows_by_day(rows: list) -> str:
