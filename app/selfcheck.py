@@ -456,6 +456,45 @@ def _check_provisional_dedup() -> dict:
             "items": dup[:20]}
 
 
+def _check_extratime_regulation(rows) -> dict:
+    """Un match de foot allé aux PROLONGATIONS doit régler ses marchés 90 MIN (1X2, over/under, mi-temps,
+    REGTIME…) sur le score RÉGLEMENTAIRE, JAMAIS sur le score final (prolongation incluse). Régression
+    passée (erreur grave Argentine-Suisse 3-1 réglé « won » alors que le temps réglementaire était 1-1 :
+    FotMob fond les buts de prolongation dans la 2e mi-temps). Le règlement stocke désormais le score
+    réglementaire dans `raw` (reg_home/reg_away/reg_periods + after_extra). Ce check RE-RÈGLE chaque jambe /
+    pari / stat_bet 90-min sur CE réglementaire stocké et flague toute divergence avec le résultat figé."""
+    from app.settle_analyst import settle_pick, code_from_pick
+    bad = []
+    for p, d in rows:
+        if d.get("sport") != "foot":
+            continue
+        raw = (d.get("result") or {}).get("raw") or {}
+        if not raw.get("after_extra") or raw.get("reg_home") is None:
+            continue
+        reg = {"home": raw.get("reg_home"), "away": raw.get("reg_away"),
+               "winner": ("home" if raw["reg_home"] > raw["reg_away"] else
+                          ("away" if raw["reg_away"] > raw["reg_home"] else "draw")),
+               "periods": {int(k): tuple(v) for k, v in (raw.get("reg_periods") or {}).items()},
+               "stats": raw.get("stats") or {}}
+        nm = f"{d.get('home','?')}–{d.get('away','?')}"
+        checks = [(l.get("code"), l.get("result"), l.get("sel", "")) for l in ((d.get("combo") or {}).get("legs") or [])]
+        checks += [(b.get("code"), b.get("result"), b.get("sel", "")) for b in (d.get("bets") or [])]
+        sb = d.get("stat_bet")
+        if isinstance(sb, dict) and sb.get("sel"):
+            checks.append((code_from_pick(sb["sel"], "foot", d.get("home", ""), d.get("away", "")),
+                           sb.get("result"), sb.get("sel", "")))
+        for code, res, sel in checks:
+            if not code or res not in ("won", "lost", "push"):
+                continue
+            exp = settle_pick(code, reg)
+            if exp in ("won", "lost", "push") and exp != res:
+                bad.append(f"{nm} : « {sel[:40]} » figé '{res}' mais réglementaire ({reg['home']}-{reg['away']}) = '{exp}'")
+    return {"key": "extratime_regulation", "level": "error" if bad else "ok",
+            "title": "Marchés 90 min réglés sur le temps réglementaire (hors prolongation)",
+            "detail": f"{len(bad)} pari(s) 90-min réglé(s) sur le score prolongation-incluse au lieu du réglementaire.",
+            "items": bad[:20]}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -476,6 +515,7 @@ def run(persist: bool = False) -> dict:
         _check_combo_not_dominated(rows),
         _check_ghost_resolution(rows),
         _check_provisional_dedup(),
+        _check_extratime_regulation(rows),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]

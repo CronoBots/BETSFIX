@@ -1381,14 +1381,19 @@ async def _settle_analyses_impl() -> int:
                     async with _httpx2.AsyncClient() as _c2:
                         _reg = await _sr2.final_score(_c2, sport, d)
                     if _reg and _reg.get("after_extra") and _reg.get("home") is not None:
+                        _fh, _fa = _reg.get("final_home"), _reg.get("final_away")
                         score = {**score, "home": _reg["home"], "away": _reg["away"],
                                  "winner": _reg.get("winner"),
                                  "periods": _reg.get("periods") or score.get("periods"),
-                                 "after_extra": True, "src": "sportradar(reg)",
-                                 "label": _reg.get("label")}
+                                 "after_extra": True, "reg_home": _reg["home"], "reg_away": _reg["away"],
+                                 "reg_periods": _reg.get("periods"),
+                                 "final_home": _fh, "final_away": _fa, "src": "sportradar(reg)",
+                                 # AFFICHAGE : on montre le score FINAL réel avec le marqueur (a.p.) ; le
+                                 # RÈGLEMENT (home/away/périodes ci-dessus) reste sur le temps réglementaire.
+                                 "label": (f"{_fh}-{_fa} (a.p.)" if _fh is not None else _reg.get("label"))}
                         log.info("règlement TEMPS RÉGLEMENTAIRE (prolongation détectée) via sportradar : "
-                                 "%s_%s reg=%s (final %s-%s)", sport, d.get("id"), _reg.get("label"),
-                                 _reg.get("final_home"), _reg.get("final_away"))
+                                 "%s_%s reg=%s-%s (final %s-%s)", sport, d.get("id"),
+                                 _reg.get("home"), _reg.get("away"), _fh, _fa)
                 except Exception:
                     pass
 
