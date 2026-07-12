@@ -1607,6 +1607,20 @@ CSS = """
        font-variant-numeric:tabular-nums;color:#1c1404;
        background:linear-gradient(180deg,#f8ce5c,#e0ad2f);border:1px solid rgba(246,197,74,.5);
        box-shadow:0 2px 8px rgba(246,197,74,.3)}
+  /* MODULE « cote │ confiance » — gélule SEGMENTÉE premium (2026-07-12) : un seul objet net au lieu de deux
+     badges qui saturaient. Cote discrète à gauche, confiance en OR à droite (l'unique accent). Hauteur fixe
+     + largeurs MINI -> alignement en colonnes d'une carte à l'autre. */
+  .mc-od{flex:none;align-self:center;display:inline-flex;align-items:stretch;height:25px;border-radius:99px;
+       overflow:hidden;font-variant-numeric:tabular-nums;box-shadow:0 2px 7px rgba(0,0,0,.3)}
+  .mc-od-c{display:inline-flex;align-items:center;justify-content:center;min-width:52px;padding:0 10px;
+       font-size:10.5px;font-weight:800;letter-spacing:.01em}
+  .mc-od-p{display:inline-flex;align-items:center;justify-content:center;min-width:50px;padding:0 11px;
+       font-size:11.5px;font-weight:900}
+  /* variante PROVISOIRE (or) : bord doré discret, cote en teinte sable, confiance en or plein encre sombre. */
+  .mc-od-prov{border:1px solid rgba(246,197,74,.4)}
+  .mc-od-prov .mc-od-c{color:#d9c795;background:rgba(246,197,74,.07)}
+  .mc-od-prov .mc-od-p{color:#1c1404;background:linear-gradient(180deg,#f1c250,#dca62f);
+       box-shadow:inset 1px 0 0 rgba(0,0,0,.18)}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
@@ -3397,17 +3411,19 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             continue
         if prov_sel:
             _cote = prov.get("cote")
-            _cote_html = (f'<span class="mc-bc mc-bc-prov">@{_cote:g}</span>'
-                          if isinstance(_cote, (int, float)) and _cote else "")
-            # CONFIANCE (comme un vrai pari à jouer) : la proba de l'analyste, en teinte DORÉE. Enrichit
-            # l'affichage sans tromper — le libellé « provisoire · hors ROI » reste bien présent (choix user
-            # 2026-07-10 : construire/afficher comme un pari à jouer, mais clairement hors ROI).
-            # Présentation ÉPURÉE (demande user 2026-07-10) : une PASTILLE « PROVISOIRE · hors ROI » (dit
-            # UNE fois, comme le libellé Confiance/Value des vraies cartes), puis la ligne pari + cote +
-            # puce confiance, puis la ré-analyse en une ligne. Fini la répétition « info/provisoire ».
             _pconf = prov.get("prob")
-            _conf_chip = (f'<span class="mc-prov-cf">{_pconf}%</span>'
-                          if isinstance(_pconf, (int, float)) and _pconf else "")
+            # MODULE PREMIUM « cote │ confiance » (demande user 2026-07-12) : UNE gélule SEGMENTÉE plutôt que
+            # deux badges dorés flottants (qui saturaient). Cote DISCRÈTE à gauche (info secondaire), confiance
+            # — la « chance » — en OR à droite (l'accent). Un seul objet net, hiérarchie claire ; largeurs MINI
+            # fixes -> les modules s'alignent en colonnes d'une carte à l'autre. La confiance reste la proba de
+            # l'analyste (affichée comme un vrai pari, mais le libellé « indicatif · hors ROI » de la zone/tag
+            # dit clairement que ce n'est pas compté).
+            _od_parts = []
+            if isinstance(_cote, (int, float)) and _cote:
+                _od_parts.append(f'<span class="mc-od-c">@{_cote:g}</span>')
+            if isinstance(_pconf, (int, float)) and _pconf:
+                _od_parts.append(f'<span class="mc-od-p">{_pconf}%</span>')
+            _odds_html = f'<span class="mc-od mc-od-prov">{"".join(_od_parts)}</span>' if _od_parts else ""
             _reana = ("pas de value détectée" if now >= reanalyse
                       else f"Ré-analyse à {fmt_local(reanalyse, with_date=False)} · peut changer")
             # Pastille « 🧪 PROVISOIRE » par carte : OMISE en mode `framed` (la zone « Indicatif · hors ROI »
@@ -3416,7 +3432,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
                          '<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>')
             sub = (_prov_tag
                    + f'<div class="mc-betl mc-prov"><span class="mc-bi">•</span>'
-                   f'<span class="mc-bt">{html.escape(prov_sel)}</span>{_cote_html}{_conf_chip}</div>'
+                   f'<span class="mc-bt">{html.escape(prov_sel)}</span>{_odds_html}</div>'
                    f'<div class="mc-reana mc-reana-prov">🔄 {_reana}</div>')
         else:
             if m.get("status") == "abstained" and now >= reanalyse:
