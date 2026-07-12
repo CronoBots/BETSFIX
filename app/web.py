@@ -1678,6 +1678,8 @@ CSS = """
   .mc-cleg-o{margin-left:7px;font-size:11px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
   .mc-cleg-m{font-size:11.5px;color:#8fa0b4;font-weight:600;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
   .mc-cleg-sc{color:#5be08c;font-weight:800;font-variant-numeric:tabular-nums}
+  /* analyse de la jambe (comme les combinés Telegram) — texte léger sous la sélection. */
+  .mc-cleg-why{margin-top:6px;font-size:11.5px;font-weight:500;color:#a7bcd6;line-height:1.45}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
@@ -3679,6 +3681,23 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
         + combo_legs_html(cb) + '</a>')
 
 
+def _clean_cap(t, maxlen: int = 180) -> str:
+    """Texte nettoyé (markdown retiré) + plafonné à une FIN DE PHRASE/CLAUSE (jamais en plein mot). ''
+    si vide. Sert aux « pourquoi » de jambe et à la synthèse du combiné (présentation Telegram)."""
+    t = re.sub(r"[*_`#]", "", re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1",
+               re.sub(r"\s+", " ", str(t or "")).strip()))
+    if len(t) <= maxlen:
+        return t
+    cut = t[:maxlen]
+    m = re.search(r"^.*[.!?…](?=\s|$)", cut)
+    cm = re.search(r"^.*[,;](?=\s)", cut)
+    if m and m.end() > maxlen * 0.45:
+        return m.group(0)
+    if cm and cm.end() > maxlen * 0.5:
+        return cm.group(0).rstrip(" ,;:") + "…"
+    return cut.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+
+
 def _combo_tg_legs(cb: dict) -> str:
     """Jambes du combiné du jour rendues comme des PICKS de provisoire (sélection en gras + match en
     sous-titre + cote + score live), pour un cadre cohérent avec les cartes provisoires (demande user).
@@ -3706,9 +3725,12 @@ def _combo_tg_legs(cb: dict) -> str:
                 sco = f'<span class="mc-cleg-sc">🟢 {html.escape(_lfz["score"])}</span>'
         elif l.get("score"):
             sco = f'<span class="mc-cleg-sc">{html.escape(str(l.get("score")))}</span>'
+        _wt = _clean_cap(l.get("why"))
+        _why = f'<span class="mc-cleg-why">{html.escape(_wt)}</span>' if _wt else ""
         rows.append(f'<div class="mc-cleg{_box}">{_mk}<span class="mc-cleg-b">'
                     f'<span class="mc-cleg-sel">{emo} {sel}{cot}</span>'
-                    f'<span class="mc-cleg-m">{nm}{sco}</span></span></div>')
+                    f'<span class="mc-cleg-m">{nm}{sco}</span>'
+                    f'{_why}</span></div>')
     return "".join(rows)
 
 
@@ -3736,13 +3758,10 @@ def _combo_tg_card() -> str:
                  if isinstance(_cote, (int, float)) and _cote else "")
     _pconf = round((cb.get("prob") or 0) * 100)
     _conf = f'<div class="mc-conf">Confiance <b>{_pconf}%</b></div>' if _pconf else ""
-    # SYNTHÈSE (corrélation des jambes) en barre cyan, comme l'analyse d'un provisoire — nettoyée + plafonnée.
-    _s = re.sub(r"[*_`#]", "", re.sub(r"\s+", " ", str(cb.get("synth") or "")).strip())
-    if len(_s) > 200:
-        _cut = _s[:200]
-        _m = re.search(r"^.*[.!?…](?=\s|$)", _cut)
-        _s = _m.group(0) if (_m and _m.end() > 90) else _cut.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
-    _note = f'<div class="mc-note">{html.escape(_s)}</div>' if _s else ""
+    # SYNTHÈSE (corrélation des jambes) en barre cyan, EN TÊTE — comme les combinés publiés sur Telegram
+    # (synthèse d'abord, puis chaque jambe avec SON analyse). Nettoyée + plafonnée.
+    _syn = _clean_cap(cb.get("synth"), 210)
+    _note = f'<div class="mc-note">{html.escape(_syn)}</div>' if _syn else ""
     _nlegs = len(cb.get("legs") or [])
     return (
         '<div class="row pick mc mc-tg mc-tg-gold">'
@@ -3752,8 +3771,8 @@ def _combo_tg_card() -> str:
         f'<span class="mc-comp-sep"> • </span>{_nlegs} jambes · multisport</span>'
         f'{_badge}</div>'
         '<div class="mc-div"></div>'
-        f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
-        + _note
+        + _note                                            # synthèse EN TÊTE (présentation Telegram)
+        + f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
         + _conf
         + '<div class="mc-foot"><span class="mc-reana mc-reana-prov">🧪 Info seule · hors ROI</span>'
         + _cote_big + '</div>'
