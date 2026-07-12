@@ -290,6 +290,9 @@ def settle_pending() -> int:
     from app.settle_analyst import settle_pick
     d = _load()
     n = 0
+    changed = False           # persiste la PROGRESSION (jambes réglées + tries) même si le combiné n'est
+    #                           pas encore tranché -> les tries s'accumulent (borne void OK) et les jambes
+    #                           déjà réglées ne sont pas re-fetchées à chaque passe.
     for day, cb in list(d.items()):
         if not isinstance(cb, dict) or cb.get("result") in ("won", "lost", "void"):
             continue
@@ -331,7 +334,9 @@ def settle_pending() -> int:
             # (non réglable sur ce match fini) -> VOID, on ne bloque pas le combiné dessus.
             leg["result"] = res if res in ("won", "lost", "push") else "void"
             leg["score"] = score.get("label") or ""
+            changed = True
         cb["tries"] = (cb.get("tries") or 0) + 1
+        changed = True                                # tries accumulés -> la borne void finit par mordre
         legs = cb.get("legs") or []
         if cb["tries"] >= 8:                          # borne : match introuvable trop longtemps -> void
             for l in legs:
@@ -348,7 +353,7 @@ def settle_pending() -> int:
             cb["result"] = "void"                     # que des push/void -> remboursé
         n += 1
         # sinon : des jambes encore en attente -> on ne tranche pas
-    if n:
+    if changed:
         _save(d)
     return n
 
