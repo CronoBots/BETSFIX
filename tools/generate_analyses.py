@@ -287,11 +287,11 @@ METHODO = (
     "dessous pour un « Moins »), et tiens compte des absents (rôle/minutes qui changent).\n"
     "Les cotes ci-dessous sont celles d'UNIBET (réelles) : ne les invente jamais.\n\n"
     "DONNÉES FOURNIES CI-DESSOUS — ce sont des FAITS, sers-t'en en PRIORITÉ sur le narratif :\n"
-    "• SÉRIES SOFASCORE (forme récente factuelle, déjà mappées aux marchés). Base principale. Si une "
+    "• SÉRIES SPORTRADAR (forme récente factuelle, déjà mappées aux marchés). Base principale. Si une "
     "série contredit ton intuition web, suis la série.\n"
     "• DONNÉES MULTI-SOURCES (ESPN / FotMob / Understat) : forme avec adversaires+scores, classements "
     "À JOUR, blessés/absents nominatifs, H2H, xG, météo, fatigue/back-to-back. Source indépendante "
-    "n°2 : un fait présent ici ET confirmé par ta recherche web (ou SofaScore) = 2 sources "
+    "n°2 : un fait présent ici ET confirmé par ta recherche web (ou une autre source du dossier) = 2 sources "
     "concordantes. Les BLESSÉS listés ici sont fiables et récents — intègre-les TOUJOURS.\n"
     "• SENTIMENT (votes communauté) : signal d'appoint, jamais décisif seul.\n"
     "• H2H (confrontations directes) quand fourni.\n\n"
@@ -842,7 +842,7 @@ async def _tennis_extras(client: httpx.AsyncClient, sofa_id: str, home: str, awa
         sx["h2h"] = {"home_wins": hw, "away_wins": aw, "draws": 0}
     if votes and votes[0] is not None:
         facts.append(f"Sentiment (votes communauté, appoint) : {home} {votes[0]}% / {away} {votes[1]}%")
-    txt = ("\n\nDONNÉES SOFASCORE TENNIS (factuel — base à croiser avec ta recherche web "
+    txt = ("\n\nDONNÉES SPORTRADAR TENNIS (factuel — base à croiser avec ta recherche web "
            "forme/surface) :\n- " + "\n- ".join(facts)) if facts else ""
     return txt, sx
 
@@ -883,7 +883,7 @@ async def _sofa_extras(client: httpx.AsyncClient, sport: str, sofa_id: str | Non
                               if s.get("side") == side and s.get("value"))
         gen = streaks.get("general") or []
         sh, sa = _side(gen, "home"), _side(gen, "away")
-        lines = ["SÉRIES SOFASCORE (forme récente factuelle, mappées aux marchés — base PRINCIPALE "
+        lines = ["SÉRIES SPORTRADAR (forme récente factuelle, mappées aux marchés — base PRINCIPALE "
                  "pour classer les paris) :"]
         if sh:
             lines.append(f"- [{home}] {sh}")
