@@ -3532,13 +3532,16 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             sub = ('<div class="mc-div"></div>'
                    f'<div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
                    f'<span class="mc-bt">{html.escape(btxt)}</span></div>')
-        # Badge coin haut-droit : LIVE (score/« en cours ») sinon l'HEURE (demande user 2026-07-12 : garder
-        # l'heure dans le coin, pas de ligne de date sous le titre).
-        _badge = (f'<span class="mc-badge mc-live">🟢 {html.escape(_lf["score"])}'
-                  + (f' · {html.escape(_lf["live_time"])}' if _lf.get("live_time") else "") + '</span>'
-                  if (_is_live and _lf.get("score"))
-                  else '<span class="mc-badge mc-live">🟢 en cours</span>' if _is_live
+        # Badge coin haut-droit : « 🟢 Live » en direct (demande user 2026-07-12 : comme les paris live, le
+        # score va dans le SCOREBOARD sous le titre, plus dans le badge), sinon l'HEURE.
+        _badge = ('<span class="mc-badge mc-live">🟢 Live</span>' if _is_live
                   else f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=False))}</span>')
+        # SCOREBOARD des résultats (sets/quart-temps) — visible dans la carte repliée SOUS le titre pour un
+        # provisoire EN DIRECT (demande user 2026-07-12), comme les paris live.
+        _lscore = (_live_scoreboard(_lf.get("score"), home, away, tennis=(sp == "tennis"),
+                                    server=_lf.get("server"), points=_lf.get("game_pts"),
+                                    clock=_lf.get("live_time"), periods=_lf.get("periods"))
+                   if (_is_live and _lf.get("score")) else "")
         _inner = (
             f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
@@ -3547,6 +3550,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             + _badge
             + '</div>'
             f'<div class="mc-teams">{teams}</div>'
+            + (f'<div class="mc-livesc">{_lscore}</div>' if _lscore else "")
             + f'<div class="mc-sub">{sub}</div></div>')
         # Accent doré discret (bord gauche) sur les cartes PROVISOIRES en zone dédiée -> identifiables sans
         # la pastille répétée (demande user 2026-07-11). Uniquement en mode `framed` et si c'est un provisoire.
@@ -3570,17 +3574,13 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             _bars = (_pick_bars(analyst_bars(_pm.get("o1"), _pm.get("ox"), _pm.get("o2"),
                                              analyses.votes_pct(_pm), home=home, away=away))
                      if (_pm.get("o1") and _pm.get("o2")) else "")
-            # SCOREBOARD LIVE DÉTAILLÉ (sets/quart-temps/horloge) EN TÊTE du corps — comme un pari à jouer
-            # (l'affichage du score doit être AUSSI complet). En live, on masque les barres (comme _sport_row).
-            _lscore = (_live_scoreboard(_lf.get("score"), home, away, tennis=(sp == "tennis"),
-                                        server=_lf.get("server"), points=_lf.get("game_pts"),
-                                        clock=_lf.get("live_time"), periods=_lf.get("periods"))
-                       if (_is_live and _lf.get("score")) else "")
+            # Le SCOREBOARD live est DÉJÀ montré dans la carte repliée (head) -> on ne le remet pas dans le
+            # corps (sinon doublon). En live on masque aussi les barres (comme _sport_row).
             # RAISONNEMENT « 🎯 Le pari à jouer » : pour une abstention, le tableau des paris est « SKIP »
             # (bets_html vide) et `render` retire le verdict -> l'analyse semblait réduite à « Informations »
             # (retour user 2026-07-11). On restitue le raisonnement (pourquoi le pari / le SKIP) via
             # `reasoning_html`, entre les paris et les faits.
-            _body = (_lscore + ("" if _is_live else _bars) + analyses.bets_html(sp, _fid)
+            _body = (("" if _is_live else _bars) + analyses.bets_html(sp, _fid)
                      + analyses.reasoning_html(sp, _fid) + _ana)
             # Analyse INLINE dans `.exp` (un clic dedans ne replie pas). PAS de classe `.mc-ana` : elle
             # déclencherait `_mcLoad` -> `fetch(data-ana=null)` -> /null -> 404 « {detail: Not Found} »
