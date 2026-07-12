@@ -1678,10 +1678,13 @@ CSS = """
   .mc-combo-legs{margin:2px 0;display:flex;flex-direction:column;gap:9px}
   .mc-cleg{display:flex;align-items:flex-start;gap:9px}
   /* Sous-cadre par jambe QUAND les matchs sont DIFFÉRENTS (demande user 2026-07-12). */
-  .mc-cleg-box{padding:10px 12px;border-radius:13px;background:rgba(255,255,255,.028);
+  .mc-cleg-box{padding:10px 12px 10px 13px;border-radius:13px;background:rgba(255,255,255,.028);
        border:1px solid rgba(255,255,255,.07)}
-  .mc-cleg-r{flex:none;font-size:11px;margin-top:2px}
-  .mc-cleg-r.p{color:var(--gold)} .mc-cleg-r.w{color:#5be08c} .mc-cleg-r.l{color:#ff6b6b}
+  /* BORD GAUCHE coloré selon l'état (demande user 2026-07-13) : jaune=en attente, vert=gagné, rouge=perdu. */
+  .mc-cleg-pending{border-left:3px solid var(--gold)}
+  .mc-cleg-won{border-left:3px solid #34d27b}
+  .mc-cleg-lost{border-left:3px solid #ff6b6b}
+  .mc-cleg-push{border-left:3px solid #90a4be}
   .mc-cleg-b{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
   /* MATCH en titre (équipes) + badge/score live ; PARI À JOUER dessous (sélection + cote or). */
   .mc-cleg-match{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.26;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
@@ -3729,8 +3732,9 @@ def _combo_tg_legs(cb: dict) -> str:
         cot = f'<span class="mc-cleg-o">@{co:g}</span>' if isinstance(co, (int, float)) and co else ""
         _res = l.get("result")
         _sp, _lh, _la = l.get("sport"), l.get("home", ""), l.get("away", "")
-        _mk = {"won": '<span class="mc-cleg-r w">✅</span>', "lost": '<span class="mc-cleg-r l">❌</span>',
-               "push": '<span class="mc-cleg-r">➖</span>'}.get(_res, '<span class="mc-cleg-r p">•</span>')
+        # État de la jambe -> BORD GAUCHE coloré (demande user 2026-07-13) : jaune=en attente, vert=gagné,
+        # rouge=perdu (plus d'emoji/point).
+        _state = {"won": "won", "lost": "lost", "push": "push"}.get(_res, "pending")
         sco, board = "", ""
         if _res is None:
             _lfz = live_fields(match_select.live_state_for(_sp, _lh, _la), _sp)
@@ -3750,7 +3754,7 @@ def _combo_tg_legs(cb: dict) -> str:
         _why = f'<span class="mc-cleg-why">{html.escape(_wt)}</span>' if _wt else ""
         # Présentation comme un match (demande user 2026-07-12) : le MATCH en TITRE (+ badge/score live),
         # puis le PARI À JOUER (sélection + cote) EN DESSOUS, puis le scoreboard, puis l'analyse.
-        rows.append(f'<div class="mc-cleg{_box}">{_mk}<span class="mc-cleg-b">'
+        rows.append(f'<div class="mc-cleg{_box} mc-cleg-{_state}"><span class="mc-cleg-b">'
                     f'<span class="mc-cleg-match">{emo} {nm}{sco}</span>'
                     f'<span class="mc-cleg-bet">{sel}{cot}</span>'
                     f'{board}{_why}</span></div>')
