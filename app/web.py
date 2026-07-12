@@ -1612,20 +1612,27 @@ CSS = """
        font-variant-numeric:tabular-nums;color:#1c1404;
        background:linear-gradient(180deg,#f8ce5c,#e0ad2f);border:1px solid rgba(246,197,74,.5);
        box-shadow:0 2px 8px rgba(246,197,74,.3)}
-  /* MODULE « cote + JAUGE DE CONFIANCE » (choix user 2026-07-12) : la cote en pastille à gauche, puis une
-     mini-barre qui VISUALISE la confiance (on voit la chance d'un coup d'œil) + le %. Le plus premium/parlant.
-     `cf-g` prend la largeur restante (exploite l'espace) ; la barre est teintée OR (accent du provisoire). */
-  .cf{display:flex;align-items:center;gap:11px}
-  .cf-cote{flex:none;display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:99px;
-       font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums;color:#d9c795;
-       background:rgba(246,197,74,.08);border:1px solid rgba(246,197,74,.34)}
-  .cf-g{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-  .cf-top{display:flex;justify-content:space-between;align-items:baseline}
-  .cf-lab{font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  .cf-val{font-size:12px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums}
-  .cf-bar{height:6px;border-radius:99px;background:rgba(0,0,0,.3);overflow:hidden}
-  .cf-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#dca62f,#f4cf5e);
-       box-shadow:0 0 8px rgba(246,197,74,.45)}
+  /* ===== Cartes de paris — STYLE TELEGRAM (demande user 2026-07-12, reprend les cartes publiées, sans logo) :
+     fond BLEU NUIT dégradé + bordure lumineuse ; titre en tiret long ; « Confiance % » en texte ; la COTE en
+     GROS chiffre (blanc) en bas à DROITE avec le label « COTE ». ===== */
+  .row.mc.mc-tg{background:linear-gradient(165deg,#0e1d2e 0%,#0b1622 55%,#081019 100%);
+       border:1px solid rgba(58,140,225,.42);
+       box-shadow:0 0 0 1px rgba(34,167,238,.07),0 0 26px rgba(30,110,190,.15),0 12px 32px rgba(0,0,0,.5)}
+  .mc-tg .mc-head{padding:14px 16px 13px}
+  .mc-dash{color:var(--dim);font-weight:600;margin:0 3px}
+  .mc-tg .mc-teams{font-size:17px;line-height:1.22;margin-top:9px;white-space:normal;overflow:visible;
+       text-overflow:clip;text-wrap:balance}
+  .mc-div{height:1px;margin:12px 0;background:linear-gradient(90deg,rgba(255,255,255,.13),rgba(255,255,255,.02))}
+  .mc-open .mc-div{display:none}
+  .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
+  .mc-pick{font-size:15px;font-weight:800;color:var(--text);line-height:1.32}
+  .mc-conf{margin-top:9px;font-size:13px;color:var(--muted);font-weight:600}
+  .mc-conf b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
+  .mc-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:13px}
+  .mc-foot .mc-reana{margin-top:0}
+  .mc-cote{flex:none;text-align:right;line-height:1}
+  .mc-cote-l{display:block;font-size:9.5px;font-weight:800;letter-spacing:.13em;color:var(--muted);margin-bottom:3px}
+  .mc-cote-v{font-size:30px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
@@ -3401,7 +3408,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         _spn = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sp, "")
         name = str(m.get("name", ""))
         home, _sep, away = name.partition(" - ")
-        teams = (f'{html.escape(home)} <span class="dim">vs</span> {html.escape(away)}'
+        teams = (f'{html.escape(home)} <span class="mc-dash">—</span> {html.escape(away)}'
                  if away else html.escape(home))
         comp = html.escape(str(m.get("comp") or ""))
         reanalyse = dt - timedelta(hours=1)     # la (ré)analyse rapprochée = coup d'envoi − 1 h
@@ -3420,22 +3427,15 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         if prov_sel:
             _cote = prov.get("cote")
             _pconf = prov.get("prob")
-            # MODULE PREMIUM « cote │ confiance » (demande user 2026-07-12) : UNE gélule SEGMENTÉE plutôt que
-            # deux badges dorés flottants (qui saturaient). Cote DISCRÈTE à gauche (info secondaire), confiance
-            # — la « chance » — en OR à droite (l'accent). Un seul objet net, hiérarchie claire ; largeurs MINI
-            # fixes -> les modules s'alignent en colonnes d'une carte à l'autre. La confiance reste la proba de
-            # l'analyste (affichée comme un vrai pari, mais le libellé « indicatif · hors ROI » de la zone/tag
-            # dit clairement que ce n'est pas compté).
-            _cf_cote = (f'<span class="cf-cote">@{_cote:g}</span>'
-                        if isinstance(_cote, (int, float)) and _cote else "")
-            if isinstance(_pconf, (int, float)) and _pconf:
-                _w = max(0, min(100, int(round(_pconf))))
-                _cf_g = (f'<div class="cf-g"><div class="cf-top"><span class="cf-lab">Confiance</span>'
-                         f'<span class="cf-val">{_pconf}%</span></div>'
-                         f'<div class="cf-bar"><div class="cf-fill" style="width:{_w}%"></div></div></div>')
-            else:
-                _cf_g = ""
-            _odds_html = f'<div class="cf">{_cf_cote}{_cf_g}</div>' if (_cf_cote or _cf_g) else ""
+            # STYLE TELEGRAM (demande user 2026-07-12, s'inspire des cartes publiées) : le pari en gras, la
+            # « Confiance XX% » en texte, et la COTE en GROS chiffre en bas à DROITE (label « COTE »). Cote en
+            # BLANC (choix user), comme la carte Telegram. La confiance reste la proba de l'analyste (le tag/
+            # zone « indicatif · hors ROI » dit clairement que ce n'est pas compté au ROI).
+            _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
+                         f'<span class="mc-cote-v">{_cote:g}</span></span>'
+                         if isinstance(_cote, (int, float)) and _cote else "")
+            _conf_txt = (f'<div class="mc-conf">Confiance <b>{_pconf}%</b></div>'
+                         if isinstance(_pconf, (int, float)) and _pconf else "")
             # Ré-analyse : heure seule, SANS « · peut changer » (demande user 2026-07-12).
             _reana = ("pas de value détectée" if now >= reanalyse
                       else f"Ré-analyse à {fmt_local(reanalyse, with_date=False)}")
@@ -3443,19 +3443,18 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # porte déjà le libellé une fois) — demande user 2026-07-11, fin de la répétition.
             _prov_tag = ('' if framed else
                          '<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>')
-            # Le module cote │ confiance est placé SOUS le pari (demande user 2026-07-12), pas à droite.
-            _odds_row = f'<div class="mc-odds-row">{_odds_html}</div>' if _odds_html else ""
-            sub = (_prov_tag
-                   + f'<div class="mc-betl mc-prov"><span class="mc-bi">•</span>'
-                   f'<span class="mc-bt">{html.escape(prov_sel)}</span></div>'
-                   + _odds_row
-                   + f'<div class="mc-reana mc-reana-prov">🔄 {_reana}</div>')
+            sub = ('<div class="mc-div"></div>' + _prov_tag
+                   + f'<div class="mc-pick">{html.escape(prov_sel)}</div>'
+                   + _conf_txt
+                   + f'<div class="mc-foot"><span class="mc-reana mc-reana-prov">🔄 {_reana}</span>'
+                   + _cote_big + '</div>')
         else:
             if m.get("status") == "abstained" and now >= reanalyse:
                 bic, btxt = "➖", "Pas de value"                              # échéance passée -> quasi-final
             else:
                 bic, btxt = "🔄", f"Analyse à {fmt_local(reanalyse, with_date=False)}"   # heure exacte
-            sub = (f'<div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
+            sub = ('<div class="mc-div"></div>'
+                   f'<div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
                    f'<span class="mc-bt">{html.escape(btxt)}</span></div>')
         _inner = (
             f'<div class="mc-main">'
@@ -3475,7 +3474,9 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             f'<div class="mc-sub">{sub}</div></div>')
         # Accent doré discret (bord gauche) sur les cartes PROVISOIRES en zone dédiée -> identifiables sans
         # la pastille répétée (demande user 2026-07-11). Uniquement en mode `framed` et si c'est un provisoire.
-        _acc = " mc-prov-c" if (framed and prov_sel) else ""
+        # STYLE TELEGRAM (demande user 2026-07-12) : fond bleu nuit + bordure lumineuse sur les cartes du
+        # programme (classe `mc-tg`), au lieu de l'ancien accent doré latéral.
+        _acc = " mc-tg"
         # PROVISOIRE CLIQUABLE (demande user 2026-07-10) : si l'analyse du match est disponible (le scan
         # GARDE le .md des provisoires), la carte devient un <details> qui déplie la fiche d'analyse — comme
         # les paris à jouer. Le .md est purement AFFICHAGE (aucun impact ROI/stats/calibration). Sinon carte
