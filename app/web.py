@@ -1615,28 +1615,32 @@ CSS = """
   /* ===== Cartes de paris — STYLE TELEGRAM (demande user 2026-07-12, reprend les cartes publiées, sans logo) :
      fond BLEU NUIT dégradé + bordure lumineuse ; titre en tiret long ; « Confiance % » en texte ; la COTE en
      GROS chiffre (blanc) en bas à DROITE avec le label « COTE ». ===== */
+  /* Couleurs/graisses CALQUÉES sur la carte Telegram (tools/card_image.py) : cyan #5fd0ff, comp #93b7db,
+     titre #eef4fb, analyse #a7bcd6 (léger), meta #90a4be, cote #fff. */
   .row.mc.mc-tg{background:linear-gradient(165deg,#0e1d2e 0%,#0b1622 55%,#081019 100%);
        border:1px solid rgba(58,140,225,.42);
        box-shadow:0 0 0 1px rgba(34,167,238,.07),0 0 26px rgba(30,110,190,.15),0 12px 32px rgba(0,0,0,.5)}
   .mc-tg .mc-head{padding:14px 16px 13px}
-  .mc-dash{color:var(--dim);font-weight:600;margin:0 3px}
-  .mc-tg .mc-teams{font-size:17px;line-height:1.22;margin-top:9px;white-space:normal;overflow:visible;
-       text-overflow:clip;text-wrap:balance}
-  /* Ligne DATE sous le titre (jeu. 9 juil. · 15:15) — style Telegram, remplace le badge d'heure top-droit. */
-  .mc-date{margin-top:6px;font-size:11.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
-  /* Court extrait d'analyse à BARRE CYAN à gauche (comme la carte Telegram). */
-  .mc-note{margin-top:9px;padding-left:13px;border-left:2px solid #3a9fe0;color:#c4d2e2;
-       font-size:12.5px;line-height:1.5}
-  .mc-div{height:1px;margin:12px 0;background:linear-gradient(90deg,rgba(255,255,255,.13),rgba(255,255,255,.02))}
+  .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
+  .mc-tg .mc-comp{color:#93b7db;font-weight:600}
+  .mc-tg .mc-comp-sep{color:#5f7a97}
+  .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
+  /* Noms d'équipes PLUS PETITS (demande user 2026-07-12) mais restant le titre (gras). */
+  .mc-tg .mc-teams{font-size:14.5px;font-weight:800;color:#eef4fb;line-height:1.24;margin-top:9px;
+       white-space:normal;overflow:visible;text-overflow:clip;text-wrap:balance}
+  /* Court extrait d'analyse à BARRE CYAN à gauche (comme la carte Telegram) — texte léger, complet. */
+  .mc-note{margin-top:9px;padding-left:13px;border-left:2px solid #3a9fe0;color:#a7bcd6;
+       font-size:12.5px;font-weight:500;line-height:1.5}
+  .mc-div{height:1px;margin:12px 0;background:linear-gradient(90deg,rgba(120,170,220,.22),rgba(120,170,220,.03))}
   .mc-open .mc-div{display:none}
   .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
-  .mc-pick{font-size:15px;font-weight:800;color:var(--text);line-height:1.32}
-  .mc-conf{margin-top:9px;font-size:13px;color:var(--muted);font-weight:600}
-  .mc-conf b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
+  .mc-pick{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.32}
+  .mc-conf{margin-top:10px;font-size:13px;color:#90a4be;font-weight:600}
+  .mc-conf b{color:#fff;font-weight:800;font-variant-numeric:tabular-nums}
   .mc-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:13px}
-  .mc-foot .mc-reana{margin-top:0}
+  .mc-foot .mc-reana{margin-top:0;color:#7f93aa}
   .mc-cote{flex:none;text-align:right;line-height:1}
-  .mc-cote-l{display:block;font-size:9.5px;font-weight:800;letter-spacing:.13em;color:var(--muted);margin-bottom:3px}
+  .mc-cote-l{display:block;font-size:9.5px;font-weight:800;letter-spacing:.13em;color:#90a4be;margin-bottom:3px}
   .mc-cote-v{font-size:30px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
@@ -3340,10 +3344,11 @@ def _prog_pair(home, away) -> frozenset:
     return frozenset(x for x in (_n(home), _n(away)) if x)
 
 
-def _prov_why_snippet(sport, fid, maxlen: int = 190) -> str:
-    """Court extrait (texte brut, ~2 phrases) du raisonnement du pari PROVISOIRE (section « 🧪 » du .md) —
-    pour la carte repliée style Telegram (analyse à barre cyan sous le pari, demande user 2026-07-12). ''
-    si absent. Best-effort : ne casse jamais le rendu."""
+def _prov_why_snippet(sport, fid, maxlen: int = 260) -> str:
+    """Extrait PROPRE (phrases COMPLÈTES, majuscule initiale) du raisonnement du pari PROVISOIRE (section
+    « 🧪 » du .md) — pour la carte repliée style Telegram (analyse à barre cyan sous le pari, demande user
+    2026-07-12). Texte nettoyé : markdown/liens retirés, coupe NETTE à une fin de phrase (jamais en plein
+    milieu). '' si absent. Best-effort : ne casse jamais le rendu."""
     if not fid:
         return ""
     try:
@@ -3360,10 +3365,23 @@ def _prov_why_snippet(sport, fid, maxlen: int = 190) -> str:
         t = re.sub(r"\s+", " ", t).strip()
         if not t:
             return ""
+        # Ne garde que la LECTURE DU MATCH : on retire les phrases de MÉTA-COMMENTAIRE (value/abstention/
+        # proba/seuil/skip…) pour un texte PROFESSIONNEL, pas un commentaire d'abstention (demande user).
+        _META = re.compile(r"(sans value|pas de value|aucune value|abstention|abstient|abstenir|\bskip\b|"
+                           r"si l.on devait|d.o[uù] l.abstention|trop courte|seuil de \d|ma proba|"
+                           r"mon estimation|pas de pari|indicatif|hors roi|pas exploitable|\blean\b|marginale?)",
+                           re.I)
+        _sents = re.split(r"(?<=[.!?…])\s+", t)
+        _clean = [s for s in _sents if s and not _META.search(s)]
+        t = " ".join(_clean).strip() or t                  # repli : si tout filtré, garde l'original
+        t = t[:1].upper() + t[1:]                          # MAJUSCULE initiale (texte professionnel)
         if len(t) > maxlen:
             cut = t[:maxlen]
-            m = re.search(r"^.*[.!?…](?=\s|$)", cut)        # coupe à une fin de phrase si possible
-            t = m.group(0) if (m and m.end() > maxlen * 0.5) else cut.rsplit(" ", 1)[0] + "…"
+            m = re.search(r"^.*[.!?…](?=\s|$)", cut)        # dernière fin de phrase dans la limite
+            if m and m.end() > maxlen * 0.45:
+                t = m.group(0)                              # coupe NETTE à une fin de phrase -> texte complet
+            else:
+                t = cut.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
         return t
     except Exception:
         return ""
@@ -3494,25 +3512,21 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             sub = ('<div class="mc-div"></div>'
                    f'<div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
                    f'<span class="mc-bt">{html.escape(btxt)}</span></div>')
-        # Badge : LIVE uniquement (score en direct / « en cours »). Pour un match À VENIR, l'heure passe sur
-        # une LIGNE DE DATE sous le titre (style Telegram, demande user 2026-07-12), plus de badge top-droit.
-        _live_badge = (f'<span class="mc-badge mc-live">🟢 {html.escape(_lf["score"])}'
-                       + (f' · {html.escape(_lf["live_time"])}' if _lf.get("live_time") else "") + '</span>'
-                       if (_is_live and _lf.get("score"))
-                       else '<span class="mc-badge mc-live">🟢 en cours</span>' if _is_live else "")
-        from app import card_data as _cardd
-        _dt_loc = (dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo) else dt)
-        _date_line = ("" if _is_live else
-                      f'<div class="mc-date">{_cardd.fr_date(_dt_loc)} · {_dt_loc.strftime("%H:%M")}</div>')
+        # Badge coin haut-droit : LIVE (score/« en cours ») sinon l'HEURE (demande user 2026-07-12 : garder
+        # l'heure dans le coin, pas de ligne de date sous le titre).
+        _badge = (f'<span class="mc-badge mc-live">🟢 {html.escape(_lf["score"])}'
+                  + (f' · {html.escape(_lf["live_time"])}' if _lf.get("live_time") else "") + '</span>'
+                  if (_is_live and _lf.get("score"))
+                  else '<span class="mc-badge mc-live">🟢 en cours</span>' if _is_live
+                  else f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=False))}</span>')
         _inner = (
             f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
             f'<span class="mc-comp"><b class="mc-sport">{_spn}</b>'
             + (f'<span class="mc-comp-sep"> • </span>{comp}' if comp else '') + '</span>'
-            + _live_badge
+            + _badge
             + '</div>'
             f'<div class="mc-teams">{teams}</div>'
-            + _date_line
             + f'<div class="mc-sub">{sub}</div></div>')
         # Accent doré discret (bord gauche) sur les cartes PROVISOIRES en zone dédiée -> identifiables sans
         # la pastille répétée (demande user 2026-07-11). Uniquement en mode `framed` et si c'est un provisoire.
