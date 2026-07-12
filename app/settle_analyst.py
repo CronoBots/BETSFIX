@@ -1367,6 +1367,31 @@ async def _settle_analyses_impl() -> int:
                 except Exception:
                     pass
 
+            # ⚠️ PROLONGATION (demande user 2026-07-12, erreur grave Argentine-Suisse 3-1 réglé « won »
+            # alors que le TEMPS RÉGLEMENTAIRE était 1-1) : un match à élimination directe allé aux
+            # prolongations doit régler ses marchés 90 MIN (1X2, over/under, mi-temps, REGTIME…) sur le
+            # score RÉGLEMENTAIRE, JAMAIS sur le score final (prolongation incluse). FotMob/LiveScore
+            # FONDENT les buts de prolongation dans la 2e mi-temps -> 90 min faussé. Sportradar sépare `ft`
+            # (fin 90 min) de `ot` (final). Pour le FOOT, on consulte Sportradar : s'il signale une
+            # prolongation, on ÉCRASE home/away + winner + périodes par le RÉGLEMENTAIRE (vérité 90 min).
+            if sport == "foot" and score:
+                try:
+                    from app import sportradar as _sr2
+                    import httpx as _httpx2
+                    async with _httpx2.AsyncClient() as _c2:
+                        _reg = await _sr2.final_score(_c2, sport, d)
+                    if _reg and _reg.get("after_extra") and _reg.get("home") is not None:
+                        score = {**score, "home": _reg["home"], "away": _reg["away"],
+                                 "winner": _reg.get("winner"),
+                                 "periods": _reg.get("periods") or score.get("periods"),
+                                 "after_extra": True, "src": "sportradar(reg)",
+                                 "label": _reg.get("label")}
+                        log.info("règlement TEMPS RÉGLEMENTAIRE (prolongation détectée) via sportradar : "
+                                 "%s_%s reg=%s (final %s-%s)", sport, d.get("id"), _reg.get("label"),
+                                 _reg.get("final_home"), _reg.get("final_away"))
+                except Exception:
+                    pass
+
             async def _settle_one(c):
                 if not c:
                     return None
