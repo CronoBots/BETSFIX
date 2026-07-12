@@ -36,8 +36,24 @@ def _deacc(s: str) -> str:
     return unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower().strip()
 
 
+# BRÉSIL : suffixe d'état Unibet (« -GO », « -CE »…) -> GENTILÉ que Sportradar/FotMob mettent souvent dans
+# le nom (« Atletico Goianiense », « Atletico Mineiro »…). On l'AJOUTE comme jeton pour que « Atlético-GO »
+# matche « Atletico Goianiense » (sinon « GO » <3 lettres est ignoré et « Atlético » seul matche des dizaines
+# d'homonymes -> refus anti-homonyme). Le gentilé qui ne matche pas (ex. Fortaleza) ne pénalise pas.
+_BR_DEMONYM = {"go": "goianiense", "mg": "mineiro", "pr": "paranaense", "sp": "paulista", "rs": "gaucho",
+               "pe": "pernambucano", "ba": "baiano", "ce": "cearense", "rj": "carioca", "sc": "catarinense",
+               "pa": "paraense", "am": "amazonense", "mt": "matogrossense", "al": "alagoano", "pb": "paraibano",
+               "rn": "potiguar", "se": "sergipano", "pi": "piauiense", "ma": "maranhense", "es": "capixaba",
+               "to": "tocantinense", "ac": "acriano", "ro": "rondoniense", "ap": "amapaense", "rr": "roraimense"}
+
+
 def _toks(s: str) -> set:
-    return {w for w in re.findall(r"[a-z0-9]+", _deacc(s)) if len(w) >= 3}
+    d = _deacc(s)
+    toks = {w for w in re.findall(r"[a-z0-9]+", d) if len(w) >= 3}
+    m = re.search(r"[-\s]([a-z]{2})$", d)                # suffixe d'état brésilien en fin de nom
+    if m and m.group(1) in _BR_DEMONYM:
+        toks.add(_BR_DEMONYM[m.group(1)])
+    return toks
 
 
 def _overlap(a: str, b: str) -> bool:

@@ -304,6 +304,23 @@ def settle_pending() -> int:
                     livescore.final_score(leg.get("sport"), q)
             except Exception:
                 score = None
+            if not score or not score.get("periods"):
+                # Repli SPORTRADAR (GISMO) : score final + périodes détaillées que Flashscore/LiveScore
+                # ne donnent pas toujours (et matching de nom brésilien corrigé côté sportradar). Aligne le
+                # règlement du combiné du jour sur les autres chemins de règlement.
+                try:
+                    import asyncio
+                    import httpx
+                    from app import sportradar
+
+                    async def _sr_score():
+                        async with httpx.AsyncClient(timeout=20) as _c:
+                            return await sportradar.final_score(_c, leg.get("sport"), q)
+                    srs = asyncio.run(_sr_score())
+                    if srs and (srs.get("periods") or srs.get("label")):
+                        score = srs if not score else {**score, "periods": srs.get("periods") or score.get("periods")}
+                except Exception:
+                    pass
             if not score:
                 continue                              # pas de score final fiable -> on retente (borné plus bas)
             try:
