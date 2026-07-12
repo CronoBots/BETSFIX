@@ -1622,6 +1622,11 @@ CSS = """
   .mc-dash{color:var(--dim);font-weight:600;margin:0 3px}
   .mc-tg .mc-teams{font-size:17px;line-height:1.22;margin-top:9px;white-space:normal;overflow:visible;
        text-overflow:clip;text-wrap:balance}
+  /* Ligne DATE sous le titre (jeu. 9 juil. · 15:15) — style Telegram, remplace le badge d'heure top-droit. */
+  .mc-date{margin-top:6px;font-size:11.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+  /* Court extrait d'analyse à BARRE CYAN à gauche (comme la carte Telegram). */
+  .mc-note{margin-top:9px;padding-left:13px;border-left:2px solid #3a9fe0;color:#c4d2e2;
+       font-size:12.5px;line-height:1.5}
   .mc-div{height:1px;margin:12px 0;background:linear-gradient(90deg,rgba(255,255,255,.13),rgba(255,255,255,.02))}
   .mc-open .mc-div{display:none}
   .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
@@ -3335,6 +3340,35 @@ def _prog_pair(home, away) -> frozenset:
     return frozenset(x for x in (_n(home), _n(away)) if x)
 
 
+def _prov_why_snippet(sport, fid, maxlen: int = 190) -> str:
+    """Court extrait (texte brut, ~2 phrases) du raisonnement du pari PROVISOIRE (section « 🧪 » du .md) —
+    pour la carte repliée style Telegram (analyse à barre cyan sous le pari, demande user 2026-07-12). ''
+    si absent. Best-effort : ne casse jamais le rendu."""
+    if not fid:
+        return ""
+    try:
+        md = analyses.load(sport, str(fid))
+        if not md:
+            return ""
+        prov = analyses._find(analyses._sections(md), "🧪", "provisoire", "Provisoire")
+        if not prov:
+            return ""
+        t = re.sub(r"(?im)^\s*PROV:.*$", "", prov)
+        t = re.sub(r"^\s*[-*]\s*\*\*.*?%\s*:\*\*\s*", "", t, count=1, flags=re.S)  # retire « - **sel @cote — x% :** »
+        t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)     # liens markdown -> texte seul
+        t = re.sub(r"[*_`#]", "", t)                       # markdown résiduel
+        t = re.sub(r"\s+", " ", t).strip()
+        if not t:
+            return ""
+        if len(t) > maxlen:
+            cut = t[:maxlen]
+            m = re.search(r"^.*[.!?…](?=\s|$)", cut)        # coupe à une fin de phrase si possible
+            t = m.group(0) if (m and m.end() > maxlen * 0.5) else cut.rsplit(" ", 1)[0] + "…"
+        return t
+    except Exception:
+        return ""
+
+
 def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) -> list:
     """Cartes du PROGRAMME DU JOUR (matchs SANS pari à jouer affiché) à FUSIONNER — dans l'ordre
     chronologique — avec les paris à jouer, dans le MÊME cadre (demande user). Renvoie une liste de dicts
@@ -3443,8 +3477,12 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # porte déjà le libellé une fois) — demande user 2026-07-11, fin de la répétition.
             _prov_tag = ('' if framed else
                          '<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>')
+            # Court extrait d'analyse (barre cyan) SOUS le pari, comme la carte Telegram (demande user).
+            _why = _prov_why_snippet(sp, prov.get("fid"))
+            _note = f'<div class="mc-note">{html.escape(_why)}</div>' if _why else ""
             sub = ('<div class="mc-div"></div>' + _prov_tag
                    + f'<div class="mc-pick">{html.escape(prov_sel)}</div>'
+                   + _note
                    + _conf_txt
                    + f'<div class="mc-foot"><span class="mc-reana mc-reana-prov">🔄 {_reana}</span>'
                    + _cote_big + '</div>')
@@ -3456,22 +3494,26 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             sub = ('<div class="mc-div"></div>'
                    f'<div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
                    f'<span class="mc-bt">{html.escape(btxt)}</span></div>')
+        # Badge : LIVE uniquement (score en direct / « en cours »). Pour un match À VENIR, l'heure passe sur
+        # une LIGNE DE DATE sous le titre (style Telegram, demande user 2026-07-12), plus de badge top-droit.
+        _live_badge = (f'<span class="mc-badge mc-live">🟢 {html.escape(_lf["score"])}'
+                       + (f' · {html.escape(_lf["live_time"])}' if _lf.get("live_time") else "") + '</span>'
+                       if (_is_live and _lf.get("score"))
+                       else '<span class="mc-badge mc-live">🟢 en cours</span>' if _is_live else "")
+        from app import card_data as _cardd
+        _dt_loc = (dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo) else dt)
+        _date_line = ("" if _is_live else
+                      f'<div class="mc-date">{_cardd.fr_date(_dt_loc)} · {_dt_loc.strftime("%H:%M")}</div>')
         _inner = (
             f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
             f'<span class="mc-comp"><b class="mc-sport">{_spn}</b>'
             + (f'<span class="mc-comp-sep"> • </span>{comp}' if comp else '') + '</span>'
-            # Badge : LIVE (onglet Live/section En direct) -> « 🟢 <score en direct> » (buts/points/sets,
-            # comme les vraies cartes ; + horloge foot/basket si dispo), sinon « 🟢 en cours » tant que le
-            # score n'est pas encore capté, sinon l'heure seule (le programme est groupé par jour).
-            + (f'<span class="mc-badge mc-live">🟢 {html.escape(_lf["score"])}'
-               + (f' · {html.escape(_lf["live_time"])}' if _lf.get("live_time") else "") + '</span>'
-               if (_is_live and _lf.get("score"))
-               else '<span class="mc-badge mc-live">🟢 en cours</span>' if _is_live
-               else f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=False))}</span>')
+            + _live_badge
             + '</div>'
             f'<div class="mc-teams">{teams}</div>'
-            f'<div class="mc-sub">{sub}</div></div>')
+            + _date_line
+            + f'<div class="mc-sub">{sub}</div></div>')
         # Accent doré discret (bord gauche) sur les cartes PROVISOIRES en zone dédiée -> identifiables sans
         # la pastille répétée (demande user 2026-07-11). Uniquement en mode `framed` et si c'est un provisoire.
         # STYLE TELEGRAM (demande user 2026-07-12) : fond bleu nuit + bordure lumineuse sur les cartes du
