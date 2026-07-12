@@ -879,32 +879,49 @@ CSS = """
   issues en COLONNES + fine barre/ligne */
   /* Barres PLEINES : source au-dessus,
   % dans chaque segment (favori = couleur source) */
-  /* ===== Bloc « Cotes & chances » PREMIUM : barre fine de proportion + chips par issue ===== */
-  .ocs{margin:10px 0 2px;display:flex;flex-direction:column;gap:11px}
-  .oc-h{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
-        color:var(--muted);margin-bottom:6px}
-  .oc{width:100%}
-  .ocb{display:flex;width:100%;gap:2px;height:6px;border-radius:99px;overflow:hidden;margin-bottom:8px}
+  /* ===== Bloc « Cotes & chances » PREMIUM v2 : cadre soigné (dégradé + ombre douce) + barre à glow
+     + boîtes en relief, cote en pastille, favori surélevé ===== */
+  .ocs{margin:12px 0 2px;display:flex;flex-direction:column;gap:12px}
+  .oc{width:100%;padding:13px 13px 12px;border-radius:16px;
+        background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.014));
+        border:1px solid var(--border);
+        box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 8px 22px rgba(0,0,0,.24)}
+  .oc-h{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:800;text-transform:uppercase;
+        letter-spacing:.1em;color:var(--muted);margin-bottom:11px}
+  .oc-h::before{content:"";flex:none;width:5px;height:5px;border-radius:99px;
+        background:linear-gradient(180deg,#3ee089,#19c46a);box-shadow:0 0 8px rgba(52,210,123,.7)}
+  .oc-h::after{content:"";flex:1;height:1px;
+        background:linear-gradient(90deg,var(--border2),transparent)}
+  .ocb{display:flex;width:100%;gap:3px;height:7px;border-radius:99px;overflow:hidden;margin-bottom:12px;
+        background:rgba(0,0,0,.28)}
   .ocb-s{height:100%;border-radius:99px}
-  .ocb-po{background:linear-gradient(90deg,#19c46a,#34d27b)}
-  .ocb-pc{background:linear-gradient(90deg,#d8a93a,#e8c34d)}
-  .ocb-dim{background:rgba(255,255,255,.13)}
-  .ocp-row{display:flex;width:100%;gap:6px}
-  .ocp{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
-        padding:8px 5px 7px;border-radius:12px;text-align:center;
-        background:rgba(255,255,255,.035);border:1px solid var(--border)}
+  .ocb-po{background:linear-gradient(90deg,#19c46a,#3ee089);box-shadow:0 0 10px rgba(52,210,123,.5)}
+  .ocb-pc{background:linear-gradient(90deg,#d8a93a,#f0cf63);box-shadow:0 0 10px rgba(232,195,77,.45)}
+  .ocb-dim{background:rgba(255,255,255,.1)}
+  .ocp-row{display:flex;width:100%;gap:7px}
+  .ocp{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;
+        padding:10px 6px 9px;border-radius:13px;text-align:center;
+        background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.016));
+        border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.16)}
   .ocp-n{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-        font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.01em}
-  .ocp-v{font-size:16px;font-weight:900;color:var(--text);line-height:1.05;
-        font-variant-numeric:tabular-nums}
-  .ocp-c{font-size:10px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
-  /* chip FAVORI : liseré + fond teintés de la source, valeur en couleur */
-  .ocp-fav.ocb-po{border-color:rgba(52,210,123,.5);
-        background:linear-gradient(180deg,rgba(52,210,123,.16),rgba(52,210,123,.04))}
+        font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.01em}
+  .ocp-v{font-size:19px;font-weight:900;color:var(--text);line-height:1.02;
+        font-variant-numeric:tabular-nums;letter-spacing:-.015em}
+  .ocp-c{margin-top:3px;font-size:9.5px;font-weight:800;color:var(--muted);
+        font-variant-numeric:tabular-nums;padding:1px 8px;border-radius:99px;
+        background:rgba(255,255,255,.05);border:1px solid var(--border)}
+  /* chip FAVORI : liseré + fond teintés de la source, valeur en couleur, légère élévation + halo */
+  .ocp-fav{transform:translateY(-1px)}
+  .ocp-fav.ocb-po{border-color:rgba(52,210,123,.55);
+        background:linear-gradient(180deg,rgba(52,210,123,.2),rgba(52,210,123,.05));
+        box-shadow:0 0 0 1px rgba(52,210,123,.16),0 8px 18px rgba(25,196,106,.2)}
   .ocp-fav.ocb-po .ocp-v{color:#5be08c} .ocp-fav.ocb-po .ocp-n{color:#cdeecf}
-  .ocp-fav.ocb-pc{border-color:rgba(232,195,77,.5);
-        background:linear-gradient(180deg,rgba(232,195,77,.16),rgba(232,195,77,.04))}
+  .ocp-fav.ocb-po .ocp-c{color:#7ff0b6;background:rgba(52,210,123,.15);border-color:rgba(52,210,123,.42)}
+  .ocp-fav.ocb-pc{border-color:rgba(232,195,77,.55);
+        background:linear-gradient(180deg,rgba(232,195,77,.2),rgba(232,195,77,.05));
+        box-shadow:0 0 0 1px rgba(232,195,77,.16),0 8px 18px rgba(232,195,77,.18)}
   .ocp-fav.ocb-pc .ocp-v{color:#f0cf63} .ocp-fav.ocb-pc .ocp-n{color:#efe2b4}
+  .ocp-fav.ocb-pc .ocp-c{color:#f0cf63;background:rgba(232,195,77,.15);border-color:rgba(232,195,77,.42)}
   /* barre Public compacte : libellés sous la barre fine */
   .oc-pub{font-size:10.5px;color:var(--muted);font-weight:600}
   .oc-pub b{color:#cfe0f5;font-weight:800}
