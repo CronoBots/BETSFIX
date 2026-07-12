@@ -566,8 +566,11 @@ CSS = """
   .mc-betl + .mc-betl{margin-top:3px}
   .mc-bi{flex:none;font-size:10px}
   .mc-bt{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.3}
-  .mc-bc{flex:none;align-self:center;background:rgba(25,196,106,.14);color:#7ff0b6;border-radius:6px;
-       padding:1px 7px;font-size:10.5px;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+  /* Pastille de pari (cote/value) — premium : gélule arrondie, dégradé subtil, liseré + micro-ombre. */
+  .mc-bc{flex:none;align-self:center;border-radius:99px;padding:2px 9px;font-size:10px;font-weight:900;
+       font-variant-numeric:tabular-nums;white-space:nowrap;color:#8ff0bd;
+       background:linear-gradient(180deg,rgba(46,226,127,.2),rgba(46,226,127,.06));
+       border:1px solid rgba(46,226,127,.32);box-shadow:0 1px 4px rgba(0,0,0,.24)}
   /* pari RETENU (⭐ en tête) : libellé mis en avant */
   .mc-betl-reco .mc-bt{color:#fff;font-weight:800}
   .mc-noplay .mc-bt,.mc-noplay .mc-bi{color:var(--muted);font-weight:600;font-style:italic;opacity:.85}
@@ -1582,7 +1585,11 @@ CSS = """
   /* Pari PROVISOIRE (abstention sans value) : teinte DORÉE -> clairement distinct d'un pari de value
      confirmé (vert). Montre « le pari si l'on devait en jouer un » sans le vendre comme une value. */
   .mc-prov .mc-bt{color:var(--gold);font-weight:800}
-  .mc-bc-prov{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd)}
+  /* Provisoire — COTE : chip doré discret (info secondaire), gélule cohérente avec la carte dépliée. */
+  .mc-bc-prov{border-radius:99px;padding:2px 9px;color:var(--gold);
+       border:1px solid rgba(246,197,74,.34);
+       background:linear-gradient(180deg,rgba(246,197,74,.15),rgba(246,197,74,.05));
+       box-shadow:0 1px 4px rgba(0,0,0,.25)}
   /* Provisoire : ligne « ré-analyse » DISCRÈTE (allègement 2026-07-11) — petite, grisée, non grasse :
      info présente mais qui ne pèse plus visuellement (la carte dorée + la zone disent déjà l'essentiel). */
   .mc-reana-prov{color:var(--muted);font-size:10px;font-weight:600;opacity:.92;margin-top:2px}
@@ -1591,8 +1598,11 @@ CSS = """
        color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:7px;
        padding:2px 7px;margin:1px 0 5px}
   .mc-prov-tag span{opacity:.72;font-weight:600;letter-spacing:.02em}
-  .mc-prov-cf{flex:none;align-self:center;background:var(--gold-bg);color:var(--gold);
-       border:1px solid var(--gold-bd);border-radius:6px;padding:1px 6px;font-size:10px;font-weight:800}
+  /* Provisoire — CONFIANCE : badge doré PLEIN (encre sombre) -> la « chance » ressort (info principale). */
+  .mc-prov-cf{flex:none;align-self:center;border-radius:99px;padding:2px 9px;font-size:10.5px;font-weight:900;
+       font-variant-numeric:tabular-nums;color:#1c1404;
+       background:linear-gradient(180deg,#f8ce5c,#e0ad2f);border:1px solid rgba(246,197,74,.5);
+       box-shadow:0 2px 8px rgba(246,197,74,.3)}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
