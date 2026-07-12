@@ -304,6 +304,7 @@ def _card(r: dict) -> dict:
             "status": r["status"], "time": _fmt_time(r.get("start")),
             "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
             "female": r.get("female"), "score": r.get("score", ""), "live_time": r.get("live_time", ""),
+            "fstats": r.get("fstats"),   # cartons/corners live -> box-score foot (demande user 2026-07-12)
             "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
             "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
             "prob": r.get("probs"), "sub": _model_line(r), "badge": badge, "pick": bool(pk),

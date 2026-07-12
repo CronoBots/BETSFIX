@@ -177,6 +177,13 @@ def live_fields(ld: dict | None, sport: str) -> dict:
         qs = re.findall(r"(\d+)\s*[-–]\s*(\d+)", sc.get("info") or "")
         if qs:
             out["periods"] = [(int(x), int(y)) for x, y in qs]
+    if sport == "foot":     # STATS LIVE (cartons/corners) depuis la liveData Unibet -> box-score enrichi
+        _fb = ((ld.get("statistics") or {}).get("football") or {})
+        _fh, _fa = _fb.get("home") or {}, _fb.get("away") or {}
+        if _fh or _fa:
+            out["fstats"] = {"rc_h": _fh.get("redCards"), "rc_a": _fa.get("redCards"),
+                             "yc_h": _fh.get("yellowCards"), "yc_a": _fa.get("yellowCards"),
+                             "cor_h": _fh.get("corners"), "cor_a": _fa.get("corners")}
     return out
 
 def fmt_local(value, with_date: bool = True) -> str:
@@ -675,6 +682,8 @@ CSS = """
   .lboard-q .lb-n{font-size:12.5px}             /* nom d'équipe (évite la troncature) */
   .lboard-q .lb-hdr{border-bottom:1px solid rgba(255,255,255,.13);padding-bottom:3px;margin-bottom:2px}
   .lboard-q .lb-hdr .lb-c{font-size:10px}       /* Q1..Qn + TOT : en-tête discret (plus petit) */
+  .lboard-q .lb-c.lb-ico{font-size:13px}        /* foot : icônes 🟥🟨🚩⚽ lisibles (cartons/corners/buts) */
+  .lboard-q .lb-c.lb-tot.lb-ico{font-size:14px}
   .lboard-q .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
   .lboard-q .lb-row.lb-lead .lb-tot{color:#34d27b}   /* gagnant : SEUL son total en vert */
   .lboard-q .lb-cur{color:#fff}                       /* quart en cours : score en blanc */
@@ -1674,9 +1683,10 @@ CSS = """
   .mc-cleg-r{flex:none;font-size:11px;margin-top:2px}
   .mc-cleg-r.p{color:var(--gold)} .mc-cleg-r.w{color:#5be08c} .mc-cleg-r.l{color:#ff6b6b}
   .mc-cleg-b{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
-  .mc-cleg-sel{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.28}
-  .mc-cleg-o{margin-left:7px;font-size:11px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
-  .mc-cleg-m{font-size:11.5px;color:#8fa0b4;font-weight:600;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  /* MATCH en titre (équipes) + badge/score live ; PARI À JOUER dessous (sélection + cote or). */
+  .mc-cleg-match{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.26;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .mc-cleg-bet{margin-top:3px;font-size:13px;font-weight:700;color:#cfe0f5;line-height:1.3}
+  .mc-cleg-o{margin-left:7px;font-size:11.5px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums}
   .mc-cleg-sc{color:#5be08c;font-weight:800;font-variant-numeric:tabular-nums}
   /* analyse de la jambe (comme les combinés Telegram) — texte léger sous la sélection. */
   .mc-cleg-why{margin-top:6px;font-size:11.5px;font-weight:500;color:#a7bcd6;line-height:1.45}
@@ -3564,7 +3574,8 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         # provisoire EN DIRECT (demande user 2026-07-12), comme les paris live.
         _lscore = (_live_scoreboard(_lf.get("score"), home, away, tennis=(sp == "tennis"),
                                     server=_lf.get("server"), points=_lf.get("game_pts"),
-                                    clock=_lf.get("live_time"), periods=_lf.get("periods"))
+                                    clock=_lf.get("live_time"), periods=_lf.get("periods"),
+                                    fstats=_lf.get("fstats"))
                    if (_is_live and _lf.get("score")) else "")
         _inner = (
             f'<div class="mc-main">'
@@ -3730,15 +3741,18 @@ def _combo_tg_legs(cb: dict) -> str:
                 board = ('<div class="mc-cleg-board">'
                          + _live_scoreboard(_lfz["score"], _lh, _la, tennis=(_sp == "tennis"),
                                             server=_lfz.get("server"), points=_lfz.get("game_pts"),
-                                            clock=_lfz.get("live_time"), periods=_lfz.get("periods"))
+                                            clock=_lfz.get("live_time"), periods=_lfz.get("periods"),
+                                            fstats=_lfz.get("fstats"))
                          + '</div>')
         elif l.get("score"):
             sco = f'<span class="mc-cleg-sc">{html.escape(str(l.get("score")))}</span>'
         _wt = _clean_cap(l.get("why"))
         _why = f'<span class="mc-cleg-why">{html.escape(_wt)}</span>' if _wt else ""
+        # Présentation comme un match (demande user 2026-07-12) : le MATCH en TITRE (+ badge/score live),
+        # puis le PARI À JOUER (sélection + cote) EN DESSOUS, puis le scoreboard, puis l'analyse.
         rows.append(f'<div class="mc-cleg{_box}">{_mk}<span class="mc-cleg-b">'
-                    f'<span class="mc-cleg-sel">{emo} {sel}{cot}</span>'
-                    f'<span class="mc-cleg-m">{nm}{sco}</span>'
+                    f'<span class="mc-cleg-match">{emo} {nm}{sco}</span>'
+                    f'<span class="mc-cleg-bet">{sel}{cot}</span>'
                     f'{board}{_why}</span></div>')
     return "".join(rows)
 
@@ -4518,7 +4532,7 @@ def _short_team(name: str, tennis: bool) -> str:
 def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                      server: str | None = None, points: tuple | None = None,
                      clock: str | None = None, periods: list | None = None,
-                     best_of: int | None = None) -> str:
+                     best_of: int | None = None, fstats: dict | None = None) -> str:
     """Scoreboard LIVE. Tennis (`tennis=True`) : style Unibet — en-tête numéros de set + 🎾, TOUS
     les sets en colonnes (jeux par set), sets gagnés en gras, set en cours en évidence (PAS de
     case verte), colonne 🎾 = points du jeu en cours (`points`), et une balle 🎾 à droite du
@@ -4616,6 +4630,25 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                 f'<div class="lb-row lb-hdr">{clk}<span class="lb-s">{hdr}</span></div>'
                 f'{qrow(0, hn, th > ta)}{qrow(1, an, ta > th)}</div>')
 
+    if fstats:   # FOOT LIVE : box-score cartons/corners/buts (demande user 2026-07-12) — colonnes 🟥 🟨 🚩 ⚽
+        gh, ga = (cols[0] if cols else (0, 0))
+        _v = lambda x: x if isinstance(x, (int, float)) else 0
+        _defs = [("🟥", _v(fstats.get("rc_h")), _v(fstats.get("rc_a"))),
+                 ("🟨", _v(fstats.get("yc_h")), _v(fstats.get("yc_a"))),
+                 ("🚩", _v(fstats.get("cor_h")), _v(fstats.get("cor_a")))]
+        hdr = ("".join(f'<span class="lb-c lb-h lb-ico">{ic}</span>' for ic, _, _ in _defs)
+               + '<span class="lb-c lb-h lb-tot lb-ico">⚽</span>')
+
+        def frow(i, name, lead, goals):
+            cs = "".join(f'<span class="lb-c">{(hv if i == 0 else av)}</span>' for _, hv, av in _defs)
+            cs += f'<span class="lb-c lb-tot">{goals}</span>'
+            return (f'<div class="lb-row{" lb-lead" if lead else ""}">'
+                    f'<span class="lb-n">{name}</span><span class="lb-s">{cs}</span></div>')
+        clk = f'<span class="lb-n lb-clk-in">{e(clock)}</span>' if clock else '<span class="lb-n"></span>'
+        return (f'<div class="lboard lboard-q">'
+                f'<div class="lb-row lb-hdr">{clk}<span class="lb-s">{hdr}</span></div>'
+                f'{frow(0, hn, gh > ga, gh)}{frow(1, an, ga > gh, ga)}</div>')
+
     def cells(i):
         return "".join(f'<span class="lb-c{" lb-win" if c[i] > c[1 - i] else ""}">{c[i]}</span>'
                        for c in cols)
@@ -4672,7 +4705,7 @@ def _sport_row(r: dict) -> str:
         lscore = _live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "",
                                   tennis=_is_tennis, server=r.get("server"), points=r.get("game_pts"),
                                   clock=r.get("live_time"), periods=r.get("periods"),
-                                  best_of=r.get("best_of"))
+                                  best_of=r.get("best_of"), fstats=r.get("fstats"))
     elif is_finished and r.get("score"):
         # Score FINAL présenté COMME en live, AVEC le détail : sets (tennis « 6-4 3-6 6-2 ») ou
         # quart-temps (basket `periods`), sinon total 2 lignes. Sans horloge (match terminé).
