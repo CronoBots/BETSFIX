@@ -429,13 +429,15 @@ def _check_ghost_resolution(rows) -> dict:
 
 def _check_provisional_dedup() -> dict:
     """Un provisoire NON réglé ne doit JAMAIS être suivi si son match a DÉJÀ un pari RETENU (combiné ou
-    simple) : sinon le même match est suivi 2× et une seule erreur se répercote à deux endroits, avec deux
-    résultats possibles (demande user 2026-07-11). La dédup est assurée par `provisional.prune_retained` ;
-    ce check détecte tout contournement futur. Ignore les provisoires déjà réglés (compteur monotone)."""
+    simple) OU s'il est une JAMBE DU COMBINÉ DU JOUR : sinon le même match est suivi 2× et une seule erreur
+    se répercote à deux endroits, avec deux résultats possibles (demande user 2026-07-11 ; élargie au
+    combiné du jour 2026-07-12). La dédup est assurée par `provisional.prune_retained` ; ce check détecte
+    tout contournement futur. Ignore les provisoires déjà réglés (compteur monotone)."""
     dup = []
     try:
-        from app import provisional
+        from app import provisional, combo_daily
         d = provisional.load()
+        _daily_legs = combo_daily.leg_ids()
         for mid, p in d.items():
             if not isinstance(p, dict) or p.get("result") in ("won", "lost", "push"):
                 continue
@@ -443,11 +445,14 @@ def _check_provisional_dedup() -> dict:
             if analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None:
                 dup.append(f"{p.get('name', '?')} : provisoire « {p.get('sel')} » alors que le match a "
                            f"un pari retenu (doublon)")
+            elif mid in _daily_legs:
+                dup.append(f"{p.get('name', '?')} : provisoire « {p.get('sel')} » alors que le match est "
+                           f"une jambe du combiné du jour (doublon)")
     except Exception:
         pass
     return {"key": "provisional_dedup", "level": "error" if dup else "ok",
-            "title": "Provisoire non dupliqué d'un pari retenu",
-            "detail": f"{len(dup)} provisoire(s) suivi(s) dont le match a déjà un pari retenu (doublon).",
+            "title": "Provisoire non dupliqué d'un pari retenu ou d'une jambe du combiné du jour",
+            "detail": f"{len(dup)} provisoire(s) suivi(s) dont le match a déjà un pari ailleurs (doublon).",
             "items": dup[:20]}
 
 

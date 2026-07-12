@@ -3307,9 +3307,19 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         return []
     now = datetime.now(timezone.utc)
     _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    # DÉDUP AFFICHAGE (demande user 2026-07-12) : les matchs JAMBES du combiné du jour sont DÉJÀ montrés
+    # dans la carte « 🎯 Combiné du jour » (même zone « Indicatif · hors ROI ») -> on ne les répète PAS en
+    # provisoire doré, sinon le match apparaît DEUX FOIS. `day` = celui du bandeau (_combo_daily_banner).
+    try:
+        from app import combo_daily as _cd
+        _daily_legs = _cd.leg_ids(prog.get("date") or now.strftime("%Y-%m-%d"))
+    except Exception:
+        _daily_legs = set()
     items: list = []
     for m in (prog.get("matches") or []):
         if m.get("status") == "bet":            # pari publié -> déjà dans les paris à jouer (fusionnés)
+            continue
+        if str(m.get("id") or "") in _daily_legs:  # jambe du combiné du jour -> déjà dans la carte combiné
             continue
         _nm = str(m.get("name", ""))
         _h, _s, _a = _nm.partition(" - ")

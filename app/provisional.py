@@ -51,11 +51,13 @@ def record(sport: str, match_id, home: str, away: str, start: str, name: str,
     prev = d.get(mid)
     if isinstance(prev, dict) and prev.get("result") in ("won", "lost", "push"):
         return                                    # déjà réglé -> figé (jamais réécrit)
-    # DÉDUP (demande user 2026-07-11) : si le match a DÉJÀ un pari RETENU (combiné ou simple), il ne doit
-    # PAS être suivi EN DOUBLE comme provisoire — sinon une seule erreur se répercute aux deux endroits, avec
-    # deux résultats possibles pour un seul match. On n'enregistre pas (et on retire une entrée NON réglée).
-    from app import analyses
-    if analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None:
+    # DÉDUP (demande user 2026-07-11 / élargie 2026-07-12) : si le match a DÉJÀ un pari RETENU (combiné ou
+    # simple) OU s'il est une JAMBE DU COMBINÉ DU JOUR, il ne doit PAS être suivi EN DOUBLE comme provisoire
+    # — sinon une seule erreur se répercute aux deux endroits, avec deux résultats possibles pour un seul
+    # match. On n'enregistre pas (et on retire une entrée NON réglée).
+    from app import analyses, combo_daily
+    if (analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None
+            or mid in combo_daily.leg_ids()):
         if isinstance(prev, dict) and prev.get("result") is None:
             d.pop(mid, None)
             _save(d)
@@ -71,15 +73,17 @@ def prune_retained() -> int:
     ou simple). Un match ne doit être suivi que par UN SEUL type de pari (dédup, demande user 2026-07-11) :
     sinon la même erreur se répercute à deux endroits, avec deux résultats contradictoires possibles pour un
     seul match. Ne touche JAMAIS un provisoire déjà réglé (compteur monotone préservé). Renvoie le nb retiré."""
-    from app import analyses
+    from app import analyses, combo_daily
     d = _load()
+    _daily_legs = combo_daily.leg_ids()
     removed = 0
     for mid in list(d.keys()):
         p = d.get(mid)
         if not isinstance(p, dict) or p.get("result") in ("won", "lost", "push"):
             continue                              # réglé = figé, jamais retiré (monotone)
         sport = p.get("sport")
-        if analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None:
+        if (analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None
+                or mid in _daily_legs):
             d.pop(mid, None)
             removed += 1
     if removed:

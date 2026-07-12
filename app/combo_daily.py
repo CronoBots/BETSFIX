@@ -70,6 +70,23 @@ def load() -> dict:
     return _load()
 
 
+def leg_ids(day: str | None = None) -> set:
+    """Ids (mid) des matchs qui sont JAMBES d'un combiné du jour. `day` -> uniquement ce jour ; None ->
+    toutes les dates du suivi. Sert à la DÉDUP « un pari n'apparaît pas à plusieurs endroits » (demande
+    user 2026-07-12) : un match jambe du combiné du jour ne doit PAS être AUSSI suivi/affiché comme
+    provisoire (sinon la même erreur se répercute à deux endroits, avec deux résultats possibles)."""
+    d = _load()
+    days = [d.get(day)] if day is not None else list(d.values())
+    out: set = set()
+    for entry in days:
+        if isinstance(entry, dict):
+            for leg in entry.get("legs") or []:
+                mid = str(leg.get("mid") or "")
+                if mid:
+                    out.add(mid)
+    return out
+
+
 # ------------------------------------------------------------------ moteur de sélection
 def _prod(xs):
     p = 1.0
