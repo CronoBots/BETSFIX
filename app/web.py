@@ -1680,6 +1680,8 @@ CSS = """
   .mc-cleg-sc{color:#5be08c;font-weight:800;font-variant-numeric:tabular-nums}
   /* analyse de la jambe (comme les combinés Telegram) — texte léger sous la sélection. */
   .mc-cleg-why{margin-top:6px;font-size:11.5px;font-weight:500;color:#a7bcd6;line-height:1.45}
+  /* tableau de score de la jambe EN LIVE (sets/quart-temps), sous le match. */
+  .mc-cleg-board{margin-top:8px}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
@@ -3715,14 +3717,21 @@ def _combo_tg_legs(cb: dict) -> str:
         co = l.get("cote")
         cot = f'<span class="mc-cleg-o">@{co:g}</span>' if isinstance(co, (int, float)) and co else ""
         _res = l.get("result")
+        _sp, _lh, _la = l.get("sport"), l.get("home", ""), l.get("away", "")
         _mk = {"won": '<span class="mc-cleg-r w">✅</span>', "lost": '<span class="mc-cleg-r l">❌</span>',
                "push": '<span class="mc-cleg-r">➖</span>'}.get(_res, '<span class="mc-cleg-r p">•</span>')
-        sco = ""
+        sco, board = "", ""
         if _res is None:
-            _lfz = live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
-                                                           l.get("away", "")), l.get("sport"))
+            _lfz = live_fields(match_select.live_state_for(_sp, _lh, _la), _sp)
             if _lfz.get("score"):
-                sco = f'<span class="mc-cleg-sc">🟢 {html.escape(_lfz["score"])}</span>'
+                # jambe EN LIVE : indicateur « Live » + TABLEAU DE SCORE complet sous le match (demande user
+                # 2026-07-12), comme les cartes live (sets/quart-temps/horloge).
+                sco = '<span class="mc-cleg-sc">🟢 Live</span>'
+                board = ('<div class="mc-cleg-board">'
+                         + _live_scoreboard(_lfz["score"], _lh, _la, tennis=(_sp == "tennis"),
+                                            server=_lfz.get("server"), points=_lfz.get("game_pts"),
+                                            clock=_lfz.get("live_time"), periods=_lfz.get("periods"))
+                         + '</div>')
         elif l.get("score"):
             sco = f'<span class="mc-cleg-sc">{html.escape(str(l.get("score")))}</span>'
         _wt = _clean_cap(l.get("why"))
@@ -3730,7 +3739,7 @@ def _combo_tg_legs(cb: dict) -> str:
         rows.append(f'<div class="mc-cleg{_box}">{_mk}<span class="mc-cleg-b">'
                     f'<span class="mc-cleg-sel">{emo} {sel}{cot}</span>'
                     f'<span class="mc-cleg-m">{nm}{sco}</span>'
-                    f'{_why}</span></div>')
+                    f'{board}{_why}</span></div>')
     return "".join(rows)
 
 
