@@ -232,6 +232,15 @@ CSS = """
      scrolle DANS .wrap (flex:1) et la barre du bas est un enfant flex STATIQUE collé au bas. Sur iOS
      ça supprime le « saut » de la barre fixe quand la toolbar Safari apparaît/disparaît (dvh suit la
      toolbar -> la barre reste toujours au bas visible) et le pied de page redevient atteignable. */
+  /* SELAWIK — clone open-source (SIL OFL) métriquement identique à Segoe UI, auto-hébergé (demande user
+     2026-07-12). Famille nommée « Segoe UI » avec `local()` D'ABORD : Windows garde la VRAIE Segoe UI
+     (identique à la carte Telegram), iPhone/Android chargent Selawik -> rendu cohérent partout. */
+  @font-face{font-family:'Segoe UI';font-weight:100 400;font-style:normal;font-display:swap;
+       src:local('Segoe UI'),url('/static/fonts/selawik-regular.woff') format('woff')}
+  @font-face{font-family:'Segoe UI';font-weight:500 600;font-style:normal;font-display:swap;
+       src:local('Segoe UI Semibold'),url('/static/fonts/selawik-semibold.woff') format('woff')}
+  @font-face{font-family:'Segoe UI';font-weight:700 900;font-style:normal;font-display:swap;
+       src:local('Segoe UI Bold'),url('/static/fonts/selawik-bold.woff') format('woff')}
   body{margin:0;color:var(--text);font-size:14.5px;line-height:1.45;width:100%;
        height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none;
        font-family:'Segoe UI',Roboto,Arial,sans-serif;   /* police des cartes Telegram (demande user 2026-07-12) */
@@ -1628,9 +1637,11 @@ CSS = """
   /* Noms d'équipes PLUS PETITS (demande user 2026-07-12) mais restant le titre (gras). */
   .mc-tg .mc-teams{font-size:14.5px;font-weight:800;color:#eef4fb;line-height:1.24;margin-top:9px;
        white-space:normal;overflow:visible;text-overflow:clip;text-wrap:balance}
-  /* Court extrait d'analyse à BARRE CYAN à gauche (comme la carte Telegram) — texte léger, complet. */
+  /* Court extrait d'analyse à BARRE CYAN à gauche (comme la carte Telegram) — texte léger, plafonné à
+     4 lignes (demande user 2026-07-12 ; line-clamp = filet visuel, la coupe texte fait déjà l'essentiel). */
   .mc-note{margin-top:9px;padding-left:13px;border-left:2px solid #3a9fe0;color:#a7bcd6;
-       font-size:12.5px;font-weight:500;line-height:1.5}
+       font-size:12.5px;font-weight:500;line-height:1.5;
+       display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .mc-div{height:1px;margin:12px 0;background:linear-gradient(90deg,rgba(120,170,220,.22),rgba(120,170,220,.03))}
   .mc-open .mc-div{display:none}
   .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
@@ -3344,7 +3355,7 @@ def _prog_pair(home, away) -> frozenset:
     return frozenset(x for x in (_n(home), _n(away)) if x)
 
 
-def _prov_why_snippet(sport, fid, maxlen: int = 260) -> str:
+def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:
     """Extrait PROPRE (phrases COMPLÈTES, majuscule initiale) du raisonnement du pari PROVISOIRE (section
     « 🧪 » du .md) — pour la carte repliée style Telegram (analyse à barre cyan sous le pari, demande user
     2026-07-12). Texte nettoyé : markdown/liens retirés, coupe NETTE à une fin de phrase (jamais en plein

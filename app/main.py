@@ -525,6 +525,9 @@ app.include_router(billing.router)
 app.include_router(web.router)
 
 # PWA : fichiers statiques (icônes) + manifest -> app installable sur l'écran d'accueil
+import mimetypes as _mt                       # MIME corrects pour les fontes auto-hébergées (Selawik)
+_mt.add_type("font/woff", ".woff")            # sinon StaticFiles sert « text/plain » -> Safari iOS refuse la fonte
+_mt.add_type("font/woff2", ".woff2")
 app.mount("/static", StaticFiles(directory=os.path.join(_ROOT, "static")), name="static")
 
 
