@@ -561,13 +561,16 @@ CSS = """
      padding-right pour libérer le chevron en bas à droite. */
   .mc-sub{margin-top:6px;padding-right:20px}
   .mc-open .mc-sub{display:none}
-  /* Ligne de pari de la carte : le libellé passe à la LIGNE s'il est trop long (plus de troncature) */
-  .mc-betl{display:flex;align-items:baseline;gap:6px;font-size:11px;font-weight:600;color:#cfe0f5}
+  /* Ligne de pari : libellé à gauche (peut passer à la ligne), pastilles cote/confiance À DROITE,
+     VERTICALEMENT CENTRÉES contre le libellé (fini le désalignement quand le libellé fait 2 lignes). */
+  .mc-betl{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:600;color:#cfe0f5}
   .mc-betl + .mc-betl{margin-top:3px}
-  .mc-bi{flex:none;font-size:10px}
-  .mc-bt{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.3}
-  /* Pastille de pari (cote/value) — premium : gélule arrondie, dégradé subtil, liseré + micro-ombre. */
-  .mc-bc{flex:none;align-self:center;border-radius:99px;padding:2px 9px;font-size:10px;font-weight:900;
+  .mc-bi{flex:none;font-size:11px;align-self:flex-start;margin-top:2px}
+  .mc-bt{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.32}
+  /* Pastille de pari (cote/value) — premium : gélule arrondie, dégradé subtil, liseré + micro-ombre.
+     Hauteur + largeur MINI fixes -> les cotes s'alignent en COLONNE d'une carte à l'autre (rendu tableau). */
+  .mc-bc{flex:none;align-self:center;display:inline-flex;align-items:center;justify-content:center;
+       min-width:52px;height:23px;border-radius:99px;padding:0 9px;font-size:10.5px;font-weight:900;
        font-variant-numeric:tabular-nums;white-space:nowrap;color:#8ff0bd;
        background:linear-gradient(180deg,rgba(46,226,127,.2),rgba(46,226,127,.06));
        border:1px solid rgba(46,226,127,.32);box-shadow:0 1px 4px rgba(0,0,0,.24)}
@@ -1586,8 +1589,7 @@ CSS = """
      confirmé (vert). Montre « le pari si l'on devait en jouer un » sans le vendre comme une value. */
   .mc-prov .mc-bt{color:var(--gold);font-weight:800}
   /* Provisoire — COTE : chip doré discret (info secondaire), gélule cohérente avec la carte dépliée. */
-  .mc-bc-prov{border-radius:99px;padding:2px 9px;color:var(--gold);
-       border:1px solid rgba(246,197,74,.34);
+  .mc-bc-prov{color:var(--gold);border:1px solid rgba(246,197,74,.34);
        background:linear-gradient(180deg,rgba(246,197,74,.15),rgba(246,197,74,.05));
        box-shadow:0 1px 4px rgba(0,0,0,.25)}
   /* Provisoire : ligne « ré-analyse » DISCRÈTE (allègement 2026-07-11) — petite, grisée, non grasse :
@@ -1598,8 +1600,10 @@ CSS = """
        color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:7px;
        padding:2px 7px;margin:1px 0 5px}
   .mc-prov-tag span{opacity:.72;font-weight:600;letter-spacing:.02em}
-  /* Provisoire — CONFIANCE : badge doré PLEIN (encre sombre) -> la « chance » ressort (info principale). */
-  .mc-prov-cf{flex:none;align-self:center;border-radius:99px;padding:2px 9px;font-size:10.5px;font-weight:900;
+  /* Provisoire — CONFIANCE : badge doré PLEIN (encre sombre) -> la « chance » ressort (info principale).
+     Même hauteur + largeur MINI que la cote -> les deux colonnes de pastilles s'alignent parfaitement. */
+  .mc-prov-cf{flex:none;align-self:center;display:inline-flex;align-items:center;justify-content:center;
+       min-width:48px;height:23px;border-radius:99px;padding:0 9px;font-size:11px;font-weight:900;
        font-variant-numeric:tabular-nums;color:#1c1404;
        background:linear-gradient(180deg,#f8ce5c,#e0ad2f);border:1px solid rgba(246,197,74,.5);
        box-shadow:0 2px 8px rgba(246,197,74,.3)}
