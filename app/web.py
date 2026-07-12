@@ -542,6 +542,9 @@ CSS = """
   discret. */
   .mc-comp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
        font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.02em}
+  /* Nom du SPORT (majuscules, accent du sport) puis compétition (muted) — « TENNIS • Wimbledon ». */
+  .mc-sport{color:var(--accent);font-weight:800;letter-spacing:.05em}
+  .mc-comp-sep{color:var(--dim);font-weight:700}
   .mc-badge{flex:none;font-size:11px;font-weight:800;padding:3px 8px;border-radius:8px;
        white-space:nowrap;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1.3}
   .mc-up{background:rgba(255,255,255,.06);color:var(--muted)}
@@ -567,6 +570,8 @@ CSS = """
   .mc-betl + .mc-betl{margin-top:3px}
   .mc-bi{flex:none;font-size:11px;align-self:flex-start;margin-top:2px}
   .mc-bt{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.32}
+  /* Module cote │ confiance placé SOUS le pari (demande user 2026-07-12), aligné sous le libellé (past la puce). */
+  .mc-odds-row{padding-left:19px;margin-top:6px}
   /* Pastille de pari (cote/value) — premium : gélule arrondie, dégradé subtil, liseré + micro-ombre.
      Hauteur + largeur MINI fixes -> les cotes s'alignent en COLONNE d'une carte à l'autre (rendu tableau). */
   .mc-bc{flex:none;align-self:center;display:inline-flex;align-items:center;justify-content:center;
@@ -3391,6 +3396,9 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             if not (sp == "tennis" and dt > now - timedelta(hours=6)):
                 continue
         ic = _ICON.get(sp, "")
+        # Ligne d'en-tête : NOM DU SPORT (majuscules) puis la compétition (demande user 2026-07-12,
+        # ex. « 🎾 TENNIS • Wimbledon ») -> le sport est explicite, plus seulement l'emoji.
+        _spn = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sp, "")
         name = str(m.get("name", ""))
         home, _sep, away = name.partition(" - ")
         teams = (f'{html.escape(home)} <span class="dim">vs</span> {html.escape(away)}'
@@ -3424,16 +3432,20 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             if isinstance(_pconf, (int, float)) and _pconf:
                 _od_parts.append(f'<span class="mc-od-p">{_pconf}%</span>')
             _odds_html = f'<span class="mc-od mc-od-prov">{"".join(_od_parts)}</span>' if _od_parts else ""
+            # Ré-analyse : heure seule, SANS « · peut changer » (demande user 2026-07-12).
             _reana = ("pas de value détectée" if now >= reanalyse
-                      else f"Ré-analyse à {fmt_local(reanalyse, with_date=False)} · peut changer")
+                      else f"Ré-analyse à {fmt_local(reanalyse, with_date=False)}")
             # Pastille « 🧪 PROVISOIRE » par carte : OMISE en mode `framed` (la zone « Indicatif · hors ROI »
             # porte déjà le libellé une fois) — demande user 2026-07-11, fin de la répétition.
             _prov_tag = ('' if framed else
                          '<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>')
+            # Le module cote │ confiance est placé SOUS le pari (demande user 2026-07-12), pas à droite.
+            _odds_row = f'<div class="mc-odds-row">{_odds_html}</div>' if _odds_html else ""
             sub = (_prov_tag
                    + f'<div class="mc-betl mc-prov"><span class="mc-bi">•</span>'
-                   f'<span class="mc-bt">{html.escape(prov_sel)}</span>{_odds_html}</div>'
-                   f'<div class="mc-reana mc-reana-prov">🔄 {_reana}</div>')
+                   f'<span class="mc-bt">{html.escape(prov_sel)}</span></div>'
+                   + _odds_row
+                   + f'<div class="mc-reana mc-reana-prov">🔄 {_reana}</div>')
         else:
             if m.get("status") == "abstained" and now >= reanalyse:
                 bic, btxt = "➖", "Pas de value"                              # échéance passée -> quasi-final
@@ -3444,7 +3456,8 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         _inner = (
             f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
-            f'<span class="mc-comp">{comp}</span>'
+            f'<span class="mc-comp"><b class="mc-sport">{_spn}</b>'
+            + (f'<span class="mc-comp-sep"> • </span>{comp}' if comp else '') + '</span>'
             # Badge : LIVE (onglet Live/section En direct) -> « 🟢 <score en direct> » (buts/points/sets,
             # comme les vraies cartes ; + horloge foot/basket si dispo), sinon « 🟢 en cours » tant que le
             # score n'est pas encore capté, sinon l'heure seule (le programme est groupé par jour).
