@@ -485,7 +485,12 @@ async def final_score(client, sport: str, match: dict) -> dict | None:
             return None
         res = m.get("result") or {}
         praw = m.get("periods") or {}
-        finished = ("ft" in praw) or res.get("winner") in ("home", "away")
+        _short = str((m.get("status") or {}).get("shortName", "")).upper()
+        # « TERMINÉ » RÉEL : période full-time (`ft`) présente OU statut fini (FIN / après prol. / pénalties /
+        # abandon / forfait / abandon tennis). NE JAMAIS se fier au seul `winner` -> une équipe qui MÈNE EN
+        # DIRECT a déjà un `winner` provisoire (bug grave vécu : Atlético-GO réglé en pleine 2e mi-temps).
+        # cf. mémoire settle-never-on-live-score.
+        finished = ("ft" in praw) or _short in ("FIN", "AET", "AP", "APR", "PEN", "AAB", "AWO", "WO", "RET")
         if not finished:
             return None                       # match encore en cours -> pas de score final
         periods: dict[int, tuple] = {}
