@@ -3374,12 +3374,16 @@ def _prov_why_snippet(sport, fid, maxlen: int = 260) -> str:
         _sents = re.split(r"(?<=[.!?…])\s+", t)
         _clean = [s for s in _sents if s and not _META.search(s)]
         t = " ".join(_clean).strip() or t                  # repli : si tout filtré, garde l'original
+        t = re.sub(r"\bj(?=\d)", "≈", t)                   # notation analyste « j62 % » -> « ≈62 % » (propreté)
         t = t[:1].upper() + t[1:]                          # MAJUSCULE initiale (texte professionnel)
         if len(t) > maxlen:
             cut = t[:maxlen]
-            m = re.search(r"^.*[.!?…](?=\s|$)", cut)        # dernière fin de phrase dans la limite
+            m = re.search(r"^.*[.!?…](?=\s|$)", cut)        # dernière fin de PHRASE dans la limite
+            cm = re.search(r"^.*[,;](?=\s)", cut)           # dernière fin de CLAUSE (virgule/point-virgule)
             if m and m.end() > maxlen * 0.45:
                 t = m.group(0)                              # coupe NETTE à une fin de phrase -> texte complet
+            elif cm and cm.end() > maxlen * 0.5:
+                t = cm.group(0).rstrip(" ,;:") + "…"        # sinon fin de clause (jamais en plein mot)
             else:
                 t = cut.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
         return t
