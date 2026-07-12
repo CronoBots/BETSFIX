@@ -1658,6 +1658,14 @@ CSS = """
   .mc-cote{flex:none;text-align:right;line-height:1}
   .mc-cote-l{display:block;font-size:9.5px;font-weight:800;letter-spacing:.13em;color:#90a4be;margin-bottom:3px}
   .mc-cote-v{font-size:30px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
+  /* Variante OR de la carte Telegram : le COMBINÉ DU JOUR (demande user 2026-07-12) — bordure/lueur dorées,
+     sport + cote en or, présenté comme les provisoires mais en jaune. */
+  .row.mc.mc-tg-gold{border-color:rgba(246,197,74,.5);
+       box-shadow:0 0 0 1px rgba(246,197,74,.1),0 0 26px rgba(200,150,30,.16),0 12px 32px rgba(0,0,0,.5)}
+  .mc-tg-gold .mc-sport{color:var(--gold)}
+  .mc-tg-gold .mc-cote-v{color:var(--gold)}
+  .mc-tg-gold .mc-cote-l{color:#c9a24a}
+  .mc-combo-legs{margin:2px 0}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
@@ -3659,6 +3667,46 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
         + combo_legs_html(cb) + '</a>')
 
 
+def _combo_tg_card() -> str:
+    """Carte « Combiné du jour » au STYLE des cartes provisoires (Telegram) mais en OR (demande user
+    2026-07-12) — présentée DANS les matchs en direct (plus de bandeau en tête). Info seule (hors ROI).
+    '' si aucun combiné du jour."""
+    try:
+        import datetime as _dt
+        from app import combo_daily as _cd
+        day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+        cb = _cd.today(day)
+    except Exception:
+        cb = None
+    if not cb or not cb.get("legs"):
+        return ""
+    _res = cb.get("result")
+    _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
+              "lost": '<span class="mc-badge mc-done">❌ Perdu</span>',
+              "void": '<span class="mc-badge mc-done">➖ Remboursé</span>'}.get(
+        _res, '<span class="mc-badge mc-wait">⏳ En cours</span>')
+    _cote = cb.get("cote")
+    _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
+                 f'<span class="mc-cote-v">{_cote:g}</span></span>'
+                 if isinstance(_cote, (int, float)) and _cote else "")
+    _pconf = round((cb.get("prob") or 0) * 100)
+    _conf = f'<div class="mc-conf">Confiance <b>{_pconf}%</b></div>' if _pconf else ""
+    _nlegs = len(cb.get("legs") or [])
+    return (
+        '<div class="row pick mc mc-tg mc-tg-gold">'
+        '<div class="mc-head"><div class="mc-main">'
+        '<div class="mc-line"><span class="mc-ic">🎯</span>'
+        '<span class="mc-comp"><b class="mc-sport">COMBINÉ DU JOUR</b>'
+        f'<span class="mc-comp-sep"> • </span>{_nlegs} jambes · multisport</span>'
+        f'{_badge}</div>'
+        '<div class="mc-div"></div>'
+        f'<div class="mc-combo-legs">{combo_legs_html(cb)}</div>'
+        + _conf
+        + '<div class="mc-foot"><span class="mc-reana mc-reana-prov">🧪 Info seule · hors ROI</span>'
+        + _cote_big + '</div>'
+        '</div></div></div>')
+
+
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
@@ -3701,7 +3749,7 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     _prog = [it for it in _programme_items(_paj, framed=True) if not it.get("_live")]
     prov = sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
     todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
-    combo_daily = _combo_daily_banner()          # carte du combiné du jour (multisport, hors ROI) ou ''
+    combo_daily = _combo_tg_card()               # carte du combiné du jour (style Telegram OR, hors ROI) ou ''
     has_any = bool(play or prov or todo or combo_daily)
     _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir l\'<b>indicatif</b> ci-dessous.'
                    ) if has_any else None
@@ -4750,7 +4798,10 @@ def render_directs(sections: list, frag: bool = False) -> str:
         cards = sorted(cards, key=lambda c: c.get("start_ts") or 0)
         content = "".join(c.get("_html") or _sport_row(c) for c in cards)
         out.append(_zone("live", f"{icon} {label}", "en direct", len(cards), content))
-    if not total:
+    # Combiné du jour PRÉSENTÉ COMME LES PROVISOIRES (carte Telegram OR) et placé DANS les matchs en direct,
+    # plus en bandeau au-dessus (demande user 2026-07-12).
+    _combo = _combo_tg_card()
+    if not total and not _combo:
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -4762,9 +4813,8 @@ def render_directs(sections: list, frag: bool = False) -> str:
             '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
             '</div></div>')
     else:
-        zones = f'<div class="dash-zones">{"".join(out)}</div>'
-    # Combiné du jour EN TÊTE du Live (choix user : carte dédiée enrichie, jambes avec score live).
-    body = _combo_daily_banner() + zones
+        zones = f'<div class="dash-zones">{_combo}{"".join(out)}</div>'
+    body = zones
     return body if frag else spa_shell("directs", "Live", body)
 
 def perf_toggle(active: str) -> str:
