@@ -2281,7 +2281,7 @@ async def main():
                 top = [m for m in top if str(m.get("id")) in (_prog_ids or set())]
             store = _load_store(sport)
             print(f"[{sport}] {len(top)} matchs sélectionnés (profondeur de marché).")
-            for m in top:
+            for _rank, m in enumerate(top):
                 # NE JAMAIS analyser un match DÉJÀ COMMENCÉ (garde : la sélection filtre déjà le futur,
                 # mais un match peut démarrer pendant le scan ; combinés/value = pré-match uniquement).
                 mts = _kickoff_ts(m.get("start") or "")
@@ -2375,6 +2375,18 @@ async def main():
                 # Ne s'applique qu'au basket (foot/tennis : un 0 est un hoquet réseau transitoire, pas structurel).
                 if sport == "basket" and not [k for k, v in (meta.get("sources_prov") or {}).items() if v]:
                     print(f"  · {m['name']} : basket sans aucune source d'enrichissement -> écarté (cotes seules).")
+                    continue
+                # ÉLARGISSEMENT MESURÉ (demande user 2026-07-12 « élargir mais seulement si les sources
+                # suivent ») : le pool passe de top 3 à top 5/sport. Le TOP 3 mainstream reste NON gaté (un
+                # data_score bas y est un hoquet réseau transitoire, cf. gate basket ci-dessus). Mais la QUEUE
+                # élargie (rangs 4-5) n'est retenue QUE si ≥2 sources d'enrichissement ont réellement répondu ;
+                # sinon c'est une ligue que nos sources ne couvrent pas (ITF/AfroBasket/…) et on ne publie PAS
+                # d'analyse creuse. Seuil ≥2 = principe « faits ≥2 sources ». Gros tournois (CdM) jamais gatés.
+                _big_tail = _is_big_match(m.get("comp") or m.get("circuit") or "")
+                _ds = len([k for k, v in (meta.get("sources_prov") or {}).items() if v])
+                if _rank >= 3 and not _big_tail and _ds < 2:
+                    print(f"  · {m['name']} : match élargi (rang {_rank + 1}) data_score {_ds}<2 "
+                          f"-> écarté (sources insuffisantes).")
                     continue
                 t0 = time.time()
                 try:

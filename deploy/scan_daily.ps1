@@ -33,7 +33,7 @@ if ($running) {
 #   est TOUJOURS le DERNIER généré ; si le prono a CHANGÉ, l'ancien devient un « fantôme » (calibration).
 Log 'PROGRAMME : liste du jour (accueil site)'
 # 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (Out-File = cmdlet, $LASTEXITCODE reste python).
-& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 --programme --no-notify 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 5 --hours 24 --programme --no-notify 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LA RÉ-ANALYSE PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le programme
@@ -41,7 +41,7 @@ Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 Log 'REANA SCHED : planification des ré-analyses (coup d''envoi - 1 h)'
 & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Out-File -Append -Encoding utf8 $log
 Log 'SCAN MATIN : analyse de TOUT le programme (y compris matchs deja affiches) + publication des picks'
-& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 3 --hours 24 --from-programme --force 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot,tennis,basket --top 5 --hours 24 --from-programme --force 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 
