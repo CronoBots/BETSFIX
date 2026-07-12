@@ -1665,7 +1665,16 @@ CSS = """
   .mc-tg-gold .mc-sport{color:var(--gold)}
   .mc-tg-gold .mc-cote-v{color:var(--gold)}
   .mc-tg-gold .mc-cote-l{color:#c9a24a}
-  .mc-combo-legs{margin:2px 0}
+  /* Jambes du combiné présentées comme des PICKS de provisoire (sélection en gras + match en sous-titre). */
+  .mc-combo-legs{margin:2px 0;display:flex;flex-direction:column;gap:11px}
+  .mc-cleg{display:flex;align-items:flex-start;gap:9px}
+  .mc-cleg-r{flex:none;font-size:11px;margin-top:2px}
+  .mc-cleg-r.p{color:var(--gold)} .mc-cleg-r.w{color:#5be08c} .mc-cleg-r.l{color:#ff6b6b}
+  .mc-cleg-b{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+  .mc-cleg-sel{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.28}
+  .mc-cleg-o{margin-left:7px;font-size:11px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
+  .mc-cleg-m{font-size:11.5px;color:#8fa0b4;font-weight:600;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .mc-cleg-sc{color:#5be08c;font-weight:800;font-variant-numeric:tabular-nums}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
@@ -3667,10 +3676,38 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
         + combo_legs_html(cb) + '</a>')
 
 
+def _combo_tg_legs(cb: dict) -> str:
+    """Jambes du combiné du jour rendues comme des PICKS de provisoire (sélection en gras + match en
+    sous-titre + cote + score live), pour un cadre cohérent avec les cartes provisoires (demande user)."""
+    _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    rows = []
+    for l in cb.get("legs") or []:
+        emo = _emo.get(l.get("sport"), "•")
+        sel = html.escape(str(l.get("sel") or ""))
+        nm = html.escape(str(l.get("name") or "").replace(" - ", " — "))
+        co = l.get("cote")
+        cot = f'<span class="mc-cleg-o">@{co:g}</span>' if isinstance(co, (int, float)) and co else ""
+        _res = l.get("result")
+        _mk = {"won": '<span class="mc-cleg-r w">✅</span>', "lost": '<span class="mc-cleg-r l">❌</span>',
+               "push": '<span class="mc-cleg-r">➖</span>'}.get(_res, '<span class="mc-cleg-r p">•</span>')
+        sco = ""
+        if _res is None:
+            _lfz = live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
+                                                           l.get("away", "")), l.get("sport"))
+            if _lfz.get("score"):
+                sco = f'<span class="mc-cleg-sc">🟢 {html.escape(_lfz["score"])}</span>'
+        elif l.get("score"):
+            sco = f'<span class="mc-cleg-sc">{html.escape(str(l.get("score")))}</span>'
+        rows.append(f'<div class="mc-cleg">{_mk}<span class="mc-cleg-b">'
+                    f'<span class="mc-cleg-sel">{emo} {sel}{cot}</span>'
+                    f'<span class="mc-cleg-m">{nm}{sco}</span></span></div>')
+    return "".join(rows)
+
+
 def _combo_tg_card() -> str:
-    """Carte « Combiné du jour » au STYLE des cartes provisoires (Telegram) mais en OR (demande user
-    2026-07-12) — présentée DANS les matchs en direct (plus de bandeau en tête). Info seule (hors ROI).
-    '' si aucun combiné du jour."""
+    """Carte « Combiné du jour » présentée COMME les cartes provisoires (Telegram) mais en OR (demande user
+    2026-07-12) : en-tête, jambes = picks, SYNTHÈSE en barre cyan, Confiance, COTE en gros chiffre. Placée
+    DANS les matchs en direct (plus de bandeau en tête). Info seule (hors ROI). '' si aucun combiné."""
     try:
         import datetime as _dt
         from app import combo_daily as _cd
@@ -3691,6 +3728,13 @@ def _combo_tg_card() -> str:
                  if isinstance(_cote, (int, float)) and _cote else "")
     _pconf = round((cb.get("prob") or 0) * 100)
     _conf = f'<div class="mc-conf">Confiance <b>{_pconf}%</b></div>' if _pconf else ""
+    # SYNTHÈSE (corrélation des jambes) en barre cyan, comme l'analyse d'un provisoire — nettoyée + plafonnée.
+    _s = re.sub(r"[*_`#]", "", re.sub(r"\s+", " ", str(cb.get("synth") or "")).strip())
+    if len(_s) > 200:
+        _cut = _s[:200]
+        _m = re.search(r"^.*[.!?…](?=\s|$)", _cut)
+        _s = _m.group(0) if (_m and _m.end() > 90) else _cut.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+    _note = f'<div class="mc-note">{html.escape(_s)}</div>' if _s else ""
     _nlegs = len(cb.get("legs") or [])
     return (
         '<div class="row pick mc mc-tg mc-tg-gold">'
@@ -3700,7 +3744,8 @@ def _combo_tg_card() -> str:
         f'<span class="mc-comp-sep"> • </span>{_nlegs} jambes · multisport</span>'
         f'{_badge}</div>'
         '<div class="mc-div"></div>'
-        f'<div class="mc-combo-legs">{combo_legs_html(cb)}</div>'
+        f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
+        + _note
         + _conf
         + '<div class="mc-foot"><span class="mc-reana mc-reana-prov">🧪 Info seule · hors ROI</span>'
         + _cote_big + '</div>'
