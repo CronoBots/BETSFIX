@@ -1666,8 +1666,11 @@ CSS = """
   .mc-tg-gold .mc-cote-v{color:var(--gold)}
   .mc-tg-gold .mc-cote-l{color:#c9a24a}
   /* Jambes du combiné présentées comme des PICKS de provisoire (sélection en gras + match en sous-titre). */
-  .mc-combo-legs{margin:2px 0;display:flex;flex-direction:column;gap:11px}
+  .mc-combo-legs{margin:2px 0;display:flex;flex-direction:column;gap:9px}
   .mc-cleg{display:flex;align-items:flex-start;gap:9px}
+  /* Sous-cadre par jambe QUAND les matchs sont DIFFÉRENTS (demande user 2026-07-12). */
+  .mc-cleg-box{padding:10px 12px;border-radius:13px;background:rgba(255,255,255,.028);
+       border:1px solid rgba(255,255,255,.07)}
   .mc-cleg-r{flex:none;font-size:11px;margin-top:2px}
   .mc-cleg-r.p{color:var(--gold)} .mc-cleg-r.w{color:#5be08c} .mc-cleg-r.l{color:#ff6b6b}
   .mc-cleg-b{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
@@ -3678,10 +3681,15 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
 
 def _combo_tg_legs(cb: dict) -> str:
     """Jambes du combiné du jour rendues comme des PICKS de provisoire (sélection en gras + match en
-    sous-titre + cote + score live), pour un cadre cohérent avec les cartes provisoires (demande user)."""
+    sous-titre + cote + score live), pour un cadre cohérent avec les cartes provisoires (demande user).
+    Chaque jambe est dans SON PROPRE sous-cadre SI les jambes sont sur des MATCHS DIFFÉRENTS (demande user
+    2026-07-12) ; jambes du MÊME match (combiné same-match) -> pas de sous-cadre (redondant)."""
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    legs = cb.get("legs") or []
+    _multi = len({str(l.get("mid") or l.get("name") or "") for l in legs}) > 1   # matchs différents ?
+    _box = " mc-cleg-box" if _multi else ""
     rows = []
-    for l in cb.get("legs") or []:
+    for l in legs:
         emo = _emo.get(l.get("sport"), "•")
         sel = html.escape(str(l.get("sel") or ""))
         nm = html.escape(str(l.get("name") or "").replace(" - ", " — "))
@@ -3698,7 +3706,7 @@ def _combo_tg_legs(cb: dict) -> str:
                 sco = f'<span class="mc-cleg-sc">🟢 {html.escape(_lfz["score"])}</span>'
         elif l.get("score"):
             sco = f'<span class="mc-cleg-sc">{html.escape(str(l.get("score")))}</span>'
-        rows.append(f'<div class="mc-cleg">{_mk}<span class="mc-cleg-b">'
+        rows.append(f'<div class="mc-cleg{_box}">{_mk}<span class="mc-cleg-b">'
                     f'<span class="mc-cleg-sel">{emo} {sel}{cot}</span>'
                     f'<span class="mc-cleg-m">{nm}{sco}</span></span></div>')
     return "".join(rows)
