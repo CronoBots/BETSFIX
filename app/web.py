@@ -1612,20 +1612,20 @@ CSS = """
        font-variant-numeric:tabular-nums;color:#1c1404;
        background:linear-gradient(180deg,#f8ce5c,#e0ad2f);border:1px solid rgba(246,197,74,.5);
        box-shadow:0 2px 8px rgba(246,197,74,.3)}
-  /* MODULE « cote │ confiance » — gélule SEGMENTÉE premium (2026-07-12) : un seul objet net au lieu de deux
-     badges qui saturaient. Cote discrète à gauche, confiance en OR à droite (l'unique accent). Hauteur fixe
-     + largeurs MINI -> alignement en colonnes d'une carte à l'autre. */
-  .mc-od{flex:none;align-self:center;display:inline-flex;align-items:stretch;height:25px;border-radius:99px;
-       overflow:hidden;font-variant-numeric:tabular-nums;box-shadow:0 2px 7px rgba(0,0,0,.3)}
-  .mc-od-c{display:inline-flex;align-items:center;justify-content:center;min-width:52px;padding:0 10px;
-       font-size:10.5px;font-weight:800;letter-spacing:.01em}
-  .mc-od-p{display:inline-flex;align-items:center;justify-content:center;min-width:50px;padding:0 11px;
-       font-size:11.5px;font-weight:900}
-  /* variante PROVISOIRE (or) : bord doré discret, cote en teinte sable, confiance en or plein encre sombre. */
-  .mc-od-prov{border:1px solid rgba(246,197,74,.4)}
-  .mc-od-prov .mc-od-c{color:#d9c795;background:rgba(246,197,74,.07)}
-  .mc-od-prov .mc-od-p{color:#1c1404;background:linear-gradient(180deg,#f1c250,#dca62f);
-       box-shadow:inset 1px 0 0 rgba(0,0,0,.18)}
+  /* MODULE « cote + JAUGE DE CONFIANCE » (choix user 2026-07-12) : la cote en pastille à gauche, puis une
+     mini-barre qui VISUALISE la confiance (on voit la chance d'un coup d'œil) + le %. Le plus premium/parlant.
+     `cf-g` prend la largeur restante (exploite l'espace) ; la barre est teintée OR (accent du provisoire). */
+  .cf{display:flex;align-items:center;gap:11px}
+  .cf-cote{flex:none;display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:99px;
+       font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums;color:#d9c795;
+       background:rgba(246,197,74,.08);border:1px solid rgba(246,197,74,.34)}
+  .cf-g{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+  .cf-top{display:flex;justify-content:space-between;align-items:baseline}
+  .cf-lab{font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .cf-val{font-size:12px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums}
+  .cf-bar{height:6px;border-radius:99px;background:rgba(0,0,0,.3);overflow:hidden}
+  .cf-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#dca62f,#f4cf5e);
+       box-shadow:0 0 8px rgba(246,197,74,.45)}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
@@ -3426,12 +3426,16 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # fixes -> les modules s'alignent en colonnes d'une carte à l'autre. La confiance reste la proba de
             # l'analyste (affichée comme un vrai pari, mais le libellé « indicatif · hors ROI » de la zone/tag
             # dit clairement que ce n'est pas compté).
-            _od_parts = []
-            if isinstance(_cote, (int, float)) and _cote:
-                _od_parts.append(f'<span class="mc-od-c">@{_cote:g}</span>')
+            _cf_cote = (f'<span class="cf-cote">@{_cote:g}</span>'
+                        if isinstance(_cote, (int, float)) and _cote else "")
             if isinstance(_pconf, (int, float)) and _pconf:
-                _od_parts.append(f'<span class="mc-od-p">{_pconf}%</span>')
-            _odds_html = f'<span class="mc-od mc-od-prov">{"".join(_od_parts)}</span>' if _od_parts else ""
+                _w = max(0, min(100, int(round(_pconf))))
+                _cf_g = (f'<div class="cf-g"><div class="cf-top"><span class="cf-lab">Confiance</span>'
+                         f'<span class="cf-val">{_pconf}%</span></div>'
+                         f'<div class="cf-bar"><div class="cf-fill" style="width:{_w}%"></div></div></div>')
+            else:
+                _cf_g = ""
+            _odds_html = f'<div class="cf">{_cf_cote}{_cf_g}</div>' if (_cf_cote or _cf_g) else ""
             # Ré-analyse : heure seule, SANS « · peut changer » (demande user 2026-07-12).
             _reana = ("pas de value détectée" if now >= reanalyse
                       else f"Ré-analyse à {fmt_local(reanalyse, with_date=False)}")
