@@ -1387,3 +1387,16 @@ Jusqu'ici « info seule, hors ROI » (mémoire : jamais compté sans décision e
 - Libellés MAJ : carte accueil déplacée « Indicatif · hors ROI » -> « À jouer · comptés au ROI » (en tête) ;
   pied carte « 🎯 Compté au ROI · mise 1 u » ; Telegram idem ; carte Stats « compté au ROI »/« ROI combiné ».
 Live 200, selfcheck 0/0.
+
+## 2026-07-14 (4) — Combinés du jour en catégorie COMBINÉ (pas simple) + badge live sur la nav
+Demande user (2 points) :
+1. Les combinés du jour doivent compter dans le graphique/bilan COMBINÉ, pas SIMPLE. Correction du (3) :
+   ils étaient injectés dans `all_ev` (= « simples joués ») -> déplacés dans `combo_stats` (= « combinés
+   joués ») via `roi_events()` (rows+curve+crecent, n_legs). Retirés de `all_ev`/`since_ev`, gardés dans
+   `combo_form`. ROI GLOBAL = simples+combinés fusionnés -> toujours comptés. Vérifié : simples 107 (pur),
+   combinés 57 gagnés (dont 3 du jour), global 219 paris.
+2. Bulle « N matchs en direct » (accueil) RETIRÉE -> BADGE chiffré premium (pastille verte pulsante) sur
+   le point vert de l'onglet Live du menu du bas. `render_directs` émet `#dv-live-n data-n=N` ; le JS SPA
+   le lit à la (pré)charge du panneau /directs et pose le compte + `has-live` (0 -> badge caché). CSS
+   `.nav-live-n`. `render_dashboard.livebar=""`.
+Live 200, selfcheck 0/0.

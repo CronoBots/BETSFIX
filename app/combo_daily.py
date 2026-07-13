@@ -447,7 +447,7 @@ def roi_events(d: dict | None = None) -> list:
         n = len(cb.get("legs") or [])
         out.append((cb.get("date") or "", r, cote,
                     {"name": f"Combiné du jour ({n} jambes)", "sel": "multisport",
-                     "sport": "combiné", "combo_daily": True}))
+                     "sport": "combiné", "combo_daily": True, "n_legs": n}))
     return out
 
 

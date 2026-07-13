@@ -324,6 +324,15 @@ CSS = """
      (classe .has-live) ET que l'onglet n'est pas ouvert. Pas de fond vert -> quand on est dessus,
   l'onglet actif prend le thème neutre (bleu) comme les autres. */
   .botnav a[data-tab="directs"].has-live:not(.on){color:#34d27b}
+  /* BADGE chiffré du nb de matchs en direct (demande user 2026-07-14) : petite pastille verte premium
+     en haut à droite de l'icône Live, chiffre lisible + halo. Caché quand 0 (JS pose `hidden`). */
+  .botnav a[data-tab="directs"]{position:relative}
+  .nav-live-n{position:absolute;top:1px;left:calc(50% + 7px);min-width:16px;height:16px;padding:0 4px;
+       border-radius:99px;background:#34d27b;color:#04130a;font-size:10px;font-weight:900;line-height:16px;
+       text-align:center;font-variant-numeric:tabular-nums;border:1.5px solid #0b0d12;
+       box-shadow:0 0 8px rgba(52,210,123,.65);animation:navlive 1.9s ease-out infinite}
+  @keyframes navlive{0%,100%{box-shadow:0 0 6px rgba(52,210,123,.5)}50%{box-shadow:0 0 12px rgba(52,210,123,.85)}}
+  @media (prefers-reduced-motion:reduce){.nav-live-n{animation:none}}
   /* Icône LIVE = RADAR vert pulsant (point + anneaux),
   comme l'orbe de l'état vide « aucun match » */
   /* Live = CERCLE VERT + HALO permanent autour (+ radar qui pulse). TAILLE alignée aux emoji (~22px). */
@@ -2623,9 +2632,12 @@ _SPA_JS = (
     "p.setAttribute('data-loaded','1');var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;"
-    # onglet Directs : on n'allume le rouge clignotant QUE s'il y a du live dans le panneau
+    # onglet Directs : point vert + BADGE chiffré du nb de matchs en live (demande user 2026-07-14) — lu
+    # depuis le compteur `#dv-live-n` du fragment /directs. 0 -> badge caché ET pas de point vert.
     "if((u||'').indexOf('/directs')>=0){var nv=document.querySelector('.botnav a[data-tab=\"directs\"]');"
-    "if(nv)nv.classList.toggle('has-live',h.indexOf('🟢 Live')>=0);}"
+    "if(nv){var _cn=p.querySelector('#dv-live-n');var _n=_cn?parseInt(_cn.getAttribute('data-n')||'0',10):0;"
+    "nv.classList.toggle('has-live',_n>0);var _bd=nv.querySelector('.nav-live-n');"
+    "if(_bd){_bd.textContent=_n>9?'9+':(''+_n);_bd.hidden=_n<=0;}}}"
     "if(window._twScan)window._twScan(p);if(window._mcInit)window._mcInit(p);"
     "if(window._sxAnim)window._sxAnim(p);})"
     ".catch(function(){p.removeAttribute('data-loaded');"
@@ -2787,7 +2799,9 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     # layout (détail, dashboard…), cliquer un onglet recharge l'URL -> la SPA reprend la main.
     botnav = '<nav class="botnav">' + "".join(
         f'<a class="{"on" if sport == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
-        f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span></a>'
+        f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
+        + ('<span class="nav-live-n" hidden></span>' if k == "directs" else '')
+        + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
 
     sub = ""
@@ -2838,7 +2852,9 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
                       f'data-src="{href}">{inner}</section>')
     botnav = '<nav class="botnav">' + "".join(
         f'<a class="{"on" if active == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
-        f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span></a>'
+        f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
+        + ('<span class="nav-live-n" hidden></span>' if k == "directs" else '')
+        + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -3973,10 +3989,9 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     combiné du jour + les paris provisoires). Chaque zone est triée par coup d'envoi (en-têtes de jour
     internes) et porte son libellé UNE fois (fini la pastille répétée sur chaque carte). Pur affichage —
     la sélection ROI est inchangée. Une 3ᵉ zone discrète liste les matchs pas encore analysés."""
-    livebar = ((f'<a class="dash-livebar" href="/directs"><span class="nr-dot"></span>'
-                f'<b>{live_count} match{"s" if live_count > 1 else ""} en direct</b>'
-                '<span class="dash-livebar-go">suivre dans Live →</span></a>')
-               if live_count else "")
+    # Bulle « N matchs en direct » RETIRÉE (demande user 2026-07-14) : le nombre de matchs live est
+    # désormais un BADGE chiffré sur le point vert de l'onglet Live (menu du bas) -> accueil épuré.
+    livebar = ""
     # À JOUER (ROI) : les paris retenus (simples + combinés CdM), triés par coup d'envoi.
     play = sorted(list(match_rows), key=lambda r: r.get("start_ts") or 0)
     # PROGRAMME : provisoires (doré, hors ROI) + reste (pas encore analysé). Accueil = « à venir » -> on
@@ -5138,7 +5153,9 @@ def render_directs(sections: list, frag: bool = False) -> str:
             '</div></div>')
     else:
         zones = f'<div class="dash-zones">{_combo}{"".join(out)}</div>'
-    body = zones
+    # Compteur de matchs en direct -> lu par le JS pour le BADGE chiffré sur l'onglet Live du menu du bas
+    # (demande user 2026-07-14 : le nombre va sur le point vert de la nav, plus dans une bulle en haut).
+    body = f'<span id="dv-live-n" data-n="{total}" hidden></span>' + zones
     return body if frag else spa_shell("directs", "Live", body)
 
 def perf_toggle(active: str) -> str:
