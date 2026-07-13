@@ -1964,11 +1964,13 @@ def _provisional_pick(analysis: str, meta: dict | None, m: dict) -> dict | None:
 
 def _track_provisional(sport, m, prov) -> None:
     """Enregistre le provisoire dans le SUIVI SÉPARÉ (app/provisional.py) — info seule, JAMAIS le ROI réel.
-    Best-effort : ne casse jamais le scan. No-op si pas de provisoire (ou non réglable côté module)."""
-    if not prov or not prov.get("sel"):
-        return
+    Best-effort : ne casse jamais le scan. Si la (ré)analyse n'a PAS de provisoire, on RETIRE l'entrée non
+    réglée du suivi -> cohérence Stats ↔ À venir (le suivi ne garde pas un pari que l'affichage a effacé)."""
     try:
         from app import provisional as _pvt
+        if not prov or not prov.get("sel"):
+            _pvt.drop_unsettled(m.get("id"))          # plus d'affichage -> plus de suivi (non réglé)
+            return
         _pvt.record(sport, m.get("id"), m.get("home", ""), m.get("away", ""), m.get("start", ""),
                     m.get("name", ""), m.get("comp", ""), prov.get("sel"), prov.get("cote"))
     except Exception:

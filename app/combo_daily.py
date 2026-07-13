@@ -107,6 +107,31 @@ def leg_names(day: str | None = None) -> list:
     return out
 
 
+def _pair_key(home, away) -> frozenset:
+    """Clé de match = paire de noms normalisés (mêmes règles que web._prog_pair) -> robuste à l'écart
+    d'id Unibet↔sidecar. Source unique pour comparer un match à une jambe de combiné PAR NOM."""
+    import re
+    n = lambda s: re.sub(r"\W+", "", (s or "").lower())
+    return frozenset(x for x in (n(home), n(away)) if x)
+
+
+def leg_pairs(day: str | None = None) -> set:
+    """Ensemble des clés-noms (`_pair_key`) des jambes de combiné du jour -> dédup PAR NOM prête à l'emploi."""
+    return {_pair_key(h, a) for (h, a) in leg_names(day)}
+
+
+def is_daily_leg(mid, home: str = "", away: str = "", day: str | None = None) -> bool:
+    """SOURCE UNIQUE de la dédup « pas de jambe de combiné à plusieurs endroits » : vrai si ce match est une
+    jambe d'un combiné du jour, par ID **OU par NOM**. Le nom est INDISPENSABLE car l'id diffère entre le
+    combiné (mid sidecar/ESPN) et le programme/suivi (id Unibet) -> l'exclusion par id seule laissait passer
+    la jambe (bug vécu Atlanta Dream). `day=None` -> toutes les dates du suivi."""
+    if str(mid or "") in leg_ids(day):
+        return True
+    if home and away:
+        return _pair_key(home, away) in leg_pairs(day)
+    return False
+
+
 # ------------------------------------------------------------------ moteur de sélection
 def _prod(xs):
     p = 1.0

@@ -57,7 +57,7 @@ def record(sport: str, match_id, home: str, away: str, start: str, name: str,
     # match. On n'enregistre pas (et on retire une entrée NON réglée).
     from app import analyses, combo_daily
     if (analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None
-            or mid in combo_daily.leg_ids()):
+            or combo_daily.is_daily_leg(mid, home, away)):   # jambe de combiné : par id OU par NOM
         if isinstance(prev, dict) and prev.get("result") is None:
             d.pop(mid, None)
             _save(d)
@@ -75,7 +75,6 @@ def prune_retained() -> int:
     seul match. Ne touche JAMAIS un provisoire déjà réglé (compteur monotone préservé). Renvoie le nb retiré."""
     from app import analyses, combo_daily
     d = _load()
-    _daily_legs = combo_daily.leg_ids()
     removed = 0
     for mid in list(d.keys()):
         p = d.get(mid)
@@ -83,7 +82,48 @@ def prune_retained() -> int:
             continue                              # réglé = figé, jamais retiré (monotone)
         sport = p.get("sport")
         if (analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None
-                or mid in _daily_legs):
+                or combo_daily.is_daily_leg(mid, p.get("home"), p.get("away"))):  # id OU nom
+            d.pop(mid, None)
+            removed += 1
+    if removed:
+        _save(d)
+    return removed
+
+
+def drop_unsettled(match_id) -> bool:
+    """Retire du suivi le provisoire NON réglé d'un match. Sert quand la ré-analyse EFFACE le pari indicatif
+    (l'affichage n'a plus rien -> le suivi non plus : cohérence Stats ↔ À venir, demande user 2026-07-13).
+    Ne touche JAMAIS un réglé (compteur monotone). Renvoie True si retiré."""
+    mid = str(match_id)
+    d = _load()
+    p = d.get(mid)
+    if isinstance(p, dict) and p.get("result") is None:
+        d.pop(mid, None)
+        _save(d)
+        return True
+    return False
+
+
+def reconcile_with_programme() -> int:
+    """COHÉRENCE Stats ↔ À venir (demande user 2026-07-13) : retire du suivi les provisoires NON réglés dont
+    le match est DANS le programme du jour mais SANS pari provisoire affiché (la ré-analyse l'a effacé, ou
+    c'est une jambe de combiné). Ne touche pas les matchs HORS programme (settle_pending les règle) ni les
+    réglés (monotone). Le suivi ne montre plus un pari que l'affichage a retiré. Renvoie le nb retiré."""
+    import json
+    path = os.path.join(_ROOT, "data", "day_programme.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            prog = json.load(f)
+    except (OSError, ValueError):
+        return 0
+    # ids DANS le programme SANS provisoire affiché (ni pari publié) -> l'affichage ne montre RIEN pour eux
+    no_prov = {str(m.get("id") or "") for m in (prog.get("matches") or [])
+               if not (m.get("provisional") or {}).get("sel") and m.get("status") != "bet"}
+    d = _load()
+    removed = 0
+    for mid in list(d.keys()):
+        p = d.get(mid)
+        if isinstance(p, dict) and p.get("result") is None and mid in no_prov:
             d.pop(mid, None)
             removed += 1
     if removed:
@@ -98,6 +138,7 @@ def settle_pending() -> int:
     from app import flashscore, livescore
     from app.settle_analyst import settle_pick
     prune_retained()          # DÉDUP d'abord : un match devenu retenu (combiné/simple) sort du suivi provisoire
+    reconcile_with_programme()  # COHÉRENCE : un match sans provisoire affiché sort aussi du suivi (Stats = À venir)
     d = _load()
     n = 0
     for mid, p in list(d.items()):

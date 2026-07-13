@@ -1277,3 +1277,16 @@ rendu des cartes provisoire + combiné :
   avant le % dans la bande verdict → niveau lu sur 3 canaux (mot + couleur + barre).
 - Finitions CSS : barre creusée (ombre interne) + fill halo, libellés petites capitales espacées, rythme.
 Purement AFFICHAGE (ROI/stats/calibration intacts). Live HTTP 200. Maquette avant/après régénérée.
+
+## 2026-07-13 (6) — Suivi provisoire (Stats) : dédup jambes PAR NOM + cohérence Stats↔À venir
+Reproches user (capture onglet Stats) : (1) une jambe de combiné (Atlanta Dream vainqueur) apparaît
+ENCORE dans le suivi provisoire ; (2) des paris sont dans le suivi Stats mais pas dans « À venir ».
+Cause : le suivi `app/provisional.py` excluait les jambes PAR ID (`mid in leg_ids()`) — même bug d'id
+que l'affichage (id_match=False pour TOUT) ; et `_track_provisional` était un no-op quand la ré-analyse
+effaçait le provisoire -> le suivi gardait le pari du matin que l'affichage avait retiré.
+Fix : source unique `combo_daily.is_daily_leg(mid, home, away)` (id OU nom) + `leg_pairs()` ->
+`record`/`prune_retained` dédupliquent PAR NOM. Nouveau `provisional.drop_unsettled(mid)` (retrait ciblé)
+appelé par `_track_provisional` quand pas de provisoire, + `reconcile_with_programme()` (branché
+`settle_pending`) qui retire du suivi les non-réglés SANS provisoire affiché dans day_programme.
+Nettoyage immédiat : Atlanta Dream + 4 entrées périmées retirées ; reste = Minnesota (présent dans À
+venir). Info seule hors ROI, jamais un réglé (monotone). Selfcheck 0/0.
