@@ -1400,3 +1400,10 @@ Demande user (2 points) :
    le lit à la (pré)charge du panneau /directs et pose le compte + `has-live` (0 -> badge caché). CSS
    `.nav-live-n`. `render_dashboard.livebar=""`.
 Live 200, selfcheck 0/0.
+
+## 2026-07-14 (5) — Badges chiffrés « matchs du jour » sur chaque onglet (nav du bas)
+Demande user : mêmes badges (blancs) avec le nb de matchs du jour sur Tennis/Basket/Foot ET À venir
+(le Live restant vert). Généralisation du mécanisme live : chaque panneau émet `.dv-nav` (data-tab +
+data-n = nb matchs du jour) ; le JS SPA le lit à la (pré)charge et pose le badge sur l'onglet. Comptes :
+home = à jouer+indicatif+à analyser ; sport = play_up+live+prov_up (hors terminés) ; directs = total live.
+CSS `.nav-n` (blanc ; Live = vert+halo pulsant). Badge caché à 0. Live 200.

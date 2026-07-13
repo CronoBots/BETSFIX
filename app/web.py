@@ -324,15 +324,17 @@ CSS = """
      (classe .has-live) ET que l'onglet n'est pas ouvert. Pas de fond vert -> quand on est dessus,
   l'onglet actif prend le thème neutre (bleu) comme les autres. */
   .botnav a[data-tab="directs"].has-live:not(.on){color:#34d27b}
-  /* BADGE chiffré du nb de matchs en direct (demande user 2026-07-14) : petite pastille verte premium
-     en haut à droite de l'icône Live, chiffre lisible + halo. Caché quand 0 (JS pose `hidden`). */
-  .botnav a[data-tab="directs"]{position:relative}
-  .nav-live-n{position:absolute;top:1px;left:calc(50% + 7px);min-width:16px;height:16px;padding:0 4px;
-       border-radius:99px;background:#34d27b;color:#04130a;font-size:10px;font-weight:900;line-height:16px;
+  /* BADGES chiffrés du menu du bas (demande user 2026-07-14) : nb de matchs du jour par onglet. BLANC par
+     défaut (À venir/Tennis/Basket/Foot) ; l'onglet LIVE est VERT + halo pulsant. Caché à 0 (JS pose `hidden`). */
+  .botnav a{position:relative}
+  .nav-n{position:absolute;top:1px;left:calc(50% + 7px);min-width:16px;height:16px;padding:0 4px;
+       border-radius:99px;background:#eef2f7;color:#0b0d12;font-size:10px;font-weight:900;line-height:16px;
        text-align:center;font-variant-numeric:tabular-nums;border:1.5px solid #0b0d12;
+       box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .botnav a[data-tab="directs"] .nav-n{background:#34d27b;color:#04130a;
        box-shadow:0 0 8px rgba(52,210,123,.65);animation:navlive 1.9s ease-out infinite}
   @keyframes navlive{0%,100%{box-shadow:0 0 6px rgba(52,210,123,.5)}50%{box-shadow:0 0 12px rgba(52,210,123,.85)}}
-  @media (prefers-reduced-motion:reduce){.nav-live-n{animation:none}}
+  @media (prefers-reduced-motion:reduce){.botnav a[data-tab="directs"] .nav-n{animation:none}}
   /* Icône LIVE = RADAR vert pulsant (point + anneaux),
   comme l'orbe de l'état vide « aucun match » */
   /* Live = CERCLE VERT + HALO permanent autour (+ radar qui pulse). TAILLE alignée aux emoji (~22px). */
@@ -2632,12 +2634,15 @@ _SPA_JS = (
     "p.setAttribute('data-loaded','1');var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;"
-    # onglet Directs : point vert + BADGE chiffré du nb de matchs en live (demande user 2026-07-14) — lu
-    # depuis le compteur `#dv-live-n` du fragment /directs. 0 -> badge caché ET pas de point vert.
-    "if((u||'').indexOf('/directs')>=0){var nv=document.querySelector('.botnav a[data-tab=\"directs\"]');"
-    "if(nv){var _cn=p.querySelector('#dv-live-n');var _n=_cn?parseInt(_cn.getAttribute('data-n')||'0',10):0;"
-    "nv.classList.toggle('has-live',_n>0);var _bd=nv.querySelector('.nav-live-n');"
-    "if(_bd){_bd.textContent=_n>9?'9+':(''+_n);_bd.hidden=_n<=0;}}}"
+    # BADGES chiffrés du menu du bas (demande user 2026-07-14) : chaque panneau émet `.dv-nav` (data-tab +
+    # data-n = nb de matchs du jour). On pose le compte sur l'onglet correspondant (blanc ; Live = vert +
+    # point clignotant). 0 -> badge caché.
+    "var _dc=p.querySelector('.dv-nav');"
+    "if(_dc){var _t=_dc.getAttribute('data-tab');var _n=parseInt(_dc.getAttribute('data-n')||'0',10);"
+    "var _nv=document.querySelector('.botnav a[data-tab=\"'+_t+'\"]');"
+    "if(_nv){if(_t==='directs')_nv.classList.toggle('has-live',_n>0);"
+    "var _bd=_nv.querySelector('.nav-n');"
+    "if(_bd){_bd.textContent=_n>99?'99+':(''+_n);_bd.hidden=_n<=0;}}}"
     "if(window._twScan)window._twScan(p);if(window._mcInit)window._mcInit(p);"
     "if(window._sxAnim)window._sxAnim(p);})"
     ".catch(function(){p.removeAttribute('data-loaded');"
@@ -2800,7 +2805,8 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     botnav = '<nav class="botnav">' + "".join(
         f'<a class="{"on" if sport == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
-        + ('<span class="nav-live-n" hidden></span>' if k == "directs" else '')
+        + ('<span class="nav-n" hidden></span>'
+           if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
 
@@ -2853,7 +2859,8 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
     botnav = '<nav class="botnav">' + "".join(
         f'<a class="{"on" if active == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
-        + ('<span class="nav-live-n" hidden></span>' if k == "directs" else '')
+        + ('<span class="nav-n" hidden></span>'
+           if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
@@ -4017,7 +4024,9 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     inner = "".join(x for x in out if x)
     matches = (f'<div class="dash-zones">{inner}</div>' if inner
                else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    body = livebar + matches
+    # Marqueur de compte « matchs du jour » (à jouer + indicatif + à analyser) -> badge nav de l'onglet À venir.
+    _cnt_home = len(play) + len(prov) + len(todo)
+    body = f'<span class="dv-nav" data-tab="home" data-n="{_cnt_home}" hidden></span>' + livebar + matches
     return body if frag else spa_shell("home", "Accueil", body, source=source)
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:
@@ -5122,7 +5131,10 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
         else:
             body_zones = '<div class="paj-empty">Aucun match à afficher pour le moment.</div>'
     # Ordre PREMIUM : titre -> cadre de perf (graphe + fiabilité & calibration INTÉGRÉS) -> matchs.
-    body = _subnav(sport) + render_sport_perf(sport) + f'<div class="dash-zones">{body_zones}</div>'
+    # Marqueur de compte (matchs du jour de CE sport : à jouer + live + indicatif, hors terminés) -> badge nav.
+    _cnt = len(play_up) + len(live) + len(prov_up)
+    body = (f'<span class="dv-nav" data-tab="{sport}" data-n="{_cnt}" hidden></span>'
+            + _subnav(sport) + render_sport_perf(sport) + f'<div class="dash-zones">{body_zones}</div>')
     return body if frag else spa_shell(sport, title, body)
 
 def render_directs(sections: list, frag: bool = False) -> str:
@@ -5153,9 +5165,9 @@ def render_directs(sections: list, frag: bool = False) -> str:
             '</div></div>')
     else:
         zones = f'<div class="dash-zones">{_combo}{"".join(out)}</div>'
-    # Compteur de matchs en direct -> lu par le JS pour le BADGE chiffré sur l'onglet Live du menu du bas
-    # (demande user 2026-07-14 : le nombre va sur le point vert de la nav, plus dans une bulle en haut).
-    body = f'<span id="dv-live-n" data-n="{total}" hidden></span>' + zones
+    # Compteur de matchs -> BADGE chiffré du menu du bas (demande user 2026-07-14). Marqueur générique
+    # `.dv-nav` (data-tab + data-n) lu par le JS SPA à la (pré)charge du panneau -> pose le badge sur l'onglet.
+    body = f'<span class="dv-nav" data-tab="directs" data-n="{total}" hidden></span>' + zones
     return body if frag else spa_shell("directs", "Live", body)
 
 def perf_toggle(active: str) -> str:
