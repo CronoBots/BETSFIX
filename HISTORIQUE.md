@@ -1236,3 +1236,14 @@ officiel (source de vérité) et injectés : Malte 107-52 Armenia (MT 60-20) ; C
 GAGNÉ (les 2 jambes). HCAP -16/Vainqueur restent hors ROI (marchés basket exclus = abstentions).
 
 **Résultat :** 28 → 0 fantômes pending. PICKS/COMBINÉS non réglés = 0. Selfcheck 0/0.
+
+## 2026-07-13 (2) — Transparence : extrait d'analyse sur TOUTES les cartes provisoires
+Demande user (2 captures) : des cartes de pari provisoire affichent le pari + cote + confiance mais
+PAS le « pourquoi » (barre cyan) — ex. Jesper De Jong, Clement Tabur — alors que d'autres l'ont
+(Djurgården, Alina Charaeva). Cause : `web._prov_why_snippet` ne lisait QUE la section « 🧪 Pari
+provisoire » du .md ; quand l'analyste ne l'écrit pas, l'extrait était vide -> carte « sans analyse ».
+Fix : repli en cascade sur « 🎯 Le pari à jouer » puis « 📋 Les faits » (même nettoyage + filtre
+méta anti-abstention). Résultat : 0 carte provisoire sans extrait (4/4 des exemples ont désormais leur
+lecture de match). Purement AFFICHAGE — rien touché au ROI/stats/calibration.
+Obs. séparée à trancher : 3 matchs restent abstenus SANS provisoire (provisional=None, ID Unibet ≠ ID
+sidecar) -> totalement cachés (règle 2026-07-10 « no-value sans provisoire = caché »).

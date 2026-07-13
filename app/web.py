@@ -3398,35 +3398,51 @@ def _prog_pair(home, away) -> frozenset:
 
 
 def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:
-    """Extrait PROPRE (phrases COMPLÈTES, majuscule initiale) du raisonnement du pari PROVISOIRE (section
-    « 🧪 » du .md) — pour la carte repliée style Telegram (analyse à barre cyan sous le pari, demande user
-    2026-07-12). Texte nettoyé : markdown/liens retirés, coupe NETTE à une fin de phrase (jamais en plein
-    milieu). '' si absent. Best-effort : ne casse jamais le rendu."""
+    """Extrait PROPRE (phrases COMPLÈTES, majuscule initiale) du raisonnement du pari PROVISOIRE — pour la
+    carte repliée style Telegram (analyse à barre cyan sous le pari, demande user 2026-07-12). Source :
+    section « 🧪 » du .md si présente ; SINON (l'analyste ne l'écrit pas toujours -> carte « sans analyse »)
+    on REPLIE sur « 🎯 Le pari à jouer » puis « 📋 Les faits » -> TRANSPARENCE : toute carte provisoire
+    montre son « pourquoi » (demande user 2026-07-13). Texte nettoyé (markdown/liens/méta retirés), coupe
+    NETTE à une fin de phrase. '' seulement si vraiment rien d'exploitable. Best-effort : ne casse jamais."""
     if not fid:
         return ""
-    try:
-        md = analyses.load(sport, str(fid))
-        if not md:
-            return ""
-        prov = analyses._find(analyses._sections(md), "🧪", "provisoire", "Provisoire")
-        if not prov:
-            return ""
-        t = re.sub(r"(?im)^\s*PROV:.*$", "", prov)
-        t = re.sub(r"^\s*[-*]\s*\*\*.*?%\s*:\*\*\s*", "", t, count=1, flags=re.S)  # retire « - **sel @cote — x% :** »
+    # Ne garde que la LECTURE DU MATCH : on retire les phrases de MÉTA-COMMENTAIRE (value/abstention/
+    # proba/seuil/skip…) pour un texte PROFESSIONNEL, pas un commentaire d'abstention (demande user).
+    _META = re.compile(r"(sans value|pas de value|aucune value|abstention|abstient|abstenir|\bskip\b|"
+                       r"si l.on devait|d.o[uù] l.abstention|trop courte|seuil de \d|ma proba|"
+                       r"mon estimation|pas de pari|indicatif|hors roi|pas exploitable|\blean\b|marginale?)",
+                       re.I)
+
+    def _clean(raw: str) -> str:
+        t = re.sub(r"(?im)^\s*PROV:.*$", "", raw or "")
+        t = re.sub(r"^\s*#+.*$", "", t, count=1, flags=re.M)          # retire un éventuel titre de section
+        t = re.sub(r"^\s*[-*]\s*\*\*.*?%\s*:\*\*\s*", "", t, count=1, flags=re.S)  # « - **sel @cote — x% :** »
+        t = re.sub(r"^\s*[-*]\s*\*\*.*?:\*\*\s*", "", t, count=1, flags=re.S)      # « - **sel @cote :** » (sans %)
         t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)     # liens markdown -> texte seul
         t = re.sub(r"[*_`#]", "", t)                       # markdown résiduel
         t = re.sub(r"\s+", " ", t).strip()
         if not t:
             return ""
-        # Ne garde que la LECTURE DU MATCH : on retire les phrases de MÉTA-COMMENTAIRE (value/abstention/
-        # proba/seuil/skip…) pour un texte PROFESSIONNEL, pas un commentaire d'abstention (demande user).
-        _META = re.compile(r"(sans value|pas de value|aucune value|abstention|abstient|abstenir|\bskip\b|"
-                           r"si l.on devait|d.o[uù] l.abstention|trop courte|seuil de \d|ma proba|"
-                           r"mon estimation|pas de pari|indicatif|hors roi|pas exploitable|\blean\b|marginale?)",
-                           re.I)
         _sents = re.split(r"(?<=[.!?…])\s+", t)
-        _clean = [s for s in _sents if s and not _META.search(s)]
-        t = " ".join(_clean).strip() or t                  # repli : si tout filtré, garde l'original
+        _kept = [s for s in _sents if s and not _META.search(s)]
+        return " ".join(_kept).strip()
+
+    try:
+        md = analyses.load(sport, str(fid))
+        if not md:
+            return ""
+        secs = analyses._sections(md)
+        # Ordre de repli : le raisonnement DÉDIÉ du provisoire (🧪) d'abord, sinon le pari à jouer, sinon
+        # les faits — la première source qui donne un texte de LECTURE non vide gagne.
+        t = ""
+        for _cand in (analyses._find(secs, "🧪", "provisoire", "Provisoire"),
+                      analyses._find(secs, "🎯", "pari à jouer", "Le pari"),
+                      analyses._find(secs, "📋", "faits", "Les faits")):
+            t = _clean(_cand or "")
+            if t:
+                break
+        if not t:
+            return ""
         t = re.sub(r"\bj(?=\d)", "≈", t)                   # notation analyste « j62 % » -> « ≈62 % » (propreté)
         t = t[:1].upper() + t[1:]                          # MAJUSCULE initiale (texte professionnel)
         if len(t) > maxlen:
