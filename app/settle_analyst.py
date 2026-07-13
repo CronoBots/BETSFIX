@@ -499,8 +499,19 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
                 who = re.sub(r"\s*(points?|paniers?|rebonds?|passes?\s*(?:décisives?|decis\w*)?"
                              r"|prolongations?\s*inclus\w*|[,&et\s])+$",
                              "", who.strip(), flags=re.I).strip(" :-–—")
+                # GARDE-FOU : un « joueur » PLACEHOLDER (libellé Unibet générique « Points marqués joueur »,
+                # sans participant capté) n'est PAS un nom -> jamais émettre un prop indéfini (impossible à
+                # régler : « quel joueur ? » n'a aucune vérité-terrain). Un vrai nom ne contient ni
+                # « joueur/player » ni QUE des mots génériques.
+                _wl = who.lower()
+                _generic = {"joueur", "player", "points", "marques", "marqués", "buts", "total",
+                            "paniers", "rebonds", "passes"}
+                _is_placeholder = ("joueur" in _wl or "player" in _wl
+                                   or all(w in _generic for w in re.findall(r"[a-zà-ÿ]+", _wl)))
                 if who and len(who) >= 2:
-                    return f"PLAYERBK {_stat} {dirn} {line}|{who}"
+                    # contexte prop-JOUEUR avéré (_stat détecté) : si le sujet est un placeholder, ABSTENIR
+                    # (return "") plutôt que laisser tomber sur un total générique bidon (« OVER 12.5 »).
+                    return "" if _is_placeholder else f"PLAYERBK {_stat} {dirn} {line}|{who}"
         spec = None
         if "quart" in t:
             for pat, sp in [(("1er", "premier", "q1", "1 quart"), "1"),
@@ -795,6 +806,14 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             sgn = re.search(r"([+\-−–])\s?(\d+[.,]?\d*)\s*(?:buts?|points?|pts?)", t)
             if sgn:
                 return f"TEAMTOT {team} {'UNDER' if sgn.group(1) in ('-', '−', '–') else 'OVER'} {sgn.group(2).replace(',', '.')}"
+    # NOMBRE TOTAL DE SERVICES BREAKÉS (tennis) -> TOTBREAKS : DOIT passer AVANT le total générique,
+    # car « Nombre TOTAL de services breakés » contient « total » et serait sinon lu comme un total de
+    # points/buts (code « OVER x.x » non règlable -> fantôme coincé). Réglé via Flashscore
+    # « Break Points Converted » (somme home+away).
+    if "break" in t:
+        mb = re.search(r"(plus|moins) de (\d+[.,]?\d*)", t)
+        if mb:
+            return f"TOTBREAKS {'OVER' if mb.group(1) == 'plus' else 'UNDER'} {mb.group(2).replace(',', '.')}"
     # total du MATCH (sans équipe nommée) — accepte buts/points + abréviations « pt / pts »
     m = re.search(r"(plus|moins) de (\d+[.,]?\d*)\s*(?:buts?|points?|pts?)", t)
     if m and not team:
@@ -1277,17 +1296,35 @@ async def _settle_analyses_impl() -> int:
             bet_codes = [code_from_pick(b["sel"], sport, d.get("home", ""), d.get("away", ""))
                          for b in bet_list]
             combo_codes = [leg.get("code", "") for leg in ((d.get("combo") or {}).get("legs") or [])]
-            # Stats du match (corners/cartons/tirs) nécessaires si un code les vise OU si un combiné foot
-            # est présent (ses jambes tirs/tirs cadrés/corners/cartons se règlent sur les stats df_st).
+            # Les FANTÔMES (calibration) visent aussi ces marchés — un tirs/corners/cartons présent
+            # UNIQUEMENT en fantôme doit déclencher la récupération des stats, sinon il ne se règle
+            # JAMAIS (bug : need_stats ignorait les shadow_codes -> stats jamais fetchées -> pending à vie
+            # alors que FotMob/Flashscore ont la donnée). Défini ici pour être inclus dans need_stats.
+            shadow_codes = [s.get("code", "") for s in (d.get("shadow") or [])]
+            # Stats du match (corners/cartons/tirs) nécessaires si un code les vise (pari, combiné OU
+            # fantôme) OU si un combiné foot est présent (ses jambes tirs/tirs cadrés/corners/cartons se
+            # règlent sur les stats df_st).
             need_stats = (any(c.startswith(("CARDS", "REDCARDS", "CORNERS", "SHOTSOT", "SHOTS"))
-                              for c in [code, *bet_codes, *combo_codes])
+                              for c in [code, *bet_codes, *combo_codes, *shadow_codes])
                           or (sport == "foot" and (d.get("combo") or {}).get("legs")))
             # Combiné foot au verdict incomplet -> on REFETCH les stats même si le cache `result.raw`
             # en a déjà : elles peuvent être PARTIELLES (df_st en retard à la fin du match, sans les
             # tirs/1ère MT) et bloquer le règlement des jambes correspondantes.
             cmb_inc = (sport == "foot" and (d.get("combo") or {}).get("result") is None
                        and any(l.get("result") is None for l in (d.get("combo") or {}).get("legs") or []))
-            if need_stats and (not score.get("stats") or cmb_inc):
+            # BUG : `result.raw.stats` peut être PARTIEL (ex. {goals_1h_total, goals_2h_total} seulement,
+            # SANS tirs/corners/cartons) -> `not score.get("stats")` était Faux -> la récupération était
+            # SAUTÉE et un fantôme tirs/corners/cartons restait pending À VIE, alors que FotMob a la donnée.
+            # Fix : on refetch aussi dès qu'une CLÉ de stat précise (visée par un code) manque au cache.
+            _STAT_KEYS = {"SHOTSOT": ("sot_h", "sot_a"), "SHOTS": ("shots_h", "shots_a"),
+                          "CORNERS": ("corners_h", "corners_a"), "CARDS": ("cards_h", "cards_a"),
+                          "REDCARDS": ("rc_h", "rc_a")}
+            _cur_st = score.get("stats") or {}
+            _stat_missing = any(
+                c.startswith(fam) and any(k not in _cur_st for k in keys)
+                for c in [code, *bet_codes, *combo_codes, *shadow_codes] if c
+                for fam, keys in _STAT_KEYS.items())
+            if need_stats and (not score.get("stats") or cmb_inc or _stat_missing):
                 st = await _event_stats(sofa) if (sofa and len(sofa) <= 8) else None
                 if st:
                     score["stats"] = {**(score.get("stats") or {}), **st}   # complète sans rien perdre
@@ -1335,7 +1372,7 @@ async def _settle_analyses_impl() -> int:
             # score (souvent ESPN = score final seul) n'a PAS les périodes, LiveScore les fournit ->
             # on les récupère et fusionne. Sinon ces marchés restent « non réglables » alors que la
             # donnée EXISTE (re-sourcing : ne JAMAIS exclure un marché faute de pouvoir le valider).
-            shadow_codes = [s.get("code", "") for s in (d.get("shadow") or [])]
+            # (shadow_codes déjà défini plus haut pour need_stats.)
             need_periods = (not score.get("periods")) and any(
                 c.startswith(("SETGAMES", "TOTGAMES", "SETSCORE", "TEAMHALF", "HALFTOT", "WINHALF",
                               "TEAMBOTH", "BOTHHALVES", "BTTSHALF", "HALFRES", "BQTOT", "BQTEAM", "BQWIN",
@@ -1477,6 +1514,21 @@ async def _settle_analyses_impl() -> int:
                         return "push" if (score.get("home") == 0 and score.get("away") == 0) else None
                     from app.sources import _tok as _tk
                     return "won" if (_tk(who) and _tk(who) <= _tk(sc)) else "lost"
+                if c.startswith("TOTBREAKS"):              # total services breakés -> Flashscore BPC
+                    tp = c.split()
+                    if len(tp) < 3:
+                        return None
+                    try:
+                        line = float(tp[2])
+                    except ValueError:
+                        return None
+                    from app import flashscore as _fs
+                    mid = await asyncio.to_thread(_fs._find_match_id, d.get("home", ""),
+                                                  d.get("away", ""), d.get("start"), "tennis")
+                    brk = await asyncio.to_thread(_fs.total_breaks, mid) if mid else None
+                    if brk is None:
+                        return None                         # indispo -> on retentera (jamais faux)
+                    return "push" if brk == line else ("won" if ((brk > line) == (tp[1] == "OVER")) else "lost")
                 return settle_pick(c, score)
 
             pr = await _settle_one(code)

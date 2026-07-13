@@ -117,6 +117,23 @@ def _tok(s: str) -> set:
     return toks
 
 
+def _name_tok_match(qtok: set, ntok: set) -> bool:
+    """Vrai si CHAQUE jeton de la requête `qtok` correspond à un jeton du nom `ntok`, en tolérant la
+    TRONCATURE (un `who` figé dans un code fantôme peut avoir perdu une lettre finale, ex. « Rees » pour
+    « Reese », « Ogunbowal » pour « Ogunbowale »). Correspondance = égalité OU l'un préfixe de l'autre
+    (≥4 lettres pour éviter les faux positifs). La sécurité « un seul joueur => un règlement » reste
+    portée par l'appelant (jamais de règlement sur homonymie)."""
+    if qtok <= ntok:
+        return True
+    for qt in qtok:
+        if qt in ntok:
+            continue
+        if not any(len(qt) >= 4 and len(nt) >= 4 and (nt.startswith(qt) or qt.startswith(nt))
+                   for nt in ntok):
+            return False
+    return True
+
+
 def _overlap(a: set, b: set) -> bool:
     """Recouvrement de jetons, TOLÉRANT aux flexions (Barcelone/Barcelona, Sevilla/Séville) :
     égalité exacte OU même préfixe de 5 lettres (jetons ≥5)."""
@@ -926,7 +943,7 @@ def _bb_player_stat(summary: dict, qtok: set, stat: str):
                 continue
             for ath in grp.get("athletes") or []:
                 nm = ((ath.get("athlete") or {}).get("displayName")) or ""
-                if not (qtok and qtok <= _tok(nm)):
+                if not (qtok and _name_tok_match(qtok, _tok(nm))):
                     continue
                 stats = ath.get("stats") or []
                 tot, ok = 0, True

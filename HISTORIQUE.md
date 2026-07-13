@@ -1208,3 +1208,31 @@ Demande user (suite du bug tennis 1.83≠1.44) : ne plus refaire l'erreur + en t
   DÉJÀ rouges AVANT mes edits (confirmé par stash) — PÉRIMÉS depuis `_COMBO_REAL_MAX` 4.20→2.25 (02/07) :
   `_fake_bb` renvoyait 4.0 > 2.25. Corrigés (cote test 1.40 -> 1.96 dans la fourchette) ; test « barrière
   longshot » repositionné foot->basket (le FOOT garde un combiné phare de repli, la barrière dure = non-foot).
+
+## 2026-07-13 — Règlement « à tout prix » des fantômes coincés (5 fixes durables + FIBA)
+Demande user : « au lieu de voider, trouver une solution de règlement à tout prix ». 28 fantômes
+(calibration) coincés « en attente » sur matchs terminés. Diagnostic : 3 BUGS de règlement + 1 lacune
+de source + 1 défaut de génération — PAS un vrai manque de données.
+
+**Fixes durables (anti-régression : n'affectent que la récupération, pas la logique de verdict) :**
+1. `settle_analyst._settle_analyses_impl` : `need_stats` ignorait les `shadow_codes` → un tirs/corners/
+   cartons présent UNIQUEMENT en fantôme ne déclenchait jamais la récupération des stats. Ajout des
+   shadow_codes (def remontée). Débloqué tout le foot (FotMob/Flashscore avaient la donnée).
+2. Même bloc : `result.raw.stats` PARTIEL ({goals_1h_total…} sans sot/corners/cards) faisait échouer
+   `not score.get("stats")` → refetch sauté. Ajout d'un test « clé de stat précise manquante ».
+3. `sources._bb_player_stat` : matching strict `qtok <= _tok(nm)` échouait sur un `who` TRONQUÉ figé
+   dans le code (« Angel Rees »→« Reese », « Ogunbowal »→« Ogunbowale »). Nouveau `_name_tok_match`
+   tolérant à la troncature (préfixe, ≥4 lettres), sécurité « 1 seul joueur = 1 règlement » conservée.
+4. Tennis « Nombre total de services breakés » : `code_from_pick` le lisait comme total générique
+   (« OVER 5.5 » car contient « total ») → code non règlable. Détection `TOTBREAKS` AVANT le total +
+   handler via nouveau `flashscore.total_breaks` (somme « Break Points Converted » section Match).
+5. Garde-fou génération : `code_from_pick` PLAYERBK — un `who` placeholder (« Points marqués joueur »,
+   sans participant capté) retourne "" (abstention) au lieu d'émettre un prop indéfini/un total bidon.
+
+**Source manquante (basket international, hors WNBA/NBA) :** Corée-Taipei & Malte-Armenia = FIBA, non
+couvert par Sportradar/ESPN/LiveScore/Flashscore (tous None). Scores/quart-temps VÉRIFIÉS sur FIBA
+officiel (source de vérité) et injectés : Malte 107-52 Armenia (MT 60-20) ; Corée 80-82 Taipei OT
+(MT 41-30). ⚠️ RÉCUP : le combiné Malte (Malta -16 + Total >125.5) était void faute de score → en fait
+GAGNÉ (les 2 jambes). HCAP -16/Vainqueur restent hors ROI (marchés basket exclus = abstentions).
+
+**Résultat :** 28 → 0 fantômes pending. PICKS/COMBINÉS non réglés = 0. Selfcheck 0/0.

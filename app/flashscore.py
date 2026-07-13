@@ -274,6 +274,29 @@ def statistics(match_id: str) -> dict | None:
     return {"sections": sections} if sections else None
 
 
+def total_breaks(match_id: str) -> int | None:
+    """Nombre TOTAL de breaks de service du match = somme des « Break Points Converted » (numérateur
+    home + away) de la section « Match ». Sert à régler « Nombre total de services breakés (over/under) ».
+    None si la stat est indisponible (jamais 0 par défaut -> on retentera plutôt qu'un faux règlement)."""
+    st = statistics(match_id)
+    if not st:
+        return None
+    for sec in st.get("sections") or []:
+        if (sec.get("name") or "").strip().lower() != "match":
+            continue
+        for cat in sec.get("categories") or []:
+            for it in cat.get("items") or []:
+                if (it.get("name") or "").strip().lower() == "break points converted":
+                    tot = 0
+                    for side in ("home", "away"):
+                        m = re.match(r"\s*(\d+)\s*/", str(it.get(side) or ""))
+                        if not m:
+                            return None                     # format inattendu -> on retente
+                        tot += int(m.group(1))
+                    return tot
+    return None
+
+
 def prematch(match_id: str) -> dict | None:
     """Faits PRÉ-MATCH depuis le feed `df_hh` : forme récente de chaque camp + face-à-face direct.
     -> {home_form:[{res,score}], away_form:[…], h2h:[{score, winner_name, a, b}]} (plus récent d'abord).
