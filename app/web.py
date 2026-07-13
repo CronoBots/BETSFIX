@@ -3494,17 +3494,23 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
     # provisoire doré, sinon le match apparaît DEUX FOIS. `day` = celui du bandeau (_combo_daily_banner).
     try:
         from app import combo_daily as _cd
-        _daily_legs = _cd.leg_ids(prog.get("date") or now.strftime("%Y-%m-%d"))
+        _dday = prog.get("date") or now.strftime("%Y-%m-%d")
+        _daily_legs = _cd.leg_ids(_dday)
+        # DÉDUP PAR NOM aussi (pas seulement par id) : l'id d'un même match DIFFÈRE entre le combiné
+        # (mid sidecar/ESPN) et le programme (id Unibet) -> la dédup par id seule laissait repasser la
+        # jambe en provisoire (bug vécu Atlanta Dream). `_prog_pair` est robuste à cet écart d'id.
+        _daily_pairs = {_prog_pair(h, a) for (h, a) in _cd.leg_names(_dday)}
     except Exception:
-        _daily_legs = set()
+        _daily_legs, _daily_pairs = set(), set()
     items: list = []
     for m in (prog.get("matches") or []):
         if m.get("status") == "bet":            # pari publié -> déjà dans les paris à jouer (fusionnés)
             continue
-        if str(m.get("id") or "") in _daily_legs:  # jambe du combiné du jour -> déjà dans la carte combiné
-            continue
         _nm = str(m.get("name", ""))
         _h, _s, _a = _nm.partition(" - ")
+        # jambe du combiné du jour (par id OU par nom) -> déjà dans la carte combiné, jamais en double
+        if str(m.get("id") or "") in _daily_legs or _prog_pair(_h, _a) in _daily_pairs:
+            continue
         if _prog_pair(_h, _a) in exclude_pairs:  # déjà affiché en pari à jouer -> pas de doublon
             continue
         try:

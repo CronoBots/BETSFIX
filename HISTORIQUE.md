@@ -1247,3 +1247,12 @@ méta anti-abstention). Résultat : 0 carte provisoire sans extrait (4/4 des exe
 lecture de match). Purement AFFICHAGE — rien touché au ROI/stats/calibration.
 Obs. séparée à trancher : 3 matchs restent abstenus SANS provisoire (provisional=None, ID Unibet ≠ ID
 sidecar) -> totalement cachés (règle 2026-07-10 « no-value sans provisoire = caché »).
+
+## 2026-07-13 (3) — Dédup jambes de combiné du jour PAR NOM (pas seulement par id)
+Reproche user : une jambe du combiné du jour (Atlanta Dream–LA Sparks) réapparaissait AUSSI en pari
+provisoire — le doublon « même erreur à plusieurs endroits » qu'on voulait éviter. Cause = la dédup
+(`_programme_items`) comparait `day_programme.id` (id Unibet 1026378509) à `leg_ids` (mid combiné
+15415813) : IDs DIFFÉRENTS pour le même match -> dédup ratée. Fix : nouveau `combo_daily.leg_names(day)`
+(paires home/away) + dédup PAR NOM via `_prog_pair` (robuste à l'écart d'id Unibet↔sidecar), en plus de
+l'id. S'applique à l'accueil ET aux onglets sport (tous via `_programme_items`). Vérifié : Atlanta Dream
+n'est plus QUE dans la carte combiné.

@@ -87,6 +87,26 @@ def leg_ids(day: str | None = None) -> set:
     return out
 
 
+def leg_names(day: str | None = None) -> list:
+    """(home, away) de chaque match JAMBE d'un combiné du jour. Complète `leg_ids` pour la DÉDUP : l'ID
+    d'un même match DIFFÈRE souvent entre le combiné (mid sidecar/ESPN) et le programme (id Unibet) ->
+    la dédup PAR ID seule LAISSE PASSER la jambe en provisoire (bug vécu Atlanta Dream : mid 15415813 ≠
+    id Unibet 1026378509). Le dédoublonnage PAR NOM (cf. web._prog_pair) est robuste à cet écart d'id."""
+    d = _load()
+    days = [d.get(day)] if day is not None else list(d.values())
+    out: list = []
+    for entry in days:
+        if isinstance(entry, dict):
+            for leg in entry.get("legs") or []:
+                h, a = leg.get("home"), leg.get("away")
+                if h and a:
+                    out.append((h, a))
+                elif leg.get("name") and " - " in str(leg.get("name")):
+                    _h, _, _a = str(leg["name"]).partition(" - ")
+                    out.append((_h, _a))
+    return out
+
+
 # ------------------------------------------------------------------ moteur de sélection
 def _prod(xs):
     p = 1.0
