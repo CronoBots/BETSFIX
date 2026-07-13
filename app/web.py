@@ -572,9 +572,14 @@ CSS = """
        transition:transform .18s}
   .mc-open .mc-chev{display:none}   /* carte ouverte : chevron caché ; il ne réapparaît qu'une fois repliée */
   /* L2 : équipes (noms + prénoms complets) — ligne principale. */
-  .mc-teams{font-size:13.5px;font-weight:800;color:var(--text);margin-top:4px;
+  .mc-teams{font-size:14px;font-weight:800;color:var(--text);margin-top:5px;letter-spacing:-.01em;
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mc-teams .dim{color:var(--dim);font-weight:600}
+  /* Carte PREMIUM (pari à venir présenté carte) : même respiration/typo que les provisoires (padding
+     roomier, équipes 14.5 px sur 2 lignes possibles) — présentation homogène 10/10 (demande user). */
+  .mc-prem .mc-head{padding:14px 16px 13px}
+  .mc-prem .mc-teams{font-size:14.5px;margin-top:8px;line-height:1.24;white-space:normal;overflow:visible;
+       text-overflow:clip;text-wrap:balance}
   /* L3 : LISTE des paris (intitulés,
   1/ligne) — masquée une fois DÉPLIÉE (les paris détaillés s'affichent).
      padding-right pour libérer le chevron en bas à droite. */
@@ -1672,7 +1677,7 @@ CSS = """
   .mc-div{height:1px;margin:12px 0;background:linear-gradient(90deg,rgba(120,170,220,.22),rgba(120,170,220,.03))}
   .mc-open .mc-div{display:none}
   .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
-  .mc-pick{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.32}
+  .mc-pick{font-size:15.5px;font-weight:800;color:#eef4fb;line-height:1.3;letter-spacing:-.01em}
   .mc-conf{margin-top:10px;font-size:13px;color:#90a4be;font-weight:600}
   .mc-conf b{color:#fff;font-weight:800;font-variant-numeric:tabular-nums}
   .mc-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:13px}
@@ -4938,7 +4943,9 @@ def _sport_row(r: dict) -> str:
         if _ts and (_ts - 3600) > time.time():
             _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
             _foot = f'🔄 Ré-analyse à {e(_hhmm)}'
-        _premium = (f'<div class="mc-pick">{e(_psel)}</div>' + _gloss
+        # Filet fin teams↔pari (comme les provisoires) : sépare « quel match » de « quel pari ».
+        _premium = ('<div class="mc-div"></div>'
+                    + f'<div class="mc-pick">{e(_psel)}</div>' + _gloss
                     + _verdict_strip(_pconf, _cote_big, _foot))
     if _premium:
         line3 = _premium
@@ -4955,6 +4962,15 @@ def _sport_row(r: dict) -> str:
                       f'<span class="dim">· le pari peut encore changer</span></div>')
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')
+    # CARTE PREMIUM (pari à venir présenté carte) : en-tête « SPORT • Ligue » (sport en accent) + tiret
+    # « — » entre les équipes -> présentation HOMOGÈNE avec les provisoires (demande user 2026-07-13).
+    if _premium:
+        _spn = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sport_key, "")
+        if _spn:
+            comp_only = (f'<b class="mc-sport">{_spn}</b>'
+                         + (f'<span class="mc-comp-sep"> • </span>{e(comp)}' if comp else ""))
+        teams = (f'{hf}{e(_noF(r.get("home")))} <span class="mc-dash">—</span> '
+                 f'{e(_noF(r.get("away")))}{fem}{af}')
     # LIVE (demande user 2026-07-12) : intitulé du pari sur UNE ligne EN HAUT, puis le SCOREBOARD (résultats
     # — le tableau qu'on voit d'habitude au dépli) EN DESSOUS, visible dans la carte repliée. Badge = « Live ».
     _live_score_row = f'<div class="mc-livesc">{lscore}</div>' if (is_live and lscore) else ""
@@ -4982,7 +4998,8 @@ def _sport_row(r: dict) -> str:
             f'{_ticket}{ana}{linkshtml}')
     # TOUTES les cartes sont REPLIÉES au 1er chargement (y compris les directs) — pour le LIVE le pari + le
     # scoreboard sont visibles repliés ; on déplie au tap pour l'analyse. Fond « pick » uniforme.
-    return (f'<div class="row pick mc{" mc-islive" if is_live else ""}">{head}'
+    return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
+            f'{" mc-islive" if is_live else ""}">{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
 def _rows_by_day(rows: list) -> str:
