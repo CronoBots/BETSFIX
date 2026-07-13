@@ -1290,3 +1290,15 @@ appelé par `_track_provisional` quand pas de provisoire, + `reconcile_with_prog
 `settle_pending`) qui retire du suivi les non-réglés SANS provisoire affiché dans day_programme.
 Nettoyage immédiat : Atlanta Dream + 4 entrées périmées retirées ; reste = Minnesota (présent dans À
 venir). Info seule hors ROI, jamais un réglé (monotone). Selfcheck 0/0.
+
+## 2026-07-13 (7) — Cohérence suivi↔affichage bidirectionnelle + code_from_pick tolérant au pluriel
+Suite reproche user (capture À venir vs Stats) : Djurgården affiché en provisoire dans À venir mais
+ABSENT du suivi Stats (incohérence INVERSE de la précédente). Deux causes :
+1. `code_from_pick('Djurgården IF vainqueur', …, 'Djurgårdens IF', …)` renvoyait '' : « Djurgården »
+   (texte pari) ≠ « Djurgårdens » (nom Unibet, +s) -> `which()` trop strict -> pari « vainqueur » non
+   codable = non réglable ET non suivi. Fix : `which()` tolère le pluriel/accord par PRÉFIXE (≥5 lettres),
+   sous-chaîne d'abord ; ambiguïté 2-camps toujours "". Non-régression vérifiée (HCAP/DC/total intacts).
+2. `reconcile_with_programme` ne faisait que RETIRER. Rendu BIDIRECTIONNEL : AJOUTE aussi au suivi les
+   provisoires affichés mais pas encore suivis (via `record`, qui porte la dédup combiné/retenu/non-réglable).
+Résultat : suivi PENDING == provisoires AFFICHÉS (0 écart dans les 2 sens). Djurgården + Minnesota suivis.
+Info seule hors ROI, jamais un réglé (monotone). Selfcheck 0/0, live 200.

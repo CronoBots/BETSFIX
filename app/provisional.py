@@ -105,10 +105,14 @@ def drop_unsettled(match_id) -> bool:
 
 
 def reconcile_with_programme() -> int:
-    """COHÉRENCE Stats ↔ À venir (demande user 2026-07-13) : retire du suivi les provisoires NON réglés dont
-    le match est DANS le programme du jour mais SANS pari provisoire affiché (la ré-analyse l'a effacé, ou
-    c'est une jambe de combiné). Ne touche pas les matchs HORS programme (settle_pending les règle) ni les
-    réglés (monotone). Le suivi ne montre plus un pari que l'affichage a retiré. Renvoie le nb retiré."""
+    """COHÉRENCE Stats ↔ À venir BIDIRECTIONNELLE (demande user 2026-07-13) : le suivi = EXACTEMENT les
+    provisoires AFFICHÉS dans day_programme.
+      • RETIRE les provisoires non réglés dont le match est dans le programme SANS pari affiché (ré-analyse
+        qui a effacé le pari, jambe de combiné…).
+      • AJOUTE au suivi les provisoires AFFICHÉS mais pas encore suivis (ex. Djurgården visible en À venir
+        mais absent des stats) -> plus de « affiché mais pas suivi ».
+    Ne touche jamais un réglé (monotone) ni les matchs hors programme (settle_pending les règle). `record`
+    porte la dédup (combiné/retenu/non réglable). Renvoie le nb de changements."""
     import json
     path = os.path.join(_ROOT, "data", "day_programme.json")
     try:
@@ -116,19 +120,31 @@ def reconcile_with_programme() -> int:
             prog = json.load(f)
     except (OSError, ValueError):
         return 0
+    matches = prog.get("matches") or []
     # ids DANS le programme SANS provisoire affiché (ni pari publié) -> l'affichage ne montre RIEN pour eux
-    no_prov = {str(m.get("id") or "") for m in (prog.get("matches") or [])
+    no_prov = {str(m.get("id") or "") for m in matches
                if not (m.get("provisional") or {}).get("sel") and m.get("status") != "bet"}
     d = _load()
-    removed = 0
-    for mid in list(d.keys()):
+    changed = 0
+    for mid in list(d.keys()):                     # RETRAIT des non réglés que l'affichage ne montre plus
         p = d.get(mid)
         if isinstance(p, dict) and p.get("result") is None and mid in no_prov:
             d.pop(mid, None)
-            removed += 1
-    if removed:
+            changed += 1
+    if changed:
         _save(d)
-    return removed
+    tracked = set(_load().keys())
+    for m in matches:                              # AJOUT des provisoires affichés mais pas encore suivis
+        prov = m.get("provisional") or {}
+        mid = str(m.get("id") or "")
+        if not prov.get("sel") or m.get("status") == "bet" or mid in tracked:
+            continue
+        home, _, away = str(m.get("name", "")).partition(" - ")
+        record(m.get("sport"), mid, home, away, m.get("start", ""), m.get("name", ""),
+               m.get("comp", ""), prov.get("sel"), prov.get("cote"))   # dédup + non-réglable gérés dans record
+        if mid in _load():                         # record a bien ajouté (ni combiné/retenu ni non réglable)
+            changed += 1
+    return changed
 
 
 def settle_pending() -> int:

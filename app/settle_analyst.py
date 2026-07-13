@@ -457,8 +457,17 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     a = [w for w in a_all if w not in shared] or a_all
 
     def which():
-        hin = any(w in t_side for w in h)
-        ain = any(w in t_side for w in a)
+        # Match d'équipe : sous-chaîne d'abord, PUIS tolérance pluriel/accord par PRÉFIXE (≥5 lettres) —
+        # « Djurgårdens » (nom Unibet) vs « Djurgården » (texte du pari) faisait échouer le codage -> pari
+        # « vainqueur » non réglable ET non suivi (bug 2026-07-13). L'ambiguïté (2 camps) reste sûre : "".
+        _words = re.findall(r"[a-zà-ÿ]+", t_side)
+
+        def _hit(toks):
+            if any(w in t_side for w in toks):
+                return True
+            return any(len(w) >= 5 and len(x) >= 5 and (x.startswith(w) or w.startswith(x))
+                       for w in toks for x in _words)
+        hin, ain = _hit(h), _hit(a)
         return "HOME" if (hin and not ain) else ("AWAY" if (ain and not hin) else "")
 
     def side(kind, yesno=""):
