@@ -1266,3 +1266,14 @@ gauche + cote droite, ré-analyse sous la barre ; repli auto sur l'ancien pied s
 CSS `.mc-verdict/.mc-vc/.mc-vbar`. Appliqué aux DEUX cartes (provisoire `_programme_items` + combiné du
 jour `_combo_tg_card`). Non retenus par le user : marché en clair (« -9.5 » → « gagne de 10 pts+ ») et
 puce indicatif/jour. Purement AFFICHAGE — ROI/stats/calibration intacts. Live HTTP 200.
+
+## 2026-07-13 (5) — Carte premium : marché en clair + confiance qualifiée + finitions
+Demande user (« optimise encore, clair/intuitif/professionnel/premium », pleins pouvoirs). Ajouts au
+rendu des cartes provisoire + combiné :
+- `web._plain_market(sel, sport)` : traduit le jargon SOUS la sélection (« -9.5 » → « gagne de 10 points
+  ou plus » ; handicap +, totaux ; adapté foot/tennis/basket). '' si déjà clair (vainqueur, DC « ou nul »,
+  set) → zéro bruit. Testé sur 8 cas.
+- `web._conf_word(p)` : qualificatif (Faible <55 / Modérée 55-67 / Élevée 68-79 / Très élevée ≥80), affiché
+  avant le % dans la bande verdict → niveau lu sur 3 canaux (mot + couleur + barre).
+- Finitions CSS : barre creusée (ombre interne) + fill halo, libellés petites capitales espacées, rythme.
+Purement AFFICHAGE (ROI/stats/calibration intacts). Live HTTP 200. Maquette avant/après régénérée.

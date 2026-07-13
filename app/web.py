@@ -1672,12 +1672,20 @@ CSS = """
   .mc-verdict{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-top:14px;
        padding-top:13px;border-top:1px solid var(--border)}
   .mc-vc{flex:1;min-width:0}
-  .mc-vc-lab{display:flex;align-items:baseline;justify-content:space-between;font-size:11px;font-weight:700;
-       color:#90a4be;letter-spacing:.02em;margin-bottom:6px}
-  .mc-vc-pct{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-  .mc-vbar{height:7px;border-radius:99px;background:#20222a;overflow:hidden;position:relative}
-  .mc-vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:6px}
-  .mc-vc-foot{margin-top:7px;font-size:10px;font-weight:600;color:var(--muted)}
+  .mc-vc-lab{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:10.5px;
+       font-weight:800;color:#8496ac;letter-spacing:.09em;margin-bottom:7px}
+  .mc-vc-pct{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.01em;
+       white-space:nowrap;flex:none}
+  .mc-vc-word{font-size:11px;font-weight:700;letter-spacing:.01em;opacity:.9;margin-right:6px}
+  .mc-vbar{height:7px;border-radius:99px;background:#20222a;overflow:hidden;position:relative;
+       box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
+  .mc-vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:7px;
+       box-shadow:0 0 10px rgba(255,255,255,.12)}
+  .mc-vc-foot{margin-top:8px;font-size:10px;font-weight:600;color:var(--muted)}
+  /* Traduction EN CLAIR du marché, sous la sélection (demande user 2026-07-13) — discrète, une flèche cyan. */
+  .mc-gloss{margin-top:5px;font-size:12.5px;color:#8fa2b8;font-weight:600;line-height:1.35}
+  .mc-gloss b{color:#c4d2e2;font-weight:700}
+  .mc-gloss .ar{color:var(--accent);font-weight:800;margin-right:5px}
   /* Variante OR de la carte Telegram : le COMBINÉ DU JOUR (demande user 2026-07-12) — bordure/lueur dorées,
      sport + cote en or, présenté comme les provisoires mais en jaune. */
   .row.mc.mc-tg-gold{border-color:rgba(246,197,74,.5);
@@ -3418,10 +3426,49 @@ def _conf_hue(p: int) -> tuple:
     return ("#a6e22e", "linear-gradient(90deg,#6f9e1f,#a6e22e)")
 
 
+def _conf_word(p: int) -> str:
+    """Qualificatif de confiance (demande user 2026-07-13, « intuitif ») : un mot vaut mieux qu'un chiffre
+    seul -> le niveau est lu même sans interpréter le %. Aligné sur les seuils couleur."""
+    if p < 55:
+        return "Faible"
+    if p < 68:
+        return "Modérée"
+    if p < 80:
+        return "Élevée"
+    return "Très élevée"
+
+
+def _plain_market(sel: str, sport: str) -> str:
+    """Traduction EN CLAIR d'un pari (demande user 2026-07-13, « clair/intuitif ») : le jargon devient une
+    phrase lisible SOUS la sélection. '' si le marché est déjà clair (vainqueur, set, double chance « ou
+    nul »…) ou non reconnu -> jamais de glose approximative. Purement AFFICHAGE."""
+    import math
+    s = (sel or "").strip()
+    if not s:
+        return ""
+    sl = s.lower()
+    unit = "buts" if sport == "foot" else ("jeux" if sport == "tennis" else "points")
+    # HANDICAP signé en fin de libellé : « <équipe> -9.5 » (gagne de 10+) / « +9.5 » (ne perd pas de +9)
+    m = re.search(r"([+\-−–])\s?(\d+(?:[.,]\d+)?)\s*$", s)
+    if m:
+        val = float(m.group(2).replace(",", "."))
+        if m.group(1) in ("-", "−", "–"):
+            return f"gagne de {math.ceil(val)} {unit} ou plus"
+        return f"ne perd pas de plus de {math.floor(val)} {unit} (ou l'emporte)"
+    # TOTAL du match « plus/moins de X.5 (points/buts) » -> nombre entier lisible
+    mt = re.search(r"\b(plus|moins) de (\d+(?:[.,]\d+)?)", sl)
+    if mt and ("total" in sl or "points" in sl or "buts" in sl):
+        val = float(mt.group(2).replace(",", "."))
+        sens = "plus" if mt.group(1) == "plus" else "moins"
+        n = math.floor(val) if sens == "plus" else math.ceil(val)
+        return f"{sens} de {n} {unit} au total (les 2 équipes)"
+    return ""
+
+
 def _verdict_strip(pconf, cote_html: str, foot_txt: str = "") -> str:
-    """Bande VERDICT (demande user 2026-07-13) : confiance (barre + % coloré par niveau) À GAUCHE, cote À
-    DROITE -> les 2 chiffres clés lus ENSEMBLE. Repli sur l'ancien pied simple (reana + cote) si aucune
-    confiance. `foot_txt` = la mention de ré-analyse (glissée SOUS la barre). Purement AFFICHAGE."""
+    """Bande VERDICT (demande user 2026-07-13) : confiance (qualificatif + % coloré par niveau + barre) À
+    GAUCHE, cote À DROITE -> les 2 chiffres clés lus ENSEMBLE. Repli sur l'ancien pied simple (reana +
+    cote) si aucune confiance. `foot_txt` = la mention de ré-analyse (sous la barre). Purement AFFICHAGE."""
     try:
         p = int(pconf)
     except (TypeError, ValueError):
@@ -3434,7 +3481,8 @@ def _verdict_strip(pconf, cote_html: str, foot_txt: str = "") -> str:
     return (
         '<div class="mc-verdict"><div class="mc-vc">'
         f'<div class="mc-vc-lab"><span>CONFIANCE</span>'
-        f'<span class="mc-vc-pct" style="color:{col}">{p}%</span></div>'
+        f'<span class="mc-vc-pct" style="color:{col}">'
+        f'<span class="mc-vc-word">{_conf_word(p)}</span>{p}%</span></div>'
         f'<div class="mc-vbar"><i style="width:{min(p, 100)}%;background:{grad}"></i></div>'
         f'{_foot}</div>{cote_html}</div>')
 
@@ -3617,10 +3665,14 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # Court extrait d'analyse (barre cyan) SOUS le pari, comme la carte Telegram (demande user).
             _why = _prov_why_snippet(sp, prov.get("fid"))
             _note = f'<div class="mc-note">{html.escape(_why)}</div>' if _why else ""
+            # Marché EN CLAIR sous la sélection (demande user 2026-07-13) : « -9.5 » -> « gagne de 10 pts+ ».
+            _gl = _plain_market(prov_sel, sp)
+            _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{html.escape(_gl)}</div>' if _gl else ""
             # Bande VERDICT (demande user 2026-07-13) : confiance colorée (barre + %) + cote groupées, la
             # ré-analyse glissée sous la barre. Repli auto sur l'ancien pied si pas de confiance.
             sub = ('<div class="mc-div"></div>' + _prov_tag
                    + f'<div class="mc-pick">{html.escape(prov_sel)}</div>'
+                   + _gloss
                    + _note
                    + _verdict_strip(_pconf, _cote_big, f'🔄 {_reana}'))
         else:
