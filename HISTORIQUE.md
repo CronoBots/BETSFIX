@@ -1320,3 +1320,16 @@ l'extrait faisait doublon avec l'analyse complète une fois la carte ouverte. Re
 (`_programme_items`). La carte repliée = pick gras + marché en clair + bande verdict (épurée) ; l'analyse
 COMPLÈTE reste dans le corps (mc-ana / render), affichée seulement au dépli. Laissé intact : la SYNTHÈSE
 du combiné du jour (`_combo_tg_card`, mc-note) — carte NON dépliable, c'est sa seule description. Live 200.
+
+## 2026-07-13 (10) — Carte dépliée refondue : l'analyse (raisonnement) enfin visible
+Reproches user : « je ne vois pas les analyses une fois ouvert » + « réorganise complètement la carte
+dépliée ». Cause : `analyses._structured` NE rendait PAS la section « 🎯 Le pari à jouer » (1400+ car. de
+raisonnement) et repliait les faits dans un `<details>` « ℹ️ Informations ». Refonte :
+- `_structured` réécrit -> sections premium empilées : **🎯 Pourquoi ce pari** (raisonnement, en 1er, section
+  accentuée bleue ; 1re puce « **sél @cote :** » retirée car redondante avec l'en-tête) · **📋 Les faits**
+  (VISIBLES, plus repliés) · **💰 Mise conseillée** (encadré doré) · séries/tendances à la suite.
+- CSS `.da-sec/.da-sec-why/.da-sec-mise` (cartes de section).
+- `_sport_row` : carte PREMIUM (pari à venir déjà en tête) -> ticket de pari REDONDANT retiré du corps ;
+  ordre corps = Cotes & chances (barres) → ANALYSE → sources en bas.
+Vaut aussi pour les cartes provisoires (même `to_html`). Frag 2139->3888 car. (raisonnement inclus).
+Selfcheck 0/0, live 200. Preview artifact publiée.

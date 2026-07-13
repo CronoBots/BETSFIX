@@ -741,42 +741,45 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
 
 
 def _structured(md: str) -> str | None:
-    """Rendu gabarit analyste, ou None si le format ne correspond pas (-> repli générique)."""
+    """Rendu gabarit analyste (carte DÉPLIÉE), ou None si le format ne correspond pas (-> repli générique).
+    REFONTE 2026-07-13 (demande user « réorganise complètement ») : l'analyse déployée montre enfin le
+    RAISONNEMENT (« 🎯 Le pari à jouer », 1400+ car. jusqu'ici masqués) EN PREMIER et EN CLAIR, puis les
+    FAITS (visibles, plus repliés dans « Informations »), la MISE, et les séries/tendances. Sections
+    premium (cartes `da-sec`)."""
     secs = _sections(md)
-    verdict = _find(secs, "🎯", "Verdict")
+    verdict = _find(secs, "🎯", "Le pari", "pari à jouer", "Verdict")
     bets = _find(secs, "📊", "Paris class")
     if not verdict and not bets:
         return None
     faits = _find(secs, "📋", "Les faits", "faits")
     mise = _find(secs, "💰", "Mise")
+    combo = _find(secs, "🎲", "Combiné", "combiné")     # affiché dans SON cadre -> pas ici (doublon)
+    prov = _find(secs, "🧪", "provisoire", "Provisoire")  # bloc provisoire dédié -> pas ici (doublon)
     parts = []
-    # Le VERDICT n'est PLUS rendu ici : son commentaire est déplacé SOUS chaque pari (dans la carte,
-    # cf. analyses._verdict_notes + _bets_table) et le résidu (à éviter / mise) suit les paris. Les
-    # « paris à jouer » ne sont pas non plus rendus ici (ils sont SUR la carte). `verdict`/`bets`/`mise`
-    # restent dans `known` pour ne pas être re-rendus par la boucle « sections imprévues » ci-dessous.
-    # « À éviter / SKIP » RETIRÉ (demande utilisateur). Cadre « Informations » désormais PLIABLE :
-    # <details>/<summary> (le CSS `.da-faits>summary` gère déjà le chevron + la rotation au toggle ;
-    # stopPropagation pour que le clic n'affecte pas l'ouverture/fermeture de la carte).
+
+    def _sec(icon_title, body_html, cls=""):
+        return (f'<section class="da-sec{cls}">'
+                f'<div class="da-h da-h2">{icon_title}</div>{body_html}</section>')
+
+    # 1) POURQUOI CE PARI — le cœur de l'analyse (raisonnement de l'analyste), VISIBLE en premier. On retire
+    #    la 1re puce « **<sél> @cote :** » (redondante avec le pari déjà affiché en tête de carte).
+    if verdict:
+        _why = re.sub(r"^\s*[-*]\s*\*\*[^\n*]+?@[\d.,]+\s*:\*\*\s*", "- ", verdict, count=1)
+        parts.append(_sec("🎯 Pourquoi ce pari", _render_blocks(_why), " da-sec-why"))
+    # 2) LES FAITS — désormais VISIBLES (plus de <details> replié « Informations »).
     if faits:
-        inner = f'<div class="da-faits-b">{_render_blocks(faits)}</div>'
-        parts.append('<details class="da-faits">'   # RÉDUIT par défaut (demande user) : déplier au tap
-                     '<summary onclick="event.stopPropagation()">ℹ️ Informations</summary>'
-                     f'{inner}</details>')
-    # Section « 🎲 Combiné » : NON rendue ici -> elle est DÉJÀ affichée dans son propre cadre (combo_html)
-    # sur la carte. La re-rendre dans l'analyse = doublon (le détail du combiné doit être dans le cadre
-    # du combiné, pas répété). On l'écarte (et la ligne `COMBO:` brute aussi).
-    combo = _find(secs, "🎲", "Combiné", "combiné")
-    # Section « 🧪 Pari provisoire » : NON rendue ici -> elle est affichée par `reasoning_html` (bloc du
-    # provisoire) uniquement sur les cartes provisoires. La re-rendre ici = doublon sur toutes les cartes.
-    prov = _find(secs, "🧪", "provisoire", "Provisoire")
-    # toute autre section non prévue : rendue à la suite (sécurité, ne rien perdre)
+        parts.append(_sec("📋 Les faits", _render_blocks(faits)))
+    # 3) MISE conseillée (Kelly) — si présente.
+    if mise:
+        parts.append(_sec("💰 Mise conseillée", _render_blocks(mise), " da-sec-mise"))
+    # 4) Toute autre section (séries/tendances Sportradar…) : rendue à la suite (ne rien perdre).
     known = {"", verdict, bets, faits, mise, combo, prov}
     for title, b in secs.items():
-        if b and b not in known and title not in ("", ):
+        if b and b not in known and title != "":
             if any(k in title or k in title.lower()
                    for k in ("Verdict", "Paris", "faits", "Mise", "🎲", "ombiné", "🧪", "rovisoire")):
                 continue
-            parts.append(f'<div class="da-h da-h2">{_inline(title)}</div>{_render_blocks(b)}')
+            parts.append(_sec(_inline(title), _render_blocks(b)))
     return '<div class="da">' + "".join(parts) + "</div>"
 
 

@@ -1222,6 +1222,19 @@ CSS = """
   .da-h{font-weight:800;color:#e8eaed;margin:13px 0 5px}
   .da-h1{font-size:15px} .da-h2{font-size:13.5px} .da-h3{font-size:12.5px;color:#cfe0f5}
   .da-p{margin:6px 0}
+  /* Carte DÉPLIÉE refondue (demande user 2026-07-13) : sections premium empilées, en-tête à petite capitale.
+     « Pourquoi ce pari » = section accentuée (cœur de l'analyse) ; faits VISIBLES ; mise discrète. */
+  .da-sec{margin:12px 0;padding:12px 13px;border-radius:14px;background:rgba(255,255,255,.022);
+       border:1px solid var(--border)}
+  .da-sec:first-child{margin-top:2px}
+  .da-sec>.da-h:first-child{margin-top:0;display:flex;align-items:center;gap:7px;font-size:12px;
+       letter-spacing:.02em;color:#cfe0f5}
+  .da-sec .da-p:first-of-type{margin-top:0}
+  .da-sec-why{background:linear-gradient(180deg,rgba(34,184,255,.07),rgba(34,184,255,.012));
+       border-color:rgba(34,184,255,.24)}
+  .da-sec-why>.da-h:first-child{color:#8fd0ff}
+  .da-sec-mise{background:var(--gold-bg);border-color:var(--gold-bd)}
+  .da-sec-mise>.da-h:first-child{color:var(--gold)}
   .da-ul{margin:5px 0;padding-left:17px} .da-ul li{margin:3px 0}
   .da-quote{border-left:3px solid var(--gold);background:var(--gold-bg);padding:7px 10px;
        margin:9px 0;border-radius:6px;font-size:12px;color:var(--gold)}
@@ -4960,8 +4973,13 @@ def _sport_row(r: dict) -> str:
         sep = "&" if "?" in url else "?"
         ana = f'<div class="mc-ana" data-ana="{url}{sep}frag=1{pkp}"><div class="exp"></div></div>'
     # LIVE : le scoreboard est déjà montré dans la carte repliée (head) -> on ne le REMET pas dans le corps.
+    # CARTE PREMIUM (pari à venir déjà présenté en tête) : on RETIRE le ticket de pari redondant du corps
+    # (demande user 2026-07-13) -> le corps = Cotes & chances (barres) puis l'ANALYSE (raisonnement + faits)
+    # puis les sources. Les cas live/terminé/combiné gardent le ticket (résultats/score par pari).
+    _ticket = "" if _premium else f'{bets_sep}{betshtml}'
+    # Ordre : (scoreboard) · Cotes & chances (barres) · TICKET (si non premium) · ANALYSE · sources en bas.
     body = (f'{"" if is_live else lscore}{"" if is_live else (r.get("sub", "") + probviz)}'
-            f'{bets_sep}{betshtml}{linkshtml}{ana}')
+            f'{_ticket}{ana}{linkshtml}')
     # TOUTES les cartes sont REPLIÉES au 1er chargement (y compris les directs) — pour le LIVE le pari + le
     # scoreboard sont visibles repliés ; on déplie au tap pour l'analyse. Fond « pick » uniforme.
     return (f'<div class="row pick mc{" mc-islive" if is_live else ""}">{head}'
