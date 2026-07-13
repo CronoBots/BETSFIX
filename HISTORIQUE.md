@@ -1256,3 +1256,13 @@ provisoire — le doublon « même erreur à plusieurs endroits » qu'on voulait
 (paires home/away) + dédup PAR NOM via `_prog_pair` (robuste à l'écart d'id Unibet↔sidecar), en plus de
 l'id. S'applique à l'accueil ET aux onglets sport (tous via `_programme_items`). Vérifié : Atlanta Dream
 n'est plus QUE dans la carte combiné.
+
+## 2026-07-13 (4) — Carte plus lisible : confiance colorée + verdict groupé
+Demande user (capture carte provisoire WNBA) : rendre la carte plus lisible/intuitive. Maquette
+avant/après proposée (4 réglages) ; user a retenu 2 via AskUserQuestion : (1) confiance colorée
+(barre + % par niveau) et (2) verdict groupé (confiance ↔ cote sur une même bande). Implémenté :
+helpers `web._conf_hue` (rouge <55 / ambre 55-67 / vert ≥68) + `web._verdict_strip` (bande confiance
+gauche + cote droite, ré-analyse sous la barre ; repli auto sur l'ancien pied si pas de confiance).
+CSS `.mc-verdict/.mc-vc/.mc-vbar`. Appliqué aux DEUX cartes (provisoire `_programme_items` + combiné du
+jour `_combo_tg_card`). Non retenus par le user : marché en clair (« -9.5 » → « gagne de 10 pts+ ») et
+puce indicatif/jour. Purement AFFICHAGE — ROI/stats/calibration intacts. Live HTTP 200.

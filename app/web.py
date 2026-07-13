@@ -1667,6 +1667,17 @@ CSS = """
   .mc-cote{flex:none;text-align:right;line-height:1}
   .mc-cote-l{display:block;font-size:9.5px;font-weight:800;letter-spacing:.13em;color:#90a4be;margin-bottom:3px}
   .mc-cote-v{font-size:30px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
+  /* Bande VERDICT (demande user 2026-07-13) : confiance (barre + % coloré par niveau) À GAUCHE, cote À
+     DROITE -> les 2 chiffres clés se lisent ENSEMBLE ; la couleur encode le risque sans avoir à lire. */
+  .mc-verdict{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-top:14px;
+       padding-top:13px;border-top:1px solid var(--border)}
+  .mc-vc{flex:1;min-width:0}
+  .mc-vc-lab{display:flex;align-items:baseline;justify-content:space-between;font-size:11px;font-weight:700;
+       color:#90a4be;letter-spacing:.02em;margin-bottom:6px}
+  .mc-vc-pct{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .mc-vbar{height:7px;border-radius:99px;background:#20222a;overflow:hidden;position:relative}
+  .mc-vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:6px}
+  .mc-vc-foot{margin-top:7px;font-size:10px;font-weight:600;color:var(--muted)}
   /* Variante OR de la carte Telegram : le COMBINÉ DU JOUR (demande user 2026-07-12) — bordure/lueur dorées,
      sport + cote en or, présenté comme les provisoires mais en jaune. */
   .row.mc.mc-tg-gold{border-color:rgba(246,197,74,.5);
@@ -3397,6 +3408,37 @@ def _prog_pair(home, away) -> frozenset:
     return frozenset(x for x in (_n(home), _n(away)) if x)
 
 
+def _conf_hue(p: int) -> tuple:
+    """(couleur du %, dégradé de la barre) selon le NIVEAU de confiance — le lecteur voit le risque sans
+    lire : rouge < 55, ambre 55-67, vert ≥ 68 (mêmes seuils que la sémantique value/abstention)."""
+    if p < 55:
+        return ("#ff6b6b", "linear-gradient(90deg,#b23b3b,#ff6b6b)")
+    if p < 68:
+        return ("#f6c54a", "linear-gradient(90deg,#c9902f,#f6c54a)")
+    return ("#a6e22e", "linear-gradient(90deg,#6f9e1f,#a6e22e)")
+
+
+def _verdict_strip(pconf, cote_html: str, foot_txt: str = "") -> str:
+    """Bande VERDICT (demande user 2026-07-13) : confiance (barre + % coloré par niveau) À GAUCHE, cote À
+    DROITE -> les 2 chiffres clés lus ENSEMBLE. Repli sur l'ancien pied simple (reana + cote) si aucune
+    confiance. `foot_txt` = la mention de ré-analyse (glissée SOUS la barre). Purement AFFICHAGE."""
+    try:
+        p = int(pconf)
+    except (TypeError, ValueError):
+        p = 0
+    if not p:
+        return (f'<div class="mc-foot"><span class="mc-reana mc-reana-prov">{foot_txt}</span>{cote_html}</div>'
+                if (foot_txt or cote_html) else "")
+    col, grad = _conf_hue(p)
+    _foot = f'<div class="mc-vc-foot">{foot_txt}</div>' if foot_txt else ""
+    return (
+        '<div class="mc-verdict"><div class="mc-vc">'
+        f'<div class="mc-vc-lab"><span>CONFIANCE</span>'
+        f'<span class="mc-vc-pct" style="color:{col}">{p}%</span></div>'
+        f'<div class="mc-vbar"><i style="width:{min(p, 100)}%;background:{grad}"></i></div>'
+        f'{_foot}</div>{cote_html}</div>')
+
+
 def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:
     """Extrait PROPRE (phrases COMPLÈTES, majuscule initiale) du raisonnement du pari PROVISOIRE — pour la
     carte repliée style Telegram (analyse à barre cyan sous le pari, demande user 2026-07-12). Source :
@@ -3565,8 +3607,6 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
                          f'<span class="mc-cote-v">{_cote:g}</span></span>'
                          if isinstance(_cote, (int, float)) and _cote else "")
-            _conf_txt = (f'<div class="mc-conf">Confiance <b>{_pconf}%</b></div>'
-                         if isinstance(_pconf, (int, float)) and _pconf else "")
             # Ré-analyse : heure seule, SANS « · peut changer » (demande user 2026-07-12).
             _reana = ("pas de value détectée" if now >= reanalyse
                       else f"Ré-analyse à {fmt_local(reanalyse, with_date=False)}")
@@ -3577,12 +3617,12 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # Court extrait d'analyse (barre cyan) SOUS le pari, comme la carte Telegram (demande user).
             _why = _prov_why_snippet(sp, prov.get("fid"))
             _note = f'<div class="mc-note">{html.escape(_why)}</div>' if _why else ""
+            # Bande VERDICT (demande user 2026-07-13) : confiance colorée (barre + %) + cote groupées, la
+            # ré-analyse glissée sous la barre. Repli auto sur l'ancien pied si pas de confiance.
             sub = ('<div class="mc-div"></div>' + _prov_tag
                    + f'<div class="mc-pick">{html.escape(prov_sel)}</div>'
                    + _note
-                   + _conf_txt
-                   + f'<div class="mc-foot"><span class="mc-reana mc-reana-prov">🔄 {_reana}</span>'
-                   + _cote_big + '</div>')
+                   + _verdict_strip(_pconf, _cote_big, f'🔄 {_reana}'))
         else:
             if m.get("status") == "abstained" and now >= reanalyse:
                 bic, btxt = "➖", "Pas de value"                              # échéance passée -> quasi-final
@@ -3806,7 +3846,6 @@ def _combo_tg_card() -> str:
                  f'<span class="mc-cote-v">{_cote:g}</span></span>'
                  if isinstance(_cote, (int, float)) and _cote else "")
     _pconf = round((cb.get("prob") or 0) * 100)
-    _conf = f'<div class="mc-conf">Confiance <b>{_pconf}%</b></div>' if _pconf else ""
     # SYNTHÈSE (corrélation des jambes) en barre cyan, EN TÊTE — comme les combinés publiés sur Telegram
     # (synthèse d'abord, puis chaque jambe avec SON analyse). Nettoyée + plafonnée.
     _syn = _clean_cap(cb.get("synth"), 210)
@@ -3822,10 +3861,8 @@ def _combo_tg_card() -> str:
         '<div class="mc-div"></div>'
         + _note                                            # synthèse EN TÊTE (présentation Telegram)
         + f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
-        + _conf
-        + '<div class="mc-foot"><span class="mc-reana mc-reana-prov">🧪 Info seule · hors ROI</span>'
-        + _cote_big + '</div>'
-        '</div></div></div>')
+        + _verdict_strip(_pconf, _cote_big, '🧪 Info seule · hors ROI')
+        + '</div></div></div>')
 
 
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
