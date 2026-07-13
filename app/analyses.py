@@ -1770,6 +1770,26 @@ def stats_full(since_days: int | None = None) -> dict:
             by_sport.setdefault(sport, []).append(ev)
             if is_new:
                 since_ev.append(ev)
+    # COMBINÉS MULTISPORT DU JOUR AU ROI (décision user 2026-07-14 : « il faut les compter dans le ROI ») :
+    # 1 pari/jour, mise plate 1 u, cote effective. Injectés dans overall + since_change (feature récente =
+    # nouveau système), triés par date dans _agg_bets. Frozen au règlement -> compteur monotone. Restent
+    # AUSSI dans leur suivi dédié (combo_daily.stats). `cutoff` (vue N jours) filtre par date du combiné.
+    try:
+        from app import combo_daily as _cdroi
+        for _cev in _cdroi.roi_events():
+            if cutoff is not None:
+                try:
+                    _cdt = datetime.fromisoformat((_cev[0] or "") + "T00:00:00+00:00")
+                except ValueError:
+                    _cdt = None
+                if _cdt is None or _cdt < cutoff:
+                    continue
+            all_ev.append(_cev)
+            since_ev.append(_cev)
+            if _cev[1] in ("won", "lost", "push"):
+                combo_form.append((_cev[0], _cev[1], "combiné"))
+    except Exception:
+        pass
     out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
            "since_change": _agg_bets(since_ev),        # nouveau système (s'enrichit au fil des scans)
            "by_sport": {sport: _agg_bets(evs) for sport, evs in by_sport.items()},

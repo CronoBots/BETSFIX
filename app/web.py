@@ -3939,7 +3939,7 @@ def _combo_tg_card() -> str:
         '<div class="mc-div"></div>'
         + _note                                            # synthèse EN TÊTE (présentation Telegram)
         + f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
-        + _verdict_strip(_pconf, _cote_big, '🧪 Info seule · hors ROI')
+        + _verdict_strip(_pconf, _cote_big, '🎯 Compté au ROI · mise 1 u')
         + '</div></div></div>')
 
 
@@ -3985,16 +3985,17 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     _prog = [it for it in _programme_items(_paj, framed=True) if not it.get("_live")]
     prov = sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
     todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
-    combo_daily = _combo_tg_card()               # carte du combiné du jour (style Telegram OR, hors ROI) ou ''
+    combo_daily = _combo_tg_card()               # carte du combiné du jour (style OR) — COMPTÉ AU ROI (2026-07-14)
     has_any = bool(play or prov or todo or combo_daily)
     _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir l\'<b>indicatif</b> ci-dessous.'
                    ) if has_any else None
     out = [
-        # ZONE 1 — À JOUER (ROI). Montrée même vide (état honnête) dès qu'il y a du contenu ailleurs.
-        _zone("play", "À jouer", "comptés au ROI", len(play), _rows_by_day(play), empty=_empty_play),
-        # ZONE 2 — INDICATIF (hors ROI) : combiné du jour puis provisoires.
-        _zone("indic", "Indicatif", "hors ROI", len(prov) + (1 if combo_daily else 0),
-              combo_daily + _rows_by_day(prov)),
+        # ZONE 1 — À JOUER (ROI) : le COMBINÉ DU JOUR (désormais compté au ROI, décision user 2026-07-14) en
+        # tête, puis les simples retenus. Montrée même vide (état honnête) dès qu'il y a du contenu ailleurs.
+        _zone("play", "À jouer", "comptés au ROI", len(play) + (1 if combo_daily else 0),
+              combo_daily + _rows_by_day(play), empty=_empty_play),
+        # ZONE 2 — INDICATIF (hors ROI) : provisoires.
+        _zone("indic", "Indicatif", "hors ROI", len(prov), _rows_by_day(prov)),
         # ZONE 3 — À ANALYSER (matchs pas encore analysés) : discrète, en bas.
         _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo)),
     ]

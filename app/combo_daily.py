@@ -302,7 +302,7 @@ def telegram_text(cb: dict) -> str:
         out.append(f"{emo.get(l.get('sport'), '•')} <b>{_h.escape(_s)}</b> "
                    f"@{l.get('cote')}")
         out.append(f"   <i>{_h.escape(str(l.get('name') or ''))}</i>")
-    out += ["", "ℹ️ <i>Info seule (hors ROI) — les paris les plus probables du jour, à titre indicatif.</i>"]
+    out += ["", "🎯 <i>Compté au ROI (mise 1 u) — les paris les plus probables du jour.</i>"]
     return "\n".join(out)
 
 
@@ -428,6 +428,26 @@ def entries(d: dict | None = None) -> list:
     d = _load() if d is None else d
     out = [cb for cb in d.values() if isinstance(cb, dict) and cb.get("legs")]
     out.sort(key=lambda x: x.get("date") or "", reverse=True)
+    return out
+
+
+def roi_events(d: dict | None = None) -> list:
+    """Événements ROI des combinés du jour RÉGLÉS (demande user 2026-07-14 : « compter les combinés
+    multisport du jour dans le ROI ») -> [(date, result, cote_effective, details)] injectable dans
+    `analyses.stats_full` (courbe/ROI/réussite). 1 pari/jour, mise plate 1 u. `void` = neutre -> exclu.
+    Cote effective d'un gagnant = produit des jambes GAGNÉES (push/void retirées), cohérent avec
+    `_combo_result_profit` (profit + 1). Frozen dès le règlement -> compteur MONOTONE."""
+    d = _load() if d is None else d
+    out = []
+    for cb in d.values():
+        if not isinstance(cb, dict) or cb.get("result") not in ("won", "lost"):
+            continue
+        r = cb["result"]
+        cote = (_combo_result_profit(cb) + 1) if r == "won" else (cb.get("cote") or 1.0)
+        n = len(cb.get("legs") or [])
+        out.append((cb.get("date") or "", r, cote,
+                    {"name": f"Combiné du jour ({n} jambes)", "sel": "multisport",
+                     "sport": "combiné", "combo_daily": True}))
     return out
 
 

@@ -638,10 +638,10 @@ def _combo_daily_card() -> str:
                 if len(_eqc) >= 3 else "")
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Combiné du jour '
-        '<span>info seule · hors ROI</span></div>'
+        '<span>compté au ROI</span></div>'
         '<div class="sx-data-note">UN combiné multisport par jour reprenant les paris <b>les plus '
         'probables</b> de tous les matchs analysés (cote ≥ 1.9, taux de réussite maximal). Mélange sports '
-        'et marchés. Mesuré à titre indicatif : <b>ne compte PAS</b> dans le ROI réel (mise à plat 1 u).</div>'
+        'et marchés. <b>Compté au ROI</b> (mise à plat 1 u) — décision 2026-07-14. Ce bloc en donne le détail.</div>'
         + _cur_html +
         '<div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>jours suivis</span></div>'
@@ -649,7 +649,7 @@ def _combo_daily_card() -> str:
         f'<div class="sx-kpi"><b>{s.get("pending", 0)}</b><span>en attente</span></div>'
         '</div><div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{"—" if _hit is None else str(_hit) + "%"}</b><span>réussite</span></div>'
-        f'<div class="sx-kpi{_roicls}"><b>{_roi_txt}</b><span>ROI (info)</span></div>'
+        f'<div class="sx-kpi{_roicls}"><b>{_roi_txt}</b><span>ROI combiné</span></div>'
         f'<div class="sx-kpi"><b>{s.get("avg_cote") or "—"}</b><span>cote moyenne</span></div>'
         '</div>'
         + _graph_c + _hist_html + '</div>')

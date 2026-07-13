@@ -1375,3 +1375,15 @@ qui a parié voit son pari disparaître = effrayant. Solution « pari publié = 
 - Itabaiana : `published_bet` restauré @1.52 (prix réel de la capture user, perdu à l'écrasement) -> affiche
   1.52 + mention. Non-régression : un pari sans mouvement de cote reste inchangé (Ceará 1.58, pas de mention).
 Purement affichage + gel data (published_bet). Live 200, selfcheck 0/0.
+
+## 2026-07-14 (3) — Combiné multisport DU JOUR compté au ROI (décision explicite user)
+Jusqu'ici « info seule, hors ROI » (mémoire : jamais compté sans décision explicite). Décision prise :
+- `combo_daily.roi_events()` : combinés du jour RÉGLÉS (won/lost ; void neutre exclu) -> (date, result,
+  cote_effective, details), 1 pari/jour, mise 1 u.
+- `analyses.stats_full` : injecte ces événements dans `overall` + `since_change` (+ `combo_form`), triés
+  par date. Frozen au règlement -> monotone. Restent AUSSI dans leur suivi dédié.
+- Selfcheck `stat_monotonic` porte sur les `stat_bet` FIGÉS (112), pas sur l'affichage -> non impacté
+  (affichés au ROI 107->110, sous le filigrane). 3 combinés réglés ajoutés (+3.2u, tous gagnés).
+- Libellés MAJ : carte accueil déplacée « Indicatif · hors ROI » -> « À jouer · comptés au ROI » (en tête) ;
+  pied carte « 🎯 Compté au ROI · mise 1 u » ; Telegram idem ; carte Stats « compté au ROI »/« ROI combiné ».
+Live 200, selfcheck 0/0.
