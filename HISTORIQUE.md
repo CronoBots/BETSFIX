@@ -1312,3 +1312,11 @@ confiance colorée + cote). Dans `web._sport_row`, seul le contenu `mc-sub` chan
 abstention gardent leur affichage adapté (résultat, score, compact). La confiance affichée = CALIBRÉE
 (nouveau `retained_bet(...).cprob`) pour coller au tableau déplié. Cadre normal conservé (« À jouer ·
 comptés au ROI » ≠ provisoires « Indicatif · hors ROI »). Selfcheck 0/0, live 200.
+
+## 2026-07-13 (9) — Analyse : uniquement au dépli (retrait de l'extrait collant dans la carte repliée)
+Demande user : l'analyse visible dans la carte REPLIÉE doit n'apparaître qu'au DÉPLI (message complet) ;
+l'extrait faisait doublon avec l'analyse complète une fois la carte ouverte. Retrait de l'extrait cyan
+`mc-note` de l'EN-TÊTE des cartes « pari à jouer » (`_sport_row`, bloc premium) ET « provisoire »
+(`_programme_items`). La carte repliée = pick gras + marché en clair + bande verdict (épurée) ; l'analyse
+COMPLÈTE reste dans le corps (mc-ana / render), affichée seulement au dépli. Laissé intact : la SYNTHÈSE
+du combiné du jour (`_combo_tg_card`, mc-note) — carte NON dépliable, c'est sa seule description. Live 200.

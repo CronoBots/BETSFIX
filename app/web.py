@@ -3662,18 +3662,15 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # porte déjà le libellé une fois) — demande user 2026-07-11, fin de la répétition.
             _prov_tag = ('' if framed else
                          '<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>')
-            # Court extrait d'analyse (barre cyan) SOUS le pari, comme la carte Telegram (demande user).
-            _why = _prov_why_snippet(sp, prov.get("fid"))
-            _note = f'<div class="mc-note">{html.escape(_why)}</div>' if _why else ""
             # Marché EN CLAIR sous la sélection (demande user 2026-07-13) : « -9.5 » -> « gagne de 10 pts+ ».
             _gl = _plain_market(prov_sel, sp)
             _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{html.escape(_gl)}</div>' if _gl else ""
-            # Bande VERDICT (demande user 2026-07-13) : confiance colorée (barre + %) + cote groupées, la
-            # ré-analyse glissée sous la barre. Repli auto sur l'ancien pied si pas de confiance.
+            # PAS d'extrait d'analyse dans la carte REPLIÉE (demande user 2026-07-13) : l'analyse n'apparaît
+            # qu'au DÉPLI (message COMPLET, dans le corps) -> plus de doublon extrait/analyse une fois ouvert.
+            # Bande VERDICT : confiance colorée (barre + %) + cote groupées, ré-analyse sous la barre.
             sub = ('<div class="mc-div"></div>' + _prov_tag
                    + f'<div class="mc-pick">{html.escape(prov_sel)}</div>'
                    + _gloss
-                   + _note
                    + _verdict_strip(_pconf, _cote_big, f'🔄 {_reana}'))
         else:
             if m.get("status") == "abstained" and now >= reanalyse:
@@ -4922,13 +4919,13 @@ def _sport_row(r: dict) -> str:
                      if isinstance(_pcote, (int, float)) and _pcote else "")
         _gl = _plain_market(_psel, sport_key)
         _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{e(_gl)}</div>' if _gl else ""
-        _why = _prov_why_snippet(sport_key, _pmid) if _pmid else ""
-        _note = f'<div class="mc-note">{e(_why)}</div>' if _why else ""
+        # PAS d'extrait d'analyse dans la carte REPLIÉE (demande user 2026-07-13) : l'analyse n'apparaît
+        # qu'au DÉPLI (message COMPLET, dans le corps). L'extrait cyan collant faisait doublon une fois ouvert.
         _foot = ""
         if _ts and (_ts - 3600) > time.time():
             _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
             _foot = f'🔄 Ré-analyse à {e(_hhmm)}'
-        _premium = (f'<div class="mc-pick">{e(_psel)}</div>' + _gloss + _note
+        _premium = (f'<div class="mc-pick">{e(_psel)}</div>' + _gloss
                     + _verdict_strip(_pconf, _cote_big, _foot))
     if _premium:
         line3 = _premium
