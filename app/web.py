@@ -4903,19 +4903,46 @@ def _sport_row(r: dict) -> str:
         cote_html = f'<span class="mc-bc">@{cote:g}</span>' if cote else ""
         rows3.append(f'<div class="mc-betl{rcls}"><span class="mc-bi">{ic}</span>'
                      f'<span class="mc-bt">{e(b.get("sel", ""))}</span>{cote_html}</div>')
-    # Abstention (aucun prono publiable) : libellé discret à venir ; rien sur les terminés (le score suffit).
-    line3 = ("".join(rows3) if rows3 else
-             ('' if is_finished else
-              '<div class="mc-betl mc-noplay"><span class="mc-bi">·</span>'
-              '<span class="mc-bt">Analysé · pas de pari conseillé</span></div>'))
-    # PARI PROVISOIRE : le match est ré-analysé ~1 h avant son coup d'envoi -> le pick affiché peut encore
-    # changer (pick FINAL = le dernier généré). On l'indique avec l'HEURE EXACTE de cette ré-analyse
-    # (coup d'envoi − 1 h), tant qu'elle est à venir. (demande user 2026-07-08)
     _ts = r.get("start_ts")
-    if (not is_live) and (not is_finished) and rows3 and _ts and (_ts - 3600) > time.time():
-        _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
-        line3 += (f'<div class="mc-reana">🔄 Ré-analyse à {e(_hhmm)} '
-                  f'<span class="dim">· le pari peut encore changer</span></div>')
+    # PRÉSENTATION PREMIUM (demande user 2026-07-13 : « les paris à jouer présentés comme les provisoires »)
+    # pour un pari SIMPLE retenu À VENIR : pick en gras + marché EN CLAIR + extrait d'analyse + bande VERDICT
+    # (confiance colorée + cote), EXACTEMENT comme une carte provisoire. Les cas live/terminé/combiné/
+    # abstention gardent leur affichage adapté (résultat, score, compact…).
+    _premium = ""
+    if (not is_live) and (not is_finished) and not is_combo and len(bets3) == 1 and reco_i == 0:
+        _uid = re.search(r"/(\d+)", url)
+        _pmid = _uid.group(1) if _uid else None
+        _b0 = bets3[0]
+        _psel = _b0.get("sel", "")
+        _pcote = _b0.get("cote")
+        _rbp = analyses.retained_bet(sport_key, _pmid) if (sport_key and _pmid) else None
+        _pconf = (_rbp or {}).get("cprob") or (_rbp or {}).get("prob")   # confiance CALIBRÉE (comme le détail)
+        _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
+                     f'<span class="mc-cote-v">{_pcote:g}</span></span>'
+                     if isinstance(_pcote, (int, float)) and _pcote else "")
+        _gl = _plain_market(_psel, sport_key)
+        _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{e(_gl)}</div>' if _gl else ""
+        _why = _prov_why_snippet(sport_key, _pmid) if _pmid else ""
+        _note = f'<div class="mc-note">{e(_why)}</div>' if _why else ""
+        _foot = ""
+        if _ts and (_ts - 3600) > time.time():
+            _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
+            _foot = f'🔄 Ré-analyse à {e(_hhmm)}'
+        _premium = (f'<div class="mc-pick">{e(_psel)}</div>' + _gloss + _note
+                    + _verdict_strip(_pconf, _cote_big, _foot))
+    if _premium:
+        line3 = _premium
+    else:
+        # Abstention (aucun prono publiable) : libellé discret à venir ; rien sur les terminés (le score suffit).
+        line3 = ("".join(rows3) if rows3 else
+                 ('' if is_finished else
+                  '<div class="mc-betl mc-noplay"><span class="mc-bi">·</span>'
+                  '<span class="mc-bt">Analysé · pas de pari conseillé</span></div>'))
+        # Ré-analyse ~1 h avant le coup d'envoi (le pick peut encore changer) — cas compact non-premium.
+        if (not is_live) and (not is_finished) and rows3 and _ts and (_ts - 3600) > time.time():
+            _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
+            line3 += (f'<div class="mc-reana">🔄 Ré-analyse à {e(_hhmm)} '
+                      f'<span class="dim">· le pari peut encore changer</span></div>')
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')
     # LIVE (demande user 2026-07-12) : intitulé du pari sur UNE ligne EN HAUT, puis le SCOREBOARD (résultats

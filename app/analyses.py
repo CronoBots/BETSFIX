@@ -1338,8 +1338,16 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
             return None
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
     b = bets[ri]
-    return {"idx": ri, "sel": b.get("sel", ""), "prob": b.get("prob"), "cote": b.get("cote"),
-            "result": results.get(_norm_sel(b.get("sel", "")))}
+    # `cprob` = confiance CALIBRÉE du pari retenu (comme le tableau des paris) -> l'affichage compact
+    # (bande verdict) montre la MÊME confiance que le détail déplié, pas la proba brute (cohérence carte).
+    try:
+        from app.settle_analyst import code_from_pick as _cfp
+        _cp = calibrated_conf(b.get("prob"), sport, _cfp(b.get("sel", ""), sport,
+                                                          m.get("home", ""), m.get("away", "")))
+    except Exception:
+        _cp = b.get("prob")
+    return {"idx": ri, "sel": b.get("sel", ""), "prob": b.get("prob"), "cprob": _cp,
+            "cote": b.get("cote"), "result": results.get(_norm_sel(b.get("sel", "")))}
 
 
 def stat_bet(d: dict) -> dict | None:

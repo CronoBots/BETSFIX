@@ -1302,3 +1302,13 @@ ABSENT du suivi Stats (incohérence INVERSE de la précédente). Deux causes :
    provisoires affichés mais pas encore suivis (via `record`, qui porte la dédup combiné/retenu/non-réglable).
 Résultat : suivi PENDING == provisoires AFFICHÉS (0 écart dans les 2 sens). Djurgården + Minnesota suivis.
 Info seule hors ROI, jamais un réglé (monotone). Selfcheck 0/0, live 200.
+
+## 2026-07-13 (8) — Paris à jouer présentés comme les provisoires (premium unifié)
+Demande user : « les paris à jouer présentés comme les provisoires ». Les paris à jouer À VENIR
+(simple retenu, non-combiné) utilisaient une ligne compacte « • sél @cote » ; ils adoptent désormais la
+MÊME présentation premium que les cartes provisoires : `mc-pick` (gras) + glose marché (`_plain_market`)
++ extrait d'analyse (`_prov_why_snippet`, lit « 🎯 Le pari à jouer ») + bande VERDICT (`_verdict_strip`,
+confiance colorée + cote). Dans `web._sport_row`, seul le contenu `mc-sub` change ; live/terminé/combiné/
+abstention gardent leur affichage adapté (résultat, score, compact). La confiance affichée = CALIBRÉE
+(nouveau `retained_bet(...).cprob`) pour coller au tableau déplié. Cadre normal conservé (« À jouer ·
+comptés au ROI » ≠ provisoires « Indicatif · hors ROI »). Selfcheck 0/0, live 200.
