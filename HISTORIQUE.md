@@ -1345,3 +1345,11 @@ espaces, premium 10/10. Incohérences corrigées entre paris à jouer et proviso
   que les provisoires, SANS toucher au cadre (pas de mc-tg).
 - Hiérarchie : `.mc-pick` 15→15,5 px (héros, letter-spacing) ; `.mc-teams` 13,5→14 px.
 Purement CSS/markup d'affichage. Live 200. Preview artifact.
+
+## 2026-07-13 (12) — Intitulé de pari homogène : « Double chance 1X » -> « ... {équipe} ou nul »
+Reproche user (carte combiné du jour) : 2 jambes = le MÊME pari (double chance domicile-ou-nul) mais 2
+libellés : « Double chance Ceará-CE ou nul » vs « Double chance 1X » (l'analyste les formule différemment).
+Fix AFFICHAGE : nouveau `web._pretty_sel(sel, home, away)` qui normalise la notation technique 1X/X2/12 en
+forme explicite (« Double chance {domicile} ou nul » / « {ext} ou nul » / « {dom} ou {ext} »). Appliqué aux
+jambes de combiné (`_combo_tg_legs` + `combo_legs_html`), au pari à jouer premium et au provisoire -> le même
+pari s'affiche PAREIL partout. Purement affichage (données intactes). Live 200.

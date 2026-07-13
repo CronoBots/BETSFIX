@@ -3483,6 +3483,21 @@ def _plain_market(sel: str, sport: str) -> str:
     return ""
 
 
+def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
+    """Normalise l'AFFICHAGE d'un intitulé de pari pour que le MÊME pari s'affiche PAREIL partout (demande
+    user 2026-07-13 : « Double chance 1X » vs « Double chance <équipe> ou nul » = 2 libellés pour 1 pari).
+    La notation technique 1X/X2/12 devient explicite avec le nom d'équipe. Sinon renvoie le libellé tel quel."""
+    s = re.sub(r"\s+", " ", (sel or "").strip())
+    if not s:
+        return s
+    m = re.search(r"double\s*chance\s*[:\-]?\s*(1x|x2|12)\b", s, re.I)
+    if m and home and away:
+        r = {"1x": f"{home} ou nul", "x2": f"{away} ou nul",
+             "12": f"{home} ou {away}"}[m.group(1).lower()]
+        return f"Double chance {r}"
+    return s
+
+
 def _verdict_strip(pconf, cote_html: str, foot_txt: str = "") -> str:
     """Bande VERDICT (demande user 2026-07-13) : confiance (qualificatif + % coloré par niveau + barre) À
     GAUCHE, cote À DROITE -> les 2 chiffres clés lus ENSEMBLE. Repli sur l'ancien pied simple (reana +
@@ -3687,7 +3702,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # qu'au DÉPLI (message COMPLET, dans le corps) -> plus de doublon extrait/analyse une fois ouvert.
             # Bande VERDICT : confiance colorée (barre + %) + cote groupées, ré-analyse sous la barre.
             sub = ('<div class="mc-div"></div>' + _prov_tag
-                   + f'<div class="mc-pick">{html.escape(prov_sel)}</div>'
+                   + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
                    + _gloss
                    + _verdict_strip(_pconf, _cote_big, f'🔄 {_reana}'))
         else:
@@ -3776,7 +3791,7 @@ def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False
         _lt, _bc = _B.get(l.get("result"), ("⏳", "p"))   # p = en attente (badge doré)
         emo = _emo.get(l.get("sport"), "•")
         nm = _h.escape(str(l.get("name") or "").replace(" - ", " — "))
-        sel = _h.escape(str(l.get("sel") or ""))
+        sel = _h.escape(_pretty_sel(str(l.get("sel") or ""), l.get("home", ""), l.get("away", "")))
         co = l.get("cote")
         cot = f' · @{co:g}' if isinstance(co, (int, float)) and co else ""
         _sco = ""
@@ -3855,7 +3870,7 @@ def _combo_tg_legs(cb: dict) -> str:
     rows = []
     for l in legs:
         emo = _emo.get(l.get("sport"), "•")
-        sel = html.escape(str(l.get("sel") or ""))
+        sel = html.escape(_pretty_sel(str(l.get("sel") or ""), l.get("home", ""), l.get("away", "")))
         nm = html.escape(str(l.get("name") or "").replace(" - ", " — "))
         co = l.get("cote")
         cot = f'<span class="mc-cleg-o">@{co:g}</span>' if isinstance(co, (int, float)) and co else ""
@@ -4944,8 +4959,9 @@ def _sport_row(r: dict) -> str:
             _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
             _foot = f'🔄 Ré-analyse à {e(_hhmm)}'
         # Filet fin teams↔pari (comme les provisoires) : sépare « quel match » de « quel pari ».
+        _psel_disp = _pretty_sel(_psel, r.get("home", ""), r.get("away", ""))
         _premium = ('<div class="mc-div"></div>'
-                    + f'<div class="mc-pick">{e(_psel)}</div>' + _gloss
+                    + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss
                     + _verdict_strip(_pconf, _cote_big, _foot))
     if _premium:
         line3 = _premium
