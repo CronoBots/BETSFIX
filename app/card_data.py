@@ -119,7 +119,7 @@ def build_prono_card(d: dict) -> dict | None:
 
     dt = _dt(d)
     meta = f"{fr_date(dt)} · {dt.strftime('%H:%M')}" if dt else ""
-    card = {"emoji": SPORT_EMOJI.get(sport, "•"), "_mid": str(d.get("id")),
+    card = {"emoji": SPORT_EMOJI.get(sport, "•"), "_mid": str(d.get("id")), "_sport": sport,
             "_start": str(d.get("start") or ""), "cat": _cat(d),
             "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta}
     home, away = str(d.get("home", "")), str(d.get("away", ""))

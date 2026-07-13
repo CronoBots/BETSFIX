@@ -1380,6 +1380,68 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
             "cote": b.get("cote"), "result": results.get(_norm_sel(b.get("sel", "")))}
 
 
+def published_bet(sport: str, match_id) -> dict | None:
+    """Le pari PUBLIÉ aux abonnés, FIGÉ (demande user 2026-07-14) : un pari déjà conseillé (Telegram + site)
+    n'est JAMAIS retiré ni re-prixé après un rescan qui ferait chuter sa value -> l'abonné qui a parié le voit
+    TOUJOURS, au PRIX CONSEILLÉ. Renvoie {sel, prob, cprob, cote(=prix conseillé), published_cote,
+    market_cote, result} ou None si le match n'a pas été publié. `market_cote` = prix du marché MAINTENANT
+    (pour la mention transparente « la cote a bougé depuis le conseil »)."""
+    m = meta(sport, match_id) or {}
+    pb = m.get("published_bet") if isinstance(m.get("published_bet"), dict) else None
+    if not pb or not pb.get("sel"):
+        # pas encore gelé -> on gèle « à la volée » SEULEMENT si le match a été publié (get_prono)
+        try:
+            from app import notify
+            if not notify.get_prono(str(match_id)):
+                return None
+        except Exception:
+            return None
+        rb = retained_bet(sport, match_id, for_history=True)
+        if not rb:
+            return None
+        pb = {"sel": rb["sel"], "cote": rb["cote"], "prob": rb["prob"]}
+    results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
+    _cur = next((b for b in bets_of(sport, match_id)
+                 if _norm_sel(b.get("sel", "")) == _norm_sel(pb.get("sel", ""))), None)
+    market_cote = _cur.get("cote") if _cur else None
+    try:
+        from app.settle_analyst import code_from_pick as _cfp
+        _cp = calibrated_conf(pb.get("prob"), sport, _cfp(pb.get("sel", ""), sport,
+                                                          m.get("home", ""), m.get("away", "")))
+    except Exception:
+        _cp = pb.get("prob")
+    return {"idx": 0, "sel": pb.get("sel"), "prob": pb.get("prob"), "cprob": _cp,
+            "cote": pb.get("cote"), "published_cote": pb.get("cote"), "market_cote": market_cote,
+            "result": results.get(_norm_sel(pb.get("sel", "")))}
+
+
+def freeze_published_bet(sport: str, match_id) -> bool:
+    """Gèle le pari CONSEILLÉ dans le sidecar AU MOMENT DE LA PUBLICATION (demande user 2026-07-14) :
+    {sel, cote, prob} tels qu'envoyés aux abonnés -> ni retiré ni re-prixé par un rescan ultérieur (l'abonné
+    a parié à ce prix). Idempotent (ne réécrit JAMAIS un gel existant). Renvoie True si un gel a été posé."""
+    p = os.path.join(DIR, f"{sport}_{match_id}.json")
+    if not os.path.exists(p):
+        return False
+    try:
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return False
+    if isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel"):
+        return False                                     # déjà gelé -> jamais réécrit
+    rb = retained_bet(sport, match_id)                   # le pari retenu ACTUEL = celui qu'on publie
+    if not rb or not rb.get("sel"):
+        return False
+    d["published_bet"] = {"sel": rb["sel"], "cote": rb.get("cote"), "prob": rb.get("prob"),
+                          "ts": datetime.now(timezone.utc).isoformat()}
+    try:
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False)
+    except OSError:
+        return False
+    return True
+
+
 def stat_bet(d: dict) -> dict | None:
     """Pari du match FIGÉ pour les stats (courbe / ROI / réussite). Une fois qu'un pari est COMPTÉ, il
     est gelé dans `d["stat_bet"]` et le RESTE à vie -> le compteur ne fait plus que MONTER (fini le

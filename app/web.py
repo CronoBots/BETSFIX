@@ -1704,6 +1704,11 @@ CSS = """
   .mc-gloss{margin-top:5px;font-size:12.5px;color:#8fa2b8;font-weight:600;line-height:1.35}
   .mc-gloss b{color:#c4d2e2;font-weight:700}
   .mc-gloss .ar{color:var(--accent);font-weight:800;margin-right:5px}
+  /* Mention « pari publié figé · cote a bougé » (demande user 2026-07-14) : rassurant, pas alarmant. */
+  .mc-moved{margin-top:7px;font-size:11.5px;font-weight:700;color:#c9a24a;
+       background:rgba(246,197,74,.07);border:1px solid var(--gold-bd);border-radius:8px;padding:5px 9px}
+  .mc-moved b{color:var(--gold);font-variant-numeric:tabular-nums}
+  .mc-moved-m{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
   /* Variante OR de la carte Telegram : le COMBINÉ DU JOUR (demande user 2026-07-12) — bordure/lueur dorées,
      sport + cote en or, présenté comme les provisoires mais en jaune. */
   .row.mc.mc-tg-gold{border-color:rgba(246,197,74,.5);
@@ -4908,11 +4913,22 @@ def _sport_row(r: dict) -> str:
                 reco_i = 0
             else:
                 bets3 = []
-        elif summ.get("play") and reco_i is not None and 0 <= reco_i < len(bets3):
-            bets3 = [bets3[reco_i]]        # À VENIR : le simple RECOMMANDÉ maintenant (publication)
-            reco_i = 0
         else:
-            bets3 = []                     # aucun pari retenu -> abstention assumée
+            # PARI PUBLIÉ = FIGÉ (demande user 2026-07-14) : un pari déjà conseillé aux abonnés n'est JAMAIS
+            # retiré NI re-prixé au rescan -> on le montre au PRIX CONSEILLÉ (l'abonné a parié à ce prix ;
+            # `published_bet` porte la cote figée + la cote marché actuelle pour la mention « cote a bougé »).
+            # PRIORITAIRE sur le simple retenu du moment. Sinon (jamais publié) : le simple RETENU strict.
+            _mid = re.search(r"/(\d+)", url)
+            _pbz = (analyses.published_bet(sport_key, _mid.group(1))
+                    if (sport_key and _mid) else None)
+            if _pbz:
+                bets3 = [_pbz]
+                reco_i = 0
+            elif summ.get("play") and reco_i is not None and 0 <= reco_i < len(bets3):
+                bets3 = [bets3[reco_i]]     # À VENIR non publié : le simple RECOMMANDÉ maintenant
+                reco_i = 0
+            else:
+                bets3 = []                 # jamais publié, aucune value -> abstention assumée
     rows3 = []
     for i, b in enumerate(bets3):
         is_reco = i == reco_i and not is_combo
@@ -4939,12 +4955,22 @@ def _sport_row(r: dict) -> str:
         _psel = _b0.get("sel", "")
         _pcote = _b0.get("cote")
         _rbp = analyses.retained_bet(sport_key, _pmid) if (sport_key and _pmid) else None
-        _pconf = (_rbp or {}).get("cprob") or (_rbp or {}).get("prob")   # confiance CALIBRÉE (comme le détail)
+        # Confiance CALIBRÉE : du pari retenu, sinon (pari PUBLIÉ FIGÉ non retenu au marché actuel) du pari figé.
+        _pconf = ((_rbp or {}).get("cprob") or (_rbp or {}).get("prob")
+                  or _b0.get("cprob") or _b0.get("prob"))
         _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
                      f'<span class="mc-cote-v">{_pcote:g}</span></span>'
                      if isinstance(_pcote, (int, float)) and _pcote else "")
         _gl = _plain_market(_psel, sport_key)
         _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{e(_gl)}</div>' if _gl else ""
+        # PARI PUBLIÉ dont la COTE A BOUGÉ depuis le conseil (demande user 2026-07-14) : mention transparente
+        # (« cote au conseil : X · marché actuel : Y ») -> l'abonné voit son pari au bon prix + pourquoi ça a
+        # changé, sans être retiré ni « faire peur ». Affichée seulement si les 2 cotes diffèrent réellement.
+        _pc, _mc = _b0.get("published_cote"), _b0.get("market_cote")
+        _moved = ""
+        if isinstance(_pc, (int, float)) and isinstance(_mc, (int, float)) and abs(_pc - _mc) >= 0.01:
+            _moved = (f'<div class="mc-moved">🔒 Cote au conseil <b>{_pc:g}</b>'
+                      f'<span class="mc-moved-m"> · marché actuel {_mc:g}</span></div>')
         # PAS d'extrait d'analyse dans la carte REPLIÉE (demande user 2026-07-13) : l'analyse n'apparaît
         # qu'au DÉPLI (message COMPLET, dans le corps). L'extrait cyan collant faisait doublon une fois ouvert.
         _foot = ""
@@ -4954,7 +4980,7 @@ def _sport_row(r: dict) -> str:
         # Filet fin teams↔pari (comme les provisoires) : sépare « quel match » de « quel pari ».
         _psel_disp = _pretty_sel(_psel, r.get("home", ""), r.get("away", ""))
         _premium = ('<div class="mc-div"></div>'
-                    + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss
+                    + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
                     + _verdict_strip(_pconf, _cote_big, _foot))
     if _premium:
         line3 = _premium

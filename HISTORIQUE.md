@@ -1362,3 +1362,16 @@ identique partout. Centralisé dans `analyses.pretty_sel` (SOURCE UNIQUE), appli
 (_combo_tg_legs + combo_legs_html), tableau de paris (_bets_table), pari à jouer + provisoire, derniers
 paris Stats (web + routers/web), Telegram combiné (combo_daily.telegram_text). web._pretty_sel = alias.
 Purement affichage. Live 200, selfcheck 0/0.
+
+## 2026-07-14 (2) — Pari PUBLIÉ = FIGÉ (ne plus faire peur après un rescan)
+Problème user : pari « Moins de 2,5 buts » Itabaiana joué à 1.52 (publié Telegram+site), puis rescan ->
+cote raccourcie 1.52->1.43 (value +3.4%->-1.3%) -> affiché « Analysé · pas de pari conseillé ». L'abonné
+qui a parié voit son pari disparaître = effrayant. Solution « pari publié = figé » :
+- `analyses.freeze_published_bet(sport, mid)` : gèle {sel, cote, prob} DÈS la publication (appelé après
+  remember_prono dans le scan). Idempotent. `_write_sidecar` préserve `published_bet` à travers les rescans.
+- `analyses.published_bet(sport, mid)` : renvoie le pari figé (cote conseillée) + `market_cote` (prix actuel).
+- `web._sport_row` : un match PUBLIÉ affiche TOUJOURS `published_bet` (prix figé), jamais retiré ; mention
+  `.mc-moved` « 🔒 Cote au conseil X · marché actuel Y » si la cote a bougé. Prioritaire sur le simple du moment.
+- Itabaiana : `published_bet` restauré @1.52 (prix réel de la capture user, perdu à l'écrasement) -> affiche
+  1.52 + mention. Non-régression : un pari sans mouvement de cote reste inchangé (Ceará 1.58, pas de mention).
+Purement affichage + gel data (published_bet). Live 200, selfcheck 0/0.

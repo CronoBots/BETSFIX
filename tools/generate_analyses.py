@@ -2218,7 +2218,17 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
         side["pub_home"], side["pub_away"] = votes[0] / 100, votes[1] / 100
         if len(votes) > 2 and votes[2] is not None:
             side["pub_draw"] = votes[2] / 100
-    with open(os.path.join(OUT, f"{sport}_{fid}.json"), "w", encoding="utf-8") as f:
+    _sp_path = os.path.join(OUT, f"{sport}_{fid}.json")
+    # FIGER LE PARI PUBLIÉ (demande user 2026-07-14) : si un pari a déjà été GELÉ à sa publication, on le
+    # PRÉSERVE tel quel à travers le rescan -> il n'est jamais retiré ni re-prixé (l'abonné a parié à ce prix).
+    try:
+        if os.path.exists(_sp_path):
+            _old_sc = json.load(open(_sp_path, encoding="utf-8"))
+            if isinstance(_old_sc.get("published_bet"), dict) and _old_sc["published_bet"].get("sel"):
+                side["published_bet"] = _old_sc["published_bet"]
+    except (OSError, ValueError):
+        pass
+    with open(_sp_path, "w", encoding="utf-8") as f:
         json.dump(side, f, ensure_ascii=False)
 
 
@@ -2638,6 +2648,14 @@ async def main():
                         _sent = notify.send_photo_sync(_png, "")
                         if _sent:                    # mémorise l'id du prono -> le résultat y répondra
                             notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
+                            # FIGE le pari CONSEILLÉ dès la publication (demande user 2026-07-14) -> ni
+                            # retiré ni re-prixé au rescan (l'abonné a parié à ce prix). Idempotent.
+                            try:
+                                if _card.get("_sport") and _card.get("type") != "combo":
+                                    from app import analyses as _an_fz
+                                    _an_fz.freeze_published_bet(_card["_sport"], _card["_mid"])
+                            except Exception:
+                                pass
                     except Exception as _ce:
                         print(f"  (carte image échouée, repli texte : {_ce})")
                     if not _sent:                   # la carte EXISTE mais rendu/envoi KO -> repli texte
