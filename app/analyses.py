@@ -433,6 +433,33 @@ def _norm_sel(s: str) -> str:
     return re.sub(r"\s+", " ", _BOLD.sub(r"\1", s or "")).strip().lower()
 
 
+def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
+    """Normalise l'AFFICHAGE d'un intitulé de DOUBLE CHANCE pour qu'un MÊME pari s'affiche PAREIL partout
+    (demande user 2026-07-13). On GARDE la mention technique « 1X / X2 / 12 » (demandée) ET on la PRÉCISE
+    avec les équipes -> « Double chance 1X (<domicile> ou nul) ». Marche dans les 2 sens : la forme code
+    (« Double chance 1X ») ET la forme explicite (« Double chance <équipe> ou nul ») donnent le même
+    libellé. SOURCE UNIQUE (web/combo/notify). Renvoie le libellé tel quel si ce n'est pas une double chance."""
+    s = re.sub(r"\s+", " ", (sel or "").strip())
+    if not s or "double chance" not in s.lower():
+        return s
+    low = s.lower()
+    m = re.search(r"\b(1x|x2|12)\b", low)
+    code = m.group(1).upper() if m else None
+    if not code:                                   # forme explicite -> déduire le code des équipes citées
+        def _cited(name):
+            toks = [t for t in re.findall(r"[a-zà-ÿ0-9]+", (name or "").lower()) if len(t) >= 3]
+            return bool(toks) and any(t in low for t in toks)
+        hh, aa, nul = _cited(home), _cited(away), "nul" in low
+        code = "1X" if (hh and nul and not aa) else "X2" if (aa and nul and not hh) \
+            else "12" if (hh and aa) else None
+    if not code:
+        return s
+    if home and away:
+        expl = {"1X": f"{home} ou nul", "X2": f"{away} ou nul", "12": f"{home} ou {away}"}[code]
+        return f"Double chance {code} ({expl})"
+    return f"Double chance {code}"
+
+
 def _parse_bets(body: str) -> list[dict]:
     """Tableau markdown des paris -> liste STRUCTURÉE et ORDONNÉE (pari 1/2/3) :
     [{sel, cote(float|None), cote_txt, prob(int|None), risk_cls}]. Filtre cotes < 1.10 et 🔴
@@ -674,7 +701,7 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
     # (value, sûreté/validation). Toute la logique retenu/abstention/résultat/panel est PRÉSERVÉE.
     cards = []
     for k, b in enumerate(data):
-        pari = _inline(b["sel"])
+        pari = _inline(pretty_sel(b["sel"], home, away))   # « 1X » -> « <équipe> ou nul » (homogène)
         cv, prob, rcls = b["cote"], b["prob"], b["risk_cls"]
         is_reco = reco.get("idx") == k and has_play   # VRAI pari retenu (value + conf OK) ; sinon abstention
         _cp = cprobs[k] if (cprobs and k < len(cprobs) and cprobs[k] is not None) else prob

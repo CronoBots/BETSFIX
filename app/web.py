@@ -3484,18 +3484,9 @@ def _plain_market(sel: str, sport: str) -> str:
 
 
 def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
-    """Normalise l'AFFICHAGE d'un intitulé de pari pour que le MÊME pari s'affiche PAREIL partout (demande
-    user 2026-07-13 : « Double chance 1X » vs « Double chance <équipe> ou nul » = 2 libellés pour 1 pari).
-    La notation technique 1X/X2/12 devient explicite avec le nom d'équipe. Sinon renvoie le libellé tel quel."""
-    s = re.sub(r"\s+", " ", (sel or "").strip())
-    if not s:
-        return s
-    m = re.search(r"double\s*chance\s*[:\-]?\s*(1x|x2|12)\b", s, re.I)
-    if m and home and away:
-        r = {"1x": f"{home} ou nul", "x2": f"{away} ou nul",
-             "12": f"{home} ou {away}"}[m.group(1).lower()]
-        return f"Double chance {r}"
-    return s
+    """Alias vers la SOURCE UNIQUE `analyses.pretty_sel` (« Double chance 1X » -> « <équipe> ou nul »)
+    -> un seul libellé pour un pari, partout (carte, combiné, Telegram)."""
+    return analyses.pretty_sel(sel, home, away)
 
 
 def _verdict_strip(pconf, cote_html: str, foot_txt: str = "") -> str:
@@ -4462,8 +4453,10 @@ def _recent_bets_html(recent: list) -> str:
     rows = []
     for b in recent:
         letter, cls = _B.get(b.get("result"), ("?", ""))
-        name = html.escape(str(b.get("name") or "").replace(" - ", " — "))
-        sel = html.escape(str(b.get("sel") or ""))
+        _nm_raw = str(b.get("name") or "")
+        name = html.escape(_nm_raw.replace(" - ", " — "))
+        _h2, _, _a2 = _nm_raw.partition(" - ")
+        sel = html.escape(_pretty_sel(str(b.get("sel") or ""), _h2, _a2))
         cote = b.get("cote")
         cote_txt = f'@{cote:g}' if isinstance(cote, (int, float)) and cote else ""
         day = fmt_local(b.get("start"), with_date=True) if b.get("start") else ""
@@ -4932,7 +4925,7 @@ def _sport_row(r: dict) -> str:
         cote = b.get("cote")
         cote_html = f'<span class="mc-bc">@{cote:g}</span>' if cote else ""
         rows3.append(f'<div class="mc-betl{rcls}"><span class="mc-bi">{ic}</span>'
-                     f'<span class="mc-bt">{e(b.get("sel", ""))}</span>{cote_html}</div>')
+                     f'<span class="mc-bt">{e(_pretty_sel(b.get("sel", ""), r.get("home", ""), r.get("away", "")))}</span>{cote_html}</div>')
     _ts = r.get("start_ts")
     # PRÉSENTATION PREMIUM (demande user 2026-07-13 : « les paris à jouer présentés comme les provisoires »)
     # pour un pari SIMPLE retenu À VENIR : pick en gras + marché EN CLAIR + extrait d'analyse + bande VERDICT

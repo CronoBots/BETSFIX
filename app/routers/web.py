@@ -507,8 +507,10 @@ def _provisional_card() -> str:
     _rows = []
     for e in _pvt.entries(_snap):
         _lt, _bc = _B.get(e.get("result"), ("⏳", "p"))          # pas de résultat -> ⏳ en attente (doré)
-        _nm = _h.escape(str(e.get("name") or "").replace(" - ", " — "))
-        _sel = _h.escape(str(e.get("sel") or ""))
+        _nm_raw = str(e.get("name") or "")
+        _nm = _h.escape(_nm_raw.replace(" - ", " — "))
+        _eh, _, _ea = _nm_raw.partition(" - ")
+        _sel = _h.escape(analyses.pretty_sel(str(e.get("sel") or ""), _eh, _ea))
         _co = e.get("cote")
         _cot = f' · @{_co:g}' if isinstance(_co, (int, float)) and _co else ""
         _dt = web.fmt_local(e.get("start"), with_date=True) if e.get("start") else ""

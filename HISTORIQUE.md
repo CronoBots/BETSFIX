@@ -1353,3 +1353,12 @@ Fix AFFICHAGE : nouveau `web._pretty_sel(sel, home, away)` qui normalise la nota
 forme explicite (« Double chance {domicile} ou nul » / « {ext} ou nul » / « {dom} ou {ext} »). Appliqué aux
 jambes de combiné (`_combo_tg_legs` + `combo_legs_html`), au pari à jouer premium et au provisoire -> le même
 pari s'affiche PAREIL partout. Purement affichage (données intactes). Live 200.
+
+## 2026-07-14 — Intitulé DC : GARDER la mention « 1X » + la préciser (correction du (12))
+Correction de compréhension : le user veut GARDER la mention technique « 1X » (pas la remplacer par
+« ou nul »). `analyses.pretty_sel` refait : unifie les 2 formes (code « 1X » ET explicite « <équipe> ou
+nul ») vers « Double chance 1X (<domicile> ou nul) » -> la mention 1X est présente ET précisée ET
+identique partout. Centralisé dans `analyses.pretty_sel` (SOURCE UNIQUE), appliqué : jambes combiné
+(_combo_tg_legs + combo_legs_html), tableau de paris (_bets_table), pari à jouer + provisoire, derniers
+paris Stats (web + routers/web), Telegram combiné (combo_daily.telegram_text). web._pretty_sel = alias.
+Purement affichage. Live 200, selfcheck 0/0.

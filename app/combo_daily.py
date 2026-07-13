@@ -296,8 +296,10 @@ def telegram_text(cb: dict) -> str:
     out = ["🎯 <b>COMBINÉ DU JOUR</b> — multisport",
            f"Cote <b>@{cb.get('cote')}</b> · chances <b>{round((cb.get('prob') or 0) * 100)}%</b> "
            f"· {len(cb.get('legs') or [])} jambes", ""]
+    from app.analyses import pretty_sel as _psel
     for l in cb.get("legs") or []:
-        out.append(f"{emo.get(l.get('sport'), '•')} <b>{_h.escape(str(l.get('sel') or ''))}</b> "
+        _s = _psel(str(l.get('sel') or ''), l.get('home', ''), l.get('away', ''))
+        out.append(f"{emo.get(l.get('sport'), '•')} <b>{_h.escape(_s)}</b> "
                    f"@{l.get('cote')}")
         out.append(f"   <i>{_h.escape(str(l.get('name') or ''))}</i>")
     out += ["", "ℹ️ <i>Info seule (hors ROI) — les paris les plus probables du jour, à titre indicatif.</i>"]
