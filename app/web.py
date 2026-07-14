@@ -1707,7 +1707,7 @@ CSS = """
   .mc-cote-v{font-size:30px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
   /* Bande VERDICT (demande user 2026-07-13) : confiance (barre + % coloré par niveau) À GAUCHE, cote À
      DROITE -> les 2 chiffres clés se lisent ENSEMBLE ; la couleur encode le risque sans avoir à lire. */
-  .mc-verdict{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-top:11px;
+  .mc-verdict{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-top:11px;
        padding-top:10px;border-top:1px solid var(--border)}
   .mc-vc{flex:1;min-width:0}
   .mc-vc-lab{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:10.5px;
