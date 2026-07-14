@@ -349,11 +349,26 @@ def settle_pending() -> int:
             q = {"home": leg.get("home", ""), "away": leg.get("away", ""),
                  "start": leg.get("start"), "sofa_id": ""}
             score = None
+            # PRIORITÉ au score DÉJÀ RÉGLÉ du sidecar du match (result.raw) : autorité de vérité, 0 réseau.
+            # Le match est souvent déjà réglé côté analyses alors que le lookup PAR NOM échoue (nom
+            # brésilien/WNBA introuvable chez Flashscore) -> sans ça, la jambe était VOIDée à tort après 8
+            # essais et le combiné remboursé alors qu'il avait GAGNÉ (bug vécu 2026-07-13). Fix 2026-07-14.
             try:
-                score = flashscore.final_score(leg.get("sport"), q) or \
-                    livescore.final_score(leg.get("sport"), q)
+                from app import analyses as _an
+                _sm = _an.meta(leg.get("sport"), str(leg.get("mid") or "")) or {}
+                _raw = (_sm.get("result") or {}).get("raw")
+                if isinstance(_raw, dict) and (_raw.get("home") is not None
+                                               or _raw.get("sets_home") is not None
+                                               or _raw.get("periods")):
+                    score = _raw
             except Exception:
                 score = None
+            if score is None:
+                try:
+                    score = flashscore.final_score(leg.get("sport"), q) or \
+                        livescore.final_score(leg.get("sport"), q)
+                except Exception:
+                    score = None
             if not score or not score.get("periods"):
                 # Repli SPORTRADAR (GISMO) : score final + périodes détaillées que Flashscore/LiveScore
                 # ne donnent pas toujours (et matching de nom brésilien corrigé côté sportradar). Aligne le

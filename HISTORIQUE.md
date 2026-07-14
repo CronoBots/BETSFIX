@@ -1407,3 +1407,13 @@ Demande user : mêmes badges (blancs) avec le nb de matchs du jour sur Tennis/Ba
 data-n = nb matchs du jour) ; le JS SPA le lit à la (pré)charge et pose le badge sur l'onglet. Comptes :
 home = à jouer+indicatif+à analyser ; sport = play_up+live+prov_up (hors terminés) ; directs = total live.
 CSS `.nav-n` (blanc ; Live = vert+halo pulsant). Badge caché à 0. Live 200.
+
+## 2026-07-14 (6) — BUG : combiné du jour remboursé à tort (13/07) alors qu'il a GAGNÉ
+User : « le combi multi d'hier est valide et non remboursé ??? ». Le combiné 13/07 était `void` (3 jambes
+void) alors que les 3 avaient GAGNÉ : Atlanta Dream 101-92 (vainqueur), Ceará 0-0 (nul, DC 1X), América 1-1
+(nul, DC 1X) -> combiné WON @1.94. Cause : `combo_daily.settle_pending` cherchait le score PAR NOM
+(Flashscore/LiveScore/Sportradar) ; échec sur noms brésiliens/WNBA -> void après 8 essais, SANS jamais
+consulter le SCORE DÉJÀ RÉGLÉ du sidecar du match (`analyses.meta().result.raw`). Fix : consulter le
+sidecar EN PRIORITÉ (autorité de vérité, 0 réseau) avant le lookup par nom -> plus de void à tort.
+13/07 réinitialisé + re-réglé = WON @1.94, compté au ROI (combo_stats won 57->58, suivi 4 gagnés 0 void).
+Selfcheck 0/0, live 200.
