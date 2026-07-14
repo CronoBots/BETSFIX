@@ -471,10 +471,10 @@ CSS = """
        justify-content:center;font-size:10px;font-weight:900;color:#0a0a0a}
   .spf-rec.rec-w .spf-rec-b{background:#34d27b} .spf-rec.rec-l .spf-rec-b{background:#ff6b6b}
   .spf-rec.rec-n .spf-rec-b{background:var(--muted)}
-  /* Pari À JOUER (compté au ROI, pas encore réglé) : pastille dorée ⏳ + ligne légèrement teintée. */
-  .spf-rec.rec-p .spf-rec-b{background:var(--gold-bg);border:1px solid var(--gold-bd);font-size:9px}
-  .spf-rec.rec-p{opacity:.95}
-  .spf-rec.rec-p b{color:var(--gold)}
+  /* Pari À JOUER (compté au ROI, pas encore réglé) : NEUTRE — surtout PAS doré (l'or = les provisoires
+     HORS ROI). Pastille ⏳ neutre + nom en blanc (comme les paris réglés), pour rester dans la famille ROI. */
+  .spf-rec.rec-p .spf-rec-b{background:var(--surface2);border:1px solid var(--border2);color:var(--muted);font-size:9px}
+  .spf-rec.rec-p b{color:var(--text)}
   .spf-rec-m{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
   .spf-rec-m b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .spf-rec-s{color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
