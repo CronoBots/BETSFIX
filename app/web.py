@@ -595,7 +595,7 @@ CSS = """
   /* Carte PREMIUM (pari à venir présenté carte) : demande user 2026-07-14 — l'ÉQUIPE (le match) est le
      HÉROS de la carte repliée -> plus GRANDE (16 px) que le pari à jouer (14 px, cf. .mc-pick). Padding
      roomier, équipes sur 2 lignes possibles. */
-  .mc-prem .mc-head{padding:15px 16px 14px}
+  .mc-prem .mc-head{padding:13px 16px 12px}
   .mc-prem .mc-teams{font-size:16px;margin-top:9px;line-height:1.26;white-space:normal;overflow:visible;
        text-overflow:clip;text-wrap:balance}
   /* L3 : LISTE des paris (intitulés,
@@ -1679,7 +1679,7 @@ CSS = """
   .row.mc.mc-tg{background:linear-gradient(165deg,#0e1d2e 0%,#0b1622 55%,#081019 100%);
        border:1px solid rgba(58,140,225,.42);
        box-shadow:0 0 0 1px rgba(34,167,238,.07),0 0 26px rgba(30,110,190,.15),0 12px 32px rgba(0,0,0,.5)}
-  .mc-tg .mc-head{padding:14px 16px 13px}
+  .mc-tg .mc-head{padding:12px 16px 11px}
   .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
   .mc-tg .mc-comp-sep{color:#5f7a97}
@@ -1692,7 +1692,7 @@ CSS = """
   .mc-note{margin-top:9px;padding-left:13px;border-left:2px solid #3a9fe0;color:#a7bcd6;
        font-size:12.5px;font-weight:500;line-height:1.5;
        display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
-  .mc-div{height:1px;margin:13px 0 11px;background:linear-gradient(90deg,rgba(120,170,220,.22),rgba(120,170,220,.03))}
+  .mc-div{height:1px;margin:10px 0 8px;background:linear-gradient(90deg,rgba(120,170,220,.22),rgba(120,170,220,.03))}
   .mc-open .mc-div{display:none}
   .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
   /* Pari à jouer : SOUS les équipes et PLUS PETIT qu'elles (demande user 2026-07-14). Reste en gras (le
@@ -1707,8 +1707,8 @@ CSS = """
   .mc-cote-v{font-size:30px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
   /* Bande VERDICT (demande user 2026-07-13) : confiance (barre + % coloré par niveau) À GAUCHE, cote À
      DROITE -> les 2 chiffres clés se lisent ENSEMBLE ; la couleur encode le risque sans avoir à lire. */
-  .mc-verdict{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-top:14px;
-       padding-top:13px;border-top:1px solid var(--border)}
+  .mc-verdict{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-top:11px;
+       padding-top:10px;border-top:1px solid var(--border)}
   .mc-vc{flex:1;min-width:0}
   .mc-vc-lab{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:10.5px;
        font-weight:800;color:#8496ac;letter-spacing:.09em;margin-bottom:7px}
@@ -3506,8 +3506,10 @@ def _plain_market(sel: str, sport: str) -> str:
         return ""
     sl = s.lower()
     unit = "buts" if sport == "foot" else ("jeux" if sport == "tennis" else "points")
-    # HANDICAP signé en fin de libellé : « <équipe> -9.5 » (gagne de 10+) / « +9.5 » (ne perd pas de +9)
-    m = re.search(r"([+\-−–])\s?(\d+(?:[.,]\d+)?)\s*$", s)
+    # HANDICAP signé : « <équipe> -9.5 » (gagne de 10+) / « +9.5 » (ne perd pas de +9). Accepte un suffixe
+    # « (handicap) »/« (hand.) »… APRÈS le nombre (fix 2026-07-14 : « Partick -1.5 (handicap) » n'avait pas
+    # de glose car le nombre n'était pas en toute fin de chaîne).
+    m = re.search(r"([+\-−–])\s?(\d+(?:[.,]\d+)?)\s*(?:\([^)]*\))?\s*$", s)
     if m:
         val = float(m.group(2).replace(",", "."))
         if m.group(1) in ("-", "−", "–"):

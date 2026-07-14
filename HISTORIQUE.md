@@ -1482,3 +1482,10 @@ types (à venir, provisoire, LIVE, TERMINÉ) — avant réservé au premium ; te
 « Football · Ligue » + « vs » + 15 px. Base `.mc-teams` 16 px + wrap ; `.mc-betl` (ligne pari terminé/live)
 12->13 px. Override premium redondant retiré. Vérifié : SPORT•Ligue + tiret sur les 3 états, plus de « vs ».
 Live 200, selfcheck OK.
+
+## 2026-07-14 (14) — Glose sur CHAQUE pari (handicap avec suffixe) + espaces resserrés
+Demande user (capture) : (1) le pari « Partick -1.5 (handicap) » n'avait pas de glose (« gagne de 2 buts
+ou plus ») alors que « Handicap St Johnstone -1.5 » oui ; (2) les lignes de séparation créent trop d'espace.
+Fix (1) : `_plain_market` regex handicap accepte un suffixe « (handicap) » APRÈS le nombre (avant : nombre
+exigé en fin de chaîne). (2) Espaces resserrés : `.mc-div` 13/11->10/8 px, `.mc-verdict` 14/13->11/10 px,
+`.mc-prem .mc-head` 15/16/14->13/16/12, `.mc-tg .mc-head` 14/16/13->12/16/11. Live 200.
