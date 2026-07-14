@@ -744,17 +744,26 @@ def _bb_team_rows(d: dict, team: str):
     return None
 
 
+_BB_LG_LABEL = {"nba-summer-las-vegas": "NBA Summer League"}
+
+
 async def _basket_extras(client, match: dict) -> list[str]:
     home, away = match.get("home", ""), match.get("away", "")
     comp = (match.get("comp") or "").upper()
-    leagues = ["wnba", "nba"] if "WNBA" in comp else ["nba", "wnba"]
+    # LIGUE D'ÉTÉ NBA (Las Vegas Summer League) : ligue ESPN DÉDIÉE `nba-summer-las-vegas` — les matchs
+    # d'été étaient analysés sur COTES SEULES car on n'interrogeait que nba/wnba (demande user 2026-07-14 :
+    # étoffer les données). Pas de standings en été -> on ENRICHIT via la FORME (résultats récents).
+    _summer = ("ÉTÉ" in comp or "SUMMER" in comp or "LIGUE D'E" in comp)
+    if _summer:
+        leagues = ["nba-summer-las-vegas"]
+    else:
+        leagues = ["wnba", "nba"] if "WNBA" in comp else ["nba", "wnba"]
     facts = []
     for league in leagues:
+        _before = len(facts)
         stand = await _bb_standings(client, league)
         s_h, s_a = _bb_team_rows(stand, home), _bb_team_rows(stand, away)
-        if not (s_h or s_a):
-            continue                                  # mauvaise ligue -> essaie l'autre
-        lg = league.upper()
+        lg = _BB_LG_LABEL.get(league, league.upper())
         if s_h and s_a:
             facts.append(f"Bilan {lg} (ESPN) : {home} {s_h} / {away} {s_a}")
         inj = await _bb_injuries(client, league)
@@ -777,10 +786,14 @@ async def _basket_extras(client, match: dict) -> list[str]:
             if results:
                 line = " ; ".join(f"{'V' if w else 'D'} {sc} vs {opp}"
                                   for _d, w, opp, sc in results[:5])
-                facts.append(f"Forme [{label}] (10 derniers jours) : {line} (ESPN)")
+                facts.append(f"Forme [{label}]{' (Summer League)' if _summer else ' (10 derniers jours)'} : "
+                             f"{line} (ESPN)")
             if yday and any(r[0] == yday for r in results):
                 facts.append(f"⚠️ Back-to-back [{label}] : a joué HIER (fatigue) (ESPN)")
-        break
+        # On GARDE cette ligue dès qu'elle a donné AU MOINS un fait (bilan/blessés/forme) — avant, l'absence
+        # de standings (cas été) faisait tout jeter. Sinon on essaie la ligue suivante.
+        if len(facts) > _before:
+            break
     return facts
 
 

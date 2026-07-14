@@ -1429,3 +1429,13 @@ User : « supprimer les points d'attention + voir si les analyses sont fortes »
    pas que FotMob/ESPN/Understat. Foot picks passent de 2 à 3-4. ⚠️ Backfill initial trop large (ajoutait
    0 à 287 vieux sidecars sans traçage -> faux WARN) : corrigé en RETIRANT data_score des sidecars sans
    aucune donnée (forward-only restauré). Selfcheck -> OK 0/0 (16 checks), data_completeness 0/147.
+
+## 2026-07-14 (8) — Étoffer les données : Ligue d'été NBA (Summer League) enrichie
+User : « il faut étoffer les données » (plutôt que masquer les provisoires sans data). Trou principal =
+Ligue d'été NBA (data_score None, cotes seules). ESPN la couvre sous la ligue DÉDIÉE
+`nba-summer-las-vegas` (les matchs du jour y sont : Houston/Philly, Brooklyn/Sacramento, Denver/OKC…).
+Fix `sources._basket_extras` : détecte l'été (comp « Ligue d'été »/summer) -> interroge
+`nba-summer-las-vegas` ; ET garde la ligue dès qu'elle donne AU MOINS un fait (avant, l'absence de
+standings faisait tout jeter). Vérifié en direct : Denver 1-1 série W1 + formes détaillées (V 101-82 vs
+Minnesota, D 86-97 vs Houston ; OKC 0-2). Branché au scan (flag ESPN -> data_score). S'applique au prochain
+scan / ré-analyse. Tests basket/sources OK.
