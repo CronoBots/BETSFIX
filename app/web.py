@@ -589,14 +589,14 @@ CSS = """
   /* L2 : équipes (noms + prénoms complets) — ligne principale. */
   /* Équipes = HÉROS, 16 px + sur 2 lignes possibles pour TOUS les types de cartes (demande user 2026-07-14 :
      cartes semblables) — à venir, provisoire, LIVE et TERMINÉ ont désormais le même titre de match. */
-  .mc-teams{font-size:16px;font-weight:800;color:var(--text);margin-top:9px;letter-spacing:-.01em;
+  .mc-teams{font-size:15px;font-weight:800;color:var(--text);margin-top:9px;letter-spacing:-.015em;
        line-height:1.26;white-space:normal;overflow:visible;text-overflow:clip;text-wrap:balance}
   .mc-teams .dim{color:var(--dim);font-weight:600}
   /* Carte PREMIUM (pari à venir présenté carte) : demande user 2026-07-14 — l'ÉQUIPE (le match) est le
      HÉROS de la carte repliée -> plus GRANDE (16 px) que le pari à jouer (14 px, cf. .mc-pick). Padding
      roomier, équipes sur 2 lignes possibles. */
   .mc-prem .mc-head{padding:13px 16px 12px}
-  .mc-prem .mc-teams{font-size:16px;margin-top:9px;line-height:1.26;white-space:normal;overflow:visible;
+  .mc-prem .mc-teams{font-size:15px;margin-top:9px;line-height:1.26;white-space:normal;overflow:visible;
        text-overflow:clip;text-wrap:balance}
   /* L3 : LISTE des paris (intitulés,
   1/ligne) — masquée une fois DÉPLIÉE (les paris détaillés s'affichent).
@@ -3551,6 +3551,7 @@ def _plain_market(sel: str, sport: str) -> str:
         return ""
     sl = s.lower()
     unit = "buts" if sport == "foot" else ("jeux" if sport == "tennis" else "points")
+    _u = lambda k: unit if k != 1 else {"buts": "but", "points": "point", "jeux": "jeu"}.get(unit, unit)
     # HANDICAP signé : « <équipe> -9.5 » (gagne de 10+) / « +9.5 » (ne perd pas de +9). Accepte un suffixe
     # « (handicap) »/« (hand.) »… APRÈS le nombre (fix 2026-07-14 : « Partick -1.5 (handicap) » n'avait pas
     # de glose car le nombre n'était pas en toute fin de chaîne).
@@ -3558,15 +3559,44 @@ def _plain_market(sel: str, sport: str) -> str:
     if m:
         val = float(m.group(2).replace(",", "."))
         if m.group(1) in ("-", "−", "–"):
-            return f"gagne de {math.ceil(val)} {unit} ou plus"
-        return f"ne perd pas de plus de {math.floor(val)} {unit} (ou l'emporte)"
+            return f"gagne de {math.ceil(val)} {_u(math.ceil(val))} ou plus"
+        return f"ne perd pas de plus de {math.floor(val)} {_u(math.floor(val))} (ou l'emporte)"
+    # ÉQUIPE MARQUE : « <équipe> - Plus/Moins de X.5 (buts) » -> AVANT le total du match (sinon capté à tort
+    # comme total des 2 équipes). Détecté par le tiret séparateur « <nom> - plus/moins ».
+    meq = re.search(r"^(.*?)\s[-–—]\s.*?\b(plus|moins) de (\d+(?:[.,]\d+)?)", s, re.I)
+    if meq and "total" not in sl:
+        val = float(meq.group(3).replace(",", "."))
+        who = meq.group(1).strip(" -–—")
+        n = math.ceil(val)   # « plus de 0.5 » -> au moins 1 ; « moins de 1.5 » -> moins de 2
+        if meq.group(2).lower() == "plus":
+            return f"{who} marque au moins {n} {_u(n)}"
+        return f"{who} marque moins de {n} {_u(n)}"
     # TOTAL du match « plus/moins de X.5 (points/buts) » -> nombre entier lisible
     mt = re.search(r"\b(plus|moins) de (\d+(?:[.,]\d+)?)", sl)
     if mt and ("total" in sl or "points" in sl or "buts" in sl):
         val = float(mt.group(2).replace(",", "."))
         sens = "plus" if mt.group(1) == "plus" else "moins"
         n = math.floor(val) if sens == "plus" else math.ceil(val)
-        return f"{sens} de {n} {unit} au total (les 2 équipes)"
+        return f"{sens} de {n} {_u(n)} au total (les 2 équipes)"
+    # DOUBLE CHANCE : deux issues couvertes (le pick affiche déjà « 1X (… ou nul) » -> glose courte).
+    if re.search(r"\bdouble chance\b|\b1x\b|\bx2\b|\b12\b", sl) and "mi-temps" not in sl:
+        return "l'un des deux gagne (pas de match nul)" if re.search(r"\b12\b", sl) else "gagne ou match nul"
+    # LES DEUX ÉQUIPES MARQUENT (BTTS).
+    if "deux équipes marquent" in sl or re.search(r"\bbtts\b", sl):
+        if "mi-temps" in sl:
+            return "les deux marquent en 1ère mi-temps" if "non" not in sl else "pas de but des deux avant la pause"
+        return "au moins une équipe ne marque pas" if "non" in sl else "les deux équipes marquent au moins un but"
+    # TEMPS RÉGLEMENTAIRE <équipe/nul> (1X2 foot, réglé sur les 90 min).
+    if "temps réglementaire" in sl:
+        return "match nul à la fin des 90 min" if re.search(r"\b(draw|nul)\b", sl) \
+            else "gagne dans le temps réglementaire (90 min)"
+    # VAINQUEUR simple (« <équipe/joueur> vainqueur/gagne ») -> précise le PÉRIMÈTRE de règlement par sport.
+    if re.search(r"\b(vainqueur|gagne|l'emporte)\b", sl) and "mi-temps" not in sl:
+        if sport == "tennis":
+            return "gagne le match (en sets)"
+        if sport == "basket":
+            return "gagne le match (prolongations comprises)"
+        return "gagne dans le temps réglementaire (90 min)"
     return ""
 
 
