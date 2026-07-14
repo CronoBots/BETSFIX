@@ -359,6 +359,25 @@ async def _foot_extras(client, match: dict) -> list[str]:
         ua = _fm_unavailable(lu.get(side_key) or {}, label)
         if ua:
             facts.append(f"Absents [{label}] : {ua} (FotMob)")
+    # COMPOSITIONS (titulaires + formation) — data FORTE, tombe ~1 h avant le coup d'envoi. FotMob
+    # (enetpulse) publie les 11 starters + la formation ; on les injecte pour que l'analyse pivote sur le
+    # onze réel (mandat proactif 2026-07-14 : la donnée existe, on l'exploite). « confirmée » si FotMob la
+    # marque officielle, sinon « probable » (onze annoncé mais non verrouillé) — honnêteté sur la fiabilité.
+    _lt = str(lu.get("lineupType") or "").lower()
+    _conf = "confirmée" if _lt in ("confirmed", "lineup", "confirmedlineup") else "probable"
+    for side_key, label in (("homeTeam", home), ("awayTeam", away)):
+        sd = lu.get(side_key) or {}
+        starters = sd.get("starters") or []
+        if len(starters) >= 7:                       # onze (quasi) complet publié
+            names = []
+            for p in starters:
+                nm = p.get("name") or (p.get("player") or {}).get("name") or ""
+                if nm:
+                    names.append(nm.split()[-1] if " " in nm else nm)   # nom court (famille)
+            form = sd.get("formation") or ""
+            if names:
+                facts.append(f"Compo {_conf} [{label}]" + (f" ({form})" if form else "")
+                             + " : " + ", ".join(names) + " (FotMob)")
     # Météo (utile totaux/conditions)
     w = c.get("weather") or {}
     if w.get("temperature") is not None:
