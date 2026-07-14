@@ -1439,3 +1439,15 @@ Fix `sources._basket_extras` : détecte l'été (comp « Ligue d'été »/summer
 standings faisait tout jeter). Vérifié en direct : Denver 1-1 série W1 + formes détaillées (V 101-82 vs
 Minnesota, D 86-97 vs Houston ; OKC 0-2). Branché au scan (flag ESPN -> data_score). S'applique au prochain
 scan / ré-analyse. Tests basket/sources OK.
+
+## 2026-07-14 (9) — Mandat proactif : audit trous data + fix surface tennis (Gstaad = terre, pas gazon)
+Demande user : « réfléchir de moi-même à étoffer les sources, sans attendre ». Mémoire feedback
+`proactive-data-enrichment`. Mise en pratique immédiate — audit des trous de data sur matchs À VENIR :
+- Summer League NBA (5) : vrai trou -> déjà fixé (cc16141).
+- League Cup foot (Brora/Brechin) : FotMob renvoie la data -> sidecars PÉRIMÉS, ré-analyse récupère (pas
+  un trou de source).
+- Gstaad tennis : ESPN/Sportradar couvrent MAIS **bug de surface** trouvé -> `_surface_hint(*_trns, comp)`
+  déduisait la surface des tournois RÉCENTS des joueurs (Wimbledon/gazon) AVANT le tournoi ACTUEL -> Gstaad/
+  Bastad/Umag (TERRE BATTUE) tagués « Gazon » -> spécialisation surface FAUSSÉE (facteur n°1 au tennis).
+  Fix : `_surface_hint(comp, name, *_trns)` -> tournoi actuel prioritaire ; repli récent gardé pour comp
+  ambigu (« Londres » -> Wimbledon). Vérifié : Gstaad/Bastad/Umag = Terre battue. 24 tests OK.

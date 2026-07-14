@@ -622,11 +622,13 @@ async def _tennis_extras(client, match: dict) -> list[str]:
         facts.append(f"Classement {tour.upper()} (ESPN, à jour) : "
                      f"{home} #{rh or '?'} vs {away} #{ra or '?'}")
     idx = await _tennis_results_index(client, tour)
-    # SURFACE (facteur n°1) : déduite du NOM DE TOURNOI des matchs récents ESPN (fiable, ≠ la ville 'comp'
-    # ambiguë : « Londres » = Wimbledon/gazon). L'analyste pondère alors la spécialisation surface.
+    # SURFACE (facteur n°1) : le tournoi ACTUEL prime (`comp`/`name`) -> repli sur le nom de tournoi des
+    # matchs récents ESPN si la ville actuelle est ambiguë. BUG corrigé 2026-07-14 : l'ordre inverse faisait
+    # qu'un joueur venant de Wimbledon (gazon) taguait Gstaad/Bastad (TERRE BATTUE) en « Gazon » -> analyse
+    # de spécialisation surface FAUSSÉE. « gstaad »/« bastad »/« umag »… sont dans la table (non ambigus).
     _trns = [r[4] for label in (home, away) for t in _tok(label)
              for r in idx.get(t, []) if len(r) > 4 and r[4]]
-    surf = _surface_hint(*_trns, match.get("comp", ""), match.get("name", ""))
+    surf = _surface_hint(match.get("comp", ""), match.get("name", ""), *_trns)
     if surf:
         head = [f"Surface : {surf} — pondérer la SPÉCIALISATION surface des joueurs (un même joueur peut "
                 f"être bien plus fort/faible sur cette surface que ne le dit son classement)."]
