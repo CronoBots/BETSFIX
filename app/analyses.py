@@ -1241,43 +1241,53 @@ def combo_html(sport: str, match_id) -> str:
     # RENDU TICKET PREMIUM (style carte Telegram, sans logo — demande user 2026-07-12) : accent cyan,
     # pastilles de cote vertes, justification par jambe (barre latérale), cote combinée en gros en bas.
     # Toute la logique live/résultat (badges ✅/❌/➖, scores en direct, masquage post-règlement) est PRÉSERVÉE.
+    # JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : même cadre `.cleg` que le combiné du jour —
+    # en-tête SPORT + badge d'état, pari en gras, cote à droite, justification repliable. Combiné de match
+    # (same-match) : on n'affiche PAS le nom du match (déjà en tête de la carte parent).
+    _splbl = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sport, (sport or "").upper())
+    _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
     rows = []
     for i, leg in enumerate(combo["legs"]):
         lr = leg.get("result")                       # résultat FINAL réglé (post-match) s'il existe
-        prog = ""
         in_live = lr is None and live is not None
+        prog = ""
         if in_live and live["legs"][i].get("disp"):  # compteur courant/seuil (ou marge handicap)
-            prog = f'<span class="tkt-p">{live["legs"][i]["disp"]}</span>'
-        st = lr if lr in ("won", "lost", "void") else ""   # SEUL le résultat FINAL (aucun gagné/perdu LIVE)
-        cls = (" won" if st == "won" else " lost" if st == "lost" else " void" if st == "void" else "")
-        mark = ("✅" if st == "won" else "❌" if st == "lost" else "➖" if st == "void" else "")
-        mk = f'<span class="tkt-mk">{mark}</span>' if mark else ""
+            prog = f' · {live["legs"][i]["disp"]}'
+        # État -> classe de bord + badge (à venir / acquise / perdue / remboursée / en cours).
+        if lr == "won":
+            state, btxt, bcls = "won", "✅ ACQUISE", "w"
+        elif lr == "lost":
+            state, btxt, bcls = "lost", "❌ PERDUE", "l"
+        elif lr == "void":
+            state, btxt, bcls = "push", "➖ REMB.", "n"
+        elif in_live:
+            state, btxt, bcls = "live", f"⏳ EN COURS{prog}", "live"
+        else:
+            state, btxt, bcls = "pending", "À VENIR", "p"
         try:
-            cote = f"{float(leg.get('cote')):.2f}"
+            cote = f"{float(leg.get('cote')):g}"
         except (TypeError, ValueError):
             cote = "?"
+        sel = _h.escape(pretty_sel(str(leg.get("sel", "")), m.get("home", ""), m.get("away", "")))
         pct, head, tail = _why_parts(leg.get("why"))
-        if pct is None:
-            prchip = ""
-        else:
-            pc = "hi" if pct >= 75 else "mid" if pct >= 65 else "lo"
-            prchip = f'<span class="tkt-pr {pc}">{pct}%</span>'
         full = f"{head}. {tail}" if (head and tail) else (head or tail)
         if full and full[-1] not in ".!?":
             full += "."
-        # Raisonnement pré-match masqué une fois RÉGLÉ (le match est fini -> allègement de la carte résultat).
-        # REPLIABLE (demande user 2026-07-12) : la justification est cachée par défaut (ticket compact) et se
-        # déplie au clic sur la jambe (chevron). `stopPropagation` -> ne referme pas la carte du match.
-        why_html = f'<div class="tkt-why">{_h.escape(full)}</div>' if (full and not res) else ""
-        _top = (f'<span class="tkt-sel">{_h.escape(str(leg.get("sel", "")))}</span>'
-                f'<span class="tkt-r">{prchip}{prog}<span class="tkt-o">@{cote}</span>{mk}'
-                + ('<span class="tkt-chev">▾</span>' if why_html else '') + '</span>')
-        if why_html:
-            rows.append(f'<details class="tkt-leg tkt-fold{cls}">'
-                        f'<summary class="tkt-leg-top" onclick="event.stopPropagation()">{_top}</summary>'
-                        f'{why_html}</details>')
+        # Justification repliable (cachée par défaut, dépliée au clic ; masquée une fois le combiné réglé).
+        if full and not res:
+            why_html = ('<details class="cleg-fold"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
+                        f'💡 Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
+                        f'<div class="cleg-why">{_h.escape(full)}</div></details>')
         else:
-            rows.append(f'<div class="tkt-leg{cls}"><div class="tkt-leg-top">{_top}</div></div>')
+            why_html = ""
+        rows.append(
+            f'<div class="cleg {state}">'
+            f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport">{_emo} {_splbl}</b></span>'
+            f'<span class="cleg-bdg {bcls}">{btxt}</span></div>'
+            f'<div class="cleg-body"><div class="cleg-main"><div class="cleg-pick">{sel}</div></div>'
+            f'<span class="cleg-cote"><span class="cleg-cote-l">COTE</span>'
+            f'<span class="cleg-cote-v">{cote}</span></span></div>'
+            f'{why_html}</div>')
     # En-tête : SEUL le résultat FINAL (post-match) affiche un statut ; en live -> badge « en direct » neutre.
     gcls = (" won" if res == "won" else " lost" if res == "lost" else " void" if res == "void" else "")
     if res == "won":
@@ -1314,7 +1324,7 @@ def combo_html(sport: str, match_id) -> str:
                   if (synth and not res) else "")
     return (f'<div class="tkt{gcls}"><div class="tkt-h">Combiné '
             f'<span class="n">· {n_legs} sélections</span> {badge}{_tag}</div>'
-            f'{synth_html}{"".join(rows)}'
+            f'{synth_html}<div class="mc-combo-legs">{"".join(rows)}</div>'
             f'<div class="tkt-cote"><span class="l">Cote combinée</span>'
             f'<span class="v">{cote_val}</span></div></div>')
 

@@ -1763,6 +1763,43 @@ CSS = """
   .mc-cleg-sc{color:#5be08c;font-weight:800;font-variant-numeric:tabular-nums}
   /* analyse de la jambe (comme les combinés Telegram) — texte léger sous la sélection. */
   .mc-cleg-why{margin-top:6px;font-size:11.5px;font-weight:500;color:#a7bcd6;line-height:1.45}
+  /* JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : chaque jambe encadrée exactement comme une carte
+     de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
+     droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
+  .cleg{background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border);
+       border-left:3px solid var(--gold);border-radius:12px;padding:11px 12px 10px}
+  .cleg.won,.cleg.live{border-left-color:#34d27b}
+  .cleg.lost{border-left-color:#ff6b6b} .cleg.push{border-left-color:#90a4be}
+  .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .cleg-comp{flex:1;min-width:0;font-size:10.5px;font-weight:700;color:var(--muted);
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cleg-sport{color:#2ee27f;font-weight:800;letter-spacing:.04em}
+  .cleg-sep{color:var(--dim)}
+  .cleg-bdg{flex:none;font-size:10px;font-weight:900;padding:2px 7px;border-radius:7px;white-space:nowrap}
+  .cleg-bdg.p{background:rgba(232,184,74,.16);color:var(--gold)}
+  .cleg-bdg.w{background:rgba(52,210,123,.18);color:#34d27b}
+  .cleg-bdg.l{background:rgba(255,107,107,.16);color:#ff6b6b}
+  .cleg-bdg.n{background:rgba(144,164,190,.16);color:#90a4be}
+  .cleg-bdg.live{background:rgba(52,210,123,.16);color:#5be08c}
+  .cleg-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+  .cleg-main{flex:1;min-width:0}
+  .cleg-pick{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
+  .cleg-gloss{margin-top:5px;font-size:12px;color:#8fa2b8;font-weight:600;line-height:1.32}
+  .cleg-gloss .ar{color:var(--accent);font-weight:800;margin-right:5px}
+  .cleg-why{margin-top:6px;font-size:11px;font-weight:500;color:#93a7c2;line-height:1.4}
+  .cleg-cote{flex:none;text-align:right;line-height:1}
+  .cleg-cote-l{display:block;font-size:8.5px;font-weight:800;letter-spacing:.12em;color:#90a4be;margin-bottom:2px}
+  .cleg-cote-v{font-size:21px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .cleg.won .cleg-cote-v,.cleg.live .cleg-cote-v{color:#34d27b}
+  .cleg-board{margin-top:9px}
+  /* Justification repliable d'une jambe de combiné de match (« 💡 Pourquoi cette jambe »). */
+  .cleg-fold{margin-top:8px}
+  .cleg-fold-s{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:10.5px;
+       font-weight:800;color:#8fa2b8;letter-spacing:.02em}
+  .cleg-fold-s::-webkit-details-marker{display:none}
+  .cleg-chev{margin-left:auto;transition:transform .2s}
+  .cleg-fold[open] .cleg-chev{transform:rotate(180deg)}
+  .cleg-fold .cleg-why{margin-top:6px}
   /* tableau de score de la jambe EN LIVE (sets/quart-temps), sous le match. */
   .mc-cleg-board{margin-top:8px}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
@@ -3920,51 +3957,65 @@ def _clean_cap(t, maxlen: int = 180) -> str:
     return cut.rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
 
 
-def _combo_tg_legs(cb: dict) -> str:
-    """Jambes du combiné du jour rendues comme des PICKS de provisoire (sélection en gras + match en
-    sous-titre + cote + score live), pour un cadre cohérent avec les cartes provisoires (demande user).
-    Chaque jambe est dans SON PROPRE sous-cadre SI les jambes sont sur des MATCHS DIFFÉRENTS (demande user
-    2026-07-12) ; jambes du MÊME match (combiné same-match) -> pas de sous-cadre (redondant)."""
+_SPORT_LBL = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}
+
+
+def _leg_card(l: dict, *, why: bool = True) -> str:
+    """Rendu d'UNE jambe de combiné COMME UNE CARTE DE SIMPLE (demande user 2026-07-14) : en-tête
+    « SPORT • match » + badge d'état, le pari en gras, l'explication en clair (gloss ↳), la COTE à droite,
+    bord gauche coloré par état. En live : badge 🟢 LIVE + tableau de score sous la jambe. `why` = ajoute la
+    justification (combiné du jour) ; le combiné de match a son propre déplié. Purement AFFICHAGE."""
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
-    legs = cb.get("legs") or []
-    _multi = len({str(l.get("mid") or l.get("name") or "") for l in legs}) > 1   # matchs différents ?
-    _box = " mc-cleg-box" if _multi else ""
-    rows = []
-    for l in legs:
-        emo = _emo.get(l.get("sport"), "•")
-        sel = html.escape(_pretty_sel(str(l.get("sel") or ""), l.get("home", ""), l.get("away", "")))
-        nm = html.escape(str(l.get("name") or "").replace(" - ", " — "))
-        co = l.get("cote")
-        cot = f'<span class="mc-cleg-o">@{co:g}</span>' if isinstance(co, (int, float)) and co else ""
-        _res = l.get("result")
-        _sp, _lh, _la = l.get("sport"), l.get("home", ""), l.get("away", "")
-        # État de la jambe -> BORD GAUCHE coloré (demande user 2026-07-13) : jaune=en attente, vert=gagné,
-        # rouge=perdu (plus d'emoji/point).
-        _state = {"won": "won", "lost": "lost", "push": "push"}.get(_res, "pending")
-        sco, board = "", ""
-        if _res is None:
-            _lfz = live_fields(match_select.live_state_for(_sp, _lh, _la), _sp)
-            if _lfz.get("score"):
-                # jambe EN LIVE : indicateur « Live » + TABLEAU DE SCORE complet sous le match (demande user
-                # 2026-07-12), comme les cartes live (sets/quart-temps/horloge).
-                sco = '<span class="mc-cleg-sc">🟢 Live</span>'
-                board = ('<div class="mc-cleg-board">'
-                         + _live_scoreboard(_lfz["score"], _lh, _la, tennis=(_sp == "tennis"),
-                                            server=_lfz.get("server"), points=_lfz.get("game_pts"),
-                                            clock=_lfz.get("live_time"), periods=_lfz.get("periods"),
-                                            fstats=_lfz.get("fstats"))
-                         + '</div>')
-        elif l.get("score"):
-            sco = f'<span class="mc-cleg-sc">{html.escape(str(l.get("score")))}</span>'
-        _wt = _clean_cap(l.get("why"))
-        _why = f'<span class="mc-cleg-why">{html.escape(_wt)}</span>' if _wt else ""
-        # Présentation comme un match (demande user 2026-07-12) : le MATCH en TITRE (+ badge/score live),
-        # puis le PARI À JOUER (sélection + cote) EN DESSOUS, puis le scoreboard, puis l'analyse.
-        rows.append(f'<div class="mc-cleg{_box} mc-cleg-{_state}"><span class="mc-cleg-b">'
-                    f'<span class="mc-cleg-match">{emo} {nm}{sco}</span>'
-                    f'<span class="mc-cleg-bet">{sel}{cot}</span>'
-                    f'{board}{_why}</span></div>')
-    return "".join(rows)
+    _sp, _lh, _la = l.get("sport"), l.get("home", ""), l.get("away", "")
+    emo = _emo.get(_sp, "•")
+    splbl = _SPORT_LBL.get(_sp, (_sp or "").upper())
+    sel_raw = str(l.get("sel") or "")
+    sel = html.escape(_pretty_sel(sel_raw, _lh, _la))
+    nm = html.escape(str(l.get("name") or "").replace(" - ", " — "))
+    co = l.get("cote")
+    _cote = (f'<span class="cleg-cote"><span class="cleg-cote-l">COTE</span>'
+             f'<span class="cleg-cote-v">{co:g}</span></span>') if isinstance(co, (int, float)) and co else ""
+    _res = l.get("result")
+    _state = {"won": "won", "lost": "lost", "push": "push"}.get(_res, "pending")
+    # badge d'état : à venir / gagné / perdu / remboursé / live.
+    _bmap = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"), "push": ("REMB.", "n")}
+    board = ""
+    if _res is None:
+        _lfz = live_fields(match_select.live_state_for(_sp, _lh, _la), _sp)
+        if _lfz.get("score"):
+            _state = "live"
+            _btxt, _bcls = "🟢 LIVE", "live"
+            board = ('<div class="cleg-board">'
+                     + _live_scoreboard(_lfz["score"], _lh, _la, tennis=(_sp == "tennis"),
+                                        server=_lfz.get("server"), points=_lfz.get("game_pts"),
+                                        clock=_lfz.get("live_time"), periods=_lfz.get("periods"),
+                                        fstats=_lfz.get("fstats"))
+                     + '</div>')
+        else:
+            _btxt, _bcls = "À VENIR", "p"
+    else:
+        _btxt, _bcls = _bmap.get(_res, ("À VENIR", "p"))
+    # gloss = explication EN CLAIR du marché (identique aux cartes de simple) ; + score final si réglé.
+    _g = _plain_market(sel_raw, _sp)
+    if _res is not None and l.get("score"):
+        _sc = html.escape(str(l.get("score")))
+        _g = f'{_g} · <b>final {_sc}</b>' if _g else f'<b>final {_sc}</b>'
+    gloss = f'<div class="cleg-gloss"><span class="ar">↳</span> {_g}</div>' if _g else ""
+    _wt = _clean_cap(l.get("why")) if why else ""
+    _why = f'<div class="cleg-why">{html.escape(_wt)}</div>' if _wt else ""
+    return (f'<div class="cleg {_state}">'
+            f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport">{emo} {splbl}</b>'
+            + (f'<span class="cleg-sep"> • </span>{nm}' if nm else "")
+            + f'</span><span class="cleg-bdg {_bcls}">{_btxt}</span></div>'
+            f'<div class="cleg-body"><div class="cleg-main">'
+            f'<div class="cleg-pick">{sel}</div>{gloss}</div>{_cote}</div>'
+            f'{board}{_why}</div>')
+
+
+def _combo_tg_legs(cb: dict) -> str:
+    """Jambes du combiné du jour rendues chacune comme une CARTE DE SIMPLE (demande user 2026-07-14) —
+    en-tête SPORT • match, pari + gloss, cote, état/live. Rendu unifié via `_leg_card`."""
+    return "".join(_leg_card(l, why=True) for l in (cb.get("legs") or []))
 
 
 def _combo_tg_card() -> str:
