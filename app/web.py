@@ -3594,7 +3594,10 @@ def _plain_market(sel: str, sport: str) -> str:
         return "match nul à la fin des 90 min" if re.search(r"\b(draw|nul)\b", sl) \
             else "gagne dans le temps réglementaire (90 min)"
     # VAINQUEUR simple (« <équipe/joueur> vainqueur/gagne ») -> précise le PÉRIMÈTRE de règlement par sport.
-    if re.search(r"\b(vainqueur|gagne|l'emporte)\b", sl) and "mi-temps" not in sl:
+    # EXCLURE les marchés de PÉRIODE (« Set 1 - Vainqueur », « 1ère MT », quart-temps…) : « gagne le match »
+    # y serait FAUX (c'est le vainqueur du set/de la période). Pas de glose plutôt qu'une glose fausse.
+    if (re.search(r"\b(vainqueur|gagne|l'emporte)\b", sl)
+            and not re.search(r"mi-temps|\bset\b|\bmt\b|1[eè]re|2[eè]|quart", sl)):
         if sport == "tennis":
             return "gagne le match (en sets)"
         if sport == "basket":
