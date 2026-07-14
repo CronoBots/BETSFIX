@@ -1474,3 +1474,11 @@ la flèche ; améliorer les espaces. Avant : `.mc-pick` 15.5 px > `.mc-teams` 14
 `.mc-teams` (base 15, `.mc-prem`/`.mc-tg` 16 px) = HÉROS ; `.mc-pick` 14 px (sous les équipes) ; glose
 `.mc-gloss` grise + ↳ conservée ; espaces : `.mc-div` 13/11 px, `.mc-teams` margin-top 9-10, padding
 `.mc-prem .mc-head` 15/16/14, gloss margin-top 6. Live 200.
+
+## 2026-07-14 (13) — Cartes homogènes : même en-tête + équipes pour TOUS les types
+Demande user : « les autres types de paris doivent être semblables ». En-tête « SPORT • Ligue » (sport en
+accent gras) + équipes en tiret « — » (16 px, héros) désormais PAR DÉFAUT dans `_sport_row` pour TOUS les
+types (à venir, provisoire, LIVE, TERMINÉ) — avant réservé au premium ; terminés/live avaient
+« Football · Ligue » + « vs » + 15 px. Base `.mc-teams` 16 px + wrap ; `.mc-betl` (ligne pari terminé/live)
+12->13 px. Override premium redondant retiré. Vérifié : SPORT•Ligue + tiret sur les 3 états, plus de « vs ».
+Live 200, selfcheck OK.

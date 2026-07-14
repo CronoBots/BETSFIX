@@ -587,8 +587,10 @@ CSS = """
        transition:transform .18s}
   .mc-open .mc-chev{display:none}   /* carte ouverte : chevron caché ; il ne réapparaît qu'une fois repliée */
   /* L2 : équipes (noms + prénoms complets) — ligne principale. */
-  .mc-teams{font-size:15px;font-weight:800;color:var(--text);margin-top:6px;letter-spacing:-.01em;
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Équipes = HÉROS, 16 px + sur 2 lignes possibles pour TOUS les types de cartes (demande user 2026-07-14 :
+     cartes semblables) — à venir, provisoire, LIVE et TERMINÉ ont désormais le même titre de match. */
+  .mc-teams{font-size:16px;font-weight:800;color:var(--text);margin-top:9px;letter-spacing:-.01em;
+       line-height:1.26;white-space:normal;overflow:visible;text-overflow:clip;text-wrap:balance}
   .mc-teams .dim{color:var(--dim);font-weight:600}
   /* Carte PREMIUM (pari à venir présenté carte) : demande user 2026-07-14 — l'ÉQUIPE (le match) est le
      HÉROS de la carte repliée -> plus GRANDE (16 px) que le pari à jouer (14 px, cf. .mc-pick). Padding
@@ -608,7 +610,7 @@ CSS = """
   .mc-livesc{margin-top:10px}
   /* Ligne de pari : libellé à gauche (peut passer à la ligne), pastilles cote/confiance À DROITE,
      VERTICALEMENT CENTRÉES contre le libellé (fini le désalignement quand le libellé fait 2 lignes). */
-  .mc-betl{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:600;color:#cfe0f5}
+  .mc-betl{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:#cfe0f5}
   .mc-betl + .mc-betl{margin-top:3px}
   .mc-bi{flex:none;font-size:11px;align-self:flex-start;margin-top:2px}
   .mc-bt{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.32}
@@ -4913,11 +4915,19 @@ def _sport_row(r: dict) -> str:
                  else "basket" if "/basket/match" in url else None)
     um = (match_select.unibet_meta_for(sport_key, r.get("home"), r.get("away")) or {}) if sport_key else {}
     summ = _summary_for_url(url)
-    sport_name = {"tennis": "Tennis", "foot": "Football", "basket": "Basket"}.get(sport_key, "")
+    # EN-TÊTE HOMOGÈNE pour TOUS les types de cartes (demande user 2026-07-14 : « les autres types de paris
+    # doivent être semblables ») : « SPORT • Ligue » (sport en accent, gras) comme les cartes premium, au
+    # lieu de « Football · Ligue » (titre + point médian) réservé jusqu'ici aux terminés/live.
+    _spn = {"tennis": "TENNIS", "foot": "FOOTBALL", "basket": "BASKET"}.get(sport_key, "")
     circuit = um.get("circuit") or summ.get("circuit") or ""
     comp = _cap(um.get("comp") or summ.get("comp") or r.get("tour") or "")
-    parts = [p for p in (sport_name, circuit if _is_tennis else "", comp) if p]
-    comp_only = " · ".join(e(p) for p in parts)
+    _cparts = [p for p in ((circuit if _is_tennis else ""), comp) if p]
+    if _spn:
+        comp_only = (f'<b class="mc-sport">{_spn}</b>'
+                     + (f'<span class="mc-comp-sep"> • </span>{" • ".join(e(p) for p in _cparts)}'
+                        if _cparts else ""))
+    else:
+        comp_only = " · ".join(e(p) for p in _cparts)
     # Heure de début : Unibet frais (path/start) si dispo, sinon l'heure conviviale `top` -> HH:MM.
     sdt = match_select._start_dt(um["start"]) if um.get("start") else None
     starthm = fmt_local(sdt, with_date=False) if sdt else ""
@@ -5031,17 +5041,10 @@ def _sport_row(r: dict) -> str:
             _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
             line3 += (f'<div class="mc-reana">🔄 Ré-analyse à {e(_hhmm)} '
                       f'<span class="dim">· le pari peut encore changer</span></div>')
-    teams = (f'{hf}{e(_noF(r.get("home")))} <span class="dim">vs</span> '
+    # ÉQUIPES avec tiret « — » pour TOUS les types (demande user 2026-07-14 : cartes semblables) — plus le
+    # « vs » réservé aux terminés/live. L'en-tête « SPORT • Ligue » est déjà posé pour tous plus haut.
+    teams = (f'{hf}{e(_noF(r.get("home")))} <span class="mc-dash">—</span> '
              f'{e(_noF(r.get("away")))}{fem}{af}')
-    # CARTE PREMIUM (pari à venir présenté carte) : en-tête « SPORT • Ligue » (sport en accent) + tiret
-    # « — » entre les équipes -> présentation HOMOGÈNE avec les provisoires (demande user 2026-07-13).
-    if _premium:
-        _spn = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sport_key, "")
-        if _spn:
-            comp_only = (f'<b class="mc-sport">{_spn}</b>'
-                         + (f'<span class="mc-comp-sep"> • </span>{e(comp)}' if comp else ""))
-        teams = (f'{hf}{e(_noF(r.get("home")))} <span class="mc-dash">—</span> '
-                 f'{e(_noF(r.get("away")))}{fem}{af}')
     # LIVE (demande user 2026-07-12) : intitulé du pari sur UNE ligne EN HAUT, puis le SCOREBOARD (résultats
     # — le tableau qu'on voit d'habitude au dépli) EN DESSOUS, visible dans la carte repliée. Badge = « Live ».
     _live_score_row = f'<div class="mc-livesc">{lscore}</div>' if (is_live and lscore) else ""
