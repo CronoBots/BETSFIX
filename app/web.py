@@ -3861,8 +3861,11 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             + _badge
             + '</div>'
             f'<div class="mc-teams">{teams}</div>'
+            # SCOREBOARD SOUS le pari à jouer (demande user 2026-07-14) : le pari (sub) d'abord, le tableau de
+            # score en dessous — aligné sur les cartes de pari (_sport_row) où le score est déjà sous le pari.
+            + f'<div class="mc-sub">{sub}</div>'
             + (f'<div class="mc-livesc">{_lscore}</div>' if _lscore else "")
-            + f'<div class="mc-sub">{sub}</div></div>')
+            + '</div>')
         # Accent doré discret (bord gauche) sur les cartes PROVISOIRES en zone dédiée -> identifiables sans
         # la pastille répétée (demande user 2026-07-11). Uniquement en mode `framed` et si c'est un provisoire.
         # STYLE TELEGRAM (demande user 2026-07-12) : fond bleu nuit + bordure lumineuse sur les cartes du
