@@ -23,6 +23,9 @@ MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)
 MIN_LEGS = 2             # un « combiné » = au moins 2 jambes
 MIN_LEG_PROB = 0.65      # « les plus probables » : jambe fiable seulement (relevé pour la sécurité)
 MIN_LEG_ODDS = 1.06      # une jambe quasi-sûre à cote ~1.01 n'apporte rien vers le seuil
+MIN_COMBO_EV = 0.05      # EDGE minimal du combiné (prob × cote − 1). Sous ce seuil = notre proba ≈ proba
+#                          implicite du marché -> pari NEUTRE (aucune value) -> ABSTENTION ce jour-là
+#                          (demande user 2026-07-14 : qualité > quantité, comme les simples ≥ EV 3 %).
 
 # Marchés en PALIERS DE FIABILITÉ (taux de réussite MESURÉS, cf. COMBO_MISSION). On compare le PREMIER
 # jeton du code (ex. "SETWIN 1 HOME" -> "SETWIN"). Le combiné se construit d'abord AVEC LE PALIER 1 SEUL
@@ -280,6 +283,12 @@ def build_for_day(day: str) -> dict | None:
         if combo:
             break
     if not combo:
+        return None
+    # GARDE-FOU VALUE (demande user 2026-07-14) : ne publier/compter le combiné QUE s'il a un EDGE réel.
+    # Jambes INDÉPENDANTES (matchs différents) -> EV = prob × cote − 1. Sans edge (notre proba ≈ implicite),
+    # c'est un pari neutre qui ne fait que payer la marge -> on s'ABSTIENT plutôt que de publier sans value.
+    _ev = (combo.get("prob") or 0) * (combo.get("cote") or 0) - 1
+    if _ev < MIN_COMBO_EV:
         return None
     legs = [{"mid": l["mid"], "sport": l["sport"], "name": l.get("name"), "home": l.get("home"),
              "away": l.get("away"), "start": l.get("start"), "comp": l.get("comp"),

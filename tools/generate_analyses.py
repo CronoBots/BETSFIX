@@ -2190,11 +2190,15 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     # par fiche, si l'analyse a été faite « de la même manière » (données riches) ou dégradée.
     _prov = (meta or {}).get("sources_prov") or {}
     side["sources"] = sorted(k for k, v in _prov.items() if v)
-    side["data_score"] = len(side["sources"])
     if meta and meta.get("streaks"):
         side["streaks"] = meta["streaks"]
     if meta and meta.get("h2h"):
         side["h2h"] = meta["h2h"]
+    # `data_score` = RICHESSE RÉELLE des données de l'analyse (fix 2026-07-14) : compte AUSSI les séries
+    # Sportradar (streaks) et le H2H, pas seulement FotMob/ESPN/Understat (`sources`). Avant, un match
+    # richement analysé via Sportradar+Flashscore affichait `data_score 2` à tort (ex. St Johnstone : 5
+    # victoires/14 buts + streaks 8/8) et faisait un faux « cotes seules ». Reflète ce qui a servi à l'analyse.
+    side["data_score"] = len(side["sources"]) + (1 if side.get("streaks") else 0) + (1 if side.get("h2h") else 0)
     circuit = m.get("circuit") or (meta.get("circuit") if meta else None)   # Unibet (path) prioritaire
     if circuit:
         side["circuit"] = circuit

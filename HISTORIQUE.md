@@ -1417,3 +1417,15 @@ consulter le SCORE DÉJÀ RÉGLÉ du sidecar du match (`analyses.meta().result.r
 sidecar EN PRIORITÉ (autorité de vérité, 0 réseau) avant le lookup par nom -> plus de void à tort.
 13/07 réinitialisé + re-réglé = WON @1.94, compté au ROI (combo_stats won 57->58, suivi 4 gagnés 0 void).
 Selfcheck 0/0, live 200.
+
+## 2026-07-14 (7) — Qualité : garde-fou value du combiné + data_score honnête (streaks/H2H)
+User : « supprimer les points d'attention + voir si les analyses sont fortes ».
+1. GARDE-FOU VALUE COMBINÉ : `combo_daily.MIN_COMBO_EV=0.05` -> `build_for_day` s'abstient si EV
+   (prob×cote−1) < 5 % (jambes indépendantes). Fini le combiné publié à value nulle (ex. 14/07 : 51 % vs
+   implicite 51 % = 0 edge). Tests combo OK (11).
+2. ANALYSES VÉRIFIÉES FORTES : picks foot du jour = mismatches énormes (St Johnstone 5 victoires/14 buts
+   + streaks Sportradar 8/8 ; Partick 6-0 récent, H2H 0-5, meilleur buteur), multi-sources, EV +12 %.
+3. `data_score` HONNÊTE (le « data pauvre » était un artefact) : compte AUSSI streaks Sportradar + H2H,
+   pas que FotMob/ESPN/Understat. Foot picks passent de 2 à 3-4. ⚠️ Backfill initial trop large (ajoutait
+   0 à 287 vieux sidecars sans traçage -> faux WARN) : corrigé en RETIRANT data_score des sidecars sans
+   aucune donnée (forward-only restauré). Selfcheck -> OK 0/0 (16 checks), data_completeness 0/147.
