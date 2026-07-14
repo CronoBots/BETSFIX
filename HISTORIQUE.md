@@ -1459,3 +1459,11 @@ Demande user : « réfléchir de moi-même à étoffer les sources, sans attendr
    bleues numérotées) ne sont plus tracés ; seuls restent les repères AUTO (ambrés, marché auto-ajusté).
    Filtrage à la source (`_all_miles = exclusion_events()` seul) -> couvre chart + légende, Simples ET
    Combinés. Vérifié : 0 repère bleu, 6 ambrés. Selfcheck 0/0, live 200.
+
+## 2026-07-14 (11) — Paris à jouer visibles sous les graphiques (comme les paris réglés)
+Demande user : les paris à jouer (comptés au ROI, pas encore réglés) doivent aussi apparaître dans la
+liste sous les graphiques de stats, comme les paris réglés. Ajout `analyses.pending_roi_bets(combo=False)`
+(simples retenus/publiés à venir/en cours ; `combo=True` = combinés du jour en cours ; format = clé
+`recent`, result="pending"). `_recent_bets_html` : badge ⏳ doré (rec-p). `render_stats` préfixe les à-jouer
+AUX réglés (simples + combinés). Vérifié : 2 paris à jouer (St Johnstone, Partick) en tête avec ⏳.
+Selfcheck 0/0, live 200.

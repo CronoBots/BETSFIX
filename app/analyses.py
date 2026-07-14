@@ -1693,6 +1693,39 @@ def _agg_bets(events: list) -> dict:
 
 
 
+def pending_roi_bets(combo: bool = False) -> list:
+    """Paris comptés au ROI mais PAS ENCORE réglés (matchs À VENIR / EN COURS) — même format que la clé
+    `recent` d'_agg_bets ({start, result, cote, name, sel, sport}) pour les afficher SOUS la courbe, à
+    côté des paris réglés (demande user 2026-07-14). `result="pending"`. `combo=True` -> combinés du jour
+    en cours ; sinon les SIMPLES retenus/publiés à venir. Le plus PROCHE en tête."""
+    out = []
+    if combo:
+        try:
+            from app import combo_daily
+            for cb in combo_daily.entries():
+                if cb.get("result") in ("won", "lost", "void"):
+                    continue
+                out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
+                            "cote": cb.get("cote"), "name": f"Combiné du jour ({len(cb.get('legs') or [])} j.)",
+                            "sel": "multisport", "sport": "combiné"})
+        except Exception:
+            pass
+    else:
+        for p in glob.glob(os.path.join(DIR, "*.json")):
+            d = _meta_load(p)
+            if not d or status_of(d) not in ("notstarted", "inprogress"):
+                continue
+            if (d.get("combo") or {}).get("legs"):
+                continue                                     # combiné same-match -> pas un simple
+            sport, mid = d.get("sport"), str(d.get("id"))
+            rb = retained_bet(sport, mid) or published_bet(sport, mid)
+            if rb and rb.get("result") not in ("won", "lost", "push"):
+                out.append({"start": d.get("start") or "", "result": "pending", "cote": rb.get("cote"),
+                            "name": d.get("name"), "sel": rb.get("sel"), "sport": sport})
+    out.sort(key=lambda x: x.get("start") or "")            # chronologique (le plus proche en tête à l'affichage)
+    return out
+
+
 def stats_full(since_days: int | None = None) -> dict:
     """Suivi pour l'accueil = LE pari JOUÉ (retenu) de chaque match — celui qui passe le seuil de jeu,
     = le pari par défaut du match. Les matchs où le système s'abstient (aucun pari retenu) ne comptent

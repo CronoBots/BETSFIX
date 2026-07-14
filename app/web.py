@@ -471,6 +471,10 @@ CSS = """
        justify-content:center;font-size:10px;font-weight:900;color:#0a0a0a}
   .spf-rec.rec-w .spf-rec-b{background:#34d27b} .spf-rec.rec-l .spf-rec-b{background:#ff6b6b}
   .spf-rec.rec-n .spf-rec-b{background:var(--muted)}
+  /* Pari À JOUER (compté au ROI, pas encore réglé) : pastille dorée ⏳ + ligne légèrement teintée. */
+  .spf-rec.rec-p .spf-rec-b{background:var(--gold-bg);border:1px solid var(--gold-bd);font-size:9px}
+  .spf-rec.rec-p{opacity:.95}
+  .spf-rec.rec-p b{color:var(--gold)}
   .spf-rec-m{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
   .spf-rec-m b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .spf-rec-s{color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -3342,7 +3346,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # BLOC SIMPLES compact (présentation alignée sur les onglets sport, demande user) : en-tête
     # (titre + ROI), W/L au-dessus de la courbe, courbe (avec repères), stats dessous. EXTRAS conservés :
     # nouv. système + CLV (ligne secondaire) et repères de modèle sous la courbe.
-    _rec_s = _recent_bets_html(list(reversed(ov.get("recent") or [])))
+    # Paris À JOUER (comptés au ROI, pas encore réglés) EN TÊTE (⏳), puis les réglés (demande user 2026-07-14).
+    _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
     _s_inner = (
         f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">📈 Simples</span>{_stk_s}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
@@ -3449,7 +3454,7 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
         f'<span><b>@{cs.get("avg_odds") or "—"}</b> cote</span></div>'
         f'<div class="spf-cv-extra">{extra}</div>'
         f'{legs}{_mile_legend(_mc, compact=True)}')
-    _rec_c = _recent_bets_html(list(reversed(cs.get("recent") or [])))
+    _rec_c = _recent_bets_html(analyses.pending_roi_bets(combo=True) + list(reversed(cs.get("recent") or [])))
     if _rec_c:
         return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_c_inner}'
                 f'<div class="spf-cv-more"><span>Derniers combinés</span> ▾</div></summary>{_rec_c}</details>')
@@ -4481,7 +4486,8 @@ def _recent_bets_html(recent: list) -> str:
     cote + date. Révélée au CLIC sur le graphe (panneau `<details>`). '' si vide."""
     if not recent:
         return ""
-    _B = {"won": ("W", "rec-w"), "lost": ("L", "rec-l"), "push": ("N", "rec-n")}
+    _B = {"won": ("W", "rec-w"), "lost": ("L", "rec-l"), "push": ("N", "rec-n"),
+          "pending": ("⏳", "rec-p")}       # ⏳ = pari À JOUER (compté au ROI, pas encore réglé)
     rows = []
     for b in recent:
         letter, cls = _B.get(b.get("result"), ("?", ""))
