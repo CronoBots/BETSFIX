@@ -3544,7 +3544,7 @@ def _conf_word(p: int) -> str:
     return "Très élevée"
 
 
-def _plain_market(sel: str, sport: str) -> str:
+def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     """Traduction EN CLAIR d'un pari (demande user 2026-07-13, « clair/intuitif ») : le jargon devient une
     phrase lisible SOUS la sélection. '' si le marché est déjà clair (vainqueur, set, double chance « ou
     nul »…) ou non reconnu -> jamais de glose approximative. Purement AFFICHAGE."""
@@ -3568,12 +3568,23 @@ def _plain_market(sel: str, sport: str) -> str:
     # comme total des 2 équipes). Détecté par le tiret séparateur « <nom> - plus/moins ».
     meq = re.search(r"^(.*?)\s[-–—]\s.*?\b(plus|moins) de (\d+(?:[.,]\d+)?)", s, re.I)
     if meq and "total" not in sl:
-        val = float(meq.group(3).replace(",", "."))
         who = meq.group(1).strip(" -–—")
-        n = math.ceil(val)   # « plus de 0.5 » -> au moins 1 ; « moins de 1.5 » -> moins de 2
-        if meq.group(2).lower() == "plus":
-            return f"{who} marque au moins {n} {_u(n)}"
-        return f"{who} marque moins de {n} {_u(n)}"
+        # GARDE-FOU (fix audit 2026-07-14) : ne traiter comme « ÉQUIPE marque » QUE si `who` est bien une
+        # équipe — pas un libellé de total mal formé (« Nombre de buts - Plus de 2.5 ») ni un sel citant les
+        # DEUX équipes (« A - B - Plus de 2.5 » = total). Sinon on laisse tomber sur la branche « total ».
+        _generic = bool(re.search(r"nombre|total|\bbut|\bpoint|\bjeu", who.lower()))
+        _wn = re.sub(r"\W+", "", who.lower())
+        _teams = [re.sub(r"\W+", "", t.lower()) for t in (home, away) if t]
+        _sln = re.sub(r"\W+", "", sl)
+        _both = bool(_teams) and all(t in _sln for t in _teams)
+        _is_team = (any(_wn and (_wn in t or t in _wn) for t in _teams)
+                    if _teams else not _generic) and not _generic and not _both
+        if _is_team:
+            val = float(meq.group(3).replace(",", "."))
+            n = math.ceil(val)   # « plus de 0.5 » -> au moins 1 ; « moins de 1.5 » -> moins de 2
+            if meq.group(2).lower() == "plus":
+                return f"{who} marque au moins {n} {_u(n)}"
+            return f"{who} marque moins de {n} {_u(n)}"
     # TOTAL du match « plus/moins de X.5 (points/buts) » -> nombre entier lisible
     mt = re.search(r"\b(plus|moins) de (\d+(?:[.,]\d+)?)", sl)
     if mt and ("total" in sl or "points" in sl or "buts" in sl):
@@ -3831,7 +3842,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             _prov_tag = ('' if framed else
                          '<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>')
             # Marché EN CLAIR sous la sélection (demande user 2026-07-13) : « -9.5 » -> « gagne de 10 pts+ ».
-            _gl = _plain_market(prov_sel, sp)
+            _gl = _plain_market(prov_sel, sp, home, away)
             _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{html.escape(_gl)}</div>' if _gl else ""
             # PAS d'extrait d'analyse dans la carte REPLIÉE (demande user 2026-07-13) : l'analyse n'apparaît
             # qu'au DÉPLI (message COMPLET, dans le corps) -> plus de doublon extrait/analyse une fois ouvert.
@@ -4039,7 +4050,7 @@ def _leg_card(l: dict, *, why: bool = True) -> str:
     else:
         _btxt, _bcls = _bmap.get(_res, ("À VENIR", "p"))
     # gloss = explication EN CLAIR du marché (identique aux cartes de simple) ; + score final si réglé.
-    _g = _plain_market(sel_raw, _sp)
+    _g = _plain_market(sel_raw, _sp, _lh, _la)
     if _res is not None and l.get("score"):
         _sc = html.escape(str(l.get("score")))
         _g = f'{_g} · <b>final {_sc}</b>' if _g else f'<b>final {_sc}</b>'
@@ -5140,7 +5151,7 @@ def _sport_row(r: dict) -> str:
         _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
                      f'<span class="mc-cote-v">{_pcote:g}</span></span>'
                      if isinstance(_pcote, (int, float)) and _pcote else "")
-        _gl = _plain_market(_psel, sport_key)
+        _gl = _plain_market(_psel, sport_key, r.get("home",""), r.get("away",""))
         _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{e(_gl)}</div>' if _gl else ""
         # PARI PUBLIÉ dont la COTE A BOUGÉ depuis le conseil (demande user 2026-07-14) : mention transparente
         # (« cote au conseil : X · marché actuel : Y ») -> l'abonné voit son pari au bon prix + pourquoi ça a
