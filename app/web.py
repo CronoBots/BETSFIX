@@ -1725,7 +1725,7 @@ CSS = """
        z-index:2;border-radius:2px;box-shadow:0 0 3px rgba(0,0,0,.75)}
   /* Ligne VALUE (EV vs marché) sous la barre : vert = value positive, ambre = négative. */
   .mc-vc-val{margin-top:8px;font-size:11px;font-weight:800;letter-spacing:.01em}
-  .mc-vc-val.pos{color:#a6e22e} .mc-vc-val.neg{color:#ff9f43}
+  .mc-vc-val.pos{color:#a6e22e}
   .mc-vc-mk{color:var(--muted);font-weight:600}
   .mc-vc-foot{margin-top:6px;font-size:10px;font-weight:600;color:var(--muted)}
   /* Traduction EN CLAIR du marché, sous la sélection (demande user 2026-07-13) — discrète, une flèche cyan. */
@@ -3565,9 +3565,12 @@ def _verdict_strip(pconf, cote_html: str, foot_txt: str = "", cote=None) -> str:
         ev = round((p / 100.0 * c - 1) * 100)
         if 0 < imp < 100:
             _mark = f'<b class="mc-vmark" style="left:{imp}%"></b>'
-        if ev != 0:
-            _valline = (f'<div class="mc-vc-val {"pos" if ev > 0 else "neg"}">'
-                        f'{"💎" if ev > 0 else "⚠️"} {"+" if ev > 0 else ""}{ev}% de value'
+        # Ligne value affichée UNIQUEMENT si POSITIVE (💎) : un pari SANS edge (provisoire/abstention) ne doit
+        # PAS étaler un « -X% de value » décourageant sur notre propre sélection (demande user 2026-07-14,
+        # « pas satisfait »). Le marqueur marché sur la barre (à droite du remplissage) montre déjà le déficit,
+        # discrètement. Le 💎 devient un LABEL DE QUALITÉ : présent = vrai value bet.
+        if ev > 0:
+            _valline = (f'<div class="mc-vc-val pos">💎 +{ev}% de value'
                         f'<span class="mc-vc-mk"> · marché {imp}%</span></div>')
     _foot = f'<div class="mc-vc-foot">{foot_txt}</div>' if foot_txt else ""
     return (
