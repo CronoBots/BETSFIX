@@ -443,19 +443,22 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     if not s:
         return s
     low = s.lower()
-    # HANDICAP d'équipe : normaliser l'AFFICHAGE vers une forme UNIQUE et logique « Handicap <équipe> <±N.5> »
+    # HANDICAP d'équipe : normaliser l'AFFICHAGE vers UNE forme unique « Handicap asiatique <équipe> <±N.5> »
     # (demande user 2026-07-14 : « Handicap St Johnstone -1.5 » et « Partick -1.5 (handicap) » = MÊME pari,
-    # 2 écritures). PUREMENT AFFICHAGE — le `sel` STOCKÉ ne change pas, donc `code_from_pick`/le règlement
-    # restent intacts (vérifié : les 2 formes donnent le même code HCAP). None-safe.
+    # 2 écritures). On dit « asiatique » car sur Unibet ces lignes en demi-point (−1.5/−2.5) sont dans le
+    # marché « Handicap Asiatique » -> même libellé qu'Unibet = pas de confusion pour l'abonné. PUREMENT
+    # AFFICHAGE : le `sel` STOCKÉ ne change pas, donc `code_from_pick`/le règlement restent intacts (vérifié :
+    # même code HCAP ; un demi-point se règle pareil qu'il soit asiatique ou européen). None-safe.
     if "handicap" in low or re.search(r"\bhand\.?\b", low):
         _mh = re.search(r"([+\-−–]\s?\d+(?:[.,]\d+)?)", s)
         if _mh:
             _sign = re.sub(r"\s+", "", _mh.group(1)).replace("−", "-").replace("–", "-")
             _team = (s[:_mh.start()] + " " + s[_mh.end():])
-            _team = re.sub(r"\(?\s*handicap\.?\s*\)?|\bhand\.?\b", "", _team, flags=re.I)
+            _team = re.sub(r"\(?\s*handicap\s*asiatique\s*\)?|\(?\s*handicap\.?\s*\)?|\bhand\.?\b",
+                           "", _team, flags=re.I)
             _team = re.sub(r"\s+", " ", _team).strip(" -–—()·:")
             if _team:
-                return f"Handicap {_team} {_sign}"
+                return f"Handicap asiatique {_team} {_sign}"
     if "double chance" not in low:
         return s
     m = re.search(r"\b(1x|x2|12)\b", low)

@@ -1497,3 +1497,11 @@ handicap d'équipe s'affiche « Handicap <équipe> <±N.5> » (forme unique). PU
 STOCKÉ est inchangé, donc `code_from_pick`/le règlement restent identiques (VÉRIFIÉ : les 2 formes ->
 même code HCAP AWAY -1.5, won/lost justes). Glose conservée (calculée sur le sel d'origine). Non-régression
 DC/total/vainqueur OK. 13 tests, selfcheck 0/0.
+
+## 2026-07-14 (16) — Libellé handicap = « Handicap asiatique » (comme Unibet, anti-confusion)
+Suite question user (« c'est handicap asiatique sur Unibet ? » -> vérifié : les lignes en demi-point
+−1.5/−2.5 sont dans le marché « Handicap Asiatique » d'Unibet). « Pour ne pas porter à confusion » ->
+`pretty_sel` affiche désormais « Handicap asiatique <équipe> <±N.5> » (= libellé exact d'Unibet, l'abonné
+trouve le bon marché). Gère la déduplication si le sel dit déjà « handicap asiatique ». AFFICHAGE SEUL —
+`sel` stocké et `code_from_pick` inchangés, règlement identique (demi-point : asiatique = européen ; code
+HCAP gère le remboursement des lignes entières). Vérifié + tests. Live 200.
