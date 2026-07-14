@@ -1467,3 +1467,10 @@ liste sous les graphiques de stats, comme les paris réglés. Ajout `analyses.pe
 `recent`, result="pending"). `_recent_bets_html` : badge ⏳ doré (rec-p). `render_stats` préfixe les à-jouer
 AUX réglés (simples + combinés). Vérifié : 2 paris à jouer (St Johnstone, Partick) en tête avec ⏳.
 Selfcheck 0/0, live 200.
+
+## 2026-07-14 (12) — Carte repliée : hiérarchie (équipe > pari) + espaces
+Demande user : l'équipe (le match) doit être PLUS GRANDE que le pari à jouer ; garder la glose grise avec
+la flèche ; améliorer les espaces. Avant : `.mc-pick` 15.5 px > `.mc-teams` 14/14.5 px (inversé). Fix :
+`.mc-teams` (base 15, `.mc-prem`/`.mc-tg` 16 px) = HÉROS ; `.mc-pick` 14 px (sous les équipes) ; glose
+`.mc-gloss` grise + ↳ conservée ; espaces : `.mc-div` 13/11 px, `.mc-teams` margin-top 9-10, padding
+`.mc-prem .mc-head` 15/16/14, gloss margin-top 6. Live 200.

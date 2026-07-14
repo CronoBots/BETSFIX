@@ -587,13 +587,14 @@ CSS = """
        transition:transform .18s}
   .mc-open .mc-chev{display:none}   /* carte ouverte : chevron caché ; il ne réapparaît qu'une fois repliée */
   /* L2 : équipes (noms + prénoms complets) — ligne principale. */
-  .mc-teams{font-size:14px;font-weight:800;color:var(--text);margin-top:5px;letter-spacing:-.01em;
+  .mc-teams{font-size:15px;font-weight:800;color:var(--text);margin-top:6px;letter-spacing:-.01em;
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mc-teams .dim{color:var(--dim);font-weight:600}
-  /* Carte PREMIUM (pari à venir présenté carte) : même respiration/typo que les provisoires (padding
-     roomier, équipes 14.5 px sur 2 lignes possibles) — présentation homogène 10/10 (demande user). */
-  .mc-prem .mc-head{padding:14px 16px 13px}
-  .mc-prem .mc-teams{font-size:14.5px;margin-top:8px;line-height:1.24;white-space:normal;overflow:visible;
+  /* Carte PREMIUM (pari à venir présenté carte) : demande user 2026-07-14 — l'ÉQUIPE (le match) est le
+     HÉROS de la carte repliée -> plus GRANDE (16 px) que le pari à jouer (14 px, cf. .mc-pick). Padding
+     roomier, équipes sur 2 lignes possibles. */
+  .mc-prem .mc-head{padding:15px 16px 14px}
+  .mc-prem .mc-teams{font-size:16px;margin-top:9px;line-height:1.26;white-space:normal;overflow:visible;
        text-overflow:clip;text-wrap:balance}
   /* L3 : LISTE des paris (intitulés,
   1/ligne) — masquée une fois DÉPLIÉE (les paris détaillés s'affichent).
@@ -1681,18 +1682,20 @@ CSS = """
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
   .mc-tg .mc-comp-sep{color:#5f7a97}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
-  /* Noms d'équipes PLUS PETITS (demande user 2026-07-12) mais restant le titre (gras). */
-  .mc-tg .mc-teams{font-size:14.5px;font-weight:800;color:#eef4fb;line-height:1.24;margin-top:9px;
+  /* Équipes = HÉROS de la carte (demande user 2026-07-14) : plus GRANDES (16 px) que le pari (14 px). */
+  .mc-tg .mc-teams{font-size:16px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
        white-space:normal;overflow:visible;text-overflow:clip;text-wrap:balance}
   /* Court extrait d'analyse à BARRE CYAN à gauche (comme la carte Telegram) — texte léger, plafonné à
      4 lignes (demande user 2026-07-12 ; line-clamp = filet visuel, la coupe texte fait déjà l'essentiel). */
   .mc-note{margin-top:9px;padding-left:13px;border-left:2px solid #3a9fe0;color:#a7bcd6;
        font-size:12.5px;font-weight:500;line-height:1.5;
        display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
-  .mc-div{height:1px;margin:12px 0;background:linear-gradient(90deg,rgba(120,170,220,.22),rgba(120,170,220,.03))}
+  .mc-div{height:1px;margin:13px 0 11px;background:linear-gradient(90deg,rgba(120,170,220,.22),rgba(120,170,220,.03))}
   .mc-open .mc-div{display:none}
   .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
-  .mc-pick{font-size:15.5px;font-weight:800;color:#eef4fb;line-height:1.3;letter-spacing:-.01em}
+  /* Pari à jouer : SOUS les équipes et PLUS PETIT qu'elles (demande user 2026-07-14). Reste en gras (le
+     pari), mais l'équipe (le match) domine la hiérarchie de la carte. */
+  .mc-pick{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.3;letter-spacing:-.01em}
   .mc-conf{margin-top:10px;font-size:13px;color:#90a4be;font-weight:600}
   .mc-conf b{color:#fff;font-weight:800;font-variant-numeric:tabular-nums}
   .mc-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:13px}
