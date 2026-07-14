@@ -1451,3 +1451,11 @@ Demande user : « réfléchir de moi-même à étoffer les sources, sans attendr
   Bastad/Umag (TERRE BATTUE) tagués « Gazon » -> spécialisation surface FAUSSÉE (facteur n°1 au tennis).
   Fix : `_surface_hint(comp, name, *_trns)` -> tournoi actuel prioritaire ; repli récent gardé pour comp
   ambigu (« Londres » -> Wimbledon). Vérifié : Gstaad/Bastad/Umag = Terre battue. 24 tests OK.
+
+## 2026-07-14 (10) — Règlement paris terminés + retrait des repères bleus des graphiques
+1. RÈGLEMENT : settle_analyses (1) + provisional (0) + combo_daily (1) ; inventaire matchs terminés =
+   PICKS 0 · COMBINÉS 0 · FANTÔMES 0.
+2. REPÈRES BLEUS retirés des graphiques (demande user) : les jalons méthodo (MODEL_MILESTONES, pastilles
+   bleues numérotées) ne sont plus tracés ; seuls restent les repères AUTO (ambrés, marché auto-ajusté).
+   Filtrage à la source (`_all_miles = exclusion_events()` seul) -> couvre chart + légende, Simples ET
+   Combinés. Vérifié : 0 repère bleu, 6 ambrés. Selfcheck 0/0, live 200.

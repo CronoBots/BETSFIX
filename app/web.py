@@ -3310,8 +3310,10 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # écarte ou ré-intègre TOUT SEUL, datés — ils changent aussi la fabrication des tickets). Chaque repère
     # a une PORTÉE (simple/combo/both) -> repères SIMPLES sur le graphe Simples, COMBINÉS sur le graphe
     # Combinés, « both » sur les 2. Le 6e champ = type ("methodo"/"auto") pilote la couleur de la pastille.
-    _methodo = [tuple(m) + ("methodo",) for m in analyses.MODEL_MILESTONES]
-    _all_miles = sorted(_methodo + analyses.exclusion_events(), key=lambda m: (m[0] or ""))
+    # REPÈRES BLEUS (jalons méthodo MODEL_MILESTONES) RETIRÉS des graphiques (demande user 2026-07-14) :
+    # on ne trace plus que les repères AUTO (ambrés, marché auto-ajusté). Le filtrage à la SOURCE couvre
+    # chart + légende, graphes Simples ET Combinés (tous dérivent de `_all_miles`).
+    _all_miles = sorted(analyses.exclusion_events(), key=lambda m: (m[0] or ""))
     _ms_simple = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("simple", "both")]
     _ms_combo = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("combo", "both")]
     chart = _hero_chart(ov.get("points") or [], uid="all",
