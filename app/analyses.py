@@ -440,9 +440,24 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     (« Double chance 1X ») ET la forme explicite (« Double chance <équipe> ou nul ») donnent le même
     libellé. SOURCE UNIQUE (web/combo/notify). Renvoie le libellé tel quel si ce n'est pas une double chance."""
     s = re.sub(r"\s+", " ", (sel or "").strip())
-    if not s or "double chance" not in s.lower():
+    if not s:
         return s
     low = s.lower()
+    # HANDICAP d'équipe : normaliser l'AFFICHAGE vers une forme UNIQUE et logique « Handicap <équipe> <±N.5> »
+    # (demande user 2026-07-14 : « Handicap St Johnstone -1.5 » et « Partick -1.5 (handicap) » = MÊME pari,
+    # 2 écritures). PUREMENT AFFICHAGE — le `sel` STOCKÉ ne change pas, donc `code_from_pick`/le règlement
+    # restent intacts (vérifié : les 2 formes donnent le même code HCAP). None-safe.
+    if "handicap" in low or re.search(r"\bhand\.?\b", low):
+        _mh = re.search(r"([+\-−–]\s?\d+(?:[.,]\d+)?)", s)
+        if _mh:
+            _sign = re.sub(r"\s+", "", _mh.group(1)).replace("−", "-").replace("–", "-")
+            _team = (s[:_mh.start()] + " " + s[_mh.end():])
+            _team = re.sub(r"\(?\s*handicap\.?\s*\)?|\bhand\.?\b", "", _team, flags=re.I)
+            _team = re.sub(r"\s+", " ", _team).strip(" -–—()·:")
+            if _team:
+                return f"Handicap {_team} {_sign}"
+    if "double chance" not in low:
+        return s
     m = re.search(r"\b(1x|x2|12)\b", low)
     code = m.group(1).upper() if m else None
     if not code:                                   # forme explicite -> déduire le code des équipes citées

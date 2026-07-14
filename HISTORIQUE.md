@@ -1489,3 +1489,11 @@ ou plus ») alors que « Handicap St Johnstone -1.5 » oui ; (2) les lignes de s
 Fix (1) : `_plain_market` regex handicap accepte un suffixe « (handicap) » APRÈS le nombre (avant : nombre
 exigé en fin de chaîne). (2) Espaces resserrés : `.mc-div` 13/11->10/8 px, `.mc-verdict` 14/13->11/10 px,
 `.mc-prem .mc-head` 15/16/14->13/16/12, `.mc-tg .mc-head` 14/16/13->12/16/11. Live 200.
+
+## 2026-07-14 (15) — Intitulé handicap homogène (AFFICHAGE seul, règlement intact)
+Demande user (capture) : « Handicap St Johnstone -1.5 » vs « Partick Thistle -1.5 (handicap) » = MÊME pari,
+2 écritures -> utiliser la plus logique ET ne pas casser le règlement. `analyses.pretty_sel` étendu : un
+handicap d'équipe s'affiche « Handicap <équipe> <±N.5> » (forme unique). PUREMENT AFFICHAGE — le `sel`
+STOCKÉ est inchangé, donc `code_from_pick`/le règlement restent identiques (VÉRIFIÉ : les 2 formes ->
+même code HCAP AWAY -1.5, won/lost justes). Glose conservée (calculée sur le sel d'origine). Non-régression
+DC/total/vainqueur OK. 13 tests, selfcheck 0/0.
