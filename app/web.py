@@ -4018,10 +4018,13 @@ def _combo_tg_legs(cb: dict) -> str:
     return "".join(_leg_card(l, why=True) for l in (cb.get("legs") or []))
 
 
-def _combo_tg_card() -> str:
+def _combo_tg_card(include_settled: bool = True) -> str:
     """Carte « Combiné du jour » présentée COMME les cartes provisoires (Telegram) mais en OR (demande user
     2026-07-12) : en-tête, jambes = picks, SYNTHÈSE en barre cyan, Confiance, COTE en gros chiffre. Placée
-    DANS les matchs en direct (plus de bandeau en tête). Info seule (hors ROI). '' si aucun combiné."""
+    DANS les matchs en direct (plus de bandeau en tête). Info seule. '' si aucun combiné.
+    `include_settled=False` (accueil « À venir » + directs) : ne renvoie RIEN une fois le combiné TERMINÉ
+    (toutes ses jambes réglées) — un pari fini n'a rien à faire dans « À jouer / À venir » (demande user
+    2026-07-14) ; il reste consultable dans les Stats."""
     try:
         import datetime as _dt
         from app import combo_daily as _cd
@@ -4032,6 +4035,11 @@ def _combo_tg_card() -> str:
     if not cb or not cb.get("legs"):
         return ""
     _res = cb.get("result")
+    # TERMINÉ = toutes les jambes réglées (won/lost/push/void). On garde la carte tant qu'AU MOINS une jambe
+    # court (le combiné est « en cours ») ; une fois tout réglé, il quitte l'accueil/directs.
+    _all_done = all(l.get("result") in ("won", "lost", "push", "void") for l in cb["legs"])
+    if not include_settled and _all_done:
+        return ""
     _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
               "lost": '<span class="mc-badge mc-done">❌ Perdu</span>',
               "void": '<span class="mc-badge mc-done">➖ Remboursé</span>'}.get(
@@ -4101,7 +4109,7 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     _prog = [it for it in _programme_items(_paj, framed=True) if not it.get("_live")]
     prov = sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
     todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
-    combo_daily = _combo_tg_card()               # carte du combiné du jour (style OR) — COMPTÉ AU ROI (2026-07-14)
+    combo_daily = _combo_tg_card(include_settled=False)   # combiné du jour (OR) — retiré une fois TERMINÉ (À venir)
     has_any = bool(play or prov or todo or combo_daily)
     _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir l\'<b>indicatif</b> ci-dessous.'
                    ) if has_any else None
@@ -5247,7 +5255,7 @@ def render_directs(sections: list, frag: bool = False) -> str:
         out.append(_zone("live", f"{icon} {label}", "en direct", len(cards), content))
     # Combiné du jour PRÉSENTÉ COMME LES PROVISOIRES (carte Telegram OR) et placé DANS les matchs en direct,
     # plus en bandeau au-dessus (demande user 2026-07-12).
-    _combo = _combo_tg_card()
+    _combo = _combo_tg_card(include_settled=False)   # retiré des directs une fois TERMINÉ (toutes jambes réglées)
     if not total and not _combo:
         zones = (
             '<div class="live-empty">'
