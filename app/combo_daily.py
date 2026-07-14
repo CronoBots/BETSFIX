@@ -349,11 +349,29 @@ def settle_pending() -> int:
     changed = False           # persiste la PROGRESSION (jambes réglées + tries) même si le combiné n'est
     #                           pas encore tranché -> les tries s'accumulent (borne void OK) et les jambes
     #                           déjà réglées ne sont pas re-fetchées à chaque passe.
+    import datetime as _dt
+    _today = _dt.datetime.now(_dt.timezone.utc).date()
     for day, cb in list(d.items()):
-        if not isinstance(cb, dict) or cb.get("result") in ("won", "lost", "void"):
+        if not isinstance(cb, dict):
+            continue
+        # Combiné DÉJÀ tranché (ROI figé, compteur monotone) : on ne recalcule JAMAIS son résultat. MAIS on
+        # continue à FINALISER ses jambes encore en attente/void pour l'AFFICHAGE — une jambe void'ée trop tôt
+        # (match fini APRÈS la borne 8 essais, cf. Nuno Borges 2026-07-14 : combiné perdu via l'autre jambe,
+        # Borges resté « remboursé » alors qu'il a gagné 2-0) doit montrer son vrai résultat. Borné à 3 j pour
+        # ne pas re-taper les sources indéfiniment (au-delà, le void restant est définitif).
+        _frozen = cb.get("result") in ("won", "lost", "void")
+        _pending = any(l.get("result") not in ("won", "lost", "push")
+                       for l in (cb.get("legs") or []))
+        if _frozen and not _pending:
+            continue
+        try:
+            _age = (_today - _dt.date.fromisoformat(day)).days
+        except (ValueError, TypeError):
+            _age = 0
+        if _frozen and _age > 3:
             continue
         for leg in cb.get("legs") or []:
-            if leg.get("result") in ("won", "lost", "push", "void"):
+            if leg.get("result") in ("won", "lost", "push"):   # void = RÉVISABLE (pas won/lost/push définitifs)
                 continue
             q = {"home": leg.get("home", ""), "away": leg.get("away", ""),
                  "start": leg.get("start"), "sofa_id": ""}
@@ -406,6 +424,8 @@ def settle_pending() -> int:
             leg["result"] = res if res in ("won", "lost", "push") else "void"
             leg["score"] = score.get("label") or ""
             changed = True
+        if _frozen:
+            continue          # ROI figé : jambes raffinées pour l'affichage, résultat du combiné inchangé
         cb["tries"] = (cb.get("tries") or 0) + 1
         changed = True                                # tries accumulés -> la borne void finit par mordre
         legs = cb.get("legs") or []
