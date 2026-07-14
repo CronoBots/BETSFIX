@@ -1679,6 +1679,9 @@ CSS = """
   .row.mc.mc-tg{background:linear-gradient(165deg,#0e1d2e 0%,#0b1622 55%,#081019 100%);
        border:1px solid rgba(58,140,225,.42);
        box-shadow:0 0 0 1px rgba(34,167,238,.07),0 0 26px rgba(30,110,190,.15),0 12px 32px rgba(0,0,0,.5)}
+  /* Cadre PROVISOIRE : bord GRIS neutre (remplace la pastille « PROVISOIRE ») — demande user 2026-07-14. */
+  .row.mc.mc-tg.mc-prov-b{border-color:rgba(150,162,178,.45);
+       box-shadow:0 0 0 1px rgba(150,162,178,.06),0 12px 32px rgba(0,0,0,.5)}
   .mc-tg .mc-head{padding:12px 16px 11px}
   .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
@@ -3830,7 +3833,9 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # PAS d'extrait d'analyse dans la carte REPLIÉE (demande user 2026-07-13) : l'analyse n'apparaît
             # qu'au DÉPLI (message COMPLET, dans le corps) -> plus de doublon extrait/analyse une fois ouvert.
             # Bande VERDICT : confiance colorée (barre + %) + cote groupées, ré-analyse sous la barre.
-            sub = ('<div class="mc-div"></div>' + _prov_tag
+            # Plus de pastille « 🧪 PROVISOIRE » (demande user 2026-07-14) : le provisoire s'identifie par le
+            # BORD GRIS du cadre (cf. _acc), plus par un badge.
+            sub = ('<div class="mc-div"></div>'
                    + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
                    + _gloss
                    + _verdict_strip(_pconf, _cote_big, f'🔄 {_reana}', cote=_cote))
@@ -3861,16 +3866,18 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             + _badge
             + '</div>'
             f'<div class="mc-teams">{teams}</div>'
-            # SCOREBOARD SOUS le pari à jouer (demande user 2026-07-14) : le pari (sub) d'abord, le tableau de
-            # score en dessous — aligné sur les cartes de pari (_sport_row) où le score est déjà sous le pari.
+            # SCOREBOARD SOUS le pari à jouer (demande user 2026-07-14) : le pari (sub) d'abord, une LIGNE DE
+            # SÉPARATION, puis le tableau de score en dessous — aligné sur les cartes de pari (_sport_row).
             + f'<div class="mc-sub">{sub}</div>'
-            + (f'<div class="mc-livesc">{_lscore}</div>' if _lscore else "")
+            + (f'<div class="mc-div"></div><div class="mc-livesc">{_lscore}</div>' if _lscore else "")
             + '</div>')
         # Accent doré discret (bord gauche) sur les cartes PROVISOIRES en zone dédiée -> identifiables sans
         # la pastille répétée (demande user 2026-07-11). Uniquement en mode `framed` et si c'est un provisoire.
         # STYLE TELEGRAM (demande user 2026-07-12) : fond bleu nuit + bordure lumineuse sur les cartes du
         # programme (classe `mc-tg`), au lieu de l'ancien accent doré latéral.
-        _acc = " mc-tg"
+        # Cadre PROVISOIRE : mêmes fond/mise en page que mc-tg mais BORD GRIS (demande user 2026-07-14) —
+        # remplace la pastille « PROVISOIRE » : le gris signale « indicatif » sans badge.
+        _acc = " mc-tg" + (" mc-prov-b" if prov_sel else "")
         # PROVISOIRE CLIQUABLE (demande user 2026-07-10) : si l'analyse du match est disponible (le scan
         # GARDE le .md des provisoires), la carte devient un <details> qui déplie la fiche d'analyse — comme
         # les paris à jouer. Le .md est purement AFFICHAGE (aucun impact ROI/stats/calibration). Sinon carte
