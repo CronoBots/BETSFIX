@@ -1719,7 +1719,15 @@ CSS = """
        box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
   .mc-vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:7px;
        box-shadow:0 0 10px rgba(255,255,255,.12)}
-  .mc-vc-foot{margin-top:8px;font-size:10px;font-weight:600;color:var(--muted)}
+  /* Marqueur « proba implicite du marché » sur la barre de confiance (demande user 2026-07-14) : notre
+     confiance qui DÉPASSE ce trait = edge VISUEL. */
+  .mc-vmark{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff;opacity:.8;
+       z-index:2;border-radius:2px;box-shadow:0 0 3px rgba(0,0,0,.75)}
+  /* Ligne VALUE (EV vs marché) sous la barre : vert = value positive, ambre = négative. */
+  .mc-vc-val{margin-top:8px;font-size:11px;font-weight:800;letter-spacing:.01em}
+  .mc-vc-val.pos{color:#a6e22e} .mc-vc-val.neg{color:#ff9f43}
+  .mc-vc-mk{color:var(--muted);font-weight:600}
+  .mc-vc-foot{margin-top:6px;font-size:10px;font-weight:600;color:var(--muted)}
   /* Traduction EN CLAIR du marché, sous la sélection (demande user 2026-07-13) — discrète, une flèche cyan. */
   .mc-gloss{margin-top:5px;font-size:12.5px;color:#8fa2b8;font-weight:600;line-height:1.35}
   .mc-gloss b{color:#c4d2e2;font-weight:700}
@@ -3531,10 +3539,11 @@ def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     return analyses.pretty_sel(sel, home, away)
 
 
-def _verdict_strip(pconf, cote_html: str, foot_txt: str = "") -> str:
+def _verdict_strip(pconf, cote_html: str, foot_txt: str = "", cote=None) -> str:
     """Bande VERDICT (demande user 2026-07-13) : confiance (qualificatif + % coloré par niveau + barre) À
     GAUCHE, cote À DROITE -> les 2 chiffres clés lus ENSEMBLE. Repli sur l'ancien pied simple (reana +
-    cote) si aucune confiance. `foot_txt` = la mention de ré-analyse (sous la barre). Purement AFFICHAGE."""
+    cote) si aucune confiance. `foot_txt` = la mention de ré-analyse. `cote` (valeur num.) -> affiche la
+    VALUE/EDGE vs le marché (demande user 2026-07-14 : optimiser la partie SOUS le pari). Purement AFFICHAGE."""
     try:
         p = int(pconf)
     except (TypeError, ValueError):
@@ -3543,14 +3552,31 @@ def _verdict_strip(pconf, cote_html: str, foot_txt: str = "") -> str:
         return (f'<div class="mc-foot"><span class="mc-reana mc-reana-prov">{foot_txt}</span>{cote_html}</div>'
                 if (foot_txt or cote_html) else "")
     col, grad = _conf_hue(p)
+    # VALUE vs MARCHÉ : proba implicite du book (1/cote) posée en MARQUEUR sur la barre — notre confiance qui
+    # LA DÉPASSE = edge VISUEL. + ligne « 💎 +X% de value » (EV = proba×cote−1). C'est l'info clé d'un bon
+    # pari (edge), pas seulement la confiance brute.
+    _mark = _valline = ""
+    try:
+        c = float(cote)
+    except (TypeError, ValueError):
+        c = 0.0
+    if c and c > 1:
+        imp = round(100 / c)
+        ev = round((p / 100.0 * c - 1) * 100)
+        if 0 < imp < 100:
+            _mark = f'<b class="mc-vmark" style="left:{imp}%"></b>'
+        if ev != 0:
+            _valline = (f'<div class="mc-vc-val {"pos" if ev > 0 else "neg"}">'
+                        f'{"💎" if ev > 0 else "⚠️"} {"+" if ev > 0 else ""}{ev}% de value'
+                        f'<span class="mc-vc-mk"> · marché {imp}%</span></div>')
     _foot = f'<div class="mc-vc-foot">{foot_txt}</div>' if foot_txt else ""
     return (
         '<div class="mc-verdict"><div class="mc-vc">'
         f'<div class="mc-vc-lab"><span>CONFIANCE</span>'
         f'<span class="mc-vc-pct" style="color:{col}">'
         f'<span class="mc-vc-word">{_conf_word(p)}</span>{p}%</span></div>'
-        f'<div class="mc-vbar"><i style="width:{min(p, 100)}%;background:{grad}"></i></div>'
-        f'{_foot}</div>{cote_html}</div>')
+        f'<div class="mc-vbar">{_mark}<i style="width:{min(p, 100)}%;background:{grad}"></i></div>'
+        f'{_valline}{_foot}</div>{cote_html}</div>')
 
 
 def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:
@@ -3737,7 +3763,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             sub = ('<div class="mc-div"></div>' + _prov_tag
                    + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
                    + _gloss
-                   + _verdict_strip(_pconf, _cote_big, f'🔄 {_reana}'))
+                   + _verdict_strip(_pconf, _cote_big, f'🔄 {_reana}', cote=_cote))
         else:
             if m.get("status") == "abstained" and now >= reanalyse:
                 bic, btxt = "➖", "Pas de value"                              # échéance passée -> quasi-final
@@ -3976,7 +4002,7 @@ def _combo_tg_card() -> str:
         '<div class="mc-div"></div>'
         + _note                                            # synthèse EN TÊTE (présentation Telegram)
         + f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
-        + _verdict_strip(_pconf, _cote_big, '🎯 Compté au ROI · mise 1 u')
+        + _verdict_strip(_pconf, _cote_big, '🎯 Compté au ROI · mise 1 u', cote=cb.get('cote'))
         + '</div></div></div>')
 
 
@@ -5029,7 +5055,7 @@ def _sport_row(r: dict) -> str:
         _psel_disp = _pretty_sel(_psel, r.get("home", ""), r.get("away", ""))
         _premium = ('<div class="mc-div"></div>'
                     + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
-                    + _verdict_strip(_pconf, _cote_big, _foot))
+                    + _verdict_strip(_pconf, _cote_big, _foot, cote=_pcote))
     if _premium:
         line3 = _premium
     else:
