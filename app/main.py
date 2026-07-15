@@ -64,19 +64,24 @@ async def _combo_warm_loop():
         try:
             for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
                 d = analyses._meta_load(p)
-                combo = (d or {}).get("combo") or {}
-                if not combo.get("legs") or combo.get("result"):
-                    continue
                 st = analyses.status_of(d)
-                if st not in ("notstarted", "inprogress"):
+                if st != "inprogress":
+                    # combiné À VENIR : on garde le pré-chauffage de sa cote corrélée (jambes à oid).
+                    combo = (d or {}).get("combo") or {}
+                    if (st == "notstarted" and combo.get("legs") and not combo.get("result")
+                            and any(l.get("oid") for l in combo["legs"])):
+                        await asyncio.to_thread(analyses.warm_combo_odds, d.get("id"), combo)
                     continue
-                # cote LIVE du combiné -> cache app (hors event loop) ; à venir + en cours, si oids
-                if any(l.get("oid") for l in combo["legs"]):
-                    await asyncio.to_thread(analyses.warm_combo_odds, d.get("id"), combo)
-                # stats live des jambes (foot CdM en cours uniquement)
-                if st == "inprogress" and os.path.basename(p).startswith("foot_"):
-                    await asyncio.to_thread(analyses.warm_combo_vals,
-                                            d.get("home", ""), d.get("away", ""), d.get("start"))
+                # EN COURS : cote LIVE de TOUS les marchés (barre « Chance live ») -> catalogue Bet Builder,
+                # hors event loop. Couvre simples ET combinés, tous sports.
+                await asyncio.to_thread(analyses.warm_live_catalog, d.get("id"))
+                combo = (d or {}).get("combo") or {}
+                if combo.get("legs") and not combo.get("result"):
+                    if any(l.get("oid") for l in combo["legs"]):
+                        await asyncio.to_thread(analyses.warm_combo_odds, d.get("id"), combo)
+                    if os.path.basename(p).startswith("foot_"):   # stats live des jambes foot CdM
+                        await asyncio.to_thread(analyses.warm_combo_vals,
+                                                d.get("home", ""), d.get("away", ""), d.get("start"))
         except Exception as exc:
             log.debug("combo warm: %s", exc)
         await asyncio.sleep(25)

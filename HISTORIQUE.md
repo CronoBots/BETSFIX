@@ -46,6 +46,27 @@ sur les combinés**.
 **Résultat** : en direct, chaque pari joué (simple + jambes + combiné global) affiche une barre de chance
 qui évolue avec le score et le temps, calée sur la cote live quand elle existe.
 
+### Suite (même jour) — « il faut cela pour TOUS les marchés » : cote live du marché via catalogue
+
+Extension pour que la barre reflète la **vraie cote live du marché exact** (plus seulement vainqueur/DC +
+modèle) sur **tous les marchés « ligne »** : totaux/équipe/handicap · buts/**corners**/**cartons**/**tirs**/
+tirs cadrés — qui n'avaient AUCUNE barre avant.
+
+- `unibet.betbuilder_catalog(eid)` (déjà utilisé pour les combinés) donne la cote live de TOUTES les issues
+  bet-builder (`text` = critère+libellé+ligne, `odds` = décimale live), sans login.
+- **Matching par SIGNATURE** (`analyses._catalog_market_pct`) : on parse l'issue du catalogue avec le MÊME
+  `_leg_metric` que le pari → on apparie sur (métrique, côté, sens, ligne, périmètre) = exact, pas flou.
+  De-vig sur les issues sœurs (même marché, ligne opposée) ; issue seule → proba implicite brute.
+- **Cache + boucle de fond** : `analyses.warm_live_catalog`/`live_catalog` (TTL 45 s), pré-chauffé hors
+  event loop par `main._combo_warm_loop` pour CHAQUE match en cours (simples + combinés, tous sports).
+- `live_prob` gagne un param `catalog` : ordre = verrou → **cote live du marché (catalogue)** → repli
+  modèle. Vainqueur/DC restent sur la cote listView dé-margée (déjà en cache).
+
+**Fichiers +** : `app/unibet.py` (inchangé, réutilisé), `app/analyses.py` (_catalog_market_pct + cache/warm/
+live_catalog + live_prob(catalog)), `app/main.py` (warm catalogue live), `app/web.py` (passe le catalogue),
+`tests/test_live_prob.py` (+8 tests catalogue). **Régression** : `pytest` **289 passed** · `selfcheck`
+**16/16 OK** · smoke combiné live avec catalogue (corners+buts en « cote en direct ») OK.
+
 ---
 
 ## 2026-07-11 — Combiné du jour : analyse dédiée par jambe + robustesse règlement

@@ -5241,12 +5241,14 @@ def _sport_row(r: dict) -> str:
         _pbb = bets3[0]
         _lhs, _las = _parse_live_score(r.get("score"))
         _lld = match_select.live_state_for(sport_key, r.get("home"), r.get("away"))
+        _lmid = re.search(r"/(\d+)", url)
         _live_bar = _live_bar_html(analyses.live_prob(
             sport_key, _pbb.get("sel", ""), _pbb.get("code", ""),
             r.get("home", ""), r.get("away", ""), _lhs, _las,
             match_select.live_minute(_lld),
             match_select.live_win_odds(sport_key, r.get("home"), r.get("away")),
-            _pbb.get("cprob") or _pbb.get("prob")))
+            _pbb.get("cprob") or _pbb.get("prob"),
+            analyses.live_catalog(_lmid.group(1)) if _lmid else []))
     _live_score_row = f'<div class="mc-livesc">{lscore}{_live_bar}</div>' if (is_live and lscore) else ""
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{r.get("icon", "")}</span>'

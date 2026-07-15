@@ -1213,8 +1213,74 @@ def _is_btts(sel: str, code: str) -> bool:
             or ("deux" in t and "marquent" in t) or "les deux équipes marquent" in t)
 
 
+_CATALOG_METRICS = {"goals", "corners", "cards", "redcards", "sot", "shots"}  # marchés « ligne » (total/équipe/handicap)
+
+
+def _catalog_market_pct(catalog, info: dict, home: str, away: str) -> float | None:
+    """Proba implicite DÉ-MARGÉE de l'issue jouée, à partir de la COTE LIVE du marché correspondant dans le
+    catalogue Bet Builder Unibet (`catalog` = [{id, text, odds}], cotes en direct). Matching par SIGNATURE
+    de marché (même `_leg_metric` des deux côtés → exact, pas flou) : métrique + côté (équipe/total) + sens
+    (Plus/Moins/Handicap) + ligne + périmètre (match/1ère MT). De-vig sur les issues SŒURS (même marché,
+    ligne opposée) ; à défaut, proba implicite brute (reflet direct de la cote). None si pas de match sûr."""
+    metric, side, dirn = info.get("metric"), info.get("side"), info.get("dir")
+    line, scope = info.get("line"), info.get("scope")
+    if metric not in _CATALOG_METRICS or line is None or dirn not in ("OVER", "UNDER", "HCAP"):
+        return None
+    lref = round(abs(float(line)), 3)
+    played_odds, sib_inv = None, 0.0
+    for e in (catalog or []):
+        od = e.get("odds")
+        if not (isinstance(od, (int, float)) and od > 1):
+            continue
+        ci = _leg_metric({"sel": e.get("text", "")}, home, away)
+        if ci.get("metric") != metric or ci.get("scope") != scope or ci.get("side") != side:
+            continue
+        cl, cd = ci.get("line"), ci.get("dir")
+        if cl is None or cd not in ("OVER", "UNDER", "HCAP") or round(abs(float(cl)), 3) != lref:
+            continue
+        is_played = (cd == dirn and round(float(cl), 3) == round(float(line), 3))
+        if is_played and played_odds is None:
+            played_odds = od
+        else:
+            sib_inv += 1.0 / od                       # issue sœur (même marché) -> de-vig
+    if played_odds is None:
+        return None
+    inv_p = 1.0 / played_odds
+    if sib_inv > 0:                                   # de-vig sur les issues sœurs (marché complet)
+        return min(1.0, inv_p / (inv_p + sib_inv))
+    return min(1.0, inv_p)                            # issue seule -> proba implicite brute (reflet cote)
+
+
+# --- catalogue Bet Builder LIVE mémoïsé (cote fraîche de TOUS les marchés d'un match en cours) ---
+_LIVE_CAT_CACHE: dict = {}       # event_id (str) -> (ts, [{id, text, odds}])
+_LIVE_CAT_TTL = 45               # s : cote live des marchés fraîche sans marteler ShapeGames
+
+
+def live_catalog(event_id) -> list:
+    """Catalogue Bet Builder LIVE d'un match (cotes fraîches de tous les marchés) — LECTURE SEULE du cache
+    rempli hors event loop par `warm_live_catalog`. [] si absent/périmé (-> la barre retombe sur le modèle)."""
+    hit = _LIVE_CAT_CACHE.get(str(event_id))
+    return hit[1] if (hit and time.time() - hit[0] < _LIVE_CAT_TTL) else []
+
+
+def warm_live_catalog(event_id) -> None:
+    """Re-fetch le catalogue Bet Builder d'un match (urllib BLOQUANT via ShapeGames) et remplit le cache.
+    À appeler UNIQUEMENT hors event loop (asyncio.to_thread). No-op si l'entrée est encore fraîche."""
+    key = str(event_id)
+    hit = _LIVE_CAT_CACHE.get(key)
+    if hit and time.time() - hit[0] < _LIVE_CAT_TTL * 0.6:
+        return
+    try:
+        from app import unibet
+        cat = unibet.betbuilder_catalog(key)
+    except Exception:
+        cat = None
+    if cat:                                           # ne JAMAIS écraser un bon cache par un échec ([])
+        _LIVE_CAT_CACHE[key] = (time.time(), cat)
+
+
 def live_prob(sport: str, sel: str, code: str, home: str, away: str,
-              hs, as_, minute=None, win_odds=None, ref_pct=None) -> dict | None:
+              hs, as_, minute=None, win_odds=None, ref_pct=None, catalog=None) -> dict | None:
     """% (0-100) que le pari `sel`/`code` réussisse VU l'état live (score `hs`-`as_`, minute écoulée) +
     sa TENDANCE (up/down/flat vs `ref_pct` = le % d'avant-match) + la SOURCE. `win_odds` = cotes vainqueur
     live (o1,ox,o2) déjà en cache (0 appel). Renvoie {"pct","trend","source"} ou None si non estimable
@@ -1223,28 +1289,38 @@ def live_prob(sport: str, sel: str, code: str, home: str, away: str,
     if hs is None or as_ is None:
         return None
     t = (sel or "").lower()
+    info = _leg_metric({"sel": sel, "code": code}, home, away)
     p = source = None
-    if _is_btts(sel, code) and sport == "foot":
+    # 1) RÉSULTAT (vainqueur / double chance) -> cote vainqueur listView dé-margée (déjà en cache, 0 appel).
+    side = _winner_side(sel, code, home, away, sport)
+    if side is not None:
+        if win_odds:
+            p, source = _winner_pct(side, win_odds), "cote live"
+    # 2) BTTS : verrou si les 2 ont marqué, sinon cote live du marché (catalogue), sinon repli modèle.
+    elif _is_btts(sel, code) and sport == "foot":
         if hs >= 1 and as_ >= 1 and "non" not in t:
-            p, source = 1.0, "acquis"                # les 2 ont déjà marqué -> BTTS Oui verrouillé
+            p, source = 1.0, "acquis"
         else:
             p, source = _foot_btts_pct(sel, hs, as_, minute), "modèle"
     else:
-        info = _leg_metric({"sel": sel, "code": code}, home, away)
-        gp = _foot_goals_pct(info, hs, as_, minute) if sport == "foot" else None
-        if gp is not None:
+        # 3) VERROU foot (total buts déjà mathématiquement franchi -> 100/0), prioritaire sur toute cote.
+        if sport == "foot" and _foot_goals_pct(info, hs, as_, minute) is not None:
             st, _cur = _eval_leg(info, {"goals_h": hs, "goals_a": as_}, final=False)
             if st == "won":
-                p, source = 1.0, "acquis"            # total déjà franchi (Over) -> verrouillé
+                p, source = 1.0, "acquis"
             elif st == "lost":
                 p, source = 0.0, "perdu"
-            else:
+        # 4) COTE LIVE DU MARCHÉ (TOUS marchés « ligne » : totaux/équipe/handicap · buts/corners/cartons/
+        #    tirs) via le catalogue Bet Builder re-pricé en direct. C'est le vrai « reflet de la cote ».
+        if p is None:
+            mp = _catalog_market_pct(catalog, info, home, away)
+            if mp is not None:
+                p, source = mp, "cote live"
+        # 5) REPLI MODÈLE (foot totaux/équipe buts) quand la cote de CE marché n'est pas en main.
+        if p is None and sport == "foot":
+            gp = _foot_goals_pct(info, hs, as_, minute)
+            if gp is not None:
                 p, source = gp, "modèle"
-        else:
-            side = _winner_side(sel, code, home, away, sport)
-            if side is not None and win_odds:
-                p = _winner_pct(side, win_odds)
-                source = "cote live"
     if p is None:
         return None
     pct = int(round(max(0.0, min(1.0, p)) * 100))
@@ -1422,6 +1498,7 @@ def combo_html(sport: str, match_id) -> str:
     # quand le match est en cours (`live` non nul) ; sinon on ne calcule rien.
     _lh, _la = m.get("home", ""), m.get("away", "")
     _lhs = _las = _lmin = _lwo = None
+    _lcat = []
     _bar_html = None
     if live is not None:
         from app import match_select, web            # imports locaux (évite le cycle au chargement)
@@ -1431,6 +1508,7 @@ def combo_html(sport: str, match_id) -> str:
         _lhs, _las = _as_int(_lsc.get("home")), _as_int(_lsc.get("away"))
         _lmin = match_select.live_minute(_lld)
         _lwo = match_select.live_win_odds(sport, _lh, _la)
+        _lcat = live_catalog(match_id)               # cotes live de TOUS les marchés (par jambe)
     _leg_pcts = []                                    # % live par jambe -> barre GLOBALE (produit)
     rows = []
     for i, leg in enumerate(combo["legs"]):
@@ -1477,7 +1555,7 @@ def combo_html(sport: str, match_id) -> str:
                 _lp = {"pct": 0, "trend": "flat", "source": "perdu"}
             else:
                 _lp = live_prob(sport, leg.get("sel", ""), leg.get("code", ""), _lh, _la,
-                                _lhs, _las, _lmin, _lwo, leg.get("prob"))
+                                _lhs, _las, _lmin, _lwo, leg.get("prob"), _lcat)
             if _lp:
                 _leg_pcts.append(_lp["pct"])
                 bar_html = _bar_html(_lp)
