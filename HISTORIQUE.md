@@ -12,6 +12,36 @@
 
 ---
 
+## 2026-07-17 — Barre « Chance live » : handicap ≠ vainqueur + modèle de direct basket
+
+**Quoi** (question user, capture WNBA Lynx–Sparks : pari « Los Angeles Sparks +17.5 (prol. incl.) », score
+28-28, barre « CHANCE LIVE 44 % » — illogique : couvrir +17.5 à égalité est ~90 %+).
+
+**Cause** : `analyses._winner_side` lisait « Sparks +17.5 » comme « Sparks VAINQUEUR » (le libellé ne contient
+pas le mot « handicap », juste « +17.5 ») → la barre montrait P(Sparks gagnent le match) ~44 % au lieu de
+P(couvrir +17.5). La glose `_plain_market`, elle, était correcte (« ne perd pas de plus de 17 points »).
+
+**Fix** :
+1. `_is_signed_handicap(sel)` : détecte un handicap SIGNÉ (« +17.5 », « -1.5 ») même sans le mot « handicap »
+   (exclut les totaux « plus/moins de X »). `_winner_side` renvoie None dessus → plus jamais un handicap
+   pris pour un vainqueur (foot ET basket).
+2. **Modèle de DIRECT basket** (`_basket_model_pct`, approx. normale sur les points restants, indépendant de
+   la cote) : vainqueur, **handicap de points** (couvre l'écart), total de points (match/équipe), via la
+   fraction de match écoulée. `_norm_cdf` (loi normale). `_BK_MARGIN_STD=12`, `_BK_TOTAL_STD=16`.
+3. **Fraction de match basket** : `match_select.basket_frac(ld, comp)` depuis le `matchClock` Unibet (quart +
+   temps restant ; quart = 10 min WNBA / 12 min NBA ; prolongation → 0.98). Passée à `live_prob(game_frac=)`
+   (sert au modèle ET au poids décroissant de l'avant-match). Foot déduit toujours `f` de la minute.
+4. Handicap foot signé sans le mot « handicap » (« France -1.5 ») → désormais MODÉLISÉ (couvre l'écart) au
+   lieu d'être lu comme « France gagne ».
+5. Câblé au rendu : carte simple (`web`) + jambes de combiné (`analyses.combo_html`) passent `game_frac`.
+
+**Résultat** (repro exacte de la capture) : Sparks +17.5 à égalité → **81 %** ↑ (au lieu de 44 %) ; vainqueur
+Sparks → 53 % ; Lynx -17.5 → 22 %. **Fichiers** : `app/analyses.py`, `app/match_select.py`, `app/web.py`,
+`tests/test_live_prob.py` (+9 tests basket/handicap). **Régression** : `pytest` **302 passed** · `selfcheck`
+**17/17 OK**. PURE AFFICHAGE. Cf. [[live-chance-bar]].
+
+---
+
 ## 2026-07-17 — Paris sans explication : couverture `_plain_market` + garde-fou selfcheck
 
 **Quoi** (reproche user, capture à l'appui : « il y a toujours des paris sans explications, cela ne doit pas

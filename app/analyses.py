@@ -1125,6 +1125,16 @@ def _foot_remaining(minute) -> float:
     return max(0.0, min(1.0, (_FOOT_FULL_MIN - minute) / _FOOT_FULL_MIN))
 
 
+def _is_signed_handicap(sel: str) -> bool:
+    """Vrai si le libellé porte un HANDICAP signé (« +17.5 », « -1.5 ») — même SANS le mot « handicap »
+    (ex. basket « Los Angeles Sparks +17.5 (prol. incl.) »). On exclut les totaux « plus/moins de X »
+    (ceux-là ne sont pas des handicaps). Sert à ne PAS confondre un handicap avec un vainqueur/total."""
+    t = (sel or "").lower()
+    if "plus de" in t or "moins de" in t:
+        return False
+    return re.search(r"[+\-−–]\s?\d", t) is not None
+
+
 def _winner_side(sel: str, code: str, home: str, away: str, sport: str):
     """Côté d'un pari de RÉSULTAT (vainqueur / double chance), ou None si ce n'est pas un marché de
     résultat exploitable via la cote 1X2/vainqueur live. Renvoie 'home'/'away'/'draw' (simple) ou
@@ -1132,7 +1142,7 @@ def _winner_side(sel: str, code: str, home: str, away: str, sport: str):
     tir/carton/mi-temps/handicap/score exact/set) -> None (pas de barre plutôt qu'un faux %)."""
     t = (sel or "").lower()
     c = (code or "").upper()
-    if "handicap" in t:                              # handicap ≠ 1X2 (cote différente) -> pas ici
+    if "handicap" in t or _is_signed_handicap(sel):  # handicap (mot OU signe « +17.5 ») ≠ 1X2 -> pas ici
         return None
     if any(w in t for w in ("but", "buteur", "premier", "mi-temps", "carton", "corner", "tir",
                             "score exact", " set", "jeu", "total")):
@@ -1299,9 +1309,54 @@ def _signed_line(sel: str):
     return (-1 if (m and m.group(1) in "-−") else 1) * _to_float(m.group(2)) if m else None
 
 
-def _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals) -> float | None:
+def _norm_cdf(z: float) -> float:
+    """Fonction de répartition de la loi normale centrée réduite."""
+    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+
+_BK_MARGIN_STD = 12.0    # écart-type de la MARGE finale d'un match complet (approx WNBA/NBA)
+_BK_TOTAL_STD = 16.0     # écart-type du TOTAL de points final d'un match complet
+
+
+def _basket_model_pct(sel, code, info, wside, hs, as_, frac) -> float | None:
+    """Notre proba MODÈLE de DIRECT basket (approx. normale sur les points restants) : vainqueur, handicap
+    de points, total de points (match ou équipe), vu la marge/le total courants + la fraction de match
+    écoulée `frac` ∈ (0,1]. Indépendant de la cote. None si non modélisable."""
+    if frac is None or frac <= 0:
+        frac = 0.5
+    rem = max(0.02, 1.0 - frac)
+    M = hs - as_                                        # marge courante (domicile − extérieur), en points
+    sig_m = _BK_MARGIN_STD * math.sqrt(rem)
+    # 1) HANDICAP de points (le libellé « +17.5 » sans le mot « handicap » trompe _leg_metric -> on le relit).
+    hl = _signed_line(sel) if _is_signed_handicap(sel) else (info.get("line") if info.get("handicap") else None)
+    if hl is not None:
+        side = info.get("side")
+        if side not in ("HOME", "AWAY"):
+            return None
+        d = M if side == "HOME" else -M                # marge courante du côté parié
+        return _norm_cdf((d + hl) / sig_m)             # couvre si (marge finale du côté) + hl > 0
+    # 2) VAINQUEUR (pas de nul au basket) / double chance.
+    if wside is not None:
+        p_home = 1.0 - _norm_cdf(-M / sig_m)
+        p_away = _norm_cdf(-M / sig_m)
+        return {"home": p_home, "away": p_away, "1X": p_home, "12": 1.0, "X2": p_away}.get(wside)
+    # 3) TOTAL de points (match entier ou équipe) — extrapolation du rythme courant.
+    if info.get("dir") in ("OVER", "UNDER") and info.get("line") is not None:
+        side = info.get("side")
+        cur = (hs if side == "HOME" else as_) if side in ("HOME", "AWAY") else hs + as_
+        exp_final = cur / frac                          # projection linéaire du total au rythme actuel
+        sig_t = _BK_TOTAL_STD * math.sqrt(rem)
+        p_over = 1.0 - _norm_cdf((info["line"] - exp_final) / sig_t)
+        return p_over if info["dir"] == "OVER" else 1.0 - p_over
+    return None
+
+
+def _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals, game_frac=None) -> float | None:
     """Notre proba MODÈLE (statistique du direct) que le pari passe, ou None si non modélisable. Foot :
-    BTTS / résultat / handicap buts / totaux buts / totaux comptés (si compteur live connu)."""
+    BTTS / résultat / handicap buts / totaux buts / totaux comptés (Poisson). Basket : vainqueur / handicap
+    / total de points (approx. normale, via `game_frac`). Tennis : non modélisé (fusion cote+analyse)."""
+    if sport == "basket":
+        return _basket_model_pct(sel, code, info, wside, hs, as_, game_frac)
     if sport != "foot":
         return None
     rem = _foot_remaining(minute)
@@ -1311,8 +1366,8 @@ def _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals) -> flo
         return _foot_result_pct(wside, hs, as_, rem)
     # Handicap BUTS : en foot, un handicap non qualifié (ni corner/carton/tir) = handicap de buts. `_leg_metric`
     # le classe parfois « special » sans lire la ligne signée -> on la relit ici (métrique buts par défaut).
-    if info.get("handicap") and info.get("metric") in ("goals", "special"):
-        ln = info.get("line")
+    if (info.get("handicap") or _is_signed_handicap(sel)) and info.get("metric") in ("goals", "special"):
+        ln = info.get("line") if info.get("handicap") else None
         if ln is None:
             ln = _signed_line(sel)
         if ln is not None and info.get("side") in ("HOME", "AWAY"):
@@ -1436,12 +1491,14 @@ _W_PRE0 = 0.40                   # analyse d'avant-match — fond à 0 en fin de
 
 
 def live_prob(sport: str, sel: str, code: str, home: str, away: str,
-              hs, as_, minute=None, win_odds=None, ref_pct=None, catalog=None, vals=None) -> dict | None:
+              hs, as_, minute=None, win_odds=None, ref_pct=None, catalog=None, vals=None,
+              game_frac=None) -> dict | None:
     """% (0-100) « fair » que le pari `sel`/`code` PASSE à l'instant vu — FUSION de 3 signaux : (1) la cote
     actuelle du pari en direct (dé-margée : `win_odds`/`catalog`), (2) l'analyse d'avant-match (`ref_pct`),
-    (3) la statistique du direct (modèle Poisson score+temps). Le poids de l'avant-match décroît au fil du
-    match. Renvoie {"pct","trend","source"} (source = signaux fusionnés) ou None si aucun signal LIVE (cote
-    NI modèle) → pas de barre. PURE AFFICHAGE : n'écrit aucune stat, ne compte jamais au ROI/à la calibration."""
+    (3) la statistique du direct (modèle Poisson foot / normale basket). `game_frac` = fraction de match
+    écoulée (basket ; foot déduit de `minute`). Le poids de l'avant-match décroît au fil du match. Renvoie
+    {"pct","trend","source"} ou None si aucun signal LIVE (cote NI modèle) → pas de barre. PURE AFFICHAGE :
+    n'écrit aucune stat, ne compte jamais au ROI/à la calibration."""
     hs, as_ = _as_int(hs), _as_int(as_)
     if hs is None or as_ is None:
         return None
@@ -1459,12 +1516,13 @@ def live_prob(sport: str, sel: str, code: str, home: str, away: str,
     else:
         p_mkt = _catalog_market_pct(catalog, info, home, away)
     # (3) STATISTIQUE du direct (notre modèle propre, indépendant de la cote).
-    p_mod = _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals)
+    p_mod = _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals, game_frac)
     # (2) ANALYSE d'avant-match (notre confiance publiée sur ce pari).
     p_pre = ref_pct / 100.0 if isinstance(ref_pct, (int, float)) else None
     if p_mkt is None and p_mod is None:
         return None                          # aucun signal LIVE -> pas de barre (l'avant-match seul ne « bouge » pas)
-    f = (min(90, max(0, minute)) / 90.0) if (sport == "foot" and minute is not None) else 0.5
+    f = (game_frac if isinstance(game_frac, (int, float))
+         else (min(90, max(0, minute)) / 90.0) if (sport == "foot" and minute is not None) else 0.5)
     w_mod = _W_MOD0 + _W_PRE0 * f            # le direct grandit avec le temps
     w_pre = _W_PRE0 * (1.0 - f)              # l'avant-match s'efface avec le temps
     num = den = 0.0
@@ -1645,7 +1703,7 @@ def combo_html(sport: str, match_id) -> str:
     # jambe = un marché de CE match -> `live_prob` s'applique par jambe. Lecture seule (0 réseau). Seulement
     # quand le match est en cours (`live` non nul) ; sinon on ne calcule rien.
     _lh, _la = m.get("home", ""), m.get("away", "")
-    _lhs = _las = _lmin = _lwo = None
+    _lhs = _las = _lmin = _lwo = _lfrac = None
     _lcat = []
     _lvals = None
     _bar_html = None
@@ -1659,6 +1717,7 @@ def combo_html(sport: str, match_id) -> str:
         _lwo = match_select.live_win_odds(sport, _lh, _la)
         _lcat = live_catalog(match_id)               # cotes live de TOUS les marchés (par jambe)
         _lvals = _combo_live_vals(m)                 # compteurs live (buts/corners/cartons) -> « stats live »
+        _lfrac = match_select.basket_frac(_lld, m.get("comp", "")) if sport == "basket" else None
     _leg_pcts = []                                    # % live par jambe -> barre GLOBALE (produit)
     rows = []
     for i, leg in enumerate(combo["legs"]):
@@ -1711,7 +1770,7 @@ def combo_html(sport: str, match_id) -> str:
                 _lp = {"pct": 0, "trend": "flat", "source": "perdu"}
             else:
                 _lp = live_prob(sport, leg.get("sel", ""), leg.get("code", ""), _lh, _la,
-                                _lhs, _las, _lmin, _lwo, leg.get("prob"), _lcat, _lvals)
+                                _lhs, _las, _lmin, _lwo, leg.get("prob"), _lcat, _lvals, _lfrac)
             if _lp:
                 _leg_pcts.append(_lp["pct"])
                 bar_html = _bar_html(_lp)

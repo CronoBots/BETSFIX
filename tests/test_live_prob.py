@@ -115,6 +115,68 @@ def test_corners_sans_cote_ni_compteur_pas_de_barre():
     assert _p(sel="Plus de 9.5 corners", code="CORNERS OVER 9.5", hs=1, as_=0, minute=30) is None
 
 
+# --------------------------------------------------------------- basket : handicap NON confondu avec vainqueur
+def _pb(**kw):
+    base = dict(sport="basket", sel="", code="", home="Minnesota Lynx", away="Los Angeles Sparks",
+                hs=28, as_=28, minute=None, win_odds=None, ref_pct=None, catalog=None, vals=None,
+                game_frac=0.43)
+    base.update(kw)
+    return analyses.live_prob(**base)
+
+
+def test_handicap_signe_non_pris_pour_vainqueur():
+    # BUG capture 2026-07-17 : « Sparks +17.5 » était lu comme « Sparks vainqueur » -> 44 %. Correctif.
+    assert analyses._winner_side("Los Angeles Sparks +17.5 (prol. incl.)", "", "Minnesota Lynx",
+                                 "Los Angeles Sparks", "basket") is None
+    r = _pb(sel="Los Angeles Sparks +17.5 (prol. incl.)", ref_pct=80, win_odds=(2.1, None, 1.8))
+    assert r is not None and "stats live" in r["source"]
+    assert r["pct"] >= 70                # couvrir +17.5 à égalité = très probable (≠ 44 %)
+
+
+def test_basket_handicap_adverse_faible():
+    # Lynx -17.5 à égalité (doivent gagner de 18+) = peu probable
+    r = _pb(sel="Minnesota Lynx -17.5", ref_pct=40, win_odds=(1.8, None, 2.1))
+    assert r["pct"] <= 35
+
+
+def test_basket_vainqueur_egalite_proche_50():
+    r = _pb(sel="Los Angeles Sparks vainqueur", ref_pct=50, win_odds=(2.0, None, 2.0))
+    assert 40 <= r["pct"] <= 60
+
+
+def test_basket_total_points_modele():
+    # 56 pts à ~43 % du match -> projection ~130 ; Over 150.5 improbable, Under probable
+    over = _pb(sel="Plus de 150.5 points", code="", ref_pct=55)
+    under = _pb(sel="Moins de 150.5 points", code="", ref_pct=55)
+    assert over is not None and under is not None
+    assert over["pct"] < under["pct"]
+
+
+def test_basket_handicap_bascule_avec_le_score():
+    # Sparks (extérieur) +17.5 : plus probable quand ils MÈNENT que quand ils sont MENÉS de 15
+    mene = _pb(sel="Los Angeles Sparks +17.5", hs=35, as_=20, ref_pct=60)    # Sparks menés de 15
+    devant = _pb(sel="Los Angeles Sparks +17.5", hs=20, as_=32, ref_pct=60)  # Sparks devant de 12
+    assert devant["pct"] > mene["pct"]
+
+
+def test_basket_frac_wnba_vs_nba():
+    from app import match_select
+    ld = {"matchClock": {"periodId": "QUARTER_2", "minutesLeftInPeriod": 2, "secondsLeftInMinute": 43}}
+    fw = match_select.basket_frac(ld, "WNBA")
+    fn = match_select.basket_frac(ld, "NBA")
+    assert 0.4 < fw < 0.46 and 0.4 < fn < 0.46      # Q2, 2:43 restant -> ~43-44 % dans les deux ligues
+    assert match_select.basket_frac({"matchClock": {"periodId": "OVERTIME"}}, "NBA") == 0.98
+    assert match_select.basket_frac({}, "NBA") is None
+
+
+# --------------------------------------------------------------- foot : handicap sans le mot « handicap »
+def test_foot_handicap_signe_modelise_pas_vainqueur():
+    # « France -1.5 » (sans le mot handicap) doit être MODÉLISÉ (couvre l'écart), pas lu comme « France gagne »
+    assert analyses._winner_side("France -1.5", "", "France", "Argentine", "foot") is None
+    r = analyses.live_prob("foot", "France -1.5", "", "France", "Argentine", 2, 0, 60, None, 70)
+    assert r is not None and "stats live" in r["source"]
+
+
 def test_le_pct_est_borne_0_100():
     for mn in (1, 30, 60, 89):
         for sc in ((0, 0), (3, 0), (0, 3)):

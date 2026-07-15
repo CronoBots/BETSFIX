@@ -247,6 +247,29 @@ def live_minute(ld: dict | None) -> int | None:
     return m if isinstance(m, int) else None
 
 
+def basket_frac(ld: dict | None, comp: str = "") -> float | None:
+    """Fraction de match RÉGLEMENTAIRE écoulée (0,1] au basket, depuis le `matchClock` Unibet (quart +
+    temps restant). `comp` sert à choisir la durée d'un quart : WNBA = 10 min, sinon 12 (NBA). None si
+    l'horloge est absente/illisible. Alimente le modèle de direct basket de la barre « Chance live »."""
+    mc = (ld or {}).get("matchClock") if isinstance(ld, dict) else None
+    if not isinstance(mc, dict):
+        return None
+    pid = (mc.get("periodId") or "").upper()
+    if "OVERTIME" in pid or "OT" in pid:                   # prolongation -> quasiment fini (réglementaire)
+        return 0.98
+    digits = "".join(ch for ch in pid if ch.isdigit())
+    q = int(digits) if digits else None
+    ml, sl = mc.get("minutesLeftInPeriod"), mc.get("secondsLeftInMinute")
+    if q is None or ml is None:
+        return None
+    if q > 4:
+        return 0.98
+    qlen = 10 if "WNBA" in (comp or "").upper() else 12
+    t_left = ml + (sl or 0) / 60.0
+    elapsed = (q - 1) * qlen + (qlen - t_left)
+    return max(0.02, min(0.999, elapsed / (qlen * 4)))
+
+
 _SOFA_LIVE_CACHE: dict = {}   # sofa_id -> (ts, fields) : score live SofaScore (repli quand Unibet manque)
 _SOFA_LIVE_TTL = 30           # s : repli SofaScore caché 30 s (best-effort, petit endpoint event/{id})
 

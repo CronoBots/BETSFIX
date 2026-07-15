@@ -5341,13 +5341,14 @@ def _sport_row(r: dict) -> str:
         _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
                   "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
                   "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
+        _gfrac = (match_select.basket_frac(_lld, comp) if sport_key == "basket" else None)
         _live_bar = _live_bar_html(analyses.live_prob(
             sport_key, _pbb.get("sel", ""), _pbb.get("code", ""),
             r.get("home", ""), r.get("away", ""), _lhs, _las,
             match_select.live_minute(_lld),
             match_select.live_win_odds(sport_key, r.get("home"), r.get("away")),
             _pbb.get("cprob") or _pbb.get("prob"),
-            analyses.live_catalog(_lmid.group(1)) if _lmid else [], _lvals))
+            analyses.live_catalog(_lmid.group(1)) if _lmid else [], _lvals, _gfrac))
     _live_score_row = f'<div class="mc-livesc">{lscore}{_live_bar}</div>' if (is_live and lscore) else ""
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{r.get("icon", "")}</span>'
