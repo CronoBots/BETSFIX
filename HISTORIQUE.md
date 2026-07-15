@@ -67,6 +67,30 @@ live_catalog + live_prob(catalog)), `app/main.py` (warm catalogue live), `app/we
 `tests/test_live_prob.py` (+8 tests catalogue). **Régression** : `pytest` **289 passed** · `selfcheck`
 **16/16 OK** · smoke combiné live avec catalogue (corners+buts en « cote en direct ») OK.
 
+### Correction (même jour) — « pas la cote, mais le % de chance que le pari passe » : FUSION de 3 signaux
+
+Reproche user : la barre ne doit PAS être un miroir de la cote, mais un **%** « fair » que le pari passe à
+l'instant vu — « par rapport à la cote actuelle du direct **MAIS AUSSI** aux analyses d'avant-match et à la
+statistique du direct ». Refonte du moteur `live_prob` : **fusion pondérée** de 3 signaux (au lieu d'une
+source unique) :
+- **(1) cote actuelle** du pari en direct, dé-margée (vainqueur/DC listView, autres marchés catalogue) ;
+- **(2) analyse d'avant-match** = notre confiance publiée (`ref_pct`), **poids décroissant** avec l'avancement ;
+- **(3) statistique du direct** = modèle Poisson score+temps (NOUVEAU, indépendant de la cote) : résultat/DC
+  (Skellam sur la marge finale), handicap buts, totaux buts/équipe/BTTS, totaux comptés (corners/cartons/
+  tirs) quand le compteur live est connu.
+
+Poids : cote 0.40 · direct `0.20 + 0.40·f` · avant-match `0.40·(1−f)` (f = minute/90 ; 0.5 hors foot) → en
+fin de match le DIRECT domine, l'avant-match s'efface. **Verrou** (déjà acquis/manqué) prioritaire → 100/0.
+Barre affichée seulement si ≥1 signal LIVE (cote OU modèle) — l'avant-match seul ne « bouge » pas → pas de
+barre. Libellé : « chance estimée · cote + stats live + analyse ». Composante « stats live » alimentée par
+`vals` (fstats live corners/cartons côté carte ; `_combo_live_vals` côté combiné).
+
+**Fichiers ++** : `app/analyses.py` (helpers modèle : `_poisson_pmf`/`_foot_margin_dist`/`_foot_result_pct`/
+`_foot_hcap_pct`/`_foot_count_pct`/`_live_model_pct`/`_live_locked`/`_mk_live` + `live_prob` fusion +
+`live_prob(vals=)` par jambe), `app/web.py` (libellé + passe `vals` fstats), `tests/test_live_prob.py`
+(réécrit, 16 tests fusion/verrou/garde-fous). **Régression** : `pytest` **282 passed** · `selfcheck`
+**16/16 OK** · smoke simple (vainqueur/over/handicap/tennis) + combiné (corners+vainqueur fusionnés) OK.
+
 ---
 
 ## 2026-07-11 — Combiné du jour : analyse dédiée par jambe + robustesse règlement

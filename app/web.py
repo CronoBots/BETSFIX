@@ -4886,8 +4886,10 @@ def _live_bar_html(lp: dict | None) -> str:
     tcls = {"up": " lv-up", "down": " lv-down"}.get(trend, "")
     hue = int(round(1.2 * max(0, min(100, pct))))          # 0 % = rouge (h0), 100 % = vert (h120)
     fill = f"hsl({hue},70%,45%)"
-    lbl = {"cote live": "cote en direct", "modèle": "estimation (score + temps restant)",
-           "acquis": "déjà acquis", "perdu": "déjà manqué"}.get(src, src)
+    # `src` = signaux FUSIONNÉS (« cote + stats live + analyse ») ou état verrouillé (acquis/perdu).
+    lbl = {"acquis": "déjà acquis", "perdu": "déjà manqué"}.get(src)
+    if lbl is None:
+        lbl = "chance estimée · " + src if src else "chance estimée"
     return (f'<div class="lvbar{tcls}">'
             f'<div class="lvbar-hd"><span class="lvbar-t">Chance live</span>'
             f'<span class="lvbar-v">{pct}%<span class="lvbar-ar">{arrow}</span></span></div>'
@@ -5242,13 +5244,17 @@ def _sport_row(r: dict) -> str:
         _lhs, _las = _parse_live_score(r.get("score"))
         _lld = match_select.live_state_for(sport_key, r.get("home"), r.get("away"))
         _lmid = re.search(r"/(\d+)", url)
+        _fs = r.get("fstats") or {}       # compteurs live (corners/cartons) -> composante « stats live »
+        _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
+                  "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
+                  "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
         _live_bar = _live_bar_html(analyses.live_prob(
             sport_key, _pbb.get("sel", ""), _pbb.get("code", ""),
             r.get("home", ""), r.get("away", ""), _lhs, _las,
             match_select.live_minute(_lld),
             match_select.live_win_odds(sport_key, r.get("home"), r.get("away")),
             _pbb.get("cprob") or _pbb.get("prob"),
-            analyses.live_catalog(_lmid.group(1)) if _lmid else []))
+            analyses.live_catalog(_lmid.group(1)) if _lmid else [], _lvals))
     _live_score_row = f'<div class="mc-livesc">{lscore}{_live_bar}</div>' if (is_live and lscore) else ""
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{r.get("icon", "")}</span>'
