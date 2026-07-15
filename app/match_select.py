@@ -232,6 +232,21 @@ def live_state_for(sport: str, home: str, away: str) -> dict | None:
     return hit[1].get(_okey(home, away)) if hit else None
 
 
+def live_win_odds(sport: str, home: str, away: str) -> tuple | None:
+    """Cotes vainqueur live (o1,ox,o2) du match depuis le cache `_ODDS_CACHE` rempli par
+    `fetch_live_odds` (AUCUN appel réseau). Alimente la barre « % live » (proba dé-margée). None si absent."""
+    hit = _ODDS_CACHE.get(sport)
+    return hit[1].get(_okey(home, away)) if hit else None
+
+
+def live_minute(ld: dict | None) -> int | None:
+    """Minute écoulée (foot) depuis le `matchClock` d'un `liveData` Unibet, ou None. Sert au repli
+    modèle de la barre « % live » (temps restant)."""
+    mc = (ld or {}).get("matchClock") if isinstance(ld, dict) else None
+    m = mc.get("minute") if isinstance(mc, dict) else None
+    return m if isinstance(m, int) else None
+
+
 _SOFA_LIVE_CACHE: dict = {}   # sofa_id -> (ts, fields) : score live SofaScore (repli quand Unibet manque)
 _SOFA_LIVE_TTL = 30           # s : repli SofaScore caché 30 s (best-effort, petit endpoint event/{id})
 

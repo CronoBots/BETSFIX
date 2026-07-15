@@ -608,6 +608,18 @@ CSS = """
   .mc-islive .mc-sub .mc-betl{flex-wrap:nowrap}
   .mc-islive .mc-sub .mc-bt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mc-livesc{margin-top:10px}
+  /* Barre « Chance live » (demande user 2026-07-15) : reflet EN DIRECT du % que le pari passe, vu le
+     score + le temps restant (cote live dé-margée / repli modèle). PURE AFFICHAGE (jamais au ROI). */
+  .lvbar{margin-top:9px}
+  .lvbar-hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  .lvbar-t{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#8fa2b8}
+  .lvbar-v{font-size:13px;font-weight:900;color:#eaf2ff;font-variant-numeric:tabular-nums}
+  .lvbar-ar{font-size:10px;margin-left:3px}
+  .lvbar.lv-up .lvbar-ar{color:#34d27b}
+  .lvbar.lv-down .lvbar-ar{color:#ff6b6b}
+  .lvbar-track{height:8px;border-radius:6px;background:rgba(255,255,255,.09);overflow:hidden}
+  .lvbar-fill{height:100%;border-radius:6px;transition:width .5s ease}
+  .lvbar-src{margin-top:3px;font-size:10px;font-weight:600;color:#7d8ca0;text-align:right}
   /* Ligne de pari : libellé à gauche (peut passer à la ligne), pastilles cote/confiance À DROITE,
      VERTICALEMENT CENTRÉES contre le libellé (fini le désalignement quand le libellé fait 2 lignes). */
   .mc-betl{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:#cfe0f5}
@@ -4854,6 +4866,36 @@ def _short_team(name: str, tennis: bool) -> str:
     n = _noF(name or "")
     return (n.split() or [n])[-1] if tennis else n
 
+def _parse_live_score(score) -> tuple:
+    """(hs, as_) du 1er couple « H-A » d'un score live (« 2-1 », « 6-4 3-6 » -> (2,1)/(6,4)), sinon
+    (None, None). Sert de garde/entrée à la barre « % live » (les valeurs ne servent qu'au foot)."""
+    m = re.search(r"(\d+)\s*-\s*(\d+)", str(score or ""))
+    return (int(m.group(1)), int(m.group(2))) if m else (None, None)
+
+
+def _live_bar_html(lp: dict | None) -> str:
+    """Rend la barre « Chance live » à partir de `analyses.live_prob` ({pct,trend,source}). '' si None.
+    Remplissage rouge→vert selon le %, flèche de tendance, étiquette de source. PURE AFFICHAGE."""
+    if not isinstance(lp, dict):
+        return ""
+    pct = lp.get("pct")
+    if not isinstance(pct, int):
+        return ""
+    trend, src = lp.get("trend"), lp.get("source", "")
+    arrow = {"up": "▲", "down": "▼"}.get(trend, "")
+    tcls = {"up": " lv-up", "down": " lv-down"}.get(trend, "")
+    hue = int(round(1.2 * max(0, min(100, pct))))          # 0 % = rouge (h0), 100 % = vert (h120)
+    fill = f"hsl({hue},70%,45%)"
+    lbl = {"cote live": "cote en direct", "modèle": "estimation (score + temps restant)",
+           "acquis": "déjà acquis", "perdu": "déjà manqué"}.get(src, src)
+    return (f'<div class="lvbar{tcls}">'
+            f'<div class="lvbar-hd"><span class="lvbar-t">Chance live</span>'
+            f'<span class="lvbar-v">{pct}%<span class="lvbar-ar">{arrow}</span></span></div>'
+            f'<div class="lvbar-track"><div class="lvbar-fill" '
+            f'style="width:{pct}%;background:{fill}"></div></div>'
+            f'<div class="lvbar-src">{html.escape(lbl)}</div></div>')
+
+
 def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                      server: str | None = None, points: tuple | None = None,
                      clock: str | None = None, periods: list | None = None,
@@ -5191,7 +5233,21 @@ def _sport_row(r: dict) -> str:
              f'{e(_noF(r.get("away")))}{fem}{af}')
     # LIVE (demande user 2026-07-12) : intitulé du pari sur UNE ligne EN HAUT, puis le SCOREBOARD (résultats
     # — le tableau qu'on voit d'habitude au dépli) EN DESSOUS, visible dans la carte repliée. Badge = « Live ».
-    _live_score_row = f'<div class="mc-livesc">{lscore}</div>' if (is_live and lscore) else ""
+    # Barre « Chance live » (demande user 2026-07-15) : sous le scoreboard, reflet EN DIRECT du % que le
+    # pari joué passe (cote live dé-margée / repli modèle score+temps). Simples seulement ici — le combiné
+    # porte ses propres barres (par jambe + global). PURE AFFICHAGE : aucun impact ROI/stats/calibration.
+    _live_bar = ""
+    if is_live and lscore and bets3 and not is_combo and sport_key:
+        _pbb = bets3[0]
+        _lhs, _las = _parse_live_score(r.get("score"))
+        _lld = match_select.live_state_for(sport_key, r.get("home"), r.get("away"))
+        _live_bar = _live_bar_html(analyses.live_prob(
+            sport_key, _pbb.get("sel", ""), _pbb.get("code", ""),
+            r.get("home", ""), r.get("away", ""), _lhs, _las,
+            match_select.live_minute(_lld),
+            match_select.live_win_odds(sport_key, r.get("home"), r.get("away")),
+            _pbb.get("cprob") or _pbb.get("prob")))
+    _live_score_row = f'<div class="mc-livesc">{lscore}{_live_bar}</div>' if (is_live and lscore) else ""
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{r.get("icon", "")}</span>'
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'

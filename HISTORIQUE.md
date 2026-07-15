@@ -12,6 +12,42 @@
 
 ---
 
+## 2026-07-15 — Barre « Chance live » : reflet EN DIRECT du % que le pari passe
+
+**Quoi** (demande user : « pour les matchs en live, une barre de % de chance que le pari réussisse selon
+le résultat actuel, qui évolue avec le score + le temps restant, reflet de la cote en direct »). Choix
+user via question : **source = cote live du marché (repli modèle)** · **affichage sous le scoreboard +
+sur les combinés**.
+
+1. **Cœur** `analyses.live_prob(sport, sel, code, home, away, hs, as_, minute, win_odds, ref_pct)` →
+   `{pct, trend, source}` ou `None`. Ordre des sources : (a) **verrou** (total déjà franchi / BTTS déjà
+   acquis → 100/0) ; (b) **cote live dé-margée** du marché vainqueur/double chance (`win_odds` = o1/ox/o2
+   déjà en cache Unibet, 0 appel) ; (c) **repli modèle** Poisson à temps décroissant (`_poisson_sf`) pour
+   les totaux buts / équipe marque / BTTS foot. Sinon `None` → pas de barre (jamais de faux %). Garde-fous
+   `_winner_side` : corners/cartons/tirs/buteur/handicap/mi-temps/score exact/sets → JAMAIS la cote
+   vainqueur (return None). Tendance ↑/↓/→ = vs `ref_pct` (% d'avant-match) avec bande morte ±4.
+2. **Accès cache** (`match_select`) : `live_win_odds` (cotes vainqueur live du `_ODDS_CACHE`) + `live_minute`
+   (minute foot du `matchClock`). Lecture seule, 0 réseau.
+3. **Rendu** (`web`) : `_live_bar_html` (barre remplie rouge→vert selon le %, flèche de tendance, étiquette
+   de source) + `_parse_live_score` + CSS `.lvbar*`. Câblée dans la carte SOUS le scoreboard live
+   (`_live_score_row`, simples uniquement). **Combinés** (`analyses.combo_html`) : une barre PAR jambe
+   (jambe = marché du match → `live_prob` par jambe ; acquise→100, perdue→0) + une barre GLOBALE (proba
+   implicite de la vraie cote combinée live re-pricée, repli = produit des % de jambes).
+4. **PURE AFFICHAGE** : calculée au rendu, lecture seule — n'écrit AUCUN sidecar/`stat_bet`/calibration,
+   ne compte JAMAIS au ROI (respecte les 3 couches Affichage/Stats/Calibration de CLAUDE.md).
+
+**Fichiers** : `app/analyses.py` (live_prob + helpers Poisson + barres combiné), `app/match_select.py`
+(live_win_odds/live_minute), `app/web.py` (_live_bar_html/_parse_live_score + CSS), `tests/test_live_prob.py` (16 tests).
+
+**Régression vérifiée** : imports OK (pas de cycle — web importé en local dans combo_html) ·
+`pytest` complet **282 passed** · `selfcheck` **16/16 OK (error 0, warn 0)** · smoke rendu simples
+(vainqueur/over/verrou/tendance) + combiné live (2 jambes + globale) OK. Aucun impact stats/calibration.
+
+**Résultat** : en direct, chaque pari joué (simple + jambes + combiné global) affiche une barre de chance
+qui évolue avec le score et le temps, calée sur la cote live quand elle existe.
+
+---
+
 ## 2026-07-11 — Combiné du jour : analyse dédiée par jambe + robustesse règlement
 
 **Quoi** (demande user : « toutes les jambes du combiné du jour doivent être analysées comme les paris à

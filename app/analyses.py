@@ -1086,6 +1086,177 @@ def _hcap_adjusted(info: dict, vals: dict):
     return (mine + info["line"], other)
 
 
+# --------------------------------------------------------------- barre « % live »
+# Reflet EN DIRECT de la chance qu'un pari passe, VU le score courant + le temps restant. PURE AFFICHAGE :
+# lecture seule, calculée au rendu, JAMAIS écrite dans un sidecar / stat_bet / la calibration / le ROI
+# (couche 3 « CALIBRATION » et couche 2 « STATS » ne sont pas touchées — cf. CLAUDE.md § 3 couches).
+# Source, du + fidèle au repli : (1) marché VERROUILLÉ (déjà mathématiquement acquis/perdu) -> 100/0 ;
+# (2) « reflet de la cote en direct » = proba implicite dé-margée de la cote live du marché (vainqueur/
+# double chance, déjà en cache Unibet, 0 appel) ; (3) repli MODÈLE (Poisson à temps décroissant) pour les
+# totaux/BTTS foot quand la cote de CE marché précis n'est pas en main. Sinon None -> pas de barre (jamais
+# de faux %). Choix user 2026-07-15 : « cote live du marché (repli modèle) ».
+
+_FOOT_GOALS_90 = 2.7      # buts attendus moyens sur 90' (paramètre du repli modèle totaux/BTTS foot)
+_FOOT_FULL_MIN = 90
+
+
+def _poisson_cdf(k: int, lam: float) -> float:
+    """P(X <= k) pour X ~ Poisson(lam), k entier >= 0. Repli 1.0 si lam <= 0 (aucun événement à venir)."""
+    if lam <= 0:
+        return 1.0
+    s = term = math.exp(-lam)         # i = 0
+    for i in range(1, max(0, k) + 1):
+        term *= lam / i
+        s += term
+    return max(0.0, min(1.0, s))
+
+
+def _poisson_sf(n: int, lam: float) -> float:
+    """P(X >= n) pour X ~ Poisson(lam). n <= 0 -> 1.0."""
+    if n <= 0:
+        return 1.0
+    return max(0.0, min(1.0, 1.0 - _poisson_cdf(n - 1, lam)))
+
+
+def _foot_remaining(minute) -> float:
+    """Fraction de match restante ∈ [0,1] à partir de la minute écoulée (repli 0.5 si inconnue)."""
+    if minute is None:
+        return 0.5
+    return max(0.0, min(1.0, (_FOOT_FULL_MIN - minute) / _FOOT_FULL_MIN))
+
+
+def _winner_side(sel: str, code: str, home: str, away: str, sport: str):
+    """Côté d'un pari de RÉSULTAT (vainqueur / double chance), ou None si ce n'est pas un marché de
+    résultat exploitable via la cote 1X2/vainqueur live. Renvoie 'home'/'away'/'draw' (simple) ou
+    '1X'/'12'/'X2' (double chance). Conservateur : tout marché portant une autre métrique (but/corner/
+    tir/carton/mi-temps/handicap/score exact/set) -> None (pas de barre plutôt qu'un faux %)."""
+    t = (sel or "").lower()
+    c = (code or "").upper()
+    if "handicap" in t:                              # handicap ≠ 1X2 (cote différente) -> pas ici
+        return None
+    if any(w in t for w in ("but", "buteur", "premier", "mi-temps", "carton", "corner", "tir",
+                            "score exact", " set", "jeu", "total")):
+        return None                                  # autre marché : la cote vainqueur ne le reflète pas
+    is_dc = "double chance" in t or c.startswith("DC")
+    if is_dc:
+        flat = c.replace(" ", "") + t.replace(" ", "")
+        for pair in ("1X", "12", "X2"):
+            if pair in flat.upper():
+                return pair
+        return None
+    if sport == "foot" and (re.search(r"\bnul\b", t) or "match nul" in t or c in ("1X2 X", "1 X 2 X")):
+        return "draw"
+    sd = _leg_side(sel, home, away)
+    return {"HOME": "home", "AWAY": "away"}.get(sd)
+
+
+def _winner_pct(side: str, win_odds) -> float | None:
+    """Proba implicite DÉ-MARGÉE du côté `side` à partir des cotes vainqueur live `win_odds` (o1,ox,o2)
+    — ox peut manquer (tennis/basket, marché 2 voies). None si cotes inexploitables."""
+    o1, ox, o2 = (list(win_odds or []) + [None, None, None])[:3]
+    raw = {}
+    if isinstance(o1, (int, float)) and o1 > 1:
+        raw["home"] = 1.0 / o1
+    if isinstance(ox, (int, float)) and ox > 1:
+        raw["draw"] = 1.0 / ox
+    if isinstance(o2, (int, float)) and o2 > 1:
+        raw["away"] = 1.0 / o2
+    s = sum(raw.values())
+    if s <= 0:
+        return None
+    p = {k: v / s for k, v in raw.items()}
+    if side in p:
+        return p[side]
+    if len(side) == 2:                               # double chance = somme des 2 issues couvertes
+        pair = {"1": "home", "X": "draw", "2": "away"}
+        return sum(p.get(pair[ch], 0.0) for ch in side)
+    return None
+
+
+def _foot_goals_pct(info: dict, hs: int, as_: int, minute) -> float | None:
+    """Proba MODÈLE (Poisson à temps décroissant) d'un total de buts Plus/Moins (match entier ou équipe)
+    foot, vu le score et la minute. None si la jambe n'est pas un total de buts exploitable."""
+    if info.get("metric") != "goals" or info.get("scope") != "match":
+        return None
+    line, dirn, side = info.get("line"), info.get("dir"), info.get("side")
+    if line is None or dirn not in ("OVER", "UNDER"):
+        return None
+    rem = _foot_remaining(minute)
+    if side in ("HOME", "AWAY"):
+        cur = hs if side == "HOME" else as_
+        lam = (_FOOT_GOALS_90 / 2.0) * rem
+    else:
+        cur = hs + as_
+        lam = _FOOT_GOALS_90 * rem
+    if cur > line:
+        p_over = 1.0
+    else:
+        need = int(math.floor(line - cur)) + 1       # buts FUTURS mini pour franchir la ligne (X.5)
+        p_over = _poisson_sf(need, lam)
+    return p_over if dirn == "OVER" else 1.0 - p_over
+
+
+def _foot_btts_pct(sel: str, hs: int, as_: int, minute) -> float:
+    """Proba MODÈLE que « les deux équipes marquent » (Oui/Non) vu le score et la minute (chaque équipe
+    doit finir avec >= 1 but ; côté déjà marqué = verrouillé à 1)."""
+    yes = not re.search(r"\bnon\b", (sel or "").lower())
+    lam = (_FOOT_GOALS_90 / 2.0) * _foot_remaining(minute)
+    ph = 1.0 if hs >= 1 else _poisson_sf(1, lam)
+    pa = 1.0 if as_ >= 1 else _poisson_sf(1, lam)
+    both = ph * pa
+    return both if yes else 1.0 - both
+
+
+def _is_btts(sel: str, code: str) -> bool:
+    t, c = (sel or "").lower(), (code or "").upper()
+    return ("BTTS" in c or "both teams to score" in t
+            or ("deux" in t and "marquent" in t) or "les deux équipes marquent" in t)
+
+
+def live_prob(sport: str, sel: str, code: str, home: str, away: str,
+              hs, as_, minute=None, win_odds=None, ref_pct=None) -> dict | None:
+    """% (0-100) que le pari `sel`/`code` réussisse VU l'état live (score `hs`-`as_`, minute écoulée) +
+    sa TENDANCE (up/down/flat vs `ref_pct` = le % d'avant-match) + la SOURCE. `win_odds` = cotes vainqueur
+    live (o1,ox,o2) déjà en cache (0 appel). Renvoie {"pct","trend","source"} ou None si non estimable
+    (-> pas de barre). PURE AFFICHAGE : ne lit/écrit aucune stat, ne compte jamais au ROI/à la calibration."""
+    hs, as_ = _as_int(hs), _as_int(as_)
+    if hs is None or as_ is None:
+        return None
+    t = (sel or "").lower()
+    p = source = None
+    if _is_btts(sel, code) and sport == "foot":
+        if hs >= 1 and as_ >= 1 and "non" not in t:
+            p, source = 1.0, "acquis"                # les 2 ont déjà marqué -> BTTS Oui verrouillé
+        else:
+            p, source = _foot_btts_pct(sel, hs, as_, minute), "modèle"
+    else:
+        info = _leg_metric({"sel": sel, "code": code}, home, away)
+        gp = _foot_goals_pct(info, hs, as_, minute) if sport == "foot" else None
+        if gp is not None:
+            st, _cur = _eval_leg(info, {"goals_h": hs, "goals_a": as_}, final=False)
+            if st == "won":
+                p, source = 1.0, "acquis"            # total déjà franchi (Over) -> verrouillé
+            elif st == "lost":
+                p, source = 0.0, "perdu"
+            else:
+                p, source = gp, "modèle"
+        else:
+            side = _winner_side(sel, code, home, away, sport)
+            if side is not None and win_odds:
+                p = _winner_pct(side, win_odds)
+                source = "cote live"
+    if p is None:
+        return None
+    pct = int(round(max(0.0, min(1.0, p)) * 100))
+    trend = "flat"
+    if isinstance(ref_pct, (int, float)):
+        if pct - ref_pct >= 4:
+            trend = "up"
+        elif ref_pct - pct >= 4:
+            trend = "down"
+    return {"pct": pct, "trend": trend, "source": source}
+
+
 def combo_live_status(d: dict, vals: dict) -> dict | None:
     """Statut LIVE d'un combiné : par jambe (won/lost/pending + valeur courante) et global. Le combiné
     est PERDU dès qu'UNE jambe saute, GAGNÉ quand TOUTES sont acquises, sinon en cours. None si pas de
@@ -1246,6 +1417,21 @@ def combo_html(sport: str, match_id) -> str:
     # (same-match) : on n'affiche PAS le nom du match (déjà en tête de la carte parent).
     _splbl = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sport, (sport or "").upper())
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}.get(sport, "•")
+    # Entrées de la barre « Chance live » par jambe (score + minute + cotes vainqueur live du match). Une
+    # jambe = un marché de CE match -> `live_prob` s'applique par jambe. Lecture seule (0 réseau). Seulement
+    # quand le match est en cours (`live` non nul) ; sinon on ne calcule rien.
+    _lh, _la = m.get("home", ""), m.get("away", "")
+    _lhs = _las = _lmin = _lwo = None
+    _bar_html = None
+    if live is not None:
+        from app import match_select, web            # imports locaux (évite le cycle au chargement)
+        _bar_html = web._live_bar_html
+        _lld = match_select.live_state_for(sport, _lh, _la)
+        _lsc = (_lld or {}).get("score") or {}
+        _lhs, _las = _as_int(_lsc.get("home")), _as_int(_lsc.get("away"))
+        _lmin = match_select.live_minute(_lld)
+        _lwo = match_select.live_win_odds(sport, _lh, _la)
+    _leg_pcts = []                                    # % live par jambe -> barre GLOBALE (produit)
     rows = []
     for i, leg in enumerate(combo["legs"]):
         lr = leg.get("result")                       # résultat FINAL réglé (post-match) s'il existe
@@ -1280,6 +1466,21 @@ def combo_html(sport: str, match_id) -> str:
                         f'<div class="cleg-why">{_h.escape(full)}</div></details>')
         else:
             why_html = ""
+        # Barre « Chance live » de la jambe (uniquement en cours) : acquise -> 100, perdue -> 0, sinon
+        # `live_prob` (cote live dé-margée / repli modèle). Alimente aussi la barre GLOBALE (produit).
+        bar_html = ""
+        if in_live and _bar_html is not None:
+            _ls = (live["legs"][i] or {}).get("status")
+            if _ls == "won":
+                _lp = {"pct": 100, "trend": "flat", "source": "acquis"}
+            elif _ls == "lost":
+                _lp = {"pct": 0, "trend": "flat", "source": "perdu"}
+            else:
+                _lp = live_prob(sport, leg.get("sel", ""), leg.get("code", ""), _lh, _la,
+                                _lhs, _las, _lmin, _lwo, leg.get("prob"))
+            if _lp:
+                _leg_pcts.append(_lp["pct"])
+                bar_html = _bar_html(_lp)
         rows.append(
             f'<div class="cleg {state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport">{_emo} {_splbl}</b></span>'
@@ -1287,7 +1488,7 @@ def combo_html(sport: str, match_id) -> str:
             f'<div class="cleg-body"><div class="cleg-main"><div class="cleg-pick">{sel}</div></div>'
             f'<span class="cleg-cote"><span class="cleg-cote-l">COTE</span>'
             f'<span class="cleg-cote-v">{cote}</span></span></div>'
-            f'{why_html}</div>')
+            f'{bar_html}{why_html}</div>')
     # En-tête : SEUL le résultat FINAL (post-match) affiche un statut ; en live -> badge « en direct » neutre.
     gcls = (" won" if res == "won" else " lost" if res == "lost" else " void" if res == "void" else "")
     if res == "won":
@@ -1315,6 +1516,25 @@ def combo_html(sport: str, match_id) -> str:
         cote_val = total
     _tag = (' <span class="top">Unibet en direct</span>' if _live
             else ' <span class="top">cote Unibet</span>' if real else "")
+    # Barre « Chance live » GLOBALE du combiné (en cours, non réglé) : perdu dès qu'une jambe saute,
+    # acquis quand toutes le sont, sinon proba implicite de la VRAIE cote combinée live (repli = produit
+    # des % de jambes). PURE AFFICHAGE.
+    _glob_bar = ""
+    if live is not None and _bar_html is not None and res is None:
+        if live["status"] == "won":
+            _glp = {"pct": 100, "trend": "flat", "source": "acquis"}
+        elif live["status"] == "lost":
+            _glp = {"pct": 0, "trend": "flat", "source": "perdu"}
+        elif _live:
+            _glp = {"pct": int(round(100.0 / float(_live))), "trend": "flat", "source": "cote live"}
+        elif _leg_pcts:
+            _prod = 1.0
+            for _pc in _leg_pcts:
+                _prod *= _pc / 100.0
+            _glp = {"pct": int(round(_prod * 100)), "trend": "flat", "source": "modèle"}
+        else:
+            _glp = None
+        _glob_bar = _bar_html(_glp) if _glp else ""
     n_legs = len(combo["legs"])
     synth = combo.get("why")
     # Synthèse REPLIABLE (compacité) : cachée par défaut, dépliée au clic. Masquée une fois le combiné réglé.
@@ -1325,6 +1545,7 @@ def combo_html(sport: str, match_id) -> str:
     return (f'<div class="tkt{gcls}"><div class="tkt-h">Combiné '
             f'<span class="n">· {n_legs} sélections</span> {badge}{_tag}</div>'
             f'{synth_html}<div class="mc-combo-legs">{"".join(rows)}</div>'
+            f'{_glob_bar}'
             f'<div class="tkt-cote"><span class="l">Cote combinée</span>'
             f'<span class="v">{cote_val}</span></div></div>')
 
