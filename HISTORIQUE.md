@@ -12,6 +12,29 @@
 
 ---
 
+## 2026-07-17 — Paris sans explication : couverture `_plain_market` + garde-fou selfcheck
+
+**Quoi** (reproche user, capture à l'appui : « il y a toujours des paris sans explications, cela ne doit pas
+arriver, tu dois noter ça »). Des cartes tennis « <joueur> remporte au moins un set » n'avaient PAS de ligne
+grise « ↳ » (glose vide), contrairement à « <joueur> vainqueur ».
+
+1. **`web._plain_market` étendu** : (a) TENNIS marchés de sets — « remporte au moins N set(s) » → « remporte
+   au moins N manches », « gagne le 1er/2e set », « sans perdre de set » ; (b) FOOT « <équipe> marque (Plus/
+   Moins de X.5 but) » SANS tiret séparateur (l'ancien code exigeait « buts », pas « 0.5 but ») + formes
+   « au moins / au maximum N ». Correctif logique : « moins de 1.5 » = ceil → « moins de 2 » (jamais « moins
+   de 1 » = 0).
+2. **Garde-fou `selfcheck._check_bet_gloss_coverage`** (17ᵉ contrôle) : scanne CHAQUE pari affiché des matchs
+   NON terminés (simple retenu/publié + jambes de combiné) et WARN si `_plain_market` renvoie "" → tout
+   marché non glosé est désormais SIGNALÉ automatiquement (rend la consigne exécutoire, plus de silence).
+   C'est ce check qui a débusqué le 2ᵉ trou (« Argentine marque (Plus de 0.5 but) ») au-delà des sets tennis.
+
+**Fichiers** : `app/web.py` (_plain_market), `app/selfcheck.py` (nouveau check + registre),
+`tests/test_plain_market_gloss.py` (8 tests). **Régression vérifiée** : `pytest` **290 passed** · `selfcheck`
+**17/17 OK** (0 pari sans explication sur l'état réel du dépôt). Purement AFFICHAGE (aucun impact
+sel/règlement/ROI). Cf. mémoire [[plain-market-gloss-all-bets]].
+
+---
+
 ## 2026-07-15 — Barre « Chance live » : reflet EN DIRECT du % que le pari passe
 
 **Quoi** (demande user : « pour les matchs en live, une barre de % de chance que le pari réussisse selon

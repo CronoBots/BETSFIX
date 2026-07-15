@@ -495,6 +495,42 @@ def _check_extratime_regulation(rows) -> dict:
             "items": bad[:20]}
 
 
+def _check_bet_gloss_coverage(rows) -> dict:
+    """CHAQUE pari AFFICHÉ (simple retenu/publié + jambe de combiné) d'un match à venir/en cours doit porter
+    sa ligne d'explication en clair « ↳ » via `web._plain_market` (demande user 2026-07-14, renforcée
+    2026-07-17 : « il y a toujours des paris sans explications, cela ne doit pas arriver »). Ce garde-fou
+    DÉTECTE tout marché non couvert par `_plain_market` (glose vide) — c'est exactement le trou vécu avec
+    « <joueur> remporte au moins un set ». Un WARN ici = un nouveau type de marché à ajouter à `_plain_market`.
+    100 % lecture seule ; ne juge que les matchs NON terminés (ce qui est encore affiché aux abonnés)."""
+    from app import web
+    missing = []
+    for p, d in rows:
+        try:
+            if analyses.status_of(d) == "finished":
+                continue
+            sport = (d.get("sport") or os.path.basename(p).split("_", 1)[0] or "").lower()
+            home, away = d.get("home", ""), d.get("away", "")
+            mid = d.get("id")
+            sels = []
+            rb = analyses.published_bet(sport, mid) or analyses.retained_bet(sport, mid)
+            if rb and rb.get("sel"):
+                sels.append(rb["sel"])
+            for leg in ((d.get("combo") or {}).get("legs") or []):
+                if leg.get("sel"):
+                    sels.append(leg["sel"])
+            for sel in sels:
+                if not web._plain_market(sel, sport, home, away):
+                    missing.append(f"{sport} {home}–{away} : « {sel[:50]} » sans explication")
+        except Exception:
+            continue
+    n = len(missing)
+    return {"key": "bet_gloss_coverage", "level": "warn" if n else "ok",
+            "title": "Explication en clair (« ↳ ») sur CHAQUE pari",
+            "detail": (f"{n} pari(s) affiché(s) sans ligne d'explication (marché non couvert par "
+                       f"web._plain_market -> ajouter son cas)."),
+            "items": missing[:20]}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -516,6 +552,7 @@ def run(persist: bool = False) -> dict:
         _check_ghost_resolution(rows),
         _check_provisional_dedup(),
         _check_extratime_regulation(rows),
+        _check_bet_gloss_coverage(rows),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]

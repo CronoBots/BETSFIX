@@ -3597,6 +3597,19 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
             if meq.group(2).lower() == "plus":
                 return f"{who} marque au moins {n} {_u(n)}"
             return f"{who} marque moins de {n} {_u(n)}"
+    # ÉQUIPE MARQUE — forme « <équipe> marque (Plus/Moins de X.5 but) » SANS tiret séparateur (fix 2026-07-17 :
+    # « Argentine marque (Plus de 0.5 but) » restait sans glose car « 0.5 but » ≠ « buts » du total).
+    mm = re.search(r"^(.+?)\s+marque\b.*?\b(plus de|moins de|au moins|au maximum) (\d+(?:[.,]\d+)?)", s, re.I)
+    if mm and "total" not in sl:
+        who, key, val = mm.group(1).strip(), mm.group(2).lower(), float(mm.group(3).replace(",", "."))
+        if key in ("plus de", "au moins"):
+            n = math.ceil(val) if key == "plus de" else (int(val) if val == int(val) else math.ceil(val))
+            return f"{who} marque au moins {n} {_u(n)}"
+        if key == "moins de":                              # « moins de 1.5 » = au plus 1 -> « moins de 2 »
+            n = math.ceil(val)
+            return f"{who} marque moins de {n} {_u(n)}"
+        n = int(val) if val == int(val) else math.floor(val)   # « au maximum N »
+        return f"{who} marque au maximum {n} {_u(n)}"
     # TOTAL du match « plus/moins de X.5 (points/buts) » -> nombre entier lisible
     mt = re.search(r"\b(plus|moins) de (\d+(?:[.,]\d+)?)", sl)
     if mt and ("total" in sl or "points" in sl or "buts" in sl):
@@ -3616,6 +3629,19 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     if "temps réglementaire" in sl:
         return "match nul à la fin des 90 min" if re.search(r"\b(draw|nul)\b", sl) \
             else "gagne dans le temps réglementaire (90 min)"
+    # TENNIS — marchés de SETS/manches (fix 2026-07-17 : « <joueur> remporte au moins un set » restait SANS
+    # glose -> reproche user « paris sans explications »). « au moins N sets » / 1er set / sans perdre de set.
+    if sport == "tennis":
+        mset = re.search(r"au moins (\d+|une?|deux|trois)\s+sets?|\bgagne\b.*\bun set\b", sl)
+        if mset:
+            w = {"un": 1, "une": 1, "deux": 2, "trois": 3}.get((mset.group(1) or "").strip())
+            n = w if w else (int(mset.group(1)) if (mset.group(1) or "").isdigit() else 1)
+            return ("remporte au moins une manche (évite la défaite en deux sets secs)" if n <= 1
+                    else f"remporte au moins {n} manches")
+        if re.search(r"\bgagne (le )?(1er|1re|premi[eè]re?|second|2e|2nd|deuxi[eè]me)\s+set\b", sl):
+            return "gagne cette manche précise"
+        if re.search(r"sans (perdre|lâcher|conc[eé]der)\b.*\b(set|manche)", sl):
+            return "gagne sans lâcher la moindre manche"
     # VAINQUEUR simple (« <équipe/joueur> vainqueur/gagne ») -> précise le PÉRIMÈTRE de règlement par sport.
     # EXCLURE les marchés de PÉRIODE (« Set 1 - Vainqueur », « 1ère MT », quart-temps…) : « gagne le match »
     # y serait FAUX (c'est le vainqueur du set/de la période). Pas de glose plutôt qu'une glose fausse.
