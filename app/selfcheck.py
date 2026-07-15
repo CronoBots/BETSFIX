@@ -497,13 +497,15 @@ def _check_extratime_regulation(rows) -> dict:
 
 def _check_bet_gloss_coverage(rows) -> dict:
     """CHAQUE pari AFFICHÉ (simple retenu/publié + jambe de combiné) d'un match à venir/en cours doit porter
-    sa ligne d'explication en clair « ↳ » via `web._plain_market` (demande user 2026-07-14, renforcée
-    2026-07-17 : « il y a toujours des paris sans explications, cela ne doit pas arriver »). Ce garde-fou
-    DÉTECTE tout marché non couvert par `_plain_market` (glose vide) — c'est exactement le trou vécu avec
-    « <joueur> remporte au moins un set ». Un WARN ici = un nouveau type de marché à ajouter à `_plain_market`.
+    sa ligne d'explication en clair « ↳ » (demande user 2026-07-17 : « valable pour N'IMPORTE QUEL pari joué »).
+    Le rendu passe par `web._bet_gloss` = TOTAL (cas précis `_plain_market`, sinon repli générique sûr) → il
+    ne renvoie '' que si le `sel` est vide. Ce garde-fou vérifie 2 choses :
+    - ERREUR : un pari joué dont `_bet_gloss` est vide (sel vide/corrompu) — jamais de carte sans « ↳ ».
+    - INFO : un pari tombé sur le repli GÉNÉRIQUE (`_plain_market` vide) → marché à coder précisément un jour
+      (l'abonné voit déjà une explication, mais générique). C'est le nudge qui remplace l'ancien WARN.
     100 % lecture seule ; ne juge que les matchs NON terminés (ce qui est encore affiché aux abonnés)."""
     from app import web
-    missing = []
+    empty, generic = [], []
     for p, d in rows:
         try:
             if analyses.status_of(d) == "finished":
@@ -519,16 +521,20 @@ def _check_bet_gloss_coverage(rows) -> dict:
                 if leg.get("sel"):
                     sels.append(leg["sel"])
             for sel in sels:
-                if not web._plain_market(sel, sport, home, away):
-                    missing.append(f"{sport} {home}–{away} : « {sel[:50]} » sans explication")
+                if not (sel or "").strip():
+                    continue
+                if not web._bet_gloss(sel, sport, home, away):
+                    empty.append(f"{sport} {home}–{away} : « {sel[:50]} » SANS explication")
+                elif not web._plain_market(sel, sport, home, away):
+                    generic.append(f"{sport} {home}–{away} : « {sel[:50]} » (glose générique)")
         except Exception:
             continue
-    n = len(missing)
-    return {"key": "bet_gloss_coverage", "level": "warn" if n else "ok",
+    lvl = "error" if empty else ("info" if generic else "ok")
+    return {"key": "bet_gloss_coverage", "level": lvl,
             "title": "Explication en clair (« ↳ ») sur CHAQUE pari",
-            "detail": (f"{n} pari(s) affiché(s) sans ligne d'explication (marché non couvert par "
-                       f"web._plain_market -> ajouter son cas)."),
-            "items": missing[:20]}
+            "detail": (f"{len(empty)} pari(s) SANS explication (anomalie) · {len(generic)} sur repli "
+                       f"générique (marché à coder précisément dans web._plain_market)."),
+            "items": (empty + generic)[:20]}
 
 
 def run(persist: bool = False) -> dict:

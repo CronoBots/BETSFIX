@@ -3610,9 +3610,25 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
             return f"{who} marque moins de {n} {_u(n)}"
         n = int(val) if val == int(val) else math.floor(val)   # « au maximum N »
         return f"{who} marque au maximum {n} {_u(n)}"
-    # TOTAL du match « plus/moins de X.5 (points/buts) » -> nombre entier lisible
+    # TOTAL d'un OBJET NOMMÉ (tirs cadrés/corners/cartons/aces/rebonds/passes) — match entier OU par équipe.
+    # Unité = l'objet lui-même (fix 2026-07-17 : « Nombre total de tirs cadrés de Argentine Plus de X » était
+    # glosé « … buts au total » — mauvaise unité).
+    _s_np = re.sub(r"\([^)]*\)", " ", s)     # retire les annotations « (réglé selon Opta Data) » etc.
+    mob = re.search(r"total\s+(?:de\s+|des\s+|d')?(tirs?\s+cadrés?|tirs?|corners?|cartons?|aces?|"
+                    r"doubles?\s+fautes?|rebonds?|passes?)\s*(?:de\s+([^()]+?))?\s*\b(plus|moins) de "
+                    r"(\d+(?:[.,]\d+)?)", _s_np, re.I)
+    if mob:
+        obj = re.sub(r"\s+", " ", mob.group(1).strip().lower())
+        who = (mob.group(2) or "").strip(" -–—")
+        n = math.ceil(float(mob.group(4).replace(",", ".")))
+        sens = "au moins" if mob.group(3).lower() == "plus" else "moins de"
+        return f"{who + ' : ' if who else ''}{sens} {n} {obj}"
+    # TOTAL du match « plus/moins de X.5 (points/buts/jeux) » -> nombre entier lisible. On EXCLUT les totaux
+    # d'un objet SPÉCIFIQUE (corners/tirs/cartons/aces/rebonds/passes/fautes) : « au total buts » y serait FAUX
+    # (mauvaise unité) -> ils tombent sur le repli générique « pari sur … » (fix 2026-07-17).
     mt = re.search(r"\b(plus|moins) de (\d+(?:[.,]\d+)?)", sl)
-    if mt and ("total" in sl or "points" in sl or "buts" in sl):
+    if (mt and ("total" in sl or "points" in sl or "buts" in sl)
+            and not re.search(r"\b(corner|tir|carton|ace|rebond|passe|faute)", sl)):
         val = float(mt.group(2).replace(",", "."))
         sens = "plus" if mt.group(1) == "plus" else "moins"
         n = math.floor(val) if sens == "plus" else math.ceil(val)
@@ -3653,6 +3669,57 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
             return "gagne le match (prolongations comprises)"
         return "gagne dans le temps réglementaire (90 min)"
     return ""
+
+
+# Catégories de marché pour le repli générique (mot-clé -> phrase « pari sur … », jamais fausse). Mots courts
+# testés en \b (« but » n'attrape pas « début », « jeu » pas « enjeu »). Ordre = du plus spécifique au général.
+_GLOSS_CAT = [
+    (("corner",), "pari sur le nombre de corners"),
+    (("carton", "card"), "pari sur les cartons"),
+    (("cadré", "cadre", "on target"), "pari sur les tirs cadrés"),
+    (("tir", "shot"), "pari sur les tirs"),
+    (("double faute", "doubles fautes"), "pari sur les doubles fautes"),
+    (("ace",), "pari sur les aces"),
+    (("tie-break", "tie break", "jeu décisif", "décisif"), "pari sur un jeu décisif (tie-break)"),
+    (("score exact", "correct score", "score correct"), "pari sur le score exact"),
+    (("buteur", "premier but", "1er but", "dernier but", "first goal"), "pari sur les buteurs"),
+    (("mi-temps", "période", "periode", "half", "quart"), "pari sur une période du match"),
+    (("impair",), "pari : nombre impair"),
+    (("pair", "even", "odd"), "pari : nombre pair / impair"),
+    (("rebond", "rebound"), "pari sur les rebonds"),
+    (("passe", "assist", "caviar"), "pari sur les passes décisives"),
+    (("jeu", "game"), "pari sur le nombre de jeux"),
+    (("point",), "pari sur le nombre de points"),
+    (("but", "goal"), "pari sur les buts"),
+]
+
+
+def _generic_gloss(sel: str, sport: str) -> str:
+    """Repli GÉNÉRIQUE sûr : une explication « ↳ » pour N'IMPORTE QUEL pari joué, même un marché non codé
+    spécifiquement (demande user 2026-07-17). Jamais faux : (1) « Plus/Moins de X <objet> » reformulé en
+    entier ; (2) sinon catégorie du marché par mot-clé ; (3) dernier recours = renvoi vers l'analyse. ''
+    seulement si `sel` vide. NE PAS s'en servir pour ÉVITER un cas précis -> le selfcheck le signale."""
+    import math
+    s = (sel or "").strip()
+    if not s:
+        return ""
+    sl = s.lower()
+    m = re.search(r"\b(plus|moins)\s+de\s+(\d+(?:[.,]\d+)?)\s+([a-zà-ÿ][\wà-ÿ' -]*?)\s*$", s, re.I)
+    if m:
+        n = math.ceil(float(m.group(2).replace(",", ".")))
+        obj = re.sub(r"\s+", " ", m.group(3).strip())
+        return f"au moins {n} {obj}" if m.group(1).lower() == "plus" else f"moins de {n} {obj}"
+    for kws, txt in _GLOSS_CAT:
+        if any(re.search(rf"\b{re.escape(k)}", sl) for k in kws):
+            return txt
+    return "pari détaillé dans l'analyse ci-dessous"
+
+
+def _bet_gloss(sel: str, sport: str, home: str = "", away: str = "") -> str:
+    """Glose « en clair » GARANTIE de tout pari joué : cas PRÉCIS (`_plain_market`) sinon repli GÉNÉRIQUE
+    sûr (`_generic_gloss`). Ne renvoie '' que si `sel` est vide. TOUT rendu de pari (carte simple, provisoire,
+    jambe de combiné) doit passer par ICI -> jamais une carte de pari sans ligne « ↳ » (demande user)."""
+    return _plain_market(sel, sport, home, away) or _generic_gloss(sel, sport)
 
 
 def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
@@ -3880,7 +3947,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             _prov_tag = ('' if framed else
                          '<div class="mc-prov-tag">🧪 PROVISOIRE<span> · indicatif, hors ROI</span></div>')
             # Marché EN CLAIR sous la sélection (demande user 2026-07-13) : « -9.5 » -> « gagne de 10 pts+ ».
-            _gl = _plain_market(prov_sel, sp, home, away)
+            _gl = _bet_gloss(prov_sel, sp, home, away)
             _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{html.escape(_gl)}</div>' if _gl else ""
             # PAS d'extrait d'analyse dans la carte REPLIÉE (demande user 2026-07-13) : l'analyse n'apparaît
             # qu'au DÉPLI (message COMPLET, dans le corps) -> plus de doublon extrait/analyse une fois ouvert.
@@ -4088,7 +4155,7 @@ def _leg_card(l: dict, *, why: bool = True) -> str:
     else:
         _btxt, _bcls = _bmap.get(_res, ("À VENIR", "p"))
     # gloss = explication EN CLAIR du marché (identique aux cartes de simple) ; + score final si réglé.
-    _g = _plain_market(sel_raw, _sp, _lh, _la)
+    _g = _bet_gloss(sel_raw, _sp, _lh, _la)
     if _res is not None and l.get("score"):
         _sc = html.escape(str(l.get("score")))
         _g = f'{_g} · <b>final {_sc}</b>' if _g else f'<b>final {_sc}</b>'
@@ -5221,7 +5288,7 @@ def _sport_row(r: dict) -> str:
         _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
                      f'<span class="mc-cote-v">{_pcote:g}</span></span>'
                      if isinstance(_pcote, (int, float)) and _pcote else "")
-        _gl = _plain_market(_psel, sport_key, r.get("home",""), r.get("away",""))
+        _gl = _bet_gloss(_psel, sport_key, r.get("home",""), r.get("away",""))
         _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{e(_gl)}</div>' if _gl else ""
         # PARI PUBLIÉ dont la COTE A BOUGÉ depuis le conseil (demande user 2026-07-14) : mention transparente
         # (« cote au conseil : X · marché actuel : Y ») -> l'abonné voit son pari au bon prix + pourquoi ça a

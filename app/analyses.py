@@ -1683,6 +1683,12 @@ def combo_html(sport: str, match_id) -> str:
         except (TypeError, ValueError):
             cote = "?"
         sel = _h.escape(pretty_sel(str(leg.get("sel", "")), m.get("home", ""), m.get("away", "")))
+        # Glose « ↳ » en clair de la jambe (jambe = pari joué -> DOIT avoir son explication, demande user
+        # 2026-07-17). Point d'entrée TOTAL `web._bet_gloss` (jamais vide). Import local (évite le cycle).
+        from app import web as _web
+        _lgl = _web._bet_gloss(str(leg.get("sel", "")), sport, m.get("home", ""), m.get("away", ""))
+        gloss_html = (f'<div class="cleg-gloss"><span class="ar">↳</span> {_h.escape(_lgl)}</div>'
+                      if _lgl else "")
         pct, head, tail = _why_parts(leg.get("why"))
         full = f"{head}. {tail}" if (head and tail) else (head or tail)
         if full and full[-1] not in ".!?":
@@ -1713,7 +1719,8 @@ def combo_html(sport: str, match_id) -> str:
             f'<div class="cleg {state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport">{_emo} {_splbl}</b></span>'
             f'<span class="cleg-bdg {bcls}">{btxt}</span></div>'
-            f'<div class="cleg-body"><div class="cleg-main"><div class="cleg-pick">{sel}</div></div>'
+            f'<div class="cleg-body"><div class="cleg-main"><div class="cleg-pick">{sel}</div>'
+            f'{gloss_html}</div>'
             f'<span class="cleg-cote"><span class="cleg-cote-l">COTE</span>'
             f'<span class="cleg-cote-v">{cote}</span></span></div>'
             f'{bar_html}{why_html}</div>')

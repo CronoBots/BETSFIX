@@ -33,6 +33,26 @@ grise « ↳ » (glose vide), contrairement à « <joueur> vainqueur ».
 **17/17 OK** (0 pari sans explication sur l'état réel du dépôt). Purement AFFICHAGE (aucun impact
 sel/règlement/ROI). Cf. mémoire [[plain-market-gloss-all-bets]].
 
+### Suite (même jour) — « valable pour N'IMPORTE QUEL pari joué » : glose TOTALE `_bet_gloss`
+
+Précision user : la garantie doit tenir pour TOUT pari, pas seulement les marchés codés. Ajout d'un point
+d'entrée TOTAL `web._bet_gloss` = `_plain_market` (cas précis) SINON `_generic_gloss` (repli sûr, jamais
+faux) : (1) « Plus/Moins de X <objet> » reformulé en entier ; (2) catégorie par mot-clé (« pari sur les
+corners/tirs/aces/rebonds/passes/buteurs… », mots courts en `\b` pour ne pas capter « début »/« enjeu ») ;
+(3) dernier recours « pari détaillé dans l'analyse ci-dessous ». `_bet_gloss` ne renvoie '' que si `sel` est
+vide.
+- **Tous les rendus** routés sur `_bet_gloss` : carte simple/premium, provisoire, `_leg_card` (combiné du
+  jour) ET **`analyses.combo_html`** (jambes du combiné de MATCH — n'avaient AUCUNE glose auparavant).
+- **Cas TOTAL d'un objet nommé** (fix bug latent) : « Nombre total de tirs cadrés de Argentine (réglé selon
+  Opta) Plus de 2.5 » était glosé « … buts au total » (mauvaise unité) → désormais « Argentine : au moins 3
+  tirs cadrés » (annotation entre parenthèses ignorée ; le total buts/points/jeux exclut ces objets).
+- **Garde-fou renforcé** : `_check_bet_gloss_coverage` = ERREUR si `_bet_gloss` vide (anomalie), INFO si repli
+  générique utilisé (marché à préciser). Sur l'état réel : 17/17 OK, 0 anomalie, 0 générique.
+
+**Fichiers ++** : `app/web.py` (_generic_gloss/_bet_gloss/_GLOSS_CAT + cas total-objet + garde-fou unité),
+`app/analyses.py` (glose jambes de combo_html), `app/selfcheck.py` (check ERREUR/INFO),
+`tests/test_plain_market_gloss.py` (13 tests). **Régression** : `pytest` **294 passed** · `selfcheck` **17/17 OK**.
+
 ---
 
 ## 2026-07-15 — Barre « Chance live » : reflet EN DIRECT du % que le pari passe
