@@ -698,6 +698,31 @@ def _verdict_notes(md: str) -> tuple[list, str]:
     return notes, resid_html
 
 
+def verdict_line(cote, conf, ev, calibrated: bool = True) -> str:
+    """Ligne VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE, demande user 2026-07-17) :
+    « Marché XX% · Notre confiance YY% [✓calibré] → Value ±Z% ». `conf` = confiance affichée (calibrée),
+    `cote` = cote décimale, `ev` = value % (déjà calculée sur la MÊME conf -> récit toujours exact). '' si
+    données insuffisantes. Classes CSS `.tkt-*` (cf. web.py). Value = héros coloré (vert ≥+3, ambre 0..3,
+    rouge <0)."""
+    try:
+        cv = float(cote); cf = float(conf); ep = int(round(ev))
+    except (TypeError, ValueError):
+        return ""
+    if not cv or cv <= 1:
+        return ""
+    be = round(100 / cv)
+    pc = "hi" if cf >= 75 else "mid" if cf >= 65 else "lo"
+    vcls = "vpos" if ep >= 3 else "vmid" if ep >= 0 else "vneg"
+    cal = ('<span class="tkt-cal" title="Confiance calibrée sur l’historique réel des résultats">'
+           '✓ calibré</span>' if calibrated else "")
+    return (f'<div class="tkt-vd">'
+            f'<span class="tkt-vseg">Marché <b>{be}%</b></span>'
+            f'<span class="tkt-vdot">·</span>'
+            f'<span class="tkt-vseg tkt-vconf {pc}">Notre confiance <b>{round(cf)}%</b>{cal}</span>'
+            f'<span class="tkt-vend"><span class="tkt-varr">→</span>'
+            f'<span class="tkt-value {vcls}">Value {"+" if ep >= 0 else ""}{ep}%</span></span></div>')
+
+
 def _bets_table(body: str, results: dict | None = None, compact: bool = False,
                 notes: list | None = None, residual: str = "",
                 sport: str | None = None, home: str = "", away: str = "",
@@ -762,19 +787,8 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # chiffres — proba MARCHÉ (100/cote = seuil de rentabilité) · NOTRE confiance (publiée = Telegram,
         # calibrée sur l'historique) → VALUE (l'edge, HÉROS coloré). On comprend POURQUOI c'est un pari (ou
         # une abstention) d'un coup d'œil, sans confondre « chance du marché » et « notre confiance ».
-        market_be = round(100 / cv) if cv else None
-        verdict = ""
-        if conf_v != "—" and market_be is not None and ev_pct is not None:
-            vcls = "vpos" if ev_pct >= 3 else "vmid" if ev_pct >= 0 else "vneg"
-            _cal = ('<span class="tkt-cal" title="Confiance calibrée sur l’historique réel des résultats">'
-                    '✓ calibré</span>' if prob is not None else "")
-            verdict = (f'<div class="tkt-vd">'
-                       f'<span class="tkt-vseg">Marché <b>{market_be}%</b></span>'
-                       f'<span class="tkt-vdot">·</span>'
-                       f'<span class="tkt-vseg tkt-vconf {pc}">Notre confiance <b>{conf_v}</b>{_cal}</span>'
-                       f'<span class="tkt-vend"><span class="tkt-varr">→</span>'
-                       f'<span class="tkt-value {vcls}">Value {"+" if ev_pct >= 0 else ""}{ev_pct}%</span>'
-                       f'</span></div>')
+        verdict = (verdict_line(cv, _cp, ev_pct, calibrated=(prob is not None))
+                   if (_cp is not None and cv and ev_pct is not None) else "")
         # Ligne META (discrète) : sûreté + validation du panel, ou le motif d'abstention. La VALUE est
         # désormais dans le verdict (héros) -> plus de badge « value » redondant ici.
         subs = []

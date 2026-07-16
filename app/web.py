@@ -3971,13 +3971,25 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{html.escape(_gl)}</div>' if _gl else ""
             # PAS d'extrait d'analyse dans la carte REPLIÉE (demande user 2026-07-13) : l'analyse n'apparaît
             # qu'au DÉPLI (message COMPLET, dans le corps) -> plus de doublon extrait/analyse une fois ouvert.
-            # Bande VERDICT : confiance colorée (barre + %) + cote groupées, ré-analyse sous la barre.
-            # Plus de pastille « 🧪 PROVISOIRE » (demande user 2026-07-14) : le provisoire s'identifie par le
-            # BORD GRIS du cadre (cf. _acc), plus par un badge.
+            # LIGNE VERDICT IDENTIQUE aux cartes de pari (demande user 2026-07-17 « tout doit être identique ») :
+            # « Marché XX% · Notre confiance YY% ✓calibré → Value ±Z% ». Confiance CALIBRÉE (comme partout).
+            # Bonus : sur une abstention la value est souvent NÉGATIVE -> elle EXPLIQUE l'abstention (notre
+            # confiance sous le seuil du marché), au lieu de l'ancienne barre « CONFIANCE » qui la survendait.
+            _vl = ""
+            if _cote and _pconf is not None:
+                try:
+                    from app.settle_analyst import code_from_pick as _cfp
+                    _cpc = analyses.calibrated_conf(_pconf, sp, _cfp(prov_sel, sp, home, away))
+                except Exception:
+                    _cpc = _pconf
+                if _cpc is not None:
+                    _ev = round((_cpc / 100.0 * float(_cote) - 1) * 100)
+                    _vl = analyses.verdict_line(_cote, _cpc, _ev, calibrated=True)
             sub = ('<div class="mc-div"></div>'
                    + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
-                   + _gloss
-                   + _verdict_strip(_pconf, _cote_big, f'🔄 {_reana}', cote=_cote))
+                   + _gloss + _vl
+                   + f'<div class="mc-foot"><span class="mc-reana mc-reana-prov">🔄 {html.escape(_reana)}</span>'
+                   + f'{_cote_big}</div>')
         else:
             # Match SANS provisoire et NON analysé (pas de statut de value). Deux cas :
             #  • heure d'analyse (KO − 1 h) ENCORE À VENIR -> on annonce « Analyse à HH:MM » (légitime).
