@@ -2673,7 +2673,40 @@ _MARKET_FAMILY = {   # 1er token du code -> famille de marché lisible (pour la 
 # Auto-révisable : si une catégorie redevient bonne avec plus de données, elle se ré-inclut seule.
 CALIB_MIN_N = 25     # nb mini de paris réglés avant d'oser exclure une catégorie (sous ça = bruit)
 CALIB_GAP_MAX = -8   # réussite réelle au moins 8 pts SOUS la confiance annoncée = sur-confiance nette
+# HYSTÉRÉSIS (demande user 2026-07-16) — bande haute/basse pour TUER le flottement jour/jour (un marché,
+# ex. « Vainqueur », écarté un jour, remis le lendemain, ré-écarté le surlendemain, parce que son écart/ROI
+# oscille juste autour du seuil unique). On EXCLUT à un seuil STRICT (CALIB_GAP_MAX / CALIB_ROI_MAX) mais on
+# ne RÉ-INTÈGRE qu'après une récupération NETTE (CALIB_GAP_BACK / CALIB_ROI_BACK). Entre les deux = ZONE
+# MORTE : on GARDE l'état précédent (persisté). Schmitt-trigger classique. La largeur de bande doit dépasser
+# le « pas » d'un pari réglé (~100/n pts sur le taux) -> plus de bascule sur un seul résultat.
+CALIB_GAP_BACK = -4  # une fois exclu (écart ≤ -8), le marché ne revient que si l'écart REMONTE à ≥ -4
+CALIB_ROI_BACK = -8  # une fois exclu (ROI ≤ -15%), le marché ne revient que si le ROI REMONTE à ≥ -8%
 _SPORT_FR = {"Football": "foot", "Tennis": "tennis", "Basket": "basket"}
+_EXCL_STATE_PATH = os.path.join(_ROOT, "data", "excluded_state.json")   # dernier état COMMITÉ {sport:[marchés]}
+
+
+def _load_excluded_state() -> dict:
+    """Dernier ensemble écarté COMMITÉ par sport ({sport: set}) — l'« état précédent » de l'hystérésis.
+    {} si le fichier n'existe pas encore (1er run) -> la décision se prend alors au seuil strict, sans
+    zone morte (comportement historique)."""
+    try:
+        with open(_EXCL_STATE_PATH, encoding="utf-8") as f:
+            raw = json.load(f)
+        return {sp: set(ms) for sp, ms in raw.items() if isinstance(ms, list)}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_excluded_state(state: dict) -> None:
+    """Persiste l'état écarté (écriture ATOMIQUE tmp+replace). Best-effort : un échec disque ne casse
+    jamais la sélection (on garde l'état en mémoire pour ce cycle)."""
+    try:
+        tmp = _EXCL_STATE_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({sp: sorted(ms) for sp, ms in state.items()}, f, ensure_ascii=False)
+        os.replace(tmp, _EXCL_STATE_PATH)
+    except OSError:
+        pass
 
 
 def market_of(code: str) -> str:
@@ -2779,6 +2812,13 @@ def markets_coverage() -> dict:
             "note": "resolvable=False -> voir docs/SOURCES.md §4 (trous à combler)"}
 
 
+_EXCL_BY_SPORT_CACHE: tuple = (0.0, {})   # (expiry_ts, {sport:set}) — cache court : _excluded_by_sport() est
+_EXCL_BY_SPORT_TTL = 30                    # appelé PAR CARTE au rendu (via _bets_table) et rappelait calibration()
+#                                            + _dir_sig() (scandir+stat de TOUT le dossier) à chaque fois -> gel de
+#                                            l'event loop ~8 s (O(cartes×fichiers)). Les exclusions bougent à
+#                                            l'échelle du JOUR (« forward-looking ») -> 30 s = 0 impact fonctionnel.
+
+
 def _excluded_by_sport() -> dict:
     """{sport: set(marchés écartés POUR CE SPORT)} — les exclusions de marché sont désormais PROPRES À
     CHAQUE SPORT (demande user 2026-07-02). Un marché mauvais en basket n'écarte PAS le même marché en
@@ -2793,21 +2833,42 @@ def _excluded_by_sport() -> dict:
     bien calibré mais EV-négatif (ex. tennis « Jeux » -21 %) est ainsi écarté sur un VRAI échantillon
     (n ≥ CALIB_MIN_N) SANS attendre 25 paris réellement joués. (La calibration agrège fantômes + joués :
     le signal réel-argent y est déjà contenu.)"""
+    global _EXCL_BY_SPORT_CACHE
+    _now = time.time()
+    if _EXCL_BY_SPORT_CACHE[0] > _now:            # cache court -> pas de calibration()/_dir_sig() par carte
+        return _EXCL_BY_SPORT_CACHE[1]
     cal = calibration(min_conf=_MIN_CONF)
+    prev = _load_excluded_state()                        # état précédent = charnière de l'hystérésis
     out: dict[str, set] = {}
     for fr, g in (cal.get("by_sport") or {}).items():
         sp = _SPORT_FR.get(fr, fr.lower())
+        prev_sp = prev.get(sp, set())
         ms = {"Corners"} if sp == "foot" else set()      # (b) ban dur foot
         for name, mg in (g.get("markets") or {}).items():
             n = mg.get("n") or 0
             gap = (mg.get("win_rate") or 0) - (mg.get("avg_conf") or 0)
             roi = mg.get("roi")
-            if n >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:                # (a) sur-confiance du sport
-                ms.add(name)
-            if roi is not None and n >= CALIB_MIN_N and roi <= CALIB_ROI_MAX:   # (c) ROI fantôme-inclus perdant
-                ms.add(name)
+            was = name in prev_sp
+            if n < CALIB_MIN_N:                          # pas de recul -> on ne conclut pas : statu quo
+                if was:
+                    ms.add(name)
+                continue
+            # HYSTÉRÉSIS : signal MAUVAIS = sur-confiance nette OU ROI franchement perdant (seuil STRICT) ;
+            # signal RÉCUPÉRÉ = écart ET ROI revenus au-dessus des seuils de retour (plus haut). Entre les
+            # deux = zone morte -> on garde l'état précédent (`was`). Cf. CALIB_GAP_BACK/CALIB_ROI_BACK.
+            bad = (gap <= CALIB_GAP_MAX) or (roi is not None and roi <= CALIB_ROI_MAX)
+            back = (gap >= CALIB_GAP_BACK) and (roi is None or roi >= CALIB_ROI_BACK)
+            if bad:
+                ms.add(name)                             # (a)/(c) exclu (ou maintenu exclu)
+            elif back:
+                pass                                     # récupération nette -> ré-intégré
+            elif was:
+                ms.add(name)                             # zone morte -> on garde l'exclusion de la veille
         out[sp] = ms
     out.setdefault("foot", {"Corners"})                  # foot garde au minimum le ban dur
+    if out != prev:                                      # ne persiste QUE sur un vrai changement de décision
+        _save_excluded_state(out)
+    _EXCL_BY_SPORT_CACHE = (_now + _EXCL_BY_SPORT_TTL, out)
     return out
 
 
@@ -2884,17 +2945,28 @@ def exclusions_report() -> dict:
             wr, ac = g.get("win_rate"), g.get("avg_conf")
             gap = (wr - ac) if (wr is not None and ac is not None) else None
             settled, roi = p.get("settled") or 0, p.get("roi")
+            cal_roi = g.get("roi")          # ROI calibration (fantômes inclus) = celui QU'UTILISE le moteur
             excluded = name in ex_m
             if name in HARD:
                 kind, reason = "ban", "Banni (marché le plus perdant — décision produit, jamais réintégré)."
             elif excluded and gap is not None and n >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:
                 kind, reason = "gap", (f"Sur-confiance sur ce sport : réussite {wr}% sous la confiance "
                                        f"annoncée {ac}% (écart {gap:+d} pts ≤ {CALIB_GAP_MAX}).")
-            elif excluded and settled >= CALIB_MIN_N and roi is not None and roi <= CALIB_ROI_MAX:
-                kind, reason = "roi", (f"ROI réel {roi:+d}% ≤ {CALIB_ROI_MAX}% (perd de l'argent même bien "
-                                       f"calibré — ROI global du marché).")
+            elif excluded and cal_roi is not None and n >= CALIB_MIN_N and cal_roi <= CALIB_ROI_MAX:
+                kind, reason = "roi", (f"ROI réel {cal_roi:+d}% ≤ {CALIB_ROI_MAX}% (perd de l'argent même "
+                                       f"bien calibré — ROI fantômes inclus).")
             elif excluded:
-                kind, reason = "excl", "Écarté sur ce sport (seuil de fiabilité franchi)."
+                # NI sur-confiance dure NI ROI perdant en ce moment -> l'exclusion est MAINTENUE par
+                # l'HYSTÉRÉSIS : le marché a récupéré au-dessus des seuils d'exclusion mais pas encore
+                # NETTEMENT (seuils de retour), donc on le garde écarté pour éviter le flottement jour à jour.
+                _hy = []
+                if gap is not None:
+                    _hy.append(f"écart {gap:+d} (retour à ≥ {CALIB_GAP_BACK})")
+                if cal_roi is not None:
+                    _hy.append(f"ROI {cal_roi:+d}% (retour à ≥ {CALIB_ROI_BACK}%)")
+                kind, reason = "excl", ("Maintenu écarté (hystérésis anti-flottement) : "
+                                        + " ; ".join(_hy) + "." if _hy
+                                        else "Maintenu écarté (hystérésis anti-flottement).")
             elif n < CALIB_MIN_N:
                 kind, reason = "watch", (f"Sous surveillance — échantillon insuffisant sur ce sport "
                                          f"({n}/{CALIB_MIN_N} prédictions) : on ne conclut pas sur du bruit.")
