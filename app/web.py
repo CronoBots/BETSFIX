@@ -3959,13 +3959,18 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
                    + _gloss
                    + _verdict_strip(_pconf, _cote_big, f'🔄 {_reana}', cote=_cote))
         else:
-            if m.get("status") == "abstained" and now >= reanalyse:
-                bic, btxt = "➖", "Pas de value"                              # échéance passée -> quasi-final
-            else:
-                bic, btxt = "🔄", f"Analyse à {fmt_local(reanalyse, with_date=False)}"   # heure exacte
+            # Match SANS provisoire et NON analysé (pas de statut de value). Deux cas :
+            #  • heure d'analyse (KO − 1 h) ENCORE À VENIR -> on annonce « Analyse à HH:MM » (légitime).
+            #  • heure d'analyse DÉJÀ PASSÉE -> le match a démarré avant qu'on ait pu l'analyser (ex. scan
+            #    manqué / PC éteint) et il ne sera PLUS analysé (l'analyste ne travaille qu'en pré-match).
+            #    Afficher « Analyse à {heure passée} » sur un match live/commencé est FAUX (rendez-vous
+            #    déjà écoulé, jamais honoré) et il n'y a RIEN à montrer (ni pari, ni provisoire, ni analyse)
+            #    -> on le SAUTE (correctif user 2026-07-16 : la carte « Analyse à 10:03 » fantôme du Live).
+            if now >= reanalyse:
+                continue
             sub = ('<div class="mc-div"></div>'
-                   f'<div class="mc-betl mc-noplay"><span class="mc-bi">{bic}</span>'
-                   f'<span class="mc-bt">{html.escape(btxt)}</span></div>')
+                   '<div class="mc-betl mc-noplay"><span class="mc-bi">🔄</span>'
+                   f'<span class="mc-bt">Analyse à {html.escape(fmt_local(reanalyse, with_date=False))}</span></div>')
         # Badge coin haut-droit : « 🟢 Live » en direct (demande user 2026-07-12 : comme les paris live, le
         # score va dans le SCOREBOARD sous le titre, plus dans le badge), sinon l'HEURE.
         _badge = ('<span class="mc-badge mc-live">🟢 Live</span>' if _is_live
