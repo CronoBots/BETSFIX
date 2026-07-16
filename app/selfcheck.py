@@ -456,6 +456,30 @@ def _check_provisional_dedup() -> dict:
             "items": dup[:20]}
 
 
+def _check_provisional_settle_finished() -> dict:
+    """Un provisoire ne doit JAMAIS être réglé (won/lost/push) tant que son match n'est pas PROBABLEMENT
+    FINI (bug 2026-07-17 : Botafogo-Santos & Tijuana-Tigres marqués « gagné » AVANT le coup d'envoi — la
+    recherche par NOMS de final_score matchait un match ANTÉRIEUR entre les mêmes équipes). Le garde
+    `analyses.likely_finished` dans `settle_pending` doit l'empêcher ; ce check détecte tout règlement
+    prématuré résiduel/futur. Encode la régression."""
+    bad = []
+    try:
+        from app import provisional
+        for mid, p in provisional.load().items():
+            if not isinstance(p, dict) or p.get("result") not in ("won", "lost", "push"):
+                continue
+            if not analyses.likely_finished({"start": p.get("start"), "sport": p.get("sport")}):
+                bad.append(f"{p.get('name', '?')} : provisoire réglé '{p.get('result')}' "
+                           f"(score {p.get('score', '?')}) alors que le match n'est PAS fini "
+                           f"(coup d'envoi {p.get('start')})")
+    except Exception:
+        pass
+    return {"key": "provisional_settle_finished", "level": "error" if bad else "ok",
+            "title": "Provisoire jamais réglé avant la fin du match",
+            "detail": f"{len(bad)} provisoire(s) réglé(s) avant la fin du match (règlement prématuré).",
+            "items": bad[:20]}
+
+
 def _check_extratime_regulation(rows) -> dict:
     """Un match de foot allé aux PROLONGATIONS doit régler ses marchés 90 MIN (1X2, over/under, mi-temps,
     REGTIME…) sur le score RÉGLEMENTAIRE, JAMAIS sur le score final (prolongation incluse). Régression
@@ -557,6 +581,7 @@ def run(persist: bool = False) -> dict:
         _check_combo_not_dominated(rows),
         _check_ghost_resolution(rows),
         _check_provisional_dedup(),
+        _check_provisional_settle_finished(),
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),
     ]
