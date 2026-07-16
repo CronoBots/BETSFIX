@@ -4010,7 +4010,10 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         # JS l'ouvre à l'identique (accordéon, chevron, animation), analyse déployée dans `.exp` (un clic
         # DANS l'analyse ne replie pas). Si pas d'analyse dispo -> carte simple non dépliable.
         _fid = str(prov.get("fid") or "") if prov_sel else ""
-        _ana = analyses.render(sp, _fid) if _fid else None
+        # skip_verdict : on MASQUE « 🎯 Pourquoi ce pari » dans l'analyse (demande user 2026-07-16) car le
+        # bloc « 🧪 Le pari provisoire » (reasoning_html, ajouté juste après) porte DÉJÀ le raisonnement de
+        # l'abstention -> plus de doublon de conclusion « on s'abstient ». Fusion en un seul bloc.
+        _ana = analyses.render(sp, _fid, skip_verdict=True) if _fid else None
         if _ana:
             # Corps IDENTIQUE à une vraie carte (demande user 2026-07-10) : BARRES « Cotes & chances »
             # (Unibet + Public) + TABLEAU « Paris classés » (bets_html) + ANALYSE (faits). to_html/render
@@ -4021,10 +4024,10 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
                      if (_pm.get("o1") and _pm.get("o2")) else "")
             # Le SCOREBOARD live est DÉJÀ montré dans la carte repliée (head) -> on ne le remet pas dans le
             # corps (sinon doublon). En live on masque aussi les barres (comme _sport_row).
-            # RAISONNEMENT « 🎯 Le pari à jouer » : pour une abstention, le tableau des paris est « SKIP »
-            # (bets_html vide) et `render` retire le verdict -> l'analyse semblait réduite à « Informations »
-            # (retour user 2026-07-11). On restitue le raisonnement (pourquoi le pari / le SKIP) via
-            # `reasoning_html`, entre les paris et les faits.
+            # RAISONNEMENT de l'abstention : porté par UN SEUL bloc « 🧪 Le pari provisoire » (reasoning_html,
+            # le pick indicatif + son analyse). `_ana` est rendu skip_verdict=True -> son « 🎯 Pourquoi ce
+            # pari » est masqué (sinon on répétait deux fois la conclusion « on s'abstient » — retour user
+            # 2026-07-16). Ordre : paris (SKIP) -> provisoire (raisonnement) -> faits (via _ana).
             _body = (("" if _is_live else _bars) + analyses.bets_html(sp, _fid)
                      + analyses.reasoning_html(sp, _fid) + _ana)
             # Analyse INLINE dans `.exp` (un clic dedans ne replie pas). PAS de classe `.mc-ana` : elle
