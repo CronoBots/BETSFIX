@@ -731,7 +731,12 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         is_reco = reco.get("idx") == k and has_play   # VRAI pari retenu (value + conf OK) ; sinon abstention
         _cp = cprobs[k] if (cprobs and k < len(cprobs) and cprobs[k] is not None) else prob
         ev_pct = round((_cp / 100 * cv - 1) * 100) if (_cp is not None and cv) else None
-        conf_v = f"{prob}%" if prob is not None else "—"
+        # CONFIANCE AFFICHÉE = confiance CALIBRÉE `_cp` (pas la proba brute) : c'est celle qui pilote la
+        # VALUE, la sélection (retenu/abstention) ET la bande verdict compacte -> le récit « Marché % ·
+        # confiance % → value % » est ainsi TOUJOURS exact (conf × cote − 1 = value) et jamais en
+        # contradiction avec le statut. (Corrige l'ancien écart : le tableau montrait la brute, le reste le
+        # calibré ; cf. commentaire card_summary l.1940 « la MÊME confiance que le détail ».)
+        conf_v = f"{round(_cp)}%" if _cp is not None else "—"
         cote_v = f"{cv:g}" if cv is not None else (_inline(b["cote_txt"]) if b["cote_txt"] else "—")
         res = results.get(_norm_sel(b["sel"]))
         # État + marqueur : pari RETENU -> résultat coloré + ✅/❌/➖ ; abstention -> « aurait gagné/perdu ».
@@ -746,16 +751,33 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
             mark = ('<span class="tkt-p">aurait gagné</span>' if res == "won"
                     else '<span class="tkt-p">aurait perdu</span>' if res == "lost" else "")
         pc = "hi" if (prob and prob >= 75) else "mid" if (prob and prob >= 65) else "lo"
-        conf_chip = f'<span class="tkt-pr {pc}">{conf_v}</span>' if prob is not None else ""
         o_chip = f'<span class="tkt-o">@{cote_v}</span>' if cote_v != "—" else ""
         note = note_by_idx.get(k)
         note_html = f'<div class="tkt-why">{_note_paras(note)}</div>' if note else ""
-        # Badges secondaires : VALUE (EV recalibré) + sûreté (+ validation du panel de 3 agents). TOUJOURS
-        # visibles (courts, essentiels) ; seule la NOTE (analyse) est repliable (compacité, demande user).
+        # HEADLINE = sélection + COTE (chiffre phare) + résultat. La confiance passe dans la ligne VERDICT.
+        _top = (f'<span class="tkt-sel">{pari}</span>'
+                f'<span class="tkt-r">{o_chip}{mark}'
+                + ('<span class="tkt-chev">▾</span>' if note_html else '') + '</span>')
+        # LIGNE VERDICT (refonte demande user 2026-07-17) : raconte la DÉCISION en une phrase reliant les 3
+        # chiffres — proba MARCHÉ (100/cote = seuil de rentabilité) · NOTRE confiance (publiée = Telegram,
+        # calibrée sur l'historique) → VALUE (l'edge, HÉROS coloré). On comprend POURQUOI c'est un pari (ou
+        # une abstention) d'un coup d'œil, sans confondre « chance du marché » et « notre confiance ».
+        market_be = round(100 / cv) if cv else None
+        verdict = ""
+        if conf_v != "—" and market_be is not None and ev_pct is not None:
+            vcls = "vpos" if ev_pct >= 3 else "vmid" if ev_pct >= 0 else "vneg"
+            _cal = ('<span class="tkt-cal" title="Confiance calibrée sur l’historique réel des résultats">'
+                    '✓ calibré</span>' if prob is not None else "")
+            verdict = (f'<div class="tkt-vd">'
+                       f'<span class="tkt-vseg">Marché <b>{market_be}%</b></span>'
+                       f'<span class="tkt-vdot">·</span>'
+                       f'<span class="tkt-vseg tkt-vconf {pc}">Notre confiance <b>{conf_v}</b>{_cal}</span>'
+                       f'<span class="tkt-vend"><span class="tkt-varr">→</span>'
+                       f'<span class="tkt-value {vcls}">Value {"+" if ev_pct >= 0 else ""}{ev_pct}%</span>'
+                       f'</span></div>')
+        # Ligne META (discrète) : sûreté + validation du panel, ou le motif d'abstention. La VALUE est
+        # désormais dans le verdict (héros) -> plus de badge « value » redondant ici.
         subs = []
-        if ev_pct is not None:
-            subs.append(f'<span class="tkt-pr {"hi" if ev_pct >= 3 else "lo"}">'
-                        f'value {"+" if ev_pct >= 0 else ""}{ev_pct}%</span>')
         if is_reco:
             _sb = [_SAFETY.get(rcls, "Sûreté moyenne")]
             if k == 0 and validation and validation.get("n_ok") is not None:
@@ -764,15 +786,13 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         else:
             subs.append('<span class="tkt-sub">⏸ pas de value → abstention</span>')
         subs_html = f'<div class="tkt-subs">{"".join(subs)}</div>'
-        _top = (f'<span class="tkt-sel">{pari}</span>'
-                f'<span class="tkt-r">{conf_chip}{o_chip}{mark}'
-                + ('<span class="tkt-chev">▾</span>' if note_html else '') + '</span>')
         if note_html:
             cards.append(f'<details class="tkt-leg tkt-fold{legcls}">'
                          f'<summary class="tkt-leg-top" onclick="event.stopPropagation()">{_top}</summary>'
-                         f'{note_html}</details>{subs_html}')
+                         f'{note_html}</details>{verdict}{subs_html}')
         else:
-            cards.append(f'<div class="tkt-leg{legcls}"><div class="tkt-leg-top">{_top}</div></div>{subs_html}')
+            cards.append(f'<div class="tkt-leg{legcls}"><div class="tkt-leg-top">{_top}</div></div>'
+                         f'{verdict}{subs_html}')
     # LIVE (compact) : cartes de paris seules (ni titre ni cote pied), fondu dans la carte live.
     if compact:
         return '<div class="tkt tkt-simple">' + "".join(cards) + "</div>"

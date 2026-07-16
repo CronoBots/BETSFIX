@@ -135,8 +135,12 @@ def build_prono_card(d: dict) -> dict | None:
         card.update(type="combo", cote=cote, legs=_legs, synth=_clean_synth(combo.get("why")))
     elif pick_shown and rb:
         mkt, pk = _split_leg(str(rb.get("sel", "")), home, away)
+        # CONFIANCE PUBLIÉE = confiance CALIBRÉE (décision user 2026-07-17 « unifier sur la calibrée ») :
+        # c'est celle qui pilote la value/la sélection ET l'affichage du site -> Telegram = site = moteur.
+        # (Avant : proba brute -> divergence avec la value et le site.) Repli sur la brute si pas de cprob.
+        _conf = round(rb["cprob"]) if rb.get("cprob") is not None else rb.get("prob")
         card.update(type="simple", market=mkt, pick=pk,
-                    cote=(f"{rb['cote']:g}" if rb.get("cote") else ""), conf=rb.get("prob"),
+                    cote=(f"{rb['cote']:g}" if rb.get("cote") else ""), conf=_conf,
                     why=_pick_why(d, str(rb.get("sel", ""))))
     elif pick_shown:
         m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", pick)

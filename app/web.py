@@ -2125,6 +2125,24 @@ CSS = """
   .tkt-subs{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
   .tkt-sub{font-size:9.5px;font-weight:700;color:#90a4be;background:rgba(255,255,255,.05);
        border:1px solid rgba(255,255,255,.09);border-radius:99px;padding:2px 9px}
+  /* Ligne VERDICT (refonte cartes 2026-07-17) : Marché % · notre confiance % → VALUE (héros coloré).
+     Relie les 3 chiffres en une phrase -> on lit la décision d'un coup d'œil (chance marché ≠ confiance). */
+  .tkt-vd{display:flex;flex-wrap:wrap;align-items:center;gap:5px 7px;margin-top:8px;
+       font-size:11px;font-weight:700;color:#9fb0c8;line-height:1.3}
+  .tkt-vseg b{color:#dbe8f6;font-weight:900;font-variant-numeric:tabular-nums}
+  .tkt-vconf.hi b{color:#3fe0a0} .tkt-vconf.mid b{color:#5cc8ff} .tkt-vconf.lo b{color:#ffc24d}
+  .tkt-vdot,.tkt-varr{color:#5f7594;font-weight:900}
+  .tkt-cal{margin-left:5px;font-size:8px;font-weight:800;color:#7db4ff;background:rgba(63,140,255,.14);
+       border:1px solid rgba(63,140,255,.32);border-radius:99px;padding:1px 5px;letter-spacing:.02em;
+       white-space:nowrap;vertical-align:middle}
+  /* flèche + value groupées -> ne se séparent jamais au retour à la ligne (poussées à droite ensemble) */
+  .tkt-vend{margin-left:auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
+       font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tkt-value.vpos{color:#08180e;background:linear-gradient(180deg,#4be39b,#22c07d);
+       box-shadow:0 1px 8px rgba(37,192,125,.32)}
+  .tkt-value.vmid{color:#33270a;background:linear-gradient(180deg,#ffd98a,#f2b53c)}
+  .tkt-value.vneg{color:#ffd7d7;background:rgba(255,86,86,.15);border:1px solid rgba(255,86,86,.42)}
   .tkt-simple .tkt-leg:first-of-type{margin-top:9px}
   /* Ticket : analyses REPLIABLES (compacité — demande user 2026-07-12) : justif/synthèse cachées par
      défaut, dépliées au clic (chevron). stopPropagation dans le HTML -> ne referme pas la carte du match. */
@@ -3001,7 +3019,9 @@ def _pick_bars(p: dict) -> str:
         return f'<div class="oc"><div class="oc-h">{title}</div>{bar}<div class="ocp-row">{cs}</div></div>'
 
     nm = (home, "Nul", away) if has_draw else (home, away)
-    out = block("Cotes & chances", "ocb-po",
+    # Titre EXPLICITE « du marché » (refonte 2026-07-17) : ces % sont les chances DÉDUITES DES COTES (le
+    # marché), à NE PAS confondre avec « Notre confiance » (notre proba calibrée), affichée sur le pari.
+    out = block("Chances au marché (cotes)", "ocb-po",
                 ([p.get("i_home"), p.get("i_draw"), p.get("i_away")] if has_draw
                  else [p.get("i_home"), p.get("i_away")]), nm,
                 odds=([p.get("o_home"), p.get("o_draw"), p.get("o_away")] if has_draw
