@@ -3019,30 +3019,76 @@ def _excl_reason(e: dict) -> str:
     return "Écarté automatiquement : sur-confiance ou ROI perdant prouvés sur ce sport (échantillon suffisant)."
 
 
+_EXCL_DEBOUNCE_DAYS = 2   # un état d'exclusion qui tient < 2 jours ET qui REVIENT à l'état précédent =
+#                           FLOTTEMENT (artefact du seuil unique, corrigé par l'hystérésis) -> absorbé de
+#                           l'AFFICHAGE des repères. Décision user 2026-07-16 « lisser le flottement ».
+
+
+def _debounce_series(series: list, min_persist: int = _EXCL_DEBOUNCE_DAYS) -> list:
+    """Lisse une série d'états booléens (excluded/inclus par jour) : absorbe les « runs » plus courts que
+    `min_persist` qui REVIENNENT à l'état précédent (blip d'aller-retour = flottement). Ne touche JAMAIS
+    au 1er run (baseline) ni au DERNIER (état courant = vérité du jour). Itère jusqu'à stabilité. Pur
+    affichage : ne modifie pas le learning_log, seulement la chronologie reconstruite des repères."""
+    s = list(series)
+    if len(s) <= 2:
+        return s
+    changed = True
+    while changed:
+        changed = False
+        runs, i = [], 0                          # runs = [start, end_exclusif, valeur]
+        while i < len(s):
+            j = i
+            while j < len(s) and s[j] == s[i]:
+                j += 1
+            runs.append([i, j, s[i]])
+            i = j
+        for k in range(1, len(runs) - 1):        # runs INTERNES seulement (ni baseline ni dernier)
+            st, en, _ = runs[k]
+            if (en - st) < min_persist and runs[k - 1][2] == runs[k + 1][2]:
+                for x in range(st, en):          # blip qui revient -> réabsorbé dans l'état précédent
+                    s[x] = runs[k - 1][2]
+                changed = True
+                break
+    return s
+
+
 def _exclusion_transitions() -> list[dict]:
     """Reconstruit la CHRONOLOGIE des ajustements auto à partir des photos quotidiennes du journal
     d'apprentissage. Pour chaque jour où l'ensemble écarté d'un sport (ou les props joueur en combiné)
     change vs la veille -> un événement daté {date, sport, market, action, baseline, reason}. Le premier
-    jour connu = BASELINE (état de départ). Filtre le ban dur « Corners ». [] si pas d'historique."""
+    jour connu = BASELINE (état de départ). Filtre le ban dur « Corners ». [] si pas d'historique.
+    LISSAGE (décision user 2026-07-16) : les séries d'exclusion sont DÉBOUNCÉES avant diff -> un marché
+    qui flotte (écarté/réintégré/ré-écarté sur des jours isolés, ex. basket « Vainqueur ») ne produit QUE
+    sa transition NETTE, plus 3 repères parasites. Le learning_log reste intact (pur affichage)."""
     from app import learning                    # import local : évite le cycle analyses<->learning
     log = learning._load()
     if not log:
         return []
+    days = sorted(log)
+    sports = ("foot", "tennis", "basket")
+    per_day_ex = [{sp: set((log[d].get("exclusions") or {}).get(sp) or []) - _EXCL_HARD_BAN
+                   for sp in sports} for d in days]
+    props_raw = [bool(log[d].get("combo_props_allowed")) for d in days]
+    # Séries bool par (sport, marché), DÉBOUNCÉES -> gomme les allers-retours d'un jour (flottement).
+    all_mk = {sp: sorted({mk for dd in per_day_ex for mk in dd[sp]}) for sp in sports}
+    smooth = {sp: {mk: _debounce_series([mk in per_day_ex[i][sp] for i in range(len(days))])
+                   for mk in all_mk[sp]} for sp in sports}
+    props = _debounce_series(props_raw)
+    # États quotidiens LISSÉS reconstruits depuis les séries débouncées.
+    day_ex = [{sp: {mk for mk in all_mk[sp] if smooth[sp][mk][i]} for sp in sports}
+              for i in range(len(days))]
     evs, prev = [], None
-    for day in sorted(log):
-        snap = log[day]
-        exl = snap.get("exclusions") or {}
-        cur = {sp: set(exl.get(sp) or []) - _EXCL_HARD_BAN for sp in ("foot", "tennis", "basket")}
-        pp = bool(snap.get("combo_props_allowed"))
+    for i, day in enumerate(days):
+        cur, pp = day_ex[i], props[i]
         if prev is None:                         # ── baseline (état initial, pas un « changement »)
-            for sp in ("foot", "tennis", "basket"):
+            for sp in sports:
                 for mk in sorted(cur[sp]):
                     evs.append({"date": day, "sport": sp, "market": mk, "action": "exclu", "baseline": True})
             if not pp:
                 evs.append({"date": day, "sport": "combo", "market": "Props joueur",
                             "action": "exclu", "baseline": True})
         else:
-            for sp in ("foot", "tennis", "basket"):
+            for sp in sports:
                 for mk in sorted(cur[sp] - prev["ex"][sp]):
                     evs.append({"date": day, "sport": sp, "market": mk, "action": "exclu", "baseline": False})
                 for mk in sorted(prev["ex"][sp] - cur[sp]):
