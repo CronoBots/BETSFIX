@@ -151,7 +151,7 @@ def settle_pending() -> int:
     """Règle les provisoires en attente dont le match est terminé, via Flashscore (couverture universelle,
     repli LiveScore) + `settle_pick`. Score PARTIEL -> on n'écrit RIEN (jamais de règlement sur du live).
     Renvoie le nombre nouvellement réglé. Sûr à rejouer (idempotent : ne retouche pas un déjà réglé)."""
-    from app import flashscore, livescore
+    from app import analyses, flashscore, livescore
     from app.settle_analyst import settle_pick
     prune_retained()          # DÉDUP d'abord : un match devenu retenu (combiné/simple) sort du suivi provisoire
     reconcile_with_programme()  # COHÉRENCE : un match sans provisoire affiché sort aussi du suivi (Stats = À venir)
@@ -161,6 +161,13 @@ def settle_pending() -> int:
         if not isinstance(p, dict) or p.get("result") in ("won", "lost", "push"):
             continue
         sport = p.get("sport")
+        # GARDE-FOU « match TERMINÉ » (bug 2026-07-17 : Botafogo-Santos & Tijuana-Tigres marqués « gagné »
+        # AVANT le coup d'envoi — la recherche par NOMS de flashscore.final_score matchait un match ANTÉRIEUR
+        # entre les mêmes équipes et renvoyait SON score). On aligne le chemin provisoire sur le chemin
+        # PRINCIPAL (settle_analyses) : NE JAMAIS tenter de régler tant que le match n'est pas PROBABLEMENT
+        # fini (assez de temps écoulé depuis le coup d'envoi). Empêche tout règlement sur un match à venir.
+        if not analyses.likely_finished({"start": p.get("start"), "sport": sport}):
+            continue
         q = {"home": p.get("home", ""), "away": p.get("away", ""), "start": p.get("start"),
              "sofa_id": ""}
         score = None
