@@ -443,22 +443,29 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     if not s:
         return s
     low = s.lower()
-    # HANDICAP d'équipe : normaliser l'AFFICHAGE vers UNE forme unique « Handicap asiatique <équipe> <±N.5> »
+    # HANDICAP d'équipe : normaliser l'AFFICHAGE vers UNE forme unique « Handicap <type> <équipe> <±N> »
     # (demande user 2026-07-14 : « Handicap St Johnstone -1.5 » et « Partick -1.5 (handicap) » = MÊME pari,
-    # 2 écritures). On dit « asiatique » car sur Unibet ces lignes en demi-point (−1.5/−2.5) sont dans le
-    # marché « Handicap Asiatique » -> même libellé qu'Unibet = pas de confusion pour l'abonné. PUREMENT
-    # AFFICHAGE : le `sel` STOCKÉ ne change pas, donc `code_from_pick`/le règlement restent intacts (vérifié :
-    # même code HCAP ; un demi-point se règle pareil qu'il soit asiatique ou européen). None-safe.
+    # 2 écritures). Le TYPE n'est PAS toujours « asiatique » (correctif demande user 2026-07-16) :
+    #   • DEMI-POINT (−1.5 / −2.5…) SANS mention 3 voies -> « asiatique » : sur Unibet ces lignes sont dans
+    #     le marché « Handicap Asiatique » (pas de nul possible) -> même libellé qu'Unibet.
+    #   • LIGNE ENTIÈRE (+2 / −1…) OU mention explicite « 3 voies / 3-way / européen » -> « 3 voies » : c'est
+    #     un handicap à 3 issues (le nul compte), PAS un asiatique. Écrire « asiatique » y était FAUX et
+    #     s'auto-contredisait (« asiatique … 3 voies »).
+    # PUREMENT AFFICHAGE : le `sel` STOCKÉ ne change pas, donc `code_from_pick`/le règlement restent intacts.
+    # None-safe.
     if "handicap" in low or re.search(r"\bhand\.?\b", low):
         _mh = re.search(r"([+\-−–]\s?\d+(?:[.,]\d+)?)", s)
         if _mh:
             _sign = re.sub(r"\s+", "", _mh.group(1)).replace("−", "-").replace("–", "-")
             _team = (s[:_mh.start()] + " " + s[_mh.end():])
-            _team = re.sub(r"\(?\s*handicap\s*asiatique\s*\)?|\(?\s*handicap\.?\s*\)?|\bhand\.?\b",
-                           "", _team, flags=re.I)
+            _team = re.sub(r"\(?\s*handicap\s*(?:asiatique|europ\w*|3\s*voies|3-?way)?\s*\)?"
+                           r"|\bhand\.?\b|\b3\s*voies\b|\b3-?way\b", "", _team, flags=re.I)
             _team = re.sub(r"\s+", " ", _team).strip(" -–—()·:")
             if _team:
-                return f"Handicap asiatique {_team} {_sign}"
+                _half = bool(re.search(r"[.,]5(?!\d)", _sign))          # ligne en demi-point ?
+                _three = bool(re.search(r"3\s*voies|3-?way|europ", low))  # mention explicite « 3 voies » ?
+                _kind = "asiatique" if (_half and not _three) else "3 voies"
+                return f"Handicap {_kind} {_team} {_sign}"
     if "double chance" not in low:
         return s
     m = re.search(r"\b(1x|x2|12)\b", low)
