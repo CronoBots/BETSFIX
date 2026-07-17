@@ -1818,6 +1818,9 @@ CSS = """
   .cleg-bdg.l{background:rgba(255,107,107,.16);color:#ff6b6b}
   .cleg-bdg.n{background:rgba(144,164,190,.16);color:#90a4be}
   .cleg-bdg.live{background:rgba(52,210,123,.16);color:#5be08c}
+  /* Équipes de la jambe sur leur propre ligne, en gros — comme les provisoires (.mc-teams). */
+  .cleg-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.24;letter-spacing:-.015em;
+       margin:2px 0 9px;white-space:normal}
   .cleg-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
   .cleg-main{flex:1;min-width:0}
   .cleg-pick{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
@@ -4219,7 +4222,7 @@ def _clean_cap(t, maxlen: int = 180) -> str:
 _SPORT_LBL = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}
 
 
-def _leg_card(l: dict, *, why: bool = True, verdict: bool = False) -> str:
+def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True) -> str:
     """Rendu d'UNE jambe de combiné COMME UNE CARTE DE SIMPLE (demande user 2026-07-14) : en-tête
     « SPORT • match » + badge d'état, le pari en gras, l'explication en clair (gloss ↳), la COTE à droite,
     bord gauche coloré par état. En live : badge 🟢 LIVE + tableau de score sous la jambe. `why` = ajoute la
@@ -4233,7 +4236,16 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False) -> str:
     splbl = _SPORT_LBL.get(_sp, (_sp or "").upper())
     sel_raw = str(l.get("sel") or "")
     sel = html.escape(_pretty_sel(sel_raw, _lh, _la))
-    nm = html.escape(str(l.get("name") or "").replace(" - ", " — "))
+    # EN-TÊTE FAÇON PROVISOIRE (demande user 2026-07-18) : L1 = « SPORT • compétition » (plus le nom du
+    # match condensé) ; L2 = les ÉQUIPES sur leur propre ligne, en gros (comme .mc-teams). Équipes depuis
+    # home/away (repli : le nom du match « A - B »).
+    comp = html.escape(str(l.get("comp") or ""))
+    _th, _ta = _lh, _la
+    if not (_th and _ta) and l.get("name"):
+        _th, _sepn, _ta = str(l.get("name")).partition(" - ")
+    # `teams=False` (combiné de MATCH, même affiche que la carte parente) -> pas de répétition des équipes.
+    _teams_html = (f'<div class="cleg-teams">{html.escape(str(_th))} '
+                   f'<span class="mc-dash">—</span> {html.escape(str(_ta))}</div>') if (teams and _th and _ta) else ""
     co = l.get("cote")
     _cote = (f'<span class="cleg-cote"><span class="cleg-cote-l">COTE</span>'
              f'<span class="cleg-cote-v">{co:g}</span></span>') if isinstance(co, (int, float)) and co else ""
@@ -4284,8 +4296,9 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False) -> str:
     _cote_pill = "" if verdict else _cote           # le bloc verdict porte déjà la grosse cote
     return (f'<div class="cleg {_state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport">{emo} {splbl}</b>'
-            + (f'<span class="cleg-sep"> • </span>{nm}' if nm else "")
+            + (f'<span class="cleg-sep"> • </span>{comp}' if comp else "")
             + f'</span><span class="cleg-bdg {_bcls}">{_btxt}</span></div>'
+            f'{_teams_html}'
             f'<div class="cleg-body"><div class="cleg-main">'
             f'<div class="cleg-pick">{sel}</div>{gloss}</div>{_cote_pill}</div>'
             f'{_verdict}{board}{_why}</div>')
@@ -4391,7 +4404,9 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     _tag = ('<div class="mc-prov-tag">🎲 COMBINÉ'
             f'<span> · {len(legs)} jambes</span></div>')
     out += ('<div class="mc-div"></div>' + _tag + _note
-            + f'<div class="mc-combo-legs">{"".join(_leg_card(l, why=True) for l in _legs)}</div>'
+            + f'<div class="mc-combo-legs">'
+            + "".join(_leg_card(l, why=True, verdict=True, teams=False) for l in _legs)   # même match -> pas d'équipes répétées
+            + '</div>'
             + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False))
     return out
 
