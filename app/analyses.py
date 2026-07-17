@@ -698,15 +698,17 @@ def _verdict_notes(md: str) -> tuple[list, str]:
     return notes, resid_html
 
 
-def verdict_line(cote, conf, ev, calibrated: bool = True) -> str:
-    """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE) = BARRE DE CONFIANCE
-    (retour demande user 2026-07-18 « je préférais la barre de progression, mais adapte avec la
-    nouveauté ») : label CONFIANCE + qualificatif + % coloré (par niveau) + badge ✓ calibré, puis la
-    BARRE remplie à la confiance avec un MARQUEUR blanc à la proba implicite du marché (= seuil de
-    rentabilité ; barre au-delà du marqueur = edge visuel), et la VALUE en HÉROS coloré (pill à droite).
-    `conf` = confiance affichée (calibrée), `cote` = cote décimale, `ev` = value % (déjà calculée sur la
-    MÊME conf -> récit exact). '' si données insuffisantes. Classes CSS `.vb-*`/`.tkt-value` (cf. web.py).
-    Seuils couleur/mot alignés sur web._conf_hue/_conf_word. Value = héros (vert ≥+3, ambre 0..3, rouge <0)."""
+def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False) -> str:
+    """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE). Refonte 2026-07-18
+    (demande user « réorganise tout : aligné, pleine largeur, que l'utile et l'intuitif ») :
+      (1) en-tête CONFIANCE = qualificatif + % coloré (par niveau) + badge ✓ calibré ;
+      (2) BARRE de confiance PLEINE LARGEUR + marqueur MARCHÉ (proba implicite du book) ;
+      (3) GRILLE de métriques alignées sur toute la largeur : Marché · Value · Cote (label / valeur).
+    `conf` = confiance affichée (calibrée), `cote` = cote décimale, `ev` = value % (calculée sur la MÊME
+    conf -> récit exact). `with_cote` -> ajoute la colonne Cote (cartes de simple/combiné ; PAS les jambes,
+    qui montrent déjà @cote). '' si données insuffisantes. Classes CSS `.vb-*`/`.vm-*` (cf. web.py). Seuils
+    couleur/mot alignés sur web._conf_hue/_conf_word. Value colorée (vert ≥+3, ambre 0..3, rouge <0) ;
+    masquée sur un combiné (calibrated=False) à EV<0 = pari fiabilité, pas value (règle « 💎 si EV+ »)."""
     try:
         cv = float(cote); cf = float(conf); ep = int(round(ev))
     except (TypeError, ValueError):
@@ -728,11 +730,15 @@ def verdict_line(cote, conf, ev, calibrated: bool = True) -> str:
     cal = ('<span class="vb-cal" title="Confiance calibrée sur l’historique réel des résultats">'
            '✓ calibré</span>' if calibrated else "")
     mark = f'<b class="vb-mark" style="left:{be}%"></b>' if 0 < be < 100 else ""
-    # VALUE (héros) reliée au bout de la barre. Un COMBINÉ (calibrated=False) est un pari FIABILITÉ (proba
-    # max sous cote ≥ seuil), pas un pari value : on N'AFFICHE PAS un « Value -X% » rouge alarmant s'il est
-    # négatif (cohérent avec la règle projet « 💎 seulement si EV+ ») -> la barre montre déjà l'écart marché.
-    val_pill = (f'<span class="tkt-value {vcls}">Value {"+" if ep >= 0 else ""}{ep}%</span>'
-                if (calibrated or ep >= 0) else "")
+    # GRILLE de métriques (pleine largeur, colonnes alignées). Marché toujours ; Value sauf combiné à EV<0
+    # (pari fiabilité, pas value) ; Cote seulement sur les cartes de simple/combiné (with_cote).
+    cells = [f'<div class="vm-cell"><span class="vm-l">Marché</span><span class="vm-v">{be}%</span></div>']
+    if calibrated or ep >= 0:
+        cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>'
+                     f'<span class="vm-v {vcls}">{"+" if ep >= 0 else ""}{ep}%</span></div>')
+    if with_cote:
+        cells.append('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
+                     f'<span class="vm-v">{cv:g}</span></div>')
     return (
         '<div class="vb">'
         '<div class="vb-top">'
@@ -741,14 +747,8 @@ def verdict_line(cote, conf, ev, calibrated: bool = True) -> str:
         f'<span class="vb-pct" style="color:{col}">{cfi}%</span>'
         f'{cal}'
         '</div>'
-        # La VALUE est reliée au BOUT de la barre (= l'edge que la barre montre) -> plus de pill qui flotte
-        # seul sur sa ligne avec un vide au milieu. Barre flex:1, pill flex:none.
-        '<div class="vb-row">'
         f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
-        f'{val_pill}'
-        '</div>'
-        f'<div class="vb-cap"><span class="vb-mk">◆ Marché <span class="di">{be}%</span></span>'
-        '<span class="vb-cap-hint">seuil de rentabilité</span></div>'
+        f'<div class="vm">{"".join(cells)}</div>'
         '</div>')
 
 

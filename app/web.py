@@ -2129,11 +2129,12 @@ CSS = """
   .tkt-subs{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
   .tkt-sub{font-size:9.5px;font-weight:700;color:#90a4be;background:rgba(255,255,255,.05);
        border:1px solid rgba(255,255,255,.09);border-radius:99px;padding:2px 9px}
-  /* Bloc VERDICT (refonte cartes 2026-07-18, demande user « je préférais la barre de progression ») :
-     retour de la BARRE DE CONFIANCE visuelle, mais gardant les nouveautés — confiance CALIBRÉE (badge
-     ✓ calibré), marqueur MARCHÉ (proba implicite = seuil de rentabilité) posé SUR la barre (l'écart
-     confiance↔marqueur = l'edge, lu d'un coup d'œil), et VALUE en HÉROS coloré (pill à droite).
-     Composant `.vb-*` partagé (paris + provisoires + combiné -> rendu IDENTIQUE). */
+  /* Bloc VERDICT (refonte 2026-07-18, demande user « réorganise tout : aligné, pleine largeur, que
+     l'utile et l'intuitif ») : (1) en-tête CONFIANCE = qualificatif + % coloré + badge ✓ calibré ;
+     (2) BARRE de confiance PLEINE LARGEUR avec marqueur MARCHÉ (proba implicite) ; (3) GRILLE de
+     métriques alignées sur toute la largeur — Marché · Value · Cote — label au-dessus / valeur en
+     dessous, séparateurs fins. Plus de pill flottant ni de cote isolée. Composant `.vb-*`/`.vm-*`
+     partagé (paris + provisoires + combiné -> rendu IDENTIQUE). */
   .vb{margin-top:10px}
   .vb-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 8px;line-height:1.2}
   .vb-lab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#7d90a9}
@@ -2141,10 +2142,9 @@ CSS = """
   .vb-pct{font-size:17px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .vb-cal{align-self:center;font-size:8px;font-weight:800;color:#7db4ff;background:rgba(63,140,255,.14);
        border:1px solid rgba(63,140,255,.32);border-radius:99px;padding:1px 6px;letter-spacing:.02em;
-       white-space:nowrap}
-  /* barre + value héros sur la MÊME ligne : la value est reliée au bout de la barre (= l'edge). */
-  .vb-row{display:flex;align-items:center;gap:11px;margin-top:9px}
-  .vb-bar{position:relative;flex:1;min-width:0;height:9px;border-radius:99px;overflow:hidden;
+       white-space:nowrap;margin-left:auto}
+  /* BARRE pleine largeur (bloc) : remplissage = confiance, marqueur = seuil marché. */
+  .vb-bar{position:relative;height:9px;border-radius:99px;overflow:hidden;margin-top:9px;
        background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
   .vb-bar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:9px;
        box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
@@ -2152,21 +2152,18 @@ CSS = """
      fin de barre = notre confiance dépasse le marché = edge. */
   .vb-mark{position:absolute;top:-1px;bottom:-1px;width:2px;margin-left:-1px;background:#f4f8ff;
        opacity:.92;z-index:2;border-radius:2px;box-shadow:0 0 0 1px rgba(9,14,22,.55)}
-  .vb-row .tkt-value{flex:none}
-  .vb-cap{margin-top:7px;font-size:10px;font-weight:600;color:#788aa2;display:flex;align-items:center;gap:6px}
-  .vb-mk{color:#a7b7cd;font-weight:700}
-  .vb-mk .di{color:#e6eefa}
-  .vb-cap-hint{opacity:.75}
-  .vb-cap-hint::before{content:"·";margin-right:6px;color:#5a6b82}
-  /* 2 colonnes : bloc verdict (gauche) + grosse COTE centrée verticalement (droite) -> plus de vide. */
-  .vb-wrap{display:flex;align-items:center;gap:16px;margin-top:11px}
-  .vb-main{flex:1;min-width:0}
-  .vb-main .vb{margin-top:0}
-  .vb-reana{margin-top:9px;font-size:10px;font-weight:600;color:#7f93aa}
-  .vb-cote-col{flex:none;display:flex;align-items:center}
-  .vb-cote-col .mc-cote{position:relative;padding-left:16px}
-  .vb-cote-col .mc-cote::before{content:"";position:absolute;left:0;top:2px;bottom:2px;width:1px;
-       background:linear-gradient(180deg,transparent,rgba(255,255,255,.14),transparent)}
+  /* GRILLE métriques : colonnes égales sur TOUTE la largeur, labels/valeurs alignés, filets séparateurs. */
+  .vm{display:flex;align-items:stretch;margin-top:12px}
+  .vm-cell{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;padding:1px 12px;
+       border-left:1px solid rgba(255,255,255,.08)}
+  .vm-cell:first-child{padding-left:0;border-left:none}
+  .vm-l{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#7d90a9}
+  .vm-v{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#e6eefa}
+  .vm-v.vpos{color:#4be39b} .vm-v.vmid{color:#f6c54a} .vm-v.vneg{color:#ff7484}
+  .vm-cote{align-items:flex-end;text-align:right}
+  .vm-cote .vm-v{font-size:19px;color:#fff}
+  .mc-tg-gold .vm-cote .vm-v{color:var(--gold)}   /* combiné du jour : cote en or (héritée de l'ancêtre) */
+  .vb-reana{margin-top:10px;font-size:10px;font-weight:600;color:#7f93aa}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
   .tkt-value.vpos{color:#08180e;background:linear-gradient(180deg,#4be39b,#22c07d);
@@ -3787,8 +3784,8 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
     → Value ±Z% », value = héros coloré) + pied (mention/ré-analyse + grosse cote). Remplace l'ancienne
     barre « CONFIANCE » (_verdict_strip). UTILISÉ PAR TOUTES les cartes — simple retenu, provisoire,
     combiné du jour -> rendu STRICTEMENT identique. `conf` = confiance déjà CALIBRÉE (comme partout) ;
-    `foot_txt` = mention déjà échappée + icône (🔄/🎯) ou "" ; `cote_html` = grosse cote. Purement AFFICHAGE.
-    `calibrated=False` pour un combiné (proba corrélée du marché, pas calibrée sur l'historique)."""
+    `foot_txt` = mention déjà échappée + icône (🔄/🎯) ou "" ; `cote_html` = grosse cote (repli si pas de
+    confiance calculable). Purement AFFICHAGE. `calibrated=False` pour un combiné (proba corrélée du marché)."""
     _vl = ""
     try:
         c = float(cote)
@@ -3797,18 +3794,21 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
     if c > 1 and conf is not None:
         try:
             ev = round((float(conf) / 100.0 * c - 1) * 100)
-            _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated)
+            # La COTE est désormais une COLONNE de la grille verdict (with_cote) -> pleine largeur, alignée,
+            # plus de cote isolée qui flotte. Elle n'apparaît que si la carte a bien une cote à montrer.
+            _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated, with_cote=bool(cote_html))
         except (TypeError, ValueError):
             _vl = ""
-    # LAYOUT (refonte 2026-07-18) : la grosse COTE passe À DROITE du bloc verdict, centrée verticalement
-    # (au lieu de flotter tout en bas de la carte avec un grand vide au-dessus). La mention (ré-analyse /
-    # « compté au ROI ») reste sous le verdict, à gauche. Sans cote -> on renvoie juste le verdict (live).
+    # LAYOUT (refonte 2026-07-18, demande user « réorganise tout : aligné, pleine largeur ») : le bloc verdict
+    # (barre + grille Marché/Value/Cote) prend TOUTE la largeur ; la mention (ré-analyse / « compté au ROI »)
+    # tient dessous, à gauche. Sans cote/mention -> juste le verdict (live/compact).
     if not (foot_txt or cote_html):
         return _vl
     _rn = f'<div class="vb-reana">{foot_txt}</div>' if foot_txt else ""
-    if cote_html:
-        return (f'<div class="vb-wrap"><div class="vb-main">{_vl}{_rn}</div>'
-                f'<div class="vb-cote-col">{cote_html}</div></div>')
+    # Repli : pas de confiance calculable (verdict vide) mais une cote à montrer -> ancien pied simple.
+    if not _vl and cote_html:
+        _rf = f'<span class="mc-reana mc-reana-prov">{foot_txt}</span>' if foot_txt else ""
+        return f'<div class="mc-foot">{_rf}{cote_html}</div>'
     return _vl + _rn
 
 
