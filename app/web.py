@@ -2190,8 +2190,7 @@ CSS = """
   .vm-v.vpos{color:#4be39b} .vm-v.vmid{color:#f6c54a} .vm-v.vneg{color:#ff7484}
   .vm-sub{font-size:8.5px;font-weight:800;text-transform:lowercase;letter-spacing:.02em;line-height:1}
   .vm-conf .vm-v{font-size:19px}         /* notre confiance = héros de la grille */
-  .vm-cote .vm-v{font-size:19px;color:#fff}
-  .mc-tg-gold .vm-cote .vm-v{color:var(--gold)}   /* combiné du jour : cote en or (héritée de l'ancêtre) */
+  .vm-cote .vm-v{font-size:19px;color:#fff}   /* cote TOUJOURS blanche, y c. combiné du jour (demande user 2026-07-18) */
   .vb-reana{margin-top:11px;font-size:10px;font-weight:600;color:#7f93aa;text-align:center}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -4303,8 +4302,11 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     else:
         _btxt, _bcls = _bmap.get(_res, ("À VENIR", "p"))
     # gloss = explication EN CLAIR du marché (identique aux cartes de simple) ; + score final si réglé.
+    # La glose RESTE l'explication du pari (demande user 2026-07-18) : on n'ajoute le score final QUE pour un
+    # résultat CHIFFRÉ (won/lost/push) — JAMAIS pour un void/annulé (ex. « · final walkover » polluait
+    # l'explication ; l'état « ANNULÉ » est déjà porté par le badge).
     _g = _bet_gloss(sel_raw, _sp, _lh, _la)
-    if _res is not None and l.get("score"):
+    if _res in ("won", "lost", "push") and l.get("score"):
         _sc = html.escape(str(l.get("score")))
         _g = f'{_g} · <b>final {_sc}</b>' if _g else f'<b>final {_sc}</b>'
     gloss = f'<div class="cleg-gloss"><span class="ar">↳</span> {_g}</div>' if _g else ""
@@ -4370,10 +4372,27 @@ def _combo_tg_card(include_settled: bool = True) -> str:
               "void": '<span class="mc-badge mc-done">➖ Remboursé</span>'}.get(
         _res, '<span class="mc-badge mc-wait">⏳ En cours</span>')
     _cote = cb.get("cote")
+    _pconf = round((cb.get("prob") or 0) * 100)
+    # COTE + CONFIANCE EFFECTIVES si ≥1 jambe est ANNULÉE/remboursée (void/push) : elle SORT du produit
+    # (demande user 2026-07-18 : « vu qu'il est annulé, la cote totale ne doit reprendre que les autres
+    # jambes »). Multisport = jambes indépendantes -> cote/proba combinées = produit des jambes VALIDES.
+    _legs = cb.get("legs") or []
+    if any(l.get("result") in ("void", "push") for l in _legs):
+        _ec, _ep, _ok = 1.0, 1.0, True
+        for l in _legs:
+            if l.get("result") in ("void", "push"):
+                continue
+            try:
+                _ec *= float(l.get("cote"))
+                _ep *= float(l.get("prob"))
+            except (TypeError, ValueError):
+                _ok = False
+        if _ok and _ec > 1:
+            _cote = round(_ec, 2)
+            _pconf = round(_ep * 100)
     _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
                  f'<span class="mc-cote-v">{_cote:g}</span></span>'
                  if isinstance(_cote, (int, float)) and _cote else "")
-    _pconf = round((cb.get("prob") or 0) * 100)
     # Synthèse au-dessus des jambes RETIRÉE (demande user 2026-07-18) — chaque jambe porte déjà son « pourquoi ».
     _nlegs = len(cb.get("legs") or [])
     return (
