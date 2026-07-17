@@ -471,9 +471,10 @@ CSS = """
        justify-content:center;font-size:10px;font-weight:900;color:#0a0a0a}
   .spf-rec.rec-w .spf-rec-b{background:#34d27b} .spf-rec.rec-l .spf-rec-b{background:#ff6b6b}
   .spf-rec.rec-n .spf-rec-b{background:var(--muted)}
-  /* Pari À JOUER (compté au ROI, pas encore réglé) : NEUTRE — surtout PAS doré (l'or = les provisoires
-     HORS ROI). Pastille ⏳ neutre + nom en blanc (comme les paris réglés), pour rester dans la famille ROI. */
-  .spf-rec.rec-p .spf-rec-b{background:var(--surface2);border:1px solid var(--border2);color:var(--muted);font-size:9px}
+  /* Pari À JOUER (compté au ROI, pas encore réglé) : SABLIER DORÉ, IDENTIQUE au badge provisoire
+     `.sx-bdg.p` (demande user 2026-07-17 : « les icônes en attente des listes ROI comme les sabliers
+     des provisoires »). Nom en blanc (comme les paris réglés). */
+  .spf-rec.rec-p .spf-rec-b{background:var(--gold);font-size:10px}
   .spf-rec.rec-p b{color:var(--text)}
   .spf-rec-m{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
   .spf-rec-m b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -942,6 +943,9 @@ CSS = """
   .fd{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
       border-radius:4px;font-size:9px;font-weight:800;color:#08110a;line-height:1;
       text-transform:uppercase;text-align:center;padding-top:1px}
+  /* Sablier « en attente » dans la bande W/L : MÊME doré que le badge provisoire .sx-bdg.p (demande
+     user 2026-07-17). Paris à jouer pas encore réglés, en queue à droite (le plus récent). */
+  .fd.fd-p{background:var(--gold);font-size:10px;padding-top:0}
   .pbars{margin-top:7px;display:flex;flex-direction:column;gap:5px}
   .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
   /* TABLEAU « Chances de gagner » : sources en LIGNES,
@@ -3409,10 +3413,13 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                         dates=ov.get("dates") or [], milestones=_ms_simple)
     mlegend = _mile_legend(_ms_simple)
     # Forme W/L (mêmes pastilles que les onglets sport, récent à DROITE), JUSTE au-dessus de sa courbe.
+    # + SABLIERS DORÉS des paris À JOUER pas encore réglés, en queue (demande user 2026-07-17).
     _LET = {"won": "W", "lost": "L", "push": "N"}
-    _fs = (form_dots([_LET.get(x, x) for x in (ov.get("form_simple") or [])], n=14)
-           or form_dots([_LET.get(x, x) for x in (ov.get("form_run") or ov.get("form") or [])], n=14))
-    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=14)
+    _pend_s = len(analyses.pending_roi_bets())
+    _pend_c = len(analyses.pending_roi_bets(combo=True))
+    _letters_s = ov.get("form_simple") or ov.get("form_run") or ov.get("form") or []
+    _fs = form_dots([_LET.get(x, x) for x in _letters_s], n=14, pending=_pend_s)
+    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=14, pending=_pend_c)
     _stk_s = _streak_chip(ov.get("streak"))                        # série EN COURS des simples (dans l'en-tête)
     _simples_form = f'<div class="spf-cv-form">{_fs}</div>' if _fs else ""   # dots seuls, alignés à droite
     _combo_form = f'<div class="spf-cv-form">{_fc}</div>' if _fc else ""     # série combinés -> en-tête (render_combos)
@@ -4782,7 +4789,7 @@ def _recent_bets_html(recent: list) -> str:
 
 
 def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
-                      form: list | None = None) -> str:
+                      form: list | None = None, pending: int = 0) -> str:
     """Bloc COURBE AUTONOME d'un onglet sport (Simples / Combinés) : en-tête (titre + ROI), la SÉRIE en
     cours + la forme W/L au-dessus du graphe, la courbe d'équité, puis les stats (réussite · paris · cote).
     CLIQUABLE (`<details>`) -> révèle les DERNIERS PARIS réglés (W/L + affiche + sélection). Message
@@ -4797,7 +4804,8 @@ def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
             f'<span class="spf-cv-roi arec-{_roi_cls(roi, blk.get("settled"))}">'
             f'ROI {_roistr(roi)}</span></div>')
     _LET = {"won": "W", "lost": "L", "push": "N"}
-    dots = form_dots([_LET.get(x, x) for x in (form or [])], n=14)  # max de résultats sur 1 ligne
+    # max de résultats sur 1 ligne + sabliers dorés des paris à jouer non réglés en queue (demande user 2026-07-17)
+    dots = form_dots([_LET.get(x, x) for x in (form or [])], n=14, pending=pending)
     formrow = f'<div class="spf-cv-form">{dots}</div>' if dots else ""
     kpis = (f'<div class="spf-cv-kpis">'
             f'<span><b>{blk.get("pct")}%</b> réussite</span>'
@@ -4823,12 +4831,16 @@ def render_sport_perf(sport: str) -> str:
     # DEUX courbes d'équité AUTONOMES (demande user) : chaque graphe porte SA forme W/L + SES stats.
     # Simples = suivi ROI du sport ; Combinés = segment dédié de combo_stats (foot/tennis/basket).
     combo_bs = (analyses.combo_stats().get("by_sport") or {}).get(sport)
+    # Sabliers dorés « en attente » PROPRES à ce sport (simples / combinés du jour) — demande user 2026-07-17.
+    _pend_s = sum(1 for b in analyses.pending_roi_bets() if b.get("sport") == sport)
+    _pend_c = sum(1 for b in analyses.pending_roi_bets(combo=True) if b.get("sport") == sport)
     charts = ('<div class="spf-charts">'
               + _perf_curve_block("Simples", s, f"sp-{sport}-s", "Aucun simple réglé",
-                                  form=s.get("form_simple") or s.get("form"))
+                                  form=s.get("form_simple") or s.get("form"), pending=_pend_s)
               + _perf_curve_block("Combinés", combo_bs, f"sp-{sport}-c",
                                   "Aucun combiné réglé pour ce sport",
-                                  form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"))
+                                  form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"),
+                                  pending=_pend_c)
               + '</div>')
     # Détail INTÉGRÉ au MÊME cadre (repliable) : par pari + calibration par TYPE DE PARI de ce sport.
     g = (analyses.calibration().get("by_sport") or {}).get(label) or {}
@@ -5521,15 +5533,23 @@ def perf_toggle(active: str) -> str:
 _FORM_COLOR = {"W": "#34d27b", "D": "#e0b341", "L": "#ff6b6b",
                "В": "#34d27b", "Н": "#e0b341", "П": "#ff6b6b"}  # W/D/L (en/ru selon locale)
 
-def form_dots(form, n: int = 5) -> str:
+def form_dots(form, n: int = 5, pending: int = 0) -> str:
     """Pastilles colorées des derniers résultats (V/N/D), lettre en MAJUSCULE. form = ['W','D','L',…].
-    `n` = nb max de pastilles (les N dernières -> le plus récent à DROITE)."""
-    if not form:
+    `n` = nb max de pastilles (les N dernières -> le plus récent à DROITE).
+    `pending` = nb de paris À JOUER pas encore réglés (matchs à venir/en cours) : ajoutés en QUEUE (à
+    DROITE = les plus récents) sous forme de SABLIERS DORÉS ⏳, IDENTIQUES au badge provisoire `.sx-bdg.p`
+    (demande user 2026-07-17 : les icônes « en attente » doivent apparaître dans la bande W/L). Les
+    sabliers réservent leur place à droite (total borné à `n`) -> jamais de débordement de la ligne."""
+    form = list(form or [])
+    pending = max(0, int(pending or 0))
+    if not form and not pending:
         return ""
+    keep = max(0, n - pending)                          # place réservée aux sabliers à droite
     dots = "".join(
         f'<span class="fd" style="background:{_FORM_COLOR.get(str(x).upper()[:1], "#5a6472")}">'
         f'{html.escape(str(x)[:1].upper())}</span>'   # W / L / N en MAJUSCULE
-        for x in form[-n:])
+        for x in (form[-keep:] if keep else []))
+    dots += '<span class="fd fd-p" title="En attente de résultat">⏳</span>' * min(pending, n)
     return f'<span class="forms">{dots}</span>'
 
 def form_compare(home: str, home_form, away: str, away_form) -> str:
