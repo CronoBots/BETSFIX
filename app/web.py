@@ -565,6 +565,11 @@ CSS = """
   /* CARTE COMPACTE : en-tête toujours visible (statut + équipes + résumé) + corps replié au tap.
      Liste dense -> peu de scroll ; on déplie un match pour voir paris/barres/liens/analyse. */
   .row.mc{padding:0;margin:7px 0;overflow:hidden}
+  /* Séparateur DISCRET entre deux cadres de paris (demande user 2026-07-18 : « mieux séparer les
+     cadres entre eux »). Fine ligne dégradée qui s'estompe aux extrémités -> respire sans alourdir.
+     Inséré entre cartes (jamais après un en-tête de jour ni en tête de zone). */
+  .mc-sep{height:1px;margin:9px 16px;background:linear-gradient(90deg,transparent,var(--border) 20%,
+          var(--border) 80%,transparent);opacity:.7}
   /* mc-head : colonne d'infos pleine largeur + chevron en ABSOLU (centré vertical) -> l'heure peut
      aller dans le COIN haut-droit sans être décalée par la flèche. */
   .mc-head{position:relative;padding:11px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -5508,12 +5513,23 @@ def _sport_row(r: dict) -> str:
             f'{" mc-islive" if is_live else ""}">{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
+_MC_SEP = '<div class="mc-sep"></div>'
+
+
+def _join_cards(parts: list) -> str:
+    """Concatène des cartes déjà rendues en insérant un fin séparateur entre elles (demande user
+    2026-07-18). Ignore les fragments vides -> jamais de séparateur orphelin."""
+    return _MC_SEP.join(p for p in parts if p)
+
+
 def _rows_by_day(rows: list) -> str:
     """Rend les lignes avec un petit en-tête de jour (Aujourd'hui / Demain / Sam. …) à chaque
     changement de date. Les lignes doivent être triées par heure de début. Une ligne peut porter
-    un HTML déjà rendu (`_html`, ex. carte du programme) — sinon elle est rendue via `_sport_row`."""
+    un HTML déjà rendu (`_html`, ex. carte du programme) — sinon elle est rendue via `_sport_row`.
+    Un fin séparateur (`.mc-sep`) est glissé entre deux cartes CONSÉCUTIVES du même jour (jamais
+    juste après un en-tête de jour ni en tête de zone)."""
     today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
-    out, cur = [], object()
+    out, cur, prev_card = [], object(), False
     for r in rows:
         ts = r.get("start_ts")
         ld = to_local(datetime.fromtimestamp(ts, tz=timezone.utc)) if ts else None
@@ -5522,7 +5538,12 @@ def _rows_by_day(rows: list) -> str:
             cur = d
             if d is not None:
                 out.append(f'<div class="dayhdr">{html.escape(day_label(d, today))}</div>')
-        out.append(r.get("_html") or _sport_row(r))
+                prev_card = False
+        card = r.get("_html") or _sport_row(r)
+        if prev_card and card:
+            out.append(_MC_SEP)
+        out.append(card)
+        prev_card = bool(card)
     return "".join(out)
 
 def render_sport_matches(sport: str, title: str, value: list, live: list,
@@ -5555,7 +5576,7 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     live = sorted(list(live or []), key=lambda r: r.get("start_ts") or 0)
 
     def _cards(rows: list) -> str:                      # rend _html (programme) ou _sport_row (pari/live)
-        return "".join(r.get("_html") or _sport_row(r) for r in rows)
+        return _join_cards([r.get("_html") or _sport_row(r) for r in rows])   # + séparateur entre cartes
 
     _has = bool(play_up or live or prov_up or finished)
     out = [
@@ -5593,7 +5614,7 @@ def render_directs(sections: list, frag: bool = False) -> str:
             continue
         total += len(cards)
         cards = sorted(cards, key=lambda c: c.get("start_ts") or 0)
-        content = "".join(c.get("_html") or _sport_row(c) for c in cards)
+        content = _join_cards([c.get("_html") or _sport_row(c) for c in cards])   # + séparateur entre cartes
         out.append(_zone("live", f"{icon} {label}", "en direct", len(cards), content))
     # Combiné du jour PRÉSENTÉ COMME LES PROVISOIRES (carte Telegram OR) et placé DANS les matchs en direct,
     # plus en bandeau au-dessus (demande user 2026-07-12).
