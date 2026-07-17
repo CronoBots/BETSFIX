@@ -2129,18 +2129,30 @@ CSS = """
   .tkt-subs{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
   .tkt-sub{font-size:9.5px;font-weight:700;color:#90a4be;background:rgba(255,255,255,.05);
        border:1px solid rgba(255,255,255,.09);border-radius:99px;padding:2px 9px}
-  /* Ligne VERDICT (refonte cartes 2026-07-17) : Marché % · notre confiance % → VALUE (héros coloré).
-     Relie les 3 chiffres en une phrase -> on lit la décision d'un coup d'œil (chance marché ≠ confiance). */
-  .tkt-vd{display:flex;flex-wrap:wrap;align-items:center;gap:5px 7px;margin-top:8px;
-       font-size:11px;font-weight:700;color:#9fb0c8;line-height:1.3}
-  .tkt-vseg b{color:#dbe8f6;font-weight:900;font-variant-numeric:tabular-nums}
-  .tkt-vconf.hi b{color:#3fe0a0} .tkt-vconf.mid b{color:#5cc8ff} .tkt-vconf.lo b{color:#ffc24d}
-  .tkt-vdot,.tkt-varr{color:#5f7594;font-weight:900}
-  .tkt-cal{margin-left:5px;font-size:8px;font-weight:800;color:#7db4ff;background:rgba(63,140,255,.14);
-       border:1px solid rgba(63,140,255,.32);border-radius:99px;padding:1px 5px;letter-spacing:.02em;
-       white-space:nowrap;vertical-align:middle}
-  /* flèche + value groupées -> ne se séparent jamais au retour à la ligne (poussées à droite ensemble) */
-  .tkt-vend{margin-left:auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  /* Bloc VERDICT (refonte cartes 2026-07-18, demande user « je préférais la barre de progression ») :
+     retour de la BARRE DE CONFIANCE visuelle, mais gardant les nouveautés — confiance CALIBRÉE (badge
+     ✓ calibré), marqueur MARCHÉ (proba implicite = seuil de rentabilité) posé SUR la barre (l'écart
+     confiance↔marqueur = l'edge, lu d'un coup d'œil), et VALUE en HÉROS coloré (pill à droite).
+     Composant `.vb-*` partagé (paris + provisoires + combiné -> rendu IDENTIQUE). */
+  .vb{margin-top:9px}
+  .vb-top{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;line-height:1.2}
+  .vb-lab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#8093ab}
+  .vb-word{font-size:11px;font-weight:800;letter-spacing:.01em}
+  .vb-pct{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .vb-cal{font-size:8px;font-weight:800;color:#7db4ff;background:rgba(63,140,255,.14);
+       border:1px solid rgba(63,140,255,.32);border-radius:99px;padding:1px 6px;letter-spacing:.02em;
+       white-space:nowrap}
+  .vb-top .tkt-value{margin-left:auto}   /* value héros poussée à droite */
+  .vb-bar{position:relative;height:8px;border-radius:99px;background:#20222a;overflow:hidden;
+       margin-top:8px;box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
+  .vb-bar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:8px}
+  /* marqueur MARCHÉ : trait blanc = proba implicite du book (seuil de rentabilité). À GAUCHE de la
+     fin de barre = notre confiance dépasse le marché = edge. */
+  .vb-mark{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff;opacity:.85;
+       z-index:2;border-radius:2px}
+  .vb-cap{margin-top:6px;font-size:10px;font-weight:600;color:#7d8ea6;display:flex;align-items:center;gap:5px}
+  .vb-mk{color:#9fb0c8;font-weight:700}
+  .vb-mk .di{color:#dbe8f6}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
   .tkt-value.vpos{color:#08180e;background:linear-gradient(180deg,#4be39b,#22c07d);

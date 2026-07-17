@@ -699,28 +699,48 @@ def _verdict_notes(md: str) -> tuple[list, str]:
 
 
 def verdict_line(cote, conf, ev, calibrated: bool = True) -> str:
-    """Ligne VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE, demande user 2026-07-17) :
-    « Marché XX% · Notre confiance YY% [✓calibré] → Value ±Z% ». `conf` = confiance affichée (calibrée),
-    `cote` = cote décimale, `ev` = value % (déjà calculée sur la MÊME conf -> récit toujours exact). '' si
-    données insuffisantes. Classes CSS `.tkt-*` (cf. web.py). Value = héros coloré (vert ≥+3, ambre 0..3,
-    rouge <0)."""
+    """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE) = BARRE DE CONFIANCE
+    (retour demande user 2026-07-18 « je préférais la barre de progression, mais adapte avec la
+    nouveauté ») : label CONFIANCE + qualificatif + % coloré (par niveau) + badge ✓ calibré, puis la
+    BARRE remplie à la confiance avec un MARQUEUR blanc à la proba implicite du marché (= seuil de
+    rentabilité ; barre au-delà du marqueur = edge visuel), et la VALUE en HÉROS coloré (pill à droite).
+    `conf` = confiance affichée (calibrée), `cote` = cote décimale, `ev` = value % (déjà calculée sur la
+    MÊME conf -> récit exact). '' si données insuffisantes. Classes CSS `.vb-*`/`.tkt-value` (cf. web.py).
+    Seuils couleur/mot alignés sur web._conf_hue/_conf_word. Value = héros (vert ≥+3, ambre 0..3, rouge <0)."""
     try:
         cv = float(cote); cf = float(conf); ep = int(round(ev))
     except (TypeError, ValueError):
         return ""
     if not cv or cv <= 1:
         return ""
-    be = round(100 / cv)
-    pc = "hi" if cf >= 75 else "mid" if cf >= 65 else "lo"
+    be = round(100 / cv)                       # proba implicite marché = seuil de rentabilité
+    cfi = int(round(cf))
+    # couleur du % + dégradé de la barre + qualificatif (mêmes seuils que web._conf_hue/_conf_word).
+    if cfi < 55:
+        col, grad, word = "#ff6b6b", "linear-gradient(90deg,#b23b3b,#ff6b6b)", "Faible"
+    elif cfi < 68:
+        col, grad, word = "#f6c54a", "linear-gradient(90deg,#c9902f,#f6c54a)", "Modérée"
+    elif cfi < 80:
+        col, grad, word = "#a6e22e", "linear-gradient(90deg,#6f9e1f,#a6e22e)", "Élevée"
+    else:
+        col, grad, word = "#a6e22e", "linear-gradient(90deg,#6f9e1f,#a6e22e)", "Très élevée"
     vcls = "vpos" if ep >= 3 else "vmid" if ep >= 0 else "vneg"
-    cal = ('<span class="tkt-cal" title="Confiance calibrée sur l’historique réel des résultats">'
+    cal = ('<span class="vb-cal" title="Confiance calibrée sur l’historique réel des résultats">'
            '✓ calibré</span>' if calibrated else "")
-    return (f'<div class="tkt-vd">'
-            f'<span class="tkt-vseg">Marché <b>{be}%</b></span>'
-            f'<span class="tkt-vdot">·</span>'
-            f'<span class="tkt-vseg tkt-vconf {pc}">Notre confiance <b>{round(cf)}%</b>{cal}</span>'
-            f'<span class="tkt-vend"><span class="tkt-varr">→</span>'
-            f'<span class="tkt-value {vcls}">Value {"+" if ep >= 0 else ""}{ep}%</span></span></div>')
+    mark = f'<b class="vb-mark" style="left:{be}%"></b>' if 0 < be < 100 else ""
+    return (
+        '<div class="vb">'
+        '<div class="vb-top">'
+        '<span class="vb-lab">Confiance</span>'
+        f'<span class="vb-word" style="color:{col}">{word}</span>'
+        f'<span class="vb-pct" style="color:{col}">{cfi}%</span>'
+        f'{cal}'
+        f'<span class="tkt-value {vcls}">Value {"+" if ep >= 0 else ""}{ep}%</span>'
+        '</div>'
+        f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
+        f'<div class="vb-cap"><span class="vb-mk">◆ Marché <span class="di">{be}%</span></span>'
+        '· seuil de rentabilité</div>'
+        '</div>')
 
 
 def _bets_table(body: str, results: dict | None = None, compact: bool = False,
