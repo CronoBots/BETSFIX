@@ -257,6 +257,10 @@ def _candidates_for_day(day: str) -> list[dict]:
                                   d.get("away", "")).strip()
             if not code or code.split()[0] not in _ALLOWED:
                 continue
+            # LIGNE INDISPONIBLE chez Unibet (signalé user 2026-07-18 : « Mirassol -2.5 buts indisponible ») :
+            # ex. total PAR ÉQUIPE offert seulement en 0.5 / 1.5 -> jamais 2.5+. Garde-fou PARTAGÉ.
+            if not analyses.market_line_available(code):
+                continue
             pr, co = p.get("prob"), p.get("cote")
             if not isinstance(pr, (int, float)) or not isinstance(co, (int, float)):
                 continue
