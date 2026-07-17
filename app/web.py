@@ -652,6 +652,15 @@ CSS = """
   .mc-body[hidden]{display:none}
   /* Moins d'espace entre les équipes et le bloc « BOOKMAKERS » une fois déplié. */
   .mc-open .mc-head{padding-bottom:5px}
+  /* DÉPLI COMBINÉ (demande user 2026-07-18 : « en dépliant, ce qui existait replié n'est plus visible »).
+     Sur les cartes PREMIUM (.mc-prem) et PROVISOIRES/combiné du jour (.mc-tg), on GARDE le pick + la ligne
+     verdict (.mc-sub) visibles une fois la carte ouverte -> l'analyse & les stats s'AJOUTENT dessous
+     (aperçu direct) au lieu de REMPLACER la présentation. Pas de doublon : le ticket est retiré du corps de
+     ces cartes (corps = barres + analyse). Un filet + un peu d'air séparent le résumé du détail. */
+  .mc-prem.mc-open .mc-sub,.mc-tg.mc-open .mc-sub{display:block;padding-right:0}
+  .mc-prem.mc-open .mc-div,.mc-tg.mc-open .mc-div{display:block}
+  .mc-prem.mc-open .mc-body,.mc-tg.mc-open .mc-body{border-top:1px solid var(--border);
+       margin-top:9px;padding-top:11px}
   .live{color:#34d27b;font-weight:800;letter-spacing:.02em}
   .fem{color:#b08cf2;font-weight:800}
   /* EN-TÊTE de fiche match : pastille sport + compétition (gauche) · statut (droite) · filet dessous */
