@@ -1134,14 +1134,62 @@ def _mark_notified(side: str, flags: list, result_msg: dict | None = None) -> No
         pass
 
 
+_SHADOW_TRIES_CAP = 4
+
+
+def void_exhausted_shadows(min_tries: int = _SHADOW_TRIES_CAP, min_age_days: int = 2) -> int:
+    """ULTIME RECOURS (demande user 2026-07-18) : clôt en `void` les PRÉDICTIONS FANTÔMES encore non réglées
+    dont le match est FINI ET soit les re-tentatives ÉPUISÉES (shadow_tries ≥ min_tries), soit le match
+    VIEUX (≥ min_age_days jours). Ce sont des marchés NON RÉGLABLES (props / box-score absent : cartons,
+    services breakés, jeux-tiebreaks tennis sans périodes…, ou match dont AUCUNE source n'a le score final).
+    `void` = HORS ROI ET HORS calibration (EXACTEMENT comme un pending -> `_check_ghost_resolution` compte
+    void comme réglé) : ne fausse RIEN, ferme juste le « en attente » à vie. Seuil d'âge = 2 j (les fantômes
+    sont hors-ROI : enjeu moindre que la règle ROI « void >3 j »). JAMAIS tant qu'on peut encore régler
+    (match frais + tries<cap). Idempotent. Renvoie le nombre de fantômes clos."""
+    import datetime as _dt
+    now = _dt.datetime.now(_dt.timezone.utc)
+    n = 0
+    for side in glob.glob(os.path.join(analyses.DIR, "*.json")):
+        try:
+            d = json.load(open(side, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        shadow = d.get("shadow") or []
+        pend = [s for s in shadow if s.get("result") not in ("won", "lost", "push", "void")]
+        if not pend or not analyses.likely_finished(d):
+            continue
+        tries = d.get("shadow_tries") or 0
+        try:
+            _t = _dt.datetime.fromisoformat(str(d.get("start")).replace("Z", "+00:00"))
+            age = (now - _t).days
+        except (ValueError, TypeError):
+            age = None
+        if tries >= min_tries or (age is not None and age >= min_age_days):
+            for s in pend:
+                s["result"] = "void"
+            d["shadow_voided"] = True     # trace : fantômes non réglables clos en ultime recours
+            try:
+                json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
+                n += len(pend)
+            except OSError:
+                pass
+    if n:
+        log.info("void_exhausted_shadows : %d fantome(s) non reglable(s) clos en void", n)
+    return n
+
+
 async def settle_analyses() -> int:
     """Règle TOUS les matchs analysés terminés. Code = `pick_code` sinon dérivé. Score via
     event/{id} (id Sofa valide : donne aussi jeux par set + 1er service) ; repli scheduled-events
-    par noms (foot non résolu). HOLD1 -> point-by-point. Renvoie le nombre de sidecars écrits."""
+    par noms (foot non résolu). HOLD1 -> point-by-point. Renvoie le nombre de sidecars écrits.
+    En fin de passe : clôt en `void` les fantômes NON RÉGLABLES (essais épuisés / match vieux) pour ne
+    jamais laisser de « en attente » à vie (demande user)."""
     if _settle_lock.locked():          # une passe tourne déjà -> ne pas en lancer une 2e en parallèle
         return 0
     async with _settle_lock:
-        return await _settle_analyses_impl()
+        n = await _settle_analyses_impl()
+        n += void_exhausted_shadows()
+        return n
 
 
 async def _settle_analyses_impl() -> int:
