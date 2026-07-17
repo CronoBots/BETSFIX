@@ -701,9 +701,9 @@ def _verdict_notes(md: str) -> tuple[list, str]:
 def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False) -> str:
     """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE). Refonte 2026-07-18
     (demande user « réorganise tout : aligné, pleine largeur, que l'utile et l'intuitif ») :
-      (1) en-tête CONFIANCE = qualificatif + % coloré (par niveau) + badge ✓ calibré ;
-      (2) BARRE de confiance PLEINE LARGEUR + marqueur MARCHÉ (proba implicite du book) ;
-      (3) GRILLE de métriques alignées sur toute la largeur : Marché · Value · Cote (label / valeur).
+      (1) en-tête CONFIANCE = qualificatif + % coloré (par niveau) ;
+      (2) BARRE de confiance PLEINE LARGEUR (remplissage animé) + marqueur MARCHÉ (proba implicite) ;
+      (3) GRILLE de métriques CENTRÉES sur toute la largeur : Marché · Value · Cote (label / valeur).
     `conf` = confiance affichée (calibrée), `cote` = cote décimale, `ev` = value % (calculée sur la MÊME
     conf -> récit exact). `with_cote` -> ajoute la colonne Cote (cartes de simple/combiné ; PAS les jambes,
     qui montrent déjà @cote). '' si données insuffisantes. Classes CSS `.vb-*`/`.vm-*` (cf. web.py). Seuils
@@ -717,18 +717,31 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
         return ""
     be = round(100 / cv)                       # proba implicite marché = seuil de rentabilité
     cfi = int(round(cf))
-    # couleur du % + dégradé de la barre + qualificatif (mêmes seuils que web._conf_hue/_conf_word).
-    if cfi < 55:
-        col, grad, word = "#ff6b6b", "linear-gradient(90deg,#b23b3b,#ff6b6b)", "Faible"
-    elif cfi < 68:
-        col, grad, word = "#f6c54a", "linear-gradient(90deg,#c9902f,#f6c54a)", "Modérée"
-    elif cfi < 80:
-        col, grad, word = "#a6e22e", "linear-gradient(90deg,#6f9e1f,#a6e22e)", "Élevée"
+    _RED = "linear-gradient(90deg,#b23b3b,#ff6b6b)"
+    _AMB = "linear-gradient(90deg,#c9902f,#f6c54a)"
+    _GRN = "linear-gradient(90deg,#6f9e1f,#a6e22e)"
+    # couleur du % + dégradé de barre + qualificatif. Un COMBINÉ (calibrated=False) a une proba
+    # STRUCTURELLEMENT plus basse (produit de jambes, cote ≥1.95) -> échelle de mots/couleurs DÉDIÉE pour
+    # ne pas afficher « Faible » en rouge sur le pari phare du jour. Simples : mêmes seuils que _conf_word.
+    if calibrated:
+        if cfi < 55:
+            col, grad, word = "#ff6b6b", _RED, "Faible"
+        elif cfi < 68:
+            col, grad, word = "#f6c54a", _AMB, "Modérée"
+        elif cfi < 80:
+            col, grad, word = "#a6e22e", _GRN, "Élevée"
+        else:
+            col, grad, word = "#a6e22e", _GRN, "Très élevée"
     else:
-        col, grad, word = "#a6e22e", "linear-gradient(90deg,#6f9e1f,#a6e22e)", "Très élevée"
+        if cfi < 38:
+            col, grad, word = "#ff6b6b", _RED, "Audacieux"
+        elif cfi < 52:
+            col, grad, word = "#f6c54a", _AMB, "Équilibré"
+        elif cfi < 62:
+            col, grad, word = "#a6e22e", _GRN, "Solide"
+        else:
+            col, grad, word = "#a6e22e", _GRN, "Très solide"
     vcls = "vpos" if ep >= 3 else "vmid" if ep >= 0 else "vneg"
-    cal = ('<span class="vb-cal" title="Confiance calibrée sur l’historique réel des résultats">'
-           '✓ calibré</span>' if calibrated else "")
     mark = f'<b class="vb-mark" style="left:{be}%"></b>' if 0 < be < 100 else ""
     # GRILLE de métriques (pleine largeur, colonnes alignées). Marché toujours ; Value sauf combiné à EV<0
     # (pari fiabilité, pas value) ; Cote seulement sur les cartes de simple/combiné (with_cote).
@@ -745,7 +758,6 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
         '<span class="vb-lab">Confiance</span>'
         f'<span class="vb-word" style="color:{col}">{word}</span>'
         f'<span class="vb-pct" style="color:{col}">{cfi}%</span>'
-        f'{cal}'
         '</div>'
         f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
         f'<div class="vm">{"".join(cells)}</div>'

@@ -2146,24 +2146,28 @@ CSS = """
   /* BARRE pleine largeur (bloc) : remplissage = confiance, marqueur = seuil marché. */
   .vb-bar{position:relative;height:9px;border-radius:99px;overflow:hidden;margin-top:9px;
        background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
+  /* barre qui se REMPLIT au chargement (0 -> confiance), léger delay. `both` fige l'état final. */
   .vb-bar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:9px;
-       box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+       box-shadow:inset 0 1px 0 rgba(255,255,255,.35);animation:vbfill 1s cubic-bezier(.22,1,.36,1) .05s both}
   /* marqueur MARCHÉ : trait clair = proba implicite du book (seuil de rentabilité). À GAUCHE de la
-     fin de barre = notre confiance dépasse le marché = edge. */
+     fin de barre = notre confiance dépasse le marché = edge. Apparaît une fois la barre remplie. */
   .vb-mark{position:absolute;top:-1px;bottom:-1px;width:2px;margin-left:-1px;background:#f4f8ff;
-       opacity:.92;z-index:2;border-radius:2px;box-shadow:0 0 0 1px rgba(9,14,22,.55)}
-  /* GRILLE métriques : colonnes égales sur TOUTE la largeur, labels/valeurs alignés, filets séparateurs. */
-  .vm{display:flex;align-items:stretch;margin-top:12px}
-  .vm-cell{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;padding:1px 12px;
-       border-left:1px solid rgba(255,255,255,.08)}
-  .vm-cell:first-child{padding-left:0;border-left:none}
+       opacity:.92;z-index:2;border-radius:2px;box-shadow:0 0 0 1px rgba(9,14,22,.55);
+       animation:vbmark .35s ease .75s both}
+  @keyframes vbfill{from{width:0}}
+  @keyframes vbmark{from{opacity:0;transform:scaleY(.4)}}
+  @media (prefers-reduced-motion:reduce){.vb-bar>i,.vb-mark{animation:none}}
+  /* GRILLE métriques : colonnes égales sur TOUTE la largeur, CENTRÉES, filets séparateurs. */
+  .vm{display:flex;margin-top:13px}
+  .vm-cell{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;
+       padding:2px 8px;text-align:center;border-left:1px solid rgba(255,255,255,.08)}
+  .vm-cell:first-child{border-left:none}
   .vm-l{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#7d90a9}
   .vm-v{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#e6eefa}
   .vm-v.vpos{color:#4be39b} .vm-v.vmid{color:#f6c54a} .vm-v.vneg{color:#ff7484}
-  .vm-cote{align-items:flex-end;text-align:right}
   .vm-cote .vm-v{font-size:19px;color:#fff}
   .mc-tg-gold .vm-cote .vm-v{color:var(--gold)}   /* combiné du jour : cote en or (héritée de l'ancêtre) */
-  .vb-reana{margin-top:10px;font-size:10px;font-weight:600;color:#7f93aa}
+  .vb-reana{margin-top:11px;font-size:10px;font-weight:600;color:#7f93aa;text-align:center}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
   .tkt-value.vpos{color:#08180e;background:linear-gradient(180deg,#4be39b,#22c07d);
