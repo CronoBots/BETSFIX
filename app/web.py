@@ -4004,6 +4004,12 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         # provisoires (pick doré) et les matchs PAS ENCORE analysés (statut ≠ abstained -> « Analyse à … »).
         if not prov_sel and m.get("status") == "abstained":
             continue
+        # FILTRE PROVISOIRE (demande user 2026-07-17) : on ne garde pas un provisoire SANS value ET sous 60 %
+        # de confiance calibrée (bruit) ; on garde ceux avec value (EV+) OU confiance ≥ 60 %. Même prédicat
+        # que le suivi (analyses.provisional_shown) -> affichage == stats « info seule ».
+        if prov_sel and not analyses.provisional_shown(sp, prov_sel, prov.get("cote"), prov.get("prob"),
+                                                        home, away):
+            continue
         if prov_sel:
             _cote = prov.get("cote")
             _pconf = prov.get("prob")

@@ -2107,6 +2107,32 @@ def stat_bet(d: dict) -> dict | None:
     return retained_bet(d.get("sport"), d.get("id"), for_history=True)
 
 
+def provisional_shown(sport, sel, cote, prob, home="", away="") -> bool:
+    """Un pari PROVISOIRE (indicatif) est-il DIGNE d'être affiché/suivi ? (demande user 2026-07-17) On ne
+    GARDE PAS un provisoire SANS value (EV≤0) ET SOUS 60 % de confiance CALIBRÉE — c'est du bruit. On GARDE
+    ceux qui ont de la VALUE (EV>0) OU une confiance calibrée ≥ 60 %. Confiance CALIBRÉE = celle affichée
+    partout (cohérence). Purement affichage/suivi — jamais ROI/stats/calibration. SOURCE UNIQUE : appelée par
+    l'affichage (web._programme_items) ET le suivi (provisional.reconcile_with_programme) -> jamais d'écart
+    liste/compteur."""
+    if not sel:
+        return False
+    try:
+        c = float(cote)
+    except (TypeError, ValueError):
+        c = None
+    cp = prob
+    try:
+        from app.settle_analyst import code_from_pick
+        cp = calibrated_conf(prob, sport, code_from_pick(sel, sport, home, away))
+    except Exception:
+        cp = prob
+    if cp is None:
+        return c is not None                   # sans confiance calculable : garder (repli prudent) si coté
+    if c and (cp / 100.0 * c - 1) > 0:         # VALUE (EV>0) -> toujours gardé
+        return True
+    return cp >= 60                            # sinon : gardé seulement si confiance calibrée ≥ 60 %
+
+
 def card_summary(sport: str, match_id) -> dict:
     """Résumé COMPACT d'un match pour la ligne repliée (carte compacte) : nb de paris, meilleure
     confiance, s'il y a un pari ✅ À JOUER (même règle que la simulation : ≥65 %, EV≥+3 %, réglable),

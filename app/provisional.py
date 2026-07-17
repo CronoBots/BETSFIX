@@ -120,10 +120,20 @@ def reconcile_with_programme() -> int:
             prog = json.load(f)
     except (OSError, ValueError):
         return 0
+    from app import analyses
     matches = prog.get("matches") or []
-    # ids DANS le programme SANS provisoire affiché (ni pari publié) -> l'affichage ne montre RIEN pour eux
+
+    def _shown(m) -> bool:                         # provisoire réellement AFFICHÉ (même filtre que web) ?
+        prov = m.get("provisional") or {}
+        if not prov.get("sel"):
+            return False
+        home, _, away = str(m.get("name", "")).partition(" - ")
+        # FILTRE (demande user 2026-07-17) : sans value ET < 60 % confiance calibrée -> non affiché -> non suivi.
+        return analyses.provisional_shown(m.get("sport"), prov.get("sel"), prov.get("cote"),
+                                          prov.get("prob"), home, away)
+    # ids DANS le programme SANS provisoire AFFICHÉ (pas de pari publié) -> l'affichage ne montre RIEN pour eux
     no_prov = {str(m.get("id") or "") for m in matches
-               if not (m.get("provisional") or {}).get("sel") and m.get("status") != "bet"}
+               if not _shown(m) and m.get("status") != "bet"}
     d = _load()
     changed = 0
     for mid in list(d.keys()):                     # RETRAIT des non réglés que l'affichage ne montre plus
@@ -137,7 +147,7 @@ def reconcile_with_programme() -> int:
     for m in matches:                              # AJOUT des provisoires affichés mais pas encore suivis
         prov = m.get("provisional") or {}
         mid = str(m.get("id") or "")
-        if not prov.get("sel") or m.get("status") == "bet" or mid in tracked:
+        if not _shown(m) or m.get("status") == "bet" or mid in tracked:   # filtré/non affiché -> pas suivi
             continue
         home, _, away = str(m.get("name", "")).partition(" - ")
         record(m.get("sport"), mid, home, away, m.get("start", ""), m.get("name", ""),
