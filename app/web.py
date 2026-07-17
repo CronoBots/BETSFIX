@@ -2135,14 +2135,7 @@ CSS = """
      métriques alignées sur toute la largeur — Marché · Value · Cote — label au-dessus / valeur en
      dessous, séparateurs fins. Plus de pill flottant ni de cote isolée. Composant `.vb-*`/`.vm-*`
      partagé (paris + provisoires + combiné -> rendu IDENTIQUE). */
-  .vb{margin-top:10px}
-  .vb-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 8px;line-height:1.2}
-  .vb-lab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#7d90a9}
-  .vb-word{font-size:11px;font-weight:800;letter-spacing:.01em}
-  .vb-pct{font-size:17px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .vb-cal{align-self:center;font-size:8px;font-weight:800;color:#7db4ff;background:rgba(63,140,255,.14);
-       border:1px solid rgba(63,140,255,.32);border-radius:99px;padding:1px 6px;letter-spacing:.02em;
-       white-space:nowrap;margin-left:auto}
+  .vb{margin-top:11px}
   /* BARRE pleine largeur (bloc) : remplissage = confiance, marqueur = seuil marché. */
   .vb-bar{position:relative;height:9px;border-radius:99px;overflow:hidden;margin-top:9px;
        background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
@@ -2157,14 +2150,18 @@ CSS = """
   @keyframes vbfill{from{width:0}}
   @keyframes vbmark{from{opacity:0;transform:scaleY(.4)}}
   @media (prefers-reduced-motion:reduce){.vb-bar>i,.vb-mark{animation:none}}
-  /* GRILLE métriques : colonnes égales sur TOUTE la largeur, CENTRÉES, filets séparateurs. */
-  .vm{display:flex;margin-top:13px}
-  .vm-cell{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;
-       padding:2px 8px;text-align:center;border-left:1px solid rgba(255,255,255,.08)}
+  /* GRILLE métriques : colonnes ÉGALES sur TOUTE la largeur (width:100%), contenu centré, filets fins.
+     Confiance à gauche du Marché -> comparaison directe « nous vs marché ». */
+  .vm{display:flex;width:100%;margin-top:12px}
+  .vm-cell{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;
+       padding:2px 6px;text-align:center;border-left:1px solid rgba(255,255,255,.08)}
   .vm-cell:first-child{border-left:none}
-  .vm-l{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#7d90a9}
-  .vm-v{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#e6eefa}
+  .vm-l{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#7d90a9}
+  .vm-v{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#e6eefa;
+       line-height:1.05}
   .vm-v.vpos{color:#4be39b} .vm-v.vmid{color:#f6c54a} .vm-v.vneg{color:#ff7484}
+  .vm-sub{font-size:8.5px;font-weight:800;text-transform:lowercase;letter-spacing:.02em;line-height:1}
+  .vm-conf .vm-v{font-size:19px}         /* notre confiance = héros de la grille */
   .vm-cote .vm-v{font-size:19px;color:#fff}
   .mc-tg-gold .vm-cote .vm-v{color:var(--gold)}   /* combiné du jour : cote en or (héritée de l'ancêtre) */
   .vb-reana{margin-top:11px;font-size:10px;font-weight:600;color:#7f93aa;text-align:center}

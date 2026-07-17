@@ -745,7 +745,13 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     mark = f'<b class="vb-mark" style="left:{be}%"></b>' if 0 < be < 100 else ""
     # GRILLE de métriques (pleine largeur, colonnes alignées). Marché toujours ; Value sauf combiné à EV<0
     # (pari fiabilité, pas value) ; Cote seulement sur les cartes de simple/combiné (with_cote).
-    cells = [f'<div class="vm-cell"><span class="vm-l">Marché</span><span class="vm-v">{be}%</span></div>']
+    # GRILLE pleine largeur, colonnes égales. NOTRE confiance placée JUSTE à côté du MARCHÉ (demande user
+    # 2026-07-18 : comparaison directe « nous vs marché »). Confiance = héros (valeur colorée + qualificatif
+    # en sous-titre). Value sautée sur un combiné à EV<0 (fiabilité). Cote seulement sur simple/combiné.
+    cells = [f'<div class="vm-cell vm-conf"><span class="vm-l">Confiance</span>'
+             f'<span class="vm-v" style="color:{col}">{cfi}%</span>'
+             f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>',
+             f'<div class="vm-cell"><span class="vm-l">Marché</span><span class="vm-v">{be}%</span></div>']
     if calibrated or ep >= 0:
         cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>'
                      f'<span class="vm-v {vcls}">{"+" if ep >= 0 else ""}{ep}%</span></div>')
@@ -754,11 +760,6 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
                      f'<span class="vm-v">{cv:g}</span></div>')
     return (
         '<div class="vb">'
-        '<div class="vb-top">'
-        '<span class="vb-lab">Confiance</span>'
-        f'<span class="vb-word" style="color:{col}">{word}</span>'
-        f'<span class="vb-pct" style="color:{col}">{cfi}%</span>'
-        '</div>'
         f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
         f'<div class="vm">{"".join(cells)}</div>'
         '</div>')
