@@ -4219,11 +4219,14 @@ def _clean_cap(t, maxlen: int = 180) -> str:
 _SPORT_LBL = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}
 
 
-def _leg_card(l: dict, *, why: bool = True) -> str:
+def _leg_card(l: dict, *, why: bool = True, verdict: bool = False) -> str:
     """Rendu d'UNE jambe de combiné COMME UNE CARTE DE SIMPLE (demande user 2026-07-14) : en-tête
     « SPORT • match » + badge d'état, le pari en gras, l'explication en clair (gloss ↳), la COTE à droite,
     bord gauche coloré par état. En live : badge 🟢 LIVE + tableau de score sous la jambe. `why` = ajoute la
-    justification (combiné du jour) ; le combiné de match a son propre déplié. Purement AFFICHAGE."""
+    justification (combiné du jour) ; le combiné de match a son propre déplié.
+    `verdict` = ajoute la LIGNE VERDICT (barre + Confiance/Marché/Value + grosse COTE) sous le pari pour que
+    la jambe RESSEMBLE À UN CADRE PROVISOIRE (demande user 2026-07-18 : « chaque jambe du combiné du jour
+    doit ressembler à un cadre provisoire ») — remplace la pastille cote. Purement AFFICHAGE."""
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     _sp, _lh, _la = l.get("sport"), l.get("home", ""), l.get("away", "")
     emo = _emo.get(_sp, "•")
@@ -4262,19 +4265,36 @@ def _leg_card(l: dict, *, why: bool = True) -> str:
     gloss = f'<div class="cleg-gloss"><span class="ar">↳</span> {_g}</div>' if _g else ""
     _wt = _clean_cap(l.get("why")) if why else ""
     _why = f'<div class="cleg-why">{html.escape(_wt)}</div>' if _wt else ""
+    # LIGNE VERDICT (façon provisoire) : Confiance CALIBRÉE (la jambe porte `prob` en FRACTION + `code`) ·
+    # Marché · Value (masquée si négative — combiné = info seule) + grosse COTE. Remplace la pastille cote.
+    _verdict = ""
+    if verdict:
+        _pr = l.get("prob")
+        _pct = (_pr * 100 if isinstance(_pr, (int, float)) and _pr <= 1 else _pr)
+        _cp = _pct
+        if _pct is not None:
+            try:
+                _cp = analyses.calibrated_conf(_pct, _sp, l.get("code") or "")
+            except Exception:
+                _cp = _pct
+        _cbig = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
+                 f'<span class="mc-cote-v">{co:g}</span></span>'
+                 if isinstance(co, (int, float)) and co else "")
+        _verdict = _verdict_block(co, _cp, "", _cbig, calibrated=True, hide_neg_value=True)
+    _cote_pill = "" if verdict else _cote           # le bloc verdict porte déjà la grosse cote
     return (f'<div class="cleg {_state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport">{emo} {splbl}</b>'
             + (f'<span class="cleg-sep"> • </span>{nm}' if nm else "")
             + f'</span><span class="cleg-bdg {_bcls}">{_btxt}</span></div>'
             f'<div class="cleg-body"><div class="cleg-main">'
-            f'<div class="cleg-pick">{sel}</div>{gloss}</div>{_cote}</div>'
-            f'{board}{_why}</div>')
+            f'<div class="cleg-pick">{sel}</div>{gloss}</div>{_cote_pill}</div>'
+            f'{_verdict}{board}{_why}</div>')
 
 
 def _combo_tg_legs(cb: dict) -> str:
-    """Jambes du combiné du jour rendues chacune comme une CARTE DE SIMPLE (demande user 2026-07-14) —
-    en-tête SPORT • match, pari + gloss, cote, état/live. Rendu unifié via `_leg_card`."""
-    return "".join(_leg_card(l, why=True) for l in (cb.get("legs") or []))
+    """Jambes du combiné du jour rendues chacune comme un CADRE PROVISOIRE (demande user 2026-07-18) —
+    en-tête SPORT • match, pari + gloss, LIGNE VERDICT (confiance/marché/cote), état/live. Via `_leg_card`."""
+    return "".join(_leg_card(l, why=True, verdict=True) for l in (cb.get("legs") or []))
 
 
 def _combo_tg_card(include_settled: bool = True) -> str:
