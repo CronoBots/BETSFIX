@@ -18,14 +18,15 @@ import os
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRACK_PATH = os.path.join(_ROOT, "data", "combo_daily_track.json")
 
-MIN_ODDS = 1.9            # cote minimale du combiné (demande user)
+MIN_ODDS = 1.95           # cote minimale du combiné (demande user 2026-07-17 : « au moins 1,95 »)
 MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)
 MIN_LEGS = 2             # un « combiné » = au moins 2 jambes
 MIN_LEG_PROB = 0.65      # « les plus probables » : jambe fiable seulement (relevé pour la sécurité)
 MIN_LEG_ODDS = 1.06      # une jambe quasi-sûre à cote ~1.01 n'apporte rien vers le seuil
-MIN_COMBO_EV = 0.05      # EDGE minimal du combiné (prob × cote − 1). Sous ce seuil = notre proba ≈ proba
-#                          implicite du marché -> pari NEUTRE (aucune value) -> ABSTENTION ce jour-là
-#                          (demande user 2026-07-14 : qualité > quantité, comme les simples ≥ EV 3 %).
+# NOTE : le garde-fou EV (MIN_COMBO_EV, 2026-07-14 : s'abstenir sans value) a été RETIRÉ le 2026-07-17
+# sur demande user explicite : « 1 combiné multisport par jour, le plus fiable, ≥ 1,95, TOUJOURS compté
+# au ROI » — même les jours sans edge. On publie donc le combiné le PLUS PROBABLE atteignant 1,95, chaque
+# jour (None seulement si le vivier ne permet PAS d'atteindre 1,95). cf. mémoire combo-daily-multisport.
 
 # Marchés en PALIERS DE FIABILITÉ (taux de réussite MESURÉS, cf. COMBO_MISSION). On compare le PREMIER
 # jeton du code (ex. "SETWIN 1 HOME" -> "SETWIN"). Le combiné se construit d'abord AVEC LE PALIER 1 SEUL
@@ -276,20 +277,18 @@ def build_for_day(day: str) -> dict | None:
     puis 1+2+3 (totaux) — on ne descend d'un palier que si la cote ≥ 1.9 est INATTEIGNABLE au précédent.
     None si aucun combiné fiable possible."""
     cands = _candidates_for_day(day)
-    combo = None
-    for max_tier in (1, 2, 3):
-        sub = [c for c in cands if _tier(c["code"]) <= max_tier]
-        combo = pick_combo(sub)
-        if combo:
-            break
+    # LE PLUS FIABLE (demande user 2026-07-17) : on maximise la PROBABILITÉ de gain sur TOUS les marchés
+    # analysés. L'ancienne escalade par paliers (résultat/DC d'abord) s'arrêtait au 1er palier atteignant le
+    # seuil et, forcée à 1,95, imposait PLUS de jambes -> combiné MOINS probable (mesuré 2026-07-17 :
+    # palier≤2 = 36 %/EV−24 % vs tous marchés = 46 %/EV−10 %). pick_combo renvoie le combiné le plus probable
+    # sous la contrainte de cote -> exactement « le plus fiable ». (`_tier` conservé pour d'éventuels tris.)
+    combo = pick_combo(cands)
     if not combo:
         return None
-    # GARDE-FOU VALUE (demande user 2026-07-14) : ne publier/compter le combiné QUE s'il a un EDGE réel.
-    # Jambes INDÉPENDANTES (matchs différents) -> EV = prob × cote − 1. Sans edge (notre proba ≈ implicite),
-    # c'est un pari neutre qui ne fait que payer la marge -> on s'ABSTIENT plutôt que de publier sans value.
-    _ev = (combo.get("prob") or 0) * (combo.get("cote") or 0) - 1
-    if _ev < MIN_COMBO_EV:
-        return None
+    # PLUS DE GARDE-FOU VALUE (demande user 2026-07-17) : le combiné du jour est publié CHAQUE jour dès que
+    # le vivier atteint 1,95, qu'il ait une value ou non, et TOUJOURS compté au ROI. `pick_combo` renvoie
+    # déjà le combiné le PLUS PROBABLE sous la contrainte de cote -> « le plus fiable ». (Historique :
+    # l'ancien filtre EV≥0.05, 2026-07-14, s'abstenait sans edge ; retiré sur choix explicite du proprio.)
     legs = [{"mid": l["mid"], "sport": l["sport"], "name": l.get("name"), "home": l.get("home"),
              "away": l.get("away"), "start": l.get("start"), "comp": l.get("comp"),
              "sel": l["sel"], "cote": l["cote"], "prob": round(l["prob"], 4),

@@ -2691,7 +2691,7 @@ async def main():
                         if notify.configured() and await notify.send(_cdaily.telegram_text(_combo)):
                             _cdaily.mark_sent(_day)  # figé après publication aux abonnés
             else:
-                print("  🎯 Combiné du jour : aucun combiné fiable ≥ 1.9 possible aujourd'hui.")
+                print("  🎯 Combiné du jour : vivier insuffisant pour atteindre 1,95 aujourd'hui.")
         # DÉDUP (demande user 2026-07-12) : le combiné du jour est construit APRÈS les provisoires -> ses
         # jambes ont pu être trackées en provisoire pendant la boucle. On les retire ICI pour qu'un match
         # n'apparaisse JAMAIS à deux endroits (combiné du jour ET provisoire). No-op si rien à retirer.

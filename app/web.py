@@ -4104,7 +4104,7 @@ def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False
 
 def _combo_daily_banner(*, href: str = "/stats") -> str:
     """Bandeau « Combiné du jour » (TÊTE de l'accueil ET de l'onglet Live). Le combiné multisport du jour :
-    jambes les plus probables (avec SCORE LIVE), cote ≥ 1.9. Info seule (hors ROI). '' si aucun."""
+    jambes les plus probables (avec SCORE LIVE), cote ≥ 1,95, garanti 1/jour, compté au ROI. '' si aucun."""
     try:
         import datetime as _dt
         from app import combo_daily as _cd

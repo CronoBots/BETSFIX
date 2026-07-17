@@ -655,9 +655,10 @@ def _combo_daily_card() -> str:
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Combiné du jour '
         '<span>compté au ROI</span></div>'
-        '<div class="sx-data-note">UN combiné multisport par jour reprenant les paris <b>les plus '
-        'probables</b> de tous les matchs analysés (cote ≥ 1.9, taux de réussite maximal). Mélange sports '
-        'et marchés. <b>Compté au ROI</b> (mise à plat 1 u) — décision 2026-07-14. Ce bloc en donne le détail.</div>'
+        '<div class="sx-data-note"><b>UN combiné multisport par jour</b>, garanti : les paris <b>les plus '
+        'probables</b> de tous les matchs analysés, combinés pour atteindre <b>une cote ≥ 1,95</b> avec le '
+        '<b>taux de réussite maximal</b>. Mélange sports et marchés. <b>Toujours compté au ROI</b> (mise à '
+        'plat 1 u) — décision 2026-07-17. Ce bloc en donne le détail.</div>'
         + _cur_html +
         '<div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>jours suivis</span></div>'
