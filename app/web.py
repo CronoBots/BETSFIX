@@ -4367,10 +4367,16 @@ def _combo_tg_card(include_settled: bool = True) -> str:
     _all_done = all(l.get("result") in ("won", "lost", "push", "void") for l in cb["legs"])
     if not include_settled and _all_done:
         return ""
+    # Badge « en cours » = le MÊME « 🟢 Live » que les autres paris quand une jambe TOURNE (demande user
+    # 2026-07-18) ; sinon (pré-match) on garde « ⏳ En cours ».
+    _any_live = any(live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
+                                                            l.get("away", "")), l.get("sport")).get("score")
+                    for l in (cb.get("legs") or []) if l.get("result") is None)
+    _running = ('<span class="mc-badge mc-live">🟢 Live</span>' if _any_live
+                else '<span class="mc-badge mc-wait">⏳ En cours</span>')
     _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
               "lost": '<span class="mc-badge mc-done">❌ Perdu</span>',
-              "void": '<span class="mc-badge mc-done">➖ Remboursé</span>'}.get(
-        _res, '<span class="mc-badge mc-wait">⏳ En cours</span>')
+              "void": '<span class="mc-badge mc-done">➖ Remboursé</span>'}.get(_res, _running)
     _cote = cb.get("cote")
     _pconf = round((cb.get("prob") or 0) * 100)
     # COTE + CONFIANCE EFFECTIVES si ≥1 jambe est ANNULÉE/remboursée (void/push) : elle SORT du produit
