@@ -549,50 +549,52 @@ _combo_legs_html = web.combo_legs_html   # rendu UNIFIÉ (accueil/Stats/Live) �
 
 
 def _selectivity_card() -> str:
-    """Petit bloc « Sélectivité du jour » : sur les matchs du jour ENCORE À JOUER (coup d'envoi pas passé
-    ou en cours), combien donnent un PARI À JOUER (value) vs une ABSTENTION (favori sans marge -> provisoire
-    indicatif). Reflet du scan de 09h : les matchs DÉJÀ TERMINÉS (ex. joués la nuit) sont EXCLUS -> le
-    compteur « à jouer » ne montre que ce qu'il reste réellement à jouer aujourd'hui (demande user
-    2026-07-17). Rend visible que « beaucoup d'abstentions » = discipline, pas un bug. '' si plus rien à
-    jouer aujourd'hui (tous les matchs du jour terminés)."""
-    import glob
-    import os
+    """« Sélectivité du jour » — composition du PROGRAMME du scan de 09h (data/day_programme.json, la MÊME
+    source que l'onglet « À venir ») : combien de matchs à venir donnent un PARI À JOUER (value, compté au
+    ROI) vs un PARI PROVISOIRE (favori sans marge, indicatif hors ROI). Compté sur EXACTEMENT les mêmes
+    items que l'onglet « À venir » -> les chiffres COÏNCIDENT avec son badge (fini le « 11 vs 10 », demande
+    user 2026-07-17). Ne compte que les matchs ENCORE À VENIR (hors live/terminé, comme l'onglet). '' si le
+    programme du jour est vide."""
     import datetime as _dt
-    day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
-    pj = ab = 0
-    for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
-        d = analyses._meta_load(p)
-        if not d or (d.get("start") or "")[:10] != day:
-            continue
-        if analyses.status_of(d) == "finished":     # match du jour DÉJÀ JOUÉ -> hors « à jouer aujourd'hui »
-            continue
-        if d.get("bets"):
-            pj += 1
-        else:
-            ab += 1
-    tot = pj + ab
+    # PROVISOIRES : exactement les cartes provisoires de l'accueil (même fonction, même dédup combiné du
+    # jour, même exclusion du live) -> le compteur ne peut plus diverger du badge « À venir ».
+    prov = sum(1 for it in web._programme_items(framed=True)
+               if it.get("_prov") and not it.get("_live"))
+    # PARIS À JOUER (ROI) encore À VENIR : simples publiés/retenus (pending_roi_bets) au coup d'envoi non passé.
+    _now = _dt.datetime.now(_dt.timezone.utc)
+
+    def _upcoming(b) -> bool:
+        try:
+            return _dt.datetime.fromisoformat((b.get("start") or "").replace("Z", "+00:00")) > _now
+        except (ValueError, AttributeError):
+            return False
+
+    a_jouer = sum(1 for b in analyses.pending_roi_bets() if _upcoming(b))
+    tot = a_jouer + prov
     if tot == 0:
         return ""
-    pct = round(100 * pj / tot)
-    _ont = "a" if pj == 1 else "ont"
-    if pj == 0:
-        _main = (f'Aucun des <b>{tot} matchs encore à jouer aujourd\'hui</b> n\'a de <b>VALUE</b> '
-                 '(proba ≥ 65 % ET marge réelle sur la cote) : <b>rien à jouer pour l\'instant</b>, que des '
-                 '<b>abstentions</b> (favoris sans marge, chacun garde un pari provisoire indicatif hors ROI). '
-                 'C\'est la <b>discipline</b> qui protège le ROI, pas un bug. Un pari s\'affichera dans '
-                 '<b>« À venir »</b> dès qu\'un match aura de la value.')
+    pct = round(100 * a_jouer / tot)
+    _ont = "a" if a_jouer == 1 else "ont"
+    _ps = "" if a_jouer == 1 else "s"
+    if a_jouer == 0:
+        _main = (f'Sur les <b>{tot} matchs à venir</b> du jour, <b>aucun</b> n\'a de <b>VALUE</b> '
+                 '(proba ≥ 65 % ET marge réelle sur la cote) : <b>0 pari à jouer</b> pour l\'instant. '
+                 f'Les <b>{prov}</b> sont des <b>paris provisoires</b> — le meilleur angle de chaque match, '
+                 '<b>indicatif · hors ROI</b> (favoris sans marge sur lesquels on <b>s\'abstient</b>). '
+                 f'C\'est la <b>discipline</b> qui protège le ROI. Ces {prov} provisoires sont dans l\'onglet '
+                 '<b>« À venir »</b> (zone <i>Indicatif</i>) ; un <b>pari à jouer</b> s\'affichera dès qu\'un '
+                 'match aura de la value.')
     else:
-        _main = (f'Sur les <b>{tot} matchs encore à jouer aujourd\'hui</b>, <b>{pj}</b> {_ont} de la '
-                 f'<b>VALUE</b> (proba ≥ 65 % ET marge réelle sur la cote) → <b>à jouer</b> (onglet '
-                 f'<b>« À venir »</b>). Les <b>{ab}</b> autres = <b>favoris sans marge</b> → <b>abstention</b> '
-                 '(pari provisoire indicatif, hors ROI). C\'est la <b>discipline</b> qui protège le ROI, '
-                 'pas un bug.')
+        _main = (f'Sur les <b>{tot} matchs à venir</b> du jour, <b>{a_jouer}</b> {_ont} de la <b>VALUE</b> '
+                 f'(proba ≥ 65 % ET marge réelle sur la cote) → <b>pari{_ps} à jouer</b> (compté{_ps} au ROI, '
+                 f'onglet <b>« À venir »</b>). Les <b>{prov}</b> autres = <b>paris provisoires</b> (favoris sans '
+                 'marge, indicatif hors ROI). C\'est la <b>discipline</b> qui protège le ROI, pas un bug.')
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Sélectivité du jour '
-        '<span>matchs restants</span></div>'
+        '<span>= onglet À venir</span></div>'
         '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi sx-pos"><b>{pj}</b><span>à jouer</span></div>'
-        f'<div class="sx-kpi"><b class="sx-gold">{ab}</b><span>abstentions</span></div>'
+        f'<div class="sx-kpi sx-pos"><b>{a_jouer}</b><span>à jouer</span></div>'
+        f'<div class="sx-kpi"><b class="sx-gold">{prov}</b><span>provisoires</span></div>'
         f'<div class="sx-kpi"><b>{pct}%</b><span>de sélection</span></div>'
         '</div>'
         f'<div class="sx-data-note">{_main}</div></div>')
