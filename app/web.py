@@ -4266,7 +4266,15 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                                         fstats=_lfz.get("fstats"))
                      + '</div>')
         else:
-            _btxt, _bcls = "À VENIR", "p"
+            # HEURE de début dans le badge (comme les provisoires) au lieu de « À VENIR » (demande user
+            # 2026-07-18). Repli « À VENIR » si l'heure n'est pas exploitable.
+            _hh = ""
+            try:
+                _dtv = match_select._start_dt(l.get("start")) if l.get("start") else None
+                _hh = fmt_local(_dtv, with_date=False) if _dtv else ""
+            except Exception:
+                _hh = ""
+            _btxt, _bcls = (_hh or "À VENIR"), "p"
     else:
         _btxt, _bcls = _bmap.get(_res, ("À VENIR", "p"))
     # gloss = explication EN CLAIR du marché (identique aux cartes de simple) ; + score final si réglé.
@@ -4341,10 +4349,7 @@ def _combo_tg_card(include_settled: bool = True) -> str:
                  f'<span class="mc-cote-v">{_cote:g}</span></span>'
                  if isinstance(_cote, (int, float)) and _cote else "")
     _pconf = round((cb.get("prob") or 0) * 100)
-    # SYNTHÈSE (corrélation des jambes) en barre cyan, EN TÊTE — comme les combinés publiés sur Telegram
-    # (synthèse d'abord, puis chaque jambe avec SON analyse). Nettoyée + plafonnée.
-    _syn = _clean_cap(cb.get("synth"), 210)
-    _note = f'<div class="mc-note">{html.escape(_syn)}</div>' if _syn else ""
+    # Synthèse au-dessus des jambes RETIRÉE (demande user 2026-07-18) — chaque jambe porte déjà son « pourquoi ».
     _nlegs = len(cb.get("legs") or [])
     return (
         '<div class="row pick mc mc-tg mc-tg-gold">'
@@ -4354,7 +4359,7 @@ def _combo_tg_card(include_settled: bool = True) -> str:
         f'<span class="mc-comp-sep"> • </span>{_nlegs} jambes · multisport</span>'
         f'{_badge}</div>'
         '<div class="mc-div"></div>'
-        + _note                                            # synthèse EN TÊTE (présentation Telegram)
+        # Synthèse EN TÊTE RETIRÉE (demande user 2026-07-18 : « supprimer le texte au-dessus des jambes »).
         + f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
         + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False)
         + '</div></div></div>')
@@ -4398,12 +4403,11 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
                  f'<span class="mc-cote-v">{_cote:g}</span></span>'
                  if isinstance(_cote, (int, float)) and _cote else "")
     _pconf = combo.get("prob")
-    _syn = _clean_cap(combo.get("why"), 210)
-    _note = f'<div class="mc-note">{html.escape(_syn)}</div>' if _syn else ""
+    # Synthèse au-dessus des jambes RETIRÉE (demande user 2026-07-18 : « supprimer le texte au-dessus »).
     _legs = [{**l, "sport": sport, "home": home, "away": away, "name": ""} for l in legs]
     _tag = ('<div class="mc-prov-tag">🎲 COMBINÉ'
             f'<span> · {len(legs)} jambes</span></div>')
-    out += ('<div class="mc-div"></div>' + _tag + _note
+    out += ('<div class="mc-div"></div>' + _tag
             + f'<div class="mc-combo-legs">'
             + "".join(_leg_card(l, why=True, verdict=True, teams=False) for l in _legs)   # même match -> pas d'équipes répétées
             + '</div>'
