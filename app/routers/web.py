@@ -557,31 +557,55 @@ def _selectivity_card() -> str:
     import os
     import datetime as _dt
     day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
-    pj = ab = 0
+    pj = ab = upc = 0
     for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
         d = analyses._meta_load(p)
         if not d or (d.get("start") or "")[:10] != day:
             continue
         if d.get("bets"):
             pj += 1
+            if analyses.status_of(d) == "notstarted":   # pari joué ENCORE à venir (coup d'envoi pas passé)
+                upc += 1
         else:
             ab += 1
     tot = pj + ab
     if tot == 0:
         return ""
     pct = round(100 * pj / tot)
+    # Phrase « value » accordée en nombre.
+    _had = "avait" if pj == 1 else "avaient"
+    _only = " — le seul joué" if pj == 1 else (" — les seuls joués" if pj > 1 else "")
+    if pj == 0:
+        _main = (f'Sur les <b>{tot} matchs analysés aujourd\'hui</b>, <b>aucun</b> n\'avait de '
+                 '<b>VALUE</b> (proba ≥ 65 % ET marge réelle sur la cote) : journée <b>100 % abstention</b>. '
+                 'Chaque match écarté garde un pari provisoire indicatif (hors ROI). C\'est la '
+                 '<b>discipline</b> qui protège le ROI, pas un bug.')
+    else:
+        _main = (f'Sur les <b>{tot} matchs analysés aujourd\'hui</b>, <b>{pj}</b> {_had} de la '
+                 f'<b>VALUE</b> (proba ≥ 65 % ET marge réelle sur la cote){_only}. '
+                 f'Les <b>{ab}</b> autres = <b>favoris sans marge</b> → <b>abstention</b> (chacun garde un '
+                 'pari provisoire indicatif, hors ROI). C\'est la <b>discipline</b> qui protège le ROI, '
+                 'pas un bug.')
+    # « Joués » ≠ « à venir » : DIT explicitement s'il reste des paris à PLACER (sinon l'utilisateur croit
+    # à tort qu'il manque des paris — cf. les 2 matchs du jour déjà joués la nuit). Demande user 2026-07-17.
+    if pj == 0:
+        _tocome = ""
+    elif upc == 0:
+        _tocome = (' <b>⚠️ Rien à jouer maintenant</b> : ces matchs du jour sont déjà <b>joués / en cours</b> '
+                   '(souvent la nuit). Les <b>prochains paris à placer</b> apparaissent dans l\'onglet '
+                   '<b>« À venir »</b>.')
+    else:
+        _tocome = (f' Dont <b>{upc}</b> encore <b>à venir</b> — à retrouver dans l\'onglet <b>« À venir »</b> ; '
+                   'les autres sont déjà en cours ou terminés.')
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Sélectivité du jour '
-        '<span>matchs analysés</span></div>'
+        '<span>matchs du jour</span></div>'
         '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi sx-pos"><b>{pj}</b><span>paris à jouer</span></div>'
+        f'<div class="sx-kpi sx-pos"><b>{pj}</b><span>paris joués</span></div>'
         f'<div class="sx-kpi"><b class="sx-gold">{ab}</b><span>abstentions</span></div>'
         f'<div class="sx-kpi"><b>{pct}%</b><span>de sélection</span></div>'
         '</div>'
-        '<div class="sx-data-note">Un pari n\'est retenu que s\'il a de la <b>VALUE</b> (proba ≥ 65 % ET '
-        'marge réelle sur la cote). Une journée de <b>favoris à cotes courtes</b> (ex. WNBA / tennis serré) '
-        '= beaucoup d\'abstentions — chacune reçoit un <b>pari provisoire</b> indicatif (le meilleur angle, '
-        'hors ROI). C\'est la discipline qui protège le ROI, pas un bug.</div></div>')
+        f'<div class="sx-data-note">{_main}{_tocome}</div></div>')
 
 
 def _combo_daily_card() -> str:
