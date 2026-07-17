@@ -742,7 +742,10 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     cfi = int(round(cf))
     _RED = "linear-gradient(90deg,#b23b3b,#ff6b6b)"
     _AMB = "linear-gradient(90deg,#c9902f,#f6c54a)"
-    _GRN = "linear-gradient(90deg,#6f9e1f,#a6e22e)"
+    # VERT ÉMERAUDE (demande user 2026-07-18 : « la couleur du OUI ») = #64cd8d, remplace le lime #a6e22e
+    # sur la confiance + les barres verdict. Dégradé barre : émeraude foncé -> #64cd8d.
+    _GRN_C = "#64cd8d"
+    _GRN = "linear-gradient(90deg,#2f9d63,#64cd8d)"
     # couleur du % + dégradé de barre + qualificatif. Un COMBINÉ (calibrated=False) a une proba
     # STRUCTURELLEMENT plus basse (produit de jambes, cote ≥1.95) -> échelle de mots/couleurs DÉDIÉE pour
     # ne pas afficher « Faible » en rouge sur le pari phare du jour. Simples : mêmes seuils que _conf_word.
@@ -752,18 +755,18 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
         elif cfi < 68:
             col, grad, word = "#f6c54a", _AMB, "Modérée"
         elif cfi < 80:
-            col, grad, word = "#a6e22e", _GRN, "Élevée"
+            col, grad, word = _GRN_C, _GRN, "Élevée"
         else:
-            col, grad, word = "#a6e22e", _GRN, "Très élevée"
+            col, grad, word = _GRN_C, _GRN, "Très élevée"
     else:
         if cfi < 38:
             col, grad, word = "#ff6b6b", _RED, "Audacieux"
         elif cfi < 52:
             col, grad, word = "#f6c54a", _AMB, "Équilibré"
         elif cfi < 62:
-            col, grad, word = "#a6e22e", _GRN, "Solide"
+            col, grad, word = _GRN_C, _GRN, "Solide"
         else:
-            col, grad, word = "#a6e22e", _GRN, "Très solide"
+            col, grad, word = _GRN_C, _GRN, "Très solide"
     vcls = "vpos" if ep >= 3 else "vmid" if ep >= 0 else "vneg"
     mark = f'<b class="vb-mark" style="left:{be}%"></b>' if 0 < be < 100 else ""
     # GRILLE de métriques (pleine largeur, colonnes alignées). Marché toujours ; Value sauf combiné à EV<0

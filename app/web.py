@@ -3615,7 +3615,7 @@ def _conf_hue(p: int) -> tuple:
         return ("#ff6b6b", "linear-gradient(90deg,#b23b3b,#ff6b6b)")
     if p < 68:
         return ("#f6c54a", "linear-gradient(90deg,#c9902f,#f6c54a)")
-    return ("#a6e22e", "linear-gradient(90deg,#6f9e1f,#a6e22e)")
+    return ("#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)")   # vert émeraude « OUI » (demande user 2026-07-18)
 
 
 def _conf_word(p: int) -> str:
