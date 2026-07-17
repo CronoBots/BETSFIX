@@ -698,7 +698,8 @@ def _verdict_notes(md: str) -> tuple[list, str]:
     return notes, resid_html
 
 
-def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False) -> str:
+def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False,
+                 hide_neg_value: bool = False) -> str:
     """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE). Refonte 2026-07-18
     (demande user « réorganise tout : aligné, pleine largeur, que l'utile et l'intuitif ») :
       (1) en-tête CONFIANCE = qualificatif + % coloré (par niveau) ;
@@ -708,7 +709,8 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     conf -> récit exact). `with_cote` -> ajoute la colonne Cote (cartes de simple/combiné ; PAS les jambes,
     qui montrent déjà @cote). '' si données insuffisantes. Classes CSS `.vb-*`/`.vm-*` (cf. web.py). Seuils
     couleur/mot alignés sur web._conf_hue/_conf_word. Value colorée (vert ≥+3, ambre 0..3, rouge <0) ;
-    masquée sur un combiné (calibrated=False) à EV<0 = pari fiabilité, pas value (règle « 💎 si EV+ »)."""
+    masquée si EV<0 sur un combiné (calibrated=False, pari fiabilité) OU un provisoire (hide_neg_value=True,
+    pari indicatif hors ROI — pas un value bet) : règle « 💎 si EV+ », pas de rouge décourageant."""
     try:
         cv = float(cote); cf = float(conf); ep = int(round(ev))
     except (TypeError, ValueError):
@@ -752,7 +754,7 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
              f'<span class="vm-v" style="color:{col}">{cfi}%</span>'
              f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>',
              f'<div class="vm-cell"><span class="vm-l">Marché</span><span class="vm-v">{be}%</span></div>']
-    if calibrated or ep >= 0:
+    if ep >= 0 or (calibrated and not hide_neg_value):
         cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>'
                      f'<span class="vm-v {vcls}">{"+" if ep >= 0 else ""}{ep}%</span></div>')
     if with_cote:

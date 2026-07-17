@@ -3783,14 +3783,16 @@ def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     return analyses.pretty_sel(sel, home, away)
 
 
-def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calibrated: bool = True) -> str:
+def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calibrated: bool = True,
+                   hide_neg_value: bool = False) -> str:
     """Bloc VERDICT UNIFIÉ (demande user 2026-07-17 « tout doit être identique sur les autres types de
     paris ») = ligne verdict PARTAGÉE `analyses.verdict_line` (« Marché XX% · Notre confiance YY% ✓calibré
     → Value ±Z% », value = héros coloré) + pied (mention/ré-analyse + grosse cote). Remplace l'ancienne
     barre « CONFIANCE » (_verdict_strip). UTILISÉ PAR TOUTES les cartes — simple retenu, provisoire,
     combiné du jour -> rendu STRICTEMENT identique. `conf` = confiance déjà CALIBRÉE (comme partout) ;
     `foot_txt` = mention déjà échappée + icône (🔄/🎯) ou "" ; `cote_html` = grosse cote (repli si pas de
-    confiance calculable). Purement AFFICHAGE. `calibrated=False` pour un combiné (proba corrélée du marché)."""
+    confiance calculable). Purement AFFICHAGE. `calibrated=False` pour un combiné (proba corrélée du marché) ;
+    `hide_neg_value=True` pour un provisoire (indicatif hors ROI) -> cache la colonne Value si négative."""
     _vl = ""
     try:
         c = float(cote)
@@ -3801,7 +3803,8 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
             ev = round((float(conf) / 100.0 * c - 1) * 100)
             # La COTE est désormais une COLONNE de la grille verdict (with_cote) -> pleine largeur, alignée,
             # plus de cote isolée qui flotte. Elle n'apparaît que si la carte a bien une cote à montrer.
-            _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated, with_cote=bool(cote_html))
+            _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated, with_cote=bool(cote_html),
+                                        hide_neg_value=hide_neg_value)
         except (TypeError, ValueError):
             _vl = ""
     # LAYOUT (refonte 2026-07-18, demande user « réorganise tout : aligné, pleine largeur ») : le bloc verdict
@@ -4013,7 +4016,8 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             sub = ('<div class="mc-div"></div>'
                    + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
                    + _gloss
-                   + _verdict_block(_cote, _cpc, f'🔄 {html.escape(_reana)}', _cote_big, calibrated=True))
+                   + _verdict_block(_cote, _cpc, f'🔄 {html.escape(_reana)}', _cote_big, calibrated=True,
+                                    hide_neg_value=True))   # provisoire (indicatif) : pas de Value rouge
         else:
             # Match SANS provisoire et NON analysé (pas de statut de value). Deux cas :
             #  • heure d'analyse (KO − 1 h) ENCORE À VENIR -> on annonce « Analyse à HH:MM » (légitime).
