@@ -4295,6 +4295,55 @@ def _combo_tg_card(include_settled: bool = True) -> str:
         + '</div></div></div>')
 
 
+def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
+    """Contenu PREMIUM d'une carte COMBINÉ RETENU (ROI), présenté COMME les provisoires / le combiné du
+    jour (demande user 2026-07-18 : « tous les types de paris présentés comme les provisoires ») : le
+    SIMPLE retenu (si présent) en pick + ligne verdict, PUIS le combiné = synthèse + jambes (cartes de
+    simple via `_leg_card`) + ligne VERDICT (cote corrélée · confiance · value). Rendu STRICTEMENT aligné
+    sur `_combo_tg_card`. Purement AFFICHAGE (le combiné garde son règlement/ROI inchangés). '' si pas de
+    combiné exploitable dans le sidecar."""
+    m = analyses.meta(sport, mid) or {}
+    combo = (m.get("combo") or {})
+    legs = combo.get("legs") or []
+    if not legs:
+        return ""
+    out = ""
+    # SIMPLE retenu ADDITIONNEL (cas « carte multi-paris » : un match CdM peut porter un simple retenu ET
+    # le combiné). On le montre en tête, présenté comme une carte de pari (pick gras + glose + verdict).
+    rb = analyses.retained_bet(sport, mid)
+    if rb and rb.get("sel"):
+        _ssel = rb.get("sel", "")
+        _scote = rb.get("cote")
+        _sconf = rb.get("cprob") or rb.get("prob")
+        _scb = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
+                f'<span class="mc-cote-v">{_scote:g}</span></span>'
+                if isinstance(_scote, (int, float)) and _scote else "")
+        _sgl = _bet_gloss(_ssel, sport, home, away)
+        _sgloss = f'<div class="mc-gloss"><span class="ar">↳</span>{html.escape(_sgl)}</div>' if _sgl else ""
+        out += ('<div class="mc-div"></div>'
+                + f'<div class="mc-pick">{html.escape(_pretty_sel(_ssel, home, away))}</div>'
+                + _sgloss
+                + _verdict_block(_scote, _sconf, '🎯 Simple · compté au ROI', _scb, calibrated=True))
+    # COMBINÉ : synthèse EN TÊTE puis jambes (cartes de simple) puis ligne verdict — IDENTIQUE au combiné du
+    # jour. Cote = VRAIE cote corrélée Unibet (real_odds) sinon produit (total) ; confiance = proba corrélée
+    # (calibrated=False, comme _combo_tg_card). Jambes same-match -> on injecte sport/équipes, nom vide (le
+    # match est déjà en tête de la carte parent -> pas de répétition dans le badge de jambe).
+    _cote = combo.get("real_odds") or combo.get("total")
+    _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
+                 f'<span class="mc-cote-v">{_cote:g}</span></span>'
+                 if isinstance(_cote, (int, float)) and _cote else "")
+    _pconf = combo.get("prob")
+    _syn = _clean_cap(combo.get("why"), 210)
+    _note = f'<div class="mc-note">{html.escape(_syn)}</div>' if _syn else ""
+    _legs = [{**l, "sport": sport, "home": home, "away": away, "name": ""} for l in legs]
+    _tag = ('<div class="mc-prov-tag">🎲 COMBINÉ'
+            f'<span> · {len(legs)} jambes</span></div>')
+    out += ('<div class="mc-div"></div>' + _tag + _note
+            + f'<div class="mc-combo-legs">{"".join(_leg_card(l, why=True) for l in _legs)}</div>'
+            + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False))
+    return out
+
+
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
@@ -5348,9 +5397,14 @@ def _sport_row(r: dict) -> str:
     # (confiance colorée + cote), EXACTEMENT comme une carte provisoire. Les cas live/terminé/combiné/
     # abstention gardent leur affichage adapté (résultat, score, compact…).
     _premium = ""
+    _uid = re.search(r"/(\d+)", url)
+    _pmid = _uid.group(1) if _uid else None
+    # COMBINÉ RETENU (ROI) À VENIR : présenté COMME les provisoires / le combiné du jour (jambes = cartes
+    # de simple + ligne verdict). Miroir strict du premium des simples (à venir uniquement : le live garde
+    # son scoreboard, le terminé son résultat). Couvre aussi le cas « multi-paris » (simple + combiné).
+    if is_combo and (not is_live) and (not is_finished) and sport_key and _pmid:
+        _premium = _combo_premium_block(sport_key, _pmid, r.get("home", ""), r.get("away", ""))
     if (not is_live) and (not is_finished) and not is_combo and len(bets3) == 1 and reco_i == 0:
-        _uid = re.search(r"/(\d+)", url)
-        _pmid = _uid.group(1) if _uid else None
         _b0 = bets3[0]
         _psel = _b0.get("sel", "")
         _pcote = _b0.get("cote")
