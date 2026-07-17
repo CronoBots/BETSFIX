@@ -443,6 +443,27 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     if not s:
         return s
     low = s.lower()
+    # +0.5 SUR UNE ÉQUIPE = « ne perd pas » = DOUBLE CHANCE (foot). On UNIFORMISE vers la forme double chance
+    # pour qu'un « <équipe> +0.5 (ne perd pas / DC 1X) » et un « Double chance 1X (… ou nul) » s'affichent À
+    # L'IDENTIQUE partout — titre ET glose (demande user 2026-07-17 : « uniformiser ce genre de paris »). On ne
+    # convertit QUE si le contexte est bien une double chance (annotation DC / 1X / X2 / « ne perd pas ») -> ne
+    # touche pas un +0.5 tennis/basket (= victoire, pas de nul). PUREMENT AFFICHAGE (le `sel` stocké intact).
+    _m05 = re.search(r"^(.*?)\s*\+\s?0[.,]5\b", s)
+    if _m05 and re.search(r"\bdc\b|double chance|ne perd pas|\b1x\b|\bx2\b", low):
+        _t05 = _m05.group(1).strip(" -–—()·:")
+        if _t05:
+            if re.search(r"\bx2\b", low):
+                _c05 = "X2"
+            elif re.search(r"\b1x\b", low):
+                _c05 = "1X"
+            else:                                       # pas de code explicite -> déduire du camp cité
+                _tok05 = lambda nm: [t for t in re.findall(r"[a-zà-ÿ0-9]+", (nm or "").lower()) if len(t) >= 3]
+                _c05 = ("1X" if any(t in _t05.lower() for t in _tok05(home))
+                        else "X2" if any(t in _t05.lower() for t in _tok05(away)) else "1X")
+            if home and away:
+                _e05 = {"1X": f"{home} ou nul", "X2": f"{away} ou nul"}[_c05]
+                return f"Double chance {_c05} ({_e05})"
+            return f"Double chance {_c05}"
     # HANDICAP d'équipe : normaliser l'AFFICHAGE vers UNE forme unique « Handicap <type> <équipe> <±N> »
     # (demande user 2026-07-14 : « Handicap St Johnstone -1.5 » et « Partick -1.5 (handicap) » = MÊME pari,
     # 2 écritures). Le TYPE n'est PAS toujours « asiatique » (correctif demande user 2026-07-16) :
