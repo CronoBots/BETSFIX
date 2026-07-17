@@ -604,6 +604,10 @@ CSS = """
      padding-right pour libérer le chevron en bas à droite. */
   .mc-sub{margin-top:6px;padding-right:20px}
   .mc-open .mc-sub{display:none}
+  /* Cartes telegram/premium (.mc-tg) : le chevron est MASQUÉ (cf. .mc-tg .mc-chev) -> pas besoin de la
+     réserve à droite ; on l'annule pour que la barre de confiance + la grille (Confiance/Marché/Value/Cote)
+     prennent TOUTE la largeur, symétriques gauche/droite (demande user 2026-07-18 : « espace à droite »). */
+  .mc-tg .mc-sub{padding-right:0}
   /* LIVE (demande user 2026-07-12) : intitulé du pari sur UNE seule ligne (ellipsis) + scoreboard des
      résultats juste en dessous, visible dans la carte repliée. */
   .mc-islive .mc-sub .mc-betl{flex-wrap:nowrap}
