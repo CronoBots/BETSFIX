@@ -1212,6 +1212,13 @@ async def _settle_analyses_impl() -> int:
     try:
         for side, d in pending:
             sport = d.get("sport")
+            # GARDE DURE « match non commencé » (bug 2026-07-17 : Tijuana-Tigres marqué « gagné » AVANT le
+            # coup d'envoi). Le gate de `pending` filtre déjà, mais une source de score matchée par NOMS peut
+            # renvoyer le score d'une rencontre ANTÉRIEURE entre les mêmes équipes -> ceinture + bretelles :
+            # si l'horloge dit encore « à venir », on N'ÉCRIT AUCUN résultat (aucun règlement n'est possible
+            # avant le coup d'envoi). Aligne le chemin principal sur le garde-fou provisoire (provisional.py).
+            if analyses.status_of(d) == "notstarted":
+                continue
             # État AVANT règlement (lu du disque) -> dédup naturel : un re-règlement (bump de version)
             # ne re-notifie pas, l'ancien résultat n'étant plus None.
             prev_pick = (d.get("result") or {}).get("pick_result")

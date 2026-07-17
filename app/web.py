@@ -3748,47 +3748,30 @@ def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     return analyses.pretty_sel(sel, home, away)
 
 
-def _verdict_strip(pconf, cote_html: str, foot_txt: str = "", cote=None) -> str:
-    """Bande VERDICT (demande user 2026-07-13) : confiance (qualificatif + % coloré par niveau + barre) À
-    GAUCHE, cote À DROITE -> les 2 chiffres clés lus ENSEMBLE. Repli sur l'ancien pied simple (reana +
-    cote) si aucune confiance. `foot_txt` = la mention de ré-analyse. `cote` (valeur num.) -> affiche la
-    VALUE/EDGE vs le marché (demande user 2026-07-14 : optimiser la partie SOUS le pari). Purement AFFICHAGE."""
-    try:
-        p = int(pconf)
-    except (TypeError, ValueError):
-        p = 0
-    if not p:
-        return (f'<div class="mc-foot"><span class="mc-reana mc-reana-prov">{foot_txt}</span>{cote_html}</div>'
-                if (foot_txt or cote_html) else "")
-    col, grad = _conf_hue(p)
-    # VALUE vs MARCHÉ : proba implicite du book (1/cote) posée en MARQUEUR sur la barre — notre confiance qui
-    # LA DÉPASSE = edge VISUEL. + ligne « 💎 +X% de value » (EV = proba×cote−1). C'est l'info clé d'un bon
-    # pari (edge), pas seulement la confiance brute.
-    _mark = _valline = ""
+def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calibrated: bool = True) -> str:
+    """Bloc VERDICT UNIFIÉ (demande user 2026-07-17 « tout doit être identique sur les autres types de
+    paris ») = ligne verdict PARTAGÉE `analyses.verdict_line` (« Marché XX% · Notre confiance YY% ✓calibré
+    → Value ±Z% », value = héros coloré) + pied (mention/ré-analyse + grosse cote). Remplace l'ancienne
+    barre « CONFIANCE » (_verdict_strip). UTILISÉ PAR TOUTES les cartes — simple retenu, provisoire,
+    combiné du jour -> rendu STRICTEMENT identique. `conf` = confiance déjà CALIBRÉE (comme partout) ;
+    `foot_txt` = mention déjà échappée + icône (🔄/🎯) ou "" ; `cote_html` = grosse cote. Purement AFFICHAGE.
+    `calibrated=False` pour un combiné (proba corrélée du marché, pas calibrée sur l'historique)."""
+    _vl = ""
     try:
         c = float(cote)
     except (TypeError, ValueError):
         c = 0.0
-    if c and c > 1:
-        imp = round(100 / c)
-        ev = round((p / 100.0 * c - 1) * 100)
-        if 0 < imp < 100:
-            _mark = f'<b class="mc-vmark" style="left:{imp}%"></b>'
-        # Ligne value affichée UNIQUEMENT si POSITIVE (💎) : un pari SANS edge (provisoire/abstention) ne doit
-        # PAS étaler un « -X% de value » décourageant sur notre propre sélection (demande user 2026-07-14,
-        # « pas satisfait »). Le marqueur marché sur la barre (à droite du remplissage) montre déjà le déficit,
-        # discrètement. Le 💎 devient un LABEL DE QUALITÉ : présent = vrai value bet.
-        if ev > 0:
-            _valline = (f'<div class="mc-vc-val pos">💎 +{ev}% de value'
-                        f'<span class="mc-vc-mk"> · marché {imp}%</span></div>')
-    _foot = f'<div class="mc-vc-foot">{foot_txt}</div>' if foot_txt else ""
-    return (
-        '<div class="mc-verdict"><div class="mc-vc">'
-        f'<div class="mc-vc-lab"><span>CONFIANCE</span>'
-        f'<span class="mc-vc-pct" style="color:{col}">'
-        f'<span class="mc-vc-word">{_conf_word(p)}</span>{p}%</span></div>'
-        f'<div class="mc-vbar">{_mark}<i style="width:{min(p, 100)}%;background:{grad}"></i></div>'
-        f'{_valline}{_foot}</div>{cote_html}</div>')
+    if c > 1 and conf is not None:
+        try:
+            ev = round((float(conf) / 100.0 * c - 1) * 100)
+            _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated)
+        except (TypeError, ValueError):
+            _vl = ""
+    _foot = ""
+    if foot_txt or cote_html:
+        _rn = f'<span class="mc-reana mc-reana-prov">{foot_txt}</span>' if foot_txt else ""
+        _foot = f'<div class="mc-foot">{_rn}{cote_html}</div>'
+    return _vl + _foot
 
 
 def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:
@@ -3975,21 +3958,19 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # « Marché XX% · Notre confiance YY% ✓calibré → Value ±Z% ». Confiance CALIBRÉE (comme partout).
             # Bonus : sur une abstention la value est souvent NÉGATIVE -> elle EXPLIQUE l'abstention (notre
             # confiance sous le seuil du marché), au lieu de l'ancienne barre « CONFIANCE » qui la survendait.
-            _vl = ""
-            if _cote and _pconf is not None:
+            # Confiance CALIBRÉE (comme partout) pour la ligne verdict PARTAGÉE (_verdict_block) -> rendu
+            # STRICTEMENT identique aux cartes de pari simple / combiné du jour.
+            _cpc = _pconf
+            if _pconf is not None:
                 try:
                     from app.settle_analyst import code_from_pick as _cfp
                     _cpc = analyses.calibrated_conf(_pconf, sp, _cfp(prov_sel, sp, home, away))
                 except Exception:
                     _cpc = _pconf
-                if _cpc is not None:
-                    _ev = round((_cpc / 100.0 * float(_cote) - 1) * 100)
-                    _vl = analyses.verdict_line(_cote, _cpc, _ev, calibrated=True)
             sub = ('<div class="mc-div"></div>'
                    + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
-                   + _gloss + _vl
-                   + f'<div class="mc-foot"><span class="mc-reana mc-reana-prov">🔄 {html.escape(_reana)}</span>'
-                   + f'{_cote_big}</div>')
+                   + _gloss
+                   + _verdict_block(_cote, _cpc, f'🔄 {html.escape(_reana)}', _cote_big, calibrated=True))
         else:
             # Match SANS provisoire et NON analysé (pas de statut de value). Deux cas :
             #  • heure d'analyse (KO − 1 h) ENCORE À VENIR -> on annonce « Analyse à HH:MM » (légitime).
@@ -4263,7 +4244,7 @@ def _combo_tg_card(include_settled: bool = True) -> str:
         '<div class="mc-div"></div>'
         + _note                                            # synthèse EN TÊTE (présentation Telegram)
         + f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
-        + _verdict_strip(_pconf, _cote_big, '🎯 Compté au ROI · mise 1 u', cote=cb.get('cote'))
+        + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False)
         + '</div></div></div>')
 
 
@@ -5346,9 +5327,12 @@ def _sport_row(r: dict) -> str:
             _foot = f'🔄 Ré-analyse à {e(_hhmm)}'
         # Filet fin teams↔pari (comme les provisoires) : sépare « quel match » de « quel pari ».
         _psel_disp = _pretty_sel(_psel, r.get("home", ""), r.get("away", ""))
+        # LIGNE VERDICT IDENTIQUE aux cartes provisoires / table de paris (demande user 2026-07-17 « tout
+        # doit être identique sur les autres types de paris ») : « Marché XX% · Notre confiance YY% ✓calibré
+        # → Value ±Z% » + pied (ré-analyse + grosse cote). `_pconf` = confiance déjà CALIBRÉE (cprob priorisée).
         _premium = ('<div class="mc-div"></div>'
                     + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
-                    + _verdict_strip(_pconf, _cote_big, _foot, cote=_pcote))
+                    + _verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True))
     if _premium:
         line3 = _premium
     else:

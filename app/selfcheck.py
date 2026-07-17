@@ -179,12 +179,16 @@ def _check_odds_prob_sanity(rows) -> dict:
 
 def _check_settle_not_on_live(rows) -> dict:
     """Un pari NE DOIT PAS être réglé tant que le match n'est pas TERMINÉ. Proxy robuste sans source live :
-    un résultat posé alors que le COUP D'ENVOI est encore dans le futur est forcément faux."""
+    un résultat posé alors que le COUP D'ENVOI est encore dans le futur est forcément faux (source de score
+    matchée par NOMS sur une rencontre ANTÉRIEURE entre les mêmes équipes -> bug 2026-07-17 Tijuana-Tigres
+    « gagné » AVANT le coup d'envoi). ⚠️ FIX 2026-07-17 : le sidecar principal range le règlement dans des
+    SOUS-champs (`result.pick_result`, `stat_bet.result`, `bets[].result`, `combo.result`), PAS dans un
+    `result` string -> l'ancien test `d.get("result") in (...)` (un DICT, jamais dans le tuple) ne voyait
+    RIEN et laissait passer tout règlement prématuré du chemin principal. On inspecte les vrais champs."""
     now = datetime.now(timezone.utc)
+    _S = ("won", "lost", "push", "void")
     bad = []
     for p, d in rows:
-        if d.get("result") not in ("won", "lost", "push", "void"):
-            continue
         st = d.get("start")
         if not st:
             continue
@@ -194,9 +198,20 @@ def _check_settle_not_on_live(rows) -> dict:
                 dt = dt.replace(tzinfo=timezone.utc)
         except Exception:
             continue
-        if dt > now:
-            bad.append(f"{d.get('sport')} {d.get('home','?')}–{d.get('away','?')} réglé '{d['result']}' "
-                       f"mais coup d'envoi {st} (futur)")
+        if dt <= now:
+            continue                                 # match commencé -> règlement légitime
+        hits = []                                    # coup d'envoi FUTUR : aucun champ de règlement admis
+        if (d.get("result") or {}).get("pick_result") in _S:
+            hits.append("result")
+        if (d.get("stat_bet") or {}).get("result") in ("won", "lost", "push"):
+            hits.append("stat_bet")
+        if any((b or {}).get("result") in _S for b in (d.get("bets") or [])):
+            hits.append("bets")
+        if (d.get("combo") or {}).get("result") in ("won", "lost"):
+            hits.append("combo")
+        if hits:
+            bad.append(f"{d.get('sport')} {d.get('home','?')}–{d.get('away','?')} : "
+                       f"{'/'.join(hits)} réglé(s) mais coup d'envoi {st} (futur)")
     return {"key": "settle_not_on_live", "level": "error" if bad else "ok",
             "title": "Aucun règlement avant la fin du match",
             "detail": f"{len(bad)} pari(s) réglé(s) sur un match pas encore commencé.",
