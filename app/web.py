@@ -1814,6 +1814,8 @@ CSS = """
   .cleg-sep{color:var(--dim)}
   .cleg-bdg{flex:none;font-size:10px;font-weight:900;padding:2px 7px;border-radius:7px;white-space:nowrap}
   .cleg-bdg.p{background:rgba(232,184,74,.16);color:var(--gold)}
+  /* Badge HEURE d'une jambe à venir : MÊME couleur neutre que les provisoires (.mc-up) — demande user. */
+  .cleg-bdg.up{background:rgba(255,255,255,.06);color:var(--muted)}
   .cleg-bdg.w{background:rgba(52,210,123,.18);color:#34d27b}
   .cleg-bdg.l{background:rgba(255,107,107,.16);color:#ff6b6b}
   .cleg-bdg.n{background:rgba(144,164,190,.16);color:#90a4be}
@@ -4274,7 +4276,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                 _hh = fmt_local(_dtv, with_date=False) if _dtv else ""
             except Exception:
                 _hh = ""
-            _btxt, _bcls = (_hh or "À VENIR"), "p"
+            _btxt, _bcls = (_hh or "À VENIR"), "up"   # badge heure NEUTRE, comme les provisoires
     else:
         _btxt, _bcls = _bmap.get(_res, ("À VENIR", "p"))
     # gloss = explication EN CLAIR du marché (identique aux cartes de simple) ; + score final si réglé.
