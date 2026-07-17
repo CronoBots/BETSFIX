@@ -3642,9 +3642,19 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     m = re.search(r"([+\-−–])\s?(\d+(?:[.,]\d+)?)\s*(?:\([^)]*\))?\s*$", s)
     if m:
         val = float(m.group(2).replace(",", "."))
-        if m.group(1) in ("-", "−", "–"):
+        neg = m.group(1) in ("-", "−", "–")
+        # LIGNE 0.5 = « draw no bet / double chance » : cas le PLUS courant, à formuler EN CLAIR (le générique
+        # « ne perd pas de plus de 0 buts » n'a aucun sens — bug vu 2026-07-17 sur « Londrina +0.5 »). En foot
+        # (nul possible) : +0.5 = ne perd pas (gagne ou nul), -0.5 = doit gagner. Tennis/basket (pas de nul) :
+        # +0.5 comme -0.5 reviennent à gagner le match.
+        if val == 0.5:
+            if sport == "foot":
+                return "gagne le match" if neg else "gagne ou match nul (ne perd pas)"
+            return "gagne le match"
+        if neg:
             return f"gagne de {math.ceil(val)} {_u(math.ceil(val))} ou plus"
-        return f"ne perd pas de plus de {math.floor(val)} {_u(math.floor(val))} (ou l'emporte)"
+        n = math.floor(val)
+        return f"ne perd pas de plus de {n} {_u(n)} (nul ou victoire inclus)"
     # ÉQUIPE MARQUE : « <équipe> - Plus/Moins de X.5 (buts) » -> AVANT le total du match (sinon capté à tort
     # comme total des 2 équipes). Détecté par le tiret séparateur « <nom> - plus/moins ».
     meq = re.search(r"^(.*?)\s[-–—]\s.*?\b(plus|moins) de (\d+(?:[.,]\d+)?)", s, re.I)
