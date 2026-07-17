@@ -549,63 +549,53 @@ _combo_legs_html = web.combo_legs_html   # rendu UNIFIÉ (accueil/Stats/Live) �
 
 
 def _selectivity_card() -> str:
-    """Petit bloc « Sélectivité du jour » : combien de matchs analysés aujourd'hui ont donné un PARI À
-    JOUER (value) vs une ABSTENTION (favori sans marge -> provisoire indicatif). Rend visible, d'un coup
-    d'œil, que « beaucoup d'abstentions » = une période de matchs sans value (normal, discipline), pas un
-    bug. '' si aucun match analysé aujourd'hui."""
+    """Petit bloc « Sélectivité du jour » : sur les matchs du jour ENCORE À JOUER (coup d'envoi pas passé
+    ou en cours), combien donnent un PARI À JOUER (value) vs une ABSTENTION (favori sans marge -> provisoire
+    indicatif). Reflet du scan de 09h : les matchs DÉJÀ TERMINÉS (ex. joués la nuit) sont EXCLUS -> le
+    compteur « à jouer » ne montre que ce qu'il reste réellement à jouer aujourd'hui (demande user
+    2026-07-17). Rend visible que « beaucoup d'abstentions » = discipline, pas un bug. '' si plus rien à
+    jouer aujourd'hui (tous les matchs du jour terminés)."""
     import glob
     import os
     import datetime as _dt
     day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
-    pj = ab = upc = 0
+    pj = ab = 0
     for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
         d = analyses._meta_load(p)
         if not d or (d.get("start") or "")[:10] != day:
             continue
+        if analyses.status_of(d) == "finished":     # match du jour DÉJÀ JOUÉ -> hors « à jouer aujourd'hui »
+            continue
         if d.get("bets"):
             pj += 1
-            if analyses.status_of(d) == "notstarted":   # pari joué ENCORE à venir (coup d'envoi pas passé)
-                upc += 1
         else:
             ab += 1
     tot = pj + ab
     if tot == 0:
         return ""
     pct = round(100 * pj / tot)
-    # Phrase « value » accordée en nombre.
-    _had = "avait" if pj == 1 else "avaient"
-    _only = " — le seul joué" if pj == 1 else (" — les seuls joués" if pj > 1 else "")
+    _ont = "a" if pj == 1 else "ont"
     if pj == 0:
-        _main = (f'Sur les <b>{tot} matchs analysés aujourd\'hui</b>, <b>aucun</b> n\'avait de '
-                 '<b>VALUE</b> (proba ≥ 65 % ET marge réelle sur la cote) : journée <b>100 % abstention</b>. '
-                 'Chaque match écarté garde un pari provisoire indicatif (hors ROI). C\'est la '
-                 '<b>discipline</b> qui protège le ROI, pas un bug.')
+        _main = (f'Aucun des <b>{tot} matchs encore à jouer aujourd\'hui</b> n\'a de <b>VALUE</b> '
+                 '(proba ≥ 65 % ET marge réelle sur la cote) : <b>rien à jouer pour l\'instant</b>, que des '
+                 '<b>abstentions</b> (favoris sans marge, chacun garde un pari provisoire indicatif hors ROI). '
+                 'C\'est la <b>discipline</b> qui protège le ROI, pas un bug. Un pari s\'affichera dans '
+                 '<b>« À venir »</b> dès qu\'un match aura de la value.')
     else:
-        _main = (f'Sur les <b>{tot} matchs analysés aujourd\'hui</b>, <b>{pj}</b> {_had} de la '
-                 f'<b>VALUE</b> (proba ≥ 65 % ET marge réelle sur la cote){_only}. '
-                 f'Les <b>{ab}</b> autres = <b>favoris sans marge</b> → <b>abstention</b> (chacun garde un '
-                 'pari provisoire indicatif, hors ROI). C\'est la <b>discipline</b> qui protège le ROI, '
+        _main = (f'Sur les <b>{tot} matchs encore à jouer aujourd\'hui</b>, <b>{pj}</b> {_ont} de la '
+                 f'<b>VALUE</b> (proba ≥ 65 % ET marge réelle sur la cote) → <b>à jouer</b> (onglet '
+                 f'<b>« À venir »</b>). Les <b>{ab}</b> autres = <b>favoris sans marge</b> → <b>abstention</b> '
+                 '(pari provisoire indicatif, hors ROI). C\'est la <b>discipline</b> qui protège le ROI, '
                  'pas un bug.')
-    # « Joués » ≠ « à venir » : DIT explicitement s'il reste des paris à PLACER (sinon l'utilisateur croit
-    # à tort qu'il manque des paris — cf. les 2 matchs du jour déjà joués la nuit). Demande user 2026-07-17.
-    if pj == 0:
-        _tocome = ""
-    elif upc == 0:
-        _tocome = (' <b>⚠️ Rien à jouer maintenant</b> : ces matchs du jour sont déjà <b>joués / en cours</b> '
-                   '(souvent la nuit). Les <b>prochains paris à placer</b> apparaissent dans l\'onglet '
-                   '<b>« À venir »</b>.')
-    else:
-        _tocome = (f' Dont <b>{upc}</b> encore <b>à venir</b> — à retrouver dans l\'onglet <b>« À venir »</b> ; '
-                   'les autres sont déjà en cours ou terminés.')
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Sélectivité du jour '
-        '<span>matchs du jour</span></div>'
+        '<span>matchs restants</span></div>'
         '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi sx-pos"><b>{pj}</b><span>paris joués</span></div>'
+        f'<div class="sx-kpi sx-pos"><b>{pj}</b><span>à jouer</span></div>'
         f'<div class="sx-kpi"><b class="sx-gold">{ab}</b><span>abstentions</span></div>'
         f'<div class="sx-kpi"><b>{pct}%</b><span>de sélection</span></div>'
         '</div>'
-        f'<div class="sx-data-note">{_main}{_tocome}</div></div>')
+        f'<div class="sx-data-note">{_main}</div></div>')
 
 
 def _combo_daily_card() -> str:
