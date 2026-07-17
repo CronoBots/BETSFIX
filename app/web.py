@@ -2158,6 +2158,15 @@ CSS = """
   .vb-mk .di{color:#e6eefa}
   .vb-cap-hint{opacity:.75}
   .vb-cap-hint::before{content:"·";margin-right:6px;color:#5a6b82}
+  /* 2 colonnes : bloc verdict (gauche) + grosse COTE centrée verticalement (droite) -> plus de vide. */
+  .vb-wrap{display:flex;align-items:center;gap:16px;margin-top:11px}
+  .vb-main{flex:1;min-width:0}
+  .vb-main .vb{margin-top:0}
+  .vb-reana{margin-top:9px;font-size:10px;font-weight:600;color:#7f93aa}
+  .vb-cote-col{flex:none;display:flex;align-items:center}
+  .vb-cote-col .mc-cote{position:relative;padding-left:16px}
+  .vb-cote-col .mc-cote::before{content:"";position:absolute;left:0;top:2px;bottom:2px;width:1px;
+       background:linear-gradient(180deg,transparent,rgba(255,255,255,.14),transparent)}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
   .tkt-value.vpos{color:#08180e;background:linear-gradient(180deg,#4be39b,#22c07d);
@@ -3791,11 +3800,16 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
             _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated)
         except (TypeError, ValueError):
             _vl = ""
-    _foot = ""
-    if foot_txt or cote_html:
-        _rn = f'<span class="mc-reana mc-reana-prov">{foot_txt}</span>' if foot_txt else ""
-        _foot = f'<div class="mc-foot">{_rn}{cote_html}</div>'
-    return _vl + _foot
+    # LAYOUT (refonte 2026-07-18) : la grosse COTE passe À DROITE du bloc verdict, centrée verticalement
+    # (au lieu de flotter tout en bas de la carte avec un grand vide au-dessus). La mention (ré-analyse /
+    # « compté au ROI ») reste sous le verdict, à gauche. Sans cote -> on renvoie juste le verdict (live).
+    if not (foot_txt or cote_html):
+        return _vl
+    _rn = f'<div class="vb-reana">{foot_txt}</div>' if foot_txt else ""
+    if cote_html:
+        return (f'<div class="vb-wrap"><div class="vb-main">{_vl}{_rn}</div>'
+                f'<div class="vb-cote-col">{cote_html}</div></div>')
+    return _vl + _rn
 
 
 def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:

@@ -728,6 +728,11 @@ def verdict_line(cote, conf, ev, calibrated: bool = True) -> str:
     cal = ('<span class="vb-cal" title="Confiance calibrée sur l’historique réel des résultats">'
            '✓ calibré</span>' if calibrated else "")
     mark = f'<b class="vb-mark" style="left:{be}%"></b>' if 0 < be < 100 else ""
+    # VALUE (héros) reliée au bout de la barre. Un COMBINÉ (calibrated=False) est un pari FIABILITÉ (proba
+    # max sous cote ≥ seuil), pas un pari value : on N'AFFICHE PAS un « Value -X% » rouge alarmant s'il est
+    # négatif (cohérent avec la règle projet « 💎 seulement si EV+ ») -> la barre montre déjà l'écart marché.
+    val_pill = (f'<span class="tkt-value {vcls}">Value {"+" if ep >= 0 else ""}{ep}%</span>'
+                if (calibrated or ep >= 0) else "")
     return (
         '<div class="vb">'
         '<div class="vb-top">'
@@ -736,11 +741,11 @@ def verdict_line(cote, conf, ev, calibrated: bool = True) -> str:
         f'<span class="vb-pct" style="color:{col}">{cfi}%</span>'
         f'{cal}'
         '</div>'
-        # La VALUE (héros) est reliée au BOUT de la barre (= l'edge que la barre montre) -> plus de pill
-        # qui flotte seul sur sa ligne avec un vide au milieu. Barre flex:1, pill flex:none.
+        # La VALUE est reliée au BOUT de la barre (= l'edge que la barre montre) -> plus de pill qui flotte
+        # seul sur sa ligne avec un vide au milieu. Barre flex:1, pill flex:none.
         '<div class="vb-row">'
         f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
-        f'<span class="tkt-value {vcls}">Value {"+" if ep >= 0 else ""}{ep}%</span>'
+        f'{val_pill}'
         '</div>'
         f'<div class="vb-cap"><span class="vb-mk">◆ Marché <span class="di">{be}%</span></span>'
         '<span class="vb-cap-hint">seuil de rentabilité</span></div>'
