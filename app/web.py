@@ -1805,8 +1805,12 @@ CSS = """
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
   .cleg{background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border);
        border-left:3px solid var(--gold);border-radius:12px;padding:11px 12px 10px}
-  .cleg.won,.cleg.live{border-left-color:#34d27b}
-  .cleg.lost{border-left-color:#ff6b6b} .cleg.push{border-left-color:#90a4be}
+  /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
+     défaut) ; GAGNÉ/acquise = VERT ; PERDU = ROUGE ; ANNULÉ/remboursé (void/push) = GRIS. Le live ne doit
+     PAS être vert (il n'est pas gagné) -> il garde le doré par défaut. */
+  .cleg.won{border-left-color:#34d27b}
+  .cleg.lost{border-left-color:#ff6b6b}
+  .cleg.push,.cleg.void{border-left-color:#90a4be}
   .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
   .cleg-comp{flex:1;min-width:0;font-size:10.5px;font-weight:700;color:var(--muted);
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1819,7 +1823,8 @@ CSS = """
   .cleg-bdg.w{background:rgba(52,210,123,.18);color:#34d27b}
   .cleg-bdg.l{background:rgba(255,107,107,.16);color:#ff6b6b}
   .cleg-bdg.n{background:rgba(144,164,190,.16);color:#90a4be}
-  .cleg-bdg.live{background:rgba(52,210,123,.16);color:#5be08c}
+  /* Badge « en cours » : ORANGE (pas décidé), plus vert (demande user 2026-07-18). */
+  .cleg-bdg.live{background:rgba(232,184,74,.16);color:var(--gold)}
   /* Équipes de la jambe sur leur propre ligne, en gros — comme les provisoires (.mc-teams). */
   .cleg-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.24;letter-spacing:-.015em;
        margin:2px 0 9px;white-space:normal}
@@ -1832,7 +1837,7 @@ CSS = """
   .cleg-cote{flex:none;text-align:right;line-height:1}
   .cleg-cote-l{display:block;font-size:8.5px;font-weight:800;letter-spacing:.12em;color:#90a4be;margin-bottom:2px}
   .cleg-cote-v{font-size:21px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .cleg.won .cleg-cote-v,.cleg.live .cleg-cote-v{color:#34d27b}
+  .cleg.won .cleg-cote-v{color:#34d27b}
   .cleg-board{margin-top:9px}
   /* Justification repliable d'une jambe de combiné de match (« 💡 Pourquoi cette jambe »). */
   .cleg-fold{margin-top:8px}
@@ -4267,15 +4272,18 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _cote = (f'<span class="cleg-cote"><span class="cleg-cote-l">COTE</span>'
              f'<span class="cleg-cote-v">{co:g}</span></span>') if isinstance(co, (int, float)) and co else ""
     _res = l.get("result")
-    _state = {"won": "won", "lost": "lost", "push": "push"}.get(_res, "pending")
-    # badge d'état : à venir / gagné / perdu / remboursé / live.
-    _bmap = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"), "push": ("REMB.", "n")}
+    # ÉTAT -> couleur (demande user 2026-07-18) : void = ANNULÉ (gris), plus « pending » (orange) à tort.
+    _state = {"won": "won", "lost": "lost", "push": "push", "void": "void"}.get(_res, "pending")
+    # badge d'état : à venir / gagné / perdu / remboursé / annulé / en cours.
+    _bmap = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"), "push": ("REMB.", "n"),
+             "void": ("ANNULÉ", "n")}
     board = ""
     if _res is None:
         _lfz = live_fields(match_select.live_state_for(_sp, _lh, _la), _sp)
         if _lfz.get("score"):
+            # EN COURS = PAS DÉCIDÉ -> ORANGE (plus vert : le vert = gagné). Badge « ⏳ EN COURS ».
             _state = "live"
-            _btxt, _bcls = "🟢 LIVE", "live"
+            _btxt, _bcls = "⏳ EN COURS", "live"
             board = ('<div class="cleg-board">'
                      + _live_scoreboard(_lfz["score"], _lh, _la, tennis=(_sp == "tennis"),
                                         server=_lfz.get("server"), points=_lfz.get("game_pts"),
