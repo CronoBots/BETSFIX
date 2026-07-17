@@ -735,11 +735,15 @@ def verdict_line(cote, conf, ev, calibrated: bool = True) -> str:
         f'<span class="vb-word" style="color:{col}">{word}</span>'
         f'<span class="vb-pct" style="color:{col}">{cfi}%</span>'
         f'{cal}'
+        '</div>'
+        # La VALUE (héros) est reliée au BOUT de la barre (= l'edge que la barre montre) -> plus de pill
+        # qui flotte seul sur sa ligne avec un vide au milieu. Barre flex:1, pill flex:none.
+        '<div class="vb-row">'
+        f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
         f'<span class="tkt-value {vcls}">Value {"+" if ep >= 0 else ""}{ep}%</span>'
         '</div>'
-        f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
         f'<div class="vb-cap"><span class="vb-mk">◆ Marché <span class="di">{be}%</span></span>'
-        '· seuil de rentabilité</div>'
+        '<span class="vb-cap-hint">seuil de rentabilité</span></div>'
         '</div>')
 
 

@@ -2134,25 +2134,30 @@ CSS = """
      ✓ calibré), marqueur MARCHÉ (proba implicite = seuil de rentabilité) posé SUR la barre (l'écart
      confiance↔marqueur = l'edge, lu d'un coup d'œil), et VALUE en HÉROS coloré (pill à droite).
      Composant `.vb-*` partagé (paris + provisoires + combiné -> rendu IDENTIQUE). */
-  .vb{margin-top:9px}
-  .vb-top{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;line-height:1.2}
-  .vb-lab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#8093ab}
+  .vb{margin-top:10px}
+  .vb-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 8px;line-height:1.2}
+  .vb-lab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#7d90a9}
   .vb-word{font-size:11px;font-weight:800;letter-spacing:.01em}
-  .vb-pct{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-  .vb-cal{font-size:8px;font-weight:800;color:#7db4ff;background:rgba(63,140,255,.14);
+  .vb-pct{font-size:17px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .vb-cal{align-self:center;font-size:8px;font-weight:800;color:#7db4ff;background:rgba(63,140,255,.14);
        border:1px solid rgba(63,140,255,.32);border-radius:99px;padding:1px 6px;letter-spacing:.02em;
        white-space:nowrap}
-  .vb-top .tkt-value{margin-left:auto}   /* value héros poussée à droite */
-  .vb-bar{position:relative;height:8px;border-radius:99px;background:#20222a;overflow:hidden;
-       margin-top:8px;box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
-  .vb-bar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:8px}
-  /* marqueur MARCHÉ : trait blanc = proba implicite du book (seuil de rentabilité). À GAUCHE de la
+  /* barre + value héros sur la MÊME ligne : la value est reliée au bout de la barre (= l'edge). */
+  .vb-row{display:flex;align-items:center;gap:11px;margin-top:9px}
+  .vb-bar{position:relative;flex:1;min-width:0;height:9px;border-radius:99px;overflow:hidden;
+       background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
+  .vb-bar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:9px;
+       box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+  /* marqueur MARCHÉ : trait clair = proba implicite du book (seuil de rentabilité). À GAUCHE de la
      fin de barre = notre confiance dépasse le marché = edge. */
-  .vb-mark{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff;opacity:.85;
-       z-index:2;border-radius:2px}
-  .vb-cap{margin-top:6px;font-size:10px;font-weight:600;color:#7d8ea6;display:flex;align-items:center;gap:5px}
-  .vb-mk{color:#9fb0c8;font-weight:700}
-  .vb-mk .di{color:#dbe8f6}
+  .vb-mark{position:absolute;top:-1px;bottom:-1px;width:2px;margin-left:-1px;background:#f4f8ff;
+       opacity:.92;z-index:2;border-radius:2px;box-shadow:0 0 0 1px rgba(9,14,22,.55)}
+  .vb-row .tkt-value{flex:none}
+  .vb-cap{margin-top:7px;font-size:10px;font-weight:600;color:#788aa2;display:flex;align-items:center;gap:6px}
+  .vb-mk{color:#a7b7cd;font-weight:700}
+  .vb-mk .di{color:#e6eefa}
+  .vb-cap-hint{opacity:.75}
+  .vb-cap-hint::before{content:"·";margin-right:6px;color:#5a6b82}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
   .tkt-value.vpos{color:#08180e;background:linear-gradient(180deg,#4be39b,#22c07d);
