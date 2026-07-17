@@ -2107,20 +2107,6 @@ def stat_bet(d: dict) -> dict | None:
     return retained_bet(d.get("sport"), d.get("id"), for_history=True)
 
 
-def market_line_available(code: str) -> bool:
-    """La LIGNE d'un marché existe-t-elle RÉELLEMENT chez Unibet ? (évite de proposer un pari INJOUABLE —
-    signalé user 2026-07-18 : « Mirassol -2.5 buts indisponible »). Connu : le total PAR ÉQUIPE (`TEAMTOT`)
-    n'est offert qu'en lignes 0.5 / 1.5 — JAMAIS 2.5+. Source UNIQUE (combiné du jour + provisoires). À
-    ÉTENDRE si d'autres lignes non offertes apparaissent. Prudent : True par défaut (marché reconnu offert)."""
-    c = (code or "").strip()
-    if c.startswith("TEAMTOT"):
-        try:
-            return float(c.split()[-1]) <= 1.5
-        except (ValueError, IndexError):
-            return True
-    return True
-
-
 def provisional_shown(sport, sel, cote, prob, home="", away="") -> bool:
     """Un pari PROVISOIRE (indicatif) est-il DIGNE d'être affiché/suivi ? (demande user 2026-07-17) On ne
     GARDE PAS un provisoire SANS value (EV≤0) ET SOUS 60 % de confiance CALIBRÉE — c'est du bruit. On GARDE
@@ -2137,10 +2123,7 @@ def provisional_shown(sport, sel, cote, prob, home="", away="") -> bool:
     cp = prob
     try:
         from app.settle_analyst import code_from_pick
-        _code = code_from_pick(sel, sport, home, away)
-        if not market_line_available(_code):       # ligne INJOUABLE chez Unibet -> jamais proposée
-            return False
-        cp = calibrated_conf(prob, sport, _code)
+        cp = calibrated_conf(prob, sport, code_from_pick(sel, sport, home, away))
     except Exception:
         cp = prob
     if cp is None:

@@ -3709,6 +3709,21 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
         n = math.ceil(float(mob.group(4).replace(",", ".")))
         sens = "au moins" if mob.group(3).lower() == "plus" else "moins de"
         return f"{who + ' : ' if who else ''}{sens} {n} {obj}"
+    # ÉQUIPE (total) — forme « <équipe> plus/moins de X.5 buts » SANS « marque » NI tiret (ex.
+    # « Mirassol moins de 2.5 buts » = total de MIRASSOL, PAS le total du match). BUG 2026-07-18 : c'était
+    # glosé « moins de 3 buts au total (les 2 équipes) », en CONTRADICTION FRONTALE avec le pari. Détecté
+    # par un NOM D'ÉQUIPE en tête (matche home/away). DOIT passer AVANT le total du match.
+    mteam = re.search(r"^(.+?)\s+(plus|moins) de (\d+(?:[.,]\d+)?)\s*buts?\b", s, re.I)
+    if mteam and "total" not in sl:
+        who = mteam.group(1).strip()
+        _wn = re.sub(r"\W+", "", who.lower())
+        _teams = [re.sub(r"\W+", "", t.lower()) for t in (home, away) if t]
+        if _teams and _wn and any(_wn in t or t in _wn for t in _teams):
+            val = float(mteam.group(3).replace(",", "."))
+            n = math.ceil(val)   # « moins de 2.5 » -> moins de 3 ; « plus de 1.5 » -> au moins 2
+            if mteam.group(2).lower() == "plus":
+                return f"{who} marque au moins {n} {_u(n)}"
+            return f"{who} marque moins de {n} {_u(n)}"
     # TOTAL du match « plus/moins de X.5 (points/buts/jeux) » -> nombre entier lisible. On EXCLUT les totaux
     # d'un objet SPÉCIFIQUE (corners/tirs/cartons/aces/rebonds/passes/fautes) : « au total buts » y serait FAUX
     # (mauvaise unité) -> ils tombent sur le repli générique « pari sur … » (fix 2026-07-17).
