@@ -336,12 +336,27 @@ def mark_sent(day: str) -> None:
         _save(d)
 
 
+def _derive_combo(legs: list) -> str | None:
+    """Résultat d'un combiné depuis ses jambes : **lost** si ≥1 perdue ; **won** si ≥1 gagnée (push/void
+    NEUTRES, retirées) ; **void** si QUE des push/void. **None** si ≥1 jambe encore en attente. Une jambe
+    ANNULÉE (void) ne BLOQUE donc PAS le combiné : il gagne ou perd selon les AUTRES jambes (demande user
+    2026-07-18)."""
+    res = [l.get("result") for l in (legs or [])]
+    if any(r not in ("won", "lost", "push", "void") for r in res):
+        return None
+    if "lost" in res:
+        return "lost"
+    if "won" in res:
+        return "won"
+    return "void"
+
+
 def settle_pending() -> int:
     """Règle les jambes des combinés dont les matchs sont terminés (Flashscore + repli LiveScore +
-    `settle_pick`), puis tranche le combiné : lost si ≥1 jambe perdue ; won si toutes réglées et ≥1
-    gagnée (push retirées) ; void si toutes push. Idempotent. Renvoie le nombre de combinés
-    nouvellement tranchés."""
-    from app import flashscore, livescore
+    `settle_pick`), puis tranche le combiné : lost si ≥1 jambe perdue ; won si ≥1 gagnée (push/void
+    retirés) ; void si toutes push/void. Une jambe ANNULÉE ne bloque pas le combiné. Idempotent (corrige
+    même un résultat figé à tort). Renvoie le nombre de combinés nouvellement tranchés."""
+    from app import flashscore, livescore, analyses as _an
     from app.settle_analyst import settle_pick
     d = _load()
     n = 0
@@ -423,26 +438,27 @@ def settle_pending() -> int:
             leg["result"] = res if res in ("won", "lost", "push") else "void"
             leg["score"] = score.get("label") or ""
             changed = True
-        if _frozen:
-            continue          # ROI figé : jambes raffinées pour l'affichage, résultat du combiné inchangé
-        cb["tries"] = (cb.get("tries") or 0) + 1
-        changed = True                                # tries accumulés -> la borne void finit par mordre
         legs = cb.get("legs") or []
-        if cb["tries"] >= 8:                          # borne : match introuvable trop longtemps -> void
+        if not _frozen:
+            cb["tries"] = (cb.get("tries") or 0) + 1
+            changed = True                            # tries accumulés -> la borne void finit par mordre
+        # BORNE : à tries≥8, on void SEULEMENT les jambes dont le MATCH est FINI (donnée morte) ; une jambe
+        # dont le match n'a pas encore fini (coup d'envoi tardif) RESTE en attente -> plus de void prématuré
+        # (bug 07-17 : Mirassol 23:00 voidé AVANT la fin -> combiné faussement « remboursé » alors que gagné).
+        if (cb.get("tries") or 0) >= 8:
             for l in legs:
-                if l.get("result") not in ("won", "lost", "push", "void"):
+                if (l.get("result") not in ("won", "lost", "push", "void")
+                        and _an.likely_finished({"start": l.get("start"), "sport": l.get("sport")})):
                     l["result"] = "void"
-        results = [l.get("result") for l in legs]
-        if any(r not in ("won", "lost", "push", "void") for r in results):
-            continue                                  # encore des jambes VRAIMENT en attente (< 8 essais)
-        if "lost" in results:                         # verdict GARANTI (toutes les jambes tranchées)
-            cb["result"] = "lost"
-        elif any(r == "won" for r in results):
-            cb["result"] = "won"                      # cote effective (push/void neutres) via _combo_result_profit
-        else:
-            cb["result"] = "void"                     # que des push/void -> remboursé
-        n += 1
-        # sinon : des jambes encore en attente -> on ne tranche pas
+        # RÉSULTAT (re)DÉRIVÉ : jambe annulée NEUTRE (ne bloque pas). Corrige aussi un résultat FIGÉ À TORT
+        # (ex. void pose par la borne alors que 2 jambes ont finalement GAGNÉ -> won). demande user 2026-07-18.
+        _dv = _derive_combo(legs)
+        if _dv is None:
+            continue                                  # encore des jambes VRAIMENT en attente
+        if _dv != cb.get("result"):
+            cb["result"] = _dv
+            changed = True
+            n += 1
     if changed:
         _save(d)
     return n
