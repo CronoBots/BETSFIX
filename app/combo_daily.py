@@ -404,13 +404,23 @@ def settle_pending() -> int:
                     score = _raw
             except Exception:
                 score = None
-            if score is None:
+            # ⛔ GARDE-FOU « JAMAIS DE RÈGLEMENT SUR UN MATCH PAS FINI » (source-agnostique).
+            # On n'interroge une source de score EXTERNE que si NOTRE horloge dit que le match devrait déjà
+            # être terminé (`likely_finished`). Sans ça, une source pouvait renvoyer un FAUX score « final »
+            # d'un AUTRE match homonyme déjà fini (collision de noms) pendant que le nôtre est EN COURS — bug
+            # vécu 2026-07-18 : Sport Recife-Operário réglé « lost 3-0 » via sportradar en pleine 66e minute
+            # (vrai live 2-1, Operário avait marqué) -> combiné faussement perdu. Le sidecar `result.raw`
+            # ci-dessus reste autorisé (c'est le règlement DÉJÀ vérifié du match lui-même). cf. mémoire
+            # settle-never-on-live-score. Match pas encore « fini par l'horloge » -> on laisse la jambe en
+            # attente (info-seule, aucune urgence : la passe suivante / le scan 09h la règlera pour de vrai).
+            _leg_done = _an.likely_finished({"start": leg.get("start"), "sport": leg.get("sport")})
+            if score is None and _leg_done:
                 try:
                     score = flashscore.final_score(leg.get("sport"), q) or \
                         livescore.final_score(leg.get("sport"), q)
                 except Exception:
                     score = None
-            if not score or not score.get("periods"):
+            if _leg_done and (not score or not score.get("periods")):
                 # Repli SPORTRADAR (GISMO) : score final + périodes détaillées que Flashscore/LiveScore
                 # ne donnent pas toujours (et matching de nom brésilien corrigé côté sportradar). Aligne le
                 # règlement du combiné du jour sur les autres chemins de règlement.
@@ -469,7 +479,10 @@ def _combo_result_profit(cb: dict) -> float:
     gagné, −1 si perdu, 0 si remboursé."""
     if cb.get("result") == "won":
         eff = _prod([l["cote"] for l in cb.get("legs") or [] if l.get("result") == "won"])
-        return eff - 1
+        # Cote effective ARRONDIE à 2 décimales — une cote de pari est toujours à 2 décimales chez le book ;
+        # sans ça le produit des jambes s'affichait « 1,5428 » (demande user 2026-07-18). Source unique :
+        # roi_events / equity_curve / stats passent tous par ici -> affichage ET ROI restent cohérents.
+        return round(eff, 2) - 1
     if cb.get("result") == "lost":
         return -1.0
     return 0.0

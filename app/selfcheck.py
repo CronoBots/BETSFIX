@@ -495,6 +495,38 @@ def _check_provisional_settle_finished() -> dict:
             "items": bad[:20]}
 
 
+def _check_combo_daily_settle_finished() -> dict:
+    """Une jambe du combiné du jour ne doit JAMAIS être réglée (won/lost/push) tant que son match n'est pas
+    PROBABLEMENT FINI. Encode la régression 2026-07-18 : Sport Recife-Operário réglé « lost 3-0 » via le
+    repli sportradar EN PLEINE 66e minute (vrai live 2-1) — `final_score` avait matché par NOMS un AUTRE
+    match « Sport Recife » déjà terminé. Le garde `analyses.likely_finished` dans `settle_pending` doit
+    l'empêcher ; ce check détecte tout règlement prématuré résiduel. Tolère une jambe dont le MATCH est déjà
+    réglé dans son propre sidecar (règlement légitime du match lui-même, avant la fenêtre d'horloge)."""
+    bad = []
+    try:
+        from app import combo_daily
+        for day, cb in combo_daily.load().items():
+            if not isinstance(cb, dict):
+                continue
+            for leg in cb.get("legs") or []:
+                if leg.get("result") not in ("won", "lost", "push"):
+                    continue
+                if analyses.likely_finished({"start": leg.get("start"), "sport": leg.get("sport")}):
+                    continue                          # fini par l'horloge -> règlement légitime
+                sm = analyses.meta(leg.get("sport"), str(leg.get("mid") or "")) or {}
+                if analyses.is_settled(sm):
+                    continue                          # match déjà réglé dans son sidecar -> légitime
+                bad.append(f"{day} {leg.get('sport')} {leg.get('name', '?')} : jambe réglée "
+                           f"'{leg.get('result')}' (score {leg.get('score', '?')}) alors que le match "
+                           f"n'est PAS fini (coup d'envoi {leg.get('start')})")
+    except Exception:
+        pass
+    return {"key": "combo_daily_settle_finished", "level": "error" if bad else "ok",
+            "title": "Jambe de combiné du jour jamais réglée avant la fin du match",
+            "detail": f"{len(bad)} jambe(s) réglée(s) avant la fin du match (règlement prématuré).",
+            "items": bad[:20]}
+
+
 def _check_extratime_regulation(rows) -> dict:
     """Un match de foot allé aux PROLONGATIONS doit régler ses marchés 90 MIN (1X2, over/under, mi-temps,
     REGTIME…) sur le score RÉGLEMENTAIRE, JAMAIS sur le score final (prolongation incluse). Régression
@@ -597,6 +629,7 @@ def run(persist: bool = False) -> dict:
         _check_ghost_resolution(rows),
         _check_provisional_dedup(),
         _check_provisional_settle_finished(),
+        _check_combo_daily_settle_finished(),
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),
     ]
