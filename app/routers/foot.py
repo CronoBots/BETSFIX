@@ -72,8 +72,13 @@ async def _analyst_rows(sport: str) -> tuple[list[dict], list[dict]]:
         }
         if st != "inprogress":
             lf = {}                                         # pas en cours -> aucun champ live affiché
-        elif not lf.get("score"):                           # en cours SANS score Unibet -> REPLI SofaScore
+        elif not lf.get("score"):                           # en cours SANS score Unibet -> repli SofaScore (mort)
             lf = await match_select.fetch_sofa_live("foot", d.get("sofa_id")) or lf
+            if not lf.get("score"):                         # puis LiveScore (vivant) -> un match démarré en
+                # RETARD (Unibet sans feed) ne bascule pas à tort en « terminé » (cf. Espagne-Argentine 07-19).
+                _lsl = match_select.livescore_live_fields("foot", d.get("home"), d.get("away"), d.get("start"))
+                if _lsl.get("score"):
+                    lf = {**lf, **_lsl}
         # Un « en cours » SANS score live Unibet : s'il a assez tourné (likely_finished) -> Terminés
         # (résultat « en attente » si pas réglé) ; sinon on le GARDE en « En cours » (sans scoreboard)
         # pour qu'il ne DISPARAISSE pas entre le coup d'envoi et la fin estimée.

@@ -93,12 +93,14 @@ def rank_important(events: list, top_n: int = 10, within_hours: int | None = Non
     return top
 
 
+import asyncio
 import time as _time
 
 _ODDS_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: (o1, ox, o2)})
 _LIVE_STATE_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: liveData}) — score + horloge EN DIRECT
 _META_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: {circuit, comp, start}}) — Unibet path/group/heure
 _ODDS_TTL = 25           # s : cotes Unibet rafraîchies au plus toutes les 25 s (gratuit, mais lean)
+_ODDS_REFRESHING: set = set()   # sports avec un rafraîchissement live DÉJÀ en vol (anti-doublon de fetch)
 
 # LIVE « COLLANT » : mémoire du DERNIER instant où un score live a été vu pour un match. Sert à ne PAS
 # éjecter du direct un match RÉELLEMENT en cours lors d'un hoquet BREF du flux (score momentanément
@@ -181,11 +183,37 @@ def _winner_odds(betoffers) -> tuple | None:
 async def fetch_live_odds(sport: str, client=None) -> dict:
     """Cotes Unibet FRAÎCHES (vainqueur du match) pour tout un sport, en UN appel listView,
     clé = noms d'équipes. Mis en cache 25 s. Sert à actualiser les cotes affichées à chaque page
-    (Unibet est gratuit ; SofaScore n'est jamais touché ici). {} si indispo (on garde le sidecar)."""
+    (Unibet est gratuit ; SofaScore n'est jamais touché ici). {} si indispo (on garde le sidecar).
+
+    STALE-WHILE-REVALIDATE : renvoie le DERNIER cache connu IMMÉDIATEMENT (l'internaute n'attend JAMAIS
+    l'appel réseau Unibet) et déclenche un rafraîchissement en tâche de fond quand le cache a dépassé le
+    TTL. Seul le TOUT PREMIER chargement (cache encore vide, ex. juste après un reboot/reload) attend le
+    fetch. Fix lenteur 2026-07-15 : le rendu awaitait 3 listView séquentiels (foot ~5-6 s) -> pages à
+    5-12 s dès que le cache 25 s expirait. Aucun impact ROI/stats/calibration (pure couche affichage)."""
     now = _time.time()
     hit = _ODDS_CACHE.get(sport)
     if hit and now - hit[0] < _ODDS_TTL:
-        return hit[1]
+        return hit[1]                               # frais -> tel quel
+    if hit is not None:                             # périmé mais connu -> stale immédiat + refresh de fond
+        if sport not in _ODDS_REFRESHING:
+            _ODDS_REFRESHING.add(sport)
+
+            async def _bg() -> None:
+                try:
+                    await _fetch_live_odds_now(sport)   # son PROPRE client (client=None) -> jamais un client fermé
+                finally:
+                    _ODDS_REFRESHING.discard(sport)
+
+            asyncio.create_task(_bg())
+        return hit[1]                               # ancien tout de suite (0 attente réseau)
+    return await _fetch_live_odds_now(sport, client)   # tout premier chargement (cache vide) seulement
+
+
+async def _fetch_live_odds_now(sport: str, client=None) -> dict:
+    """Vrai appel listView Unibet qui (re)remplit _ODDS_CACHE / _LIVE_STATE_CACHE / _META_CACHE. Bloquant
+    côté réseau (httpx async). Appelé soit au premier chargement, soit en tâche de fond (cf. fetch_live_odds)."""
+    now = _time.time()
+    hit = _ODDS_CACHE.get(sport)
     import httpx
     path = LISTVIEW.get(sport, "football")
     own = client is None
@@ -272,6 +300,7 @@ def basket_frac(ld: dict | None, comp: str = "") -> float | None:
 
 _SOFA_LIVE_CACHE: dict = {}   # sofa_id -> (ts, fields) : score live SofaScore (repli quand Unibet manque)
 _SOFA_LIVE_TTL = 30           # s : repli SofaScore caché 30 s (best-effort, petit endpoint event/{id})
+_SOFA_LIVE_REFRESHING: set = set()   # sofa_id avec une tentative SofaScore DÉJÀ en vol (anti-doublon)
 
 
 def _sofa_live_fields(ev: dict, sport: str) -> dict:
@@ -301,7 +330,13 @@ def _sofa_live_fields(ev: dict, sport: str) -> dict:
 
 async def fetch_sofa_live(sport: str, sofa_id) -> dict:
     """REPLI quand Unibet ne fournit PAS le score live : lit le score sur SofaScore (event/{id}, petit
-    endpoint, PAS du bulk). Best-effort, caché 30 s par match. {} si indispo / non en cours."""
+    endpoint, PAS du bulk). Best-effort, caché 30 s par match. {} si indispo / non en cours.
+
+    NE BLOQUE JAMAIS LE RENDU : SofaScore est MORT (cf. mémoire build-sofascore-dead) et cet appel est
+    PAR MATCH -> une connexion qui traîne sur le challenge Cloudflare (curl_cffi timeout 20 s) gelait la
+    page de plusieurs secondes, par match tennis live sans score Unibet, pour finir sur {}. On sert donc
+    le dernier connu ({} si jamais vu) IMMÉDIATEMENT et on (re)tente en tâche de fond : si la source
+    ressuscitait, le prochain rendu en profiterait. Fix lenteur 2026-07-15 (pic ~8 s résiduel)."""
     if not sofa_id:
         return {}
     sid = str(sofa_id)
@@ -311,6 +346,54 @@ async def fetch_sofa_live(sport: str, sofa_id) -> dict:
     hit = _SOFA_LIVE_CACHE.get(sid)
     if hit and now - hit[0] < _SOFA_LIVE_TTL:
         return hit[1]
+    if sid not in _SOFA_LIVE_REFRESHING:            # une seule tentative de fond en vol par match
+        _SOFA_LIVE_REFRESHING.add(sid)
+
+        async def _bg() -> None:
+            try:
+                await _fetch_sofa_live_now(sport, sid)
+            finally:
+                _SOFA_LIVE_REFRESHING.discard(sid)
+
+        asyncio.create_task(_bg())
+    return hit[1] if hit else {}                    # dernier connu tout de suite (0 attente réseau)
+
+
+_LS_LIVE_CACHE: dict = {}          # (sport, home, away) -> (ts, {score, live_time})
+_LS_LIVE_TTL = 20                   # 20 s : score live frais sans marteler LiveScore
+
+
+def livescore_live_fields(sport: str, home: str, away: str, start: str | None = None) -> dict:
+    """REPLI LiveScore (SofaScore étant MORT) quand Unibet ne remonte PAS le score live d'un match EN COURS
+    — ex. match démarré EN RETARD dont Unibet n'a pas encore le feed (cas Espagne-Argentine CdM 2026-07-19 :
+    live 80' 0-0 mais invisible -> combiné disparu). Renvoie {score, live_time} prêts pour le scoreboard, ou
+    {} si LiveScore n'a pas ce match EN COURS. LiveScore = notre source de scores live (cf. carte des
+    sources). find_id gère le matching des noms FR->EN. Caché 20 s/match (bloquant réseau borné)."""
+    key = (sport, home, away)
+    now = _time.time()
+    hit = _LS_LIVE_CACHE.get(key)
+    if hit and now - hit[0] < _LS_LIVE_TTL:
+        return hit[1]
+    res: dict = {}
+    try:
+        from app import livescore
+        eid = livescore.find_id(home or "", away or "", start, sport)
+        if eid:
+            sb = livescore.scoreboard(sport, eid)
+            if (sb and not sb.get("finished")
+                    and sb.get("home_score") is not None and sb.get("away_score") is not None):
+                res = {"score": f"{sb['home_score']}-{sb['away_score']}",
+                       "live_time": str(sb.get("status") or "")}
+    except Exception:
+        res = {}
+    _LS_LIVE_CACHE[key] = (now, res)
+    return res
+
+
+async def _fetch_sofa_live_now(sport: str, sid: str) -> dict:
+    """Vrai appel SofaScore event/{id} (remplit _SOFA_LIVE_CACHE). Bloquant côté réseau -> UNIQUEMENT en
+    tâche de fond (cf. fetch_sofa_live). Best-effort : {} si la source ne répond pas / match non en cours."""
+    now = _time.time()
     from app import sofa_http
     fields = {}
     try:

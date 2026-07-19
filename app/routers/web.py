@@ -996,8 +996,14 @@ async def directs_page(
             sid = d.get("sofa_id") or d.get("id")
             sel, odds = analyses.pick_parts(d.get("pick") or "")
             perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
-            if not lf.get("score"):                        # REPLI SofaScore si Unibet n'a pas le live
+            if not lf.get("score"):                        # REPLI SofaScore (mort) puis LiveScore (vivant)
                 lf = await match_select.fetch_sofa_live(sport, sid) or lf
+                if not lf.get("score"):                    # LiveScore = notre source de scores live -> évite
+                    # qu'un match démarré EN RETARD (Unibet sans feed) DISPARAISSE du Live (bug 2026-07-19
+                    # Espagne-Argentine : live 80' 0-0 mais invisible car likely_finished + pas de score).
+                    _lsl = match_select.livescore_live_fields(sport, d.get("home"), d.get("away"), d.get("start"))
+                    if _lsl.get("score"):
+                        lf = {**lf, **_lsl}
                 match_select.note_live(sport, d.get("home"), d.get("away"), bool(lf.get("score")))
             # en cours sans score live : s'il a assez tourné -> il est en fait fini (Terminés du sport),
             # sinon on le GARDE en « En cours ». Sticky : un score vu très récemment évite l'éviction sur hoquet.
