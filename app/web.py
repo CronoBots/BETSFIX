@@ -5726,6 +5726,26 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
             + _subnav(sport) + render_sport_perf(sport) + f'<div class="dash-zones">{body_zones}</div>')
     return body if frag else spa_shell(sport, title, body)
 
+def _daily_combo_any_live() -> bool:
+    """Vrai si le combiné du jour a AU MOINS une jambe EN COURS (non réglée + score live). Sert à ne montrer
+    le combiné dans l'onglet Live QUE quand une de ses rencontres tourne réellement (demande user
+    2026-07-19 : si aucun match du combiné n'est en cours, il n'a rien à faire dans Live). Même détection de
+    liveness que la carte elle-même (`_combo_tg_card`). L'accueil « À venir » n'est PAS concerné (le combiné
+    à venir y reste, dans sa catégorie dédiée)."""
+    try:
+        import datetime as _dt
+        from app import combo_daily as _cd
+        day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+        cb = _cd.today(day)
+    except Exception:
+        cb = None
+    if not cb:
+        return False
+    return any(live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
+                                                       l.get("away", "")), l.get("sport")).get("score")
+               for l in (cb.get("legs") or []) if l.get("result") is None)
+
+
 def render_directs(sections: list, frag: bool = False) -> str:
     """Onglet « Directs » : matchs EN DIRECT regroupés par sport, en ZONES premium (point live vert + titre
     casse normale) cohérentes avec l'accueil/onglets sport (refonte 2026-07-11). `sections` = [(libellé,
@@ -5739,8 +5759,10 @@ def render_directs(sections: list, frag: bool = False) -> str:
         content = _join_cards([c.get("_html") or _sport_row(c) for c in cards])   # + séparateur entre cartes
         out.append(_zone("live", f"{icon} {label}", "en direct", len(cards), content))
     # Combiné du jour PRÉSENTÉ COMME LES PROVISOIRES (carte Telegram OR) et placé DANS les matchs en direct,
-    # plus en bandeau au-dessus (demande user 2026-07-12).
-    _combo = _combo_tg_card(include_settled=False)   # retiré des directs une fois TERMINÉ (toutes jambes réglées)
+    # plus en bandeau au-dessus (demande user 2026-07-12). MAIS seulement si AU MOINS une de ses jambes est
+    # EN COURS (demande user 2026-07-19) : un combiné dont aucun match ne tourne n'a rien à faire dans Live
+    # (il reste dans l'accueil « À venir », catégorie « Combiné multisports du jour »).
+    _combo = _combo_tg_card(include_settled=False) if _daily_combo_any_live() else ""
     if not total and not _combo:
         zones = (
             '<div class="live-empty">'
