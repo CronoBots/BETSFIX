@@ -4313,8 +4313,14 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         _sc = html.escape(str(l.get("score")))
         _g = f'{_g} · <b>final {_sc}</b>' if _g else f'<b>final {_sc}</b>'
     gloss = f'<div class="cleg-gloss"><span class="ar">↳</span> {_g}</div>' if _g else ""
-    _wt = _clean_cap(l.get("why")) if why else ""
-    _why = f'<div class="cleg-why">{html.escape(_wt)}</div>' if _wt else ""
+    # Justification = pli TAPPABLE « 💡 Pourquoi cette jambe » (demande user 2026-07-19 : lire l'analyse
+    # COMPLÈTE au tap plutôt qu'un extrait coupé à 3 lignes). Même patron que le combiné de match. Texte
+    # ENTIER (nettoyé du markdown, plus de coupe à 180 car). Masqué une fois la jambe réglée (comme l'autre
+    # combiné) ; `event.stopPropagation()` empêche le tap d'ouvrir/fermer la carte parente.
+    _wt = _clean_cap(l.get("why"), 100000) if (why and _res is None) else ""
+    _why = ('<details class="cleg-fold"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
+            '💡 Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
+            f'<div class="cleg-why">{html.escape(_wt)}</div></details>') if _wt else ""
     # LIGNE VERDICT (façon provisoire) : Confiance CALIBRÉE (la jambe porte `prob` en FRACTION + `code`) ·
     # Marché · Value (masquée si négative — combiné = info seule) + grosse COTE. Remplace la pastille cote.
     _verdict = ""
