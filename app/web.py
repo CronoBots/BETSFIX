@@ -1882,9 +1882,14 @@ CSS = """
   .zone-todo .zone-t{font-size:14.5px;font-weight:700;color:var(--muted)}
   /* CALENDRIER « Pronos » (bandeau horizontal en tête, premium) : KPI 7 jours + pastilles jour/numéro
      scrollables avec barre de bilan colorée, « aujourd'hui » accentué. */
-  .cal-wrap{margin:0 -4px 15px;position:relative}
-  .cal-wrap::after{content:"";position:absolute;bottom:8px;right:-4px;width:28px;height:56px;pointer-events:none;
-       background:linear-gradient(90deg,rgba(7,7,8,0),var(--bg))}   /* fondu droit -> « ça défile » */
+  .cal-wrap{margin:0 0 15px;position:relative}
+  /* Bouton « revenir à aujourd'hui » (apparaît quand on a défilé/sélectionné un autre jour). */
+  .cal-jump{position:absolute;right:0;bottom:11px;display:none;align-items:center;gap:4px;
+       padding:7px 11px;border-radius:11px;border:1px solid rgba(246,197,74,.5);
+       background:linear-gradient(180deg,rgba(246,197,74,.22),rgba(246,197,74,.12));
+       color:var(--gold);font-size:12px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent;
+       box-shadow:-10px 0 14px 6px var(--bg)}   /* halo sombre à gauche -> se détache du bandeau */
+  .cal-jump.show{display:inline-flex}
   .cal-kpi{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 6px 9px;
        padding:0 2px}
   .cal-kpi-l{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase}
@@ -2976,20 +2981,26 @@ _CAL_JS = (
     "(function(){"
     "function init(h){try{if(window._mcInit)window._mcInit(h);}catch(e){}"
     "try{if(window._twScan)window._twScan(h);}catch(e){}try{if(window._sxAnim)window._sxAnim(h);}catch(e){}}"
-    "document.addEventListener('click',function(ev){"
-    "var pill=ev.target&&ev.target.closest?ev.target.closest('.cal-pill'):null;if(!pill)return;"
-    "ev.preventDefault();var host=document.getElementById('day-content');if(!host)return;"
-    "var ps=pill.parentNode.querySelectorAll('.cal-pill'),i;"
-    "for(i=0;i<ps.length;i++)ps[i].classList.remove('on');pill.classList.add('on');"
+    "function strip(){return document.getElementById('cal-strip');}"
+    "function togJump(date){var s=strip(),j=document.getElementById('cal-jump');"
+    "if(s&&j)j.classList.toggle('show',date!==s.getAttribute('data-today'));}"
+    "function sel(pill){var host=document.getElementById('day-content'),s=strip();if(!host||!s||!pill)return;"
+    "var ps=s.querySelectorAll('.cal-pill'),i;for(i=0;i<ps.length;i++)ps[i].classList.remove('on');"
+    "pill.classList.add('on');var date=pill.getAttribute('data-date');togJump(date);"
     "try{pill.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}"
     "host.innerHTML='<div class=\"skel\"><div class=\"sk\"></div><div class=\"sk\"></div></div>';"
-    "fetch('/jour?date='+encodeURIComponent(pill.getAttribute('data-date'))+'&frag=1',{headers:{'X-Frag':'1'}})"
+    "fetch('/jour?date='+encodeURIComponent(date)+'&frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){host.innerHTML=h;init(host);})"
-    ".catch(function(){host.innerHTML='<div class=\"paj-empty\">Erreur de chargement.</div>';});"
+    ".catch(function(){host.innerHTML='<div class=\"paj-empty\">Erreur de chargement.</div>';});}"
+    "document.addEventListener('click',function(ev){"
+    "if(!ev.target||!ev.target.closest)return;"
+    "if(ev.target.closest('#cal-jump')){ev.preventDefault();var s=strip();if(!s)return;"
+    "s.scrollLeft=s.scrollWidth;var t=s.querySelector('.cal-pill.today');if(t)sel(t);return;}"
+    "var pill=ev.target.closest('.cal-pill');if(!pill)return;ev.preventDefault();sel(pill);"
     "});"
-    "function sa(){var p=document.querySelector('.cal-strip .cal-pill.on');"
-    "if(p)try{p.scrollIntoView({inline:'end',block:'nearest'});}catch(e){}}"
-    "setTimeout(sa,200);setTimeout(sa,700);"
+    # auto-scroll À FOND À DROITE (aujourd'hui = dernier jour) à l'ouverture -> aucun espace vide à droite.
+    "function sa(){var s=strip();if(s)s.scrollLeft=s.scrollWidth;}"
+    "setTimeout(sa,120);setTimeout(sa,500);"
     "})();"
 )
 
@@ -4714,7 +4725,11 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
                      f'<span class="cal-wd">{wd}</span>'
                      f'<span class="cal-dn">{d.day}</span>'
                      f'<span class="cal-res {rcls}"></span></button>')
-    return f'<div class="cal-wrap">{kpi}<div class="cal-strip" id="cal-strip">{"".join(pills)}</div></div>'
+    today_iso = today.isoformat()
+    return (f'<div class="cal-wrap">{kpi}'
+            f'<div class="cal-strip" id="cal-strip" data-today="{today_iso}">{"".join(pills)}</div>'
+            f'<button class="cal-jump" id="cal-jump" aria-label="Revenir à aujourd\'hui">Auj. ↩</button>'
+            f'</div>')
 
 
 def _today_zones(match_rows: list) -> tuple[str, int]:
