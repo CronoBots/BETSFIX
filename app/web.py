@@ -4354,6 +4354,23 @@ def _combo_tg_legs(cb: dict) -> str:
     return "".join(_leg_card(l, why=True, verdict=True) for l in (cb.get("legs") or []))
 
 
+def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str) -> str:
+    """Coquille DORÉE partagée du combiné — en-tête « 🎯 <title> • <subtitle> » + badge d'état, filet, puis
+    le corps (jambes + ligne verdict). Utilisée par le combiné DU JOUR ET le combiné COUPE DU MONDE pour
+    qu'ils soient présentés EXACTEMENT pareil (demande user 2026-07-19). `subtitle`/`badge` déjà échappés
+    par l'appelant ; `title` = libellé fixe (« COMBINÉ DU JOUR » / « COMBINÉ »)."""
+    return (
+        '<div class="row pick mc mc-tg mc-tg-gold">'
+        '<div class="mc-head"><div class="mc-main">'
+        '<div class="mc-line"><span class="mc-ic">🎯</span>'
+        f'<span class="mc-comp"><b class="mc-sport">{title}</b>'
+        f'<span class="mc-comp-sep"> • </span>{subtitle}</span>'
+        f'{badge}</div>'
+        '<div class="mc-div"></div>'
+        + body
+        + '</div></div></div>')
+
+
 def _combo_tg_card(include_settled: bool = True) -> str:
     """Carte « Combiné du jour » présentée COMME les cartes provisoires (Telegram) mais en OR (demande user
     2026-07-12) : en-tête, jambes = picks, SYNTHÈSE en barre cyan, Confiance, COTE en gros chiffre. Placée
@@ -4410,27 +4427,18 @@ def _combo_tg_card(include_settled: bool = True) -> str:
                  if isinstance(_cote, (int, float)) and _cote else "")
     # Synthèse au-dessus des jambes RETIRÉE (demande user 2026-07-18) — chaque jambe porte déjà son « pourquoi ».
     _nlegs = len(cb.get("legs") or [])
-    return (
-        '<div class="row pick mc mc-tg mc-tg-gold">'
-        '<div class="mc-head"><div class="mc-main">'
-        '<div class="mc-line"><span class="mc-ic">🎯</span>'
-        '<span class="mc-comp"><b class="mc-sport">COMBINÉ DU JOUR</b>'
-        f'<span class="mc-comp-sep"> • </span>{_nlegs} jambes · multisport</span>'
-        f'{_badge}</div>'
-        '<div class="mc-div"></div>'
-        # Synthèse EN TÊTE RETIRÉE (demande user 2026-07-18 : « supprimer le texte au-dessus des jambes »).
-        + f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
-        + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False)
-        + '</div></div></div>')
+    _body = (f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
+             + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False))
+    return _combo_gold_card(title="COMBINÉ DU JOUR", subtitle=f'{_nlegs} jambes · multisport',
+                            badge=_badge, body=_body)
 
 
 def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
-    """Contenu PREMIUM d'une carte COMBINÉ RETENU (ROI), présenté COMME les provisoires / le combiné du
-    jour (demande user 2026-07-18 : « tous les types de paris présentés comme les provisoires ») : le
-    SIMPLE retenu (si présent) en pick + ligne verdict, PUIS le combiné = synthèse + jambes (cartes de
-    simple via `_leg_card`) + ligne VERDICT (cote corrélée · confiance · value). Rendu STRICTEMENT aligné
-    sur `_combo_tg_card`. Purement AFFICHAGE (le combiné garde son règlement/ROI inchangés). '' si pas de
-    combiné exploitable dans le sidecar."""
+    """CORPS d'une carte COMBINÉ RETENU (ROI) — destiné à la coquille dorée `_combo_gold_card` (demande user
+    2026-07-19 : le combiné Coupe du Monde présenté EXACTEMENT comme le combiné du jour). Contenu : le SIMPLE
+    retenu (si présent, cas rare « multi-paris ») en tête, PUIS le combiné = jambes (`_leg_card`, avec pli
+    « Pourquoi ») + ligne VERDICT (cote corrélée · confiance · value). Plus de tag « 🎲 COMBINÉ » (redondant
+    avec l'en-tête doré). Purement AFFICHAGE (règlement/ROI inchangés). '' si pas de combiné exploitable."""
     m = analyses.meta(sport, mid) or {}
     combo = (m.get("combo") or {})
     legs = combo.get("legs") or []
@@ -4449,25 +4457,20 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
                 if isinstance(_scote, (int, float)) and _scote else "")
         _sgl = _bet_gloss(_ssel, sport, home, away)
         _sgloss = f'<div class="mc-gloss"><span class="ar">↳</span>{html.escape(_sgl)}</div>' if _sgl else ""
-        out += ('<div class="mc-div"></div>'
-                + f'<div class="mc-pick">{html.escape(_pretty_sel(_ssel, home, away))}</div>'
+        out += (f'<div class="mc-pick">{html.escape(_pretty_sel(_ssel, home, away))}</div>'
                 + _sgloss
-                + _verdict_block(_scote, _sconf, '🎯 Simple · compté au ROI', _scb, calibrated=True))
-    # COMBINÉ : synthèse EN TÊTE puis jambes (cartes de simple) puis ligne verdict — IDENTIQUE au combiné du
-    # jour. Cote = VRAIE cote corrélée Unibet (real_odds) sinon produit (total) ; confiance = proba corrélée
-    # (calibrated=False, comme _combo_tg_card). Jambes same-match -> on injecte sport/équipes, nom vide (le
-    # match est déjà en tête de la carte parent -> pas de répétition dans le badge de jambe).
+                + _verdict_block(_scote, _sconf, '🎯 Simple · compté au ROI', _scb, calibrated=True)
+                + '<div class="mc-div"></div>')      # filet séparateur simple ↔ combiné
+    # COMBINÉ : jambes (cartes de simple) puis ligne verdict — IDENTIQUE au combiné du jour. Cote = VRAIE cote
+    # corrélée Unibet (real_odds) sinon produit (total) ; confiance = proba corrélée (calibrated=False, comme
+    # _combo_tg_card). Jambes same-match -> on injecte sport/équipes, nom vide (le match est déjà en en-tête).
     _cote = combo.get("real_odds") or combo.get("total")
     _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
                  f'<span class="mc-cote-v">{_cote:g}</span></span>'
                  if isinstance(_cote, (int, float)) and _cote else "")
     _pconf = combo.get("prob")
-    # Synthèse au-dessus des jambes RETIRÉE (demande user 2026-07-18 : « supprimer le texte au-dessus »).
     _legs = [{**l, "sport": sport, "home": home, "away": away, "name": ""} for l in legs]
-    _tag = ('<div class="mc-prov-tag">🎲 COMBINÉ'
-            f'<span> · {len(legs)} jambes</span></div>')
-    out += ('<div class="mc-div"></div>' + _tag
-            + f'<div class="mc-combo-legs">'
+    out += (f'<div class="mc-combo-legs">'
             + "".join(_leg_card(l, why=True, verdict=True, teams=False) for l in _legs)   # même match -> pas d'équipes répétées
             + '</div>'
             + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False))
@@ -5532,11 +5535,18 @@ def _sport_row(r: dict) -> str:
     _premium = ""
     _uid = re.search(r"/(\d+)", url)
     _pmid = _uid.group(1) if _uid else None
-    # COMBINÉ RETENU (ROI) À VENIR : présenté COMME les provisoires / le combiné du jour (jambes = cartes
-    # de simple + ligne verdict). Miroir strict du premium des simples (à venir uniquement : le live garde
-    # son scoreboard, le terminé son résultat). Couvre aussi le cas « multi-paris » (simple + combiné).
+    # COMBINÉ COUPE DU MONDE (ROI) À VENIR : présenté EXACTEMENT comme le combiné du jour (demande user
+    # 2026-07-19) -> même COQUILLE DORÉE + en-tête « 🎯 COMBINÉ • <match> » + badge heure. On court-circuite
+    # la carte de match générique (ni barres %, ni ligne d'équipes, ni bannières sources — comme le combiné
+    # du jour ; le match est nommé dans le sous-titre). Jambes (pli « Pourquoi ») + verdict déjà identiques.
+    # (à venir uniquement : le live garde son scoreboard, le terminé son résultat.)
     if is_combo and (not is_live) and (not is_finished) and sport_key and _pmid:
-        _premium = _combo_premium_block(sport_key, _pmid, r.get("home", ""), r.get("away", ""))
+        _cbody = _combo_premium_block(sport_key, _pmid, r.get("home", ""), r.get("away", ""))
+        if _cbody:
+            _csub = f'{e(_noF(r.get("home")))} <span class="mc-dash">—</span> {e(_noF(r.get("away")))}'
+            if comp:
+                _csub += f'<span class="mc-comp-sep"> • </span>{e(comp)}'
+            return _combo_gold_card(title="COMBINÉ", subtitle=_csub, badge=badge, body=_cbody)
     if (not is_live) and (not is_finished) and not is_combo and len(bets3) == 1 and reco_i == 0:
         _b0 = bets3[0]
         _psel = _b0.get("sel", "")
