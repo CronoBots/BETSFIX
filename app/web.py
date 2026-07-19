@@ -1883,19 +1883,26 @@ CSS = """
   /* CALENDRIER « Pronos » (bandeau horizontal en tête, premium) : KPI 7 jours + pastilles jour/numéro
      scrollables avec barre de bilan colorée, « aujourd'hui » accentué. */
   .cal-wrap{margin:0 0 15px;position:relative}
-  .cal-kpi{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 6px 9px;
-       padding:0 2px}
+  .cal-kpi{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 6px 9px;
+       padding:0 2px;min-height:24px}
   .cal-kpi-l{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase}
+  .cal-kpi-r{display:flex;align-items:center;gap:11px}
   .cal-kpi-v{font-size:12.5px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
   .cal-kpi-v b{color:#dfe8f2;font-weight:800}
   .cal-kpi-roi{margin-left:9px;font-weight:800}
   .cal-kpi-roi.pos{color:#64cd8d}.cal-kpi-roi.neg{color:#ff6b6b}.cal-kpi-roi.neu{color:var(--muted)}
+  /* Bouton « Aujourd'hui » (retour) dans la ligne KPI, au-dessus des pastilles -> aucun chevauchement.
+     Caché tant qu'on est sur aujourd'hui ; montré par JS sinon. */
+  .cal-jump{display:none;align-items:center;gap:3px;padding:4px 10px;border-radius:9px;
+       border:1px solid rgba(246,197,74,.5);background:rgba(246,197,74,.14);color:var(--gold);
+       font-size:11.5px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .cal-jump.show{display:inline-flex}
   /* Padding vertical GÉNÉREUX : le halo de la pastille sélectionnée (ombre) ne doit pas être rogné par
      overflow-x (bug user 2026-07-19 « halo coupé »). */
   .cal-strip{display:flex;align-items:flex-end;gap:5px;overflow-x:auto;scroll-snap-type:x proximity;
        padding:10px 4px 13px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .cal-strip::-webkit-scrollbar{display:none}
-  .cal-pill{flex:none;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;gap:6px;
+  .cal-pill{flex:none;scroll-snap-align:end;display:flex;flex-direction:column;align-items:center;gap:6px;
        min-width:48px;padding:9px 7px 8px;border-radius:13px;border:1px solid transparent;
        background:rgba(255,255,255,.035);color:var(--muted);cursor:pointer;
        -webkit-tap-highlight-color:transparent;transition:background .16s,border-color .16s,transform .1s}
@@ -2979,9 +2986,11 @@ _CAL_JS = (
     "function init(h){try{if(window._mcInit)window._mcInit(h);}catch(e){}"
     "try{if(window._twScan)window._twScan(h);}catch(e){}try{if(window._sxAnim)window._sxAnim(h);}catch(e){}}"
     "function strip(){return document.getElementById('cal-strip');}"
+    "function togJump(date){var s=strip(),j=document.getElementById('cal-jump');"
+    "if(s&&j)j.classList.toggle('show',date!==s.getAttribute('data-today'));}"
     "function sel(pill){var host=document.getElementById('day-content'),s=strip();if(!host||!s||!pill)return;"
     "var ps=s.querySelectorAll('.cal-pill'),i;for(i=0;i<ps.length;i++)ps[i].classList.remove('on');"
-    "pill.classList.add('on');var date=pill.getAttribute('data-date');"
+    "pill.classList.add('on');var date=pill.getAttribute('data-date');togJump(date);"
     "try{pill.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}"
     "host.innerHTML='<div class=\"skel\"><div class=\"sk\"></div><div class=\"sk\"></div></div>';"
     "fetch('/jour?date='+encodeURIComponent(date)+'&frag=1',{headers:{'X-Frag':'1'}})"
@@ -2989,10 +2998,12 @@ _CAL_JS = (
     ".catch(function(){host.innerHTML='<div class=\"paj-empty\">Erreur de chargement.</div>';});}"
     "document.addEventListener('click',function(ev){"
     "if(!ev.target||!ev.target.closest)return;"
+    "if(ev.target.closest('#cal-jump')){ev.preventDefault();var s=strip();if(!s)return;"
+    "s.scrollLeft=s.scrollWidth;var t=s.querySelector('.cal-pill.today');if(t)sel(t);return;}"
     "var pill=ev.target.closest('.cal-pill');if(!pill)return;ev.preventDefault();sel(pill);"
     "});"
-    # aujourd'hui = 1re pastille (à gauche) -> on cale le bandeau à GAUCHE à l'ouverture (today visible).
-    "function sa(){var s=strip();if(s)s.scrollLeft=0;}"
+    # aujourd'hui = DERNIÈRE pastille (à droite, sens naturel) -> on cale le bandeau à DROITE à l'ouverture.
+    "function sa(){var s=strip();if(s)s.scrollLeft=s.scrollWidth;}"
     "setTimeout(sa,120);setTimeout(sa,500);"
     "})();"
 )
@@ -4694,16 +4705,20 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
             won7 += s["won"]
             settled7 += s["settled"]
             profit7 += s["profit"]
+    # Bouton « Aujourd'hui » (dans la ligne KPI, au-DESSUS des pastilles -> ne chevauche RIEN). Caché par
+    # défaut, montré par JS dès qu'on a sélectionné un autre jour -> retour facile à aujourd'hui.
+    jump = '<button class="cal-jump" id="cal-jump" aria-label="Revenir à aujourd\'hui">Auj. ↩</button>'
     if settled7:
         roi7 = round(100 * profit7 / settled7)
         kcls = "pos" if profit7 > 1e-9 else ("neg" if profit7 < -1e-9 else "neu")
-        kpi = (f'<div class="cal-kpi"><span class="cal-kpi-l">7 derniers jours</span>'
-               f'<span class="cal-kpi-v"><b>{won7}</b>G · <b>{settled7 - won7}</b>P'
-               f'<span class="cal-kpi-roi {kcls}">{"+" if roi7 >= 0 else "−"}{abs(roi7)}% ROI</span></span></div>')
+        stats = (f'<span class="cal-kpi-v"><b>{won7}</b>G · <b>{settled7 - won7}</b>P'
+                 f'<span class="cal-kpi-roi {kcls}">{"+" if roi7 >= 0 else "−"}{abs(roi7)}% ROI</span></span>')
     else:
-        kpi = ""
+        stats = ""
+    kpi = (f'<div class="cal-kpi"><span class="cal-kpi-l">7 derniers jours</span>'
+           f'<span class="cal-kpi-r">{jump}{stats}</span></div>')
     pills = []
-    for i in range(0, back + 1):                               # AUJOURD'HUI d'abord (gauche) -> passé vers la droite
+    for i in range(back, -1, -1):                              # passé (gauche) -> AUJOURD'HUI (droite) : sens naturel
         d = today - timedelta(days=i)
         iso = d.isoformat()
         s = rmap.get(iso)
@@ -4719,7 +4734,8 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
                      f'<span class="cal-dn">{d.day}</span>'
                      f'<span class="cal-res {rcls}"></span></button>')
     return (f'<div class="cal-wrap">{kpi}'
-            f'<div class="cal-strip" id="cal-strip">{"".join(pills)}</div></div>')
+            f'<div class="cal-strip" id="cal-strip" data-today="{today.isoformat()}">'
+            f'{"".join(pills)}</div></div>')
 
 
 def _today_zones(match_rows: list) -> tuple[str, int]:
