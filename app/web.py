@@ -300,6 +300,23 @@ CSS = """
           display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));
           background:#0b0d12;border-top:1px solid var(--border)}
+  /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
+     de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
+  .a2hs{position:fixed;left:10px;right:10px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:85;
+       max-width:620px;margin:0 auto;display:flex;align-items:center;gap:11px;padding:11px 11px 11px 13px;
+       border-radius:16px;border:1px solid rgba(120,170,220,.32);
+       background:linear-gradient(180deg,#161b25,#0d1017);box-shadow:0 14px 38px rgba(0,0,0,.6);
+       transform:translateY(20px);opacity:0;transition:transform .32s cubic-bezier(.22,.85,.3,1),opacity .32s}
+  .a2hs.show{transform:translateY(0);opacity:1}
+  .a2hs-ic{font-size:23px;flex:none;line-height:1}
+  .a2hs-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .a2hs-tx b{font-size:13.5px;color:#eef4fb;font-weight:800;letter-spacing:-.01em}
+  .a2hs-tx span{font-size:11.5px;color:var(--muted);line-height:1.42}
+  .a2hs-tx .shr{display:inline-flex;vertical-align:-2px}
+  .a2hs-go{flex:none;padding:8px 14px;border-radius:11px;border:0;cursor:pointer;font-weight:800;font-size:12.5px;
+       color:#04131f;background:linear-gradient(180deg,#8fd0ff,#5fb2f5)}
+  .a2hs-x{flex:none;width:27px;height:27px;border-radius:50%;border:0;cursor:pointer;font-size:12px;
+       background:rgba(255,255,255,.08);color:var(--muted);-webkit-tap-highlight-color:transparent}
   .botnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
             padding:6px 0 4px;border-radius:14px;color:var(--muted);font-size:10px;
             font-weight:700;transition:.15s}
@@ -3008,6 +3025,40 @@ _CAL_JS = (
     "})();"
 )
 
+# Bannière « Ajouter à l'écran d'accueil » : le partage iOS (glyphe SVG) + le libellé sont dans le HTML ;
+# le JS choisit d'afficher (hors standalone) et bascule en bouton natif « Installer » sur Android/Chrome.
+_SHARE_SVG = ('<svg class="shr" width="11" height="13" viewBox="0 0 12 14" fill="none" aria-hidden="true">'
+              '<path d="M6 1.4v7.8M3.5 3.8 6 1.2l2.5 2.6" stroke="#7cc4ff" stroke-width="1.4" '
+              'stroke-linecap="round" stroke-linejoin="round"/>'
+              '<path d="M2.6 6H1.2v6.4h9.6V6H9.4" stroke="#7cc4ff" stroke-width="1.4" '
+              'stroke-linecap="round" stroke-linejoin="round"/></svg>')
+_A2HS_HTML = (
+    '<div class="a2hs" id="a2hs" hidden>'
+    '<div class="a2hs-ic">📲</div>'
+    '<div class="a2hs-tx"><b>Installer l\'app BETSFIX</b>'
+    f'<span id="a2hs-sub">Appuyez sur {_SHARE_SVG} Partager, puis « Sur l\'écran d\'accueil ».</span></div>'
+    '<button class="a2hs-go" id="a2hs-go" hidden>Installer</button>'
+    '<button class="a2hs-x" id="a2hs-x" aria-label="Fermer">✕</button>'
+    '</div>')
+_A2HS_JS = (
+    "(function(){var el=document.getElementById('a2hs');if(!el)return;"
+    "var go=document.getElementById('a2hs-go'),x=document.getElementById('a2hs-x'),sub=document.getElementById('a2hs-sub');"
+    "var sa=window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);"
+    "if(sa)return;"                                    # déjà installée -> jamais de bannière
+    "var off=false;try{off=localStorage.getItem('a2hs_off')==='1';}catch(e){}if(off)return;"
+    "function show(){el.hidden=false;requestAnimationFrame(function(){el.classList.add('show');});}"
+    "function hide(rem){el.classList.remove('show');setTimeout(function(){el.hidden=true;},320);"
+    "if(rem)try{localStorage.setItem('a2hs_off','1');}catch(e){}}"
+    "var dfd=null;"
+    "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();dfd=e;"          # Android/Chrome
+    "if(sub)sub.textContent='Plein écran, sans barre du navigateur.';if(go)go.hidden=false;show();});"
+    "var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);"
+    "if(ios)setTimeout(show,1400);"                    # iOS : instructions déjà dans le HTML
+    "if(go)go.addEventListener('click',function(){if(dfd){dfd.prompt();dfd.userChoice.then(function(){hide(true);});}});"
+    "if(x)x.addEventListener('click',function(){hide(true);});"
+    "})();"
+)
+
 # Menu tiroir « complet » (☰) — présent sur TOUTES les pages. Accès direct à tout : accueil, paris à
 # jouer, bilan, stats, et chaque sport + live. Les clés correspondent à l'item mis en évidence.
 # Anti-zoom (ex-_DRAWER_JS — le tiroir ☰ a été retiré, redondant avec la barre du bas).
@@ -3108,7 +3159,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_A2HS_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
