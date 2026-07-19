@@ -1880,6 +1880,31 @@ CSS = """
   .zone-live .zone-n{color:#5fe39b;background:rgba(52,210,123,.14)}
   .zone-todo{opacity:.88}
   .zone-todo .zone-t{font-size:14.5px;font-weight:700;color:var(--muted)}
+  /* CALENDRIER « Pronos » (bandeau horizontal en tête) : pastilles de jour scrollables + point de bilan. */
+  .cal-wrap{margin:2px -2px 12px;position:relative}
+  .cal-strip{display:flex;gap:7px;overflow-x:auto;scroll-snap-type:x proximity;padding:2px 2px 6px;
+       -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .cal-strip::-webkit-scrollbar{display:none}
+  .cal-pill{flex:none;scroll-snap-align:end;display:flex;flex-direction:column;align-items:center;gap:5px;
+       min-width:52px;padding:8px 9px 7px;border-radius:12px;border:1px solid var(--border);
+       background:rgba(255,255,255,.03);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;
+       -webkit-tap-highlight-color:transparent;transition:background .15s,border-color .15s,color .15s}
+  .cal-pill .cal-lab{white-space:nowrap;letter-spacing:.01em}
+  .cal-pill .cal-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.55}
+  .cal-pill .cal-dot.pos{background:var(--green);opacity:1;box-shadow:0 0 6px rgba(166,226,46,.5)}
+  .cal-pill .cal-dot.neg{background:#ff6b6b;opacity:1;box-shadow:0 0 6px rgba(255,107,107,.5)}
+  .cal-pill .cal-dot.neu{background:var(--gold);opacity:.9}
+  .cal-pill .cal-dot.none{background:var(--muted);opacity:.3}
+  .cal-pill.on{background:rgba(120,170,220,.16);border-color:rgba(120,170,220,.55);color:var(--text)}
+  .cal-pill.on .cal-lab{color:#eaf2fb}
+  /* Bilan d'un jour PASSÉ (tête de #day-content) : gagnés/réglés + ROI coloré. */
+  .day-sum{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 3px 12px;
+       padding:11px 13px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.03)}
+  .day-sum-l{font-size:13.5px;color:var(--muted);font-weight:600}
+  .day-sum-l b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
+  .day-sum-roi{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+  .day-sum-roi.pos{color:#64cd8d}.day-sum-roi.neg{color:#ff6b6b}.day-sum-roi.neu{color:var(--muted)}
+  .day-sum-empty{justify-content:center;color:var(--muted);font-size:12.5px;font-weight:600}
   /* Zone repliable (Terminés) : summary cliquable + chevron, même en-tête épuré. */
   details.zone-col > summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
   details.zone-col > summary::-webkit-details-marker{display:none}
@@ -2645,7 +2670,7 @@ _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 # Icône LIVE = mini-radar vert pulsant (mêmes anneaux que l'orbe de l'état vide « aucun match »)
 _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
                '<span class="nr-ring nr-ring2"></span><span class="nr-dot"></span></span>')
-_SPA_TABS = [("home", "/", "📅", "À venir"), ("stats", "/stats", "📊", "Stats"),
+_SPA_TABS = [("home", "/", "📅", "Pronos"), ("stats", "/stats", "📊", "Stats"),
              ("tennis", "/app", "🎾", "Tennis"), ("basket", "/basket", "🏀", "Basket"),
              ("foot", "/foot", "⚽", "Foot"), ("directs", "/directs", _LIVE_RADAR, "Live"),
              ("compte", "/compte", "👤", "Compte")]
@@ -2920,6 +2945,30 @@ _MILE_JS = (
     "});})();"
 )
 
+# CALENDRIER « Pronos » : clic sur une pastille de jour -> recharge #day-content via /jour (délégation
+# d'événements -> survit aux swaps de fragment), réactive les cartes injectées (_mcInit/_twScan/_sxAnim),
+# et scrolle le bandeau sur le jour actif (aujourd'hui) à l'ouverture.
+_CAL_JS = (
+    "(function(){"
+    "function init(h){try{if(window._mcInit)window._mcInit(h);}catch(e){}"
+    "try{if(window._twScan)window._twScan(h);}catch(e){}try{if(window._sxAnim)window._sxAnim(h);}catch(e){}}"
+    "document.addEventListener('click',function(ev){"
+    "var pill=ev.target&&ev.target.closest?ev.target.closest('.cal-pill'):null;if(!pill)return;"
+    "ev.preventDefault();var host=document.getElementById('day-content');if(!host)return;"
+    "var ps=pill.parentNode.querySelectorAll('.cal-pill'),i;"
+    "for(i=0;i<ps.length;i++)ps[i].classList.remove('on');pill.classList.add('on');"
+    "try{pill.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}"
+    "host.innerHTML='<div class=\"skel\"><div class=\"sk\"></div><div class=\"sk\"></div></div>';"
+    "fetch('/jour?date='+encodeURIComponent(pill.getAttribute('data-date'))+'&frag=1',{headers:{'X-Frag':'1'}})"
+    ".then(function(r){return r.text();}).then(function(h){host.innerHTML=h;init(host);})"
+    ".catch(function(){host.innerHTML='<div class=\"paj-empty\">Erreur de chargement.</div>';});"
+    "});"
+    "function sa(){var p=document.querySelector('.cal-strip .cal-pill.on');"
+    "if(p)try{p.scrollIntoView({inline:'end',block:'nearest'});}catch(e){}}"
+    "setTimeout(sa,200);setTimeout(sa,700);"
+    "})();"
+)
+
 # Menu tiroir « complet » (☰) — présent sur TOUTES les pages. Accès direct à tout : accueil, paris à
 # jouer, bilan, stats, et chaque sport + live. Les clés correspondent à l'item mis en évidence.
 # Anti-zoom (ex-_DRAWER_JS — le tiroir ☰ a été retiré, redondant avec la barre du bas).
@@ -3020,7 +3069,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -4371,20 +4420,23 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str) -> str
         + '</div></div></div>')
 
 
-def _combo_tg_card(include_settled: bool = True) -> str:
+def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
     """Carte « Combiné du jour » présentée COMME les cartes provisoires (Telegram) mais en OR (demande user
     2026-07-12) : en-tête, jambes = picks, SYNTHÈSE en barre cyan, Confiance, COTE en gros chiffre. Placée
     DANS les matchs en direct (plus de bandeau en tête). Info seule. '' si aucun combiné.
     `include_settled=False` (accueil « À venir » + directs) : ne renvoie RIEN une fois le combiné TERMINÉ
     (toutes ses jambes réglées) — un pari fini n'a rien à faire dans « À jouer / À venir » (demande user
-    2026-07-14) ; il reste consultable dans les Stats."""
-    try:
-        import datetime as _dt
-        from app import combo_daily as _cd
-        day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
-        cb = _cd.today(day)
-    except Exception:
-        cb = None
+    2026-07-14) ; il reste consultable dans les Stats.
+    `cb` fourni : rend CE combiné (ex. calendrier « Pronos » -> combiné d'un jour PASSÉ) au lieu de celui
+    d'aujourd'hui."""
+    if cb is None:
+        try:
+            import datetime as _dt
+            from app import combo_daily as _cd
+            day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+            cb = _cd.today(day)
+        except Exception:
+            cb = None
     if not cb or not cb.get("legs"):
         return ""
     _res = cb.get("result")
@@ -4513,48 +4565,143 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
             f'<div class="zone-b">{body}</div></section>')
 
 
-def render_dashboard(match_rows: list, *, live_count: int = 0,
-                     frag: bool = False, source: dict | None = None) -> str:
-    """ACCUEIL (refonte PREMIUM 2026-07-11 ; catégories renommées 2026-07-19) : zones hiérarchisées et
-    épurées — « Combiné multisports du jour » (catégorie dédiée), puis « Confiance à jouer » (les simples
-    retenus), puis « Confiance provisoire » (les provisoires), puis « À analyser » (pas encore analysés).
-    Chaque zone est triée par coup d'envoi (en-têtes de jour internes) et porte son libellé UNE fois (fini
-    la pastille répétée sur chaque carte). Plus de mention ROI (« comptés au ROI »/« hors ROI ») à côté des
-    titres (demande user). Pur affichage — la sélection ROI est inchangée."""
-    # Bulle « N matchs en direct » RETIRÉE (demande user 2026-07-14) : le nombre de matchs live est
-    # désormais un BADGE chiffré sur le point vert de l'onglet Live (menu du bas) -> accueil épuré.
-    livebar = ""
-    # À JOUER (ROI) : les paris retenus (simples + combinés CdM), triés par coup d'envoi.
+def _cal_label(d, today) -> str:
+    """Libellé court d'un jour pour le calendrier : « Auj. » / « Hier » / « Sam 12 »."""
+    from datetime import timedelta
+    if d == today:
+        return "Auj."
+    if d == today - timedelta(days=1):
+        return "Hier"
+    _J = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+    return f"{_J[d.weekday()]} {d.day}"
+
+
+def _daily_results_map() -> dict:
+    """{iso_local: {'won':int, 'settled':int, 'profit':float}} des paris JOUÉS réglés (`stat_bet` figé) +
+    combinés du jour, agrégés par JOUR LOCAL. Sert aux pastilles du calendrier « Pronos » (vert/rouge selon
+    le bilan) et au bilan affiché en tête d'un jour passé. Mise à plat 1 u (won -> cote−1, lost -> −1)."""
+    res: dict = {}
+
+    def _add(iso: str, won: bool, profit: float):
+        e = res.setdefault(iso, {"won": 0, "settled": 0, "profit": 0.0})
+        e["settled"] += 1
+        e["won"] += 1 if won else 0
+        e["profit"] += profit
+
+    for sp in ("foot", "tennis", "basket"):
+        for d in analyses.list_for(sp):
+            sb = d.get("stat_bet") or {}
+            if sb.get("result") not in ("won", "lost"):        # push/None -> pas dans le ROI
+                continue
+            ld = to_local(d.get("_start_dt")) if d.get("_start_dt") else None
+            if ld is None and d.get("start"):
+                try:
+                    ld = to_local(datetime.fromisoformat(str(d["start"]).replace("Z", "+00:00")))
+                except (ValueError, AttributeError):
+                    ld = None
+            if ld is None:
+                continue
+            won = sb["result"] == "won"
+            _add(ld.date().isoformat(), won, (float(sb.get("cote") or 1) - 1) if won else -1.0)
+    try:                                                       # combinés du jour (par leur propre date)
+        from app import combo_daily as _cd
+        for date_iso, result, cote, _det in _cd.roi_events():
+            if result in ("won", "lost"):
+                _add(date_iso, result == "won", (cote - 1) if result == "won" else -1.0)
+    except Exception:
+        pass
+    return res
+
+
+def _calendar_strip(active_iso: str, back: int = 13) -> str:
+    """Bandeau CALENDRIER horizontal (haut de l'onglet « Pronos ») : une pastille par jour (aujourd'hui +
+    `back` jours passés), avec un point de bilan (vert = jour gagnant, rouge = perdant, gris = rien réglé).
+    Cliquer un jour recharge #day-content via /jour (JS `_CAL_JS`). Aujourd'hui = pastille active par défaut."""
+    from datetime import timedelta
+    today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
+    rmap = _daily_results_map()
+    pills = []
+    for i in range(back, -1, -1):                              # du plus ancien (gauche) à aujourd'hui (droite)
+        d = today - timedelta(days=i)
+        iso = d.isoformat()
+        s = rmap.get(iso)
+        if s and s.get("settled"):
+            dcls = "pos" if s["profit"] > 1e-9 else ("neg" if s["profit"] < -1e-9 else "neu")
+        else:
+            dcls = "none"
+        on = " on" if iso == active_iso else ""
+        pills.append(f'<button class="cal-pill{on}" data-date="{iso}">'
+                     f'<span class="cal-lab">{_cal_label(d, today)}</span>'
+                     f'<span class="cal-dot {dcls}"></span></button>')
+    return f'<div class="cal-wrap"><div class="cal-strip" id="cal-strip">{"".join(pills)}</div></div>'
+
+
+def _today_zones(match_rows: list) -> tuple[str, int]:
+    """Zones du JOUR COURANT (Combiné multisports du jour · Confiance à jouer · Confiance provisoire ·
+    À analyser). Extrait de render_dashboard pour être réutilisé par le fragment /jour (jour = aujourd'hui).
+    Renvoie (html, nb_matchs_du_jour) — le compte alimente le badge de nav."""
     play = sorted(list(match_rows), key=lambda r: r.get("start_ts") or 0)
-    # PROGRAMME : provisoires (doré, hors ROI) + reste (pas encore analysé). Accueil = « à venir » -> on
-    # écarte les EN COURS (onglet Live). `framed=True` retire la pastille répétée sur chaque carte.
     _paj = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
     _prog = [it for it in _programme_items(_paj, framed=True) if not it.get("_live")]
     prov = sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
     todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
-    combo_daily = _combo_tg_card(include_settled=False)   # combiné du jour (OR) — retiré une fois TERMINÉ (À venir)
+    combo_daily = _combo_tg_card(include_settled=False)   # combiné du jour (OR) — retiré une fois TERMINÉ
     has_any = bool(play or prov or todo or combo_daily)
     _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir la <b>Confiance provisoire</b> ci-dessous.'
                    ) if has_any else None
     out = [
-        # ZONE 1 — COMBINÉ MULTISPORTS DU JOUR : catégorie DÉDIÉE (demande user 2026-07-19), séparée de la
-        # confiance à jouer. Affichée seulement si un combiné du jour existe (sinon '' via _zone).
         _zone("combo", "Combiné multisports du jour", "", 1 if combo_daily else 0, combo_daily),
-        # ZONE 2 — CONFIANCE À JOUER : les simples retenus (ex-« À jouer »). Sans mention ROI (demande user).
-        # Montrée même vide (état honnête) dès qu'il y a du contenu ailleurs.
         _zone("play", "Confiance à jouer", "", len(play), _rows_by_day(play), empty=_empty_play),
-        # ZONE 3 — CONFIANCE PROVISOIRE : provisoires (ex-« Indicatif »). Sans mention « hors ROI ».
         _zone("indic", "Confiance provisoire", "", len(prov), _rows_by_day(prov)),
-        # ZONE 4 — À ANALYSER (matchs pas encore analysés) : discrète, en bas.
         _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo)),
     ]
     inner = "".join(x for x in out if x)
-    matches = (f'<div class="dash-zones">{inner}</div>' if inner
-               else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    # Marqueur de compte « matchs du jour » (à jouer + indicatif + à analyser) -> badge nav de l'onglet À venir.
-    _cnt_home = len(play) + len(prov) + len(todo)
-    body = f'<span class="dv-nav" data-tab="home" data-n="{_cnt_home}" hidden></span>' + livebar + matches
-    return body if frag else spa_shell("home", "Accueil", body, source=source)
+    zones = (f'<div class="dash-zones">{inner}</div>' if inner
+             else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
+    return zones, len(play) + len(prov) + len(todo)
+
+
+def _day_view(iso: str, day_rows: list) -> str:
+    """Contenu d'un JOUR PASSÉ (calendrier « Pronos ») : bilan du jour (gagnés/réglés · ROI) + le combiné du
+    jour de cette date (résultat) + les paris proposés ce jour-là avec leur résultat (cartes `_sport_row`,
+    terminées = score + ✓/✗). `day_rows` = cartes des matchs dont le coup d'envoi LOCAL tombe ce jour."""
+    s = _daily_results_map().get(iso) or {}
+    won, settled, profit = s.get("won", 0), s.get("settled", 0), s.get("profit", 0.0)
+    roi = round(100 * profit / settled) if settled else 0
+    if settled:
+        pcls = "pos" if profit > 1e-9 else ("neg" if profit < -1e-9 else "neu")
+        summ = (f'<div class="day-sum"><div class="day-sum-l"><b>{won}/{settled}</b> gagnés</div>'
+                f'<div class="day-sum-roi {pcls}">{"+" if roi >= 0 else "−"}{abs(roi)}% ROI</div></div>')
+    else:
+        summ = '<div class="day-sum day-sum-empty">Aucun pari réglé ce jour.</div>'
+    combo = ""
+    try:
+        from app import combo_daily as _cd
+        cb = _cd.today(iso)
+        if cb and cb.get("legs"):
+            combo = _zone("combo", "Combiné multisports du jour", "", 1, _combo_tg_card(include_settled=True, cb=cb))
+    except Exception:
+        combo = ""
+    rows = sorted(day_rows, key=lambda r: r.get("start_ts") or 0)
+    cards = _zone("play", "Résultats du jour", "", len(rows), _rows_by_day(rows)) if rows else ""
+    inner = summ + combo + cards
+    if not (combo or cards):
+        inner = summ + '<div class="paj-empty">Aucun pari proposé ce jour-là.</div>'
+    return f'<div class="dash-zones">{inner}</div>'
+
+
+def render_dashboard(match_rows: list, *, live_count: int = 0,
+                     frag: bool = False, source: dict | None = None) -> str:
+    """Onglet « Pronos » (ex-« À venir », renommé 2026-07-19) : un CALENDRIER horizontal en tête pour revoir
+    les paris proposés les jours passés + leurs résultats, puis le contenu du jour sélectionné (par défaut
+    AUJOURD'HUI = les zones Combiné/Confiance à jouer/Confiance provisoire/À analyser). Cliquer une date
+    recharge #day-content via /jour. Pur affichage — la sélection ROI est inchangée."""
+    today_iso = ((to_local(datetime.now(timezone.utc)) or datetime.now()).date()).isoformat()
+    zones, cnt = _today_zones(match_rows)
+    body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
+            + _calendar_strip(today_iso)
+            + f'<div id="day-content">{zones}</div>')
+    return body if frag else spa_shell("home", "Pronos", body, source=source)
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:
     """VRAI graphique de fiabilité : courbe de l'indice (0-100) dans le temps, pleine largeur, avec

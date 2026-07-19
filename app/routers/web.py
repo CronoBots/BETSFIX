@@ -401,6 +401,77 @@ async def _home_match_rows() -> list:
     return out
 
 
+async def _all_match_rows() -> list:
+    """TOUTES les rencontres analysées (à venir + en cours + TERMINÉES), tous sports, format `_sport_row`.
+    Sert au calendrier « Pronos » (vue d'un jour PASSÉ avec les paris proposés + leurs résultats). Réutilise
+    les mêmes constructeurs de lignes que les onglets sport (mêmes cartes partout) ; inclut les terminés que
+    `_home_match_rows` écarte."""
+    from app import foot as foot_mod, basket as basket_mod
+    from app.routers import foot as foot_r, basket as basket_r
+    out = []
+    try:
+        frows, ffin = await foot_r._analyst_rows("foot")
+        out += [foot_mod._card(r) for r in (frows + ffin)]
+    except Exception:
+        pass
+    try:
+        brows, bfin = await basket_r._analyst_rows()
+        out += [basket_mod._card(r) for r in (brows + bfin)]
+    except Exception:
+        pass
+    try:                                                   # tennis : à venir + en cours + TERMINÉS
+        live = await match_select.fetch_live_odds("tennis")
+        for d in analyses.list_for("tennis"):
+            st = analyses.status_of(d)
+            lf0 = web.live_fields(match_select.live_state_for("tennis", d.get("home"), d.get("away")), "tennis")
+            st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st,
+                                                 bool(lf0.get("score")), start_iso=d.get("start"))
+            dt = usdt or d.get("_start_dt")
+            tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
+            fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))
+            o1, o2 = (fresh[0], fresh[2]) if fresh else (d.get("o1"), d.get("o2"))
+            sel, odds = analyses.pick_parts(d.get("pick") or "")
+            perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
+            bars = web.analyst_bars(o1, None, o2, analyses.votes_pct(d))
+            r = {"id": d.get("id"), "tour": tour, "home": d.get("home", ""), "away": d.get("away", ""),
+                 "status": st, "time": web.fmt_local(usdt or d.get("start"), with_date=True),
+                 "score": "", "hp": None, "implied": None, "votes": None, "oh": o1, "oa": o2,
+                 "start_ts": dt.timestamp() if dt else None, "female": False,
+                 "perle": perle, "perle2": None, "pick_kind": "confiance"}
+            if st == "finished":
+                _bdg, _sco = analyses.result_chip(d)
+                r["score"] = _sco or ""
+            elif st == "inprogress":
+                r.update(lf0)
+            out.append({**_tennis_trow(r), **bars})
+    except Exception:
+        pass
+    out.sort(key=lambda x: x.get("start_ts") or 0)
+    return out
+
+
+@router.get("/jour", response_class=HTMLResponse)
+async def jour(date: str, frag: int = 1) -> HTMLResponse:
+    """Fragment d'un JOUR pour le calendrier « Pronos » (injecté dans #day-content). `date` = YYYY-MM-DD
+    LOCAL. Aujourd'hui/futur -> les zones habituelles (à venir) ; un jour PASSÉ -> les paris proposés ce
+    jour-là + leurs résultats + le bilan du jour."""
+    import datetime as _dt
+    today_iso = ((web.to_local(_dt.datetime.now(_dt.timezone.utc)) or _dt.datetime.now()).date()).isoformat()
+    if date >= today_iso:                                  # aujourd'hui (ou futur) = vue « à venir »
+        rows = [r for r in await _home_match_rows() if r.get("status") != "inprogress"]
+        return HTMLResponse(web._today_zones(rows)[0])
+    allrows = await _all_match_rows()                      # jour passé : matchs dont le coup d'envoi LOCAL == date
+    day_rows = []
+    for r in allrows:
+        ts = r.get("start_ts")
+        if not ts:
+            continue
+        ld = web.to_local(_dt.datetime.fromtimestamp(ts, tz=_dt.timezone.utc))
+        if ld and ld.date().isoformat() == date:
+            day_rows.append(r)
+    return HTMLResponse(web._day_view(date, day_rows))
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider),
                frag: int = 0) -> HTMLResponse:
