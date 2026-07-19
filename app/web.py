@@ -1880,29 +1880,44 @@ CSS = """
   .zone-live .zone-n{color:#5fe39b;background:rgba(52,210,123,.14)}
   .zone-todo{opacity:.88}
   .zone-todo .zone-t{font-size:14.5px;font-weight:700;color:var(--muted)}
-  /* CALENDRIER « Pronos » (bandeau horizontal en tête) : pastilles de jour scrollables + point de bilan. */
-  .cal-wrap{margin:2px -2px 12px;position:relative}
-  .cal-strip{display:flex;gap:7px;overflow-x:auto;scroll-snap-type:x proximity;padding:2px 2px 6px;
-       -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  /* CALENDRIER « Pronos » (bandeau horizontal en tête, premium) : pastilles jour/numéro scrollables,
+     point de bilan coloré, « aujourd'hui » accentué. */
+  .cal-wrap{margin:0 -4px 14px;position:relative}
+  .cal-wrap::after{content:"";position:absolute;top:0;right:-4px;width:26px;height:100%;pointer-events:none;
+       background:linear-gradient(90deg,rgba(7,7,8,0),var(--bg))}   /* fondu droit -> « ça défile » */
+  .cal-strip{display:flex;align-items:flex-end;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;
+       padding:2px 4px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .cal-strip::-webkit-scrollbar{display:none}
-  .cal-pill{flex:none;scroll-snap-align:end;display:flex;flex-direction:column;align-items:center;gap:5px;
-       min-width:52px;padding:8px 9px 7px;border-radius:12px;border:1px solid var(--border);
-       background:rgba(255,255,255,.03);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;
-       -webkit-tap-highlight-color:transparent;transition:background .15s,border-color .15s,color .15s}
-  .cal-pill .cal-lab{white-space:nowrap;letter-spacing:.01em}
-  .cal-pill .cal-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.55}
-  .cal-pill .cal-dot.pos{background:var(--green);opacity:1;box-shadow:0 0 6px rgba(166,226,46,.5)}
-  .cal-pill .cal-dot.neg{background:#ff6b6b;opacity:1;box-shadow:0 0 6px rgba(255,107,107,.5)}
-  .cal-pill .cal-dot.neu{background:var(--gold);opacity:.9}
-  .cal-pill .cal-dot.none{background:var(--muted);opacity:.3}
-  .cal-pill.on{background:rgba(120,170,220,.16);border-color:rgba(120,170,220,.55);color:var(--text)}
-  .cal-pill.on .cal-lab{color:#eaf2fb}
-  /* Bilan d'un jour PASSÉ (tête de #day-content) : gagnés/réglés + ROI coloré. */
-  .day-sum{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 3px 12px;
-       padding:11px 13px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.03)}
+  .cal-mo{flex:none;align-self:center;font-size:9.5px;font-weight:800;letter-spacing:.08em;color:var(--muted);
+       opacity:.5;text-transform:uppercase;padding:0 1px;writing-mode:vertical-rl;transform:rotate(180deg)}
+  .cal-pill{flex:none;scroll-snap-align:end;display:flex;flex-direction:column;align-items:center;gap:4px;
+       min-width:50px;padding:9px 8px 8px;border-radius:14px;border:1px solid var(--border);
+       background:rgba(255,255,255,.03);color:var(--muted);cursor:pointer;
+       -webkit-tap-highlight-color:transparent;transition:background .16s,border-color .16s,transform .1s}
+  .cal-pill:active{transform:scale(.95)}
+  .cal-pill .cal-wd{font-size:10px;font-weight:800;letter-spacing:.05em}
+  .cal-pill .cal-dn{font-size:17px;font-weight:800;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
+  .cal-pill .cal-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.28}
+  .cal-pill .cal-dot.pos{background:var(--green);opacity:1;box-shadow:0 0 7px rgba(166,226,46,.55)}
+  .cal-pill .cal-dot.neg{background:#ff6b6b;opacity:1;box-shadow:0 0 7px rgba(255,107,107,.55)}
+  .cal-pill .cal-dot.neu{background:var(--gold);opacity:.95}
+  .cal-pill.today .cal-wd{color:var(--gold)}
+  .cal-pill.today{border-color:rgba(246,197,74,.4)}
+  .cal-pill.on{background:rgba(120,170,220,.18);border-color:rgba(120,170,220,.65);
+       box-shadow:0 2px 12px rgba(120,170,220,.14)}
+  .cal-pill.on .cal-wd,.cal-pill.on .cal-dn{color:#eaf2fb}
+  .cal-pill.today.on .cal-wd{color:var(--gold)}
+  /* En-tête de contexte du jour affiché (haut de #day-content). */
+  .day-hd{margin:0 3px 12px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .day-hd-lead{font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.01em}
+  .day-hd-sub{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:capitalize}
+  /* Bilan d'un jour PASSÉ (sous l'en-tête) : gagnés/réglés + ROI coloré. */
+  .day-sum{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 3px 14px;
+       padding:12px 14px;border-radius:13px;border:1px solid var(--border);
+       background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02))}
   .day-sum-l{font-size:13.5px;color:var(--muted);font-weight:600}
   .day-sum-l b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
-  .day-sum-roi{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+  .day-sum-roi{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
   .day-sum-roi.pos{color:#64cd8d}.day-sum-roi.neg{color:#ff6b6b}.day-sum-roi.neu{color:var(--muted)}
   .day-sum-empty{justify-content:center;color:var(--muted);font-size:12.5px;font-weight:600}
   /* Zone repliable (Terminés) : summary cliquable + chevron, même en-tête épuré. */
@@ -4565,15 +4580,44 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
             f'<div class="zone-b">{body}</div></section>')
 
 
-def _cal_label(d, today) -> str:
-    """Libellé court d'un jour pour le calendrier : « Auj. » / « Hier » / « Sam 12 »."""
-    from datetime import timedelta
+_WD_ABBR = ["LUN", "MAR", "MER", "JEU", "VEN", "SAM", "DIM"]
+_WD_FULL = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+_MO_FULL = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+            "septembre", "octobre", "novembre", "décembre"]
+
+
+def _day_header(iso: str) -> str:
+    """En-tête de contexte du jour affiché (haut de #day-content) : « Aujourd'hui » / « Hier » / date pleine
+    + la date complète en sous-titre. Rend la navigation calendrier LISIBLE (on sait quel jour on regarde)."""
+    from datetime import date as _date, timedelta
+    today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
+    try:
+        d = _date.fromisoformat(iso)
+    except (ValueError, TypeError):
+        return ""
+    full = f"{_WD_FULL[d.weekday()]} {d.day} {_MO_FULL[d.month - 1]}"
     if d == today:
-        return "Auj."
-    if d == today - timedelta(days=1):
-        return "Hier"
-    _J = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
-    return f"{_J[d.weekday()]} {d.day}"
+        lead, sub = "Aujourd'hui", full
+    elif d == today - timedelta(days=1):
+        lead, sub = "Hier", full
+    else:
+        lead, sub = full[0].upper() + full[1:], ""
+    sub_html = f'<span class="day-hd-sub">{html.escape(sub)}</span>' if sub else ""
+    return f'<div class="day-hd"><span class="day-hd-lead">{html.escape(lead)}</span>{sub_html}</div>'
+
+
+def _card_has_bet(r: dict) -> bool:
+    """Vrai si le match de cette carte a porté un VRAI pari proposé (simple joué figé OU combiné réglé) —
+    filtre les ABSTENTIONS (analysées sans pari) de l'historique « Pronos » (demande user 2026-07-19 :
+    ne reprendre que les types de paris réellement proposés)."""
+    m = re.search(r"/(app|foot|basket)/match/(\d+)", r.get("url") or "")
+    if not m:
+        return False
+    sport = "tennis" if m.group(1) == "app" else m.group(1)
+    d = analyses.meta(sport, m.group(2)) or {}
+    if (d.get("stat_bet") or {}).get("result") in ("won", "lost", "push"):
+        return True
+    return (d.get("combo") or {}).get("result") in ("won", "lost", "void")
 
 
 def _daily_results_map() -> dict:
@@ -4625,13 +4669,19 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
         d = today - timedelta(days=i)
         iso = d.isoformat()
         s = rmap.get(iso)
+        # Point de bilan : vert (jour gagnant) / rouge (perdant) / or (nul) / discret (rien réglé).
+        dcls = "none"
         if s and s.get("settled"):
             dcls = "pos" if s["profit"] > 1e-9 else ("neg" if s["profit"] < -1e-9 else "neu")
-        else:
-            dcls = "none"
-        on = " on" if iso == active_iso else ""
-        pills.append(f'<button class="cal-pill{on}" data-date="{iso}">'
-                     f'<span class="cal-lab">{_cal_label(d, today)}</span>'
+        is_today = d == today
+        wd = "AUJ" if is_today else _WD_ABBR[d.weekday()]
+        cls = "cal-pill" + (" today" if is_today else "") + (" on" if iso == active_iso else "")
+        # Nouveau mois -> petit séparateur d'entête de mois (repère visuel premium).
+        if d.day == 1 or i == back:
+            pills.append(f'<span class="cal-mo">{_MO_FULL[d.month - 1][:3]}.</span>')
+        pills.append(f'<button class="{cls}" data-date="{iso}" aria-label="{_WD_FULL[d.weekday()]} {d.day}">'
+                     f'<span class="cal-wd">{wd}</span>'
+                     f'<span class="cal-dn">{d.day}</span>'
                      f'<span class="cal-dot {dcls}"></span></button>')
     return f'<div class="cal-wrap"><div class="cal-strip" id="cal-strip">{"".join(pills)}</div></div>'
 
@@ -4658,7 +4708,8 @@ def _today_zones(match_rows: list) -> tuple[str, int]:
     inner = "".join(x for x in out if x)
     zones = (f'<div class="dash-zones">{inner}</div>' if inner
              else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    return zones, len(play) + len(prov) + len(todo)
+    today_iso = ((to_local(datetime.now(timezone.utc)) or datetime.now()).date()).isoformat()
+    return _day_header(today_iso) + zones, len(play) + len(prov) + len(todo)
 
 
 def _day_view(iso: str, day_rows: list) -> str:
@@ -4682,12 +4733,14 @@ def _day_view(iso: str, day_rows: list) -> str:
             combo = _zone("combo", "Combiné multisports du jour", "", 1, _combo_tg_card(include_settled=True, cb=cb))
     except Exception:
         combo = ""
-    rows = sorted(day_rows, key=lambda r: r.get("start_ts") or 0)
-    cards = _zone("play", "Résultats du jour", "", len(rows), _rows_by_day(rows)) if rows else ""
+    # HISTORIQUE = uniquement les VRAIS paris proposés (simples joués + combinés) — on filtre les
+    # abstentions (matchs analysés sans pari) qui polluaient la vue (demande user 2026-07-19).
+    rows = sorted([r for r in day_rows if _card_has_bet(r)], key=lambda r: r.get("start_ts") or 0)
+    cards = _zone("play", "Paris proposés", "", len(rows), _rows_by_day(rows)) if rows else ""
     inner = summ + combo + cards
     if not (combo or cards):
         inner = summ + '<div class="paj-empty">Aucun pari proposé ce jour-là.</div>'
-    return f'<div class="dash-zones">{inner}</div>'
+    return _day_header(iso) + f'<div class="dash-zones">{inner}</div>'
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
