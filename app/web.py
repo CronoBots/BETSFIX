@@ -1873,6 +1873,9 @@ CSS = """
   .zone-indic .zone-dot{background:var(--gold);box-shadow:0 0 8px rgba(246,197,74,.55)}
   .zone-indic .zone-n{color:var(--gold);background:var(--gold-bg)}
   .zone-indic .zone-tag{color:var(--gold);opacity:.9}
+  /* Combiné multisports du jour : catégorie dédiée (demande user 2026-07-19), accent violet « premium ». */
+  .zone-combo .zone-dot{background:#a78bfa;box-shadow:0 0 8px rgba(167,139,250,.6)}
+  .zone-combo .zone-n{color:#c4b5fd;background:rgba(167,139,250,.14)}
   .zone-live .zone-dot{background:#34d27b;box-shadow:0 0 8px rgba(52,210,123,.6);animation:livepulse 1.9s ease-out infinite}
   .zone-live .zone-n{color:#5fe39b;background:rgba(52,210,123,.14)}
   .zone-todo{opacity:.88}
@@ -4490,11 +4493,12 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
 
 def render_dashboard(match_rows: list, *, live_count: int = 0,
                      frag: bool = False, source: dict | None = None) -> str:
-    """ACCUEIL (refonte PREMIUM 2026-07-11) : deux zones hiérarchisées et épurées — d'abord « À jouer »
-    (les paris comptés au ROI : simples + combinés Coupe du Monde), puis « Indicatif · hors ROI » (le
-    combiné du jour + les paris provisoires). Chaque zone est triée par coup d'envoi (en-têtes de jour
-    internes) et porte son libellé UNE fois (fini la pastille répétée sur chaque carte). Pur affichage —
-    la sélection ROI est inchangée. Une 3ᵉ zone discrète liste les matchs pas encore analysés."""
+    """ACCUEIL (refonte PREMIUM 2026-07-11 ; catégories renommées 2026-07-19) : zones hiérarchisées et
+    épurées — « Combiné multisports du jour » (catégorie dédiée), puis « Confiance à jouer » (les simples
+    retenus), puis « Confiance provisoire » (les provisoires), puis « À analyser » (pas encore analysés).
+    Chaque zone est triée par coup d'envoi (en-têtes de jour internes) et porte son libellé UNE fois (fini
+    la pastille répétée sur chaque carte). Plus de mention ROI (« comptés au ROI »/« hors ROI ») à côté des
+    titres (demande user). Pur affichage — la sélection ROI est inchangée."""
     # Bulle « N matchs en direct » RETIRÉE (demande user 2026-07-14) : le nombre de matchs live est
     # désormais un BADGE chiffré sur le point vert de l'onglet Live (menu du bas) -> accueil épuré.
     livebar = ""
@@ -4508,16 +4512,18 @@ def render_dashboard(match_rows: list, *, live_count: int = 0,
     todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
     combo_daily = _combo_tg_card(include_settled=False)   # combiné du jour (OR) — retiré une fois TERMINÉ (À venir)
     has_any = bool(play or prov or todo or combo_daily)
-    _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir l\'<b>indicatif</b> ci-dessous.'
+    _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir la <b>Confiance provisoire</b> ci-dessous.'
                    ) if has_any else None
     out = [
-        # ZONE 1 — À JOUER (ROI) : le COMBINÉ DU JOUR (désormais compté au ROI, décision user 2026-07-14) en
-        # tête, puis les simples retenus. Montrée même vide (état honnête) dès qu'il y a du contenu ailleurs.
-        _zone("play", "À jouer", "comptés au ROI", len(play) + (1 if combo_daily else 0),
-              combo_daily + _rows_by_day(play), empty=_empty_play),
-        # ZONE 2 — INDICATIF (hors ROI) : provisoires.
-        _zone("indic", "Indicatif", "hors ROI", len(prov), _rows_by_day(prov)),
-        # ZONE 3 — À ANALYSER (matchs pas encore analysés) : discrète, en bas.
+        # ZONE 1 — COMBINÉ MULTISPORTS DU JOUR : catégorie DÉDIÉE (demande user 2026-07-19), séparée de la
+        # confiance à jouer. Affichée seulement si un combiné du jour existe (sinon '' via _zone).
+        _zone("combo", "Combiné multisports du jour", "", 1 if combo_daily else 0, combo_daily),
+        # ZONE 2 — CONFIANCE À JOUER : les simples retenus (ex-« À jouer »). Sans mention ROI (demande user).
+        # Montrée même vide (état honnête) dès qu'il y a du contenu ailleurs.
+        _zone("play", "Confiance à jouer", "", len(play), _rows_by_day(play), empty=_empty_play),
+        # ZONE 3 — CONFIANCE PROVISOIRE : provisoires (ex-« Indicatif »). Sans mention « hors ROI ».
+        _zone("indic", "Confiance provisoire", "", len(prov), _rows_by_day(prov)),
+        # ZONE 4 — À ANALYSER (matchs pas encore analysés) : discrète, en bas.
         _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo)),
     ]
     inner = "".join(x for x in out if x)
@@ -5667,9 +5673,9 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
                          paused: bool = False, frag: bool = False,
                          confidences: list | None = None) -> str:
     """Page Matchs UNIFIÉE pour tous les sports — MÊMES ZONES PREMIUM que l'accueil (refonte 2026-07-11) :
-    « À jouer » (retenus à venir, ROI) → « En direct » → « Indicatif · hors ROI » (provisoires) → « Terminés »
-    (repliée d'office). En-têtes épurés (point d'état + titre casse normale + filet), pas de répétition du
-    libellé sur les cartes.
+    « Confiance à jouer » (retenus à venir) → « En direct » → « Confiance provisoire » (provisoires) →
+    « Terminés » (repliée d'office). En-têtes épurés (point d'état + titre casse normale + filet), pas de
+    répétition du libellé sur les cartes.
 
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
     « aucun match ». `frag=True` -> renvoie le corps seul (chargé en AJAX dans la SPA)."""
@@ -5696,11 +5702,11 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
 
     _has = bool(play_up or live or prov_up or finished)
     out = [
-        _zone("play", "À jouer", "comptés au ROI", len(play_up), _rows_by_day(play_up),
-              empty=("Aucune <b>value</b> à venir pour l'instant — voir l'<b>indicatif</b> plus bas."
+        _zone("play", "Confiance à jouer", "", len(play_up), _rows_by_day(play_up),
+              empty=("Aucune <b>value</b> à venir pour l'instant — voir la <b>Confiance provisoire</b> plus bas."
                      if _has else None)),
         _zone("live", "En direct", "temps réel", len(live), _cards(live)),
-        _zone("indic", "Indicatif", "hors ROI", len(prov_up), _rows_by_day(prov_up)),
+        _zone("indic", "Confiance provisoire", "", len(prov_up), _rows_by_day(prov_up)),
         _zone("todo", "Terminés", "", len(finished), _cards(finished), collapsible=True, open_=False),
     ]
     body_zones = "".join(x for x in out if x)
