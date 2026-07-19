@@ -4470,6 +4470,19 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
                  if isinstance(_cote, (int, float)) and _cote else "")
     _pconf = combo.get("prob")
     _legs = [{**l, "sport": sport, "home": home, "away": away, "name": ""} for l in legs]
+    # CONFIANCE par jambe -> LIGNE VERDICT complète (barre + Confiance/Marché/Cote) COMME le combiné du jour.
+    # Les jambes CdM ne stockent pas `prob` ; on la retrouve dans les FANTÔMES du match (`shadow`, même
+    # marché par `code`), qui portent la proba de l'analyste (source identique au combiné du jour). Sans ça,
+    # _leg_card dégradait le verdict en simple pastille de cote (demande user 2026-07-19 : « pas présenté
+    # pareil »). Désambiguïsation par cote si plusieurs jambes partagent un code.
+    _shadow = m.get("shadow") or []
+    for _lg in _legs:
+        if _lg.get("prob") is None and _lg.get("code"):
+            _c = [s for s in _shadow if s.get("code") == _lg.get("code")]
+            if len(_c) > 1:
+                _c = sorted(_c, key=lambda s: abs((s.get("cote") or 0) - (_lg.get("cote") or 0)))
+            if _c and _c[0].get("prob") is not None:
+                _lg["prob"] = _c[0]["prob"]
     out += (f'<div class="mc-combo-legs">'
             + "".join(_leg_card(l, why=True, verdict=True, teams=False) for l in _legs)   # même match -> pas d'équipes répétées
             + '</div>'
