@@ -1895,7 +1895,7 @@ CSS = """
   .cal-strip{display:flex;align-items:flex-end;gap:5px;overflow-x:auto;scroll-snap-type:x proximity;
        padding:10px 4px 13px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .cal-strip::-webkit-scrollbar{display:none}
-  .cal-pill{flex:none;scroll-snap-align:end;display:flex;flex-direction:column;align-items:center;gap:6px;
+  .cal-pill{flex:none;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;gap:6px;
        min-width:48px;padding:9px 7px 8px;border-radius:13px;border:1px solid transparent;
        background:rgba(255,255,255,.035);color:var(--muted);cursor:pointer;
        -webkit-tap-highlight-color:transparent;transition:background .16s,border-color .16s,transform .1s}
@@ -1906,21 +1906,17 @@ CSS = """
   .cal-pill .cal-res.pos{background:linear-gradient(90deg,#2f9d63,#64cd8d);opacity:1}
   .cal-pill .cal-res.neg{background:linear-gradient(90deg,#d84a4a,#ff7a7a);opacity:1}
   .cal-pill .cal-res.neu{background:var(--gold);opacity:.85}
-  /* AUJOURD'HUI ÉPINGLÉ à droite (position:sticky) -> TOUJOURS visible même en défilant dans le passé
-     (demande user 2026-07-19). Fond OPAQUE (base --bg) + masque sombre à gauche : les autres jours
-     défilent DERRIÈRE lui. Tap = retour à aujourd'hui (pastille normale). */
-  .cal-pill.today{position:sticky;right:0;z-index:3;
-       background:linear-gradient(180deg,rgba(246,197,74,.15),rgba(246,197,74,.05)),var(--bg);
-       border-color:rgba(246,197,74,.4);box-shadow:-18px 0 15px -3px var(--bg)}
+  /* AUJOURD'HUI = 1re pastille (à gauche) -> toujours visible à l'ouverture, sans sticky ni masque
+     (demande user 2026-07-19). Accent doré simple. */
+  .cal-pill.today{background:rgba(246,197,74,.1);border-color:rgba(246,197,74,.38)}
   .cal-pill.today .cal-wd{color:var(--gold);opacity:1}
   .cal-pill.today .cal-dn{color:#f3e6c4}
   .cal-pill.on{background:rgba(120,170,220,.2);border-color:rgba(120,170,220,.7);
        box-shadow:0 2px 9px rgba(120,170,220,.2)}
   .cal-pill.on .cal-wd{color:#bcd4ee;opacity:1}
   .cal-pill.on .cal-dn{color:#f4f8fc}
-  .cal-pill.today.on{border-color:rgba(246,197,74,.65);
-       background:linear-gradient(180deg,rgba(246,197,74,.22),rgba(246,197,74,.08)),var(--bg);
-       box-shadow:-18px 0 15px -3px var(--bg),0 2px 9px rgba(246,197,74,.18)}
+  .cal-pill.today.on{background:rgba(246,197,74,.2);border-color:rgba(246,197,74,.62);
+       box-shadow:0 2px 9px rgba(246,197,74,.2)}
   .cal-pill.today.on .cal-wd{color:var(--gold)}
   /* En-tête de contexte du jour affiché (haut de #day-content). */
   .day-hd{margin:0 3px 12px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
@@ -2995,8 +2991,8 @@ _CAL_JS = (
     "if(!ev.target||!ev.target.closest)return;"
     "var pill=ev.target.closest('.cal-pill');if(!pill)return;ev.preventDefault();sel(pill);"
     "});"
-    # auto-scroll À FOND À DROITE (aujourd'hui = dernier jour) à l'ouverture -> aucun espace vide à droite.
-    "function sa(){var s=strip();if(s)s.scrollLeft=s.scrollWidth;}"
+    # aujourd'hui = 1re pastille (à gauche) -> on cale le bandeau à GAUCHE à l'ouverture (today visible).
+    "function sa(){var s=strip();if(s)s.scrollLeft=0;}"
     "setTimeout(sa,120);setTimeout(sa,500);"
     "})();"
 )
@@ -4707,7 +4703,7 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
     else:
         kpi = ""
     pills = []
-    for i in range(back, -1, -1):                              # du plus ancien (gauche) à aujourd'hui (droite)
+    for i in range(0, back + 1):                               # AUJOURD'HUI d'abord (gauche) -> passé vers la droite
         d = today - timedelta(days=i)
         iso = d.isoformat()
         s = rmap.get(iso)
