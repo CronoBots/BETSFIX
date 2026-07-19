@@ -4620,10 +4620,17 @@ def _card_has_bet(r: dict) -> bool:
     return (d.get("combo") or {}).get("result") in ("won", "lost", "void")
 
 
+_DRM_CACHE: dict = {"ts": 0.0, "map": None}
+
+
 def _daily_results_map() -> dict:
     """{iso_local: {'won':int, 'settled':int, 'profit':float}} des paris JOUÉS réglés (`stat_bet` figé) +
     combinés du jour, agrégés par JOUR LOCAL. Sert aux pastilles du calendrier « Pronos » (vert/rouge selon
-    le bilan) et au bilan affiché en tête d'un jour passé. Mise à plat 1 u (won -> cote−1, lost -> −1)."""
+    le bilan) et au bilan affiché en tête d'un jour passé. Mise à plat 1 u (won -> cote−1, lost -> −1).
+    Caché 30 s : réutilisé par le bandeau + chaque vue jour d'une même salve de navigation (perf)."""
+    _now = time.time()
+    if _DRM_CACHE["map"] is not None and _now - _DRM_CACHE["ts"] < 30:
+        return _DRM_CACHE["map"]
     res: dict = {}
 
     def _add(iso: str, won: bool, profit: float):
@@ -4654,6 +4661,7 @@ def _daily_results_map() -> dict:
                 _add(date_iso, result == "won", (cote - 1) if result == "won" else -1.0)
     except Exception:
         pass
+    _DRM_CACHE.update(ts=_now, map=res)
     return res
 
 
