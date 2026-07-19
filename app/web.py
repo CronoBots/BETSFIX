@@ -1880,32 +1880,41 @@ CSS = """
   .zone-live .zone-n{color:#5fe39b;background:rgba(52,210,123,.14)}
   .zone-todo{opacity:.88}
   .zone-todo .zone-t{font-size:14.5px;font-weight:700;color:var(--muted)}
-  /* CALENDRIER « Pronos » (bandeau horizontal en tête, premium) : pastilles jour/numéro scrollables,
-     point de bilan coloré, « aujourd'hui » accentué. */
-  .cal-wrap{margin:0 -4px 14px;position:relative}
-  .cal-wrap::after{content:"";position:absolute;top:0;right:-4px;width:26px;height:100%;pointer-events:none;
+  /* CALENDRIER « Pronos » (bandeau horizontal en tête, premium) : KPI 7 jours + pastilles jour/numéro
+     scrollables avec barre de bilan colorée, « aujourd'hui » accentué. */
+  .cal-wrap{margin:0 -4px 15px;position:relative}
+  .cal-wrap::after{content:"";position:absolute;bottom:8px;right:-4px;width:28px;height:56px;pointer-events:none;
        background:linear-gradient(90deg,rgba(7,7,8,0),var(--bg))}   /* fondu droit -> « ça défile » */
-  .cal-strip{display:flex;align-items:flex-end;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;
+  .cal-kpi{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 6px 9px;
+       padding:0 2px}
+  .cal-kpi-l{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase}
+  .cal-kpi-v{font-size:12.5px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .cal-kpi-v b{color:#dfe8f2;font-weight:800}
+  .cal-kpi-roi{margin-left:9px;font-weight:800}
+  .cal-kpi-roi.pos{color:#64cd8d}.cal-kpi-roi.neg{color:#ff6b6b}.cal-kpi-roi.neu{color:var(--muted)}
+  .cal-strip{display:flex;align-items:flex-end;gap:5px;overflow-x:auto;scroll-snap-type:x proximity;
        padding:2px 4px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .cal-strip::-webkit-scrollbar{display:none}
-  .cal-mo{flex:none;align-self:center;font-size:9.5px;font-weight:800;letter-spacing:.08em;color:var(--muted);
-       opacity:.5;text-transform:uppercase;padding:0 1px;writing-mode:vertical-rl;transform:rotate(180deg)}
-  .cal-pill{flex:none;scroll-snap-align:end;display:flex;flex-direction:column;align-items:center;gap:4px;
-       min-width:50px;padding:9px 8px 8px;border-radius:14px;border:1px solid var(--border);
-       background:rgba(255,255,255,.03);color:var(--muted);cursor:pointer;
+  .cal-pill{flex:none;scroll-snap-align:end;display:flex;flex-direction:column;align-items:center;gap:6px;
+       min-width:48px;padding:9px 7px 8px;border-radius:13px;border:1px solid transparent;
+       background:rgba(255,255,255,.035);color:var(--muted);cursor:pointer;
        -webkit-tap-highlight-color:transparent;transition:background .16s,border-color .16s,transform .1s}
-  .cal-pill:active{transform:scale(.95)}
-  .cal-pill .cal-wd{font-size:10px;font-weight:800;letter-spacing:.05em}
-  .cal-pill .cal-dn{font-size:17px;font-weight:800;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
-  .cal-pill .cal-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.28}
-  .cal-pill .cal-dot.pos{background:var(--green);opacity:1;box-shadow:0 0 7px rgba(166,226,46,.55)}
-  .cal-pill .cal-dot.neg{background:#ff6b6b;opacity:1;box-shadow:0 0 7px rgba(255,107,107,.55)}
-  .cal-pill .cal-dot.neu{background:var(--gold);opacity:.95}
-  .cal-pill.today .cal-wd{color:var(--gold)}
-  .cal-pill.today{border-color:rgba(246,197,74,.4)}
-  .cal-pill.on{background:rgba(120,170,220,.18);border-color:rgba(120,170,220,.65);
-       box-shadow:0 2px 12px rgba(120,170,220,.14)}
-  .cal-pill.on .cal-wd,.cal-pill.on .cal-dn{color:#eaf2fb}
+  .cal-pill:active{transform:scale(.94)}
+  .cal-pill .cal-wd{font-size:9.5px;font-weight:800;letter-spacing:.06em;opacity:.85}
+  .cal-pill .cal-dn{font-size:17px;font-weight:800;line-height:1;color:#c9d4e0;font-variant-numeric:tabular-nums}
+  .cal-pill .cal-res{width:20px;height:3px;border-radius:2px;background:var(--muted);opacity:.22}
+  .cal-pill .cal-res.pos{background:linear-gradient(90deg,#2f9d63,#64cd8d);opacity:1}
+  .cal-pill .cal-res.neg{background:linear-gradient(90deg,#d84a4a,#ff7a7a);opacity:1}
+  .cal-pill .cal-res.neu{background:var(--gold);opacity:.85}
+  .cal-pill.today{background:rgba(246,197,74,.09);border-color:rgba(246,197,74,.34)}
+  .cal-pill.today .cal-wd{color:var(--gold);opacity:1}
+  .cal-pill.today .cal-dn{color:#f3e6c4}
+  .cal-pill.on{background:rgba(120,170,220,.2);border-color:rgba(120,170,220,.7);
+       box-shadow:0 3px 14px rgba(120,170,220,.16)}
+  .cal-pill.on .cal-wd{color:#bcd4ee;opacity:1}
+  .cal-pill.on .cal-dn{color:#f4f8fc}
+  .cal-pill.today.on{background:rgba(246,197,74,.16);border-color:rgba(246,197,74,.6);
+       box-shadow:0 3px 14px rgba(246,197,74,.16)}
   .cal-pill.today.on .cal-wd{color:var(--gold)}
   /* En-tête de contexte du jour affiché (haut de #day-content). */
   .day-hd{margin:0 3px 12px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
@@ -4672,26 +4681,40 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
     from datetime import timedelta
     today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
     rmap = _daily_results_map()
+    # KPI « 7 derniers jours » (record + ROI) — touche dashboard pro au-dessus du bandeau.
+    won7 = settled7 = 0
+    profit7 = 0.0
+    for i in range(7):
+        s = rmap.get((today - timedelta(days=i)).isoformat())
+        if s:
+            won7 += s["won"]
+            settled7 += s["settled"]
+            profit7 += s["profit"]
+    if settled7:
+        roi7 = round(100 * profit7 / settled7)
+        kcls = "pos" if profit7 > 1e-9 else ("neg" if profit7 < -1e-9 else "neu")
+        kpi = (f'<div class="cal-kpi"><span class="cal-kpi-l">7 derniers jours</span>'
+               f'<span class="cal-kpi-v"><b>{won7}</b>G · <b>{settled7 - won7}</b>P'
+               f'<span class="cal-kpi-roi {kcls}">{"+" if roi7 >= 0 else "−"}{abs(roi7)}% ROI</span></span></div>')
+    else:
+        kpi = ""
     pills = []
     for i in range(back, -1, -1):                              # du plus ancien (gauche) à aujourd'hui (droite)
         d = today - timedelta(days=i)
         iso = d.isoformat()
         s = rmap.get(iso)
-        # Point de bilan : vert (jour gagnant) / rouge (perdant) / or (nul) / discret (rien réglé).
-        dcls = "none"
+        # Barre de bilan : vert (jour gagnant) / rouge (perdant) / or (nul) / discret (rien réglé).
+        rcls = "none"
         if s and s.get("settled"):
-            dcls = "pos" if s["profit"] > 1e-9 else ("neg" if s["profit"] < -1e-9 else "neu")
+            rcls = "pos" if s["profit"] > 1e-9 else ("neg" if s["profit"] < -1e-9 else "neu")
         is_today = d == today
         wd = "AUJ" if is_today else _WD_ABBR[d.weekday()]
         cls = "cal-pill" + (" today" if is_today else "") + (" on" if iso == active_iso else "")
-        # Nouveau mois -> petit séparateur d'entête de mois (repère visuel premium).
-        if d.day == 1 or i == back:
-            pills.append(f'<span class="cal-mo">{_MO_FULL[d.month - 1][:3]}.</span>')
         pills.append(f'<button class="{cls}" data-date="{iso}" aria-label="{_WD_FULL[d.weekday()]} {d.day}">'
                      f'<span class="cal-wd">{wd}</span>'
                      f'<span class="cal-dn">{d.day}</span>'
-                     f'<span class="cal-dot {dcls}"></span></button>')
-    return f'<div class="cal-wrap"><div class="cal-strip" id="cal-strip">{"".join(pills)}</div></div>'
+                     f'<span class="cal-res {rcls}"></span></button>')
+    return f'<div class="cal-wrap">{kpi}<div class="cal-strip" id="cal-strip">{"".join(pills)}</div></div>'
 
 
 def _today_zones(match_rows: list) -> tuple[str, int]:
