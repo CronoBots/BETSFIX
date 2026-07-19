@@ -1883,13 +1883,6 @@ CSS = """
   /* CALENDRIER « Pronos » (bandeau horizontal en tête, premium) : KPI 7 jours + pastilles jour/numéro
      scrollables avec barre de bilan colorée, « aujourd'hui » accentué. */
   .cal-wrap{margin:0 0 15px;position:relative}
-  /* Bouton « revenir à aujourd'hui » (apparaît quand on a défilé/sélectionné un autre jour). */
-  .cal-jump{position:absolute;right:0;bottom:11px;display:none;align-items:center;gap:4px;
-       padding:7px 11px;border-radius:11px;border:1px solid rgba(246,197,74,.5);
-       background:linear-gradient(180deg,rgba(246,197,74,.22),rgba(246,197,74,.12));
-       color:var(--gold);font-size:12px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent;
-       box-shadow:-10px 0 14px 6px var(--bg)}   /* halo sombre à gauche -> se détache du bandeau */
-  .cal-jump.show{display:inline-flex}
   .cal-kpi{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 6px 9px;
        padding:0 2px}
   .cal-kpi-l{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase}
@@ -1897,8 +1890,10 @@ CSS = """
   .cal-kpi-v b{color:#dfe8f2;font-weight:800}
   .cal-kpi-roi{margin-left:9px;font-weight:800}
   .cal-kpi-roi.pos{color:#64cd8d}.cal-kpi-roi.neg{color:#ff6b6b}.cal-kpi-roi.neu{color:var(--muted)}
+  /* Padding vertical GÉNÉREUX : le halo de la pastille sélectionnée (ombre) ne doit pas être rogné par
+     overflow-x (bug user 2026-07-19 « halo coupé »). */
   .cal-strip{display:flex;align-items:flex-end;gap:5px;overflow-x:auto;scroll-snap-type:x proximity;
-       padding:2px 4px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+       padding:10px 4px 13px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .cal-strip::-webkit-scrollbar{display:none}
   .cal-pill{flex:none;scroll-snap-align:end;display:flex;flex-direction:column;align-items:center;gap:6px;
        min-width:48px;padding:9px 7px 8px;border-radius:13px;border:1px solid transparent;
@@ -1911,15 +1906,21 @@ CSS = """
   .cal-pill .cal-res.pos{background:linear-gradient(90deg,#2f9d63,#64cd8d);opacity:1}
   .cal-pill .cal-res.neg{background:linear-gradient(90deg,#d84a4a,#ff7a7a);opacity:1}
   .cal-pill .cal-res.neu{background:var(--gold);opacity:.85}
-  .cal-pill.today{background:rgba(246,197,74,.09);border-color:rgba(246,197,74,.34)}
+  /* AUJOURD'HUI ÉPINGLÉ à droite (position:sticky) -> TOUJOURS visible même en défilant dans le passé
+     (demande user 2026-07-19). Fond OPAQUE (base --bg) + masque sombre à gauche : les autres jours
+     défilent DERRIÈRE lui. Tap = retour à aujourd'hui (pastille normale). */
+  .cal-pill.today{position:sticky;right:0;z-index:3;
+       background:linear-gradient(180deg,rgba(246,197,74,.15),rgba(246,197,74,.05)),var(--bg);
+       border-color:rgba(246,197,74,.4);box-shadow:-18px 0 15px -3px var(--bg)}
   .cal-pill.today .cal-wd{color:var(--gold);opacity:1}
   .cal-pill.today .cal-dn{color:#f3e6c4}
   .cal-pill.on{background:rgba(120,170,220,.2);border-color:rgba(120,170,220,.7);
-       box-shadow:0 3px 14px rgba(120,170,220,.16)}
+       box-shadow:0 2px 9px rgba(120,170,220,.2)}
   .cal-pill.on .cal-wd{color:#bcd4ee;opacity:1}
   .cal-pill.on .cal-dn{color:#f4f8fc}
-  .cal-pill.today.on{background:rgba(246,197,74,.16);border-color:rgba(246,197,74,.6);
-       box-shadow:0 3px 14px rgba(246,197,74,.16)}
+  .cal-pill.today.on{border-color:rgba(246,197,74,.65);
+       background:linear-gradient(180deg,rgba(246,197,74,.22),rgba(246,197,74,.08)),var(--bg);
+       box-shadow:-18px 0 15px -3px var(--bg),0 2px 9px rgba(246,197,74,.18)}
   .cal-pill.today.on .cal-wd{color:var(--gold)}
   /* En-tête de contexte du jour affiché (haut de #day-content). */
   .day-hd{margin:0 3px 12px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
@@ -2982,11 +2983,9 @@ _CAL_JS = (
     "function init(h){try{if(window._mcInit)window._mcInit(h);}catch(e){}"
     "try{if(window._twScan)window._twScan(h);}catch(e){}try{if(window._sxAnim)window._sxAnim(h);}catch(e){}}"
     "function strip(){return document.getElementById('cal-strip');}"
-    "function togJump(date){var s=strip(),j=document.getElementById('cal-jump');"
-    "if(s&&j)j.classList.toggle('show',date!==s.getAttribute('data-today'));}"
     "function sel(pill){var host=document.getElementById('day-content'),s=strip();if(!host||!s||!pill)return;"
     "var ps=s.querySelectorAll('.cal-pill'),i;for(i=0;i<ps.length;i++)ps[i].classList.remove('on');"
-    "pill.classList.add('on');var date=pill.getAttribute('data-date');togJump(date);"
+    "pill.classList.add('on');var date=pill.getAttribute('data-date');"
     "try{pill.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}"
     "host.innerHTML='<div class=\"skel\"><div class=\"sk\"></div><div class=\"sk\"></div></div>';"
     "fetch('/jour?date='+encodeURIComponent(date)+'&frag=1',{headers:{'X-Frag':'1'}})"
@@ -2994,8 +2993,6 @@ _CAL_JS = (
     ".catch(function(){host.innerHTML='<div class=\"paj-empty\">Erreur de chargement.</div>';});}"
     "document.addEventListener('click',function(ev){"
     "if(!ev.target||!ev.target.closest)return;"
-    "if(ev.target.closest('#cal-jump')){ev.preventDefault();var s=strip();if(!s)return;"
-    "s.scrollLeft=s.scrollWidth;var t=s.querySelector('.cal-pill.today');if(t)sel(t);return;}"
     "var pill=ev.target.closest('.cal-pill');if(!pill)return;ev.preventDefault();sel(pill);"
     "});"
     # auto-scroll À FOND À DROITE (aujourd'hui = dernier jour) à l'ouverture -> aucun espace vide à droite.
@@ -4725,11 +4722,8 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
                      f'<span class="cal-wd">{wd}</span>'
                      f'<span class="cal-dn">{d.day}</span>'
                      f'<span class="cal-res {rcls}"></span></button>')
-    today_iso = today.isoformat()
     return (f'<div class="cal-wrap">{kpi}'
-            f'<div class="cal-strip" id="cal-strip" data-today="{today_iso}">{"".join(pills)}</div>'
-            f'<button class="cal-jump" id="cal-jump" aria-label="Revenir à aujourd\'hui">Auj. ↩</button>'
-            f'</div>')
+            f'<div class="cal-strip" id="cal-strip">{"".join(pills)}</div></div>')
 
 
 def _today_zones(match_rows: list) -> tuple[str, int]:
