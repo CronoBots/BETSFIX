@@ -4138,7 +4138,7 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
         return ""
 
 
-def _why_fold(text: str, label: str = "Pourquoi ce pari") -> str:
+def _why_fold(text: str, label: str = "Pourquoi ce choix") -> str:
     """Pli TAPPABLE « 💡 <label> » — MÊME patron que le « 💡 Pourquoi cette jambe » des combinés
     (`.cleg-fold`), demande user 2026-07-20 : porter l'analyse appréciée des jambes sur TOUS les types
     de paris (simple retenu, provisoire). Porte l'analyse COMPLÈTE (déjà nettoyée). '' si pas de texte.
