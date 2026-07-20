@@ -2111,12 +2111,15 @@ def stat_bet(d: dict) -> dict | None:
 
 
 def provisional_shown(sport, sel, cote, prob, home="", away="") -> bool:
-    """Un pari PROVISOIRE (indicatif) est-il DIGNE d'être affiché/suivi ? (demande user 2026-07-17) On ne
-    GARDE PAS un provisoire SANS value (EV≤0) ET SOUS 60 % de confiance CALIBRÉE — c'est du bruit. On GARDE
-    ceux qui ont de la VALUE (EV>0) OU une confiance calibrée ≥ 60 %. Confiance CALIBRÉE = celle affichée
-    partout (cohérence). Purement affichage/suivi — jamais ROI/stats/calibration. SOURCE UNIQUE : appelée par
-    l'affichage (web._programme_items) ET le suivi (provisional.reconcile_with_programme) -> jamais d'écart
-    liste/compteur."""
+    """Un pari PROVISOIRE (indicatif) est-il DIGNE d'être affiché/suivi ? (demande user 2026-07-17, affiné
+    2026-07-20) Un provisoire est un PICK indicatif : il doit d'abord être un pari qu'on FAVORISE. On ne
+    garde JAMAIS un pick « FAIBLE » (confiance calibrée < 55 %, pastille rouge — on l'estime plus probable de
+    perdre) MÊME avec de la value : proposer un pari qu'on juge perdant n'a pas de sens (demande user 2026-07-20,
+    ex. Dallas Wings gagne @2.35, 47 % « faible » +10 % value). Au-dessus du plancher : gardé s'il a de la
+    VALUE (EV>0) OU une confiance calibrée ≥ 60 %. Sous 55 % ou (55-60 % sans value) -> écarté (bruit).
+    Confiance CALIBRÉE = celle affichée partout (cohérence). Purement affichage/suivi — jamais ROI/stats/
+    calibration. SOURCE UNIQUE : appelée par l'affichage (web._programme_items) ET le suivi
+    (provisional.reconcile_with_programme) -> jamais d'écart liste/compteur."""
     if not sel:
         return False
     try:
@@ -2131,7 +2134,9 @@ def provisional_shown(sport, sel, cote, prob, home="", away="") -> bool:
         cp = prob
     if cp is None:
         return c is not None                   # sans confiance calculable : garder (repli prudent) si coté
-    if c and (cp / 100.0 * c - 1) > 0:         # VALUE (EV>0) -> toujours gardé
+    if cp < 55:                                # PLANCHER : un pick « faible » (rouge) n'est jamais proposé,
+        return False                           #           même avec value (demande user 2026-07-20)
+    if c and (cp / 100.0 * c - 1) > 0:         # VALUE (EV>0) -> gardé
         return True
     return cp >= 60                            # sinon : gardé seulement si confiance calibrée ≥ 60 %
 
