@@ -2851,19 +2851,19 @@ _SPA_JS = (
     # le splash, et à chaque revisite -> toujours visibles (les panneaux sont préchargés derrière le splash).
     "var sp=panel(t);if(sp){if(window._sxAnim)setTimeout(function(){window._sxAnim(sp);},60);"
     "if(window._mcInit)window._mcInit(sp);}}"
+    # BADGES chiffrés du menu du bas (demande user 2026-07-14) : chaque panneau émet `.dv-nav` (data-tab +
+    # data-n = nb de matchs du jour). On pose le compte sur l'onglet correspondant (blanc ; Live = vert +
+    # point clignotant). 0 -> badge caché. Fonction dédiée -> appelable AUSSI pour le panneau ACTIF (rendu
+    # serveur, jamais passé par load) sinon le badge de l'onglet PRONOS ne s'affiche jamais (fix 2026-07-20).
+    "function badge(p){var _dc=p&&p.querySelector?p.querySelector('.dv-nav'):null;if(!_dc)return;"
+    "var _t=_dc.getAttribute('data-tab');var _n=parseInt(_dc.getAttribute('data-n')||'0',10);"
+    "var _nv=document.querySelector('.botnav a[data-tab=\"'+_t+'\"]');if(!_nv)return;"
+    "if(_t==='directs')_nv.classList.toggle('has-live',_n>0);"
+    "var _bd=_nv.querySelector('.nav-n');if(_bd){_bd.textContent=_n>99?'99+':(''+_n);_bd.hidden=_n<=0;}}"
     "function load(p){if(!p||p.getAttribute('data-loaded'))return;"
     "p.setAttribute('data-loaded','1');var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
-    ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;"
-    # BADGES chiffrés du menu du bas (demande user 2026-07-14) : chaque panneau émet `.dv-nav` (data-tab +
-    # data-n = nb de matchs du jour). On pose le compte sur l'onglet correspondant (blanc ; Live = vert +
-    # point clignotant). 0 -> badge caché.
-    "var _dc=p.querySelector('.dv-nav');"
-    "if(_dc){var _t=_dc.getAttribute('data-tab');var _n=parseInt(_dc.getAttribute('data-n')||'0',10);"
-    "var _nv=document.querySelector('.botnav a[data-tab=\"'+_t+'\"]');"
-    "if(_nv){if(_t==='directs')_nv.classList.toggle('has-live',_n>0);"
-    "var _bd=_nv.querySelector('.nav-n');"
-    "if(_bd){_bd.textContent=_n>99?'99+':(''+_n);_bd.hidden=_n<=0;}}}"
+    ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;badge(p);"
     "if(window._twScan)window._twScan(p);if(window._mcInit)window._mcInit(p);"
     "if(window._sxAnim)window._sxAnim(p);})"
     ".catch(function(){p.removeAttribute('data-loaded');"
@@ -2871,9 +2871,10 @@ _SPA_JS = (
     "function go(t,push){var p=panel(t);if(!p)return;load(p);show(t);"
     "if(push)try{history.pushState({tab:t},'',p.getAttribute('data-src'));}catch(e){}"
     "var sc=document.querySelector('.wrap');if(sc)sc.scrollTop=0;else window.scrollTo(0,0);}"
-    # panneau actif (rendu serveur) = déjà chargé ; on précharge les autres tout de suite
+    # panneau actif (rendu serveur) = déjà chargé -> on pose SON badge à la main (jamais passé par load) ;
+    # on précharge les autres tout de suite (load pose leur badge).
     "var c=P.children,i;for(i=0;i<c.length;i++){"
-    "if(c[i].classList.contains('on'))c[i].setAttribute('data-loaded','1');else load(c[i]);}"
+    "if(c[i].classList.contains('on')){c[i].setAttribute('data-loaded','1');badge(c[i]);}else load(c[i]);}"
     "var nav=document.querySelectorAll('.botnav a');for(i=0;i<nav.length;i++){"
     "nav[i].addEventListener('click',function(e){var t=this.getAttribute('data-tab');"
     "if(!panel(t))return;"  # onglet sans panneau SPA (Compte) -> navigation normale (page autonome)
