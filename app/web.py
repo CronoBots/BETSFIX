@@ -610,8 +610,8 @@ CSS = """
   .mc-chev{position:absolute;right:12px;bottom:9px;color:var(--muted);font-size:15px;
        transition:transform .18s}
   .mc-open .mc-chev{display:none}   /* carte ouverte : chevron caché ; il ne réapparaît qu'une fois repliée */
-  /* Carte NON dépliable (le pli « 💡 Pourquoi » porte déjà toute l'analyse) : pas de corps, tap inerte. */
-  .mc-flat{cursor:default}
+  /* Carte sans corps dépliable : un clic n'importe où (dé)plie le « Pourquoi » (JS) -> curseur cliquable. */
+  .mc-flat{cursor:pointer}
   /* L2 : équipes (noms + prénoms complets) — ligne principale. */
   /* Équipes = HÉROS, 16 px + sur 2 lignes possibles pour TOUS les types de cartes (demande user 2026-07-14 :
      cartes semblables) — à venir, provisoire, LIVE et TERMINÉ ont désormais le même titre de match. */
@@ -1869,7 +1869,7 @@ CSS = """
   /* Justification repliable d'une jambe de combiné de match (« 💡 Pourquoi cette jambe »). */
   .cleg-fold{margin-top:8px}
   .cleg-fold-s{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:10.5px;
-       font-weight:800;color:#8fa2b8;letter-spacing:.02em}
+       font-weight:800;color:var(--text);letter-spacing:.02em}
   .cleg-fold-s::-webkit-details-marker{display:none}
   .cleg-chev{margin-left:auto;transition:transform .2s}
   .cleg-fold[open] .cleg-chev{transform:rotate(180deg)}
@@ -2880,8 +2880,13 @@ _CARDS_JS = (
     # un clic DANS l'analyse (.exp : détails repliables, bulles, etc.) ne doit PAS replier la carte :
     # on (dé)plie via l'en-tête de la carte uniquement. (cf. accordéon data-exp, même garde)
     "if(_mv)return;if(e.target.closest('a,.exp'))return;"
-    "var card=e.target.closest('.row.mc');if(!card)return;e.preventDefault();"
-    "var b=card.querySelector('.mc-body');if(!b)return;"
+    "var card=e.target.closest('.row.mc');if(!card)return;"
+    # Carte PLATE (pas de corps dépliable) : un clic N'IMPORTE OÙ dans le cadre (dé)plie le « Pourquoi »
+    # (demande user 2026-07-21). Le summary garde son toggle natif (stopPropagation) -> pas de double bascule.
+    "var b=card.querySelector('.mc-body');"
+    "if(!b){var d=card.querySelector('details.cleg-fold');"
+    "if(d&&!e.target.closest('summary')){e.preventDefault();d.open=!d.open;}return;}"
+    "e.preventDefault();"
     "if(b.hidden){"
     # ACCORDÉON : ouvrir une carte ferme celle(s) déjà ouverte(s) (demande user).
     "var _op=document.querySelectorAll('.row.mc.mc-open'),_k;"
@@ -4192,7 +4197,7 @@ def _why_fold(text: str, label: str = "Pourquoi ce choix") -> str:
     _sents = _why_sentences(t) or [t]
     _lis = "".join(f"<li>{html.escape(s)}</li>" for s in _sents)
     return ('<details class="cleg-fold cleg-fold-bet"><summary class="cleg-fold-s" '
-            'onclick="event.stopPropagation()">💡 ' + html.escape(label)
+            'onclick="event.stopPropagation()">' + html.escape(label)
             + '<span class="cleg-chev">▾</span></summary>'
             f'<ul class="why-ul">{_lis}</ul></details>')
 
@@ -4309,9 +4314,6 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
                          f'<span class="mc-cote-v">{_cote:g}</span></span>'
                          if isinstance(_cote, (int, float)) and _cote else "")
-            # Ré-analyse : heure seule, SANS « · peut changer » (demande user 2026-07-12).
-            _reana = ("pas de value détectée" if now >= reanalyse
-                      else f"Ré-analyse à {fmt_local(reanalyse, with_date=False)}")
             # Pastille « 🧪 PROVISOIRE » par carte : OMISE en mode `framed` (la zone « Indicatif · hors ROI »
             # porte déjà le libellé une fois) — demande user 2026-07-11, fin de la répétition.
             _prov_tag = ('' if framed else
@@ -4344,8 +4346,9 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             sub = ('<div class="mc-div"></div>'
                    + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
                    + _gloss
-                   + _verdict_block(_cote, _cpc, f'🔄 {html.escape(_reana)}', _cote_big, calibrated=True,
+                   + _verdict_block(_cote, _cpc, "", _cote_big, calibrated=True,
                                     hide_neg_value=True)   # provisoire (indicatif) : pas de Value rouge
+                   # ligne « Ré-analyse à HH:MM » retirée (demande user 2026-07-21)
                    + _prwhy)
         else:
             # Match SANS provisoire et NON analysé (pas de statut de value). Deux cas :
@@ -4618,7 +4621,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _wsents = [s for s in (_why_sentences(_wt) or ([_wt] if _wt else [])) if not _META_STAT.search(s)]
     _wtl = "".join(f"<li>{html.escape(s)}</li>" for s in _wsents)
     _why = ('<details class="cleg-fold"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
-            '💡 Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
+            'Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
             f'<ul class="why-ul">{_wtl}</ul></details>') if _wt else ""
     # LIGNE VERDICT (façon provisoire) : Confiance CALIBRÉE (la jambe porte `prob` en FRACTION + `code`) ·
     # Marché · Value (masquée si négative — combiné = info seule) + grosse COTE. Remplace la pastille cote.
@@ -6141,12 +6144,8 @@ def _sport_row(r: dict) -> str:
         if isinstance(_pc, (int, float)) and isinstance(_mc, (int, float)) and abs(_pc - _mc) >= 0.01:
             _moved = (f'<div class="mc-moved">🔒 Cote au conseil <b>{_pc:g}</b>'
                       f'<span class="mc-moved-m"> · marché actuel {_mc:g}</span></div>')
-        # PAS d'extrait d'analyse dans la carte REPLIÉE (demande user 2026-07-13) : l'analyse n'apparaît
-        # qu'au DÉPLI (message COMPLET, dans le corps). L'extrait cyan collant faisait doublon une fois ouvert.
+        # Ligne « Ré-analyse à HH:MM » RETIRÉE (demande user 2026-07-21) : l'info n'apporte rien à l'abonné.
         _foot = ""
-        if _ts and (_ts - 3600) > time.time():
-            _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
-            _foot = f'🔄 Ré-analyse à {e(_hhmm)}'
         # Filet fin teams↔pari (comme les provisoires) : sépare « quel match » de « quel pari ».
         _psel_disp = _pretty_sel(_psel, r.get("home", ""), r.get("away", ""))
         # LIGNE VERDICT IDENTIQUE aux cartes provisoires / table de paris (demande user 2026-07-17 « tout
@@ -6172,11 +6171,7 @@ def _sport_row(r: dict) -> str:
                  ('' if is_finished else
                   '<div class="mc-betl mc-noplay"><span class="mc-bi">·</span>'
                   '<span class="mc-bt">Analysé · pas de pari conseillé</span></div>'))
-        # Ré-analyse ~1 h avant le coup d'envoi (le pick peut encore changer) — cas compact non-premium.
-        if (not is_live) and (not is_finished) and rows3 and _ts and (_ts - 3600) > time.time():
-            _hhmm = fmt_local(datetime.fromtimestamp(_ts - 3600, tz=timezone.utc), with_date=False)
-            line3 += (f'<div class="mc-reana">🔄 Ré-analyse à {e(_hhmm)} '
-                      f'<span class="dim">· le pari peut encore changer</span></div>')
+        # Ligne « Ré-analyse à HH:MM » RETIRÉE (demande user 2026-07-21) — n'apporte rien à l'abonné.
     # ÉQUIPES avec tiret « — » pour TOUS les types (demande user 2026-07-14 : cartes semblables) — plus le
     # « vs » réservé aux terminés/live. L'en-tête « SPORT • Ligue » est déjà posé pour tous plus haut.
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="mc-dash">—</span> '
