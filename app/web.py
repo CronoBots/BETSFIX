@@ -1877,6 +1877,13 @@ CSS = """
   .cleg-fold-bet{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)}
   .cleg-fold-bet>.cleg-fold-s{font-size:11px}
   .cleg-fold-bet .cleg-why{font-size:11.5px;color:#a7bcd6;line-height:1.5}
+  /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
+     (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
+  .why-ul{margin:8px 0 2px;padding:0;list-style:none}
+  .why-ul li{position:relative;padding-left:15px;margin:8px 0;font-size:11.5px;color:#a7bcd6;line-height:1.5}
+  .why-ul li:first-child{margin-top:2px}
+  .why-ul li::before{content:"";position:absolute;left:2px;top:8px;width:5px;height:5px;border-radius:50%;
+       background:rgba(120,150,190,.55)}
   /* tableau de score de la jambe EN LIVE (sets/quart-temps), sous le match. */
   .mc-cleg-board{margin-top:8px}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
@@ -4144,18 +4151,35 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
         return ""
 
 
+def _why_sentences(text: str) -> list[str]:
+    """Découpe une analyse en PHRASES complètes (une par puce) — le découpage requiert un espace APRÈS la
+    ponctuation, donc « 1.62 », « 6-21 », « ~78 % » ne cassent pas. Regroupe une phrase trop courte (< 25
+    car, ex. « Value nette : ») avec la suivante pour ne pas hacher. '' filtrés."""
+    raw = [s.strip() for s in re.split(r"(?<=[.!?…])\s+", (text or "").strip()) if s.strip()]
+    out: list[str] = []
+    for s in raw:
+        if out and len(out[-1]) < 25:      # fragment trop court -> on le colle à la phrase précédente
+            out[-1] = f"{out[-1]} {s}"
+        else:
+            out.append(s)
+    return out
+
+
 def _why_fold(text: str, label: str = "Pourquoi ce choix") -> str:
     """Pli TAPPABLE « 💡 <label> » — MÊME patron que le « 💡 Pourquoi cette jambe » des combinés
     (`.cleg-fold`), demande user 2026-07-20 : porter l'analyse appréciée des jambes sur TOUS les types
-    de paris (simple retenu, provisoire). Porte l'analyse COMPLÈTE (déjà nettoyée). '' si pas de texte.
-    Le tap ouvre/ferme le pli SANS replier la carte parente (`event.stopPropagation`)."""
+    de paris (simple retenu, provisoire). Porte l'analyse COMPLÈTE (déjà nettoyée), en PUCES (une par
+    phrase) pour AÉRER — plus de pavé illisible (demande user 2026-07-20). '' si pas de texte. Le tap
+    ouvre/ferme le pli SANS replier la carte parente (`event.stopPropagation`)."""
     t = (text or "").strip()
     if not t:
         return ""
+    _sents = _why_sentences(t) or [t]
+    _lis = "".join(f"<li>{html.escape(s)}</li>" for s in _sents)
     return ('<details class="cleg-fold cleg-fold-bet"><summary class="cleg-fold-s" '
             'onclick="event.stopPropagation()">💡 ' + html.escape(label)
             + '<span class="cleg-chev">▾</span></summary>'
-            f'<div class="cleg-why">{html.escape(t)}</div></details>')
+            f'<ul class="why-ul">{_lis}</ul></details>')
 
 
 def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) -> list:
@@ -4568,9 +4592,11 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     # ENTIER (nettoyé du markdown, plus de coupe à 180 car). Masqué une fois la jambe réglée (comme l'autre
     # combiné) ; `event.stopPropagation()` empêche le tap d'ouvrir/fermer la carte parente.
     _wt = _clean_cap(l.get("why"), 100000) if (why and _res is None) else ""
+    # En PUCES (une par phrase) comme les simples/provisoires -> aéré, plus de pavé (demande user 2026-07-20).
+    _wtl = "".join(f"<li>{html.escape(s)}</li>" for s in (_why_sentences(_wt) or ([_wt] if _wt else [])))
     _why = ('<details class="cleg-fold"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
             '💡 Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
-            f'<div class="cleg-why">{html.escape(_wt)}</div></details>') if _wt else ""
+            f'<ul class="why-ul">{_wtl}</ul></details>') if _wt else ""
     # LIGNE VERDICT (façon provisoire) : Confiance CALIBRÉE (la jambe porte `prob` en FRACTION + `code`) ·
     # Marché · Value (masquée si négative — combiné = info seule) + grosse COTE. Remplace la pastille cote.
     _verdict = ""
