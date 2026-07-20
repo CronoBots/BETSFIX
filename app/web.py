@@ -1967,6 +1967,21 @@ CSS = """
   .day-sum-roi{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
   .day-sum-roi.pos{color:#64cd8d}.day-sum-roi.neg{color:#ff6b6b}.day-sum-roi.neu{color:var(--muted)}
   .day-sum-empty{justify-content:center;color:var(--muted);font-size:12.5px;font-weight:600}
+  /* Provisoires RÉGLÉS dans « Résultats du jour » (info seule, hors ROI) : liste compacte ✓/✗. */
+  .prv-hd{margin:15px 3px 8px;font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--gold);text-transform:uppercase}
+  .prv-hd span{color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0}
+  .prv-res{display:flex;flex-direction:column;gap:6px}
+  .prv-r{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:11px;
+       border:1px solid var(--border);background:rgba(255,255,255,.025)}
+  .prv-ic{flex:none;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;
+       justify-content:center;font-size:12px;font-weight:900}
+  .prv-w .prv-ic{background:rgba(52,210,123,.16);color:#64cd8d}
+  .prv-l .prv-ic{background:rgba(255,107,107,.16);color:#ff6b6b}
+  .prv-n .prv-ic{background:rgba(255,255,255,.08);color:var(--muted)}
+  .prv-m{flex:1;min-width:0}
+  .prv-t{font-size:13px;font-weight:700;color:var(--text);line-height:1.3}
+  .prv-t .prv-sp{font-size:12px;margin-right:2px}
+  .prv-s{font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* Zone repliable (Terminés) : summary cliquable + chevron, même en-tête épuré. */
   details.zone-col > summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
   details.zone-col > summary::-webkit-details-marker{display:none}
@@ -2735,8 +2750,8 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # Onglets sport (Tennis/Basket/Foot) RETIRÉS de la nav le 2026-07-20 (demande user) : ils répétaient Pronos
 # (mêmes pronos filtrés par sport). Le filtre sport vit désormais SUR Pronos (puces `_sport_chips`), et les
 # routes /app //basket //foot redirigent vers / (accueil). Nav = 4 onglets épurés.
-_SPA_TABS = [("home", "/", "📅", "Pronos"), ("stats", "/stats", "📊", "Stats"),
-             ("directs", "/directs", _LIVE_RADAR, "Live"),
+_SPA_TABS = [("home", "/", "📅", "Pronos"), ("directs", "/directs", _LIVE_RADAR, "Live"),
+             ("stats", "/stats", "📊", "Stats"),
              ("compte", "/compte", "👤", "Compte")]
 # Compte est un onglet SPA À PART ENTIÈRE : son panneau charge /compte?frag=1 (contenu seul) en AJAX,
 # comme les onglets sport -> bascule sans rechargement. (Plus de _NAV_ONLY : il a son panneau.)
@@ -4845,6 +4860,49 @@ def _item_sport(r: dict) -> str | None:
     return "tennis" if (r.get("tour") or "").lower() in ("atp", "wta") else None
 
 
+def _provisional_results(iso: str, sport: str | None = None) -> str:
+    """Bloc compact des PROVISOIRES RÉGLÉS d'un jour (info seule, hors ROI) — pour la zone « Résultats du
+    jour » (demande user 2026-07-20 : les provisoires réglés n'apparaissaient nulle part dans les résultats,
+    seulement les paris joués). Une ligne par provisoire : ✓/✗ + sport coloré + pari + match. '' si aucun."""
+    from datetime import datetime as _dt
+    try:
+        from app import provisional as _pv
+        allp = _pv.load()
+    except Exception:
+        return ""
+    rows = []
+    for p in allp.values():
+        if not isinstance(p, dict) or p.get("result") not in ("won", "lost", "push"):
+            continue
+        if sport and p.get("sport") != sport:
+            continue
+        try:
+            ld = to_local(_dt.fromisoformat(str(p.get("start")).replace("Z", "+00:00")))
+        except (ValueError, AttributeError, TypeError):
+            ld = None
+        if not ld or ld.date().isoformat() != iso:
+            continue
+        rows.append(p)
+    if not rows:
+        return ""
+    rows.sort(key=lambda p: p.get("start") or "")
+    _ic = {"won": ("✓", "w"), "lost": ("✗", "l"), "push": ("➖", "n")}
+    _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    cards = []
+    for p in rows:
+        ic, cls = _ic.get(p.get("result"), ("·", "n"))
+        sp = p.get("sport") or ""
+        _hh = str(p.get("name") or "")
+        _h, _sep, _a = _hh.partition(" - ")
+        sel = html.escape(_pretty_sel(str(p.get("sel") or ""), _h, _a))
+        cards.append(f'<div class="prv-r prv-{cls}"><span class="prv-ic">{ic}</span>'
+                     f'<div class="prv-m"><div class="prv-t">'
+                     f'<b class="prv-sp spc-{sp}">{_emo.get(sp, "•")}</b> {sel}</div>'
+                     f'<div class="prv-s">{html.escape(_hh)}</div></div></div>')
+    return ('<div class="prv-hd">🧪 Provisoires <span>· info seule, hors ROI</span></div>'
+            f'<div class="prv-res">{"".join(cards)}</div>')
+
+
 def _today_zones(match_rows: list, sport: str | None = None, results: list | None = None) -> tuple[str, int]:
     """Zones du JOUR COURANT (Combiné multisports du jour · Confiance à jouer · Confiance provisoire ·
     À analyser · Résultats du jour). Extrait de render_dashboard pour être réutilisé par le fragment /jour
@@ -4872,14 +4930,16 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _zone("indic", "Confiance provisoire", "", len(prov), _rows_by_day(prov), collapsible=True),
         _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo), collapsible=True),
     ]
-    # RÉSULTATS DU JOUR (matchs déjà terminés aujourd'hui + résultats) — sinon visibles seulement dans Stats
-    # (demande user 2026-07-20). Zone repliable, à la fin (le à-venir reste prioritaire en haut).
+    # RÉSULTATS DU JOUR : paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc compact info-seule) — sinon
+    # visibles seulement dans Stats (demande user 2026-07-20). Zone repliable, à la fin.
+    today_iso = ((to_local(datetime.now(timezone.utc)) or datetime.now()).date()).isoformat()
     res_rows = sorted(list(results or []), key=lambda r: r.get("start_ts") or 0, reverse=True)
     if sport:
         res_rows = [r for r in res_rows if _item_sport(r) == sport]
-    if res_rows:
+    _prov_res = _provisional_results(today_iso, sport)
+    if res_rows or _prov_res:
         out.append(_zone("done", "Résultats du jour", "", len(res_rows),
-                         _rows_by_day(res_rows), collapsible=True))
+                         _rows_by_day(res_rows) + _prov_res, collapsible=True))
     inner = "".join(x for x in out if x)
     zones = (f'<div class="dash-zones">{inner}</div>' if inner
              else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
@@ -4918,7 +4978,11 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     rows = sorted([r for r in day_rows
                    if (r.get("_bet") or _card_has_bet(r)) and (not sport or _item_sport(r) == sport)],
                   key=lambda r: r.get("start_ts") or 0)
-    cards = _zone("play", "Paris proposés", "", len(rows), _rows_by_day(rows)) if rows else ""
+    # Paris joués (cartes) + provisoires réglés (bloc compact) — les provisoires n'apparaissaient nulle part
+    # dans les résultats (demande user 2026-07-20).
+    _prov_res = _provisional_results(iso, sport)
+    cards = (_zone("play", "Paris proposés", "", len(rows), _rows_by_day(rows) + _prov_res, collapsible=True)
+             if (rows or _prov_res) else "")
     inner = summ + combo + cards
     if not (combo or cards):
         inner = summ + '<div class="paj-empty">Aucun pari proposé ce jour-là.</div>'
