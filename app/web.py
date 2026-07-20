@@ -6166,22 +6166,18 @@ def _daily_combo_any_live() -> bool:
                for l in (cb.get("legs") or []) if l.get("result") is None)
 
 
-def render_directs(sections: list, frag: bool = False) -> str:
-    """Onglet « Directs » : matchs EN DIRECT regroupés par sport, en ZONES premium (point live vert + titre
-    casse normale) cohérentes avec l'accueil/onglets sport (refonte 2026-07-11). `sections` = [(libellé,
-    icône, cartes), ...] ; une carte peut être un dict `_sport_row` (pari) ou porter un `_html` (provisoire)."""
-    out, total = [], 0
-    for label, icon, cards in sections:
-        if not cards:
-            continue
-        total += len(cards)
-        cards = sorted(cards, key=lambda c: c.get("start_ts") or 0)
-        content = _join_cards([c.get("_html") or _sport_row(c) for c in cards])   # + séparateur entre cartes
-        out.append(_zone("live", f"{icon} {label}", "en direct", len(cards), content))
-    # Combiné du jour PRÉSENTÉ COMME LES PROVISOIRES (carte Telegram OR) et placé DANS les matchs en direct,
-    # plus en bandeau au-dessus (demande user 2026-07-12). MAIS seulement si AU MOINS une de ses jambes est
-    # EN COURS (demande user 2026-07-19) : un combiné dont aucun match ne tourne n'a rien à faire dans Live
-    # (il reste dans l'accueil « À venir », catégorie « Combiné multisports du jour »).
+def render_directs(play_live: list, prov_live: list, frag: bool = False) -> str:
+    """Onglet « Directs » : matchs EN DIRECT groupés par TYPE de pari (comme Pronos, demande user 2026-07-20)
+    — Combiné multisports du jour · Confiance à jouer · Confiance provisoire — et NON par sport (le sport
+    reste lisible via l'en-tête coloré de chaque carte). `play_live` = paris retenus en cours ; `prov_live` =
+    provisoires en cours. Une carte = dict `_sport_row` (pari) ou porte un `_html` (provisoire)."""
+    play_live = sorted(list(play_live or []), key=lambda c: c.get("start_ts") or 0)
+    prov_live = sorted(list(prov_live or []), key=lambda c: c.get("start_ts") or 0)
+    total = len(play_live) + len(prov_live)
+
+    def _cards(rows):
+        return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
+    # Combiné du jour : dans le Live SEULEMENT si ≥1 jambe est EN COURS (demande user 2026-07-19).
     _combo = _combo_tg_card(include_settled=False) if _daily_combo_any_live() else ""
     if not total and not _combo:
         zones = (
@@ -6195,7 +6191,12 @@ def render_directs(sections: list, frag: bool = False) -> str:
             '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
             '</div></div>')
     else:
-        zones = f'<div class="dash-zones">{_combo}{"".join(out)}</div>'
+        out = [
+            _zone("combo", "Combiné multisports du jour", "", 1 if _combo else 0, _combo),
+            _zone("play", "Confiance à jouer", "en direct", len(play_live), _cards(play_live)),
+            _zone("indic", "Confiance provisoire", "en direct", len(prov_live), _cards(prov_live)),
+        ]
+        zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     # Compteur de matchs -> BADGE chiffré du menu du bas (demande user 2026-07-14). Marqueur générique
     # `.dv-nav` (data-tab + data-n) lu par le JS SPA à la (pré)charge du panneau -> pose le badge sur l'onglet.
     body = f'<span class="dv-nav" data-tab="directs" data-n="{total}" hidden></span>' + zones

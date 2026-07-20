@@ -1057,14 +1057,11 @@ async def directs_page(
     # Provisoires EN COURS (demande user 2026-07-10) : ils n'ont pas de sidecar (absents de list_for) ->
     # on les ajoute au Live depuis le programme (cartes _html dorées « en cours », hors ROI). Le cache
     # live est chaud (fetch_live_odds ci-dessus) -> _programme_items détecte correctement _live.
-    _prov_live: dict = {}
-    for _it in web._programme_items(set()):
-        if _it.get("_live"):
-            _prov_live.setdefault(_it.get("_sport"), []).append(_it)
-    sections = [("Tennis", "🎾", (await _live_cards("tennis")) + _prov_live.get("tennis", [])),
-                ("Basket", "🏀", (await _live_cards("basket")) + _prov_live.get("basket", [])),
-                ("Foot", "⚽", (await _live_cards("foot")) + _prov_live.get("foot", []))]
-    body = web.render_directs(sections, frag=bool(frag))
+    # GROUPÉ PAR TYPE DE PARI (comme Pronos, demande user 2026-07-20) : paris retenus en cours (play_live) et
+    # provisoires en cours (prov_live), TOUS sports mélangés — le sport reste lisible via l'en-tête coloré.
+    prov_live = [it for it in web._programme_items(set()) if it.get("_live")]
+    play_live = ((await _live_cards("tennis")) + (await _live_cards("basket")) + (await _live_cards("foot")))
+    body = web.render_directs(play_live, prov_live, frag=bool(frag))
     if frag:
         fragcache.put("panel/directs", body, ttl=PANEL_TTL)
     return HTMLResponse(body)
