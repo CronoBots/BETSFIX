@@ -635,6 +635,9 @@ CSS = """
      réserve à droite ; on l'annule pour que la barre de confiance + la grille (Confiance/Marché/Value/Cote)
      prennent TOUTE la largeur, symétriques gauche/droite (demande user 2026-07-18 : « espace à droite »). */
   .mc-tg .mc-sub{padding-right:0}
+  /* Carte PLATE (pas de chevron : plus de corps dépliable) : idem, on annule la réserve de droite sinon
+     le contenu est décalé (retour user 2026-07-21 : « espace à droite dû à la flèche »). */
+  .mc-flat .mc-sub{padding-right:0}
   /* LIVE (demande user 2026-07-12) : intitulé du pari sur UNE seule ligne (ellipsis) + scoreboard des
      résultats juste en dessous, visible dans la carte repliée. */
   .mc-islive .mc-sub .mc-betl{flex-wrap:nowrap}
@@ -4284,8 +4287,10 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         _spn = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sp, "")
         name = str(m.get("name", ""))
         home, _sep, away = name.partition(" - ")
-        teams = (f'{html.escape(home)} <span class="mc-dash">—</span> {html.escape(away)}'
-                 if away else html.escape(home))
+        # AFFICHAGE seul : on retire « (F) » du nom montré (le sport WNBA/WTA le dit déjà) — `home`/`away`
+        # BRUTS restent intacts pour la logique (dédup, gloss, règlement). Demande user 2026-07-21.
+        teams = (f'{html.escape(_noF(home))} <span class="mc-dash">—</span> {html.escape(_noF(away))}'
+                 if away else html.escape(_noF(home)))
         comp = html.escape(str(m.get("comp") or ""))
         reanalyse = dt - timedelta(hours=1)     # la (ré)analyse rapprochée = coup d'envoi − 1 h
         # PARI PROVISOIRE (demande user 2026-07-09) : un match analysé SANS value affiche quand même « le
@@ -4479,7 +4484,7 @@ def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False
     for l in cb.get("legs") or []:
         _lt, _bc = _B.get(l.get("result"), ("⏳", "p"))   # p = en attente (badge doré)
         emo = _emo.get(l.get("sport"), "•")
-        nm = _h.escape(str(l.get("name") or "").replace(" - ", " — "))
+        nm = _h.escape(_noF(str(l.get("name") or "")).replace(" - ", " — "))   # (F) retiré à l'affichage
         sel = _h.escape(_pretty_sel(str(l.get("sel") or ""), l.get("home", ""), l.get("away", "")))
         co = l.get("cote")
         cot = f' · @{co:g}' if isinstance(co, (int, float)) and co else ""
@@ -4829,11 +4834,23 @@ _MO_FULL = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "a
             "septembre", "octobre", "novembre", "décembre"]
 
 
+def _sport_date(local_dt):
+    """« JOUR SPORTIF » : la journée court de 06h à 06h le lendemain (demande user 2026-07-21 — pour englober
+    les matchs américains de la nuit). Un événement AVANT 06h locale compte pour la VEILLE. `local_dt` =
+    datetime LOCAL. Renvoie une `date`. Décalage de −6 h puis .date()."""
+    return (local_dt - timedelta(hours=6)).date()
+
+
+def _sport_today():
+    """La date SPORTIVE de maintenant (fenêtre 06h→06h)."""
+    return _sport_date(to_local(datetime.now(timezone.utc)) or datetime.now())
+
+
 def _day_header(iso: str) -> str:
     """En-tête de contexte du jour affiché (haut de #day-content) : « Aujourd'hui » / « Hier » / date pleine
     + la date complète en sous-titre. Rend la navigation calendrier LISIBLE (on sait quel jour on regarde)."""
     from datetime import date as _date, timedelta
-    today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
+    today = _sport_today()
     try:
         d = _date.fromisoformat(iso)
     except (ValueError, TypeError):
@@ -4889,7 +4906,7 @@ def _daily_results_map() -> dict:
         if ld is None:
             continue
         won = sb["result"] == "won"
-        _add(ld.date().isoformat(), won, (float(sb.get("cote") or 1) - 1) if won else -1.0)
+        _add(_sport_date(ld).isoformat(), won, (float(sb.get("cote") or 1) - 1) if won else -1.0)
     try:                                                       # combinés du jour (par leur propre date)
         from app import combo_daily as _cd
         for date_iso, result, cote, _det in _cd.roi_events():
@@ -4906,7 +4923,7 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
     `back` jours passés), avec un point de bilan (vert = jour gagnant, rouge = perdant, gris = rien réglé).
     Cliquer un jour recharge #day-content via /jour (JS `_CAL_JS`). Aujourd'hui = pastille active par défaut."""
     from datetime import timedelta
-    today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
+    today = _sport_today()   # jour sportif (06h→06h) — cohérent avec le regroupement et les résultats
     rmap = _daily_results_map()
     # KPI « 7 derniers jours » (record + ROI) — touche dashboard pro au-dessus du bandeau.
     won7 = settled7 = 0
@@ -5001,11 +5018,11 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
         sp = p.get("sport") or ""
         _hh = str(p.get("name") or "")
         _h, _sep, _a = _hh.partition(" - ")
-        sel = html.escape(_pretty_sel(str(p.get("sel") or ""), _h, _a))
+        sel = html.escape(_pretty_sel(str(p.get("sel") or ""), _noF(_h), _noF(_a)))
         cards.append(f'<div class="prv-r prv-{cls}"><span class="prv-ic">{ic}</span>'
                      f'<div class="prv-m"><div class="prv-t">'
                      f'<b class="prv-sp spc-{sp}">{_emo.get(sp, "•")}</b> {sel}</div>'
-                     f'<div class="prv-s">{html.escape(_hh)}</div></div></div>')
+                     f'<div class="prv-s">{html.escape(_noF(_hh))}</div></div></div>')   # (F) retiré (affichage)
     return ('<div class="prv-hd">🧪 Provisoires <span>· info seule, hors ROI</span></div>'
             f'<div class="prv-res">{"".join(cards)}</div>')
 
@@ -5036,11 +5053,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out = [
         _zone("combo", "Combiné du jour", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
-        _zone("indic", "Provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
+        _zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
     ]
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
     # compact info-seule) — sinon visibles seulement dans Stats (demande user 2026-07-20). Zone repliable.
-    today_iso = ((to_local(datetime.now(timezone.utc)) or datetime.now()).date()).isoformat()
+    today_iso = _sport_today().isoformat()
     res_rows = sorted(list(results or []), key=lambda r: r.get("start_ts") or 0, reverse=True)
     if sport:
         res_rows = [r for r in res_rows if _item_sport(r) == sport]
@@ -5062,7 +5079,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     inner = "".join(x for x in out if x)
     zones = (f'<div class="dash-zones">{inner}</div>' if inner
              else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
-    today_iso = ((to_local(datetime.now(timezone.utc)) or datetime.now()).date()).isoformat()
+    today_iso = _sport_today().isoformat()
     return _day_header(today_iso) + zones, len(play) + len(prov)
 
 
@@ -5114,7 +5131,7 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     les paris proposés les jours passés + leurs résultats, puis le contenu du jour sélectionné (par défaut
     AUJOURD'HUI = les zones Combiné/Confiance à jouer/Confiance provisoire/À analyser + Résultats du jour).
     `results` = cartes des paris terminés d'aujourd'hui. Cliquer une date recharge #day-content via /jour."""
-    today_iso = ((to_local(datetime.now(timezone.utc)) or datetime.now()).date()).isoformat()
+    today_iso = _sport_today().isoformat()
     zones, cnt = _today_zones(match_rows, None, results)
     body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
             + _calendar_strip(today_iso)
@@ -5780,8 +5797,10 @@ def _prob_bar(prob, labels=None) -> str:
             f'<span>{p2}% · 2</span></div>')
 
 def _noF(name: str) -> str:
-    """Retire le suffixe « (F) » (féminin, WNBA/WTA) du nom d'équipe AFFICHÉ."""
-    return re.sub(r"\s*\(\s*F\s*\)\s*$", "", (name or "").strip())
+    """Retire « (F) » (marqueur féminin WNBA/WTA) du nom AFFICHÉ — TOUTES les occurrences (gère aussi un
+    nom COMBINÉ « A (F) - B (F) », pas seulement le suffixe). AFFICHAGE SEUL : le nom stocké/brut n'est
+    JAMAIS modifié (dédup, gloss, règlement intacts). Demande user 2026-07-21."""
+    return re.sub(r"\s*\(\s*F\s*\)", "", (name or "").strip())
 
 def _cap(s: str) -> str:
     """Capitalise la 1re lettre (les villes/tournois Unibet arrivent souvent en minuscule, ex.
@@ -6251,12 +6270,12 @@ def _rows_by_day(rows: list) -> str:
     un HTML déjà rendu (`_html`, ex. carte du programme) — sinon elle est rendue via `_sport_row`.
     Un fin séparateur (`.mc-sep`) est glissé entre deux cartes CONSÉCUTIVES du même jour (jamais
     juste après un en-tête de jour ni en tête de zone)."""
-    today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
+    today = _sport_today()   # jour sportif (06h→06h) — cf. _sport_date
     out, cur, prev_card = [], object(), False
     for r in rows:
         ts = r.get("start_ts")
         ld = to_local(datetime.fromtimestamp(ts, tz=timezone.utc)) if ts else None
-        d = ld.date() if ld else None
+        d = _sport_date(ld) if ld else None
         if d != cur:
             cur = d
             if d is not None:
@@ -6313,7 +6332,7 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
               empty=("Aucune <b>value</b> à venir pour l'instant — voir les <b>Provisoires</b> plus bas."
                      if _has else None)),
         _zone("live", "En direct", "temps réel", len(live), _cards(live)),
-        _zone("indic", "Provisoires", "", len(prov_up), _rows_by_day(prov_up)),
+        _zone("indic", "Paris provisoires", "", len(prov_up), _rows_by_day(prov_up)),
         _zone("todo", "Terminés", "", len(finished),
               _cards(finished) + (f'<a class="fin-more" href="/">📅 Historique complet jour par jour '
                                   f'dans l\'onglet Pronos ({_fin_more} de plus)</a>' if _fin_more else ""),
@@ -6384,7 +6403,7 @@ def render_directs(play_live: list, prov_live: list, frag: bool = False) -> str:
         out = [
             _zone("combo", "Combiné du jour", "", 1 if _combo else 0, _combo),
             _zone("play", "Paris du jour", "en direct", len(play_live), _cards(play_live)),
-            _zone("indic", "Provisoires", "en direct", len(prov_live), _cards(prov_live)),
+            _zone("indic", "Paris provisoires", "en direct", len(prov_live), _cards(prov_live)),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     # Compteur de matchs -> BADGE chiffré du menu du bas (demande user 2026-07-14). Marqueur générique

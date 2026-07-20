@@ -420,7 +420,7 @@ def _past_day_cards(date_iso: str) -> list:
             if dt is None:
                 continue
             ld = web.to_local(dt)
-            if ld is None or ld.date().isoformat() != date_iso:
+            if ld is None or web._sport_date(ld).isoformat() != date_iso:   # jour sportif 06h→06h
                 continue
             if not (analyses.is_settled(d) and _has_bet(d)):
                 continue
@@ -468,7 +468,7 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
     jour-là + leurs résultats + le bilan du jour. `sport` (foot/tennis/basket) = filtre sport (puces Pronos),
     "" = tous. Caché par (date, sport) — passé ~immuable TTL long ; aujourd'hui TTL court."""
     import datetime as _dt
-    today_iso = ((web.to_local(_dt.datetime.now(_dt.timezone.utc)) or _dt.datetime.now()).date()).isoformat()
+    today_iso = web._sport_today().isoformat()   # jour sportif 06h→06h
     sp = sport if sport in ("foot", "tennis", "basket") else None
     is_past = date < today_iso
     ckey = f"panel/jour/{date}/{sp or 'all'}"
@@ -505,7 +505,7 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
     live_n = sum(1 for r in all_rows if r.get("status") == "inprogress")
     rows = [r for r in all_rows if r.get("status") != "inprogress"]
     import datetime as _dt
-    _today = ((web.to_local(_dt.datetime.now(_dt.timezone.utc)) or _dt.datetime.now()).date()).isoformat()
+    _today = web._sport_today().isoformat()    # jour sportif 06h→06h
     results = _past_day_cards(_today)          # paris TERMINÉS d'aujourd'hui (résultats) -> zone dédiée
     body = web.render_dashboard(rows, live_count=live_n, results=results,
                                 frag=bool(frag), source=provider.breaker_status())
