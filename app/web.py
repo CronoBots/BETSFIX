@@ -1905,6 +1905,10 @@ CSS = """
   .zone-live .zone-n{color:#5fe39b;background:rgba(52,210,123,.14)}
   .zone-todo{opacity:.88}
   .zone-todo .zone-t{font-size:14.5px;font-weight:700;color:var(--muted)}
+  .fin-more{display:block;text-align:center;margin:10px 3px 2px;padding:11px;border-radius:12px;
+       border:1px dashed var(--border);color:var(--muted);font-size:12px;font-weight:700;
+       text-decoration:none;-webkit-tap-highlight-color:transparent}
+  .fin-more:active{background:rgba(255,255,255,.04)}
   /* CALENDRIER « Pronos » (bandeau horizontal en tête, premium) : KPI 7 jours + pastilles jour/numéro
      scrollables avec barre de bilan colorée, « aujourd'hui » accentué. */
   .cal-wrap{margin:0 0 15px;position:relative}
@@ -4723,21 +4727,14 @@ def _daily_results_map() -> dict:
         e["won"] += 1 if won else 0
         e["profit"] += profit
 
-    for sp in ("foot", "tennis", "basket"):
-        for d in analyses.list_for(sp):
-            sb = d.get("stat_bet") or {}
-            if sb.get("result") not in ("won", "lost"):        # push/None -> pas dans le ROI
-                continue
-            ld = to_local(d.get("_start_dt")) if d.get("_start_dt") else None
-            if ld is None and d.get("start"):
-                try:
-                    ld = to_local(datetime.fromisoformat(str(d["start"]).replace("Z", "+00:00")))
-                except (ValueError, AttributeError):
-                    ld = None
-            if ld is None:
-                continue
-            won = sb["result"] == "won"
-            _add(ld.date().isoformat(), won, (float(sb.get("cote") or 1) - 1) if won else -1.0)
+    # Itérateur LÉGER (pas de `list_for`/`retained_bet` : on ne lit que stat_bet + date -> perf, cf. audit
+    # 2026-07-20). Iso-comportement vérifié (mêmes paris won/lost agrégés).
+    for _sp, sb, dt in analyses.iter_stat_bets():
+        ld = to_local(dt) if dt else None
+        if ld is None:
+            continue
+        won = sb["result"] == "won"
+        _add(ld.date().isoformat(), won, (float(sb.get("cote") or 1) - 1) if won else -1.0)
     try:                                                       # combinés du jour (par leur propre date)
         from app import combo_daily as _cd
         for date_iso, result, cote, _det in _cd.roi_events():
@@ -4846,8 +4843,11 @@ def _day_view(iso: str, day_rows: list) -> str:
     except Exception:
         combo = ""
     # HISTORIQUE = uniquement les VRAIS paris proposés (simples joués + combinés) — on filtre les
-    # abstentions (matchs analysés sans pari) qui polluaient la vue (demande user 2026-07-19).
-    rows = sorted([r for r in day_rows if _card_has_bet(r)], key=lambda r: r.get("start_ts") or 0)
+    # abstentions (matchs analysés sans pari) qui polluaient la vue (demande user 2026-07-19). Les cartes
+    # de `_past_day_cards` sont DÉJÀ bet-only (marquées `_bet`) -> on évite un `analyses.meta` par carte
+    # (perf, audit 2026-07-20) ; `_card_has_bet` ne sert que de repli si l'appelant n'a pas marqué.
+    rows = sorted([r for r in day_rows if r.get("_bet") or _card_has_bet(r)],
+                  key=lambda r: r.get("start_ts") or 0)
     cards = _zone("play", "Paris proposés", "", len(rows), _rows_by_day(rows)) if rows else ""
     inner = summ + combo + cards
     if not (combo or cards):
@@ -6020,7 +6020,13 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
 
     `paused` : SofaScore en pause anti-403 -> on l'explique au lieu d'afficher
     « aucun match ». `frag=True` -> renvoie le corps seul (chargé en AJAX dans la SPA)."""
+    # « Terminés » PLAFONNÉS aux plus récents (perf 2026-07-20) : rendre 130+ cartes terminées coûtait ~5 s
+    # par onglet sport (surtout foot). L'HISTORIQUE COMPLET jour par jour vit désormais dans l'onglet Pronos
+    # (calendrier) -> l'onglet sport n'a besoin que des résultats récents. Zone repliée d'office de toute façon.
+    _FIN_CAP = 30
     finished = sorted(finished or [], key=lambda r: r.get("start_ts") or 0, reverse=True)
+    _fin_more = max(0, len(finished) - _FIN_CAP)
+    finished = finished[:_FIN_CAP]
     # PROVISOIRES du sport (doré, hors ROI) : zone « Indicatif » DÉDIÉE (framed=True retire la pastille par
     # carte). Un provisoire EN COURS reste avec les matchs « En direct » (le temps réel prime) ; les matchs
     # pas encore analysés rejoignent « À jouer » / « En direct ». Dédoublonnage par noms d'équipes -> jamais 2×.
@@ -6048,7 +6054,10 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
                      if _has else None)),
         _zone("live", "En direct", "temps réel", len(live), _cards(live)),
         _zone("indic", "Confiance provisoire", "", len(prov_up), _rows_by_day(prov_up)),
-        _zone("todo", "Terminés", "", len(finished), _cards(finished), collapsible=True, open_=False),
+        _zone("todo", "Terminés", "", len(finished),
+              _cards(finished) + (f'<a class="fin-more" href="/">📅 Historique complet jour par jour '
+                                  f'dans l\'onglet Pronos ({_fin_more} de plus)</a>' if _fin_more else ""),
+              collapsible=True, open_=False),
     ]
     body_zones = "".join(x for x in out if x)
     if not _has:

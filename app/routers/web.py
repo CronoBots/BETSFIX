@@ -1,5 +1,6 @@
 """Plateforme de visionnage : pages HTML (accueil, matchs, détail match)."""
 
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -414,7 +415,7 @@ def _past_day_cards(date_iso: str) -> list:
                 or (d.get("combo") or {}).get("result") in ("won", "lost", "void"))
 
     for sport in ("foot", "basket", "tennis"):
-        for d in analyses.list_for(sport):
+        for d in analyses.iter_meta(sport):               # brut (pas de retained_bet) : filtrage strict ci-dessous
             dt = d.get("_start_dt")
             if dt is None:
                 continue
@@ -454,6 +455,8 @@ def _past_day_cards(date_iso: str) -> list:
                      "perle": None, "perle2": None, "pick_kind": "confiance"}
                 out.append({**_tennis_trow(r),
                             **web.analyst_bars(d.get("o1"), None, d.get("o2"), analyses.votes_pct(d))})
+    for _c in out:                                         # déjà filtrées bet-only -> évite un re-check meta
+        _c["_bet"] = True
     out.sort(key=lambda x: x.get("start_ts") or 0)
     return out
 
@@ -1001,7 +1004,8 @@ async def directs_page(
                 if not lf.get("score"):                    # LiveScore = notre source de scores live -> évite
                     # qu'un match démarré EN RETARD (Unibet sans feed) DISPARAISSE du Live (bug 2026-07-19
                     # Espagne-Argentine : live 80' 0-0 mais invisible car likely_finished + pas de score).
-                    _lsl = match_select.livescore_live_fields(sport, d.get("home"), d.get("away"), d.get("start"))
+                    _lsl = await asyncio.to_thread(match_select.livescore_live_fields,
+                                                   sport, d.get("home"), d.get("away"), d.get("start"))
                     if _lsl.get("score"):
                         lf = {**lf, **_lsl}
                 match_select.note_live(sport, d.get("home"), d.get("away"), bool(lf.get("score")))

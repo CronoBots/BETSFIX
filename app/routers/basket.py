@@ -5,6 +5,8 @@
   et stats complètes SofaScore par match (statistiques, compositions, h2h, stats d'équipe).
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse
 
@@ -70,7 +72,8 @@ async def _analyst_rows() -> tuple[list[dict], list[dict]]:
         elif not lf.get("score"):                           # en cours SANS score Unibet -> repli SofaScore (mort)
             lf = await match_select.fetch_sofa_live("basket", d.get("sofa_id") or d.get("id")) or lf
             if not lf.get("score"):                         # puis LiveScore (vivant) -> match démarré en retard
-                _lsl = match_select.livescore_live_fields("basket", d.get("home"), d.get("away"), d.get("start"))
+                _lsl = await asyncio.to_thread(match_select.livescore_live_fields,
+                                               "basket", d.get("home"), d.get("away"), d.get("start"))
                 if _lsl.get("score"):
                     lf = {**lf, **_lsl}
         # Un « en cours » SANS score live Unibet : s'il a assez tourné (likely_finished) -> Terminés ;

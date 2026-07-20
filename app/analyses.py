@@ -323,6 +323,45 @@ def list_for(sport: str) -> list[dict]:
     return out
 
 
+def iter_stat_bets():
+    """Itère les sidecars RÉGLÉS portant un pari FIGÉ (`stat_bet` won/lost), tous sports — SANS le filtrage
+    lourd de `list_for` (qui appelle `retained_bet` par sidecar). Rend `(sport, stat_bet, dt_utc)`. Sert au
+    bilan `_daily_results_map` du calendrier (perf : évite ~138 `retained_bet` inutiles par calcul). Lecture
+    via `_meta_load` (caché par mtime) -> bon marché en répétition. Iso-comportement : mêmes entrées que
+    `list_for` filtrées ensuite sur `stat_bet.result`."""
+    for sport in ("foot", "tennis", "basket"):
+        for p in glob.glob(os.path.join(DIR, f"{sport}_*.json")):
+            d = _meta_load(p)
+            if not d:
+                continue
+            sb = d.get("stat_bet")
+            if not isinstance(sb, dict) or sb.get("result") not in ("won", "lost"):
+                continue
+            st = d.get("start")
+            try:
+                dt = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
+            except (ValueError, AttributeError):
+                dt = None
+            yield sport, sb, dt
+
+
+def iter_meta(sport: str):
+    """Itère les sidecars BRUTS d'un sport (méta chargée + `_start_dt` posé), SANS le filtrage lourd de
+    `list_for` (pas de `retained_bet`/`load` par sidecar). Pour les appelants qui font DÉJÀ leur PROPRE
+    filtrage plus strict (ex. `_past_day_cards` : date + is_settled + a un pari) -> iso-résultat, sans le
+    coût de list_for (perf 2026-07-20)."""
+    for p in glob.glob(os.path.join(DIR, f"{sport}_*.json")):
+        d = _meta_load(p)
+        if not d:
+            continue
+        st = d.get("start")
+        try:
+            d["_start_dt"] = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
+        except (ValueError, AttributeError):
+            d["_start_dt"] = None
+        yield d
+
+
 def _inline(s: str) -> str:
     s = html.escape(s)
     s = _BOLD.sub(r"<b>\1</b>", s)

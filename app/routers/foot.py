@@ -76,7 +76,8 @@ async def _analyst_rows(sport: str) -> tuple[list[dict], list[dict]]:
             lf = await match_select.fetch_sofa_live("foot", d.get("sofa_id")) or lf
             if not lf.get("score"):                         # puis LiveScore (vivant) -> un match démarré en
                 # RETARD (Unibet sans feed) ne bascule pas à tort en « terminé » (cf. Espagne-Argentine 07-19).
-                _lsl = match_select.livescore_live_fields("foot", d.get("home"), d.get("away"), d.get("start"))
+                _lsl = await asyncio.to_thread(match_select.livescore_live_fields,
+                                               "foot", d.get("home"), d.get("away"), d.get("start"))
                 if _lsl.get("score"):
                     lf = {**lf, **_lsl}
         # Un « en cours » SANS score live Unibet : s'il a assez tourné (likely_finished) -> Terminés
