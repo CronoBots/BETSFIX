@@ -4319,7 +4319,8 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
                 continue
             sub = ('<div class="mc-div"></div>'
                    '<div class="mc-betl mc-noplay"><span class="mc-bi">🔄</span>'
-                   f'<span class="mc-bt">Analyse à {html.escape(fmt_local(reanalyse, with_date=False))}</span></div>')
+                   f'<span class="mc-bt">Analyse à {html.escape(fmt_local(reanalyse, with_date=False))} '
+                   '<span class="dim">· compos &amp; cotes fraîches</span></span></div>')
         # Badge coin haut-droit : « 🟢 Live » en direct (demande user 2026-07-12 : comme les paris live, le
         # score va dans le SCOREBOARD sous le titre, plus dans le badge), sinon l'HEURE.
         _badge = ('<span class="mc-badge mc-live">🟢 Live</span>' if _is_live
@@ -4979,7 +4980,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _zone("combo", "Combiné du jour", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
         _zone("indic", "Provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
-        _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo), collapsible=True),
+        _zone("todo", "Analyse au plus près du match", "compos & cotes fraîches", len(todo),
+              _rows_by_day(todo), collapsible=True),
     ]
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
     # compact info-seule) — sinon visibles seulement dans Stats (demande user 2026-07-20). Zone repliable.
