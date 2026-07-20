@@ -4081,12 +4081,14 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
     d'exploitable. Best-effort : ne casse jamais."""
     if not fid:
         return ""
-    # Ne garde que la LECTURE DU MATCH : on retire les phrases de MÉTA-COMMENTAIRE (value/abstention/
-    # proba/seuil/skip…) pour un texte PROFESSIONNEL, pas un commentaire d'abstention (demande user).
-    _META = re.compile(r"(sans value|pas de value|aucune value|abstention|abstient|abstenir|\bskip\b|"
-                       r"si l.on devait|d.o[uù] l.abstention|trop courte|seuil de \d|ma proba|"
-                       r"mon estimation|pas de pari|indicatif|hors roi|pas exploitable|\blean\b|marginale?)",
-                       re.I)
+    # NE PAS CHARCUTER L'ANALYSE (correctif user 2026-07-20) : la carte Toronto ne montrait QUE la phrase de
+    # proba « ~78 % » alors que le 🧪 contenait les FAITS (bilan 17-7 vs 10-15, absents Sykes/Sabally/Rice,
+    # risque Indiana). Cause : l'ancien filtre JETAIT toute phrase contenant un mot méta (« si l'on devait »,
+    # « aucune value »…) — donc justement les phrases FACTUELLES. On garde désormais les faits ; on retire
+    # seulement (a) l'amorce « Si l'on devait…, » en TÊTE et (b) les fragments PUREMENT méta (verdict
+    # d'abstention SANS aucun fait).
+    _PURE_META = re.compile(r"^(on s['’]abstient|on ne joue pas|pas de pari conseill|aucun pari|il n['’]y a "
+                            r"pas de pari|d['’]o[uù] l['’]abstention|abstention\b)[^.!?…]{0,70}[.!?…]?$", re.I)
 
     def _clean(raw: str) -> str:
         t = re.sub(r"(?im)^\s*PROV:.*$", "", raw or "")
@@ -4099,8 +4101,12 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
         t = re.sub(r"\s+", " ", t).strip()
         if not t:
             return ""
+        # (a) retire l'AMORCE d'un provisoire (« Si l'on devait absolument (en) jouer, » / « Si je devais
+        #     dégager un angle : ») en TÊTE — mais GARDE la suite (les FAITS qui suivent).
+        t = re.sub(r"^\s*si (l['’]on|je)\s+(le\s+)?devai[st]\b[^,.:]*[,:]\s*", "", t, flags=re.I).strip()
+        # (b) ne DROP que les phrases PUREMENT méta (verdict d'abstention sans le moindre fait chiffré/nom).
         _sents = re.split(r"(?<=[.!?…])\s+", t)
-        _kept = [s for s in _sents if s and not _META.search(s)]
+        _kept = [s for s in _sents if s and not _PURE_META.match(s.strip())]
         return " ".join(_kept).strip()
 
     try:
