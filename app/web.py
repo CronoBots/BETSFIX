@@ -3965,7 +3965,7 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     # VAINQUEUR simple (« <équipe/joueur> vainqueur/gagne ») -> précise le PÉRIMÈTRE de règlement par sport.
     # EXCLURE les marchés de PÉRIODE (« Set 1 - Vainqueur », « 1ère MT », quart-temps…) : « gagne le match »
     # y serait FAUX (c'est le vainqueur du set/de la période). Pas de glose plutôt qu'une glose fausse.
-    if (re.search(r"\b(vainqueur|gagne|l'emporte)\b", sl)
+    if (re.search(r"\b(vainqueur|victoire|gagne|l'emporte)\b", sl)
             and not re.search(r"mi-temps|\bset\b|\bmt\b|1[eè]re|2[eè]|quart", sl)):
         if sport == "tennis":
             return "gagne le match (en sets)"
@@ -4550,14 +4550,11 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             _btxt, _bcls = (_hh or "À VENIR"), "up"   # badge heure NEUTRE, comme les provisoires
     else:
         _btxt, _bcls = _bmap.get(_res, ("À VENIR", "p"))
-    # gloss = explication EN CLAIR du marché (identique aux cartes de simple) ; + score final si réglé.
-    # La glose RESTE l'explication du pari (demande user 2026-07-18) : on n'ajoute le score final QUE pour un
-    # résultat CHIFFRÉ (won/lost/push) — JAMAIS pour un void/annulé (ex. « · final walkover » polluait
-    # l'explication ; l'état « ANNULÉ » est déjà porté par le badge).
+    # gloss = explication EN CLAIR du marché, STABLE : elle NE CHANGE JAMAIS après le résultat (demande user
+    # 2026-07-20 : « le gloss ne peut pas changer après le résultat »). On N'AJOUTE PLUS le score final ici
+    # (il polluait l'explication + la faisait varier avant/après règlement) — le score final est déjà porté
+    # par le scoreboard et le badge de la jambe. Glose = strictement l'explication du marché, comme les simples.
     _g = _bet_gloss(sel_raw, _sp, _lh, _la)
-    if _res in ("won", "lost", "push") and l.get("score"):
-        _sc = html.escape(str(l.get("score")))
-        _g = f'{_g} · <b>final {_sc}</b>' if _g else f'<b>final {_sc}</b>'
     gloss = f'<div class="cleg-gloss"><span class="ar">↳</span> {_g}</div>' if _g else ""
     # Justification = pli TAPPABLE « 💡 Pourquoi cette jambe » (demande user 2026-07-19 : lire l'analyse
     # COMPLÈTE au tap plutôt qu'un extrait coupé à 3 lignes). Même patron que le combiné de match. Texte

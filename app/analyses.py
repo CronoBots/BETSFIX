@@ -482,6 +482,16 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     if not s:
         return s
     low = s.lower()
+    # VAINQUEUR simple : « <équipe> victoire » / « <équipe> gagne » / « <équipe> l'emporte » = MÊME pari que
+    # « <équipe> vainqueur » (2 écritures d'une victoire sèche). L'intitulé doit être IDENTIQUE partout
+    # (demande user 2026-07-20 : « l'intitulé du pari doit toujours être fait de la même manière ») -> on
+    # uniformise le verbe d'affichage vers « vainqueur » (forme Unibet). PUREMENT AFFICHAGE (le `sel` stocké
+    # reste intact -> règlement/codes inchangés). On NE touche PAS un marché plus précis (set/MT/quart/
+    # handicap/score/double chance) où « victoire » est qualifiée.
+    _mw = re.match(r"^(.+?)\s+(?:victoire|vainqueur|gagne|l['’]emporte)\s*$", s, re.I)
+    if _mw and not re.search(r"mi-temps|\bset\b|\bmt\b|1[eè]re|2[eè]|quart|handicap|[+\-]\s?\d|"
+                             r"\bou nul\b|double chance|\d\s*[-–]\s*\d", low):
+        return f"{_mw.group(1).strip()} vainqueur"
     # +0.5 SUR UNE ÉQUIPE = « ne perd pas » = DOUBLE CHANCE (foot). On UNIFORMISE vers la forme double chance
     # pour qu'un « <équipe> +0.5 (ne perd pas / DC 1X) » et un « Double chance 1X (… ou nul) » s'affichent À
     # L'IDENTIQUE partout — titre ET glose (demande user 2026-07-17 : « uniformiser ce genre de paris »). On ne
