@@ -4920,14 +4920,14 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
     combo_daily = "" if sport else _combo_tg_card(include_settled=False)   # multisport -> « Tous » seulement
     has_any = bool(play or prov or todo or combo_daily)
-    _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir la <b>Confiance provisoire</b> ci-dessous.'
+    _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir les <b>Provisoires</b> ci-dessous.'
                    ) if has_any else None
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     out = [
-        _zone("combo", "Combiné multisports du jour", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
-        _zone("play", "Confiance à jouer", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
-        _zone("indic", "Confiance provisoire", "", len(prov), _rows_by_day(prov), collapsible=True),
+        _zone("combo", "Combiné du jour", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
+        _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
+        _zone("indic", "Provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
         _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo), collapsible=True),
     ]
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
@@ -4978,7 +4978,7 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
             from app import combo_daily as _cd
             cb = _cd.today(iso)
             if cb and cb.get("legs"):
-                combo = _zone("combo", "Combiné multisports du jour", "", 1,
+                combo = _zone("combo", "Combiné du jour", "", 1,
                               _combo_tg_card(include_settled=True, cb=cb))
         except Exception:
             combo = ""
@@ -4992,7 +4992,7 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     # Paris joués (cartes) + provisoires réglés (bloc compact) — les provisoires n'apparaissaient nulle part
     # dans les résultats (demande user 2026-07-20).
     _prov_res = _provisional_results(iso, sport)
-    cards = (_zone("play", "Paris proposés", "", len(rows), _rows_by_day(rows) + _prov_res, collapsible=True)
+    cards = (_zone("play", "Paris du jour", "", len(rows), _rows_by_day(rows) + _prov_res, collapsible=True)
              if (rows or _prov_res) else "")
     inner = summ + combo + cards
     if not (combo or cards):
@@ -6194,11 +6194,11 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
 
     _has = bool(play_up or live or prov_up or finished)
     out = [
-        _zone("play", "Confiance à jouer", "", len(play_up), _rows_by_day(play_up),
-              empty=("Aucune <b>value</b> à venir pour l'instant — voir la <b>Confiance provisoire</b> plus bas."
+        _zone("play", "Paris du jour", "", len(play_up), _rows_by_day(play_up),
+              empty=("Aucune <b>value</b> à venir pour l'instant — voir les <b>Provisoires</b> plus bas."
                      if _has else None)),
         _zone("live", "En direct", "temps réel", len(live), _cards(live)),
-        _zone("indic", "Confiance provisoire", "", len(prov_up), _rows_by_day(prov_up)),
+        _zone("indic", "Provisoires", "", len(prov_up), _rows_by_day(prov_up)),
         _zone("todo", "Terminés", "", len(finished),
               _cards(finished) + (f'<a class="fin-more" href="/">📅 Historique complet jour par jour '
                                   f'dans l\'onglet Pronos ({_fin_more} de plus)</a>' if _fin_more else ""),
@@ -6267,9 +6267,9 @@ def render_directs(play_live: list, prov_live: list, frag: bool = False) -> str:
             '</div></div>')
     else:
         out = [
-            _zone("combo", "Combiné multisports du jour", "", 1 if _combo else 0, _combo),
-            _zone("play", "Confiance à jouer", "en direct", len(play_live), _cards(play_live)),
-            _zone("indic", "Confiance provisoire", "en direct", len(prov_live), _cards(prov_live)),
+            _zone("combo", "Combiné du jour", "", 1 if _combo else 0, _combo),
+            _zone("play", "Paris du jour", "en direct", len(play_live), _cards(play_live)),
+            _zone("indic", "Provisoires", "en direct", len(prov_live), _cards(prov_live)),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     # Compteur de matchs -> BADGE chiffré du menu du bas (demande user 2026-07-14). Marqueur générique
