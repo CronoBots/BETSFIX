@@ -1833,6 +1833,13 @@ CSS = """
   .cleg-comp{flex:1;min-width:0;font-size:10.5px;font-weight:700;color:var(--muted);
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cleg-sport{color:#2ee27f;font-weight:800;letter-spacing:.04em}
+  /* Nom du sport TOUJOURS à la couleur du sport (demande user 2026-07-20), quel que soit le type de carte
+     (combiné cyan/or, provisoire, simple, jambe…) : foot vert · basket orange · tennis citron. Placé APRÈS
+     les règles mc-sport/cleg-sport -> l'emporte à spécificité égale. Le TITRE d'un combiné (« COMBINÉ… »)
+     n'a pas de classe spc- -> garde sa couleur (or/cyan). */
+  .mc-sport.spc-foot,.cleg-sport.spc-foot{color:#2ee27f}
+  .mc-sport.spc-basket,.cleg-sport.spc-basket{color:#ff9f43}
+  .mc-sport.spc-tennis,.cleg-sport.spc-tennis{color:#d7e64a}
   .cleg-sep{color:var(--dim)}
   .cleg-bdg{flex:none;font-size:10px;font-weight:900;padding:2px 7px;border-radius:7px;white-space:nowrap}
   .cleg-bdg.p{background:rgba(232,184,74,.16);color:var(--gold)}
@@ -4245,7 +4252,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         _inner = (
             f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
-            f'<span class="mc-comp"><b class="mc-sport">{_spn}</b>'
+            f'<span class="mc-comp"><b class="mc-sport spc-{sp or ""}">{_spn}</b>'
             + (f'<span class="mc-comp-sep"> • </span>{comp}' if comp else '') + '</span>'
             + _badge
             + '</div>'
@@ -4480,7 +4487,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         _verdict = _verdict_block(co, _cp, "", _cbig, calibrated=True, hide_neg_value=True)
     _cote_pill = "" if verdict else _cote           # le bloc verdict porte déjà la grosse cote
     return (f'<div class="cleg {_state}">'
-            f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport">{emo} {splbl}</b>'
+            f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport spc-{_sp or ""}">{emo} {splbl}</b>'
             + (f'<span class="cleg-sep"> • </span>{comp}' if comp else "")
             + f'</span><span class="cleg-bdg {_bcls}">{_btxt}</span></div>'
             f'{_teams_html}'
@@ -5780,7 +5787,7 @@ def _sport_row(r: dict) -> str:
     comp = _cap(um.get("comp") or summ.get("comp") or r.get("tour") or "")
     _cparts = [p for p in ((circuit if _is_tennis else ""), comp) if p]
     if _spn:
-        comp_only = (f'<b class="mc-sport">{_spn}</b>'
+        comp_only = (f'<b class="mc-sport spc-{sport_key or ""}">{_spn}</b>'
                      + (f'<span class="mc-comp-sep"> • </span>{" • ".join(e(p) for p in _cparts)}'
                         if _cparts else ""))
     else:
