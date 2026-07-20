@@ -4956,8 +4956,8 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
 
 
 def _today_zones(match_rows: list, sport: str | None = None, results: list | None = None) -> tuple[str, int]:
-    """Zones du JOUR COURANT (Combiné multisports du jour · Confiance à jouer · Confiance provisoire ·
-    À analyser · Résultats du jour). Extrait de render_dashboard pour être réutilisé par le fragment /jour
+    """Zones du JOUR COURANT (Combiné du jour · Paris du jour · Provisoires · Résultats du jour ; PLUS de
+    zone « à analyser » — retirée sur demande user 2026-07-20). Extrait de render_dashboard pour /jour
     (jour = aujourd'hui). `sport` : filtre Pronos (dormant). `results` = cartes des paris DÉJÀ TERMINÉS
     aujourd'hui (matchs finis + résultats) -> zone « Résultats du jour » repliable, sinon ils n'étaient
     visibles que dans Stats (demande user 2026-07-20).
@@ -4969,9 +4969,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         play = [r for r in play if _item_sport(r) == sport]
         _prog = [it for it in _prog if it.get("_sport") == sport]
     prov = sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
-    todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
+    # PLUS de catégorie « à analyser » (demande user 2026-07-20 : la supprimer) : un match NON encore
+    # analysé (ni pari, ni provisoire) n'est tout simplement PAS affiché tant qu'il n'a pas d'analyse —
+    # il apparaîtra une fois analysé (avec son pari/provisoire), jamais en limbo « Analyse à HH:MM ».
     combo_daily = "" if sport else _combo_tg_card(include_settled=False)   # multisport -> « Tous » seulement
-    has_any = bool(play or prov or todo or combo_daily)
+    has_any = bool(play or prov or combo_daily)
     _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir les <b>Provisoires</b> ci-dessous.'
                    ) if has_any else None
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
@@ -4980,8 +4982,6 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _zone("combo", "Combiné du jour", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
         _zone("indic", "Provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
-        _zone("todo", "Analyse au plus près du match", "compos & cotes fraîches", len(todo),
-              _rows_by_day(todo), collapsible=True),
     ]
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
     # compact info-seule) — sinon visibles seulement dans Stats (demande user 2026-07-20). Zone repliable.
@@ -5008,7 +5008,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     zones = (f'<div class="dash-zones">{inner}</div>' if inner
              else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
     today_iso = ((to_local(datetime.now(timezone.utc)) or datetime.now()).date()).isoformat()
-    return _day_header(today_iso) + zones, len(play) + len(prov) + len(todo)
+    return _day_header(today_iso) + zones, len(play) + len(prov)
 
 
 def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
