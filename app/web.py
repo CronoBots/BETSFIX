@@ -4930,16 +4930,27 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _zone("indic", "Confiance provisoire", "", len(prov), _rows_by_day(prov), collapsible=True),
         _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo), collapsible=True),
     ]
-    # RÉSULTATS DU JOUR : paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc compact info-seule) — sinon
-    # visibles seulement dans Stats (demande user 2026-07-20). Zone repliable, à la fin.
+    # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
+    # compact info-seule) — sinon visibles seulement dans Stats (demande user 2026-07-20). Zone repliable.
     today_iso = ((to_local(datetime.now(timezone.utc)) or datetime.now()).date()).isoformat()
     res_rows = sorted(list(results or []), key=lambda r: r.get("start_ts") or 0, reverse=True)
     if sport:
         res_rows = [r for r in res_rows if _item_sport(r) == sport]
     _prov_res = _provisional_results(today_iso, sport)
-    if res_rows or _prov_res:
+    # Combiné du jour RÉGLÉ (won/lost/void) -> ici (la zone du haut le cache une fois fini via include_settled
+    # =False, il ne se dédouble donc pas). En cours -> reste en tête, pas dans les résultats.
+    _combo_res = ""
+    if not sport:
+        try:
+            from app import combo_daily as _cd
+            _cbt = _cd.today(today_iso)
+            if _cbt and _cbt.get("legs") and _cbt.get("result") in ("won", "lost", "void"):
+                _combo_res = _combo_tg_card(include_settled=True, cb=_cbt)
+        except Exception:
+            _combo_res = ""
+    if res_rows or _prov_res or _combo_res:
         out.append(_zone("done", "Résultats du jour", "", len(res_rows),
-                         _rows_by_day(res_rows) + _prov_res, collapsible=True))
+                         _combo_res + _rows_by_day(res_rows) + _prov_res, collapsible=True))
     inner = "".join(x for x in out if x)
     zones = (f'<div class="dash-zones">{inner}</div>' if inner
              else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
