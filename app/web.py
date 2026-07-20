@@ -4265,6 +4265,25 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
                                     clock=_lf.get("live_time"), periods=_lf.get("periods"),
                                     fstats=_lf.get("fstats"))
                    if (_is_live and _lf.get("score")) else "")
+        # Barre « Chance live » (demande user 2026-07-20 : elle manquait sur les provisoires en direct) —
+        # même reflet EN DIRECT que les paris retenus (cote live dé-margée / repli modèle). '' si non mappable.
+        _prov_bar = ""
+        if _is_live and _lscore and prov_sel:
+            try:
+                _lld = match_select.live_state_for(sp, home, away)
+                _lhs, _las = _parse_live_score(_lf.get("score"))
+                _fs = _lf.get("fstats") or {}
+                _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
+                          "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
+                          "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
+                _prov_bar = _live_bar_html(analyses.live_prob(
+                    sp, prov_sel, _cfp(prov_sel, sp, home, away), home, away, _lhs, _las,
+                    match_select.live_minute(_lld),
+                    match_select.live_win_odds(sp, home, away), prov.get("prob"),
+                    analyses.live_catalog(str(m.get("id") or "")), _lvals,
+                    match_select.basket_frac(_lld, comp) if sp == "basket" else None))
+            except Exception:
+                _prov_bar = ""
         _inner = (
             f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
@@ -4276,7 +4295,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # SCOREBOARD SOUS le pari à jouer (demande user 2026-07-14) : le pari (sub) d'abord, une LIGNE DE
             # SÉPARATION, puis le tableau de score en dessous — aligné sur les cartes de pari (_sport_row).
             + f'<div class="mc-sub">{sub}</div>'
-            + (f'<div class="mc-div"></div><div class="mc-livesc">{_lscore}</div>' if _lscore else "")
+            + (f'<div class="mc-div"></div><div class="mc-livesc">{_lscore}{_prov_bar}</div>' if _lscore else "")
             + '</div>')
         # Accent doré discret (bord gauche) sur les cartes PROVISOIRES en zone dédiée -> identifiables sans
         # la pastille répétée (demande user 2026-07-11). Uniquement en mode `framed` et si c'est un provisoire.
@@ -4826,11 +4845,12 @@ def _item_sport(r: dict) -> str | None:
     return "tennis" if (r.get("tour") or "").lower() in ("atp", "wta") else None
 
 
-def _today_zones(match_rows: list, sport: str | None = None) -> tuple[str, int]:
+def _today_zones(match_rows: list, sport: str | None = None, results: list | None = None) -> tuple[str, int]:
     """Zones du JOUR COURANT (Combiné multisports du jour · Confiance à jouer · Confiance provisoire ·
-    À analyser). Extrait de render_dashboard pour être réutilisé par le fragment /jour (jour = aujourd'hui).
-    `sport` (foot/tennis/basket) : ne garde que ce sport (filtre Pronos, demande user 2026-07-20) ; le
-    Combiné multisports (par nature multi-sport) n'apparaît qu'en « Tous » (sport=None).
+    À analyser · Résultats du jour). Extrait de render_dashboard pour être réutilisé par le fragment /jour
+    (jour = aujourd'hui). `sport` : filtre Pronos (dormant). `results` = cartes des paris DÉJÀ TERMINÉS
+    aujourd'hui (matchs finis + résultats) -> zone « Résultats du jour » repliable, sinon ils n'étaient
+    visibles que dans Stats (demande user 2026-07-20).
     Renvoie (html, nb_matchs_du_jour) — le compte alimente le badge de nav."""
     play = sorted(list(match_rows), key=lambda r: r.get("start_ts") or 0)
     _paj = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
@@ -4852,6 +4872,14 @@ def _today_zones(match_rows: list, sport: str | None = None) -> tuple[str, int]:
         _zone("indic", "Confiance provisoire", "", len(prov), _rows_by_day(prov), collapsible=True),
         _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo), collapsible=True),
     ]
+    # RÉSULTATS DU JOUR (matchs déjà terminés aujourd'hui + résultats) — sinon visibles seulement dans Stats
+    # (demande user 2026-07-20). Zone repliable, à la fin (le à-venir reste prioritaire en haut).
+    res_rows = sorted(list(results or []), key=lambda r: r.get("start_ts") or 0, reverse=True)
+    if sport:
+        res_rows = [r for r in res_rows if _item_sport(r) == sport]
+    if res_rows:
+        out.append(_zone("done", "Résultats du jour", "", len(res_rows),
+                         _rows_by_day(res_rows), collapsible=True))
     inner = "".join(x for x in out if x)
     zones = (f'<div class="dash-zones">{inner}</div>' if inner
              else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
@@ -4897,14 +4925,14 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     return _day_header(iso) + f'<div class="dash-zones">{inner}</div>'
 
 
-def render_dashboard(match_rows: list, *, live_count: int = 0,
+def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
                      frag: bool = False, source: dict | None = None) -> str:
     """Onglet « Pronos » (ex-« À venir », renommé 2026-07-19) : un CALENDRIER horizontal en tête pour revoir
     les paris proposés les jours passés + leurs résultats, puis le contenu du jour sélectionné (par défaut
-    AUJOURD'HUI = les zones Combiné/Confiance à jouer/Confiance provisoire/À analyser). Cliquer une date
-    recharge #day-content via /jour. Pur affichage — la sélection ROI est inchangée."""
+    AUJOURD'HUI = les zones Combiné/Confiance à jouer/Confiance provisoire/À analyser + Résultats du jour).
+    `results` = cartes des paris terminés d'aujourd'hui. Cliquer une date recharge #day-content via /jour."""
     today_iso = ((to_local(datetime.now(timezone.utc)) or datetime.now()).date()).isoformat()
-    zones, cnt = _today_zones(match_rows)
+    zones, cnt = _today_zones(match_rows, None, results)
     body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
             + _calendar_strip(today_iso)
             + f'<div id="day-content">{zones}</div>')

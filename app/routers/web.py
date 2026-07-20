@@ -477,7 +477,8 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
         return HTMLResponse(cached)
     if not is_past:                                        # aujourd'hui (ou futur) = vue « à venir »
         rows = [r for r in await _home_match_rows() if r.get("status") != "inprogress"]
-        body = web._today_zones(rows, sp)[0]
+        results = _past_day_cards(today_iso)               # paris terminés d'aujourd'hui -> zone dédiée
+        body = web._today_zones(rows, sp, results)[0]
         fragcache.put(ckey, body, ttl=PANEL_TTL)           # jour courant : bouge -> TTL court
         return HTMLResponse(body)
     day_rows = _past_day_cards(date)                       # jour passé : cartes bet-only de cette date (rapide)
@@ -503,7 +504,10 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
     all_rows = await _home_match_rows()
     live_n = sum(1 for r in all_rows if r.get("status") == "inprogress")
     rows = [r for r in all_rows if r.get("status") != "inprogress"]
-    body = web.render_dashboard(rows, live_count=live_n,
+    import datetime as _dt
+    _today = ((web.to_local(_dt.datetime.now(_dt.timezone.utc)) or _dt.datetime.now()).date()).isoformat()
+    results = _past_day_cards(_today)          # paris TERMINÉS d'aujourd'hui (résultats) -> zone dédiée
+    body = web.render_dashboard(rows, live_count=live_n, results=results,
                                 frag=bool(frag), source=provider.breaker_status())
     if frag:
         fragcache.put("panel/home", body, ttl=PANEL_TTL)
