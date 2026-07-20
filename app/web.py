@@ -559,7 +559,8 @@ CSS = """
   .row{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:12px 14px;margin:15px 0;border:1px solid var(--cardline);
        box-shadow:var(--cardglow),var(--shadow-sm);transition:.16s}
-  .row:active{transform:scale(.99);border-color:var(--border2)}
+  /* Pas d'effet « pressé » (scale) au toucher des cartes de prono (demande user 2026-07-20) : une carte
+     de contenu n'est pas un bouton. Le tap-highlight est déjà neutralisé globalement. */
   /* Carte dépliable (foot/basket) : analyse en accordéon sous la carte */
   .rowtap{cursor:pointer}
   .exp-c{margin-top:12px;padding:10px;border-radius:11px;font-size:10.5px;color:var(--accent);
