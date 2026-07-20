@@ -4078,6 +4078,17 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
     return _vl + _rn
 
 
+# JARGON DE PARI (demande user 2026-07-20 : « une analyse, pas des stats inutiles/incompréhensibles ») : la
+# phrase de MATH de pari (ma proba vs proba juste, EV, écart-type, « d'où l'abstention côté ROI »…) est
+# jargonneuse ET redondante avec la barre Confiance/Marché/Value déjà affichée. On la retire de l'AFFICHAGE
+# (elle reste dans le .md). Signaux FORTS UNIQUEMENT (absents des phrases de FAITS/RISQUE, même quand elles
+# disent « aucune value / marché efficient ») -> on ne touche PAS aux faits. Partagé : plis simples/
+# provisoires (_prov_why_snippet) ET jambes de combiné (_leg_card).
+_META_STAT = re.compile(r"\bma\s+proba\b|\bmon\s+estimation\b|proba\s+juste|\bla\s+juste\s*\(|"
+                        r"juste\s+marché|marché\s+valoris|valorise\s+cette|écart[- ]type|\bEV\b|"
+                        r"pts?\s+d['’]EV|d['’]espérance", re.I)
+
+
 def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) -> str:
     """Extrait PROPRE (phrases COMPLÈTES, majuscule initiale) du raisonnement d'un pari — pour le pli
     « 💡 Pourquoi ce pari » (même patron que les jambes de combiné, demande user 2026-07-20 : l'analyse
@@ -4098,7 +4109,6 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
     # d'abstention SANS aucun fait).
     _PURE_META = re.compile(r"^(on s['’]abstient|on ne joue pas|pas de pari conseill|aucun pari|il n['’]y a "
                             r"pas de pari|d['’]o[uù] l['’]abstention|abstention\b)[^.!?…]{0,70}[.!?…]?$", re.I)
-
     def _clean(raw: str) -> str:
         t = re.sub(r"(?im)^\s*PROV:.*$", "", raw or "")
         t = re.sub(r"^\s*#+.*$", "", t, count=1, flags=re.M)          # retire un éventuel titre de section
@@ -4113,9 +4123,12 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
         # (a) retire l'AMORCE d'un provisoire (« Si l'on devait absolument (en) jouer, » / « Si je devais
         #     dégager un angle : ») en TÊTE — mais GARDE la suite (les FAITS qui suivent).
         t = re.sub(r"^\s*si (l['’]on|je)\s+(le\s+)?devai[st]\b[^,.:]*[,:]\s*", "", t, flags=re.I).strip()
-        # (b) ne DROP que les phrases PUREMENT méta (verdict d'abstention sans le moindre fait chiffré/nom).
+        # (b) DROP les phrases purement méta (verdict d'abstention) ET les phrases de MATH de pari (jargon
+        #     redondant avec la barre verdict) — jamais les faits/risque.
         _sents = re.split(r"(?<=[.!?…])\s+", t)
-        _kept = [s for s in _sents if s and not _PURE_META.match(s.strip())]
+        _kept = [s for s in _sents if s and not _PURE_META.match(s.strip()) and not _META_STAT.search(s)]
+        if not _kept:      # tout filtré (analyse 100 % math) -> ne pas renvoyer vide, garder les faits
+            _kept = [s for s in _sents if s and not _PURE_META.match(s.strip())]
         return " ".join(_kept).strip()
 
     try:
@@ -4601,7 +4614,9 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     # combiné) ; `event.stopPropagation()` empêche le tap d'ouvrir/fermer la carte parente.
     _wt = _clean_cap(l.get("why"), 100000) if (why and _res is None) else ""
     # En PUCES (une par phrase) comme les simples/provisoires -> aéré, plus de pavé (demande user 2026-07-20).
-    _wtl = "".join(f"<li>{html.escape(s)}</li>" for s in (_why_sentences(_wt) or ([_wt] if _wt else [])))
+    # + on retire le jargon de math de pari (redondant avec la barre verdict) — que des faits/risque.
+    _wsents = [s for s in (_why_sentences(_wt) or ([_wt] if _wt else [])) if not _META_STAT.search(s)]
+    _wtl = "".join(f"<li>{html.escape(s)}</li>" for s in _wsents)
     _why = ('<details class="cleg-fold"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
             '💡 Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
             f'<ul class="why-ul">{_wtl}</ul></details>') if _wt else ""
