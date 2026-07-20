@@ -348,10 +348,8 @@ CSS = """
        border-radius:99px;background:#eef2f7;color:#0b0d12;font-size:10px;font-weight:900;line-height:16px;
        text-align:center;font-variant-numeric:tabular-nums;border:1.5px solid #0b0d12;
        box-shadow:0 1px 4px rgba(0,0,0,.5)}
-  .botnav a[data-tab="directs"] .nav-n{background:#34d27b;color:#04130a;
-       box-shadow:0 0 8px rgba(52,210,123,.65);animation:navlive 1.9s ease-out infinite}
-  @keyframes navlive{0%,100%{box-shadow:0 0 6px rgba(52,210,123,.5)}50%{box-shadow:0 0 12px rgba(52,210,123,.85)}}
-  @media (prefers-reduced-motion:reduce){.botnav a[data-tab="directs"] .nav-n{animation:none}}
+  /* Badge du nb de matchs LIVE : BLANC comme les autres onglets (demande user 2026-07-21) — plus de vert
+     ni de halo pulsant (l'icône radar verte de l'onglet signale déjà le live). -> hérite du .nav-n blanc. */
   /* Icône LIVE = RADAR vert pulsant (point + anneaux),
   comme l'orbe de l'état vide « aucun match » */
   /* Live = CERCLE VERT + HALO permanent autour (+ radar qui pulse). TAILLE alignée aux emoji (~22px). */
@@ -1958,10 +1956,15 @@ CSS = """
   .cal-pill:active{transform:scale(.94)}
   .cal-pill .cal-wd{font-size:9.5px;font-weight:800;letter-spacing:.06em;opacity:.85}
   .cal-pill .cal-dn{font-size:17px;font-weight:800;line-height:1;color:#c9d4e0;font-variant-numeric:tabular-nums}
-  .cal-pill .cal-res{width:20px;height:3px;border-radius:2px;background:var(--muted);opacity:.22}
-  .cal-pill .cal-res.pos{background:linear-gradient(90deg,#2f9d63,#64cd8d);opacity:1}
-  .cal-pill .cal-res.neg{background:linear-gradient(90deg,#d84a4a,#ff7a7a);opacity:1}
-  .cal-pill .cal-res.neu{background:var(--gold);opacity:.85}
+  /* JAUGE de RÉUSSITE du jour (demande user 2026-07-21) : plus une barre pleine mais une barre de
+     PROGRESSION remplie au % de paris gagnés du jour (`<i>` = remplissage, largeur = taux de réussite).
+     Track visible seulement si des paris ont été réglés ; couleur = jour gagnant (vert) / perdant (rouge). */
+  .cal-pill .cal-res{position:relative;width:22px;height:4px;border-radius:2px;background:transparent;overflow:hidden}
+  .cal-pill .cal-res.pos,.cal-pill .cal-res.neg,.cal-pill .cal-res.neu{background:rgba(255,255,255,.13)}
+  .cal-pill .cal-res i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;display:block}
+  .cal-pill .cal-res.pos i{background:linear-gradient(90deg,#2f9d63,#64cd8d)}
+  .cal-pill .cal-res.neg i{background:linear-gradient(90deg,#d84a4a,#ff7a7a)}
+  .cal-pill .cal-res.neu i{background:var(--gold)}
   /* AUJOURD'HUI = 1re pastille (à gauche) -> toujours visible à l'ouverture, sans sticky ni masque
      (demande user 2026-07-19). Accent doré simple. */
   .cal-pill.today{background:rgba(246,197,74,.1);border-color:rgba(246,197,74,.38)}
@@ -4951,17 +4954,20 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
         d = today - timedelta(days=i)
         iso = d.isoformat()
         s = rmap.get(iso)
-        # Barre de bilan : vert (jour gagnant) / rouge (perdant) / or (nul) / discret (rien réglé).
-        rcls = "none"
+        # JAUGE de réussite : couleur = jour gagnant (vert) / perdant (rouge) / nul (or) ; REMPLISSAGE =
+        # % de paris gagnés du jour (won/settled). Rien réglé -> pas de jauge (track transparent).
+        rcls, _fill, _rtitle = "none", 0, ""
         if s and s.get("settled"):
             rcls = "pos" if s["profit"] > 1e-9 else ("neg" if s["profit"] < -1e-9 else "neu")
+            _fill = round(100 * s["won"] / s["settled"])
+            _rtitle = f' title="{s["won"]}/{s["settled"]} gagnés · {_fill}%"'
         is_today = d == today
         wd = "AUJ" if is_today else _WD_ABBR[d.weekday()]
         cls = "cal-pill" + (" today" if is_today else "") + (" on" if iso == active_iso else "")
         pills.append(f'<button class="{cls}" data-date="{iso}" aria-label="{_WD_FULL[d.weekday()]} {d.day}">'
                      f'<span class="cal-wd">{wd}</span>'
                      f'<span class="cal-dn">{d.day}</span>'
-                     f'<span class="cal-res {rcls}"></span></button>')
+                     f'<span class="cal-res {rcls}"{_rtitle}><i style="width:{_fill}%"></i></span></button>')
     return (f'<div class="cal-wrap">{kpi}'
             f'<div class="cal-strip" id="cal-strip" data-today="{today.isoformat()}">'
             f'{"".join(pills)}</div></div>')
