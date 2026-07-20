@@ -2732,9 +2732,11 @@ _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 # Icône LIVE = mini-radar vert pulsant (mêmes anneaux que l'orbe de l'état vide « aucun match »)
 _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
                '<span class="nr-ring nr-ring2"></span><span class="nr-dot"></span></span>')
+# Onglets sport (Tennis/Basket/Foot) RETIRÉS de la nav le 2026-07-20 (demande user) : ils répétaient Pronos
+# (mêmes pronos filtrés par sport). Le filtre sport vit désormais SUR Pronos (puces `_sport_chips`), et les
+# routes /app //basket //foot redirigent vers / (accueil). Nav = 4 onglets épurés.
 _SPA_TABS = [("home", "/", "📅", "Pronos"), ("stats", "/stats", "📊", "Stats"),
-             ("tennis", "/app", "🎾", "Tennis"), ("basket", "/basket", "🏀", "Basket"),
-             ("foot", "/foot", "⚽", "Foot"), ("directs", "/directs", _LIVE_RADAR, "Live"),
+             ("directs", "/directs", _LIVE_RADAR, "Live"),
              ("compte", "/compte", "👤", "Compte")]
 # Compte est un onglet SPA À PART ENTIÈRE : son panneau charge /compte?frag=1 (contenu seul) en AJAX,
 # comme les onglets sport -> bascule sans rechargement. (Plus de _NAV_ONLY : il a son panneau.)
@@ -4795,16 +4797,38 @@ def _calendar_strip(active_iso: str, back: int = 13) -> str:
             f'{"".join(pills)}</div></div>')
 
 
-def _today_zones(match_rows: list) -> tuple[str, int]:
+def _item_sport(r: dict) -> str | None:
+    """Sport d'une carte/ligne du programme (pour le filtre sport de Pronos) : `_sport` (provisoires) sinon
+    déduit de l'URL (autoritaire). ⚠️ Le champ `tour` NE suffit PAS (le basket WNBA/NBA porte `tour=WNBA`
+    -> ne jamais l'assimiler au tennis) : on ne l'utilise qu'en repli pour atp/wta si l'URL manque."""
+    s = r.get("_sport")
+    if s:
+        return s
+    url = r.get("url") or ""
+    if "/foot/match" in url:
+        return "foot"
+    if "/basket/match" in url:
+        return "basket"
+    if "/app/match" in url:
+        return "tennis"
+    return "tennis" if (r.get("tour") or "").lower() in ("atp", "wta") else None
+
+
+def _today_zones(match_rows: list, sport: str | None = None) -> tuple[str, int]:
     """Zones du JOUR COURANT (Combiné multisports du jour · Confiance à jouer · Confiance provisoire ·
     À analyser). Extrait de render_dashboard pour être réutilisé par le fragment /jour (jour = aujourd'hui).
+    `sport` (foot/tennis/basket) : ne garde que ce sport (filtre Pronos, demande user 2026-07-20) ; le
+    Combiné multisports (par nature multi-sport) n'apparaît qu'en « Tous » (sport=None).
     Renvoie (html, nb_matchs_du_jour) — le compte alimente le badge de nav."""
     play = sorted(list(match_rows), key=lambda r: r.get("start_ts") or 0)
     _paj = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
     _prog = [it for it in _programme_items(_paj, framed=True) if not it.get("_live")]
+    if sport:
+        play = [r for r in play if _item_sport(r) == sport]
+        _prog = [it for it in _prog if it.get("_sport") == sport]
     prov = sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
     todo = sorted([it for it in _prog if not it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
-    combo_daily = _combo_tg_card(include_settled=False)   # combiné du jour (OR) — retiré une fois TERMINÉ
+    combo_daily = "" if sport else _combo_tg_card(include_settled=False)   # multisport -> « Tous » seulement
     has_any = bool(play or prov or todo or combo_daily)
     _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir la <b>Confiance provisoire</b> ci-dessous.'
                    ) if has_any else None
@@ -4821,10 +4845,11 @@ def _today_zones(match_rows: list) -> tuple[str, int]:
     return _day_header(today_iso) + zones, len(play) + len(prov) + len(todo)
 
 
-def _day_view(iso: str, day_rows: list) -> str:
-    """Contenu d'un JOUR PASSÉ (calendrier « Pronos ») : bilan du jour (gagnés/réglés · ROI) + le combiné du
-    jour de cette date (résultat) + les paris proposés ce jour-là avec leur résultat (cartes `_sport_row`,
-    terminées = score + ✓/✗). `day_rows` = cartes des matchs dont le coup d'envoi LOCAL tombe ce jour."""
+def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
+    """Contenu d'un JOUR PASSÉ (calendrier « Pronos ») : bilan du jour (gagnés/réglés · ROI, TOUS sports) +
+    le combiné du jour de cette date (résultat) + les paris proposés ce jour-là avec leur résultat (cartes
+    `_sport_row`, terminées = score + ✓/✗). `day_rows` = cartes des matchs du jour. `sport` : filtre les
+    cartes sur ce sport (le bilan reste le total du jour ; le combiné multisport n'apparaît qu'en « Tous »)."""
     s = _daily_results_map().get(iso) or {}
     won, settled, profit = s.get("won", 0), s.get("settled", 0), s.get("profit", 0.0)
     roi = round(100 * profit / settled) if settled else 0
@@ -4835,18 +4860,21 @@ def _day_view(iso: str, day_rows: list) -> str:
     else:
         summ = '<div class="day-sum day-sum-empty">Aucun pari réglé ce jour.</div>'
     combo = ""
-    try:
-        from app import combo_daily as _cd
-        cb = _cd.today(iso)
-        if cb and cb.get("legs"):
-            combo = _zone("combo", "Combiné multisports du jour", "", 1, _combo_tg_card(include_settled=True, cb=cb))
-    except Exception:
-        combo = ""
+    if not sport:                                          # combiné multisport -> « Tous » seulement
+        try:
+            from app import combo_daily as _cd
+            cb = _cd.today(iso)
+            if cb and cb.get("legs"):
+                combo = _zone("combo", "Combiné multisports du jour", "", 1,
+                              _combo_tg_card(include_settled=True, cb=cb))
+        except Exception:
+            combo = ""
     # HISTORIQUE = uniquement les VRAIS paris proposés (simples joués + combinés) — on filtre les
     # abstentions (matchs analysés sans pari) qui polluaient la vue (demande user 2026-07-19). Les cartes
     # de `_past_day_cards` sont DÉJÀ bet-only (marquées `_bet`) -> on évite un `analyses.meta` par carte
     # (perf, audit 2026-07-20) ; `_card_has_bet` ne sert que de repli si l'appelant n'a pas marqué.
-    rows = sorted([r for r in day_rows if r.get("_bet") or _card_has_bet(r)],
+    rows = sorted([r for r in day_rows
+                   if (r.get("_bet") or _card_has_bet(r)) and (not sport or _item_sport(r) == sport)],
                   key=lambda r: r.get("start_ts") or 0)
     cards = _zone("play", "Paris proposés", "", len(rows), _rows_by_day(rows)) if rows else ""
     inner = summ + combo + cards

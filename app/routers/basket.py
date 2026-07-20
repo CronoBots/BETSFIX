@@ -8,7 +8,7 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import analyses, basket, fragcache, match_analysis, match_select, sportcache, tracking, web
 from app.config import get_settings
@@ -91,17 +91,9 @@ async def _analyst_rows() -> tuple[list[dict], list[dict]]:
 
 
 @router.get("/basket", response_class=HTMLResponse, summary="Page Basket (HTML)")
-async def basket_page(frag: int = 0) -> HTMLResponse:
-    """Matchs ANALYSÉS (à venir / en cours / terminés) — l'ancien board Elo est retiré."""
-    if frag:   # panneau partagé -> cache court anti-rafale (pré-chargement SPA + refresh 45s)
-        cached = fragcache.get("panel/basket")
-        if cached:
-            return HTMLResponse(cached)
-    rows, fin = await _analyst_rows()
-    body = basket.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag))
-    if frag:
-        fragcache.put("panel/basket", body, ttl=20)
-    return HTMLResponse(body)
+async def basket_page(frag: int = 0):
+    """Onglet Basket RETIRÉ (2026-07-20) : le filtre sport vit sur Pronos -> redirige vers l'accueil."""
+    return RedirectResponse("/", status_code=307)
 
 
 @router.get("/basket/match/{event_id}", response_class=HTMLResponse,

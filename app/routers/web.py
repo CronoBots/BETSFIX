@@ -462,25 +462,26 @@ def _past_day_cards(date_iso: str) -> list:
 
 
 @router.get("/jour", response_class=HTMLResponse)
-async def jour(date: str, frag: int = 1) -> HTMLResponse:
+async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
     """Fragment d'un JOUR pour le calendrier « Pronos » (injecté dans #day-content). `date` = YYYY-MM-DD
     LOCAL. Aujourd'hui/futur -> les zones habituelles (à venir) ; un jour PASSÉ -> les paris proposés ce
-    jour-là + leurs résultats + le bilan du jour. Caché par date (le passé est ~immuable -> TTL long ;
-    aujourd'hui -> TTL court) pour que la navigation calendrier soit instantanée (demande user 2026-07-19)."""
+    jour-là + leurs résultats + le bilan du jour. `sport` (foot/tennis/basket) = filtre sport (puces Pronos),
+    "" = tous. Caché par (date, sport) — passé ~immuable TTL long ; aujourd'hui TTL court."""
     import datetime as _dt
     today_iso = ((web.to_local(_dt.datetime.now(_dt.timezone.utc)) or _dt.datetime.now()).date()).isoformat()
+    sp = sport if sport in ("foot", "tennis", "basket") else None
     is_past = date < today_iso
-    ckey = f"panel/jour/{date}"
+    ckey = f"panel/jour/{date}/{sp or 'all'}"
     cached = fragcache.get(ckey)
     if cached is not None:
         return HTMLResponse(cached)
     if not is_past:                                        # aujourd'hui (ou futur) = vue « à venir »
         rows = [r for r in await _home_match_rows() if r.get("status") != "inprogress"]
-        body = web._today_zones(rows)[0]
+        body = web._today_zones(rows, sp)[0]
         fragcache.put(ckey, body, ttl=PANEL_TTL)           # jour courant : bouge -> TTL court
         return HTMLResponse(body)
     day_rows = _past_day_cards(date)                       # jour passé : cartes bet-only de cette date (rapide)
-    body = web._day_view(date, day_rows)
+    body = web._day_view(date, day_rows, sp)
     fragcache.put(ckey, body, ttl=1800)                    # jour passé : ~immuable -> 30 min
     return HTMLResponse(body)
 
@@ -1071,9 +1072,10 @@ async def matches_page(
     rankings: RankingsProvider = Depends(get_rankings),
     unibet: UnibetProvider = Depends(get_unibet),
     frag: int = 0,
-) -> HTMLResponse:
-    """Liste des matchs à venir (ATP+WTA). Source : Unibet (temps réel) + analyse du store
-    (modèle complet SofaScore) ; repli SofaScore/LiveScore si Unibet ne donne rien."""
+):
+    """Onglet Tennis RETIRÉ (2026-07-20) : le filtre sport vit sur Pronos -> redirige vers l'accueil."""
+    return RedirectResponse("/", status_code=307)
+    # (code historique conservé mais inatteignable ; _analyst_rows tennis inline reste via _home_match_rows)
     if frag:
         cached = fragcache.get("panel/tennis")
         if cached:

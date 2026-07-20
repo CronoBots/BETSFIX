@@ -9,7 +9,7 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import analyses, flags, foot, fragcache, match_analysis, match_select, sofa_http, sportcache, tracking, web
 from app.netconst import SOFA_B
@@ -94,17 +94,10 @@ async def _analyst_rows(sport: str) -> tuple[list[dict], list[dict]]:
 
 
 @router.get("/foot", response_class=HTMLResponse, summary="Page Football (HTML)")
-async def foot_page(frag: int = 0) -> HTMLResponse:
-    """Matchs ANALYSÉS (à venir / en cours / terminés) — l'ancien board Elo est retiré."""
-    if frag:   # panneau partagé -> cache court anti-rafale (pré-chargement SPA + refresh 45s)
-        cached = fragcache.get("panel/foot")
-        if cached:
-            return HTMLResponse(cached)
-    rows, fin = await _analyst_rows("foot")   # sidecars analysés + cotes Unibet fraîches
-    body = foot.render(rows, fin, paused=sportcache.blocked(), frag=bool(frag))
-    if frag:
-        fragcache.put("panel/foot", body, ttl=20)
-    return HTMLResponse(body)
+async def foot_page(frag: int = 0):
+    """Onglet Foot RETIRÉ (2026-07-20) : le filtre sport vit sur Pronos -> redirige vers l'accueil.
+    (`_analyst_rows` reste utilisé par l'accueil et le filtre sport.)"""
+    return RedirectResponse("/", status_code=307)
 
 
 async def _sofa(path: str):
