@@ -4630,7 +4630,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _wtl = "".join(f"<li>{html.escape(s)}</li>" for s in _wsents)
     _why = ('<details class="cleg-fold"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
             'Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
-            f'<ul class="why-ul">{_wtl}</ul></details>') if _wt else ""
+            f'<ul class="why-ul">{_wtl}</ul></details>') if (_wt and _wtl) else ""   # jamais un pli vide
     # LIGNE VERDICT (façon provisoire) : Confiance CALIBRÉE (la jambe porte `prob` en FRACTION + `code`) ·
     # Marché · Value (masquée si négative — combiné = info seule) + grosse COTE. Remplace la pastille cote.
     _verdict = ""
@@ -5004,7 +5004,7 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
             ld = to_local(_dt.fromisoformat(str(p.get("start")).replace("Z", "+00:00")))
         except (ValueError, AttributeError, TypeError):
             ld = None
-        if not ld or ld.date().isoformat() != iso:
+        if not ld or _sport_date(ld).isoformat() != iso:   # jour sportif 06h→06h (cohérent avec les autres chemins)
             continue
         rows.append(p)
     if not rows:
@@ -6066,6 +6066,16 @@ def _sport_row(r: dict) -> str:
         comp_only = " · ".join(e(p) for p in _cparts)
     # Heure de début : Unibet frais (path/start) si dispo, sinon l'heure conviviale `top` -> HH:MM.
     sdt = match_select._start_dt(um["start"]) if um.get("start") else None
+    # GARDE anti-double-affiche (même patron que match_select.fresh_status) : `unibet_meta_for` matche par
+    # NOMS ; si deux matchs de la MÊME affiche existent (ex. Seattle-Minnesota le 21 à 04h ET le 22 à 21h),
+    # il peut renvoyer le mauvais créneau. Si l'heure Unibet est à > 12 h du coup d'envoi STOCKÉ de CETTE
+    # fiche, c'est un autre match -> on l'IGNORE et on garde l'heure stockée (bug user 2026-07-21 : carte de
+    # 04:00 affichée 21:00). PURE AFFICHAGE.
+    _own_ts = r.get("start_ts")
+    if sdt is not None and _own_ts and abs(sdt.timestamp() - float(_own_ts)) > 12 * 3600:
+        sdt = None
+    if sdt is None and _own_ts:                              # repli : l'heure STOCKÉE de la fiche (jamais celle d'un autre match)
+        sdt = datetime.fromtimestamp(float(_own_ts), tz=timezone.utc)
     starthm = fmt_local(sdt, with_date=False) if sdt else ""
     if not starthm:
         _mt = re.search(r"\d{1,2}:\d{2}", top or "")
