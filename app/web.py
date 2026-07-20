@@ -3015,8 +3015,13 @@ _MILE_JS = (
 # et scrolle le bandeau sur le jour actif (aujourd'hui) à l'ouverture.
 _CAL_JS = (
     "(function(){"
+    # ZONES REPLIABLES : restaure l'état plié mémorisé (localStorage 'zf_<kind>'='0') sur chaque details.
+    "function restoreFolds(h){try{var ds=(h||document).querySelectorAll('details.zone-col[data-zk]'),i;"
+    "for(i=0;i<ds.length;i++){if(localStorage.getItem('zf_'+ds[i].getAttribute('data-zk'))==='0')"
+    "ds[i].removeAttribute('open');}}catch(e){}}"
     "function init(h){try{if(window._mcInit)window._mcInit(h);}catch(e){}"
-    "try{if(window._twScan)window._twScan(h);}catch(e){}try{if(window._sxAnim)window._sxAnim(h);}catch(e){}}"
+    "try{if(window._twScan)window._twScan(h);}catch(e){}try{if(window._sxAnim)window._sxAnim(h);}catch(e){}"
+    "restoreFolds(h);}"
     "function strip(){return document.getElementById('cal-strip');}"
     "function togJump(date){var s=strip(),j=document.getElementById('cal-jump');"
     "if(s&&j)j.classList.toggle('show',date!==s.getAttribute('data-today'));}"
@@ -3030,6 +3035,10 @@ _CAL_JS = (
     ".catch(function(){host.innerHTML='<div class=\"paj-empty\">Erreur de chargement.</div>';});}"
     "document.addEventListener('click',function(ev){"
     "if(!ev.target||!ev.target.closest)return;"
+    # repli d'une zone : on laisse le navigateur toggler puis on mémorise l'état (localStorage).
+    "var sm=ev.target.closest('.zone-col>summary');"
+    "if(sm){var det=sm.parentNode;setTimeout(function(){try{"
+    "localStorage.setItem('zf_'+det.getAttribute('data-zk'),det.open?'1':'0');}catch(e){}},0);return;}"
     "if(ev.target.closest('#cal-jump')){ev.preventDefault();var s=strip();if(!s)return;"
     "s.scrollLeft=s.scrollWidth;var t=s.querySelector('.cal-pill.today');if(t)sel(t);return;}"
     "var pill=ev.target.closest('.cal-pill');if(!pill)return;ev.preventDefault();sel(pill);"
@@ -3037,6 +3046,7 @@ _CAL_JS = (
     # aujourd'hui = DERNIÈRE pastille (à droite, sens naturel) -> on cale le bandeau à DROITE à l'ouverture.
     "function sa(){var s=strip();if(s)s.scrollLeft=s.scrollWidth;}"
     "setTimeout(sa,120);setTimeout(sa,500);"
+    "setTimeout(function(){restoreFolds(document);},60);"   # zones repliées mémorisées au 1er rendu (serveur)
     "})();"
 )
 
@@ -4663,7 +4673,9 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     head = f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{n}{t}'
     if collapsible:
         op = " open" if open_ else ""
-        return (f'<details class="zone zone-{kind} zone-col"{op}>'
+        # `data-zk` = clé de persistance du repli (localStorage, JS `_CAL_JS`) : ton choix plier/déplier
+        # une zone est mémorisé et réappliqué après chaque swap de jour.
+        return (f'<details class="zone zone-{kind} zone-col" data-zk="{kind}"{op}>'
                 f'<summary class="zone-h">{head}<span class="zone-chev">▾</span></summary>'
                 f'<div class="zone-b">{body}</div></details>')
     return (f'<section class="zone zone-{kind}"><div class="zone-h">{head}</div>'
@@ -4832,11 +4844,13 @@ def _today_zones(match_rows: list, sport: str | None = None) -> tuple[str, int]:
     has_any = bool(play or prov or todo or combo_daily)
     _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir la <b>Confiance provisoire</b> ci-dessous.'
                    ) if has_any else None
+    # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
+    # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     out = [
-        _zone("combo", "Combiné multisports du jour", "", 1 if combo_daily else 0, combo_daily),
-        _zone("play", "Confiance à jouer", "", len(play), _rows_by_day(play), empty=_empty_play),
-        _zone("indic", "Confiance provisoire", "", len(prov), _rows_by_day(prov)),
-        _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo)),
+        _zone("combo", "Combiné multisports du jour", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
+        _zone("play", "Confiance à jouer", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
+        _zone("indic", "Confiance provisoire", "", len(prov), _rows_by_day(prov), collapsible=True),
+        _zone("todo", "À analyser", "≈ 1 h avant le match", len(todo), _rows_by_day(todo), collapsible=True),
     ]
     inner = "".join(x for x in out if x)
     zones = (f'<div class="dash-zones">{inner}</div>' if inner
