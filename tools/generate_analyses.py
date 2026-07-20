@@ -1990,18 +1990,26 @@ def _analyze_combo_legs(combo: dict) -> None:
     for i, l in enumerate(legs, 1):
         md = _an.load(l.get("sport"), l.get("mid")) or ""
         try:
-            faits = (_an._find(_an._sections(md), "📋", "Les faits", "faits") or "")[:600]
+            faits = (_an._find(_an._sections(md), "📋", "Les faits", "faits") or "")[:1000]
         except Exception:
             faits = ""
         blocs.append(f"[{i}] {l.get('sport')} — {l.get('home')} vs {l.get('away')} — "
                      f"pari : {l.get('sel')} @{l.get('cote')} (proba estimée ~{round((l.get('prob') or 0) * 100)}%)\n"
                      f"    Faits du match : {faits or '(pas de faits captés)'}")
     prompt = (
-        "Tu analyses le COMBINÉ MULTISPORT DU JOUR (info seule, hors ROI) de BETSFIX. Pour CHAQUE jambe "
-        "ci-dessous, écris une JUSTIFICATION propre à CE pari précis : 2 à 3 phrases COMPLÈTES et AUTONOMES, "
-        "chiffrées, ton de pro du pari sportif, français impeccable, ZÉRO généralité ni remplissage — "
-        "explique pourquoi ce pari est solide en t'appuyant sur les faits fournis (forme, H2H, absents, "
-        "cote vs proba). Puis une SYNTHÈSE (1 à 2 phrases : ce qui rend ces jambes solides ENSEMBLE). "
+        "Tu es un analyste PRO du pari sportif. Tu justifies le COMBINÉ MULTISPORT DU JOUR (info seule, "
+        "hors ROI) de BETSFIX. Pour CHAQUE jambe ci-dessous, écris une JUSTIFICATION propre à CE pari "
+        "précis, en 3 phrases COMPLÈTES et AUTONOMES (français impeccable, ton de pro, aucune généralité "
+        "ni remplissage). EXIGENCES STRICTES :\n"
+        "  1) Cite AU MOINS DEUX faits CHIFFRÉS concrets tirés des faits fournis (forme récente, H2H, "
+        "buts/points de moyenne, absents clés, xG, série en cours, cote vs proba estimée).\n"
+        "  2) Nomme explicitement L'ANGLE qui rend ce pari solide (l'avantage principal), pas un survol.\n"
+        "  3) Termine par une courte réserve honnête (« bémol : … ») = le principal risque de la jambe, "
+        "en une clause — un pro reconnaît le risque sans survendre.\n"
+        "  N'invente AUCUN chiffre : si un fait manque, appuie-toi sur ce qui est fourni. Pas de méta "
+        "(ni « value », ni « proba », ni « seuil » comme sujet) : parle du MATCH.\n"
+        "Puis une SYNTHÈSE (1 à 2 phrases : ce qui rend ces jambes solides ENSEMBLE, idéalement leur "
+        "corrélation — des issues qui tombent dans le même scénario). "
         "Réponds AU FORMAT EXACT, une entrée par ligne, RIEN d'autre :\n"
         "LEG1: <justification jambe 1>\nLEG2: <justification jambe 2>\n(… une ligne LEGn par jambe)\n"
         "SYNTH: <synthèse>\n\nJambes :\n" + "\n".join(blocs))

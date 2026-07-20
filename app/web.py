@@ -1872,6 +1872,11 @@ CSS = """
   .cleg-chev{margin-left:auto;transition:transform .2s}
   .cleg-fold[open] .cleg-chev{transform:rotate(180deg)}
   .cleg-fold .cleg-why{margin-top:6px}
+  /* Même pli, mais sur une carte de pari PLEINE (simple retenu / provisoire) et non une mini-jambe :
+     léger filet de séparation au-dessus + texte un poil plus lisible. */
+  .cleg-fold-bet{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)}
+  .cleg-fold-bet>.cleg-fold-s{font-size:11px}
+  .cleg-fold-bet .cleg-why{font-size:11.5px;color:#a7bcd6;line-height:1.5}
   /* tableau de score de la jambe EN LIVE (sets/quart-temps), sous le match. */
   .mc-cleg-board{margin-top:8px}
   .prog-note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45}
@@ -4052,13 +4057,16 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
     return _vl + _rn
 
 
-def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:
-    """Extrait PROPRE (phrases COMPLÈTES, majuscule initiale) du raisonnement du pari PROVISOIRE — pour la
-    carte repliée style Telegram (analyse à barre cyan sous le pari, demande user 2026-07-12). Source :
-    section « 🧪 » du .md si présente ; SINON (l'analyste ne l'écrit pas toujours -> carte « sans analyse »)
-    on REPLIE sur « 🎯 Le pari à jouer » puis « 📋 Les faits » -> TRANSPARENCE : toute carte provisoire
-    montre son « pourquoi » (demande user 2026-07-13). Texte nettoyé (markdown/liens/méta retirés), coupe
-    NETTE à une fin de phrase. '' seulement si vraiment rien d'exploitable. Best-effort : ne casse jamais."""
+def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) -> str:
+    """Extrait PROPRE (phrases COMPLÈTES, majuscule initiale) du raisonnement d'un pari — pour le pli
+    « 💡 Pourquoi ce pari » (même patron que les jambes de combiné, demande user 2026-07-20 : l'analyse
+    des jambes appréciée, étendue à TOUS les types). Source par ordre de repli :
+      • pari PROVISOIRE / indicatif (`played=False`) : section « 🧪 » d'abord, puis « 🎯 », puis « 📋 » ;
+      • pari JOUÉ / simple retenu (`played=True`) : section « 🎯 Le pari à jouer » d'abord, puis « 🧪 »,
+        puis « 📋 Les faits ».
+    -> TRANSPARENCE : toute carte montre son « pourquoi » (demande user 2026-07-13). Texte nettoyé
+    (markdown/liens/puces/méta retirés), coupe NETTE à une fin de phrase. '' seulement si vraiment rien
+    d'exploitable. Best-effort : ne casse jamais."""
     if not fid:
         return ""
     # Ne garde que la LECTURE DU MATCH : on retire les phrases de MÉTA-COMMENTAIRE (value/abstention/
@@ -4073,6 +4081,7 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:
         t = re.sub(r"^\s*#+.*$", "", t, count=1, flags=re.M)          # retire un éventuel titre de section
         t = re.sub(r"^\s*[-*]\s*\*\*.*?%\s*:\*\*\s*", "", t, count=1, flags=re.S)  # « - **sel @cote — x% :** »
         t = re.sub(r"^\s*[-*]\s*\*\*.*?:\*\*\s*", "", t, count=1, flags=re.S)      # « - **sel @cote :** » (sans %)
+        t = re.sub(r"(?m)^\s*[-*•]\s+", "", t)             # puces de liste -> prose courante (pas un extrait haché)
         t = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)     # liens markdown -> texte seul
         t = re.sub(r"[*_`#]", "", t)                       # markdown résiduel
         t = re.sub(r"\s+", " ", t).strip()
@@ -4087,12 +4096,14 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:
         if not md:
             return ""
         secs = analyses._sections(md)
-        # Ordre de repli : le raisonnement DÉDIÉ du provisoire (🧪) d'abord, sinon le pari à jouer, sinon
-        # les faits — la première source qui donne un texte de LECTURE non vide gagne.
+        # Ordre de repli selon le TYPE de pari — la première source qui donne un texte de LECTURE non
+        # vide gagne. Pari joué (`played`) : le raisonnement du pari À JOUER (🎯) prime ; pari provisoire :
+        # son raisonnement DÉDIÉ (🧪) prime. Les faits (📋) = ultime repli commun.
+        _tgt = analyses._find(secs, "🎯", "pari à jouer", "Le pari")
+        _prov = analyses._find(secs, "🧪", "provisoire", "Provisoire")
+        _faits = analyses._find(secs, "📋", "faits", "Les faits")
         t = ""
-        for _cand in (analyses._find(secs, "🧪", "provisoire", "Provisoire"),
-                      analyses._find(secs, "🎯", "pari à jouer", "Le pari"),
-                      analyses._find(secs, "📋", "faits", "Les faits")):
+        for _cand in ((_tgt, _prov, _faits) if played else (_prov, _tgt, _faits)):
             t = _clean(_cand or "")
             if t:
                 break
@@ -4113,6 +4124,20 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185) -> str:
         return t
     except Exception:
         return ""
+
+
+def _why_fold(text: str, label: str = "Pourquoi ce pari") -> str:
+    """Pli TAPPABLE « 💡 <label> » — MÊME patron que le « 💡 Pourquoi cette jambe » des combinés
+    (`.cleg-fold`), demande user 2026-07-20 : porter l'analyse appréciée des jambes sur TOUS les types
+    de paris (simple retenu, provisoire). Porte l'analyse COMPLÈTE (déjà nettoyée). '' si pas de texte.
+    Le tap ouvre/ferme le pli SANS replier la carte parente (`event.stopPropagation`)."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    return ('<details class="cleg-fold cleg-fold-bet"><summary class="cleg-fold-s" '
+            'onclick="event.stopPropagation()">💡 ' + html.escape(label)
+            + '<span class="cleg-chev">▾</span></summary>'
+            f'<div class="cleg-why">{html.escape(t)}</div></details>')
 
 
 def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) -> list:
@@ -4251,11 +4276,16 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
                     _cpc = analyses.calibrated_conf(_pconf, sp, _cfp(prov_sel, sp, home, away))
                 except Exception:
                     _cpc = _pconf
+            # Pli « 💡 Pourquoi ce choix » (demande user 2026-07-20) : l'analyse du provisoire, présentée
+            # comme sous les jambes de combiné. Source = section « 🧪 » du .md (repli 🎯/📋).
+            _prwhy = _why_fold(_prov_why_snippet(sp, str(m.get("id") or ""), maxlen=700),
+                               "Pourquoi ce choix")
             sub = ('<div class="mc-div"></div>'
                    + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
                    + _gloss
                    + _verdict_block(_cote, _cpc, f'🔄 {html.escape(_reana)}', _cote_big, calibrated=True,
-                                    hide_neg_value=True))   # provisoire (indicatif) : pas de Value rouge
+                                    hide_neg_value=True)   # provisoire (indicatif) : pas de Value rouge
+                   + _prwhy)
         else:
             # Match SANS provisoire et NON analysé (pas de statut de value). Deux cas :
             #  • heure d'analyse (KO − 1 h) ENCORE À VENIR -> on annonce « Analyse à HH:MM » (légitime).
@@ -6049,9 +6079,12 @@ def _sport_row(r: dict) -> str:
         # LIGNE VERDICT IDENTIQUE aux cartes provisoires / table de paris (demande user 2026-07-17 « tout
         # doit être identique sur les autres types de paris ») : « Marché XX% · Notre confiance YY% ✓calibré
         # → Value ±Z% » + pied (ré-analyse + grosse cote). `_pconf` = confiance déjà CALIBRÉE (cprob priorisée).
+        # Pli « 💡 Pourquoi ce pari » (demande user 2026-07-20) : l'analyse DÉDIÉE du pari joué, présentée
+        # comme sous les jambes de combiné. Source = section « 🎯 Le pari à jouer » du .md (repli 🧪/📋).
+        _pwhy = _why_fold(_prov_why_snippet(sport_key, _pmid, maxlen=700, played=True)) if _pmid else ""
         _premium = ('<div class="mc-div"></div>'
                     + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
-                    + _verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True))
+                    + _verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True) + _pwhy)
     if _premium:
         line3 = _premium
     else:
