@@ -610,6 +610,8 @@ CSS = """
   .mc-chev{position:absolute;right:12px;bottom:9px;color:var(--muted);font-size:15px;
        transition:transform .18s}
   .mc-open .mc-chev{display:none}   /* carte ouverte : chevron caché ; il ne réapparaît qu'une fois repliée */
+  /* Carte NON dépliable (le pli « 💡 Pourquoi » porte déjà toute l'analyse) : pas de corps, tap inerte. */
+  .mc-flat{cursor:default}
   /* L2 : équipes (noms + prénoms complets) — ligne principale. */
   /* Équipes = HÉROS, 16 px + sur 2 lignes possibles pour TOUS les types de cartes (demande user 2026-07-14 :
      cartes semblables) — à venir, provisoire, LIVE et TERMINÉ ont désormais le même titre de match. */
@@ -4271,6 +4273,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         # UNIQUEMENT dans le programme -> jamais compté au ROI/stats. Repli sur l'ancien libellé si absent.
         prov = m.get("provisional") or {}
         prov_sel = str(prov.get("sel") or "").strip()
+        _prwhy = ""     # pli « 💡 Pourquoi ce choix » (rempli plus bas si provisoire) — init pour tous les cas
         # NO-VALUE SANS PROVISOIRE = PAS AFFICHÉ (demande user 2026-07-10) : une abstention analysée qui n'a
         # même pas de pari provisoire (« pas de value ») n'a aucune raison d'être affichée -> on la SAUTE.
         # Elle reste gardée sur disque UNIQUEMENT pour nourrir les fantômes (calibration). On garde les
@@ -4409,7 +4412,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         # card_details : dépli de carte épuré (faits/tendances/H2H repliés) ; implique déjà skip_verdict
         # (« 🎯 Pourquoi ce pari » masqué). Le raisonnement 🧪 est porté par le pli « 💡 Pourquoi ce choix ».
         _ana = analyses.render(sp, _fid, card_details=True) if _fid else None
-        if _ana:
+        if _ana and not _prwhy:
             # Corps IDENTIQUE à une vraie carte (demande user 2026-07-10) : BARRES « Cotes & chances »
             # (Unibet + Public) + TABLEAU « Paris classés » (bets_html) + ANALYSE (faits). to_html/render
             # retire le tableau (affiché à part sur une carte) -> on le rajoute ; sinon le corps semblait vide.
@@ -4432,6 +4435,11 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             card = (f'<div class="row pick mc prog-card prog-card-x{_acc}">'
                     f'<div class="mc-head">{_inner}<span class="mc-chev">▸</span></div>'
                     f'<div class="mc-body" hidden><div class="exp">{_body}</div></div></div>')
+        elif _prwhy:
+            # Le pli « 💡 Pourquoi ce choix » porte DÉJÀ toute l'analyse (demande user 2026-07-20) -> carte
+            # NON dépliable : plus de corps redondant (Cotes & chances / Paris classés / détails). Pas de
+            # `.mc-body` -> tap inerte (JS `if(!b)return;`). Données intactes (le .md n'est pas touché).
+            card = f'<div class="row pick mc prog-card mc-flat{_acc}"><div class="mc-head">{_inner}</div></div>'
         else:
             card = f'<div class="row pick mc prog-card{_acc}"><div class="mc-head">{_inner}</div></div>'
         items.append({"start_ts": dt.timestamp(), "_html": card, "_sport": sp,
@@ -6082,6 +6090,7 @@ def _sport_row(r: dict) -> str:
     # (confiance colorée + cote), EXACTEMENT comme une carte provisoire. Les cas live/terminé/combiné/
     # abstention gardent leur affichage adapté (résultat, score, compact…).
     _premium = ""
+    _no_expand = False    # carte NON dépliable : le pli « 💡 Pourquoi » porte déjà toute l'analyse
     _uid = re.search(r"/(\d+)", url)
     _pmid = _uid.group(1) if _uid else None
     # COMBINÉ COUPE DU MONDE (ROI) À VENIR : présenté EXACTEMENT comme le combiné du jour (demande user
@@ -6136,6 +6145,10 @@ def _sport_row(r: dict) -> str:
         _premium = ('<div class="mc-div"></div>'
                     + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
                     + _verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True) + _pwhy)
+        # Le pli « 💡 Pourquoi » porte DÉJÀ toute l'analyse (demande user 2026-07-20) -> la carte n'a plus
+        # de corps dépliable en dessous (Cotes & chances / Mise / détails = doublon). On le retire de
+        # l'AFFICHAGE (le .md/les données restent intacts). Seulement si le pli existe (sinon garder le corps).
+        _no_expand = bool(_pwhy)
     if _premium:
         line3 = _premium
     else:
@@ -6177,13 +6190,13 @@ def _sport_row(r: dict) -> str:
             _pbb.get("cprob") or _pbb.get("prob"),
             analyses.live_catalog(_lmid.group(1)) if _lmid else [], _lvals, _gfrac))
     _live_score_row = f'<div class="mc-livesc">{lscore}{_live_bar}</div>' if (is_live and lscore) else ""
+    _chev = "" if _no_expand else '<span class="mc-chev">▸</span>'   # pas de chevron si carte non dépliable
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{r.get("icon", "")}</span>'
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{line3}</div>'
-            f'{_live_score_row}</div>'
-            f'<span class="mc-chev">▸</span></div>')
+            f'{_live_score_row}</div>{_chev}</div>')
     # ---- CORPS (déplié au tap) : scoreboard + barres % + paris + liens + ANALYSE (chargée d'office
     # à l'ouverture, plus de bouton « Voir l'analyse »). Un clic n'importe où dans la carte la replie. ----
     pkp = f'&pk={r["pick_kind"]}' if r.get("pick_kind") else ""   # type de pari -> analyse cohérente
@@ -6201,6 +6214,11 @@ def _sport_row(r: dict) -> str:
             f'{_ticket}{ana}{linkshtml}')
     # TOUTES les cartes sont REPLIÉES au 1er chargement (y compris les directs) — pour le LIVE le pari + le
     # scoreboard sont visibles repliés ; on déplie au tap pour l'analyse. Fond « pick » uniforme.
+    # Carte NON dépliable (le pli « 💡 Pourquoi » porte déjà l'analyse) : PAS de `.mc-body` -> le tap est
+    # inerte (le JS fait `if(!b)return;`) et le corps redondant (Cotes & chances / Mise / détails) disparaît
+    # de l'affichage. Les données restent intactes (fiche .md, sources). Demande user 2026-07-20.
+    if _no_expand:
+        return (f'<div class="row pick mc mc-prem mc-flat">{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
             f'{" mc-islive" if is_live else ""}">{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
