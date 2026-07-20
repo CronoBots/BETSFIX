@@ -287,7 +287,7 @@ async def foot_match(event_id: int, frag: int = 0, pk: str = "",
     # puis contexte (classement + 5 derniers). Forme/face-à-face sont rendus par render_sport_match_detail.
     analysis_html = recos = factors_html = ""
     context = ""
-    deep = analyses.render("foot", aid)           # analyse analyste (store OU sidecar)
+    deep = analyses.render("foot", aid, card_details=bool(frag))   # analyse analyste (store OU sidecar) ; dépli carte épuré en frag
     if deep:
         analysis_html = deep
     if rec:

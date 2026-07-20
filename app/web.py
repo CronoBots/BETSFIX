@@ -2487,6 +2487,18 @@ CSS = """
   .da-faits>summary::after{content:"▾";color:var(--muted);transition:transform .18s}
   .da-faits[open]>summary{border-bottom:1px solid var(--border)}
   .da-faits[open]>summary::after{transform:rotate(180deg)}
+  /* Sous-pli « 🔍 Voir les détails » (dépli de carte épuré) : regroupe faits + tendances + H2H, replié
+     par défaut -> carte épurée, la preuve à 1 tap (demande user 2026-07-20). */
+  .da-more{margin:10px 0 2px;border:1px solid var(--border);border-radius:12px;overflow:hidden;
+       background:rgba(255,255,255,.015)}
+  .da-more-s{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:11px 13px;
+       font-size:12px;font-weight:800;color:#9fb3cc;letter-spacing:.02em}
+  .da-more-s::-webkit-details-marker{display:none}
+  .da-more-chev{margin-left:auto;color:var(--muted);transition:transform .18s}
+  .da-more[open] .da-more-chev{transform:rotate(180deg)}
+  .da-more[open]>.da-more-s{border-bottom:1px solid var(--border)}
+  .da-more-b{padding:2px 12px 6px}
+  .da-more-b .da-sec{margin:10px 0;background:transparent;border:0;padding:2px 0}
   .da-faits-b{padding:8px 14px 12px;font-size:12.5px;line-height:1.65;color:var(--text)}
   .da-faits-b .da-ul{padding-left:4px;list-style:none}
   .da-faits-b .da-ul li{margin:9px 0;padding-left:15px;position:relative}
@@ -4278,7 +4290,10 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
                     _cpc = _pconf
             # Pli « 💡 Pourquoi ce choix » (demande user 2026-07-20) : l'analyse du provisoire, présentée
             # comme sous les jambes de combiné. Source = section « 🧪 » du .md (repli 🎯/📋).
-            _prwhy = _why_fold(_prov_why_snippet(sp, str(m.get("id") or ""), maxlen=700),
+            # Texte COMPLET : le raisonnement 🧪 n'est plus remis dans le corps (reasoning_html retiré) ->
+            # le pli en est le SEUL porteur, on ne tronque pas. Le .md est indexé par la FICHE (`prov.fid`),
+            # PAS l'id programme (`m.id`) — même clé que l'ancien reasoning_html, sinon basket sans pli.
+            _prwhy = _why_fold(_prov_why_snippet(sp, str(prov.get("fid") or ""), maxlen=100000),
                                "Pourquoi ce choix")
             sub = ('<div class="mc-div"></div>'
                    + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
@@ -4360,7 +4375,9 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         # skip_verdict : on MASQUE « 🎯 Pourquoi ce pari » dans l'analyse (demande user 2026-07-16) car le
         # bloc « 🧪 Le pari provisoire » (reasoning_html, ajouté juste après) porte DÉJÀ le raisonnement de
         # l'abstention -> plus de doublon de conclusion « on s'abstient ». Fusion en un seul bloc.
-        _ana = analyses.render(sp, _fid, skip_verdict=True) if _fid else None
+        # card_details : dépli de carte épuré (faits/tendances/H2H repliés) ; implique déjà skip_verdict
+        # (« 🎯 Pourquoi ce pari » masqué). Le raisonnement 🧪 est porté par le pli « 💡 Pourquoi ce choix ».
+        _ana = analyses.render(sp, _fid, card_details=True) if _fid else None
         if _ana:
             # Corps IDENTIQUE à une vraie carte (demande user 2026-07-10) : BARRES « Cotes & chances »
             # (Unibet + Public) + TABLEAU « Paris classés » (bets_html) + ANALYSE (faits). to_html/render
@@ -4374,9 +4391,10 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # RAISONNEMENT de l'abstention : porté par UN SEUL bloc « 🧪 Le pari provisoire » (reasoning_html,
             # le pick indicatif + son analyse). `_ana` est rendu skip_verdict=True -> son « 🎯 Pourquoi ce
             # pari » est masqué (sinon on répétait deux fois la conclusion « on s'abstient » — retour user
-            # 2026-07-16). Ordre : paris (SKIP) -> provisoire (raisonnement) -> faits (via _ana).
-            _body = (("" if _is_live else _bars) + analyses.bets_html(sp, _fid)
-                     + analyses.reasoning_html(sp, _fid) + _ana)
+            # 2026-07-16). Le RAISONNEMENT 🧪 n'est PLUS remis ici (demande user 2026-07-20) : le pli
+            # « 💡 Pourquoi ce choix » en tête de carte le porte déjà -> plus de doublon. Ordre : Cotes &
+            # chances -> Paris classés -> détails (faits/tendances/H2H repliés via _ana card_details).
+            _body = (("" if _is_live else _bars) + analyses.bets_html(sp, _fid) + _ana)
             # Analyse INLINE dans `.exp` (un clic dedans ne replie pas). PAS de classe `.mc-ana` : elle
             # déclencherait `_mcLoad` -> `fetch(data-ana=null)` -> /null -> 404 « {detail: Not Found} »
             # qui écrasait l'analyse (bug vu 2026-07-10). Ici l'analyse est déjà là -> aucun fetch.
@@ -6081,7 +6099,9 @@ def _sport_row(r: dict) -> str:
         # → Value ±Z% » + pied (ré-analyse + grosse cote). `_pconf` = confiance déjà CALIBRÉE (cprob priorisée).
         # Pli « 💡 Pourquoi ce pari » (demande user 2026-07-20) : l'analyse DÉDIÉE du pari joué, présentée
         # comme sous les jambes de combiné. Source = section « 🎯 Le pari à jouer » du .md (repli 🧪/📋).
-        _pwhy = _why_fold(_prov_why_snippet(sport_key, _pmid, maxlen=700, played=True)) if _pmid else ""
+        # Texte COMPLET (comme les jambes de combiné) : le bloc « 🎯 » n'est plus répété dans le dépli
+        # (card_details) -> le pli en est le SEUL porteur, on ne tronque donc pas le raisonnement.
+        _pwhy = _why_fold(_prov_why_snippet(sport_key, _pmid, maxlen=100000, played=True)) if _pmid else ""
         _premium = ('<div class="mc-div"></div>'
                     + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
                     + _verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True) + _pwhy)

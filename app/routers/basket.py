@@ -149,7 +149,7 @@ async def basket_match(event_id: int, frag: int = 0, pk: str = "",
     # puis contexte (écart de points + classement + 5 derniers).
     analysis_html = recos = factors_html = ""
     context = ""
-    deep = analyses.render("basket", amd.get("id") if amd else event_id)   # store OU sidecar
+    deep = analyses.render("basket", amd.get("id") if amd else event_id, card_details=bool(frag))   # store OU sidecar ; dépli carte épuré en frag
     if deep:
         analysis_html = deep
     mh = (rec or {}).get("model_home_prob")

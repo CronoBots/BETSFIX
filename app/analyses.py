@@ -933,7 +933,7 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
             + "".join(cards) + cote_foot + (residual or "") + "</div>")
 
 
-def _structured(md: str, skip_verdict: bool = False) -> str | None:
+def _structured(md: str, skip_verdict: bool = False, card_details: bool = False) -> str | None:
     """Rendu gabarit analyste (carte DÉPLIÉE), ou None si le format ne correspond pas (-> repli générique).
     REFONTE 2026-07-13 (demande user « réorganise complètement ») : l'analyse déployée montre enfin le
     RAISONNEMENT (« 🎯 Le pari à jouer », 1400+ car. jusqu'ici masqués) EN PREMIER et EN CLAIR, puis les
@@ -957,26 +957,40 @@ def _structured(md: str, skip_verdict: bool = False) -> str | None:
         return (f'<section class="da-sec{cls}">'
                 f'<div class="da-h da-h2">{icon_title}</div>{body_html}</section>')
 
+    # `card_details` (demande user 2026-07-20) : sur une CARTE de pari, le pli « 💡 Pourquoi » porte DÉJÀ le
+    # raisonnement -> le dépli ne le RÉPÈTE pas (verdict masqué) et REGROUPE la preuve (faits + tendances/H2H)
+    # sous un sous-pli « 🔍 Voir les détails » replié, en gardant la Mise VISIBLE. PURE PRÉSENTATION : le .md
+    # (données) est intact -> le pli, le règlement et la calibration lisent toujours les mêmes sections.
+    _skip_v = skip_verdict or card_details
+    detail_parts = []   # faits + séries/tendances/H2H : repliés en mode carte
     # 1) POURQUOI CE PARI — le cœur de l'analyse (raisonnement de l'analyste), VISIBLE en premier. On retire
     #    la 1re puce « **<sél> @cote :** » (redondante avec le pari déjà affiché en tête de carte).
-    #    `skip_verdict` : masqué sur les abstentions (le bloc « 🧪 provisoire » porte déjà le raisonnement).
-    if verdict and not skip_verdict:
+    #    `_skip_v` : masqué sur les cartes (pli dédié) et sur les abstentions (le bloc « 🧪 provisoire » porte
+    #    déjà le raisonnement).
+    if verdict and not _skip_v:
         _why = re.sub(r"^\s*[-*]\s*\*\*[^\n*]+?@[\d.,]+\s*:\*\*\s*", "- ", verdict, count=1)
         parts.append(_sec("🎯 Pourquoi ce pari", _render_blocks(_why), " da-sec-why"))
-    # 2) LES FAITS — désormais VISIBLES (plus de <details> replié « Informations »).
+    # 2) LES FAITS — visibles (dépli classique) ou dans « 🔍 Voir les détails » (mode carte).
     if faits:
-        parts.append(_sec("📋 Les faits", _render_blocks(faits)))
-    # 3) MISE conseillée (Kelly) — si présente.
+        (detail_parts if card_details else parts).append(_sec("📋 Les faits", _render_blocks(faits)))
+    # 3) MISE conseillée (Kelly) — TOUJOURS visible (actionnable), jamais repliée.
     if mise:
         parts.append(_sec("💰 Mise conseillée", _render_blocks(mise), " da-sec-mise"))
-    # 4) Toute autre section (séries/tendances Sportradar…) : rendue à la suite (ne rien perdre).
+    # 4) Toute autre section (séries/tendances Sportradar, H2H…) : à la suite (dépli) ou repliée (carte).
     known = {"", verdict, bets, faits, mise, combo, prov}
     for title, b in secs.items():
         if b and b not in known and title != "":
             if any(k in title or k in title.lower()
                    for k in ("Verdict", "Paris", "faits", "Mise", "🎲", "ombiné", "🧪", "rovisoire")):
                 continue
-            parts.append(_sec(_inline(title), _render_blocks(b)))
+            (detail_parts if card_details else parts).append(_sec(_inline(title), _render_blocks(b)))
+    # Mode carte : regrouper la PREUVE sous un sous-pli replié « 🔍 Voir les détails » (progressive disclosure)
+    # -> carte épurée (le pli « 💡 Pourquoi » + Cotes & chances + Mise suffisent), la preuve à 1 tap.
+    if card_details and detail_parts:
+        parts.append('<details class="da-more"><summary class="da-more-s" '
+                     'onclick="event.stopPropagation()">🔍 Voir les détails'
+                     '<span class="da-more-chev">▾</span></summary>'
+                     f'<div class="da-more-b">{"".join(detail_parts)}</div></details>')
     return '<div class="da">' + "".join(parts) + "</div>"
 
 
@@ -2272,11 +2286,12 @@ def card_summary(sport: str, match_id) -> dict:
     return out
 
 
-def to_html(md: str, skip_verdict: bool = False) -> str:
+def to_html(md: str, skip_verdict: bool = False, card_details: bool = False) -> str:
     """Markdown analyste -> HTML : structuré si gabarit reconnu, sinon rendu générique.
-    `skip_verdict` : voir _structured (masque « 🎯 Pourquoi ce pari » sur les abstentions)."""
+    `skip_verdict` : voir _structured (masque « 🎯 Pourquoi ce pari » sur les abstentions).
+    `card_details` : voir _structured (dépli de CARTE épuré — verdict masqué + preuve repliée)."""
     md = _strip(md)
-    structured = _structured(md, skip_verdict=skip_verdict)
+    structured = _structured(md, skip_verdict=skip_verdict, card_details=card_details)
     if structured is not None:
         return structured
     return '<div class="da">' + _render_blocks(md) + "</div>"
@@ -3638,13 +3653,15 @@ def links_html(sport: str, match_id) -> str:
     return _links_bar(meta(sport, match_id))
 
 
-def render(sport: str, match_id, skip_verdict: bool = False) -> str | None:
+def render(sport: str, match_id, skip_verdict: bool = False, card_details: bool = False) -> str | None:
     """HTML prêt à afficher de l'analyse de ce match, ou None si pas d'analyse. En tête : bandeau
     résultat ✓/✗ (si réglé). Les bannières SofaScore/Unibet ne sont PLUS ici : elles sont portées
     par la carte (cf. web._links_for_url) pour éviter un doublon à l'ouverture de l'analyse.
-    `skip_verdict` : masque « 🎯 Pourquoi ce pari » (abstentions -> le bloc « 🧪 provisoire » le porte déjà)."""
+    `skip_verdict` : masque « 🎯 Pourquoi ce pari » (abstentions -> le bloc « 🧪 provisoire » le porte déjà).
+    `card_details` : dépli de CARTE épuré (le pli « 💡 Pourquoi » porte le raisonnement -> verdict masqué,
+    faits/tendances/H2H regroupés sous « 🔍 Voir les détails », Mise visible). PURE PRÉSENTATION."""
     md = load(sport, match_id)
     if not md:
         return None
     m = meta(sport, match_id) or {}
-    return _result_badge(m) + to_html(md, skip_verdict=skip_verdict)
+    return _result_badge(m) + to_html(md, skip_verdict=skip_verdict, card_details=card_details)

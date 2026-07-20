@@ -1169,7 +1169,7 @@ async def match_detail(
             "home": amd.get("home", ""), "away": amd.get("away", ""),
             "home_flag": "", "away_flag": "", "comp": amd.get("comp") or "Tennis",
             "when": web.fmt_local(amd.get("start"), with_date=True),
-            "analysis": analyses.render("tennis", match_id) or "",
+            "analysis": analyses.render("tennis", match_id, card_details=bool(frag)) or "",
             "streaks": amd.get("streaks"), "h2h": amd.get("h2h"),
             "form_html": "", "extra": "", "factors_html": "", "recos": "", "forms": None,
             "prediction": web.analyst_bars(o1, None, o2, votes, home=amd.get("home"), away=amd.get("away")),
@@ -1265,7 +1265,7 @@ async def match_detail(
             "match_id": match_id,
         }
         # Priorité à l'analyse « analyste » pré-générée (Claude headless) si elle existe.
-        deep = analyses.render("tennis", match_id)
+        deep = analyses.render("tennis", match_id, card_details=True)   # frag = dépli de carte -> épuré
         analysis_html = deep or await match_analysis.write_analysis(brief, get_settings())
     # Marchés Unibet UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
     markets_html = ""
