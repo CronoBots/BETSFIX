@@ -577,8 +577,10 @@ CSS = """
      en plus (sinon 2 barres verticales). */
   .exp h2{margin:16px 0 9px;font-size:13.5px;font-weight:800;line-height:1.35}
   .exp .ldg{padding:16px 0}
+  /* Fond UNI (plus de dégradé étirable) : sinon, quand la carte se déplie et grandit, le dégradé se
+     redistribue et « la lumière du fond change » (retour user 2026-07-21). Uni -> identique plié/déplié. */
   .row.pick{border-color:rgba(34,184,255,.60);
-            background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
+            background:rgba(34,184,255,.05);
             box-shadow:0 0 26px rgba(34,184,255,.20)}
   /* CARTE COMPACTE : en-tête toujours visible (statut + équipes + résumé) + corps replié au tap.
      Liste dense -> peu de scroll ; on déplie un match pour voir paris/barres/liens/analyse. */
@@ -1730,7 +1732,8 @@ CSS = """
      GROS chiffre (blanc) en bas à DROITE avec le label « COTE ». ===== */
   /* Couleurs/graisses CALQUÉES sur la carte Telegram (tools/card_image.py) : cyan #5fd0ff, comp #93b7db,
      titre #eef4fb, analyse #a7bcd6 (léger), meta #90a4be, cote #fff. */
-  .row.mc.mc-tg{background:linear-gradient(165deg,#0e1d2e 0%,#0b1622 55%,#081019 100%);
+  /* Fond UNI (plus de dégradé 165° étirable qui redistribuait « la lumière » au dépli — user 2026-07-21). */
+  .row.mc.mc-tg{background:#0b1826;
        border:1px solid rgba(58,140,225,.42);
        box-shadow:0 0 0 1px rgba(34,167,238,.07),0 0 26px rgba(30,110,190,.15),0 12px 32px rgba(0,0,0,.5)}
   /* Cadre PROVISOIRE : bord GRIS neutre (remplace la pastille « PROVISOIRE ») — demande user 2026-07-14. */
