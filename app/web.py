@@ -6335,7 +6335,10 @@ def _sport_row(r: dict) -> str:
             if comp:
                 _csub += f'<span class="mc-comp-sep"> • </span>{e(comp)}'
             return _combo_gold_card(title="COMBINÉ", subtitle=_csub, badge=badge, body=_cbody)
-    if (not is_live) and (not is_finished) and not is_combo and len(bets3) == 1 and reco_i == 0:
+    # LIVE INCLUS (demande user 2026-07-21 « la présentation ne doit pas changer ») : une carte de pari
+    # EN DIRECT garde la MÊME présentation que les autres (pick gras + gloss + verdict + pli Pourquoi),
+    # plus la ligne compacte tronquée — le scoreboard + la chance live suivent en dessous (head).
+    if (not is_finished) and not is_combo and len(bets3) == 1 and reco_i == 0:
         _b0 = bets3[0]
         _psel = _b0.get("sel", "")
         _pcote = _b0.get("cote")
