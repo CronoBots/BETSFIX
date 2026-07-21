@@ -4515,7 +4515,8 @@ def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False
     _B = {"won": ("W", "w"), "lost": ("L", "l"), "push": ("N", "n")}
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     rows = []
-    for l in cb.get("legs") or []:
+    # Ordre CHRONOLOGIQUE des coups d'envoi (demande user 2026-07-21) — affichage seul.
+    for l in sorted(cb.get("legs") or [], key=lambda x: str(x.get("start") or "9999")):
         _lt, _bc = _B.get(l.get("result"), ("⏳", "p"))   # p = en attente (badge doré)
         emo = _emo.get(l.get("sport"), "•")
         nm = _h.escape(_noF(str(l.get("name") or "")).replace(" - ", " — "))   # (F) retiré à l'affichage
@@ -4565,7 +4566,7 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
         '<div class="sx-meta">'
         f'<span>cote <b class="sx-gold">@{cb.get("cote")}</b></span>'
         f'<span>chances <b>{round((cb.get("prob") or 0) * 100)}%</b></span>'
-        f'<span>{len(cb.get("legs") or [])} jambes · multisport</span></div>'
+        f'<span>{len(cb.get("legs") or [])} jambes</span></div>'
         + combo_legs_html(cb) + '</a>')
 
 
@@ -4694,8 +4695,11 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
 
 def _combo_tg_legs(cb: dict) -> str:
     """Jambes du combiné du jour rendues chacune comme un CADRE PROVISOIRE (demande user 2026-07-18) —
-    en-tête SPORT • match, pari + gloss, LIGNE VERDICT (confiance/marché/cote), état/live. Via `_leg_card`."""
-    return "".join(_leg_card(l, why=True, verdict=True) for l in (cb.get("legs") or []))
+    en-tête SPORT • match, pari + gloss, LIGNE VERDICT (confiance/marché/cote), état/live. Via `_leg_card`.
+    ORDRE CHRONOLOGIQUE des coups d'envoi (demande user 2026-07-21) — l'ordre de construction du combiné
+    (prob décroissante) n'a aucun sens pour le lecteur. AFFICHAGE seul (cb['legs'] stocké intact)."""
+    _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
+    return "".join(_leg_card(l, why=True, verdict=True) for l in _legs)
 
 
 def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str) -> str:
@@ -4776,7 +4780,9 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
     _nlegs = len(cb.get("legs") or [])
     _body = (f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
              + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False))
-    return _combo_gold_card(title="COMBINÉ DU JOUR", subtitle=f'{_nlegs} jambes · multisport',
+    # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
+    # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
+    return _combo_gold_card(title="COMBINÉ MULTISPORT", subtitle=f'{_nlegs} jambes',
                             badge=_badge, body=_body)
 
 
