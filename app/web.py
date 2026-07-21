@@ -1817,10 +1817,12 @@ CSS = """
   .mc-tg-gold .mc-cote-v{color:#64cd8d}
   .mc-tg-gold .mc-cote-l{color:#3f9d6d}
   /* Jambes du combiné présentées comme des PICKS de provisoire (sélection en gras + match en sous-titre). */
-  /* Écart entre jambes = MÊME rythme qu'entre cartes provisoires (demande user 2026-07-21) :
-     plus de gap flex (il s'additionnait au séparateur) -> marges 7px 0 par jambe + .mc-sep entre. */
-  .mc-combo-legs{margin:2px 0;display:flex;flex-direction:column;gap:0}
-  .mc-combo-legs .cleg{margin:7px 0}
+  /* Écart entre jambes = MÊME rythme qu'entre cartes provisoires (demande user 2026-07-21, corrigé
+     2e passe) : en FLEX les marges ne FUSIONNENT pas (7+9+9+7 s'additionnaient -> écart ~33px vs ~19px
+     entre provisoires). -> conteneur en BLOCK (comme le flux des provisoires) : les marges des jambes
+     (6px, = .prog-card) fusionnent avec celles du .mc-sep (9px) -> écart identique. */
+  .mc-combo-legs{margin:2px 0;display:block}
+  .mc-combo-legs .cleg{margin:6px 0}
   .mc-cleg{display:flex;align-items:flex-start;gap:9px}
   /* Sous-cadre par jambe QUAND les matchs sont DIFFÉRENTS (demande user 2026-07-12). */
   .mc-cleg-box{padding:10px 12px 10px 13px;border-radius:13px;background:rgba(255,255,255,.028);
@@ -4873,7 +4875,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
             if _c and _c[0].get("prob") is not None:
                 _lg["prob"] = _c[0]["prob"]
     out += (f'<div class="mc-combo-legs">'
-            + "".join(_leg_card(l, why=True, verdict=True, teams=False) for l in _legs)   # même match -> pas d'équipes répétées
+            + _MC_SEP.join(_leg_card(l, why=True, verdict=True, teams=False) for l in _legs)   # même match -> pas d'équipes répétées ; sep = même rythme que le combiné du jour
             + '</div>'
             + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
     return out
