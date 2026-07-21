@@ -1744,8 +1744,9 @@ CSS = """
        border:1px solid rgba(58,140,225,.42);
        box-shadow:0 0 0 1px rgba(34,167,238,.07),0 0 26px rgba(30,110,190,.15),0 12px 32px rgba(0,0,0,.5)}
   /* Cadre PROVISOIRE : bord GRIS neutre (remplace la pastille « PROVISOIRE ») — demande user 2026-07-14. */
-  .row.mc.mc-tg.mc-prov-b{border-color:rgba(150,162,178,.45);
-       box-shadow:0 0 0 1px rgba(150,162,178,.06),0 12px 32px rgba(0,0,0,.5)}
+  /* Provisoires : cadre BLANC + halo BLANC (demande user 2026-07-21 — avant : gris sans halo). */
+  .row.mc.mc-tg.mc-prov-b{border-color:rgba(235,242,250,.5);
+       box-shadow:0 0 0 1px rgba(255,255,255,.08),0 0 26px rgba(255,255,255,.12),0 12px 32px rgba(0,0,0,.5)}
   .mc-tg .mc-head{padding:12px 16px 11px}
   .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
@@ -1806,11 +1807,13 @@ CSS = """
   .mc-moved-m{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
   /* Variante OR de la carte Telegram : le COMBINÉ DU JOUR (demande user 2026-07-12) — bordure/lueur dorées,
      sport + cote en or, présenté comme les provisoires mais en jaune. */
-  .row.mc.mc-tg-gold{border-color:rgba(246,197,74,.5);
-       box-shadow:0 0 0 1px rgba(246,197,74,.1),0 0 26px rgba(200,150,30,.16),0 12px 32px rgba(0,0,0,.5)}
-  .mc-tg-gold .mc-sport{color:var(--gold)}
-  .mc-tg-gold .mc-cote-v{color:var(--gold)}
-  .mc-tg-gold .mc-cote-l{color:#c9a24a}
+  /* Combiné du jour : cadre VERT + halo (même patron de halo que les cartes de pari joué) —
+     demande user 2026-07-21 (avant : doré). Vert émeraude #34d27b/#64cd8d (le vert « OUI » validé). */
+  .row.mc.mc-tg-gold{border-color:rgba(52,210,123,.5);
+       box-shadow:0 0 0 1px rgba(52,210,123,.1),0 0 26px rgba(46,180,105,.16),0 12px 32px rgba(0,0,0,.5)}
+  .mc-tg-gold .mc-sport{color:#64cd8d}
+  .mc-tg-gold .mc-cote-v{color:#64cd8d}
+  .mc-tg-gold .mc-cote-l{color:#3f9d6d}
   /* Jambes du combiné présentées comme des PICKS de provisoire (sélection en gras + match en sous-titre). */
   .mc-combo-legs{margin:2px 0;display:flex;flex-direction:column;gap:9px}
   .mc-cleg{display:flex;align-items:flex-start;gap:9px}
@@ -1826,7 +1829,7 @@ CSS = """
   /* MATCH en titre (équipes) + badge/score live ; PARI À JOUER dessous (sélection + cote or). */
   .mc-cleg-match{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.26;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
   .mc-cleg-bet{margin-top:3px;font-size:13px;font-weight:700;color:#cfe0f5;line-height:1.3}
-  .mc-cleg-o{margin-left:7px;font-size:11.5px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums}
+  .mc-cleg-o{margin-left:7px;font-size:11.5px;font-weight:900;color:#64cd8d;font-variant-numeric:tabular-nums}  /* cote de jambe : vert émeraude (cadre combiné passé au vert 2026-07-21) */
   .mc-cleg-sc{color:#5be08c;font-weight:800;font-variant-numeric:tabular-nums}
   /* analyse de la jambe (comme les combinés Telegram) — texte léger sous la sélection. */
   .mc-cleg-why{margin-top:6px;font-size:11.5px;font-weight:500;color:#a7bcd6;line-height:1.45}
