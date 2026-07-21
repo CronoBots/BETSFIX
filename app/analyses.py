@@ -2035,9 +2035,15 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     En mode historique on garde donc le filtre de base (65 %+EV+garde-fous+calibration) SANS l'overlay
     d'exclusion : un pari réellement publié reste compté à vie (track record honnête, défaites incluses)."""
     bets = bets_of(sport, match_id)
+    m = meta(sport, match_id) or {}
+    if not bets and for_history:
+        # Repli SUIVI : le tableau du .md peut être VIDE (ré-analyse « NONE » après publication) alors que
+        # le SIDECAR porte le pari PUBLIÉ réinjecté + réglé par le filet settle_analyst (2026-07-21 « ne
+        # pas flouter l'user ») -> on lit d["bets"] pour que le gel stat_bet/l'historique le comptent.
+        bets = [{"sel": b.get("sel", ""), "cote": b.get("odds") or b.get("cote"), "prob": b.get("prob")}
+                for b in (m.get("bets") or []) if b.get("sel")]
     if not bets:
         return None
-    m = meta(sport, match_id) or {}
     try:
         from app.settle_analyst import code_from_pick
         ex_sports, _ = (set(), set()) if for_history else auto_exclusions()

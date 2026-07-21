@@ -1357,6 +1357,25 @@ async def _settle_analyses_impl() -> int:
             # match (cartons/corners). SofaScore les expose même APRÈS le match (event/{id}/statistics).
             mid = os.path.basename(side)[len(sport) + 1:-5]    # {sport}_{id}.json -> id
             bet_list = analyses.bets_of(sport, mid)
+            # PARI PUBLIÉ = TOUJOURS HONORÉ (demande user 2026-07-21 « ne pas flouter l'user ») : si la
+            # ré-analyse pré-match a conclu « NONE » APRÈS la publication du prono (Telegram/site), le
+            # tableau du .md est vide -> bets=[] -> le pari que les abonnés ont JOUÉ n'était JAMAIS réglé
+            # ni compté (bug Seattle +13.5 du 21/07, réparé à la main). Le pari PUBLIÉ (figé,
+            # analyses.published_bet) est réinjecté ici comme pari à régler -> réglé + stat_bet + ROI
+            # comme n'importe quel pari. Match jamais publié -> published_bet None -> rien ne change.
+            _pub_injected = False
+            if not bet_list:
+                try:
+                    _pub = analyses.published_bet(sport, mid)
+                except Exception:
+                    _pub = None
+                if _pub and _pub.get("sel"):
+                    bet_list = [{"sel": _pub["sel"],
+                                 "cote": _pub.get("cote") or _pub.get("published_cote"),
+                                 "prob": _pub.get("prob")}]
+                    _pub_injected = True
+                    log.info("pari PUBLIÉ réinjecté pour règlement (tableau .md vide) : %s_%s · %r",
+                             sport, mid, _pub["sel"])
             bet_codes = [code_from_pick(b["sel"], sport, d.get("home", ""), d.get("away", ""))
                          for b in bet_list]
             combo_codes = [leg.get("code", "") for leg in ((d.get("combo") or {}).get("legs") or [])]
@@ -1639,6 +1658,14 @@ async def _settle_analyses_impl() -> int:
                                              "cote": _sf.get("cote"), "result": _rr}
                 except Exception:
                     pass
+            # Pari PUBLIÉ réinjecté (filet « ne pas flouter l'user », 2026-07-21) : `retained_bet` relit le
+            # DISQUE, qui n'a pas encore les bets frais de CE passage -> il peut rater le gel. On fige alors
+            # DIRECTEMENT depuis le pari réglé (c'est le pari publié, par construction) -> compté au ROI.
+            if (_pub_injected and not isinstance(d.get("stat_bet"), dict)
+                    and bets_out and bets_out[0].get("result") in ("won", "lost", "push")):
+                _b0 = bets_out[0]
+                d["stat_bet"] = {"sel": _b0.get("sel"), "prob": _b0.get("prob"),
+                                 "cote": _b0.get("odds"), "result": _b0.get("result")}
             # COMBINÉ (grand tournoi) : règle chaque jambe via son code -> résultat global (toutes
             # gagnées = gagné ; une perdue = perdu ; sinon en attente). Les corners/cartons se règlent
             # désormais (Flashscore), donc les combinés type Qatar-Suisse se valident.
