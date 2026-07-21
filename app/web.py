@@ -661,8 +661,9 @@ CSS = """
   .mc-betl + .mc-betl{margin-top:3px}
   /* Étiquette DOUBLE SCAN (« Premier scan » / « Dernier scan ») : le rescan a changé le pari -> les deux
      décisions affichées et comptées (demande user 2026-07-21). Petite pastille discrète devant le pari. */
-  .mc-btag{flex:none;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
-       padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);color:#9fb3cc}
+  .mc-btag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+       padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);color:#9fb3cc;margin-bottom:3px}
+  .mc-pick .mc-bc{margin-left:7px}   /* cote après la sélection (présentation double scan) */
   .mc-bi{flex:none;font-size:11px;align-self:flex-start;margin-top:2px}
   .mc-bt{min-width:0;flex:1;overflow-wrap:anywhere;line-height:1.32}
   /* Module cote │ confiance placé SOUS le pari (demande user 2026-07-12), aligné sous le libellé (past la puce). */
@@ -6254,10 +6255,20 @@ def _sport_row(r: dict) -> str:
                     _curb = analyses.bets_of(sport_key, _mid.group(1)) if (sport_key and _mid) else []
                 except Exception:
                     _curb = []
+                # MÊME PARI = mêmes CODES de règlement (pas les libellés : « Roman Andres Burruchaga
+                # vainqueur » vs « Roman Burruchaga vainqueur » = même issue) -> pas de faux double scan.
+                try:
+                    from app.settle_analyst import code_from_pick as _cfp2
+                    _cpub = _cfp2(_pbz.get("sel", ""), sport_key, r.get("home", ""), r.get("away", ""))
+                    _ccur = (_cfp2(_curb[0].get("sel", ""), sport_key, r.get("home", ""), r.get("away", ""))
+                             if _curb else "")
+                except Exception:
+                    _cpub = _ccur = ""
                 if not _curb:
                     bets3 = [{**_pbz, "tag": "Premier scan"},
                              {"_info": "Dernier scan : aucun pari conseillé"}]
-                elif analyses._norm_sel(_curb[0].get("sel", "")) != analyses._norm_sel(_pbz.get("sel", "")):
+                elif ((not _cpub or not _ccur or _cpub != _ccur)
+                        and analyses._norm_sel(_curb[0].get("sel", "")) != analyses._norm_sel(_pbz.get("sel", ""))):
                     bets3 = [{**_pbz, "tag": "Premier scan"},
                              {"sel": _curb[0].get("sel", ""), "cote": _curb[0].get("cote"),
                               "prob": _curb[0].get("prob"), "tag": "Dernier scan"}]
@@ -6270,8 +6281,27 @@ def _sport_row(r: dict) -> str:
     for i, b in enumerate(bets3):
         # Ligne INFO pure (double scan : « Dernier scan : aucun pari conseillé ») — pas un pari.
         if b.get("_info"):
+            if rows3:
+                rows3.append('<div class="mc-div"></div>')
             rows3.append(f'<div class="mc-betl mc-noplay"><span class="mc-bi">·</span>'
                          f'<span class="mc-bt">{e(b["_info"])}</span></div>')
+            continue
+        # DOUBLE SCAN : chaque pari présenté COMME UN PARI NORMAL (demande user 2026-07-21 — plus la
+        # ligne compacte tronquée) : étiquette, sélection COMPLÈTE (.mc-pick), ✓/✗ + cote, GLOSS ↳,
+        # et un filet de séparation entre les deux scans.
+        if b.get("tag"):
+            if rows3:
+                rows3.append('<div class="mc-div"></div>')
+            _ic2 = ({"won": "✅", "lost": "❌", "push": "➖"}.get(b.get("result"), "")
+                    if is_finished else "")
+            _ich = f' <span class="mc-bi">{_ic2}</span>' if _ic2 else ""
+            _ch2 = (f'<span class="mc-bc">@{b["cote"]:g}</span>'
+                    if isinstance(b.get("cote"), (int, float)) and b.get("cote") else "")
+            _gl2 = _bet_gloss(b.get("sel", ""), sport_key, r.get("home", ""), r.get("away", ""))
+            _gh2 = f'<div class="mc-gloss"><span class="ar">↳</span>{e(_gl2)}</div>' if _gl2 else ""
+            rows3.append(f'<div class="mc-btag">{e(b["tag"])}</div>'
+                         f'<div class="mc-pick">{e(_pretty_sel(b.get("sel", ""), r.get("home", ""), r.get("away", "")))}'
+                         f'{_ich}{_ch2}</div>{_gh2}')
             continue
         is_reco = i == reco_i and not is_combo
         if is_finished:
@@ -6282,10 +6312,7 @@ def _sport_row(r: dict) -> str:
         # Badge COTE après l'intitulé (comme la cote du combiné). Le combiné a déjà sa cote dans le sel.
         cote = b.get("cote")
         cote_html = f'<span class="mc-bc">@{cote:g}</span>' if cote else ""
-        # Étiquette DOUBLE SCAN (« Premier scan » / « Dernier scan ») — le rescan a changé le pari, les
-        # deux décisions s'affichent et comptent (demande user 2026-07-21).
-        _tag = f'<span class="mc-btag">{e(b["tag"])}</span>' if b.get("tag") else ""
-        rows3.append(f'<div class="mc-betl{rcls}"><span class="mc-bi">{ic}</span>{_tag}'
+        rows3.append(f'<div class="mc-betl{rcls}"><span class="mc-bi">{ic}</span>'
                      f'<span class="mc-bt">{e(_pretty_sel(b.get("sel", ""), r.get("home", ""), r.get("away", "")))}</span>{cote_html}</div>')
     _ts = r.get("start_ts")
     # PRÉSENTATION PREMIUM (demande user 2026-07-13 : « les paris à jouer présentés comme les provisoires »)

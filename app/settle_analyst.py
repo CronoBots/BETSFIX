@@ -1680,9 +1680,14 @@ async def _settle_analyses_impl() -> int:
                     _pub1 = analyses.published_bet(sport, mid)
                 except Exception:
                     _pub1 = None
-                if (_pub1 and _pub1.get("sel")
+                # MÊME PARI = comparer les CODES de règlement, pas les libellés (bug 2026-07-21 : « Roman
+                # Andres Burruchaga vainqueur » vs « Roman Burruchaga vainqueur » = MÊME issue WIN AWAY
+                # écrite différemment -> un faux « double scan » aurait compté le pari 2× au ROI).
+                _pc1 = (code_from_pick(_pub1["sel"], sport, d.get("home", ""), d.get("away", ""))
+                        if (_pub1 and _pub1.get("sel")) else "")
+                if (_pub1 and _pub1.get("sel") and _pc1
+                        and _pc1 != (bets_out[0].get("code") or "")
                         and analyses._norm_sel(_pub1["sel"]) != analyses._norm_sel(bets_out[0].get("sel", ""))):
-                    _pc1 = code_from_pick(_pub1["sel"], sport, d.get("home", ""), d.get("away", ""))
                     _pr1 = await _settle_one(_pc1) if _pc1 else None
                     if _pr1 in ("won", "lost", "push"):
                         d["stat_bet_first"] = {"sel": _pub1["sel"], "prob": _pub1.get("prob"),
