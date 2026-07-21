@@ -1826,6 +1826,13 @@ CSS = """
      (6px, = .prog-card) fusionnent avec celles du .mc-sep (9px) -> écart identique. */
   .mc-combo-legs{margin:2px 0;display:block}
   .mc-combo-legs .cleg{margin:6px 0}
+  /* Étiquette « TOTAL DU COMBINÉ » entre les jambes et le verdict GLOBAL (user 2026-07-21) : label
+     discret centré entre deux filets (même trait blanc .06 que partout) -> les chiffres du bas se
+     lisent comme le TOTAL, plus comme la suite de la dernière jambe. */
+  .combo-total-hd{display:flex;align-items:center;gap:10px;margin:12px 0 6px}
+  .combo-total-hd::before,.combo-total-hd::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.06)}
+  .combo-total-hd span{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+       color:#9fb3cc}
   .mc-cleg{display:flex;align-items:flex-start;gap:9px}
   /* Sous-cadre par jambe QUAND les matchs sont DIFFÉRENTS (demande user 2026-07-12). */
   .mc-cleg-box{padding:10px 12px 10px 13px;border-radius:13px;background:rgba(255,255,255,.028);
@@ -4822,7 +4829,10 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
                  if isinstance(_cote, (int, float)) and _cote else "")
     # Synthèse au-dessus des jambes RETIRÉE (demande user 2026-07-18) — chaque jambe porte déjà son « pourquoi ».
     _nlegs = len(cb.get("legs") or [])
+    # SÉPARATION + ÉTIQUETTE avant le verdict GLOBAL (question user 2026-07-21 « où ajouterais-tu des
+    # séparations ? ») : sans elle, la barre 50 %/cote totale semblait appartenir à la DERNIÈRE jambe.
     _body = (f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
+             '<div class="combo-total-hd"><span>Total du combiné</span></div>'
              + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
@@ -4883,6 +4893,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     out += (f'<div class="mc-combo-legs">'
             + _MC_SEP.join(_leg_card(l, why=True, verdict=True, teams=False) for l in _legs)   # même match -> pas d'équipes répétées ; sep = même rythme que le combiné du jour
             + '</div>'
+            '<div class="combo-total-hd"><span>Total du combiné</span></div>'
             + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
     return out
 
