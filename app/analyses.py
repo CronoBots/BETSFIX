@@ -1539,6 +1539,18 @@ def _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals, game_f
     / total de points (approx. normale, via `game_frac`). Tennis : non modélisé (fusion cote+analyse)."""
     if sport == "basket":
         return _basket_model_pct(sel, code, info, wside, hs, as_, game_frac)
+    # TENNIS « au moins un set » (SET HOME/AWAY) : modèle JEUX du set en cours (demande user 2026-07-21 —
+    # la barre restait sur l'avant-match alors que le joueur menait 5-2). p(set courant) ≈ 0.5 + 0.13/jeu
+    # d'écart (+0.05 à 4 jeux et plus) ; s'il perd CE set, il garde ~35 % d'en prendre un plus tard.
+    # P(≥1 set) = 1 − (1−p_cur)(1−p_rest). Le verrou (_live_locked) prend le relais dès le set acquis.
+    if sport == "tennis" and (code or "").startswith("SET ") and vals:
+        _side = "HOME" if " HOME" in code else "AWAY" if " AWAY" in code else None
+        gh, ga = _as_int(vals.get("games_h")), _as_int(vals.get("games_a"))
+        if _side and gh is not None and ga is not None:
+            gs, go = (gh, ga) if _side == "HOME" else (ga, gh)
+            p_cur = max(0.05, min(0.97, 0.5 + 0.13 * (gs - go) + (0.05 if gs >= 4 else 0.0)))
+            return 1.0 - (1.0 - p_cur) * (1.0 - 0.35)
+        return None
     if sport != "foot":
         return None
     rem = _foot_remaining(minute)
@@ -1568,6 +1580,15 @@ def _live_locked(sport, sel, code, info, hs, as_, vals) -> str | None:
         yes = "non" not in (sel or "").lower()
         if hs >= 1 and as_ >= 1:
             return "won" if yes else "lost"
+        return None
+    # TENNIS « remporte au moins un set » (SET HOME/AWAY) : ACQUIS dès que le joueur a pris un set
+    # (vals.sets_h/sets_a, cf. web._tennis_sets_games) — demande user 2026-07-21 (barre restée à 70 %
+    # alors que le set était quasi pris). Jamais « lost » ici (le règlement final s'en charge).
+    if sport == "tennis" and (code or "").startswith("SET ") and vals:
+        _side = "HOME" if " HOME" in code else "AWAY" if " AWAY" in code else None
+        _ss = _as_int(vals.get("sets_h") if _side == "HOME" else vals.get("sets_a"))
+        if _side and _ss is not None and _ss >= 1:
+            return "won"
         return None
     if sport != "foot" or info.get("scope") != "match" or info.get("handicap"):
         return None

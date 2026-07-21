@@ -4434,6 +4434,8 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
                 _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
                           "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
                           "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
+                if sp == "tennis":             # sets gagnés + jeux du set en cours -> modèle « ≥1 set »
+                    _lvals.update(_tennis_sets_games(_lf.get("score")))
                 _prov_bar = _live_bar_html(analyses.live_prob(
                     sp, prov_sel, _cfp(prov_sel, sp, home, away), home, away, _lhs, _las,
                     match_select.live_minute(_lld),
@@ -4646,6 +4648,8 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                 _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
                           "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
                           "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
+                if _sp == "tennis":            # sets gagnés + jeux du set en cours -> modèle « ≥1 set »
+                    _lvals.update(_tennis_sets_games(_lfz.get("score")))
                 _gfrac = (match_select.basket_frac(_lld, l.get("comp") or "") if _sp == "basket" else None)
                 _pr = l.get("prob")
                 _prpct = (_pr * 100 if isinstance(_pr, (int, float)) and _pr <= 1 else _pr)
@@ -5902,6 +5906,32 @@ def _parse_live_score(score) -> tuple:
     return (int(m.group(1)), int(m.group(2))) if m else (None, None)
 
 
+def _tennis_sets_games(score) -> dict:
+    """Décompose un score TENNIS live « 6-4 2-5 » (jeux PAR SET) en {sets_h, sets_a, games_h, games_a} :
+    sets GAGNÉS par chacun (paires terminées : 6+ avec 2 d'écart, ou 7) + JEUX de la dernière paire (set
+    en cours). {} si score vide/illisible. Nourrit le modèle live tennis (« au moins un set », 2026-07-21)."""
+    pairs = re.findall(r"(\d+)\s*-\s*(\d+)", str(score or ""))
+    if not pairs:
+        return {}
+    sh = sa = 0
+    for h, a in pairs[:-1]:                     # toutes les paires SAUF la dernière = sets joués
+        h, a = int(h), int(a)
+        if h > a:
+            sh += 1
+        elif a > h:
+            sa += 1
+    gh, ga = int(pairs[-1][0]), int(pairs[-1][1])
+    # la DERNIÈRE paire peut être un set DÉJÀ terminé (fin de set, le suivant pas commencé) : 6+/2 d'écart ou 7.
+    mx, mn = max(gh, ga), min(gh, ga)
+    if (mx >= 6 and mx - mn >= 2) or mx == 7:
+        if gh > ga:
+            sh += 1
+        else:
+            sa += 1
+        gh = ga = 0                             # nouveau set pas commencé
+    return {"sets_h": sh, "sets_a": sa, "games_h": gh, "games_a": ga}
+
+
 def _live_bar_html(lp: dict | None) -> str:
     """Rend la barre « Chance live » à partir de `analyses.live_prob` ({pct,trend,source}). '' si None.
     Remplissage rouge→vert selon le %, flèche de tendance, étiquette de source. PURE AFFICHAGE."""
@@ -6340,6 +6370,8 @@ def _sport_row(r: dict) -> str:
         _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
                   "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
                   "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
+        if sport_key == "tennis":         # sets gagnés + jeux du set en cours -> modèle « ≥1 set »
+            _lvals.update(_tennis_sets_games(r.get("score")))
         _gfrac = (match_select.basket_frac(_lld, comp) if sport_key == "basket" else None)
         _live_bar = _live_bar_html(analyses.live_prob(
             sport_key, _pbb.get("sel", ""), _pbb.get("code", ""),
