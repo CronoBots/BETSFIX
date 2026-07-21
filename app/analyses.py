@@ -1702,7 +1702,13 @@ def live_prob(sport: str, sel: str, code: str, home: str, away: str,
     # (2) ANALYSE d'avant-match (notre confiance publiée sur ce pari).
     p_pre = ref_pct / 100.0 if isinstance(ref_pct, (int, float)) else None
     if p_mkt is None and p_mod is None:
-        return None                          # aucun signal LIVE -> pas de barre (l'avant-match seul ne « bouge » pas)
+        # Repli AVANT-MATCH (demande user 2026-07-21 : « la barre pour TOUS les paris ») : marché non
+        # mappable en cote/modèle live (ex. tennis « remporte au moins un set ») -> on affiche quand même
+        # la barre sur la confiance publiée, source honnête « avant-match ». Elle basculera d'elle-même
+        # dès qu'un VERROU tranche (set pris -> 100 « acquis », cf. _live_locked plus haut).
+        if p_pre is not None:
+            return _mk_live(int(round(max(0.0, min(1.0, p_pre)) * 100)), "avant-match", ref_pct)
+        return None                          # vraiment aucun signal -> pas de barre
     f = (game_frac if isinstance(game_frac, (int, float))
          else (min(90, max(0, minute)) / 90.0) if (sport == "foot" and minute is not None) else 0.5)
     w_mod = _W_MOD0 + _W_PRE0 * f            # le direct grandit avec le temps

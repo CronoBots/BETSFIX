@@ -1813,6 +1813,7 @@ CSS = """
   .row.mc.mc-tg-gold{border-color:rgba(52,210,123,.5);
        box-shadow:0 0 0 1px rgba(52,210,123,.1),0 0 26px rgba(46,180,105,.16),0 12px 32px rgba(0,0,0,.5)}
   .mc-tg-gold .mc-sport{color:#64cd8d}
+  .mc-tg-gold .mc-sport-w{color:var(--text)}   /* titre « COMBINÉ MULTISPORT » en BLANC (user 2026-07-21) */
   .mc-tg-gold .mc-cote-v{color:#64cd8d}
   .mc-tg-gold .mc-cote-l{color:#3f9d6d}
   /* Jambes du combiné présentées comme des PICKS de provisoire (sélection en gras + match en sous-titre). */
@@ -4630,12 +4631,31 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             # EN COURS = PAS DÉCIDÉ -> ORANGE (plus vert : le vert = gagné). Badge « ⏳ EN COURS ».
             _state = "live"
             _btxt, _bcls = "⏳ EN COURS", "live"
+            # Barre « Chance live » PAR JAMBE (demande user 2026-07-21 : la barre pour TOUS les paris) —
+            # même reflet en direct que les simples/provisoires. '' si non mappable. PURE AFFICHAGE.
+            _leg_bar = ""
+            try:
+                _lld = match_select.live_state_for(_sp, _lh, _la)
+                _lhs, _las = _parse_live_score(_lfz.get("score"))
+                _fs = _lfz.get("fstats") or {}
+                _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
+                          "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
+                          "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
+                _gfrac = (match_select.basket_frac(_lld, l.get("comp") or "") if _sp == "basket" else None)
+                _pr = l.get("prob")
+                _prpct = (_pr * 100 if isinstance(_pr, (int, float)) and _pr <= 1 else _pr)
+                _leg_bar = _live_bar_html(analyses.live_prob(
+                    _sp, sel_raw, l.get("code", ""), _lh, _la, _lhs, _las,
+                    match_select.live_minute(_lld),
+                    match_select.live_win_odds(_sp, _lh, _la), _prpct, None, _lvals, _gfrac))
+            except Exception:
+                _leg_bar = ""
             board = ('<div class="cleg-board">'
                      + _live_scoreboard(_lfz["score"], _lh, _la, tennis=(_sp == "tennis"),
                                         server=_lfz.get("server"), points=_lfz.get("game_pts"),
                                         clock=_lfz.get("live_time"), periods=_lfz.get("periods"),
                                         fstats=_lfz.get("fstats"))
-                     + '</div>')
+                     + _leg_bar + '</div>')
         else:
             # HEURE de début dans le badge (comme les provisoires) au lieu de « À VENIR » (demande user
             # 2026-07-18). Repli « À VENIR » si l'heure n'est pas exploitable.
@@ -4710,8 +4730,9 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str) -> str
     return (
         '<div class="row pick mc mc-tg mc-tg-gold">'
         '<div class="mc-head"><div class="mc-main">'
-        '<div class="mc-line"><span class="mc-ic">🎯</span>'
-        f'<span class="mc-comp"><b class="mc-sport">{title}</b>'
+        # 1re ligne SANS emoji 🎯, titre en BLANC via .mc-sport-w (demande user 2026-07-21).
+        '<div class="mc-line">'
+        f'<span class="mc-comp"><b class="mc-sport mc-sport-w">{title}</b>'
         f'<span class="mc-comp-sep"> • </span>{subtitle}</span>'
         f'{badge}</div>'
         '<div class="mc-div"></div>'
@@ -4745,10 +4766,19 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
     if not include_settled and _all_done:
         return ""
     # Badge « en cours » = le MÊME « 🟢 Live » que les autres paris quand une jambe TOURNE (demande user
-    # 2026-07-18) ; sinon (pré-match) on garde « ⏳ En cours ».
-    _any_live = any(live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
-                                                            l.get("away", "")), l.get("sport")).get("score")
-                    for l in (cb.get("legs") or []) if l.get("result") is None)
+    # 2026-07-18) ; sinon (pré-match) on garde « ⏳ En cours ». ROBUSTESSE (retour user 2026-07-21 : badge
+    # resté « En cours » avec une jambe commencée) : une jambe non réglée dont le COUP D'ENVOI EST PASSÉ
+    # compte aussi comme live — le flux score peut rater le match (noms/décalage), pas l'horloge.
+    def _leg_started(l) -> bool:
+        if live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
+                                                   l.get("away", "")), l.get("sport")).get("score"):
+            return True
+        try:
+            _ko = datetime.fromisoformat(str(l.get("start")).replace("Z", "+00:00"))
+            return _ko <= datetime.now(timezone.utc)
+        except (ValueError, TypeError):
+            return False
+    _any_live = any(_leg_started(l) for l in (cb.get("legs") or []) if l.get("result") is None)
     _running = ('<span class="mc-badge mc-live">🟢 Live</span>' if _any_live
                 else '<span class="mc-badge mc-wait">⏳ En cours</span>')
     _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
