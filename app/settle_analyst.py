@@ -1661,11 +1661,35 @@ async def _settle_analyses_impl() -> int:
             # Pari PUBLIÉ réinjecté (filet « ne pas flouter l'user », 2026-07-21) : `retained_bet` relit le
             # DISQUE, qui n'a pas encore les bets frais de CE passage -> il peut rater le gel. On fige alors
             # DIRECTEMENT depuis le pari réglé (c'est le pari publié, par construction) -> compté au ROI.
+            # + flag `last_scan_none` : le DERNIER scan avait décidé de ne rien jouer -> l'affichage montre
+            # 2 lignes (« Premier scan : <pari> » + « Dernier scan : aucun pari ») — demande user 2026-07-21.
+            if _pub_injected:
+                d["last_scan_none"] = True
             if (_pub_injected and not isinstance(d.get("stat_bet"), dict)
                     and bets_out and bets_out[0].get("result") in ("won", "lost", "push")):
                 _b0 = bets_out[0]
                 d["stat_bet"] = {"sel": _b0.get("sel"), "prob": _b0.get("prob"),
                                  "cote": _b0.get("odds"), "result": _b0.get("result")}
+            # DOUBLE SCAN (demande user 2026-07-21 « garder l'ancien ET le nouveau ») : si le pari PUBLIÉ
+            # (1er scan) a été REMPLACÉ par un autre pari au rescan (sel différent), les DEUX comptent au
+            # ROI : le pari du dernier scan suit le chemin standard (stat_bet), et le pari du 1er scan est
+            # réglé ICI puis figé dans `stat_bet_first` (immuable, même esprit que stat_bet). L'affichage
+            # rend alors 2 lignes « Premier scan » / « Dernier scan ».
+            if not isinstance(d.get("stat_bet_first"), dict) and not _pub_injected and bets_out:
+                try:
+                    _pub1 = analyses.published_bet(sport, mid)
+                except Exception:
+                    _pub1 = None
+                if (_pub1 and _pub1.get("sel")
+                        and analyses._norm_sel(_pub1["sel"]) != analyses._norm_sel(bets_out[0].get("sel", ""))):
+                    _pc1 = code_from_pick(_pub1["sel"], sport, d.get("home", ""), d.get("away", ""))
+                    _pr1 = await _settle_one(_pc1) if _pc1 else None
+                    if _pr1 in ("won", "lost", "push"):
+                        d["stat_bet_first"] = {"sel": _pub1["sel"], "prob": _pub1.get("prob"),
+                                               "cote": _pub1.get("cote") or _pub1.get("published_cote"),
+                                               "result": _pr1}
+                        log.info("pari du 1er scan réglé en plus (rescan a changé le pari) : %s_%s · %r -> %s",
+                                 sport, mid, _pub1["sel"], _pr1)
             # COMBINÉ (grand tournoi) : règle chaque jambe via son code -> résultat global (toutes
             # gagnées = gagné ; une perdue = perdu ; sinon en attente). Les corners/cartons se règlent
             # désormais (Flashscore), donc les combinés type Qatar-Suisse se valident.

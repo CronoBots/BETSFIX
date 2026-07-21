@@ -227,6 +227,10 @@ def _check_stat_monotonic(rows) -> dict:
     stats-display-calibration : gel = compteur monotone)."""
     n = sum(1 for _, d in rows
             if isinstance(d.get("stat_bet"), dict) and d["stat_bet"].get("result") in ("won", "lost", "push"))
+    # + paris du 1er scan (remplacés au rescan, figés dans stat_bet_first — comptés au ROI, 2026-07-21)
+    n += sum(1 for _, d in rows
+             if isinstance(d.get("stat_bet_first"), dict)
+             and d["stat_bet_first"].get("result") in ("won", "lost", "push"))
     shown = int((analyses.stats_full().get("overall") or {}).get("settled") or 0)   # nombre AFFICHÉ (ROI)
     prev = {}
     try:
