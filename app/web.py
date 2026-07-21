@@ -4404,13 +4404,15 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # PAS l'id programme (`m.id`) — même clé que l'ancien reasoning_html, sinon basket sans pli.
             _prwhy = _why_fold(_prov_why_snippet(sp, str(prov.get("fid") or ""), maxlen=100000),
                                "Pourquoi ce choix")
+            # En LIVE : le pli « Pourquoi » passe APRÈS scoreboard + chance (posé plus bas dans _inner),
+            # MÊME ORDRE que jambes/paris du jour (retour user 2026-07-21) ; sinon il reste sous le verdict.
             sub = ('<div class="mc-div"></div>'
                    + f'<div class="mc-pick">{html.escape(_pretty_sel(prov_sel, home, away))}</div>'
                    + _gloss
                    + _verdict_block(_cote, _cpc, "", _cote_big, calibrated=True,
                                     hide_neg_value=True)   # provisoire (indicatif) : pas de Value rouge
                    # ligne « Ré-analyse à HH:MM » retirée (demande user 2026-07-21)
-                   + _prwhy)
+                   + ("" if _is_live else _prwhy))
         else:
             # Match SANS provisoire et NON analysé (pas de statut de value). Deux cas :
             #  • heure d'analyse (KO − 1 h) ENCORE À VENIR -> on annonce « Analyse à HH:MM » (légitime).
@@ -4469,6 +4471,9 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             # SÉPARATION, puis le tableau de score en dessous — aligné sur les cartes de pari (_sport_row).
             + f'<div class="mc-sub">{sub}</div>'
             + (f'<div class="mc-div"></div><div class="mc-livesc">{_lscore}{_prov_bar}</div>' if _lscore else "")
+            # Pli « Pourquoi » EN DERNIER en live (après scoreboard + chance), avec son filet — même ordre
+            # que jambes/paris du jour (retour user 2026-07-21).
+            + (_prwhy if (_is_live and prov_sel) else "")
             + '</div>')
         # Accent doré discret (bord gauche) sur les cartes PROVISOIRES en zone dédiée -> identifiables sans
         # la pastille répétée (demande user 2026-07-11). Uniquement en mode `framed` et si c'est un provisoire.
