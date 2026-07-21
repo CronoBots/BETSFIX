@@ -2696,7 +2696,7 @@ async def main():
     try:
         import datetime as _dt
         from app import combo_daily as _cdaily
-        _day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+        _day = _cdaily.day_key()          # clé-jour UNIQUE (jour sportif local 06h→06h, source combo_daily)
         _prev = _cdaily.today(_day)
         if _prev and (_prev.get("sent") or _prev.get("result")):
             print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")     # pas de re-analyse Claude

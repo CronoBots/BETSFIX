@@ -706,7 +706,7 @@ def _combo_daily_card() -> str:
     _hit = s.get("hit_rate")
     _roicls = "" if _roi is None else (" sx-pos" if _roi >= 0 else " sx-neg")
     _roi_txt = "—" if _roi is None else f'{"+" if _roi >= 0 else ""}{_roi}%'
-    _today_key = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+    _today_key = _cd.day_key()   # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
     _all = _cd.entries(_snap)
     _cur = _cd.today(_today_key, _snap)
     # combiné du jour EN TÊTE (jambes visibles + analyse dédiée) ; puis l'historique des combinés réglés

@@ -201,9 +201,11 @@ def fmt_local(value, with_date: bool = True) -> str:
     hm = dt.strftime("%H:%M")
     if not with_date:
         return hm
-    # Dates conviviales : Aujourd'hui / Demain / jour abrégé, sinon jj/mm.
-    today = (datetime.now(LOCAL_TZ).date() if LOCAL_TZ is not None else datetime.now().date())
-    delta = (dt.date() - today).days
+    # Dates conviviales : Aujourd'hui / Demain / jour abrégé, sinon jj/mm — en JOUR SPORTIF (06h→06h,
+    # cf. _sport_date) pour rester cohérent avec le regroupement/calendrier : un match de 03:00 est
+    # « Aujourd'hui » au sens de la journée sportive de la veille (alignement badge ↔ en-tête de jour).
+    today = _sport_date(datetime.now(LOCAL_TZ) if LOCAL_TZ is not None else datetime.now())
+    delta = (_sport_date(dt) - today).days
     if delta == 0:
         return f"Aujourd'hui {hm}"
     if delta == 1:
@@ -4103,6 +4105,24 @@ _META_STAT = re.compile(r"\bma\s+proba\b|\bmon\s+estimation\b|proba\s+juste|\bla
                         r"pts?\s+d['’]EV|d['’]espérance", re.I)
 
 
+def _strip_meta_stat(sentence: str) -> str:
+    """Retire le jargon de math de pari d'une phrase à la CLAUSE près (audit 2026-07-21) : quand une
+    phrase mêle un FAIT et la math (« …dominent le H2H 8-2 et jouent à domicile : à 1.23, le marché
+    valorise… »), l'ancien drop de la phrase ENTIÈRE perdait le fait. On découpe en clauses ( : ; — ,mais)
+    et on ne jette QUE les clauses math. '' si plus rien de substantiel (phrase 100 % math -> drop entier,
+    comportement inchangé). Phrase sans jargon -> renvoyée telle quelle (chemin rapide)."""
+    s = (sentence or "").strip()
+    if not s or not _META_STAT.search(s):
+        return s
+    parts = re.split(r"\s*(?::|;|—|,\s*mais\b)\s*", s)
+    kept = [p for p in parts if p and not _META_STAT.search(p)]
+    out = ", ".join(p.strip(" ,;") for p in kept).strip(" ,;")
+    if len(out) < 30:                     # reste trop maigre -> la phrase était essentiellement du jargon
+        return ""
+    out = out[0].upper() + out[1:]
+    return out if out[-1:] in ".!?…" else out + "."
+
+
 def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) -> str:
     """Extrait PROPRE (phrases COMPLÈTES, majuscule initiale) du raisonnement d'un pari — pour le pli
     « 💡 Pourquoi ce pari » (même patron que les jambes de combiné, demande user 2026-07-20 : l'analyse
@@ -4137,10 +4157,11 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
         # (a) retire l'AMORCE d'un provisoire (« Si l'on devait absolument (en) jouer, » / « Si je devais
         #     dégager un angle : ») en TÊTE — mais GARDE la suite (les FAITS qui suivent).
         t = re.sub(r"^\s*si (l['’]on|je)\s+(le\s+)?devai[st]\b[^,.:]*[,:]\s*", "", t, flags=re.I).strip()
-        # (b) DROP les phrases purement méta (verdict d'abstention) ET les phrases de MATH de pari (jargon
-        #     redondant avec la barre verdict) — jamais les faits/risque.
+        # (b) DROP les phrases purement méta (verdict d'abstention) ; le jargon de MATH de pari est retiré
+        #     à la CLAUSE près (_strip_meta_stat, audit 2026-07-21) -> un fait mêlé à la math SURVIT.
         _sents = re.split(r"(?<=[.!?…])\s+", t)
-        _kept = [s for s in _sents if s and not _PURE_META.match(s.strip()) and not _META_STAT.search(s)]
+        _kept = [w for s in _sents
+                 if s and not _PURE_META.match(s.strip()) and (w := _strip_meta_stat(s))]
         if not _kept:      # tout filtré (analyse 100 % math) -> ne pas renvoyer vide, garder les faits
             _kept = [s for s in _sents if s and not _PURE_META.match(s.strip())]
         return " ".join(_kept).strip()
@@ -4519,7 +4540,7 @@ def _combo_daily_banner(*, href: str = "/stats") -> str:
     try:
         import datetime as _dt
         from app import combo_daily as _cd
-        day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+        day = _cd.day_key()          # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
         cb = _cd.today(day)
     except Exception:
         cb = None
@@ -4629,7 +4650,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _wt = _clean_cap(l.get("why"), 100000) if (why and _res is None) else ""
     # En PUCES (une par phrase) comme les simples/provisoires -> aéré, plus de pavé (demande user 2026-07-20).
     # + on retire le jargon de math de pari (redondant avec la barre verdict) — que des faits/risque.
-    _wsents = [s for s in (_why_sentences(_wt) or ([_wt] if _wt else [])) if not _META_STAT.search(s)]
+    _wsents = [w for s in (_why_sentences(_wt) or ([_wt] if _wt else [])) if (w := _strip_meta_stat(s))]
     _wtl = "".join(f"<li>{html.escape(s)}</li>" for s in _wsents)
     _why = ('<details class="cleg-fold"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
             'Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
@@ -4697,7 +4718,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
         try:
             import datetime as _dt
             from app import combo_daily as _cd
-            day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+            day = _cd.day_key()          # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
             cb = _cd.today(day)
         except Exception:
             cb = None
@@ -6380,7 +6401,7 @@ def _daily_combo_any_live() -> bool:
     try:
         import datetime as _dt
         from app import combo_daily as _cd
-        day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+        day = _cd.day_key()          # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
         cb = _cd.today(day)
     except Exception:
         cb = None

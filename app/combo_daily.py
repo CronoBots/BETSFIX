@@ -37,6 +37,19 @@ _TIER3 = {"OVER", "UNDER", "TOTGAMES", "TEAMGAMES", "SETSCORE"}   # totaux (poin
 _ALLOWED = _TIER1 | _TIER2 | _TIER3
 
 
+def day_key(now=None) -> str:
+    """CLÉ-JOUR unique du combiné du jour = JOUR SPORTIF LOCAL (06h→06h, cf. web._sport_date) — SOURCE
+    UNIQUE partagée par le scan (création) ET l'affichage (lecture), 2026-07-21. Avant : chacun calculait
+    `datetime.now(UTC).strftime(%Y-%m-%d)` -> une vague nocturne (ex. 03h locale = 01h UTC) prenait la
+    date UTC du LENDEMAIN du jour sportif => risque de 2e combiné le même jour sportif + désalignement
+    avec le calendrier 06h→06h. À 09h (scan quotidien) les deux clés coïncident -> les clés existantes
+    restent valides. Import local de web (pas de cycle au chargement)."""
+    from datetime import datetime, timezone
+    from app import web as _w
+    now = now or datetime.now(timezone.utc)
+    return _w._sport_date(_w.to_local(now) or now).isoformat()
+
+
 def _tier(code: str) -> int:
     """Palier de fiabilité (1 = le plus safe) du marché d'un code. 9 si hors liste blanche."""
     tok = (code or "").split()[0] if code else ""
