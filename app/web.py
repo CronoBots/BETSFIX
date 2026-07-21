@@ -1766,7 +1766,7 @@ CSS = """
   .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
   /* Pari à jouer : SOUS les équipes et PLUS PETIT qu'elles (demande user 2026-07-14). Reste en gras (le
      pari), mais l'équipe (le match) domine la hiérarchie de la carte. */
-  .mc-pick{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.3;letter-spacing:-.01em}
+  .mc-pick{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.3;letter-spacing:-.01em}
   .mc-conf{margin-top:10px;font-size:13px;color:#90a4be;font-weight:600}
   .mc-conf b{color:#fff;font-weight:800;font-variant-numeric:tabular-nums}
   .mc-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:13px}
@@ -1817,7 +1817,10 @@ CSS = """
   .mc-tg-gold .mc-cote-v{color:#64cd8d}
   .mc-tg-gold .mc-cote-l{color:#3f9d6d}
   /* Jambes du combiné présentées comme des PICKS de provisoire (sélection en gras + match en sous-titre). */
-  .mc-combo-legs{margin:2px 0;display:flex;flex-direction:column;gap:9px}
+  /* Écart entre jambes = MÊME rythme qu'entre cartes provisoires (demande user 2026-07-21) :
+     plus de gap flex (il s'additionnait au séparateur) -> marges 7px 0 par jambe + .mc-sep entre. */
+  .mc-combo-legs{margin:2px 0;display:flex;flex-direction:column;gap:0}
+  .mc-combo-legs .cleg{margin:7px 0}
   .mc-cleg{display:flex;align-items:flex-start;gap:9px}
   /* Sous-cadre par jambe QUAND les matchs sont DIFFÉRENTS (demande user 2026-07-12). */
   .mc-cleg-box{padding:10px 12px 10px 13px;border-radius:13px;background:rgba(255,255,255,.028);
@@ -1872,7 +1875,7 @@ CSS = """
        margin:2px 0 9px;white-space:normal}
   .cleg-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
   .cleg-main{flex:1;min-width:0}
-  .cleg-pick{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
+  .cleg-pick{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
   .cleg-gloss{margin-top:5px;font-size:12px;color:#8fa2b8;font-weight:600;line-height:1.32}
   .cleg-gloss .ar{color:var(--accent);font-weight:800;margin-right:5px}
   .cleg-why{margin-top:6px;font-size:11px;font-weight:500;color:#93a7c2;line-height:1.4}
@@ -4703,11 +4706,13 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                  if isinstance(co, (int, float)) and co else "")
         _verdict = _verdict_block(co, _cp, "", _cbig, calibrated=True, hide_neg_value=True)
     _cote_pill = "" if verdict else _cote           # le bloc verdict porte déjà la grosse cote
+    _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
     return (f'<div class="cleg {_state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport spc-{_sp or ""}">{emo} {splbl}</b>'
             + (f'<span class="cleg-sep"> • </span>{comp}' if comp else "")
             + f'</span><span class="cleg-bdg {_bcls}">{_btxt}</span></div>'
-            f'{_teams_html}'
+            # Filet équipes↔pari comme les provisoires (demande user 2026-07-21) — seulement si équipes affichées.
+            f'{_teams_html}{_tdiv}'
             f'<div class="cleg-body"><div class="cleg-main">'
             f'<div class="cleg-pick">{sel}</div>{gloss}</div>{_cote_pill}</div>'
             f'{_verdict}{board}{_why}</div>')
@@ -6310,6 +6315,10 @@ def _sport_row(r: dict) -> str:
                   '<div class="mc-betl mc-noplay"><span class="mc-bi">·</span>'
                   '<span class="mc-bt">Analysé · pas de pari conseillé</span></div>'))
         # Ligne « Ré-analyse à HH:MM » RETIRÉE (demande user 2026-07-21) — n'apporte rien à l'abonné.
+        # Filet équipes↔pari sur TOUS les types de cartes (demande user 2026-07-21, « comme les
+        # provisoires ») — terminés/live/compact inclus. Seulement si la carte a un contenu dessous.
+        if line3:
+            line3 = '<div class="mc-div"></div>' + line3
     # ÉQUIPES avec tiret « — » pour TOUS les types (demande user 2026-07-14 : cartes semblables) — plus le
     # « vs » réservé aux terminés/live. L'en-tête « SPORT • Ligue » est déjà posé pour tous plus haut.
     teams = (f'{hf}{e(_noF(r.get("home")))} <span class="mc-dash">—</span> '
