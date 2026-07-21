@@ -1873,7 +1873,7 @@ CSS = """
   .cleg-bdg.l{background:rgba(255,107,107,.16);color:#ff6b6b}
   .cleg-bdg.n{background:rgba(144,164,190,.16);color:#90a4be}
   /* Badge « en cours » : ORANGE (pas décidé), plus vert (demande user 2026-07-18). */
-  .cleg-bdg.live{background:rgba(232,184,74,.16);color:var(--gold)}
+  .cleg-bdg.live{background:rgba(52,210,123,.16);color:#34d27b}   /* « 🟢 LIVE » vert comme les cartes (2026-07-21) */
   /* Équipes de la jambe sur leur propre ligne, en gros — comme les provisoires (.mc-teams). */
   .cleg-teams{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.24;letter-spacing:-.015em;
        margin:2px 0 9px;white-space:normal}
@@ -4642,7 +4642,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         if _lfz.get("score"):
             # EN COURS = PAS DÉCIDÉ -> ORANGE (plus vert : le vert = gagné). Badge « ⏳ EN COURS ».
             _state = "live"
-            _btxt, _bcls = "⏳ EN COURS", "live"
+            _btxt, _bcls = "🟢 LIVE", "live"   # « Live » comme les autres cartes (user 2026-07-21)
             # Barre « Chance live » PAR JAMBE (demande user 2026-07-21 : la barre pour TOUS les paris) —
             # même reflet en direct que les simples/provisoires. '' si non mappable. PURE AFFICHAGE.
             _leg_bar, _lp = "", None
@@ -4791,25 +4791,12 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
     _all_done = all(l.get("result") in ("won", "lost", "push", "void") for l in cb["legs"])
     if not include_settled and _all_done:
         return ""
-    # Badge « en cours » = le MÊME « 🟢 Live » que les autres paris quand une jambe TOURNE (demande user
-    # 2026-07-18) ; sinon (pré-match) on garde « ⏳ En cours ». ROBUSTESSE (retour user 2026-07-21 : badge
-    # resté « En cours » avec une jambe commencée) : une jambe non réglée dont le COUP D'ENVOI EST PASSÉ
-    # compte aussi comme live — le flux score peut rater le match (noms/décalage), pas l'horloge.
-    def _leg_started(l) -> bool:
-        if live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
-                                                   l.get("away", "")), l.get("sport")).get("score"):
-            return True
-        try:
-            _ko = datetime.fromisoformat(str(l.get("start")).replace("Z", "+00:00"))
-            return _ko <= datetime.now(timezone.utc)
-        except (ValueError, TypeError):
-            return False
-    _any_live = any(_leg_started(l) for l in (cb.get("legs") or []) if l.get("result") is None)
-    _running = ('<span class="mc-badge mc-live">🟢 Live</span>' if _any_live
-                else '<span class="mc-badge mc-wait">⏳ En cours</span>')
+    # PLUS de badge d'état COURANT en haut à droite (« 🟢 Live » / « ⏳ En cours ») — demande user
+    # 2026-07-21 : l'état vit dans les JAMBES (badge 🟢 LIVE par jambe). On ne garde le badge global
+    # que pour un combiné RÉGLÉ (✅/❌/➖, zone Résultats).
     _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
               "lost": '<span class="mc-badge mc-done">❌ Perdu</span>',
-              "void": '<span class="mc-badge mc-done">➖ Remboursé</span>'}.get(_res, _running)
+              "void": '<span class="mc-badge mc-done">➖ Remboursé</span>'}.get(_res, "")
     _cote = cb.get("cote")
     _pconf = round((cb.get("prob") or 0) * 100)
     # COTE + CONFIANCE EFFECTIVES si ≥1 jambe est ANNULÉE/remboursée (void/push) : elle SORT du produit
