@@ -1744,9 +1744,10 @@ CSS = """
        border:1px solid rgba(58,140,225,.42);
        box-shadow:0 0 0 1px rgba(34,167,238,.07),0 0 26px rgba(30,110,190,.15),0 12px 32px rgba(0,0,0,.5)}
   /* Cadre PROVISOIRE : bord GRIS neutre (remplace la pastille « PROVISOIRE ») — demande user 2026-07-14. */
-  /* Provisoires : cadre BLANC + halo BLANC (demande user 2026-07-21 — avant : gris sans halo). */
-  .row.mc.mc-tg.mc-prov-b{border-color:rgba(235,242,250,.5);
-       box-shadow:0 0 0 1px rgba(255,255,255,.08),0 0 26px rgba(255,255,255,.12),0 12px 32px rgba(0,0,0,.5)}
+  /* Provisoires : cadre BLANC + halo BLANC (demande user 2026-07-21 — avant : gris sans halo).
+     Opacité RENFORCÉE (retour user : « a l'air toujours gris ») : blanc franc + halo visible. */
+  .row.mc.mc-tg.mc-prov-b{border-color:rgba(255,255,255,.78);
+       box-shadow:0 0 0 1px rgba(255,255,255,.12),0 0 26px rgba(255,255,255,.22),0 12px 32px rgba(0,0,0,.5)}
   .mc-tg .mc-head{padding:12px 16px 11px}
   .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
@@ -1920,14 +1921,16 @@ CSS = """
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
   .zone-empty b{color:var(--text);font-weight:800}
-  .zone-play .zone-dot{background:var(--green);box-shadow:0 0 8px rgba(166,226,46,.55)}
-  .zone-play .zone-n{color:var(--green);background:rgba(166,226,46,.12)}
-  .zone-indic .zone-dot{background:var(--gold);box-shadow:0 0 8px rgba(246,197,74,.55)}
-  .zone-indic .zone-n{color:var(--gold);background:var(--gold-bg)}
-  .zone-indic .zone-tag{color:var(--gold);opacity:.9}
-  /* Combiné multisports du jour : catégorie dédiée (demande user 2026-07-19), accent violet « premium ». */
-  .zone-combo .zone-dot{background:#a78bfa;box-shadow:0 0 8px rgba(167,139,250,.6)}
-  .zone-combo .zone-n{color:#c4b5fd;background:rgba(167,139,250,.14)}
+  /* Points/compteurs de zone = MÊME couleur que le CADRE des cartes du type (demande user 2026-07-21) :
+     Paris du jour = cyan (cadre .row.pick), Provisoires = blanc (cadre .mc-prov-b), Combiné = vert
+     émeraude (cadre .mc-tg-gold vert). Fini le lime/or/violet historiques. */
+  .zone-play .zone-dot{background:#22b8ff;box-shadow:0 0 8px rgba(34,184,255,.55)}
+  .zone-play .zone-n{color:#5fd0ff;background:rgba(34,184,255,.12)}
+  .zone-indic .zone-dot{background:#eef2f7;box-shadow:0 0 8px rgba(255,255,255,.5)}
+  .zone-indic .zone-n{color:#eef2f7;background:rgba(255,255,255,.10)}
+  .zone-indic .zone-tag{color:#c9d4e0;opacity:.9}
+  .zone-combo .zone-dot{background:#34d27b;box-shadow:0 0 8px rgba(52,210,123,.6)}
+  .zone-combo .zone-n{color:#64cd8d;background:rgba(52,210,123,.14)}
   .zone-live .zone-dot{background:#34d27b;box-shadow:0 0 8px rgba(52,210,123,.6);animation:livepulse 1.9s ease-out infinite}
   .zone-live .zone-n{color:#5fe39b;background:rgba(52,210,123,.14)}
   .zone-todo{opacity:.88}
