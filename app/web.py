@@ -4703,7 +4703,8 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     # + on retire le jargon de math de pari (redondant avec la barre verdict) — que des faits/risque.
     _wsents = [w for s in (_why_sentences(_wt) or ([_wt] if _wt else [])) if (w := _strip_meta_stat(s))]
     _wtl = "".join(f"<li>{html.escape(s)}</li>" for s in _wsents)
-    _why = ('<details class="cleg-fold"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
+    # `.cleg-fold-bet` = MÊME filet de séparation au-dessus que « Pourquoi ce choix » (user 2026-07-21).
+    _why = ('<details class="cleg-fold cleg-fold-bet"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
             'Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
             f'<ul class="why-ul">{_wtl}</ul></details>') if (_wt and _wtl) else ""   # jamais un pli vide
     # LIGNE VERDICT (façon provisoire) : Confiance CALIBRÉE (la jambe porte `prob` en FRACTION + `code`) ·
