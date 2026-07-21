@@ -2941,11 +2941,14 @@ _SPA_JS = (
     # data-n = nb de matchs du jour). On pose le compte sur l'onglet correspondant (blanc ; Live = vert +
     # point clignotant). 0 -> badge caché. Fonction dédiée -> appelable AUSSI pour le panneau ACTIF (rendu
     # serveur, jamais passé par load) sinon le badge de l'onglet PRONOS ne s'affiche jamais (fix 2026-07-20).
-    "function badge(p){var _dc=p&&p.querySelector?p.querySelector('.dv-nav'):null;if(!_dc)return;"
+    # TOUS les .dv-nav du panneau (un panneau peut en émettre plusieurs : la home pose AUSSI le badge
+    # de l'onglet Live — sinon il n'apparaissait qu'après avoir visité l'onglet, retour user 2026-07-21).
+    "function badge(p){var _ds=p&&p.querySelectorAll?p.querySelectorAll('.dv-nav'):[];"
+    "for(var _k=0;_k<_ds.length;_k++){var _dc=_ds[_k];"
     "var _t=_dc.getAttribute('data-tab');var _n=parseInt(_dc.getAttribute('data-n')||'0',10);"
-    "var _nv=document.querySelector('.botnav a[data-tab=\"'+_t+'\"]');if(!_nv)return;"
+    "var _nv=document.querySelector('.botnav a[data-tab=\"'+_t+'\"]');if(!_nv)continue;"
     "if(_t==='directs')_nv.classList.toggle('has-live',_n>0);"
-    "var _bd=_nv.querySelector('.nav-n');if(_bd){_bd.textContent=_n>99?'99+':(''+_n);_bd.hidden=_n<=0;}}"
+    "var _bd=_nv.querySelector('.nav-n');if(_bd){_bd.textContent=_n>99?'99+':(''+_n);_bd.hidden=_n<=0;}}}"
     "function load(p){if(!p||p.getAttribute('data-loaded'))return;"
     "p.setAttribute('data-loaded','1');var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
@@ -4640,7 +4643,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             _btxt, _bcls = "⏳ EN COURS", "live"
             # Barre « Chance live » PAR JAMBE (demande user 2026-07-21 : la barre pour TOUS les paris) —
             # même reflet en direct que les simples/provisoires. '' si non mappable. PURE AFFICHAGE.
-            _leg_bar = ""
+            _leg_bar, _lp = "", None
             try:
                 _lld = match_select.live_state_for(_sp, _lh, _la)
                 _lhs, _las = _parse_live_score(_lfz.get("score"))
@@ -4653,12 +4656,20 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                 _gfrac = (match_select.basket_frac(_lld, l.get("comp") or "") if _sp == "basket" else None)
                 _pr = l.get("prob")
                 _prpct = (_pr * 100 if isinstance(_pr, (int, float)) and _pr <= 1 else _pr)
-                _leg_bar = _live_bar_html(analyses.live_prob(
+                _lp = analyses.live_prob(
                     _sp, sel_raw, l.get("code", ""), _lh, _la, _lhs, _las,
                     match_select.live_minute(_lld),
-                    match_select.live_win_odds(_sp, _lh, _la), _prpct, None, _lvals, _gfrac))
+                    match_select.live_win_odds(_sp, _lh, _la), _prpct, None, _lvals, _gfrac)
+                _leg_bar = _live_bar_html(_lp)
             except Exception:
-                _leg_bar = ""
+                _leg_bar, _lp = "", None
+            # Pari mathématiquement ACQUIS en cours de match (verrou, ex. set pris) -> visuel GAGNÉ :
+            # bord VERT + badge GAGNÉ, PLUS de barre chance live (demande user 2026-07-21). Le règlement
+            # RÉEL reste inchangé (à la fin du match) — pur AFFICHAGE anticipé. Symétrique si perdu.
+            if _lp and _lp.get("source") == "acquis":
+                _state, _btxt, _bcls, _leg_bar = "won", "GAGNÉ", "w", ""
+            elif _lp and _lp.get("source") == "perdu":
+                _state, _btxt, _bcls, _leg_bar = "lost", "PERDU", "l", ""
             board = ('<div class="cleg-board">'
                      + _live_scoreboard(_lfz["score"], _lh, _la, tennis=(_sp == "tennis"),
                                         server=_lfz.get("server"), points=_lfz.get("game_pts"),
@@ -5218,7 +5229,16 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     `results` = cartes des paris terminés d'aujourd'hui. Cliquer une date recharge #day-content via /jour."""
     today_iso = _sport_today().isoformat()
     zones, cnt = _today_zones(match_rows, None, results)
+    # Badge LIVE posé AUSSI depuis la home (retour user 2026-07-21 : le SPA ne charge que le panneau
+    # actif -> le badge de l'onglet Live n'apparaissait qu'après l'avoir visité). Total = paris joués
+    # live (live_count) + provisoires live + combiné du jour live. Le JS badge() lit TOUS les .dv-nav.
+    try:
+        _lv_prov = sum(1 for it in _programme_items(set(), framed=True) if it.get("_live"))
+    except Exception:
+        _lv_prov = 0
+    _lv_total = (live_count or 0) + _lv_prov + (1 if _daily_combo_any_live() else 0)
     body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
+            f'<span class="dv-nav" data-tab="directs" data-n="{_lv_total}" hidden></span>'
             + _calendar_strip(today_iso)
             + f'<div id="day-content">{zones}</div>')
     return body if frag else spa_shell("home", "Pronos", body, source=source)
@@ -6541,12 +6561,14 @@ def render_directs(play_live: list, prov_live: list, frag: bool = False) -> str:
     provisoires en cours. Une carte = dict `_sport_row` (pari) ou porte un `_html` (provisoire)."""
     play_live = sorted(list(play_live or []), key=lambda c: c.get("start_ts") or 0)
     prov_live = sorted(list(prov_live or []), key=lambda c: c.get("start_ts") or 0)
-    total = len(play_live) + len(prov_live)
 
     def _cards(rows):
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     # Combiné du jour : dans le Live SEULEMENT si ≥1 jambe est EN COURS (demande user 2026-07-19).
     _combo = _combo_tg_card(include_settled=False) if _daily_combo_any_live() else ""
+    # Le COMBINÉ live COMPTE dans le badge de l'onglet (retour user 2026-07-21 : badge absent alors
+    # qu'une jambe était en direct).
+    total = len(play_live) + len(prov_live) + (1 if _combo else 0)
     if not total and not _combo:
         zones = (
             '<div class="live-empty">'
