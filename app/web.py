@@ -617,14 +617,14 @@ CSS = """
   /* L2 : équipes (noms + prénoms complets) — ligne principale. */
   /* Équipes = HÉROS, 16 px + sur 2 lignes possibles pour TOUS les types de cartes (demande user 2026-07-14 :
      cartes semblables) — à venir, provisoire, LIVE et TERMINÉ ont désormais le même titre de match. */
-  .mc-teams{font-size:15px;font-weight:800;color:var(--text);margin-top:9px;letter-spacing:-.015em;
+  .mc-teams{font-size:14px;font-weight:800;color:var(--text);margin-top:9px;letter-spacing:-.015em;
        line-height:1.26;white-space:normal;overflow:visible;text-overflow:clip;text-wrap:balance}
   .mc-teams .dim{color:var(--dim);font-weight:600}
   /* Carte PREMIUM (pari à venir présenté carte) : demande user 2026-07-14 — l'ÉQUIPE (le match) est le
      HÉROS de la carte repliée -> plus GRANDE (16 px) que le pari à jouer (14 px, cf. .mc-pick). Padding
      roomier, équipes sur 2 lignes possibles. */
   .mc-prem .mc-head{padding:13px 16px 12px}
-  .mc-prem .mc-teams{font-size:15px;margin-top:9px;line-height:1.26;white-space:normal;overflow:visible;
+  .mc-prem .mc-teams{font-size:14px;margin-top:9px;line-height:1.26;white-space:normal;overflow:visible;
        text-overflow:clip;text-wrap:balance}
   /* L3 : LISTE des paris (intitulés,
   1/ligne) — masquée une fois DÉPLIÉE (les paris détaillés s'affichent).
@@ -1754,7 +1754,7 @@ CSS = """
   .mc-tg .mc-comp-sep{color:#5f7a97}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
   /* Équipes = HÉROS de la carte (demande user 2026-07-14) : plus GRANDES (16 px) que le pari (14 px). */
-  .mc-tg .mc-teams{font-size:16px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
+  .mc-tg .mc-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
        white-space:normal;overflow:visible;text-overflow:clip;text-wrap:balance}
   /* Court extrait d'analyse à BARRE CYAN à gauche (comme la carte Telegram) — texte léger, plafonné à
      4 lignes (demande user 2026-07-12 ; line-clamp = filet visuel, la coupe texte fait déjà l'essentiel). */
@@ -1868,7 +1868,7 @@ CSS = """
   /* Badge « en cours » : ORANGE (pas décidé), plus vert (demande user 2026-07-18). */
   .cleg-bdg.live{background:rgba(232,184,74,.16);color:var(--gold)}
   /* Équipes de la jambe sur leur propre ligne, en gros — comme les provisoires (.mc-teams). */
-  .cleg-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.24;letter-spacing:-.015em;
+  .cleg-teams{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.24;letter-spacing:-.015em;
        margin:2px 0 9px;white-space:normal}
   .cleg-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
   .cleg-main{flex:1;min-width:0}
@@ -4719,7 +4719,8 @@ def _combo_tg_legs(cb: dict) -> str:
     ORDRE CHRONOLOGIQUE des coups d'envoi (demande user 2026-07-21) — l'ordre de construction du combiné
     (prob décroissante) n'a aucun sens pour le lecteur. AFFICHAGE seul (cb['legs'] stocké intact)."""
     _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
-    return "".join(_leg_card(l, why=True, verdict=True) for l in _legs)
+    # Fin filet de SÉPARATION entre deux jambes (demande user 2026-07-21) — même patron que .mc-sep.
+    return _MC_SEP.join(_leg_card(l, why=True, verdict=True) for l in _legs)
 
 
 def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str) -> str:
@@ -4809,7 +4810,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
     # Synthèse au-dessus des jambes RETIRÉE (demande user 2026-07-18) — chaque jambe porte déjà son « pourquoi ».
     _nlegs = len(cb.get("legs") or [])
     _body = (f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
-             + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False))
+             + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
     return _combo_gold_card(title="COMBINÉ MULTISPORT", subtitle=f'{_nlegs} jambes',
@@ -4869,7 +4870,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     out += (f'<div class="mc-combo-legs">'
             + "".join(_leg_card(l, why=True, verdict=True, teams=False) for l in _legs)   # même match -> pas d'équipes répétées
             + '</div>'
-            + _verdict_block(_cote, _pconf, '🎯 Compté au ROI · mise 1 u', _cote_big, calibrated=False))
+            + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
     return out
 
 
