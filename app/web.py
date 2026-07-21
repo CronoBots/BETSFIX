@@ -6321,6 +6321,8 @@ def _sport_row(r: dict) -> str:
     # abstention gardent leur affichage adapté (résultat, score, compact…).
     _premium = ""
     _no_expand = False    # carte NON dépliable : le pli « 💡 Pourquoi » porte déjà toute l'analyse
+    _pwhy = ""            # pli « Pourquoi ce choix » (rempli par le bloc premium ; en LIVE il est posé
+                          # APRÈS scoreboard + chance live, comme sur les jambes — user 2026-07-21)
     _uid = re.search(r"/(\d+)", url)
     _pmid = _uid.group(1) if _uid else None
     # COMBINÉ COUPE DU MONDE (ROI) À VENIR : présenté EXACTEMENT comme le combiné du jour (demande user
@@ -6371,9 +6373,13 @@ def _sport_row(r: dict) -> str:
         # Texte COMPLET (comme les jambes de combiné) : le bloc « 🎯 » n'est plus répété dans le dépli
         # (card_details) -> le pli en est le SEUL porteur, on ne tronque donc pas le raisonnement.
         _pwhy = _why_fold(_prov_why_snippet(sport_key, _pmid, maxlen=100000, played=True)) if _pmid else ""
+        # LIVE : MÊME ORDRE que les jambes de combiné (demande user 2026-07-21) — verdict, PUIS scoreboard
+        # + chance live (posés par _live_score_row après mc-sub), et le pli « Pourquoi » EN DERNIER (avec
+        # son filet). Hors live : le pli reste sous le verdict (pas de scoreboard).
         _premium = ('<div class="mc-div"></div>'
                     + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
-                    + _verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True) + _pwhy)
+                    + _verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True)
+                    + ("" if is_live else _pwhy))
         # Le pli « 💡 Pourquoi » porte DÉJÀ toute l'analyse (demande user 2026-07-20) -> la carte n'a plus
         # de corps dépliable en dessous (Cotes & chances / Mise / détails = doublon). On le retire de
         # l'AFFICHAGE (le .md/les données restent intacts). Seulement si le pli existe (sinon garder le corps).
@@ -6427,7 +6433,7 @@ def _sport_row(r: dict) -> str:
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{line3}</div>'
-            f'{_live_score_row}</div>{_chev}</div>')
+            f'{_live_score_row}{_pwhy if (is_live and _premium) else ""}</div>{_chev}</div>')
     # ---- CORPS (déplié au tap) : scoreboard + barres % + paris + liens + ANALYSE (chargée d'office
     # à l'ouverture, plus de bouton « Voir l'analyse »). Un clic n'importe où dans la carte la replie. ----
     pkp = f'&pk={r["pick_kind"]}' if r.get("pick_kind") else ""   # type de pari -> analyse cohérente
