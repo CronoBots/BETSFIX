@@ -1761,7 +1761,9 @@ CSS = """
   .mc-note{margin-top:9px;padding-left:13px;border-left:2px solid #3a9fe0;color:#a7bcd6;
        font-size:12.5px;font-weight:500;line-height:1.5;
        display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
-  .mc-div{height:1px;margin:10px 0 8px;background:linear-gradient(90deg,rgba(120,170,220,.22),rgba(120,170,220,.03))}
+  /* MÊME trait que le filet au-dessus de « Pourquoi ce choix » (.cleg-fold-bet border-top) — demande
+     user 2026-07-21 : fini le dégradé bleuté, trait blanc uni discret partout. */
+  .mc-div{height:1px;margin:10px 0 8px;background:rgba(255,255,255,.06)}
   .mc-open .mc-div{display:none}
   .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
   /* Pari à jouer : SOUS les équipes et PLUS PETIT qu'elles (demande user 2026-07-14). Reste en gras (le
