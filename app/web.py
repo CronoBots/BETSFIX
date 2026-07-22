@@ -4172,6 +4172,11 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
     # d'abstention SANS aucun fait).
     _PURE_META = re.compile(r"^(on s['’]abstient|on ne joue pas|pas de pari conseill|aucun pari|il n['’]y a "
                             r"pas de pari|d['’]o[uù] l['’]abstention|abstention\b)[^.!?…]{0,70}[.!?…]?$", re.I)
+    # « À éviter / SKIP : le 1X2… et le BTTS… » = les marchés qu'on NE joue PAS. Hors-sujet dans le pli
+    # « Pourquoi CE choix » (retour user 2026-07-22 : on justifie le pari JOUÉ, pas les autres marchés
+    # écartés — ce raisonnement de sélection reste dans le .md, il n'a rien à faire à l'affichage).
+    _SKIP_MARKET = re.compile(r"^\s*(à\s+[ée]viter|à\s+[ée]carter|à\s+bannir|à\s+ne\s+pas\s+jouer|skip\b|"
+                              r"on\s+[ée]vite|autres?\s+march[ée]s?)\b", re.I)
     def _clean(raw: str) -> str:
         t = re.sub(r"(?im)^\s*PROV:.*$", "", raw or "")
         t = re.sub(r"^\s*#+.*$", "", t, count=1, flags=re.M)          # retire un éventuel titre de section
@@ -4190,9 +4195,11 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
         #     à la CLAUSE près (_strip_meta_stat, audit 2026-07-21) -> un fait mêlé à la math SURVIT.
         _sents = re.split(r"(?<=[.!?…])\s+", t)
         _kept = [w for s in _sents
-                 if s and not _PURE_META.match(s.strip()) and (w := _strip_meta_stat(s))]
+                 if s and not _PURE_META.match(s.strip()) and not _SKIP_MARKET.match(s.strip())
+                 and (w := _strip_meta_stat(s))]
         if not _kept:      # tout filtré (analyse 100 % math) -> ne pas renvoyer vide, garder les faits
-            _kept = [s for s in _sents if s and not _PURE_META.match(s.strip())]
+            _kept = [s for s in _sents if s and not _PURE_META.match(s.strip())
+                     and not _SKIP_MARKET.match(s.strip())]
         return " ".join(_kept).strip()
 
     try:

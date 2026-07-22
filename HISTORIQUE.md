@@ -12,6 +12,21 @@
 
 ---
 
+## 2026-07-22 — Pli « Pourquoi ce choix » : retirer la phrase « À éviter / SKIP » (marchés non joués)
+
+**Quoi** (capture user, São Paulo « moins de 2,5 buts ») : le pli « Pourquoi ce choix » se terminait par
+une puce « **À éviter / SKIP : le 1X2 (…) et le BTTS (…)** » — les marchés qu'on NE joue PAS. Hors-sujet :
+le pli justifie le pari JOUÉ, pas les paris écartés.
+
+**Fix** (`web._prov_why_snippet._clean`, comme le filtrage `_PURE_META`/`_strip_meta_stat` déjà en place) :
+nouveau motif `_SKIP_MARKET` (`^à éviter|à écarter|à bannir|à ne pas jouer|skip|on évite|autres marchés`)
+→ ces phrases sont retirées de l'AFFICHAGE (les 2 plis passent par `_prov_why_snippet` : simple retenu
+ligne 6391 + provisoire 4405). Le raisonnement de sélection reste INTACT dans le `.md`. **Vérifié** : la
+phrase « À éviter / SKIP… » est retirée, tandis que les faits ET le bémol « Le risque principal… » sont
+CONSERVÉS. Purement affichage.
+
+---
+
 ## 2026-07-22 — « Value +0 % » inutile/trompeuse sur les jambes de combiné : colonne masquée sans edge
 
 **Quoi** (capture user, jambe Navone GAGNÉ du combiné) : colonne **VALUE +0 %** (en jaune) affichée alors
