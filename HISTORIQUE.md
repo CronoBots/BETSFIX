@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-22 — « Value +0 % » inutile/trompeuse sur les jambes de combiné : colonne masquée sans edge
+
+**Quoi** (capture user, jambe Navone GAGNÉ du combiné) : colonne **VALUE +0 %** (en jaune) affichée alors
+que la jambe juste au-dessus (Vacherot) n'a PAS de colonne value. Un « +0 % » n'apporte rien et le « + »
+jaune suggère à tort un edge.
+
+**Cause** (`analyses.verdict_line` ligne 836) : la colonne Value s'affichait dès `ep >= 0`, donc un EV qui
+s'ARRONDIT à 0 (Navone : 83 % × 1,20 − 1 = −0,4 % → `round` 0) déclenchait « +0 % ». Vacherot (−2,4 % → −2)
+était bien masqué : c'est le **0** qui passait.
+
+**Fix** : seuil `ep >= 0` → **`ep >= 1`** (+ `vcls` ambre `ep>=1`). La colonne Value n'apparaît sur un
+COMBINÉ (`calibrated=False`) ou un PROVISOIRE (`hide_neg_value`) que si edge RÉEL ≥ +1 % (règle « 💎 si
+EV+ » stricte). Carte de SIMPLE (`calibrated=True`) : transparence totale conservée (value montrée même à
+0/négatif). **Vérifié** : Navone (0 %)→pas de colonne, Vacherot (−2 %)→non, edge +8 %→affichée, simple→toujours.
+Purement affichage.
+
+---
+
 ## 2026-07-22 — Combiné du jour : plancher de proba 55 % + synthèse honnête (fin des faux « corrélé »)
 
 **Quoi** (question user « le combiné du jour était-il bien construit ? »). Audit du combiné du 22/07 :

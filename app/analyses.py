@@ -784,9 +784,10 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     `conf` = confiance affichée (calibrée), `cote` = cote décimale, `ev` = value % (calculée sur la MÊME
     conf -> récit exact). `with_cote` -> ajoute la colonne Cote (cartes de simple/combiné ; PAS les jambes,
     qui montrent déjà @cote). '' si données insuffisantes. Classes CSS `.vb-*`/`.vm-*` (cf. web.py). Seuils
-    couleur/mot alignés sur web._conf_hue/_conf_word. Value colorée (vert ≥+3, ambre 0..3, rouge <0) ;
-    masquée si EV<0 sur un combiné (calibrated=False, pari fiabilité) OU un provisoire (hide_neg_value=True,
-    pari indicatif hors ROI — pas un value bet) : règle « 💎 si EV+ », pas de rouge décourageant."""
+    couleur/mot alignés sur web._conf_hue/_conf_word. Value colorée (vert ≥+3, ambre +1..2, rouge <0) ;
+    masquée si EV ≤ 0 sur un combiné (calibrated=False, pari fiabilité) OU un provisoire (hide_neg_value=True,
+    pari indicatif hors ROI — pas un value bet) : règle « 💎 si EV+ » STRICTE (un « +0 % » n'est pas un edge —
+    pas de colonne). Carte de SIMPLE : transparence totale (value montrée même à 0/négatif)."""
     try:
         cv = float(cote); cf = float(conf); ep = int(round(ev))
     except (TypeError, ValueError):
@@ -822,7 +823,7 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
             col, grad, word = _GRN_C, _GRN, "Solide"
         else:
             col, grad, word = _GRN_C, _GRN, "Très solide"
-    vcls = "vpos" if ep >= 3 else "vmid" if ep >= 0 else "vneg"
+    vcls = "vpos" if ep >= 3 else "vmid" if ep >= 1 else "vneg"
     mark = f'<b class="vb-mark" style="left:{be}%"></b>' if 0 < be < 100 else ""
     # GRILLE de métriques (pleine largeur, colonnes alignées). Marché toujours ; Value sauf combiné à EV<0
     # (pari fiabilité, pas value) ; Cote seulement sur les cartes de simple/combiné (with_cote).
@@ -833,7 +834,12 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
              f'<span class="vm-v" style="color:{col}">{cfi}%</span>'
              f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>',
              f'<div class="vm-cell"><span class="vm-l">Marché</span><span class="vm-v">{be}%</span></div>']
-    if ep >= 0 or (calibrated and not hide_neg_value):
+    # VALUE affichée seulement si VRAI edge (ep ≥ +1 %) — un « +0 % » (EV qui arrondit à 0, ex. conf 83 %
+    # × cote 1,2 = −0,4 %) n'apporte RIEN et le « + » jaune suggère à tort un edge (retour user 2026-07-22).
+    # Exception : sur une carte de SIMPLE (calibrated ET non-provisoire), on garde la transparence totale
+    # (value montrée même à 0/négatif). Combiné (calibrated=False) et provisoire (hide_neg_value) : « 💎 si
+    # EV+ » strict -> pas de colonne Value sans edge positif.
+    if ep >= 1 or (calibrated and not hide_neg_value):
         cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>'
                      f'<span class="vm-v {vcls}">{"+" if ep >= 0 else ""}{ep}%</span></div>')
     if with_cote:
