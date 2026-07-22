@@ -12,6 +12,23 @@
 
 ---
 
+## 2026-07-22 — Repères du modèle des COMBINÉS : légende + explications manquantes (mode compact retiré)
+
+**Quoi** (capture user, carte Combinés des Stats) : la courbe des combinés affiche des repères numérotés
+(1, 2, 4, 5) mais AUCUNE explication — « Je ne vois pas les explications des repères des combinés ».
+
+**Cause** (`web.render_combos` → `_mile_legend(_mc, compact=True)`) : en mode `compact`, on n'affichait NI
+l'en-tête « Repères du modèle » NI les pastilles cliquables (au motif « redondant avec les simples »). Or
+les repères combinés (`_ms_combo`, portée `combo`/`both`) sont DISTINCTS des simples (`_ms_simple`) : ceux
+de portée `combo` n'apparaissent nulle part ailleurs → jamais expliqués.
+
+**Fix** : `_mile_legend(_mc)` (compact retiré) → la carte Combinés a désormais sa propre section « Repères
+du modèle · touchez un repère pour le détail » + pastilles numérotées cliquables + explications, comme les
+simples. JS déjà scopé par `.spf-cv` (ligne 3085) → pas de confusion entre les 2 séries. **Vérifié** :
+en-tête + hint + pastilles + explications présents ; scopes distincts. Purement affichage.
+
+---
+
 ## 2026-07-22 — Pli « Pourquoi » : retirer la phrase méta « Proba estimée ~X %, cohérente avec le sharp »
 
 **Quoi** (capture user, Palmeiras double chance X2) : dernière puce du pli = « **Proba estimée ~78 %,

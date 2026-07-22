@@ -3849,7 +3849,7 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
         f'<span><b>{cs["n"]}</b> paris</span>'
         f'<span><b>@{cs.get("avg_odds") or "—"}</b> cote</span></div>'
         f'<div class="spf-cv-extra">{extra}</div>'
-        f'{legs}{_mile_legend(_mc, compact=True)}')
+        f'{legs}{_mile_legend(_mc)}')
     _rec_c = _recent_bets_html(analyses.pending_roi_bets(combo=True) + list(reversed(cs.get("recent") or [])))
     if _rec_c:
         return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_c_inner}'
