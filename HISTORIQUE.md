@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-22 — Affichage : retirer les unités « u » du site (garder le ROI en %)
+
+**Quoi** (demande user : « parler de ROI mais pas de u sur le site ») : les unités de mise « u » (jargon de
+parieur) retirées de l'AFFICHAGE ; le ROI en % exprime déjà la rentabilité.
+
+**4 endroits corrigés** (les bilans de jour / résultats / listes détaillées étaient DÉJÀ tout en % ROI) :
+- `routers/web.py` hero « Rentabilité globale » : retiré « · +X u de profit » (garde paris réglés + réussite ;
+  le gros ROI % est juste au-dessus).
+- `routers/web.py` note provisoires : « (mise à plat 1 u) » retiré.
+- `routers/web.py` note combiné du jour : « (mise à plat 1 u) » retiré.
+- `web.py render_combos` : ligne secondaire « profit +X.Xu » retirée (garde « rabot % » ; ROI % déjà en tête).
+
+Les COMMENTAIRES internes (calcul en mise plate 1 u) restent — c'est la mécanique, pas l'affichage. Le scan
+interdit déjà « u » dans les analyses (`generate_analyses.py:389`). **Vérifié** : `py_compile` OK, 0 « u »
+affiché résiduel, Telegram non concerné. Purement affichage.
+
+---
+
 ## 2026-07-22 — Repères du modèle des COMBINÉS : légende + explications manquantes (mode compact retiré)
 
 **Quoi** (capture user, carte Combinés des Stats) : la courbe des combinés affiche des repères numérotés

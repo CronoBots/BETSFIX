@@ -275,8 +275,7 @@ def _hero_card(full: dict, combo: dict) -> str:
         '<div class="sx-hero">'
         '<div class="sx-hero-lbl">Rentabilité globale · tous paris</div>'
         f'<div class="sx-hero-roi {_cls}">{"+" if roi >= 0 else ""}{roi}%</div>'
-        f'<div class="sx-hero-sub"><b>{bets}</b> paris réglés · <b>{pct}%</b> de réussite · '
-        f'<b>{"+" if profit >= 0 else ""}{round(profit, 1)} u</b> de profit</div>'
+        f'<div class="sx-hero-sub"><b>{bets}</b> paris réglés · <b>{pct}%</b> de réussite</div>'
         + _chart + '</div>')
 
 
@@ -619,7 +618,7 @@ def _provisional_card() -> str:
         '<div class="sx-data-note">« Et si on jouait <b>chaque provisoire</b> ? » — sur les matchs '
         '<b>sans value</b>, le MEILLEUR angle indicatif <b>analysé</b> (l\'angle le plus solide du match, '
         'pas un favori par défaut). Mesuré à titre indicatif pour valider la discipline d\'abstention : '
-        '<b>ne compte PAS</b> dans le ROI réel (mise à plat 1 u).</div>'
+        '<b>ne compte PAS</b> dans le ROI réel.</div>'
         '<div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>provisoires suivis</span></div>'
         f'<div class="sx-kpi"><b>{s.get("settled", 0)}</b><span>réglés</span></div>'
@@ -746,8 +745,8 @@ def _combo_daily_card() -> str:
         '<span>compté au ROI</span></div>'
         '<div class="sx-data-note"><b>UN combiné multisport par jour</b>, garanti : les paris <b>les plus '
         'probables</b> de tous les matchs analysés, combinés pour atteindre <b>une cote ≥ 1,95</b> avec le '
-        '<b>taux de réussite maximal</b>. Mélange sports et marchés. <b>Toujours compté au ROI</b> (mise à '
-        'plat 1 u) — décision 2026-07-17. Ce bloc en donne le détail.</div>'
+        '<b>taux de réussite maximal</b>. Mélange sports et marchés. <b>Toujours compté au ROI</b> '
+        '— décision 2026-07-17. Ce bloc en donne le détail.</div>'
         + _cur_html +
         '<div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>jours suivis</span></div>'

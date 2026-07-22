@@ -3823,12 +3823,11 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
     chart = (f'<div class="sx-equity">'
              f'{_hero_chart(pts, uid="combos", dates=cs.get("dates") or [], milestones=_mc)}</div>'
              if len([p for p in pts if p]) else "")
-    prof = cs.get("profit")
     shave = cs.get("avg_shave")
-    # EXTRAS conservés (ligne secondaire sous les stats) : profit (u) + rabot moyen vs produit.
-    extra = (f'<span>profit <b class="arec-{_roi_cls(prof, cs["n"])}">{prof:+.1f}u</b></span>'
-             if prof is not None else '')
-    extra += f'<span>rabot <b>{shave if shave is not None else "—"}%</b></span>'
+    # EXTRA (ligne secondaire sous les stats) : rabot moyen vs produit. Le PROFIT en « u » (unités) a été
+    # RETIRÉ de l'affichage (demande user 2026-07-22 : « parler de ROI mais pas de u sur le site ») — le ROI
+    # en % exprime déjà la rentabilité, l'unité de mise est du jargon de parieur.
+    extra = f'<span>rabot <b>{shave if shave is not None else "—"}%</b></span>'
     # réussite par nombre de jambes (info en plus, propre aux combinés)
     legrows = ""
     for k, g in sorted((cs.get("by_legs") or {}).items()):
