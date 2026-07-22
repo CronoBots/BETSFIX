@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-22 — Pli « Pourquoi » : retirer la phrase méta « Proba estimée ~X %, cohérente avec le sharp »
+
+**Quoi** (capture user, Palmeiras double chance X2) : dernière puce du pli = « **Proba estimée ~78 %,
+cohérente avec le sharp (50 % victoire + 29 % nul).** » — méta-technique pur : répète la Confiance déjà
+affichée (78 %), jargon « le sharp » (= Pinnacle, incompréhensible pour l'abonné), décompose la proba.
+Aucun fait sur le match.
+
+**Cause** : `web._META_STAT` (filtre jargon déjà en place) ne couvrait ni « proba estimée » (seulement
+« ma proba » / « mon estimation ») ni « le sharp » / « Pinnacle ».
+
+**Fix** : motif `_META_STAT` étendu → `proba estim`, `le sharp`, `pinnacle`, `cohérent avec le sharp/marché`.
+La phrase (100 % méta, sans séparateur) est droppée entière par `_strip_meta_stat`. Motif « le sharp » gardé
+AVEC l'article (pas `sharp` isolé) pour ne pas matcher un éventuel joueur nommé Sharp. **Vérifié** : les 4
+puces de FAITS/RISQUE (forme 1-0/4-1/3-0, H2H 5-3, 0,7 but/match…) CONSERVÉES, seule la puce proba/sharp
+retirée. Effet immédiat (filtre de rendu, .md intact). Purement affichage.
+
+---
+
 ## 2026-07-22 — Pli « Pourquoi ce choix » : retirer la phrase « À éviter / SKIP » (marchés non joués)
 
 **Quoi** (capture user, São Paulo « moins de 2,5 buts ») : le pli « Pourquoi ce choix » se terminait par

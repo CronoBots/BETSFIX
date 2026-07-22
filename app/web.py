@@ -4129,9 +4129,10 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
 # (elle reste dans le .md). Signaux FORTS UNIQUEMENT (absents des phrases de FAITS/RISQUE, même quand elles
 # disent « aucune value / marché efficient ») -> on ne touche PAS aux faits. Partagé : plis simples/
 # provisoires (_prov_why_snippet) ET jambes de combiné (_leg_card).
-_META_STAT = re.compile(r"\bma\s+proba\b|\bmon\s+estimation\b|proba\s+juste|\bla\s+juste\s*\(|"
+_META_STAT = re.compile(r"\bma\s+proba\b|\bmon\s+estimation\b|proba\s+juste|proba\s+estim|\bla\s+juste\s*\(|"
                         r"juste\s+marché|marché\s+valoris|valorise\s+cette|écart[- ]type|\bEV\b|"
-                        r"pts?\s+d['’]EV|d['’]espérance", re.I)
+                        r"pts?\s+d['’]EV|d['’]espérance|\ble\s+sharp\b|\bpinnacle\b|"
+                        r"coh[ée]rent\w*\s+avec\s+le\s+(sharp|marché)", re.I)
 
 
 def _strip_meta_stat(sentence: str) -> str:
