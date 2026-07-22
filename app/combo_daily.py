@@ -23,10 +23,12 @@ MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)
 MIN_LEGS = 2             # un « combiné » = au moins 2 jambes
 MIN_LEG_PROB = 0.65      # « les plus probables » : jambe fiable seulement (relevé pour la sécurité)
 MIN_LEG_ODDS = 1.06      # une jambe quasi-sûre à cote ~1.01 n'apporte rien vers le seuil
-MIN_COMBO_PROB = 0.55    # PLANCHER de proba combinée (demande user 2026-07-22) : ne PAS publier un combiné
-#                          sous 55 % (« pile ou face » à cote ≥ seuil, ex. 49 % le 22/07 qui a perdu). Plancher
-#                          CONSTANT. 0,55 × 1,95 ≈ 1,07 -> value théorique positive garantie. Contrepartie
-#                          assumée : certains jours SANS combiné (cote ≥ 1,95 ET proba ≥ 55 % pas satisfiables).
+MIN_COMBO_PROB = 0.50    # PLANCHER de proba combinée (demande user 2026-07-22, révisé : « > 50 % mais rester
+#                          à 1,95 »). On garde la cote ≥ 1,95 (grosse cote) et on rejette seulement le vrai
+#                          « pile ou face » perdant (ex. 49 % le 22/07). Plancher CONSTANT. ⚠️ à cote 1,95 le
+#                          break-even value est ~51 % : 50 % n'est donc PAS strictement value-positif — c'est un
+#                          seuil de FIABILITÉ (« mieux que pile ou face »), pas un garde-fou EV. Contrepartie :
+#                          certains jours SANS combiné si cote ≥ 1,95 ET proba > 50 % ne sont pas satisfiables.
 # NOTE : le garde-fou EV (MIN_COMBO_EV, 2026-07-14 : s'abstenir sans value) a été RETIRÉ le 2026-07-17
 # sur demande user explicite : « 1 combiné multisport par jour, le plus fiable, ≥ 1,95, TOUJOURS compté
 # au ROI » — même les jours sans edge. On publie le combiné le PLUS PROBABLE atteignant 1,95 (None si le

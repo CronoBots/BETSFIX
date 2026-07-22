@@ -25,10 +25,15 @@ descend jusqu'à 49 % ; (b) le prompt de synthèse (`generate_analyses._write_co
 explicitement « idéalement leur corrélation — des issues qui tombent dans le même scénario », forçant le
 LLM à inventer une corrélation inexistante (le combiné du jour a TOUJOURS ≤1 jambe/match → toujours indépendant).
 
-**Fix** (choix user : plancher CONSTANT à 55 %) :
-- `app/combo_daily.py` : `MIN_COMBO_PROB = 0.55` ; `pick_combo` renvoie `None` si la MEILLEURE proba
-  atteignable reste < 55 % (0,55 × 1,95 ≈ 1,07 → value théorique positive). Conflit cote ≥ 1,95 ET
-  proba ≥ 55 % non satisfiable → **pas de combiné ce jour-là** (qualité > présence ; None déjà géré ligne 308).
+**Fix** (choix user, révisé en séance : plancher CONSTANT — d'abord 55 %, puis **« > 50 % mais rester à
+1,95 »** après constat que 55 % + cote 1,95 exige +7 % de value, rarement dispo → combiné presque toujours
+absent) :
+- `app/combo_daily.py` : `MIN_COMBO_PROB = 0.50` (cote min INCHANGÉE = 1,95) ; `pick_combo` renvoie `None`
+  si la MEILLEURE proba atteignable reste < 50 %. Rejette le vrai « pile ou face » (49 % du 22/07), garde
+  tout > 50 % (ex. 21/07 à 50,4 %, qui avait gagné). ⚠️ à cote 1,95 le break-even value est ~51 % → 50 %
+  est un seuil de FIABILITÉ (« mieux que pile ou face »), PAS un garde-fou EV. Conflit cote ≥ 1,95 ET
+  proba > 50 % non satisfiable → **pas de combiné ce jour-là** (None déjà géré ligne 308). Testé : 49 %→None,
+  50,4 %→gardé, vivier restant du 22/07 (plafond 45 %)→None.
 - `tools/generate_analyses.py` : instruction de synthèse CONDITIONNELLE — jambes de matchs différents
   (`_independent`) → interdit le vocabulaire « corrélation / même scénario », exige une synthèse honnête
   (chaque issue solide individuellement) ; corrélation autorisée seulement si des jambes partagent un match.
