@@ -18,7 +18,8 @@ import os
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRACK_PATH = os.path.join(_ROOT, "data", "combo_daily_track.json")
 
-MIN_ODDS = 1.95           # cote minimale du combiné (demande user 2026-07-17 : « au moins 1,95 »)
+MIN_ODDS = 1.90           # cote minimale du combiné (demande user 2026-07-22 : « > 1,9 » — révisé depuis
+#                           le 1,95 du 2026-07-17, pour un peu plus de marge face au plancher de proba)
 MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)
 MIN_LEGS = 2             # un « combiné » = au moins 2 jambes
 MIN_LEG_PROB = 0.65      # « les plus probables » : jambe fiable seulement (relevé pour la sécurité)

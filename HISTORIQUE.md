@@ -28,7 +28,9 @@ LLM à inventer une corrélation inexistante (le combiné du jour a TOUJOURS ≤
 **Fix** (choix user, révisé en séance : plancher CONSTANT — d'abord 55 %, puis **« > 50 % mais rester à
 1,95 »** après constat que 55 % + cote 1,95 exige +7 % de value, rarement dispo → combiné presque toujours
 absent) :
-- `app/combo_daily.py` : `MIN_COMBO_PROB = 0.50` (cote min INCHANGÉE = 1,95) ; `pick_combo` renvoie `None`
+- `app/combo_daily.py` : `MIN_COMBO_PROB = 0.50` ; **`MIN_ODDS` 1,95 → 1,90** (« > 1,9 », ajusté juste
+  après : suffit souvent à passer de 3 à 2 jambes → proba remonte, ex. 22/07 débloque un combiné 1,90 @ 52 %) ;
+  `pick_combo` renvoie `None`
   si la MEILLEURE proba atteignable reste < 50 %. Rejette le vrai « pile ou face » (49 % du 22/07), garde
   tout > 50 % (ex. 21/07 à 50,4 %, qui avait gagné). ⚠️ à cote 1,95 le break-even value est ~51 % → 50 %
   est un seuil de FIABILITÉ (« mieux que pile ou face »), PAS un garde-fou EV. Conflit cote ≥ 1,95 ET
