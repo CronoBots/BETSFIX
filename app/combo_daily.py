@@ -23,10 +23,14 @@ MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)
 MIN_LEGS = 2             # un « combiné » = au moins 2 jambes
 MIN_LEG_PROB = 0.65      # « les plus probables » : jambe fiable seulement (relevé pour la sécurité)
 MIN_LEG_ODDS = 1.06      # une jambe quasi-sûre à cote ~1.01 n'apporte rien vers le seuil
+MIN_COMBO_PROB = 0.55    # PLANCHER de proba combinée (demande user 2026-07-22) : ne PAS publier un combiné
+#                          sous 55 % (« pile ou face » à cote ≥ seuil, ex. 49 % le 22/07 qui a perdu). Plancher
+#                          CONSTANT. 0,55 × 1,95 ≈ 1,07 -> value théorique positive garantie. Contrepartie
+#                          assumée : certains jours SANS combiné (cote ≥ 1,95 ET proba ≥ 55 % pas satisfiables).
 # NOTE : le garde-fou EV (MIN_COMBO_EV, 2026-07-14 : s'abstenir sans value) a été RETIRÉ le 2026-07-17
 # sur demande user explicite : « 1 combiné multisport par jour, le plus fiable, ≥ 1,95, TOUJOURS compté
-# au ROI » — même les jours sans edge. On publie donc le combiné le PLUS PROBABLE atteignant 1,95, chaque
-# jour (None seulement si le vivier ne permet PAS d'atteindre 1,95). cf. mémoire combo-daily-multisport.
+# au ROI » — même les jours sans edge. On publie le combiné le PLUS PROBABLE atteignant 1,95 (None si le
+# vivier ne permet PAS d'atteindre 1,95 OU si la meilleure proba reste < 55 %). cf. mémoire combo-daily-multisport.
 
 # Marchés en PALIERS DE FIABILITÉ (taux de réussite MESURÉS, cf. COMBO_MISSION). On compare le PREMIER
 # jeton du code (ex. "SETWIN 1 HOME" -> "SETWIN"). Le combiné se construit d'abord AVEC LE PALIER 1 SEUL
@@ -159,11 +163,12 @@ def _prod(xs):
 
 def pick_combo(cands: list[dict], min_odds: float = MIN_ODDS, max_legs: int = MAX_LEGS,
                min_legs: int = MIN_LEGS, min_leg_prob: float = MIN_LEG_PROB,
-               min_leg_odds: float = MIN_LEG_ODDS) -> dict | None:
+               min_leg_odds: float = MIN_LEG_ODDS, min_combo_prob: float = MIN_COMBO_PROB) -> dict | None:
     """Choisit les jambes MAXIMISANT le produit des probabilités sous contrainte produit des cotes
     ≥ min_odds, ≤ 1 jambe/match (`mid`), 2..max_legs jambes. Glouton par efficacité
     log(cote)/(−log(prob)) [pousse vers le seuil de cote en perdant le moins de proba] + raffinement
-    (retrait des jambes superflues + swaps). None si irréalisable. cands : [{mid, sport, sel, cote,
+    (retrait des jambes superflues + swaps). None si irréalisable OU si la MEILLEURE proba atteignable
+    reste < min_combo_prob (plancher : pas de combiné « pile ou face »). cands : [{mid, sport, sel, cote,
     prob(0-1), code, name, home, away, start, comp}]."""
     pool = [c for c in cands
             if c.get("code") and isinstance(c.get("cote"), (int, float))
@@ -234,8 +239,12 @@ def pick_combo(cands: list[dict], min_odds: float = MIN_ODDS, max_legs: int = MA
             if improved:
                 break
 
+    best_prob = prob(chosen)
+    if best_prob < min_combo_prob:                   # PLANCHER (demande user 2026-07-22) : le combiné le PLUS
+        return None                                  # probable du jour reste sous 55 % -> pas de combiné (mieux
+        #                                              vaut aucun qu'un « pile ou face », ex. 49 % le 22/07).
     chosen.sort(key=lambda x: -x["prob"])
-    return {"legs": chosen, "cote": round(odds(chosen), 2), "prob": prob(chosen)}
+    return {"legs": chosen, "cote": round(odds(chosen), 2), "prob": best_prob}
 
 
 def _candidates_for_day(day: str) -> list[dict]:

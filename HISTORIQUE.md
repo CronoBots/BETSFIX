@@ -12,6 +12,33 @@
 
 ---
 
+## 2026-07-22 — Combiné du jour : plancher de proba 55 % + synthèse honnête (fin des faux « corrélé »)
+
+**Quoi** (question user « le combiné du jour était-il bien construit ? »). Audit du combiné du 22/07 :
+cote 1,97 mais **proba combinée 49 %** (0,83 × 0,82 × 0,72) — pile ou face —, et surtout une SYNTHÈSE qui
+affirmait « les deux jambes tennis tombent dans le même scénario […] très corrélé » alors que ce sont
+**2 matchs de tennis distincts + 1 basket = 3 événements INDÉPENDANTS** (k=1, produit brut). De fait une
+jambe (Vacherot, donnée 82 %) est tombée → combiné perdant.
+
+**Cause racine** : (a) `pick_combo` maximise la proba sous cote ≥ 1,95 mais sans **plancher de proba** →
+descend jusqu'à 49 % ; (b) le prompt de synthèse (`generate_analyses._write_combo_prose`) demandait
+explicitement « idéalement leur corrélation — des issues qui tombent dans le même scénario », forçant le
+LLM à inventer une corrélation inexistante (le combiné du jour a TOUJOURS ≤1 jambe/match → toujours indépendant).
+
+**Fix** (choix user : plancher CONSTANT à 55 %) :
+- `app/combo_daily.py` : `MIN_COMBO_PROB = 0.55` ; `pick_combo` renvoie `None` si la MEILLEURE proba
+  atteignable reste < 55 % (0,55 × 1,95 ≈ 1,07 → value théorique positive). Conflit cote ≥ 1,95 ET
+  proba ≥ 55 % non satisfiable → **pas de combiné ce jour-là** (qualité > présence ; None déjà géré ligne 308).
+- `tools/generate_analyses.py` : instruction de synthèse CONDITIONNELLE — jambes de matchs différents
+  (`_independent`) → interdit le vocabulaire « corrélation / même scénario », exige une synthèse honnête
+  (chaque issue solide individuellement) ; corrélation autorisée seulement si des jambes partagent un match.
+
+**Régression vérifiée** : `py_compile` OK (2 fichiers) · 1 seul appelant de `pick_combo` (combo_daily:307) ·
+test : vivier 22/07 (49 %) → `None` (rejeté), vivier 59 % → combiné gardé · cas `None` déjà géré à l'appel.
+**Forward-looking** : s'applique au PROCHAIN scan ; le combiné du 22/07 déjà figé n'est pas modifié.
+
+---
+
 ## 2026-07-22 — Provisoire d'un match REPORTÉ resté « en attente » à vie (void ultime recours manquant)
 
 **Quoi** (capture user onglet Stats : « Estudiantes de La Plata — Independiente Rivadavia » ⏳ *en attente*

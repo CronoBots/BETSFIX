@@ -2010,6 +2010,22 @@ def _analyze_combo_legs(combo: dict) -> None:
         blocs.append(f"[{i}] {l.get('sport')} — {l.get('home')} vs {l.get('away')} — "
                      f"pari : {l.get('sel')} @{l.get('cote')} (proba estimée ~{round((l.get('prob') or 0) * 100)}%)\n"
                      f"    Faits du match : {faits or '(pas de faits captés)'}")
+    # Le combiné du jour a AU PLUS 1 jambe par match (pick_combo) -> jambes de matchs DIFFÉRENTS =
+    # INDÉPENDANTES (k=1, proba = produit brut). La synthèse ne DOIT donc pas prétendre une « corrélation »
+    # (bug 2026-07-22 : « les deux jambes tennis tombent dans le même scénario » alors que ce sont 2 matchs
+    # distincts). On n'autorise le vocabulaire de corrélation que si des jambes partagent le même match.
+    _mids = [l.get("mid") for l in legs]
+    _independent = len(set(_mids)) == len(legs)
+    _synth_instr = (
+        "Puis une SYNTHÈSE de 1 à 2 phrases, HONNÊTE : ces jambes portent sur des MATCHS DIFFÉRENTS, elles "
+        "sont INDÉPENDANTES. N'invente AUCUNE corrélation, ne dis PAS qu'elles « tombent dans le même "
+        "scénario » ni qu'elles sont « corrélées ». Dis plutôt ce qui rend CHAQUE issue solide "
+        "individuellement, et pourquoi empilées elles forment le pari du jour le plus fiable (forte chance "
+        "de passer). "
+    ) if _independent else (
+        "Puis une SYNTHÈSE de 1 à 2 phrases : ce qui rend ces jambes solides ENSEMBLE, leur corrélation "
+        "RÉELLE — des issues du MÊME match qui tombent dans le même scénario. "
+    )
     prompt = (
         "Tu es un analyste PRO du pari sportif. Tu justifies le COMBINÉ MULTISPORT DU JOUR (info seule, "
         "hors ROI) de BETSFIX. Pour CHAQUE jambe ci-dessous, écris une JUSTIFICATION propre à CE pari "
@@ -2022,8 +2038,7 @@ def _analyze_combo_legs(combo: dict) -> None:
         "en une clause — un pro reconnaît le risque sans survendre.\n"
         "  N'invente AUCUN chiffre : si un fait manque, appuie-toi sur ce qui est fourni. Pas de méta "
         "(ni « value », ni « proba », ni « seuil » comme sujet) : parle du MATCH.\n"
-        "Puis une SYNTHÈSE (1 à 2 phrases : ce qui rend ces jambes solides ENSEMBLE, idéalement leur "
-        "corrélation — des issues qui tombent dans le même scénario). "
+        + _synth_instr +
         "Réponds AU FORMAT EXACT, une entrée par ligne, RIEN d'autre :\n"
         "LEG1: <justification jambe 1>\nLEG2: <justification jambe 2>\n(… une ligne LEGn par jambe)\n"
         "SYNTH: <synthèse>\n\nJambes :\n" + "\n".join(blocs))
