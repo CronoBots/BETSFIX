@@ -5099,7 +5099,7 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
         return ""
     rows = []
     for p in allp.values():
-        if not isinstance(p, dict) or p.get("result") not in ("won", "lost", "push"):
+        if not isinstance(p, dict) or p.get("result") not in ("won", "lost", "push", "void"):
             continue
         if sport and p.get("sport") != sport:
             continue
@@ -5113,7 +5113,7 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
     if not rows:
         return ""
     rows.sort(key=lambda p: p.get("start") or "")
-    _ic = {"won": ("✓", "w"), "lost": ("✗", "l"), "push": ("➖", "n")}
+    _ic = {"won": ("✓", "w"), "lost": ("✗", "l"), "push": ("➖", "n"), "void": ("➖", "n")}
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     cards = []
     for p in rows:

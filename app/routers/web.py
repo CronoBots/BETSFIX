@@ -592,7 +592,7 @@ def _provisional_card() -> str:
     _roi_txt = "—" if _roi is None else f'{"+" if _roi >= 0 else ""}{_roi}%'
     # LISTE des provisoires suivis (le « en attente » en tête, badge ⏳) : sinon un provisoire dont le match
     # a COMMENCÉ n'est visible nulle part (il a quitté « À venir »). Demande user 2026-07-10.
-    _B = {"won": ("W", "w"), "lost": ("L", "l"), "push": ("N", "n")}
+    _B = {"won": ("W", "w"), "lost": ("L", "l"), "push": ("N", "n"), "void": ("➖", "n")}
     _rows = []
     for e in _pvt.entries(_snap):
         _lt, _bc = _B.get(e.get("result"), ("⏳", "p"))          # pas de résultat -> ⏳ en attente (doré)

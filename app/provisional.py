@@ -16,6 +16,22 @@ import os
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRACK_PATH = os.path.join(_ROOT, "data", "provisional_track.json")
 
+# VOID « ultime recours » : aligné sur le chemin principal (settle_analyst._VOID_AFTER_DAYS = 3 j). Un
+# provisoire dont le match est fini DEPUIS ce délai mais dont AUCUNE source ne rend de score (match reporté/
+# annulé, ex. Supercopa argentine suspendue 2026-07-21 ; ou donnée réellement morte) est clos en `void` —
+# sinon il resterait « en attente » À VIE (les provisoires n'avaient pas le void J+3 des paris/fantômes).
+_VOID_AFTER_DAYS = 3.0
+
+
+def _match_age_days(start_iso) -> float:
+    """Jours écoulés depuis le coup d'envoi prévu (0 si date illisible → jamais de void prématuré)."""
+    from datetime import datetime, timezone
+    try:
+        st = datetime.fromisoformat(str(start_iso).replace("Z", "+00:00"))
+        return (datetime.now(timezone.utc) - st).total_seconds() / 86400.0
+    except (ValueError, AttributeError, TypeError):
+        return 0.0
+
 
 def _load() -> dict:
     try:
@@ -212,7 +228,15 @@ def settle_pending() -> int:
             except Exception:
                 pass
         if not score:
-            continue                              # pas de score final fiable -> on retente plus tard
+            # VOID « ultime recours » (aligné settle_analyses / void_exhausted_shadows) : match fini DEPUIS
+            # LONGTEMPS mais AUCUN score nulle part = reporté/annulé/donnée morte -> on clôt en `void` (neutre,
+            # remboursé, HORS ROI comme un push) pour GARANTIR qu'un provisoire d'un match terminé finit réglé
+            # et ne reste jamais « en attente » à vie. Sinon (match récent) : on retente au prochain cycle.
+            if _match_age_days(p.get("start")) >= _VOID_AFTER_DAYS:
+                p["result"] = "void"
+                p["score"] = "reporté / sans score"
+                n += 1
+            continue
         try:
             res = settle_pick(p.get("code", ""), score)
         except Exception:
@@ -287,7 +311,7 @@ def stats(d: dict | None = None) -> dict:
             profit -= 1
             if isinstance(c, (int, float)):
                 cotes.append(c)
-        elif r == "push":
+        elif r in ("push", "void"):            # void = remboursé/annulé (match reporté, donnée morte) = neutre, réglé, hors ROI
             push += 1
         else:
             pending += 1

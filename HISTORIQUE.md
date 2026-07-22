@@ -12,6 +12,34 @@
 
 ---
 
+## 2026-07-22 — Provisoire d'un match REPORTÉ resté « en attente » à vie (void ultime recours manquant)
+
+**Quoi** (capture user onglet Stats : « Estudiantes de La Plata — Independiente Rivadavia » ⏳ *en attente*
+alors que les autres du jour sont réglés). Reproche : « il y en a encore qui ne sont pas résolus ».
+
+**Cause racine** : le match (Supercopa argentine, 21/07 21:00Z) a été **REPORTÉ** — l'AFA a suspendu TOUS les
+matchs argentins des 20-21/07 (retour de la sélection après la CdM 2026, vérifié sur le web). Donc AUCUNE
+source (Flashscore/LiveScore/Sportradar → toutes `None`) n'a de score : normal, le match n'a pas eu lieu.
+Or les **provisoires n'avaient AUCUN void « ultime recours »** (contrairement aux paris joués et fantômes qui
+se voident à J+3 via `settle_analyst`) → un match reporté/mort y restait `pending` **à vie**. Aggravant :
+`stats()`/`entries()`/`_provisional_card` traitaient tout statut ≠ won/lost/push comme `pending` → même en
+forçant `void`, le sablier serait resté.
+
+**Fix** (4 fichiers, purement suivi provisoire = hors ROI/stats/calibration) :
+- `app/provisional.py` : `_VOID_AFTER_DAYS=3.0` + `_match_age_days()` ; `settle_pending()` clôt en `void`
+  (neutre/remboursé) un provisoire dont le match est fini depuis ≥3 j mais introuvable partout (aligné sur le
+  chemin principal / `void_exhausted_shadows`) ; `stats()` compte `void` comme `push` (neutre, réglé, hors ROI).
+- `app/routers/web.py` : badge liste Stats `void` → `➖`/classe `n` (plus le sablier ⏳).
+- `app/web.py` : « Résultats du jour » provisoires inclut `void` (➖).
+- Action immédiate : ce match voidé à la main (preuve web du report), sans attendre J+3.
+
+**Régression vérifiée** : `py_compile` OK · imports OK · `settle_pending()` idempotent (void TIENT après
+re-cycle, `reconcile` ne le re-null pas) · `/health/selfcheck` = **0 err / 0 warn / 19 ok** · carte
+provisoire : 0 entrée « en attente », badge Estudiantes = neutre. **Résultat** : pending 1→0 ; les futurs
+matchs reportés/morts se cloront seuls en void (plus jamais « en attente » à vie).
+
+---
+
 ## 2026-07-17 — Barre « Chance live » : handicap ≠ vainqueur + modèle de direct basket
 
 **Quoi** (question user, capture WNBA Lynx–Sparks : pari « Los Angeles Sparks +17.5 (prol. incl.) », score
