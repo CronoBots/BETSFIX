@@ -44,20 +44,25 @@ def main() -> int:
                 for it in c["items"][:6]:
                     print(f"      - {it}")
 
-    # ALERTE Telegram seulement sur ERREUR (une confusion de stats/règlement réelle)
-    errs = [c for c in rep["checks"] if c["level"] == "error"]
-    if errs:
+    # ALERTE Telegram : sur ERREUR (confusion stats/règlement réelle) OU sur un WARN de SURVEILLANCE ciblé
+    # (_ALERT_ON_WARN) — demande user 2026-07-22 : être prévenu si la sur-confiance du marché « Sets » tennis
+    # revient, SANS bruiter sur les autres warns (la politique « alerte seulement sur erreur » reste pour eux).
+    _ALERT_ON_WARN = {"tennis_sets_overconfidence"}
+    alerts = [c for c in rep["checks"]
+              if c["level"] == "error" or (c["level"] == "warn" and c["key"] in _ALERT_ON_WARN)]
+    if alerts:
         try:
             from app import notify
-            lines = ["⚠️ *BETSFIX — auto-audit : anomalie détectée*", ""]
-            for c in errs:
-                lines.append(f"❌ *{c['title']}* — {c['detail']}")
+            lines = ["⚠️ *BETSFIX — auto-audit : à surveiller*", ""]
+            for c in alerts:
+                _ic = "❌" if c["level"] == "error" else "⚠️"
+                lines.append(f"{_ic} *{c['title']}* — {c['detail']}")
                 for it in c["items"][:4]:
                     lines.append(f"  • {it}")
             notify.send_sync("\n".join(lines))
         except Exception:
             pass
-        return 1
+        return 1 if any(c["level"] == "error" for c in alerts) else 0
     return 0
 
 

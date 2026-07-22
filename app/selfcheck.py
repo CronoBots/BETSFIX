@@ -612,6 +612,60 @@ def _check_bet_gloss_coverage(rows) -> dict:
             "items": (empty + generic)[:20]}
 
 
+def _check_tennis_sets_overconfidence(rows) -> dict:
+    """SURVEILLANCE (demande user 2026-07-22) du marché « Sets » tennis (« remporte au moins un set »),
+    coupable historique du ROI tennis : juin = annoncé 78 % → réel 56 % (−21 pts de sur-confiance) ; redressé
+    en juillet (+3 pts). On NE COUPE PAS le marché tant qu'il performe, mais on ALERTE si la sur-confiance
+    REVIENT : écart réussite réelle − confiance annoncée ≤ −15 pts sur les 40 dernières prédictions Sets
+    tennis à HAUTE confiance (≥ 65 %, la zone de jeu), joués + fantômes. Seuil CALIBRÉ sur données (juin −21
+    aurait alerté, juillet +3 non). Lecture seule — signale, ne modifie rien. Alerte Telegram ciblée (cf.
+    tools/selfcheck.py _ALERT_ON_WARN) sans réintroduire de bruit sur les autres warns."""
+    import re as _re
+    _is_set = lambda sel: bool(_re.search(
+        r"au moins un set|remporte.*set|1er set|premier set|sans perdre.*set", (sel or "").lower()))
+    preds = []
+    for _p, d in rows:
+        if d.get("sport") != "tennis":
+            continue
+        day = (d.get("start") or "")[:10]
+        cands = ([d["stat_bet"]] if d.get("stat_bet") else []) + (d.get("shadow") or [])
+        for c in cands:
+            if not isinstance(c, dict) or c.get("result") not in ("won", "lost"):
+                continue
+            if not _is_set(c.get("sel")):
+                continue
+            p = c.get("prob")
+            if p is None:
+                p = c.get("cprob")
+            if p is None:
+                continue
+            p = p if p > 1 else p * 100
+            if p >= 65:
+                preds.append((day, p, c.get("result")))
+    preds.sort()
+    window = preds[-40:]
+    MIN_N, GAP_WARN = 25, -15
+    n = len(window)
+    if n < MIN_N:
+        return {"key": "tennis_sets_overconfidence", "level": "ok",
+                "title": "Sur-confiance marché « Sets » tennis (surveillance)",
+                "detail": f"{n} prédiction(s) Sets tennis à conf ≥ 65 % (min {MIN_N}) — surveillance en attente de données.",
+                "items": []}
+    w = sum(r[2] == "won" for r in window)
+    real = round(100 * w / n)
+    conf = round(sum(r[1] for r in window) / n)
+    gap = real - conf
+    over = gap <= GAP_WARN
+    items = ([f"Sets tennis (40 derniers, conf ≥ 65 %) : annoncé {conf}% mais réel {real}% → sur-confiance "
+              f"{gap:+} pts (seuil {GAP_WARN}). Le marché re-déraille comme en juin → envisager de l'écarter "
+              f"ou de recalibrer sa confiance à la baisse."] if over else [])
+    return {"key": "tennis_sets_overconfidence", "level": "warn" if over else "ok",
+            "title": "Sur-confiance marché « Sets » tennis (surveillance)",
+            "detail": f"40 derniers Sets tennis (conf ≥ 65 %) : annoncé {conf}% → réel {real}% "
+                      f"(écart {gap:+} pts ; alerte si ≤ {GAP_WARN}).",
+            "items": items}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -636,6 +690,7 @@ def run(persist: bool = False) -> dict:
         _check_combo_daily_settle_finished(),
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),
+        _check_tennis_sets_overconfidence(rows),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]

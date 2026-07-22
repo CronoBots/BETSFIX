@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-22 — Garde-fou de surveillance : sur-confiance du marché « Sets » tennis (20ᵉ selfcheck)
+
+**Contexte** (analyse tennis demandée par user). Le tennis est en ROI négatif (−18 %) mais **en phase
+remontante** (6 derniers paris = 6 victoires, courbe −7,20u → −4,48u). Cause du trou : le marché **« Sets »
+(remporte ≥ 1 set)** = 68 % des paris tennis, −33 % ROI, **sur-confiance massive** (juin : annoncé 78 % →
+réel 56 %, −21 pts). MAIS il s'est **redressé en juillet** (annoncé 78 % → réel 80 %, +3 pts). Décision user :
+NE PAS couper le marché (il performe), mais **surveiller** et être alerté si la sur-confiance revient.
+
+**Fix** : nouveau check `selfcheck._check_tennis_sets_overconfidence` (20ᵉ invariant) — écart réussite réelle
+− confiance annoncée sur les **40 dernières prédictions Sets tennis à conf ≥ 65 %** (zone de jeu, joués +
+fantômes). **warn si écart ≤ −15 pts**, sinon ok. Seuil CALIBRÉ sur données (juin −21 → aurait alerté ;
+juillet +3 → ok). Lecture seule, ne coupe rien. Alerte Telegram CIBLÉE : `tools/selfcheck.py` `_ALERT_ON_WARN
+= {"tennis_sets_overconfidence"}` → notifie sur ce warn précis SANS bruiter les autres warns (politique
+« alerte seulement sur erreur » préservée pour le reste). **Vérifié** : check = OK aujourd'hui (annoncé 79 %
+→ réel 82 %, +3 pts) ; selfcheck global 0/0/20 ; `py_compile` OK.
+
+---
+
 ## 2026-07-22 — Glose ↳ fausse : total d'ÉQUIPE basket lu comme total du MATCH (« les 2 équipes »)
 
 **Quoi** (capture user, Seattle–Minnesota) : pari « **Minnesota Lynx** plus de 92,5 points » (total de
