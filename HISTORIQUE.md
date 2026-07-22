@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-22 — Glose ↳ fausse : total d'ÉQUIPE basket lu comme total du MATCH (« les 2 équipes »)
+
+**Quoi** (capture user, Seattle–Minnesota) : pari « **Minnesota Lynx** plus de 92,5 points » (total de
+l'équipe Minnesota) glosé « ↳ plus de 92 points au total **(les 2 équipes)** » — CONTRADICTION frontale
+(le pari porte sur une seule équipe, l'analyse le dit : « on préfère le total d'équipe »).
+
+**Cause** (`web._plain_market`, branche `mteam`) : la détection « total d'ÉQUIPE » (nom en tête, sans tiret
+ni « marque ») n'acceptait que **« buts »** (foot). Le basket « points » (et le tennis « jeux ») n'étaient
+pas captés → chute sur le total du match → « (les 2 équipes) ». Même famille que le bug foot 2026-07-18.
+
+**Fix** : regex `mteam` étendue `buts?` → `(?:buts?|points?|jeux)`. Détection équipe = nom matche home/away,
+avec repli « nom non générique » si home/away absents (robustesse, garde-fou `_generic` empêche « Total de
+points » de matcher). Verbe adapté : « marque » (buts/points) / « remporte » (jeux tennis). **Vérifié** :
+« Minnesota Lynx marque au moins 93 points », « Fabio Fognini remporte au moins 21 jeux », total du match
+« plus de 172 points au total (les 2 équipes) » préservé, foot inchangé. Purement affichage.
+
+---
+
 ## 2026-07-22 — Affichage : retirer les unités « u » du site (garder le ROI en %)
 
 **Quoi** (demande user : « parler de ROI mais pas de u sur le site ») : les unités de mise « u » (jargon de
