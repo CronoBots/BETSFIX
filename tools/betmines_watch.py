@@ -266,6 +266,15 @@ def run(force: bool = False, backfill: int = 0) -> None:
     days = [today] if not backfill else [
         (datetime.now(timezone.utc) - timedelta(days=i)).strftime("%Y-%m-%d")
         for i in range(backfill, -1, -1)]
+    # PLANCHER : ne jamais capturer AVANT le premier jour des stats du site (demande user 2026-07-24 : le
+    # suivi Betmines démarre à la même date que les autres paris). Borne un --backfill trop large.
+    try:
+        from app import analyses as _an
+        _floor = _an.first_stats_day()
+        if _floor and backfill:
+            days = [x for x in days if x >= _floor]
+    except Exception:
+        pass
     # 1) CAPTURE (API) — une entrée par jour ; jamais réécrite une fois RÉGLÉE (les `why` sont préservés).
     for day in days:
         if isinstance(d.get(day), dict) and d[day].get("result") in ("won", "lost"):

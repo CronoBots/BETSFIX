@@ -587,8 +587,6 @@ def _provisional_card() -> str:
     import html as _h
     _roi = s.get("roi_pct")
     _hit = s.get("hit_rate")
-    _roicls = "" if _roi is None else (" sx-pos" if _roi >= 0 else " sx-neg")
-    _roi_txt = "—" if _roi is None else f'{"+" if _roi >= 0 else ""}{_roi}%'
     # LISTE des provisoires suivis (le « en attente » en tête, badge ⏳) : sinon un provisoire dont le match
     # a COMMENCÉ n'est visible nulle part (il a quitté « À venir »). Demande user 2026-07-10.
     _B = {"won": ("W", "w"), "lost": ("L", "l"), "push": ("N", "n"), "void": ("➖", "n")}
@@ -608,10 +606,11 @@ def _provisional_card() -> str:
             f'<span class="sx-leg-t"><b>{_nm}</b>{_tag}<small>{_sel}{_cot}</small></span>'
             f'<span class="sx-leg-x">{_h.escape(_dt)}</span></div>')
     _list = "".join(_rows)
-    # courbe d'équité (profit cumulé, info seule) — dès 2 provisoires réglés
-    _eq = _pvt.equity_curve(_snap)
-    _graph = (f'<div class="sx-chart">{web._hero_chart(_eq, uid="prov")}</div>'
-              if len(_eq) >= 3 else "")
+    # COURBE + STATS construites EXACTEMENT comme les 2 premiers graphiques (simples/combinés) — demande user
+    # 2026-07-24 : même bloc `.spf-cv` (en-tête ROI + courbe `_hero_chart` + KPIs réussite/paris/cote).
+    _curve = web.render_tracking_curve(
+        emoji="🧪", title="Provisoires", roi=_roi, hit=_hit, n=s.get("settled", 0),
+        points=_pvt.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="prov")
     return (
         '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
         '<span>info seule · hors ROI</span></div>'
@@ -619,16 +618,13 @@ def _provisional_card() -> str:
         '<b>sans value</b>, le MEILLEUR angle indicatif <b>analysé</b> (l\'angle le plus solide du match, '
         'pas un favori par défaut). Mesuré à titre indicatif pour valider la discipline d\'abstention : '
         '<b>ne compte PAS</b> dans le ROI réel.</div>'
+        + _curve +
         '<div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>provisoires suivis</span></div>'
         f'<div class="sx-kpi"><b>{s.get("settled", 0)}</b><span>réglés</span></div>'
         f'<div class="sx-kpi"><b>{s.get("pending", 0)}</b><span>en attente</span></div>'
-        '</div><div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{"—" if _hit is None else str(_hit) + "%"}</b><span>réussite</span></div>'
-        f'<div class="sx-kpi{_roicls}"><b>{_roi_txt}</b><span>ROI (info)</span></div>'
-        f'<div class="sx-kpi"><b>{s.get("avg_cote") or "—"}</b><span>cote moyenne</span></div>'
         '</div>'
-        + _graph + _list +
+        + _list +
         '<div class="sx-data-note">Si ce ROI reste <b>négatif</b> sur la durée, il confirme par les chiffres '
         'qu\'il faut <b>s\'abstenir</b> plutôt que jouer ces favoris.</div></div>')
 
@@ -700,8 +696,12 @@ def _betmines_card() -> str:
             _d = _json.load(f)
     except (OSError, ValueError):
         return ""
+    # DÉBUT aligné sur le premier jour des stats du site (demande user 2026-07-24 : « à partir de la première
+    # stat récupérée pour les autres paris ») -> la courbe Betmines démarre à la même date que simples/combinés.
+    _floor = analyses.first_stats_day()
     days = {k: v for k, v in _d.items()
-            if isinstance(v, dict) and v.get("legs") and not k.startswith("_")}
+            if isinstance(v, dict) and v.get("legs") and not k.startswith("_")
+            and (not _floor or k >= _floor)}
     if not days:
         return ""
     import html as _h
@@ -718,16 +718,34 @@ def _betmines_card() -> str:
     pnl = sum((c.get("total_odds") or 0) - 1 if c["result"] == "won" else -1 for c in done)
     pend = len(days) - len(done)
     _pcls = " sx-pos" if pnl > 0 else (" sx-neg" if pnl < 0 else "")
+    # COURBE + STATS construites EXACTEMENT comme les 2 premiers graphiques (simples/combinés) — demande user
+    # 2026-07-24. Courbe de P&L CUMULÉ (points = [0, cum1, cum2, …], chronologique), ROI/réussite/cote moyenne
+    # sur les Doubles RÉGLÉS. Info seule (hors ROI), comme tout le suivi Betmines.
+    _pts, _acc = [0.0], 0.0
+    for _day in sorted(days):
+        _c = days[_day]
+        if _c.get("result") not in ("won", "lost"):
+            continue
+        _acc += ((_c.get("total_odds") or 0) - 1) if _c["result"] == "won" else -1
+        _pts.append(round(_acc, 2))
+    _hit = round(100 * won / len(done)) if done else None
+    _roi = round(100 * pnl / len(done)) if done else None
+    _avgc = round(sum(_c.get("total_odds") or 0 for _c in done) / len(done), 2) if done else None
+    _curve = web.render_tracking_curve(emoji="🎲", title="Betmines", roi=_roi, hit=_hit,
+                                       n=len(done), points=_pts, avg_cote=_avgc, uid="betmines")
     # DERNIER Double = carte façon combiné du jour : jambes _leg_card + badge global + cote totale.
     last_day = max(days)
     cb = days[last_day]
     _bmap = {"won": ('<span class="mc-badge mc-done">✅ Gagné</span>', ""),
              "lost": ('<span class="mc-badge mc-done">❌ Perdu</span>', "")}
     badge = _bmap.get(cb.get("result"), ("", ""))[0]
+    # Jambes IDENTIQUES à l'onglet Pronos (why toujours affiché + ligne verdict Confiance/Marché/Cote).
     legs_html = "".join(web._leg_card(
         {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
-         "comp": leg.get("comp"), "sel": _sel(leg), "cote": leg.get("cote"),
-         "result": leg.get("result"), "score": leg.get("score")}, why=False)
+         "comp": leg.get("comp"), "sel": str(leg.get("market") or _sel(leg)), "cote": leg.get("cote"),
+         "result": leg.get("result"), "score": leg.get("score"), "start": leg.get("start"),
+         "code": leg.get("code"), "prob": leg.get("prob"), "why": leg.get("why")},
+        why=True, verdict=True, why_always=True)
         for leg in cb.get("legs") or [])
     tot = cb.get("total_odds")
     tot_html = (f'<div class="tkt-cote"><span class="l">Cote totale du Double</span>'
@@ -751,6 +769,7 @@ def _betmines_card() -> str:
         '<div class="sx-data-note">Le « Double » quotidien de <b>Betmines</b> (2 jambes sûres, overs de '
         'buts sur ligues secondaires), capturé et <b>réglé par NOS sources</b> — on mesure leur taux de '
         'réussite réel avant de s\'y intéresser. Aucun impact sur nos pronos ni notre ROI.</div>'
+        + _curve +
         '<div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{len(days)}</b><span>Doubles suivis</span></div>'
         f'<div class="sx-kpi"><b>{won}/{len(done)}</b><span>gagnés</span></div>'

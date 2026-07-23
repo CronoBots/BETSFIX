@@ -2344,6 +2344,7 @@ CSS = """
   .vm-v{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#e6eefa;
        line-height:1.05}
   .vm-v.vpos{color:#4be39b} .vm-v.vmid{color:#f6c54a} .vm-v.vneg{color:#ff7484}
+  .vm-v.vm-na{color:#5b6675}   /* barre « — » : Value non affichée (masquée) mais colonne conservée -> alignement constant */
   .vm-sub{font-size:8.5px;font-weight:800;text-transform:lowercase;letter-spacing:.02em;line-height:1}
   .vm-conf .vm-v{font-size:19px}         /* notre confiance = héros de la grille */
   .vm-cote .vm-v{font-size:19px;color:#fff}   /* cote TOUJOURS blanche, y c. combiné du jour (demande user 2026-07-18) */
@@ -3857,6 +3858,29 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
     return f'<div class="spf-cv">{_c_inner}</div>'
 
 
+def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: list,
+                          dates: list | None = None, avg_cote=None, uid: str = "trk") -> str:
+    """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
+    premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
+    en-tête (titre + chip ROI), courbe `_hero_chart` (`.sx-equity`), puis KPIs (réussite % · N paris · cote
+    moyenne). AUCUN impact ROI/stats/calibration — purement affichage d'un suivi externe/indicatif. '' si
+    rien à tracer (aucun réglé)."""
+    if not n:
+        return ""
+    _pts = [p for p in (points or []) if p is not None]
+    chart = (f'<div class="sx-equity">{_hero_chart(points, uid=uid, dates=dates or [])}</div>'
+             if len(_pts) >= 2 else "")
+    return (
+        f'<div class="spf-cv"><div class="spf-cv-h">'
+        f'<span class="spf-cv-hl"><span class="spf-cv-t">{emoji} {html.escape(title)}</span></span>'
+        f'<span class="spf-cv-roi arec-{_roi_cls(roi, n)}">ROI {_roistr(roi)}</span></div>'
+        f'{chart}'
+        '<div class="spf-cv-kpis">'
+        f'<span><b class="arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</b> réussite</span>'
+        f'<span><b>{n}</b> paris</span>'
+        f'<span><b>@{avg_cote or "—"}</b> cote</span></div></div>')
+
+
 def _prog_pair(home, away) -> frozenset:
     """Clé DÉDOUBLONNAGE d'un match = paire de noms d'équipes normalisés (robuste à l'écart d'id
     Unibet↔sidecar). Sert à exclure du programme un match déjà affiché en pari à jouer."""
@@ -4642,14 +4666,17 @@ def _clean_cap(t, maxlen: int = 180) -> str:
 _SPORT_LBL = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}
 
 
-def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True) -> str:
+def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True,
+              why_always: bool = False) -> str:
     """Rendu d'UNE jambe de combiné COMME UNE CARTE DE SIMPLE (demande user 2026-07-14) : en-tête
     « SPORT • match » + badge d'état, le pari en gras, l'explication en clair (gloss ↳), la COTE à droite,
     bord gauche coloré par état. En live : badge 🟢 LIVE + tableau de score sous la jambe. `why` = ajoute la
     justification (combiné du jour) ; le combiné de match a son propre déplié.
     `verdict` = ajoute la LIGNE VERDICT (barre + Confiance/Marché/Value + grosse COTE) sous le pari pour que
     la jambe RESSEMBLE À UN CADRE PROVISOIRE (demande user 2026-07-18 : « chaque jambe du combiné du jour
-    doit ressembler à un cadre provisoire ») — remplace la pastille cote. Purement AFFICHAGE."""
+    doit ressembler à un cadre provisoire ») — remplace la pastille cote. Purement AFFICHAGE.
+    `why_always` = garde le pli « Pourquoi » affiché MÊME une fois la jambe réglée (demande user 2026-07-24
+    pour le combiné Betmines = suivi/observation ; l'analyse reste consultable après coup)."""
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     _sp, _lh, _la = l.get("sport"), l.get("home", ""), l.get("away", "")
     emo = _emo.get(_sp, "•")
@@ -4741,7 +4768,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     # COMPLÈTE au tap plutôt qu'un extrait coupé à 3 lignes). Même patron que le combiné de match. Texte
     # ENTIER (nettoyé du markdown, plus de coupe à 180 car). Masqué une fois la jambe réglée (comme l'autre
     # combiné) ; `event.stopPropagation()` empêche le tap d'ouvrir/fermer la carte parente.
-    _wt = _clean_cap(l.get("why"), 100000) if (why and _res is None) else ""
+    _wt = _clean_cap(l.get("why"), 100000) if (why and (_res is None or why_always)) else ""
     # En PUCES (une par phrase) comme les simples/provisoires -> aéré, plus de pavé (demande user 2026-07-20).
     # + on retire le jargon de math de pari (redondant avec la barre verdict) — que des faits/risque.
     _wsents = [w for s in (_why_sentences(_wt) or ([_wt] if _wt else [])) if (w := _strip_meta_stat(s))]
@@ -4893,20 +4920,34 @@ def _betmines_tg_card() -> str:
     _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
               "lost": '<span class="mc-badge mc-done">❌ Perdu</span>'}.get(cb.get("result"), "")
     # Jambes rendues EXACTEMENT comme le combiné du jour (demande user 2026-07-24) : mêmes SÉPARATEURS
-    # (`_MC_SEP`), pli « Pourquoi cette jambe » (why=True, analyse claude -p sur les stats API) ET ligne
-    # VERDICT Confiance/Marché/Cote (verdict=True, via `prob` = confiance dérivée de leurs % + `code`).
+    # (`_MC_SEP`), pli « Pourquoi cette jambe » (why=True + why_always : TOUJOURS affiché, même réglé —
+    # demande user 2026-07-24, c'est de l'observation) ET ligne VERDICT Confiance/Marché/Cote (verdict=True,
+    # via `prob` = confiance dérivée de leurs % + `code`).
     _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
     legs_html = _MC_SEP.join(_leg_card(
         {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
          "comp": leg.get("comp"), "sel": str(leg.get("market") or ""), "cote": leg.get("cote"),
          "result": leg.get("result"), "score": leg.get("score"), "start": leg.get("start"),
          "code": leg.get("code"), "prob": leg.get("prob"), "why": leg.get("why")},
-        why=True, verdict=True)
+        why=True, verdict=True, why_always=True)
         for leg in _legs)
+    # Bloc « TOTAL DU COMBINÉ » = verdict GLOBAL IDENTIQUE au combiné du jour (demande user 2026-07-24 :
+    # « toutes les stats "total du combiné" doivent être reprises ») : séparateur + barre Confiance/Marché/
+    # Cote totale. Confiance globale = PRODUIT des probas de jambes (calibrated=False, combiné). Repli sur la
+    # seule cote si une proba de jambe manque.
     tot = cb.get("total_odds")
-    _tot = (f'<div class="combo-total-hd"><span>Total du combiné</span></div>'
-            f'<div class="tkt-cote"><span class="l">Cote totale</span><span class="v">{tot:g}</span></div>'
-            if isinstance(tot, (int, float)) else "")
+    _probs = [l.get("prob") for l in _legs]
+    _gconf = None
+    if _probs and all(isinstance(p, (int, float)) for p in _probs):
+        _acc = 1.0
+        for p in _probs:
+            _acc *= (p / 100.0 if p > 1 else p)
+        _gconf = round(_acc * 100)
+    _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
+                 f'<span class="mc-cote-v">{tot:g}</span></span>'
+                 if isinstance(tot, (int, float)) and tot else "")
+    _tot = ('<div class="combo-total-hd"><span>Total du combiné</span></div>'
+            + _verdict_block(tot, _gconf, '', _cote_big, calibrated=False)) if _cote_big else ""
     _note = ('<div class="mc-reana" style="margin:4px 2px 0">Suivi externe (Betmines), réglé par nos '
              'sources — information seule, hors ROI.</div>')
     return _combo_gold_card(title="COMBINÉ BETMINES", subtitle=f'{len(cb["legs"])} jambes',

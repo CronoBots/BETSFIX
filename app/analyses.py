@@ -836,6 +836,27 @@ def _verdict_notes(md: str) -> tuple[list, str]:
     return notes, resid_html
 
 
+_FIRST_STATS_DAY_CACHE = None
+
+
+def first_stats_day() -> str | None:
+    """Premier jour (YYYY-MM-DD) où l'on a commencé à mesurer les stats du site (simples + combinés) —
+    demande user 2026-07-24 : le suivi Betmines doit DÉMARRER à cette même date pour aligner sa courbe sur
+    les 2 premiers graphiques. = min des dates des courbes d'équité simples/combinés. Mémoïsé (l'origine de
+    l'historique est stable : elle ne peut que reculer sur un backfill, événement rare). None si vide."""
+    global _FIRST_STATS_DAY_CACHE
+    if _FIRST_STATS_DAY_CACHE is not None:
+        return _FIRST_STATS_DAY_CACHE or None
+    try:
+        ds = [d for d in ((stats_full().get("overall") or {}).get("dates") or []) if d]
+        ds += [d for d in (combo_stats().get("dates") or []) if d]
+        day = min(ds)[:10] if ds else ""
+    except Exception:
+        day = ""
+    _FIRST_STATS_DAY_CACHE = day
+    return day or None
+
+
 def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False,
                  hide_neg_value: bool = False) -> str:
     """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE). Refonte 2026-07-18
@@ -896,14 +917,17 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
              f'<span class="vm-v" style="color:{col}">{cfi}%</span>'
              f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>',
              f'<div class="vm-cell"><span class="vm-l">Marché</span><span class="vm-v">{be}%</span></div>']
-    # VALUE affichée seulement si VRAI edge (ep ≥ +1 %) — un « +0 % » (EV qui arrondit à 0, ex. conf 83 %
-    # × cote 1,2 = −0,4 %) n'apporte RIEN et le « + » jaune suggère à tort un edge (retour user 2026-07-22).
-    # Exception : sur une carte de SIMPLE (calibrated ET non-provisoire), on garde la transparence totale
-    # (value montrée même à 0/négatif). Combiné (calibrated=False) et provisoire (hide_neg_value) : « 💎 si
-    # EV+ » strict -> pas de colonne Value sans edge positif.
+    # VALUE : la colonne est TOUJOURS présente (demande user 2026-07-24 : « ajouter la value partout même
+    # si négative ou nulle, mais une barre à la place de la masquée pour garder le même alignement ») — un
+    # nombre de cellules CONSTANT garantit que Confiance/Marché/Value[/Cote] restent alignés d'une carte à
+    # l'autre. On MONTRE la value réelle quand c'est un vrai edge (ep ≥ +1 %) ou sur une carte de SIMPLE
+    # (transparence totale, même à 0/négatif) ; sinon (combiné/provisoire/Betmines sans edge : « 💎 si EV+ »
+    # strict) on affiche une BARRE « — » au lieu de la masquer -> alignement identique, présente ou pas.
     if ep >= 1 or (calibrated and not hide_neg_value):
-        cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>'
-                     f'<span class="vm-v {vcls}">{"+" if ep >= 0 else ""}{ep}%</span></div>')
+        _valh = f'<span class="vm-v {vcls}">{"+" if ep >= 0 else ""}{ep}%</span>'
+    else:
+        _valh = '<span class="vm-v vm-na">—</span>'
+    cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>{_valh}</div>')
     if with_cote:
         cells.append('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
                      f'<span class="vm-v">{cv:g}</span></div>')
