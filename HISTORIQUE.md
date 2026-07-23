@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-23 — Intitulé de pari illisible : handicap 3 voies avec sélection verbeuse
+
+**Quoi** (capture user, Botafogo–Vitória) : intitulé **« Handicap 3 voies Botafogo-RJ , ne perd pas par 2+
++1 »** — illisible (jargon + virgule mal espacée + « +1 » résiduel), alors que les autres paris sont propres
+(« Moins de 3.5 buts »). Demande : nettoyer l'INTITULÉ (pas que la glose).
+
+**Cause** (`analyses.pretty_sel`, bloc handicap) : le nom d'équipe extrait gardait la **sélection verbeuse**
+(« , ne perd pas par 2+ ») → l'intitulé reconstruit était identique au brut. Le nettoyage ne retirait que
+« handicap / 3 voies ».
+
+**Fix** : le nom d'équipe s'arrête désormais à la 1ère virgule ou au 1er verbe de résultat (`ne perd pas /
+gagne / perd / l'emporte / remporte`) → « Handicap 3 voies Botafogo-RJ +1 ». La glose (`_plain_market`)
+porte déjà l'explication en clair (« ne perd pas de plus de 1 but »). `sel` stocké intact (règlement
+inchangé). **Vérifié** : Botafogo nettoyé ; handicaps asiatiques (St Johnstone -1.5, Partick -1.5) et
+totaux inchangés. Purement affichage.
+
+---
+
 ## 2026-07-22 — Garde-fou de surveillance : sur-confiance du marché « Sets » tennis (20ᵉ selfcheck)
 
 **Contexte** (analyse tennis demandée par user). Le tennis est en ROI négatif (−18 %) mais **en phase

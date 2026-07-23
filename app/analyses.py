@@ -537,6 +537,12 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
             _team = re.sub(r"\(?\s*handicap\s*(?:asiatique|europ\w*|3\s*voies|3-?way)?\s*\)?"
                            r"|\bhand\.?\b|\b3\s*voies\b|\b3-?way\b", "", _team, flags=re.I)
             _team = re.sub(r"\s+", " ", _team).strip(" -–—()·:")
+            # Retire une SÉLECTION VERBEUSE résiduelle d'un handicap 3 voies : le nom d'équipe s'arrête à la
+            # 1ère virgule ou au 1er verbe de résultat (bug user 2026-07-22 : « Handicap 3 voies Botafogo-RJ ,
+            # ne perd pas par 2+ +1 » illisible → « Handicap 3 voies Botafogo-RJ +1 »). La glose (_plain_market)
+            # porte déjà l'explication en clair. Le `sel` stocké reste intact (règlement inchangé).
+            _team = re.split(r"\s*,|\s+(?:ne\s+perd\s+pas|gagne|perd\b|l['’]emporte|remporte)",
+                             _team, flags=re.I)[0].strip(" -–—()·:")
             if _team:
                 _half = bool(re.search(r"[.,]5(?!\d)", _sign))          # ligne en demi-point ?
                 _three = bool(re.search(r"3\s*voies|3-?way|europ", low))  # mention explicite « 3 voies » ?
