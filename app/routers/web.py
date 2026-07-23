@@ -785,12 +785,9 @@ def _combo_daily_card() -> str:
         _snap, s = {}, {}
     if not s or not s.get("n"):
         return ""
-    import datetime as _dt
     import html as _h
     _roi = s.get("roi_pct")
     _hit = s.get("hit_rate")
-    _roicls = "" if _roi is None else (" sx-pos" if _roi >= 0 else " sx-neg")
-    _roi_txt = "—" if _roi is None else f'{"+" if _roi >= 0 else ""}{_roi}%'
     _today_key = _cd.day_key()   # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
     _all = _cd.entries(_snap)
     _cur = _cd.today(_today_key, _snap)
@@ -812,20 +809,27 @@ def _combo_daily_card() -> str:
             + _synth
             + '<div class="sx-hint">Touchez une jambe pour son analyse ▸</div>'
             + web.combo_legs_html(_cur, expandable=True) + '</div>')
-    _hist = [cb for cb in _all if cb.get("date") != _today_key and cb.get("result")]
-    _hrows = []
-    for cb in _hist[:8]:
-        _bc = {"won": "w", "lost": "l"}.get(cb.get("result"), "n")
-        _lt = {"won": "W", "lost": "L"}.get(cb.get("result"), "➖")
-        _hrows.append(
-            f'<div class="sx-leg"><span class="sx-bdg {_bc}">{_lt}</span>'
-            f'<span class="sx-leg-t"><b>{cb.get("date")}</b></span>'
-            f'<span class="sx-leg-x">@{cb.get("cote")} · {len(cb.get("legs") or [])} j.</span></div>')
-    _hist_html = "".join(_hrows)
-    # courbe d'équité (profit cumulé, info seule) — dès 2 combinés du jour réglés
-    _eqc = _cd.equity_curve(_snap)
-    _graph_c = (f'<div class="sx-chart">{web._hero_chart(_eqc, uid="combod")}</div>'
-                if len(_eqc) >= 3 else "")
+    # HISTORIQUE présenté COMME les autres types de paris (demande user 2026-07-24) : courbe + KPIs + liste
+    # dépliable (bouton « Derniers combinés ▾ ») via le helper partagé render_tracking_curve. Un combiné =
+    # une ligne (nom = les affiches, sel = les picks, cote = cote totale). Du plus récent au plus ancien.
+    def _leg_teams(l: dict) -> str:
+        h, a = l.get("home"), l.get("away")
+        if h and a:
+            return f"{h}–{a}"
+        return str(l.get("name") or "?").replace(" - ", "–")
+
+    _hist = sorted((cb for cb in _all if cb.get("date") != _today_key and cb.get("result")),
+                   key=lambda cb: str(cb.get("date") or ""), reverse=True)
+    _recent = [{
+        "result": cb.get("result"),
+        "name": " + ".join(_leg_teams(l) for l in (cb.get("legs") or [])) or f'Combiné {cb.get("date")}',
+        "sel": " · ".join(str(l.get("sel") or l.get("market") or "") for l in (cb.get("legs") or [])),
+        "cote": cb.get("cote"),
+        "start": (cb.get("date") or "") + "T12:00:00Z"} for cb in _hist]
+    _curve = web.render_tracking_curve(
+        emoji="🎯", title="Combiné du jour", roi=_roi, hit=_hit, n=s.get("settled", 0),
+        points=_cd.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="combod",
+        recent=_recent, more_label="Derniers combinés")
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Combiné du jour '
         '<span>compté au ROI</span></div>'
@@ -833,17 +837,12 @@ def _combo_daily_card() -> str:
         'probables</b> de tous les matchs analysés, combinés pour atteindre <b>une cote ≥ 1,95</b> avec le '
         '<b>taux de réussite maximal</b>. Mélange sports et marchés. <b>Toujours compté au ROI</b> '
         '— décision 2026-07-17. Ce bloc en donne le détail.</div>'
-        + _cur_html +
+        + _cur_html + _curve +
         '<div class="sx-kpis sx-kpis3">'
         f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>jours suivis</span></div>'
         f'<div class="sx-kpi"><b>{s.get("settled", 0)}</b><span>réglés</span></div>'
         f'<div class="sx-kpi"><b>{s.get("pending", 0)}</b><span>en attente</span></div>'
-        '</div><div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{"—" if _hit is None else str(_hit) + "%"}</b><span>réussite</span></div>'
-        f'<div class="sx-kpi{_roicls}"><b>{_roi_txt}</b><span>ROI combiné</span></div>'
-        f'<div class="sx-kpi"><b>{s.get("avg_cote") or "—"}</b><span>cote moyenne</span></div>'
-        '</div>'
-        + _graph_c + _hist_html + '</div>')
+        '</div></div>')
 
 
 @router.get("/stats", response_class=HTMLResponse)
