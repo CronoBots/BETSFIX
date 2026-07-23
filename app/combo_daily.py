@@ -491,29 +491,52 @@ def settle_pending() -> int:
             changed = True
         legs = cb.get("legs") or []
         if not _frozen:
-            cb["tries"] = (cb.get("tries") or 0) + 1
-            changed = True                            # tries accumulés -> la borne void finit par mordre
+            # tries = VRAIES TENTATIVES de règlement (audit 2026-07-23) : n'incrémente QUE si au moins une
+            # jambe non réglée est likely_finished (on a réellement cherché un score). Avant, chaque passe
+            # reconcile (10 min) incrémentait dès la CRÉATION du combiné -> tries 39+ avant même le coup
+            # d'envoi, borne « 8 essais » consommée d'avance -> void à la 1ère passe post-match (racine de
+            # l'incident Hanfmann « ANNULÉ » en plein set).
+            if any(l.get("result") not in ("won", "lost", "push", "void")
+                   and _an.likely_finished({"start": l.get("start"), "sport": l.get("sport")})
+                   for l in legs):
+                cb["tries"] = (cb.get("tries") or 0) + 1
+                changed = True                        # tries accumulés -> la borne void finit par mordre
         # BORNE : à tries≥8, on void SEULEMENT les jambes dont le MATCH est FINI (donnée morte) ; une jambe
         # dont le match n'a pas encore fini (coup d'envoi tardif) RESTE en attente -> plus de void prématuré
         # (bug 07-17 : Mirassol 23:00 voidé AVANT la fin -> combiné faussement « remboursé » alors que gagné).
+        # + BORNE TEMPORELLE (audit 2026-07-23) : jamais de void < 12 h après le coup d'envoi — avec le
+        # cycle 10 min, tries≥8 ne représente que ~80 min de retries ; un score en retard de publication
+        # (matching de noms) mérite plus de temps avant l'ultime recours.
         if (cb.get("tries") or 0) >= 8:
+            from datetime import datetime as _dtm, timezone as _tzu
             from app import match_select as _ms
             for l in legs:
                 if l.get("result") in ("won", "lost", "push", "void"):
                     continue
                 if not _an.likely_finished({"start": l.get("start"), "sport": l.get("sport")}):
                     continue
+                try:
+                    _age_h = (_dtm.now(_tzu.utc)
+                              - _dtm.fromisoformat(str(l.get("start")).replace("Z", "+00:00"))
+                              ).total_seconds() / 3600.0
+                except (ValueError, TypeError):
+                    _age_h = 0.0
+                if _age_h < 12.0:
+                    continue                           # trop tôt pour l'ultime recours -> on retente
                 # GARDE « MATCH PAS RÉELLEMENT FINI » (fix 2026-07-23, bug Hanfmann-Baez affiché « ANNULÉ »
                 # en plein 1er set) : likely_finished se base sur l'heure STOCKÉE, PÉRIMÉE si le match a été
                 # DÉCALÉ (tennis qui glisse, ex. 12:10 -> 12:50). Avant de void, on vérifie l'état RÉEL Unibet :
                 # un SCORE LIVE ou un coup d'envoi Unibet encore FUTUR = match NON fini -> on NE VOID PAS.
-                _lh, _, _la = str(l.get("name") or "").partition(" - ")
+                # home/away STOCKÉS sur la jambe (audit : name peut manquer, le re-parse était fragile).
+                _lh, _la = l.get("home"), l.get("away")
+                if not (_lh and _la):
+                    _lh, _, _la = str(l.get("name") or "").partition(" - ")
                 try:
                     _has_live = bool(_ms.live_state_for(l.get("sport"), _lh, _la))
                     _st, _ = _ms.fresh_status(l.get("sport"), _lh, _la, "finished", _has_live,
                                               start_iso=l.get("start"))
                 except Exception:
-                    _st, _has_live = "finished", False
+                    continue                           # garde indisponible (réseau ?) -> on NE void PAS (fail-safe)
                 if _has_live or _st in ("inprogress", "notstarted"):
                     continue                           # en cours OU décalé (pas encore commencé) -> pas de void
                 l["result"] = "void"

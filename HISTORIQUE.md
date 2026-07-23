@@ -12,6 +12,38 @@
 
 ---
 
+## 2026-07-23 — AUDIT MULTI-AGENTS (29 agents, 5 dimensions, vérif adversariale) : 14 confirmées, 5 réfutées
+
+**Demande user : « Vérifie tout minutieusement par plusieurs agents ».** Workflow : 5 auditeurs parallèles
+(règlement/affichage/sélection/données/diffs, 6 347 sels testés) + vérification adversariale de chaque
+anomalie. **CORRIGÉ dans la foulée (commits ci-après)** :
+1. `provisional.settle_pending` : « void » ajouté à la liste terminale — sans lui, une entrée voidée était
+   RE-TRAITÉE à chaque cycle 10 min (3 appels réseau, n+=1 fantôme, écrasement du libellé informatif à J+3).
+2. Botafogo `.md` : prose alignée DC 1X (l'ancienne promettait le REMBOURSEMENT du +1, fausse pour DC).
+3. `pretty_sel` branche handicap : annotations parenthésées ENTIÈRES retirées avant extraction (débris
+   « Portland Fire (. +11.5 » / « Seattle Storm (F » AFFICHÉS EN PROD) ; handicap européen « (X-Y) » rendu
+   TEL QUEL (le « -0 » capturé donnait « Handicap 3 voies 3 ) Nouvelle Zélande -0 ») ; garde-fou parenthèses
+   équilibrées (sinon sel brut) ; strip sans « () » (mutilait « (F) ») ; type asiatique/3 voies décidé sur
+   texte NETTOYÉ. 16/16 cas de test OK, rendu prod vérifié réparé.
+4. `pretty_sel` : garde **_periode** (mi-temps/MT/quart, `(?<=\s)mt` épargne les suffixes brésiliens -MT) sur
+   les branches DC / +0.5→DC / handicap — un marché de PÉRIODE n'est plus normalisé en son équivalent match
+   entier (« Double Chance - 1ère mi-temps X2 » ne devient plus « Double chance X2 (… ou nul) »).
+5. `combo_daily` : **tries = vraies tentatives** (incrément SEULEMENT si une jambe non réglée est
+   likely_finished) — le cycle 10 min gonflait tries dès la création (39+ avant coup d'envoi), consommant la
+   borne « 8 essais » d'avance (racine de l'incident Hanfmann) ; + **borne temporelle 12 h** post-start avant
+   tout void ; + fail-safe (exception garde → PAS de void) ; + home/away stockés (name en repli).
+**Réfutées (comportements voulus, ne pas « re-fixer »)** : void provisoire J+3 sur heure stockée (= règlement
+book fidèle d'un report) ; plancher `< 0.50` non strict ; sel « @cote » stocké (pretty_sel nettoie) ;
+retrait « (HCAP …) » des suffixes redondants ; gel/monotonie/calibration vérifiés INTACTS.
+**RESTANTS à traiter (rapportés, non corrigés — décision à prendre)** : (a) `_cool_conf` absent de
+_bets_table / provisional_shown / carte provisoire (split confiance possible) ; (b) jambes du combiné du
+jour sélectionnées sur proba BRUTE (ni calibrée ni refroidie) alors qu'il est compté au ROI ; (c) lien mort
+« 📊 Fiabilité » → /tracking/dashboard 404 (route supprimée en 3fe72d7) ; (d) gardes période/« break » dans
+_plain_market (latent, fantômes seulement). Vérifié après fixes : selfcheck 0 err/0 warn/20 ok (+1 info
+documentée), combiné 23/07 réglé proprement (Hanfmann won / Bublik lost → lost), rendu prod réparé.
+
+---
+
 ## 2026-07-23 — Libellés uniformes : normalisations génériques + GARDE-FOU selfcheck (fin des régressions)
 
 **Quoi** (user très remonté, capture Bolívar « gagne (temps réglementaire) » vs Corinthians « vainqueur » —

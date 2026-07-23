@@ -517,6 +517,11 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
         _u = "buts" if _u.startswith("but") else ("points" if _u.startswith("point") else "jeux")
         return f"{_mtot.group(2).capitalize()} de {_mtot.group(3)} {_u}"
     low = s.lower()
+    # MARCHÉ DE PÉRIODE (mi-temps / quart) : ne JAMAIS le normaliser vers son équivalent MATCH ENTIER (audit
+    # 2026-07-23 : « Double Chance - 1ère mi-temps X2 » devenait « Double chance X2 (<équipe> ou nul) » = une
+    # AUTRE issue). Les branches DC / +0.5→DC / handicap ci-dessous sont réservées au match entier ; un sel de
+    # période est rendu TEL QUEL. `(?<=\s)mt` : ne matche PAS les suffixes d'État brésiliens (« Cuiabá-MT »).
+    _periode = bool(re.search(r"mi-temps|(?<=\s)mt\b|1[eè]re|2[eè]\b|quart", low))
     # VAINQUEUR simple : « <équipe> victoire » / « <équipe> gagne » / « <équipe> l'emporte » = MÊME pari que
     # « <équipe> vainqueur » (2 écritures d'une victoire sèche). L'intitulé doit être IDENTIQUE partout
     # (demande user 2026-07-20 : « l'intitulé du pari doit toujours être fait de la même manière ») -> on
@@ -539,7 +544,7 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     # convertit QUE si le contexte est bien une double chance (annotation DC / 1X / X2 / « ne perd pas ») -> ne
     # touche pas un +0.5 tennis/basket (= victoire, pas de nul). PUREMENT AFFICHAGE (le `sel` stocké intact).
     _m05 = re.search(r"^(.*?)\s*\+\s?0[.,]5\b", s)
-    if _m05 and re.search(r"\bdc\b|double chance|ne perd pas|\b1x\b|\bx2\b", low):
+    if _m05 and not _periode and re.search(r"\bdc\b|double chance|ne perd pas|\b1x\b|\bx2\b", low):
         _t05 = _m05.group(1).strip(" -–—()·:")
         if _t05:
             if re.search(r"\bx2\b", low):
@@ -564,26 +569,42 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     #     s'auto-contredisait (« asiatique … 3 voies »).
     # PUREMENT AFFICHAGE : le `sel` STOCKÉ ne change pas, donc `code_from_pick`/le règlement restent intacts.
     # None-safe.
-    if "handicap" in low or re.search(r"\bhand\.?\b", low):
-        _mh = re.search(r"([+\-−–]\s?\d+(?:[.,]\d+)?)", s)
+    if ("handicap" in low or re.search(r"\bhand\.?\b", low)) and not _periode:
+        # HANDICAP EUROPÉEN à SCORE DE RÉFÉRENCE « (X-Y) » (« 3-Way Handicap (3-0) <équipe> ») : le « -Y »
+        # que capturerait _mh est un MORCEAU du score, pas une ligne (audit 2026-07-23 : rendait « Handicap
+        # 3 voies 3 ) Nouvelle Zélande -0 » = une autre issue). Non normalisable proprement -> TEL QUEL.
+        if re.search(r"\(\s*\d+\s*[-–]\s*\d+\s*\)", s):
+            return s
+        # Annotations parenthésées ENTIÈRES retirées AVANT extraction (« (hand., prol. incl.) », « (prol.
+        # incluses) », « (3-Way Handicap 1-0) »…) : l'ancien nettoyage au mot laissait des débris « (. » /
+        # « (F » affichés en prod (audit 2026-07-23 : « Portland Fire (. +11.5 »). « (F) » est PRÉSERVÉ
+        # (ne contient ni hand/prol/incl).
+        _sh = re.sub(r"\(\s*[^)]*(?:hand|prol|incl)[^)]*\)", " ", s, flags=re.I)
+        _mh = re.search(r"([+\-−–]\s?\d+(?:[.,]\d+)?)", _sh)
         if _mh:
             _sign = re.sub(r"\s+", "", _mh.group(1)).replace("−", "-").replace("–", "-")
-            _team = (s[:_mh.start()] + " " + s[_mh.end():])
+            _team = (_sh[:_mh.start()] + " " + _sh[_mh.end():])
             _team = re.sub(r"\(?\s*handicap\s*(?:asiatique|europ\w*|3\s*voies|3-?way)?\s*\)?"
                            r"|\bhand\.?\b|\b3\s*voies\b|\b3-?way\b", "", _team, flags=re.I)
-            _team = re.sub(r"\s+", " ", _team).strip(" -–—()·:")
+            # strip SANS « () » : un strip de parenthèses en bordure mutilait « … (F) » -> « … (F » (audit).
+            _team = re.sub(r"\s+", " ", _team).strip(" -–—·:")
             # Retire une SÉLECTION VERBEUSE résiduelle d'un handicap 3 voies : le nom d'équipe s'arrête à la
             # 1ère virgule ou au 1er verbe de résultat (bug user 2026-07-22 : « Handicap 3 voies Botafogo-RJ ,
             # ne perd pas par 2+ +1 » illisible → « Handicap 3 voies Botafogo-RJ +1 »). La glose (_plain_market)
             # porte déjà l'explication en clair. Le `sel` stocké reste intact (règlement inchangé).
             _team = re.split(r"\s*,|\s+(?:ne\s+perd\s+pas|gagne|perd\b|l['’]emporte|remporte)",
-                             _team, flags=re.I)[0].strip(" -–—()·:")
-            if _team:
+                             _team, flags=re.I)[0].strip(" -–—·:")
+            # GARDE-FOU (audit 2026-07-23) : parenthèses DÉSÉQUILIBRÉES dans le libellé reconstruit -> on
+            # renvoie le sel BRUT (jamais un débris affiché).
+            if _team and _team.count("(") == _team.count(")"):
                 _half = bool(re.search(r"[.,]5(?!\d)", _sign))          # ligne en demi-point ?
-                _three = bool(re.search(r"3\s*voies|3-?way|europ", low))  # mention explicite « 3 voies » ?
+                # mention « 3 voies » lue sur le texte NETTOYÉ (_sh) : une annotation retirée « (3-Way
+                # Handicap 1-0) » ne doit pas re-qualifier une ligne demi-point (-1.5 = 2 issues) en 3 voies.
+                _three = bool(re.search(r"3\s*voies|3-?way|europ", _sh.lower()))
                 _kind = "asiatique" if (_half and not _three) else "3 voies"
                 return f"Handicap {_kind} {_team} {_sign}"
-    if "double chance" not in low:
+            return s
+    if _periode or "double chance" not in low:   # période -> tel quel (jamais normalisé en DC match entier)
         return s
     m = re.search(r"\b(1x|x2|12)\b", low)
     code = m.group(1).upper() if m else None

@@ -184,7 +184,10 @@ def settle_pending() -> int:
     d = _load()
     n = 0
     for mid, p in list(d.items()):
-        if not isinstance(p, dict) or p.get("result") in ("won", "lost", "push"):
+        # « void » est TERMINAL ici (fix audit 2026-07-23) : sans lui dans la liste, une entrée voidée
+        # repassait dans la boucle À CHAQUE cycle reconcile (10 min) — 3 appels réseau, ré-écriture du
+        # result/score (écrasant un libellé informatif posé à la main), n+=1 fantôme et _save() à vie.
+        if not isinstance(p, dict) or p.get("result") in ("won", "lost", "push", "void"):
             continue
         sport = p.get("sport")
         # GARDE-FOU « match TERMINÉ » (bug 2026-07-17 : Botafogo-Santos & Tijuana-Tigres marqués « gagné »
