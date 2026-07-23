@@ -384,6 +384,22 @@ def settle_pending() -> int:
     from app import flashscore, livescore, analyses as _an
     from app.settle_analyst import settle_pick
     d = _load()
+    # RÉCHAUFFE le cache Unibet (heure fraîche + score live) AVANT la borne void : le règlement tourne souvent
+    # dans un process FROID (tâche reconcile) où les caches sont vides -> un match DÉCALÉ/EN COURS paraît
+    # « fini » et se fait voider à tort (bug 2026-07-23 : Hanfmann-Baez affiché « ANNULÉ » en plein 1er set).
+    # En contexte API (boucle async déjà active + cache chaud via le warmer), asyncio.run lève -> ignoré (les
+    # caches sont déjà chauds, la garde live/fresh fonctionne quand même).
+    try:
+        import asyncio as _aio
+        from app import match_select as _ms0
+        for _sp0 in {l.get("sport") for cb in d.values() if isinstance(cb, dict)
+                     for l in (cb.get("legs") or []) if l.get("sport")}:
+            try:
+                _aio.run(_ms0._fetch_live_odds_now(_sp0))
+            except Exception:
+                pass
+    except Exception:
+        pass
     n = 0
     changed = False           # persiste la PROGRESSION (jambes réglées + tries) même si le combiné n'est
     #                           pas encore tranché -> les tries s'accumulent (borne void OK) et les jambes
@@ -481,10 +497,26 @@ def settle_pending() -> int:
         # dont le match n'a pas encore fini (coup d'envoi tardif) RESTE en attente -> plus de void prématuré
         # (bug 07-17 : Mirassol 23:00 voidé AVANT la fin -> combiné faussement « remboursé » alors que gagné).
         if (cb.get("tries") or 0) >= 8:
+            from app import match_select as _ms
             for l in legs:
-                if (l.get("result") not in ("won", "lost", "push", "void")
-                        and _an.likely_finished({"start": l.get("start"), "sport": l.get("sport")})):
-                    l["result"] = "void"
+                if l.get("result") in ("won", "lost", "push", "void"):
+                    continue
+                if not _an.likely_finished({"start": l.get("start"), "sport": l.get("sport")}):
+                    continue
+                # GARDE « MATCH PAS RÉELLEMENT FINI » (fix 2026-07-23, bug Hanfmann-Baez affiché « ANNULÉ »
+                # en plein 1er set) : likely_finished se base sur l'heure STOCKÉE, PÉRIMÉE si le match a été
+                # DÉCALÉ (tennis qui glisse, ex. 12:10 -> 12:50). Avant de void, on vérifie l'état RÉEL Unibet :
+                # un SCORE LIVE ou un coup d'envoi Unibet encore FUTUR = match NON fini -> on NE VOID PAS.
+                _lh, _, _la = str(l.get("name") or "").partition(" - ")
+                try:
+                    _has_live = bool(_ms.live_state_for(l.get("sport"), _lh, _la))
+                    _st, _ = _ms.fresh_status(l.get("sport"), _lh, _la, "finished", _has_live,
+                                              start_iso=l.get("start"))
+                except Exception:
+                    _st, _has_live = "finished", False
+                if _has_live or _st in ("inprogress", "notstarted"):
+                    continue                           # en cours OU décalé (pas encore commencé) -> pas de void
+                l["result"] = "void"
         # RÉSULTAT (re)DÉRIVÉ : jambe annulée NEUTRE (ne bloque pas). Corrige aussi un résultat FIGÉ À TORT
         # (ex. void pose par la borne alors que 2 jambes ont finalement GAGNÉ -> won). demande user 2026-07-18.
         _dv = _derive_combo(legs)
