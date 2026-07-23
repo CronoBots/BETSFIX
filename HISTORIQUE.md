@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-23 — Correction pari Botafogo (HCAP +1 fantôme → DC 1X) + retrait emoji horloge
+
+**Demande user** : (1) corriger le pari Botafogo publié, (2) retirer l'emoji « ⏱ » (jamais demandé) du
+badge heure des jambes décalées.
+
+**(1) Pari Botafogo** (déjà publié : Telegram msg 945 + `published_bet` @1,17) : codé `HCAP HOME +1`
+(asiatique → push si perd par 1) alors que c'est un 3-way « commence 1-0 » (perd par 1 = perdu). Corrigé
+en **Double chance 1X** (data locale, non versionnée) : `.md` (tableau + `PICK: DC 1X`) + `.json`
+(pick/pick_code/published_bet.sel). Cote publiée **1,17 gardée**. Règlement vérifié : perd par 1 → **perdu**
+(plus de remboursement fantôme) ; gel publié `retained_bet(for_history=True)` le garde au ROI ; card_summary
+play=True. (EV tombe à 2,96 % car la DC n'a pas de calibration vs HCAP sur-calibré 93 % — le pari publié
+survit quand même.)
+
+**(2) Emoji horloge** : `web._leg_card` — badge heure des jambes affiche l'heure FRAÎCHE (décalage géré via
+`effective_start`) mais SANS le « ⏱ » (retiré, non demandé). py_compile OK, selfcheck 0/0.
+
+---
+
 ## 2026-07-23 — Scan : préférer la Double chance à un handicap « +1 » (foot)
 
 **Quoi** (2 captures user Unibet, Botafogo–Vitória). BETSFIX a retenu « Botafogo-RJ +1 » (code `HCAP HOME +1`,
