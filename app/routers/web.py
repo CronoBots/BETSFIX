@@ -584,33 +584,23 @@ def _provisional_card() -> str:
         _snap, s = {}, {}
     if not s or not s.get("n"):
         return ""
-    import html as _h
     _roi = s.get("roi_pct")
     _hit = s.get("hit_rate")
-    # LISTE des provisoires suivis (le « en attente » en tête, badge ⏳) : sinon un provisoire dont le match
-    # a COMMENCÉ n'est visible nulle part (il a quitté « À venir »). Demande user 2026-07-10.
-    _B = {"won": ("W", "w"), "lost": ("L", "l"), "push": ("N", "n"), "void": ("➖", "n")}
-    _rows = []
-    for e in _pvt.entries(_snap):
-        _lt, _bc = _B.get(e.get("result"), ("⏳", "p"))          # pas de résultat -> ⏳ en attente (doré)
-        _nm_raw = str(e.get("name") or "")
-        _nm = _h.escape(_nm_raw.replace(" - ", " — "))
-        _eh, _, _ea = _nm_raw.partition(" - ")
-        _sel = _h.escape(analyses.pretty_sel(str(e.get("sel") or ""), _eh, _ea))
-        _co = e.get("cote")
-        _cot = f' · @{_co:g}' if isinstance(_co, (int, float)) and _co else ""
-        _dt = web.fmt_local(e.get("start"), with_date=True) if e.get("start") else ""
-        _tag = '<span class="sx-gold"> · en attente</span>' if e.get("result") is None else ""
-        _rows.append(
-            f'<div class="sx-leg"><span class="sx-bdg {_bc}">{_lt}</span>'
-            f'<span class="sx-leg-t"><b>{_nm}</b>{_tag}<small>{_sel}{_cot}</small></span>'
-            f'<span class="sx-leg-x">{_h.escape(_dt)}</span></div>')
-    _list = "".join(_rows)
-    # COURBE + STATS construites EXACTEMENT comme les 2 premiers graphiques (simples/combinés) — demande user
-    # 2026-07-24 : même bloc `.spf-cv` (en-tête ROI + courbe `_hero_chart` + KPIs réussite/paris/cote).
+    # HISTORIQUE des provisoires présenté COMME les simples/combinés (demande user 2026-07-24) : liste au
+    # format `_recent_bets_html`, dépliée au clic sur la courbe (bouton « Derniers provisoires ▾ »). Ordre :
+    # « en attente » (⏳) en tête, puis les réglés du plus récent au plus ancien.
+    _ent = _pvt.entries(_snap)
+    _pend = [e for e in _ent if e.get("result") is None]
+    _done = sorted((e for e in _ent if e.get("result") is not None),
+                   key=lambda e: str(e.get("start") or ""), reverse=True)
+    _recent = [{"result": e.get("result") or "pending", "name": e.get("name"),
+                "sel": e.get("sel"), "cote": e.get("cote"), "start": e.get("start")}
+               for e in (_pend + _done)]
+    # COURBE + STATS + HISTORIQUE construits EXACTEMENT comme les 2 premiers graphiques (simples/combinés).
     _curve = web.render_tracking_curve(
         emoji="🧪", title="Provisoires", roi=_roi, hit=_hit, n=s.get("settled", 0),
-        points=_pvt.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="prov")
+        points=_pvt.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="prov",
+        recent=_recent, more_label="Derniers provisoires")
     return (
         '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
         '<span>info seule · hors ROI</span></div>'
@@ -624,7 +614,6 @@ def _provisional_card() -> str:
         f'<div class="sx-kpi"><b>{s.get("settled", 0)}</b><span>réglés</span></div>'
         f'<div class="sx-kpi"><b>{s.get("pending", 0)}</b><span>en attente</span></div>'
         '</div>'
-        + _list +
         '<div class="sx-data-note">Si ce ROI reste <b>négatif</b> sur la durée, il confirme par les chiffres '
         'qu\'il faut <b>s\'abstenir</b> plutôt que jouer ces favoris.</div></div>')
 
@@ -731,8 +720,26 @@ def _betmines_card() -> str:
     _hit = round(100 * won / len(done)) if done else None
     _roi = round(100 * pnl / len(done)) if done else None
     _avgc = round(sum(_c.get("total_odds") or 0 for _c in done) / len(done), 2) if done else None
+    # HISTORIQUE des Doubles présenté COMME les simples/combinés (demande user 2026-07-24) : liste au format
+    # `_recent_bets_html`, dépliée au clic sur la courbe (bouton « Derniers Doubles ▾ »). Un Double = une
+    # ligne (nom = les 2 affiches, sel = les 2 marchés, cote = cote totale). Le Double du JOUR est déjà
+    # affiché en entier plus bas -> exclu de la liste. Du plus récent au plus ancien.
+    _last = max(days)
+    _recent = []
+    for _day in sorted(days, reverse=True):
+        if _day == _last:
+            continue
+        _c = days[_day]
+        _lg = _c.get("legs") or []
+        _recent.append({
+            "result": _c.get("result") or "pending",
+            "name": " + ".join(f'{l.get("home", "?")}–{l.get("away", "?")}' for l in _lg),
+            "sel": " · ".join(_sel(l) for l in _lg),
+            "cote": _c.get("total_odds"),
+            "start": (_lg[0].get("start") if _lg and _lg[0].get("start") else _day + "T12:00:00Z")})
     _curve = web.render_tracking_curve(emoji="🎲", title="Betmines", roi=_roi, hit=_hit,
-                                       n=len(done), points=_pts, avg_cote=_avgc, uid="betmines")
+                                       n=len(done), points=_pts, avg_cote=_avgc, uid="betmines",
+                                       recent=_recent, more_label="Derniers Doubles")
     # DERNIER Double = carte façon combiné du jour : jambes _leg_card + badge global + cote totale.
     last_day = max(days)
     cb = days[last_day]
@@ -750,19 +757,6 @@ def _betmines_card() -> str:
     tot = cb.get("total_odds")
     tot_html = (f'<div class="tkt-cote"><span class="l">Cote totale du Double</span>'
                 f'<span class="v">{tot:g}</span></div>') if isinstance(tot, (int, float)) else ""
-    # Historique compact des Doubles précédents (✓/✗, du plus récent au plus ancien).
-    rows = []
-    for day in sorted(days, reverse=True):
-        c = days[day]
-        if day == last_day:
-            continue
-        ic, cls = {"won": ("✓", "w"), "lost": ("✗", "l")}.get(c.get("result"), ("⏳", "n"))
-        _lgs = " · ".join(f'{leg.get("home", "?")}–{leg.get("away", "?")} {_sel(leg)}'
-                          for leg in c.get("legs") or [])
-        rows.append(f'<div class="prv-r prv-{cls}"><span class="prv-ic">{ic}</span>'
-                    f'<div class="prv-m"><div class="prv-t">{_h.escape(day)} · @{c.get("total_odds") or "—"}</div>'
-                    f'<div class="prv-s">{_h.escape(_lgs[:120])}</div></div></div>')
-    hist = f'<div class="prv-res" style="margin-top:8px">{"".join(rows)}</div>' if rows else ""
     return (
         '<div class="sx-card"><div class="sx-h">Combiné Betmines '
         '<span>suivi externe · info seule, hors ROI</span></div>'
@@ -777,7 +771,7 @@ def _betmines_card() -> str:
         '</div>'
         f'<div class="sx-h" style="margin-top:10px">Double du {_h.escape(last_day)} {badge}'
         f'{" · <span>" + str(pend) + " en attente</span>" if pend else ""}</div>'
-        f'<div class="mc-combo-legs">{legs_html}</div>{tot_html}{hist}</div>')
+        f'<div class="mc-combo-legs">{legs_html}</div>{tot_html}</div>')
 
 
 def _combo_daily_card() -> str:

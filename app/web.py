@@ -3859,26 +3859,33 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
 
 
 def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: list,
-                          dates: list | None = None, avg_cote=None, uid: str = "trk") -> str:
+                          dates: list | None = None, avg_cote=None, uid: str = "trk",
+                          recent: list | None = None, more_label: str = "Derniers paris") -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip ROI), courbe `_hero_chart` (`.sx-equity`), puis KPIs (réussite % · N paris · cote
-    moyenne). AUCUN impact ROI/stats/calibration — purement affichage d'un suivi externe/indicatif. '' si
-    rien à tracer (aucun réglé)."""
+    moyenne). Si `recent` (liste de paris réglés au format `_recent_bets_html`) est fourni, le bloc devient
+    CLIQUABLE (`<details>` + bouton « <more_label> ▾ ») qui déplie l'historique — MÊME présentation que les
+    simples/combinés (demande user 2026-07-24). AUCUN impact ROI/stats/calibration. '' si rien à tracer."""
     if not n:
         return ""
     _pts = [p for p in (points or []) if p is not None]
     chart = (f'<div class="sx-equity">{_hero_chart(points, uid=uid, dates=dates or [])}</div>'
              if len(_pts) >= 2 else "")
-    return (
-        f'<div class="spf-cv"><div class="spf-cv-h">'
+    inner = (
+        f'<div class="spf-cv-h">'
         f'<span class="spf-cv-hl"><span class="spf-cv-t">{emoji} {html.escape(title)}</span></span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(roi, n)}">ROI {_roistr(roi)}</span></div>'
         f'{chart}'
         '<div class="spf-cv-kpis">'
         f'<span><b class="arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</b> réussite</span>'
         f'<span><b>{n}</b> paris</span>'
-        f'<span><b>@{avg_cote or "—"}</b> cote</span></div></div>')
+        f'<span><b>@{avg_cote or "—"}</b> cote</span></div>')
+    rec = _recent_bets_html(recent or [])
+    if rec:                                     # CLIQUABLE : le résumé déplie l'historique (comme simples/combinés)
+        return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{inner}'
+                f'<div class="spf-cv-more"><span>{html.escape(more_label)}</span> ▾</div></summary>{rec}</details>')
+    return f'<div class="spf-cv">{inner}</div>'
 
 
 def _prog_pair(home, away) -> frozenset:
