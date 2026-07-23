@@ -491,6 +491,31 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     # 3.5 buts @1.36 ») → la cote est DÉJÀ dans la colonne COTE, donc redondante dans le titre. On la retire de
     # l'AFFICHAGE (le `sel` stocké reste intact → règlement/code inchangés).
     s = re.sub(r"\s*@\s*\d+(?:[.,]\d+)?\s*$", "", s).strip()
+    # UNIFORMISATION AMONT (demande user 2026-07-23, IMPÉRATIVE « ça ne doit plus JAMAIS arriver ») : deux
+    # écritures d'une MÊME issue doivent converger. Normalisations génériques AVANT les cas précis :
+    s = re.sub(r"(?<=\d),(?=\d)", ".", s)                               # décimale FR « 2,5 » -> « 2.5 »
+    s = re.sub(r"\s*\((?:1x2|temps r[ée]glementaire\s*\d?|hcap[^)]*|setwin[^)]*)\)\s*", " ",
+               s, flags=re.I).strip()                                    # suffixe technique « (1X2) / (Temps régl. 1) »
+    s = re.sub(r"\s*[—–:(]\s*oui\s*\)?\s*$", "", s, flags=re.I)         # suffixe affirmatif redondant « : Oui / (Oui) »
+    s = re.sub(r"\s*[—–:]\s*(non)\b", r" \1", s, flags=re.I)            # séparateur avant « Non » -> espace (BTTS)
+    s = re.sub(r"\b(gagne|vainqueur)\w*\s+(?:le|du)\s+match\b", r"\1", s, flags=re.I)  # « gagne le match » -> « gagne »
+    s = re.sub(r"\s+dans le match\s*$", "", s, flags=re.I)              # « … jeux dans le match » -> « … jeux »
+    s = re.sub(r"\bvainqueur(?:e|es|s)\b", "vainqueur", s, flags=re.I)  # « vainqueure/vainqueurs » -> « vainqueur »
+    # TENNIS « remporte au moins un set » : converge toutes les variantes (au moins 1 set / ≥ 1 set / gagne au
+    # moins un set / suffixes Hcap +1.5 set…) vers UNE forme. Le « au moins un set » = handicap +1.5 set déguisé.
+    if re.search(r"(remporte|gagne).{0,12}(au moins|≥).{0,4}(1|un)\s+set|\+\s?1[.,]5\s+set", s, re.I):
+        _who = re.split(r"\s+(?:remporte|gagne)\b|\s+\+\s?1[.,]5", s, flags=re.I)[0].strip(" -–—:(")
+        if _who and not re.search(r"nombre|total|score|\bset\s+\d", _who.lower()):
+            return f"{_who} remporte au moins un set"
+    # TOTAL DU MATCH : « Nombre total de buts – Moins de 2.5 » -> « Moins de 2.5 buts » (forme unique). Cible
+    # buts/points/jeux uniquement (les objets nommés corners/cartons ont leur propre glose).
+    _mtot = re.match(r"^(?:nombre\s+)?total\s+(?:de\s+|d')?(buts?|points?|jeux)\s*[—–:\-]+\s*"
+                     r"(plus|moins)\s+de\s+(\d+(?:\.\d+)?)", s, re.I)
+    if _mtot:
+        _u = {"but": "buts", "point": "points"}.get(_mtot.group(1).lower().rstrip("s"),
+                                                    _mtot.group(1).lower())
+        _u = "buts" if _u.startswith("but") else ("points" if _u.startswith("point") else "jeux")
+        return f"{_mtot.group(2).capitalize()} de {_mtot.group(3)} {_u}"
     low = s.lower()
     # VAINQUEUR simple : « <équipe> victoire » / « <équipe> gagne » / « <équipe> l'emporte » = MÊME pari que
     # « <équipe> vainqueur » (2 écritures d'une victoire sèche). L'intitulé doit être IDENTIQUE partout
@@ -498,9 +523,15 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     # uniformise le verbe d'affichage vers « vainqueur » (forme Unibet). PUREMENT AFFICHAGE (le `sel` stocké
     # reste intact -> règlement/codes inchangés). On NE touche PAS un marché plus précis (set/MT/quart/
     # handicap/score/double chance) où « victoire » est qualifiée.
-    _mw = re.match(r"^(.+?)\s+(?:victoire|vainqueur|gagne|l['’]emporte)\s*$", s, re.I)
+    # Tolère un suffixe « (temps réglementaire) » : en FOOT « <équipe> gagne (temps réglementaire) » (code
+    # REGTIME) = « <équipe> vainqueur » (code 1X2) — MÊME issue (gagner en 90 min) -> MÊME intitulé (bug user
+    # 2026-07-23 : Bolívar « gagne (temps réglementaire) » vs Corinthians « vainqueur »). La glose « gagne dans
+    # le temps réglementaire (90 min) » porte déjà la précision 90 min. « (prol. incl.) » N'est PAS toléré ici
+    # (marché distinct des matchs KO) -> reste tel quel.
+    _mw = re.match(r"^(.+?)\s+(?:victoire|vainqueur|gagne|l['’]emporte)"
+                   r"\s*(?:\(?\s*temps\s+r[ée]glementaire\s*\)?)?\s*$", s, re.I)
     if _mw and not re.search(r"mi-temps|\bset\b|\bmt\b|1[eè]re|2[eè]|quart|handicap|[+\-]\s?\d|"
-                             r"\bou nul\b|double chance|\d\s*[-–]\s*\d", low):
+                             r"\bou nul\b|double chance|prol|\d\s*[-–]\s*\d", low):
         return f"{_mw.group(1).strip()} vainqueur"
     # +0.5 SUR UNE ÉQUIPE = « ne perd pas » = DOUBLE CHANCE (foot). On UNIFORMISE vers la forme double chance
     # pour qu'un « <équipe> +0.5 (ne perd pas / DC 1X) » et un « Double chance 1X (… ou nul) » s'affichent À

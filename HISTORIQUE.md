@@ -12,6 +12,27 @@
 
 ---
 
+## 2026-07-23 — Libellés uniformes : normalisations génériques + GARDE-FOU selfcheck (fin des régressions)
+
+**Quoi** (user très remonté, capture Bolívar « gagne (temps réglementaire) » vs Corinthians « vainqueur » —
+MÊME issue, affichée différemment). Question user : « je t'avais déjà demandé, comment ça re-régresse ? ».
+**Cause racine** : les fixes de `pretty_sel` étaient AD HOC (une regex par cas) SANS détection auto → tout
+nouveau format Unibet non couvert re-créait une divergence, invisible jusqu'à ce que l'user la voie.
+
+**Fix (2 volets)** :
+1. `analyses.pretty_sel` — normalisations GÉNÉRIQUES en amont : décimale FR « 2,5 »→« 2.5 » ; suffixes
+   techniques « (1X2)/(Temps régl. N)/(Hcap…) » retirés ; « gagne le match / du match / vainqueure(s) »→
+   « vainqueur » ; « gagne (temps réglementaire) »→« vainqueur » (REGTIME≡1X2 en foot) ; sets tennis (au
+   moins 1 set / ≥1 set / +1.5 set / suffixe Oui)→« remporte au moins un set » ; total match « Nombre total
+   de buts – Moins de X »→« Moins de X buts » ; séparateur « : / – / — » avant Oui/Non uniformisé.
+2. **GARDE-FOU** `selfcheck._check_uniform_labels` (21ᵉ contrôle) : regroupe les paris À VENIR par ISSUE
+   canonique (codes équivalents REGTIME/1X2/WIN) et signale (INFO) toute issue à ≥2 intitulés → une future
+   divergence est DÉTECTÉE au scan, plus besoin que l'user la repère. **Vérifié** : audit 39→0 divergence sur
+   les paris affichés ; non-régression OK (totaux/DC/handicap/prol. incl. intacts) ; selfcheck 0 err/0 warn.
+   Purement affichage (`sel` stocké intact).
+
+---
+
 ## 2026-07-23 — Correction pari Botafogo (HCAP +1 fantôme → DC 1X) + retrait emoji horloge
 
 **Demande user** : (1) corriger le pari Botafogo publié, (2) retirer l'emoji « ⏱ » (jamais demandé) du

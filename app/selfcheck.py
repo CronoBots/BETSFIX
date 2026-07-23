@@ -666,6 +666,55 @@ def _check_tennis_sets_overconfidence(rows) -> dict:
             "items": items}
 
 
+def _check_uniform_labels(rows) -> dict:
+    """UNIFORMITÉ DES LIBELLÉS (demande user 2026-07-23, IMPÉRATIVE « ça ne doit plus JAMAIS arriver ») : deux
+    paris à MÊME issue de règlement DOIVENT afficher le MÊME intitulé (`pretty_sel`). Détecte les DIVERGENCES
+    (ex. « X vainqueur » vs « X gagne (temps réglementaire) »). GARDE-FOU contre la RÉCURRENCE : les fixes
+    ad hoc de pretty_sel laissaient repasser tout nouveau format non couvert, SANS détection -> l'user
+    re-signalait manuellement. Ici on regroupe par issue canonique (codes équivalents REGTIME/1X2/WIN) et on
+    signale (INFO) toute issue à ≥2 intitulés. Masque les noms d'équipe (≥4 lettres) pour comparer la STRUCTURE."""
+    import re as _re
+    from app import analyses as _an
+    from app.settle_analyst import code_from_pick as _cfp
+
+    def _canon(code):
+        if not code:
+            return None
+        p = code.split()
+        if p[0] in ("REGTIME", "1X2", "WIN"):
+            side = {"1": "HOME", "2": "AWAY", "X": "DRAW"}.get(p[1] if len(p) > 1 else "",
+                                                               p[1] if len(p) > 1 else "")
+            return ("WIN", side)
+        return tuple(p)
+
+    seen: dict = {}
+    for _p, d in rows:
+        if (d.get("result") or {}).get("pick_result") or d.get("stat_bet"):
+            continue                                   # match réglé -> affichage figé, hors périmètre
+        sp, mid = d.get("sport"), str(d.get("id"))
+        home, away = d.get("home", ""), d.get("away", "")
+        try:
+            sels = [b.get("sel") for b in (_an.bets_of(sp, mid) or []) if b.get("sel")]
+        except Exception:
+            sels = []
+        for sel in sels:
+            c = _canon(_cfp(sel, sp, home, away))
+            if not c:
+                continue
+            st = _an.pretty_sel(sel, home, away)
+            for nm in (home, away):                    # masque les noms d'équipe -> compare la STRUCTURE
+                for tok in _re.findall(r"[A-Za-zÀ-ÿ]{4,}", nm or ""):
+                    st = _re.sub(_re.escape(tok), "•", st, flags=_re.I)
+            st = _re.sub(r"[•\s]+", " ", st).strip()
+            seen.setdefault((sp, c), set()).add(st)
+    diverg = [f"{sp} {'/'.join(map(str, c))} → " + " ⁄ ".join(sorted(forms))
+              for (sp, c), forms in seen.items() if len(forms) > 1]
+    return {"key": "uniform_labels", "level": "info" if diverg else "ok",
+            "title": "Libellés uniformes (même issue = même intitulé)",
+            "detail": f"{len(diverg)} issue(s) à intitulés DIVERGENTS (à converger dans analyses.pretty_sel).",
+            "items": diverg[:20]}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -691,6 +740,7 @@ def run(persist: bool = False) -> dict:
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),
         _check_tennis_sets_overconfidence(rows),
+        _check_uniform_labels(rows),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]
