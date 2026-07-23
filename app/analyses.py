@@ -917,10 +917,12 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
 def _bets_table(body: str, results: dict | None = None, compact: bool = False,
                 notes: list | None = None, residual: str = "",
                 sport: str | None = None, home: str = "", away: str = "",
-                validation: dict | None = None) -> str:
+                validation: dict | None = None, streaks=None) -> str:
     """Paris à jouer : un CADRE par pari (style « confiance ») = label + sélection + barre de
     probabilité + indice de sûreté + cote. `results` = {sélection normalisée: 'won'/'lost'/'push'/
-    None} -> cadre VERT/ROUGE + halo + ✓/✗ selon le résultat de CE pari (chaque pari réglé à part)."""
+    None} -> cadre VERT/ROUGE + halo + ✓/✗ selon le résultat de CE pari (chaque pari réglé à part).
+    `streaks` (audit 2026-07-23) : moyennes d'équipe -> le REFROIDISSEMENT OVER-total (_cool_conf)
+    s'applique ici AUSSI, sinon le détail de carte contredit la sélection (69 % affiché vs 58 % au moteur)."""
     data = _parse_bets(body)
     if not data:
         return ""
@@ -931,7 +933,8 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         ex_sports, _ = auto_exclusions()
         ex_markets = excluded_markets(sport)          # marchés écartés PROPRES À CE SPORT (per-sport)
         codes = [code_from_pick(b.get("sel", ""), sport, home, away) for b in data]
-        cprobs = [calibrated_conf(b.get("prob"), sport, codes[i]) for i, b in enumerate(data)]
+        cprobs = [_cool_conf(calibrated_conf(b.get("prob"), sport, codes[i]), sport, codes[i], streaks)
+                  for i, b in enumerate(data)]
         ok = set() if sport in ex_sports else {
             i for i, c in enumerate(codes) if c and market_of(c) not in ex_markets}
     reco = _recommend(data, ok=ok, cprobs=cprobs, codes=codes)
@@ -1131,7 +1134,7 @@ def bets_html(sport: str, match_id, compact: bool = False) -> str:
     # « à éviter » n'est PLUS rendu ici : il est intégré au cadre « Informations » (cf. _structured).
     return _bets_table(body, results, compact=compact, notes=notes, residual="",
                        sport=sport, home=m.get("home", ""), away=m.get("away", ""),
-                       validation=m.get("validation"))
+                       validation=m.get("validation"), streaks=m.get("streaks"))
 
 
 # ------------------------------------------------------------- combiné : métrique + statut par jambe
@@ -2326,7 +2329,7 @@ def stat_bet(d: dict) -> dict | None:
     return retained_bet(d.get("sport"), d.get("id"), for_history=True)
 
 
-def provisional_shown(sport, sel, cote, prob, home="", away="") -> bool:
+def provisional_shown(sport, sel, cote, prob, home="", away="", fid=None) -> bool:
     """Un pari PROVISOIRE (indicatif) est-il DIGNE d'être affiché/suivi ? (demande user 2026-07-17, affiné
     2026-07-20) Un provisoire est un PICK indicatif : il doit d'abord être un pari qu'on FAVORISE. On ne
     garde JAMAIS un pick « FAIBLE » (confiance calibrée < 55 %, pastille rouge — on l'estime plus probable de
@@ -2345,7 +2348,14 @@ def provisional_shown(sport, sel, cote, prob, home="", away="") -> bool:
     cp = prob
     try:
         from app.settle_analyst import code_from_pick
-        cp = calibrated_conf(prob, sport, code_from_pick(sel, sport, home, away))
+        _code = code_from_pick(sel, sport, home, away)
+        cp = calibrated_conf(prob, sport, _code)
+        # REFROIDISSEMENT OVER-total (audit 2026-07-23) : sans lui, le pari refroidi en abstention côté
+        # sélection re-sortait en PROVISOIRE doré à sa confiance NON refroidie (cas Minnesota 69 % vs 58 %).
+        # `fid` = id SIDECAR (fourni par les DEUX appelants via day_programme.provisional.fid) -> streaks du
+        # bon sidecar, SOURCE UNIQUE préservée (jamais d'écart affichage/suivi).
+        if fid:
+            cp = _cool_conf(cp, sport, _code, (meta(sport, fid) or {}).get("streaks"))
     except Exception:
         cp = prob
     if cp is None:

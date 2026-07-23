@@ -12,6 +12,25 @@
 
 ---
 
+## 2026-07-23 — Audit multi-agents, VOLET 2 : les 4 restants corrigés
+
+Suite de l'audit (GO user). **1. Refroidissement OVER-total appliqué PARTOUT** : `_bets_table` (+param
+`streaks`, passé par `bets_html` via meta) ; `provisional_shown` (+param `fid` → streaks du sidecar, résolu
+À L'INTÉRIEUR = source unique préservée, les 2 appelants web/_programme_items et provisional/reconcile
+passent `prov.fid`) ; carte provisoire (`web.py` ~4410, `_cool_conf` sur `_cpc`). Vérifié : détail Minnesota
+rend 58 % (refroidi), provisional_shown(fid)=False (filtré), compat sans fid OK. **2. Combiné du jour :
+jambes CALIBRÉES + refroidies** (`_candidates_for_day` : `calibrated_conf` + `_cool_conf` avant les seuils
+MIN_LEG_PROB/MIN_COMBO_PROB — il est compté au ROI, la sur-confiance se compose en combiné ; aligné sur le
+combiné de match qui recalibre déjà). **3. Lien mort « 📊 Fiabilité »** (subnav fiche match → /tracking/
+dashboard 404 depuis 3fe72d7) : entrée retirée + fonction morte `perf_toggle` supprimée (0 appelant).
+**4. Gloses de PÉRIODE** : garde `_per_gloss` (mi-temps/MT/quart/Q1, `(?<=\s)mt` épargne les -MT brésiliens)
+sur les branches numériques de `_plain_market` (handicap signé / équipe marque / total objet / équipe total /
+total match) + « break » exclu des totaux → un pari de période tombe sur le repli générique sûr, jamais une
+glose match-entier FAUSSE (« Brooklyn -0.5 (1er quart) » ne dit plus « gagne le match »). BTTS/DC mi-temps
+gardent leurs cas dédiés. Non-régression : gloses match entier intactes, selfcheck 0/0/20, API 200.
+
+---
+
 ## 2026-07-23 — AUDIT MULTI-AGENTS (29 agents, 5 dimensions, vérif adversariale) : 14 confirmées, 5 réfutées
 
 **Demande user : « Vérifie tout minutieusement par plusieurs agents ».** Workflow : 5 auditeurs parallèles

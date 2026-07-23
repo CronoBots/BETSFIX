@@ -3207,8 +3207,9 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 
     sub = ""
     if subnav and sport in _SPORT_MATCH_URL:
-        items = [("matchs", _SPORT_MATCH_URL[sport], "📋 Matchs"),
-                 ("perf", f"/tracking/dashboard?sport={sport}", "📊 Fiabilité")]
+        # « 📊 Fiabilité » RETIRÉ (audit 2026-07-23) : pointait /tracking/dashboard -> 404 (route supprimée
+        # avec le router tracking en 3fe72d7, juin) — lien mort sur chaque fiche match depuis un mois.
+        items = [("matchs", _SPORT_MATCH_URL[sport], "📋 Matchs")]
         sub = '<div class="subnav">' + "".join(
             f'<a class="{"on" if subnav == k else ""}" href="{href}">{e(lbl)}</a>'
             for k, href, lbl in items) + "</div>"
@@ -3897,11 +3898,18 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     sl = s.lower()
     unit = "buts" if sport == "foot" else ("jeux" if sport == "tennis" else "points")
     _u = lambda k: unit if k != 1 else {"buts": "but", "points": "point", "jeux": "jeu"}.get(unit, unit)
+    # MARCHÉ DE PÉRIODE (mi-temps / quart-temps) : les gloses ci-dessous décrivent le MATCH ENTIER — les
+    # appliquer à une période produit une glose FAUSSE (audit 2026-07-23 : « Brooklyn Nets -0.5 (1er quart) »
+    # glosé « gagne le match » ; « CRB buts 1ère MT Moins de 1.5 » glosé « au total les 2 équipes »). On
+    # laisse ces sels au repli générique sûr de _bet_gloss (« pari sur une période du match »). Exceptions :
+    # BTTS/DC mi-temps et handicap 1ère MT ont leurs propres cas plus bas -> on ne bloque que les branches
+    # numériques (handicap signé / équipe marque / totaux). `(?<=\s)mt` épargne les suffixes brésiliens -MT.
+    _per_gloss = bool(re.search(r"mi-temps|(?<=\s)mt\b|1[eè]re|2[eè]\b|quart|\bq\d\b", sl))
     # HANDICAP signé : « <équipe> -9.5 » (gagne de 10+) / « +9.5 » (ne perd pas de +9). Accepte un suffixe
     # « (handicap) »/« (hand.) »… APRÈS le nombre (fix 2026-07-14 : « Partick -1.5 (handicap) » n'avait pas
     # de glose car le nombre n'était pas en toute fin de chaîne).
     m = re.search(r"([+\-−–])\s?(\d+(?:[.,]\d+)?)\s*(?:\([^)]*\))?\s*$", s)
-    if m:
+    if m and not _per_gloss:
         val = float(m.group(2).replace(",", "."))
         neg = m.group(1) in ("-", "−", "–")
         # LIGNE 0.5 = « draw no bet / double chance » : cas le PLUS courant, à formuler EN CLAIR (le générique
@@ -3921,7 +3929,7 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     # ÉQUIPE MARQUE : « <équipe> - Plus/Moins de X.5 (buts) » -> AVANT le total du match (sinon capté à tort
     # comme total des 2 équipes). Détecté par le tiret séparateur « <nom> - plus/moins ».
     meq = re.search(r"^(.*?)\s[-–—]\s.*?\b(plus|moins) de (\d+(?:[.,]\d+)?)", s, re.I)
-    if meq and "total" not in sl:
+    if meq and "total" not in sl and not _per_gloss:
         who = meq.group(1).strip(" -–—")
         # GARDE-FOU (fix audit 2026-07-14) : ne traiter comme « ÉQUIPE marque » QUE si `who` est bien une
         # équipe — pas un libellé de total mal formé (« Nombre de buts - Plus de 2.5 ») ni un sel citant les
@@ -3942,7 +3950,7 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     # ÉQUIPE MARQUE — forme « <équipe> marque (Plus/Moins de X.5 but) » SANS tiret séparateur (fix 2026-07-17 :
     # « Argentine marque (Plus de 0.5 but) » restait sans glose car « 0.5 but » ≠ « buts » du total).
     mm = re.search(r"^(.+?)\s+marque\b.*?\b(plus de|moins de|au moins|au maximum) (\d+(?:[.,]\d+)?)", s, re.I)
-    if mm and "total" not in sl:
+    if mm and "total" not in sl and not _per_gloss:
         who, key, val = mm.group(1).strip(), mm.group(2).lower(), float(mm.group(3).replace(",", "."))
         if key in ("plus de", "au moins"):
             n = math.ceil(val) if key == "plus de" else (int(val) if val == int(val) else math.ceil(val))
@@ -3959,7 +3967,7 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     mob = re.search(r"total\s+(?:de\s+|des\s+|d')?(tirs?\s+cadrés?|tirs?|corners?|cartons?|aces?|"
                     r"doubles?\s+fautes?|rebonds?|passes?)\s*(?:de\s+([^()]+?))?\s*\b(plus|moins) de "
                     r"(\d+(?:[.,]\d+)?)", _s_np, re.I)
-    if mob:
+    if mob and not _per_gloss:
         obj = re.sub(r"\s+", " ", mob.group(1).strip().lower())
         who = (mob.group(2) or "").strip(" -–—")
         n = math.ceil(float(mob.group(4).replace(",", ".")))
@@ -3971,7 +3979,7 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     # glosé « … au total (les 2 équipes) », en CONTRADICTION FRONTALE avec le pari. Détecté par un NOM
     # D'ÉQUIPE en tête (matche home/away). DOIT passer AVANT le total du match. Couvre buts/points/jeux.
     mteam = re.search(r"^(.+?)\s+(plus|moins) de (\d+(?:[.,]\d+)?)\s*(?:buts?|points?|jeux)\b", s, re.I)
-    if mteam and "total" not in sl:
+    if mteam and "total" not in sl and not _per_gloss:
         who = mteam.group(1).strip()
         _wn = re.sub(r"\W+", "", who.lower())
         _teams = [re.sub(r"\W+", "", t.lower()) for t in (home, away) if t]
@@ -3990,8 +3998,8 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     # d'un objet SPÉCIFIQUE (corners/tirs/cartons/aces/rebonds/passes/fautes) : « au total buts » y serait FAUX
     # (mauvaise unité) -> ils tombent sur le repli générique « pari sur … » (fix 2026-07-17).
     mt = re.search(r"\b(plus|moins) de (\d+(?:[.,]\d+)?)", sl)
-    if (mt and ("total" in sl or "points" in sl or "buts" in sl)
-            and not re.search(r"\b(corner|tir|carton|ace|rebond|passe|faute)", sl)):
+    if (mt and ("total" in sl or "points" in sl or "buts" in sl) and not _per_gloss
+            and not re.search(r"\b(corner|tir|carton|ace|rebond|passe|faute|break)", sl)):
         val = float(mt.group(2).replace(",", "."))
         sens = "plus" if mt.group(1) == "plus" else "moins"
         n = math.floor(val) if sens == "plus" else math.ceil(val)
@@ -4376,7 +4384,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         # de confiance calibrée (bruit) ; on garde ceux avec value (EV+) OU confiance ≥ 60 %. Même prédicat
         # que le suivi (analyses.provisional_shown) -> affichage == stats « info seule ».
         if prov_sel and not analyses.provisional_shown(sp, prov_sel, prov.get("cote"), prov.get("prob"),
-                                                        home, away):
+                                                        home, away, fid=prov.get("fid")):
             continue
         if prov_sel:
             _cote = prov.get("cote")
@@ -4407,7 +4415,12 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
             if _pconf is not None:
                 try:
                     from app.settle_analyst import code_from_pick as _cfp
-                    _cpc = analyses.calibrated_conf(_pconf, sp, _cfp(prov_sel, sp, home, away))
+                    _pcode = _cfp(prov_sel, sp, home, away)
+                    # + REFROIDISSEMENT OVER-total (audit 2026-07-23) : la carte provisoire affichait la
+                    # confiance NON refroidie (69 %) quand le moteur jugeait 58 % -> même _cool_conf partout.
+                    _cpc = analyses._cool_conf(
+                        analyses.calibrated_conf(_pconf, sp, _pcode), sp, _pcode,
+                        (analyses.meta(sp, str(prov.get("fid") or "")) or {}).get("streaks"))
                 except Exception:
                     _cpc = _pconf
             # Pli « 💡 Pourquoi ce choix » (demande user 2026-07-20) : l'analyse du provisoire, présentée
@@ -6648,14 +6661,6 @@ def render_directs(play_live: list, prov_live: list, frag: bool = False) -> str:
     # `.dv-nav` (data-tab + data-n) lu par le JS SPA à la (pré)charge du panneau -> pose le badge sur l'onglet.
     body = f'<span class="dv-nav" data-tab="directs" data-n="{total}" hidden></span>' + zones
     return body if frag else spa_shell("directs", "Live", body)
-
-def perf_toggle(active: str) -> str:
-    """Bascule de sport sur la page Perf (suivis séparés)."""
-    tabs = [("tennis", "🎾 Tennis"), ("basket", "🏀 Basket"), ("foot", "⚽ Foot")]
-    return ('<div class="subnav" style="margin-top:0">' + "".join(
-        f'<a class="{"on" if active == k else ""}" '
-        f'href="/tracking/dashboard?sport={k}">{html.escape(lbl)}</a>'
-        for k, lbl in tabs) + "</div>")
 
 _FORM_COLOR = {"W": "#34d27b", "D": "#e0b341", "L": "#ff6b6b",
                "В": "#34d27b", "Н": "#e0b341", "П": "#ff6b6b"}  # W/D/L (en/ru selon locale)

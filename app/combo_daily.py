@@ -285,7 +285,20 @@ def _candidates_for_day(day: str) -> list[dict]:
             pr, co = p.get("prob"), p.get("cote")
             if not isinstance(pr, (int, float)) or not isinstance(co, (int, float)):
                 continue
-            prf = pr / 100.0 if pr > 1 else float(pr)   # sidecars stockent la proba en %
+            # CALIBRATION + REFROIDISSEMENT (audit 2026-07-23) : la sélection des jambes utilisait la proba
+            # BRUTE du LLM alors que le combiné du jour est COMPTÉ AU ROI — la sur-confiance se compose en
+            # combiné (même boucle de feedback que le combiné de match, generate_analyses ~1449). On calibre
+            # (calibrated_conf) puis on refroidit (OVER total-équipe basket, _cool_conf) AVANT les seuils
+            # MIN_LEG_PROB / MIN_COMBO_PROB. Affichage des jambes déjà calibré (web._leg_card) -> cohérent.
+            _pct = pr if pr > 1 else pr * 100.0
+            try:
+                from app.analyses import calibrated_conf as _cc, _cool_conf as _cool
+                _pct2 = _cool(_cc(_pct, d.get("sport"), code), d.get("sport"), code, d.get("streaks"))
+                if _pct2 is not None:
+                    _pct = _pct2
+            except Exception:
+                pass
+            prf = _pct / 100.0
             prev = best.get(code)
             if prev is None or prf > prev["prob"]:
                 best[code] = {"mid": mid, "sport": d.get("sport"), "sel": p.get("sel"),

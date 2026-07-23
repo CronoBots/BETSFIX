@@ -146,7 +146,7 @@ def reconcile_with_programme() -> int:
         home, _, away = str(m.get("name", "")).partition(" - ")
         # FILTRE (demande user 2026-07-17) : sans value ET < 60 % confiance calibrée -> non affiché -> non suivi.
         return analyses.provisional_shown(m.get("sport"), prov.get("sel"), prov.get("cote"),
-                                          prov.get("prob"), home, away)
+                                          prov.get("prob"), home, away, fid=prov.get("fid"))
     # ids DANS le programme SANS provisoire AFFICHÉ (pas de pari publié) -> l'affichage ne montre RIEN pour eux
     no_prov = {str(m.get("id") or "") for m in matches
                if not _shown(m) and m.get("status") != "bet"}
