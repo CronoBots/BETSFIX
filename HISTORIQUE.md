@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-23 — Garde-fou : refroidir un OVER de total d'équipe (basket) dont la ligne dépasse la moyenne
+
+**Contexte** (analyse des perdants du 22/07, demande user). Le pari « Minnesota Lynx **plus de 92,5 points** »
+a perdu (86 pts). L'analyse elle-même disait « moyenne saison **92** pts » → la ligne (92,5) était AU-DESSUS
+de la moyenne : la proba de dépasser sa propre moyenne est ~50 %, pas les 69 % annoncés (pari de momentum
+sur-vendu). Règlement OK, mais confiance trop optimiste.
+
+**Fix** (`analyses._teamtot_over_penalty` + `_cool_conf`, appliqués dans `retained_bet` [sélection] et
+`card_summary` [affichage]) : un OVER de total d'équipe **basket** dont la ligne > moyenne de points de
+l'équipe (streaks « Scored points average ») voit sa confiance **refroidie** : −10 pts de base dès que la
+ligne dépasse la moyenne + 1,5 pt/point d'écart (borné −20). BASKET only (le foot n'a pas la moyenne dans
+streaks). Ligne SOUS la moyenne / UNDER / autres sports : **0 pénalité**. **Forward-looking** : `for_history`
+garde les paris déjà publiés (track record honnête), `for_history=False` les dé-sélectionne désormais.
+**Vérifié** : Minnesota 69 % → 58 % → EV négatif → `retained(False)=None` (plus joué) ; ligne-sous-moyenne
+et UNDER intacts ; selfcheck 0/0. Purement sélection/affichage (règlement inchangé).
+
+---
+
 ## 2026-07-23 — Intitulé de pari : cote « @1.36 » redondante retirée du titre
 
 **Quoi** (capture user, Boca–O'Higgins) : intitulé « **Moins de 3.5 buts @1.36** » — la cote « @1.36 » est

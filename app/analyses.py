@@ -2069,6 +2069,52 @@ def combo_html(sport: str, match_id) -> str:
             f'<span class="v">{cote_val}</span></div></div>')
 
 
+def _teamtot_over_penalty(sport: str, code: str, streaks) -> float:
+    """REFROIDISSEMENT (demande user 2026-07-23, après l'échec Minnesota +92.5 : ligne 92,5 > moyenne 92,
+    annoncé 69 %, réel 86 pts → perdu) : un OVER de TOTAL D'ÉQUIPE dont la LIGNE dépasse la MOYENNE de points
+    de l'équipe est un pari de MOMENTUM sur-vendu (la proba de dépasser sa propre moyenne est ~50 %, pas 69 %).
+    Renvoie les POINTS de confiance à retirer (0 si non applicable). BASKET seulement : la moyenne (streaks
+    « Scored points average ») n'existe pas pour le foot. Lecture seule / forward-looking (sélection + affichage)."""
+    if sport != "basket" or not code or not isinstance(streaks, dict):
+        return 0.0
+    parts = code.upper().split()
+    if len(parts) < 4 or parts[0] != "TEAMTOT" or parts[2] != "OVER":
+        return 0.0
+    side = parts[1].lower()
+    if side not in ("home", "away"):
+        return 0.0
+    try:
+        line = float(parts[3].replace(",", "."))
+    except ValueError:
+        return 0.0
+    avg = None
+    for pair in (streaks.get(side) or []):
+        if (isinstance(pair, list) and len(pair) == 2
+                and "scored" in str(pair[0]).lower() and "average" in str(pair[0]).lower()):
+            try:
+                avg = float(str(pair[1]).replace(",", "."))
+            except ValueError:
+                avg = None
+            break
+    if avg is None:
+        return 0.0
+    gap = line - avg
+    if gap <= 0:                       # ligne SOUS la moyenne -> OVER favorable, aucune pénalité
+        return 0.0
+    # base 10 pts dès que la ligne dépasse la moyenne (ancre la conf près de ~50 %) + 1,5 pt par point d'écart,
+    # borné à 20. Minnesota (gap 0,5) : ~10,7 pts -> 69 % -> ~58 % -> EV négatif -> abstention.
+    return min(20.0, 10.0 + 1.5 * gap)
+
+
+def _cool_conf(cc, sport: str, code: str, streaks):
+    """Confiance calibrée `cc` (déjà passée par `calibrated_conf`) MOINS le refroidissement OVER-total-équipe.
+    None-safe ; plancher à 1.0."""
+    if cc is None:
+        return cc
+    pen = _teamtot_over_penalty(sport, code, streaks)
+    return max(1.0, cc - pen) if pen else cc
+
+
 def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None:
     """Le pari SIMPLE « retenu » par la LOGIQUE NORMALE du site (filtre ⭐ : conf recalibrée ≥ 65 %,
     EV ≥ +3 %, garde-fous de cote, marché réglable/non exclu) = ce que l'app aurait gardé pour un
@@ -2103,7 +2149,7 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
         for i, b in enumerate(bets):
             code = code_from_pick(b.get("sel", ""), sport, m.get("home", ""), m.get("away", ""))
             codes.append(code)
-            cprobs.append(calibrated_conf(b.get("prob"), sport, code))
+            cprobs.append(_cool_conf(calibrated_conf(b.get("prob"), sport, code), sport, code, m.get("streaks")))
             if code and market_of(code) not in ex_markets:
                 ok.add(i)
         reco = _recommend(bets, ok, cprobs, codes)
@@ -2146,8 +2192,8 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     # (bande verdict) montre la MÊME confiance que le détail déplié, pas la proba brute (cohérence carte).
     try:
         from app.settle_analyst import code_from_pick as _cfp
-        _cp = calibrated_conf(b.get("prob"), sport, _cfp(b.get("sel", ""), sport,
-                                                          m.get("home", ""), m.get("away", "")))
+        _rc = _cfp(b.get("sel", ""), sport, m.get("home", ""), m.get("away", ""))
+        _cp = _cool_conf(calibrated_conf(b.get("prob"), sport, _rc), sport, _rc, m.get("streaks"))
     except Exception:
         _cp = b.get("prob")
     return {"idx": ri, "sel": b.get("sel", ""), "prob": b.get("prob"), "cprob": _cp,
@@ -2303,7 +2349,8 @@ def card_summary(sport: str, match_id) -> dict:
             for i, b in enumerate(bets):
                 code = code_from_pick(b.get("sel", ""), sport, m.get("home", ""), m.get("away", ""))
                 codes.append(code)
-                cprobs.append(calibrated_conf(b.get("prob"), sport, code))   # confiance recalibrée
+                cprobs.append(_cool_conf(calibrated_conf(b.get("prob"), sport, code), sport, code,
+                                         m.get("streaks")))   # confiance recalibrée + refroidissement OVER-total
                 if code and market_of(code) not in ex_markets:
                     ok.add(i)
             reco = _recommend(bets, ok, cprobs, codes)
