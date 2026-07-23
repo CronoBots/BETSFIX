@@ -4706,14 +4706,17 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                      + _leg_bar + '</div>')
         else:
             # HEURE de début dans le badge (comme les provisoires) au lieu de « À VENIR » (demande user
-            # 2026-07-18). Repli « À VENIR » si l'heure n'est pas exploitable.
-            _hh = ""
+            # 2026-07-18). Repli « À VENIR » si l'heure n'est pas exploitable. HEURE FRAÎCHE Unibet (demande
+            # user 2026-07-23) : un match DÉCALÉ (tennis qui glisse, ex. 12:10 -> 12:50) affiche sa NOUVELLE
+            # heure + « ⏱ » (au lieu de l'heure périmée qui laisse croire qu'il aurait dû commencer).
+            _hh, _shift = "", False
             try:
-                _dtv = match_select._start_dt(l.get("start")) if l.get("start") else None
+                _dtv, _shift = match_select.effective_start(_sp, _lh, _la, l.get("start"))
                 _hh = fmt_local(_dtv, with_date=False) if _dtv else ""
             except Exception:
                 _hh = ""
-            _btxt, _bcls = (_hh or "À VENIR"), "up"   # badge heure NEUTRE, comme les provisoires
+            _btxt = (f"⏱ {_hh}" if (_shift and _hh) else (_hh or "À VENIR"))
+            _bcls = "up"                              # badge heure NEUTRE, comme les provisoires
     else:
         _btxt, _bcls = _bmap.get(_res, ("À VENIR", "p"))
     # gloss = explication EN CLAIR du marché, STABLE : elle NE CHANGE JAMAIS après le résultat (demande user

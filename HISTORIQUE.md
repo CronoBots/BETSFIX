@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-23 — Match décalé : heure fraîche Unibet sur les jambes du combiné (au lieu de l'heure périmée)
+
+**Quoi** (2 captures user, Hanfmann–Báez) : le combiné du jour affichait la jambe tennis à **12:10** alors
+que le match a été **décalé à 12:50** (matchs de tennis qui s'enchaînent sur le même court). L'heure figée
+au scan laissait croire que le match aurait dû commencer. Demande : détecter le décalage et afficher la
+nouvelle heure.
+
+**Cause** : les cartes de match utilisent déjà l'heure Unibet FRAÎCHE (`fresh_status` → `_usdt`, web.py:4342),
+mais le rendu des **jambes du combiné** (`_leg_card`) affichait `l.get("start")` (heure STOCKÉE, périmée).
+
+**Fix** : nouveau `match_select.effective_start(sport, home, away, stored_iso)` → lit l'heure Unibet fraîche
+(cache `_META_CACHE`) ; si elle est future et retardée de > 10 min vs stockée (mais < 12 h = même match, pas
+un autre de la série) → renvoie la NOUVELLE heure + `shifted=True`. `_leg_card` l'utilise → badge **« ⏱ 12:50 »**
+(heure décalée) au lieu de « 12:10 ». **Vérifié** : Hanfmann-Báez → 12:50 + décalé ; match non décalé → heure
+normale. Purement affichage (lecture cache Unibet, aucun réseau au rendu).
+
+---
+
 ## 2026-07-23 — Garde-fou : refroidir un OVER de total d'équipe (basket) dont la ligne dépasse la moyenne
 
 **Contexte** (analyse des perdants du 22/07, demande user). Le pari « Minnesota Lynx **plus de 92,5 points** »

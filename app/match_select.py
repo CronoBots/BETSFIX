@@ -169,6 +169,28 @@ def fresh_status(sport: str, home: str, away: str, sidecar_status: str,
     return sidecar_status, sdt
 
 
+def effective_start(sport: str, home: str, away: str, stored_iso: str | None, now=None):
+    """Heure de début EFFECTIVE d'un match À VENIR + drapeau « décalé » (demande user 2026-07-23 : « quand un
+    match qui devrait avoir commencé ne l'est pas, vérifier l'heure à laquelle il a été décalé »). Unibet MET
+    À JOUR l'heure quand un match est reprogrammé (tennis surtout : les matchs s'enchaînent sur le même court
+    -> celui de 12:10 glisse à 12:50). Si l'heure Unibet FRAÎCHE est future et RETARDÉE de > 10 min vs l'heure
+    stockée (mais < 12 h = le MÊME match, pas un autre de la série), on renvoie la NOUVELLE heure + shifted=True.
+    Sinon l'heure stockée. Purement affichage (lecture du cache Unibet `_META_CACHE`). Renvoie (dt|None, bool)."""
+    from datetime import datetime, timezone
+    now = now or datetime.now(timezone.utc)
+    own = _start_dt(stored_iso) if stored_iso else None
+    um = unibet_meta_for(sport, home, away) or {}
+    sdt = _start_dt(um.get("start")) if um.get("start") else None
+    if sdt is None or own is None:
+        return own, False
+    delta = (sdt - own).total_seconds()
+    if abs(delta) > 12 * 3600:            # un AUTRE match de la même affiche (série) -> on ignore Unibet
+        return own, False
+    if sdt > now and delta > 600:         # Unibet futur ET retardé de > 10 min -> match DÉCALÉ plus tard
+        return sdt, True
+    return own, False
+
+
 def _winner_odds(betoffers) -> tuple | None:
     """(o1, ox, o2) du marché VAINQUEUR depuis les betOffers d'un event (par type d'issue)."""
     for b in betoffers or []:
