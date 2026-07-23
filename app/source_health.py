@@ -75,6 +75,32 @@ async def _p_livescore(c):
     return (n > 0, f"{n} matchs" if n else "0 match")
 
 
+# Betmines : UA navigateur COMPLET requis (403 sinon) ET le WAF bloque le fingerprint TLS de httpx (tandis
+# que urllib/curl passent — même constat que tools/betmines_watch). On ping donc via urllib dans un thread.
+# `/leagues` = endpoint stable toujours peuplé (521 ligues) -> bon témoin « API up ».
+_BETMINES = "https://api.betmines.com/betmines/v1"
+_BM_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+          "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+
+
+def _betmines_leagues_ok() -> tuple:
+    import json as _json
+    import urllib.request as _u
+    try:
+        req = _u.Request(f"{_BETMINES}/leagues", headers={"User-Agent": _BM_UA})
+        with _u.urlopen(req, timeout=_T) as r:
+            if r.status != 200:
+                return False, f"HTTP {r.status}"
+            d = _json.loads(r.read().decode("utf-8", "ignore"))
+        return (bool(d), "OK (proxy SportMonks)" if d else "200 mais JSON vide")
+    except Exception as e:
+        return False, type(e).__name__
+
+
+async def _p_betmines(c):
+    return await asyncio.to_thread(_betmines_leagues_ok)
+
+
 # (clé, label, rôle, CRITIQUE) — critique = pilier sans lequel le système ne peut PAS produire d'analyse
 # fiable (Unibet = sélection+cotes ; FotMob = source n°1 foot analyse ET règlement des tirs). Les autres
 # dégradent sans planter (replis en cascade), donc « importantes » = warn si down, pas error.
@@ -87,6 +113,8 @@ _SOURCES = [
     ("flashscore", "Flashscore", "forme/H2H/score (repli règlement)", False, _p_flashscore),
     ("livescore", "LiveScore", "score live + règlement", False, _p_livescore),
     ("sportradar", "Sportradar GISMO", "periods/stats (règlement)", False, _p_sportradar),
+    ("betmines", "Betmines (proxy SportMonks)", "benchmark externe : Double quotidien (info seule, hors ROI)",
+     False, _p_betmines),
 ]
 
 

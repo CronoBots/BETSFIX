@@ -22,7 +22,15 @@
 | **LiveScore** | scores **live** | score + règlement |
 | **Sportradar GISMO** (feed libre) | forme / streaks / H2H / classement (3 sports) | **`match_info.periods`** (mi-temps foot, sets/jeux tennis, quart-temps basket) · **`match_details`** (tirs cadrés, tirs, corners, possession — foot ; aces, doubles fautes — tennis) |
 | **TennisExplorer** *(2026-07-03)* | tennis : **bilan par SURFACE** (Terre/Dur/Indoor/Gazon, carrière + année) | — |
+| **Betmines** (proxy **SportMonks**) *(2026-07-24)* | foot : **benchmark externe** — le « Double » quotidien + stats d'équipe SportMonks (% over/under domicile/ext & 5 derniers, clean-sheet, GG, moyennes buts, H2H) via `/fixtures/{id}`. **Info seule, hors ROI** (`tools/betmines_watch.py`, `app/source_health.py`) | notre règlement depuis `ftScore` (repli : leur `betResultStatus`) |
 | **SofaScore** | ❌ direct mort (403). Réactivable via **RapidAPI SportAPI7** (`sofa_http.py`) — mais **quota mensuel 15000 épuisé** | idem |
+
+> **SportMonks** est l'**upstream** de Betmines : on l'atteint GRATUITEMENT via le proxy Betmines (UA
+> navigateur requis ; le WAF bloque le fingerprint TLS httpx → on ping/fetch en **urllib**). ⚠️ L'API
+> Betmines n'a **AUCUN endpoint de listing/recherche** de fixtures (par jour/ligue/équipe/date : tous 400) —
+> les stats riches ne sont donc accessibles QUE pour les matchs qu'ils sélectionnent (Double/risky), PAS
+> pour notre slate Unibet. Un accès SportMonks **direct** (avec lookup par date) exigerait une **clé payante**
+> (piste future). Voir mémoire `betmines-tracking`.
 
 ## 3. Matrice de résolubilité par marché (audit 2026-07-03)
 
