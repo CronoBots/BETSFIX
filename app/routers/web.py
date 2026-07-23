@@ -596,11 +596,14 @@ def _provisional_card() -> str:
     _recent = [{"result": e.get("result") or "pending", "name": e.get("name"),
                 "sel": e.get("sel"), "cote": e.get("cote"), "start": e.get("start")}
                for e in (_pend + _done)]
+    # LIGNE W/L (chronologique) + série + sabliers ⏳ des en attente — comme les simples/combinés.
+    _form, _streak = web._form_streak([e.get("result") for e in reversed(_done)])
     # COURBE + STATS + HISTORIQUE construits EXACTEMENT comme les 2 premiers graphiques (simples/combinés).
     _curve = web.render_tracking_curve(
         emoji="🧪", title="Provisoires", roi=_roi, hit=_hit, n=s.get("settled", 0),
         points=_pvt.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="prov",
-        recent=_recent, more_label="Derniers provisoires")
+        recent=_recent, more_label="Derniers provisoires",
+        form=_form, pending=len(_pend), streak=_streak)
     return (
         '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
         '<span>info seule · hors ROI</span></div>'
@@ -737,9 +740,13 @@ def _betmines_card() -> str:
             "sel": " · ".join(_sel(l) for l in _lg),
             "cote": _c.get("total_odds"),
             "start": (_lg[0].get("start") if _lg and _lg[0].get("start") else _day + "T12:00:00Z")})
+    # LIGNE W/L (chronologique) + série + sabliers ⏳ des Doubles en attente.
+    _form, _streak = web._form_streak(
+        [days[d].get("result") for d in sorted(days) if days[d].get("result") in ("won", "lost")])
     _curve = web.render_tracking_curve(emoji="🎲", title="Betmines", roi=_roi, hit=_hit,
                                        n=len(done), points=_pts, avg_cote=_avgc, uid="betmines",
-                                       recent=_recent, more_label="Derniers Doubles")
+                                       recent=_recent, more_label="Derniers Doubles",
+                                       form=_form, pending=pend, streak=_streak)
     # DERNIER Double = carte façon combiné du jour : jambes _leg_card + badge global + cote totale.
     last_day = max(days)
     cb = days[last_day]
@@ -826,10 +833,13 @@ def _combo_daily_card() -> str:
         "sel": " · ".join(str(l.get("sel") or l.get("market") or "") for l in (cb.get("legs") or [])),
         "cote": cb.get("cote"),
         "start": (cb.get("date") or "") + "T12:00:00Z"} for cb in _hist]
+    # LIGNE W/L (chronologique) + série + sabliers ⏳ des combinés en attente.
+    _form, _streak = web._form_streak([cb.get("result") for cb in reversed(_hist)])
     _curve = web.render_tracking_curve(
         emoji="🎯", title="Combiné du jour", roi=_roi, hit=_hit, n=s.get("settled", 0),
         points=_cd.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="combod",
-        recent=_recent, more_label="Derniers combinés")
+        recent=_recent, more_label="Derniers combinés",
+        form=_form, pending=s.get("pending", 0), streak=_streak)
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Combiné du jour '
         '<span>compté au ROI</span></div>'

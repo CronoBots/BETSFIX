@@ -3858,25 +3858,49 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
     return f'<div class="spf-cv">{_c_inner}</div>'
 
 
+def _form_streak(results) -> tuple:
+    """(form, streak) à partir d'une liste CHRONOLOGIQUE (plus ancien → plus récent) de résultats
+    'won'/'lost'/'push'/'void'. `form` = ['W','L','N',…] pour `form_dots` ; `streak` = série EN COURS (run
+    final, + pour des W, − pour des L ; un N/void casse la série) pour `_streak_chip`. Partagé par les
+    cartes de suivi (provisoires / combiné du jour / Betmines) — demande user 2026-07-24."""
+    _M = {"won": "W", "lost": "L", "push": "N", "void": "N"}
+    form = [_M.get(r, "N") for r in (results or []) if r]
+    streak = 0
+    for r in reversed(form):
+        if r == "W" and streak >= 0:
+            streak += 1
+        elif r == "L" and streak <= 0:
+            streak -= 1
+        else:
+            break
+    return form, streak
+
+
 def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: list,
                           dates: list | None = None, avg_cote=None, uid: str = "trk",
-                          recent: list | None = None, more_label: str = "Derniers paris") -> str:
+                          recent: list | None = None, more_label: str = "Derniers paris",
+                          form: list | None = None, pending: int = 0, streak=None) -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
-    en-tête (titre + chip ROI), courbe `_hero_chart` (`.sx-equity`), puis KPIs (réussite % · N paris · cote
-    moyenne). Si `recent` (liste de paris réglés au format `_recent_bets_html`) est fourni, le bloc devient
-    CLIQUABLE (`<details>` + bouton « <more_label> ▾ ») qui déplie l'historique — MÊME présentation que les
-    simples/combinés (demande user 2026-07-24). AUCUN impact ROI/stats/calibration. '' si rien à tracer."""
-    if not n:
+    en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
+    courbe `_hero_chart` (`.sx-equity`), puis KPIs (réussite % · N paris · cote moyenne). Si `recent` (liste
+    de paris réglés au format `_recent_bets_html`) est fourni, le bloc devient CLIQUABLE (`<details>` +
+    bouton « <more_label> ▾ ») qui déplie l'historique — MÊME présentation que les simples/combinés (demande
+    user 2026-07-24 : « types de paris, roi, ligne W et L et sablier si pari en attente »). AUCUN impact
+    ROI/stats/calibration. '' si rien à tracer."""
+    if not n and not pending:
         return ""
     _pts = [p for p in (points or []) if p is not None]
     chart = (f'<div class="sx-equity">{_hero_chart(points, uid=uid, dates=dates or [])}</div>'
              if len(_pts) >= 2 else "")
+    _stk = _streak_chip(streak)                               # 🔥 N gagnés / ❄️ N perdus — À CÔTÉ du titre
+    _dots = form_dots(form or [], n=14, pending=pending)      # ligne W/L + sabliers ⏳ des en attente
+    _form = f'<div class="spf-cv-form">{_dots}</div>' if _dots else ""
     inner = (
         f'<div class="spf-cv-h">'
-        f'<span class="spf-cv-hl"><span class="spf-cv-t">{emoji} {html.escape(title)}</span></span>'
+        f'<span class="spf-cv-hl"><span class="spf-cv-t">{emoji} {html.escape(title)}</span>{_stk}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(roi, n)}">ROI {_roistr(roi)}</span></div>'
-        f'{chart}'
+        f'{_form}{chart}'
         '<div class="spf-cv-kpis">'
         f'<span><b class="arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</b> réussite</span>'
         f'<span><b>{n}</b> paris</span>'
