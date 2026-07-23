@@ -487,6 +487,10 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     s = re.sub(r"\s+", " ", (sel or "").strip())
     if not s:
         return s
+    # COTE COLLÉE À L'INTITULÉ : certains sels sont stockés « <pari> @1.36 » (bug user 2026-07-23 : « Moins de
+    # 3.5 buts @1.36 ») → la cote est DÉJÀ dans la colonne COTE, donc redondante dans le titre. On la retire de
+    # l'AFFICHAGE (le `sel` stocké reste intact → règlement/code inchangés).
+    s = re.sub(r"\s*@\s*\d+(?:[.,]\d+)?\s*$", "", s).strip()
     low = s.lower()
     # VAINQUEUR simple : « <équipe> victoire » / « <équipe> gagne » / « <équipe> l'emporte » = MÊME pari que
     # « <équipe> vainqueur » (2 écritures d'une victoire sèche). L'intitulé doit être IDENTIQUE partout

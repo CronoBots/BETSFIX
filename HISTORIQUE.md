@@ -12,6 +12,20 @@
 
 ---
 
+## 2026-07-23 — Intitulé de pari : cote « @1.36 » redondante retirée du titre
+
+**Quoi** (capture user, Boca–O'Higgins) : intitulé « **Moins de 3.5 buts @1.36** » — la cote « @1.36 » est
+DÉJÀ affichée dans la colonne COTE → redondante dans le titre. Incohérent aussi (Botafogo n'avait pas de
+« @cote », Boca oui).
+
+**Cause** : certains `sel` sont stockés avec la cote collée (« <pari> @1.36 »), `pretty_sel` la laissait.
+
+**Fix** : `pretty_sel` retire le suffixe `@<nombre>` en fin d'intitulé (affichage seul, `sel` stocké intact →
+règlement inchangé). **Vérifié** : « Moins de 3.5 buts @1.36 » → « Moins de 3.5 buts » ; « Djokovic vainqueur
+@2.10 » → « Djokovic vainqueur » ; intitulés sans cote inchangés. Purement affichage.
+
+---
+
 ## 2026-07-23 — Intitulé de pari illisible : handicap 3 voies avec sélection verbeuse
 
 **Quoi** (capture user, Botafogo–Vitória) : intitulé **« Handicap 3 voies Botafogo-RJ , ne perd pas par 2+
