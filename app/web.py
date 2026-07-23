@@ -4892,14 +4892,17 @@ def _betmines_tg_card() -> str:
 
     _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
               "lost": '<span class="mc-badge mc-done">❌ Perdu</span>'}.get(cb.get("result"), "")
-    # `why=True` (demande user 2026-07-23 « avec en plus ses propres analyses de jambes ») : le pli
-    # « Pourquoi cette jambe » porte l'analyse générée par betmines_watch (claude -p sur les stats API).
-    legs_html = "".join(_leg_card(
+    # Jambes rendues EXACTEMENT comme le combiné du jour (demande user 2026-07-24) : mêmes SÉPARATEURS
+    # (`_MC_SEP`), pli « Pourquoi cette jambe » (why=True, analyse claude -p sur les stats API) ET ligne
+    # VERDICT Confiance/Marché/Cote (verdict=True, via `prob` = confiance dérivée de leurs % + `code`).
+    _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
+    legs_html = _MC_SEP.join(_leg_card(
         {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
          "comp": leg.get("comp"), "sel": str(leg.get("market") or ""), "cote": leg.get("cote"),
          "result": leg.get("result"), "score": leg.get("score"), "start": leg.get("start"),
-         "why": leg.get("why")}, why=True)
-        for leg in cb.get("legs") or [])
+         "code": leg.get("code"), "prob": leg.get("prob"), "why": leg.get("why")},
+        why=True, verdict=True)
+        for leg in _legs)
     tot = cb.get("total_odds")
     _tot = (f'<div class="combo-total-hd"><span>Total du combiné</span></div>'
             f'<div class="tkt-cote"><span class="l">Cote totale</span><span class="v">{tot:g}</span></div>'

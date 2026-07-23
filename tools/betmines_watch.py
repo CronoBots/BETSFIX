@@ -92,17 +92,64 @@ def _api_double(day: str) -> dict | None:
             "score": f.get("ftScore") or None,
             "their_status": fx.get("betResultStatus"),  # 1=gagné 2=perdu (0/None = en attente)
             "start": f.get("dateTime"),
-            "stats": {                                  # -> analyses de jambes (pli « pourquoi »)
-                "pos_h": f.get("localTeamPosition"), "pos_a": f.get("visitorTeamPosition"),
-                "avg5_scored_h": lt.get("avgLastFiveSCored"), "avg5_conceded_h": lt.get("avgLastFiveConceded"),
-                "avg5_scored_a": vt.get("avgLastFiveSCored"), "avg5_conceded_a": vt.get("avgLastFiveConceded"),
-            },
+            "fixture_id": f.get("id"),                  # -> /fixtures/{id} pour les stats détaillées
+            "stats": {"pos_h": f.get("localTeamPosition"), "pos_a": f.get("visitorTeamPosition")},
             "result": None})
     if not legs:
         return None
     return {"date": day, "bet_id": bet.get("id"), "legs": legs,
             "total_odds": bet.get("quote"), "their_winning": bet.get("winning"),
             "result": None, "captured": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+
+
+_SEUIL = {0.5: "05", 1.5: "15", 2.5: "25", 3.5: "35", 4.5: "45"}
+
+
+def _enrich_leg(leg: dict) -> None:
+    """Appelle /fixtures/{id} (les % sont à 0 dans /bets) pour remplir : `stats` détaillées (% over/under
+    domicile/ext, clean-sheet, GG, moyennes buts, H2H) ET `prob` = CONFIANCE dérivée pour le marché de la
+    jambe (base de la ligne verdict Confiance/Marché/Cote). Best-effort. Appelé pour le Double du JOUR seul."""
+    fid = leg.get("fixture_id")
+    if not fid or leg.get("prob") is not None:          # déjà enrichi / pas d'id
+        return
+    try:
+        req = urllib.request.Request(
+            f"https://api.betmines.com/betmines/v1/fixtures/{fid}",
+            headers={"User-Agent": _UA, "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            f = json.loads(r.read().decode("utf-8", "ignore"))
+    except Exception:
+        return
+    lt, vt = f.get("localTeam") or {}, f.get("visitorTeam") or {}
+
+    def _num(t, k):
+        v = t.get(k)
+        return v if isinstance(v, (int, float)) else None
+
+    s = leg.setdefault("stats", {})
+    seuil = _SEUIL.get(abs(leg.get("line") or 0))
+    if seuil:                                           # over/under buts
+        h_ctx = _num(lt, f"totalHomeOver{seuil}Percentage")
+        a_ctx = _num(vt, f"totalAwayOver{seuil}Percentage")
+        h_l5 = _num(lt, f"totalLast5Over{seuil}Percentage")
+        a_l5 = _num(vt, f"totalLast5Over{seuil}Percentage")
+        vals = [x for x in (h_ctx, a_ctx, h_l5, a_l5) if x is not None]
+        over_pct = round(sum(vals) / len(vals)) if vals else None
+        if over_pct is not None:
+            leg["prob"] = over_pct if (leg.get("line") or 0) > 0 else max(1, 100 - over_pct)
+        s.update({"over_ctx_h": h_ctx, "over_ctx_a": a_ctx, "over_l5_h": h_l5, "over_l5_a": a_l5})
+    else:                                               # marchés non-buts (1X2/GG…) : proba implicite de leur cote
+        co = leg.get("cote")
+        if isinstance(co, (int, float)) and co > 1:
+            leg["prob"] = round(100.0 / co)
+    s.update({
+        "cs_h": _num(lt, "cleanSheetPercentage"), "cs_a": _num(vt, "cleanSheetPercentage"),
+        "gg_h": _num(lt, "totalGGPercentage"), "gg_a": _num(vt, "totalGGPercentage"),
+        "avg_h": _num(lt, "totalGolsMeanLatestMatches"), "avg_a": _num(vt, "totalGolsMeanLatestMatches"),
+        "avg_conc_h": _num(lt, "totalConcededGolsMeanLatestMatches"),
+        "avg_conc_a": _num(vt, "totalConcededGolsMeanLatestMatches"),
+        "h2h_h": f.get("totalGolsMeanLocalTeamH2H"), "h2h_a": f.get("totalGolsMeanVisitorTeamH2H"),
+    })
 
 
 def _settle_leg(leg: dict) -> None:
@@ -149,20 +196,40 @@ def _analyze_legs(cb: dict) -> bool:
     exe = _resolve_claude()
     if not exe:
         return False
+    def _pc(v):                                         # pourcentage lisible ou '?'
+        return f"{round(v)} %" if isinstance(v, (int, float)) else "?"
+
+    def _mn(v):
+        return f"{v:.1f}" if isinstance(v, (int, float)) else "?"
+
     blocs = []
     for i, l in enumerate(cb["legs"], 1):
         s = l.get("stats") or {}
-        blocs.append(
-            f"[{i}] {l.get('comp')} — {l.get('home')} vs {l.get('away')} — pari : {l.get('market')} "
-            f"@{l.get('cote')}\n    Position au classement : {l.get('home')} {s.get('pos_h') or '?'}e, "
-            f"{l.get('away')} {s.get('pos_a') or '?'}e. Moyennes 5 derniers matchs : {l.get('home')} "
-            f"{s.get('avg5_scored_h')} marqués / {s.get('avg5_conceded_h')} encaissés ; {l.get('away')} "
-            f"{s.get('avg5_scored_a')} marqués / {s.get('avg5_conceded_a')} encaissés.")
+        ligne = (f"[{i}] {l.get('comp')} — {l.get('home')} vs {l.get('away')} — pari : {l.get('market')} "
+                 f"@{l.get('cote')}\n    Classement : {l.get('home')} {s.get('pos_h') or '?'}e, "
+                 f"{l.get('away')} {s.get('pos_a') or '?'}e.")
+        # % over/under contextuels (domicile/extérieur) + forme 5 derniers, si le marché est un total buts
+        if s.get("over_ctx_h") is not None or s.get("over_ctx_a") is not None:
+            seuil = _SEUIL.get(abs(l.get("line") or 0), "?")
+            ligne += (f"\n    Matchs à +{seuil.lstrip('0') if isinstance(seuil,str) else seuil} buts — "
+                      f"{l.get('home')} à domicile {_pc(s.get('over_ctx_h'))} (5 derniers "
+                      f"{_pc(s.get('over_l5_h'))}) ; {l.get('away')} à l'extérieur "
+                      f"{_pc(s.get('over_ctx_a'))} (5 derniers {_pc(s.get('over_l5_a'))}).")
+        ligne += (f"\n    Moyennes buts (5 derniers) : {l.get('home')} {_mn(s.get('avg_h'))} marqués / "
+                  f"{_mn(s.get('avg_conc_h'))} encaissés ; {l.get('away')} {_mn(s.get('avg_a'))} marqués / "
+                  f"{_mn(s.get('avg_conc_a'))} encaissés."
+                  f"\n    Clean-sheet : {l.get('home')} {_pc(s.get('cs_h'))}, {l.get('away')} "
+                  f"{_pc(s.get('cs_a'))}. Les deux marquent (GG) : {l.get('home')} {_pc(s.get('gg_h'))}, "
+                  f"{l.get('away')} {_pc(s.get('gg_a'))}."
+                  f"\n    H2H moyenne buts : {l.get('home')} {_mn(s.get('h2h_h'))}, {l.get('away')} "
+                  f"{_mn(s.get('h2h_a'))}.")
+        blocs.append(ligne)
     prompt = (
         "Tu es un analyste PRO du pari sportif. Justifie chaque jambe du combiné ci-dessous en 2 phrases "
-        "COMPLÈTES et FACTUELLES (français impeccable) : appuie-toi sur les chiffres fournis (positions, "
-        "moyennes de buts) et sur ce que tu sais de ces équipes/ligues ; termine par une courte réserve "
-        "honnête (« bémol : … »). N'invente AUCUN chiffre. Pas de méta (ni value, ni proba). "
+        "COMPLÈTES et FACTUELLES (français impeccable) : appuie-toi sur les chiffres fournis (classement, "
+        "% de matchs au-dessus du seuil, clean-sheet, GG, moyennes de buts, H2H) et sur ce que tu sais de "
+        "ces équipes/ligues ; termine par une courte réserve honnête (« bémol : … »). "
+        "N'invente AUCUN chiffre. Pas de méta (ni value, ni proba). "
         "Réponds AU FORMAT EXACT, une ligne par jambe, RIEN d'autre :\n"
         "LEG1: <justification>\nLEG2: <justification>\n(… une ligne LEGn par jambe)\n\nJambes :\n"
         + "\n".join(blocs))
@@ -230,10 +297,24 @@ def run(force: bool = False, backfill: int = 0) -> None:
             cb["result"] = "won"
         elif any(r == "lost" for r in res):
             cb["result"] = "lost"
-    # 3) ANALYSES de jambes du Double du JOUR (comme le combiné du jour) — jamais pour le backfill.
+    # 3) ENRICHISSEMENT + ANALYSES de jambes du Double du JOUR (comme le combiné du jour) — pas le backfill.
     cbt = d.get(today)
-    if isinstance(cbt, dict) and cbt.get("legs") and _analyze_legs(cbt):
-        print("betmines: analyses de jambes écrites (pli « pourquoi »)")
+    if isinstance(cbt, dict) and cbt.get("legs"):
+        # `fixture_id` manque sur les Doubles capturés avant l'enrichissement (ou déjà réglés donc non
+        # re-capturés) : on le rapatrie par un re-fetch léger, SANS toucher result/why/settle_src.
+        if any(not l.get("fixture_id") for l in cbt["legs"]):
+            try:
+                fresh = _api_double(today)
+                for fl in (fresh or {}).get("legs") or []:
+                    for leg in cbt["legs"]:
+                        if (leg.get("home"), leg.get("away")) == (fl.get("home"), fl.get("away")):
+                            leg["fixture_id"] = fl.get("fixture_id")
+            except Exception:
+                pass
+        for leg in cbt["legs"]:                         # % détaillés (0 dans /bets) + `prob` (confiance)
+            _enrich_leg(leg)
+        if _analyze_legs(cbt):
+            print("betmines: analyses de jambes écrites (pli « pourquoi »)")
     _save(d)
     # 4) BILAN mesuré.
     done = [c for k, c in d.items() if not k.startswith("_")
