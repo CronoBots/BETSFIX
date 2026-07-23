@@ -12,6 +12,29 @@
 
 ---
 
+## 2026-07-23 — Scan : préférer la Double chance à un handicap « +1 » (foot)
+
+**Quoi** (2 captures user Unibet, Botafogo–Vitória). BETSFIX a retenu « Botafogo-RJ +1 » (code `HCAP HOME +1`,
+cote 1,17) alors que la **Double chance 1X @1,18** est le marché clair et mieux coté pour la même issue.
+Pire : le code `HCAP +1` est réglé en **asiatique** (push si perd par 1), mais la cote 1,17 est celle du
+3-way (perd par 1 = perdu) → marché FANTÔME (règlement asiatique + cote 3-way). User (juste) : « +1 n'égale
+PAS une double chance » (asiatique +1 a un remboursement, la DC non) — donc NE PAS convertir +1 en DC au
+règlement.
+
+**Preuve user (captures Unibet)** : « 3-Way Handicap » (commence 1-0, 3 issues avec Nul, perd si nul
+handicapé) ET « Handicap Asiatique » (lignes en quarts -0.75/+0.75, remboursement possible) sont DEUX
+marchés DIFFÉRENTS. BETSFIX a pris le pari du 3-way « commence 1-0 » (@1,17) mais l'a codé `HCAP +1` =
+asiatique (push si perd par 1) → règlement FAUX (le 3-way fait perdre, pas rembourser).
+
+**Fix (forward-looking, prompt scan)** : consigne FOOT — n'utiliser QUE des handicaps en DEMI-POINT
+(-1.5, -0.5, +0.5…), NON ambigus. JAMAIS un handicap ENTIER (+1, -1, +2) : ambigu entre Handicap Asiatique
+(remboursement) et 3-Way Handicap (perd si nul handicapé). Pour « le favori ne perd pas » → Double chance
+`DC 1X`/`DC X2`. **RÈGLE : +1 ≠ double chance ≠ handicap asiatique = TROIS marchés distincts.** Ne touche PAS
+`code_from_pick`/le règlement (risque combos) — on empêche l'analyste de CHOISIR un entier ambigu. Le code
+`HCAP3` (3-way, 1X2 sur score ajusté) existe déjà si besoin un jour. py_compile OK.
+
+---
+
 ## 2026-07-23 — Match décalé : heure fraîche Unibet sur les jambes du combiné (au lieu de l'heure périmée)
 
 **Quoi** (2 captures user, Hanfmann–Báez) : le combiné du jour affichait la jambe tennis à **12:10** alors
