@@ -4890,17 +4890,15 @@ def _betmines_tg_card() -> str:
     if not isinstance(cb, dict) or not cb.get("legs"):
         return ""
 
-    def _sel(leg: dict) -> str:
-        ln = leg.get("line")
-        if isinstance(ln, (int, float)) and "but" in str(leg.get("market", "")).lower():
-            return f"Plus de {ln:g} buts" if ln > 0 else f"Moins de {abs(ln):g} buts"
-        return f'{leg.get("market", "Pari")} {ln:+g}' if isinstance(ln, (int, float)) else str(leg.get("market", ""))
     _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
               "lost": '<span class="mc-badge mc-done">❌ Perdu</span>'}.get(cb.get("result"), "")
+    # `why=True` (demande user 2026-07-23 « avec en plus ses propres analyses de jambes ») : le pli
+    # « Pourquoi cette jambe » porte l'analyse générée par betmines_watch (claude -p sur les stats API).
     legs_html = "".join(_leg_card(
         {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
-         "comp": leg.get("comp"), "sel": _sel(leg), "cote": leg.get("cote"),
-         "result": leg.get("result"), "score": leg.get("score")}, why=False)
+         "comp": leg.get("comp"), "sel": str(leg.get("market") or ""), "cote": leg.get("cote"),
+         "result": leg.get("result"), "score": leg.get("score"), "start": leg.get("start"),
+         "why": leg.get("why")}, why=True)
         for leg in cb.get("legs") or [])
     tot = cb.get("total_odds")
     _tot = (f'<div class="combo-total-hd"><span>Total du combiné</span></div>'
@@ -5225,9 +5223,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     out = [
         _zone("combo", "Combiné du jour", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
-        _zone("betmines", "Combiné Betmines", "", 1 if betmines else 0, betmines, collapsible=True),
         _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
         _zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
+        # SOUS les provisoires (demande user 2026-07-23) : suivi externe = après tous NOS pronos.
+        _zone("betmines", "Combiné Betmines", "", 1 if betmines else 0, betmines, collapsible=True),
     ]
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
     # compact info-seule) — sinon visibles seulement dans Stats (demande user 2026-07-20). Zone repliable.

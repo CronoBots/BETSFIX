@@ -12,6 +12,26 @@
 
 ---
 
+## 2026-07-23 — Betmines v2 : API officielle + backfill 1 mois + analyses de jambes + zone sous provisoires
+
+**Demandes user** : zone SOUS les Paris provisoires · construction identique au combiné du jour AVEC ses
+propres analyses de jambes · reprendre l'historique du dernier mois.
+
+**Découverte** : leur API publique dans le bundle Nuxt — `api.betmines.com/betmines/v1/bets?isDailyBet=
+true&isRiskyBet=false&from=<day>T10:00:00Z` (1 Double/appel : équipes, ligue, marché betResult O15/O25/…,
+cote/jambe, statut/jambe, ftScore, cote totale, verdict winning, stats d'équipe). `betmines_watch.py` v2 :
+capture API (plus de scrape), **notre règlement depuis ftScore prioritaire** (leur statut en repli, tracé
+`settle_src`) ; `--backfill N`. **Backfill 30 j : 31 Doubles, 18/31 gagnés (58 %), P&L simulé +4,31 (≈+13,9 %
+ROI)** ; **0 désaccord** notre règlement vs le leur (56/61 jambes réglées sur score) ; marchés = 34× O2.5,
+22× O1.5, 4× 1X2 dom, 1× BTTS. **Analyses de jambes** (`_analyze_legs`, Double du JOUR seulement) : un
+appel `claude -p` (prompt via **STDIN** — en argument, claude.CMD tronque au 1er retour ligne, bug reproduit)
+sur les stats API (positions, moyennes 5 derniers) → `leg["why"]` → pli « Pourquoi cette jambe »
+(`_leg_card why=True`, visible tant que la jambe n'est pas réglée, comme le combiné du jour). Zone Pronos
+déplacée SOUS « Paris provisoires » (suivi externe = après tous NOS pronos). Vérifié : /jour ordre OK +
+jambes + badge ; /stats bilan 18/31.
+
+---
+
 ## 2026-07-23 — Combiné Betmines dans l'onglet PRONOS (zone dédiée, sans emoji)
 
 **Demande user** : « je veux le voir comme un combiné dans l'onglet pronos et sans l'emoji ».
