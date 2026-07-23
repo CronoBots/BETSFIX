@@ -12,6 +12,23 @@
 
 ---
 
+## 2026-07-23 — Suivi Betmines : mesurer leur « Double » quotidien avant de s'en inspirer
+
+**Demande user** : « garde leurs combinés sûrs et analyse leurs matchs » (betmines.com/fr/paris-du-jour-
+football, leur taux de réussite affiché l'intéresse). Politique : on ne copie RIEN — on MESURE leur
+réussite réelle par NOS règlements d'abord.
+
+**Module `tools/betmines_watch.py`** (isolé, écrit UNIQUEMENT `data/betmines_track.json`) : capture le
+« Double » du jour (2 jambes sûres, ~over buts, cote ~1.9 — page 403 pour les bots → UA navigateur) via un
+parse par SEGMENTS du DOM Nuxt (`daily-bet-fixture-row`), puis règle chaque jambe : **nos sources d'abord**
+(Flashscore→LiveScore), repli score affiché par leur page (`score_src` tracé — leurs ligues obscures type
+D2 islandaise manquent souvent chez nous). Verdict combiné = toutes gagnées/1 perdue. **Throttle 6 h**
+interne. Branché : fin de `deploy/scan_daily.ps1` + boucle `tools/reconcile.py` (rattrape un Double publié
+après 09 h sans marteler le site). **1re capture** : Double 23/07 (Polissya–København +1.5 @1.25 · Leiknir–
+Thróttur +2.5 @1.50, cote 1.88) → **GAGNÉ** (3-3 ; 1-6 réglé par NOS sources). Jamais au ROI/stats/calibration.
+
+---
+
 ## 2026-07-23 — Audit multi-agents, VOLET 2 : les 4 restants corrigés
 
 Suite de l'audit (GO user). **1. Refroidissement OVER-total appliqué PARTOUT** : `_bets_table` (+param

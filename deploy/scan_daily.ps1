@@ -90,3 +90,10 @@ Log ("REVUE DONE (exit {0})" -f $LASTEXITCODE)
 Log 'SOURCES : santé des sources'
 & $py 'tools\source_health.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
 Log ("SOURCES DONE (exit {0})" -f $LASTEXITCODE)
+
+# SUIVI BETMINES (info seule, demande user 2026-07-23) : capture le « Double » quotidien de betmines.com
+# et le règle par nos sources -> MESURE leur taux de réussite réel avant de s'en inspirer. Écrit
+# UNIQUEMENT data/betmines_track.json (jamais ROI/stats/calibration). Best-effort, ne bloque jamais.
+Log 'BETMINES : capture + reglement du Double'
+& $py 'tools\betmines_watch.py' 2>&1 | Out-File -Append -Encoding utf8 $log
+Log ("BETMINES DONE (exit {0})" -f $LASTEXITCODE)

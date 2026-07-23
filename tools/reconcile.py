@@ -143,6 +143,18 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 print(f"  · {_ncd} combiné(s) du jour tranché(s) (suivi info-seule).")
         except Exception as exc:
             print(f"  (suivi combiné du jour ignoré : {exc})")
+        # SUIVI BETMINES (info seule, demande user 2026-07-23) : capture + règle leur « Double » quotidien —
+        # THROTTLÉ à 6 h EN INTERNE (les passes 10 min ne martèlent pas leur site). Mesure leur taux de
+        # réussite réel par NOS règlements. Écrit uniquement data/betmines_track.json.
+        try:
+            import importlib.util as _ilu
+            _bwp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "betmines_watch.py")
+            _spec = _ilu.spec_from_file_location("betmines_watch", _bwp)
+            _bw = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_bw)
+            await asyncio.to_thread(_bw.run)
+        except Exception as exc:
+            print(f"  (suivi betmines ignoré : {exc})")
 
     # 2) INVENTAIRE : parcourt les fiches, classe chaque match JOUÉ.
     stuck, upcoming, unposted = [], [], []
