@@ -688,6 +688,79 @@ def _selectivity_card() -> str:
         f'<div class="sx-data-note">{_main}</div></div>')
 
 
+def _betmines_card() -> str:
+    """Cadre « suivi EXTERNE » (onglet Stats) : le Double quotidien de Betmines, MESURÉ par NOS règlements —
+    demande user 2026-07-23 (« même présentation que le combiné du jour »). But : vérifier leur taux de
+    réussite réel avant de s'en inspirer. INFO SEULE, hors ROI — jamais mêlé à nos pronos. '' si aucun suivi."""
+    import json as _json
+    import os as _os
+    _p = _os.path.join(web.analyses._ROOT, "data", "betmines_track.json")
+    try:
+        with open(_p, encoding="utf-8") as f:
+            _d = _json.load(f)
+    except (OSError, ValueError):
+        return ""
+    days = {k: v for k, v in _d.items()
+            if isinstance(v, dict) and v.get("legs") and not k.startswith("_")}
+    if not days:
+        return ""
+    import html as _h
+
+    def _sel(leg: dict) -> str:
+        ln = leg.get("line")
+        if isinstance(ln, (int, float)) and "but" in str(leg.get("market", "")).lower():
+            return f"Plus de {ln:g} buts" if ln > 0 else f"Moins de {abs(ln):g} buts"
+        return f'{leg.get("market", "Pari")} {ln:+g}' if isinstance(ln, (int, float)) else str(leg.get("market", ""))
+
+    # BILAN mesuré (mise plate 1, cote totale du Double).
+    done = [c for c in days.values() if c.get("result") in ("won", "lost")]
+    won = sum(1 for c in done if c["result"] == "won")
+    pnl = sum((c.get("total_odds") or 0) - 1 if c["result"] == "won" else -1 for c in done)
+    pend = len(days) - len(done)
+    _pcls = " sx-pos" if pnl > 0 else (" sx-neg" if pnl < 0 else "")
+    # DERNIER Double = carte façon combiné du jour : jambes _leg_card + badge global + cote totale.
+    last_day = max(days)
+    cb = days[last_day]
+    _bmap = {"won": ('<span class="mc-badge mc-done">✅ Gagné</span>', ""),
+             "lost": ('<span class="mc-badge mc-done">❌ Perdu</span>', "")}
+    badge = _bmap.get(cb.get("result"), ("", ""))[0]
+    legs_html = "".join(web._leg_card(
+        {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
+         "comp": leg.get("comp"), "sel": _sel(leg), "cote": leg.get("cote"),
+         "result": leg.get("result"), "score": leg.get("score")}, why=False)
+        for leg in cb.get("legs") or [])
+    tot = cb.get("total_odds")
+    tot_html = (f'<div class="tkt-cote"><span class="l">Cote totale du Double</span>'
+                f'<span class="v">{tot:g}</span></div>') if isinstance(tot, (int, float)) else ""
+    # Historique compact des Doubles précédents (✓/✗, du plus récent au plus ancien).
+    rows = []
+    for day in sorted(days, reverse=True):
+        c = days[day]
+        if day == last_day:
+            continue
+        ic, cls = {"won": ("✓", "w"), "lost": ("✗", "l")}.get(c.get("result"), ("⏳", "n"))
+        _lgs = " · ".join(f'{leg.get("home", "?")}–{leg.get("away", "?")} {_sel(leg)}'
+                          for leg in c.get("legs") or [])
+        rows.append(f'<div class="prv-r prv-{cls}"><span class="prv-ic">{ic}</span>'
+                    f'<div class="prv-m"><div class="prv-t">{_h.escape(day)} · @{c.get("total_odds") or "—"}</div>'
+                    f'<div class="prv-s">{_h.escape(_lgs[:120])}</div></div></div>')
+    hist = f'<div class="prv-res" style="margin-top:8px">{"".join(rows)}</div>' if rows else ""
+    return (
+        '<div class="sx-card"><div class="sx-h">🧿 Combiné Betmines '
+        '<span>suivi externe · info seule, hors ROI</span></div>'
+        '<div class="sx-data-note">Le « Double » quotidien de <b>Betmines</b> (2 jambes sûres, overs de '
+        'buts sur ligues secondaires), capturé et <b>réglé par NOS sources</b> — on mesure leur taux de '
+        'réussite réel avant de s\'y intéresser. Aucun impact sur nos pronos ni notre ROI.</div>'
+        '<div class="sx-kpis sx-kpis3">'
+        f'<div class="sx-kpi"><b>{len(days)}</b><span>Doubles suivis</span></div>'
+        f'<div class="sx-kpi"><b>{won}/{len(done)}</b><span>gagnés</span></div>'
+        f'<div class="sx-kpi{_pcls}"><b>{pnl:+.2f}</b><span>P&amp;L simulé (mise 1)</span></div>'
+        '</div>'
+        f'<div class="sx-h" style="margin-top:10px">Double du {_h.escape(last_day)} {badge}'
+        f'{" · <span>" + str(pend) + " en attente</span>" if pend else ""}</div>'
+        f'<div class="mc-combo-legs">{legs_html}</div>{tot_html}{hist}</div>')
+
+
 def _combo_daily_card() -> str:
     """Bloc « Combiné du jour » (onglet Stats) : le combiné multisport du jour (jambes détaillées) +
     perf info-seule (hors ROI) + historique. '' si aucun combiné suivi."""
@@ -783,6 +856,7 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 + _selectivity_card()     # ratio paris à jouer / abstentions du jour (rend la sélectivité visible)
                 + _combo_daily_card()     # « info seule » : le combiné multisport du jour (hors ROI réel)
                 + _provisional_card()     # « info seule » : perf hypothétique des provisoires (hors ROI réel)
+                + _betmines_card()        # suivi EXTERNE : le Double Betmines mesuré par nos règlements
                 # Panneau SANTÉ (privé) chargé en AJAX : hors du cache commun (le fragment est mutualisé) et
                 # servi UNIQUEMENT au propriétaire (route /stats/health, is_owner) -> pas de fuite du stack de
                 # sources. Vide (donc invisible) pour les visiteurs. Données LIVE (ping sources) sans bloquer.

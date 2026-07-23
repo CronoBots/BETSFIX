@@ -12,6 +12,18 @@
 
 ---
 
+## 2026-07-23 — Carte « 🧿 Combiné Betmines » sur le site (onglet Stats)
+
+**Demande user** : intégrer le suivi Betmines au site « même présentation que le combiné du jour ».
+`routers/web._betmines_card()` (insérée après la carte provisoires, groupe « suivis indicatifs — hors
+ROI ») : note explicative (« réglé par NOS sources ») + KPIs (Doubles suivis · gagnés · P&L simulé mise 1)
++ **le dernier Double rendu comme le combiné du jour** (jambes `web._leg_card` : SPORT • compétition,
+équipes, pari « Plus de X.5 buts » + glose ↳, COTE, badge GAGNÉ/PERDU) + cote totale + historique compact
+✓/✗ des Doubles précédents. Vérifié : /stats 200, carte rendue (Polissya + Leiknir, @1.88, ✅ Gagné).
+Purement affichage d'un suivi externe — jamais mêlé aux pronos/ROI BETSFIX.
+
+---
+
 ## 2026-07-23 — Suivi Betmines : mesurer leur « Double » quotidien avant de s'en inspirer
 
 **Demande user** : « garde leurs combinés sûrs et analyse leurs matchs » (betmines.com/fr/paris-du-jour-
