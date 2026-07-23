@@ -746,7 +746,7 @@ def _betmines_card() -> str:
                     f'<div class="prv-s">{_h.escape(_lgs[:120])}</div></div></div>')
     hist = f'<div class="prv-res" style="margin-top:8px">{"".join(rows)}</div>' if rows else ""
     return (
-        '<div class="sx-card"><div class="sx-h">🧿 Combiné Betmines '
+        '<div class="sx-card"><div class="sx-h">Combiné Betmines '
         '<span>suivi externe · info seule, hors ROI</span></div>'
         '<div class="sx-data-note">Le « Double » quotidien de <b>Betmines</b> (2 jambes sûres, overs de '
         'buts sur ligues secondaires), capturé et <b>réglé par NOS sources</b> — on mesure leur taux de '

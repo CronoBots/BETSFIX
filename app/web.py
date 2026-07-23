@@ -4873,6 +4873,45 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
                             badge=_badge, body=_body)
 
 
+def _betmines_tg_card() -> str:
+    """Carte « Combiné Betmines » pour l'onglet PRONOS (demande user 2026-07-23 : « je veux le voir comme
+    un combiné dans l'onglet pronos, sans l'emoji ») — MÊME coquille que le combiné du jour
+    (`_combo_gold_card` : en-tête + jambes `_leg_card` + cote totale). Suivi EXTERNE info seule (réglé par
+    NOS sources), hors ROI. Affiché pour le JOUR SPORTIF COURANT, réglé ou non (badge ✅/❌ une fois réglé —
+    c'est de l'observation, pas un pari à jouer qui doit disparaître). '' si pas de Double aujourd'hui."""
+    import json as _json
+    _p = os.path.join(analyses._ROOT, "data", "betmines_track.json")
+    try:
+        with open(_p, encoding="utf-8") as f:
+            _d = _json.load(f)
+    except (OSError, ValueError):
+        return ""
+    cb = _d.get(_sport_today().isoformat())
+    if not isinstance(cb, dict) or not cb.get("legs"):
+        return ""
+
+    def _sel(leg: dict) -> str:
+        ln = leg.get("line")
+        if isinstance(ln, (int, float)) and "but" in str(leg.get("market", "")).lower():
+            return f"Plus de {ln:g} buts" if ln > 0 else f"Moins de {abs(ln):g} buts"
+        return f'{leg.get("market", "Pari")} {ln:+g}' if isinstance(ln, (int, float)) else str(leg.get("market", ""))
+    _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
+              "lost": '<span class="mc-badge mc-done">❌ Perdu</span>'}.get(cb.get("result"), "")
+    legs_html = "".join(_leg_card(
+        {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
+         "comp": leg.get("comp"), "sel": _sel(leg), "cote": leg.get("cote"),
+         "result": leg.get("result"), "score": leg.get("score")}, why=False)
+        for leg in cb.get("legs") or [])
+    tot = cb.get("total_odds")
+    _tot = (f'<div class="combo-total-hd"><span>Total du combiné</span></div>'
+            f'<div class="tkt-cote"><span class="l">Cote totale</span><span class="v">{tot:g}</span></div>'
+            if isinstance(tot, (int, float)) else "")
+    _note = ('<div class="mc-reana" style="margin:4px 2px 0">Suivi externe (Betmines), réglé par nos '
+             'sources — information seule, hors ROI.</div>')
+    return _combo_gold_card(title="COMBINÉ BETMINES", subtitle=f'{len(cb["legs"])} jambes',
+                            badge=_badge, body=legs_html + _tot + _note)
+
+
 def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     """CORPS d'une carte COMBINÉ RETENU (ROI) — destiné à la coquille dorée `_combo_gold_card` (demande user
     2026-07-19 : le combiné Coupe du Monde présenté EXACTEMENT comme le combiné du jour). Contenu : le SIMPLE
@@ -5176,6 +5215,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # analysé (ni pari, ni provisoire) n'est tout simplement PAS affiché tant qu'il n'a pas d'analyse —
     # il apparaîtra une fois analysé (avec son pari/provisoire), jamais en limbo « Analyse à HH:MM ».
     combo_daily = "" if sport else _combo_tg_card(include_settled=False)   # multisport -> « Tous » seulement
+    # COMBINÉ BETMINES (demande user 2026-07-23) : le Double externe du jour, présenté comme un combiné —
+    # zone dédiée sous le combiné du jour, multisport (« Tous ») seulement, hors ROI.
+    betmines = "" if sport else _betmines_tg_card()
     has_any = bool(play or prov or combo_daily)
     _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir les <b>Provisoires</b> ci-dessous.'
                    ) if has_any else None
@@ -5183,6 +5225,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     out = [
         _zone("combo", "Combiné du jour", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
+        _zone("betmines", "Combiné Betmines", "", 1 if betmines else 0, betmines, collapsible=True),
         _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
         _zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
     ]

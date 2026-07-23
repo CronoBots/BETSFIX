@@ -12,6 +12,18 @@
 
 ---
 
+## 2026-07-23 — Combiné Betmines dans l'onglet PRONOS (zone dédiée, sans emoji)
+
+**Demande user** : « je veux le voir comme un combiné dans l'onglet pronos et sans l'emoji ».
+`web._betmines_tg_card()` : MÊME coquille que le combiné du jour (`_combo_gold_card`, en-tête « COMBINÉ
+BETMINES • N jambes ») — jambes `_leg_card` (équipes, pari, glose ↳, cote, badge résultat), « Total du
+combiné » + cote totale, note « Suivi externe (Betmines), réglé par nos sources — information seule, hors
+ROI ». Zone repliable « Combiné Betmines » dans `_today_zones` (sous « Combiné du jour », multisport
+seulement). Affiché le JOUR SPORTIF courant, réglé ou non (observation, pas un pari à jouer qui disparaît).
+Emoji 🧿 retiré aussi de la carte Stats. Vérifié : /jour?date 200 (carte rendue), accueil OK, /stats OK.
+
+---
+
 ## 2026-07-23 — Carte « 🧿 Combiné Betmines » sur le site (onglet Stats)
 
 **Demande user** : intégrer le suivi Betmines au site « même présentation que le combiné du jour ».
