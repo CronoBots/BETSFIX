@@ -3772,8 +3772,12 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # rabot, réussite par nb de jambes). Le tout dans UNE carte .spf, comme les onglets sport.
     combos_block = render_combos(combo_full if combo_full is not None else analyses.combo_stats(),
                                  _combo_form, milestones=_ms_combo)
-    return (f'<div class="spf"><div class="spf-charts">'
-            f'{_sport_summary(full)}{simples_block}{combos_block}</div></div>')
+    # CHAQUE type dans SON PROPRE cadre `.spf`, l'un après l'autre (demande user 2026-07-24 : « les
+    # graphiques de chaque type dans des cadres différents avec leurs stats propres ») — comme les suivis
+    # (combiné du jour / provisoires / Betmines) ont chacun leur `.sx-card`. Résumé par sport = son cadre,
+    # Simples = son cadre, Combinés = son cadre. Blocs vides ignorés (pas de cadre fantôme).
+    _blocks = [_sport_summary(full), simples_block, combos_block]
+    return "".join(f'<div class="spf">{b}</div>' for b in _blocks if b)
 
 
 def _roi_bars(rows: list) -> str:
