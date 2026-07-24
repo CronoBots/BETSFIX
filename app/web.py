@@ -471,8 +471,8 @@ CSS = """
   /* Forme W/L (dots) alignée à DROITE : si ça déborde, on rogne les VIEUX (gauche), on garde les récents. */
   .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px;overflow:hidden}
   .spf-cv-form .forms{flex-wrap:nowrap}
-  .spf-cv-form .fd{width:11px;height:11px;font-size:7px}   /* pastilles compactes : 16 tiennent + laissent respirer */
-  .spf-cv-form .fd.fd-p{font-size:8px}
+  .spf-cv-form .fd{width:15px;height:15px;font-size:9px}   /* pastilles plus grandes (demande user) — 16 tiennent centrées */
+  .spf-cv-form .fd.fd-p{font-size:10px}
   /* Groupe de gauche de l'en-tête : titre + badge SÉRIE côte à côte (le badge n'est PAS dans la ligne W/L). */
   .spf-cv-hl{display:flex;align-items:center;gap:7px;min-width:0}
   .spf-cv-hl .sx-streak{flex:none}
@@ -534,7 +534,7 @@ CSS = """
   .rate-lbl-e{fill:#22b8ff}
   /* Ligne W/L des graphes héros : pastilles RESSERRÉES et centrées (demande user) + espace avant l'historique. */
   .spf-hero .spf-cv-form{display:block;overflow:visible;margin:12px 0 0}
-  .spf-hero .spf-cv-form .forms{display:flex;width:100%;justify-content:center;gap:5px;margin-left:0}
+  .spf-hero .spf-cv-form .forms{display:flex;width:100%;justify-content:center;gap:4px;margin-left:0;flex-wrap:wrap}
   .spf-hero .spf-cv-more{margin-top:14px}
   /* Série EN COURS, sans emoji, rendu pro (demande user 2026-07-24) : pastille discrète bordée,
      verte si victoires d'affilée / rouge si défaites. */
@@ -4086,7 +4086,7 @@ def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, stre
         f'<div><span class="v">{n}</span><span class="l">Paris réglés</span></div>'
         f'<div><span class="v">{avg_cote or "—"}</span><span class="l">Cote moyenne</span></div>'
         '</div>'
-        f'{_streak_text(streak)}{chart}{form}{_rate_block(hit_points, uid)}')
+        f'{chart}{form}{_streak_text(streak)}{_rate_block(hit_points, uid)}')   # série JUSTE sous les W/L (même « forme récente »)
 
 
 _RATE_WARMUP = 10   # les 10 premiers paris = trop peu pour un taux fiable -> la courbe démarre après (demande user)
@@ -4101,7 +4101,10 @@ def _rate_block(hit_points: list | None, uid: str) -> str:
     if len(_hp) < _RATE_WARMUP + 3:                      # pas assez de paris réglés pour un taux crédible
         return ""
     _cur = _hp[-1]                                        # % courant = cumul COMPLET (tous les paris)
-    _c = _rate_chart(_hp[_RATE_WARMUP - 1:], uid=uid)    # courbe seulement à partir du 10e pari
+    _tail = _hp[_RATE_WARMUP - 1:]                        # après rodage (taux devenu fiable)
+    _lo = _tail.index(min(_tail))                         # DÉMARRER au point le plus bas, puis évolution (demande user)
+    _curve = _tail[_lo:] if (len(_tail) - _lo) >= 3 else _tail
+    _c = _rate_chart(_curve, uid=uid)
     if not _c:
         return ""
     return (f'<div class="spf-rate"><div class="spf-rate-h">Taux de réussite '
