@@ -2782,8 +2782,8 @@ CSS = """
   .mont-sec-h .tag{margin-left:auto;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--gold);
        border:1px solid rgba(246,197,74,.35);border-radius:999px;padding:2px 9px;text-transform:none}
   /* Échelle des paliers (staircase) */
-  .mont-ladder{display:flex;flex-direction:column;gap:8px}
-  .mont-step{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:13px;
+  .mont-ladder{display:flex;flex-direction:column;gap:7px}
+  .mont-step{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:13px;
        background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border)}
   .mont-step.won{border-color:rgba(52,210,123,.32)} .mont-step.lost{border-color:rgba(255,107,107,.32)}
   .mont-step.pending{border-color:rgba(246,197,74,.42)}
@@ -5796,7 +5796,10 @@ def _mont_ladder(steps: list) -> str:
         stake = s.get("stake")
         payout = s.get("payout")
         match = html.escape(_noF(str(s.get("match") or "")))
-        sel = html.escape(str(s.get("sel") or ""))
+        # la cote est portée par la PASTILLE -> on la retire du texte du pari s'il la contient déjà
+        # (évite le doublon « … Moins de 1.5 but @1.42 » + pastille @1.42, demande user 2026-07-24).
+        _sel_raw = re.sub(r"\s*·?\s*@\s*\d+(?:[.,]\d+)?\s*$", "", str(s.get("sel") or "")).strip()
+        sel = html.escape(_sel_raw)
         cote = s.get("cote")
         _cote_b = f'<span class="mont-step-c">@{cote:g}</span>' if isinstance(cote, (int, float)) else ""
         if res == "won":
