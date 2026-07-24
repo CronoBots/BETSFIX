@@ -5054,6 +5054,12 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                                         clock=_lfz.get("live_time"), periods=_lfz.get("periods"),
                                         fstats=_lfz.get("fstats"))
                      + _leg_bar + '</div>')
+        elif analyses.likely_finished({"sport": _sp, "start": l.get("start")}):
+            # Match FINI mais pas encore réglé ET sans donnée live (ex. jambe Betmines d'une ligue absente
+            # de nos sources live) -> ⏳ EN ATTENTE au lieu de « À VENIR » qui laisse croire que le match n'a
+            # pas eu lieu (demande user 2026-07-24 : combiné Betmines terminé non réglé). Bascule ✓/✗ au
+            # règlement (tâche reconcile). Même logique que le ⏳ des provisoires.
+            _btxt, _bcls = "⏳ EN ATTENTE", "p"
         else:
             # HEURE de début dans le badge (comme les provisoires) au lieu de « À VENIR » (demande user
             # 2026-07-18). Repli « À VENIR » si l'heure n'est pas exploitable. HEURE FRAÎCHE Unibet (demande
