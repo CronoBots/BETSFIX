@@ -726,17 +726,14 @@ def _simulation_card() -> str:
         if not _parts:
             continue
         curves = web._MC_SEP.join(_parts)                   # même filet que entre les jambes de combiné
-        # En-tête = BANNIÈRE BETSFIX du sport (image Telegram) + badge « simulé · hors paris » sous l'image.
+        # En-tête = BANNIÈRE BETSFIX du sport (image Telegram) + ligne « simulé · hors paris » sous l'image
+        # (SANS l'emoji loupe, SANS le texte explicatif — demande user 2026-07-24).
         _subcls = "stat-banner-sub ready" if sp in ready else "stat-banner-sub"
-        _subtxt = ("🔬 simulé · hors paris · ✓ prêt à réactiver" if sp in ready
-                   else "🔬 simulé · hors paris")
+        _subtxt = ("simulé · hors paris · ✓ prêt à réactiver" if sp in ready else "simulé · hors paris")
         out += (
             '<div class="sx-card">'
             + web._sport_banner(sp)
             + f'<div class="{_subcls}">{_subtxt}</div>'
-            '<div class="sx-data-note">Analysé comme avant, <b>paris simulés</b> (simples + combinés ci-dessous) '
-            'mais <b>jamais affichés</b> sur la page des paris ni publiés. Suis ce ROI pour décider quand le '
-            '<b>réintégrer</b> (réactivation manuelle).</div>'
             + curves + '</div>')
     return out
 
