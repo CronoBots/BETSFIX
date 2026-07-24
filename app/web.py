@@ -2922,7 +2922,13 @@ _CARDS_JS = (
     # Carte PLATE (pas de corps dépliable) : un clic N'IMPORTE OÙ dans le cadre (dé)plie le « Pourquoi »
     # (demande user 2026-07-21). Le summary garde son toggle natif (stopPropagation) -> pas de double bascule.
     "var b=card.querySelector('.mc-body');"
-    "if(!b){var d=card.querySelector('details.cleg-fold');"
+    # Carte plate SANS corps (.mc-body) : (dé)plie le pli « Pourquoi ». BUG (user 2026-07-24) : sur un
+    # combiné, on prenait TOUJOURS le 1er `.cleg-fold` -> taper la jambe 2 ouvrait le « pourquoi » de la
+    # jambe 1. Fix : scoper à la JAMBE cliquée (`.cleg`). Hors jambe sur une carte multi-jambes -> ne rien
+    # faire (ambigu). Carte simple (1 seul pli, pas dans un .cleg) -> comportement inchangé.
+    "if(!b){var host=e.target.closest('.cleg');"
+    "if(!host&&card.querySelectorAll('details.cleg-fold').length>1)return;"
+    "var d=(host||card).querySelector('details.cleg-fold');"
     "if(d&&!e.target.closest('summary')){e.preventDefault();d.open=!d.open;}return;}"
     "e.preventDefault();"
     "if(b.hidden){"
