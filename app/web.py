@@ -460,8 +460,8 @@ CSS = """
        color:var(--muted);margin-top:2px}
   /* Deux courbes d'équité ÉTIQUETÉES (Simples / Combinés) empilées dans l'onglet sport */
   .spf-charts{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-  .spf-cv{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;
-       padding:8px 10px 6px}
+  .spf-cv{background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border);border-radius:12px;
+       padding:8px 10px 6px}   /* MÊME fond que les jambes de combiné (.cleg) — demande user 2026-07-24 */
   .spf-cv-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
   .spf-cv-t{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#fff}   /* titre graphe : BLANC, un rien plus grand (demande user 2026-07-24) */
   .spf-cv-roi{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -1636,7 +1636,7 @@ CSS = """
   /* Bannière BETSFIX du sport (image Telegram) en en-tête de cadre stats (demande user 2026-07-24) */
   .stat-banner{display:block;width:100%;height:auto;max-width:100%;border-radius:10px;margin:0 0 6px}
   .stat-banner-sub{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
-       color:#f6c54a;margin:0 0 8px}
+       color:#f6c54a;margin:0 0 14px}   /* un rien plus d'espace en dessous (demande user 2026-07-24) */
   .stat-banner-sub.ready{color:#64cd8d}
   .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
   /* Section par sport */
