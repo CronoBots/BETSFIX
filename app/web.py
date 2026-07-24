@@ -3815,7 +3815,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         #                          et légende repères RETIRÉES (demande user 2026-07-24)
     simples_block = (
         (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
-         f'<div class="spf-cv-more"><span>Derniers paris</span> ▾</div></summary>{_rec_s}</details>')
+         f'<div class="spf-cv-more"><span>Derniers simples</span> ▾</div></summary>{_rec_s}</details>')
         if _rec_s else f'<div class="spf-cv">{_s_inner}</div>')
     # BLOC COMBINÉS FOOTBALL (demande user 2026-07-24 : graphes de combiné PROPRES à chaque sport) : ici les
     # combos PER-MATCH FOOT seuls. Le combiné du jour et le combiné Betmines ont leur PROPRE carte (suivis
@@ -3827,7 +3827,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         form=_form_streak(_foot_c.get("form_run") or _foot_c.get("form") or [])[0],   # ligne W/L (demande user)
-        recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés foot",
+        recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés",
         milestones=_ms_combo) if _foot_c.get("settled") else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).

@@ -712,7 +712,7 @@ def _simulation_card() -> str:
                 n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
                 avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
                 form=web._form_streak(b.get("form_run") or b.get("form") or [])[0],   # ligne W/L
-                recent=list(reversed(b.get("recent") or [])), more_label="Derniers paris",
+                recent=list(reversed(b.get("recent") or [])), more_label="Derniers simples",
                 milestones=web._sport_milestones(sp))
         c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
         if c.get("settled"):
