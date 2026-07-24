@@ -655,13 +655,30 @@ def _set_programme_status(match_id: str, status: str, provisional: dict | None =
         pass
 
 
+# Alias VILLE/CLUB cross-langue : Betmines (SportMonks, souvent nom LOCAL) vs Unibet (souvent EN). On
+# canonicalise les deux côtés vers un même jeton (ex. « København » ET « Copenhagen » -> "copenhagen").
+_NAME_ALIAS = {
+    "kobenhavn": "copenhagen", "koebenhavn": "copenhagen", "munchen": "munich", "muenchen": "munich",
+    "wien": "vienna", "praha": "prague", "milano": "milan", "roma": "rome", "napoli": "naples",
+    "torino": "turin", "genova": "genoa", "lisboa": "lisbon", "sevilla": "seville", "moskva": "moscow",
+    "beograd": "belgrade", "warszawa": "warsaw", "athina": "athens", "bucuresti": "bucharest",
+    "gent": "ghent", "antwerpen": "antwerp", "bruxelles": "brussels", "krakow": "cracow",
+    "zurich": "zurich", "geneve": "geneva", "kyiv": "kiev", "lviv": "lviv",
+}
+
+
 def _name_tokens(s: str) -> set:
-    """Jetons significatifs d'un nom d'équipe (accents retirés, mots vides club/genre écartés) pour un
-    rapprochement TOLÉRANT entre noms Betmines (SportMonks) et Unibet."""
+    """Jetons significatifs d'un nom d'équipe (accents retirés, mots vides club/genre écartés, alias
+    cross-langue appliqués) pour un rapprochement TOLÉRANT entre noms Betmines (SportMonks) et Unibet."""
     import unicodedata
-    s = unicodedata.normalize("NFKD", (s or "")).encode("ascii", "ignore").decode().lower()
+    s = (s or "").lower()
+    # Lettres NON décomposées par NFKD (donc SUPPRIMÉES par le fold ASCII) -> on les translittère AVANT :
+    # ex. « København » sans ça -> « kbenhavn » (le ø tombe) et rate l'alias. ø→o, æ→ae, å→a, ð→d, þ→th, ł→l.
+    for _a, _b in (("ø", "o"), ("æ", "ae"), ("å", "a"), ("ð", "d"), ("þ", "th"), ("ł", "l")):
+        s = s.replace(_a, _b)
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
     s = re.sub(r"\b(fc|sc|if|ff|bk|ik|sk|cf|ac|as|club|united|city|women|w)\b", " ", s)
-    return {t for t in re.split(r"\W+", s) if len(t) >= 3}
+    return {_NAME_ALIAS.get(t, t) for t in re.split(r"\W+", s) if len(t) >= 3}
 
 
 async def _betmines_extra_foot(client, within_hours, existing_ids: set) -> list:
@@ -681,24 +698,39 @@ async def _betmines_extra_foot(client, within_hours, existing_ids: set) -> list:
     legs = (days[max(days)].get("legs") or [])
     if not legs:
         return []
+    from app.match_select import _start_dt
     all_foot = await fetch_important("foot", 400, client, within_hours=within_hours)
 
     def _match(a, b):                                     # deux noms « collent » si un jeton commun de chaque côté
         ta, tb = _name_tokens(a), _name_tokens(b)
         return bool(ta and tb and (ta & tb))
 
+    def _close(d1, d2, minutes):                          # coups d'envoi à ≤ `minutes` min l'un de l'autre
+        return bool(d1 and d2 and abs((d1 - d2).total_seconds()) <= minutes * 60)
+
     out = []
     for leg in legs:
         hb, ab = leg.get("home", ""), leg.get("away", "")
+        lb_dt = _start_dt(leg.get("start"))
+        best, best_score = None, 0
         for m in all_foot:
-            mid = str(m.get("id"))
-            if mid in existing_ids:
+            if str(m.get("id")) in existing_ids:
                 continue
-            if _match(hb, m.get("home", "")) and _match(ab, m.get("away", "")):
-                out.append({"id": mid, "sport": "foot", "name": m.get("name", ""),
-                            "start": m.get("start", ""), "comp": m.get("comp") or "", "_betmines": True})
-                existing_ids.add(mid)
+            h, a = _match(hb, m.get("home", "")), _match(ab, m.get("away", ""))
+            if h and a:                                  # les DEUX équipes collent -> match CERTAIN
+                best, best_score = m, 99
                 break
+            # UNE seule équipe qui colle + MÊME coup d'envoi (±20 min) = quasi certain (gère les noms
+            # multilingues : ex. Polissya–København vs Polissya–Copenhagen -> Polissya + heure suffisent).
+            if (h or a) and _close(lb_dt, _start_dt(m.get("start")), 20):
+                sc = 2 if _close(lb_dt, _start_dt(m.get("start")), 5) else 1
+                if sc > best_score:
+                    best, best_score = m, sc
+        if best and best_score >= 1:
+            mid = str(best.get("id"))
+            out.append({"id": mid, "sport": "foot", "name": best.get("name", ""),
+                        "start": best.get("start", ""), "comp": best.get("comp") or "", "_betmines": True})
+            existing_ids.add(mid)
     return out
 
 
