@@ -941,6 +941,18 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
     return HTMLResponse(web.spa_shell("stats", "Statistiques", body))
 
 
+@router.get("/montante", response_class=HTMLResponse)
+async def montante_page(frag: int = 0) -> HTMLResponse:
+    """Onglet « Montante » (fonctionnalité préparée 2026-07-24) : une montante quotidienne sur 1 pari, mise
+    de départ 10 €, rejouée après chaque gain. Page premium prête à basculer sur les vraies données le jour
+    de l'activation ; en attendant, elle explique le concept + affiche un aperçu (exemple). Hors ROI."""
+    from app import montante as _mt
+    body = f'<div class="pg-h">Montante</div><div class="statsx">{web.render_montante(_mt.state(), _mt.example())}</div>'
+    if frag:
+        return HTMLResponse(body)
+    return HTMLResponse(web.spa_shell("montante", "Montante", body))
+
+
 # Page « Simulation bankroll » /mybets + tout le module mybets/CLV SUPPRIMÉS (2026-06-14) : le pari
 # retenu est marqué d'une ⭐ sur les cadres (moteur d'analyse, intégré aux autres paris et aux stats).
 # On garde juste la redirection douce vers l'accueil (liens /mybets encore en cache mobile -> pas de 404).
