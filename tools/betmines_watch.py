@@ -258,19 +258,24 @@ def _analyze_legs(cb: dict) -> bool:
     prompt = (
         "Tu es un analyste PRO du pari sportif. Le site BETMINES a SÉLECTIONNÉ le pari indiqué pour chaque "
         "jambe — ton rôle est d'ANALYSER LEUR CHOIX (est-il solide ? pourquoi ?), PAS d'en proposer un autre "
-        "ni de le corriger. Pour chaque jambe, en 2 phrases COMPLÈTES et FACTUELLES (français impeccable) : "
+        "ni de le corriger. Tu PEUX chercher sur le WEB des éléments de contexte RÉCENTS (forme, blessés, "
+        "enjeu, compos probables) pour ces équipes/ligues — précieux pour les divisions obscures — mais ne "
+        "cite un fait web que si tu l'as VÉRIFIÉ. Les CHIFFRES quantitatifs viennent des données fournies "
+        "(ne les invente pas). Pour chaque jambe, en 2 phrases COMPLÈTES et FACTUELLES (français impeccable) : "
         "appuie-toi sur les chiffres fournis (classement, % de matchs au-dessus du seuil, clean-sheet, GG, "
-        "moyennes de buts, H2H) ET sur les DONNÉES MULTI-SOURCES quand elles sont présentes (forme, blessés, "
-        "xG…), plus ce que tu sais de ces équipes/ligues ; termine par une courte réserve honnête "
-        "(« bémol : … »). N'invente AUCUN chiffre. Pas de méta (ni value, ni proba). Reste sur LEUR pari. "
+        "moyennes de buts, H2H), les DONNÉES MULTI-SOURCES si présentes, et le contexte web vérifié ; termine "
+        "par une courte réserve honnête (« bémol : … »). Pas de méta (ni value, ni proba). Reste sur LEUR pari. "
         "Réponds AU FORMAT EXACT, une ligne par jambe, RIEN d'autre :\n"
         "LEG1: <justification>\nLEG2: <justification>\n(… une ligne LEGn par jambe)\n\nJambes :\n"
         + "\n".join(blocs))
     try:
         # prompt via STDIN (comme generate_analyses.run_claude) : en ARGUMENT, le wrapper claude.CMD
-        # Windows tronque au premier retour à la ligne (bug reproduit : prompt coupé).
-        out = subprocess.run([exe, "-p"], input=prompt, capture_output=True, text=True,
-                             encoding="utf-8", errors="replace", timeout=180).stdout or ""
+        # Windows tronque au premier retour à la ligne (bug reproduit : prompt coupé). `--dangerously-skip-
+        # permissions` = accès WebSearch en headless (comme le scan principal) -> recherche web pour les
+        # ligues obscures que nos sources ne couvrent pas. Timeout élargi (la recherche web prend du temps).
+        out = subprocess.run([exe, "-p", "--dangerously-skip-permissions"], input=prompt,
+                             capture_output=True, text=True, encoding="utf-8", errors="replace",
+                             timeout=300).stdout or ""
     except Exception:
         return False
     wrote = False
