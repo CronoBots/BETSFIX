@@ -2365,6 +2365,15 @@ def provisional_shown(sport, sel, cote, prob, home="", away="", fid=None) -> boo
     (provisional.reconcile_with_programme) -> jamais d'écart liste/compteur."""
     if not sel:
         return False
+    # SPORT EN PAUSE (probation ROI) : aucun PROVISOIRE de ce sport (demande user 2026-07-24). Sans ce garde,
+    # la probation ferait l'INVERSE de l'effet voulu : tous les matchs du sport deviennent des abstentions
+    # (retained_bet=None) -> chacun sortirait en provisoire. On n'affiche/suit donc rien pour le sport en
+    # pause -> il ne reste que les FANTÔMES (calibration, qui mesurent sa remontée). Forward-looking.
+    try:
+        if sport in auto_exclusions()[0]:
+            return False
+    except Exception:
+        pass
     try:
         c = float(cote)
     except (TypeError, ValueError):
