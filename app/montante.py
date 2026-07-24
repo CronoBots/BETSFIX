@@ -157,10 +157,114 @@ def foot_simples_bets() -> list:
     return out
 
 
+SIM_WARMUP = 10   # on IGNORE les N premiers paris foot (rodage) dans la simulation — demande user 2026-07-24
+                  # (les tout premiers paris ne sont pas représentatifs ; l'historique démarre après).
+
+
 def simulate(bets: list | None = None) -> dict:
-    """Simulation de montante sur une suite de paris (défaut : les simples foot). Met en avant la
-    meilleure série. Ne touche à RIEN (pur calcul d'affichage)."""
-    return _compute(foot_simples_bets() if bets is None else bets, BASE_STAKE, sim=True)
+    """Simulation de montante sur une suite de paris (défaut : les simples foot, RODAGE des `SIM_WARMUP`
+    premiers exclu). Met en avant la meilleure série. Ne touche à RIEN (pur calcul d'affichage)."""
+    src = foot_simples_bets() if bets is None else bets
+    if bets is None and len(src) > SIM_WARMUP:
+        src = src[SIM_WARMUP:]                             # ne pas compter les premiers paris (rodage)
+    return _compute(src, BASE_STAKE, sim=True)
+
+
+# ===== MÉCANISME D'ENREGISTREMENT (prêt à activer — demande user 2026-07-24) =====
+# L'activation est un simple INTERRUPTEUR : créer le fichier data/montante_active.flag (ou
+# `tools/montante.py --activate`). Tant qu'il n'existe pas, rien n'est enregistré (la page reste en
+# simulation). Une fois actif, la tâche quotidienne (reconcile) règle l'en-cours puis enregistre le pari
+# foot le PLUS SÛR du jour.
+ACTIVE_FLAG = os.path.join(_ROOT, "data", "montante_active.flag")
+
+
+def is_active() -> bool:
+    return os.path.exists(ACTIVE_FLAG)
+
+
+def activate(on: bool = True) -> None:
+    if on:
+        os.makedirs(os.path.dirname(ACTIVE_FLAG), exist_ok=True)
+        open(ACTIVE_FLAG, "w", encoding="utf-8").close()
+    elif os.path.exists(ACTIVE_FLAG):
+        os.remove(ACTIVE_FLAG)
+
+
+def pick_day_bet() -> dict | None:
+    """Le pari foot À VENIR le PLUS SÛR (confiance calibrée maximale) = candidat du jour pour la montante.
+    Réutilise la sélection de paris existante (`retained_bet`) -> le pari joué le plus probable. None si
+    aucun pari foot publiable à venir. Lecture seule."""
+    from app import analyses
+    best = None
+    for d in analyses.iter_meta("foot"):
+        if analyses.status_of(d) != "notstarted":         # seulement les matchs pas encore commencés
+            continue
+        if (d.get("combo") or {}).get("legs"):             # combiné same-match -> pas un simple
+            continue
+        mid = str(d.get("id"))
+        rb = analyses.retained_bet("foot", mid) or analyses.published_bet("foot", mid)
+        if not rb or not rb.get("sel") or rb.get("result") in ("won", "lost", "push"):
+            continue
+        prob = rb.get("cprob") or rb.get("prob") or 0      # confiance CALIBRÉE (le plus sûr)
+        if best is None or prob > best["prob"]:
+            best = {"mid": mid, "sport": "foot",
+                    "match": d.get("name") or f'{d.get("home", "")} - {d.get("away", "")}'.strip(" -"),
+                    "sel": rb.get("sel"), "cote": rb.get("cote"), "prob": prob,
+                    "start": d.get("start") or ""}
+    return best
+
+
+def record_day(date_iso: str) -> bool:
+    """Enregistre le pari du jour (1 SEUL par jour). Refuse si un pari est déjà EN ATTENTE (on attend son
+    résultat avant d'engager le palier suivant) ou si le jour est déjà enregistré. True si ajouté."""
+    d = load()
+    steps = d.get("steps") or []
+    if any(s.get("result") is None for s in steps):        # un palier non réglé -> on attend
+        return False
+    if any(s.get("date") == date_iso for s in steps):      # déjà enregistré aujourd'hui
+        return False
+    pick = pick_day_bet()
+    if not pick:
+        return False
+    steps.append({"date": date_iso, "match": pick["match"], "sel": pick["sel"],
+                  "cote": pick["cote"], "mid": pick["mid"], "sport": "foot", "result": None})
+    d["steps"] = steps
+    d.setdefault("base_stake", BASE_STAKE)
+    save(d)
+    return True
+
+
+def settle_pending() -> int:
+    """Règle les paris en attente de la montante à partir du résultat DÉJÀ calculé du match (stat_bet
+    figé) — on réutilise nos règlements, aucune source réseau ici. Retourne le nombre réglé."""
+    from app import analyses
+    d = load()
+    n = 0
+    for s in d.get("steps") or []:
+        if s.get("result") is not None or not s.get("mid"):
+            continue
+        m = analyses.meta("foot", s.get("mid"))
+        if not m or not analyses.is_settled(m):
+            continue
+        sb = m.get("stat_bet") or {}
+        if sb.get("result") in ("won", "lost", "push", "void"):
+            s["result"] = sb["result"]
+            if sb.get("cote"):
+                s["cote"] = sb["cote"]                     # cote finale figée
+            n += 1
+    if n:
+        save(d)
+    return n
+
+
+def run_daily(date_iso: str) -> dict:
+    """Cycle quotidien de la montante (appelé par la tâche reconcile si ACTIVÉE) : régler l'en-cours puis
+    enregistrer le pari foot du jour. No-op si l'interrupteur est éteint."""
+    if not is_active():
+        return {"active": False}
+    settled = settle_pending()
+    added = record_day(date_iso)
+    return {"active": True, "settled": settled, "recorded": added}
 
 
 def example() -> dict:

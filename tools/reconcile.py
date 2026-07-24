@@ -155,6 +155,17 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
             await asyncio.to_thread(_bw.run)
         except Exception as exc:
             print(f"  (suivi betmines ignoré : {exc})")
+        # MONTANTE (préparée 2026-07-24) : cycle quotidien SEULEMENT si activée (data/montante_active.flag).
+        # Éteinte -> no-op instantané (la page reste en simulation). Règle l'en-cours + enregistre le pari
+        # foot du jour. Isolé (data/montante_track.json), hors ROI.
+        try:
+            from app import montante as _mt
+            if _mt.is_active():
+                from app import web as _w
+                _r = await asyncio.to_thread(_mt.run_daily, _w._sport_today().isoformat())
+                print(f"  · montante : {_r}")
+        except Exception as exc:
+            print(f"  (montante ignorée : {exc})")
 
     # 2) INVENTAIRE : parcourt les fiches, classe chaque match JOUÉ.
     stuck, upcoming, unposted = [], [], []

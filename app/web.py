@@ -2795,7 +2795,12 @@ CSS = """
   .mont-step.pending .mont-step-n{background:rgba(246,197,74,.15);color:var(--gold)}
   .mont-step-m{flex:1;min-width:0}
   .mont-step-t{font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .mont-step-s{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  /* Pari joué + COTE bien visibles (demande user 2026-07-24) : le pari s'affiche EN ENTIER (retour à la
+     ligne), la cote en pastille bleue distincte toujours visible (plus tronquée en bout de ligne). */
+  .mont-step-s{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:3px}
+  .mont-step-s .sel{font-size:11px;color:var(--muted);line-height:1.35}
+  .mont-step-c{flex:none;font-size:11px;font-weight:800;color:#bfe0ff;background:rgba(34,184,255,.14);
+       border:1px solid rgba(34,184,255,.32);border-radius:7px;padding:1px 8px;font-variant-numeric:tabular-nums}
   .mont-step-a{flex:none;text-align:right;font-variant-numeric:tabular-nums;padding-left:6px}
   .mont-step-a .from{font-size:10px;color:var(--dim)}
   .mont-step-a .ar{color:var(--muted);margin:0 3px}
@@ -5793,7 +5798,7 @@ def _mont_ladder(steps: list) -> str:
         match = html.escape(_noF(str(s.get("match") or "")))
         sel = html.escape(str(s.get("sel") or ""))
         cote = s.get("cote")
-        _cote_s = f" · @{cote:g}" if isinstance(cote, (int, float)) else ""
+        _cote_b = f'<span class="mont-step-c">@{cote:g}</span>' if isinstance(cote, (int, float)) else ""
         if res == "won":
             _to = _mont_eur(payout)
         elif res == "lost":
@@ -5804,7 +5809,7 @@ def _mont_ladder(steps: list) -> str:
             f'<div class="mont-step {cls}">'
             f'<div class="mont-step-n"><b>{i}</b><span>palier</span></div>'
             f'<div class="mont-step-m"><div class="mont-step-t">{match}</div>'
-            f'<div class="mont-step-s">{sel}{_cote_s}</div></div>'
+            f'<div class="mont-step-s"><span class="sel">{sel}</span>{_cote_b}</div></div>'
             f'<div class="mont-step-a"><span class="from">{_mont_eur(stake)}</span>'
             f'<span class="ar">→</span><span class="to">{_to}</span></div></div>')
     return "".join(rows)
