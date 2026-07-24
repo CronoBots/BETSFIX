@@ -655,6 +655,53 @@ def _set_programme_status(match_id: str, status: str, provisional: dict | None =
         pass
 
 
+def _name_tokens(s: str) -> set:
+    """Jetons significatifs d'un nom d'équipe (accents retirés, mots vides club/genre écartés) pour un
+    rapprochement TOLÉRANT entre noms Betmines (SportMonks) et Unibet."""
+    import unicodedata
+    s = unicodedata.normalize("NFKD", (s or "")).encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"\b(fc|sc|if|ff|bk|ik|sk|cf|ac|as|club|united|city|women|w)\b", " ", s)
+    return {t for t in re.split(r"\W+", s) if len(t) >= 3}
+
+
+async def _betmines_extra_foot(client, within_hours, existing_ids: set) -> list:
+    """Matchs du DERNIER Double Betmines -> events Unibet foot correspondants (rapprochés par NOMS), pour les
+    INCLURE dans le programme d'analyse MÊME hors top N (demande user 2026-07-24 : analyser AUSSI ces matchs
+    avec NOS sources -> meilleure analyse de ces matchs). Best-effort : un match Betmines absent d'Unibet
+    (ligue obscure / nom trop différent) est simplement ignoré. Dédup contre `existing_ids` (mis à jour)."""
+    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        d = json.load(open(os.path.join(_ROOT, "data", "betmines_track.json"), encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    days = {k: v for k, v in d.items()
+            if not k.startswith("_") and isinstance(v, dict) and v.get("legs")}
+    if not days:
+        return []
+    legs = (days[max(days)].get("legs") or [])
+    if not legs:
+        return []
+    all_foot = await fetch_important("foot", 400, client, within_hours=within_hours)
+
+    def _match(a, b):                                     # deux noms « collent » si un jeton commun de chaque côté
+        ta, tb = _name_tokens(a), _name_tokens(b)
+        return bool(ta and tb and (ta & tb))
+
+    out = []
+    for leg in legs:
+        hb, ab = leg.get("home", ""), leg.get("away", "")
+        for m in all_foot:
+            mid = str(m.get("id"))
+            if mid in existing_ids:
+                continue
+            if _match(hb, m.get("home", "")) and _match(ab, m.get("away", "")):
+                out.append({"id": mid, "sport": "foot", "name": m.get("name", ""),
+                            "start": m.get("start", ""), "comp": m.get("comp") or "", "_betmines": True})
+                existing_ids.add(mid)
+                break
+    return out
+
+
 async def _build_and_post_programme(client, sports: list, args) -> None:
     """MATIN : sélectionne les matchs du jour (top N/sport dans la fenêtre), les enregistre dans
     data/day_programme.json et poste le « programme du jour » sur Telegram — SANS analyser. Le pari de
@@ -678,23 +725,23 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     except (OSError, ValueError):
         pass
     # COUVERTURE ADAPTATIVE (demande user 2026-07-24) : quand un sport est EN PROBATION (publication
-    # suspendue, ROI négatif), on RÉALLOUE sa capacité d'analyse aux sports ACTIFS -> +3 matchs analysés
-    # côté sports sains (foot 5→8) = plus de CHANCES de trouver de la VRAIE value, SANS baisser la barre
-    # (garde-fous ≥2 sources + seuils intacts). Le sport en pause reste analysé au top normal (calibration/
-    # fantômes continuent -> mesurent sa remontée). RÉVERSIBLE : dès la reprise, retour au top normal.
+    # suspendue, ROI négatif), on RÉALLOUE la capacité d'analyse au FOOT -> le foot passe à 10 matchs
+    # analysés (le basket reste au top normal, choix user) = plus de CHANCES de trouver de la VRAIE value
+    # foot, SANS baisser la barre (garde-fous ≥2 sources + seuils intacts). Le sport en pause reste analysé
+    # au top normal (calibration/fantômes continuent -> mesurent sa remontée). RÉVERSIBLE : dès la reprise
+    # du sport, retour au top normal partout.
     try:
         from app import analyses as _an
         _paused = _an.auto_exclusions()[0]
     except Exception:
         _paused = set()
-    _boost = 3 if any(s in _paused for s in sports) else 0
-    if _boost:
-        _act = ", ".join(s for s in sports if s not in _paused)
-        print(f"[couverture] {sorted(_paused & set(sports))} en pause -> +{_boost} sur les sports actifs ({_act}).")
+    _foot_top = 10 if any(s in _paused for s in sports) else args.top   # foot élargi seulement en probation
+    if _foot_top != args.top:
+        print(f"[couverture] {sorted(_paused & set(sports))} en pause -> foot élargi à {_foot_top} (basket au top normal {args.top}).")
     n_ok = 0
     for sport in sports:
         always = _is_big_match if sport == "foot" else None
-        _top = args.top + (_boost if sport not in _paused else 0)   # sports actifs élargis, sport en pause au top normal
+        _top = _foot_top if sport == "foot" else args.top          # foot élargi en probation ; autres sports au top normal
         top = None
         for _attempt in range(3):                 # getaddrinfo = hoquet fréquent (cf. CLAUDE.md) -> on retente
             try:
@@ -720,6 +767,20 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
             if str(m.get("id")) in prev_status:          # préserve le statut au re-run (bet/abstained)
                 _e["status"] = prev_status[str(m.get("id"))]
             matches.append(_e)
+    # MATCHS DU DOUBLE BETMINES toujours inclus dans les analyses foot (demande user 2026-07-24) : on les
+    # analyse AUSSI avec NOS sources -> meilleure analyse de ces matchs (et éventuellement notre propre pari
+    # dessus s'ils ont de la value). Ajout APRÈS le top foot, dédupliqué. Best-effort (n'échoue jamais le scan).
+    if n_ok and "foot" in sports:
+        try:
+            _bm = await _betmines_extra_foot(client, args.hours, {m["id"] for m in matches})
+            for _e in _bm:
+                if str(_e["id"]) in prev_status:
+                    _e["status"] = prev_status[str(_e["id"])]
+                matches.append(_e)
+            if _bm:
+                print(f"[betmines] {len(_bm)} match(s) du Double inclus dans les analyses foot.")
+        except Exception as _e:
+            print(f"  (inclusion Betmines ignorée : {_e})")
     # ⛔ NE JAMAIS écraser un programme valide par du VIDE : si AUCUN sport n'a été récupéré (échec réseau
     # TOTAL), on garde le fichier précédent INTACT (mtime compris) -> les vagues continuent sur l'ancien
     # programme au lieu de rester muettes toute la journée (bug audit : point de défaillance unique matinal).
