@@ -1633,6 +1633,11 @@ CSS = """
        text-transform:uppercase;color:#cfe0f5;overflow:hidden}   /* overflow:hidden = un en-tête long n'élargit JAMAIS la carte (fix débordement horizontal) */
   .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;
        min-width:0;overflow:hidden;text-overflow:ellipsis}   /* sous-titre : ellipsis plutôt que déborder */
+  /* Bannière BETSFIX du sport (image Telegram) en en-tête de cadre stats (demande user 2026-07-24) */
+  .stat-banner{display:block;width:100%;height:auto;max-width:100%;border-radius:10px;margin:0 0 6px}
+  .stat-banner-sub{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+       color:#f6c54a;margin:0 0 8px}
+  .stat-banner-sub.ready{color:#64cd8d}
   .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
   /* Section par sport */
   /* mêmes cadres que les cartes de match (.row) : dégradé + bordure cyan + glow */
@@ -3779,16 +3784,15 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # Paris À JOUER (comptés au ROI, pas encore réglés) EN TÊTE (⏳), puis les réglés (demande user 2026-07-14).
     _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
     _s_inner = (
-        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">⚽ FOOTBALL - SIMPLE</span>{_stk_s}</span>'
+        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">⚽ SIMPLE</span>{_stk_s}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'ROI {_roistr(ov.get("roi"))}</span></div>'
         f'{_simples_form}<div class="sx-equity">{chart}</div>'
         '<div class="spf-cv-kpis">'
         f'<span><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b> réussite</span>'
         f'<span><b>{ov["settled"]}</b> paris</span>'
-        f'<span><b>@{ov.get("avg_odds") or "—"}</b> cote</span></div>'
-        # Ligne « nouv. système · CLV » RETIRÉE (demande user 2026-07-24).
-        f'{mlegend}')
+        f'<span><b>{ov.get("avg_odds") or "—"}</b> cote</span></div>')   # cote SANS « @ » ; nouv.système/CLV
+        #                          et légende repères RETIRÉES (demande user 2026-07-24)
     simples_block = (
         (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
          f'<div class="spf-cv-more"><span>Derniers paris</span> ▾</div></summary>{_rec_s}</details>')
@@ -3799,16 +3803,15 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _cs = combo_full if combo_full is not None else analyses.combo_stats()
     _foot_c = (_cs.get("by_sport") or {}).get("foot") or {}
     combos_block = (render_tracking_curve(
-        emoji="⚽", title="FOOTBALL - COMBINÉS", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
+        emoji="⚽", title="COMBINÉS", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
         n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés foot",
         milestones=_ms_combo) if _foot_c.get("settled") else "")
-    # UN CADRE PAR SPORT (demande user 2026-07-24) : le cadre FOOTBALL regroupe ses simples ET ses combos
-    # dans un SEUL `.spf`, séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`). (Tennis/basket =
-    # leurs propres cadres dans la section Simulation ; combiné du jour et Betmines = cadres à part.)
+    # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
+    # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     _foot = (simples_block + _MC_SEP + combos_block) if (simples_block and combos_block) else (simples_block + combos_block)
-    return f'<div class="spf">{_foot}</div>' if _foot else ""
+    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
@@ -3889,7 +3892,7 @@ def render_combos(cs: dict, form_html: str = "", milestones: list | None = None)
         '<div class="spf-cv-kpis">'
         f'<span><b class="arec-{_pct_class(wr)}">{wr if wr is not None else "—"}%</b> réussite</span>'
         f'<span><b>{cs["n"]}</b> paris</span>'
-        f'<span><b>@{cs.get("avg_odds") or "—"}</b> cote</span></div>'
+        f'<span><b>{cs.get("avg_odds") or "—"}</b> cote</span></div>'
         f'<div class="spf-cv-extra">{extra}</div>'
         f'{legs}{_mile_legend(_mc)}')
     _rec_c = _recent_bets_html(analyses.pending_roi_bets(combo=True) + list(reversed(cs.get("recent") or [])))
@@ -3917,6 +3920,15 @@ def _form_streak(results) -> tuple:
     return form, streak
 
 
+def _sport_banner(sport: str) -> str:
+    """Bannière BETSFIX du sport (la MÊME image que les cartes Telegram, `static/banner_<sport>.png`) en
+    en-tête d'un cadre stats — demande user 2026-07-24 (au lieu du titre texte). '' si sport inconnu."""
+    if sport not in ("foot", "tennis", "basket"):
+        return ""
+    _lbl = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}[sport]
+    return f'<img class="stat-banner" src="/static/banner_{sport}.png" alt="BETSFIX {_lbl}" loading="lazy">'
+
+
 def _sport_milestones(sport: str) -> list:
     """Repères (ajustements auto du modèle) PROPRES à un sport pour sa courbe — demande user 2026-07-24 :
     les repères doivent être spécifiques à chaque sport. Garde le sport concerné (m[4]) == `sport` OU les
@@ -3929,7 +3941,7 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
                           dates: list | None = None, avg_cote=None, uid: str = "trk",
                           recent: list | None = None, more_label: str = "Derniers paris",
                           form: list | None = None, pending: int = 0, streak=None,
-                          milestones: list | None = None) -> str:
+                          milestones: list | None = None, sport: str | None = None) -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
@@ -3947,16 +3959,18 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     _stk = _streak_chip(streak)                               # 🔥 N gagnés / ❄️ N perdus — À CÔTÉ du titre
     _dots = form_dots(form or [], n=14, pending=pending)      # ligne W/L + sabliers ⏳ des en attente
     _form = f'<div class="spf-cv-form">{_dots}</div>' if _dots else ""
+    # TITRE de sous-graphe : juste « SIMPLE »/« COMBINÉS » (le sport est dans l'en-tête du cadre — demande
+    # user 2026-07-24). Couleur par sport ANNULÉE. `emoji` vide -> pas de préfixe.
+    _title_html = f'{emoji + " " if emoji else ""}{html.escape(title)}'
     inner = (
         f'<div class="spf-cv-h">'
-        f'<span class="spf-cv-hl"><span class="spf-cv-t">{emoji} {html.escape(title)}</span>{_stk}</span>'
+        f'<span class="spf-cv-hl"><span class="spf-cv-t">{_title_html}</span>{_stk}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(roi, n)}">ROI {_roistr(roi)}</span></div>'
         f'{_form}{chart}'
         '<div class="spf-cv-kpis">'
         f'<span><b class="arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</b> réussite</span>'
         f'<span><b>{n}</b> paris</span>'
-        f'<span><b>@{avg_cote or "—"}</b> cote</span></div>'
-        f'{_mile_legend(_mi)}')                               # légende des repères (spécifiques au sport)
+        f'<span><b>{avg_cote or "—"}</b> cote</span></div>')   # cote SANS « @ » (demande user) ; légende repères RETIRÉE
     rec = _recent_bets_html(recent or [])
     if rec:                                     # CLIQUABLE : le résumé déplie l'historique (comme simples/combinés)
         return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{inner}'
@@ -5974,7 +5988,7 @@ def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
     kpis = (f'<div class="spf-cv-kpis">'
             f'<span><b>{blk.get("pct")}%</b> réussite</span>'
             f'<span><b>{blk.get("settled")}</b> paris</span>'
-            f'<span><b>@{blk.get("avg_odds") or "—"}</b> cote</span></div>')
+            f'<span><b>{blk.get("avg_odds") or "—"}</b> cote</span></div>')
     chart = _hero_chart(blk.get("points") or [], uid=uid)
     rec = _recent_bets_html(list(reversed(blk.get("recent") or [])))
     if not rec:                                                     # pas de détail -> bloc simple (non cliquable)

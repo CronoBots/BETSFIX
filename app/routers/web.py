@@ -288,7 +288,13 @@ def _stats_signature() -> tuple:
     import glob
     import os
     files = glob.glob(os.path.join(analyses.DIR, "*.json"))
-    return (len(files), max((os.path.getmtime(f) for f in files), default=0.0))
+    # + mtime de sport_probation.json : un pause/réactivation d'un sport change la section Simulation
+    # (cadres tennis/basket) -> doit invalider le cache stats (demande user 2026-07-24).
+    try:
+        _pb = os.path.getmtime(os.path.join(analyses._ROOT, "data", "sport_probation.json"))
+    except OSError:
+        _pb = 0.0
+    return (len(files), max((os.path.getmtime(f) for f in files), default=0.0), _pb)
 
 
 def _home_stats(since_days: int | None = None) -> str:
@@ -326,7 +332,8 @@ def _home_stats_compute(since_days: int | None = None) -> str:
     edge = web.render_sports_breakdown(full) + web.render_perf(analyses.perf_breakdown(since_days))
     inner = (
         _hero_card(full, combo)                                                    # 0. HERO : rentabilité globale
-        + web.render_stats(full, combo_full=combo)                                 # 1. vue d'ensemble (ouverte)
+        + web.render_stats(full, combo_full=combo)                                 # 1. cadre FOOTBALL
+        + _simulation_card()                                                       # 1b. cadres TENNIS/BASKET (juste sous le foot, demande user 2026-07-24)
         + _sec("Où se trouve l'edge", "performance par sport et par cote", edge)   # 2.
         + _sec("Fiabilité du modèle", "la confiance tient-elle ses promesses ?",   # 3.
                web.render_reliability(analyses.calibration_reliability(buckets=12))
@@ -703,7 +710,7 @@ def _simulation_card() -> str:
         b = (full.get("by_sport") or {}).get(sp) or {}      # SIMPLES simulés du sport (MÊME emoji sport)
         if b.get("settled"):
             _parts.append(web.render_tracking_curve(
-                emoji=_emo.get(sp, "🔬"), title=f"{_nom.get(sp, sp).upper()} - SIMPLE", roi=b.get("roi"), hit=b.get("pct"),
+                emoji=_emo.get(sp, "🔬"), title="SIMPLE", roi=b.get("roi"), hit=b.get("pct"),
                 n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
                 avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
                 recent=list(reversed(b.get("recent") or [])), more_label="Derniers paris",
@@ -711,7 +718,7 @@ def _simulation_card() -> str:
         c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
         if c.get("settled"):
             _parts.append(web.render_tracking_curve(
-                emoji=_emo.get(sp, "🔬"), title=f"{_nom.get(sp, sp).upper()} - COMBINÉS", roi=c.get("roi"), hit=c.get("pct"),
+                emoji=_emo.get(sp, "🔬"), title="COMBINÉS", roi=c.get("roi"), hit=c.get("pct"),
                 n=c.get("settled"), points=c.get("points"), dates=c.get("dates"),
                 avg_cote=c.get("avg_odds"), uid=f"simc-{sp}", streak=c.get("streak"),
                 recent=list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
@@ -719,9 +726,14 @@ def _simulation_card() -> str:
         if not _parts:
             continue
         curves = web._MC_SEP.join(_parts)                   # même filet que entre les jambes de combiné
+        # En-tête = BANNIÈRE BETSFIX du sport (image Telegram) + badge « simulé · hors paris » sous l'image.
+        _subcls = "stat-banner-sub ready" if sp in ready else "stat-banner-sub"
+        _subtxt = ("🔬 simulé · hors paris · ✓ prêt à réactiver" if sp in ready
+                   else "🔬 simulé · hors paris")
         out += (
-            f'<div class="sx-card"><div class="sx-h">{_emo.get(sp, "🔬")} {_nom.get(sp, sp)} '
-            f'<span>🔬 simulé · hors paris{_tag}</span></div>'
+            '<div class="sx-card">'
+            + web._sport_banner(sp)
+            + f'<div class="{_subcls}">{_subtxt}</div>'
             '<div class="sx-data-note">Analysé comme avant, <b>paris simulés</b> (simples + combinés ci-dessous) '
             'mais <b>jamais affichés</b> sur la page des paris ni publiés. Suis ce ROI pour décider quand le '
             '<b>réintégrer</b> (réactivation manuelle).</div>'
@@ -924,9 +936,7 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 '<div class="statsx">'    # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
                 # Filtres de période (7 / 30 / Tout) RETIRÉS (demande user 2026-07-11) : les stats affichent
                 # toujours TOUT l'historique (since="" -> days=None). Vue unique, plus simple.
-                + _home_stats(days)       # vue d'ensemble (FOOT = ROI officiel) + edge + calibration
-                # SIMULATION : sports en arrière-plan (tennis/basket) — ROI simulé, cachés des paris.
-                + _simulation_card()
+                + _home_stats(days)       # Football + Tennis/Basket (simulation, juste sous) + edge + calibration
                 # SÉPARATEUR de groupe : tout ce qui suit est du JOUR / INDICATIF, distinct du ROI réel.
                 + '<div class="sx-group">🧪 Le jour &amp; suivis indicatifs '
                   '<span>à titre informatif — hors ROI réel</span></div>'
