@@ -3806,6 +3806,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         emoji="⚽", title="COMBINÉS", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
         n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
+        form=_form_streak(_foot_c.get("form_run") or _foot_c.get("form") or [])[0],   # ligne W/L (demande user)
         recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés foot",
         milestones=_ms_combo) if _foot_c.get("settled") else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
