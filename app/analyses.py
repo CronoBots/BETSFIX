@@ -2586,6 +2586,7 @@ def _agg_bets(events: list) -> dict:
     events = sorted(events, key=lambda x: x[0] or "")
     cum, osum = 0.0, 0.0
     pts, dates, won, lost, push = [0.0], [], 0, 0, 0
+    hit_pts, hit_dates = [], []                          # taux de réussite CUMULÉ à chaque pari réglé (courbe amélioration)
     recent = []                                          # détails par pari (si fournis en 4e élément)
     for _ev in events:
         _start, res, odds = _ev[0], _ev[1], _ev[2]
@@ -2606,6 +2607,9 @@ def _agg_bets(events: list) -> dict:
             push += 1
         pts.append(round(cum, 3))
         dates.append(_start or "")
+        if res in ("won", "lost"):                       # taux de réussite cumulé APRÈS ce pari réglé
+            hit_pts.append(round(100 * won / (won + lost), 1))
+            hit_dates.append(_start or "")
     settled, staked = won + lost, won + lost + push
     # Série EN COURS (signée) : nb de gagnés (+) ou perdus (-) consécutifs en fin de période.
     seq = [ev[1] for ev in events if ev[1] in ("won", "lost")]
@@ -2639,6 +2643,7 @@ def _agg_bets(events: list) -> dict:
             "streak": streak, "best_streak": best_streak, "form": form, "form12": form12,
             "form_run": form_run,
             "recent": recent[-15:],                      # 15 derniers paris détaillés (W/L + nom + sel + cote)
+            "hit_points": hit_pts, "hit_dates": hit_dates,   # courbe du taux de réussite cumulé (amélioration dans le temps)
             "max_dd": round(dd, 2),
             "dd_pct": (round(100 * dd / staked, 1) if staked else None)}
 

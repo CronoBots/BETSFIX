@@ -445,7 +445,8 @@ CSS = """
   .spf{display:block;text-decoration:none;position:relative;overflow:hidden;margin:2px 0 16px;
        padding:14px 15px 12px;border:1px solid rgba(34,184,255,.60);border-radius:16px;
        box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);
-       background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02))}
+       background:rgba(34,184,255,.055)}   /* teinte UNIE (pas de dégradé) : le fond ne bouge plus quand
+                                              l'historique s'ouvre et agrandit la carte — demande user 2026-07-24 */
   .spf-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .spf-roi-wrap{display:flex;flex-direction:column;line-height:1}
   .spf-forms{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
@@ -470,6 +471,8 @@ CSS = """
   /* Forme W/L (dots) alignée à DROITE : si ça déborde, on rogne les VIEUX (gauche), on garde les récents. */
   .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px;overflow:hidden}
   .spf-cv-form .forms{flex-wrap:nowrap}
+  .spf-cv-form .fd{width:13px;height:13px;font-size:8px}   /* pastilles un peu + petites : 16 tiennent sur la ligne */
+  .spf-cv-form .fd.fd-p{font-size:9px}
   /* Groupe de gauche de l'en-tête : titre + badge SÉRIE côte à côte (le badge n'est PAS dans la ligne W/L). */
   .spf-cv-hl{display:flex;align-items:center;gap:7px;min-width:0}
   .spf-cv-hl .sx-streak{flex:none}
@@ -514,8 +517,23 @@ CSS = """
   .spf-hero-roi{text-align:center;font-size:42px;font-weight:900;letter-spacing:-.03em;line-height:1;
        margin:4px 0 3px;font-variant-numeric:tabular-nums}
   .spf-hero-roi.pos{color:#34d27b} .spf-hero-roi.neg{color:#ff6b6b} .spf-hero-roi.na{color:var(--muted)}
-  .spf-hero-sub{text-align:center;font-size:12px;color:var(--muted);font-weight:600}
-  .spf-hero-sub b{color:var(--text);font-variant-numeric:tabular-nums}
+  /* 3 stats présentées de façon INTUITIVE & PRO (demande user 2026-07-24) : valeur nette + libellé clair
+     en dessous (Réussite / Paris réglés / Cote moyenne), sans boîte. */
+  .spf-hero-kpis{display:flex;justify-content:center;gap:26px;margin-top:9px}
+  .spf-hero-kpis>div{display:flex;flex-direction:column;align-items:center;line-height:1.1}
+  .spf-hero-kpis .v{font-size:16px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+  .spf-hero-kpis .l{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+       color:var(--muted);margin-top:3px}
+  /* Bloc « Taux de réussite » : courbe légère (progression de la fiabilité) + % courant */
+  .spf-rate{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+  .spf-rate-h{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;
+       color:var(--muted)}
+  .spf-rate-h b{color:#22b8ff;font-size:12px;letter-spacing:0;margin-left:3px}
+  .rate-c{display:block;margin-top:5px}
+  /* Ligne W/L des graphes héros : MÊME largeur que le graphique (dots répartis) + espace avant l'historique. */
+  .spf-hero .spf-cv-form{display:block;overflow:visible;margin:12px 0 0}
+  .spf-hero .spf-cv-form .forms{display:flex;width:100%;justify-content:space-between;gap:0;margin-left:0}
+  .spf-hero .spf-cv-more{margin-top:14px}
   /* Série EN COURS, sans emoji, rendu pro (demande user 2026-07-24) : pastille discrète bordée,
      verte si victoires d'affilée / rouge si défaites. */
   .spf-hero-streakw{text-align:center;margin-top:9px}
@@ -2700,7 +2718,7 @@ CSS = """
   .dash-livebar-go{margin-left:auto;font-size:10px;font-weight:800;color:#34d27b;
        text-transform:uppercase;letter-spacing:.04em}
   /* Carte « Évolution du profit » (/stats) : courbe d'équité unique + repères */
-  .sx-card{background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
+  .sx-card{background:rgba(34,184,255,.055);   /* teinte UNIE : fond stable à l'ouverture de l'historique */
        border:1px solid rgba(34,184,255,.60);border-radius:16px;
        box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);padding:12px 12px 10px;margin:12px 0}
   /* ONGLET STATS (.statsx) : fond cyan (comme la carte .spf des onglets sport) sur TOUTES les lignes —
@@ -3802,8 +3820,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _pend_s = len(analyses.pending_roi_bets())
     _pend_c = len(analyses.pending_roi_bets(combo=True))
     _letters_s = ov.get("form_simple") or ov.get("form_run") or ov.get("form") or []
-    _fs = form_dots([_LET.get(x, x) for x in _letters_s], n=14, pending=_pend_s)
-    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=14, pending=_pend_c)
+    _fs = form_dots([_LET.get(x, x) for x in _letters_s], n=16, pending=_pend_s)
+    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=16, pending=_pend_c)
     _stk_s = _streak_chip(ov.get("streak"))                        # série EN COURS des simples (dans l'en-tête)
     _simples_form = f'<div class="spf-cv-form">{_fs}</div>' if _fs else ""   # dots seuls, alignés à droite
     _combo_form = f'<div class="spf-cv-form">{_fc}</div>' if _fc else ""     # série combinés -> en-tête (render_combos)
@@ -3826,7 +3844,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
     _s_inner = _hero_graph_inner(                     # disposition « ROI héros » façon ROI global (choix user 2026-07-24)
         roi=ov.get("roi"), n=ov.get("settled"), hit=ov["pct"], avg_cote=ov.get("avg_odds"),
-        chart=f'<div class="sx-equity">{chart}</div>', form=_simples_form, streak=ov.get("streak"))
+        chart=f'<div class="sx-equity">{chart}</div>', form=_simples_form, streak=ov.get("streak"),
+        hit_points=ov.get("hit_points"), uid="sim-foot")
     simples_block = (                                 # SANS boîte imbriquée : contenu direct sur la carte sport
         (f'<details class="spf-hero spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
          f'<div class="spf-cv-more"><span>Derniers simples</span> ▾</div></summary>{_rec_s}</details>')
@@ -3842,7 +3861,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         form=_form_streak(_foot_c.get("form_run") or _foot_c.get("form") or [])[0],   # ligne W/L (demande user)
         recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés",
-        milestones=_ms_combo, compact=True) if _foot_c.get("settled") else "")
+        milestones=_ms_combo, compact=True, hit_points=_foot_c.get("hit_points")) if _foot_c.get("settled") else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     _foot = _sport_tabs(simples_block, combos_block)   # onglets « Simple | Combinés » (demande user 2026-07-24)
@@ -3988,6 +4007,44 @@ def _sport_milestones(sport: str) -> list:
             if (m[4] if len(m) > 4 else "all") in (sport, "all")]
 
 
+def _rate_chart(points: list, uid: str = "r") -> str:
+    """Courbe LÉGÈRE du taux de réussite cumulé (%) — demande user 2026-07-24 : prouve que la fiabilité
+    progresse dans le temps. Ligne bleue lissée + aire douce, échelle ajustée aux données (pas de zéro,
+    pas de rouge/vert). '' si moins de 2 points."""
+    pts = [float(p) for p in (points or []) if p is not None]
+    if len(pts) < 2:
+        return ""
+    lo, hi = min(pts), max(pts)
+    if hi - lo < 1e-9:
+        lo, hi = lo - 5, hi + 5
+    pad = (hi - lo) * 0.18
+    lo, hi = max(0.0, lo - pad), min(100.0, hi + pad)
+    if hi - lo < 1e-9:
+        hi = lo + 1.0
+    n, W, H, L, R, T, B = len(pts), 320.0, 58.0, 16.0, 8.0, 8.0, 8.0
+    iw, ih = W - L - R, H - T - B
+    AC = "#22b8ff"
+
+    def X(i):
+        return L + (iw * i / (n - 1) if n > 1 else iw / 2)
+
+    def Y(v):
+        return T + ih * (1 - (v - lo) / (hi - lo))
+
+    gid = f"rtg-{uid}"
+    line_d = _smooth_path([(X(i), Y(v)) for i, v in enumerate(pts)])
+    area_d = f'M{X(0):.1f},{H - B:.1f} L' + line_d[1:] + f' L{X(n - 1):.1f},{H - B:.1f} Z'
+    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="sx-heroc rate-c">',
+         f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1">'
+         f'<stop offset="0" stop-color="{AC}" stop-opacity="0.26"/>'
+         f'<stop offset="1" stop-color="{AC}" stop-opacity="0"/></linearGradient></defs>',
+         f'<path d="{area_d}" fill="url(#{gid})" stroke="none"/>',
+         f'<path class="sx-heroc-line" pathLength="1" d="{line_d}" fill="none" stroke="{AC}" '
+         'stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>',
+         f'<circle cx="{X(n - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="2.6" fill="{AC}"/></svg>']
+    return "".join(p)
+
+
 def _streak_text(streak) -> str:
     """Série EN COURS en clair, SANS emoji (demande user 2026-07-24, rendu pro) : pastille discrète
     « Série en cours · N victoires/défaites » (verte si gains, rouge si pertes). '' si aucune série."""
@@ -4002,7 +4059,8 @@ def _streak_text(streak) -> str:
             f'Série en cours · <b>{lab}</b></span></div>')
 
 
-def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, streak=None) -> str:
+def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, streak=None,
+                      hit_points: list | None = None, uid: str = "trk") -> str:
     """Disposition « ROI héros » façon carte ROI GLOBAL (choix user 2026-07-24) pour les cadres sport à
     onglets : petit label « Rentabilité », le ROI en GROS centré (vert/rouge), une sous-ligne
     réussite · paris · cote, la SÉRIE en cours (pastille sans emoji), puis la courbe pleine largeur et la
@@ -4012,10 +4070,24 @@ def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, stre
     return (
         '<div class="spf-hero-lbl">Rentabilité</div>'
         f'<div class="spf-hero-roi {_cls}">{_roistr(roi)}</div>'
-        '<div class="spf-hero-sub">'
-        f'<b>{hit if hit is not None else "—"}%</b> réussite · <b>{n}</b> paris · cote <b>{avg_cote or "—"}</b>'
+        '<div class="spf-hero-kpis">'                     # 3 stats INTUITIVES/PRO : valeur + libellé clair dessous
+        f'<div><span class="v arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</span>'
+        '<span class="l">Réussite</span></div>'
+        f'<div><span class="v">{n}</span><span class="l">Paris réglés</span></div>'
+        f'<div><span class="v">{avg_cote or "—"}</span><span class="l">Cote moyenne</span></div>'
         '</div>'
-        f'{_streak_text(streak)}{chart}{form}')
+        f'{_streak_text(streak)}{chart}{form}{_rate_block(hit_points, uid)}')
+
+
+def _rate_block(hit_points: list | None, uid: str) -> str:
+    """Bloc « Taux de réussite » (courbe légère + % courant) sous la courbe d'équité — demande user
+    2026-07-24 : montrer que la fiabilité s'améliore dans le temps. '' si pas assez de points."""
+    _hp = [h for h in (hit_points or []) if h is not None]
+    _c = _rate_chart(_hp, uid=uid)
+    if not _c:
+        return ""
+    return (f'<div class="spf-rate"><div class="spf-rate-h">Taux de réussite '
+            f'<b>{_hp[-1]:g}%</b></div>{_c}</div>')
 
 
 def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: list,
@@ -4023,7 +4095,7 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
                           recent: list | None = None, more_label: str = "Derniers paris",
                           form: list | None = None, pending: int = 0, streak=None,
                           milestones: list | None = None, sport: str | None = None,
-                          compact: bool = False) -> str:
+                          compact: bool = False, hit_points: list | None = None) -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
@@ -4039,12 +4111,13 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     chart = (f'<div class="sx-equity">{_hero_chart(points, uid=uid, dates=dates or [], milestones=_mi)}</div>'
              if len(_pts) >= 2 else "")
     _stk = _streak_chip(streak)                               # 🔥 N gagnés / ❄️ N perdus — À CÔTÉ du titre
-    _dots = form_dots(form or [], n=14, pending=pending)      # ligne W/L + sabliers ⏳ des en attente
+    _dots = form_dots(form or [], n=16, pending=pending)      # ligne W/L + sabliers ⏳ des en attente
     _form = f'<div class="spf-cv-form">{_dots}</div>' if _dots else ""
     # TITRE de sous-graphe : juste « SIMPLE »/« COMBINÉS » (le sport est dans l'en-tête du cadre — demande
     # user 2026-07-24). Couleur par sport ANNULÉE. `emoji` vide -> pas de préfixe.
     if compact:                                   # cadres sport à onglets : disposition « ROI héros » (frameless)
-        inner = _hero_graph_inner(roi=roi, n=n, hit=hit, avg_cote=avg_cote, chart=chart, form=_form, streak=streak)
+        inner = _hero_graph_inner(roi=roi, n=n, hit=hit, avg_cote=avg_cote, chart=chart, form=_form,
+                                  streak=streak, hit_points=hit_points, uid=uid)
     else:
         _title_html = f'{emoji + " " if emoji else ""}{html.escape(title)}'
         inner = (
@@ -6069,7 +6142,7 @@ def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
             f'ROI {_roistr(roi)}</span></div>')
     _LET = {"won": "W", "lost": "L", "push": "N"}
     # max de résultats sur 1 ligne + sabliers dorés des paris à jouer non réglés en queue (demande user 2026-07-17)
-    dots = form_dots([_LET.get(x, x) for x in (form or [])], n=14, pending=pending)
+    dots = form_dots([_LET.get(x, x) for x in (form or [])], n=16, pending=pending)
     formrow = f'<div class="spf-cv-form">{dots}</div>' if dots else ""
     kpis = (f'<div class="spf-cv-kpis">'
             f'<span><b>{blk.get("pct")}%</b> réussite</span>'
