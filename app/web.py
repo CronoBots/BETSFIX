@@ -3774,7 +3774,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # Paris À JOUER (comptés au ROI, pas encore réglés) EN TÊTE (⏳), puis les réglés (demande user 2026-07-14).
     _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
     _s_inner = (
-        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">📈 Simples</span>{_stk_s}</span>'
+        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">⚽ Football</span>{_stk_s}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'ROI {_roistr(ov.get("roi"))}</span></div>'
         f'{_simples_form}<div class="sx-equity">{chart}</div>'
@@ -3793,11 +3793,10 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # rabot, réussite par nb de jambes). Le tout dans UNE carte .spf, comme les onglets sport.
     combos_block = render_combos(combo_full if combo_full is not None else analyses.combo_stats(),
                                  _combo_form, milestones=_ms_combo)
-    # CHAQUE type dans SON PROPRE cadre `.spf`, l'un après l'autre (demande user 2026-07-24 : « les
-    # graphiques de chaque type dans des cadres différents avec leurs stats propres ») — comme les suivis
-    # (combiné du jour / provisoires / Betmines) ont chacun leur `.sx-card`. Résumé par sport = son cadre,
-    # Simples = son cadre, Combinés = son cadre. Blocs vides ignorés (pas de cadre fantôme).
-    _blocks = [_sport_summary(full), simples_block, combos_block]
+    # CHAQUE type dans SON PROPRE cadre `.spf`, l'un après l'autre. Le résumé « Par sport » a été RETIRÉ
+    # (demande user 2026-07-24) : les ROI par sport sont déjà visibles dans les graphes (Football = ce bloc
+    # Simples foot-only, Tennis/Basket = section Simulation). Football = son cadre, Combinés = son cadre.
+    _blocks = [simples_block, combos_block]
     return "".join(f'<div class="spf">{b}</div>' for b in _blocks if b)
 
 
