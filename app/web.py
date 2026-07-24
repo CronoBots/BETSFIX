@@ -516,6 +516,14 @@ CSS = """
   .spf-hero-roi.pos{color:#34d27b} .spf-hero-roi.neg{color:#ff6b6b} .spf-hero-roi.na{color:var(--muted)}
   .spf-hero-sub{text-align:center;font-size:12px;color:var(--muted);font-weight:600}
   .spf-hero-sub b{color:var(--text);font-variant-numeric:tabular-nums}
+  /* Série EN COURS, sans emoji, rendu pro (demande user 2026-07-24) : pastille discrète bordée,
+     verte si victoires d'affilée / rouge si défaites. */
+  .spf-hero-streakw{text-align:center;margin-top:9px}
+  .spf-hero-streak{display:inline-block;padding:2px 11px;border-radius:999px;font-size:10.5px;
+       font-weight:700;letter-spacing:.02em;border:1px solid var(--border);color:var(--muted)}
+  .spf-hero-streak b{font-variant-numeric:tabular-nums}
+  .spf-hero-streak.win{color:#34d27b;border-color:rgba(52,210,123,.35);background:rgba(52,210,123,.09)}
+  .spf-hero-streak.loss{color:#ff6b6b;border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.09)}
   .spf-hero .sx-equity,.spf-hero .sx-chart{margin-top:11px}
   .spf-hero .spf-cv-form{justify-content:center;margin:9px 0 0}
   /* Ligne d'EXTRAS sous les stats (Stats : nouv. système · CLV / profit · rabot) — inline compact */
@@ -3818,7 +3826,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
     _s_inner = _hero_graph_inner(                     # disposition « ROI héros » façon ROI global (choix user 2026-07-24)
         roi=ov.get("roi"), n=ov.get("settled"), hit=ov["pct"], avg_cote=ov.get("avg_odds"),
-        chart=f'<div class="sx-equity">{chart}</div>', form=_simples_form)
+        chart=f'<div class="sx-equity">{chart}</div>', form=_simples_form, streak=ov.get("streak"))
     simples_block = (                                 # SANS boîte imbriquée : contenu direct sur la carte sport
         (f'<details class="spf-hero spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
          f'<div class="spf-cv-more"><span>Derniers simples</span> ▾</div></summary>{_rec_s}</details>')
@@ -3980,12 +3988,26 @@ def _sport_milestones(sport: str) -> list:
             if (m[4] if len(m) > 4 else "all") in (sport, "all")]
 
 
-def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str) -> str:
+def _streak_text(streak) -> str:
+    """Série EN COURS en clair, SANS emoji (demande user 2026-07-24, rendu pro) : pastille discrète
+    « Série en cours · N victoires/défaites » (verte si gains, rouge si pertes). '' si aucune série."""
+    if not streak:
+        return ""
+    if streak > 0:
+        lab, cls = f'{streak} victoire{"s" if streak > 1 else ""}', "win"
+    else:
+        m = -streak
+        lab, cls = f'{m} défaite{"s" if m > 1 else ""}', "loss"
+    return (f'<div class="spf-hero-streakw"><span class="spf-hero-streak {cls}">'
+            f'Série en cours · <b>{lab}</b></span></div>')
+
+
+def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, streak=None) -> str:
     """Disposition « ROI héros » façon carte ROI GLOBAL (choix user 2026-07-24) pour les cadres sport à
     onglets : petit label « Rentabilité », le ROI en GROS centré (vert/rouge), une sous-ligne
-    réussite · paris · cote, puis la courbe pleine largeur et la ligne W/L. AUCUNE boîte imbriquée — le
-    contenu s'affiche directement sur la carte sport (on « sort du cadre »). Le titre Simple/Combinés est
-    porté par l'onglet-bouton."""
+    réussite · paris · cote, la SÉRIE en cours (pastille sans emoji), puis la courbe pleine largeur et la
+    ligne W/L. AUCUNE boîte imbriquée — le contenu s'affiche directement sur la carte sport (on « sort du
+    cadre »). Le titre Simple/Combinés est porté par l'onglet-bouton."""
     _cls = "na" if (not n or n < _MIN_REL) else ("pos" if (roi or 0) >= 0 else "neg")
     return (
         '<div class="spf-hero-lbl">Rentabilité</div>'
@@ -3993,7 +4015,7 @@ def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str) -> s
         '<div class="spf-hero-sub">'
         f'<b>{hit if hit is not None else "—"}%</b> réussite · <b>{n}</b> paris · cote <b>{avg_cote or "—"}</b>'
         '</div>'
-        f'{chart}{form}')
+        f'{_streak_text(streak)}{chart}{form}')
 
 
 def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: list,
@@ -4022,7 +4044,7 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     # TITRE de sous-graphe : juste « SIMPLE »/« COMBINÉS » (le sport est dans l'en-tête du cadre — demande
     # user 2026-07-24). Couleur par sport ANNULÉE. `emoji` vide -> pas de préfixe.
     if compact:                                   # cadres sport à onglets : disposition « ROI héros » (frameless)
-        inner = _hero_graph_inner(roi=roi, n=n, hit=hit, avg_cote=avg_cote, chart=chart, form=_form)
+        inner = _hero_graph_inner(roi=roi, n=n, hit=hit, avg_cote=avg_cote, chart=chart, form=_form, streak=streak)
     else:
         _title_html = f'{emoji + " " if emoji else ""}{html.escape(title)}'
         inner = (
