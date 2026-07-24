@@ -3296,8 +3296,9 @@ def excluded_markets(sport: str) -> set:
 
 
 _SPORT_PROB_PATH = os.path.join(_ROOT, "data", "sport_probation.json")   # sports EN PROBATION (persisté)
-SPORT_ROI_ENTER = -8    # ROI calibration (fantômes inclus) SOUS lequel un SPORT entre en probation (n ≥ CALIB_MIN_N)
-SPORT_ROI_BACK = -2     # ROI calibration AU-DESSUS duquel il en SORT — hystérésis : zone morte [-8, -2) = statu quo
+SPORT_ROI_ENTER = -8    # ROI calibration (fantômes) SOUS lequel un SPORT entre AUTO en probation (n ≥ CALIB_MIN_N)
+SPORT_ROI_BACK = -2     # ROI calibration AU-DESSUS duquel il est signalé « PRÊT à réactiver » — mais la sortie
+#                         reste MANUELLE (reactivate_sport), jamais automatique (demande user 2026-07-24)
 
 
 def _load_sport_probation() -> set:
@@ -3321,28 +3322,60 @@ def _save_sport_probation(s: set) -> None:
 
 def _sport_probation(cal_by_sport: dict) -> set:
     """Sports « en probation » = ROI durablement NÉGATIF -> on SUSPEND la publication de leurs paris (comptés
-    au ROI) le temps qu'ils remontent, MAIS on continue de les ANALYSER (fantômes/calibration) — demande user
-    2026-07-24 (tennis à -24 % publié / -10 % calibration ; foot & basket profitables épargnés). Décision
-    prise sur le ROI CALIBRATION (fantômes inclus) : il reste mesurable MÊME publication suspendue, donc le
-    sport peut RE-SORTIR tout seul. Hystérésis : entrée à ROI ≤ SPORT_ROI_ENTER, sortie seulement à
-    ROI ≥ SPORT_ROI_BACK (persisté). Data-driven, auto-révisable, jamais figé sur un sport en dur."""
+    au ROI), MAIS on continue de les ANALYSER (fantômes/calibration) pour mesurer une remontée. L'ENTRÉE est
+    AUTOMATIQUE (protection, ROI calibration ≤ SPORT_ROI_ENTER). La SORTIE est **100 % MANUELLE** (demande
+    user 2026-07-24 : « je ne veux pas que le tennis soit réactivé tout seul sans mon accord ») : un sport en
+    pause Y RESTE tant que `reactivate_sport()` n'est pas appelé, MÊME si son ROI a récupéré — on ne fait que
+    le SIGNALER (`sport_reactivation_ready`). Persisté (data/sport_probation.json)."""
     prev = _load_sport_probation()
-    cur = set()
+    cur = set(prev)                             # PERSISTANT : jamais de sortie AUTO (réactivation manuelle)
     for name, g in (cal_by_sport or {}).items():
         sp = _SPORT_FR.get(name, name.lower())
         roi, n = g.get("roi"), g.get("n") or 0
-        if roi is None or n < CALIB_MIN_N:      # pas assez de recul -> on ne change rien (statu quo)
-            if sp in prev:
-                cur.add(sp)
+        if roi is None or n < CALIB_MIN_N:
             continue
-        if sp in prev:                          # déjà en probation : n'en sort QUE si nettement remonté
-            if roi < SPORT_ROI_BACK:
-                cur.add(sp)
-        elif roi <= SPORT_ROI_ENTER:            # entrée au seuil strict
+        if sp not in cur and roi <= SPORT_ROI_ENTER:   # ENTRÉE auto (protection) ; aucune sortie auto
             cur.add(sp)
     if cur != prev:
         _save_sport_probation(cur)
     return cur
+
+
+def reactivate_sport(sport: str) -> bool:
+    """RÉACTIVE manuellement un sport en pause (seul moyen d'en sortir — jamais auto, demande user
+    2026-07-24). True s'il était en pause. Après ça, ses paris/provisoires/combos re-sortent normalement."""
+    s = _load_sport_probation()
+    if sport in s:
+        s.discard(sport)
+        _save_sport_probation(s)
+        return True
+    return False
+
+
+def pause_sport(sport: str) -> bool:
+    """Met MANUELLEMENT un sport en pause (en plus de l'entrée auto). True si nouvellement ajouté."""
+    s = _load_sport_probation()
+    if sport in s:
+        return False
+    s.add(sport)
+    _save_sport_probation(s)
+    return True
+
+
+def sport_reactivation_ready() -> dict:
+    """{sport: roi_calibration} pour les sports EN PAUSE dont le ROI calibration (fantômes) a RÉCUPÉRÉ
+    (≥ SPORT_ROI_BACK, n ≥ CALIB_MIN_N) -> PRÊTS à réactiver, EN ATTENTE de l'accord du proprio. SIGNAL
+    seulement : la réactivation reste manuelle (`reactivate_sport`)."""
+    paused = _load_sport_probation()
+    if not paused:
+        return {}
+    out = {}
+    for name, g in (calibration(min_conf=_MIN_CONF).get("by_sport") or {}).items():
+        sp = _SPORT_FR.get(name, name.lower())
+        roi = g.get("roi")
+        if sp in paused and roi is not None and roi >= SPORT_ROI_BACK and (g.get("n") or 0) >= CALIB_MIN_N:
+            out[sp] = roi
+    return out
 
 
 def auto_exclusions() -> tuple[set, set]:

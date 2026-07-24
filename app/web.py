@@ -520,6 +520,7 @@ CSS = """
   .spf-sp-pause{margin-left:7px;font-size:9px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;
        color:#f6c54a;background:rgba(246,197,74,.13);border:1px solid rgba(246,197,74,.34);
        border-radius:6px;padding:1px 6px;white-space:nowrap;vertical-align:middle}
+  .spf-sp-pause.spf-sp-ready{color:#64cd8d;background:rgba(100,205,141,.14);border-color:rgba(100,205,141,.4)}
   .spf-sp-roi{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;min-width:58px;text-align:right}
   .spf-sp-pct{font-size:11px;color:var(--dim);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
   .spf-sp-k{font-size:10px;color:var(--muted);min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
@@ -3690,17 +3691,24 @@ def _sport_summary(full: dict | None) -> str:
         return ""
     rows.sort(key=lambda x: -x[0])
     # Sports EN PAUSE (probation ROI) : publication de leurs paris suspendue le temps qu'ils remontent
-    # (analyse/calibration maintenues). Badge de TRANSPARENCE (demande user 2026-07-24).
+    # (analyse/calibration maintenues). Badge de TRANSPARENCE (demande user 2026-07-24). La réactivation est
+    # MANUELLE : quand le ROI a récupéré, le badge le SIGNALE (« prêt à réactiver ») sans agir.
     try:
         _paused, _ = analyses.auto_exclusions()
+        _ready = analyses.sport_reactivation_ready()
     except Exception:
-        _paused = set()
+        _paused, _ready = set(), {}
     out = ['<div class="spf-cv spf-sports"><div class="spf-cv-h">'
            '<span class="spf-cv-t">🎯 Par sport</span></div>']
     for _roi, sp, b in rows:
-        _pz = ('<span class="spf-sp-pause" title="Publication suspendue le temps que le ROI remonte — '
-               'on continue de l\'analyser (calibration), reprise automatique dès récupération.">⏸ en pause</span>'
-               if sp in _paused else "")
+        if sp not in _paused:
+            _pz = ""
+        elif sp in _ready:
+            _pz = ('<span class="spf-sp-pause spf-sp-ready" title="ROI remonté : PRÊT à réactiver — en attente '
+                   'de ton accord (réactivation manuelle, jamais automatique).">⏸ prêt à réactiver</span>')
+        else:
+            _pz = ('<span class="spf-sp-pause" title="Publication suspendue le temps que le ROI remonte — on '
+                   'continue de l\'analyser (calibration). Réactivation MANUELLE (jamais automatique).">⏸ en pause</span>')
         out.append(
             f'<div class="spf-sp-row"><span class="spf-sp-n">{_emo[sp]} {_nom[sp]}{_pz}</span>'
             f'<span class="spf-sp-roi arec-{_roi_cls(b.get("roi"), b.get("settled"))}">{_roistr(b.get("roi"))}</span>'
