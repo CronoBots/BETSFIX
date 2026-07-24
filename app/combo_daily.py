@@ -256,6 +256,13 @@ def _candidates_for_day(day: str) -> list[dict]:
     (dédup par (match, code), meilleure proba). `prob` renvoyé en fraction 0-1."""
     from app import analyses
     from app.settle_analyst import code_from_pick
+    # Sports EN PROBATION / écartés (ROI durablement négatif) : pas de jambe de ces sports dans le combiné
+    # du jour non plus (demande user 2026-07-24 : brider le tennis PARTOUT tant qu'il ne remonte pas). Le
+    # combiné est COMPTÉ AU ROI -> il doit suivre la même discipline que les simples (retained_bet/ex_sports).
+    try:
+        _ex_sports, _ = analyses.auto_exclusions()
+    except Exception:
+        _ex_sports = set()
     out: list[dict] = []
     for side in glob.glob(os.path.join(analyses.DIR, "*.json")):
         try:
@@ -263,6 +270,8 @@ def _candidates_for_day(day: str) -> list[dict]:
         except (OSError, ValueError):
             continue
         if (d.get("start") or "")[:10] != day:
+            continue
+        if d.get("sport") in _ex_sports:               # sport en probation -> exclu du combiné du jour
             continue
         if analyses.status_of(d) != "notstarted":      # déjà commencé/fini -> pas jouable au combiné du jour
             continue

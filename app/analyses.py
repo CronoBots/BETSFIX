@@ -3286,17 +3286,71 @@ def excluded_markets(sport: str) -> set:
     return _excluded_by_sport().get(sport, {"Corners"} if sport == "foot" else set())
 
 
+_SPORT_PROB_PATH = os.path.join(_ROOT, "data", "sport_probation.json")   # sports EN PROBATION (persisté)
+SPORT_ROI_ENTER = -8    # ROI calibration (fantômes inclus) SOUS lequel un SPORT entre en probation (n ≥ CALIB_MIN_N)
+SPORT_ROI_BACK = -2     # ROI calibration AU-DESSUS duquel il en SORT — hystérésis : zone morte [-8, -2) = statu quo
+
+
+def _load_sport_probation() -> set:
+    try:
+        with open(_SPORT_PROB_PATH, encoding="utf-8") as f:
+            raw = json.load(f)
+        return set(raw) if isinstance(raw, list) else set()
+    except (OSError, ValueError):
+        return set()
+
+
+def _save_sport_probation(s: set) -> None:
+    try:
+        tmp = _SPORT_PROB_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(sorted(s), f, ensure_ascii=False)
+        os.replace(tmp, _SPORT_PROB_PATH)
+    except OSError:
+        pass
+
+
+def _sport_probation(cal_by_sport: dict) -> set:
+    """Sports « en probation » = ROI durablement NÉGATIF -> on SUSPEND la publication de leurs paris (comptés
+    au ROI) le temps qu'ils remontent, MAIS on continue de les ANALYSER (fantômes/calibration) — demande user
+    2026-07-24 (tennis à -24 % publié / -10 % calibration ; foot & basket profitables épargnés). Décision
+    prise sur le ROI CALIBRATION (fantômes inclus) : il reste mesurable MÊME publication suspendue, donc le
+    sport peut RE-SORTIR tout seul. Hystérésis : entrée à ROI ≤ SPORT_ROI_ENTER, sortie seulement à
+    ROI ≥ SPORT_ROI_BACK (persisté). Data-driven, auto-révisable, jamais figé sur un sport en dur."""
+    prev = _load_sport_probation()
+    cur = set()
+    for name, g in (cal_by_sport or {}).items():
+        sp = _SPORT_FR.get(name, name.lower())
+        roi, n = g.get("roi"), g.get("n") or 0
+        if roi is None or n < CALIB_MIN_N:      # pas assez de recul -> on ne change rien (statu quo)
+            if sp in prev:
+                cur.add(sp)
+            continue
+        if sp in prev:                          # déjà en probation : n'en sort QUE si nettement remonté
+            if roi < SPORT_ROI_BACK:
+                cur.add(sp)
+        elif roi <= SPORT_ROI_ENTER:            # entrée au seuil strict
+            cur.add(sp)
+    if cur != prev:
+        _save_sport_probation(cur)
+    return cur
+
+
 def auto_exclusions() -> tuple[set, set]:
-    """(sports exclus, marchés exclus — UNION per-sport, pour l'APERÇU global uniquement). Les sports sont
-    exclus quand la calibration GLOBALE du sport est mauvaise (n ≥ CALIB_MIN_N, écart ≤ CALIB_GAP_MAX). Les
-    marchés, eux, sont désormais PER-SPORT (cf. excluded_markets) : on renvoie ici leur UNION pour les
-    bandeaux d'aperçu. ⚠️ La SÉLECTION doit utiliser excluded_markets(sport), PAS cette union globale."""
+    """(sports exclus, marchés exclus — UNION per-sport, pour l'APERÇU global uniquement). Un SPORT est
+    écarté (publication suspendue, forward-looking) soit quand sa calibration GLOBALE est mauvaise (sur-
+    confiance : n ≥ CALIB_MIN_N, écart ≤ CALIB_GAP_MAX), soit quand il est EN PROBATION (ROI durablement
+    négatif, cf. _sport_probation). Les marchés, eux, sont PER-SPORT (cf. excluded_markets) : on renvoie ici
+    leur UNION pour les bandeaux d'aperçu. ⚠️ La SÉLECTION doit utiliser excluded_markets(sport), PAS cette
+    union globale — mais elle DOIT tester `sport in ex_sports` (déjà fait dans retained_bet)."""
     c = calibration(min_conf=_MIN_CONF)
+    by = c.get("by_sport") or {}
     sports = set()
-    for name, g in (c.get("by_sport") or {}).items():
+    for name, g in by.items():
         gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
         if (g.get("n") or 0) >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:
             sports.add(_SPORT_FR.get(name, name.lower()))
+    sports |= _sport_probation(by)              # + probation ROI (hystérésis), en plus du garde sur-confiance
     markets: set = set()
     for ms in _excluded_by_sport().values():
         markets |= ms
