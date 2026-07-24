@@ -3794,10 +3794,17 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
          f'<div class="spf-cv-more"><span>Derniers paris</span> ▾</div></summary>{_rec_s}</details>')
         if _rec_s else f'<div class="spf-cv">{_s_inner}</div>')
-    # BLOC COMBINÉS : même carte compacte, juste en dessous (render_combos), + ses extras (profit,
-    # rabot, réussite par nb de jambes). Le tout dans UNE carte .spf, comme les onglets sport.
-    combos_block = render_combos(combo_full if combo_full is not None else analyses.combo_stats(),
-                                 _combo_form, milestones=_ms_combo)
+    # BLOC COMBINÉS FOOTBALL (demande user 2026-07-24 : graphes de combiné PROPRES à chaque sport) : ici les
+    # combos PER-MATCH FOOT seuls. Le combiné du jour et le combiné Betmines ont leur PROPRE carte (suivis
+    # indicatifs). Tennis/basket combos -> section Simulation. Repères foot (_ms_combo déjà filtré foot+all).
+    _cs = combo_full if combo_full is not None else analyses.combo_stats()
+    _foot_c = (_cs.get("by_sport") or {}).get("foot") or {}
+    combos_block = (render_tracking_curve(
+        emoji="🎲", title="Combinés Football", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
+        n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
+        avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
+        recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés foot",
+        milestones=_ms_combo) if _foot_c.get("settled") else "")
     # CHAQUE type dans SON PROPRE cadre `.spf`, l'un après l'autre. Le résumé « Par sport » a été RETIRÉ
     # (demande user 2026-07-24) : les ROI par sport sont déjà visibles dans les graphes (Football = ce bloc
     # Simples foot-only, Tennis/Basket = section Simulation). Football = son cadre, Combinés = son cadre.

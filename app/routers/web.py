@@ -689,23 +689,34 @@ def _simulation_card() -> str:
         return ""
     full = analyses.stats_full()
     ready = analyses.sport_reactivation_ready()
+    combo = analyses.combo_stats()
     _emo = {"tennis": "🎾", "basket": "🏀", "foot": "⚽"}
     _nom = {"tennis": "Tennis", "basket": "Basket", "foot": "Foot"}
     cards = ""
     for sp in ("tennis", "basket", "foot"):
         if sp not in bg:
             continue
-        b = (full.get("by_sport") or {}).get(sp) or {}
-        if not b.get("settled"):
-            continue
         _tag = " ✓ prêt" if sp in ready else ""
-        cards += web.render_tracking_curve(
-            emoji=_emo.get(sp, "🔬"), title=f"{_nom.get(sp, sp)} simulé{_tag}", roi=b.get("roi"), hit=b.get("pct"),
-            n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
-            avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
-            recent=list(reversed(b.get("recent") or [])),   # HISTORIQUE (Derniers paris) propre au sport
-            more_label=f"Derniers paris {_nom.get(sp, sp).lower()}",
-            milestones=web._sport_milestones(sp))           # repères PROPRES à ce sport (tennis/basket)
+        # SIMPLES simulés du sport
+        b = (full.get("by_sport") or {}).get(sp) or {}
+        if b.get("settled"):
+            cards += web.render_tracking_curve(
+                emoji=_emo.get(sp, "🔬"), title=f"{_nom.get(sp, sp)} simulé{_tag}", roi=b.get("roi"), hit=b.get("pct"),
+                n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
+                avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
+                recent=list(reversed(b.get("recent") or [])),
+                more_label=f"Derniers paris {_nom.get(sp, sp).lower()}",
+                milestones=web._sport_milestones(sp))
+        # COMBINÉS simulés du sport (graphe de combiné PROPRE au sport — demande user 2026-07-24)
+        c = (combo.get("by_sport") or {}).get(sp) or {}
+        if c.get("settled"):
+            cards += web.render_tracking_curve(
+                emoji="🎲", title=f"Combinés {_nom.get(sp, sp)} (simulé)", roi=c.get("roi"), hit=c.get("pct"),
+                n=c.get("settled"), points=c.get("points"), dates=c.get("dates"),
+                avg_cote=c.get("avg_odds"), uid=f"simc-{sp}", streak=c.get("streak"),
+                recent=list(reversed(c.get("recent") or [])),
+                more_label=f"Derniers combinés {_nom.get(sp, sp).lower()}",
+                milestones=web._sport_milestones(sp))
     if not cards:
         return ""
     return (
