@@ -3556,7 +3556,7 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
         hi = lo + 1.0
     pad = (hi - lo) * 0.16
     lo, hi = lo - pad, hi + pad
-    n, W, H, L, R, T, B = len(pts), 320.0, 104.0, 16.0, 8.0, 14.0, 8.0
+    n, W, H, L, R, T, B = len(pts), 320.0, 104.0, 16.0, 3.0, 14.0, 8.0   # marge droite réduite : la courbe atteint son point final
     iw, ih = W - L - R, H - T - B
     GR, RD = "#34d27b", "#ff6b6b"
 
@@ -4026,7 +4026,7 @@ def _rate_chart(points: list, uid: str = "r") -> str:
     lo, hi = max(0.0, lo - pad), min(100.0, hi + pad)
     if hi - lo < 1e-9:
         hi = lo + 1.0
-    n, W, H, L, R, T, B = len(pts), 320.0, 58.0, 16.0, 8.0, 8.0, 8.0
+    n, W, H, L, R, T, B = len(pts), 320.0, 58.0, 16.0, 3.0, 8.0, 8.0   # marge droite réduite : la courbe atteint son point final
     iw, ih = W - L - R, H - T - B
     AC = "#22b8ff"
 
@@ -4101,10 +4101,7 @@ def _rate_block(hit_points: list | None, uid: str) -> str:
     if len(_hp) < _RATE_WARMUP + 3:                      # pas assez de paris réglés pour un taux crédible
         return ""
     _cur = _hp[-1]                                        # % courant = cumul COMPLET (tous les paris)
-    _tail = _hp[_RATE_WARMUP - 1:]                        # après rodage (taux devenu fiable)
-    _lo = _tail.index(min(_tail))                         # DÉMARRER au point le plus bas, puis évolution (demande user)
-    _curve = _tail[_lo:] if (len(_tail) - _lo) >= 3 else _tail
-    _c = _rate_chart(_curve, uid=uid)
+    _c = _rate_chart(_hp[_RATE_WARMUP - 1:], uid=uid)    # historique COMPLET à partir du 10e pari (rodage), demande user
     if not _c:
         return ""
     return (f'<div class="spf-rate"><div class="spf-rate-h">Taux de réussite '
