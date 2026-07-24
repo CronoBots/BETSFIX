@@ -530,9 +530,9 @@ CSS = """
        color:var(--muted)}
   .spf-rate-h b{color:#22b8ff;font-size:12px;letter-spacing:0;margin-left:3px}
   .rate-c{display:block;margin-top:5px}
-  /* Ligne W/L des graphes héros : MÊME largeur que le graphique (dots répartis) + espace avant l'historique. */
+  /* Ligne W/L des graphes héros : pastilles RESSERRÉES et centrées (demande user) + espace avant l'historique. */
   .spf-hero .spf-cv-form{display:block;overflow:visible;margin:12px 0 0}
-  .spf-hero .spf-cv-form .forms{display:flex;width:100%;justify-content:space-between;gap:0;margin-left:0}
+  .spf-hero .spf-cv-form .forms{display:flex;width:100%;justify-content:center;gap:5px;margin-left:0}
   .spf-hero .spf-cv-more{margin-top:14px}
   /* Série EN COURS, sans emoji, rendu pro (demande user 2026-07-24) : pastille discrète bordée,
      verte si victoires d'affilée / rouge si défaites. */
@@ -543,6 +543,9 @@ CSS = """
   .spf-hero-streak.win{color:#34d27b;border-color:rgba(52,210,123,.35);background:rgba(52,210,123,.09)}
   .spf-hero-streak.loss{color:#ff6b6b;border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.09)}
   .spf-hero .sx-equity,.spf-hero .sx-chart{margin-top:11px}
+  /* Graphe d'équité SANS bride de hauteur dans les héros -> rendu pleine largeur, MÊME largeur que la
+     courbe du taux de réussite (demande user 2026-07-24). */
+  .spf-hero .sx-equity .sx-heroc{max-height:none}
   .spf-hero .spf-cv-form{justify-content:center;margin:9px 0 0}
   /* Ligne d'EXTRAS sous les stats (Stats : nouv. système · CLV / profit · rabot) — inline compact */
   .spf-cv-extra{display:flex;justify-content:center;flex-wrap:wrap;gap:5px 16px;margin-top:6px;
@@ -1673,7 +1676,7 @@ CSS = """
   .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;
        min-width:0;overflow:hidden;text-overflow:ellipsis}   /* sous-titre : ellipsis plutôt que déborder */
   /* Bannière BETSFIX du sport (image Telegram) en en-tête de cadre stats (demande user 2026-07-24) */
-  .stat-banner{display:block;width:100%;height:auto;max-width:100%;border-radius:10px;margin:0 0 6px}
+  .stat-banner{display:block;width:auto;height:auto;max-height:74px;max-width:100%;border-radius:10px;margin:0 auto 6px}   /* un rien plus petite + centrée (demande user 2026-07-24) */
   .stat-banner-sub{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
        color:#f6c54a;margin:0 0 18px}   /* espace en dessous (demande user 2026-07-24) */
   .stat-banner-sub.ready,.stat-banner-sub.on{color:#64cd8d}   /* .on = sport actif (compté/repris dans les paris) */
@@ -4079,15 +4082,23 @@ def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, stre
         f'{_streak_text(streak)}{chart}{form}{_rate_block(hit_points, uid)}')
 
 
+_RATE_WARMUP = 10   # les 10 premiers paris = trop peu pour un taux fiable -> la courbe démarre après (demande user)
+
+
 def _rate_block(hit_points: list | None, uid: str) -> str:
     """Bloc « Taux de réussite » (courbe légère + % courant) sous la courbe d'équité — demande user
-    2026-07-24 : montrer que la fiabilité s'améliore dans le temps. '' si pas assez de points."""
+    2026-07-24 : montrer que la fiabilité s'améliore dans le temps. Le DÉBUT (≤10 paris) n'est pas fiable
+    (taux qui saute à 0/100 %) -> on démarre la courbe après cette période de rodage. '' si trop peu de
+    données pour être fiable."""
     _hp = [h for h in (hit_points or []) if h is not None]
-    _c = _rate_chart(_hp, uid=uid)
+    if len(_hp) < _RATE_WARMUP + 3:                      # pas assez de paris réglés pour un taux crédible
+        return ""
+    _cur = _hp[-1]                                        # % courant = cumul COMPLET (tous les paris)
+    _c = _rate_chart(_hp[_RATE_WARMUP - 1:], uid=uid)    # courbe seulement à partir du 10e pari
     if not _c:
         return ""
     return (f'<div class="spf-rate"><div class="spf-rate-h">Taux de réussite '
-            f'<b>{_hp[-1]:g}%</b></div>{_c}</div>')
+            f'<b>{_cur:g}%</b></div>{_c}</div>')
 
 
 def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: list,
