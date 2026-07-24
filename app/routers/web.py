@@ -613,7 +613,8 @@ def _provisional_card() -> str:
         emoji="🧪", title="Provisoires", roi=_roi, hit=_hit, n=s.get("settled", 0),
         points=_pvt.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="prov",
         recent=_recent, more_label="Derniers provisoires",
-        form=_form, pending=len(_pend), streak=_streak)
+        form=_form, pending=len(_pend), streak=_streak,
+        compact=True, hit_points=web._hit_curve([e.get("result") for e in reversed(_done)]))   # style cadre sport
     return (
         '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
         '<span>info seule · hors ROI</span></div>'
@@ -808,7 +809,9 @@ def _betmines_card() -> str:
     _curve = web.render_tracking_curve(emoji="🎲", title="Betmines", roi=_roi, hit=_hit,
                                        n=len(done), points=_pts, avg_cote=_avgc, uid="betmines",
                                        recent=_recent, more_label="Derniers Doubles",
-                                       form=_form, pending=pend, streak=_streak)
+                                       form=_form, pending=pend, streak=_streak,
+                                       compact=True,   # style cadre sport (demande user 2026-07-24)
+                                       hit_points=web._hit_curve([days[d].get("result") for d in sorted(days)]))
     # DERNIER Double = carte façon combiné du jour : jambes _leg_card + badge global + cote totale.
     last_day = max(days)
     cb = days[last_day]
@@ -901,7 +904,8 @@ def _combo_daily_card() -> str:
         emoji="🎯", title="Combiné du jour", roi=_roi, hit=_hit, n=s.get("settled", 0),
         points=_cd.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="combod",
         recent=_recent, more_label="Derniers combinés",
-        form=_form, pending=s.get("pending", 0), streak=_streak)
+        form=_form, pending=s.get("pending", 0), streak=_streak,
+        compact=True, hit_points=web._hit_curve([cb.get("result") for cb in reversed(_hist)]))   # style cadre sport
     return (
         '<div class="sx-card"><div class="sx-h">🎯 Combiné du jour '
         '<span>compté au ROI</span></div>'

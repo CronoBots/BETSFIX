@@ -548,6 +548,9 @@ CSS = """
   /* Graphe d'équité SANS bride de hauteur dans les héros -> rendu pleine largeur, MÊME largeur que la
      courbe du taux de réussite (demande user 2026-07-24). */
   .spf-hero .sx-equity .sx-heroc{max-height:none}
+  /* Courbes en DÉBORD à droite (full-bleed) pour que le dernier point TOUCHE le bord de la carte
+     (demande user 2026-07-24 : « les graph ne touchent pas le dernier point »). */
+  .spf-hero .sx-equity,.spf-hero .sx-chart,.spf-hero .rate-c{margin-right:-11px}
   .spf-hero .spf-cv-form{justify-content:center;margin:9px 0 0}
   /* Ligne d'EXTRAS sous les stats (Stats : nouv. système · CLV / profit · rabot) — inline compact */
   .spf-cv-extra{display:flex;justify-content:center;flex-wrap:wrap;gap:5px 16px;margin-top:6px;
@@ -4088,6 +4091,23 @@ def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, stre
         f'<div><span class="v">{avg_cote or "—"}</span><span class="l">Cote moyenne</span></div>'
         '</div>'
         f'{chart}{form}{_streak_text(streak)}{_rate_block(hit_points, uid)}')   # série JUSTE sous les W/L (même « forme récente »)
+
+
+def _hit_curve(results) -> list:
+    """Taux de réussite CUMULÉ (%) à chaque pari réglé, à partir d'une liste chronologique de résultats
+    (won/lost/…). Alimente la courbe « Taux de réussite » des suivis externes (provisoires / combiné du
+    jour / Betmines) — même donnée que _agg_bets.hit_points pour les cadres sport."""
+    pts, w, s = [], 0, 0
+    for r in (results or []):
+        if r == "won":
+            w += 1
+            s += 1
+        elif r == "lost":
+            s += 1
+        else:
+            continue
+        pts.append(round(100 * w / s, 1))
+    return pts
 
 
 _RATE_WARMUP = 10   # les 10 premiers paris = trop peu pour un taux fiable -> la courbe démarre après (demande user)
