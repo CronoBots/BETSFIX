@@ -2960,6 +2960,7 @@ def combo_stats(since_days: int | None = None) -> dict:
     curve = []  # (start, result, real_odds) -> courbe d'équité cumulée (mise plate 1u, chronologique)
     crecent = []   # (start, result, real_odds, meta) -> panneau « derniers combinés » (au clic)
     by_sp: dict = {}   # sport -> [(start, result, real_odds)] -> courbe combinés PAR SPORT (onglets)
+    _bg = background_sports()   # tennis/basket en arrière-plan : combos EXCLUS de l'officiel (comme les simples)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -2984,11 +2985,12 @@ def combo_stats(since_days: int | None = None) -> dict:
         # Cote EFFECTIVE si des jambes ont été retirées au règlement (void/push -> cote 1) : le payout
         # d'un combiné gagné amputé d'une jambe indéterminée utilise le produit des jambes gagnées.
         odds = c.get("settle_odds") or c.get("real_odds") or c.get("total")
-        rows.append((res, float(odds) if odds else None, c.get("shave"), len(c["legs"]), c.get("prob")))
-        curve.append((start, res, float(odds) if odds else None))
         _cmeta = {"name": d.get("name"), "sel": f"Combiné {len(c['legs'])} jambes", "sport": sport}
-        by_sp.setdefault(sport, []).append((start, res, float(odds) if odds else None, _cmeta))
-        crecent.append((start, res, float(odds) if odds else None, _cmeta))
+        by_sp.setdefault(sport, []).append((start, res, float(odds) if odds else None, _cmeta))  # TOUJOURS (simulation)
+        if sport not in _bg:                           # OFFICIEL = sports actifs seuls (tennis/basket simulés à part)
+            rows.append((res, float(odds) if odds else None, c.get("shave"), len(c["legs"]), c.get("prob")))
+            curve.append((start, res, float(odds) if odds else None))
+            crecent.append((start, res, float(odds) if odds else None, _cmeta))
     # COMBINÉS MULTISPORT DU JOUR (décision user 2026-07-14 : comptés au ROI, catégorie COMBINÉ) : injectés
     # ici -> bilan/courbe/derniers combinés + ROI global (fusion simples+combinés). Multisport -> pas de
     # ventilation par sport (by_sp). `void` neutre déjà exclu par roi_events. Frozen -> monotone.

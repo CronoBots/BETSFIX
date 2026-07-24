@@ -703,7 +703,9 @@ def _simulation_card() -> str:
             emoji=_emo.get(sp, "🔬"), title=f"{_nom.get(sp, sp)} simulé{_tag}", roi=b.get("roi"), hit=b.get("pct"),
             n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
             avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
-            milestones=web._sport_milestones(sp))   # repères PROPRES à ce sport (tennis/basket)
+            recent=list(reversed(b.get("recent") or [])),   # HISTORIQUE (Derniers paris) propre au sport
+            more_label=f"Derniers paris {_nom.get(sp, sp).lower()}",
+            milestones=web._sport_milestones(sp))           # repères PROPRES à ce sport (tennis/basket)
     if not cards:
         return ""
     return (
