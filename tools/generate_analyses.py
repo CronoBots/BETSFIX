@@ -677,13 +677,28 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                 prev_status[str(_m.get("id"))] = _m.get("status")
     except (OSError, ValueError):
         pass
+    # COUVERTURE ADAPTATIVE (demande user 2026-07-24) : quand un sport est EN PROBATION (publication
+    # suspendue, ROI négatif), on RÉALLOUE sa capacité d'analyse aux sports ACTIFS -> +3 matchs analysés
+    # côté sports sains (foot 5→8) = plus de CHANCES de trouver de la VRAIE value, SANS baisser la barre
+    # (garde-fous ≥2 sources + seuils intacts). Le sport en pause reste analysé au top normal (calibration/
+    # fantômes continuent -> mesurent sa remontée). RÉVERSIBLE : dès la reprise, retour au top normal.
+    try:
+        from app import analyses as _an
+        _paused = _an.auto_exclusions()[0]
+    except Exception:
+        _paused = set()
+    _boost = 3 if any(s in _paused for s in sports) else 0
+    if _boost:
+        _act = ", ".join(s for s in sports if s not in _paused)
+        print(f"[couverture] {sorted(_paused & set(sports))} en pause -> +{_boost} sur les sports actifs ({_act}).")
     n_ok = 0
     for sport in sports:
         always = _is_big_match if sport == "foot" else None
+        _top = args.top + (_boost if sport not in _paused else 0)   # sports actifs élargis, sport en pause au top normal
         top = None
         for _attempt in range(3):                 # getaddrinfo = hoquet fréquent (cf. CLAUDE.md) -> on retente
             try:
-                top = await fetch_important(sport, args.top, client, within_hours=args.hours, always=always)
+                top = await fetch_important(sport, _top, client, within_hours=args.hours, always=always)
                 break
             except Exception as e:
                 top = None
