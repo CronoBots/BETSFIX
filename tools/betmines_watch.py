@@ -185,11 +185,38 @@ def _resolve_claude() -> str | None:
         os.chdir(old)
 
 
+def _our_source_facts(legs: list) -> dict:
+    """NOS sources multi-sources (FotMob/Understat/Sportradar/Flashscore via `sources.extras`) pour CHAQUE
+    match du Double — approfondit l'analyse du choix Betmines avec des faits INDÉPENDANTS de SportMonks
+    (demande user 2026-07-24). Best-effort : ligue obscure non couverte -> '' (on garde les stats SportMonks).
+    Retourne {index_jambe (1-based): bloc_texte}. N'échoue jamais (le scan continue sans)."""
+    import asyncio as _aio
+
+    async def _gather():
+        import httpx
+        from app import sources as _src
+        res = {}
+        async with httpx.AsyncClient(timeout=15) as c:
+            for i, l in enumerate(legs, 1):
+                try:
+                    txt = await _src.extras(c, "foot", {"home": l.get("home"), "away": l.get("away"),
+                                                        "comp": l.get("comp"), "sport": "foot"})
+                except Exception:
+                    txt = ""
+                res[i] = (txt or "").strip()
+        return res
+
+    try:
+        return _aio.run(_gather())
+    except Exception:
+        return {}
+
+
 def _analyze_legs(cb: dict) -> bool:
-    """Analyses de JAMBES façon combiné du jour (demande user 2026-07-23 : « avec en plus ses propres
-    analyses de jambes ») : UN appel `claude -p` produit LEGn: <justification> par jambe, stocké
-    `leg["why"]` -> pli « Pourquoi cette jambe » à l'affichage. Best-effort (jamais bloquant) ; appelé
-    UNIQUEMENT pour le Double du JOUR (pas le backfill). True si au moins un `why` écrit."""
+    """Analyse du CHOIX BETMINES par jambe (demande user 2026-07-23/24) : UN appel `claude -p` produit
+    LEGn: <justification> par jambe, stocké `leg["why"]` -> pli « Pourquoi cette jambe ». On ANALYSE le pari
+    que Betmines a sélectionné (on ne le remplace JAMAIS : pick/cote/règlement intacts), en approfondissant
+    avec les stats SportMonks ET NOS sources multi-sources. Best-effort ; Double du JOUR seul. True si ≥1 why."""
     legs = [l for l in cb.get("legs") or [] if not l.get("why")]
     if not legs:
         return False
@@ -202,11 +229,12 @@ def _analyze_legs(cb: dict) -> bool:
     def _mn(v):
         return f"{v:.1f}" if isinstance(v, (int, float)) else "?"
 
+    ours = _our_source_facts(cb["legs"])     # NOS sources (indépendantes de SportMonks) par jambe, si dispo
     blocs = []
     for i, l in enumerate(cb["legs"], 1):
         s = l.get("stats") or {}
-        ligne = (f"[{i}] {l.get('comp')} — {l.get('home')} vs {l.get('away')} — pari : {l.get('market')} "
-                 f"@{l.get('cote')}\n    Classement : {l.get('home')} {s.get('pos_h') or '?'}e, "
+        ligne = (f"[{i}] {l.get('comp')} — {l.get('home')} vs {l.get('away')} — PARI CHOISI PAR BETMINES : "
+                 f"{l.get('market')} @{l.get('cote')}\n    Classement : {l.get('home')} {s.get('pos_h') or '?'}e, "
                  f"{l.get('away')} {s.get('pos_a') or '?'}e.")
         # % over/under contextuels (domicile/extérieur) + forme 5 derniers, si le marché est un total buts
         if s.get("over_ctx_h") is not None or s.get("over_ctx_a") is not None:
@@ -223,13 +251,18 @@ def _analyze_legs(cb: dict) -> bool:
                   f"{l.get('away')} {_pc(s.get('gg_a'))}."
                   f"\n    H2H moyenne buts : {l.get('home')} {_mn(s.get('h2h_h'))}, {l.get('away')} "
                   f"{_mn(s.get('h2h_a'))}.")
+        _os = ours.get(i)
+        if _os:                                  # NOS sources (FotMob/Understat/Sportradar/Flashscore), si dispo
+            ligne += "\n    " + _os.replace("\n", "\n    ")
         blocs.append(ligne)
     prompt = (
-        "Tu es un analyste PRO du pari sportif. Justifie chaque jambe du combiné ci-dessous en 2 phrases "
-        "COMPLÈTES et FACTUELLES (français impeccable) : appuie-toi sur les chiffres fournis (classement, "
-        "% de matchs au-dessus du seuil, clean-sheet, GG, moyennes de buts, H2H) et sur ce que tu sais de "
-        "ces équipes/ligues ; termine par une courte réserve honnête (« bémol : … »). "
-        "N'invente AUCUN chiffre. Pas de méta (ni value, ni proba). "
+        "Tu es un analyste PRO du pari sportif. Le site BETMINES a SÉLECTIONNÉ le pari indiqué pour chaque "
+        "jambe — ton rôle est d'ANALYSER LEUR CHOIX (est-il solide ? pourquoi ?), PAS d'en proposer un autre "
+        "ni de le corriger. Pour chaque jambe, en 2 phrases COMPLÈTES et FACTUELLES (français impeccable) : "
+        "appuie-toi sur les chiffres fournis (classement, % de matchs au-dessus du seuil, clean-sheet, GG, "
+        "moyennes de buts, H2H) ET sur les DONNÉES MULTI-SOURCES quand elles sont présentes (forme, blessés, "
+        "xG…), plus ce que tu sais de ces équipes/ligues ; termine par une courte réserve honnête "
+        "(« bémol : … »). N'invente AUCUN chiffre. Pas de méta (ni value, ni proba). Reste sur LEUR pari. "
         "Réponds AU FORMAT EXACT, une ligne par jambe, RIEN d'autre :\n"
         "LEG1: <justification>\nLEG2: <justification>\n(… une ligne LEGn par jambe)\n\nJambes :\n"
         + "\n".join(blocs))
