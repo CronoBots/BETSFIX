@@ -2787,27 +2787,31 @@ CSS = """
        background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border)}
   .mont-step.won{border-color:rgba(52,210,123,.32)} .mont-step.lost{border-color:rgba(255,107,107,.32)}
   .mont-step.pending{border-color:rgba(246,197,74,.42)}
-  .mont-step-n{flex:none;width:36px;height:36px;border-radius:11px;display:flex;flex-direction:column;
+  .mont-step-n{flex:none;width:26px;height:26px;border-radius:8px;display:flex;
        align-items:center;justify-content:center;line-height:1;background:rgba(255,255,255,.05);color:var(--muted)}
-  .mont-step-n b{font-size:13px;font-weight:800} .mont-step-n span{font-size:7px;letter-spacing:.06em;text-transform:uppercase}
+  .mont-step-n b{font-size:12px;font-weight:800}
   .mont-step.won .mont-step-n{background:rgba(52,210,123,.15);color:#64cd8d}
   .mont-step.lost .mont-step-n{background:rgba(255,107,107,.15);color:#ff6b6b}
   .mont-step.pending .mont-step-n{background:rgba(246,197,74,.15);color:var(--gold)}
   .mont-step-m{flex:1;min-width:0}
   .mont-step-t{font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  /* Pari joué + COTE bien visibles (demande user 2026-07-24) : le pari s'affiche EN ENTIER (retour à la
-     ligne), la cote en pastille bleue distincte toujours visible (plus tronquée en bout de ligne). */
-  .mont-step-s{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:3px}
-  .mont-step-s .sel{font-size:11px;color:var(--muted);line-height:1.35}
-  .mont-step-c{flex:none;font-size:11px;font-weight:800;color:#bfe0ff;background:rgba(34,184,255,.14);
-       border:1px solid rgba(34,184,255,.32);border-radius:7px;padding:1px 8px;font-variant-numeric:tabular-nums}
-  .mont-step-a{flex:none;text-align:right;font-variant-numeric:tabular-nums;padding-left:6px}
-  .mont-step-a .from{font-size:10px;color:var(--dim)}
-  .mont-step-a .ar{color:var(--muted);margin:0 3px}
-  .mont-step-a .to{font-size:14px;font-weight:800;color:var(--text);display:block;margin-top:1px}
+  /* Pari joué + COTE bien visibles : le pari s'affiche en entier, la cote en pastille bleue distincte. */
+  .mont-step-s{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px}
+  .mont-step-s .sel{font-size:10.5px;color:var(--muted);line-height:1.3}
+  .mont-step-c{flex:none;font-size:10.5px;font-weight:800;color:#bfe0ff;background:rgba(34,184,255,.14);
+       border:1px solid rgba(34,184,255,.32);border-radius:6px;padding:0 7px;font-variant-numeric:tabular-nums}
+  /* Colonne droite : capital RÉSULTAT (gros) + gain du palier (compact) */
+  .mont-step-a{flex:none;text-align:right;font-variant-numeric:tabular-nums;padding-left:8px}
+  .mont-step-a .to{font-size:15px;font-weight:800;color:var(--text);display:block}
   .mont-step.won .mont-step-a .to{color:#34d27b}
-  .mont-step.lost .mont-step-a .to{color:#ff6b6b}
-  .mont-step.pending .mont-step-a .to{color:var(--gold)}
+  .mont-step-a .to .ko{color:#ff6b6b} .mont-step-a .to .wait{color:var(--gold)}
+  .mont-step-g{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
+  .mont-step-g.up{color:#64cd8d} .mont-step-g.dn{color:#ff8a8a}
+  /* Courbe de progression du capital (10 € -> pic), échelle log */
+  .mont-curve{margin:2px 0 11px}
+  .mont-c{width:100%;height:auto;display:block}
+  .mont-c-lbl{font-size:9px;font-weight:800;fill:var(--muted);font-variant-numeric:tabular-nums}
+  .mont-c-lbl.end{fill:#34d27b}
   /* Comment ça marche : 4 étapes numérotées */
   .mont-how{display:flex;flex-direction:column;gap:9px}
   .mont-how-r{display:flex;align-items:flex-start;gap:11px}
@@ -5786,6 +5790,49 @@ def _mont_how(n: int, txt: str) -> str:
     return f'<div class="mont-how-r"><div class="mont-how-n">{n}</div><div class="mont-how-t">{txt}</div></div>'
 
 
+def _mont_curve(caps: list, uid: str = "mc") -> str:
+    """Courbe de PROGRESSION DU CAPITAL d'une montante (10 € -> pic) — l'effet boule de neige rendu
+    visible. Échelle LOG (la montée reste régulière au lieu d'un pic final écrasant) ; aire + ligne vertes,
+    repères début/pic. '' si moins de 2 points."""
+    import math
+    pts = [float(c) for c in (caps or []) if isinstance(c, (int, float)) and c > 0]
+    if len(pts) < 2:
+        return ""
+    lv = [math.log10(c) for c in pts]
+    lo, hi = min(lv), max(lv)
+    if hi - lo < 1e-9:
+        hi = lo + 1.0
+    pad = (hi - lo) * 0.12
+    lo, hi = lo - pad, hi + pad
+    n, W, H, L, R, T, B = len(pts), 320.0, 92.0, 6.0, 6.0, 12.0, 10.0
+    iw, ih = W - L - R, H - T - B
+    AC = "#34d27b"
+
+    def X(i):
+        return L + (iw * i / (n - 1) if n > 1 else iw / 2)
+
+    def Y(i):
+        return T + ih * (1 - (lv[i] - lo) / (hi - lo))
+
+    gid = f"mcg-{uid}"
+    line_d = _smooth_path([(X(i), Y(i)) for i in range(n)])
+    area_d = f'M{X(0):.1f},{H - B:.1f} L' + line_d[1:] + f' L{X(n - 1):.1f},{H - B:.1f} Z'
+    y_end = Y(n - 1)
+    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="sx-heroc mont-c">',
+         f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1">'
+         f'<stop offset="0" stop-color="{AC}" stop-opacity="0.30"/>'
+         f'<stop offset="1" stop-color="{AC}" stop-opacity="0"/></linearGradient></defs>',
+         f'<path d="{area_d}" fill="url(#{gid})" stroke="none"/>',
+         f'<path class="sx-heroc-line" pathLength="1" d="{line_d}" fill="none" stroke="{AC}" '
+         'stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>',
+         f'<text class="mont-c-lbl" x="{X(0):.1f}" y="{min(H - 2, Y(0) + 12):.1f}" text-anchor="start">'
+         f'{_mont_eur(pts[0])}</text>',
+         f'<text class="mont-c-lbl end" x="{X(n - 1):.1f}" y="{max(9.0, y_end - 6):.1f}" text-anchor="end">'
+         f'{_mont_eur(pts[-1])}</text>',
+         f'<circle cx="{X(n - 1):.1f}" cy="{y_end:.1f}" r="3" fill="{AC}"/></svg>']
+    return "".join(p)
+
+
 def _mont_ladder(steps: list) -> str:
     """Échelle (staircase) d'une montante : une ligne par palier (n° + match/pari + capital avant→après),
     couleur selon l'état (gagné/perdu/en attente)."""
@@ -5802,19 +5849,23 @@ def _mont_ladder(steps: list) -> str:
         sel = html.escape(_sel_raw)
         cote = s.get("cote")
         _cote_b = f'<span class="mont-step-c">@{cote:g}</span>' if isinstance(cote, (int, float)) else ""
+        # Colonne droite COMPACTE : capital RÉSULTAT (gros) + gain du palier (demande user 2026-07-24).
         if res == "won":
-            _to = _mont_eur(payout)
+            _cap = _mont_eur(payout)
+            _gain = (f'<span class="mont-step-g up">+{_mont_eur((payout or 0) - (stake or 0))}</span>'
+                     if isinstance(payout, (int, float)) and isinstance(stake, (int, float)) else "")
         elif res == "lost":
-            _to = "perdu"
+            _cap = '<span class="ko">Perdu</span>'
+            _gain = f'<span class="mont-step-g dn">−{_mont_eur(stake)}</span>' if stake else ""
         else:
-            _to = "en jeu"
+            _cap = '<span class="wait">En jeu</span>'
+            _gain = f'<span class="mont-step-g">{_mont_eur(stake)}</span>' if stake else ""
         rows.append(
             f'<div class="mont-step {cls}">'
-            f'<div class="mont-step-n"><b>{i}</b><span>palier</span></div>'
+            f'<div class="mont-step-n"><b>{i}</b></div>'
             f'<div class="mont-step-m"><div class="mont-step-t">{match}</div>'
             f'<div class="mont-step-s"><span class="sel">{sel}</span>{_cote_b}</div></div>'
-            f'<div class="mont-step-a"><span class="from">{_mont_eur(stake)}</span>'
-            f'<span class="ar">→</span><span class="to">{_to}</span></div></div>')
+            f'<div class="mont-step-a"><span class="to">{_cap}</span>{_gain}</div></div>')
     return "".join(rows)
 
 
@@ -5876,13 +5927,16 @@ def render_montante(st: dict, example: dict) -> str:
 
     # ÉCHELLE — montante mise en avant (meilleure série en sim, en cours en réel) OU exemple
     if featured and featured.get("steps"):
-        ladder_body = _mont_ladder(featured["steps"])
+        _fsteps = featured["steps"]
         tag = '<span class="tag">Meilleure série</span>' if sim else ''
     else:
-        ladder_body = _mont_ladder((example or {}).get("steps") or [])
+        _fsteps = (example or {}).get("steps") or []
         tag = '<span class="tag">Aperçu · exemple</span>'
+    # COURBE de progression du capital (10 € -> pic) au-dessus des paliers (demande user 2026-07-24)
+    _caps = [s.get("stake") for s in _fsteps if isinstance(s.get("stake"), (int, float))]
+    _curve = f'<div class="mont-curve">{_mont_curve(_caps, uid="best")}</div>' if len(_caps) >= 2 else ""
     ladder = (f'<div class="mont-sec-h">🪜 {"La meilleure montante" if sim else "La montante"}{tag}</div>'
-              f'<div class="mont-ladder">{ladder_body}</div>')
+              f'{_curve}<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
 
     # COMMENT ÇA MARCHE
     how = ('<div class="mont-sec-h">Comment ça marche</div><div class="mont-how">'
