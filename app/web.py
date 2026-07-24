@@ -4002,6 +4002,14 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
             if meq.group(2).lower() == "plus":
                 return f"{who} marque au moins {n} {_u(n)}"
             return f"{who} marque moins de {n} {_u(n)}"
+    # ÉQUIPE MARQUE — forme « <équipe> marque (Total <équipe> +X.5) » ou « … +X.5 » (handicap-total d'équipe,
+    # ex. « Racing Club marque (Total Racing +0.5) » = Racing marque ≥1 but). Le « +X.5 » = AU MOINS ⌈X.5⌉.
+    # Passe AVANT la branche « marque … plus/moins de » (le « +X.5 » n'a pas de « plus de ») — fix user 2026-07-24.
+    mmp = re.search(r"^(.+?)\s+marque\b.*?\+\s*(\d+(?:[.,]\d+)?)", s, re.I)
+    if mmp and not _per_gloss:
+        who = mmp.group(1).strip()
+        n = math.ceil(float(mmp.group(2).replace(",", ".")))
+        return f"{who} marque au moins {n} {_u(n)}"
     # ÉQUIPE MARQUE — forme « <équipe> marque (Plus/Moins de X.5 but) » SANS tiret séparateur (fix 2026-07-17 :
     # « Argentine marque (Plus de 0.5 but) » restait sans glose car « 0.5 but » ≠ « buts » du total).
     mm = re.search(r"^(.+?)\s+marque\b.*?\b(plus de|moins de|au moins|au maximum) (\d+(?:[.,]\d+)?)", s, re.I)
@@ -4028,6 +4036,25 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
         n = math.ceil(float(mob.group(4).replace(",", ".")))
         sens = "au moins" if mob.group(3).lower() == "plus" else "moins de"
         return f"{who + ' : ' if who else ''}{sens} {n} {obj}"
+    # ÉQUIPE (total) — forme KAMBI « Total <équipe> plus/moins de X.5 [buts/points/jeux] » (ex. « Total Racing
+    # Plus de 0.5 » = Racing marque ≥1 but ; unité SOUVENT ABSENTE). Ici « total » désigne le total D'UNE
+    # ÉQUIPE, PAS du match : sans cette branche, le « total » faisait tomber sur la branche total-du-match qui
+    # glosait « au total (les 2 équipes) » — FAUX, le pari ne porte que sur Racing (bug user 2026-07-24 :
+    # « ils parlent des 2/3 équipes alors que ce n'est que Racing »). Détecté par un NOM D'ÉQUIPE (home/away).
+    mtot = re.search(r"^total\s+(.+?)\s+(plus|moins) de (\d+(?:[.,]\d+)?)", s, re.I)
+    if mtot and not _per_gloss:
+        who = mtot.group(1).strip()
+        _wn = re.sub(r"\W+", "", who.lower())
+        _teams = [re.sub(r"\W+", "", t.lower()) for t in (home, away) if t]
+        # who générique (« Total de buts / du match / de points ») = total du MATCH, pas une équipe -> skip.
+        _generic = bool(re.search(r"nombre|\bbut|\bpoint|\bjeu|match", who.lower()))
+        if _wn and not _generic and (any(_wn in t or t in _wn for t in _teams) if _teams else True):
+            val = float(mtot.group(3).replace(",", "."))
+            n = math.ceil(val)   # « plus de 0.5 » -> au moins 1 ; « moins de 2.5 » -> moins de 3
+            _verbe = "remporte" if sport == "tennis" else "marque"
+            if mtot.group(2).lower() == "plus":
+                return f"{who} {_verbe} au moins {n} {_u(n)}"
+            return f"{who} {_verbe} moins de {n} {_u(n)}"
     # ÉQUIPE (total) — forme « <équipe> plus/moins de X.5 buts/points/jeux » SANS « marque » NI tiret (ex.
     # « Mirassol moins de 2.5 buts » = total de MIRASSOL ; « Minnesota Lynx plus de 92.5 points » = total de
     # MINNESOTA, PAS le total du match). BUG 2026-07-18 (foot) puis 2026-07-22 (basket : « points ») : c'était
@@ -4053,12 +4080,18 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     # d'un objet SPÉCIFIQUE (corners/tirs/cartons/aces/rebonds/passes/fautes) : « au total buts » y serait FAUX
     # (mauvaise unité) -> ils tombent sur le repli générique « pari sur … » (fix 2026-07-17).
     mt = re.search(r"\b(plus|moins) de (\d+(?:[.,]\d+)?)", sl)
-    if (mt and ("total" in sl or "points" in sl or "buts" in sl) and not _per_gloss
+    if (mt and re.search(r"total|points?|buts?", sl) and not _per_gloss
             and not re.search(r"\b(corner|tir|carton|ace|rebond|passe|faute|break)", sl)):
         val = float(mt.group(2).replace(",", "."))
-        sens = "plus" if mt.group(1) == "plus" else "moins"
-        n = math.floor(val) if sens == "plus" else math.ceil(val)
-        return f"{sens} de {n} {_u(n)} au total (les 2 équipes)"
+        # « plus de X.5 » = AU MOINS ⌈X.5⌉ (ceil) — « plus de 0.5 » -> « au moins 1 but », plus « plus de 0 »
+        # (bug signalé user 2026-07-24). « moins de X.5 » = AU MAXIMUM ⌊X.5⌋ (« moins de 0.5 » -> « aucun »).
+        # Cohérent avec les branches équipe-marque/équipe-total qui glosent déjà « au moins N ».
+        if mt.group(1) == "plus":
+            n = math.ceil(val)
+            return f"au moins {n} {_u(n)} au total (les 2 équipes)"
+        n = math.floor(val)
+        return (f"aucun {_u(1)} au total (les 2 équipes)" if n == 0
+                else f"{n} {_u(n)} maximum au total (les 2 équipes)")
     # DOUBLE CHANCE : deux issues couvertes (le pick affiche déjà « 1X (… ou nul) » -> glose courte).
     if re.search(r"\bdouble chance\b|\b1x\b|\bx2\b|\b12\b", sl) and "mi-temps" not in sl:
         return "l'un des deux gagne (pas de match nul)" if re.search(r"\b12\b", sl) else "gagne ou match nul"
