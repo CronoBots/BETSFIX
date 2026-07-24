@@ -713,7 +713,7 @@ def _simulation_card() -> str:
                 avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
                 form=web._form_streak(b.get("form_run") or b.get("form") or [])[0],   # ligne W/L
                 recent=list(reversed(b.get("recent") or [])), more_label="Derniers simples",
-                milestones=web._sport_milestones(sp))
+                milestones=web._sport_milestones(sp), compact=True)   # disposition « ROI héros »
         c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
         if c.get("settled"):
             _combos_g = web.render_tracking_curve(
@@ -722,7 +722,7 @@ def _simulation_card() -> str:
                 avg_cote=c.get("avg_odds"), uid=f"simc-{sp}", streak=c.get("streak"),
                 form=web._form_streak(c.get("form_run") or c.get("form") or [])[0],   # ligne W/L
                 recent=list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
-                milestones=web._sport_milestones(sp))
+                milestones=web._sport_milestones(sp), compact=True)   # disposition « ROI héros »
         curves = web._sport_tabs(_simple_g, _combos_g)      # onglets « Simple | Combinés » (demande user)
         if not curves:
             continue

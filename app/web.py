@@ -505,6 +505,19 @@ CSS = """
        border:1px solid var(--border);border-radius:11px;padding:7px 3px}
   .spf-cv-kpis b{display:block;color:var(--text);font-weight:800;font-size:14px;margin-bottom:2px;
        font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
+  /* Disposition « ROI héros » façon ROI GLOBAL, SANS cadre imbriqué (choix user 2026-07-24) : la carte
+     sport (.spf / .sx-card) porte déjà le cadre bleu lumineux -> le graphe s'affiche DIRECTEMENT dessus
+     (on sort de la boîte .spf-cv). Label → gros ROI coloré → sous-ligne réussite·paris·cote → courbe → W/L. */
+  .spf-hero{padding:0}
+  .spf-hero-lbl{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.16em;
+       text-transform:uppercase;color:var(--muted)}
+  .spf-hero-roi{text-align:center;font-size:42px;font-weight:900;letter-spacing:-.03em;line-height:1;
+       margin:4px 0 3px;font-variant-numeric:tabular-nums}
+  .spf-hero-roi.pos{color:#34d27b} .spf-hero-roi.neg{color:#ff6b6b} .spf-hero-roi.na{color:var(--muted)}
+  .spf-hero-sub{text-align:center;font-size:12px;color:var(--muted);font-weight:600}
+  .spf-hero-sub b{color:var(--text);font-variant-numeric:tabular-nums}
+  .spf-hero .sx-equity,.spf-hero .sx-chart{margin-top:11px}
+  .spf-hero .spf-cv-form{justify-content:center;margin:9px 0 0}
   /* Ligne d'EXTRAS sous les stats (Stats : nouv. système · CLV / profit · rabot) — inline compact */
   .spf-cv-extra{display:flex;justify-content:center;flex-wrap:wrap;gap:5px 16px;margin-top:6px;
        font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
@@ -3803,20 +3816,13 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # nouv. système + CLV (ligne secondaire) et repères de modèle sous la courbe.
     # Paris À JOUER (comptés au ROI, pas encore réglés) EN TÊTE (⏳), puis les réglés (demande user 2026-07-14).
     _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
-    _s_inner = (
-        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">⚽ SIMPLE</span>{_stk_s}</span>'
-        f'<span class="spf-cv-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
-        f'ROI {_roistr(ov.get("roi"))}</span></div>'
-        f'{_simples_form}<div class="sx-equity">{chart}</div>'
-        '<div class="spf-cv-kpis">'
-        f'<span><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b> réussite</span>'
-        f'<span><b>{ov["settled"]}</b> paris</span>'
-        f'<span><b>{ov.get("avg_odds") or "—"}</b> cote</span></div>')   # cote SANS « @ » ; nouv.système/CLV
-        #                          et légende repères RETIRÉES (demande user 2026-07-24)
-    simples_block = (
-        (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
+    _s_inner = _hero_graph_inner(                     # disposition « ROI héros » façon ROI global (choix user 2026-07-24)
+        roi=ov.get("roi"), n=ov.get("settled"), hit=ov["pct"], avg_cote=ov.get("avg_odds"),
+        chart=f'<div class="sx-equity">{chart}</div>', form=_simples_form)
+    simples_block = (                                 # SANS boîte imbriquée : contenu direct sur la carte sport
+        (f'<details class="spf-hero spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
          f'<div class="spf-cv-more"><span>Derniers simples</span> ▾</div></summary>{_rec_s}</details>')
-        if _rec_s else f'<div class="spf-cv">{_s_inner}</div>')
+        if _rec_s else f'<div class="spf-hero">{_s_inner}</div>')
     # BLOC COMBINÉS FOOTBALL (demande user 2026-07-24 : graphes de combiné PROPRES à chaque sport) : ici les
     # combos PER-MATCH FOOT seuls. Le combiné du jour et le combiné Betmines ont leur PROPRE carte (suivis
     # indicatifs). Tennis/basket combos -> section Simulation. Repères foot (_ms_combo déjà filtré foot+all).
@@ -3828,7 +3834,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         form=_form_streak(_foot_c.get("form_run") or _foot_c.get("form") or [])[0],   # ligne W/L (demande user)
         recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés",
-        milestones=_ms_combo) if _foot_c.get("settled") else "")
+        milestones=_ms_combo, compact=True) if _foot_c.get("settled") else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     _foot = _sport_tabs(simples_block, combos_block)   # onglets « Simple | Combinés » (demande user 2026-07-24)
@@ -3974,11 +3980,28 @@ def _sport_milestones(sport: str) -> list:
             if (m[4] if len(m) > 4 else "all") in (sport, "all")]
 
 
+def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str) -> str:
+    """Disposition « ROI héros » façon carte ROI GLOBAL (choix user 2026-07-24) pour les cadres sport à
+    onglets : petit label « Rentabilité », le ROI en GROS centré (vert/rouge), une sous-ligne
+    réussite · paris · cote, puis la courbe pleine largeur et la ligne W/L. AUCUNE boîte imbriquée — le
+    contenu s'affiche directement sur la carte sport (on « sort du cadre »). Le titre Simple/Combinés est
+    porté par l'onglet-bouton."""
+    _cls = "na" if (not n or n < _MIN_REL) else ("pos" if (roi or 0) >= 0 else "neg")
+    return (
+        '<div class="spf-hero-lbl">Rentabilité</div>'
+        f'<div class="spf-hero-roi {_cls}">{_roistr(roi)}</div>'
+        '<div class="spf-hero-sub">'
+        f'<b>{hit if hit is not None else "—"}%</b> réussite · <b>{n}</b> paris · cote <b>{avg_cote or "—"}</b>'
+        '</div>'
+        f'{chart}{form}')
+
+
 def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: list,
                           dates: list | None = None, avg_cote=None, uid: str = "trk",
                           recent: list | None = None, more_label: str = "Derniers paris",
                           form: list | None = None, pending: int = 0, streak=None,
-                          milestones: list | None = None, sport: str | None = None) -> str:
+                          milestones: list | None = None, sport: str | None = None,
+                          compact: bool = False) -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
@@ -3998,21 +4021,25 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     _form = f'<div class="spf-cv-form">{_dots}</div>' if _dots else ""
     # TITRE de sous-graphe : juste « SIMPLE »/« COMBINÉS » (le sport est dans l'en-tête du cadre — demande
     # user 2026-07-24). Couleur par sport ANNULÉE. `emoji` vide -> pas de préfixe.
-    _title_html = f'{emoji + " " if emoji else ""}{html.escape(title)}'
-    inner = (
-        f'<div class="spf-cv-h">'
-        f'<span class="spf-cv-hl"><span class="spf-cv-t">{_title_html}</span>{_stk}</span>'
-        f'<span class="spf-cv-roi arec-{_roi_cls(roi, n)}">ROI {_roistr(roi)}</span></div>'
-        f'{_form}{chart}'
-        '<div class="spf-cv-kpis">'
-        f'<span><b class="arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</b> réussite</span>'
-        f'<span><b>{n}</b> paris</span>'
-        f'<span><b>{avg_cote or "—"}</b> cote</span></div>')   # cote SANS « @ » (demande user) ; légende repères RETIRÉE
+    if compact:                                   # cadres sport à onglets : disposition « ROI héros » (frameless)
+        inner = _hero_graph_inner(roi=roi, n=n, hit=hit, avg_cote=avg_cote, chart=chart, form=_form)
+    else:
+        _title_html = f'{emoji + " " if emoji else ""}{html.escape(title)}'
+        inner = (
+            f'<div class="spf-cv-h">'
+            f'<span class="spf-cv-hl"><span class="spf-cv-t">{_title_html}</span>{_stk}</span>'
+            f'<span class="spf-cv-roi arec-{_roi_cls(roi, n)}">ROI {_roistr(roi)}</span></div>'
+            f'{_form}{chart}'
+            '<div class="spf-cv-kpis">'
+            f'<span><b class="arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</b> réussite</span>'
+            f'<span><b>{n}</b> paris</span>'
+            f'<span><b>{avg_cote or "—"}</b> cote</span></div>')   # cote SANS « @ » ; légende repères RETIRÉE
+    _wrap = "spf-hero" if compact else "spf-cv"   # compact = SANS boîte (sur la carte sport) — « sortir du cadre »
     rec = _recent_bets_html(recent or [])
     if rec:                                     # CLIQUABLE : le résumé déplie l'historique (comme simples/combinés)
-        return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{inner}'
+        return (f'<details class="{_wrap} spf-cv-x"><summary class="spf-cv-sum">{inner}'
                 f'<div class="spf-cv-more"><span>{html.escape(more_label)}</span> ▾</div></summary>{rec}</details>')
-    return f'<div class="spf-cv">{inner}</div>'
+    return f'<div class="{_wrap}">{inner}</div>'
 
 
 def _prog_pair(home, away) -> frozenset:
