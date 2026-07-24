@@ -704,28 +704,28 @@ def _simulation_card() -> str:
     for sp in ("tennis", "basket", "foot"):
         if sp not in bg:
             continue
-        _parts = []
+        _simple_g = _combos_g = ""
         b = (full.get("by_sport") or {}).get(sp) or {}      # SIMPLES simulés du sport (MÊME emoji sport)
         if b.get("settled"):
-            _parts.append(web.render_tracking_curve(
+            _simple_g = web.render_tracking_curve(
                 emoji=_emo.get(sp, "🔬"), title="SIMPLE", roi=b.get("roi"), hit=b.get("pct"),
                 n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
                 avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
                 form=web._form_streak(b.get("form_run") or b.get("form") or [])[0],   # ligne W/L
                 recent=list(reversed(b.get("recent") or [])), more_label="Derniers paris",
-                milestones=web._sport_milestones(sp)))
+                milestones=web._sport_milestones(sp))
         c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
         if c.get("settled"):
-            _parts.append(web.render_tracking_curve(
+            _combos_g = web.render_tracking_curve(
                 emoji=_emo.get(sp, "🔬"), title="COMBINÉS", roi=c.get("roi"), hit=c.get("pct"),
                 n=c.get("settled"), points=c.get("points"), dates=c.get("dates"),
                 avg_cote=c.get("avg_odds"), uid=f"simc-{sp}", streak=c.get("streak"),
                 form=web._form_streak(c.get("form_run") or c.get("form") or [])[0],   # ligne W/L
                 recent=list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
-                milestones=web._sport_milestones(sp)))
-        if not _parts:
+                milestones=web._sport_milestones(sp))
+        curves = web._sport_tabs(_simple_g, _combos_g)      # onglets « Simple | Combinés » (demande user)
+        if not curves:
             continue
-        curves = web._MC_SEP.join(_parts)                   # même filet que entre les jambes de combiné
         # En-tête = BANNIÈRE BETSFIX du sport + ligne « simulé · hors paris » sous l'image, IDENTIQUE pour
         # tous les sports simulés (couleur ambre, SANS « prêt à réactiver » — demande user 2026-07-24).
         out += (

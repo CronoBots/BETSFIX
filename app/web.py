@@ -1638,6 +1638,13 @@ CSS = """
   .stat-banner-sub{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
        color:#f6c54a;margin:0 0 18px}   /* espace en dessous (demande user 2026-07-24) */
   .stat-banner-sub.ready,.stat-banner-sub.on{color:#64cd8d}   /* .on = sport actif (compté/repris dans les paris) */
+  /* Onglets « Simple | Combinés » dans un cadre sport (un graphe à la fois) — demande user 2026-07-24 */
+  .sctabs{display:flex;gap:6px;margin:0 0 10px}
+  .sctab{flex:1;padding:8px 6px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid var(--border);
+       color:var(--muted);font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.06em;cursor:pointer}
+  .sctab.on{background:rgba(34,184,255,.15);border-color:rgba(34,184,255,.45);color:#fff}
+  .sctab-pane{display:none}
+  .sctab-pane.on{display:block}
   .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
   /* Section par sport */
   /* mêmes cadres que les cartes de match (.row) : dégradé + bordure cyan + glow */
@@ -2952,6 +2959,19 @@ _CARDS_JS = (
     "window._mcInit(document);})();"
 )
 
+# Onglets « Simple | Combinés » dans les cadres sport des Stats (demande user 2026-07-24) : un graphe à la
+# fois. Délégué au document -> marche aussi sur le fragment Stats chargé en SPA.
+_SCTABS_JS = (
+    "document.addEventListener('click',function(e){"
+    "var t=e.target.closest('.sctab');if(!t)return;"
+    "var w=t.closest('.sctab-wrap');if(!w)return;"
+    "var i=t.getAttribute('data-i'),tabs=w.querySelectorAll('.sctab'),j;"
+    "for(j=0;j<tabs.length;j++)tabs[j].classList.toggle('on',tabs[j]===t);"
+    "var p=w.querySelectorAll('.sctab-pane'),k;"
+    "for(k=0;k<p.length;k++)p[k].classList.toggle('on',String(k)===i);"
+    "});"
+)
+
 _SPA_JS = (
     "(function(){var P=document.getElementById('panels');if(!P)return;"
     "function panel(t){return document.getElementById('pn-'+t);}"
@@ -3244,7 +3264,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 {splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
@@ -3288,7 +3308,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_A2HS_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_A2HS_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -3811,7 +3831,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         milestones=_ms_combo) if _foot_c.get("settled") else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
-    _foot = (simples_block + _MC_SEP + combos_block) if (simples_block and combos_block) else (simples_block + combos_block)
+    _foot = _sport_tabs(simples_block, combos_block)   # onglets « Simple | Combinés » (demande user 2026-07-24)
     # Ligne sous la bannière (comme tennis/basket) : le FOOT est compté au ROI et repris dans les paris.
     _foot_sub = '<div class="stat-banner-sub on">compté au ROI · repris dans les paris</div>'
     return (f'<div class="spf">{_sport_banner("foot")}{_foot_sub}{_foot}</div>') if _foot else ""
@@ -3921,6 +3941,20 @@ def _form_streak(results) -> tuple:
         else:
             break
     return form, streak
+
+
+def _sport_tabs(simple_html: str, combos_html: str) -> str:
+    """Onglets « Simple | Combinés » dans un cadre sport (demande user 2026-07-24) : UN graphe à la fois,
+    on tape pour basculer -> divise la hauteur du cadre par 2 (JS `_SCTABS_JS`). Si un seul graphe existe,
+    on le rend directement (pas d'onglets). '' si aucun."""
+    if simple_html and combos_html:
+        return (
+            '<div class="sctab-wrap">'
+            '<div class="sctabs"><button class="sctab on" data-i="0">Simple</button>'
+            '<button class="sctab" data-i="1">Combinés</button></div>'
+            f'<div class="sctab-pane on">{simple_html}</div>'
+            f'<div class="sctab-pane">{combos_html}</div></div>')
+    return simple_html or combos_html or ""
 
 
 def _sport_banner(sport: str) -> str:
