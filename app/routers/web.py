@@ -708,21 +708,21 @@ def _simulation_card() -> str:
         b = (full.get("by_sport") or {}).get(sp) or {}      # SIMPLES simulés du sport (MÊME emoji sport)
         if b.get("settled"):
             _simple_g = web.render_tracking_curve(
-                emoji=_emo.get(sp, "🔬"), title="SIMPLE", roi=b.get("roi"), hit=b.get("pct"),
+                emoji="", title="", roi=b.get("roi"), hit=b.get("pct"),   # titre = l'onglet (demande user)
                 n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
                 avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
                 form=web._form_streak(b.get("form_run") or b.get("form") or [])[0],   # ligne W/L
                 recent=list(reversed(b.get("recent") or [])), more_label="Derniers simples",
-                milestones=web._sport_milestones(sp))
+                milestones=web._sport_milestones(sp), compact=True)
         c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
         if c.get("settled"):
             _combos_g = web.render_tracking_curve(
-                emoji=_emo.get(sp, "🔬"), title="COMBINÉS", roi=c.get("roi"), hit=c.get("pct"),
+                emoji="", title="", roi=c.get("roi"), hit=c.get("pct"),   # titre = l'onglet (demande user)
                 n=c.get("settled"), points=c.get("points"), dates=c.get("dates"),
                 avg_cote=c.get("avg_odds"), uid=f"simc-{sp}", streak=c.get("streak"),
                 form=web._form_streak(c.get("form_run") or c.get("form") or [])[0],   # ligne W/L
                 recent=list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
-                milestones=web._sport_milestones(sp))
+                milestones=web._sport_milestones(sp), compact=True)
         curves = web._sport_tabs(_simple_g, _combos_g)      # onglets « Simple | Combinés » (demande user)
         if not curves:
             continue

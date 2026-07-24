@@ -505,6 +505,13 @@ CSS = """
        border:1px solid var(--border);border-radius:11px;padding:7px 3px}
   .spf-cv-kpis b{display:block;color:var(--text);font-weight:800;font-size:14px;margin-bottom:2px;
        font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
+  /* Variante COMPACTE (onglets sport, demande user 2026-07-24) : les 3 stats sur UNE ligne, séparées
+     par « · » — plus de boîtes encadrées -> cadre plus dense. */
+  .spf-cv-kpis.one{display:block;text-align:center;gap:0;margin-top:10px;
+       font-size:11px;letter-spacing:0;text-transform:none}
+  .spf-cv-kpis.one span{display:inline;flex:none;background:none;border:0;padding:0}
+  .spf-cv-kpis.one span+span::before{content:"·";margin:0 7px;opacity:.45}
+  .spf-cv-kpis.one b{display:inline;font-size:12.5px;margin:0 3px 0 0}
   /* Ligne d'EXTRAS sous les stats (Stats : nouv. système · CLV / profit · rabot) — inline compact */
   .spf-cv-extra{display:flex;justify-content:center;flex-wrap:wrap;gap:5px 16px;margin-top:6px;
        font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
@@ -1634,7 +1641,7 @@ CSS = """
   .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;
        min-width:0;overflow:hidden;text-overflow:ellipsis}   /* sous-titre : ellipsis plutôt que déborder */
   /* Bannière BETSFIX du sport (image Telegram) en en-tête de cadre stats (demande user 2026-07-24) */
-  .stat-banner{display:block;width:100%;height:auto;max-width:100%;border-radius:10px;margin:0 0 6px}
+  .stat-banner{display:block;height:auto;width:auto;max-height:54px;max-width:100%;border-radius:10px;margin:0 auto 6px}
   .stat-banner-sub{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
        color:#f6c54a;margin:0 0 18px}   /* espace en dessous (demande user 2026-07-24) */
   .stat-banner-sub.ready,.stat-banner-sub.on{color:#64cd8d}   /* .on = sport actif (compté/repris dans les paris) */
@@ -3804,11 +3811,11 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # Paris À JOUER (comptés au ROI, pas encore réglés) EN TÊTE (⏳), puis les réglés (demande user 2026-07-14).
     _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
     _s_inner = (
-        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">⚽ SIMPLE</span>{_stk_s}</span>'
+        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t"></span>{_stk_s}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
-        f'ROI {_roistr(ov.get("roi"))}</span></div>'
+        f'ROI {_roistr(ov.get("roi"))}</span></div>'   # titre « SIMPLE » = l'onglet (demande user 2026-07-24)
         f'{_simples_form}<div class="sx-equity">{chart}</div>'
-        '<div class="spf-cv-kpis">'
+        '<div class="spf-cv-kpis one">'
         f'<span><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b> réussite</span>'
         f'<span><b>{ov["settled"]}</b> paris</span>'
         f'<span><b>{ov.get("avg_odds") or "—"}</b> cote</span></div>')   # cote SANS « @ » ; nouv.système/CLV
@@ -3823,12 +3830,12 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _cs = combo_full if combo_full is not None else analyses.combo_stats()
     _foot_c = (_cs.get("by_sport") or {}).get("foot") or {}
     combos_block = (render_tracking_curve(
-        emoji="⚽", title="COMBINÉS", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
+        emoji="", title="", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),   # titre = l'onglet (demande user)
         n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         form=_form_streak(_foot_c.get("form_run") or _foot_c.get("form") or [])[0],   # ligne W/L (demande user)
         recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés",
-        milestones=_ms_combo) if _foot_c.get("settled") else "")
+        milestones=_ms_combo, compact=True) if _foot_c.get("settled") else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     _foot = _sport_tabs(simples_block, combos_block)   # onglets « Simple | Combinés » (demande user 2026-07-24)
@@ -3978,7 +3985,8 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
                           dates: list | None = None, avg_cote=None, uid: str = "trk",
                           recent: list | None = None, more_label: str = "Derniers paris",
                           form: list | None = None, pending: int = 0, streak=None,
-                          milestones: list | None = None, sport: str | None = None) -> str:
+                          milestones: list | None = None, sport: str | None = None,
+                          compact: bool = False) -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
@@ -3999,12 +4007,13 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     # TITRE de sous-graphe : juste « SIMPLE »/« COMBINÉS » (le sport est dans l'en-tête du cadre — demande
     # user 2026-07-24). Couleur par sport ANNULÉE. `emoji` vide -> pas de préfixe.
     _title_html = f'{emoji + " " if emoji else ""}{html.escape(title)}'
+    _kcls = "spf-cv-kpis one" if compact else "spf-cv-kpis"   # KPIs sur 1 ligne dans les cadres à onglets
     inner = (
         f'<div class="spf-cv-h">'
         f'<span class="spf-cv-hl"><span class="spf-cv-t">{_title_html}</span>{_stk}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(roi, n)}">ROI {_roistr(roi)}</span></div>'
         f'{_form}{chart}'
-        '<div class="spf-cv-kpis">'
+        f'<div class="{_kcls}">'
         f'<span><b class="arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</b> réussite</span>'
         f'<span><b>{n}</b> paris</span>'
         f'<span><b>{avg_cote or "—"}</b> cote</span></div>')   # cote SANS « @ » (demande user) ; légende repères RETIRÉE
