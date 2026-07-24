@@ -699,25 +699,26 @@ def _simulation_card() -> str:
         if sp not in bg:
             continue
         _tag = " · ✓ prêt à réactiver" if sp in ready else ""
-        curves = ""
-        b = (full.get("by_sport") or {}).get(sp) or {}      # SIMPLES simulés du sport
+        _parts = []
+        b = (full.get("by_sport") or {}).get(sp) or {}      # SIMPLES simulés du sport (MÊME emoji sport)
         if b.get("settled"):
-            curves += web.render_tracking_curve(
+            _parts.append(web.render_tracking_curve(
                 emoji=_emo.get(sp, "🔬"), title="Simples", roi=b.get("roi"), hit=b.get("pct"),
                 n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
                 avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
                 recent=list(reversed(b.get("recent") or [])), more_label="Derniers paris",
-                milestones=web._sport_milestones(sp))
-        c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport
+                milestones=web._sport_milestones(sp)))
+        c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
         if c.get("settled"):
-            curves += web.render_tracking_curve(
-                emoji="🎲", title="Combinés", roi=c.get("roi"), hit=c.get("pct"),
+            _parts.append(web.render_tracking_curve(
+                emoji=_emo.get(sp, "🔬"), title="Combinés", roi=c.get("roi"), hit=c.get("pct"),
                 n=c.get("settled"), points=c.get("points"), dates=c.get("dates"),
                 avg_cote=c.get("avg_odds"), uid=f"simc-{sp}", streak=c.get("streak"),
                 recent=list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
-                milestones=web._sport_milestones(sp))
-        if not curves:
+                milestones=web._sport_milestones(sp)))
+        if not _parts:
             continue
+        curves = web._MC_SEP.join(_parts)                   # même filet que entre les jambes de combiné
         out += (
             f'<div class="sx-card"><div class="sx-h">{_emo.get(sp, "🔬")} {_nom.get(sp, sp)} '
             f'<span>🔬 simulé · hors paris{_tag}</span></div>'

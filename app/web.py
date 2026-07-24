@@ -3787,8 +3787,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         f'<span><b class="arec-{_pct_class(ov["pct"])}">{ov["pct"]}%</b> réussite</span>'
         f'<span><b>{ov["settled"]}</b> paris</span>'
         f'<span><b>@{ov.get("avg_odds") or "—"}</b> cote</span></div>'
-        f'<div class="spf-cv-extra"><span>nouv. système <b class="arec-{nv_cls}">{nv_val}</b></span>'
-        f'{_clv_txt}</div>'
+        # Ligne « nouv. système · CLV » RETIRÉE (demande user 2026-07-24).
         f'{mlegend}')
     simples_block = (
         (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
@@ -3800,15 +3799,15 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _cs = combo_full if combo_full is not None else analyses.combo_stats()
     _foot_c = (_cs.get("by_sport") or {}).get("foot") or {}
     combos_block = (render_tracking_curve(
-        emoji="🎲", title="Combinés Football", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
+        emoji="⚽", title="Combinés Football", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
         n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés foot",
         milestones=_ms_combo) if _foot_c.get("settled") else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : le cadre FOOTBALL regroupe ses simples ET ses combos
-    # dans un SEUL `.spf`. (Tennis/basket = leurs propres cadres dans la section Simulation ; combiné du jour
-    # et Betmines = cadres à part dans les suivis.)
-    _foot = simples_block + combos_block
+    # dans un SEUL `.spf`, séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`). (Tennis/basket =
+    # leurs propres cadres dans la section Simulation ; combiné du jour et Betmines = cadres à part.)
+    _foot = (simples_block + _MC_SEP + combos_block) if (simples_block and combos_block) else (simples_block + combos_block)
     return f'<div class="spf">{_foot}</div>' if _foot else ""
 
 
