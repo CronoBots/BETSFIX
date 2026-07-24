@@ -3739,9 +3739,14 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # REPÈRES BLEUS (jalons méthodo MODEL_MILESTONES) RETIRÉS des graphiques (demande user 2026-07-14) :
     # on ne trace plus que les repères AUTO (ambrés, marché auto-ajusté). Le filtrage à la SOURCE couvre
     # chart + légende, graphes Simples ET Combinés (tous dérivent de `_all_miles`).
+    # REPÈRES PROPRES À CHAQUE SPORT (demande user 2026-07-24) : le graphe Football ne montre que les
+    # ajustements FOOT (ou globaux « all ») ; ceux de tennis/basket vont sur leurs courbes de Simulation.
+    # 5e champ (m[4]) = sport (foot/tennis/basket/all). Helper partagé exposé pour _simulation_card.
     _all_miles = sorted(analyses.exclusion_events(), key=lambda m: (m[0] or ""))
-    _ms_simple = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("simple", "both")]
-    _ms_combo = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("combo", "both")]
+    _ms_simple = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("simple", "both")
+                  and (m[4] if len(m) > 4 else "all") in ("foot", "all")]
+    _ms_combo = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("combo", "both")
+                 and (m[4] if len(m) > 4 else "all") in ("foot", "all")]
     chart = _hero_chart(ov.get("points") or [], uid="all",
                         dates=ov.get("dates") or [], milestones=_ms_simple)
     mlegend = _mile_legend(_ms_simple)
@@ -3906,10 +3911,19 @@ def _form_streak(results) -> tuple:
     return form, streak
 
 
+def _sport_milestones(sport: str) -> list:
+    """Repères (ajustements auto du modèle) PROPRES à un sport pour sa courbe — demande user 2026-07-24 :
+    les repères doivent être spécifiques à chaque sport. Garde le sport concerné (m[4]) == `sport` OU les
+    repères GLOBAUX (« all »). Triés par date (l'ordre des pastilles numérotées suit la chronologie)."""
+    return [m for m in sorted(analyses.exclusion_events(), key=lambda x: (x[0] or ""))
+            if (m[4] if len(m) > 4 else "all") in (sport, "all")]
+
+
 def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: list,
                           dates: list | None = None, avg_cote=None, uid: str = "trk",
                           recent: list | None = None, more_label: str = "Derniers paris",
-                          form: list | None = None, pending: int = 0, streak=None) -> str:
+                          form: list | None = None, pending: int = 0, streak=None,
+                          milestones: list | None = None) -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
@@ -3921,7 +3935,8 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     if not n and not pending:
         return ""
     _pts = [p for p in (points or []) if p is not None]
-    chart = (f'<div class="sx-equity">{_hero_chart(points, uid=uid, dates=dates or [])}</div>'
+    _mi = milestones or []                                    # repères PROPRES à ce sport (demande user 2026-07-24)
+    chart = (f'<div class="sx-equity">{_hero_chart(points, uid=uid, dates=dates or [], milestones=_mi)}</div>'
              if len(_pts) >= 2 else "")
     _stk = _streak_chip(streak)                               # 🔥 N gagnés / ❄️ N perdus — À CÔTÉ du titre
     _dots = form_dots(form or [], n=14, pending=pending)      # ligne W/L + sabliers ⏳ des en attente
@@ -3934,7 +3949,8 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
         '<div class="spf-cv-kpis">'
         f'<span><b class="arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</b> réussite</span>'
         f'<span><b>{n}</b> paris</span>'
-        f'<span><b>@{avg_cote or "—"}</b> cote</span></div>')
+        f'<span><b>@{avg_cote or "—"}</b> cote</span></div>'
+        f'{_mile_legend(_mi)}')                               # légende des repères (spécifiques au sport)
     rec = _recent_bets_html(recent or [])
     if rec:                                     # CLIQUABLE : le résumé déplie l'historique (comme simples/combinés)
         return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{inner}'

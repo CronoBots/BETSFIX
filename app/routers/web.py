@@ -702,7 +702,8 @@ def _simulation_card() -> str:
         cards += web.render_tracking_curve(
             emoji=_emo.get(sp, "🔬"), title=f"{_nom.get(sp, sp)} simulé{_tag}", roi=b.get("roi"), hit=b.get("pct"),
             n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
-            avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"))
+            avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
+            milestones=web._sport_milestones(sp))   # repères PROPRES à ce sport (tennis/basket)
     if not cards:
         return ""
     return (
