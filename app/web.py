@@ -3805,11 +3805,11 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés foot",
         milestones=_ms_combo) if _foot_c.get("settled") else "")
-    # CHAQUE type dans SON PROPRE cadre `.spf`, l'un après l'autre. Le résumé « Par sport » a été RETIRÉ
-    # (demande user 2026-07-24) : les ROI par sport sont déjà visibles dans les graphes (Football = ce bloc
-    # Simples foot-only, Tennis/Basket = section Simulation). Football = son cadre, Combinés = son cadre.
-    _blocks = [simples_block, combos_block]
-    return "".join(f'<div class="spf">{b}</div>' for b in _blocks if b)
+    # UN CADRE PAR SPORT (demande user 2026-07-24) : le cadre FOOTBALL regroupe ses simples ET ses combos
+    # dans un SEUL `.spf`. (Tennis/basket = leurs propres cadres dans la section Simulation ; combiné du jour
+    # et Betmines = cadres à part dans les suivis.)
+    _foot = simples_block + combos_block
+    return f'<div class="spf">{_foot}</div>' if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
