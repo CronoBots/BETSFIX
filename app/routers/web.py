@@ -413,7 +413,10 @@ def _past_day_cards(date_iso: str) -> list:
         return ((d.get("stat_bet") or {}).get("result") in ("won", "lost", "push")
                 or (d.get("combo") or {}).get("result") in ("won", "lost", "void"))
 
+    _bg = analyses.background_sports()                     # tennis/basket en arrière-plan -> jamais sur la page des paris
     for sport in ("foot", "basket", "tennis"):
+        if sport in _bg:                                  # sport simulé -> pas dans les « Résultats du jour »
+            continue
         for d in analyses.iter_meta(sport):               # brut (pas de retained_bet) : filtrage strict ci-dessous
             dt = d.get("_start_dt")
             if dt is None:
