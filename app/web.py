@@ -471,8 +471,8 @@ CSS = """
   /* Forme W/L (dots) alignée à DROITE : si ça déborde, on rogne les VIEUX (gauche), on garde les récents. */
   .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px;overflow:hidden}
   .spf-cv-form .forms{flex-wrap:nowrap}
-  .spf-cv-form .fd{width:13px;height:13px;font-size:8px}   /* pastilles un peu + petites : 16 tiennent sur la ligne */
-  .spf-cv-form .fd.fd-p{font-size:9px}
+  .spf-cv-form .fd{width:11px;height:11px;font-size:7px}   /* pastilles compactes : 16 tiennent + laissent respirer */
+  .spf-cv-form .fd.fd-p{font-size:8px}
   /* Groupe de gauche de l'en-tête : titre + badge SÉRIE côte à côte (le badge n'est PAS dans la ligne W/L). */
   .spf-cv-hl{display:flex;align-items:center;gap:7px;min-width:0}
   .spf-cv-hl .sx-streak{flex:none}
@@ -530,6 +530,8 @@ CSS = """
        color:var(--muted)}
   .spf-rate-h b{color:#22b8ff;font-size:12px;letter-spacing:0;margin-left:3px}
   .rate-c{display:block;margin-top:5px}
+  .rate-lbl{font-size:8px;font-weight:800;fill:var(--muted);font-variant-numeric:tabular-nums}
+  .rate-lbl-e{fill:#22b8ff}
   /* Ligne W/L des graphes héros : pastilles RESSERRÉES et centrées (demande user) + espace avant l'historique. */
   .spf-hero .spf-cv-form{display:block;overflow:visible;margin:12px 0 0}
   .spf-hero .spf-cv-form .forms{display:flex;width:100%;justify-content:center;gap:5px;margin-left:0}
@@ -4037,6 +4039,7 @@ def _rate_chart(points: list, uid: str = "r") -> str:
     gid = f"rtg-{uid}"
     line_d = _smooth_path([(X(i), Y(v)) for i, v in enumerate(pts)])
     area_d = f'M{X(0):.1f},{H - B:.1f} L' + line_d[1:] + f' L{X(n - 1):.1f},{H - B:.1f} Z'
+    y0, y1 = Y(pts[0]), Y(pts[-1])
     p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="sx-heroc rate-c">',
          f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1">'
          f'<stop offset="0" stop-color="{AC}" stop-opacity="0.26"/>'
@@ -4044,7 +4047,11 @@ def _rate_chart(points: list, uid: str = "r") -> str:
          f'<path d="{area_d}" fill="url(#{gid})" stroke="none"/>',
          f'<path class="sx-heroc-line" pathLength="1" d="{line_d}" fill="none" stroke="{AC}" '
          'stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>',
-         f'<circle cx="{X(n - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="2.6" fill="{AC}"/></svg>']
+         # Repères CHIFFRÉS discrets aux extrémités (demande user 2026-07-24) : % de départ (bas-gauche) et
+         # % actuel (haut-droite) -> la progression est lisible sans échelle complète.
+         f'<text class="rate-lbl" x="{X(0):.1f}" y="{min(H - 2, y0 + 12):.1f}" text-anchor="start">{pts[0]:g}%</text>',
+         f'<text class="rate-lbl rate-lbl-e" x="{X(n - 1):.1f}" y="{max(9.0, y1 - 6):.1f}" text-anchor="end">{pts[-1]:g}%</text>',
+         f'<circle cx="{X(n - 1):.1f}" cy="{y1:.1f}" r="2.6" fill="{AC}"/></svg>']
     return "".join(p)
 
 
