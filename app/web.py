@@ -1636,8 +1636,8 @@ CSS = """
   /* Bannière BETSFIX du sport (image Telegram) en en-tête de cadre stats (demande user 2026-07-24) */
   .stat-banner{display:block;width:100%;height:auto;max-width:100%;border-radius:10px;margin:0 0 6px}
   .stat-banner-sub{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
-       color:#f6c54a;margin:0 0 14px}   /* un rien plus d'espace en dessous (demande user 2026-07-24) */
-  .stat-banner-sub.ready{color:#64cd8d}
+       color:#f6c54a;margin:0 0 18px}   /* espace en dessous (demande user 2026-07-24) */
+  .stat-banner-sub.ready,.stat-banner-sub.on{color:#64cd8d}   /* .on = sport actif (compté/repris dans les paris) */
   .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
   /* Section par sport */
   /* mêmes cadres que les cartes de match (.row) : dégradé + bordure cyan + glow */
@@ -3811,7 +3811,9 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     _foot = (simples_block + _MC_SEP + combos_block) if (simples_block and combos_block) else (simples_block + combos_block)
-    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
+    # Ligne sous la bannière (comme tennis/basket) : le FOOT est compté au ROI et repris dans les paris.
+    _foot_sub = '<div class="stat-banner-sub on">compté au ROI · repris dans les paris</div>'
+    return (f'<div class="spf">{_sport_banner("foot")}{_foot_sub}{_foot}</div>') if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
