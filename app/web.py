@@ -1630,8 +1630,9 @@ CSS = """
   .sx-bys{display:flex;flex-direction:column;gap:10px}
   .sx-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:0 2px;
        white-space:nowrap;font-size:12px;font-weight:800;letter-spacing:.04em;
-       text-transform:uppercase;color:#cfe0f5}
-  .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
+       text-transform:uppercase;color:#cfe0f5;overflow:hidden}   /* overflow:hidden = un en-tête long n'élargit JAMAIS la carte (fix débordement horizontal) */
+  .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;
+       min-width:0;overflow:hidden;text-overflow:ellipsis}   /* sous-titre : ellipsis plutôt que déborder */
   .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
   /* Section par sport */
   /* mêmes cadres que les cartes de match (.row) : dégradé + bordure cyan + glow */

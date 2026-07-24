@@ -698,16 +698,16 @@ def _simulation_card() -> str:
         b = (full.get("by_sport") or {}).get(sp) or {}
         if not b.get("settled"):
             continue
-        _tag = " · prêt à réactiver" if sp in ready else ""
+        _tag = " ✓ prêt" if sp in ready else ""
         cards += web.render_tracking_curve(
-            emoji="🔬", title=f"{_nom.get(sp, sp)} (simulé{_tag})", roi=b.get("roi"), hit=b.get("pct"),
+            emoji=_emo.get(sp, "🔬"), title=f"{_nom.get(sp, sp)} simulé{_tag}", roi=b.get("roi"), hit=b.get("pct"),
             n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
             avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"))
     if not cards:
         return ""
     return (
-        '<div class="sx-card"><div class="sx-h">🔬 Simulation (arrière-plan) '
-        '<span>tennis/basket — analysés, ROI simulé, cachés des paris</span></div>'
+        '<div class="sx-card"><div class="sx-h">🔬 Simulation '
+        '<span>ROI simulé · hors paris</span></div>'
         '<div class="sx-data-note">Ces sports sont <b>analysés comme avant</b> et leurs paris <b>simulés</b> '
         '(ROI ci-dessous, qui continue de vivre) mais <b>jamais affichés</b> sur la page des paris ni publiés. '
         'Suis leur ROI simulé pour décider quand les <b>réintégrer</b> — la réactivation est <b>manuelle</b> '
