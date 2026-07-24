@@ -695,7 +695,6 @@ def _simulation_card() -> str:
     if not bg:
         return ""
     full = analyses.stats_full()
-    ready = analyses.sport_reactivation_ready()
     combo = analyses.combo_stats()
     _emo = {"tennis": "🎾", "basket": "🏀", "foot": "⚽"}
     _nom = {"tennis": "Tennis", "basket": "Basket", "foot": "Foot"}
@@ -705,7 +704,6 @@ def _simulation_card() -> str:
     for sp in ("tennis", "basket", "foot"):
         if sp not in bg:
             continue
-        _tag = " · ✓ prêt à réactiver" if sp in ready else ""
         _parts = []
         b = (full.get("by_sport") or {}).get(sp) or {}      # SIMPLES simulés du sport (MÊME emoji sport)
         if b.get("settled"):
@@ -726,14 +724,12 @@ def _simulation_card() -> str:
         if not _parts:
             continue
         curves = web._MC_SEP.join(_parts)                   # même filet que entre les jambes de combiné
-        # En-tête = BANNIÈRE BETSFIX du sport (image Telegram) + ligne « simulé · hors paris » sous l'image
-        # (SANS l'emoji loupe, SANS le texte explicatif — demande user 2026-07-24).
-        _subcls = "stat-banner-sub ready" if sp in ready else "stat-banner-sub"
-        _subtxt = ("simulé · hors paris · ✓ prêt à réactiver" if sp in ready else "simulé · hors paris")
+        # En-tête = BANNIÈRE BETSFIX du sport + ligne « simulé · hors paris » sous l'image, IDENTIQUE pour
+        # tous les sports simulés (couleur ambre, SANS « prêt à réactiver » — demande user 2026-07-24).
         out += (
             '<div class="sx-card">'
             + web._sport_banner(sp)
-            + f'<div class="{_subcls}">{_subtxt}</div>'
+            + '<div class="stat-banner-sub">simulé · hors paris</div>'
             + curves + '</div>')
     return out
 
