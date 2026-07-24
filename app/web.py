@@ -463,7 +463,7 @@ CSS = """
   .spf-cv{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;
        padding:8px 10px 6px}
   .spf-cv-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
-  .spf-cv-t{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .spf-cv-t{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#fff}   /* titre graphe : BLANC, un rien plus grand (demande user 2026-07-24) */
   .spf-cv-roi{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
   .spf-cv-none{font-size:11px;color:var(--muted);padding:16px 2px;text-align:center}
   /* Forme W/L PROPRE à chaque graphe (juste au-dessus de la courbe) */
@@ -3779,7 +3779,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # Paris À JOUER (comptés au ROI, pas encore réglés) EN TÊTE (⏳), puis les réglés (demande user 2026-07-14).
     _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
     _s_inner = (
-        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">⚽ Football</span>{_stk_s}</span>'
+        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">⚽ FOOTBALL - SIMPLE</span>{_stk_s}</span>'
         f'<span class="spf-cv-roi arec-{_roi_cls(ov.get("roi"), ov.get("settled"))}">'
         f'ROI {_roistr(ov.get("roi"))}</span></div>'
         f'{_simples_form}<div class="sx-equity">{chart}</div>'
@@ -3799,7 +3799,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _cs = combo_full if combo_full is not None else analyses.combo_stats()
     _foot_c = (_cs.get("by_sport") or {}).get("foot") or {}
     combos_block = (render_tracking_curve(
-        emoji="⚽", title="Combinés Football", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
+        emoji="⚽", title="FOOTBALL - COMBINÉS", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
         n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés foot",

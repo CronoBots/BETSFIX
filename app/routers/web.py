@@ -703,7 +703,7 @@ def _simulation_card() -> str:
         b = (full.get("by_sport") or {}).get(sp) or {}      # SIMPLES simulés du sport (MÊME emoji sport)
         if b.get("settled"):
             _parts.append(web.render_tracking_curve(
-                emoji=_emo.get(sp, "🔬"), title="Simples", roi=b.get("roi"), hit=b.get("pct"),
+                emoji=_emo.get(sp, "🔬"), title=f"{_nom.get(sp, sp).upper()} - SIMPLE", roi=b.get("roi"), hit=b.get("pct"),
                 n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
                 avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
                 recent=list(reversed(b.get("recent") or [])), more_label="Derniers paris",
@@ -711,7 +711,7 @@ def _simulation_card() -> str:
         c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
         if c.get("settled"):
             _parts.append(web.render_tracking_curve(
-                emoji=_emo.get(sp, "🔬"), title="Combinés", roi=c.get("roi"), hit=c.get("pct"),
+                emoji=_emo.get(sp, "🔬"), title=f"{_nom.get(sp, sp).upper()} - COMBINÉS", roi=c.get("roi"), hit=c.get("pct"),
                 n=c.get("settled"), points=c.get("points"), dates=c.get("dates"),
                 avg_cote=c.get("avg_odds"), uid=f"simc-{sp}", streak=c.get("streak"),
                 recent=list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
