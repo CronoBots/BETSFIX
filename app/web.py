@@ -2090,6 +2090,7 @@ CSS = """
   .prv-w .prv-ic{background:rgba(52,210,123,.16);color:#64cd8d}
   .prv-l .prv-ic{background:rgba(255,107,107,.16);color:#ff6b6b}
   .prv-n .prv-ic{background:rgba(255,255,255,.08);color:var(--muted)}
+  .prv-p .prv-ic{background:rgba(246,197,74,.16);color:var(--gold)}   /* ⏳ fini, résultat en attente */
   .prv-m{flex:1;min-width:0}
   .prv-t{font-size:13px;font-weight:700;color:var(--text);line-height:1.3}
   .prv-t .prv-sp{font-size:12px;margin-right:2px}
@@ -5517,8 +5518,17 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
         return ""
     rows = []
     for p in allp.values():
-        if not isinstance(p, dict) or p.get("result") not in ("won", "lost", "push", "void"):
+        if not isinstance(p, dict):
             continue
+        res = p.get("result")
+        settled = res in ("won", "lost", "push", "void")
+        # INCLURE aussi les provisoires FINIS EN ATTENTE de règlement (result None mais match probablement
+        # terminé) -> comble le trou d'affichage entre la fin du match et le règlement (tâche 10 min) : le
+        # provisoire reste visible en ⏳ puis bascule ✓/✗ (demande user 2026-07-24 : « terminé/gagné mais
+        # n'apparaît pas »). Un provisoire à venir / en cours (pas encore fini) n'est PAS affiché ici.
+        if not settled:
+            if res is not None or not analyses.likely_finished({"sport": p.get("sport"), "start": p.get("start")}):
+                continue
         if sport and p.get("sport") != sport:
             continue
         try:
@@ -5535,7 +5545,7 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
     _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     cards = []
     for p in rows:
-        ic, cls = _ic.get(p.get("result"), ("·", "n"))
+        ic, cls = _ic.get(p.get("result"), ("⏳", "p"))   # ⏳ = fini, résultat en attente (pas encore réglé)
         sp = p.get("sport") or ""
         _hh = str(p.get("name") or "")
         _h, _sep, _a = _hh.partition(" - ")
