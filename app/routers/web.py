@@ -812,23 +812,8 @@ def _betmines_card() -> str:
                                        form=_form, pending=pend, streak=_streak,
                                        compact=True,   # style cadre sport (demande user 2026-07-24)
                                        hit_points=web._hit_curve([days[d].get("result") for d in sorted(days)]))
-    # DERNIER Double = carte façon combiné du jour : jambes _leg_card + badge global + cote totale.
-    last_day = max(days)
-    cb = days[last_day]
-    _bmap = {"won": ('<span class="mc-badge mc-done">✅ Gagné</span>', ""),
-             "lost": ('<span class="mc-badge mc-done">❌ Perdu</span>', "")}
-    badge = _bmap.get(cb.get("result"), ("", ""))[0]
-    # Jambes IDENTIQUES à l'onglet Pronos (why toujours affiché + ligne verdict Confiance/Marché/Cote).
-    legs_html = "".join(web._leg_card(
-        {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
-         "comp": leg.get("comp"), "sel": str(leg.get("market") or _sel(leg)), "cote": leg.get("cote"),
-         "result": leg.get("result"), "score": leg.get("score"), "start": leg.get("start"),
-         "code": leg.get("code"), "prob": leg.get("prob"), "why": leg.get("why")},
-        why=True, verdict=True, why_always=True)
-        for leg in cb.get("legs") or [])
-    tot = cb.get("total_odds")
-    tot_html = (f'<div class="tkt-cote"><span class="l">Cote totale du Double</span>'
-                f'<span class="v">{tot:g}</span></div>') if isinstance(tot, (int, float)) else ""
+    # Le DÉTAIL du Double du jour (jambes) n'est PLUS répété ici : il est déjà affiché dans l'onglet Pronos
+    # (demande user 2026-07-24 : éviter le doublon). L'onglet Stats ne garde que le SUIVI (courbe + taux + P&L).
     return (
         '<div class="sx-card"><div class="sx-h">Combiné Betmines '
         '<span>suivi externe · info seule, hors ROI</span></div>'
@@ -840,10 +825,7 @@ def _betmines_card() -> str:
         f'<div class="sx-kpi"><b>{len(days)}</b><span>Doubles suivis</span></div>'
         f'<div class="sx-kpi"><b>{won}/{len(done)}</b><span>gagnés</span></div>'
         f'<div class="sx-kpi{_pcls}"><b>{pnl:+.2f}</b><span>P&amp;L simulé (mise 1)</span></div>'
-        '</div>'
-        f'<div class="sx-h" style="margin-top:10px">Double du {_h.escape(last_day)} {badge}'
-        f'{" · <span>" + str(pend) + " en attente</span>" if pend else ""}</div>'
-        f'<div class="mc-combo-legs">{legs_html}</div>{tot_html}</div>')
+        '</div></div>')
 
 
 def _combo_daily_card() -> str:
