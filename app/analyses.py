@@ -2722,20 +2722,24 @@ def stats_full(since_days: int | None = None) -> dict:
                 _last = start
         # FORME « 1 par match » (TOUS les matchs, SANS la borne combiné) : un combiné = son résultat
         # GLOBAL, sinon le pari principal (1er) -> 1 bulle par combiné / par match (demande user).
+        # Les LIGNES DE FORME (W/L) doivent refléter le MÊME périmètre que la courbe/l'historique OFFICIELS :
+        # sports ACTIFS seuls (foot). Sans ce filtre, la ligne W/L incluait tennis/basket alors que la courbe
+        # et « Derniers paris » sont foot-only -> W/L ≠ historique (bug capture user 2026-07-24).
+        _bgf = sport in _bg
         _c0 = d.get("combo")
         _has_combo = bool(_c0 and _c0.get("legs"))
         _mr = (_c0.get("result") if _has_combo
                else ((d.get("bets") or [{}])[0].get("result")))
-        if _mr in ("won", "lost", "push"):
+        if _mr in ("won", "lost", "push") and not _bgf:
             match_form.append((start, _mr, sport))
         # DEUX lignes de forme distinctes (graphe principal) : SIMPLES vs COMBINÉS.
         # La forme SIMPLES doit refléter EXACTEMENT le pari JOUÉ (retenu) de chaque match — la MÊME base
         # que la courbe/réussite (stat_bet). Avant, hors combiné on prenait bets[0] (1er pari), souvent
         # gagnant alors que le pari retenu perdait -> W/L incohérents avec le ROI (bug vu 2026-07-02).
-        if _has_combo and _c0.get("result") in ("won", "lost", "push"):
+        if _has_combo and _c0.get("result") in ("won", "lost", "push") and not _bgf:
             combo_form.append((start, _c0["result"], sport))
         _rbf = stat_bet(d)                              # LE pari joué/retenu (figé, compteur monotone)
-        if _rbf and _rbf.get("result") in ("won", "lost", "push"):
+        if _rbf and _rbf.get("result") in ("won", "lost", "push") and not _bgf:
             simple_form.append((start, _rbf["result"], sport))
         # « Nouveau système » = analyse passée par la VALIDATION 3 agents (signature fiable), pas une
         # simple date de match (un match du 16/06 a pu être généré la veille en ancien système).
