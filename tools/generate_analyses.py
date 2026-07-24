@@ -2766,6 +2766,12 @@ async def main():
                     print(f"  = {m['name']} : prono INCHANGÉ à la ré-analyse -> pas de repost.")
                     await asyncio.sleep(SCAN_GAP)
                     continue
+                # SPORT en ARRIÈRE-PLAN (tennis/basket) : analysé + tracé (ROI SIMULÉ via stat_bet, gelé au
+                # règlement / repli for_history) MAIS jamais publié aux abonnés (demande user 2026-07-24).
+                if sport in _an.background_sports():
+                    print(f"  ○ {m['name']} : {sport} en arrière-plan -> analysé/simulé, PAS publié.")
+                    await asyncio.sleep(SCAN_GAP)
+                    continue
                 if _refresh or (args.force and _old_sig is not None):
                     print(f"  🔄 {m['name']} : prono MIS À JOUR -> republié.")
                 notif_lines.append(_line)

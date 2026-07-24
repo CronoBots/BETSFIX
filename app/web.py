@@ -3690,25 +3690,25 @@ def _sport_summary(full: dict | None) -> str:
     if not rows:
         return ""
     rows.sort(key=lambda x: -x[0])
-    # Sports EN PAUSE (probation ROI) : publication de leurs paris suspendue le temps qu'ils remontent
-    # (analyse/calibration maintenues). Badge de TRANSPARENCE (demande user 2026-07-24). La réactivation est
-    # MANUELLE : quand le ROI a récupéré, le badge le SIGNALE (« prêt à réactiver ») sans agir.
+    # Sports en ARRIÈRE-PLAN / SIMULATION (tennis/basket) : analysés + ROI SIMULÉ (ce chiffre), mais cachés
+    # de la page des paris & non publiés — demande user 2026-07-24. Badge de TRANSPARENCE. Réactivation
+    # MANUELLE : quand le ROI simulé a récupéré, le badge le SIGNALE (« prêt à réactiver ») sans agir.
     try:
-        _paused, _ = analyses.auto_exclusions()
+        _bg = analyses.background_sports()
         _ready = analyses.sport_reactivation_ready()
     except Exception:
-        _paused, _ready = set(), {}
+        _bg, _ready = set(), {}
     out = ['<div class="spf-cv spf-sports"><div class="spf-cv-h">'
            '<span class="spf-cv-t">🎯 Par sport</span></div>']
     for _roi, sp, b in rows:
-        if sp not in _paused:
+        if sp not in _bg:
             _pz = ""
         elif sp in _ready:
-            _pz = ('<span class="spf-sp-pause spf-sp-ready" title="ROI remonté : PRÊT à réactiver — en attente '
-                   'de ton accord (réactivation manuelle, jamais automatique).">⏸ prêt à réactiver</span>')
+            _pz = ('<span class="spf-sp-pause spf-sp-ready" title="ROI simulé remonté : PRÊT à réactiver — en '
+                   'attente de ton accord (réactivation manuelle, jamais automatique).">🔬 prêt à réactiver</span>')
         else:
-            _pz = ('<span class="spf-sp-pause" title="Publication suspendue le temps que le ROI remonte — on '
-                   'continue de l\'analyser (calibration). Réactivation MANUELLE (jamais automatique).">⏸ en pause</span>')
+            _pz = ('<span class="spf-sp-pause" title="Sport en ARRIÈRE-PLAN : analysé et ROI SIMULÉ en continu, '
+                   'mais caché de la page des paris et non publié. Réactivation MANUELLE.">🔬 simulé</span>')
         out.append(
             f'<div class="spf-sp-row"><span class="spf-sp-n">{_emo[sp]} {_nom[sp]}{_pz}</span>'
             f'<span class="spf-sp-roi arec-{_roi_cls(b.get("roi"), b.get("settled"))}">{_roistr(b.get("roi"))}</span>'
@@ -4458,6 +4458,8 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         except (ValueError, AttributeError):
             continue
         sp = m.get("sport")
+        if sp in analyses.background_sports():  # sport en arrière-plan (tennis/basket) -> jamais sur la page des paris
+            continue
         # ÉTAT RÉEL UNIBET (pas l'heure prévue) : score live = EN COURS. Un provisoire EN COURS n'est plus
         # « à venir » -> on le marque `_is_live` pour l'onglet LIVE + section « En direct » (demande user
         # 2026-07-10). Tennis souvent DÉCALÉ (heure figée) -> on se fie au live + coup d'envoi Unibet frais.

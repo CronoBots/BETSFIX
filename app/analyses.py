@@ -246,7 +246,11 @@ _STALE_AFTER_H = {"foot": 6, "basket": 6, "tennis": 9}
 
 def list_for(sport: str) -> list[dict]:
     """Liste des matchs ANALYSÉS (sidecars) à venir / récents, triés par coup d'envoi.
-    C'est la SOURCE du board : seuls les matchs analysés avec la nouvelle technique y figurent."""
+    C'est la SOURCE du board : seuls les matchs analysés avec la nouvelle technique y figurent.
+    ⚠️ Un sport en ARRIÈRE-PLAN (tennis/basket) renvoie [] : il est analysé + tracé (ROI simulé) mais JAMAIS
+    affiché sur la page des paris (demande user 2026-07-24). Son suivi est dans la section Stats « Simulation »."""
+    if sport in background_sports():
+        return []
     now = datetime.now(timezone.utc)
     out = []
     for p in glob.glob(os.path.join(DIR, f"{sport}_*.json")):
@@ -2365,12 +2369,10 @@ def provisional_shown(sport, sel, cote, prob, home="", away="", fid=None) -> boo
     (provisional.reconcile_with_programme) -> jamais d'écart liste/compteur."""
     if not sel:
         return False
-    # SPORT EN PAUSE (probation ROI) : aucun PROVISOIRE de ce sport (demande user 2026-07-24). Sans ce garde,
-    # la probation ferait l'INVERSE de l'effet voulu : tous les matchs du sport deviennent des abstentions
-    # (retained_bet=None) -> chacun sortirait en provisoire. On n'affiche/suit donc rien pour le sport en
-    # pause -> il ne reste que les FANTÔMES (calibration, qui mesurent sa remontée). Forward-looking.
+    # SPORT en ARRIÈRE-PLAN (tennis/basket) : aucun PROVISOIRE affiché/suivi (demande user 2026-07-24 : rien
+    # de ces sports sur la page des paris). Leur pari RETENU, lui, circule en coulisse (ROI simulé).
     try:
-        if sport in auto_exclusions()[0]:
+        if sport in background_sports():
             return False
     except Exception:
         pass
@@ -2696,6 +2698,9 @@ def stats_full(since_days: int | None = None) -> dict:
     by_sport: dict = {}
     n_analysed = 0            # matchs analysés (sidecars dans la fenêtre) -> panneau « volume de données »
     _first = _last = None     # plage de coups d'envoi couverte (période de mesure du volume/calibration)
+    # Sports en ARRIÈRE-PLAN (tennis/basket) : leurs paris comptent dans `by_sport` (ROI SIMULÉ, suivi séparé)
+    # mais PAS dans `overall`/`since_ev` (headline = sports actifs, foot) — demande user 2026-07-24.
+    _bg = background_sports()
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -2748,10 +2753,11 @@ def stats_full(since_days: int | None = None) -> dict:
         if rb and rb.get("result") in ("won", "lost", "push"):
             ev = (start, rb["result"], rb.get("cote") or rb.get("odds"),
                   {"name": d.get("name"), "sel": rb.get("sel"), "sport": sport})   # détails -> panneau « derniers paris »
-            all_ev.append(ev)
-            by_sport.setdefault(sport, []).append(ev)
-            if is_new:
-                since_ev.append(ev)
+            by_sport.setdefault(sport, []).append(ev)  # TOUJOURS (ROI simulé par sport, tennis/basket inclus)
+            if sport not in _bg:                       # headline foot : les sports arrière-plan n'y entrent pas
+                all_ev.append(ev)
+                if is_new:
+                    since_ev.append(ev)
         # DOUBLE SCAN (demande user 2026-07-21) : le pari du PREMIER scan (publié puis REMPLACÉ par le
         # rescan) est figé dans `stat_bet_first` et compte AUSSI au ROI — les deux décisions sont assumées
         # (transparence : « Premier scan » + « Dernier scan » tous deux comptés). Immuable comme stat_bet.
@@ -2759,10 +2765,11 @@ def stats_full(since_days: int | None = None) -> dict:
         if isinstance(fb, dict) and fb.get("result") in ("won", "lost", "push"):
             ev1 = (start, fb["result"], fb.get("cote") or fb.get("odds"),
                    {"name": d.get("name"), "sel": f'{fb.get("sel")} · 1er scan', "sport": sport})
-            all_ev.append(ev1)
             by_sport.setdefault(sport, []).append(ev1)
-            if is_new:
-                since_ev.append(ev1)
+            if sport not in _bg:
+                all_ev.append(ev1)
+                if is_new:
+                    since_ev.append(ev1)
     # COMBINÉS MULTISPORT DU JOUR (décision user 2026-07-14 : comptés au ROI) : ce sont des COMBINÉS, donc
     # comptés dans le bilan COMBINÉ (`combo_stats`, fusionné au ROI global), PAS dans les simples (`all_ev`).
     # Ici on ne les met QUE dans la 2e ligne de forme (`form_combo`) — jamais dans la ligne simples.
@@ -3378,13 +3385,22 @@ def sport_reactivation_ready() -> dict:
     return out
 
 
+def background_sports() -> set:
+    """Sports en mode ARRIÈRE-PLAN / SIMULATION (demande user 2026-07-24) : tennis/basket sont ANALYSÉS et
+    leurs picks CONTINUENT de se sélectionner + se régler → ROI SIMULÉ vivant (bien plus représentatif que
+    les fantômes pour décider une réintégration), MAIS ils sont CACHÉS de la page des paris, NON publiés, et
+    EXCLUS du ROI headline (foot). Le set persiste (`sport_probation.json`) — entrée auto si ROI ≤
+    SPORT_ROI_ENTER (via _sport_probation, appelé par auto_exclusions), SORTIE 100 % MANUELLE
+    (reactivate_sport). Lecture CHEAP (fichier) pour les chemins chauds (list_for/provisional_shown)."""
+    return _load_sport_probation()
+
+
 def auto_exclusions() -> tuple[set, set]:
-    """(sports exclus, marchés exclus — UNION per-sport, pour l'APERÇU global uniquement). Un SPORT est
-    écarté (publication suspendue, forward-looking) soit quand sa calibration GLOBALE est mauvaise (sur-
-    confiance : n ≥ CALIB_MIN_N, écart ≤ CALIB_GAP_MAX), soit quand il est EN PROBATION (ROI durablement
-    négatif, cf. _sport_probation). Les marchés, eux, sont PER-SPORT (cf. excluded_markets) : on renvoie ici
-    leur UNION pour les bandeaux d'aperçu. ⚠️ La SÉLECTION doit utiliser excluded_markets(sport), PAS cette
-    union globale — mais elle DOIT tester `sport in ex_sports` (déjà fait dans retained_bet)."""
+    """(sports exclus DUR, marchés exclus). Un SPORT n'est écarté DUR (picks supprimés) que si sa calibration
+    globale est mauvaise (SUR-CONFIANCE : n ≥ CALIB_MIN_N, écart ≤ CALIB_GAP_MAX). ⚠️ Les sports en ARRIÈRE-
+    PLAN (tennis/basket, `background_sports`) NE SONT PLUS ici : leurs picks CIRCULENT (ROI simulé) — ils sont
+    juste cachés/non publiés/séparés en aval (demande user 2026-07-24, ex-« probation » qui les supprimait).
+    Marchés = per-sport (`excluded_markets`) ; union renvoyée pour l'aperçu."""
     c = calibration(min_conf=_MIN_CONF)
     by = c.get("by_sport") or {}
     sports = set()
@@ -3392,7 +3408,7 @@ def auto_exclusions() -> tuple[set, set]:
         gap = (g.get("win_rate") or 0) - (g.get("avg_conf") or 0)
         if (g.get("n") or 0) >= CALIB_MIN_N and gap <= CALIB_GAP_MAX:
             sports.add(_SPORT_FR.get(name, name.lower()))
-    sports |= _sport_probation(by)              # + probation ROI (hystérésis), en plus du garde sur-confiance
+    _sport_probation(by)                        # AUTO-ENTRÉE arrière-plan (effet persisté) — PAS dans ex_sports
     markets: set = set()
     for ms in _excluded_by_sport().values():
         markets |= ms

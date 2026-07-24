@@ -676,6 +676,42 @@ def _selectivity_card() -> str:
         f'<div class="sx-data-note">{_main}</div></div>')
 
 
+def _simulation_card() -> str:
+    """Section « 🔬 Simulation (arrière-plan) » : ROI SIMULÉ des sports mis en arrière-plan (tennis/basket) —
+    analysés + picks tracés en continu MAIS cachés de la page des paris & non publiés (demande user
+    2026-07-24). But : suivre leur ROI simulé pour décider quand les RÉINTÉGRER (réactivation manuelle).
+    '' si aucun sport en arrière-plan."""
+    bg = analyses.background_sports()
+    if not bg:
+        return ""
+    full = analyses.stats_full()
+    ready = analyses.sport_reactivation_ready()
+    _emo = {"tennis": "🎾", "basket": "🏀", "foot": "⚽"}
+    _nom = {"tennis": "Tennis", "basket": "Basket", "foot": "Foot"}
+    cards = ""
+    for sp in ("tennis", "basket", "foot"):
+        if sp not in bg:
+            continue
+        b = (full.get("by_sport") or {}).get(sp) or {}
+        if not b.get("settled"):
+            continue
+        _tag = " · prêt à réactiver" if sp in ready else ""
+        cards += web.render_tracking_curve(
+            emoji="🔬", title=f"{_nom.get(sp, sp)} (simulé{_tag})", roi=b.get("roi"), hit=b.get("pct"),
+            n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
+            avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"))
+    if not cards:
+        return ""
+    return (
+        '<div class="sx-card"><div class="sx-h">🔬 Simulation (arrière-plan) '
+        '<span>tennis/basket — analysés, ROI simulé, cachés des paris</span></div>'
+        '<div class="sx-data-note">Ces sports sont <b>analysés comme avant</b> et leurs paris <b>simulés</b> '
+        '(ROI ci-dessous, qui continue de vivre) mais <b>jamais affichés</b> sur la page des paris ni publiés. '
+        'Suis leur ROI simulé pour décider quand les <b>réintégrer</b> — la réactivation est <b>manuelle</b> '
+        '(un badge « prêt à réactiver » apparaît quand le ROI a récupéré).</div>'
+        + cards + '</div>')
+
+
 def _betmines_card() -> str:
     """Cadre « suivi EXTERNE » (onglet Stats) : le Double quotidien de Betmines, MESURÉ par NOS règlements —
     demande user 2026-07-23 (« même présentation que le combiné du jour »). But : vérifier leur taux de
@@ -871,7 +907,9 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 '<div class="statsx">'    # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
                 # Filtres de période (7 / 30 / Tout) RETIRÉS (demande user 2026-07-11) : les stats affichent
                 # toujours TOUT l'historique (since="" -> days=None). Vue unique, plus simple.
-                + _home_stats(days)       # vue d'ensemble + edge + calibration + transparence (en sections)
+                + _home_stats(days)       # vue d'ensemble (FOOT = ROI officiel) + edge + calibration
+                # SIMULATION : sports en arrière-plan (tennis/basket) — ROI simulé, cachés des paris.
+                + _simulation_card()
                 # SÉPARATEUR de groupe : tout ce qui suit est du JOUR / INDICATIF, distinct du ROI réel.
                 + '<div class="sx-group">🧪 Le jour &amp; suivis indicatifs '
                   '<span>à titre informatif — hors ROI réel</span></div>'
