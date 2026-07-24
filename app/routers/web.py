@@ -947,7 +947,10 @@ async def montante_page(frag: int = 0) -> HTMLResponse:
     de départ 10 €, rejouée après chaque gain. Page premium prête à basculer sur les vraies données le jour
     de l'activation ; en attendant, elle explique le concept + affiche un aperçu (exemple). Hors ROI."""
     from app import montante as _mt
-    body = f'<div class="pg-h">Montante</div><div class="statsx">{web.render_montante(_mt.state(), _mt.example())}</div>'
+    _st = _mt.state()
+    if not _st.get("active"):            # pas encore activée -> SIMULATION sur les simples foot (vraies séries)
+        _st = _mt.simulate()
+    body = f'<div class="pg-h">Montante</div><div class="statsx">{web.render_montante(_st, _mt.example())}</div>'
     if frag:
         return HTMLResponse(body)
     return HTMLResponse(web.spa_shell("montante", "Montante", body))

@@ -66,6 +66,9 @@ def _split_chains(steps: list, base: float) -> list:
             cur.append(step)
             chains.append(_finish_chain(cur, base, "lost"))
             cur, cap = [], base
+        elif res in ("push", "void"):                # remboursé -> capital inchangé, la montante continue
+            step["payout"] = round(cap, 2)
+            cur.append(step)
         else:                                        # pending (pari du jour non réglé)
             step["payout"] = None
             cur.append(step)
@@ -81,25 +84,26 @@ def _finish_chain(steps: list, base: float, result: str) -> dict:
     return {"steps": steps, "peak": round(peak, 2), "result": result, "palier": wins}
 
 
-def state() -> dict:
-    """État complet pour l'affichage. Toujours renvoyé (même vide) :
-    - active        : au moins un pari enregistré ?
-    - base          : mise de départ (10 €)
-    - capital       : capital ENGAGÉ sur le prochain palier de la montante en cours (base si à zéro)
-    - palier        : nb de gains consécutifs de la montante en cours
-    - pending       : le pari du jour non réglé (dict) ou None
-    - current       : la chaîne en cours (dict de _finish_chain) ou None
-    - chains         : toutes les montantes terminées (plus récentes d'abord)
-    - stats         : {n, best_capital, best_palier, avg_palier, total_profit}
+def _compute(steps: list, base: float, sim: bool = False) -> dict:
+    """Cœur partagé — construit l'état d'affichage à partir d'une suite chronologique de paris.
+    `sim=True` (simulation basée sur l'historique, ex. simples foot) : on met en AVANT la MEILLEURE
+    montante atteinte (pic de capital) plutôt que la chaîne en cours. Renvoie toujours un dict :
+    - active     : au moins un pari ?
+    - sim        : mode simulation (labels adaptés)
+    - base       : mise de départ (10 €)
+    - capital    : capital mis en avant (héros) — meilleur pic (sim) ou capital courant (réel)
+    - palier     : nb de gains de la montante mise en avant
+    - pending    : pari du jour non réglé (réel) ou None
+    - featured   : la montante affichée dans l'échelle (meilleure en sim, en cours en réel)
+    - chains     : montantes terminées (meilleures d'abord en sim, plus récentes en réel)
+    - stats      : {n, best_capital, best_palier, avg_palier, total_profit}
     """
-    d = load()
-    base = float(d.get("base_stake") or BASE_STAKE)
-    steps = d.get("steps") or []
     chains = _split_chains(steps, base)
     active = bool(steps)
     current = chains[-1] if chains and chains[-1]["result"] == "pending" else None
     done = [c for c in chains if c["result"] != "pending"]
-    # capital engagé sur le prochain palier de la chaîne en cours
+    best = max(chains, key=lambda c: c["peak"]) if chains else None
+    # capital / palier de la chaîne EN COURS (montante réelle)
     cap, palier, pending = base, 0, None
     if current:
         palier = current["palier"]
@@ -112,16 +116,51 @@ def state() -> dict:
     best_cap = max([base] + [c["peak"] for c in chains]) if chains else base
     best_pal = max([0] + [c["palier"] for c in chains]) if chains else 0
     avg_pal = round(sum(c["palier"] for c in done) / len(done), 1) if done else 0
-    # profit simulé cumulé = somme, par chaîne terminée, de (pic si close-out — ici perte => -base) ;
-    # simplifié : profit d'une montante perdue = -base (on ne perd QUE la mise de départ) ; en cours = latent.
-    total_profit = round(sum(-base for c in done if c["result"] == "lost"), 2)
+    total_profit = round(sum(-base for c in done if c["result"] == "lost")
+                         + (cap - base if current else 0.0), 2)
+    if sim:                                           # SIMULATION -> vitrine de la meilleure série
+        featured, hero_cap, hero_pal = best, best_cap, best_pal
+        chains_out = sorted(done, key=lambda c: -c["peak"])
+    else:                                             # RÉEL -> la montante en cours
+        featured, hero_cap, hero_pal = current, cap, palier
+        chains_out = list(reversed(done))
     return {
-        "active": active, "base": base, "capital": round(cap, 2), "palier": palier,
-        "pending": pending, "current": current,
-        "chains": list(reversed(done)),
+        "active": active, "sim": sim, "base": base,
+        "capital": round(hero_cap, 2), "palier": hero_pal, "pending": pending,
+        "featured": featured, "chains": chains_out,
         "stats": {"n": len(done), "best_capital": round(best_cap, 2), "best_palier": best_pal,
                   "avg_palier": avg_pal, "total_profit": total_profit},
     }
+
+
+def state() -> dict:
+    """État de la VRAIE montante (fichier de suivi). Vide tant qu'aucun pari n'est enregistré."""
+    d = load()
+    return _compute(d.get("steps") or [], float(d.get("base_stake") or BASE_STAKE), sim=False)
+
+
+def foot_simples_bets() -> list:
+    """Tous les SIMPLES foot RÉGLÉS et comptés (pari figé `stat_bet`), en ordre chronologique :
+    {date, start, match, sel, cote, result}. Source de la SIMULATION de montante — reflète les vraies
+    séries de victoires de nos simples foot. Lecture seule."""
+    from app import analyses
+    out = []
+    for d in analyses.iter_meta("foot"):
+        sb = d.get("stat_bet")
+        if not isinstance(sb, dict) or sb.get("result") not in ("won", "lost", "push", "void"):
+            continue
+        st = str(d.get("start") or "")
+        out.append({"date": st[:10], "start": st,
+                    "match": f'{d.get("home", "")} - {d.get("away", "")}'.strip(" -"),
+                    "sel": sb.get("sel"), "cote": sb.get("cote"), "result": sb.get("result")})
+    out.sort(key=lambda b: b.get("start") or "")
+    return out
+
+
+def simulate(bets: list | None = None) -> dict:
+    """Simulation de montante sur une suite de paris (défaut : les simples foot). Met en avant la
+    meilleure série. Ne touche à RIEN (pur calcul d'affichage)."""
+    return _compute(foot_simples_bets() if bets is None else bets, BASE_STAKE, sim=True)
 
 
 def example() -> dict:

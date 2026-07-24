@@ -5816,23 +5816,32 @@ def render_montante(st: dict, example: dict) -> str:
     activée) + « comment ça marche » + historique + palmarès. 100 % affichage, hors ROI."""
     base = st.get("base", 10.0)
     active = st.get("active")
+    sim = st.get("sim")
     cap = st.get("capital", base)
     palier = st.get("palier", 0)
     pending = st.get("pending")
-    current = st.get("current")
+    featured = st.get("featured")
     stats = st.get("stats", {})
 
-    # HERO — capital courant de la montante
-    if active and palier > 0:
+    # HERO — capital mis en avant (meilleure série en simulation, montante en cours en réel)
+    if sim:
+        sub = (f'Meilleure série · <b>{palier}</b> gain{"s" if palier != 1 else ""} d\'affilée' if palier
+               else 'Simulation sur nos simples foot')
+        chip = '<span class="mont-chip">📊 Simulation · simples foot</span>'
+        lbl = 'Capital atteint · meilleure montante'
+    elif active and palier > 0:
         sub = f'Palier <b>{palier}</b> · <b>{palier}</b> gain{"s" if palier > 1 else ""} d\'affilée'
         chip = '<span class="mont-chip">🔥 Montante en cours</span>'
+        lbl = 'Capital de la montante'
     elif active:
         sub = 'Nouvelle montante — prête pour le pari du jour'
         chip = '<span class="mont-chip wait">En attente du pari du jour</span>'
+        lbl = 'Capital de la montante'
     else:
         sub = 'Mise de départ · prête à démarrer'
         chip = '<span class="mont-chip wait">Bientôt · en préparation</span>'
-    hero = ('<div class="mont-hero"><div class="mont-hero-l">Capital de la montante</div>'
+        lbl = 'Capital de la montante'
+    hero = (f'<div class="mont-hero"><div class="mont-hero-l">{lbl}</div>'
             f'<div class="mont-hero-cap">{_mont_eur(cap)}</div>'
             f'<div class="mont-hero-sub">{sub}</div>{chip}</div>')
 
@@ -5841,8 +5850,15 @@ def render_montante(st: dict, example: dict) -> str:
              'L\'objectif : enchaîner les paliers pour faire grimper la mise, sans jamais risquer plus que '
              'les 10 € de départ.</div>')
 
-    # PARI DU JOUR
-    if pending:
+    if sim:
+        intro += ('<div class="mont-intro" style="margin-top:-4px">🔎 <b>Simulation</b> : ce qu\'aurait donné '
+                  'cette montante en suivant nos <b>simples foot</b> dans l\'ordre (chaque gain rejoué, remise '
+                  'à 10 € à chaque perte). Indicatif, hors ROI.</div>')
+
+    # PARI DU JOUR — uniquement en mode réel (pas en simulation)
+    if sim:
+        pari = ""
+    elif pending:
         pari = ('<div class="mont-sec-h">🎯 Le pari du jour</div>'
                 f'<div class="mont-ladder">{_mont_ladder([{**pending, "result": None}])}</div>')
     else:
@@ -5850,13 +5866,14 @@ def render_montante(st: dict, example: dict) -> str:
                 '<div class="mont-empty">Le <b>pari du jour</b> s\'affichera ici — <b>1</b> sélection sûre '
                 'pour faire grimper la mise. À suivre chaque jour.</div>')
 
-    # ÉCHELLE — vraie montante en cours OU exemple illustratif
-    if active and current and current.get("steps"):
-        ladder_body, tag = _mont_ladder(current["steps"]), ""
+    # ÉCHELLE — montante mise en avant (meilleure série en sim, en cours en réel) OU exemple
+    if featured and featured.get("steps"):
+        ladder_body = _mont_ladder(featured["steps"])
+        tag = '<span class="tag">Meilleure série</span>' if sim else ''
     else:
         ladder_body = _mont_ladder((example or {}).get("steps") or [])
         tag = '<span class="tag">Aperçu · exemple</span>'
-    ladder = (f'<div class="mont-sec-h">🪜 La montante{tag}</div>'
+    ladder = (f'<div class="mont-sec-h">🪜 {"La meilleure montante" if sim else "La montante"}{tag}</div>'
               f'<div class="mont-ladder">{ladder_body}</div>')
 
     # COMMENT ÇA MARCHE
