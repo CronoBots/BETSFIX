@@ -133,8 +133,20 @@ def _enrich_leg(leg: dict) -> None:
         a_ctx = _num(vt, f"totalAwayOver{seuil}Percentage")
         h_l5 = _num(lt, f"totalLast5Over{seuil}Percentage")
         a_l5 = _num(vt, f"totalLast5Over{seuil}Percentage")
-        vals = [x for x in (h_ctx, a_ctx, h_l5, a_l5) if x is not None]
-        over_pct = round(sum(vals) / len(vals)) if vals else None
+        # CONFIANCE over/under (Betmines UNIQUEMENT) : la FORME RÉCENTE (5 derniers, contexte pertinent —
+        # domicile pour le local, extérieur pour le visiteur) est la BASE. Le % SAISON n'entre (30 %) que
+        # s'il CORROBORE la forme (écart ≤ 30 pts) ; sinon c'est du bruit d'un mini-échantillon de ligue
+        # obscure -> ignoré (sans ça un « 10 % saison » tuait la lecture : 35 % affiché vs 80 % de forme et
+        # 69 % de marché — demande user 2026-07-24). Aucun impact hors Betmines (fonction isolée).
+        _recent = [x for x in (h_l5, a_l5) if x is not None]
+        _season = [x for x in (h_ctx, a_ctx) if x is not None]
+        base = (sum(_recent) / len(_recent)) if _recent else (
+            (sum(_season) / len(_season)) if _season else None)
+        if base is not None and _recent and _season:
+            _sm = sum(_season) / len(_season)
+            if abs(_sm - base) <= 30:                   # saison cohérente -> l'intègre (pondérée 30 %)
+                base = 0.7 * base + 0.3 * _sm
+        over_pct = round(base) if base is not None else None
         if over_pct is not None:
             leg["prob"] = over_pct if (leg.get("line") or 0) > 0 else max(1, 100 - over_pct)
         s.update({"over_ctx_h": h_ctx, "over_ctx_a": a_ctx, "over_l5_h": h_l5, "over_l5_a": a_l5})
