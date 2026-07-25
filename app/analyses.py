@@ -2642,7 +2642,7 @@ def _agg_bets(events: list) -> dict:
             "avg_odds": (round(osum / settled, 2) if settled else None),
             "streak": streak, "best_streak": best_streak, "form": form, "form12": form12,
             "form_run": form_run,
-            "recent": recent[-15:],                      # 15 derniers paris détaillés (W/L + nom + sel + cote)
+            "recent": recent,                            # TOUT l'historique détaillé (W/L + nom + sel + cote) — panneau déplié scrollable (demande user 2026-07-25)
             "hit_points": hit_pts, "hit_dates": hit_dates,   # courbe du taux de réussite cumulé (amélioration dans le temps)
             "max_dd": round(dd, 2),
             "dd_pct": (round(100 * dd / staked, 1) if staked else None)}
@@ -3091,7 +3091,7 @@ def combo_stats(since_days: int | None = None) -> dict:
     crecent.sort(key=lambda x: x[0] or "")
     crec = [{"start": s, "result": r, "cote": o, "name": (mt or {}).get("name"),
              "sel": (mt or {}).get("sel"), "sport": (mt or {}).get("sport")}
-            for s, r, o, mt in crecent if r in ("won", "lost", "push")][-15:]
+            for s, r, o, mt in crecent if r in ("won", "lost", "push")]   # TOUT l'historique (panneau scrollable, demande user 2026-07-25)
     return {"n": len(rows), "won": won, "lost": lost, "push": push, "dates": dates,
             "streak": cstreak, "recent": crec,
             "win_rate": round(100 * won / settled) if settled else None,

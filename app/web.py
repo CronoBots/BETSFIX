@@ -489,7 +489,8 @@ CSS = """
   details.spf-cv-x[open] .spf-cv-more{color:var(--muted)}
   /* Liste des derniers paris (révélée) : pastille W/L/N + affiche + sélection + date. */
   .spf-recent{margin-top:8px;border-top:1px solid var(--border);padding-top:8px;display:flex;
-       flex-direction:column;gap:5px}
+       flex-direction:column;gap:5px;max-height:360px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+       overscroll-behavior:contain;padding-right:4px}   /* TOUT l'historique -> scroll interne (demande user 2026-07-25) */
   .spf-rec{display:flex;align-items:center;gap:8px;font-size:11px}
   .spf-rec-b{flex:none;width:19px;height:19px;border-radius:6px;display:flex;align-items:center;
        justify-content:center;font-size:10px;font-weight:900;color:#0a0a0a}
@@ -3666,7 +3667,7 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
         hi = lo + 1.0
     pad = (hi - lo) * 0.16
     lo, hi = lo - pad, hi + pad
-    n, W, H, L, R, T, B = len(pts), 320.0, 104.0, 16.0, 3.0, 14.0, 8.0   # marge droite réduite : la courbe atteint son point final
+    n, W, H, L, R, T, B = len(pts), 320.0, 104.0, 16.0, 16.0, 14.0, 8.0   # marge droite = gauche : la courbe ne colle plus au bord droit (demande user 2026-07-25)
     iw, ih = W - L - R, H - T - B
     GR, RD = "#34d27b", "#ff6b6b"
 
@@ -4178,7 +4179,7 @@ def _rate_chart(points: list, uid: str = "r") -> str:
     lo, hi = max(0.0, lo - pad), min(100.0, hi + pad)
     if hi - lo < 1e-9:
         hi = lo + 1.0
-    n, W, H, L, R, T, B = len(pts), 320.0, 58.0, 16.0, 3.0, 8.0, 8.0   # marge droite réduite : la courbe atteint son point final
+    n, W, H, L, R, T, B = len(pts), 320.0, 58.0, 16.0, 16.0, 8.0, 8.0   # marge droite = gauche (demande user 2026-07-25)
     iw, ih = W - L - R, H - T - B
     AC = "#22b8ff"
 
