@@ -511,10 +511,12 @@ CSS = """
   /* DATE tout à gauche sur 2 lignes (demande user 2026-07-25) : DATE en HAUT (alignée avec le nom d'équipes)
      + HEURE en BAS (alignée avec la sélection). Mêmes tailles/interligne que `.spf-rec-m` -> les 2 lignes
      coïncident. COTE juste avant le badge résultat. */
-  .spf-rec-d{flex:none;width:46px;display:flex;flex-direction:column;line-height:1.25;
+  /* Colonne date/heure CENTRÉE horizontalement ; DATE à la taille des ÉQUIPES (11px), HEURE à la taille du
+     PARI (10px) — demande user 2026-07-25. */
+  .spf-rec-d{flex:none;width:48px;display:flex;flex-direction:column;line-height:1.3;text-align:center;
        font-variant-numeric:tabular-nums}
-  .spf-rec-d b{color:var(--dim);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .spf-rec-d span{color:var(--muted);font-size:10px;white-space:nowrap}
+  .spf-rec-d b{color:var(--muted);font-weight:700;font-size:11px;white-space:nowrap}   /* DATE = taille équipes */
+  .spf-rec-d span{color:var(--dim);font-size:10px;white-space:nowrap}                  /* HEURE = taille pari */
   .spf-rec-c{flex:none;color:var(--text);font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
        text-align:right;min-width:42px}
   /* Stats PROPRES à chaque graphe (juste sous la courbe) : réussite · paris · cote moy. */
@@ -1613,13 +1615,13 @@ CSS = """
   /* État de REPOS : la courbe est VIDE (ligne masquée, aire + point invisibles) et NE s'anime PAS toute
      seule au rendu. L'animation ne se lance QUE quand le JS ajoute `.sx-go` (via _sxAnim, après le splash
      / à l'affichage de l'onglet) -> plus de courbe déjà tracée qui « clignote » avant l'animation. */
-  /* DRAW-IN EN OPACITÉ, PAS en stroke-dash (demande user 2026-07-25 : « la ligne ne touche pas le point »).
-     Le tracé par `stroke-dashoffset` pouvait GELER avant la fin (animation coupée : onglet simulé masqué,
-     quirks iOS Safari au toggle display) -> la ligne s'arrêtait AVANT le point final. En animant l'OPACITÉ,
-     la GÉOMÉTRIE est TOUJOURS complète (elle touche le point) ; une anim gelée = ligne pleine juste un peu
-     plus pâle, jamais tronquée. */
-  .sx-heroc-line{opacity:1}
-  @keyframes sxdraw{from{opacity:0}to{opacity:1}}
+  /* DRAW-IN = TRACÉ PROGRESSIF (stroke-dash), restauré à la demande user 2026-07-25 (« refaire l'animation
+     comme avant »). ANTI-GEL : l'état de BASE (sans `.sx-go`) est le tracé COMPLET (`stroke-dashoffset:0`),
+     et le draw-in anime DEPUIS le vide via `from`. Un filet JS (voir `_sxAnim`) retire `.sx-go` après 1,5 s
+     -> la ligne retombe TOUJOURS sur sa base pleine (touche le point), même si l'anim a gelé (onglet masqué,
+     iOS Safari). Idem aire/point : base = état final. */
+  .sx-heroc-line{stroke-dasharray:1;stroke-dashoffset:0}
+  @keyframes sxdraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
   .sx-heroc-area{opacity:.22}
   @keyframes sxarea{from{opacity:0}to{opacity:.22}}
   .sx-heroc-pt{opacity:1;transform-box:fill-box;transform-origin:center}
@@ -1628,7 +1630,7 @@ CSS = """
   .sx-heroc-area.sx-go{animation:sxarea .7s ease .5s forwards}
   .sx-heroc-pt.sx-go{animation:sxpt .45s cubic-bezier(.2,1.6,.4,1) .95s forwards}
   @media (prefers-reduced-motion:reduce){
-    .sx-heroc-line{opacity:1}
+    .sx-heroc-line{stroke-dashoffset:0}
     .sx-heroc-area{opacity:.22}
     .sx-heroc-pt{opacity:1;transform:none}}
   .sx-kpis{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px;
@@ -3271,11 +3273,15 @@ _TERM_JS = (
     # courbe se traçait DERRIÈRE le logo d'intro et les compteurs montaient invisibles). Redémarre le tracé
     # de la courbe (retire/réapplique l'animation) + relance les compteurs. Idempotent, respecte reduced-motion.
     "window._sxAnim=function(root){if(_rm)return;var r=root||document;"
-    # (re)DÉCLENCHE le tracé : retire `.sx-go` (courbe redevient VIDE), force un reflow, puis rajoute
-    # `.sx-go` -> l'animation repart de zéro. Avant le 1er appel, la courbe reste vide (pas de `.sx-go`).
+    # (re)DÉCLENCHE le tracé : retire `.sx-go`, force un reflow, puis rajoute `.sx-go` -> l'animation repart
+    # de zéro. FILET ANTI-GEL : on programme la RETRAIT de `.sx-go` après 1,5 s (> durée d'anim). Si l'anim
+    # a gelé (onglet masqué/iOS), ce retrait fait retomber l'élément sur son état de BASE = tracé COMPLET
+    # (la ligne touche son point). `_t` par élément (clear avant re-set) -> un re-déclenchement n'est pas
+    # coupé par un vieux timer.
     "try{var g=r.querySelectorAll('.sx-heroc-line,.sx-heroc-area,.sx-heroc-pt'),i;"
     "for(i=0;i<g.length;i++){var el=g[i];el.classList.remove('sx-go');el.getBoundingClientRect();"
-    "el.classList.add('sx-go');}}catch(e){}"
+    "el.classList.add('sx-go');if(el._t)clearTimeout(el._t);"
+    "el._t=setTimeout((function(e){return function(){e.classList.remove('sx-go');};})(el),1500);}}catch(e){}"
     "try{var c=r.querySelectorAll('.da-st-v,.sx-kpi>b,.spf-cv-kpis b'),j;"
     "for(j=0;j<c.length;j++){c[j]._c=0;cnt(c[j]);}}catch(e){}};"
     "window._twScan(document);window._twCount(document);})();"
@@ -6574,7 +6580,7 @@ def _recent_bets_html(recent: list) -> str:
         _h2, _, _a2 = _nm_raw.partition(" - ")
         sel = html.escape(_pretty_sel(str(b.get("sel") or ""), _h2, _a2))
         cote = b.get("cote")
-        cote_txt = f'@{cote:g}' if isinstance(cote, (int, float)) and cote else ""
+        cote_txt = f'{cote:g}' if isinstance(cote, (int, float)) and cote else ""   # SANS « @ » (demande user 2026-07-25)
         # DATE (haut, alignée avec les ÉQUIPES) + HEURE (bas, alignée avec le PARI) — demande user 2026-07-25.
         # Date en format COURT JJ/MM POUR TOUS (y compris aujourd'hui) -> colonne étroite (demande user :
         # « écris la date du jour afin de rétrécir la colonne » = pas de « Aujourd'hui »/« Demain » long).
