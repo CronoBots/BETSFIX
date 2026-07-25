@@ -187,6 +187,41 @@ def _settle_leg(leg: dict) -> None:
         leg["settle_src"] = "betmines"
 
 
+def _settle_leg_our_source(leg: dict) -> None:
+    """REPLI par NOS sources (demande user 2026-07-26) : quand Betmines n'a pas encore le score (`ftScore`
+    absent) ET n'a pas tranché (their_status=0), on va chercher le SCORE FINAL dans nos sources multi-sources
+    (`sources.final_score` par noms — FotMob/Sportradar/Flashscore/LiveScore) une fois le match TERMINÉ. Ça
+    délivre enfin la promesse « réglé par nos sources » (une ligue obscure que Betmines tarde à mettre à jour,
+    ex. Pologne 2. Liga, se règle chez nous). Over/under buts seulement (marchés `line`) ; les marchés
+    non-buts restent sur `their_status`. Info-seule (Betmines hors ROI). No-op si non fini / non trouvé."""
+    if leg.get("result") in ("won", "lost", "push"):
+        return
+    ln = leg.get("line")
+    if not isinstance(ln, (int, float)):
+        return                                          # codé over/under seulement
+    try:                                                # match réellement TERMINÉ (coup d'envoi + ~2h30) ?
+        st = datetime.fromisoformat(str(leg.get("start")).replace("Z", "+00:00"))
+        if datetime.now(timezone.utc) - st < timedelta(hours=2, minutes=30):
+            return
+    except (ValueError, AttributeError, TypeError):
+        return
+    try:
+        import asyncio
+        from app import sources
+        fs = asyncio.run(sources.final_score("foot", {
+            "home": leg.get("home"), "away": leg.get("away"),
+            "start": leg.get("start"), "comp": leg.get("comp"), "sport": "foot"}))
+    except Exception:
+        fs = None
+    if not fs or fs.get("home") is None or fs.get("away") is None:
+        return
+    total = fs["home"] + fs["away"]
+    leg["score"] = f'{fs["home"]}-{fs["away"]}'
+    leg["result"] = ("won" if total > ln else "lost") if ln > 0 else \
+                    ("won" if total < abs(ln) else "lost")
+    leg["settle_src"] = "nos_sources"
+
+
 def _resolve_claude() -> str | None:
     """claude.exe SANS le cwd du repo (piège connu : le claude.bat lanceur du projet masque le vrai)."""
     old = os.getcwd()
@@ -350,7 +385,9 @@ def run(force: bool = False, backfill: int = 0) -> None:
         if day.startswith("_") or not isinstance(cb, dict) or cb.get("result") in ("won", "lost"):
             continue
         for leg in cb.get("legs") or []:
-            _settle_leg(leg)
+            _settle_leg(leg)                            # 1) données Betmines (ftScore / their_status)
+            if leg.get("result") not in ("won", "lost", "push"):
+                _settle_leg_our_source(leg)             # 2) repli : NOS sources (score final par noms)
         res = [leg.get("result") for leg in cb.get("legs") or []]
         if res and all(r == "won" for r in res):
             cb["result"] = "won"
