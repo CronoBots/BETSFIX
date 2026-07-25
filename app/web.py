@@ -3523,18 +3523,6 @@ def bars_split(model, implied) -> dict:
 
 _NAME_CONNECTORS = {"du", "de", "des", "da", "di", "of", "the", "und", "et", "and"}
 
-def _abbr_team(name: str, maxlen: int = 11) -> str:
-    """Abrège un nom d'équipe trop long pour l'en-tête (1 ligne) : d'abord retire les connecteurs
-    (du, de, of…) -> « Corée du Sud » devient « Corée Sud ». Si encore trop long (clubs : « New
-    York Liberty »), garde le DERNIER mot, souvent le plus distinctif -> « Liberty »."""
-    name = str(name).strip()
-    if len(name) <= maxlen:
-        return name
-    words = [w for w in name.split() if w.lower() not in _NAME_CONNECTORS]
-    short = " ".join(words)
-    if len(short) <= maxlen or not words:
-        return short or name
-    return words[-1]
 
 def _pick_bars(p: dict) -> str:
     """Bloc « Cotes & chances » PREMIUM : une barre fine de proportion (total 100 %, marge retirée)
@@ -3617,12 +3605,6 @@ def _ind(settled) -> str:
     """Étiquette « indicatif » quand l'échantillon est trop faible pour un ROI fiable."""
     return '<span class="sx-ind">indicatif</span>' if (settled or 0) < _MIN_REL else ""
 
-def _form_dots(form: list) -> str:
-    """Forme = 5 derniers résultats en pastilles (vert gagné / rouge perdu / gris remboursé)."""
-    if not form:
-        return ""
-    return ('<span class="sx-form">'
-            + "".join(f'<span class="sx-fd {r}"></span>' for r in form) + "</span>")
 
 def _smooth_path(xy: list) -> str:
     """Chemin SVG LISSÉ (Catmull-Rom -> Bézier cubique) passant par TOUS les points : adoucit les
@@ -3785,12 +3767,6 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
     p.append("</svg>")
     return "".join(p)
 
-def sx_section(label: str, sub: str = "") -> str:
-    """En-tête de SECTION de la page Stats (hiérarchie pro : vue d'ensemble → détail → fiabilité →
-    transparence). Petit libellé majuscule accentué + sous-titre discret, posé au-dessus d'un groupe."""
-    s = f'<span>{html.escape(sub)}</span>' if sub else ""
-    return f'<div class="sx-sec">{html.escape(label)}{s}</div>'
-
 
 def sx_section_collapsible(label: str, sub: str, body: str, open: bool = False) -> str:
     """Section de la page Stats REPLIABLE (accordéon natif <details>, sans JS) : le détail est masqué par
@@ -3912,50 +3888,6 @@ def _mile_legend(miles: list, *, compact: bool = False) -> str:
             f'<span class="sx-ml-hint">touchez un repère pour le détail</span></div>'
             f'{key}<div class="sx-mile-bs">{chips}</div>'
             f'<div class="sx-mile-info"></div>{data}</div>')
-
-
-def _sport_summary(full: dict | None) -> str:
-    """Bandeau PERF PAR SPORT en tête des Stats. Le ROI GLOBAL (simples/combos mélangés) masque qu'un sport
-    est fort et un autre faible (ex. foot +12 % vs tennis −34 %) -> on surface le détail par sport, plus
-    parlant et plus honnête. Lignes triées par ROI décroissant ; sports sans pari réglé masqués."""
-    by = (full or {}).get("by_sport") or {}
-    _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
-    _nom = {"foot": "Foot", "tennis": "Tennis", "basket": "Basket"}
-    rows = []
-    for sp in ("foot", "tennis", "basket"):
-        b = by.get(sp) or {}
-        if not b.get("settled"):
-            continue
-        rows.append((b.get("roi") if b.get("roi") is not None else -999, sp, b))
-    if not rows:
-        return ""
-    rows.sort(key=lambda x: -x[0])
-    # Sports en ARRIÈRE-PLAN / SIMULATION (tennis/basket) : analysés + ROI SIMULÉ (ce chiffre), mais cachés
-    # de la page des paris & non publiés — demande user 2026-07-24. Badge de TRANSPARENCE. Réactivation
-    # MANUELLE : quand le ROI simulé a récupéré, le badge le SIGNALE (« prêt à réactiver ») sans agir.
-    try:
-        _bg = analyses.background_sports()
-        _ready = analyses.sport_reactivation_ready()
-    except Exception:
-        _bg, _ready = set(), {}
-    out = ['<div class="spf-cv spf-sports"><div class="spf-cv-h">'
-           '<span class="spf-cv-t">🎯 Par sport</span></div>']
-    for _roi, sp, b in rows:
-        if sp not in _bg:
-            _pz = ""
-        elif sp in _ready:
-            _pz = ('<span class="spf-sp-pause spf-sp-ready" title="ROI simulé remonté : PRÊT à réactiver — en '
-                   'attente de ton accord (réactivation manuelle, jamais automatique).">🔬 prêt à réactiver</span>')
-        else:
-            _pz = ('<span class="spf-sp-pause" title="Sport en ARRIÈRE-PLAN : analysé et ROI SIMULÉ en continu, '
-                   'mais caché de la page des paris et non publié. Réactivation MANUELLE.">🔬 simulé</span>')
-        out.append(
-            f'<div class="spf-sp-row"><span class="spf-sp-n">{_emo[sp]} {_nom[sp]}{_pz}</span>'
-            f'<span class="spf-sp-roi arec-{_roi_cls(b.get("roi"), b.get("settled"))}">{_roistr(b.get("roi"))}</span>'
-            f'<span class="spf-sp-pct">{b.get("pct", "—")}%</span>'
-            f'<span class="spf-sp-k">{b.get("settled")} paris</span></div>')
-    out.append("</div>")
-    return "".join(out)
 
 
 def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
@@ -4086,53 +4018,6 @@ def render_perf(perf: dict | None) -> str:
     par MARCHÉ a été FUSIONNÉ dans la calibration (une seule vue par axe, non redondante). '' si vide."""
     perf = perf or {}
     return _roi_section("Rendement par cote", "ROI selon la cote jouée", perf.get("by_odds") or [])
-
-
-def render_combos(cs: dict, form_html: str = "", milestones: list | None = None) -> str:
-    """Bloc COMBINÉS = MIROIR EXACT du bloc simples (même style : gros ROI + forme + KPIs + courbe),
-    affiché JUSTE EN DESSOUS (demande user). Vraie cote, ROI séparé des simples, + réussite par nb de
-    jambes en info supplémentaire. `milestones` = repères de modèle PROPRES aux combinés (sur la courbe
-    combinés, + légende sous le graphe) — demande user : repères simples sur graphe simples, combinés ici."""
-    if not cs or not cs.get("n"):
-        return ""
-    roi = cs.get("roi")
-    wr = cs.get("win_rate")
-    pts = cs.get("points") or []
-    _mc = milestones or []
-    chart = (f'<div class="sx-equity">'
-             f'{_hero_chart(pts, uid="combos", dates=cs.get("dates") or [], milestones=_mc)}</div>'
-             if len([p for p in pts if p]) else "")
-    shave = cs.get("avg_shave")
-    # EXTRA (ligne secondaire sous les stats) : rabot moyen vs produit. Le PROFIT en « u » (unités) a été
-    # RETIRÉ de l'affichage (demande user 2026-07-22 : « parler de ROI mais pas de u sur le site ») — le ROI
-    # en % exprime déjà la rentabilité, l'unité de mise est du jargon de parieur.
-    extra = f'<span>rabot <b>{shave if shave is not None else "—"}%</b></span>'
-    # réussite par nombre de jambes (info en plus, propre aux combinés)
-    legrows = ""
-    for k, g in sorted((cs.get("by_legs") or {}).items()):
-        w = g.get("wr")
-        legrows += (f'<div class="sx-leg"><span>{k} jambes</span>'
-                    f'<span class="sx-leg-n">{g["n"]} combiné{"s" if g["n"] > 1 else ""}</span>'
-                    f'<b>{w if w is not None else "—"}%</b></div>')
-    legs = f'<div class="sx-legs">{legrows}</div>' if legrows else ''
-    # Carte compacte IDENTIQUE aux onglets sport : en-tête (titre + ROI), W/L au-dessus de la courbe,
-    # courbe (vraie cote), stats dessous, puis les extras (profit/rabot + réussite par nb de jambes).
-    _c_inner = (
-        f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">🎲 Combinés</span>'
-        f'{_streak_chip(cs.get("streak"))}</span>'
-        f'<span class="spf-cv-roi arec-{_roi_cls(roi, cs["n"])}">ROI {_roistr(roi)}</span></div>'
-        f'{form_html}{chart}'
-        '<div class="spf-cv-kpis">'
-        f'<span><b class="arec-{_pct_class(wr)}">{wr if wr is not None else "—"}%</b> réussite</span>'
-        f'<span><b>{cs["n"]}</b> paris</span>'
-        f'<span><b>{cs.get("avg_odds") or "—"}</b> cote</span></div>'
-        f'<div class="spf-cv-extra">{extra}</div>'
-        f'{legs}{_mile_legend(_mc)}')
-    _rec_c = _recent_bets_html(analyses.pending_roi_bets(combo=True) + list(reversed(cs.get("recent") or [])))
-    if _rec_c:
-        return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{_c_inner}'
-                f'<div class="spf-cv-more"><span>Derniers combinés</span> ▾</div></summary>{_rec_c}</details>')
-    return f'<div class="spf-cv">{_c_inner}</div>'
 
 
 def _form_streak(results) -> tuple:
@@ -4416,28 +4301,6 @@ def _prog_pair(home, away) -> frozenset:
     def _n(s: str) -> str:
         return re.sub(r"\W+", "", (s or "").lower())
     return frozenset(x for x in (_n(home), _n(away)) if x)
-
-
-def _conf_hue(p: int) -> tuple:
-    """(couleur du %, dégradé de la barre) selon le NIVEAU de confiance — le lecteur voit le risque sans
-    lire : rouge < 55, ambre 55-67, vert ≥ 68 (mêmes seuils que la sémantique value/abstention)."""
-    if p < 55:
-        return ("#ff6b6b", "linear-gradient(90deg,#b23b3b,#ff6b6b)")
-    if p < 68:
-        return ("#f6c54a", "linear-gradient(90deg,#c9902f,#f6c54a)")
-    return ("#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)")   # vert émeraude « OUI » (demande user 2026-07-18)
-
-
-def _conf_word(p: int) -> str:
-    """Qualificatif de confiance (demande user 2026-07-13, « intuitif ») : un mot vaut mieux qu'un chiffre
-    seul -> le niveau est lu même sans interpréter le %. Aligné sur les seuils couleur."""
-    if p < 55:
-        return "Faible"
-    if p < 68:
-        return "Modérée"
-    if p < 80:
-        return "Élevée"
-    return "Très élevée"
 
 
 def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
@@ -5190,31 +5053,6 @@ def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False
         else:
             rows.append(f'<div class="sx-leg">{_badge}{_txt}{_sco}</div>')
     return "".join(rows)
-
-
-def _combo_daily_banner(*, href: str = "/stats") -> str:
-    """Bandeau « Combiné du jour » (TÊTE de l'accueil ET de l'onglet Live). Le combiné multisport du jour :
-    jambes les plus probables (avec SCORE LIVE), cote ≥ 1,95, garanti 1/jour, compté au ROI. '' si aucun."""
-    try:
-        import datetime as _dt
-        from app import combo_daily as _cd
-        day = _cd.day_key()          # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
-        cb = _cd.today(day)
-    except Exception:
-        cb = None
-    if not cb or not cb.get("legs"):
-        return ""
-    _bad = {"won": "✅", "lost": "❌", "void": "➖"}.get(cb.get("result"), "⏳")
-    return (
-        f'<a class="combo-day" href="{href}">'
-        '<div class="combo-day-h">'
-        '<b class="sx-gold" style="font-size:13px">🎯 Combiné du jour</b>'
-        f'<span class="sx-hint">{_bad}</span></div>'
-        '<div class="sx-meta">'
-        f'<span>cote <b class="sx-gold">@{cb.get("cote")}</b></span>'
-        f'<span>chances <b>{round((cb.get("prob") or 0) * 100)}%</b></span>'
-        f'<span>{len(cb.get("legs") or [])} jambes</span></div>'
-        + combo_legs_html(cb) + '</a>')
 
 
 def _clean_cap(t, maxlen: int = 180) -> str:
@@ -6655,30 +6493,6 @@ def odds_row(outcomes, highlight_idx: int | None = None) -> str:
         for i, lbl, o in valid)
     return f'<div class="oddsrow2">{cells}</div>'
 
-def odds_bar(outcomes, highlight_idx: int | None = None, label: str = "Bookmakers") -> str:
-    """Cotes Unibet présentées comme une BARRE (même style que BETSFIX/Unibet/Public), placée
-    EN PREMIER. Un segment par issue avec UNIQUEMENT la cote (l'issue se lit par sa position,
-    alignée sur les barres du dessous) ; le pari/favori surligné en bleu. `label` = intitulé de
-    la barre (« Bookmakers », ou « Bookmakers live » pour les cotes en direct).
-    `outcomes` = [(libellé, cote), ...] ; `highlight_idx` = issue pronostiquée par BETSFIX."""
-    lab = html.escape(label)
-    valid = [(i, lbl, o) for i, (lbl, o) in enumerate(outcomes) if o]
-    if not valid:
-        return (f'<div class="sb"><span class="sb-l">{lab}</span>'
-                '<div class="sb-bar ocbar"><span class="seg pba">à venir</span></div></div>')
-    # Segments en navy .pba ; la MEILLEURE cote (la plus basse = le favori du book) ressort en
-    # BLEU BETSFIX .pm (l'ancien bleu du modèle), pour la mettre en avant.
-    def _f(o):
-        try:
-            return float(o)
-        except (TypeError, ValueError):
-            return float("inf")
-    best_i = min(valid, key=lambda t: _f(t[2]))[0]
-    segs = "".join(
-        f'<span class="seg {"pm" if i == best_i else "pba"}"><b>{o}</b></span>'
-        for i, _, o in valid)
-    return (f'<div class="sb"><span class="sb-l">{lab}</span>'
-            f'<div class="sb-bar ocbar">{segs}</div></div>')
 
 def _head(title: str, info: str | None = None) -> str:
     """Titre de section. Si `info` est fourni, un petit 'i' à droite déroule
@@ -6826,45 +6640,6 @@ def render_sport_perf(sport: str) -> str:
             f'<span class="chev">▾</span></summary>'
             f'<div class="spf perf-fold-b">{charts}{details}</div></details>')
 
-def _pick_card(p: dict, badge: str) -> str:
-    """Carte d'un pari pour l'accueil (value OU confiance), avec le tableau des chances.
-    Titre = l'AFFICHE (les 2 équipes) ; le pari/cote n'est PAS répété (la cote pariée est
-    surlignée en bleu dans la ligne de cotes du dessous)."""
-    e = html.escape
-    cd = (f'<span class="cd" data-ts="{int(p["start_ts"])}"></span>'
-          if p.get("start_ts") and p["start_ts"] > time.time() else "")
-    # « (F) » seulement au foot : tennis WTA / basket WNBA sont d'office féminins
-    fem = (' <span class="fem">(F)</span>'
-           if p.get("female") and p.get("sport") not in ("Tennis", "Basket") else "")
-    state = cd if cd else ('<span class="cd live">🟢 Live</span>' if p.get("live") else "")
-    bdg = f'<span class="bdg">{badge}</span>' if badge else ""
-    # surligne l'issue pariée (cohérent avec les barres), pas le favori du book
-    _hi = {"1": 0, "X": 1, "2": 2, "home": 0, "away": 1}.get(p.get("side"))
-    oddsrow = odds_bar(p["odds_cells"], highlight_idx=_hi) if p.get("odds_cells") else ""
-    hf = f'{p["home_flag"]} ' if p.get("home_flag") else ""      # gauche : drapeau AVANT le nom
-    af = f' {p["away_flag"]}' if p.get("away_flag") else ""       # droite : drapeau APRÈS le nom
-    # « perle rare » : le pari à jouer (meilleur équilibre confiance×value parmi TOUS les
-    # marchés Unibet), mis en avant au-dessus des barres de contexte.
-    # Le « pari à jouer » (perle + barre de confiance) va SOUS les cotes — différencié conf/value.
-    sport_lbl = e(p["sport"]) + (f' · {e(p["league"])}' if p.get("league") else "")
-    inner = (f'<div class="rowtop"><span>{p["icon"]} {sport_lbl}{fem} · {e(p.get("time") or "")}</span>'
-             f'<span class="rt-r">{state}</span></div>'
-             f'<div class="mrow"><div class="players">{hf}{e(_noF(p.get("home")))} '
-             f'<span class="dim">vs</span> {e(_noF(p.get("away")))}{af}</div>{bdg}</div>'
-             f'{oddsrow}{_pick_bars(p)}'
-             # Les « paris à jouer » (cadres) remplacent la bannière perle « Confiance », SOUS les barres.
-             f'{_bets_for_url(p.get("url") or "")}')
-    url = p.get("url") or ""
-    # On passe le TYPE de pari (confiance/value) à l'analyse -> elle recommande LA MÊME perle
-    # que la carte (sinon l'analyse parlait d'un pari et la carte en jouait un autre).
-    pkp = f'&pk={p["pick_kind"]}' if p.get("pick_kind") else ""
-    # Comme les onglets : tap -> déplie l'analyse DANS le cadre, sans changer de vue.
-    if url.startswith(("/foot/match/", "/basket/match/", "/app/match/")):
-        sep = "&" if "?" in url else "?"
-        return (f'<div class="row pick rowtap" data-exp="{url}{sep}frag=1{pkp}">{inner}'
-                f'<div class="exp-c"><span class="exp-chev">▾</span> Voir l\'analyse</div>'
-                f'<div class="exp" hidden></div></div>')
-    return f'<a class="row pick" href="{url}">{inner}</a>'
 
 # Légende des 3 barres, réutilisée partout (accueil + intros des onglets) pour une explication
 # COHÉRENTE et claire pour le parieur.
@@ -6874,52 +6649,6 @@ BARS_LEGEND = ('Chaque barre montre les <b>chances de chaque camp</b> (joueur 1 
                '(votes des parieurs). Quand <b>BETSFIX donne plus de chances qu\'Unibet</b> à un '
                'camp, sa cote est peut-être trop généreuse — une <b>« value »</b>.')
 
-def render_home(rep: dict, source: dict | None = None,
-                picks: list[dict] | None = None,
-                conf_picks: list[dict] | None = None, frag: bool = False,
-                proof_html: str = "") -> str:
-    # l'état SofaScore (pause) s'affiche désormais discrètement dans l'en-tête (cf. layout).
-    picks = picks or []
-    conf_picks = conf_picks or []
-    bars_legend = BARS_LEGEND
-
-    # 🎯 MATCHS ANALYSÉS — une SEULE liste, triée par COUP D'ENVOI le plus proche (tous sports
-    # mélangés). Plus de regroupement par sport : on veut « le prochain match » en haut.
-    if conf_picks:
-        ordered = sorted(conf_picks,
-                         key=lambda p: (p.get("start_ts") is None, p.get("start_ts") or 0))
-        rows = "".join(_pick_card(p, "") for p in ordered)
-        conf_html = _section(f'🎯 Prochains matchs ({len(conf_picks)})', rows, open_=True)
-    else:
-        conf_html = _section('🎯 Matchs analysés (0)',
-                             '<div class="banner">Aucune analyse à venir pour le moment — '
-                             'les prochaines arrivent au prochain scan.</div>')
-
-    # 💎 VALEURS du jour : edge vs cote (le book sous-évalue le pari) — souvent des outsiders.
-    # NB : pas de badge value en haut à droite — l'edge est déjà dans la bannière « À JOUER »
-    # (« value +X% ») et dans l'analyse (Paris conseillés). Le cadre haut-droite reste épuré.
-    if picks:
-        rows = "".join(_pick_card(p, "") for p in picks)
-        val_html = _section(f'💎 Valeurs ({len(picks)})', rows, open_=True,
-                            info='Même analyse que les Confiances (tous les paris Unibet du match), '
-                                 'mais on garde ici la <b>perle au plus gros edge</b> : le pari où la '
-                                 '<b>cote est la plus trop généreuse</b> (Unibet donne moins de chances '
-                                 'que <b>BETSFIX</b>). Ça <b>gagne moins souvent mais rapporte plus</b> : '
-                                 'rentable <b>sur la durée</b>, jamais garanti sur un match. Le badge '
-                                 f'<b>value +X%</b> = notre avantage estimé sur la cote. {bars_legend}')
-    else:
-        val_html = _section('💎 Valeurs (0)',
-                            '<div class="banner">Aucune value détectée pour le moment '
-                            '(les cotes Unibet apparaissent à l\'approche des matchs).</div>')
-
-    # Accueil analyste : la section « Valeurs » (moteur Elo) n'apparaît que si des picks value
-    # sont fournis (plus le cas en mode analyste) ; sinon on ne montre que les matchs analysés.
-    body = f'{proof_html}{conf_html}' + (val_html if picks else "")
-    return body if frag else spa_shell("home", "Accueil", body, source=source)
-
-def _bar(pct: float | None) -> str:
-    p = round((pct or 0) * 100)
-    return f'<div class="bar"><span style="width:{p}%"></span></div>'
 
 def _prob_bar(prob, labels=None) -> str:
     """Barre de proba visuelle : float = 2 issues (home/away) ; (p1,px,p2) = 1-N-2."""
@@ -6951,11 +6680,6 @@ def _cap(s: str) -> str:
     s = (s or "").strip()
     return (s[0].upper() + s[1:]) if (s and s[0].islower()) else s
 
-def _short_team(name: str, tennis: bool) -> str:
-    """Nom AFFICHÉ compact : au tennis -> nom de famille (dernier mot) pour tenir sur une ligne ;
-    foot/basket -> nom complet (sans « (F) »)."""
-    n = _noF(name or "")
-    return (n.split() or [n])[-1] if tennis else n
 
 def _parse_live_score(score) -> tuple:
     """(hs, as_) du 1er couple « H-A » d'un score live (« 2-1 », « 6-4 3-6 » -> (2,1)/(6,4)), sinon
@@ -7769,122 +7493,6 @@ _TENNIS_GROUPS = [
     ("Set", 3, re.compile(r"\bset\s+\d|\bmanche\s+\d")),        # rattaché à un set précis
 ]
 
-def _tennis_market_category(label: str) -> tuple[str, int]:
-    s = (label or "").lower()
-    for name, rank, rx in _TENNIS_GROUPS:
-        if rx.search(s):
-            return name, rank
-    return "Match", 0   # cotes du match, pari de set, handicap du jeu, total de jeux… = niveau match
-
-def _market_category(label: str, mtype: str, sport: str | None = None) -> tuple[str, int]:
-    if (sport or "").lower() in ("tennis", "atp", "wta"):
-        return _tennis_market_category(label)
-    s = f'{label or ""} {mtype or ""}'.lower()
-    for name, rank, keys in _MKT_CATS:
-        if any(k in s for k in keys):
-            return name, rank
-    return "Autres marchés", 99
-
-def _oc_label(o) -> str:
-    """Libellé d'un choix « comme Unibet » : nom du participant si dispo (sinon « Nul » pour X),
-    avec la ligne -> handicap signé (+0.5 / -0.5), total juste le seuil (Plus de 27.5)."""
-    raw = (o.label or "").strip()
-    name = o.participant or ("Nul" if raw.upper() == "X" else raw)
-    if o.line is not None:
-        if o.participant:                       # handicap rattaché à un camp -> signe explicite
-            name = f"{name} {'+' if o.line > 0 else ''}{o.line:g}"
-        else:                                   # total (Plus de / Moins de N) -> juste le seuil
-            name = f"{name} {o.line:g}"
-    return name.strip()
-
-def render_unibet_markets(markets, title: str = "💰 Tous les paris Unibet",
-                          sport: str | None = None, result_only: bool = False) -> str:
-    """Tous les marchés Unibet, REGROUPÉS par catégorie (comme l'app Unibet) en sections
-    repliables : un gros match a 500+ marchés -> on affiche les catégories + leur nombre,
-    et on déplie pour voir les cotes. Cap par catégorie pour garder un poids raisonnable."""
-    e = html.escape
-    # 1) FUSION « comme Unibet » : tous les betOffers d'un même marché (criterion.label) sont
-    #    regroupés en UN SEUL bloc rassemblant toutes leurs lignes (ex. « Handicap » = 1 marché
-    #    avec ses 48 lignes, et non 48 marchés). Le compte par catégorie colle alors à Unibet.
-    merged: dict = {}
-    order: list = []
-    main_keys: set = set()
-    for m in (markets or []):
-        outs = [o for o in (m.outcomes or []) if o.odds]
-        if not outs:
-            continue
-        key = (m.label or m.type or "Marché").strip()
-        if key not in merged:
-            merged[key] = []
-            order.append(key)
-        merged[key].extend(outs)
-        if m.main:
-            main_keys.add(key)   # marché principal -> remontera en tête de sa catégorie
-    cats: dict = {}
-    for idx, key in enumerate(order):
-        outs = merged[key]
-        name, rank = _market_category(key, "", sport)
-        cells = []
-        for o in outs[:30]:
-            cells.append(f'<span class="oc"><span class="ocn">{e(_oc_label(o))}</span>'
-                         f'<span class="ocv">{o.odds}</span></span>')
-        if len(outs) > 30:
-            cells.append(f'<span class="oc dim"><span class="ocn">+{len(outs)-30} lignes</span></span>')
-        block = (f'<div class="mkt"><div class="mkt-l">{e(key)}</div>'
-                 f'<div class="oddsrow oddsrow-wrap">{"".join(cells)}</div></div>')
-        # tri intra-catégorie : marché principal d'abord, puis ordre d'apparition Unibet
-        sort_key = (0 if key in main_keys else 1, idx)
-        cats.setdefault((rank, name), []).append((sort_key, block))
-    if not cats:
-        return ""
-    if result_only:
-        # On garde TOUS les marchés en mémoire (pour l'analyse/la value), mais on n'AFFICHE que
-        # le « résultat du match » (rang 0) : titre du pari + source Unibet, sans repli.
-        res = {k: v for k, v in cats.items() if k[0] == 0}
-        if not res:
-            return ""
-        blocks = sorted(res.items())[0][1]
-        block_html = "".join(b for _, b in sorted(blocks, key=lambda x: x[0]))
-        return f'<h2>💰 Cote Unibet</h2>{block_html}'
-    total = sum(len(v) for v in cats.values())
-    out = [f'<h2>{title} <span class="dim">({total})</span></h2>']
-    for (rank, name), blocks in sorted(cats.items()):
-        ordered = [b for _, b in sorted(blocks, key=lambda x: x[0])]
-        shown = ordered[:40]
-        more = (f'<div class="dim" style="padding:4px 2px">+{len(ordered)-40} autres marchés '
-                "sur Unibet</div>") if len(ordered) > 40 else ""
-        op = " open" if rank == 0 else ""   # « Résultat du match » ouvert d'office
-        out.append(f'<details class="mktcat"{op}><summary>{e(name)} '
-                   f'<span class="mktcat-n">{len(blocks)}</span></summary>'
-                   f'<div class="mktcat-b">{"".join(shown)}{more}</div></details>')
-    return "".join(out)
-
-def recommended_bets(value=None, confidence=None) -> str:
-    """Section « 🎯 Paris conseillés » : la value (cote sous-évaluée) et/ou la confiance
-    (favori net du modèle), ou « aucun pari safe » si rien. `value`=(libellé,cote,edge) ;
-    `confidence`=(libellé,proba,cote|None)."""
-    e = html.escape
-    cards = []
-    if value:
-        lbl, od, edge = value
-        cards.append('<div class="banner"><b class="pos">💎 Value</b> — '
-                     f'pari sur <b>{e(str(lbl))}</b> @{od}. <span class="dim">Unibet lui donne '
-                     f'<b>trop peu de chances</b>, donc sa cote est <b>un peu trop généreuse</b> '
-                     f'(~+{round((edge or 0)*100,1)}% en notre faveur). Ça gagne <b>moins souvent '
-                     "mais rapporte plus</b> : rentable sur la durée, jamais garanti sur un seul "
-                     "match.</span></div>")
-    if confidence:
-        lbl, prob, od = confidence
-        cards.append('<div class="banner"><b style="color:#6cbcff">🔥 Confiance</b> — '
-                     f'<b>{e(str(lbl))}</b> est <b>grand favori</b> selon nous : '
-                     f'<b>{round((prob or 0)*100)}%</b> de chances de gagner'
-                     f'{f" @{od}" if od else ""}. <span class="dim">Le pari le plus <b>sûr</b>, '
-                     "mais comme c'est le favori la cote est petite : <b>petit gain</b>.</span></div>")
-    if not cards:
-        cards.append('<div class="banner">Aucun pari intéressant ici : ni <b>grand favori</b> '
-                     "(≥ 65 % de chances), ni <b>cote trop généreuse</b>. Mieux vaut "
-                     "<b>passer ce match</b>.</div>")
-    return '<h2>🎯 Paris conseillés</h2>' + "".join(cards)
 
 def perle_advice(perle: dict | None) -> str:
     """Section « 🎯 Paris conseillés » PILOTÉE PAR LA PERLE : le pari à jouer (meilleur équilibre
@@ -8054,89 +7662,6 @@ def fmt_score(home_score, away_score) -> str:
         parts.append(f'{h if h is not None else 0}-{a if a is not None else 0}')
     return " ".join(parts)
 
-def _match_row(m: dict) -> str:
-    """Ligne standard d'un match (à venir ou en direct). Cliquable -> détail."""
-    e = html.escape
-    if m["status"] == "inprogress":
-        sc = f' <span class="dim">{e(m["score"])}</span>' if m.get("score") else ""
-        status = f'<span class="live">🟢 Live</span>{sc}'
-    else:
-        status = e(m.get("time") or "")
-    inner = (
-        f'<div class="rowtop"><span>{e(m["tour"].upper())} · {status}</span></div>'
-        f'<div class="players">{e(m["home"])} <span class="dim">vs</span> {e(m["away"])}</div>'
-        f'<div class="dim">favori modèle : {e(m.get("fav") or "—")} {e(m.get("favp") or "")}'
-        f' · confiance {e(m.get("confidence") or "—")}</div>')
-    if m.get("clickable", True):
-        return f'<a class="row" href="/app/match/{m["id"]}?tour={m["tour"]}">{inner}</a>'
-    return f'<div class="row">{inner}</div>'
-
-def render_matches(groups: list[tuple[str, list[dict]]], live: list[dict] | None = None,
-                   finished: list[dict] | None = None,
-                   value_picks: list[dict] | None = None, fallback: bool = False) -> str:
-    """Page Matchs en sections : paris de confiance, en direct, à venir, terminés.
-
-    groups : [(titre_jour, [match])] pour les matchs à venir. live/finished/value_picks :
-    listes de dicts (cf. routeur). match_dict à venir/live : id,tour,home,away,time,status,
-    fav,favp,confidence,clickable.
-    """
-    e = html.escape
-    live, finished, value_picks = live or [], finished or [], value_picks or []
-    out = []
-    if fallback:
-        out.append('<div class="banner warn">⚠️ SofaScore momentanément indisponible — scores '
-                   'affichés via LiveScore (repli). L\'analyse détaillée revient dès que '
-                   'SofaScore répond.</div>')
-
-    # 💎 Paris de confiance (value détectées) — tout en haut
-    if value_picks:
-        out.append(f'<h2>💎 Paris de confiance ({len(value_picks)})</h2>')
-        out.append('<div class="banner">Matchs où le modèle voit une <b>value</b> vs Unibet. '
-                   'Avis du modèle, à confirmer — un désaccord n\'est pas un pari gagnant.</div>')
-        for v in value_picks:
-            edge = round((v.get("edge") or 0) * 100, 1)
-            badge = f'<span class="badge b-val">VALUE +{edge} pts</span>'
-            inner = (
-                f'<div class="rowtop"><span>{e(v["tour"].upper())} · {e(v.get("time") or "")}</span>'
-                f'{badge}</div>'
-                f'<div class="players">{e(v["home"])} <span class="dim">vs</span> {e(v["away"])}</div>'
-                f'<div class="dim">pari : <b class="pos">{e(v.get("player") or "")}</b> '
-                f'@{v.get("odds") or "—"} · mise {v.get("stake") if v.get("stake") is not None else "—"}% '
-                f'· confiance {e(v.get("confidence") or "—")}</div>')
-            out.append(f'<a class="row pick" href="/app/match/{v["id"]}?tour={v["tour"]}">{inner}</a>')
-
-    # 🟢 En direct
-    if live:
-        out.append(f'<h2>🟢 En direct ({len(live)})</h2>')
-        out.extend(_match_row(m) for m in live)
-
-    # À venir (groupés par jour)
-    total_up = sum(len(ms) for _, ms in groups)
-    if total_up:
-        out.append('<div class="banner">Touchez un match pour son analyse détaillée '
-                   '(favori, stats, cotes). Heures en fuseau belge.</div>')
-        for title, ms in groups:
-            if not ms:
-                continue
-            out.append(f"<h2>{e(title)} ({len(ms)})</h2>")
-            out.extend(_match_row(m) for m in ms)
-    elif not live and not value_picks:
-        out.append('<div class="dim">Aucun match à venir pour le moment.</div>')
-
-    # ✅ Récemment terminés (vs favori du modèle)
-    if finished:
-        out.append(f'<h2>✅ Récemment terminés ({len(finished)})</h2>')
-        for f in finished:
-            mark = ('<span class="pos">✓ modèle ok</span>' if f.get("ok")
-                    else '<span class="neg">✗ raté</span>')
-            inner = (
-                f'<div class="rowtop"><span>{e(f["tour"].upper())} · terminé</span>{mark}</div>'
-                f'<div class="players">{e(f["home"])} <span class="dim">vs</span> {e(f["away"])}</div>'
-                f'<div class="dim">favori modèle : {e(f.get("fav") or "—")} {e(f.get("favp") or "")} '
-                f'· vainqueur : <b>{e(f.get("winner_name") or "")}</b></div>')
-            out.append(f'<a class="row" href="/app/match/{f["id"]}?tour={f["tour"]}">{inner}</a>')
-
-    return layout("Matchs", "tennis", "".join(out), subnav="matchs", refresh=True)
 
 _FACTOR_NAMES = {"classement": "Classement", "forme": "Forme",
                  "surface": "Surface", "head_to_head": "Face-à-face"}
