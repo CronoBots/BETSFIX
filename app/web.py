@@ -226,9 +226,10 @@ CSS = """
     --red:#ff6b6b;--green:#a6e22e;--brand:var(--accent);
     --cardline:rgba(34,184,255,.30);--cardglow:0 0 24px rgba(34,184,255,.10);
     --radius:16px;--shadow:0 8px 26px rgba(0,0,0,.55);--shadow-sm:0 2px 8px rgba(0,0,0,.4);
-    /* Bord GAUCHE des cartes de pari selon l'état (demande user 2026-07-25, logique intuitive) :
-       à venir=bleu neutre · live=orange (en cours) · gagné=vert · perdu=rouge · remboursé=gris. */
-    --st-soon:#4aa3ff;--st-live:#ff9f43;--st-won:#34d27b;--st-lost:#ff6b6b;--st-void:#90a4be;
+    /* Bord GAUCHE des cartes de pari selon l'état (demande user 2026-07-25) : en attente=JAUNE ;
+       en cours (live)=même jaune (PAS de couleur dédiée -> le badge « 🟢 Live » suffit) ; gagné=vert ;
+       perdu=rouge ; remboursé=gris. */
+    --st-soon:var(--gold);--st-live:var(--gold);--st-won:#34d27b;--st-lost:#ff6b6b;--st-void:#90a4be;
   }
   /* Home & Live = accent principal (hérité de :root). Les sports gardent leur teinte d'identité
      (néon sur fond noir) : tennis lime-jaune · basket orange · foot vert. */
