@@ -24,7 +24,8 @@ MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)
 MIN_LEGS = 2             # un « combiné » = au moins 2 jambes
 MIN_LEG_PROB = 0.65      # « les plus probables » : jambe fiable seulement (relevé pour la sécurité)
 MIN_LEG_ODDS = 1.06      # une jambe quasi-sûre à cote ~1.01 n'apporte rien vers le seuil
-MIN_COMBO_PROB = 0.50    # PLANCHER de proba combinée (demande user 2026-07-22, révisé : « > 50 % mais rester
+MIN_COMBO_PROB = 0.0     # PLUS DE PLANCHER (demande user 2026-07-25) : combiné FOOT présent CHAQUE JOUR dès
+#                          que cote ≥ 1,9 atteignable (pick_combo renvoie déjà le plus probable). Historique :
 #                          à 1,95 »). On garde la cote ≥ 1,95 (grosse cote) et on rejette seulement le vrai
 #                          « pile ou face » perdant (ex. 49 % le 22/07). Plancher CONSTANT. ⚠️ à cote 1,95 le
 #                          break-even value est ~51 % : 50 % n'est donc PAS strictement value-positif — c'est un
@@ -256,27 +257,26 @@ def _candidates_for_day(day: str) -> list[dict]:
     (dédup par (match, code), meilleure proba). `prob` renvoyé en fraction 0-1."""
     from app import analyses
     from app.settle_analyst import code_from_pick
-    # Sports EN PROBATION / écartés (ROI durablement négatif) : pas de jambe de ces sports dans le combiné
-    # du jour non plus (demande user 2026-07-24 : brider le tennis PARTOUT tant qu'il ne remonte pas). Le
-    # combiné est COMPTÉ AU ROI -> il doit suivre la même discipline que les simples (retained_bet/ex_sports).
-    # ⚠️ Depuis la refonte probation (2026-07-24), les sports EN PAUSE (tennis/basket) sont dans
-    # `background_sports()` — SÉPARÉ de `ex_sports` (auto_exclusions ne les met plus dans ex_sports). Il
-    # FAUT donc unir les deux, sinon un sport pausé (ex. tennis) repasse en jambe du combiné du jour alors
-    # qu'il est bridé partout (bug vécu 2026-07-25 : jambe tennis Bublik–Halys au combiné compté au ROI).
+    # COMBINÉ DU JOUR = 100 % FOOTBALL (demande user 2026-07-25 : « le combiné multisport du jour doit devenir
+    # un combiné purement football »). On ne prend QUE des jambes foot -> plus jamais de tennis/basket (qui,
+    # en plus, sont en pause). Garde-fou : si le foot lui-même est un jour bridé (ex_sports/background), pas
+    # de combiné (le combiné est compté au ROI, il suit la même discipline que les simples).
     try:
         _ex_sports, _ = analyses.auto_exclusions()
         _ex_sports = set(_ex_sports) | analyses.background_sports()
     except Exception:
         _ex_sports = set()
+    if "foot" in _ex_sports:                           # foot bridé -> aucun combiné (cas rare)
+        return []
     out: list[dict] = []
     for side in glob.glob(os.path.join(analyses.DIR, "*.json")):
         try:
             d = json.load(open(side, encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if (d.get("start") or "")[:10] != day:
+        if d.get("sport") != "foot":                   # FOOTBALL uniquement (demande user 2026-07-25)
             continue
-        if d.get("sport") in _ex_sports:               # sport en probation -> exclu du combiné du jour
+        if (d.get("start") or "")[:10] != day:
             continue
         if analyses.status_of(d) != "notstarted":      # déjà commencé/fini -> pas jouable au combiné du jour
             continue
@@ -353,7 +353,7 @@ def telegram_text(cb: dict) -> str:
     """Message HTML (parse_mode=HTML) du combiné du jour pour Telegram. Noms échappés."""
     import html as _h
     emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
-    out = ["🎯 <b>COMBINÉ DU JOUR</b> — multisport",
+    out = ["🎯 <b>COMBINÉ FOOT DU JOUR</b>",
            f"Cote <b>@{cb.get('cote')}</b> · chances <b>{round((cb.get('prob') or 0) * 100)}%</b> "
            f"· {len(cb.get('legs') or [])} jambes", ""]
     from app.analyses import pretty_sel as _psel
@@ -625,7 +625,7 @@ def roi_events(d: dict | None = None) -> list:
         cote = (_combo_result_profit(cb) + 1) if r == "won" else (cb.get("cote") or 1.0)
         n = len(cb.get("legs") or [])
         out.append((cb.get("date") or "", r, cote,
-                    {"name": f"Combiné du jour ({n} jambes)", "sel": "multisport",
+                    {"name": f"Combiné du jour ({n} jambes)", "sel": "football",
                      "sport": "combiné", "combo_daily": True, "n_legs": n}))
     return out
 
