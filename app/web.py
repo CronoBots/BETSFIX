@@ -5753,7 +5753,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     zones = (f'<div class="dash-zones">{inner}</div>' if inner
              else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
     today_iso = _sport_today().isoformat()
-    return _day_header(today_iso) + zones, len(play) + len(prov)
+    # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
+    # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
+    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + (1 if betmines else 0)
+    return _day_header(today_iso) + zones, _cnt
 
 
 def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
