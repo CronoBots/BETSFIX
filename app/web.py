@@ -4103,6 +4103,15 @@ def _prov_sport_graph(sport: str) -> str:
         from app import provisional as _pvt
         _all = _pvt.load()
         snap = {k: v for k, v in _all.items() if isinstance(v, dict) and v.get("sport") == sport}
+        # + JAMBES des combinés du jour MULTISPORT de ce sport (demande user 2026-07-25 : ne pas perdre
+        # leurs stats -> reversées dans les provisoires du sport). Les combinés MONO-sport, eux, sont dans
+        # l'onglet « Combinés » du cadre. Snapshot AUGMENTÉ (jamais sauvegardé).
+        try:
+            from app import combo_daily as _cd
+            for _i, _lg in enumerate(_cd.multisport_legs(sport)):
+                snap[f"_msc-{sport}-{_i}"] = _lg
+        except Exception:
+            pass
         s = _pvt.stats(snap)
     except Exception:
         return ""

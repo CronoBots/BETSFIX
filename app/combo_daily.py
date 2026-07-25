@@ -654,6 +654,30 @@ def roi_events(d: dict | None = None) -> list:
     return out
 
 
+def multisport_legs(sport: str | None = None) -> list:
+    """Jambes des combinés du jour MULTISPORT (jambes de sports DIFFÉRENTS), au format d'entrée provisoire
+    ({sport, name, sel, cote, result, start}) -> reversées dans les provisoires de CHAQUE sport pour ne pas
+    perdre leurs stats (demande user 2026-07-25). Un combiné MONO-sport n'est PAS ici (déjà ventilé dans le
+    « Combinés » du sport via roi_events / leg_sport). `sport` filtre (None = tous)."""
+    d = _load()
+    out = []
+    for cb in d.values():
+        if not isinstance(cb, dict):
+            continue
+        legs = cb.get("legs") or []
+        _sports = {l.get("sport") for l in legs if l.get("sport")}
+        if len(_sports) <= 1:                          # mono-sport / vide -> PAS multisport
+            continue
+        for l in legs:
+            lsp = l.get("sport")
+            if not lsp or (sport and lsp != sport):
+                continue
+            out.append({"sport": lsp, "name": f'{l.get("home", "")} - {l.get("away", "")}'.strip(" -"),
+                        "sel": l.get("sel") or l.get("market"), "cote": l.get("cote"),
+                        "result": l.get("result"), "start": l.get("start"), "_combo_leg": True})
+    return out
+
+
 def equity_curve(d: dict | None = None) -> list:
     """Série du PROFIT CUMULÉ (unités, mise à plat 1 u) des combinés du jour RÉGLÉS, ordonnée par date,
     commençant à 0 — pour le graphe d'équité « info seule ». Snapshot partagé avec stats()."""
