@@ -5782,56 +5782,9 @@ def _daily_results_map() -> dict:
     return res
 
 
-def _calendar_strip(active_iso: str, back: int = 13) -> str:
-    """Bandeau CALENDRIER horizontal (haut de l'onglet « Pronos ») : une pastille par jour (aujourd'hui +
-    `back` jours passés), avec un point de bilan (vert = jour gagnant, rouge = perdant, gris = rien réglé).
-    Cliquer un jour recharge #day-content via /jour (JS `_CAL_JS`). Aujourd'hui = pastille active par défaut."""
-    from datetime import timedelta
-    today = _sport_today()   # jour sportif (06h→06h) — cohérent avec le regroupement et les résultats
-    rmap = _daily_results_map()
-    # KPI « 7 derniers jours » (record + ROI) — touche dashboard pro au-dessus du bandeau.
-    won7 = settled7 = 0
-    profit7 = 0.0
-    for i in range(7):
-        s = rmap.get((today - timedelta(days=i)).isoformat())
-        if s:
-            won7 += s["won"]
-            settled7 += s["settled"]
-            profit7 += s["profit"]
-    # Bouton « Aujourd'hui » (dans la ligne KPI, au-DESSUS des pastilles -> ne chevauche RIEN). Caché par
-    # défaut, montré par JS dès qu'on a sélectionné un autre jour -> retour facile à aujourd'hui.
-    jump = '<button class="cal-jump" id="cal-jump" aria-label="Revenir à aujourd\'hui">Auj. ↩</button>'
-    if settled7:
-        roi7 = round(100 * profit7 / settled7)
-        kcls = "pos" if profit7 > 1e-9 else ("neg" if profit7 < -1e-9 else "neu")
-        stats = (f'<span class="cal-kpi-v"><b>{won7}</b>G · <b>{settled7 - won7}</b>P'
-                 f'<span class="cal-kpi-roi {kcls}">{"+" if roi7 >= 0 else "−"}{abs(roi7)}% ROI</span></span>')
-    else:
-        stats = ""
-    kpi = (f'<div class="cal-kpi"><span class="cal-kpi-l">7 derniers jours</span>'
-           f'<span class="cal-kpi-r">{jump}{stats}</span></div>')
-    pills = []
-    for i in range(back, -1, -1):                              # passé (gauche) -> AUJOURD'HUI (droite) : sens naturel
-        d = today - timedelta(days=i)
-        iso = d.isoformat()
-        s = rmap.get(iso)
-        # JAUGE de réussite : couleur = jour gagnant (vert) / perdant (rouge) / nul (or) ; REMPLISSAGE =
-        # % de paris gagnés du jour (won/settled). Rien réglé -> pas de jauge (track transparent).
-        rcls, _fill, _rtitle = "none", 0, ""
-        if s and s.get("settled"):
-            rcls = "pos" if s["profit"] > 1e-9 else ("neg" if s["profit"] < -1e-9 else "neu")
-            _fill = round(100 * s["won"] / s["settled"])
-            _rtitle = f' title="{s["won"]}/{s["settled"]} gagnés · {_fill}%"'
-        is_today = d == today
-        wd = "AUJ" if is_today else _WD_ABBR[d.weekday()]
-        cls = "cal-pill" + (" today" if is_today else "") + (" on" if iso == active_iso else "")
-        pills.append(f'<button class="{cls}" data-date="{iso}" aria-label="{_WD_FULL[d.weekday()]} {d.day}">'
-                     f'<span class="cal-wd">{wd}</span>'
-                     f'<span class="cal-dn">{d.day}</span>'
-                     f'<span class="cal-res {rcls}"{_rtitle}><i style="width:{_fill}%"></i></span></button>')
-    return (f'<div class="cal-wrap">{kpi}'
-            f'<div class="cal-strip" id="cal-strip" data-today="{today.isoformat()}">'
-            f'{"".join(pills)}</div></div>')
+# _calendar_strip (bandeau jours en tête de Pronos) SUPPRIMÉ le 2026-07-25 (demande user) : la navigation
+# par jour + le bilan quotidien vivent dans l'onglet CALENDRIER dédié. `_daily_results_map` reste utilisé par
+# `_day_view` (bilan « X/Y gagnés » du détail d'un jour, réutilisé par le calendrier).
 
 
 def _item_sport(r: dict) -> str | None:
@@ -6025,9 +5978,10 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     except Exception:
         _lv_prov = 0
     _lv_total = (live_count or 0) + _lv_prov + (1 if _daily_combo_any_live() else 0)
+    # BANDEAU CALENDRIER RETIRÉ de Pronos (demande user 2026-07-25) : la navigation par jour / le bilan
+    # quotidien vivent désormais dans l'onglet CALENDRIER dédié -> plus de doublon en tête de Pronos.
     body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
             f'<span class="dv-nav" data-tab="directs" data-n="{_lv_total}" hidden></span>'
-            + _calendar_strip(today_iso)
             + f'<div id="day-content">{zones}</div>')
     return body if frag else spa_shell("home", "Pronos", body, source=source)
 
