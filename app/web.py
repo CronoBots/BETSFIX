@@ -3958,7 +3958,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # nouv. système + CLV (ligne secondaire) et repères de modèle sous la courbe.
     # Paris À JOUER (comptés au ROI, pas encore réglés) EN TÊTE (⏳), puis les réglés (demande user 2026-07-14).
     _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
-    _best_s = _best_win_streak([_LET.get(x, x) for x in _letters_s])   # RECORD victoires simples (demande user 2026-07-25)
+    _best_s = ov.get("best_streak")                   # RECORD victoires sur TOUT l'historique (pré-calculé _agg_bets)
     _s_inner = _hero_graph_inner(                     # disposition « ROI héros » façon ROI global (choix user 2026-07-24)
         roi=ov.get("roi"), n=ov.get("settled"), hit=ov["pct"], avg_cote=ov.get("avg_odds"),
         chart=f'<div class="sx-equity">{chart}</div>', form=_simples_form, streak=ov.get("streak"),
@@ -3978,7 +3978,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         form=_form_streak(_foot_c.get("form_run") or _foot_c.get("form") or [])[0],   # ligne W/L (demande user)
         recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés",
-        milestones=_ms_combo, compact=True, hit_points=_foot_c.get("hit_points")) if _foot_c.get("settled") else "")
+        milestones=_ms_combo, compact=True, hit_points=_foot_c.get("hit_points"),
+        best_streak=_foot_c.get("best_streak")) if _foot_c.get("settled") else "")   # record sur tout l'historique
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"))   # + onglet Provisoires (user 2026-07-25)
@@ -4301,7 +4302,8 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
                           recent: list | None = None, more_label: str = "Derniers paris",
                           form: list | None = None, pending: int = 0, streak=None,
                           milestones: list | None = None, sport: str | None = None,
-                          compact: bool = False, hit_points: list | None = None) -> str:
+                          compact: bool = False, hit_points: list | None = None,
+                          best_streak: int | None = None) -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
@@ -4316,7 +4318,11 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     _mi = milestones or []                                    # repères PROPRES à ce sport (demande user 2026-07-24)
     chart = (f'<div class="sx-equity">{_hero_chart(points, uid=uid, dates=dates or [], milestones=_mi)}</div>'
              if len(_pts) >= 2 else "")
-    _best = _best_win_streak(form or [])                     # RECORD = plus longue série de victoires (demande user 2026-07-25)
+    # RECORD = plus longue série de victoires SUR TOUT L'HISTORIQUE. `best_streak` (pré-calculé par
+    # `_agg_bets` sur la séquence COMPLÈTE) est prioritaire : recalculer depuis `form` sous-estime le record
+    # quand `form` est tronqué (form_run = 24 derniers) — bug vécu 2026-07-25 : record foot simple affiché ≤9
+    # alors que 18. Repli sur `form` seulement si `best_streak` non fourni (suivis dont la forme EST complète).
+    _best = best_streak if best_streak is not None else _best_win_streak(form or [])
     _stk = _streak_chip(streak) + _best_streak_chip(_best)    # série en cours 🔥/❄️ + record 🏆 — À CÔTÉ du titre
     _dots = form_dots(form or [], n=16, pending=pending)      # ligne W/L + sabliers ⏳ des en attente
     _form = f'<div class="spf-cv-form">{_dots}</div>' if _dots else ""
@@ -6576,8 +6582,13 @@ def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
     dots = form_dots(_form_wl, n=16, pending=pending)
     formrow = f'<div class="spf-cv-form">{dots}</div>' if dots else ""
     # SÉRIE en cours + RECORD (plus longue série de victoires) empilés SOUS la ligne W/L (demande user
-    # 2026-07-25) — même présentation que les cadres « ROI héros ».
-    formrow += _streak_text(blk.get("streak"), _best_win_streak(_form_wl))
+    # 2026-07-25) — même présentation que les cadres « ROI héros ». RECORD = `best_streak` pré-calculé sur
+    # TOUT l'historique (repli calcul depuis la forme si absent) : recalcul depuis la forme tronquée
+    # sous-estimait le record (foot simple 18 affiché ≤9).
+    _best_h = blk.get("best_streak")
+    if _best_h is None:
+        _best_h = _best_win_streak(_form_wl)
+    formrow += _streak_text(blk.get("streak"), _best_h)
     kpis = (f'<div class="spf-cv-kpis">'
             f'<span><b>{blk.get("pct")}%</b> réussite</span>'
             f'<span><b>{blk.get("settled")}</b> paris</span>'

@@ -722,7 +722,7 @@ def _simulation_card() -> str:
                 form=web._form_streak(b.get("form_run") or b.get("form") or [])[0],   # ligne W/L
                 recent=list(reversed(b.get("recent") or [])), more_label="Derniers simples",
                 milestones=web._sport_milestones(sp), compact=True,   # disposition « ROI héros »
-                hit_points=b.get("hit_points"))
+                hit_points=b.get("hit_points"), best_streak=b.get("best_streak"))   # record sur tout l'historique
         c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
         if c.get("settled"):
             _combos_g = web.render_tracking_curve(
@@ -732,7 +732,7 @@ def _simulation_card() -> str:
                 form=web._form_streak(c.get("form_run") or c.get("form") or [])[0],   # ligne W/L
                 recent=list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
                 milestones=web._sport_milestones(sp), compact=True,   # disposition « ROI héros »
-                hit_points=c.get("hit_points"))
+                hit_points=c.get("hit_points"), best_streak=c.get("best_streak"))   # record sur tout l'historique
         curves = web._sport_tabs(_simple_g, _combos_g, web._prov_sport_graph(sp))   # + onglet Provisoires (user 2026-07-25)
         if not curves:
             continue
