@@ -261,8 +261,19 @@ def _candidates_for_day(day: str) -> list[dict]:
     """Extrait les jambes candidates (marchés autorisés, réglables, prob ≥ seuil) de TOUS les matchs
     du jour `day` (YYYY-MM-DD) encore À VENIR. Source = fantômes `shadow` + pari retenu `bets`
     (dédup par (match, code), meilleure proba). `prob` renvoyé en fraction 0-1."""
+    from datetime import datetime
     from app import analyses
+    from app import web as _w
     from app.settle_analyst import code_from_pick
+
+    def _sport_day_of(iso: str) -> str:
+        """Jour SPORTIF (06h→06h local) d'un coup d'envoi — cohérent avec tout le reste de l'app. Un match
+        de 02h la nuit suivante appartient encore au jour sportif de la veille (demande user 2026-07-25 :
+        le combiné du jour peut inclure les matchs jusqu'à 06h le lendemain)."""
+        try:
+            return _w._sport_date(_w.to_local(datetime.fromisoformat((iso or "").replace("Z", "+00:00")))).isoformat()
+        except (ValueError, AttributeError, TypeError):
+            return (iso or "")[:10]
     # COMBINÉ DU JOUR = 100 % FOOTBALL (demande user 2026-07-25 : « le combiné multisport du jour doit devenir
     # un combiné purement football »). On ne prend QUE des jambes foot -> plus jamais de tennis/basket (qui,
     # en plus, sont en pause). Garde-fou : si le foot lui-même est un jour bridé (ex_sports/background), pas
@@ -282,7 +293,7 @@ def _candidates_for_day(day: str) -> list[dict]:
             continue
         if d.get("sport") != "foot":                   # FOOTBALL uniquement (demande user 2026-07-25)
             continue
-        if (d.get("start") or "")[:10] != day:
+        if _sport_day_of(d.get("start")) != day:       # JOUR SPORTIF (06h→06h) : inclut la nuit jusqu'à 06h
             continue
         if analyses.status_of(d) != "notstarted":      # déjà commencé/fini -> pas jouable au combiné du jour
             continue
