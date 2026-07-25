@@ -557,9 +557,9 @@ CSS = """
   /* Graphe d'équité SANS bride de hauteur dans les héros -> rendu pleine largeur, MÊME largeur que la
      courbe du taux de réussite (demande user 2026-07-24). */
   .spf-hero .sx-equity .sx-heroc{max-height:none}
-  /* Courbes en DÉBORD à droite (full-bleed) pour que le dernier point TOUCHE le bord de la carte
-     (demande user 2026-07-24 : « les graph ne touchent pas le dernier point »). */
-  .spf-hero .sx-equity,.spf-hero .sx-chart,.spf-hero .rate-c{margin-right:-11px}
+  /* Marges gauche/droite ÉGALES (demande user 2026-07-25) : plus de débord `margin-right` (qui décalait la
+     courbe hors carte et rognait le point final). Les insets sont portés par L=R dans le SVG (symétriques),
+     la ligne rejoint son dernier point (dot) à l'intérieur de la carte. */
   .spf-hero .spf-cv-form{justify-content:center;margin:9px 0 0}
   /* Ligne d'EXTRAS sous les stats (Stats : nouv. système · CLV / profit · rabot) — inline compact */
   .spf-cv-extra{display:flex;justify-content:center;flex-wrap:wrap;gap:5px 16px;margin-top:6px;
