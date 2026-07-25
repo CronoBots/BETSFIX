@@ -644,9 +644,13 @@ def roi_events(d: dict | None = None) -> list:
         r = cb["result"]
         cote = (_combo_result_profit(cb) + 1) if r == "won" else (cb.get("cote") or 1.0)
         n = len(cb.get("legs") or [])
+        # SPORT du combiné = sport unique de toutes les jambes (None si multisport) -> permet de le ventiler
+        # dans le « Combinés » du sport (demande user 2026-07-25).
+        _sports = {l.get("sport") for l in (cb.get("legs") or []) if l.get("sport")}
+        _leg_sport = next(iter(_sports)) if len(_sports) == 1 else None
         out.append((cb.get("date") or "", r, cote,
                     {"name": f"Combiné du jour ({n} jambes)", "sel": "football",
-                     "sport": "combiné", "combo_daily": True, "n_legs": n}))
+                     "sport": "combiné", "combo_daily": True, "n_legs": n, "leg_sport": _leg_sport}))
     return out
 
 

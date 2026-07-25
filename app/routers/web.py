@@ -933,9 +933,9 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 + '<div class="sx-group">🧪 Le jour &amp; suivis indicatifs '
                   '<span>à titre informatif — hors ROI réel</span></div>'
                 + _selectivity_card()     # ratio paris à jouer / abstentions du jour (rend la sélectivité visible)
-                + _combo_daily_card()     # « info seule » : le combiné du jour (hors ROI réel)
-                # Provisoires DÉPLACÉS en 3e onglet de chaque cadre sport (demande user 2026-07-25) — plus de
-                # carte standalone ici (_provisional_card retiré).
+                # Combiné du jour (football) DÉPLACÉ dans le « Combinés » du cadre sport concerné (foot) via
+                # combo_stats.by_sport (demande user 2026-07-25) -> plus de carte/stats standalone ici.
+                # Provisoires DÉPLACÉS en 3e onglet de chaque cadre sport (demande user 2026-07-25).
                 + _betmines_card()        # suivi EXTERNE : le Double Betmines mesuré par nos règlements
                 # Panneau SANTÉ (privé) chargé en AJAX : hors du cache commun (le fragment est mutualisé) et
                 # servi UNIQUEMENT au propriétaire (route /stats/health, is_owner) -> pas de fuite du stack de

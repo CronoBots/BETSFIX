@@ -5747,7 +5747,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     out = [
-        _zone("combo", "Combiné du jour", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
+        _zone("combo", "Combiné football", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
         _zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
         # SOUS les provisoires (demande user 2026-07-23) : suivi externe = après tous NOS pronos.
@@ -5804,7 +5804,7 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
             from app import combo_daily as _cd
             cb = _cd.today(iso)
             if cb and cb.get("legs"):
-                combo = _zone("combo", "Combiné du jour", "", 1,
+                combo = _zone("combo", "Combiné football", "", 1,
                               _combo_tg_card(include_settled=True, cb=cb))
         except Exception:
             combo = ""
@@ -7424,7 +7424,7 @@ def render_directs(play_live: list, prov_live: list, frag: bool = False) -> str:
             '</div></div>')
     else:
         out = [
-            _zone("combo", "Combiné du jour", "", 1 if _combo else 0, _combo),
+            _zone("combo", "Combiné football", "", 1 if _combo else 0, _combo),
             _zone("play", "Paris du jour", "en direct", len(play_live), _cards(play_live)),
             _zone("indic", "Paris provisoires", "en direct", len(prov_live), _cards(prov_live)),
         ]

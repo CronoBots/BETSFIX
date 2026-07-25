@@ -3021,8 +3021,15 @@ def combo_stats(since_days: int | None = None) -> dict:
             _o = float(_cote) if _cote else None
             rows.append((_res, _o, None, _det.get("n_legs") or 0, None))
             curve.append((_dt, _res, _o))
-            crecent.append((_dt, _res, _o, {"name": _det.get("name"), "sel": "multisport du jour",
+            crecent.append((_dt, _res, _o, {"name": _det.get("name"), "sel": "combiné du jour",
                                             "sport": "combiné"}))
+            # VENTILATION PAR SPORT (demande user 2026-07-25) : un combiné du jour dont TOUTES les jambes
+            # sont du même sport est reversé dans le « Combinés » de ce sport (by_sp) -> il apparaît dans
+            # l'onglet Combinés du cadre sport. Multisport (leg_sport=None) -> pas ventilé.
+            _lsp = _det.get("leg_sport")
+            if _lsp:
+                by_sp.setdefault(_lsp, []).append((_dt, _res, _o,
+                    {"name": _det.get("name"), "sel": "Combiné du jour", "sport": _lsp}))
     except Exception:
         pass
     won = sum(1 for r, o, s, n, pr in rows if r == "won")
