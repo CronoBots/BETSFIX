@@ -2674,6 +2674,9 @@ def pending_roi_bets(combo: bool = False) -> list:
             if (d.get("combo") or {}).get("legs"):
                 continue                                     # combiné same-match -> pas un simple
             sport, mid = d.get("sport"), str(d.get("id"))
+            if sport in background_sports():                 # sport en pause (tennis/basket) = HORS ROI ->
+                continue                                     # jamais dans les paris ROI en attente (fix
+                #  2026-07-25 : des paris tennis à venir polluaient l'historique/W-L des simples FOOT)
             rb = retained_bet(sport, mid) or published_bet(sport, mid)
             if rb and rb.get("result") not in ("won", "lost", "push"):
                 out.append({"start": d.get("start") or "", "result": "pending", "cote": rb.get("cote"),
