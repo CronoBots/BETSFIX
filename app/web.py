@@ -551,6 +551,8 @@ CSS = """
   .spf-hero-streak b{font-variant-numeric:tabular-nums}
   .spf-hero-streak.win{color:#34d27b;border-color:rgba(52,210,123,.35);background:rgba(52,210,123,.09)}
   .spf-hero-streak.loss{color:#ff6b6b;border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.09)}
+  .spf-hero-streak.best{color:var(--gold);border-color:rgba(214,178,90,.38);background:rgba(214,178,90,.10)}
+  .spf-hero-streakw .spf-hero-streak+.spf-hero-streak{margin-left:6px}
   .spf-hero .sx-equity,.spf-hero .sx-chart{margin-top:11px}
   /* Graphe d'équité SANS bride de hauteur dans les héros -> rendu pleine largeur, MÊME largeur que la
      courbe du taux de réussite (demande user 2026-07-24). */
@@ -1582,6 +1584,7 @@ CSS = """
   .sx-streak{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:99px;white-space:nowrap}
   .sx-streak.hot{color:#3ee089;background:rgba(52,210,123,.14);border:1px solid rgba(52,210,123,.30)}
   .sx-streak.cold{color:#ff7484;background:rgba(242,93,110,.13);border:1px solid rgba(242,93,110,.30)}
+  .sx-streak.best{color:var(--gold);background:rgba(214,178,90,.12);border:1px solid rgba(214,178,90,.32);margin-left:5px}
   .sx-form{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:flex-end}
   .sx-fd{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:0 0 auto}
   .sx-fd.won{background:#34d27b} .sx-fd.lost{background:#ff6b6b} .sx-fd.push{background:#9fb0c8}
@@ -3641,6 +3644,15 @@ def _streak_chip(streak) -> str:
     _t = f'{n} perdu{"s" if n > 1 else ""} d\'affilée'
     return f'<span class="sx-streak cold" title="{_t}">❄️ {n}</span>'
 
+
+def _best_streak_chip(best) -> str:
+    """Chip RECORD « plus longue série de victoires » : 🏆 N — À CÔTÉ de la série en cours (demande user
+    2026-07-25). '' si aucune victoire enchaînée."""
+    if not best or best <= 0:
+        return ""
+    _t = f'record : {best} gagné{"s" if best > 1 else ""} d\'affilée'
+    return f'<span class="sx-streak best" title="{_t}">🏆 {best}</span>'
+
 def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
                 milestones: list | None = None) -> str:
     """Grande courbe d'équité (profit cumulé) : aire + courbe VERTE au-dessus de 0 / ROUGE en dessous
@@ -4131,9 +4143,7 @@ def _prov_sport_graph(sport: str) -> str:
         uid=f"prov-{sport}", recent=_recent, more_label="Derniers provisoires",
         form=_form, pending=len(_pend), streak=_streak, compact=True,
         hit_points=_hit_curve([e.get("result") for e in reversed(_done)]))
-    _note = ('<div class="prov-note">🧪 « Et si on jouait chaque provisoire ? » — <b>info seule, HORS ROI</b> '
-             f'({s.get("n", 0)} suivis · {s.get("pending", 0)} en attente).</div>')
-    return _note + _curve
+    return _curve
 
 
 def _sport_banner(sport: str) -> str:
@@ -4196,22 +4206,41 @@ def _rate_chart(points: list, uid: str = "r") -> str:
     return "".join(p)
 
 
-def _streak_text(streak) -> str:
-    """Série EN COURS en clair, SANS emoji (demande user 2026-07-24, rendu pro) : pastille discrète
-    « Série en cours · N victoires/défaites » (verte si gains, rouge si pertes). '' si aucune série."""
-    if not streak:
+def _best_win_streak(form) -> int:
+    """Plus LONGUE série de victoires (W consécutifs) dans l'historique chronologique `form` (['W','L','N',…]
+    de `_form_streak`). Le RECORD affiché à côté de la série en cours (demande user 2026-07-25). 0 si aucune."""
+    best = cur = 0
+    for r in (form or []):
+        if r == "W":
+            cur += 1
+            best = max(best, cur)
+        else:
+            cur = 0
+    return best
+
+
+def _streak_text(streak, best: int = 0) -> str:
+    """Série EN COURS + RECORD (plus longue série de victoires), SANS emoji (demande user 2026-07-24/25,
+    rendu pro) : pastille verte/rouge « Série en cours · N » + pastille dorée « Record · N victoires ».
+    Le record s'affiche même sans série en cours. '' si rien à montrer."""
+    chips = ""
+    if streak:
+        if streak > 0:
+            lab, cls = f'{streak} victoire{"s" if streak > 1 else ""}', "win"
+        else:
+            m = -streak
+            lab, cls = f'{m} défaite{"s" if m > 1 else ""}', "loss"
+        chips += f'<span class="spf-hero-streak {cls}">Série en cours · <b>{lab}</b></span>'
+    if best and best > 0:
+        chips += (f'<span class="spf-hero-streak best">Record · '
+                  f'<b>{best} victoire{"s" if best > 1 else ""}</b></span>')
+    if not chips:
         return ""
-    if streak > 0:
-        lab, cls = f'{streak} victoire{"s" if streak > 1 else ""}', "win"
-    else:
-        m = -streak
-        lab, cls = f'{m} défaite{"s" if m > 1 else ""}', "loss"
-    return (f'<div class="spf-hero-streakw"><span class="spf-hero-streak {cls}">'
-            f'Série en cours · <b>{lab}</b></span></div>')
+    return f'<div class="spf-hero-streakw">{chips}</div>'
 
 
 def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, streak=None,
-                      hit_points: list | None = None, uid: str = "trk") -> str:
+                      hit_points: list | None = None, uid: str = "trk", best_streak: int = 0) -> str:
     """Disposition « ROI héros » façon carte ROI GLOBAL (choix user 2026-07-24) pour les cadres sport à
     onglets : petit label « Rentabilité », le ROI en GROS centré (vert/rouge), une sous-ligne
     réussite · paris · cote, la SÉRIE en cours (pastille sans emoji), puis la courbe pleine largeur et la
@@ -4227,7 +4256,7 @@ def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, stre
         f'<div><span class="v">{n}</span><span class="l">Paris réglés</span></div>'
         f'<div><span class="v">{avg_cote or "—"}</span><span class="l">Cote moyenne</span></div>'
         '</div>'
-        f'{chart}{form}{_streak_text(streak)}{_rate_block(hit_points, uid)}')   # série JUSTE sous les W/L (même « forme récente »)
+        f'{chart}{form}{_streak_text(streak, best_streak)}{_rate_block(hit_points, uid)}')   # série en cours + RECORD, JUSTE sous les W/L
 
 
 def _hit_curve(results) -> list:
@@ -4286,14 +4315,15 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     _mi = milestones or []                                    # repères PROPRES à ce sport (demande user 2026-07-24)
     chart = (f'<div class="sx-equity">{_hero_chart(points, uid=uid, dates=dates or [], milestones=_mi)}</div>'
              if len(_pts) >= 2 else "")
-    _stk = _streak_chip(streak)                               # 🔥 N gagnés / ❄️ N perdus — À CÔTÉ du titre
+    _best = _best_win_streak(form or [])                     # RECORD = plus longue série de victoires (demande user 2026-07-25)
+    _stk = _streak_chip(streak) + _best_streak_chip(_best)    # série en cours 🔥/❄️ + record 🏆 — À CÔTÉ du titre
     _dots = form_dots(form or [], n=16, pending=pending)      # ligne W/L + sabliers ⏳ des en attente
     _form = f'<div class="spf-cv-form">{_dots}</div>' if _dots else ""
     # TITRE de sous-graphe : juste « SIMPLE »/« COMBINÉS » (le sport est dans l'en-tête du cadre — demande
     # user 2026-07-24). Couleur par sport ANNULÉE. `emoji` vide -> pas de préfixe.
     if compact:                                   # cadres sport à onglets : disposition « ROI héros » (frameless)
         inner = _hero_graph_inner(roi=roi, n=n, hit=hit, avg_cote=avg_cote, chart=chart, form=_form,
-                                  streak=streak, hit_points=hit_points, uid=uid)
+                                  streak=streak, hit_points=hit_points, uid=uid, best_streak=_best)
     else:
         _title_html = f'{emoji + " " if emoji else ""}{html.escape(title)}'
         inner = (
