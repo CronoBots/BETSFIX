@@ -5755,17 +5755,25 @@ def _daily_results_map() -> dict:
         e["won"] += 1 if won else 0
         e["profit"] += profit
 
+    # ROI FOOTBALL-ONLY (demande user 2026-07-25) : le bilan quotidien du bandeau Pronos ne compte QUE le
+    # football (comme le ROI global / le calendrier). Les paris tennis/basket (SIMULÉS, `background_sports`)
+    # et les combinés du jour non-foot ne rentrent PLUS dans les pastilles/ROI du bandeau.
+    _bg = analyses.background_sports()
     # Itérateur LÉGER (pas de `list_for`/`retained_bet` : on ne lit que stat_bet + date -> perf, cf. audit
     # 2026-07-20). Iso-comportement vérifié (mêmes paris won/lost agrégés).
     for _sp, sb, dt in analyses.iter_stat_bets():
+        if _sp in _bg:                                         # tennis/basket simulés -> hors bilan quotidien
+            continue
         ld = to_local(dt) if dt else None
         if ld is None:
             continue
         won = sb["result"] == "won"
         _add(_sport_date(ld).isoformat(), won, (float(sb.get("cote") or 1) - 1) if won else -1.0)
-    try:                                                       # combinés du jour (par leur propre date)
+    try:                                                       # combiné du jour : SEULEMENT le 100 % foot
         from app import combo_daily as _cd
         for date_iso, result, cote, _det in _cd.roi_events():
+            if _det.get("leg_sport") != "foot":                # non-foot (mono tennis/basket ou multisport) -> exclu
+                continue
             if result in ("won", "lost"):
                 _add(date_iso, result == "won", (cote - 1) if result == "won" else -1.0)
     except Exception:
