@@ -4387,6 +4387,24 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
             if mtot.group(2).lower() == "plus":
                 return f"{who} {_verbe} au moins {n} {_u(n)}"
             return f"{who} {_verbe} moins de {n} {_u(n)}"
+    # ÉQUIPE (total) — forme « <équipe> Total (de) buts/points/jeux Plus/moins de X » (ÉQUIPE EN TÊTE puis
+    # « total », ex. « Athletico Total buts Plus de 0.5 » = Athletico marque ≥1 but). Sans cette branche, le
+    # « total » faisait tomber sur le total DU MATCH glosé « les 2 équipes » — FAUX (bug user 2026-07-25 : le
+    # pari ne porte que sur Athletico). Détecté par un NOM D'ÉQUIPE en tête (home/away).
+    mtot2 = re.search(r"^(.+?)\s+total\s+(?:de\s+)?(?:buts?|points?|jeux)\s+(plus|moins)\s+de\s+"
+                      r"(\d+(?:[.,]\d+)?)", s, re.I)
+    if mtot2 and not _per_gloss:
+        who = mtot2.group(1).strip()
+        _wn = re.sub(r"\W+", "", who.lower())
+        _teams = [re.sub(r"\W+", "", t.lower()) for t in (home, away) if t]
+        _generic = bool(re.search(r"nombre|match", who.lower()))
+        if _wn and not _generic and (any(_wn in t or t in _wn for t in _teams) if _teams else True):
+            val = float(mtot2.group(3).replace(",", "."))
+            n = math.ceil(val)
+            _verbe = "remporte" if sport == "tennis" else "marque"
+            if mtot2.group(2).lower() == "plus":
+                return f"{who} {_verbe} au moins {n} {_u(n)}"
+            return f"{who} {_verbe} moins de {n} {_u(n)}"
     # ÉQUIPE (total) — forme « <équipe> plus/moins de X.5 buts/points/jeux » SANS « marque » NI tiret (ex.
     # « Mirassol moins de 2.5 buts » = total de MIRASSOL ; « Minnesota Lynx plus de 92.5 points » = total de
     # MINNESOTA, PAS le total du match). BUG 2026-07-18 (foot) puis 2026-07-22 (basket : « points ») : c'était
@@ -5300,7 +5318,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
              + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
-    return _combo_gold_card(title="COMBINÉ MULTISPORT", subtitle=f'{_nlegs} jambes',
+    return _combo_gold_card(title="COMBINÉ FOOTBALL", subtitle=f'{_nlegs} jambes',
                             badge=_badge, body=_body)
 
 
