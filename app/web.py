@@ -6034,10 +6034,11 @@ def _mont_ladder(steps: list) -> str:
     return "".join(rows)
 
 
-def render_montante(st: dict, example: dict) -> str:
-    """Onglet MONTANTE (fonctionnalité préparée 2026-07-24, activation ultérieure). Page premium :
-    hero (capital courant) + pari du jour + échelle des paliers (vraies données OU exemple si pas encore
-    activée) + « comment ça marche » + historique + palmarès. 100 % affichage, hors ROI."""
+def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> str:
+    """Onglet MONTANTE (activée 2026-07-25). Page premium : hero (capital courant) + pari du jour + échelle
+    des paliers + « comment ça marche » + historique + palmarès. 100 % affichage, hors ROI. `sim_state` (la
+    SIMULATION sur les simples foot) est fourni en mode RÉEL -> on montre AUSSI « la meilleure montante » en
+    vitrine (demande user 2026-07-25 : ne pas la perdre une fois la vraie montante active)."""
     base = st.get("base", 10.0)
     active = st.get("active")
     sim = st.get("sim")
@@ -6103,6 +6104,21 @@ def render_montante(st: dict, example: dict) -> str:
     ladder = (f'<div class="mont-sec-h">🪜 {"La meilleure montante" if sim else "La montante"}{tag}</div>'
               f'{_curve}<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
 
+    # VITRINE « meilleure montante » en mode RÉEL (demande user 2026-07-25) : la simulation sur les simples
+    # foot reste affichée sous la vraie montante -> on ne perd pas le palmarès potentiel une fois activée.
+    showcase = ""
+    if not sim and isinstance(sim_state, dict) and (sim_state.get("featured") or {}).get("steps"):
+        _ss = sim_state["featured"]["steps"]
+        _sstats = sim_state.get("stats", {})
+        _scaps = [s.get("stake") for s in _ss if isinstance(s.get("stake"), (int, float))]
+        _scurve = f'<div class="mont-curve">{_mont_curve(_scaps, uid="simbest")}</div>' if len(_scaps) >= 2 else ""
+        showcase = (
+            '<div class="mont-sec-h">📊 La meilleure montante <span class="tag">simulation · simples foot</span></div>'
+            '<div class="mont-intro" style="margin-top:-2px">Ce qu\'aurait donné la montante en suivant nos '
+            f'<b>simples foot</b> dans l\'ordre : jusqu\'à <b>{_mont_eur(_sstats.get("best_capital", base))}</b> '
+            f'en <b>{_sstats.get("best_palier", 0)}</b> paliers. Indicatif, hors ROI.</div>'
+            f'{_scurve}<div class="mont-ladder">{_mont_ladder(_ss)}</div>')
+
     # COMMENT ÇA MARCHE
     how = ('<div class="mont-sec-h">Comment ça marche</div><div class="mont-how">'
            + _mont_how(1, 'On part d\'une mise de <b>10 €</b>.')
@@ -6137,7 +6153,7 @@ def render_montante(st: dict, example: dict) -> str:
         '</div>')
 
     return (f'<span class="dv-nav" data-tab="montante" data-n="0" hidden></span>'
-            + hero + intro + pari + ladder + how + hist + palmares)
+            + hero + intro + pari + ladder + showcase + how + hist + palmares)
 
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:

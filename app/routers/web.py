@@ -958,9 +958,13 @@ async def montante_page(frag: int = 0) -> HTMLResponse:
     de l'activation ; en attendant, elle explique le concept + affiche un aperçu (exemple). Hors ROI."""
     from app import montante as _mt
     _st = _mt.state()
-    if not _st.get("active"):            # pas encore activée -> SIMULATION sur les simples foot (vraies séries)
+    _sim = None
+    if _st.get("active"):                # activée -> vraie montante + VITRINE de la meilleure (simulation)
+        _sim = _mt.simulate()
+    else:                                # pas activée -> la SIMULATION sur les simples foot fait la page
         _st = _mt.simulate()
-    body = f'<div class="pg-h">Montante</div><div class="statsx">{web.render_montante(_st, _mt.example())}</div>'
+    body = (f'<div class="pg-h">Montante</div>'
+            f'<div class="statsx">{web.render_montante(_st, _mt.example(), sim_state=_sim)}</div>')
     if frag:
         return HTMLResponse(body)
     return HTMLResponse(web.spa_shell("montante", "Montante", body))

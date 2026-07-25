@@ -266,6 +266,12 @@ def record_day(date_iso: str) -> bool:
     """Enregistre le pari du jour (1 SEUL par jour). Refuse si un pari est déjà EN ATTENTE (on attend son
     résultat avant d'engager le palier suivant) ou si le jour est déjà enregistré. True si ajouté."""
     d = load()
+    # DÉMARRAGE au scan du LENDEMAIN de l'activation (demande user 2026-07-25) : `start_date` = jour
+    # d'activation ; on n'enregistre qu'à partir du jour STRICTEMENT suivant (le 1er palier vient d'un
+    # vrai scan quotidien, pas d'un ajout manuel le jour même).
+    _sd = d.get("start_date") or ""
+    if _sd and date_iso <= _sd:
+        return False
     steps = d.get("steps") or []
     if any(s.get("result") is None for s in steps):        # un palier non réglé -> on attend
         return False
