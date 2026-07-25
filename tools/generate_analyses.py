@@ -2849,6 +2849,25 @@ async def main():
                             _cdaily.mark_sent(_day)  # figé après publication aux abonnés
             else:
                 print("  🎯 Combiné du jour : vivier insuffisant pour atteindre 1,95 aujourd'hui.")
+        # COMBINÉS DU JOUR SIMULÉS (tennis + basket, demande user 2026-07-25) : 1 par sport/jour, HORS ROI
+        # officiel — pour continuer d'analyser ces sports et « gonfler le moteur » (suivi combo_daily_{sport}.json,
+        # onglet Combinés du sport). PAS de Telegram (sports en arrière-plan/probation, publication suspendue).
+        for _spsim in _cdaily.SIM_SPORTS:
+            try:
+                _sprev = _cdaily.today(_day, sport=_spsim)
+                if _sprev and (_sprev.get("sent") or _sprev.get("result")):
+                    print(f"  🎯 Combiné {_spsim} du jour (simulé) : déjà construit aujourd'hui (figé).")
+                    continue
+                _scombo = _cdaily.build_for_day(_day, sport=_spsim)
+                if _scombo:
+                    _analyze_combo_legs(_scombo)
+                    if _cdaily.record_daily(_scombo, _day, sport=_spsim):
+                        print(f"  🎯 Combiné {_spsim} du jour (simulé) : cote {_scombo['cote']} · "
+                              f"{round(_scombo['prob'] * 100)}% · {len(_scombo['legs'])} jambes.")
+                else:
+                    print(f"  🎯 Combiné {_spsim} du jour (simulé) : vivier insuffisant aujourd'hui.")
+            except Exception as _sexc:
+                print(f"  (combiné {_spsim} simulé ignoré : {_sexc})")
         # DÉDUP (demande user 2026-07-12) : le combiné du jour est construit APRÈS les provisoires -> ses
         # jambes ont pu être trackées en provisoire pendant la boucle. On les retire ICI pour qu'un match
         # n'apparaisse JAMAIS à deux endroits (combiné du jour ET provisoire). No-op si rien à retirer.

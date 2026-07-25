@@ -22,3 +22,9 @@
 
 ## 2026-07-16
 - 🟢 🏀 Basket : le marché « Vainqueur » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
+
+## 2026-07-22
+- 🔴 🏀 Basket : le marché « Vainqueur » vient d'être ÉCARTÉ (sur-confiance / ROI prouvés).
+
+## 2026-07-25
+- 📈 ROI des paris joués +8.6 pts.

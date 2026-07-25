@@ -138,7 +138,7 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
         # COMBINÉ MULTISPORT DU JOUR (info seule, hors ROI réel) : règle les jambes terminées + tranche.
         try:
             from app import combo_daily as _cd
-            _ncd = await asyncio.to_thread(_cd.settle_pending)
+            _ncd = await asyncio.to_thread(_cd.settle_all)   # foot (ROI) + tennis/basket (simulés)
             if _ncd:
                 print(f"  · {_ncd} combiné(s) du jour tranché(s) (suivi info-seule).")
         except Exception as exc:

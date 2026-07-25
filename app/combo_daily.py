@@ -76,22 +76,33 @@ def _tier(code: str) -> int:
     return 9
 
 
-def _load() -> dict:
+SIM_SPORTS = ("tennis", "basket")   # combinés du jour SIMULÉS (hors ROI) — foot reste le combiné compté au ROI
+
+
+def _track_path(sport: str = "foot") -> str:
+    """Fichier de suivi du combiné du jour par sport. FOOT = combo_daily_track.json (compté au ROI,
+    inchangé) ; tennis/basket = combo_daily_<sport>.json (SIMULÉ, hors ROI — demande user 2026-07-25 :
+    un combiné par jour aussi en tennis/basket pour muscler les analyses/stats)."""
+    return TRACK_PATH if sport == "foot" else os.path.join(_ROOT, "data", f"combo_daily_{sport}.json")
+
+
+def _load(sport: str = "foot") -> dict:
     try:
-        with open(TRACK_PATH, encoding="utf-8") as f:
+        with open(_track_path(sport), encoding="utf-8") as f:
             d = json.load(f)
             return d if isinstance(d, dict) else {}
     except (OSError, ValueError):
         return {}
 
 
-def _save(d: dict) -> None:
-    tmp = TRACK_PATH + ".tmp"
+def _save(d: dict, sport: str = "foot") -> None:
+    path = _track_path(sport)
+    tmp = path + ".tmp"
     try:
-        os.makedirs(os.path.dirname(TRACK_PATH), exist_ok=True)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(d, f, ensure_ascii=False)
-        os.replace(tmp, TRACK_PATH)
+        os.replace(tmp, path)
     except OSError:
         pass
 
@@ -257,10 +268,10 @@ def pick_combo(cands: list[dict], min_odds: float = MIN_ODDS, max_legs: int = MA
     return {"legs": chosen, "cote": round(odds(chosen), 2), "prob": best_prob}
 
 
-def _candidates_for_day(day: str) -> list[dict]:
-    """Extrait les jambes candidates (marchés autorisés, réglables, prob ≥ seuil) de TOUS les matchs
-    du jour `day` (YYYY-MM-DD) encore À VENIR. Source = fantômes `shadow` + pari retenu `bets`
-    (dédup par (match, code), meilleure proba). `prob` renvoyé en fraction 0-1."""
+def _candidates_for_day(day: str, sport: str = "foot") -> list[dict]:
+    """Extrait les jambes candidates (marchés autorisés, réglables, prob ≥ seuil) des matchs du `sport`
+    du jour SPORTIF `day`, encore À VENIR. Source = fantômes `shadow` + pari retenu `bets` (dédup par
+    (match, code), meilleure proba). `prob` en fraction 0-1. `sport` : foot (ROI) / tennis / basket (simulé)."""
     from datetime import datetime
     from app import analyses
     from app import web as _w
@@ -274,24 +285,24 @@ def _candidates_for_day(day: str) -> list[dict]:
             return _w._sport_date(_w.to_local(datetime.fromisoformat((iso or "").replace("Z", "+00:00")))).isoformat()
         except (ValueError, AttributeError, TypeError):
             return (iso or "")[:10]
-    # COMBINÉ DU JOUR = 100 % FOOTBALL (demande user 2026-07-25 : « le combiné multisport du jour doit devenir
-    # un combiné purement football »). On ne prend QUE des jambes foot -> plus jamais de tennis/basket (qui,
-    # en plus, sont en pause). Garde-fou : si le foot lui-même est un jour bridé (ex_sports/background), pas
-    # de combiné (le combiné est compté au ROI, il suit la même discipline que les simples).
-    try:
-        _ex_sports, _ = analyses.auto_exclusions()
-        _ex_sports = set(_ex_sports) | analyses.background_sports()
-    except Exception:
-        _ex_sports = set()
-    if "foot" in _ex_sports:                           # foot bridé -> aucun combiné (cas rare)
-        return []
+    # Un combiné du jour PAR SPORT (demande user 2026-07-25). FOOT = compté au ROI -> même discipline que les
+    # simples : si le foot est bridé (ex_sports/background), pas de combiné foot. Tennis/basket = SIMULÉ (hors
+    # ROI) -> on le construit MÊME s'ils sont en pause (justement pour mesurer leur potentiel combiné).
+    if sport == "foot":
+        try:
+            _ex_sports, _ = analyses.auto_exclusions()
+            _ex_sports = set(_ex_sports) | analyses.background_sports()
+        except Exception:
+            _ex_sports = set()
+        if "foot" in _ex_sports:                       # foot bridé -> aucun combiné foot (cas rare)
+            return []
     out: list[dict] = []
     for side in glob.glob(os.path.join(analyses.DIR, "*.json")):
         try:
             d = json.load(open(side, encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if d.get("sport") != "foot":                   # FOOTBALL uniquement (demande user 2026-07-25)
+        if d.get("sport") != sport:                    # UN SEUL sport par combiné (demande user 2026-07-25)
             continue
         if _sport_day_of(d.get("start")) != day:       # JOUR SPORTIF (06h→06h) : inclut la nuit jusqu'à 06h
             continue
@@ -343,12 +354,10 @@ def _candidates_for_day(day: str) -> list[dict]:
     return out
 
 
-def build_for_day(day: str) -> dict | None:
-    """Construit LE combiné du jour depuis les analyses, en privilégiant les jambes LES PLUS SAFE : on
-    tente d'abord avec le PALIER 1 SEUL (résultat/double chance), puis 1+2 (tirs cadrés/équipe/sets),
-    puis 1+2+3 (totaux) — on ne descend d'un palier que si la cote ≥ 1.9 est INATTEIGNABLE au précédent.
-    None si aucun combiné fiable possible."""
-    cands = _candidates_for_day(day)
+def build_for_day(day: str, sport: str = "foot") -> dict | None:
+    """Construit LE combiné du jour du `sport` (foot=ROI, tennis/basket=simulé), en maximisant la proba
+    sous cote ≥ 1.9. None si aucun combiné fiable possible ce jour-là."""
+    cands = _candidates_for_day(day, sport)
     # LE PLUS FIABLE (demande user 2026-07-17) : on maximise la PROBABILITÉ de gain sur TOUS les marchés
     # analysés. L'ancienne escalade par paliers (résultat/DC d'abord) s'arrêtait au 1er palier atteignant le
     # seuil et, forcée à 1,95, imposait PLUS de jambes -> combiné MOINS probable (mesuré 2026-07-17 :
@@ -365,7 +374,7 @@ def build_for_day(day: str) -> dict | None:
              "away": l.get("away"), "start": l.get("start"), "comp": l.get("comp"),
              "sel": l["sel"], "cote": l["cote"], "prob": round(l["prob"], 4),
              "code": l["code"], "result": None, "score": None} for l in combo["legs"]]
-    return {"date": day, "cote": combo["cote"], "prob": round(combo["prob"], 4),
+    return {"date": day, "sport": sport, "cote": combo["cote"], "prob": round(combo["prob"], 4),
             "legs": legs, "result": None, "sent": False, "created": None}
 
 
@@ -386,26 +395,26 @@ def telegram_text(cb: dict) -> str:
     return "\n".join(out)
 
 
-def record_daily(combo: dict, day: str) -> bool:
-    """Enregistre le combiné du jour (UN par date). Ne réécrit PAS s'il est déjà ENVOYÉ (figé = ce qui a
-    été posté aux abonnés) ou déjà réglé. Renvoie True si (ré)écrit."""
+def record_daily(combo: dict, day: str, sport: str = "foot") -> bool:
+    """Enregistre le combiné du jour du `sport` (UN par date). Ne réécrit PAS s'il est déjà ENVOYÉ (figé) ou
+    déjà réglé. Renvoie True si (ré)écrit."""
     if not combo or not combo.get("legs"):
         return False
-    d = _load()
+    d = _load(sport)
     prev = d.get(day)
     if isinstance(prev, dict) and (prev.get("sent") or prev.get("result") in ("won", "lost", "void")):
         return False                                  # figé (posté/réglé) -> jamais réécrit
     d[day] = combo
-    _save(d)
+    _save(d, sport)
     return True
 
 
-def mark_sent(day: str) -> None:
-    """Marque le combiné du jour comme ENVOYÉ (Telegram) -> figé (published = frozen)."""
-    d = _load()
+def mark_sent(day: str, sport: str = "foot") -> None:
+    """Marque le combiné du jour du `sport` comme ENVOYÉ (Telegram) -> figé (published = frozen)."""
+    d = _load(sport)
     if isinstance(d.get(day), dict):
         d[day]["sent"] = True
-        _save(d)
+        _save(d, sport)
 
 
 def _derive_combo(legs: list) -> str | None:
@@ -423,14 +432,18 @@ def _derive_combo(legs: list) -> str | None:
     return "void"
 
 
-def settle_pending() -> int:
-    """Règle les jambes des combinés dont les matchs sont terminés (Flashscore + repli LiveScore +
-    `settle_pick`), puis tranche le combiné : lost si ≥1 jambe perdue ; won si ≥1 gagnée (push/void
-    retirés) ; void si toutes push/void. Une jambe ANNULÉE ne bloque pas le combiné. Idempotent (corrige
-    même un résultat figé à tort). Renvoie le nombre de combinés nouvellement tranchés."""
+def settle_all() -> int:
+    """Règle les combinés du jour de TOUS les sports (foot compté au ROI + tennis/basket simulés)."""
+    return sum(settle_pending(sp) for sp in ("foot",) + SIM_SPORTS)
+
+
+def settle_pending(sport: str = "foot") -> int:
+    """Règle les jambes des combinés du jour du `sport` dont les matchs sont terminés (Flashscore + repli
+    LiveScore + `settle_pick`), puis tranche le combiné : lost si ≥1 jambe perdue ; won si ≥1 gagnée
+    (push/void retirés) ; void si toutes push/void. Idempotent. Renvoie le nb de combinés tranchés."""
     from app import flashscore, livescore, analyses as _an
     from app.settle_analyst import settle_pick
-    d = _load()
+    d = _load(sport)
     # RÉCHAUFFE le cache Unibet (heure fraîche + score live) AVANT la borne void : le règlement tourne souvent
     # dans un process FROID (tâche reconcile) où les caches sont vides -> un match DÉCALÉ/EN COURS paraît
     # « fini » et se fait voider à tort (bug 2026-07-23 : Hanfmann-Baez affiché « ANNULÉ » en plein 1er set).
@@ -615,9 +628,9 @@ def _combo_result_profit(cb: dict) -> float:
     return 0.0
 
 
-def today(day: str, d: dict | None = None) -> dict | None:
-    """Le combiné enregistré pour `day` (ou None). `d` = snapshot partagé (cf. `load()`)."""
-    d = _load() if d is None else d
+def today(day: str, d: dict | None = None, sport: str = "foot") -> dict | None:
+    """Le combiné enregistré pour `day` (du `sport`) ou None. `d` = snapshot partagé (cf. `load()`)."""
+    d = _load(sport) if d is None else d
     cb = d.get(day)
     return cb if isinstance(cb, dict) else None
 
@@ -651,6 +664,25 @@ def roi_events(d: dict | None = None) -> list:
         out.append((cb.get("date") or "", r, cote,
                     {"name": f"Combiné du jour ({n} jambes)", "sel": "football",
                      "sport": "combiné", "combo_daily": True, "n_legs": n, "leg_sport": _leg_sport}))
+    return out
+
+
+def sim_events(sport: str) -> list:
+    """Événements des combinés du jour SIMULÉS d'un sport en arrière-plan (tennis/basket) : HORS ROI
+    officiel, injectés dans `combo_stats.by_sport[sport]` seulement, pour nourrir le suivi du sport et
+    « gonfler le moteur » (demande user 2026-07-25). Même format que `roi_events`, lit `combo_daily_{sport}.json`.
+    Un combiné SIMULÉ n'alimente JAMAIS les compteurs overall (rows/curve/crecent)."""
+    d = _load(sport)
+    out = []
+    for cb in d.values():
+        if not isinstance(cb, dict) or cb.get("result") not in ("won", "lost"):
+            continue
+        r = cb["result"]
+        cote = (_combo_result_profit(cb) + 1) if r == "won" else (cb.get("cote") or 1.0)
+        n = len(cb.get("legs") or [])
+        out.append((cb.get("date") or "", r, cote,
+                    {"name": f"Combiné du jour ({n} jambes)", "sel": "Combiné du jour",
+                     "sport": sport, "combo_daily": True, "n_legs": n, "leg_sport": sport}))
     return out
 
 

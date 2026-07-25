@@ -3032,6 +3032,26 @@ def combo_stats(since_days: int | None = None) -> dict:
                     {"name": _det.get("name"), "sel": "Combiné du jour", "sport": _lsp}))
     except Exception:
         pass
+    # COMBINÉS DU JOUR SIMULÉS (tennis/basket, demande user 2026-07-25) : injectés SEULEMENT dans by_sp
+    # (courbe/ROI de l'onglet Combinés du sport) -> JAMAIS dans rows/curve/crecent (ROI officiel intact).
+    try:
+        from app import combo_daily as _cdmod2
+        for _spsim in _cdmod2.SIM_SPORTS:
+            for _dt, _res, _cote, _det in _cdmod2.sim_events(_spsim):
+                if _res not in ("won", "lost", "push"):
+                    continue
+                if cutoff is not None:
+                    try:
+                        _cdt3 = datetime.fromisoformat((_dt or "") + "T00:00:00+00:00")
+                    except ValueError:
+                        _cdt3 = None
+                    if _cdt3 is None or _cdt3 < cutoff:
+                        continue
+                _o2 = float(_cote) if _cote else None
+                by_sp.setdefault(_spsim, []).append((_dt, _res, _o2,
+                    {"name": _det.get("name"), "sel": "Combiné du jour", "sport": _spsim}))
+    except Exception:
+        pass
     won = sum(1 for r, o, s, n, pr in rows if r == "won")
     lost = sum(1 for r, o, s, n, pr in rows if r == "lost")
     push = sum(1 for r, o, s, n, pr in rows if r == "push")
