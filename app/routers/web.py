@@ -320,6 +320,38 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
     return HTMLResponse(body)
 
 
+import time as _time                                       # throttle du « nudge » de règlement
+
+_LAST_SETTLE_NUDGE = 0.0
+_SETTLE_NUDGE_THROTTLE = 120.0                             # au PLUS 1 règlement / 2 min, GLOBAL (serveur)
+
+
+def _nudge_settle() -> None:
+    """RÈGLEMENT poussé À L'OUVERTURE d'une page (demande user 2026-07-26) : un match fini se règle en
+    quelques secondes après une visite au lieu d'attendre le cron 10 min. SCALABILITÉ : le throttle est
+    GLOBAL (un seul timestamp serveur PARTAGÉ, pas par visiteur) -> même avec des milliers de chargements,
+    le règlement tourne AU PLUS 1 fois / _SETTLE_NUDGE_THROTTLE ; la quasi-totalité des requêtes ne fait
+    qu'une comparaison de timestamp (coût ~0). Fire-and-forget (ne bloque JAMAIS le rendu) ; `settle_analyses`
+    a son propre verrou (no-op si une passe tourne déjà). Best-effort, jamais bloquant/erreur remontée."""
+    global _LAST_SETTLE_NUDGE
+    now = _time.monotonic()
+    if now - _LAST_SETTLE_NUDGE < _SETTLE_NUDGE_THROTTLE:
+        return                                            # throttle GLOBAL -> l'immense majorité ne fait RIEN
+    _LAST_SETTLE_NUDGE = now
+
+    async def _bg() -> None:
+        try:
+            from app import settle_analyst
+            await settle_analyst.settle_analyses()
+        except Exception:
+            pass
+
+    try:
+        asyncio.create_task(_bg())
+    except RuntimeError:
+        pass                                              # pas de boucle asyncio active -> ignoré
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home(provider: SofaScoreProvider = Depends(get_provider),
                frag: int = 0) -> HTMLResponse:
@@ -327,6 +359,7 @@ async def home(provider: SofaScoreProvider = Depends(get_provider),
     mélangés, par ordre de passage). Les matchs EN COURS vivent dans l'onglet 🟢 Live (demande
     utilisateur 2026-06-12 : pas de doublon accueil/live, et un live qui démarre n'a parfois pas
     encore de score -> badge « LIVE » nu peu lisible). La nav passe par le menu ☰."""
+    _nudge_settle()   # ouverture de page -> pousse le règlement en arrière-plan (throttlé global, non bloquant)
     if frag:   # panneau partagé (pas de données par utilisateur) -> cache court anti-rafale
         cached = fragcache.get("panel/home")
         if cached:
@@ -728,6 +761,7 @@ async def directs_page(
     """Tous les matchs EN DIRECT regroupés par sport (ils restent dans leur onglet)."""
     from app import basket, foot
 
+    _nudge_settle()   # ouverture Live -> pousse le règlement en arrière-plan (throttlé global, non bloquant)
     if frag:
         cached = fragcache.get("panel/directs")
         if cached:
