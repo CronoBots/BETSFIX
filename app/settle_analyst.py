@@ -440,6 +440,13 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     t = (pick or "").lower()
     if not t:
         return ""
+    # MARCHÉS « PROP » NON RÉGLABLES (aucune vérité-terrain fiable dans nos sources : hors-jeu, corners,
+    # cartons, fautes, touches/remises en jeu…). Ils étaient MAL codés en total de BUTS (ex. « Hors-jeu Vasco
+    # Plus de 1.5 » -> `TEAMTOT HOME OVER 1.5`) -> réglés sur les BUTS = FAUX, et pris comme jambe fiable du
+    # combiné (bug user 2026-07-25). Code VIDE = abstention : jamais réglé, jamais compté, jamais en jambe.
+    if any(k in t for k in ("hors-jeu", "hors jeu", "offside", "corner", "carton", "faute",
+                            "remise en jeu", "coup de pied de but", "coup de pied arrêté")):
+        return ""
     # Le CAMP (équipe/joueur) se lit sur la partie AVANT la parenthèse : le contexte entre parenthèses
     # cite souvent l'AUTRE camp (« Eala remporte un set (Zhang gagne le match) ») et fausserait la
     # détection. Le MARCHÉ (over/under, double chance, ligne…) se lit sur le texte ENTIER `t`.
