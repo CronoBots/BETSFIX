@@ -1605,12 +1605,13 @@ CSS = """
   /* État de REPOS : la courbe est VIDE (ligne masquée, aire + point invisibles) et NE s'anime PAS toute
      seule au rendu. L'animation ne se lance QUE quand le JS ajoute `.sx-go` (via _sxAnim, après le splash
      / à l'affichage de l'onglet) -> plus de courbe déjà tracée qui « clignote » avant l'animation. */
-  /* ÉTAT AU REPOS = ENTIÈREMENT TRACÉ (demande user 2026-07-25 : « la ligne ne touche pas le point »).
-     Le draw-in anime DEPUIS le vide (`from`), donc une animation coupée/non rejouée (onglet simulé masqué,
-     quirks iOS Safari au toggle display) laisse toujours la ligne COMPLÈTE (jamais figée avant la fin).
-     Le restart de `_sxAnim` (remove→reflow→add) est SYNCHRONE -> pas de clignotement visible. */
-  .sx-heroc-line{stroke-dasharray:1;stroke-dashoffset:0}
-  @keyframes sxdraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+  /* DRAW-IN EN OPACITÉ, PAS en stroke-dash (demande user 2026-07-25 : « la ligne ne touche pas le point »).
+     Le tracé par `stroke-dashoffset` pouvait GELER avant la fin (animation coupée : onglet simulé masqué,
+     quirks iOS Safari au toggle display) -> la ligne s'arrêtait AVANT le point final. En animant l'OPACITÉ,
+     la GÉOMÉTRIE est TOUJOURS complète (elle touche le point) ; une anim gelée = ligne pleine juste un peu
+     plus pâle, jamais tronquée. */
+  .sx-heroc-line{opacity:1}
+  @keyframes sxdraw{from{opacity:0}to{opacity:1}}
   .sx-heroc-area{opacity:.22}
   @keyframes sxarea{from{opacity:0}to{opacity:.22}}
   .sx-heroc-pt{opacity:1;transform-box:fill-box;transform-origin:center}
@@ -1619,7 +1620,7 @@ CSS = """
   .sx-heroc-area.sx-go{animation:sxarea .7s ease .5s forwards}
   .sx-heroc-pt.sx-go{animation:sxpt .45s cubic-bezier(.2,1.6,.4,1) .95s forwards}
   @media (prefers-reduced-motion:reduce){
-    .sx-heroc-line{stroke-dashoffset:0}
+    .sx-heroc-line{opacity:1}
     .sx-heroc-area{opacity:.22}
     .sx-heroc-pt{opacity:1;transform:none}}
   .sx-kpis{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px;
@@ -2895,6 +2896,10 @@ CSS = """
   .sx-hero-sub{font-size:12px;color:var(--muted);font-weight:600}
   .sx-hero-sub b{color:var(--text);font-variant-numeric:tabular-nums}
   .sx-hero .sx-chart{margin-top:10px}
+  /* Courbe du ROI PRINCIPAL en pleine largeur, MÊMES écarts gauche/droite que les cartes sport (demande
+     user 2026-07-25) : sans bride de hauteur -> plus de letterbox qui rétrécissait/décentrait la courbe.
+     Les insets viennent alors de L=R=16 dans le SVG (symétriques). */
+  .sx-hero .sx-chart .sx-heroc{max-height:none}
   /* Bandeau « Combiné du jour » (accueil/Live) : lien compact doré */
   .combo-day{display:block;text-decoration:none;color:inherit;margin-bottom:12px;padding:12px 14px;
        border:1px solid var(--gold-bd);border-radius:14px;
@@ -6563,6 +6568,8 @@ def _recent_bets_html(recent: list) -> str:
         cote = b.get("cote")
         cote_txt = f'@{cote:g}' if isinstance(cote, (int, float)) and cote else ""
         day = fmt_local(b.get("start"), with_date=True) if b.get("start") else ""
+        if day.startswith("Aujourd'hui "):          # AUJOURD'HUI -> heure SEULE (demande user 2026-07-25)
+            day = day[len("Aujourd'hui "):]
         # ORDRE (demande user 2026-07-25) : DATE tout à gauche · pari (nom + sélection, extensible) · COTE ·
         # RÉSULTAT tout à droite (la cote juste avant le badge résultat).
         rows.append(
