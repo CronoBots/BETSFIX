@@ -1892,8 +1892,14 @@ CSS = """
      sport + cote en or, présenté comme les provisoires mais en jaune. */
   /* Combiné du jour : cadre VERT + halo (même patron de halo que les cartes de pari joué) —
      demande user 2026-07-21 (avant : doré). Vert émeraude #34d27b/#64cd8d (le vert « OUI » validé). */
-  .row.mc.mc-tg-gold{border-color:rgba(52,210,123,.5);
-       box-shadow:0 0 0 1px rgba(52,210,123,.1),0 0 26px rgba(46,180,105,.16),0 12px 32px rgba(0,0,0,.5)}
+  /* Combiné : bordure BLANCHE (3 côtés) comme les autres paris — le bord GAUCHE reste coloré par l'état
+     (mc-r-*, doré par défaut). Demande user 2026-07-25 (« les combinés sont toujours en vert »). */
+  .row.mc.mc-tg-gold{border-top-color:rgba(255,255,255,.8);border-right-color:rgba(255,255,255,.8);
+       border-bottom-color:rgba(255,255,255,.8);
+       box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(255,255,255,.18),0 12px 32px rgba(0,0,0,.5)}
+  .row.mc.mc-tg-gold.mc-r-won{border-left-color:#34d27b}
+  .row.mc.mc-tg-gold.mc-r-lost{border-left-color:#ff6b6b}
+  .row.mc.mc-tg-gold.mc-r-push{border-left-color:#90a4be}
   .mc-tg-gold .mc-sport{color:#64cd8d}
   .mc-tg-gold .mc-sport-w{color:var(--text)}   /* titre « COMBINÉ MULTISPORT » en BLANC (user 2026-07-21) */
   .mc-tg-gold .mc-cote-v{color:#64cd8d}
@@ -5275,13 +5281,14 @@ def _combo_tg_legs(cb: dict) -> str:
     return _MC_SEP.join(_leg_card(l, why=True, verdict=True) for l in _legs)
 
 
-def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str) -> str:
+def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "") -> str:
     """Coquille DORÉE partagée du combiné — en-tête « 🎯 <title> • <subtitle> » + badge d'état, filet, puis
     le corps (jambes + ligne verdict). Utilisée par le combiné DU JOUR ET le combiné COUPE DU MONDE pour
     qu'ils soient présentés EXACTEMENT pareil (demande user 2026-07-19). `subtitle`/`badge` déjà échappés
-    par l'appelant ; `title` = libellé fixe (« COMBINÉ DU JOUR » / « COMBINÉ »)."""
+    par l'appelant ; `title` = libellé fixe. `state` (won/lost/push) colore le bord GAUCHE (2026-07-25)."""
+    _rcls = f" mc-r-{state}" if state in ("won", "lost", "push") else ""
     return (
-        '<div class="row pick mc mc-tg mc-tg-gold">'
+        f'<div class="row pick mc mc-tg mc-tg-gold{_rcls}">'
         '<div class="mc-head"><div class="mc-main">'
         # 1re ligne SANS emoji 🎯, titre en BLANC via .mc-sport-w (demande user 2026-07-21).
         '<div class="mc-line">'
@@ -5356,7 +5363,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
     return _combo_gold_card(title="COMBINÉ FOOTBALL", subtitle=f'{_nlegs} jambes',
-                            badge=_badge, body=_body)
+                            badge=_badge, body=_body, state=cb.get("result"))
 
 
 def _betmines_tg_card() -> str:
@@ -5410,7 +5417,7 @@ def _betmines_tg_card() -> str:
     _note = ('<div class="mc-reana" style="margin:4px 2px 0">Suivi externe (Betmines), réglé par nos '
              'sources — information seule, hors ROI.</div>')
     return _combo_gold_card(title="COMBINÉ BETMINES", subtitle=f'{len(cb["legs"])} jambes',
-                            badge=_badge, body=legs_html + _tot + _note)
+                            badge=_badge, body=legs_html + _tot + _note, state=cb.get("result"))
 
 
 def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
