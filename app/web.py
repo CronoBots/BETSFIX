@@ -536,6 +536,9 @@ CSS = """
   .spf-hero .spf-cv-form{display:block;overflow:visible;margin:12px 0 0}
   .spf-hero .spf-cv-form .forms{display:flex;width:100%;justify-content:center;gap:4px;margin-left:0;flex-wrap:wrap}
   .spf-hero .spf-cv-more{margin-top:14px}
+  /* Note « provisoires hors ROI » en tête de l'onglet Provisoires d'un cadre sport (demande user 2026-07-25). */
+  .prov-note{font-size:11px;color:var(--gold);text-align:center;margin:0 0 10px;line-height:1.45}
+  .prov-note b{color:#ffd873}
   /* Série EN COURS, sans emoji, rendu pro (demande user 2026-07-24) : pastille discrète bordée,
      verte si victoires d'affilée / rouge si défaites. */
   .spf-hero-streakw{text-align:center;margin-top:9px}
@@ -3941,7 +3944,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         milestones=_ms_combo, compact=True, hit_points=_foot_c.get("hit_points")) if _foot_c.get("settled") else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
-    _foot = _sport_tabs(simples_block, combos_block)   # onglets « Simple | Combinés » (demande user 2026-07-24)
+    _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"))   # + onglet Provisoires (user 2026-07-25)
     # Ligne sous la bannière (comme tennis/basket) : le FOOT est compté au ROI et repris dans les paris.
     _foot_sub = '<div class="stat-banner-sub on">compté au ROI · repris dans les paris</div>'
     return (f'<div class="spf">{_sport_banner("foot")}{_foot_sub}{_foot}</div>') if _foot else ""
@@ -4053,18 +4056,51 @@ def _form_streak(results) -> tuple:
     return form, streak
 
 
-def _sport_tabs(simple_html: str, combos_html: str) -> str:
-    """Onglets « Simple | Combinés » dans un cadre sport (demande user 2026-07-24) : UN graphe à la fois,
-    on tape pour basculer -> divise la hauteur du cadre par 2 (JS `_SCTABS_JS`). Si un seul graphe existe,
-    on le rend directement (pas d'onglets). '' si aucun."""
-    if simple_html and combos_html:
-        return (
-            '<div class="sctab-wrap">'
-            '<div class="sctabs"><button class="sctab on" data-i="0">Simple</button>'
-            '<button class="sctab" data-i="1">Combinés</button></div>'
-            f'<div class="sctab-pane on">{simple_html}</div>'
-            f'<div class="sctab-pane">{combos_html}</div></div>')
-    return simple_html or combos_html or ""
+def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "") -> str:
+    """Onglets « Simple | Combinés | Provisoires » dans un cadre sport (demande user 2026-07-24/25) : UN
+    graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique). Les onglets vides sont
+    ignorés ; si un seul graphe, rendu direct (pas d'onglets) ; '' si aucun."""
+    _tabs = [(lbl, h) for lbl, h in (("Simple", simple_html), ("Combinés", combos_html),
+                                     ("Provisoires", prov_html)) if h]
+    if len(_tabs) <= 1:
+        return _tabs[0][1] if _tabs else ""
+    _btns = "".join(f'<button class="sctab{" on" if i == 0 else ""}" data-i="{i}">{lbl}</button>'
+                    for i, (lbl, _h) in enumerate(_tabs))
+    _panes = "".join(f'<div class="sctab-pane{" on" if i == 0 else ""}">{h}</div>'
+                     for i, (_lbl, h) in enumerate(_tabs))
+    return f'<div class="sctab-wrap"><div class="sctabs">{_btns}</div>{_panes}</div>'
+
+
+def _prov_sport_graph(sport: str) -> str:
+    """Graphe de suivi des PROVISOIRES d'un sport (info seule, HORS ROI) pour l'onglet « Provisoires » du
+    cadre sport (demande user 2026-07-25). Même présentation hero que Simple/Combinés (courbe + taux + W/L +
+    historique dépliable). '' si aucun provisoire pour ce sport."""
+    try:
+        from app import provisional as _pvt
+        _all = _pvt.load()
+        snap = {k: v for k, v in _all.items() if isinstance(v, dict) and v.get("sport") == sport}
+        s = _pvt.stats(snap)
+    except Exception:
+        return ""
+    if not s or not s.get("n"):
+        return ""
+    _ent = _pvt.entries(snap)
+    _pend = [e for e in _ent if e.get("result") is None]
+    _done = sorted((e for e in _ent if e.get("result") is not None),
+                   key=lambda e: str(e.get("start") or ""), reverse=True)
+    _recent = [{"result": e.get("result") or "pending", "name": e.get("name"),
+                "sel": e.get("sel"), "cote": e.get("cote"), "start": e.get("start")}
+               for e in (_pend + _done)]
+    _form, _streak = _form_streak([e.get("result") for e in reversed(_done)])
+    _curve = render_tracking_curve(
+        emoji="🧪", title="Provisoires", roi=s.get("roi_pct"), hit=s.get("hit_rate"),
+        n=s.get("settled", 0), points=_pvt.equity_curve(snap), avg_cote=s.get("avg_cote"),
+        uid=f"prov-{sport}", recent=_recent, more_label="Derniers provisoires",
+        form=_form, pending=len(_pend), streak=_streak, compact=True,
+        hit_points=_hit_curve([e.get("result") for e in reversed(_done)]))
+    _note = ('<div class="prov-note">🧪 « Et si on jouait chaque provisoire ? » — <b>info seule, HORS ROI</b> '
+             f'({s.get("n", 0)} suivis · {s.get("pending", 0)} en attente).</div>')
+    return _note + _curve
 
 
 def _sport_banner(sport: str) -> str:

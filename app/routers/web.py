@@ -726,7 +726,7 @@ def _simulation_card() -> str:
                 recent=list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
                 milestones=web._sport_milestones(sp), compact=True,   # disposition « ROI héros »
                 hit_points=c.get("hit_points"))
-        curves = web._sport_tabs(_simple_g, _combos_g)      # onglets « Simple | Combinés » (demande user)
+        curves = web._sport_tabs(_simple_g, _combos_g, web._prov_sport_graph(sp))   # + onglet Provisoires (user 2026-07-25)
         if not curves:
             continue
         # En-tête = BANNIÈRE BETSFIX du sport + ligne « simulé · hors paris » sous l'image, IDENTIQUE pour
@@ -926,8 +926,9 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 + '<div class="sx-group">🧪 Le jour &amp; suivis indicatifs '
                   '<span>à titre informatif — hors ROI réel</span></div>'
                 + _selectivity_card()     # ratio paris à jouer / abstentions du jour (rend la sélectivité visible)
-                + _combo_daily_card()     # « info seule » : le combiné multisport du jour (hors ROI réel)
-                + _provisional_card()     # « info seule » : perf hypothétique des provisoires (hors ROI réel)
+                + _combo_daily_card()     # « info seule » : le combiné du jour (hors ROI réel)
+                # Provisoires DÉPLACÉS en 3e onglet de chaque cadre sport (demande user 2026-07-25) — plus de
+                # carte standalone ici (_provisional_card retiré).
                 + _betmines_card()        # suivi EXTERNE : le Double Betmines mesuré par nos règlements
                 # Panneau SANTÉ (privé) chargé en AJAX : hors du cache commun (le fragment est mutualisé) et
                 # servi UNIQUEMENT au propriétaire (route /stats/health, is_owner) -> pas de fuite du stack de
