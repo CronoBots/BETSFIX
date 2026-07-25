@@ -504,7 +504,11 @@ CSS = """
   .spf-rec-m{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
   .spf-rec-m b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .spf-rec-s{color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .spf-rec-d{flex:none;color:var(--dim);font-size:9.5px;font-variant-numeric:tabular-nums}
+  /* DATE tout à gauche (largeur fixe -> les paris s'alignent) ; COTE juste avant le badge résultat. */
+  .spf-rec-d{flex:none;width:64px;color:var(--dim);font-size:9.5px;font-variant-numeric:tabular-nums;
+       white-space:nowrap;line-height:1.15}
+  .spf-rec-c{flex:none;color:var(--text);font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
+       text-align:right;min-width:34px}
   /* Stats PROPRES à chaque graphe (juste sous la courbe) : réussite · paris · cote moy. */
   .spf-cv-kpis{display:flex;justify-content:space-between;gap:8px;margin-top:8px;
        font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
@@ -1601,11 +1605,15 @@ CSS = """
   /* État de REPOS : la courbe est VIDE (ligne masquée, aire + point invisibles) et NE s'anime PAS toute
      seule au rendu. L'animation ne se lance QUE quand le JS ajoute `.sx-go` (via _sxAnim, après le splash
      / à l'affichage de l'onglet) -> plus de courbe déjà tracée qui « clignote » avant l'animation. */
-  .sx-heroc-line{stroke-dasharray:1;stroke-dashoffset:1}
-  @keyframes sxdraw{to{stroke-dashoffset:0}}
-  .sx-heroc-area{opacity:0}
-  @keyframes sxarea{to{opacity:.22}}
-  .sx-heroc-pt{opacity:0;transform-box:fill-box;transform-origin:center}
+  /* ÉTAT AU REPOS = ENTIÈREMENT TRACÉ (demande user 2026-07-25 : « la ligne ne touche pas le point »).
+     Le draw-in anime DEPUIS le vide (`from`), donc une animation coupée/non rejouée (onglet simulé masqué,
+     quirks iOS Safari au toggle display) laisse toujours la ligne COMPLÈTE (jamais figée avant la fin).
+     Le restart de `_sxAnim` (remove→reflow→add) est SYNCHRONE -> pas de clignotement visible. */
+  .sx-heroc-line{stroke-dasharray:1;stroke-dashoffset:0}
+  @keyframes sxdraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+  .sx-heroc-area{opacity:.22}
+  @keyframes sxarea{from{opacity:0}to{opacity:.22}}
+  .sx-heroc-pt{opacity:1;transform-box:fill-box;transform-origin:center}
   @keyframes sxpt{0%{opacity:0;transform:scale(0)}100%{opacity:1;transform:scale(1)}}
   .sx-heroc-line.sx-go{animation:sxdraw 1.15s cubic-bezier(.55,.08,.25,1) forwards}
   .sx-heroc-area.sx-go{animation:sxarea .7s ease .5s forwards}
@@ -6555,11 +6563,14 @@ def _recent_bets_html(recent: list) -> str:
         cote = b.get("cote")
         cote_txt = f'@{cote:g}' if isinstance(cote, (int, float)) and cote else ""
         day = fmt_local(b.get("start"), with_date=True) if b.get("start") else ""
+        # ORDRE (demande user 2026-07-25) : DATE tout à gauche · pari (nom + sélection, extensible) · COTE ·
+        # RÉSULTAT tout à droite (la cote juste avant le badge résultat).
         rows.append(
-            f'<div class="spf-rec {cls}"><span class="spf-rec-b">{letter}</span>'
+            f'<div class="spf-rec {cls}"><span class="spf-rec-d">{html.escape(day)}</span>'
             f'<span class="spf-rec-m"><b>{name}</b>'
-            f'<span class="spf-rec-s">{sel}{f" · {cote_txt}" if cote_txt else ""}</span></span>'
-            f'<span class="spf-rec-d">{html.escape(day)}</span></div>')
+            f'<span class="spf-rec-s">{sel}</span></span>'
+            f'<span class="spf-rec-c">{cote_txt}</span>'
+            f'<span class="spf-rec-b">{letter}</span></div>')
     return f'<div class="spf-recent">{"".join(rows)}</div>'
 
 
