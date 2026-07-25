@@ -507,7 +507,7 @@ CSS = """
   /* DATE tout à gauche sur 2 lignes (demande user 2026-07-25) : DATE en HAUT (alignée avec le nom d'équipes)
      + HEURE en BAS (alignée avec la sélection). Mêmes tailles/interligne que `.spf-rec-m` -> les 2 lignes
      coïncident. COTE juste avant le badge résultat. */
-  .spf-rec-d{flex:none;width:78px;display:flex;flex-direction:column;line-height:1.25;
+  .spf-rec-d{flex:none;width:46px;display:flex;flex-direction:column;line-height:1.25;
        font-variant-numeric:tabular-nums}
   .spf-rec-d b{color:var(--dim);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .spf-rec-d span{color:var(--muted);font-size:10px;white-space:nowrap}
@@ -6572,11 +6572,18 @@ def _recent_bets_html(recent: list) -> str:
         cote = b.get("cote")
         cote_txt = f'@{cote:g}' if isinstance(cote, (int, float)) and cote else ""
         # DATE (haut, alignée avec les ÉQUIPES) + HEURE (bas, alignée avec le PARI) — demande user 2026-07-25.
-        # `fmt_local` rend « <date> HH:MM » : on isole l'heure (with_date=False) pour scinder les 2 lignes.
-        # Comme date et heure sont sur des lignes séparées, « Aujourd'hui » redevient lisible (top).
-        _full = fmt_local(b.get("start"), with_date=True) if b.get("start") else ""
+        # Date en format COURT JJ/MM POUR TOUS (y compris aujourd'hui) -> colonne étroite (demande user :
+        # « écris la date du jour afin de rétrécir la colonne » = pas de « Aujourd'hui »/« Demain » long).
         _hm = fmt_local(b.get("start"), with_date=False) if b.get("start") else ""
-        _date = _full[:-len(_hm)].rstrip() if (_hm and _full.endswith(_hm)) else _full
+        _date = ""
+        if b.get("start"):
+            try:
+                _dd = datetime.fromisoformat(b["start"])
+                if LOCAL_TZ is not None and _dd.tzinfo is not None:
+                    _dd = _dd.astimezone(LOCAL_TZ)
+                _date = _dd.strftime("%d/%m")
+            except (ValueError, TypeError):
+                _date = ""
         # ORDRE (demande user 2026-07-25) : DATE/HEURE tout à gauche · pari (nom + sélection) · COTE ·
         # RÉSULTAT tout à droite (la cote juste avant le badge résultat).
         rows.append(
