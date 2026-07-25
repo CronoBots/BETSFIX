@@ -1626,9 +1626,12 @@ CSS = """
   @keyframes sxarea{from{opacity:0}to{opacity:.22}}
   .sx-heroc-pt{opacity:1;transform-box:fill-box;transform-origin:center}
   @keyframes sxpt{0%{opacity:0;transform:scale(0)}100%{opacity:1;transform:scale(1)}}
-  .sx-heroc-line.sx-go{animation:sxdraw 1.15s cubic-bezier(.55,.08,.25,1) forwards}
-  .sx-heroc-area.sx-go{animation:sxarea .7s ease .5s forwards}
-  .sx-heroc-pt.sx-go{animation:sxpt .45s cubic-bezier(.2,1.6,.4,1) .95s forwards}
+  /* `both` (pas `forwards`) : PENDANT LE DÉLAI d'anim, l'élément affiche l'image `from` (aire/point CACHÉS)
+     au lieu de sa base visible -> l'aire verte/rouge et le point n'apparaissent PLUS avant le tracé de la
+     ligne (demande user 2026-07-25). L'aire ne se révèle qu'au démarrage de son anim (0,5 s), le point à 0,95 s. */
+  .sx-heroc-line.sx-go{animation:sxdraw 1.15s cubic-bezier(.55,.08,.25,1) both}
+  .sx-heroc-area.sx-go{animation:sxarea .7s ease .5s both}
+  .sx-heroc-pt.sx-go{animation:sxpt .45s cubic-bezier(.2,1.6,.4,1) .95s both}
   @media (prefers-reduced-motion:reduce){
     .sx-heroc-line{stroke-dashoffset:0}
     .sx-heroc-area{opacity:.22}
