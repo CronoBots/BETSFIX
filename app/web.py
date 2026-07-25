@@ -488,10 +488,14 @@ CSS = """
   .spf-cv-more span{border-bottom:1px dotted var(--accent)}
   details.spf-cv-x[open] .spf-cv-more{color:var(--muted)}
   /* Liste des derniers paris (révélée) : pastille W/L/N + affiche + sélection + date. */
-  .spf-recent{margin-top:8px;border-top:1px solid var(--border);padding-top:8px;display:flex;
-       flex-direction:column;gap:5px;max-height:360px;overflow-y:auto;-webkit-overflow-scrolling:touch;
-       overscroll-behavior:contain;padding-right:4px}   /* TOUT l'historique -> scroll interne (demande user 2026-07-25) */
-  .spf-rec{display:flex;align-items:center;gap:8px;font-size:11px}
+  /* Historique = REGISTRE pro (demande user 2026-07-25) : lignes séparées par un filet fin, padding régulier,
+     colonnes alignées ; scroll interne pour tout l'historique. */
+  .spf-recent{margin-top:8px;border-top:1px solid var(--border);display:flex;
+       flex-direction:column;max-height:360px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+       overscroll-behavior:contain;padding-right:4px}
+  .spf-rec{display:flex;align-items:center;gap:10px;font-size:11px;padding:9px 2px;
+       border-bottom:1px solid rgba(255,255,255,.055)}
+  .spf-rec:last-child{border-bottom:none}
   .spf-rec-b{flex:none;width:19px;height:19px;border-radius:6px;display:flex;align-items:center;
        justify-content:center;font-size:10px;font-weight:900;color:#0a0a0a}
   .spf-rec.rec-w .spf-rec-b{background:#34d27b} .spf-rec.rec-l .spf-rec-b{background:#ff6b6b}
@@ -512,7 +516,7 @@ CSS = """
   .spf-rec-d b{color:var(--dim);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .spf-rec-d span{color:var(--muted);font-size:10px;white-space:nowrap}
   .spf-rec-c{flex:none;color:var(--text);font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
-       text-align:right;min-width:34px}
+       text-align:right;min-width:42px}
   /* Stats PROPRES à chaque graphe (juste sous la courbe) : réussite · paris · cote moy. */
   .spf-cv-kpis{display:flex;justify-content:space-between;gap:8px;margin-top:8px;
        font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
