@@ -259,8 +259,13 @@ def _candidates_for_day(day: str) -> list[dict]:
     # Sports EN PROBATION / écartés (ROI durablement négatif) : pas de jambe de ces sports dans le combiné
     # du jour non plus (demande user 2026-07-24 : brider le tennis PARTOUT tant qu'il ne remonte pas). Le
     # combiné est COMPTÉ AU ROI -> il doit suivre la même discipline que les simples (retained_bet/ex_sports).
+    # ⚠️ Depuis la refonte probation (2026-07-24), les sports EN PAUSE (tennis/basket) sont dans
+    # `background_sports()` — SÉPARÉ de `ex_sports` (auto_exclusions ne les met plus dans ex_sports). Il
+    # FAUT donc unir les deux, sinon un sport pausé (ex. tennis) repasse en jambe du combiné du jour alors
+    # qu'il est bridé partout (bug vécu 2026-07-25 : jambe tennis Bublik–Halys au combiné compté au ROI).
     try:
         _ex_sports, _ = analyses.auto_exclusions()
+        _ex_sports = set(_ex_sports) | analyses.background_sports()
     except Exception:
         _ex_sports = set()
     out: list[dict] = []
