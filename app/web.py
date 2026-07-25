@@ -2860,16 +2860,18 @@ CSS = """
   /* Pari joué + COTE bien visibles : le pari s'affiche en entier, la cote en pastille bleue distincte. */
   .mont-step-s{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px}
   .mont-step-s .sel{font-size:10.5px;color:var(--muted);line-height:1.3}
-  .mont-step-c{flex:none;font-size:10.5px;font-weight:800;color:#bfe0ff;background:rgba(34,184,255,.14);
-       border:1px solid rgba(34,184,255,.32);border-radius:6px;padding:0 7px;font-variant-numeric:tabular-nums}
+  .mont-step-c{flex:none;font-size:11.5px;font-weight:800;color:#d6ecff;background:rgba(34,184,255,.18);
+       border:1px solid rgba(34,184,255,.42);border-radius:7px;padding:1px 8px;font-variant-numeric:tabular-nums}
   /* Colonne droite : capital RÉSULTAT (gros) + gain du palier (compact) */
   .mont-step-a{flex:none;text-align:right;font-variant-numeric:tabular-nums;padding-left:8px}
   .mont-step-a .to{font-size:15px;font-weight:800;color:var(--text);display:block}
   .mont-step.won .mont-step-a .to{color:#34d27b}
   .mont-step-a .to .ko{color:#ff6b6b} .mont-step-a .to .wait{color:var(--gold)}
-  .mont-step-g{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
+  .mont-step-g{display:block;font-size:11.5px;font-weight:800;color:var(--muted);margin-top:1px}
   .mont-step-g.up{color:#64cd8d} .mont-step-g.dn{color:#ff8a8a}
-  .mont-step-mise{display:block;font-size:9.5px;font-weight:700;color:var(--dim);letter-spacing:.02em}   /* mise TOUJOURS visible (demande user 2026-07-25) */
+  /* MISE bien visible (demande user 2026-07-25) : label discret + montant lisible. */
+  .mont-step-mise{display:block;font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.02em}
+  .mont-step-mise b{color:var(--text);font-weight:800}
   /* Courbe de progression du capital (10 € -> pic), échelle log */
   .mont-curve{margin:2px 0 11px}
   .mont-c{width:100%;height:auto;display:block}
@@ -6021,7 +6023,7 @@ def _mont_ladder(steps: list) -> str:
             _cap = '<span class="wait">En jeu</span>'
             _gain = ""
         # MISE (capital engagé sur ce palier) TOUJOURS affichée (demande user 2026-07-25).
-        _mise = (f'<span class="mont-step-mise">mise {_mont_eur(stake)}</span>'
+        _mise = (f'<span class="mont-step-mise">mise <b>{_mont_eur(stake)}</b></span>'
                  if isinstance(stake, (int, float)) else "")
         rows.append(
             f'<div class="mont-step {cls}">'
