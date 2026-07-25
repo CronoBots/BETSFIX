@@ -226,6 +226,9 @@ CSS = """
     --red:#ff6b6b;--green:#a6e22e;--brand:var(--accent);
     --cardline:rgba(34,184,255,.30);--cardglow:0 0 24px rgba(34,184,255,.10);
     --radius:16px;--shadow:0 8px 26px rgba(0,0,0,.55);--shadow-sm:0 2px 8px rgba(0,0,0,.4);
+    /* Bord GAUCHE des cartes de pari selon l'état (demande user 2026-07-25, logique intuitive) :
+       à venir=bleu neutre · live=orange (en cours) · gagné=vert · perdu=rouge · remboursé=gris. */
+    --st-soon:#4aa3ff;--st-live:#ff9f43;--st-won:#34d27b;--st-lost:#ff6b6b;--st-void:#90a4be;
   }
   /* Home & Live = accent principal (hérité de :root). Les sports gardent leur teinte d'identité
      (néon sur fond noir) : tennis lime-jaune · basket orange · foot vert. */
@@ -642,11 +645,11 @@ CSS = """
      user 2026-07-25). Défaut = doré (à venir / en attente / live) ; gagné = vert ; perdu = rouge ;
      remboursé = gris. Posé via la classe `mc-r-*`. */
   .row.mc{padding:0;margin:7px 0;overflow:hidden;
-       border:1px solid rgba(255,255,255,.8);border-left:3px solid var(--gold)}
-  .row.mc.mc-r-won{border-left-color:#34d27b}
-  .row.mc.mc-r-lost{border-left-color:#ff6b6b}
-  .row.mc.mc-r-push{border-left-color:#90a4be}
-  .row.mc.mc-r-live{border-left-color:var(--gold)}
+       border:1px solid rgba(255,255,255,.8);border-left:3px solid var(--st-soon)}
+  .row.mc.mc-r-won{border-left-color:var(--st-won)}
+  .row.mc.mc-r-lost{border-left-color:var(--st-lost)}
+  .row.mc.mc-r-push{border-left-color:var(--st-void)}
+  .row.mc.mc-r-live{border-left-color:var(--st-live)}
   /* Séparateur DISCRET entre deux cadres de paris (demande user 2026-07-18 : « mieux séparer les
      cadres entre eux »). Fine ligne dégradée qui s'estompe aux extrémités -> respire sans alourdir.
      Inséré entre cartes (jamais après un en-tête de jour ni en tête de zone). */
@@ -1820,14 +1823,15 @@ CSS = """
      2026-07-25). Par défaut (à venir / en attente) = doré ; gagné = vert ; perdu = rouge ; live = doré ;
      remboursé/annulé = gris. L'état est posé via la classe `mc-r-*` (helper `_card_state_cls`). */
   .row.mc.mc-tg{background:#0b1826;
-       border:1px solid rgba(255,255,255,.8);border-left:3px solid var(--gold);
+       border:1px solid rgba(255,255,255,.8);border-left:3px solid var(--st-soon);
        box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(255,255,255,.18),0 12px 32px rgba(0,0,0,.5)}
-  .row.mc.mc-tg.mc-r-won{border-left-color:#34d27b}
-  .row.mc.mc-tg.mc-r-lost{border-left-color:#ff6b6b}
-  .row.mc.mc-tg.mc-r-push{border-left-color:#90a4be}
-  .row.mc.mc-tg.mc-r-live{border-left-color:var(--gold)}
-  /* Le cadre provisoire garde le même look blanc (le bord gauche doré = « en attente » par défaut). */
-  .row.mc.mc-tg.mc-prov-b{border-color:rgba(255,255,255,.8)}
+  .row.mc.mc-tg.mc-r-won{border-left-color:var(--st-won)}
+  .row.mc.mc-tg.mc-r-lost{border-left-color:var(--st-lost)}
+  .row.mc.mc-tg.mc-r-push{border-left-color:var(--st-void)}
+  .row.mc.mc-tg.mc-r-live{border-left-color:var(--st-live)}
+  /* Provisoire : bord blanc sur les 3 côtés seulement -> le bord GAUCHE garde sa couleur d'état (bleu à venir). */
+  .row.mc.mc-tg.mc-prov-b{border-top-color:rgba(255,255,255,.8);border-right-color:rgba(255,255,255,.8);
+       border-bottom-color:rgba(255,255,255,.8)}
   .mc-tg .mc-head{padding:12px 16px 11px}
   .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
@@ -1897,9 +1901,9 @@ CSS = """
   .row.mc.mc-tg-gold{border-top-color:rgba(255,255,255,.8);border-right-color:rgba(255,255,255,.8);
        border-bottom-color:rgba(255,255,255,.8);
        box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(255,255,255,.18),0 12px 32px rgba(0,0,0,.5)}
-  .row.mc.mc-tg-gold.mc-r-won{border-left-color:#34d27b}
-  .row.mc.mc-tg-gold.mc-r-lost{border-left-color:#ff6b6b}
-  .row.mc.mc-tg-gold.mc-r-push{border-left-color:#90a4be}
+  .row.mc.mc-tg-gold.mc-r-won{border-left-color:var(--st-won)}
+  .row.mc.mc-tg-gold.mc-r-lost{border-left-color:var(--st-lost)}
+  .row.mc.mc-tg-gold.mc-r-push{border-left-color:var(--st-void)}
   .mc-tg-gold .mc-sport{color:#64cd8d}
   .mc-tg-gold .mc-sport-w{color:var(--text)}   /* titre « COMBINÉ MULTISPORT » en BLANC (user 2026-07-21) */
   .mc-tg-gold .mc-cote-v{color:#64cd8d}
@@ -1923,10 +1927,10 @@ CSS = """
   .mc-cleg-box{padding:10px 12px 10px 13px;border-radius:13px;background:rgba(255,255,255,.028);
        border:1px solid rgba(255,255,255,.07)}
   /* BORD GAUCHE coloré selon l'état (demande user 2026-07-13) : jaune=en attente, vert=gagné, rouge=perdu. */
-  .mc-cleg-pending{border-left:3px solid var(--gold)}
-  .mc-cleg-won{border-left:3px solid #34d27b}
-  .mc-cleg-lost{border-left:3px solid #ff6b6b}
-  .mc-cleg-push{border-left:3px solid #90a4be}
+  .mc-cleg-pending{border-left:3px solid var(--st-soon)}
+  .mc-cleg-won{border-left:3px solid var(--st-won)}
+  .mc-cleg-lost{border-left:3px solid var(--st-lost)}
+  .mc-cleg-push{border-left:3px solid var(--st-void)}
   .mc-cleg-b{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
   /* MATCH en titre (équipes) + badge/score live ; PARI À JOUER dessous (sélection + cote or). */
   .mc-cleg-match{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.26;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
@@ -1939,13 +1943,14 @@ CSS = """
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
   .cleg{background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid rgba(255,255,255,.8);
-       border-left:3px solid var(--gold);border-radius:12px;padding:11px 12px 10px}
+       border-left:3px solid var(--st-soon);border-radius:12px;padding:11px 12px 10px}
+  .cleg.live{border-left-color:var(--st-live)}
   /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
      défaut) ; GAGNÉ/acquise = VERT ; PERDU = ROUGE ; ANNULÉ/remboursé (void/push) = GRIS. Le live ne doit
      PAS être vert (il n'est pas gagné) -> il garde le doré par défaut. */
-  .cleg.won{border-left-color:#34d27b}
-  .cleg.lost{border-left-color:#ff6b6b}
-  .cleg.push,.cleg.void{border-left-color:#90a4be}
+  .cleg.won{border-left-color:var(--st-won)}
+  .cleg.lost{border-left-color:var(--st-lost)}
+  .cleg.push,.cleg.void{border-left-color:var(--st-void)}
   .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
   .cleg-comp{flex:1;min-width:0;font-size:10.5px;font-weight:700;color:var(--muted);
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2320,10 +2325,10 @@ CSS = """
   .da-bets-h{font-size:12px;font-weight:800;letter-spacing:.02em;color:#cfe0f5;margin:14px 0 6px}
   /* 🎲 Combiné « grand tournoi » (Coupe du Monde…) : encadré distinct sous les paris. */
   .da-combo{margin-top:10px;background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border:1px solid var(--border);border-left:3px solid #ffb020;border-radius:12px;padding:10px 12px}
-  .da-combo-won{border-left-color:#34d27b}
-  .da-combo-lost{border-left-color:#ff6b6b}
-  .da-combo-void{border-left-color:#9fb0c8}   /* combiné remboursé (jambe indéterminable) : gris neutre */
+       border:1px solid rgba(255,255,255,.8);border-left:3px solid var(--st-soon);border-radius:12px;padding:10px 12px}
+  .da-combo-won{border-left-color:var(--st-won)}
+  .da-combo-lost{border-left-color:var(--st-lost)}
+  .da-combo-void{border-left-color:var(--st-void)}   /* combiné remboursé (jambe indéterminable) : gris neutre */
   .da-combo-h{font-size:12px;font-weight:800;color:#ffd98a;display:flex;align-items:center;gap:8px;
        margin-bottom:7px;text-transform:uppercase;letter-spacing:.03em}
   .da-combo-n{font-weight:700;color:#cdb98a;opacity:.85}     /* « · N jambes » à côté de Combiné */
@@ -2355,7 +2360,7 @@ CSS = """
   .da-cl-pr.lo{color:#ffb020;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.12)}
   .da-cl-why{font-size:11px;line-height:1.5;color:#b9c2cf;padding:3px 0 0 2px}   /* pourquoi DE LA JAMBE (complet) */
   .da-combo-why{font-size:11px;line-height:1.55;color:#cfe0f5;font-style:italic;margin:0 0 9px}   /* synthèse (intro en tête) */
-  .da-combo-live{border-left-color:#ffb020}
+  .da-combo-live{border-left-color:var(--st-live)}
   .da-combo-b.live{background:#ffb020;color:#1a1200;animation:combopulse 1.6s ease-in-out infinite}
   @keyframes combopulse{0%,100%{opacity:1}50%{opacity:.55}}
   /* TICKET PREMIUM (style carte Telegram, sans logo) — demande user 2026-07-12 : combinés ET simples.
