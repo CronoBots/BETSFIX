@@ -545,8 +545,7 @@ CSS = """
   .prov-note b{color:#ffd873}
   /* Série EN COURS, sans emoji, rendu pro (demande user 2026-07-24) : pastille discrète bordée,
      verte si victoires d'affilée / rouge si défaites. */
-  .spf-hero-streakw{text-align:center;margin-top:9px}
-  .spf-hero-streakw2{margin-top:4px}   /* RECORD sur une ligne JUSTE en dessous de la série en cours */
+  .spf-hero-streakw{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:6px;margin-top:9px}
   .spf-hero-streak{display:inline-block;padding:2px 11px;border-radius:999px;font-size:10.5px;
        font-weight:700;letter-spacing:.02em;border:1px solid var(--border);color:var(--muted)}
   .spf-hero-streak b{font-variant-numeric:tabular-nums}
@@ -4223,22 +4222,23 @@ def _best_win_streak(form) -> int:
 
 def _streak_text(streak, best: int = 0) -> str:
     """Série EN COURS + RECORD (plus longue série de victoires), SANS emoji (demande user 2026-07-24/25,
-    rendu pro) : pastille verte/rouge « Série en cours · N » puis, SUR UNE LIGNE EN DESSOUS, la pastille
-    dorée « Record · N victoires » (demande user 2026-07-25). Le record s'affiche même sans série en
-    cours. '' si rien à montrer."""
-    rows = ""
+    rendu pro) : pastille verte/rouge « Série en cours · N » ET pastille dorée « Record · N victoires » sur
+    la MÊME LIGNE, centrées (demande user 2026-07-25 : une seule ligne, plus compact). Le record s'affiche
+    même sans série en cours. '' si rien à montrer."""
+    chips = ""
     if streak:
         if streak > 0:
             lab, cls = f'{streak} victoire{"s" if streak > 1 else ""}', "win"
         else:
             m = -streak
             lab, cls = f'{m} défaite{"s" if m > 1 else ""}', "loss"
-        rows += (f'<div class="spf-hero-streakw"><span class="spf-hero-streak {cls}">'
-                 f'Série en cours · <b>{lab}</b></span></div>')
+        chips += f'<span class="spf-hero-streak {cls}">Série en cours · <b>{lab}</b></span>'
     if best and best > 0:
-        rows += (f'<div class="spf-hero-streakw spf-hero-streakw2"><span class="spf-hero-streak best">'
-                 f'Record · <b>{best} victoire{"s" if best > 1 else ""}</b></span></div>')
-    return rows
+        chips += (f'<span class="spf-hero-streak best">'
+                  f'Record · <b>{best} victoire{"s" if best > 1 else ""}</b></span>')
+    if not chips:
+        return ""
+    return f'<div class="spf-hero-streakw">{chips}</div>'
 
 
 def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, streak=None,
@@ -4289,12 +4289,12 @@ def _rate_block(hit_points: list | None, uid: str) -> str:
     _hp = [h for h in (hit_points or []) if h is not None]
     if len(_hp) < _RATE_WARMUP + 3:                      # pas assez de paris réglés pour un taux crédible
         return ""
-    _cur = _hp[-1]                                        # % courant = cumul COMPLET (tous les paris)
     _c = _rate_chart(_hp[_RATE_WARMUP - 1:], uid=uid)    # historique COMPLET à partir du 10e pari (rodage), demande user
     if not _c:
         return ""
-    return (f'<div class="spf-rate"><div class="spf-rate-h">Taux de réussite '
-            f'<b>{_cur:g}%</b></div>{_c}</div>')
+    # Titre SANS le % (demande user 2026-07-25 : le % courant est déjà l'étiquette de fin de courbe -> le
+    # répéter ici faisait doublon avec le KPI « réussite »). La courbe porte 70 % (départ) et 84,8 % (fin).
+    return f'<div class="spf-rate"><div class="spf-rate-h">Taux de réussite</div>{_c}</div>'
 
 
 def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: list,
