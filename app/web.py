@@ -504,9 +504,13 @@ CSS = """
   .spf-rec-m{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
   .spf-rec-m b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .spf-rec-s{color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  /* DATE tout à gauche (largeur fixe -> les paris s'alignent) ; COTE juste avant le badge résultat. */
-  .spf-rec-d{flex:none;width:64px;color:var(--dim);font-size:9.5px;font-variant-numeric:tabular-nums;
-       white-space:nowrap;line-height:1.15}
+  /* DATE tout à gauche sur 2 lignes (demande user 2026-07-25) : DATE en HAUT (alignée avec le nom d'équipes)
+     + HEURE en BAS (alignée avec la sélection). Mêmes tailles/interligne que `.spf-rec-m` -> les 2 lignes
+     coïncident. COTE juste avant le badge résultat. */
+  .spf-rec-d{flex:none;width:78px;display:flex;flex-direction:column;line-height:1.25;
+       font-variant-numeric:tabular-nums}
+  .spf-rec-d b{color:var(--dim);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .spf-rec-d span{color:var(--muted);font-size:10px;white-space:nowrap}
   .spf-rec-c{flex:none;color:var(--text);font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
        text-align:right;min-width:34px}
   /* Stats PROPRES à chaque graphe (juste sous la courbe) : réussite · paris · cote moy. */
@@ -6567,13 +6571,17 @@ def _recent_bets_html(recent: list) -> str:
         sel = html.escape(_pretty_sel(str(b.get("sel") or ""), _h2, _a2))
         cote = b.get("cote")
         cote_txt = f'@{cote:g}' if isinstance(cote, (int, float)) and cote else ""
-        day = fmt_local(b.get("start"), with_date=True) if b.get("start") else ""
-        if day.startswith("Aujourd'hui "):          # AUJOURD'HUI -> heure SEULE (demande user 2026-07-25)
-            day = day[len("Aujourd'hui "):]
-        # ORDRE (demande user 2026-07-25) : DATE tout à gauche · pari (nom + sélection, extensible) · COTE ·
+        # DATE (haut, alignée avec les ÉQUIPES) + HEURE (bas, alignée avec le PARI) — demande user 2026-07-25.
+        # `fmt_local` rend « <date> HH:MM » : on isole l'heure (with_date=False) pour scinder les 2 lignes.
+        # Comme date et heure sont sur des lignes séparées, « Aujourd'hui » redevient lisible (top).
+        _full = fmt_local(b.get("start"), with_date=True) if b.get("start") else ""
+        _hm = fmt_local(b.get("start"), with_date=False) if b.get("start") else ""
+        _date = _full[:-len(_hm)].rstrip() if (_hm and _full.endswith(_hm)) else _full
+        # ORDRE (demande user 2026-07-25) : DATE/HEURE tout à gauche · pari (nom + sélection) · COTE ·
         # RÉSULTAT tout à droite (la cote juste avant le badge résultat).
         rows.append(
-            f'<div class="spf-rec {cls}"><span class="spf-rec-d">{html.escape(day)}</span>'
+            f'<div class="spf-rec {cls}">'
+            f'<span class="spf-rec-d"><b>{html.escape(_date)}</b><span>{html.escape(_hm)}</span></span>'
             f'<span class="spf-rec-m"><b>{name}</b>'
             f'<span class="spf-rec-s">{sel}</span></span>'
             f'<span class="spf-rec-c">{cote_txt}</span>'
