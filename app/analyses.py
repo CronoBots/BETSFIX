@@ -3003,9 +3003,12 @@ def combo_stats(since_days: int | None = None) -> dict:
             rows.append((res, float(odds) if odds else None, c.get("shave"), len(c["legs"]), c.get("prob")))
             curve.append((start, res, float(odds) if odds else None))
             crecent.append((start, res, float(odds) if odds else None, _cmeta))
-    # COMBINÉS MULTISPORT DU JOUR (décision user 2026-07-14 : comptés au ROI, catégorie COMBINÉ) : injectés
-    # ici -> bilan/courbe/derniers combinés + ROI global (fusion simples+combinés). Multisport -> pas de
-    # ventilation par sport (by_sp). `void` neutre déjà exclu par roi_events. Frozen -> monotone.
+    # COMBINÉS DU JOUR — ROI OVERALL = FOOTBALL SEULEMENT (demande user 2026-07-25 : « le ROI ne garde que
+    # ce qui est lié au football, tant qu'il n'y a pas d'abonnés »). Un combiné du jour non-foot (tennis/
+    # basket mono OU MULTISPORT contenant du tennis/basket) ne compte PLUS au ROI global (tennis/basket sont
+    # SIMULÉS). Les mono restent ventilés dans le « Combinés » de leur sport (by_sp = stats simulées) ; les
+    # multisport ont déjà leurs jambes reversées dans les provisoires de chaque sport (multisport_legs). C'est
+    # une correction d'historique légitime AVANT abonnés (cf. mémoire history-corrections-before-subscribers).
     try:
         from app import combo_daily as _cdmod
         for _dt, _res, _cote, _det in _cdmod.roi_events():
@@ -3019,15 +3022,13 @@ def combo_stats(since_days: int | None = None) -> dict:
                 if _cdt2 is None or _cdt2 < cutoff:
                     continue
             _o = float(_cote) if _cote else None
-            rows.append((_res, _o, None, _det.get("n_legs") or 0, None))
-            curve.append((_dt, _res, _o))
-            crecent.append((_dt, _res, _o, {"name": _det.get("name"), "sel": "combiné du jour",
-                                            "sport": "combiné"}))
-            # VENTILATION PAR SPORT (demande user 2026-07-25) : un combiné du jour dont TOUTES les jambes
-            # sont du même sport est reversé dans le « Combinés » de ce sport (by_sp) -> il apparaît dans
-            # l'onglet Combinés du cadre sport. Multisport (leg_sport=None) -> pas ventilé.
             _lsp = _det.get("leg_sport")
-            if _lsp:
+            if _lsp == "foot":                             # SEUL le combiné du jour 100 % foot compte au ROI
+                rows.append((_res, _o, None, _det.get("n_legs") or 0, None))
+                curve.append((_dt, _res, _o))
+                crecent.append((_dt, _res, _o, {"name": _det.get("name"), "sel": "combiné du jour",
+                                                "sport": "combiné"}))
+            if _lsp:                                       # ventilation par sport (mono, y c. tennis/basket simulés)
                 by_sp.setdefault(_lsp, []).append((_dt, _res, _o,
                     {"name": _det.get("name"), "sel": "Combiné du jour", "sport": _lsp}))
     except Exception:
