@@ -3728,9 +3728,10 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
     p.append(f'<line class="bc-zero" x1="{L:g}" y1="{zy:.1f}" x2="{W - R:g}" y2="{zy:.1f}"/>')
     p.append(f'<text class="bc-zl" x="{L - 3:g}" y="{zy + 3:.1f}">0</text>')
     # Ligne TRACÉE (draw-in) : `pathLength="1"` normalise -> `sxdraw` marche quelle que soit la longueur.
+    # PAS de `vector-effect="non-scaling-stroke"` : le combo pathLength + stroke-dasharray + non-scaling est
+    # un BUG WebKit/iOS (dash calculé dans le mauvais espace -> dernier segment fin/haché même à l'arrêt).
     p.append(f'<path class="sx-heroc-line" pathLength="1" d="{line_d}" fill="none" stroke="url(#{gid})" '
-             'stroke-width="2.2" vector-effect="non-scaling-stroke" stroke-linejoin="round" '
-             'stroke-linecap="round"/>')
+             'stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>')
     p.append(f'<circle class="sx-heroc-pt" cx="{X(n - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="2.8" '
              f'fill="{GR if pts[-1] >= 0 else RD}"/>')
     # REPÈRES de modèle : trait vertical + pastille numérotée en haut (placés à l'index du 1er pari
@@ -4229,7 +4230,7 @@ def _rate_chart(points: list, uid: str = "r") -> str:
          f'<stop offset="1" stop-color="{AC}" stop-opacity="0"/></linearGradient></defs>',
          f'<path d="{area_d}" fill="url(#{gid})" stroke="none"/>',
          f'<path class="sx-heroc-line" pathLength="1" d="{line_d}" fill="none" stroke="{AC}" '
-         'stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>',
+         'stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>',   # pas de non-scaling-stroke (bug WebKit dash)
          # Repères CHIFFRÉS discrets aux extrémités (demande user 2026-07-24) : % de départ (bas-gauche) et
          # % actuel (haut-droite) -> la progression est lisible sans échelle complète.
          f'<text class="rate-lbl" x="{X(0):.1f}" y="{min(H - 2, y0 + 12):.1f}" text-anchor="start">{pts[0]:g}%</text>',
