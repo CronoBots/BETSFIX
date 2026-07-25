@@ -546,13 +546,13 @@ CSS = """
   /* Série EN COURS, sans emoji, rendu pro (demande user 2026-07-24) : pastille discrète bordée,
      verte si victoires d'affilée / rouge si défaites. */
   .spf-hero-streakw{text-align:center;margin-top:9px}
+  .spf-hero-streakw2{margin-top:4px}   /* RECORD sur une ligne JUSTE en dessous de la série en cours */
   .spf-hero-streak{display:inline-block;padding:2px 11px;border-radius:999px;font-size:10.5px;
        font-weight:700;letter-spacing:.02em;border:1px solid var(--border);color:var(--muted)}
   .spf-hero-streak b{font-variant-numeric:tabular-nums}
   .spf-hero-streak.win{color:#34d27b;border-color:rgba(52,210,123,.35);background:rgba(52,210,123,.09)}
   .spf-hero-streak.loss{color:#ff6b6b;border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.09)}
   .spf-hero-streak.best{color:var(--gold);border-color:rgba(214,178,90,.38);background:rgba(214,178,90,.10)}
-  .spf-hero-streakw .spf-hero-streak+.spf-hero-streak{margin-left:6px}
   .spf-hero .sx-equity,.spf-hero .sx-chart{margin-top:11px}
   /* Graphe d'équité SANS bride de hauteur dans les héros -> rendu pleine largeur, MÊME largeur que la
      courbe du taux de réussite (demande user 2026-07-24). */
@@ -3958,10 +3958,11 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # nouv. système + CLV (ligne secondaire) et repères de modèle sous la courbe.
     # Paris À JOUER (comptés au ROI, pas encore réglés) EN TÊTE (⏳), puis les réglés (demande user 2026-07-14).
     _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
+    _best_s = _best_win_streak([_LET.get(x, x) for x in _letters_s])   # RECORD victoires simples (demande user 2026-07-25)
     _s_inner = _hero_graph_inner(                     # disposition « ROI héros » façon ROI global (choix user 2026-07-24)
         roi=ov.get("roi"), n=ov.get("settled"), hit=ov["pct"], avg_cote=ov.get("avg_odds"),
         chart=f'<div class="sx-equity">{chart}</div>', form=_simples_form, streak=ov.get("streak"),
-        hit_points=ov.get("hit_points"), uid="sim-foot")
+        hit_points=ov.get("hit_points"), uid="sim-foot", best_streak=_best_s)
     simples_block = (                                 # SANS boîte imbriquée : contenu direct sur la carte sport
         (f'<details class="spf-hero spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
          f'<div class="spf-cv-more"><span>Derniers simples</span> ▾</div></summary>{_rec_s}</details>')
@@ -4221,22 +4222,22 @@ def _best_win_streak(form) -> int:
 
 def _streak_text(streak, best: int = 0) -> str:
     """Série EN COURS + RECORD (plus longue série de victoires), SANS emoji (demande user 2026-07-24/25,
-    rendu pro) : pastille verte/rouge « Série en cours · N » + pastille dorée « Record · N victoires ».
-    Le record s'affiche même sans série en cours. '' si rien à montrer."""
-    chips = ""
+    rendu pro) : pastille verte/rouge « Série en cours · N » puis, SUR UNE LIGNE EN DESSOUS, la pastille
+    dorée « Record · N victoires » (demande user 2026-07-25). Le record s'affiche même sans série en
+    cours. '' si rien à montrer."""
+    rows = ""
     if streak:
         if streak > 0:
             lab, cls = f'{streak} victoire{"s" if streak > 1 else ""}', "win"
         else:
             m = -streak
             lab, cls = f'{m} défaite{"s" if m > 1 else ""}', "loss"
-        chips += f'<span class="spf-hero-streak {cls}">Série en cours · <b>{lab}</b></span>'
+        rows += (f'<div class="spf-hero-streakw"><span class="spf-hero-streak {cls}">'
+                 f'Série en cours · <b>{lab}</b></span></div>')
     if best and best > 0:
-        chips += (f'<span class="spf-hero-streak best">Record · '
-                  f'<b>{best} victoire{"s" if best > 1 else ""}</b></span>')
-    if not chips:
-        return ""
-    return f'<div class="spf-hero-streakw">{chips}</div>'
+        rows += (f'<div class="spf-hero-streakw spf-hero-streakw2"><span class="spf-hero-streak best">'
+                 f'Record · <b>{best} victoire{"s" if best > 1 else ""}</b></span></div>')
+    return rows
 
 
 def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, streak=None,
@@ -6566,14 +6567,17 @@ def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
                 f'<span class="spf-cv-t">{label}</span></div>'
                 f'<div class="spf-cv-none">{empty_msg}</div></div>')
     roi = blk.get("roi")
-    _stk = _streak_chip(blk.get("streak"))                          # 🔥 N gagnés / ❄️ N perdus — À CÔTÉ du titre
-    head = (f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">{label}</span>{_stk}</span>'
+    head = (f'<div class="spf-cv-h"><span class="spf-cv-hl"><span class="spf-cv-t">{label}</span></span>'
             f'<span class="spf-cv-roi arec-{_roi_cls(roi, blk.get("settled"))}">'
             f'ROI {_roistr(roi)}</span></div>')
     _LET = {"won": "W", "lost": "L", "push": "N"}
     # max de résultats sur 1 ligne + sabliers dorés des paris à jouer non réglés en queue (demande user 2026-07-17)
-    dots = form_dots([_LET.get(x, x) for x in (form or [])], n=16, pending=pending)
+    _form_wl = [_LET.get(x, x) for x in (form or [])]
+    dots = form_dots(_form_wl, n=16, pending=pending)
     formrow = f'<div class="spf-cv-form">{dots}</div>' if dots else ""
+    # SÉRIE en cours + RECORD (plus longue série de victoires) empilés SOUS la ligne W/L (demande user
+    # 2026-07-25) — même présentation que les cadres « ROI héros ».
+    formrow += _streak_text(blk.get("streak"), _best_win_streak(_form_wl))
     kpis = (f'<div class="spf-cv-kpis">'
             f'<span><b>{blk.get("pct")}%</b> réussite</span>'
             f'<span><b>{blk.get("settled")}</b> paris</span>'
