@@ -43,6 +43,12 @@ _TIER1 = {"WIN", "DC", "REGTIME"}                       # résultat / double cha
 _TIER2 = {"SHOTSOT", "TEAMTOT", "SET", "SETWIN"}        # tirs cadrés (83 %), équipe marque / au moins un set (~79 %)
 _TIER3 = {"OVER", "UNDER", "TOTGAMES", "TEAMGAMES", "SETSCORE"}   # totaux (points/buts/jeux), score de sets (+ variance)
 _ALLOWED = _TIER1 | _TIER2 | _TIER3
+# Marchés « prop » qu'on n'analyse PAS (aucune stat dans le dossier) et que `code_from_pick` MAL-CODE en
+# total de BUTS (ex. « Hors-jeu Vasco Plus de 1.5 » -> `TEAMTOT HOME OVER 1.5`) : ils passeraient le filtre
+# de fiabilité comme un marché buts ET se règleraient sur les BUTS (faux). On les EXCLUT du combiné par
+# libellé (demande user 2026-07-25 : « pourquoi une jambe hors-jeu si on n'a aucune stat dessus »).
+_COMBO_SEL_BLOCK = ("hors-jeu", "hors jeu", "offside", "corner", "carton", "faute", "touche",
+                    "coup de pied", "remise en jeu")
 
 
 def day_key(now=None) -> str:
@@ -289,6 +295,9 @@ def _candidates_for_day(day: str) -> list[dict]:
                           "code": b.get("code")})
         best: dict = {}
         for p in preds:
+            _sel_l = str(p.get("sel") or "").lower()
+            if any(w in _sel_l for w in _COMBO_SEL_BLOCK):   # marché prop sans stat -> jamais en jambe
+                continue
             # RE-DÉRIVER le code depuis le LIBELLÉ (le code stocké peut être périmé/générique : un
             # fantôme « Tiebreaks +0.5 » a l'ancien code `OVER 0.5` qui réglerait un total de BUTS =
             # FAUX). code_from_pick reflète la logique de règlement ACTUELLE -> code correct + à jour.
