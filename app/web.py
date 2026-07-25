@@ -2895,6 +2895,62 @@ CSS = """
   .mont-hrow-v{flex:none;font-size:13px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
   .mont-empty{text-align:center;color:var(--muted);font-size:12px;padding:18px 12px;line-height:1.5;
        border:1px dashed var(--border);border-radius:13px}
+  /* ===== Onglet CALENDRIER (P&L par jour, demande user 2026-07-25) ===== */
+  .mcal{--mt:0}
+  .mcal-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 12px}
+  .mcal-title{flex:1;text-align:center;font-size:15px;font-weight:900;letter-spacing:.01em;color:var(--text)}
+  .mcal-arw{flex:none;width:38px;height:38px;border-radius:12px;border:1px solid var(--border);
+       background:rgba(255,255,255,.04);color:var(--text);font-size:20px;font-weight:800;line-height:1;
+       display:flex;align-items:center;justify-content:center}
+  .mcal-arw:active{transform:scale(.92)} .mcal-arw.off{opacity:.3;pointer-events:none}
+  /* Bilan du mois : ROI héros + KPIs */
+  .mcal-sum{border:1px solid var(--border);border-radius:16px;padding:14px 14px 12px;margin-bottom:14px;
+       background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0))}
+  .mcal-sum-hero{text-align:center;font-size:34px;font-weight:900;line-height:1;letter-spacing:-.02em;
+       font-variant-numeric:tabular-nums}
+  .mcal-sum-lb{display:block;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+       color:var(--muted);margin-top:4px}
+  .mcal-sum-kpis{display:flex;gap:8px;margin-top:12px}
+  .mcal-sum-kpis>div{flex:1;text-align:center;background:rgba(255,255,255,.04);border:1px solid var(--border);
+       border-radius:11px;padding:8px 4px}
+  .mcal-sum-kpis b{display:block;font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+  .mcal-sum-kpis span{display:block;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+       color:var(--muted);margin-top:2px}
+  .mcal-pos{color:#34d27b} .mcal-neg{color:#ff6b6b} .mcal-flat{color:var(--muted)}
+  /* Grille : 7 colonnes, entête jours + cases */
+  .mcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .mcal-dow{text-align:center;font-size:9.5px;font-weight:800;color:var(--dim);padding:2px 0 4px;
+       letter-spacing:.04em}
+  .mcal-cell{position:relative;aspect-ratio:1/1;border-radius:11px;border:1px solid var(--border);
+       background:rgba(255,255,255,.02);display:flex;flex-direction:column;align-items:center;
+       justify-content:center;gap:1px;overflow:hidden;min-height:0}
+  .mcal-void{border:none;background:none}
+  .mcal-empty{opacity:.5}
+  .mcal-d{position:absolute;top:4px;left:6px;font-size:9.5px;font-weight:700;color:var(--dim);
+       font-variant-numeric:tabular-nums}
+  .mcal-has .mcal-d{color:var(--muted)}
+  /* teinte de fond selon le signe (intensité via --mt calculée serveur) */
+  .mcal-pos.mcal-has{background:rgba(52,210,123,var(--mt,.12));border-color:rgba(52,210,123,.34)}
+  .mcal-neg.mcal-has{background:rgba(255,107,107,var(--mt,.12));border-color:rgba(255,107,107,.34)}
+  .mcal-flat.mcal-has{background:rgba(154,154,166,.10)}
+  .mcal-roi{font-size:12.5px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1;margin-top:6px}
+  .mcal-pos .mcal-roi{color:#3ee089} .mcal-neg .mcal-roi{color:#ff7a7a} .mcal-flat .mcal-roi{color:var(--muted)}
+  .mcal-n{font-size:8px;font-weight:700;color:var(--muted);letter-spacing:.02em}
+  .mcal-today{box-shadow:0 0 0 2px rgba(34,184,255,.55)}
+  .mcal-has{cursor:pointer} .mcal-has:active{transform:scale(.95)}
+  /* Légende + note */
+  .mcal-legend{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;font-size:10px;
+       color:var(--muted)}
+  .mcal-lg{display:inline-flex;align-items:center;gap:5px;font-weight:700}
+  .mcal-lg::before{content:"";width:11px;height:11px;border-radius:4px;display:inline-block}
+  .mcal-lg.pos::before{background:rgba(52,210,123,.5);border:1px solid rgba(52,210,123,.6)}
+  .mcal-lg.neg::before{background:rgba(255,107,107,.5);border:1px solid rgba(255,107,107,.6)}
+  .mcal-lg.flat::before{background:rgba(154,154,166,.3);border:1px solid var(--border)}
+  .mcal-lg-note{flex-basis:100%;color:var(--dim);font-style:italic}
+  .mcal-cell.mcal-sel{box-shadow:0 0 0 2px rgba(34,184,255,.9)}
+  .mcal-detail{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+  .mcal-empty-msg{text-align:center;color:var(--muted);font-size:12px;padding:16px 12px;line-height:1.5;
+       border:1px dashed var(--border);border-radius:13px;margin-bottom:14px}
   /* Ligne (jambe / résultat) : badge carré coloré + libellé + score/méta à droite */
   .sx-leg{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06)}
   .sx-leg-t{flex:1;min-width:0;line-height:1.28;font-size:11.5px}
@@ -3017,6 +3073,7 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # routes /app //basket //foot redirigent vers / (accueil). Nav = 4 onglets épurés.
 _SPA_TABS = [("home", "/", "📅", "Pronos"), ("directs", "/directs", _LIVE_RADAR, "Live"),
              ("stats", "/stats", "📊", "Stats"),
+             ("calendrier", "/calendrier", "🗓️", "Calendrier"),
              ("montante", "/montante", "🪜", "Montante"),
              ("compte", "/compte", "👤", "Compte")]
 # Compte est un onglet SPA À PART ENTIÈRE : son panneau charge /compte?frag=1 (contenu seul) en AJAX,
@@ -3362,6 +3419,33 @@ _CAL_JS = (
     "})();"
 )
 
+# CALENDRIER : navigation mensuelle (‹ / ›, remplace #cal-root) + détail d'un jour au clic (réutilise /jour).
+_MCAL_JS = (
+    "(function(){document.addEventListener('click',function(e){"
+    "if(!e.target||!e.target.closest)return;"
+    # flèches de mois -> recharge la grille dans #cal-root
+    "var a=e.target.closest('[data-cal]');"
+    "if(a){var ym=a.getAttribute('data-cal'),root=document.getElementById('cal-root');if(!root)return;"
+    "root.style.opacity='.5';"
+    "fetch('/calendrier?ym='+encodeURIComponent(ym)+'&cal=1',{headers:{'X-Frag':'1'}})"
+    ".then(function(r){return r.text();}).then(function(h){root.innerHTML=h;root.style.opacity='';"
+    "try{if(window._sxAnim)window._sxAnim(root);}catch(e){}})"
+    ".catch(function(){root.style.opacity='';});return;}"
+    # clic sur un jour joué -> détail des paris via /jour
+    "var c=e.target.closest('.mcal-cell.mcal-has');if(!c)return;"
+    "var date=c.getAttribute('data-mday'),host=document.getElementById('mcal-detail');if(!host||!date)return;"
+    "var s=document.querySelectorAll('.mcal-cell.mcal-sel'),i;for(i=0;i<s.length;i++)s[i].classList.remove('mcal-sel');"
+    "c.classList.add('mcal-sel');host.hidden=false;"
+    "host.innerHTML='<div class=\"skel\"><div class=\"sk\"></div><div class=\"sk\"></div></div>';"
+    "fetch('/jour?date='+encodeURIComponent(date)+'&frag=1',{headers:{'X-Frag':'1'}})"
+    ".then(function(r){return r.text();}).then(function(h){host.innerHTML=h;"
+    "try{if(window._mcInit)window._mcInit(host);}catch(e){}try{if(window._twScan)window._twScan(host);}catch(e){}"
+    "try{if(window._sxAnim)window._sxAnim(host);}catch(e){}"
+    "try{host.scrollIntoView({behavior:'smooth',block:'nearest'});}catch(e){}})"
+    ".catch(function(){host.innerHTML='<div class=\"paj-empty\">Erreur de chargement.</div>';});"
+    "});})();"
+)
+
 # Bannière « Ajouter à l'écran d'accueil » : le partage iOS (glyphe SVG) + le libellé sont dans le HTML ;
 # le JS choisit d'afficher (hors standalone) et bascule en bouton natif « Installer » sur Android/Chrome.
 _SHARE_SVG = ('<svg class="shr" width="11" height="13" viewBox="0 0 12 14" fill="none" aria-hidden="true">'
@@ -3497,7 +3581,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_A2HS_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -6154,6 +6238,130 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
 
     return (f'<span class="dv-nav" data-tab="montante" data-n="0" hidden></span>'
             + hero + intro + pari + ladder + showcase + how + hist + palmares)
+
+
+_CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+                  "septembre", "octobre", "novembre", "décembre"]
+
+
+def _daily_pnl() -> dict:
+    """P&L par JOUR SPORTIF (06h→06h) de TOUS les paris comptés au ROI (simples foot + combinés) :
+    {jour_iso: {profit, n, won, lost, roi}}. Réutilise les points/dates d'équité (stats_full overall +
+    combo_stats) -> exactement la « rentabilité globale · tous paris ». Lecture seule, hors calibration."""
+    from datetime import datetime as _dt
+    ov = analyses.stats_full().get("overall") or {}
+    cb = analyses.combo_stats() or {}
+
+    def _deltas(pts, dts):                              # cumul -> deltas datés (pts[0]=0, pts[i+1] à dts[i])
+        if not dts or not pts or len(pts) < 2:
+            return []
+        return [(dts[i], pts[i + 1] - pts[i]) for i in range(min(len(dts), len(pts) - 1))]
+    evs = (_deltas(ov.get("points") or [], ov.get("dates") or [])
+           + _deltas(cb.get("points") or [], cb.get("dates") or []))
+    out: dict = {}
+    for iso, dlt in evs:
+        try:
+            day = _sport_date(to_local(_dt.fromisoformat((iso or "").replace("Z", "+00:00")))).isoformat()
+        except (ValueError, AttributeError, TypeError):
+            day = (iso or "")[:10]
+        if not day:
+            continue
+        b = out.setdefault(day, {"profit": 0.0, "n": 0, "won": 0, "lost": 0})
+        b["profit"] += dlt
+        b["n"] += 1
+        if dlt > 1e-9:
+            b["won"] += 1
+        elif dlt < -1e-9:
+            b["lost"] += 1
+    for b in out.values():
+        b["profit"] = round(b["profit"], 2)
+        b["roi"] = round(100 * b["profit"] / b["n"], 1) if b["n"] else 0.0
+    return out
+
+
+def _render_calendar(ym: str = "") -> str:
+    """Vue CALENDRIER mensuel (demande user 2026-07-25) : une grille du mois, chaque jour teinté selon son
+    ROI (vert = bénéfice, rouge = perte), navigation ‹ mois ›, bilan du mois, et le DÉTAIL d'un jour au clic
+    (réutilise /jour). Prefix `mcal-` (distinct du bandeau `cal-pill`). 100 % affichage, hors ROI/calibration."""
+    import calendar as _calmod
+    from datetime import date as _date
+    today = _sport_today()
+    try:
+        y, mo = int(ym[:4]), int(ym[5:7])
+        _date(y, mo, 1)
+    except (ValueError, TypeError, IndexError):
+        y, mo = today.year, today.month
+    pnl = _daily_pnl()
+    first_wd, ndays = _calmod.monthrange(y, mo)        # first_wd : lundi=0 … dimanche=6
+    # Bilan du mois + meilleures/pires journées.
+    mprofit = mn = mwon = mlost = 0
+    ndays_bet = 0
+    best = worst = None
+    cells = []
+    for _ in range(first_wd):                          # cases vides avant le 1er (aligne les colonnes)
+        cells.append('<div class="mcal-cell mcal-void"></div>')
+    for dnum in range(1, ndays + 1):
+        diso = f"{y:04d}-{mo:02d}-{dnum:02d}"
+        b = pnl.get(diso)
+        cls, style, extra = "mcal-cell", "", ""
+        if b and b["n"]:
+            roi, prof = b["roi"], b["profit"]
+            sign = "pos" if prof > 1e-9 else ("neg" if prof < -1e-9 else "flat")
+            cls += f" mcal-{sign} mcal-has"
+            op = min(0.34, 0.07 + abs(roi) / 260.0)    # intensité de teinte selon l'ampleur du ROI
+            style = f' style="--mt:{op:.3f}"'
+            extra = (f'<span class="mcal-roi">{"+" if prof >= 0 else "−"}{abs(roi):g}%</span>'
+                     f'<span class="mcal-n">{b["n"]} pari{"s" if b["n"] > 1 else ""}</span>')
+            mprofit += prof
+            mn += b["n"]
+            mwon += b["won"]
+            mlost += b["lost"]
+            ndays_bet += 1
+            if best is None or roi > best[1]:
+                best = (dnum, roi)
+            if worst is None or roi < worst[1]:
+                worst = (dnum, roi)
+        else:
+            cls += " mcal-empty"
+        if diso == today.isoformat():
+            cls += " mcal-today"
+        cells.append(f'<div class="{cls}"{style} data-mday="{diso}" data-has="{1 if (b and b["n"]) else 0}">'
+                     f'<span class="mcal-d">{dnum}</span>{extra}</div>')
+    dow = "".join(f'<div class="mcal-dow">{d}</div>' for d in ("L", "M", "M", "J", "V", "S", "D"))
+    # Navigation mensuelle (‹ / ›) — bornée au mois courant (pas de futur vide).
+    pm, py = (12, y - 1) if mo == 1 else (mo - 1, y)
+    nm, ny = (1, y + 1) if mo == 12 else (mo + 1, y)
+    prev_ym, next_ym = f"{py:04d}-{pm:02d}", f"{ny:04d}-{nm:02d}"
+    _next_disabled = (y, mo) >= (today.year, today.month)
+    _title = f"{_CAL_MONTHS_FR[mo - 1].capitalize()} {y}"
+    _mroi = round(100 * mprofit / mn, 1) if mn else 0.0
+    _rcls = "pos" if mprofit > 1e-9 else ("neg" if mprofit < -1e-9 else "flat")
+    nav = (f'<div class="mcal-nav">'
+           f'<button class="mcal-arw" data-cal="{prev_ym}" aria-label="Mois précédent">‹</button>'
+           f'<div class="mcal-title">{_title}</div>'
+           f'<button class="mcal-arw{" off" if _next_disabled else ""}"'
+           f'{"" if _next_disabled else f" data-cal={chr(34)}{next_ym}{chr(34)}"} aria-label="Mois suivant">›</button>'
+           f'</div>')
+    # Bilan du mois (ROI héros + jours gagnants/paris + meilleure journée).
+    _best_txt = (f'{best[0]} {_CAL_MONTHS_FR[mo - 1][:4]}. · +{best[1]:g}%' if best else "—")
+    summ = (f'<div class="mcal-sum">'
+            f'<div class="mcal-sum-hero mcal-{_rcls}">{"+" if mprofit >= 0 else "−"}{abs(_mroi):g}%'
+            f'<span class="mcal-sum-lb">ROI du mois</span></div>'
+            f'<div class="mcal-sum-kpis">'
+            f'<div><b>{ndays_bet}</b><span>jours joués</span></div>'
+            f'<div><b>{mn}</b><span>paris</span></div>'
+            f'<div><b class="mcal-{_rcls}">{_best_txt}</b><span>meilleure journée</span></div>'
+            f'</div></div>')
+    grid = f'<div class="mcal-grid">{dow}{"".join(cells)}</div>'
+    legend = ('<div class="mcal-legend"><span class="mcal-lg pos">Bénéfice</span>'
+              '<span class="mcal-lg neg">Perte</span><span class="mcal-lg flat">Neutre</span>'
+              '<span class="mcal-lg-note">Tape un jour pour voir les paris</span></div>')
+    detail = '<div class="mcal-detail" id="mcal-detail" hidden></div>'
+    if mn == 0:
+        summ = ('<div class="mcal-empty-msg">Aucun pari réglé ce mois-ci. Utilise les flèches pour '
+                'parcourir les mois.</div>')
+    return (f'<span class="dv-nav" data-tab="calendrier" data-n="0" hidden></span>'
+            f'<div class="mcal">{nav}{summ}{grid}{legend}{detail}</div>')
 
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:

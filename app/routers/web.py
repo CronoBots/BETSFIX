@@ -951,6 +951,20 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
     return HTMLResponse(web.spa_shell("stats", "Statistiques", body))
 
 
+@router.get("/calendrier", response_class=HTMLResponse)
+async def calendrier_page(ym: str = "", frag: int = 0, cal: int = 0) -> HTMLResponse:
+    """Onglet « Calendrier » (demande user 2026-07-25) : vue mensuelle, chaque jour teinté selon son ROI
+    (bénéfice/perte), navigation ‹ mois ›, bilan du mois, détail des paris d'un jour au clic (/jour). Hors ROI.
+    `cal=1` -> renvoie SEULEMENT la grille (rechargée par les flèches dans #cal-root)."""
+    inner = web._render_calendar(ym)
+    if cal:                              # navigation mensuelle : juste la grille
+        return HTMLResponse(inner)
+    body = f'<div class="pg-h">Calendrier</div><div id="cal-root">{inner}</div>'
+    if frag:
+        return HTMLResponse(body)
+    return HTMLResponse(web.spa_shell("calendrier", "Calendrier", body))
+
+
 @router.get("/montante", response_class=HTMLResponse)
 async def montante_page(frag: int = 0) -> HTMLResponse:
     """Onglet « Montante » (fonctionnalité préparée 2026-07-24) : une montante quotidienne sur 1 pari, mise
