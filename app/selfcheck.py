@@ -452,7 +452,8 @@ def _check_provisional_dedup() -> dict:
     se répercote à deux endroits, avec deux résultats possibles (demande user 2026-07-11 ; élargie au
     combiné du jour 2026-07-12). La dédup est assurée par `provisional.prune_retained` ; ce check détecte
     tout contournement futur. Ignore les provisoires déjà réglés (compteur monotone)."""
-    dup = []
+    dup = []          # VRAI doublon (pari RETENU/joué) -> ERREUR
+    dup_leg = []      # aussi jambe du combiné du jour -> ACCEPTÉ (demande user 2026-07-25), info seulement
     try:
         from app import provisional, combo_daily
         d = provisional.load()
@@ -465,13 +466,16 @@ def _check_provisional_dedup() -> dict:
                 dup.append(f"{p.get('name', '?')} : provisoire « {p.get('sel')} » alors que le match a "
                            f"un pari retenu (doublon)")
             elif mid in _daily_legs:
-                dup.append(f"{p.get('name', '?')} : provisoire « {p.get('sel')} » alors que le match est "
-                           f"une jambe du combiné du jour (doublon)")
+                dup_leg.append(f"{p.get('name', '?')} : aussi jambe du combiné du jour (accepté)")
     except Exception:
         pass
+    # Une jambe du combiné du jour PEUT rester suivie en provisoire (demande user 2026-07-25) -> pas une
+    # erreur ; seul un doublon d'un VRAI pari joué (retenu/combiné same-match) est une régression.
     return {"key": "provisional_dedup", "level": "error" if dup else "ok",
-            "title": "Provisoire non dupliqué d'un pari retenu ou d'une jambe du combiné du jour",
-            "detail": f"{len(dup)} provisoire(s) suivi(s) dont le match a déjà un pari ailleurs (doublon).",
+            "title": "Provisoire non dupliqué d'un pari RETENU (joué)",
+            "detail": (f"{len(dup)} provisoire(s) en doublon d'un pari joué."
+                       + (f" ({len(dup_leg)} aussi jambe(s) du combiné du jour — accepté, hors erreur.)"
+                          if dup_leg else "")),
             "items": dup[:20]}
 
 

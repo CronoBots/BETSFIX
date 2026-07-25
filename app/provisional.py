@@ -97,8 +97,10 @@ def prune_retained() -> int:
         if not isinstance(p, dict) or p.get("result") in ("won", "lost", "push"):
             continue                              # réglé = figé, jamais retiré (monotone)
         sport = p.get("sport")
-        if (analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None
-                or combo_daily.is_daily_leg(mid, p.get("home"), p.get("away"))):  # id OU nom
+        # On ne retire QUE les doublons d'un VRAI pari joué (combiné same-match ou simple retenu). Une jambe
+        # du COMBINÉ DU JOUR peut RESTER suivie en provisoire aussi (demande user 2026-07-25 : « ce n'est pas
+        # grave si il passe en provisoire aussi ») — l'affichage la dédoublonne déjà (_programme_items).
+        if analyses.has_combo(sport, mid) or analyses.retained_bet(sport, mid) is not None:
             d.pop(mid, None)
             removed += 1
     if removed:
