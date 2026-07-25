@@ -638,7 +638,15 @@ CSS = """
             box-shadow:0 0 26px rgba(34,184,255,.20)}
   /* CARTE COMPACTE : en-tête toujours visible (statut + équipes + résumé) + corps replié au tap.
      Liste dense -> peu de scroll ; on déplie un match pour voir paris/barres/liens/analyse. */
-  .row.mc{padding:0;margin:7px 0;overflow:hidden}
+  /* TOUTES les cartes de pari (base) : bordure BLANCHE + bord GAUCHE coloré selon le RÉSULTAT (demande
+     user 2026-07-25). Défaut = doré (à venir / en attente / live) ; gagné = vert ; perdu = rouge ;
+     remboursé = gris. Posé via la classe `mc-r-*`. */
+  .row.mc{padding:0;margin:7px 0;overflow:hidden;
+       border:1px solid rgba(255,255,255,.8);border-left:3px solid var(--gold)}
+  .row.mc.mc-r-won{border-left-color:#34d27b}
+  .row.mc.mc-r-lost{border-left-color:#ff6b6b}
+  .row.mc.mc-r-push{border-left-color:#90a4be}
+  .row.mc.mc-r-live{border-left-color:var(--gold)}
   /* Séparateur DISCRET entre deux cadres de paris (demande user 2026-07-18 : « mieux séparer les
      cadres entre eux »). Fine ligne dégradée qui s'estompe aux extrémités -> respire sans alourdir.
      Inséré entre cartes (jamais après un en-tête de jour ni en tête de zone). */
@@ -1808,14 +1816,18 @@ CSS = """
   /* Couleurs/graisses CALQUÉES sur la carte Telegram (tools/card_image.py) : cyan #5fd0ff, comp #93b7db,
      titre #eef4fb, analyse #a7bcd6 (léger), meta #90a4be, cote #fff. */
   /* Fond UNI (plus de dégradé 165° étirable qui redistribuait « la lumière » au dépli — user 2026-07-21). */
+  /* TOUTES les cartes de pari : bordure BLANCHE + bord GAUCHE coloré selon le RÉSULTAT (demande user
+     2026-07-25). Par défaut (à venir / en attente) = doré ; gagné = vert ; perdu = rouge ; live = doré ;
+     remboursé/annulé = gris. L'état est posé via la classe `mc-r-*` (helper `_card_state_cls`). */
   .row.mc.mc-tg{background:#0b1826;
-       border:1px solid rgba(58,140,225,.42);
-       box-shadow:0 0 0 1px rgba(34,167,238,.07),0 0 26px rgba(30,110,190,.15),0 12px 32px rgba(0,0,0,.5)}
-  /* Cadre PROVISOIRE : bord GRIS neutre (remplace la pastille « PROVISOIRE ») — demande user 2026-07-14. */
-  /* Provisoires : cadre BLANC + halo BLANC (demande user 2026-07-21 — avant : gris sans halo).
-     Opacité RENFORCÉE (retour user : « a l'air toujours gris ») : blanc franc + halo visible. */
-  .row.mc.mc-tg.mc-prov-b{border-color:rgba(255,255,255,.78);
-       box-shadow:0 0 0 1px rgba(255,255,255,.12),0 0 26px rgba(255,255,255,.22),0 12px 32px rgba(0,0,0,.5)}
+       border:1px solid rgba(255,255,255,.8);border-left:3px solid var(--gold);
+       box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(255,255,255,.18),0 12px 32px rgba(0,0,0,.5)}
+  .row.mc.mc-tg.mc-r-won{border-left-color:#34d27b}
+  .row.mc.mc-tg.mc-r-lost{border-left-color:#ff6b6b}
+  .row.mc.mc-tg.mc-r-push{border-left-color:#90a4be}
+  .row.mc.mc-tg.mc-r-live{border-left-color:var(--gold)}
+  /* Le cadre provisoire garde le même look blanc (le bord gauche doré = « en attente » par défaut). */
+  .row.mc.mc-tg.mc-prov-b{border-color:rgba(255,255,255,.8)}
   .mc-tg .mc-head{padding:12px 16px 11px}
   .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
@@ -1920,7 +1932,7 @@ CSS = """
   /* JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : chaque jambe encadrée exactement comme une carte
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
-  .cleg{background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border);
+  .cleg{background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid rgba(255,255,255,.8);
        border-left:3px solid var(--gold);border-radius:12px;padding:11px 12px 10px}
   /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
      défaut) ; GAGNÉ/acquise = VERT ; PERDU = ROUGE ; ANNULÉ/remboursé (void/push) = GRIS. Le live ne doit
@@ -7241,10 +7253,14 @@ def _sport_row(r: dict) -> str:
     # Carte NON dépliable (le pli « 💡 Pourquoi » porte déjà l'analyse) : PAS de `.mc-body` -> le tap est
     # inerte (le JS fait `if(!b)return;`) et le corps redondant (Cotes & chances / Mise / détails) disparaît
     # de l'affichage. Les données restent intactes (fiche .md, sources). Demande user 2026-07-20.
+    # Bord gauche coloré selon le RÉSULTAT (demande user 2026-07-25) : terminé -> won/lost/push ;
+    # live -> doré ; à venir -> doré par défaut (pas de classe).
+    _st = r.get("_state")
+    _rcls = (f" mc-r-{_st}" if _st in ("won", "lost", "push") else (" mc-r-live" if is_live else ""))
     if _no_expand:
-        return (f'<div class="row pick mc mc-prem mc-flat">{head}</div>')
+        return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
-            f'{" mc-islive" if is_live else ""}">{head}'
+            f'{" mc-islive" if is_live else ""}{_rcls}">{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
 _MC_SEP = '<div class="mc-sep"></div>'

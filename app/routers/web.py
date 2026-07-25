@@ -434,6 +434,11 @@ def _past_day_cards(date_iso: str) -> list:
             if not (analyses.is_settled(d) and _has_bet(d)):
                 continue
             _bdg, _sco = analyses.result_chip(d)
+            # État RÉSULTAT pour le bord gauche coloré de la carte (demande user 2026-07-25) : won/lost/push.
+            _res0 = d.get("result") or {}
+            _combo0 = d.get("combo") or {}
+            _outcome = _combo0.get("result") if _combo0.get("legs") else _res0.get("pick_result")
+            _cstate = {"won": "won", "lost": "lost", "push": "push", "void": "push"}.get(_outcome, "")
             ts = dt.timestamp()
             if sport == "foot":
                 o1, ox, o2 = d.get("o1"), d.get("ox"), d.get("o2")
@@ -464,6 +469,8 @@ def _past_day_cards(date_iso: str) -> list:
                      "perle": None, "perle2": None, "pick_kind": "confiance"}
                 out.append({**_tennis_trow(r),
                             **web.analyst_bars(d.get("o1"), None, d.get("o2"), analyses.votes_pct(d))})
+            if out:                                        # bord gauche coloré selon le résultat
+                out[-1]["_state"] = _cstate
     for _c in out:                                         # déjà filtrées bet-only -> évite un re-check meta
         _c["_bet"] = True
     out.sort(key=lambda x: x.get("start_ts") or 0)
