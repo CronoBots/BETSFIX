@@ -2081,56 +2081,8 @@ CSS = """
        border:1px dashed var(--border);color:var(--muted);font-size:12px;font-weight:700;
        text-decoration:none;-webkit-tap-highlight-color:transparent}
   .fin-more:active{background:rgba(255,255,255,.04)}
-  /* CALENDRIER « Pronos » (bandeau horizontal en tête, premium) : KPI 7 jours + pastilles jour/numéro
-     scrollables avec barre de bilan colorée, « aujourd'hui » accentué. */
-  .cal-wrap{margin:0 0 15px;position:relative}
-  .cal-kpi{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 6px 9px;
-       padding:0 2px;min-height:24px}
-  .cal-kpi-l{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase}
-  .cal-kpi-r{display:flex;align-items:center;gap:11px}
-  .cal-kpi-v{font-size:12.5px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
-  .cal-kpi-v b{color:#dfe8f2;font-weight:800}
-  .cal-kpi-roi{margin-left:9px;font-weight:800}
-  .cal-kpi-roi.pos{color:#64cd8d}.cal-kpi-roi.neg{color:#ff6b6b}.cal-kpi-roi.neu{color:var(--muted)}
-  /* Bouton « Aujourd'hui » (retour) dans la ligne KPI, au-dessus des pastilles -> aucun chevauchement.
-     Caché tant qu'on est sur aujourd'hui ; montré par JS sinon. */
-  .cal-jump{display:none;align-items:center;gap:3px;padding:4px 10px;border-radius:9px;
-       border:1px solid rgba(246,197,74,.5);background:rgba(246,197,74,.14);color:var(--gold);
-       font-size:11.5px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}
-  .cal-jump.show{display:inline-flex}
-  /* Padding vertical GÉNÉREUX : le halo de la pastille sélectionnée (ombre) ne doit pas être rogné par
-     overflow-x (bug user 2026-07-19 « halo coupé »). */
-  .cal-strip{display:flex;align-items:flex-end;gap:5px;overflow-x:auto;scroll-snap-type:x proximity;
-       padding:10px 4px 13px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-  .cal-strip::-webkit-scrollbar{display:none}
-  .cal-pill{flex:none;scroll-snap-align:end;display:flex;flex-direction:column;align-items:center;gap:6px;
-       min-width:48px;padding:9px 7px 8px;border-radius:13px;border:1px solid transparent;
-       background:rgba(255,255,255,.035);color:var(--muted);cursor:pointer;
-       -webkit-tap-highlight-color:transparent;transition:background .16s,border-color .16s,transform .1s}
-  .cal-pill:active{transform:scale(.94)}
-  .cal-pill .cal-wd{font-size:9.5px;font-weight:800;letter-spacing:.06em;opacity:.85}
-  .cal-pill .cal-dn{font-size:17px;font-weight:800;line-height:1;color:#c9d4e0;font-variant-numeric:tabular-nums}
-  /* JAUGE de RÉUSSITE du jour (demande user 2026-07-21) : plus une barre pleine mais une barre de
-     PROGRESSION remplie au % de paris gagnés du jour (`<i>` = remplissage, largeur = taux de réussite).
-     Track visible seulement si des paris ont été réglés ; couleur = jour gagnant (vert) / perdant (rouge). */
-  .cal-pill .cal-res{position:relative;width:22px;height:4px;border-radius:2px;background:transparent;overflow:hidden}
-  .cal-pill .cal-res.pos,.cal-pill .cal-res.neg,.cal-pill .cal-res.neu{background:rgba(255,255,255,.13)}
-  .cal-pill .cal-res i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;display:block}
-  .cal-pill .cal-res.pos i{background:linear-gradient(90deg,#2f9d63,#64cd8d)}
-  .cal-pill .cal-res.neg i{background:linear-gradient(90deg,#d84a4a,#ff7a7a)}
-  .cal-pill .cal-res.neu i{background:var(--gold)}
-  /* AUJOURD'HUI = 1re pastille (à gauche) -> toujours visible à l'ouverture, sans sticky ni masque
-     (demande user 2026-07-19). Accent doré simple. */
-  .cal-pill.today{background:rgba(246,197,74,.1);border-color:rgba(246,197,74,.38)}
-  .cal-pill.today .cal-wd{color:var(--gold);opacity:1}
-  .cal-pill.today .cal-dn{color:#f3e6c4}
-  .cal-pill.on{background:rgba(120,170,220,.2);border-color:rgba(120,170,220,.7);
-       box-shadow:0 2px 9px rgba(120,170,220,.2)}
-  .cal-pill.on .cal-wd{color:#bcd4ee;opacity:1}
-  .cal-pill.on .cal-dn{color:#f4f8fc}
-  .cal-pill.today.on{background:rgba(246,197,74,.2);border-color:rgba(246,197,74,.62);
-       box-shadow:0 2px 9px rgba(246,197,74,.2)}
-  .cal-pill.today.on .cal-wd{color:var(--gold)}
+  /* (Bandeau calendrier des jours en tête de Pronos RETIRÉ le 2026-07-25 : navigation par jour dans
+     l'onglet CALENDRIER dédié, styles `.mcal-*`. Le détail d'un jour garde ses styles `.day-*` ci-dessous.) */
   /* En-tête de contexte du jour affiché (haut de #day-content). */
   .day-hd{margin:0 3px 12px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
   .day-hd-lead{font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.01em}
@@ -3379,42 +3331,21 @@ _MILE_JS = (
     "});})();"
 )
 
-# CALENDRIER « Pronos » : clic sur une pastille de jour -> recharge #day-content via /jour (délégation
-# d'événements -> survit aux swaps de fragment), réactive les cartes injectées (_mcInit/_twScan/_sxAnim),
-# et scrolle le bandeau sur le jour actif (aujourd'hui) à l'ouverture.
+# ZONES REPLIABLES de Pronos : mémorise l'état plié/déplié (localStorage 'zf_<kind>') et le restaure au
+# rendu. (Le code de l'ancien bandeau calendrier des jours a été retiré avec le strip le 2026-07-25 : la
+# navigation par jour vit dans l'onglet CALENDRIER dédié, JS `_MCAL_JS`.)
 _CAL_JS = (
     "(function(){"
-    # ZONES REPLIABLES : restaure l'état plié mémorisé (localStorage 'zf_<kind>'='0') sur chaque details.
     "function restoreFolds(h){try{var ds=(h||document).querySelectorAll('details.zone-col[data-zk]'),i;"
     "for(i=0;i<ds.length;i++){if(localStorage.getItem('zf_'+ds[i].getAttribute('data-zk'))==='0')"
     "ds[i].removeAttribute('open');}}catch(e){}}"
-    "function init(h){try{if(window._mcInit)window._mcInit(h);}catch(e){}"
-    "try{if(window._twScan)window._twScan(h);}catch(e){}try{if(window._sxAnim)window._sxAnim(h);}catch(e){}"
-    "restoreFolds(h);}"
-    "function strip(){return document.getElementById('cal-strip');}"
-    "function togJump(date){var s=strip(),j=document.getElementById('cal-jump');"
-    "if(s&&j)j.classList.toggle('show',date!==s.getAttribute('data-today'));}"
-    "function sel(pill){var host=document.getElementById('day-content'),s=strip();if(!host||!s||!pill)return;"
-    "var ps=s.querySelectorAll('.cal-pill'),i;for(i=0;i<ps.length;i++)ps[i].classList.remove('on');"
-    "pill.classList.add('on');var date=pill.getAttribute('data-date');togJump(date);"
-    "try{pill.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}"
-    "host.innerHTML='<div class=\"skel\"><div class=\"sk\"></div><div class=\"sk\"></div></div>';"
-    "fetch('/jour?date='+encodeURIComponent(date)+'&frag=1',{headers:{'X-Frag':'1'}})"
-    ".then(function(r){return r.text();}).then(function(h){host.innerHTML=h;init(host);})"
-    ".catch(function(){host.innerHTML='<div class=\"paj-empty\">Erreur de chargement.</div>';});}"
     "document.addEventListener('click',function(ev){"
     "if(!ev.target||!ev.target.closest)return;"
     # repli d'une zone : on laisse le navigateur toggler puis on mémorise l'état (localStorage).
     "var sm=ev.target.closest('.zone-col>summary');"
     "if(sm){var det=sm.parentNode;setTimeout(function(){try{"
     "localStorage.setItem('zf_'+det.getAttribute('data-zk'),det.open?'1':'0');}catch(e){}},0);return;}"
-    "if(ev.target.closest('#cal-jump')){ev.preventDefault();var s=strip();if(!s)return;"
-    "s.scrollLeft=s.scrollWidth;var t=s.querySelector('.cal-pill.today');if(t)sel(t);return;}"
-    "var pill=ev.target.closest('.cal-pill');if(!pill)return;ev.preventDefault();sel(pill);"
     "});"
-    # aujourd'hui = DERNIÈRE pastille (à droite, sens naturel) -> on cale le bandeau à DROITE à l'ouverture.
-    "function sa(){var s=strip();if(s)s.scrollLeft=s.scrollWidth;}"
-    "setTimeout(sa,120);setTimeout(sa,500);"
     "setTimeout(function(){restoreFolds(document);},60);"   # zones repliées mémorisées au 1er rendu (serveur)
     "})();"
 )

@@ -590,54 +590,8 @@ async def stats_health(request: Request) -> HTMLResponse:
     return HTMLResponse(await _system_health_html())
 
 
-def _provisional_card() -> str:
-    """Cadre « info seule » (onglet Stats) : ce qu'aurait donné « jouer chaque provisoire ». Mesure la
-    discipline d'abstention (favoris sans value) SANS jamais entrer dans le ROI réel. '' si aucun suivi."""
-    try:
-        from app import provisional as _pvt
-        _snap = _pvt.load()               # UN seul snapshot -> compteur ET liste dérivés du MÊME état
-        s = _pvt.stats(_snap)
-    except Exception:
-        _snap, s = {}, {}
-    if not s or not s.get("n"):
-        return ""
-    _roi = s.get("roi_pct")
-    _hit = s.get("hit_rate")
-    # HISTORIQUE des provisoires présenté COMME les simples/combinés (demande user 2026-07-24) : liste au
-    # format `_recent_bets_html`, dépliée au clic sur la courbe (bouton « Derniers provisoires ▾ »). Ordre :
-    # « en attente » (⏳) en tête, puis les réglés du plus récent au plus ancien.
-    _ent = _pvt.entries(_snap)
-    _pend = [e for e in _ent if e.get("result") is None]
-    _done = sorted((e for e in _ent if e.get("result") is not None),
-                   key=lambda e: str(e.get("start") or ""), reverse=True)
-    _recent = [{"result": e.get("result") or "pending", "name": e.get("name"),
-                "sel": e.get("sel"), "cote": e.get("cote"), "start": e.get("start")}
-               for e in (_pend + _done)]
-    # LIGNE W/L (chronologique) + série + sabliers ⏳ des en attente — comme les simples/combinés.
-    _form, _streak = web._form_streak([e.get("result") for e in reversed(_done)])
-    # COURBE + STATS + HISTORIQUE construits EXACTEMENT comme les 2 premiers graphiques (simples/combinés).
-    _curve = web.render_tracking_curve(
-        emoji="🧪", title="Provisoires", roi=_roi, hit=_hit, n=s.get("settled", 0),
-        points=_pvt.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="prov",
-        recent=_recent, more_label="Derniers provisoires",
-        form=_form, pending=len(_pend), streak=_streak,
-        compact=True, hit_points=web._hit_curve([e.get("result") for e in reversed(_done)]))   # style cadre sport
-    return (
-        '<div class="sx-card"><div class="sx-h">🧪 Paris provisoires '
-        '<span>info seule · hors ROI</span></div>'
-        '<div class="sx-data-note">« Et si on jouait <b>chaque provisoire</b> ? » — sur les matchs '
-        '<b>sans value</b>, le MEILLEUR angle indicatif <b>analysé</b> (l\'angle le plus solide du match, '
-        'pas un favori par défaut). Mesuré à titre indicatif pour valider la discipline d\'abstention : '
-        '<b>ne compte PAS</b> dans le ROI réel.</div>'
-        + _curve +
-        '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>provisoires suivis</span></div>'
-        f'<div class="sx-kpi"><b>{s.get("settled", 0)}</b><span>réglés</span></div>'
-        f'<div class="sx-kpi"><b>{s.get("pending", 0)}</b><span>en attente</span></div>'
-        '</div>'
-        '<div class="sx-data-note">Si ce ROI reste <b>négatif</b> sur la durée, il confirme par les chiffres '
-        'qu\'il faut <b>s\'abstenir</b> plutôt que jouer ces favoris.</div></div>')
-
+# `_provisional_card` SUPPRIMÉ le 2026-07-25 (mort) : les provisoires sont affichés dans l'onglet
+# « Provisoires » de chaque cadre sport (web._prov_sport_graph), plus dans une carte Stats séparée.
 
 _combo_legs_html = web.combo_legs_html   # rendu UNIFIÉ (accueil/Stats/Live) — défini dans app/web.py
 
@@ -835,81 +789,8 @@ def _betmines_card() -> str:
         '</div></div>')
 
 
-def _combo_daily_card() -> str:
-    """Bloc « Combiné du jour » (onglet Stats) : le combiné multisport du jour (jambes détaillées) +
-    perf info-seule (hors ROI) + historique. '' si aucun combiné suivi."""
-    try:
-        from app import combo_daily as _cd
-        _snap = _cd.load()
-        s = _cd.stats(_snap)
-    except Exception:
-        _snap, s = {}, {}
-    if not s or not s.get("n"):
-        return ""
-    import html as _h
-    _roi = s.get("roi_pct")
-    _hit = s.get("hit_rate")
-    _today_key = _cd.day_key()   # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
-    _all = _cd.entries(_snap)
-    _cur = _cd.today(_today_key, _snap)
-    # combiné du jour EN TÊTE (jambes visibles + analyse dédiée) ; puis l'historique des combinés réglés
-    _cur_html = ""
-    if _cur:
-        _st = {"won": "✅ Gagné", "lost": "❌ Perdu", "void": "➖ Remboursé"}.get(
-            _cur.get("result"), "⏳ En attente")
-        _synth = (f'<div class="sx-synth">💡 {_h.escape(str(_cur.get("synth")))}</div>'
-                  if _cur.get("synth") else "")
-        _cur_html = (
-            '<div class="sx-today">'
-            '<div class="sx-today-h"><b class="sx-gold">🎯 Aujourd\'hui</b>'
-            f'<span style="font-weight:800">{_st}</span></div>'
-            '<div class="sx-meta">'
-            f'<span>cote <b>@{_cur.get("cote")}</b></span>'
-            f'<span>chances <b>{round((_cur.get("prob") or 0) * 100)}%</b></span>'
-            f'<span>{len(_cur.get("legs") or [])} jambes</span></div>'
-            + _synth
-            + '<div class="sx-hint">Touchez une jambe pour son analyse ▸</div>'
-            + web.combo_legs_html(_cur, expandable=True) + '</div>')
-    # HISTORIQUE présenté COMME les autres types de paris (demande user 2026-07-24) : courbe + KPIs + liste
-    # dépliable (bouton « Derniers combinés ▾ ») via le helper partagé render_tracking_curve. Un combiné =
-    # une ligne (nom = les affiches, sel = les picks, cote = cote totale). Du plus récent au plus ancien.
-    def _leg_teams(l: dict) -> str:
-        h, a = l.get("home"), l.get("away")
-        if h and a:
-            return f"{h}–{a}"
-        return str(l.get("name") or "?").replace(" - ", "–")
-
-    _hist = sorted((cb for cb in _all if cb.get("date") != _today_key and cb.get("result")),
-                   key=lambda cb: str(cb.get("date") or ""), reverse=True)
-    _recent = [{
-        "result": cb.get("result"),
-        "name": " + ".join(_leg_teams(l) for l in (cb.get("legs") or [])) or f'Combiné {cb.get("date")}',
-        "sel": " · ".join(str(l.get("sel") or l.get("market") or "") for l in (cb.get("legs") or [])),
-        "cote": cb.get("cote"),
-        "start": (cb.get("date") or "") + "T12:00:00Z"} for cb in _hist]
-    # LIGNE W/L (chronologique) + série + sabliers ⏳ des combinés en attente.
-    _form, _streak = web._form_streak([cb.get("result") for cb in reversed(_hist)])
-    _curve = web.render_tracking_curve(
-        emoji="🎯", title="Combiné du jour", roi=_roi, hit=_hit, n=s.get("settled", 0),
-        points=_cd.equity_curve(_snap), avg_cote=s.get("avg_cote"), uid="combod",
-        recent=_recent, more_label="Derniers combinés",
-        form=_form, pending=s.get("pending", 0), streak=_streak,
-        compact=True, hit_points=web._hit_curve([cb.get("result") for cb in reversed(_hist)]))   # style cadre sport
-    # Le DÉTAIL du combiné du jour (jambes) n'est PLUS affiché ici (demande user 2026-07-25) : il est déjà
-    # dans l'onglet Pronos. L'onglet Stats ne garde que le SUIVI (courbe + taux + KPIs).
-    return (
-        '<div class="sx-card"><div class="sx-h">🎯 Combiné du jour '
-        '<span>compté au ROI</span></div>'
-        '<div class="sx-data-note"><b>UN combiné FOOTBALL par jour</b>, garanti : les paris <b>les plus '
-        'probables</b> des matchs foot du jour, combinés pour atteindre <b>une cote ≥ 1,9</b> avec le '
-        '<b>taux de réussite maximal</b>. <b>Toujours compté au ROI</b> — décision 2026-07-17. '
-        'Le détail des jambes est dans l\'onglet Pronos.</div>'
-        + _curve +
-        '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{s.get("n", 0)}</b><span>jours suivis</span></div>'
-        f'<div class="sx-kpi"><b>{s.get("settled", 0)}</b><span>réglés</span></div>'
-        f'<div class="sx-kpi"><b>{s.get("pending", 0)}</b><span>en attente</span></div>'
-        '</div></div>')
+# `_combo_daily_card` SUPPRIMÉ le 2026-07-25 (mort) : le combiné du jour foot est ventilé dans le
+# « Combinés » du cadre Football (combo_stats.by_sport), plus de carte Stats standalone.
 
 
 @router.get("/stats", response_class=HTMLResponse)

@@ -259,7 +259,7 @@ def load() -> dict:
     """Snapshot du suivi provisoire (dict brut). Sert à dériver `stats()` ET `entries()` du MÊME état pour
     garantir que le compteur (n/réglés/en attente) et la liste affichée soient TOUJOURS cohérents — sinon
     deux `_load()` séparés peuvent tomber de part et d'autre d'une écriture (scan/règlement) et diverger
-    (bug vécu : compteur « 7 » vs liste de 11). Cf. `app/routers/web.py:_provisional_card`."""
+    (bug vécu : compteur « 7 » vs liste de 11). Cf. `app/web.py:_prov_sport_graph` (affichage provisoires)."""
     return _load()
 
 
