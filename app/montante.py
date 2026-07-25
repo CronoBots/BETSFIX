@@ -190,27 +190,75 @@ def activate(on: bool = True) -> None:
         os.remove(ACTIVE_FLAG)
 
 
+# MARCHÉS ÉLIGIBLES à la montante (demande user 2026-07-25) : marchés POPULAIRES et FIABLES, cote 1.25–1.45.
+# On EXCLUT les marchés aléatoires (scores exacts, buteurs). Identifiés par le CODE règlable `code_from_pick`
+# (source de vérité du règlement) -> le pari de la montante est réglé sur SON marché, pas sur notre value.
+MONT_MIN_ODDS, MONT_MAX_ODDS = 1.25, 1.45
+
+
+def _montante_eligible_code(code: str) -> bool:
+    """Le code de règlement correspond-il à un marché sûr autorisé pour la montante ?
+    - Double chance 1X / X2                (DC 1X, DC X2)
+    - Plus de 1.5 buts (total match)       (OVER 1.5)
+    - Favori gagne à domicile              (1X2 1)  -> filtré en cote 1.25–1.45 = c'est bien le favori
+    - Une équipe marque au moins 1 but     (TEAMTOT HOME/AWAY OVER 0.5)
+    (Draw No Bet : non distingué proprement dans nos données -> couvert par la double chance / favori.)"""
+    c = (code or "").upper().strip()
+    return c in ("DC 1X", "DC X2", "OVER 1.5", "1X2 1",
+                 "TEAMTOT HOME OVER 0.5", "TEAMTOT AWAY OVER 0.5")
+
+
 def pick_day_bet() -> dict | None:
-    """Le pari foot À VENIR le PLUS SÛR (confiance calibrée maximale) = candidat du jour pour la montante.
-    Réutilise la sélection de paris existante (`retained_bet`) -> le pari joué le plus probable. None si
-    aucun pari foot publiable à venir. Lecture seule."""
+    """Le pari foot À VENIR le PLUS SÛR pour la montante (demande user 2026-07-25) : parmi les marchés
+    POPULAIRES/FIABLES (`_montante_eligible_code`) en cote 1.25–1.45, celui de confiance CALIBRÉE MAX.
+    Source = prédictions du sidecar (fantômes `shadow` + pari retenu `bets`) -> réglées via leur `result`
+    (comme la calibration). None si aucun candidat foot à venir. Lecture seule."""
     from app import analyses
+    from app.settle_analyst import code_from_pick
+    try:
+        from app.analyses import calibrated_conf as _cc, _cool_conf as _cool
+    except Exception:
+        _cc = _cool = None
     best = None
     for d in analyses.iter_meta("foot"):
-        if analyses.status_of(d) != "notstarted":         # seulement les matchs pas encore commencés
+        if analyses.status_of(d) != "notstarted":          # seulement les matchs pas encore commencés
             continue
-        if (d.get("combo") or {}).get("legs"):             # combiné same-match -> pas un simple
+        mid = str(d.get("id") or "")
+        if not mid:
             continue
-        mid = str(d.get("id"))
-        rb = analyses.retained_bet("foot", mid) or analyses.published_bet("foot", mid)
-        if not rb or not rb.get("sel") or rb.get("result") in ("won", "lost", "push"):
-            continue
-        prob = rb.get("cprob") or rb.get("prob") or 0      # confiance CALIBRÉE (le plus sûr)
-        if best is None or prob > best["prob"]:
-            best = {"mid": mid, "sport": "foot",
-                    "match": d.get("name") or f'{d.get("home", "")} - {d.get("away", "")}'.strip(" -"),
-                    "sel": rb.get("sel"), "cote": rb.get("cote"), "prob": prob,
-                    "start": d.get("start") or ""}
+        home, away = d.get("home", ""), d.get("away", "")
+        preds = list(d.get("shadow") or [])
+        for b in (d.get("bets") or []):                    # le pari retenu compte aussi (cote sous `odds`)
+            preds.append({"sel": b.get("sel"), "cote": b.get("odds"), "prob": b.get("prob")})
+        seen = set()
+        for p in preds:
+            sel = p.get("sel") or ""
+            cote = p.get("cote")
+            if not isinstance(cote, (int, float)) or not (MONT_MIN_ODDS <= cote <= MONT_MAX_ODDS):
+                continue
+            code = (code_from_pick(sel, "foot", home, away) or "").strip()
+            if not _montante_eligible_code(code):
+                continue
+            prob = p.get("prob")
+            if not isinstance(prob, (int, float)):
+                continue
+            pct = prob if prob > 1 else prob * 100.0
+            if _cc:                                         # confiance CALIBRÉE + refroidie (le plus sûr)
+                try:
+                    _c2 = _cool(_cc(pct, "foot", code), "foot", code, d.get("streaks"))
+                    if _c2 is not None:
+                        pct = _c2
+                except Exception:
+                    pass
+            key = (mid, code)
+            if key in seen:                                 # 1 seul candidat par (match, marché) : le meilleur
+                continue
+            seen.add(key)
+            if best is None or pct > best["prob"]:
+                best = {"mid": mid, "sport": "foot",
+                        "match": d.get("name") or f'{home} - {away}'.strip(" -"),
+                        "sel": sel, "cote": float(cote), "code": code, "prob": round(pct, 1),
+                        "start": d.get("start") or ""}
     return best
 
 
@@ -227,7 +275,8 @@ def record_day(date_iso: str) -> bool:
     if not pick:
         return False
     steps.append({"date": date_iso, "match": pick["match"], "sel": pick["sel"],
-                  "cote": pick["cote"], "mid": pick["mid"], "sport": "foot", "result": None})
+                  "cote": pick["cote"], "mid": pick["mid"], "code": pick.get("code"),
+                  "sport": "foot", "result": None})
     d["steps"] = steps
     d.setdefault("base_stake", BASE_STAKE)
     save(d)
@@ -235,9 +284,12 @@ def record_day(date_iso: str) -> bool:
 
 
 def settle_pending() -> int:
-    """Règle les paris en attente de la montante à partir du résultat DÉJÀ calculé du match (stat_bet
-    figé) — on réutilise nos règlements, aucune source réseau ici. Retourne le nombre réglé."""
+    """Règle les paris en attente de la montante sur LEUR PROPRE marché (le pari de la montante peut différer
+    de notre value) : on retrouve la prédiction du même CODE dans le sidecar (stat_bet OU fantôme `shadow`,
+    tous deux déjà réglés par nos règlements) et on lit son `result`. Aucune source réseau. Nb réglé."""
     from app import analyses
+    from app.settle_analyst import code_from_pick
+    _fin = ("won", "lost", "push", "void")
     d = load()
     n = 0
     for s in d.get("steps") or []:
@@ -246,11 +298,25 @@ def settle_pending() -> int:
         m = analyses.meta("foot", s.get("mid"))
         if not m or not analyses.is_settled(m):
             continue
+        home, away = m.get("home", ""), m.get("away", "")
+        want = (s.get("code") or code_from_pick(s.get("sel") or "", "foot", home, away) or "").strip().upper()
+        if not want:
+            continue
+        res = None
+        # 1) le pari joué (stat_bet) porte-t-il ce marché ? 2) sinon un fantôme réglé du même code.
         sb = m.get("stat_bet") or {}
-        if sb.get("result") in ("won", "lost", "push", "void"):
-            s["result"] = sb["result"]
-            if sb.get("cote"):
-                s["cote"] = sb["cote"]                     # cote finale figée
+        if sb.get("sel") and sb.get("result") in _fin:
+            if code_from_pick(sb.get("sel"), "foot", home, away).strip().upper() == want:
+                res = sb["result"]
+        if res is None:
+            for p in m.get("shadow") or []:
+                if p.get("result") not in _fin:
+                    continue
+                if code_from_pick(p.get("sel") or "", "foot", home, away).strip().upper() == want:
+                    res = p["result"]
+                    break
+        if res is not None:
+            s["result"] = res
             n += 1
     if n:
         save(d)
@@ -271,10 +337,10 @@ def example() -> dict:
     """Montante d'EXEMPLE (aperçu premium de la page avant activation) — purement illustrative, jamais
     enregistrée. 4 paliers gagnés à partir de 10 €."""
     demo = [
-        {"date": "J1", "match": "Exemple A – B", "sel": "Double chance 1X", "cote": 1.45, "result": "won"},
-        {"date": "J2", "match": "Exemple C – D", "sel": "Moins de 3.5 buts", "cote": 1.40, "result": "won"},
-        {"date": "J3", "match": "Exemple E – F", "sel": "Équipe 1 gagne", "cote": 1.55, "result": "won"},
-        {"date": "J4", "match": "Exemple G – H", "sel": "Plus de 1.5 but", "cote": 1.35, "result": "won"},
+        {"date": "J1", "match": "Exemple A – B", "sel": "Double chance 1X", "cote": 1.42, "result": "won"},
+        {"date": "J2", "match": "Exemple C – D", "sel": "Plus de 1.5 but", "cote": 1.35, "result": "won"},
+        {"date": "J3", "match": "Exemple E – F", "sel": "Favori gagne à domicile", "cote": 1.40, "result": "won"},
+        {"date": "J4", "match": "Exemple G – H", "sel": "Équipe marque (+0.5 but)", "cote": 1.30, "result": "won"},
     ]
     chain = _split_chains(demo, BASE_STAKE)[0]
     return chain

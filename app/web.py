@@ -2869,6 +2869,7 @@ CSS = """
   .mont-step-a .to .ko{color:#ff6b6b} .mont-step-a .to .wait{color:var(--gold)}
   .mont-step-g{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
   .mont-step-g.up{color:#64cd8d} .mont-step-g.dn{color:#ff8a8a}
+  .mont-step-mise{display:block;font-size:9.5px;font-weight:700;color:var(--dim);letter-spacing:.02em}   /* mise TOUJOURS visible (demande user 2026-07-25) */
   /* Courbe de progression du capital (10 € -> pic), échelle log */
   .mont-curve{margin:2px 0 11px}
   .mont-c{width:100%;height:auto;display:block}
@@ -6018,13 +6019,16 @@ def _mont_ladder(steps: list) -> str:
             _gain = f'<span class="mont-step-g dn">−{_mont_eur(stake)}</span>' if stake else ""
         else:
             _cap = '<span class="wait">En jeu</span>'
-            _gain = f'<span class="mont-step-g">{_mont_eur(stake)}</span>' if stake else ""
+            _gain = ""
+        # MISE (capital engagé sur ce palier) TOUJOURS affichée (demande user 2026-07-25).
+        _mise = (f'<span class="mont-step-mise">mise {_mont_eur(stake)}</span>'
+                 if isinstance(stake, (int, float)) else "")
         rows.append(
             f'<div class="mont-step {cls}">'
             f'<div class="mont-step-n"><b>{i}</b></div>'
             f'<div class="mont-step-m"><div class="mont-step-t">{match}</div>'
             f'<div class="mont-step-s"><span class="sel">{sel}</span>{_cote_b}</div></div>'
-            f'<div class="mont-step-a"><span class="to">{_cap}</span>{_gain}</div></div>')
+            f'<div class="mont-step-a">{_mise}<span class="to">{_cap}</span>{_gain}</div></div>')
     return "".join(rows)
 
 
