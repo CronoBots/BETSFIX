@@ -146,7 +146,17 @@ def fmt_live_clock(mc: dict | None) -> str:
         ml, sl = mc.get("minutesLeftInPeriod"), mc.get("secondsLeftInMinute")
         return f"{q} · {ml}:{sl:02d}" if (ml is not None and sl is not None) else q
     minute = mc.get("minute")                                       # foot : minute écoulée
-    return f"{minute}'" if minute is not None else ""
+    if minute is None:
+        return ""
+    # MI-TEMPS à côté de la minute (demande user 2026-07-25). Priorité au periodId (FIRST/SECOND), repli
+    # sur la minute (> 45 -> 2e mi-temps). En prolongation on est déjà sorti plus haut (« Prol. »).
+    if "SECOND" in pid or "2ND" in pid or pid.endswith("_2"):
+        half = "2e MT"
+    elif "FIRST" in pid or "1ST" in pid or pid.endswith("_1"):
+        half = "1re MT"
+    else:
+        half = "2e MT" if minute > 45 else "1re MT"
+    return f"{minute}' · {half}"
 
 def live_fields(ld: dict | None, sport: str) -> dict:
     """À partir du `liveData` Unibet (cf. match_select.live_state_for), renvoie les champs prêts pour
@@ -7321,6 +7331,7 @@ def _sport_row(r: dict) -> str:
     # pari joué passe (cote live dé-margée / repli modèle score+temps). Simples seulement ici — le combiné
     # porte ses propres barres (par jambe + global). PURE AFFICHAGE : aucun impact ROI/stats/calibration.
     _live_bar = ""
+    _lp_res = None                      # résultat live_prob -> source « acquis »/« perdu » pour le bord
     if is_live and lscore and bets3 and not is_combo and sport_key:
         _pbb = bets3[0]
         _lhs, _las = _parse_live_score(r.get("score"))
@@ -7333,13 +7344,14 @@ def _sport_row(r: dict) -> str:
         if sport_key == "tennis":         # sets gagnés + jeux du set en cours -> modèle « ≥1 set »
             _lvals.update(_tennis_sets_games(r.get("score")))
         _gfrac = (match_select.basket_frac(_lld, comp) if sport_key == "basket" else None)
-        _live_bar = _live_bar_html(analyses.live_prob(
+        _lp_res = analyses.live_prob(
             sport_key, _pbb.get("sel", ""), _pbb.get("code", ""),
             r.get("home", ""), r.get("away", ""), _lhs, _las,
             match_select.live_minute(_lld),
             match_select.live_win_odds(sport_key, r.get("home"), r.get("away")),
             _pbb.get("cprob") or _pbb.get("prob"),
-            analyses.live_catalog(_lmid.group(1)) if _lmid else [], _lvals, _gfrac))
+            analyses.live_catalog(_lmid.group(1)) if _lmid else [], _lvals, _gfrac)
+        _live_bar = _live_bar_html(_lp_res)
     _live_score_row = f'<div class="mc-livesc">{lscore}{_live_bar}</div>' if (is_live and lscore) else ""
     _chev = "" if _no_expand else '<span class="mc-chev">▸</span>'   # pas de chevron si carte non dépliable
     head = (f'<div class="mc-head"><div class="mc-main">'
@@ -7371,7 +7383,20 @@ def _sport_row(r: dict) -> str:
     # Bord gauche coloré selon le RÉSULTAT (demande user 2026-07-25) : terminé -> won/lost/push ;
     # live -> doré ; à venir -> doré par défaut (pas de classe).
     _st = r.get("_state")
-    _rcls = (f" mc-r-{_st}" if _st in ("won", "lost", "push") else (" mc-r-live" if is_live else ""))
+    # LIVE DÉJÀ JOUÉ (demande user 2026-07-25) : si la chance live est VERROUILLÉE (source « acquis » = pari
+    # mathématiquement gagné, « perdu » = manqué), le bord gauche prend déjà la couleur du résultat (vert/
+    # rouge) au lieu du doré « en cours ». Sinon live = doré, terminé = won/lost/push.
+    _locked = _lp_res.get("source") if isinstance(_lp_res, dict) else None
+    if _st in ("won", "lost", "push"):
+        _rcls = f" mc-r-{_st}"
+    elif is_live and _locked == "acquis":
+        _rcls = " mc-r-won"
+    elif is_live and _locked == "perdu":
+        _rcls = " mc-r-lost"
+    elif is_live:
+        _rcls = " mc-r-live"
+    else:
+        _rcls = ""
     if _no_expand:
         return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
