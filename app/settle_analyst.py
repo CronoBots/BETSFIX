@@ -1141,6 +1141,52 @@ def _mark_notified(side: str, flags: list, result_msg: dict | None = None) -> No
         pass
 
 
+def backfill_stat_bets() -> int:
+    """GARDE-FOU (demande user 2026-07-26) : fige `stat_bet` pour tout pari RETENU (for_history) sur un match
+    TERMINÉ dont le résultat de pari est DÉJÀ connu (`result.pick_result`) mais qui n'a jamais été figé.
+    Trou hérité : un pari réglé AVANT le mécanisme de gel actuel est ensuite SAUTÉ à chaque passe (car
+    `pick_settled`) -> `stat_bet` reste vide -> « en attente » à vie + hors ROI. Ce backfill s'exécute même
+    sur les matchs sautés. INVARIANTS RESPECTÉS : on ne fige QUE des paris RETENUS avec résultat won/lost/push,
+    on ne RETOUCHE JAMAIS un stat_bet déjà présent (compteur MONOTONE), on ne recalcule pas en direct. Renvoie
+    le nombre de sidecars nouvellement figés."""
+    n = 0
+    for side in glob.glob(os.path.join(analyses.DIR, "*.json")):
+        try:
+            d = json.load(open(side, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(d.get("stat_bet"), dict):
+            continue                                  # déjà figé -> jamais retouché (monotone)
+        if (d.get("result") or {}).get("pick_result") is None:
+            continue                                  # pas encore réglé -> rien à figer (pas un trou)
+        sport, mid = d.get("sport"), str(d.get("id") or "")
+        if not sport or not mid:
+            continue
+        try:
+            _sf = analyses.retained_bet(sport, mid, for_history=True)
+        except Exception:
+            _sf = None
+        if not _sf or not _sf.get("sel"):
+            continue                                  # abstention (aucun pari retenu) -> pas de stat_bet
+        # Résultat = celui du pari RÉGLÉ correspondant (par sel normalisé), sinon celui de retained_bet.
+        _rr = next((bb.get("result") for bb in (d.get("bets") or [])
+                    if analyses._norm_sel(bb.get("sel", "")) == analyses._norm_sel(_sf.get("sel", ""))),
+                   _sf.get("result"))
+        if _rr not in ("won", "lost", "push"):
+            continue
+        d["stat_bet"] = {"sel": _sf.get("sel"), "prob": _sf.get("prob"),
+                         "cote": _sf.get("cote"), "result": _rr}
+        try:
+            tmp = side + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(d, f, ensure_ascii=False)
+            os.replace(tmp, side)
+            n += 1
+        except OSError:
+            pass
+    return n
+
+
 _SHADOW_TRIES_CAP = 4
 
 
@@ -1195,6 +1241,7 @@ async def settle_analyses() -> int:
         return 0
     async with _settle_lock:
         n = await _settle_analyses_impl()
+        n += backfill_stat_bets()      # garde-fou : fige les paris réglés-mais-non-figés (trou hérité)
         n += void_exhausted_shadows()
         return n
 
