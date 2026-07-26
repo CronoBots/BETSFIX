@@ -214,23 +214,39 @@ async def _fotmob_day(client, ymd: str) -> list:
         for m in lg.get("matches") or []:
             h = (m.get("home") or {}).get("longName") or (m.get("home") or {}).get("name") or ""
             a = (m.get("away") or {}).get("longName") or (m.get("away") or {}).get("name") or ""
-            out.append((h, a, m.get("id"), lname))
+            out.append((h, a, m.get("id"), lname, (m.get("status") or {}).get("utcTime")))
     _FM_DAY[ymd] = out
     return out
 
 
+# Écart MAX toléré (s) entre le coup d'envoi cible et celui du candidat FotMob — même garde que LiveScore
+# (`livescore._MAX_KICKOFF_GAP_S`) contre la collision équipe 1re / réserve « II » de noms proches.
+_FM_MAX_KICKOFF_GAP_S = 6 * 3600
+
+
 async def _fotmob_find(client, home: str, away: str, start_iso: str):
-    """matchId FotMob du match (noms + jour du coup d'envoi, ±1 jour). None si introuvable."""
+    """matchId FotMob du match (noms + jour du coup d'envoi, ±1 jour). Parmi les candidats par NOMS, garde
+    celui dont le COUP D'ENVOI est le plus proche de l'heure cible et rejette s'il est trop loin (>6 h) —
+    sinon un match entre équipes de noms proches (1re vs réserve « II ») à une autre heure est pris à tort
+    (bug 2026-07-27 : Portland Timbers–Real Salt Lake 2-1 @02:30 renvoyé pour Portland Timbers II–Real
+    Monarchs 1-0 @20:00). None si introuvable."""
     dt = _start_dt(start_iso)
     if dt is None:
         return None
+    best, best_gap = None, None
     for delta in (0, -1, 1):
         ymd = (dt + timedelta(days=delta)).strftime("%Y%m%d")
-        for h, a, mid, _lg in await _fotmob_day(client, ymd):
-            if _teams_match(home, away, h, a):
-                return mid
+        for h, a, mid, _lg, utc in await _fotmob_day(client, ymd):
+            if not _teams_match(home, away, h, a):
+                continue
+            edt = _start_dt(utc or "")
+            gap = abs((edt - dt).total_seconds()) if edt else 1e12
+            if best_gap is None or gap < best_gap:
+                best, best_gap = mid, gap
         await asyncio.sleep(_GAP)
-    return None
+    if best is not None and best_gap is not None and best_gap > _FM_MAX_KICKOFF_GAP_S:
+        return None                                       # meilleur candidat trop loin -> mauvais match
+    return best
 
 
 # Clés FotMob (stables) -> stats de RÈGLEMENT (par équipe [home, away]).
@@ -1260,14 +1276,25 @@ async def final_score(sport: str, d: dict) -> dict | None:
     try:
         async with httpx.AsyncClient(timeout=_T) as client:
             if sport == "foot":
+                # Parmi TOUS les matchs FotMob candidats (noms), garder celui dont le COUP D'ENVOI est le plus
+                # proche de l'heure cible ; rejeter si trop loin (>6 h) — anti-collision équipe 1re / réserve
+                # « II » de noms proches (bug 2026-07-27 : Portland Timbers 2-1 @02:30 renvoyé pour Portland
+                # Timbers II 1-0 @20:00). _fm_score_from_match n'accepte QUE les matchs finis -> best = final.
+                best, best_gap = None, None
                 for ymd in days:
                     j = await _score_cached(("fm", ymd),
                                             lambda y=ymd: _get_json(client, f"{_FOTMOB}/matches?date={y}"))
                     for lg in (j or {}).get("leagues") or []:
                         for m in lg.get("matches") or []:
                             sc = _fm_score_from_match(m, home, away)
-                            if sc:
-                                return sc
+                            if not sc:
+                                continue
+                            edt = _start_dt((m.get("status") or {}).get("utcTime") or "")
+                            gap = abs((edt - dt).total_seconds()) if edt else 1e12
+                            if best_gap is None or gap < best_gap:
+                                best, best_gap = sc, gap
+                if best is not None and best_gap is not None and best_gap <= _FM_MAX_KICKOFF_GAP_S:
+                    return best
             elif sport == "basket":
                 for league in ("wnba", "nba"):
                     for ymd in days:
