@@ -327,6 +327,36 @@ def _fm_unavailable(lineup_side: dict, label: str) -> str:
     return ", ".join(out[:6])
 
 
+def _fm_h2h_recent(matches, limit: int = 3) -> list[str]:
+    """Derniers face-à-face FotMob AVEC score (au-delà du bilan W-D-L) : [« Lyon 2-1 Paris », …], le plus
+    récent d'abord. Best-effort : ignore toute entrée non parsable (structure FotMob variable)."""
+    rows = []
+    for m in matches or []:
+        if not isinstance(m, dict):
+            continue
+        hn = ((m.get("home") or {}).get("name")) or ""
+        an = ((m.get("away") or {}).get("name")) or ""
+        st = m.get("status") or {}
+        score = st.get("scoreStr") or st.get("score")
+        if not score:                                    # repli : score porté par home/away
+            hs, asc = (m.get("home") or {}).get("score"), (m.get("away") or {}).get("score")
+            if hs is not None and asc is not None:
+                score = f"{hs} - {asc}"
+        if not (hn and an and score):
+            continue
+        ut = st.get("utcTime") or m.get("time")
+        if isinstance(ut, (int, float)):
+            ts = float(ut)
+        elif isinstance(ut, str):
+            dt = _start_dt(ut)
+            ts = dt.timestamp() if dt else 0.0
+        else:
+            ts = 0.0
+        rows.append((ts, f"{hn} {str(score).replace(' ', '')} {an}"))
+    rows.sort(key=lambda r: r[0], reverse=True)           # plus récent d'abord
+    return [r[1] for r in rows[:limit]]
+
+
 async def _foot_extras(client, match: dict) -> list[str]:
     home, away = match.get("home", ""), match.get("away", "")
     mid = await _fotmob_find(client, home, away, match.get("start") or "")
@@ -363,6 +393,11 @@ async def _foot_extras(client, match: dict) -> list[str]:
         if _so is not None:
             w, d, l = summ if _so == "home" else summ[::-1]
             facts.append(f"H2H : {home} {w} victoire(s), {d} nul(s), {away} {l} victoire(s) (FotMob)")
+    # H2H DÉTAILLÉ : derniers face-à-face AVEC score (tendance récente, au-delà du bilan W-D-L). Noms +
+    # scores réels -> pas besoin d'orientation home/away (anti-inversion). Best-effort (matches absent = rien).
+    recent = _fm_h2h_recent(h2h.get("matches"))
+    if recent:
+        facts.append("H2H récents : " + " ; ".join(recent) + " (FotMob)")
     # Absents (si exposés)
     lu = c.get("lineup") or {}
     for side_key, label in (("homeTeam", home), ("awayTeam", away)):
@@ -441,7 +476,10 @@ async def _foot_extras(client, match: dict) -> list[str]:
 
 # ------------------------------------------------------------------ FOOT — Understat (xG)
 _US_LEAGUE = {"premier league": "EPL", "laliga": "La_liga", "la liga": "La_liga",
-              "bundesliga": "Bundesliga", "serie a": "Serie_A", "ligue 1": "Ligue_1"}
+              "bundesliga": "Bundesliga", "serie a": "Serie_A", "ligue 1": "Ligue_1",
+              # Understat couvre AUSSI la Russie (6e ligue) ; hors de ces 6, il n'y a PAS d'xG Understat
+              # (2e divisions/coupes non publiées) -> repli sur les autres sources sans xG, c'est structurel.
+              "premier liga": "RFPL", "russian premier": "RFPL"}
 _US_CACHE: dict[str, dict] = {}    # league -> {team_name: [matchs (d, xG, xGA, res)]}
 
 
@@ -729,10 +767,15 @@ async def _bb_standings(client, league: str) -> dict:
     for conf in (j or {}).get("children") or []:
         for e in ((conf.get("standings") or {}).get("entries")) or []:
             nm = ((e.get("team") or {}).get("displayName")) or ""
-            stats = {s.get("name"): s.get("displayValue") for s in e.get("stats") or []}
+            # Clé par `type` (lowercase stable) : `name` capitalise « Home »/« Road »/« Last Ten Games ».
+            stats = {s.get("type"): s.get("displayValue") for s in e.get("stats") or []}
             if nm:
                 out[nm] = (f"{stats.get('wins', '?')}-{stats.get('losses', '?')}"
                            + (f", série {stats.get('streak')}" if stats.get("streak") else "")
+                           + (f", dom. {stats.get('home')}" if stats.get("home") else "")
+                           + (f", ext. {stats.get('road')}" if stats.get("road") else "")
+                           + (f", 10 derniers {stats.get('lasttengames')}" if stats.get("lasttengames") else "")
+                           + (f", diff {stats.get('differential')}" if stats.get("differential") else "")
                            + f" ({conf.get('name', '')})")
     _BB_STAND[league] = out
     return out
