@@ -2590,6 +2590,7 @@ def _agg_bets(events: list) -> dict:
     # graphes alignés, correspondances visibles). Les None de tête (avant le 1er gagné/perdu) sont comblés
     # après la boucle par le 1er taux connu.
     hit_pts, hit_dates = [None], []
+    cote_pts = [None]                                    # COTE MOYENNE cumulée (3e graphe, demande user 2026-07-27)
     recent = []                                          # détails par pari (si fournis en 4e élément)
     for _ev in events:
         _start, res, odds = _ev[0], _ev[1], _ev[2]
@@ -2614,10 +2615,14 @@ def _agg_bets(events: list) -> dict:
         # gagné/perdu -> comblé après la boucle). Report automatique sur push : won/(won+lost) inchangé.
         hit_pts.append(round(100 * won / (won + lost), 1) if (won + lost) else None)
         hit_dates.append(_start or "")
+        # cote MOYENNE cumulée (même cadence) -> 3e graphe « Cote moyenne » (demande user 2026-07-27)
+        cote_pts.append(round(osum / (won + lost), 2) if (won + lost) else None)
     # Comble les None de tête (ancre + éventuels push avant le 1er gagné/perdu) par le 1er taux connu ->
     # départ plat et longueur = celle de la courbe d'équité. Aucun pari gagné/perdu -> pas de courbe.
     _first_rate = next((h for h in hit_pts if h is not None), None)
     hit_pts = [] if _first_rate is None else [(_first_rate if h is None else h) for h in hit_pts]
+    _first_cote = next((c for c in cote_pts if c is not None), None)
+    cote_pts = [] if _first_cote is None else [(_first_cote if c is None else c) for c in cote_pts]
     settled, staked = won + lost, won + lost + push
     # Série EN COURS (signée) : nb de gagnés (+) ou perdus (-) consécutifs en fin de période.
     seq = [ev[1] for ev in events if ev[1] in ("won", "lost")]
@@ -2652,6 +2657,7 @@ def _agg_bets(events: list) -> dict:
             "form_run": form_run,
             "recent": recent,                            # TOUT l'historique détaillé (W/L + nom + sel + cote) — panneau déplié scrollable (demande user 2026-07-25)
             "hit_points": hit_pts, "hit_dates": hit_dates,   # courbe du taux de réussite cumulé (amélioration dans le temps)
+            "cote_points": cote_pts,                         # courbe de la COTE MOYENNE cumulée (3e graphe)
             "max_dd": round(dd, 2),
             "dd_pct": (round(100 * dd / staked, 1) if staked else None)}
 

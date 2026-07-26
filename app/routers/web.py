@@ -531,7 +531,8 @@ def _simulation_card() -> str:
                 recent=_pend_s + list(reversed(b.get("recent") or [])), more_label="Derniers simples",
                 pending=len(_pend_s),                        # sabliers ⏳ des à venir (comme football)
                 milestones=web._sport_milestones(sp), compact=True,   # disposition « ROI héros »
-                hit_points=b.get("hit_points"), best_streak=b.get("best_streak"))   # record sur tout l'historique
+                hit_points=b.get("hit_points"), best_streak=b.get("best_streak"),   # record sur tout l'historique
+                cote_points=b.get("cote_points"))            # 3e graphe : cote moyenne
         c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
         if c.get("settled") or _pend_c:
             _combos_g = web.render_tracking_curve(
@@ -542,7 +543,8 @@ def _simulation_card() -> str:
                 recent=_pend_c + list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
                 pending=len(_pend_c),
                 milestones=web._sport_milestones(sp), compact=True,   # disposition « ROI héros »
-                hit_points=c.get("hit_points"), best_streak=c.get("best_streak"))   # record sur tout l'historique
+                hit_points=c.get("hit_points"), best_streak=c.get("best_streak"),   # record sur tout l'historique
+                cote_points=c.get("cote_points"))            # 3e graphe : cote moyenne
         curves = web._sport_tabs(_simple_g, _combos_g, web._prov_sport_graph(sp),   # + onglet Provisoires (user 2026-07-25)
                                  counts=(len(_pend_s), len(_pend_c), web._prov_pending_count(sp)))   # badges EN COURS
         if not curves:

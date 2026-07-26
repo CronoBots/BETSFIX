@@ -602,16 +602,6 @@ CSS = """
   .spf-rate-h b{color:#22b8ff;font-size:12px;letter-spacing:0;margin-left:3px}
   .rate-c{display:block;margin-top:5px}
   .rate-lbl{font-size:8px;font-weight:800;fill:var(--muted);font-variant-numeric:tabular-nums}
-  /* Graphe FUSIONNÉ ROI + Réussite (demande user 2026-07-27) : 2e courbe (bleu) + axe % à droite + légende */
-  .sx-rate-line{opacity:.92}
-  .sx-rate-pt{opacity:.95}
-  .sx-rate-ax{font-size:7.5px;font-weight:700;fill:rgba(34,184,255,.75);font-variant-numeric:tabular-nums}
-  .sx-rate-end{font-size:9px;font-weight:900;fill:#22b8ff;text-anchor:end;font-variant-numeric:tabular-nums}
-  .sx-mleg{display:flex;justify-content:center;gap:16px;margin-top:6px}
-  .sx-mleg-i{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:700;color:var(--muted)}
-  .sx-mleg-d{width:9px;height:3px;border-radius:2px;display:inline-block}
-  .sx-mleg-d.roi{background:linear-gradient(90deg,#34d27b,#34d27b)}
-  .sx-mleg-d.rate{background:#22b8ff}
   .rate-lbl-e{fill:#22b8ff}
   /* Ligne W/L des graphes héros : pastilles RESSERRÉES et centrées (demande user) + espace avant l'historique. */
   .spf-hero .spf-cv-form{display:block;overflow:visible;margin:12px 0 0}
@@ -3800,31 +3790,20 @@ def _best_streak_chip(best) -> str:
     return f'<span class="sx-streak best" title="{_t}">🏆 {best}</span>'
 
 def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
-                milestones: list | None = None, rate_points: list | None = None) -> str:
+                milestones: list | None = None) -> str:
     """Grande courbe d'équité (profit cumulé) : aire + courbe VERTE au-dessus de 0 / ROUGE en dessous
-    (dégradé à coupure nette sur le zéro), grille + label « 0 ». Si `dates` (coup d'envoi aligné sur
-    points[1:]) et `milestones`=[(iso,label)] sont fournis, trace des REPÈRES verticaux NUMÉROTÉS aux
-    dates de changement de modèle (la légende texte est rendue à côté, hors SVG).
-    Si `rate_points` (taux de réussite %, MÊME longueur/cadence que `points` — cf. _agg_bets) est fourni,
-    trace EN PLUS la courbe de réussite sur un SECOND axe (droite, %) -> un seul graphe fusionné ROI +
-    Réussite (demande user 2026-07-27), axes partagés en x (même pari = même position)."""
+    (dégradé à coupure nette sur le zéro), grille + label « 0 ». Courbe ROI SEULE — la Réussite et la Cote
+    sont des graphes SÉPARÉS (demande user 2026-07-27 : 3 graphes distincts). PLUS de repères de modèle sur
+    la courbe (retirés à la même demande). `dates`/`milestones` gardés pour compat mais NON tracés."""
     if not points:
         return ""
     pts = points if len(points) > 1 else (points * 2)
-    # Courbe de réussite (2e axe) : alignée sur `points` (même cadence via _agg_bets). None si absente/désalignée.
-    rate = None
-    if rate_points and len(rate_points) == len(points) and len(points) > 1:
-        try:
-            rate = [float(r) for r in rate_points]
-        except (TypeError, ValueError):
-            rate = None
     lo, hi = min(pts + [0.0]), max(pts + [0.0])
     if hi - lo < 1e-9:
         hi = lo + 1.0
     pad = (hi - lo) * 0.16
     lo, hi = lo - pad, hi + pad
-    # marge droite ÉLARGIE quand la courbe de réussite (axe %) est tracée -> place pour ses labels d'axe.
-    n, W, H, L, R, T, B = len(pts), 320.0, 104.0, 16.0, (28.0 if rate is not None else 16.0), 14.0, 8.0
+    n, W, H, L, R, T, B = len(pts), 320.0, 104.0, 16.0, 16.0, 14.0, 8.0
     iw, ih = W - L - R, H - T - B
     GR, RD = "#34d27b", "#ff6b6b"
 
@@ -3833,20 +3812,6 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
 
     def Y(v):
         return T + ih * (1 - (v - lo) / (hi - lo))
-
-    # 2e axe (droite) pour la courbe de réussite : échelle PROPRE (%) ajustée aux données (0..100 borné).
-    rlo = rhi = None
-    if rate is not None:
-        rlo, rhi = min(rate), max(rate)
-        if rhi - rlo < 1e-9:
-            rlo, rhi = max(0.0, rlo - 5), min(100.0, rhi + 5)
-        _rpad = (rhi - rlo) * 0.22
-        rlo, rhi = max(0.0, rlo - _rpad), min(100.0, rhi + _rpad)
-        if rhi - rlo < 1e-9:
-            rhi = rlo + 1.0
-
-    def Yr(v):
-        return T + ih * (1 - (v - rlo) / (rhi - rlo)) if rlo is not None else T
 
     zy = Y(0.0)
     off = max(0.0, min(1.0, zy / H))                     # position du zéro (0..1) pour la coupure
@@ -3875,39 +3840,7 @@ def _hero_chart(points: list, uid: str = "h", dates: list | None = None,
              'stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>')
     p.append(f'<circle class="sx-heroc-pt" cx="{X(n - 1):.1f}" cy="{Y(pts[-1]):.1f}" r="2.8" '
              f'fill="{GR if pts[-1] >= 0 else RD}"/>')
-    # 2e COURBE : taux de réussite (%) sur l'axe DROIT — bleu, fine, sans aire (ne surcharge pas l'équité).
-    # Étiquettes d'axe droit (haut/bas de l'échelle %) + point + % de fin. Axes X partagés -> même pari =
-    # même abscisse sur les 2 courbes (fusion propre ROI + Réussite, demande user 2026-07-27).
-    if rate is not None:
-        AC = "#22b8ff"
-        rate_d = _smooth_path([(X(i), Yr(v)) for i, v in enumerate(rate)])
-        p.append(f'<path class="sx-rate-line" pathLength="1" d="{rate_d}" fill="none" stroke="{AC}" '
-                 'stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"/>')
-        p.append(f'<circle class="sx-rate-pt" cx="{X(n - 1):.1f}" cy="{Yr(rate[-1]):.1f}" r="2.4" fill="{AC}"/>')
-        # graduations % de l'axe droit (max en haut, min en bas de l'échelle utile)
-        p.append(f'<text class="sx-rate-ax" x="{W - R + 2:g}" y="{Yr(rhi) + 6:.1f}">{rhi:.0f}%</text>')
-        p.append(f'<text class="sx-rate-ax" x="{W - R + 2:g}" y="{Yr(rlo) - 2:.1f}">{rlo:.0f}%</text>')
-        p.append(f'<text class="sx-rate-end" x="{X(n - 1) - 3:.1f}" y="{Yr(rate[-1]) - 4:.1f}">{rate[-1]:.0f}%</text>')
-    # REPÈRES de modèle : trait vertical + pastille numérotée en haut (placés à l'index du 1er pari
-    # postérieur à la date du jalon). La correspondance numéro -> nom est dans la légende texte.
-    for num, ms in enumerate(milestones or [], 1):
-        iso = ms[0]
-        kind = ms[5] if len(ms) > 5 else "methodo"       # "auto" = marché auto-ajusté (ambré), sinon méthodo
-        day = (iso or "")[:10]
-        k = sum(1 for d in (dates or []) if d and d[:10] < day)
-        if k <= 0 or k >= n:
-            continue
-        mx = X(k)
-        # groupe cliquable (data-mile) : trait + pastille numérotée + ZONE DE TAP large transparente
-        gcls = "bc-mile-g mauto" if kind == "auto" else "bc-mile-g"
-        # onclick stopPropagation : taper un repère de modèle ne doit PAS déplier le <details> parent
-        # (graphe cliquable « derniers paris ») — le repère garde sa propre action (légende).
-        p.append(f'<g class="{gcls}" data-mile="{num}" onclick="event.stopPropagation()">')
-        p.append(f'<line class="bc-mile" x1="{mx:.1f}" y1="{T - 4:g}" x2="{mx:.1f}" y2="{H - B:g}"/>')
-        p.append(f'<circle class="bc-mile-hit" cx="{mx:.1f}" cy="{T - 5:g}" r="11" fill="transparent"/>')
-        p.append(f'<circle class="bc-mile-c" cx="{mx:.1f}" cy="{T - 5:g}" r="5.4"/>')
-        p.append(f'<text class="bc-mile-n" x="{mx:.1f}" y="{T - 2.6:g}" text-anchor="middle">{num}</text>')
-        p.append('</g>')
+    # Repères de modèle RETIRÉS de la courbe (demande user 2026-07-27 : « retire les repères jaunes »).
     p.append("</svg>")
     return "".join(p)
 
@@ -4094,9 +4027,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                   and (m[4] if len(m) > 4 else "all") in ("foot", "all")]
     _ms_combo = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("combo", "both")
                  and (m[4] if len(m) > 4 else "all") in ("foot", "all")]
-    chart = _hero_chart(ov.get("points") or [], uid="all",
-                        dates=ov.get("dates") or [], milestones=_ms_simple)
-    mlegend = _mile_legend(_ms_simple)
+    chart = _hero_chart(ov.get("points") or [], uid="all", dates=ov.get("dates") or [])
     # Forme W/L (mêmes pastilles que les onglets sport, récent à DROITE), JUSTE au-dessus de sa courbe.
     # + SABLIERS DORÉS des paris À JOUER pas encore réglés, en queue (demande user 2026-07-17).
     _LET = {"won": "W", "lost": "L", "push": "N"}
@@ -4129,7 +4060,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _s_inner = _hero_graph_inner(                     # disposition « ROI héros » façon ROI global (choix user 2026-07-24)
         roi=ov.get("roi"), n=ov.get("settled"), hit=ov["pct"], avg_cote=ov.get("avg_odds"),
         chart=f'<div class="sx-equity">{chart}</div>', form=_simples_form, streak=ov.get("streak"),
-        hit_points=ov.get("hit_points"), uid="sim-foot", best_streak=_best_s)
+        hit_points=ov.get("hit_points"), uid="sim-foot", best_streak=_best_s,
+        cote_points=ov.get("cote_points"))
     simples_block = (                                 # SANS boîte imbriquée : contenu direct sur la carte sport
         (f'<details class="spf-hero spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
          f'<div class="spf-cv-more"><span>Derniers simples</span> ▾</div></summary>{_rec_s}</details>')
@@ -4151,7 +4083,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         recent=_pend_fc + list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés",
         pending=len(_pend_fc),                        # sabliers ⏳ des combinés à venir (comme tennis/basket)
         milestones=_ms_combo, compact=True, hit_points=_foot_c.get("hit_points"),
-        best_streak=_foot_c.get("best_streak")) if (_foot_c.get("settled") or _pend_fc) else "")
+        best_streak=_foot_c.get("best_streak"),
+        cote_points=_foot_c.get("cote_points")) if (_foot_c.get("settled") or _pend_fc) else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"),   # + onglet Provisoires (user 2026-07-25)
@@ -4316,23 +4249,27 @@ def _sport_milestones(sport: str) -> list:
             if (m[4] if len(m) > 4 else "all") in (sport, "all")]
 
 
-def _rate_chart(points: list, uid: str = "r") -> str:
-    """Courbe LÉGÈRE du taux de réussite cumulé (%) — demande user 2026-07-24 : prouve que la fiabilité
-    progresse dans le temps. Ligne bleue lissée + aire douce, échelle ajustée aux données (pas de zéro,
-    pas de rouge/vert). '' si moins de 2 points."""
+def _rate_chart(points: list, uid: str = "r", color: str = "#22b8ff", fmt=None,
+                clamp_pct: bool = True) -> str:
+    """Courbe LÉGÈRE d'une série cumulée (taux de réussite %, ou cote moyenne) — demande user 2026-07-24 :
+    prouve que la fiabilité progresse dans le temps. Ligne lissée + aire douce, échelle ajustée aux données
+    (pas de zéro, pas de rouge/vert). `color` = teinte de la courbe ; `fmt` = format des étiquettes de bout
+    (défaut « N% ») ; `clamp_pct` borne l'échelle à 0..100 (True pour un %, False pour une cote). '' si < 2
+    points."""
+    _fmt = fmt or (lambda v: f"{v:g}%")
     pts = [float(p) for p in (points or []) if p is not None]
     if len(pts) < 2:
         return ""
     lo, hi = min(pts), max(pts)
     if hi - lo < 1e-9:
-        lo, hi = lo - 5, hi + 5
+        lo, hi = lo - (5 if clamp_pct else 0.2), hi + (5 if clamp_pct else 0.2)
     pad = (hi - lo) * 0.18
-    lo, hi = max(0.0, lo - pad), min(100.0, hi + pad)
+    lo, hi = (max(0.0, lo - pad), min(100.0, hi + pad)) if clamp_pct else (lo - pad, hi + pad)
     if hi - lo < 1e-9:
         hi = lo + 1.0
     n, W, H, L, R, T, B = len(pts), 320.0, 58.0, 16.0, 16.0, 8.0, 8.0   # marge droite = gauche (demande user 2026-07-25)
     iw, ih = W - L - R, H - T - B
-    AC = "#22b8ff"
+    AC = color
 
     def X(i):
         return L + (iw * i / (n - 1) if n > 1 else iw / 2)
@@ -4353,8 +4290,8 @@ def _rate_chart(points: list, uid: str = "r") -> str:
          'stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>',   # pas de non-scaling-stroke (bug WebKit dash)
          # Repères CHIFFRÉS discrets aux extrémités (demande user 2026-07-24) : % de départ (bas-gauche) et
          # % actuel (haut-droite) -> la progression est lisible sans échelle complète.
-         f'<text class="rate-lbl" x="{X(0):.1f}" y="{min(H - 2, y0 + 12):.1f}" text-anchor="start">{pts[0]:g}%</text>',
-         f'<text class="rate-lbl rate-lbl-e" x="{X(n - 1):.1f}" y="{max(9.0, y1 - 6):.1f}" text-anchor="end">{pts[-1]:g}%</text>',
+         f'<text class="rate-lbl" x="{X(0):.1f}" y="{min(H - 2, y0 + 12):.1f}" text-anchor="start">{_fmt(pts[0])}</text>',
+         f'<text class="rate-lbl rate-lbl-e" x="{X(n - 1):.1f}" y="{max(9.0, y1 - 6):.1f}" text-anchor="end">{_fmt(pts[-1])}</text>',
          f'<circle cx="{X(n - 1):.1f}" cy="{y1:.1f}" r="2.6" fill="{AC}"/></svg>']
     return "".join(p)
 
@@ -4393,30 +4330,27 @@ def _streak_text(streak, best: int = 0) -> str:
     return f'<div class="spf-hero-streakw">{chips}</div>'
 
 
-def _merged_legend(active: bool) -> str:
-    """Légende du graphe FUSIONNÉ ROI + Réussite (demande user 2026-07-27) : 2 puces colorées sous le chart
-    pour distinguer la courbe d'équité (ROI, vert/rouge) de la courbe de réussite (bleu, axe % à droite).
-    '' si la courbe de réussite n'est PAS tracée (données non alignées -> bloc réussite séparé en repli)."""
-    if not active:
+def _cote_block(cote_points: list | None, uid: str) -> str:
+    """3e graphe (demande user 2026-07-27 : ROI · Réussite · Cote) — courbe de la COTE MOYENNE cumulée,
+    même présentation légère que le taux de réussite mais en OR et au format cote (2 décimales, pas de %,
+    échelle non bornée à 100). '' si trop peu de paris réglés pour être crédible."""
+    _cp = [c for c in (cote_points or []) if c is not None]
+    if len(_cp) < _RATE_WARMUP + 3:
         return ""
-    return ('<div class="sx-mleg">'
-            '<span class="sx-mleg-i"><span class="sx-mleg-d roi"></span>ROI · profit cumulé</span>'
-            '<span class="sx-mleg-i"><span class="sx-mleg-d rate"></span>Réussite · %</span></div>')
+    _c = _rate_chart(_cp, uid=uid + "c", color="#f6c54a", fmt=lambda v: f"{v:.2f}", clamp_pct=False)
+    if not _c:
+        return ""
+    return f'<div class="spf-rate"><div class="spf-rate-h">Cote moyenne</div>{_c}</div>'
 
 
 def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, streak=None,
                       hit_points: list | None = None, uid: str = "trk", best_streak: int = 0,
-                      merged: bool = False) -> str:
+                      cote_points: list | None = None) -> str:
     """Disposition « ROI héros » façon carte ROI GLOBAL (choix user 2026-07-24) pour les cadres sport à
     onglets : petit label « Rentabilité », le ROI en GROS centré (vert/rouge), une sous-ligne
-    réussite · paris · cote, la SÉRIE en cours (pastille sans emoji), puis la courbe pleine largeur et la
-    ligne W/L. AUCUNE boîte imbriquée — le contenu s'affiche directement sur la carte sport (on « sort du
-    cadre »). Le titre Simple/Combinés est porté par l'onglet-bouton.
-    `merged` = la courbe de réussite est DANS le graphe (fusion) -> légende sous le chart, plus de bloc
-    séparé ; sinon (données non alignées) on garde le bloc réussite `_rate_block` en repli."""
+    réussite · paris · cote, la SÉRIE en cours (pastille sans emoji), puis 3 GRAPHES SÉPARÉS empilés (demande
+    user 2026-07-27) — ROI (équité), Réussite (%), Cote moyenne — et la ligne W/L. AUCUNE boîte imbriquée."""
     _cls = "na" if (not n or n < _MIN_REL) else ("pos" if (roi or 0) >= 0 else "neg")
-    # Fusionné -> légende 2 courbes ; non fusionné -> ancien bloc réussite séparé (repli, aucune régression).
-    _rate = _merged_legend(True) if merged else _rate_block(hit_points, uid)
     return (
         '<div class="spf-hero-lbl">Rentabilité</div>'
         f'<div class="spf-hero-roi {_cls}">{_roistr(roi)}</div>'
@@ -4426,7 +4360,9 @@ def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, stre
         f'<div><span class="v">{n}</span><span class="l">Paris réglés</span></div>'
         f'<div><span class="v">{avg_cote or "—"}</span><span class="l">Cote moyenne</span></div>'
         '</div>'
-        f'{chart}{_rate}{form}{_streak_text(streak, best_streak)}')
+        # 3 graphes SÉPARÉS empilés : ROI (équité) · Réussite (%) · Cote moyenne (demande user 2026-07-27).
+        f'{chart}{_rate_block(hit_points, uid)}{_cote_block(cote_points, uid)}'
+        f'{form}{_streak_text(streak, best_streak)}')
 
 
 def _hit_curve(results) -> list:
@@ -4474,7 +4410,7 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
                           form: list | None = None, pending: int = 0, streak=None,
                           milestones: list | None = None, sport: str | None = None,
                           compact: bool = False, hit_points: list | None = None,
-                          best_streak: int | None = None) -> str:
+                          best_streak: int | None = None, cote_points: list | None = None) -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
@@ -4487,14 +4423,8 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
         return ""
     _pts = [p for p in (points or []) if p is not None]
     _mi = milestones or []                                    # repères PROPRES à ce sport (demande user 2026-07-24)
-    # GRAPHE FUSIONNÉ ROI + Réussite (demande user 2026-07-27) : la courbe de réussite (hit_points, MÊME
-    # cadence que `points` via _agg_bets) est tracée sur le 2e axe DU MÊME graphe -> un seul chart propre.
-    chart = (f'<div class="sx-equity">'
-             f'{_hero_chart(points, uid=uid, dates=dates or [], milestones=_mi, rate_points=hit_points)}</div>'
+    chart = (f'<div class="sx-equity">{_hero_chart(points, uid=uid, dates=dates or [], milestones=_mi)}</div>'
              if len(_pts) >= 2 else "")
-    # Fusion effective = la courbe de réussite est ALIGNÉE sur l'équité (même longueur) -> tracée dans le
-    # même graphe (cf. _hero_chart). Sinon (suivis dont hit_points a une autre cadence) : repli bloc séparé.
-    _merged = bool(hit_points and len(points or []) == len(hit_points) and len(points or []) > 1)
     # RECORD = plus longue série de victoires SUR TOUT L'HISTORIQUE. `best_streak` (pré-calculé par
     # `_agg_bets` sur la séquence COMPLÈTE) est prioritaire : recalculer depuis `form` sous-estime le record
     # quand `form` est tronqué (form_run = 24 derniers) — bug vécu 2026-07-25 : record foot simple affiché ≤9
@@ -4508,7 +4438,7 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     if compact:                                   # cadres sport à onglets : disposition « ROI héros » (frameless)
         inner = _hero_graph_inner(roi=roi, n=n, hit=hit, avg_cote=avg_cote, chart=chart, form=_form,
                                   streak=streak, hit_points=hit_points, uid=uid, best_streak=_best,
-                                  merged=_merged)
+                                  cote_points=cote_points)
     else:
         _title_html = f'{emoji + " " if emoji else ""}{html.escape(title)}'
         inner = (
