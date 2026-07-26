@@ -1752,13 +1752,15 @@ CSS = """
   .stat-banner-sub.ready,.stat-banner-sub.on{color:#64cd8d}   /* .on = sport actif (compté/repris dans les paris) */
   /* Onglets « Simple | Combinés » dans un cadre sport (un graphe à la fois) — demande user 2026-07-24 */
   .sctabs{display:flex;gap:6px;margin:0 0 10px}
-  .sctab{flex:1;padding:8px 6px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid var(--border);
-       color:var(--muted);font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.06em;cursor:pointer}
+  .sctab{position:relative;flex:1;padding:8px 6px;border-radius:9px;background:rgba(255,255,255,.04);
+       border:1px solid var(--border);color:var(--muted);font-weight:800;font-size:11px;text-transform:uppercase;
+       letter-spacing:.05em;white-space:nowrap;cursor:pointer}
   .sctab.on{background:rgba(34,184,255,.15);border-color:rgba(34,184,255,.45);color:#fff}
-  .sctab-n{display:inline-block;margin-left:5px;min-width:15px;padding:0 4px;border-radius:8px;
-       background:rgba(255,184,77,.20);color:#ffb84d;font-size:9.5px;font-weight:900;line-height:15px;
-       text-align:center;vertical-align:middle}   /* nb de paris EN COURS (⏳) sur l'onglet */
-  .sctab.on .sctab-n{background:rgba(255,255,255,.18);color:#fff}
+  /* badge « en cours » (⏳) en COIN (position absolue) -> n'affecte pas le label, jamais de retour ligne */
+  .sctab-n{position:absolute;top:-7px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;
+       background:#ffb84d;color:#241500;font-size:10px;font-weight:900;line-height:18px;text-align:center;
+       box-shadow:0 1px 4px rgba(0,0,0,.45)}
+  .sctab.on .sctab-n{background:#eaf6ff;color:#0a2233}
   .sctab-pane{display:none}
   .sctab-pane.on{display:block}
   .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
