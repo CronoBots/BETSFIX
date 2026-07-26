@@ -5457,6 +5457,43 @@ def _montante_tg_card() -> str:
     return _ctx + _leg_card(leg, why=False, teams=True)
 
 
+def _our_pred_for(home: str, away: str, code: str) -> tuple:
+    """NOTRE lecture (confiance CALIBRÉE %, cote Unibet) d'un match+code, depuis NOS sidecars foot — le match
+    Betmines est analysé par notre scan (`_betmines_extra_foot`). Sert à afficher la jambe Betmines AVEC NOTRE
+    analyse (demande user 2026-07-26 : « les jambes Betmines doivent être analysées comme les nôtres »), pour
+    ne pas montrer deux chiffres différents du même match. (None, None) si non analysé / marché non prédit."""
+    if not code:
+        return (None, None)
+    _stop = {"fc", "sc", "cf", "ii", "de", "do", "da", "ac", "if", "sp", "rj", "mg", "slc"}
+
+    def _tk(s):
+        return set(re.findall(r"[a-z0-9]+", (s or "").lower())) - _stop
+    th, ta = _tk(home), _tk(away)
+    if not (th and ta):
+        return (None, None)
+    _cd = code.strip()
+    try:
+        from app.settle_analyst import code_from_pick as _cfp
+        for d in analyses.iter_meta("foot"):
+            _nm = d.get("name") or ""
+            _dh, _, _da = _nm.partition(" - ")
+            if not ((_tk(_dh) & th and _tk(_da) & ta) or (_tk(_dh) & ta and _tk(_da) & th)):
+                continue
+            _preds = list(d.get("shadow") or []) + [
+                {"sel": b.get("sel"), "cote": b.get("odds"), "prob": b.get("prob"), "code": b.get("code")}
+                for b in (d.get("bets") or [])]
+            for p in _preds:
+                _pc = (p.get("code") or _cfp(p.get("sel") or "", "foot", _dh, _da) or "").strip()
+                if _pc and _pc == _cd:
+                    _pr = p.get("prob")
+                    _cal = analyses.calibrated_conf(_pr, "foot", _pc) if isinstance(_pr, (int, float)) else None
+                    return (round(_cal) if isinstance(_cal, (int, float)) else _pr, p.get("cote"))
+            return (None, None)     # match trouvé mais ce marché précis non prédit -> on garde Betmines
+    except Exception:
+        pass
+    return (None, None)
+
+
 def _betmines_tg_card() -> str:
     """Carte « Combiné Betmines » pour l'onglet PRONOS (demande user 2026-07-23 : « je veux le voir comme
     un combiné dans l'onglet pronos, sans l'emoji ») — MÊME coquille que le combiné du jour
@@ -5481,23 +5518,40 @@ def _betmines_tg_card() -> str:
     # demande user 2026-07-24, c'est de l'observation) ET ligne VERDICT Confiance/Marché/Cote (verdict=True,
     # via `prob` = confiance dérivée de leurs % + `code`).
     _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
-    legs_html = _MC_SEP.join(_leg_card(
-        {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
-         "comp": leg.get("comp"), "sel": str(leg.get("market") or ""), "cote": leg.get("cote"),
-         "result": leg.get("result"), "score": leg.get("score"), "start": leg.get("start"),
-         "code": leg.get("code"), "prob": leg.get("prob"), "why": leg.get("why")},
-        why=True, verdict=True, why_always=True)
-        for leg in _legs)
+
+    from app.settle_analyst import code_from_pick as _cfp2
+
+    def _leg_view(leg: dict) -> dict:
+        # NOTRE lecture prioritaire (confiance calibrée + cote Unibet) quand on a analysé le match ->
+        # mêmes chiffres que le provisoire (demande user 2026-07-26). Repli Betmines sinon. NOTRE code est
+        # DÉRIVÉ du marché (« Plus de 1.5 buts » -> « OVER 1.5 ») car le code Betmines est compact (« O15 »).
+        _oc0 = _cfp2(str(leg.get("market") or ""), "foot", leg.get("home", ""), leg.get("away", "")) \
+            or leg.get("code")
+        _op, _oc = _our_pred_for(leg.get("home"), leg.get("away"), _oc0)
+        return {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
+                "comp": leg.get("comp"), "sel": str(leg.get("market") or ""),
+                "cote": _oc if _oc is not None else leg.get("cote"),
+                "result": leg.get("result"), "score": leg.get("score"), "start": leg.get("start"),
+                "code": leg.get("code"), "prob": _op if _op is not None else leg.get("prob"),
+                "why": leg.get("why")}
+    _views = [_leg_view(leg) for leg in _legs]     # NOS valeurs par jambe (une seule fois -> réutilisées au TOTAL)
+    legs_html = _MC_SEP.join(_leg_card(v, why=True, verdict=True, why_always=True) for v in _views)
     # Bloc « TOTAL DU COMBINÉ » = verdict GLOBAL IDENTIQUE au combiné du jour (demande user 2026-07-24 :
     # « toutes les stats "total du combiné" doivent être reprises ») : séparateur + barre Confiance/Marché/
-    # Cote totale. Confiance globale = PRODUIT des probas de jambes (calibrated=False, combiné). Repli sur la
-    # seule cote si une proba de jambe manque.
+    # Cote totale. COHÉRENT avec les jambes AFFICHÉES (NOS valeurs) : cote = PRODUIT des cotes de jambe,
+    # confiance = PRODUIT des probas. Repli sur le total Betmines si une cote de jambe manque.
+    _vcotes = [v.get("cote") for v in _views]
+    _vprobs = [v.get("prob") for v in _views]
     tot = cb.get("total_odds")
-    _probs = [l.get("prob") for l in _legs]
-    _gconf = None
-    if _probs and all(isinstance(p, (int, float)) for p in _probs):
+    if _vcotes and all(isinstance(c, (int, float)) and c for c in _vcotes):
         _acc = 1.0
-        for p in _probs:
+        for c in _vcotes:
+            _acc *= c
+        tot = round(_acc, 2)
+    _gconf = None
+    if _vprobs and all(isinstance(p, (int, float)) for p in _vprobs):
+        _acc = 1.0
+        for p in _vprobs:
             _acc *= (p / 100.0 if p > 1 else p)
         _gconf = round(_acc * 100)
     _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
