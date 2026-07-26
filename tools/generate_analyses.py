@@ -2408,6 +2408,8 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
         side["streaks"] = meta["streaks"]
     if meta and meta.get("h2h"):
         side["h2h"] = meta["h2h"]
+    if meta and meta.get("methodo_audit"):        # verdict de l'agent auditeur méthodo (complétude)
+        side["methodo_audit"] = meta["methodo_audit"]
     # `data_score` = RICHESSE RÉELLE des données de l'analyse (fix 2026-07-14) : compte AUSSI les séries
     # Sportradar (streaks) et le H2H, pas seulement FotMob/ESPN/Understat (`sources`). Avant, un match
     # richement analysé via Sportradar+Flashscore affichait `data_score 2` à tort (ex. St Johnstone : 5
@@ -2628,6 +2630,25 @@ async def main():
                 if not analysis:
                     print(f"  ✗ {m['name']} : sortie vide.")
                     continue
+                # AGENT AUDITEUR MÉTHODO (module isolé tools/methodo_audit.py) : vérifie que l'analyse a
+                # EXPLOITÉ les signaux forts du dossier (PPDA/arbitre/SHARP par marché/dom-ext…). Si un
+                # signal FORT est ignoré -> UNE re-passe ciblée de l'analyste. NON BLOQUANT (échec -> on
+                # garde l'analyse d'origine). Résultat tracé au sidecar (complétude mesurable).
+                m_audit = {}
+                try:
+                    from tools import methodo_audit
+                    m_audit = methodo_audit.audit(run_claude, doss, analysis, sport)
+                    if m_audit.get("missing"):
+                        print(f"  ↻ {m['name']} : re-passe méthodo (ignoré : {'; '.join(m_audit['missing'])}).")
+                        redo = run_claude(METHODO + doss + methodo_audit.feedback(m_audit["missing"]))
+                        if redo:
+                            analysis = redo
+                            m_audit["re_passed"] = True
+                except subprocess.TimeoutExpired:
+                    pass                       # auditeur/re-passe en timeout -> analyse d'origine conservée
+                except Exception:
+                    pass
+                meta["methodo_audit"] = m_audit
                 # MODE STRICT : tableau de paris VIDE (aucun pari ≥ seuil) -> match NON RETENU.
                 # On n'écrit RIEN (ni .md ni sidecar) et on RETIRE un éventuel scan précédent du
                 # même match s'il n'est pas réglé. Le match pourra être ré-analysé au scan suivant
