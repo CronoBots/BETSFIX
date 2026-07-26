@@ -5675,6 +5675,23 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     Renvoie (html, nb_matchs_du_jour) — le compte alimente le badge de nav."""
     play = sorted(list(match_rows), key=lambda r: r.get("start_ts") or 0)
     _paj = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
+    # DIVERSIFICATION (demande user 2026-07-26 : crédibilité) — un match déjà pris par un produit PRIORITAIRE
+    # (jambe du combiné du jour · palier montante) n'apparaît PLUS aussi en provisoire : chaque match une SEULE
+    # fois, slate propre et varié (fini les 3 lignes sur le même match). Ajoutés à l'ensemble d'exclusion.
+    try:
+        from app import combo_daily as _cd0
+        for _lh, _la in _cd0.leg_names(_sport_today().isoformat()):
+            _paj.add(_prog_pair(_lh, _la))
+    except Exception:
+        pass
+    try:
+        from app import montante as _mt0
+        _mp0 = (_mt0.state() or {}).get("pending")
+        if _mp0 and _mp0.get("match"):
+            _mh0, _sepm0, _ma0 = str(_mp0["match"]).partition(" - ")
+            _paj.add(_prog_pair(_mh0, _ma0))
+    except Exception:
+        pass
     _prog = [it for it in _programme_items(_paj, framed=True) if not it.get("_live")]
     if sport:
         play = [r for r in play if _item_sport(r) == sport]

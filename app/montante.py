@@ -212,13 +212,20 @@ def pick_day_bet() -> dict | None:
     """Le pari foot À VENIR le PLUS SÛR pour la montante (demande user 2026-07-25) : parmi les marchés
     POPULAIRES/FIABLES (`_montante_eligible_code`) en cote 1.25–1.45, celui de confiance CALIBRÉE MAX.
     Source = prédictions du sidecar (fantômes `shadow` + pari retenu `bets`) -> réglées via leur `result`
-    (comme la calibration). None si aucun candidat foot à venir. Lecture seule."""
-    from app import analyses
+    (comme la calibration). None si aucun candidat foot à venir. Lecture seule.
+    DIVERSIFICATION (demande user 2026-07-26 : crédibilité/indépendance des produits) : la montante ÉVITE les
+    matchs déjà pris par un produit PRIORITAIRE — un pari VALUE joué (compté au ROI) ou une JAMBE du combiné du
+    jour — pour ne PAS être corrélée à eux (une seule mauvaise nouvelle ne coule pas 2 produits) et ne pas
+    recycler le même match. Si tous les meilleurs candidats sont déjà pris, on peut ne rien jouer ce jour-là."""
+    from app import analyses, combo_daily as _cd
     from app.settle_analyst import code_from_pick
     try:
         from app.analyses import calibrated_conf as _cc, _cool_conf as _cool
     except Exception:
         _cc = _cool = None
+    # Matchs déjà pris par un produit prioritaire (combiné du jour) -> exclus de la montante (par id ET par nom).
+    _excl_ids = _cd.leg_ids()
+    _excl_pairs = _cd.leg_pairs()
     best = None
     for d in analyses.iter_meta("foot"):
         if analyses.status_of(d) != "notstarted":          # seulement les matchs pas encore commencés
@@ -227,6 +234,12 @@ def pick_day_bet() -> dict | None:
         if not mid:
             continue
         home, away = d.get("home", ""), d.get("away", "")
+        # DIVERSIFICATION : match déjà jambe du combiné du jour, OU portant un pari VALUE joué -> réservé au
+        # produit prioritaire, la montante passe (indépendance + pas de doublon de match).
+        if mid in _excl_ids or _cd._pair_key(home, away) in _excl_pairs:
+            continue
+        if analyses.retained_bet("foot", mid) or analyses.published_bet("foot", mid):
+            continue
         preds = list(d.get("shadow") or [])
         for b in (d.get("bets") or []):                    # le pari retenu compte aussi (cote sous `odds`)
             preds.append({"sel": b.get("sel"), "cote": b.get("odds"), "prob": b.get("prob")})
