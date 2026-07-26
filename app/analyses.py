@@ -3508,6 +3508,41 @@ def volume_by_sport(ndays: int = 7) -> dict:
     return per
 
 
+def our_market_view(home: str, away: str, market: str) -> tuple:
+    """NOTRE lecture (confiance CALIBRÉE %, cote Unibet) d'un match + MARCHÉ, depuis NOS sidecars foot — le
+    match est analysé par notre scan (ex. picks Betmines via `_betmines_extra_foot`). Le code est DÉRIVÉ du
+    LIBELLÉ de marché (« Plus de 1.5 buts » -> « OVER 1.5 ») car les sources externes (Betmines) ont un code
+    compact (« O15 »). (None, None) si non analysé / marché non prédit -> l'appelant garde sa valeur externe.
+    Sert à afficher un pari Betmines AVEC NOTRE analyse (demande user 2026-07-26)."""
+    from app.settle_analyst import code_from_pick
+    code = (code_from_pick(market or "", "foot", home or "", away or "") or "").strip()
+    if not code:
+        return (None, None)
+    _stop = {"fc", "sc", "cf", "ii", "de", "do", "da", "ac", "if", "sp", "rj", "mg", "slc"}
+
+    def _tk(s):
+        return set(re.findall(r"[a-z0-9]+", (s or "").lower())) - _stop
+    th, ta = _tk(home), _tk(away)
+    if not (th and ta):
+        return (None, None)
+    for d in iter_meta("foot"):
+        nm = d.get("name") or ""
+        dh, _, da = nm.partition(" - ")
+        if not ((_tk(dh) & th and _tk(da) & ta) or (_tk(dh) & ta and _tk(da) & th)):
+            continue
+        _preds = list(d.get("shadow") or []) + [
+            {"sel": b.get("sel"), "cote": b.get("odds"), "prob": b.get("prob"), "code": b.get("code")}
+            for b in (d.get("bets") or [])]
+        for p in _preds:
+            _pc = (p.get("code") or code_from_pick(p.get("sel") or "", "foot", dh, da) or "").strip()
+            if _pc and _pc == code:
+                _pr = p.get("prob")
+                _cal = calibrated_conf(_pr, "foot", _pc) if isinstance(_pr, (int, float)) else None
+                return (round(_cal) if isinstance(_cal, (int, float)) else _pr, p.get("cote"))
+        return (None, None)      # match trouvé mais ce marché précis non prédit
+    return (None, None)
+
+
 def background_sports() -> set:
     """Sports en mode ARRIÈRE-PLAN / SIMULATION (demande user 2026-07-24) : tennis/basket sont ANALYSÉS et
     leurs picks CONTINUENT de se sélectionner + se régler → ROI SIMULÉ vivant (bien plus représentatif que

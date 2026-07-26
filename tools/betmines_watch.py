@@ -419,6 +419,21 @@ def run(force: bool = False, backfill: int = 0) -> None:
                 pass
         for leg in cbt["legs"]:                         # % détaillés (0 dans /bets) + `prob` (confiance)
             _enrich_leg(leg)
+        # NOTRE ANALYSE (demande user 2026-07-26) : le pari Betmines est analysé par NOTRE scan 09h (via
+        # `_betmines_extra_foot`) -> on FIGE dans la jambe NOTRE confiance calibrée + cote Unibet pour le
+        # marché choisi par Betmines, comme si on l'avait sélectionné. Champs SÉPARÉS `our_prob`/`our_cote`
+        # (on ne touche PAS `prob`/`cote`/`total_odds` Betmines = benchmark intact). Repli sur SportMonks si
+        # on n'a pas prédit ce marché (ligue non couverte). L'affichage préfère `our_*`.
+        try:
+            from app import analyses as _an2
+            for leg in cbt["legs"]:
+                _op, _oc = _an2.our_market_view(leg.get("home"), leg.get("away"), str(leg.get("market") or ""))
+                if _op is not None:
+                    leg["our_prob"] = _op
+                    if _oc:
+                        leg["our_cote"] = _oc
+        except Exception:
+            pass
         if _analyze_legs(cbt):
             print("betmines: analyses de jambes écrites (pli « pourquoi »)")
     _save(d)
