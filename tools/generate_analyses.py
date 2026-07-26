@@ -1077,7 +1077,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         # l'analyste (value = SA proba > proba juste « j% »). Calcul sur TOUTES les issues cotées.
         _, margin = value.annotate([{"odds": o["odds"] / 1000} for o in ocs])
         fair = value.devig([o["odds"] / 1000 for o in ocs])[0]
-        outs = []
+        outs, shown_fair = [], []
         for o, p in zip(ocs, fair):
             od = o["odds"] / 1000
             if od < 1.10:          # cote < 1.10 = gain négligeable -> jamais un pari, on l'écarte
@@ -1086,8 +1086,16 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             ln = o.get("line")
             lns = f" {ln / 1000:g}" if ln is not None else ""
             outs.append(f"{lbl}{lns}={od:.2f} (j{p * 100:.0f}%)")
+            shown_fair.append(p)
         if outs:
-            by_crit.setdefault(crit, []).append(" | ".join(outs) + f"  [marge {margin * 100:.0f}%]")
+            # SCORE D'UTILITÉ (2026-07-26) : privilégie les lignes PARIABLES avec un côté SÛR & RÉALISTE
+            # (ex. « Plus de 1.5 buts » ~77 %) ; écarte les extrêmes quasi-certains/impossibles (« Plus de
+            # 5.5 » j100 %, « Moins de 0.5 » j10 %) qui saturaient le plafond et privaient l'analyste des
+            # vraies options (bug provisoire Palmeiras : dossier réduit à Over 2.5/5.5/0.5, sans l'Over 1.5).
+            _mx = max(shown_fair) if shown_fair else 0.0
+            _score = 0 if (_mx >= 0.97 or _mx <= 0.12) else (2 if 0.60 <= _mx <= 0.90 else 1)
+            by_crit.setdefault(crit, []).append(
+                (_score, " | ".join(outs) + f"  [marge {margin * 100:.0f}%]"))
     # Diversité. Pour la CdM : on PRIORISE les familles indépendantes du combiné (corners, cartons,
     # premier but, tirs, totaux, handicap, double chance…) et on en montre PLUS de lignes -> l'analyste
     # choisit la plus sûre de CHAQUE aspect parmi un vrai éventail (et plus 0 premier but).
@@ -1106,8 +1114,8 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             for crit, variants in by_crit.items():
                 if crit in used or not any(k in crit.lower() for k in kws):
                     continue
-                for v in variants[:3]:
-                    lines.append(f"- {crit}: {v}")
+                for _sc, _vt in sorted(variants, key=lambda x: -x[0])[:3]:
+                    lines.append(f"- {crit}: {_vt}")
                     cnt += 1
                 used.add(crit)
                 if cnt >= 8:
@@ -1115,15 +1123,27 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         for crit, variants in by_crit.items():          # le reste des marchés (jusqu'au plafond)
             if crit in used:
                 continue
-            for v in variants[:2]:
-                lines.append(f"- {crit}: {v}")
+            for _sc, _vt in sorted(variants, key=lambda x: -x[0])[:2]:
+                lines.append(f"- {crit}: {_vt}")
             if len(lines) >= 80:
                 break
     else:
         lines = []
-        for crit, variants in by_crit.items():
-            for v in variants[:_PER_CRIT]:
-                lines.append(f"- {crit}: {v}")
+        # PRIORITÉ aux marchés RÉSULTAT (1X2 / double chance) puis TOTAUX de match — les plus utiles pour un
+        # pari sûr/provisoire — AVANT les props joueur / totaux d'équipe (sinon le plafond _MAX_MK_LINES les
+        # évince, comme pour Palmeiras où 1X2/DC manquaient au dossier). Tri stable (ordre Unibet conservé à
+        # priorité égale).
+        def _crit_prio(crit: str) -> int:
+            c = crit.lower()
+            if "temps réglementaire" in c or "temps reglementaire" in c or "double chance" in c \
+                    or ("résultat" in c and "mi-temps" not in c):
+                return 0
+            if "nombre total de buts" in c and "par " not in c and "mi-temps" not in c:
+                return 1
+            return 2
+        for crit in sorted(by_crit, key=_crit_prio):
+            for _sc, _vt in sorted(by_crit[crit], key=lambda x: -x[0])[:_PER_CRIT]:
+                lines.append(f"- {crit}: {_vt}")
             if len(lines) >= _MAX_MK_LINES:
                 break
     if not lines:
