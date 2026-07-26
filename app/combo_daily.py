@@ -616,7 +616,9 @@ def settle_pending(sport: str = "foot") -> int:
             changed = True
             n += 1
     if changed:
-        _save(d)
+        _save(d, sport)          # BUG 2026-07-26 : `_save(d)` sans sport écrivait le dict du sport COURANT
+        #                          dans le fichier FOOT (défaut) -> settle_pending('tennis') écrasait
+        #                          combo_daily_track.json avec le combiné tennis à chaque reconcile.
     return n
 
 
