@@ -1705,6 +1705,7 @@ CSS = """
   .vbs-cell{text-align:right;font-size:10px;color:var(--muted);font-weight:600;line-height:1.35}
   .vbs-cell b{display:block;color:var(--text);font-weight:900;font-size:16px}
   .vbs-cell span{display:block;font-size:9.5px}
+  .vbs-cell .vbs-c2{opacity:.62;font-size:9px}
   .vbs-sim{font-size:9px;font-weight:900;color:#ff9f43;background:rgba(255,159,67,.14);
     padding:1px 6px;border-radius:8px}
   .vbs-roi{font-size:9px;font-weight:900;color:#2ee27f;background:rgba(46,226,127,.14);
@@ -3887,7 +3888,8 @@ def render_volume_by_sport() -> str:
 
     def _cell(a: dict) -> str:
         return (f'<div class="vbs-cell"><b>{a.get("analysed", 0)}</b>analysés'
-                f'<span>{a.get("picks", 0)} paris · {a.get("combos", 0)} comb.</span></div>')
+                f'<span>{a.get("picks", 0)} paris · {a.get("provisional", 0)} prov.</span>'
+                f'<span class="vbs-c2">{a.get("combos", 0)} comb.</span></div>')
     rows = []
     for sk, lbl, emo, col in SPORTS:
         tag = ('<span class="vbs-sim">🔬 simulé</span>' if sk in bg
@@ -3901,9 +3903,10 @@ def render_volume_by_sport() -> str:
         '<div class="vbs-head"><div></div><div>7 jours</div><div>30 jours</div></div>'
         + "".join(rows)
         + '<div class="sx-data-note">« <b>analysés</b> » = matchs dont le dossier complet (multi-sources '
-        '+ analyse) a été produit. « <b>paris</b> » = matchs avec un pari retenu. Seul le <b>football</b> '
-        'est compté au ROI ; <b>tennis</b> et <b>basket</b> sont analysés en <b>simulation</b> (hors ROI) '
-        'tant qu\'ils ne repassent pas au vert.</div></div>')
+        '+ analyse) a été produit. « <b>paris</b> » = matchs avec un pari retenu (au ROI pour le foot). '
+        '« <b>prov.</b> » = paris provisoires (le plus probable par match, indicatif, hors ROI). '
+        '« <b>comb.</b> » = combinés du jour. Seul le <b>football</b> est compté au ROI ; <b>tennis</b> et '
+        '<b>basket</b> sont analysés en <b>simulation</b> tant qu\'ils ne repassent pas au vert.</div></div>')
 
 
 def _mile_legend(miles: list, *, compact: bool = False) -> str:

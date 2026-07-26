@@ -3458,7 +3458,7 @@ def volume_by_sport(ndays: int = 7) -> dict:
             return _w._sport_date(_w.to_local(dt)) if dt else None
         except Exception:
             return None
-    per = {sp: {"analysed": 0, "picks": 0, "ghosts": 0, "combos": 0}
+    per = {sp: {"analysed": 0, "picks": 0, "provisional": 0, "ghosts": 0, "combos": 0}
            for sp in ("foot", "tennis", "basket")}
     for sp in per:
         for d in iter_meta(sp):
@@ -3476,6 +3476,22 @@ def volume_by_sport(ndays: int = 7) -> dict:
                 continue
             if lo <= cd <= today and isinstance(cb, dict) and cb.get("legs"):
                 per[sp]["combos"] += 1
+    # PROVISOIRES (indicatifs, hors ROI) : suivi séparé data/provisional_track.json (1 par match, `start` iso).
+    try:
+        from app import provisional as _prov
+        for p in (_prov._load() or {}).values():
+            sp = p.get("sport")
+            if sp not in per:
+                continue
+            try:
+                pdt = datetime.fromisoformat(str(p.get("start")).replace("Z", "+00:00"))
+            except (ValueError, TypeError, AttributeError):
+                continue
+            sd = _sday(pdt)
+            if sd and lo <= sd <= today:
+                per[sp]["provisional"] += 1
+    except Exception:
+        pass
     _VOL_BY_SPORT_CACHE[key] = per
     return per
 
