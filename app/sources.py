@@ -239,11 +239,26 @@ _FM_STAT = {"ShotsOnTarget": ("sot_h", "sot_a"), "total_shots": ("shots_h", "sho
             "red_cards": ("rc_h", "rc_a")}
 
 
+def _parse_fm_period(period_stats: dict, suffix: str, out: dict) -> None:
+    """Parse un bloc de période FotMob (`Periods.All` ou `Periods.1stHalf`) -> clés du règlement, avec
+    `suffix` (« » pour le match, « _1h » pour la 1ère MT). N'écrase pas une clé déjà présente."""
+    for grp in (period_stats.get("stats") or []):
+        for it in (grp.get("stats") or []) if isinstance(grp, dict) else []:
+            k, v = it.get("key"), it.get("stats")
+            hk = f"{_FM_STAT[k][0]}{suffix}" if k in _FM_STAT else None
+            if hk and isinstance(v, list) and len(v) == 2 and hk not in out:
+                try:
+                    out[hk], out[f"{_FM_STAT[k][1]}{suffix}"] = int(v[0]), int(v[1])
+                except (TypeError, ValueError):
+                    pass
+
+
 async def foot_match_stats(client, home: str, away: str, start_iso: str) -> dict | None:
     """STATS de match FOOT via FotMob (déjà source n°1 foot) : tirs cadrés / tirs / corners / cartons PAR
     ÉQUIPE -> {sot_h/a, shots_h/a, corners_h/a, cards_h/a}. Comble le règlement des marchés tirs (cadrés)
-    là où Flashscore/GISMO ne couvrent pas. Cible le TOTAL du match (`content.stats.Periods.All`). None si
-    introuvable. Tolérant (jamais d'exception)."""
+    là où Flashscore/GISMO ne couvrent pas. Cible le TOTAL du match (`content.stats.Periods.All`) ET la
+    1ère MT (`Periods.1stHalf` -> clés `*_1h`) pour alimenter aussi les marchés MI-TEMPS (fin de
+    l'asymétrie où seul Flashscore couvrait la 1ère MT). None si introuvable. Tolérant (jamais d'exception)."""
     try:
         mid = await _fotmob_find(client, home, away, start_iso or "")
         if not mid:
@@ -251,19 +266,14 @@ async def foot_match_stats(client, home: str, away: str, start_iso: str) -> dict
         j = await _get_json(client, f"{_FOTMOB}/matchDetails?matchId={mid}")
         if not isinstance(j, dict):
             return None
-        allp = (((j.get("content") or {}).get("stats") or {}).get("Periods") or {}).get("All") or {}
+        periods = (((j.get("content") or {}).get("stats") or {}).get("Periods") or {})
         out: dict = {}
-        for grp in (allp.get("stats") or []):
-            for it in (grp.get("stats") or []) if isinstance(grp, dict) else []:
-                k, v = it.get("key"), it.get("stats")
-                if k in _FM_STAT and isinstance(v, list) and len(v) == 2 and _FM_STAT[k][0] not in out:
-                    try:
-                        out[_FM_STAT[k][0]], out[_FM_STAT[k][1]] = int(v[0]), int(v[1])
-                    except (TypeError, ValueError):
-                        pass
-        if "yc_h" in out:                                # marché CARTONS = jaunes + rouges
-            out["cards_h"] = out.get("yc_h", 0) + out.get("rc_h", 0)
-            out["cards_a"] = out.get("yc_a", 0) + out.get("rc_a", 0)
+        _parse_fm_period(periods.get("All") or {}, "", out)
+        _parse_fm_period(periods.get("1stHalf") or {}, "_1h", out)   # 1ère MT (best-effort)
+        for sfx in ("", "_1h"):                          # marché CARTONS = jaunes + rouges (match + 1ère MT)
+            if f"yc_h{sfx}" in out:
+                out[f"cards_h{sfx}"] = out.get(f"yc_h{sfx}", 0) + out.get(f"rc_h{sfx}", 0)
+                out[f"cards_a{sfx}"] = out.get(f"yc_a{sfx}", 0) + out.get(f"rc_a{sfx}", 0)
         # GARDE anti-faux-zéros : un match NON couvert par FotMob (ligues mineures, mauvais mid) renvoie une
         # structure vide -> toutes les stats à 0. Ne JAMAIS injecter ces zéros (ils écraseraient les vraies
         # stats du cache Flashscore/GISMO). Un vrai match a forcément des tirs -> si tirs tous nuls, on
@@ -480,6 +490,22 @@ async def _foot_xg(client, match: dict) -> list[str]:
             facts.append(f"xG [{label}] (moy. 5 derniers) : {xg:.2f} créés / {xga:.2f} concédés (Understat)")
         except (TypeError, ZeroDivisionError):
             continue
+        # Style de jeu : PPDA (passes concédées par action défensive = intensité du pressing, bas = presse
+        # haut) + deep completions (passes dans les 20 m adverses = pénétration offensive). Éclaire les
+        # marchés tempo/over/BTTS : deux blocs hauts qui se cherchent -> plus de buts/occasions.
+        try:
+            ppdas = [float(m["ppda"]["att"]) / float(m["ppda"]["def"])
+                     for m in last5 if (m.get("ppda") or {}).get("att") and (m.get("ppda") or {}).get("def")]
+            if ppdas:
+                ppda = sum(ppdas) / len(ppdas)
+                style = ("pressing très haut" if ppda < 9 else "pressing haut" if ppda < 12
+                         else "bloc médian" if ppda < 15 else "bloc bas/replié")
+                deep = [float(m.get("deep") or 0) for m in last5]
+                deepm = sum(deep) / len(deep) if deep else None
+                extra = f", {deepm:.0f} passes profondes/match" if deepm else ""
+                facts.append(f"Style [{label}] : PPDA {ppda:.1f} ({style}){extra} (Understat)")
+        except (TypeError, ZeroDivisionError, KeyError):
+            pass
     return facts
 
 

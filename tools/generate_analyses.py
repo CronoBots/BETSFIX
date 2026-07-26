@@ -1150,6 +1150,28 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
                  + " / ".join(seg) + ". EV au prix Unibet : " + " / ".join(evseg)
                  + " — une EV+ ICI = la cote Unibet BAT le sharp = VALUE FORTE ; ancre n°1 pour calibrer "
                    "(si ta proba et Pinnacle convergent contre Unibet, c'est le meilleur signal).")
+    # ANCRE SHARP PAR MARCHÉ (Pinnacle) : totaux + handicaps de-viggés -> ancre VALUE hors-vainqueur.
+    # Même logique que le 1X2 sharp, appliquée à Over/Under & handicaps (là où on ratait des value).
+    sharp_mk = ""
+    try:
+        smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport)
+    except Exception:
+        smk = None
+    if smk:
+        unit = {"foot": "buts", "basket": "pts", "tennis": "jeux"}.get(sport, "")
+        tot = smk.get("totals") or {}
+        spr = smk.get("spreads") or {}
+        segs = []
+        if tot:
+            segs.append("Totaux — " + " / ".join(
+                f"+{pts:g} {tot[pts] * 100:.0f}%" for pts in sorted(tot)) + f" (proba de DÉPASSER la ligne, {unit})")
+        if spr:
+            segs.append(f"Handicaps {home} — " + " / ".join(
+                f"{line:+g} {spr[line] * 100:.0f}%" for line in sorted(spr)))
+        if segs:
+            sharp_mk = ("\nSHARP PAR MARCHÉ (Pinnacle, de-viggé — ancre pour les paris HORS-vainqueur) : "
+                        + " ; ".join(segs) + ". Compare à la cote Unibet du MÊME marché : proba_sharp × "
+                        "cote_unibet − 1 > 0 = VALUE (même signal que le 1X2 sharp).")
     extras, sx = await _sofa_extras(client, sport, sofa_id, home, away)
     # Sources GRATUITES indépendantes (ESPN/FotMob/Understat) : forme+scores, classements frais,
     # blessés, H2H, xG, météo — la source n°2 de la méthodo quand SofaScore est bloqué.
@@ -1212,14 +1234,15 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         if catalog:
             _CATALOG_CACHE[str(match["id"])] = catalog
             combo += _betbuilder_menu(catalog, sport, match.get("home", ""), match.get("away", ""))
-        prepacks = await asyncio.to_thread(unibet.prepack_combos, str(match["id"]))   # repli
+        prepacks = await asyncio.to_thread(unibet.prepack_combos, str(match["id"]))   # repli + inspiration
         if prepacks:
             _PREPACK_CACHE[str(match["id"])] = prepacks
+            combo += _prepack_menu(prepacks, sport)
     text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
             "(détaille la procédure value plus haut) :\n" + "\n".join(lines)
-            + imp + sharp + extras + alt + pblock + wc_ctx + combo)
+            + imp + sharp + sharp_mk + extras + alt + pblock + wc_ctx + combo)
     meta = {"odds": odds, "sources_prov": src_prov, **sx}   # odds + streaks/h2h + provenance -> sidecar
     return text, meta
 
@@ -1407,6 +1430,36 @@ def _betbuilder_menu(catalog: list, sport: str, home: str, away: str) -> str:
             "jambes non corrélées, marché à éviter, no-bet). Ne fabrique JAMAIS un combiné « juste pour "
             "parier » : NONE est la bonne réponse quand le match ne s'y prête pas.\n"
             "Catalogue :\n" + "\n".join(rows) + "\n")
+
+
+def _prepack_menu(prepacks: list, sport: str) -> str:
+    """Menu INSPIRATION : combinés même-match qu'Unibet vend DÉJÀ tout prêts, avec leur VRAIE cote
+    corrélée (le moteur rabote les jambes corrélées -> cote ≠ produit). Montre quels SCÉNARIOS corrélés
+    Unibet price attractivement. INFORMATIF seulement : l'analyste construit quand même son combiné dans
+    le catalogue Bet Builder (espaces d'ids différents -> on ne fait pas citer ces ids)."""
+    if not prepacks:
+        return ""
+    ban = ("corner", "carton", "jaune", "rouge")
+    rows = []
+    for pp in prepacks:
+        real = pp.get("real_odds")
+        if not real or not (1.4 <= real <= 3.0):            # fourchette utile (ni jambe unique ni extrême)
+            continue
+        labels = [(l.get("sel") or "") for l in (pp.get("legs") or [])]
+        if any(any(b in lb.lower() for b in ban) for lb in labels):   # méthodo : pas corners/cartons
+            continue
+        txt = " + ".join(lb for lb in labels if lb)
+        if not txt:
+            continue
+        rows.append(f"  {txt} @{real:g}")
+        if len(rows) >= 8:
+            break
+    if not rows:
+        return ""
+    return ("\n\nCOMBINÉS MÊME-MATCH DÉJÀ PROPOSÉS PAR UNIBET (vraie cote corrélée — INSPIRATION, NE PAS "
+            "citer ces ids) : ils révèlent les scénarios corrélés qu'Unibet price bien. Sers-t'en pour "
+            "orienter TON combiné (construit dans le catalogue Bet Builder ci-dessus), pas pour copier :\n"
+            + "\n".join(rows) + "\n")
 
 
 def _match_prepack(legs: list, prepacks: list):

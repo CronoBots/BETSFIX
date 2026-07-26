@@ -98,3 +98,64 @@ def sharp_probs(home: str, away: str, sport: str) -> dict | None:
     return {"home": round(fair.get(hk, 0.0), 3), "away": round(fair.get(ak, 0.0), 3),
             "draw": round(fair["draw"], 3) if "draw" in fair else None,
             "margin": round(s - 1.0, 4)}
+
+
+def _fair_pair(pa, pb) -> tuple | None:
+    """Deux cotes décimales -> probas de-viggées (marge retirée). None si l'une manque."""
+    da, db = _dec(pa), _dec(pb)
+    if not da or not db:
+        return None
+    s = 1.0 / da + 1.0 / db
+    if s <= 0:
+        return None
+    return round((1.0 / da) / s, 3), round((1.0 / db) / s, 3)
+
+
+def sharp_markets(home: str, away: str, sport: str) -> dict | None:
+    """Probas SHARP de-viggées PAR MARCHÉ au-delà du 1X2 (Pinnacle, période MATCH COMPLET = period 0) :
+    - `totals`  : {ligne: proba que le TOTAL dépasse la ligne}  (ex. {2.5: 0.54} = 54 % de +2.5 buts)
+    - `spreads` : {ligne_domicile: proba}  (handicap de NOTRE domicile, ex. {-1.5: 0.41})
+    Aligné sur NOTRE home/away par noms. None si match/marchés introuvables. Best-effort strict.
+    But : ancre sharp pour les paris hors-vainqueur (Over/Under, handicaps) — proba_sharp × cote_unibet − 1
+    > 0 = value robuste, exactement comme le 1X2 sharp mais sur ces marchés."""
+    m = _find(home, away, sport)
+    if not m:
+        return None
+    od = _get(f"matchups/{m['id']}/markets/related/straight")
+    if not od:
+        return None
+    hk_home = _overlap(home, m["home"]) >= _overlap(home, m["away"])   # Pinnacle 'home' == notre domicile ?
+    totals: dict = {}
+    spreads: dict = {}
+    for mk in od:
+        if mk.get("period") != 0:
+            continue
+        prices = mk.get("prices") or []
+        t = mk.get("type")
+        if t == "total":
+            over = next((p for p in prices if p.get("designation") == "over"), None)
+            under = next((p for p in prices if p.get("designation") == "under"), None)
+            if not over or not under:
+                continue
+            pts = over.get("points")
+            if pts is None:
+                pts = mk.get("points")
+            fair = _fair_pair(over.get("price"), under.get("price"))
+            if pts is not None and fair:
+                totals[float(pts)] = fair[0]           # proba de DÉPASSER la ligne (over)
+        elif t == "spread":
+            ph = next((p for p in prices if p.get("designation") == "home"), None)
+            pa = next((p for p in prices if p.get("designation") == "away"), None)
+            if not ph or not pa:
+                continue
+            fair = _fair_pair(ph.get("price"), pa.get("price"))
+            line_h = ph.get("points")
+            if fair is None or line_h is None:
+                continue
+            if hk_home:
+                spreads[float(line_h)] = fair[0]        # ligne & proba de notre domicile
+            else:
+                spreads[-float(line_h)] = fair[1]       # Pinnacle home = notre extérieur -> on inverse
+    if not totals and not spreads:
+        return None
+    return {"totals": totals, "spreads": spreads}
