@@ -299,10 +299,12 @@ async def lifespan(app: FastAPI):
 # --------------------------------------------------------------------------- #
 # Organisation /docs PAR SPORT : pour chaque sport, ses sources contiguës
 # (Données SofaScore -> Unibet -> Flashscore -> LiveScore), puis les outils transverses.
-# Données SofaScore (faits bruts) :
-TAG_FOOT_SRC = "⚽ Football · Données SofaScore"
-TAG_TENNIS_SRC = "🎾 Tennis · Données SofaScore"
-TAG_BASKET_SRC = "🏀 Basket · Données SofaScore"
+# Données & enrichissement par sport (API interne + sources SANS endpoint : FotMob/Pinnacle/
+# Understat/TennisExplorer, documentées dans la description du tag). Nom corrigé : « Données
+# SofaScore » était trompeur (SofaScore est MORT, remplacé par le stack multi-sources).
+TAG_FOOT_SRC = "⚽ Football · Données & enrichissement"
+TAG_TENNIS_SRC = "🎾 Tennis · Données & enrichissement"
+TAG_BASKET_SRC = "🏀 Basket · Données & enrichissement"
 # Unibet / Flashscore / LiveScore : un tag PAR SPORT (chaînes EXACTES définies dans les routeurs).
 from app.routers.unibet import TAG_FOOT as TAG_FOOT_UNIBET  # noqa: E402  "⚽ Football · Unibet"
 from app.routers.unibet import TAG_TENNIS as TAG_TENNIS_UNIBET  # noqa: E402  "🎾 Tennis · Unibet"
@@ -321,28 +323,59 @@ TAG_MODELE_ANALYSE = "🧠 Modèle maison · Analyse & value (PAS une source)"
 TAG_INTERFACE = "🖥️ Interface (pages HTML)"
 TAG_META = "ℹ️ Méta"
 
-# Tags SANS description : le titre porte déjà l'info. Ordre = par SPORT (foot, tennis,
-# basket), chaque sport regroupant Données SofaScore -> Unibet -> Flashscore -> LiveScore ;
-# puis Modèle maison, Interface, Méta.
+# Chaque tag porte une DESCRIPTION = rôle + importance de la source (rendue en Markdown sous le
+# titre de section dans /docs). Barème d'importance : 🥇 vitale · 🥈 enrichissement principal ·
+# 🥉 spécialisé · ⚙️ règlement · ℹ️ info (hors ROI). Ordre = par SPORT, sources contiguës.
+_TIER_LEGEND = ("**Sources par importance** : 🥇 vitale (le produit s'arrête sans elle) · "
+                "🥈 enrichissement principal · 🥉 spécialisé · ⚙️ règlement · ℹ️ info (hors ROI).")
+# Les sources SANS endpoint (utilisées dans le dossier analyste) sont documentées ici, par sport :
+_SRC_FOOT_DESC = (
+    "**API interne de données match** (agenda / terminés / détail). L'analyse est enrichie par un "
+    "**stack multi-sources** (ces sources n'ont pas d'endpoint propre) :\n\n"
+    "- 🥇 **Pinnacle** — ancre *sharp* (proba de référence, **par marché** : 1X2 + Over/Under + handicaps)\n"
+    "- 🥈 **FotMob** — source n°1 foot : forme, blessés, H2H détaillé, compos, xG-events, **stats mi-temps**, **arbitre**\n"
+    "- 🥉 **Understat** — **xG + PPDA** (style de jeu) — 6 ligues top (structurel)\n"
+    "- ℹ️ **Betmines** (SportMonks) — benchmark externe, **hors ROI**\n\n"
+    "⚠️ *« SofaScore » (ancien nom) est **mort** — ce stack l'a remplacé.*")
+_SRC_TENNIS_DESC = (
+    "**API interne.** Enrichissement multi-sources (sans endpoint) :\n\n"
+    "- 🥇 **Pinnacle** — ancre *sharp* (value), par marché\n"
+    "- 🥈 **ESPN** — classement ATP/WTA (**points + tendance**), forme 14 j, surface\n"
+    "- 🥉 **TennisExplorer** — **bilan par surface** (le facteur n°1 au tennis)\n\n"
+    "⚠️ *SofaScore mort ; circuit ATP/WTA déduit via ESPN.*")
+_SRC_BASKET_DESC = (
+    "**API interne.** Enrichissement multi-sources (sans endpoint) :\n\n"
+    "- 🥇 **Pinnacle** — ancre *sharp*\n"
+    "- 🥈 **ESPN** — bilans (**dom./ext./10 derniers/diff**), **blessés détaillés**, forme, back-to-back\n\n"
+    "⚠️ *SofaScore mort.*")
+_D_UNIBET = ("🥇 **VITALE** — **Sélection des matchs** + toutes les cotes + tous les marchés + "
+             "Bet Builder / prepack (combinés). Sans elle : aucun pari.")
+_D_FLASH = ("🥈 **Enrichissement + règlement** — forme, H2H, compos, stats (corners/cartons/tirs), "
+            "service/aces (tennis) + **règlement jeu-par-jeu** (marchés que personne d'autre ne couvre).")
+_D_LIVE = "⚙️ **Règlement (repli n°3)** — score final après match (jamais sur un score *live*)."
+_D_SR = ("🥉 **Sportradar/GISMO** (feed libre) — séries de pari, H2H, moyennes buts-points & over 2.5 "
+         "+ **règlement des périodes** (90 min vs prolongation, sets/jeux, quart-temps).")
 OPENAPI_TAGS = [
-    {"name": TAG_FOOT_SRC},
-    {"name": TAG_FOOT_UNIBET},
-    {"name": TAG_FLASH_FOOT},
-    {"name": TAG_LIVE_FOOT},
-    {"name": TAG_SR_FOOT},
-    {"name": TAG_TENNIS_SRC},
-    {"name": TAG_TENNIS_UNIBET},
-    {"name": TAG_FLASH_TENNIS},
-    {"name": TAG_LIVE_TENNIS},
-    {"name": TAG_SR_TENNIS},
-    {"name": TAG_BASKET_SRC},
-    {"name": TAG_BASKET_UNIBET},
-    {"name": TAG_FLASH_BASKET},
-    {"name": TAG_LIVE_BASKET},
-    {"name": TAG_SR_BASKET},
-    {"name": TAG_MODELE_ANALYSE},
-    {"name": TAG_INTERFACE},
-    {"name": TAG_META},
+    {"name": TAG_FOOT_SRC, "description": _SRC_FOOT_DESC},
+    {"name": TAG_FOOT_UNIBET, "description": _D_UNIBET},
+    {"name": TAG_FLASH_FOOT, "description": _D_FLASH},
+    {"name": TAG_LIVE_FOOT, "description": _D_LIVE},
+    {"name": TAG_SR_FOOT, "description": _D_SR},
+    {"name": TAG_TENNIS_SRC, "description": _SRC_TENNIS_DESC},
+    {"name": TAG_TENNIS_UNIBET, "description": _D_UNIBET},
+    {"name": TAG_FLASH_TENNIS, "description": _D_FLASH},
+    {"name": TAG_LIVE_TENNIS, "description": _D_LIVE},
+    {"name": TAG_SR_TENNIS, "description": _D_SR},
+    {"name": TAG_BASKET_SRC, "description": _SRC_BASKET_DESC},
+    {"name": TAG_BASKET_UNIBET, "description": _D_UNIBET},
+    {"name": TAG_FLASH_BASKET, "description": _D_FLASH},
+    {"name": TAG_LIVE_BASKET, "description": _D_LIVE},
+    {"name": TAG_SR_BASKET, "description": _D_SR},
+    {"name": TAG_MODELE_ANALYSE,
+     "description": "🧠 **Sortie du modèle** (analyse, value, prédictions) — un **calcul**, JAMAIS une "
+                    "source de faits à réinjecter telle quelle."},
+    {"name": TAG_INTERFACE, "description": "🖥️ Pages HTML du site (accueil, onglets sport)."},
+    {"name": TAG_META, "description": "ℹ️ Endpoints techniques (`/api`, `/health`)."},
 ]
 
 
@@ -395,6 +428,8 @@ def _retag_routes(application) -> None:
 app = FastAPI(
     title="BETSFIX API — multi-sports",
     version=__version__,
+    description=("Sources regroupées **par sport**, chacune avec son **rôle** et son **importance**.\n\n"
+                 + _TIER_LEGEND),
     openapi_tags=OPENAPI_TAGS,
     lifespan=lifespan,
 )

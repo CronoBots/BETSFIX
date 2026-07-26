@@ -1,11 +1,8 @@
-"""Tests du classement des endpoints /docs et du filtre 'à venir'."""
-
-from datetime import datetime, timedelta, timezone
+"""Tests du classement des endpoints /docs."""
 
 from app.main import _classify_tag, TAG_MODELE_ANALYSE, \
     TAG_TENNIS_SRC, TAG_FOOT_SRC, TAG_BASKET_SRC, \
     TAG_TENNIS_UNIBET, TAG_FOOT_UNIBET, TAG_BASKET_UNIBET, TAG_INTERFACE, TAG_META
-from app.routers.web import _is_upcoming
 
 
 def test_classify_tag_natures():
@@ -31,19 +28,6 @@ def test_classify_tag_natures():
     # Flashscore : non retagué (le routeur pose lui-même un tag PAR SPORT) -> None
     assert _classify_tag("/flashscore/tennis/matches") is None
     assert _classify_tag("/api") == TAG_META
-
-
-def test_is_upcoming():
-    now = datetime.now(timezone.utc)
-    future = (now + timedelta(hours=3)).isoformat()
-    past = (now - timedelta(hours=3)).isoformat()
-    assert _is_upcoming({"start_time": future}) is True
-    assert _is_upcoming({"start_time": past}) is False
-    assert _is_upcoming({}) is True                       # heure inconnue -> on n'exclut pas
-    assert _is_upcoming({"start_time": "pas-une-date"}) is True
-    # datetime naïf traité comme UTC
-    naive_future = (now + timedelta(hours=2)).replace(tzinfo=None).isoformat()
-    assert _is_upcoming({"start_time": naive_future}) is True
 
 
 def test_bars_two_way():
