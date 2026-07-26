@@ -2092,6 +2092,13 @@ CSS = """
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
      (point d'état + titre casse normale + compteur + mot-clé), filet fin, aucune barre/majuscule criarde. */
   .dash-zones{margin-top:4px}
+  /* Sélecteur de sport de Pronos (demande user 2026-07-26) */
+  .spsel-wrap{display:flex;gap:7px;margin:2px 0 6px}
+  .spsel{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;border-radius:11px;
+    background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);font-weight:800;
+    font-size:12px;cursor:pointer;transition:background .12s,border-color .12s,color .12s}
+  .spsel span{font-size:11.5px}
+  .spsel.on{background:rgba(34,184,255,.16);border-color:rgba(34,184,255,.5);color:#fff}
   .zone{margin-top:22px}
   .zone:first-child{margin-top:10px}
   .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px;padding-bottom:9px;
@@ -3470,6 +3477,23 @@ _A2HS_JS = (
 # events gesture*. `touch-action:manipulation` neutralise déjà le double-tap-zoom accidentel.
 _NOZOOM_JS = ""
 
+# Sélecteur de sport de Pronos (demande user 2026-07-26) : clic sur une puce -> recharge #day-content via
+# /jour?date=<jour>&sport=<sk> (le fragment contient le sélecteur avec la puce active à jour). Délégué au
+# document (survit aux remplacements de #day-content).
+_SPSEL_JS = (
+    "(function(){document.addEventListener('click',function(e){"
+    "var b=e.target.closest('.spsel');if(!b)return;e.preventDefault();"
+    "var sp=b.getAttribute('data-sport'),day=b.getAttribute('data-day');"
+    "var dc=document.getElementById('day-content');if(!dc)return;"
+    "var w=b.closest('.spsel-wrap');if(w){var bs=w.querySelectorAll('.spsel');"
+    "for(var i=0;i<bs.length;i++){bs[i].classList.toggle('on',bs[i]===b);}}"
+    "dc.style.opacity='.45';"
+    "fetch('/jour?date='+encodeURIComponent(day)+'&sport='+encodeURIComponent(sp)+'&frag=1')"
+    ".then(function(r){return r.text();}).then(function(h){dc.innerHTML=h;dc.style.opacity='';"
+    "window.scrollTo({top:0,behavior:'smooth'});})"
+    ".catch(function(){dc.style.opacity='';});});})();")
+
+
 def layout(title: str, sport: str, body: str, subnav: str | None = None,
            refresh: bool = False, source: dict | None = None, menu: str | None = None) -> str:
     """Page premium. `sport` ∈ home/tennis/basket/foot (onglet principal actif).
@@ -3564,7 +3588,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -4864,7 +4888,8 @@ def _why_fold(text: str, label: str = "Pourquoi ce choix") -> str:
             f'<ul class="why-ul">{_lis}</ul></details>')
 
 
-def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) -> list:
+def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
+                     keep_sport: str | None = None) -> list:
     """Cartes du PROGRAMME DU JOUR (matchs SANS pari à jouer affiché) à FUSIONNER — dans l'ordre
     chronologique — avec les paris à jouer, dans le MÊME cadre (demande user). Renvoie une liste de dicts
     {"start_ts", "_html"} : le tri global et les en-têtes de jour sont gérés par le cadre unifié
@@ -4911,7 +4936,13 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False) 
         except (ValueError, AttributeError):
             continue
         sp = m.get("sport")
-        if sp in analyses.background_sports():  # sport en arrière-plan (tennis/basket) -> jamais sur la page des paris
+        # Menu sport de Pronos (`keep_sport`, demande user 2026-07-26 : voir tennis/basket comme le foot).
+        # Un sport EXPLICITEMENT sélectionné -> on ne garde QUE lui (vue mono-sport). En vue par défaut
+        # (keep_sport=None = page des paris = foot ROI) les sports en arrière-plan (tennis/basket) restent cachés.
+        if keep_sport:
+            if sp != keep_sport:
+                continue
+        elif sp in analyses.background_sports():
             continue
         # ÉTAT RÉEL UNIBET (pas l'heure prévue) : score live = EN COURS. Un provisoire EN COURS n'est plus
         # « à venir » -> on le marque `_is_live` pour l'onglet LIVE + section « En direct » (demande user
@@ -5365,7 +5396,7 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
         + '</div></div></div>')
 
 
-def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
+def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: str = "foot") -> str:
     """Carte « Combiné du jour » présentée COMME les cartes provisoires (Telegram) mais en OR (demande user
     2026-07-12) : en-tête, jambes = picks, SYNTHÈSE en barre cyan, Confiance, COTE en gros chiffre. Placée
     DANS les matchs en direct (plus de bandeau en tête). Info seule. '' si aucun combiné.
@@ -5379,7 +5410,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
             import datetime as _dt
             from app import combo_daily as _cd
             day = _cd.day_key()          # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
-            cb = _cd.today(day)
+            cb = _cd.today(day, sport=sport)
         except Exception:
             cb = None
     if not cb or not cb.get("legs"):
@@ -5427,7 +5458,8 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
              + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
-    return _combo_gold_card(title="COMBINÉ FOOTBALL", subtitle=f'{_nlegs} jambes',
+    _sptitle = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sport, "FOOTBALL")
+    return _combo_gold_card(title=f"COMBINÉ {_sptitle}", subtitle=f'{_nlegs} jambes',
                             badge=_badge, body=_body, state=cb.get("result"))
 
 
@@ -5787,6 +5819,19 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
             f'<div class="prv-res">{"".join(cards)}</div>')
 
 
+def _sport_selector(current: str | None) -> str:
+    """Sélecteur de sport en tête de Pronos (demande user 2026-07-26) : Football / Tennis / Basket. Le sport
+    actif recharge #day-content via /jour?date=<jour>&sport=<sk> (JS _SPSEL_JS). Football (défaut) = foot ROI
+    + montante/betmines ; tennis/basket = SIMULATION, affichée COMME le foot (mêmes cartes)."""
+    _day = _sport_today().isoformat()
+    _cur = current or "foot"
+    chips = "".join(
+        f'<button type="button" class="spsel{" on" if _cur == sk else ""}" data-sport="{sk}" '
+        f'data-day="{_day}">{ic}<span>{lbl}</span></button>'
+        for sk, ic, lbl in (("foot", "⚽", "Football"), ("tennis", "🎾", "Tennis"), ("basket", "🏀", "Basket")))
+    return f'<div class="spsel-wrap">{chips}</div>'
+
+
 def _today_zones(match_rows: list, sport: str | None = None, results: list | None = None) -> tuple[str, int]:
     """Zones du JOUR COURANT (Combiné du jour · Paris du jour · Provisoires · Résultats du jour ; PLUS de
     zone « à analyser » — retirée sur demande user 2026-07-20). Extrait de render_dashboard pour /jour
@@ -5805,7 +5850,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _paj.add(_prog_pair(_lh, _la))
     except Exception:
         pass
-    _prog = [it for it in _programme_items(_paj, framed=True) if not it.get("_live")]
+    _prog = [it for it in _programme_items(_paj, framed=True, keep_sport=sport) if not it.get("_live")]
     if sport:
         play = [r for r in play if _item_sport(r) == sport]
         _prog = [it for it in _prog if it.get("_sport") == sport]
@@ -5813,24 +5858,26 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # PLUS de catégorie « à analyser » (demande user 2026-07-20 : la supprimer) : un match NON encore
     # analysé (ni pari, ni provisoire) n'est tout simplement PAS affiché tant qu'il n'a pas d'analyse —
     # il apparaîtra une fois analysé (avec son pari/provisoire), jamais en limbo « Analyse à HH:MM ».
-    combo_daily = "" if sport else _combo_tg_card(include_settled=False)   # multisport -> « Tous » seulement
-    # PALIER MONTANTE du jour (demande user 2026-07-26) : présenté comme un pari normal sur Pronos.
-    montante = "" if sport else _montante_tg_card()
-    # COMBINÉ BETMINES (demande user 2026-07-23) : le Double externe du jour, présenté comme un combiné —
-    # zone dédiée sous le combiné du jour, multisport (« Tous ») seulement, hors ROI.
-    betmines = "" if sport else _betmines_tg_card()
+    # Combiné du jour du SPORT sélectionné (foot par défaut = « Tous »). Tennis/basket = simulé (hors ROI),
+    # affiché comme le foot (demande user 2026-07-26).
+    combo_daily = _combo_tg_card(include_settled=False, sport=(sport or "foot"))
+    # PALIER MONTANTE + COMBINÉ BETMINES : spécifiques FOOT -> vue « Tous »/foot seulement.
+    _is_foot_view = sport in (None, "foot")
+    montante = _montante_tg_card() if _is_foot_view else ""
+    betmines = _betmines_tg_card() if _is_foot_view else ""
     has_any = bool(play or prov or combo_daily)
     _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir les <b>Provisoires</b> ci-dessous.'
                    ) if has_any else None
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
+    _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport or "foot", "football")
+    # ORDRE FIGÉ (demande user 2026-07-26) : Paris à jouer → Provisoires → Montante → Combiné à jouer →
+    # Combiné Betmines. Ne pas réordonner sans demande explicite.
     out = [
-        _zone("combo", "Combiné football", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
         _zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
-        # PALIER MONTANTE du jour (demande user 2026-07-26) : pari du jour de la montante, comme un pari normal.
         _zone("montante", "Montante · palier du jour", "", 1 if montante else 0, montante, collapsible=True),
-        # SOUS les provisoires (demande user 2026-07-23) : suivi externe = après tous NOS pronos.
+        _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("betmines", "Combiné Betmines", "", 1 if betmines else 0, betmines, collapsible=True),
     ]
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
@@ -5843,25 +5890,24 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # Combiné du jour RÉGLÉ (won/lost/void) -> ici (la zone du haut le cache une fois fini via include_settled
     # =False, il ne se dédouble donc pas). En cours -> reste en tête, pas dans les résultats.
     _combo_res = ""
-    if not sport:
-        try:
-            from app import combo_daily as _cd
-            _cbt = _cd.today(today_iso)
-            if _cbt and _cbt.get("legs") and _cbt.get("result") in ("won", "lost", "void"):
-                _combo_res = _combo_tg_card(include_settled=True, cb=_cbt)
-        except Exception:
-            _combo_res = ""
+    try:
+        from app import combo_daily as _cd
+        _cbt = _cd.today(today_iso, sport=(sport or "foot"))
+        if _cbt and _cbt.get("legs") and _cbt.get("result") in ("won", "lost", "void"):
+            _combo_res = _combo_tg_card(include_settled=True, cb=_cbt, sport=(sport or "foot"))
+    except Exception:
+        _combo_res = ""
     if res_rows or _prov_res or _combo_res:
         out.append(_zone("done", "Résultats du jour", "", len(res_rows),
                          _combo_res + _rows_by_day(res_rows) + _prov_res, collapsible=True))
     inner = "".join(x for x in out if x)
-    zones = (f'<div class="dash-zones">{inner}</div>' if inner
-             else '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>')
+    _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
+    zones = f'<div class="dash-zones">{inner or _empty}</div>'
     today_iso = _sport_today().isoformat()
     # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
     # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
     _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + (1 if montante else 0) + (1 if betmines else 0)
-    return _day_header(today_iso) + zones, _cnt
+    return _day_header(today_iso) + _sport_selector(sport) + zones, _cnt
 
 
 def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
