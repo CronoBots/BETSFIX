@@ -161,12 +161,35 @@ SIM_WARMUP = 10   # on IGNORE les N premiers paris foot (rodage) dans la simulat
                   # (les tout premiers paris ne sont pas représentatifs ; l'historique démarre après).
 
 
+def _best_per_day(bets: list) -> list:
+    """RÉALISME (demande user 2026-07-26) : une montante = **1 pari par jour** (on ne peut PAS rejouer le gain
+    d'un pari sur un AUTRE pari du même jour — ils se jouent en même temps). On garde donc UN seul simple foot
+    par JOUR SPORTIF (06h→06h) : le plus SÛR = cote la plus basse (logique montante). Chronologique. Sans ça,
+    la simu enchaînait TOUS les simples (30/36 jours en avaient plusieurs) = 2 paliers le même jour = faux."""
+    from datetime import datetime
+    from app import web as _w
+    byday: dict = {}
+    for b in bets:
+        try:
+            day = _w._sport_date(_w.to_local(
+                datetime.fromisoformat((b.get("start") or "").replace("Z", "+00:00")))).isoformat()
+        except (ValueError, AttributeError, TypeError):
+            day = (b.get("start") or "")[:10]
+        cur = byday.get(day)
+        if cur is None or (b.get("cote") or 99) < (cur.get("cote") or 99):   # le + sûr du jour
+            byday[day] = b
+    return [byday[d] for d in sorted(byday)]
+
+
 def simulate(bets: list | None = None) -> dict:
-    """Simulation de montante sur une suite de paris (défaut : les simples foot, RODAGE des `SIM_WARMUP`
-    premiers exclu). Met en avant la meilleure série. Ne touche à RIEN (pur calcul d'affichage)."""
+    """Simulation de montante (défaut : les simples foot joués). MÊME logique que la vraie montante :
+    RODAGE des `SIM_WARMUP` premiers exclu, puis **1 pari/jour** (`_best_per_day`, le plus sûr) → réaliste
+    (jamais 2 paliers le même jour). Met en avant la meilleure série. Pur calcul d'affichage, hors ROI."""
     src = foot_simples_bets() if bets is None else bets
-    if bets is None and len(src) > SIM_WARMUP:
-        src = src[SIM_WARMUP:]                             # ne pas compter les premiers paris (rodage)
+    if bets is None:
+        if len(src) > SIM_WARMUP:
+            src = src[SIM_WARMUP:]                         # ne pas compter les premiers paris (rodage)
+        src = _best_per_day(src)                           # 1 pari/jour (réaliste)
     return _compute(src, BASE_STAKE, sim=True)
 
 
@@ -209,23 +232,12 @@ def _montante_eligible_code(code: str) -> bool:
 
 
 def pick_day_bet() -> dict | None:
-    """Le pari foot À VENIR le PLUS SÛR pour la montante (demande user 2026-07-25) : parmi les marchés
-    POPULAIRES/FIABLES (`_montante_eligible_code`) en cote 1.25–1.45, celui de confiance CALIBRÉE MAX.
-    Source = prédictions du sidecar (fantômes `shadow` + pari retenu `bets`) -> réglées via leur `result`
-    (comme la calibration). None si aucun candidat foot à venir. Lecture seule.
-    DIVERSIFICATION (demande user 2026-07-26 : crédibilité/indépendance des produits) : la montante ÉVITE les
-    matchs déjà pris par un produit PRIORITAIRE — un pari VALUE joué (compté au ROI) ou une JAMBE du combiné du
-    jour — pour ne PAS être corrélée à eux (une seule mauvaise nouvelle ne coule pas 2 produits) et ne pas
-    recycler le même match. Si tous les meilleurs candidats sont déjà pris, on peut ne rien jouer ce jour-là."""
-    from app import analyses, combo_daily as _cd
-    from app.settle_analyst import code_from_pick
-    try:
-        from app.analyses import calibrated_conf as _cc, _cool_conf as _cool
-    except Exception:
-        _cc = _cool = None
-    # Matchs déjà pris par un produit prioritaire (combiné du jour) -> exclus de la montante (par id ET par nom).
-    _excl_ids = _cd.leg_ids()
-    _excl_pairs = _cd.leg_pairs()
+    """Le palier du jour = le SIMPLE VALUE JOUÉ le plus SÛR (cote la plus basse) des matchs foot à venir
+    (demande user 2026-07-26). MÊME logique que la SIMULATION (montante sur nos simples foot joués) → la vraie
+    montante suit exactement ce qui a donné la belle courbe (réaliste : 1 pari/jour, jamais 2 paliers le même
+    jour). Le palier EST le pari value du jour (pas un marché « sûr » à part), donc réglé via son `stat_bet`.
+    None si aucun simple value à venir. Lecture seule."""
+    from app import analyses
     best = None
     for d in analyses.iter_meta("foot"):
         if analyses.status_of(d) != "notstarted":          # seulement les matchs pas encore commencés
@@ -233,45 +245,17 @@ def pick_day_bet() -> dict | None:
         mid = str(d.get("id") or "")
         if not mid:
             continue
-        home, away = d.get("home", ""), d.get("away", "")
-        # DIVERSIFICATION : match déjà jambe du combiné du jour, OU portant un pari VALUE joué -> réservé au
-        # produit prioritaire, la montante passe (indépendance + pas de doublon de match).
-        if mid in _excl_ids or _cd._pair_key(home, away) in _excl_pairs:
+        rb = analyses.retained_bet("foot", mid) or analyses.published_bet("foot", mid)
+        if not rb or not rb.get("sel") or rb.get("result") in ("won", "lost", "push"):
             continue
-        if analyses.retained_bet("foot", mid) or analyses.published_bet("foot", mid):
+        cote = rb.get("cote")
+        if not isinstance(cote, (int, float)):
             continue
-        preds = list(d.get("shadow") or [])
-        for b in (d.get("bets") or []):                    # le pari retenu compte aussi (cote sous `odds`)
-            preds.append({"sel": b.get("sel"), "cote": b.get("odds"), "prob": b.get("prob")})
-        seen = set()
-        for p in preds:
-            sel = p.get("sel") or ""
-            cote = p.get("cote")
-            if not isinstance(cote, (int, float)) or not (MONT_MIN_ODDS <= cote <= MONT_MAX_ODDS):
-                continue
-            code = (code_from_pick(sel, "foot", home, away) or "").strip()
-            if not _montante_eligible_code(code):
-                continue
-            prob = p.get("prob")
-            if not isinstance(prob, (int, float)):
-                continue
-            pct = prob if prob > 1 else prob * 100.0
-            if _cc:                                         # confiance CALIBRÉE + refroidie (le plus sûr)
-                try:
-                    _c2 = _cool(_cc(pct, "foot", code), "foot", code, d.get("streaks"))
-                    if _c2 is not None:
-                        pct = _c2
-                except Exception:
-                    pass
-            key = (mid, code)
-            if key in seen:                                 # 1 seul candidat par (match, marché) : le meilleur
-                continue
-            seen.add(key)
-            if best is None or pct > best["prob"]:
-                best = {"mid": mid, "sport": "foot",
-                        "match": d.get("name") or f'{home} - {away}'.strip(" -"),
-                        "sel": sel, "cote": float(cote), "code": code, "prob": round(pct, 1),
-                        "start": d.get("start") or ""}
+        if best is None or cote < best["cote"]:            # le PLUS SÛR = cote la plus basse (survie de la série)
+            best = {"mid": mid, "sport": "foot",
+                    "match": d.get("name") or f'{d.get("home", "")} - {d.get("away", "")}'.strip(" -"),
+                    "sel": rb.get("sel"), "cote": float(cote), "code": rb.get("code") or "",
+                    "prob": rb.get("cprob") or rb.get("prob"), "start": d.get("start") or ""}
     return best
 
 
@@ -303,12 +287,9 @@ def record_day(date_iso: str) -> bool:
 
 
 def settle_pending() -> int:
-    """Règle les paris en attente de la montante sur LEUR PROPRE marché (le pari de la montante peut différer
-    de notre value) : on retrouve la prédiction du même CODE dans le sidecar (stat_bet OU fantôme `shadow`,
-    tous deux déjà réglés par nos règlements) et on lit son `result`. Aucune source réseau. Nb réglé."""
+    """Règle les paliers en attente : le palier = le SIMPLE VALUE JOUÉ du match, donc son résultat = celui du
+    `stat_bet` figé (déjà calculé par nos règlements, aucune source réseau). Nb réglé."""
     from app import analyses
-    from app.settle_analyst import code_from_pick
-    _fin = ("won", "lost", "push", "void")
     d = load()
     n = 0
     for s in d.get("steps") or []:
@@ -317,25 +298,11 @@ def settle_pending() -> int:
         m = analyses.meta("foot", s.get("mid"))
         if not m or not analyses.is_settled(m):
             continue
-        home, away = m.get("home", ""), m.get("away", "")
-        want = (s.get("code") or code_from_pick(s.get("sel") or "", "foot", home, away) or "").strip().upper()
-        if not want:
-            continue
-        res = None
-        # 1) le pari joué (stat_bet) porte-t-il ce marché ? 2) sinon un fantôme réglé du même code.
         sb = m.get("stat_bet") or {}
-        if sb.get("sel") and sb.get("result") in _fin:
-            if code_from_pick(sb.get("sel"), "foot", home, away).strip().upper() == want:
-                res = sb["result"]
-        if res is None:
-            for p in m.get("shadow") or []:
-                if p.get("result") not in _fin:
-                    continue
-                if code_from_pick(p.get("sel") or "", "foot", home, away).strip().upper() == want:
-                    res = p["result"]
-                    break
-        if res is not None:
-            s["result"] = res
+        if sb.get("result") in ("won", "lost", "push", "void"):
+            s["result"] = sb["result"]
+            if sb.get("cote"):
+                s["cote"] = sb["cote"]                     # cote finale figée
             n += 1
     if n:
         save(d)
