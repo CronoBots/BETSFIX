@@ -4019,14 +4019,19 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # indicatifs). Tennis/basket combos -> section Simulation. Repères foot (_ms_combo déjà filtré foot+all).
     _cs = combo_full if combo_full is not None else analyses.combo_stats()
     _foot_c = (_cs.get("by_sport") or {}).get("foot") or {}
+    # Combiné(s) foot EN COURS (le combiné du jour) -> injectés en tête avec ⏳, EXACTEMENT comme la carte
+    # simulation le fait pour tennis/basket (sinon le combiné foot du jour n'apparaît PAS dans les stats
+    # tant qu'il n'est pas réglé — retour user 2026-07-26). Pur affichage (jamais au ROI/gel).
+    _pend_fc = analyses.pending_roi_bets(combo=True)
     combos_block = (render_tracking_curve(
         emoji="⚽", title="COMBINÉS", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
         n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
         form=_form_streak(_foot_c.get("form_run") or _foot_c.get("form") or [])[0],   # ligne W/L (demande user)
-        recent=list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés",
+        recent=_pend_fc + list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés",
+        pending=len(_pend_fc),                        # sabliers ⏳ des combinés à venir (comme tennis/basket)
         milestones=_ms_combo, compact=True, hit_points=_foot_c.get("hit_points"),
-        best_streak=_foot_c.get("best_streak")) if _foot_c.get("settled") else "")   # record sur tout l'historique
+        best_streak=_foot_c.get("best_streak")) if (_foot_c.get("settled") or _pend_fc) else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"))   # + onglet Provisoires (user 2026-07-25)
