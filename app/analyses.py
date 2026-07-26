@@ -2369,13 +2369,11 @@ def provisional_shown(sport, sel, cote, prob, home="", away="", fid=None) -> boo
     (provisional.reconcile_with_programme) -> jamais d'écart liste/compteur."""
     if not sel:
         return False
-    # SPORT en ARRIÈRE-PLAN (tennis/basket) : aucun PROVISOIRE affiché/suivi (demande user 2026-07-24 : rien
-    # de ces sports sur la page des paris). Leur pari RETENU, lui, circule en coulisse (ROI simulé).
-    try:
-        if sport in background_sports():
-            return False
-    except Exception:
-        pass
+    # SPORTS EN ARRIÈRE-PLAN (tennis/basket) : leurs PROVISOIRES sont désormais SUIVIS en SIMULATION (demande
+    # user 2026-07-26 : « sélectionner simple/combiné/provisoires pour basket/tennis comme avant mais pour la
+    # simulation »). Ils restent HORS de la page des paris (le filtre `background_sports` de `web._programme_items`
+    # les écarte de Pronos en amont) et HORS ROI, mais alimentent l'onglet « Provisoires » de leur cadre sport
+    # simulé (per-sport via `_prov_sport_graph`). On ne coupe donc PLUS ici — même règle qualité pour tous.
     try:
         c = float(cote)
     except (TypeError, ValueError):
@@ -2649,21 +2647,26 @@ def _agg_bets(events: list) -> dict:
 
 
 
-def pending_roi_bets(combo: bool = False) -> list:
-    """Paris comptés au ROI mais PAS ENCORE réglés (matchs À VENIR / EN COURS) — même format que la clé
-    `recent` d'_agg_bets ({start, result, cote, name, sel, sport}) pour les afficher SOUS la courbe, à
-    côté des paris réglés (demande user 2026-07-14). `result="pending"`. `combo=True` -> combinés du jour
-    en cours ; sinon les SIMPLES retenus/publiés à venir. Le plus PROCHE en tête."""
+def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
+    """Paris comptés (ROI ou SIMULÉ) mais PAS ENCORE réglés (matchs À VENIR / EN COURS) — même format que la
+    clé `recent` d'_agg_bets ({start, result, cote, name, sel, sport}) pour les afficher SOUS la courbe, à
+    côté des paris réglés (demande user 2026-07-14). `result="pending"`. `combo=True` -> combiné du jour en
+    cours ; sinon les SIMPLES retenus/publiés à venir. Le plus PROCHE en tête.
+    `sport` : CIBLE un sport précis (ex. cadres de SIMULATION tennis/basket — demande user 2026-07-26) et
+    CONTOURNE alors l'exclusion arrière-plan (on veut les voir dans LEUR cadre simulé, façon football).
+    None (défaut ROI officiel) -> exclut les sports en arrière-plan."""
     out = []
+    _bg = background_sports()
     if combo:
         try:
             from app import combo_daily
-            for cb in combo_daily.entries():
-                if cb.get("result") in ("won", "lost", "void"):
-                    continue
-                out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
-                            "cote": cb.get("cote"), "name": f"Combiné du jour ({len(cb.get('legs') or [])} j.)",
-                            "sel": "multisport", "sport": "combiné"})
+            for _sp in ((sport,) if sport else ("foot",)):
+                for cb in combo_daily.entries(sport=_sp):
+                    if cb.get("result") in ("won", "lost", "void"):
+                        continue
+                    out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
+                                "cote": cb.get("cote"), "name": f"Combiné du jour ({len(cb.get('legs') or [])} j.)",
+                                "sel": "combiné du jour", "sport": _sp})
         except Exception:
             pass
     else:
@@ -2673,14 +2676,16 @@ def pending_roi_bets(combo: bool = False) -> list:
                 continue
             if (d.get("combo") or {}).get("legs"):
                 continue                                     # combiné same-match -> pas un simple
-            sport, mid = d.get("sport"), str(d.get("id"))
-            if sport in background_sports():                 # sport en pause (tennis/basket) = HORS ROI ->
-                continue                                     # jamais dans les paris ROI en attente (fix
-                #  2026-07-25 : des paris tennis à venir polluaient l'historique/W-L des simples FOOT)
-            rb = retained_bet(sport, mid) or published_bet(sport, mid)
+            _sp, mid = d.get("sport"), str(d.get("id"))
+            if sport is not None:
+                if _sp != sport:                             # sport CIBLÉ (simulation) -> pas d'exclusion bg
+                    continue
+            elif _sp in _bg:                                 # défaut ROI officiel : exclut tennis/basket (pause)
+                continue                                     # (fix 2026-07-25 : ne pas polluer l'historique foot)
+            rb = retained_bet(_sp, mid) or published_bet(_sp, mid)
             if rb and rb.get("result") not in ("won", "lost", "push"):
                 out.append({"start": d.get("start") or "", "result": "pending", "cote": rb.get("cote"),
-                            "name": d.get("name"), "sel": rb.get("sel"), "sport": sport})
+                            "name": d.get("name"), "sel": rb.get("sel"), "sport": _sp})
     out.sort(key=lambda x: x.get("start") or "")            # chronologique (le plus proche en tête à l'affichage)
     return out
 

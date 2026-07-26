@@ -517,31 +517,34 @@ def _simulation_card() -> str:
         if sp not in bg:
             continue
         _simple_g = _combos_g = ""
+        # Paris À VENIR (en attente) du sport SIMULÉ -> intégrés aux listes « Derniers... » avec ⏳, EXACTEMENT
+        # comme le football (demande user 2026-07-26 ; `sport=sp` contourne l'exclusion arrière-plan).
+        _pend_s = analyses.pending_roi_bets(sport=sp)
+        _pend_c = analyses.pending_roi_bets(combo=True, sport=sp)
         b = (full.get("by_sport") or {}).get(sp) or {}      # SIMPLES simulés du sport (MÊME emoji sport)
-        if b.get("settled"):
+        if b.get("settled") or _pend_s:
             _simple_g = web.render_tracking_curve(
                 emoji=_emo.get(sp, "🔬"), title="SIMPLE", roi=b.get("roi"), hit=b.get("pct"),
-                n=b.get("settled"), points=b.get("points"), dates=b.get("dates"),
+                n=b.get("settled") or 0, points=b.get("points"), dates=b.get("dates"),
                 avg_cote=b.get("avg_odds"), uid=f"sim-{sp}", streak=b.get("streak"),
                 form=web._form_streak(b.get("form_run") or b.get("form") or [])[0],   # ligne W/L
-                recent=list(reversed(b.get("recent") or [])), more_label="Derniers simples",
+                recent=_pend_s + list(reversed(b.get("recent") or [])), more_label="Derniers simples",
+                pending=len(_pend_s),                        # sabliers ⏳ des à venir (comme football)
                 milestones=web._sport_milestones(sp), compact=True,   # disposition « ROI héros »
                 hit_points=b.get("hit_points"), best_streak=b.get("best_streak"))   # record sur tout l'historique
         c = (combo.get("by_sport") or {}).get(sp) or {}     # COMBINÉS simulés du sport (MÊME emoji que le simple)
-        if c.get("settled"):
+        if c.get("settled") or _pend_c:
             _combos_g = web.render_tracking_curve(
                 emoji=_emo.get(sp, "🔬"), title="COMBINÉS", roi=c.get("roi"), hit=c.get("pct"),
-                n=c.get("settled"), points=c.get("points"), dates=c.get("dates"),
+                n=c.get("settled") or 0, points=c.get("points"), dates=c.get("dates"),
                 avg_cote=c.get("avg_odds"), uid=f"simc-{sp}", streak=c.get("streak"),
                 form=web._form_streak(c.get("form_run") or c.get("form") or [])[0],   # ligne W/L
-                recent=list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
+                recent=_pend_c + list(reversed(c.get("recent") or [])), more_label="Derniers combinés",
+                pending=len(_pend_c),
                 milestones=web._sport_milestones(sp), compact=True,   # disposition « ROI héros »
                 hit_points=c.get("hit_points"), best_streak=c.get("best_streak"))   # record sur tout l'historique
         curves = web._sport_tabs(_simple_g, _combos_g, web._prov_sport_graph(sp))   # + onglet Provisoires (user 2026-07-25)
-        # PARIS SÉLECTIONNÉS + EN ATTENTE (à venir) du sport (demande user 2026-07-26) : visibles dans Stats
-        # même s'ils sont hors ROI / cachés de Pronos. Affichés EN TÊTE du cadre sport.
-        pending = web._sim_pending_html(sp)
-        if not curves and not pending:                     # rien à montrer pour ce sport
+        if not curves:
             continue
         # En-tête = BANNIÈRE BETSFIX du sport + ligne « simulé · hors paris » sous l'image, IDENTIQUE pour
         # tous les sports simulés (couleur ambre, SANS « prêt à réactiver » — demande user 2026-07-24).
@@ -549,7 +552,7 @@ def _simulation_card() -> str:
             '<div class="sx-card">'
             + web._sport_banner(sp)
             + '<div class="stat-banner-sub">simulé · hors paris</div>'
-            + pending + curves + '</div>')
+            + curves + '</div>')
     return out
 
 

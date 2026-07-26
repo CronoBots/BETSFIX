@@ -2827,9 +2827,6 @@ CSS = """
   /* Ligne de contexte du PALIER montante sur Pronos (au-dessus de la carte de pari) */
   .mont-pron-ctx{font-size:11px;color:var(--gold);font-weight:700;margin:0 2px 7px;line-height:1.4}
   .mont-pron-ctx b{color:#ffe08a} .mont-pron-ctx span{color:var(--muted);font-weight:600}
-  /* En-tête « Sélection à venir » (paris simulés tennis/basket en attente, onglet Stats) */
-  .sim-pend-h{font-size:11.5px;font-weight:800;letter-spacing:.03em;color:var(--text);margin:4px 2px 9px}
-  .sim-pend-h span{color:var(--muted);font-weight:600;letter-spacing:0}
   /* Courbe de progression du capital (10 € -> pic), échelle log */
   .mont-curve{margin:2px 0 11px}
   .mont-c{width:100%;height:auto;display:block}
@@ -5352,29 +5349,6 @@ def _montante_tg_card() -> str:
     _ctx = (f'<div class="mont-pron-ctx">🪜 <b>Palier {_palier}</b> · mise <b>{_mont_eur(_stake)}</b> '
             f'· rejouée à chaque gain <span>· simulé, hors ROI</span></div>')
     return _ctx + _leg_card(leg, why=False, teams=True)
-
-
-def _sim_pending_html(sport: str) -> str:
-    """Paris SÉLECTIONNÉS + EN ATTENTE (à venir) d'un sport SIMULÉ (tennis/basket) pour l'onglet Stats
-    (demande user 2026-07-26 : les voir même s'ils sont hors ROI et cachés de la page Pronos). Rendus comme
-    des cartes de simple (`_leg_card`) — match + sélection + gloss + cote. '' si aucun. Info-seule, hors ROI."""
-    out = []
-    for d in analyses.iter_meta(sport):
-        if analyses.status_of(d) != "notstarted":         # à venir seulement
-            continue
-        mid = str(d.get("id") or "")
-        rb = analyses.retained_bet(sport, mid) or analyses.published_bet(sport, mid)
-        if not rb or not rb.get("sel") or rb.get("result") in ("won", "lost", "push"):
-            continue
-        leg = {"sport": sport, "home": d.get("home", ""), "away": d.get("away", ""),
-               "name": d.get("name"), "sel": rb.get("sel"), "cote": rb.get("cote"),
-               "result": None, "comp": d.get("comp", "")}
-        out.append((d.get("start") or "", _leg_card(leg, why=False, teams=True)))
-    if not out:
-        return ""
-    out.sort(key=lambda x: x[0])
-    return ('<div class="sim-pend-h">🎯 Sélection à venir <span>· en attente · simulé</span></div>'
-            + "".join(c for _, c in out))
 
 
 def _betmines_tg_card() -> str:

@@ -635,9 +635,10 @@ def today(day: str, d: dict | None = None, sport: str = "foot") -> dict | None:
     return cb if isinstance(cb, dict) else None
 
 
-def entries(d: dict | None = None) -> list:
-    """Combinés suivis, PLUS RÉCENT en premier : {date, cote, prob, result, legs}. Snapshot partagé."""
-    d = _load() if d is None else d
+def entries(d: dict | None = None, sport: str = "foot") -> list:
+    """Combinés suivis du `sport` (foot=ROI, tennis/basket=simulé), PLUS RÉCENT en premier :
+    {date, cote, prob, result, legs}. Snapshot partagé (`d`) ou chargé pour `sport`."""
+    d = _load(sport) if d is None else d
     out = [cb for cb in d.values() if isinstance(cb, dict) and cb.get("legs")]
     out.sort(key=lambda x: x.get("date") or "", reverse=True)
     return out
