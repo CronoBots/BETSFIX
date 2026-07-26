@@ -1695,6 +1695,20 @@ CSS = """
        padding-top:10px;border-top:1px solid var(--border)}
   .sx-rel-note b{color:var(--text)}
   .sx-data .sx-kpis:first-of-type{border-top:0;padding-top:0;margin-top:11px}
+  .sx-vbs .vbs-head{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:8px;font-size:9.5px;
+    font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:11px 0 2px;text-align:right}
+  .sx-vbs .vbs-head div:first-child{text-align:left}
+  .vbs-row{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:8px;align-items:center;padding:10px 0;
+    border-top:1px solid rgba(255,255,255,.06)}
+  .vbs-sp{font-size:12px;font-weight:800;display:flex;align-items:center;gap:5px;flex-wrap:wrap;line-height:1.3}
+  .vbs-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}
+  .vbs-cell{text-align:right;font-size:10px;color:var(--muted);font-weight:600;line-height:1.35}
+  .vbs-cell b{display:block;color:var(--text);font-weight:900;font-size:16px}
+  .vbs-cell span{display:block;font-size:9.5px}
+  .vbs-sim{font-size:9px;font-weight:900;color:#ff9f43;background:rgba(255,159,67,.14);
+    padding:1px 6px;border-radius:8px}
+  .vbs-roi{font-size:9px;font-weight:900;color:#2ee27f;background:rgba(46,226,127,.14);
+    padding:1px 6px;border-radius:8px}
   .sx-data-note{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:11px;
        padding-top:10px;border-top:1px solid var(--border)}
   .sx-data-note b{color:var(--text)}
@@ -3860,6 +3874,36 @@ def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict |
         '<b>pronos fantômes</b> (prédictions SIMPLES non jouées, réglées après match) affinent la '
         '<b>calibration</b> sur tout le spectre de cotes — ils n\'entrent JAMAIS dans le bilan, et il '
         'n\'existe pas de combiné fantôme.</div></div>')
+
+
+def render_volume_by_sport() -> str:
+    """Carte « Volume par sport » (transparence, demande user) : combien de matchs ANALYSÉS et de PARIS
+    sélectionnés par sport, sur 7 et 30 jours. Le foot est compté au ROI ; tennis/basket = SIMULATION."""
+    from app import analyses as _an
+    v7, v30 = _an.volume_by_sport(7), _an.volume_by_sport(30)
+    bg = _an.background_sports()
+    SPORTS = (("foot", "Football", "⚽", "#2ee27f"), ("tennis", "Tennis", "🎾", "#d7e64a"),
+              ("basket", "Basket", "🏀", "#ff9f43"))
+
+    def _cell(a: dict) -> str:
+        return (f'<div class="vbs-cell"><b>{a.get("analysed", 0)}</b>analysés'
+                f'<span>{a.get("picks", 0)} paris · {a.get("combos", 0)} comb.</span></div>')
+    rows = []
+    for sk, lbl, emo, col in SPORTS:
+        tag = ('<span class="vbs-sim">🔬 simulé</span>' if sk in bg
+               else '<span class="vbs-roi">ROI</span>')
+        rows.append(
+            f'<div class="vbs-row"><div class="vbs-sp"><i class="vbs-dot" style="background:{col}"></i>'
+            f'{emo} {lbl}{tag}</div>{_cell(v7.get(sk, {}))}{_cell(v30.get(sk, {}))}</div>')
+    return (
+        '<div class="sx-card sx-vbs"><div class="sx-h">📊 Volume par sport'
+        '<span>analyse &amp; sélection</span></div>'
+        '<div class="vbs-head"><div></div><div>7 jours</div><div>30 jours</div></div>'
+        + "".join(rows)
+        + '<div class="sx-data-note">« <b>analysés</b> » = matchs dont le dossier complet (multi-sources '
+        '+ analyse) a été produit. « <b>paris</b> » = matchs avec un pari retenu. Seul le <b>football</b> '
+        'est compté au ROI ; <b>tennis</b> et <b>basket</b> sont analysés en <b>simulation</b> (hors ROI) '
+        'tant qu\'ils ne repassent pas au vert.</div></div>')
 
 
 def _mile_legend(miles: list, *, compact: bool = False) -> str:

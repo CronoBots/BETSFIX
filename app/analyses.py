@@ -3432,6 +3432,54 @@ def sport_reactivation_ready() -> dict:
     return out
 
 
+_VOL_BY_SPORT_CACHE: dict = {}   # (dir_sig, ndays) -> {sport: {...}}
+
+
+def volume_by_sport(ndays: int = 7) -> dict:
+    """Volume d'ANALYSE et de SÉLECTION par sport sur les `ndays` derniers jours SPORTIFS (06h→06h) :
+    {sport: {analysed, picks, ghosts, combos}}. `analysed` = matchs dont le dossier a été produit ;
+    `picks` = matchs avec un pari retenu (`bets`) ; `ghosts` = prédictions fantômes (calibration) ;
+    `combos` = combinés du jour du sport. Lecture seule, cachée par signature du dossier (perf)."""
+    from datetime import timezone, timedelta
+    key = (_dir_sig(), ndays)
+    cached = _VOL_BY_SPORT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    from app import web as _w
+    from app import combo_daily as _cd
+    try:
+        today = _w._sport_date(_w.to_local(datetime.now(timezone.utc)))
+    except Exception:
+        today = datetime.now(timezone.utc).date()
+    lo = today - timedelta(days=ndays - 1)
+
+    def _sday(dt):
+        try:
+            return _w._sport_date(_w.to_local(dt)) if dt else None
+        except Exception:
+            return None
+    per = {sp: {"analysed": 0, "picks": 0, "ghosts": 0, "combos": 0}
+           for sp in ("foot", "tennis", "basket")}
+    for sp in per:
+        for d in iter_meta(sp):
+            sd = _sday(d.get("_start_dt"))
+            if not sd or not (lo <= sd <= today):
+                continue
+            per[sp]["analysed"] += 1
+            if d.get("bets"):
+                per[sp]["picks"] += 1
+            per[sp]["ghosts"] += len(d.get("shadow") or [])
+        for day, cb in (_cd._load(sp) or {}).items():        # combinés du jour du sport dans la fenêtre
+            try:
+                cd = datetime.fromisoformat(day).date()
+            except (ValueError, TypeError):
+                continue
+            if lo <= cd <= today and isinstance(cb, dict) and cb.get("legs"):
+                per[sp]["combos"] += 1
+    _VOL_BY_SPORT_CACHE[key] = per
+    return per
+
+
 def background_sports() -> set:
     """Sports en mode ARRIÈRE-PLAN / SIMULATION (demande user 2026-07-24) : tennis/basket sont ANALYSÉS et
     leurs picks CONTINUENT de se sélectionner + se régler → ROI SIMULÉ vivant (bien plus représentatif que
