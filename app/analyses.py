@@ -3466,7 +3466,11 @@ def volume_by_sport(ndays: int = 7) -> dict:
             if not sd or not (lo <= sd <= today):
                 continue
             per[sp]["analysed"] += 1
-            if d.get("bets"):
+            # SÉLECTION = pari SIMPLE réellement retenu par la logique du site (conf calibrée ≥ 65 % + EV +
+            # garde-fous), indépendant de la PUBLICATION Telegram. `for_history=True` re-sélectionne aussi
+            # les sports en arrière-plan (tennis/basket) → mesure la capacité de sélection. Avant : `d["bets"]`
+            # (= pari publié/réinjecté) → 0 si scan --no-notify, trompeur.
+            if retained_bet(sp, str(d.get("id") or ""), for_history=True):
                 per[sp]["picks"] += 1
             per[sp]["ghosts"] += len(d.get("shadow") or [])
         for day, cb in (_cd._load(sp) or {}).items():        # combinés du jour du sport dans la fenêtre
