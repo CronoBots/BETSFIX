@@ -4382,18 +4382,21 @@ def _hit_curve(results) -> list:
     return pts
 
 
-_RATE_WARMUP = 10   # les 10 premiers paris = trop peu pour un taux fiable -> la courbe démarre après (demande user)
+_RATE_WARMUP = 10   # nb MIN de paris réglés pour AFFICHER la courbe de réussite (sous ce seuil, un taux cumulé
+                    # saute trop à 0/100 % pour valoir la peine). NB : une fois affichée, la courbe démarre au
+                    # 1er pari (alignée sur la courbe ROI) — cf. _rate_block.
 
 
 def _rate_block(hit_points: list | None, uid: str) -> str:
     """Bloc « Taux de réussite » (courbe légère + % courant) sous la courbe d'équité — demande user
-    2026-07-24 : montrer que la fiabilité s'améliore dans le temps. Le DÉBUT (≤10 paris) n'est pas fiable
-    (taux qui saute à 0/100 %) -> on démarre la courbe après cette période de rodage. '' si trop peu de
-    données pour être fiable."""
+    2026-07-24 : montrer que la fiabilité s'améliore dans le temps. La courbe DÉMARRE au 1er pari réglé pour
+    COMMENCER À LA MÊME DATE que la courbe ROI/équité (demande user 2026-07-27 : les deux graphiques d'un
+    sport doivent partir de la même date — mêmes paris 1→N, axes bord-à-bord). On n'affiche le bloc qu'à
+    partir d'assez de paris réglés (_RATE_WARMUP + 3) pour qu'un taux cumulé ait un sens. '' sinon."""
     _hp = [h for h in (hit_points or []) if h is not None]
-    if len(_hp) < _RATE_WARMUP + 3:                      # pas assez de paris réglés pour un taux crédible
+    if len(_hp) < _RATE_WARMUP + 3:                      # pas assez de paris réglés pour montrer une courbe
         return ""
-    _c = _rate_chart(_hp[_RATE_WARMUP - 1:], uid=uid)    # historique COMPLET à partir du 10e pari (rodage), demande user
+    _c = _rate_chart(_hp, uid=uid)                       # DÈS le 1er pari -> même date de départ que la courbe ROI
     if not _c:
         return ""
     # Titre SANS le % (demande user 2026-07-25 : le % courant est déjà l'étiquette de fin de courbe -> le

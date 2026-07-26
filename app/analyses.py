@@ -2584,7 +2584,12 @@ def _agg_bets(events: list) -> dict:
     events = sorted(events, key=lambda x: x[0] or "")
     cum, osum = 0.0, 0.0
     pts, dates, won, lost, push = [0.0], [], 0, 0, 0
-    hit_pts, hit_dates = [], []                          # taux de réussite CUMULÉ à chaque pari réglé (courbe amélioration)
+    # Réussite : MÊME cadence que la courbe d'équité — 1 point par pari réglé + une ANCRE de tête (comme
+    # pts[0]=0.0), les remboursés/push REPORTENT le taux (l'équité les trace à plat aussi). Résultat : les 2
+    # courbes partagent l'axe x bout-à-bout -> index i = même pari = même date (demande user 2026-07-27 :
+    # graphes alignés, correspondances visibles). Les None de tête (avant le 1er gagné/perdu) sont comblés
+    # après la boucle par le 1er taux connu.
+    hit_pts, hit_dates = [None], []
     recent = []                                          # détails par pari (si fournis en 4e élément)
     for _ev in events:
         _start, res, odds = _ev[0], _ev[1], _ev[2]
@@ -2605,9 +2610,14 @@ def _agg_bets(events: list) -> dict:
             push += 1
         pts.append(round(cum, 3))
         dates.append(_start or "")
-        if res in ("won", "lost"):                       # taux de réussite cumulé APRÈS ce pari réglé
-            hit_pts.append(round(100 * won / (won + lost), 1))
-            hit_dates.append(_start or "")
+        # taux de réussite cumulé APRÈS ce pari (un point par pari réglé, comme l'équité ; None tant qu'aucun
+        # gagné/perdu -> comblé après la boucle). Report automatique sur push : won/(won+lost) inchangé.
+        hit_pts.append(round(100 * won / (won + lost), 1) if (won + lost) else None)
+        hit_dates.append(_start or "")
+    # Comble les None de tête (ancre + éventuels push avant le 1er gagné/perdu) par le 1er taux connu ->
+    # départ plat et longueur = celle de la courbe d'équité. Aucun pari gagné/perdu -> pas de courbe.
+    _first_rate = next((h for h in hit_pts if h is not None), None)
+    hit_pts = [] if _first_rate is None else [(_first_rate if h is None else h) for h in hit_pts]
     settled, staked = won + lost, won + lost + push
     # Série EN COURS (signée) : nb de gagnés (+) ou perdus (-) consécutifs en fin de période.
     seq = [ev[1] for ev in events if ev[1] in ("won", "lost")]
