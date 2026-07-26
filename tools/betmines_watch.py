@@ -290,9 +290,9 @@ def _analyze_legs(cb: dict) -> bool:
     blocs = []
     for i, l in enumerate(cb["legs"], 1):
         s = l.get("stats") or {}
-        ligne = (f"[{i}] {l.get('comp')} — {l.get('home')} vs {l.get('away')} — PARI CHOISI PAR BETMINES : "
-                 f"{l.get('market')} @{l.get('cote')}\n    Classement : {l.get('home')} {s.get('pos_h') or '?'}e, "
-                 f"{l.get('away')} {s.get('pos_a') or '?'}e.")
+        ligne = (f"[{i}] {l.get('comp')} — {l.get('home')} vs {l.get('away')} — PARI : "
+                 f"{l.get('market')} @{l.get('our_cote') or l.get('cote')}\n    Classement : "
+                 f"{l.get('home')} {s.get('pos_h') or '?'}e, {l.get('away')} {s.get('pos_a') or '?'}e.")
         # % over/under contextuels (domicile/extérieur) + forme 5 derniers, si le marché est un total buts
         if s.get("over_ctx_h") is not None or s.get("over_ctx_a") is not None:
             seuil = _SEUIL.get(abs(l.get("line") or 0), "?")
@@ -313,17 +313,18 @@ def _analyze_legs(cb: dict) -> bool:
             ligne += "\n    " + _os.replace("\n", "\n    ")
         blocs.append(ligne)
     prompt = (
-        "Tu es un analyste PRO du pari sportif. Le site BETMINES a SÉLECTIONNÉ le pari indiqué pour chaque "
-        "jambe — ton rôle est d'ANALYSER LEUR CHOIX (est-il solide ? pourquoi ?), PAS d'en proposer un autre "
-        "ni de le corriger. Tu PEUX chercher sur le WEB des éléments de contexte RÉCENTS (forme, blessés, "
-        "enjeu, compos probables) pour ces équipes/ligues — précieux pour les divisions obscures — mais ne "
-        "cite un fait web que si tu l'as VÉRIFIÉ. Les CHIFFRES quantitatifs viennent des données fournies "
-        "(ne les invente pas). Pour chaque jambe, en 2 phrases COMPLÈTES et FACTUELLES (français impeccable) : "
-        "appuie-toi sur les chiffres fournis (classement, % de matchs au-dessus du seuil, clean-sheet, GG, "
-        "moyennes de buts, H2H), les DONNÉES MULTI-SOURCES si présentes, et le contexte web vérifié ; termine "
-        "par une courte réserve honnête (« bémol : … »). Pas de méta (ni value, ni proba). Reste sur LEUR pari. "
-        "Réponds AU FORMAT EXACT, une ligne par jambe, RIEN d'autre :\n"
-        "LEG1: <justification>\nLEG2: <justification>\n(… une ligne LEGn par jambe)\n\nJambes :\n"
+        "Tu es MON analyste paris sportifs PRO. Analyse chaque pari ci-dessous EXACTEMENT comme si c'était TON "
+        "propre pronostic — comme si ton scan avait détecté ce match et ce pari. Le pari est FIXÉ (ne le "
+        "remplace pas) : justifie POURQUOI il tient (ou ses limites), factuel et chiffré. Tu PEUX chercher sur "
+        "le WEB du contexte RÉCENT VÉRIFIÉ (forme, blessés, enjeu, compos — précieux pour les divisions "
+        "obscures) ; ne cite un fait web que VÉRIFIÉ. Les CHIFFRES quantitatifs viennent des données fournies "
+        "(ne les invente pas). Pour CHAQUE jambe : 2 à 3 phrases COMPLÈTES et FACTUELLES (français impeccable) "
+        "appuyées sur les faits (classement, % au-dessus du seuil, clean-sheet, GG, moyennes de buts, H2H, "
+        "DONNÉES MULTI-SOURCES si présentes) + une courte réserve honnête (« bémol : … »). ⛔ PAS de méta (ni "
+        "« value », ni « marge », ni « écart-type »). Donne AUSSI ta PROBA honnête de gain du pari.\n"
+        "FORMAT EXACT, une ligne par jambe, RIEN d'autre :\n"
+        "LEG1: <proba 0-100>% | <justification>\nLEG2: <proba>% | <justification>\n(… une ligne LEGn par jambe)"
+        "\n\nJambes :\n"
         + "\n".join(blocs))
     try:
         # prompt via STDIN (comme generate_analyses.run_claude) : en ARGUMENT, le wrapper claude.CMD
@@ -335,12 +336,27 @@ def _analyze_legs(cb: dict) -> bool:
                              timeout=300).stdout or ""
     except Exception:
         return False
+    from app import analyses as _an3
+    from app.settle_analyst import code_from_pick as _cfp3
     wrote = False
     for i, l in enumerate(cb["legs"], 1):
-        mm = re.search(rf"^\s*LEG\s*{i}\s*:\s*(.+)", out, re.M)
-        if mm and not l.get("why"):
-            l["why"] = mm.group(1).strip()
+        mm = re.search(rf"^\s*LEG\s*{i}\s*:\s*(?:(\d{{1,3}})\s*%\s*\|\s*)?(.+)", out, re.M)
+        if not mm:
+            continue
+        _pv, _jt = mm.group(1), (mm.group(2) or "").strip()
+        if _jt and not l.get("why"):
+            l["why"] = _jt
             wrote = True
+        # NOTRE confiance : priorité au scan (`our_prob` déjà figé via our_market_view) ; sinon la PROBA de
+        # cette analyse dédiée, CALIBRÉE sur le code du marché -> chaque pari Betmines a NOTRE confiance.
+        if _pv and l.get("our_prob") is None:
+            try:
+                _oc = (_cfp3(str(l.get("market") or ""), "foot", l.get("home", ""), l.get("away", "")) or "").strip()
+                _cal = _an3.calibrated_conf(int(_pv), "foot", _oc) if _oc else int(_pv)
+                l["our_prob"] = round(_cal) if isinstance(_cal, (int, float)) else int(_pv)
+                wrote = True
+            except Exception:
+                pass
     return wrote
 
 
