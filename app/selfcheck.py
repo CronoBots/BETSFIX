@@ -559,6 +559,29 @@ def _check_combo_daily_sport_purity() -> dict:
             "items": bad[:20]}
 
 
+def _check_combo_daily_leg_analysis() -> dict:
+    """Un combiné du jour À VENIR (non réglé) doit porter l'ANALYSE par jambe (`why`) produite par le scan
+    (`_analyze_combo_legs`). Encode la régression 2026-07-26 : un combiné foot ré-enregistré à la main avait
+    PERDU l'analyse de ses jambes (affichage dégradé). WARN (pas error) : rattrapable au prochain scan."""
+    bad = []
+    try:
+        from app import combo_daily
+        for sp in ("foot",) + tuple(combo_daily.SIM_SPORTS):
+            for day, cb in (combo_daily._load(sp) or {}).items():
+                if not isinstance(cb, dict) or cb.get("result") in ("won", "lost", "void"):
+                    continue                          # combiné réglé -> l'analyse n'importe plus
+                legs = cb.get("legs") or []
+                miss = sum(1 for l in legs if not (l.get("why") or "").strip())
+                if legs and miss:
+                    bad.append(f"track {sp} [{day}] : {miss}/{len(legs)} jambe(s) sans analyse (`why`)")
+    except Exception:
+        pass
+    return {"key": "combo_daily_leg_analysis", "level": "warn" if bad else "ok",
+            "title": "Combiné du jour à venir : analyse par jambe présente",
+            "detail": f"{len(bad)} combiné(s) du jour non réglé(s) avec ≥1 jambe sans analyse.",
+            "items": bad[:20]}
+
+
 def _check_extratime_regulation(rows) -> dict:
     """Un match de foot allé aux PROLONGATIONS doit régler ses marchés 90 MIN (1X2, over/under, mi-temps,
     REGTIME…) sur le score RÉGLEMENTAIRE, JAMAIS sur le score final (prolongation incluse). Régression
@@ -766,6 +789,7 @@ def run(persist: bool = False) -> dict:
         _check_provisional_settle_finished(),
         _check_combo_daily_settle_finished(),
         _check_combo_daily_sport_purity(),
+        _check_combo_daily_leg_analysis(),
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),
         _check_tennis_sets_overconfidence(rows),
