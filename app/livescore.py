@@ -87,22 +87,39 @@ def _index(ls_sport: str, ymd: str) -> list:
     return _index_cache[key]
 
 
+# Écart MAX toléré entre le coup d'envoi cible et celui du candidat (s). Deux fixtures entre équipes de
+# noms proches (équipe 1re vs réserve « II ») tombent souvent le MÊME jour à des heures différentes -> on
+# refuse un candidat trop éloigné dans le temps (bug 2026-07-27 : Portland Timbers–Real Salt Lake 2-1 @02:30
+# pris pour Portland Timbers II–Real Monarchs SLC 1-0 @20:00 -> provisoire « Plus de 2.5 » faussement gagné).
+_MAX_KICKOFF_GAP_S = 6 * 3600
+
+
 def _find_event(home: str, away: str, start_iso: str | None, ls_sport: str) -> dict | None:
-    """Trouve l'événement LiveScore par NOMS, sur le JOUR du coup d'envoi (±1, fuseaux). None sinon."""
+    """Trouve l'événement LiveScore par NOMS, sur le JOUR du coup d'envoi (±1, fuseaux). None sinon.
+    Parmi TOUS les candidats (noms), garde celui dont le COUP D'ENVOI est le plus proche de l'heure cible
+    (les matchs stricts priment sur le repli laxiste), et rejette s'il est trop loin (_MAX_KICKOFF_GAP_S) —
+    sinon un match entre équipes de noms proches (1re vs réserve « II ») à une autre heure est pris à tort."""
     dt = _start_dt(start_iso or "")
     if not dt:
         return None
     th, ta = _tok(home), _tok(away)
+    best, best_key = None, None
     for k in (0, -1, 1):
         idx = _index(ls_sport, (dt + timedelta(days=k)).strftime("%Y%m%d"))
         for e in idx:
-            if _teams_match(home, away, e["home"], e["away"]):
-                return e
-        for e in idx:                       # repli : un mot fort commun de chaque côté
-            fh, fa = _tok(e["home"]), _tok(e["away"])
-            if (th & fh and ta & fa) or (th & fa and ta & fh):
-                return e
-    return None
+            strict = _teams_match(home, away, e["home"], e["away"])
+            if not strict:                  # repli : un mot fort commun de chaque côté
+                fh, fa = _tok(e["home"]), _tok(e["away"])
+                if not ((th & fh and ta & fa) or (th & fa and ta & fh)):
+                    continue
+            ed = _start_dt(e.get("start") or "")
+            gap = abs((ed - dt).total_seconds()) if ed else 1e12
+            key = (0 if strict else 1, gap)   # strict d'abord, puis coup d'envoi le plus proche
+            if best_key is None or key < best_key:
+                best, best_key = e, key
+    if best is not None and best_key is not None and best_key[1] > _MAX_KICKOFF_GAP_S:
+        return None                          # meilleur candidat trop loin du coup d'envoi -> mauvais match
+    return best
 
 
 def final_score(sport: str, d: dict) -> dict | None:
