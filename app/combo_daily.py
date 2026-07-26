@@ -652,6 +652,14 @@ def entries(d: dict | None = None, sport: str = "foot") -> list:
     return out
 
 
+def _leg_summ(cb: dict) -> list:
+    """Résumé COMPACT des jambes d'un combiné pour l'historique (demande user 2026-07-26 : voir les jambes
+    qui composaient chaque combiné) : [{name, sel, cote, result}] par jambe."""
+    return [{"name": l.get("name") or f'{l.get("home", "")} - {l.get("away", "")}'.strip(" -"),
+             "sel": l.get("sel"), "cote": l.get("cote"), "result": l.get("result")}
+            for l in (cb.get("legs") or [])]
+
+
 def roi_events(d: dict | None = None) -> list:
     """Événements ROI des combinés du jour RÉGLÉS (demande user 2026-07-14 : « compter les combinés
     multisport du jour dans le ROI ») -> [(date, result, cote_effective, details)] injectable dans
@@ -672,7 +680,8 @@ def roi_events(d: dict | None = None) -> list:
         _leg_sport = next(iter(_sports)) if len(_sports) == 1 else None
         out.append((cb.get("date") or "", r, cote,
                     {"name": f"Combiné du jour ({n} jambes)", "sel": "football",
-                     "sport": "combiné", "combo_daily": True, "n_legs": n, "leg_sport": _leg_sport}))
+                     "sport": "combiné", "combo_daily": True, "n_legs": n, "leg_sport": _leg_sport,
+                     "legs": _leg_summ(cb)}))
     return out
 
 
@@ -691,7 +700,8 @@ def sim_events(sport: str) -> list:
         n = len(cb.get("legs") or [])
         out.append((cb.get("date") or "", r, cote,
                     {"name": f"Combiné du jour ({n} jambes)", "sel": "Combiné du jour",
-                     "sport": sport, "combo_daily": True, "n_legs": n, "leg_sport": sport}))
+                     "sport": sport, "combo_daily": True, "n_legs": n, "leg_sport": sport,
+                     "legs": _leg_summ(cb)}))
     return out
 
 

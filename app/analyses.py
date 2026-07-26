@@ -2592,7 +2592,7 @@ def _agg_bets(events: list) -> dict:
         if _meta and res in ("won", "lost", "push"):     # pour le panneau « derniers paris » (au clic)
             recent.append({"start": _start, "result": res, "cote": odds,
                            "name": _meta.get("name"), "sel": _meta.get("sel"),
-                           "sport": _meta.get("sport")})
+                           "sport": _meta.get("sport"), "legs": _meta.get("legs")})   # jambes -> historique
         if res == "won":
             cum += (float(odds) - 1) if odds else 0.0
             won += 1
@@ -2666,7 +2666,8 @@ def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
                         continue
                     out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
                                 "cote": cb.get("cote"), "name": f"Combiné du jour ({len(cb.get('legs') or [])} j.)",
-                                "sel": "combiné du jour", "sport": _sp})
+                                "sel": "combiné du jour", "sport": _sp,
+                                "legs": combo_daily._leg_summ(cb)})   # jambes -> historique
         except Exception:
             pass
     else:
@@ -3002,7 +3003,11 @@ def combo_stats(since_days: int | None = None) -> dict:
         # Cote EFFECTIVE si des jambes ont été retirées au règlement (void/push -> cote 1) : le payout
         # d'un combiné gagné amputé d'une jambe indéterminée utilise le produit des jambes gagnées.
         odds = c.get("settle_odds") or c.get("real_odds") or c.get("total")
-        _cmeta = {"name": d.get("name"), "sel": f"Combiné {len(c['legs'])} jambes", "sport": sport}
+        _clegs = [{"name": l.get("name") or f'{l.get("home", "")} - {l.get("away", "")}'.strip(" -"),
+                   "sel": l.get("sel"), "cote": l.get("cote"), "result": l.get("result")}
+                  for l in (c.get("legs") or [])]   # jambes -> historique (demande user 2026-07-26)
+        _cmeta = {"name": d.get("name"), "sel": f"Combiné {len(c['legs'])} jambes", "sport": sport,
+                  "legs": _clegs}
         by_sp.setdefault(sport, []).append((start, res, float(odds) if odds else None, _cmeta))  # TOUJOURS (simulation)
         if sport not in _bg:                           # OFFICIEL = sports actifs seuls (tennis/basket simulés à part)
             rows.append((res, float(odds) if odds else None, c.get("shave"), len(c["legs"]), c.get("prob")))
@@ -3032,10 +3037,11 @@ def combo_stats(since_days: int | None = None) -> dict:
                 rows.append((_res, _o, None, _det.get("n_legs") or 0, None))
                 curve.append((_dt, _res, _o))
                 crecent.append((_dt, _res, _o, {"name": _det.get("name"), "sel": "combiné du jour",
-                                                "sport": "combiné"}))
+                                                "sport": "combiné", "legs": _det.get("legs")}))
             if _lsp:                                       # ventilation par sport (mono, y c. tennis/basket simulés)
                 by_sp.setdefault(_lsp, []).append((_dt, _res, _o,
-                    {"name": _det.get("name"), "sel": "Combiné du jour", "sport": _lsp}))
+                    {"name": _det.get("name"), "sel": "Combiné du jour", "sport": _lsp,
+                     "legs": _det.get("legs")}))
     except Exception:
         pass
     # COMBINÉS DU JOUR SIMULÉS (tennis/basket, demande user 2026-07-25) : injectés SEULEMENT dans by_sp
@@ -3055,7 +3061,8 @@ def combo_stats(since_days: int | None = None) -> dict:
                         continue
                 _o2 = float(_cote) if _cote else None
                 by_sp.setdefault(_spsim, []).append((_dt, _res, _o2,
-                    {"name": _det.get("name"), "sel": "Combiné du jour", "sport": _spsim}))
+                    {"name": _det.get("name"), "sel": "Combiné du jour", "sport": _spsim,
+                     "legs": _det.get("legs")}))
     except Exception:
         pass
     won = sum(1 for r, o, s, n, pr in rows if r == "won")
@@ -3096,7 +3103,8 @@ def combo_stats(since_days: int | None = None) -> dict:
         cstreak = _cc if _cl == "won" else -_cc
     crecent.sort(key=lambda x: x[0] or "")
     crec = [{"start": s, "result": r, "cote": o, "name": (mt or {}).get("name"),
-             "sel": (mt or {}).get("sel"), "sport": (mt or {}).get("sport")}
+             "sel": (mt or {}).get("sel"), "sport": (mt or {}).get("sport"),
+             "legs": (mt or {}).get("legs")}     # jambes -> historique dépliable (demande user 2026-07-26)
             for s, r, o, mt in crecent if r in ("won", "lost", "push")]   # TOUT l'historique (panneau scrollable, demande user 2026-07-25)
     return {"n": len(rows), "won": won, "lost": lost, "push": push, "dates": dates,
             "streak": cstreak, "recent": crec,

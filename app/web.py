@@ -518,6 +518,28 @@ CSS = """
   .spf-rec-m{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
   .spf-rec-m b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .spf-rec-s{color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* COMBINÉ dépliable : cliquer la ligne révèle les JAMBES (demande user 2026-07-26). Natif <details>. */
+  .spf-rec-x{border-bottom:1px solid rgba(255,255,255,.055)}
+  .spf-rec-x:last-child{border-bottom:none}
+  .spf-rec-x[open]{background:rgba(255,255,255,.02);border-radius:8px}
+  .spf-rec-x>summary{list-style:none;cursor:pointer}
+  .spf-rec-x>summary.spf-rec{border-bottom:none}
+  .spf-rec-x>summary::-webkit-details-marker{display:none}
+  .spf-cx{color:var(--muted);font-size:9px;display:inline-block;transition:transform .15s}
+  .spf-rec-x[open] .spf-cx{transform:rotate(180deg)}
+  .spf-legs{padding:1px 2px 8px 20px;display:flex;flex-direction:column}
+  .spf-leg{display:flex;align-items:center;gap:8px;font-size:10px;padding:5px 0;
+       border-top:1px dashed rgba(255,255,255,.08)}
+  .spf-leg-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+  .spf-leg-t b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spf-leg-t>span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spf-leg-c{flex:none;color:var(--muted);font-weight:800;font-size:9.5px}
+  .spf-leg-b{flex:none;width:16px;height:16px;border-radius:5px;display:flex;align-items:center;
+       justify-content:center;font-size:9px;font-weight:900;color:#0a0a0a}
+  .spf-leg.rec-w .spf-leg-b{background:#34d27b}
+  .spf-leg.rec-l .spf-leg-b{background:#ff6b6b}
+  .spf-leg.rec-n .spf-leg-b{background:var(--muted)}
+  .spf-leg.rec-p .spf-leg-b{background:var(--gold)}
   /* DATE tout à gauche sur 2 lignes (demande user 2026-07-25) : DATE en HAUT (alignée avec le nom d'équipes)
      + HEURE en BAS (alignée avec la sélection). Mêmes tailles/interligne que `.spf-rec-m` -> les 2 lignes
      coïncident. COTE juste avant le badge résultat. */
@@ -1757,10 +1779,10 @@ CSS = """
        letter-spacing:.05em;white-space:nowrap;cursor:pointer}
   .sctab.on{background:rgba(34,184,255,.15);border-color:rgba(34,184,255,.45);color:#fff}
   /* badge « en cours » (⏳) en COIN (position absolue) -> n'affecte pas le label, jamais de retour ligne */
-  .sctab-n{position:absolute;top:-7px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;
-       background:#ffb84d;color:#241500;font-size:10px;font-weight:900;line-height:18px;text-align:center;
-       box-shadow:0 1px 4px rgba(0,0,0,.45)}
-  .sctab.on .sctab-n{background:#eaf6ff;color:#0a2233}
+  .sctab-n{position:absolute;top:-6px;right:-4px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;
+       background:rgba(255,184,77,.92);color:#241500;font-size:8.5px;font-weight:900;line-height:14px;
+       text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .sctab.on .sctab-n{background:rgba(234,246,255,.95);color:#0a2233}
   .sctab-pane{display:none}
   .sctab-pane.on{display:block}
   .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
@@ -6692,13 +6714,34 @@ def _recent_bets_html(recent: list) -> str:
                 _date = ""
         # ORDRE (demande user 2026-07-25) : DATE/HEURE tout à gauche · pari (nom + sélection) · COTE ·
         # RÉSULTAT tout à droite (la cote juste avant le badge résultat).
-        rows.append(
-            f'<div class="spf-rec {cls}">'
+        _legs = b.get("legs")                          # COMBINÉ -> ligne DÉPLIABLE révélant les jambes
+        _sel_disp = sel + (' <span class="spf-cx">▾</span>' if _legs else "")
+        _inner = (
             f'<span class="spf-rec-d"><b>{html.escape(_date)}</b><span>{html.escape(_hm)}</span></span>'
             f'<span class="spf-rec-m"><b>{name}</b>'
-            f'<span class="spf-rec-s">{sel}</span></span>'
+            f'<span class="spf-rec-s">{_sel_disp}</span></span>'
             f'<span class="spf-rec-c">{cote_txt}</span>'
-            f'<span class="spf-rec-b">{letter}</span></div>')
+            f'<span class="spf-rec-b">{letter}</span>')
+        if _legs:                                      # jambes en clair au clic (demande user 2026-07-26)
+            _lg = []
+            for l in _legs:
+                _ltr, _lcls = _B.get(l.get("result"), ("·", "rec-p"))
+                _lraw = str(l.get("name") or "")
+                _lh, _, _la = _lraw.partition(" - ")
+                _lsel = html.escape(_pretty_sel(str(l.get("sel") or ""), _lh, _la))
+                _lco = l.get("cote")
+                _lco_txt = (f'<span class="spf-leg-c">{_lco:g}</span>'
+                            if isinstance(_lco, (int, float)) and _lco else "")
+                _lnm = (f'<b>{html.escape(_lraw.replace(" - ", " — "))}</b>' if _lraw else "")   # vide = même-match
+                _lg.append(
+                    f'<div class="spf-leg {_lcls}">'
+                    f'<span class="spf-leg-t">{_lnm}<span>{_lsel}</span></span>{_lco_txt}'
+                    f'<span class="spf-leg-b">{_ltr}</span></div>')
+            rows.append(
+                f'<details class="spf-rec-x"><summary class="spf-rec {cls} spf-rec-exp">{_inner}</summary>'
+                f'<div class="spf-legs">{"".join(_lg)}</div></details>')
+        else:
+            rows.append(f'<div class="spf-rec {cls}">{_inner}</div>')
     return f'<div class="spf-recent">{"".join(rows)}</div>'
 
 
