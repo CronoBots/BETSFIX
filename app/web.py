@@ -187,13 +187,33 @@ def live_fields(ld: dict | None, sport: str) -> dict:
         qs = re.findall(r"(\d+)\s*[-–]\s*(\d+)", sc.get("info") or "")
         if qs:
             out["periods"] = [(int(x), int(y)) for x, y in qs]
-    if sport == "foot":     # STATS LIVE (cartons/corners) depuis la liveData Unibet -> box-score enrichi
+    if sport == "foot":     # STATS LIVE (cartons/corners) depuis la liveData Unibet -> box-score enrichi.
+        # Unibet expose CE box-score sous DEUX structures selon le match (constaté en direct 2026-07-26) :
+        #  (1) `statistics.football.{home,away}.{yellowCards,redCards,corners}` — objet imbriqué ;
+        #  (2) `liveStatistics` — liste plate {occurrenceTypeId, count} (CARDS_YELLOW_HOME, CORNERS_AWAY…),
+        #      SEULE présente pour certains matchs (ex. Flamengo–São Paulo : pas de `statistics`).
+        # On lit (1) en priorité (aucune régression), repli (2) — sinon une jambe/carte n'a AUCUN carton
+        # alors qu'un match voisin les affiche (bug user 2026-07-26). Jambes et cartes partagent live_fields.
         _fb = ((ld.get("statistics") or {}).get("football") or {})
         _fh, _fa = _fb.get("home") or {}, _fb.get("away") or {}
         if _fh or _fa:
             out["fstats"] = {"rc_h": _fh.get("redCards"), "rc_a": _fa.get("redCards"),
                              "yc_h": _fh.get("yellowCards"), "yc_a": _fa.get("yellowCards"),
                              "cor_h": _fh.get("corners"), "cor_a": _fa.get("corners")}
+        else:
+            _ls = ld.get("liveStatistics")
+            if isinstance(_ls, list) and _ls:
+                _map = {"CARDS_RED_HOME": "rc_h", "CARDS_RED_AWAY": "rc_a",
+                        "CARDS_YELLOW_HOME": "yc_h", "CARDS_YELLOW_AWAY": "yc_a",
+                        "CORNERS_HOME": "cor_h", "CORNERS_AWAY": "cor_a"}
+                _fs = {}
+                for _o in _ls:
+                    _k = _map.get((_o or {}).get("occurrenceTypeId"))
+                    if _k is not None:
+                        _fs[_k] = (_o or {}).get("count")
+                if _fs:
+                    out["fstats"] = {_k: _fs.get(_k)
+                                     for _k in ("rc_h", "rc_a", "yc_h", "yc_a", "cor_h", "cor_a")}
     return out
 
 def fmt_local(value, with_date: bool = True) -> str:
