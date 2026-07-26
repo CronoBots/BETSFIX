@@ -538,7 +538,10 @@ def _simulation_card() -> str:
                 milestones=web._sport_milestones(sp), compact=True,   # disposition « ROI héros »
                 hit_points=c.get("hit_points"), best_streak=c.get("best_streak"))   # record sur tout l'historique
         curves = web._sport_tabs(_simple_g, _combos_g, web._prov_sport_graph(sp))   # + onglet Provisoires (user 2026-07-25)
-        if not curves:
+        # PARIS SÉLECTIONNÉS + EN ATTENTE (à venir) du sport (demande user 2026-07-26) : visibles dans Stats
+        # même s'ils sont hors ROI / cachés de Pronos. Affichés EN TÊTE du cadre sport.
+        pending = web._sim_pending_html(sp)
+        if not curves and not pending:                     # rien à montrer pour ce sport
             continue
         # En-tête = BANNIÈRE BETSFIX du sport + ligne « simulé · hors paris » sous l'image, IDENTIQUE pour
         # tous les sports simulés (couleur ambre, SANS « prêt à réactiver » — demande user 2026-07-24).
@@ -546,7 +549,7 @@ def _simulation_card() -> str:
             '<div class="sx-card">'
             + web._sport_banner(sp)
             + '<div class="stat-banner-sub">simulé · hors paris</div>'
-            + curves + '</div>')
+            + pending + curves + '</div>')
     return out
 
 

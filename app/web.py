@@ -2824,6 +2824,12 @@ CSS = """
   /* MISE bien visible (demande user 2026-07-25) : label discret + montant lisible. */
   .mont-step-mise{display:block;font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.02em}
   .mont-step-mise b{color:var(--text);font-weight:800}
+  /* Ligne de contexte du PALIER montante sur Pronos (au-dessus de la carte de pari) */
+  .mont-pron-ctx{font-size:11px;color:var(--gold);font-weight:700;margin:0 2px 7px;line-height:1.4}
+  .mont-pron-ctx b{color:#ffe08a} .mont-pron-ctx span{color:var(--muted);font-weight:600}
+  /* En-tête « Sélection à venir » (paris simulés tennis/basket en attente, onglet Stats) */
+  .sim-pend-h{font-size:11.5px;font-weight:800;letter-spacing:.03em;color:var(--text);margin:4px 2px 9px}
+  .sim-pend-h span{color:var(--muted);font-weight:600;letter-spacing:0}
   /* Courbe de progression du capital (10 € -> pic), échelle log */
   .mont-curve{margin:2px 0 11px}
   .mont-c{width:100%;height:auto;display:block}
@@ -5322,6 +5328,55 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None) -> str:
                             badge=_badge, body=_body, state=cb.get("result"))
 
 
+def _montante_tg_card() -> str:
+    """Carte du PALIER MONTANTE du jour pour l'onglet PRONOS (demande user 2026-07-26 : « le palier doit être
+    sur la page des pronos et présenté comme un pari normal »). Rend le pari du jour de la montante via
+    `_leg_card` (MÊME carte qu'un simple : match + sélection + gloss + cote) + une ligne de contexte montante
+    (palier n°, mise capitalisée). '' si montante inactive ou pas de palier en attente. Info-seule, hors ROI."""
+    try:
+        from app import montante as _mt
+        if not _mt.is_active():
+            return ""
+        st = _mt.state()
+        p = st.get("pending")
+        if not p or not p.get("sel"):
+            return ""
+    except Exception:
+        return ""
+    _match = _noF(str(p.get("match") or ""))
+    _h, _sep, _a = _match.partition(" - ")
+    leg = {"sport": p.get("sport") or "foot", "home": _h, "away": _a, "name": _match,
+           "sel": p.get("sel"), "cote": p.get("cote"), "result": None, "comp": ""}
+    _palier = int(st.get("palier") or 0) + 1
+    _stake = p.get("stake") or st.get("base", 10.0)
+    _ctx = (f'<div class="mont-pron-ctx">🪜 <b>Palier {_palier}</b> · mise <b>{_mont_eur(_stake)}</b> '
+            f'· rejouée à chaque gain <span>· simulé, hors ROI</span></div>')
+    return _ctx + _leg_card(leg, why=False, teams=True)
+
+
+def _sim_pending_html(sport: str) -> str:
+    """Paris SÉLECTIONNÉS + EN ATTENTE (à venir) d'un sport SIMULÉ (tennis/basket) pour l'onglet Stats
+    (demande user 2026-07-26 : les voir même s'ils sont hors ROI et cachés de la page Pronos). Rendus comme
+    des cartes de simple (`_leg_card`) — match + sélection + gloss + cote. '' si aucun. Info-seule, hors ROI."""
+    out = []
+    for d in analyses.iter_meta(sport):
+        if analyses.status_of(d) != "notstarted":         # à venir seulement
+            continue
+        mid = str(d.get("id") or "")
+        rb = analyses.retained_bet(sport, mid) or analyses.published_bet(sport, mid)
+        if not rb or not rb.get("sel") or rb.get("result") in ("won", "lost", "push"):
+            continue
+        leg = {"sport": sport, "home": d.get("home", ""), "away": d.get("away", ""),
+               "name": d.get("name"), "sel": rb.get("sel"), "cote": rb.get("cote"),
+               "result": None, "comp": d.get("comp", "")}
+        out.append((d.get("start") or "", _leg_card(leg, why=False, teams=True)))
+    if not out:
+        return ""
+    out.sort(key=lambda x: x[0])
+    return ('<div class="sim-pend-h">🎯 Sélection à venir <span>· en attente · simulé</span></div>'
+            + "".join(c for _, c in out))
+
+
 def _betmines_tg_card() -> str:
     """Carte « Combiné Betmines » pour l'onglet PRONOS (demande user 2026-07-23 : « je veux le voir comme
     un combiné dans l'onglet pronos, sans l'emoji ») — MÊME coquille que le combiné du jour
@@ -5649,6 +5704,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # analysé (ni pari, ni provisoire) n'est tout simplement PAS affiché tant qu'il n'a pas d'analyse —
     # il apparaîtra une fois analysé (avec son pari/provisoire), jamais en limbo « Analyse à HH:MM ».
     combo_daily = "" if sport else _combo_tg_card(include_settled=False)   # multisport -> « Tous » seulement
+    # PALIER MONTANTE du jour (demande user 2026-07-26) : présenté comme un pari normal sur Pronos.
+    montante = "" if sport else _montante_tg_card()
     # COMBINÉ BETMINES (demande user 2026-07-23) : le Double externe du jour, présenté comme un combiné —
     # zone dédiée sous le combiné du jour, multisport (« Tous ») seulement, hors ROI.
     betmines = "" if sport else _betmines_tg_card()
@@ -5661,6 +5718,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _zone("combo", "Combiné football", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
         _zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
+        # PALIER MONTANTE du jour (demande user 2026-07-26) : pari du jour de la montante, comme un pari normal.
+        _zone("montante", "Montante · palier du jour", "", 1 if montante else 0, montante, collapsible=True),
         # SOUS les provisoires (demande user 2026-07-23) : suivi externe = après tous NOS pronos.
         _zone("betmines", "Combiné Betmines", "", 1 if betmines else 0, betmines, collapsible=True),
     ]
@@ -5691,7 +5750,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     today_iso = _sport_today().isoformat()
     # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
     # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
-    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + (1 if betmines else 0)
+    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + (1 if montante else 0) + (1 if betmines else 0)
     return _day_header(today_iso) + zones, _cnt
 
 
