@@ -19,8 +19,9 @@ def test_halfres_ne_casse_pas_les_autres_marches_mitemps():
     assert C("Etats-Unis gagne au moins l'une des mi-temps", "foot", "Etats-Unis", "Australie") == "WINHALF HOME"
     # buts par équipe en 1ère MT reste TEAMHALF
     assert C("Brésil plus de 0.5 but 1ère mi-temps", "foot", "Brésil", "Haiti") == "TEAMHALF HOME 1H OVER 0.5"
-    # corners en MT : reste un code CORNERS (scope 1ère MT appliqué par la métrique) — PAS détourné en HALFRES
-    assert C("Total corners 1ère MT Plus de 2.5", "foot", "A", "B") == "CORNERS OVER 2.5"
+    # corners : BANNIS (décision produit 2026-06-19) -> code_from_pick renvoie "" (ni HALFRES, ni CORNERS).
+    # Les vieux codes CORNERS déjà stockés restent réglés par settle_pick ; on ne DÉRIVE plus de corner.
+    assert C("Total corners 1ère MT Plus de 2.5", "foot", "A", "B") == ""
 
 
 def test_halfres_settle():
@@ -45,7 +46,7 @@ def test_jambe_code_vide_moneyline_et_total_sans_unite():
     # NON-RÉGRESSION : un marché à mot-clé ne doit PAS être détourné en moneyline/TOTAL BUTS (« OVER »).
     # Les TIRS sont désormais RÉGLABLES (FotMob, 2026-07-03) -> code dédié SHOTS, pas « OVER » (total buts).
     assert C("Plus de 20.5 tirs", "foot", "A", "B") == "SHOTS OVER 20.5"
-    assert C("Total corners Plus de 7.5", "foot", "A", "B") == "CORNERS OVER 7.5"
+    assert C("Total corners Plus de 7.5", "foot", "A", "B") == ""   # corners BANNIS -> code vide (cf. ci-dessus)
     assert C("Belgique ou nul", "foot", "Belgique", "France") == "DC 1X"
 
 

@@ -52,11 +52,15 @@ def test_pick_une_seule_jambe_par_match():
 def _fake_track(monkeypatch, legs):
     store = {"2026-07-09": {"date": "2026-07-09", "cote": 2.0, "prob": 0.5, "legs": legs,
                             "result": None, "sent": True, "created": None}}
-    monkeypatch.setattr(CD, "_load", lambda: store)
-    monkeypatch.setattr(CD, "_save", lambda d: None)
-    import app.flashscore, app.livescore, app.settle_analyst
+    monkeypatch.setattr(CD, "_load", lambda *a, **k: store)   # _load(sport="foot") -> fake tolérant
+    monkeypatch.setattr(CD, "_save", lambda *a, **k: None)
+    import app.flashscore, app.livescore, app.settle_analyst, app.analyses
     monkeypatch.setattr(app.flashscore, "final_score", lambda sport, q: {"label": "1-0", "home": 1, "away": 0})
     monkeypatch.setattr(app.livescore, "final_score", lambda sport, q: None)
+    # Chemin PRIORITAIRE de settle_pending : score « autorité de vérité » du sidecar (result.raw) = match FINI,
+    # 0 réseau, sans dépendre de likely_finished(start). Indispensable depuis le refactor règlement.
+    monkeypatch.setattr(app.analyses, "meta",
+                        lambda sport, mid: {"result": {"raw": {"home": 1, "away": 0, "label": "1-0"}}})
     return store
 
 
@@ -93,11 +97,13 @@ def test_combo_void_jambe_irrecuperable(monkeypatch):
         l["result"] = None
     store = {"2026-07-09": {"date": "2026-07-09", "cote": 2.0, "prob": 0.5, "legs": legs,
                             "result": None, "sent": True, "created": None}}
-    monkeypatch.setattr(CD, "_load", lambda: store)
-    monkeypatch.setattr(CD, "_save", lambda d: None)
-    import app.flashscore, app.livescore, app.settle_analyst
+    monkeypatch.setattr(CD, "_load", lambda *a, **k: store)   # _load(sport="foot") -> fake tolérant
+    monkeypatch.setattr(CD, "_save", lambda *a, **k: None)
+    import app.flashscore, app.livescore, app.settle_analyst, app.analyses
     monkeypatch.setattr(app.flashscore, "final_score", lambda sport, q: {"label": "1-0", "home": 1, "away": 0})
     monkeypatch.setattr(app.livescore, "final_score", lambda sport, q: None)
+    monkeypatch.setattr(app.analyses, "meta",
+                        lambda sport, mid: {"result": {"raw": {"home": 1, "away": 0, "label": "1-0"}}})
     monkeypatch.setattr(app.settle_analyst, "settle_pick",
                         lambda code, score: "won" if code == "WIN HOME" else None)
     CD.settle_pending()
@@ -136,7 +142,7 @@ def test_build_privilegie_les_marches_safe(monkeypatch):
         {"mid": "3", "sport": "basket", "sel": "Over 210.5", "cote": 1.9, "prob": 0.72,
          "code": "OVER 210.5", "name": "b-c", "home": "b", "away": "c", "start": "s", "comp": ""},
     ]
-    monkeypatch.setattr(CD, "_candidates_for_day", lambda day: cands)
+    monkeypatch.setattr(CD, "_candidates_for_day", lambda *a, **k: cands)   # (day, sport="foot")
     combo = CD.build_for_day("2026-07-10")
     assert combo is not None
     # toutes les jambes sont du palier 1 (aucun total de points, pourtant présent et à cote élevée)
@@ -147,5 +153,5 @@ def test_telegram_text_ne_plante_pas():
     cb = {"cote": 2.18, "prob": 0.41,
           "legs": [_leg("1", "foot", "PSG & <b>", 1.3, 0.8, "WIN HOME")]}
     txt = CD.telegram_text(cb)
-    assert "COMBINÉ DU JOUR" in txt and "@2.18" in txt
+    assert "COMBINÉ" in txt and "DU JOUR" in txt and "@2.18" in txt   # libellé « COMBINÉ FOOT DU JOUR »
     assert "&lt;b&gt;" in txt        # échappement HTML des caractères spéciaux

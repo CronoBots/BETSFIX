@@ -102,13 +102,21 @@ def test_pas_de_barre_sans_score():
 
 
 def test_pas_de_barre_sans_aucun_signal_live():
-    # marché non modélisable + aucune cote en main -> pas de barre (l'avant-match seul ne « bouge » pas)
-    assert _p(sel="Premier buteur : joueur X", code="", hs=0, as_=0, ref_pct=40) is None
+    # marché non modélisable, aucune cote ET aucune confiance publiée (ref_pct=None) -> vraiment aucun
+    # signal -> pas de barre.
+    assert _p(sel="Premier buteur : joueur X", code="", hs=0, as_=0, ref_pct=None) is None
 
 
 def test_tennis_sans_cote_pas_de_barre():
     assert _p(sport="tennis", sel="Victoire Sinner", home="Alcaraz", away="Sinner",
-              hs=1, as_=0, ref_pct=60) is None
+              hs=1, as_=0, ref_pct=None) is None
+
+
+def test_barre_avant_match_si_confiance_publiee():
+    # feature 2026-07-21 « barre pour TOUS les paris » : marché non modélisable en live MAIS confiance
+    # publiée (ref_pct) -> barre « avant-match » (elle bascule au verrou dès qu'un résultat tranche).
+    r = _p(sel="Premier buteur : joueur X", code="", hs=0, as_=0, ref_pct=40)
+    assert r is not None and r["source"] == "avant-match" and r["pct"] == 40
 
 
 def test_corners_sans_cote_ni_compteur_pas_de_barre():

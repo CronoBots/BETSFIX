@@ -68,7 +68,7 @@ def test_bet_gloss_total_objet_nomme_par_equipe():
     assert web._bet_gloss("Nombre total de tirs cadrés de Argentine (réglé selon Opta Data) Plus de 2.5",
                           "foot", "France", "Argentine") == "Argentine : au moins 3 tirs cadrés"
     assert web._bet_gloss("Total de buts Plus de 2.5", "foot", "A", "B") == \
-        "plus de 2 buts au total (les 2 équipes)"
+        "au moins 3 buts au total (les 2 équipes)"   # convention « au moins N » (Plus de 2.5 = ≥ 3)
 
 
 def test_bet_gloss_prefere_le_cas_precis():
