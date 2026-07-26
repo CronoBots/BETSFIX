@@ -5463,6 +5463,22 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
                             badge=_badge, body=_body, state=cb.get("result"))
 
 
+def _montante_palier() -> int | None:
+    """N° du palier montante EN ATTENTE (1-based) pour le titre de zone Pronos, ou None si montante inactive /
+    aucun palier en attente. Même dérivation que `_montante_tg_card` (`palier` de l'état + 1)."""
+    try:
+        from app import montante as _mt
+        if not _mt.is_active():
+            return None
+        st = _mt.state()
+        p = st.get("pending")
+        if not p or not p.get("sel"):
+            return None
+        return int(st.get("palier") or 0) + 1
+    except Exception:
+        return None
+
+
 def _montante_tg_card() -> str:
     """Carte du PALIER MONTANTE du jour pour l'onglet PRONOS (demande user 2026-07-26 : « le palier doit être
     sur la page des pronos et présenté comme un pari normal »). Rend le pari du jour de la montante via
@@ -5865,18 +5881,21 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _is_foot_view = sport in (None, "foot")
     montante = _montante_tg_card() if _is_foot_view else ""
     betmines = _betmines_tg_card() if _is_foot_view else ""
-    has_any = bool(play or prov or combo_daily)
-    _empty_play = ('Aucune <b>value</b> à venir pour l\'instant — voir les <b>Provisoires</b> ci-dessous.'
-                   ) if has_any else None
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport or "foot", "football")
+    # Titre montante avec le N° de palier réel (demande user 2026-07-26) : « Montante • Palier N » + badge.
+    _mpal = _montante_palier() if montante else None
+    _mtitle = f"Montante • Palier {_mpal}" if _mpal else "Montante · palier du jour"
     # ORDRE FIGÉ (demande user 2026-07-26) : Paris à jouer → Provisoires → Montante → Combiné à jouer →
     # Combiné Betmines. Ne pas réordonner sans demande explicite.
-    out = [
-        _zone("play", "Paris du jour", "", len(play), _rows_by_day(play), empty=_empty_play, collapsible=True),
+    # « Paris du jour » N'APPARAÎT PAS s'il n'y a rien à jouer (demande user 2026-07-26).
+    out = []
+    if play:
+        out.append(_zone("play", "Paris du jour", "", len(play), _rows_by_day(play), collapsible=True))
+    out += [
         _zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
-        _zone("montante", "Montante · palier du jour", "", 1 if montante else 0, montante, collapsible=True),
+        _zone("montante", _mtitle, "", 1 if montante else 0, montante, collapsible=True),
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("betmines", "Combiné Betmines", "", 1 if betmines else 0, betmines, collapsible=True),
     ]
