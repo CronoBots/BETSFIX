@@ -2864,7 +2864,7 @@ CSS = """
   .mcal-sum-lb{display:block;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
        color:var(--muted);margin-top:5px}
   .mcal-eq{margin:12px 0 4px}
-  .mcal-eq .sx-heroc{max-height:74px}
+  .mcal-eq .sx-heroc{max-height:none;width:100%;height:auto}   /* pleine largeur, MÊME rendu que les courbes Stats */
   .mcal-sum-kpis{display:flex;gap:8px;margin-top:12px}
   .mcal-sum-kpis>div{flex:1;text-align:center;background:rgba(255,255,255,.04);border:1px solid var(--border);
        border-radius:12px;padding:9px 4px}
@@ -2876,26 +2876,26 @@ CSS = """
   .mcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
   .mcal-dow{text-align:center;font-size:9px;font-weight:800;color:var(--dim);padding:2px 0 5px;
        letter-spacing:.08em}
-  .mcal-cell{position:relative;aspect-ratio:1/1;border-radius:12px;border:1px solid var(--border);
-       background:rgba(255,255,255,.02);display:flex;flex-direction:column;align-items:center;
-       justify-content:center;gap:1px;overflow:hidden;min-height:0;transition:transform .1s}
+  .mcal-cell{position:relative;aspect-ratio:1/1;border-radius:10px;border:1px solid var(--border);
+       background:rgba(255,255,255,.018);display:flex;flex-direction:column;align-items:center;
+       justify-content:center;gap:0;overflow:hidden;min-height:0;transition:transform .1s}
   .mcal-void{border:none;background:none}
-  .mcal-empty{opacity:.42}
-  .mcal-d{position:absolute;top:4px;left:6px;font-size:9px;font-weight:800;color:var(--dim);
+  .mcal-empty{opacity:.4}
+  .mcal-d{position:absolute;top:4px;left:6px;font-size:9px;font-weight:700;color:var(--dim);
        font-variant-numeric:tabular-nums}
-  .mcal-has .mcal-d{color:rgba(255,255,255,.62)}
-  /* teinte de fond DÉGRADÉE selon le signe (profondeur ; intensité via --mt calculée serveur) + halo interne */
-  .mcal-pos.mcal-has{background:linear-gradient(180deg,rgba(52,210,123,var(--mt,.12)),rgba(52,210,123,.04));
-       border-color:rgba(52,210,123,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-  .mcal-neg.mcal-has{background:linear-gradient(180deg,rgba(255,107,107,var(--mt,.12)),rgba(255,107,107,.04));
-       border-color:rgba(255,107,107,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-  .mcal-flat.mcal-has{background:rgba(154,154,166,.10)}
-  .mcal-roi{font-size:13.5px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1;margin-top:5px;
+  .mcal-has .mcal-d{color:rgba(255,255,255,.5)}
+  /* teinte FLAT (pas de dégradé glossy) : fond uni + fine bordure teintée -> propre, moderne. */
+  .mcal-pos.mcal-has{background:rgba(52,210,123,var(--mt,.12));border-color:rgba(52,210,123,.28)}
+  .mcal-neg.mcal-has{background:rgba(255,107,107,var(--mt,.12));border-color:rgba(255,107,107,.28)}
+  .mcal-flat.mcal-has{background:rgba(154,154,166,.08)}
+  .mcal-roi{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;
        letter-spacing:-.02em}
   .mcal-pos .mcal-roi{color:#4fe89a} .mcal-neg .mcal-roi{color:#ff8a8a} .mcal-flat .mcal-roi{color:var(--muted)}
-  .mcal-n{font-size:8px;font-weight:800;color:rgba(255,255,255,.4);letter-spacing:.02em;margin-top:1px}
-  .mcal-today{box-shadow:0 0 0 2px rgba(34,184,255,.6),inset 0 1px 0 rgba(255,255,255,.05)}
-  .mcal-has{cursor:pointer} .mcal-has:active{transform:scale(.94)}
+  /* nb de paris : collé EN BAS de la case (hors flux) -> ROI bien centré au milieu */
+  .mcal-n{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:8px;font-weight:700;
+       color:rgba(255,255,255,.35);letter-spacing:.02em}
+  .mcal-today{box-shadow:0 0 0 1.5px rgba(34,184,255,.55)}
+  .mcal-has{cursor:pointer} .mcal-has:active{transform:scale(.95)}
   /* Légende + note */
   .mcal-legend{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;font-size:10px;
        color:var(--muted)}
