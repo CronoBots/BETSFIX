@@ -400,6 +400,12 @@ def record_daily(combo: dict, day: str, sport: str = "foot") -> bool:
     déjà réglé. Renvoie True si (ré)écrit."""
     if not combo or not combo.get("legs"):
         return False
+    # GARDE ANTI-CONTAMINATION CROISÉE (bug 2026-07-26) : un vieux combiné TENNIS avait survécu dans le
+    # track FOOT après la bascule multisport->par-sport (b073954) et risquait d'être compté au ROI foot.
+    # Un combiné n'entre QUE dans le track de SON sport : toutes ses jambes DOIVENT être du `sport` du track.
+    if (combo.get("sport") and combo["sport"] != sport) or \
+            any(l.get("sport") and l.get("sport") != sport for l in combo.get("legs") or []):
+        return False
     d = _load(sport)
     prev = d.get(day)
     if isinstance(prev, dict) and (prev.get("sent") or prev.get("result") in ("won", "lost", "void")):

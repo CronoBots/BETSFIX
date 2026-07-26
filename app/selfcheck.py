@@ -535,6 +535,30 @@ def _check_combo_daily_settle_finished() -> dict:
             "items": bad[:20]}
 
 
+def _check_combo_daily_sport_purity() -> dict:
+    """Un combiné du jour n'entre QUE dans le track de SON sport : toutes ses jambes doivent être du sport
+    du fichier. Encode la régression 2026-07-26 : un vieux combiné TENNIS avait survécu dans le track FOOT
+    après la bascule multisport->par-sport (b073954), affiché « COMBINÉ FOOTBALL » et RISQUANT d'être compté
+    au ROI foot. Le garde dans `record_daily` l'empêche à l'écriture ; ce check détecte toute résiduelle."""
+    bad = []
+    try:
+        from app import combo_daily
+        for sp in ("foot",) + tuple(combo_daily.SIM_SPORTS):
+            for day, cb in (combo_daily._load(sp) or {}).items():
+                if not isinstance(cb, dict):
+                    continue
+                mism = sorted({l.get("sport") for l in cb.get("legs") or []
+                               if l.get("sport") and l.get("sport") != sp})
+                if mism:
+                    bad.append(f"track {sp} [{day}] : jambe(s) de sport {mism} (≠ {sp})")
+    except Exception:
+        pass
+    return {"key": "combo_daily_sport_purity", "level": "error" if bad else "ok",
+            "title": "Combiné du jour mono-sport (pas de contamination croisée entre tracks)",
+            "detail": f"{len(bad)} combiné(s) du jour avec une jambe d'un AUTRE sport que son track.",
+            "items": bad[:20]}
+
+
 def _check_extratime_regulation(rows) -> dict:
     """Un match de foot allé aux PROLONGATIONS doit régler ses marchés 90 MIN (1X2, over/under, mi-temps,
     REGTIME…) sur le score RÉGLEMENTAIRE, JAMAIS sur le score final (prolongation incluse). Régression
@@ -741,6 +765,7 @@ def run(persist: bool = False) -> dict:
         _check_provisional_dedup(),
         _check_provisional_settle_finished(),
         _check_combo_daily_settle_finished(),
+        _check_combo_daily_sport_purity(),
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),
         _check_tennis_sets_overconfidence(rows),
