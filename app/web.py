@@ -2114,11 +2114,16 @@ CSS = """
   .dash-zones{margin-top:4px}
   /* Sélecteur de sport de Pronos (demande user 2026-07-26) */
   .spsel-wrap{display:flex;gap:7px;margin:2px 0 6px}
-  .spsel{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;border-radius:11px;
-    background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);font-weight:800;
-    font-size:12px;cursor:pointer;transition:background .12s,border-color .12s,color .12s}
+  .spsel{position:relative;flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;
+    border-radius:11px;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);
+    font-weight:800;font-size:12px;cursor:pointer;transition:background .12s,border-color .12s,color .12s}
   .spsel span{font-size:11.5px}
   .spsel.on{background:rgba(34,184,255,.16);border-color:rgba(34,184,255,.5);color:#fff}
+  /* Badge chiffré du nb de paris par sport (demande user 2026-07-27, même style que .sctab-n des Stats) */
+  .spsel-n{position:absolute;top:-6px;right:-4px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;
+    background:rgba(255,184,77,.92);color:#241500;font-size:8.5px;font-weight:900;line-height:14px;
+    text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .spsel.on .spsel-n{background:rgba(234,246,255,.95);color:#0a2233}
   .zone{margin-top:22px}
   .zone:first-child{margin-top:10px}
   .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px;padding-bottom:9px;
@@ -4228,7 +4233,8 @@ def _prov_sport_graph(sport: str) -> str:
         n=s.get("settled", 0), points=_pvt.equity_curve(snap), avg_cote=s.get("avg_cote"),
         uid=f"prov-{sport}", recent=_recent, more_label="Derniers provisoires",
         form=_form, pending=len(_pend), streak=_streak, compact=True,
-        hit_points=_hit_curve([e.get("result") for e in reversed(_done)]))
+        hit_points=_hit_curve([e.get("result") for e in reversed(_done)]),
+        cote_points=_cote_curve([(e.get("result"), e.get("cote")) for e in reversed(_done)]))
     return _curve
 
 
@@ -4379,6 +4385,19 @@ def _hit_curve(results) -> list:
         else:
             continue
         pts.append(round(100 * w / s, 1))
+    return pts
+
+
+def _cote_curve(pairs) -> list:
+    """Cote MOYENNE cumulée à chaque pari réglé, à partir d'une liste chronologique de (result, cote) —
+    alimente le 3e graphe « Cote moyenne » des suivis (provisoires / Betmines), demande user 2026-07-27.
+    Ne compte que les gagnés/perdus portant une cote valide. [] si aucun."""
+    pts, osum, s = [], 0.0, 0
+    for r, c in (pairs or []):
+        if r in ("won", "lost") and isinstance(c, (int, float)) and c:
+            osum += float(c)
+            s += 1
+            pts.append(round(osum / s, 2))
     return pts
 
 
@@ -5859,15 +5878,50 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
             f'<div class="prv-res">{"".join(cards)}</div>')
 
 
-def _sport_selector(current: str | None) -> str:
+def _sport_pronos_counts(match_rows: list) -> dict:
+    """Nb de paris affichés PAR SPORT dans Pronos (badge des boutons sport, demande user 2026-07-27, même
+    style que les badges d'onglets Stats) : paris joués + provisoires + combiné (+ montante + Betmines pour
+    le foot) — MÊME comptage que le `_cnt` de _today_zones, décliné par sport."""
+    from app import combo_daily as _cd
+    _day = _sport_today().isoformat()
+    _paj = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
+    try:
+        for _lh, _la in _cd.leg_names(_day):
+            _paj.add(_prog_pair(_lh, _la))
+    except Exception:
+        pass
+    _mont = 1 if _montante_tg_card() else 0
+    _betm = 1 if _betmines_tg_card() else 0
+    out = {}
+    for sp in ("foot", "tennis", "basket"):
+        _prog = [it for it in _programme_items(_paj, framed=True, keep_sport=sp)
+                 if not it.get("_live") and it.get("_sport") == sp]
+        prov = sum(1 for it in _prog if it.get("_prov"))
+        play = sum(1 for r in match_rows if _item_sport(r) == sp)
+        try:
+            cbt = _cd.today(_day, sport=sp)
+            combo = 1 if (cbt and cbt.get("legs") and cbt.get("result") not in ("won", "lost", "void")) else 0
+        except Exception:
+            combo = 0
+        out[sp] = play + prov + combo + ((_mont + _betm) if sp == "foot" else 0)
+    return out
+
+
+def _sport_selector(current: str | None, counts: dict | None = None) -> str:
     """Sélecteur de sport en tête de Pronos (demande user 2026-07-26) : Football / Tennis / Basket. Le sport
     actif recharge #day-content via /jour?date=<jour>&sport=<sk> (JS _SPSEL_JS). Football (défaut) = foot ROI
-    + montante/betmines ; tennis/basket = SIMULATION, affichée COMME le foot (mêmes cartes)."""
+    + montante/betmines ; tennis/basket = SIMULATION, affichée COMME le foot (mêmes cartes). `counts` =
+    nb de paris par sport -> badge chiffré sur chaque bouton (demande user 2026-07-27, style badges Stats)."""
     _day = _sport_today().isoformat()
     _cur = current or "foot"
+    counts = counts or {}
+
+    def _badge(sk: str) -> str:
+        _n = counts.get(sk) or 0
+        return f'<span class="spsel-n">{_n}</span>' if isinstance(_n, int) and _n > 0 else ""
     chips = "".join(
         f'<button type="button" class="spsel{" on" if _cur == sk else ""}" data-sport="{sk}" '
-        f'data-day="{_day}">{ic}<span>{lbl}</span></button>'
+        f'data-day="{_day}">{ic}<span>{lbl}</span>{_badge(sk)}</button>'
         for sk, ic, lbl in (("foot", "⚽", "Football"), ("tennis", "🎾", "Tennis"), ("basket", "🏀", "Basket")))
     return f'<div class="spsel-wrap">{chips}</div>'
 
@@ -5950,7 +6004,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
     # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
     _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + (1 if montante else 0) + (1 if betmines else 0)
-    return _day_header(today_iso) + _sport_selector(sport) + zones, _cnt
+    return _day_header(today_iso) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
 def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
