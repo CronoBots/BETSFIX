@@ -543,7 +543,8 @@ def _simulation_card() -> str:
                 pending=len(_pend_c),
                 milestones=web._sport_milestones(sp), compact=True,   # disposition « ROI héros »
                 hit_points=c.get("hit_points"), best_streak=c.get("best_streak"))   # record sur tout l'historique
-        curves = web._sport_tabs(_simple_g, _combos_g, web._prov_sport_graph(sp))   # + onglet Provisoires (user 2026-07-25)
+        curves = web._sport_tabs(_simple_g, _combos_g, web._prov_sport_graph(sp),   # + onglet Provisoires (user 2026-07-25)
+                                 counts=(len(_pend_s), len(_pend_c), web._prov_pending_count(sp)))   # badges EN COURS
         if not curves:
             continue
         # En-tête = BANNIÈRE BETSFIX du sport + ligne « simulé · hors paris » sous l'image, IDENTIQUE pour
