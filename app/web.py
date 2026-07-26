@@ -5618,9 +5618,15 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
         allp = _pv.load()
     except Exception:
         return ""
+    _bg = analyses.background_sports()
     rows = []
     for p in allp.values():
         if not isinstance(p, dict):
+            continue
+        # Vue « Tous » de Pronos (sport=None) : PAS les provisoires tennis/basket (simulés, hors ROI) — ils
+        # vivent dans leur cadre sport simulé (Stats), jamais dans les Résultats du jour de Pronos (demande
+        # user 2026-07-26). Un onglet sport explicite les montrerait, mais Pronos n'a pas d'onglet tennis/basket.
+        if sport is None and p.get("sport") in _bg:
             continue
         res = p.get("result")
         settled = res in ("won", "lost", "push", "void")
