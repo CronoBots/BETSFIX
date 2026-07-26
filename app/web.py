@@ -2855,41 +2855,47 @@ CSS = """
        background:rgba(255,255,255,.04);color:var(--text);font-size:20px;font-weight:800;line-height:1;
        display:flex;align-items:center;justify-content:center}
   .mcal-arw:active{transform:scale(.92)} .mcal-arw.off{opacity:.3;pointer-events:none}
-  /* Bilan du mois : ROI héros + KPIs */
-  .mcal-sum{border:1px solid var(--border);border-radius:16px;padding:14px 14px 12px;margin-bottom:14px;
-       background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0))}
-  .mcal-sum-hero{text-align:center;font-size:34px;font-weight:900;line-height:1;letter-spacing:-.02em;
+  /* Bilan du mois : ROI héros + courbe d'équité + KPIs */
+  .mcal-sum{border:1px solid var(--border);border-radius:18px;padding:16px 14px 13px;margin-bottom:14px;
+       background:radial-gradient(120% 80% at 50% 0,rgba(52,210,123,.06),rgba(255,255,255,.015) 60%,transparent)}
+  .mcal-sum.neg{background:radial-gradient(120% 80% at 50% 0,rgba(255,107,107,.06),rgba(255,255,255,.015) 60%,transparent)}
+  .mcal-sum-hero{text-align:center;font-size:38px;font-weight:900;line-height:1;letter-spacing:-.025em;
        font-variant-numeric:tabular-nums}
-  .mcal-sum-lb{display:block;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
-       color:var(--muted);margin-top:4px}
+  .mcal-sum-lb{display:block;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+       color:var(--muted);margin-top:5px}
+  .mcal-eq{margin:12px 0 4px}
+  .mcal-eq .sx-heroc{max-height:74px}
   .mcal-sum-kpis{display:flex;gap:8px;margin-top:12px}
   .mcal-sum-kpis>div{flex:1;text-align:center;background:rgba(255,255,255,.04);border:1px solid var(--border);
-       border-radius:11px;padding:8px 4px}
-  .mcal-sum-kpis b{display:block;font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
-  .mcal-sum-kpis span{display:block;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-       color:var(--muted);margin-top:2px}
+       border-radius:12px;padding:9px 4px}
+  .mcal-sum-kpis b{display:block;font-size:15px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
+  .mcal-sum-kpis span{display:block;font-size:8.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+       color:var(--muted);margin-top:3px}
   .mcal-pos{color:#34d27b} .mcal-neg{color:#ff6b6b} .mcal-flat{color:var(--muted)}
   /* Grille : 7 colonnes, entête jours + cases */
   .mcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-  .mcal-dow{text-align:center;font-size:9.5px;font-weight:800;color:var(--dim);padding:2px 0 4px;
-       letter-spacing:.04em}
-  .mcal-cell{position:relative;aspect-ratio:1/1;border-radius:11px;border:1px solid var(--border);
+  .mcal-dow{text-align:center;font-size:9px;font-weight:800;color:var(--dim);padding:2px 0 5px;
+       letter-spacing:.08em}
+  .mcal-cell{position:relative;aspect-ratio:1/1;border-radius:12px;border:1px solid var(--border);
        background:rgba(255,255,255,.02);display:flex;flex-direction:column;align-items:center;
-       justify-content:center;gap:1px;overflow:hidden;min-height:0}
+       justify-content:center;gap:1px;overflow:hidden;min-height:0;transition:transform .1s}
   .mcal-void{border:none;background:none}
-  .mcal-empty{opacity:.5}
-  .mcal-d{position:absolute;top:4px;left:6px;font-size:9.5px;font-weight:700;color:var(--dim);
+  .mcal-empty{opacity:.42}
+  .mcal-d{position:absolute;top:4px;left:6px;font-size:9px;font-weight:800;color:var(--dim);
        font-variant-numeric:tabular-nums}
-  .mcal-has .mcal-d{color:var(--muted)}
-  /* teinte de fond selon le signe (intensité via --mt calculée serveur) */
-  .mcal-pos.mcal-has{background:rgba(52,210,123,var(--mt,.12));border-color:rgba(52,210,123,.34)}
-  .mcal-neg.mcal-has{background:rgba(255,107,107,var(--mt,.12));border-color:rgba(255,107,107,.34)}
+  .mcal-has .mcal-d{color:rgba(255,255,255,.62)}
+  /* teinte de fond DÉGRADÉE selon le signe (profondeur ; intensité via --mt calculée serveur) + halo interne */
+  .mcal-pos.mcal-has{background:linear-gradient(180deg,rgba(52,210,123,var(--mt,.12)),rgba(52,210,123,.04));
+       border-color:rgba(52,210,123,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+  .mcal-neg.mcal-has{background:linear-gradient(180deg,rgba(255,107,107,var(--mt,.12)),rgba(255,107,107,.04));
+       border-color:rgba(255,107,107,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
   .mcal-flat.mcal-has{background:rgba(154,154,166,.10)}
-  .mcal-roi{font-size:12.5px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1;margin-top:6px}
-  .mcal-pos .mcal-roi{color:#3ee089} .mcal-neg .mcal-roi{color:#ff7a7a} .mcal-flat .mcal-roi{color:var(--muted)}
-  .mcal-n{font-size:8px;font-weight:700;color:var(--muted);letter-spacing:.02em}
-  .mcal-today{box-shadow:0 0 0 2px rgba(34,184,255,.55)}
-  .mcal-has{cursor:pointer} .mcal-has:active{transform:scale(.95)}
+  .mcal-roi{font-size:13.5px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1;margin-top:5px;
+       letter-spacing:-.02em}
+  .mcal-pos .mcal-roi{color:#4fe89a} .mcal-neg .mcal-roi{color:#ff8a8a} .mcal-flat .mcal-roi{color:var(--muted)}
+  .mcal-n{font-size:8px;font-weight:800;color:rgba(255,255,255,.4);letter-spacing:.02em;margin-top:1px}
+  .mcal-today{box-shadow:0 0 0 2px rgba(34,184,255,.6),inset 0 1px 0 rgba(255,255,255,.05)}
+  .mcal-has{cursor:pointer} .mcal-has:active{transform:scale(.94)}
   /* Légende + note */
   .mcal-legend{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;font-size:10px;
        color:var(--muted)}
@@ -6028,6 +6034,7 @@ def _render_calendar(ym: str = "") -> str:
     mprofit = mn = mwon = mlost = 0
     ndays_bet = 0
     best = worst = None
+    _eq_pts, _cum = [0.0], 0.0                          # courbe d'équité du mois (profit cumulé, ordre des jours)
     cells = []
     for _ in range(first_wd):                          # cases vides avant le 1er (aligne les colonnes)
         cells.append('<div class="mcal-cell mcal-void"></div>')
@@ -6039,15 +6046,17 @@ def _render_calendar(ym: str = "") -> str:
             roi, prof = b["roi"], b["profit"]
             sign = "pos" if prof > 1e-9 else ("neg" if prof < -1e-9 else "flat")
             cls += f" mcal-{sign} mcal-has"
-            op = min(0.34, 0.07 + abs(roi) / 260.0)    # intensité de teinte selon l'ampleur du ROI
+            op = min(0.40, 0.09 + abs(roi) / 220.0)    # intensité de teinte selon l'ampleur du ROI
             style = f' style="--mt:{op:.3f}"'
             extra = (f'<span class="mcal-roi">{"+" if prof >= 0 else "−"}{abs(roi):g}%</span>'
-                     f'<span class="mcal-n">{b["n"]} pari{"s" if b["n"] > 1 else ""}</span>')
+                     f'<span class="mcal-n">{b["n"]}</span>')
             mprofit += prof
             mn += b["n"]
             mwon += b["won"]
             mlost += b["lost"]
             ndays_bet += 1
+            _cum += prof
+            _eq_pts.append(round(_cum, 2))
             if best is None or roi > best[1]:
                 best = (dnum, roi)
             if worst is None or roi < worst[1]:
@@ -6073,20 +6082,24 @@ def _render_calendar(ym: str = "") -> str:
            f'<button class="mcal-arw{" off" if _next_disabled else ""}"'
            f'{"" if _next_disabled else f" data-cal={chr(34)}{next_ym}{chr(34)}"} aria-label="Mois suivant">›</button>'
            f'</div>')
-    # Bilan du mois (ROI héros + jours gagnants/paris + meilleure journée).
-    _best_txt = (f'{best[0]} {_CAL_MONTHS_FR[mo - 1][:4]}. · +{best[1]:g}%' if best else "—")
-    summ = (f'<div class="mcal-sum">'
+    # Bilan du mois (ROI héros + courbe d'équité + jours gagnants/paris + meilleure journée).
+    _eq = (f'<div class="mcal-eq sx-equity">{_hero_chart(_eq_pts, uid="mcaleq")}</div>'
+           if len(_eq_pts) >= 3 else "")
+    _best_v = f'+{best[1]:g}%' if best else "—"
+    _best_lb = f'meilleure · {best[0]} {_CAL_MONTHS_FR[mo - 1][:4]}.' if best else "meilleure journée"
+    summ = (f'<div class="mcal-sum{" neg" if _rcls == "neg" else ""}">'
             f'<div class="mcal-sum-hero mcal-{_rcls}">{"+" if mprofit >= 0 else "−"}{abs(_mroi):g}%'
             f'<span class="mcal-sum-lb">ROI du mois</span></div>'
+            f'{_eq}'
             f'<div class="mcal-sum-kpis">'
             f'<div><b>{ndays_bet}</b><span>jours joués</span></div>'
             f'<div><b>{mn}</b><span>paris</span></div>'
-            f'<div><b class="mcal-{_rcls}">{_best_txt}</b><span>meilleure journée</span></div>'
+            f'<div><b class="mcal-{_rcls}">{_best_v}</b><span>{_best_lb}</span></div>'
             f'</div></div>')
     grid = f'<div class="mcal-grid">{dow}{"".join(cells)}</div>'
     legend = ('<div class="mcal-legend"><span class="mcal-lg pos">Bénéfice</span>'
               '<span class="mcal-lg neg">Perte</span><span class="mcal-lg flat">Neutre</span>'
-              '<span class="mcal-lg-note">Tape un jour pour voir les paris</span></div>')
+              '<span class="mcal-lg-note">Chiffre = ROI du jour · petit nombre = nb de paris · tape un jour pour le détail</span></div>')
     detail = '<div class="mcal-detail" id="mcal-detail" hidden></div>'
     if mn == 0:
         summ = ('<div class="mcal-empty-msg">Aucun pari réglé ce mois-ci. Utilise les flèches pour '
