@@ -228,7 +228,7 @@ _STREAK_FR = {
     "over15": "matchs à +1,5 but", "over25": "matchs à +2,5 buts", "under25": "matchs à −2,5 buts",
 }
 _STREAK_PRIO = ["winning", "losing", "nolosing", "nowin", "scored", "notconceded",
-                "noscore", "bothscored", "over25", "under25", "conceded"]
+                "noscore", "bothscored", "over25", "over15", "under25", "conceded"]
 
 
 async def _team_streaks(client, uid) -> list[str]:
@@ -244,7 +244,7 @@ async def _team_streaks(client, uid) -> list[str]:
         v = ((st.get(key) or {}).get("total") or {}).get("value")
         if v and v >= 3 and key in _STREAK_FR:
             out.append(f"{v} {_STREAK_FR[key]}")
-        if len(out) >= 3:
+        if len(out) >= 4:              # jusqu'à 4 séries notables (was 3) -> contexte over/BTTS plus riche
             break
     return out
 

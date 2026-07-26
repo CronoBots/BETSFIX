@@ -147,6 +147,16 @@ def _enrich_leg(leg: dict) -> None:
             if abs(_sm - base) <= 30:                   # saison cohérente -> l'intègre (pondérée 30 %)
                 base = 0.7 * base + 0.3 * _sm
         over_pct = round(base) if base is not None else None
+        # CORROBORATION H2H : la moyenne de buts des confrontations directes ajuste ±6 pts la confiance
+        # over/under (H2H nettement au-dessus de la ligne -> renforce l'over, nettement en-dessous -> l'atténue).
+        hh, ha = f.get("totalGolsMeanLocalTeamH2H"), f.get("totalGolsMeanVisitorTeamH2H")
+        if over_pct is not None and isinstance(hh, (int, float)) and isinstance(ha, (int, float)):
+            ln = abs(leg.get("line") or 0)
+            if ln:
+                if hh + ha >= ln + 0.75:
+                    over_pct = min(95, over_pct + 6)
+                elif hh + ha <= ln - 0.75:
+                    over_pct = max(5, over_pct - 6)
         if over_pct is not None:
             leg["prob"] = over_pct if (leg.get("line") or 0) > 0 else max(1, 100 - over_pct)
         s.update({"over_ctx_h": h_ctx, "over_ctx_a": a_ctx, "over_l5_h": h_l5, "over_l5_a": a_l5})
