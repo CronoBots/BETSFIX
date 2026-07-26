@@ -398,6 +398,13 @@ async def _foot_extras(client, match: dict) -> list[str]:
     recent = _fm_h2h_recent(h2h.get("matches"))
     if recent:
         facts.append("H2H récents : " + " ; ".join(recent) + " (FotMob)")
+    # ARBITRE désigné (infoBox) : repère de DISCIPLINE pour les marchés cartons (certains arbitres sifflent
+    # beaucoup plus). Dispo pré-match. Best-effort (structure variable).
+    ib = mf.get("infoBox") or {}
+    ref = ib.get("Referee")
+    ref = ref.get("text") if isinstance(ref, dict) else (ref if isinstance(ref, str) else None)
+    if ref:
+        facts.append(f"Arbitre : {ref} (FotMob) — repère discipline/cartons")
     # Absents (si exposés)
     lu = c.get("lineup") or {}
     for side_key, label in (("homeTeam", home), ("awayTeam", away)):
@@ -552,19 +559,25 @@ _RANKS: dict[str, dict] = {}       # tour -> {nom_affiché: rang}
 _TENNIS_IDX: dict[str, dict] = {}  # tour -> {jeton_nom: [(date, won, opp, score, tournoi)]}
 
 
+_RANKS_META: dict[str, dict] = {}  # tour -> {nom: {pts, prev, cur}}
+
+
 async def _espn_rankings(client, tour: str) -> dict:
     if tour in _RANKS:
         return _RANKS[tour]
     j = await _get_json(client, f"{_ESPN}/site/v2/sports/tennis/{tour}/rankings")
-    out = {}
+    out, meta = {}, {}
     for rk in (j or {}).get("rankings") or []:
         for r in rk.get("ranks") or []:
             nm = ((r.get("athlete") or {}).get("displayName")) or ""
             if nm and r.get("current"):
                 out.setdefault(nm, r["current"])
+                meta.setdefault(nm, {"pts": r.get("points"), "prev": r.get("previous"),
+                                     "cur": r.get("current")})
         if out:
             break                  # le 1er classement (Singles) suffit
     _RANKS[tour] = out
+    _RANKS_META[tour] = meta
     return out
 
 
@@ -576,6 +589,24 @@ def _rank_of(ranks: dict, player: str):
         if common and (best is None or len(common) > best[0]):
             best = (len(common), rk, nm)
     return (best[1], best[2]) if best else (None, None)
+
+
+def _rank_str(tour: str, rank, name) -> str:
+    """« #3 (2540 pts, ↗) » : rang + points ATP/WTA + tendance (progression du classement) si dispo."""
+    if not rank:
+        return "#?"
+    s = f"#{rank}"
+    m = (_RANKS_META.get(tour) or {}).get(name or "")
+    if m:
+        bits = []
+        if m.get("pts"):
+            bits.append(f"{int(m['pts'])} pts")
+        cur, prev = m.get("cur"), m.get("prev")
+        if isinstance(cur, int) and isinstance(prev, int) and cur != prev:
+            bits.append("↗ en progression" if cur < prev else "↘ en recul")
+        if bits:
+            s += " (" + ", ".join(bits) + ")"
+    return s
 
 
 async def _tennis_results_index(client, tour: str, days: int = 14) -> dict:
@@ -687,23 +718,23 @@ async def _tennis_extras(client, match: dict) -> list[str]:
     # DEUX classements ESPN (cachés -> gratuit) et on garde celui qui les place.
     hint = (match.get("circuit") or match.get("comp") or "").upper()
     cand = ["wta"] if "WTA" in hint else ["atp"] if "ATP" in hint else ["wta", "atp"]
-    tour, ranks, rh, ra = None, {}, None, None
+    tour, ranks, rh, ra, nh, na = None, {}, None, None, None, None
     for t in cand:
         rk = await _espn_rankings(client, t)
-        a, _ = _rank_of(rk, home)
-        b, _ = _rank_of(rk, away)
+        a, an = _rank_of(rk, home)
+        b, bn = _rank_of(rk, away)
         if a or b:
-            tour, ranks, rh, ra = t, rk, a, b
+            tour, ranks, rh, ra, nh, na = t, rk, a, b, an, bn
             break
     if tour is None:                       # aucun joueur placé : repli sur le 1er candidat
         tour = cand[0]
         ranks = await _espn_rankings(client, tour)
-        rh, _ = _rank_of(ranks, home)
-        ra, _ = _rank_of(ranks, away)
+        rh, nh = _rank_of(ranks, home)
+        ra, na = _rank_of(ranks, away)
     facts = []
     if rh or ra:
         facts.append(f"Classement {tour.upper()} (ESPN, à jour) : "
-                     f"{home} #{rh or '?'} vs {away} #{ra or '?'}")
+                     f"{home} {_rank_str(tour, rh, nh)} vs {away} {_rank_str(tour, ra, na)}")
     idx = await _tennis_results_index(client, tour)
     # SURFACE (facteur n°1) : le tournoi ACTUEL prime (`comp`/`name`) -> repli sur le nom de tournoi des
     # matchs récents ESPN si la ville actuelle est ambiguë. BUG corrigé 2026-07-14 : l'ordre inverse faisait
@@ -747,7 +778,8 @@ async def _bb_injuries(client, league: str) -> dict:
         for inj in team.get("injuries") or []:
             nm = ((inj.get("athlete") or {}).get("displayName")) or ""
             det = inj.get("details") or {}
-            why = det.get("type") or ""
+            # « Foot Fracture » : localisation (type) + nature (detail) — plus précis que le seul type.
+            why = " ".join(x for x in (det.get("type"), det.get("detail")) if x)
             ret = det.get("returnDate") or ""
             st = inj.get("status") or ""
             if nm:
