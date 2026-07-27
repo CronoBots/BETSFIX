@@ -5572,6 +5572,31 @@ def _betmines_tg_card() -> str:
     # demande user 2026-07-24, c'est de l'observation) ET ligne VERDICT Confiance/Marché/Cote (verdict=True,
     # via `prob` = confiance dérivée de leurs % + `code`).
     _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
+    # SOURCE UNIQUE d'analyse (demande user 2026-07-27 : « 2 fois le même match avec 2 analyses différentes ») :
+    # si un match Betmines est AUSSI une jambe de NOTRE combiné du jour (même marché), il DOIT afficher
+    # EXACTEMENT notre analyse (confiance/cote/justification). Matching par TOKENS de noms (robuste aux
+    # variantes « MTK » vs « MTK Budapest FC ») + même code — comme `our_market_view`.
+    try:
+        from app import combo_daily as _cd2
+        _our_legs = (_cd2.today(_sport_today().isoformat(), sport="foot") or {}).get("legs") or []
+    except Exception:
+        _our_legs = []
+    _stop = {"fc", "sc", "cf", "ii", "de", "do", "da", "ac", "if", "sp", "rj", "mg", "slc", "te"}
+
+    def _tkn(s):
+        return set(re.findall(r"[a-z0-9]+", (s or "").lower())) - _stop
+
+    def _our_combo_leg(home, away, code):
+        th, ta = _tkn(home), _tkn(away)
+        if not (th and ta and code):
+            return None
+        for cl in _our_legs:
+            if str(cl.get("code") or "") != code:
+                continue
+            ch, ca = _tkn(cl.get("home")), _tkn(cl.get("away"))
+            if (ch & th and ca & ta) or (ch & ta and ca & th):
+                return cl
+        return None
 
     def _leg_view(leg: dict) -> dict:
         # NOTRE lecture prioritaire (confiance calibrée + cote Unibet) = mêmes chiffres que le provisoire
@@ -5580,12 +5605,28 @@ def _betmines_tg_card() -> str:
         _op, _oc = leg.get("our_prob"), leg.get("our_cote")
         if _op is None:
             _op, _oc = analyses.our_market_view(leg.get("home"), leg.get("away"), str(leg.get("market") or ""))
+        _prob = _op if _op is not None else leg.get("prob")
+        _cote = _oc if _oc is not None else leg.get("cote")
+        _why = leg.get("why")
+        # MÊME match + MÊME code que notre combiné du jour -> on reprend NOTRE analyse (une seule vérité) :
+        # même confiance, même cote, même justification. Plus jamais deux analyses divergentes.
+        try:
+            from app.settle_analyst import code_from_pick as _cfp
+            _bcode = (_cfp(str(leg.get("market") or ""), "foot",
+                          leg.get("home") or "", leg.get("away") or "") or "").strip()
+        except Exception:
+            _bcode = ""
+        _cl = _our_combo_leg(leg.get("home"), leg.get("away"), _bcode)
+        if _cl:
+            if _cl.get("prob") is not None:
+                _prob = _cl.get("prob")
+            if _cl.get("cote") is not None:
+                _cote = _cl.get("cote")
+            _why = _cl.get("why") or _why
         return {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
                 "comp": leg.get("comp"), "sel": str(leg.get("market") or ""),
-                "cote": _oc if _oc is not None else leg.get("cote"),
-                "result": leg.get("result"), "score": leg.get("score"), "start": leg.get("start"),
-                "code": leg.get("code"), "prob": _op if _op is not None else leg.get("prob"),
-                "why": leg.get("why")}
+                "cote": _cote, "result": leg.get("result"), "score": leg.get("score"),
+                "start": leg.get("start"), "code": leg.get("code"), "prob": _prob, "why": _why}
     _views = [_leg_view(leg) for leg in _legs]     # NOS valeurs par jambe (une seule fois -> réutilisées au TOTAL)
     legs_html = _MC_SEP.join(_leg_card(v, why=True, verdict=True, why_always=True) for v in _views)
     # Bloc « TOTAL DU COMBINÉ » = verdict GLOBAL IDENTIQUE au combiné du jour (demande user 2026-07-24 :

@@ -28,3 +28,6 @@
 
 ## 2026-07-25
 - 📈 ROI des paris joués +8.6 pts.
+
+## 2026-07-27
+- 🔴 🎾 Tennis : le marché « Handicap » vient d'être ÉCARTÉ (sur-confiance / ROI prouvés).
