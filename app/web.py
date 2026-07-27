@@ -6335,37 +6335,20 @@ _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juille
 
 
 def _daily_pnl() -> dict:
-    """P&L par JOUR SPORTIF (06h→06h) de TOUS les paris comptés au ROI (simples foot + combinés) :
-    {jour_iso: {profit, n, won, lost, roi}}. Réutilise les points/dates d'équité (stats_full overall +
-    combo_stats) -> exactement la « rentabilité globale · tous paris ». Lecture seule, hors calibration."""
-    from datetime import datetime as _dt
-    ov = analyses.stats_full().get("overall") or {}
-    cb = analyses.combo_stats() or {}
-
-    def _deltas(pts, dts):                              # cumul -> deltas datés (pts[0]=0, pts[i+1] à dts[i])
-        if not dts or not pts or len(pts) < 2:
-            return []
-        return [(dts[i], pts[i + 1] - pts[i]) for i in range(min(len(dts), len(pts) - 1))]
-    evs = (_deltas(ov.get("points") or [], ov.get("dates") or [])
-           + _deltas(cb.get("points") or [], cb.get("dates") or []))
+    """P&L par JOUR SPORTIF (06h→06h) des paris comptés au ROI — FOOTBALL UNIQUEMENT (simples foot +
+    combinés foot). DÉRIVÉ de `_daily_results_map` (source canonique football-only) pour que la case du
+    calendrier soit STRICTEMENT COHÉRENTE avec le détail du jour + le ROI global football-only (bug user
+    2026-07-27 : la case comptait AUSSI les combinés non-foot -> 2 paris/−23,5 % alors que le détail foot
+    montrait 1/1/+53 %). {jour_iso: {profit, n, won, lost, roi}}. Lecture seule, hors calibration."""
     out: dict = {}
-    for iso, dlt in evs:
-        try:
-            day = _sport_date(to_local(_dt.fromisoformat((iso or "").replace("Z", "+00:00")))).isoformat()
-        except (ValueError, AttributeError, TypeError):
-            day = (iso or "")[:10]
-        if not day:
+    for day, e in _daily_results_map().items():
+        n = int(e.get("settled") or 0)
+        if not n:
             continue
-        b = out.setdefault(day, {"profit": 0.0, "n": 0, "won": 0, "lost": 0})
-        b["profit"] += dlt
-        b["n"] += 1
-        if dlt > 1e-9:
-            b["won"] += 1
-        elif dlt < -1e-9:
-            b["lost"] += 1
-    for b in out.values():
-        b["profit"] = round(b["profit"], 2)
-        b["roi"] = round(100 * b["profit"] / b["n"], 1) if b["n"] else 0.0
+        won = int(e.get("won") or 0)
+        prof = round(float(e.get("profit") or 0.0), 2)
+        out[day] = {"profit": prof, "n": n, "won": won, "lost": n - won,
+                    "roi": round(100 * prof / n, 1) if n else 0.0}
     return out
 
 
