@@ -5696,6 +5696,24 @@ def _betmines_tg_card() -> str:
             if _cl.get("cote") is not None:
                 _cote = _cl.get("cote")
             _why = _cl.get("why") or _why
+        # SOURCE UNIQUE (demande user 2026-07-27) : si CE match+marché est analysé par NOTRE scan — pari
+        # JOUÉ (« Paris du jour »), provisoire OU simple fiche, pas seulement une jambe du combiné du jour —
+        # on affiche EXACTEMENT notre analyse : même confiance CALIBRÉE, même cote Unibet ET même
+        # justification (.md, section 🎯/🧪/📋 via `_prov_why_snippet`, comme la carte du pari joué). Prime
+        # sur les valeurs FIGÉES par betmines_watch (analyse Claude dédiée, indépendante) pour ne JAMAIS
+        # montrer deux analyses divergentes du même pari.
+        try:
+            _mp, _mc, _mfid = analyses.our_market_analysis(
+                leg.get("home"), leg.get("away"), str(leg.get("market") or ""))
+        except Exception:
+            _mp, _mc, _mfid = None, None, None
+        if _mp is not None:
+            _prob = _mp
+            if _mc is not None:
+                _cote = _mc
+            _ourwhy = _prov_why_snippet("foot", str(_mfid), maxlen=100000, played=True) if _mfid else ""
+            if _ourwhy:
+                _why = _ourwhy
         return {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
                 "comp": leg.get("comp"), "sel": str(leg.get("market") or ""),
                 "cote": _cote, "result": leg.get("result"), "score": leg.get("score"),

@@ -3524,27 +3524,41 @@ def volume_by_sport(ndays: int = 7) -> dict:
     return per
 
 
-def our_market_view(home: str, away: str, market: str) -> tuple:
-    """NOTRE lecture (confiance CALIBRÉE %, cote Unibet) d'un match + MARCHÉ, depuis NOS sidecars foot — le
-    match est analysé par notre scan (ex. picks Betmines via `_betmines_extra_foot`). Le code est DÉRIVÉ du
-    LIBELLÉ de marché (« Plus de 1.5 buts » -> « OVER 1.5 ») car les sources externes (Betmines) ont un code
-    compact (« O15 »). (None, None) si non analysé / marché non prédit -> l'appelant garde sa valeur externe.
-    Sert à afficher un pari Betmines AVEC NOTRE analyse (demande user 2026-07-26)."""
+def our_market_analysis(home: str, away: str, market: str) -> tuple:
+    """NOTRE lecture COMPLÈTE (confiance CALIBRÉE %, cote Unibet, ID DE FICHE) d'un match + MARCHÉ, depuis
+    NOS sidecars foot — le match est analysé par notre scan (ex. picks Betmines via `_betmines_extra_foot`).
+    Le code est DÉRIVÉ du LIBELLÉ de marché (« Plus de 1.5 buts » -> « OVER 1.5 ») car les sources externes
+    (Betmines) ont un code compact (« O15 »). L'id de fiche renvoyé permet à l'appelant de charger NOTRE
+    justification (.md) pour l'afficher À L'IDENTIQUE du pari joué (SOURCE UNIQUE d'analyse, demande user
+    2026-07-27 : jamais deux analyses divergentes du même pari). (None, None, None) si non analysé / marché
+    non prédit -> l'appelant garde sa valeur externe."""
     from app.settle_analyst import code_from_pick
     code = (code_from_pick(market or "", "foot", home or "", away or "") or "").strip()
     if not code:
-        return (None, None)
+        return (None, None, None)
     _stop = {"fc", "sc", "cf", "ii", "de", "do", "da", "ac", "if", "sp", "rj", "mg", "slc"}
 
     def _tk(s):
-        return set(re.findall(r"[a-z0-9]+", (s or "").lower())) - _stop
+        # DÉ-ACCENTUÉ avant tokenisation : sinon « Östers » -> token « sters » (le `[a-z0-9]+` saute le `ö`)
+        # et le match échoue silencieusement (bug 2026-07-27 : jambe Betmines figée à 95 % faute de match).
+        return set(re.findall(r"[a-z0-9]+", _deacc(s or "").lower())) - _stop
+
+    def _hit(a, b):
+        # chevauchement TOLÉRANT au pluriel/suffixe (« Öster » vs « Östers », « Varberg » vs « Varbergs ») :
+        # un token de ≥3 car est préfixe de l'autre. Évite l'échec sur les variantes de nommage Betmines/Unibet.
+        for x in a:
+            for y in b:
+                if x == y or (len(x) >= 3 and len(y) >= 3 and (x.startswith(y) or y.startswith(x))):
+                    return True
+        return False
     th, ta = _tk(home), _tk(away)
     if not (th and ta):
-        return (None, None)
+        return (None, None, None)
     for d in iter_meta("foot"):
         nm = d.get("name") or ""
         dh, _, da = nm.partition(" - ")
-        if not ((_tk(dh) & th and _tk(da) & ta) or (_tk(dh) & ta and _tk(da) & th)):
+        _dh, _da = _tk(dh), _tk(da)
+        if not ((_hit(_dh, th) and _hit(_da, ta)) or (_hit(_dh, ta) and _hit(_da, th))):
             continue
         _preds = list(d.get("shadow") or []) + [
             {"sel": b.get("sel"), "cote": b.get("odds"), "prob": b.get("prob"), "code": b.get("code")}
@@ -3554,9 +3568,16 @@ def our_market_view(home: str, away: str, market: str) -> tuple:
             if _pc and _pc == code:
                 _pr = p.get("prob")
                 _cal = calibrated_conf(_pr, "foot", _pc) if isinstance(_pr, (int, float)) else None
-                return (round(_cal) if isinstance(_cal, (int, float)) else _pr, p.get("cote"))
-        return (None, None)      # match trouvé mais ce marché précis non prédit
-    return (None, None)
+                return (round(_cal) if isinstance(_cal, (int, float)) else _pr, p.get("cote"), d.get("id"))
+        return (None, None, None)      # match trouvé mais ce marché précis non prédit
+    return (None, None, None)
+
+
+def our_market_view(home: str, away: str, market: str) -> tuple:
+    """Comme `our_market_analysis` mais renvoie seulement (confiance CALIBRÉE %, cote Unibet) — repli pour les
+    appelants qui n'ont pas besoin de l'id de fiche (ex. gel `our_prob`/`our_cote` de betmines_watch)."""
+    _p, _c, _ = our_market_analysis(home, away, market)
+    return (_p, _c)
 
 
 def background_sports() -> set:
