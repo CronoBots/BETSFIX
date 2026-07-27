@@ -1689,22 +1689,33 @@ def _live_locked(sport, sel, code, info, hs, as_, vals) -> str | None:
         if _side and _ss is not None and _ss >= 1:
             return "won"
         return None
-    # TENNIS « total de jeux du Set N » (SETSTOT OVER/UNDER X.5) : VERROUILLÉ dès que CE set est TERMINÉ
+    # TENNIS « total de jeux du Set N » (SETGAMES N OVER/UNDER X.5) : VERROUILLÉ dès que CE set est TERMINÉ
     # (demande user 2026-07-28 : la jambe « Set 1 +8.5 jeux » restait à 72 % alors que le set 1 était fini
-    # 6-7 = 13 jeux -> acquise). On lit le n° de set dans le libellé + les jeux du set via `vals["set_games"]`.
-    if sport == "tennis" and (code or "").upper().startswith("SETSTOT") and vals:
-        _mset = re.search(r"set\s*(\d+)", (sel or "").lower())
-        _mline = re.search(r"(\d+(?:[.,]\d+)?)", code or "")
+    # 6-7 = 13 jeux -> acquise). N° de set = jeton après SETGAMES ; jeux du set via `vals["set_games"]`.
+    _cu = (code or "").upper()
+    if sport == "tennis" and _cu.startswith("SETGAMES") and vals:
+        _m = re.match(r"SETGAMES\s+(\d+)\s+(OVER|UNDER)\s+(\d+(?:[.,]\d+)?)", _cu)
         _sg = vals.get("set_games") or []
-        if _mset and _mline:
-            _sn = int(_mset.group(1))
-            if _sn <= len(_sg):                        # ce set est TERMINÉ -> total figé -> on tranche
-                _tot = sum(_sg[_sn - 1])
-                _line = float(_mline.group(1).replace(",", "."))
-                _over = "UNDER" not in code.upper()
-                if _tot > _line:
-                    return "won" if _over else "lost"
-                return "lost" if _over else "won"
+        if _m and int(_m.group(1)) <= len(_sg):        # ce set est TERMINÉ -> total figé -> on tranche
+            _tot = sum(_sg[int(_m.group(1)) - 1])
+            _line = float(_m.group(3).replace(",", "."))
+            _over = _m.group(2) == "OVER"
+            if _tot > _line:
+                return "won" if _over else "lost"
+            return "lost" if _over else "won"
+        return None
+    # TENNIS « total de jeux du MATCH » (TOTGAMES OVER/UNDER X.5) : le total COURANT ne fait que MONTER ->
+    # un OVER est ACQUIS dès qu'il dépasse la ligne (et un UNDER PERDU). L'inverse (OVER perdu / UNDER gagné)
+    # attend la fin du match (règlement). Total = jeux des sets TERMINÉS + jeux du set EN COURS.
+    if sport == "tennis" and _cu.startswith("TOTGAMES") and vals:
+        _m = re.match(r"TOTGAMES\s+(OVER|UNDER)\s+(\d+(?:[.,]\d+)?)", _cu)
+        _sg = vals.get("set_games") or []
+        _gh, _ga = _as_int(vals.get("games_h")), _as_int(vals.get("games_a"))
+        if _m and (_sg or _gh is not None):
+            _tot = sum(h + a for h, a in _sg) + (_gh or 0) + (_ga or 0)
+            _line = float(_m.group(2).replace(",", "."))
+            if _tot > _line:                           # seuil déjà franchi (monotone)
+                return "won" if _m.group(1) == "OVER" else "lost"
         return None
     if sport != "foot" or info.get("scope") != "match" or info.get("handicap"):
         return None
