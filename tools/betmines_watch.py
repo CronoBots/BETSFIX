@@ -274,7 +274,10 @@ def _analyze_legs(cb: dict) -> bool:
     LEGn: <justification> par jambe, stocké `leg["why"]` -> pli « Pourquoi cette jambe ». On ANALYSE le pari
     que Betmines a sélectionné (on ne le remplace JAMAIS : pick/cote/règlement intacts), en approfondissant
     avec les stats SportMonks ET NOS sources multi-sources. Best-effort ; Double du JOUR seul. True si ≥1 why."""
-    legs = [l for l in cb.get("legs") or [] if not l.get("why")]
+    # SKIP les jambes DÉJÀ analysées : celles qui ont une justification, ET celles couvertes par NOTRE scan
+    # (`our_analyzed`) dont l'analyse = notre .md figé (demande user 2026-07-27 : ne PAS refaire un pronostic
+    # dédié PARALLÈLE quand notre process a déjà analysé le match). La dédiée = repli ligues non couvertes.
+    legs = [l for l in cb.get("legs") or [] if not l.get("why") and not l.get("our_analyzed")]
     if not legs:
         return False
     exe = _resolve_claude()
@@ -340,6 +343,8 @@ def _analyze_legs(cb: dict) -> bool:
     from app.settle_analyst import code_from_pick as _cfp3
     wrote = False
     for i, l in enumerate(cb["legs"], 1):
+        if l.get("our_analyzed"):          # couverte par notre scan -> jamais d'écriture dédiée (une seule vérité)
+            continue
         mm = re.search(rf"^\s*LEG\s*{i}\s*:\s*(?:(\d{{1,3}})\s*%\s*\|\s*)?(.+)", out, re.M)
         if not mm:
             continue
@@ -435,19 +440,36 @@ def run(force: bool = False, backfill: int = 0) -> None:
                 pass
         for leg in cbt["legs"]:                         # % détaillés (0 dans /bets) + `prob` (confiance)
             _enrich_leg(leg)
-        # NOTRE ANALYSE (demande user 2026-07-26) : le pari Betmines est analysé par NOTRE scan 09h (via
-        # `_betmines_extra_foot`) -> on FIGE dans la jambe NOTRE confiance calibrée + cote Unibet pour le
-        # marché choisi par Betmines, comme si on l'avait sélectionné. Champs SÉPARÉS `our_prob`/`our_cote`
-        # (on ne touche PAS `prob`/`cote`/`total_odds` Betmines = benchmark intact). Repli sur SportMonks si
-        # on n'a pas prédit ce marché (ligue non couverte). L'affichage préfère `our_*`.
+        # NOTRE ANALYSE (demande user 2026-07-26/27) : le pari Betmines est analysé par NOTRE scan 09h (via
+        # `_betmines_extra_foot`) -> on FIGE dans la jambe NOTRE analyse COMPLÈTE pour le marché choisi par
+        # Betmines, comme si on l'avait sélectionné : confiance calibrée (`our_prob`), cote Unibet (`our_cote`)
+        # ET notre justification (.md 🎯/🧪/📋 -> `why`). Champs SÉPARÉS pour prob/cote (on ne touche PAS
+        # `prob`/`cote`/`total_odds` Betmines = benchmark intact). SOURCE UNIQUE (demande user 2026-07-27 :
+        # « l'analyse de la jambe n'avait pas été faite avec notre process ») : une jambe couverte par notre
+        # scan est marquée `our_analyzed` -> EXCLUE de l'analyse Claude dédiée (qui produisait un pronostic
+        # PARALLÈLE divergent). La dédiée ne sert plus QUE de repli pour les ligues que notre scan ne couvre pas.
         try:
             from app import analyses as _an2
+            try:
+                from app.web import _prov_why_snippet as _pws2
+            except Exception:
+                _pws2 = None
             for leg in cbt["legs"]:
-                _op, _oc = _an2.our_market_view(leg.get("home"), leg.get("away"), str(leg.get("market") or ""))
+                _op, _oc, _ofid = _an2.our_market_analysis(
+                    leg.get("home"), leg.get("away"), str(leg.get("market") or ""))
                 if _op is not None:
                     leg["our_prob"] = _op
                     if _oc:
                         leg["our_cote"] = _oc
+                    leg["our_analyzed"] = True           # couverte par notre scan -> pas d'analyse dédiée
+                    # NOTRE justification FIGÉE (remplace toute analyse dédiée antérieure = une seule vérité).
+                    if _pws2 and _ofid:
+                        try:
+                            _ow = _pws2("foot", str(_ofid), maxlen=100000, played=True)
+                        except Exception:
+                            _ow = ""
+                        if _ow:
+                            leg["why"] = _ow
         except Exception:
             pass
         if _analyze_legs(cbt):
