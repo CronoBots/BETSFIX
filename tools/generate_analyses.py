@@ -777,10 +777,15 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     # du sport, retour au top normal partout.
     try:
         from app import analyses as _an
-        _paused = _an.auto_exclusions()[0]
+        # DÉCLENCHEUR = sports SUSPENDUS de la publication (`background_sports` : tennis/basket en arrière-plan)
+        # UNION sports exclus DUR. ⚠️ Depuis la refonte 2026-07-24, les sports en arrière-plan ne sont PLUS
+        # dans `auto_exclusions()[0]` (qui est devenu vide) -> l'élargissement ne se déclenchait JAMAIS et le
+        # foot restait bloqué au top normal malgré tennis+basket suspendus (gisement perdu, fix user 2026-07-28).
+        _paused = set(_an.auto_exclusions()[0]) | set(_an.background_sports())
     except Exception:
         _paused = set()
-    _foot_top = 10 if any(s in _paused for s in sports) else args.top   # foot élargi seulement en probation
+    # On n'élargit le foot que si un AUTRE sport est suspendu (on réalloue SA capacité au foot).
+    _foot_top = 10 if (_paused - {"foot"}) else args.top
     if _foot_top != args.top:
         print(f"[couverture] {sorted(_paused & set(sports))} en pause -> foot élargi à {_foot_top} (basket au top normal {args.top}).")
     n_ok = 0
