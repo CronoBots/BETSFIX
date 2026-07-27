@@ -2110,6 +2110,13 @@ CSS = """
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
      (point d'état + titre casse normale + compteur + mot-clé), filet fin, aucune barre/majuscule criarde. */
   .dash-zones{margin-top:4px}
+  /* Sous-nav Résultats (refonte user 2026-07-27) : Bilan / Calendrier segmenté */
+  .resnav{display:flex;gap:7px;margin:2px 0 12px}
+  .resnav-b{flex:1;padding:9px 6px;border-radius:11px;background:rgba(255,255,255,.04);
+    border:1px solid var(--border);color:var(--muted);font-weight:800;font-size:12.5px;cursor:pointer;
+    transition:background .12s,border-color .12s,color .12s}
+  .resnav-b.on{background:rgba(34,184,255,.16);border-color:rgba(34,184,255,.5);color:#fff}
+  .res-load{text-align:center;color:var(--muted);padding:26px 0;font-size:20px}
   /* Sélecteur de sport de Pronos (demande user 2026-07-26) */
   .spsel-wrap{display:flex;gap:7px;margin:2px 0 6px}
   .spsel{position:relative;flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 6px;
@@ -3105,9 +3112,10 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # Onglets sport (Tennis/Basket/Foot) RETIRÉS de la nav le 2026-07-20 (demande user) : ils répétaient Pronos
 # (mêmes pronos filtrés par sport). Le filtre sport vit désormais SUR Pronos (puces `_sport_chips`), et les
 # routes /app //basket //foot redirigent vers / (accueil). Nav = 4 onglets épurés.
+# Barre du bas — 5 onglets (refonte user 2026-07-27) : Stats + Calendrier FUSIONNÉS dans « Résultats »
+# (sous-nav Bilan / Calendrier à l'intérieur de /stats). Barre plus épurée, plus de doublon calendrier.
 _SPA_TABS = [("home", "/", "📅", "Pronos"), ("directs", "/directs", _LIVE_RADAR, "Live"),
-             ("stats", "/stats", "📊", "Stats"),
-             ("calendrier", "/calendrier", "🗓️", "Calendrier"),
+             ("stats", "/stats", "📊", "Résultats"),
              ("montante", "/montante", "🪜", "Montante"),
              ("compte", "/compte", "👤", "Compte")]
 # Compte est un onglet SPA À PART ENTIÈRE : son panneau charge /compte?frag=1 (contenu seul) en AJAX,
@@ -3516,6 +3524,31 @@ _SPSEL_JS = (
     "window.scrollTo({top:0,behavior:'smooth'});})"
     ".catch(function(){dc.style.opacity='';});});})();")
 
+# Sous-nav de l'onglet Résultats (refonte user 2026-07-27) : bascule Bilan / Calendrier. Le Calendrier est
+# LAZY-chargé depuis /calendrier?frag=1 au 1er clic (évite de rendre 2 vues lourdes d'emblée). Délégué au
+# document (survit aux rechargements du panneau SPA).
+_RESNAV_JS = (
+    "(function(){document.addEventListener('click',function(e){"
+    "var b=e.target.closest('.resnav-b');if(!b)return;var w=b.closest('.resnav');if(!w)return;"
+    "var bs=w.querySelectorAll('.resnav-b'),i;for(i=0;i<bs.length;i++){bs[i].classList.toggle('on',bs[i]===b);}"
+    "var bi=document.getElementById('res-bilan'),ca=document.getElementById('res-cal');if(!bi||!ca)return;"
+    "if(b.getAttribute('data-res')==='cal'){bi.hidden=true;ca.hidden=false;"
+    "if(ca.getAttribute('data-loaded')!=='1'){ca.setAttribute('data-loaded','1');"
+    "ca.innerHTML='<div class=\"res-load\">…</div>';"
+    "fetch('/calendrier?frag=1').then(function(r){return r.text();}).then(function(h){ca.innerHTML=h;})"
+    ".catch(function(){ca.setAttribute('data-loaded','0');ca.innerHTML='';});}}"
+    "else{ca.hidden=true;bi.hidden=false;}"
+    "window.scrollTo({top:0,behavior:'smooth'});});})();")
+
+
+def _resultats_subnav() -> str:
+    """Sous-nav de l'onglet « Résultats » (refonte user 2026-07-27, fusion Stats + Calendrier) : segmenté
+    Bilan | Calendrier. Bilan actif par défaut ; Calendrier lazy-chargé (JS _RESNAV_JS)."""
+    return ('<div class="resnav">'
+            '<button type="button" class="resnav-b on" data-res="bilan">Bilan</button>'
+            '<button type="button" class="resnav-b" data-res="cal">Calendrier</button>'
+            '</div>')
+
 
 def layout(title: str, sport: str, body: str, subnav: str | None = None,
            refresh: bool = False, source: dict | None = None, menu: str | None = None) -> str:
@@ -3611,7 +3644,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""

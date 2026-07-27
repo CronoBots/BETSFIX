@@ -664,8 +664,9 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
     # onglet) » qui faisait « 1x sur 2 » les stats fausses. Le warmer (main.py) le garde chaud (≤15s).
     body = fragcache.get(ckey)
     if body is None:
-        body = ('<div class="pg-h">Statistiques</div>'
-                '<div class="statsx">'    # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
+        body = ('<div class="pg-h">Résultats</div>'
+                + web._resultats_subnav()   # sous-nav Bilan | Calendrier (fusion 2026-07-27)
+                + '<div id="res-bilan" class="statsx">'    # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
                 # Filtres de période (7 / 30 / Tout) RETIRÉS (demande user 2026-07-11) : les stats affichent
                 # toujours TOUT l'historique (since="" -> days=None). Vue unique, plus simple.
                 + _home_stats(days)       # Football + Tennis/Basket (simulation, juste sous) + edge + calibration
@@ -684,7 +685,9 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 + '<script>fetch("/stats/health").then(r=>r.text()).then(function(h){'
                   'if(h){document.getElementById("syshealth").innerHTML=h;}})'
                   '.catch(function(){});</script>'
-                + '</div>')
+                + '</div>'                       # fin #res-bilan
+                # Vue Calendrier (lazy) : chargée depuis /calendrier?frag=1 au 1er clic sur « Calendrier ».
+                + '<div id="res-cal" hidden data-loaded="0"></div>')
         fragcache.put(ckey, body, ttl=PANEL_TTL)
     if frag:
         return HTMLResponse(body)
