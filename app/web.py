@@ -5315,7 +5315,7 @@ _SPORT_LBL = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}
 
 
 def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True,
-              why_always: bool = False) -> str:
+              why_always: bool = False, why_label: str = "Pourquoi cette jambe") -> str:
     """Rendu d'UNE jambe de combiné COMME UNE CARTE DE SIMPLE (demande user 2026-07-14) : en-tête
     « SPORT • match » + badge d'état, le pari en gras, l'explication en clair (gloss ↳), la COTE à droite,
     bord gauche coloré par état. En live : badge 🟢 LIVE + tableau de score sous la jambe. `why` = ajoute la
@@ -5437,7 +5437,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _wtl = "".join(f"<li>{html.escape(s)}</li>" for s in _wsents)
     # `.cleg-fold-bet` = MÊME filet de séparation au-dessus que « Pourquoi ce choix » (user 2026-07-21).
     _why = ('<details class="cleg-fold cleg-fold-bet"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
-            'Pourquoi cette jambe<span class="cleg-chev">▾</span></summary>'
+            f'{html.escape(why_label)}<span class="cleg-chev">▾</span></summary>'
             f'<ul class="why-ul">{_wtl}</ul></details>') if (_wt and _wtl) else ""   # jamais un pli vide
     # LIGNE VERDICT (façon provisoire) : Confiance CALIBRÉE (la jambe porte `prob` en FRACTION + `code`) ·
     # Marché · Value (masquée si négative — combiné = info seule) + grosse COTE. Remplace la pastille cote.
@@ -6032,7 +6032,7 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
             {"sport": sp, "home": _h, "away": _a, "comp": p.get("comp"),
              "sel": str(p.get("sel") or ""), "cote": p.get("cote"), "prob": _prob, "code": _code,
              "result": p.get("result"), "score": p.get("score"), "start": p.get("start"), "why": _why},
-            why=True, verdict=True, why_always=True))
+            why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix"))
     return ('<div class="prv-hd">🧪 Provisoires <span>· info seule, hors ROI</span></div>'
             + _MC_SEP.join(cards))
 
@@ -6081,7 +6081,7 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
                  "result": rb.get("result"), "score": _board.get("score") or _sco,
                  "periods": _board.get("periods"), "start": d.get("start"),
                  "why": _prov_why_snippet(sp, fid, maxlen=100000, played=True)},
-                why=True, verdict=True, why_always=True)))
+                why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")))
     out.sort(key=lambda x: x[0], reverse=True)
     return [h for _, h in out]
 
