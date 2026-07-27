@@ -5826,43 +5826,10 @@ def _daily_results_map() -> dict:
             continue
         won = sb["result"] == "won"
         _add(_sport_date(ld).isoformat(), won, (float(sb.get("cote") or 1) - 1) if won else -1.0)
-    try:                                                       # combiné du jour : SEULEMENT le 100 % foot
-        from app import combo_daily as _cd
-        for date_iso, result, cote, _det in _cd.roi_events():
-            if _det.get("leg_sport") != "foot":                # non-foot (mono tennis/basket ou multisport) -> exclu
-                continue
-            if result in ("won", "lost"):
-                _add(date_iso, result == "won", (cote - 1) if result == "won" else -1.0)
-    except Exception:
-        pass
-    # Combinés SIDECAR (par match : Coupe du Monde, etc.) — comptés au ROI combinés GLOBAL (combo_stats) ET
-    # AFFICHÉS comme joués : ils DOIVENT aussi entrer dans le bilan quotidien/calendrier (bug user 2026-07-27 :
-    # 3 combinés CdM du 03/07 affichés joués mais absents du « 2/3 »). Foot uniquement, non rétroactif
-    # (≥ _COMBO_COUNT_FROM), DISJOINTS du combiné du jour (module) -> aucun double comptage.
-    try:
-        import glob as _glob
-        for _p in _glob.glob(os.path.join(analyses.DIR, "foot_*.json")):
-            _d = analyses._meta_load(_p)
-            if not _d:
-                continue
-            _c = _d.get("combo") or {}
-            if not _c.get("legs") or _c.get("result") not in ("won", "lost"):
-                continue
-            _st = _d.get("start") or ""
-            if _st[:10] < analyses._COMBO_COUNT_FROM:
-                continue
-            try:
-                _dt = datetime.fromisoformat(_st.replace("Z", "+00:00"))
-            except (ValueError, AttributeError):
-                continue
-            _ld = to_local(_dt)
-            if _ld is None:
-                continue
-            _cwon = _c.get("result") == "won"
-            _codds = _c.get("settle_odds") or _c.get("real_odds") or _c.get("total")
-            _add(_sport_date(_ld).isoformat(), _cwon, (float(_codds) - 1) if (_cwon and _codds) else -1.0)
-    except Exception:
-        pass
+    # COMBINÉS FOOTBALL HORS ROI (demande user 2026-07-27) : ni le « combiné du jour » (module combo_daily)
+    # ni les combinés SIDECAR par match (Coupe du Monde…) ne comptent dans le bilan quotidien / le calendrier.
+    # Le ROI = SIMPLES football uniquement (cohérent avec stats_full.overall qui exclut déjà les combinés).
+    # Les combinés restent AFFICHÉS comme joués (cartes, ✓/✗) — info seule, jamais au ROI.
     _DRM_CACHE.update(ts=_now, map=res)
     return res
 
