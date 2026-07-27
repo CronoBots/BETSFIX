@@ -6239,18 +6239,15 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
                               _combo_tg_card(include_settled=True, cb=cb))
         except Exception:
             combo = ""
-    # HISTORIQUE = uniquement les VRAIS paris proposés (simples joués + combinés) — on filtre les
-    # abstentions (matchs analysés sans pari) qui polluaient la vue (demande user 2026-07-19). Les cartes
-    # de `_past_day_cards` sont DÉJÀ bet-only (marquées `_bet`) -> on évite un `analyses.meta` par carte
-    # (perf, audit 2026-07-20) ; `_card_has_bet` ne sert que de repli si l'appelant n'a pas marqué.
-    rows = sorted([r for r in day_rows
-                   if (r.get("_bet") or _card_has_bet(r)) and (not sport or _item_sport(r) == sport)],
-                  key=lambda r: r.get("start_ts") or 0)
-    # Paris joués (cartes) + provisoires réglés (bloc compact) — les provisoires n'apparaissaient nulle part
-    # dans les résultats (demande user 2026-07-20).
+    # HISTORIQUE = les VRAIS paris proposés (simples joués + combinés), rendus COMME les pronos (demande user
+    # 2026-07-28 : même mise en page uniforme dans le calendrier aussi) : cartes `_leg_card` riches (verdict/
+    # score/Pourquoi) + cadre vert/rouge, via le MÊME helper que « Résultats du jour » -> plus la version
+    # allégée de `_past_day_cards`/foot._card. `day_rows` (allégé) n'est donc plus rendu ici.
+    _res_cards = _settled_bet_result_cards(iso, sport)
     _prov_res = _provisional_results(iso, sport)
-    cards = (_zone("play", "Paris du jour", "", len(rows), _rows_by_day(rows) + _prov_res, collapsible=True)
-             if (rows or _prov_res) else "")
+    _res_html = _MC_SEP.join(_res_cards) if _res_cards else ""
+    cards = (_zone("play", "Paris du jour", "", len(_res_cards), _res_html + _prov_res, collapsible=True)
+             if (_res_cards or _prov_res) else "")
     inner = summ + combo + cards
     if not (combo or cards):
         inner = summ + '<div class="paj-empty">Aucun pari proposé ce jour-là.</div>'
