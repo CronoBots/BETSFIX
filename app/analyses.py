@@ -2221,6 +2221,32 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
         bets = [{"sel": b.get("sel", ""), "cote": b.get("odds") or b.get("cote"), "prob": b.get("prob")}
                 for b in (m.get("bets") or []) if b.get("sel")]
     if not bets:
+        # GEL PUBLIÉ (demande user 2026-07-28) : une ré-analyse a VIDÉ le tableau de paris, mais le pari a été
+        # POSTÉ aux abonnés et n'est PAS réglé -> il a pu être JOUÉ (ex. palier montante « Moins de 2.5 »
+        # publié + misé). On le RESTITUE à son PRIX CONSEILLÉ au lieu de l'abandonner (sinon il retombe en
+        # abstention -> provisoire d'un AUTRE marché, ce qui trahit l'abonné qui a parié). Vaut pour
+        # l'affichage COURANT (for_history=False) ET l'historique. Jamais sur un match à COMBINÉ.
+        # ⚠️ On lit le dict FIGÉ `published_bet` DIRECTEMENT (pas la fonction published_bet(), qui rappellerait
+        # retained_bet(for_history=True) -> récursion infinie). Repli : posté (get_prono) + `pick` du sidecar.
+        _pb = m.get("published_bet") if isinstance(m.get("published_bet"), dict) else None
+        if not (m.get("combo") or {}).get("legs") and not is_settled(m):
+            _psel, _pcote, _pprob = None, None, None
+            if _pb and _pb.get("sel"):
+                _psel, _pcote, _pprob = _pb.get("sel"), _pb.get("cote"), _pb.get("prob")
+            else:
+                try:
+                    from app import notify as _notify0
+                    if _notify0.get_prono(str(match_id)) and m.get("pick"):
+                        _psel = re.sub(r"\s*@.*$", "", str(m.get("pick")))
+                        _pm = re.search(r"@\s*([\d]+[.,][\d]+)", str(m.get("pick") or ""))
+                        _pcote = float(_pm.group(1).replace(",", ".")) if _pm else None
+                except Exception:
+                    _psel = None
+            if _psel:
+                from app.settle_analyst import code_from_pick as _cfp0
+                return {"idx": 0, "sel": _psel, "prob": _pprob, "cprob": _pprob, "cote": _pcote,
+                        "result": None,
+                        "code": (_cfp0(_psel, sport, m.get("home", ""), m.get("away", "")) or "")}
         return None
     try:
         from app.settle_analyst import code_from_pick
