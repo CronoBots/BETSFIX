@@ -3176,6 +3176,13 @@ CALIB_GAP_MAX = -8   # réussite réelle au moins 8 pts SOUS la confiance annonc
 # le « pas » d'un pari réglé (~100/n pts sur le taux) -> plus de bascule sur un seul résultat.
 CALIB_GAP_BACK = -4  # une fois exclu (écart ≤ -8), le marché ne revient que si l'écart REMONTE à ≥ -4
 CALIB_ROI_BACK = -8  # une fois exclu (ROI ≤ -15%), le marché ne revient que si le ROI REMONTE à ≥ -8%
+# GARDE-FOU « sur-calibration CATASTROPHIQUE » (demande user 2026-07-28) : un marché dont l'écart réel−annoncé
+# est ÉNORME (≤ CALIB_GAP_SEVERE) est exclu SANS attendre CALIB_MIN_N=25 — dès CALIB_MIN_N_SEVERE paris. Motif :
+# un écart de -20/-40 pts est statistiquement damnant bien avant 25 (binomiale) et le laisser « en zone bruit »
+# ouvre un trou (ex. foot « Les 2 marquent — Non » : annoncé 73% → réel 32%, n=19, ni exclu ni corrigé par
+# calibrated_conf). Sortie par l'hystérésis normale (CALIB_GAP_BACK) une fois le recul suffisant.
+CALIB_GAP_SEVERE = -20   # écart réel−annoncé ≤ -20 pts = sur-confiance catastrophique (exclusion accélérée)
+CALIB_MIN_N_SEVERE = 12  # nb mini de prédictions pour conclure sur un écart CATASTROPHIQUE (< bruit total)
 _SPORT_FR = {"Football": "foot", "Tennis": "tennis", "Basket": "basket"}
 _EXCL_STATE_PATH = os.path.join(_ROOT, "data", "excluded_state.json")   # dernier état COMMITÉ {sport:[marchés]}
 
@@ -3344,6 +3351,12 @@ def _excluded_by_sport() -> dict:
             gap = (mg.get("win_rate") or 0) - (mg.get("avg_conf") or 0)
             roi = mg.get("roi")
             was = name in prev_sp
+            # GARDE-FOU sur-calibration CATASTROPHIQUE : écart énorme (≤ CALIB_GAP_SEVERE) sur un échantillon
+            # déjà parlant (≥ CALIB_MIN_N_SEVERE) -> exclu TOUT DE SUITE, sans attendre CALIB_MIN_N (sinon le
+            # marché reste « en zone bruit » alors qu'il perd franchement, cf. foot « Les 2 marquent — Non »).
+            if n >= CALIB_MIN_N_SEVERE and gap <= CALIB_GAP_SEVERE:
+                ms.add(name)
+                continue
             if n < CALIB_MIN_N:                          # pas de recul -> on ne conclut pas : statu quo
                 if was:
                     ms.add(name)
