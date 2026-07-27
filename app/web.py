@@ -3543,24 +3543,27 @@ _SPSEL_JS = (
 # LAZY-chargé depuis /calendrier?frag=1 au 1er clic (évite de rendre 2 vues lourdes d'emblée). Délégué au
 # document (survit aux rechargements du panneau SPA).
 _RESNAV_JS = (
-    "(function(){document.addEventListener('click',function(e){"
+    "(function(){var M={bilan:'res-bilan',analyse:'res-analyse',cal:'res-cal'};"
+    "document.addEventListener('click',function(e){"
     "var b=e.target.closest('.resnav-b');if(!b)return;var w=b.closest('.resnav');if(!w)return;"
+    "var which=b.getAttribute('data-res');"
     "var bs=w.querySelectorAll('.resnav-b'),i;for(i=0;i<bs.length;i++){bs[i].classList.toggle('on',bs[i]===b);}"
-    "var bi=document.getElementById('res-bilan'),ca=document.getElementById('res-cal');if(!bi||!ca)return;"
-    "if(b.getAttribute('data-res')==='cal'){bi.hidden=true;ca.hidden=false;"
-    "if(ca.getAttribute('data-loaded')!=='1'){ca.setAttribute('data-loaded','1');"
+    "for(var k in M){var el=document.getElementById(M[k]);if(el)el.hidden=(k!==which);}"
+    "if(which==='cal'){var ca=document.getElementById('res-cal');"
+    "if(ca&&ca.getAttribute('data-loaded')!=='1'){ca.setAttribute('data-loaded','1');"
     "ca.innerHTML='<div class=\"res-load\">…</div>';"
     "fetch('/calendrier?frag=1').then(function(r){return r.text();}).then(function(h){ca.innerHTML=h;})"
     ".catch(function(){ca.setAttribute('data-loaded','0');ca.innerHTML='';});}}"
-    "else{ca.hidden=true;bi.hidden=false;}"
     "window.scrollTo({top:0,behavior:'smooth'});});})();")
 
 
 def _resultats_subnav() -> str:
-    """Sous-nav de l'onglet « Résultats » (refonte user 2026-07-27, fusion Stats + Calendrier) : segmenté
-    Bilan | Calendrier. Bilan actif par défaut ; Calendrier lazy-chargé (JS _RESNAV_JS)."""
+    """Sous-nav de l'onglet « Résultats » (refonte user 2026-07-27) : segmenté Bilan | Analyse | Calendrier.
+    Bilan = rentabilité + cadres sport ; Analyse = edge/fiabilité/marchés/transparence ; Calendrier = heatmap
+    (lazy-chargée). Bilan actif par défaut (JS _RESNAV_JS)."""
     return ('<div class="resnav">'
             '<button type="button" class="resnav-b on" data-res="bilan">Bilan</button>'
+            '<button type="button" class="resnav-b" data-res="analyse">Analyse</button>'
             '<button type="button" class="resnav-b" data-res="cal">Calendrier</button>'
             '</div>')
 

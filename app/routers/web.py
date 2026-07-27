@@ -128,15 +128,17 @@ def _home_stats(since_days: int | None = None) -> str:
     _c = _HOMESTATS_CACHE.get(since_days)
     if _c and _c[0] == _sig:
         return _c[1]
-    _html = _home_stats_compute(since_days)
-    _HOMESTATS_CACHE[since_days] = (_sig, _html)
-    return _html
+    _parts = _home_stats_compute(since_days)             # (bilan_html, analyse_html) — refonte 2026-07-27
+    _HOMESTATS_CACHE[since_days] = (_sig, _parts)
+    return _parts
 
 
-def _home_stats_compute(since_days: int | None = None) -> str:
+def _home_stats_compute(since_days: int | None = None) -> tuple:
+    """Renvoie (BILAN, ANALYSE) pour les 2 sous-onglets de Résultats (refonte user 2026-07-27) :
+    BILAN = hero + cadres sport (ROI + courbes) ; ANALYSE = edge/fiabilité/marchés/transparence."""
     full = analyses.stats_full(since_days)
     if not (full.get("overall") or {}).get("settled"):
-        return ""
+        return ("", "")
     combo = analyses.combo_stats(since_days)
     cal = analyses.calibration(since_days)
 
@@ -147,11 +149,14 @@ def _home_stats_compute(since_days: int | None = None) -> str:
 
     # 2. OÙ EST L'EDGE : par sport puis par cote (mêmes données, granularité croissante).
     edge = web.render_sports_breakdown(full) + web.render_perf(analyses.perf_breakdown(since_days))
-    inner = (
+    # BILAN (sous-onglet 1) : rentabilité globale + cadres sport (ROI + courbes).
+    bilan = (
         _hero_card(full, combo)                                                    # 0. HERO : rentabilité globale
         + web.render_stats(full, combo_full=combo)                                 # 1. cadre FOOTBALL
-        + _simulation_card()                                                       # 1b. cadres TENNIS/BASKET (juste sous le foot, demande user 2026-07-24)
-        + _sec("Où se trouve l'edge", "performance par sport et par cote", edge)   # 2.
+        + _simulation_card())                                                      # 1b. cadres TENNIS/BASKET
+    # ANALYSE (sous-onglet 2) : là où le modèle se prouve (edge, calibration, marchés écartés, transparence).
+    analyse = (
+        _sec("Où se trouve l'edge", "performance par sport et par cote", edge, open=True)   # 2.
         + _sec("Fiabilité du modèle", "la confiance tient-elle ses promesses ?",   # 3.
                web.render_reliability(analyses.calibration_reliability(buckets=12))
                + web.render_calibration(cal))
@@ -159,7 +164,8 @@ def _home_stats_compute(since_days: int | None = None) -> str:
                web.render_exclusions(analyses.exclusions_report()))
         + _sec("Transparence", "tout ce que le modèle a observé",                  # 4.
                web.render_volume(full, combo, cal) + web.render_volume_by_sport()))
-    return f'<div class="sx"><div class="sx-body">{inner}</div></div>'
+    return (f'<div class="sx"><div class="sx-body">{bilan}</div></div>',
+            f'<div class="sx"><div class="sx-body">{analyse}</div></div>')
 
 
 @router.get("/stats/detail", response_class=HTMLResponse)
@@ -664,29 +670,26 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
     # onglet) » qui faisait « 1x sur 2 » les stats fausses. Le warmer (main.py) le garde chaud (≤15s).
     body = fragcache.get(ckey)
     if body is None:
+        _bilan, _analyse = _home_stats(days)    # (BILAN, ANALYSE) — sous-onglets Résultats (refonte 2026-07-27)
         body = ('<div class="pg-h">Résultats</div>'
-                + web._resultats_subnav()   # sous-nav Bilan | Calendrier (fusion 2026-07-27)
-                + '<div id="res-bilan" class="statsx">'    # scope : fond cyan (comme les onglets sport) sur TOUS les cadres
-                # Filtres de période (7 / 30 / Tout) RETIRÉS (demande user 2026-07-11) : les stats affichent
-                # toujours TOUT l'historique (since="" -> days=None). Vue unique, plus simple.
-                + _home_stats(days)       # Football + Tennis/Basket (simulation, juste sous) + edge + calibration
+                + web._resultats_subnav()   # sous-nav Bilan | Analyse | Calendrier
+                # SOUS-ONGLET 1 — BILAN : rentabilité globale + cadres sport + suivis indicatifs du jour.
+                + '<div id="res-bilan" class="statsx">'    # scope : fond cyan sur TOUS les cadres
+                + _bilan
                 # SÉPARATEUR de groupe : tout ce qui suit est du JOUR / INDICATIF, distinct du ROI réel.
                 + '<div class="sx-group">🧪 Le jour &amp; suivis indicatifs '
                   '<span>à titre informatif — hors ROI réel</span></div>'
                 + _selectivity_card()     # ratio paris à jouer / abstentions du jour (rend la sélectivité visible)
-                # Combiné du jour (football) DÉPLACÉ dans le « Combinés » du cadre sport concerné (foot) via
-                # combo_stats.by_sport (demande user 2026-07-25) -> plus de carte/stats standalone ici.
-                # Provisoires DÉPLACÉS en 3e onglet de chaque cadre sport (demande user 2026-07-25).
                 + _betmines_card()        # suivi EXTERNE : le Double Betmines mesuré par nos règlements
-                # Panneau SANTÉ (privé) chargé en AJAX : hors du cache commun (le fragment est mutualisé) et
-                # servi UNIQUEMENT au propriétaire (route /stats/health, is_owner) -> pas de fuite du stack de
-                # sources. Vide (donc invisible) pour les visiteurs. Données LIVE (ping sources) sans bloquer.
+                # Panneau SANTÉ (privé) chargé en AJAX : servi UNIQUEMENT au propriétaire (is_owner).
                 + '<div id="syshealth"></div>'
                 + '<script>fetch("/stats/health").then(r=>r.text()).then(function(h){'
                   'if(h){document.getElementById("syshealth").innerHTML=h;}})'
                   '.catch(function(){});</script>'
                 + '</div>'                       # fin #res-bilan
-                # Vue Calendrier (lazy) : chargée depuis /calendrier?frag=1 au 1er clic sur « Calendrier ».
+                # SOUS-ONGLET 2 — ANALYSE : edge / fiabilité / marchés écartés / transparence (masqué au départ).
+                + f'<div id="res-analyse" class="statsx" hidden>{_analyse}</div>'
+                # SOUS-ONGLET 3 — CALENDRIER : lazy-chargé depuis /calendrier?frag=1 au 1er clic.
                 + '<div id="res-cal" hidden data-loaded="0"></div>')
         fragcache.put(ckey, body, ttl=PANEL_TTL)
     if frag:
