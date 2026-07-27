@@ -2904,6 +2904,17 @@ CSS = """
   /* MISE bien visible (demande user 2026-07-25) : label discret + montant lisible. */
   .mont-step-mise{display:block;font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.02em}
   .mont-step-mise b{color:var(--text);font-weight:800}
+  /* Bannière compacte « Montante du jour » sur Pronos (refonte user 2026-07-27) : ligne cliquable -> onglet Montante */
+  .mont-banner{display:flex;align-items:center;gap:11px;margin:14px 0;padding:12px 14px;border-radius:14px;
+    text-decoration:none;color:var(--text);background:linear-gradient(180deg,rgba(246,197,74,.10),rgba(246,197,74,.03));
+    border:1px solid rgba(246,197,74,.34);-webkit-tap-highlight-color:transparent}
+  .mont-banner:active{transform:scale(.99)}
+  .mont-banner .mb-ic{font-size:22px;line-height:1}
+  .mont-banner .mb-txt{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+  .mont-banner .mb-txt b{font-size:13px;font-weight:900;color:#ffe08a;letter-spacing:.01em}
+  .mont-banner .mb-sub{font-size:12px;color:var(--muted);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mont-banner .mb-sub b{color:var(--text);font-weight:800}
+  .mont-banner .mb-arw{color:var(--gold);font-size:20px;font-weight:700;opacity:.8}
   /* Ligne de contexte du PALIER montante sur Pronos (au-dessus de la carte de pari) */
   .mont-pron-ctx{font-size:11px;color:var(--gold);font-weight:700;margin:0 2px 7px;line-height:1.4}
   .mont-pron-ctx b{color:#ffe08a} .mont-pron-ctx span{color:var(--muted);font-weight:600}
@@ -3303,7 +3314,11 @@ _SPA_JS = (
     "if(!t){var m={'/':'home','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot','/stats':'stats'};"
     "t=m[location.pathname]||'home';}go(t,false);});"
     # Filtre temporel des stats : clic sur un bouton période -> recharge le panneau stats (since)
-    "P.addEventListener('click',function(e){var a=e.target&&e.target.closest?"
+    "P.addEventListener('click',function(e){"
+    # bannière/lien interne data-goto (ex. Montante du jour sur Pronos) -> bascule d'onglet SPA
+    "var gb=e.target&&e.target.closest?e.target.closest('[data-goto]'):null;"
+    "if(gb){e.preventDefault();go(gb.getAttribute('data-goto'),true);return;}"
+    "var a=e.target&&e.target.closest?"
     "e.target.closest('a[data-since]'):null;if(!a)return;e.preventDefault();"
     "var sp=panel('stats');if(!sp)return;"
     "fetch('/stats?frag=1&since='+a.getAttribute('data-since'),{headers:{'X-Frag':'1'}})"
@@ -5553,6 +5568,30 @@ def _montante_palier() -> int | None:
         return None
 
 
+def _montante_banner() -> str:
+    """Bannière COMPACTE « Montante du jour » pour Pronos (refonte user 2026-07-27) : une ligne cliquable
+    (palier + pari + cote) qui renvoie à l'onglet Montante (échelle complète) -> lève la double lecture
+    montante (une carte pleine dans Pronos + l'onglet). '' si montante inactive ou pas de palier en attente."""
+    _pal = _montante_palier()
+    if _pal is None:
+        return ""
+    try:
+        from app import montante as _mt
+        p = _mt.state().get("pending") or {}
+    except Exception:
+        p = {}
+    _match = _noF(str(p.get("match") or ""))
+    _h, _sep, _a = _match.partition(" - ")
+    _sel = html.escape(_pretty_sel(str(p.get("sel") or ""), _h, _a))
+    _co = p.get("cote")
+    _cote = f' · <b>@{_co:g}</b>' if isinstance(_co, (int, float)) and _co else ""
+    return (f'<a class="mont-banner" data-goto="montante" href="/montante">'
+            f'<span class="mb-ic">🪜</span>'
+            f'<span class="mb-txt"><b>Montante · Palier {_pal}</b>'
+            f'<span class="mb-sub">{_sel}{_cote}</span></span>'
+            f'<span class="mb-arw">›</span></a>')
+
+
 def _montante_tg_card() -> str:
     """Carte du PALIER MONTANTE du jour pour l'onglet PRONOS (demande user 2026-07-26 : « le palier doit être
     sur la page des pronos et présenté comme un pari normal »). Rend le pari du jour de la montante via
@@ -6024,23 +6063,22 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     combo_daily = _combo_tg_card(include_settled=False, sport=(sport or "foot"))
     # PALIER MONTANTE + COMBINÉ BETMINES : spécifiques FOOT -> vue « Tous »/foot seulement.
     _is_foot_view = sport in (None, "foot")
-    montante = _montante_tg_card() if _is_foot_view else ""
+    # Montante = BANNIÈRE compacte cliquable (refonte user 2026-07-27) au lieu d'une zone pleine -> renvoie
+    # à l'onglet Montante pour l'échelle complète.
+    _mbanner = _montante_banner() if _is_foot_view else ""
     betmines = _betmines_tg_card() if _is_foot_view else ""
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport or "foot", "football")
-    # Titre montante avec le N° de palier réel (demande user 2026-07-26) : « Montante • Palier N » + badge.
-    _mpal = _montante_palier() if montante else None
-    _mtitle = f"Montante • Palier {_mpal}" if _mpal else "Montante · palier du jour"
-    # ORDRE FIGÉ (demande user 2026-07-26) : Paris à jouer → Provisoires → Montante → Combiné à jouer →
-    # Combiné Betmines. Ne pas réordonner sans demande explicite.
-    # « Paris du jour » N'APPARAÎT PAS s'il n'y a rien à jouer (demande user 2026-07-26).
+    # ORDRE (refonte user 2026-07-27) : Paris à jouer → Provisoires → [bannière Montante] → Combiné →
+    # Combiné Betmines. « Paris du jour » N'APPARAÎT PAS s'il n'y a rien à jouer (demande user 2026-07-26).
     out = []
     if play:
         out.append(_zone("play", "Paris du jour", "", len(play), _rows_by_day(play), collapsible=True))
+    out.append(_zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True))
+    if _mbanner:
+        out.append(_mbanner)                          # bannière compacte (pas une zone repliable)
     out += [
-        _zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True),
-        _zone("montante", _mtitle, "", 1 if montante else 0, montante, collapsible=True),
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("betmines", "Combiné Betmines", "", 1 if betmines else 0, betmines, collapsible=True),
     ]
@@ -6070,7 +6108,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     today_iso = _sport_today().isoformat()
     # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
     # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
-    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + (1 if montante else 0) + (1 if betmines else 0)
+    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + (1 if _mbanner else 0) + (1 if betmines else 0)
     return _day_header(today_iso) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
