@@ -762,8 +762,10 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     prev_by_sport: dict = {}
     prev_status: dict = {}
     prev_prov: dict = {}
+    _prev_date = None
     try:
         _pv = json.load(open(PROGRAMME_PATH, encoding="utf-8"))
+        _prev_date = _pv.get("date")
         for _m in (_pv.get("matches") or []):
             prev_by_sport.setdefault(_m.get("sport"), []).append(_m)
             if _m.get("status"):
@@ -842,6 +844,25 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                 print(f"[betmines] {len(_bm)} match(s) du Double inclus dans les analyses foot.")
         except Exception as _e:
             print(f"  (inclusion Betmines ignorée : {_e})")
+    # PRÉSERVATION DES MATCHS DÉJÀ PROGRAMMÉS DU JOUR (demande user 2026-07-28) : une régénération EN COURS DE
+    # JOURNÉE (ou un 2e scan) re-sélectionne un top-N FRAIS (fenêtre glissante) et pouvait ÉJECTER des matchs
+    # analysés plus tôt AVEC leur provisoire -> ils disparaissaient de Pronos alors que le suivi/Stats les
+    # gardait (écart Stats↔Pronos signalé : tennis/basket provisoires visibles en Stats, absents de Pronos).
+    # On REMET donc les matchs du programme précédent NON re-sélectionnés — UNIQUEMENT si ce programme est du
+    # MÊME JOUR (`date`), pour ne jamais recharger la veille au scan matinal. status/provisional intacts.
+    _today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _prev_date == _today_utc:
+        _new_ids = {str(m.get("id")) for m in matches}
+        _readded = 0
+        for _prevs in prev_by_sport.values():
+            for _pm in _prevs:
+                if str(_pm.get("id")) in _new_ids:
+                    continue
+                matches.append(_pm)               # dict précédent COMPLET (status + provisional préservés)
+                _new_ids.add(str(_pm.get("id")))
+                _readded += 1
+        if _readded:
+            print(f"[programme] {_readded} match(s) du jour déjà analysés conservés (anti-éjection au re-run).")
     # ⛔ NE JAMAIS écraser un programme valide par du VIDE : si AUCUN sport n'a été récupéré (échec réseau
     # TOTAL), on garde le fichier précédent INTACT (mtime compris) -> les vagues continuent sur l'ancien
     # programme au lieu de rester muettes toute la journée (bug audit : point de défaillance unique matinal).
