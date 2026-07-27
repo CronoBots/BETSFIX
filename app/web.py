@@ -853,7 +853,8 @@ CSS = """
   /* Live : SCOREBOARD 2 lignes (nom + scores),
   meneur en vert,
   set gagné en gras */
-  .lboard{background:rgba(255,255,255,.05);border:1px solid var(--cardline);border-radius:10px;
+  /* Cadre du score (résultats/live) : liseré BLANC neutre au lieu du bleu de marque (demande user 2026-07-28). */
+  .lboard{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.16);border-radius:10px;
           padding:8px 12px;margin:9px 0 5px;max-width:100%;overflow-x:auto}
   .lboard::-webkit-scrollbar{display:none}
   /* Séparation horizontale entre le bloc score/barres % et les paris à jouer (écart égal dessus/dessous) */
@@ -7569,10 +7570,12 @@ def _sport_row(r: dict) -> str:
                              if _curb else "")
                 except Exception:
                     _cpub = _ccur = ""
-                if not _curb:
-                    bets3 = [{**_pbz, "tag": "Premier scan"},
-                             {"_info": "Dernier scan : aucun pari conseillé"}]
-                elif ((not _cpub or not _ccur or _cpub != _ccur)
+                # Un pari PUBLIÉ est FIGÉ (jamais retiré) -> si le dernier scan n'a RIEN produit (ou le MÊME
+                # pari), on N'AFFICHE PLUS « Dernier scan : aucun pari conseillé » (contradictoire + compact) :
+                # le pari publié reste présenté COMME un pari normal (carte premium : barres verdict + Pourquoi,
+                # demande user 2026-07-28). Le double scan ne subsiste QUE si le dernier scan a produit un pari
+                # RÉELLEMENT DIFFÉRENT (les deux comptent au ROI) — là on garde les 2 lignes étiquetées.
+                if (_curb and (not _cpub or not _ccur or _cpub != _ccur)
                         and analyses._norm_sel(_curb[0].get("sel", "")) != analyses._norm_sel(_pbz.get("sel", ""))):
                     bets3 = [{**_pbz, "tag": "Premier scan"},
                              {"sel": _curb[0].get("sel", ""), "cote": _curb[0].get("cote"),
