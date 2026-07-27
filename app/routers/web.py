@@ -177,10 +177,22 @@ async def stats_detail(sport: str = "", pari: int = -1, since: str = "") -> HTML
     return HTMLResponse(web.render_bet_detail(analyses.bet_detail(sp, pk, days)))
 
 
+_HMR_CACHE: dict = {"ts": 0.0, "rows": None}
+_HMR_TTL = 15   # s : mémo COURTE des lignes tous-sports -> changer d'onglet de sport ne re-fetch pas tout
+
+
 async def _home_match_rows() -> list:
     """TOUTES les rencontres analysées À VENIR / EN COURS (tous sports confondus), au format
     `_sport_row`, triées par coup d'envoi (le plus proche d'abord). Réutilise les constructeurs de
-    lignes des onglets sport -> même rendu compact partout."""
+    lignes des onglets sport -> même rendu compact partout.
+    MÉMO COURTE (demande user 2026-07-28 : « changer d'onglet de sport est très lent ») : la construction
+    fetch les cotes/live des 3 sports ; le sélecteur de sport de Pronos rappelle cette fonction à CHAQUE
+    changement (pour re-filtrer sur un sport) -> sans cache, chaque switch re-fetchait TOUS les sports. On
+    réutilise donc le dernier build < _HMR_TTL s (les scores live bougent ~toutes les 15-30 s de toute façon)."""
+    import time as _t
+    _now = _t.time()
+    if _HMR_CACHE["rows"] is not None and (_now - _HMR_CACHE["ts"]) < _HMR_TTL:
+        return _HMR_CACHE["rows"]
     from app import foot as foot_mod, basket as basket_mod
     from app.routers import foot as foot_r, basket as basket_r
     out = []
@@ -228,6 +240,7 @@ async def _home_match_rows() -> list:
     except Exception:
         pass
     out.sort(key=lambda x: x.get("start_ts") or 0)         # coup d'envoi le plus proche d'abord
+    _HMR_CACHE["ts"], _HMR_CACHE["rows"] = _now, out
     return out
 
 

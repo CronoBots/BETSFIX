@@ -6047,13 +6047,18 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
     def _tk_pr(s):
         return set(re.findall(r"[a-z0-9]+", analyses._deacc(s or "").lower())) - {"fc", "sc", "if"}
 
+    # INDEX des sidecars tokenisé UNE fois PAR SPORT (perf, demande user 2026-07-28 « changer d'onglet est
+    # très lent ») : avant, `_prov_sidecar` rescannait les ~220 sidecars POUR CHAQUE provisoire (O(P×N)).
+    _side_idx: dict = {}
+
     def _prov_sidecar(sp, home, away, sel):
         """(fid, prob, why, code) du sidecar de CE match (apparié strictement) — pour enrichir la carte."""
         th, ta = _tk_pr(home), _tk_pr(away)
         if not (th and ta):
             return (None, None, "", "")
-        for d in analyses.iter_meta(sp):
-            dh, da = _tk_pr(d.get("home")), _tk_pr(d.get("away"))
+        if sp not in _side_idx:
+            _side_idx[sp] = [(_tk_pr(d.get("home")), _tk_pr(d.get("away")), d) for d in analyses.iter_meta(sp)]
+        for dh, da, d in _side_idx[sp]:
             if (dh & th and da & ta) or (dh & ta and da & th):
                 fid = str(d.get("id"))
                 code = (_cfp_pr(sel or "", sp, d.get("home", ""), d.get("away", "")) or "")
@@ -7285,8 +7290,10 @@ def _tennis_sets_games(score) -> dict:
     if not pairs:
         return {}
     sh = sa = 0
+    set_games = []                              # (h, a) de CHAQUE set TERMINÉ -> verrou « total jeux du set N »
     for h, a in pairs[:-1]:                     # toutes les paires SAUF la dernière = sets joués
         h, a = int(h), int(a)
+        set_games.append((h, a))
         if h > a:
             sh += 1
         elif a > h:
@@ -7295,12 +7302,13 @@ def _tennis_sets_games(score) -> dict:
     # la DERNIÈRE paire peut être un set DÉJÀ terminé (fin de set, le suivant pas commencé) : 6+/2 d'écart ou 7.
     mx, mn = max(gh, ga), min(gh, ga)
     if (mx >= 6 and mx - mn >= 2) or mx == 7:
+        set_games.append((gh, ga))
         if gh > ga:
             sh += 1
         else:
             sa += 1
         gh = ga = 0                             # nouveau set pas commencé
-    return {"sets_h": sh, "sets_a": sa, "games_h": gh, "games_a": ga}
+    return {"sets_h": sh, "sets_a": sa, "games_h": gh, "games_a": ga, "set_games": set_games}
 
 
 def _live_bar_html(lp: dict | None) -> str:

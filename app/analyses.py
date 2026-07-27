@@ -1689,6 +1689,23 @@ def _live_locked(sport, sel, code, info, hs, as_, vals) -> str | None:
         if _side and _ss is not None and _ss >= 1:
             return "won"
         return None
+    # TENNIS « total de jeux du Set N » (SETSTOT OVER/UNDER X.5) : VERROUILLÉ dès que CE set est TERMINÉ
+    # (demande user 2026-07-28 : la jambe « Set 1 +8.5 jeux » restait à 72 % alors que le set 1 était fini
+    # 6-7 = 13 jeux -> acquise). On lit le n° de set dans le libellé + les jeux du set via `vals["set_games"]`.
+    if sport == "tennis" and (code or "").upper().startswith("SETSTOT") and vals:
+        _mset = re.search(r"set\s*(\d+)", (sel or "").lower())
+        _mline = re.search(r"(\d+(?:[.,]\d+)?)", code or "")
+        _sg = vals.get("set_games") or []
+        if _mset and _mline:
+            _sn = int(_mset.group(1))
+            if _sn <= len(_sg):                        # ce set est TERMINÉ -> total figé -> on tranche
+                _tot = sum(_sg[_sn - 1])
+                _line = float(_mline.group(1).replace(",", "."))
+                _over = "UNDER" not in code.upper()
+                if _tot > _line:
+                    return "won" if _over else "lost"
+                return "lost" if _over else "won"
+        return None
     if sport != "foot" or info.get("scope") != "match" or info.get("handicap"):
         return None
     if info.get("dir") not in ("OVER", "UNDER") or info.get("line") is None:
