@@ -5411,6 +5411,14 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             _btxt, _bcls = (_hh or "À VENIR"), "up"   # heure FRAÎCHE (décalage géré), badge NEUTRE sans emoji
     else:
         _btxt, _bcls = _bmap.get(_res, ("À VENIR", "p"))
+        # SCORE FINAL du match réglé (demande user 2026-07-28 : les résultats affichés COMME les pronos) —
+        # scoreboard identique aux cartes terminées, sous le pari. Rendu seulement si un score chiffré existe.
+        _fsc = l.get("score")
+        if _fsc and any(ch.isdigit() for ch in str(_fsc)):
+            _fsc = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(_fsc)).strip()
+            board = ('<div class="cleg-board">'
+                     + _live_scoreboard(_fsc, _lh, _la, tennis=(_sp == "tennis"), periods=l.get("periods"))
+                     + '</div>')
     # gloss = explication EN CLAIR du marché, STABLE : elle NE CHANGE JAMAIS après le résultat (demande user
     # 2026-07-20 : « le gloss ne peut pas changer après le résultat »). On N'AJOUTE PLUS le score final ici
     # (il polluait l'explication + la faisait varier avant/après règlement) — le score final est déjà porté
@@ -5988,21 +5996,44 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
     if not rows:
         return ""
     rows.sort(key=lambda p: p.get("start") or "")
-    _ic = {"won": ("✓", "w"), "lost": ("✗", "l"), "push": ("➖", "n"), "void": ("➖", "n")}
-    _emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
+    # RENDU IDENTIQUE AUX PRONOS (demande user 2026-07-28) : chaque provisoire réglé = carte `_leg_card`
+    # complète (en-tête sport • compétition, équipes, pari + glose, ligne VERDICT confiance/marché/value,
+    # pli « Pourquoi », SCORE final) avec CADRE vert/rouge selon le résultat (`.cleg won/lost`) — plus le
+    # bloc compact d'avant. Confiance + justification récupérées du SIDECAR du match (strict home ET away).
+    from app.settle_analyst import code_from_pick as _cfp_pr
+
+    def _tk_pr(s):
+        return set(re.findall(r"[a-z0-9]+", analyses._deacc(s or "").lower())) - {"fc", "sc", "if"}
+
+    def _prov_sidecar(sp, home, away, sel):
+        """(fid, prob, why, code) du sidecar de CE match (apparié strictement) — pour enrichir la carte."""
+        th, ta = _tk_pr(home), _tk_pr(away)
+        if not (th and ta):
+            return (None, None, "", "")
+        for d in analyses.iter_meta(sp):
+            dh, da = _tk_pr(d.get("home")), _tk_pr(d.get("away"))
+            if (dh & th and da & ta) or (dh & ta and da & th):
+                fid = str(d.get("id"))
+                code = (_cfp_pr(sel or "", sp, d.get("home", ""), d.get("away", "")) or "")
+                prob = next((s2.get("prob") for s2 in (d.get("shadow") or [])
+                             if code and (s2.get("code") or "") == code), None)
+                return (fid, prob, _prov_why_snippet(sp, fid, maxlen=100000), code)
+        return (None, None, "", "")
+
     cards = []
     for p in rows:
-        ic, cls = _ic.get(p.get("result"), ("⏳", "p"))   # ⏳ = fini, résultat en attente (pas encore réglé)
         sp = p.get("sport") or ""
-        _hh = str(p.get("name") or "")
-        _h, _sep, _a = _hh.partition(" - ")
-        sel = html.escape(_pretty_sel(str(p.get("sel") or ""), _noF(_h), _noF(_a)))
-        cards.append(f'<div class="prv-r prv-{cls}"><span class="prv-ic">{ic}</span>'
-                     f'<div class="prv-m"><div class="prv-t">'
-                     f'<b class="prv-sp spc-{sp}">{_emo.get(sp, "•")}</b> {sel}</div>'
-                     f'<div class="prv-s">{html.escape(_noF(_hh))}</div></div></div>')   # (F) retiré (affichage)
+        _h, _sep, _a = str(p.get("name") or "").partition(" - ")
+        _fid, _prob, _why, _code = _prov_sidecar(sp, _h, _a, p.get("sel"))
+        if p.get("prob") is not None:               # confiance FIGÉE au suivi (récent) -> prioritaire, robuste
+            _prob = p.get("prob")
+        cards.append(_leg_card(
+            {"sport": sp, "home": _h, "away": _a, "comp": p.get("comp"),
+             "sel": str(p.get("sel") or ""), "cote": p.get("cote"), "prob": _prob, "code": _code,
+             "result": p.get("result"), "score": p.get("score"), "start": p.get("start"), "why": _why},
+            why=True, verdict=True, why_always=True))
     return ('<div class="prv-hd">🧪 Provisoires <span>· info seule, hors ROI</span></div>'
-            f'<div class="prv-res">{"".join(cards)}</div>')
+            + _MC_SEP.join(cards))
 
 
 def _sport_pronos_counts(match_rows: list) -> dict:

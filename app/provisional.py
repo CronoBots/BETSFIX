@@ -54,7 +54,7 @@ def _save(d: dict) -> None:
 
 
 def record(sport: str, match_id, home: str, away: str, start: str, name: str,
-           comp: str, sel: str, cote) -> None:
+           comp: str, sel: str, cote, prob=None) -> None:
     """Enregistre (ou met à jour tant que non réglé) un pari provisoire. Ne garde QUE les paris dont le
     code de règlement est CALCULABLE (sinon impossible à régler -> inutile à suivre). No-op si déjà réglé
     (on ne réécrit pas un résultat figé). Appelé par le scan quand un provisoire est posé."""
@@ -80,6 +80,9 @@ def record(sport: str, match_id, home: str, away: str, start: str, name: str,
         return
     d[mid] = {"sport": sport, "id": mid, "home": home, "away": away, "start": start,
               "name": name, "comp": comp, "sel": sel, "cote": cote, "code": code,
+              # CONFIANCE de l'analyste (demande user 2026-07-28) : figée pour que la carte RÉSULTAT montre la
+              # ligne verdict (Confiance/Marché/Value) COMME les pronos, sans dépendre d'un sidecar qui vieillit.
+              "prob": prob if prob is not None else (prev or {}).get("prob"),
               "result": (prev or {}).get("result")}
     _save(d)
 

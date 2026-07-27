@@ -2223,7 +2223,8 @@ def _track_provisional(sport, m, prov) -> None:
             _pvt.drop_unsettled(m.get("id"))          # plus d'affichage -> plus de suivi (non réglé)
             return
         _pvt.record(sport, m.get("id"), m.get("home", ""), m.get("away", ""), m.get("start", ""),
-                    m.get("name", ""), m.get("comp", ""), prov.get("sel"), prov.get("cote"))
+                    m.get("name", ""), m.get("comp", ""), prov.get("sel"), prov.get("cote"),
+                    prob=prov.get("prob"))
     except Exception:
         pass
 
