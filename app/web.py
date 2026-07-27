@@ -2916,6 +2916,17 @@ CSS = """
   .mont-banner .mb-sub{font-size:12px;color:var(--muted);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .mont-banner .mb-sub b{color:var(--text);font-weight:800}
   .mont-banner .mb-arw{color:var(--gold);font-size:20px;font-weight:700;opacity:.8}
+  /* Badge MONTANTE greffé DANS la carte du pari du jour (demande user 2026-07-28) : même esprit doré que la
+     bannière, mais intégré sous le verdict (lien vers l'onglet Montante). */
+  .mc-mont{display:flex;align-items:center;gap:10px;margin:9px 0 2px;padding:9px 11px;border-radius:11px;
+    text-decoration:none;color:var(--text);background:linear-gradient(180deg,rgba(246,197,74,.10),rgba(246,197,74,.03));
+    border:1px solid rgba(246,197,74,.34);-webkit-tap-highlight-color:transparent}
+  .mc-mont:active{transform:scale(.99)}
+  .mc-mont .mc-mont-ic{font-size:19px;line-height:1}
+  .mc-mont .mc-mont-t{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+  .mc-mont .mc-mont-t b{font-size:12.5px;font-weight:900;color:#ffe08a;letter-spacing:.01em}
+  .mc-mont .mc-mont-s{font-size:11px;color:var(--muted);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mc-mont .mc-mont-arw{color:var(--gold);font-size:19px;font-weight:700;opacity:.8}
   /* Ligne de contexte du PALIER montante sur Pronos (au-dessus de la carte de pari) */
   .mont-pron-ctx{font-size:11px;color:var(--gold);font-weight:700;margin:0 2px 7px;line-height:1.4}
   .mont-pron-ctx b{color:#ffe08a} .mont-pron-ctx span{color:var(--muted);font-weight:600}
@@ -5580,6 +5591,36 @@ def _montante_palier() -> int | None:
         return None
 
 
+def _montante_palier_for(mid) -> tuple | None:
+    """(palier n°, mise) si `mid` est le PARI DU JOUR EN ATTENTE de la montante, sinon None. Sert à greffer
+    l'indication montante DIRECTEMENT sur la carte du pari concerné (demande user 2026-07-28) au lieu d'une
+    bannière séparée -> le pari du jour est montré UNE fois, avec son badge « Montante · Palier N »."""
+    try:
+        from app import montante as _mt
+        if not _mt.is_active():
+            return None
+        st = _mt.state()
+        p = st.get("pending") or {}
+        if not p.get("sel") or str(p.get("mid") or "") != str(mid):
+            return None
+        return (int(st.get("palier") or 0) + 1, p.get("stake") or st.get("base", 10.0))
+    except Exception:
+        return None
+
+
+def _montante_badge(mid) -> str:
+    """Bandeau montante CLIQUABLE à greffer DANS la carte du pari du jour (→ onglet Montante). '' si ce match
+    n'est pas le palier en attente. Même esprit doré que l'ancienne bannière, mais INTÉGRÉ à la carte."""
+    _mp = _montante_palier_for(mid)
+    if not _mp:
+        return ""
+    return (f'<a class="mc-mont" data-goto="montante" href="/montante" onclick="event.stopPropagation()">'
+            f'<span class="mc-mont-ic">🪜</span>'
+            f'<span class="mc-mont-t"><b>Montante · Palier {_mp[0]}</b>'
+            f'<span class="mc-mont-s">mise {_mont_eur(_mp[1])} · rejouée à chaque gain · simulé, hors ROI</span>'
+            f'</span><span class="mc-mont-arw">›</span></a>')
+
+
 def _montante_banner() -> str:
     """Bannière COMPACTE « Montante du jour » pour Pronos (refonte user 2026-07-27) : une ligne cliquable
     (palier + pari + cote) qui renvoie à l'onglet Montante (échelle complète) -> lève la double lecture
@@ -6163,11 +6204,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # Combiné du jour du SPORT sélectionné (foot par défaut = « Tous »). Tennis/basket = simulé (hors ROI),
     # affiché comme le foot (demande user 2026-07-26).
     combo_daily = _combo_tg_card(include_settled=False, sport=(sport or "foot"))
-    # PALIER MONTANTE + COMBINÉ BETMINES : spécifiques FOOT -> vue « Tous »/foot seulement.
+    # COMBINÉ BETMINES : spécifique FOOT -> vue « Tous »/foot seulement.
     _is_foot_view = sport in (None, "foot")
-    # Montante = BANNIÈRE compacte cliquable (refonte user 2026-07-27) au lieu d'une zone pleine -> renvoie
-    # à l'onglet Montante pour l'échelle complète.
-    _mbanner = _montante_banner() if _is_foot_view else ""
+    # MONTANTE : plus de bannière séparée (demande user 2026-07-28) — l'indication « 🪜 Montante · Palier N »
+    # est désormais GREFFÉE sur la carte du pari du jour concerné (via _montante_badge dans _sport_row) pour
+    # ne montrer le pari qu'UNE fois, avec un lien vers l'onglet Montante.
     betmines = _betmines_tg_card() if _is_foot_view else ""
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
@@ -6178,8 +6219,6 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     if play:
         out.append(_zone("play", "Paris du jour", "", len(play), _rows_by_day(play), collapsible=True))
     out.append(_zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True))
-    if _mbanner:
-        out.append(_mbanner)                          # bannière compacte (pas une zone repliable)
     out += [
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("betmines", "Combiné Betmines", "", 1 if betmines else 0, betmines, collapsible=True),
@@ -6212,7 +6251,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     today_iso = _sport_today().isoformat()
     # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
     # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
-    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + (1 if _mbanner else 0) + (1 if betmines else 0)
+    _mont_on = 1 if (_is_foot_view and _montante_palier() is not None) else 0   # montante = badge greffé sur la carte
+    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + _mont_on + (1 if betmines else 0)
     return _day_header(today_iso) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
@@ -6423,8 +6463,22 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     if sim:
         pari = ""
     elif pending:
-        pari = ('<div class="mont-sec-h">🎯 Le pari du jour</div>'
-                f'<div class="mont-ladder">{_mont_ladder([{**pending, "result": None}])}</div>')
+        # PARI DU JOUR présenté comme un pari PRONOS (demande user 2026-07-28) : carte `_leg_card` complète
+        # (match + sélection + glose + ligne VERDICT confiance/marché/value + pli « Pourquoi »), plus la ligne
+        # d'échelle compacte. Confiance récupérée du sidecar (retenu/publié).
+        _pmatch = _noF(str(pending.get("match") or ""))
+        _ph, _psep, _pa = _pmatch.partition(" - ")
+        _psp = pending.get("sport") or "foot"
+        _prb = (analyses.retained_bet(_psp, str(pending.get("mid") or ""))
+                or analyses.published_bet(_psp, str(pending.get("mid") or "")) or {})
+        _pcard = _leg_card(
+            {"sport": _psp, "home": _ph, "away": _pa, "name": _pmatch, "comp": "",
+             "sel": pending.get("sel"), "cote": pending.get("cote"),
+             "prob": _prb.get("prob"), "code": _prb.get("code") or pending.get("code") or "",
+             "result": None, "start": pending.get("start"),
+             "why": _prov_why_snippet(_psp, str(pending.get("mid") or ""), maxlen=100000, played=True)},
+            why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")
+        pari = f'<div class="mont-sec-h">🎯 Le pari du jour</div>{_pcard}'
     else:
         pari = ('<div class="mont-sec-h">🎯 Le pari du jour</div>'
                 '<div class="mont-empty">Le <b>pari du jour</b> s\'affichera ici — <b>1</b> sélection sûre '
@@ -7684,9 +7738,13 @@ def _sport_row(r: dict) -> str:
         # LIVE : MÊME ORDRE que les jambes de combiné (demande user 2026-07-21) — verdict, PUIS scoreboard
         # + chance live (posés par _live_score_row après mc-sub), et le pli « Pourquoi » EN DERNIER (avec
         # son filet). Hors live : le pli reste sous le verdict (pas de scoreboard).
+        # BADGE MONTANTE greffé DANS la carte (demande user 2026-07-28) : si CE pari est le palier du jour,
+        # on ajoute le bandeau « 🪜 Montante · Palier N » (→ onglet Montante) au lieu d'une bannière séparée.
+        _mont_b = _montante_badge(_pmid) if _pmid else ""
         _premium = ('<div class="mc-div"></div>'
                     + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
                     + _verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True)
+                    + _mont_b
                     + ("" if is_live else _pwhy))
         # Le pli « 💡 Pourquoi » porte DÉJÀ toute l'analyse (demande user 2026-07-20) -> la carte n'a plus
         # de corps dépliable en dessous (Cotes & chances / Mise / détails = doublon). On le retire de
