@@ -6036,6 +6036,55 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
             + _MC_SEP.join(cards))
 
 
+def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
+    """Cartes des PARIS JOUÉS TERMINÉS d'un jour, rendues COMME les pronos (demande user 2026-07-28 : « tous
+    les résultats affichés de la même manière ») : carte `_leg_card` complète (en-tête, équipes, pari + glose,
+    ligne VERDICT confiance/marché/value, SCORE final, pli « Pourquoi ») avec CADRE vert/rouge selon le
+    résultat — plus la version allégée de `_past_day_cards`/foot._card. Renvoie [(ts, html)] triés récents
+    d'abord. Le COMBINÉ du match (CdM) réglé est rendu via sa carte dorée. Combiné du jour = géré à part."""
+    from app.settle_analyst import code_from_pick as _cfp
+    _bg = analyses.background_sports()
+    sports = (sport,) if sport else ("foot",)          # vue « Tous » = foot (arrière-plan exclu, comme avant)
+    out = []
+    for sp in sports:
+        if sp in _bg and sp != sport:                  # tennis/basket : seulement si explicitement sélectionnés
+            continue
+        for d in analyses.iter_meta(sp):
+            dt = d.get("_start_dt")
+            if dt is None:
+                continue
+            ld = to_local(dt)
+            if ld is None or _sport_date(ld).isoformat() != iso:
+                continue
+            if not analyses.is_settled(d):
+                continue
+            fid = str(d.get("id"))
+            _bdg, _sco = analyses.result_chip(d)
+            _board = analyses.result_board(d, sp) or {}
+            combo = d.get("combo") or {}
+            if combo.get("legs") and combo.get("result") in ("won", "lost", "void"):
+                _body = _combo_premium_block(sp, fid, d.get("home", ""), d.get("away", ""))
+                if _body:
+                    _st = {"won": "won", "lost": "lost", "void": "push"}.get(combo.get("result"), "")
+                    out.append((dt.timestamp(), _combo_gold_card(
+                        title="COMBINÉ", subtitle=f'{len(combo["legs"])} jambes',
+                        badge=_bdg, body=_body, state=_st)))
+                continue
+            rb = analyses.retained_bet(sp, fid, for_history=True)
+            if not rb or rb.get("result") not in ("won", "lost", "push"):
+                continue
+            _code = (_cfp(rb.get("sel", ""), sp, d.get("home", ""), d.get("away", "")) or "")
+            out.append((dt.timestamp(), _leg_card(
+                {"sport": sp, "home": d.get("home"), "away": d.get("away"), "comp": d.get("comp"),
+                 "sel": rb.get("sel"), "cote": rb.get("cote"), "prob": rb.get("prob"), "code": _code,
+                 "result": rb.get("result"), "score": _board.get("score") or _sco,
+                 "periods": _board.get("periods"), "start": d.get("start"),
+                 "why": _prov_why_snippet(sp, fid, maxlen=100000, played=True)},
+                why=True, verdict=True, why_always=True)))
+    out.sort(key=lambda x: x[0], reverse=True)
+    return [h for _, h in out]
+
+
 def _sport_pronos_counts(match_rows: list) -> dict:
     """Nb de paris affichés PAR SPORT dans Pronos (badge des boutons sport, demande user 2026-07-27, même
     style que les badges d'onglets Stats) : paris joués + provisoires + combiné (+ montante + Betmines pour
@@ -6137,9 +6186,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
     # compact info-seule) — sinon visibles seulement dans Stats (demande user 2026-07-20). Zone repliable.
     today_iso = _sport_today().isoformat()
-    res_rows = sorted(list(results or []), key=lambda r: r.get("start_ts") or 0, reverse=True)
-    if sport:
-        res_rows = [r for r in res_rows if _item_sport(r) == sport]
+    # PARIS JOUÉS TERMINÉS rendus COMME les pronos (demande user 2026-07-28) : cartes `_leg_card` riches +
+    # cadre vert/rouge, plus la version allégée de `_past_day_cards`. `results` (res_rows) n'est donc plus
+    # rendu ici — on reconstruit depuis les sidecars réglés du jour (peu nombreux -> coût négligeable).
+    _res_cards = _settled_bet_result_cards(today_iso, sport)
     _prov_res = _provisional_results(today_iso, sport)
     # Combiné du jour RÉGLÉ (won/lost/void) -> ici (la zone du haut le cache une fois fini via include_settled
     # =False, il ne se dédouble donc pas). En cours -> reste en tête, pas dans les résultats.
@@ -6151,9 +6201,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _combo_res = _combo_tg_card(include_settled=True, cb=_cbt, sport=(sport or "foot"))
     except Exception:
         _combo_res = ""
-    if res_rows or _prov_res or _combo_res:
-        out.append(_zone("done", "Résultats du jour", "", len(res_rows),
-                         _combo_res + _rows_by_day(res_rows) + _prov_res, collapsible=True))
+    if _res_cards or _prov_res or _combo_res:
+        _res_html = (_MC_SEP.join(_res_cards) if _res_cards else "")
+        out.append(_zone("done", "Résultats du jour", "", len(_res_cards),
+                         _combo_res + _res_html + _prov_res, collapsible=True))
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
     zones = f'<div class="dash-zones">{inner or _empty}</div>'
