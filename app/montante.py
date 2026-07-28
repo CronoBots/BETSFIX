@@ -119,7 +119,11 @@ def _compute(steps: list, base: float, sim: bool = False) -> dict:
     total_profit = round(sum(-base for c in done if c["result"] == "lost")
                          + (cap - base if current else 0.0), 2)
     if sim:                                           # SIMULATION -> vitrine de la meilleure série
-        featured, hero_cap, hero_pal = best, best_cap, best_pal
+        # COHÉRENCE (bug user 2026-07-28 « pourquoi 13 paliers ? ») : le HERO doit décrire la MÊME chaîne que
+        # celle affichée (`featured` = plus haut CAPITAL). Avant, hero_pal = best_pal (RECORD de paliers, pris
+        # sur une AUTRE chaîne plus longue mais à capital plus bas) -> « 313,51 € » (chaîne à 12 paliers) mais
+        # « 13 paliers » (chaîne à 215 €). On prend le palier de la chaîne FEATURED. Le record reste en stats.
+        featured, hero_cap, hero_pal = best, best_cap, (best["palier"] if best else 0)
         chains_out = sorted(done, key=lambda c: -c["peak"])
     else:                                             # RÉEL -> la montante en cours
         featured, hero_cap, hero_pal = current, cap, palier
