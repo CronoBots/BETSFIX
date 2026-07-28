@@ -1091,6 +1091,82 @@ async def _sofa_extras(client: httpx.AsyncClient, sport: str, sofa_id: str | Non
     return (("\n\n" + "\n".join(out)) if out else ""), sx
 
 
+# RE-PRICING À LA VRAIE COTE UNIBET (demande user 2026-07-28, systémique). Les prédictions (shadow/pick)
+# héritaient de la cote TRANSCRITE par le LLM dans ses lignes CALIB/POOL -> parfois mal appariée (bug Santos :
+# « DC 1X » stocké à 1.11 = en fait la cote du DC 12 ; vrai 1X Unibet = 1.02). On construit ICI, depuis les
+# betOffers Unibet DÉJÀ fetchés, une map {code_de_règlement -> VRAIE cote} et on l'applique au sidecar ->
+# chaque cote stockée == Unibet. `_write_sidecar` lit le cache par id de match.
+_UNIBET_OMAP: dict = {}      # str(match_id) -> {code: cote_reelle}
+
+
+def _deacc_gen(s: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", (s or "").lower())
+                   if unicodedata.category(c) != "Mn")
+
+
+def _unibet_odds_map(offers: list, home: str, away: str) -> dict:
+    """{code de règlement -> VRAIE cote Unibet} depuis les betOffers TEMPS PLEIN d'un match foot. Couvre les
+    marchés principaux : résultat (1X2/REGTIME), double chance, total de buts (match + équipe), BTTS. Les
+    marchés non couverts gardent la cote du LLM (repli). Lignes en milli-cote (1500 -> 1.5)."""
+    m: dict = {}
+    dh, da = _deacc_gen(home), _deacc_gen(away)
+
+    def od(o):
+        v = o.get("odds")
+        return round(v / 1000.0, 2) if isinstance(v, (int, float)) and v else None
+
+    for bo in offers or []:
+        cl = _deacc_gen(((bo.get("criterion") or {}).get("label") or ""))
+        if "mi-temps" in cl or "mi temps" in cl:
+            continue
+        ocs = bo.get("outcomes") or []
+        if cl == "temps reglementaire":                        # 1X2 plein
+            for o in ocs:
+                lab = (o.get("englishLabel") or o.get("label") or "").upper()
+                c = od(o)
+                if c is None:
+                    continue
+                if lab == "1":
+                    m["1X2 1"] = m["REGTIME HOME"] = m["WIN 1"] = c
+                elif lab == "X":
+                    m["1X2 X"] = m["REGTIME DRAW"] = c
+                elif lab == "2":
+                    m["1X2 2"] = m["REGTIME AWAY"] = m["WIN 2"] = c
+        elif cl == "double chance":
+            for o in ocs:
+                lab = (o.get("englishLabel") or o.get("label") or "").upper()
+                c = od(o)
+                if c and lab in ("1X", "X2", "12"):
+                    m[f"DC {lab}"] = c
+        elif cl == "nombre total de buts":
+            for o in ocs:
+                ln, t, c = o.get("line"), o.get("type"), od(o)
+                if c is None or ln is None:
+                    continue
+                m[f"{'OVER' if t == 'OT_OVER' else 'UNDER'} {ln / 1000.0:g}"] = c
+        elif cl == "les deux equipes marquent":
+            for o in ocs:
+                t, c = o.get("type"), od(o)
+                if c is None:
+                    continue
+                if t == "OT_YES":
+                    m["BTTS YES"] = c
+                elif t == "OT_NO":
+                    m["BTTS NO"] = c
+        elif cl.startswith("nombre total de buts par "):
+            team = cl[len("nombre total de buts par "):]
+            side = "HOME" if (team and (team in dh or dh in team)) else \
+                   ("AWAY" if (team and (team in da or da in team)) else None)
+            if side:
+                for o in ocs:
+                    ln, t, c = o.get("line"), o.get("type"), od(o)
+                    if c is None or ln is None:
+                        continue
+                    m[f"TEAMTOT {side} {'OVER' if t == 'OT_OVER' else 'UNDER'} {ln / 1000.0:g}"] = c
+    return m
+
+
 async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "foot",
                         sofa_id: str | None = None) -> str | None:
     """Dossier compact : marchés Unibet utiles (hors bruit) + séries/H2H/votes SofaScore. None si indispo."""
@@ -1100,6 +1176,12 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         bo = r.json()
     except Exception:
         return None
+    if sport == "foot":       # map des VRAIES cotes Unibet par code -> re-pricing du sidecar (cf. _UNIBET_OMAP)
+        try:
+            _UNIBET_OMAP[str(match["id"])] = _unibet_odds_map(bo.get("betOffers"),
+                                                              match.get("home", ""), match.get("away", ""))
+        except Exception:
+            pass
     # Coupe du Monde : filtre RELÂCHÉ -> corners / premier but restent dispo pour bâtir un combiné
     # de marchés INDÉPENDANTS (non corrélés -> pas de réduction Unibet).
     big = _is_big_match(match.get("comp") or match.get("circuit") or "")
@@ -2493,6 +2575,21 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     calib = _parse_calib(analysis, sport, m.get("home", ""), m.get("away", ""))   # prédictions fantômes (calibrage)
     if calib:
         side["shadow"] = calib
+    # RE-PRICING À LA VRAIE COTE UNIBET (demande user 2026-07-28) : remplace la cote TRANSCRITE par le LLM par
+    # la cote EXACTE du marché Unibet (map construite dans build_dossier). S'applique aux fantômes (`shadow`,
+    # clé `cote`) ET au pari retenu (`bets`, clé `odds`) -> combiné du jour/sécurité, ROI et affichage collent
+    # tous au ticket Unibet. Marché non couvert / cote indispo -> on garde la cote existante (repli).
+    _omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
+    if _omap:
+        side["omap"] = _omap            # map {code -> vraie cote Unibet} persistée -> re-pricing read-time possible
+        for _p in (side.get("shadow") or []):
+            _rc = _omap.get(_p.get("code"))
+            if isinstance(_rc, (int, float)) and _rc >= 1.01:
+                _p["cote"] = _rc
+        for _b in (side.get("bets") or []):
+            _rc = _omap.get(_b.get("code"))
+            if isinstance(_rc, (int, float)) and _rc >= 1.01:
+                _b["odds"] = _rc
     if validation:                       # verdict du panel de validateurs (3 agents) sur le pari retenu
         side["validation"] = validation
     if votes and votes[0] is not None:
