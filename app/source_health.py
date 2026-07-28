@@ -13,7 +13,6 @@ import httpx
 from datetime import datetime, timezone
 
 from app.sources import _ESPN, _FOTMOB, _UNDERSTAT
-from app.pinnacle import _BASE as _PIN, _H as _PIN_H
 
 _UA = {"User-Agent": "Mozilla/5.0"}
 _T = 12
@@ -50,7 +49,13 @@ async def _p_understat(c):
 
 
 async def _p_pinnacle(c):
-    return await _http_ok(c, f"{_PIN}sports", _PIN_H)
+    """Pinnacle via la cascade réelle (direct gratuit -> repli proxy résidentiel si Cloudflare bloque l'IP).
+    Le detail dit la voie active -> on voit si on consomme les Go du proxy (blocage IP en cours) ou non."""
+    from app import pinnacle
+    data = await asyncio.to_thread(pinnacle._get, "sports")
+    n = len(data) if isinstance(data, list) else 0
+    via = "proxy" if pinnacle._direct_blocked() else "direct"
+    return (bool(data), f"{n} sports (via {via})" if data else "KO (direct + proxy)")
 
 
 async def _p_flashscore(c):

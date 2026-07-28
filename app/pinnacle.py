@@ -12,6 +12,8 @@ Best-effort STRICT : timeout court, toute panne -> None.
 from __future__ import annotations
 
 import json
+import time as _time
+import urllib.error
 import urllib.request
 
 from app.sources import _tok   # tokenisation de noms robuste (réutilisée)
@@ -22,13 +24,57 @@ _H = {"User-Agent": "Mozilla/5.0", "x-api-key": _KEY, "Referer": "https://www.pi
 _SPORT = {"foot": 29, "football": 29, "soccer": 29, "tennis": 33, "basket": 4, "basketball": 4}
 _mu_cache: dict = {}     # sportId -> [{id, home, away}]
 
+# REPLI PROXY (2026-07-28) : Cloudflare bloque désormais l'API guest Pinnacle depuis NOTRE IP (403 « you have
+# been blocked », vérifié : le direct ET curl_cffi TLS sont bloqués, mais le PROXY résidentiel passe -> blocage
+# par IP, pas global). On garde le direct GRATUIT en priorité ; sur un 403, on bascule sur le proxy résidentiel
+# (`sofa_proxy`, mutualisé avec SofaScore) ET on met le direct en COOLDOWN : marteler une IP bloquée PROLONGE
+# le blocage Cloudflare -> on arrête de taper, ce qui aide l'IP à se dé-flagger. Le direct est re-tenté après le
+# cooldown -> récupération AUTOMATIQUE dès que l'IP est débloquée, sans consommer les Go inutilement.
+_DIRECT_COOLDOWN = 1800     # s (30 min) : durée pendant laquelle on saute le direct 403 et on passe par proxy
+_direct_ok_after = 0.0      # timestamp : avant lui, direct en cooldown -> proxy direct
+
+
+def _direct_blocked() -> bool:
+    """True si le direct Pinnacle est en cooldown 403 (donc les appels passent par le proxy)."""
+    return _time.time() < _direct_ok_after
+
+
+def _proxy_url() -> str:
+    from app.config import get_settings
+    return (getattr(get_settings(), "sofa_proxy", "") or "").strip()
+
+
+def _get_proxy(path: str):
+    """GET via le proxy résidentiel (curl_cffi + impersonation Chrome). None si pas de proxy / échec."""
+    proxy = _proxy_url()
+    if not proxy:
+        return None
+    try:
+        from curl_cffi import requests as _cr
+        r = _cr.get(_BASE + path, headers=_H, impersonate="chrome",
+                    proxies={"http": proxy, "https": proxy}, timeout=20)
+        if r.status_code == 200:
+            return json.loads(r.content.decode("utf-8", "replace"))
+    except Exception:
+        pass
+    return None
+
 
 def _get(path: str):
-    try:
-        req = urllib.request.Request(_BASE + path, headers=_H)
-        return json.loads(urllib.request.urlopen(req, timeout=12).read().decode("utf-8", "replace"))
-    except Exception:
-        return None
+    """Cascade Pinnacle Go-consciente : DIRECT gratuit d'abord (sauf cooldown 403) -> repli PROXY résidentiel.
+    Un 403 Cloudflare arme le cooldown (on cesse de marteler l'IP bloquée). None si tout échoue."""
+    global _direct_ok_after
+    now = _time.time()
+    if now >= _direct_ok_after:                       # direct pas en cooldown -> on tente le gratuit
+        try:
+            req = urllib.request.Request(_BASE + path, headers=_H)
+            return json.loads(urllib.request.urlopen(req, timeout=12).read().decode("utf-8", "replace"))
+        except urllib.error.HTTPError as e:
+            if e.code == 403:                          # blocage Cloudflare par IP -> cooldown + proxy
+                _direct_ok_after = now + _DIRECT_COOLDOWN
+        except Exception:
+            return None                                # panne réseau ponctuelle (pas un blocage) -> None
+    return _get_proxy(path)                            # cooldown actif OU direct 403 -> proxy résidentiel
 
 
 def _dec(american) -> float | None:
