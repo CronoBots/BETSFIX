@@ -3,6 +3,12 @@
 Chaque jour, UN combiné composé UNIQUEMENT de matchs de FOOT, en prenant pour chaque match la DOUBLE
 CHANCE LA PLUS SÛRE (proba calibrée la plus haute), assemblées jusqu'à atteindre une cote d'ENVIRON 2.
 
+VALUE-AWARE (demande user 2026-07-28) : parmi ces DC sûres (1X/X2, cote ≥ 1.10), on ne RETIENT que les
+jambes à EDGE POSITIF — notre proba calibrée > proba implicite (1/cote), ⟺ EV > 0. Les jambes « mortes »
+(proba ≤ implicite, ex. Rosario) et celles sans notre analyse propre sont ÉCARTÉES. But : rendre le combiné
+candidat +EV (au lieu de ~0) tout en gardant l'esprit « sécurité ». Un jour sans ≥ 2 jambes value = pas de
+combiné (mieux vaut aucun qu'un combiné sans edge).
+
 ⚠️ TOTALEMENT ISOLÉ du ROI/stats/calibration réels — EXACTEMENT comme le « combiné bonus » (Betmines) et
 le combiné du jour simulé : ce module écrit UNIQUEMENT dans `data/combo_safe_track.json`, ne touche JAMAIS
 aux sidecars, à `stat_bet`, à la calibration, à `list_for`, ni au ROI. Suivi « info seule », mise à plat
@@ -24,6 +30,18 @@ MAX_LEGS = 7             # borne haute (des DC très sûres à ~1.1 peuvent dema
 MIN_LEGS = 2            # un « combiné » = au moins 2 jambes
 MIN_LEG_PROB = 0.55      # jambe DC fiable (les DC les plus sûres sont bien au-dessus ; garde-fou bas)
 MIN_LEG_ODDS = 1.10      # PLANCHER (demande user 2026-07-28) : une jambe < 1.10 n'apporte rien -> jamais retenue
+MIN_LEG_EDGE = 0.0       # VALUE-AWARE (demande user 2026-07-28) : on n'assemble QUE des jambes à EDGE POSITIF,
+#                          edge = notre proba (calibrée) − proba implicite (1/cote). edge > 0 ⟺ prob·cote > 1
+#                          ⟺ EV positif. Écarte les jambes « mortes » (proba ≤ implicite, ex. Rosario) et celles
+#                          SANS notre analyse propre (edge = 0) -> le combiné devient candidat +EV, pas ~0.
+
+
+def _leg_edge(prob, cote) -> float:
+    """Edge d'une jambe = notre proba − proba implicite de la cote (1/cote). > 0 ⟺ EV positif (prob·cote > 1)."""
+    try:
+        return float(prob) - 1.0 / float(cote)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return -1.0
 
 
 def day_key(now=None) -> str:
@@ -71,7 +89,9 @@ def _safe_dc_candidates(day: str) -> list[dict]:
             continue
         if mid not in best or c["prob"] > best[mid]["prob"]:
             best[mid] = c
-    return list(best.values())
+    # VALUE-AWARE : on ne garde la DC la plus sûre d'un match QUE si elle a un edge positif (notre proba
+    # calibrée > l'implicite de sa cote). Une jambe sans value réelle (edge ≤ 0) est écartée du combiné.
+    return [c for c in best.values() if _leg_edge(c.get("prob"), c.get("cote")) > MIN_LEG_EDGE]
 
 
 def _combo_from_cands(cands: list[dict]) -> dict | None:
@@ -142,10 +162,14 @@ async def build_for_day_async(day: str, client=None) -> dict | None:
             outcome, cote = min(dc.items(), key=lambda kv: kv[1])   # LA PLUS SÛRE AU MARCHÉ (cote la + basse)
             info = e["info"]
             home, away = info.get("home", ""), info.get("away", "")
-            # proba : le shadow calibré de CE DC s'il existe, sinon l'implicite de la cote (≈ 1/cote, borné).
+            # proba : le shadow calibré de CE DC. VALUE-AWARE (demande user 2026-07-28) : on n'assemble QUE
+            # des jambes à EDGE POSITIF (notre proba calibrée > l'implicite 1/cote). Une jambe SANS shadow
+            # propre n'a pas de value démontrable -> écartée (comme une jambe « morte » type Rosario).
             prob = e["dcprob"].get(outcome)
             if not isinstance(prob, (int, float)):
-                prob = min(0.985, 1.0 / cote)
+                continue                                            # pas notre analyse -> pas de value -> écartée
+            if _leg_edge(prob, cote) <= MIN_LEG_EDGE:
+                continue                                            # edge ≤ 0 (proba ≤ implicite) -> écartée
             cands.append({"mid": mid, "sport": "foot", "sel": _dc_sel(outcome, home, away),
                           "cote": cote, "prob": prob, "code": f"DC {outcome}",
                           "name": info.get("name"), "home": home, "away": away,
@@ -335,5 +359,5 @@ def telegram_text(cb: dict) -> str:
         _s = _psel(str(l.get('sel') or ''), l.get('home', ''), l.get('away', ''))
         out.append(f"⚽ <b>{_h.escape(_s)}</b> @{l.get('cote')}")
         out.append(f"   <i>{_h.escape(str(l.get('name') or ''))}</i>")
-    out += ["", "🛡️ <i>Info seule (hors ROI) — double chance la plus sûre, cible ~2.</i>"]
+    out += ["", "🛡️ <i>Info seule (hors ROI) — double chance la plus sûre à edge positif (value), cible ~2.</i>"]
     return "\n".join(out)
