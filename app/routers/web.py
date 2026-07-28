@@ -641,7 +641,12 @@ def _betmines_card() -> str:
             "name": " + ".join(f'{l.get("home", "?")}–{l.get("away", "?")}' for l in _lg),
             "sel": " · ".join(_sel(l) for l in _lg),
             "cote": _c.get("total_odds"),
-            "start": (_lg[0].get("start") if _lg and _lg[0].get("start") else _day + "T12:00:00Z")})
+            "start": (_lg[0].get("start") if _lg and _lg[0].get("start") else _day + "T12:00:00Z"),
+            # JAMBES en clair (dépliables au clic) COMME les combinés des autres sports (demande user
+            # 2026-07-28) : chaque jambe = affiche + marché + cote + résultat.
+            "legs": [{"name": f'{l.get("home", "?")} - {l.get("away", "?")}', "sel": _sel(l),
+                      "cote": l.get("our_cote") or l.get("cote"), "result": l.get("result")}
+                     for l in _lg]})
     # LIGNE W/L (chronologique) + série + sabliers ⏳ des Doubles en attente.
     _form, _streak = web._form_streak(
         [days[d].get("result") for d in sorted(days) if days[d].get("result") in ("won", "lost")])
@@ -655,9 +660,9 @@ def _betmines_card() -> str:
     # MÊME STYLE que les autres cadres de suivi (demande user 2026-07-28) : on retire la NOTE descriptive ET
     # la rangée de KPIs sous l'historique (Doubles suivis / gagnés / P&L) -> ne reste que l'en-tête + la courbe
     # (ROI/réussite/N/cote + historique dépliable), comme Simple/Combinés. Data/suivi Betmines inchangés.
+    # En-tête épuré (demande user 2026-07-28) : plus de « suivi externe · info seule, hors ROI » à droite.
     return (
-        '<div class="sx-card"><div class="sx-h">Combiné bonus '
-        '<span>suivi externe · info seule, hors ROI</span></div>'
+        '<div class="sx-card"><div class="sx-h">Combiné bonus</div>'
         + _curve + '</div>')
 
 
