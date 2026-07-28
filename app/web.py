@@ -5532,7 +5532,8 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
         + '</div></div></div>')
 
 
-def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: str = "foot") -> str:
+def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: str = "foot",
+                   title: str | None = None) -> str:
     """Carte « Combiné du jour » présentée COMME les cartes provisoires (Telegram) mais en OR (demande user
     2026-07-12) : en-tête, jambes = picks, SYNTHÈSE en barre cyan, Confiance, COTE en gros chiffre. Placée
     DANS les matchs en direct (plus de bandeau en tête). Info seule. '' si aucun combiné.
@@ -5597,8 +5598,21 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
     _sptitle = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sport, "FOOTBALL")
-    return _combo_gold_card(title=f"COMBINÉ {_sptitle}", subtitle=f'{_nlegs} jambes',
+    return _combo_gold_card(title=title or f"COMBINÉ {_sptitle}", subtitle=f'{_nlegs} jambes',
                             badge=_badge, body=_body, state=cb.get("result"))
+
+
+def _combo_safe_tg_card(include_settled: bool = False, cb: dict | None = None) -> str:
+    """Carte PLEINE du COMBINÉ SÉCURITÉ FOOT (double chance la plus sûre ~2, hors ROI) pour l'onglet Pronos —
+    demande user 2026-07-28. Réutilise `_combo_tg_card` (même présentation OR : jambes = picks, verdict cote/
+    confiance) en passant le combiné de `app/combo_safe.py` + un titre dédié. '' si aucun combiné."""
+    if cb is None:
+        try:
+            from app import combo_safe as _cs
+            cb = _cs.today(_cs.day_key())
+        except Exception:
+            cb = None
+    return _combo_tg_card(include_settled=include_settled, cb=cb, sport="foot", title="COMBINÉ SÉCURITÉ")
 
 
 def _montante_palier() -> int | None:
@@ -6257,6 +6271,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     combo_daily = _combo_tg_card(include_settled=False, sport=(sport or "foot"))
     # COMBINÉ BETMINES : spécifique FOOT -> vue « Tous »/foot seulement.
     _is_foot_view = sport in (None, "foot")
+    # COMBINÉ SÉCURITÉ (double chance la plus sûre ~2, hors ROI) : FOOT uniquement -> vue « Tous »/foot.
+    combo_safe = _combo_safe_tg_card(include_settled=False) if _is_foot_view else ""
     # MONTANTE : plus de bannière séparée (demande user 2026-07-28) — l'indication « 🪜 Montante · Palier N »
     # est désormais GREFFÉE sur la carte du pari du jour concerné (via _montante_badge dans _sport_row) pour
     # ne montrer le pari qu'UNE fois, avec un lien vers l'onglet Montante.
@@ -6274,6 +6290,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out.append(_zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True))
     out += [
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
+        _zone("combosafe", "Combiné sécurité", "", 1 if combo_safe else 0, combo_safe, collapsible=True),
         _zone("betmines", "Combiné bonus", "", 1 if betmines else 0, betmines, collapsible=True),
     ]
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
@@ -6294,6 +6311,16 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _combo_res = _combo_tg_card(include_settled=True, cb=_cbt, sport=(sport or "foot"))
     except Exception:
         _combo_res = ""
+    # Combiné SÉCURITÉ RÉGLÉ -> zone Résultats (il a quitté sa zone active via include_settled=False).
+    _combo_safe_res = ""
+    if _is_foot_view:
+        try:
+            from app import combo_safe as _cs2
+            _cst = _cs2.today(_cs2.day_key())
+            if _cst and _cst.get("legs") and _cst.get("result") in ("won", "lost", "void"):
+                _combo_safe_res = _combo_safe_tg_card(include_settled=True, cb=_cst)
+        except Exception:
+            _combo_safe_res = ""
     # Combiné BETMINES RÉGLÉ -> zone Résultats (il a quitté sa zone active via include_settled=False).
     _betm_res = ""
     if _is_foot_view:
@@ -6305,14 +6332,15 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                 _betm_res = _betmines_tg_card(include_settled=True)
         except Exception:
             _betm_res = ""
-    if _res_cards or _prov_res or _combo_res or _betm_res:
+    if _res_cards or _prov_res or _combo_res or _combo_safe_res or _betm_res:
         # RÉSULTATS regroupés PAR TYPE dans l'ORDRE LOGIQUE des sections actives (demande user 2026-07-28) :
-        # Paris joués → Provisoires → Combiné du jour → Combiné Betmines ; toutes les cartes séparées par la
-        # MÊME barre `_MC_SEP` (entre cartes d'un même type ET entre types).
+        # Paris joués → Provisoires → Combiné du jour → Combiné sécurité → Combiné Betmines ; toutes les cartes
+        # séparées par la MÊME barre `_MC_SEP` (entre cartes d'un même type ET entre types).
         _res_groups = [g for g in (
             _MC_SEP.join(_res_cards) if _res_cards else "",   # paris joués terminés
             _prov_res,                                         # provisoires réglés (en-tête « 🧪 »)
             _combo_res,                                        # combiné du jour réglé
+            _combo_safe_res,                                   # combiné sécurité réglé
             _betm_res,                                         # combiné Betmines réglé
         ) if g]
         out.append(_zone("done", "Résultats du jour", "", len(_res_cards),
@@ -6324,7 +6352,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
     # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
     _mont_on = 1 if (_is_foot_view and _montante_palier() is not None) else 0   # montante = badge greffé sur la carte
-    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + _mont_on + (1 if betmines else 0)
+    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + _mont_on + (1 if combo_safe else 0) \
+        + (1 if betmines else 0)
     return _day_header(today_iso) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
