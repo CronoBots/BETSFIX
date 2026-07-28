@@ -645,26 +645,20 @@ def _betmines_card() -> str:
     # LIGNE W/L (chronologique) + série + sabliers ⏳ des Doubles en attente.
     _form, _streak = web._form_streak(
         [days[d].get("result") for d in sorted(days) if days[d].get("result") in ("won", "lost")])
-    _curve = web.render_tracking_curve(emoji="🎲", title="Betmines", roi=_roi, hit=_hit,
+    # Nom AFFICHÉ « Bonus » (demande user 2026-07-28 : plus « Betmines » dans les Stats) — data/suivi inchangés.
+    _curve = web.render_tracking_curve(emoji="🎲", title="Bonus", roi=_roi, hit=_hit,
                                        n=len(done), points=_pts, avg_cote=_avgc, uid="betmines",
                                        recent=_recent, more_label="Derniers Doubles",
                                        form=_form, pending=pend, streak=_streak,
                                        compact=True,   # style cadre sport (demande user 2026-07-24)
                                        hit_points=web._hit_curve([days[d].get("result") for d in sorted(days)]))
-    # Le DÉTAIL du Double du jour (jambes) n'est PLUS répété ici : il est déjà affiché dans l'onglet Pronos
-    # (demande user 2026-07-24 : éviter le doublon). L'onglet Stats ne garde que le SUIVI (courbe + taux + P&L).
+    # MÊME STYLE que les autres cadres de suivi (demande user 2026-07-28) : on retire la NOTE descriptive ET
+    # la rangée de KPIs sous l'historique (Doubles suivis / gagnés / P&L) -> ne reste que l'en-tête + la courbe
+    # (ROI/réussite/N/cote + historique dépliable), comme Simple/Combinés. Data/suivi Betmines inchangés.
     return (
-        '<div class="sx-card"><div class="sx-h">Combiné Betmines '
+        '<div class="sx-card"><div class="sx-h">Combiné bonus '
         '<span>suivi externe · info seule, hors ROI</span></div>'
-        '<div class="sx-data-note">Le « Double » quotidien de <b>Betmines</b> (2 jambes sûres, overs de '
-        'buts sur ligues secondaires), capturé et <b>réglé par NOS sources</b> — on mesure leur taux de '
-        'réussite réel avant de s\'y intéresser. Aucun impact sur nos pronos ni notre ROI.</div>'
-        + _curve +
-        '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{len(days)}</b><span>Doubles suivis</span></div>'
-        f'<div class="sx-kpi"><b>{won}/{len(done)}</b><span>gagnés</span></div>'
-        f'<div class="sx-kpi{_pcls}"><b>{pnl:+.2f}</b><span>P&amp;L simulé (mise 1)</span></div>'
-        '</div></div>')
+        + _curve + '</div>')
 
 
 # `_combo_daily_card` SUPPRIMÉ le 2026-07-25 (mort) : le combiné du jour foot est ventilé dans le
