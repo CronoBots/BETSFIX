@@ -667,9 +667,12 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             if sgn and which():
                 val = (sgn.group(1).replace("−", "-").replace("–", "-") + sgn.group(2).replace(",", "."))
                 return f"GAMESHCAP {which()} {val}"
-    # total jeux d'un set (gère les deux ordres : « Set 1 — Plus de 8.5 jeux » ET « 9.5 jeux dans le set 1 »)
+    # total jeux d'un set (gère les deux ordres : « Set 1 — Plus de 8.5 jeux » ET « 9.5 jeux dans le set 1 »
+    # ET « Nombre total de jeux Plus de 8.5 - Set 1 » où « jeux » et « set N » sont ÉLOIGNÉS par la ligne —
+    # fenêtre élargie à 30 (bug 2026-07-28 : cette forme retombait sur un « OVER 8.5 » générique -> jambe
+    # combiné void au lieu de gagnée).
     m = (re.search(r"jeux?\s+(?:du\s+)?set\s*(\d)", t) or re.search(r"set\s*(\d).*?jeux", t)
-         or re.search(r"jeux?\b.{0,12}\bset\s*(\d)", t))
+         or re.search(r"jeux?\b.{0,30}\bset\s*(\d)", t))
     if m and ("plus" in t or "moins" in t):
         ln = re.search(r"(plus|moins) de (\d+[.,]?\d*)", t)
         if ln:

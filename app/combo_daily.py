@@ -546,14 +546,37 @@ def settle_pending(sport: str = "foot") -> int:
                     pass
             if not score:
                 continue                              # pas de score final fiable -> on retente (borné plus bas)
+            # CODE RE-DÉRIVÉ du LIBELLÉ (jamais le code STOCKÉ, qui peut être périmé/faux — cf. mémoire
+            # combo-single-source-of-truth). Bug 2026-07-28 : une jambe « Nombre total de jeux Plus de 8.5 -
+            # Set 1 » portait un code figé « OVER 8.5 » (générique) -> settle_pick ne résolvait pas -> VOID au
+            # lieu de GAGNÉE. code_from_pick (corrigé) rend « SETGAMES 1 OVER 8.5 ».
             try:
-                res = settle_pick(leg.get("code", ""), score)
+                from app.settle_analyst import code_from_pick as _cfp_leg
+                _lc = (_cfp_leg(leg.get("sel", ""), leg.get("sport"),
+                                leg.get("home", ""), leg.get("away", "")) or leg.get("code", ""))
+            except Exception:
+                _lc = leg.get("code", "")
+            try:
+                res = settle_pick(_lc, score)
             except Exception:
                 res = None
             # SCORE TROUVÉ : si settle_pick tranche -> résultat ; sinon le code est IRRÉCUPÉRABLE
             # (non réglable sur ce match fini) -> VOID, on ne bloque pas le combiné dessus.
             leg["result"] = res if res in ("won", "lost", "push") else "void"
-            leg["score"] = score.get("label") or ""
+            _lbl = score.get("label") or ""
+            # TENNIS : afficher le DÉTAIL par set (« 6-7 6-3 6-4 ») et non « 2-1 (sets) » — sinon le scoreboard
+            # lit « 2-1 » comme les jeux du set 1 (bug 2026-07-28). On reconstruit depuis les périodes.
+            if leg.get("sport") == "tennis" and isinstance(score.get("periods"), dict) and score.get("periods"):
+                try:
+                    _pk = sorted(score["periods"].items(), key=lambda kv: int(kv[0]))
+                    _det = " ".join(f"{int(v[0])}-{int(v[1])}" for _, v in _pk if isinstance(v, (list, tuple)) and len(v) >= 2)
+                    if _det:
+                        _lbl = _det
+                        leg["periods"] = [(int(k), int(v[0]), int(v[1])) for k, v in _pk
+                                          if isinstance(v, (list, tuple)) and len(v) >= 2]
+                except Exception:
+                    pass
+            leg["score"] = _lbl
             changed = True
         legs = cb.get("legs") or []
         if not _frozen:
