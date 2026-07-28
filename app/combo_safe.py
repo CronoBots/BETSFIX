@@ -98,26 +98,53 @@ def build_for_day(day: str) -> dict | None:
     return cb
 
 
+def _dc_sel(outcome: str, home: str, away: str) -> str:
+    """Libellé lisible d'une double chance (compatible code_from_pick + pretty_sel)."""
+    if outcome == "1X":
+        return f"Double chance {home} ou nul"
+    if outcome == "X2":
+        return f"Double chance {away} ou nul"
+    return "Double chance 12"
+
+
 async def build_for_day_async(day: str, client=None) -> dict | None:
-    """Construit LE combiné sécurité foot en lisant les VRAIES cotes « Double chance » d'Unibet par match
-    (`match_select.dc_odds`) au lieu des cotes DC des shadows (parfois mal appariées, bug Santos 2026-07-28).
-    -> le combiné AFFICHÉ colle EXACTEMENT au ticket Unibet (cote totale = produit des DC réelles). Voie de
-    PRODUCTION (scan). None si vivier insuffisant."""
+    """Construit LE combiné sécurité foot en choisissant, par match, la DOUBLE CHANCE LA PLUS SÛRE AU MARCHÉ
+    = la cote Unibet la PLUS BASSE parmi 1X/X2/12 (`match_select.dc_odds`). Biais naturel vers 1X/X2 : le 12
+    exclut le NUL (plancher de proba) -> rarement le plus sûr (demande user 2026-07-28 — un 12 à 1.21 était
+    moins sûr qu'un 1X à 1.04 dispo). Le combiné colle EXACTEMENT au ticket Unibet (cote = produit des DC
+    réelles). Voie de PRODUCTION (scan). None si vivier insuffisant."""
     import httpx
     from app import match_select as _ms
-    cands = _safe_dc_candidates(day)
+    # Infos match + probas calibrées des DC analysées (shadow) -> réutilisées quand elles existent.
+    by_mid: dict = {}
+    for c in _cd._candidates_for_day(day, "foot"):
+        e = by_mid.setdefault(c["mid"], {"info": c, "dcprob": {}})
+        parts = (c.get("code") or "").split()
+        if len(parts) > 1 and parts[0] == "DC":
+            e["dcprob"][parts[1].upper()] = c["prob"]
     own = client is None
     client = client or httpx.AsyncClient(timeout=15)
+    cands: list = []
     try:
-        for c in cands:
+        for mid, e in by_mid.items():
             try:
-                parts = (c.get("code") or "").split()      # "DC 1X" -> outcome "1X"
-                key = parts[1].upper() if len(parts) > 1 else ""
-                real = (await _ms.dc_odds(c.get("mid"), client)).get(key)
-                if isinstance(real, (int, float)) and real >= 1.01:
-                    c["cote"] = real                       # AUTORITÉ Unibet (remplace la cote shadow)
+                dc = await _ms.dc_odds(mid, client)
             except Exception:
-                pass                                       # cote indispo -> on garde la cote shadow existante
+                dc = {}
+            dc = {k: v for k, v in (dc or {}).items() if isinstance(v, (int, float)) and v >= 1.01}
+            if not dc:
+                continue
+            outcome, cote = min(dc.items(), key=lambda kv: kv[1])   # LA PLUS SÛRE AU MARCHÉ (cote la + basse)
+            info = e["info"]
+            home, away = info.get("home", ""), info.get("away", "")
+            # proba : le shadow calibré de CE DC s'il existe, sinon l'implicite de la cote (≈ 1/cote, borné).
+            prob = e["dcprob"].get(outcome)
+            if not isinstance(prob, (int, float)):
+                prob = min(0.985, 1.0 / cote)
+            cands.append({"mid": mid, "sport": "foot", "sel": _dc_sel(outcome, home, away),
+                          "cote": cote, "prob": prob, "code": f"DC {outcome}",
+                          "name": info.get("name"), "home": home, "away": away,
+                          "start": info.get("start"), "comp": info.get("comp")})
     finally:
         if own:
             await client.aclose()
