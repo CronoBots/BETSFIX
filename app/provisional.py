@@ -33,6 +33,26 @@ def _match_age_days(start_iso) -> float:
         return 0.0
 
 
+def _sidecar_for(sport: str, home: str, away: str):
+    """Sidecar du match apparié par NOMS (strict home ET away, dé-accentué). Sert à récupérer le résultat
+    DÉJÀ RÉGLÉ (result.raw) sans réseau — l'id du suivi (Unibet) ne résout pas toujours le sidecar tennis
+    (clé = id SofaScore). None si introuvable."""
+    import re
+    from app import analyses
+    _stop = {"fc", "sc", "if"}
+
+    def _tk(s):
+        return set(re.findall(r"[a-z0-9]+", analyses._deacc(s or "").lower())) - _stop
+    th, ta = _tk(home), _tk(away)
+    if not (th and ta):
+        return None
+    for d in analyses.iter_meta(sport):
+        dh, da = _tk(d.get("home")), _tk(d.get("away"))
+        if (dh & th and da & ta) or (dh & ta and da & th):
+            return d
+    return None
+
+
 def _load() -> dict:
     try:
         with open(TRACK_PATH, encoding="utf-8") as f:
@@ -205,10 +225,23 @@ def settle_pending() -> int:
         q = {"home": p.get("home", ""), "away": p.get("away", ""), "start": p.get("start"),
              "sofa_id": ""}
         score = None
+        # PRIORITÉ au score DÉJÀ RÉGLÉ du sidecar du match (result.raw) : autorité de vérité, 0 réseau. Le
+        # match est souvent déjà réglé côté analyses (périodes captées) alors que le lookup PAR NOM de
+        # Flashscore/LiveScore ÉCHOUE (nom tennis/étranger introuvable) -> sans ça le provisoire restait « EN
+        # ATTENTE » à vie (bug user 2026-07-28, Cocciaretto-Tauson). Même correctif que combo_daily (2026-07-14).
         try:
-            score = flashscore.final_score(sport, q) or livescore.final_score(sport, q)
+            _sd = _sidecar_for(sport, p.get("home"), p.get("away"))
+            _raw = ((_sd or {}).get("result") or {}).get("raw")
+            if isinstance(_raw, dict) and (_raw.get("periods") or _raw.get("home") is not None
+                                           or _raw.get("sets_home") is not None):
+                score = _raw
         except Exception:
             score = None
+        if score is None:
+            try:
+                score = flashscore.final_score(sport, q) or livescore.final_score(sport, q)
+            except Exception:
+                score = None
         # Repli SPORTRADAR (GISMO) : score DÉTAILLÉ par set/quart-temps/mi-temps (jeux tennis, points
         # basket) que Flashscore/LiveScore ne donnent souvent pas -> rend réglables TOTGAMES/SETGAMES/
         # tie-breaks/mi-temps (bug 2026-07-12 : provisoire tennis « Total de jeux » resté en attente car
@@ -245,8 +278,15 @@ def settle_pending() -> int:
                 p["score"] = "reporté / sans score"
                 n += 1
             continue
+        # CODE RE-DÉRIVÉ du libellé (jamais le code STOCKÉ, périmé possible — cf. combo-single-source-of-truth) :
+        # une forme « ...jeux Plus de 8.5 - Set 1 » figée en « OVER 8.5 » ne se réglait pas (bug 2026-07-28).
         try:
-            res = settle_pick(p.get("code", ""), score)
+            from app.settle_analyst import code_from_pick as _cfp_pv
+            _pc = (_cfp_pv(p.get("sel", ""), sport, p.get("home", ""), p.get("away", "")) or p.get("code", ""))
+        except Exception:
+            _pc = p.get("code", "")
+        try:
+            res = settle_pick(_pc, score)
         except Exception:
             res = None
         if res in ("won", "lost", "push"):
