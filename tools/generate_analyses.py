@@ -3013,6 +3013,26 @@ async def main():
                     print(f"  🎯 Combiné {_spsim} du jour (simulé) : vivier insuffisant aujourd'hui.")
             except Exception as _sexc:
                 print(f"  (combiné {_spsim} simulé ignoré : {_sexc})")
+        # COMBINÉ SÉCURITÉ FOOT (demande user 2026-07-28) : UN combiné/jour composé UNIQUEMENT de foot, la
+        # DOUBLE CHANCE la plus sûre par match, assemblées pour une cote ~2. INFO SEULE hors ROI (comme le
+        # combiné bonus). Construit ici (tous les sidecars écrits). PAS de Telegram par défaut (éviter de
+        # doubler la publication aux abonnés ; c'est un indicatif de site). Jambes analysées comme les autres.
+        try:
+            from app import combo_safe as _csafe
+            _sprev = _csafe.today(_day)
+            if _sprev and (_sprev.get("sent") or _sprev.get("result")):
+                print("  🛡️ Combiné sécurité foot : déjà construit aujourd'hui (figé).")
+            else:
+                _csc = _csafe.build_for_day(_day)
+                if _csc:
+                    _analyze_combo_legs(_csc)        # analyse dédiée par jambe (comme un pari à jouer)
+                    if _csafe.record_daily(_csc, _day):
+                        print(f"  🛡️ Combiné sécurité foot : cote {_csc['cote']} · "
+                              f"{round(_csc['prob'] * 100)}% · {len(_csc['legs'])} jambes (double chance).")
+                else:
+                    print("  🛡️ Combiné sécurité foot : vivier DC insuffisant pour ~2 aujourd'hui.")
+        except Exception as _csexc:
+            print(f"  (combiné sécurité ignoré : {_csexc})")
         # DÉDUP (demande user 2026-07-12) : le combiné du jour est construit APRÈS les provisoires -> ses
         # jambes ont pu être trackées en provisoire pendant la boucle. On les retire ICI pour qu'un match
         # n'apparaisse JAMAIS à deux endroits (combiné du jour ET provisoire). No-op si rien à retirer.

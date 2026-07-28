@@ -667,6 +667,58 @@ def _betmines_card() -> str:
         + _curve + '</div>')
 
 
+def _combo_safe_card() -> str:
+    """Cadre « info seule » (Résultats-Bilan, groupe hors ROI) du COMBINÉ SÉCURITÉ FOOT — demande user
+    2026-07-28 : combiné composé UNIQUEMENT de foot, la DOUBLE CHANCE la plus sûre par match, cote ~2.
+    Même présentation que le combiné bonus (courbe P&L + réussite + historique dépliable). '' si aucun suivi."""
+    from app import combo_safe as _cs
+    d = _cs.load()
+    _floor = analyses.first_stats_day()
+    days = {k: v for k, v in d.items()
+            if isinstance(v, dict) and v.get("legs") and not k.startswith("_")
+            and (not _floor or k >= _floor)}
+    if not days:
+        return ""
+    done = [cb for cb in days.values() if cb.get("result") in ("won", "lost")]
+    won = sum(1 for cb in done if cb["result"] == "won")
+    _pts, _acc = [0.0], 0.0
+    for _day in sorted(days):
+        cb = days[_day]
+        if cb.get("result") not in ("won", "lost"):
+            continue
+        _acc += _cs._cd._combo_result_profit(cb)
+        _pts.append(round(_acc, 2))
+    pnl = round(_acc, 2)
+    _hit = round(100 * won / len(done)) if done else None
+    _roi = round(100 * pnl / len(done)) if done else None
+    _avgc = round(sum(cb.get("cote") or 0 for cb in done) / len(done), 2) if done else None
+    pend = len(days) - len(done)
+    # HISTORIQUE présenté COMME les combinés des autres sports (jambes dépliables). On INCLUT le jour courant
+    # (pas d'autre affichage plein ailleurs pour ce combiné). Du plus récent au plus ancien.
+    _recent = []
+    for _day in sorted(days, reverse=True):
+        cb = days[_day]
+        _lg = cb.get("legs") or []
+        _recent.append({
+            "result": cb.get("result") or "pending",
+            "name": f"Combiné du jour ({len(_lg)} jambe{'s' if len(_lg) > 1 else ''})",
+            "sel": "",
+            "cote": cb.get("cote"),
+            "start": (_lg[0].get("start") if _lg and _lg[0].get("start") else _day + "T12:00:00Z"),
+            "legs": [{"name": f'{l.get("home", "?")} - {l.get("away", "?")}',
+                      "sel": analyses.pretty_sel(str(l.get("sel") or ""), l.get("home", ""), l.get("away", "")),
+                      "cote": l.get("cote"), "result": l.get("result")}
+                     for l in _lg]})
+    _form, _streak = web._form_streak(
+        [days[d0].get("result") for d0 in sorted(days) if days[d0].get("result") in ("won", "lost")])
+    _curve = web.render_tracking_curve(emoji="🛡️", title="Sécurité", roi=_roi, hit=_hit,
+                                       n=len(done), points=_pts, avg_cote=_avgc, uid="combosafe",
+                                       recent=_recent, more_label="Derniers combinés",
+                                       form=_form, pending=pend, streak=_streak, compact=True,
+                                       hit_points=web._hit_curve([days[d0].get("result") for d0 in sorted(days)]))
+    return '<div class="sx-card"><div class="sx-h">Combiné sécurité</div>' + _curve + '</div>'
+
+
 # `_combo_daily_card` SUPPRIMÉ le 2026-07-25 (mort) : le combiné du jour foot est ventilé dans le
 # « Combinés » du cadre Football (combo_stats.by_sport), plus de carte Stats standalone.
 
@@ -693,6 +745,7 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 + '<div class="sx-group">🧪 Le jour &amp; suivis indicatifs '
                   '<span>à titre informatif — hors ROI réel</span></div>'
                 + _selectivity_card()     # ratio paris à jouer / abstentions du jour (rend la sélectivité visible)
+                + _combo_safe_card()      # combiné sécurité foot (double chance la plus sûre ~2, hors ROI)
                 + _betmines_card()        # suivi EXTERNE : le Double Betmines mesuré par nos règlements
                 # Panneau SANTÉ (privé) chargé en AJAX : servi UNIQUEMENT au propriétaire (is_owner).
                 + '<div id="syshealth"></div>'

@@ -143,6 +143,14 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 print(f"  · {_ncd} combiné(s) du jour tranché(s) (suivi info-seule).")
         except Exception as exc:
             print(f"  (suivi combiné du jour ignoré : {exc})")
+        # COMBINÉ SÉCURITÉ FOOT (double chance la plus sûre ~2, info seule hors ROI) : règle + tranche.
+        try:
+            from app import combo_safe as _cs
+            _ncs = await asyncio.to_thread(_cs.settle_pending)
+            if _ncs:
+                print(f"  · {_ncs} combiné(s) sécurité tranché(s) (suivi info-seule).")
+        except Exception as exc:
+            print(f"  (suivi combiné sécurité ignoré : {exc})")
         # SUIVI BETMINES (info seule, demande user 2026-07-23) : capture + règle leur « Double » quotidien —
         # THROTTLÉ à 6 h EN INTERNE (les passes 10 min ne martèlent pas leur site). Mesure leur taux de
         # réussite réel par NOS règlements. Écrit uniquement data/betmines_track.json.
