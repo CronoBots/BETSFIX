@@ -5075,9 +5075,12 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
             dt = _usdt
         _is_live = (_st == "inprogress") or _has_live
         if not _is_live and dt <= now:
-            # coup d'envoi passé mais PAS live : tennis décalé (pas encore commencé) -> garder ≤ 6 h ;
-            # sinon (foot/basket au coup d'envoi fixe, ou tennis très vieux) = sûrement terminé -> sortir.
-            if not (sp == "tennis" and dt > now - timedelta(hours=6)):
+            # coup d'envoi passé mais PAS de live Unibet : on le GARDE tant que le match n'est PAS
+            # probablement fini (dans sa fenêtre de durée) — il est en cours même sans flux Unibet, fréquent
+            # sur le tennis DÉCALÉ ET le basket de ligue mineure (TBT) sans feed live (bug user 2026-07-28 :
+            # provisoire basket invisible). Sinon (probablement fini) -> il ira dans les Résultats, on le
+            # sort de l'à-venir. Critère SPORT-AGNOSTIQUE (remplace l'ancienne grâce tennis-only de 6 h).
+            if analyses.likely_finished({"start": m.get("start"), "sport": sp}):
                 continue
         ic = _ICON.get(sp, "")
         # Ligne d'en-tête : NOM DU SPORT (majuscules) puis la compétition (demande user 2026-07-12,
@@ -6294,9 +6297,17 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         except Exception:
             _betm_res = ""
     if _res_cards or _prov_res or _combo_res or _betm_res:
-        _res_html = (_MC_SEP.join(_res_cards) if _res_cards else "")
+        # RÉSULTATS regroupés PAR TYPE dans l'ORDRE LOGIQUE des sections actives (demande user 2026-07-28) :
+        # Paris joués → Provisoires → Combiné du jour → Combiné Betmines ; toutes les cartes séparées par la
+        # MÊME barre `_MC_SEP` (entre cartes d'un même type ET entre types).
+        _res_groups = [g for g in (
+            _MC_SEP.join(_res_cards) if _res_cards else "",   # paris joués terminés
+            _prov_res,                                         # provisoires réglés (en-tête « 🧪 »)
+            _combo_res,                                        # combiné du jour réglé
+            _betm_res,                                         # combiné Betmines réglé
+        ) if g]
         out.append(_zone("done", "Résultats du jour", "", len(_res_cards),
-                         _combo_res + _betm_res + _res_html + _prov_res, collapsible=True))
+                         _MC_SEP.join(_res_groups), collapsible=True))
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
     zones = f'<div class="dash-zones">{inner or _empty}</div>'
