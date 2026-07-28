@@ -51,17 +51,38 @@ def main() -> int:
     alerts = [c for c in rep["checks"]
               if c["level"] == "error" or (c["level"] == "warn" and c["key"] in _ALERT_ON_WARN)]
     if alerts:
+        # ANTI-SPAM (bug user 2026-07-28 : message Telegram EN BOUCLE — selfcheck tourne souvent (reconcile /
+        # runs manuels) et re-postait la MÊME alerte à chaque fois). On ne re-notifie une alerte IDENTIQUE
+        # qu'au plus une fois toutes les _COOLDOWN_H heures (dé-dup par signature). Une alerte NOUVELLE
+        # (nouvelle erreur / autre marché) passe tout de suite.
+        _COOLDOWN_H = 12
+        _sig = "|".join(sorted(f"{c['key']}:{c['level']}" for c in alerts))
+        _state_path = os.path.join(os.path.dirname(selfcheck._LOG), "selfcheck_alert_state.json")
+        _send = True
         try:
-            from app import notify
-            lines = ["⚠️ *BETSFIX — auto-audit : à surveiller*", ""]
-            for c in alerts:
-                _ic = "❌" if c["level"] == "error" else "⚠️"
-                lines.append(f"{_ic} *{c['title']}* — {c['detail']}")
-                for it in c["items"][:4]:
-                    lines.append(f"  • {it}")
-            notify.send_sync("\n".join(lines))
+            from datetime import datetime
+            _now = datetime.fromisoformat(rep["ts"])
+            with open(_state_path, encoding="utf-8") as fh:
+                _prev = json.load(fh)
+            if _prev.get("sig") == _sig and _prev.get("ts"):
+                if (_now - datetime.fromisoformat(_prev["ts"])).total_seconds() < _COOLDOWN_H * 3600:
+                    _send = False               # même alerte déjà notifiée récemment -> on ne re-spamme pas
         except Exception:
-            pass
+            _send = True                        # état illisible / 1er run -> on notifie
+        if _send:
+            try:
+                from app import notify
+                lines = ["⚠️ *BETSFIX — auto-audit : à surveiller*", ""]
+                for c in alerts:
+                    _ic = "❌" if c["level"] == "error" else "⚠️"
+                    lines.append(f"{_ic} *{c['title']}* — {c['detail']}")
+                    for it in c["items"][:4]:
+                        lines.append(f"  • {it}")
+                notify.send_sync("\n".join(lines))
+                with open(_state_path, "w", encoding="utf-8") as fh:   # mémorise la dernière notif envoyée
+                    json.dump({"sig": _sig, "ts": rep["ts"]}, fh)
+            except Exception:
+                pass
         return 1 if any(c["level"] == "error" for c in alerts) else 0
     return 0
 
