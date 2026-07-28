@@ -638,12 +638,13 @@ def _betmines_card() -> str:
         _lg = _c.get("legs") or []
         _recent.append({
             "result": _c.get("result") or "pending",
-            "name": " + ".join(f'{l.get("home", "?")}–{l.get("away", "?")}' for l in _lg),
-            "sel": " · ".join(_sel(l) for l in _lg),
+            # TITRE de l'entrée = « Combiné du jour (X jambes) » COMME les combinés des autres sports (demande
+            # user 2026-07-28) ; le détail (matchs/marchés) est dans les jambes dépliables ci-dessous.
+            "name": f"Combiné du jour ({len(_lg)} jambe{'s' if len(_lg) > 1 else ''})",
+            "sel": "",
             "cote": _c.get("total_odds"),
             "start": (_lg[0].get("start") if _lg and _lg[0].get("start") else _day + "T12:00:00Z"),
-            # JAMBES en clair (dépliables au clic) COMME les combinés des autres sports (demande user
-            # 2026-07-28) : chaque jambe = affiche + marché + cote + résultat.
+            # JAMBES en clair (dépliables au clic) : chaque jambe = affiche + marché + cote + résultat.
             "legs": [{"name": f'{l.get("home", "?")} - {l.get("away", "?")}', "sel": _sel(l),
                       "cote": l.get("our_cote") or l.get("cote"), "result": l.get("result")}
                      for l in _lg]})
@@ -653,7 +654,7 @@ def _betmines_card() -> str:
     # Nom AFFICHÉ « Bonus » (demande user 2026-07-28 : plus « Betmines » dans les Stats) — data/suivi inchangés.
     _curve = web.render_tracking_curve(emoji="🎲", title="Bonus", roi=_roi, hit=_hit,
                                        n=len(done), points=_pts, avg_cote=_avgc, uid="betmines",
-                                       recent=_recent, more_label="Derniers Doubles",
+                                       recent=_recent, more_label="Derniers combinés",
                                        form=_form, pending=pend, streak=_streak,
                                        compact=True,   # style cadre sport (demande user 2026-07-24)
                                        hit_points=web._hit_curve([days[d].get("result") for d in sorted(days)]))
