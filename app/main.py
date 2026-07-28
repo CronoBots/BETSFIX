@@ -283,11 +283,19 @@ def _apply_pending_reset(data: str | None = None) -> bool:
 async def lifespan(app: FastAPI):
     if "pytest" not in sys.modules:          # JAMAIS sur les données réelles pendant les tests
         _apply_pending_reset()               # purge en attente (sentinelle) AVANT lecture des stores
-    tasks = [asyncio.create_task(_settle_loop()),       # nouveau système (analyste) uniquement
-             asyncio.create_task(_odds_loop()),         # suivi des variations de cote (Unibet)
-             asyncio.create_task(_combo_refresh_loop()),  # ~1h avant : cote combiné fraîche + repost carte
-             asyncio.create_task(_combo_warm_loop()),   # pré-chauffe stats live des combinés CdM
-             asyncio.create_task(_panel_warmer())]
+    from app import role
+    # SERVICE (tourne dans TOUS les rôles) : pré-chauffe des panneaux SPA -> réponses rapides côté web.
+    tasks = [asyncio.create_task(_panel_warmer())]
+    if role.is_collector():
+        # COLLECTE (rôle collecteur uniquement — parle aux SOURCES / poste sur Telegram / écrit les
+        # analyses). En rôle `server` (cloud) ces boucles sont DÉSACTIVÉES : le cloud ne scrape rien et
+        # n'écrit jamais la source de vérité, il sert seulement les données poussées par le collecteur.
+        tasks += [asyncio.create_task(_settle_loop()),       # nouveau système (analyste) uniquement
+                  asyncio.create_task(_odds_loop()),         # suivi des variations de cote (Unibet)
+                  asyncio.create_task(_combo_refresh_loop()),  # ~1h avant : cote combiné fraîche + repost carte
+                  asyncio.create_task(_combo_warm_loop())]   # pré-chauffe stats live des combinés CdM
+    else:
+        log.info("RÔLE=server : boucles de collecte désactivées (le cloud sert, ne scrape pas).")
     yield
     for t in tasks:
         t.cancel()

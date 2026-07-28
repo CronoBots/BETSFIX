@@ -1,0 +1,43 @@
+# MANIFESTE DE SYNC collecteur -> cloud (split cloud/collecteur, 2026-07-28)
+# =========================================================================
+# LISTE BLANCHE : on ne pousse vers le serveur cloud QUE les chemins listés ici (un par ligne, relatifs à
+# la racine du repo). Tout le reste RESTE sur le collecteur. Principe volontaire : liste blanche, PAS liste
+# noire -> un futur fichier sensible (nouveau store de comptes, secret…) ne peut JAMAIS fuiter par accident.
+#
+# Le serveur cloud POSSÈDE et ne reçoit JAMAIS (garde-fou dur dans push_to_cloud.py) :
+#   data/accounts.json · data/owners.json · data/.session_secret
+# (les membres s'inscrivent sur le cloud ; les écraser détruirait les comptes.)
+#
+# Lignes vides et # commentaires ignorés. Un chemin terminé par / = tout le dossier (récursif).
+
+# --- Coeur : les analyses (sidecars .json + .md) = source de vérité affichée ---
+data/analyses/
+
+# --- Snapshot des agrégats (lecture O(1) côté serveur, cf. _stats_snapshot) ---
+data/_stats_snapshot.json
+
+# --- État d'affichage / programme du jour ---
+data/day_programme.json
+data/provisional_track.json
+
+# --- Combinés (du jour + bonus/betmines + suivi) ---
+data/combo_daily_track.json
+data/combo_daily_tennis.json
+data/combo_daily_basket.json
+data/betmines_track.json
+
+# --- Montante (réel + flag d'activation) ---
+data/montante_track.json
+data/montante_active.flag
+
+# --- Calibration / exclusions / modèles (nourrissent l'affichage des stats) ---
+data/excluded_state.json
+data/foot_elo.json
+data/basket_elo.json
+data/player_tendencies.json
+
+# --- Pronos publiés (gel « publié = figé » à l'affichage) ---
+data/notify_pronos.json
+
+# --- Historique des cotes (variations affichées) ---
+data/odds_history/

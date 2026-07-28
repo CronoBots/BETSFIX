@@ -230,6 +230,16 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 print("  📸 snapshot stats rafraîchi")
         except Exception as exc:
             print(f"  (snapshot stats ignoré : {exc})")
+        # PUSH vers le serveur cloud (split cloud/collecteur). NO-OP tant que BETSFIX_CLOUD_SSH n'est pas
+        # défini -> aucun effet sur l'install maison actuelle. Une fois le VPS branché, pousse la liste
+        # blanche (analyses + snapshot + états) ; comptes/secret JAMAIS poussés.
+        if os.environ.get("BETSFIX_CLOUD_SSH"):
+            try:
+                import subprocess as _sp
+                _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                _sp.run([sys.executable, os.path.join(_root, "deploy", "push_to_cloud.py")], check=False)
+            except Exception as exc:
+                print(f"  (push cloud ignoré : {exc})")
     return {"reset": n_reset, "settled": n_settled, "upcoming": len(upcoming),
             "stuck": len(stuck), "reposted": reposted}
 
