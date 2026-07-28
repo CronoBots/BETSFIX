@@ -23,7 +23,7 @@ TARGET_ODDS = 2.0        # cote CIBLE « environ 2 » : on assemble les DC les p
 MAX_LEGS = 7             # borne haute (des DC très sûres à ~1.1 peuvent demander pas mal de jambes)
 MIN_LEGS = 2            # un « combiné » = au moins 2 jambes
 MIN_LEG_PROB = 0.55      # jambe DC fiable (les DC les plus sûres sont bien au-dessus ; garde-fou bas)
-MIN_LEG_ODDS = 1.04      # une DC quasi-certaine à ~1.02 n'aide pas vers la cible
+MIN_LEG_ODDS = 1.10      # PLANCHER (demande user 2026-07-28) : une jambe < 1.10 n'apporte rien -> jamais retenue
 
 
 def day_key(now=None) -> str:
@@ -131,7 +131,12 @@ async def build_for_day_async(day: str, client=None) -> dict | None:
                 dc = await _ms.dc_odds(mid, client)
             except Exception:
                 dc = {}
-            dc = {k: v for k, v in (dc or {}).items() if isinstance(v, (int, float)) and v >= 1.01}
+            # On ne considère QUE 1X / X2 (jamais le 12 : il exclut le NUL -> structurellement moins sûr,
+            # demande user 2026-07-28) et on EXIGE une cote >= 1.10 (une jambe plus courte n'apporte rien).
+            # Si la DC sûre du match est < 1.10 (favori ultra-court), le match est ÉCARTÉ (pas de rabattage
+            # sur un 12 risqué). La plus sûre = cote la plus BASSE parmi les qualifiées.
+            dc = {k: v for k, v in (dc or {}).items()
+                  if k in ("1X", "X2") and isinstance(v, (int, float)) and v >= MIN_LEG_ODDS}
             if not dc:
                 continue
             outcome, cote = min(dc.items(), key=lambda kv: kv[1])   # LA PLUS SÛRE AU MARCHÉ (cote la + basse)
