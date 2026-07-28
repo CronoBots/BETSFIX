@@ -429,10 +429,13 @@ def _derive_combo(legs: list) -> str | None:
     ANNULÉE (void) ne BLOQUE donc PAS le combiné : il gagne ou perd selon les AUTRES jambes (demande user
     2026-07-18)."""
     res = [l.get("result") for l in (legs or [])]
-    if any(r not in ("won", "lost", "push", "void") for r in res):
-        return None
+    # UNE JAMBE PERDUE -> combiné PERDU IMMÉDIATEMENT, sans attendre le règlement des autres jambes (demande
+    # user 2026-07-28 : un combiné est mort dès qu'une jambe saute). Testé AVANT la présence de jambes en
+    # attente.
     if "lost" in res:
         return "lost"
+    if any(r not in ("won", "lost", "push", "void") for r in res):
+        return None                       # aucune perdue mais ≥1 jambe encore en attente -> pas tranché
     if "won" in res:
         return "won"
     return "void"
