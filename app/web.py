@@ -5831,8 +5831,12 @@ def _betmines_tg_card(include_settled: bool = True) -> str:
             _ourwhy = _prov_why_snippet("foot", str(_mfid), maxlen=100000, played=True) if _mfid else ""
             if _ourwhy:
                 _why = _ourwhy
-        return {"sport": "foot", "home": leg.get("home"), "away": leg.get("away"),
-                "comp": leg.get("comp"), "sel": str(leg.get("market") or ""),
+        # UNIFORMISATION nom d'équipe + compétition (demande user 2026-07-28 : un même match se lit PAREIL
+        # partout). Le pick Betmines (marché) reste le sien ; seuls les NOMS/LIGUE prennent NOTRE écriture
+        # canonique (« SalPa II » -> « SalPa 2 », « Finland - Kolmonen - … » -> « Kolmonen »). None -> externe.
+        _ch, _ca, _ccomp = analyses.canonical_match(leg.get("home"), leg.get("away"))
+        return {"sport": "foot", "home": _ch or leg.get("home"), "away": _ca or leg.get("away"),
+                "comp": _ccomp or leg.get("comp"), "sel": str(leg.get("market") or ""),
                 "cote": _cote, "result": leg.get("result"), "score": leg.get("score"),
                 "start": leg.get("start"), "code": leg.get("code"), "prob": _prob, "why": _why}
     _views = [_leg_view(leg) for leg in _legs]     # NOS valeurs par jambe (une seule fois -> réutilisées au TOTAL)

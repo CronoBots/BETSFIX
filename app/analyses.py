@@ -3736,6 +3736,41 @@ def our_market_view(home: str, away: str, market: str) -> tuple:
     return (_p, _c)
 
 
+def canonical_match(home: str, away: str) -> tuple:
+    """Noms d'équipe + compétition CANONIQUES (depuis NOTRE fiche foot du match) pour un match désigné par des
+    noms EXTERNES (ex. Betmines « SalPa II » / « Finland - Kolmonen - … »). Uniformise l'AFFICHAGE : un même
+    match se lit PAREIL partout — même nom d'équipe, même libellé de compétition (demande user 2026-07-28 :
+    « tout ce qui est affiché doit être pareil si c'est le même match »). Les noms retournés sont ALIGNÉS sur
+    l'ordre de l'entrée (`home` d'entrée -> l'équipe à domicile côté entrée). (None, None, None) si le match
+    n'est pas dans nos fiches -> l'appelant garde les noms externes. PURE lecture d'affichage."""
+    _stop = {"fc", "sc", "cf", "ii", "de", "do", "da", "ac", "if", "sp", "rj", "mg", "slc"}
+
+    def _tk(s):
+        return set(re.findall(r"[a-z0-9]+", _deacc(s or "").lower())) - _stop
+
+    def _hit(a, b):
+        for x in a:
+            for y in b:
+                if x == y or (len(x) >= 3 and len(y) >= 3 and (x.startswith(y) or y.startswith(x))):
+                    return True
+        return False
+    th, ta = _tk(home), _tk(away)
+    if not (th and ta):
+        return (None, None, None)
+    for d in iter_meta("foot"):
+        nm = d.get("name") or ""
+        _dh, _, _da = nm.partition(" - ")
+        ch = d.get("home") or _dh
+        ca = d.get("away") or _da
+        comp = d.get("comp") or ""
+        th_h, th_a = _tk(ch), _tk(ca)
+        if _hit(th_h, th) and _hit(th_a, ta):          # même ordre (input home ↔ fiche home)
+            return (ch, ca, comp)
+        if _hit(th_h, ta) and _hit(th_a, th):          # ordre INVERSÉ -> on ré-aligne sur l'entrée
+            return (ca, ch, comp)
+    return (None, None, None)
+
+
 def background_sports() -> set:
     """Sports en mode ARRIÈRE-PLAN / SIMULATION (demande user 2026-07-24) : tennis/basket sont ANALYSÉS et
     leurs picks CONTINUENT de se sélectionner + se régler → ROI SIMULÉ vivant (bien plus représentatif que
