@@ -4712,7 +4712,11 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     # d'un objet SPÉCIFIQUE (corners/tirs/cartons/aces/rebonds/passes/fautes) : « au total buts » y serait FAUX
     # (mauvaise unité) -> ils tombent sur le repli générique « pari sur … » (fix 2026-07-17).
     mt = re.search(r"\b(plus|moins) de (\d+(?:[.,]\d+)?)", sl)
-    if (mt and re.search(r"total|points?|buts?", sl) and not _per_gloss
+    # « Plus/Moins de X » NU (juste un nombre, ex. basket « Plus de 177.5 » SANS le mot « points ») = total du
+    # MATCH -> glosé avec l'unité du sport (bug user 2026-07-29 : la jambe basket « Plus de 177.5 » tombait sur
+    # le repli générique « pari détaillé dans l'analyse »). Le nombre est en FIN de chaîne (annotation tolérée).
+    _nu_total = bool(re.match(r"(?i)^(plus|moins)\s+de\s+\d+(?:[.,]\d+)?\s*(?:\([^)]*\))?\s*$", s))
+    if (mt and (re.search(r"total|points?|buts?", sl) or _nu_total) and not _per_gloss
             and not re.search(r"\b(corner|tir|carton|ace|rebond|passe|faute|break)", sl)):
         val = float(mt.group(2).replace(",", "."))
         # « plus de X.5 » = AU MOINS ⌈X.5⌉ (ceil) — « plus de 0.5 » -> « au moins 1 but », plus « plus de 0 »
