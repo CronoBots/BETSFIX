@@ -6404,9 +6404,10 @@ def _mont_how(n: int, txt: str) -> str:
 
 
 def _mont_curve(caps: list, uid: str = "mc") -> str:
-    """Courbe de PROGRESSION DU CAPITAL d'une montante (10 € -> pic) — l'effet boule de neige rendu
-    visible. Échelle LOG (la montée reste régulière au lieu d'un pic final écrasant) ; aire + ligne vertes,
-    repères début/pic. '' si moins de 2 points."""
+    """Graphique à BARRES de la progression du capital d'une montante — UNE barre par PALIER (demande user
+    2026-07-28 : plus représentatif de l'escalier de paliers qu'une courbe continue). Échelle LOG (garde les
+    1ers paliers visibles malgré le pic final) ; barres vertes, dernière (pic) plus vive + repères début/pic.
+    '' si moins de 2 points."""
     import math
     pts = [float(c) for c in (caps or []) if isinstance(c, (int, float)) and c > 0]
     if len(pts) < 2:
@@ -6416,33 +6417,34 @@ def _mont_curve(caps: list, uid: str = "mc") -> str:
     if hi - lo < 1e-9:
         hi = lo + 1.0
     pad = (hi - lo) * 0.12
-    lo, hi = lo - pad, hi + pad
+    base, top = lo - pad * 1.6, hi + pad     # baseline SOUS le min -> la plus petite barre reste visible
     n, W, H, L, R, T, B = len(pts), 320.0, 92.0, 6.0, 6.0, 12.0, 10.0
     iw, ih = W - L - R, H - T - B
     AC = "#34d27b"
+    slot = iw / n
+    bw = min(slot * 0.62, 26.0)
 
-    def X(i):
-        return L + (iw * i / (n - 1) if n > 1 else iw / 2)
-
-    def Y(i):
-        return T + ih * (1 - (lv[i] - lo) / (hi - lo))
+    def barH(i):
+        return max(2.0, ih * (lv[i] - base) / (top - base))
 
     gid = f"mcg-{uid}"
-    line_d = _smooth_path([(X(i), Y(i)) for i in range(n)])
-    area_d = f'M{X(0):.1f},{H - B:.1f} L' + line_d[1:] + f' L{X(n - 1):.1f},{H - B:.1f} Z'
-    y_end = Y(n - 1)
+    bars = []
+    for i in range(n):
+        h = barH(i)
+        x = L + slot * i + (slot - bw) / 2
+        y = T + ih - h
+        _op = "1" if i == n - 1 else "0.72"           # dernière barre (pic) plus vive
+        bars.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:.1f}" height="{h:.1f}" rx="2" '
+                    f'fill="url(#{gid})" opacity="{_op}"/>')
+    _yend = T + ih - barH(n - 1)
     p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="sx-heroc mont-c">',
          f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1">'
-         f'<stop offset="0" stop-color="{AC}" stop-opacity="0.30"/>'
-         f'<stop offset="1" stop-color="{AC}" stop-opacity="0"/></linearGradient></defs>',
-         f'<path d="{area_d}" fill="url(#{gid})" stroke="none"/>',
-         f'<path class="sx-heroc-line" pathLength="1" d="{line_d}" fill="none" stroke="{AC}" '
-         'stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>',
-         f'<text class="mont-c-lbl" x="{X(0):.1f}" y="{min(H - 2, Y(0) + 12):.1f}" text-anchor="start">'
-         f'{_mont_eur(pts[0])}</text>',
-         f'<text class="mont-c-lbl end" x="{X(n - 1):.1f}" y="{max(9.0, y_end - 6):.1f}" text-anchor="end">'
-         f'{_mont_eur(pts[-1])}</text>',
-         f'<circle cx="{X(n - 1):.1f}" cy="{y_end:.1f}" r="3" fill="{AC}"/></svg>']
+         f'<stop offset="0" stop-color="{AC}" stop-opacity="0.95"/>'
+         f'<stop offset="1" stop-color="{AC}" stop-opacity="0.32"/></linearGradient></defs>',
+         "".join(bars),
+         f'<text class="mont-c-lbl" x="{L:.1f}" y="{H - 2:.1f}" text-anchor="start">{_mont_eur(pts[0])}</text>',
+         f'<text class="mont-c-lbl end" x="{W - R:.1f}" y="{max(9.0, _yend - 4):.1f}" text-anchor="end">'
+         f'{_mont_eur(pts[-1])}</text></svg>']
     return "".join(p)
 
 
