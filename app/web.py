@@ -3546,12 +3546,17 @@ _NOZOOM_JS = ""
 _SPSEL_JS = (
     "(function(){document.addEventListener('click',function(e){"
     "var b=e.target.closest('.spsel');if(!b)return;e.preventDefault();"
-    "var sp=b.getAttribute('data-sport'),day=b.getAttribute('data-day');"
-    "var dc=document.getElementById('day-content');if(!dc)return;"
-    "var w=b.closest('.spsel-wrap');if(w){var bs=w.querySelectorAll('.spsel');"
+    "var sp=b.getAttribute('data-sport');"
+    "var w=b.closest('.spsel-wrap');"
+    # cible + endpoint lus sur le wrap (Pronos: #day-content /jour?date=… ; Live: #pn-directs /directs)
+    "var target=(w&&w.getAttribute('data-target'))||'day-content';"
+    "var base=(w&&w.getAttribute('data-base'))||'/jour';"
+    "var q=(w&&w.getAttribute('data-q'));if(q===null)q='';"
+    "var dc=document.getElementById(target);if(!dc)return;"
+    "if(w){var bs=w.querySelectorAll('.spsel');"
     "for(var i=0;i<bs.length;i++){bs[i].classList.toggle('on',bs[i]===b);}}"
     "dc.style.opacity='.45';"
-    "fetch('/jour?date='+encodeURIComponent(day)+'&sport='+encodeURIComponent(sp)+'&frag=1')"
+    "fetch(base+'?'+(q?q+'&':'')+'sport='+encodeURIComponent(sp)+'&frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){dc.innerHTML=h;dc.style.opacity='';"
     "window.scrollTo({top:0,behavior:'smooth'});})"
     ".catch(function(){dc.style.opacity='';});});})();")
@@ -6198,14 +6203,17 @@ def _sport_pronos_counts(match_rows: list) -> dict:
     return out
 
 
-def _sport_selector(current: str | None, counts: dict | None = None) -> str:
-    """Sélecteur de sport en tête de Pronos (demande user 2026-07-26) : Football / Tennis / Basket. Le sport
-    actif recharge #day-content via /jour?date=<jour>&sport=<sk> (JS _SPSEL_JS). Football (défaut) = foot ROI
-    + montante/betmines ; tennis/basket = SIMULATION, affichée COMME le foot (mêmes cartes). `counts` =
-    nb de paris par sport -> badge chiffré sur chaque bouton (demande user 2026-07-27, style badges Stats)."""
+def _sport_selector(current: str | None, counts: dict | None = None, *,
+                    target: str = "day-content", base: str = "/jour", q: str | None = None) -> str:
+    """Sélecteur de sport Football / Tennis / Basket (demande user 2026-07-26 Pronos, étendu au Live
+    2026-07-28). Le sport actif RECHARGE le conteneur `#{target}` via `{base}?{q}&sport=<sk>&frag=1` (JS
+    _SPSEL_JS, qui lit `data-target`/`data-base`/`data-q` sur le wrap). Défauts = Pronos (#day-content,
+    /jour?date=<jour>). Live : target="pn-directs", base="/directs", q="". `counts` = nb par sport -> badge."""
     _day = _sport_today().isoformat()
     _cur = current or "foot"
     counts = counts or {}
+    if q is None:
+        q = f"date={_day}"                       # défaut Pronos (le Live passe q="")
 
     def _badge(sk: str) -> str:
         _n = counts.get(sk) or 0
@@ -6214,7 +6222,8 @@ def _sport_selector(current: str | None, counts: dict | None = None) -> str:
         f'<button type="button" class="spsel{" on" if _cur == sk else ""}" data-sport="{sk}" '
         f'data-day="{_day}">{ic}<span>{lbl}</span>{_badge(sk)}</button>'
         for sk, ic, lbl in (("foot", "⚽", "Football"), ("tennis", "🎾", "Tennis"), ("basket", "🏀", "Basket")))
-    return f'<div class="spsel-wrap">{chips}</div>'
+    return (f'<div class="spsel-wrap" data-target="{html.escape(target)}" data-base="{html.escape(base)}" '
+            f'data-q="{html.escape(q)}">{chips}</div>')
 
 
 def _today_zones(match_rows: list, sport: str | None = None, results: list | None = None) -> tuple[str, int]:
@@ -8011,17 +8020,16 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
             + _subnav(sport) + render_sport_perf(sport) + f'<div class="dash-zones">{body_zones}</div>')
     return body if frag else spa_shell(sport, title, body)
 
-def _daily_combo_any_live() -> bool:
-    """Vrai si le combiné du jour a AU MOINS une jambe EN COURS (non réglée + score live). Sert à ne montrer
-    le combiné dans l'onglet Live QUE quand une de ses rencontres tourne réellement (demande user
-    2026-07-19 : si aucun match du combiné n'est en cours, il n'a rien à faire dans Live). Même détection de
-    liveness que la carte elle-même (`_combo_tg_card`). L'accueil « À venir » n'est PAS concerné (le combiné
-    à venir y reste, dans sa catégorie dédiée)."""
+def _daily_combo_any_live(sport: str = "foot") -> bool:
+    """Vrai si le combiné du jour (du SPORT donné) a AU MOINS une jambe EN COURS (non réglée + score live).
+    Sert à ne montrer le combiné dans l'onglet Live QUE quand une de ses rencontres tourne réellement (demande
+    user 2026-07-19). Même détection de liveness que la carte (`_combo_tg_card`). `sport` = filtre Live
+    2026-07-28 (foot par défaut)."""
     try:
         import datetime as _dt
         from app import combo_daily as _cd
         day = _cd.day_key()          # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
-        cb = _cd.today(day)
+        cb = _cd.today(day, sport=sport)
     except Exception:
         cb = None
     if not cb:
@@ -8031,27 +8039,36 @@ def _daily_combo_any_live() -> bool:
                for l in (cb.get("legs") or []) if l.get("result") is None)
 
 
-def render_directs(play_live: list, prov_live: list, frag: bool = False) -> str:
-    """Onglet « Directs » : matchs EN DIRECT groupés par TYPE de pari (comme Pronos, demande user 2026-07-20)
-    — Combiné multisports du jour · Confiance à jouer · Confiance provisoire — et NON par sport (le sport
-    reste lisible via l'en-tête coloré de chaque carte). `play_live` = paris retenus en cours ; `prov_live` =
-    provisoires en cours. Une carte = dict `_sport_row` (pari) ou porte un `_html` (provisoire)."""
+def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
+    """Onglet « Directs » : matchs EN DIRECT groupés par TYPE de pari (Combiné · Paris joués · Provisoires).
+    SÉLECTEUR DE SPORT en tête (demande user 2026-07-28, comme Pronos) : cliquer un sport recharge le panneau
+    `#pn-directs` via /directs?sport=<sk> et ne montre QUE les matchs live de ce sport. `play_live` = paris
+    retenus en cours ; `prov_live` = provisoires en cours (cartes `_html` ou dicts `_sport_row`)."""
+    _cur = sport if sport in ("foot", "tennis", "basket") else "foot"
     play_live = sorted(list(play_live or []), key=lambda c: c.get("start_ts") or 0)
     prov_live = sorted(list(prov_live or []), key=lambda c: c.get("start_ts") or 0)
+    # COMPTES PAR SPORT (badges du sélecteur) + TOTAL tous sports (badge de l'onglet, inchangé).
+    _counts, _combos = {}, {}
+    for _sk in ("foot", "tennis", "basket"):
+        _combos[_sk] = _combo_tg_card(include_settled=False, sport=_sk) if _daily_combo_any_live(_sk) else ""
+        _counts[_sk] = (sum(1 for c in play_live if _item_sport(c) == _sk)
+                        + sum(1 for c in prov_live if c.get("_sport") == _sk)
+                        + (1 if _combos[_sk] else 0))
+    total = sum(_counts.values())
+    # FILTRE du sport sélectionné.
+    _play = [c for c in play_live if _item_sport(c) == _cur]
+    _prov = [c for c in prov_live if c.get("_sport") == _cur]
+    _combo = _combos.get(_cur, "")
 
     def _cards(rows):
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
-    # Combiné du jour : dans le Live SEULEMENT si ≥1 jambe est EN COURS (demande user 2026-07-19).
-    _combo = _combo_tg_card(include_settled=False) if _daily_combo_any_live() else ""
-    # Le COMBINÉ live COMPTE dans le badge de l'onglet (retour user 2026-07-21 : badge absent alors
-    # qu'une jambe était en direct).
-    total = len(play_live) + len(prov_live) + (1 if _combo else 0)
-    if not total and not _combo:
+    _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
+    if not (_play or _prov or _combo):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
             '<span class="le-dot"></span></div>'
-            '<div class="le-h">Aucun match en direct</div>'
+            f'<div class="le-h">Aucun match {_zlabel} en direct</div>'
             '<div class="le-sub">Les scores en temps réel — set par set, quart-temps — '
             's\'affichent ici dès qu\'une rencontre analysée démarre.</div>'
             '<div class="le-cta">'
@@ -8059,14 +8076,14 @@ def render_directs(play_live: list, prov_live: list, frag: bool = False) -> str:
             '</div></div>')
     else:
         out = [
-            _zone("combo", "Combiné football", "", 1 if _combo else 0, _combo),
-            _zone("play", "Paris du jour", "en direct", len(play_live), _cards(play_live)),
-            _zone("indic", "Paris provisoires", "en direct", len(prov_live), _cards(prov_live)),
+            _zone("combo", f"Combiné {_zlabel}", "", 1 if _combo else 0, _combo),
+            _zone("play", "Paris du jour", "en direct", len(_play), _cards(_play)),
+            _zone("indic", "Paris provisoires", "en direct", len(_prov), _cards(_prov)),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
-    # Compteur de matchs -> BADGE chiffré du menu du bas (demande user 2026-07-14). Marqueur générique
-    # `.dv-nav` (data-tab + data-n) lu par le JS SPA à la (pré)charge du panneau -> pose le badge sur l'onglet.
-    body = f'<span class="dv-nav" data-tab="directs" data-n="{total}" hidden></span>' + zones
+    _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
+    # Compteur TOUS sports -> BADGE chiffré du menu du bas (marqueur `.dv-nav` lu par le JS SPA).
+    body = f'<span class="dv-nav" data-tab="directs" data-n="{total}" hidden></span>' + _sel + zones
     return body if frag else spa_shell("directs", "Live", body)
 
 _FORM_COLOR = {"W": "#34d27b", "D": "#e0b341", "L": "#ff6b6b",

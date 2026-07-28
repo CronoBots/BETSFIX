@@ -785,13 +785,15 @@ def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = 
 async def directs_page(
     unibet: UnibetProvider = Depends(get_unibet),
     frag: int = 0,
+    sport: str = "",
 ) -> HTMLResponse:
-    """Tous les matchs EN DIRECT regroupés par sport (ils restent dans leur onglet)."""
+    """Matchs EN DIRECT du SPORT sélectionné (sélecteur en tête, demande user 2026-07-28) — foot par défaut."""
     from app import basket, foot
 
+    sp = sport if sport in ("foot", "tennis", "basket") else "foot"
     _nudge_settle()   # ouverture Live -> pousse le règlement en arrière-plan (throttlé global, non bloquant)
     if frag:
-        cached = fragcache.get("panel/directs")
+        cached = fragcache.get(f"panel/directs/{sp}")   # cache PAR SPORT (le sélecteur recharge par sport)
         if cached:
             return HTMLResponse(cached)
 
@@ -875,9 +877,9 @@ async def directs_page(
     # provisoires en cours (prov_live), TOUS sports mélangés — le sport reste lisible via l'en-tête coloré.
     prov_live = [it for it in web._programme_items(set()) if it.get("_live")]
     play_live = ((await _live_cards("tennis")) + (await _live_cards("basket")) + (await _live_cards("foot")))
-    body = web.render_directs(play_live, prov_live, frag=bool(frag))
+    body = web.render_directs(play_live, prov_live, sport=sp, frag=bool(frag))
     if frag:
-        fragcache.put("panel/directs", body, ttl=PANEL_TTL)
+        fragcache.put(f"panel/directs/{sp}", body, ttl=PANEL_TTL)
     return HTMLResponse(body)
 
 
