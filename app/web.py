@@ -6595,8 +6595,14 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
                           'que la mise de départ.')
            + '</div>')
 
-    # HISTORIQUE des montantes terminées
+    # HISTORIQUE des montantes terminées. La VRAIE montante vient de démarrer (aucune chaîne terminée) ->
+    # on montre l'historique de la SIMULATION (montantes terminées sur nos simples foot) plutôt qu'un cadre
+    # VIDE (bug user 2026-07-28 « rien dans l'historique »). Idem palmarès plus bas.
     chains = st.get("chains") or []
+    if not chains and isinstance(sim_state, dict):
+        chains = sim_state.get("chains") or []
+    if not stats.get("n") and isinstance(sim_state, dict) and (sim_state.get("stats") or {}).get("n"):
+        stats = sim_state.get("stats") or stats     # palmarès = simulation tant que le réel n'a rien de terminé
     if chains:
         hrows = "".join(
             '<div class="mont-hrow"><div class="mont-hrow-b">✗</div>'
