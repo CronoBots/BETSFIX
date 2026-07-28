@@ -223,6 +223,13 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
             notify.send_sync(msg)
         except Exception as exc:
             print(f"  (bilan Telegram ignoré : {exc})")
+    if not dry:
+        try:
+            from app import analyses as _an
+            if _an.warm_stats_snapshot():          # snapshot stats à jour APRÈS règlement -> lecture O(1) côté web
+                print("  📸 snapshot stats rafraîchi")
+        except Exception as exc:
+            print(f"  (snapshot stats ignoré : {exc})")
     return {"reset": n_reset, "settled": n_settled, "upcoming": len(upcoming),
             "stuck": len(stuck), "reposted": reposted}
 

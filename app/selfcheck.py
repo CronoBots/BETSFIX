@@ -766,6 +766,45 @@ def _check_uniform_labels(rows) -> dict:
             "items": diverg[:20]}
 
 
+def _check_stats_snapshot_drift() -> dict:
+    """SNAPSHOT STATS == CALCUL LIVE (garde-fou de l'étape 1 scalabilité, 2026-07-28). Le snapshot disque
+    (`data/_stats_snapshot.json`) sert les requêtes en O(1) au lieu de recalculer 2,5 s à chaque restart. Il
+    est 100 % dérivé (source = sidecars/stat_bet intacts) et repli auto = recalcul en direct si périmé. Ce
+    contrôle CONFIRME l'invariant promis : le snapshot persisté DOIT correspondre au calcul en direct (P&L +
+    nombre de paris comptés). Toute dérive = ERREUR (bug de sérialisation) -> à investiguer. Absent/périmé =
+    OK (le repli recalcule à la volée, aucune donnée fausse servie)."""
+    snap = analyses._load_stats_snapshot()
+    if not isinstance(snap, dict) or not isinstance(snap.get("data"), dict):
+        return {"key": "stats_snapshot_drift", "level": "ok",
+                "title": "Snapshot stats == calcul live",
+                "detail": "aucun snapshot persisté (repli = calcul en direct). Sera écrit au prochain scan.",
+                "items": []}
+    cur_h = analyses._sig_hash(analyses._dir_sig())
+    if snap.get("sig") != cur_h:
+        return {"key": "stats_snapshot_drift", "level": "ok",
+                "title": "Snapshot stats == calcul live",
+                "detail": "snapshot périmé (données modifiées depuis) -> repli auto = calcul en direct. "
+                          "Sera rafraîchi par warm_stats_snapshot.",
+                "items": []}
+    live = analyses.stats_full(_bypass_snapshot=True)          # recalcul RÉEL, sans lire le snapshot
+    sd, ld = snap["data"], live
+    ov_s = (sd.get("overall") or {}); ov_l = (ld.get("overall") or {})
+    items = []
+    if int(ov_s.get("settled") or 0) != int(ov_l.get("settled") or 0):
+        items.append(f"paris comptés : snapshot {ov_s.get('settled')} ≠ live {ov_l.get('settled')}")
+    ps = (ov_s.get("points") or []); pl = (ov_l.get("points") or [])
+    if (ps[-1] if ps else None) != (pl[-1] if pl else None):
+        items.append(f"P&L final : snapshot {ps[-1] if ps else None} ≠ live {pl[-1] if pl else None}")
+    if round(float(ov_s.get("roi") or 0), 3) != round(float(ov_l.get("roi") or 0), 3):
+        items.append(f"ROI : snapshot {ov_s.get('roi')} ≠ live {ov_l.get('roi')}")
+    lvl = "error" if items else "ok"
+    return {"key": "stats_snapshot_drift", "level": lvl,
+            "title": "Snapshot stats == calcul live",
+            "detail": ("DÉRIVE détectée (snapshot ≠ recalcul)." if items
+                       else "snapshot à jour et identique au recalcul en direct (P&L + comptés + ROI)."),
+            "items": items}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -794,6 +833,7 @@ def run(persist: bool = False) -> dict:
         _check_bet_gloss_coverage(rows),
         _check_tennis_sets_overconfidence(rows),
         _check_uniform_labels(rows),
+        _check_stats_snapshot_drift(),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]

@@ -2615,6 +2615,53 @@ _STATS_CACHE: dict = {}    # "full" -> (sig, stats_full())
 _CALIB_RES_CACHE: dict = {}  # min_conf -> (sig, calibration()) — uniquement pour since_days=None
 _PERF_CACHE: dict = {}     # "v" -> (sig, perf_breakdown()) — ROI par cote/marché/confiance
 
+# SNAPSHOT DISQUE des stats agrégées (étape 1 scalabilité, demande user 2026-07-28) : `stats_full()` à FROID
+# lit les ~650 sidecars (~2,5 s) et gèle le process unique. On PERSISTE le résultat (keyé par un HASH de la
+# signature du dossier) -> après un restart / sur un autre worker, la 1re requête LIT le snapshot (O(1)) au
+# lieu de tout recalculer. 100 % LECTURE DÉRIVÉE : jamais la source de vérité (sidecars/.md/stat_bet/
+# calibration intacts). Repli automatique = recalcul en direct si snapshot absent/périmé/illisible -> JAMAIS
+# de corruption. Rafraîchi en tâche de fond après le scan/règlement (warm_stats_snapshot).
+_STATS_SNAP_PATH = os.path.join(_ROOT, "data", "_stats_snapshot.json")
+
+
+def _sig_hash(sig) -> str:
+    import hashlib
+    return hashlib.md5(repr(sig).encode("utf-8")).hexdigest()
+
+
+def _load_stats_snapshot() -> dict | None:
+    try:
+        with open(_STATS_SNAP_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _save_stats_snapshot(sig_hash: str, data: dict) -> None:
+    try:
+        tmp = _STATS_SNAP_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"sig": sig_hash, "data": data}, f, ensure_ascii=False)
+        os.replace(tmp, _STATS_SNAP_PATH)          # écriture atomique (jamais de fichier à moitié écrit)
+    except OSError:
+        pass
+
+
+def warm_stats_snapshot() -> bool:
+    """Recalcule + persiste le snapshot des stats SI les données ont changé (appelé APRÈS le scan/règlement,
+    en tâche de fond) -> les requêtes utilisateur lisent ensuite le snapshot en O(1), jamais le chemin froid
+    2,5 s qui gèle le process. Best-effort ; ne casse jamais. True si (re)calculé. LECTURE SEULE (source
+    intacte)."""
+    try:
+        _sh = _sig_hash(_dir_sig())
+        _snap = _load_stats_snapshot()
+        if _snap and _snap.get("sig") == _sh:
+            return False                           # snapshot déjà à jour -> rien à faire
+        stats_full()                               # recalcule + persiste (via le chemin de cache ci-dessous)
+        return True
+    except Exception:
+        return False
+
 
 # JALONS du modèle : dates (UTC) où la LOGIQUE de sélection a changé -> repères verticaux sur les
 # courbes d'équité (pour corréler une inflexion de ROI avec un changement). Garder COURT (s'affiche
@@ -2770,7 +2817,7 @@ def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
     return out
 
 
-def stats_full(since_days: int | None = None) -> dict:
+def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) -> dict:
     """Suivi pour l'accueil = LE pari JOUÉ (retenu) de chaque match — celui qui passe le seuil de jeu,
     = le pari par défaut du match. Les matchs où le système s'abstient (aucun pari retenu) ne comptent
     PAS (avant : on comptait le pari même sur les abstentions -> courbe sur-pessimiste). Courbe HONNÊTE
@@ -2778,10 +2825,18 @@ def stats_full(since_days: int | None = None) -> dict:
     `overall`, `since_change` (nouveau système), `by_sport`. Chaque bloc = `_agg_bets` (courbe + ROI +
     réussite + cote moy. + drawdown). `since_days` : ne garde que les coups d'envoi des N derniers jours."""
     sig = _dir_sig() if since_days is None else None   # cache UNIQUEMENT la vue complète (pas de cutoff)
-    if sig is not None:
+    _snap_h = None
+    if sig is not None and not _bypass_snapshot:
         hit = _STATS_CACHE.get("full")
         if hit and hit[0] == sig:
             return hit[1]
+        # SNAPSHOT DISQUE (survit aux restarts + partagé entre workers) : si sa signature correspond, on lit
+        # le résultat persisté (rapide) au lieu de recalculer 2,5 s. Repli = calcul en direct ci-dessous.
+        _snap_h = _sig_hash(sig)
+        _snap = _load_stats_snapshot()
+        if isinstance(_snap, dict) and _snap.get("sig") == _snap_h and isinstance(_snap.get("data"), dict):
+            _STATS_CACHE["full"] = (sig, _snap["data"])   # repeuple le cache mémoire
+            return _snap["data"]
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     all_ev: list = []         # TOUS les paris réglés depuis le début -> courbe d'équité COMPLÈTE
     since_ev: list = []       # paris du NOUVEAU système (validés 3 agents) -> KPI à suivre
@@ -2911,8 +2966,9 @@ def stats_full(since_days: int | None = None) -> dict:
         blk["form12"] = _spf[-12:]
         blk["form_simple"] = [r for _s, r, sp in simple_form if sp == _sp][-24:]
         blk["form_combo"] = [r for _s, r, sp in combo_form if sp == _sp][-24:]
-    if sig is not None:
+    if sig is not None and not _bypass_snapshot:
         _STATS_CACHE["full"] = (sig, out)
+        _save_stats_snapshot(_snap_h or _sig_hash(sig), out)   # PERSISTE -> lecture O(1) ensuite (restart/workers)
     return out
 
 

@@ -128,6 +128,15 @@ async def _settle_loop():
                     log.info("analyses réglées : %s", na)
             except Exception as exc:
                 log.warning("settle analyses error: %s", exc)
+            try:
+                # PRÉ-CHAUFFE le snapshot des stats en tâche de fond (si les données ont changé) -> les
+                # requêtes utilisateur lisent ensuite le snapshot en O(1), jamais le chemin froid 2,5 s qui
+                # gèle le process. Best-effort, hors thread event-loop (calcul CPU). 100 % lecture dérivée.
+                from app import analyses as _an
+                if await asyncio.to_thread(_an.warm_stats_snapshot):
+                    log.info("snapshot stats rafraîchi")
+            except Exception as exc:
+                log.warning("warm stats snapshot error: %s", exc)
         elif not _warned:
             log.warning("règlement : une autre instance est leader -> cette instance NE règle PAS "
                         "(anti double-notif). Retente au cas où le leader s'arrête.")
