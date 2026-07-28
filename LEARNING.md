@@ -31,3 +31,6 @@
 
 ## 2026-07-27
 - 🔴 🎾 Tennis : le marché « Handicap » vient d'être ÉCARTÉ (sur-confiance / ROI prouvés).
+
+## 2026-07-28
+- 🔴 ⚽ Football : le marché « Les 2 marquent » vient d'être ÉCARTÉ (sur-confiance / ROI prouvés).

@@ -236,13 +236,16 @@ def _montante_eligible_code(code: str) -> bool:
 
 
 def pick_day_bet() -> dict | None:
-    """Le palier du jour = le SIMPLE VALUE JOUÉ le plus SÛR (cote la plus basse) des matchs foot à venir
-    (demande user 2026-07-26). MÊME logique que la SIMULATION (montante sur nos simples foot joués) → la vraie
-    montante suit exactement ce qui a donné la belle courbe (réaliste : 1 pari/jour, jamais 2 paliers le même
-    jour). Le palier EST le pari value du jour (pas un marché « sûr » à part), donc réglé via son `stat_bet`.
-    None si aucun simple value à venir. Lecture seule."""
+    """Le palier du jour = le SIMPLE VALUE JOUÉ le plus SÛR des matchs foot à venir (demande user 2026-07-26).
+    « TOUTES LES CHANCES DE NOTRE CÔTÉ » (demande user 2026-07-28, sans changer l'approche) : on PRIVILÉGIE
+    les marchés les PLUS FIABLES (`_montante_eligible_code` : DC / +1.5 buts / favori domicile / équipe marque
+    — mesurés à 88 % de réussite RÉELLE sur nos paris joués, vs 84 % pour les autres marchés) ; à cote égale
+    de sûreté, on préfère un marché fiable. Repli sur le pool complet si aucun pari en marché fiable ce jour.
+    Puis, dans le pool retenu, le PLUS SÛR = cote la plus basse. Le palier EST le pari value du jour (réglé
+    via son `stat_bet`). None si aucun simple value à venir. Lecture seule."""
     from app import analyses
-    best = None
+    from app.settle_analyst import code_from_pick
+    cands = []
     for d in analyses.iter_meta("foot"):
         if analyses.status_of(d) != "notstarted":          # seulement les matchs pas encore commencés
             continue
@@ -255,11 +258,18 @@ def pick_day_bet() -> dict | None:
         cote = rb.get("cote")
         if not isinstance(cote, (int, float)):
             continue
-        if best is None or cote < best["cote"]:            # le PLUS SÛR = cote la plus basse (survie de la série)
-            best = {"mid": mid, "sport": "foot",
-                    "match": d.get("name") or f'{d.get("home", "")} - {d.get("away", "")}'.strip(" -"),
-                    "sel": rb.get("sel"), "cote": float(cote), "code": rb.get("code") or "",
-                    "prob": rb.get("cprob") or rb.get("prob"), "start": d.get("start") or ""}
+        _code = rb.get("code") or code_from_pick(rb.get("sel", ""), "foot", d.get("home", ""), d.get("away", ""))
+        cands.append({"mid": mid, "sport": "foot",
+                      "match": d.get("name") or f'{d.get("home", "")} - {d.get("away", "")}'.strip(" -"),
+                      "sel": rb.get("sel"), "cote": float(cote), "code": _code or "",
+                      "prob": rb.get("cprob") or rb.get("prob"), "start": d.get("start") or "",
+                      "_elig": _montante_eligible_code(_code)})
+    if not cands:
+        return None
+    # PRÉFÉRENCE marchés FIABLES (88 % réel) ; repli sur le pool complet. Puis le plus SÛR = cote la plus basse.
+    pool = [c for c in cands if c["_elig"]] or cands
+    best = min(pool, key=lambda c: c["cote"])
+    best.pop("_elig", None)
     return best
 
 
