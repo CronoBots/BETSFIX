@@ -2065,9 +2065,14 @@ CSS = """
   .cleg-bdg.p{background:rgba(232,184,74,.16);color:var(--gold)}
   /* Badge HEURE d'une jambe à venir : MÊME couleur neutre que les provisoires (.mc-up) — demande user. */
   .cleg-bdg.up{background:rgba(255,255,255,.06);color:var(--muted)}
-  .cleg-bdg.w{background:rgba(52,210,123,.18);color:#34d27b}
-  .cleg-bdg.l{background:rgba(255,107,107,.16);color:#ff6b6b}
+  /* Badge résultat : CONTOUR assorti à l'état (vert gagné / rouge perdu) — demande user 2026-07-28. */
+  .cleg-bdg.w{background:rgba(52,210,123,.18);color:#34d27b;border:1px solid rgba(52,210,123,.55)}
+  .cleg-bdg.l{background:rgba(255,107,107,.16);color:#ff6b6b;border:1px solid rgba(255,107,107,.5)}
   .cleg-bdg.n{background:rgba(144,164,190,.16);color:#90a4be}
+  /* Carte TERMINÉE (gagné/perdu/remb.) : on RETIRE la barre de progression de confiance (thermomètre
+     d'avant-match, muet une fois le résultat connu + doublon du « CONFIANCE % ») — demande user 2026-07-28.
+     Le % reste dans la grille verdict ; le scoreboard devient le point focal. À venir/live : barre gardée. */
+  .cleg.won .vb-bar, .cleg.lost .vb-bar, .cleg.push .vb-bar, .cleg.void .vb-bar{display:none}
   /* Badge « en cours » : ORANGE (pas décidé), plus vert (demande user 2026-07-18). */
   .cleg-bdg.live{background:rgba(52,210,123,.16);color:#34d27b}   /* « 🟢 LIVE » vert comme les cartes (2026-07-21) */
   /* Équipes de la jambe sur leur propre ligne, en gros — comme les provisoires (.mc-teams). */
@@ -5547,9 +5552,11 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
     # PLUS de badge d'état COURANT en haut à droite (« 🟢 Live » / « ⏳ En cours ») — demande user
     # 2026-07-21 : l'état vit dans les JAMBES (badge 🟢 LIVE par jambe). On ne garde le badge global
     # que pour un combiné RÉGLÉ (✅/❌/➖, zone Résultats).
-    _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
-              "lost": '<span class="mc-badge mc-done">❌ Perdu</span>',
-              "void": '<span class="mc-badge mc-done">➖ Remboursé</span>'}.get(_res, "")
+    # Badge résultat GLOBAL du combiné = MÊME style que les badges des autres paris/jambes (`.cleg-bdg`, sans
+    # emoji, contour assorti à l'état) — demande user 2026-07-28 (plus le badge « ✅ Gagné » emoji à part).
+    _badge = {"won": '<span class="cleg-bdg w">GAGNÉ</span>',
+              "lost": '<span class="cleg-bdg l">PERDU</span>',
+              "void": '<span class="cleg-bdg n">REMB.</span>'}.get(_res, "")
     _cote = cb.get("cote")
     _pconf = round((cb.get("prob") or 0) * 100)
     # COTE + CONFIANCE EFFECTIVES si ≥1 jambe est ANNULÉE/remboursée (void/push) : elle SORT du produit
@@ -5682,12 +5689,13 @@ def _montante_tg_card() -> str:
     return _ctx + _leg_card(leg, why=False, teams=True)
 
 
-def _betmines_tg_card() -> str:
+def _betmines_tg_card(include_settled: bool = True) -> str:
     """Carte « Combiné Betmines » pour l'onglet PRONOS (demande user 2026-07-23 : « je veux le voir comme
     un combiné dans l'onglet pronos, sans l'emoji ») — MÊME coquille que le combiné du jour
     (`_combo_gold_card` : en-tête + jambes `_leg_card` + cote totale). Suivi EXTERNE info seule (réglé par
-    NOS sources), hors ROI. Affiché pour le JOUR SPORTIF COURANT, réglé ou non (badge ✅/❌ une fois réglé —
-    c'est de l'observation, pas un pari à jouer qui doit disparaître). '' si pas de Double aujourd'hui."""
+    NOS sources), hors ROI. `include_settled=False` (zone ACTIVE) : renvoie '' une fois le Double RÉGLÉ
+    (won/lost/void) -> il quitte la zone « Combiné Betmines » et passe en « Résultats du jour », comme le
+    combiné du jour (demande user 2026-07-28). '' si pas de Double aujourd'hui."""
     import json as _json
     _p = os.path.join(analyses._ROOT, "data", "betmines_track.json")
     try:
@@ -5698,9 +5706,12 @@ def _betmines_tg_card() -> str:
     cb = _d.get(_sport_today().isoformat())
     if not isinstance(cb, dict) or not cb.get("legs"):
         return ""
+    if not include_settled and cb.get("result") in ("won", "lost", "void"):
+        return ""                                    # réglé -> zone active vide, il vit dans les Résultats
 
-    _badge = {"won": '<span class="mc-badge mc-done">✅ Gagné</span>',
-              "lost": '<span class="mc-badge mc-done">❌ Perdu</span>'}.get(cb.get("result"), "")
+    _badge = {"won": '<span class="cleg-bdg w">GAGNÉ</span>',
+              "lost": '<span class="cleg-bdg l">PERDU</span>',
+              "void": '<span class="cleg-bdg n">REMB.</span>'}.get(cb.get("result"), "")
     # Jambes rendues EXACTEMENT comme le combiné du jour (demande user 2026-07-24) : mêmes SÉPARATEURS
     # (`_MC_SEP`), pli « Pourquoi cette jambe » (why=True + why_always : TOUJOURS affiché, même réglé —
     # demande user 2026-07-24, c'est de l'observation) ET ligne VERDICT Confiance/Marché/Cote (verdict=True,
@@ -6168,7 +6179,7 @@ def _sport_pronos_counts(match_rows: list) -> dict:
     except Exception:
         pass
     _mont = 1 if _montante_tg_card() else 0
-    _betm = 1 if _betmines_tg_card() else 0
+    _betm = 1 if _betmines_tg_card(include_settled=False) else 0   # réglé = compté dans les résultats, pas actif
     out = {}
     for sp in ("foot", "tennis", "basket"):
         _prog = [it for it in _programme_items(_paj, framed=True, keep_sport=sp)
@@ -6237,7 +6248,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # MONTANTE : plus de bannière séparée (demande user 2026-07-28) — l'indication « 🪜 Montante · Palier N »
     # est désormais GREFFÉE sur la carte du pari du jour concerné (via _montante_badge dans _sport_row) pour
     # ne montrer le pari qu'UNE fois, avec un lien vers l'onglet Montante.
-    betmines = _betmines_tg_card() if _is_foot_view else ""
+    # Combiné BETMINES ACTIF (non réglé) : une fois réglé, il quitte cette zone et passe en « Résultats du
+    # jour » (demande user 2026-07-28) -> include_settled=False.
+    betmines = _betmines_tg_card(include_settled=False) if _is_foot_view else ""
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport or "foot", "football")
@@ -6269,10 +6282,21 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _combo_res = _combo_tg_card(include_settled=True, cb=_cbt, sport=(sport or "foot"))
     except Exception:
         _combo_res = ""
-    if _res_cards or _prov_res or _combo_res:
+    # Combiné BETMINES RÉGLÉ -> zone Résultats (il a quitté sa zone active via include_settled=False).
+    _betm_res = ""
+    if _is_foot_view:
+        try:
+            import json as _json2
+            _bt = _json2.load(open(os.path.join(analyses._ROOT, "data", "betmines_track.json"), encoding="utf-8"))
+            _bcb = _bt.get(today_iso)
+            if isinstance(_bcb, dict) and _bcb.get("legs") and _bcb.get("result") in ("won", "lost", "void"):
+                _betm_res = _betmines_tg_card(include_settled=True)
+        except Exception:
+            _betm_res = ""
+    if _res_cards or _prov_res or _combo_res or _betm_res:
         _res_html = (_MC_SEP.join(_res_cards) if _res_cards else "")
         out.append(_zone("done", "Résultats du jour", "", len(_res_cards),
-                         _combo_res + _res_html + _prov_res, collapsible=True))
+                         _combo_res + _betm_res + _res_html + _prov_res, collapsible=True))
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
     zones = f'<div class="dash-zones">{inner or _empty}</div>'
