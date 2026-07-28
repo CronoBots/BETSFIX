@@ -296,8 +296,9 @@ async def fetch_live_odds(sport: str, client=None) -> dict:
 
 
 async def _fetch_live_odds_now(sport: str, client=None) -> dict:
-    """Vrai appel listView Unibet qui (re)remplit _ODDS_CACHE / _LIVE_STATE_CACHE / _META_CACHE. Bloquant
-    côté réseau (httpx async). Appelé soit au premier chargement, soit en tâche de fond (cf. fetch_live_odds)."""
+    """(Re)remplit _ODDS_CACHE / _LIVE_STATE_CACHE / _META_CACHE depuis le listView Unibet. L'acquisition du
+    brut est rôle-aware (cf. _acquire_listview) : réseau httpx en collector, fichier synchronisé en server.
+    Appelé soit au premier chargement, soit en tâche de fond (cf. fetch_live_odds)."""
     now = _time.time()
     hit = _ODDS_CACHE.get(sport)
     path = LISTVIEW.get(sport, "football")
