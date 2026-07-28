@@ -3023,7 +3023,7 @@ async def main():
             if _sprev and (_sprev.get("sent") or _sprev.get("result")):
                 print("  🛡️ Combiné sécurité foot : déjà construit aujourd'hui (figé).")
             else:
-                _csc = _csafe.build_for_day(_day)
+                _csc = await _csafe.build_for_day_async(_day)   # VRAIES cotes DC Unibet (colle au ticket)
                 if _csc:
                     _analyze_combo_legs(_csc)        # analyse dédiée par jambe (comme un pari à jouer)
                     if _csafe.record_daily(_csc, _day):

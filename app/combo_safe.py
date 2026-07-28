@@ -74,10 +74,8 @@ def _safe_dc_candidates(day: str) -> list[dict]:
     return list(best.values())
 
 
-def build_for_day(day: str) -> dict | None:
-    """Construit LE combiné sécurité foot du jour : les DC les plus sûres assemblées pour atteindre ~2.0.
-    None si le vivier ne permet pas d'atteindre la cible avec au moins 2 jambes."""
-    cands = _safe_dc_candidates(day)
+def _combo_from_cands(cands: list[dict]) -> dict | None:
+    """Assemble le combiné (optimiseur `pick_combo`) à partir de candidats DC déjà prêts (cotes correctes)."""
     combo = _cd.pick_combo(cands, min_odds=TARGET_ODDS, max_legs=MAX_LEGS, min_legs=MIN_LEGS,
                            min_leg_prob=MIN_LEG_PROB, min_leg_odds=MIN_LEG_ODDS, min_combo_prob=0.0)
     if not combo:
@@ -86,8 +84,47 @@ def build_for_day(day: str) -> dict | None:
              "away": l.get("away"), "start": l.get("start"), "comp": l.get("comp"),
              "sel": l["sel"], "cote": l["cote"], "prob": round(l["prob"], 4),
              "code": l["code"], "result": None, "score": None} for l in combo["legs"]]
-    return {"date": day, "sport": "foot", "cote": combo["cote"], "prob": round(combo["prob"], 4),
+    return {"date": None, "sport": "foot", "cote": combo["cote"], "prob": round(combo["prob"], 4),
             "legs": legs, "result": None, "sent": False, "created": None}
+
+
+def build_for_day(day: str) -> dict | None:
+    """Construit LE combiné sécurité foot du jour à partir des cotes DC des prédictions (SANS réseau).
+    ⚠️ Repli/tests seulement : les cotes DC des shadows peuvent être MAL APPARIÉES (cf. `dc_odds`) — la
+    voie de PRODUCTION est `build_for_day_async` (vraies cotes DC Unibet). None si vivier insuffisant."""
+    cb = _combo_from_cands(_safe_dc_candidates(day))
+    if cb:
+        cb["date"] = day
+    return cb
+
+
+async def build_for_day_async(day: str, client=None) -> dict | None:
+    """Construit LE combiné sécurité foot en lisant les VRAIES cotes « Double chance » d'Unibet par match
+    (`match_select.dc_odds`) au lieu des cotes DC des shadows (parfois mal appariées, bug Santos 2026-07-28).
+    -> le combiné AFFICHÉ colle EXACTEMENT au ticket Unibet (cote totale = produit des DC réelles). Voie de
+    PRODUCTION (scan). None si vivier insuffisant."""
+    import httpx
+    from app import match_select as _ms
+    cands = _safe_dc_candidates(day)
+    own = client is None
+    client = client or httpx.AsyncClient(timeout=15)
+    try:
+        for c in cands:
+            try:
+                parts = (c.get("code") or "").split()      # "DC 1X" -> outcome "1X"
+                key = parts[1].upper() if len(parts) > 1 else ""
+                real = (await _ms.dc_odds(c.get("mid"), client)).get(key)
+                if isinstance(real, (int, float)) and real >= 1.01:
+                    c["cote"] = real                       # AUTORITÉ Unibet (remplace la cote shadow)
+            except Exception:
+                pass                                       # cote indispo -> on garde la cote shadow existante
+    finally:
+        if own:
+            await client.aclose()
+    cb = _combo_from_cands(cands)
+    if cb:
+        cb["date"] = day
+    return cb
 
 
 def record_daily(combo: dict, day: str) -> bool:

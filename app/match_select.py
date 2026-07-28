@@ -512,6 +512,27 @@ async def fetch_event_offers(unibet_id, client=None) -> list:
             await client.aclose()
 
 
+async def dc_odds(unibet_id, client=None) -> dict:
+    """Cotes RÉELLES du marché « Double chance » TEMPS PLEIN d'un match Unibet : {"1X":x, "X2":y, "12":z}
+    (cotes décimales). Exclut les variantes mi-temps. {} si indispo. SOURCE D'AUTORITÉ pour les cotes DC :
+    les cotes DC des prédictions `shadow` peuvent être MAL APPARIÉES (bug 2026-07-28 : « Santos ou nul » (1X)
+    stocké à 1.11 = en réalité la cote du 12 ; le vrai 1X Unibet = 1.02) -> un combiné DC doit lire la cote
+    ICI, pas dans le shadow."""
+    offers = await fetch_event_offers(unibet_id, client)
+    for bo in offers:
+        crit = ((bo.get("criterion") or {}).get("label") or "").lower()
+        btype = ((bo.get("betOfferType") or {}).get("name") or "")
+        if btype == "Double Chance" and "mi-temps" not in crit and "mi temps" not in crit:
+            out: dict = {}
+            for oc in bo.get("outcomes") or []:
+                lab = (oc.get("englishLabel") or oc.get("label") or "").upper()
+                od = oc.get("odds")
+                if lab in ("1X", "X2", "12") and isinstance(od, (int, float)) and od:
+                    out[lab] = round(od / 1000.0, 2)
+            return out
+    return {}
+
+
 async def fetch_events_with_odds(sport: str, client=None, within_hours: int = 48) -> list:
     """UN appel listView -> liste des matchs À VENIR (coup d'envoi futur ≤ within_hours) avec leurs
     cotes vainqueur : [{id, home, away, comp, start(ISO), odds:(o1,ox,o2)}]. eSports exclus, matchs
