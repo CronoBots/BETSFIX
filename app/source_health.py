@@ -63,6 +63,31 @@ async def _p_sportradar(c):
     return (bool(gm), "OK" if gm else "réponse vide")
 
 
+async def _p_sofascore(c):
+    """SofaScore via la cascade (direct curl_cffi gratuit -> repli RapidAPI payant). ok=True dès qu'une voie
+    répond 200 sur un endpoint stable (live football). ÉCONOMIE QUOTA : on ne ping RapidAPI que si le DIRECT
+    tombe (mirroir de la vraie cascade). Suit la stabilité jour/jour : la source avait été jugée MORTE lors
+    d'une DOUBLE panne temporaire (Cloudflare 403 direct + quota RapidAPI épuisé), re-vérifiée VIVANTE le
+    2026-07-28 (3 voies 200, résolution _resolve_sofa 4/4). Le detail expose la voie active."""
+    from app import sofa_http
+    url = "https://api.sofascore.com/api/v1/sport/football/events/live"
+    direct = "?"
+    try:                                                   # 1) DIRECT (gratuit) = voie normale
+        r = await sofa_http.session().get(url)
+        if r.status_code == 200 and isinstance((r.json() or {}).get("events"), list):
+            return True, "direct OK"
+        direct = f"HTTP {r.status_code}"
+    except Exception as e:
+        direct = type(e).__name__
+    try:                                                   # 2) direct KO -> RapidAPI rattrape-t-il ?
+        rr = await sofa_http._rapid_get(url, None)
+        if rr is not None and rr.status_code == 200:
+            return True, f"direct KO ({direct}), RapidAPI OK"
+    except Exception:
+        pass
+    return False, f"direct {direct} + RapidAPI KO"
+
+
 async def _p_unibet(c):
     from app import unibet
     n = await asyncio.to_thread(lambda: len(unibet.matches("foot")))
@@ -113,6 +138,8 @@ _SOURCES = [
     ("flashscore", "Flashscore", "forme/H2H/score (repli règlement)", False, _p_flashscore),
     ("livescore", "LiveScore", "score live + règlement", False, _p_livescore),
     ("sportradar", "Sportradar GISMO", "periods/stats (règlement)", False, _p_sportradar),
+    ("sofascore", "SofaScore", "séries/votes/scores live — re-vérifié VIVANT 2026-07-28 (garder RapidAPI)",
+     False, _p_sofascore),
     ("betmines", "Betmines (proxy SportMonks)", "benchmark externe : Double quotidien (info seule, hors ROI)",
      False, _p_betmines),
 ]

@@ -55,7 +55,7 @@ Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
 
 ## Sources de données & analyse (état réel — 2026-06-17)
 
-### Sources par rôle (toutes vérifiées vivantes, sauf SofaScore)
+### Sources par rôle (toutes vérifiées vivantes)
 | Source | Rôle | Statut |
 |---|---|---|
 | **Unibet** | cotes + marchés + **sélection** des matchs (les 3 sports) | ✅ |
@@ -67,18 +67,23 @@ Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
 | **LiveScore** | scores **live** (onglet radar) + **règlement** des paris | ✅ |
 | **Sportradar (GISMO)** | foot/tennis/basket : forme · **streaks de pari** (sans défaite/marque/BTTS/over) · H2H · classement · **moyennes buts-points & over 2.5** — feed LIBRE `lsc.fn.sportradar.com` (locale FR), `app/sportradar.py` branché à `sources.extras` + routeur `/sportradar/*` (dans `/docs`) · **+ RÈGLEMENT (v44)** : `sportradar.final_score()` lit `match_info.periods` → jeux/sets/tie-breaks tennis & quart-temps basket (repli `need_periods` dans settle_analyst) | ✅ |
 | **Betmines** (proxy **SportMonks**) | foot : **benchmark externe** (Double quotidien + stats SportMonks : % over/under, clean-sheet, GG, moyennes, H2H via `/fixtures/{id}`) — **INFO SEULE, hors ROI**. UA navigateur + urllib requis (WAF bloque httpx). ⚠️ PAS de listing/recherche de fixtures → inexploitable pour enrichir notre slate (cf. mémoire `betmines-tracking`) | ✅ |
-| **SofaScore** | ex-source principale (Sportradar GISMO = le vrai upstream, le remplace en partie) | ❌ **MORTE** |
+| **SofaScore** | séries de pari · votes · scores live · event/h2h/lineups/incidents (Sportradar GISMO reste l'upstream principal) | ✅ **re-vérifié vivant 2026-07-28** |
 
-### ⚠️ SofaScore est MORT — NE PAS re-diagnostiquer à chaque fois
-- `app/sofa_http`, `_sofa_extras`, `_resolve_sofa`, `tools/build_*elo` appellent
-  ENCORE SofaScore → renvoient 0 / 403, **gérés sans planter** (vestige).
-- Donc : `/{sport}/match/{id}/streaks|h2h|statistics` renvoient `{}` pour les 3 sports,
-  et le scan logue « id SofaScore introuvable → repli id Unibet ». **C'est normal.**
-- NE PAS conclure « tennis/basket cassés » : la **sélection (Unibet)** et
-  l'**enrichissement (multi-sources)** marchent pour les 3 sports.
-- Déjà acté : **Elo tennis RETIRÉ** (commit 4ee2d45) ; les builds Elo/tendances/
-  serve-return collectent 0 → **garde-fou anti-écrasement** (ba61e1b). **Ne PAS
-  relancer ces builds en espérant un résultat.** (cf. mémoire `build-sofascore-dead`.)
+### ✅ SofaScore RE-VÉRIFIÉ VIVANT (2026-07-28) — l'ancien « MORT » était une panne temporaire
+- **Contrôle empirique 2026-07-28** : les 3 voies (`app/sofa_http` cascade) répondent **HTTP 200**
+  (direct curl_cffi + RapidAPI + proxy) sur live/search/event/h2h/incidents/votes/lineups, et
+  `_resolve_sofa` **résout 4/4** vrais matchs (via le repli `/search/all`).
+- **Cause racine de l'ancien « mort »** : une **DOUBLE panne SIMULTANÉE temporaire** — Cloudflare 403 sur
+  le direct **ET** quota RapidAPI mensuel épuisé (cf. `generate_analyses.py:70`). Les deux voies HS en même
+  temps → source jugée définitivement morte. **Les deux conditions ont disparu** (quota revenu, blocage levé).
+- **RapidAPI = À GARDER** : il répond 200, c'est le filet payant qui rattrape sur 403/429. Ne pas le résilier.
+- **404 ≠ mort** : `statistics` 404 sur un match amateur = pas de données (404 aussi sur RapidAPI), et
+  `scheduled-events/{jour}` 404 sur ce endpoint bulk précis — mais la résolution passe par `/search/all`.
+- **Surveillé en continu** : sonde `source_health._p_sofascore` (direct, repli RapidAPI si direct KO) →
+  visible dans `/health/sources`. Suivre la stabilité quelques jours **avant** de re-brancher l'enrichissement.
+- **Pas encore re-câblé** : l'enrichissement actif reste multi-sources (FotMob/ESPN/Understat/Sportradar) ;
+  la réactivation de SofaScore dans le scan/affichage est une décision séparée (surface de régression).
+- Reste vrai : **Elo tennis RETIRÉ** (4ee2d45) + garde-fou anti-écrasement des builds (ba61e1b).
 
 ### L'enrichissement vivant = `app/sources.py`
 - `sources.extras(client, sport, match)` → FotMob/ESPN/Understat + Flashscore,
