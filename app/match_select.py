@@ -96,6 +96,70 @@ def rank_important(events: list, top_n: int = 10, within_hours: int | None = Non
 import asyncio
 import time as _time
 
+# --------------------------------------------------------------------------- #
+# SLATE Unibet SYNCHRONISABLE (brique 3 du split cloud/collecteur, 2026-07-28). #
+# Le SEUL appel réseau bloquant au rendu est le listView Unibet (ce module). En #
+# rôle SERVER (cloud), on ne veut JAMAIS scraper : on lit le JSON brut du       #
+# listView, SYNCHRONISÉ depuis le collecteur, dans data/live_slate_{sport}.json.#
+# En rôle COLLECTOR (maison, défaut), comportement IDENTIQUE à avant + on       #
+# persiste le brut (best-effort) pour que le serveur le serve. Le traitement en #
+# aval (out/states/metas) est le MÊME code dans les deux rôles -> divergence    #
+# nulle. Repli gracieux : brut absent -> {} -> le rendu garde les cotes du      #
+# sidecar (comportement déjà prévu).                                            #
+# --------------------------------------------------------------------------- #
+import json as _json
+import os as _os
+
+_SLATE_DIR = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "data")
+
+
+def _slate_path(sport: str) -> str:
+    return _os.path.join(_SLATE_DIR, f"live_slate_{sport}.json")
+
+
+def _save_slate(sport: str, raw: dict) -> None:
+    """Persiste le JSON brut du listView (rôle collecteur). Best-effort + écriture atomique : ne casse
+    JAMAIS le rendu. Sert de source au serveur cloud via la sync (liste blanche)."""
+    try:
+        p = _slate_path(sport)
+        tmp = p + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            _json.dump(raw, f, ensure_ascii=False)
+        _os.replace(tmp, p)
+    except OSError:
+        pass
+
+
+def _load_slate(sport: str) -> dict:
+    """Lit le JSON brut du listView SYNCHRONISÉ (rôle serveur). {} si absent -> repli gracieux (le rendu
+    garde les cotes du sidecar, aucun crash)."""
+    try:
+        with open(_slate_path(sport), encoding="utf-8") as f:
+            return _json.load(f) or {}
+    except (OSError, ValueError):
+        return {}
+
+
+async def _acquire_listview(sport: str, path: str, client=None) -> dict:
+    """JSON brut du listView Unibet. Rôle SERVER -> lit le fichier synchronisé (ZÉRO réseau, le cloud ne
+    scrape jamais). Rôle COLLECTOR -> appel réseau IDENTIQUE à avant, puis persiste le brut pour le serveur."""
+    from app import role
+    if role.is_server():
+        return _load_slate(sport)
+    import httpx
+    own = client is None
+    client = client or httpx.AsyncClient(timeout=10)
+    try:
+        r = await client.get(f"{UNIBET_B}/listView/{path}.json", params=UNIBET_PARAMS,
+                             headers={"User-Agent": "Mozilla/5.0"})
+        raw = r.json() or {}
+    finally:
+        if own:
+            await client.aclose()
+    _save_slate(sport, raw)          # best-effort : le collecteur alimente le serveur
+    return raw
+
+
 _ODDS_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: (o1, ox, o2)})
 _LIVE_STATE_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: liveData}) — score + horloge EN DIRECT
 _META_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: {circuit, comp, start}}) — Unibet path/group/heure
@@ -236,15 +300,11 @@ async def _fetch_live_odds_now(sport: str, client=None) -> dict:
     côté réseau (httpx async). Appelé soit au premier chargement, soit en tâche de fond (cf. fetch_live_odds)."""
     now = _time.time()
     hit = _ODDS_CACHE.get(sport)
-    import httpx
     path = LISTVIEW.get(sport, "football")
-    own = client is None
-    client = client or httpx.AsyncClient(timeout=10)
     out, states, metas = {}, {}, {}
     try:
-        r = await client.get(f"{UNIBET_B}/listView/{path}.json", params=UNIBET_PARAMS,
-                             headers={"User-Agent": "Mozilla/5.0"})
-        for it in (r.json() or {}).get("events") or []:
+        raw = await _acquire_listview(sport, path, client)   # réseau (collector) OU fichier synchro (server)
+        for it in (raw or {}).get("events") or []:
             ev = it.get("event", it)
             key = _okey(ev.get("homeName"), ev.get("awayName"))
             wo = _winner_odds(it.get("betOffers"))
@@ -259,9 +319,6 @@ async def _fetch_live_odds_now(sport: str, client=None) -> dict:
     except Exception:
         out = hit[1] if hit else {}        # repli sur le dernier cache si le fetch échoue
         states = metas = None              # ne pas écraser le dernier état/méta connu
-    finally:
-        if own:
-            await client.aclose()
     _ODDS_CACHE[sport] = (now, out)
     if states is not None:
         _LIVE_STATE_CACHE[sport] = (now, states)
@@ -361,6 +418,9 @@ async def fetch_sofa_live(sport: str, sofa_id) -> dict:
     ressuscitait, le prochain rendu en profiterait. Fix lenteur 2026-07-15 (pic ~8 s résiduel)."""
     if not sofa_id:
         return {}
+    from app import role
+    if role.is_server():                                # cloud : jamais de scraping, on reste offline
+        return {}
     sid = str(sofa_id)
     if not (sid.isdigit() and len(sid) <= 8):
         return {}
@@ -391,6 +451,9 @@ def livescore_live_fields(sport: str, home: str, away: str, start: str | None = 
     live 80' 0-0 mais invisible -> combiné disparu). Renvoie {score, live_time} prêts pour le scoreboard, ou
     {} si LiveScore n'a pas ce match EN COURS. LiveScore = notre source de scores live (cf. carte des
     sources). find_id gère le matching des noms FR->EN. Caché 20 s/match (bloquant réseau borné)."""
+    from app import role
+    if role.is_server():                                # cloud : jamais de scraping, on reste offline
+        return {}
     key = (sport, home, away)
     now = _time.time()
     hit = _LS_LIVE_CACHE.get(key)

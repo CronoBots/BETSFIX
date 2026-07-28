@@ -41,3 +41,8 @@ data/notify_pronos.json
 
 # --- Historique des cotes (variations affichées) ---
 data/odds_history/
+
+# --- Slate Unibet brut par sport (cotes + scores live au rendu, servi offline par le serveur) ---
+data/live_slate_foot.json
+data/live_slate_basket.json
+data/live_slate_tennis.json
