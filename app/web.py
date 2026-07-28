@@ -5823,10 +5823,10 @@ def _betmines_tg_card(include_settled: bool = True) -> str:
                  if isinstance(tot, (int, float)) and tot else "")
     _tot = ('<div class="combo-total-hd"><span>Total du combiné</span></div>'
             + _verdict_block(tot, _gconf, '', _cote_big, calibrated=False)) if _cote_big else ""
-    _note = ('<div class="mc-reana" style="margin:4px 2px 0">Suivi externe (Betmines), réglé par nos '
-             'sources — information seule, hors ROI.</div>')
-    return _combo_gold_card(title="COMBINÉ BETMINES", subtitle=f'{len(cb["legs"])} jambes',
-                            badge=_badge, body=legs_html + _tot + _note, state=cb.get("result"))
+    # Commentaire bleu (« Suivi externe (Betmines)… ») RETIRÉ de l'affichage (demande user 2026-07-28).
+    # Nom AFFICHÉ = « Combiné bonus » (le suivi/les ressources Betmines restent inchangés côté data).
+    return _combo_gold_card(title="COMBINÉ BONUS", subtitle=f'{len(cb["legs"])} jambes',
+                            badge=_badge, body=legs_html + _tot, state=cb.get("result"))
 
 
 def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
@@ -6274,7 +6274,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out.append(_zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True))
     out += [
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
-        _zone("betmines", "Combiné Betmines", "", 1 if betmines else 0, betmines, collapsible=True),
+        _zone("betmines", "Combiné bonus", "", 1 if betmines else 0, betmines, collapsible=True),
     ]
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
     # compact info-seule) — sinon visibles seulement dans Stats (demande user 2026-07-20). Zone repliable.
