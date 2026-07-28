@@ -222,6 +222,27 @@ def settle_pending() -> int:
         # fini (assez de temps écoulé depuis le coup d'envoi). Empêche tout règlement sur un match à venir.
         if not analyses.likely_finished({"start": p.get("start"), "sport": sport}):
             continue
+        # GARDE « MATCH REPORTÉ / pas vraiment fini » (bug user 2026-07-28 : matchs WTA Vancouver reportés du
+        # 26 au 29/07 -> date STOCKÉE périmée -> likely_finished(stale)=True -> réglé/voidé à tort alors que le
+        # match n'a PAS été joué). On vérifie l'état RÉEL Unibet : s'il montre le match ENCORE À VENIR (reporté)
+        # ou EN COURS, on NE règle/void PAS (aligné combo_daily + settle-never-on-live-score). Le tennis surtout
+        # se décale -> `fresh_status` renvoie l'heure FRAÎCHE Unibet.
+        try:
+            from app import match_select as _ms
+            _hl = bool(_ms.live_state_for(sport, p.get("home"), p.get("away")))
+            _fst, _fdt = _ms.fresh_status(sport, p.get("home"), p.get("away"), "finished", _hl,
+                                          start_iso=p.get("start"))
+            if _hl or _fst in ("inprogress", "notstarted"):
+                # heure fraîche postérieure -> on RAFRAÎCHIT la date stockée (le prochain cycle la réglera au bon moment)
+                if _fdt is not None:
+                    try:
+                        p["start"] = _fdt.isoformat().replace("+00:00", "Z")
+                        _save(d)
+                    except Exception:
+                        pass
+                continue
+        except Exception:
+            pass
         q = {"home": p.get("home", ""), "away": p.get("away", ""), "start": p.get("start"),
              "sofa_id": ""}
         score = None
