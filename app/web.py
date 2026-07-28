@@ -6085,10 +6085,22 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
         _fid, _prob, _why, _code = _prov_sidecar(sp, _h, _a, p.get("sel"))
         if p.get("prob") is not None:               # confiance FIGÉE au suivi (récent) -> prioritaire, robuste
             _prob = p.get("prob")
+        # SCORE depuis le SIDECAR (result_board -> détail par set/quart-temps) plutôt que la chaîne FIGÉE du
+        # suivi (« 2-1 (sets) » pour le tennis -> scoreboard corrompu « 2-1 » en colonne S1, bug user
+        # 2026-07-28). Même source que les paris joués terminés (_settled_bet_result_cards).
+        _score, _periods = p.get("score"), None
+        try:
+            _sd = analyses.meta(sp, str(_fid)) if _fid else None
+            _bd = analyses.result_board(_sd, sp) if _sd else None
+            if _bd and _bd.get("score"):
+                _score, _periods = _bd.get("score"), _bd.get("periods")
+        except Exception:
+            pass
         cards.append(_leg_card(
             {"sport": sp, "home": _h, "away": _a, "comp": p.get("comp"),
              "sel": str(p.get("sel") or ""), "cote": p.get("cote"), "prob": _prob, "code": _code,
-             "result": p.get("result"), "score": p.get("score"), "start": p.get("start"), "why": _why},
+             "result": p.get("result"), "score": _score, "periods": _periods,
+             "start": p.get("start"), "why": _why},
             why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix"))
     return ('<div class="prv-hd">🧪 Provisoires <span>· info seule, hors ROI</span></div>'
             + _MC_SEP.join(cards))
