@@ -992,7 +992,6 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # confiance % → value % » est ainsi TOUJOURS exact (conf × cote − 1 = value) et jamais en
         # contradiction avec le statut. (Corrige l'ancien écart : le tableau montrait la brute, le reste le
         # calibré ; cf. commentaire card_summary l.1940 « la MÊME confiance que le détail ».)
-        conf_v = f"{round(_cp)}%" if _cp is not None else "—"
         cote_v = f"{cv:g}" if cv is not None else (_inline(b["cote_txt"]) if b["cote_txt"] else "—")
         res = results.get(_norm_sel(b["sel"]))
         # État + marqueur : pari RETENU -> résultat coloré + ✅/❌/➖ ; abstention -> « aurait gagné/perdu ».
@@ -1006,7 +1005,6 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
             legcls = ""
             mark = ('<span class="tkt-p">aurait gagné</span>' if res == "won"
                     else '<span class="tkt-p">aurait perdu</span>' if res == "lost" else "")
-        pc = "hi" if (prob and prob >= 75) else "mid" if (prob and prob >= 65) else "lo"
         o_chip = f'<span class="tkt-o">@{cote_v}</span>' if cote_v != "—" else ""
         note = note_by_idx.get(k)
         note_html = f'<div class="tkt-why">{_note_paras(note)}</div>' if note else ""
@@ -1571,7 +1569,7 @@ def _foot_hcap_pct(info: dict, hs: int, as_: int, rem: float) -> float | None:
 def _foot_count_pct(info: dict, vals: dict, rem: float) -> float | None:
     """Proba MODÈLE d'un total Plus/Moins d'ÉVÉNEMENTS comptés (corners/cartons/tirs/tirs cadrés), vu le
     compteur LIVE (`vals`) + le temps restant. None si le compteur live du marché n'est pas connu."""
-    metric, base = info.get("metric"), _METRIC_BASE.get(info.get("metric"))
+    base = _METRIC_BASE.get(info.get("metric"))
     rate = _RATE90.get(info.get("metric"))
     if base is None or rate is None or info.get("scope") != "match":
         return None
