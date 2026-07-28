@@ -5602,16 +5602,39 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
                             badge=_badge, body=_body, state=cb.get("result"))
 
 
+def _combo_safe_with_why(cb: dict | None) -> dict | None:
+    """Enrichit (sur une COPIE — jamais le track isolé `combo_safe_track.json`) chaque jambe du combiné
+    sécurité avec NOTRE justification du match, pour que le pli « Pourquoi cette jambe » s'affiche COMME sur
+    toutes les autres cartes (demande user 2026-07-28 : « chaque carte de pari doit avoir son pourquoi »).
+    Les jambes sécurité sont bâties par `combo_safe._combo_from_cands` SANS champ `why` -> `_leg_card` ne
+    rendait aucun pli. On reprend l'analyse EXISTANTE du match (le `.md` de la fiche, via son `mid` = id de
+    fiche) — SOURCE UNIQUE, comme les provisoires/Betmines : jamais deux analyses divergentes du même match."""
+    if not isinstance(cb, dict) or not cb.get("legs"):
+        return cb
+    import copy
+    cb = copy.deepcopy(cb)
+    for _l in cb.get("legs") or []:
+        if _l.get("why") or not _l.get("mid"):
+            continue
+        try:
+            _l["why"] = _prov_why_snippet("foot", str(_l.get("mid")), maxlen=100000)
+        except Exception:
+            pass
+    return cb
+
+
 def _combo_safe_tg_card(include_settled: bool = False, cb: dict | None = None) -> str:
     """Carte PLEINE du COMBINÉ SÉCURITÉ FOOT (double chance la plus sûre ~2, hors ROI) pour l'onglet Pronos —
     demande user 2026-07-28. Réutilise `_combo_tg_card` (même présentation OR : jambes = picks, verdict cote/
-    confiance) en passant le combiné de `app/combo_safe.py` + un titre dédié. '' si aucun combiné."""
+    confiance) en passant le combiné de `app/combo_safe.py` + un titre dédié. '' si aucun combiné.
+    Chaque jambe est enrichie de NOTRE « pourquoi » (`_combo_safe_with_why`) -> pli présent comme partout."""
     if cb is None:
         try:
             from app import combo_safe as _cs
             cb = _cs.today(_cs.day_key())
         except Exception:
             cb = None
+    cb = _combo_safe_with_why(cb)
     return _combo_tg_card(include_settled=include_settled, cb=cb, sport="foot", title="COMBINÉ SÉCURITÉ")
 
 

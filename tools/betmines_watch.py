@@ -197,6 +197,48 @@ def _settle_leg(leg: dict) -> None:
         leg["settle_src"] = "betmines"
 
 
+def _settle_leg_sidecar(leg: dict) -> None:
+    """PRIORITÉ (autorité, 0 réseau, demande user 2026-07-28) : lit le SCORE FINAL depuis NOTRE sidecar du
+    match (`result.raw`), déjà réglé par le pipeline principal. Couvre les ligues obscures que
+    `sources.final_score` NE trouve PAS par noms (ex. D3 finlandaise Kolmonen : SalPa 2 – VG-62) mais que
+    NOTRE scan a analysées — le sidecar existe et porte le score (résolu via SofaScore par équipe). Évite
+    qu'une jambe reste « en attente » à vie alors que le score est déjà chez nous. Over/under buts seulement
+    (marchés `line`). Matching par NOMS (tokens, robuste « SalPa II » ↔ « SalPa 2 ») + MÊME jour. No-op sinon."""
+    if leg.get("result") in ("won", "lost", "push"):
+        return
+    ln = leg.get("line")
+    if not isinstance(ln, (int, float)):
+        return                                          # codé over/under seulement (comme _settle_leg_our_source)
+    try:
+        from app import analyses
+    except Exception:
+        return
+    _stop = {"fc", "sc", "cf", "ii", "de", "do", "da", "ac", "if", "sp", "rj", "mg", "slc", "te"}
+
+    def _tkn(s):
+        return set(re.findall(r"[a-z0-9]+", (s or "").lower())) - _stop
+
+    th, ta = _tkn(leg.get("home")), _tkn(leg.get("away"))
+    if not (th and ta):
+        return
+    day = str(leg.get("start") or "")[:10]
+    for d in analyses.iter_meta("foot"):
+        raw = (d.get("result") or {}).get("raw")
+        if not (isinstance(raw, dict) and raw.get("home") is not None and raw.get("away") is not None):
+            continue
+        if day and str(d.get("start") or "")[:10] != day:  # MÊME jour (désambiguïse 1re vs réserve, cf. mémoire)
+            continue
+        ch, ca = _tkn(d.get("home")), _tkn(d.get("away"))
+        if not ((ch & th and ca & ta) or (ch & ta and ca & th)):
+            continue
+        total = raw["home"] + raw["away"]
+        leg["score"] = f'{raw["home"]}-{raw["away"]}'
+        leg["result"] = ("won" if total > ln else "lost") if ln > 0 else \
+                        ("won" if total < abs(ln) else "lost")
+        leg["settle_src"] = "sidecar"
+        return
+
+
 def _settle_leg_our_source(leg: dict) -> None:
     """REPLI par NOS sources (demande user 2026-07-26) : quand Betmines n'a pas encore le score (`ftScore`
     absent) ET n'a pas tranché (their_status=0), on va chercher le SCORE FINAL dans nos sources multi-sources
@@ -418,7 +460,9 @@ def run(force: bool = False, backfill: int = 0) -> None:
         for leg in cb.get("legs") or []:
             _settle_leg(leg)                            # 1) données Betmines (ftScore / their_status)
             if leg.get("result") not in ("won", "lost", "push"):
-                _settle_leg_our_source(leg)             # 2) repli : NOS sources (score final par noms)
+                _settle_leg_sidecar(leg)                # 2) NOTRE sidecar result.raw (autorité, 0 réseau)
+            if leg.get("result") not in ("won", "lost", "push"):
+                _settle_leg_our_source(leg)             # 3) repli : NOS sources (score final par noms)
         res = [leg.get("result") for leg in cb.get("legs") or []]
         if res and all(r == "won" for r in res):
             cb["result"] = "won"
