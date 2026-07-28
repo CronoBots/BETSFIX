@@ -7252,6 +7252,16 @@ def _recent_bets_html(recent: list) -> str:
         # ORDRE (demande user 2026-07-25) : DATE/HEURE tout à gauche · pari (nom + sélection) · COTE ·
         # RÉSULTAT tout à droite (la cote juste avant le badge résultat).
         _legs = b.get("legs")                          # COMBINÉ -> ligne DÉPLIABLE révélant les jambes
+        # COMBINÉ MULTI-MATCHS (demande user 2026-07-28) : 1re ligne « Combiné du jour », sous-ligne GRISE
+        # « N jambes » (le détail des matchs/marchés vit dans les jambes dépliables). Les combinés MÊME-MATCH
+        # (Bet Builder, ex. Coupe du Monde — toutes les jambes sur UN seul match, donc `name` de jambe vide)
+        # gardent leur affichage d'origine (affiche du match + marchés combinés).
+        if _legs:
+            _mn = {str(l.get("name") or "").strip() for l in _legs}
+            _mn.discard("")
+            if len(_mn) > 1:                            # ≥2 matchs distincts -> vrai combiné multi-matchs
+                name = html.escape("Combiné du jour")
+                sel = html.escape(f"{len(_legs)} jambe{'s' if len(_legs) > 1 else ''}")
         _sel_disp = sel + (' <span class="spf-cx">▾</span>' if _legs else "")
         _inner = (
             f'<span class="spf-rec-d"><b>{html.escape(_date)}</b><span>{html.escape(_hm)}</span></span>'
