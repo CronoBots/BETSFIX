@@ -190,6 +190,15 @@ def status_of(d: dict, now=None) -> str:
         return "notstarted"
     if is_settled(d):                    # réglé = réellement terminé (sans attendre la fenêtre de durée)
         return "finished"
+    # SCORE FINAL CAPTÉ = match TERMINÉ, même si le PICK n'est pas « réglé » (cas provisoire/abstention : le
+    # score + les périodes sont écrits au règlement des fantômes, mais pas de pick_result -> is_settled False).
+    # Sans ça, un match FINI restait « inprogress » tant que la fenêtre de durée n'était pas écoulée (tennis
+    # 210 min) -> le provisoire n'était jamais validé alors que sa jambe l'était (bug user 2026-07-28,
+    # Nishikori « +19.5 jeux »). Le score n'est écrit QUE sur un match confirmé fini (cf. settle-never-on-live).
+    _res = d.get("result") or {}
+    if (_res.get("raw") or {}).get("periods") or \
+            (_res.get("score") and any(c.isdigit() for c in str(_res.get("score")))):
+        return "finished"
     if now < dt + timedelta(minutes=_DUR_MIN.get(d.get("sport"), 150)):
         return "inprogress"
     return "finished"

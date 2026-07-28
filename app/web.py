@@ -5048,6 +5048,17 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
                 continue
         elif sp in analyses.background_sports():
             continue
+        # MATCH CONFIRMÉ FINI (score final capté au règlement -> status_of=finished) : il appartient aux
+        # RÉSULTATS, plus à l'à-venir (bug user 2026-07-28 : provisoire tennis « +19.5 jeux » de Nishikori
+        # restait « à venir/en cours » via la fenêtre de grâce tennis 6 h, jamais validé, alors que sa jambe
+        # l'était). On le SORT de l'à-venir -> il s'affiche réglé dans « Résultats du jour ».
+        _pfid = (m.get("provisional") or {}).get("fid") or m.get("id")
+        try:
+            _psd = analyses.meta(sp, str(_pfid)) if _pfid else None
+            if _psd and analyses.status_of(_psd) == "finished":
+                continue
+        except Exception:
+            pass
         # ÉTAT RÉEL UNIBET (pas l'heure prévue) : score live = EN COURS. Un provisoire EN COURS n'est plus
         # « à venir » -> on le marque `_is_live` pour l'onglet LIVE + section « En direct » (demande user
         # 2026-07-10). Tennis souvent DÉCALÉ (heure figée) -> on se fie au live + coup d'envoi Unibet frais.
