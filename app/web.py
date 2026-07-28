@@ -8113,6 +8113,47 @@ def _daily_combo_any_live(sport: str = "foot") -> bool:
                for l in (cb.get("legs") or []) if l.get("result") is None)
 
 
+def _safe_combo_any_live() -> bool:
+    """Vrai si le COMBINÉ SÉCURITÉ FOOT (double chance ~2, hors ROI) a AU MOINS une jambe EN COURS (non
+    réglée + score live) — même détection que `_daily_combo_any_live`. Sert à montrer le combiné sécurité
+    dans l'onglet Live quand une de ses rencontres tourne (demande user 2026-07-28 : tout match de Pronos en
+    cours doit apparaître dans Live). Foot uniquement (ses jambes utilisent NOS noms de fiche -> live_state OK)."""
+    try:
+        from app import combo_safe as _cs
+        cb = _cs.today(_cs.day_key())
+    except Exception:
+        cb = None
+    if not cb:
+        return False
+    return any(live_fields(match_select.live_state_for("foot", l.get("home", ""),
+                                                       l.get("away", "")), "foot").get("score")
+               for l in (cb.get("legs") or []) if l.get("result") is None)
+
+
+def _betmines_any_live() -> bool:
+    """Vrai si le COMBINÉ BONUS (Betmines, hors ROI) a AU MOINS une jambe FOOT EN COURS. Les noms du track
+    sont ceux de Betmines (« SalPa II ») -> on teste la liveness sur nos noms CANONIQUES (`canonical_match`,
+    repli noms bruts) pour matcher le flux live Unibet. Même but que `_safe_combo_any_live` (demande user
+    2026-07-28 : tout match de Pronos en cours doit apparaître dans Live)."""
+    try:
+        import json as _json
+        _p = os.path.join(analyses._ROOT, "data", "betmines_track.json")
+        with open(_p, encoding="utf-8") as f:
+            cb = _json.load(f).get(_sport_today().isoformat())
+    except (OSError, ValueError):
+        cb = None
+    if not isinstance(cb, dict):
+        return False
+    for l in (cb.get("legs") or []):
+        if l.get("result") is not None:
+            continue
+        _h, _a = l.get("home", ""), l.get("away", "")
+        _ch, _ca, _ = analyses.canonical_match(_h, _a)
+        if live_fields(match_select.live_state_for("foot", _ch or _h, _ca or _a), "foot").get("score"):
+            return True
+    return False
+
+
 def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
     """Onglet « Directs » : matchs EN DIRECT groupés par TYPE de pari (Combiné · Paris joués · Provisoires).
     SÉLECTEUR DE SPORT en tête (demande user 2026-07-28, comme Pronos) : cliquer un sport recharge le panneau
@@ -8128,16 +8169,23 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _counts[_sk] = (sum(1 for c in play_live if _item_sport(c) == _sk)
                         + sum(1 for c in prov_live if c.get("_sport") == _sk)
                         + (1 if _combos[_sk] else 0))
+    # Combinés FOOT hors-ROI EN COURS (demande user 2026-07-28 : tout match de Pronos qui tourne doit
+    # apparaître dans Live) — le combiné SÉCURITÉ et le combiné BONUS, comme dans l'onglet Pronos. Foot only.
+    _safe_combo = _combo_safe_tg_card(include_settled=False) if _safe_combo_any_live() else ""
+    _betm_combo = _betmines_tg_card(include_settled=False) if _betmines_any_live() else ""
+    _counts["foot"] += (1 if _safe_combo else 0) + (1 if _betm_combo else 0)
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur]
     _combo = _combos.get(_cur, "")
+    _safe_combo = _safe_combo if _cur == "foot" else ""   # combinés hors-ROI = foot uniquement
+    _betm_combo = _betm_combo if _cur == "foot" else ""
 
     def _cards(rows):
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
-    if not (_play or _prov or _combo):
+    if not (_play or _prov or _combo or _safe_combo or _betm_combo):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -8151,6 +8199,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     else:
         out = [
             _zone("combo", f"Combiné {_zlabel}", "", 1 if _combo else 0, _combo),
+            _zone("combosafe", "Combiné sécurité", "", 1 if _safe_combo else 0, _safe_combo),
+            _zone("combobonus", "Combiné bonus", "", 1 if _betm_combo else 0, _betm_combo),
             _zone("play", "Paris du jour", "en direct", len(_play), _cards(_play)),
             _zone("indic", "Paris provisoires", "en direct", len(_prov), _cards(_prov)),
         ]
