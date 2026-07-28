@@ -647,7 +647,16 @@ def _set_programme_status(match_id: str, status: str, provisional: dict | None =
     hit = False
     for m in (prog.get("matches") or []):
         if str(m.get("id")) == str(match_id):
-            new_prov = provisional if status == "abstained" else None
+            # PROVISOIRE : le NOUVEAU si l'analyse en désigne un ; sinon, en ABSTENTION, on GARDE le dernier
+            # connu (bug user 2026-07-29 : ~6 provisoires foot disparus). Une ré-analyse dont le PARSING ne
+            # redésigne pas de pari — section 🧪/tableau momentanément illisible — renvoyait `provisional=None`
+            # et EFFAÇAIT le provisoire ; reconcile_with_programme le retirait alors AUSSI du suivi, et le
+            # match une fois fini n'étant plus ré-analysé, il était perdu à jamais. On ne retire le provisoire
+            # QUE si le match n'est plus une abstention (devenu 'bet' = pari retenu).
+            if status == "abstained":
+                new_prov = provisional or m.get("provisional")
+            else:
+                new_prov = None
             if m.get("status") == status and m.get("provisional") == new_prov:
                 return                       # déjà à jour (statut + provisoire)
             m["status"] = status
@@ -2302,7 +2311,10 @@ def _track_provisional(sport, m, prov) -> None:
     try:
         from app import provisional as _pvt
         if not prov or not prov.get("sel"):
-            _pvt.drop_unsettled(m.get("id"))          # plus d'affichage -> plus de suivi (non réglé)
+            # Pas de NOUVEAU provisoire (souvent un parsing raté d'une vague, pas une vraie disparition) ->
+            # on GARDE le dernier suivi au lieu de le dropper (bug user 2026-07-29). reconcile_with_programme
+            # reste la source de vérité de la synchro affichage↔suivi (il retire seulement ce que le
+            # PROGRAMME ne montre plus — et le programme garde désormais le dernier provisoire).
             return
         _pvt.record(sport, m.get("id"), m.get("home", ""), m.get("away", ""), m.get("start", ""),
                     m.get("name", ""), m.get("comp", ""), prov.get("sel"), prov.get("cote"),
