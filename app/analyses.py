@@ -1143,14 +1143,40 @@ def _bets_section(md: str) -> str:
     return _find(_sections(_strip(md)), "📊", "Paris class", "paris")
 
 
+def _reprice_bets(bets: list[dict], sport, match_id) -> None:
+    """Remplace la cote de chaque pari par la VRAIE cote Unibet (map `omap` figée au scan), keyée par le
+    CODE de règlement — demande user 2026-07-28. La cote du .md vient du texte LLM, parfois mal transcrite
+    (ex. OVER 2.5 @2.55 vs 1.60 réel). NO-OP si le sidecar n'a pas d'`omap` (analyses antérieures au fix ->
+    ROI historique INTACT). Toutes les voies (statut, publication, affichage, règlement) passent par
+    `bets_of` -> re-pricing UNIQUE et cohérent. Modifie `bets` en place (copies -> cache _parse_bets pur)."""
+    if not bets:
+        return
+    m = meta(sport, match_id) or {}
+    omap = m.get("omap") or {}
+    if not omap:
+        return
+    from app.settle_analyst import code_from_pick
+    for b in bets:
+        try:
+            code = code_from_pick(b.get("sel", ""), sport, m.get("home", ""), m.get("away", ""))
+        except Exception:
+            continue
+        rc = omap.get(code)
+        if isinstance(rc, (int, float)) and rc >= 1.01 and rc != b.get("cote"):
+            b["cote"] = rc
+            b["cote_txt"] = f"{rc:g}"
+
+
 def bets_of(sport: str, match_id) -> list[dict]:
     """Liste STRUCTURÉE et ordonnée des paris affichés d'un match (pari 1/2/3), pour le règlement
-    par pari. [] si pas d'analyse / pas de tableau."""
+    par pari. [] si pas d'analyse / pas de tableau. Cotes RE-PRICÉES à la vraie cote Unibet (cf. _reprice_bets)."""
     md = load(sport, match_id)
     if not md:
         return []
     body = _bets_section(md)
-    return _parse_bets(body) if body else []
+    bets = _parse_bets(body) if body else []
+    _reprice_bets(bets, sport, match_id)      # cote LLM -> vraie cote Unibet (si `omap` figée au scan)
+    return bets
 
 
 def bets_html(sport: str, match_id, compact: bool = False) -> str:
