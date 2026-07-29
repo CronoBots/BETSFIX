@@ -207,41 +207,65 @@ async def _home_match_rows() -> list:
     except Exception:
         pass
     try:                                                   # tennis
-        live = await match_select.fetch_live_odds("tennis")
-        for d in analyses.list_for("tennis"):
-            st = analyses.status_of(d)
-            # STATUT + HEURE pilotés par UNIBET (le sidecar peut être périmé -> faux « live »)
-            lf0 = web.live_fields(match_select.live_state_for("tennis", d.get("home"), d.get("away")), "tennis")
-            st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st,
-                                                 bool(lf0.get("score")), start_iso=d.get("start"))
-            if st not in ("notstarted", "inprogress"):
-                continue
-            dt = usdt or d.get("_start_dt")
-            tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
-            fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))
-            o1, o2 = (fresh[0], fresh[2]) if fresh else (d.get("o1"), d.get("o2"))
-            sel, odds = analyses.pick_parts(d.get("pick") or "")
-            perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
-            bars = web.analyst_bars(o1, None, o2, analyses.votes_pct(d))
-            r = {"id": d.get("id"), "tour": tour, "home": d.get("home", ""), "away": d.get("away", ""),
-                 "status": st, "time": web.fmt_local(usdt or d.get("start"), with_date=True),
-                 "score": "", "hp": None, "implied": None, "votes": None, "oh": o1, "oa": o2,
-                 "start_ts": dt.timestamp() if dt else None, "female": False,
-                 "perle": perle, "perle2": None, "pick_kind": "confiance"}
-            if st == "inprogress":
-                r.update(lf0)
-                if not r.get("score"):   # REPLI SofaScore si Unibet n'a pas le live
-                    r.update(await match_select.fetch_sofa_live("tennis", d.get("sofa_id") or d.get("id")) or {})
-                # en cours sans score live : s'il a assez tourné -> il est en fait fini (Terminés du sport,
-                # pas l'accueil) ; sinon on le GARDE (« En cours », sans scoreboard) pour qu'il reste visible.
-                if not r.get("score") and analyses.likely_finished(d):
-                    continue
-            out.append({**_tennis_trow(r), **bars})
+        out += await _tennis_rows()
     except Exception:
         pass
     out.sort(key=lambda x: x.get("start_ts") or 0)         # coup d'envoi le plus proche d'abord
     _HMR_CACHE["ts"], _HMR_CACHE["rows"] = _now, out
     return out
+
+
+async def _tennis_rows(include_background: bool = False) -> list:
+    """Rows TENNIS (à-venir/en-cours) au format `_tennis_trow`, depuis les sidecars. Extrait de
+    `_home_match_rows` pour être réutilisable par la vue mono-sport tennis de Pronos. `include_background=True`
+    (tennis EXPLICITEMENT sélectionné) force la lecture malgré le statut arrière-plan (demande user 2026-07-29)."""
+    out: list = []
+    live = await match_select.fetch_live_odds("tennis")
+    for d in analyses.list_for("tennis", include_background=include_background):
+        st = analyses.status_of(d)
+        # STATUT + HEURE pilotés par UNIBET (le sidecar peut être périmé -> faux « live »)
+        lf0 = web.live_fields(match_select.live_state_for("tennis", d.get("home"), d.get("away")), "tennis")
+        st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st,
+                                             bool(lf0.get("score")), start_iso=d.get("start"))
+        if st not in ("notstarted", "inprogress"):
+            continue
+        dt = usdt or d.get("_start_dt")
+        tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
+        fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))
+        o1, o2 = (fresh[0], fresh[2]) if fresh else (d.get("o1"), d.get("o2"))
+        sel, odds = analyses.pick_parts(d.get("pick") or "")
+        perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
+        bars = web.analyst_bars(o1, None, o2, analyses.votes_pct(d))
+        r = {"id": d.get("id"), "tour": tour, "home": d.get("home", ""), "away": d.get("away", ""),
+             "status": st, "time": web.fmt_local(usdt or d.get("start"), with_date=True),
+             "score": "", "hp": None, "implied": None, "votes": None, "oh": o1, "oa": o2,
+             "start_ts": dt.timestamp() if dt else None, "female": False,
+             "perle": perle, "perle2": None, "pick_kind": "confiance"}
+        if st == "inprogress":
+            r.update(lf0)
+            if not r.get("score"):   # REPLI SofaScore si Unibet n'a pas le live
+                r.update(await match_select.fetch_sofa_live("tennis", d.get("sofa_id") or d.get("id")) or {})
+            # en cours sans score live : s'il a assez tourné -> il est en fait fini (Terminés du sport,
+            # pas l'accueil) ; sinon on le GARDE (« En cours », sans scoreboard) pour qu'il reste visible.
+            if not r.get("score") and analyses.likely_finished(d):
+                continue
+        out.append({**_tennis_trow(r), **bars})
+    return out
+
+
+async def _bg_sport_rows(sp: str) -> list:
+    """Rows d'un sport en ARRIÈRE-PLAN (basket/tennis) pour la vue mono-sport de Pronos — construits À LA
+    DEMANDE (hors cache `_home_match_rows`, donc SANS impact sur l'accueil/vue « Tous »). Sert à afficher les
+    PARIS JOUÉS de ce sport quand il est sélectionné, exactement comme son combiné du jour (demande user
+    2026-07-29 : un pari à jouer basket doit apparaître dans Pronos). Simulé (hors ROI réel), inchangé."""
+    if sp == "basket":
+        from app import basket as basket_mod
+        from app.routers import basket as basket_r
+        brows, _ = await basket_r._analyst_rows(include_background=True)
+        return [basket_mod._card(r) for r in brows]
+    if sp == "tennis":
+        return await _tennis_rows(include_background=True)
+    return []
 
 
 def _past_day_cards(date_iso: str) -> list:
@@ -329,6 +353,11 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
         return HTMLResponse(cached)
     if not is_past:                                        # aujourd'hui (ou futur) = vue « à venir »
         rows = [r for r in await _home_match_rows() if r.get("status") != "inprogress"]
+        # SPORT EN ARRIÈRE-PLAN (basket/tennis) EXPLICITEMENT sélectionné : ses paris joués ne passent pas
+        # _home_match_rows (list_for=[]) -> on les construit à la demande pour CETTE vue mono-sport, comme son
+        # combiné du jour (demande user 2026-07-29). Jamais en vue « Tous » (sp=None) -> politique inchangée.
+        if sp in analyses.background_sports():
+            rows += [r for r in await _bg_sport_rows(sp) if r.get("status") != "inprogress"]
         results = _past_day_cards(today_iso)               # paris terminés d'aujourd'hui -> zone dédiée
         body = web._today_zones(rows, sp, results)[0]
         fragcache.put(ckey, body, ttl=PANEL_TTL)           # jour courant : bouge -> TTL court
@@ -853,7 +882,10 @@ async def directs_page(
     # Live = matchs ANALYSÉS actuellement EN COURS (statut dérivé du coup d'envoi, sidecars).
     async def _live_cards(sport: str) -> list:
         out = []
-        for d in analyses.list_for(sport):
+        # include_background : les paris basket/tennis (arrière-plan) EN COURS doivent apparaître dans Live
+        # (demande user 2026-07-29, cohérent avec « tout match de Pronos qui se joue est dans Live »). Le
+        # sélecteur de sport de render_directs cantonne déjà chaque carte à son sport -> pas de fuite ailleurs.
+        for d in analyses.list_for(sport, include_background=True):
             st = analyses.status_of(d)
             # STATUT piloté par UNIBET : un coup d'envoi sidecar périmé ne doit pas faire passer le
             # match en « live » s'il n'a pas commencé côté Unibet (heure fraîche / pas de score).

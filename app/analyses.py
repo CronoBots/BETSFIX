@@ -253,12 +253,14 @@ def is_settled(d: dict) -> bool:
 _STALE_AFTER_H = {"foot": 6, "basket": 6, "tennis": 9}
 
 
-def list_for(sport: str) -> list[dict]:
+def list_for(sport: str, include_background: bool = False) -> list[dict]:
     """Liste des matchs ANALYSÉS (sidecars) à venir / récents, triés par coup d'envoi.
     C'est la SOURCE du board : seuls les matchs analysés avec la nouvelle technique y figurent.
-    ⚠️ Un sport en ARRIÈRE-PLAN (tennis/basket) renvoie [] : il est analysé + tracé (ROI simulé) mais JAMAIS
-    affiché sur la page des paris (demande user 2026-07-24). Son suivi est dans la section Stats « Simulation »."""
-    if sport in background_sports():
+    ⚠️ Un sport en ARRIÈRE-PLAN (tennis/basket) renvoie [] par défaut : il est analysé + tracé (ROI simulé)
+    mais JAMAIS affiché dans la vue « Tous » de la page des paris (demande user 2026-07-24). `include_background
+    =True` force son inclusion — utilisé UNIQUEMENT quand ce sport est EXPLICITEMENT sélectionné dans Pronos
+    (vue mono-sport), pour que ses paris joués y apparaissent COMME son combiné du jour (demande user 2026-07-29)."""
+    if sport in background_sports() and not include_background:
         return []
     now = datetime.now(timezone.utc)
     out = []

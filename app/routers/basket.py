@@ -38,12 +38,13 @@ async def _season(provider: SofaScoreProvider, tournament_id: int, season_id: in
     return sid
 
 
-async def _analyst_rows() -> tuple[list[dict], list[dict]]:
+async def _analyst_rows(include_background: bool = False) -> tuple[list[dict], list[dict]]:
     """(à-venir/en-cours, terminés) basket depuis les sidecars. Cotes Unibet rafraîchies à
-    l'affichage (listView, gratuit) ; SofaScore jamais touché."""
+    l'affichage (listView, gratuit) ; SofaScore jamais touché. `include_background=True` (basket sélectionné
+    dans Pronos) force la lecture des sidecars malgré le statut arrière-plan (demande user 2026-07-29)."""
     live = await match_select.fetch_live_odds("basket")
     rows, fin = [], []
-    for d in analyses.list_for("basket"):
+    for d in analyses.list_for("basket", include_background=include_background):
         st = analyses.status_of(d)
         dt = d.get("_start_dt")
         # STATUT + HEURE pilotés par UNIBET (temps réel) : le coup d'envoi du sidecar peut être PÉRIMÉ
