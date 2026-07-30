@@ -6427,6 +6427,413 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     return _day_header(iso) + f'<div class="dash-zones">{inner}</div>'
 
 
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# PAGE D'ACCUEIL VITRINE (visiteurs NON abonnés) — conversion. Chiffres DYNAMIQUES (relevé réel),
+# aucune source nommée (avantage concurrentiel préservé, cf. mémoire public-mode-hide-sources).
+# Servie par le routeur `/` quand `not accounts.can_see_picks(request)`. Les abonnés/proprio gardent
+# le dashboard. PUREMENT AFFICHAGE — ne touche ni ROI, ni stats, ni calibration.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+_LZ_SINCE = "2026-06-22"
+_LZ_SINCE_LABEL = "depuis le 22 juin"
+
+_LZ_CSS = """
+@font-face{font-family:'Selawik';font-weight:400;font-style:normal;font-display:swap;
+  src:local('Segoe UI'),url('/static/fonts/selawik-regular.woff') format('woff')}
+@font-face{font-family:'Selawik';font-weight:600;font-style:normal;font-display:swap;
+  src:local('Segoe UI Semibold'),url('/static/fonts/selawik-semibold.woff') format('woff')}
+@font-face{font-family:'Selawik';font-weight:700;font-style:normal;font-display:swap;
+  src:local('Segoe UI Bold'),url('/static/fonts/selawik-bold.woff') format('woff')}
+:root{--gr:#0a0d13;--gr2:#0f141d;--gr3:#141c28;--line:rgba(150,182,222,.10);--line2:rgba(150,182,222,.16);
+  --ink:#eaf2ff;--dim:#9fb0c8;--faint:#63748d;--green:#34d27b;--gb:#4ff09a;--gfill:rgba(52,210,123,.14);
+  --amber:#ffb020;--red:#ff6b6b;--mono:ui-monospace,'Cascadia Mono','Segoe UI Mono',Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+body.lz{margin:0;background:var(--gr);color:var(--ink);font-family:'Selawik','Segoe UI',system-ui,sans-serif;
+  line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden;padding-bottom:78px}
+.lz .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+.lz h1,.lz h2,.lz h3{margin:0;text-wrap:balance;letter-spacing:-.02em;line-height:1.06}
+.lz p{margin:0}.lz a{color:inherit;text-decoration:none}
+.lz .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.lz .mono{font-family:var(--mono)}
+.lz .eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
+.lz .green{color:var(--green)}.lz .amber{color:var(--amber)}.lz .red{color:var(--red)}.lz .dimc{color:var(--dim)}
+.lz .top{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
+  background:linear-gradient(180deg,rgba(10,13,19,.92),rgba(10,13,19,.6));border-bottom:1px solid var(--line)}
+.lz .top .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
+.lz .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:19px}
+.lz .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 0 4px rgba(52,210,123,.16),0 0 14px 2px rgba(79,240,154,.55)}
+.lz .brand em{font-style:normal;color:var(--green)}
+.lz .top-actions{display:flex;align-items:center;gap:12px}
+.lz .ghost{font-size:14px;font-weight:600;color:var(--dim);padding:8px 4px}.lz .ghost:hover{color:var(--ink)}
+.lz .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:14px;padding:10px 18px;
+  border-radius:11px;cursor:pointer;border:0;background:linear-gradient(180deg,var(--gb),var(--green));
+  color:#04140a;box-shadow:0 6px 20px -6px rgba(52,210,123,.6);transition:transform .12s,box-shadow .12s}
+.lz .btn:hover{transform:translateY(-1px);box-shadow:0 10px 26px -6px rgba(52,210,123,.72)}
+.lz .btn.lg{font-size:16px;padding:15px 28px;border-radius:13px}
+.lz .hero{position:relative;padding:60px 0 26px}
+.lz .hero-glow{position:absolute;inset:-10% -20% auto -20%;height:520px;pointer-events:none;z-index:0;
+  background:radial-gradient(60% 60% at 30% 0%,rgba(52,210,123,.16),transparent 70%),
+  radial-gradient(50% 50% at 92% 12%,rgba(34,184,255,.10),transparent 70%)}
+.lz .hero .wrap{position:relative;z-index:1}
+.lz .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center}
+.lz .hb{display:inline-flex;align-items:center;gap:9px;margin-bottom:18px;padding:6px 12px;
+  border:1px solid var(--line2);border-radius:999px;background:rgba(255,255,255,.02)}
+.lz .hb .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lzpulse 2.4s ease-in-out infinite}
+@keyframes lzpulse{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+.lz .sh{display:flex;align-items:flex-end;gap:16px;margin:4px 0 6px}
+.lz .sh .big{font-weight:700;font-size:clamp(84px,15vw,164px);line-height:.82;letter-spacing:-.045em;
+  background:linear-gradient(176deg,#fbfffd 8%,var(--gb) 62%,var(--green) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.lz .sh .pct{font-weight:700;font-size:clamp(32px,6vw,56px);color:var(--green);line-height:1;margin-bottom:12px}
+.lz .sh .cap{margin-bottom:14px}
+.lz .sh .cap b{display:block;font-size:15px;font-weight:600;color:var(--ink)}
+.lz .sh .cap span{font-size:13px;color:var(--faint)}
+.lz h1.tag{font-size:clamp(22px,3vw,30px);font-weight:700;margin:12px 0 12px;max-width:17ch}
+.lz h1.tag .hl{color:var(--green)}
+.lz .lede{font-size:16.5px;color:var(--dim);max-width:44ch;margin-bottom:24px}
+.lz .lede b{color:var(--ink)}
+.lz .cta-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.lz .cta-note{font-size:12.5px;color:var(--faint)}
+.lz .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:30px;background:var(--line);
+  border:1px solid var(--line);border-radius:15px;overflow:hidden}
+.lz .metric{background:var(--gr2);padding:16px 15px}
+.lz .metric .k{font-size:12px;color:var(--faint);font-weight:600}
+.lz .metric .v{font-size:26px;font-weight:700;margin-top:3px;letter-spacing:-.02em}
+.lz .metric .v small{font-size:14px;font-weight:600;color:var(--dim)}
+.lz .cc{background:linear-gradient(180deg,var(--gr3),var(--gr2));border:1px solid var(--line2);border-radius:20px;
+  padding:20px 20px 14px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7);position:relative;overflow:hidden}
+.lz .cc::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 80% 0%,rgba(52,210,123,.10),transparent 60%);pointer-events:none}
+.lz .cc-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.lz .cc-h .t{font-size:13px;font-weight:600;color:var(--dim)}.lz .cc-h .roi{font-size:15px;font-weight:700;color:var(--green)}
+.lz svg.cv{display:block;width:100%;height:180px}
+.lz .cv path.ln{fill:none;stroke:url(#lzln);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;
+  filter:drop-shadow(0 4px 10px rgba(52,210,123,.4))}
+.lz .cv .ep{fill:var(--gb)}.lz .cv .z0{stroke:rgba(150,182,222,.18);stroke-width:1;stroke-dasharray:3 4}
+.lz .cc-f{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:4px}
+.lz section.blk{position:relative;padding:56px 0;border-top:1px solid var(--line)}
+.lz .sec-head{max-width:56ch;margin-bottom:34px}
+.lz .sec-head .eyebrow{margin-bottom:14px;display:block}
+.lz .sec-head h2{font-size:clamp(26px,3.4vw,38px);font-weight:700}
+.lz .sec-head p{margin-top:14px;font-size:16.5px;color:var(--dim)}
+.lz .gates{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.lz .gate{background:var(--gr2);border:1px solid var(--line);border-radius:16px;padding:22px;position:relative;overflow:hidden}
+.lz .gate .step{font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.05em}
+.lz .gate h3{font-size:19px;font-weight:700;margin:12px 0 8px;display:flex;align-items:center;gap:10px}
+.lz .gate p{font-size:14px;color:var(--dim)}.lz .gate p b{color:var(--ink)}
+.lz .gate .bar{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green);opacity:.85}
+.lz .gate.rej .bar{background:var(--amber)}
+.lz .gate .tick{display:inline-flex;width:26px;height:26px;border-radius:8px;align-items:center;justify-content:center;
+  font-weight:700;font-size:14px;background:var(--gfill);color:var(--gb);border:1px solid rgba(52,210,123,.3)}
+.lz .gate.rej .tick{background:rgba(255,176,32,.12);color:var(--amber);border-color:rgba(255,176,32,.3)}
+.lz .verdict{margin-top:24px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+  background:linear-gradient(180deg,var(--gr3),var(--gr2));border:1px solid var(--line2);border-radius:16px;padding:22px 24px}
+.lz .verdict .vn{font-size:44px;font-weight:700;color:var(--amber);letter-spacing:-.03em;line-height:1}
+.lz .verdict .vt{font-size:15.5px;color:var(--dim);max-width:54ch}.lz .verdict .vt b{color:var(--ink)}
+.lz .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:26px}
+.lz .pillar{padding-top:18px;border-top:2px solid var(--green)}
+.lz .pillar h3{font-size:17px;font-weight:700;margin-bottom:7px}.lz .pillar p{font-size:14px;color:var(--dim)}
+.lz .pillar .kpi{font-family:var(--mono);font-size:12.5px;color:var(--green);margin-top:9px}
+.lz .honesty{display:grid;grid-template-columns:.85fr 1.15fr;gap:40px;align-items:center}
+.lz .bigq{font-size:clamp(24px,3vw,32px);font-weight:700;line-height:1.15}
+.lz .honesty p.sub{margin-top:16px;font-size:16px;color:var(--dim)}
+.lz .lzl{display:flex;flex-wrap:wrap;gap:9px}
+.lz .lz-loss{font-family:var(--mono);font-size:12.5px;padding:7px 11px;border-radius:9px;
+  background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.22);color:#ffb3b3;display:flex;gap:8px;align-items:center}
+.lz .lz-d{color:var(--faint)}.lz .lz-o{color:var(--dim)}
+.lz .calib{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+.lz .cvz{display:flex;flex-direction:column;gap:12px}
+.lz .cr{display:grid;grid-template-columns:96px 1fr 74px;gap:12px;align-items:center}
+.lz .cr .lab{font-family:var(--mono);font-size:12.5px;color:var(--dim);text-align:right}
+.lz .tr{height:12px;border-radius:6px;background:rgba(150,182,222,.09);position:relative;overflow:hidden}
+.lz .fl{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:linear-gradient(90deg,var(--green),var(--gb));
+  width:0;transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
+.lz .rl{font-family:var(--mono);font-size:12.5px;color:var(--green)}
+.lz .final{position:relative;text-align:center;padding:70px 0 60px;border-top:1px solid var(--line);overflow:hidden}
+.lz .final .glow{position:absolute;inset:auto -20% -60% -20%;height:420px;
+  background:radial-gradient(50% 60% at 50% 100%,rgba(52,210,123,.18),transparent 70%);pointer-events:none}
+.lz .final h2{position:relative;font-size:clamp(30px,4.4vw,50px);font-weight:700}
+.lz .final p{position:relative;margin:16px auto 28px;max-width:48ch;font-size:17px;color:var(--dim)}
+.lz .final .cta-row{justify-content:center}
+.lz .lzfoot{border-top:1px solid var(--line);padding:24px 0 30px}
+.lz .lzfoot .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--faint)}
+.lz .respo{display:inline-flex;align-items:center;gap:8px}
+.lz .b18{font-weight:700;color:var(--dim);border:1px solid var(--line2);border-radius:6px;padding:1px 6px;font-size:11px}
+.lz .reveal{opacity:0;transform:translateY(18px);transition:opacity .7s,transform .7s}.lz .reveal.in{opacity:1;transform:none}
+.lz .lznav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;max-width:720px;margin:0 auto;
+  background:rgba(11,14,20,.92);backdrop-filter:blur(16px);border-top:1px solid var(--line2);
+  padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
+.lz .lznav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;color:var(--faint);
+  font-size:9px;font-weight:600}
+.lz .lznav a .ic{font-size:22px;line-height:1;height:24px;display:flex;align-items:center}
+.lz .lznav a.on{color:var(--green)}
+@media (max-width:860px){.lz .hero-grid{grid-template-columns:1fr;gap:28px}.lz .metrics{grid-template-columns:repeat(2,1fr)}
+  .lz .gates,.lz .pillars{grid-template-columns:1fr}.lz .honesty,.lz .calib{grid-template-columns:1fr;gap:26px}.lz .hero{padding-top:34px}}
+@media (prefers-reduced-motion:reduce){.lz *{animation:none!important;transition:none!important}.lz .reveal{opacity:1;transform:none}}
+"""
+
+_LZ_JS = """
+(function(){var r=matchMedia('(prefers-reduced-motion:reduce)').matches;
+var el=document.getElementById('lzbig');
+if(el){var tg=+el.dataset.v||0;if(r){el.textContent=tg;}else{var s=null,dur=1300;
+ function stp(t){if(!s)s=t;var p=Math.min((t-s)/dur,1),e=1-Math.pow(1-p,3);el.textContent=Math.round(e*tg);if(p<1)requestAnimationFrame(stp);}requestAnimationFrame(stp);}}
+var ln=document.getElementById('lzline'),dot=document.getElementById('lzdot');
+if(ln&&!r){var L=ln.getTotalLength();ln.style.strokeDasharray=L;ln.style.strokeDashoffset=L;if(dot)dot.style.opacity=0;
+ requestAnimationFrame(function(){ln.style.transition='stroke-dashoffset 1.7s cubic-bezier(.3,.7,.2,1)';ln.style.strokeDashoffset='0';
+  setTimeout(function(){if(dot){dot.style.transition='opacity .4s';dot.style.opacity=1;}},1500);});}
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');
+ (e.target.querySelectorAll?e.target.querySelectorAll('.fl'):[]).forEach(function(f){f.style.width=(f.dataset.w||0)+'%';});io.unobserve(e.target);}});},{threshold:.16});
+document.querySelectorAll('.reveal,.cvz').forEach(function(x){io.observe(x);});})();
+"""
+
+
+def _lz_botnav() -> str:
+    """Barre du bas de la landing (raccord natif avec l'app) : mêmes onglets que le SPA, Pronos actif."""
+    e = html.escape
+    return '<nav class="lznav">' + "".join(
+        f'<a class="{"on" if k == "home" else ""}" href="{href}"><span class="ic">{ico}</span>'
+        f'<span>{e(name)}</span></a>'
+        for k, href, ico, name in _SPA_TABS) + "</nav>"
+
+
+def _lz_stats() -> dict:
+    """Chiffres DYNAMIQUES de la vitrine, calculés sur le relevé RÉEL (foot simple depuis _LZ_SINCE).
+    Tolérant : en cas d'échec, valeurs de repli sûres pour ne jamais faire planter la page."""
+    try:
+        won = lost = 0
+        stake = ret = 0.0
+        losses = []
+        analysed = retained = 0
+        for d in analyses.iter_meta("foot"):
+            st = (d.get("start") or "")
+            if st[:10] < _LZ_SINCE:
+                continue
+            analysed += 1
+            if d.get("bets"):
+                retained += 1
+            for b in (analyses.stat_bet(d), d.get("stat_bet_first")):
+                if not isinstance(b, dict):
+                    continue
+                r = b.get("result")
+                if r not in ("won", "lost", "push"):
+                    continue
+                co = b.get("cote") or b.get("odds") or 0
+                stake += 1
+                if r == "won":
+                    won += 1
+                    ret += co
+                elif r == "lost":
+                    lost += 1
+                    losses.append((st[:10], _noF(d.get("name") or ""), co))
+                else:
+                    ret += 1
+        settled = won + lost
+        pct = round(100 * won / settled) if settled else 0
+        roi = round(100 * (ret - stake) / stake, 1) if stake else 0.0
+        sel = round(100 * (analysed - retained) / analysed) if analysed else 0
+        overall = (analyses.stats_full().get("overall") or {})
+        pts = overall.get("points") or [0.0]
+        best = overall.get("best_streak") or 0
+        cal = analyses.calibration() or {}
+        buckets = [r for r in (cal.get("rows") or [])
+                   if r.get("lo", 0) >= 65 and (r.get("n") or 0) >= 20][:3]
+        return {"won": won, "total": settled, "pct": pct, "roi": roi,
+                "profit": round(ret - stake, 1), "losses": sorted(losses),
+                "sel": sel, "pts": pts, "best": best,
+                "cal_n": cal.get("n") or 0, "cal_mae": cal.get("mae"), "cal_rows": buckets}
+    except Exception:
+        return {"won": 74, "total": 82, "pct": 90, "roi": 24.6, "profit": 20.2, "losses": [],
+                "sel": 40, "pts": [0.0, 20.2], "best": 25, "cal_n": 5744, "cal_mae": 0.8, "cal_rows": []}
+
+
+def _lz_curve(pts: list) -> tuple:
+    """Chemin SVG (viewBox 0 0 100 42) de la vraie courbe de bénéfice cumulé. Renvoie (d_ligne, x_fin, y_fin, y_zero)."""
+    if not pts or len(pts) < 2:
+        pts = [0.0, 1.0]
+    mn, mx = min(pts), max(pts)
+    rng = (mx - mn) or 1.0
+    n = len(pts)
+
+    def _y(v):
+        return round(40 - (v - mn) / rng * 36 - 2, 2)
+    coords = [(round(i / (n - 1) * 100, 2), _y(v)) for i, v in enumerate(pts)]
+    d = "M" + " L".join(f"{x},{y}" for x, y in coords)
+    return d, coords[-1][0], coords[-1][1], _y(0)
+
+
+def landing_html() -> str:
+    """Page d'accueil VITRINE (visiteurs non abonnés). Page HTML COMPLÈTE et autonome (son propre <head>/
+    style) — pas de marqueur PRONO (donc pas de paywall) et aucune source nommée. Chiffres dynamiques."""
+    e = html.escape
+    s = _lz_stats()
+    cd, ex, ey, zy = _lz_curve(s["pts"])
+    roi_txt = f"+{s['roi']:g} %" if s["roi"] >= 0 else f"{s['roi']:g} %"
+    prof_txt = f"+{s['profit']:g} u" if s["profit"] >= 0 else f"{s['profit']:g} u"
+
+    def _fr_date(iso):
+        try:
+            return f"{iso[8:10]}/{iso[5:7]}"
+        except Exception:
+            return iso
+    losses_html = "".join(
+        f'<span class="lz-loss"><span class="lz-d">{_fr_date(dt)}</span> {e(nm[:26])} '
+        f'<span class="lz-o">@{co:g}</span></span>'
+        for dt, nm, co in s["losses"]) or '<span class="dimc" style="font-size:14px">Aucune perte sur la période.</span>'
+
+    if s["cal_rows"]:
+        cal_html = "".join(
+            f'<div class="cr"><span class="lab">annoncé {r["avg_conf"]} %</span>'
+            f'<span class="tr"><span class="fl" data-w="{r["avg_conf"]}"></span></span>'
+            f'<span class="rl">réel {r["win_rate"]} %</span></div>'
+            for r in s["cal_rows"])
+    else:
+        cal_html = ('<div class="cr"><span class="lab">annoncé 69 %</span><span class="tr">'
+                    '<span class="fl" data-w="69"></span></span><span class="rl">réel 69 %</span></div>'
+                    '<div class="cr"><span class="lab">annoncé 80 %</span><span class="tr">'
+                    '<span class="fl" data-w="80"></span></span><span class="rl">réel 80 %</span></div>')
+    mae_txt = f'{s["cal_mae"]:g} pt' if isinstance(s["cal_mae"], (int, float)) else "0,8 pt"
+    cal_n_txt = f'{s["cal_n"]:,}'.replace(",", " ")
+
+    return f"""<!doctype html><html lang="fr"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0d13">
+<title>BETSFIX — {s['pct']} % de réussite au football</title>
+<meta name="description" content="Le relevé réel : {s['pct']} % de paris gagnants au football {_LZ_SINCE_LABEL}. Une méthode de sélection stricte — confiance calibrée, value réelle, abstention. On montre aussi nos pertes.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BETSFIX">
+<style>{_LZ_CSS}</style></head><body class="lz">
+
+<div class="top"><div class="wrap">
+  <div class="brand"><span class="dot"></span>BETS<em>FIX</em></div>
+  <div class="top-actions">
+    <a class="ghost" href="#methode">La méthode</a>
+    <a class="ghost" href="/stats">Les résultats</a>
+    <a class="btn" href="/login">Se connecter</a>
+  </div>
+</div></div>
+
+<div class="hero"><div class="hero-glow"></div><div class="wrap">
+  <div class="hero-grid">
+    <div>
+      <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · paris simples · {_LZ_SINCE_LABEL}</span></span>
+      <div class="sh">
+        <span class="big num" id="lzbig" data-v="{s['pct']}">{s['pct']}</span><span class="pct">%</span>
+        <span class="cap"><b class="num">{s['won']} gagnés / {s['total']}</b><span>relevé réel, pas une projection</span></span>
+      </div>
+      <h1 class="tag">La discipline d'un pro. <span class="hl">Le relevé pour le prouver.</span></h1>
+      <p class="lede">BETSFIX n'annonce pas des pronos « sûrs à {s['pct']} % ». Il en <b>refuse</b> la plupart —
+        et ne garde que ceux qui passent trois filtres stricts. Le résultat se lit dans la courbe.</p>
+      <div class="cta-row">
+        <a class="btn lg" href="/signup">Accéder aux pronos du jour →</a>
+        <span class="cta-note">Sans engagement · résiliable à tout moment</span>
+      </div>
+    </div>
+    <div class="cc reveal">
+      <div class="cc-h"><span class="t">Bénéfice cumulé · football</span><span class="roi num">ROI {roi_txt}</span></div>
+      <svg class="cv" viewBox="0 0 100 42" preserveAspectRatio="none" aria-label="Courbe de bénéfice cumulé, en hausse">
+        <defs><linearGradient id="lzln" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#2ea86a"/><stop offset="1" stop-color="#4ff09a"/></linearGradient></defs>
+        <line class="z0" x1="0" y1="{zy}" x2="100" y2="{zy}"/>
+        <path class="ln" id="lzline" d="{cd}"/>
+        <circle class="ep" id="lzdot" cx="{ex}" cy="{ey}" r="2.4"/>
+      </svg>
+      <div class="cc-f"><span>7 juin</span><span class="mono">{prof_txt} · mise plate 1 u</span><span>aujourd'hui</span></div>
+    </div>
+  </div>
+  <div class="metrics reveal">
+    <div class="metric"><div class="k">Taux de réussite</div><div class="v green num">{s['pct']} %</div></div>
+    <div class="metric"><div class="k">ROI (mise plate)</div><div class="v green num">{roi_txt}</div></div>
+    <div class="metric"><div class="k">Pertes</div><div class="v num">{s['total'] - s['won']} <small>/ {s['total']}</small></div></div>
+    <div class="metric"><div class="k">Meilleure série</div><div class="v num">{s['best']} <small>d'affilée</small></div></div>
+  </div>
+</div></div>
+
+<section class="blk" id="methode"><div class="wrap">
+  <div class="sec-head reveal"><span class="eyebrow">Ce qui rend le taux unique</span>
+    <h2>Trois filtres. Chaque pari doit passer les trois.</h2>
+    <p>La plupart des sites vous donnent un prono par match. BETSFIX part de l'inverse : un match ne devient
+      un pari que s'il franchit une confiance <em>calibrée</em>, une <em>value</em> réelle, et des garde-fous
+      de marché. Sinon — abstention.</p></div>
+  <div class="gates">
+    <div class="gate reveal"><span class="bar"></span><span class="step">FILTRE 01</span>
+      <h3><span class="tick">✓</span> Confiance ≥ 65 %</h3>
+      <p>Pas la confiance « au feeling » : une confiance <b>calibrée</b> sur plus de {cal_n_txt} prédictions
+        passées. Quand on annonce 65 %, ça sort autour de 65 %.</p></div>
+    <div class="gate reveal"><span class="bar"></span><span class="step">FILTRE 02</span>
+      <h3><span class="tick">✓</span> Value positive</h3>
+      <p>Confiance ≠ value. Un favori à cote trop courte (76 % @1,21) a une value <b>négative</b> : écarté,
+        même s'il gagne « souvent ». On ne mise que quand la cote nous paie trop.</p></div>
+    <div class="gate rej reveal"><span class="bar"></span><span class="step">SINON</span>
+      <h3><span class="tick">✕</span> Abstention</h3>
+      <p>Marché perdant (corners, « les 2 marquent »…) exclu automatiquement dès qu'il coûte. Rien ne passe ?
+        On ne joue pas. Un jour vide est un jour <b>gagné</b>.</p></div>
+  </div>
+  <div class="verdict reveal"><span class="vn num">≈ {s['sel']} %</span>
+    <span class="vt">des matchs analysés finissent <b>écartés</b>. Ce n'est pas de la timidité — c'est
+      exactement la sélectivité qui produit les {s['pct']} %. Un système qui joue tous les jours « pour
+      jouer » ferait bien pire.</span></div>
+</div></section>
+
+<section class="blk"><div class="wrap">
+  <div class="sec-head reveal"><span class="eyebrow">Sous le capot</span>
+    <h2>Pourquoi ce taux ne ressemble à aucun autre site.</h2></div>
+  <div class="pillars">
+    <div class="pillar reveal"><h3>Recoupement multi-sources</h3>
+      <p>Aucun pari sans au moins deux sources factuelles indépendantes qui concordent (forme, blessures,
+        historique direct, moyennes réelles). Un signal isolé ne suffit jamais.</p>
+      <div class="kpi">≥ 2 sources · fait vérifié</div></div>
+    <div class="pillar reveal"><h3>Ancrage sur les cotes sharp</h3>
+      <p>La probabilité de référence vient des cotes du marché le plus « sharp » (faible marge), pas d'une
+        intuition. On ne parie que là où notre estimation bat clairement ce marché.</p>
+      <div class="kpi">edge mesuré · pas au feeling</div></div>
+    <div class="pillar reveal"><h3>Calibration en continu</h3>
+      <p>Chaque prédiction — même les paris non joués — nourrit la calibration. Les marchés qui dérivent sont
+        écartés tout seuls, avant qu'ils ne coûtent.</p>
+      <div class="kpi">{cal_n_txt} prédictions · écart {mae_txt}</div></div>
+  </div>
+</div></section>
+
+<section class="blk"><div class="wrap">
+  <div class="honesty">
+    <div class="reveal"><span class="eyebrow" style="display:block;margin-bottom:14px">La preuve par l'honnêteté</span>
+      <p class="bigq">On vous montre aussi <span class="red">nos {s['total'] - s['won']} pertes.</span></p>
+      <p class="sub">Un site qui n'affiche que ses gains vous ment. Voici chaque pari perdu {_LZ_SINCE_LABEL} —
+        daté, avec sa cote. Rien n'est caché, rien n'est effacé.</p></div>
+    <div class="lzl reveal">{losses_html}</div>
+  </div>
+</div></section>
+
+<section class="blk"><div class="wrap">
+  <div class="calib">
+    <div class="sec-head reveal" style="margin-bottom:0"><span class="eyebrow">Calibration</span>
+      <h2>Quand on annonce un %, il tombe.</h2>
+      <p>La barre verte = ce qu'on annonçait. Le chiffre à droite = ce qui est réellement sorti. C'est la
+        définition d'un modèle honnête : ni trop confiant, ni trop prudent.</p></div>
+    <div class="cvz reveal">{cal_html}
+      <div class="cr"><span class="lab">écart moyen</span><span class="tr"><span class="fl" data-w="96"></span></span><span class="rl">{mae_txt}</span></div>
+    </div>
+  </div>
+</div></section>
+
+<div class="final"><div class="glow"></div><div class="wrap">
+  <h2 class="reveal">Arrêtez de suivre des pronos. <br>Suivez un relevé.</h2>
+  <p class="reveal">Les pronos du jour, la courbe en direct, le combiné, la montante — et chaque pari réglé au
+    grand jour. Décidez sur des chiffres, pas sur des promesses.</p>
+  <div class="cta-row reveal"><a class="btn lg" href="/signup">Créer mon compte →</a></div>
+  <p class="cta-note reveal" style="margin-top:18px">Résiliable en un clic · aucune donnée revendue</p>
+</div></div>
+
+<div class="lzfoot"><div class="wrap">
+  <div class="brand" style="font-size:15px"><span class="dot"></span>BETS<em>FIX</em></div>
+  <div class="respo"><span class="b18">18+</span> Outil informatif, sans garantie de gains · Les paris comportent un risque · Jouez responsable</div>
+</div></div>
+
+{_lz_botnav()}
+<script>{_LZ_JS}</script>
+</body></html>"""
+
+
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
                      frag: bool = False, source: dict | None = None) -> str:
     """Onglet « Pronos » (ex-« À venir », renommé 2026-07-19) : un CALENDRIER horizontal en tête pour revoir

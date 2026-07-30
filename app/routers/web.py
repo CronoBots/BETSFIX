@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import analyses, ace_markets, fragcache, match_analysis, match_select, serve_return, set_markets, tendencies, tracking, web, window
+from app import accounts, analyses, ace_markets, fragcache, match_analysis, match_select, serve_return, set_markets, tendencies, tracking, web, window
 from app.config import get_settings
 from app.analysis import build_analysis, remove_vig
 from app.analysis import _match_winner_odds
@@ -401,12 +401,23 @@ def _nudge_settle() -> None:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def home(provider: SofaScoreProvider = Depends(get_provider),
+async def home(request: Request,
+               provider: SofaScoreProvider = Depends(get_provider),
                frag: int = 0) -> HTMLResponse:
     """Accueil : stats principales + les matchs À VENIR uniquement (format compact, tous sports
     mélangés, par ordre de passage). Les matchs EN COURS vivent dans l'onglet 🟢 Live (demande
     utilisateur 2026-06-12 : pas de doublon accueil/live, et un live qui démarre n'a parfois pas
     encore de score -> badge « LIVE » nu peu lisible). La nav passe par le menu ☰."""
+    # VISITEUR NON ABONNÉ (page pleine seulement) -> page d'accueil VITRINE de conversion (demande user
+    # 2026-07-30). Abonnés + propriétaire gardent le dashboard. Le fragment SPA (frag=1) reste le dashboard
+    # (seuls ceux qui voient les pronos chargent le SPA). Cache court partagé (pas de données par user).
+    if not frag and not accounts.can_see_picks(request):
+        cached = fragcache.get("panel/landing")
+        if cached:
+            return HTMLResponse(cached)
+        page = web.landing_html()
+        fragcache.put("panel/landing", page, ttl=600)
+        return HTMLResponse(page)
     _nudge_settle()   # ouverture de page -> pousse le règlement en arrière-plan (throttlé global, non bloquant)
     if frag:   # panneau partagé (pas de données par utilisateur) -> cache court anti-rafale
         cached = fragcache.get("panel/home")
