@@ -5652,6 +5652,12 @@ def _combo_safe_tg_card(include_settled: bool = False, cb: dict | None = None) -
             cb = _cs.today(_cs.day_key())
         except Exception:
             cb = None
+    # GARDE-FOU (bug 2026-07-30) : SANS combiné sécurité du jour, NE PAS passer cb=None à `_combo_tg_card`
+    # — il retomberait sur le COMBINÉ DU JOUR (`combo_daily.today`, jambes Over/Under…) rendu sous le titre
+    # « SÉCURITÉ » (le combiné sécurité doit rester 100 % double chance, demande user). Pas de DC du jour =
+    # aucune carte sécurité.
+    if not cb or not cb.get("legs"):
+        return ""
     cb = _combo_safe_with_why(cb)
     return _combo_tg_card(include_settled=include_settled, cb=cb, sport="foot", title="COMBINÉ SÉCURITÉ")
 
