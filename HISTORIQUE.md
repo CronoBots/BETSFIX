@@ -12,6 +12,21 @@
 
 ---
 
+## 2026-07-30 — Page d'accueil VITRINE (conversion des visiteurs non abonnés)
+
+- **Quoi** : nouvelle page d'accueil « vitrine » servie sur `/` aux visiteurs qui ne voient pas les pronos
+  (`not accounts.can_see_picks`). Abonnés + propriétaire gardent le dashboard. `web.landing_html()` = page
+  HTML autonome (head/style propres, police Selawik `/static`, nav du bas raccordée au SPA). Chiffres
+  DYNAMIQUES (foot simple depuis le 22/06) : taux 90 %, ROI, profit, 8 pertes datées, sélectivité ~40 %,
+  meilleure série, calibration (n + MAE + buckets réels), courbe de bénéfice SVG réelle. CTA → /signup /login.
+- **Pourquoi** : convertir un visiteur froid avant le paywall (demande user). Discours = discipline +
+  transparence (« on montre aussi nos pertes ») + calibration, SANS nommer aucune source (avantage concurrentiel).
+- **Fichiers** : `app/web.py` (landing_html + _lz_stats/_lz_curve/_lz_botnav + _LZ_CSS/_LZ_JS),
+  `app/routers/web.py` (import accounts + gate dans home, cache fragcache 10 min). Commit bba56a4.
+- **Régression vérifiée** : imports OK ; test HTTP visiteur public (cf-connecting-ip, sans session) -> LANDING
+  23 Ko ; local/proprio + abonné -> dashboard inchangé (229 Ko) ; aucune source nommée (assert) ; selfcheck
+  24/24 vert ; health OK. Purement affichage (ni ROI, ni stats, ni calibration touchés).
+
 ## 2026-07-29 — « Double chance 12 » : bug de règlement corrigé + bannie du combiné foot
 
 - **Quoi** : (1) `code_from_pick` ne dérive plus `DC 12` d'un libellé « X ou nul » (le nul-inclus prime
