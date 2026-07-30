@@ -408,16 +408,9 @@ async def home(request: Request,
     mélangés, par ordre de passage). Les matchs EN COURS vivent dans l'onglet 🟢 Live (demande
     utilisateur 2026-06-12 : pas de doublon accueil/live, et un live qui démarre n'a parfois pas
     encore de score -> badge « LIVE » nu peu lisible). La nav passe par le menu ☰."""
-    # VISITEUR NON ABONNÉ (page pleine seulement) -> page d'accueil VITRINE de conversion (demande user
-    # 2026-07-30). Abonnés + propriétaire gardent le dashboard. Le fragment SPA (frag=1) reste le dashboard
-    # (seuls ceux qui voient les pronos chargent le SPA). Cache court partagé (pas de données par user).
-    if not frag and not accounts.can_see_picks(request):
-        cached = fragcache.get("panel/landing")
-        if cached:
-            return HTMLResponse(cached)
-        page = web.landing_html()
-        fragcache.put("panel/landing", page, ttl=600)
-        return HTMLResponse(page)
+    # ACCUEIL = onglet SPA à part (/accueil) désormais -> `/` reste le dashboard PRONOS pour tous (le
+    # gating d'onglets par abonnement viendra plus tard, demande user 2026-07-30). Le paywall masque
+    # toujours les pronos aux non-abonnés dans le dashboard.
     _nudge_settle()   # ouverture de page -> pousse le règlement en arrière-plan (throttlé global, non bloquant)
     if frag:   # panneau partagé (pas de données par utilisateur) -> cache court anti-rafale
         cached = fragcache.get("panel/home")
@@ -440,14 +433,17 @@ async def home(request: Request,
 
 
 @router.get("/accueil", response_class=HTMLResponse)
-async def accueil() -> HTMLResponse:
-    """Onglet ACCUEIL = page vitrine (relevé + méthode), accessible à TOUS (visiteurs ET abonnés).
-    Même contenu que `/` pour un non-abonné ; cache partagé (pas de données par utilisateur)."""
-    cached = fragcache.get("panel/landing")
+async def accueil(frag: int = 0) -> HTMLResponse:
+    """Onglet ACCUEIL = vitrine (relevé + méthode + transparence), PANNEAU SPA comme les autres onglets
+    (demande user 2026-07-30). `frag=1` -> fragment seul (injecté dans le panneau) ; sinon coquille SPA
+    complète (onglet 'accueil' actif). Accessible à TOUS ; cache partagé (pas de données par utilisateur)."""
+    key = "panel/accueil-f" if frag else "panel/accueil"
+    cached = fragcache.get(key)
     if cached:
         return HTMLResponse(cached)
-    page = web.landing_html()
-    fragcache.put("panel/landing", page, ttl=600)
+    body = web.accueil_body(frag=bool(frag))
+    page = body if frag else web.spa_shell("accueil", "Accueil", body)
+    fragcache.put(key, page, ttl=600)
     return HTMLResponse(page)
 
 

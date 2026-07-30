@@ -3157,13 +3157,13 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # routes /app //basket //foot redirigent vers / (accueil). Nav = 4 onglets épurés.
 # Barre du bas — 5 onglets (refonte user 2026-07-27) : Stats + Calendrier FUSIONNÉS dans « Résultats »
 # (sous-nav Bilan / Calendrier à l'intérieur de /stats). Barre plus épurée, plus de doublon calendrier.
-_SPA_TABS = [("home", "/", "📅", "Pronos"), ("directs", "/directs", _LIVE_RADAR, "Live"),
+# ACCUEIL = onglet/PANNEAU SPA à part entière (demande user 2026-07-30) : MÊME cadre + présentation que les
+# autres onglets (son panneau charge /accueil?frag=1, bascule SANS rechargement). « Compte » n'est PAS dans
+# la barre du bas -> bouton en HAUT À DROITE (_ACCT_BTN). (Gating d'onglets par abonnement : plus tard.)
+_SPA_TABS = [("accueil", "/accueil", "🏠", "Accueil"),
+             ("home", "/", "📅", "Pronos"), ("directs", "/directs", _LIVE_RADAR, "Live"),
              ("stats", "/stats", "📊", "Résultats"),
              ("montante", "/montante", "🪜", "Montante")]
-# Barre du bas = ACCUEIL (vitrine) + les 4 panneaux SPA. « Compte » SORT de la barre -> bouton en HAUT À
-# DROITE (demande user 2026-07-30). « accueil » n'a PAS de panneau SPA -> lien plein-écran vers /accueil
-# (le moteur SPA laisse naviguer normalement les onglets sans panneau, cf. _SPA_JS `if(!panel(t))return`).
-_NAV_TABS = [("accueil", "/accueil", "🏠", "Accueil")] + _SPA_TABS
 # Bouton compte en haut à droite (toutes les pages) : /compte affiche la connexion si déconnecté, le compte
 # sinon -> pas besoin de connaître l'état de session dans le rendu.
 _ACCT_BTN = '<a class="acctbtn" href="/compte" aria-label="Mon compte"><span class="ic">👤</span>Compte</a>'
@@ -3349,7 +3349,7 @@ _SPA_JS = (
     "if(!panel(t))return;"  # onglet sans panneau SPA (Compte) -> navigation normale (page autonome)
     "e.preventDefault();go(t,true);});}"
     "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
-    "if(!t){var m={'/':'home','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot','/stats':'stats'};"
+    "if(!t){var m={'/':'home','/accueil':'accueil','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot','/stats':'stats'};"
     "t=m[location.pathname]||'home';}go(t,false);});"
     # Filtre temporel des stats : clic sur un bouton période -> recharge le panneau stats (since)
     "P.addEventListener('click',function(e){"
@@ -3637,7 +3637,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
         + ('<span class="nav-n" hidden></span>'
            if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
-        for k, href, ico, name in _NAV_TABS) + "</nav>"
+        for k, href, ico, name in _SPA_TABS) + "</nav>"
 
     sub = ""
     if subnav and sport in _SPORT_MATCH_URL:
@@ -3692,7 +3692,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         + ('<span class="nav-n" hidden></span>'
            if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
-        for k, href, ico, name in _NAV_TABS) + "</nav>"
+        for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
@@ -6521,13 +6521,15 @@ _LZ_CSS = """
   src:local('Segoe UI Semibold'),url('/static/fonts/selawik-semibold.woff') format('woff')}
 @font-face{font-family:'Selawik';font-weight:700;font-style:normal;font-display:swap;
   src:local('Segoe UI Bold'),url('/static/fonts/selawik-bold.woff') format('woff')}
-:root{--gr:#0a0d13;--gr2:#0f141d;--gr3:#141c28;--line:rgba(150,182,222,.10);--line2:rgba(150,182,222,.16);
+/* Variables SCOPÉES à .lz (JAMAIS :root -> n'écrase pas les variables de l'app, qui a les mêmes noms). Le
+   contenu Accueil est un FRAGMENT injecté dans le panneau SPA : il ne doit PAS déborder sur le reste du site. */
+.lz{--gr:#0a0d13;--gr2:#0f141d;--gr3:#141c28;--line:rgba(150,182,222,.10);--line2:rgba(150,182,222,.16);
   --ink:#eaf2ff;--dim:#9fb0c8;--faint:#63748d;--green:#34d27b;--gb:#4ff09a;--gfill:rgba(52,210,123,.14);
-  --amber:#ffb020;--red:#ff6b6b;--mono:ui-monospace,'Cascadia Mono','Segoe UI Mono',Menlo,Consolas,monospace}
-*{box-sizing:border-box}
-body.lz{margin:0;background:var(--gr);color:var(--ink);font-family:'Selawik','Segoe UI',system-ui,sans-serif;
-  line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden;padding-bottom:78px}
-.lz .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+  --amber:#ffb020;--red:#ff6b6b;--mono:ui-monospace,'Cascadia Mono','Segoe UI Mono',Menlo,Consolas,monospace;
+  color:var(--ink);font-family:'Selawik','Segoe UI',system-ui,sans-serif;line-height:1.55;
+  -webkit-font-smoothing:antialiased}
+.lz *{box-sizing:border-box}
+.lz .lzw{max-width:1040px;margin:0 auto;padding:0}
 .lz h1,.lz h2,.lz h3{margin:0;text-wrap:balance;letter-spacing:-.02em;line-height:1.06}
 .lz p{margin:0}.lz a{color:inherit;text-decoration:none}
 .lz .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
@@ -6638,7 +6640,7 @@ body.lz{margin:0;background:var(--gr);color:var(--ink);font-family:'Selawik','Se
 .lz .lzfoot .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--faint)}
 .lz .respo{display:inline-flex;align-items:center;gap:8px}
 .lz .b18{font-weight:700;color:var(--dim);border:1px solid var(--line2);border-radius:6px;padding:1px 6px;font-size:11px}
-.lz .reveal{opacity:0;transform:translateY(18px);transition:opacity .7s,transform .7s}.lz .reveal.in{opacity:1;transform:none}
+.lz .reveal{opacity:1;transform:none}   /* fragment SPA : contenu STATIQUE (pas d'anim JS) -> toujours visible */
 .lz .lznav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;max-width:720px;margin:0 auto;
   background:rgba(11,14,20,.92);backdrop-filter:blur(16px);border-top:1px solid var(--line2);
   padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
@@ -6650,30 +6652,6 @@ body.lz{margin:0;background:var(--gr);color:var(--ink);font-family:'Selawik','Se
   .lz .gates,.lz .pillars{grid-template-columns:1fr}.lz .honesty,.lz .calib{grid-template-columns:1fr;gap:26px}.lz .hero{padding-top:34px}}
 @media (prefers-reduced-motion:reduce){.lz *{animation:none!important;transition:none!important}.lz .reveal{opacity:1;transform:none}}
 """
-
-_LZ_JS = """
-(function(){var r=matchMedia('(prefers-reduced-motion:reduce)').matches;
-var el=document.getElementById('lzbig');
-if(el){var tg=+el.dataset.v||0;if(r){el.textContent=tg;}else{var s=null,dur=1300;
- function stp(t){if(!s)s=t;var p=Math.min((t-s)/dur,1),e=1-Math.pow(1-p,3);el.textContent=Math.round(e*tg);if(p<1)requestAnimationFrame(stp);}requestAnimationFrame(stp);}}
-var ln=document.getElementById('lzline'),dot=document.getElementById('lzdot');
-if(ln&&!r){var L=ln.getTotalLength();ln.style.strokeDasharray=L;ln.style.strokeDashoffset=L;if(dot)dot.style.opacity=0;
- requestAnimationFrame(function(){ln.style.transition='stroke-dashoffset 1.7s cubic-bezier(.3,.7,.2,1)';ln.style.strokeDashoffset='0';
-  setTimeout(function(){if(dot){dot.style.transition='opacity .4s';dot.style.opacity=1;}},1500);});}
-var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');
- (e.target.querySelectorAll?e.target.querySelectorAll('.fl'):[]).forEach(function(f){f.style.width=(f.dataset.w||0)+'%';});io.unobserve(e.target);}});},{threshold:.16});
-document.querySelectorAll('.reveal,.cvz').forEach(function(x){io.observe(x);});})();
-"""
-
-
-def _lz_botnav() -> str:
-    """Barre du bas de la landing (raccord natif avec l'app) : mêmes onglets que le SPA, Pronos actif."""
-    e = html.escape
-    return '<nav class="lznav">' + "".join(
-        f'<a class="{"on" if k == "accueil" else ""}" href="{href}"><span class="ic">{ico}</span>'
-        f'<span>{e(name)}</span></a>'
-        for k, href, ico, name in _NAV_TABS) + "</nav>"
-
 
 def _lz_stats() -> dict:
     """Chiffres DYNAMIQUES de la vitrine, calculés sur le relevé RÉEL (foot simple depuis _LZ_SINCE).
@@ -6740,9 +6718,11 @@ def _lz_curve(pts: list) -> tuple:
     return d, coords[-1][0], coords[-1][1], _y(0)
 
 
-def landing_html() -> str:
-    """Page d'accueil VITRINE (visiteurs non abonnés). Page HTML COMPLÈTE et autonome (son propre <head>/
-    style) — pas de marqueur PRONO (donc pas de paywall) et aucune source nommée. Chiffres dynamiques."""
+def accueil_body(frag: bool = True) -> str:
+    """CONTENU de l'onglet ACCUEIL (vitrine : relevé + méthode + transparence), rendu comme un FRAGMENT SPA
+    (demande user 2026-07-30 : présentation intégrée à l'app, plus de page autonome au style différent).
+    Style SCOPÉ sous `.lz` (variables locales, n'écrase pas l'app). Statique (pas d'anim JS). Aucune source
+    nommée. `frag` conservé pour signature homogène (le cadre/nav/logo vient du spa_shell)."""
     e = html.escape
     s = _lz_stats()
     cd, ex, ey, zy = _lz_curve(s["pts"])
@@ -6759,40 +6739,24 @@ def landing_html() -> str:
         f'<span class="lz-o">@{co:g}</span></span>'
         for dt, nm, co in s["losses"]) or '<span class="dimc" style="font-size:14px">Aucune perte sur la période.</span>'
 
-    if s["cal_rows"]:
-        cal_html = "".join(
-            f'<div class="cr"><span class="lab">annoncé {r["avg_conf"]} %</span>'
-            f'<span class="tr"><span class="fl" data-w="{r["avg_conf"]}"></span></span>'
-            f'<span class="rl">réel {r["win_rate"]} %</span></div>'
-            for r in s["cal_rows"])
-    else:
-        cal_html = ('<div class="cr"><span class="lab">annoncé 69 %</span><span class="tr">'
-                    '<span class="fl" data-w="69"></span></span><span class="rl">réel 69 %</span></div>'
-                    '<div class="cr"><span class="lab">annoncé 80 %</span><span class="tr">'
-                    '<span class="fl" data-w="80"></span></span><span class="rl">réel 80 %</span></div>')
+    _rows = s["cal_rows"] or [{"avg_conf": 69, "win_rate": 69}, {"avg_conf": 80, "win_rate": 80}]
+    cal_html = "".join(   # largeur des barres EN DUR (statique, pas de JS) : width inline
+        f'<div class="cr"><span class="lab">annoncé {r["avg_conf"]} %</span>'
+        f'<span class="tr"><span class="fl" style="width:{r["avg_conf"]}%"></span></span>'
+        f'<span class="rl">réel {r["win_rate"]} %</span></div>'
+        for r in _rows)
     mae_txt = f'{s["cal_mae"]:g} pt' if isinstance(s["cal_mae"], (int, float)) else "0,8 pt"
     cal_n_txt = f'{s["cal_n"]:,}'.replace(",", " ")
 
-    return f"""<!doctype html><html lang="fr"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0a0d13">
-<title>BETSFIX — {s['pct']} % de réussite au football</title>
-<meta name="description" content="Le relevé réel : {s['pct']} % de paris gagnants au football {_LZ_SINCE_LABEL}. Une méthode de sélection stricte — confiance calibrée, value réelle, abstention. On montre aussi nos pertes.">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="BETSFIX">
-<style>{_LZ_CSS}</style></head><body class="lz">
+    return f"""<style>{_LZ_CSS}</style>
+<div class="lz">
 
-{_ACCT_BTN}
-<a class="lzlogo" href="/accueil"><img src="/static/wordmark.png?v=1" alt="BETSFIX"></a>
-
-<div class="hero"><div class="hero-glow"></div><div class="wrap">
+<div class="hero"><div class="hero-glow"></div><div class="lzw">
   <div class="hero-grid">
     <div>
       <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · paris simples · {_LZ_SINCE_LABEL}</span></span>
       <div class="sh">
-        <span class="big num" id="lzbig" data-v="{s['pct']}">{s['pct']}</span><span class="pct">%</span>
+        <span class="big num">{s['pct']}</span><span class="pct">%</span>
         <span class="cap"><b class="num">{s['won']} gagnés / {s['total']}</b><span>relevé réel, pas une projection</span></span>
       </div>
       <h1 class="tag">La discipline d'un pro. <span class="hl">Le relevé pour le prouver.</span></h1>
@@ -6803,19 +6767,19 @@ def landing_html() -> str:
         <span class="cta-note">Sans engagement · résiliable à tout moment</span>
       </div>
     </div>
-    <div class="cc reveal">
+    <div class="cc">
       <div class="cc-h"><span class="t">Bénéfice cumulé · football</span><span class="roi num">ROI {roi_txt}</span></div>
       <svg class="cv" viewBox="0 0 100 42" preserveAspectRatio="none" aria-label="Courbe de bénéfice cumulé, en hausse">
         <defs><linearGradient id="lzln" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stop-color="#2ea86a"/><stop offset="1" stop-color="#4ff09a"/></linearGradient></defs>
         <line class="z0" x1="0" y1="{zy}" x2="100" y2="{zy}"/>
-        <path class="ln" id="lzline" d="{cd}"/>
-        <circle class="ep" id="lzdot" cx="{ex}" cy="{ey}" r="2.4"/>
+        <path class="ln" d="{cd}"/>
+        <circle class="ep" cx="{ex}" cy="{ey}" r="2.4"/>
       </svg>
       <div class="cc-f"><span>7 juin</span><span class="mono">{prof_txt} · mise plate 1 u</span><span>aujourd'hui</span></div>
     </div>
   </div>
-  <div class="metrics reveal">
+  <div class="metrics">
     <div class="metric"><div class="k">Taux de réussite</div><div class="v green num">{s['pct']} %</div></div>
     <div class="metric"><div class="k">ROI (mise plate)</div><div class="v green num">{roi_txt}</div></div>
     <div class="metric"><div class="k">Pertes</div><div class="v num">{s['total'] - s['won']} <small>/ {s['total']}</small></div></div>
@@ -6823,89 +6787,82 @@ def landing_html() -> str:
   </div>
 </div></div>
 
-<section class="blk" id="methode"><div class="wrap">
-  <div class="sec-head reveal"><span class="eyebrow">Ce qui rend le taux unique</span>
+<section class="blk" id="methode"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">Ce qui rend le taux unique</span>
     <h2>Trois filtres. Chaque pari doit passer les trois.</h2>
     <p>La plupart des sites vous donnent un prono par match. BETSFIX part de l'inverse : un match ne devient
       un pari que s'il franchit une confiance <em>calibrée</em>, une <em>value</em> réelle, et des garde-fous
       de marché. Sinon — abstention.</p></div>
   <div class="gates">
-    <div class="gate reveal"><span class="bar"></span><span class="step">FILTRE 01</span>
+    <div class="gate"><span class="bar"></span><span class="step">FILTRE 01</span>
       <h3><span class="tick">✓</span> Confiance ≥ 65 %</h3>
       <p>Pas la confiance « au feeling » : une confiance <b>calibrée</b> sur plus de {cal_n_txt} prédictions
         passées. Quand on annonce 65 %, ça sort autour de 65 %.</p></div>
-    <div class="gate reveal"><span class="bar"></span><span class="step">FILTRE 02</span>
+    <div class="gate"><span class="bar"></span><span class="step">FILTRE 02</span>
       <h3><span class="tick">✓</span> Value positive</h3>
       <p>Confiance ≠ value. Un favori à cote trop courte (76 % @1,21) a une value <b>négative</b> : écarté,
         même s'il gagne « souvent ». On ne mise que quand la cote nous paie trop.</p></div>
-    <div class="gate rej reveal"><span class="bar"></span><span class="step">SINON</span>
+    <div class="gate rej"><span class="bar"></span><span class="step">SINON</span>
       <h3><span class="tick">✕</span> Abstention</h3>
       <p>Marché perdant (corners, « les 2 marquent »…) exclu automatiquement dès qu'il coûte. Rien ne passe ?
         On ne joue pas. Un jour vide est un jour <b>gagné</b>.</p></div>
   </div>
-  <div class="verdict reveal"><span class="vn num">≈ {s['sel']} %</span>
+  <div class="verdict"><span class="vn num">≈ {s['sel']} %</span>
     <span class="vt">des matchs analysés finissent <b>écartés</b>. Ce n'est pas de la timidité — c'est
       exactement la sélectivité qui produit les {s['pct']} %. Un système qui joue tous les jours « pour
       jouer » ferait bien pire.</span></div>
 </div></section>
 
-<section class="blk"><div class="wrap">
-  <div class="sec-head reveal"><span class="eyebrow">Sous le capot</span>
+<section class="blk"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">Sous le capot</span>
     <h2>Pourquoi ce taux ne ressemble à aucun autre site.</h2></div>
   <div class="pillars">
-    <div class="pillar reveal"><h3>Recoupement multi-sources</h3>
+    <div class="pillar"><h3>Recoupement multi-sources</h3>
       <p>Aucun pari sans au moins deux sources factuelles indépendantes qui concordent (forme, blessures,
         historique direct, moyennes réelles). Un signal isolé ne suffit jamais.</p>
       <div class="kpi">≥ 2 sources · fait vérifié</div></div>
-    <div class="pillar reveal"><h3>Ancrage sur les cotes sharp</h3>
+    <div class="pillar"><h3>Ancrage sur les cotes sharp</h3>
       <p>La probabilité de référence vient des cotes du marché le plus « sharp » (faible marge), pas d'une
         intuition. On ne parie que là où notre estimation bat clairement ce marché.</p>
       <div class="kpi">edge mesuré · pas au feeling</div></div>
-    <div class="pillar reveal"><h3>Calibration en continu</h3>
+    <div class="pillar"><h3>Calibration en continu</h3>
       <p>Chaque prédiction — même les paris non joués — nourrit la calibration. Les marchés qui dérivent sont
         écartés tout seuls, avant qu'ils ne coûtent.</p>
       <div class="kpi">{cal_n_txt} prédictions · écart {mae_txt}</div></div>
   </div>
 </div></section>
 
-<section class="blk"><div class="wrap">
+<section class="blk"><div class="lzw">
   <div class="honesty">
-    <div class="reveal"><span class="eyebrow" style="display:block;margin-bottom:14px">La preuve par l'honnêteté</span>
+    <div><span class="eyebrow" style="display:block;margin-bottom:14px">La preuve par l'honnêteté</span>
       <p class="bigq">On vous montre aussi <span class="red">nos {s['total'] - s['won']} pertes.</span></p>
       <p class="sub">Un site qui n'affiche que ses gains vous ment. Voici chaque pari perdu {_LZ_SINCE_LABEL} —
         daté, avec sa cote. Rien n'est caché, rien n'est effacé.</p></div>
-    <div class="lzl reveal">{losses_html}</div>
+    <div class="lzl">{losses_html}</div>
   </div>
 </div></section>
 
-<section class="blk"><div class="wrap">
+<section class="blk"><div class="lzw">
   <div class="calib">
-    <div class="sec-head reveal" style="margin-bottom:0"><span class="eyebrow">Calibration</span>
+    <div class="sec-head" style="margin-bottom:0"><span class="eyebrow">Calibration</span>
       <h2>Quand on annonce un %, il tombe.</h2>
       <p>La barre verte = ce qu'on annonçait. Le chiffre à droite = ce qui est réellement sorti. C'est la
         définition d'un modèle honnête : ni trop confiant, ni trop prudent.</p></div>
-    <div class="cvz reveal">{cal_html}
-      <div class="cr"><span class="lab">écart moyen</span><span class="tr"><span class="fl" data-w="96"></span></span><span class="rl">{mae_txt}</span></div>
+    <div class="cvz">{cal_html}
+      <div class="cr"><span class="lab">écart moyen</span><span class="tr"><span class="fl" style="width:96%"></span></span><span class="rl">{mae_txt}</span></div>
     </div>
   </div>
 </div></section>
 
-<div class="final"><div class="glow"></div><div class="wrap">
-  <h2 class="reveal">Arrêtez de suivre des pronos. <br>Suivez un relevé.</h2>
-  <p class="reveal">Les pronos du jour, la courbe en direct, le combiné, la montante — et chaque pari réglé au
-    grand jour. Décidez sur des chiffres, pas sur des promesses.</p>
-  <div class="cta-row reveal"><a class="btn lg" href="/signup">Créer mon compte →</a></div>
-  <p class="cta-note reveal" style="margin-top:18px">Résiliable en un clic · aucune donnée revendue</p>
+<div class="final"><div class="glow"></div><div class="lzw">
+  <h2>Arrêtez de suivre des pronos. <br>Suivez un relevé.</h2>
+  <p>Les pronos du jour, la courbe en direct, le combiné, la montante — et chaque pari réglé au grand jour.
+    Décidez sur des chiffres, pas sur des promesses.</p>
+  <div class="cta-row"><a class="btn lg" href="/signup">Créer mon compte →</a></div>
+  <p class="cta-note" style="margin-top:18px">Résiliable en un clic · aucune donnée revendue</p>
 </div></div>
 
-<div class="lzfoot"><div class="wrap">
-  <div class="brand" style="font-size:15px"><span class="dot"></span>BETS<em>FIX</em></div>
-  <div class="respo"><span class="b18">18+</span> Outil informatif, sans garantie de gains · Les paris comportent un risque · Jouez responsable</div>
-</div></div>
-
-{_lz_botnav()}
-<script>{_LZ_JS}</script>
-</body></html>"""
+</div>"""
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
