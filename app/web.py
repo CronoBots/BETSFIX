@@ -6456,21 +6456,18 @@ body.lz{margin:0;background:var(--gr);color:var(--ink);font-family:'Selawik','Se
 .lz .mono{font-family:var(--mono)}
 .lz .eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
 .lz .green{color:var(--green)}.lz .amber{color:var(--amber)}.lz .red{color:var(--red)}.lz .dimc{color:var(--dim)}
-.lz .top{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
-  background:linear-gradient(180deg,rgba(10,13,19,.92),rgba(10,13,19,.6));border-bottom:1px solid var(--line)}
-.lz .top .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
+.lz .lzlogo{display:block;text-align:center;padding:calc(16px + env(safe-area-inset-top)) 0 6px}
+.lz .lzlogo img{width:auto;height:auto;max-width:66%;max-height:52px;filter:drop-shadow(0 6px 20px rgba(34,184,255,.42))}
 .lz .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:19px}
 .lz .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--green);
   box-shadow:0 0 0 4px rgba(52,210,123,.16),0 0 14px 2px rgba(79,240,154,.55)}
 .lz .brand em{font-style:normal;color:var(--green)}
-.lz .top-actions{display:flex;align-items:center;gap:12px}
-.lz .ghost{font-size:14px;font-weight:600;color:var(--dim);padding:8px 4px}.lz .ghost:hover{color:var(--ink)}
 .lz .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:14px;padding:10px 18px;
   border-radius:11px;cursor:pointer;border:0;background:linear-gradient(180deg,var(--gb),var(--green));
   color:#04140a;box-shadow:0 6px 20px -6px rgba(52,210,123,.6);transition:transform .12s,box-shadow .12s}
 .lz .btn:hover{transform:translateY(-1px);box-shadow:0 10px 26px -6px rgba(52,210,123,.72)}
 .lz .btn.lg{font-size:16px;padding:15px 28px;border-radius:13px}
-.lz .hero{position:relative;padding:60px 0 26px}
+.lz .hero{position:relative;padding:16px 0 26px}
 .lz .hero-glow{position:absolute;inset:-10% -20% auto -20%;height:520px;pointer-events:none;z-index:0;
   background:radial-gradient(60% 60% at 30% 0%,rgba(52,210,123,.16),transparent 70%),
   radial-gradient(50% 50% at 92% 12%,rgba(34,184,255,.10),transparent 70%)}
@@ -6704,14 +6701,7 @@ def landing_html() -> str:
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{_LZ_CSS}</style></head><body class="lz">
 
-<div class="top"><div class="wrap">
-  <div class="brand"><span class="dot"></span>BETS<em>FIX</em></div>
-  <div class="top-actions">
-    <a class="ghost" href="#methode">La méthode</a>
-    <a class="ghost" href="/stats">Les résultats</a>
-    <a class="btn" href="/login">Se connecter</a>
-  </div>
-</div></div>
+<a class="lzlogo" href="/"><img src="/static/wordmark.png?v=1" alt="BETSFIX"></a>
 
 <div class="hero"><div class="hero-glow"></div><div class="wrap">
   <div class="hero-grid">
