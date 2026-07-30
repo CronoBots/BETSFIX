@@ -2943,12 +2943,13 @@ CSS = """
   /* Ligne de contexte du PALIER montante sur Pronos (au-dessus de la carte de pari) */
   .mont-pron-ctx{font-size:11px;color:var(--gold);font-weight:700;margin:0 2px 7px;line-height:1.4}
   .mont-pron-ctx b{color:#ffe08a} .mont-pron-ctx span{color:var(--muted);font-weight:600}
-  /* Note de MISE sous la carte de la zone « Montante · Palier N » (mise capitalisée + lien échelle) */
-  .mont-note{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:8px 2px 0;font-size:11.5px;
-    font-weight:600;color:var(--muted);line-height:1.4}
-  .mont-note .mont-note-ic{font-size:14px}
+  /* Note de MISE sous la carte de la zone « Montante · Palier N » : UNE seule ligne (pas de retour). */
+  .mont-note{margin:8px 2px 0;font-size:11.5px;font-weight:600;color:var(--muted);line-height:1.4;
+    white-space:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .mont-note::-webkit-scrollbar{display:none}
+  .mont-note .mont-note-ic{font-size:14px;margin-right:5px}
   .mont-note b{color:#ffe08a;font-weight:800}
-  .mont-note a{color:var(--gold);font-weight:700;text-decoration:none;white-space:nowrap}
+  .mont-note a{color:var(--gold);font-weight:700;text-decoration:none;margin-left:5px}
   /* Courbe de progression du capital (10 € -> pic), échelle log */
   .mont-curve{margin:2px 0 11px}
   .mont-c{width:100%;height:auto;display:block}
@@ -5752,9 +5753,8 @@ def _montante_zone_card(sport: str | None) -> tuple:
                "why": _prov_why_snippet("foot", mid, maxlen=100000, played=True)}
         card = _leg_card(leg, why=True, verdict=True, teams=True, why_label="Pourquoi ce pari")
         note = (f'<div class="mont-note"><span class="mont-note-ic">🪜</span>'
-                f'Mise <b>{_mont_eur(p.get("stake"))}</b> · rejouée à chaque gain · '
-                f'<a data-goto="montante" href="/montante" onclick="event.stopPropagation()">voir l\'échelle ›</a>'
-                f' · simulé, hors ROI</div>')
+                f'Mise de <b>{_mont_eur(p.get("stake"))}</b> rejouée et augmentée à chaque gain '
+                f'<a data-goto="montante" href="/montante" onclick="event.stopPropagation()">voir l\'échelle ›</a></div>')
         return f"Montante · Palier {palier}", card + note
     except Exception:
         return "", ""
@@ -6387,16 +6387,16 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ORDRE (refonte user 2026-07-27) : Paris à jouer → Provisoires → [bannière Montante] → Combiné →
     # Combiné Betmines. « Paris du jour » N'APPARAÎT PAS s'il n'y a rien à jouer (demande user 2026-07-26).
     out = []
-    if play:
-        out.append(_zone("play", "Paris du jour", "", len(play), _rows_by_day(play), collapsible=True))
-    out.append(_zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True))
-    # MONTANTE = son PROPRE type de pari (demande user 2026-07-30) : zone « Montante · Palier N » avec la
-    # carte au MÊME format que les autres paris (via _montante_zone_card -> _leg_card). Toujours visible dès
-    # qu'un palier est en attente, même si le match est une ABSTENTION (le pari montante ne dépend pas de la
-    # value du système principal). Foot uniquement.
+    # MONTANTE EN PREMIER (demande user 2026-07-30) : son PROPRE type de pari, zone « Montante · Palier N »
+    # avec la carte au MÊME format que les autres paris (via _montante_zone_card -> _leg_card). Toujours
+    # visible dès qu'un palier est en attente, même si le match est une ABSTENTION (le pari montante ne
+    # dépend pas de la value du système principal). Foot uniquement.
     _mont_title, _mont_card = _montante_zone_card(sport)
     if _mont_card:
         out.append(_zone("montante", _mont_title, "", 1, _mont_card, collapsible=True))
+    if play:
+        out.append(_zone("play", "Paris du jour", "", len(play), _rows_by_day(play), collapsible=True))
+    out.append(_zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True))
     out += [
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("combosafe", "Combiné sécurité", "", 1 if combo_safe else 0, combo_safe, collapsible=True),
