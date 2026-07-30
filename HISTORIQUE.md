@@ -12,6 +12,18 @@
 
 ---
 
+## 2026-07-30 — Accueil intégré comme onglet SPA (fin de la page autonome)
+
+- **Quoi** : `landing_html()` (page complète autonome) -> `web.accueil_body(frag)` = FRAGMENT SPA scopé sous
+  `.lz` (variables locales, plus de `:root` global), statique. Accueil redevient un vrai PANNEAU SPA (1er
+  onglet, `_SPA_TABS`) ; `/accueil` -> `spa_shell('accueil')` (+ `?frag=1`). `/` = dashboard pour tous.
+- **Pourquoi** : la page autonome avait un style totalement différent et son `:root{}` écrasait les variables
+  globales de l'app -> « faisait bugger » l'app (demande user). Gating d'onglets par abonnement = plus tard.
+- **Fichiers** : `app/web.py` (accueil_body, _LZ_CSS scopé, _NAV_TABS/_lz_botnav/_LZ_JS supprimés),
+  `app/routers/web.py` (route /accueil spa_shell+frag, gate landing sur / retiré). Commit a01e05f.
+- **Régression vérifiée** : /accueil = coquille SPA + panneau actif (vitrine 90%) ; /accueil?frag=1 = fragment
+  .lz sans <html> ; / = dashboard ; 0 `:root` de la landing (pas de clobbering) ; selfcheck 24/24 ; imports OK.
+
 ## 2026-07-30 — Montante = type de pari à part : zone « Montante · Palier N »
 
 - **Quoi** : `web._montante_zone_card(sport)` rend le pari montante du jour via `_leg_card` (même format que
