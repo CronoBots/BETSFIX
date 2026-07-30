@@ -12,6 +12,19 @@
 
 ---
 
+## 2026-07-30 — Montante = type de pari à part : zone « Montante · Palier N »
+
+- **Quoi** : `web._montante_zone_card(sport)` rend le pari montante du jour via `_leg_card` (même format que
+  provisoires/combiné : en-tête, verdict confiance/marché/value/cote, pli « Pourquoi ce pari ») + note de
+  mise. Nouvelle zone « Montante · Palier N » insérée entre Provisoires et Combiné. Badge greffé sur les
+  cartes (`_montante_badge` dans `_sport_row`) retiré (surface unique). CSS `.mont-note`.
+- **Pourquoi** : la montante choisit le pari le plus SÛR (cote 1.25–1.45), souvent une ABSTENTION (pas de
+  value) → absente des « paris à jouer », et jusqu'ici invisible sur Pronos (badge greffé uniquement sur
+  cartes de pari joué). Demande user : en faire une catégorie à part, toujours visible.
+- **Fichiers** : `app/web.py` (commit 1ce3506). Purement affichage (suivi montante inchangé, hors ROI).
+- **Régression vérifiée** : zone présente sur vue foot (ordre play→prov→montante→combiné→bonus), carte au
+  bon format (DC 1X · Confiance 85% · Value +7% · Cote 1.26), 0 badge greffé résiduel ; selfcheck 24/24 ; import OK.
+
 ## 2026-07-30 — Fix combiné sécurité : plus de repli sur le combiné du jour (jambes non-DC)
 
 - **Quoi** : garde-fou dans `web._combo_safe_tg_card` — si pas de combiné sécurité DC du jour, renvoyer ''
