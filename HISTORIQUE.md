@@ -12,6 +12,17 @@
 
 ---
 
+## 2026-07-30 — Fix combiné sécurité : plus de repli sur le combiné du jour (jambes non-DC)
+
+- **Quoi** : garde-fou dans `web._combo_safe_tg_card` — si pas de combiné sécurité DC du jour, renvoyer ''
+  (aucune carte) au lieu de passer `cb=None` à `_combo_tg_card`.
+- **Pourquoi** : `_combo_tg_card(cb=None)` retombe sur `combo_daily.today()` (combiné du jour, jambes
+  Over/Under…) rendu sous le titre « COMBINÉ SÉCURITÉ » (vu : « Independiente Rivadavia — Huracán : Plus de
+  0.5 but »). Le combiné sécurité doit rester 100 % double chance (demande user, mémoire `combo-safe-double-chance`).
+- **Fichiers** : `app/web.py` (commit 13ff4a8). Le Bilan (combiné sécurité réglé) passe un `cb` explicite → inchangé.
+- **Régression vérifiée** : carte sécurité vide quand pas de DC du jour ; vue foot live sans carte SÉCURITÉ
+  parasite ; selfcheck 24/24 ; import OK.
+
 ## 2026-07-30 — Page d'accueil VITRINE (conversion des visiteurs non abonnés)
 
 - **Quoi** : nouvelle page d'accueil « vitrine » servie sur `/` aux visiteurs qui ne voient pas les pronos
