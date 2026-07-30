@@ -325,6 +325,11 @@ def _candidates_for_day(day: str, sport: str = "foot") -> list[dict]:
             # FAUX). code_from_pick reflète la logique de règlement ACTUELLE -> code correct + à jour.
             code = code_from_pick(p.get("sel") or "", d.get("sport"), d.get("home", ""),
                                   d.get("away", "")).strip()
+            # « DC 12 » (1 OU 2 = double chance SANS le nul) BANNI du combiné (demande user 2026-07-29) :
+            # c'est la double chance la PLUS faible — elle perd exactement sur le NUL, l'issue la plus
+            # corrélée d'un match serré. On ne joue en jambe « double chance » que 1X / X2 (favori + nul).
+            if code == "DC 12":
+                continue
             if not code or code.split()[0] not in _ALLOWED:
                 continue
             pr, co = p.get("prob"), p.get("cote")

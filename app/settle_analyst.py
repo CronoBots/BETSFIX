@@ -885,13 +885,20 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
             return f"BTTSHALF {half} {'NO' if 'non' in t else 'YES'}"
         return "BTTS NO" if "non" in t else "BTTS YES"
     if "double chance" in t:
-        for k in ("1x", "12", "x2"):
-            if k in t:
-                if "mi-temps" in t or "mi temps" in t:   # double chance sur UNE mi-temps -> DCHALF
-                    half = "2H" if any(x in t for x in ("2e mi", "2ème mi", "2eme mi", "seconde mi",
-                                                        "deuxième mi", "2nde mi")) else "1H"
-                    return f"DCHALF {half} {k.upper()}"
-                return f"DC {k.upper()}"
+        # « X ou nul » / « X/nul » = double chance AVEC le nul (1X ou X2). Le nul-inclus PRIME sur un token
+        # « 12 » parasite : un libellé source contradictoire (« Double chance 12 Slovan/nul », vu 2026-07-29)
+        # était codé « DC 12 » sur le seul « 12 » -> un match nul (1-1) le perdait à tort alors que le pari
+        # RÉEL (Slovan ou nul) était GAGNÉ. « 12 » (1 OU 2, SANS le nul) n'est retenu que si AUCUN nul cité.
+        k = ("1x" if "1x" in t
+             else "x2" if "x2" in t
+             else (("1x" if which() == "HOME" else "x2" if which() == "AWAY" else None)
+                   if "nul" in t else ("12" if "12" in t else None)))
+        if k:
+            if "mi-temps" in t or "mi temps" in t:   # double chance sur UNE mi-temps -> DCHALF
+                half = "2H" if any(x in t for x in ("2e mi", "2ème mi", "2eme mi", "seconde mi",
+                                                    "deuxième mi", "2nde mi")) else "1H"
+                return f"DCHALF {half} {k.upper()}"
+            return f"DC {k.upper()}"
     # Double chance phrasée « <équipe> ou nul » (= domicile/extérieur OU match nul) — fréquent en
     # jambe de combiné (« Angleterre ou nul »), échappait au filtre « double chance » -> code vide.
     if "ou nul" in t or "ou match nul" in t or "ou le nul" in t:

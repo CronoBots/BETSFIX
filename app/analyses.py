@@ -623,6 +623,8 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
         return s
     m = re.search(r"\b(1x|x2|12)\b", low)
     code = m.group(1).upper() if m else None
+    if code == "12" and "nul" in low:              # « 12 » + « ou nul » = contradictoire (nul inclus -> 1X/X2)
+        code = None                                # -> re-déduire du camp cité (aligné code_from_pick, 2026-07-29)
     if not code:                                   # forme explicite -> déduire le code des équipes citées
         def _cited(name):
             toks = [t for t in re.findall(r"[a-zà-ÿ0-9]+", (name or "").lower()) if len(t) >= 3]
