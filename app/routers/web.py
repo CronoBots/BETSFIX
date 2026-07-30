@@ -439,6 +439,18 @@ async def home(request: Request,
     return HTMLResponse(body)
 
 
+@router.get("/accueil", response_class=HTMLResponse)
+async def accueil() -> HTMLResponse:
+    """Onglet ACCUEIL = page vitrine (relevé + méthode), accessible à TOUS (visiteurs ET abonnés).
+    Même contenu que `/` pour un non-abonné ; cache partagé (pas de données par utilisateur)."""
+    cached = fragcache.get("panel/landing")
+    if cached:
+        return HTMLResponse(cached)
+    page = web.landing_html()
+    fragcache.put("panel/landing", page, ttl=600)
+    return HTMLResponse(page)
+
+
 @router.get("/paris")
 async def paris_redirect() -> RedirectResponse:
     """Page « Paris à jouer » RETIRÉE (2026-06-12) : les paris retenus restent dans les analyses,

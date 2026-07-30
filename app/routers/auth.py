@@ -26,9 +26,10 @@ def _page(title: str, body: str, frag: bool = False) -> str:
     if frag:
         return inner
     from app import web                       # import paresseux (évite tout cycle à l'import)
-    # Coquille SPA complète (onglet 'compte' actif) -> depuis cette page aussi, taper un autre onglet
-    # bascule SANS rechargement (cohérent avec tout le reste).
-    return web.spa_shell("compte", title, inner)
+    # « Compte » n'est PLUS un onglet SPA (déplacé en bouton HAUT À DROITE, 2026-07-30) -> page PLEINE via
+    # web.layout : logo + bouton compte + barre du bas (Accueil·Pronos·Live·Résultats·Montante). Taper un
+    # onglet recharge la page (comme les autres pages layout). Le fragment (frag) reste dispo si besoin.
+    return web.layout(title, "compte", inner)
 
 
 def _safe_next(nxt: str | None) -> str:

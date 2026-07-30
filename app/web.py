@@ -311,6 +311,14 @@ CSS = """
   /* Logo unique centré tout en haut de chaque page + pastille de pause */
   .toplogo{display:block;text-align:center;margin:20px 0 12px}
   .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
+  /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
+  .acctbtn{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:75;
+    display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;line-height:1;
+    padding:8px 13px;border-radius:999px;color:#cfe0f5;text-decoration:none;
+    background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    border:1px solid rgba(150,182,222,.20)}
+  .acctbtn:active{transform:scale(.94)}
+  .acctbtn .ic{font-size:15px}
   /* Intro au chargement : logo principal centré, puis fondu -> le site apparaît. */
   .splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
           pointer-events:none;  /* n'intercepte JAMAIS les taps (sinon ~1,65s de taps avalés au chargement) */
@@ -3144,8 +3152,14 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # (sous-nav Bilan / Calendrier à l'intérieur de /stats). Barre plus épurée, plus de doublon calendrier.
 _SPA_TABS = [("home", "/", "📅", "Pronos"), ("directs", "/directs", _LIVE_RADAR, "Live"),
              ("stats", "/stats", "📊", "Résultats"),
-             ("montante", "/montante", "🪜", "Montante"),
-             ("compte", "/compte", "👤", "Compte")]
+             ("montante", "/montante", "🪜", "Montante")]
+# Barre du bas = ACCUEIL (vitrine) + les 4 panneaux SPA. « Compte » SORT de la barre -> bouton en HAUT À
+# DROITE (demande user 2026-07-30). « accueil » n'a PAS de panneau SPA -> lien plein-écran vers /accueil
+# (le moteur SPA laisse naviguer normalement les onglets sans panneau, cf. _SPA_JS `if(!panel(t))return`).
+_NAV_TABS = [("accueil", "/accueil", "🏠", "Accueil")] + _SPA_TABS
+# Bouton compte en haut à droite (toutes les pages) : /compte affiche la connexion si déconnecté, le compte
+# sinon -> pas besoin de connaître l'état de session dans le rendu.
+_ACCT_BTN = '<a class="acctbtn" href="/compte" aria-label="Mon compte"><span class="ic">👤</span>Compte</a>'
 # Compte est un onglet SPA À PART ENTIÈRE : son panneau charge /compte?frag=1 (contenu seul) en AJAX,
 # comme les onglets sport -> bascule sans rechargement. (Plus de _NAV_ONLY : il a son panneau.)
 
@@ -3616,7 +3630,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
         + ('<span class="nav-n" hidden></span>'
            if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
-        for k, href, ico, name in _SPA_TABS) + "</nav>"
+        for k, href, ico, name in _NAV_TABS) + "</nav>"
 
     sub = ""
     if subnav and sport in _SPORT_MATCH_URL:
@@ -3638,7 +3652,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
-{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
+{_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
 
@@ -3671,7 +3685,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         + ('<span class="nav-n" hidden></span>'
            if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
-        for k, href, ico, name in _SPA_TABS) + "</nav>"
+        for k, href, ico, name in _NAV_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
@@ -3682,7 +3696,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{CSS}</style></head><body class="sp-{e(active)}">
-{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
+{_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
@@ -6458,6 +6472,11 @@ body.lz{margin:0;background:var(--gr);color:var(--ink);font-family:'Selawik','Se
 .lz .green{color:var(--green)}.lz .amber{color:var(--amber)}.lz .red{color:var(--red)}.lz .dimc{color:var(--dim)}
 .lz .lzlogo{display:block;text-align:center;padding:calc(16px + env(safe-area-inset-top)) 0 6px}
 .lz .lzlogo img{width:auto;height:auto;max-width:66%;max-height:52px;filter:drop-shadow(0 6px 20px rgba(34,184,255,.42))}
+.lz .acctbtn{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:75;display:inline-flex;
+  align-items:center;gap:6px;font-size:12.5px;font-weight:600;line-height:1;padding:8px 13px;border-radius:999px;
+  color:#cfe0f5;text-decoration:none;background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);border:1px solid rgba(150,182,222,.20)}
+.lz .acctbtn .ic{font-size:15px}
 .lz .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:19px}
 .lz .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--green);
   box-shadow:0 0 0 4px rgba(52,210,123,.16),0 0 14px 2px rgba(79,240,154,.55)}
@@ -6587,9 +6606,9 @@ def _lz_botnav() -> str:
     """Barre du bas de la landing (raccord natif avec l'app) : mêmes onglets que le SPA, Pronos actif."""
     e = html.escape
     return '<nav class="lznav">' + "".join(
-        f'<a class="{"on" if k == "home" else ""}" href="{href}"><span class="ic">{ico}</span>'
+        f'<a class="{"on" if k == "accueil" else ""}" href="{href}"><span class="ic">{ico}</span>'
         f'<span>{e(name)}</span></a>'
-        for k, href, ico, name in _SPA_TABS) + "</nav>"
+        for k, href, ico, name in _NAV_TABS) + "</nav>"
 
 
 def _lz_stats() -> dict:
@@ -6701,7 +6720,8 @@ def landing_html() -> str:
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 <style>{_LZ_CSS}</style></head><body class="lz">
 
-<a class="lzlogo" href="/"><img src="/static/wordmark.png?v=1" alt="BETSFIX"></a>
+{_ACCT_BTN}
+<a class="lzlogo" href="/accueil"><img src="/static/wordmark.png?v=1" alt="BETSFIX"></a>
 
 <div class="hero"><div class="hero-glow"></div><div class="wrap">
   <div class="hero-grid">
