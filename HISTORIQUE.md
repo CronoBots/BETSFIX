@@ -12,6 +12,24 @@
 
 ---
 
+## 2026-07-29 — « Double chance 12 » : bug de règlement corrigé + bannie du combiné foot
+
+- **Quoi** : (1) `code_from_pick` ne dérive plus `DC 12` d'un libellé « X ou nul » (le nul-inclus prime
+  → 1X/X2 selon le camp ; « 12 » sans nul préservé). (2) `pretty_sel` : « 12 » + « ou nul » → 1X/X2
+  (libellé cohérent, affichage seul). (3) `combo_daily._candidates_for_day` : jambe `DC 12` bannie du
+  combiné (demande user — on ne joue que 1X/X2).
+- **Pourquoi** : combiné foot 29/07 marqué perdu à tort. Libellé source contradictoire « Double chance 12
+  Slovan/nul » codé `DC 12` sur le token « 12 » → Slovan-Iberia 1-1 réglé PERDU alors que le pari réel
+  (Slovan ou nul) était GAGNÉ. Proba 96,8 % (d'un 1X) collée au code faux → jambe sélectionnée comme la
+  plus sûre. En réalité les 3 jambes ont gagné → combiné = GAGNÉ.
+- **Fichiers** : `app/settle_analyst.py`, `app/analyses.py`, `app/combo_daily.py` (commit 2637333) ;
+  correction data du combiné publié `data/combo_daily_track.json` (2026-07-29 : lost→won, jambe Slovan
+  recodée DC 1X/won, libellé nettoyé) — data non versionné, sauvegarde dans scratchpad.
+- **Régression vérifiée** : imports OK ; table de tests `code_from_pick` (bug→DC 1X, vrais « 12 » sans
+  nul intacts, 1X/X2 explicites intacts) ; `pretty_sel` cohérent ; selfcheck 24/24 vert avant/après
+  (combo_coherence/pricing/monotonic OK). Rayon d'impact historique = 1 jambe (aucun autre pari réglé
+  touché). cf. mémoire `combo-no-dc12-prefer-1x-x2`.
+
 ## 2026-07-23 — Betmines v2 : API officielle + backfill 1 mois + analyses de jambes + zone sous provisoires
 
 **Demandes user** : zone SOUS les Paris provisoires · construction identique au combiné du jour AVEC ses
