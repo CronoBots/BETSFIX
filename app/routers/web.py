@@ -846,12 +846,12 @@ def _combo_safe_card() -> str:
                      for l in _lg]})
     _form, _streak = web._form_streak(
         [days[d0].get("result") for d0 in sorted(days) if days[d0].get("result") in ("won", "lost")])
-    _curve = web.render_tracking_curve(emoji="🛡️", title="Sécurité", roi=_roi, hit=_hit,
+    _curve = web.render_tracking_curve(emoji="🛡️", title="Double chance", roi=_roi, hit=_hit,
                                        n=len(done), points=_pts, avg_cote=_avgc, uid="combosafe",
                                        recent=_recent, more_label="Derniers combinés",
                                        form=_form, pending=pend, streak=_streak, compact=True,
                                        hit_points=web._hit_curve([days[d0].get("result") for d0 in sorted(days)]))
-    return '<div class="sx-card"><div class="sx-h">Combiné sécurité</div>' + _curve + '</div>'
+    return '<div class="sx-card"><div class="sx-h">Combiné double chance</div>' + _curve + '</div>'
 
 
 # `_combo_daily_card` SUPPRIMÉ le 2026-07-25 (mort) : le combiné du jour foot est ventilé dans le

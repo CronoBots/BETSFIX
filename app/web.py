@@ -5669,7 +5669,7 @@ def _combo_safe_tg_card(include_settled: bool = False, cb: dict | None = None) -
     if not cb or not cb.get("legs"):
         return ""
     cb = _combo_safe_with_why(cb)
-    return _combo_tg_card(include_settled=include_settled, cb=cb, sport="foot", title="COMBINÉ SÉCURITÉ")
+    return _combo_tg_card(include_settled=include_settled, cb=cb, sport="foot", title="COMBINÉ DOUBLE CHANCE")
 
 
 def _montante_palier() -> int | None:
@@ -6491,7 +6491,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html, collapsible=True))
     out += [
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
-        _zone("combosafe", "Combiné sécurité", "", 1 if combo_safe else 0, combo_safe, collapsible=True),
+        _zone("combosafe", "Combiné double chance", "", 1 if combo_safe else 0, combo_safe, collapsible=True),
         _zone("betmines", "Combiné bonus", "", 1 if betmines else 0, betmines, collapsible=True),
         _zone("betmines2", "Combiné bonus 2", "", 1 if betmines2 else 0, betmines2, collapsible=True),
     ]
@@ -8692,7 +8692,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     else:
         out = [
             _zone("combo", f"Combiné {_zlabel}", "", 1 if _combo else 0, _combo),
-            _zone("combosafe", "Combiné sécurité", "", 1 if _safe_combo else 0, _safe_combo),
+            _zone("combosafe", "Combiné double chance", "", 1 if _safe_combo else 0, _safe_combo),
             _zone("combobonus", "Combiné bonus", "", 1 if _betm_combo else 0, _betm_combo),
             _zone("play", "Paris du jour", "en direct", len(_play), _cards(_play)),
             _zone("indic", "Paris provisoires", "en direct", len(_prov), _cards(_prov)),
