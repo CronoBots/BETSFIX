@@ -2641,7 +2641,11 @@ def result_board(d: dict, sport: str) -> dict:
                  else (f"{sum(x for x, _ in plist)}-{sum(y for _, y in plist)}" if plist else ""))
         return {"score": total, "periods": plist or None}
     h, a = raw.get("home"), raw.get("away")                   # foot : total simple
-    return {"score": (f"{h}-{a}" if h is not None and a is not None else ""), "periods": None}
+    # TIRS AU BUT (Supercoupe / finales de coupe) : score de BUTS = régulation ; les t.a.b. voyagent à part
+    # (`pens`) pour l'affichage d'une colonne « T.A.B. » dédiée (demande user 2026-07-31). None si pas de pénos.
+    ph, pa = raw.get("pens_home"), raw.get("pens_away")
+    pens = (ph, pa) if isinstance(ph, int) and isinstance(pa, int) else None
+    return {"score": (f"{h}-{a}" if h is not None and a is not None else ""), "periods": None, "pens": pens}
 
 
 _BET_KEYS = ("pari1", "pari2", "pari3")   # positions de pari pour les stats (= ordre d'affichage)

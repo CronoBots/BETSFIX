@@ -941,8 +941,23 @@ def _score_from_event(sport: str, ev: dict) -> dict | None:
         base.update({"home": None, "away": None, "sets_home": hc, "sets_away": ac,
                      "label": f"{hc}-{ac} (sets)"})
     else:
-        base.update({"home": hc, "away": ac, "sets_home": None, "sets_away": None,
-                     "label": f"{hc}-{ac}"})
+        # TIRS AU BUT (foot : Supercoupe/finales de coupe) — bug user 2026-07-31 (Bruges 1-1, Union 5-4 t.a.b.) :
+        # SofaScore met les pénos DANS `current` (1-1 + 4-5 = « 5-6 »), ce qui polluait le score de BUTS (un
+        # « total de buts » réglé sur 11 = faux) et affichait « 5 — 6 ». AUCUN marché ne compte les t.a.b. :
+        # le score de buts = fin du jeu (régulation, `homeScore.penalties` retiré, ou somme des mi-temps en
+        # repli). Les t.a.b. sont STOCKÉS à part (`pens_home`/`pens_away`) pour l'affichage « 1-1 (t.a.b. 5-4) ».
+        ph, pa = hs.get("penalties"), as_.get("penalties")
+        gh, ga = hc, ac
+        if st == "penalties" or ph is not None or pa is not None:
+            if isinstance(ph, int) and isinstance(pa, int):
+                gh, ga = hc - ph, ac - pa
+            elif periods:                                # repli : buts = somme des périodes de jeu
+                gh = sum(p[0] for p in periods.values())
+                ga = sum(p[1] for p in periods.values())
+                ph, pa = hc - gh, ac - ga
+        base.update({"home": gh, "away": ga, "sets_home": None, "sets_away": None,
+                     "label": f"{gh}-{ga}",
+                     "pens_home": ph, "pens_away": pa})
     return base
 
 

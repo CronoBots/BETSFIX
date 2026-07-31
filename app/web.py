@@ -5478,7 +5478,8 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         if _fsc and any(ch.isdigit() for ch in str(_fsc)):
             _fsc = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(_fsc)).strip()
             board = ('<div class="cleg-board">'
-                     + _live_scoreboard(_fsc, _lh, _la, tennis=(_sp == "tennis"), periods=l.get("periods"))
+                     + _live_scoreboard(_fsc, _lh, _la, tennis=(_sp == "tennis"), periods=l.get("periods"),
+                                        pens=l.get("pens"))
                      + '</div>')
     # gloss = explication EN CLAIR du marché, STABLE : elle NE CHANGE JAMAIS après le résultat (demande user
     # 2026-07-20 : « le gloss ne peut pas changer après le résultat »). On N'AJOUTE PLUS le score final ici
@@ -6296,18 +6297,18 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
         # SCORE depuis le SIDECAR (result_board -> détail par set/quart-temps) plutôt que la chaîne FIGÉE du
         # suivi (« 2-1 (sets) » pour le tennis -> scoreboard corrompu « 2-1 » en colonne S1, bug user
         # 2026-07-28). Même source que les paris joués terminés (_settled_bet_result_cards).
-        _score, _periods = p.get("score"), None
+        _score, _periods, _pens = p.get("score"), None, None
         try:
             _sd = analyses.meta(sp, str(_fid)) if _fid else None
             _bd = analyses.result_board(_sd, sp) if _sd else None
             if _bd and _bd.get("score"):
-                _score, _periods = _bd.get("score"), _bd.get("periods")
+                _score, _periods, _pens = _bd.get("score"), _bd.get("periods"), _bd.get("pens")
         except Exception:
             pass
         cards.append(_leg_card(
             {"sport": sp, "home": _h, "away": _a, "comp": p.get("comp"),
              "sel": str(p.get("sel") or ""), "cote": p.get("cote"), "prob": _prob, "code": _code,
-             "result": p.get("result"), "score": _score, "periods": _periods,
+             "result": p.get("result"), "score": _score, "periods": _periods, "pens": _pens,
              "start": p.get("start"), "why": _why},
             why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix"))
     return ('<div class="prv-hd">🧪 Provisoires <span>· info seule, hors ROI</span></div>'
@@ -6356,7 +6357,7 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
                 {"sport": sp, "home": d.get("home"), "away": d.get("away"), "comp": d.get("comp"),
                  "sel": rb.get("sel"), "cote": rb.get("cote"), "prob": rb.get("prob"), "code": _code,
                  "result": rb.get("result"), "score": _board.get("score") or _sco,
-                 "periods": _board.get("periods"), "start": d.get("start"),
+                 "periods": _board.get("periods"), "pens": _board.get("pens"), "start": d.get("start"),
                  "why": _prov_why_snippet(sp, fid, maxlen=100000, played=True)},
                 why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")))
     out.sort(key=lambda x: x[0], reverse=True)
@@ -8010,7 +8011,8 @@ def _live_bar_html(lp: dict | None) -> str:
 def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                      server: str | None = None, points: tuple | None = None,
                      clock: str | None = None, periods: list | None = None,
-                     best_of: int | None = None, fstats: dict | None = None) -> str:
+                     best_of: int | None = None, fstats: dict | None = None,
+                     pens: tuple | None = None) -> str:
     """Scoreboard LIVE. Tennis (`tennis=True`) : style Unibet — en-tête numéros de set + 🎾, TOUS
     les sets en colonnes (jeux par set), sets gagnés en gras, set en cours en évidence (PAS de
     case verte), colonne 🎾 = points du jeu en cours (`points`), et une balle 🎾 à droite du
@@ -8127,6 +8129,24 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                 f'<div class="lb-row lb-hdr">{clk}<span class="lb-s">{hdr}</span></div>'
                 f'{frow(0, hn, gh > ga, gh)}{frow(1, an, ga > gh, ga)}</div>')
 
+    # TIRS AU BUT (foot : Supercoupe/finales) — colonne SUPPLÉMENTAIRE « T.A.B. » à côté du score de buts
+    # (demande user 2026-07-31 : « 1-1 puis 5-4 t.a.b. — affiche mieux que ça »). Le score de régulation reste
+    # la colonne principale (BUTS), les pénos une colonne dédiée, le vainqueur du shoot-out en gras/vert.
+    if pens and not tennis and cols and all(isinstance(x, int) for x in pens):
+        ph, pa = pens
+        hdr = ('<div class="lb-row lb-hdr"><span class="lb-n"></span><span class="lb-s">'
+               '<span class="lb-c lb-h">BUTS</span><span class="lb-c lb-h lb-tot">T.A.B.</span>'
+               '</span></div>')
+
+        def prow(i, name, lead, g, pn, pwin):
+            return (f'<div class="lb-row{" lb-lead" if lead else ""}">'
+                    f'<span class="lb-n">{name}</span><span class="lb-s">'
+                    f'<span class="lb-c{" lb-win" if g > cols[0][1 - i] else ""}">{g}</span>'
+                    f'<span class="lb-c lb-tot{" lb-win" if pwin else ""}">{pn}</span></span></div>')
+        return (f'<div class="lboard lboard-q">{hdr}'
+                + prow(0, hn, ph > pa, cols[0][0], ph, ph > pa)
+                + prow(1, an, pa > ph, cols[0][1], pa, pa > ph) + '</div>')
+
     def cells(i):
         return "".join(f'<span class="lb-c{" lb-win" if c[i] > c[1 - i] else ""}">{c[i]}</span>'
                        for c in cols)
@@ -8193,7 +8213,8 @@ def _sport_row(r: dict) -> str:
         if _is_tennis and not tennis_cols and not periods:       # repli : total des sets en 2 lignes
             sc = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", sc).strip()
         lscore = _live_scoreboard(sc, r.get("home") or "", r.get("away") or "",
-                                  tennis=tennis_cols, periods=periods, best_of=r.get("best_of"))
+                                  tennis=tennis_cols, periods=periods, best_of=r.get("best_of"),
+                                  pens=r.get("pens"))
     else:
         lscore = ""
     # Paris à jouer (cadres) : compact en live. En live, on insère une ligne de séparation
