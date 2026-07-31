@@ -2279,6 +2279,15 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     d'exclusion : un pari réellement publié reste compté à vie (track record honnête, défaites incluses)."""
     bets = bets_of(sport, match_id)
     m = meta(sport, match_id) or {}
+    # ABSTENTION (panel rejeté / sans value) : le sidecar `abstained` = méta + fantômes SEULS, JAMAIS un pari
+    # JOUÉ. La couche AFFICHAGE le cache déjà (`list_for` : `if d.get("abstained") and not stat_bet`). On
+    # l'exclut ICI aussi pour que la couche STATS (`stat_bet` se replie sur `retained_bet(for_history=True)`)
+    # ne le ressuscite pas depuis son tableau `.md`/fantômes -> sinon un match abstenu (ex. rejeté 1/3 par le
+    # panel) fuite dans le suivi « Simple » du sport et serait COMPTÉ au ROI une fois réglé (bug user 2026-07-31,
+    # San Luis–Tijuana). Un pari PUBLIÉ n'est JAMAIS `abstained` (le scan préserve son sidecar complet) et un
+    # `stat_bet` FIGÉ prime (garde) -> aucun risque de retirer un pari déjà compté (compteur monotone intact).
+    if m.get("abstained") and not isinstance(m.get("stat_bet"), dict):
+        return None
     if not bets and for_history:
         # Repli SUIVI : le tableau du .md peut être VIDE (ré-analyse « NONE » après publication) alors que
         # le SIDECAR porte le pari PUBLIÉ réinjecté + réglé par le filet settle_analyst (2026-07-21 « ne
