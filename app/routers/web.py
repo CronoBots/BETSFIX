@@ -715,6 +715,93 @@ def _betmines_card() -> str:
         + _curve + '</div>')
 
 
+def _betmines_safe_card() -> str:
+    """Cadre STATS « Combiné bonus 2 » (demande user 2026-07-31) : le Double Betmines rejoué −1 but par jambe
+    OVER (variante `leg["safe"]` figée par betmines_watch), mesuré par NOS règlements. But : vérifier si « en
+    jouant encore plus la sécurité » ça passe presque tout le temps. Info-seule, hors ROI. Même présentation
+    que le Combiné bonus (courbe P&L + réussite + historique dépliable). '' si aucune donnée sécurité."""
+    import json as _json
+    import os as _os
+    _p = _os.path.join(web.analyses._ROOT, "data", "betmines_track.json")
+    try:
+        with open(_p, encoding="utf-8") as f:
+            _d = _json.load(f)
+    except (OSError, ValueError):
+        return ""
+    _floor = analyses.first_stats_day()
+    # Ne garder que les jours qui portent une variante sécurité (≥1 jambe over abaissée).
+    days = {k: v for k, v in _d.items()
+            if isinstance(v, dict) and v.get("legs") and not k.startswith("_")
+            and (not _floor or k >= _floor)
+            and any(isinstance(l.get("safe"), dict) for l in v.get("legs"))}
+    if not days:
+        return ""
+
+    def _safe_cote(cb: dict):
+        return cb.get("safe_total_odds")
+
+    def _safe_leg(l: dict) -> dict:
+        sv = l.get("safe") if isinstance(l.get("safe"), dict) else None
+        if sv:
+            ln = sv.get("line")
+            _sel = (f"Plus de {ln:g} buts" if isinstance(ln, (int, float)) and ln > 0
+                    else "Plus de 0.5 but (−1)")
+            return {"name": f'{l.get("home", "?")} - {l.get("away", "?")}', "sel": _sel,
+                    "cote": sv.get("cote"), "result": sv.get("result")}
+        # jambe non-over : reprise telle quelle
+        ln = l.get("line")
+        _sel = (f"Plus de {ln:g} buts" if isinstance(ln, (int, float)) and ln > 0
+                else str(l.get("market", "")))
+        return {"name": f'{l.get("home", "?")} - {l.get("away", "?")}', "sel": _sel,
+                "cote": l.get("our_cote") or l.get("cote"), "result": l.get("result")}
+
+    # TAUX DE RÉUSSITE / N = sur TOUS les jours réglés (le gagné/perdu vient du score, connu même sans cote —
+    # demande user 2026-07-31 : « tous les scores sont sur le site »). P&L / ROI / cote moyenne = seulement sur
+    # les jours dont la cote sécurité a pu être chiffrée (sinon on ne peut pas valoriser le gain).
+    done = [c for c in days.values() if c.get("safe_result") in ("won", "lost")]
+    won = sum(1 for c in done if c["safe_result"] == "won")
+    pend = len(days) - len(done)
+    _hit = round(100 * won / len(done)) if done else None
+    # P&L cumulé chronologique sur les jours AVEC cote (courbe d'équité).
+    _pts, _acc, _n_odds = [0.0], 0.0, 0
+    _pnl = 0.0
+    for _day in sorted(days):
+        _c = days[_day]
+        if _c.get("safe_result") not in ("won", "lost"):
+            continue
+        _co = _safe_cote(_c)
+        if not isinstance(_co, (int, float)) or _co <= 1:
+            continue                                     # résultat connu mais cote manquante -> hors P&L
+        _acc += (_co - 1) if _c["safe_result"] == "won" else -1
+        _pnl = _acc
+        _n_odds += 1
+        _pts.append(round(_acc, 2))
+    _roi = round(100 * _pnl / _n_odds) if _n_odds else None
+    _cvals = [_safe_cote(_c) for _c in done if isinstance(_safe_cote(_c), (int, float))]
+    _avgc = round(sum(_cvals) / len(_cvals), 2) if _cvals else None
+    _last = max(days)
+    _recent = []
+    for _day in sorted(days, reverse=True):
+        if _day == _last:
+            continue
+        _c = days[_day]
+        _lg = _c.get("legs") or []
+        _recent.append({
+            "result": _c.get("safe_result") or "pending",
+            "name": f"Combiné du jour ({len(_lg)} jambe{'s' if len(_lg) > 1 else ''})",
+            "sel": "", "cote": _safe_cote(_c),
+            "start": (_lg[0].get("start") if _lg and _lg[0].get("start") else _day + "T12:00:00Z"),
+            "legs": [_safe_leg(l) for l in _lg]})
+    _form, _streak = web._form_streak(
+        [days[d].get("safe_result") for d in sorted(days) if days[d].get("safe_result") in ("won", "lost")])
+    _curve = web.render_tracking_curve(emoji="🛡️", title="Bonus 2 (−1 but)", roi=_roi, hit=_hit,
+                                       n=len(done), points=_pts, avg_cote=_avgc, uid="betmines_safe",
+                                       recent=_recent, more_label="Derniers combinés",
+                                       form=_form, pending=pend, streak=_streak, compact=True,
+                                       hit_points=web._hit_curve([days[d].get("safe_result") for d in sorted(days)]))
+    return '<div class="sx-card"><div class="sx-h">Combiné bonus 2 (−1 but)</div>' + _curve + '</div>'
+
+
 def _combo_safe_card() -> str:
     """Cadre « info seule » (Résultats-Bilan, groupe hors ROI) du COMBINÉ SÉCURITÉ FOOT — demande user
     2026-07-28 : combiné composé UNIQUEMENT de foot, la DOUBLE CHANCE la plus sûre par match, cote ~2.
@@ -795,6 +882,7 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 + _selectivity_card()     # ratio paris à jouer / abstentions du jour (rend la sélectivité visible)
                 + _combo_safe_card()      # combiné sécurité foot (double chance la plus sûre ~2, hors ROI)
                 + _betmines_card()        # suivi EXTERNE : le Double Betmines mesuré par nos règlements
+                + _betmines_safe_card()   # combiné bonus 2 : le Double rejoué −1 but/jambe (hors ROI)
                 # Panneau SANTÉ (privé) chargé en AJAX : servi UNIQUEMENT au propriétaire (is_owner).
                 + '<div id="syshealth"></div>'
                 + '<script>fetch("/stats/health").then(r=>r.text()).then(function(h){'

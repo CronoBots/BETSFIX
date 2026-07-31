@@ -5946,6 +5946,78 @@ def _betmines_tg_card(include_settled: bool = True) -> str:
                             badge=_badge, body=legs_html + _tot, state=cb.get("result"))
 
 
+def _betmines_safe_tg_card(include_settled: bool = True) -> str:
+    """« COMBINÉ BONUS 2 » (demande user 2026-07-31) : reprend le combiné bonus Betmines du jour mais joue
+    chaque jambe OVER buts avec 1 but de MOINS (ex. +2.5 -> +1.5) et LA COTE Betmines de cette ligne réduite
+    (`leg["safe"]`, figée au scan par betmines_watch). But : voir si, « en jouant encore plus la sécurité »,
+    le combiné passe presque tout le temps. Info-seule, hors ROI. MÊME coquille dorée que le combiné bonus.
+    `include_settled=False` (zone ACTIVE) -> '' une fois le combiné sécurité RÉGLÉ (il vit alors dans les
+    Résultats). '' si pas de combiné bonus / aucune jambe abaissable aujourd'hui."""
+    import json as _json
+    _p = os.path.join(analyses._ROOT, "data", "betmines_track.json")
+    try:
+        with open(_p, encoding="utf-8") as f:
+            _d = _json.load(f)
+    except (OSError, ValueError):
+        return ""
+    cb = _d.get(_sport_today().isoformat())
+    if not isinstance(cb, dict) or not cb.get("legs"):
+        return ""
+    # Rien à simuler tant qu'AUCUNE jambe n'a de variante over abaissée (variante figée au scan seulement).
+    if not any(isinstance(l.get("safe"), dict) for l in cb.get("legs")):
+        return ""
+    _sr = cb.get("safe_result")
+    if not include_settled and _sr in ("won", "lost", "void"):
+        return ""
+    _badge = {"won": '<span class="cleg-bdg w">GAGNÉ</span>',
+              "lost": '<span class="cleg-bdg l">PERDU</span>',
+              "void": '<span class="cleg-bdg n">REMB.</span>'}.get(_sr, "")
+    _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
+
+    def _safe_view(leg: dict) -> dict:
+        # Variante SÉCURITÉ (over abaissé) figée par betmines_watch ; jambe non-over reprise TELLE QUELLE.
+        sv = leg.get("safe") if isinstance(leg.get("safe"), dict) else None
+        _ch, _ca, _ccomp = analyses.canonical_match(leg.get("home"), leg.get("away"))
+        if sv:
+            _mkt, _cote, _code, _res = sv.get("market"), sv.get("cote"), sv.get("code"), sv.get("result")
+        else:
+            _mkt = str(leg.get("market") or "")
+            _cote = leg.get("our_cote") or leg.get("cote")
+            _code, _res = leg.get("code"), leg.get("result")
+        # Confiance = proba IMPLICITE de la cote de la ligne réduite (marché-implicite, honnête et toujours
+        # dispo). Calibrée ensuite par `_leg_card` sur le code du marché, comme les autres jambes.
+        _prob = min(99, round(100.0 / _cote)) if isinstance(_cote, (int, float)) and _cote > 1 else None
+        return {"sport": "foot", "home": _ch or leg.get("home"), "away": _ca or leg.get("away"),
+                "comp": _ccomp or leg.get("comp"), "sel": str(_mkt or ""), "cote": _cote,
+                "result": _res, "score": leg.get("score"), "start": leg.get("start"),
+                "code": _code, "prob": _prob}
+
+    _views = [_safe_view(leg) for leg in _legs]
+    legs_html = _MC_SEP.join(_leg_card(v, why=False, verdict=True, why_always=False) for v in _views)
+    # TOTAL = produit des cotes réduites (repli safe_total_odds) · confiance = produit des probas implicites.
+    _vcotes = [v.get("cote") for v in _views]
+    _vprobs = [v.get("prob") for v in _views]
+    tot = cb.get("safe_total_odds")
+    if _vcotes and all(isinstance(c, (int, float)) and c for c in _vcotes):
+        _acc = 1.0
+        for c in _vcotes:
+            _acc *= c
+        tot = round(_acc, 2)
+    _gconf = None
+    if _vprobs and all(isinstance(p, (int, float)) for p in _vprobs):
+        _acc = 1.0
+        for p in _vprobs:
+            _acc *= (p / 100.0 if p > 1 else p)
+        _gconf = round(_acc * 100)
+    _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
+                 f'<span class="mc-cote-v">{tot:g}</span></span>'
+                 if isinstance(tot, (int, float)) and tot else "")
+    _tot = ('<div class="combo-total-hd"><span>Total du combiné</span></div>'
+            + _verdict_block(tot, _gconf, '', _cote_big, calibrated=False)) if _cote_big else ""
+    return _combo_gold_card(title="COMBINÉ BONUS 2", subtitle="−1 but par jambe",
+                            badge=_badge, body=legs_html + _tot, state=_sr)
+
+
 def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     """CORPS d'une carte COMBINÉ RETENU (ROI) — destiné à la coquille dorée `_combo_gold_card` (demande user
     2026-07-19 : le combiné Coupe du Monde présenté EXACTEMENT comme le combiné du jour). Contenu : le SIMPLE
@@ -6381,6 +6453,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # Combiné BETMINES ACTIF (non réglé) : une fois réglé, il quitte cette zone et passe en « Résultats du
     # jour » (demande user 2026-07-28) -> include_settled=False.
     betmines = _betmines_tg_card(include_settled=False) if _is_foot_view else ""
+    # COMBINÉ BONUS 2 (demande user 2026-07-31) : le combiné bonus rejoué −1 but/jambe (simulation sécurité,
+    # hors ROI). Même cycle de vie que le bonus (actif -> Résultats une fois réglé).
+    betmines2 = _betmines_safe_tg_card(include_settled=False) if _is_foot_view else ""
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport or "foot", "football")
@@ -6401,6 +6476,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("combosafe", "Combiné sécurité", "", 1 if combo_safe else 0, combo_safe, collapsible=True),
         _zone("betmines", "Combiné bonus", "", 1 if betmines else 0, betmines, collapsible=True),
+        _zone("betmines2", "Combiné bonus 2", "", 1 if betmines2 else 0, betmines2, collapsible=True),
     ]
     # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
     # compact info-seule) — sinon visibles seulement dans Stats (demande user 2026-07-20). Zone repliable.
@@ -6441,7 +6517,18 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                 _betm_res = _betmines_tg_card(include_settled=True)
         except Exception:
             _betm_res = ""
-    if _res_cards or _prov_res or _combo_res or _combo_safe_res or _betm_res:
+    # Combiné BONUS 2 RÉGLÉ -> zone Résultats (quitté sa zone active via include_settled=False).
+    _betm2_res = ""
+    if _is_foot_view:
+        try:
+            import json as _json3
+            _bt2 = _json3.load(open(os.path.join(analyses._ROOT, "data", "betmines_track.json"), encoding="utf-8"))
+            _bcb2 = _bt2.get(today_iso)
+            if isinstance(_bcb2, dict) and _bcb2.get("legs") and _bcb2.get("safe_result") in ("won", "lost", "void"):
+                _betm2_res = _betmines_safe_tg_card(include_settled=True)
+        except Exception:
+            _betm2_res = ""
+    if _res_cards or _prov_res or _combo_res or _combo_safe_res or _betm_res or _betm2_res:
         # RÉSULTATS regroupés PAR TYPE dans l'ORDRE LOGIQUE des sections actives (demande user 2026-07-28) :
         # Paris joués → Provisoires → Combiné du jour → Combiné sécurité → Combiné Betmines ; toutes les cartes
         # séparées par la MÊME barre `_MC_SEP` (entre cartes d'un même type ET entre types).
@@ -6451,6 +6538,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _combo_res,                                        # combiné du jour réglé
             _combo_safe_res,                                   # combiné sécurité réglé
             _betm_res,                                         # combiné Betmines réglé
+            _betm2_res,                                        # combiné bonus 2 (−1 but) réglé
         ) if g]
         out.append(_zone("done", "Résultats du jour", "", len(_res_cards),
                          _MC_SEP.join(_res_groups), collapsible=True))

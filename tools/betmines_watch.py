@@ -104,13 +104,129 @@ def _api_double(day: str) -> dict | None:
 
 _SEUIL = {0.5: "05", 1.5: "15", 2.5: "25", 3.5: "35", 4.5: "45"}
 
+# SIMULATION SÉCURITÉ (−1 but) — demande user 2026-07-31 : reprendre le Double Betmines mais jouer chaque
+# jambe OVER buts un cran plus bas (ex. +2.5 -> +1.5) avec LA COTE Betmines de cette ligne réduite, pour
+# mesurer si « en jouant encore plus la sécurité ça passe presque tout le temps ». Champ odds du fixture par
+# ligne over réduite, code + libellé du marché réduit. Info-seule, hors ROI (comme tout Betmines).
+_SAFE_ODD_FIELD = {0.5: "oddOver05", 1.5: "oddOver15", 2.5: "oddOver25", 3.5: "oddOver35", 4.5: "oddOver45"}
+_SAFE_MKT = {0.5: ("O05", "Plus de 0.5 buts"), 1.5: ("O15", "Plus de 1.5 buts"),
+             2.5: ("O25", "Plus de 2.5 buts"), 3.5: ("O35", "Plus de 3.5 buts"),
+             4.5: ("O45", "Plus de 4.5 buts")}
+
+
+def _safe_variant(leg: dict, f: dict | None) -> dict | None:
+    """Variante SÉCURITÉ d'UNE jambe = même match, ligne OVER abaissée de 1 but + la cote Betmines de cette
+    ligne (`oddOverXX` du fixture). `red` = ligne d'origine − 1 (Over 2.5 -> Over 1.5). Over 0.5 -> « Over -0.5 »
+    = gagné d'office (cote 1.00, ne pèse pas au produit). None si la jambe n'est PAS un over buts (under/1X2/GG
+    restent tels quels au combiné sécurité, gérés côté combiné). Best-effort sur la cote (None si absente)."""
+    ln = leg.get("line")
+    if not isinstance(ln, (int, float)) or ln <= 0:
+        return None                                    # seuls les OVER buts se « sécurisent » (−1 but)
+    red = round(ln - 1, 1)
+    if red <= 0:                                       # Over 0.5 -> « Over -0.5 » : toujours gagné (≥0 but)
+        return {"line": red, "market": "Plus de -0.5 but (gagné d'office)", "code": "", "cote": 1.0,
+                "result": None}
+    code, label = _SAFE_MKT.get(red, ("", f"Plus de {red:g} buts"))
+    cote = None
+    field = _SAFE_ODD_FIELD.get(red)
+    if isinstance(f, dict) and field:
+        try:
+            cote = float(f.get(field))
+        except (TypeError, ValueError):
+            cote = None
+        if cote is not None and cote <= 1:
+            cote = None
+    return {"line": red, "market": label, "code": code, "cote": cote, "result": None}
+
+
+def _settle_safe(leg: dict) -> None:
+    """Règle la variante SÉCURITÉ sur le MÊME score final que la jambe (over buts, ligne réduite). No-op sans
+    variante / sans score. « Gagné d'office » (ligne −0.5) passe won dès qu'un score existe (total ≥ 0)."""
+    sv = leg.get("safe")
+    if not isinstance(sv, dict) or sv.get("result") in ("won", "lost"):
+        return
+    ln, sc = sv.get("line"), leg.get("score")
+    if not (sc and isinstance(ln, (int, float))):
+        return
+    try:
+        h, a = str(sc).split("-")
+        total = int(h) + int(a)
+    except (ValueError, AttributeError):
+        return
+    sv["result"] = "won" if total > ln else "lost"   # ln peut être -0.5 (gagné d'office) -> won
+
+
+def _backfill_safe_odds(cb: dict) -> None:
+    """Complète la COTE de la ligne réduite (variante sécurité) depuis le fixture Betmines, pour les jambes
+    over dont la cote manque (jours passés / captures antérieures à l'ajout de la sécurité). Best-effort,
+    jamais bloquant. Le RÉSULTAT, lui, vient du score déjà stocké (0 réseau) -> les stats existent même sans
+    cote ; on ne fetch QUE pour enrichir la courbe P&L."""
+    for leg in cb.get("legs") or []:
+        sv = leg.get("safe")
+        if not isinstance(sv, dict) or sv.get("cote") is not None:
+            continue
+        ln = leg.get("line")
+        if not isinstance(ln, (int, float)) or ln <= 0:
+            continue
+        field = _SAFE_ODD_FIELD.get(round(ln - 1, 1))
+        fid = leg.get("fixture_id")
+        if not (field and fid):
+            continue
+        try:
+            req = urllib.request.Request(
+                f"https://api.betmines.com/betmines/v1/fixtures/{fid}",
+                headers={"User-Agent": _UA, "Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                f = json.loads(r.read().decode("utf-8", "ignore"))
+        except Exception:
+            continue
+        try:
+            c = float(f.get(field))
+        except (TypeError, ValueError):
+            c = None
+        if c is not None and c > 1:
+            sv["cote"] = c
+
+
+def _settle_safe_combo(cb: dict) -> None:
+    """Verdict + cote totale du combiné SÉCURITÉ (toutes jambes gagnées = won ; ≥1 perdue = lost). Une jambe
+    sans variante over (under/1X2/GG) est reprise TELLE QUELLE (même pari, même résultat/cote)."""
+    legs = cb.get("legs") or []
+    if not legs:
+        return
+    res, cotes = [], []
+    for l in legs:
+        sv = l.get("safe")
+        if isinstance(sv, dict):
+            res.append(sv.get("result"))
+            cotes.append(sv.get("cote"))
+        else:                                          # jambe non-over : identique au combiné d'origine
+            res.append(l.get("result"))
+            cotes.append(l.get("our_cote") or l.get("cote"))
+    if res and all(r == "won" for r in res):
+        cb["safe_result"] = "won"
+    elif any(r == "lost" for r in res):
+        cb["safe_result"] = "lost"
+    if cotes and all(isinstance(c, (int, float)) and c for c in cotes):
+        acc = 1.0
+        for c in cotes:
+            acc *= c
+        cb["safe_total_odds"] = round(acc, 2)
+
 
 def _enrich_leg(leg: dict) -> None:
     """Appelle /fixtures/{id} (les % sont à 0 dans /bets) pour remplir : `stats` détaillées (% over/under
     domicile/ext, clean-sheet, GG, moyennes buts, H2H) ET `prob` = CONFIANCE dérivée pour le marché de la
     jambe (base de la ligne verdict Confiance/Marché/Cote). Best-effort. Appelé pour le Double du JOUR seul."""
     fid = leg.get("fixture_id")
-    if not fid or leg.get("prob") is not None:          # déjà enrichi / pas d'id
+    # Variante sécurité « à faire » = jambe OVER (line > 0) dont la cote réduite n'est PAS encore chiffrée.
+    # Une jambe non-over (under/1X2/GG) ou déjà chiffrée n'a rien à récupérer -> considérée FAITE (pas de
+    # fetch inutile). La variante −1 but a besoin de la cote `oddOverXX` du fixture (demande user 2026-07-31).
+    _ln = leg.get("line")
+    _sv0 = leg.get("safe") if isinstance(leg.get("safe"), dict) else None
+    _safe_done = (not isinstance(_ln, (int, float)) or _ln <= 0
+                  or (_sv0 is not None and (_sv0.get("cote") is not None or _sv0.get("line", 0) <= 0)))
+    if not fid or (leg.get("prob") is not None and _safe_done):
         return
     try:
         req = urllib.request.Request(
@@ -119,6 +235,17 @@ def _enrich_leg(leg: dict) -> None:
         with urllib.request.urlopen(req, timeout=20) as r:
             f = json.loads(r.read().decode("utf-8", "ignore"))
     except Exception:
+        return
+    # Variante SÉCURITÉ (−1 but) figée au scan (cote Betmines de la ligne réduite). Recalculée seulement si
+    # absente ou sans cote (jamais réécrite si déjà chiffrée) — préserve un `result` de règlement antérieur.
+    if not _safe_done:
+        _sv = _safe_variant(leg, f)
+        if _sv is not None:
+            _prev = leg.get("safe") if isinstance(leg.get("safe"), dict) else {}
+            if _prev.get("result") in ("won", "lost"):
+                _sv["result"] = _prev["result"]
+            leg["safe"] = _sv
+    if leg.get("prob") is not None:                     # `prob` déjà là -> on ne voulait que la cote sécurité
         return
     lt, vt = f.get("localTeam") or {}, f.get("visitorTeam") or {}
 
@@ -463,11 +590,13 @@ def run(force: bool = False, backfill: int = 0) -> None:
                 _settle_leg_sidecar(leg)                # 2) NOTRE sidecar result.raw (autorité, 0 réseau)
             if leg.get("result") not in ("won", "lost", "push"):
                 _settle_leg_our_source(leg)             # 3) repli : NOS sources (score final par noms)
+            _settle_safe(leg)                           # variante SÉCURITÉ (−1 but) sur le MÊME score
         res = [leg.get("result") for leg in cb.get("legs") or []]
         if res and all(r == "won" for r in res):
             cb["result"] = "won"
         elif any(r == "lost" for r in res):
             cb["result"] = "lost"
+        _settle_safe_combo(cb)                          # verdict + cote totale du combiné SÉCURITÉ (hors ROI)
     # 3) ENRICHISSEMENT + ANALYSES de jambes du Double du JOUR (comme le combiné du jour) — pas le backfill.
     cbt = d.get(today)
     if isinstance(cbt, dict) and cbt.get("legs"):
@@ -518,6 +647,28 @@ def run(force: bool = False, backfill: int = 0) -> None:
             pass
         if _analyze_legs(cbt):
             print("betmines: analyses de jambes écrites (pli « pourquoi »)")
+    # 3bis) BACKFILL SÉCURITÉ (demande user 2026-07-31) : garantir la variante −1 but sur TOUS les jours,
+    # MÊME déjà réglés (que la boucle 2 saute) -> stats rétroactives « Combiné bonus 2 ». Le GAGNÉ/PERDU vient
+    # du SCORE déjà stocké (0 réseau, « tous les scores sont sur le site »). La cote de la ligne réduite est
+    # récupérée best-effort depuis le fixture (pour la courbe P&L) ; son absence n'empêche PAS la stat W/L.
+    _safe_bf = 0
+    for day, cb in d.items():
+        if day.startswith("_") or not isinstance(cb, dict) or not cb.get("legs"):
+            continue
+        for leg in cb["legs"]:
+            if leg.get("safe") is None:
+                sv = _safe_variant(leg, None)           # ligne/code/libellé ; cote enrichie ensuite si dispo
+                if sv is not None:
+                    leg["safe"] = sv
+            _settle_safe(leg)
+        # Cotes best-effort : jour ciblé par --backfill OU jour dont la sécurité n'est pas encore chiffrée.
+        if backfill or any(isinstance(l.get("safe"), dict) and l["safe"].get("cote") is None
+                           and isinstance(l.get("line"), (int, float)) and l.get("line", 0) > 0
+                           for l in cb["legs"]):
+            _backfill_safe_odds(cb)
+        _settle_safe_combo(cb)
+        if cb.get("safe_result") in ("won", "lost"):
+            _safe_bf += 1
     _save(d)
     # 4) BILAN mesuré.
     done = [c for k, c in d.items() if not k.startswith("_")
