@@ -884,6 +884,8 @@ CSS = """
   .lb-c{min-width:13px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
   .lb-c.lb-win{color:#eaf2ff;font-weight:800}     /* set/score gagné : clair gras */
   .lb-row.lb-lead .lb-c.lb-win{color:#34d27b}     /* meneur : score gagné en vert */
+  .lb-pen{font-size:11px;color:var(--muted);font-weight:600}  /* tirs au but « (4) » inline, discret */
+  .lb-row.lb-lead .lb-pen{color:#34d27b}          /* vainqueur des t.a.b. : parenthèse verte */
   /* Tennis : MÊME style que le box-score basket (taille,
   gap,
   baseline,
@@ -6217,10 +6219,11 @@ def _item_sport(r: dict) -> str | None:
     return "tennis" if (r.get("tour") or "").lower() in ("atp", "wta") else None
 
 
-def _provisional_results(iso: str, sport: str | None = None) -> str:
-    """Bloc compact des PROVISOIRES RÉGLÉS d'un jour (info seule, hors ROI) — pour la zone « Résultats du
-    jour » (demande user 2026-07-20 : les provisoires réglés n'apparaissaient nulle part dans les résultats,
-    seulement les paris joués). Une ligne par provisoire : ✓/✗ + sport coloré + pari + match. '' si aucun."""
+def _provisional_results(iso: str, sport: str | None = None, header: bool = True) -> str:
+    """Bloc compact des PROVISOIRES RÉGLÉS d'un jour (info seule, hors ROI). Depuis 2026-08-01 les réglés
+    restent DANS leur section de type (« Paris provisoires »), plus de zone « Résultats du jour » séparée
+    (demande user) -> `header=False` retire le sous-titre « 🧪 Provisoires » redondant avec le titre de zone.
+    Une ligne par provisoire : ✓/✗ + sport coloré + pari + match. '' si aucun."""
     from datetime import datetime as _dt
     try:
         from app import provisional as _pv
@@ -6311,8 +6314,8 @@ def _provisional_results(iso: str, sport: str | None = None) -> str:
              "result": p.get("result"), "score": _score, "periods": _periods, "pens": _pens,
              "start": p.get("start"), "why": _why},
             why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix"))
-    return ('<div class="prv-hd">🧪 Provisoires <span>· info seule, hors ROI</span></div>'
-            + _MC_SEP.join(cards))
+    _hd = '<div class="prv-hd">🧪 Provisoires <span>· info seule, hors ROI</span></div>' if header else ""
+    return _hd + _MC_SEP.join(cards)
 
 
 def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
@@ -6444,19 +6447,19 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # il apparaîtra une fois analysé (avec son pari/provisoire), jamais en limbo « Analyse à HH:MM ».
     # Combiné du jour du SPORT sélectionné (foot par défaut = « Tous »). Tennis/basket = simulé (hors ROI),
     # affiché comme le foot (demande user 2026-07-26).
-    combo_daily = _combo_tg_card(include_settled=False, sport=(sport or "foot"))
+    # CHAQUE type de pari GARDE ses matchs réglés DANS sa section (demande user 2026-08-01 : plus de zone
+    # « Résultats du jour » séparée en bas -> la carte affiche le résultat/score en place). -> include_settled=True.
+    combo_daily = _combo_tg_card(include_settled=True, sport=(sport or "foot"))
     # COMBINÉ BETMINES : spécifique FOOT -> vue « Tous »/foot seulement.
     _is_foot_view = sport in (None, "foot")
     # COMBINÉ SÉCURITÉ (double chance la plus sûre ~2, hors ROI) : FOOT uniquement -> vue « Tous »/foot.
-    combo_safe = _combo_safe_tg_card(include_settled=False) if _is_foot_view else ""
+    combo_safe = _combo_safe_tg_card(include_settled=True) if _is_foot_view else ""
     # MONTANTE : type de pari À PART (demande user 2026-07-30) -> zone dédiée « Montante · Palier N » plus bas
     # (via _montante_zone_card). Plus de badge greffé sur les cartes de pari joué (surface unique = la zone).
-    # Combiné BETMINES ACTIF (non réglé) : une fois réglé, il quitte cette zone et passe en « Résultats du
-    # jour » (demande user 2026-07-28) -> include_settled=False.
-    betmines = _betmines_tg_card(include_settled=False) if _is_foot_view else ""
+    betmines = _betmines_tg_card(include_settled=True) if _is_foot_view else ""
     # COMBINÉ BONUS 2 (demande user 2026-07-31) : le combiné bonus rejoué −1 but/jambe (simulation sécurité,
-    # hors ROI). Même cycle de vie que le bonus (actif -> Résultats une fois réglé).
-    betmines2 = _betmines_safe_tg_card(include_settled=False) if _is_foot_view else ""
+    # hors ROI). Reste dans sa zone une fois réglé (comme les autres).
+    betmines2 = _betmines_safe_tg_card(include_settled=True) if _is_foot_view else ""
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport or "foot", "football")
@@ -6470,79 +6473,28 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _mont_title, _mont_card = _montante_zone_card(sport)
     if _mont_card:
         out.append(_zone("montante", _mont_title, "", 1, _mont_card, collapsible=True))
-    if play:
-        out.append(_zone("play", "Paris du jour", "", len(play), _rows_by_day(play), collapsible=True))
-    out.append(_zone("indic", "Paris provisoires", "", len(prov), _rows_by_day(prov), collapsible=True))
+    # RÉSULTATS EN PLACE (demande user 2026-08-01) : plus de zone « Résultats du jour » en bas de l'onglet.
+    # Chaque match RÉGLÉ reste dans SA section de type et sa carte affiche le résultat/score (comme les cartes
+    # de résultat actuelles). Les combinés (include_settled=True ci-dessus) le font déjà en place ; ici on
+    # injecte les PARIS JOUÉS et PROVISOIRES terminés à la suite de leurs homologues à venir/en cours.
+    today_iso = _sport_today().isoformat()
+    _res_cards = _settled_bet_result_cards(today_iso, sport)         # paris joués terminés (cartes _leg_card)
+    _prov_res = _provisional_results(today_iso, sport, header=False)  # provisoires réglés (sans sous-titre)
+    # PARIS DU JOUR = à venir/en cours PUIS terminés (chacun affiche son résultat). Zone visible s'il y a l'un
+    # ou l'autre.
+    _play_html = _MC_SEP.join([h for h in (_rows_by_day(play), _MC_SEP.join(_res_cards)) if h])
+    if play or _res_cards:
+        out.append(_zone("play", "Paris du jour", "", len(play) + len(_res_cards), _play_html, collapsible=True))
+    # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
+    _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
+    if prov or _prov_res:
+        out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html, collapsible=True))
     out += [
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("combosafe", "Combiné sécurité", "", 1 if combo_safe else 0, combo_safe, collapsible=True),
         _zone("betmines", "Combiné bonus", "", 1 if betmines else 0, betmines, collapsible=True),
         _zone("betmines2", "Combiné bonus 2", "", 1 if betmines2 else 0, betmines2, collapsible=True),
     ]
-    # RÉSULTATS DU JOUR : combiné du jour RÉGLÉ + paris JOUÉS terminés (cartes) + PROVISOIRES réglés (bloc
-    # compact info-seule) — sinon visibles seulement dans Stats (demande user 2026-07-20). Zone repliable.
-    today_iso = _sport_today().isoformat()
-    # PARIS JOUÉS TERMINÉS rendus COMME les pronos (demande user 2026-07-28) : cartes `_leg_card` riches +
-    # cadre vert/rouge, plus la version allégée de `_past_day_cards`. `results` (res_rows) n'est donc plus
-    # rendu ici — on reconstruit depuis les sidecars réglés du jour (peu nombreux -> coût négligeable).
-    _res_cards = _settled_bet_result_cards(today_iso, sport)
-    _prov_res = _provisional_results(today_iso, sport)
-    # Combiné du jour RÉGLÉ (won/lost/void) -> ici (la zone du haut le cache une fois fini via include_settled
-    # =False, il ne se dédouble donc pas). En cours -> reste en tête, pas dans les résultats.
-    _combo_res = ""
-    try:
-        from app import combo_daily as _cd
-        _cbt = _cd.today(today_iso, sport=(sport or "foot"))
-        if _cbt and _cbt.get("legs") and _cbt.get("result") in ("won", "lost", "void"):
-            _combo_res = _combo_tg_card(include_settled=True, cb=_cbt, sport=(sport or "foot"))
-    except Exception:
-        _combo_res = ""
-    # Combiné SÉCURITÉ RÉGLÉ -> zone Résultats (il a quitté sa zone active via include_settled=False).
-    _combo_safe_res = ""
-    if _is_foot_view:
-        try:
-            from app import combo_safe as _cs2
-            _cst = _cs2.today(_cs2.day_key())
-            if _cst and _cst.get("legs") and _cst.get("result") in ("won", "lost", "void"):
-                _combo_safe_res = _combo_safe_tg_card(include_settled=True, cb=_cst)
-        except Exception:
-            _combo_safe_res = ""
-    # Combiné BETMINES RÉGLÉ -> zone Résultats (il a quitté sa zone active via include_settled=False).
-    _betm_res = ""
-    if _is_foot_view:
-        try:
-            import json as _json2
-            _bt = _json2.load(open(os.path.join(analyses._ROOT, "data", "betmines_track.json"), encoding="utf-8"))
-            _bcb = _bt.get(today_iso)
-            if isinstance(_bcb, dict) and _bcb.get("legs") and _bcb.get("result") in ("won", "lost", "void"):
-                _betm_res = _betmines_tg_card(include_settled=True)
-        except Exception:
-            _betm_res = ""
-    # Combiné BONUS 2 RÉGLÉ -> zone Résultats (quitté sa zone active via include_settled=False).
-    _betm2_res = ""
-    if _is_foot_view:
-        try:
-            import json as _json3
-            _bt2 = _json3.load(open(os.path.join(analyses._ROOT, "data", "betmines_track.json"), encoding="utf-8"))
-            _bcb2 = _bt2.get(today_iso)
-            if isinstance(_bcb2, dict) and _bcb2.get("legs") and _bcb2.get("safe_result") in ("won", "lost", "void"):
-                _betm2_res = _betmines_safe_tg_card(include_settled=True)
-        except Exception:
-            _betm2_res = ""
-    if _res_cards or _prov_res or _combo_res or _combo_safe_res or _betm_res or _betm2_res:
-        # RÉSULTATS regroupés PAR TYPE dans l'ORDRE LOGIQUE des sections actives (demande user 2026-07-28) :
-        # Paris joués → Provisoires → Combiné du jour → Combiné sécurité → Combiné Betmines ; toutes les cartes
-        # séparées par la MÊME barre `_MC_SEP` (entre cartes d'un même type ET entre types).
-        _res_groups = [g for g in (
-            _MC_SEP.join(_res_cards) if _res_cards else "",   # paris joués terminés
-            _prov_res,                                         # provisoires réglés (en-tête « 🧪 »)
-            _combo_res,                                        # combiné du jour réglé
-            _combo_safe_res,                                   # combiné sécurité réglé
-            _betm_res,                                         # combiné Betmines réglé
-            _betm2_res,                                        # combiné bonus 2 (−1 but) réglé
-        ) if g]
-        out.append(_zone("done", "Résultats du jour", "", len(_res_cards),
-                         _MC_SEP.join(_res_groups), collapsible=True))
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
     zones = f'<div class="dash-zones">{inner or _empty}</div>'
@@ -8129,26 +8081,16 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                 f'<div class="lb-row lb-hdr">{clk}<span class="lb-s">{hdr}</span></div>'
                 f'{frow(0, hn, gh > ga, gh)}{frow(1, an, ga > gh, ga)}</div>')
 
-    # TIRS AU BUT (foot : Supercoupe/finales) — colonne SUPPLÉMENTAIRE « T.A.B. » à côté du score de buts
-    # (demande user 2026-07-31 : « 1-1 puis 5-4 t.a.b. — affiche mieux que ça »). Le score de régulation reste
-    # la colonne principale (BUTS), les pénos une colonne dédiée, le vainqueur du shoot-out en gras/vert.
-    if pens and not tennis and cols and all(isinstance(x, int) for x in pens):
-        ph, pa = pens
-        hdr = ('<div class="lb-row lb-hdr"><span class="lb-n"></span><span class="lb-s">'
-               '<span class="lb-c lb-h">BUTS</span><span class="lb-c lb-h lb-tot">T.A.B.</span>'
-               '</span></div>')
-
-        def prow(i, name, lead, g, pn, pwin):
-            return (f'<div class="lb-row{" lb-lead" if lead else ""}">'
-                    f'<span class="lb-n">{name}</span><span class="lb-s">'
-                    f'<span class="lb-c{" lb-win" if g > cols[0][1 - i] else ""}">{g}</span>'
-                    f'<span class="lb-c lb-tot{" lb-win" if pwin else ""}">{pn}</span></span></div>')
-        return (f'<div class="lboard lboard-q">{hdr}'
-                + prow(0, hn, ph > pa, cols[0][0], ph, ph > pa)
-                + prow(1, an, pa > ph, cols[0][1], pa, pa > ph) + '</div>')
+    # TIRS AU BUT (foot : Supercoupe/finales) — affichés INLINE « 1 (4) » / « 1 (5) » sur la ligne du score
+    # (demande user 2026-08-01 : pas de colonne en plus, le nombre de pénos entre parenthèses). Le score de
+    # régulation reste le chiffre principal ; le vainqueur du shoot-out prend la ligne verte (lb-lead).
+    _pens_ok = bool(pens) and not tennis and not periods and all(isinstance(x, int) for x in (pens or ()))
+    if _pens_ok:
+        home_lead, away_lead = pens[0] > pens[1], pens[1] > pens[0]
 
     def cells(i):
-        return "".join(f'<span class="lb-c{" lb-win" if c[i] > c[1 - i] else ""}">{c[i]}</span>'
+        _p = f' <span class="lb-pen">({pens[i]})</span>' if _pens_ok else ""
+        return "".join(f'<span class="lb-c{" lb-win" if c[i] > c[1 - i] else ""}">{c[i]}{_p}</span>'
                        for c in cols)
     # Temps de jeu (51', Q3 · 5:42…) DANS le cadre des scores : centré en haut, bien visible.
     clk = f'<div class="lb-clk">{e(clock)}</div>' if clock else ""
