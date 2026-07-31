@@ -5377,7 +5377,8 @@ _SPORT_LBL = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}
 
 
 def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True,
-              why_always: bool = False, why_label: str = "Pourquoi cette jambe") -> str:
+              why_always: bool = False, why_label: str = "Pourquoi cette jambe",
+              prob_calibrated: bool = False) -> str:
     """Rendu d'UNE jambe de combiné COMME UNE CARTE DE SIMPLE (demande user 2026-07-14) : en-tête
     « SPORT • match » + badge d'état, le pari en gras, l'explication en clair (gloss ↳), la COTE à droite,
     bord gauche coloré par état. En live : badge 🟢 LIVE + tableau de score sous la jambe. `why` = ajoute la
@@ -5509,7 +5510,11 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         _pr = l.get("prob")
         _pct = (_pr * 100 if isinstance(_pr, (int, float)) and _pr <= 1 else _pr)
         _cp = _pct
-        if _pct is not None:
+        # `prob_calibrated=True` : la proba de la jambe est DÉJÀ calibrée (combiné du jour / bonus, qui figent
+        # la confiance calibrée au stockage ET calculent leur TOTAL = produit de ces probas). La re-calibrer
+        # ici = DOUBLE calibration -> jambes gonflées (99 %) incohérentes avec le total (66 %). Bug user
+        # 2026-08-01. On l'affiche telle quelle. Sinon (provisoires/paris joués : `prob` = BRUTE) on calibre.
+        if _pct is not None and not prob_calibrated:
             try:
                 _cp = analyses.calibrated_conf(_pct, _sp, l.get("code") or "")
             except Exception:
@@ -5538,7 +5543,9 @@ def _combo_tg_legs(cb: dict) -> str:
     (prob décroissante) n'a aucun sens pour le lecteur. AFFICHAGE seul (cb['legs'] stocké intact)."""
     _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
     # Fin filet de SÉPARATION entre deux jambes (demande user 2026-07-21) — même patron que .mc-sep.
-    return _MC_SEP.join(_leg_card(l, why=True, verdict=True) for l in _legs)
+    # `prob_calibrated=True` : `combo_daily` FIGE déjà la confiance calibrée (combo_daily.py ~346) et son
+    # TOTAL = produit de ces probas -> ne PAS re-calibrer (bug double calibration, jambes 99 % vs total 66 %).
+    return _MC_SEP.join(_leg_card(l, why=True, verdict=True, prob_calibrated=True) for l in _legs)
 
 
 def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "") -> str:
@@ -5919,7 +5926,8 @@ def _betmines_tg_card(include_settled: bool = True) -> str:
                 "cote": _cote, "result": leg.get("result"), "score": leg.get("score"),
                 "start": leg.get("start"), "code": leg.get("code"), "prob": _prob, "why": _why}
     _views = [_leg_view(leg) for leg in _legs]     # NOS valeurs par jambe (une seule fois -> réutilisées au TOTAL)
-    legs_html = _MC_SEP.join(_leg_card(v, why=True, verdict=True, why_always=True) for v in _views)
+    legs_html = _MC_SEP.join(_leg_card(v, why=True, verdict=True, why_always=True, prob_calibrated=True)
+                             for v in _views)
     # Bloc « TOTAL DU COMBINÉ » = verdict GLOBAL IDENTIQUE au combiné du jour (demande user 2026-07-24 :
     # « toutes les stats "total du combiné" doivent être reprises ») : séparateur + barre Confiance/Marché/
     # Cote totale. COHÉRENT avec les jambes AFFICHÉES (NOS valeurs) : cote = PRODUIT des cotes de jambe,
@@ -5996,7 +6004,8 @@ def _betmines_safe_tg_card(include_settled: bool = True) -> str:
                 "code": _code, "prob": _prob}
 
     _views = [_safe_view(leg) for leg in _legs]
-    legs_html = _MC_SEP.join(_leg_card(v, why=False, verdict=True, why_always=False) for v in _views)
+    legs_html = _MC_SEP.join(_leg_card(v, why=False, verdict=True, why_always=False, prob_calibrated=True)
+                             for v in _views)
     # TOTAL = produit des cotes réduites (repli safe_total_odds) · confiance = produit des probas implicites.
     _vcotes = [v.get("cote") for v in _views]
     _vprobs = [v.get("prob") for v in _views]
