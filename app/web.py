@@ -7290,6 +7290,56 @@ def render_exclusions(rep: dict | None) -> str:
     return f'<div class="exq">{body}</div>'
 
 
+def render_market_watch(by_market: dict | None) -> str:
+    """SURVEILLANCE PAR MARCHÉ (demande user 2026-08-01) : pour CHAQUE type de pari, la taille d'échantillon
+    (prédictions fantômes + joués), l'annoncé vs le réel (écart de calibration) et le ROI joué — avec un
+    statut « fiable / à surveiller / échantillon en construction ». Rend VISIBLE ce que le système mesure
+    déjà en continu, surtout les marchés à FAIBLE échantillon (qui mûrissent encore et ne sont pas jugeables).
+    Réutilise le style `.exq` (rapport marchés écartés). '' si pas de données."""
+    if not by_market:
+        return ""
+    _CALIB_OK = 50            # nb de PRÉDICTIONS (fantômes + joués) pour qu'un marché soit jugeable en calibration
+    _MIN_N = 8                # sous ce nb, marché quasi inexistant -> masqué (bruit)
+    intro = ('<div class="exq-intro">Chaque type de pari est <b>suivi en continu</b> — même les paris NON '
+             'joués (fantômes) comptent. Tant qu\'un marché a <b>peu de prédictions</b>, il reste « en '
+             'construction » : le système <b>ne conclut pas</b> (ni exclusion, ni correction) et attend '
+             'd\'avoir assez de données. Les fantômes servent justement à <b>faire monter l\'échantillon</b> '
+             'des marchés rares jusqu\'à en tirer une stat fiable.</div>')
+    rows = []
+    for mk, m in sorted(by_market.items(), key=lambda kv: -(kv[1].get("n") or 0)):
+        n = m.get("n") or 0
+        if n < _MIN_N:
+            continue
+        conf, real, roi = m.get("avg_conf"), m.get("win_rate"), m.get("roi")
+        played = m.get("roi_n") or 0
+        gap = (real - conf) if (conf is not None and real is not None) else None
+        if n < _CALIB_OK:
+            cls, lbl = "exq-watch", f"⏳ En construction ({n})"
+        elif isinstance(roi, (int, float)) and played >= 20 and roi <= -10:
+            cls, lbl = "exq-ex", "🔴 À surveiller"
+        elif gap is not None and gap <= -8:
+            cls, lbl = "exq-watch", "🟡 Sur-confiance"
+        else:
+            cls, lbl = "exq-ok", "✅ Calibré"
+        meta = [f'<b>{n}</b> préd.']
+        if real is not None and conf is not None:
+            meta.append(f'réel {real}% vs {conf}% annoncé (écart {gap:+d})')
+        if isinstance(roi, (int, float)) and played:
+            meta.append(f'ROI {roi:+d}% ({played} joué{"s" if played > 1 else ""}'
+                        + (', indicatif' if played < 20 else '') + ')')
+        elif played:
+            meta.append(f'{played} joué{"s" if played > 1 else ""}')
+        rows.append(f'<div class="exq-row"><div class="exq-top">'
+                    f'<span class="exq-bdg {cls}">{lbl}</span>'
+                    f'<span class="exq-mk">{html.escape(str(mk))}</span></div>'
+                    f'<div class="exq-meta">{" · ".join(meta)}</div></div>')
+    if not rows:
+        return ""
+    return ('<div class="sx-card"><div class="sx-h">Surveillance des marchés'
+            '<span>échantillon · calibration · ROI par type de pari</span></div>'
+            f'<div class="exq">{intro}<div class="exq-sport">{"".join(rows)}</div></div></div>')
+
+
 def render_reliability(rel: dict | None) -> str:
     """INDICE DE FIABILITÉ de la calibration + VRAI graphique d'évolution (preuve mesurée d'auto-
     amélioration) : gros score /100, flèche de tendance, et courbe pleine largeur de l'indice dans le

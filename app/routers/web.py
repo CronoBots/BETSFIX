@@ -162,6 +162,8 @@ def _home_stats_compute(since_days: int | None = None) -> tuple:
                + web.render_calibration(cal))
         + _sec("Marchés écartés", "quels paris sont exclus, pourquoi, et quand ils reviennent",  # 3b.
                web.render_exclusions(analyses.exclusions_report()))
+        + _sec("Surveillance des marchés", "échantillon & fiabilité par type de pari",  # 3c.
+               web.render_market_watch((cal or {}).get("by_market")))
         + _sec("Transparence", "tout ce que le modèle a observé",                  # 4.
                web.render_volume(full, combo, cal) + web.render_volume_by_sport()))
     return (f'<div class="sx"><div class="sx-body">{bilan}</div></div>',
