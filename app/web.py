@@ -6329,6 +6329,11 @@ def _provisional_results(iso: str, sport: str | None = None, header: bool = True
     return _hd + _MC_SEP.join(cards)
 
 
+# Rang d'affichage d'un pari RÉGLÉ dans sa section (demande user 2026-08-01) : gagné avant remboursé avant
+# perdu. Combiné à l'ordre des actifs (non joué → live), une section se lit : non joué → live → gagné → perdu.
+_RES_RANK = {"won": 0, "push": 1, "void": 1, "lost": 2}
+
+
 def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
     """Cartes des PARIS JOUÉS TERMINÉS d'un jour, rendues COMME les pronos (demande user 2026-07-28 : « tous
     les résultats affichés de la même manière ») : carte `_leg_card` complète (en-tête, équipes, pari + glose,
@@ -6359,7 +6364,7 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
                 _body = _combo_premium_block(sp, fid, d.get("home", ""), d.get("away", ""))
                 if _body:
                     _st = {"won": "won", "lost": "lost", "void": "push"}.get(combo.get("result"), "")
-                    out.append((dt.timestamp(), _combo_gold_card(
+                    out.append((_RES_RANK.get(combo.get("result"), 3), dt.timestamp(), _combo_gold_card(
                         title="COMBINÉ", subtitle=f'{len(combo["legs"])} jambes',
                         badge=_bdg, body=_body, state=_st)))
                 continue
@@ -6367,15 +6372,17 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
             if not rb or rb.get("result") not in ("won", "lost", "push"):
                 continue
             _code = (_cfp(rb.get("sel", ""), sp, d.get("home", ""), d.get("away", "")) or "")
-            out.append((dt.timestamp(), _leg_card(
+            out.append((_RES_RANK.get(rb.get("result"), 3), dt.timestamp(), _leg_card(
                 {"sport": sp, "home": d.get("home"), "away": d.get("away"), "comp": d.get("comp"),
                  "sel": rb.get("sel"), "cote": rb.get("cote"), "prob": rb.get("prob"), "code": _code,
                  "result": rb.get("result"), "score": _board.get("score") or _sco,
                  "periods": _board.get("periods"), "pens": _board.get("pens"), "start": d.get("start"),
                  "why": _prov_why_snippet(sp, fid, maxlen=100000, played=True)},
                 why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")))
-    out.sort(key=lambda x: x[0], reverse=True)
-    return [h for _, h in out]
+    # ORDRE (demande user 2026-08-01) : GAGNÉ d'abord, puis remboursé, puis PERDU ; à rang égal, le plus
+    # récent en tête. Cohérent avec l'ordre voulu par type : non joué → live → gagné → perdu.
+    out.sort(key=lambda x: (x[0], -x[1]))
+    return [h for _, _, h in out]
 
 
 def _sport_pronos_counts(match_rows: list) -> dict:
@@ -6437,7 +6444,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     aujourd'hui (matchs finis + résultats) -> zone « Résultats du jour » repliable, sinon ils n'étaient
     visibles que dans Stats (demande user 2026-07-20).
     Renvoie (html, nb_matchs_du_jour) — le compte alimente le badge de nav."""
-    play = sorted(list(match_rows), key=lambda r: r.get("start_ts") or 0)
+    # ORDRE (demande user 2026-08-01) : NON JOUÉ (à venir) avant EN LIVE (en cours), puis par coup d'envoi.
+    # Suivi des réglés (gagné → perdu) plus bas -> une section se lit : non joué → live → gagné → perdu.
+    play = sorted(list(match_rows),
+                  key=lambda r: (1 if r.get("status") == "inprogress" else 0, r.get("start_ts") or 0))
     _paj = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
     # DÉDUP (demande user 2026-07-26) — un match déjà JAMBE du combiné du jour n'apparaît PLUS aussi en
     # provisoire (fini le doublon exact type « Grêmio DC 1X »). La montante, elle, suit le meilleur simple
