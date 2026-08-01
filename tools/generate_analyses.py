@@ -3041,8 +3041,13 @@ async def main():
                 if _csc:
                     _analyze_combo_legs(_csc)        # analyse dédiée par jambe (comme un pari à jouer)
                     if _csafe.record_daily(_csc, _day):
-                        print(f"  🛡️ Combiné sécurité foot : cote {_csc['cote']} · "
-                              f"{round(_csc['prob'] * 100)}% · {len(_csc['legs'])} jambes (double chance).")
+                        # GEL dès la 1re construction (demande user 2026-08-01) : le combiné double chance
+                        # n'a pas d'envoi Telegram -> sans ça il se reconstruisait à CHAQUE scan et pouvait
+                        # ÉCHANGER une jambe en cours de journée. On le fige comme le combiné du jour : une
+                        # fois affiché, il ne bouge plus (mark_sent -> record_daily le refuse ensuite).
+                        _csafe.mark_sent(_day)
+                        print(f"  🛡️ Combiné double chance foot : cote {_csc['cote']} · "
+                              f"{round(_csc['prob'] * 100)}% · {len(_csc['legs'])} jambes (figé).")
                 else:
                     print("  🛡️ Combiné sécurité foot : vivier DC insuffisant pour ~2 aujourd'hui.")
         except Exception as _csexc:
