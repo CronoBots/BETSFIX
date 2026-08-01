@@ -312,13 +312,15 @@ CSS = """
   .toplogo{display:block;text-align:center;margin:20px 0 12px}
   .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
-  .acctbtn{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:75;
-    display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;line-height:1;
-    padding:8px 13px;border-radius:999px;color:#cfe0f5;text-decoration:none;
+  /* ICÔNE SEULE (demande user 2026-08-01 : plus de texte « Compte », il chevauchait le logo). Bouton ROND
+     compact dans le coin -> ne déborde plus sur le logo BETSFIX centré. */
+  .acctbtn{position:fixed;top:calc(9px + env(safe-area-inset-top));right:12px;z-index:75;
+    display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;line-height:1;
+    border-radius:999px;color:#cfe0f5;text-decoration:none;
     background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
     border:1px solid rgba(150,182,222,.20)}
   .acctbtn:active{transform:scale(.94)}
-  .acctbtn .ic{font-size:15px}
+  .acctbtn .ic{font-size:18px}
   /* Intro au chargement : logo principal centré, puis fondu -> le site apparaît. */
   .splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
           pointer-events:none;  /* n'intercepte JAMAIS les taps (sinon ~1,65s de taps avalés au chargement) */
@@ -3168,7 +3170,7 @@ _SPA_TABS = [("accueil", "/accueil", "🏠", "Accueil"),
              ("montante", "/montante", "🪜", "Montante")]
 # Bouton compte en haut à droite (toutes les pages) : /compte affiche la connexion si déconnecté, le compte
 # sinon -> pas besoin de connaître l'état de session dans le rendu.
-_ACCT_BTN = '<a class="acctbtn" href="/compte" aria-label="Mon compte"><span class="ic">👤</span>Compte</a>'
+_ACCT_BTN = '<a class="acctbtn" href="/compte" aria-label="Mon compte" title="Mon compte"><span class="ic">👤</span></a>'
 # Compte est un onglet SPA À PART ENTIÈRE : son panneau charge /compte?frag=1 (contenu seul) en AJAX,
 # comme les onglets sport -> bascule sans rechargement. (Plus de _NAV_ONLY : il a son panneau.)
 
