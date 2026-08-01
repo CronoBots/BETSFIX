@@ -307,18 +307,9 @@ CSS = """
   .wrap{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;width:100%;
         position:relative;
         max-width:720px;margin:0 auto;display:flex;flex-direction:column;
-        padding:0 16px 22px}   /* padding-top retiré : la barre logo STICKY porte le safe-area (demande user) */
-  /* Logo unique centré tout en haut + STICKY (demande user 2026-08-02 : la partie du haut reste fixe au
-     scroll sur mobile). Barre pleine largeur (margin négatif = annule le padding horizontal du .wrap), fond
-     opaque flouté pour que le contenu passe DERRIÈRE proprement. Le safe-area de l'encoche vit ici. */
-  /* Header STICKY façon « verre » (fond opaque flouté + filet + ombre) MAIS le logo garde EXACTEMENT sa
-     taille et ses écarts d'origine (demande user 2026-08-02) : img 72%/46px, ~20px au-dessus / 12px en
-     dessous, comme avant que le header ne devienne sticky. */
-  .toplogo{position:sticky;top:0;z-index:40;display:block;text-align:center;
-           margin:0 -16px 12px;padding:calc(20px + env(safe-area-inset-top)) 0 12px;
-           background:rgba(9,10,13,.86);
-           -webkit-backdrop-filter:saturate(1.4) blur(16px);backdrop-filter:saturate(1.4) blur(16px);
-           border-bottom:1px solid rgba(150,182,222,.10);box-shadow:0 8px 22px -14px rgba(0,0,0,.95)}
+        padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
+  /* Logo unique centré tout en haut de chaque page + pastille de pause */
+  .toplogo{display:block;text-align:center;margin:20px 0 12px}
   .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
   /* ICÔNE SEULE (demande user 2026-08-01 : plus de texte « Compte », il chevauchait le logo). Bouton ROND
