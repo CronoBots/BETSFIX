@@ -315,7 +315,7 @@ CSS = """
            margin:0;padding:calc(env(safe-area-inset-top) + 10px) 16px 11px;
            background:linear-gradient(180deg,rgba(7,7,8,.84),rgba(7,7,8,.44));
            -webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);
-           border-bottom:1px solid rgba(150,182,222,.09)}
+           border-bottom:1px solid rgba(34,184,255,.60)}   /* bordure BLEUE = même bord que les cartes (user) */
   .toplogo img{height:auto;width:auto;max-height:46px;max-width:72%;
                filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
@@ -352,7 +352,7 @@ CSS = """
   .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;touch-action:none;
           display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));
-          background:#0b0d12;border-top:1px solid var(--border)}
+          background:#0b0d12;border-top:1px solid rgba(34,184,255,.60)}   /* bordure BLEUE = même bord que les cartes */
   /* PWA INSTALLÉE (standalone) : la barre du bas est ANCRÉE au bas PHYSIQUE de l'écran (position:fixed,
      bottom:0) — sinon, comme le body en 100dvh ne couvre pas toujours le safe-area de l'indicateur home,
      la barre (frère statique) s'arrêtait AU-DESSUS et laissait apparaître le canvas sombre en dessous
