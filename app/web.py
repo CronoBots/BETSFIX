@@ -6682,6 +6682,29 @@ _LZ_CSS = """
 .lz .fl{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:linear-gradient(90deg,var(--green),var(--gb));
   width:0;transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
 .lz .rl{font-family:var(--mono);font-size:12.5px;color:var(--green)}
+/* Bloc « Notre signature » (accueil) : ticket-réplique Confiance/Marché/Value/Cote + les 3 calculs, sans
+   dévoiler sources ni méthode d'analyse (demande user 2026-08-01). */
+.lz .decrypt{display:grid;grid-template-columns:.92fr 1.08fr;gap:44px;align-items:center}
+.lz .tkt{background:linear-gradient(180deg,var(--gr3),var(--gr2));border:1px solid var(--line2);border-radius:18px;
+  padding:20px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7);position:relative;overflow:hidden}
+.lz .tkt::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 82% 0%,rgba(52,210,123,.10),transparent 60%);pointer-events:none}
+.lz .tk-top{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:600;color:var(--dim);margin-bottom:13px}
+.lz .tk-top .green{font-family:var(--mono);font-size:12px}
+.lz .tk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.lz .tk-c{background:var(--gr2);padding:14px 8px;text-align:center}
+.lz .tk-l{display:block;font-size:10.5px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.lz .tk-v{display:block;font-size:25px;font-weight:700;margin-top:5px;letter-spacing:-.02em}
+.lz .tk-s{display:block;font-size:10.5px;margin-top:1px}
+.lz .tk-conf .tk-v,.lz .tk-conf .tk-s,.lz .tk-val .tk-v{color:var(--green)}
+.lz .tk-cap{font-family:var(--mono);font-size:12px;color:var(--faint);margin-top:13px;text-align:center;line-height:1.45}
+.lz .steps{display:flex;flex-direction:column;gap:20px}
+.lz .stp{display:flex;gap:14px;align-items:flex-start}
+.lz .stp .n{flex:0 0 auto;width:27px;height:27px;border-radius:50%;border:1px solid var(--green);color:var(--green);
+  font-family:var(--mono);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.lz .stp h3{font-size:16px;font-weight:700}
+.lz .stp p{font-size:14px;color:var(--dim);margin-top:3px}.lz .stp p b{color:var(--ink)}
+.lz .stp .f{display:inline-block;font-family:var(--mono);font-size:12.5px;color:var(--green);margin-top:7px;
+  padding:3px 9px;border:1px solid var(--line2);border-radius:8px;background:rgba(52,210,123,.06)}
 .lz .final{position:relative;text-align:center;padding:70px 0 60px;border-top:1px solid var(--line);overflow:hidden}
 .lz .final .glow{position:absolute;inset:auto -20% -60% -20%;height:420px;
   background:radial-gradient(50% 60% at 50% 100%,rgba(52,210,123,.18),transparent 70%);pointer-events:none}
@@ -6701,7 +6724,8 @@ _LZ_CSS = """
 .lz .lznav a .ic{font-size:22px;line-height:1;height:24px;display:flex;align-items:center}
 .lz .lznav a.on{color:var(--green)}
 @media (max-width:860px){.lz .hero-grid{grid-template-columns:1fr;gap:28px}.lz .metrics{grid-template-columns:repeat(2,1fr)}
-  .lz .gates,.lz .pillars{grid-template-columns:1fr}.lz .honesty,.lz .calib{grid-template-columns:1fr;gap:26px}.lz .hero{padding-top:34px}}
+  .lz .gates,.lz .pillars{grid-template-columns:1fr}.lz .honesty,.lz .calib{grid-template-columns:1fr;gap:26px}.lz .hero{padding-top:34px}
+  .lz .decrypt{grid-template-columns:1fr;gap:28px}}
 @media (prefers-reduced-motion:reduce){.lz *{animation:none!important;transition:none!important}.lz .reveal{opacity:1;transform:none}}
 """
 
@@ -6838,6 +6862,42 @@ def accueil_body(frag: bool = True) -> str:
     <div class="metric"><div class="k">Meilleure série</div><div class="v num">{s['best']} <small>d'affilée</small></div></div>
   </div>
 </div></div>
+
+<section class="blk" id="signature"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">Notre signature</span>
+    <h2>Confiance, Marché, Value — trois chiffres, zéro promesse.</h2>
+    <p>Chaque pari affiche trois nombres, pas un logo « sûr à 100 % ». De quoi juger par vous-même — comme un
+      pro lit un carnet d'ordres. Voici exactement comment on les calcule.</p></div>
+  <div class="decrypt">
+    <div class="tkt">
+      <div class="tk-top"><span>⚽ Un pari, décrypté</span><span class="green">value +</span></div>
+      <div class="tk-grid">
+        <div class="tk-c tk-conf"><span class="tk-l">Confiance</span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
+        <div class="tk-c"><span class="tk-l">Marché</span><span class="tk-v num">72%</span></div>
+        <div class="tk-c tk-val"><span class="tk-l">Value</span><span class="tk-v num">+8%</span></div>
+        <div class="tk-c"><span class="tk-l">Cote</span><span class="tk-v num">1.38</span></div>
+      </div>
+      <div class="tk-cap">notre confiance (78 %) dépasse le prix du marché (72 %) → +8 % d'edge</div>
+    </div>
+    <div class="steps">
+      <div class="stp"><span class="n">1</span><div>
+        <h3>La confiance</h3>
+        <p>Notre probabilité de gain du pari, puis <b>recalibrée sur notre propre relevé</b> : on vérifie que
+          « 78 % annoncé » sort bien autour de 78 % dans l'historique réel. Aucun autre site n'ajuste sa
+          confiance sur ses résultats passés — c'est ce qui rend la nôtre <b>fiable</b>, pas décorative.</p></div></div>
+      <div class="stp"><span class="n">2</span><div>
+        <h3>Le marché</h3>
+        <p>La probabilité qu'<b>implique la cote</b>. C'est le seuil de rentabilité : en dessous, le prix vous
+          paie mal, quoi qu'il arrive.</p>
+        <span class="f">Marché = 100 ÷ cote</span></div></div>
+      <div class="stp"><span class="n">3</span><div>
+        <h3>La value</h3>
+        <p>Ce que la cote nous paie <b>en trop</b> par rapport à notre confiance. Positive = le marché nous
+          offre plus que notre probabilité. On ne mise <b>que</b> là — jamais « parce que le favori va gagner ».</p>
+        <span class="f">Value = Confiance × cote − 1</span></div></div>
+    </div>
+  </div>
+</div></section>
 
 <section class="blk" id="methode"><div class="lzw">
   <div class="sec-head"><span class="eyebrow">Ce qui rend le taux unique</span>
