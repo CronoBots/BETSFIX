@@ -3319,6 +3319,14 @@ _MARKET_FAMILY = {   # 1er token du code -> famille de marché lisible (pour la 
     # but/buteur/gardien/score exact
     "FIRSTGOAL": "Premier but", "FIRSTSCORER": "Premier buteur",
     "GKSAVES": "Arrêts gardien", "SCORE": "Score exact",
+    # tirs (foot) — étaient noyés dans « Autre » (demande user 2026-08-01 : « Autre » ne doit pas exister)
+    "SHOTSOT": "Tirs cadrés", "SHOTS": "Tirs",
+    # mi-temps (foot) supplémentaires
+    "BOTHHALVES": "Mi-temps", "DCHALF": "Mi-temps",
+    # tennis : breaks de service
+    "TOTBREAKS": "Breaks", "BREAKS": "Breaks",
+    # props joueur : « marque ou passe décisive »
+    "SCOREASSIST": "Props joueur",
 }
 
 
@@ -3372,8 +3380,12 @@ def _save_excluded_state(state: dict) -> None:
 
 
 def market_of(code: str) -> str:
-    """Famille de marché lisible déduite du code de règlement (ex. 'UNDER 163' -> 'Total +/-')."""
-    return _MARKET_FAMILY.get((code or "").split()[0] if code else "", "Autre")
+    """Famille de marché lisible déduite du code de règlement (ex. 'UNDER 163' -> 'Total +/-'). Le 1er token
+    est nettoyé du suffixe joueur `|Nom` (ex. 'SCOREASSIST|Un joueur' -> 'SCOREASSIST'). « Autre » ne doit
+    JAMAIS apparaître (demande user 2026-08-01) : tout code connu est classé -> si « Autre » ressort, c'est
+    un NOUVEAU token de marché à ajouter à `_MARKET_FAMILY`."""
+    tok = ((code or "").split()[0] if code else "").split("|")[0]
+    return _MARKET_FAMILY.get(tok, "Autre")
 
 
 _CALIB_MAP_CACHE = {"ts": 0.0, "map": {}}
