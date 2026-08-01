@@ -6408,14 +6408,14 @@ _LZ_CSS = """
   border:1px solid var(--line2);border-radius:999px;background:rgba(255,255,255,.02)}
 .lz .hb .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lzpulse 2.4s ease-in-out infinite}
 @keyframes lzpulse{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
-.lz .sh{display:flex;align-items:flex-end;gap:16px;margin:4px 0 6px}
-.lz .sh .big{font-weight:700;font-size:clamp(84px,15vw,164px);line-height:.82;letter-spacing:-.045em;
+.lz .sh{display:flex;align-items:flex-end;gap:6px;margin:4px 0 2px}
+.lz .sh .big{font-weight:700;font-size:clamp(72px,13vw,124px);line-height:.82;letter-spacing:-.045em;
   background:linear-gradient(176deg,#fbfffd 8%,var(--gb) 62%,var(--green) 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent}
-.lz .sh .pct{font-weight:700;font-size:clamp(32px,6vw,56px);color:var(--green);line-height:1;margin-bottom:12px}
-.lz .sh .cap{margin-bottom:14px}
-.lz .sh .cap b{display:block;font-size:15px;font-weight:600;color:var(--ink)}
-.lz .sh .cap span{font-size:13px;color:var(--faint)}
+.lz .sh .pct{font-weight:700;font-size:clamp(30px,5vw,44px);color:var(--green);line-height:1;margin-bottom:10px}
+/* Sous-titre « X gagnés / Y » posé SOUS le nombre (recentré — demande user 2026-08-01, plus flottant à droite) */
+.lz .sh-cap{font-size:14px;color:var(--faint);margin:2px 0 12px}
+.lz .sh-cap b{color:var(--ink);font-weight:600}
 .lz h1.tag{font-size:clamp(22px,3vw,30px);font-weight:700;margin:12px 0 12px;max-width:17ch}
 .lz h1.tag .hl{color:var(--green)}
 .lz .lede{font-size:16.5px;color:var(--dim);max-width:44ch;margin-bottom:24px}
@@ -6428,8 +6428,11 @@ _LZ_CSS = """
 .lz .metric .k{font-size:12px;color:var(--faint);font-weight:600}
 .lz .metric .v{font-size:26px;font-weight:700;margin-top:3px;letter-spacing:-.02em}
 .lz .metric .v small{font-size:14px;font-weight:600;color:var(--dim)}
-.lz .cc{background:linear-gradient(180deg,var(--gr3),var(--gr2));border:1px solid var(--line2);border-radius:20px;
-  padding:20px 20px 14px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7);position:relative;overflow:hidden}
+/* Cartes teintées CYAN comme l'onglet Stats (.sx-hero) — demande user 2026-08-01 : « garder le style de
+   l'onglet stats ». Fond cyan léger + bord cyan + halo cyan discret. */
+.lz .cc{background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
+  border:1px solid rgba(34,184,255,.45);border-radius:16px;
+  padding:20px 20px 14px;box-shadow:0 0 26px rgba(34,184,255,.15);position:relative;overflow:hidden}
 .lz .cc::before{display:none}
 .lz .cc-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
 .lz .cc-h .t{font-size:13px;font-weight:600;color:var(--dim)}.lz .cc-h .roi{font-size:15px;font-weight:700;color:var(--green)}
@@ -6504,8 +6507,9 @@ _LZ_CSS = """
 .lz .pl-h span{color:var(--faint);font-weight:400;font-size:13px}
 /* DIDACTICIEL : carte de match COMPLÈTE annotée (exemple fictif) — demande user 2026-08-01. */
 .lz .demo{display:grid;grid-template-columns:.96fr 1.04fr;gap:40px;align-items:start}
-.lz .dcard{background:linear-gradient(180deg,var(--gr3),var(--gr2));border:1px solid var(--line2);border-radius:18px;
-  padding:17px 18px 6px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7)}
+.lz .dcard{background:linear-gradient(180deg,rgba(34,184,255,.07),rgba(34,184,255,.015));
+  border:1px solid rgba(34,184,255,.38);border-radius:16px;
+  padding:17px 18px 6px;box-shadow:0 0 22px rgba(34,184,255,.12)}
 .lz .dc-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--faint);font-weight:600}
 .lz .dc-h .sp{color:var(--green);text-transform:uppercase;letter-spacing:.04em}
 .lz .dc-teams{font-size:19px;font-weight:700;margin:9px 0 11px}.lz .dc-teams .vs{color:var(--faint);font-weight:400;margin:0 7px}
@@ -6647,10 +6651,8 @@ def accueil_body(frag: bool = True) -> str:
   <div class="hero-grid">
     <div>
       <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · paris simples · {_LZ_SINCE_LABEL}</span></span>
-      <div class="sh">
-        <span class="big num">{s['pct']}</span><span class="pct">%</span>
-        <span class="cap"><b class="num">{s['won']} gagnés / {s['total']}</b><span>relevé réel, pas une projection</span></span>
-      </div>
+      <div class="sh"><span class="big num">{s['pct']}</span><span class="pct">%</span></div>
+      <div class="sh-cap"><b class="num">{s['won']} gagnés / {s['total']}</b> · relevé réel, pas une projection</div>
       <h1 class="tag">Les autres vendent des certitudes. <span class="hl">Nous, un relevé.</span></h1>
       <p class="lede">Aucun prono « sûr à 100 % ». Chaque pari est chiffré, filtré, publié — <b>gagnant comme
         perdant</b>. Vous décidez sur des nombres, pas sur des promesses.</p>
@@ -6685,33 +6687,39 @@ def accueil_body(frag: bool = True) -> str:
     <p>Voici exactement ce que vous recevez sur chaque pari — chiffre par chiffre, sans jargon.</p></div>
   <div class="demo">
     <div class="dcard">
-      <div class="dc-h"><span class="sp">⚽ Football · Championnat</span><span>20:45</span></div>
-      <div class="dc-teams">AC Rivera <span class="vs">—</span> Sporting Vale</div>
+      <div class="dc-h"><span class="sp">⚽ Football · Championnat<span class="dc-tag">1</span></span><span>20:45</span></div>
+      <div class="dc-teams">AC Rivera <span class="vs">—</span> Sporting Vale<span class="dc-tag">2</span></div>
       <div class="dc-sep"></div>
-      <div class="dc-pick">AC Rivera ou nul<span class="dc-tag">1</span></div>
-      <div class="dc-gloss"><span class="ar">↳</span>gagne ou match nul<span class="dc-tag">2</span></div>
+      <div class="dc-pick">AC Rivera ou nul<span class="dc-tag">3</span></div>
+      <div class="dc-gloss"><span class="ar">↳</span>gagne ou match nul<span class="dc-tag">4</span></div>
       <div class="tk-grid">
-        <div class="tk-c tk-conf"><span class="tk-l">Confiance <span class="dc-tag">3</span></span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
-        <div class="tk-c"><span class="tk-l">Marché <span class="dc-tag">4</span></span><span class="tk-v num">72%</span></div>
-        <div class="tk-c tk-val"><span class="tk-l">Value <span class="dc-tag">5</span></span><span class="tk-v num">+8%</span></div>
-        <div class="tk-c"><span class="tk-l">Cote</span><span class="tk-v num">1.38</span></div>
+        <div class="tk-c tk-conf"><span class="tk-l">Confiance <span class="dc-tag">5</span></span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
+        <div class="tk-c"><span class="tk-l">Marché <span class="dc-tag">6</span></span><span class="tk-v num">72%</span></div>
+        <div class="tk-c tk-val"><span class="tk-l">Value <span class="dc-tag">7</span></span><span class="tk-v num">+8%</span></div>
+        <div class="tk-c"><span class="tk-l">Cote <span class="dc-tag">8</span></span><span class="tk-v num">1.38</span></div>
       </div>
-      <div class="dc-why">Pourquoi ce choix<span class="dc-tag">6</span> <span class="chev">▾</span></div>
+      <div class="dc-why">Pourquoi ce choix<span class="dc-tag">9</span> <span class="chev">▾</span></div>
     </div>
     <div class="dc-legend">
-      <div class="dc-li"><span class="dc-tag">1</span><div><b>Le pari</b>
+      <div class="dc-li"><span class="dc-tag">1</span><div><b>Sport · compétition · heure</b>
+        <p>Le contexte du match en un coup d'œil : la discipline, la compétition et l'heure du coup d'envoi.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">2</span><div><b>Les équipes</b>
+        <p>L'affiche, domicile à gauche — extérieur à droite.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">3</span><div><b>Le pari</b>
         <p>La sélection exacte à jouer. Ici une <em>double chance</em> : ça passe si Rivera gagne <em>ou</em> fait nul.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">2</span><div><b>Traduit en clair</b>
-        <p>Chaque pari est réécrit sans jargon — vous savez précisément ce qui doit arriver pour gagner.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">3</span><div><b>La confiance</b>
+      <div class="dc-li"><span class="dc-tag">4</span><div><b>Traduit en clair</b>
+        <p>Le pari réécrit sans jargon (« ↳ ») — vous savez précisément ce qui doit arriver pour gagner.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">5</span><div><b>La confiance</b>
         <p>Notre probabilité de gain, <b>recalibrée sur notre relevé réel</b> : quand on annonce 78 %, l'historique
           confirme que ça sort autour de 78 %. Fiable, pas décorative.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">4</span><div><b>Le marché</b>
+      <div class="dc-li"><span class="dc-tag">6</span><div><b>Le marché</b>
         <p>La probabilité qu'implique la cote — le seuil de rentabilité.</p><span class="f">Marché = 100 ÷ cote</span></div></div>
-      <div class="dc-li"><span class="dc-tag">5</span><div><b>La value</b>
+      <div class="dc-li"><span class="dc-tag">7</span><div><b>La value</b>
         <p>Ce que la cote paie <b>en trop</b> par rapport à notre confiance. On ne mise que si elle est positive.</p>
         <span class="f">Value = Confiance × cote − 1</span></div></div>
-      <div class="dc-li"><span class="dc-tag">6</span><div><b>Pourquoi ce choix</b>
+      <div class="dc-li"><span class="dc-tag">8</span><div><b>La cote</b>
+        <p>Le prix décimal du pari : votre mise <em>multipliée par</em> ce nombre si ça passe (1 € → 1,38 €).</p></div></div>
+      <div class="dc-li"><span class="dc-tag">9</span><div><b>Pourquoi ce choix</b>
         <p>L'analyse complète du match en un tap : forme, contexte, risque assumé. Rien n'est caché.</p></div></div>
     </div>
   </div>
