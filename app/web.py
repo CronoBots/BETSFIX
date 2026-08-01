@@ -6575,10 +6575,14 @@ _LZ_CSS = """
   src:local('Segoe UI Bold'),url('/static/fonts/selawik-bold.woff') format('woff')}
 /* Variables SCOPÉES à .lz (JAMAIS :root -> n'écrase pas les variables de l'app, qui a les mêmes noms). Le
    contenu Accueil est un FRAGMENT injecté dans le panneau SPA : il ne doit PAS déborder sur le reste du site. */
-.lz{--gr:#0a0d13;--gr2:#0f141d;--gr3:#141c28;--line:rgba(150,182,222,.10);--line2:rgba(150,182,222,.16);
-  --ink:#eaf2ff;--dim:#9fb0c8;--faint:#63748d;--green:#34d27b;--gb:#4ff09a;--gfill:rgba(52,210,123,.14);
-  --amber:#ffb020;--red:#ff6b6b;--mono:ui-monospace,'Cascadia Mono','Segoe UI Mono',Menlo,Consolas,monospace;
-  color:var(--ink);font-family:'Selawik','Segoe UI',system-ui,sans-serif;line-height:1.55;
+/* PALETTE = celle de l'app (demande user 2026-08-01 : « le style de l'accueil doit rester celui des autres
+   onglets »). On RÉFÉRENCE les variables de l'app (héritées de body) au lieu d'un thème propre -> même fond,
+   mêmes surfaces, même accent. Aucun fond ni halo vert spécifiques. */
+.lz{--gr:var(--surface);--gr2:var(--surface);--gr3:var(--surface2);--line:var(--border);--line2:var(--border2);
+  --ink:var(--text);--dim:var(--muted);--faint:var(--dim);--green:var(--accent);--gb:var(--accent2);
+  --gfill:var(--glow);--amber:#ffb020;
+  --mono:ui-monospace,'Cascadia Mono','Segoe UI Mono',Menlo,Consolas,monospace;
+  color:var(--text);font-family:'Selawik','Segoe UI',system-ui,sans-serif;line-height:1.55;
   -webkit-font-smoothing:antialiased}
 .lz *{box-sizing:border-box}
 .lz .lzw{max-width:1040px;margin:0 auto;padding:0}
@@ -6605,9 +6609,7 @@ _LZ_CSS = """
 .lz .btn:hover{transform:translateY(-1px);box-shadow:0 10px 26px -6px rgba(52,210,123,.72)}
 .lz .btn.lg{font-size:16px;padding:15px 28px;border-radius:13px}
 .lz .hero{position:relative;padding:16px 0 26px}
-.lz .hero-glow{position:absolute;inset:-10% -20% auto -20%;height:520px;pointer-events:none;z-index:0;
-  background:radial-gradient(60% 60% at 30% 0%,rgba(52,210,123,.16),transparent 70%),
-  radial-gradient(50% 50% at 92% 12%,rgba(34,184,255,.10),transparent 70%)}
+.lz .hero-glow{display:none}   /* plus de halo vert (demande user 2026-08-01) : fond = celui de l'app */
 .lz .hero .wrap{position:relative;z-index:1}
 .lz .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center}
 .lz .hb{display:inline-flex;align-items:center;gap:9px;margin-bottom:18px;padding:6px 12px;
@@ -6636,7 +6638,7 @@ _LZ_CSS = """
 .lz .metric .v small{font-size:14px;font-weight:600;color:var(--dim)}
 .lz .cc{background:linear-gradient(180deg,var(--gr3),var(--gr2));border:1px solid var(--line2);border-radius:20px;
   padding:20px 20px 14px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7);position:relative;overflow:hidden}
-.lz .cc::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 80% 0%,rgba(52,210,123,.10),transparent 60%);pointer-events:none}
+.lz .cc::before{display:none}
 .lz .cc-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
 .lz .cc-h .t{font-size:13px;font-weight:600;color:var(--dim)}.lz .cc-h .roi{font-size:15px;font-weight:700;color:var(--green)}
 .lz svg.cv{display:block;width:100%;height:180px}
@@ -6687,7 +6689,7 @@ _LZ_CSS = """
 .lz .decrypt{display:grid;grid-template-columns:.92fr 1.08fr;gap:44px;align-items:center}
 .lz .tkt{background:linear-gradient(180deg,var(--gr3),var(--gr2));border:1px solid var(--line2);border-radius:18px;
   padding:20px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7);position:relative;overflow:hidden}
-.lz .tkt::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 82% 0%,rgba(52,210,123,.10),transparent 60%);pointer-events:none}
+.lz .tkt::before{display:none}
 .lz .tk-top{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:600;color:var(--dim);margin-bottom:13px}
 .lz .tk-top .green{font-family:var(--mono);font-size:12px}
 .lz .tk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:13px;overflow:hidden}
@@ -6704,10 +6706,32 @@ _LZ_CSS = """
 .lz .stp h3{font-size:16px;font-weight:700}
 .lz .stp p{font-size:14px;color:var(--dim);margin-top:3px}.lz .stp p b{color:var(--ink)}
 .lz .stp .f{display:inline-block;font-family:var(--mono);font-size:12.5px;color:var(--green);margin-top:7px;
-  padding:3px 9px;border:1px solid var(--line2);border-radius:8px;background:rgba(52,210,123,.06)}
+  padding:3px 9px;border:1px solid var(--line2);border-radius:8px;background:var(--gfill)}
+.lz .pl-h{font-size:14px;font-weight:600;color:var(--dim);margin-bottom:15px}
+.lz .pl-h b{color:var(--ink)}.lz .pl-h b.red{color:var(--red)}
+.lz .pl-h span{color:var(--faint);font-weight:400;font-size:13px}
+/* DIDACTICIEL : carte de match COMPLÈTE annotée (exemple fictif) — demande user 2026-08-01. */
+.lz .demo{display:grid;grid-template-columns:.96fr 1.04fr;gap:40px;align-items:start}
+.lz .dcard{background:linear-gradient(180deg,var(--gr3),var(--gr2));border:1px solid var(--line2);border-radius:18px;
+  padding:17px 18px 6px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7)}
+.lz .dc-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--faint);font-weight:600}
+.lz .dc-h .sp{color:var(--green);text-transform:uppercase;letter-spacing:.04em}
+.lz .dc-teams{font-size:19px;font-weight:700;margin:9px 0 11px}.lz .dc-teams .vs{color:var(--faint);font-weight:400;margin:0 7px}
+.lz .dc-sep{height:1px;background:var(--line);margin:0 -18px 12px}
+.lz .dc-pick{font-size:16px;font-weight:700}
+.lz .dc-gloss{font-size:13.5px;color:var(--dim);margin:3px 0 13px}.lz .dc-gloss .ar{color:var(--green);margin-right:5px}
+.lz .dc-why{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:var(--ink);
+  border-top:1px solid var(--line);margin:11px -18px 0;padding:13px 18px}.lz .dc-why .chev{color:var(--faint)}
+.lz .dc-tag{display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--green);color:var(--accent-ink);
+  font-family:var(--mono);font-size:11px;font-weight:700;align-items:center;justify-content:center;vertical-align:middle;margin-left:6px}
+.lz .dc-legend{display:flex;flex-direction:column;gap:16px}
+.lz .dc-li{display:flex;gap:12px;align-items:flex-start}.lz .dc-li .dc-tag{margin:1px 0 0;flex:0 0 auto}
+.lz .dc-li b{font-size:15px}.lz .dc-li p{font-size:13.5px;color:var(--dim);margin-top:2px}
+.lz .dc-li .f{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--green);margin-top:5px;
+  padding:2px 8px;border:1px solid var(--line2);border-radius:7px;background:var(--gfill)}
+.lz .demo-note{font-size:12px;color:var(--faint);margin-top:16px;font-style:italic}
 .lz .final{position:relative;text-align:center;padding:70px 0 60px;border-top:1px solid var(--line);overflow:hidden}
-.lz .final .glow{position:absolute;inset:auto -20% -60% -20%;height:420px;
-  background:radial-gradient(50% 60% at 50% 100%,rgba(52,210,123,.18),transparent 70%);pointer-events:none}
+.lz .final .glow{display:none}   /* plus de halo vert */
 .lz .final h2{position:relative;font-size:clamp(30px,4.4vw,50px);font-weight:700}
 .lz .final p{position:relative;margin:16px auto 28px;max-width:48ch;font-size:17px;color:var(--dim)}
 .lz .final .cta-row{justify-content:center}
@@ -6725,7 +6749,7 @@ _LZ_CSS = """
 .lz .lznav a.on{color:var(--green)}
 @media (max-width:860px){.lz .hero-grid{grid-template-columns:1fr;gap:28px}.lz .metrics{grid-template-columns:repeat(2,1fr)}
   .lz .gates,.lz .pillars{grid-template-columns:1fr}.lz .honesty,.lz .calib{grid-template-columns:1fr;gap:26px}.lz .hero{padding-top:34px}
-  .lz .decrypt{grid-template-columns:1fr;gap:28px}}
+  .lz .decrypt,.lz .demo{grid-template-columns:1fr;gap:28px}}
 @media (prefers-reduced-motion:reduce){.lz *{animation:none!important;transition:none!important}.lz .reveal{opacity:1;transform:none}}
 """
 
@@ -6827,7 +6851,7 @@ def accueil_body(frag: bool = True) -> str:
     return f"""<style>{_LZ_CSS}</style>
 <div class="lz">
 
-<div class="hero"><div class="hero-glow"></div><div class="lzw">
+<div class="hero"><div class="lzw">
   <div class="hero-grid">
     <div>
       <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · paris simples · {_LZ_SINCE_LABEL}</span></span>
@@ -6835,19 +6859,19 @@ def accueil_body(frag: bool = True) -> str:
         <span class="big num">{s['pct']}</span><span class="pct">%</span>
         <span class="cap"><b class="num">{s['won']} gagnés / {s['total']}</b><span>relevé réel, pas une projection</span></span>
       </div>
-      <h1 class="tag">La discipline d'un pro. <span class="hl">Le relevé pour le prouver.</span></h1>
-      <p class="lede">BETSFIX n'annonce pas des pronos « sûrs à {s['pct']} % ». Il en <b>refuse</b> la plupart —
-        et ne garde que ceux qui passent trois filtres stricts. Le résultat se lit dans la courbe.</p>
+      <h1 class="tag">Les autres vendent des certitudes. <span class="hl">Nous, un relevé.</span></h1>
+      <p class="lede">Aucun prono « sûr à 100 % ». Chaque pari est chiffré, filtré, publié — <b>gagnant comme
+        perdant</b>. Vous décidez sur des nombres, pas sur des promesses.</p>
       <div class="cta-row">
-        <a class="btn lg" href="/signup">Accéder aux pronos du jour →</a>
-        <span class="cta-note">Sans engagement · résiliable à tout moment</span>
+        <a class="btn lg" href="/signup">Voir les pronos du jour →</a>
+        <span class="cta-note">Sans engagement · résiliable en un clic</span>
       </div>
     </div>
     <div class="cc">
       <div class="cc-h"><span class="t">Bénéfice cumulé · football</span><span class="roi num">ROI {roi_txt}</span></div>
       <svg class="cv" viewBox="0 0 100 42" preserveAspectRatio="none" aria-label="Courbe de bénéfice cumulé, en hausse">
         <defs><linearGradient id="lzln" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#2ea86a"/><stop offset="1" stop-color="#4ff09a"/></linearGradient></defs>
+          <stop offset="0" stop-color="var(--accent2)"/><stop offset="1" stop-color="var(--accent)"/></linearGradient></defs>
         <line class="z0" x1="0" y1="{zy}" x2="100" y2="{zy}"/>
         <path class="ln" d="{cd}"/>
         <circle class="ep" cx="{ex}" cy="{ey}" r="2.4"/>
@@ -6863,113 +6887,87 @@ def accueil_body(frag: bool = True) -> str:
   </div>
 </div></div>
 
-<section class="blk" id="signature"><div class="lzw">
-  <div class="sec-head"><span class="eyebrow">Notre signature</span>
-    <h2>Confiance, Marché, Value — trois chiffres, zéro promesse.</h2>
-    <p>Chaque pari affiche trois nombres, pas un logo « sûr à 100 % ». De quoi juger par vous-même — comme un
-      pro lit un carnet d'ordres. Voici exactement comment on les calcule.</p></div>
-  <div class="decrypt">
-    <div class="tkt">
-      <div class="tk-top"><span>⚽ Un pari, décrypté</span><span class="green">value +</span></div>
+<section class="blk"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">Le pari décrypté</span>
+    <h2>Une carte de match, lue de A à Z.</h2>
+    <p>Voici exactement ce que vous recevez sur chaque pari — chiffre par chiffre, sans jargon.</p></div>
+  <div class="demo">
+    <div class="dcard">
+      <div class="dc-h"><span class="sp">⚽ Football · Championnat</span><span>20:45</span></div>
+      <div class="dc-teams">AC Rivera <span class="vs">—</span> Sporting Vale</div>
+      <div class="dc-sep"></div>
+      <div class="dc-pick">AC Rivera ou nul<span class="dc-tag">1</span></div>
+      <div class="dc-gloss"><span class="ar">↳</span>gagne ou match nul<span class="dc-tag">2</span></div>
       <div class="tk-grid">
-        <div class="tk-c tk-conf"><span class="tk-l">Confiance</span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
-        <div class="tk-c"><span class="tk-l">Marché</span><span class="tk-v num">72%</span></div>
-        <div class="tk-c tk-val"><span class="tk-l">Value</span><span class="tk-v num">+8%</span></div>
+        <div class="tk-c tk-conf"><span class="tk-l">Confiance <span class="dc-tag">3</span></span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
+        <div class="tk-c"><span class="tk-l">Marché <span class="dc-tag">4</span></span><span class="tk-v num">72%</span></div>
+        <div class="tk-c tk-val"><span class="tk-l">Value <span class="dc-tag">5</span></span><span class="tk-v num">+8%</span></div>
         <div class="tk-c"><span class="tk-l">Cote</span><span class="tk-v num">1.38</span></div>
       </div>
-      <div class="tk-cap">notre confiance (78 %) dépasse le prix du marché (72 %) → +8 % d'edge</div>
+      <div class="dc-why">Pourquoi ce choix<span class="dc-tag">6</span> <span class="chev">▾</span></div>
     </div>
-    <div class="steps">
-      <div class="stp"><span class="n">1</span><div>
-        <h3>La confiance</h3>
-        <p>Notre probabilité de gain du pari, puis <b>recalibrée sur notre propre relevé</b> : on vérifie que
-          « 78 % annoncé » sort bien autour de 78 % dans l'historique réel. Aucun autre site n'ajuste sa
-          confiance sur ses résultats passés — c'est ce qui rend la nôtre <b>fiable</b>, pas décorative.</p></div></div>
-      <div class="stp"><span class="n">2</span><div>
-        <h3>Le marché</h3>
-        <p>La probabilité qu'<b>implique la cote</b>. C'est le seuil de rentabilité : en dessous, le prix vous
-          paie mal, quoi qu'il arrive.</p>
-        <span class="f">Marché = 100 ÷ cote</span></div></div>
-      <div class="stp"><span class="n">3</span><div>
-        <h3>La value</h3>
-        <p>Ce que la cote nous paie <b>en trop</b> par rapport à notre confiance. Positive = le marché nous
-          offre plus que notre probabilité. On ne mise <b>que</b> là — jamais « parce que le favori va gagner ».</p>
+    <div class="dc-legend">
+      <div class="dc-li"><span class="dc-tag">1</span><div><b>Le pari</b>
+        <p>La sélection exacte à jouer. Ici une <em>double chance</em> : ça passe si Rivera gagne <em>ou</em> fait nul.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">2</span><div><b>Traduit en clair</b>
+        <p>Chaque pari est réécrit sans jargon — vous savez précisément ce qui doit arriver pour gagner.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">3</span><div><b>La confiance</b>
+        <p>Notre probabilité de gain, <b>recalibrée sur notre relevé réel</b> : quand on annonce 78 %, l'historique
+          confirme que ça sort autour de 78 %. Fiable, pas décorative.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">4</span><div><b>Le marché</b>
+        <p>La probabilité qu'implique la cote — le seuil de rentabilité.</p><span class="f">Marché = 100 ÷ cote</span></div></div>
+      <div class="dc-li"><span class="dc-tag">5</span><div><b>La value</b>
+        <p>Ce que la cote paie <b>en trop</b> par rapport à notre confiance. On ne mise que si elle est positive.</p>
         <span class="f">Value = Confiance × cote − 1</span></div></div>
+      <div class="dc-li"><span class="dc-tag">6</span><div><b>Pourquoi ce choix</b>
+        <p>L'analyse complète du match en un tap : forme, contexte, risque assumé. Rien n'est caché.</p></div></div>
     </div>
   </div>
+  <p class="demo-note">Exemple fictif, à but pédagogique — équipes et chiffres illustratifs.</p>
 </div></section>
 
-<section class="blk" id="methode"><div class="lzw">
-  <div class="sec-head"><span class="eyebrow">Ce qui rend le taux unique</span>
-    <h2>Trois filtres. Chaque pari doit passer les trois.</h2>
-    <p>La plupart des sites vous donnent un prono par match. BETSFIX part de l'inverse : un match ne devient
-      un pari que s'il franchit une confiance <em>calibrée</em>, une <em>value</em> réelle, et des garde-fous
-      de marché. Sinon — abstention.</p></div>
+<section class="blk"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">La discipline</span>
+    <h2>On refuse la majorité des matchs. C'est là qu'est le taux.</h2>
+    <p>Un pari n'est publié que s'il franchit deux portes. Sinon — abstention. Un jour sans pari est un jour
+      sans perte, jamais un jour « pour jouer ».</p></div>
   <div class="gates">
-    <div class="gate"><span class="bar"></span><span class="step">FILTRE 01</span>
+    <div class="gate"><span class="bar"></span><span class="step">PORTE 01</span>
       <h3><span class="tick">✓</span> Confiance ≥ 65 %</h3>
-      <p>Pas la confiance « au feeling » : une confiance <b>calibrée</b> sur plus de {cal_n_txt} prédictions
-        passées. Quand on annonce 65 %, ça sort autour de 65 %.</p></div>
-    <div class="gate"><span class="bar"></span><span class="step">FILTRE 02</span>
+      <p>La confiance <b>calibrée</b> (pas au feeling) doit franchir un plancher net. En dessous, on n'y touche pas.</p></div>
+    <div class="gate"><span class="bar"></span><span class="step">PORTE 02</span>
       <h3><span class="tick">✓</span> Value positive</h3>
-      <p>Confiance ≠ value. Un favori à cote trop courte (76 % @1,21) a une value <b>négative</b> : écarté,
-        même s'il gagne « souvent ». On ne mise que quand la cote nous paie trop.</p></div>
+      <p>La cote doit nous payer <b>en trop</b>. Un favori à prix trop court est écarté, même s'il gagne « souvent ».</p></div>
     <div class="gate rej"><span class="bar"></span><span class="step">SINON</span>
       <h3><span class="tick">✕</span> Abstention</h3>
-      <p>Marché perdant (corners, « les 2 marquent »…) exclu automatiquement dès qu'il coûte. Rien ne passe ?
-        On ne joue pas. Un jour vide est un jour <b>gagné</b>.</p></div>
+      <p>Rien ne passe ? On ne joue pas. Les marchés qui coûtent sont même exclus <b>automatiquement</b>.</p></div>
   </div>
   <div class="verdict"><span class="vn num">≈ {s['sel']} %</span>
-    <span class="vt">des matchs analysés finissent <b>écartés</b>. Ce n'est pas de la timidité — c'est
-      exactement la sélectivité qui produit les {s['pct']} %. Un système qui joue tous les jours « pour
-      jouer » ferait bien pire.</span></div>
+    <span class="vt">des matchs analysés finissent <b>écartés</b>. Ce n'est pas de la timidité — c'est exactement
+      ce qui produit les {s['pct']} %. Un système qui joue tous les jours ferait bien pire.</span></div>
 </div></section>
 
 <section class="blk"><div class="lzw">
-  <div class="sec-head"><span class="eyebrow">Sous le capot</span>
-    <h2>Pourquoi ce taux ne ressemble à aucun autre site.</h2></div>
-  <div class="pillars">
-    <div class="pillar"><h3>Recoupement multi-sources</h3>
-      <p>Aucun pari sans au moins deux sources factuelles indépendantes qui concordent (forme, blessures,
-        historique direct, moyennes réelles). Un signal isolé ne suffit jamais.</p>
-      <div class="kpi">≥ 2 sources · fait vérifié</div></div>
-    <div class="pillar"><h3>Ancrage sur les cotes sharp</h3>
-      <p>La probabilité de référence vient des cotes du marché le plus « sharp » (faible marge), pas d'une
-        intuition. On ne parie que là où notre estimation bat clairement ce marché.</p>
-      <div class="kpi">edge mesuré · pas au feeling</div></div>
-    <div class="pillar"><h3>Calibration en continu</h3>
-      <p>Chaque prédiction — même les paris non joués — nourrit la calibration. Les marchés qui dérivent sont
-        écartés tout seuls, avant qu'ils ne coûtent.</p>
-      <div class="kpi">{cal_n_txt} prédictions · écart {mae_txt}</div></div>
-  </div>
-</div></section>
-
-<section class="blk"><div class="lzw">
-  <div class="honesty">
-    <div><span class="eyebrow" style="display:block;margin-bottom:14px">La preuve par l'honnêteté</span>
-      <p class="bigq">On vous montre aussi <span class="red">nos {s['total'] - s['won']} pertes.</span></p>
-      <p class="sub">Un site qui n'affiche que ses gains vous ment. Voici chaque pari perdu {_LZ_SINCE_LABEL} —
-        daté, avec sa cote. Rien n'est caché, rien n'est effacé.</p></div>
-    <div class="lzl">{losses_html}</div>
-  </div>
-</div></section>
-
-<section class="blk"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">La preuve</span>
+    <h2>On montre nos pertes. Et que nos % tombent juste.</h2>
+    <p>Un site qui n'affiche que ses gains vous ment. Ici, tout est daté — rien n'est caché, rien n'est effacé.</p></div>
   <div class="calib">
-    <div class="sec-head" style="margin-bottom:0"><span class="eyebrow">Calibration</span>
-      <h2>Quand on annonce un %, il tombe.</h2>
-      <p>La barre verte = ce qu'on annonçait. Le chiffre à droite = ce qui est réellement sorti. C'est la
-        définition d'un modèle honnête : ni trop confiant, ni trop prudent.</p></div>
-    <div class="cvz">{cal_html}
-      <div class="cr"><span class="lab">écart moyen</span><span class="tr"><span class="fl" style="width:96%"></span></span><span class="rl">{mae_txt}</span></div>
+    <div>
+      <div class="pl-h"><b class="red">{s['total'] - s['won']} pertes</b> <span>· {_LZ_SINCE_LABEL}, cote comprise</span></div>
+      <div class="lzl">{losses_html}</div>
+    </div>
+    <div>
+      <div class="pl-h"><b>Calibration</b> <span>· annoncé vs réel, sur {cal_n_txt} prédictions</span></div>
+      <div class="cvz">{cal_html}
+        <div class="cr"><span class="lab">écart moyen</span><span class="tr"><span class="fl" style="width:96%"></span></span><span class="rl">{mae_txt}</span></div>
+      </div>
     </div>
   </div>
 </div></section>
 
-<div class="final"><div class="glow"></div><div class="lzw">
+<div class="final"><div class="lzw">
   <h2>Arrêtez de suivre des pronos. <br>Suivez un relevé.</h2>
-  <p>Les pronos du jour, la courbe en direct, le combiné, la montante — et chaque pari réglé au grand jour.
-    Décidez sur des chiffres, pas sur des promesses.</p>
+  <p>Les pronos du jour, la courbe en direct, les combinés, la montante — et chaque pari réglé au grand jour.</p>
   <div class="cta-row"><a class="btn lg" href="/signup">Créer mon compte →</a></div>
   <p class="cta-note" style="margin-top:18px">Résiliable en un clic · aucune donnée revendue</p>
 </div></div>
