@@ -394,8 +394,39 @@ CSS = """
        border-radius:99px;background:#eef2f7;color:#0b0d12;font-size:10px;font-weight:900;line-height:16px;
        text-align:center;font-variant-numeric:tabular-nums;border:1.5px solid #0b0d12;
        box-shadow:0 1px 4px rgba(0,0,0,.5)}
-  /* (Desktop : mise en page bureau RETIRÉE le 2026-08-02 pour repartir propre — une maquette « dashboard
-     multi-colonnes » est en cours de validation, elle sera portée ici une fois approuvée.) */
+  /* ===== DESKTOP (≥1000px) — dashboard multi-colonnes (maquette validée user 2026-08-02). Sidebar gauche +
+     grille de cartes qui remplit la largeur. TOUT scopé ici -> mobile (<1000px) JAMAIS modifié. ===== */
+  @media (min-width:1000px){
+    body{flex-direction:row}
+    /* Barre du bas -> SIDEBAR verticale gauche */
+    .botnav{order:-1;flex-direction:column;justify-content:flex-start;gap:4px;
+            width:236px;max-width:236px;height:100vh;height:100dvh;margin:0;overflow-y:auto;
+            padding:20px 14px;border-top:0;border-right:1px solid var(--border);
+            background:linear-gradient(180deg,#0b0b0f,#08080b)}
+    .botnav::before{content:"";display:block;height:32px;margin:4px 10px 20px;
+            background:url(/static/wordmark.png?v=1) left center/auto 32px no-repeat;
+            filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
+    .botnav a{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:13px;
+              padding:11px 14px;border-radius:11px;font-size:14px}
+    .botnav a .ic{font-size:20px;height:auto}
+    .botnav a .lb{font-size:14px;font-weight:600}
+    .botnav a.on .ic{transform:none}
+    .nav-n{position:static;margin-left:auto;top:auto;left:auto;box-shadow:none}
+    .nav-radar{width:24px;height:24px}
+    /* .wrap = SCROLL pleine largeur -> scrollbar collée à droite de la fenêtre */
+    .wrap{max-width:none;margin:0;padding:0}
+    .toplogo{display:none}
+    .acctbtn{top:14px;right:26px}
+    /* Contenu capé/centré (le scroll reste plein) */
+    #panels{max-width:1560px;margin:0 auto;padding:18px 32px 60px}
+    /* CARTES en GRILLE multi-colonnes DANS chaque zone (les séparateurs mobiles laissent place au gap) */
+    .zone-b{display:grid;grid-template-columns:repeat(auto-fit,minmax(344px,1fr));gap:16px;align-items:start}
+    .zone-b .mc-sep{display:none}
+    .zone-b .dayhdr{grid-column:1/-1}
+    /* Combinés + cartes multi-paris = pleine largeur (leurs jambes ont leur propre sous-grille) */
+    .zone-b .mc-tg,.zone-b .mc-tg-gold,.zone-combo .zone-b>*,.zone-betmines .zone-b>*{grid-column:1/-1}
+    .foot{text-align:center;padding:18px 0 8px}
+  }
   /* Badge du nb de matchs LIVE : BLANC comme les autres onglets (demande user 2026-07-21) — plus de vert
      ni de halo pulsant (l'icône radar verte de l'onglet signale déjà le live). -> hérite du .nav-n blanc. */
   /* Icône LIVE = RADAR vert pulsant (point + anneaux),
