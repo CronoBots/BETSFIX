@@ -413,11 +413,18 @@ CSS = """
     .botnav a.on .ic{transform:none}
     .nav-n{position:static;margin-left:auto;top:auto;left:auto;box-shadow:none}
     .nav-radar{width:24px;height:24px}
-    /* Contenu principal : large, centré dans l'espace restant à droite de la sidebar */
-    .wrap{max-width:1180px;margin:0 auto;padding:26px 48px 48px}
+    /* .wrap = conteneur de SCROLL PLEINE LARGEUR -> la barre de défilement est collée à DROITE de la fenêtre
+       (demande user 2026-08-02), plus une scrollbar « flottante » au bord d'une colonne étroite. */
+    .wrap{max-width:none;margin:0;padding:22px 40px 44px}
     .toplogo{display:none}
-    .acctbtn{top:16px;right:22px}
+    .acctbtn{top:16px;right:24px}
     .foot{text-align:left;padding-left:2px}
+    /* Le CONTENU est centré et capé (le scroll, lui, reste plein) -> pas de sprawl sur écran ultra-large */
+    #panels{max-width:1440px;margin:0 auto}
+    /* Cartes de paris (Pronos/Live) en 2 COLONNES (masonry) -> remplit la largeur, fini les zones vides.
+       `columns: 2 340px` = jusqu'à 2 colonnes d'au moins 340px (retombe à 1 colonne si la place manque). */
+    .dash-zones{columns:2 340px;column-gap:20px}
+    .dash-zones>*{break-inside:avoid;margin:0 0 16px}
   }
   /* Badge du nb de matchs LIVE : BLANC comme les autres onglets (demande user 2026-07-21) — plus de vert
      ni de halo pulsant (l'icône radar verte de l'onglet signale déjà le live). -> hérite du .nav-n blanc. */
