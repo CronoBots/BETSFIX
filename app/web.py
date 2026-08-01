@@ -8677,7 +8677,22 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # apparaître dans Live) — le combiné SÉCURITÉ et le combiné BONUS, comme dans l'onglet Pronos. Foot only.
     _safe_combo = _combo_safe_tg_card(include_settled=False) if _safe_combo_any_live() else ""
     _betm_combo = _betmines_tg_card(include_settled=False) if _betmines_any_live() else ""
-    _counts["foot"] += (1 if _safe_combo else 0) + (1 if _betm_combo else 0)
+    # Combiné BONUS 2 (−1 but) EN COURS : mêmes matchs que le bonus -> même détection de liveness.
+    _betm2_combo = _betmines_safe_tg_card(include_settled=False) if _betmines_any_live() else ""
+    # MONTANTE EN COURS (1re zone de Pronos) : affichée en Live UNIQUEMENT si son match TOURNE (le Live ne
+    # montre que ce qui est en direct). Foot only.
+    _mont_title, _mont_card = "", ""
+    try:
+        from app import montante as _mt0
+        _mp0 = (_mt0.state().get("pending") or {}) if _mt0.is_active() else {}
+        _md0 = analyses.meta("foot", str(_mp0.get("mid") or "")) if _mp0.get("mid") else None
+        if _md0 and live_fields(match_select.live_state_for("foot", _md0.get("home"), _md0.get("away")),
+                                "foot").get("score"):
+            _mont_title, _mont_card = _montante_zone_card("foot")
+    except Exception:
+        _mont_title, _mont_card = "", ""
+    _counts["foot"] += ((1 if _safe_combo else 0) + (1 if _betm_combo else 0)
+                        + (1 if _betm2_combo else 0) + (1 if _mont_card else 0))
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
     _play = [c for c in play_live if _item_sport(c) == _cur]
@@ -8685,11 +8700,14 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     _combo = _combos.get(_cur, "")
     _safe_combo = _safe_combo if _cur == "foot" else ""   # combinés hors-ROI = foot uniquement
     _betm_combo = _betm_combo if _cur == "foot" else ""
+    _betm2_combo = _betm2_combo if _cur == "foot" else ""
+    if _cur != "foot":
+        _mont_title, _mont_card = "", ""
 
     def _cards(rows):
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
-    if not (_play or _prov or _combo or _safe_combo or _betm_combo):
+    if not (_play or _prov or _combo or _safe_combo or _betm_combo or _betm2_combo or _mont_card):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -8701,12 +8719,16 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
             '</div></div>')
     else:
+        # ORDRE IDENTIQUE à l'onglet Pronos (demande user 2026-08-01) : Montante → Paris du jour →
+        # Provisoires → Combiné → Combiné double chance → Combiné bonus → Combiné bonus 2.
         out = [
+            _zone("montante", _mont_title or "Montante", "en direct", 1 if _mont_card else 0, _mont_card),
+            _zone("play", "Paris du jour", "en direct", len(_play), _cards(_play)),
+            _zone("indic", "Paris provisoires", "en direct", len(_prov), _cards(_prov)),
             _zone("combo", f"Combiné {_zlabel}", "", 1 if _combo else 0, _combo),
             _zone("combosafe", "Combiné double chance", "", 1 if _safe_combo else 0, _safe_combo),
             _zone("combobonus", "Combiné bonus", "", 1 if _betm_combo else 0, _betm_combo),
-            _zone("play", "Paris du jour", "en direct", len(_play), _cards(_play)),
-            _zone("indic", "Paris provisoires", "en direct", len(_prov), _cards(_prov)),
+            _zone("betmines2", "Combiné bonus 2", "", 1 if _betm2_combo else 0, _betm2_combo),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
