@@ -394,6 +394,31 @@ CSS = """
        border-radius:99px;background:#eef2f7;color:#0b0d12;font-size:10px;font-weight:900;line-height:16px;
        text-align:center;font-variant-numeric:tabular-nums;border:1.5px solid #0b0d12;
        box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  /* ===== DESKTOP (≥1000px) : vraie mise en page BUREAU (demande user 2026-08-02 : ne pas ressembler à une
+     appli mobile étirée). La barre du bas devient une SIDEBAR verticale à gauche, le contenu s'élargit et se
+     centre. TOUT est scopé ici -> le mobile (< 1000px) n'est JAMAIS modifié. ===== */
+  @media (min-width:1000px){
+    body{flex-direction:row}
+    .botnav{order:-1;flex-direction:column;justify-content:flex-start;gap:5px;
+            width:242px;max-width:242px;height:100vh;height:100dvh;margin:0;
+            padding:20px 14px;border-top:0;border-right:1px solid var(--border);overflow-y:auto}
+    /* Logo BETSFIX en tête de la sidebar (le logo centré du contenu est masqué en desktop) */
+    .botnav::before{content:"";display:block;height:34px;margin:4px 10px 20px;
+            background:url(/static/wordmark.png?v=1) left center/auto 34px no-repeat;
+            filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
+    .botnav a{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:14px;
+              padding:11px 15px;border-radius:12px}
+    .botnav a .ic{font-size:21px;height:auto}
+    .botnav a .lb{font-size:14px;font-weight:700}
+    .botnav a.on .ic{transform:none}
+    .nav-n{position:static;margin-left:auto;top:auto;left:auto;box-shadow:none}
+    .nav-radar{width:24px;height:24px}
+    /* Contenu principal : large, centré dans l'espace restant à droite de la sidebar */
+    .wrap{max-width:1180px;margin:0 auto;padding:26px 48px 48px}
+    .toplogo{display:none}
+    .acctbtn{top:16px;right:22px}
+    .foot{text-align:left;padding-left:2px}
+  }
   /* Badge du nb de matchs LIVE : BLANC comme les autres onglets (demande user 2026-07-21) — plus de vert
      ni de halo pulsant (l'icône radar verte de l'onglet signale déjà le live). -> hérite du .nav-n blanc. */
   /* Icône LIVE = RADAR vert pulsant (point + anneaux),
