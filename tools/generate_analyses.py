@@ -2999,9 +2999,12 @@ async def main():
             if _combo:
                 _analyze_combo_legs(_combo)          # ANALYSE DÉDIÉE par jambe (comme un pari à jouer)
                 if _cdaily.record_daily(_combo, _day):
+                    _cdlegs = " | ".join(f"{l.get('home')} ({l.get('sel')} @{l.get('cote')})"
+                                         for l in _combo['legs'])   # jambes loguées (vérif, user 2026-08-01)
                     print(f"  🎯 Combiné du jour : cote {_combo['cote']} · {round(_combo['prob'] * 100)}% · "
                           f"{len(_combo['legs'])} jambes"
-                          f"{' (jambes analysées)' if any(l.get('why') for l in _combo['legs']) else ''}.")
+                          f"{' (jambes analysées)' if any(l.get('why') for l in _combo['legs']) else ''}"
+                          f" : {_cdlegs}")
                     if not args.no_notify:
                         from app import notify
                         if notify.configured() and await notify.send(_cdaily.telegram_text(_combo)):
@@ -3046,8 +3049,12 @@ async def main():
                         # ÉCHANGER une jambe en cours de journée. On le fige comme le combiné du jour : une
                         # fois affiché, il ne bouge plus (mark_sent -> record_daily le refuse ensuite).
                         _csafe.mark_sent(_day)
+                        # LOG des JAMBES (demande user 2026-08-01 : pouvoir vérifier l'historique/composition
+                        # exacte du combiné double chance dans le log du scan).
+                        _cslegs = " | ".join(f"{l.get('home')} ({l.get('sel')} @{l.get('cote')})"
+                                             for l in _csc['legs'])
                         print(f"  🛡️ Combiné double chance foot : cote {_csc['cote']} · "
-                              f"{round(_csc['prob'] * 100)}% · {len(_csc['legs'])} jambes (figé).")
+                              f"{round(_csc['prob'] * 100)}% · {len(_csc['legs'])} jambes (figé) : {_cslegs}")
                 else:
                     print("  🛡️ Combiné sécurité foot : vivier DC insuffisant pour ~2 aujourd'hui.")
         except Exception as _csexc:
