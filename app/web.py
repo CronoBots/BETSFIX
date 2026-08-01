@@ -307,15 +307,22 @@ CSS = """
   .wrap{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;width:100%;
         position:relative;
         max-width:720px;margin:0 auto;display:flex;flex-direction:column;
-        padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
-  /* Logo unique centré tout en haut de chaque page + pastille de pause */
-  .toplogo{display:block;text-align:center;margin:20px 0 12px}
-  .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
+        padding:calc(env(safe-area-inset-top) + 56px) 16px 22px}  /* dégage le header FIXE (hauteur de barre) */
+  /* HEADER FIXE en haut, style « app » (demande user 2026-08-02, réf. ScoreAI) : LOGO à gauche, bouton
+     Compte à droite, barre fixée en haut. Fond de l'app CONSERVÉ = verre subtil (translucide + flou) + filet
+     fin, PAS un bloc opaque. Le desktop masque .toplogo (logo dans la sidebar) -> aucun impact desktop. */
+  .toplogo{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;
+           margin:0;padding:calc(env(safe-area-inset-top) + 10px) 16px 11px;
+           background:linear-gradient(180deg,rgba(7,7,8,.84),rgba(7,7,8,.44));
+           -webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);
+           border-bottom:1px solid rgba(150,182,222,.09)}
+  .toplogo img{height:auto;width:auto;max-height:30px;max-width:158px;
+               filter:drop-shadow(0 4px 14px rgba(34,184,255,.35))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
   /* ICÔNE SEULE (demande user 2026-08-01 : plus de texte « Compte », il chevauchait le logo). Bouton ROND
      compact dans le coin -> ne déborde plus sur le logo BETSFIX centré. */
-  .acctbtn{position:fixed;top:calc(9px + env(safe-area-inset-top));right:12px;z-index:75;
-    display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;line-height:1;
+  .acctbtn{position:fixed;top:calc(env(safe-area-inset-top) + 7px);right:14px;z-index:55;
+    display:inline-flex;align-items:center;justify-content:center;width:37px;height:37px;line-height:1;
     border-radius:999px;color:#cfe0f5;text-decoration:none;
     background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
     border:1px solid rgba(150,182,222,.20)}
