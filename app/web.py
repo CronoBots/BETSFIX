@@ -311,12 +311,15 @@ CSS = """
   /* Logo unique centré tout en haut + STICKY (demande user 2026-08-02 : la partie du haut reste fixe au
      scroll sur mobile). Barre pleine largeur (margin négatif = annule le padding horizontal du .wrap), fond
      opaque flouté pour que le contenu passe DERRIÈRE proprement. Le safe-area de l'encoche vit ici. */
-  .toplogo{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:center;
-           margin:0 -16px 14px;padding:calc(11px + env(safe-area-inset-top)) 16px 12px;
+  /* Header STICKY façon « verre » (fond opaque flouté + filet + ombre) MAIS le logo garde EXACTEMENT sa
+     taille et ses écarts d'origine (demande user 2026-08-02) : img 72%/46px, ~20px au-dessus / 12px en
+     dessous, comme avant que le header ne devienne sticky. */
+  .toplogo{position:sticky;top:0;z-index:40;display:block;text-align:center;
+           margin:0 -16px 12px;padding:calc(20px + env(safe-area-inset-top)) 0 12px;
            background:rgba(9,10,13,.86);
            -webkit-backdrop-filter:saturate(1.4) blur(16px);backdrop-filter:saturate(1.4) blur(16px);
            border-bottom:1px solid rgba(150,182,222,.10);box-shadow:0 8px 22px -14px rgba(0,0,0,.95)}
-  .toplogo img{height:auto;width:auto;max-width:46%;max-height:34px;filter:drop-shadow(0 4px 14px rgba(34,184,255,.35))}
+  .toplogo img{height:auto;width:auto;max-width:72%;max-height:46px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
   /* ICÔNE SEULE (demande user 2026-08-01 : plus de texte « Compte », il chevauchait le logo). Bouton ROND
      compact dans le coin -> ne déborde plus sur le logo BETSFIX centré. */
