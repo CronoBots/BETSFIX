@@ -677,85 +677,6 @@ def _set_programme_status(match_id: str, status: str, provisional: dict | None =
         pass
 
 
-# Alias VILLE/CLUB cross-langue : Betmines (SportMonks, souvent nom LOCAL) vs Unibet (souvent EN). On
-# canonicalise les deux côtés vers un même jeton (ex. « København » ET « Copenhagen » -> "copenhagen").
-_NAME_ALIAS = {
-    "kobenhavn": "copenhagen", "koebenhavn": "copenhagen", "munchen": "munich", "muenchen": "munich",
-    "wien": "vienna", "praha": "prague", "milano": "milan", "roma": "rome", "napoli": "naples",
-    "torino": "turin", "genova": "genoa", "lisboa": "lisbon", "sevilla": "seville", "moskva": "moscow",
-    "beograd": "belgrade", "warszawa": "warsaw", "athina": "athens", "bucuresti": "bucharest",
-    "gent": "ghent", "antwerpen": "antwerp", "bruxelles": "brussels", "krakow": "cracow",
-    "zurich": "zurich", "geneve": "geneva", "kyiv": "kiev", "lviv": "lviv",
-}
-
-
-def _name_tokens(s: str) -> set:
-    """Jetons significatifs d'un nom d'équipe (accents retirés, mots vides club/genre écartés, alias
-    cross-langue appliqués) pour un rapprochement TOLÉRANT entre noms Betmines (SportMonks) et Unibet."""
-    import unicodedata
-    s = (s or "").lower()
-    # Lettres NON décomposées par NFKD (donc SUPPRIMÉES par le fold ASCII) -> on les translittère AVANT :
-    # ex. « København » sans ça -> « kbenhavn » (le ø tombe) et rate l'alias. ø→o, æ→ae, å→a, ð→d, þ→th, ł→l.
-    for _a, _b in (("ø", "o"), ("æ", "ae"), ("å", "a"), ("ð", "d"), ("þ", "th"), ("ł", "l")):
-        s = s.replace(_a, _b)
-    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
-    s = re.sub(r"\b(fc|sc|if|ff|bk|ik|sk|cf|ac|as|club|united|city|women|w)\b", " ", s)
-    return {_NAME_ALIAS.get(t, t) for t in re.split(r"\W+", s) if len(t) >= 3}
-
-
-async def _betmines_extra_foot(client, within_hours, existing_ids: set) -> list:
-    """Matchs du DERNIER Double Betmines -> events Unibet foot correspondants (rapprochés par NOMS), pour les
-    INCLURE dans le programme d'analyse MÊME hors top N (demande user 2026-07-24 : analyser AUSSI ces matchs
-    avec NOS sources -> meilleure analyse de ces matchs). Best-effort : un match Betmines absent d'Unibet
-    (ligue obscure / nom trop différent) est simplement ignoré. Dédup contre `existing_ids` (mis à jour)."""
-    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    try:
-        d = json.load(open(os.path.join(_ROOT, "data", "betmines_track.json"), encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    days = {k: v for k, v in d.items()
-            if not k.startswith("_") and isinstance(v, dict) and v.get("legs")}
-    if not days:
-        return []
-    legs = (days[max(days)].get("legs") or [])
-    if not legs:
-        return []
-    from app.match_select import _start_dt
-    all_foot = await fetch_important("foot", 400, client, within_hours=within_hours)
-
-    def _match(a, b):                                     # deux noms « collent » si un jeton commun de chaque côté
-        ta, tb = _name_tokens(a), _name_tokens(b)
-        return bool(ta and tb and (ta & tb))
-
-    def _close(d1, d2, minutes):                          # coups d'envoi à ≤ `minutes` min l'un de l'autre
-        return bool(d1 and d2 and abs((d1 - d2).total_seconds()) <= minutes * 60)
-
-    out = []
-    for leg in legs:
-        hb, ab = leg.get("home", ""), leg.get("away", "")
-        lb_dt = _start_dt(leg.get("start"))
-        best, best_score = None, 0
-        for m in all_foot:
-            if str(m.get("id")) in existing_ids:
-                continue
-            h, a = _match(hb, m.get("home", "")), _match(ab, m.get("away", ""))
-            if h and a:                                  # les DEUX équipes collent -> match CERTAIN
-                best, best_score = m, 99
-                break
-            # UNE seule équipe qui colle + MÊME coup d'envoi (±20 min) = quasi certain (gère les noms
-            # multilingues : ex. Polissya–København vs Polissya–Copenhagen -> Polissya + heure suffisent).
-            if (h or a) and _close(lb_dt, _start_dt(m.get("start")), 20):
-                sc = 2 if _close(lb_dt, _start_dt(m.get("start")), 5) else 1
-                if sc > best_score:
-                    best, best_score = m, sc
-        if best and best_score >= 1:
-            mid = str(best.get("id"))
-            out.append({"id": mid, "sport": "foot", "name": best.get("name", ""),
-                        "start": best.get("start", ""), "comp": best.get("comp") or "", "_betmines": True})
-            existing_ids.add(mid)
-    return out
-
-
 async def _build_and_post_programme(client, sports: list, args) -> None:
     """MATIN : sélectionne les matchs du jour (top N/sport dans la fenêtre), les enregistre dans
     data/day_programme.json et poste le « programme du jour » sur Telegram — SANS analyser. Le pari de
@@ -837,22 +758,6 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
             if str(m.get("id")) in prev_prov:            # + le provisoire (sinon abstained sans pick = masqué)
                 _e["provisional"] = prev_prov[str(m.get("id"))]
             matches.append(_e)
-    # MATCHS DU DOUBLE BETMINES toujours inclus dans les analyses foot (demande user 2026-07-24) : on les
-    # analyse AUSSI avec NOS sources -> meilleure analyse de ces matchs (et éventuellement notre propre pari
-    # dessus s'ils ont de la value). Ajout APRÈS le top foot, dédupliqué. Best-effort (n'échoue jamais le scan).
-    if n_ok and "foot" in sports:
-        try:
-            _bm = await _betmines_extra_foot(client, args.hours, {m["id"] for m in matches})
-            for _e in _bm:
-                if str(_e["id"]) in prev_status:
-                    _e["status"] = prev_status[str(_e["id"])]
-                if str(_e["id"]) in prev_prov:
-                    _e["provisional"] = prev_prov[str(_e["id"])]
-                matches.append(_e)
-            if _bm:
-                print(f"[betmines] {len(_bm)} match(s) du Double inclus dans les analyses foot.")
-        except Exception as _e:
-            print(f"  (inclusion Betmines ignorée : {_e})")
     # PRÉSERVATION DES MATCHS DÉJÀ PROGRAMMÉS DU JOUR (demande user 2026-07-28) : une régénération EN COURS DE
     # JOURNÉE (ou un 2e scan) re-sélectionne un top-N FRAIS (fenêtre glissante) et pouvait ÉJECTER des matchs
     # analysés plus tôt AVEC leur provisoire -> ils disparaissaient de Pronos alors que le suivi/Stats les

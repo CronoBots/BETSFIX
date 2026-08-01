@@ -5822,216 +5822,6 @@ def _montante_tg_card() -> str:
     return _ctx + _leg_card(leg, why=False, teams=True)
 
 
-def _betmines_tg_card(include_settled: bool = True) -> str:
-    """Carte « Combiné Betmines » pour l'onglet PRONOS (demande user 2026-07-23 : « je veux le voir comme
-    un combiné dans l'onglet pronos, sans l'emoji ») — MÊME coquille que le combiné du jour
-    (`_combo_gold_card` : en-tête + jambes `_leg_card` + cote totale). Suivi EXTERNE info seule (réglé par
-    NOS sources), hors ROI. `include_settled=False` (zone ACTIVE) : renvoie '' une fois le Double RÉGLÉ
-    (won/lost/void) -> il quitte la zone « Combiné Betmines » et passe en « Résultats du jour », comme le
-    combiné du jour (demande user 2026-07-28). '' si pas de Double aujourd'hui."""
-    import json as _json
-    _p = os.path.join(analyses._ROOT, "data", "betmines_track.json")
-    try:
-        with open(_p, encoding="utf-8") as f:
-            _d = _json.load(f)
-    except (OSError, ValueError):
-        return ""
-    cb = _d.get(_sport_today().isoformat())
-    if not isinstance(cb, dict) or not cb.get("legs"):
-        return ""
-    if not include_settled and cb.get("result") in ("won", "lost", "void"):
-        return ""                                    # réglé -> zone active vide, il vit dans les Résultats
-
-    _badge = {"won": '<span class="cleg-bdg w">GAGNÉ</span>',
-              "lost": '<span class="cleg-bdg l">PERDU</span>',
-              "void": '<span class="cleg-bdg n">REMB.</span>'}.get(cb.get("result"), "")
-    # Jambes rendues EXACTEMENT comme le combiné du jour (demande user 2026-07-24) : mêmes SÉPARATEURS
-    # (`_MC_SEP`), pli « Pourquoi cette jambe » (why=True + why_always : TOUJOURS affiché, même réglé —
-    # demande user 2026-07-24, c'est de l'observation) ET ligne VERDICT Confiance/Marché/Cote (verdict=True,
-    # via `prob` = confiance dérivée de leurs % + `code`).
-    _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
-    # SOURCE UNIQUE d'analyse (demande user 2026-07-27 : « 2 fois le même match avec 2 analyses différentes ») :
-    # si un match Betmines est AUSSI une jambe de NOTRE combiné du jour (même marché), il DOIT afficher
-    # EXACTEMENT notre analyse (confiance/cote/justification). Matching par TOKENS de noms (robuste aux
-    # variantes « MTK » vs « MTK Budapest FC ») + même code — comme `our_market_view`.
-    try:
-        from app import combo_daily as _cd2
-        _our_legs = (_cd2.today(_sport_today().isoformat(), sport="foot") or {}).get("legs") or []
-    except Exception:
-        _our_legs = []
-    _stop = {"fc", "sc", "cf", "ii", "de", "do", "da", "ac", "if", "sp", "rj", "mg", "slc", "te"}
-
-    def _tkn(s):
-        return set(re.findall(r"[a-z0-9]+", (s or "").lower())) - _stop
-
-    def _our_combo_leg(home, away, code):
-        th, ta = _tkn(home), _tkn(away)
-        if not (th and ta and code):
-            return None
-        for cl in _our_legs:
-            if str(cl.get("code") or "") != code:
-                continue
-            ch, ca = _tkn(cl.get("home")), _tkn(cl.get("away"))
-            if (ch & th and ca & ta) or (ch & ta and ca & th):
-                return cl
-        return None
-
-    def _leg_view(leg: dict) -> dict:
-        # NOTRE lecture prioritaire (confiance calibrée + cote Unibet) = mêmes chiffres que le provisoire
-        # (demande user 2026-07-26). betmines_watch FIGE nos valeurs dans `our_prob`/`our_cote` au scan ;
-        # repli LIVE sur our_market_view (transitoire), puis sur la valeur Betmines.
-        _op, _oc = leg.get("our_prob"), leg.get("our_cote")
-        if _op is None:
-            _op, _oc = analyses.our_market_view(leg.get("home"), leg.get("away"), str(leg.get("market") or ""))
-        _prob = _op if _op is not None else leg.get("prob")
-        _cote = _oc if _oc is not None else leg.get("cote")
-        _why = leg.get("why")
-        # MÊME match + MÊME code que notre combiné du jour -> on reprend NOTRE analyse (une seule vérité) :
-        # même confiance, même cote, même justification. Plus jamais deux analyses divergentes.
-        try:
-            from app.settle_analyst import code_from_pick as _cfp
-            _bcode = (_cfp(str(leg.get("market") or ""), "foot",
-                          leg.get("home") or "", leg.get("away") or "") or "").strip()
-        except Exception:
-            _bcode = ""
-        _cl = _our_combo_leg(leg.get("home"), leg.get("away"), _bcode)
-        if _cl:
-            if _cl.get("prob") is not None:
-                _prob = _cl.get("prob")
-            if _cl.get("cote") is not None:
-                _cote = _cl.get("cote")
-            _why = _cl.get("why") or _why
-        # SOURCE UNIQUE (demande user 2026-07-27) : si CE match+marché est analysé par NOTRE scan — pari
-        # JOUÉ (« Paris du jour »), provisoire OU simple fiche, pas seulement une jambe du combiné du jour —
-        # on affiche EXACTEMENT notre analyse : même confiance CALIBRÉE, même cote Unibet ET même
-        # justification (.md, section 🎯/🧪/📋 via `_prov_why_snippet`, comme la carte du pari joué). Prime
-        # sur les valeurs FIGÉES par betmines_watch (analyse Claude dédiée, indépendante) pour ne JAMAIS
-        # montrer deux analyses divergentes du même pari.
-        try:
-            _mp, _mc, _mfid = analyses.our_market_analysis(
-                leg.get("home"), leg.get("away"), str(leg.get("market") or ""))
-        except Exception:
-            _mp, _mc, _mfid = None, None, None
-        if _mp is not None:
-            _prob = _mp
-            if _mc is not None:
-                _cote = _mc
-            _ourwhy = _prov_why_snippet("foot", str(_mfid), maxlen=100000, played=True) if _mfid else ""
-            if _ourwhy:
-                _why = _ourwhy
-        # UNIFORMISATION nom d'équipe + compétition (demande user 2026-07-28 : un même match se lit PAREIL
-        # partout). Le pick Betmines (marché) reste le sien ; seuls les NOMS/LIGUE prennent NOTRE écriture
-        # canonique (« SalPa II » -> « SalPa 2 », « Finland - Kolmonen - … » -> « Kolmonen »). None -> externe.
-        _ch, _ca, _ccomp = analyses.canonical_match(leg.get("home"), leg.get("away"))
-        return {"sport": "foot", "home": _ch or leg.get("home"), "away": _ca or leg.get("away"),
-                "comp": _ccomp or leg.get("comp"), "sel": str(leg.get("market") or ""),
-                "cote": _cote, "result": leg.get("result"), "score": leg.get("score"),
-                "start": leg.get("start"), "code": leg.get("code"), "prob": _prob, "why": _why}
-    _views = [_leg_view(leg) for leg in _legs]     # NOS valeurs par jambe (une seule fois -> réutilisées au TOTAL)
-    legs_html = _MC_SEP.join(_leg_card(v, why=True, verdict=True, why_always=True, prob_calibrated=True)
-                             for v in _views)
-    # Bloc « TOTAL DU COMBINÉ » = verdict GLOBAL IDENTIQUE au combiné du jour (demande user 2026-07-24 :
-    # « toutes les stats "total du combiné" doivent être reprises ») : séparateur + barre Confiance/Marché/
-    # Cote totale. COHÉRENT avec les jambes AFFICHÉES (NOS valeurs) : cote = PRODUIT des cotes de jambe,
-    # confiance = PRODUIT des probas. Repli sur le total Betmines si une cote de jambe manque.
-    _vcotes = [v.get("cote") for v in _views]
-    _vprobs = [v.get("prob") for v in _views]
-    tot = cb.get("total_odds")
-    if _vcotes and all(isinstance(c, (int, float)) and c for c in _vcotes):
-        _acc = 1.0
-        for c in _vcotes:
-            _acc *= c
-        tot = round(_acc, 2)
-    _gconf = None
-    if _vprobs and all(isinstance(p, (int, float)) for p in _vprobs):
-        _acc = 1.0
-        for p in _vprobs:
-            _acc *= (p / 100.0 if p > 1 else p)
-        _gconf = round(_acc * 100)
-    _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                 f'<span class="mc-cote-v">{tot:g}</span></span>'
-                 if isinstance(tot, (int, float)) and tot else "")
-    _tot = ('<div class="combo-total-hd"><span>Total du combiné</span></div>'
-            + _verdict_block(tot, _gconf, '', _cote_big, calibrated=False)) if _cote_big else ""
-    # Commentaire bleu (« Suivi externe (Betmines)… ») RETIRÉ de l'affichage (demande user 2026-07-28).
-    # Nom AFFICHÉ = « Combiné bonus » (le suivi/les ressources Betmines restent inchangés côté data).
-    return _combo_gold_card(title="COMBINÉ BONUS", subtitle=f'{len(cb["legs"])} jambes',
-                            badge=_badge, body=legs_html + _tot, state=cb.get("result"))
-
-
-def _betmines_safe_tg_card(include_settled: bool = True) -> str:
-    """« COMBINÉ BONUS 2 » (demande user 2026-07-31) : reprend le combiné bonus Betmines du jour mais joue
-    chaque jambe OVER buts avec 1 but de MOINS (ex. +2.5 -> +1.5) et LA COTE Betmines de cette ligne réduite
-    (`leg["safe"]`, figée au scan par betmines_watch). But : voir si, « en jouant encore plus la sécurité »,
-    le combiné passe presque tout le temps. Info-seule, hors ROI. MÊME coquille dorée que le combiné bonus.
-    `include_settled=False` (zone ACTIVE) -> '' une fois le combiné sécurité RÉGLÉ (il vit alors dans les
-    Résultats). '' si pas de combiné bonus / aucune jambe abaissable aujourd'hui."""
-    import json as _json
-    _p = os.path.join(analyses._ROOT, "data", "betmines_track.json")
-    try:
-        with open(_p, encoding="utf-8") as f:
-            _d = _json.load(f)
-    except (OSError, ValueError):
-        return ""
-    cb = _d.get(_sport_today().isoformat())
-    if not isinstance(cb, dict) or not cb.get("legs"):
-        return ""
-    # Rien à simuler tant qu'AUCUNE jambe n'a de variante over abaissée (variante figée au scan seulement).
-    if not any(isinstance(l.get("safe"), dict) for l in cb.get("legs")):
-        return ""
-    _sr = cb.get("safe_result")
-    if not include_settled and _sr in ("won", "lost", "void"):
-        return ""
-    _badge = {"won": '<span class="cleg-bdg w">GAGNÉ</span>',
-              "lost": '<span class="cleg-bdg l">PERDU</span>',
-              "void": '<span class="cleg-bdg n">REMB.</span>'}.get(_sr, "")
-    _legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "9999"))
-
-    def _safe_view(leg: dict) -> dict:
-        # Variante SÉCURITÉ (over abaissé) figée par betmines_watch ; jambe non-over reprise TELLE QUELLE.
-        sv = leg.get("safe") if isinstance(leg.get("safe"), dict) else None
-        _ch, _ca, _ccomp = analyses.canonical_match(leg.get("home"), leg.get("away"))
-        if sv:
-            _mkt, _cote, _code, _res = sv.get("market"), sv.get("cote"), sv.get("code"), sv.get("result")
-        else:
-            _mkt = str(leg.get("market") or "")
-            _cote = leg.get("our_cote") or leg.get("cote")
-            _code, _res = leg.get("code"), leg.get("result")
-        # Confiance = proba IMPLICITE de la cote de la ligne réduite (marché-implicite, honnête et toujours
-        # dispo). Calibrée ensuite par `_leg_card` sur le code du marché, comme les autres jambes.
-        _prob = min(99, round(100.0 / _cote)) if isinstance(_cote, (int, float)) and _cote > 1 else None
-        return {"sport": "foot", "home": _ch or leg.get("home"), "away": _ca or leg.get("away"),
-                "comp": _ccomp or leg.get("comp"), "sel": str(_mkt or ""), "cote": _cote,
-                "result": _res, "score": leg.get("score"), "start": leg.get("start"),
-                "code": _code, "prob": _prob}
-
-    _views = [_safe_view(leg) for leg in _legs]
-    legs_html = _MC_SEP.join(_leg_card(v, why=False, verdict=True, why_always=False, prob_calibrated=True)
-                             for v in _views)
-    # TOTAL = produit des cotes réduites (repli safe_total_odds) · confiance = produit des probas implicites.
-    _vcotes = [v.get("cote") for v in _views]
-    _vprobs = [v.get("prob") for v in _views]
-    tot = cb.get("safe_total_odds")
-    if _vcotes and all(isinstance(c, (int, float)) and c for c in _vcotes):
-        _acc = 1.0
-        for c in _vcotes:
-            _acc *= c
-        tot = round(_acc, 2)
-    _gconf = None
-    if _vprobs and all(isinstance(p, (int, float)) for p in _vprobs):
-        _acc = 1.0
-        for p in _vprobs:
-            _acc *= (p / 100.0 if p > 1 else p)
-        _gconf = round(_acc * 100)
-    _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                 f'<span class="mc-cote-v">{tot:g}</span></span>'
-                 if isinstance(tot, (int, float)) and tot else "")
-    _tot = ('<div class="combo-total-hd"><span>Total du combiné</span></div>'
-            + _verdict_block(tot, _gconf, '', _cote_big, calibrated=False)) if _cote_big else ""
-    return _combo_gold_card(title="COMBINÉ BONUS 2", subtitle="−1 but par jambe",
-                            badge=_badge, body=legs_html + _tot, state=_sr)
-
-
 def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     """CORPS d'une carte COMBINÉ RETENU (ROI) — destiné à la coquille dorée `_combo_gold_card` (demande user
     2026-07-19 : le combiné Coupe du Monde présenté EXACTEMENT comme le combiné du jour). Contenu : le SIMPLE
@@ -6398,7 +6188,6 @@ def _sport_pronos_counts(match_rows: list) -> dict:
     except Exception:
         pass
     _mont = 1 if _montante_tg_card() else 0
-    _betm = 1 if _betmines_tg_card(include_settled=False) else 0   # réglé = compté dans les résultats, pas actif
     out = {}
     for sp in ("foot", "tennis", "basket"):
         _prog = [it for it in _programme_items(_paj, framed=True, keep_sport=sp)
@@ -6410,7 +6199,7 @@ def _sport_pronos_counts(match_rows: list) -> dict:
             combo = 1 if (cbt and cbt.get("legs") and cbt.get("result") not in ("won", "lost", "void")) else 0
         except Exception:
             combo = 0
-        out[sp] = play + prov + combo + ((_mont + _betm) if sp == "foot" else 0)
+        out[sp] = play + prov + combo + (_mont if sp == "foot" else 0)
     return out
 
 
@@ -6477,10 +6266,6 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     combo_safe = _combo_safe_tg_card(include_settled=True) if _is_foot_view else ""
     # MONTANTE : type de pari À PART (demande user 2026-07-30) -> zone dédiée « Montante · Palier N » plus bas
     # (via _montante_zone_card). Plus de badge greffé sur les cartes de pari joué (surface unique = la zone).
-    betmines = _betmines_tg_card(include_settled=True) if _is_foot_view else ""
-    # COMBINÉ BONUS 2 (demande user 2026-07-31) : le combiné bonus rejoué −1 but/jambe (simulation sécurité,
-    # hors ROI). Reste dans sa zone une fois réglé (comme les autres).
-    betmines2 = _betmines_safe_tg_card(include_settled=True) if _is_foot_view else ""
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport or "foot", "football")
@@ -6513,8 +6298,6 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out += [
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
         _zone("combosafe", "Combiné double chance", "", 1 if combo_safe else 0, combo_safe, collapsible=True),
-        _zone("betmines", "Combiné bonus", "", 1 if betmines else 0, betmines, collapsible=True),
-        _zone("betmines2", "Combiné bonus 2", "", 1 if betmines2 else 0, betmines2, collapsible=True),
     ]
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
@@ -6523,8 +6306,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
     # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
     _mont_on = 1 if (_is_foot_view and _montante_palier() is not None) else 0   # montante = badge greffé sur la carte
-    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + _mont_on + (1 if combo_safe else 0) \
-        + (1 if betmines else 0)
+    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + _mont_on + (1 if combo_safe else 0)
     return _day_header(today_iso) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
@@ -8702,30 +8484,6 @@ def _safe_combo_any_live() -> bool:
                for l in (cb.get("legs") or []) if l.get("result") is None)
 
 
-def _betmines_any_live() -> bool:
-    """Vrai si le COMBINÉ BONUS (Betmines, hors ROI) a AU MOINS une jambe FOOT EN COURS. Les noms du track
-    sont ceux de Betmines (« SalPa II ») -> on teste la liveness sur nos noms CANONIQUES (`canonical_match`,
-    repli noms bruts) pour matcher le flux live Unibet. Même but que `_safe_combo_any_live` (demande user
-    2026-07-28 : tout match de Pronos en cours doit apparaître dans Live)."""
-    try:
-        import json as _json
-        _p = os.path.join(analyses._ROOT, "data", "betmines_track.json")
-        with open(_p, encoding="utf-8") as f:
-            cb = _json.load(f).get(_sport_today().isoformat())
-    except (OSError, ValueError):
-        cb = None
-    if not isinstance(cb, dict):
-        return False
-    for l in (cb.get("legs") or []):
-        if l.get("result") is not None:
-            continue
-        _h, _a = l.get("home", ""), l.get("away", "")
-        _ch, _ca, _ = analyses.canonical_match(_h, _a)
-        if live_fields(match_select.live_state_for("foot", _ch or _h, _ca or _a), "foot").get("score"):
-            return True
-    return False
-
-
 def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
     """Onglet « Directs » : matchs EN DIRECT groupés par TYPE de pari (Combiné · Paris joués · Provisoires).
     SÉLECTEUR DE SPORT en tête (demande user 2026-07-28, comme Pronos) : cliquer un sport recharge le panneau
@@ -8744,9 +8502,6 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # Combinés FOOT hors-ROI EN COURS (demande user 2026-07-28 : tout match de Pronos qui tourne doit
     # apparaître dans Live) — le combiné SÉCURITÉ et le combiné BONUS, comme dans l'onglet Pronos. Foot only.
     _safe_combo = _combo_safe_tg_card(include_settled=False) if _safe_combo_any_live() else ""
-    _betm_combo = _betmines_tg_card(include_settled=False) if _betmines_any_live() else ""
-    # Combiné BONUS 2 (−1 but) EN COURS : mêmes matchs que le bonus -> même détection de liveness.
-    _betm2_combo = _betmines_safe_tg_card(include_settled=False) if _betmines_any_live() else ""
     # MONTANTE EN COURS (1re zone de Pronos) : affichée en Live UNIQUEMENT si son match TOURNE (le Live ne
     # montre que ce qui est en direct). Foot only.
     _mont_title, _mont_card = "", ""
@@ -8759,23 +8514,20 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             _mont_title, _mont_card = _montante_zone_card("foot")
     except Exception:
         _mont_title, _mont_card = "", ""
-    _counts["foot"] += ((1 if _safe_combo else 0) + (1 if _betm_combo else 0)
-                        + (1 if _betm2_combo else 0) + (1 if _mont_card else 0))
+    _counts["foot"] += ((1 if _safe_combo else 0) + (1 if _mont_card else 0))
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur]
     _combo = _combos.get(_cur, "")
     _safe_combo = _safe_combo if _cur == "foot" else ""   # combinés hors-ROI = foot uniquement
-    _betm_combo = _betm_combo if _cur == "foot" else ""
-    _betm2_combo = _betm2_combo if _cur == "foot" else ""
     if _cur != "foot":
         _mont_title, _mont_card = "", ""
 
     def _cards(rows):
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
-    if not (_play or _prov or _combo or _safe_combo or _betm_combo or _betm2_combo or _mont_card):
+    if not (_play or _prov or _combo or _safe_combo or _mont_card):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -8788,15 +8540,13 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             '</div></div>')
     else:
         # ORDRE IDENTIQUE à l'onglet Pronos (demande user 2026-08-01) : Montante → Paris du jour →
-        # Provisoires → Combiné → Combiné double chance → Combiné bonus → Combiné bonus 2.
+        # Provisoires → Combiné → Combiné double chance.
         out = [
             _zone("montante", _mont_title or "Montante", "en direct", 1 if _mont_card else 0, _mont_card),
             _zone("play", "Paris du jour", "en direct", len(_play), _cards(_play)),
             _zone("indic", "Paris provisoires", "en direct", len(_prov), _cards(_prov)),
             _zone("combo", f"Combiné {_zlabel}", "", 1 if _combo else 0, _combo),
             _zone("combosafe", "Combiné double chance", "", 1 if _safe_combo else 0, _safe_combo),
-            _zone("combobonus", "Combiné bonus", "", 1 if _betm_combo else 0, _betm_combo),
-            _zone("betmines2", "Combiné bonus 2", "", 1 if _betm2_combo else 0, _betm2_combo),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")

@@ -351,8 +351,7 @@ _SRC_FOOT_DESC = (
     "**stack multi-sources** (ces sources n'ont pas d'endpoint propre) :\n\n"
     "- 🥇 **Pinnacle** — ancre *sharp* (proba de référence, **par marché** : 1X2 + Over/Under + handicaps)\n"
     "- 🥈 **FotMob** — source n°1 foot : forme, blessés, H2H détaillé, compos, xG-events, **stats mi-temps**, **arbitre**\n"
-    "- 🥉 **Understat** — **xG + PPDA** (style de jeu) — 6 ligues top (structurel)\n"
-    "- ℹ️ **Betmines** (SportMonks) — benchmark externe, **hors ROI**\n\n"
+    "- 🥉 **Understat** — **xG + PPDA** (style de jeu) — 6 ligues top (structurel)\n\n"
     "⚠️ *« SofaScore » (ancien nom) est **mort** — ce stack l'a remplacé.*")
 _SRC_TENNIS_DESC = (
     "**API interne.** Enrichissement multi-sources (sans endpoint) :\n\n"

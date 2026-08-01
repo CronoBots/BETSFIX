@@ -20,11 +20,10 @@ data/_stats_snapshot.json
 data/day_programme.json
 data/provisional_track.json
 
-# --- Combinés (du jour + bonus/betmines + suivi) ---
+# --- Combinés (du jour + suivi) ---
 data/combo_daily_track.json
 data/combo_daily_tennis.json
 data/combo_daily_basket.json
-data/betmines_track.json
 
 # --- Montante (réel + flag d'activation) ---
 data/montante_track.json
