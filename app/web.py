@@ -7290,21 +7290,10 @@ def render_exclusions(rep: dict | None) -> str:
     return f'<div class="exq">{body}</div>'
 
 
-def render_market_watch(by_market: dict | None) -> str:
-    """SURVEILLANCE PAR MARCHÉ (demande user 2026-08-01) : pour CHAQUE type de pari, la taille d'échantillon
-    (prédictions fantômes + joués), l'annoncé vs le réel (écart de calibration) et le ROI joué — avec un
-    statut « fiable / à surveiller / échantillon en construction ». Rend VISIBLE ce que le système mesure
-    déjà en continu, surtout les marchés à FAIBLE échantillon (qui mûrissent encore et ne sont pas jugeables).
-    Réutilise le style `.exq` (rapport marchés écartés). '' si pas de données."""
-    if not by_market:
-        return ""
-    _CALIB_OK = 50            # nb de PRÉDICTIONS (fantômes + joués) pour qu'un marché soit jugeable en calibration
-    _MIN_N = 8                # sous ce nb, marché quasi inexistant -> masqué (bruit)
-    intro = ('<div class="exq-intro">Chaque type de pari est <b>suivi en continu</b> — même les paris NON '
-             'joués (fantômes) comptent. Tant qu\'un marché a <b>peu de prédictions</b>, il reste « en '
-             'construction » : le système <b>ne conclut pas</b> (ni exclusion, ni correction) et attend '
-             'd\'avoir assez de données. Les fantômes servent justement à <b>faire monter l\'échantillon</b> '
-             'des marchés rares jusqu\'à en tirer une stat fiable.</div>')
+def _market_watch_rows(by_market: dict) -> str:
+    """Lignes `.exq-row` d'un jeu de marchés (un sport) pour la surveillance. '' si aucun marché exploitable."""
+    _CALIB_OK = 50           # nb de PRÉDICTIONS (fantômes + joués) pour qu'un marché soit jugeable en calibration
+    _MIN_N = 8               # sous ce nb, marché quasi inexistant -> masqué (bruit)
     rows = []
     for mk, m in sorted(by_market.items(), key=lambda kv: -(kv[1].get("n") or 0)):
         n = m.get("n") or 0
@@ -7333,11 +7322,38 @@ def render_market_watch(by_market: dict | None) -> str:
                     f'<span class="exq-bdg {cls}">{lbl}</span>'
                     f'<span class="exq-mk">{html.escape(str(mk))}</span></div>'
                     f'<div class="exq-meta">{" · ".join(meta)}</div></div>')
-    if not rows:
+    return "".join(rows)
+
+
+def render_market_watch(by_sport: dict | None) -> str:
+    """SURVEILLANCE PAR MARCHÉ, DÉCLINÉE PAR SPORT (demande user 2026-08-01) : pour CHAQUE sport puis chaque
+    type de pari, la taille d'échantillon (fantômes + joués), l'annoncé vs le réel (écart de calibration) et
+    le ROI joué + un statut « calibré / à surveiller / en construction ». `by_sport` = `calibration()['by_sport']`
+    (chaque sport porte `markets`). Un marché « Handicap » foot est distinct du « Handicap » tennis/basket.
+    Réutilise le style `.exq`. '' si pas de données."""
+    if not by_sport:
+        return ""
+    intro = ('<div class="exq-intro">Suivi <b>par sport</b> : chaque type de pari est mesuré en continu — même '
+             'les paris NON joués (fantômes) comptent. Tant qu\'un marché a <b>peu de prédictions</b> il reste '
+             '« en construction » (le système ne conclut pas), et les fantômes le font <b>monter</b> jusqu\'à '
+             'une stat fiable. Un même marché est jugé <b>séparément</b> selon le sport.</div>')
+    _ICON = {"Football": "⚽", "Tennis": "🎾", "Basket": "🏀"}
+    body = intro
+    any_sec = False
+    for sp in ("Football", "Tennis", "Basket"):
+        mk = (by_sport.get(sp) or {}).get("markets") or {}
+        secrows = _market_watch_rows(mk) if mk else ""
+        if not secrows:
+            continue
+        any_sec = True
+        body += (f'<div class="exq-sport"><div class="exq-sphead">'
+                 f'<span class="exq-spname">{_ICON.get(sp, "")} {html.escape(sp)}</span></div>'
+                 f'{secrows}</div>')
+    if not any_sec:
         return ""
     return ('<div class="sx-card"><div class="sx-h">Surveillance des marchés'
-            '<span>échantillon · calibration · ROI par type de pari</span></div>'
-            f'<div class="exq">{intro}<div class="exq-sport">{"".join(rows)}</div></div></div>')
+            '<span>échantillon · calibration · ROI par sport &amp; type de pari</span></div>'
+            f'<div class="exq">{body}</div></div>')
 
 
 def render_reliability(rel: dict | None) -> str:
