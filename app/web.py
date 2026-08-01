@@ -311,11 +311,12 @@ CSS = """
   /* Logo unique centré tout en haut + STICKY (demande user 2026-08-02 : la partie du haut reste fixe au
      scroll sur mobile). Barre pleine largeur (margin négatif = annule le padding horizontal du .wrap), fond
      opaque flouté pour que le contenu passe DERRIÈRE proprement. Le safe-area de l'encoche vit ici. */
-  .toplogo{position:sticky;top:0;z-index:40;display:block;text-align:center;
-           margin:0 -16px 10px;padding:calc(9px + env(safe-area-inset-top)) 0 9px;
-           background:linear-gradient(180deg,rgba(8,9,11,.97) 78%,rgba(8,9,11,0));
-           -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-  .toplogo img{height:auto;width:auto;max-width:60%;max-height:42px;filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
+  .toplogo{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:center;
+           margin:0 -16px 14px;padding:calc(11px + env(safe-area-inset-top)) 16px 12px;
+           background:rgba(9,10,13,.86);
+           -webkit-backdrop-filter:saturate(1.4) blur(16px);backdrop-filter:saturate(1.4) blur(16px);
+           border-bottom:1px solid rgba(150,182,222,.10);box-shadow:0 8px 22px -14px rgba(0,0,0,.95)}
+  .toplogo img{height:auto;width:auto;max-width:46%;max-height:34px;filter:drop-shadow(0 4px 14px rgba(34,184,255,.35))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
   /* ICÔNE SEULE (demande user 2026-08-01 : plus de texte « Compte », il chevauchait le logo). Bouton ROND
      compact dans le coin -> ne déborde plus sur le logo BETSFIX centré. */
