@@ -342,10 +342,14 @@ CSS = """
      de <body> (flex:0 0 auto),
   donc toujours collé au bas du viewport DYNAMIQUE sans « sauter » sur
      iOS. Centrée à 720px ; fond OPAQUE ; padding bas = safe-area (encoche/home-bar). */
+  /* Fond TRANSPARENT (demande user 2026-08-02) : le dégradé du body passe DERRIÈRE la barre du bas ET sous
+     son safe-area -> le background « touche le bas », plus de bande foncée plate (#0b0d12) au ras de
+     l'indicateur home. La barre n'a pas besoin de fond opaque (frère STATIQUE sous .wrap, rien ne scrolle
+     derrière). Un léger dégradé + filet suffisent à détacher les onglets du contenu. */
   .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;touch-action:none;
           display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));
-          background:#0b0d12;border-top:1px solid var(--border)}
+          background:transparent;border-top:1px solid var(--border)}
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
   .a2hs{position:fixed;left:10px;right:10px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:85;
