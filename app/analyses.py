@@ -3523,14 +3523,6 @@ def _excluded_by_sport() -> dict:
             gap = (mg.get("win_rate") or 0) - (mg.get("avg_conf") or 0)
             roi = mg.get("roi")
             was = name in prev_sp
-            # BASKET = Handicap SEUL (user 2026-08-02) : réactivé, mais on ne PUBLIE que le marché à edge
-            # PROUVÉ (Handicap +9 %/n=49). TOUTE autre famille basket (Total, Vainqueur, Total équipe,
-            # Quart-temps, Props joueur, Premier à X pts, et toute famille FUTURE) -> exclue en DUR. Elle
-            # reste ANALYSÉE + CALIBRÉE (ghosts). Liste blanche déterministe. Retirer cette règle (ou
-            # ajouter un marché à l'exception) = ré-ouvrir la publication basket correspondante.
-            if sp == "basket" and name != "Handicap":
-                ms.add(name)
-                continue
             # GARDE-FOU sur-calibration CATASTROPHIQUE : écart énorme (≤ CALIB_GAP_SEVERE) sur un échantillon
             # déjà parlant (≥ CALIB_MIN_N_SEVERE) -> exclu TOUT DE SUITE, sans attendre CALIB_MIN_N (sinon le
             # marché reste « en zone bruit » alors qu'il perd franchement, cf. foot « Les 2 marquent — Non »).
