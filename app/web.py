@@ -356,7 +356,7 @@ CSS = """
   @media (max-width:999px){
     .botnav{position:fixed;left:0;right:0;bottom:0;width:auto}
     .botnav::after{content:"";position:absolute;left:0;right:0;top:100%;
-                   height:calc(env(safe-area-inset-bottom) + 2px);background:#0b0d12}
+                   height:max(40px,calc(env(safe-area-inset-bottom) + 2px));background:#0b0d12}
     .wrap{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
