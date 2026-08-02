@@ -340,14 +340,22 @@ CSS = """
   .pausebadge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
               color:var(--dim);background:transparent;border:1px solid var(--border2);
               padding:2px 8px;border-radius:20px;opacity:.8}
-  /* Barre d'onglets en bas (style app native). PLUS de position:fixed : c'est un enfant flex STATIQUE
-     de <body> (flex:0 0 auto),
-  donc toujours collé au bas du viewport DYNAMIQUE sans « sauter » sur
-     iOS. Centrée à 720px ; fond OPAQUE ; padding bas = safe-area (encoche/home-bar). */
-  .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;touch-action:none;
+  /* Barre d'onglets en bas. Base neutre (sert de socle au DESKTOP qui la transforme en SIDEBAR ≥1000px).
+     touch-action:manipulation (PAS 'none' : 'none' gênait la détection des taps quand la barre est fixe). */
+  .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;touch-action:manipulation;
           display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));
           background:#0b0d12;border-top:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET */
+  /* MOBILE (<1000px) : placement EXACTEMENT comme CRYPTONAUTS (demande user 2026-08-02, projet voisin qui
+     marche parfaitement en app installée) — barre FIXE en bas, padding bas = 6px + safe-area, ombre portée
+     vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
+     sous la barre. */
+  @media (max-width:999px){
+    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-width:720px;margin:0 auto;
+            padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+            box-shadow:0 -8px 28px rgba(0,0,0,.45)}
+    .wrap{padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px))}
+  }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
   .a2hs{position:fixed;left:10px;right:10px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:85;
