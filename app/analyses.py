@@ -2840,7 +2840,13 @@ def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
     else:
         for p in glob.glob(os.path.join(DIR, "*.json")):
             d = _meta_load(p)
-            if not d or status_of(d) not in ("notstarted", "inprogress"):
+            if not d:
+                continue
+            # On garde À-VENIR / EN-COURS ET les matchs FINIS mais PAS ENCORE RÉGLÉS (matchs DÉCALÉS :
+            # status_of se fie à l'heure PRÉVUE, peu fiable — user 2026-08-02) -> le pari simple reste
+            # visible en ⏳ « en attente » dans l'historique Stats jusqu'à son règlement. On n'exclut que
+            # le RÉGLÉ (il rejoint alors les W/L). Ne compte JAMAIS au ROI tant que non réglé (liste seule).
+            if status_of(d) not in ("notstarted", "inprogress") and is_settled(d):
                 continue
             if (d.get("combo") or {}).get("legs"):
                 continue                                     # combiné same-match -> pas un simple
