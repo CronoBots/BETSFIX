@@ -212,13 +212,9 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
     msg = "\n".join(lines)
 
     print(msg.replace("<b>", "").replace("</b>", "").replace("&gt;", ">"))
-    # `--no-bilan` (vagues rapprochées, ~toutes les 30 min) : on RÈGLE et poste les résultats, mais on
-    # NE POSTE PAS le bilan récap à chaque passage (sinon spam du canal). Le bilan reste au run du matin.
-    if not dry and not no_bilan:
-        try:
-            notify.send_sync(msg)
-        except Exception as exc:
-            print(f"  (bilan Telegram ignoré : {exc})")
+    # BILAN « Réconciliation BETSFIX » NON PUBLIÉ sur Telegram (demande user 2026-08-02 : ce message technique
+    # ne doit plus apparaître sur le canal). Il reste imprimé dans le log console ci-dessus. Pour ré-activer :
+    # remettre `notify.send_sync(msg)` sous `if not dry and not no_bilan`.
     if not dry:
         try:
             from app import analyses as _an
