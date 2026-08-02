@@ -3065,6 +3065,20 @@ async def main():
     except Exception as _exc:
         print(f"  (combiné du jour ignoré : {_exc})")
 
+    # MONTANTE — SÉLECTION DU PALIER EN FIN DE SCAN (demande user 2026-08-02 : « sélection en fin de scan au
+    # lieu de reconcile »). À ce moment, les PARIS SIMPLES À JOUER du jour viennent d'être générés ET les
+    # matchs sont ENCORE À VENIR -> pick_day_bet trouve fiablement le pari foot le PLUS CONFIANT du jour (fini
+    # les jours sautés faute de fenêtre au reconcile). run_daily = règle l'en-cours + enregistre le palier.
+    # Isolé (data/montante_track.json), hors ROI. Le reconcile continue de régler en cours de journée.
+    try:
+        from app import montante as _mtn
+        if _mtn.is_active():
+            from app import combo_daily as _cd_mt
+            _mr = _mtn.run_daily(_cd_mt.day_key())
+            print(f"  🪜 Montante (fin de scan) : {_mr}")
+    except Exception as _mexc:
+        print(f"  (montante ignorée : {_mexc})")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

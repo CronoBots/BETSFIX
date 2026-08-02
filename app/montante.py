@@ -272,9 +272,11 @@ def pick_day_bet() -> dict | None:
                       "_elig": _montante_eligible_code(_code)})
     if not cands:
         return None
-    # PRÉFÉRENCE marchés FIABLES (88 % réel) ; repli sur le pool complet. Puis le plus SÛR = cote la plus basse.
+    # SÉLECTION (demande user 2026-08-02) : parmi les PARIS SIMPLES À JOUER (déjà value/retenus), on prend le
+    # PLUS CONFIANT (confiance calibrée la plus HAUTE). À confiance égale, marché fiable puis cote la plus
+    # basse (le plus sûr). Le palier est ainsi TOUJOURS un pari joué remplissant les conditions demandées.
     pool = [c for c in cands if c["_elig"]] or cands
-    best = min(pool, key=lambda c: c["cote"])
+    best = max(pool, key=lambda c: ((c.get("prob") or 0), c.get("_elig", False), -c["cote"]))
     best.pop("_elig", None)
     return best
 
