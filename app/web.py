@@ -6313,10 +6313,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # CHAQUE type de pari GARDE ses matchs réglés DANS sa section (demande user 2026-08-01 : plus de zone
     # « Résultats du jour » séparée en bas -> la carte affiche le résultat/score en place). -> include_settled=True.
     combo_daily = _combo_tg_card(include_settled=True, sport=(sport or "foot"))
-    # COMBINÉ BETMINES : spécifique FOOT -> vue « Tous »/foot seulement.
     _is_foot_view = sport in (None, "foot")
-    # COMBINÉ SÉCURITÉ (double chance la plus sûre ~2, hors ROI) : FOOT uniquement -> vue « Tous »/foot.
-    combo_safe = _combo_safe_tg_card(include_settled=True) if _is_foot_view else ""
+    # (Zone « Combiné double chance » séparée RETIRÉE le 2026-08-02 : la double chance EST désormais le
+    #  « Combiné football » ci-dessus (combo_daily), compté au ROI. Plus de carte combiné distincte.)
     # MONTANTE : type de pari À PART (demande user 2026-07-30) -> zone dédiée « Montante · Palier N » plus bas
     # (via _montante_zone_card). Plus de badge greffé sur les cartes de pari joué (surface unique = la zone).
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
@@ -6350,7 +6349,6 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html, collapsible=True))
     out += [
         _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
-        _zone("combosafe", "Combiné double chance", "", 1 if combo_safe else 0, combo_safe, collapsible=True),
     ]
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
@@ -6359,7 +6357,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
     # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
     _mont_on = 1 if (_is_foot_view and _montante_palier() is not None) else 0   # montante = badge greffé sur la carte
-    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + _mont_on + (1 if combo_safe else 0)
+    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + _mont_on
     return _day_header(today_iso) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
@@ -8628,7 +8626,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
                         + (1 if _combos[_sk] else 0))
     # Combinés FOOT hors-ROI EN COURS (demande user 2026-07-28 : tout match de Pronos qui tourne doit
     # apparaître dans Live) — le combiné SÉCURITÉ et le combiné BONUS, comme dans l'onglet Pronos. Foot only.
-    _safe_combo = _combo_safe_tg_card(include_settled=False) if _safe_combo_any_live() else ""
+    _safe_combo = ""   # combiné « double chance » fusionné dans « Combiné football » (combo_daily) le 2026-08-02
     # MONTANTE EN COURS (1re zone de Pronos) : affichée en Live UNIQUEMENT si son match TOURNE (le Live ne
     # montre que ce qui est en direct). Foot only.
     _mont_title, _mont_card = "", ""
@@ -8673,7 +8671,6 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             _zone("play", "Paris du jour", "en direct", len(_play), _cards(_play)),
             _zone("indic", "Paris provisoires", "en direct", len(_prov), _cards(_prov)),
             _zone("combo", f"Combiné {_zlabel}", "", 1 if _combo else 0, _combo),
-            _zone("combosafe", "Combiné double chance", "", 1 if _safe_combo else 0, _safe_combo),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")

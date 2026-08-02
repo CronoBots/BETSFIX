@@ -2995,21 +2995,23 @@ async def main():
         if _prev and (_prev.get("sent") or _prev.get("result")):
             print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")     # pas de re-analyse Claude
         else:
-            _combo = _cdaily.build_for_day(_day)
+            # LE COMBINÉ FOOT DU JOUR = LA DOUBLE CHANCE (demande user 2026-08-02) : à partir d'aujourd'hui,
+            # le « combiné football » est la DOUBLE CHANCE la plus sûre par match (VRAIES cotes DC Unibet via
+            # build_for_day_async). Enregistré dans le MÊME track ROI (combo_daily_track.json) -> il COMPTE AU
+            # ROI et tout l'historique des anciens combinés foot y reste conservé/compté. FIGÉ dès la 1re
+            # construction (pas de Telegram -> sinon un re-scan pourrait changer une jambe d'un pari compté).
+            from app import combo_safe as _csafe
+            _combo = await _csafe.build_for_day_async(_day)   # double chance, vraies cotes DC Unibet
             if _combo:
-                _analyze_combo_legs(_combo)          # ANALYSE DÉDIÉE par jambe (comme un pari à jouer)
+                _analyze_combo_legs(_combo)          # ANALYSE DÉDIÉE par jambe (le « pourquoi »)
                 if _cdaily.record_daily(_combo, _day):
+                    _cdaily.mark_sent(_day)          # GEL : une jambe ne change plus (pari compté au ROI)
                     _cdlegs = " | ".join(f"{l.get('home')} ({l.get('sel')} @{l.get('cote')})"
-                                         for l in _combo['legs'])   # jambes loguées (vérif, user 2026-08-01)
-                    print(f"  🎯 Combiné du jour : cote {_combo['cote']} · {round(_combo['prob'] * 100)}% · "
-                          f"{len(_combo['legs'])} jambes"
-                          f"{' (jambes analysées)' if any(l.get('why') for l in _combo['legs']) else ''}"
-                          f" : {_cdlegs}")
-                    # Telegram : combiné du jour NON publié (demande user 2026-08-02 : Telegram = paris SIMPLES
-                    # FOOT uniquement). Le combiné reste AFFICHÉ sur le SITE (record_daily ci-dessus). Pour
-                    # ré-activer : renvoyer `notify.send(_cdaily.telegram_text(_combo))` + `mark_sent(_day)`.
+                                         for l in _combo['legs'])   # jambes loguées (vérif)
+                    print(f"  🎯 Combiné football (double chance) : cote {_combo['cote']} · "
+                          f"{round(_combo['prob'] * 100)}% · {len(_combo['legs'])} jambes (figé) : {_cdlegs}")
             else:
-                print("  🎯 Combiné du jour : vivier insuffisant pour atteindre 1,95 aujourd'hui.")
+                print("  🎯 Combiné football (double chance) : vivier DC insuffisant aujourd'hui.")
         # COMBINÉS DU JOUR SIMULÉS (tennis + basket, demande user 2026-07-25) : 1 par sport/jour, HORS ROI
         # officiel — pour continuer d'analyser ces sports et « gonfler le moteur » (suivi combo_daily_{sport}.json,
         # onglet Combinés du sport). PAS de Telegram (sports en arrière-plan/probation, publication suspendue).
@@ -3029,35 +3031,8 @@ async def main():
                     print(f"  🎯 Combiné {_spsim} du jour (simulé) : vivier insuffisant aujourd'hui.")
             except Exception as _sexc:
                 print(f"  (combiné {_spsim} simulé ignoré : {_sexc})")
-        # COMBINÉ SÉCURITÉ FOOT (demande user 2026-07-28) : UN combiné/jour composé UNIQUEMENT de foot, la
-        # DOUBLE CHANCE la plus sûre par match, assemblées pour une cote ~2. INFO SEULE hors ROI (comme le
-        # combiné bonus). Construit ici (tous les sidecars écrits). PAS de Telegram par défaut (éviter de
-        # doubler la publication aux abonnés ; c'est un indicatif de site). Jambes analysées comme les autres.
-        try:
-            from app import combo_safe as _csafe
-            _sprev = _csafe.today(_day)
-            if _sprev and (_sprev.get("sent") or _sprev.get("result")):
-                print("  🛡️ Combiné sécurité foot : déjà construit aujourd'hui (figé).")
-            else:
-                _csc = await _csafe.build_for_day_async(_day)   # VRAIES cotes DC Unibet (colle au ticket)
-                if _csc:
-                    _analyze_combo_legs(_csc)        # analyse dédiée par jambe (comme un pari à jouer)
-                    if _csafe.record_daily(_csc, _day):
-                        # GEL dès la 1re construction (demande user 2026-08-01) : le combiné double chance
-                        # n'a pas d'envoi Telegram -> sans ça il se reconstruisait à CHAQUE scan et pouvait
-                        # ÉCHANGER une jambe en cours de journée. On le fige comme le combiné du jour : une
-                        # fois affiché, il ne bouge plus (mark_sent -> record_daily le refuse ensuite).
-                        _csafe.mark_sent(_day)
-                        # LOG des JAMBES (demande user 2026-08-01 : pouvoir vérifier l'historique/composition
-                        # exacte du combiné double chance dans le log du scan).
-                        _cslegs = " | ".join(f"{l.get('home')} ({l.get('sel')} @{l.get('cote')})"
-                                             for l in _csc['legs'])
-                        print(f"  🛡️ Combiné double chance foot : cote {_csc['cote']} · "
-                              f"{round(_csc['prob'] * 100)}% · {len(_csc['legs'])} jambes (figé) : {_cslegs}")
-                else:
-                    print("  🛡️ Combiné sécurité foot : vivier DC insuffisant pour ~2 aujourd'hui.")
-        except Exception as _csexc:
-            print(f"  (combiné sécurité ignoré : {_csexc})")
+        # (Ancien bloc « Combiné sécurité foot » RETIRÉ le 2026-08-02 : la double chance est désormais LE
+        #  combiné football du jour, construite et enregistrée au ROI plus haut. Plus de combiné séparé.)
         # DÉDUP (demande user 2026-07-12) : le combiné du jour est construit APRÈS les provisoires -> ses
         # jambes ont pu être trackées en provisoire pendant la boucle. On les retire ICI pour qu'un match
         # n'apparaisse JAMAIS à deux endroits (combiné du jour ET provisoire). No-op si rien à retirer.
