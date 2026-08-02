@@ -348,16 +348,20 @@ CSS = """
           display:flex;gap:4px;position:relative;
           padding:7px 10px 8px;   /* boutons collés bas, PAS d'espace vide sous eux (demande user 2026-08-02) */
           background:#0b0d12;border-top:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET */
-  /* Barre du bas ANCRÉE au bas PHYSIQUE de l'écran sur TOUT mobile (position:fixed, bottom:0). La zone HOME
-     (safe-area) sous la barre restait NOIRE (le fond de la barre s'y arrêtait) ; on la remplit avec un
-     pseudo-élément de la MÊME couleur -> plus de bande noire, et les BOUTONS ne descendent pas dans la zone
-     home (« supprimer l'espace noir », demande user 2026-08-02). Si bottom:0 touche déjà le bord, le fill
-     part hors écran = inoffensif. */
+  /* Barre du bas ANCRÉE en bas (position:fixed, bottom:0) sur tout mobile. */
   @media (max-width:999px){
     .botnav{position:fixed;left:0;right:0;bottom:0;width:auto}
-    .botnav::after{content:"";position:absolute;left:0;right:0;top:100%;
-                   height:max(40px,calc(env(safe-area-inset-bottom) + 2px));background:#0b0d12}
     .wrap{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
+  }
+  /* APP INSTALLÉE (standalone) : iOS repousse la barre AU-DESSUS de la zone home-indicator -> un VIDE NOIR
+     apparaissait entre les icônes et le bas de l'écran. On DESCEND la barre dans cette zone (bottom négatif =
+     -safe-area) pour que les icônes touchent le bas, et on ré-ajoute ce même retrait en padding-bas pour
+     que le FOND descende jusqu'au bord tout en gardant les icônes visibles (« colle le menu au bas »,
+     demande user 2026-08-02). Uniquement en standalone -> Safari garde bottom:0 net. */
+  @media (display-mode:standalone) and (max-width:999px),(display-mode:fullscreen) and (max-width:999px){
+    .botnav{bottom:calc(env(safe-area-inset-bottom) * -1);
+            padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+    .wrap{padding-bottom:calc(52px + env(safe-area-inset-bottom))}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
