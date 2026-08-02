@@ -346,7 +346,7 @@ CSS = """
      iOS. Centrée à 720px ; fond OPAQUE ; padding bas = safe-area (encoche/home-bar). */
   .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;touch-action:none;
           display:flex;gap:4px;
-          padding:7px 10px calc(7px + env(safe-area-inset-bottom));
+          padding:7px 10px 8px;   /* PAS de safe-area en bas : la barre touche le bord (demande user 2026-08-02) */
           background:#0b0d12;border-top:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET */
   /* Barre du bas ANCRÉE au bas PHYSIQUE de l'écran sur TOUT mobile (position:fixed, bottom:0) — sinon, comme
      le body en 100dvh ne couvre pas toujours le safe-area / le vide sous la barre statique, une BANDE SOMBRE
