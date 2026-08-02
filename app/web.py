@@ -2200,6 +2200,12 @@ CSS = """
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
   .zone-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
+  /* RECORD du jour par type (nb sélectionnés · gagnés ✅ · perdus ❌) — chip discret à droite du titre. */
+  .zone-rec{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:800;
+       color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .zone-rec .zr{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:9px}
+  .zone-rec .zrw{color:#63d68f;background:rgba(52,210,123,.12)}
+  .zone-rec .zrl{color:#ff8080;background:rgba(255,107,107,.12)}
   .zone-b{margin-top:2px}
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
@@ -5942,7 +5948,8 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
 
 
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
-          *, collapsible: bool = False, open_: bool = True, empty: str | None = None) -> str:
+          *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
+          record: tuple | None = None) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
     de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
     sur un filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les
@@ -5953,8 +5960,14 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
             return ""
         body, count = f'<div class="zone-empty">{empty}</div>', 0
     n = f'<span class="zone-n">{count}</span>' if count else ""
+    # RECORD du JOUR par type (demande user 2026-08-02) : nb sélectionnés · gagnés · perdus, à côté du titre.
+    rec = ""
+    if record:
+        _s, _w, _l = record
+        rec = (f'<span class="zone-rec">{_s} sél.'
+               f'<span class="zr zrw">{_w} ✅</span><span class="zr zrl">{_l} ❌</span></span>')
     t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
-    head = f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{n}{t}'
+    head = (f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{n}{rec}{t}')
     if collapsible:
         op = " open" if open_ else ""
         # `data-zk` = clé de persistance du repli (localStorage, JS `_CAL_JS`) : ton choix plier/déplier
@@ -6287,6 +6300,28 @@ def _sport_selector(current: str | None, counts: dict | None = None, *,
             f'data-q="{html.escape(q)}">{chips}</div>')
 
 
+def _settled_wl_today(iso: str, sport: str | None) -> tuple:
+    """(gagnés, perdus, remboursés) des PARIS JOUÉS SIMPLES réglés du JOUR (via stat_bet figé, itérateur
+    LÉGER -> perf ; PAS de retained_bet par carte). Sert aux compteurs par type dans Pronos (demande user
+    2026-08-02). Foot par défaut (arrière-plan exclu) ou le sport ciblé."""
+    won = lost = push = 0
+    _bg = analyses.background_sports()
+    for _sp, sb, dt in analyses.iter_stat_bets():
+        if sport:
+            if _sp != sport:
+                continue
+        elif _sp in _bg:
+            continue
+        ld = to_local(dt) if dt else None
+        if ld is None or _sport_date(ld).isoformat() != iso:
+            continue
+        r = sb.get("result")
+        won += 1 if r == "won" else 0
+        lost += 1 if r == "lost" else 0
+        push += 1 if r == "push" else 0
+    return won, lost, push
+
+
 def _today_zones(match_rows: list, sport: str | None = None, results: list | None = None) -> tuple[str, int]:
     """Zones du JOUR COURANT (Combiné du jour · Paris du jour · Provisoires · Résultats du jour ; PLUS de
     zone « à analyser » — retirée sur demande user 2026-07-20). Extrait de render_dashboard pour /jour
@@ -6349,14 +6384,28 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # PARIS DU JOUR = à venir/en cours PUIS terminés (chacun affiche son résultat). Zone visible s'il y a l'un
     # ou l'autre.
     _play_html = _MC_SEP.join([h for h in (_rows_by_day(play), _MC_SEP.join(_res_cards)) if h])
+    # RECORD DU JOUR (demande user 2026-08-02) : sélectionnés · gagnés · perdus par type.
+    _pw, _pl, _pp = _settled_wl_today(today_iso, sport)          # simples réglés du jour (léger)
+    _play_rec = (len(play) + _pw + _pl + _pp, _pw, _pl)
     if play or _res_cards:
-        out.append(_zone("play", "Paris du jour", "", len(play) + len(_res_cards), _play_html, collapsible=True))
+        out.append(_zone("play", "Paris du jour", "", len(play) + len(_res_cards), _play_html,
+                         collapsible=True, record=_play_rec if _play_rec[0] else None))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
     if prov or _prov_res:
         out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html, collapsible=True))
+    # Record du COMBINÉ football du jour (1 combiné/jour ; gagné/perdu = son résultat).
+    _combo_rec = None
+    if combo_daily:
+        try:
+            from app import combo_daily as _cd2
+            _cr = (_cd2.today(today_iso, sport=(sport or "foot")) or {}).get("result")
+            _combo_rec = (1, 1 if _cr == "won" else 0, 1 if _cr == "lost" else 0)
+        except Exception:
+            _combo_rec = None
     out += [
-        _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily, collapsible=True),
+        _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily,
+              collapsible=True, record=_combo_rec),
     ]
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
