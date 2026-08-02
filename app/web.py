@@ -5376,7 +5376,11 @@ def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False
         _lt, _bc = _B.get(l.get("result"), ("⏳", "p"))   # p = en attente (badge doré)
         emo = _emo.get(l.get("sport"), "•")
         nm = _h.escape(_noF(str(l.get("name") or "")).replace(" - ", " — "))   # (F) retiré à l'affichage
-        sel = _h.escape(_pretty_sel(str(l.get("sel") or ""), l.get("home", ""), l.get("away", "")))
+        # équipes avec repli `name` -> le nom d'équipe de la double chance ne disparaît pas du titre (régression user 2026-08-02)
+        _lh2, _la2 = l.get("home", ""), l.get("away", "")
+        if not (_lh2 and _la2) and l.get("name"):
+            _lh2, _s2, _la2 = str(l.get("name")).partition(" - ")
+        sel = _h.escape(_pretty_sel(str(l.get("sel") or ""), _lh2, _la2))
         co = l.get("cote")
         cot = f' · @{co:g}' if isinstance(co, (int, float)) and co else ""
         _sco = ""
@@ -5438,14 +5442,18 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     emo = _emo.get(_sp, "•")
     splbl = _SPORT_LBL.get(_sp, (_sp or "").upper())
     sel_raw = str(l.get("sel") or "")
-    sel = html.escape(_pretty_sel(sel_raw, _lh, _la))
+    # Équipes résolues (repli sur `name` « A - B ») AVANT de bâtir le TITRE : sinon un home/away vide faisait
+    # perdre le nom d'équipe de la double chance dans le titre (« Double chance 1X » sans « (… ou nul) ») —
+    # régression user 2026-08-02. Réutilisées pour la ligne d'équipes plus bas.
+    _th, _ta = _lh, _la
+    if not (_th and _ta) and l.get("name"):
+        _th, _sepn, _ta = str(l.get("name")).partition(" - ")
+    sel = html.escape(_pretty_sel(sel_raw, _th, _ta))
     # EN-TÊTE FAÇON PROVISOIRE (demande user 2026-07-18) : L1 = « SPORT • compétition » (plus le nom du
     # match condensé) ; L2 = les ÉQUIPES sur leur propre ligne, en gros (comme .mc-teams). Équipes depuis
     # home/away (repli : le nom du match « A - B »).
     comp = html.escape(str(l.get("comp") or ""))
-    _th, _ta = _lh, _la
-    if not (_th and _ta) and l.get("name"):
-        _th, _sepn, _ta = str(l.get("name")).partition(" - ")
+    # (_th/_ta déjà résolus plus haut, avec repli sur `name`, pour le titre ET la ligne d'équipes.)
     # `teams=False` (combiné de MATCH, même affiche que la carte parente) -> pas de répétition des équipes.
     _teams_html = (f'<div class="cleg-teams">{html.escape(str(_th))} '
                    f'<span class="mc-dash">—</span> {html.escape(str(_ta))}</div>') if (teams and _th and _ta) else ""
@@ -5590,7 +5598,9 @@ def _combo_tg_legs(cb: dict) -> str:
     # Fin filet de SÉPARATION entre deux jambes (demande user 2026-07-21) — même patron que .mc-sep.
     # `prob_calibrated=True` : `combo_daily` FIGE déjà la confiance calibrée (combo_daily.py ~346) et son
     # TOTAL = produit de ces probas -> ne PAS re-calibrer (bug double calibration, jambes 99 % vs total 66 %).
-    return _MC_SEP.join(_leg_card(l, why=True, verdict=True, prob_calibrated=True) for l in _legs)
+    # why_always=True : le « Pourquoi » de chaque jambe reste consultable MÊME une fois le combiné réglé
+    # (régression user 2026-08-02 : l'analyse disparaissait au règlement).
+    return _MC_SEP.join(_leg_card(l, why=True, verdict=True, why_always=True, prob_calibrated=True) for l in _legs)
 
 
 def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "") -> str:
@@ -5916,7 +5926,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
             if _c and _c[0].get("prob") is not None:
                 _lg["prob"] = _c[0]["prob"]
     out += (f'<div class="mc-combo-legs">'
-            + _MC_SEP.join(_leg_card(l, why=True, verdict=True, teams=False) for l in _legs)   # même match -> pas d'équipes répétées ; sep = même rythme que le combiné du jour
+            + _MC_SEP.join(_leg_card(l, why=True, verdict=True, teams=False, why_always=True) for l in _legs)   # même match -> pas d'équipes répétées ; why_always : pourquoi consultable même réglé (régression user 2026-08-02)
             + '</div>'
             '<div class="combo-total-hd"><span>Total du combiné</span></div>'
             + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
