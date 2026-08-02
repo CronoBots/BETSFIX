@@ -3517,7 +3517,13 @@ def _excluded_by_sport() -> dict:
     for fr, g in (cal.get("by_sport") or {}).items():
         sp = _SPORT_FR.get(fr, fr.lower())
         prev_sp = prev.get(sp, set())
-        ms = {"Corners"} if sp == "foot" else set()      # (b) ban dur foot
+        # (b) bans DURS par sport : foot=Corners (user 2026-06-19) ; basket=tout SAUF Handicap
+        # (user 2026-08-02 : réactivation basket LIMITÉE au seul marché à edge prouvé, Handicap +9 %/n=49 ;
+        # les autres sont neutres/perdants -> non publiés. Seed dur = jamais auto-réintégré, contrairement à
+        # un neutre que l'hystérésis ré-ouvrirait). Retirer un marché d'ici = ré-autoriser sa publication.
+        ms = ({"Corners"} if sp == "foot"
+              else {"Total +/-", "Vainqueur", "Total équipe", "Quart-temps/MT"} if sp == "basket"
+              else set())
         for name, mg in (g.get("markets") or {}).items():
             n = mg.get("n") or 0
             gap = (mg.get("win_rate") or 0) - (mg.get("avg_conf") or 0)
