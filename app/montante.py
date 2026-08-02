@@ -292,12 +292,11 @@ def pick_day_bet() -> dict | None:
         mid = str(d.get("id") or "")
         if not mid:
             continue
-        # PARI *JOUÉ* SEULEMENT (bug 2026-07-30) : la montante doit prendre un pari RETENU/publié (celui qui
-        # apparaît dans « Paris à jouer »), pas une ABSTENTION. `retained_bet` calcule une value même sur un
-        # match analysé mais NON validé (bets=None / abstained) -> la montante pouvait tomber sur un match qui
-        # n'est pas un pari joué (ex. Independiente 30/07). On exige donc des `bets` structurés + pas d'abstention.
-        if d.get("abstained") or not d.get("bets"):
-            continue
+        # PARI *JOUÉ* SEULEMENT : la montante prend un pari RETENU/publié (celui de « Paris à jouer »), pas une
+        # ABSTENTION. On se fie à `retained_bet` (source unique) qui renvoie DÉJÀ None sur une abstention (garde
+        # e182d3c). ⚠️ NE PAS exiger un champ `bets` structuré : beaucoup de paris joués sont stockés en `pick`
+        # (sans `bets`) -> l'ancien filtre `not d.get("bets")` les EXCLUAIT à tort et la montante ne prenait plus
+        # de palier (bug user 2026-08-02 : FC Midtjylland « gagne @1.32 » retenu mais `bets`=None -> sauté).
         rb = analyses.retained_bet("foot", mid) or analyses.published_bet("foot", mid)
         if not rb or not rb.get("sel") or rb.get("result") in ("won", "lost", "push"):
             continue
