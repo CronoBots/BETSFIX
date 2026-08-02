@@ -3010,6 +3010,28 @@ async def main():
                                          for l in _combo['legs'])   # jambes loguées (vérif)
                     print(f"  🎯 Combiné football (double chance) : cote {_combo['cote']} · "
                           f"{round(_combo['prob'] * 100)}% · {len(_combo['legs'])} jambes (figé) : {_cdlegs}")
+                    # PUBLICATION TELEGRAM : carte IMAGE du combiné football, comme les pronos (demande user
+                    # 2026-08-02 : publier le combiné football avec génération d'image). Jambes = (marché, pick,
+                    # cote, pourquoi) via les helpers card_data ; rendu card_image ; envoi photo.
+                    if not args.no_notify:
+                        try:
+                            from app import card_data as _cdd
+                            _clegs_img = []
+                            for _l in _combo["legs"]:
+                                _mkt, _pk = _cdd._split_leg(_l.get("sel", ""), _l.get("home", ""), _l.get("away", ""))
+                                _clegs_img.append((_mkt, _pk, str(_l.get("cote", "")),
+                                                   _cdd._clean_why(_l.get("why"))))
+                            _ccard = {"emoji": "⚽", "cat": "Football · Combiné du jour",
+                                      "match": "Combiné football", "meta": _day, "type": "combo",
+                                      "cote": str(_combo.get("cote", "?")), "legs": _clegs_img, "synth": ""}
+                            _cpng = "data/_cards/combo_foot.png"
+                            await card_image.render_card(_ccard, _cpng)
+                            _csent = notify.send_photo_sync(_cpng, "")
+                            if _csent:
+                                notify.remember_prono(f"combo_foot_{_day}", _csent, "Combiné football")
+                                print("     ↳ combiné football publié sur Telegram (image).")
+                        except Exception as _cce:
+                            print(f"  (carte combiné image échouée : {_cce})")
             else:
                 print("  🎯 Combiné football (double chance) : vivier DC insuffisant aujourd'hui.")
         # COMBINÉS DU JOUR SIMULÉS (tennis + basket, demande user 2026-07-25) : 1 par sport/jour, HORS ROI
