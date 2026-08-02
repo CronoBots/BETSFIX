@@ -353,15 +353,14 @@ CSS = """
     .botnav{position:fixed;left:0;right:0;bottom:0;width:auto}
     .wrap{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
   }
-  /* APP INSTALLÉE (standalone) : iOS repousse la barre AU-DESSUS de la zone home-indicator -> un VIDE NOIR
-     apparaissait entre les icônes et le bas de l'écran. On DESCEND la barre dans cette zone (bottom négatif =
-     -safe-area) pour que les icônes touchent le bas, et on ré-ajoute ce même retrait en padding-bas pour
-     que le FOND descende jusqu'au bord tout en gardant les icônes visibles (« colle le menu au bas »,
-     demande user 2026-08-02). Uniquement en standalone -> Safari garde bottom:0 net. */
+  /* APP INSTALLÉE (standalone) : iOS repousse la barre AU-DESSUS de la zone home-indicator (safe-area) -> vide
+     entre les icônes et le bas. On ANNULE cette safe-area : bottom négatif (= -safe-area) ramène le bord bas
+     de la barre au bord PHYSIQUE, et padding-bas MINIMAL (8px, PAS de safe-area) -> les ICÔNES descendent
+     jusqu'en bas, plus aucune zone sous elles (« supprimer cette zone sûre », demande user 2026-08-02).
+     Uniquement en standalone -> Safari garde bottom:0 net. */
   @media (display-mode:standalone) and (max-width:999px),(display-mode:fullscreen) and (max-width:999px){
-    .botnav{bottom:calc(env(safe-area-inset-bottom) * -1);
-            padding-bottom:calc(8px + env(safe-area-inset-bottom))}
-    .wrap{padding-bottom:calc(52px + env(safe-area-inset-bottom))}
+    .botnav{bottom:calc(env(safe-area-inset-bottom) * -1);padding-bottom:8px}
+    .wrap{padding-bottom:56px}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
