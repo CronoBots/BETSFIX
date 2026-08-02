@@ -307,15 +307,10 @@ CSS = """
   .wrap{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;width:100%;
         position:relative;
         max-width:720px;margin:0 auto;display:flex;flex-direction:column;
-        padding:calc(env(safe-area-inset-top) + 72px) 16px 22px}  /* dégage le header FIXE (hauteur de barre) */
-  /* HEADER FIXE en haut, style « app » (demande user 2026-08-02, réf. ScoreAI) : barre fixée en haut, LOGO
-     CENTRÉ à sa TAILLE D'ORIGINE (46px), bouton Compte à droite. Fond de l'app CONSERVÉ = verre subtil
-     (translucide + flou) + filet fin, PAS un bloc opaque. Desktop masque .toplogo (logo en sidebar). */
-  .toplogo{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:center;
-           margin:0;padding:calc(env(safe-area-inset-top) + 10px) 16px 11px;
-           background:linear-gradient(180deg,rgba(7,7,8,.84),rgba(7,7,8,.44));
-           -webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);
-           border-bottom:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET (bord de carte atténué, user) */
+        padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
+  /* Logo centré tout en haut, en DÉFILEMENT NORMAL (bannière fixe annulée, demande user 2026-08-02).
+     Desktop masque .toplogo (logo en sidebar). */
+  .toplogo{display:block;text-align:center;margin:20px 0 12px}
   .toplogo img{height:auto;width:auto;max-height:46px;max-width:72%;
                filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
