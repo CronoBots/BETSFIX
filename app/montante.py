@@ -185,15 +185,55 @@ def _best_per_day(bets: list) -> list:
     return [byday[d] for d in sorted(byday)]
 
 
+SIM_SNAPSHOT = os.path.join(_ROOT, "data", "montante_sim_snapshot.json")
+
+
+def _sim_frozen_sequence() -> list:
+    """Séquence FIGÉE (1 pari/jour) de la simulation montante — APPEND-ONLY PAR DATE (demande user 2026-08-02).
+    Une fois qu'un JOUR SPORTIF a son pari retenu (le plus sûr, réglé), il ne change PLUS, même si un pari se
+    règle EN RETARD (match décalé) et s'ajoute à un jour passé. Sans ça, `_best_per_day` re-choisissait le pari
+    d'un jour passé -> re-découpage des chaînes -> l'« Historique des montantes » valsait de jour en jour.
+    Le fond de vérité = `data/montante_sim_snapshot.json` (isolé, hors ROI) : on n'y AJOUTE que des jours
+    nouveaux, jamais on ne modifie un jour déjà figé. Les chaînes dérivées de cette séquence sont donc STABLES."""
+    src = foot_simples_bets()
+    if len(src) > SIM_WARMUP:
+        src = src[SIM_WARMUP:]                             # rodage exclu (comme avant)
+    live = _best_per_day(src)                              # 1 pari/jour (le plus sûr) — vue LIVE
+    try:
+        with open(SIM_SNAPSHOT, encoding="utf-8") as f:
+            snap = json.load(f)
+        frozen = snap.get("days") if isinstance(snap, dict) else {}
+    except (OSError, ValueError):
+        frozen = {}
+    if not isinstance(frozen, dict):
+        frozen = {}
+    changed = False
+    for b in live:
+        day = b.get("date") or (b.get("start") or "")[:10]
+        if not day or day in frozen:                       # jour DÉJÀ figé -> intouchable (stabilité)
+            continue
+        if b.get("result") in ("won", "lost", "push", "void"):   # on ne fige qu'un jour RÉGLÉ
+            frozen[day] = {"date": day, "start": b.get("start"), "match": b.get("match"),
+                           "sel": b.get("sel"), "cote": b.get("cote"), "result": b.get("result")}
+            changed = True
+    if changed:
+        try:
+            os.makedirs(os.path.dirname(SIM_SNAPSHOT), exist_ok=True)
+            tmp = SIM_SNAPSHOT + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"days": frozen}, f, ensure_ascii=False)
+            os.replace(tmp, SIM_SNAPSHOT)
+        except OSError:
+            pass
+    return [frozen[d] for d in sorted(frozen)]
+
+
 def simulate(bets: list | None = None) -> dict:
     """Simulation de montante (défaut : les simples foot joués). MÊME logique que la vraie montante :
-    RODAGE des `SIM_WARMUP` premiers exclu, puis **1 pari/jour** (`_best_per_day`, le plus sûr) → réaliste
-    (jamais 2 paliers le même jour). Met en avant la meilleure série. Pur calcul d'affichage, hors ROI."""
-    src = foot_simples_bets() if bets is None else bets
-    if bets is None:
-        if len(src) > SIM_WARMUP:
-            src = src[SIM_WARMUP:]                         # ne pas compter les premiers paris (rodage)
-        src = _best_per_day(src)                           # 1 pari/jour (réaliste)
+    RODAGE des `SIM_WARMUP` premiers exclu, puis **1 pari/jour** — mais la séquence est désormais FIGÉE
+    (`_sim_frozen_sequence`, append-only par date) -> l'historique de la simulation ne valse PLUS d'un jour à
+    l'autre (demande user 2026-08-02). Met en avant la meilleure série. Pur affichage, hors ROI."""
+    src = _sim_frozen_sequence() if bets is None else bets
     return _compute(src, BASE_STAKE, sim=True)
 
 
