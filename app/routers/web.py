@@ -427,7 +427,11 @@ async def home(request: Request,
     # À VENIR + petit bandeau live (les stats vivent dans l'onglet 📊).
     all_rows = await _home_match_rows()
     live_n = sum(1 for r in all_rows if r.get("status") == "inprogress")
-    rows = [r for r in all_rows if r.get("status") != "inprogress"]
+    # LIVE GARDÉS dans Pronos (bug user 2026-08-02 : « le pari du jour en live n'apparaît pas ») : la vue
+    # Pronos par défaut EST cette route `/` (dashboard) -> on ne filtre PLUS les `inprogress`, sinon un pari
+    # JOUÉ qui passe en direct disparaît de « Paris du jour ». _today_zones les place (à-venir → live) et les
+    # abstentions live sont déjà exclues par list_for. `live_n` reste le total pour le badge de l'onglet Live.
+    rows = list(all_rows)
     import datetime as _dt
     _today = web._sport_today().isoformat()    # jour sportif 06h→06h
     results = _past_day_cards(_today)          # paris TERMINÉS d'aujourd'hui (résultats) -> zone dédiée
