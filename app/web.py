@@ -5997,13 +5997,14 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         if not empty:
             return ""
         body, count = f'<div class="zone-empty">{empty}</div>', 0
-    n = f'<span class="zone-n">{count}</span>' if count else ""
     # RECORD du JOUR par type (demande user 2026-08-02) : nb sélectionnés · gagnés · perdus, à côté du titre.
+    # Le record REMPLACE le compteur simple (« sél. » EST déjà le nombre) -> pas de double nombre redondant.
     rec = ""
     if record:
         _s, _w, _l = record
         rec = (f'<span class="zone-rec">{_s} sél.'
                f'<span class="zr zrw">{_w} ✅</span><span class="zr zrl">{_l} ❌</span></span>')
+    n = "" if record else (f'<span class="zone-n">{count}</span>' if count else "")
     t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
     head = (f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{n}{rec}{t}')
     if collapsible:
@@ -6360,6 +6361,32 @@ def _settled_wl_today(iso: str, sport: str | None) -> tuple:
     return won, lost, push
 
 
+def _prov_day_counts(iso: str, sport: str | None) -> tuple:
+    """(sélectionnés, gagnés, perdus) des PROVISOIRES du JOUR sportif courant (comme la zone « Provisoires » —
+    hors ROI, indicatif). Demande user 2026-08-02 (compteur par type, aussi pour les provisoires)."""
+    sel = won = lost = 0
+    try:
+        from app import provisional as _pvt
+        _all = _pvt.load()
+        snap = {k: v for k, v in _all.items()
+                if isinstance(v, dict) and (not sport or v.get("sport") == sport)}
+        for e in _pvt.entries(snap):
+            st = str(e.get("start") or "")
+            try:
+                ld = to_local(datetime.fromisoformat(st.replace("Z", "+00:00")))
+                if not ld or _sport_date(ld).isoformat() != iso:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            sel += 1
+            r = e.get("result")
+            won += 1 if r == "won" else 0
+            lost += 1 if r == "lost" else 0
+    except Exception:
+        return 0, 0, 0
+    return sel, won, lost
+
+
 def _today_zones(match_rows: list, sport: str | None = None, results: list | None = None) -> tuple[str, int]:
     """Zones du JOUR COURANT (Combiné du jour · Paris du jour · Provisoires · Résultats du jour ; PLUS de
     zone « à analyser » — retirée sur demande user 2026-07-20). Extrait de render_dashboard pour /jour
@@ -6430,8 +6457,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                          collapsible=True, record=_play_rec if _play_rec[0] else None))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
+    _prov_rec = _prov_day_counts(today_iso, sport)   # sélectionnés · gagnés · perdus du jour (hors ROI)
     if prov or _prov_res:
-        out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html, collapsible=True))
+        out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html,
+                         collapsible=True, record=_prov_rec if _prov_rec[0] else None))
     # Record du COMBINÉ football du jour (1 combiné/jour ; gagné/perdu = son résultat).
     _combo_rec = None
     if combo_daily:
