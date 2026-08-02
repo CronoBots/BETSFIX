@@ -559,6 +559,31 @@ def _check_combo_daily_sport_purity() -> dict:
             "items": bad[:20]}
 
 
+def _check_combo_daily_dc_only() -> dict:
+    """Le COMBINÉ FOOT DU JOUR à venir ne doit contenir QUE des jambes DOUBLE CHANCE (demande user
+    2026-08-02 : « le combiné double chance ne doit contenir que des jambes doubles chances »). C'est ce que
+    `combo_safe.build_for_day_async` garantit (candidats filtrés aux codes `DC …`) ; ce check LOCK la
+    politique -> toute jambe non-DC greffée (Over/tirs/handicap…) = régression. N'inspecte QUE le foot et QUE
+    les combinés NON réglés (les combinés MIXTES historiques d'avant la bascule, tous réglés, sont épargnés)."""
+    bad = []
+    try:
+        from app import combo_daily
+        for day, cb in (combo_daily._load("foot") or {}).items():
+            if not isinstance(cb, dict) or cb.get("result") in ("won", "lost", "void"):
+                continue                                  # réglé -> historique, intouchable
+            for leg in cb.get("legs") or []:
+                code = (leg.get("code") or "").strip().upper()
+                if code.split()[:1] != ["DC"]:
+                    bad.append(f"[{day}] {leg.get('name', '?')} : jambe '{leg.get('sel', '?')}' "
+                               f"(code '{code or '?'}') n'est PAS une double chance")
+    except Exception:
+        pass
+    return {"key": "combo_daily_dc_only", "level": "error" if bad else "ok",
+            "title": "Combiné foot du jour = uniquement des jambes double chance",
+            "detail": f"{len(bad)} jambe(s) non-DC dans un combiné foot à venir (doit être 100% double chance).",
+            "items": bad[:20]}
+
+
 def _check_combo_daily_leg_analysis() -> dict:
     """Un combiné du jour À VENIR (non réglé) doit porter l'ANALYSE par jambe (`why`) produite par le scan
     (`_analyze_combo_legs`). Encode la régression 2026-07-26 : un combiné foot ré-enregistré à la main avait
@@ -887,6 +912,7 @@ def run(persist: bool = False) -> dict:
         _check_provisional_settle_finished(),
         _check_combo_daily_settle_finished(),
         _check_combo_daily_sport_purity(),
+        _check_combo_daily_dc_only(),
         _check_combo_daily_leg_analysis(),
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),

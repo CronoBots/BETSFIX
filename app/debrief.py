@@ -411,3 +411,27 @@ def summary(sports=("foot",)) -> dict:
         "by_market": sorted(by_market.items(), key=lambda t: t[1], reverse=True),
         "lessons": actionable,
     }
+
+
+# ─────────────────────────── RÉTROACTION (branchée dans le scan) ───────────────────────────
+def scan_guidance(sport: str = "foot", max_lessons: int = 8) -> str:
+    """Bloc de MÉMOIRE pour le prompt du scan (demande user 2026-08-02 : « apprendre de nos erreurs et
+    évoluer pour augmenter le taux »). Ne renvoie QUE les leçons ÉVITABLES apprises des pertes passées, en
+    interdits courts, récurrentes d'abord. ⚠️ STRICTEMENT RESTRICTIF : ces règles écartent des paris qui ont
+    PROUVÉ qu'ils perdent — elles n'AUTORISENT AUCUN nouveau marché (ne peut pas diluer le taux phare, cf.
+    [[protect-foot-simple-success-rate]]). '' si aucune leçon. Vide de sens à toucher au ROI/stats."""
+    les = _load(LESSONS_PATH)
+    rows = [s for s in les.values() if isinstance(s, dict) and s.get("sport") == sport
+            and s.get("evitable") and s.get("lecon")]
+    if not rows:
+        return ""
+    rows.sort(key=lambda s: (s.get("evitable") or 0, s.get("count") or 0), reverse=True)
+    lines = []
+    for s in rows[:max_lessons]:
+        fam = MARKET_LABEL.get(s.get("market_family"), s.get("market_family"))
+        cnt = s.get("count") or 1
+        tag = f" (vu {cnt}×)" if cnt > 1 else ""
+        lines.append(f"- ({fam}{tag}) {s.get('lecon')}")
+    return ("\nMÉMOIRE — ERREURS PASSÉES À NE PAS RÉPÉTER (débrief automatique de nos paris perdus). Ces "
+            "règles sont RESTRICTIVES : elles écartent des paris qui ont prouvé qu'ils perdent ; elles "
+            "n'autorisent AUCUN nouveau marché. Respecte-les scrupuleusement :\n" + "\n".join(lines) + "\n")

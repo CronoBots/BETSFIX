@@ -58,6 +58,23 @@ _PREPACK_CACHE: dict[str, list] = {}
 # Catalogue des issues éligibles Bet Builder par event_id (pour pricer un combiné ARBITRAIRE exactement).
 _CATALOG_CACHE: dict[str, list] = {}
 
+# MÉMOIRE de débrief injectée dans le prompt (leçons apprises des pertes) — calculée 1× par sport et par scan.
+_DEBRIEF_MEM_CACHE: dict[str, str] = {}
+
+
+def _debrief_memory(sport: str) -> str:
+    """Bloc « erreurs passées à ne pas répéter » (app.debrief.scan_guidance) injecté dans le prompt d'analyse
+    — la mémoire évolutive DEVIENT active ici (demande user 2026-08-02 : apprendre pour augmenter le taux).
+    Strictement RESTRICTIF (n'autorise aucun marché). Caché par sport pour tout le scan. Best-effort ('')."""
+    if sport not in _DEBRIEF_MEM_CACHE:
+        try:
+            from app import debrief as _db
+            _DEBRIEF_MEM_CACHE[sport] = _db.scan_guidance(sport)
+        except Exception:
+            _DEBRIEF_MEM_CACHE[sport] = ""
+    return _DEBRIEF_MEM_CACHE[sport]
+
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "analyses")
 PROGRAMME_PATH = os.path.join(ROOT, "data", "day_programme.json")   # sélection du jour (matin) : liste
@@ -1304,7 +1321,8 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         if prepacks:
             _PREPACK_CACHE[str(match["id"])] = prepacks
             combo += _prepack_menu(prepacks, sport)
-    text = (f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
+    text = (_debrief_memory(sport)                            # MÉMOIRE : leçons apprises des pertes (restrictif)
+            + f"MATCH: {match['name']} ({match['comp']}, coup d'envoi {match['start']})\n"
             "COTES UNIBET BELGIQUE REELLES (n'invente AUCUNE cote) — chaque issue porte sa PROBA JUSTE "
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
             "(détaille la procédure value plus haut) :\n" + "\n".join(lines)
