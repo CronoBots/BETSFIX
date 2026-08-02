@@ -8342,9 +8342,19 @@ def _sport_row(r: dict) -> str:
                 # vainqueur » vs « Roman Burruchaga vainqueur » = même issue) -> pas de faux double scan.
                 try:
                     from app.settle_analyst import code_from_pick as _cfp2
-                    _cpub = _cfp2(_pbz.get("sel", ""), sport_key, r.get("home", ""), r.get("away", ""))
-                    _ccur = (_cfp2(_curb[0].get("sel", ""), sport_key, r.get("home", ""), r.get("away", ""))
-                             if _curb else "")
+
+                    def _canon_win(_c):
+                        # 1X2 <=> REGTIME du MÊME côté = MÊME issue (« gagne » vs « gagne temps réglementaire »,
+                        # identique en foot de ligue sans prolongation) -> pas de FAUX double scan (bug user
+                        # 2026-08-02 : FC Midtjylland « gagne (1X2) » vs « gagne (temps réglementaire) »).
+                        _p = (_c or "").upper().split()
+                        if _p and _p[0] == "REGTIME":
+                            return "1X2 " + {"HOME": "1", "AWAY": "2", "DRAW": "X"}.get(
+                                _p[1] if len(_p) > 1 else "", "")
+                        return (_c or "").upper()
+                    _cpub = _canon_win(_cfp2(_pbz.get("sel", ""), sport_key, r.get("home", ""), r.get("away", "")))
+                    _ccur = _canon_win(_cfp2(_curb[0].get("sel", ""), sport_key, r.get("home", ""), r.get("away", ""))
+                                       if _curb else "")
                 except Exception:
                     _cpub = _ccur = ""
                 # Un pari PUBLIÉ est FIGÉ (jamais retiré) -> si le dernier scan n'a RIEN produit (ou le MÊME
