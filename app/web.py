@@ -6340,51 +6340,71 @@ def _sport_selector(current: str | None, counts: dict | None = None, *,
 
 
 def _settled_wl_today(iso: str, sport: str | None) -> tuple:
-    """(gagnés, perdus, remboursés) des PARIS JOUÉS SIMPLES réglés du JOUR (via stat_bet figé, itérateur
-    LÉGER -> perf ; PAS de retained_bet par carte). Sert aux compteurs par type dans Pronos (demande user
-    2026-08-02). Foot par défaut (arrière-plan exclu) ou le sport ciblé."""
+    """(gagnés, perdus, remboursés) des PARIS JOUÉS SIMPLES réglés du JOUR. Doit refléter EXACTEMENT les
+    cartes affichées (`_settled_bet_result_cards`) -> même prédicat : un pari retenu (retained_bet for_history)
+    PAR MATCH réglé. ⚠️ NE PAS utiliser `iter_stat_bets` ici : il rend stat_bet ET stat_bet_first (pour le
+    ROI/calibration), donc DOUBLE-COMPTE un match re-scané (bug user 2026-08-02 : « 5 au lieu de 4, 2 gagnés
+    au lieu de 1 »). Combiné du jour réglé compté comme UNE carte. Foot par défaut (arrière-plan exclu)."""
     won = lost = push = 0
     _bg = analyses.background_sports()
-    for _sp, sb, dt in analyses.iter_stat_bets():
-        if sport:
-            if _sp != sport:
+    for sp in ((sport,) if sport else ("foot",)):
+        if sp in _bg and sp != sport:
+            continue
+        for d in analyses.iter_meta(sp):
+            dt = d.get("_start_dt")
+            ld = to_local(dt) if dt else None
+            if ld is None or _sport_date(ld).isoformat() != iso:
                 continue
-        elif _sp in _bg:
-            continue
-        ld = to_local(dt) if dt else None
-        if ld is None or _sport_date(ld).isoformat() != iso:
-            continue
-        r = sb.get("result")
-        won += 1 if r == "won" else 0
-        lost += 1 if r == "lost" else 0
-        push += 1 if r == "push" else 0
+            if not analyses.is_settled(d):
+                continue
+            combo = d.get("combo") or {}
+            if combo.get("legs") and combo.get("result") in ("won", "lost", "void"):
+                r = combo.get("result")
+            else:
+                rb = analyses.retained_bet(sp, str(d.get("id")), for_history=True)
+                if not rb or rb.get("result") not in ("won", "lost", "push"):
+                    continue
+                r = rb.get("result")
+            won += 1 if r == "won" else 0
+            lost += 1 if r == "lost" else 0
+            push += 1 if r in ("push", "void") else 0
     return won, lost, push
 
 
-def _prov_day_counts(iso: str, sport: str | None) -> tuple:
-    """(sélectionnés, gagnés, perdus) des PROVISOIRES du JOUR sportif courant (comme la zone « Provisoires » —
-    hors ROI, indicatif). Demande user 2026-08-02 (compteur par type, aussi pour les provisoires)."""
-    sel = won = lost = 0
+def _prov_settled_wl(iso: str, sport: str | None) -> tuple:
+    """(réglés, gagnés, perdus) des PROVISOIRES du JOUR — MÊME sélection de lignes que `_provisional_results`
+    (les cartes réglées affichées) pour que le compteur colle EXACTEMENT aux cartes (bug user 2026-08-02 :
+    « 7 au lieu de 4 »). ⚠️ NE PAS itérer le suivi brut (`entries`) : il liste des provisoires PAS affichés
+    (déjà dédupliqués contre combiné/joué, ou non-`provisional_shown`). Hors ROI, indicatif."""
+    n = won = lost = 0
     try:
-        from app import provisional as _pvt
-        _all = _pvt.load()
-        snap = {k: v for k, v in _all.items()
-                if isinstance(v, dict) and (not sport or v.get("sport") == sport)}
-        for e in _pvt.entries(snap):
-            st = str(e.get("start") or "")
-            try:
-                ld = to_local(datetime.fromisoformat(st.replace("Z", "+00:00")))
-                if not ld or _sport_date(ld).isoformat() != iso:
-                    continue
-            except (ValueError, TypeError):
-                continue
-            sel += 1
-            r = e.get("result")
-            won += 1 if r == "won" else 0
-            lost += 1 if r == "lost" else 0
+        from app import provisional as _pv
+        allp = _pv.load()
     except Exception:
         return 0, 0, 0
-    return sel, won, lost
+    _bg = analyses.background_sports()
+    for p in allp.values():
+        if not isinstance(p, dict):
+            continue
+        if sport is None and p.get("sport") in _bg:
+            continue
+        if sport and p.get("sport") != sport:
+            continue
+        res = p.get("result")
+        settled = res in ("won", "lost", "push", "void")
+        if not settled:                                  # inclut les FINIS EN ATTENTE (comme _provisional_results)
+            if res is not None or not analyses.likely_finished({"sport": p.get("sport"), "start": p.get("start")}):
+                continue
+        try:
+            ld = to_local(datetime.fromisoformat(str(p.get("start")).replace("Z", "+00:00")))
+        except (ValueError, AttributeError, TypeError):
+            ld = None
+        if not ld or _sport_date(ld).isoformat() != iso:
+            continue
+        n += 1
+        won += 1 if res == "won" else 0
+        lost += 1 if res == "lost" else 0
+    return n, won, lost
 
 
 def _today_zones(match_rows: list, sport: str | None = None, results: list | None = None) -> tuple[str, int]:
@@ -6457,7 +6477,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                          collapsible=True, record=_play_rec if _play_rec[0] else None))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
-    _prov_rec = _prov_day_counts(today_iso, sport)   # sélectionnés · gagnés · perdus du jour (hors ROI)
+    # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
+    # même sélection que _provisional_results). -> « X sél · W✅ · L❌ » colle au nombre de cartes (hors ROI).
+    _psn, _psw, _psl = _prov_settled_wl(today_iso, sport)
+    _prov_rec = (len(prov) + _psn, _psw, _psl)
     if prov or _prov_res:
         out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html,
                          collapsible=True, record=_prov_rec if _prov_rec[0] else None))
