@@ -2204,12 +2204,13 @@ CSS = """
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
   .zone-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
-  /* RECORD du jour par type (nb sélectionnés · gagnés ✅ · perdus ❌) — chip discret à droite du titre. */
-  .zone-rec{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:800;
-       color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .zone-rec .zr{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:9px}
-  .zone-rec .zrw{color:#63d68f;background:rgba(52,210,123,.12)}
-  .zone-rec .zrl{color:#ff8080;background:rgba(255,107,107,.12)}
+  /* RECORD du jour par type (gagnés ✅ · perdus ❌) — MÊME forme que le badge `.zone-n` (demande user
+     2026-08-02 : « sous la même forme que le numéro compté à gauche »), à droite du titre. */
+  .zone-rec{margin-left:auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .zone-rec .zr{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
+       display:inline-flex;align-items:center;justify-content:center;gap:3px;font-variant-numeric:tabular-nums}
+  .zone-rec .zrw{color:#63d68f;background:rgba(52,210,123,.14)}
+  .zone-rec .zrl{color:#ff8080;background:rgba(255,107,107,.14)}
   .zone-b{margin-top:2px}
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}

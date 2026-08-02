@@ -353,13 +353,17 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
     cached = fragcache.get(ckey)
     if cached is not None:
         return HTMLResponse(cached)
-    if not is_past:                                        # aujourd'hui (ou futur) = vue « à venir »
-        rows = [r for r in await _home_match_rows() if r.get("status") != "inprogress"]
+    if not is_past:                                        # aujourd'hui (ou futur) = vue du jour
+        # LIVE GARDÉS (bug user 2026-08-02 : « un pari du jour EN LIVE n'apparaît pas dans Pronos ») : on NE
+        # filtre PLUS les `inprogress`. Un pari JOUÉ qui passe en direct doit rester dans « Paris du jour »
+        # (_today_zones trie à-venir → live) jusqu'à son règlement. Les abstentions live sont déjà exclues en
+        # amont par `list_for` (donc absentes de _home_match_rows) -> seuls les VRAIS paris joués live passent.
+        rows = list(await _home_match_rows())
         # SPORT EN ARRIÈRE-PLAN (basket/tennis) EXPLICITEMENT sélectionné : ses paris joués ne passent pas
         # _home_match_rows (list_for=[]) -> on les construit à la demande pour CETTE vue mono-sport, comme son
         # combiné du jour (demande user 2026-07-29). Jamais en vue « Tous » (sp=None) -> politique inchangée.
         if sp in analyses.background_sports():
-            rows += [r for r in await _bg_sport_rows(sp) if r.get("status") != "inprogress"]
+            rows += list(await _bg_sport_rows(sp))
         results = _past_day_cards(today_iso)               # paris terminés d'aujourd'hui -> zone dédiée
         body = web._today_zones(rows, sp, results)[0]
         fragcache.put(ckey, body, ttl=PANEL_TTL)           # jour courant : bouge -> TTL court
