@@ -4796,9 +4796,17 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
         n = math.floor(val)
         return (f"aucun {_u(1)} au total (les 2 équipes)" if n == 0
                 else f"{n} {_u(n)} maximum au total (les 2 équipes)")
-    # DOUBLE CHANCE : deux issues couvertes (le pick affiche déjà « 1X (… ou nul) » -> glose courte).
+    # DOUBLE CHANCE : glose EN CLAIR avec le NOM D'ÉQUIPE (demande user 2026-08-02) — 1X = domicile, X2 =
+    # extérieur ; 12 = les deux (pas d'équipe unique). Si le code n'est pas explicite, on déduit du camp cité.
     if re.search(r"\bdouble chance\b|\b1x\b|\bx2\b|\b12\b", sl) and "mi-temps" not in sl:
-        return "l'un des deux gagne (pas de match nul)" if re.search(r"\b12\b", sl) else "gagne ou match nul"
+        if re.search(r"\b12\b", sl):
+            return "l'un des deux gagne (pas de match nul)"
+        _dctok = lambda nm: [t for t in re.findall(r"[a-zà-ÿ0-9]+", (nm or "").lower()) if len(t) >= 3]
+        _dcteam = (away if re.search(r"\bx2\b", sl)
+                   else home if re.search(r"\b1x\b", sl)
+                   else home if any(t in sl for t in _dctok(home))
+                   else away if any(t in sl for t in _dctok(away)) else "")
+        return f"{_dcteam} gagne ou match nul" if _dcteam else "gagne ou match nul"
     # LES DEUX ÉQUIPES MARQUENT (BTTS).
     if "deux équipes marquent" in sl or re.search(r"\bbtts\b", sl):
         if "mi-temps" in sl:
@@ -5541,7 +5549,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     # 2026-07-20 : « le gloss ne peut pas changer après le résultat »). On N'AJOUTE PLUS le score final ici
     # (il polluait l'explication + la faisait varier avant/après règlement) — le score final est déjà porté
     # par le scoreboard et le badge de la jambe. Glose = strictement l'explication du marché, comme les simples.
-    _g = _bet_gloss(sel_raw, _sp, _lh, _la)
+    _g = _bet_gloss(sel_raw, _sp, _th, _ta)   # _th/_ta = équipes résolues (repli `name`) -> le glose double chance garde le nom d'équipe
     gloss = f'<div class="cleg-gloss"><span class="ar">↳</span> {_g}</div>' if _g else ""
     # Justification = pli TAPPABLE « 💡 Pourquoi cette jambe » (demande user 2026-07-19 : lire l'analyse
     # COMPLÈTE au tap plutôt qu'un extrait coupé à 3 lignes). Même patron que le combiné de match. Texte
