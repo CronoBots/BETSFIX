@@ -850,8 +850,8 @@ def _check_background_publish(rows) -> dict:
             return {"key": "background_publish", "level": "ok", "title": "Aucune fuite Telegram (sports suspendus)",
                     "detail": "aucun sport en arrière-plan.", "items": []}
         leaks = []
-        for d in rows:
-            if d.get("sport") in bg and _n.get_prono(str(d.get("id"))):
+        for _p, d in rows:
+            if isinstance(d, dict) and d.get("sport") in bg and _n.get_prono(str(d.get("id"))):
                 leaks.append(f'{d.get("sport")} · {d.get("home", "")} - {d.get("away", "")}')
         return {"key": "background_publish",
                 "level": "warn" if leaks else "ok",
