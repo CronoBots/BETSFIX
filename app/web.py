@@ -255,8 +255,6 @@ CSS = """
     --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
     --red:#ff6b6b;--green:#a6e22e;--brand:var(--accent);
     --cardline:rgba(34,184,255,.30);--cardglow:0 0 24px rgba(34,184,255,.10);
-    /* Hauteur FIGÉE de la bannière fixe (mobile) — la barre de section collante se cale PILE dessous */
-    --hdr-h:calc(env(safe-area-inset-top) + 58px);
     --radius:16px;--shadow:0 8px 26px rgba(0,0,0,.55);--shadow-sm:0 2px 8px rgba(0,0,0,.4);
     /* Bord GAUCHE des cartes de pari selon l'état (demande user 2026-07-25) : en attente=JAUNE ;
        en cours (live)=même jaune (PAS de couleur dédiée -> le badge « 🟢 Live » suffit) ; gagné=vert ;
@@ -309,14 +307,12 @@ CSS = """
   .wrap{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;width:100%;
         position:relative;
         max-width:720px;margin:0 auto;display:flex;flex-direction:column;
-        padding:var(--hdr-h) 16px 22px}  /* dégage le header FIXE (hauteur FIGÉE) */
+        padding:calc(env(safe-area-inset-top) + 72px) 16px 22px}  /* dégage le header FIXE (hauteur de barre) */
   /* HEADER FIXE en haut, style « app » (demande user 2026-08-02, réf. ScoreAI) : barre fixée en haut, LOGO
-     CENTRÉ à sa TAILLE D'ORIGINE (46px), bouton Compte à droite. Fond de l'app CONSERVÉ = verre subtil +
-     filet fin. HAUTEUR FIGÉE `--hdr-h` -> la barre de section collante se cale PILE dessous (demande user :
-     « collé à la bannière »). Desktop masque .toplogo (logo en sidebar). */
-  .toplogo{position:fixed;top:0;left:0;right:0;z-index:50;height:var(--hdr-h);
-           display:flex;align-items:center;justify-content:center;
-           margin:0;padding:env(safe-area-inset-top) 16px 0;
+     CENTRÉ à sa TAILLE D'ORIGINE (46px), bouton Compte à droite. Fond de l'app CONSERVÉ = verre subtil
+     (translucide + flou) + filet fin, PAS un bloc opaque. Desktop masque .toplogo (logo en sidebar). */
+  .toplogo{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:center;
+           margin:0;padding:calc(env(safe-area-inset-top) + 10px) 16px 11px;
            background:linear-gradient(180deg,rgba(7,7,8,.84),rgba(7,7,8,.44));
            -webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);
            border-bottom:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET (bord de carte atténué, user) */
@@ -325,7 +321,7 @@ CSS = """
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
   /* ICÔNE SEULE (demande user 2026-08-01 : plus de texte « Compte », il chevauchait le logo). Bouton ROND
      compact dans le coin -> ne déborde plus sur le logo BETSFIX centré. */
-  .acctbtn{position:fixed;top:calc(env(safe-area-inset-top) + 14px);right:14px;z-index:55;
+  .acctbtn{position:fixed;top:calc(env(safe-area-inset-top) + 16px);right:14px;z-index:55;
     display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;line-height:1;
     border-radius:999px;color:#cfe0f5;text-decoration:none;
     background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
@@ -2217,14 +2213,14 @@ CSS = """
   /* EN-TÊTES DE SECTION COLLANTS (demande user 2026-08-02) : en scrollant Pronos, le TYPE DE PARI
      (« Paris du jour », « Provisoires », « Combiné »…) reste calé sous le header fixe, jusqu'à ce que le type
      SUIVANT le pousse et prenne sa place — pattern « sticky section header » 100 % pro. MOBILE uniquement
-     (desktop = grille + sidebar, pas de header fixe). Barre pleine largeur, verre, COLLÉE PILE sous le header
-     fixe (top = --hdr-h, hauteur figée du header → aucun décalage) et SANS bordure (demande user 2026-08-02).
-     z-index < header fixe (50), > cartes. */
+     (desktop = grille + sidebar, pas de header fixe). Barre pleine largeur, verre + filet bleu discret,
+     posée SOUS le header fixe (top = hauteur du header). z-index < header fixe (50), > cartes. */
   @media (max-width:999px){
-    .zone-h{position:sticky;top:var(--hdr-h);z-index:30;
+    .zone-h{position:sticky;top:calc(env(safe-area-inset-top) + 66px);z-index:30;
             margin:0 -16px 10px;padding:11px 16px 10px;
             background:linear-gradient(180deg,rgba(8,9,11,.95),rgba(8,9,11,.9));
-            -webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2)}
+            -webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);
+            border-bottom:1px solid rgba(34,184,255,.22)}
   }
   /* Points/compteurs de zone = MÊME couleur que le CADRE des cartes du type (demande user 2026-07-21) :
      Paris du jour = cyan (cadre .row.pick), Provisoires = blanc (cadre .mc-prov-b), Combiné = vert
