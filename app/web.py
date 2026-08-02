@@ -345,20 +345,16 @@ CSS = """
   donc toujours collé au bas du viewport DYNAMIQUE sans « sauter » sur
      iOS. Centrée à 720px ; fond OPAQUE ; padding bas = safe-area (encoche/home-bar). */
   .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;touch-action:none;
-          display:flex;gap:4px;position:relative;
-          padding:7px 10px 8px;   /* boutons collés bas, PAS d'espace vide sous eux (demande user 2026-08-02) */
+          display:flex;gap:4px;
+          padding:7px 10px 8px;
           background:#0b0d12;border-top:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET */
-  /* Barre du bas ANCRÉE en bas (position:fixed, bottom:0) sur tout mobile. */
+  /* Barre du bas, RECETTE CRYPTONAUTS (projet voisin, marche parfaitement — cf. user 2026-08-02) : UNE règle
+     pour TOUT mobile, fixe en bas + padding-bas = 6px + safe-area (vaut la zone home en app installée, 0 en
+     Safari via le fallback). Pas de cas standalone séparé, pas de bottom négatif, pas de pseudo-élément. */
   @media (max-width:999px){
-    .botnav{position:fixed;left:0;right:0;bottom:0;width:auto}
-    .wrap{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
-  }
-  /* APP INSTALLÉE (standalone) : STANDARD iOS (identique aux apps du store, cf. captures user 2026-08-02) —
-     bottom:0 (fond de barre jusqu'au bord physique, aucun noir) + padding-bas = safe-area pour poser les
-     LIBELLÉS juste au-dessus du trait home (zone système intouchable, sinon texte coupé / sous le geste). */
-  @media (display-mode:standalone) and (max-width:999px),(display-mode:fullscreen) and (max-width:999px){
-    .botnav{bottom:0;padding-bottom:calc(6px + env(safe-area-inset-bottom))}
-    .wrap{padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+    .botnav{position:fixed;left:0;right:0;bottom:0;width:auto;
+            padding:7px 10px calc(6px + env(safe-area-inset-bottom, 0px))}
+    .wrap{padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px))}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
