@@ -348,12 +348,12 @@ CSS = """
           display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));
           background:#0b0d12;border-top:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET */
-  /* PWA INSTALLÉE (standalone) : la barre du bas est ANCRÉE au bas PHYSIQUE de l'écran (position:fixed,
-     bottom:0) — sinon, comme le body en 100dvh ne couvre pas toujours le safe-area de l'indicateur home,
-     la barre (frère statique) s'arrêtait AU-DESSUS et laissait apparaître le canvas sombre en dessous
-     (« le menu doit descendre », demande user 2026-08-02). On ne le fait QU'en standalone -> Safari (avec sa
-     barre d'outils qui apparaît/disparaît) garde la barre STATIQUE et ne « saute » pas. */
-  @media (display-mode:standalone) and (max-width:999px),(display-mode:fullscreen) and (max-width:999px){
+  /* Barre du bas ANCRÉE au bas PHYSIQUE de l'écran sur TOUT mobile (position:fixed, bottom:0) — sinon, comme
+     le body en 100dvh ne couvre pas toujours le safe-area / le vide sous la barre statique, une BANDE SOMBRE
+     apparaissait entre le menu et le bord (Safari comme PWA). Le fond de la barre descend maintenant jusqu'au
+     bord (« le menu collé au bord de l'écran », demande user 2026-08-02) ; les libellés restent au-dessus de
+     l'indicateur home via le padding safe-area. */
+  @media (max-width:999px){
     .botnav{position:fixed;left:0;right:0;bottom:0;width:auto}
     .wrap{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
   }
