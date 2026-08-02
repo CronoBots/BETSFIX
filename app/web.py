@@ -353,12 +353,12 @@ CSS = """
     .botnav{position:fixed;left:0;right:0;bottom:0;width:auto}
     .wrap{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
   }
-  /* APP INSTALLÉE (standalone) : bottom:0 atteint DÉJÀ le bord physique (pas d'inset iOS ici). On NE rajoute
-     PAS la safe-area en padding (sinon zone vide sous les icônes) — juste 12px pour que les libellés restent
-     lisibles tout en bas, collés au bord, sans « zone sûre » (demande user 2026-08-02). */
+  /* APP INSTALLÉE (standalone) : STANDARD iOS (identique aux apps du store, cf. captures user 2026-08-02) —
+     bottom:0 (fond de barre jusqu'au bord physique, aucun noir) + padding-bas = safe-area pour poser les
+     LIBELLÉS juste au-dessus du trait home (zone système intouchable, sinon texte coupé / sous le geste). */
   @media (display-mode:standalone) and (max-width:999px),(display-mode:fullscreen) and (max-width:999px){
-    .botnav{bottom:0;padding-bottom:12px}
-    .wrap{padding-bottom:64px}
+    .botnav{bottom:0;padding-bottom:calc(6px + env(safe-area-inset-bottom))}
+    .wrap{padding-bottom:calc(56px + env(safe-area-inset-bottom))}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
