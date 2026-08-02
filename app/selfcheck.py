@@ -25,7 +25,7 @@ from __future__ import annotations
 import glob
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 from app import analyses
 
@@ -805,6 +805,39 @@ def _check_stats_snapshot_drift() -> dict:
             "items": items}
 
 
+def _check_montante_active() -> dict:
+    """La montante ACTIVE doit sélectionner un palier régulièrement (1 pari foot à jouer/jour). Un long
+    silence — dernier palier > 2 j ET aucun palier en attente — = elle a CESSÉ de sélectionner (régression
+    user 2026-08-02 : filtre `not d.get(bets)` qui excluait les paris stockés en `pick`, sans champ `bets`
+    structuré). Hors ROI, mais on veut le SAVOIR pour ne plus que ça passe inaperçu. Ne lève jamais."""
+    try:
+        from app import montante as _mt
+        if not _mt.is_active():
+            return {"key": "montante_active", "level": "ok", "title": "Montante — sélection quotidienne",
+                    "detail": "montante désactivée (rien à vérifier).", "items": []}
+        d = _mt.load()
+        steps = d.get("steps") or []
+        pending = any(s.get("result") is None for s in steps)
+        last = max((str(s.get("date") or "") for s in steps), default="")
+        gap = 0
+        if last:
+            try:
+                gap = (datetime.now(timezone.utc).date() - date.fromisoformat(last[:10])).days
+            except (ValueError, TypeError):
+                gap = 0
+        stuck = (not pending) and gap > 2
+        return {"key": "montante_active", "level": "warn" if stuck else "ok",
+                "title": "Montante — sélection quotidienne",
+                "detail": (f"aucun palier depuis {gap} j (dernier {last}) alors que la montante est ACTIVE — "
+                           f"vérifier pick_day_bet (paris à jouer non pris ?)." if stuck else
+                           f"OK — {len(steps)} paliers, "
+                           f"{'1 en attente' if pending else 'dernier ' + (last or '—')}."),
+                "items": ([{"last": last, "gap_days": gap}] if stuck else [])}
+    except Exception as e:
+        return {"key": "montante_active", "level": "ok", "title": "Montante — sélection quotidienne",
+                "detail": f"vérif ignorée (non bloquante) : {e}", "items": []}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -834,6 +867,7 @@ def run(persist: bool = False) -> dict:
         _check_tennis_sets_overconfidence(rows),
         _check_uniform_labels(rows),
         _check_stats_snapshot_drift(),
+        _check_montante_active(),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]
