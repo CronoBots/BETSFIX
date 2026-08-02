@@ -52,6 +52,14 @@ Log 'RECONCILE : règlement + vérif Telegram'
 & $py 'tools\reconcile.py' 2>&1 | Out-File -Append -Encoding utf8 $log
 Log ("RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 
+# DÉBRIEF DES PERTES (mémoire évolutive, demande user 2026-08-02) : après le règlement, on analyse POURQUOI
+# chaque nouveau pari joué PERDU a perdu (malchance/variance vs prémisse évitable) et on alimente
+# data/lessons.json. Pilote Claude headless (comme le scan) -> DOIT tourner dans cette session authentifiée.
+# Incrémental (ne traite que les pertes non encore débriefées). Purement additif (jamais ROI/stats/calib).
+Log 'DEBRIEF : analyse des paris joués perdus (mémoire évolutive)'
+& $py 'tools\debrief.py' --sport foot 2>&1 | Out-File -Append -Encoding utf8 $log
+Log ("DEBRIEF DONE (exit {0})" -f $LASTEXITCODE)
+
 # AUTO-AUDIT d'intégrité (100 % lecture seule) : vérifie qu'aucune confusion de stats/règlement ne s'est
 # glissée (chaque contrôle encode une régression déjà survenue). Avance le filigrane de monotonicité et
 # alerte Telegram UNIQUEMENT en cas d'ERREUR. Ne bloque jamais le scan (Continue).

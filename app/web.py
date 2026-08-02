@@ -7547,6 +7547,63 @@ def _market_watch_rows(by_market: dict) -> str:
     return "".join(rows)
 
 
+def render_debrief(summary: dict | None) -> str:
+    """DÉBRIEF DES PERTES (demande user 2026-08-02) — mémoire évolutive : pour chaque pari JOUÉ perdu, une
+    analyse post-match distingue la MALCHANCE (variance, process sain -> aucune leçon) d'une PRÉMISSE
+    défaillante (évitable -> leçon actionnable). Les leçons récurrentes s'accumulent (data/lessons.json).
+    PUREMENT INFORMATIF pour l'instant : ces leçons ne modifient PAS encore la sélection des paris (décision
+    séparée). Réutilise le style `.exq`. '' si aucun débrief."""
+    from app import debrief as _db
+    s = summary or _db.summary(("foot",))
+    total = s.get("total") or 0
+    if not total:
+        return ""
+    evit, var = s.get("evitable") or 0, s.get("variance") or 0
+    intro = ('<div class="exq-intro">Chaque <b>pari joué perdu</b> est analysé après coup : on sépare la '
+             '<b>malchance</b> (un pari à forte confiance qui tombe du mauvais côté — le raisonnement était '
+             'bon, <b>aucune leçon</b>) d\'une <b>prémisse défaillante</b> (un signal qu\'on aurait dû voir — '
+             '<b>leçon retenue</b>). Les leçons récurrentes forment une <b>mémoire qui évolue</b>. '
+             '<i>Pour l\'instant informatif : elles n\'influencent pas encore la sélection.</i></div>')
+    # Bandeau chiffres : total · malchance vs évitable.
+    head = (f'<div class="exq-sport"><div class="exq-sphead">'
+            f'<span class="exq-spname">🧠 {total} perte{"s" if total > 1 else ""} débriefée{"s" if total > 1 else ""}</span>'
+            f'<span class="exq-sptag exq-sptag-ok">{var} malchance</span>'
+            f'<span class="exq-sptag exq-sptag-ex">{evit} évitable{"s" if evit > 1 else ""}</span></div>')
+    # Top causes.
+    causes = ""
+    for c, n in (s.get("by_cause") or [])[:6]:
+        causes += (f'<div class="exq-row"><div class="exq-top">'
+                   f'<span class="exq-bdg exq-ok">{n}</span>'
+                   f'<span class="exq-mk">{html.escape(_db.CAUSE_LABEL.get(c, c))}</span></div></div>')
+    head += causes + '</div>'
+    # LEÇONS actionnables (le cœur) — récurrentes d'abord.
+    lessons = s.get("lessons") or []
+    body = ""
+    if lessons:
+        body += ('<div class="exq-sport"><div class="exq-sphead">'
+                 '<span class="exq-spname">📌 Leçons retenues</span>'
+                 f'<span class="exq-sptag exq-sptag-ex">{len(lessons)}</span></div>')
+        for l in lessons:
+            fam = _db.MARKET_LABEL.get(l.get("market_family"), l.get("market_family"))
+            cause = _db.CAUSE_LABEL.get(l.get("cause"), l.get("cause"))
+            cnt = l.get("count") or 1
+            ligues = ", ".join(sorted((l.get("leagues") or {}).keys()))[:80]
+            body += (f'<div class="exq-row"><div class="exq-top">'
+                     f'<span class="exq-bdg exq-ex">⚠ {cnt}×</span>'
+                     f'<span class="exq-mk">{html.escape(str(fam))} · {html.escape(str(cause))}</span></div>'
+                     f'<div class="exq-reason">{html.escape(str(l.get("lecon") or ""))}</div>'
+                     + (f'<div class="exq-meta">{html.escape(ligues)}</div>' if ligues else "")
+                     + '</div>')
+        body += '</div>'
+    else:
+        body += ('<div class="exq-sport"><div class="exq-row"><div class="exq-reason">Aucune leçon '
+                 'actionnable pour l\'instant — les pertes analysées relèvent de la variance (process sain).'
+                 '</div></div></div>')
+    return ('<div class="sx-card"><div class="sx-h">Débrief des pertes'
+            '<span>pourquoi chaque pari perdu a perdu · mémoire évolutive</span></div>'
+            f'<div class="exq">{intro}{head}{body}</div></div>')
+
+
 def render_market_watch(by_sport: dict | None) -> str:
     """SURVEILLANCE PAR MARCHÉ, DÉCLINÉE PAR SPORT (demande user 2026-08-01) : pour CHAQUE sport puis chaque
     type de pari, la taille d'échantillon (fantômes + joués), l'annoncé vs le réel (écart de calibration) et

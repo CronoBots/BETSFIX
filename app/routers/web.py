@@ -164,6 +164,8 @@ def _home_stats_compute(since_days: int | None = None) -> tuple:
                web.render_exclusions(analyses.exclusions_report()))
         + _sec("Surveillance des marchés", "échantillon & fiabilité par sport et type de pari",  # 3c.
                web.render_market_watch((cal or {}).get("by_sport")))
+        + _sec("Débrief des pertes", "pourquoi chaque pari perdu a perdu · mémoire évolutive",  # 3d.
+               web.render_debrief(None))
         + _sec("Transparence", "tout ce que le modèle a observé",                  # 4.
                web.render_volume(full, combo, cal) + web.render_volume_by_sport()))
     return (f'<div class="sx"><div class="sx-body">{bilan}</div></div>',
