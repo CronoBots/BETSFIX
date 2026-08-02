@@ -315,7 +315,7 @@ CSS = """
            margin:0;padding:calc(env(safe-area-inset-top) + 10px) 16px 11px;
            background:linear-gradient(180deg,rgba(7,7,8,.84),rgba(7,7,8,.44));
            -webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);
-           border-bottom:1px solid rgba(34,184,255,.60)}   /* bordure BLEUE = même bord que les cartes (user) */
+           border-bottom:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET (bord de carte atténué, user) */
   .toplogo img{height:auto;width:auto;max-height:46px;max-width:72%;
                filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
@@ -352,7 +352,7 @@ CSS = """
   .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;touch-action:none;
           display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));
-          background:#0b0d12;border-top:1px solid rgba(34,184,255,.60)}   /* bordure BLEUE = même bord que les cartes */
+          background:#0b0d12;border-top:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET */
   /* PWA INSTALLÉE (standalone) : la barre du bas est ANCRÉE au bas PHYSIQUE de l'écran (position:fixed,
      bottom:0) — sinon, comme le body en 100dvh ne couvre pas toujours le safe-area de l'indicateur home,
      la barre (frère statique) s'arrêtait AU-DESSUS et laissait apparaître le canvas sombre en dessous
@@ -2210,6 +2210,18 @@ CSS = """
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
   .zone-empty b{color:var(--text);font-weight:800}
+  /* EN-TÊTES DE SECTION COLLANTS (demande user 2026-08-02) : en scrollant Pronos, le TYPE DE PARI
+     (« Paris du jour », « Provisoires », « Combiné »…) reste calé sous le header fixe, jusqu'à ce que le type
+     SUIVANT le pousse et prenne sa place — pattern « sticky section header » 100 % pro. MOBILE uniquement
+     (desktop = grille + sidebar, pas de header fixe). Barre pleine largeur, verre + filet bleu discret,
+     posée SOUS le header fixe (top = hauteur du header). z-index < header fixe (50), > cartes. */
+  @media (max-width:999px){
+    .zone-h{position:sticky;top:calc(env(safe-area-inset-top) + 66px);z-index:30;
+            margin:0 -16px 10px;padding:11px 16px 10px;
+            background:linear-gradient(180deg,rgba(8,9,11,.95),rgba(8,9,11,.9));
+            -webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);
+            border-bottom:1px solid rgba(34,184,255,.22)}
+  }
   /* Points/compteurs de zone = MÊME couleur que le CADRE des cartes du type (demande user 2026-07-21) :
      Paris du jour = cyan (cadre .row.pick), Provisoires = blanc (cadre .mc-prov-b), Combiné = vert
      émeraude (cadre .mc-tg-gold vert). Fini le lime/or/violet historiques. */
