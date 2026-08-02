@@ -2209,6 +2209,8 @@ CSS = """
   .zone-rec{margin-left:auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .zone-rec .zr{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
        display:inline-flex;align-items:center;justify-content:center;gap:3px;font-variant-numeric:tabular-nums}
+  .zone-rec .zru{color:#c9d4e0;background:rgba(255,255,255,.08)}                 /* à venir ⏳ */
+  .zone-rec .zrlv{color:#ff9b9b;background:rgba(255,80,80,.16);animation:livepulse 1.9s ease-out infinite} /* live 🔴 */
   .zone-rec .zrw{color:#63d68f;background:rgba(52,210,123,.14)}
   .zone-rec .zrl{color:#ff8080;background:rgba(255,107,107,.14)}
   .zone-b{margin-top:2px}
@@ -5999,16 +6001,25 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
             return ""
         body, count = f'<div class="zone-empty">{empty}</div>', 0
     # RECORD du JOUR par type (demande user 2026-08-02) : le BADGE (compteur rond) montre le nombre sélectionné ;
-    # à côté, les pastilles gagné ✅ / perdu ❌ du jour. On garde le badge (demande user : « j'aimais bien les
-    # badges ») SANS le doubler d'un « X sél. » redondant -> badge = total, pastilles = résultats seuls.
+    # à côté, des pastilles de MÊME forme -> à venir ⏳ · en direct 🔴 · gagné ✅ · perdu ❌ (demande user :
+    # « un compteur match live + match à venir »). Badge = total ; chaque pastille n'apparaît que si > 0.
+    # `record` = (total, à_venir, live, gagnés, perdus).
     rec = ""
     badge_n = count
     if record:
-        _s, _w, _l = record
+        _s, _up, _lv, _w, _l = record
         badge_n = _s
-        if _w or _l:
-            rec = (f'<span class="zone-rec"><span class="zr zrw">{_w} ✅</span>'
-                   f'<span class="zr zrl">{_l} ❌</span></span>')
+        chips = ""
+        if _up:
+            chips += f'<span class="zr zru">{_up} ⏳</span>'
+        if _lv:
+            chips += f'<span class="zr zrlv">{_lv} 🔴</span>'
+        if _w:
+            chips += f'<span class="zr zrw">{_w} ✅</span>'
+        if _l:
+            chips += f'<span class="zr zrl">{_l} ❌</span>'
+        if chips:
+            rec = f'<span class="zone-rec">{chips}</span>'
     n = f'<span class="zone-n">{badge_n}</span>' if badge_n else ""
     t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
     head = (f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{n}{rec}{t}')
@@ -6474,9 +6485,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # PARIS DU JOUR = à venir/en cours PUIS terminés (chacun affiche son résultat). Zone visible s'il y a l'un
     # ou l'autre.
     _play_html = _MC_SEP.join([h for h in (_rows_by_day(play), _MC_SEP.join(_res_cards)) if h])
-    # RECORD DU JOUR (demande user 2026-08-02) : sélectionnés · gagnés · perdus par type.
+    # RECORD DU JOUR (demande user 2026-08-02) : total · à venir ⏳ · live 🔴 · gagnés ✅ · perdus ❌.
     _pw, _pl, _pp = _settled_wl_today(today_iso, sport)          # simples réglés du jour (léger)
-    _play_rec = (len(play) + _pw + _pl + _pp, _pw, _pl)
+    _p_lv = sum(1 for r in play if r.get("status") == "inprogress")   # paris joués EN DIRECT
+    _p_up = len(play) - _p_lv                                         # paris joués À VENIR (non démarrés)
+    _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl)
     if play or _res_cards:
         out.append(_zone("play", "Paris du jour", "", len(play) + len(_res_cards), _play_html,
                          collapsible=True, record=_play_rec if _play_rec[0] else None))
@@ -6485,7 +6498,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
     # même sélection que _provisional_results). -> « X sél · W✅ · L❌ » colle au nombre de cartes (hors ROI).
     _psn, _psw, _psl = _prov_settled_wl(today_iso, sport)
-    _prov_rec = (len(prov) + _psn, _psw, _psl)
+    _pv_lv = sum(1 for it in prov if it.get("_live"))                 # provisoires en direct (si présents)
+    _pv_up = len(prov) - _pv_lv                                       # provisoires à venir
+    _prov_rec = (len(prov) + _psn, _pv_up, _pv_lv, _psw, _psl)
     if prov or _prov_res:
         out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html,
                          collapsible=True, record=_prov_rec if _prov_rec[0] else None))
@@ -6494,8 +6509,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     if combo_daily:
         try:
             from app import combo_daily as _cd2
-            _cr = (_cd2.today(today_iso, sport=(sport or "foot")) or {}).get("result")
-            _combo_rec = (1, 1 if _cr == "won" else 0, 1 if _cr == "lost" else 0)
+            _cbt = _cd2.today(today_iso, sport=(sport or "foot")) or {}
+            _cr = _cbt.get("result")
+            _c_settled = _cr in ("won", "lost", "void")
+            _c_live = bool(combo_daily) and not _c_settled and _daily_combo_any_live()
+            _combo_rec = (1, 0 if (_c_settled or _c_live) else 1, 1 if _c_live else 0,
+                          1 if _cr == "won" else 0, 1 if _cr == "lost" else 0)
         except Exception:
             _combo_rec = None
     out += [
