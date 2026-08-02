@@ -1861,6 +1861,10 @@ CSS = """
        background:rgba(255,184,77,.92);color:#241500;font-size:8.5px;font-weight:900;line-height:14px;
        text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
   .sctab.on .sctab-n{background:rgba(234,246,255,.95);color:#0a2233}
+  /* ROI DISCRET sur l'onglet type-de-pari (demande user 2026-08-02) : petit chiffre sous le label, non criard. */
+  .sctab-roi{display:block;margin-top:2px;font-size:9.5px;font-weight:900;letter-spacing:0;
+       text-transform:none;font-variant-numeric:tabular-nums}
+  .sctab-roi.pos{color:#63d68f}.sctab-roi.neg{color:#ff8080}.sctab-roi.neu{color:var(--dim)}
   .sctab-pane{display:none}
   .sctab-pane.on{display:block}
   .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
@@ -4238,7 +4242,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"),   # + onglet Provisoires (user 2026-07-25)
-                        counts=(_pend_s, len(_pend_fc), _prov_pending_count("foot")))   # badges EN COURS par onglet
+                        counts=(_pend_s, len(_pend_fc), _prov_pending_count("foot")),   # badges EN COURS par onglet
+                        rois=(ov.get("roi"), _foot_c.get("roi"), _prov_sport_roi("foot")))   # ROI discret par onglet (user 2026-08-02)
     # Ligne sous la bannière (comme tennis/basket) : le FOOT est compté au ROI et repris dans les paris.
     _foot_sub = '<div class="stat-banner-sub on">compté au ROI · repris dans les paris</div>'
     return (f'<div class="spf">{_sport_banner("foot")}{_foot_sub}{_foot}</div>') if _foot else ""
@@ -4303,25 +4308,40 @@ def _form_streak(results) -> tuple:
     return form, streak
 
 
+def _roi_chip_mini(roi) -> str:
+    """Petit chip ROI DISCRET pour un bouton d'onglet type-de-pari (demande user 2026-08-02 : voir le ROI de
+    chaque type sans tout déplier). Vert si +, rouge si −. '' si None."""
+    if roi is None:
+        return ""
+    try:
+        rv = float(roi)
+    except (TypeError, ValueError):
+        return ""
+    cls = "pos" if rv > 0 else "neg" if rv < 0 else "neu"
+    return f'<span class="sctab-roi {cls}">{"+" if rv > 0 else ""}{rv:g}%</span>'
+
+
 def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
-                counts: tuple = (0, 0, 0)) -> str:
+                counts: tuple = (0, 0, 0), rois: tuple = (None, None, None)) -> str:
     """Onglets « Simple | Combinés | Provisoires » dans un cadre sport (demande user 2026-07-24/25) : UN
     graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique). Les onglets vides sont
     ignorés ; si un seul graphe, rendu direct (pas d'onglets) ; '' si aucun. `counts` = (simples, combinés,
     provisoires) EN COURS -> petite pastille ⏳ sur l'onglet SEULEMENT si > 0 (demande user 2026-07-26 : voir
     d'un coup d'œil où il y a de l'action live)."""
     _c = list(counts) + [0, 0, 0]
-    _tabs = [(lbl, h, n) for (lbl, h), n in zip(
-        (("Simple", simple_html), ("Combinés", combos_html), ("Provisoires", prov_html)), _c) if h]
+    _r = list(rois) + [None, None, None]
+    _specs = (("Simple", simple_html), ("Combinés", combos_html), ("Provisoires", prov_html))
+    _tabs = [(lbl, h, _c[i], _r[i]) for i, (lbl, h) in enumerate(_specs) if h]
     if len(_tabs) <= 1:
         return _tabs[0][1] if _tabs else ""
 
     def _badge(n) -> str:
         return f'<span class="sctab-n">{n}</span>' if isinstance(n, int) and n > 0 else ""
-    _btns = "".join(f'<button class="sctab{" on" if i == 0 else ""}" data-i="{i}">{lbl}{_badge(n)}</button>'
-                    for i, (lbl, _h, n) in enumerate(_tabs))
+    _btns = "".join(f'<button class="sctab{" on" if i == 0 else ""}" data-i="{i}">'
+                    f'{lbl}{_roi_chip_mini(r)}{_badge(n)}</button>'
+                    for i, (lbl, _h, n, r) in enumerate(_tabs))
     _panes = "".join(f'<div class="sctab-pane{" on" if i == 0 else ""}">{h}</div>'
-                     for i, (_lbl, h, _n) in enumerate(_tabs))
+                     for i, (_lbl, h, _n, _r) in enumerate(_tabs))
     return f'<div class="sctab-wrap"><div class="sctabs">{_btns}</div>{_panes}</div>'
 
 
@@ -4341,6 +4361,24 @@ def _prov_pending_count(sport: str) -> int:
         return sum(1 for e in _pvt.entries(snap) if e.get("result") is None)
     except Exception:
         return 0
+
+
+def _prov_sport_roi(sport: str):
+    """ROI (roi_pct, hors ROI officiel) des provisoires d'un sport — pour le chip ROI discret de l'onglet
+    « Provisoires » (demande user 2026-08-02). None si aucun provisoire réglé."""
+    try:
+        from app import provisional as _pvt
+        snap = {k: v for k, v in _pvt.load().items() if isinstance(v, dict) and v.get("sport") == sport}
+        try:
+            from app import combo_daily as _cd
+            for _i, _lg in enumerate(_cd.multisport_legs(sport)):
+                snap[f"_msc-{sport}-{_i}"] = _lg
+        except Exception:
+            pass
+        s = _pvt.stats(snap)
+        return s.get("roi_pct") if s and s.get("settled") else None
+    except Exception:
+        return None
 
 
 def _prov_sport_graph(sport: str) -> str:

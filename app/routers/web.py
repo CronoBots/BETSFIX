@@ -615,7 +615,8 @@ def _simulation_card() -> str:
                 hit_points=c.get("hit_points"), best_streak=c.get("best_streak"),   # record sur tout l'historique
                 cote_points=c.get("cote_points"))            # 3e graphe : cote moyenne
         curves = web._sport_tabs(_simple_g, _combos_g, web._prov_sport_graph(sp),   # + onglet Provisoires (user 2026-07-25)
-                                 counts=(len(_pend_s), len(_pend_c), web._prov_pending_count(sp)))   # badges EN COURS
+                                 counts=(len(_pend_s), len(_pend_c), web._prov_pending_count(sp)),   # badges EN COURS
+                                 rois=(b.get("roi"), c.get("roi"), web._prov_sport_roi(sp)))   # ROI discret par onglet (user 2026-08-02)
         if not curves:
             continue
         # En-tête = BANNIÈRE BETSFIX du sport + ligne « simulé · hors paris » sous l'image, IDENTIQUE pour
