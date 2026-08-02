@@ -107,6 +107,12 @@ def market_family(sel: str) -> str:
         return "double_chance"
     if "handicap" in s or re.search(r"[+-]\d\.5", s):
         return "handicap"
+    if "carton" in s:
+        return "cartons"
+    if "corner" in s:
+        return "corners"
+    if "tir" in s and ("cadré" in s or "cadre" in s):
+        return "tirs_cadres"
     if "les deux" in s or "btts" in s or "marque" in s:
         return "equipe_marque_btts"
     if any(k in s for k in ("vainqueur", "gagne", "victoire")) or re.search(r"\b1x2\b", s):
@@ -121,6 +127,9 @@ MARKET_LABEL = {
     "handicap": "Handicap",
     "equipe_marque_btts": "Équipe marque / BTTS",
     "resultat_1x2": "Résultat (1X2)",
+    "cartons": "Cartons",
+    "corners": "Corners",
+    "tirs_cadres": "Tirs cadrés",
     "combine_foot": "Combiné foot (double chance)",
     "autre": "Autre",
 }
