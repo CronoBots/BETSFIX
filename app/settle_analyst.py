@@ -1937,9 +1937,12 @@ async def _settle_analyses_impl() -> int:
                 # On ne notifie le SIMPLE que s'il a été PUBLIÉ = RETENU (confiance+EV+garde-fous),
                 # combiné OU non. Un simple non retenu n'a pas de carte prono -> pas de carte résultat
                 # non plus (cohérence Telegram/stats : posté = compté).
-                _simple_shown = analyses.retained_bet(sport, mid) is not None
+                # Telegram = PARIS SIMPLES FOOT uniquement (user 2026-08-02) : un résultat n'est posté que
+                # pour un match FOOT dont le simple a été publié. Les simples non-foot sont réglés/comptés
+                # sur le SITE mais NON postés sur Telegram (flag figé -> pas de re-traitement).
+                _simple_shown = sport == "foot" and analyses.retained_bet(sport, mid) is not None
                 if not _simple_shown:
-                    d["notified_pick"] = True   # non affiché -> rien à envoyer, on FIGE tout de suite
+                    d["notified_pick"] = True   # non affiché/non-foot -> rien à envoyer, on FIGE tout de suite
                 if _simple_shown:
                     _flags_to_set.append("notified_pick")   # affiché -> figé APRÈS envoi réussi
                     _m = _MARK.get(new_pick, "")   # ✅/❌ APRÈS le prono
@@ -1951,21 +1954,11 @@ async def _settle_analyses_impl() -> int:
                                     "cote": (_sm.group(2).replace(",", ".") if _sm else ""),
                                     "mark": new_pick}
             if new_combo in _chip and not d.get("notified_combo"):
-                _flags_to_set.append("notified_combo")   # R2 : figé APRÈS envoi réussi
-                _m = _MARK.get(new_combo, "")
-                _cb = d.get("combo") or {}
-                _cco = _cb.get("real_odds") or _cb.get("total")
-                _cl = (f"• <b>Combiné · cote {_cco}</b> {_m}".strip() if _cco
-                       else f"• <b>Combiné</b> {_m}".strip())
-                for _lg in _cb.get("legs", []):
-                    _lr = _lg.get("result")
-                    _cl += f"\n• {html.escape(str(_lg.get('sel', '')))} {_MARK.get(_lr, '·')}"
-                _parts.append(_cl)
-                _card_combo = {"cote": (f"{_cco:.2f}" if isinstance(_cco, float) else str(_cco or "")),
-                               "mark": new_combo,
-                               "legs": [(str(_lg.get("sel", "")), _lg.get("result"),
-                                         _lg.get("cote") or "")
-                                        for _lg in _cb.get("legs", [])]}
+                # Combiné NON publié sur Telegram (user 2026-08-02 : Telegram = paris SIMPLES FOOT
+                # uniquement). On FIGE le flag SANS envoi -> le combiné reste réglé/affiché sur le SITE,
+                # mais aucune carte combiné (ni prono ni résultat) ne part sur Telegram, et pas de
+                # re-traitement en boucle.
+                d["notified_combo"] = True
             if _parts and _flags_to_set:
                 # R2 — compteur d'essais d'envoi (borne le re-traitement « réglé non notifié ») :
                 # incrémenté à CHAQUE construction de carte, qu'on parvienne à l'envoyer ou non.

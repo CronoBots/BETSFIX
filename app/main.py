@@ -199,18 +199,9 @@ def _refresh_due_combos() -> int:
             pass
         if real and old and abs(real - old) / old < 0.02:   # cote quasi inchangée -> pas de repost inutile
             continue
-        try:                                            # re-rend la carte prono fraîche + repost (dédup)
-            card = _rn._card_for(d)
-            if card:
-                png = os.path.join(_ROOT, "data", "_cards", f"refresh_{eid}.png")
-                card_image.render_card_sync(card, png)
-                sent = notify.send_photo_sync(png, "")
-                if sent:
-                    notify.remember_prono(eid, sent, d.get("name"))
-                    n += 1
-                    log.info("combo %s re-posté (cote %s -> %s)", d.get("name"), old, real)
-        except Exception as exc:
-            log.warning("combo refresh repost %s: %s", eid, exc)
+        # Repost Telegram du COMBINÉ DÉSACTIVÉ (demande user 2026-08-02 : Telegram = paris SIMPLES FOOT
+        # uniquement). La cote fraîche est déjà écrite dans le sidecar ci-dessus -> le SITE reste à jour ;
+        # on ne re-poste simplement plus la carte combiné sur Telegram.
     return n
 
 

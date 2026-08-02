@@ -809,10 +809,10 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         nm = str(m["name"]).replace(" - ", " — ")
         lines.append(f"• {nm}" + (f" — {hm}" if hm else ""))
     lines.append("\n<i>Le pari de chaque match est publié ~1 h avant son coup d'envoi.</i>")
-    try:
-        notify.send_sync("\n".join(lines))
-    except Exception as exc:
-        print(f"  (programme Telegram ignoré : {exc})")
+    # Programme du jour NON publié sur Telegram (demande user 2026-08-02 : Telegram = paris SIMPLES FOOT
+    # uniquement ; le programme est multisport et n'est pas un « pari à jouer »). Il reste écrit sur le SITE
+    # (day_programme.json ci-dessus). Pour ré-activer (ou limiter au foot) : renvoyer `notify.send_sync(...)`.
+    return
 
 
 async def _resolve_sofa(sport: str, match: dict) -> str | None:
@@ -3005,10 +3005,9 @@ async def main():
                           f"{len(_combo['legs'])} jambes"
                           f"{' (jambes analysées)' if any(l.get('why') for l in _combo['legs']) else ''}"
                           f" : {_cdlegs}")
-                    if not args.no_notify:
-                        from app import notify
-                        if notify.configured() and await notify.send(_cdaily.telegram_text(_combo)):
-                            _cdaily.mark_sent(_day)  # figé après publication aux abonnés
+                    # Telegram : combiné du jour NON publié (demande user 2026-08-02 : Telegram = paris SIMPLES
+                    # FOOT uniquement). Le combiné reste AFFICHÉ sur le SITE (record_daily ci-dessus). Pour
+                    # ré-activer : renvoyer `notify.send(_cdaily.telegram_text(_combo))` + `mark_sent(_day)`.
             else:
                 print("  🎯 Combiné du jour : vivier insuffisant pour atteindre 1,95 aujourd'hui.")
         # COMBINÉS DU JOUR SIMULÉS (tennis + basket, demande user 2026-07-25) : 1 par sport/jour, HORS ROI
