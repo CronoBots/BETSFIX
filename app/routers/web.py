@@ -247,9 +247,9 @@ async def _tennis_rows(include_background: bool = False) -> list:
             r.update(lf0)
             if not r.get("score"):   # REPLI SofaScore si Unibet n'a pas le live
                 r.update(await match_select.fetch_sofa_live("tennis", d.get("sofa_id") or d.get("id")) or {})
-            # en cours sans score live : s'il a assez tourné -> il est en fait fini (Terminés du sport,
-            # pas l'accueil) ; sinon on le GARDE (« En cours », sans scoreboard) pour qu'il reste visible.
-            if not r.get("score") and analyses.likely_finished(d):
+            # en cours sans score live : on ne le retire QUE s'il est RÉELLEMENT RÉGLÉ (sinon un pari live
+            # disparaîtrait entre le coup d'envoi et son règlement — même correctif que foot, user 2026-08-02).
+            if not r.get("score") and analyses.likely_finished(d) and analyses.is_settled(d):
                 continue
         out.append({**_tennis_trow(r), **bars})
     return out

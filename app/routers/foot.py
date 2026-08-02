@@ -57,6 +57,12 @@ async def _analyst_rows(sport: str) -> tuple[list[dict], list[dict]]:
                                              bool(lf.get("score")), start_iso=d.get("start"))
         if usdt is not None:
             dt = usdt
+        # Un match kické mais PAS ENCORE RÉGLÉ reste "En cours" dans Pronos (jamais jeté en "Terminés") : un
+        # pari live / en attente de règlement ne doit PAS disparaître entre le coup d'envoi et son règlement
+        # (bug user 2026-08-02 : FC Cincinnati, kické depuis >2 h, non réglé -> absent de Pronos). Il ne passe
+        # "Terminés" QUE lorsqu'il est réellement réglé (is_settled).
+        if st == "finished" and not analyses.is_settled(d):
+            st = "inprogress"
         fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))
         o1, ox, o2 = fresh if fresh else (d.get("o1"), d.get("ox"), d.get("o2"))
         sel, odds = analyses.pick_parts(d.get("pick") or "")
@@ -80,10 +86,11 @@ async def _analyst_rows(sport: str) -> tuple[list[dict], list[dict]]:
                                                "foot", d.get("home"), d.get("away"), d.get("start"))
                 if _lsl.get("score"):
                     lf = {**lf, **_lsl}
-        # Un « en cours » SANS score live Unibet : s'il a assez tourné (likely_finished) -> Terminés
-        # (résultat « en attente » si pas réglé) ; sinon on le GARDE en « En cours » (sans scoreboard)
-        # pour qu'il ne DISPARAISSE pas entre le coup d'envoi et la fin estimée.
-        if st == "inprogress" and not lf.get("score") and analyses.likely_finished(d):
+        # Un « en cours » SANS score live Unibet : on ne le passe « Terminés » QUE s'il est RÉELLEMENT RÉGLÉ.
+        # Tant qu'il n'est pas réglé (result=None), on le GARDE en « En cours » — même passé la fin estimée —
+        # pour qu'un pari LIVE ne DISPARAISSE PAS de Pronos entre le coup d'envoi et son règlement (bug user
+        # 2026-08-02 : FC Cincinnati live absent de Pronos). Il rejoint « Terminés » dès que le règlement tombe.
+        if st == "inprogress" and not lf.get("score") and analyses.likely_finished(d) and analyses.is_settled(d):
             st = "finished"
         if st == "finished":
             bdg, sco = analyses.result_chip(d)
