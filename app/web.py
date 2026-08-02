@@ -345,17 +345,19 @@ CSS = """
   donc toujours collé au bas du viewport DYNAMIQUE sans « sauter » sur
      iOS. Centrée à 720px ; fond OPAQUE ; padding bas = safe-area (encoche/home-bar). */
   .botnav{flex:0 0 auto;width:100%;max-width:720px;margin:0 auto;z-index:60;touch-action:none;
-          display:flex;gap:4px;
-          padding:7px 10px 8px;   /* PAS de safe-area en bas : la barre touche le bord (demande user 2026-08-02) */
+          display:flex;gap:4px;position:relative;
+          padding:7px 10px 8px;   /* boutons collés bas, PAS d'espace vide sous eux (demande user 2026-08-02) */
           background:#0b0d12;border-top:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET */
-  /* Barre du bas ANCRÉE au bas PHYSIQUE de l'écran sur TOUT mobile (position:fixed, bottom:0) — sinon, comme
-     le body en 100dvh ne couvre pas toujours le safe-area / le vide sous la barre statique, une BANDE SOMBRE
-     apparaissait entre le menu et le bord (Safari comme PWA). Le fond de la barre descend maintenant jusqu'au
-     bord (« le menu collé au bord de l'écran », demande user 2026-08-02) ; les libellés restent au-dessus de
-     l'indicateur home via le padding safe-area. */
+  /* Barre du bas ANCRÉE au bas PHYSIQUE de l'écran sur TOUT mobile (position:fixed, bottom:0). La zone HOME
+     (safe-area) sous la barre restait NOIRE (le fond de la barre s'y arrêtait) ; on la remplit avec un
+     pseudo-élément de la MÊME couleur -> plus de bande noire, et les BOUTONS ne descendent pas dans la zone
+     home (« supprimer l'espace noir », demande user 2026-08-02). Si bottom:0 touche déjà le bord, le fill
+     part hors écran = inoffensif. */
   @media (max-width:999px){
     .botnav{position:fixed;left:0;right:0;bottom:0;width:auto}
-    .wrap{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
+    .botnav::after{content:"";position:absolute;left:0;right:0;top:100%;
+                   height:calc(env(safe-area-inset-bottom) + 2px);background:#0b0d12}
+    .wrap{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
