@@ -31,9 +31,14 @@ def main() -> int:
     if args.list:
         todo = debrief.pending(sports, args.limit)
         print(f"{len(todo)} perte(s) en attente de débrief :")
-        for sp, d, lb in todo:
-            print(f"  · {sp} {d.get('start','')[:10]} {d.get('home')} — {d.get('away')} "
-                  f"| {lb.get('sel')} @ {lb.get('cote')}")
+        for it in todo:
+            if it.get("kind") == "combo":
+                e = it.get("entry") or {}
+                print(f"  · [combiné] {it.get('date')} | {len(e.get('legs') or [])} jambes @ {e.get('cote')}")
+            else:
+                d, lb = it["d"], it["lb"]
+                print(f"  · [simple] {it.get('date')} {d.get('home')} — {d.get('away')} "
+                      f"| {lb.get('sel')} @ {lb.get('cote')}")
         return 0
 
     # run_claude vit dans le scan (session authentifiée requise). Import tardif (dépendances lourdes).

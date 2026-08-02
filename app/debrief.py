@@ -121,43 +121,52 @@ MARKET_LABEL = {
     "handicap": "Handicap",
     "equipe_marque_btts": "Équipe marque / BTTS",
     "resultat_1x2": "Résultat (1X2)",
+    "combine_foot": "Combiné foot (double chance)",
     "autre": "Autre",
 }
 
 
 # ─────────────────────────── Sélection des paris à débriefer ───────────────────────────
-def _lost_played_bet(d: dict) -> dict | None:
-    """Le PARI JOUÉ PERDU d'un sidecar (pour_history), ou None. Source = stat_bet figé (le pari compté) ;
-    repli retained_bet(for_history) pour être robuste. Combiné perdu = traité aussi (combo.result)."""
-    sb = d.get("stat_bet")
-    if isinstance(sb, dict) and sb.get("result") == "lost":
-        return {"sel": sb.get("sel"), "cote": sb.get("cote"), "prob": sb.get("prob"), "kind": "simple"}
-    combo = d.get("combo") or {}
-    if combo.get("legs") and combo.get("result") == "lost":
-        legs = combo.get("legs") or []
-        sel = " + ".join(str((l or {}).get("sel") or "") for l in legs)
-        return {"sel": sel, "cote": combo.get("cote"), "prob": combo.get("prob"), "kind": "combo"}
-    return None
-
-
+# PÉRIMÈTRE (demande user 2026-08-02) : UNIQUEMENT les paris de la MÉTHODE ACTUELLE —
+#   (1) SIMPLES foot joués (stat_bet figé) = le pari phare ;
+#   (2) le NOUVEAU combiné foot = la DOUBLE CHANCE du jour (app/combo_daily, data/combo_daily_track.json).
+# On NE débriefe PLUS les vieux combinés multi-marchés des sidecars (`d["combo"]`, ex-CdM) : erreur de
+# jeunesse déjà corrigée -> n'encombre pas la mémoire (cf. [[history-corrections-before-subscribers]]).
 def pending(sports=("foot",), limit: int | None = None) -> list:
-    """Sidecars d'un/des sports portant un PARI JOUÉ PERDU sans débrief encore enregistré. Les plus RÉCENTS
-    d'abord (on apprend des dernières pertes en priorité). `sports` défaut foot (le pari phare)."""
+    """Descripteurs des pertes À DÉBRIEFER, non encore traitées. Un descripteur = dict :
+       {"kind":"simple","sport","fid","d"(sidecar),"lb"(sel/cote/prob),"date"} pour un simple joué perdu ;
+       {"kind":"combo","sport":"foot","fid":"combo:<date>","entry"(combo_daily),"date"} pour le combiné
+       double chance perdu. Les plus RÉCENTS d'abord. `sports` défaut foot (le phare)."""
     done = set(_load(DEBRIEFS_PATH).keys())
-    out = []
+    items = []
+    # (1) SIMPLES joués perdus (stat_bet figé = le pari compté).
     for sp in sports:
         for d in analyses.iter_meta(sp):
             fid = str(d.get("id"))
-            if fid in done:
+            if fid in done or not analyses.is_settled(d):
                 continue
-            if not analyses.is_settled(d):
+            sb = d.get("stat_bet")
+            if not (isinstance(sb, dict) and sb.get("result") == "lost"):
                 continue
-            lb = _lost_played_bet(d)
-            if not lb:
-                continue
-            out.append((sp, d, lb))
-    out.sort(key=lambda t: (t[1].get("start") or ""), reverse=True)
-    return out[:limit] if limit else out
+            items.append({"kind": "simple", "sport": sp, "fid": fid, "d": d,
+                          "lb": {"sel": sb.get("sel"), "cote": sb.get("cote"), "prob": sb.get("prob")},
+                          "date": (d.get("start") or "")[:10]})
+    # (2) NOUVEAU COMBINÉ FOOT (double chance) perdu — combo_daily_track.json, clé = date.
+    if "foot" in sports:
+        try:
+            from app import combo_daily as _cd
+            track = _cd._load("foot")
+            for date, e in track.items():
+                if not isinstance(e, dict) or e.get("result") != "lost":
+                    continue
+                fid = f"combo:{date}"
+                if fid in done:
+                    continue
+                items.append({"kind": "combo", "sport": "foot", "fid": fid, "entry": e, "date": date})
+        except Exception:
+            pass
+    items.sort(key=lambda it: it.get("date") or "", reverse=True)
+    return items[:limit] if limit else items
 
 
 def pending_count(sports=("foot",)) -> int:
@@ -193,8 +202,54 @@ Réponds UNIQUEMENT par un bloc JSON (aucun texte autour) :
 ```"""
 
 
-def build_prompt(sport: str, d: dict, lb: dict) -> str:
-    fid = str(d.get("id"))
+_PROMPT_COMBO = """Tu es l'analyste POST-MATCH de BETSFIX. Le COMBINÉ FOOT DU JOUR (type « double chance », plusieurs
+jambes) a PERDU. Explique FACTUELLEMENT pourquoi et si c'était ÉVITABLE.
+
+COMBINÉ du {date} — cote {cote}, confiance annoncée {prob}. Résultat : PERDU.
+JAMBES (avec résultat et pré-analyse) :
+{legs}
+
+Le combiné perd si UNE SEULE jambe tombe. TA TÂCHE : identifier la/les jambe(s) qui a/ont fait perdre et
+DÉTERMINER si la construction était fautive (jambe qui contredit notre propre analyse, marché déconseillé,
+jambe « coin-flip » ajoutée sans value) — cause évitable — ou si une jambe solide est juste tombée par
+malchance (variance, process sain, AUCUNE leçon). Ne FABRIQUE pas de leçon s'il n'y en a pas.
+
+Réponds UNIQUEMENT par un bloc JSON (aucun texte autour) :
+```json
+{{
+  "cause": "un parmi: premisse_defensive|premisse_offensive|premisse_favori|carton_rouge|penalty|blessure|rotation|arbitrage|meteo|evenement_tardif|mauvais_marche|cote_sans_value|variance|autre",
+  "evitable": true,
+  "premisse_fausse": "la jambe/supposition qui a cassé le combiné (1 phrase courte)",
+  "ce_qui_s_est_passe": "ce qui a réellement fait tomber la/les jambe(s) (1-2 phrases factuelles)",
+  "lecon": "leçon de CONSTRUCTION du combiné si évitable, sinon chaîne vide",
+  "confiance_analyse": 70
+}}
+```"""
+
+
+def _prob_txt(prob) -> str:
+    if isinstance(prob, (int, float)):
+        return f"{round(prob * 100)}%" if prob <= 1 else f"{round(prob)}%"
+    return f"{prob}%" if prob else "?"
+
+
+def build_prompt(item: dict) -> str:
+    """Prompt du débrief selon le type (simple joué OU combiné double chance)."""
+    if item.get("kind") == "combo":
+        e = item.get("entry") or {}
+        legs_txt = []
+        for i, l in enumerate(e.get("legs") or [], 1):
+            r = (l.get("result") or "?").upper()
+            mark = "  ⟵ JAMBE PERDANTE" if l.get("result") == "lost" else ""
+            why = (l.get("why") or "").strip()
+            legs_txt.append(
+                f"{i}. [{r}{mark}] {l.get('name','?')} — {l.get('sel','?')} (cote {l.get('cote','?')}, "
+                f"score {l.get('score','?')})" + (f"\n   Pré-analyse : {why}" if why else ""))
+        return _PROMPT_COMBO.format(
+            date=item.get("date", "?"), cote=e.get("cote", "?"), prob=_prob_txt(e.get("prob")),
+            legs="\n".join(legs_txt)[:6000])
+    # SIMPLE joué.
+    sport, d, lb = item["sport"], item["d"], item["lb"]
     md = analyses.load(sport, d.get("id")) or "(analyse pré-match indisponible)"
     board = analyses.result_board(d, sport) or {}
     score = board.get("score") or (analyses.result_chip(d)[1] if analyses.result_chip(d) else "?")
@@ -202,13 +257,10 @@ def build_prompt(sport: str, d: dict, lb: dict) -> str:
         ld = analyses.pretty_sel(lb.get("sel") or "", d.get("home", ""), d.get("away", ""))
     except Exception:
         ld = lb.get("sel") or "?"
-    prob = lb.get("prob")
-    prob_txt = f"{round(prob * 100)}%" if isinstance(prob, (int, float)) and prob <= 1 else (
-        f"{prob}%" if prob else "?")
     return _PROMPT.format(
         home=d.get("home", "?"), away=d.get("away", "?"), comp=d.get("comp", ""),
         date=(d.get("start") or "")[:10], sel=ld, cote=lb.get("cote") or "?",
-        prob=prob_txt, score=score, md=md[:6000])
+        prob=_prob_txt(lb.get("prob")), score=score, md=md[:6000])
 
 
 def parse(out: str) -> dict | None:
@@ -246,24 +298,41 @@ def _lesson_key(sport: str, fam: str, cause: str) -> str:
     return f"{sport}|{fam}|{cause}"
 
 
-def record(sport: str, d: dict, lb: dict, parsed: dict) -> dict:
-    """Écrit le débrief du pari + met à jour l'agrégat des leçons. Renvoie le débrief stocké."""
-    fid = str(d.get("id"))
+def _entry_from_item(item: dict, parsed: dict) -> tuple[str, str, dict]:
+    """Construit (fid, famille_marché, débrief) depuis un descripteur pending + le JSON parsé."""
+    if item.get("kind") == "combo":
+        e = item.get("entry") or {}
+        legs = e.get("legs") or []
+        lost = [l for l in legs if l.get("result") == "lost"]
+        fam = "combine_foot"
+        sel = " + ".join(str((l or {}).get("sel") or "") for l in legs)
+        home = "Combiné " + (item.get("date") or "")
+        return item["fid"], fam, {
+            "sport": "foot", "fid": item["fid"], "home": home, "away": f"{len(legs)} jambes",
+            "comp": "Combiné double chance", "date": item.get("date", ""),
+            "sel": sel, "cote": e.get("cote"), "prob": e.get("prob"), "kind": "combo",
+            "market_family": fam, "score": ", ".join(f"{l.get('name','?')} {l.get('score','?')}"
+                                                      for l in lost)[:200], **parsed}
+    sport, d, lb = item["sport"], item["d"], item["lb"]
     fam = market_family(lb.get("sel") or "")
     board = analyses.result_board(d, sport) or {}
-    entry = {
-        "sport": sport, "fid": fid, "home": d.get("home", ""), "away": d.get("away", ""),
+    return str(d.get("id")), fam, {
+        "sport": sport, "fid": str(d.get("id")), "home": d.get("home", ""), "away": d.get("away", ""),
         "comp": d.get("comp", ""), "date": (d.get("start") or "")[:10],
         "sel": lb.get("sel"), "cote": lb.get("cote"), "prob": lb.get("prob"),
-        "kind": lb.get("kind"), "market_family": fam,
-        "score": board.get("score") or "", **parsed,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
+        "kind": "simple", "market_family": fam, "score": board.get("score") or "", **parsed}
+
+
+def record(item: dict, parsed: dict) -> dict:
+    """Écrit le débrief (simple OU combiné) + met à jour l'agrégat des leçons. Renvoie le débrief stocké."""
+    fid, fam, entry = _entry_from_item(item, parsed)
+    entry["generated_at"] = datetime.now(timezone.utc).isoformat()
     dbs = _load(DEBRIEFS_PATH)
     dbs[fid] = entry
     _save(DEBRIEFS_PATH, dbs)
 
     # AGRÉGAT évolutif : compteurs par (sport × famille de marché × cause).
+    sport = entry["sport"]
     les = _load(LESSONS_PATH)
     key = _lesson_key(sport, fam, entry["cause"])
     slot = les.get(key) or {"sport": sport, "market_family": fam, "cause": entry["cause"],
@@ -287,22 +356,24 @@ def run(runner, sports=("foot",), limit: int | None = None, log=print) -> dict:
     todo = pending(sports, limit)
     log(f"[debrief] {len(todo)} perte(s) à débriefer")
     ok = fail = 0
-    for sp, d, lb in todo:
-        fid = str(d.get("id"))
+    for item in todo:
+        fid = item["fid"]
+        _lbl = (f"combiné {item.get('date')}" if item.get("kind") == "combo"
+                else f"{item['d'].get('home')}—{item['d'].get('away')}")
         try:
-            out = runner(build_prompt(sp, d, lb))
+            out = runner(build_prompt(item))
             parsed = parse(out)
             if not parsed:
                 fail += 1
-                log(f"[debrief] ⚠️ parse KO {sp} {fid} {d.get('home')}—{d.get('away')}")
+                log(f"[debrief] ⚠️ parse KO {fid} {_lbl}")
                 continue
-            record(sp, d, lb, parsed)
+            record(item, parsed)
             ok += 1
-            log(f"[debrief] ✓ {d.get('home')}—{d.get('away')} · {parsed['cause']}"
+            log(f"[debrief] ✓ {_lbl} · {parsed['cause']}"
                 f"{' · évitable' if parsed['evitable'] else ''}")
         except Exception as e:                                 # best-effort, jamais bloquant
             fail += 1
-            log(f"[debrief] ✗ {sp} {fid} : {e}")
+            log(f"[debrief] ✗ {fid} : {e}")
     return {"todo": len(todo), "ok": ok, "fail": fail}
 
 
