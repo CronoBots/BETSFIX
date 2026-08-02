@@ -8340,30 +8340,17 @@ def _sport_row(r: dict) -> str:
                     _curb = []
                 # MÊME PARI = mêmes CODES de règlement (pas les libellés : « Roman Andres Burruchaga
                 # vainqueur » vs « Roman Burruchaga vainqueur » = même issue) -> pas de faux double scan.
-                try:
-                    from app.settle_analyst import code_from_pick as _cfp2
-
-                    def _canon_win(_c):
-                        # 1X2 <=> REGTIME du MÊME côté = MÊME issue (« gagne » vs « gagne temps réglementaire »,
-                        # identique en foot de ligue sans prolongation) -> pas de FAUX double scan (bug user
-                        # 2026-08-02 : FC Midtjylland « gagne (1X2) » vs « gagne (temps réglementaire) »).
-                        _p = (_c or "").upper().split()
-                        if _p and _p[0] == "REGTIME":
-                            return "1X2 " + {"HOME": "1", "AWAY": "2", "DRAW": "X"}.get(
-                                _p[1] if len(_p) > 1 else "", "")
-                        return (_c or "").upper()
-                    _cpub = _canon_win(_cfp2(_pbz.get("sel", ""), sport_key, r.get("home", ""), r.get("away", "")))
-                    _ccur = _canon_win(_cfp2(_curb[0].get("sel", ""), sport_key, r.get("home", ""), r.get("away", ""))
-                                       if _curb else "")
-                except Exception:
-                    _cpub = _ccur = ""
-                # Un pari PUBLIÉ est FIGÉ (jamais retiré) -> si le dernier scan n'a RIEN produit (ou le MÊME
-                # pari), on N'AFFICHE PLUS « Dernier scan : aucun pari conseillé » (contradictoire + compact) :
-                # le pari publié reste présenté COMME un pari normal (carte premium : barres verdict + Pourquoi,
-                # demande user 2026-07-28). Le double scan ne subsiste QUE si le dernier scan a produit un pari
-                # RÉELLEMENT DIFFÉRENT (les deux comptent au ROI) — là on garde les 2 lignes étiquetées.
-                if (_curb and (not _cpub or not _ccur or _cpub != _ccur)
-                        and analyses._norm_sel(_curb[0].get("sel", "")) != analyses._norm_sel(_pbz.get("sel", ""))):
+                # DOUBLE SCAN robuste (user 2026-08-02 « pour ne plus que ça arrive ») : on ne montre 2 lignes
+                # « Premier scan / Dernier scan » QUE si les deux paris S'AFFICHENT DIFFÉREMMENT. `pretty_sel`
+                # converge DÉJÀ toutes les écritures d'une MÊME issue (1X2/REGTIME « gagne » = « gagne temps
+                # réglementaire », +0.5/DC, gagne/vainqueur, mi-temps, handicap…) -> deux libellés qui rendent
+                # PAREIL = même pari = AUCUN double scan (fini les cartes identiques en double). Comparer le
+                # RENDU (pas les codes bruts) couvre tous les cas, pas seulement celui du jour. Le pari publié
+                # reste FIGÉ ; le double scan ne subsiste que sur un pari réellement différent (2 comptés au ROI).
+                _pub_disp = analyses.pretty_sel(_pbz.get("sel", ""), r.get("home", ""), r.get("away", ""))
+                _cur_disp = (analyses.pretty_sel(_curb[0].get("sel", ""), r.get("home", ""), r.get("away", ""))
+                             if _curb else "")
+                if _curb and _cur_disp and _pub_disp != _cur_disp:
                     bets3 = [{**_pbz, "tag": "Premier scan"},
                              {"sel": _curb[0].get("sel", ""), "cote": _curb[0].get("cote"),
                               "prob": _curb[0].get("prob"), "tag": "Dernier scan"}]
