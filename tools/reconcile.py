@@ -57,6 +57,10 @@ def _label(d: dict) -> str:
 async def _repost(d: dict) -> bool:
     """Re-poste la carte prono d'un match à venir dont l'envoi a été manqué. False si rien à faire."""
     try:
+        # GARDE-FOU DUR : un sport en arrière-plan (tennis/basket en probation) n'est JAMAIS publié -> jamais
+        # re-posté (fuite tennis 2026-08-02). Double sécurité avec le filtre de détection des « manqués ».
+        if d.get("sport") in analyses.background_sports():
+            return False
         import card_image  # tools/card_image.py (même dossier)
         card = card_data.build_prono_card(d)
         if not card:                       # pas de value à publier -> normal, on n'envoie rien
@@ -183,7 +187,11 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
         # re-poster. Borne 3 h alignée sur le nouveau système « pari publié ~2 h avant le match » (dispatcher) :
         # on ne rattrape QUE les envois ratés imminents, JAMAIS republier le backlog (bug vécu : la borne
         # 36 h héritée du « tout publier le matin » republiait tous les matchs à venir d'un coup après reset).
-        if st and _now() < st < _now() + timedelta(hours=3) and not notify.get_prono(str(d.get("id"))):
+        # ⚠️ SPORTS EN ARRIÈRE-PLAN (tennis/basket en probation) : JAMAIS publiés au scan -> un tennis sans
+        # carte Telegram n'est PAS un « envoi manqué », c'est VOLONTAIRE. Sans ce garde, le reconcile le
+        # re-postait à tort (fuite tennis sur Telegram, bug user 2026-08-02). On ne rattrape que le FOOT publié.
+        if st and _now() < st < _now() + timedelta(hours=3) and not notify.get_prono(str(d.get("id"))) \
+                and d.get("sport") not in analyses.background_sports():
             unposted.append(d)
 
     # 3) RE-POST des pronos à venir manqués (sauf --dry).

@@ -838,6 +838,32 @@ def _check_montante_active() -> dict:
                 "detail": f"vérif ignorée (non bloquante) : {e}", "items": []}
 
 
+def _check_background_publish(rows) -> dict:
+    """Un sport en ARRIÈRE-PLAN (tennis/basket en probation) ne doit JAMAIS avoir de carte prono postée sur
+    Telegram. Fuite vécue (user 2026-08-02) : le reconcile re-postait les tennis/basket « manqués » (ils
+    n'ont pas de carte car volontairement non publiés). Un `notify.get_prono` non vide sur un match d'un
+    sport suspendu = FUITE. Ne lève jamais."""
+    try:
+        from app import analyses as _an, notify as _n
+        bg = _an.background_sports()
+        if not bg:
+            return {"key": "background_publish", "level": "ok", "title": "Aucune fuite Telegram (sports suspendus)",
+                    "detail": "aucun sport en arrière-plan.", "items": []}
+        leaks = []
+        for d in rows:
+            if d.get("sport") in bg and _n.get_prono(str(d.get("id"))):
+                leaks.append(f'{d.get("sport")} · {d.get("home", "")} - {d.get("away", "")}')
+        return {"key": "background_publish",
+                "level": "warn" if leaks else "ok",
+                "title": "Aucune fuite Telegram (sports suspendus)",
+                "detail": (f"{len(leaks)} prono(s) tennis/basket postés à tort sur Telegram (sports suspendus) — "
+                           f"à supprimer." if leaks else "aucune fuite : tennis/basket jamais publiés."),
+                "items": leaks[:20]}
+    except Exception as e:
+        return {"key": "background_publish", "level": "ok", "title": "Aucune fuite Telegram (sports suspendus)",
+                "detail": f"vérif ignorée (non bloquante) : {e}", "items": []}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -868,6 +894,7 @@ def run(persist: bool = False) -> dict:
         _check_uniform_labels(rows),
         _check_stats_snapshot_drift(),
         _check_montante_active(),
+        _check_background_publish(rows),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]
