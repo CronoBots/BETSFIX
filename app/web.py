@@ -5997,14 +5997,18 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         if not empty:
             return ""
         body, count = f'<div class="zone-empty">{empty}</div>', 0
-    # RECORD du JOUR par type (demande user 2026-08-02) : nb sélectionnés · gagnés · perdus, à côté du titre.
-    # Le record REMPLACE le compteur simple (« sél. » EST déjà le nombre) -> pas de double nombre redondant.
+    # RECORD du JOUR par type (demande user 2026-08-02) : le BADGE (compteur rond) montre le nombre sélectionné ;
+    # à côté, les pastilles gagné ✅ / perdu ❌ du jour. On garde le badge (demande user : « j'aimais bien les
+    # badges ») SANS le doubler d'un « X sél. » redondant -> badge = total, pastilles = résultats seuls.
     rec = ""
+    badge_n = count
     if record:
         _s, _w, _l = record
-        rec = (f'<span class="zone-rec">{_s} sél.'
-               f'<span class="zr zrw">{_w} ✅</span><span class="zr zrl">{_l} ❌</span></span>')
-    n = "" if record else (f'<span class="zone-n">{count}</span>' if count else "")
+        badge_n = _s
+        if _w or _l:
+            rec = (f'<span class="zone-rec"><span class="zr zrw">{_w} ✅</span>'
+                   f'<span class="zr zrl">{_l} ❌</span></span>')
+    n = f'<span class="zone-n">{badge_n}</span>' if badge_n else ""
     t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
     head = (f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{n}{rec}{t}')
     if collapsible:
