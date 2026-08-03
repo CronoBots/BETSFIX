@@ -8631,6 +8631,15 @@ def _sport_row(r: dict) -> str:
     _lp_res = None                      # résultat live_prob -> source « acquis »/« perdu » pour le bord
     if is_live and lscore and bets3 and not is_combo and sport_key:
         _pbb = bets3[0]
+        # CODE du pari : `bets3` ne le porte PAS toujours (plusieurs branches le construisent sans `code`) ->
+        # on le DÉRIVE du `sel` au besoin. Sans ça, `live_prob` recevait un code vide et le VERROU live ne se
+        # déclenchait jamais (bug user 2026-08-03 : Pegula « remporte au moins un set » restait à ~95 % « Live »
+        # alors que le set 1 était déjà pris -> aurait dû être 100 % « acquis » / GAGNÉ). code_from_pick est
+        # déterministe (SET HOME/AWAY, OVER/UNDER, DC…).
+        _pcode = _pbb.get("code")
+        if not _pcode:
+            from app.settle_analyst import code_from_pick as _cfp_lp
+            _pcode = _cfp_lp(_pbb.get("sel", ""), sport_key, r.get("home", ""), r.get("away", "")) or ""
         _lhs, _las = _parse_live_score(r.get("score"))
         _lld = match_select.live_state_for(sport_key, r.get("home"), r.get("away"))
         _lmid = re.search(r"/(\d+)", url)
@@ -8642,7 +8651,7 @@ def _sport_row(r: dict) -> str:
             _lvals.update(_tennis_sets_games(r.get("score")))
         _gfrac = (match_select.basket_frac(_lld, comp) if sport_key == "basket" else None)
         _lp_res = analyses.live_prob(
-            sport_key, _pbb.get("sel", ""), _pbb.get("code", ""),
+            sport_key, _pbb.get("sel", ""), _pcode,
             r.get("home", ""), r.get("away", ""), _lhs, _las,
             match_select.live_minute(_lld),
             match_select.live_win_odds(sport_key, r.get("home"), r.get("away")),
