@@ -1868,6 +1868,14 @@ def live_prob(sport: str, sel: str, code: str, home: str, away: str,
     n'écrit aucune stat, ne compte jamais au ROI/à la calibration."""
     hs, as_ = _as_int(hs), _as_int(as_)
     if hs is None or as_ is None:
+        # SCORE live indisponible (feed Unibet/LiveScore en retard ou format inattendu) : ni verrou ni modèle
+        # possibles, MAIS on ne masque PAS la barre pour autant — intention « la barre chance live pour TOUS
+        # les paris » (user 2026-07-21). On affiche la confiance d'AVANT-MATCH (source honnête), qui basculera
+        # d'elle-même dès que le score arrive. Sans ce repli, un match LIVE dont le score tarde n'a AUCUNE barre
+        # (bug user 2026-08-02 : « pas de chance live pour ce match » sur un match brésilien au score non lu).
+        p_pre = ref_pct / 100.0 if isinstance(ref_pct, (int, float)) else None
+        if p_pre is not None:
+            return _mk_live(int(round(max(0.0, min(1.0, p_pre)) * 100)), "avant-match", ref_pct)
         return None
     info = _leg_metric({"sel": sel, "code": code}, home, away)
     wside = _winner_side(sel, code, home, away, sport)
