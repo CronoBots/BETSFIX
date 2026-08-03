@@ -1399,6 +1399,18 @@ async def _settle_analyses_impl() -> int:
                                      sport, d.get("id"), score.get("label"))
                     except Exception:
                         score = None
+                # ⛔ TENNIS SUSPENDU (garde user 2026-08-03, Pegula–Eala WTA Washington réglé « 1-0 (sets) »
+                # alors que le match était SUSPENDU par la pluie) : un score de SETS INCOMPLET (aucun joueur
+                # n'a 2 sets = un Bo3 n'est pas fini) N'EST PAS un résultat final -> on NE règle PAS dessus,
+                # SAUF ABANDON/FORFAIT explicite (`retired`/`walkover`, où un 1-0 EST le résultat). Une source
+                # (Flashscore ici) peut à tort marquer « terminé » un match suspendu ; cette garde bloque le
+                # règlement prématuré quelle que soit la source. Re-tenté quand le match finit VRAIMENT.
+                if sport == "tennis" and score and not (score.get("walkover") or score.get("retired")):
+                    _sh, _sa = score.get("sets_home"), score.get("sets_away")
+                    if isinstance(_sh, int) and isinstance(_sa, int) and max(_sh, _sa) < 2:
+                        log.info("tennis %s_%s : sets %d-%d incomplets (match non terminé/suspendu) -> "
+                                 "règlement différé", sport, d.get("id"), _sh, _sa)
+                        score = None
                 if not score:
                     # Aucune source n'a ENCORE le score -> on RÉ-ESSAIE à la passe suivante (le score/
                     # les sets arrivent souvent avec du retard : ne JAMAIS trancher « nul » sur un score

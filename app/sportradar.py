@@ -532,7 +532,10 @@ async def final_score(client, sport: str, match: dict) -> dict | None:
         out = {"periods": periods, "winner": res.get("winner"),
                "src": "sportradar", "label": f"{rh}-{ra}" if rh is not None else None}
         if sport == "tennis":
-            out.update({"home": None, "away": None, "sets_home": rh, "sets_away": ra})
+            # `retired` -> le règlement accepte un score de sets INCOMPLET (1-0) UNIQUEMENT sur abandon/forfait
+            # (RET/WO), pas sur un match suspendu (garde tennis suspendu, cf. settle_analyst 2026-08-03).
+            out.update({"home": None, "away": None, "sets_home": rh, "sets_away": ra,
+                        "retired": _short in ("RET", "WO", "AWO", "AAB")})
         else:                                  # basket : score en points
             out.update({"home": rh, "away": ra, "sets_home": None, "sets_away": None})
         return out

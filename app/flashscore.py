@@ -705,8 +705,11 @@ def final_score(sport: str, d: dict) -> dict | None:
                                 "label": "Forfait", "src": "flashscore"}
                 return None        # match trouvé MAIS pas de score (pas fini/suspendu) -> on s'abstient
             if sport == "tennis":
+                # `retired` propagé -> le règlement DISTINGUE un vrai 1-0 par ABANDON (fini) d'un 1-0 de
+                # match SUSPENDU (pas fini) : un score de sets incomplet n'est régla­ble QUE si abandon.
                 return {"home": None, "away": None, "sets_home": hs, "sets_away": as_,
-                        "label": f"{hs}-{as_} (sets)", "src": "flashscore"}
+                        "label": f"{hs}-{as_} (sets)" + (" (ab.)" if is_wo else ""),
+                        "retired": is_wo, "src": "flashscore"}
             out = {"home": hs, "away": as_, "sets_home": None, "sets_away": None,
                    "label": f"{hs}-{as_}", "src": "flashscore"}
             if sport == "foot":    # mi-temps -> rend réglables les marchés 1H/2H + « 2 mi-temps »
