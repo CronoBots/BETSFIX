@@ -2204,15 +2204,18 @@ CSS = """
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
   .zone-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
-  /* RECORD du jour par type (gagnés ✅ · perdus ❌) — MÊME forme que le badge `.zone-n` (demande user
-     2026-08-02 : « sous la même forme que le numéro compté à gauche »), à droite du titre. */
-  .zone-rec{margin-left:auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-  .zone-rec .zr{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
-       display:inline-flex;align-items:center;justify-content:center;gap:3px;font-variant-numeric:tabular-nums}
-  .zone-rec .zru{color:#c9d4e0;background:rgba(255,255,255,.08)}                 /* à venir ⏳ */
-  .zone-rec .zrlv{color:#ff9b9b;background:rgba(255,80,80,.16);animation:livepulse 1.9s ease-out infinite} /* live 🔴 */
-  .zone-rec .zrw{color:#63d68f;background:rgba(52,210,123,.14)}
-  .zone-rec .zrl{color:#ff8080;background:rgba(255,107,107,.14)}
+  /* RECORD du jour par type — SCORE COMPACT collé au titre (refonte user 2026-08-03 : « je n'aime pas les
+     gros blocs pleins à droite »). Plus de pastilles pleines : à venir/live = petit texte coloré + glyphe ;
+     gagnés/perdus = mini-score « 5–1 » (vert–rouge), façon classement. Discret, groupé après le badge. */
+  .zone-rec{display:inline-flex;align-items:center;gap:9px;white-space:nowrap;
+       font-variant-numeric:tabular-nums;font-weight:800}
+  .zone-rec .zr{display:inline-flex;align-items:center;gap:3px;font-size:11.5px}
+  .zone-rec .zru{color:#aeb8c4}                                    /* à venir ⏳ */
+  .zone-rec .zrlv{color:#ff8a8a}                                   /* live 🔴 */
+  .zone-rec .zr-sc{display:inline-flex;align-items:baseline;gap:1px;font-size:13px;letter-spacing:.01em}
+  .zone-rec .zr-sc .zr-w{color:#54d98c}                            /* gagnés (vert) */
+  .zone-rec .zr-sc .zr-l{color:#ff7d7d}                            /* perdus (rouge) */
+  .zone-rec .zr-sc .zr-d{color:var(--muted);opacity:.55;margin:0 2px;font-weight:700}  /* tiret */
   .zone-b{margin-top:2px}
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
@@ -6010,14 +6013,13 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         _s, _up, _lv, _w, _l = record
         badge_n = _s
         chips = ""
-        if _up:
+        if _up:                                          # à venir : petit texte gris + sablier
             chips += f'<span class="zr zru">{_up} ⏳</span>'
-        if _lv:
+        if _lv:                                          # en direct : petit texte rouge + point
             chips += f'<span class="zr zrlv">{_lv} 🔴</span>'
-        if _w:
-            chips += f'<span class="zr zrw">{_w} ✅</span>'
-        if _l:
-            chips += f'<span class="zr zrl">{_l} ❌</span>'
+        if _w or _l:                                     # réglés : mini-score « 5–1 » (vert–rouge)
+            chips += (f'<span class="zr-sc"><b class="zr-w">{_w}</b>'
+                      f'<span class="zr-d">–</span><b class="zr-l">{_l}</b></span>')
         if chips:
             rec = f'<span class="zone-rec">{chips}</span>'
     n = f'<span class="zone-n">{badge_n}</span>' if badge_n else ""
