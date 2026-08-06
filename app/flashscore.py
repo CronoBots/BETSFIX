@@ -677,49 +677,61 @@ def final_score(sport: str, d: dict) -> dict | None:
         offs = [o for o in (base, base - 1, base + 1) if -45 <= o <= 1]
     else:
         offs = [0, -1]
-    for off in offs:
-        for m in _match_index(sport, off):
-            if not _teams_match(home, away, m["home"], m["away"]):
-                continue
-            note = (m.get("note") or "").lower()
-            is_wo = any(w in note for w in ("withdrawn", "retired", "walkover", "w.o", "abandon", "forfait", "défaut"))
-            # ⛔ NE JAMAIS régler un match NON TERMINÉ. Statut Flashscore `AB` : 1=à venir · 2=LIVE ·
-            # 3=terminé. Un match LIVE a DÉJÀ un score partiel dans l'index -> le prendre pour final
-            # = règlement FAUX (bug vécu 2026-07-01 : Angleterre–Congo réglé « perdu » sur un 1-1
-            # transitoire alors que le match menait 2-1 en cours). On s'abstient -> re-tenté à la
-            # boucle suivante, quand le statut passe à 3. (Walkover/forfait accepté même si statut ≠ 3.)
-            status = str(m.get("status") or "")
-            if status and status != "3" and not is_wo:
-                return None
-            hs, as_ = _n(m.get("home_score")), _n(m.get("away_score"))
-            if hs is None or as_ is None:
-                # Pas de score -> WALKOVER/FORFAIT ? Le champ `note` (AM) = « <joueur> - withdrawn/
-                # retired/walkover ». Le joueur CITÉ a déclaré forfait -> l'AUTRE AVANCE (= vainqueur).
-                if is_wo:
-                    nt = _tok(note)
-                    th, ta = _tok(m["home"]), _tok(m["away"])
-                    loser = "home" if (th and th & nt) else ("away" if (ta and ta & nt) else None)
-                    if loser:
-                        return {"walkover": True, "winner": ("away" if loser == "home" else "home"),
-                                "home": None, "away": None,
-                                "label": "Forfait", "src": "flashscore"}
-                return None        # match trouvé MAIS pas de score (pas fini/suspendu) -> on s'abstient
-            if sport == "tennis":
-                # `retired` propagé -> le règlement DISTINGUE un vrai 1-0 par ABANDON (fini) d'un 1-0 de
-                # match SUSPENDU (pas fini) : un score de sets incomplet n'est régla­ble QUE si abandon.
-                return {"home": None, "away": None, "sets_home": hs, "sets_away": as_,
-                        "label": f"{hs}-{as_} (sets)" + (" (ab.)" if is_wo else ""),
-                        "retired": is_wo, "src": "flashscore"}
-            out = {"home": hs, "away": as_, "sets_home": None, "sets_away": None,
-                   "label": f"{hs}-{as_}", "src": "flashscore"}
-            if sport == "foot":    # mi-temps -> rend réglables les marchés 1H/2H + « 2 mi-temps »
-                pp = {}
-                for i, p in enumerate((periods(m["id"]) or {}).get("periods", [])[:2], 1):
-                    try:
-                        pp[i] = (int(p["home"]), int(p["away"]))
-                    except (ValueError, TypeError, KeyError):
-                        pass
-                if pp:
-                    out["periods"] = pp
-            return out
-    return None
+    # Tous les candidats qui matchent par NOMS (sur les jours voisins du coup d'envoi).
+    cands = [m for off in offs for m in _match_index(sport, off)
+             if _teams_match(home, away, m["home"], m["away"])]
+    if not cands:
+        return None
+    # ⛔ ANTI-COLLISION DE NOMS (cf. mémoire settle-name-collision-kickoff) : une même affiche peut exister
+    # PLUSIEURS fois le même jour (équipe RÉSERVE/FÉMININE/autre compétition). On DÉSAMBIGUÏSE par le COUP
+    # D'ENVOI : on garde le match dont le kickoff est le PLUS PROCHE du nôtre et on REJETTE tout candidat à
+    # > 6 h (= un AUTRE match). Sans ça, un « Fluminense–Vasco » terminé 0-0 réglait à tort le vrai match
+    # (fini 1-3) -> « Moins de 2.5 buts » compté GAGNÉ au lieu de PERDU (bug user 2026-08-06).
+    kts = dt.timestamp() if dt else None
+    if kts is not None:
+        near = sorted((m for m in cands if m.get("start_ts") is not None
+                       and abs(m["start_ts"] - kts) <= 6 * 3600),
+                      key=lambda m: abs(m["start_ts"] - kts))
+        cands = near or [m for m in cands if m.get("start_ts") is None]
+        if not cands:
+            return None                # tous les candidats datés sont loin -> collisions, on s'abstient
+    m = cands[0]
+    note = (m.get("note") or "").lower()
+    is_wo = any(w in note for w in ("withdrawn", "retired", "walkover", "w.o", "abandon", "forfait", "défaut"))
+    # ⛔ NE JAMAIS régler un match NON TERMINÉ. Statut Flashscore `AB` : 1=à venir · 2=LIVE · 3=terminé. Un
+    # match LIVE a DÉJÀ un score partiel dans l'index -> le prendre pour final = règlement FAUX (bug vécu
+    # 2026-07-01 : Angleterre–Congo réglé « perdu » sur un 1-1 transitoire). On s'abstient -> re-tenté quand
+    # le statut passe à 3. (Walkover/forfait accepté même si statut ≠ 3.)
+    status = str(m.get("status") or "")
+    if status and status != "3" and not is_wo:
+        return None
+    hs, as_ = _n(m.get("home_score")), _n(m.get("away_score"))
+    if hs is None or as_ is None:
+        # Pas de score -> WALKOVER/FORFAIT ? Le champ `note` (AM) = « <joueur> - withdrawn/retired/walkover ».
+        # Le joueur CITÉ a déclaré forfait -> l'AUTRE AVANCE (= vainqueur).
+        if is_wo:
+            nt = _tok(note)
+            th, ta = _tok(m["home"]), _tok(m["away"])
+            loser = "home" if (th and th & nt) else ("away" if (ta and ta & nt) else None)
+            if loser:
+                return {"walkover": True, "winner": ("away" if loser == "home" else "home"),
+                        "home": None, "away": None, "label": "Forfait", "src": "flashscore"}
+        return None            # match trouvé MAIS pas de score (pas fini/suspendu) -> on s'abstient
+    if sport == "tennis":
+        # `retired` propagé -> le règlement DISTINGUE un vrai 1-0 par ABANDON (fini) d'un 1-0 de match
+        # SUSPENDU (pas fini) : un score de sets incomplet n'est réglable QUE si abandon.
+        return {"home": None, "away": None, "sets_home": hs, "sets_away": as_,
+                "label": f"{hs}-{as_} (sets)" + (" (ab.)" if is_wo else ""),
+                "retired": is_wo, "src": "flashscore"}
+    out = {"home": hs, "away": as_, "sets_home": None, "sets_away": None,
+           "label": f"{hs}-{as_}", "src": "flashscore"}
+    if sport == "foot":        # mi-temps -> rend réglables les marchés 1H/2H + « 2 mi-temps »
+        pp = {}
+        for i, p in enumerate((periods(m["id"]) or {}).get("periods", [])[:2], 1):
+            try:
+                pp[i] = (int(p["home"]), int(p["away"]))
+            except (ValueError, TypeError, KeyError):
+                pass
+        if pp:
+            out["periods"] = pp
+    return out
