@@ -120,9 +120,63 @@ def _reset_premature() -> int:
     return n
 
 
+async def _reaudit_scores(max_days: int = 5) -> list:
+    """FILET ANTI-FAUX-RÉSULTAT (demande user 2026-08-06 « ça ne doit JAMAIS arriver ») : re-vérifie les
+    matchs FOOT réglés récents contre les DEUX sources désambiguïsées par coup d'envoi (flashscore +
+    livescore). Si les DEUX s'accordent sur un score qui DIFFÈRE du score stocké -> le règlement était FAUX
+    (collision de noms comme Fluminense–Vasco 0-0 vs 1-3, source périmée…). On RESET le match : la passe
+    `settle_analyses` qui suit le re-règle CORRECTEMENT et remplace la carte résultat fausse (result_msg
+    conservé). Exige l'ACCORD des 2 sources -> jamais de faux positif sur un hoquet transitoire. Foot (marché
+    phare), coup d'envoi < max_days. Renvoie la liste des corrections (pour le bilan)."""
+    from app import flashscore, livescore
+    corrected = []
+    for p in glob.glob(os.path.join(analyses.DIR, "foot_*.json")):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not analyses.is_settled(d):
+            continue
+        st = _start(d)
+        if not st or (_now() - st).days > max_days:
+            continue
+        stored = ((d.get("result") or {}).get("score") or "").split()[0]
+        if not stored or "-" not in stored:
+            continue                       # score tennis/sets ou vide -> hors périmètre foot
+        try:
+            fs = await asyncio.to_thread(flashscore.final_score, "foot", d)
+            ls = await asyncio.to_thread(livescore.final_score, "foot", d)
+        except Exception:
+            continue
+        fsl, lsl = (fs or {}).get("label"), (ls or {}).get("label")
+        if not fsl or not lsl:
+            continue                       # besoin des DEUX sources pour trancher (haute confiance)
+        fss, lss = str(fsl).split()[0], str(lsl).split()[0]
+        if fss != lss or fss == stored:
+            continue                       # sources en désaccord, OU tout concorde -> on ne touche à rien
+        # DÉSACCORD CONFIRMÉ (2 sources d'accord ≠ stocké) -> règlement FAUX -> RESET pour re-règlement.
+        for k in ("result", "stat_bet", "stat_bet_first", "clv", "settle_v"):
+            d.pop(k, None)                 # GARDE result_msg -> la carte fausse sera remplacée au re-règlement
+        for b in (d.get("bets") or []):
+            b.pop("result", None)
+        if d.get("combo"):
+            d["combo"]["result"] = None
+            for leg in d["combo"].get("legs") or []:
+                leg["result"] = None
+        tmp = p + ".tmp"
+        json.dump(d, open(tmp, "w", encoding="utf-8"), ensure_ascii=False)
+        os.replace(tmp, p)
+        corrected.append(f"{_label(d)} : {stored} → {fss}")
+        print(f"  🔧 RÉSULTAT FAUX corrigé (flashscore+livescore d'accord) : {_label(d)} · {stored} → {fss}")
+    return corrected
+
+
 async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
     # 0) AUTO-RÉPARATION : annule les règlements prématurés (match encore live) -> re-réglés à l'étape 1.
     n_reset = 0 if dry else _reset_premature()
+    # 0-bis) FILET ANTI-FAUX-RÉSULTAT : re-vérifie les paris joués foot récents contre 2 sources
+    # désambiguïsées ; un score faux (collision) est reset -> re-réglé correctement à l'étape 1.
+    _reaudited = [] if dry else await _reaudit_scores()
 
     # 1) RÈGLEMENT : règle tout ce qui peut l'être (poste les résultats, idempotent via notified_*).
     n_settled = 0
@@ -206,6 +260,10 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
     lines = ["🔄 <b>Réconciliation BETSFIX — 09h</b>"]
     if n_reset:
         lines.append(f"🔧 Règlements prématurés corrigés : <b>{n_reset}</b>")
+    if _reaudited:
+        lines.append(f"🔧 <b>FAUX RÉSULTATS corrigés (re-audit 2 sources) : {len(_reaudited)}</b>")
+        for _c in _reaudited[:6]:
+            lines.append(f"   • {_c}")
     lines.append(f"✅ Réglés à l'instant : <b>{n_settled}</b>")
     lines.append(f"📅 En attente de résultat (matchs à venir/en cours) : <b>{len(upcoming)}</b>")
     if stuck:
@@ -240,7 +298,7 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 _sp.run([sys.executable, os.path.join(_root, "deploy", "push_to_cloud.py")], check=False)
             except Exception as exc:
                 print(f"  (push cloud ignoré : {exc})")
-    return {"reset": n_reset, "settled": n_settled, "upcoming": len(upcoming),
+    return {"reset": n_reset, "reaudited": _reaudited, "settled": n_settled, "upcoming": len(upcoming),
             "stuck": len(stuck), "reposted": reposted}
 
 
