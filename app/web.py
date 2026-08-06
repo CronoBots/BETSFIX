@@ -2211,7 +2211,7 @@ CSS = """
        font-variant-numeric:tabular-nums;font-weight:800}
   .zone-rec .zr{display:inline-flex;align-items:center;gap:3px;font-size:11.5px}
   .zone-rec .zru{color:#aeb8c4}                                    /* à venir ⏳ */
-  .zone-rec .zrlv{color:#ff8a8a}                                   /* live 🔴 */
+  .zone-rec .zrlv{color:#54d98c}                                   /* EN DIRECT 🟢 (vert, jamais rouge = « raté ») */
   .zone-rec .zr-sc{display:inline-flex;align-items:baseline;gap:1px;font-size:13px;letter-spacing:.01em}
   .zone-rec .zr-sc .zr-w{color:#54d98c}                            /* gagnés (vert) */
   .zone-rec .zr-sc .zr-l{color:#ff7d7d}                            /* perdus (rouge) */
@@ -6004,9 +6004,10 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
             return ""
         body, count = f'<div class="zone-empty">{empty}</div>', 0
     # RECORD du JOUR par type (demande user 2026-08-02) : le BADGE (compteur rond) montre le nombre sélectionné ;
-    # à côté, des pastilles de MÊME forme -> à venir ⏳ · en direct 🔴 · gagné ✅ · perdu ❌ (demande user :
-    # « un compteur match live + match à venir »). Badge = total ; chaque pastille n'apparaît que si > 0.
-    # `record` = (total, à_venir, live, gagnés, perdus).
+    # à côté, des pastilles -> à venir ⏳ · EN DIRECT 🟢 · gagné–perdu (score). Badge = total ; chaque pastille
+    # n'apparaît que si > 0. `record` = (total, à_venir, live, gagnés, perdus).
+    # ⚠️ LIVE = 🟢 VERT (pas 🔴 rouge) : le rouge se lisait « raté/perdu » (confusion user 2026-08-06) alors
+    # que c'est « en direct » — vert, cohérent avec le badge « Live » des cartes et l'onglet Live.
     rec = ""
     badge_n = count
     if record:
@@ -6015,8 +6016,8 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         chips = ""
         if _up:                                          # à venir : petit texte gris + sablier
             chips += f'<span class="zr zru">{_up} ⏳</span>'
-        if _lv:                                          # en direct : petit texte rouge + point
-            chips += f'<span class="zr zrlv">{_lv} 🔴</span>'
+        if _lv:                                          # en direct : petit texte vert + point (comme l'onglet Live)
+            chips += f'<span class="zr zrlv">{_lv} 🟢</span>'
         if _w or _l:                                     # réglés : mini-score « 5–1 » (vert–rouge)
             chips += (f'<span class="zr-sc"><b class="zr-w">{_w}</b>'
                       f'<span class="zr-d">–</span><b class="zr-l">{_l}</b></span>')
