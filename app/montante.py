@@ -349,22 +349,29 @@ def record_day(date_iso: str) -> bool:
 
 def settle_pending() -> int:
     """Règle les paliers en attente : le palier = le SIMPLE VALUE JOUÉ du match, donc son résultat = celui du
-    `stat_bet` figé (déjà calculé par nos règlements, aucune source réseau). Nb réglé."""
+    `stat_bet` figé (déjà calculé par nos règlements, aucune source réseau). Nb réglé/corrigé.
+
+    AUTO-CORRECTION (user 2026-08-06 « le palier 7 a été perdu ») : un palier DÉJÀ réglé est re-vérifié —
+    si le `stat_bet` du sidecar a CHANGÉ depuis (ex. faux résultat corrigé : Fluminense 0-0→1-3, le pari
+    « Moins de 2.5 » passe won→lost), la montante SUIT. L'échelle est recalculée en aval (`_compute` casse la
+    chaîne sur une perte). Sans ça, un palier gagné à tort restait « won » et la montante continuait à tort."""
     from app import analyses
     d = load()
     n = 0
     for s in d.get("steps") or []:
-        if s.get("result") is not None or not s.get("mid"):
+        if not s.get("mid"):
             continue
         m = analyses.meta("foot", s.get("mid"))
         if not m or not analyses.is_settled(m):
             continue
         sb = m.get("stat_bet") or {}
-        if sb.get("result") in ("won", "lost", "push", "void"):
-            s["result"] = sb["result"]
-            if sb.get("cote"):
-                s["cote"] = sb["cote"]                     # cote finale figée
-            n += 1
+        r = sb.get("result")
+        if r not in ("won", "lost", "push", "void") or s.get("result") == r:
+            continue                                        # pas réglé côté sidecar, OU déjà à jour
+        s["result"] = r                                     # nouveau règlement OU correction (la montante suit)
+        if sb.get("cote"):
+            s["cote"] = sb["cote"]                          # cote finale figée
+        n += 1
     if n:
         save(d)
     return n
