@@ -3520,7 +3520,10 @@ def _excluded_by_sport() -> dict:
     for fr, g in (cal.get("by_sport") or {}).items():
         sp = _SPORT_FR.get(fr, fr.lower())
         prev_sp = prev.get(sp, set())
-        ms = {"Corners"} if sp == "foot" else set()      # (b) ban dur foot (user 2026-06-19)
+        # (b) BANS DURS foot : Corners (user 2026-06-19) + « Les 2 marquent » (BTTS) — user 2026-08-07 :
+        #     BTTS mesuré 1G/3P = 25 % / ROI −59 % depuis le 22/06, marché « pile ou face » qui casse les
+        #     séries. Banni comme les corners/cartons (objectif : retrouver les longues séries de victoires).
+        ms = {"Corners", "Les 2 marquent"} if sp == "foot" else set()
         for name, mg in (g.get("markets") or {}).items():
             n = mg.get("n") or 0
             gap = (mg.get("win_rate") or 0) - (mg.get("avg_conf") or 0)
@@ -3548,7 +3551,7 @@ def _excluded_by_sport() -> dict:
             elif was:
                 ms.add(name)                             # zone morte -> on garde l'exclusion de la veille
         out[sp] = ms
-    out.setdefault("foot", {"Corners"})                  # foot garde au minimum le ban dur
+    out.setdefault("foot", {"Corners", "Les 2 marquent"})   # foot garde au minimum les bans durs (corners + BTTS)
     if out != prev:                                      # ne persiste QUE sur un vrai changement de décision
         _save_excluded_state(out)
     _EXCL_BY_SPORT_CACHE = (_now + _EXCL_BY_SPORT_TTL, out)
