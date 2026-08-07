@@ -3246,8 +3246,9 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # autres onglets (son panneau charge /accueil?frag=1, bascule SANS rechargement). « Compte » n'est PAS dans
 # la barre du bas -> bouton en HAUT À DROITE (_ACCT_BTN). (Gating d'onglets par abonnement : plus tard.)
 _SPA_TABS = [("accueil", "/accueil", "🏠", "Accueil"),
-             ("home", "/", "📅", "Pronos"), ("directs", "/directs", _LIVE_RADAR, "Live"),
-             ("montante", "/montante", "🪜", "Montante"),   # à GAUCHE de Résultats (user 2026-08-08)
+             ("home", "/", "📅", "Pronos"),
+             ("montante", "/montante", "🪜", "Montante"),   # à GAUCHE de Live (user 2026-08-08)
+             ("directs", "/directs", _LIVE_RADAR, "Live"),
              ("stats", "/stats", "📊", "Résultats")]
 # Bouton compte en haut à droite (toutes les pages) : /compte affiche la connexion si déconnecté, le compte
 # sinon -> pas besoin de connaître l'état de session dans le rendu.
@@ -5228,14 +5229,16 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
         if _usdt is not None:                   # heure Unibet fraîche (reflète un éventuel décalage)
             dt = _usdt
         _is_live = (_st == "inprogress") or _has_live
+        _prov_pending = False   # match commencé, NI live NI réglé -> « en attente de résolution » (badge gris)
         if not _is_live and dt <= now:
-            # coup d'envoi passé mais PAS de live Unibet : on le GARDE tant que le match n'est PAS
-            # probablement fini (dans sa fenêtre de durée) — il est en cours même sans flux Unibet, fréquent
-            # sur le tennis DÉCALÉ ET le basket de ligue mineure (TBT) sans feed live (bug user 2026-07-28 :
-            # provisoire basket invisible). Sinon (probablement fini) -> il ira dans les Résultats, on le
-            # sort de l'à-venir. Critère SPORT-AGNOSTIQUE (remplace l'ancienne grâce tennis-only de 6 h).
+            # coup d'envoi passé mais PAS de live Unibet. AVANT, un match « probablement fini » (fenêtre de
+            # durée écoulée) mais PAS ENCORE réglé (score non capté) était EXCLU d'ici -> il DISPARAISSAIT
+            # (ni à-venir, ni dans les Résultats qui n'affichent QUE les réglés) -> pas de badge gris (bug
+            # user 2026-08-08 : « provisoire en attente de résolution sans badge gris »). Désormais on le
+            # GARDE en « ⏳ En attente » jusqu'au règlement (grey badge). Le RÉGLÉ (status_of=finished, plus
+            # haut) part bien dans les Résultats. Critère sport-agnostique.
             if analyses.likely_finished({"start": m.get("start"), "sport": sp}):
-                continue
+                _prov_pending = True   # gardé (plus d'exclusion/vanish) -> badge « ⏳ En attente »
         ic = _ICON.get(sp, "")
         # Ligne d'en-tête : NOM DU SPORT (majuscules) puis la compétition (demande user 2026-07-12,
         # ex. « 🎾 TENNIS • Wimbledon ») -> le sport est explicite, plus seulement l'emoji.
@@ -5338,6 +5341,8 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
         # score va dans le SCOREBOARD sous le titre, plus dans le badge), sinon l'HEURE.
         if _is_live:
             _badge = '<span class="mc-badge mc-live">🟢 Live</span>'
+        elif _prov_pending:   # commencé, probablement fini, pas encore réglé -> EN ATTENTE (badge gris, user 2026-08-08)
+            _badge = '<span class="mc-badge mc-wait">⏳ En attente</span>'
         else:
             # HEURE + DÉCOMPTE (« HH:MM - Début dans 52m01s ») comme _leg_card (user 2026-08-08 : sur TOUS les types).
             _hm = html.escape(fmt_local(dt, with_date=False))
