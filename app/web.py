@@ -2223,6 +2223,7 @@ CSS = """
   .zone-rec .zrp{color:#0e141b;background:#9aa6b4;padding:1px 7px;border-radius:9px;font-size:11px}  /* en attente de résolution = badge GRIS (user 2026-08-08) */
   .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés = badge VERT (user 2026-08-08) */
   .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
+  .zone-rec .zrm{color:#04121f;background:#3aa0ff;padding:1px 7px;border-radius:9px;font-size:11px}   /* MONTANTE = badge BLEU (user 2026-08-08) */
   .zone-rec .zrlv{color:#54d98c;font-weight:800}                   /* EN DIRECT (texte vert, jamais rouge = « raté ») */
   .zone-rec .zr-legs{color:var(--muted);font-weight:700;font-size:11px}   /* COMBINÉ : (nb de jambes) -> « 1 (2) » */
   .zone-b{margin-top:2px}
@@ -3003,6 +3004,13 @@ CSS = """
   .mont-banner .mb-arw{color:var(--gold);font-size:20px;font-weight:700;opacity:.8}
   /* Badge MONTANTE greffé DANS la carte du pari du jour (demande user 2026-07-28) : même esprit doré que la
      bannière, mais intégré sous le verdict (lien vers l'onglet Montante). */
+  /* MONTANTE fusionnée dans Confiance (user 2026-08-08) : label « Montante • Palier N » au-dessus de la
+     carte + CADRE BLEU sur le match sélectionné (plus de zone montante séparée -> pas de carte en double). */
+  .mont-sel-lbl{margin:6px 2px 3px}
+  .mont-sel-lbl a{color:#3aa0ff;font-size:11.5px;font-weight:900;letter-spacing:.02em;text-decoration:none;
+       -webkit-tap-highlight-color:transparent}
+  .row.mc.mont-frame{border-color:#3aa0ff;
+       box-shadow:0 0 0 1px rgba(58,160,255,.35),0 8px 26px rgba(58,160,255,.14)}
   .mc-mont{display:flex;align-items:center;gap:10px;margin:9px 0 2px;padding:9px 11px;border-radius:11px;
     text-decoration:none;color:var(--text);background:linear-gradient(180deg,rgba(246,197,74,.10),rgba(246,197,74,.03));
     border:1px solid rgba(246,197,74,.34);-webkit-tap-highlight-color:transparent}
@@ -6019,7 +6027,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
 
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
-          record: tuple | None = None, legs: int | None = None) -> str:
+          record: tuple | None = None, legs: int | None = None, mont: int | None = None) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
     de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
     sur un filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les
@@ -6046,6 +6054,8 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         # COMBINÉ : le nb de jambes est affiché DANS le badge d'état actif -> « 1 (2) » (user 2026-08-08).
         _lg = f' ({legs})' if legs else ''
         chips = ""
+        if mont:                                         # MONTANTE : badge BLEU (un pari de Confiance est la montante)
+            chips += f'<span class="zr zrm">{mont}</span>'
         if _up:                                          # à venir (pas commencé) : badge JAUNE
             chips += f'<span class="zr zru">{_up}{_lg}</span>'
         if _lv:                                          # en direct : texte vert
@@ -6503,13 +6513,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ORDRE (refonte user 2026-07-27) : Paris à jouer → Provisoires → [bannière Montante] → Combiné →
     # Combiné Betmines. « Paris du jour » N'APPARAÎT PAS s'il n'y a rien à jouer (demande user 2026-07-26).
     out = []
-    # MONTANTE EN PREMIER (demande user 2026-07-30) : son PROPRE type de pari, zone « Montante · Palier N »
-    # avec la carte au MÊME format que les autres paris (via _montante_zone_card -> _leg_card). Toujours
-    # visible dès qu'un palier est en attente, même si le match est une ABSTENTION (le pari montante ne
-    # dépend pas de la value du système principal). Foot uniquement.
-    _mont_title, _mont_card = _montante_zone_card(sport)
-    if _mont_card:
-        out.append(_zone("montante", _mont_title, "", 1, _mont_card, collapsible=True))
+    # MONTANTE FUSIONNÉE DANS CONFIANCE (user 2026-08-08) : PLUS de zone « Montante » séparée (elle affichait
+    # une 2e fois le même cadre de pari, le match de la montante étant déjà un pari de Confiance). À la place :
+    # badge BLEU « 1 » dans le compteur Confiance + label « Montante • Palier N » et cadre bleu sur la carte
+    # du match concerné (cf. _sport_row). `_mont_n` = 1 s'il y a un palier en attente (foot uniquement).
+    _mont_n = 1 if (_is_foot_view and _montante_palier() is not None) else None
     # RÉSULTATS EN PLACE (demande user 2026-08-01) : plus de zone « Résultats du jour » en bas de l'onglet.
     # Chaque match RÉGLÉ reste dans SA section de type et sa carte affiche le résultat/score (comme les cartes
     # de résultat actuelles). Les combinés (include_settled=True ci-dessus) le font déjà en place ; ici on
@@ -6532,7 +6540,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl, _p_pend)
     if play or _res_cards:
         out.append(_zone("play", "Confiance", "", len(play) + len(_res_cards), _play_html,
-                         collapsible=True, record=_play_rec if _play_rec[0] else None))
+                         collapsible=True, record=_play_rec if _play_rec[0] else None, mont=_mont_n))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
@@ -8752,10 +8760,17 @@ def _sport_row(r: dict) -> str:
         _rcls = " mc-r-live"
     else:
         _rcls = ""
+    # MONTANTE FUSIONNÉE DANS CONFIANCE (user 2026-08-08) : le match choisi pour la montante N'A PLUS de
+    # zone séparée -> on marque SA carte de Confiance avec un label « Montante • Palier N » au-dessus + un
+    # CADRE BLEU (plus de doublon de carte). Le suivi montante reste dans app/montante.py (hors ROI).
+    _mp = _montante_palier_for(_pmid)
+    _mfr = " mont-frame" if _mp else ""
+    _mlbl = (f'<div class="mont-sel-lbl"><a data-goto="montante" href="/montante" '
+             f'onclick="event.stopPropagation()">🪜 Montante • Palier {_mp[0]}</a></div>' if _mp else "")
     if _no_expand:
-        return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
-    return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
-            f'{" mc-islive" if is_live else ""}{_rcls}">{head}'
+        return (f'{_mlbl}<div class="row pick mc mc-prem mc-flat{_rcls}{_mfr}">{head}</div>')
+    return (f'{_mlbl}<div class="row pick mc{" mc-prem" if _premium else ""}'
+            f'{" mc-islive" if is_live else ""}{_rcls}{_mfr}">{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
 _MC_SEP = '<div class="mc-sep"></div>'
