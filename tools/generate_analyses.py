@@ -694,8 +694,9 @@ def _set_programme_status(match_id: str, status: str, provisional: dict | None =
 
 async def _build_and_post_programme(client, sports: list, args) -> None:
     """MATIN : sélectionne les matchs du jour (top N/sport dans la fenêtre), les enregistre dans
-    data/day_programme.json et poste le « programme du jour » sur Telegram — SANS analyser. Le pari de
-    chaque match sera publié ~1 h avant SON coup d'envoi par les vagues (--from-programme --refresh-early)."""
+    data/day_programme.json et poste le « programme du jour » sur Telegram — SANS analyser. Chaque match
+    est ensuite analysé UNE fois par la passe complète du matin (--from-programme). La ré-analyse pré-match
+    a été supprimée (user 2026-08-07) : le pick du matin est DÉFINITIF (plus de vague --refresh-early)."""
     from app import notify
     _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
