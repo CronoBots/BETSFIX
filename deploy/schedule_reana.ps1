@@ -1,8 +1,11 @@
-# BETSFIX — PLANIFIE LA RÉ-ANALYSE PAR MATCH (remplace le sondage « toutes les 30 min »).
+# BETSFIX — PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (remplace le sondage « toutes les 30 min »).
+# ⚠️ La RÉ-ANALYSE pré-match a été SUPPRIMÉE (user 2026-08-07) : scan_wave.ps1 ne fait plus QUE régler +
+# selfcheck (le pick du matin est définitif). On garde néanmoins un déclencheur PONCTUEL par match pour que
+# le RÈGLEMENT tourne vite autour de chaque rencontre (en complément de la boucle continue de l'API).
 # Pour CHAQUE match du programme du jour (data/day_programme.json), pose sur la tâche « BETSFIX Scan Wave »
-# un déclencheur PONCTUEL à (coup d'envoi − 1 h). Précision à la minute, zéro sondage.
+# un déclencheur à (coup d'envoi − 1 h). Précision à la minute, zéro sondage.
 # Rejoué chaque matin par scan_daily.ps1 -> Set-ScheduledTask REMPLACE tous les déclencheurs (pas d'accumulation).
-# L'ACTION de la tâche reste scan_wave.ps1 (ré-analyse le(s) match(s) imminent(s) + règlement + selfcheck).
+# L'ACTION de la tâche reste scan_wave.ps1 (règlement + selfcheck, PLUS de ré-analyse).
 # -Dry : calcule et affiche seulement (ne modifie PAS la tâche).
 param([switch]$Dry)
 
@@ -20,13 +23,13 @@ try {
     $now  = Get-Date
     foreach ($m in $prog.matches) {
         try { $ko = ([datetimeoffset]$m.start).LocalDateTime } catch { continue }
-        $at = $ko.AddHours(-1)                                  # ré-analyse = coup d'envoi − 1 h
+        $at = $ko.AddHours(-1)                                  # passe règlement = coup d'envoi − 1 h
         if ($at -le $now.AddMinutes(2)) { continue }            # déjà passé/imminent -> couvert par le scan matin
         $key = $at.ToString('yyyyMMddHHmm')
         if ($seen.ContainsKey($key)) { continue }               # coups d'envoi identiques -> 1 seul déclencheur
         $seen[$key] = $true
         $trigs += New-ScheduledTaskTrigger -Once -At $at
-        if ($Dry) { "  + ré-analyse {0}  (match {1} à {2})" -f $at.ToString('dd/MM HH:mm'), $m.name, $ko.ToString('HH:mm') }
+        if ($Dry) { "  + règlement {0}  (match {1} à {2})" -f $at.ToString('dd/MM HH:mm'), $m.name, $ko.ToString('HH:mm') }
     }
 } catch {
     Log ("REANA SCHED : lecture programme KO : {0}" -f $_.Exception.Message)
@@ -44,7 +47,7 @@ if ($Dry) {
 }
 try {
     Set-ScheduledTask -TaskName $task -Trigger $trigs -ErrorAction Stop | Out-Null
-    Log ("REANA SCHED : {0} ré-analyse(s) planifiée(s) à coup d'envoi - 1 h." -f $trigs.Count)
+    Log ("REANA SCHED : {0} passe(s) de règlement planifiée(s) à coup d'envoi - 1 h." -f $trigs.Count)
     "OK : {0} déclencheur(s) posé(s) sur « {1} »." -f $trigs.Count, $task
 } catch {
     Log ("REANA SCHED : Set-ScheduledTask KO : {0}" -f $_.Exception.Message)
