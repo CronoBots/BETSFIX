@@ -4248,9 +4248,9 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"),   # + onglet Provisoires (user 2026-07-25)
                         counts=(_pend_s, len(_pend_fc), _prov_pending_count("foot")),   # badges EN COURS par onglet
                         rois=(ov.get("roi"), _foot_c.get("roi"), _prov_sport_roi("foot")))   # ROI discret par onglet (user 2026-08-02)
-    # Ligne sous la bannière (comme tennis/basket) : le FOOT est compté au ROI et repris dans les paris.
-    _foot_sub = '<div class="stat-banner-sub on">compté au ROI · repris dans les paris</div>'
-    return (f'<div class="spf">{_sport_banner("foot")}{_foot_sub}{_foot}</div>') if _foot else ""
+    # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
+    # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
+    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
