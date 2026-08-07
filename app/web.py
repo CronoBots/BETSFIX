@@ -2224,6 +2224,7 @@ CSS = """
   .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés = badge VERT (user 2026-08-08) */
   .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
   .zone-rec .zrlv{color:#54d98c;font-weight:800}                   /* EN DIRECT (texte vert, jamais rouge = « raté ») */
+  .zone-rec .zr-legs{color:var(--muted);font-weight:700;font-size:11px}   /* COMBINÉ : (nb de jambes) -> « 1 (2) » */
   .zone-b{margin-top:2px}
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
@@ -5322,8 +5323,18 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
                    '<span class="dim">· compos &amp; cotes fraîches</span></span></div>')
         # Badge coin haut-droit : « 🟢 Live » en direct (demande user 2026-07-12 : comme les paris live, le
         # score va dans le SCOREBOARD sous le titre, plus dans le badge), sinon l'HEURE.
-        _badge = ('<span class="mc-badge mc-live">🟢 Live</span>' if _is_live
-                  else f'<span class="mc-badge mc-up">{html.escape(fmt_local(dt, with_date=False))}</span>')
+        if _is_live:
+            _badge = '<span class="mc-badge mc-live">🟢 Live</span>'
+        else:
+            # HEURE + DÉCOMPTE (« HH:MM - Début dans 52m01s ») comme _leg_card (user 2026-08-08 : sur TOUS les types).
+            _hm = html.escape(fmt_local(dt, with_date=False))
+            _cd_pi = (f'<span class="cd" data-ts="{int(dt.timestamp())}"></span>'
+                      if dt and dt.timestamp() > now.timestamp() else "")
+            if _cd_pi and _hm:
+                _badge = (f'<span class="mc-badge mc-up cleg-when"><span class="cw-h">{_hm}</span>'
+                          f'<span class="cw-sep"> - Début dans </span>{_cd_pi}</span>')
+            else:
+                _badge = f'<span class="mc-badge mc-up">{_hm}</span>'
         # SCOREBOARD des résultats (sets/quart-temps) — visible dans la carte repliée SOUS le titre pour un
         # provisoire EN DIRECT (demande user 2026-07-12), comme les paris live.
         _lscore = (_live_scoreboard(_lf.get("score"), home, away, tennis=(sp == "tennis"),
@@ -6008,7 +6019,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
 
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
-          record: tuple | None = None) -> str:
+          record: tuple | None = None, legs: int | None = None) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
     de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
     sur un filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les
@@ -6032,17 +6043,19 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         _r6 = list(record) + [0] * (6 - len(record))
         _s, _up, _lv, _w, _l, _pend = _r6[:6]
         badge_n = _s
+        # COMBINÉ : le nb de jambes est affiché DANS le badge d'état actif -> « 1 (2) » (user 2026-08-08).
+        _lg = f' ({legs})' if legs else ''
         chips = ""
         if _up:                                          # à venir (pas commencé) : badge JAUNE
-            chips += f'<span class="zr zru">{_up}</span>'
+            chips += f'<span class="zr zru">{_up}{_lg}</span>'
         if _lv:                                          # en direct : texte vert
-            chips += f'<span class="zr zrlv">{_lv}</span>'
+            chips += f'<span class="zr zrlv">{_lv}{_lg}</span>'
         if _pend:                                        # commencé mais PAS ENCORE RÉGLÉ : badge GRIS
-            chips += f'<span class="zr zrp">{_pend}</span>'
+            chips += f'<span class="zr zrp">{_pend}{_lg}</span>'
         if _w:                                            # gagnés : badge VERT
-            chips += f'<span class="zr zrw">{_w}</span>'
+            chips += f'<span class="zr zrw">{_w}{_lg}</span>'
         if _l:                                            # perdus : badge ROUGE
-            chips += f'<span class="zr zrl">{_l}</span>'
+            chips += f'<span class="zr zrl">{_l}{_lg}</span>'
         if chips:
             rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
@@ -6535,10 +6548,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                          collapsible=True, record=_prov_rec if _prov_rec[0] else None))
     # Record du COMBINÉ football du jour (1 combiné/jour ; gagné/perdu = son résultat).
     _combo_rec = None
+    _c_legs = None
     if combo_daily:
         try:
             from app import combo_daily as _cd2
             _cbt = _cd2.today(today_iso, sport=(sport or "foot")) or {}
+            _c_legs = len(_cbt.get("legs") or []) or None   # nb de jambes -> compteur « 1 (2) »
             _cr = _cbt.get("result")
             _c_settled = _cr in ("won", "lost", "void")
             _c_live = bool(combo_daily) and not _c_settled and _daily_combo_any_live()
@@ -6552,7 +6567,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _combo_rec = None
     out += [
         _zone("combo", "Combiné double chance", "", 1 if combo_daily else 0, combo_daily,
-              collapsible=True, record=_combo_rec),
+              collapsible=True, record=_combo_rec, legs=_c_legs),
     ]
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
@@ -8459,8 +8474,17 @@ def _sport_row(r: dict) -> str:
     elif is_finished:                                    # terminé : score FINAL, SANS drapeau 🏁
         badge = (f'<span class="mc-badge mc-done">{score_txt}</span>' if score_txt
                  else '<span class="mc-badge mc-wait">⏳ En attente</span>')
-    else:                                                # à venir : HEURE DE DÉBUT seule (HH:MM)
-        badge = f'<span class="mc-badge mc-up">{e(starthm) or "À venir"}</span>'
+    else:                                                # à venir : HEURE + DÉCOMPTE (« HH:MM - Début dans 52m01s »),
+        #                                                  MÊME badge combiné que _leg_card (user 2026-08-08 : timer
+        #                                                  heure + décompte sur TOUS les types de paris).
+        _cd_sr = (f'<span class="cd" data-ts="{int(sdt.timestamp())}"></span>'
+                  if sdt and sdt.timestamp() > time.time() else "")
+        if _cd_sr and starthm:
+            badge = (f'<span class="mc-badge mc-up cleg-when">'
+                     f'<span class="cw-h">{e(starthm)}</span>'
+                     f'<span class="cw-sep"> - Début dans </span>{_cd_sr}</span>')
+        else:
+            badge = f'<span class="mc-badge mc-up">{e(starthm) or "À venir"}</span>'
     # L3 : prono(s) PUBLIABLE(s) seulement — APP = TELEGRAM (strict). Un match SANS combiné n'affiche
     # QUE son simple RETENU (⭐, quand « play ») ; sinon abstention -> « pas de pari conseillé ». Les
     # matchs à combiné gardent [simple retenu ?, combiné] (déjà filtré par card_summary). Résultat :
