@@ -6268,6 +6268,8 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
         if sp in _bg and sp != sport:                  # tennis/basket : seulement si explicitement sélectionnés
             continue
         for d in analyses.iter_meta(sp):
+            if d.get("roi_void"):          # pari exclu du ROI/historique (correction d'approche) -> pas affiché
+                continue
             dt = d.get("_start_dt")
             if dt is None:
                 continue

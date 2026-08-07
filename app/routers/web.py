@@ -289,6 +289,8 @@ def _past_day_cards(date_iso: str) -> list:
         if sport in _bg:                                  # sport simulé -> pas dans les « Résultats du jour »
             continue
         for d in analyses.iter_meta(sport):               # brut (pas de retained_bet) : filtrage strict ci-dessous
+            if d.get("roi_void"):                         # pari exclu du ROI/historique (correction) -> pas affiché
+                continue
             dt = d.get("_start_dt")
             if dt is None:
                 continue

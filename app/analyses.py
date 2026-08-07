@@ -349,6 +349,8 @@ def iter_stat_bets():
             d = _meta_load(p)
             if not d:
                 continue
+            if d.get("roi_void"):        # pari EXCLU du ROI/historique (correction d'approche, user 2026-08-07)
+                continue                 # -> hors stats/série ; reste en CALIBRATION (shadows intacts)
             # UN MATCH = UN PARI (user 2026-08-07) : on ne rend QUE le pari retenu (stat_bet). Le pari du 1er
             # scan (`stat_bet_first`) N'EST PLUS compté (fini le double-comptage d'un match re-scané).
             sb = d.get("stat_bet")
@@ -2904,6 +2906,8 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
         d = _meta_load(p)
         if not d:
             continue
+        if d.get("roi_void"):        # pari EXCLU du ROI/stats/série (correction d'approche, user 2026-08-07)
+            continue                 # -> hors bilan affiché ; reste en CALIBRATION (fonction séparée, intacte)
         sport = d.get("sport")
         start = d.get("start") or ""
         if cutoff is not None:
