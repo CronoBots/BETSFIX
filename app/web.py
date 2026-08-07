@@ -1177,6 +1177,13 @@ CSS = """
         font-size:10px;padding:3px 8px}
   .cd.wait{background:rgba(246,197,74,.12);color:var(--gold);border-color:rgba(246,197,74,.32);
         font-size:10px;padding:3px 8px}
+  /* DÉCOMPTE dans une carte de pari : DIFFÉRENCIÉ du badge d'heure (user 2026-08-08 « comment différencier
+     l'heure de début et le décompte ? »). Le badge d'heure = pastille pleine (heure FIXE du coup d'envoi) ;
+     le décompte = texte ESTOMPÉ préfixé « dans » (temps RESTANT, dynamique). Se lit « 18:00  dans 2h 15m ».
+     Seulement à venir (:not(.live)) — au coup d'envoi, le timer reprend le vert « live » normal. */
+  .cleg-h .cd:not(.live){background:transparent;border-color:transparent;color:var(--muted);
+        font-weight:700;padding:2px 2px;font-size:10px}
+  .cleg-h .cd:not(.live)::before{content:"dans ";opacity:.65;font-weight:600}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
@@ -2210,10 +2217,11 @@ CSS = """
   .zone-rec{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
        font-variant-numeric:tabular-nums;font-weight:800}
   .zone-rec .zr{display:inline-flex;align-items:center;gap:3px;font-size:11.5px}
-  .zone-rec .zru{color:#1a1400;background:#e8b93a;padding:1px 7px;border-radius:9px;font-size:11px}  /* à venir ⏳ = badge JAUNE (user 2026-08-07) */
-  .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés ✓ = badge VERT (user 2026-08-08) */
-  .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus ✗ = badge ROUGE */
-  .zone-rec .zrlv{color:#54d98c}                                   /* EN DIRECT 🟢 (vert, jamais rouge = « raté ») */
+  .zone-rec .zru{color:#1a1400;background:#e8b93a;padding:1px 7px;border-radius:9px;font-size:11px}  /* à venir = badge JAUNE (user 2026-08-07) */
+  .zone-rec .zrp{color:#0e141b;background:#9aa6b4;padding:1px 7px;border-radius:9px;font-size:11px}  /* en attente de résolution = badge GRIS (user 2026-08-08) */
+  .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés = badge VERT (user 2026-08-08) */
+  .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
+  .zone-rec .zrlv{color:#54d98c;font-weight:800}                   /* EN DIRECT (texte vert, jamais rouge = « raté ») */
   .zone-b{margin-top:2px}
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
@@ -6009,17 +6017,23 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     rec = ""
     badge_n = count
     if record:
-        _s, _up, _lv, _w, _l = record
+        # 6 états (user 2026-08-08) : total · à venir · live · EN ATTENTE DE RÉSOLUTION · gagnés · perdus.
+        # SANS EMOJI (user 2026-08-08) : distinction par COULEUR seule. à venir=JAUNE · en attente=GRIS ·
+        # live=vert (texte) · gagnés=VERT plein · perdus=ROUGE plein. Ancien tuple 5 -> pending=0 (compat).
+        _r6 = list(record) + [0] * (6 - len(record))
+        _s, _up, _lv, _w, _l, _pend = _r6[:6]
         badge_n = _s
         chips = ""
-        if _up:                                          # à venir : petit texte gris + sablier
-            chips += f'<span class="zr zru">{_up} ⏳</span>'
-        if _lv:                                          # en direct : petit texte vert + point (comme l'onglet Live)
-            chips += f'<span class="zr zrlv">{_lv} 🟢</span>'
-        if _w:                                            # gagnés : badge VERT + ✓ (même style que ⏳ à venir)
-            chips += f'<span class="zr zrw">{_w} ✓</span>'
-        if _l:                                            # perdus : badge ROUGE + ✗ (même style)
-            chips += f'<span class="zr zrl">{_l} ✗</span>'
+        if _up:                                          # à venir (pas commencé) : badge JAUNE
+            chips += f'<span class="zr zru">{_up}</span>'
+        if _lv:                                          # en direct : texte vert
+            chips += f'<span class="zr zrlv">{_lv}</span>'
+        if _pend:                                        # commencé mais PAS ENCORE RÉGLÉ : badge GRIS
+            chips += f'<span class="zr zrp">{_pend}</span>'
+        if _w:                                            # gagnés : badge VERT
+            chips += f'<span class="zr zrw">{_w}</span>'
+        if _l:                                            # perdus : badge ROUGE
+            chips += f'<span class="zr zrl">{_l}</span>'
         if chips:
             rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
@@ -6484,11 +6498,16 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # PARIS DU JOUR = à venir/en cours PUIS terminés (chacun affiche son résultat). Zone visible s'il y a l'un
     # ou l'autre.
     _play_html = _MC_SEP.join([h for h in (_rows_by_day(play), _MC_SEP.join(_res_cards)) if h])
-    # RECORD DU JOUR (demande user 2026-08-02) : total · à venir ⏳ · live 🔴 · gagnés ✅ · perdus ❌.
+    # RECORD DU JOUR (demande user 2026-08-02, 6 états 2026-08-08) : total · à venir · live · EN ATTENTE
+    # DE RÉSOLUTION · gagnés · perdus. « en attente » = pari NON réglé dont le match a DÉJÀ commencé mais qui
+    # n'est plus « live » (fini, en cours de règlement) — avant, il était compté à tort en « à venir ».
+    _now_ts = time.time()
     _pw, _pl, _pp = _settled_wl_today(today_iso, sport)          # simples réglés du jour (léger)
     _p_lv = sum(1 for r in play if r.get("status") == "inprogress")   # paris joués EN DIRECT
-    _p_up = len(play) - _p_lv                                         # paris joués À VENIR (non démarrés)
-    _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl)
+    _p_pend = sum(1 for r in play if r.get("status") != "inprogress"
+                  and (r.get("start_ts") or 0) and r["start_ts"] <= _now_ts)   # commencé, pas live, pas réglé
+    _p_up = len(play) - _p_lv - _p_pend                              # paris joués À VENIR (non démarrés)
+    _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl, _p_pend)
     if play or _res_cards:
         out.append(_zone("play", "Paris du jour", "", len(play) + len(_res_cards), _play_html,
                          collapsible=True, record=_play_rec if _play_rec[0] else None))
@@ -6498,8 +6517,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # même sélection que _provisional_results). -> « X sél · W✅ · L❌ » colle au nombre de cartes (hors ROI).
     _psn, _psw, _psl = _prov_settled_wl(today_iso, sport)
     _pv_lv = sum(1 for it in prov if it.get("_live"))                 # provisoires en direct (si présents)
-    _pv_up = len(prov) - _pv_lv                                       # provisoires à venir
-    _prov_rec = (len(prov) + _psn, _pv_up, _pv_lv, _psw, _psl)
+    _pv_pend = sum(1 for it in prov if not it.get("_live")
+                   and (it.get("start_ts") or 0) and it["start_ts"] <= _now_ts)   # commencé, pas live, pas réglé
+    _pv_up = len(prov) - _pv_lv - _pv_pend                            # provisoires à venir
+    _prov_rec = (len(prov) + _psn, _pv_up, _pv_lv, _psw, _psl, _pv_pend)
     if prov or _prov_res:
         out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html,
                          collapsible=True, record=_prov_rec if _prov_rec[0] else None))
@@ -6512,8 +6533,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _cr = _cbt.get("result")
             _c_settled = _cr in ("won", "lost", "void")
             _c_live = bool(combo_daily) and not _c_settled and _daily_combo_any_live()
-            _combo_rec = (1, 0 if (_c_settled or _c_live) else 1, 1 if _c_live else 0,
-                          1 if _cr == "won" else 0, 1 if _cr == "lost" else 0)
+            # EN ATTENTE DE RÉSOLUTION : pas réglé, pas live, mais au moins une jambe a déjà commencé/fini.
+            _c_pend = 1 if (not _c_settled and not _c_live and any(
+                l.get("start") and analyses.likely_finished({"sport": l.get("sport") or "foot", "start": l.get("start")})
+                for l in (_cbt.get("legs") or []))) else 0
+            _combo_rec = (1, 0 if (_c_settled or _c_live or _c_pend) else 1, 1 if _c_live else 0,
+                          1 if _cr == "won" else 0, 1 if _cr == "lost" else 0, _c_pend)
         except Exception:
             _combo_rec = None
     out += [
