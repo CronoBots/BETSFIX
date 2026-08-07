@@ -2230,7 +2230,6 @@ CSS = """
   .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
   .zone-rec .zrm{color:#04121f;background:#3aa0ff;padding:1px 7px;border-radius:9px;font-size:11px}   /* MONTANTE = badge BLEU (user 2026-08-08) */
   .zone-rec .zrlv{color:#54d98c;font-weight:800}                   /* EN DIRECT (texte vert, jamais rouge = « raté ») */
-  .zone-rec .zr-legs{color:var(--muted);font-weight:700;font-size:11px}   /* COMBINÉ : (nb de jambes) -> « 1 (2) » */
   .zone-b{margin-top:2px}
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
@@ -2996,49 +2995,14 @@ CSS = """
   /* MISE bien visible (demande user 2026-07-25) : label discret + montant lisible. */
   .mont-step-mise{display:block;font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.02em}
   .mont-step-mise b{color:var(--text);font-weight:800}
-  /* Bannière compacte « Montante du jour » sur Pronos (refonte user 2026-07-27) : ligne cliquable -> onglet Montante */
-  .mont-banner{display:flex;align-items:center;gap:11px;margin:14px 0;padding:12px 14px;border-radius:14px;
-    text-decoration:none;color:var(--text);background:linear-gradient(180deg,rgba(246,197,74,.10),rgba(246,197,74,.03));
-    border:1px solid rgba(246,197,74,.34);-webkit-tap-highlight-color:transparent}
-  .mont-banner:active{transform:scale(.99)}
-  .mont-banner .mb-ic{font-size:22px;line-height:1}
-  .mont-banner .mb-txt{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
-  .mont-banner .mb-txt b{font-size:13px;font-weight:900;color:#ffe08a;letter-spacing:.01em}
-  .mont-banner .mb-sub{font-size:12px;color:var(--muted);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .mont-banner .mb-sub b{color:var(--text);font-weight:800}
-  .mont-banner .mb-arw{color:var(--gold);font-size:20px;font-weight:700;opacity:.8}
-  /* Badge MONTANTE greffé DANS la carte du pari du jour (demande user 2026-07-28) : même esprit doré que la
-     bannière, mais intégré sous le verdict (lien vers l'onglet Montante). */
   /* MONTANTE fusionnée dans Confiance (user 2026-08-08) : titre « MONTANTE • PALIER N » DANS le cadre BLEU,
-     centré, BLANC, MAJUSCULE, plus grand, sans emoji. La carte injectée = LA MÊME que l'onglet Montante. */
+     centré, BLANC, MAJUSCULE, sans emoji, + fine ligne dessous. La carte = LA MÊME que l'onglet Montante. */
   .mont-hdr{display:block;text-align:center;color:#fff;font-weight:900;font-size:14px;text-transform:uppercase;
        letter-spacing:.04em;padding:10px 10px 8px;text-decoration:none;background:rgba(58,160,255,.14);
        border-bottom:1px solid rgba(58,160,255,.42);-webkit-tap-highlight-color:transparent}   /* fine ligne sous le titre */
-  .row.mc.mont-frame{border-color:#3aa0ff;
-       box-shadow:0 0 0 1px rgba(58,160,255,.35),0 8px 26px rgba(58,160,255,.14)}
-  /* Cadre BLEU autour de la carte montante injectée dans Confiance (même carte que l'onglet Montante). */
   .mont-cardwrap{border:1px solid #3aa0ff;border-radius:14px;overflow:hidden;
        box-shadow:0 0 0 1px rgba(58,160,255,.30),0 8px 26px rgba(58,160,255,.12)}
   .mont-cardwrap > .cleg{border-color:transparent;box-shadow:none;border-radius:0}
-  .mc-mont{display:flex;align-items:center;gap:10px;margin:9px 0 2px;padding:9px 11px;border-radius:11px;
-    text-decoration:none;color:var(--text);background:linear-gradient(180deg,rgba(246,197,74,.10),rgba(246,197,74,.03));
-    border:1px solid rgba(246,197,74,.34);-webkit-tap-highlight-color:transparent}
-  .mc-mont:active{transform:scale(.99)}
-  .mc-mont .mc-mont-ic{font-size:19px;line-height:1}
-  .mc-mont .mc-mont-t{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
-  .mc-mont .mc-mont-t b{font-size:12.5px;font-weight:900;color:#ffe08a;letter-spacing:.01em}
-  .mc-mont .mc-mont-s{font-size:11px;color:var(--muted);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .mc-mont .mc-mont-arw{color:var(--gold);font-size:19px;font-weight:700;opacity:.8}
-  /* Ligne de contexte du PALIER montante sur Pronos (au-dessus de la carte de pari) */
-  .mont-pron-ctx{font-size:11px;color:var(--gold);font-weight:700;margin:0 2px 7px;line-height:1.4}
-  .mont-pron-ctx b{color:#ffe08a} .mont-pron-ctx span{color:var(--muted);font-weight:600}
-  /* Note de MISE sous la carte de la zone « Montante · Palier N » : UNE seule ligne (pas de retour). */
-  .mont-note{margin:8px 2px 0;font-size:11.5px;font-weight:600;color:var(--muted);line-height:1.4;
-    white-space:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-  .mont-note::-webkit-scrollbar{display:none}
-  .mont-note .mont-note-ic{font-size:14px;margin-right:5px}
-  .mont-note b{color:#ffe08a;font-weight:800}
-  .mont-note a{color:var(--gold);font-weight:700;text-decoration:none;margin-left:5px}
   /* Courbe de progression du capital (10 € -> pic), échelle log */
   .mont-curve{margin:2px 0 11px}
   .mont-c{width:100%;height:auto;display:block}
@@ -5844,7 +5808,7 @@ def _combo_safe_tg_card(include_settled: bool = False, cb: dict | None = None) -
 
 def _montante_palier() -> int | None:
     """N° du palier montante EN ATTENTE (1-based) pour le titre de zone Pronos, ou None si montante inactive /
-    aucun palier en attente. Même dérivation que `_montante_tg_card` (`palier` de l'état + 1)."""
+    aucun palier en attente. Même dérivation que `_montante_zone_card` (`palier` de l'état + 1)."""
     try:
         from app import montante as _mt
         if not _mt.is_active():
@@ -5873,19 +5837,6 @@ def _montante_palier_for(mid) -> tuple | None:
         return (int(st.get("palier") or 0) + 1, p.get("stake") or st.get("base", 10.0))
     except Exception:
         return None
-
-
-def _montante_badge(mid) -> str:
-    """Bandeau montante CLIQUABLE à greffer DANS la carte du pari du jour (→ onglet Montante). '' si ce match
-    n'est pas le palier en attente. Même esprit doré que l'ancienne bannière, mais INTÉGRÉ à la carte."""
-    _mp = _montante_palier_for(mid)
-    if not _mp:
-        return ""
-    return (f'<a class="mc-mont" data-goto="montante" href="/montante" onclick="event.stopPropagation()">'
-            f'<span class="mc-mont-ic">🪜</span>'
-            f'<span class="mc-mont-t"><b>Montante · Palier {_mp[0]}</b>'
-            f'<span class="mc-mont-s">mise {_mont_eur(_mp[1])} · rejouée à chaque gain · simulé, hors ROI</span>'
-            f'</span><span class="mc-mont-arw">›</span></a>')
 
 
 def _montante_zone_card(sport: str | None) -> tuple:
@@ -5931,54 +5882,6 @@ def _montante_zone_card(sport: str | None) -> tuple:
         return "", ""
 
 
-def _montante_banner() -> str:
-    """Bannière COMPACTE « Montante du jour » pour Pronos (refonte user 2026-07-27) : une ligne cliquable
-    (palier + pari + cote) qui renvoie à l'onglet Montante (échelle complète) -> lève la double lecture
-    montante (une carte pleine dans Pronos + l'onglet). '' si montante inactive ou pas de palier en attente."""
-    _pal = _montante_palier()
-    if _pal is None:
-        return ""
-    try:
-        from app import montante as _mt
-        p = _mt.state().get("pending") or {}
-    except Exception:
-        p = {}
-    _match = _noF(str(p.get("match") or ""))
-    _h, _sep, _a = _match.partition(" - ")
-    _sel = html.escape(_pretty_sel(str(p.get("sel") or ""), _h, _a))
-    _co = p.get("cote")
-    _cote = f' · <b>@{_co:g}</b>' if isinstance(_co, (int, float)) and _co else ""
-    return (f'<a class="mont-banner" data-goto="montante" href="/montante">'
-            f'<span class="mb-ic">🪜</span>'
-            f'<span class="mb-txt"><b>Montante · Palier {_pal}</b>'
-            f'<span class="mb-sub">{_sel}{_cote}</span></span>'
-            f'<span class="mb-arw">›</span></a>')
-
-
-def _montante_tg_card() -> str:
-    """Carte du PALIER MONTANTE du jour pour l'onglet PRONOS (demande user 2026-07-26 : « le palier doit être
-    sur la page des pronos et présenté comme un pari normal »). Rend le pari du jour de la montante via
-    `_leg_card` (MÊME carte qu'un simple : match + sélection + gloss + cote) + une ligne de contexte montante
-    (palier n°, mise capitalisée). '' si montante inactive ou pas de palier en attente. Info-seule, hors ROI."""
-    try:
-        from app import montante as _mt
-        if not _mt.is_active():
-            return ""
-        st = _mt.state()
-        p = st.get("pending")
-        if not p or not p.get("sel"):
-            return ""
-    except Exception:
-        return ""
-    _match = _noF(str(p.get("match") or ""))
-    _h, _sep, _a = _match.partition(" - ")
-    leg = {"sport": p.get("sport") or "foot", "home": _h, "away": _a, "name": _match,
-           "sel": p.get("sel"), "cote": p.get("cote"), "result": None, "comp": ""}
-    _palier = int(st.get("palier") or 0) + 1
-    _stake = p.get("stake") or st.get("base", 10.0)
-    _ctx = (f'<div class="mont-pron-ctx">🪜 <b>Palier {_palier}</b> · mise <b>{_mont_eur(_stake)}</b> '
-            f'· rejouée à chaque gain <span>· simulé, hors ROI</span></div>')
-    return _ctx + _leg_card(leg, why=False, teams=True)
 
 
 def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
@@ -6381,7 +6284,7 @@ def _sport_pronos_counts(match_rows: list) -> dict:
             _paj.add(_prog_pair(_lh, _la))
     except Exception:
         pass
-    _mont = 1 if _montante_tg_card() else 0
+    _mont = 1 if _montante_palier() is not None else 0   # montante active (palier en attente) -> +1 au compte foot
     out = {}
     for sp in ("foot", "tennis", "basket"):
         _prog = [it for it in _programme_items(_paj, framed=True, keep_sport=sp)
@@ -6540,9 +6443,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # (via _montante_zone_card). Plus de badge greffé sur les cartes de pari joué (surface unique = la zone).
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
-    _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(sport or "foot", "football")
-    # ORDRE (refonte user 2026-07-27) : Paris à jouer → Provisoires → [bannière Montante] → Combiné →
-    # Combiné Betmines. « Paris du jour » N'APPARAÎT PAS s'il n'y a rien à jouer (demande user 2026-07-26).
+    # ORDRE : Confiance (montante incluse) → Provisoire → Combiné. « Confiance » n'apparaît que s'il y a un
+    # pari/résultat/montante (demande user 2026-07-26).
     out = []
     # MONTANTE FUSIONNÉE DANS CONFIANCE (user 2026-08-08) : PLUS de zone « Montante » séparée. Le match de la
     # montante est souvent une ABSTENTION (son pari = le pick de la montante, pas un pari de Confiance) -> il
