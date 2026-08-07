@@ -6777,6 +6777,8 @@ def _lz_stats() -> dict:
         losses = []
         analysed = retained = 0
         for d in analyses.iter_meta("foot"):
+            if d.get("roi_void"):            # pari exclu du ROI/historique (correction) -> hors vitrine accueil
+                continue
             st = (d.get("start") or "")
             if st[:10] < _LZ_SINCE:
                 continue
