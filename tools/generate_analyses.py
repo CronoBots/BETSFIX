@@ -2638,10 +2638,34 @@ async def main():
                 # tennis/basket, ≠ id Unibet `m['id']`). La COTE reste rafraîchie live (app/main combo-refresh,
                 # mêmes jambes) et le résultat est réglé. `--force` outrepasse (re-analyse volontaire).
                 path = os.path.join(OUT, f"{sport}_{fid}.md")
+                # ⛔ GEL « ANALYSÉ LE MATIN » (user 2026-08-07 : « plus aucun changement de pari sur un match
+                # analysé à 09h »). Une VAGUE pré-match (--refresh-early) ne RÉ-ANALYSE JAMAIS un match qui a
+                # déjà un sidecar du jour -> le pick du matin (simple / abstention / provisoire / combiné) est
+                # FIGÉ jusqu'au coup d'envoi, quelle que soit sa publication (avant, seuls les paris Telegram
+                # étaient protégés ; abstentions/provisoires/non-publiés flippaient à la vague). Le SCAN MATIN
+                # (--programme / --force, SANS --refresh-early) reste libre de décider/affiner ; on ne gèle
+                # qu'APRÈS lui (les vagues). Seul un --match explicite (override manuel du proprio) rouvre.
+                # Un match JAMAIS analysé (nouveau au programme) reste analysé normalement par la vague.
+                if args.refresh_early and not args.match and not args.force:
+                    _prior_p = os.path.join(OUT, f"{sport}_{fid}.json")
+                    try:
+                        _prior = json.load(open(_prior_p, encoding="utf-8")) if os.path.exists(_prior_p) else None
+                    except (OSError, ValueError):
+                        _prior = None
+                    if _prior and _prior.get("generated"):
+                        from app import analyses as _an_lock
+                        _has_bet = bool((_prior.get("combo") or {}).get("legs")
+                                        or _an_lock.retained_bet(sport, str(fid)))
+                        print(f"  · {m['name']} : déjà analysé le matin (gelé) -> vague ignorée "
+                              f"(aucun changement de pari).")
+                        _set_programme_status(str(m.get("id")), "bet" if _has_bet else "abstained")
+                        continue
                 # REFRESH « analysé trop tôt » (--refresh-early, vagues rapprochées) : un match PUBLIÉ dont
                 # l'analyse a été faite quand il était ENCORE hors fenêtre (lead > --hours) est ré-analysé
                 # UNE fois à l'approche -> pick FRAIS près du coup d'envoi, puis re-posté. Auto-limité (voir
                 # _analyzed_too_early). Sinon le GEL protège intégralement le pick déjà publié (inchangé).
+                # ⚠️ Désormais SUPPLANTÉ pour les matchs déjà analysés (gel matin ci-dessus l'intercepte) :
+                # _refresh ne peut plus se déclencher que sur un match sans sidecar du jour (donc jamais ici).
                 _refresh = (args.refresh_early and _notify.get_prono(str(fid))
                             and _analyzed_too_early(path, m.get("start"), args.hours))
                 if not (args.force or args.match or _refresh) and _notify.get_prono(str(fid)):
