@@ -76,7 +76,7 @@ def _tier(code: str) -> int:
     return 9
 
 
-SIM_SPORTS = ("tennis", "basket")   # combinés du jour SIMULÉS (hors ROI) — foot reste le combiné compté au ROI
+SIM_SPORTS = ()   # FOOT SEUL (user 2026-08-07) : tennis/basket retirés -> plus de combinés simulés. Foot = combiné compté au ROI
 
 
 def _track_path(sport: str = "foot") -> str:

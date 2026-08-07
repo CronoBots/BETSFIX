@@ -578,11 +578,10 @@ def _selectivity_card() -> str:
 
 
 def _simulation_card() -> str:
-    """Section « 🔬 Simulation (arrière-plan) » : ROI SIMULÉ des sports mis en arrière-plan (tennis/basket) —
-    analysés + picks tracés en continu MAIS cachés de la page des paris & non publiés (demande user
-    2026-07-24). But : suivre leur ROI simulé pour décider quand les RÉINTÉGRER (réactivation manuelle).
-    '' si aucun sport en arrière-plan."""
-    bg = analyses.background_sports()
+    """FOOT SEUL (user 2026-08-07) : tennis/basket retirés du produit -> plus de cadre « 🔬 Simulation »
+    (leur ROI simulé n'a plus de raison d'être affiché). Renvoie toujours ''."""
+    return ""
+    bg = analyses.background_sports()   # (mort — conservé si réactivation multi-sport un jour)
     if not bg:
         return ""
     full = analyses.stats_full()

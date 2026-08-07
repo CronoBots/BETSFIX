@@ -4021,8 +4021,7 @@ def render_sports_breakdown(full: dict | None, since: str = "") -> str:
     """« Détail par sport » : une ligne par sport (pastille + mini-courbe + ROI + bilan + cote). '' si
     aucun sport réglé. Extrait de render_stats pour pouvoir le placer dans sa propre section."""
     bs = (full or {}).get("by_sport") or {}
-    SPORTS = (("foot", "Football", "#2ee27f"), ("tennis", "Tennis", "#d7e64a"),
-              ("basket", "Basket", "#ff9f43"))
+    SPORTS = (("foot", "Football", "#2ee27f"),)   # FOOT SEUL (user 2026-08-07 : tennis/basket retirés)
     scards = [_sport_card(bs[sk], sk, lbl, since, color=col)
               for sk, lbl, col in SPORTS if (bs.get(sk) or {}).get("settled")]
     return (('<div class="sx-bys"><div class="sx-h">Détail par sport</div>'
@@ -6347,15 +6346,9 @@ def _sport_selector(current: str | None, counts: dict | None = None, *,
     if q is None:
         q = f"date={_day}"                       # défaut Pronos (le Live passe q="")
 
-    def _badge(sk: str) -> str:
-        _n = counts.get(sk) or 0
-        return f'<span class="spsel-n">{_n}</span>' if isinstance(_n, int) and _n > 0 else ""
-    chips = "".join(
-        f'<button type="button" class="spsel{" on" if _cur == sk else ""}" data-sport="{sk}" '
-        f'data-day="{_day}">{ic}<span>{lbl}</span>{_badge(sk)}</button>'
-        for sk, ic, lbl in (("foot", "⚽", "Football"), ("tennis", "🎾", "Tennis"), ("basket", "🏀", "Basket")))
-    return (f'<div class="spsel-wrap" data-target="{html.escape(target)}" data-base="{html.escape(base)}" '
-            f'data-q="{html.escape(q)}">{chips}</div>')
+    # FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés du produit -> plus de sélecteur de sport
+    # (un seul sport = pas de chips à choisir). On ne rend RIEN (la vue reste 100 % foot, `sport` ignoré).
+    return ""
 
 
 def _settled_wl_today(iso: str, sport: str | None) -> tuple:
