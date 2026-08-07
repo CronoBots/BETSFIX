@@ -755,14 +755,11 @@ async def montante_page(frag: int = 0) -> HTMLResponse:
     de départ 10 €, rejouée après chaque gain. Page premium prête à basculer sur les vraies données le jour
     de l'activation ; en attendant, elle explique le concept + affiche un aperçu (exemple). Hors ROI."""
     from app import montante as _mt
+    # SIMULATION « meilleure montante » RETIRÉE (user 2026-08-07) : la page Montante ne montre QUE la montante
+    # RÉELLE (et son historique réel), plus aucune vitrine simulée sur les simples foot.
     _st = _mt.state()
-    _sim = None
-    if _st.get("active"):                # activée -> vraie montante + VITRINE de la meilleure (simulation)
-        _sim = _mt.simulate()
-    else:                                # pas activée -> la SIMULATION sur les simples foot fait la page
-        _st = _mt.simulate()
     body = (f'<div class="pg-h">Montante</div>'
-            f'<div class="statsx">{web.render_montante(_st, _mt.example(), sim_state=_sim)}</div>')
+            f'<div class="statsx">{web.render_montante(_st, _mt.example())}</div>')
     if frag:
         return HTMLResponse(body)
     return HTMLResponse(web.spa_shell("montante", "Montante", body))
