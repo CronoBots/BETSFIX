@@ -12,7 +12,7 @@ import time
 import httpx
 from datetime import datetime, timezone
 
-from app.sources import _ESPN, _FOTMOB, _UNDERSTAT
+from app.sources import _FOTMOB, _UNDERSTAT   # _ESPN retiré (source tennis/basket, app 100 % foot)
 
 _UA = {"User-Agent": "Mozilla/5.0"}
 _T = 12
@@ -38,10 +38,6 @@ async def _http_ok(client, url, headers=None, json_expected=True):
 async def _p_fotmob(c):
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
     return await _http_ok(c, f"{_FOTMOB}/matches?date={today}")
-
-
-async def _p_espn(c):
-    return await _http_ok(c, f"{_ESPN}/site/v2/sports/tennis/atp/rankings")
 
 
 async def _p_understat(c):

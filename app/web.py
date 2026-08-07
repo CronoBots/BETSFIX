@@ -4114,10 +4114,9 @@ def render_volume_by_sport() -> str:
         '<div class="vbs-head"><div></div><div>7 jours</div><div>30 jours</div></div>'
         + "".join(rows)
         + '<div class="sx-data-note">« <b>analysés</b> » = matchs dont le dossier complet (multi-sources '
-        '+ analyse) a été produit. « <b>paris</b> » = matchs avec un pari retenu (au ROI pour le foot). '
-        '« <b>prov.</b> » = paris provisoires (le plus probable par match, indicatif, hors ROI). '
-        '« <b>comb.</b> » = combinés du jour. Seul le <b>football</b> est compté au ROI ; <b>tennis</b> et '
-        '<b>basket</b> sont analysés en <b>simulation</b> tant qu\'ils ne repassent pas au vert.</div></div>')
+        '+ analyse) a été produit. « <b>paris</b> » = matchs avec un pari retenu. '
+        '« <b>prov.</b> » = paris provisoires (le RÉSULTAT le plus probable par match — comptés au ROI '
+        'global). « <b>comb.</b> » = combinés du jour. Application <b>100 % football</b>.</div></div>')
 
 
 def _mile_legend(miles: list, *, compact: bool = False) -> str:
@@ -8437,19 +8436,11 @@ def _sport_row(r: dict) -> str:
             _mid = re.search(r"/(\d+)", url)   # marché exclu APRÈS coup inclus (sinon « pas de pari » à tort)
             _rbh = (analyses.retained_bet(sport_key, _mid.group(1), for_history=True)
                     if (sport_key and _mid) else None)
-            _dmeta = (analyses.meta(sport_key, _mid.group(1)) or {}) if (sport_key and _mid) else {}
-            _fb = _dmeta.get("stat_bet_first")     # pari du 1er scan remplacé au rescan (compté au ROI)
+            # UN MATCH = UN PARI (user 2026-08-07 ; audit 2026-08-07) : on affiche LE pari retenu (for_history)
+            # et RIEN d'autre. Le double affichage « Premier scan / Dernier scan » (basé sur stat_bet_first)
+            # est RETIRÉ — il n'est plus compté au ROI, donc la carte doit refléter un seul pari par match.
             if _rbh and _rbh.get("result") in ("won", "lost", "push"):
                 bets3 = [{"sel": _rbh["sel"], "result": _rbh["result"], "cote": _rbh.get("cote")}]
-                reco_i = 0
-                # DOUBLE SCAN (demande user 2026-07-21) : les DEUX décisions s'affichent, étiquetées.
-                if isinstance(_fb, dict) and _fb.get("result") in ("won", "lost", "push"):
-                    bets3 = ([{"sel": _fb["sel"], "result": _fb["result"], "cote": _fb.get("cote"),
-                               "tag": "Premier scan"}]
-                             + [{**bets3[0], "tag": "Dernier scan"}])
-                elif _dmeta.get("last_scan_none"):
-                    bets3 = ([{**bets3[0], "tag": "Premier scan"}]
-                             + [{"_info": "Dernier scan : aucun pari conseillé"}])
             else:
                 bets3 = []
         else:
