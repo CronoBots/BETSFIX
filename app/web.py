@@ -1177,13 +1177,15 @@ CSS = """
         font-size:10px;padding:3px 8px}
   .cd.wait{background:rgba(246,197,74,.12);color:var(--gold);border-color:rgba(246,197,74,.32);
         font-size:10px;padding:3px 8px}
-  /* DÉCOMPTE dans une carte de pari : DIFFÉRENCIÉ du badge d'heure (user 2026-08-08 « comment différencier
-     l'heure de début et le décompte ? »). Le badge d'heure = pastille pleine (heure FIXE du coup d'envoi) ;
-     le décompte = texte ESTOMPÉ préfixé « dans » (temps RESTANT, dynamique). Se lit « 18:00  dans 2h 15m ».
-     Seulement à venir (:not(.live)) — au coup d'envoi, le timer reprend le vert « live » normal. */
-  .cleg-h .cd:not(.live){background:transparent;border-color:transparent;color:var(--muted);
-        font-weight:700;padding:2px 2px;font-size:10px}
-  .cleg-h .cd:not(.live)::before{content:"dans\00a0";opacity:.65;font-weight:600}
+  /* HEURE + DÉCOMPTE dans UN MÊME badge (user 2026-08-08) : heure à gauche en BLANC, décompte à droite en
+     GRIS, sans « dans ». Le décompte est rempli/rafraîchi en direct par le timer JS. Au coup d'envoi, le
+     timer reprend le vert « live » normal (:not(.live)). */
+  .cleg-when{display:inline-flex;align-items:baseline;font-variant-numeric:tabular-nums;
+        font-size:10px;white-space:nowrap}
+  .cleg-when .cw-h{color:#fff;font-weight:900}                     /* heure = BLANC */
+  .cleg-when .cw-sep{color:var(--muted);font-weight:600;white-space:pre}   /* « - Début dans » gris */
+  .cleg-when .cd:not(.live){background:transparent;border-color:transparent;color:var(--muted);
+        font-weight:700;padding:0;font-size:10px}                 /* décompte = GRIS, MÊME taille que l'heure */
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
@@ -2115,10 +2117,7 @@ CSS = """
   .cleg.won{border-color:var(--st-won)}
   .cleg.lost{border-color:var(--st-lost)}
   .cleg.push,.cleg.void{border-color:var(--st-void)}
-  .cleg-h{display:flex;align-items:flex-start;gap:6px;margin-bottom:8px}
-  /* Coin HAUT-DROITE de la carte : badge d'HEURE en haut + DÉCOMPTE juste EN DESSOUS (user 2026-08-08,
-     capture) -> colonne alignée à droite. L'heure (pastille pleine) reste en tête, le décompte en second. */
-  .cleg-h .rt-r{flex-direction:column;align-items:flex-end;gap:3px}
+  .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
   .cleg-comp{flex:1;min-width:0;font-size:10.5px;font-weight:700;color:var(--muted);
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cleg-sport{color:#2ee27f;font-weight:800;letter-spacing:.04em}
@@ -3259,9 +3258,9 @@ _COUNTDOWN_JS = (
     "function f(ms){if(ms<=0)return'\\u25b6 live';"
     "var s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),"
     "m=Math.floor(s%3600/60),x=s%60;"
-    "if(d>0)return U(p(d),'j')+' '+U(p(h),'h')+' '+U(p(m),'m');"
-    "if(h>0)return U(p(h),'h')+' '+U(p(m),'m');"
-    "return U(p(m),'m')+' '+U(p(x),'s');}"
+    "if(d>0)return U(p(d),'j')+U(p(h),'h');"
+    "if(h>0)return U(p(h),'h')+U(p(m),'m');"
+    "return U(p(m),'m')+U(p(x),'s');}"
     "function t(){var n=Date.now(),e=document.getElementsByClassName('cd');"
     "for(var i=0;i<e.length;i++){var v=e[i].getAttribute('data-ts');if(!v)continue;"
     "var ms=parseInt(v,10)*1000-n;e[i].innerHTML=f(ms);"
@@ -5356,8 +5355,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
         _inner = (
             f'<div class="mc-main">'
             f'<div class="mc-line"><span class="mc-ic">{ic}</span>'
-            f'<span class="mc-comp"><b class="mc-sport spc-{sp or ""}">{_spn}</b>'
-            + (f'<span class="mc-comp-sep"> • </span>{comp}' if comp else '') + '</span>'
+            f'<span class="mc-comp">' + (comp or '') + '</span>'   # « FOOTBALL » retiré (foot-only) : emoji + ligue
             + _badge
             + '</div>'
             f'<div class="mc-teams">{teams}</div>'
@@ -5646,11 +5644,19 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                  if isinstance(co, (int, float)) and co else "")
         _verdict = _verdict_block(co, _cp, "", _cbig, calibrated=True, hide_neg_value=True)
     _cote_pill = "" if verdict else _cote           # le bloc verdict porte déjà la grosse cote
+    # BADGE HAUT-DROITE : à venir -> UN SEUL badge « heure (blanc) + décompte (gris) », sans « dans » (user
+    # 2026-08-08). Sinon (live/réglé/en attente) -> badge d'état simple.
+    if _cd:
+        _when_badge = (f'<span class="cleg-bdg {_bcls} cleg-when">'
+                       f'<span class="cw-h">{_btxt}</span>'
+                       f'<span class="cw-sep"> - Début dans </span>{_cd}</span>')
+    else:
+        _when_badge = f'<span class="cleg-bdg {_bcls}">{_btxt}</span>'
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
     return (f'<div class="cleg {_state}">'
-            f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport spc-{_sp or ""}">{emo} {splbl}</b>'
-            + (f'<span class="cleg-sep"> • </span>{comp}' if comp else "")
-            + f'</span><span class="rt-r"><span class="cleg-bdg {_bcls}">{_btxt}</span>{_cd}</span></div>'
+            f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport spc-{_sp or ""}">{emo}</b>'
+            + (f' {comp}' if comp else "")   # « FOOTBALL » retiré (foot-only, user 2026-08-08) : emoji + ligue
+            + f'</span>{_when_badge}</div>'
             # Filet équipes↔pari comme les provisoires (demande user 2026-07-21) — seulement si équipes affichées.
             f'{_teams_html}{_tdiv}'
             f'<div class="cleg-body"><div class="cleg-main">'
@@ -8421,7 +8427,7 @@ def _sport_row(r: dict) -> str:
     # EN-TÊTE HOMOGÈNE pour TOUS les types de cartes (demande user 2026-07-14 : « les autres types de paris
     # doivent être semblables ») : « SPORT • Ligue » (sport en accent, gras) comme les cartes premium, au
     # lieu de « Football · Ligue » (titre + point médian) réservé jusqu'ici aux terminés/live.
-    _spn = {"tennis": "TENNIS", "foot": "FOOTBALL", "basket": "BASKET"}.get(sport_key, "")
+    _spn = {"tennis": "TENNIS", "basket": "BASKET"}.get(sport_key, "")   # « FOOTBALL » retiré (foot-only, user 2026-08-08)
     circuit = um.get("circuit") or summ.get("circuit") or ""
     comp = _cap(um.get("comp") or summ.get("comp") or r.get("tour") or "")
     _cparts = [p for p in ((circuit if _is_tennis else ""), comp) if p]
