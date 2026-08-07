@@ -63,16 +63,14 @@ _DEBRIEF_MEM_CACHE: dict[str, str] = {}
 
 
 def _debrief_memory(sport: str) -> str:
-    """Bloc « erreurs passées à ne pas répéter » (app.debrief.scan_guidance) injecté dans le prompt d'analyse
-    — la mémoire évolutive DEVIENT active ici (demande user 2026-08-02 : apprendre pour augmenter le taux).
-    Strictement RESTRICTIF (n'autorise aucun marché). Caché par sport pour tout le scan. Best-effort ('')."""
-    if sport not in _DEBRIEF_MEM_CACHE:
-        try:
-            from app import debrief as _db
-            _DEBRIEF_MEM_CACHE[sport] = _db.scan_guidance(sport)
-        except Exception:
-            _DEBRIEF_MEM_CACHE[sport] = ""
-    return _DEBRIEF_MEM_CACHE[sport]
+    """⛔ RÉTROACTION DÉBRIEF DÉSACTIVÉE (user 2026-08-07 « qu'est-ce qui a changé vs la série de 25 victoires »).
+    Activée le 2026-08-02, elle injectait les « leçons » du débrief dans le prompt du scan. Ces leçons venaient
+    SURTOUT de pertes sur des OVER -> elles ont BIAISÉ le modèle vers l'UNDER (« évite l'Over, match fermé »), et
+    ces Under ont sauté sur des matchs à gros score (08-06 : 3/3 Under perdus, scores 4-0/6-0/1-3). Le taux phare
+    a chuté juste après l'activation. On REVIENT donc à la méthode d'avant (celle des 25 victoires) : AUCUNE
+    injection. Le débrief reste INFORMATIF (mémoire/affichage), il n'oriente PLUS la sélection. Ne PAS re-brancher
+    sans preuve mesurée qu'il AUGMENTE le taux (et jamais sans accord explicite). Renvoie toujours ''."""
+    return ""
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
