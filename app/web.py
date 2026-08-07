@@ -3247,8 +3247,8 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # la barre du bas -> bouton en HAUT À DROITE (_ACCT_BTN). (Gating d'onglets par abonnement : plus tard.)
 _SPA_TABS = [("accueil", "/accueil", "🏠", "Accueil"),
              ("home", "/", "📅", "Pronos"), ("directs", "/directs", _LIVE_RADAR, "Live"),
-             ("stats", "/stats", "📊", "Résultats"),
-             ("montante", "/montante", "🪜", "Montante")]
+             ("montante", "/montante", "🪜", "Montante"),   # à GAUCHE de Résultats (user 2026-08-08)
+             ("stats", "/stats", "📊", "Résultats")]
 # Bouton compte en haut à droite (toutes les pages) : /compte affiche la connexion si déconnecté, le compte
 # sinon -> pas besoin de connaître l'état de session dans le rendu.
 _ACCT_BTN = '<a class="acctbtn" href="/compte" aria-label="Mon compte" title="Mon compte"><span class="ic">👤</span></a>'
@@ -7319,7 +7319,9 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
         f'<div class="sx-kpi"><b>{stats.get("n", 0)}</b><span>montantes jouées</span></div>'
         '</div>')
 
-    return (f'<span class="dv-nav" data-tab="montante" data-n="0" hidden></span>'
+    # BADGE NAV MONTANTE (user 2026-08-08) : 1 s'il y a un pari du jour (palier en attente), sinon 0.
+    _mn = 1 if _montante_palier() is not None else 0
+    return (f'<span class="dv-nav" data-tab="montante" data-n="{_mn}" hidden></span>'
             + hero + intro + pari + ladder + showcase + how + hist + palmares)
 
 
