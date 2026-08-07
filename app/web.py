@@ -2204,18 +2204,16 @@ CSS = """
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
   .zone-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
-  /* RECORD du jour par type — SCORE COMPACT collé au titre (refonte user 2026-08-03 : « je n'aime pas les
-     gros blocs pleins à droite »). Plus de pastilles pleines : à venir/live = petit texte coloré + glyphe ;
-     gagnés/perdus = mini-score « 5–1 » (vert–rouge), façon classement. Discret, groupé après le badge. */
-  .zone-rec{display:inline-flex;align-items:center;gap:9px;white-space:nowrap;
+  /* RECORD du jour par type — pastilles compactes collées au titre. TOUS les états en BADGE COLORÉ plein
+     (user 2026-08-08 : « victoires et défaites dans le même style que les matchs en attente ») : à venir =
+     JAUNE ⏳ · gagnés = VERT ✓ · perdus = ROUGE ✗ · live = texte vert 🟢. Discret, groupé après le titre. */
+  .zone-rec{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
        font-variant-numeric:tabular-nums;font-weight:800}
   .zone-rec .zr{display:inline-flex;align-items:center;gap:3px;font-size:11.5px}
   .zone-rec .zru{color:#1a1400;background:#e8b93a;padding:1px 7px;border-radius:9px;font-size:11px}  /* à venir ⏳ = badge JAUNE (user 2026-08-07) */
+  .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés ✓ = badge VERT (user 2026-08-08) */
+  .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus ✗ = badge ROUGE */
   .zone-rec .zrlv{color:#54d98c}                                   /* EN DIRECT 🟢 (vert, jamais rouge = « raté ») */
-  .zone-rec .zr-sc{display:inline-flex;align-items:baseline;gap:1px;font-size:13px;letter-spacing:.01em}
-  .zone-rec .zr-sc .zr-w{color:#54d98c}                            /* gagnés (vert) */
-  .zone-rec .zr-sc .zr-l{color:#ff7d7d}                            /* perdus (rouge) */
-  .zone-rec .zr-sc .zr-d{color:var(--muted);opacity:.55;margin:0 2px;font-weight:700}  /* tiret */
   .zone-b{margin-top:2px}
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
@@ -5522,6 +5520,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _bmap = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"), "push": ("REMB.", "n"),
              "void": ("ANNULÉ", "n")}
     board = ""
+    _cd = ""   # badge DÉCOMPTE avant match (rempli en direct par le timer JS `.cd`) — posé si à venir
     if _res is None:
         _lfz = live_fields(match_select.live_state_for(_sp, _lh, _la), _sp)
         if _lfz.get("score"):
@@ -5578,6 +5577,10 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             try:
                 _dtv, _ = match_select.effective_start(_sp, _lh, _la, l.get("start"))
                 _hh = fmt_local(_dtv, with_date=False) if _dtv else ""
+                # DÉCOMPTE avant le coup d'envoi (demande user 2026-08-08) : badge `.cd` à côté de l'heure,
+                # rempli/rafraîchi en direct par le timer JS (« 2h 15m » → « 12m 30s » → « live »).
+                if _dtv:
+                    _cd = f'<span class="cd" data-ts="{int(_dtv.timestamp())}"></span>'
             except Exception:
                 _hh = ""
             _btxt, _bcls = (_hh or "À VENIR"), "up"   # heure FRAÎCHE (décalage géré), badge NEUTRE sans emoji
@@ -5636,7 +5639,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     return (f'<div class="cleg {_state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport spc-{_sp or ""}">{emo} {splbl}</b>'
             + (f'<span class="cleg-sep"> • </span>{comp}' if comp else "")
-            + f'</span><span class="cleg-bdg {_bcls}">{_btxt}</span></div>'
+            + f'</span><span class="rt-r"><span class="cleg-bdg {_bcls}">{_btxt}</span>{_cd}</span></div>'
             # Filet équipes↔pari comme les provisoires (demande user 2026-07-21) — seulement si équipes affichées.
             f'{_teams_html}{_tdiv}'
             f'<div class="cleg-body"><div class="cleg-main">'
@@ -5872,10 +5875,8 @@ def _montante_zone_card(sport: str | None) -> tuple:
                "code": p.get("code"), "result": p.get("result"), "prob": prob,
                "why": _prov_why_snippet("foot", mid, maxlen=100000, played=True)}
         card = _leg_card(leg, why=True, verdict=True, teams=True, why_label="Pourquoi ce pari")
-        note = (f'<div class="mont-note"><span class="mont-note-ic">🪜</span>'
-                f'Mise de <b>{_mont_eur(p.get("stake"))}</b> rejouée et augmentée à chaque gain '
-                f'<a data-goto="montante" href="/montante" onclick="event.stopPropagation()">voir l\'échelle ›</a></div>')
-        return f"Montante · Palier {palier}", card + note
+        # LIGNE « mont-note » (mise rejouée · voir l'échelle) RETIRÉE sous la carte (user 2026-08-08).
+        return f"Montante · Palier {palier}", card
     except Exception:
         return "", ""
 
@@ -6015,9 +6016,10 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
             chips += f'<span class="zr zru">{_up} ⏳</span>'
         if _lv:                                          # en direct : petit texte vert + point (comme l'onglet Live)
             chips += f'<span class="zr zrlv">{_lv} 🟢</span>'
-        if _w or _l:                                     # réglés : mini-score « 5–1 » (vert–rouge)
-            chips += (f'<span class="zr-sc"><b class="zr-w">{_w}</b>'
-                      f'<span class="zr-d">–</span><b class="zr-l">{_l}</b></span>')
+        if _w:                                            # gagnés : badge VERT + ✓ (même style que ⏳ à venir)
+            chips += f'<span class="zr zrw">{_w} ✓</span>'
+        if _l:                                            # perdus : badge ROUGE + ✗ (même style)
+            chips += f'<span class="zr zrl">{_l} ✗</span>'
         if chips:
             rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
