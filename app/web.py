@@ -792,7 +792,7 @@ CSS = """
   /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
   discret. */
   .mc-comp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-       font-size:12px;font-weight:800;color:#2ee27f;letter-spacing:.02em}  /* LIGUE = vert + un peu plus grande (user 2026-08-08) */
+       font-size:12px;font-weight:800;color:#8fa2b8;letter-spacing:.02em;text-transform:uppercase}  /* LIGUE = couleur du glose + MAJUSCULE (user 2026-08-08) */
   /* Nom du SPORT (majuscules, accent du sport) puis compétition (muted) — « TENNIS • Wimbledon ». */
   .mc-sport{color:var(--accent);font-weight:800;letter-spacing:.05em}
   .mc-comp-sep{color:var(--dim);font-weight:700}
@@ -2123,8 +2123,8 @@ CSS = """
   .cleg.lost{border-color:var(--st-lost)}
   .cleg.push,.cleg.void{border-color:var(--st-void)}
   .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
-  .cleg-comp{flex:1;min-width:0;font-size:12px;font-weight:800;color:#2ee27f;letter-spacing:.02em;
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* LIGUE = vert + MÊME taille que la carte de pari (user 2026-08-08) */
+  .cleg-comp{flex:1;min-width:0;font-size:12px;font-weight:800;color:#8fa2b8;letter-spacing:.02em;
+       text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* LIGUE = couleur du glose + MAJUSCULE + MÊME taille que la carte de pari (user 2026-08-08) */
   .cleg-sport{color:#2ee27f;font-weight:800;letter-spacing:.04em;font-size:13px}   /* emoji MÊME taille que .mc-ic (carte pari) */
   /* Nom du sport TOUJOURS à la couleur du sport (demande user 2026-07-20), quel que soit le type de carte
      (combiné cyan/or, provisoire, simple, jambe…) : foot vert · basket orange · tennis citron. Placé APRÈS
