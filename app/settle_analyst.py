@@ -1740,6 +1740,15 @@ async def _settle_analyses_impl() -> int:
             if not isinstance(d.get("stat_bet"), dict):
                 try:
                     _sf = analyses.retained_bet(sport, mid, for_history=True)
+                    # ⛔ NE PAS figer un pari de MARCHÉ BANNI (excluded_markets, ex. BTTS/Corners) qui n'a
+                    # JAMAIS été publié -> c'est une ABSTENTION, pas un pari joué (bug user 2026-08-07 : le
+                    # scan a pick « Les 2 marquent » sur Cambuur MALGRÉ le ban BTTS, non publié, mais le gel
+                    # for_history l'inclut -> compté au ROI à tort). for_history=True n'honore un marché exclu
+                    # APRÈS coup QUE si le pari a été PUBLIÉ (abonné a pu jouer). Sinon (strict=None + non
+                    # publié) -> abstention. `retained_bet(for_history=False)` applique déjà le ban.
+                    if (_sf and analyses.retained_bet(sport, mid, for_history=False) is None
+                            and not analyses.published_bet(sport, mid)):
+                        _sf = None
                     if _sf:
                         _rr = next((bb.get("result") for bb in bets_out
                                     if analyses._norm_sel(bb.get("sel", "")) == analyses._norm_sel(_sf.get("sel", ""))),

@@ -2332,6 +2332,11 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
         from app.settle_analyst import code_from_pick
         ex_sports, _ = (set(), set()) if for_history else auto_exclusions()
         ex_markets = set() if for_history else excluded_markets(sport)   # per-sport (vide en historique)
+        # ⛔ BANS DURS (Corners, BTTS) : JAMAIS un pari joué, MÊME en historique (`for_history`). Sans ça, un
+        # BTTS pické malgré le ban (non publié) était retenu/figé/affiché à tort (bug user 2026-08-07 : Cambuur,
+        # Chicago…). Les exclusions DYNAMIQUES, elles, restent honorées en historique (pari joué avant exclusion).
+        if sport == "foot":
+            ex_markets = ex_markets | _HARD_BAN_FOOT
         if sport in ex_sports:
             return None
         ok, cprobs, codes = set(), [], []
@@ -2375,6 +2380,17 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
                                if _pk and (nb.startswith(_pk) or _pk.startswith(nb))), None)
         if ri is None:
             return None
+    # ⛔ BAN DUR ABSOLU (même repêché par l'ancre « pari publié ») : un pari de marché banni (BTTS/Corners)
+    # n'est JAMAIS retenu/figé/affiché, publié ou pas. Le bloc d'ancre ci-dessus ne re-teste pas ex_markets ;
+    # sans ce garde, un BTTS PUBLIÉ (ex. Club Leones 15/07) restait compté malgré le ban (user 2026-08-07).
+    if sport == "foot":
+        try:
+            from app.settle_analyst import code_from_pick as _cfpb
+            _rcb = _cfpb(bets[ri].get("sel", ""), sport, m.get("home", ""), m.get("away", ""))
+            if _rcb and market_of(_rcb) in _HARD_BAN_FOOT:
+                return None
+        except Exception:
+            pass
     results = {_norm_sel(b.get("sel", "")): b.get("result") for b in (m.get("bets") or [])}
     b = bets[ri]
     # `cprob` = confiance CALIBRÉE du pari retenu (comme le tableau des paris) -> l'affichage compact
@@ -2503,6 +2519,10 @@ def provisional_shown(sport, sel, cote, prob, home="", away="", fid=None) -> boo
     # Over 60 %/−21 %). Les provisoires RÉSULTAT tiennent (1X2 83 %/+10 %, DC 81 %/+3 %). On n'affiche/suit
     # donc QUE les provisoires résultat -> ROI provisoire positif. Purement affichage/suivi (hors ROI réel).
     if sport == "foot" and (_code or "").upper().startswith(("UNDER ", "OVER ")):
+        return False
+    # BANS DURS (BTTS/Corners) : jamais en PROVISOIRE non plus (un marché banni ne doit surgir NULLE PART,
+    # même en indicatif hors-ROI) — user 2026-08-07, même logique que la sélection/rétention.
+    if sport == "foot" and _code and market_of(_code) in _HARD_BAN_FOOT:
         return False
     if cp is None:
         return c is not None                   # sans confiance calculable : garder (repli prudent) si coté
@@ -3507,6 +3527,13 @@ _EXCL_BY_SPORT_TTL = 30                    # appelé PAR CARTE au rendu (via _be
 #                                            l'échelle du JOUR (« forward-looking ») -> 30 s = 0 impact fonctionnel.
 
 
+# BANS DURS football (décision user, jamais data-driven, JAMAIS jouables — même en historique `for_history`) :
+#   « Corners » (2026-06-19) · « Les 2 marquent » (BTTS, 2026-08-07 : 25 %/−59 % ROI, casse les séries).
+# Source UNIQUE partagée par `_excluded_by_sport` (sélection/exclusion) ET `retained_bet` (rétention/gel/
+# affichage) — sans quoi un pick BTTS non publié se faisait retenir/figer/afficher via `for_history=True`.
+_HARD_BAN_FOOT = {"Corners", "Les 2 marquent"}
+
+
 def _excluded_by_sport() -> dict:
     """{sport: set(marchés écartés POUR CE SPORT)} — les exclusions de marché sont désormais PROPRES À
     CHAQUE SPORT (demande user 2026-07-02). Un marché mauvais en basket n'écarte PAS le même marché en
@@ -3534,7 +3561,7 @@ def _excluded_by_sport() -> dict:
         # (b) BANS DURS foot : Corners (user 2026-06-19) + « Les 2 marquent » (BTTS) — user 2026-08-07 :
         #     BTTS mesuré 1G/3P = 25 % / ROI −59 % depuis le 22/06, marché « pile ou face » qui casse les
         #     séries. Banni comme les corners/cartons (objectif : retrouver les longues séries de victoires).
-        ms = {"Corners", "Les 2 marquent"} if sp == "foot" else set()
+        ms = set(_HARD_BAN_FOOT) if sp == "foot" else set()
         for name, mg in (g.get("markets") or {}).items():
             n = mg.get("n") or 0
             gap = (mg.get("win_rate") or 0) - (mg.get("avg_conf") or 0)
@@ -3562,7 +3589,7 @@ def _excluded_by_sport() -> dict:
             elif was:
                 ms.add(name)                             # zone morte -> on garde l'exclusion de la veille
         out[sp] = ms
-    out.setdefault("foot", {"Corners", "Les 2 marquent"})   # foot garde au minimum les bans durs (corners + BTTS)
+    out.setdefault("foot", set(_HARD_BAN_FOOT))   # foot garde au minimum les bans durs (corners + BTTS)
     if out != prev:                                      # ne persiste QUE sur un vrai changement de décision
         _save_excluded_state(out)
     _EXCL_BY_SPORT_CACHE = (_now + _EXCL_BY_SPORT_TTL, out)
@@ -3572,7 +3599,7 @@ def _excluded_by_sport() -> dict:
 def excluded_markets(sport: str) -> set:
     """Marchés écartés POUR CE SPORT (per-sport, auto-révisable) — cf. _excluded_by_sport. C'est CE filtre
     (et non un filtre global) qu'utilise la SÉLECTION du pari simple et des combinés pour chaque sport."""
-    return _excluded_by_sport().get(sport, {"Corners"} if sport == "foot" else set())
+    return _excluded_by_sport().get(sport, set(_HARD_BAN_FOOT) if sport == "foot" else set())
 
 
 _SPORT_PROB_PATH = os.path.join(_ROOT, "data", "sport_probation.json")   # sports EN PROBATION (persisté)
@@ -3952,7 +3979,7 @@ def exclusions_report() -> dict:
 # app/learning.py à chaque scan) : on n'ajoute AUCUN nouveau fichier ni tâche, on RECONSTRUIT la
 # chronologie en diffant les photos jour à jour. Le ban dur « Corners » (décision produit) est un jalon
 # méthodo, PAS un ajustement auto -> filtré ici pour ne pas doublonner le repère « Corners bannis ».
-_EXCL_HARD_BAN = {"Corners"}
+_EXCL_HARD_BAN = set(_HARD_BAN_FOOT)   # Corners + BTTS = bans DURS (jalons méthodo manuels) -> pas de doublon auto
 
 
 def _excl_reason(e: dict) -> str:

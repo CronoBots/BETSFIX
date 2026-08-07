@@ -34,3 +34,23 @@
 
 ## 2026-07-28
 - 🔴 ⚽ Football : le marché « Les 2 marquent » vient d'être ÉCARTÉ (sur-confiance / ROI prouvés).
+
+## 2026-08-02
+- 🔴 🏀 Basket : le marché « Premier à X pts » vient d'être ÉCARTÉ (sur-confiance / ROI prouvés).
+- 🔴 🏀 Basket : le marché « Quart-temps/MT » vient d'être ÉCARTÉ (sur-confiance / ROI prouvés).
+- 🔴 🏀 Basket : le marché « Total équipe » vient d'être ÉCARTÉ (sur-confiance / ROI prouvés).
+
+## 2026-08-06
+- 🔴 🎾 Tennis : le marché « Vainqueur » vient d'être ÉCARTÉ (sur-confiance / ROI prouvés).
+
+## 2026-08-07
+- 🟢 🎾 Tennis : le marché « Handicap » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
+- 🟢 🎾 Tennis : le marché « Jeux » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
+- 🟢 🎾 Tennis : le marché « Vainqueur » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
+- 🟢 🏀 Basket : le marché « Premier à X pts » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
+- 🟢 🏀 Basket : le marché « Quart-temps/MT » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
+- 🟢 🏀 Basket : le marché « Total +/- » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
+- 🟢 🏀 Basket : le marché « Total équipe » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
+- 🟢 🏀 Basket : le marché « Vainqueur » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
+- 🔴 Combinés : les props joueur ressortent (calibration repassée sous le seuil).
+- 📉 Indice de fiabilité -4 pts (98 → 94).

@@ -1,7 +1,7 @@
 # BETSFIX — Méthodologie d'analyse & sélection des pronos (par sport)
 
 > Écrit **automatiquement** par `tools/methodology_doc.py` (run quotidien). Objectif : voir, **sport par sport**, quand la méthode d'analyse et de sélection se stabilise (= **optimale**). Lecture seule.
-> Généré le 2026-07-28 08:15 UTC.
+> Généré le 2026-08-07 07:35 UTC.
 
 ## Méthode commune (les 3 sports)
 - **Confidence-first** : on classe par *probabilité honnête de gagner vs cote*, pas par cote.
@@ -11,7 +11,7 @@
 - **Faits ≥ 2 sources** ; enrichissement multi-sources (FotMob/ESPN/Understat/Flashscore/…).
 - **Exclusions de marché** : **automatiques et data-driven** (un marché est écarté si n ≥ 25 ET ROI/calibration mauvais — jamais de surapprentissage).
 
-**Fiabilité de la calibration (globale)** : indice **98/100**, MAE 0.8, tendance **up** (n=6236). 
+**Fiabilité de la calibration (globale)** : indice **94/100**, MAE 1.9, tendance **up** (n=3347). 
 **Backtest de la politique (global)** : *garder la politique actuelle (aucun gain hors-échantillon significatif)*.
 
 ## Qu'est-ce qu'un sport « optimal » ?
@@ -21,22 +21,23 @@
 🟠 **À AFFINER** — rentable mais calibration à resserrer
 
 **État mesuré (paris joués)**  
-ROI **+18.1%** · réussite **86%** · **104** réglés (89✓/15✗) · cote moy **@1.39** · drawdown max **2.5%**
+ROI **+17.2%** · réussite **85%** · **134** réglés (114✓/20✗) · cote moy **@1.39** · drawdown max **1.9%**
 
 **Calibration** (toutes prédictions, fantômes inclus)  
-MAE **2.2** (under) · réussite réelle **69%** vs confiance annoncée **66%** · n=1844
+MAE **1.9** (under) · réussite réelle **68%** vs confiance annoncée **67%** · n=2730
 
 **Marchés écartés (auto)** : Corners, Les 2 marquent
 
 **ROI par marché (fantômes inclus — mûrit sans attendre les paris réels)**  
 | Marché | n | Réussite | ROI |
 |---|---|---|---|
+| Les 2 marquent | 173 | 53% | -67% 🔴 |
 | Cartons | 52 | 62% | +1% |
-| Double chance | 121 | 82% | +4% |
-| Total +/- | 411 | 69% | +8% 🟢 |
-| Total équipe | 370 | 71% | +15% 🟢 |
-| Vainqueur | 118 | 69% | +32% 🟢 |
-| Handicap | 208 | 75% | +36% 🟢 |
+| Double chance | 217 | 81% | +3% |
+| Total +/- | 692 | 68% | +3% |
+| Total équipe | 531 | 69% | +10% 🟢 |
+| Vainqueur | 181 | 65% | +16% 🟢 |
+| Handicap | 262 | 76% | +36% 🟢 |
 
 **Repères méthodo (ce sport)**
 - `2026-06-09` **Seuil ≥65 %** — Aucun pari n'est retenu sous 65 % de confiance honnête.
@@ -50,26 +51,19 @@ MAE **2.2** (under) · réussite réelle **69%** vs confiance annoncée **66%** 
 - `2026-07-28` marché « Les 2 marquent » **écarté** — Écarté automatiquement : sur-confiance ou ROI perdant prouvés sur ce sport (échantillon suffisant).
 
 **Scorecard d'optimalité**
-- **[A] ROI positif & stable** : ✅ (ROI +18.1%, drawdown max 2.5%, 104 réglés)
-- **[B] Calibration bonne** : ❌ (MAE 2.2, verdict under, réussite 69% vs confiance 66%)
+- **[A] ROI positif & stable** : ✅ (ROI +17.2%, drawdown max 1.9%, 134 réglés)
+- **[B] Calibration bonne** : ❌ (MAE 1.9, verdict under, réussite 68% vs confiance 67%)
 
 ## 🎾 Tennis
-🔴 **À CORRIGER** — ni rentable ni bien calibré
+⏳ **EN COURS** — échantillon à étoffer (0/20 réglés)
 
 **État mesuré (paris joués)**  
-ROI **-22.6%** · réussite **53%** · **30** réglés (16✓/14✗) · cote moy **@1.45** · drawdown max **27.3%**
+ROI **—** · réussite **—%** · **—** réglés (—✓/—✗) · cote moy **@—** · drawdown max **—%**
 
 **Calibration** (toutes prédictions, fantômes inclus)  
-MAE **1.9** (over) · réussite réelle **61%** vs confiance annoncée **63%** · n=1993
+MAE **—** (—) · réussite réelle **—%** vs confiance annoncée **—%** · n=—
 
-**Marchés écartés (auto)** : Handicap, Jeux
-
-**ROI par marché (fantômes inclus — mûrit sans attendre les paris réels)**  
-| Marché | n | Réussite | ROI |
-|---|---|---|---|
-| Jeux | 896 | 60% | -29% 🔴 |
-| Sets | 665 | 63% | -9% |
-| Vainqueur | 244 | 60% | -5% |
+**Marchés écartés (auto)** : aucune
 
 **Repères méthodo (ce sport)**
 - `2026-06-09` **Seuil ≥65 %** — Aucun pari n'est retenu sous 65 % de confiance honnête.
@@ -79,31 +73,26 @@ MAE **1.9** (over) · réussite réelle **61%** vs confiance annoncée **63%** �
 - `2026-07-06` **Combiné = pari désigné** — Le combiné proposé est exactement celui désigné par l'analyste, jamais un combiné de remplacement ; s'il n'est pas combinable, on s'abstient plutôt que de forcer.
 
 **Ajustements automatiques (ce sport)**
+- `2026-08-07` marché « Handicap » **réintégré** — Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport.
+- `2026-08-07` marché « Jeux » **réintégré** — Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport.
 - `2026-07-27` marché « Handicap » **écarté** — Écarté automatiquement : sur-confiance ou ROI perdant prouvés sur ce sport (échantillon suffisant).
 - `2026-07-06` marché « Jeux » **écarté** — Écarté automatiquement : sur-confiance ou ROI perdant prouvés sur ce sport (échantillon suffisant).
 - `2026-07-04` marché « Sets » **réintégré** — Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport.
 
 **Scorecard d'optimalité**
-- **[A] ROI positif & stable** : ❌ (ROI -22.6%, drawdown max 27.3%, 30 réglés)
-- **[B] Calibration bonne** : ❌ (MAE 1.9, verdict over, réussite 61% vs confiance 63%)
+- **[A] ROI positif & stable** : ❌ (ROI —, drawdown max —%, 0 réglés — échantillon < 20)
+- **[B] Calibration bonne** : ❌ (MAE —, verdict —, réussite —% vs confiance —%)
 
 ## 🏀 Basket
-🟢 **OPTIMAL** — ROI stable positif ET bien calibré
+⏳ **EN COURS** — échantillon à étoffer (0/20 réglés)
 
 **État mesuré (paris joués)**  
-ROI **+9.2%** · réussite **73%** · **22** réglés (16✓/6✗) · cote moy **@1.51** · drawdown max **11.4%**
+ROI **—** · réussite **—%** · **—** réglés (—✓/—✗) · cote moy **@—** · drawdown max **—%**
 
 **Calibration** (toutes prédictions, fantômes inclus)  
-MAE **2.1** (good) · réussite réelle **56%** vs confiance annoncée **57%** · n=1531
+MAE **—** (—) · réussite réelle **—%** vs confiance annoncée **—%** · n=—
 
-**Marchés écartés (auto)** : Total +/-, Vainqueur
-
-**ROI par marché (fantômes inclus — mûrit sans attendre les paris réels)**  
-| Marché | n | Réussite | ROI |
-|---|---|---|---|
-| Total +/- | 409 | 54% | -71% 🔴 |
-| Vainqueur | 205 | 59% | -6% |
-| Handicap | 425 | 58% | +11% 🟢 |
+**Marchés écartés (auto)** : aucune
 
 **Repères méthodo (ce sport)**
 - `2026-06-09` **Seuil ≥65 %** — Aucun pari n'est retenu sous 65 % de confiance honnête.
@@ -113,12 +102,20 @@ MAE **2.1** (good) · réussite réelle **56%** vs confiance annoncée **57%** �
 - `2026-07-06` **Combiné = pari désigné** — Le combiné proposé est exactement celui désigné par l'analyste, jamais un combiné de remplacement ; s'il n'est pas combinable, on s'abstient plutôt que de forcer.
 
 **Ajustements automatiques (ce sport)**
+- `2026-08-07` marché « Premier à X pts » **réintégré** — Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport.
+- `2026-08-07` marché « Quart-temps/MT » **réintégré** — Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport.
+- `2026-08-07` marché « Total +/- » **réintégré** — Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport.
+- `2026-08-07` marché « Total équipe » **réintégré** — Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport.
+- `2026-08-07` marché « Vainqueur » **réintégré** — Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport.
+- `2026-08-02` marché « Premier à X pts » **écarté** — Écarté automatiquement : sur-confiance ou ROI perdant prouvés sur ce sport (échantillon suffisant).
+- `2026-08-02` marché « Quart-temps/MT » **écarté** — Écarté automatiquement : sur-confiance ou ROI perdant prouvés sur ce sport (échantillon suffisant).
+- `2026-08-02` marché « Total équipe » **écarté** — Écarté automatiquement : sur-confiance ou ROI perdant prouvés sur ce sport (échantillon suffisant).
 - `2026-07-22` marché « Vainqueur » **écarté** — Écarté automatiquement : sur-confiance ou ROI perdant prouvés sur ce sport (échantillon suffisant).
 - `2026-07-16` marché « Vainqueur » **réintégré** — Ré-intégré automatiquement : repassé au-dessus des seuils de fiabilité sur ce sport.
 
 **Scorecard d'optimalité**
-- **[A] ROI positif & stable** : ✅ (ROI +9.2%, drawdown max 11.4%, 22 réglés)
-- **[B] Calibration bonne** : ✅ (MAE 2.1, verdict good, réussite 56% vs confiance 57%)
+- **[A] ROI positif & stable** : ❌ (ROI —, drawdown max —%, 0 réglés — échantillon < 20)
+- **[B] Calibration bonne** : ❌ (MAE —, verdict —, réussite —% vs confiance —%)
 
 ---
 *Marché privilégiés/bannis en combiné (taux mesurés) : gravés dans `COMBO_MISSION` (`tools/generate_analyses.py`). Cf. aussi `LEARNING.md` (journal des auto-révisions) et `docs/SOURCES.md` (sources & résolubilité).*
