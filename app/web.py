@@ -6781,7 +6781,7 @@ def _lz_stats() -> dict:
             analysed += 1
             if d.get("bets"):
                 retained += 1
-            for b in (analyses.stat_bet(d), d.get("stat_bet_first")):
+            for b in (analyses.stat_bet(d),):   # UN MATCH = UN PARI (user 2026-08-07) : plus de stat_bet_first
                 if not isinstance(b, dict):
                     continue
                 r = b.get("result")

@@ -1761,31 +1761,11 @@ async def _settle_analyses_impl() -> int:
                 _b0 = bets_out[0]
                 d["stat_bet"] = {"sel": _b0.get("sel"), "prob": _b0.get("prob"),
                                  "cote": _b0.get("odds"), "result": _b0.get("result")}
-            # DOUBLE SCAN (demande user 2026-07-21 « garder l'ancien ET le nouveau ») : si le pari PUBLIÉ
-            # (1er scan) a été REMPLACÉ par un autre pari au rescan (sel différent), les DEUX comptent au
-            # ROI : le pari du dernier scan suit le chemin standard (stat_bet), et le pari du 1er scan est
-            # réglé ICI puis figé dans `stat_bet_first` (immuable, même esprit que stat_bet). L'affichage
-            # rend alors 2 lignes « Premier scan » / « Dernier scan ».
-            if not isinstance(d.get("stat_bet_first"), dict) and not _pub_injected and bets_out:
-                try:
-                    _pub1 = analyses.published_bet(sport, mid)
-                except Exception:
-                    _pub1 = None
-                # MÊME PARI = comparer les CODES de règlement, pas les libellés (bug 2026-07-21 : « Roman
-                # Andres Burruchaga vainqueur » vs « Roman Burruchaga vainqueur » = MÊME issue WIN AWAY
-                # écrite différemment -> un faux « double scan » aurait compté le pari 2× au ROI).
-                _pc1 = (code_from_pick(_pub1["sel"], sport, d.get("home", ""), d.get("away", ""))
-                        if (_pub1 and _pub1.get("sel")) else "")
-                if (_pub1 and _pub1.get("sel") and _pc1
-                        and _pc1 != (bets_out[0].get("code") or "")
-                        and analyses._norm_sel(_pub1["sel"]) != analyses._norm_sel(bets_out[0].get("sel", ""))):
-                    _pr1 = await _settle_one(_pc1) if _pc1 else None
-                    if _pr1 in ("won", "lost", "push"):
-                        d["stat_bet_first"] = {"sel": _pub1["sel"], "prob": _pub1.get("prob"),
-                                               "cote": _pub1.get("cote") or _pub1.get("published_cote"),
-                                               "result": _pr1}
-                        log.info("pari du 1er scan réglé en plus (rescan a changé le pari) : %s_%s · %r -> %s",
-                                 sport, mid, _pub1["sel"], _pr1)
+            # UN MATCH = UN PARI (user 2026-08-07) : on NE crée PLUS de `stat_bet_first`. Avant, si un rescan
+            # remplaçait le pari publié, les DEUX comptaient au ROI -> un match re-scané pesait 2 lignes
+            # (ex. Vitória-Athletico = 2 défaites pour 1 match). Désormais seul le pari retenu (stat_bet) compte.
+            # (Annule la décision « double scan » du 2026-07-21. Les stat_bet_first existants restent sur disque
+            # mais ne sont plus comptés/affichés — cf. analyses.stats_full / iter_stat_bets / selfcheck.)
             # COMBINÉ (grand tournoi) : règle chaque jambe via son code -> résultat global (toutes
             # gagnées = gagné ; une perdue = perdu ; sinon en attente). Les corners/cartons se règlent
             # désormais (Flashscore), donc les combinés type Qatar-Suisse se valident.

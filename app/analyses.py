@@ -349,21 +349,17 @@ def iter_stat_bets():
             d = _meta_load(p)
             if not d:
                 continue
+            # UN MATCH = UN PARI (user 2026-08-07) : on ne rend QUE le pari retenu (stat_bet). Le pari du 1er
+            # scan (`stat_bet_first`) N'EST PLUS compté (fini le double-comptage d'un match re-scané).
             sb = d.get("stat_bet")
-            fb = d.get("stat_bet_first")     # pari du 1er scan (remplacé au rescan) : compte AUSSI (2026-07-21)
-            _sb_ok = isinstance(sb, dict) and sb.get("result") in ("won", "lost")
-            _fb_ok = isinstance(fb, dict) and fb.get("result") in ("won", "lost")
-            if not _sb_ok and not _fb_ok:
+            if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost")):
                 continue
             st = d.get("start")
             try:
                 dt = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
             except (ValueError, AttributeError):
                 dt = None
-            if _sb_ok:
-                yield sport, sb, dt
-            if _fb_ok:
-                yield sport, fb, dt
+            yield sport, sb, dt
 
 
 def iter_meta(sport: str):
@@ -2965,18 +2961,11 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                 all_ev.append(ev)
                 if is_new:
                     since_ev.append(ev)
-        # DOUBLE SCAN (demande user 2026-07-21) : le pari du PREMIER scan (publié puis REMPLACÉ par le
-        # rescan) est figé dans `stat_bet_first` et compte AUSSI au ROI — les deux décisions sont assumées
-        # (transparence : « Premier scan » + « Dernier scan » tous deux comptés). Immuable comme stat_bet.
-        fb = d.get("stat_bet_first")
-        if isinstance(fb, dict) and fb.get("result") in ("won", "lost", "push"):
-            ev1 = (start, fb["result"], fb.get("cote") or fb.get("odds"),
-                   {"name": d.get("name"), "sel": f'{fb.get("sel")} · 1er scan', "sport": sport})
-            by_sport.setdefault(sport, []).append(ev1)
-            if sport not in _bg:
-                all_ev.append(ev1)
-                if is_new:
-                    since_ev.append(ev1)
+        # UN MATCH = UN PARI (user 2026-08-07) : le pari du 1er scan (`stat_bet_first`) N'EST PLUS compté
+        # séparément — un même match ne doit produire QU'UNE ligne / UN résultat au ROI et à la série (avant :
+        # un rescan qui changeait le pick faisait compter 2 fois le match, ex. Vitória-Athletico = 2 défaites
+        # pour 1 match). On garde UNIQUEMENT le pari retenu (stat_bet). Le champ reste sur disque (jamais
+        # supprimé) mais n'alimente plus le ROI/affichage. Annule la décision « double scan » du 2026-07-21.
     # COMBINÉS MULTISPORT DU JOUR (décision user 2026-07-14 : comptés au ROI) : ce sont des COMBINÉS, donc
     # comptés dans le bilan COMBINÉ (`combo_stats`, fusionné au ROI global), PAS dans les simples (`all_ev`).
     # Ici on ne les met QUE dans la 2e ligne de forme (`form_combo`) — jamais dans la ligne simples.

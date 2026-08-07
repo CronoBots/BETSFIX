@@ -225,12 +225,10 @@ def _check_stat_monotonic(rows) -> dict:
     un recalcul live (for_history) tant qu'un pari réglé n'est pas encore figé -> il FLUCTUE (ex. 72↔73) et
     déclenchait une fausse alerte. Le compte des stat_bet figés, lui, ne fait que monter (cf. mémoire
     stats-display-calibration : gel = compteur monotone)."""
+    # UN MATCH = UN PARI (user 2026-08-07) : on ne compte QUE stat_bet (le pari retenu). `stat_bet_first`
+    # (1er scan) n'entre plus dans le compteur monotone — fini le double-comptage d'un match re-scané.
     n = sum(1 for _, d in rows
             if isinstance(d.get("stat_bet"), dict) and d["stat_bet"].get("result") in ("won", "lost", "push"))
-    # + paris du 1er scan (remplacés au rescan, figés dans stat_bet_first — comptés au ROI, 2026-07-21)
-    n += sum(1 for _, d in rows
-             if isinstance(d.get("stat_bet_first"), dict)
-             and d["stat_bet_first"].get("result") in ("won", "lost", "push"))
     shown = int((analyses.stats_full().get("overall") or {}).get("settled") or 0)   # nombre AFFICHÉ (ROI)
     prev = {}
     try:
