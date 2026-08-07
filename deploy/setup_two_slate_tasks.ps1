@@ -37,7 +37,12 @@ $matched = $false
 foreach ($a in $src.Actions) {
     $arg2 = $a.Arguments
     if ($arg2 -match 'scan_daily\.ps1') { $arg2 = $arg2 -replace 'scan_daily\.ps1', 'scan_evening.ps1'; $matched = $true }
-    $actions += New-ScheduledTaskAction -Execute $a.Execute -Argument $arg2 -WorkingDirectory $a.WorkingDirectory
+    # -WorkingDirectory REFUSE un vide/null -> ne le passer que s'il est renseigne (la tache du matin l'a vide).
+    if ([string]::IsNullOrWhiteSpace($a.WorkingDirectory)) {
+        $actions += New-ScheduledTaskAction -Execute $a.Execute -Argument $arg2
+    } else {
+        $actions += New-ScheduledTaskAction -Execute $a.Execute -Argument $arg2 -WorkingDirectory $a.WorkingDirectory
+    }
 }
 if (-not $matched) {
     Write-Host "ATTENTION : 'scan_daily.ps1' non trouve dans l'action du matin - verifie l'action ci-dessus" -ForegroundColor Yellow
