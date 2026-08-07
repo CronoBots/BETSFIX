@@ -787,7 +787,7 @@ CSS = """
   /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
   discret. */
   .mc-comp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-       font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.02em}
+       font-size:12px;font-weight:800;color:#2ee27f;letter-spacing:.02em}  /* LIGUE = vert + un peu plus grande (user 2026-08-08) */
   /* Nom du SPORT (majuscules, accent du sport) puis compétition (muted) — « TENNIS • Wimbledon ». */
   .mc-sport{color:var(--accent);font-weight:800;letter-spacing:.05em}
   .mc-comp-sep{color:var(--dim);font-weight:700}
@@ -2118,9 +2118,9 @@ CSS = """
   .cleg.lost{border-color:var(--st-lost)}
   .cleg.push,.cleg.void{border-color:var(--st-void)}
   .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
-  .cleg-comp{flex:1;min-width:0;font-size:10.5px;font-weight:700;color:var(--muted);
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .cleg-sport{color:#2ee27f;font-weight:800;letter-spacing:.04em}
+  .cleg-comp{flex:1;min-width:0;font-size:12px;font-weight:800;color:#2ee27f;letter-spacing:.02em;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* LIGUE = vert + MÊME taille que la carte de pari (user 2026-08-08) */
+  .cleg-sport{color:#2ee27f;font-weight:800;letter-spacing:.04em;font-size:13px}   /* emoji MÊME taille que .mc-ic (carte pari) */
   /* Nom du sport TOUJOURS à la couleur du sport (demande user 2026-07-20), quel que soit le type de carte
      (combiné cyan/or, provisoire, simple, jambe…) : foot vert · basket orange · tennis citron. Placé APRÈS
      les règles mc-sport/cleg-sport -> l'emporte à spécificité égale. Le TITRE d'un combiné (« COMBINÉ… »)
@@ -2208,7 +2208,7 @@ CSS = """
   .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px;padding-bottom:9px;
        border-bottom:1px solid var(--border)}
   .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
-  .zone-t{font-size:16.5px;font-weight:800;color:var(--text);letter-spacing:-.01em}
+  .zone-t{font-size:15px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) */
   .zone-n{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
@@ -6071,7 +6071,7 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
     # l'info ; le compteur rond faisait doublon.
     t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
-    head = (f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{rec}{t}')
+    head = (f'<span class="zone-t">{html.escape(title)}</span>{rec}{t}')   # point (.zone-dot) retiré (user 2026-08-08)
     if collapsible:
         op = " open" if open_ else ""
         # `data-zk` = clé de persistance du repli (localStorage, JS `_CAL_JS`) : ton choix plier/déplier
