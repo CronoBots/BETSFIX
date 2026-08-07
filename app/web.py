@@ -3009,13 +3009,17 @@ CSS = """
   .mont-banner .mb-arw{color:var(--gold);font-size:20px;font-weight:700;opacity:.8}
   /* Badge MONTANTE greffé DANS la carte du pari du jour (demande user 2026-07-28) : même esprit doré que la
      bannière, mais intégré sous le verdict (lien vers l'onglet Montante). */
-  /* MONTANTE fusionnée dans Confiance (user 2026-08-08) : label « Montante • Palier N » au-dessus de la
-     carte + CADRE BLEU sur le match sélectionné (plus de zone montante séparée -> pas de carte en double). */
-  .mont-sel-lbl{margin:6px 2px 3px}
-  .mont-sel-lbl a{color:#3aa0ff;font-size:11.5px;font-weight:900;letter-spacing:.02em;text-decoration:none;
-       -webkit-tap-highlight-color:transparent}
+  /* MONTANTE fusionnée dans Confiance (user 2026-08-08) : titre « MONTANTE • PALIER N » DANS le cadre BLEU,
+     centré, BLANC, MAJUSCULE, plus grand, sans emoji. La carte injectée = LA MÊME que l'onglet Montante. */
+  .mont-hdr{display:block;text-align:center;color:#fff;font-weight:900;font-size:14px;text-transform:uppercase;
+       letter-spacing:.04em;padding:10px 10px 8px;text-decoration:none;background:rgba(58,160,255,.14);
+       border-bottom:1px solid rgba(58,160,255,.42);-webkit-tap-highlight-color:transparent}   /* fine ligne sous le titre */
   .row.mc.mont-frame{border-color:#3aa0ff;
        box-shadow:0 0 0 1px rgba(58,160,255,.35),0 8px 26px rgba(58,160,255,.14)}
+  /* Cadre BLEU autour de la carte montante injectée dans Confiance (même carte que l'onglet Montante). */
+  .mont-cardwrap{border:1px solid #3aa0ff;border-radius:14px;overflow:hidden;
+       box-shadow:0 0 0 1px rgba(58,160,255,.30),0 8px 26px rgba(58,160,255,.12)}
+  .mont-cardwrap > .cleg{border-color:transparent;box-shadow:none;border-radius:0}
   .mc-mont{display:flex;align-items:center;gap:10px;margin:9px 0 2px;padding:9px 11px;border-radius:11px;
     text-decoration:none;color:var(--text);background:linear-gradient(180deg,rgba(246,197,74,.10),rgba(246,197,74,.03));
     border:1px solid rgba(246,197,74,.34);-webkit-tap-highlight-color:transparent}
@@ -6054,6 +6058,9 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     # que c'est « en direct » — vert, cohérent avec le badge « Live » des cartes et l'onglet Live.
     rec = ""
     badge_n = count
+    chips = ""
+    if mont:                                             # MONTANTE : badge BLEU (indépendant du record)
+        chips += f'<span class="zr zrm">{mont}</span>'
     if record:
         # 6 états (user 2026-08-08) : total · à venir · live · EN ATTENTE DE RÉSOLUTION · gagnés · perdus.
         # SANS EMOJI (user 2026-08-08) : distinction par COULEUR seule. à venir=JAUNE · en attente=GRIS ·
@@ -6063,9 +6070,6 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         badge_n = _s
         # COMBINÉ : le nb de jambes est affiché DANS le badge d'état actif -> « 1 (2) » (user 2026-08-08).
         _lg = f' ({legs})' if legs else ''
-        chips = ""
-        if mont:                                         # MONTANTE : badge BLEU (un pari de Confiance est la montante)
-            chips += f'<span class="zr zrm">{mont}</span>'
         if _up:                                          # à venir (pas commencé) : badge JAUNE
             chips += f'<span class="zr zru">{_up}{_lg}</span>'
         if _lv:                                          # en direct : texte vert
@@ -6076,8 +6080,8 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
             chips += f'<span class="zr zrw">{_w}{_lg}</span>'
         if _l:                                            # perdus : badge ROUGE
             chips += f'<span class="zr zrl">{_l}{_lg}</span>'
-        if chips:
-            rec = f'<span class="zone-rec">{chips}</span>'
+    if chips:
+        rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
     # l'info ; le compteur rond faisait doublon.
     t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
@@ -6499,6 +6503,21 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _paj.add(_prog_pair(_lh, _la))
     except Exception:
         pass
+    # MATCH DE LA MONTANTE : injecté en carte montante dédiée (cadre bleu) EN TÊTE de Confiance -> on l'EXCLUT
+    # de play (Confiance) ET de prov (Provisoire) pour ne PAS l'afficher 2× (user 2026-08-08).
+    _mont_pair = set()
+    try:
+        from app import montante as _mt0
+        if _mt0.is_active():
+            _mm0 = _noF(str((_mt0.state().get("pending") or {}).get("match") or ""))
+            _mh0, _, _ma0 = _mm0.partition(" - ")
+            if _mh0:
+                _mont_pair.add(_prog_pair(_mh0, _ma0))
+    except Exception:
+        pass
+    _paj |= _mont_pair
+    if _mont_pair:
+        play = [r for r in play if _prog_pair(r.get("home"), r.get("away")) not in _mont_pair]
     # LIVE GARDÉ DANS PRONOS (user 2026-08-08 : « un match live doit rester aussi dans Pronos et le considérer
     # comme en attente ») -> plus de filtre `not _live` ici. Le match live reste visible ET compté « en attente ».
     _prog = list(_programme_items(_paj, framed=True, keep_sport=sport))
@@ -6525,11 +6544,33 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ORDRE (refonte user 2026-07-27) : Paris à jouer → Provisoires → [bannière Montante] → Combiné →
     # Combiné Betmines. « Paris du jour » N'APPARAÎT PAS s'il n'y a rien à jouer (demande user 2026-07-26).
     out = []
-    # MONTANTE FUSIONNÉE DANS CONFIANCE (user 2026-08-08) : PLUS de zone « Montante » séparée (elle affichait
-    # une 2e fois le même cadre de pari, le match de la montante étant déjà un pari de Confiance). À la place :
-    # badge BLEU « 1 » dans le compteur Confiance + label « Montante • Palier N » et cadre bleu sur la carte
-    # du match concerné (cf. _sport_row). `_mont_n` = 1 s'il y a un palier en attente (foot uniquement).
-    _mont_n = 1 if (_is_foot_view and _montante_palier() is not None) else None
+    # MONTANTE FUSIONNÉE DANS CONFIANCE (user 2026-08-08) : PLUS de zone « Montante » séparée. Le match de la
+    # montante est souvent une ABSTENTION (son pari = le pick de la montante, pas un pari de Confiance) -> il
+    # N'EST PAS dans `play`. On INJECTE donc SA carte (LA MÊME que l'onglet Montante, via _montante_zone_card)
+    # EN TÊTE de la zone Confiance, avec un label « Montante • Palier N » au-dessus + un CADRE BLEU. + badge
+    # BLEU « 1 » dans le compteur Confiance. (foot uniquement).
+    _mont_title, _mont_card = _montante_zone_card(sport)
+    _mont_n = 1 if _mont_card else None
+    if _mont_card:
+        # Carte montante = titre « MONTANTE • PALIER N » (centré, blanc, MAJUSCULE, sans emoji) + fine ligne +
+        # cadre BLEU, INSÉRÉE dans la liste Confiance et TRIÉE PAR STATUT (pas épinglée en haut, pas en double) —
+        # user 2026-08-08. On l'ajoute comme pseudo-carte (`_html`) avec le statut/heure du match montante.
+        _mont_deco = (f'<div class="mont-cardwrap"><a class="mont-hdr" data-goto="montante" href="/montante" '
+                      f'onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
+        try:
+            _mpj = _mt0.state().get("pending") or {} if _mt0.is_active() else {}
+        except Exception:
+            _mpj = {}
+        _msd = analyses.meta("foot", str(_mpj.get("mid") or "")) or {}
+        try:
+            _mts = datetime.fromisoformat(str(_msd.get("start")).replace("Z", "+00:00")).timestamp() if _msd.get("start") else 0
+        except (ValueError, AttributeError, TypeError):
+            _mts = 0
+        _mlive = bool(match_select.live_state_for("foot", _msd.get("home", ""), _msd.get("away", "")))
+        play.append({"_html": _mont_deco, "start_ts": _mts,
+                     "status": "inprogress" if _mlive else "", "_mont": True,
+                     "home": _msd.get("home"), "away": _msd.get("away")})
+        play.sort(key=lambda r: (1 if r.get("status") == "inprogress" else 0, r.get("start_ts") or 0))
     # RÉSULTATS EN PLACE (demande user 2026-08-01) : plus de zone « Résultats du jour » en bas de l'onglet.
     # Chaque match RÉGLÉ reste dans SA section de type et sa carte affiche le résultat/score (comme les cartes
     # de résultat actuelles). Les combinés (include_settled=True ci-dessus) le font déjà en place ; ici on
@@ -6539,6 +6580,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _prov_res = _provisional_results(today_iso, sport, header=False)  # provisoires réglés (sans sous-titre)
     # PARIS DU JOUR = à venir/en cours PUIS terminés (chacun affiche son résultat). Zone visible s'il y a l'un
     # ou l'autre.
+    # (La carte montante est DÉJÀ dans `play`, triée par statut — cf. bloc montante plus haut.)
     _play_html = _MC_SEP.join([h for h in (_rows_by_day(play), _MC_SEP.join(_res_cards)) if h])
     # RECORD DU JOUR (demande user 2026-08-02, 6 états 2026-08-08) : total · à venir · live · EN ATTENTE
     # DE RÉSOLUTION · gagnés · perdus. « en attente » = pari NON réglé dont le match a DÉJÀ commencé mais qui
@@ -6552,7 +6594,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _p_lv = 0
     _p_up = len(play) - _p_pend                                      # paris joués À VENIR (non démarrés)
     _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl, _p_pend)
-    if play or _res_cards:
+    if play or _res_cards or _mont_card:
         out.append(_zone("play", _plur(len(play) + len(_res_cards), "Confiance"), "",
                          len(play) + len(_res_cards), _play_html,
                          collapsible=True, record=_play_rec if _play_rec[0] else None, mont=_mont_n))
@@ -8778,17 +8820,12 @@ def _sport_row(r: dict) -> str:
         _rcls = " mc-r-live"
     else:
         _rcls = ""
-    # MONTANTE FUSIONNÉE DANS CONFIANCE (user 2026-08-08) : le match choisi pour la montante N'A PLUS de
-    # zone séparée -> on marque SA carte de Confiance avec un label « Montante • Palier N » au-dessus + un
-    # CADRE BLEU (plus de doublon de carte). Le suivi montante reste dans app/montante.py (hors ROI).
-    _mp = _montante_palier_for(_pmid)
-    _mfr = " mont-frame" if _mp else ""
-    _mlbl = (f'<div class="mont-sel-lbl"><a data-goto="montante" href="/montante" '
-             f'onclick="event.stopPropagation()">🪜 Montante • Palier {_mp[0]}</a></div>' if _mp else "")
+    # (La montante est injectée en carte dédiée EN TÊTE de Confiance + exclue de play -> plus de décoration
+    #  in-place ici, cf. _today_zones. user 2026-08-08.)
     if _no_expand:
-        return (f'{_mlbl}<div class="row pick mc mc-prem mc-flat{_rcls}{_mfr}">{head}</div>')
-    return (f'{_mlbl}<div class="row pick mc{" mc-prem" if _premium else ""}'
-            f'{" mc-islive" if is_live else ""}{_rcls}{_mfr}">{head}'
+        return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
+    return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
+            f'{" mc-islive" if is_live else ""}{_rcls}">{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
 _MC_SEP = '<div class="mc-sep"></div>'
@@ -8973,7 +9010,20 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     def _cards(rows):
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
-    if not (_play or _prov or _combo or _safe_combo or _mont_card):
+    # MONTANTE FUSIONNÉE DANS CONFIANCE en Live aussi (user 2026-08-08) : plus de zone séparée. On DÉDUPLIQUE
+    # le match montante de _play/_prov et on injecte SA carte (titre + cadre bleu) dans Confiance + badge bleu.
+    _mont_n_live = None
+    if _mont_card:
+        _mont_n_live = 1
+        _mm_pair = _prog_pair(_md0.get("home", ""), _md0.get("away", "")) if _md0 else None
+        if _mm_pair:
+            _play = [c for c in _play if _prog_pair(c.get("home"), c.get("away")) != _mm_pair]
+            _prov = [c for c in _prov if _prog_pair(c.get("home"), c.get("away")) != _mm_pair]
+        _mont_deco = (f'<div class="mont-cardwrap"><a class="mont-hdr" data-goto="montante" href="/montante" '
+                      f'onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
+        _play = list(_play) + [{"_html": _mont_deco, "start_ts": (_md0 or {}).get("start_ts") or 0,
+                                "status": "inprogress"}]
+    if not (_play or _prov or _combo or _safe_combo):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -8985,11 +9035,9 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
             '</div></div>')
     else:
-        # ORDRE IDENTIQUE à l'onglet Pronos (demande user 2026-08-01) : Montante → Paris du jour →
-        # Provisoires → Combiné → Combiné double chance.
+        # MÊMES TYPES DE PARIS QUE PRONOS (user 2026-08-08) : Confiance (montante incluse) → Provisoire → Combiné.
         out = [
-            _zone("montante", _mont_title or "Montante", "en direct", 1 if _mont_card else 0, _mont_card),
-            _zone("play", _plur(len(_play), "Confiance"), "en direct", len(_play), _cards(_play)),
+            _zone("play", _plur(len(_play), "Confiance"), "en direct", len(_play), _cards(_play), mont=_mont_n_live),
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov)),
             _zone("combo", "Combiné double chance", "", 1 if _combo else 0, _combo),
         ]
