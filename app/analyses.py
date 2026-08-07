@@ -3877,7 +3877,7 @@ def exclusions_report() -> dict:
     perf = {g.get("label"): g for g in (perf_breakdown().get("by_market") or [])}   # ROI = GLOBAL
     HARD = {"Corners"}
     _order = {"ban": 0, "gap": 1, "roi": 1, "excl": 1, "watch": 2, "ok": 3}
-    _LABELS = [("foot", "Football", "⚽"), ("tennis", "Tennis", "🎾"), ("basket", "Basket", "🏀")]
+    _LABELS = [("foot", "Football", "⚽")]   # FOOT SEUL (user 2026-08-07 : tennis/basket retirés)
     sports_out = []
     for sp, fr, icon in _LABELS:
         g_sport = bysport.get(fr) or {}

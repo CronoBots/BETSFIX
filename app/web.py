@@ -4095,8 +4095,7 @@ def render_volume_by_sport() -> str:
     from app import analyses as _an
     v7, v30 = _an.volume_by_sport(7), _an.volume_by_sport(30)
     bg = _an.background_sports()
-    SPORTS = (("foot", "Football", "⚽", "#2ee27f"), ("tennis", "Tennis", "🎾", "#d7e64a"),
-              ("basket", "Basket", "🏀", "#ff9f43"))
+    SPORTS = (("foot", "Football", "⚽", "#2ee27f"),)   # FOOT SEUL (user 2026-08-07 : tennis/basket retirés)
 
     def _cell(a: dict) -> str:
         return (f'<div class="vbs-cell"><b>{a.get("analysed", 0)}</b>analysés'
@@ -7422,7 +7421,7 @@ def _excl_journal_html(rep: dict) -> str:
     lisible, récent d'abord. Rend visible et traçable l'auto-révision du système (le pendant « détail »
     des repères ambrés des courbes). Toujours affiché (même vide -> message « sélection stable »)."""
     j = rep.get("journal") or {}
-    evs = j.get("events") or []
+    evs = [e for e in (j.get("events") or []) if (e.get("sport") or "foot") == "foot"]   # FOOT SEUL (2026-08-07)
     started = j.get("started")
     since = (f'<span class="exq-jsince">suivi depuis le {html.escape(str(started))}</span>'
              if started else "")
