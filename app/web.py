@@ -2210,7 +2210,7 @@ CSS = """
   .zone-rec{display:inline-flex;align-items:center;gap:9px;white-space:nowrap;
        font-variant-numeric:tabular-nums;font-weight:800}
   .zone-rec .zr{display:inline-flex;align-items:center;gap:3px;font-size:11.5px}
-  .zone-rec .zru{color:#aeb8c4}                                    /* à venir ⏳ */
+  .zone-rec .zru{color:#1a1400;background:#e8b93a;padding:1px 7px;border-radius:9px;font-size:11px}  /* à venir ⏳ = badge JAUNE (user 2026-08-07) */
   .zone-rec .zrlv{color:#54d98c}                                   /* EN DIRECT 🟢 (vert, jamais rouge = « raté ») */
   .zone-rec .zr-sc{display:inline-flex;align-items:baseline;gap:1px;font-size:13px;letter-spacing:.01em}
   .zone-rec .zr-sc .zr-w{color:#54d98c}                            /* gagnés (vert) */
@@ -6020,9 +6020,10 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
                       f'<span class="zr-d">–</span><b class="zr-l">{_l}</b></span>')
         if chips:
             rec = f'<span class="zone-rec">{chips}</span>'
-    n = f'<span class="zone-n">{badge_n}</span>' if badge_n else ""
+    # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
+    # l'info ; le compteur rond faisait doublon.
     t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
-    head = (f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{n}{rec}{t}')
+    head = (f'<span class="zone-dot"></span><span class="zone-t">{html.escape(title)}</span>{rec}{t}')
     if collapsible:
         op = " open" if open_ else ""
         # `data-zk` = clé de persistance du repli (localStorage, JS `_CAL_JS`) : ton choix plier/déplier
