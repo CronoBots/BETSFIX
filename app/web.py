@@ -131,6 +131,11 @@ def day_label(d, today) -> str:
     jours = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
     return f"{jours[d.weekday()].capitalize()} {d.strftime('%d/%m')}"
 
+def _plur(n, word: str) -> str:
+    """Titre de type de pari au pluriel s'il y a PLUSIEURS matchs de ce type (user 2026-08-08) :
+    « Confiance » -> « Confiances », « Provisoire » -> « Provisoires »."""
+    return word + "s" if (n or 0) > 1 else word
+
 def fmt_live_clock(mc: dict | None) -> str:
     """Horloge LIVE Unibet (matchClock) -> texte court. Foot : « 51' » / « Mi-temps » ;
     basket : « Q3 · 5:42 » (temps restant) / « Prol. ». '' si rien d'exploitable."""
@@ -4084,7 +4089,7 @@ def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict |
         + period
         + '<div class="sx-kpis sx-kpis3">'
         + _kpi(vol.get("matches", 0), "matchs joués", d24["matches"])
-        + _kpi(ov.get("settled", 0), "simples joués", d24["simples"])
+        + _kpi(ov.get("settled", 0), "confiances jouées", d24["simples"])
         + _kpi(_cf.get("n", 0), "combinés joués", d24["combos"])
         + '</div><div class="sx-kpis sx-kpis3">'
         + _kpi(cal.get("n", 0), "paris calibrés", d24["calibrated"])
@@ -4094,13 +4099,13 @@ def render_volume(full: dict | None, combo_full: dict | None = None, cal: dict |
         # EN COURS : pronos analysés en attente de résultat (pipeline actif) — distinct du cumul réglé.
         '<div class="sx-data-sub">⏳ En cours · en attente de résultat</div>'
         '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{pend["simples"]}</b><span>simples en cours</span></div>'
+        f'<div class="sx-kpi"><b>{pend["simples"]}</b><span>confiances en cours</span></div>'
         f'<div class="sx-kpi"><b>{pend["combos"]}</b><span>combinés en cours</span></div>'
         f'<div class="sx-kpi"><b>{pend["ghosts"]}</b><span>fantômes en cours</span></div>'
         '</div>'
         '<div class="sx-data-note">Le <b>+N vert</b> = entrées des dernières <b>24 h</b>. '
         '« <b>En cours</b> » = pronos analysés en attente de résultat (matchs à venir / récents). Les '
-        '<b>simples</b> et <b>combinés joués</b> sont les seuls comptés dans le ROI et la courbe. Les '
+        '<b>paris de confiance</b> et <b>combinés joués</b> sont les seuls comptés dans le ROI et la courbe. Les '
         '<b>pronos fantômes</b> (prédictions SIMPLES non jouées, réglées après match) affinent la '
         '<b>calibration</b> sur tout le spectre de cotes — ils n\'entrent JAMAIS dans le bilan, et il '
         'n\'existe pas de combiné fantôme.</div></div>')
@@ -4238,7 +4243,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         cote_points=ov.get("cote_points"))
     simples_block = (                                 # SANS boîte imbriquée : contenu direct sur la carte sport
         (f'<details class="spf-hero spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
-         f'<div class="spf-cv-more"><span>Derniers simples</span> ▾</div></summary>{_rec_s}</details>')
+         f'<div class="spf-cv-more"><span>Derniers paris de confiance</span> ▾</div></summary>{_rec_s}</details>')
         if _rec_s else f'<div class="spf-hero">{_s_inner}</div>')
     # BLOC COMBINÉS FOOTBALL (demande user 2026-07-24 : graphes de combiné PROPRES à chaque sport) : ici les
     # combos PER-MATCH FOOT seuls. Le combiné du jour et le combiné Betmines ont leur PROPRE carte (suivis
@@ -4350,7 +4355,7 @@ def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
     d'un coup d'œil où il y a de l'action live)."""
     _c = list(counts) + [0, 0, 0]
     _r = list(rois) + [None, None, None]
-    _specs = (("Simple", simple_html), ("Combinés", combos_html), ("Provisoires", prov_html))
+    _specs = (("Confiances", simple_html), ("Combinés", combos_html), ("Provisoires", prov_html))
     _tabs = [(lbl, h, _c[i], _r[i]) for i, (lbl, h) in enumerate(_specs) if h]
     if len(_tabs) <= 1:
         return _tabs[0][1] if _tabs else ""
@@ -6539,7 +6544,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _p_up = len(play) - _p_lv - _p_pend                              # paris joués À VENIR (non démarrés)
     _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl, _p_pend)
     if play or _res_cards:
-        out.append(_zone("play", "Confiance", "", len(play) + len(_res_cards), _play_html,
+        out.append(_zone("play", _plur(len(play) + len(_res_cards), "Confiance"), "",
+                         len(play) + len(_res_cards), _play_html,
                          collapsible=True, record=_play_rec if _play_rec[0] else None, mont=_mont_n))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
@@ -6552,7 +6558,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _pv_up = len(prov) - _pv_lv - _pv_pend                            # provisoires à venir
     _prov_rec = (len(prov) + _psn, _pv_up, _pv_lv, _psw, _psl, _pv_pend)
     if prov or _prov_res:
-        out.append(_zone("indic", "Provisoire", "", len(prov), _prov_html,
+        out.append(_zone("indic", _plur(len(prov) + _psn, "Provisoire"), "", len(prov), _prov_html,
                          collapsible=True, record=_prov_rec if _prov_rec[0] else None))
     # Record du COMBINÉ football du jour (1 combiné/jour ; gagné/perdu = son résultat).
     _combo_rec = None
@@ -6619,7 +6625,7 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     _res_cards = _settled_bet_result_cards(iso, sport)
     _prov_res = _provisional_results(iso, sport)
     _res_html = _MC_SEP.join(_res_cards) if _res_cards else ""
-    cards = (_zone("play", "Confiance", "", len(_res_cards), _res_html + _prov_res, collapsible=True)
+    cards = (_zone("play", _plur(len(_res_cards), "Confiance"), "", len(_res_cards), _res_html + _prov_res, collapsible=True)
              if (_res_cards or _prov_res) else "")
     inner = summ + combo + cards
     if not (combo or cards):
@@ -8788,12 +8794,15 @@ def _rows_by_day(rows: list) -> str:
     un HTML déjà rendu (`_html`, ex. carte du programme) — sinon elle est rendue via `_sport_row`.
     Un fin séparateur (`.mc-sep`) est glissé entre deux cartes CONSÉCUTIVES du même jour (jamais
     juste après un en-tête de jour ni en tête de zone)."""
-    today = _sport_today()   # jour sportif (06h→06h) — cf. _sport_date
+    # DATE CALENDAIRE RÉELLE pour l'AFFICHAGE (user 2026-08-08) : un match après minuit (heure belge) apparaît
+    # sous son VRAI jour (ex. 08/08), plus sous la date du jour sportif (07/08). Le jour sportif 06h→06h reste
+    # réservé aux STATS / règlement / regroupement calendrier (inchangés). Purement présentation de l'en-tête.
+    today = (to_local(datetime.now(timezone.utc)) or datetime.now()).date()
     out, cur, prev_card = [], object(), False
     for r in rows:
         ts = r.get("start_ts")
         ld = to_local(datetime.fromtimestamp(ts, tz=timezone.utc)) if ts else None
-        d = _sport_date(ld) if ld else None
+        d = ld.date() if ld else None
         if d != cur:
             cur = d
             if d is not None:
@@ -8846,11 +8855,11 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
 
     _has = bool(play_up or live or prov_up or finished)
     out = [
-        _zone("play", "Confiance", "", len(play_up), _rows_by_day(play_up),
+        _zone("play", _plur(len(play_up), "Confiance"), "", len(play_up), _rows_by_day(play_up),
               empty=("Aucune <b>value</b> à venir pour l'instant — voir les <b>Provisoires</b> plus bas."
                      if _has else None)),
         _zone("live", "En direct", "temps réel", len(live), _cards(live)),
-        _zone("indic", "Provisoire", "", len(prov_up), _rows_by_day(prov_up)),
+        _zone("indic", _plur(len(prov_up), "Provisoire"), "", len(prov_up), _rows_by_day(prov_up)),
         _zone("todo", "Terminés", "", len(finished),
               _cards(finished) + (f'<a class="fin-more" href="/">📅 Historique complet jour par jour '
                                   f'dans l\'onglet Pronos ({_fin_more} de plus)</a>' if _fin_more else ""),
@@ -8968,8 +8977,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         # Provisoires → Combiné → Combiné double chance.
         out = [
             _zone("montante", _mont_title or "Montante", "en direct", 1 if _mont_card else 0, _mont_card),
-            _zone("play", "Confiance", "en direct", len(_play), _cards(_play)),
-            _zone("indic", "Provisoire", "en direct", len(_prov), _cards(_prov)),
+            _zone("play", _plur(len(_play), "Confiance"), "en direct", len(_play), _cards(_play)),
+            _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov)),
             _zone("combo", "Combiné double chance", "", 1 if _combo else 0, _combo),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
