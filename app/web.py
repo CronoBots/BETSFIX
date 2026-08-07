@@ -6499,7 +6499,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _paj.add(_prog_pair(_lh, _la))
     except Exception:
         pass
-    _prog = [it for it in _programme_items(_paj, framed=True, keep_sport=sport) if not it.get("_live")]
+    # LIVE GARDÉ DANS PRONOS (user 2026-08-08 : « un match live doit rester aussi dans Pronos et le considérer
+    # comme en attente ») -> plus de filtre `not _live` ici. Le match live reste visible ET compté « en attente ».
+    _prog = list(_programme_items(_paj, framed=True, keep_sport=sport))
     if sport:
         play = [r for r in play if _item_sport(r) == sport]
         _prog = [it for it in _prog if it.get("_sport") == sport]
@@ -6543,10 +6545,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # n'est plus « live » (fini, en cours de règlement) — avant, il était compté à tort en « à venir ».
     _now_ts = time.time()
     _pw, _pl, _pp = _settled_wl_today(today_iso, sport)          # simples réglés du jour (léger)
-    _p_lv = sum(1 for r in play if r.get("status") == "inprogress")   # paris joués EN DIRECT
-    _p_pend = sum(1 for r in play if r.get("status") != "inprogress"
-                  and (r.get("start_ts") or 0) and r["start_ts"] <= _now_ts)   # commencé, pas live, pas réglé
-    _p_up = len(play) - _p_lv - _p_pend                              # paris joués À VENIR (non démarrés)
+    # LIVE COMPTÉ « EN ATTENTE » (user 2026-08-08) : tout pari NON réglé dont le match a COMMENCÉ (live OU
+    # fini-non-réglé) = en attente de résolution (badge GRIS). Plus de chip live vert distinct dans Pronos.
+    _p_pend = sum(1 for r in play if (r.get("status") == "inprogress")
+                  or ((r.get("start_ts") or 0) and r["start_ts"] <= _now_ts))
+    _p_lv = 0
+    _p_up = len(play) - _p_pend                                      # paris joués À VENIR (non démarrés)
     _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl, _p_pend)
     if play or _res_cards:
         out.append(_zone("play", _plur(len(play) + len(_res_cards), "Confiance"), "",
@@ -6557,10 +6561,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
     # même sélection que _provisional_results). -> « X sél · W✅ · L❌ » colle au nombre de cartes (hors ROI).
     _psn, _psw, _psl = _prov_settled_wl(today_iso, sport)
-    _pv_lv = sum(1 for it in prov if it.get("_live"))                 # provisoires en direct (si présents)
-    _pv_pend = sum(1 for it in prov if not it.get("_live")
-                   and (it.get("start_ts") or 0) and it["start_ts"] <= _now_ts)   # commencé, pas live, pas réglé
-    _pv_up = len(prov) - _pv_lv - _pv_pend                            # provisoires à venir
+    # LIVE compté « en attente » (gris), comme les paris joués (user 2026-08-08).
+    _pv_pend = sum(1 for it in prov if it.get("_live")
+                   or ((it.get("start_ts") or 0) and it["start_ts"] <= _now_ts))
+    _pv_lv = 0
+    _pv_up = len(prov) - _pv_pend                                     # provisoires à venir
     _prov_rec = (len(prov) + _psn, _pv_up, _pv_lv, _psw, _psl, _pv_pend)
     if prov or _prov_res:
         out.append(_zone("indic", _plur(len(prov) + _psn, "Provisoire"), "", len(prov), _prov_html,
