@@ -16,6 +16,14 @@ import os
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRACK_PATH = os.path.join(_ROOT, "data", "provisional_track.json")
 
+
+def _is_total(sel) -> bool:
+    """Pari TOTAL (Under/Over buts du match) — EXCLU des provisoires affichés/comptés (user 2026-08-07) car
+    ils perdent (Under −16 %, Over −21 %). Restent dans le track brut -> gardés pour la CALIBRATION. La
+    SOURCE UNIQUE (stats/entries/equity_curve) applique ce même filtre -> compteur, liste et courbe cohérents."""
+    _s = (sel or "").lower()
+    return "moins de" in _s or "plus de" in _s
+
 # VOID « ultime recours » : aligné sur le chemin principal (settle_analyst._VOID_AFTER_DAYS = 3 j). Un
 # provisoire dont le match est fini DEPUIS ce délai mais dont AUCUNE source ne rend de score (match reporté/
 # annulé, ex. Supercopa argentine suspendue 2026-07-21 ; ou donnée réellement morte) est clos en `void` —
@@ -335,7 +343,7 @@ def entries(d: dict | None = None) -> list:
     d = _load() if d is None else d
     out = [{"name": p.get("name"), "sel": p.get("sel"), "cote": p.get("cote"),
             "result": p.get("result"), "start": p.get("start"), "sport": p.get("sport")}
-           for p in d.values() if isinstance(p, dict)]
+           for p in d.values() if isinstance(p, dict) and not _is_total(p.get("sel"))]  # résultat seul (2026-08-07)
     out.sort(key=lambda x: x.get("start") or "", reverse=True)
     return out
 
@@ -345,7 +353,8 @@ def equity_curve(d: dict | None = None) -> list:
     d'envoi, commençant à 0 — pour le graphe d'équité « info seule ». Snapshot partagé avec stats()."""
     d = _load() if d is None else d
     settled = sorted((p for p in d.values()
-                      if isinstance(p, dict) and p.get("result") in ("won", "lost")),
+                      if isinstance(p, dict) and p.get("result") in ("won", "lost")
+                      and not _is_total(p.get("sel"))),      # résultat seul (2026-08-07) -> courbe = stats
                      key=lambda p: p.get("start") or "")
     cur, out = 0.0, [0.0]
     for p in settled:
@@ -367,6 +376,8 @@ def stats(d: dict | None = None) -> dict:
     cotes = []
     for p in d.values():
         if not isinstance(p, dict):
+            continue
+        if _is_total(p.get("sel")):     # RÉSULTAT SEUL (2026-08-07) : totaux écartés (gardés en calibration)
             continue
         r = p.get("result")
         c = p.get("cote")

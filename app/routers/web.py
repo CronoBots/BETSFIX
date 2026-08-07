@@ -60,18 +60,51 @@ def _cached_votes(provider, mid) -> tuple | None:
     return None
 
 
+def _provisional_hero_stats() -> dict:
+    """Contribution des PROVISOIRES (RÉSULTAT SEUL : 1X2/DC, PAS les totaux Under/Over) au ROI GLOBAL
+    (demande user 2026-08-07 : les provisoires comptent au global, résultat seul). {n, won, lost, profit,
+    points (cumul datés), dates}. Cohérent avec `provisional_shown` (totaux exclus)."""
+    from app import provisional as _pv
+    rows = []
+    for p in (_pv.load() or {}).values():
+        if not isinstance(p, dict) or (p.get("sport") or "foot") != "foot":
+            continue
+        if p.get("result") not in ("won", "lost"):
+            continue
+        _s = (p.get("sel") or "").lower()
+        if "moins de" in _s or "plus de" in _s:      # totaux -> exclus (résultat seul)
+            continue
+        rows.append(p)
+    rows.sort(key=lambda p: p.get("start") or "")
+    won = lost = 0
+    cum, points, dates = 0.0, [0.0], []
+    for p in rows:
+        c = p.get("cote") or 0
+        if p["result"] == "won":
+            won += 1
+            cum += (c - 1)
+        else:
+            lost += 1
+            cum -= 1
+        points.append(round(cum, 2))
+        dates.append(p.get("start"))
+    return {"n": won + lost, "won": won, "lost": lost, "profit": round(cum, 2),
+            "points": points, "dates": dates}
+
+
 def _hero_card(full: dict, combo: dict) -> str:
     """HERO en tête de la page Stats : le CHIFFRE CLÉ (rentabilité globale, tous paris confondus) + profit
-    total + une courbe d'équité GLOBALE (simples + combinés fusionnés par date). L'argument n°1, en un
-    coup d'œil, avant le détail par catégorie/sport."""
+    total + une courbe d'équité GLOBALE (simples + combinés + PROVISOIRES résultat, fusionnés par date).
+    L'argument n°1, en un coup d'œil, avant le détail par catégorie/sport."""
     ov = full.get("overall") or {}
     cb = combo.get("overall") or combo or {}
-    n_s, n_c = ov.get("settled") or 0, cb.get("n") or 0
-    bets = n_s + n_c
+    pv = _provisional_hero_stats()                 # PROVISOIRES résultat seul (user 2026-08-07 : au ROI global)
+    n_s, n_c, n_p = ov.get("settled") or 0, cb.get("n") or 0, pv.get("n") or 0
+    bets = n_s + n_c + n_p
     if not bets:
         return ""
-    profit = (ov.get("profit") or 0) + (cb.get("profit") or 0)
-    won = (ov.get("won") or 0) + (cb.get("won") or 0)
+    profit = (ov.get("profit") or 0) + (cb.get("profit") or 0) + (pv.get("profit") or 0)
+    won = (ov.get("won") or 0) + (cb.get("won") or 0) + (pv.get("won") or 0)
     roi = round(profit / bets * 100, 1)
     pct = round(won / bets * 100)
 
@@ -80,8 +113,9 @@ def _hero_card(full: dict, combo: dict) -> str:
             return []
         return [(dts[i], pts[i + 1] - pts[i]) for i in range(min(len(dts), len(pts) - 1))]
     evs = (_deltas(ov.get("points") or [], ov.get("dates") or [])
-           + _deltas(cb.get("points") or [], cb.get("dates") or []))
-    evs.sort(key=lambda x: x[0] or "")             # fusion chronologique simples + combinés
+           + _deltas(cb.get("points") or [], cb.get("dates") or [])
+           + _deltas(pv.get("points") or [], pv.get("dates") or []))
+    evs.sort(key=lambda x: x[0] or "")             # fusion chronologique simples + combinés + provisoires
     gpts, curv = [0.0], 0.0
     for _, dlt in evs:
         curv += dlt
