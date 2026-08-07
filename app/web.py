@@ -1183,6 +1183,7 @@ CSS = """
   .cleg-when{display:inline-flex;align-items:baseline;gap:5px;font-variant-numeric:tabular-nums;
         font-size:10px;white-space:nowrap}
   .cleg-when .cw-h{color:#fff;font-weight:900}                     /* heure = BLANC */
+  .cleg-when .cw-sep{color:var(--muted);font-weight:600}           /* séparateur « - » heure ↔ décompte */
   .cleg-when .cd:not(.live){background:transparent;border-color:transparent;color:var(--muted);
         font-weight:700;padding:0;font-size:10px}                 /* décompte = GRIS, MÊME taille que l'heure */
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
@@ -5331,7 +5332,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
                       if dt and dt.timestamp() > now.timestamp() else "")
             if _cd_pi and _hm:
                 _badge = (f'<span class="mc-badge mc-up cleg-when"><span class="cw-h">{_hm}</span>'
-                          f'{_cd_pi}</span>')
+                          f'<span class="cw-sep">-</span>{_cd_pi}</span>')
             else:
                 _badge = f'<span class="mc-badge mc-up">{_hm}</span>'
         # SCOREBOARD des résultats (sets/quart-temps) — visible dans la carte repliée SOUS le titre pour un
@@ -5659,7 +5660,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     if _cd:
         _when_badge = (f'<span class="cleg-bdg {_bcls} cleg-when">'
                        f'<span class="cw-h">{_btxt}</span>'
-                       f'{_cd}</span>')
+                       f'<span class="cw-sep">-</span>{_cd}</span>')
     else:
         _when_badge = f'<span class="cleg-bdg {_bcls}">{_btxt}</span>'
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
@@ -8481,7 +8482,7 @@ def _sport_row(r: dict) -> str:
         if _cd_sr and starthm:
             badge = (f'<span class="mc-badge mc-up cleg-when">'
                      f'<span class="cw-h">{e(starthm)}</span>'
-                     f'{_cd_sr}</span>')
+                     f'<span class="cw-sep">-</span>{_cd_sr}</span>')
         else:
             badge = f'<span class="mc-badge mc-up">{e(starthm) or "À venir"}</span>'
     # L3 : prono(s) PUBLIABLE(s) seulement — APP = TELEGRAM (strict). Un match SANS combiné n'affiche
