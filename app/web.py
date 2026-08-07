@@ -1183,7 +1183,7 @@ CSS = """
      Seulement à venir (:not(.live)) — au coup d'envoi, le timer reprend le vert « live » normal. */
   .cleg-h .cd:not(.live){background:transparent;border-color:transparent;color:var(--muted);
         font-weight:700;padding:2px 2px;font-size:10px}
-  .cleg-h .cd:not(.live)::before{content:"dans ";opacity:.65;font-weight:600}
+  .cleg-h .cd:not(.live)::before{content:"dans\00a0";opacity:.65;font-weight:600}
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
@@ -2115,7 +2115,10 @@ CSS = """
   .cleg.won{border-color:var(--st-won)}
   .cleg.lost{border-color:var(--st-lost)}
   .cleg.push,.cleg.void{border-color:var(--st-void)}
-  .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .cleg-h{display:flex;align-items:flex-start;gap:6px;margin-bottom:8px}
+  /* Coin HAUT-DROITE de la carte : badge d'HEURE en haut + DÉCOMPTE juste EN DESSOUS (user 2026-08-08,
+     capture) -> colonne alignée à droite. L'heure (pastille pleine) reste en tête, le décompte en second. */
+  .cleg-h .rt-r{flex-direction:column;align-items:flex-end;gap:3px}
   .cleg-comp{flex:1;min-width:0;font-size:10.5px;font-weight:700;color:var(--muted);
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cleg-sport{color:#2ee27f;font-weight:800;letter-spacing:.04em}
