@@ -600,6 +600,39 @@ def _in_ko_band(start: str, ko_from, ko_to) -> bool:
     return (ko_from <= h < ko_to) if day_band else (h >= ko_from or h < ko_to)
 
 
+# Frontière des 2 SLATES (heure belge) — DOIT rester synchronisée avec deploy/scan_daily.ps1
+# (--ko-from 6 --ko-to 21) et deploy/scan_evening.ps1 (--ko-from 21 --ko-to 6).
+# JOUR = coup d'envoi [06h, 21h)  ·  NUIT = coup d'envoi [21h, 06h).
+_DAY_START_H = 6
+_SLATE_BOUNDARY_H = 21
+
+
+def _sport_day_bounds():
+    """Bornes (début, fin) du JOUR SPORTIF courant en heure belge : 06h→06h (englobe les matchs de nuit).
+    Avant 06h, on est encore dans le jour sportif commencé la veille."""
+    from zoneinfo import ZoneInfo
+    now = datetime.now(ZoneInfo("Europe/Brussels"))
+    start = now.replace(hour=6, minute=0, second=0, microsecond=0)
+    if now.hour < 6:
+        start -= timedelta(days=1)
+    return start, start + timedelta(days=1)
+
+
+def _generated_today(generated_iso: str) -> bool:
+    """L'analyse (`generated`) date-t-elle du JOUR SPORTIF courant (06h→06h belge) ? Sert à ne JAMAIS
+    re-scanner un match déjà analysé aujourd'hui (les 2 créneaux jour/nuit ne se marchent pas dessus, même
+    si un match est RETARDÉ et change de slate). Un sidecar d'un jour précédent -> False (ré-analysable)."""
+    if not generated_iso:
+        return False
+    try:
+        from zoneinfo import ZoneInfo
+        g = datetime.fromisoformat(generated_iso.replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Brussels"))
+    except Exception:
+        return False
+    lo, hi = _sport_day_bounds()
+    return lo <= g < hi
+
+
 def _card_sig(card) -> tuple | None:
     """Signature du CONTENU PUBLIÉ d'une carte prono (simple/combiné) -> détecter si le prono a CHANGÉ à un
     re-check. None si pas de carte (abstention). Combiné : cote + (marché, sélection) de chaque jambe.
@@ -772,10 +805,16 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     for sport in sports:
         always = _is_big_match if sport == "foot" else None
         _top = _foot_top if sport == "foot" else args.top          # foot élargi en probation ; autres sports au top normal
+        # QUOTA PAR SLATE (user 2026-08-07) : avec 2 créneaux (jour/nuit), `--top` est le quota de CHAQUE
+        # slate, PAS du jour entier -> le slate JOUR ne prive plus le slate NUIT (ex. 12 matchs de jour ne
+        # laissaient que 3 places à la nuit). On tire un POOL TRÈS LARGE (le fetch réseau est INDÉPENDANT de N
+        # -> gratuit : `rank_important` trie tout puis tronque) puis on garde le top `_top` de CHAQUE bande de
+        # coup d'envoi -> vrai top `_top` par slate, même si le jour domine le classement d'importance.
+        _pool_n = max(_top * 10, 150) if sport == "foot" else _top
         top = None
         for _attempt in range(3):                 # getaddrinfo = hoquet fréquent (cf. CLAUDE.md) -> on retente
             try:
-                top = await fetch_important(sport, _top, client, within_hours=args.hours, always=always)
+                top = await fetch_important(sport, _pool_n, client, within_hours=args.hours, always=always)
                 break
             except Exception as e:
                 top = None
@@ -791,6 +830,13 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         n_ok += 1
         if args.only_big:
             top = [m for m in top if _is_big_match(m.get("comp") or m.get("circuit") or "")]
+        if sport == "foot":                       # top `_top` du slate JOUR + top `_top` du slate NUIT (pool trié)
+            _day = [m for m in top if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)][:_top]
+            _night = [m for m in top if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)][:_top]
+            top = _day + _night
+            print(f"[foot] programme par slate : {len(_day)} JOUR + {len(_night)} NUIT (quota {_top}/slate).")
+        else:
+            top = top[:_top]
         for m in top:
             _e = {"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
                   "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""}
@@ -2622,8 +2668,11 @@ async def main():
             try:
                 # gros tournois (Coupe du Monde…) : inclus EN PLUS du top N s'ils sont dans la fenêtre.
                 always = _is_big_match if sport == "foot" else None
-                # --match / --from-programme : pool ÉLARGI pour ne rater aucun match ciblé (hors top-N).
-                _nsel = 40 if (args.match or args.from_programme) else args.top
+                # --match / --from-programme : pool TRÈS LARGE pour ne rater AUCUN match du programme (le
+                # fetch réseau est indépendant de N -> gratuit). Indispensable avec le quota PAR SLATE : un
+                # match de nuit du programme peut être classé bas en importance -> il doit rester joignable
+                # par la passe d'analyse (sinon présent au programme mais jamais analysé).
+                _nsel = 200 if (args.match or args.from_programme) else args.top
                 top = await fetch_important(sport, _nsel, client, within_hours=args.hours, always=always)
             except Exception as e:
                 print(f"[{sport}] sélection échouée : {e}")
@@ -2676,26 +2725,25 @@ async def main():
                 # tennis/basket, ≠ id Unibet `m['id']`). La COTE reste rafraîchie live (app/main combo-refresh,
                 # mêmes jambes) et le résultat est réglé. `--force` outrepasse (re-analyse volontaire).
                 path = os.path.join(OUT, f"{sport}_{fid}.md")
-                # ⛔ GEL « ANALYSÉ LE MATIN » (user 2026-08-07 : « plus aucun changement de pari sur un match
-                # analysé à 09h »). Une VAGUE pré-match (--refresh-early) ne RÉ-ANALYSE JAMAIS un match qui a
-                # déjà un sidecar du jour -> le pick du matin (simple / abstention / provisoire / combiné) est
-                # FIGÉ jusqu'au coup d'envoi, quelle que soit sa publication (avant, seuls les paris Telegram
-                # étaient protégés ; abstentions/provisoires/non-publiés flippaient à la vague). Le SCAN MATIN
-                # (--programme / --force, SANS --refresh-early) reste libre de décider/affiner ; on ne gèle
-                # qu'APRÈS lui (les vagues). Seul un --match explicite (override manuel du proprio) rouvre.
-                # Un match JAMAIS analysé (nouveau au programme) reste analysé normalement par la vague.
-                if args.refresh_early and not args.match and not args.force:
+                # ⛔ UN MATCH = UNE ANALYSE PAR JOUR (user 2026-08-07 : « plus aucun changement de pari sur un
+                # match analysé », + « sans re-scanner des matchs déjà faits » avec les 2 créneaux jour/nuit).
+                # On ne RÉ-ANALYSE JAMAIS un match dont le sidecar `generated` date du JOUR SPORTIF courant
+                # (06h→06h belge) -> le pick (simple/abstention/provisoire/combiné) est FIGÉ, et les 2 scans
+                # jour/nuit ne se marchent PAS dessus même si un match est RETARDÉ et change de slate (il
+                # garde son analyse du matin). Le SCAN MATIN et le SCAN SOIR analysent chacun les matchs
+                # NEUFS de leur slate (pas de `generated` du jour) ; un match déjà fait est sauté. Seuls
+                # --force (ré-analyse volontaire, ex. scan matin) et --match (override proprio) rouvrent.
+                if not args.force and not args.match:
                     _prior_p = os.path.join(OUT, f"{sport}_{fid}.json")
                     try:
                         _prior = json.load(open(_prior_p, encoding="utf-8")) if os.path.exists(_prior_p) else None
                     except (OSError, ValueError):
                         _prior = None
-                    if _prior and _prior.get("generated"):
+                    if _prior and _generated_today(_prior.get("generated")):
                         from app import analyses as _an_lock
                         _has_bet = bool((_prior.get("combo") or {}).get("legs")
                                         or _an_lock.retained_bet(sport, str(fid)))
-                        print(f"  · {m['name']} : déjà analysé le matin (gelé) -> vague ignorée "
-                              f"(aucun changement de pari).")
+                        print(f"  · {m['name']} : déjà analysé aujourd'hui (gelé) -> pas de re-scan.")
                         _set_programme_status(str(m.get("id")), "bet" if _has_bet else "abstained")
                         continue
                 # REFRESH « analysé trop tôt » (--refresh-early, vagues rapprochées) : un match PUBLIÉ dont
