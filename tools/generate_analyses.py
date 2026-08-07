@@ -575,6 +575,31 @@ def _kickoff_ts(start: str):
         return None
 
 
+def _ko_local_hour(start: str):
+    """Heure (0-23) du coup d'envoi en heure BELGE (Europe/Brussels, gère l'heure d'été). None si illisible.
+    Sert à partitionner la journée sportive en SLATES par bande de coup d'envoi (scan jour vs scan nuit)."""
+    try:
+        from zoneinfo import ZoneInfo
+        dt = datetime.fromisoformat((start or "").replace("Z", "+00:00"))
+        return dt.astimezone(ZoneInfo("Europe/Brussels")).hour
+    except Exception:
+        return None
+
+
+def _in_ko_band(start: str, ko_from, ko_to) -> bool:
+    """Le coup d'envoi (heure belge) tombe-t-il dans la bande [ko_from, ko_to) ? Gère le passage par minuit
+    (ex. NUIT = 21h→06h : ko_from=21 > ko_to=6). Si la bande n'est pas fixée (None) -> True (pas de filtre).
+    Un match SANS heure lisible est rattaché au slate JOUR (bande non-wrappée) pour ne jamais le PERDRE ni
+    le double-analyser (il ne tombe QUE dans le scan jour)."""
+    if ko_from is None or ko_to is None:
+        return True
+    h = _ko_local_hour(start)
+    day_band = ko_from <= ko_to                      # False = bande NUIT qui enjambe minuit
+    if h is None:
+        return day_band                              # sans heure -> uniquement le slate JOUR
+    return (ko_from <= h < ko_to) if day_band else (h >= ko_from or h < ko_to)
+
+
 def _card_sig(card) -> tuple | None:
     """Signature du CONTENU PUBLIÉ d'une carte prono (simple/combiné) -> détecter si le prono a CHANGÉ à un
     re-check. None si pas de carte (abstention). Combiné : cote + (marché, sélection) de chaque jambe.
@@ -2568,6 +2593,13 @@ async def main():
                          "poste la LISTE sur Telegram, SANS analyser (les paris viennent ~1 h avant chacun).")
     ap.add_argument("--from-programme", action="store_true",
                     help="ne (ré-)analyser QUE les matchs du programme du jour (data/day_programme.json).")
+    ap.add_argument("--ko-from", type=int, default=None,
+                    help="SLATE : ne garder que les matchs dont le coup d'envoi (heure BELGE) est >= cette "
+                         "heure. Avec --ko-to, partitionne la journée (ex. JOUR 6->21, NUIT 21->6). Sépare "
+                         "les scans par région horaire -> aucune région re-scannée.")
+    ap.add_argument("--ko-to", type=int, default=None,
+                    help="SLATE : borne HAUTE (exclue) du coup d'envoi (heure BELGE). Enjambe minuit si "
+                         "ko_to <= ko_from (ex. NUIT : --ko-from 21 --ko-to 6).")
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
     # Le scan AUTORISE les gros endpoints (scheduled-events) via proxy : il les met en cache
@@ -2603,6 +2635,11 @@ async def main():
                 top = [m for m in top if _q in (m.get("name") or "").lower()]
             if args.from_programme:   # ne garder QUE les matchs du programme du jour (matin)
                 top = [m for m in top if str(m.get("id")) in (_prog_ids or set())]
+            if args.ko_from is not None and args.ko_to is not None:   # SLATE : bande de coup d'envoi (heure belge)
+                _before = len(top)
+                top = [m for m in top if _in_ko_band(m.get("start") or "", args.ko_from, args.ko_to)]
+                print(f"[{sport}] slate coup d'envoi {args.ko_from}h→{args.ko_to}h (heure belge) : "
+                      f"{len(top)}/{_before} match(s) retenus.")
             store = _load_store(sport)
             print(f"[{sport}] {len(top)} matchs sélectionnés (profondeur de marché).")
             for _rank, m in enumerate(top):

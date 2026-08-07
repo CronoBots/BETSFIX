@@ -20,30 +20,28 @@ if ($running) {
     exit 0
 }
 
-# MATIN = SYSTÈME HYBRIDE (choix user 2026-07-08) :
-#   1) PROGRAMME : écrit la LISTE du jour (data/day_programme.json) pour l'accueil du site + le verrou
-#      --from-programme des vagues. SANS Telegram (--no-notify) : la liste ne spamme pas le canal.
-#   2) SCAN MATIN COMPLET : analyse TOUS les matchs DU PROGRAMME (--from-programme = exactement la liste
-#      écrite en 1, aucune dérive de sélection) et PUBLIE les picks retenus -> CHAQUE match du jour a son
-#      pari prêt dès le matin (demande user 2026-07-08). Pose le statut (bet/abstained) sur le programme.
-#      --force (demande user 2026-07-09) : ré-analyse AUSSI les matchs DÉJÀ AFFICHÉS/publiés (contourne le
-#      gel + le cache 6 h) -> aucun match du programme n'est sauté au matin. Sans spam : un pick INCHANGÉ
-#      n'est PAS re-posté ; un pick CHANGÉ est republié et l'ancien devient un fantôme (calibration).
-#   Puis les vagues (scan_wave.ps1, ~1 h avant chaque match) RE-VÉRIFIENT : le pari retenu pour le ROI/stats
-#   est TOUJOURS le DERNIER généré ; si le prono a CHANGÉ, l'ancien devient un « fantôme » (calibration).
-Log 'PROGRAMME : liste du jour (accueil site)'
+# MATIN = SLATE JOUR (2 créneaux, user 2026-08-07 : séparer Europe/Amériques par heure de coup d'envoi
+# pour analyser chaque match au bon moment, une seule fois, sans re-scanner une région) :
+#   1) PROGRAMME : écrit la LISTE COMPLÈTE du jour (data/day_programme.json — TOUS les matchs, jour ET nuit)
+#      pour l'accueil du site + le verrou --from-programme. SANS Telegram (--no-notify).
+#   2) SCAN MATIN = SLATE JOUR SEULEMENT (--ko-from 6 --ko-to 21) : analyse et PUBLIE les matchs dont le
+#      coup d'envoi (heure belge) est entre 06h et 21h (Europe + Asie-après-midi). Les matchs de NUIT
+#      (21h→06h : Amériques + Europe tardive) sont ANALYSÉS LE SOIR par scan_evening.ps1 (~19h) -> données
+#      fraîches du jour même au lieu de 12-20 h de retard. Aucun chevauchement : la bande de coup d'envoi
+#      partitionne la journée, un match tombe dans UN seul slate. --force = full matin (ignore cache 6 h).
+#   Plus de ré-analyse pré-match (user 2026-08-07) : le pick de CHAQUE slate est DÉFINITIF une fois posé.
+Log 'PROGRAMME : liste COMPLÈTE du jour (jour + nuit) pour l''accueil site'
 # 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (Out-File = cmdlet, $LASTEXITCODE reste python).
-# FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés du produit -> tout le budget Claude va au foot,
-# profondeur relevée à --top 15 (user 2026-08-07 : couvrir un MAXIMUM de ligues et matchs du jour).
+# FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés -> tout le budget Claude au foot, --top 15.
 & $py 'tools\generate_analyses.py' --sport foot --top 15 --hours 24 --programme --no-notify 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
-# PLANIFIE LA RÉ-ANALYSE PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le programme
-# tout juste écrit -> remplace le sondage 30 min par un déclenchement précis, un par match.
-Log 'REANA SCHED : planification des ré-analyses (coup d''envoi - 1 h)'
+# PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le
+# programme tout juste écrit -> règlement rapide autour de chaque match (la ré-analyse est supprimée).
+Log 'REANA SCHED : planification des passes de règlement (coup d''envoi - 1 h)'
 & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Out-File -Append -Encoding utf8 $log
-Log 'SCAN MATIN : analyse de TOUT le programme (y compris matchs deja affiches) + publication des picks'
-& $py 'tools\generate_analyses.py' --sport foot --top 15 --hours 24 --from-programme --force 2>&1 |
+Log 'SCAN MATIN : SLATE JOUR (coup d''envoi 6h->21h heure belge) + publication des picks'
+& $py 'tools\generate_analyses.py' --sport foot --top 15 --hours 24 --from-programme --force --ko-from 6 --ko-to 21 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 
