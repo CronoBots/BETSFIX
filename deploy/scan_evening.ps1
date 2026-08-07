@@ -34,7 +34,7 @@ if ($running) {
 # matchs de nuit n'ont pas encore été analysés (le matin ne fait que le slate jour) -> analyse normale ;
 # un match de jour (coup d'envoi < 21h) est EXCLU par la bande -> jamais re-scané ici.
 Log 'SCAN SOIR : SLATE NUIT (coup d''envoi 21h->06h heure belge) + publication des picks'
-& $py 'tools\generate_analyses.py' --sport foot --top 15 --hours 12 --from-programme --ko-from 21 --ko-to 6 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot --top 8 --hours 12 --from-programme --ko-from 21 --ko-to 6 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("SCAN SOIR DONE (exit {0})" -f $LASTEXITCODE)
 

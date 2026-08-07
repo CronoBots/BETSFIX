@@ -6509,7 +6509,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _p_up = len(play) - _p_lv - _p_pend                              # paris joués À VENIR (non démarrés)
     _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl, _p_pend)
     if play or _res_cards:
-        out.append(_zone("play", "Paris du jour", "", len(play) + len(_res_cards), _play_html,
+        out.append(_zone("play", "Confiance", "", len(play) + len(_res_cards), _play_html,
                          collapsible=True, record=_play_rec if _play_rec[0] else None))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
@@ -6522,7 +6522,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _pv_up = len(prov) - _pv_lv - _pv_pend                            # provisoires à venir
     _prov_rec = (len(prov) + _psn, _pv_up, _pv_lv, _psw, _psl, _pv_pend)
     if prov or _prov_res:
-        out.append(_zone("indic", "Paris provisoires", "", len(prov), _prov_html,
+        out.append(_zone("indic", "Provisoire", "", len(prov), _prov_html,
                          collapsible=True, record=_prov_rec if _prov_rec[0] else None))
     # Record du COMBINÉ football du jour (1 combiné/jour ; gagné/perdu = son résultat).
     _combo_rec = None
@@ -6542,7 +6542,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         except Exception:
             _combo_rec = None
     out += [
-        _zone("combo", f"Combiné {_zlabel}", "", 1 if combo_daily else 0, combo_daily,
+        _zone("combo", "Combiné double chance", "", 1 if combo_daily else 0, combo_daily,
               collapsible=True, record=_combo_rec),
     ]
     inner = "".join(x for x in out if x)
@@ -6576,7 +6576,7 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
             from app import combo_daily as _cd
             cb = _cd.today(iso)
             if cb and cb.get("legs"):
-                combo = _zone("combo", "Combiné football", "", 1,
+                combo = _zone("combo", "Combiné double chance", "", 1,
                               _combo_tg_card(include_settled=True, cb=cb))
         except Exception:
             combo = ""
@@ -6587,7 +6587,7 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     _res_cards = _settled_bet_result_cards(iso, sport)
     _prov_res = _provisional_results(iso, sport)
     _res_html = _MC_SEP.join(_res_cards) if _res_cards else ""
-    cards = (_zone("play", "Paris du jour", "", len(_res_cards), _res_html + _prov_res, collapsible=True)
+    cards = (_zone("play", "Confiance", "", len(_res_cards), _res_html + _prov_res, collapsible=True)
              if (_res_cards or _prov_res) else "")
     inner = summ + combo + cards
     if not (combo or cards):
@@ -8798,11 +8798,11 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
 
     _has = bool(play_up or live or prov_up or finished)
     out = [
-        _zone("play", "Paris du jour", "", len(play_up), _rows_by_day(play_up),
+        _zone("play", "Confiance", "", len(play_up), _rows_by_day(play_up),
               empty=("Aucune <b>value</b> à venir pour l'instant — voir les <b>Provisoires</b> plus bas."
                      if _has else None)),
         _zone("live", "En direct", "temps réel", len(live), _cards(live)),
-        _zone("indic", "Paris provisoires", "", len(prov_up), _rows_by_day(prov_up)),
+        _zone("indic", "Provisoire", "", len(prov_up), _rows_by_day(prov_up)),
         _zone("todo", "Terminés", "", len(finished),
               _cards(finished) + (f'<a class="fin-more" href="/">📅 Historique complet jour par jour '
                                   f'dans l\'onglet Pronos ({_fin_more} de plus)</a>' if _fin_more else ""),
@@ -8920,9 +8920,9 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         # Provisoires → Combiné → Combiné double chance.
         out = [
             _zone("montante", _mont_title or "Montante", "en direct", 1 if _mont_card else 0, _mont_card),
-            _zone("play", "Paris du jour", "en direct", len(_play), _cards(_play)),
-            _zone("indic", "Paris provisoires", "en direct", len(_prov), _cards(_prov)),
-            _zone("combo", f"Combiné {_zlabel}", "", 1 if _combo else 0, _combo),
+            _zone("play", "Confiance", "en direct", len(_play), _cards(_play)),
+            _zone("indic", "Provisoire", "en direct", len(_prov), _cards(_prov)),
+            _zone("combo", "Combiné double chance", "", 1 if _combo else 0, _combo),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")

@@ -32,8 +32,10 @@ if ($running) {
 #   Plus de ré-analyse pré-match (user 2026-08-07) : le pick de CHAQUE slate est DÉFINITIF une fois posé.
 Log 'PROGRAMME : liste COMPLÈTE du jour (jour + nuit) pour l''accueil site'
 # 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (Out-File = cmdlet, $LASTEXITCODE reste python).
-# FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés -> tout le budget Claude au foot, --top 15.
-& $py 'tools\generate_analyses.py' --sport foot --top 15 --hours 24 --programme --no-notify 2>&1 |
+# FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés -> tout le budget Claude au foot.
+# --top 8 = QUOTA PAR SLATE (user 2026-08-08 : « 8 jours et 8 nuits, qualité > quantité ») : le programme
+# garde le top 8 du slate JOUR + le top 8 du slate NUIT = 16 matchs/jour (8 analysés le matin, 8 le soir).
+& $py 'tools\generate_analyses.py' --sport foot --top 8 --hours 24 --programme --no-notify 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le
@@ -41,7 +43,7 @@ Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 Log 'REANA SCHED : planification des passes de règlement (coup d''envoi - 1 h)'
 & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Out-File -Append -Encoding utf8 $log
 Log 'SCAN MATIN : SLATE JOUR (coup d''envoi 6h->21h heure belge) + publication des picks'
-& $py 'tools\generate_analyses.py' --sport foot --top 15 --hours 24 --from-programme --force --ko-from 6 --ko-to 21 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot --top 8 --hours 24 --from-programme --force --ko-from 6 --ko-to 21 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 
