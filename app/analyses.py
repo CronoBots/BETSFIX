@@ -2485,6 +2485,7 @@ def provisional_shown(sport, sel, cote, prob, home="", away="", fid=None) -> boo
     except (TypeError, ValueError):
         c = None
     cp = prob
+    _code = ""
     try:
         from app.settle_analyst import code_from_pick
         _code = code_from_pick(sel, sport, home, away)
@@ -2497,6 +2498,12 @@ def provisional_shown(sport, sel, cote, prob, home="", away="", fid=None) -> boo
             cp = _cool_conf(cp, sport, _code, (meta(sport, fid) or {}).get("streaks"))
     except Exception:
         cp = prob
+    # PROVISOIRES = MARCHÉS RÉSULTAT SEULEMENT (user 2026-08-07) : un provisoire TOTAL (Under/Over buts du
+    # match) = « le plus probable » sur un total SANS value = pile ou face -> perd (mesuré : Under 65 %/−16 %,
+    # Over 60 %/−21 %). Les provisoires RÉSULTAT tiennent (1X2 83 %/+10 %, DC 81 %/+3 %). On n'affiche/suit
+    # donc QUE les provisoires résultat -> ROI provisoire positif. Purement affichage/suivi (hors ROI réel).
+    if sport == "foot" and (_code or "").upper().startswith(("UNDER ", "OVER ")):
+        return False
     if cp is None:
         return c is not None                   # sans confiance calculable : garder (repli prudent) si coté
     if cp < 55:                                # PLANCHER : un pick « faible » (rouge) n'est jamais proposé,
