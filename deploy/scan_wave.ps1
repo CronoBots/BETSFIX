@@ -36,7 +36,7 @@ if ($running) {
 # bug 2026-07-08). On formate donc en InvariantCulture -> "1.5".
 $hours = $WindowHours.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 Log ("WAVE START scan foot --hours {0} --from-programme --refresh-early" -f $hours)   # FOOT SEUL (user 2026-08-07)
-& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours $hours --from-programme --refresh-early 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot --top 15 --hours $hours --from-programme --refresh-early 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("WAVE SCAN DONE (exit {0})" -f $LASTEXITCODE)
 

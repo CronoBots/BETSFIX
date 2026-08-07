@@ -34,8 +34,8 @@ if ($running) {
 Log 'PROGRAMME : liste du jour (accueil site)'
 # 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (Out-File = cmdlet, $LASTEXITCODE reste python).
 # FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés du produit -> tout le budget Claude va au foot,
-# profondeur relevée (--top 10) pour couvrir un MAXIMUM de ligues sans dépasser le forfait.
-& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --programme --no-notify 2>&1 |
+# profondeur relevée à --top 15 (user 2026-08-07 : couvrir un MAXIMUM de ligues et matchs du jour).
+& $py 'tools\generate_analyses.py' --sport foot --top 15 --hours 24 --programme --no-notify 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LA RÉ-ANALYSE PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le programme
@@ -43,7 +43,7 @@ Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 Log 'REANA SCHED : planification des ré-analyses (coup d''envoi - 1 h)'
 & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Out-File -Append -Encoding utf8 $log
 Log 'SCAN MATIN : analyse de TOUT le programme (y compris matchs deja affiches) + publication des picks'
-& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --from-programme --force 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot --top 15 --hours 24 --from-programme --force 2>&1 |
     Out-File -Append -Encoding utf8 $log
 Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 
