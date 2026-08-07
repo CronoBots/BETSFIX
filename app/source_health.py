@@ -112,7 +112,8 @@ _SOURCES = [
     ("unibet", "Unibet (Kambi)", "cotes + sélection des matchs", True, _p_unibet),
     ("fotmob", "FotMob", "foot : analyse + règlement tirs", True, _p_fotmob),
     ("pinnacle", "Pinnacle", "ancre sharp (proba de référence)", False, _p_pinnacle),
-    ("espn", "ESPN", "tennis/basket : classement/forme/box-score", False, _p_espn),
+    # ESPN RETIRÉ de la sonde (user 2026-08-07 : app 100 % foot) — ESPN ne servait QUE tennis/basket, son
+    # 403 déclenchait un faux « warn ». La sonde suit désormais uniquement les sources UTILES au football.
     ("understat", "Understat", "foot : xG (top-5 ligues)", False, _p_understat),
     ("flashscore", "Flashscore", "forme/H2H/score (repli règlement)", False, _p_flashscore),
     ("livescore", "LiveScore", "score live + règlement", False, _p_livescore),
