@@ -5668,6 +5668,62 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             f'{_verdict}{board}{_why}</div>')
 
 
+def _leg_live_prob(l: dict):
+    """Chance live d'UNE jambe/pari (extrait l'état live via le cache des sources). None si pas en direct ou
+    non mappable. MÊME calcul que la barre live de `_leg_card` -> réutilisé pour la chance live GLOBALE du
+    combiné et de la montante (user 2026-08-08). PURE AFFICHAGE."""
+    _sp = l.get("sport") or "foot"
+    _lh, _la = l.get("home") or "", l.get("away") or ""
+    if not (_lh and _la) and l.get("name"):
+        _lh, _sep, _la = str(l.get("name")).partition(" - ")
+    _lfz = live_fields(match_select.live_state_for(_sp, _lh, _la), _sp)
+    if not _lfz.get("score"):
+        return None
+    try:
+        _lld = match_select.live_state_for(_sp, _lh, _la)
+        _lhs, _las = _parse_live_score(_lfz.get("score"))
+        _fs = _lfz.get("fstats") or {}
+        _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
+                  "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
+                  "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
+        if _sp == "tennis":
+            _lvals.update(_tennis_sets_games(_lfz.get("score")))
+        _gfrac = (match_select.basket_frac(_lld, l.get("comp") or "") if _sp == "basket" else None)
+        _pr = l.get("prob")
+        _prpct = (_pr * 100 if isinstance(_pr, (int, float)) and _pr <= 1 else _pr)
+        return analyses.live_prob(_sp, l.get("sel", ""), l.get("code", ""), _lh, _la, _lhs, _las,
+                                  match_select.live_minute(_lld),
+                                  match_select.live_win_odds(_sp, _lh, _la), _prpct, None, _lvals, _gfrac)
+    except Exception:
+        return None
+
+
+def _combo_live_prob(cb: dict):
+    """Chance live GLOBALE du combiné (user 2026-08-08) = produit des chances de ses jambes NON encore
+    acquises : chance LIVE si la jambe tourne, sinon proba pré-match. None si AUCUNE jambe n'est en direct
+    (rien de « live » à afficher). Une jambe PERDUE -> combiné à 0 %. PURE AFFICHAGE (jamais ROI/stats)."""
+    legs = cb.get("legs") or []
+    if not legs or cb.get("result") in ("won", "lost", "push", "void"):
+        return None                                    # combiné RÉGLÉ -> pas de barre live (le badge final suffit)
+    lps = [_leg_live_prob(l) for l in legs]
+    if not any(lp is not None for lp in lps):
+        return None                                    # AUCUNE jambe en direct -> rien de « live » à montrer
+    prod = 1.0
+    for l, lp in zip(legs, lps):
+        r = l.get("result")
+        if r in ("won", "push", "void"):
+            continue                                   # jambe acquise -> facteur 1
+        if r == "lost" or (lp and lp.get("source") == "perdu"):
+            return {"pct": 0, "trend": -1, "source": "perdu"}   # une jambe perdue -> combiné à 0 %
+        if lp is not None:
+            prod *= max(0.0, min(1.0, (lp.get("pct") or 0) / 100.0))
+        else:                                          # jambe pas encore en direct -> proba pré-match
+            _pr = l.get("prob")
+            _prpct = (_pr * 100 if isinstance(_pr, (int, float)) and _pr <= 1 else _pr) or 0
+            prod *= max(0.0, min(1.0, _prpct / 100.0))
+    return {"pct": round(prod * 100), "trend": 0, "source": "live"}
+
+
 def _combo_tg_legs(cb: dict) -> str:
     """Jambes du combiné du jour rendues chacune comme un CADRE PROVISOIRE (demande user 2026-07-18) —
     en-tête SPORT • match, pari + gloss, LIGNE VERDICT (confiance/marché/cote), état/live. Via `_leg_card`.
@@ -5763,7 +5819,8 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
     # séparations ? ») : sans elle, la barre 50 %/cote totale semblait appartenir à la DERNIÈRE jambe.
     _body = (f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
              '<div class="combo-total-hd"><span>Total du combiné</span></div>'
-             + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
+             + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False)
+             + _live_bar_html(_combo_live_prob(cb)))   # chance live GLOBALE du combiné (user 2026-08-08)
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
     _sptitle = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sport, "FOOTBALL")
@@ -5945,7 +6002,8 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
             + _MC_SEP.join(_leg_card(l, why=True, verdict=True, teams=False, why_always=True) for l in _legs)   # même match -> pas d'équipes répétées ; why_always : pourquoi consultable même réglé (régression user 2026-08-02)
             + '</div>'
             '<div class="combo-total-hd"><span>Total du combiné</span></div>'
-            + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False))
+            + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False)
+            + _live_bar_html(_combo_live_prob({"legs": _legs})))   # chance live GLOBALE du combiné (user 2026-08-08)
     return out
 
 
