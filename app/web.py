@@ -2999,9 +2999,14 @@ CSS = """
        background:rgba(52,210,123,.09);color:#64cd8d}
   .mont-chip.wait{border-color:rgba(246,197,74,.4);background:rgba(246,197,74,.09);color:var(--gold)}
   .mont-sec-h{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#cfe0f5;
-       margin:18px 2px 9px;display:flex;align-items:center;gap:8px}
+       margin:22px 2px 10px;display:flex;align-items:center;gap:9px}
+  .mont-sec-h::before{content:"";flex:none;width:15px;height:2px;border-radius:2px;
+       background:linear-gradient(90deg,var(--gold),rgba(246,197,74,.2))}   /* accent doré, ancre premium commune */
   .mont-sec-h .tag{margin-left:auto;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--gold);
        border:1px solid rgba(246,197,74,.35);border-radius:999px;padding:2px 9px;text-transform:none}
+  /* Lead (micro-copy) sous un titre de section — guide le nouveau venu, ton premium */
+  .mont-lead{font-size:11.5px;color:var(--muted);line-height:1.5;margin:-5px 4px 12px 26px}
+  .mont-lead b{color:var(--text)}
   /* Échelle des paliers (staircase) */
   .mont-ladder{display:flex;flex-direction:column;gap:7px}
   .mont-step{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:13px;
@@ -3049,13 +3054,28 @@ CSS = """
   .mont-c{width:100%;height:auto;display:block}
   .mont-c-lbl{font-size:9px;font-weight:800;fill:var(--muted);font-variant-numeric:tabular-nums}
   .mont-c-lbl.end{fill:#34d27b}
-  /* Comment ça marche : 4 étapes numérotées */
-  .mont-how{display:flex;flex-direction:column;gap:9px}
-  .mont-how-r{display:flex;align-items:flex-start;gap:11px}
-  .mont-how-n{flex:none;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-       font-size:12px;font-weight:800;background:linear-gradient(180deg,var(--accent),var(--accent2));color:#04121e}
-  .mont-how-t{font-size:12.5px;color:var(--text);line-height:1.45;padding-top:3px}
+  /* Comment ça marche : étapes en CARTES premium (user 2026-08-09) — dernière étape (risque plafonné)
+     teintée VERT = rassurant, ce qui donne envie de se lancer. */
+  .mont-how{display:flex;flex-direction:column;gap:8px}
+  .mont-how-r{display:flex;align-items:flex-start;gap:12px;padding:11px 13px;border-radius:14px;
+       background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border)}
+  .mont-how-r.safe{border-color:rgba(52,210,123,.34);background:linear-gradient(180deg,rgba(52,210,123,.08),#0b0d13)}
+  .mont-how-n{flex:none;width:27px;height:27px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+       font-size:12.5px;font-weight:900;background:linear-gradient(180deg,var(--accent),var(--accent2));color:#04121e}
+  .mont-how-r.safe .mont-how-n{background:linear-gradient(180deg,#4fe08f,#2bbf6f);color:#04210f}
+  .mont-how-t{font-size:12.5px;color:var(--text);line-height:1.46;padding-top:4px}
   .mont-how-t b{color:#fff}
+  /* Palmarès : KPIs premium propres à la montante (n'affecte pas les .sx-kpi des stats). Best = or. */
+  .mont-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .mont-kpi{text-align:center;padding:14px 8px 12px;border-radius:15px;
+       background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border)}
+  .mont-kpi.best{border-color:rgba(246,197,74,.42);
+       background:radial-gradient(120% 90% at 50% 0%,rgba(246,197,74,.1),transparent 65%),linear-gradient(180deg,#0f1620,#0b0d13)}
+  .mont-kpi b{display:block;font-size:20px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums;
+       letter-spacing:-.01em;line-height:1}
+  .mont-kpi.best b{color:var(--gold)}
+  .mont-kpi span{display:block;font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+       color:var(--dim);margin-top:6px;line-height:1.3}
   /* Historique des montantes (chaînes passées) */
   .mont-hist{display:flex;flex-direction:column;gap:8px}
   .mont-hrow{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:12px;
@@ -7226,8 +7246,9 @@ def _mont_eur(v) -> str:
         return "—"
 
 
-def _mont_how(n: int, txt: str) -> str:
-    return f'<div class="mont-how-r"><div class="mont-how-n">{n}</div><div class="mont-how-t">{txt}</div></div>'
+def _mont_how(n: int, txt: str, safe: bool = False) -> str:
+    _c = " safe" if safe else ""   # étape « risque plafonné » teintée vert (rassurant)
+    return f'<div class="mont-how-r{_c}"><div class="mont-how-n">{n}</div><div class="mont-how-t">{txt}</div></div>'
 
 
 def _mont_curve(caps: list, uid: str = "mc") -> str:
@@ -7395,7 +7416,9 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
              "result": None, "start": pending.get("start"),
              "why": _prov_why_snippet(_psp, str(pending.get("mid") or ""), maxlen=100000, played=True)},
             why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")
-        pari = f'<div class="mont-sec-h">🎯 Le pari du jour</div>{_pcard}'
+        pari = ('<div class="mont-sec-h">Le pari du jour</div>'
+                '<div class="mont-lead">Un seul pari, le plus sûr du jour — pour viser le palier suivant.</div>'
+                f'{_pcard}')
     else:
         # Pas de pari EN ATTENTE -> montrer le pari du jour RÉGLÉ (avec son RÉSULTAT) LÀ où était la sélection
         # (user 2026-08-08 : « le résultat doit s'afficher là où était sa sélection »). Sinon message vide.
@@ -7417,9 +7440,9 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
                  "start": _tsd.get("start"),
                  "why": _prov_why_snippet(_tsp, _tmid, maxlen=100000, played=True)},
                 why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")
-            pari = f'<div class="mont-sec-h">🎯 Le pari du jour</div>{_tcard}'
+            pari = f'<div class="mont-sec-h">Le pari du jour</div>{_tcard}'
         else:
-            pari = ('<div class="mont-sec-h">🎯 Le pari du jour</div>'
+            pari = ('<div class="mont-sec-h">Le pari du jour</div>'
                     '<div class="mont-empty">Le <b>pari du jour</b> s\'affichera ici — <b>1</b> sélection sûre '
                     'pour faire grimper la mise. À suivre chaque jour.</div>')
 
@@ -7433,7 +7456,8 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     # COURBE de progression du capital (10 € -> pic) au-dessus des paliers (demande user 2026-07-24)
     _caps = [s.get("stake") for s in _fsteps if isinstance(s.get("stake"), (int, float))]
     _curve = f'<div class="mont-curve">{_mont_curve(_caps, uid="best")}</div>' if len(_caps) >= 2 else ""
-    ladder = (f'<div class="mont-sec-h">🪜 {"La meilleure montante" if sim else "La montante"}{tag}</div>'
+    ladder = (f'<div class="mont-sec-h">{"La meilleure montante" if sim else "La montante"}{tag}</div>'
+              '<div class="mont-lead">Chaque palier gagné fait grimper la mise — la voici, palier par palier.</div>'
               f'{_curve}<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
 
     # VITRINE « meilleure montante » en mode RÉEL (demande user 2026-07-25) : la simulation sur les simples
@@ -7451,13 +7475,15 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
             f'en <b>{_sstats.get("best_palier", 0)}</b> paliers. Indicatif, hors ROI.</div>'
             f'{_scurve}<div class="mont-ladder">{_mont_ladder(_ss)}</div>')
 
-    # COMMENT ÇA MARCHE
-    how = ('<div class="mont-sec-h">Comment ça marche</div><div class="mont-how">'
+    # COMMENT ÇA MARCHE — le principe en 4 étapes (risque plafonné mis en avant = rassurant).
+    how = ('<div class="mont-sec-h">Comment ça marche</div>'
+           '<div class="mont-lead">Le principe en <b>4 étapes</b> — simple, et le risque est '
+           '<b>plafonné à 10 €</b>.</div>'
+           '<div class="mont-how">'
            + _mont_how(1, 'On part d\'une mise de <b>10 €</b>.')
            + _mont_how(2, '<b>Un seul pari par jour</b> — le plus sûr, choisi parmi tous les matchs analysés.')
-           + _mont_how(3, 'Gagné ✓ → on <b>rejoue la totalité</b> (mise + gains) le lendemain.')
-           + _mont_how(4, 'Perdu ✗ → la montante s\'arrête et on <b>repart à 10 €</b>. On ne perd jamais '
-                          'que la mise de départ.')
+           + _mont_how(3, 'Gagné → on <b>rejoue la totalité</b> (mise + gains) le lendemain, et la mise grimpe.')
+           + _mont_how(4, 'Perdu → la montante repart à <b>10 €</b>. On ne risque <b>jamais plus</b> que la mise de départ.', safe=True)
            + '</div>')
 
     # HISTORIQUE des montantes terminées. La VRAIE montante vient de démarrer (aucune chaîne terminée) ->
@@ -7484,16 +7510,16 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     # PALMARÈS / STATS
     palmares = (
         '<div class="mont-sec-h">Palmarès</div>'
-        '<div class="sx-kpis sx-kpis3">'
-        f'<div class="sx-kpi"><b>{_mont_eur(stats.get("best_capital", base))}</b><span>meilleure montante</span></div>'
-        f'<div class="sx-kpi"><b>{stats.get("best_palier", 0)}</b><span>paliers max</span></div>'
-        f'<div class="sx-kpi"><b>{stats.get("n", 0)}</b><span>montantes jouées</span></div>'
+        '<div class="mont-kpis">'
+        f'<div class="mont-kpi best"><b>{_mont_eur(stats.get("best_capital", base))}</b><span>meilleure montante</span></div>'
+        f'<div class="mont-kpi"><b>{stats.get("best_palier", 0)}</b><span>paliers max</span></div>'
+        f'<div class="mont-kpi"><b>{stats.get("n", 0)}</b><span>montantes jouées</span></div>'
         '</div>')
 
     # BADGE NAV MONTANTE (user 2026-08-08) : 1 s'il y a un pari du jour (palier en attente), sinon 0.
     _mn = 1 if _montante_palier() is not None else 0
     return (f'<span class="dv-nav" data-tab="montante" data-n="{_mn}" hidden></span>'
-            + hero + intro + pari + ladder + showcase + how + hist + palmares)
+            + hero + intro + how + ladder + pari + palmares + hist + showcase)
 
 
 _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
