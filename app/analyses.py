@@ -4302,8 +4302,13 @@ def bet_detail(sport: str | None = None, pari: int | None = None,
     return out
 
 
-_ODDS_BUCKETS = ((1.0, 1.30, "1.00–1.30"), (1.30, 1.50, "1.30–1.50"), (1.50, 1.70, "1.50–1.70"),
-                 (1.70, 2.00, "1.70–2.00"), (2.00, 99.0, "2.00 +"))
+# Tranches de cote AFFINÉES dans la zone RÉELLE des paris foot (user 2026-08-08) : 100 % des paris joués
+# (et même toute la population diagnostique, n=221) sont entre 1.10 et 1.68 — les anciennes tranches larges
+# (1.00–1.30 … + deux tranches ≥1.70 TOUJOURS VIDES) noyaient l'info (ex. la faiblesse ROI des cotes <1.25,
+# invisible car fondue dans « 1.00–1.30 »). Découpage fin par pas de 0.10 sur 1.25–1.55 (le cœur, cote
+# médiane 1.37) + une tranche « 1.70 + » filet (masquée tant qu'elle est vide -> catch-all outlier futur).
+_ODDS_BUCKETS = ((1.0, 1.25, "< 1.25"), (1.25, 1.35, "1.25–1.35"), (1.35, 1.45, "1.35–1.45"),
+                 (1.45, 1.55, "1.45–1.55"), (1.55, 1.70, "1.55–1.70"), (1.70, 99.0, "1.70 +"))
 _CONF_BANDS = ((0, 65, "< 65 %"), (65, 70, "65–70 %"), (70, 75, "70–75 %"),
                (75, 80, "75–80 %"), (80, 101, "80 % +"))
 
