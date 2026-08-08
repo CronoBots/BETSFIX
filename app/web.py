@@ -6316,7 +6316,7 @@ def _provisional_results(iso: str, sport: str | None = None, header: bool = True
 _RES_RANK = {"won": 0, "push": 1, "void": 1, "lost": 2}
 
 
-def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
+def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: set | None = None) -> list:
     """Cartes des PARIS JOUÉS TERMINÉS d'un jour, rendues COMME les pronos (demande user 2026-07-28 : « tous
     les résultats affichés de la même manière ») : carte `_leg_card` complète (en-tête, équipes, pari + glose,
     ligne VERDICT confiance/marché/value, SCORE final, pli « Pourquoi ») avec CADRE vert/rouge selon le
@@ -6341,6 +6341,8 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None) -> list:
             if not analyses.is_settled(d):
                 continue
             fid = str(d.get("id"))
+            if exclude_mids and fid in exclude_mids:   # ex. match de la montante -> déjà affiché en carte montante
+                continue
             _bdg, _sco = analyses.result_chip(d)
             _board = analyses.result_board(d, sp) or {}
             combo = d.get("combo") or {}
@@ -6580,7 +6582,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # de résultat actuelles). Les combinés (include_settled=True ci-dessus) le font déjà en place ; ici on
     # injecte les PARIS JOUÉS et PROVISOIRES terminés à la suite de leurs homologues à venir/en cours.
     today_iso = _sport_today().isoformat()
-    _res_cards = _settled_bet_result_cards(today_iso, sport)         # paris joués terminés (cartes _leg_card)
+    # EXCLURE le match de la montante des cartes résultat SIMPLES : il est déjà affiché en carte MONTANTE
+    # (titre + cadre) -> sinon il apparaîtrait 2× (user 2026-08-08 : « le résultat sans montante ne doit pas
+    # être mis vu qu'il y est déjà avec la montante »).
+    _mont_ex = {str((_montante_today_bet() or {}).get("mid") or "")} if _mont_card else None
+    _res_cards = _settled_bet_result_cards(today_iso, sport, exclude_mids=_mont_ex)   # paris joués terminés (cartes _leg_card)
     _prov_res = _provisional_results(today_iso, sport, header=False)  # provisoires réglés (sans sous-titre)
     # PARIS DU JOUR = à venir/en cours PUIS terminés (chacun affiche son résultat). Zone visible s'il y a l'un
     # ou l'autre.
@@ -7315,11 +7321,13 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
             _tmatch = _noF(str(_tb.get("match") or ""))
             _th, _, _ta = _tmatch.partition(" - ")
             _trb = analyses.retained_bet(_tsp, _tmid, for_history=True) or {}
+            _tboard = (analyses.result_board(_tsd, _tsp) or {}) if _tb.get("result") in ("won", "lost", "push", "void") else {}
             _tcard = _leg_card(
                 {"sport": _tsp, "home": _tsd.get("home") or _th, "away": _tsd.get("away") or _ta,
                  "name": _tmatch, "comp": _tsd.get("comp") or "", "sel": _tb.get("sel"),
                  "cote": _tb.get("cote"), "prob": _trb.get("prob"),
                  "code": _trb.get("code") or _tb.get("code") or "", "result": _tb.get("result"),
+                 "score": _tboard.get("score"), "periods": _tboard.get("periods"), "pens": _tboard.get("pens"),
                  "start": _tsd.get("start"),
                  "why": _prov_why_snippet(_tsp, _tmid, maxlen=100000, played=True)},
                 why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")
