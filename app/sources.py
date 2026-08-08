@@ -91,7 +91,12 @@ _FR_EN = {
 _TOK_ALIAS = {"barcelone": "barcelona", "seville": "sevilla", "naples": "napoli",
               "turin": "torino", "rome": "roma", "lisbonne": "lisbon",
               "londres": "london", "genes": "genoa", "florence": "fiorentina",
-              "anvers": "antwerp", "bruges": "brugge", "munich": "munchen"}
+              "anvers": "antwerp", "bruges": "brugge", "munich": "munchen",
+              # Clubs BELGES à nom francisé (Unibet FR) -> nom international des sources de score
+              # (règlement : cas Bruges-Courtrai « terminé mais pas réglé », user 2026-08-08).
+              "courtrai": "kortrijk", "malines": "mechelen", "gantoise": "gent",
+              "alost": "aalst", "ostende": "oostende", "louvain": "leuven",
+              "trond": "truiden", "termonde": "dendermonde"}
 
 
 def _deacc_low(s: str) -> str:
