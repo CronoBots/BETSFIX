@@ -5906,6 +5906,24 @@ def _montante_palier_for(mid) -> tuple | None:
         return None
 
 
+def _montante_today_bet():
+    """Le pari montante DU JOUR : le `pending` (non réglé) sinon le dernier step RÉGLÉ aujourd'hui (jour
+    sportif). None si montante inactive / aucun pari aujourd'hui. Sert à afficher le pari montante ET son
+    résultat une fois réglé (user 2026-08-08)."""
+    try:
+        from app import montante as _mt
+        if not _mt.is_active():
+            return None
+        p = _mt.state().get("pending")
+        if p and p.get("sel"):
+            return p
+        _today = _sport_today().isoformat()
+        _ts = [s for s in (_mt.load().get("steps") or []) if str(s.get("date")) == _today and s.get("sel")]
+        return _ts[-1] if _ts else None
+    except Exception:
+        return None
+
+
 def _montante_zone_card(sport: str | None) -> tuple:
     """(titre_zone, carte) du pari MONTANTE du jour rendu COMME les autres types de paris (carte `_leg_card`
     avec ligne verdict + pli « Pourquoi »), pour sa propre zone « Montante · Palier N » (demande user
@@ -5918,10 +5936,12 @@ def _montante_zone_card(sport: str | None) -> tuple:
         if not _mt.is_active():
             return "", ""
         st = _mt.state()
-        p = st.get("pending")
-        if not p or not p.get("sel"):
+        p = _montante_today_bet()                      # pending OU pari réglé du jour (user 2026-08-08)
+        if not (p and p.get("sel")):
             return "", ""
-        palier = int(st.get("palier") or 0) + 1
+        # palier : le pending est le PROCHAIN (state+1) ; un pari RÉGLÉ du jour est celui qui vient d'avancer.
+        _settled = p.get("result") in ("won", "lost", "push", "void")
+        palier = int(st.get("palier") or 0) + (0 if _settled else 1)
         mid = str(p.get("mid") or "")
         d = analyses.meta("foot", mid) or {}
         start = d.get("start")
@@ -6527,10 +6547,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         # user 2026-08-08. On l'ajoute comme pseudo-carte (`_html`) avec le statut/heure du match montante.
         _mont_deco = (f'<div class="mont-cardwrap"><a class="mont-hdr" data-goto="montante" href="/montante" '
                       f'onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
-        try:
-            _mpj = _mt0.state().get("pending") or {} if _mt0.is_active() else {}
-        except Exception:
-            _mpj = {}
+        _mpj = _montante_today_bet() or {}             # pending OU pari réglé du jour (pour l'heure/le live)
         _msd = analyses.meta("foot", str(_mpj.get("mid") or "")) or {}
         try:
             _mts = datetime.fromisoformat(str(_msd.get("start")).replace("Z", "+00:00")).timestamp() if _msd.get("start") else 0
@@ -7270,9 +7287,29 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
             why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")
         pari = f'<div class="mont-sec-h">🎯 Le pari du jour</div>{_pcard}'
     else:
-        pari = ('<div class="mont-sec-h">🎯 Le pari du jour</div>'
-                '<div class="mont-empty">Le <b>pari du jour</b> s\'affichera ici — <b>1</b> sélection sûre '
-                'pour faire grimper la mise. À suivre chaque jour.</div>')
+        # Pas de pari EN ATTENTE -> montrer le pari du jour RÉGLÉ (avec son RÉSULTAT) LÀ où était la sélection
+        # (user 2026-08-08 : « le résultat doit s'afficher là où était sa sélection »). Sinon message vide.
+        _tb = _montante_today_bet()
+        if _tb and _tb.get("sel"):
+            _tsp = _tb.get("sport") or "foot"
+            _tmid = str(_tb.get("mid") or "")
+            _tsd = analyses.meta(_tsp, _tmid) or {}
+            _tmatch = _noF(str(_tb.get("match") or ""))
+            _th, _, _ta = _tmatch.partition(" - ")
+            _trb = analyses.retained_bet(_tsp, _tmid, for_history=True) or {}
+            _tcard = _leg_card(
+                {"sport": _tsp, "home": _tsd.get("home") or _th, "away": _tsd.get("away") or _ta,
+                 "name": _tmatch, "comp": _tsd.get("comp") or "", "sel": _tb.get("sel"),
+                 "cote": _tb.get("cote"), "prob": _trb.get("prob"),
+                 "code": _trb.get("code") or _tb.get("code") or "", "result": _tb.get("result"),
+                 "start": _tsd.get("start"),
+                 "why": _prov_why_snippet(_tsp, _tmid, maxlen=100000, played=True)},
+                why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")
+            pari = f'<div class="mont-sec-h">🎯 Le pari du jour</div>{_tcard}'
+        else:
+            pari = ('<div class="mont-sec-h">🎯 Le pari du jour</div>'
+                    '<div class="mont-empty">Le <b>pari du jour</b> s\'affichera ici — <b>1</b> sélection sûre '
+                    'pour faire grimper la mise. À suivre chaque jour.</div>')
 
     # ÉCHELLE — montante mise en avant (meilleure série en sim, en cours en réel) OU exemple
     if featured and featured.get("steps"):
