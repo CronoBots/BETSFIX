@@ -785,21 +785,18 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     # 100 % FOOT (user 2026-08-08 : tennis/basket supprimés -> plus de logique d'autres sports) : on respecte
     # simplement `--top` (le quota PAR SLATE choisi par le user). Fini l'« élargissement adaptatif » à 10 qui
     # écrasait `--top 8` en croyant réallouer la capacité de sports « en pause » (bug 10/slate au lieu de 8).
-    _foot_top = args.top
+    _top = args.top   # quota PAR SLATE (foot-only, plus d'élargissement)
     n_ok = 0
-    for sport in sports:
-        always = _is_big_match if sport == "foot" else None
-        _top = _foot_top if sport == "foot" else args.top          # foot élargi en probation ; autres sports au top normal
+    for sport in sports:                          # foot uniquement (sports = ["foot"])
         # QUOTA PAR SLATE (user 2026-08-07) : avec 2 créneaux (jour/nuit), `--top` est le quota de CHAQUE
-        # slate, PAS du jour entier -> le slate JOUR ne prive plus le slate NUIT (ex. 12 matchs de jour ne
-        # laissaient que 3 places à la nuit). On tire un POOL TRÈS LARGE (le fetch réseau est INDÉPENDANT de N
-        # -> gratuit : `rank_important` trie tout puis tronque) puis on garde le top `_top` de CHAQUE bande de
+        # slate, PAS du jour entier. On tire un POOL TRÈS LARGE (le fetch réseau est INDÉPENDANT de N ->
+        # gratuit : `rank_important` trie tout puis tronque) puis on garde le top `_top` de CHAQUE bande de
         # coup d'envoi -> vrai top `_top` par slate, même si le jour domine le classement d'importance.
-        _pool_n = max(_top * 10, 150) if sport == "foot" else _top
+        _pool_n = max(_top * 10, 150)
         top = None
         for _attempt in range(3):                 # getaddrinfo = hoquet fréquent (cf. CLAUDE.md) -> on retente
             try:
-                top = await fetch_important(sport, _pool_n, client, within_hours=args.hours, always=always)
+                top = await fetch_important(sport, _pool_n, client, within_hours=args.hours, always=_is_big_match)
                 break
             except Exception as e:
                 top = None
@@ -807,7 +804,7 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                     await asyncio.sleep(2)
                 else:
                     print(f"[{sport}] sélection programme échouée (3 essais) : {e}")
-        if top is None:                           # réseau KO -> on CONSERVE le programme précédent de CE sport
+        if top is None:                           # réseau KO -> on CONSERVE le programme précédent
             if prev_by_sport.get(sport):
                 matches.extend(prev_by_sport[sport])
                 print(f"[{sport}] réseau KO -> programme précédent conservé ({len(prev_by_sport[sport])} match(s)).")
@@ -815,13 +812,11 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         n_ok += 1
         if args.only_big:
             top = [m for m in top if _is_big_match(m.get("comp") or m.get("circuit") or "")]
-        if sport == "foot":                       # top `_top` du slate JOUR + top `_top` du slate NUIT (pool trié)
-            _day = [m for m in top if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)][:_top]
-            _night = [m for m in top if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)][:_top]
-            top = _day + _night
-            print(f"[foot] programme par slate : {len(_day)} JOUR + {len(_night)} NUIT (quota {_top}/slate).")
-        else:
-            top = top[:_top]
+        # top `_top` du slate JOUR + top `_top` du slate NUIT (pool trié par importance)
+        _day = [m for m in top if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)][:_top]
+        _night = [m for m in top if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)][:_top]
+        top = _day + _night
+        print(f"[foot] programme par slate : {len(_day)} JOUR + {len(_night)} NUIT (quota {_top}/slate).")
         for m in top:
             _e = {"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
                   "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""}
@@ -2637,7 +2632,10 @@ async def main():
     # (1/sport/jour), donc la conso reste minime — contrairement à l'app live qui les refuse.
     from app import sofa_http
     sofa_http.allow_bulk_proxy = True
-    sports = [s.strip() for s in args.sport.split(",") if s.strip()]
+    # 100 % FOOT (user 2026-08-08 : tennis/basket supprimés). On FORCE le foot ici -> toutes les branches
+    # tennis/basket en aval deviennent inatteignables (neutralisées) et ne peuvent plus causer de bug (ex.
+    # l'élargissement à 10). `--sport` est ignoré s'il vise autre chose que le foot.
+    sports = ["foot"]
     # MODE PROGRAMME (matin) : sélectionne + poste la LISTE du jour, SANS analyser, puis sort.
     if args.programme:
         async with httpx.AsyncClient(timeout=20) as client:
