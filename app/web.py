@@ -6664,6 +6664,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _combo_rec = None
     _c_legs = None
     _c_leg_results = None
+    _combo_active = bool(combo_daily)   # défaut : compte le combiné (repli si son état est illisible)
     if combo_daily:
         try:
             from app import combo_daily as _cd2
@@ -6673,6 +6674,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _c_leg_results = [l.get("result") for l in (_cbt.get("legs") or [])] or None
             _cr = _cbt.get("result")
             _c_settled = _cr in ("won", "lost", "void")
+            _combo_active = not _c_settled   # badge nav : ne compter le combiné QUE s'il n'est pas encore réglé
             _c_live = bool(combo_daily) and not _c_settled and _daily_combo_any_live()
             # EN ATTENTE DE RÉSOLUTION : pas réglé, pas live, mais au moins une jambe a déjà commencé/fini.
             _c_pend = 1 if (not _c_settled and not _c_live and any(
@@ -6690,11 +6692,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
     zones = f'<div class="dash-zones">{inner or _empty}</div>'
     today_iso = _sport_today().isoformat()
-    # BADGE nav : paris joués (play) + provisoires (prov) + combiné du jour (+1). La MONTANTE n'est PAS
-    # ajoutée séparément (fix double-compte user 2026-08-08) : sa carte est INJECTÉE dans `play` (l.6600 quand
-    # active) après avoir été retirée des cartes normales (l.6547) -> elle est déjà comptée dans len(play).
-    # L'ancien `+ _mont_on` la recomptait -> badge « 2 » pour 1 seul pari montante en cours.
-    _cnt = len(play) + len(prov) + (1 if combo_daily else 0)
+    # BADGE nav = paris NON RÉGLÉS du jour (à venir + en cours). `play`/`prov` ne contiennent DÉJÀ que
+    # l'actif (les réglés partent dans _res_cards/_prov_res). Le combiné ne compte donc QUE s'il est encore
+    # actif (`_combo_active`) : un combiné RÉGLÉ ne doit plus gonfler le badge (fix user 2026-08-08 : badge
+    # « 2 » alors qu'il ne restait qu'1 pari en cours, le combiné du jour étant déjà perdu). La MONTANTE
+    # n'est PAS ajoutée séparément (fix double-compte) : sa carte est déjà dans `play` (l.6600).
+    _cnt = len(play) + len(prov) + (1 if _combo_active else 0)
     return _day_header(today_iso) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
