@@ -3003,6 +3003,11 @@ CSS = """
   .mont-cardwrap{border:1px solid #3aa0ff;border-radius:14px;overflow:hidden;
        box-shadow:0 0 0 1px rgba(58,160,255,.30),0 8px 26px rgba(58,160,255,.12)}
   .mont-cardwrap > .cleg{border-color:transparent;box-shadow:none;border-radius:0}
+  /* Une fois RÉGLÉ : contour VERT (gagné) / ROUGE (perdu), comme les autres cartes résultat (user 2026-08-08). */
+  .mont-cardwrap.won{border-color:var(--st-won);box-shadow:0 0 0 1px rgba(52,210,123,.30),0 8px 26px rgba(52,210,123,.12)}
+  .mont-cardwrap.lost{border-color:var(--st-lost);box-shadow:0 0 0 1px rgba(255,107,107,.30),0 8px 26px rgba(255,107,107,.12)}
+  .mont-hdr.won{background:rgba(52,210,123,.16);border-bottom-color:rgba(52,210,123,.45)}
+  .mont-hdr.lost{background:rgba(255,107,107,.16);border-bottom-color:rgba(255,107,107,.45)}
   /* Courbe de progression du capital (10 € -> pic), échelle log */
   .mont-curve{margin:2px 0 11px}
   .mont-c{width:100%;height:auto;display:block}
@@ -6545,9 +6550,13 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         # Carte montante = titre « MONTANTE • PALIER N » (centré, blanc, MAJUSCULE, sans emoji) + fine ligne +
         # cadre BLEU, INSÉRÉE dans la liste Confiance et TRIÉE PAR STATUT (pas épinglée en haut, pas en double) —
         # user 2026-08-08. On l'ajoute comme pseudo-carte (`_html`) avec le statut/heure du match montante.
-        _mont_deco = (f'<div class="mont-cardwrap"><a class="mont-hdr" data-goto="montante" href="/montante" '
-                      f'onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
-        _mpj = _montante_today_bet() or {}             # pending OU pari réglé du jour (pour l'heure/le live)
+        _mpj = _montante_today_bet() or {}             # pending OU pari réglé du jour (pour l'heure/le live/résultat)
+        # CADRE vert (gagné) / rouge (perdu) une fois réglé, comme les autres cartes résultat (user 2026-08-08) ;
+        # bleu tant que non réglé (en attente/live). Le titre « MONTANTE • PALIER N » suit la même couleur.
+        _mres = _mpj.get("result")
+        _mcls = " won" if _mres == "won" else " lost" if _mres in ("lost", "void", "push") else ""
+        _mont_deco = (f'<div class="mont-cardwrap{_mcls}"><a class="mont-hdr{_mcls}" data-goto="montante" '
+                      f'href="/montante" onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
         _msd = analyses.meta("foot", str(_mpj.get("mid") or "")) or {}
         try:
             _mts = datetime.fromisoformat(str(_msd.get("start")).replace("Z", "+00:00")).timestamp() if _msd.get("start") else 0
