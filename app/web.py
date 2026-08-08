@@ -3007,12 +3007,22 @@ CSS = """
   /* Lead (micro-copy) sous un titre de section — guide le nouveau venu, ton premium */
   .mont-lead{font-size:11.5px;color:var(--muted);line-height:1.5;margin:-5px 4px 12px 26px}
   .mont-lead b{color:var(--text)}
-  /* Échelle des paliers (staircase) */
+  /* Échelle des paliers (staircase) — BARRE DE PROGRESSION de fond (largeur ∝ capital/pic) : on voit la mise
+     grimper palier après palier (refonte 2026-08-09). Contenu au-dessus (z-index). */
   .mont-ladder{display:flex;flex-direction:column;gap:7px}
-  .mont-step{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:13px;
-       background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border)}
+  .mont-step{position:relative;overflow:hidden;display:flex;align-items:center;gap:11px;padding:9px 12px;
+       border-radius:13px;background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border)}
+  .mont-step > *{position:relative;z-index:1}
+  .mont-step-fill{position:absolute;z-index:0;left:0;top:0;bottom:0;border-radius:0 13px 13px 0;
+       background:linear-gradient(90deg,rgba(52,210,123,.16),rgba(52,210,123,.05));border-right:1px solid rgba(52,210,123,.22)}
+  .mont-step.lost .mont-step-fill{background:linear-gradient(90deg,rgba(255,107,107,.14),rgba(255,107,107,.04));border-right-color:rgba(255,107,107,.22)}
+  .mont-step.pending .mont-step-fill{background:linear-gradient(90deg,rgba(246,197,74,.15),rgba(246,197,74,.04));border-right-color:rgba(246,197,74,.24)}
+  .mont-step.peak .mont-step-fill{background:linear-gradient(90deg,rgba(246,197,74,.2),rgba(246,197,74,.06));border-right-color:rgba(246,197,74,.4)}
   .mont-step.won{border-color:rgba(52,210,123,.32)} .mont-step.lost{border-color:rgba(255,107,107,.32)}
   .mont-step.pending{border-color:rgba(246,197,74,.42)}
+  .mont-step.peak{border-color:rgba(246,197,74,.55);box-shadow:0 0 18px rgba(246,197,74,.14)}
+  .mont-step.peak .mont-step-n{background:linear-gradient(180deg,#ffe79b,#f6c54a);color:#3a2a05}
+  .mont-step.peak .mont-step-a .to{color:var(--gold)}
   .mont-step-n{flex:none;width:26px;height:26px;border-radius:8px;display:flex;
        align-items:center;justify-content:center;line-height:1;background:rgba(255,255,255,.05);color:var(--muted)}
   .mont-step-n b{font-size:12px;font-weight:800}
@@ -3049,22 +3059,12 @@ CSS = """
   .mont-cardwrap.lost{border-color:var(--st-lost);box-shadow:0 0 0 1px rgba(255,107,107,.30),0 8px 26px rgba(255,107,107,.12)}
   .mont-hdr.won{background:rgba(52,210,123,.16);border-bottom-color:rgba(52,210,123,.45)}
   .mont-hdr.lost{background:rgba(255,107,107,.16);border-bottom-color:rgba(255,107,107,.45)}
-  /* Courbe de progression du capital (10 € -> pic), échelle log */
-  .mont-curve{margin:2px 0 11px}
+  /* Courbe d'aire de la trajectoire du capital (10 € -> pic), panneau chart subtil (refonte 2026-08-09) */
+  .mont-curve{margin:2px 0 12px;padding:9px 8px 3px;border-radius:14px;
+       background:linear-gradient(180deg,rgba(52,210,123,.05),transparent);border:1px solid var(--border)}
   .mont-c{width:100%;height:auto;display:block}
-  .mont-c-lbl{font-size:9px;font-weight:800;fill:var(--muted);font-variant-numeric:tabular-nums}
-  .mont-c-lbl.end{fill:#34d27b}
-  /* Comment ça marche : étapes en CARTES premium (user 2026-08-09) — dernière étape (risque plafonné)
-     teintée VERT = rassurant, ce qui donne envie de se lancer. */
-  .mont-how{display:flex;flex-direction:column;gap:8px}
-  .mont-how-r{display:flex;align-items:flex-start;gap:12px;padding:11px 13px;border-radius:14px;
-       background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border)}
-  .mont-how-r.safe{border-color:rgba(52,210,123,.34);background:linear-gradient(180deg,rgba(52,210,123,.08),#0b0d13)}
-  .mont-how-n{flex:none;width:27px;height:27px;border-radius:9px;display:flex;align-items:center;justify-content:center;
-       font-size:12.5px;font-weight:900;background:linear-gradient(180deg,var(--accent),var(--accent2));color:#04121e}
-  .mont-how-r.safe .mont-how-n{background:linear-gradient(180deg,#4fe08f,#2bbf6f);color:#04210f}
-  .mont-how-t{font-size:12.5px;color:var(--text);line-height:1.46;padding-top:4px}
-  .mont-how-t b{color:#fff}
+  .mont-c-lbl{font-size:9.5px;font-weight:800;fill:var(--muted);font-variant-numeric:tabular-nums}
+  .mont-c-lbl.end{fill:#34d27b;font-size:11.5px;font-weight:900}
   /* Palmarès : KPIs premium propres à la montante (n'affecte pas les .sx-kpi des stats). Best = or. */
   .mont-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
   .mont-kpi{text-align:center;padding:14px 8px 12px;border-radius:15px;
@@ -7246,73 +7246,84 @@ def _mont_eur(v) -> str:
         return "—"
 
 
-def _mont_how(n: int, txt: str, safe: bool = False) -> str:
-    _c = " safe" if safe else ""   # étape « risque plafonné » teintée vert (rassurant)
-    return f'<div class="mont-how-r{_c}"><div class="mont-how-n">{n}</div><div class="mont-how-t">{txt}</div></div>'
-
-
 def _mont_curve(caps: list, uid: str = "mc") -> str:
-    """Graphique à BARRES de la progression du capital d'une montante — UNE barre par PALIER (demande user
-    2026-07-28 : plus représentatif de l'escalier de paliers qu'une courbe continue). Échelle LOG (garde les
-    1ers paliers visibles malgré le pic final) ; barres vertes, dernière (pic) plus vive + repères début/pic.
-    '' si moins de 2 points."""
-    import math
+    """COURBE D'AIRE de la trajectoire du capital d'une montante (10 € -> pic), refonte premium 2026-08-09 :
+    ligne verte lissée (Catmull-Rom) + remplissage dégradé, un point discret par palier, POINT FINAL mis en
+    valeur (halo + gros disque) avec l'étiquette du capital atteint. Échelle LINÉAIRE = la montée compose et
+    « décolle » visuellement (effet hockey-stick). '' si moins de 2 points."""
     pts = [float(c) for c in (caps or []) if isinstance(c, (int, float)) and c > 0]
     if len(pts) < 2:
         return ""
-    lv = [math.log10(c) for c in pts]
-    lo, hi = min(lv), max(lv)
+    lo, hi = min(pts), max(pts)
     if hi - lo < 1e-9:
         hi = lo + 1.0
-    pad = (hi - lo) * 0.12
-    base, top = lo - pad * 1.6, hi + pad     # baseline SOUS le min -> la plus petite barre reste visible
-    n, W, H, L, R, T, B = len(pts), 320.0, 92.0, 6.0, 6.0, 12.0, 10.0
+    n, W, H, L, R, T, B = len(pts), 320.0, 116.0, 12.0, 14.0, 16.0, 22.0
     iw, ih = W - L - R, H - T - B
     AC = "#34d27b"
-    slot = iw / n
-    bw = min(slot * 0.62, 26.0)
 
-    def barH(i):
-        return max(2.0, ih * (lv[i] - base) / (top - base))
+    def X(i):
+        return L + iw * (i / (n - 1))
 
-    gid = f"mcg-{uid}"
-    bars = []
-    for i in range(n):
-        h = barH(i)
-        x = L + slot * i + (slot - bw) / 2
-        y = T + ih - h
-        _op = "1" if i == n - 1 else "0.72"           # dernière barre (pic) plus vive
-        bars.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:.1f}" height="{h:.1f}" rx="2" '
-                    f'fill="url(#{gid})" opacity="{_op}"/>')
-    _yend = T + ih - barH(n - 1)
-    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="sx-heroc mont-c">',
+    def Y(v):
+        return T + ih * (1 - (v - lo) / (hi - lo))
+
+    co = [(X(i), Y(pts[i])) for i in range(n)]
+    # Lissage Catmull-Rom -> Bézier cubique (courbe douce, sans dépassement sur données croissantes).
+    d = f"M{co[0][0]:.1f},{co[0][1]:.1f}"
+    for i in range(n - 1):
+        p0 = co[i - 1] if i > 0 else co[i]
+        p1, p2 = co[i], co[i + 1]
+        p3 = co[i + 2] if i + 2 < n else p2
+        c1x, c1y = p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6
+        c2x, c2y = p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6
+        d += f" C{c1x:.1f},{c1y:.1f} {c2x:.1f},{c2y:.1f} {p2[0]:.1f},{p2[1]:.1f}"
+    area = d + f" L{co[-1][0]:.1f},{T + ih:.1f} L{co[0][0]:.1f},{T + ih:.1f} Z"
+    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2" fill="{AC}" opacity="0.55"/>'
+                   for x, y in co[:-1])
+    ex, ey = co[-1]
+    gid, fid = f"mcg-{uid}", f"mcf-{uid}"
+    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="mont-c">',
          f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1">'
-         f'<stop offset="0" stop-color="{AC}" stop-opacity="0.95"/>'
-         f'<stop offset="1" stop-color="{AC}" stop-opacity="0.32"/></linearGradient></defs>',
-         "".join(bars),
-         f'<text class="mont-c-lbl" x="{L:.1f}" y="{H - 2:.1f}" text-anchor="start">{_mont_eur(pts[0])}</text>',
-         f'<text class="mont-c-lbl end" x="{W - R:.1f}" y="{max(9.0, _yend - 4):.1f}" text-anchor="end">'
+         f'<stop offset="0" stop-color="{AC}" stop-opacity="0.34"/>'
+         f'<stop offset="1" stop-color="{AC}" stop-opacity="0"/></linearGradient>'
+         f'<filter id="{fid}" x="-60%" y="-60%" width="220%" height="220%">'
+         f'<feGaussianBlur stdDeviation="3.2"/></filter></defs>',
+         f'<path d="{area}" fill="url(#{gid})"/>',
+         f'<path d="{d}" fill="none" stroke="{AC}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+         dots,
+         f'<circle cx="{ex:.1f}" cy="{ey:.1f}" r="6.5" fill="{AC}" opacity="0.35" filter="url(#{fid})"/>',
+         f'<circle cx="{ex:.1f}" cy="{ey:.1f}" r="3.6" fill="{AC}" stroke="#0b0e14" stroke-width="1.4"/>',
+         f'<text class="mont-c-lbl" x="{L:.1f}" y="{H - 3:.1f}" text-anchor="start">{_mont_eur(pts[0])}</text>',
+         f'<text class="mont-c-lbl end" x="{ex:.1f}" y="{max(11.0, ey - 8):.1f}" text-anchor="end">'
          f'{_mont_eur(pts[-1])}</text></svg>']
     return "".join(p)
 
 
 def _mont_ladder(steps: list) -> str:
-    """Échelle (staircase) d'une montante : une ligne par palier (n° + match/pari + capital avant→après),
-    couleur selon l'état (gagné/perdu/en attente)."""
+    """Échelle (staircase) d'une montante, refonte premium 2026-08-09 : une ligne par palier avec une BARRE DE
+    PROGRESSION de fond (largeur ∝ capital atteint / pic) -> on VOIT la mise grimper, palier après palier. Le
+    palier PIC (dernier gagné, capital max) est souligné en OR. Colonne droite = capital après + gain."""
+    _sts = list(steps or [])
+    # Pic = plus haut capital atteint (payout des gagnés, sinon mise) -> échelle des barres de fond.
+    _vals = [(s.get("payout") if s.get("result") == "won" else s.get("stake")) for s in _sts]
+    _peak = max([v for v in _vals if isinstance(v, (int, float))] or [1.0])
+    _peak_i = max(range(len(_vals)), key=lambda k: (_vals[k] or 0)) if _vals else -1
     rows = []
-    for i, s in enumerate(steps or [], 1):
+    for i, s in enumerate(_sts):
         res = s.get("result")
         cls = {"won": "won", "lost": "lost"}.get(res, "pending")
+        if res == "won" and i == _peak_i:
+            cls += " peak"                                # palier PIC (capital max) -> accent OR
         stake = s.get("stake")
         payout = s.get("payout")
         match = html.escape(_noF(str(s.get("match") or "")))
-        # la cote est portée par la PASTILLE -> on la retire du texte du pari s'il la contient déjà
-        # (évite le doublon « … Moins de 1.5 but @1.42 » + pastille @1.42, demande user 2026-07-24).
         _sel_raw = re.sub(r"\s*·?\s*@\s*\d+(?:[.,]\d+)?\s*$", "", str(s.get("sel") or "")).strip()
         sel = html.escape(_sel_raw)
         cote = s.get("cote")
         _cote_b = f'<span class="mont-step-c">@{cote:g}</span>' if isinstance(cote, (int, float)) else ""
-        # Colonne droite COMPACTE : capital RÉSULTAT (gros) + gain du palier (demande user 2026-07-24).
+        _val = _vals[i]
+        _pct = max(7.0, min(100.0, 100.0 * (_val or 0) / _peak)) if _peak else 0.0
+        _fill = f'<span class="mont-step-fill" style="width:{_pct:.1f}%"></span>'
         if res == "won":
             _cap = _mont_eur(payout)
             _gain = (f'<span class="mont-step-g up">+{_mont_eur((payout or 0) - (stake or 0))}</span>'
@@ -7323,12 +7334,11 @@ def _mont_ladder(steps: list) -> str:
         else:
             _cap = '<span class="wait">En jeu</span>'
             _gain = ""
-        # MISE (capital engagé sur ce palier) TOUJOURS affichée (demande user 2026-07-25).
         _mise = (f'<span class="mont-step-mise">mise <b>{_mont_eur(stake)}</b></span>'
                  if isinstance(stake, (int, float)) else "")
         rows.append(
-            f'<div class="mont-step {cls}">'
-            f'<div class="mont-step-n"><b>{i}</b></div>'
+            f'<div class="mont-step {cls}">{_fill}'
+            f'<div class="mont-step-n"><b>{i + 1}</b></div>'
             f'<div class="mont-step-m"><div class="mont-step-t">{match}</div>'
             f'<div class="mont-step-s"><span class="sel">{sel}</span>{_cote_b}</div></div>'
             f'<div class="mont-step-a">{_mise}<span class="to">{_cap}</span>{_gain}</div></div>')
@@ -7453,8 +7463,11 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     else:
         _fsteps = (example or {}).get("steps") or []
         tag = '<span class="tag">Aperçu · exemple</span>'
-    # COURBE de progression du capital (10 € -> pic) au-dessus des paliers (demande user 2026-07-24)
-    _caps = [s.get("stake") for s in _fsteps if isinstance(s.get("stake"), (int, float))]
+    # COURBE de progression du capital : TRAJECTOIRE RÉELLE base(10 €) -> capital après chaque palier gagné
+    # (fix 2026-08-09 : avant on traçait les MISES -> la courbe s'arrêtait au capital AVANT le dernier gain,
+    # 76 € au lieu de 94 €). Le pic tracé = le vrai capital atteint.
+    _caps = [base] + [s.get("payout") for s in _fsteps
+                      if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
     _curve = f'<div class="mont-curve">{_mont_curve(_caps, uid="best")}</div>' if len(_caps) >= 2 else ""
     ladder = (f'<div class="mont-sec-h">{"La meilleure montante" if sim else "La montante"}{tag}</div>'
               '<div class="mont-lead">Chaque palier gagné fait grimper la mise — la voici, palier par palier.</div>'
@@ -7466,7 +7479,8 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     if not sim and isinstance(sim_state, dict) and (sim_state.get("featured") or {}).get("steps"):
         _ss = sim_state["featured"]["steps"]
         _sstats = sim_state.get("stats", {})
-        _scaps = [s.get("stake") for s in _ss if isinstance(s.get("stake"), (int, float))]
+        _scaps = [base] + [s.get("payout") for s in _ss
+                           if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
         _scurve = f'<div class="mont-curve">{_mont_curve(_scaps, uid="simbest")}</div>' if len(_scaps) >= 2 else ""
         showcase = (
             '<div class="mont-sec-h">📊 La meilleure montante <span class="tag">simulation · simples foot</span></div>'
@@ -7475,16 +7489,8 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
             f'en <b>{_sstats.get("best_palier", 0)}</b> paliers. Indicatif, hors ROI.</div>'
             f'{_scurve}<div class="mont-ladder">{_mont_ladder(_ss)}</div>')
 
-    # COMMENT ÇA MARCHE — le principe en 4 étapes (risque plafonné mis en avant = rassurant).
-    how = ('<div class="mont-sec-h">Comment ça marche</div>'
-           '<div class="mont-lead">Le principe en <b>4 étapes</b> — simple, et le risque est '
-           '<b>plafonné à 10 €</b>.</div>'
-           '<div class="mont-how">'
-           + _mont_how(1, 'On part d\'une mise de <b>10 €</b>.')
-           + _mont_how(2, '<b>Un seul pari par jour</b> — le plus sûr, choisi parmi tous les matchs analysés.')
-           + _mont_how(3, 'Gagné → on <b>rejoue la totalité</b> (mise + gains) le lendemain, et la mise grimpe.')
-           + _mont_how(4, 'Perdu → la montante repart à <b>10 €</b>. On ne risque <b>jamais plus</b> que la mise de départ.', safe=True)
-           + '</div>')
+    # « COMMENT ÇA MARCHE » RETIRÉ (user 2026-08-09) : redondant avec le paragraphe d'intro sous le hero
+    # (principe + risque plafonné à 10 € déjà expliqués). L'échelle des paliers montre la mécanique en acte.
 
     # HISTORIQUE des montantes terminées. La VRAIE montante vient de démarrer (aucune chaîne terminée) ->
     # on montre l'historique de la SIMULATION (montantes terminées sur nos simples foot) plutôt qu'un cadre
@@ -7519,7 +7525,7 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     # BADGE NAV MONTANTE (user 2026-08-08) : 1 s'il y a un pari du jour (palier en attente), sinon 0.
     _mn = 1 if _montante_palier() is not None else 0
     return (f'<span class="dv-nav" data-tab="montante" data-n="{_mn}" hidden></span>'
-            + hero + intro + how + ladder + pari + palmares + hist + showcase)
+            + hero + intro + ladder + pari + palmares + hist + showcase)
 
 
 _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
