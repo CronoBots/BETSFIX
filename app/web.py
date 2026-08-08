@@ -2968,6 +2968,16 @@ CSS = """
        color:#34d27b;font-variant-numeric:tabular-nums}
   .mont-hero-sub{font-size:12.5px;color:var(--muted);font-weight:600}
   .mont-hero-sub b{color:var(--text);font-variant-numeric:tabular-nums}
+  /* MULTIPLICATEUR ×N en VEDETTE (user 2026-08-09) : grosse pastille dorée sous le capital, halo -> on voit
+     tout de suite « ×9,4 sur la mise ». Or (achievement) contrastant avec le vert du capital. */
+  .mont-hero-mult{display:inline-flex;align-items:baseline;gap:9px;margin:9px 0 3px;padding:6px 17px 7px;
+       border-radius:999px;border:1px solid rgba(246,197,74,.55);
+       background:linear-gradient(180deg,rgba(246,197,74,.2),rgba(246,197,74,.05));
+       box-shadow:0 0 26px rgba(246,197,74,.28),inset 0 1px 0 rgba(255,255,255,.08)}
+  .mont-hero-mult .mhm-x{font-size:34px;font-weight:900;letter-spacing:-.02em;line-height:1;color:var(--gold);
+       font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(246,197,74,.45)}
+  .mont-hero-mult .mhm-lbl{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.02em;
+       text-transform:uppercase}
   .mont-chip{display:inline-block;margin-top:11px;padding:3px 13px;border-radius:999px;font-size:11px;
        font-weight:700;letter-spacing:.02em;border:1px solid rgba(52,210,123,.35);
        background:rgba(52,210,123,.09);color:#64cd8d}
@@ -7303,18 +7313,22 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     stats = st.get("stats", {})
 
     # HERO — capital mis en avant (meilleure série en simulation, montante en cours en réel)
+    mult = ''   # pastille MULTIPLICATEUR (×N sur la mise) — vedette du hero en montante réelle en cours
     if sim:
         sub = (f'Meilleure série · <b>{palier}</b> gain{"s" if palier != 1 else ""} d\'affilée' if palier
                else 'Simulation sur nos simples foot')
         chip = '<span class="mont-chip">📊 Simulation · simples foot</span>'
         lbl = 'Capital atteint · meilleure montante'
     elif active and palier > 0:
-        # « X gains d'affilée » RETIRÉ (user 2026-08-09) : redondant avec le n° de palier. À la place, on
-        # montre la mise de DÉPART (10 €) et le QUOTIENT actuel (capital ÷ départ, ex. ×9,4). Le badge
-        # « 🔥 Montante en cours » est retiré (chip vide) : l'info passe dans le TITRE de page (« Montante en cours »).
+        # « X gains d'affilée » RETIRÉ (user 2026-08-09) : redondant avec le n° de palier. Le QUOTIENT actuel
+        # (capital ÷ départ, ex. ×9,4) devient la VEDETTE du hero -> grosse pastille dorée bien visible
+        # (user 2026-08-09 : « il faut vraiment voir le X actuel sur la mise »). Le badge « 🔥 Montante en
+        # cours » est retiré (chip vide) : l'info passe dans le TITRE de page (« Montante en cours »).
         _q = (cap / base) if base else 0
         _qtxt = f'{round(_q, 1):g}'.replace(".", ",")   # décimale FR (×9,4 pas ×9.4)
-        sub = f'Palier <b>{palier}</b> · départ <b>{_mont_eur(base)}</b> · <b>×{_qtxt}</b>'
+        mult = (f'<div class="mont-hero-mult"><span class="mhm-x">×{_qtxt}</span>'
+                f'<span class="mhm-lbl">sur {_mont_eur(base)} de départ</span></div>')
+        sub = f'Palier <b>{palier}</b>'
         chip = ''
         lbl = 'Capital de la montante'
     elif active:
@@ -7327,7 +7341,7 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
         lbl = 'Capital de la montante'
     hero = (f'<div class="mont-hero"><div class="mont-hero-l">{lbl}</div>'
             f'<div class="mont-hero-cap">{_mont_eur(cap)}</div>'
-            f'<div class="mont-hero-sub">{sub}</div>{chip}</div>')
+            f'{mult}<div class="mont-hero-sub">{sub}</div>{chip}</div>')
 
     intro = ('<div class="mont-intro">Une <b>montante</b> par jour : on part de <b>10 €</b>, on mise sur '
              '<b>UN seul</b> pari sûr, et à chaque gain on <b>rejoue la totalité</b> le lendemain. '
