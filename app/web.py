@@ -2228,7 +2228,6 @@ CSS = """
   .zone-rec .zrp{color:#0e141b;background:#9aa6b4;padding:1px 7px;border-radius:9px;font-size:11px}  /* en attente de résolution = badge GRIS (user 2026-08-08) */
   .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés = badge VERT (user 2026-08-08) */
   .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
-  .zone-rec .zrm{color:#04121f;background:#3aa0ff;padding:1px 7px;border-radius:9px;font-size:11px}   /* MONTANTE = badge BLEU (user 2026-08-08) */
   .zone-rec .zrlv{color:#54d98c;font-weight:800}                   /* EN DIRECT (texte vert, jamais rouge = « raté ») */
   /* COMBINÉ (user 2026-08-08) : badge = nb de jambes (chiffre) + un cercle par jambe DANS le badge.
      Couleur du badge = JAUNE (en cours) · VERT (toutes gagnées) · ROUGE (≥1 perdue). */
@@ -6052,7 +6051,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
 
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
-          record: tuple | None = None, legs: int | None = None, mont: int | None = None,
+          record: tuple | None = None, legs: int | None = None,
           leg_results: list | None = None) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
     de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
@@ -6071,8 +6070,6 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     rec = ""
     badge_n = count
     chips = ""
-    if mont:                                             # MONTANTE : badge BLEU (indépendant du record)
-        chips += f'<span class="zr zrm">{mont}</span>'
     if leg_results is not None and leg_results:
         # COMBINÉ (user 2026-08-08) : UN SEUL badge = le NOMBRE de jambes (chiffre) + un petit cercle par
         # jambe DANS le même badge (cercle jaune=non joué · vert=gagné · rouge=perdu). Couleur du badge
@@ -6095,8 +6092,9 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         badge_n = _s
         # COMBINÉ : le nb de jambes est affiché DANS le badge d'état actif -> « 1 (2) » (user 2026-08-08).
         _lg = f' ({legs})' if legs else ''
-        if _up:                                          # à venir (pas commencé) : badge JAUNE
-            chips += f'<span class="zr zru">{_up}{_lg}</span>'
+        # ORDRE (user 2026-08-08) : live · en attente · GAGNÉS (vert) · PERDUS (rouge) · À VENIR (jaune) EN
+        # DERNIER. La montante n'a plus de badge bleu dédié : elle est comptée dans le jaune « à venir »
+        # (c'est un pari de Confiance) -> le jaune, donc la montante, s'affiche APRÈS vert/rouge.
         if _lv:                                          # en direct : texte vert
             chips += f'<span class="zr zrlv">{_lv}{_lg}</span>'
         if _pend:                                        # commencé mais PAS ENCORE RÉGLÉ : badge GRIS
@@ -6105,6 +6103,8 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
             chips += f'<span class="zr zrw">{_w}{_lg}</span>'
         if _l:                                            # perdus : badge ROUGE
             chips += f'<span class="zr zrl">{_l}{_lg}</span>'
+        if _up:                                          # à venir (pas commencé, inclut la montante) : JAUNE, en dernier
+            chips += f'<span class="zr zru">{_up}{_lg}</span>'
     if chips:
         rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
@@ -6573,10 +6573,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # MONTANTE FUSIONNÉE DANS CONFIANCE (user 2026-08-08) : PLUS de zone « Montante » séparée. Le match de la
     # montante est souvent une ABSTENTION (son pari = le pick de la montante, pas un pari de Confiance) -> il
     # N'EST PAS dans `play`. On INJECTE donc SA carte (LA MÊME que l'onglet Montante, via _montante_zone_card)
-    # EN TÊTE de la zone Confiance, avec un label « Montante • Palier N » au-dessus + un CADRE BLEU. + badge
-    # BLEU « 1 » dans le compteur Confiance. (foot uniquement).
+    # dans `play`, avec un label « Montante • Palier N » au-dessus + un CADRE BLEU (conservé). Elle est donc
+    # comptée dans le JAUNE « à venir » du compteur (plus de badge bleu dédié, user 2026-08-08). (foot uniquement).
     _mont_title, _mont_card = _montante_zone_card(sport)
-    _mont_n = 1 if _mont_card else None
     _mont_settled = ""     # carte montante RÉGLÉE -> injectée avec les RÉSULTATS (après les à-venir), pas en tête
     if _mont_card:
         _mpj = _montante_today_bet() or {}             # pending OU pari réglé du jour (heure/live/résultat)
@@ -6633,7 +6632,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     if play or _res_cards or _mont_card:
         out.append(_zone("play", _plur(len(play) + len(_res_cards), "Confiance"), "",
                          len(play) + len(_res_cards), _play_html,
-                         collapsible=True, record=_play_rec if _play_rec[0] else None, mont=_mont_n))
+                         collapsible=True, record=_play_rec if _play_rec[0] else None))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
@@ -9072,10 +9071,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
     # MONTANTE FUSIONNÉE DANS CONFIANCE en Live aussi (user 2026-08-08) : plus de zone séparée. On DÉDUPLIQUE
-    # le match montante de _play/_prov et on injecte SA carte (titre + cadre bleu) dans Confiance + badge bleu.
-    _mont_n_live = None
+    # le match montante de _play/_prov et on injecte SA carte (titre + cadre bleu conservé) dans Confiance.
     if _mont_card:
-        _mont_n_live = 1
         _mm_pair = _prog_pair(_md0.get("home", ""), _md0.get("away", "")) if _md0 else None
         if _mm_pair:
             _play = [c for c in _play if _prog_pair(c.get("home"), c.get("away")) != _mm_pair]
@@ -9098,7 +9095,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     else:
         # MÊMES TYPES DE PARIS QUE PRONOS (user 2026-08-08) : Confiance (montante incluse) → Provisoire → Combiné.
         out = [
-            _zone("play", _plur(len(_play), "Confiance"), "en direct", len(_play), _cards(_play), mont=_mont_n_live),
+            _zone("play", _plur(len(_play), "Confiance"), "en direct", len(_play), _cards(_play)),
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov)),
             _zone("combo", "Combiné double chance", "", 1 if _combo else 0, _combo),
         ]
