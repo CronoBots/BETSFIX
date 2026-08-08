@@ -5963,9 +5963,13 @@ def _montante_zone_card(sport: str | None) -> tuple:
             prob = rb.get("prob") if rb else None
         except Exception:
             prob = None
+        # TABLEAU DES SCORES comme les autres cartes résultat (user 2026-08-08) : score/périodes/pens du
+        # sidecar via result_board, une fois le pari réglé.
+        _board = (analyses.result_board(d, "foot") or {}) if p.get("result") in ("won", "lost", "push", "void") else {}
         leg = {"sport": "foot", "home": d.get("home"), "away": d.get("away"), "name": p.get("match"),
                "comp": d.get("comp"), "start": start, "sel": p.get("sel"), "cote": p.get("cote"),
                "code": p.get("code"), "result": p.get("result"), "prob": prob,
+               "score": _board.get("score"), "periods": _board.get("periods"), "pens": _board.get("pens"),
                "why": _prov_why_snippet("foot", mid, maxlen=100000, played=True)}
         card = _leg_card(leg, why=True, verdict=True, teams=True, why_label="Pourquoi ce pari")
         # LIGNE « mont-note » (mise rejouée · voir l'échelle) RETIRÉE sous la carte (user 2026-08-08).
@@ -6546,26 +6550,30 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # BLEU « 1 » dans le compteur Confiance. (foot uniquement).
     _mont_title, _mont_card = _montante_zone_card(sport)
     _mont_n = 1 if _mont_card else None
+    _mont_settled = ""     # carte montante RÉGLÉE -> injectée avec les RÉSULTATS (après les à-venir), pas en tête
     if _mont_card:
-        # Carte montante = titre « MONTANTE • PALIER N » (centré, blanc, MAJUSCULE, sans emoji) + fine ligne +
-        # cadre BLEU, INSÉRÉE dans la liste Confiance et TRIÉE PAR STATUT (pas épinglée en haut, pas en double) —
-        # user 2026-08-08. On l'ajoute comme pseudo-carte (`_html`) avec le statut/heure du match montante.
-        _mpj = _montante_today_bet() or {}             # pending OU pari réglé du jour (pour l'heure/le live/résultat)
+        _mpj = _montante_today_bet() or {}             # pending OU pari réglé du jour (heure/live/résultat)
         # CADRE vert (gagné) / rouge (perdu) une fois réglé, comme les autres cartes résultat (user 2026-08-08) ;
         # bleu tant que non réglé (en attente/live). Le titre « MONTANTE • PALIER N » suit la même couleur.
         _mres = _mpj.get("result")
         _mcls = " won" if _mres == "won" else " lost" if _mres in ("lost", "void", "push") else ""
         _mont_deco = (f'<div class="mont-cardwrap{_mcls}"><a class="mont-hdr{_mcls}" data-goto="montante" '
                       f'href="/montante" onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
-        _msd = analyses.meta("foot", str(_mpj.get("mid") or "")) or {}
-        try:
-            _mts = datetime.fromisoformat(str(_msd.get("start")).replace("Z", "+00:00")).timestamp() if _msd.get("start") else 0
-        except (ValueError, AttributeError, TypeError):
-            _mts = 0
-        _mlive = bool(match_select.live_state_for("foot", _msd.get("home", ""), _msd.get("away", "")))
-        play.append({"_html": _mont_deco, "start_ts": _mts,
-                     "status": "inprogress" if _mlive else "", "_mont": True,
-                     "home": _msd.get("home"), "away": _msd.get("away")})
+        if _mres in ("won", "lost", "push", "void"):
+            # RÉGLÉ : avec les autres résultats (le bloc résultats vient APRÈS les à-venir/en cours) — user
+            # 2026-08-08 : « le résultat de la montante ne doit pas être tout au-dessus, il reste des paris à venir ».
+            _mont_settled = _mont_deco
+        else:
+            # EN ATTENTE / LIVE : dans la liste play, TRIÉE par statut (à venir avant en cours).
+            _msd = analyses.meta("foot", str(_mpj.get("mid") or "")) or {}
+            try:
+                _mts = datetime.fromisoformat(str(_msd.get("start")).replace("Z", "+00:00")).timestamp() if _msd.get("start") else 0
+            except (ValueError, AttributeError, TypeError):
+                _mts = 0
+            _mlive = bool(match_select.live_state_for("foot", _msd.get("home", ""), _msd.get("away", "")))
+            play.append({"_html": _mont_deco, "start_ts": _mts,
+                         "status": "inprogress" if _mlive else "", "_mont": True,
+                         "home": _msd.get("home"), "away": _msd.get("away")})
         play.sort(key=lambda r: (1 if r.get("status") == "inprogress" else 0, r.get("start_ts") or 0))
     # RÉSULTATS EN PLACE (demande user 2026-08-01) : plus de zone « Résultats du jour » en bas de l'onglet.
     # Chaque match RÉGLÉ reste dans SA section de type et sa carte affiche le résultat/score (comme les cartes
@@ -6576,8 +6584,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _prov_res = _provisional_results(today_iso, sport, header=False)  # provisoires réglés (sans sous-titre)
     # PARIS DU JOUR = à venir/en cours PUIS terminés (chacun affiche son résultat). Zone visible s'il y a l'un
     # ou l'autre.
-    # (La carte montante est DÉJÀ dans `play`, triée par statut — cf. bloc montante plus haut.)
-    _play_html = _MC_SEP.join([h for h in (_rows_by_day(play), _MC_SEP.join(_res_cards)) if h])
+    # Montante EN ATTENTE/LIVE = déjà dans `play` (triée) ; montante RÉGLÉE = `_mont_settled`, avec les
+    # RÉSULTATS (après les à-venir), pas en tête (user 2026-08-08).
+    _play_html = _MC_SEP.join([h for h in (_rows_by_day(play), _MC_SEP.join(_res_cards), _mont_settled) if h])
     # RECORD DU JOUR (demande user 2026-08-02, 6 états 2026-08-08) : total · à venir · live · EN ATTENTE
     # DE RÉSOLUTION · gagnés · perdus. « en attente » = pari NON réglé dont le match a DÉJÀ commencé mais qui
     # n'est plus « live » (fini, en cours de règlement) — avant, il était compté à tort en « à venir ».
