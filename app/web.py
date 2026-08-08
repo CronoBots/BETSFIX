@@ -2968,16 +2968,32 @@ CSS = """
        color:#34d27b;font-variant-numeric:tabular-nums}
   .mont-hero-sub{font-size:12.5px;color:var(--muted);font-weight:600}
   .mont-hero-sub b{color:var(--text);font-variant-numeric:tabular-nums}
-  /* MULTIPLICATEUR ×N en VEDETTE (user 2026-08-09) : grosse pastille dorée sous le capital, halo -> on voit
-     tout de suite « ×9,4 sur la mise ». Or (achievement) contrastant avec le vert du capital. */
-  .mont-hero-mult{display:inline-flex;align-items:baseline;gap:9px;margin:9px 0 3px;padding:6px 17px 7px;
-       border-radius:999px;border:1px solid rgba(246,197,74,.55);
-       background:linear-gradient(180deg,rgba(246,197,74,.2),rgba(246,197,74,.05));
-       box-shadow:0 0 26px rgba(246,197,74,.28),inset 0 1px 0 rgba(255,255,255,.08)}
-  .mont-hero-mult .mhm-x{font-size:34px;font-weight:900;letter-spacing:-.02em;line-height:1;color:var(--gold);
-       font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(246,197,74,.45)}
-  .mont-hero-mult .mhm-lbl{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.02em;
-       text-transform:uppercase}
+  /* HERO PREMIUM « montante en cours » (user 2026-08-09, rendu 100 % pro) : le MULTIPLICATEUR ×N est la
+     vedette (énorme, dégradé doré + halo), puis la progression 10 € -> capital sous une fine règle. */
+  .mont-hero-live{position:relative;overflow:hidden;text-align:center;padding:20px 16px 17px;
+       border:1px solid rgba(246,197,74,.42);
+       background:radial-gradient(130% 90% at 50% -10%,rgba(246,197,74,.14),transparent 62%),
+                  linear-gradient(180deg,#121a28,#0b0e14);
+       box-shadow:0 0 44px rgba(246,197,74,.15),var(--shadow-sm)}
+  .mont-hero-live .mhe{font-size:9.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;
+       color:var(--gold);opacity:.9}
+  .mont-hero-live .mhx{font-size:66px;font-weight:900;letter-spacing:-.04em;line-height:.94;margin-top:3px;
+       color:var(--gold);font-variant-numeric:tabular-nums}
+  @supports ((-webkit-background-clip:text) or (background-clip:text)){
+    .mont-hero-live .mhx{background:linear-gradient(176deg,#ffe79b 4%,#f6c54a 52%,#d69f2b);
+       -webkit-background-clip:text;background-clip:text;color:transparent;
+       filter:drop-shadow(0 3px 22px rgba(246,197,74,.5))}}
+  .mont-hero-live .mhx-cap{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+       color:var(--muted);margin-top:1px}
+  .mont-prog{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:15px;padding-top:14px;
+       border-top:1px solid rgba(255,255,255,.08)}
+  .mont-prog .mp-cell{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .mont-prog .mp-cell b{font-size:21px;font-weight:900;line-height:1;color:var(--text);
+       font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .mont-prog .mp-cell b.mp-now{color:#34d27b}
+  .mont-prog .mp-cell span{font-size:8.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+       color:var(--dim)}
+  .mont-prog .mp-arrow{font-size:19px;font-weight:900;color:var(--gold);line-height:1;flex:none}
   .mont-chip{display:inline-block;margin-top:11px;padding:3px 13px;border-radius:999px;font-size:11px;
        font-weight:700;letter-spacing:.02em;border:1px solid rgba(52,210,123,.35);
        background:rgba(52,210,123,.09);color:#64cd8d}
@@ -7313,24 +7329,30 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     stats = st.get("stats", {})
 
     # HERO — capital mis en avant (meilleure série en simulation, montante en cours en réel)
-    mult = ''   # pastille MULTIPLICATEUR (×N sur la mise) — vedette du hero en montante réelle en cours
+    hero = ""   # rempli par le hero PREMIUM en montante réelle en cours ; sinon hero générique plus bas
     if sim:
         sub = (f'Meilleure série · <b>{palier}</b> gain{"s" if palier != 1 else ""} d\'affilée' if palier
                else 'Simulation sur nos simples foot')
         chip = '<span class="mont-chip">📊 Simulation · simples foot</span>'
         lbl = 'Capital atteint · meilleure montante'
     elif active and palier > 0:
-        # « X gains d'affilée » RETIRÉ (user 2026-08-09) : redondant avec le n° de palier. Le QUOTIENT actuel
-        # (capital ÷ départ, ex. ×9,4) devient la VEDETTE du hero -> grosse pastille dorée bien visible
-        # (user 2026-08-09 : « il faut vraiment voir le X actuel sur la mise »). Le badge « 🔥 Montante en
-        # cours » est retiré (chip vide) : l'info passe dans le TITRE de page (« Montante en cours »).
+        # HERO PREMIUM « montante en cours » (user 2026-08-09 : « rendu 100 % pro, il faut vraiment voir le X
+        # actuel sur la mise »). Le MULTIPLICATEUR (capital ÷ départ) est la VEDETTE : énorme chiffre en
+        # dégradé doré + halo. Sous une fine règle, la PROGRESSION 10 € → capital raconte l'histoire (palier
+        # accolé au capital). « X gains d'affilée » retiré (redondant palier). Badge retiré -> titre de page.
         _q = (cap / base) if base else 0
         _qtxt = f'{round(_q, 1):g}'.replace(".", ",")   # décimale FR (×9,4 pas ×9.4)
-        mult = (f'<div class="mont-hero-mult"><span class="mhm-x">×{_qtxt}</span>'
-                f'<span class="mhm-lbl">sur {_mont_eur(base)} de départ</span></div>')
-        sub = f'Palier <b>{palier}</b>'
-        chip = ''
-        lbl = 'Capital de la montante'
+        hero = (
+            '<div class="mont-hero mont-hero-live">'
+            '<div class="mhe">Multiplicateur actuel</div>'
+            f'<div class="mhx">×{_qtxt}</div>'
+            '<div class="mhx-cap">sur la mise de départ</div>'
+            '<div class="mont-prog">'
+            f'<div class="mp-cell"><b>{_mont_eur(base)}</b><span>Départ</span></div>'
+            '<div class="mp-arrow" aria-hidden="true">→</div>'
+            f'<div class="mp-cell"><b class="mp-now">{_mont_eur(cap)}</b>'
+            f'<span>Capital · palier {palier}</span></div>'
+            '</div></div>')
     elif active:
         sub = 'Nouvelle montante — prête pour le pari du jour'
         chip = '<span class="mont-chip wait">En attente du pari du jour</span>'
@@ -7339,9 +7361,10 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
         sub = 'Mise de départ · prête à démarrer'
         chip = '<span class="mont-chip wait">Bientôt · en préparation</span>'
         lbl = 'Capital de la montante'
-    hero = (f'<div class="mont-hero"><div class="mont-hero-l">{lbl}</div>'
-            f'<div class="mont-hero-cap">{_mont_eur(cap)}</div>'
-            f'{mult}<div class="mont-hero-sub">{sub}</div>{chip}</div>')
+    if not hero:
+        hero = (f'<div class="mont-hero"><div class="mont-hero-l">{lbl}</div>'
+                f'<div class="mont-hero-cap">{_mont_eur(cap)}</div>'
+                f'<div class="mont-hero-sub">{sub}</div>{chip}</div>')
 
     intro = ('<div class="mont-intro">Une <b>montante</b> par jour : on part de <b>10 €</b>, on mise sur '
              '<b>UN seul</b> pari sûr, et à chaque gain on <b>rejoue la totalité</b> le lendemain. '
