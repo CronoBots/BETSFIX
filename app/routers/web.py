@@ -141,11 +141,18 @@ def _stats_signature() -> tuple:
     files = glob.glob(os.path.join(analyses.DIR, "*.json"))
     # + mtime de sport_probation.json : un pause/réactivation d'un sport change la section Simulation
     # (cadres tennis/basket) -> doit invalider le cache stats (demande user 2026-07-24).
-    try:
-        _pb = os.path.getmtime(os.path.join(analyses._ROOT, "data", "sport_probation.json"))
-    except OSError:
-        _pb = 0.0
-    return (len(files), max((os.path.getmtime(f) for f in files), default=0.0), _pb)
+    # + mtime des TRACKS hors-sidecar qui alimentent les stats : combiné du jour (combo_daily_track.json) et
+    #   provisoires (provisional_track.json). Sans ça, le RÈGLEMENT du combiné/provisoire (qui n'écrit PAS de
+    #   sidecar mais son track) N'INVALIDAIT PAS le cache -> graphe combiné périmé (bug user 2026-08-08 :
+    #   « le double chance d'hier gagné n'est plus affiché dans le graphe »).
+    def _mt(name):
+        try:
+            return os.path.getmtime(os.path.join(analyses._ROOT, "data", name))
+        except OSError:
+            return 0.0
+    _pb = _mt("sport_probation.json")
+    _tracks = (_mt("combo_daily_track.json"), _mt("provisional_track.json"))
+    return (len(files), max((os.path.getmtime(f) for f in files), default=0.0), _pb) + _tracks
 
 
 def _home_stats(since_days: int | None = None) -> str:
