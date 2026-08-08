@@ -5206,7 +5206,14 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
             # GARDE en « ⏳ En attente » jusqu'au règlement (grey badge). Le RÉGLÉ (status_of=finished, plus
             # haut) part bien dans les Résultats. Critère sport-agnostique.
             if analyses.likely_finished({"start": m.get("start"), "sport": sp}):
-                _prov_pending = True   # gardé (plus d'exclusion/vanish) -> badge « ⏳ En attente »
+                # FENÊTRE BORNÉE (user 2026-08-08, cas Bruges-Courtrai) : on garde « ⏳ En attente » tant que
+                # le match est RÉCEMMENT fini (< 10 h après le coup d'envoi = règlement en cours). Au-delà,
+                # c'est un STRAGGLER non réglable (score jamais capté : nom/id non résolu) -> on l'exclut comme
+                # avant, pour ne pas l'afficher « en attente » INDÉFINIMENT.
+                if dt is not None and (now - dt).total_seconds() < 10 * 3600:
+                    _prov_pending = True
+                else:
+                    continue
         ic = _ICON.get(sp, "")
         # Ligne d'en-tête : NOM DU SPORT (majuscules) puis la compétition (demande user 2026-07-12,
         # ex. « 🎾 TENNIS • Wimbledon ») -> le sport est explicite, plus seulement l'emoji.
