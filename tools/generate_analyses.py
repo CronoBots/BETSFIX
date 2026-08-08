@@ -782,25 +782,10 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                 prev_prov[str(_m.get("id"))] = _m.get("provisional")
     except (OSError, ValueError):
         pass
-    # COUVERTURE ADAPTATIVE (demande user 2026-07-24) : quand un sport est EN PROBATION (publication
-    # suspendue, ROI négatif), on RÉALLOUE la capacité d'analyse au FOOT -> le foot passe à 10 matchs
-    # analysés (le basket reste au top normal, choix user) = plus de CHANCES de trouver de la VRAIE value
-    # foot, SANS baisser la barre (garde-fous ≥2 sources + seuils intacts). Le sport en pause reste analysé
-    # au top normal (calibration/fantômes continuent -> mesurent sa remontée). RÉVERSIBLE : dès la reprise
-    # du sport, retour au top normal partout.
-    try:
-        from app import analyses as _an
-        # DÉCLENCHEUR = sports SUSPENDUS de la publication (`background_sports` : tennis/basket en arrière-plan)
-        # UNION sports exclus DUR. ⚠️ Depuis la refonte 2026-07-24, les sports en arrière-plan ne sont PLUS
-        # dans `auto_exclusions()[0]` (qui est devenu vide) -> l'élargissement ne se déclenchait JAMAIS et le
-        # foot restait bloqué au top normal malgré tennis+basket suspendus (gisement perdu, fix user 2026-07-28).
-        _paused = set(_an.auto_exclusions()[0]) | set(_an.background_sports())
-    except Exception:
-        _paused = set()
-    # On n'élargit le foot que si un AUTRE sport est suspendu (on réalloue SA capacité au foot).
-    _foot_top = 10 if (_paused - {"foot"}) else args.top
-    if _foot_top != args.top:
-        print(f"[couverture] {sorted(_paused & set(sports))} en pause -> foot élargi à {_foot_top} (basket au top normal {args.top}).")
+    # 100 % FOOT (user 2026-08-08 : tennis/basket supprimés -> plus de logique d'autres sports) : on respecte
+    # simplement `--top` (le quota PAR SLATE choisi par le user). Fini l'« élargissement adaptatif » à 10 qui
+    # écrasait `--top 8` en croyant réallouer la capacité de sports « en pause » (bug 10/slate au lieu de 8).
+    _foot_top = args.top
     n_ok = 0
     for sport in sports:
         always = _is_big_match if sport == "foot" else None
