@@ -2230,6 +2230,17 @@ CSS = """
   .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
   .zone-rec .zrm{color:#04121f;background:#3aa0ff;padding:1px 7px;border-radius:9px;font-size:11px}   /* MONTANTE = badge BLEU (user 2026-08-08) */
   .zone-rec .zrlv{color:#54d98c;font-weight:800}                   /* EN DIRECT (texte vert, jamais rouge = « raté ») */
+  /* COMBINÉ (user 2026-08-08) : badge = nb de jambes (chiffre) + un cercle par jambe DANS le badge.
+     Couleur du badge = JAUNE (en cours) · VERT (toutes gagnées) · ROUGE (≥1 perdue). */
+  .zone-rec .zrleg{padding:1px 6px 1px 7px;border-radius:9px;font-size:11px;font-weight:800;gap:4px}
+  .zone-rec .zrleg-u{color:#1a1400;background:#e8b93a}   /* en cours = JAUNE */
+  .zone-rec .zrleg-w{color:#08210f;background:#54d98c}   /* toutes gagnées = VERT */
+  .zone-rec .zrleg-l{color:#2e0808;background:#ff7d7d}   /* au moins une perdue = ROUGE */
+  .zone-rec .zlcs{display:inline-flex;align-items:center;gap:3px}
+  .zone-rec .zlc{width:7px;height:7px;border-radius:50%;box-shadow:0 0 0 1px rgba(10,16,22,.5)}
+  .zone-rec .zlc-u{background:#caa63a}   /* jambe non jouée = cercle JAUNE (ambre) */
+  .zone-rec .zlc-w{background:#1f9e57}   /* jambe gagnée = cercle VERT */
+  .zone-rec .zlc-l{background:#d33b3b}   /* jambe perdue = cercle ROUGE */
   .zone-b{margin-top:2px}
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
@@ -6041,7 +6052,8 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
 
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
-          record: tuple | None = None, legs: int | None = None, mont: int | None = None) -> str:
+          record: tuple | None = None, legs: int | None = None, mont: int | None = None,
+          leg_results: list | None = None) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
     de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
     sur un filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les
@@ -6061,7 +6073,20 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     chips = ""
     if mont:                                             # MONTANTE : badge BLEU (indépendant du record)
         chips += f'<span class="zr zrm">{mont}</span>'
-    if record:
+    if leg_results is not None and leg_results:
+        # COMBINÉ (user 2026-08-08) : UN SEUL badge = le NOMBRE de jambes (chiffre) + un petit cercle par
+        # jambe DANS le même badge (cercle jaune=non joué · vert=gagné · rouge=perdu). Couleur du badge
+        # PRINCIPAL : jaune par défaut · ROUGE dès qu'UNE jambe est perdue · VERT si TOUTES gagnées.
+        # Remplace l'ancien « 1 (2) ». On garde TOUJOURS le nb de jambes + tous les cercles visibles.
+        def _lgcls(r):                                    # jaune (non joué) / vert (gagné) / rouge (perdu)
+            return "w" if r == "won" else ("l" if r == "lost" else "u")
+        _any_lost = any(r == "lost" for r in leg_results)
+        _all_won = all(r == "won" for r in leg_results)
+        _ov = "l" if _any_lost else ("w" if _all_won else "u")   # état global du badge
+        _dots = "".join(f'<span class="zlc zlc-{_lgcls(r)}"></span>' for r in leg_results)
+        chips += (f'<span class="zr zrleg zrleg-{_ov}">{len(leg_results)}'
+                  f'<span class="zlcs">{_dots}</span></span>')
+    elif record:
         # 6 états (user 2026-08-08) : total · à venir · live · EN ATTENTE DE RÉSOLUTION · gagnés · perdus.
         # SANS EMOJI (user 2026-08-08) : distinction par COULEUR seule. à venir=JAUNE · en attente=GRIS ·
         # live=vert (texte) · gagnés=VERT plein · perdus=ROUGE plein. Ancien tuple 5 -> pending=0 (compat).
@@ -6626,11 +6651,14 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # Record du COMBINÉ football du jour (1 combiné/jour ; gagné/perdu = son résultat).
     _combo_rec = None
     _c_legs = None
+    _c_leg_results = None
     if combo_daily:
         try:
             from app import combo_daily as _cd2
             _cbt = _cd2.today(today_iso, sport=(sport or "foot")) or {}
             _c_legs = len(_cbt.get("legs") or []) or None   # nb de jambes -> compteur « 1 (2) »
+            # Résultat de CHAQUE jambe -> cercles colorés du badge combiné (jaune/vert/rouge).
+            _c_leg_results = [l.get("result") for l in (_cbt.get("legs") or [])] or None
             _cr = _cbt.get("result")
             _c_settled = _cr in ("won", "lost", "void")
             _c_live = bool(combo_daily) and not _c_settled and _daily_combo_any_live()
@@ -6644,7 +6672,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _combo_rec = None
     out += [
         _zone("combo", "Combiné double chance", "", 1 if combo_daily else 0, combo_daily,
-              collapsible=True, record=_combo_rec, legs=_c_legs),
+              collapsible=True, record=_combo_rec, legs=_c_legs, leg_results=_c_leg_results),
     ]
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
