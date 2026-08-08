@@ -7309,8 +7309,13 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
         chip = '<span class="mont-chip">📊 Simulation · simples foot</span>'
         lbl = 'Capital atteint · meilleure montante'
     elif active and palier > 0:
-        sub = f'Palier <b>{palier}</b> · <b>{palier}</b> gain{"s" if palier > 1 else ""} d\'affilée'
-        chip = '<span class="mont-chip">🔥 Montante en cours</span>'
+        # « X gains d'affilée » RETIRÉ (user 2026-08-09) : redondant avec le n° de palier. À la place, on
+        # montre la mise de DÉPART (10 €) et le QUOTIENT actuel (capital ÷ départ, ex. ×9,4). Le badge
+        # « 🔥 Montante en cours » est retiré (chip vide) : l'info passe dans le TITRE de page (« Montante en cours »).
+        _q = (cap / base) if base else 0
+        _qtxt = f'{round(_q, 1):g}'.replace(".", ",")   # décimale FR (×9,4 pas ×9.4)
+        sub = f'Palier <b>{palier}</b> · départ <b>{_mont_eur(base)}</b> · <b>×{_qtxt}</b>'
+        chip = ''
         lbl = 'Capital de la montante'
     elif active:
         sub = 'Nouvelle montante — prête pour le pari du jour'

@@ -799,7 +799,10 @@ async def montante_page(frag: int = 0) -> HTMLResponse:
     # SIMULATION « meilleure montante » RETIRÉE (user 2026-08-07) : la page Montante ne montre QUE la montante
     # RÉELLE (et son historique réel), plus aucune vitrine simulée sur les simples foot.
     _st = _mt.state()
-    body = (f'<div class="pg-h">Montante</div>'
+    # TITRE : « Montante en cours » quand une montante est active avec au moins un palier (user 2026-08-09 :
+    # le badge « 🔥 Montante en cours » du hero est retiré -> l'info passe dans le titre de page).
+    _mtitle = "Montante en cours" if (_st.get("active") and _st.get("palier", 0) > 0) else "Montante"
+    body = (f'<div class="pg-h">{_mtitle}</div>'
             f'<div class="statsx">{web.render_montante(_st, _mt.example())}</div>')
     if frag:
         return HTMLResponse(body)
