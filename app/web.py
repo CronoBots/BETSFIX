@@ -6409,12 +6409,25 @@ def _sport_pronos_counts(match_rows: list) -> dict:
     except Exception:
         pass
     _mont = 1 if _montante_palier() is not None else 0   # montante active (palier en attente) -> +1 au compte foot
+    # Le match de la montante peut DÉJÀ être un pari de Confiance dans match_rows -> il faut l'EXCLURE du
+    # compte `play` avant d'ajouter `_mont`, sinon double-compte (comme _today_zones l.6547). (fix user 2026-08-08)
+    _mont_pair = None
+    try:
+        from app import montante as _mt1
+        if _mt1.is_active():
+            _mm1 = _noF(str((_mt1.state().get("pending") or {}).get("match") or ""))
+            _mh1, _, _ma1 = _mm1.partition(" - ")
+            if _mh1:
+                _mont_pair = _prog_pair(_mh1, _ma1)
+    except Exception:
+        _mont_pair = None
     out = {}
     for sp in ("foot", "tennis", "basket"):
         _prog = [it for it in _programme_items(_paj, framed=True, keep_sport=sp)
                  if not it.get("_live") and it.get("_sport") == sp]
         prov = sum(1 for it in _prog if it.get("_prov"))
-        play = sum(1 for r in match_rows if _item_sport(r) == sp)
+        play = sum(1 for r in match_rows if _item_sport(r) == sp
+                   and not (sp == "foot" and _mont_pair and _prog_pair(r.get("home"), r.get("away")) == _mont_pair))
         try:
             cbt = _cd.today(_day, sport=sp)
             combo = 1 if (cbt and cbt.get("legs") and cbt.get("result") not in ("won", "lost", "void")) else 0
@@ -6677,10 +6690,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
     zones = f'<div class="dash-zones">{inner or _empty}</div>'
     today_iso = _sport_today().isoformat()
-    # BADGE nav : le combiné FOOT du jour ET le combiné Betmines comptent AUSSI (demande user 2026-07-25) —
-    # +1 chacun s'il est présent (carte affichée), en plus des paris joués + provisoires.
-    _mont_on = 1 if (_is_foot_view and _montante_palier() is not None) else 0   # montante = badge greffé sur la carte
-    _cnt = len(play) + len(prov) + (1 if combo_daily else 0) + _mont_on
+    # BADGE nav : paris joués (play) + provisoires (prov) + combiné du jour (+1). La MONTANTE n'est PAS
+    # ajoutée séparément (fix double-compte user 2026-08-08) : sa carte est INJECTÉE dans `play` (l.6600 quand
+    # active) après avoir été retirée des cartes normales (l.6547) -> elle est déjà comptée dans len(play).
+    # L'ancien `+ _mont_on` la recomptait -> badge « 2 » pour 1 seul pari montante en cours.
+    _cnt = len(play) + len(prov) + (1 if combo_daily else 0)
     return _day_header(today_iso) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
