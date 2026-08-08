@@ -5703,11 +5703,14 @@ def _combo_live_prob(cb: dict):
     acquises : chance LIVE si la jambe tourne, sinon proba pré-match. None si AUCUNE jambe n'est en direct
     (rien de « live » à afficher). Une jambe PERDUE -> combiné à 0 %. PURE AFFICHAGE (jamais ROI/stats)."""
     legs = cb.get("legs") or []
-    if not legs or cb.get("result") in ("won", "lost", "push", "void"):
-        return None                                    # combiné RÉGLÉ -> pas de barre live (le badge final suffit)
+    if not legs:
+        return None
     lps = [_leg_live_prob(l) for l in legs]
     if not any(lp is not None for lp in lps):
         return None                                    # AUCUNE jambe en direct -> rien de « live » à montrer
+    # NB : on ne coupe PAS sur `cb["result"]` : un combiné déjà PERDU (une jambe tombée) mais dont une AUTRE
+    # jambe tourne encore reste affiché dans Live -> on montre sa chance live RÉELLE (0 %, cf. jambe perdue
+    # ci-dessous). Un combiné TOTALEMENT réglé n'a aucune jambe live -> déjà écarté par le `any(...)` ci-dessus.
     prod = 1.0
     for l, lp in zip(legs, lps):
         r = l.get("result")
