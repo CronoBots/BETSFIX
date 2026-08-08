@@ -1,13 +1,14 @@
-# BETSFIX — PASSE « ~1 h avant chaque match » (tâche « BETSFIX Scan Wave », compte vince) : RÈGLEMENT SEUL.
-# ⛔ LA RÉ-ANALYSE PRÉ-MATCH A ÉTÉ SUPPRIMÉE (demande user 2026-08-07 : « plus aucun changement de pari sur
-# un match analysé à 09h — le plus simple c'est supprimer la ré-analyse »). Le pick du MATIN (scan_daily)
-# est DÉFINITIF : plus de `generate_analyses --refresh-early` ici, donc plus aucun flip morning->vague.
-# Cette passe ne fait plus que : (1) RÈGLEMENT silencieux des matchs finis (poste les résultats vite,
-# --no-bilan) et (2) auto-audit d'intégrité. Le scan complet (analyse + méthodo + revue…) reste 1×/jour
-# le matin dans scan_daily.ps1. Le garde-fou code (generate_analyses : une vague ne ré-analyse jamais un
-# match déjà analysé) reste en place en ceinture-bretelles au cas où --refresh-early serait relancé à la main.
+# BETSFIX — PASSE « ~1 h avant chaque match » (tâche « BETSFIX Scan Wave », compte vince).
+# RÔLE :
+#  (1) ANALYSE les matchs IMMINENTS PAS ENCORE analysés (1re analyse ~1 h avant leur coup d'envoi) ->
+#      FILET FIABLE pour le SLATE NUIT : si le scan du soir (scan_evening, batch unique à 19 h) RATE (cas
+#      2026-08-08 : tourné mais rien analysé), chaque match de nuit a quand même SA propre vague qui l'analyse.
+#      ⚠️ Ce n'est PAS de la ré-analyse : le garde-fou code `_generated_today` (generate_analyses) SAUTE tout
+#      match DÉJÀ analysé aujourd'hui (matin OU soir) -> le pick reste DÉFINITIF, AUCUN flip. Seuls les
+#      matchs NEUFS (jamais analysés) sont traités.
+#  (2) RÈGLEMENT silencieux des matchs finis (--no-bilan) + auto-audit.
 # ⏰ DÉCLENCHEMENT PAR MATCH : scan_daily.ps1 pose chaque matin, via deploy/schedule_reana.ps1, UN
-# déclencheur ponctuel à (coup d'envoi − 1 h) par match -> le règlement tourne peu après chaque fin de match.
+# déclencheur ponctuel à (coup d'envoi − 1 h) par match.
 param([double]$WindowHours = 1.5)
 
 $ErrorActionPreference = 'Continue'
@@ -29,8 +30,14 @@ if ($running) {
     exit 0
 }
 
-# (Ré-analyse pré-match SUPPRIMÉE 2026-08-07 : plus de `generate_analyses --refresh-early` -> le pick du
-#  matin ne change plus jamais. $WindowHours n'est plus utilisé que pour la compat de signature de la tâche.)
+# ANALYSE des matchs imminents NON encore analysés (1re analyse -> filet nuit). Le garde-fou `_generated_today`
+# saute tout match déjà analysé aujourd'hui : donc AUCUNE ré-analyse / AUCUN flip du pick du matin.
+# ⚠️ Point décimal « . » obligatoire (locale FR -> "1,5" rejeté par argparse) -> InvariantCulture.
+$hours = $WindowHours.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+Log ("WAVE ANALYSE : matchs imminents NON analysés (1re analyse, --refresh-early, jamais de ré-analyse)")
+& $py 'tools\generate_analyses.py' --sport foot --top 8 --hours $hours --from-programme --refresh-early 2>&1 |
+    Out-File -Append -Encoding utf8 $log
+Log ("WAVE ANALYSE DONE (exit {0})" -f $LASTEXITCODE)
 
 # RÉCONCILIATION : règle tout ce qui est réglable (poste les résultats peu après la fin des matchs),
 # re-poste les pronos imminents dont l'envoi a été manqué, et envoie un BILAN Telegram. Passages
