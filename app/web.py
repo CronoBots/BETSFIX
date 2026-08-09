@@ -2231,7 +2231,7 @@ CSS = """
   .zone-rec .zrlv{color:#54d98c;font-weight:800}                   /* EN DIRECT (texte vert, jamais rouge = « raté ») */
   /* COMBINÉ (user 2026-08-08) : badge = nb de jambes (chiffre) + un cercle par jambe DANS le badge.
      Couleur du badge = JAUNE (en cours) · VERT (toutes gagnées) · ROUGE (≥1 perdue). */
-  .zone-rec .zrleg{padding:1px 6px 1px 7px;border-radius:9px;font-size:11px;font-weight:800;gap:4px}
+  .zone-rec .zrleg{padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}   /* chiffre SEUL */
   .zone-rec .zrleg-u{color:#1a1400;background:#e8b93a}   /* en cours = JAUNE */
   .zone-rec .zrleg-w{color:#08210f;background:#54d98c}   /* toutes gagnées = VERT */
   .zone-rec .zrleg-l{color:#2e0808;background:#ff7d7d}   /* au moins une perdue = ROUGE */
@@ -6220,18 +6220,17 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     badge_n = count
     chips = ""
     if leg_results is not None and leg_results:
-        # COMBINÉ (user 2026-08-08) : UN SEUL badge = le NOMBRE de jambes (chiffre) + un petit cercle par
-        # jambe DANS le même badge (cercle jaune=non joué · vert=gagné · rouge=perdu). Couleur du badge
-        # PRINCIPAL : jaune par défaut · ROUGE dès qu'UNE jambe est perdue · VERT si TOUTES gagnées.
-        # Remplace l'ancien « 1 (2) ». On garde TOUJOURS le nb de jambes + tous les cercles visibles.
+        # COMBINÉ : le badge du NOMBRE de jambes (chiffre SEUL, coloré) est SÉPARÉ, avec À CÔTÉ un cercle par
+        # jambe (jaune=non joué · vert=gagné · rouge=perdu) (user 2026-08-10 : chiffre seul + cercles à côté).
+        # Couleur du badge chiffre : jaune par défaut · ROUGE dès qu'UNE jambe est perdue · VERT si TOUTES gagnées.
         def _lgcls(r):                                    # jaune (non joué) / vert (gagné) / rouge (perdu)
             return "w" if r == "won" else ("l" if r == "lost" else "u")
         _any_lost = any(r == "lost" for r in leg_results)
         _all_won = all(r == "won" for r in leg_results)
-        _ov = "l" if _any_lost else ("w" if _all_won else "u")   # état global du badge
+        _ov = "l" if _any_lost else ("w" if _all_won else "u")   # état global du badge chiffre
         _dots = "".join(f'<span class="zlc zlc-{_lgcls(r)}"></span>' for r in leg_results)
-        chips += (f'<span class="zr zrleg zrleg-{_ov}">{len(leg_results)}'
-                  f'<span class="zlcs">{_dots}</span></span>')
+        chips += (f'<span class="zr zrleg zrleg-{_ov}">{len(leg_results)}</span>'
+                  f'<span class="zlcs">{_dots}</span>')
     elif record:
         # 6 états (user 2026-08-08) : total · à venir · live · EN ATTENTE DE RÉSOLUTION · gagnés · perdus.
         # SANS EMOJI (user 2026-08-08) : distinction par COULEUR seule. à venir=JAUNE · en attente=GRIS ·
