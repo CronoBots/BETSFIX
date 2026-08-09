@@ -2925,6 +2925,25 @@ CSS = """
   .sx-card{background:rgba(34,184,255,.055);   /* teinte UNIE : fond stable à l'ouverture de l'historique */
        border:1px solid rgba(34,184,255,.60);border-radius:16px;
        box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);padding:12px 12px 10px;margin:12px 0}
+  /* Panneau CONFIANCE vs VALUE (user 2026-08-09) : 2 cartes premium en tête des Stats. Confiance = vert
+     (le taux phare) · Value = or (le rendement). */
+  .tsplit{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+  .tsc{border-radius:14px;padding:12px 13px 11px;border:1px solid var(--border);
+       background:linear-gradient(180deg,#0f1620,#0b0d13)}
+  .tsc.tsc-conf{border-color:rgba(52,210,123,.5);
+       background:radial-gradient(120% 90% at 50% 0%,rgba(52,210,123,.12),transparent 62%),linear-gradient(180deg,#0f1620,#0b0d13);
+       box-shadow:0 0 22px rgba(52,210,123,.12)}
+  .tsc.tsc-val{border-color:rgba(246,197,74,.45);
+       background:radial-gradient(120% 90% at 50% 0%,rgba(246,197,74,.1),transparent 62%),linear-gradient(180deg,#0f1620,#0b0d13)}
+  .tsc-top{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+  .tsc-name{font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+  .tsc.tsc-conf .tsc-name{color:#54d98c}.tsc.tsc-val .tsc-name{color:var(--gold)}
+  .tsc-tag{font-size:8.5px;font-weight:700;color:var(--dim);letter-spacing:.02em;text-align:right;line-height:1.2}
+  .tsc-pct{font-size:38px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:6px 0 3px}
+  .tsc.tsc-conf .tsc-pct{color:#34d27b}.tsc.tsc-val .tsc-pct{color:var(--gold)}
+  .tsc-pct small{font-size:16px;font-weight:800;margin-left:2px}
+  .tsc-sub{font-size:11px;color:var(--muted);font-weight:600}
+  .tsc-sub b{color:var(--text)}
   /* ONGLET STATS (.statsx) : fond cyan (comme la carte .spf des onglets sport) sur TOUTES les lignes —
      scopé pour NE PAS toucher les mêmes composants affichés DANS les onglets sport (qui restent sombres
      pour contraster avec la carte .spf cyan qui les contient). */
@@ -4208,6 +4227,68 @@ def _mile_legend(miles: list, *, compact: bool = False) -> str:
             f'<div class="sx-mile-info"></div>{data}</div>')
 
 
+def _tier_agg(tier: str, sport: str = "foot", since: str | None = None) -> dict:
+    """Agrégat (n · gagnés · % · ROI) d'un TIER (confiance/value) sur les paris joués FIGÉS — MÊME population
+    que le compteur ROI (foot, hors roi_void, combiné antérieur au cutoff exclu). Tier via la confiance FIGÉE
+    (`tier_of`) -> monotone. `since` (ex. _LZ_SINCE) borne la période affichée."""
+    won = lost = 0
+    stake = ret = 0.0
+    for d in analyses.iter_meta(sport):
+        if d.get("roi_void"):
+            continue
+        st = (d.get("start") or "")
+        if since and st[:10] < since:
+            continue
+        _c = d.get("combo")
+        if _c and _c.get("legs") and st[:10] < analyses._COMBO_COUNT_FROM:
+            continue
+        sb = analyses.stat_bet(d)
+        if not isinstance(sb, dict) or sb.get("result") not in ("won", "lost", "push"):
+            continue
+        if analyses.tier_of(d) != tier:
+            continue
+        r = sb.get("result")
+        co = sb.get("cote") or sb.get("odds") or 0
+        stake += 1
+        if r == "won":
+            won += 1
+            ret += co
+        elif r == "lost":
+            lost += 1
+        else:
+            ret += 1
+    n = won + lost
+    return {"n": n, "won": won, "lost": lost,
+            "pct": round(100 * won / n) if n else 0,
+            "roi": round(100 * (ret - stake) / stake, 1) if stake else 0.0}
+
+
+def _tier_split_block() -> str:
+    """Panneau « Confiance vs Value » en tête des Stats (user 2026-08-09) : deux cartes premium (taux + ROI +
+    volume) sur la même période que le phare accueil (_LZ_SINCE). Vide/masqué si split désactivé. Additif :
+    ne touche PAS au bloc overall/ROI existant."""
+    if not analyses.TIER_SPLIT_ON:
+        return ""
+    c = _tier_agg("confiance", since=_LZ_SINCE)
+    v = _tier_agg("value", since=_LZ_SINCE)
+    if not (c["n"] or v["n"]):
+        return ""
+
+    def _card(cls, name, tag, a):
+        _roi = f'{"+" if a["roi"] >= 0 else ""}{a["roi"]:g}%'
+        return (f'<div class="tsc {cls}"><div class="tsc-top"><span class="tsc-name">{name}</span>'
+                f'<span class="tsc-tag">{tag}</span></div>'
+                f'<div class="tsc-pct num">{a["pct"]}<small>%</small></div>'
+                f'<div class="tsc-sub"><b class="num">{a["won"]}/{a["n"]}</b> réussis · ROI '
+                f'<b class="num">{_roi}</b></div></div>')
+    return ('<div class="sx-card tsplit-card"><div class="sx-h">Confiance vs Value'
+            f'<span>{_LZ_SINCE_LABEL} · paris joués (les deux comptés au ROI)</span></div>'
+            '<div class="tsplit">'
+            + _card("tsc-conf", "Confiance", "haute confiance · le taux phare", c)
+            + _card("tsc-val", "Value", "cotes +&nbsp;généreuses · +EV", v)
+            + '</div></div>')
+
+
 def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
     """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
     UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
@@ -4301,7 +4382,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                         rois=(ov.get("roi"), _foot_c.get("roi"), _prov_sport_roi("foot")))   # ROI discret par onglet (user 2026-08-02)
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
-    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
+    return (f'<div class="spf">{_sport_banner("foot")}{_tier_split_block()}{_foot}</div>') if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
