@@ -2914,7 +2914,7 @@ def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
                         continue
                     out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
                                 "cote": cb.get("cote"), "name": f"Combiné du jour ({len(cb.get('legs') or [])} j.)",
-                                "sel": "combiné du jour", "sport": _sp,
+                                "sel": "combiné du jour", "sport": _sp, "tier": "confiance",
                                 "legs": combo_daily._leg_summ(cb)})   # jambes -> historique
         except Exception:
             pass
@@ -2940,7 +2940,8 @@ def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
             rb = retained_bet(_sp, mid) or published_bet(_sp, mid)
             if rb and rb.get("result") not in ("won", "lost", "push"):
                 out.append({"start": d.get("start") or "", "result": "pending", "cote": rb.get("cote"),
-                            "name": d.get("name"), "sel": rb.get("sel"), "sport": _sp})
+                            "name": d.get("name"), "sel": rb.get("sel"), "sport": _sp,
+                            "tier": tier_of(d, rb)})   # tier -> onglets Confiance/Value des Stats
     out.sort(key=lambda x: x.get("start") or "")            # chronologique (le plus proche en tête à l'affichage)
     return out
 
@@ -2977,6 +2978,8 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
     # Sports en ARRIÈRE-PLAN (tennis/basket) : leurs paris comptent dans `by_sport` (ROI SIMULÉ, suivi séparé)
     # mais PAS dans `overall`/`since_ev` (headline = sports actifs, foot) — demande user 2026-07-24.
     _bg = background_sports()
+    conf_ev: list = []        # paris FOOT du tier CONFIANCE (haute confiance figée) -> stats par tier
+    value_ev: list = []       # paris FOOT du tier VALUE (sous le seuil)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -3040,6 +3043,9 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                 all_ev.append(ev)
                 if is_new:
                     since_ev.append(ev)
+                # SPLIT CONFIANCE / VALUE (user 2026-08-09) : classement par la confiance FIGÉE (tier_of ->
+                # monotone). Les DEUX comptent au ROI ; c'est juste un découpage d'affichage (onglets Stats).
+                (conf_ev if tier_of(d, rb) == "confiance" else value_ev).append(ev)
         # UN MATCH = UN PARI (user 2026-08-07) : le pari du 1er scan (`stat_bet_first`) N'EST PLUS compté
         # séparément — un même match ne doit produire QU'UNE ligne / UN résultat au ROI et à la série (avant :
         # un rescan qui changeait le pick faisait compter 2 fois le match, ex. Vitória-Athletico = 2 défaites
@@ -3064,6 +3070,7 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
         pass
     out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
            "since_change": _agg_bets(since_ev),        # nouveau système (s'enrichit au fil des scans)
+           "by_tier": {"confiance": _agg_bets(conf_ev), "value": _agg_bets(value_ev)},   # onglets Confiance/Value
            "by_sport": {sport: _agg_bets(evs) for sport, evs in by_sport.items()},
            # « Volume de données » (panneau transparence) : matchs analysés vs matchs réglés (1 par match),
            # + plage de coups d'envoi couverte (période de mesure -> contexte du nombre calibré).

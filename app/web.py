@@ -4269,8 +4269,8 @@ def _tier_split_block() -> str:
     ne touche PAS au bloc overall/ROI existant."""
     if not analyses.TIER_SPLIT_ON:
         return ""
-    c = _tier_agg("confiance", since=_LZ_SINCE)
-    v = _tier_agg("value", since=_LZ_SINCE)
+    c = _tier_agg("confiance")            # TOUT l'historique -> cohérent avec les onglets Confiance/Value dessous
+    v = _tier_agg("value")
     if not (c["n"] or v["n"]):
         return ""
 
@@ -4282,7 +4282,7 @@ def _tier_split_block() -> str:
                 f'<div class="tsc-sub"><b class="num">{a["won"]}/{a["n"]}</b> réussis · ROI '
                 f'<b class="num">{_roi}</b></div></div>')
     return ('<div class="sx-card tsplit-card"><div class="sx-h">Confiance vs Value'
-            f'<span>{_LZ_SINCE_LABEL} · paris joués (les deux comptés au ROI)</span></div>'
+            '<span>tout l\'historique · paris joués (les deux comptés au ROI)</span></div>'
             '<div class="tsplit">'
             + _card("tsc-conf", "Confiance", "haute confiance · le taux phare", c)
             + _card("tsc-val", "Value", "cotes +&nbsp;généreuses · +EV", v)
@@ -4345,17 +4345,33 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # (titre + ROI), W/L au-dessus de la courbe, courbe (avec repères), stats dessous. EXTRAS conservés :
     # nouv. système + CLV (ligne secondaire) et repères de modèle sous la courbe.
     # Paris À JOUER (comptés au ROI, pas encore réglés) EN TÊTE (⏳), puis les réglés (demande user 2026-07-14).
-    _rec_s = _recent_bets_html(analyses.pending_roi_bets() + list(reversed(ov.get("recent") or [])))
-    _best_s = ov.get("best_streak")                   # RECORD victoires sur TOUT l'historique (pré-calculé _agg_bets)
-    _s_inner = _hero_graph_inner(                     # disposition « ROI héros » façon ROI global (choix user 2026-07-24)
-        roi=ov.get("roi"), n=ov.get("settled"), hit=ov["pct"], avg_cote=ov.get("avg_odds"),
-        chart=f'<div class="sx-equity">{chart}</div>', form=_simples_form, streak=ov.get("streak"),
-        hit_points=ov.get("hit_points"), uid="sim-foot", best_streak=_best_s,
-        cote_points=ov.get("cote_points"))
-    simples_block = (                                 # SANS boîte imbriquée : contenu direct sur la carte sport
-        (f'<details class="spf-hero spf-cv-x"><summary class="spf-cv-sum">{_s_inner}'
-         f'<div class="spf-cv-more"><span>Derniers paris de confiance</span> ▾</div></summary>{_rec_s}</details>')
-        if _rec_s else f'<div class="spf-hero">{_s_inner}</div>')
+    # SPLIT CONFIANCE / VALUE (user 2026-08-09) : deux blocs (2 onglets) au lieu du bloc « simples » overall.
+    # Chaque tier a SA courbe, SA série W/L et SON historique (via full["by_tier"], reconstruit par _agg_bets
+    # sur les seuls paris du tier) -> l'historique des matchs est bien SÉPARÉ entre Confiance et Value.
+    _bt = full.get("by_tier") or {}
+    _pend_all = analyses.pending_roi_bets()
+    _pend_conf = [b for b in _pend_all if b.get("tier") != "value"]
+    _pend_val = [b for b in _pend_all if b.get("tier") == "value"]
+
+    def _tier_block(ts, pend, uid, more_lbl):
+        if not (ts.get("settled") or pend):
+            return ""
+        _ch = _hero_chart(ts.get("points") or [], uid=uid, dates=ts.get("dates") or [])
+        _lf = ts.get("form_run") or ts.get("form") or []
+        _fd = form_dots([_LET.get(x, x) for x in _lf], n=16, pending=len(pend))
+        _fh = f'<div class="spf-cv-form">{_fd}</div>' if _fd else ""
+        _in = _hero_graph_inner(
+            roi=ts.get("roi"), n=ts.get("settled"), hit=ts.get("pct"), avg_cote=ts.get("avg_odds"),
+            chart=f'<div class="sx-equity">{_ch}</div>', form=_fh, streak=ts.get("streak"),
+            hit_points=ts.get("hit_points"), uid=uid, best_streak=ts.get("best_streak"),
+            cote_points=ts.get("cote_points"))
+        _rc = _recent_bets_html(pend + list(reversed(ts.get("recent") or [])))
+        return ((f'<details class="spf-hero spf-cv-x"><summary class="spf-cv-sum">{_in}'
+                 f'<div class="spf-cv-more"><span>{more_lbl}</span> ▾</div></summary>{_rc}</details>')
+                if _rc else f'<div class="spf-hero">{_in}</div>')
+
+    simples_block = _tier_block(_bt.get("confiance") or {}, _pend_conf, "sim-conf", "Derniers paris Confiance")
+    value_block = _tier_block(_bt.get("value") or {}, _pend_val, "sim-value", "Derniers paris Value")
     # BLOC COMBINÉS FOOTBALL (demande user 2026-07-24 : graphes de combiné PROPRES à chaque sport) : ici les
     # combos PER-MATCH FOOT seuls. Le combiné du jour et le combiné Betmines ont leur PROPRE carte (suivis
     # indicatifs). Tennis/basket combos -> section Simulation. Repères foot (_ms_combo déjà filtré foot+all).
@@ -4377,9 +4393,11 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         cote_points=_foot_c.get("cote_points")) if (_foot_c.get("settled") or _pend_fc) else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
-    _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"),   # + onglet Provisoires (user 2026-07-25)
-                        counts=(_pend_s, len(_pend_fc), _prov_pending_count("foot")),   # badges EN COURS par onglet
-                        rois=(ov.get("roi"), _foot_c.get("roi"), _prov_sport_roi("foot")))   # ROI discret par onglet (user 2026-08-02)
+    _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"),   # + onglets Value/Provisoires
+                        value_html=value_block,                                    # onglet VALUE (user 2026-08-09)
+                        counts=(len(_pend_conf), len(_pend_val), len(_pend_fc), _prov_pending_count("foot")),
+                        rois=((_bt.get("confiance") or {}).get("roi"), (_bt.get("value") or {}).get("roi"),
+                              _foot_c.get("roi"), _prov_sport_roi("foot")))
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
     return (f'<div class="spf">{_sport_banner("foot")}{_tier_split_block()}{_foot}</div>') if _foot else ""
@@ -4458,15 +4476,16 @@ def _roi_chip_mini(roi) -> str:
 
 
 def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
-                counts: tuple = (0, 0, 0), rois: tuple = (None, None, None)) -> str:
-    """Onglets « Simple | Combinés | Provisoires » dans un cadre sport (demande user 2026-07-24/25) : UN
-    graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique). Les onglets vides sont
-    ignorés ; si un seul graphe, rendu direct (pas d'onglets) ; '' si aucun. `counts` = (simples, combinés,
-    provisoires) EN COURS -> petite pastille ⏳ sur l'onglet SEULEMENT si > 0 (demande user 2026-07-26 : voir
-    d'un coup d'œil où il y a de l'action live)."""
-    _c = list(counts) + [0, 0, 0]
-    _r = list(rois) + [None, None, None]
-    _specs = (("Confiances", simple_html), ("Combinés", combos_html), ("Provisoires", prov_html))
+                counts: tuple = (0, 0, 0, 0), rois: tuple = (None, None, None, None),
+                value_html: str = "") -> str:
+    """Onglets « Confiance | Value | Combinés | Provisoires » dans un cadre sport (demande user 2026-07-24/25,
+    Value ajouté 2026-08-09) : UN graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique).
+    Les onglets vides sont ignorés ; si un seul graphe, rendu direct ; '' si aucun. `counts`/`rois` = par
+    onglet DANS L'ORDRE (Confiance, Value, Combinés, Provisoires) — pastille ⏳ si count>0 + ROI discret."""
+    _c = list(counts) + [0, 0, 0, 0]
+    _r = list(rois) + [None, None, None, None]
+    _specs = (("Confiances", simple_html), ("Value", value_html),
+              ("Combinés", combos_html), ("Provisoires", prov_html))
     _tabs = [(lbl, h, _c[i], _r[i]) for i, (lbl, h) in enumerate(_specs) if h]
     if len(_tabs) <= 1:
         return _tabs[0][1] if _tabs else ""
