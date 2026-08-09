@@ -1060,22 +1060,6 @@ CSS = """
                border-color:rgba(34,184,255,.45);box-shadow:0 0 14px rgba(34,184,255,.10)}
   .perle-value .pl-tag{color:#4aa8ff;background:rgba(34,184,255,.16)}
   .perle-value .pl-o{color:#4aa8ff}
-  /* Match commencé : on garde le type (vert/bleu) mais sans halo « action » + mention discrète */
-  .perle-pre{box-shadow:none;opacity:.9}
-  .pl-pre{font-size:9.5px;font-weight:700;font-style:italic;color:var(--muted);white-space:nowrap}
-  /* 🟢 Pari déjà GAGNÉ en live : halo vert prononcé + badge ✓ (prime sur conf/value) */
-  .perle-won{border-color:rgba(25,196,106,.9)!important;
-             box-shadow:0 0 18px rgba(25,196,106,.5)!important;
-             background:linear-gradient(90deg,rgba(25,196,106,.2),rgba(25,196,106,.07))!important}
-  .pl-won{font-size:10px;font-weight:800;color:#19c46a;background:rgba(25,196,106,.18);
-          padding:2px 6px;border-radius:6px;white-space:nowrap}
-  /* 🔴 Pari déjà RATÉ en live : halo rouge prononcé + badge ✗ */
-  .perle-lost{border-color:rgba(244,73,73,.9)!important;
-              box-shadow:0 0 18px rgba(244,73,73,.45)!important;
-              background:linear-gradient(90deg,rgba(244,73,73,.18),rgba(244,73,73,.06))!important}
-  .perle-lost .pl-o{color:#ff8a8a!important}
-  .pl-lost{font-size:10px;font-weight:800;color:#ff6b6b;background:rgba(244,73,73,.18);
-          padding:2px 6px;border-radius:6px;white-space:nowrap}
   .bdg .badge{white-space:nowrap}
   /* Matchs terminés : prono JOUÉ mis en évidence (Confiance vert / Value bleu) + ✓/✗ */
   .fpick{font-size:12.5px;color:#eaf2ff;padding:8px 11px;border-radius:9px;
@@ -2663,9 +2647,6 @@ CSS = """
   .da-bk{position:relative;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border:1px solid rgba(255,255,255,.07);border-left:4px solid #34d27b;
        border-radius:13px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.34)}
-  .da-bk-ok,
-  .da-bk-mid,
-  .da-bk-hi{border-left-color:#34d27b}   /* sûreté ne colore PLUS la bande (étoiles) */
   .da-bk-tab{display:flex;align-items:center;gap:8px;padding:5px 14px 0;font-size:10.5px;
        font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
   .da-bk-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px 13px}
@@ -2905,12 +2886,6 @@ CSS = """
   .fpick-t,
   .an-tag{
        text-transform:uppercase;letter-spacing:.03em}
-  /* ⭐ pari RETENU par le moteur (ex-mode bankroll,
-  UI retirée) : étoile à droite du nom du pari,
-  sur le CADRE déplié ET sur la ligne de la carte repliée */
-  .da-bk-star{font-size:13px;vertical-align:1px;
-       filter:drop-shadow(0 0 6px rgba(246,197,74,.65))}
-  .mc-star{font-size:10px;filter:drop-shadow(0 0 5px rgba(246,197,74,.6))}
   /* Grande courbe d'équité de la carte Performance (accueil) */
   .dperf-chart{margin:10px 0 2px}
   .dperf-chart .sx-heroc{display:block;width:100%;height:88px}
@@ -2925,25 +2900,6 @@ CSS = """
   .sx-card{background:rgba(34,184,255,.055);   /* teinte UNIE : fond stable à l'ouverture de l'historique */
        border:1px solid rgba(34,184,255,.60);border-radius:16px;
        box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);padding:12px 12px 10px;margin:12px 0}
-  /* Panneau CONFIANCE vs VALUE (user 2026-08-09) : 2 cartes premium en tête des Stats. Confiance = vert
-     (le taux phare) · Value = or (le rendement). */
-  .tsplit{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
-  .tsc{border-radius:14px;padding:12px 13px 11px;border:1px solid var(--border);
-       background:linear-gradient(180deg,#0f1620,#0b0d13)}
-  .tsc.tsc-conf{border-color:rgba(52,210,123,.5);
-       background:radial-gradient(120% 90% at 50% 0%,rgba(52,210,123,.12),transparent 62%),linear-gradient(180deg,#0f1620,#0b0d13);
-       box-shadow:0 0 22px rgba(52,210,123,.12)}
-  .tsc.tsc-val{border-color:rgba(246,197,74,.45);
-       background:radial-gradient(120% 90% at 50% 0%,rgba(246,197,74,.1),transparent 62%),linear-gradient(180deg,#0f1620,#0b0d13)}
-  .tsc-top{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
-  .tsc-name{font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
-  .tsc.tsc-conf .tsc-name{color:#54d98c}.tsc.tsc-val .tsc-name{color:var(--gold)}
-  .tsc-tag{font-size:8.5px;font-weight:700;color:var(--dim);letter-spacing:.02em;text-align:right;line-height:1.2}
-  .tsc-pct{font-size:38px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:6px 0 3px}
-  .tsc.tsc-conf .tsc-pct{color:#34d27b}.tsc.tsc-val .tsc-pct{color:var(--gold)}
-  .tsc-pct small{font-size:16px;font-weight:800;margin-left:2px}
-  .tsc-sub{font-size:11px;color:var(--muted);font-weight:600}
-  .tsc-sub b{color:var(--text)}
   /* ONGLET STATS (.statsx) : fond cyan (comme la carte .spf des onglets sport) sur TOUTES les lignes —
      scopé pour NE PAS toucher les mêmes composants affichés DANS les onglets sport (qui restent sombres
      pour contraster avec la carte .spf cyan qui les contient). */
@@ -4227,68 +4183,6 @@ def _mile_legend(miles: list, *, compact: bool = False) -> str:
             f'<div class="sx-mile-info"></div>{data}</div>')
 
 
-def _tier_agg(tier: str, sport: str = "foot", since: str | None = None) -> dict:
-    """Agrégat (n · gagnés · % · ROI) d'un TIER (confiance/value) sur les paris joués FIGÉS — MÊME population
-    que le compteur ROI (foot, hors roi_void, combiné antérieur au cutoff exclu). Tier via la confiance FIGÉE
-    (`tier_of`) -> monotone. `since` (ex. _LZ_SINCE) borne la période affichée."""
-    won = lost = 0
-    stake = ret = 0.0
-    for d in analyses.iter_meta(sport):
-        if d.get("roi_void"):
-            continue
-        st = (d.get("start") or "")
-        if since and st[:10] < since:
-            continue
-        _c = d.get("combo")
-        if _c and _c.get("legs") and st[:10] < analyses._COMBO_COUNT_FROM:
-            continue
-        sb = analyses.stat_bet(d)
-        if not isinstance(sb, dict) or sb.get("result") not in ("won", "lost", "push"):
-            continue
-        if analyses.tier_of(d) != tier:
-            continue
-        r = sb.get("result")
-        co = sb.get("cote") or sb.get("odds") or 0
-        stake += 1
-        if r == "won":
-            won += 1
-            ret += co
-        elif r == "lost":
-            lost += 1
-        else:
-            ret += 1
-    n = won + lost
-    return {"n": n, "won": won, "lost": lost,
-            "pct": round(100 * won / n) if n else 0,
-            "roi": round(100 * (ret - stake) / stake, 1) if stake else 0.0}
-
-
-def _tier_split_block() -> str:
-    """Panneau « Confiance vs Value » en tête des Stats (user 2026-08-09) : deux cartes premium (taux + ROI +
-    volume) sur la même période que le phare accueil (_LZ_SINCE). Vide/masqué si split désactivé. Additif :
-    ne touche PAS au bloc overall/ROI existant."""
-    if not analyses.TIER_SPLIT_ON:
-        return ""
-    c = _tier_agg("confiance")            # TOUT l'historique -> cohérent avec les onglets Confiance/Value dessous
-    v = _tier_agg("value")
-    if not (c["n"] or v["n"]):
-        return ""
-
-    def _card(cls, name, tag, a):
-        _roi = f'{"+" if a["roi"] >= 0 else ""}{a["roi"]:g}%'
-        return (f'<div class="tsc {cls}"><div class="tsc-top"><span class="tsc-name">{name}</span>'
-                f'<span class="tsc-tag">{tag}</span></div>'
-                f'<div class="tsc-pct num">{a["pct"]}<small>%</small></div>'
-                f'<div class="tsc-sub"><b class="num">{a["won"]}/{a["n"]}</b> réussis · ROI '
-                f'<b class="num">{_roi}</b></div></div>')
-    return ('<div class="sx-card tsplit-card"><div class="sx-h">Confiance vs Value'
-            '<span>tout l\'historique · paris joués (les deux comptés au ROI)</span></div>'
-            '<div class="tsplit">'
-            + _card("tsc-conf", "Confiance", "haute confiance · le taux phare", c)
-            + _card("tsc-val", "Value", "cotes +&nbsp;généreuses · +EV", v)
-            + '</div></div>')
-
-
 def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
     """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
     UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
@@ -4297,10 +4191,6 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     ov = full.get("overall") or {}
     if not ov.get("settled"):
         return ""
-    sc = full.get("since_change") or {}
-    # KPI à SUIVRE : nouveau système (1 pari/match + 3 agents) -> chip EXTRA sous la courbe.
-    nv_val = _roistr(sc.get("roi")) if sc.get("settled") else "—"
-    nv_cls = _roi_cls(sc.get("roi"), sc.get("settled")) if sc.get("settled") else "hi"
     # COURBE + repères. DEUX familles fusionnées et triées par date : 🔵 JALONS MÉTHODO (changements
     # DÉLIBÉRÉS de l'analyse / de la création des tickets) + 🟠 AJUSTEMENTS AUTO (marchés que le système
     # écarte ou ré-intègre TOUT SEUL, datés — ils changent aussi la fabrication des tickets). Chaque repère
@@ -4313,34 +4203,11 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # ajustements FOOT (ou globaux « all ») ; ceux de tennis/basket vont sur leurs courbes de Simulation.
     # 5e champ (m[4]) = sport (foot/tennis/basket/all). Helper partagé exposé pour _simulation_card.
     _all_miles = sorted(analyses.exclusion_events(), key=lambda m: (m[0] or ""))
-    _ms_simple = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("simple", "both")
-                  and (m[4] if len(m) > 4 else "all") in ("foot", "all")]
     _ms_combo = [m for m in _all_miles if (m[3] if len(m) > 3 else "both") in ("combo", "both")
                  and (m[4] if len(m) > 4 else "all") in ("foot", "all")]
-    chart = _hero_chart(ov.get("points") or [], uid="all", dates=ov.get("dates") or [])
     # Forme W/L (mêmes pastilles que les onglets sport, récent à DROITE), JUSTE au-dessus de sa courbe.
     # + SABLIERS DORÉS des paris À JOUER pas encore réglés, en queue (demande user 2026-07-17).
     _LET = {"won": "W", "lost": "L", "push": "N"}
-    _pend_s = len(analyses.pending_roi_bets())
-    _pend_c = len(analyses.pending_roi_bets(combo=True))
-    _letters_s = ov.get("form_simple") or ov.get("form_run") or ov.get("form") or []
-    _fs = form_dots([_LET.get(x, x) for x in _letters_s], n=16, pending=_pend_s)
-    _fc = form_dots([_LET.get(x, x) for x in (ov.get("form_combo") or [])], n=16, pending=_pend_c)
-    _stk_s = _streak_chip(ov.get("streak"))                        # série EN COURS des simples (dans l'en-tête)
-    _simples_form = f'<div class="spf-cv-form">{_fs}</div>' if _fs else ""   # dots seuls, alignés à droite
-    _combo_form = f'<div class="spf-cv-form">{_fc}</div>' if _fc else ""     # série combinés -> en-tête (render_combos)
-    # CLV (Closing Line Value) : chip EXTRA sous la courbe (>0 = on bat la cote de clôture). '—' si vide.
-    from app import clv as _clvmod
-    _cs = _clvmod.clv_stats()
-    if _cs.get("n"):
-        _cv = _cs["avg_pct"]
-        _clv_txt = (f'<span title="CLV : cote prise vs cote de clôture. &gt;0 = on bat le marché. '
-                    f'{_cs.get("beat_pct")}% des paris au-dessus, sur {_cs["n"]} résultats.">CLV '
-                    f'<b class="arec-{_roi_cls(_cv, _cs["n"])}">{"+" if (_cv or 0) >= 0 else ""}{_cv}%'
-                    f'</b> ({_cs["n"]})</span>')
-    else:
-        _clv_txt = ('<span title="CLV (Closing Line Value) : battre la cote de clôture du marché. Se '
-                    'remplit dès que des paris résultat se règlent.">CLV <b>—</b></span>')
     # BLOC SIMPLES compact (présentation alignée sur les onglets sport, demande user) : en-tête
     # (titre + ROI), W/L au-dessus de la courbe, courbe (avec repères), stats dessous. EXTRAS conservés :
     # nouv. système + CLV (ligne secondaire) et repères de modèle sous la courbe.
@@ -4479,10 +4346,10 @@ def _roi_chip_mini(roi) -> str:
 def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
                 counts: tuple = (0, 0, 0, 0), rois: tuple = (None, None, None, None),
                 value_html: str = "") -> str:
-    """Onglets « Confiance | Value | Combinés | Provisoires » dans un cadre sport (demande user 2026-07-24/25,
+    """Onglets « Confiance | Value | Provisoire | Combiné » dans un cadre sport (demande user 2026-07-24/25,
     Value ajouté 2026-08-09) : UN graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique).
     Les onglets vides sont ignorés ; si un seul graphe, rendu direct ; '' si aucun. `counts`/`rois` = par
-    onglet DANS L'ORDRE (Confiance, Value, Combinés, Provisoires) — pastille ⏳ si count>0 + ROI discret."""
+    onglet DANS L'ORDRE (Confiance, Value, Provisoire, Combiné) — pastille ⏳ si count>0 + ROI discret."""
     _c = list(counts) + [0, 0, 0, 0]
     _r = list(rois) + [None, None, None, None]
     # ORDRE (user 2026-08-10) : Confiance › Value › Provisoire › Combiné (Combiné en dernier). Libellés au
@@ -6053,23 +5920,6 @@ def _montante_palier() -> int | None:
         return None
 
 
-def _montante_palier_for(mid) -> tuple | None:
-    """(palier n°, mise) si `mid` est le PARI DU JOUR EN ATTENTE de la montante, sinon None. Sert à greffer
-    l'indication montante DIRECTEMENT sur la carte du pari concerné (demande user 2026-07-28) au lieu d'une
-    bannière séparée -> le pari du jour est montré UNE fois, avec son badge « Montante · Palier N »."""
-    try:
-        from app import montante as _mt
-        if not _mt.is_active():
-            return None
-        st = _mt.state()
-        p = st.get("pending") or {}
-        if not p.get("sel") or str(p.get("mid") or "") != str(mid):
-            return None
-        return (int(st.get("palier") or 0) + 1, p.get("stake") or st.get("base", 10.0))
-    except Exception:
-        return None
-
-
 def _montante_today_bet():
     """Le pari montante DU JOUR : le `pending` (non réglé) sinon le dernier step RÉGLÉ aujourd'hui (jour
     sportif). None si montante inactive / aucun pari aujourd'hui. Sert à afficher le pari montante ET son
@@ -6200,7 +6050,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
 
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
-          record: tuple | None = None, legs: int | None = None,
+          record: tuple | None = None,
           leg_results: list | None = None) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
     de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
@@ -6239,21 +6089,21 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         _r6 = list(record) + [0] * (6 - len(record))
         _s, _up, _lv, _w, _l, _pend = _r6[:6]
         badge_n = _s
-        # COMBINÉ : le nb de jambes est affiché DANS le badge d'état actif -> « 1 (2) » (user 2026-08-08).
-        _lg = f' ({legs})' if legs else ''
+        # (Combiné : ce chemin `elif record:` n'est PAS emprunté par les combinés — ils passent leg_results
+        # et prennent la branche ci-dessus ; ici on ne rend que les zones simples.)
         # ORDRE = MÊME SENS que les cartes en dessous (user 2026-08-09), cycle de vie non-joué -> réglé :
         # À VENIR/LIVE (jaune) · EN ATTENTE (gris) · GAGNÉS (vert) · PERDUS (rouge). Le jaune (qui inclut la
         # montante + les lives) est donc EN PREMIER, comme les matchs à venir/en cours en haut de la liste.
         if _up:                                          # à venir + live (pas de résultat) : JAUNE, EN PREMIER
-            chips += f'<span class="zr zru">{_up}{_lg}</span>'
+            chips += f'<span class="zr zru">{_up}</span>'
         if _lv:                                          # en direct (chip vert distinct, non utilisé en Pronos)
-            chips += f'<span class="zr zrlv">{_lv}{_lg}</span>'
+            chips += f'<span class="zr zrlv">{_lv}</span>'
         if _pend:                                        # fini mais PAS ENCORE RÉGLÉ : badge GRIS
-            chips += f'<span class="zr zrp">{_pend}{_lg}</span>'
+            chips += f'<span class="zr zrp">{_pend}</span>'
         if _w:                                            # gagnés : badge VERT
-            chips += f'<span class="zr zrw">{_w}{_lg}</span>'
+            chips += f'<span class="zr zrw">{_w}</span>'
         if _l:                                            # perdus : badge ROUGE
-            chips += f'<span class="zr zrl">{_l}{_lg}</span>'
+            chips += f'<span class="zr zrl">{_l}</span>'
     if chips:
         rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
@@ -6760,7 +6610,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # (via _montante_zone_card). Plus de badge greffé sur les cartes de pari joué (surface unique = la zone).
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
-    # ORDRE : Confiance (montante incluse) → Provisoire → Combiné. « Confiance » n'apparaît que s'il y a un
+    # ORDRE : Confiance (montante incluse) → Value → Provisoire → Combiné. « Confiance » n'apparaît que s'il y a un
     # pari/résultat/montante (demande user 2026-07-26).
     out = []
     # MONTANTE FUSIONNÉE DANS CONFIANCE (user 2026-08-08) : PLUS de zone « Montante » séparée. Le match de la
@@ -6861,14 +6711,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                          collapsible=True, record=_prov_rec if _prov_rec[0] else None))
     # Record du COMBINÉ football du jour (1 combiné/jour ; gagné/perdu = son résultat).
     _combo_rec = None
-    _c_legs = None
     _c_leg_results = None
     _combo_active = bool(combo_daily)   # défaut : compte le combiné (repli si son état est illisible)
     if combo_daily:
         try:
             from app import combo_daily as _cd2
             _cbt = _cd2.today(today_iso, sport=(sport or "foot")) or {}
-            _c_legs = len(_cbt.get("legs") or []) or None   # nb de jambes -> compteur « 1 (2) »
             # Résultat de CHAQUE jambe -> cercles colorés du badge combiné (jaune/vert/rouge).
             _c_leg_results = [l.get("result") for l in (_cbt.get("legs") or [])] or None
             _cr = _cbt.get("result")
@@ -6885,7 +6733,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _combo_rec = None
     out += [
         _zone("combo", "Combiné double chance", "", 1 if combo_daily else 0, combo_daily,
-              collapsible=True, record=_combo_rec, legs=_c_legs, leg_results=_c_leg_results),
+              collapsible=True, record=_combo_rec, leg_results=_c_leg_results),
     ]
     inner = "".join(x for x in out if x)
     _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
