@@ -6681,12 +6681,13 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # n'est plus « live » (fini, en cours de règlement) — avant, il était compté à tort en « à venir ».
     _now_ts = time.time()
     _pw, _pl, _pp = _settled_wl_today(today_iso, sport)          # simples réglés du jour (léger)
-    # LIVE COMPTÉ « EN ATTENTE » (user 2026-08-08) : tout pari NON réglé dont le match a COMMENCÉ (live OU
-    # fini-non-réglé) = en attente de résolution (badge GRIS). Plus de chip live vert distinct dans Pronos.
-    _p_pend = sum(1 for r in play if (r.get("status") == "inprogress")
-                  or ((r.get("start_ts") or 0) and r["start_ts"] <= _now_ts))
+    # LIVE = JAUNE tant qu'il n'y a pas de résultat (user 2026-08-09) : un match EN COURS (inprogress) est
+    # compté JAUNE (en jeu, pas de résultat), PAS gris. Le GRIS (« en attente de résolution ») reste RÉSERVÉ
+    # aux matchs FINIS mais pas encore réglés (démarrés, plus live). Réglé -> vert/rouge.
+    _p_pend = sum(1 for r in play if r.get("status") != "inprogress"
+                  and (r.get("start_ts") or 0) and r["start_ts"] <= _now_ts)
     _p_lv = 0
-    _p_up = len(play) - _p_pend                                      # paris joués À VENIR (non démarrés)
+    _p_up = len(play) - _p_pend                                      # JAUNE = à venir + LIVE (sans résultat)
     _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl, _p_pend)
     if play or _res_cards or _mont_card:
         out.append(_zone("play", _plur(len(play) + len(_res_cards), "Confiance"), "",
@@ -6697,11 +6698,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
     # même sélection que _provisional_results). -> « X sél · W✅ · L❌ » colle au nombre de cartes (hors ROI).
     _psn, _psw, _psl = _prov_settled_wl(today_iso, sport)
-    # LIVE compté « en attente » (gris), comme les paris joués (user 2026-08-08).
-    _pv_pend = sum(1 for it in prov if it.get("_live")
-                   or ((it.get("start_ts") or 0) and it["start_ts"] <= _now_ts))
+    # LIVE = JAUNE (user 2026-08-09) : un provisoire EN COURS (_live) est JAUNE ; le GRIS reste réservé au
+    # provisoire FINI mais pas encore réglé (démarré, plus live). Cohérent avec les confiances.
+    _pv_pend = sum(1 for it in prov if not it.get("_live")
+                   and (it.get("start_ts") or 0) and it["start_ts"] <= _now_ts)
     _pv_lv = 0
-    _pv_up = len(prov) - _pv_pend                                     # provisoires à venir
+    _pv_up = len(prov) - _pv_pend                                     # JAUNE = à venir + live (sans résultat)
     _prov_rec = (len(prov) + _psn, _pv_up, _pv_lv, _psw, _psl, _pv_pend)
     if prov or _prov_res:
         out.append(_zone("indic", _plur(len(prov) + _psn, "Provisoire"), "", len(prov), _prov_html,
