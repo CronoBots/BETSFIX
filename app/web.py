@@ -6795,12 +6795,17 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
 
     def _tier_rec(_pl, _tier):
         # RECORD 6 états d'un tier : total · À VENIR/LIVE (jaune) · live · EN ATTENTE (gris) · gagnés · perdus.
-        # LIVE = jaune (en jeu) ; GRIS = fini-non-réglé (démarré, plus live). Réglé -> vert/rouge.
+        # LIVE VERROUILLÉ (user 2026-08-10) : un pari EN COURS déjà MATHÉMATIQUEMENT gagné (live_won, ex. over
+        # franchi) compte VERT (gagné), perdu (live_lost) compte ROUGE — dès maintenant, avant le règlement
+        # officiel (n'affecte QUE le compteur d'affichage, pas le ROI). LIVE INCERTAIN (1X2/handicap réversible)
+        # reste JAUNE. GRIS = fini-non-réglé (démarré, plus live).
         _w, _l, _p = _settled_wl_today(today_iso, sport, tier=_tier)
+        _lw = sum(1 for r in _pl if r.get("status") == "inprogress" and r.get("live_won"))
+        _ll = sum(1 for r in _pl if r.get("status") == "inprogress" and r.get("live_lost"))
         _pend = sum(1 for r in _pl if r.get("status") != "inprogress"
                     and (r.get("start_ts") or 0) and r["start_ts"] <= _now_ts)
-        _up = len(_pl) - _pend
-        return (len(_pl) + _w + _l + _p, _up, 0, _w, _l, _pend)
+        _up = len(_pl) - _pend - _lw - _ll        # jaune = à venir + live INCERTAIN (hors live verrouillés)
+        return (len(_pl) + _w + _l + _p, _up, 0, _w + _lw, _l + _ll, _pend)
 
     # ZONE CONFIANCE (montante réglée `_mont_settled` incluse avec ses résultats).
     _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf), _mont_settled) if h])
