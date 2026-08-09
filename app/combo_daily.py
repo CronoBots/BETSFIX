@@ -491,12 +491,38 @@ def settle_pending(sport: str = "foot") -> int:
         _frozen = cb.get("result") in ("won", "lost", "void")
         _pending = any(l.get("result") not in ("won", "lost", "push")
                        for l in (cb.get("legs") or []))
-        if _frozen and not _pending:
-            continue
         try:
             _age = (_today - _dt.date.fromisoformat(day)).days
         except (ValueError, TypeError):
             _age = 0
+        # SELF-HEAL COLLISION DE NOM (fix 2026-08-09, 0 réseau) : une jambe FOOT déjà réglée par RÉSOLUTION DE
+        # NOM (avant que le sidecar du match existe) a pu capter le score d'un match HOMONYME — cas vécu :
+        # Sparta-Feyenoord réglé « 7-0 » au lieu de « 0-1 » -> DC Feyenoord faussement PERDUE (affichage cassé).
+        # Dès que le sidecar (AUTORITÉ, result.raw) a un score final DIFFÉRENT, on RÉALIGNE la jambe dessus,
+        # même DÉJÀ réglée. Tourne AVANT la garde de skip (un combiné figé + toutes jambes réglées passait à
+        # travers sinon). Borné à 3 j. On corrige la JAMBE (affichage) ; le résultat GLOBAL d'un combiné déjà
+        # tranché (ROI figé, compteur monotone) n'est PAS recalculé ici — seule la passe non-figée le fait.
+        if _age <= 3:
+            for leg in cb.get("legs") or []:
+                if leg.get("result") not in ("won", "lost", "push") or leg.get("sport") not in (None, "foot"):
+                    continue
+                try:
+                    _sm2 = _an.meta(leg.get("sport"), str(leg.get("mid") or "")) or {}
+                    _raw2 = (_sm2.get("result") or {}).get("raw")
+                    _lbl2 = _raw2.get("label") if isinstance(_raw2, dict) else None
+                    if not (isinstance(_raw2, dict) and _raw2.get("home") is not None
+                            and _lbl2 and _lbl2 != leg.get("score")):
+                        continue
+                    from app.settle_analyst import code_from_pick as _cfp_h
+                    _lc_h = (_cfp_h(leg.get("sel", ""), leg.get("sport"),
+                                    leg.get("home", ""), leg.get("away", "")) or leg.get("code", ""))
+                    _res_h = settle_pick(_lc_h, _raw2)
+                    if _res_h in ("won", "lost", "push"):
+                        leg["result"], leg["score"], changed = _res_h, _lbl2, True
+                except Exception:
+                    pass
+        if _frozen and not _pending:
+            continue                     # (une éventuelle correction self-heal est persistée par le _save final)
         if _frozen and _age > 3:
             continue
         for leg in cb.get("legs") or []:

@@ -1,7 +1,7 @@
 # BETSFIX — Méthodologie d'analyse & sélection des pronos (par sport)
 
 > Écrit **automatiquement** par `tools/methodology_doc.py` (run quotidien). Objectif : voir, **sport par sport**, quand la méthode d'analyse et de sélection se stabilise (= **optimale**). Lecture seule.
-> Généré le 2026-08-08 08:36 UTC.
+> Généré le 2026-08-09 08:34 UTC.
 
 ## Méthode commune (les 3 sports)
 - **Confidence-first** : on classe par *probabilité honnête de gagner vs cote*, pas par cote.
@@ -11,7 +11,7 @@
 - **Faits ≥ 2 sources** ; enrichissement multi-sources (FotMob/ESPN/Understat/Flashscore/…).
 - **Exclusions de marché** : **automatiques et data-driven** (un marché est écarté si n ≥ 25 ET ROI/calibration mauvais — jamais de surapprentissage).
 
-**Fiabilité de la calibration (globale)** : indice **95/100**, MAE 1.8, tendance **up** (n=3463). 
+**Fiabilité de la calibration (globale)** : indice **95/100**, MAE 1.7, tendance **up** (n=3666). 
 **Backtest de la politique (global)** : *garder la politique actuelle (aucun gain hors-échantillon significatif)*.
 
 ## Qu'est-ce qu'un sport « optimal » ?
@@ -21,23 +21,23 @@
 🟠 **À AFFINER** — rentable mais calibration à resserrer
 
 **État mesuré (paris joués)**  
-ROI **+18.1%** · réussite **86%** · **134** réglés (115✓/19✗) · cote moy **@1.38** · drawdown max **1.9%**
+ROI **+18.6%** · réussite **86%** · **138** réglés (119✓/19✗) · cote moy **@1.38** · drawdown max **1.8%**
 
 **Calibration** (toutes prédictions, fantômes inclus)  
-MAE **1.8** (under) · réussite réelle **68%** vs confiance annoncée **67%** · n=2827
+MAE **1.7** (under) · réussite réelle **68%** vs confiance annoncée **67%** · n=2990
 
 **Marchés écartés (auto)** : Corners, Les 2 marquent
 
 **ROI par marché (fantômes inclus — mûrit sans attendre les paris réels)**  
 | Marché | n | Réussite | ROI |
 |---|---|---|---|
-| Les 2 marquent | 178 | 53% | -73% 🔴 |
+| Les 2 marquent | 194 | 54% | -57% 🔴 |
 | Cartons | 52 | 62% | +1% |
-| Double chance | 231 | 80% | +3% |
-| Total +/- | 725 | 69% | +3% |
-| Total équipe | 543 | 69% | +10% 🟢 |
-| Vainqueur | 190 | 65% | +18% 🟢 |
-| Handicap | 271 | 76% | +36% 🟢 |
+| Double chance | 245 | 80% | +3% |
+| Total +/- | 780 | 69% | +5% 🟢 |
+| Total équipe | 573 | 69% | +14% 🟢 |
+| Vainqueur | 200 | 64% | +18% 🟢 |
+| Handicap | 281 | 75% | +36% 🟢 |
 
 **Repères méthodo (ce sport)**
 - `2026-06-09` **Seuil ≥65 %** — Aucun pari n'est retenu sous 65 % de confiance honnête.
@@ -48,8 +48,8 @@ MAE **1.8** (under) · réussite réelle **68%** vs confiance annoncée **67%** 
 - `2026-07-06` **Combiné = pari désigné** — Le combiné proposé est exactement celui désigné par l'analyste, jamais un combiné de remplacement ; s'il n'est pas combinable, on s'abstient plutôt que de forcer.
 
 **Scorecard d'optimalité**
-- **[A] ROI positif & stable** : ✅ (ROI +18.1%, drawdown max 1.9%, 134 réglés)
-- **[B] Calibration bonne** : ❌ (MAE 1.8, verdict under, réussite 68% vs confiance 67%)
+- **[A] ROI positif & stable** : ✅ (ROI +18.6%, drawdown max 1.8%, 138 réglés)
+- **[B] Calibration bonne** : ❌ (MAE 1.7, verdict under, réussite 68% vs confiance 67%)
 
 ## 🎾 Tennis
 ⏳ **EN COURS** — échantillon à étoffer (0/20 réglés)
