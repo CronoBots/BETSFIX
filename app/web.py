@@ -6220,16 +6220,17 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     badge_n = count
     chips = ""
     if leg_results is not None and leg_results:
-        # COMBINÉ : le badge du NOMBRE de jambes (chiffre SEUL, coloré) est SÉPARÉ, avec À CÔTÉ un cercle par
-        # jambe (jaune=non joué · vert=gagné · rouge=perdu) (user 2026-08-10 : chiffre seul + cercles à côté).
-        # Couleur du badge chiffre : jaune par défaut · ROUGE dès qu'UNE jambe est perdue · VERT si TOUTES gagnées.
+        # COMBINÉ : le badge chiffre = le NOMBRE de COMBINÉS (1, via `count`) — PAS le nb de jambes (user
+        # 2026-08-10) — chiffre SEUL coloré, avec À CÔTÉ un cercle par JAMBE (jaune=non joué · vert=gagné ·
+        # rouge=perdu). Couleur du badge chiffre : jaune par défaut · ROUGE dès qu'UNE jambe perdue · VERT si
+        # TOUTES gagnées.
         def _lgcls(r):                                    # jaune (non joué) / vert (gagné) / rouge (perdu)
             return "w" if r == "won" else ("l" if r == "lost" else "u")
         _any_lost = any(r == "lost" for r in leg_results)
         _all_won = all(r == "won" for r in leg_results)
         _ov = "l" if _any_lost else ("w" if _all_won else "u")   # état global du badge chiffre
         _dots = "".join(f'<span class="zlc zlc-{_lgcls(r)}"></span>' for r in leg_results)
-        chips += (f'<span class="zr zrleg zrleg-{_ov}">{len(leg_results)}</span>'
+        chips += (f'<span class="zr zrleg zrleg-{_ov}">{count}</span>'
                   f'<span class="zlcs">{_dots}</span>')
     elif record:
         # 6 états (user 2026-08-08) : total · à venir · live · EN ATTENTE DE RÉSOLUTION · gagnés · perdus.
