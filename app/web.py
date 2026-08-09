@@ -8571,7 +8571,7 @@ def _live_bar_html(lp: dict | None) -> str:
     hue = int(round(1.2 * max(0, min(100, pct))))          # 0 % = rouge (h0), 100 % = vert (h120)
     fill = f"hsl({hue},70%,45%)"
     # `src` = signaux FUSIONNÉS (« cote + stats live + analyse ») ou état verrouillé (acquis/perdu).
-    lbl = {"acquis": "déjà acquis", "perdu": "déjà manqué"}.get(src)
+    lbl = {"acquis": "Gagné", "perdu": "Perdu"}.get(src)   # pari verrouillé par le direct (user 2026-08-10)
     if lbl is None:
         lbl = "chance estimée · " + src if src else "chance estimée"
     return (f'<div class="lvbar{tcls}">'
