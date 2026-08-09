@@ -6387,7 +6387,8 @@ def _provisional_results(iso: str, sport: str | None = None, header: bool = True
 _RES_RANK = {"won": 0, "push": 1, "void": 1, "lost": 2}
 
 
-def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: set | None = None) -> list:
+def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: set | None = None,
+                              tier: str | None = None) -> list:
     """Cartes des PARIS JOUÉS TERMINÉS d'un jour, rendues COMME les pronos (demande user 2026-07-28 : « tous
     les résultats affichés de la même manière ») : carte `_leg_card` complète (en-tête, équipes, pari + glose,
     ligne VERDICT confiance/marché/value, SCORE final, pli « Pourquoi ») avec CADRE vert/rouge selon le
@@ -6418,6 +6419,8 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
             _board = analyses.result_board(d, sp) or {}
             combo = d.get("combo") or {}
             if combo.get("legs") and combo.get("result") in ("won", "lost", "void"):
+                if tier is not None and tier != "confiance":   # les combinés = tier CONFIANCE (jamais « value »)
+                    continue
                 _body = _combo_premium_block(sp, fid, d.get("home", ""), d.get("away", ""))
                 if _body:
                     _st = {"won": "won", "lost": "lost", "void": "push"}.get(combo.get("result"), "")
@@ -6428,6 +6431,8 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
             rb = analyses.retained_bet(sp, fid, for_history=True)
             if not rb or rb.get("result") not in ("won", "lost", "push"):
                 continue
+            if tier is not None and analyses.bet_tier(rb.get("cprob"), rb.get("cote")) != tier:
+                continue                                   # carte réglée d'un AUTRE tier -> pas dans cette zone
             _code = (_cfp(rb.get("sel", ""), sp, d.get("home", ""), d.get("away", "")) or "")
             out.append((_RES_RANK.get(rb.get("result"), 3), dt.timestamp(), _leg_card(
                 {"sport": sp, "home": d.get("home"), "away": d.get("away"), "comp": d.get("comp"),
@@ -6500,7 +6505,7 @@ def _sport_selector(current: str | None, counts: dict | None = None, *,
     return ""
 
 
-def _settled_wl_today(iso: str, sport: str | None) -> tuple:
+def _settled_wl_today(iso: str, sport: str | None, tier: str | None = None) -> tuple:
     """(gagnés, perdus, remboursés) des PARIS JOUÉS SIMPLES réglés du JOUR. Doit refléter EXACTEMENT les
     cartes affichées (`_settled_bet_result_cards`) -> même prédicat : un pari retenu (retained_bet for_history)
     PAR MATCH réglé. ⚠️ NE PAS utiliser `iter_stat_bets` ici : il rend stat_bet ET stat_bet_first (pour le
@@ -6520,10 +6525,14 @@ def _settled_wl_today(iso: str, sport: str | None) -> tuple:
                 continue
             combo = d.get("combo") or {}
             if combo.get("legs") and combo.get("result") in ("won", "lost", "void"):
+                if tier is not None and tier != "confiance":   # combinés = tier CONFIANCE
+                    continue
                 r = combo.get("result")
             else:
                 rb = analyses.retained_bet(sp, str(d.get("id")), for_history=True)
                 if not rb or rb.get("result") not in ("won", "lost", "push"):
+                    continue
+                if tier is not None and analyses.bet_tier(rb.get("cprob"), rb.get("cote")) != tier:
                     continue
                 r = rb.get("result")
             won += 1 if r == "won" else 0
@@ -6669,30 +6678,40 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # (titre + cadre) -> sinon il apparaîtrait 2× (user 2026-08-08 : « le résultat sans montante ne doit pas
     # être mis vu qu'il y est déjà avec la montante »).
     _mont_ex = {str((_montante_today_bet() or {}).get("mid") or "")} if _mont_card else None
-    _res_cards = _settled_bet_result_cards(today_iso, sport, exclude_mids=_mont_ex)   # paris joués terminés (cartes _leg_card)
     _prov_res = _provisional_results(today_iso, sport, header=False)  # provisoires réglés (sans sous-titre)
-    # PARIS DU JOUR = à venir/en cours PUIS terminés (chacun affiche son résultat). Zone visible s'il y a l'un
-    # ou l'autre.
-    # Montante EN ATTENTE/LIVE = déjà dans `play` (triée) ; montante RÉGLÉE = `_mont_settled`, avec les
-    # RÉSULTATS (après les à-venir), pas en tête (user 2026-08-08).
-    _play_html = _MC_SEP.join([h for h in (_rows_by_day(play), _MC_SEP.join(_res_cards), _mont_settled) if h])
-    # RECORD DU JOUR (demande user 2026-08-02, 6 états 2026-08-08) : total · à venir · live · EN ATTENTE
-    # DE RÉSOLUTION · gagnés · perdus. « en attente » = pari NON réglé dont le match a DÉJÀ commencé mais qui
-    # n'est plus « live » (fini, en cours de règlement) — avant, il était compté à tort en « à venir ».
     _now_ts = time.time()
-    _pw, _pl, _pp = _settled_wl_today(today_iso, sport)          # simples réglés du jour (léger)
-    # LIVE = JAUNE tant qu'il n'y a pas de résultat (user 2026-08-09) : un match EN COURS (inprogress) est
-    # compté JAUNE (en jeu, pas de résultat), PAS gris. Le GRIS (« en attente de résolution ») reste RÉSERVÉ
-    # aux matchs FINIS mais pas encore réglés (démarrés, plus live). Réglé -> vert/rouge.
-    _p_pend = sum(1 for r in play if r.get("status") != "inprogress"
-                  and (r.get("start_ts") or 0) and r["start_ts"] <= _now_ts)
-    _p_lv = 0
-    _p_up = len(play) - _p_pend                                      # JAUNE = à venir + LIVE (sans résultat)
-    _play_rec = (len(play) + _pw + _pl + _pp, _p_up, _p_lv, _pw, _pl, _p_pend)
-    if play or _res_cards or _mont_card:
-        out.append(_zone("play", _plur(len(play) + len(_res_cards), "Confiance"), "",
-                         len(play) + len(_res_cards), _play_html,
-                         collapsible=True, record=_play_rec if _play_rec[0] else None))
+    # SPLIT CONFIANCE / VALUE (user 2026-08-09) : DEUX zones. CONFIANCE = picks à HAUTE confiance calibrée
+    # (chiffre phare, taux ~92-95 %) ; VALUE = picks RETENUS sous le seuil (rentables, +19/+28 % ROI, mais plus
+    # variables). Les DEUX restent joués + comptés au ROI/calibration (inchangé). Chaque carte foot porte son
+    # `tier` (analyses.bet_tier via foot._card). RÉVERSIBLE : analyses.TIER_SPLIT_ON=False -> tout est
+    # « confiance » -> zone Value vide/masquée -> état EXACT d'avant. La MONTANTE (sans tier) reste en Confiance.
+    play_conf = [r for r in play if r.get("tier") != "value"]
+    play_value = [r for r in play if r.get("tier") == "value"]
+    _res_conf = _settled_bet_result_cards(today_iso, sport, exclude_mids=_mont_ex, tier="confiance")
+    _res_value = _settled_bet_result_cards(today_iso, sport, exclude_mids=_mont_ex, tier="value")
+
+    def _tier_rec(_pl, _tier):
+        # RECORD 6 états d'un tier : total · À VENIR/LIVE (jaune) · live · EN ATTENTE (gris) · gagnés · perdus.
+        # LIVE = jaune (en jeu) ; GRIS = fini-non-réglé (démarré, plus live). Réglé -> vert/rouge.
+        _w, _l, _p = _settled_wl_today(today_iso, sport, tier=_tier)
+        _pend = sum(1 for r in _pl if r.get("status") != "inprogress"
+                    and (r.get("start_ts") or 0) and r["start_ts"] <= _now_ts)
+        _up = len(_pl) - _pend
+        return (len(_pl) + _w + _l + _p, _up, 0, _w, _l, _pend)
+
+    # ZONE CONFIANCE (montante réglée `_mont_settled` incluse avec ses résultats).
+    _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf), _mont_settled) if h])
+    _conf_rec = _tier_rec(play_conf, "confiance")
+    if play_conf or _res_conf or _mont_card:
+        out.append(_zone("play", _plur(len(play_conf) + len(_res_conf), "Confiance"), "",
+                         len(play_conf) + len(_res_conf), _conf_html,
+                         collapsible=True, record=_conf_rec if _conf_rec[0] else None))
+    # ZONE VALUE (n'apparaît que s'il y a des paris value ; donc masquée quand le split est off).
+    _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value)) if h])
+    _value_rec = _tier_rec(play_value, "value")
+    if play_value or _res_value:
+        out.append(_zone("value", "Value", "", len(play_value) + len(_res_value), _value_html,
+                         collapsible=True, record=_value_rec if _value_rec[0] else None))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,

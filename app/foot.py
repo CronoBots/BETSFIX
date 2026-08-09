@@ -300,7 +300,17 @@ def _card(r: dict) -> dict:
     def _st(p):
         return perle_live_status(p, hs, as_) if hs is not None else None
     sp, sp2, spv = _st(r.get("perle")), _st(r.get("perle2")), _st(r.get("perle_value"))
-    return {"tour": r.get("comp"), "sport": "Foot", "icon": "⚽",
+    # TIER d'affichage confiance/value (user 2026-08-09) — classement par la confiance CALIBRÉE du pari retenu
+    # (source unique analyses.bet_tier_for). Pur affichage : n'affecte ni rétention ni ROI. Import différé
+    # (évite un cycle foot<->web<->analyses au chargement).
+    _tier = "confiance"
+    if pk and r.get("id") is not None:
+        try:
+            from app import analyses as _an
+            _tier = _an.bet_tier_for("foot", r["id"])
+        except Exception:
+            _tier = "confiance"
+    return {"tour": r.get("comp"), "sport": "Foot", "icon": "⚽", "id": r.get("id"), "tier": _tier,
             "status": r["status"], "time": _fmt_time(r.get("start")),
             "start_ts": r.get("start"), "home": r["home"], "away": r["away"],
             "female": r.get("female"), "score": r.get("score", ""), "live_time": r.get("live_time", ""),

@@ -2467,6 +2467,40 @@ def freeze_published_bet(sport: str, match_id) -> bool:
     return True
 
 
+# ===== SPLIT CONFIANCE / VALUE (user 2026-08-09) =====
+# But : maximiser le taux du chiffre PHARE. La CONFIANCE = les picks à HAUTE confiance CALIBRÉE (taux mesuré
+# ~92-95 %) ; la VALUE = les picks RETENUS (+EV) SOUS ce seuil (rentables — +19/+28 % ROI — mais plus variables).
+# ⚠️ Les DEUX tiers restent JOUÉS et comptés au ROI/calibration : RIEN n'est retiré ni perdu. C'est un pur
+# CLASSEMENT D'AFFICHAGE, il n'affecte JAMAIS la rétention ni le ROI ni la calibration.
+# RÉVERSIBLE d'un seul flag : `TIER_SPLIT_ON = False` -> tout redevient « Confiance » (état EXACT d'avant).
+# Seuil TUNABLE : `CONFIANCE_MIN_CONF` (mesuré : 65-70 %≈83-88 %, 80 %+≈96-100 % ; 72 % ≈ ~91-92 %).
+TIER_SPLIT_ON = True
+CONFIANCE_MIN_CONF = 72.0
+
+
+def bet_tier(cprob, cote=None) -> str:
+    """Tier d'AFFICHAGE d'un pari retenu : « confiance » (confiance calibrée ≥ seuil) ou « value » (sous le
+    seuil). Off (TIER_SPLIT_ON=False) -> toujours « confiance ». N'affecte PAS la rétention/ROI/calibration."""
+    if not TIER_SPLIT_ON:
+        return "confiance"
+    try:
+        if cprob is not None and float(cprob) < CONFIANCE_MIN_CONF:
+            return "value"
+    except (TypeError, ValueError):
+        pass
+    return "confiance"
+
+
+def bet_tier_for(sport, mid) -> str:
+    """Tier (« confiance »/« value ») d'un match par son id : lit la confiance CALIBRÉE du pari retenu figé.
+    SOURCE UNIQUE de classement -> affichage et compteurs restent cohérents. Défaut « confiance » si inconnu."""
+    try:
+        rb = retained_bet(sport, mid, for_history=True) or {}
+        return bet_tier(rb.get("cprob"), rb.get("cote"))
+    except Exception:
+        return "confiance"
+
+
 def stat_bet(d: dict) -> dict | None:
     """Pari du match FIGÉ pour les stats (courbe / ROI / réussite). Une fois qu'un pari est COMPTÉ, il
     est gelé dans `d["stat_bet"]` et le RESTE à vie -> le compteur ne fait plus que MONTER (fini le
