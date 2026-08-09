@@ -289,17 +289,9 @@ def _card(r: dict) -> dict:
     pk = r.get("pick")
     # plus de badge VALUE en haut à droite : la value est dans la bannière « À JOUER » + l'analyse
     badge = ""
-    # 🟢 Halo « gagné » en LIVE : la perle est-elle déjà/en passe d'être gagnée vu le score ?
-    hs = as_ = None
-    if r.get("status") == "inprogress" and r.get("score"):
-        try:
-            hs, as_ = (int(x) for x in str(r["score"]).split("-"))
-        except (ValueError, AttributeError):
-            hs = as_ = None
-
-    def _st(p):
-        return perle_live_status(p, hs, as_) if hs is not None else None
-    sp, sp2, spv = _st(r.get("perle")), _st(r.get("perle2")), _st(r.get("perle_value"))
+    # NB (audit 2026-08-10) : plus de calcul live_won/live_lost ici (champs morts, jamais lus) — le halo VERT
+    # « déjà gagné » de la carte live vient de analyses.live_prob (source « acquis »/« perdu », cf. _sport_row)
+    # et le compteur de zone vient de web._card_live_lock (analyses._live_locked). perle_live_status inutile.
     # TIER d'affichage confiance/value (user 2026-08-09) — classement par la confiance CALIBRÉE du pari retenu
     # (source unique analyses.bet_tier_for). Pur affichage : n'affecte ni rétention ni ROI. Import différé
     # (évite un cycle foot<->web<->analyses au chargement).
@@ -318,8 +310,6 @@ def _card(r: dict) -> dict:
             "home_flag": flags.flag(r["home"]), "away_flag": flags.flag(r["away"]),
             "url": f'/foot/match/{r["id"]}' if r.get("sofa_ok") else None,
             "prob": r.get("probs"), "sub": _model_line(r), "badge": badge, "pick": bool(pk),
-            "live_won": sp == "won", "live_won2": sp2 == "won", "live_won_value": spv == "won",
-            "live_lost": sp == "lost", "live_lost2": sp2 == "lost", "live_lost_value": spv == "lost",
             "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
             **(web.bars_foot(r.get("probs"), r.get("imp"), r.get("votes"), r["home"], r["away"])
                if r.get("probs") else
