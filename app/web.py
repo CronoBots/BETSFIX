@@ -9205,9 +9205,14 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
             '</div></div>')
     else:
-        # MÊMES TYPES DE PARIS QUE PRONOS (user 2026-08-08) : Confiance (montante incluse) → Provisoire → Combiné.
-        out = [
-            _zone("play", _plur(len(_play), "Confiance"), "en direct", len(_play), _cards(_play)),
+        # MÊMES TYPES QUE PRONOS : Confiance (montante incluse) → Value → Provisoire → Combiné. Split
+        # Confiance/Value par le `tier` de chaque carte (user 2026-08-09) ; Value masquée si vide / split off.
+        _play_c = [c for c in _play if c.get("tier") != "value"]
+        _play_v = [c for c in _play if c.get("tier") == "value"]
+        out = [_zone("play", _plur(len(_play_c), "Confiance"), "en direct", len(_play_c), _cards(_play_c))]
+        if _play_v:
+            out.append(_zone("value", "Value", "en direct", len(_play_v), _cards(_play_v)))
+        out += [
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov)),
             _zone("combo", "Combiné double chance", "", 1 if _combo else 0, _combo),
         ]
