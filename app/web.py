@@ -6138,19 +6138,19 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         badge_n = _s
         # COMBINÉ : le nb de jambes est affiché DANS le badge d'état actif -> « 1 (2) » (user 2026-08-08).
         _lg = f' ({legs})' if legs else ''
-        # ORDRE (user 2026-08-08) : live · en attente · GAGNÉS (vert) · PERDUS (rouge) · À VENIR (jaune) EN
-        # DERNIER. La montante n'a plus de badge bleu dédié : elle est comptée dans le jaune « à venir »
-        # (c'est un pari de Confiance) -> le jaune, donc la montante, s'affiche APRÈS vert/rouge.
-        if _lv:                                          # en direct : texte vert
+        # ORDRE = MÊME SENS que les cartes en dessous (user 2026-08-09), cycle de vie non-joué -> réglé :
+        # À VENIR/LIVE (jaune) · EN ATTENTE (gris) · GAGNÉS (vert) · PERDUS (rouge). Le jaune (qui inclut la
+        # montante + les lives) est donc EN PREMIER, comme les matchs à venir/en cours en haut de la liste.
+        if _up:                                          # à venir + live (pas de résultat) : JAUNE, EN PREMIER
+            chips += f'<span class="zr zru">{_up}{_lg}</span>'
+        if _lv:                                          # en direct (chip vert distinct, non utilisé en Pronos)
             chips += f'<span class="zr zrlv">{_lv}{_lg}</span>'
-        if _pend:                                        # commencé mais PAS ENCORE RÉGLÉ : badge GRIS
+        if _pend:                                        # fini mais PAS ENCORE RÉGLÉ : badge GRIS
             chips += f'<span class="zr zrp">{_pend}{_lg}</span>'
         if _w:                                            # gagnés : badge VERT
             chips += f'<span class="zr zrw">{_w}{_lg}</span>'
         if _l:                                            # perdus : badge ROUGE
             chips += f'<span class="zr zrl">{_l}{_lg}</span>'
-        if _up:                                          # à venir (pas commencé, inclut la montante) : JAUNE, en dernier
-            chips += f'<span class="zr zru">{_up}{_lg}</span>'
     if chips:
         rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
