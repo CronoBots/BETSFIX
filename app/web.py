@@ -1865,10 +1865,10 @@ CSS = """
        color:#f6c54a;margin:0 0 18px}   /* espace en dessous (demande user 2026-07-24) */
   .stat-banner-sub.ready,.stat-banner-sub.on{color:#64cd8d}   /* .on = sport actif (compté/repris dans les paris) */
   /* Onglets « Simple | Combinés » dans un cadre sport (un graphe à la fois) — demande user 2026-07-24 */
-  .sctabs{display:flex;gap:6px;margin:0 0 10px}
-  .sctab{position:relative;flex:1;padding:8px 6px;border-radius:9px;background:rgba(255,255,255,.04);
-       border:1px solid var(--border);color:var(--muted);font-weight:800;font-size:11px;text-transform:uppercase;
-       letter-spacing:.05em;white-space:nowrap;cursor:pointer}
+  .sctabs{display:flex;gap:5px;margin:0 0 10px;flex-wrap:wrap}
+  .sctab{position:relative;flex:1 1 0;min-width:0;padding:8px 4px;border-radius:9px;background:rgba(255,255,255,.04);
+       border:1px solid var(--border);color:var(--muted);font-weight:800;font-size:10.5px;text-transform:uppercase;
+       letter-spacing:.02em;white-space:nowrap;text-align:center;cursor:pointer}
   .sctab.on{background:rgba(34,184,255,.15);border-color:rgba(34,184,255,.45);color:#fff}
   /* badge « en cours » (⏳) en COIN (position absolue) -> n'affecte pas le label, jamais de retour ligne */
   .sctab-n{position:absolute;top:-6px;right:-4px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;
@@ -4393,14 +4393,15 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         cote_points=_foot_c.get("cote_points")) if (_foot_c.get("settled") or _pend_fc) else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
-    _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"),   # + onglets Value/Provisoires
+    # ORDRE onglets = Confiance · Value · Provisoire · Combiné (user 2026-08-10) -> counts/rois DANS CET ORDRE.
+    _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"),
                         value_html=value_block,                                    # onglet VALUE (user 2026-08-09)
-                        counts=(len(_pend_conf), len(_pend_val), len(_pend_fc), _prov_pending_count("foot")),
+                        counts=(len(_pend_conf), len(_pend_val), _prov_pending_count("foot"), len(_pend_fc)),
                         rois=((_bt.get("confiance") or {}).get("roi"), (_bt.get("value") or {}).get("roi"),
-                              _foot_c.get("roi"), _prov_sport_roi("foot")))
+                              _prov_sport_roi("foot"), _foot_c.get("roi")))
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
-    return (f'<div class="spf">{_sport_banner("foot")}{_tier_split_block()}{_foot}</div>') if _foot else ""
+    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
@@ -4484,8 +4485,10 @@ def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
     onglet DANS L'ORDRE (Confiance, Value, Combinés, Provisoires) — pastille ⏳ si count>0 + ROI discret."""
     _c = list(counts) + [0, 0, 0, 0]
     _r = list(rois) + [None, None, None, None]
-    _specs = (("Confiances", simple_html), ("Value", value_html),
-              ("Combinés", combos_html), ("Provisoires", prov_html))
+    # ORDRE (user 2026-08-10) : Confiance › Value › Provisoire › Combiné (Combiné en dernier). Libellés au
+    # SINGULIER = plus courts -> les 4 onglets tiennent sans déborder. counts/rois suivent le MÊME ordre.
+    _specs = (("Confiance", simple_html), ("Value", value_html),
+              ("Provisoire", prov_html), ("Combiné", combos_html))
     _tabs = [(lbl, h, _c[i], _r[i]) for i, (lbl, h) in enumerate(_specs) if h]
     if len(_tabs) <= 1:
         return _tabs[0][1] if _tabs else ""
