@@ -7015,6 +7015,7 @@ def _lz_stats() -> dict:
         stake = ret = 0.0
         losses = []
         analysed = retained = 0
+        _ev = []                             # (date, delta_profit) -> courbe d'équité du tier CONFIANCE
         for d in analyses.iter_meta("foot"):
             if d.get("roi_void"):            # pari exclu du ROI/historique (correction) -> hors vitrine accueil
                 continue
@@ -7030,23 +7031,38 @@ def _lz_stats() -> dict:
                 r = b.get("result")
                 if r not in ("won", "lost", "push"):
                     continue
+                # VITRINE = tier CONFIANCE (le TAUX PHARE, user 2026-08-09) : on ne montre QUE les paris à haute
+                # confiance calibrée (figée -> monotone). Les paris VALUE (rentables, plus variables) sont un
+                # tier séparé, pas dans le taux phare. Réversible (TIER_SPLIT_ON=False -> tout confiance).
+                if analyses.tier_of(d) != "confiance":
+                    continue
                 co = b.get("cote") or b.get("odds") or 0
                 stake += 1
                 if r == "won":
                     won += 1
                     ret += co
+                    _ev.append((st[:10], (co or 1) - 1))
                 elif r == "lost":
                     lost += 1
                     losses.append((st[:10], _noF(d.get("name") or ""), co))
+                    _ev.append((st[:10], -1.0))
                 else:
                     ret += 1
+                    _ev.append((st[:10], 0.0))
         settled = won + lost
         pct = round(100 * won / settled) if settled else 0
         roi = round(100 * (ret - stake) / stake, 1) if stake else 0.0
         sel = round(100 * (analysed - retained) / analysed) if analysed else 0
-        overall = (analyses.stats_full().get("overall") or {})
-        pts = overall.get("points") or [0.0]
-        best = overall.get("best_streak") or 0
+        _ev.sort(key=lambda x: x[0])         # courbe d'équité du tier CONFIANCE (profit cumulé, ordre des jours)
+        pts, _cum, best, _cur = [0.0], 0.0, 0, 0
+        for _, _dv in _ev:
+            _cum += _dv
+            pts.append(round(_cum, 2))
+            if _dv > 0:                      # gagné -> série ++ ; perdu -> reset ; push -> inchangé
+                _cur += 1
+                best = max(best, _cur)
+            elif _dv < 0:
+                _cur = 0
         cal = analyses.calibration() or {}
         buckets = [r for r in (cal.get("rows") or [])
                    if r.get("lo", 0) >= 65 and (r.get("n") or 0) >= 20][:3]
@@ -7055,8 +7071,8 @@ def _lz_stats() -> dict:
                 "sel": sel, "pts": pts, "best": best,
                 "cal_n": cal.get("n") or 0, "cal_mae": cal.get("mae"), "cal_rows": buckets}
     except Exception:
-        return {"won": 74, "total": 82, "pct": 90, "roi": 24.6, "profit": 20.2, "losses": [],
-                "sel": 40, "pts": [0.0, 20.2], "best": 25, "cal_n": 5744, "cal_mae": 0.8, "cal_rows": []}
+        return {"won": 39, "total": 42, "pct": 93, "roi": 19.0, "profit": 8.0, "losses": [],
+                "sel": 40, "pts": [0.0, 8.0], "best": 15, "cal_n": 5744, "cal_mae": 0.8, "cal_rows": []}
 
 
 def _lz_curve(pts: list) -> tuple:
@@ -7110,7 +7126,7 @@ def accueil_body(frag: bool = True) -> str:
 <div class="hero"><div class="lzw">
   <div class="hero-grid">
     <div>
-      <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · paris simples · {_LZ_SINCE_LABEL}</span></span>
+      <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · paris Confiance · {_LZ_SINCE_LABEL}</span></span>
       <div class="sh"><span class="big num">{s['pct']}</span><span class="pct">%</span></div>
       <div class="sh-cap"><b class="num">{s['won']} gagnés / {s['total']}</b> · relevé réel, pas une projection</div>
       <h1 class="tag">Les autres vendent des certitudes. <span class="hl">Nous, un relevé.</span></h1>
