@@ -6680,6 +6680,28 @@ def _prov_settled_wl(iso: str, sport: str | None) -> tuple:
     return n, won, lost
 
 
+def _card_live_lock(r: dict, sport: str) -> str | None:
+    """« won »/« lost » si le pari LIVE de la carte est déjà MATHÉMATIQUEMENT verrouillé (over/under franchi,
+    équipe-marque, BTTS), sinon None. Utilise `analyses._live_locked` (0 réseau) = LE MÊME verrou que la barre
+    « Gagné »/« Perdu » de la carte (source « acquis »/« perdu »). ⚠️ On n'utilise PAS `live_won`/`live_lost`
+    de la carte : le perle foot n'est pas structuré (kind) -> ils sont toujours faux (bug compteur 2026-08-10)."""
+    if r.get("status") != "inprogress":
+        return None
+    sel = (r.get("perle") or {}).get("selection") or ""
+    if not sel:
+        return None
+    hs, as_ = _parse_live_score(r.get("score"))
+    if hs is None or as_ is None:
+        return None
+    try:
+        from app.settle_analyst import code_from_pick as _cfp
+        _code = _cfp(sel, sport, r.get("home", ""), r.get("away", "")) or ""
+        _info = analyses._leg_metric({"sel": sel, "code": _code}, r.get("home", ""), r.get("away", ""))
+        return analyses._live_locked(sport, sel, _code, _info, hs, as_, {})
+    except Exception:
+        return None
+
+
 def _today_zones(match_rows: list, sport: str | None = None, results: list | None = None) -> tuple[str, int]:
     """Zones du JOUR COURANT (Combiné du jour · Paris du jour · Provisoires · Résultats du jour ; PLUS de
     zone « à analyser » — retirée sur demande user 2026-07-20). Extrait de render_dashboard pour /jour
@@ -6795,13 +6817,15 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
 
     def _tier_rec(_pl, _tier):
         # RECORD 6 états d'un tier : total · À VENIR/LIVE (jaune) · live · EN ATTENTE (gris) · gagnés · perdus.
-        # LIVE VERROUILLÉ (user 2026-08-10) : un pari EN COURS déjà MATHÉMATIQUEMENT gagné (live_won, ex. over
-        # franchi) compte VERT (gagné), perdu (live_lost) compte ROUGE — dès maintenant, avant le règlement
-        # officiel (n'affecte QUE le compteur d'affichage, pas le ROI). LIVE INCERTAIN (1X2/handicap réversible)
-        # reste JAUNE. GRIS = fini-non-réglé (démarré, plus live).
+        # LIVE VERROUILLÉ (user 2026-08-10) : un pari EN COURS déjà MATHÉMATIQUEMENT gagné (over franchi, BTTS…)
+        # compte VERT, perdu compte ROUGE — dès maintenant, avant le règlement officiel (n'affecte QUE le
+        # compteur d'affichage, pas le ROI). MÊME verrou que la barre « Gagné » (analyses._live_locked, 0
+        # réseau) — PAS `live_won` (toujours faux en foot : le perle n'est pas structuré). LIVE INCERTAIN
+        # (1X2/handicap réversible) reste JAUNE. GRIS = fini-non-réglé (démarré, plus live).
         _w, _l, _p = _settled_wl_today(today_iso, sport, tier=_tier)
-        _lw = sum(1 for r in _pl if r.get("status") == "inprogress" and r.get("live_won"))
-        _ll = sum(1 for r in _pl if r.get("status") == "inprogress" and r.get("live_lost"))
+        _locks = [_card_live_lock(r, sport or "foot") for r in _pl if r.get("status") == "inprogress"]
+        _lw = sum(1 for x in _locks if x == "won")
+        _ll = sum(1 for x in _locks if x == "lost")
         _pend = sum(1 for r in _pl if r.get("status") != "inprogress"
                     and (r.get("start_ts") or 0) and r["start_ts"] <= _now_ts)
         _up = len(_pl) - _pend - _lw - _ll        # jaune = à venir + live INCERTAIN (hors live verrouillés)
