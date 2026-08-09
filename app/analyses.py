@@ -2475,30 +2475,44 @@ def freeze_published_bet(sport: str, match_id) -> bool:
 # RÉVERSIBLE d'un seul flag : `TIER_SPLIT_ON = False` -> tout redevient « Confiance » (état EXACT d'avant).
 # Seuil TUNABLE : `CONFIANCE_MIN_CONF` (mesuré : 65-70 %≈83-88 %, 80 %+≈96-100 % ; 72 % ≈ ~91-92 %).
 TIER_SPLIT_ON = True
-CONFIANCE_MIN_CONF = 72.0
+CONFIANCE_MIN_CONF = 78.0     # seuil de confiance CALIBRÉE (taux mesuré ~93 % à 78 %, ~1 pari/jour en Confiance)
 
 
 def bet_tier(cprob, cote=None) -> str:
     """Tier d'AFFICHAGE d'un pari retenu : « confiance » (confiance calibrée ≥ seuil) ou « value » (sous le
-    seuil). Off (TIER_SPLIT_ON=False) -> toujours « confiance ». N'affecte PAS la rétention/ROI/calibration."""
+    seuil OU sans confiance calibrée). Off (TIER_SPLIT_ON=False) -> toujours « confiance » (état d'avant).
+    ⚠️ CONFIANCE = HAUTE confiance CALIBRÉE : un pari SANS cprob (ex. jambe de combiné CdM) NE PEUT PAS être
+    « confiance » -> il va en VALUE (sinon il polluait le taux phare). N'affecte PAS rétention/ROI/calibration."""
     if not TIER_SPLIT_ON:
         return "confiance"
     try:
-        if cprob is not None and float(cprob) < CONFIANCE_MIN_CONF:
-            return "value"
+        return "confiance" if (cprob is not None and float(cprob) >= CONFIANCE_MIN_CONF) else "value"
     except (TypeError, ValueError):
-        pass
-    return "confiance"
+        return "value"
 
 
 def bet_tier_for(sport, mid) -> str:
-    """Tier (« confiance »/« value ») d'un match par son id : lit la confiance CALIBRÉE du pari retenu figé.
-    SOURCE UNIQUE de classement -> affichage et compteurs restent cohérents. Défaut « confiance » si inconnu."""
+    """Tier (« confiance »/« value ») d'un match par son id. MONOTONE : on lit d'abord la confiance calibrée
+    FIGÉE au règlement (`stat_bet.cprob`, immunisée à la dérive de calibration) ; repli sur le calcul live
+    (pari actif, ou pas encore figé). SOURCE UNIQUE -> affichage ET compteurs cohérents."""
     try:
+        d = meta(sport, str(mid)) or {}
+        sb = d.get("stat_bet")
+        if isinstance(sb, dict) and sb.get("cprob") is not None:
+            return bet_tier(sb.get("cprob"), sb.get("cote"))
         rb = retained_bet(sport, mid, for_history=True) or {}
         return bet_tier(rb.get("cprob"), rb.get("cote"))
     except Exception:
         return "confiance"
+
+
+def tier_of(d, rb=None) -> str:
+    """Tier d'une fiche (dict déjà chargé), en préférant la confiance FIGÉE (`stat_bet.cprob`, monotone) sur
+    la calibrée live `rb.cprob`. `rb` = retained_bet déjà calculé par l'appelant (évite un 2e calcul)."""
+    sb = d.get("stat_bet") if isinstance(d, dict) else None
+    if isinstance(sb, dict) and sb.get("cprob") is not None:
+        return bet_tier(sb.get("cprob"), sb.get("cote"))
+    return bet_tier((rb or {}).get("cprob"), (rb or {}).get("cote"))
 
 
 def stat_bet(d: dict) -> dict | None:

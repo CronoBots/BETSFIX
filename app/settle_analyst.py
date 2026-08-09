@@ -1200,7 +1200,7 @@ def backfill_stat_bets() -> int:
         if _rr not in ("won", "lost", "push"):
             continue
         d["stat_bet"] = {"sel": _sf.get("sel"), "prob": _sf.get("prob"),
-                         "cote": _sf.get("cote"), "result": _rr}
+                         "cote": _sf.get("cote"), "result": _rr, "cprob": _sf.get("cprob")}   # cprob FIGÉ -> tier monotone
         try:
             tmp = side + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
@@ -1755,7 +1755,7 @@ async def _settle_analyses_impl() -> int:
                                    _sf.get("result"))
                         if _rr in ("won", "lost", "push"):
                             d["stat_bet"] = {"sel": _sf.get("sel"), "prob": _sf.get("prob"),
-                                             "cote": _sf.get("cote"), "result": _rr}
+                                             "cote": _sf.get("cote"), "result": _rr, "cprob": _sf.get("cprob")}
                 except Exception:
                     pass
             # Pari PUBLIÉ réinjecté (filet « ne pas flouter l'user », 2026-07-21) : `retained_bet` relit le
@@ -1769,7 +1769,7 @@ async def _settle_analyses_impl() -> int:
                     and bets_out and bets_out[0].get("result") in ("won", "lost", "push")):
                 _b0 = bets_out[0]
                 d["stat_bet"] = {"sel": _b0.get("sel"), "prob": _b0.get("prob"),
-                                 "cote": _b0.get("odds"), "result": _b0.get("result")}
+                                 "cote": _b0.get("odds"), "result": _b0.get("result"), "cprob": _b0.get("cprob")}
             # UN MATCH = UN PARI (user 2026-08-07) : on NE crée PLUS de `stat_bet_first`. Avant, si un rescan
             # remplaçait le pari publié, les DEUX comptaient au ROI -> un match re-scané pesait 2 lignes
             # (ex. Vitória-Athletico = 2 défaites pour 1 match). Désormais seul le pari retenu (stat_bet) compte.

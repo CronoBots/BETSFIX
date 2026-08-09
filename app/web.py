@@ -6431,7 +6431,7 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
             rb = analyses.retained_bet(sp, fid, for_history=True)
             if not rb or rb.get("result") not in ("won", "lost", "push"):
                 continue
-            if tier is not None and analyses.bet_tier(rb.get("cprob"), rb.get("cote")) != tier:
+            if tier is not None and analyses.tier_of(d, rb) != tier:
                 continue                                   # carte réglée d'un AUTRE tier -> pas dans cette zone
             _code = (_cfp(rb.get("sel", ""), sp, d.get("home", ""), d.get("away", "")) or "")
             out.append((_RES_RANK.get(rb.get("result"), 3), dt.timestamp(), _leg_card(
@@ -6532,7 +6532,7 @@ def _settled_wl_today(iso: str, sport: str | None, tier: str | None = None) -> t
                 rb = analyses.retained_bet(sp, str(d.get("id")), for_history=True)
                 if not rb or rb.get("result") not in ("won", "lost", "push"):
                     continue
-                if tier is not None and analyses.bet_tier(rb.get("cprob"), rb.get("cote")) != tier:
+                if tier is not None and analyses.tier_of(d, rb) != tier:
                     continue
                 r = rb.get("result")
             won += 1 if r == "won" else 0
