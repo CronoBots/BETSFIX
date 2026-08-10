@@ -6294,27 +6294,50 @@ def _provisional_results(iso: str, sport: str | None = None, header: bool = True
     # très lent ») : avant, `_prov_sidecar` rescannait les ~220 sidecars POUR CHAQUE provisoire (O(P×N)).
     _side_idx: dict = {}
 
-    def _prov_sidecar(sp, home, away, sel):
-        """(fid, prob, why, code) du sidecar de CE match (apparié strictement) — pour enrichir la carte."""
+    def _prov_sidecar(sp, home, away, sel, start=None):
+        """(fid, prob, why, code) du sidecar de CE match — apparié par NOMS ET DÉSAMBIGUÏSÉ PAR COUP D'ENVOI
+        (`start`) : on prend la fiche des mêmes équipes la PLUS PROCHE en temps, on REJETTE si > 6 h (bug user
+        2026-08-10 : le provisoire « Västerås-Djurgårdens » du 10/08 affichait le SCORE 6-0 du match INVERSE du
+        03/08 -> l'AFFICHAGE prenait « le premier match qui matche » sans vérifier la date)."""
         th, ta = _tk_pr(home), _tk_pr(away)
         if not (th and ta):
             return (None, None, "", "")
         if sp not in _side_idx:
             _side_idx[sp] = [(_tk_pr(d.get("home")), _tk_pr(d.get("away")), d) for d in analyses.iter_meta(sp)]
+        _want = None
+        if start:
+            try:
+                _want = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                _want = None
+        _best, _best_gap = None, None
         for dh, da, d in _side_idx[sp]:
-            if (dh & th and da & ta) or (dh & ta and da & th):
-                fid = str(d.get("id"))
-                code = (_cfp_pr(sel or "", sp, d.get("home", ""), d.get("away", "")) or "")
-                prob = next((s2.get("prob") for s2 in (d.get("shadow") or [])
-                             if code and (s2.get("code") or "") == code), None)
-                return (fid, prob, _prov_why_snippet(sp, fid, maxlen=100000), code)
-        return (None, None, "", "")
+            if not ((dh & th and da & ta) or (dh & ta and da & th)):
+                continue
+            if _want is None:                          # pas de coup d'envoi visé -> 1er match (comportement d'avant)
+                _best = d
+                break
+            try:
+                _dt = datetime.fromisoformat(str(d.get("start")).replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                continue
+            gap = abs((_dt - _want).total_seconds())
+            if _best_gap is None or gap < _best_gap:
+                _best, _best_gap = d, gap
+        if _best is None or (_best_gap is not None and _best_gap > 6 * 3600):
+            return (None, None, "", "")                # collision d'affiche (autre date) -> pas de fiche
+        d = _best
+        fid = str(d.get("id"))
+        code = (_cfp_pr(sel or "", sp, d.get("home", ""), d.get("away", "")) or "")
+        prob = next((s2.get("prob") for s2 in (d.get("shadow") or [])
+                     if code and (s2.get("code") or "") == code), None)
+        return (fid, prob, _prov_why_snippet(sp, fid, maxlen=100000), code)
 
     cards = []
     for p in rows:
         sp = p.get("sport") or ""
         _h, _sep, _a = str(p.get("name") or "").partition(" - ")
-        _fid, _prob, _why, _code = _prov_sidecar(sp, _h, _a, p.get("sel"))
+        _fid, _prob, _why, _code = _prov_sidecar(sp, _h, _a, p.get("sel"), p.get("start"))   # désambiguïsé par coup d'envoi
         if p.get("prob") is not None:               # confiance FIGÉE au suivi (récent) -> prioritaire, robuste
             _prob = p.get("prob")
         # SCORE depuis le SIDECAR (result_board -> détail par set/quart-temps) plutôt que la chaîne FIGÉE du
