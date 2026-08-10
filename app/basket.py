@@ -186,12 +186,8 @@ def _card(r: dict) -> dict:
         sub_html += web.form_compare(r["home"], fm[0], r["away"], fm[1])
     pk = r.get("pick")
     badge = ""   # plus de badge VALUE en haut à droite (value dans la bannière + l'analyse)
-    # 🟢 Halo « gagné » en LIVE : la perle est-elle déjà gagnée vu le score (points) ?
-    hp_l, ap_l = r.get("home_pts"), r.get("away_pts")
-
-    def _st(p):
-        return perle_live_status(p, hp_l, ap_l) if r["status"] == "inprogress" else None
-    sp, sp2, spv = _st(r.get("perle")), _st(r.get("perle2")), _st(r.get("perle_value"))
+    # NB (audit 2026-08-10) : plus de live_won/live_lost ici (champs morts, jamais lus — halo carte via
+    # live_prob « acquis », compteur via web._card_live_lock). Basket dormant (foot-only) de toute façon.
     female = r.get("female") if r.get("female") is not None \
         else (r.get("league") or "").upper() == "WNBA"
     return {"tour": r.get("league", "Basket"), "sport": "Basket", "icon": "🏀",
@@ -203,8 +199,6 @@ def _card(r: dict) -> dict:
             "live_time": r.get("live_time", ""), "periods": r.get("periods"),
             "prob": p, "prob_labels": (r["home"].split()[-1], r["away"].split()[-1]),
             "sub": sub_html, "badge": badge, "pick": bool(pk),
-            "live_won": sp == "won", "live_won2": sp2 == "won", "live_won_value": spv == "won",
-            "live_lost": sp == "lost", "live_lost2": sp2 == "lost", "live_lost_value": spv == "lost",
             "perle": r.get("perle"), "perle2": r.get("perle2"), "pick_kind": "confiance",
             **(web.bars_two_way(p, r.get("imp_home"), r.get("votes"), r["home"], r["away"])
                if p is not None else

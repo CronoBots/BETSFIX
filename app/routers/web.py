@@ -12,7 +12,7 @@ from app.analysis import build_analysis, remove_vig
 from app.analysis import _match_winner_odds
 from app.markets import (
     DEFAULT_SERVE, calibrate_to_market, evaluate_markets, extract_market_anchors,
-    serve_win_pct, tennis_perle_live_status,
+    serve_win_pct,
 )
 from app.providers.unibet import _norm_name
 from app.textutil import name_tokens, names_match
@@ -826,13 +826,7 @@ def _tennis_fav_sub(r: dict) -> str:
 def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = False) -> dict:
     """Dict _sport_row d'un match tennis (réutilisé par l'onglet Tennis ET Directs)."""
     labels = ((r["home"].split() or [""])[-1], (r["away"].split() or [""])[-1])
-    # 🟢/🔴 Halo gagné/perdu en LIVE (ex. « au moins un set » dès qu'un set est remporté)
-    sp = sp2 = None
-    if r.get("status") == "inprogress" and r.get("score"):
-        sp = tennis_perle_live_status(r.get("perle"), r["score"], r["home"], r["away"])
-        sp2 = tennis_perle_live_status(r.get("perle2"), r["score"], r["home"], r["away"])
-    lw, lw2 = sp == "won", sp2 == "won"
-    ll, ll2 = sp == "lost", sp2 == "lost"
+    # NB (audit 2026-08-10) : plus de live_won/live_lost (champs morts, jamais lus). Tennis dormant (foot-only).
     return {"tour": r["tour"].upper(), "sport": "Tennis", "icon": "🎾",
             "status": r["status"], "time": r.get("time") or "",
             "score": r.get("score") or "", "server": r.get("server"),
@@ -842,7 +836,6 @@ def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = 
             "sub": _tennis_fav_sub(r) if sub is None else sub, "badge": badge, "pick": pick,
             "start_ts": r.get("start_ts"), "female": r.get("female"), "pick_kind": "confiance",
             "perle": r.get("perle"), "perle2": r.get("perle2"),
-            "live_won": lw, "live_won2": lw2, "live_lost": ll, "live_lost2": ll2,
             "url": f'/app/match/{r["id"]}?tour={r["tour"]}',
             **web.bars_two_way(r.get("hp"), r.get("implied"), r.get("votes"), r["home"], r["away"])}
 

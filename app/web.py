@@ -2212,7 +2212,6 @@ CSS = """
   .zone-rec .zrp{color:#0e141b;background:#9aa6b4;padding:1px 7px;border-radius:9px;font-size:11px}  /* en attente de résolution = badge GRIS (user 2026-08-08) */
   .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés = badge VERT (user 2026-08-08) */
   .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
-  .zone-rec .zrlv{color:#54d98c;font-weight:800}                   /* EN DIRECT (texte vert, jamais rouge = « raté ») */
   /* COMBINÉ (user 2026-08-08) : badge = nb de jambes (chiffre) + un cercle par jambe DANS le badge.
      Couleur du badge = JAUNE (en cours) · VERT (toutes gagnées) · ROUGE (≥1 perdue). */
   .zone-rec .zrleg{padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}   /* chiffre SEUL */
@@ -6087,17 +6086,15 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         # SANS EMOJI (user 2026-08-08) : distinction par COULEUR seule. à venir=JAUNE · en attente=GRIS ·
         # live=vert (texte) · gagnés=VERT plein · perdus=ROUGE plein. Ancien tuple 5 -> pending=0 (compat).
         _r6 = list(record) + [0] * (6 - len(record))
-        _s, _up, _lv, _w, _l, _pend = _r6[:6]
-        badge_n = _s
+        _s, _up, _lv, _w, _l, _pend = _r6[:6]   # _lv (slot « en direct » vert distinct) inutilisé : le live
+        badge_n = _s                             # verrouillé compte vert/rouge, l'incertain reste jaune (_up)
         # (Combiné : ce chemin `elif record:` n'est PAS emprunté par les combinés — ils passent leg_results
         # et prennent la branche ci-dessus ; ici on ne rend que les zones simples.)
         # ORDRE = MÊME SENS que les cartes en dessous (user 2026-08-09), cycle de vie non-joué -> réglé :
         # À VENIR/LIVE (jaune) · EN ATTENTE (gris) · GAGNÉS (vert) · PERDUS (rouge). Le jaune (qui inclut la
         # montante + les lives) est donc EN PREMIER, comme les matchs à venir/en cours en haut de la liste.
-        if _up:                                          # à venir + live (pas de résultat) : JAUNE, EN PREMIER
+        if _up:                                          # à venir + live incertain (pas de résultat) : JAUNE, EN PREMIER
             chips += f'<span class="zr zru">{_up}</span>'
-        if _lv:                                          # en direct (chip vert distinct, non utilisé en Pronos)
-            chips += f'<span class="zr zrlv">{_lv}</span>'
         if _pend:                                        # fini mais PAS ENCORE RÉGLÉ : badge GRIS
             chips += f'<span class="zr zrp">{_pend}</span>'
         if _w:                                            # gagnés : badge VERT
@@ -7362,28 +7359,21 @@ def _mont_ladder(steps: list) -> str:
     return "".join(rows)
 
 
-def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> str:
-    """Onglet MONTANTE (activée 2026-07-25). Page premium : hero (capital courant) + pari du jour + échelle
-    des paliers + « comment ça marche » + historique + palmarès. 100 % affichage, hors ROI. `sim_state` (la
-    SIMULATION sur les simples foot) est fourni en mode RÉEL -> on montre AUSSI « la meilleure montante » en
-    vitrine (demande user 2026-07-25 : ne pas la perdre une fois la vraie montante active)."""
+def render_montante(st: dict, example: dict) -> str:
+    """Onglet MONTANTE (activée 2026-07-25). Page premium : hero (multiplicateur ×N) + pari du jour + échelle
+    des paliers + historique + palmarès. 100 % affichage, hors ROI. La montante est 100 % RÉELLE (simulation
+    « meilleure montante » retirée — audit 2026-08-10 : sim/sim_state morts, jamais alimentés)."""
     base = st.get("base", 10.0)
     active = st.get("active")
-    sim = st.get("sim")
     cap = st.get("capital", base)
     palier = st.get("palier", 0)
     pending = st.get("pending")
     featured = st.get("featured")
     stats = st.get("stats", {})
 
-    # HERO — capital mis en avant (meilleure série en simulation, montante en cours en réel)
-    hero = ""   # rempli par le hero PREMIUM en montante réelle en cours ; sinon hero générique plus bas
-    if sim:
-        sub = (f'Meilleure série · <b>{palier}</b> gain{"s" if palier != 1 else ""} d\'affilée' if palier
-               else 'Simulation sur nos simples foot')
-        chip = '<span class="mont-chip">📊 Simulation · simples foot</span>'
-        lbl = 'Capital atteint · meilleure montante'
-    elif active and palier > 0:
+    # HERO — capital mis en avant (montante en cours en réel)
+    hero = ""   # rempli par le hero PREMIUM en montante en cours ; sinon hero générique plus bas
+    if active and palier > 0:
         # HERO PREMIUM « montante en cours » (user 2026-08-09 : « rendu 100 % pro, il faut vraiment voir le X
         # actuel sur la mise »). Le MULTIPLICATEUR (capital ÷ départ) est la VEDETTE : énorme chiffre en
         # dégradé doré + halo. Sous une fine règle, la PROGRESSION 10 € → capital raconte l'histoire (palier
@@ -7419,15 +7409,8 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
              'L\'objectif : enchaîner les paliers pour faire grimper la mise, sans jamais risquer plus que '
              'les 10 € de départ.</div>')
 
-    if sim:
-        intro += ('<div class="mont-intro" style="margin-top:-4px">🔎 <b>Simulation</b> : ce qu\'aurait donné '
-                  'cette montante en suivant nos <b>simples foot</b> dans l\'ordre (chaque gain rejoué, remise '
-                  'à 10 € à chaque perte). Indicatif, hors ROI.</div>')
-
-    # PARI DU JOUR — uniquement en mode réel (pas en simulation)
-    if sim:
-        pari = ""
-    elif pending:
+    # PARI DU JOUR
+    if pending:
         # PARI DU JOUR présenté comme un pari PRONOS (demande user 2026-07-28) : carte `_leg_card` complète
         # (match + sélection + glose + ligne VERDICT confiance/marché/value + pli « Pourquoi »), plus la ligne
         # d'échelle compacte. Confiance récupérée du sidecar (retenu/publié).
@@ -7476,7 +7459,7 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     # ÉCHELLE — montante mise en avant (meilleure série en sim, en cours en réel) OU exemple
     if featured and featured.get("steps"):
         _fsteps = featured["steps"]
-        tag = '<span class="tag">Meilleure série</span>' if sim else ''
+        tag = ''
     else:
         _fsteps = (example or {}).get("steps") or []
         tag = '<span class="tag">Aperçu · exemple</span>'
@@ -7486,25 +7469,9 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     _caps = [base] + [s.get("payout") for s in _fsteps
                       if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
     _curve = f'<div class="mont-curve">{_mont_curve(_caps, uid="best")}</div>' if len(_caps) >= 2 else ""
-    ladder = (f'<div class="mont-sec-h">{"La meilleure montante" if sim else "La montante"}{tag}</div>'
+    ladder = (f'<div class="mont-sec-h">La montante{tag}</div>'
               '<div class="mont-lead">Chaque palier gagné fait grimper la mise — la voici, palier par palier.</div>'
               f'{_curve}<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
-
-    # VITRINE « meilleure montante » en mode RÉEL (demande user 2026-07-25) : la simulation sur les simples
-    # foot reste affichée sous la vraie montante -> on ne perd pas le palmarès potentiel une fois activée.
-    showcase = ""
-    if not sim and isinstance(sim_state, dict) and (sim_state.get("featured") or {}).get("steps"):
-        _ss = sim_state["featured"]["steps"]
-        _sstats = sim_state.get("stats", {})
-        _scaps = [base] + [s.get("payout") for s in _ss
-                           if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
-        _scurve = f'<div class="mont-curve">{_mont_curve(_scaps, uid="simbest")}</div>' if len(_scaps) >= 2 else ""
-        showcase = (
-            '<div class="mont-sec-h">📊 La meilleure montante <span class="tag">simulation · simples foot</span></div>'
-            '<div class="mont-intro" style="margin-top:-2px">Ce qu\'aurait donné la montante en suivant nos '
-            f'<b>simples foot</b> dans l\'ordre : jusqu\'à <b>{_mont_eur(_sstats.get("best_capital", base))}</b> '
-            f'en <b>{_sstats.get("best_palier", 0)}</b> paliers. Indicatif, hors ROI.</div>'
-            f'{_scurve}<div class="mont-ladder">{_mont_ladder(_ss)}</div>')
 
     # « COMMENT ÇA MARCHE » RETIRÉ (user 2026-08-09) : redondant avec le paragraphe d'intro sous le hero
     # (principe + risque plafonné à 10 € déjà expliqués). L'échelle des paliers montre la mécanique en acte.
@@ -7513,10 +7480,6 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     # on montre l'historique de la SIMULATION (montantes terminées sur nos simples foot) plutôt qu'un cadre
     # VIDE (bug user 2026-07-28 « rien dans l'historique »). Idem palmarès plus bas.
     chains = st.get("chains") or []
-    if not chains and isinstance(sim_state, dict):
-        chains = sim_state.get("chains") or []
-    if not stats.get("n") and isinstance(sim_state, dict) and (sim_state.get("stats") or {}).get("n"):
-        stats = sim_state.get("stats") or stats     # palmarès = simulation tant que le réel n'a rien de terminé
     if chains:
         hrows = "".join(
             '<div class="mont-hrow"><div class="mont-hrow-b">✗</div>'
@@ -7542,7 +7505,7 @@ def render_montante(st: dict, example: dict, sim_state: dict | None = None) -> s
     # BADGE NAV MONTANTE (user 2026-08-08) : 1 s'il y a un pari du jour (palier en attente), sinon 0.
     _mn = 1 if _montante_palier() is not None else 0
     return (f'<span class="dv-nav" data-tab="montante" data-n="{_mn}" hidden></span>'
-            + hero + intro + ladder + pari + palmares + hist + showcase)
+            + hero + intro + ladder + pari + palmares + hist)
 
 
 _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
