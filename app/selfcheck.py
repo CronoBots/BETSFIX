@@ -503,6 +503,34 @@ def _check_provisional_settle_finished() -> dict:
             "items": bad[:20]}
 
 
+def _check_provisional_score_collision() -> dict:
+    """VÉRIFICATION À LA RÉSOLUTION (user 2026-08-10 : « ça ne doit JAMAIS arriver ») : le score d'un provisoire
+    RÉGLÉ doit correspondre au score de la FICHE du match désambiguïsé PAR COUP D'ENVOI (`_sidecar_for` avec
+    `start`). Sinon = COLLISION D'AFFICHE (2 rencontres entre les mêmes équipes à des dates différentes -> le
+    règlement a pris le mauvais match, ex. Västerås-Djurgårdens 10/08 réglé « 6-0 » avec le score du 03/08).
+    Encode la non-régression du fix `_sidecar_for` désambiguïsé."""
+    bad = []
+    try:
+        from app import provisional
+        for mid, p in provisional.load().items():
+            if not isinstance(p, dict) or p.get("result") not in ("won", "lost", "push", "void"):
+                continue
+            sc = p.get("score")
+            if not sc or "-" not in str(sc):
+                continue
+            sd = provisional._sidecar_for(p.get("sport") or "foot", p.get("home"), p.get("away"), p.get("start"))
+            good = ((sd or {}).get("result") or {}).get("score") if sd else None
+            if good and good != sc:
+                bad.append(f"{p.get('name', '?')} ({str(p.get('start'))[:10]}) : provisoire réglé score "
+                           f"'{sc}' MAIS la fiche du bon match dit '{good}' -> collision d'affiche")
+    except Exception:
+        pass
+    return {"key": "provisional_score_collision", "level": "error" if bad else "ok",
+            "title": "Provisoire réglé sur le BON match (anti-collision de coup d'envoi)",
+            "detail": f"{len(bad)} provisoire(s) réglé(s) avec le score d'une AUTRE affiche (collision).",
+            "items": bad[:20]}
+
+
 def _check_combo_daily_settle_finished() -> dict:
     """Une jambe du combiné du jour ne doit JAMAIS être réglée (won/lost/push) tant que son match n'est pas
     PROBABLEMENT FINI. Encode la régression 2026-07-18 : Sport Recife-Operário réglé « lost 3-0 » via le
@@ -910,6 +938,7 @@ def run(persist: bool = False) -> dict:
         _check_ghost_resolution(rows),
         _check_provisional_dedup(),
         _check_provisional_settle_finished(),
+        _check_provisional_score_collision(),
         _check_combo_daily_settle_finished(),
         _check_combo_daily_sport_purity(),
         _check_combo_daily_dc_only(),
