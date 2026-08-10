@@ -108,6 +108,9 @@ def record(sport: str, match_id, home: str, away: str, start: str, name: str,
     """Enregistre (ou met à jour tant que non réglé) un pari provisoire. Ne garde QUE les paris dont le
     code de règlement est CALCULABLE (sinon impossible à régler -> inutile à suivre). No-op si déjà réglé
     (on ne réécrit pas un résultat figé). Appelé par le scan quand un provisoire est posé."""
+    from app import analyses
+    if not analyses.PROVISOIRES_ON:               # provisoires retirés (user 2026-08-11) -> on ne suit plus
+        return
     from app.settle_analyst import code_from_pick
     code = code_from_pick(sel or "", sport, home or "", away or "")
     if not code:                                  # non réglable -> on ne le suit pas
@@ -184,6 +187,9 @@ def reconcile_with_programme() -> int:
         mais absent des stats) -> plus de « affiché mais pas suivi ».
     Ne touche jamais un réglé (monotone) ni les matchs hors programme (settle_pending les règle). `record`
     porte la dédup (combiné/retenu/non réglable). Renvoie le nb de changements."""
+    from app import analyses
+    if not analyses.PROVISOIRES_ON:               # provisoires retirés (user 2026-08-11) -> plus de suivi
+        return 0
     import json
     path = os.path.join(_ROOT, "data", "day_programme.json")
     try:
@@ -233,6 +239,8 @@ def settle_pending() -> int:
     repli LiveScore) + `settle_pick`. Score PARTIEL -> on n'écrit RIEN (jamais de règlement sur du live).
     Renvoie le nombre nouvellement réglé. Sûr à rejouer (idempotent : ne retouche pas un déjà réglé)."""
     from app import analyses, flashscore, livescore
+    if not analyses.PROVISOIRES_ON:               # provisoires retirés (user 2026-08-11) -> plus de règlement
+        return 0
     from app.settle_analyst import settle_pick
     prune_retained()          # DÉDUP d'abord : un match devenu retenu (combiné/simple) sort du suivi provisoire
     reconcile_with_programme()  # COHÉRENCE : un match sans provisoire affiché sort aussi du suivi (Stats = À venir)

@@ -2477,6 +2477,13 @@ def freeze_published_bet(sport: str, match_id) -> bool:
 TIER_SPLIT_ON = True
 CONFIANCE_MIN_CONF = 78.0     # seuil de confiance CALIBRÉE (taux mesuré ~93 % à 78 %, ~1 pari/jour en Confiance)
 
+# PROVISOIRES RETIRÉS (user 2026-08-11 : « je ne veux plus de provisoires ; ces matchs doivent être ignorés »).
+# Un match ABSTENU (analysé, aucun pari de value retenu) n'est PLUS affiché ni suivi en « provisoire ». Ses
+# prédictions continuent de nourrir la CALIBRATION via ses FANTÔMES (`d["shadow"]`, indépendants — inchangés).
+# RÉVERSIBLE : PROVISOIRES_ON = True -> réaffiche/re-suit les provisoires (état d'avant). Purement affichage/
+# suivi info-seule : n'a JAMAIS touché le ROI/les stats (provisoire = hors ROI).
+PROVISOIRES_ON = False
+
 
 def bet_tier(cprob, cote=None) -> str:
     """Tier d'AFFICHAGE d'un pari retenu : « confiance » (confiance calibrée ≥ seuil) ou « value » (sous le

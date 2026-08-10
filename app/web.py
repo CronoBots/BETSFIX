@@ -4265,12 +4265,15 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         cote_points=_foot_c.get("cote_points")) if (_foot_c.get("settled") or _pend_fc) else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
-    # ORDRE onglets = Confiance · Value · Provisoire · Combiné (user 2026-08-10) -> counts/rois DANS CET ORDRE.
-    _foot = _sport_tabs(simples_block, combos_block, _prov_sport_graph("foot"),
+    # ORDRE onglets = Confiance · Value · [Provisoire retiré] · Combiné (user 2026-08-11). L'onglet Provisoire
+    # n'est plus rendu (prov_html="" -> onglet ignoré) ; les abstentions nourrissent la calibration (fantômes).
+    _prov_html = _prov_sport_graph("foot") if analyses.PROVISOIRES_ON else ""
+    _foot = _sport_tabs(simples_block, combos_block, _prov_html,
                         value_html=value_block,                                    # onglet VALUE (user 2026-08-09)
-                        counts=(len(_pend_conf), len(_pend_val), _prov_pending_count("foot"), len(_pend_fc)),
+                        counts=(len(_pend_conf), len(_pend_val),
+                                _prov_pending_count("foot") if analyses.PROVISOIRES_ON else 0, len(_pend_fc)),
                         rois=((_bt.get("confiance") or {}).get("roi"), (_bt.get("value") or {}).get("roi"),
-                              _prov_sport_roi("foot"), _foot_c.get("roi")))
+                              _prov_sport_roi("foot") if analyses.PROVISOIRES_ON else None, _foot_c.get("roi")))
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
     return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
@@ -6620,7 +6623,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     if sport:
         play = [r for r in play if _item_sport(r) == sport]
         _prog = [it for it in _prog if it.get("_sport") == sport]
-    prov = sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
+    prov = (sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
+            if analyses.PROVISOIRES_ON else [])   # provisoires retirés (user 2026-08-11) : abstentions ignorées
     # PLUS de catégorie « à analyser » (demande user 2026-07-20 : la supprimer) : un match NON encore
     # analysé (ni pari, ni provisoire) n'est tout simplement PAS affiché tant qu'il n'a pas d'analyse —
     # il apparaîtra une fois analysé (avec son pari/provisoire), jamais en limbo « Analyse à HH:MM ».
@@ -6684,7 +6688,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # (titre + cadre) -> sinon il apparaîtrait 2× (user 2026-08-08 : « le résultat sans montante ne doit pas
     # être mis vu qu'il y est déjà avec la montante »).
     _mont_ex = {str((_montante_today_bet() or {}).get("mid") or "")} if _mont_card else None
-    _prov_res = _provisional_results(today_iso, sport, header=False)  # provisoires réglés (sans sous-titre)
+    _prov_res = _provisional_results(today_iso, sport, header=False) if analyses.PROVISOIRES_ON else ""
     _now_ts = time.time()
     # SPLIT CONFIANCE / VALUE (user 2026-08-09) : DEUX zones. CONFIANCE = picks à HAUTE confiance calibrée
     # (chiffre phare, taux ~92-95 %) ; VALUE = picks RETENUS sous le seuil (rentables, +19/+28 % ROI, mais plus
@@ -9058,8 +9062,8 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     if sport in ("foot", "tennis", "basket"):
         _paj = {_prog_pair(r.get("home"), r.get("away")) for r in (list(upcoming or []) + list(live or []))}
         _pit = [it for it in _programme_items(_paj, framed=True) if it.get("_sport") == sport]
-        prov_up = sorted([it for it in _pit if it.get("_prov") and not it.get("_live")],
-                         key=lambda r: r.get("start_ts") or 0)
+        prov_up = (sorted([it for it in _pit if it.get("_prov") and not it.get("_live")],
+                          key=lambda r: r.get("start_ts") or 0) if analyses.PROVISOIRES_ON else [])
         _rest = [it for it in _pit if not (it.get("_prov") and not it.get("_live"))]
         live = list(live or []) + [it for it in _rest if it.get("_live")]
         upcoming = list(upcoming or []) + [it for it in _rest if not it.get("_live")]
@@ -9074,8 +9078,7 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
     _has = bool(play_up or live or prov_up or finished)
     out = [
         _zone("play", _plur(len(play_up), "Confiance"), "", len(play_up), _rows_by_day(play_up),
-              empty=("Aucune <b>value</b> à venir pour l'instant — voir les <b>Provisoires</b> plus bas."
-                     if _has else None)),
+              empty=("Aucun pari à venir pour l'instant." if _has else None)),
         _zone("live", "En direct", "temps réel", len(live), _cards(live)),
         _zone("indic", _plur(len(prov_up), "Provisoire"), "", len(prov_up), _rows_by_day(prov_up)),
         _zone("todo", "Terminés", "", len(finished),
@@ -9170,7 +9173,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
     _play = [c for c in play_live if _item_sport(c) == _cur]
-    _prov = [c for c in prov_live if c.get("_sport") == _cur]
+    _prov = [c for c in prov_live if c.get("_sport") == _cur] if analyses.PROVISOIRES_ON else []
     _combo = _combos.get(_cur, "")
     _safe_combo = _safe_combo if _cur == "foot" else ""   # combinés hors-ROI = foot uniquement
     if _cur != "foot":
