@@ -758,11 +758,10 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 # SOUS-ONGLET 1 — BILAN : rentabilité globale + cadres sport + suivis indicatifs du jour.
                 + '<div id="res-bilan" class="statsx">'    # scope : fond cyan sur TOUS les cadres
                 + _bilan
-                # SÉPARATEUR de groupe : tout ce qui suit est du JOUR / INDICATIF, distinct du ROI réel.
-                + '<div class="sx-group">🧪 Le jour &amp; suivis indicatifs '
-                  '<span>à titre informatif — hors ROI réel</span></div>'
-                + _selectivity_card()     # ratio paris à jouer / abstentions du jour (rend la sélectivité visible)
-                + _combo_safe_card()      # combiné sécurité foot (double chance la plus sûre ~2, hors ROI)
+                # SECTION « 🧪 Le jour & suivis indicatifs » RETIRÉE (user 2026-08-11) : plus de provisoires
+                # (_selectivity_card parlait d'abstentions/provisoires) ni de cadre « Combiné double chance »
+                # standalone (_combo_safe_card) — le combiné du jour est déjà accessible via l'ONGLET « Combiné »
+                # du cadre Football (bouton, plus haut). On ne garde que le panneau SANTÉ (privé, propriétaire).
                 # Panneau SANTÉ (privé) chargé en AJAX : servi UNIQUEMENT au propriétaire (is_owner).
                 + '<div id="syshealth"></div>'
                 + '<script>fetch("/stats/health").then(r=>r.text()).then(function(h){'
