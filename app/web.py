@@ -6623,10 +6623,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # comptée dans le JAUNE « à venir » du compteur (plus de badge bleu dédié, user 2026-08-08). (foot uniquement).
     _mont_title, _mont_card = _montante_zone_card(sport)
     _mont_settled = ""     # carte montante RÉGLÉE -> injectée avec les RÉSULTATS (après les à-venir), pas en tête
-    _mont_tier = "confiance"   # la montante est classée par SA confiance (Confiance si ≥ seuil, sinon Value)
+    # La montante est LE pari phare du jour -> TOUJOURS en zone Confiance (user 2026-08-10 : la classer par son
+    # tier la reléguait en Value les jours à confiance < seuil, faisant DISPARAÎTRE la zone Confiance = « bordel »).
+    # Son ROI reste compté dans le bon tier via tier_of (comptabilité séparée de l'affichage Pronos).
+    _mont_tier = "confiance"
     if _mont_card:
         _mpj = _montante_today_bet() or {}             # pending OU pari réglé du jour (heure/live/résultat)
-        _mont_tier = analyses.bet_tier_for("foot", str(_mpj.get("mid") or ""))   # cohérent avec les stats du tier
         # CADRE vert (gagné) / rouge (perdu) une fois réglé, comme les autres cartes résultat (user 2026-08-08) ;
         # bleu tant que non réglé (en attente/live). Le titre « MONTANTE • PALIER N » suit la même couleur.
         _mres = _mpj.get("result")
@@ -9162,9 +9164,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             _prov = [c for c in _prov if _prog_pair(c.get("home"), c.get("away")) != _mm_pair]
         _mont_deco = (f'<div class="mont-cardwrap"><a class="mont-hdr" data-goto="montante" href="/montante" '
                       f'onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
-        _mont_tier_live = analyses.bet_tier_for("foot", str((_montante_today_bet() or {}).get("mid") or ""))
         _play = list(_play) + [{"_html": _mont_deco, "start_ts": (_md0 or {}).get("start_ts") or 0,
-                                "status": "inprogress", "tier": _mont_tier_live}]
+                                "status": "inprogress", "tier": "confiance"}]   # montante = phare -> Confiance
     if not (_play or _prov or _combo or _safe_combo):
         zones = (
             '<div class="live-empty">'
