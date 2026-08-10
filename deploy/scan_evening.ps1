@@ -14,6 +14,7 @@ $ErrorActionPreference = 'Continue'
 $root = 'C:\Users\vince\BETSFIX'
 $py   = 'C:\Users\vince\AppData\Local\Programs\Python\Python312\python.exe'
 $log  = Join-Path $root 'data\scan_cron.log'
+$flag = Join-Path $root 'data\scan_wave_first.flag'   # présent = mode WAVE-FIRST (le sweep analyse la nuit)
 Set-Location $root
 
 function Log($m) {
@@ -33,10 +34,16 @@ if ($running) {
 # ~19h). --from-programme = uniquement la liste du matin (aucune dérive de sélection). PAS de --force : les
 # matchs de nuit n'ont pas encore été analysés (le matin ne fait que le slate jour) -> analyse normale ;
 # un match de jour (coup d'envoi < 21h) est EXCLU par la bande -> jamais re-scané ici.
-Log 'SCAN SOIR : SLATE NUIT (coup d''envoi 21h->06h heure belge) + publication des picks'
-& $py 'tools\generate_analyses.py' --sport foot --top 8 --hours 12 --from-programme --ko-from 21 --ko-to 6 2>&1 |
-    Out-File -Append -Encoding utf8 $log
-Log ("SCAN SOIR DONE (exit {0})" -f $LASTEXITCODE)
+# SCAN SOIR (analyse du slate NUIT en batch) : SAUTÉ en mode WAVE-FIRST (user 2026-08-11) -> le sweep
+# analyse chaque match de nuit ~2h avant SON coup d'envoi. Sans le drapeau -> comportement batch inchangé.
+if (Test-Path $flag) {
+    Log 'SCAN SOIR : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~2h avant chaque coup d''envoi'
+} else {
+    Log 'SCAN SOIR : SLATE NUIT (coup d''envoi 21h->06h heure belge) + publication des picks'
+    & $py 'tools\generate_analyses.py' --sport foot --top 8 --hours 12 --from-programme --ko-from 21 --ko-to 6 2>&1 |
+        Out-File -Append -Encoding utf8 $log
+    Log ("SCAN SOIR DONE (exit {0})" -f $LASTEXITCODE)
+}
 
 # RÉCONCILIATION : règle ce qui est réglable (poste les résultats des matchs de l'après-midi/soirée finis),
 # re-poste les pronos imminents manqués. Silencieux (pas de bilan — le bilan reste 1×/jour le matin).
