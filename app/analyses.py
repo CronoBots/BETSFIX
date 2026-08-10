@@ -2811,7 +2811,14 @@ _SPORT_ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀", "combo": "🎲
 _SPORT_NOM = {"foot": "Foot", "tennis": "Tennis", "basket": "Basket", "combo": "Combiné"}
 # Les combinés ne comptent dans le palmarès qu'à partir de la date de DÉCISION (NON rétroactif) :
 # les combinés antérieurs (placés quand ils ne comptaient pas) ne polluent pas le suivi.
+# ⚠️ Cette bascule pilote AUSSI l'AFFICHAGE des simples (list_for : un match à combiné antérieur
+# est masqué) — NE PAS la déplacer pour un besoin de stats combinés, sinon on cache des simples.
 _COMBO_COUNT_FROM = "2026-06-18"
+# Bascule DÉDIÉE aux STATS des COMBINÉS (demande user 2026-08-11) : seul le COMBINÉ DU JOUR (double
+# chance), mis en place le 26/07, compte dans le bilan combinés. Les combinés multi-marchés d'avant
+# (l'ancien système, 18/06→19/07) sont EXCLUS du bilan combinés mais RESTENT dans la calibration et
+# les stats fantômes (leurs jambes sont des prédictions de fiche, calibrées indépendamment).
+_COMBO_STATS_FROM = "2026-07-26"
 
 
 def _agg_bets(events: list) -> dict:
@@ -3260,8 +3267,8 @@ def combo_stats(since_days: int | None = None) -> dict:
             continue
         sport = d.get("sport")
         start = d.get("start") or ""
-        if start[:10] < _COMBO_COUNT_FROM:
-            continue
+        if start[:10] < _COMBO_STATS_FROM:
+            continue                                   # ancien combiné multi-marchés -> calibration seule
         if cutoff is not None:
             try:
                 dt = datetime.fromisoformat(start.replace("Z", "+00:00")) if start else None
@@ -3296,6 +3303,8 @@ def combo_stats(since_days: int | None = None) -> dict:
         for _dt, _res, _cote, _det in _cdmod.roi_events():
             if _res not in ("won", "lost", "push"):
                 continue
+            if (_dt or "")[:10] < _COMBO_STATS_FROM:
+                continue                               # combiné du jour n'existe qu'à partir du 26/07
             if cutoff is not None:
                 try:
                     _cdt2 = datetime.fromisoformat((_dt or "") + "T00:00:00+00:00")
