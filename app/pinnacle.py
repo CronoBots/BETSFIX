@@ -32,6 +32,7 @@ _mu_cache: dict = {}     # sportId -> [{id, home, away}]
 # cooldown -> récupération AUTOMATIQUE dès que l'IP est débloquée, sans consommer les Go inutilement.
 _DIRECT_COOLDOWN = 1800     # s (30 min) : durée pendant laquelle on saute le direct 403 et on passe par proxy
 _direct_ok_after = 0.0      # timestamp : avant lui, direct en cooldown -> proxy direct
+_last_proxy_status = ""     # dernière raison d'échec du proxy (diagnostic santé) : ex. « 402 — crédit épuisé »
 
 
 def _direct_blocked() -> bool:
@@ -45,18 +46,26 @@ def _proxy_url() -> str:
 
 
 def _get_proxy(path: str):
-    """GET via le proxy résidentiel (curl_cffi + impersonation Chrome). None si pas de proxy / échec."""
+    """GET via le proxy résidentiel (curl_cffi + impersonation Chrome). None si pas de proxy / échec.
+    Enregistre la RAISON de l'échec dans `_last_proxy_status` (diagnostic santé) : un 402 sur le tunnel
+    CONNECT = crédit du proxy résidentiel épuisé (iProyal à recharger), à distinguer d'un hoquet réseau."""
+    global _last_proxy_status
     proxy = _proxy_url()
     if not proxy:
+        _last_proxy_status = "aucun proxy configuré"
         return None
     try:
         from curl_cffi import requests as _cr
         r = _cr.get(_BASE + path, headers=_H, impersonate="chrome",
                     proxies={"http": proxy, "https": proxy}, timeout=20)
         if r.status_code == 200:
+            _last_proxy_status = ""
             return json.loads(r.content.decode("utf-8", "replace"))
-    except Exception:
-        pass
+        _last_proxy_status = f"proxy HTTP {r.status_code}"
+    except Exception as e:
+        # curl (56) « CONNECT tunnel failed, response 402 » = crédit proxy épuisé (recharger iProyal).
+        _last_proxy_status = ("402 — crédit proxy épuisé (recharger iProyal)"
+                              if "402" in str(e) else f"proxy {type(e).__name__}")
     return None
 
 

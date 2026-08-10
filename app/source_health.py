@@ -50,8 +50,13 @@ async def _p_pinnacle(c):
     from app import pinnacle
     data = await asyncio.to_thread(pinnacle._get, "sports")
     n = len(data) if isinstance(data, list) else 0
-    via = "proxy" if pinnacle._direct_blocked() else "direct"
-    return (bool(data), f"{n} sports (via {via})" if data else "KO (direct + proxy)")
+    if data:
+        via = "proxy" if pinnacle._direct_blocked() else "direct"
+        return (True, f"{n} sports (via {via})")
+    # KO : direct 403 (IP bloquée Cloudflare) ET proxy en échec -> on affiche la CAUSE actionnable du proxy
+    # (ex. « 402 — crédit épuisé ») au lieu d'un « KO » opaque, pour savoir s'il faut recharger le proxy.
+    reason = getattr(pinnacle, "_last_proxy_status", "") or "direct + proxy"
+    return (False, f"KO — {reason}")
 
 
 async def _p_flashscore(c):
