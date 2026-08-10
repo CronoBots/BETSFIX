@@ -939,7 +939,10 @@ async def directs_page(
     # live est chaud (fetch_live_odds ci-dessus) -> _programme_items détecte correctement _live.
     # GROUPÉ PAR TYPE DE PARI (comme Pronos, demande user 2026-07-20) : paris retenus en cours (play_live) et
     # provisoires en cours (prov_live), TOUS sports mélangés — le sport reste lisible via l'en-tête coloré.
-    prov_live = [it for it in web._programme_items(set()) if it.get("_live")]
+    # PROVISOIRES retirés du produit (user 2026-08-11) : plus construits ni comptés (sinon un provisoire
+    # d'hier resté « en cours » gonflait le badge Live sans rien afficher). Réversible via PROVISOIRES_ON.
+    prov_live = ([it for it in web._programme_items(set()) if it.get("_live")]
+                 if analyses.PROVISOIRES_ON else [])
     play_live = ((await _live_cards("tennis")) + (await _live_cards("basket")) + (await _live_cards("foot")))
     body = web.render_directs(play_live, prov_live, sport=sp, frag=bool(frag))
     if frag:

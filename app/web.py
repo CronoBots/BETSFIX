@@ -9149,6 +9149,11 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     `#pn-directs` via /directs?sport=<sk> et ne montre QUE les matchs live de ce sport. `play_live` = paris
     retenus en cours ; `prov_live` = provisoires en cours (cartes `_html` ou dicts `_sport_row`)."""
     _cur = sport if sport in ("foot", "tennis", "basket") else "foot"
+    # GARDE UNIQUE (user 2026-08-11) : provisoires retirés -> vidés À LA SOURCE ici, donc ni comptés dans
+    # `_counts`/`total` (badge nav) ni affichés. Empêche le badge « Live = N » sur une page vide, quel que
+    # soit l'appelant. Réversible via PROVISOIRES_ON.
+    if not analyses.PROVISOIRES_ON:
+        prov_live = []
     play_live = sorted(list(play_live or []), key=lambda c: c.get("start_ts") or 0)
     prov_live = sorted(list(prov_live or []), key=lambda c: c.get("start_ts") or 0)
     # COMPTES PAR SPORT (badges du sélecteur) + TOTAL tous sports (badge de l'onglet, inchangé).
