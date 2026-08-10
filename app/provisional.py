@@ -41,11 +41,15 @@ def _match_age_days(start_iso) -> float:
         return 0.0
 
 
-def _sidecar_for(sport: str, home: str, away: str):
-    """Sidecar du match apparié par NOMS (strict home ET away, dé-accentué). Sert à récupérer le résultat
-    DÉJÀ RÉGLÉ (result.raw) sans réseau — l'id du suivi (Unibet) ne résout pas toujours le sidecar tennis
-    (clé = id SofaScore). None si introuvable."""
+def _sidecar_for(sport: str, home: str, away: str, start=None):
+    """Sidecar du match apparié par NOMS (home ET away, dé-accentué) ET DÉSAMBIGUÏSÉ PAR COUP D'ENVOI (`start`)
+    quand fourni : on prend le match des mêmes équipes le PLUS PROCHE en temps, et on REJETTE (None) si le plus
+    proche est à > 6 h du coup d'envoi visé. ⚠️ Sans ça, 2 affiches entre les mêmes équipes à des dates
+    différentes (aller/retour) se confondaient et le règlement prenait le MAUVAIS score (bug user 2026-08-10 :
+    provisoire « Västerås-Djurgårdens » du 10/08 réglé « 6-0 » avec le score du match INVERSE du 03/08). Le
+    match est souvent déjà réglé côté analyses -> result.raw = autorité de vérité, 0 réseau. None si introuvable."""
     import re
+    from datetime import datetime
     from app import analyses
     _stop = {"fc", "sc", "if"}
 
@@ -54,11 +58,29 @@ def _sidecar_for(sport: str, home: str, away: str):
     th, ta = _tk(home), _tk(away)
     if not (th and ta):
         return None
+    _want = None
+    if start:
+        try:
+            _want = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            _want = None
+    best, best_gap = None, None
     for d in analyses.iter_meta(sport):
         dh, da = _tk(d.get("home")), _tk(d.get("away"))
-        if (dh & th and da & ta) or (dh & ta and da & th):
-            return d
-    return None
+        if not ((dh & th and da & ta) or (dh & ta and da & th)):
+            continue
+        if _want is None:
+            return d                                   # pas de coup d'envoi visé -> 1er match (comportement d'avant)
+        try:
+            _dt = datetime.fromisoformat(str(d.get("start")).replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            continue
+        gap = abs((_dt - _want).total_seconds())
+        if best_gap is None or gap < best_gap:
+            best, best_gap = d, gap
+    if best is not None and best_gap is not None and best_gap > 6 * 3600:
+        return None                                    # collision d'affiche (autre date) -> ne pas prendre ce match
+    return best
 
 
 def _load() -> dict:
@@ -259,7 +281,7 @@ def settle_pending() -> int:
         # Flashscore/LiveScore ÉCHOUE (nom tennis/étranger introuvable) -> sans ça le provisoire restait « EN
         # ATTENTE » à vie (bug user 2026-07-28, Cocciaretto-Tauson). Même correctif que combo_daily (2026-07-14).
         try:
-            _sd = _sidecar_for(sport, p.get("home"), p.get("away"))
+            _sd = _sidecar_for(sport, p.get("home"), p.get("away"), p.get("start"))   # désambiguïsé par coup d'envoi
             _raw = ((_sd or {}).get("result") or {}).get("raw")
             if isinstance(_raw, dict) and (_raw.get("periods") or _raw.get("home") is not None
                                            or _raw.get("sets_home") is not None):
