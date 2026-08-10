@@ -7281,8 +7281,12 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     # Badge LIVE posé AUSSI depuis la home (retour user 2026-07-21 : le SPA ne charge que le panneau
     # actif -> le badge de l'onglet Live n'apparaissait qu'après l'avoir visité). Total = paris joués
     # live (live_count) + provisoires live + combiné du jour live. Le JS badge() lit TOUS les .dv-nav.
+    # PROVISOIRES retirés du produit (user 2026-08-11) : la page Live les masque (gate PROVISOIRES_ON,
+    # cf. render_directs). Le badge posé DEPUIS la home doit compter PAREIL — sinon un provisoire live
+    # gonflait le badge « Live » à 1 alors que la page Live n'affiche rien (incohérence badge ↔ page).
     try:
-        _lv_prov = sum(1 for it in _programme_items(set(), framed=True) if it.get("_live"))
+        _lv_prov = (sum(1 for it in _programme_items(set(), framed=True) if it.get("_live"))
+                    if analyses.PROVISOIRES_ON else 0)
     except Exception:
         _lv_prov = 0
     _lv_total = (live_count or 0) + _lv_prov + (1 if _daily_combo_any_live() else 0)
