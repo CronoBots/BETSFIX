@@ -3357,7 +3357,13 @@ _CARDS_JS = (
     # un clic DANS l'analyse (.exp : détails repliables, bulles, etc.) ne doit PAS replier la carte :
     # on (dé)plie via l'en-tête de la carte uniquement. (cf. accordéon data-exp, même garde)
     "if(_mv)return;if(e.target.closest('a,.exp'))return;"
-    "var card=e.target.closest('.row.mc');if(!card)return;"
+    "var card=e.target.closest('.row.mc');"
+    # CARTE MONTANTE (`.mont-cardwrap` contenant une `.cleg`, pas une `.row.mc`) : clic dans le CORPS -> (dé)plie
+    # son « Pourquoi » comme les autres cartes (user 2026-08-10). L'en-tête `.mont-hdr` est un <a> -> intercepté
+    # plus haut (closest('a')) et géré par data-goto (bascule vers l'onglet Montante).
+    "if(!card){var mw=e.target.closest('.mont-cardwrap');"
+    "if(mw){var md=mw.querySelector('details.cleg-fold');"
+    "if(md&&!e.target.closest('summary')){e.preventDefault();md.open=!md.open;}}return;}"
     # Carte PLATE (pas de corps dépliable) : un clic N'IMPORTE OÙ dans le cadre (dé)plie le « Pourquoi »
     # (demande user 2026-07-21). Le summary garde son toggle natif (stopPropagation) -> pas de double bascule.
     "var b=card.querySelector('.mc-body');"
