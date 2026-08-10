@@ -6617,8 +6617,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # comptée dans le JAUNE « à venir » du compteur (plus de badge bleu dédié, user 2026-08-08). (foot uniquement).
     _mont_title, _mont_card = _montante_zone_card(sport)
     _mont_settled = ""     # carte montante RÉGLÉE -> injectée avec les RÉSULTATS (après les à-venir), pas en tête
+    _mont_tier = "confiance"   # la montante est classée par SA confiance (Confiance si ≥ seuil, sinon Value)
     if _mont_card:
         _mpj = _montante_today_bet() or {}             # pending OU pari réglé du jour (heure/live/résultat)
+        _mont_tier = analyses.bet_tier_for("foot", str(_mpj.get("mid") or ""))   # cohérent avec les stats du tier
         # CADRE vert (gagné) / rouge (perdu) une fois réglé, comme les autres cartes résultat (user 2026-08-08) ;
         # bleu tant que non réglé (en attente/live). Le titre « MONTANTE • PALIER N » suit la même couleur.
         _mres = _mpj.get("result")
@@ -6637,7 +6639,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             except (ValueError, AttributeError, TypeError):
                 _mts = 0
             _mlive = bool(match_select.live_state_for("foot", _msd.get("home", ""), _msd.get("away", "")))
-            play.append({"_html": _mont_deco, "start_ts": _mts,
+            play.append({"_html": _mont_deco, "start_ts": _mts, "tier": _mont_tier,
                          "status": "inprogress" if _mlive else "", "_mont": True,
                          "home": _msd.get("home"), "away": _msd.get("away")})
         play.sort(key=lambda r: (1 if r.get("status") == "inprogress" else 0, r.get("start_ts") or 0))
@@ -6678,17 +6680,21 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _up = len(_pl) - _pend - _lw - _ll        # jaune = à venir + live INCERTAIN (hors live verrouillés)
         return (len(_pl) + _w + _l + _p, _up, 0, _w + _lw, _l + _ll, _pend)
 
-    # ZONE CONFIANCE (montante réglée `_mont_settled` incluse avec ses résultats).
-    _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf), _mont_settled) if h])
+    # La montante RÉGLÉE (`_mont_settled`) va dans la zone de SON tier (comme sa carte à venir/live), user
+    # 2026-08-10 : une montante à 73% (< seuil) doit apparaître en VALUE, pas en Confiance (cohérent avec les stats).
+    _mont_settled_conf = _mont_settled if _mont_tier != "value" else ""
+    _mont_settled_value = _mont_settled if _mont_tier == "value" else ""
+    # ZONE CONFIANCE (montante réglée de tier confiance incluse avec ses résultats).
+    _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf), _mont_settled_conf) if h])
     _conf_rec = _tier_rec(play_conf, "confiance")
-    if play_conf or _res_conf or _mont_card:
+    if play_conf or _res_conf or _mont_settled_conf:
         out.append(_zone("play", _plur(len(play_conf) + len(_res_conf), "Confiance"), "",
                          len(play_conf) + len(_res_conf), _conf_html,
                          collapsible=True, record=_conf_rec if _conf_rec[0] else None))
-    # ZONE VALUE (n'apparaît que s'il y a des paris value ; donc masquée quand le split est off).
-    _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value)) if h])
+    # ZONE VALUE (n'apparaît que s'il y a des paris value ; masquée quand le split est off).
+    _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value), _mont_settled_value) if h])
     _value_rec = _tier_rec(play_value, "value")
-    if play_value or _res_value:
+    if play_value or _res_value or _mont_settled_value:
         out.append(_zone("value", "Value", "", len(play_value) + len(_res_value), _value_html,
                          collapsible=True, record=_value_rec if _value_rec[0] else None))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
@@ -9150,8 +9156,9 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             _prov = [c for c in _prov if _prog_pair(c.get("home"), c.get("away")) != _mm_pair]
         _mont_deco = (f'<div class="mont-cardwrap"><a class="mont-hdr" data-goto="montante" href="/montante" '
                       f'onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
+        _mont_tier_live = analyses.bet_tier_for("foot", str((_montante_today_bet() or {}).get("mid") or ""))
         _play = list(_play) + [{"_html": _mont_deco, "start_ts": (_md0 or {}).get("start_ts") or 0,
-                                "status": "inprogress"}]
+                                "status": "inprogress", "tier": _mont_tier_live}]
     if not (_play or _prov or _combo or _safe_combo):
         zones = (
             '<div class="live-empty">'
