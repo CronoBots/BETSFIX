@@ -2235,7 +2235,10 @@ CSS = """
   .pgm-row{padding:11px 13px;border-bottom:1px solid var(--border);border-left:3px solid var(--dim)}
   .pgm-row:last-child{border-bottom:0}
   .pgm-row.pgm-wait{border-left-color:var(--gold)}
-  .pgm-row.pgm-ok{border-left-color:var(--accent)}
+  .pgm-row.pgm-abst{border-left-color:var(--dim)}
+  .pgm-row.pgm-conf{border-left-color:#34d27b}
+  .pgm-row.pgm-val{border-left-color:var(--accent)}
+  .pgm-row.pgm-mont{border-left-color:var(--gold)}
   .pgm-row.pgm-done{border-left-color:var(--dim);opacity:.62}
   .pgm-r1{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
   .pgm-teams{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.01em;line-height:1.28}
@@ -2247,7 +2250,12 @@ CSS = """
     display:inline-flex;align-items:baseline;gap:5px}
   .pgm-an i{font-size:8px;font-weight:600;font-style:normal;letter-spacing:.04em;text-transform:uppercase;color:var(--dim)}
   .pgm-wait .pgm-an{color:var(--gold)}
-  .pgm-ok .pgm-an{color:var(--accent)}
+  .pgm-abst .pgm-an{color:var(--dim)}
+  .pgm-conf .pgm-an{color:#34d27b}
+  .pgm-val .pgm-an{color:var(--accent)}
+  .pgm-mont .pgm-an{color:var(--gold)}
+  /* MONTANTE : label en pastille pleine (or) pour ressortir du reste */
+  .pgm-mont .pgm-an i{background:var(--gold);color:var(--gold-bg);padding:1px 5px;border-radius:5px}
   .pgm-done .pgm-an{color:var(--muted);font-size:11px}
   /* COMBINÉ (user 2026-08-08) : badge = nb de jambes (chiffre) + un cercle par jambe DANS le badge.
      Couleur du badge = JAUNE (en cours) · VERT (toutes gagnées) · ROUGE (≥1 perdue). */
@@ -7356,6 +7364,7 @@ def _programme_schedule(sport: str = "foot") -> str:
     # En-tete de jour UNIQUEMENT si le programme couvre plusieurs jours sportifs (sinon « Aujourd'hui »
     # serait redondant avec le titre « Programme du jour »).
     _multi = len({_sport_date(_ld(dt)).isoformat() for _m, dt in items}) > 1
+    _mont_mid = str((_montante_today_bet() or {}).get("mid") or "")   # LE pari montante du jour
     rows, cur_day = [], None
     for m, dt in items:
         ld = _ld(dt)
@@ -7364,14 +7373,24 @@ def _programme_schedule(sport: str = "foot") -> str:
             cur_day = day
             rows.append(f'<div class="pgm-day">{html.escape(_prog_day_label(ld))}</div>')
         ko = ld.strftime("%H:%M")
-        d = analyses.meta(sport, str(m.get("id")))
-        if d is None:                                      # pas encore analysé -> heure PRÉVUE (≈ KO−2 h)
+        mid = str(m.get("id"))
+        d = analyses.meta(sport, mid)
+        if d is None:                                      # pas encore analyse -> heure prevue (KO-2h)
             cls, an_t, an_l = "pgm-wait", "≈ " + (ld - LEAD).strftime("%H:%M"), "analyse"
-        elif analyses.is_settled(d):                       # réglé
+        elif analyses.is_settled(d):                       # regle
             cls, an_t, an_l = "pgm-done", "terminé", ""
-        else:                                              # analysé -> heure RÉELLE
-            _at = _sidecar_analyzed_at(sport, m.get("id"))
-            cls, an_t, an_l = "pgm-ok", ("✓ " + _at if _at else "✓ analysé"), "analysé"
+        else:                                              # analyse -> TYPE detecte (confiance/value/montante/abstention)
+            _at = _sidecar_analyzed_at(sport, mid)
+            _tail = ("✓ " + _at) if _at else "✓"
+            rb = analyses.retained_bet(sport, mid)
+            if rb is None:                                 # analyse mais SANS value -> abstention
+                cls, an_t, an_l = "pgm-abst", (_at or ""), "abstention"
+            elif mid == _mont_mid:                         # LE pari montante du jour
+                cls, an_t, an_l = "pgm-mont", _tail, "montante"
+            elif analyses.tier_of(d, rb) == "confiance":
+                cls, an_t, an_l = "pgm-conf", _tail, "confiance"
+            else:
+                cls, an_t, an_l = "pgm-val", _tail, "value"
         teams = _noF(str(m.get("name") or ""))
         comp = _noF(str(m.get("comp") or "")).upper()
         an_html = f'<i>{an_l}</i>{an_t}' if an_l else an_t   # label (« analyse ») + heure ; nu pour « terminé »
