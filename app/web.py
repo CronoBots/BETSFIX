@@ -2213,29 +2213,36 @@ CSS = """
   .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés = badge VERT (user 2026-08-08) */
   .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
   /* MODULE « Programme du jour » (Pronos, wave-first) : liste complète — match · compétition · coup
-     d'envoi · heure d'analyse. Bord gauche = état (jaune=en attente, cyan=analysé, gris=terminé). */
+     d'envoi · heure d'analyse. Équipes sur TOUTE la largeur (jamais tronquées) ; heures empilées à
+     droite (KO au-dessus, analyse en dessous). Bord gauche = état (jaune=prévu, cyan=analysé, gris=fini). */
   .pgm-card{margin-top:14px}
-  .pgm-list{display:flex;flex-direction:column;margin-top:10px;border:1px solid var(--border);
-    border-radius:12px;overflow:hidden}
+  .pgm-sub{font-size:10.5px;color:var(--muted);margin:3px 2px 11px;line-height:1.45}
+  .pgm-sub b{font-weight:800}
+  .pgm-sub .pk1{color:var(--gold)} .pgm-sub .pk2{color:var(--accent)} .pgm-sub .pk3{color:var(--dim)}
+  .pgm-list{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;overflow:hidden}
   .pgm-day{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
     background:var(--bg2);padding:7px 12px;border-bottom:1px solid var(--border)}
-  .pgm-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);
-    border-bottom:1px solid var(--border);border-left:3px solid var(--dim)}
+  .pgm-row{padding:11px 13px;background:var(--surface);border-bottom:1px solid var(--border);
+    border-left:3px solid var(--dim)}
   .pgm-row:last-child{border-bottom:0}
   .pgm-row.pgm-wait{border-left-color:var(--gold)}
   .pgm-row.pgm-ok{border-left-color:var(--accent)}
-  .pgm-row.pgm-done{border-left-color:var(--dim);opacity:.55}
-  .pgm-main{flex:1 1 auto;min-width:0}
-  .pgm-teams{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;
-    text-overflow:ellipsis;letter-spacing:-.01em}
-  .pgm-comp{font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--accent);opacity:.72;
-    margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pgm-ko,.pgm-an{flex:none;display:flex;flex-direction:column;align-items:flex-end;min-width:50px}
-  .pgm-t{font-size:13px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1}
-  .pgm-l{font-size:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);margin-top:2px}
-  .pgm-wait .pgm-an .pgm-t{color:var(--gold)}
-  .pgm-ok .pgm-an .pgm-t{color:var(--accent)}
-  .pgm-done .pgm-an .pgm-t{color:var(--muted);font-size:11px}
+  .pgm-row.pgm-done{border-left-color:var(--dim);opacity:.62}
+  .pgm-r1{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .pgm-teams{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.01em;line-height:1.28}
+  .pgm-ko{flex:none;font-size:15px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+  .pgm-r2{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:4px}
+  .pgm-comp{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);
+    opacity:.82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .pgm-an{flex:none;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--muted);
+    display:inline-flex;align-items:baseline;gap:5px}
+  .pgm-an i{font-size:8px;font-weight:600;font-style:normal;letter-spacing:.04em;text-transform:uppercase;color:var(--dim)}
+  .pgm-wait .pgm-an{color:var(--gold)}
+  .pgm-ok .pgm-an{color:var(--accent)}
+  .pgm-done .pgm-an{color:var(--muted);font-size:11px}
+  /* Micro-label « coup d'envoi » sous l'heure KO (aligné à droite, discret) */
+  .pgm-ko-l{display:block;text-align:right;font-size:8px;font-weight:600;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--dim);margin-top:2px}
   /* COMBINÉ (user 2026-08-08) : badge = nb de jambes (chiffre) + un cercle par jambe DANS le badge.
      Couleur du badge = JAUNE (en cours) · VERT (toutes gagnées) · ROUGE (≥1 perdue). */
   .zone-rec .zrleg{padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}   /* chiffre SEUL */
@@ -7354,16 +7361,18 @@ def _programme_schedule(sport: str = "foot") -> str:
             cls, an_t, an_l = "pgm-ok", ("✓ " + _at if _at else "✓ analysé"), "analysé"
         teams = _noF(str(m.get("name") or ""))
         comp = _noF(str(m.get("comp") or "")).upper()
+        an_html = f'<i>{an_l}</i>{an_t}' if an_l else an_t   # label (« analyse ») + heure ; nu pour « terminé »
         rows.append(
             f'<div class="pgm-row {cls}">'
-            f'<div class="pgm-main"><div class="pgm-teams">{html.escape(teams)}</div>'
-            f'<div class="pgm-comp">{html.escape(comp)}</div></div>'
-            f'<div class="pgm-ko"><span class="pgm-t">{ko}</span><span class="pgm-l">coup d\'envoi</span></div>'
-            f'<div class="pgm-an"><span class="pgm-t">{an_t}</span>'
-            + (f'<span class="pgm-l">{an_l}</span>' if an_l else "")
-            + '</div></div>')
-    _sub = f"{len(items)} matchs · analyse ~2 h avant le coup d'envoi"
-    return (f'<div class="sx-card pgm-card"><div class="sx-h">📋 Programme du jour <span>{_sub}</span></div>'
+            f'<div class="pgm-r1"><span class="pgm-teams">{html.escape(teams)}</span>'
+            f'<span class="pgm-ko">{ko}</span></div>'
+            f'<div class="pgm-r2"><span class="pgm-comp">{html.escape(comp)}</span>'
+            f'<span class="pgm-an">{an_html}</span></div>'
+            f'</div>')
+    _sub = ('<div class="pgm-sub">Analyse automatique <b>~2 h avant</b> chaque coup d\'envoi · '
+            'état : <b class="pk1">prévue</b> → <b class="pk2">analysée</b> → <b class="pk3">terminée</b></div>')
+    return (f'<div class="sx-card pgm-card"><div class="sx-h">📋 Programme du jour '
+            f'<span>{len(items)} matchs</span></div>{_sub}'
             f'<div class="pgm-list">{"".join(rows)}</div></div>')
 
 
