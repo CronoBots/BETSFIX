@@ -2249,8 +2249,9 @@ CSS = """
   .pgm-teams{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.01em;line-height:1.28}
   .pgm-ko{flex:none;font-size:15px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
   .pgm-r2{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:5px}
-  .pgm-comp{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);
-    opacity:.82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  /* LIGUE : même couleur que sur les cartes de paris (.mc-comp = #8fa2b8, user 2026-08-11) */
+  .pgm-comp{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#8fa2b8;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .pgm-an{flex:none;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--muted);
     display:inline-flex;align-items:center;gap:6px}
   /* BADGE (pastille) plein & coloré selon l'état/résultat — même style que la montante. Pending & abstention
@@ -7401,19 +7402,18 @@ def _programme_schedule(sport: str = "foot") -> str:
         d = analyses.meta(sport, mid)
         if d is None:                                      # pas encore analyse -> heure prevue (KO-2h)
             cls, an_t, an_l = "pgm-wait", "≈ " + (ld - LEAD).strftime("%H:%M"), "analyse"
-        elif analyses.is_settled(d):                       # réglé -> BADGE résultat (gagné vert / perdu rouge) + score
-            _sb = analyses.stat_bet(d)
+        elif analyses.is_settled(d):                       # réglé -> BADGE résultat SEUL (gagné/perdu), SANS score
+            _sb = analyses.stat_bet(d)                     # (user 2026-08-11 : pas besoin du score dans le planning)
             _res = (_sb or {}).get("result") if isinstance(_sb, dict) else None
-            _sc = str((d.get("result") or {}).get("score") or "")
             if _res == "won":
-                cls, an_t, an_l = "pgm-won", _sc, "gagné"
+                cls, an_t, an_l = "pgm-won", "", "gagné"
             elif _res == "lost":
-                cls, an_t, an_l = "pgm-lost", _sc, "perdu"
+                cls, an_t, an_l = "pgm-lost", "", "perdu"
             elif _sb is None:                              # ABSTENTION réglée (aucun pari) -> masquable comme
-                cls, an_t, an_l = "pgm-done pgm-abst", (_sc or "terminé"), ""   # les autres abstentions
+                cls, an_t, an_l = "pgm-done pgm-abst", "terminé", ""            # les autres abstentions
                 n_abst += 1
             else:                                          # push / remboursé (il Y AVAIT un pari) -> reste affiché
-                cls, an_t, an_l = "pgm-done", (_sc or "terminé"), ""
+                cls, an_t, an_l = "pgm-done", "terminé", ""
         else:                                              # analyse -> TYPE detecte (confiance/value/montante/abstention)
             _at = _sidecar_analyzed_at(sport, mid)
             _tail = ("✓ " + _at) if _at else "✓"
