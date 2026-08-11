@@ -17,6 +17,7 @@ param(
     [switch]$Off,
     [string]$SweepTask = 'BETSFIX Scan Sweep',
     [string]$ModelTask = 'BETSFIX Scan',
+    [string]$EveningTask = 'BETSFIX Scan Soir',   # batch NUIT : redondant en wave-first (le sweep analyse la nuit)
     [int]$EveryMinutes = 30
 )
 $ErrorActionPreference = 'Stop'
@@ -36,6 +37,10 @@ if ($Off) {
     try { Disable-ScheduledTask -TaskName $SweepTask -ErrorAction Stop | Out-Null
           Write-Host "OK : tache '$SweepTask' desactivee (conservee)." -ForegroundColor Green }
     catch { Write-Host "Tache '$SweepTask' absente (rien a desactiver)." -ForegroundColor Yellow }
+    # Retour au batch -> le scan du SOIR redevient utile (il ré-analyse le slate nuit) : on le REACTIVE.
+    try { Enable-ScheduledTask -TaskName $EveningTask -ErrorAction Stop | Out-Null
+          Write-Host "OK : tache '$EveningTask' reactivee (batch nuit)." -ForegroundColor Green }
+    catch { Write-Host "Tache '$EveningTask' absente." -ForegroundColor Yellow }
     return
 }
 
@@ -68,6 +73,12 @@ Write-Host "OK : '$SweepTask' posee (toutes les $EveryMinutes min, compte vince)
 New-Item -ItemType File -Path $flag -Force | Out-Null
 Set-Content -Path $flag -Value ("wave-first active {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm')) -Encoding utf8
 Write-Host "OK : mode WAVE-FIRST ACTIVE (drapeau $flag)." -ForegroundColor Green
+
+# Le scan du SOIR (batch nuit) devient REDONDANT (le sweep analyse la nuit ~2h avant chaque KO ET reconcilie
+# toutes les 30 min) -> on le DESACTIVE (conserve, reactive par -Off). La LISTE reste faite 1x le matin.
+try { Disable-ScheduledTask -TaskName $EveningTask -ErrorAction Stop | Out-Null
+      Write-Host "OK : tache '$EveningTask' desactivee (redondante en wave-first)." -ForegroundColor Green }
+catch { Write-Host "Tache '$EveningTask' absente (rien a desactiver)." -ForegroundColor Yellow }
 
 # --- recap ---
 Write-Host "`nRecap :" -ForegroundColor Cyan
