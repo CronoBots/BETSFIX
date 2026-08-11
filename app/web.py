@@ -2239,23 +2239,34 @@ CSS = """
   .pgm-row.pgm-conf{border-left-color:#34d27b}
   .pgm-row.pgm-val{border-left-color:var(--accent)}
   .pgm-row.pgm-mont{border-left-color:var(--gold)}
-  .pgm-row.pgm-done{border-left-color:var(--dim);opacity:.62}
+  .pgm-row.pgm-won{border-left-color:#34d27b}
+  .pgm-row.pgm-lost{border-left-color:#ff6b6b}
+  .pgm-row.pgm-done{border-left-color:var(--dim);opacity:.6}
   .pgm-r1{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
   .pgm-teams{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.01em;line-height:1.28}
   .pgm-ko{flex:none;font-size:15px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
-  .pgm-r2{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:4px}
+  .pgm-r2{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:5px}
   .pgm-comp{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);
     opacity:.82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-  .pgm-an{flex:none;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--muted);
-    display:inline-flex;align-items:baseline;gap:5px}
-  .pgm-an i{font-size:8px;font-weight:600;font-style:normal;letter-spacing:.04em;text-transform:uppercase;color:var(--dim)}
+  .pgm-an{flex:none;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--muted);
+    display:inline-flex;align-items:center;gap:6px}
+  /* BADGE (pastille) plein & coloré selon l'état/résultat — même style que la montante. Pending & abstention
+     restent DISCRETS (fond tamisé) pour que les PICKS et les RÉSULTATS ressortent. */
+  .pgm-an i{font-size:8px;font-weight:800;font-style:normal;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:6px;background:rgba(154,154,166,.14);color:var(--muted);line-height:1.4}
+  .pgm-wait .pgm-an i{background:rgba(246,197,74,.15);color:var(--gold)}
   .pgm-wait .pgm-an{color:var(--gold)}
   .pgm-abst .pgm-an{color:var(--dim)}
+  .pgm-conf .pgm-an i{background:#34d27b;color:#08210f}
   .pgm-conf .pgm-an{color:#34d27b}
+  .pgm-val .pgm-an i{background:var(--accent);color:var(--accent-ink)}
   .pgm-val .pgm-an{color:var(--accent)}
+  .pgm-mont .pgm-an i{background:var(--gold);color:var(--gold-bg)}
   .pgm-mont .pgm-an{color:var(--gold)}
-  /* MONTANTE : label en pastille pleine (or) pour ressortir du reste */
-  .pgm-mont .pgm-an i{background:var(--gold);color:var(--gold-bg);padding:1px 5px;border-radius:5px}
+  .pgm-won .pgm-an i{background:#34d27b;color:#08210f}
+  .pgm-won .pgm-an{color:#34d27b}
+  .pgm-lost .pgm-an i{background:#ff6b6b;color:#2e0808}
+  .pgm-lost .pgm-an{color:#ff6b6b}
   .pgm-done .pgm-an{color:var(--muted);font-size:11px}
   /* Option « masquer les abstentions » : chip cliquable (case à cocher CSS pure, pas de JS) */
   .pgm-toggle{display:inline-block;margin:2px 3px 11px;font-size:10px;font-weight:700;letter-spacing:.03em;
@@ -7383,8 +7394,16 @@ def _programme_schedule(sport: str = "foot") -> str:
         d = analyses.meta(sport, mid)
         if d is None:                                      # pas encore analyse -> heure prevue (KO-2h)
             cls, an_t, an_l = "pgm-wait", "≈ " + (ld - LEAD).strftime("%H:%M"), "analyse"
-        elif analyses.is_settled(d):                       # regle
-            cls, an_t, an_l = "pgm-done", "terminé", ""
+        elif analyses.is_settled(d):                       # réglé -> BADGE résultat (gagné vert / perdu rouge) + score
+            _sb = analyses.stat_bet(d)
+            _res = (_sb or {}).get("result") if isinstance(_sb, dict) else None
+            _sc = str((d.get("result") or {}).get("score") or "")
+            if _res == "won":
+                cls, an_t, an_l = "pgm-won", _sc, "gagné"
+            elif _res == "lost":
+                cls, an_t, an_l = "pgm-lost", _sc, "perdu"
+            else:                                          # abstention réglée / remboursé -> score seul, neutre
+                cls, an_t, an_l = "pgm-done", (_sc or "terminé"), ""
         else:                                              # analyse -> TYPE detecte (confiance/value/montante/abstention)
             _at = _sidecar_analyzed_at(sport, mid)
             _tail = ("✓ " + _at) if _at else "✓"
