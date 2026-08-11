@@ -6812,7 +6812,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
               collapsible=True, record=_combo_rec, leg_results=_c_leg_results),
     ]
     inner = "".join(x for x in out if x)
-    _empty = '<div class="paj-empty">Aucun match analysé à venir pour l\'instant.</div>'
+    _empty = ('<div class="paj-empty">Aucun pari retenu pour l\'instant.'
+              '<span>Chaque match est analysé ~2 h avant son coup d\'envoi (voir le programme) ; '
+              'seuls ceux qui offrent de la <b>value</b> deviennent un pari. Analyser n\'est pas parier.</span></div>')
     zones = f'<div class="dash-zones">{inner or _empty}</div>'
     today_iso = _sport_today().isoformat()
     # BADGE nav = paris NON RÉGLÉS du jour (à venir + en cours). `play`/`prov` ne contiennent DÉJÀ que
