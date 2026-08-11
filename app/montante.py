@@ -143,6 +143,22 @@ def state() -> dict:
     return _compute(d.get("steps") or [], float(d.get("base_stake") or BASE_STAKE), sim=False)
 
 
+def montante_mids() -> set:
+    """IDs de match de TOUS les paris montante (paliers enregistrés + palier en attente). Sert à FORCER
+    le tier « confiance » de la montante — le pari sûr du jour (demande user 2026-08-11). Lecture seule."""
+    out = set()
+    try:
+        for s in (load().get("steps") or []):
+            if isinstance(s, dict) and s.get("mid"):
+                out.add(str(s.get("mid")))
+        pend = (state() or {}).get("pending") or {}
+        if pend.get("mid"):
+            out.add(str(pend.get("mid")))
+    except Exception:
+        pass
+    return out
+
+
 def foot_simples_bets() -> list:
     """Tous les SIMPLES foot RÉGLÉS et comptés (pari figé `stat_bet`), en ordre chronologique :
     {date, start, match, sel, cote, result}. Source de la SIMULATION de montante — reflète les vraies

@@ -2257,6 +2257,12 @@ CSS = """
   /* MONTANTE : label en pastille pleine (or) pour ressortir du reste */
   .pgm-mont .pgm-an i{background:var(--gold);color:var(--gold-bg);padding:1px 5px;border-radius:5px}
   .pgm-done .pgm-an{color:var(--muted);font-size:11px}
+  /* Option « masquer les abstentions » : chip cliquable (case à cocher CSS pure, pas de JS) */
+  .pgm-toggle{display:inline-block;margin:2px 3px 11px;font-size:10px;font-weight:700;letter-spacing:.03em;
+    color:var(--muted);cursor:pointer;padding:4px 11px;border:1px solid var(--border);border-radius:20px;
+    user-select:none;-webkit-tap-highlight-color:transparent}
+  .pgm-hideabst:checked ~ .pgm-toggle{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+  .pgm-hideabst:checked ~ .pgm-list .pgm-row.pgm-abst{display:none}
   /* COMBINÉ (user 2026-08-08) : badge = nb de jambes (chiffre) + un cercle par jambe DANS le badge.
      Couleur du badge = JAUNE (en cours) · VERT (toutes gagnées) · ROUGE (≥1 perdue). */
   .zone-rec .zrleg{padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}   /* chiffre SEUL */
@@ -7365,7 +7371,7 @@ def _programme_schedule(sport: str = "foot") -> str:
     # serait redondant avec le titre « Programme du jour »).
     _multi = len({_sport_date(_ld(dt)).isoformat() for _m, dt in items}) > 1
     _mont_mid = str((_montante_today_bet() or {}).get("mid") or "")   # LE pari montante du jour
-    rows, cur_day = [], None
+    rows, cur_day, n_abst = [], None, 0
     for m, dt in items:
         ld = _ld(dt)
         day = _sport_date(ld).isoformat()
@@ -7385,6 +7391,7 @@ def _programme_schedule(sport: str = "foot") -> str:
             rb = analyses.retained_bet(sport, mid)
             if rb is None:                                 # analyse mais SANS value -> abstention
                 cls, an_t, an_l = "pgm-abst", (_at or ""), "abstention"
+                n_abst += 1
             elif mid == _mont_mid:                         # LE pari montante du jour
                 cls, an_t, an_l = "pgm-mont", _tail, "montante"
             elif analyses.tier_of(d, rb) == "confiance":
@@ -7401,12 +7408,17 @@ def _programme_schedule(sport: str = "foot") -> str:
             f'<div class="pgm-r2"><span class="pgm-comp">{html.escape(comp)}</span>'
             f'<span class="pgm-an">{an_html}</span></div>'
             f'</div>')
+    # OPTION « masquer les abstentions » (demande user 2026-08-11) : case à cocher CSS pure (pas de JS) —
+    # cochée -> les lignes .pgm-abst passent en display:none. Affichée seulement s'il y a des abstentions.
+    _toggle = ("" if not n_abst else
+               '<input type="checkbox" id="pgmHideAbst" class="pgm-hideabst" hidden>'
+               f'<label for="pgmHideAbst" class="pgm-toggle">Masquer les abstentions ({n_abst})</label>')
     # REPLIABLE (<details>) : titre EN MAJUSCULE seul (sans emoji ni phrase d'explication, demande user).
     return (f'<details class="pgm-fold" open>'
             f'<summary class="pgm-head"><span class="pgm-title">PROGRAMME DU JOUR</span>'
             f'<span class="pgm-hr"><span class="pgm-count">{len(items)} matchs</span>'
             f'<span class="pgm-chev">▾</span></span></summary>'
-            f'<div class="pgm-list">{"".join(rows)}</div></details>')
+            f'{_toggle}<div class="pgm-list">{"".join(rows)}</div></details>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,

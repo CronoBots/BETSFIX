@@ -2498,11 +2498,32 @@ def bet_tier(cprob, cote=None) -> str:
         return "value"
 
 
+_MONT_MIDS_CACHE = {"sig": None, "set": frozenset()}
+
+
+def _montante_mids() -> frozenset:
+    """Set (caché) des ids de match MONTANTE -> tier FORCÉ « confiance » (le pari SÛR du jour, demande user
+    2026-08-11 : la montante est toujours considérée confiance). Rafraîchi sur le mtime du suivi montante
+    (tier_of est sur un chemin chaud -> on évite de relire le JSON à chaque appel)."""
+    try:
+        from app import montante as _mt
+        sig = os.path.getmtime(_mt.TRACK) if os.path.exists(_mt.TRACK) else 0
+        if sig != _MONT_MIDS_CACHE["sig"]:
+            _MONT_MIDS_CACHE["set"] = frozenset(_mt.montante_mids())
+            _MONT_MIDS_CACHE["sig"] = sig
+    except Exception:
+        pass
+    return _MONT_MIDS_CACHE["set"]
+
+
 def bet_tier_for(sport, mid) -> str:
     """Tier (« confiance »/« value ») d'un match par son id. MONOTONE : on lit d'abord la confiance calibrée
     FIGÉE au règlement (`stat_bet.cprob`, immunisée à la dérive de calibration) ; repli sur le calcul live
-    (pari actif, ou pas encore figé). SOURCE UNIQUE -> affichage ET compteurs cohérents."""
+    (pari actif, ou pas encore figé). SOURCE UNIQUE -> affichage ET compteurs cohérents.
+    La MONTANTE est TOUJOURS confiance (pari sûr, user 2026-08-11), quel que soit son % calibré."""
     try:
+        if sport == "foot" and str(mid) in _montante_mids():
+            return "confiance"
         d = meta(sport, str(mid)) or {}
         sb = d.get("stat_bet")
         if isinstance(sb, dict) and sb.get("cprob") is not None:
@@ -2515,7 +2536,10 @@ def bet_tier_for(sport, mid) -> str:
 
 def tier_of(d, rb=None) -> str:
     """Tier d'une fiche (dict déjà chargé), en préférant la confiance FIGÉE (`stat_bet.cprob`, monotone) sur
-    la calibrée live `rb.cprob`. `rb` = retained_bet déjà calculé par l'appelant (évite un 2e calcul)."""
+    la calibrée live `rb.cprob`. `rb` = retained_bet déjà calculé par l'appelant (évite un 2e calcul).
+    La MONTANTE est TOUJOURS confiance (pari sûr, user 2026-08-11)."""
+    if isinstance(d, dict) and str(d.get("id") or "") in _montante_mids():
+        return "confiance"
     sb = d.get("stat_bet") if isinstance(d, dict) else None
     if isinstance(sb, dict) and sb.get("cprob") is not None:
         return bet_tier(sb.get("cprob"), sb.get("cote"))
