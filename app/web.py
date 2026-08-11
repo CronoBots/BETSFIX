@@ -2272,6 +2272,9 @@ CSS = """
   .pgm-lost .pgm-an i{background:#ff6b6b;color:#2e0808}
   .pgm-lost .pgm-an{color:#ff6b6b}
   .pgm-done .pgm-an{color:var(--muted);font-size:11px}
+  /* Type de pari (confiance/value/montante) affiché DEVANT le résultat gagné/perdu — petit, coloré par type */
+  .pgm-typ{font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+  .pgm-typ.t-conf{color:#34d27b} .pgm-typ.t-val{color:var(--accent)} .pgm-typ.t-mont{color:var(--gold)}
   /* Option « masquer les abstentions » : chip cliquable (case à cocher CSS pure, pas de JS) */
   .pgm-toggle{display:inline-block;margin:2px 3px 11px;font-size:10px;font-weight:700;letter-spacing:.03em;
     color:var(--muted);cursor:pointer;padding:4px 11px;border:1px solid var(--border);border-radius:20px;
@@ -7400,15 +7403,18 @@ def _programme_schedule(sport: str = "foot") -> str:
         ko = ld.strftime("%H:%M")
         mid = str(m.get("id"))
         d = analyses.meta(sport, mid)
+        _pre = ""                                          # préfixe optionnel (type de pari devant gagné/perdu)
         if d is None:                                      # pas encore analyse -> heure prevue (KO-2h)
             cls, an_t, an_l = "pgm-wait", "≈ " + (ld - LEAD).strftime("%H:%M"), "analyse"
-        elif analyses.is_settled(d):                       # réglé -> BADGE résultat SEUL (gagné/perdu), SANS score
-            _sb = analyses.stat_bet(d)                     # (user 2026-08-11 : pas besoin du score dans le planning)
+        elif analyses.is_settled(d):                       # réglé -> TYPE de pari + résultat (gagné/perdu), SANS score
+            _sb = analyses.stat_bet(d)                     # (user 2026-08-11 : score inutile ; type de pari affiché)
             _res = (_sb or {}).get("result") if isinstance(_sb, dict) else None
-            if _res == "won":
-                cls, an_t, an_l = "pgm-won", "", "gagné"
-            elif _res == "lost":
-                cls, an_t, an_l = "pgm-lost", "", "perdu"
+            if _res in ("won", "lost"):
+                _typ = "montante" if mid == _mont_mid else analyses.bet_tier_for("foot", mid)
+                _tcls = {"montante": "t-mont", "value": "t-val"}.get(_typ, "t-conf")
+                _pre = f'<span class="pgm-typ {_tcls}">{_typ}</span>'   # type du pari DEVANT le résultat
+                cls, an_l = ("pgm-won", "gagné") if _res == "won" else ("pgm-lost", "perdu")
+                an_t = ""
             elif _sb is None:                              # ABSTENTION réglée -> MÊME rendu que les abstentions non
                 cls, an_t, an_l = "pgm-abst", (_sidecar_analyzed_at(sport, mid) or ""), "abstention"  # réglées (badge)
                 n_abst += 1
@@ -7429,7 +7435,7 @@ def _programme_schedule(sport: str = "foot") -> str:
                 cls, an_t, an_l = "pgm-val", _tail, "value"
         teams = _noF(str(m.get("name") or ""))
         comp = _noF(str(m.get("comp") or "")).upper()
-        an_html = f'<i>{an_l}</i>{an_t}' if an_l else an_t   # label (« analyse ») + heure ; nu pour « terminé »
+        an_html = _pre + (f'<i>{an_l}</i>{an_t}' if an_l else an_t)   # (type) + badge ; « analyse »+heure ; nu si terminé
         rows.append(
             f'<div class="pgm-row {cls}">'
             f'<div class="pgm-r1"><span class="pgm-teams">{html.escape(teams)}</span>'
