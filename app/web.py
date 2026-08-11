@@ -9352,7 +9352,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     _safe_combo = ""   # combiné « double chance » fusionné dans « Combiné football » (combo_daily) le 2026-08-02
     # MONTANTE EN COURS (1re zone de Pronos) : affichée en Live UNIQUEMENT si son match TOURNE (le Live ne
     # montre que ce qui est en direct). Foot only.
-    _mont_title, _mont_card = "", ""
+    _mont_title, _mont_card, _md0 = "", "", None
     try:
         from app import montante as _mt0
         _mp0 = (_mt0.state().get("pending") or {}) if _mt0.is_active() else {}
@@ -9362,7 +9362,15 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             _mont_title, _mont_card = _montante_zone_card("foot")
     except Exception:
         _mont_title, _mont_card = "", ""
-    _counts["foot"] += ((1 if _safe_combo else 0) + (1 if _mont_card else 0))
+    # La montante live est AFFICHÉE dans play_live (sa carte REMPLACE son pari dans Confiance) : son match y
+    # est DÉJÀ compté. On ne l'ajoute donc au badge QUE s'il n'est pas déjà un pari live -> sinon double-compte
+    # (badge « 4 » pour 3 matchs, la montante étant l'un d'eux). user 2026-08-11.
+    _mont_extra = 0
+    if _mont_card and _md0:
+        _mm0 = _prog_pair(_md0.get("home", ""), _md0.get("away", ""))
+        if not any(_prog_pair(c.get("home"), c.get("away")) == _mm0 for c in play_live):
+            _mont_extra = 1
+    _counts["foot"] += ((1 if _safe_combo else 0) + _mont_extra)
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
     _play = [c for c in play_live if _item_sport(c) == _cur]
