@@ -200,17 +200,17 @@ def _home_stats_compute(since_days: int | None = None) -> tuple:
         + _simulation_card())                                                      # 1b. cadres TENNIS/BASKET
     # ANALYSE (sous-onglet 2) : là où le modèle se prouve (edge, calibration, marchés écartés, transparence).
     analyse = (
-        _sec("Où se trouve l'edge", "performance par sport et par cote", edge, open=True)   # 2.
-        + _sec("Fiabilité du modèle", "la confiance tient-elle ses promesses ?",   # 3.
+        _sec("Où se trouve l'edge", "notre rendement selon la ligue et la cote jouée", edge, open=True)   # 2.
+        + _sec("Fiabilité du modèle", "la confiance annoncée se vérifie-t-elle vraiment ?",   # 3.
                web.render_reliability(analyses.calibration_reliability(buckets=12))
                + web.render_calibration(cal))
-        + _sec("Marchés écartés", "quels paris sont exclus, pourquoi, et quand ils reviennent",  # 3b.
+        + _sec("Marchés écartés", "quels types de paris sont mis de côté, et pourquoi",  # 3b.
                web.render_exclusions(analyses.exclusions_report()))
-        + _sec("Surveillance des marchés", "échantillon & fiabilité par sport et type de pari",  # 3c.
+        + _sec("Surveillance des marchés", "fiabilité et taille d'échantillon par type de pari",  # 3c.
                web.render_market_watch((cal or {}).get("by_sport")))
-        + _sec("Débrief des pertes", "pourquoi chaque pari perdu a perdu · mémoire évolutive",  # 3d.
+        + _sec("Débrief des pertes", "pourquoi chaque pari perdu a perdu",  # 3d.
                web.render_debrief(None))
-        + _sec("Transparence", "tout ce que le modèle a observé",                  # 4.
+        + _sec("Transparence", "tout ce que le modèle a observé, chiffres bruts",                  # 4.
                web.render_volume(full, combo, cal) + web.render_volume_by_sport()))
     return (f'<div class="sx"><div class="sx-body">{bilan}</div></div>',
             f'<div class="sx"><div class="sx-body">{analyse}</div></div>')
@@ -758,18 +758,18 @@ async def stats_page(frag: int = 0, since: str = "") -> HTMLResponse:
                 # SOUS-ONGLET 1 — BILAN : rentabilité globale + cadres sport + suivis indicatifs du jour.
                 + '<div id="res-bilan" class="statsx">'    # scope : fond cyan sur TOUS les cadres
                 + _bilan
-                # SECTION « 🧪 Le jour & suivis indicatifs » RETIRÉE (user 2026-08-11) : plus de provisoires
-                # (_selectivity_card parlait d'abstentions/provisoires) ni de cadre « Combiné double chance »
-                # standalone (_combo_safe_card) — le combiné du jour est déjà accessible via l'ONGLET « Combiné »
-                # du cadre Football (bouton, plus haut). On ne garde que le panneau SANTÉ (privé, propriétaire).
-                # Panneau SANTÉ (privé) chargé en AJAX : servi UNIQUEMENT au propriétaire (is_owner).
+                # SECTION « suivis indicatifs » et panneau Santé RETIRÉS du Bilan (user 2026-08-11) : le Bilan
+                # ne garde que la rentabilité + les cadres. La SANTÉ DU SYSTÈME est déplacée dans ANALYSE (avec
+                # les autres sections techniques : transparence, surveillance…), plus logique.
+                + '</div>'                       # fin #res-bilan
+                # SOUS-ONGLET 2 — ANALYSE : edge / fiabilité / marchés / transparence + SANTÉ DU SYSTÈME (privé,
+                # propriétaire, chargée en AJAX). Masqué au départ.
+                + f'<div id="res-analyse" class="statsx" hidden>{_analyse}'
                 + '<div id="syshealth"></div>'
                 + '<script>fetch("/stats/health").then(r=>r.text()).then(function(h){'
                   'if(h){document.getElementById("syshealth").innerHTML=h;}})'
                   '.catch(function(){});</script>'
-                + '</div>'                       # fin #res-bilan
-                # SOUS-ONGLET 2 — ANALYSE : edge / fiabilité / marchés écartés / transparence (masqué au départ).
-                + f'<div id="res-analyse" class="statsx" hidden>{_analyse}</div>'
+                + '</div>'                       # fin #res-analyse
                 # SOUS-ONGLET 3 — CALENDRIER : lazy-chargé depuis /calendrier?frag=1 au 1er clic.
                 + '<div id="res-cal" hidden data-loaded="0"></div>')
         fragcache.put(ckey, body, ttl=PANEL_TTL)

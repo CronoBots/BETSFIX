@@ -1812,11 +1812,14 @@ CSS = """
        padding-top:10px;border-top:1px solid var(--border)}
   .sx-data-note b{color:var(--text)}
   /* En-tête de SECTION (hiérarchie pro de la page Stats) : libellé majuscule accentué + sous-titre */
-  .sx-sec{display:flex;align-items:baseline;gap:9px;margin:8px 2px 0;padding-top:6px;
+  .sx-sec{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin:12px 2px 0;padding-top:6px;
        font-size:11px;font-weight:900;letter-spacing:.10em;text-transform:uppercase;color:var(--accent)}
   .sx-sec::before{content:"";flex:0 0 14px;height:2px;border-radius:2px;background:var(--accent);
        align-self:center;opacity:.85}
-  .sx-sec span{font-size:10px;font-weight:700;letter-spacing:.01em;text-transform:none;color:var(--muted)}
+  /* Titre bleu sur UNE ligne (ne se coupe plus en deux) ; sous-titre gris SUR LA LIGNE EN DESSOUS. */
+  .sx-sec-lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sx-sec-sub{flex-basis:100%;margin-left:23px;font-size:10.5px;font-weight:600;letter-spacing:.005em;
+       text-transform:none;color:var(--muted);line-height:1.35}
   .sx-acc{margin:0;border:0}
   .sx-acc>summary.sx-sec-sum{cursor:pointer;list-style:none;user-select:none;-webkit-user-select:none}
   .sx-acc>summary.sx-sec-sum::-webkit-details-marker{display:none}
@@ -4105,10 +4108,14 @@ def sx_section_collapsible(label: str, sub: str, body: str, open: bool = False) 
     toujours visible ; seules les sections de détail sont pliées. '' si le corps est vide."""
     if not (body or "").strip():
         return ""
-    s = f'<span>{html.escape(sub)}</span>' if sub else ""
+    sub = (sub[0].upper() + sub[1:]) if sub else ""     # majuscule initiale (demande user 2026-08-11)
+    s = f'<span class="sx-sec-sub">{html.escape(sub)}</span>' if sub else ""
     op = " open" if open else ""
-    return (f'<details class="sx-acc"{op}><summary class="sx-sec sx-sec-sum">{html.escape(label)}{s}'
-            f'<span class="sx-sec-chev">▾</span></summary><div class="sx-acc-body">{body}</div></details>')
+    # Titre bleu (une ligne) + chevron à droite ; le sous-titre gris passe SOUS le titre (flex-basis:100%).
+    return (f'<details class="sx-acc"{op}><summary class="sx-sec sx-sec-sum">'
+            f'<span class="sx-sec-lbl">{html.escape(label)}</span>'
+            f'<span class="sx-sec-chev">▾</span>{s}'
+            f'</summary><div class="sx-acc-body">{body}</div></details>')
 
 
 def render_sports_breakdown(full: dict | None, since: str = "") -> str:
