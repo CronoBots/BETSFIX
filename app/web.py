@@ -3792,7 +3792,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
         f'<a class="{"on" if sport == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
         + ('<span class="nav-n" hidden></span>'
-           if k in ("home", "tennis", "basket", "foot", "directs") else '')
+           if k in ("home", "tennis", "basket", "foot", "directs", "montante") else '')
         + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
 
@@ -3847,7 +3847,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         f'<a class="{"on" if active == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
         + ('<span class="nav-n" hidden></span>'
-           if k in ("home", "tennis", "basket", "foot", "directs") else '')
+           if k in ("home", "tennis", "basket", "foot", "directs", "montante") else '')
         + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
@@ -7464,8 +7464,12 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     # quotidien vivent désormais dans l'onglet CALENDRIER dédié -> plus de doublon en tête de Pronos.
     # MODULE « Programme du jour » : liste COMPLÈTE des matchs suivis + heure d'analyse (wave-first). Hors
     # #day-content (stable, indépendant de la navigation par jour). Pur affichage, 0 réseau.
+    # BADGE onglet MONTANTE (user 2026-08-11) : « 1 » s'il y a une montante sélectionnée aujourd'hui (pending
+    # ou réglée du jour), sinon caché. Posé depuis la home (comme le badge Live) -> visible sans visiter l'onglet.
+    _mont_n = 1 if _montante_today_bet() else 0
     body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
             f'<span class="dv-nav" data-tab="directs" data-n="{_lv_total}" hidden></span>'
+            f'<span class="dv-nav" data-tab="montante" data-n="{_mont_n}" hidden></span>'
             + f'<div id="day-content">{zones}</div>'
             + _programme_schedule())
     return body if frag else spa_shell("home", "Pronos", body, source=source)
