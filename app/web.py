@@ -2216,10 +2216,15 @@ CSS = """
      d'envoi · heure d'analyse. TITRE + légende AU-DESSUS (hors cadre) ; la liste EST le cadre principal
      (un seul cadre). Équipes pleine largeur ; heures empilées à droite (KO / analyse). Bord gauche =
      état (jaune=prévu, cyan=analysé, gris=fini). */
-  .pgm-wrap{margin-top:16px}
+  .pgm-fold{margin-top:16px}
+  .pgm-fold>summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .pgm-fold>summary::-webkit-details-marker{display:none}
   .pgm-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:0 3px}
-  .pgm-title{font-size:15.5px;font-weight:800;color:var(--text);letter-spacing:-.01em}
-  .pgm-count{flex:none;font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .pgm-title{font-size:14px;font-weight:800;color:var(--text);letter-spacing:.04em;text-transform:uppercase}
+  .pgm-hr{flex:none;display:inline-flex;align-items:baseline;gap:9px}
+  .pgm-count{font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .pgm-chev{font-size:10px;color:var(--muted);transition:transform .2s ease;transform:rotate(-90deg)}
+  .pgm-fold[open] .pgm-chev{transform:rotate(0deg)}
   .pgm-legend{font-size:10.5px;color:var(--muted);margin:5px 3px 12px;line-height:1.45}
   .pgm-legend b{font-weight:800}
   .pgm-legend .pk1{color:var(--gold)} .pgm-legend .pk2{color:var(--accent)} .pgm-legend .pk3{color:var(--dim)}
@@ -7375,12 +7380,12 @@ def _programme_schedule(sport: str = "foot") -> str:
             f'<div class="pgm-r2"><span class="pgm-comp">{html.escape(comp)}</span>'
             f'<span class="pgm-an">{an_html}</span></div>'
             f'</div>')
-    _legend = ('<div class="pgm-legend">Analyse <b>~2 h avant</b> chaque coup d\'envoi · '
-               '<b class="pk1">prévue</b> → <b class="pk2">analysée</b> → <b class="pk3">terminée</b></div>')
-    return (f'<div class="pgm-wrap">'
-            f'<div class="pgm-head"><div class="pgm-title">📋 Programme du jour</div>'
-            f'<div class="pgm-count">{len(items)} matchs</div></div>'
-            f'{_legend}<div class="pgm-list">{"".join(rows)}</div></div>')
+    # REPLIABLE (<details>) : titre EN MAJUSCULE seul (sans emoji ni phrase d'explication, demande user).
+    return (f'<details class="pgm-fold" open>'
+            f'<summary class="pgm-head"><span class="pgm-title">PROGRAMME DU JOUR</span>'
+            f'<span class="pgm-hr"><span class="pgm-count">{len(items)} matchs</span>'
+            f'<span class="pgm-chev">▾</span></span></summary>'
+            f'<div class="pgm-list">{"".join(rows)}</div></details>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
