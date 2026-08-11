@@ -295,8 +295,11 @@ def _card(r: dict) -> dict:
     # TIER d'affichage confiance/value (user 2026-08-09) — classement par la confiance CALIBRÉE du pari retenu
     # (source unique analyses.bet_tier_for). Pur affichage : n'affecte ni rétention ni ROI. Import différé
     # (évite un cycle foot<->web<->analyses au chargement).
+    # ⚠️ Gater sur l'ID, PAS sur `pk` : les lignes À VENIR (_analyst_rows) portent `pick=None` (le pari est
+    # rendu via la perle) -> gater sur `pk` faisait retomber TOUT pari value en « confiance » (bug : une value
+    # 74 % s'affichait sous CONFIANCES). bet_tier_for lit le pari retenu par id (source de vérité).
     _tier = "confiance"
-    if pk and r.get("id") is not None:
+    if r.get("id") is not None:
         try:
             from app import analyses as _an
             _tier = _an.bet_tier_for("foot", r["id"])
