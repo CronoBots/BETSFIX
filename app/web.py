@@ -2212,6 +2212,30 @@ CSS = """
   .zone-rec .zrp{color:#0e141b;background:#9aa6b4;padding:1px 7px;border-radius:9px;font-size:11px}  /* en attente de résolution = badge GRIS (user 2026-08-08) */
   .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés = badge VERT (user 2026-08-08) */
   .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
+  /* MODULE « Programme du jour » (Pronos, wave-first) : liste complète — match · compétition · coup
+     d'envoi · heure d'analyse. Bord gauche = état (jaune=en attente, cyan=analysé, gris=terminé). */
+  .pgm-card{margin-top:14px}
+  .pgm-list{display:flex;flex-direction:column;margin-top:10px;border:1px solid var(--border);
+    border-radius:12px;overflow:hidden}
+  .pgm-day{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+    background:var(--bg2);padding:7px 12px;border-bottom:1px solid var(--border)}
+  .pgm-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);
+    border-bottom:1px solid var(--border);border-left:3px solid var(--dim)}
+  .pgm-row:last-child{border-bottom:0}
+  .pgm-row.pgm-wait{border-left-color:var(--gold)}
+  .pgm-row.pgm-ok{border-left-color:var(--accent)}
+  .pgm-row.pgm-done{border-left-color:var(--dim);opacity:.55}
+  .pgm-main{flex:1 1 auto;min-width:0}
+  .pgm-teams{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;letter-spacing:-.01em}
+  .pgm-comp{font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--accent);opacity:.72;
+    margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pgm-ko,.pgm-an{flex:none;display:flex;flex-direction:column;align-items:flex-end;min-width:50px}
+  .pgm-t{font-size:13px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1}
+  .pgm-l{font-size:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);margin-top:2px}
+  .pgm-wait .pgm-an .pgm-t{color:var(--gold)}
+  .pgm-ok .pgm-an .pgm-t{color:var(--accent)}
+  .pgm-done .pgm-an .pgm-t{color:var(--muted);font-size:11px}
   /* COMBINÉ (user 2026-08-08) : badge = nb de jambes (chiffre) + un cercle par jambe DANS le badge.
      Couleur du badge = JAUNE (en cours) · VERT (toutes gagnées) · ROUGE (≥1 perdue). */
   .zone-rec .zrleg{padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}   /* chiffre SEUL */
@@ -7270,6 +7294,79 @@ def accueil_body(frag: bool = True) -> str:
 </div>"""
 
 
+def _prog_day_label(ld) -> str:
+    """« Aujourd'hui » / « Demain » / jj/mm en JOUR SPORTIF (06h→06h) — en-tête de jour du programme."""
+    today = _sport_date(datetime.now(LOCAL_TZ) if LOCAL_TZ is not None else datetime.now())
+    delta = (_sport_date(ld) - today).days
+    return "Aujourd'hui" if delta == 0 else "Demain" if delta == 1 else ld.strftime("%d/%m")
+
+
+def _sidecar_analyzed_at(sport: str, fid) -> str:
+    """Heure locale HH:MM de l'analyse d'un match = mtime du .md (repli .json). '' si introuvable."""
+    for ext in ("md", "json"):
+        p = os.path.join(analyses.DIR, f"{sport}_{fid}.{ext}")
+        try:
+            dt = datetime.fromtimestamp(os.path.getmtime(p), tz=timezone.utc)
+            return (dt.astimezone(LOCAL_TZ) if LOCAL_TZ is not None else dt).strftime("%H:%M")
+        except OSError:
+            continue
+    return ""
+
+
+def _programme_schedule(sport: str = "foot") -> str:
+    """MODULE « Programme du jour » (onglet Pronos) : la LISTE COMPLÈTE des matchs suivis — match ·
+    compétition · coup d'envoi · heure d'analyse. En wave-first, chaque match est analysé ~2 h avant SON
+    coup d'envoi : on affiche l'heure d'analyse PRÉVUE (≈ KO−2 h) tant qu'il n'est pas analysé, puis l'heure
+    RÉELLE une fois fait (✓), et « terminé » une fois réglé. Rend le processus transparent. Pur affichage
+    (lit data/day_programme.json + présence des sidecars, ZÉRO réseau). '' si programme absent/vide."""
+    import json as _json
+    path = os.path.join(analyses._ROOT, "data", "day_programme.json")
+    try:
+        prog = _json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+
+    def _dt_of(m):
+        try:
+            return datetime.fromisoformat(str(m.get("start")).replace("Z", "+00:00"))
+        except (ValueError, AttributeError, TypeError):
+            return None
+    items = [(m, _dt_of(m)) for m in (prog.get("matches") or []) if (m.get("sport") or "foot") == sport]
+    items = sorted([(m, dt) for m, dt in items if dt is not None], key=lambda x: x[1])
+    if not items:
+        return ""
+    LEAD = timedelta(hours=2)   # heure d'analyse cible = coup d'envoi − 2 h (fenêtre wave-first)
+    rows, cur_day = [], None
+    for m, dt in items:
+        ld = dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
+        day = _sport_date(ld).isoformat()
+        if day != cur_day:
+            cur_day = day
+            rows.append(f'<div class="pgm-day">{html.escape(_prog_day_label(ld))}</div>')
+        ko = ld.strftime("%H:%M")
+        d = analyses.meta(sport, str(m.get("id")))
+        if d is None:                                      # pas encore analysé -> heure PRÉVUE (≈ KO−2 h)
+            cls, an_t, an_l = "pgm-wait", "≈ " + (ld - LEAD).strftime("%H:%M"), "analyse"
+        elif analyses.is_settled(d):                       # réglé
+            cls, an_t, an_l = "pgm-done", "terminé", ""
+        else:                                              # analysé -> heure RÉELLE
+            _at = _sidecar_analyzed_at(sport, m.get("id"))
+            cls, an_t, an_l = "pgm-ok", ("✓ " + _at if _at else "✓ analysé"), "analysé"
+        teams = _noF(str(m.get("name") or ""))
+        comp = _noF(str(m.get("comp") or "")).upper()
+        rows.append(
+            f'<div class="pgm-row {cls}">'
+            f'<div class="pgm-main"><div class="pgm-teams">{html.escape(teams)}</div>'
+            f'<div class="pgm-comp">{html.escape(comp)}</div></div>'
+            f'<div class="pgm-ko"><span class="pgm-t">{ko}</span><span class="pgm-l">coup d\'envoi</span></div>'
+            f'<div class="pgm-an"><span class="pgm-t">{an_t}</span>'
+            + (f'<span class="pgm-l">{an_l}</span>' if an_l else "")
+            + '</div></div>')
+    _sub = f"{len(items)} matchs · analyse ~2 h avant le coup d'envoi"
+    return (f'<div class="sx-card pgm-card"><div class="sx-h">📋 Programme du jour <span>{_sub}</span></div>'
+            f'<div class="pgm-list">{"".join(rows)}</div></div>')
+
+
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
                      frag: bool = False, source: dict | None = None) -> str:
     """Onglet « Pronos » (ex-« À venir », renommé 2026-07-19) : un CALENDRIER horizontal en tête pour revoir
@@ -7292,9 +7389,12 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     _lv_total = (live_count or 0) + _lv_prov + (1 if _daily_combo_any_live() else 0)
     # BANDEAU CALENDRIER RETIRÉ de Pronos (demande user 2026-07-25) : la navigation par jour / le bilan
     # quotidien vivent désormais dans l'onglet CALENDRIER dédié -> plus de doublon en tête de Pronos.
+    # MODULE « Programme du jour » : liste COMPLÈTE des matchs suivis + heure d'analyse (wave-first). Hors
+    # #day-content (stable, indépendant de la navigation par jour). Pur affichage, 0 réseau.
     body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
             f'<span class="dv-nav" data-tab="directs" data-n="{_lv_total}" hidden></span>'
-            + f'<div id="day-content">{zones}</div>')
+            + f'<div id="day-content">{zones}</div>'
+            + _programme_schedule())
     return body if frag else spa_shell("home", "Pronos", body, source=source)
 
 
