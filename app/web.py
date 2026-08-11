@@ -2213,17 +2213,21 @@ CSS = """
   .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés = badge VERT (user 2026-08-08) */
   .zone-rec .zrl{color:#2e0808;background:#ff7d7d;padding:1px 7px;border-radius:9px;font-size:11px}  /* perdus = badge ROUGE */
   /* MODULE « Programme du jour » (Pronos, wave-first) : liste complète — match · compétition · coup
-     d'envoi · heure d'analyse. Équipes sur TOUTE la largeur (jamais tronquées) ; heures empilées à
-     droite (KO au-dessus, analyse en dessous). Bord gauche = état (jaune=prévu, cyan=analysé, gris=fini). */
-  .pgm-card{margin-top:14px}
-  .pgm-sub{font-size:10.5px;color:var(--muted);margin:3px 2px 11px;line-height:1.45}
-  .pgm-sub b{font-weight:800}
-  .pgm-sub .pk1{color:var(--gold)} .pgm-sub .pk2{color:var(--accent)} .pgm-sub .pk3{color:var(--dim)}
-  .pgm-list{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+     d'envoi · heure d'analyse. TITRE + légende AU-DESSUS (hors cadre) ; la liste EST le cadre principal
+     (un seul cadre). Équipes pleine largeur ; heures empilées à droite (KO / analyse). Bord gauche =
+     état (jaune=prévu, cyan=analysé, gris=fini). */
+  .pgm-wrap{margin-top:16px}
+  .pgm-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:0 3px}
+  .pgm-title{font-size:15.5px;font-weight:800;color:var(--text);letter-spacing:-.01em}
+  .pgm-count{flex:none;font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .pgm-legend{font-size:10.5px;color:var(--muted);margin:5px 3px 12px;line-height:1.45}
+  .pgm-legend b{font-weight:800}
+  .pgm-legend .pk1{color:var(--gold)} .pgm-legend .pk2{color:var(--accent)} .pgm-legend .pk3{color:var(--dim)}
+  .pgm-list{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:14px;
+    overflow:hidden;background:var(--surface);box-shadow:var(--shadow-sm)}
   .pgm-day{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
-    background:var(--bg2);padding:7px 12px;border-bottom:1px solid var(--border)}
-  .pgm-row{padding:11px 13px;background:var(--surface);border-bottom:1px solid var(--border);
-    border-left:3px solid var(--dim)}
+    background:var(--bg2);padding:7px 13px;border-bottom:1px solid var(--border)}
+  .pgm-row{padding:11px 13px;border-bottom:1px solid var(--border);border-left:3px solid var(--dim)}
   .pgm-row:last-child{border-bottom:0}
   .pgm-row.pgm-wait{border-left-color:var(--gold)}
   .pgm-row.pgm-ok{border-left-color:var(--accent)}
@@ -2240,9 +2244,6 @@ CSS = """
   .pgm-wait .pgm-an{color:var(--gold)}
   .pgm-ok .pgm-an{color:var(--accent)}
   .pgm-done .pgm-an{color:var(--muted);font-size:11px}
-  /* Micro-label « coup d'envoi » sous l'heure KO (aligné à droite, discret) */
-  .pgm-ko-l{display:block;text-align:right;font-size:8px;font-weight:600;letter-spacing:.04em;
-    text-transform:uppercase;color:var(--dim);margin-top:2px}
   /* COMBINÉ (user 2026-08-08) : badge = nb de jambes (chiffre) + un cercle par jambe DANS le badge.
      Couleur du badge = JAUNE (en cours) · VERT (toutes gagnées) · ROUGE (≥1 perdue). */
   .zone-rec .zrleg{padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}   /* chiffre SEUL */
@@ -7343,11 +7344,16 @@ def _programme_schedule(sport: str = "foot") -> str:
     if not items:
         return ""
     LEAD = timedelta(hours=2)   # heure d'analyse cible = coup d'envoi − 2 h (fenêtre wave-first)
+    def _ld(dt):
+        return dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
+    # En-tete de jour UNIQUEMENT si le programme couvre plusieurs jours sportifs (sinon « Aujourd'hui »
+    # serait redondant avec le titre « Programme du jour »).
+    _multi = len({_sport_date(_ld(dt)).isoformat() for _m, dt in items}) > 1
     rows, cur_day = [], None
     for m, dt in items:
-        ld = dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
+        ld = _ld(dt)
         day = _sport_date(ld).isoformat()
-        if day != cur_day:
+        if _multi and day != cur_day:
             cur_day = day
             rows.append(f'<div class="pgm-day">{html.escape(_prog_day_label(ld))}</div>')
         ko = ld.strftime("%H:%M")
@@ -7369,11 +7375,12 @@ def _programme_schedule(sport: str = "foot") -> str:
             f'<div class="pgm-r2"><span class="pgm-comp">{html.escape(comp)}</span>'
             f'<span class="pgm-an">{an_html}</span></div>'
             f'</div>')
-    _sub = ('<div class="pgm-sub">Analyse automatique <b>~2 h avant</b> chaque coup d\'envoi · '
-            'état : <b class="pk1">prévue</b> → <b class="pk2">analysée</b> → <b class="pk3">terminée</b></div>')
-    return (f'<div class="sx-card pgm-card"><div class="sx-h">📋 Programme du jour '
-            f'<span>{len(items)} matchs</span></div>{_sub}'
-            f'<div class="pgm-list">{"".join(rows)}</div></div>')
+    _legend = ('<div class="pgm-legend">Analyse <b>~2 h avant</b> chaque coup d\'envoi · '
+               '<b class="pk1">prévue</b> → <b class="pk2">analysée</b> → <b class="pk3">terminée</b></div>')
+    return (f'<div class="pgm-wrap">'
+            f'<div class="pgm-head"><div class="pgm-title">📋 Programme du jour</div>'
+            f'<div class="pgm-count">{len(items)} matchs</div></div>'
+            f'{_legend}<div class="pgm-list">{"".join(rows)}</div></div>')
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
