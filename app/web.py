@@ -7409,7 +7409,10 @@ def _programme_schedule(sport: str = "foot") -> str:
                 cls, an_t, an_l = "pgm-won", _sc, "gagné"
             elif _res == "lost":
                 cls, an_t, an_l = "pgm-lost", _sc, "perdu"
-            else:                                          # abstention réglée / remboursé -> score seul, neutre
+            elif _sb is None:                              # ABSTENTION réglée (aucun pari) -> masquable comme
+                cls, an_t, an_l = "pgm-done pgm-abst", (_sc or "terminé"), ""   # les autres abstentions
+                n_abst += 1
+            else:                                          # push / remboursé (il Y AVAIT un pari) -> reste affiché
                 cls, an_t, an_l = "pgm-done", (_sc or "terminé"), ""
         else:                                              # analyse -> TYPE detecte (confiance/value/montante/abstention)
             _at = _sidecar_analyzed_at(sport, mid)
