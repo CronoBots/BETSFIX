@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     # sont souvent déjà bloqués). Format : http://user:pass@host:port (ou socks5://...). Vide = direct.
     sofa_proxy: str = ""
 
+    # Book SHARP de référence = Betfair EXCHANGE (remplace le scraping Pinnacle-via-proxy, cf. app/betfair.py).
+    # Vraie API, gratuite avec un compte Betfair + une « application key » (developer.betfair.com). Renseigner
+    # les 3 dans .env pour activer l'ancre sharp (1X2 + totaux) ; vides = repli sur Pinnacle (fragile).
+    betfair_app_key: str = ""
+    betfair_user: str = ""
+    betfair_pass: str = ""
+
     # Repli SofaScore via RapidAPI SportAPI7 (OPTIONNEL) : utilisé UNIQUEMENT quand SofaScore
     # renvoie 403/429 (rate-limit). Plafond/jour pour protéger le quota (Pro = 15 000/mois).
     rapidapi_key: str = ""

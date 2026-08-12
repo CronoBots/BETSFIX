@@ -59,6 +59,16 @@ async def _p_pinnacle(c):
     return (False, f"KO — {reason}")
 
 
+async def _p_betfair(c):
+    """Betfair Exchange = ancre sharp PRIMAIRE (vraie API, remplace le scraping Pinnacle-via-proxy). Dit si
+    c'est configuré + si le login passe -> on n'est plus jamais AVEUGLE sur l'état de l'ancre sharp."""
+    from app import betfair
+    if not betfair.configured():
+        return (False, "non configuré (.env : BETFAIR_APP_KEY / BETFAIR_USER / BETFAIR_PASS) — repli Pinnacle")
+    tok = await asyncio.to_thread(betfair._login)
+    return (True, "login OK") if tok else (False, f"KO — {betfair._last_status or 'login échoué'}")
+
+
 async def _p_flashscore(c):
     return await _http_ok(c, "https://www.flashscore.com/", json_expected=False)
 
@@ -112,7 +122,8 @@ async def _p_livescore(c):
 _SOURCES = [
     ("unibet", "Unibet (Kambi)", "cotes + sélection des matchs", True, _p_unibet),
     ("fotmob", "FotMob", "foot : analyse + règlement tirs", True, _p_fotmob),
-    ("pinnacle", "Pinnacle", "ancre sharp (proba de référence)", False, _p_pinnacle),
+    ("betfair", "Betfair Exchange", "ancre sharp PRIMAIRE (vraie API, sans proxy)", False, _p_betfair),
+    ("pinnacle", "Pinnacle", "ancre sharp de repli (scraping, fragile)", False, _p_pinnacle),
     # ESPN RETIRÉ de la sonde (user 2026-08-07 : app 100 % foot) — ESPN ne servait QUE tennis/basket, son
     # 403 déclenchait un faux « warn ». La sonde suit désormais uniquement les sources UTILES au football.
     ("understat", "Understat", "foot : xG (top-5 ligues)", False, _p_understat),

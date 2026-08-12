@@ -1268,9 +1268,16 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # CONSENSUS SHARP (Pinnacle) : proba la PLUS proche du vrai (book sharp, faible marge). EV au prix
     # Unibet (proba_sharp × cote_unibet − 1) -> une EV+ ici = la cote Unibet bat le sharp = VALUE FORTE.
     sharp = ""
+    _sharp_src = ""
     try:
-        from app import pinnacle
-        sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
+        from app import betfair, pinnacle
+        sp = await asyncio.to_thread(betfair.sharp_probs, home, away, sport) if betfair.configured() else None
+        if sp is not None:
+            _sharp_src = "Betfair Exchange"
+        else:                                              # repli Pinnacle si Betfair absent/muet
+            sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
+            if sp is not None:
+                _sharp_src = "Pinnacle"
     except Exception:
         sp = None
     if sp and o1 and o2 and (sp.get("margin") or 1) <= _SHARP_MAX_MARGIN:
@@ -1279,15 +1286,18 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             + [f"{away} {sp['away'] * 100:.0f}%"]
         evh, eva = sp["home"] * o1 - 1, sp["away"] * o2 - 1
         evseg = [f"{home} {evh * 100:+.0f}%", f"{away} {eva * 100:+.0f}%"]
-        sharp = ("\nCONSENSUS SHARP (Pinnacle, book de référence — proba la PLUS proche du vrai) : "
+        sharp = (f"\nCONSENSUS SHARP ({_sharp_src or 'book de référence'} — proba la PLUS proche du vrai) : "
                  + " / ".join(seg) + ". EV au prix Unibet : " + " / ".join(evseg)
                  + " — une EV+ ICI = la cote Unibet BAT le sharp = VALUE FORTE ; ancre n°1 pour calibrer "
                    "(si ta proba et Pinnacle convergent contre Unibet, c'est le meilleur signal).")
-    # ANCRE SHARP PAR MARCHÉ (Pinnacle) : totaux + handicaps de-viggés -> ancre VALUE hors-vainqueur.
-    # Même logique que le 1X2 sharp, appliquée à Over/Under & handicaps (là où on ratait des value).
+    # ANCRE SHARP PAR MARCHÉ (Betfair Exchange, repli Pinnacle) : totaux + handicaps de-viggés -> ancre VALUE
+    # hors-vainqueur. Même logique que le 1X2 sharp, appliquée à Over/Under & handicaps.
     sharp_mk = ""
     try:
-        smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport)
+        from app import betfair, pinnacle
+        smk = await asyncio.to_thread(betfair.sharp_markets, home, away, sport) if betfair.configured() else None
+        if smk is None:
+            smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport)
     except Exception:
         smk = None
     if smk:
@@ -1302,9 +1312,19 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             segs.append(f"Handicaps {home} — " + " / ".join(
                 f"{line:+g} {spr[line] * 100:.0f}%" for line in sorted(spr)))
         if segs:
-            sharp_mk = ("\nSHARP PAR MARCHÉ (Pinnacle, de-viggé — ancre pour les paris HORS-vainqueur) : "
+            sharp_mk = ("\nSHARP PAR MARCHÉ (book de référence, de-viggé — ancre pour les paris HORS-vainqueur) : "
                         + " ; ".join(segs) + ". Compare à la cote Unibet du MÊME marché : proba_sharp × "
                         "cote_unibet − 1 > 0 = VALUE (même signal que le 1X2 sharp).")
+    elif sport == "foot":
+        # 🛡️ GARDE-FOU ANTI-BÂCLAGE (user 2026-08-12) : AUCUNE ancre sharp dispo pour les totaux (Betfair ET
+        # Pinnacle muets) -> on l'écrit NOIR SUR BLANC dans le prompt pour que le modèle NE PARIE PAS d'over/
+        # under sur sa seule estimation (c'est exactement ce qui a fait perdre : totaux sans ancre = fausses
+        # values). On le pousse vers résultat / double chance (marchés qui gagnaient). Fini la dégradation muette.
+        sharp_mk = ("\n⚠️ AUCUNE ANCRE SHARP DISPONIBLE POUR LES TOTAUX (Betfair/Pinnacle injoignables) : "
+                    "n'engage PAS de pari Over/Under buts sur ta seule estimation (sans book de référence, le "
+                    "risque de fausse value est élevé). PRIVILÉGIE le résultat (1X2), la double chance et les "
+                    "marchés que tu peux ancrer autrement. Ne retiens un total QUE si l'écart est ÉNORME et "
+                    "corroboré par des faits chiffrés solides (forme/xG/absences).")
     extras, sx = await _sofa_extras(client, sport, sofa_id, home, away)
     # Sources GRATUITES indépendantes (ESPN/FotMob/Understat) : forme+scores, classements frais,
     # blessés, H2H, xG, météo — la source n°2 de la méthodo quand SofaScore est bloqué.
