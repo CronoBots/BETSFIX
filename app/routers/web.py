@@ -191,8 +191,10 @@ def _home_stats_compute(since_days: int | None = None) -> tuple:
     def _sec(label: str, sub: str, body: str, open: bool = False) -> str:
         return web.sx_section_collapsible(label, sub, body, open=open)
 
-    # 2. OÙ EST L'EDGE : par sport puis par cote (mêmes données, granularité croissante).
-    edge = web.render_sports_breakdown(full) + web.render_perf(analyses.perf_breakdown(since_days))
+    # 2. OÙ EST L'EDGE : par sport, par TIER (confiance/value/montante), puis par cote & confiance.
+    edge = (web.render_sports_breakdown(full)
+            + web.render_tier_compare(full)
+            + web.render_perf(analyses.perf_breakdown(since_days)))
     # BILAN (sous-onglet 1) : rentabilité globale + cadres sport (ROI + courbes).
     bilan = (
         _hero_card(full, combo)                                                    # 0. HERO : rentabilité globale

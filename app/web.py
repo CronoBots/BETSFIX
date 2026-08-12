@@ -1576,6 +1576,8 @@ CSS = """
   .av-watch{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold)}
   .av-avoid{background:rgba(255,116,132,.10);border-color:rgba(255,116,132,.32);color:#ff7484}
   .av-empty{font-size:11px;color:var(--dim);font-style:italic}
+  .av-tier-roi{font-size:19px;font-weight:900;margin-top:4px;font-variant-numeric:tabular-nums}
+  .av-tier-sub{font-size:10.5px;color:var(--muted);margin-top:2px}
   /* Graphiques performance PAR PARI (SVG,
   courbes de profit cumulé) */
   .bcharts{margin:2px 0 14px;display:flex;flex-direction:column;gap:10px}
@@ -4410,10 +4412,37 @@ def _roi_section(title: str, sub: str, rows: list) -> str:
 
 
 def render_perf(perf: dict | None) -> str:
-    """Rendement par tranche de COTE (axe unique, absent de la calibration). Le ROI par CONFIANCE et
-    par MARCHÉ a été FUSIONNÉ dans la calibration (une seule vue par axe, non redondante). '' si vide."""
+    """Rendement des paris JOUÉS par tranche de COTE ET par tranche de CONFIANCE (demande user 2026-08-13 :
+    le ROI par confiance était calculé mais jamais affiché). Deux axes complémentaires — la cote dit où on
+    encaisse, la confiance dit si nos hautes convictions paient vraiment. Distinct de la calibration (qui
+    inclut les fantômes) : ici uniquement les paris RÉELLEMENT joués. '' si vide."""
     perf = perf or {}
-    return _roi_section("Rendement par cote", "ROI selon la cote jouée", perf.get("by_odds") or [])
+    return (_roi_section("Rendement par cote", "ROI selon la cote jouée", perf.get("by_odds") or [])
+            + _roi_section("Rendement par confiance", "ROI selon la confiance calibrée annoncée",
+                           perf.get("by_conf") or []))
+
+
+def render_tier_compare(full: dict | None) -> str:
+    """CONFIANCE vs VALUE vs MONTANTE (demande user 2026-08-13) : le rendement des 3 types de paris JOUÉS
+    côte à côte — ROI, réussite, volume, cote moyenne. Répond « le phare paie-t-il vraiment mieux, et la
+    value compense-t-elle par le volume ? ». Données figées (by_tier de stats_full). '' si rien de réglé."""
+    bt = (full or {}).get("by_tier") or {}
+    kpis = []
+    for key, lbl in (("confiance", "⭐ Confiance"), ("value", "💎 Value"), ("montante", "🔵 Montante")):
+        t = bt.get(key) or {}
+        if not t.get("settled"):
+            continue
+        roi, pct, n, co = t.get("roi"), t.get("pct"), t.get("settled"), t.get("avg_odds")
+        kpis.append(
+            f'<div class="av-kpi"><div class="av-kpi-l">{lbl}</div>'
+            f'<div class="av-tier-roi arec-{_roicls(roi)}">{_roistr(roi)}</div>'
+            f'<div class="av-tier-sub">{pct if pct is not None else "—"}% réussite · {n} paris · '
+            f'cote {co or "—"}</div></div>')
+    if not kpis:
+        return ""
+    return ('<div class="sx-card"><div class="sx-h">Confiance vs Value vs Montante'
+            '<span>rendement des 3 types de paris joués</span></div>'
+            f'<div class="av-top">{"".join(kpis)}</div></div>')
 
 
 def _form_streak(results) -> tuple:
