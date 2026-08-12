@@ -568,22 +568,14 @@ CSS = """
   /* Groupe de gauche de l'en-tête : titre + badge SÉRIE côte à côte (le badge n'est PAS dans la ligne W/L). */
   .spf-cv-hl{display:flex;align-items:center;gap:7px;min-width:0}
   .spf-cv-hl .sx-streak{flex:none}
-  /* Graphe CLIQUABLE (details) -> déplie les derniers paris. Marqueur natif retiré, curseur main. */
-  details.spf-cv-x>summary{list-style:none;cursor:pointer}
-  details.spf-cv-x>summary::-webkit-details-marker{display:none}
-  .spf-cv-more{margin-top:7px;text-align:center;font-size:10px;font-weight:800;letter-spacing:.04em;
-       text-transform:uppercase;color:var(--accent)}
-  .spf-cv-more span{border-bottom:1px dotted var(--accent)}
-  details.spf-cv-x[open] .spf-cv-more{color:var(--muted)}
   /* Libellé STATIQUE des derniers paris (affichés d'office, sans bouton — demande user 2026-08-13). */
   .spf-rec-lbl{margin-top:9px;text-align:center;font-size:10px;font-weight:800;letter-spacing:.04em;
        text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border);padding-top:11px}
   /* Liste des derniers paris (révélée) : pastille W/L/N + affiche + sélection + date. */
   /* Historique = REGISTRE pro (demande user 2026-07-25) : lignes séparées par un filet fin, padding régulier,
      colonnes alignées ; scroll interne pour tout l'historique. */
-  .spf-recent{margin-top:8px;display:flex;   /* séparateur déplacé SOUS le libellé (demande user 2026-08-13) */
-       flex-direction:column;max-height:360px;overflow-y:auto;-webkit-overflow-scrolling:touch;
-       overscroll-behavior:contain;padding-right:4px}
+  .spf-recent{margin-top:8px;display:flex;flex-direction:column;padding-right:4px}
+       /* PAS de scroll interne (demande user 2026-08-13) : TOUS les paris affichés dans le cadre. */
   .spf-rec{display:flex;align-items:center;gap:10px;font-size:11px;padding:9px 2px;
        border-bottom:1px solid rgba(255,255,255,.055)}
   .spf-rec:last-child{border-bottom:none}
@@ -667,7 +659,6 @@ CSS = """
   /* Ligne W/L des graphes héros : pastilles RESSERRÉES et centrées (demande user) + espace avant l'historique. */
   .spf-hero .spf-cv-form{display:block;overflow:visible;margin:12px 0 0}
   .spf-hero .spf-cv-form .forms{display:flex;width:100%;justify-content:center;gap:4px;margin-left:0;flex-wrap:wrap}
-  .spf-hero .spf-cv-more{margin-top:14px}
   /* Note « provisoires hors ROI » en tête de l'onglet Provisoires d'un cadre sport (demande user 2026-07-25). */
   .prov-note{font-size:11px;color:var(--gold);text-align:center;margin:0 0 10px;line-height:1.45}
   .prov-note b{color:#ffd873}
@@ -4771,14 +4762,13 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
                           milestones: list | None = None, sport: str | None = None,
                           compact: bool = False, hit_points: list | None = None,
                           best_streak: int | None = None, cote_points: list | None = None) -> str:
-    """Bloc courbe+stats « info seule » (provisoires, combiné Betmines) construit EXACTEMENT comme les 2
+    """Bloc courbe+stats « info seule » (provisoires, combiné du jour) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
     courbe `_hero_chart` (`.sx-equity`), puis KPIs (réussite % · N paris · cote moyenne). Si `recent` (liste
-    de paris réglés au format `_recent_bets_html`) est fourni, le bloc devient CLIQUABLE (`<details>` +
-    bouton « <more_label> ▾ ») qui déplie l'historique — MÊME présentation que les simples/combinés (demande
-    user 2026-07-24 : « types de paris, roi, ligne W et L et sablier si pari en attente »). AUCUN impact
-    ROI/stats/calibration. '' si rien à tracer."""
+    de paris réglés au format `_recent_bets_html`) est fourni, l'historique est affiché D'OFFICE sous la
+    courbe (libellé `<more_label>` statique, plus de bouton — demande user 2026-08-13) — MÊME présentation
+    que les simples/combinés. AUCUN impact ROI/stats/calibration. '' si rien à tracer."""
     if not n and not pending:
         return ""
     _pts = [p for p in (points or []) if p is not None]
@@ -8540,7 +8530,8 @@ _SPORT_FR_LABEL = {"foot": ("Football", "⚽"), "tennis": ("Tennis", "🎾"), "b
 
 def _recent_bets_html(recent: list) -> str:
     """Liste des DERNIERS paris réglés (plus récent en haut) : pastille W/L/N + affiche + sélection +
-    cote + date. Révélée au CLIC sur le graphe (panneau `<details>`). '' si vide."""
+    cote + date. Affichée D'OFFICE sous la courbe (demande user 2026-08-13 : plus de bouton), TOUS les
+    paris sans scroll interne. '' si vide."""
     if not recent:
         return ""
     _B = {"won": ("W", "rec-w"), "lost": ("L", "rec-l"), "push": ("N", "rec-n"),
