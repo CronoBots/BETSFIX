@@ -2520,10 +2520,11 @@ def bet_tier_for(sport, mid) -> str:
     """Tier (« confiance »/« value ») d'un match par son id. MONOTONE : on lit d'abord la confiance calibrée
     FIGÉE au règlement (`stat_bet.cprob`, immunisée à la dérive de calibration) ; repli sur le calcul live
     (pari actif, ou pas encore figé). SOURCE UNIQUE -> affichage ET compteurs cohérents.
-    La MONTANTE est TOUJOURS confiance (pari sûr, user 2026-08-11), quel que soit son % calibré."""
+    La MONTANTE est sa PROPRE catégorie « montante » (user 2026-08-12) -> jamais comptée dans le taux
+    Confiance (ni Value) : elle ne doit pas polluer le phare (elle a sa page/ badge dédiés)."""
     try:
         if sport == "foot" and str(mid) in _montante_mids():
-            return "confiance"
+            return "montante"
         d = meta(sport, str(mid)) or {}
         sb = d.get("stat_bet")
         if isinstance(sb, dict) and sb.get("cprob") is not None:
@@ -2537,9 +2538,9 @@ def bet_tier_for(sport, mid) -> str:
 def tier_of(d, rb=None) -> str:
     """Tier d'une fiche (dict déjà chargé), en préférant la confiance FIGÉE (`stat_bet.cprob`, monotone) sur
     la calibrée live `rb.cprob`. `rb` = retained_bet déjà calculé par l'appelant (évite un 2e calcul).
-    La MONTANTE est TOUJOURS confiance (pari sûr, user 2026-08-11)."""
+    La MONTANTE est sa PROPRE catégorie « montante » (user 2026-08-12) -> hors Confiance/Value."""
     if isinstance(d, dict) and str(d.get("id") or "") in _montante_mids():
-        return "confiance"
+        return "montante"
     sb = d.get("stat_bet") if isinstance(d, dict) else None
     if isinstance(sb, dict) and sb.get("cprob") is not None:
         return bet_tier(sb.get("cprob"), sb.get("cote"))
@@ -3018,6 +3019,7 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
     _bg = background_sports()
     conf_ev: list = []        # paris FOOT du tier CONFIANCE (haute confiance figée) -> stats par tier
     value_ev: list = []       # paris FOOT du tier VALUE (sous le seuil)
+    mont_ev: list = []        # paris MONTANTE -> catégorie à part (jamais dans Confiance/Value, user 2026-08-12)
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -3083,7 +3085,8 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                     since_ev.append(ev)
                 # SPLIT CONFIANCE / VALUE (user 2026-08-09) : classement par la confiance FIGÉE (tier_of ->
                 # monotone). Les DEUX comptent au ROI ; c'est juste un découpage d'affichage (onglets Stats).
-                (conf_ev if tier_of(d, rb) == "confiance" else value_ev).append(ev)
+                _t = tier_of(d, rb)   # confiance / value / montante (la montante = catégorie à part)
+                (conf_ev if _t == "confiance" else mont_ev if _t == "montante" else value_ev).append(ev)
         # UN MATCH = UN PARI (user 2026-08-07) : le pari du 1er scan (`stat_bet_first`) N'EST PLUS compté
         # séparément — un même match ne doit produire QU'UNE ligne / UN résultat au ROI et à la série (avant :
         # un rescan qui changeait le pick faisait compter 2 fois le match, ex. Vitória-Athletico = 2 défaites
@@ -3108,7 +3111,8 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
         pass
     out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
            "since_change": _agg_bets(since_ev),        # nouveau système (s'enrichit au fil des scans)
-           "by_tier": {"confiance": _agg_bets(conf_ev), "value": _agg_bets(value_ev)},   # onglets Confiance/Value
+           "by_tier": {"confiance": _agg_bets(conf_ev), "value": _agg_bets(value_ev),
+                       "montante": _agg_bets(mont_ev)},   # onglets Confiance/Value + montante à part
            "by_sport": {sport: _agg_bets(evs) for sport, evs in by_sport.items()},
            # « Volume de données » (panneau transparence) : matchs analysés vs matchs réglés (1 par match),
            # + plage de coups d'envoi couverte (période de mesure -> contexte du nombre calibré).

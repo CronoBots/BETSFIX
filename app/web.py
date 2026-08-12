@@ -4295,7 +4295,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # sur les seuls paris du tier) -> l'historique des matchs est bien SÉPARÉ entre Confiance et Value.
     _bt = full.get("by_tier") or {}
     _pend_all = analyses.pending_roi_bets()
-    _pend_conf = [b for b in _pend_all if b.get("tier") != "value"]
+    _pend_conf = [b for b in _pend_all if b.get("tier") == "confiance"]   # montante exclue (catégorie à part)
     _pend_val = [b for b in _pend_all if b.get("tier") == "value"]
 
     def _tier_block(ts, pend, uid, more_lbl):
