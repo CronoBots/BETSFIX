@@ -1271,20 +1271,14 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     _sharp_src = ""
     _comp = match.get("comp") or match.get("circuit") or ""
     try:
-        from app import theoddsapi, betfair, pinnacle
+        from app import theoddsapi, pinnacle
         sp = None
         if theoddsapi.configured():                        # n°1 : Pinnacle via The Odds API (vraie API)
             sp = await asyncio.to_thread(theoddsapi.sharp_probs, home, away, sport, _comp)
-            if sp is not None:
-                _sharp_src = "Pinnacle"
-        if sp is None and betfair.configured():            # repli : Betfair Exchange (dormant en Belgique)
-            sp = await asyncio.to_thread(betfair.sharp_probs, home, away, sport)
-            if sp is not None:
-                _sharp_src = "Betfair Exchange"
-        if sp is None:                                     # dernier repli : scraping Pinnacle (fragile)
+        if sp is None:                                     # repli : scraping Pinnacle direct (fragile)
             sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
-            if sp is not None:
-                _sharp_src = "Pinnacle"
+        if sp is not None:
+            _sharp_src = "Pinnacle"
     except Exception:
         sp = None
     if sp and o1 and o2 and (sp.get("margin") or 1) <= _SHARP_MAX_MARGIN:
@@ -1297,17 +1291,15 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
                  + " / ".join(seg) + ". EV au prix Unibet : " + " / ".join(evseg)
                  + " — une EV+ ICI = la cote Unibet BAT le sharp = VALUE FORTE ; ancre n°1 pour calibrer "
                    "(si ta proba et Pinnacle convergent contre Unibet, c'est le meilleur signal).")
-    # ANCRE SHARP PAR MARCHÉ (Betfair Exchange, repli Pinnacle) : totaux + handicaps de-viggés -> ancre VALUE
-    # hors-vainqueur. Même logique que le 1X2 sharp, appliquée à Over/Under & handicaps.
+    # ANCRE SHARP PAR MARCHÉ (Pinnacle via The Odds API, repli scraping Pinnacle) : totaux + handicaps
+    # de-viggés -> ancre VALUE hors-vainqueur. Même logique que le 1X2 sharp, appliquée à Over/Under & handicaps.
     sharp_mk = ""
     try:
-        from app import theoddsapi, betfair, pinnacle
+        from app import theoddsapi, pinnacle
         smk = None
         if theoddsapi.configured():                        # n°1 : Pinnacle via The Odds API
             smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp)
-        if smk is None and betfair.configured():           # repli Betfair (dormant)
-            smk = await asyncio.to_thread(betfair.sharp_markets, home, away, sport)
-        if smk is None:                                    # repli scraping Pinnacle
+        if smk is None:                                    # repli : scraping Pinnacle direct
             smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport)
     except Exception:
         smk = None
@@ -1327,8 +1319,8 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
                         + " ; ".join(segs) + ". Compare à la cote Unibet du MÊME marché : proba_sharp × "
                         "cote_unibet − 1 > 0 = VALUE (même signal que le 1X2 sharp).")
     elif sport == "foot":
-        # 🛡️ GARDE-FOU ANTI-BÂCLAGE (user 2026-08-12) : AUCUNE ancre sharp dispo pour les totaux (Betfair ET
-        # Pinnacle muets) -> on l'écrit NOIR SUR BLANC dans le prompt pour que le modèle NE PARIE PAS d'over/
+        # 🛡️ GARDE-FOU ANTI-BÂCLAGE (user 2026-08-12) : AUCUNE ancre sharp dispo pour les totaux (The Odds API
+        # ET scraping Pinnacle muets) -> on l'écrit NOIR SUR BLANC dans le prompt pour que le modèle NE PARIE PAS d'over/
         # under sur sa seule estimation (c'est exactement ce qui a fait perdre : totaux sans ancre = fausses
         # values). On le pousse vers résultat / double chance (marchés qui gagnaient). Fini la dégradation muette.
         sharp_mk = ("\n⚠️ AUCUNE ANCRE SHARP DISPONIBLE POUR LES TOTAUX (Pinnacle/The Odds API muet — ligue "

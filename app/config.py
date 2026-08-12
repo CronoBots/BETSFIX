@@ -32,15 +32,8 @@ class Settings(BaseSettings):
 
     # Book SHARP de référence PRIMAIRE = Pinnacle via The Odds API (the-odds-api.com). Vraie API self-service,
     # palier gratuit 500 crédits/mois (1 appel = 2 crédits, batche tous les matchs d'une ligue). Renseigner
-    # ODDS_API_KEY dans .env pour activer l'ancre sharp (1X2 + totaux). Vide = repli Betfair puis Pinnacle-scrap.
+    # ODDS_API_KEY dans .env pour activer l'ancre sharp (1X2 + totaux). Vide = repli scraping Pinnacle (fragile).
     odds_api_key: str = ""
-
-    # Book SHARP de repli = Betfair EXCHANGE (cf. app/betfair.py) — DORMANT (Betfair bloqué en Belgique).
-    # Vraie API, gratuite avec un compte Betfair + une « application key » (developer.betfair.com). Renseigner
-    # les 3 dans .env pour activer ; vides = repli sur Pinnacle (fragile).
-    betfair_app_key: str = ""
-    betfair_user: str = ""
-    betfair_pass: str = ""
 
     # Repli SofaScore via RapidAPI SportAPI7 (OPTIONNEL) : utilisé UNIQUEMENT quand SofaScore
     # renvoie 403/429 (rate-limit). Plafond/jour pour protéger le quota (Pro = 15 000/mois).

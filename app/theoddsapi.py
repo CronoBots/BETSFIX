@@ -2,7 +2,7 @@
 scraping Pinnacle-via-proxy iProyal (mort/fragile) par une VRAIE API self-service : palier GRATUIT
 500 crédits/mois, Pinnacle inclus, football.
 
-Interface IDENTIQUE à app/pinnacle.py / app/betfair.py (drop-in) :
+Interface IDENTIQUE à app/pinnacle.py (drop-in) :
   - sharp_probs(home, away, sport, comp="")   -> {home, away, draw, margin}  (1X2 de-viggé)
   - sharp_markets(home, away, sport, comp="") -> {"totals": {ligne: proba_over}, "spreads": {}}
 
@@ -14,7 +14,7 @@ Interface IDENTIQUE à app/pinnacle.py / app/betfair.py (drop-in) :
   un CACHE fichier par ligue (TTL 12 h) partagé entre les scans matin/soir. Les ligues NON mappées (niches
   hors couverture) coûtent 0 -> repli propre (garde-fou scan = pas d'Over/Under à l'aveugle sans ancre).
 
-Config (.env) : ODDS_API_KEY = <clé the-odds-api.com>  (vide = module inactif -> repli Betfair/Pinnacle).
+Config (.env) : ODDS_API_KEY = <clé the-odds-api.com>  (vide = module inactif -> repli scraping Pinnacle).
 Best-effort STRICT : clé manquante / panne / ligue non mappée / match introuvable -> None.
 """
 

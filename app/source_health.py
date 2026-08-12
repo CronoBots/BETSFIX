@@ -62,10 +62,10 @@ async def _p_pinnacle(c):
 async def _p_theoddsapi(c):
     """The Odds API = ancre sharp PRIMAIRE (Pinnacle via vraie API). Ping l'endpoint /sports qui NE CONSOMME
     PAS de crédit (gratuit) mais renvoie l'en-tête x-requests-remaining -> on affiche les CRÉDITS RESTANTS du
-    mois (surveillance quota, jamais AVEUGLE). Non configuré = repli Betfair/Pinnacle (dégrade proprement)."""
+    mois (surveillance quota, jamais AVEUGLE). Non configuré = repli scraping Pinnacle (dégrade proprement)."""
     from app import theoddsapi
     if not theoddsapi.configured():
-        return (False, "non configuré (.env : ODDS_API_KEY) — repli Betfair/Pinnacle")
+        return (False, "non configuré (.env : ODDS_API_KEY) — repli scraping Pinnacle")
     key = theoddsapi._key()
     r = await c.get(f"{theoddsapi._BASE}/sports/?apiKey={key}", timeout=_T)
     if r.status_code != 200:
@@ -80,16 +80,6 @@ async def _p_theoddsapi(c):
             pass
         return (True, f"OK — {rem} crédits restants ce mois (utilisés : {used or '?'} / 500)")
     return (True, "OK (clé valide)")
-
-
-async def _p_betfair(c):
-    """Betfair Exchange = ancre sharp PRIMAIRE (vraie API, remplace le scraping Pinnacle-via-proxy). Dit si
-    c'est configuré + si le login passe -> on n'est plus jamais AVEUGLE sur l'état de l'ancre sharp."""
-    from app import betfair
-    if not betfair.configured():
-        return (False, "non configuré (.env : BETFAIR_APP_KEY / BETFAIR_USER / BETFAIR_PASS) — repli Pinnacle")
-    tok = await asyncio.to_thread(betfair._login)
-    return (True, "login OK") if tok else (False, f"KO — {betfair._last_status or 'login échoué'}")
 
 
 async def _p_flashscore(c):
@@ -147,8 +137,7 @@ _SOURCES = [
     ("fotmob", "FotMob", "foot : analyse + règlement tirs", True, _p_fotmob),
     ("theoddsapi", "The Odds API (Pinnacle)", "ancre sharp PRIMAIRE (vraie API, palier gratuit 500/mois)",
      False, _p_theoddsapi),
-    ("betfair", "Betfair Exchange", "ancre sharp de repli (dormant — bloqué en Belgique)", False, _p_betfair),
-    ("pinnacle", "Pinnacle", "ancre sharp dernier repli (scraping, fragile)", False, _p_pinnacle),
+    ("pinnacle", "Pinnacle", "ancre sharp de repli (scraping, fragile)", False, _p_pinnacle),
     # ESPN RETIRÉ de la sonde (user 2026-08-07 : app 100 % foot) — ESPN ne servait QUE tennis/basket, son
     # 403 déclenchait un faux « warn ». La sonde suit désormais uniquement les sources UTILES au football.
     ("understat", "Understat", "foot : xG (top-5 ligues)", False, _p_understat),
