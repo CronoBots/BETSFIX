@@ -577,11 +577,11 @@ CSS = """
   details.spf-cv-x[open] .spf-cv-more{color:var(--muted)}
   /* Libellé STATIQUE des derniers paris (affichés d'office, sans bouton — demande user 2026-08-13). */
   .spf-rec-lbl{margin-top:9px;text-align:center;font-size:10px;font-weight:800;letter-spacing:.04em;
-       text-transform:uppercase;color:var(--muted)}
+       text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:8px}
   /* Liste des derniers paris (révélée) : pastille W/L/N + affiche + sélection + date. */
   /* Historique = REGISTRE pro (demande user 2026-07-25) : lignes séparées par un filet fin, padding régulier,
      colonnes alignées ; scroll interne pour tout l'historique. */
-  .spf-recent{margin-top:8px;border-top:1px solid var(--border);display:flex;
+  .spf-recent{margin-top:8px;display:flex;   /* séparateur déplacé SOUS le libellé (demande user 2026-08-13) */
        flex-direction:column;max-height:360px;overflow-y:auto;-webkit-overflow-scrolling:touch;
        overscroll-behavior:contain;padding-right:4px}
   .spf-rec{display:flex;align-items:center;gap:10px;font-size:11px;padding:9px 2px;
