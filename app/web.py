@@ -575,6 +575,9 @@ CSS = """
        text-transform:uppercase;color:var(--accent)}
   .spf-cv-more span{border-bottom:1px dotted var(--accent)}
   details.spf-cv-x[open] .spf-cv-more{color:var(--muted)}
+  /* Libellé STATIQUE des derniers paris (affichés d'office, sans bouton — demande user 2026-08-13). */
+  .spf-rec-lbl{margin-top:9px;text-align:center;font-size:10px;font-weight:800;letter-spacing:.04em;
+       text-transform:uppercase;color:var(--muted)}
   /* Liste des derniers paris (révélée) : pastille W/L/N + affiche + sélection + date. */
   /* Historique = REGISTRE pro (demande user 2026-07-25) : lignes séparées par un filet fin, padding régulier,
      colonnes alignées ; scroll interne pour tout l'historique. */
@@ -4311,9 +4314,10 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
             hit_points=ts.get("hit_points"), uid=uid, best_streak=ts.get("best_streak"),
             cote_points=ts.get("cote_points"))
         _rc = _recent_bets_html(pend + list(reversed(ts.get("recent") or [])))
-        return ((f'<details class="spf-hero spf-cv-x"><summary class="spf-cv-sum">{_in}'
-                 f'<div class="spf-cv-more"><span>{more_lbl}</span> ▾</div></summary>{_rc}</details>')
-                if _rc else f'<div class="spf-hero">{_in}</div>')
+        # Derniers paris affichés D'OFFICE (demande user 2026-08-13 : « plus besoin du bouton ») — libellé
+        # statique + liste (scrollable) directement sous la courbe, plus de <details> cliquable.
+        _rcb = f'<div class="spf-rec-lbl">{html.escape(more_lbl)}</div>{_rc}' if _rc else ""
+        return f'<div class="spf-hero">{_in}{_rcb}</div>'
 
     simples_block = _tier_block(_bt.get("confiance") or {}, _pend_conf, "sim-conf", "Derniers paris Confiance")
     value_block = _tier_block(_bt.get("value") or {}, _pend_val, "sim-value", "Derniers paris Value")
@@ -4760,9 +4764,9 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
             f'<span><b>{avg_cote or "—"}</b> cote</span></div>')   # cote SANS « @ » ; légende repères RETIRÉE
     _wrap = "spf-hero" if compact else "spf-cv"   # compact = SANS boîte (sur la carte sport) — « sortir du cadre »
     rec = _recent_bets_html(recent or [])
-    if rec:                                     # CLIQUABLE : le résumé déplie l'historique (comme simples/combinés)
-        return (f'<details class="{_wrap} spf-cv-x"><summary class="spf-cv-sum">{inner}'
-                f'<div class="spf-cv-more"><span>{html.escape(more_label)}</span> ▾</div></summary>{rec}</details>')
+    if rec:                                     # derniers paris affichés D'OFFICE (demande user 2026-08-13)
+        return (f'<div class="{_wrap}">{inner}'
+                f'<div class="spf-rec-lbl">{html.escape(more_label)}</div>{rec}</div>')
     return f'<div class="{_wrap}">{inner}</div>'
 
 
@@ -8514,11 +8518,11 @@ def _perf_curve_block(label: str, blk: dict | None, uid: str, empty_msg: str,
             f'<span><b>{blk.get("avg_odds") or "—"}</b> cote</span></div>')
     chart = _hero_chart(blk.get("points") or [], uid=uid)
     rec = _recent_bets_html(list(reversed(blk.get("recent") or [])))
-    if not rec:                                                     # pas de détail -> bloc simple (non cliquable)
+    if not rec:                                                     # pas de détail -> bloc simple
         return f'<div class="spf-cv">{head}{formrow}{chart}{kpis}</div>'
-    # CLIQUABLE : le graphe (résumé) déplie la liste des derniers paris.
-    return (f'<details class="spf-cv spf-cv-x"><summary class="spf-cv-sum">{head}{formrow}{chart}{kpis}'
-            f'<div class="spf-cv-more"><span>Derniers paris</span> ▾</div></summary>{rec}</details>')
+    # Derniers paris affichés D'OFFICE (demande user 2026-08-13 : « plus besoin du bouton ») — sous la courbe.
+    return (f'<div class="spf-cv">{head}{formrow}{chart}{kpis}'
+            f'<div class="spf-rec-lbl">Derniers paris</div>{rec}</div>')
 
 def render_sport_perf(sport: str) -> str:
     """Carte de performance du sport : DEUX courbes AUTONOMES (Simples / Combinés), CHACUNE avec sa
