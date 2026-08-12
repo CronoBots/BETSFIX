@@ -577,7 +577,7 @@ CSS = """
   details.spf-cv-x[open] .spf-cv-more{color:var(--muted)}
   /* Libellé STATIQUE des derniers paris (affichés d'office, sans bouton — demande user 2026-08-13). */
   .spf-rec-lbl{margin-top:9px;text-align:center;font-size:10px;font-weight:800;letter-spacing:.04em;
-       text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:8px}
+       text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border);padding-top:11px}
   /* Liste des derniers paris (révélée) : pastille W/L/N + affiche + sélection + date. */
   /* Historique = REGISTRE pro (demande user 2026-07-25) : lignes séparées par un filet fin, padding régulier,
      colonnes alignées ; scroll interne pour tout l'historique. */
@@ -1557,6 +1557,25 @@ CSS = """
   .arec-sp-o{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
   .arec-hi{color:#3ee089} .arec-mid{color:var(--gold)} .arec-lo{color:#ff7484}
   .arec-na{color:var(--muted)}   /* ROI peu fiable (échantillon trop faible) -> grisé */
+  /* VERDICT MARCHÉS — synthèse actionnable en tête de l'onglet Analyse (demande user 2026-08-13). */
+  .av-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 14px 12px;margin:2px 0 14px}
+  .av-card-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text);
+       margin-bottom:11px;display:flex;align-items:center;gap:7px}
+  .av-top{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:13px}
+  .av-kpi{flex:1 1 150px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:11px;padding:9px 11px}
+  .av-kpi-l{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .av-kpi-v{font-size:14px;font-weight:800;margin-top:4px;color:var(--text)}
+  .av-kpi-v small{font-size:11px;font-weight:700;color:var(--muted);margin-left:5px}
+  .av-row{margin-top:9px}
+  .av-row-h{font-size:10.5px;font-weight:800;letter-spacing:.03em;margin-bottom:6px;color:var(--muted)}
+  .av-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .av-chip{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid;
+       white-space:nowrap;font-variant-numeric:tabular-nums}
+  .av-chip b{font-weight:800} .av-chip small{font-weight:700;opacity:.72;margin-left:5px}
+  .av-play{background:rgba(46,226,127,.10);border-color:rgba(46,226,127,.32);color:#3ee089}
+  .av-watch{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold)}
+  .av-avoid{background:rgba(255,116,132,.10);border-color:rgba(255,116,132,.32);color:#ff7484}
+  .av-empty{font-size:11px;color:var(--dim);font-style:italic}
   /* Graphiques performance PAR PARI (SVG,
   courbes de profit cumulé) */
   .bcharts{margin:2px 0 14px;display:flex;flex-direction:column;gap:10px}
@@ -8098,6 +8117,83 @@ def render_debrief(summary: dict | None) -> str:
     return ('<div class="sx-card"><div class="sx-h">Débrief des pertes'
             '<span>pourquoi chaque pari perdu a perdu · mémoire évolutive</span></div>'
             f'<div class="exq">{intro}{head}{body}</div></div>')
+
+
+def render_analysis_verdict(full: dict | None = None, sport: str = "foot") -> str:
+    """VERDICT MARCHÉS — synthèse ACTIONNABLE en tête de l'onglet Analyse (demande user 2026-08-13 :
+    « facilite au maximum son utilisation »). En 3 secondes : quels marchés JOUER (calibrés+fiables),
+    SURVEILLER (échantillon en construction), ÉVITER (auto-écartés) + « la calibration est-elle honnête ? »
+    + « le phare (confiance) tient-il ? ». Ne fait que RASSEMBLER ce qui est déjà calculé (exclusions_report,
+    calibration, reliability, by_tier) — PUR AFFICHAGE, jamais re-branché dans la sélection (aucun biais,
+    cf. rétroaction Under coupée). '' si pas de données."""
+    from app import analyses
+    er = analyses.exclusions_report() or {}
+    srow = next((s for s in er.get("sports", []) if s.get("key") == sport), None)
+    if not srow:
+        return ""
+    rows = srow.get("rows") or []
+    min_n = (er.get("thresholds") or {}).get("min_n", 25)
+    play  = [r for r in rows if not r.get("excluded") and r.get("kind") == "ok"]
+    watch = [r for r in rows if not r.get("excluded") and r.get("kind") == "watch"]
+    avoid = [r for r in rows if r.get("excluded")]
+    # « à jouer » : ROI PROUVÉ d'abord (assez de paris réglés), puis meilleure réussite calibrée
+    play.sort(key=lambda r: (-((r.get("roi") or 0) if (r.get("roi") is not None and (r.get("settled") or 0) >= 5) else 0),
+                             -(r.get("win_rate") or 0)))
+
+    def _chip(r, cls):
+        mk = html.escape(str(r.get("market") or ""))
+        roi, st, n, gap, wr = r.get("roi"), r.get("settled") or 0, r.get("n") or 0, r.get("gap"), r.get("win_rate")
+        if cls == "av-play":
+            sub = f'{wr}%' + (f' · {roi:+d}% ROI' if (roi is not None and st >= 5) else '')
+        elif cls == "av-watch":
+            sub = (f'{n}/{min_n} préd.' if n < min_n else (f'écart {gap:+d}' if gap is not None else 'à confirmer'))
+        else:   # av-avoid
+            k = r.get("kind")
+            sub = ("banni" if k == "ban" else
+                   (f'sur-confiance {gap:+d}' if k == "gap" and gap is not None else
+                    (f'ROI {roi:+d}%' if (k == "roi" and roi is not None) else 'écarté')))
+        return f'<span class="av-chip {cls}"><b>{mk}</b><small>{sub}</small></span>'
+
+    def _chips(lst, cls):
+        return ("".join(_chip(r, cls) for r in lst) if lst else '<span class="av-empty">aucun</span>')
+
+    # KPI 1 — calibration honnête ? (verdict global + indice de fiabilité + tendance)
+    cal = analyses.calibration() or {}
+    _vmap = {"good": ("✅", "Honnête"), "over": ("🔴", "Trop optimiste"),
+             "under": ("🟡", "Plutôt prudente"), "unsure": ("⏳", "En construction")}
+    _em, _lbl = _vmap.get(cal.get("verdict"), ("•", "—"))
+    rel = analyses.calibration_reliability() or {}
+    _idx, _tr = rel.get("index"), rel.get("trend")
+    _arr = {"up": "▲", "down": "▼"}.get(_tr, "→")
+    kpi1 = f'{_em} {_lbl}' + (f' <small>{_idx}/100 {_arr}</small>' if _idx is not None else "")
+
+    # KPI 2 — le phare (confiance) tient-il ? (15 derniers paris confiance vs global)
+    if full is None:
+        full = analyses.stats_full()
+    conf = (full.get("by_tier") or {}).get("confiance") or {}
+    _rec = [b for b in (conf.get("recent") or []) if b.get("result") in ("won", "lost")]
+    _last = _rec[-15:]
+    if _last:
+        _rp = round(100 * sum(1 for b in _last if b.get("result") == "won") / len(_last))
+        _dot = "🟢" if _rp >= 80 else ("🟡" if _rp >= 65 else "🔴")
+        kpi2 = f'{_dot} {_rp}% <small>15 derniers · {conf.get("pct")}% global</small>'
+    else:
+        kpi2 = "⏳ —"
+
+    return (
+        '<div class="av-card">'
+        '<div class="av-card-h">📌 Verdict marchés · en un coup d\'œil</div>'
+        '<div class="av-top">'
+        f'<div class="av-kpi"><div class="av-kpi-l">Calibration honnête ?</div><div class="av-kpi-v">{kpi1}</div></div>'
+        f'<div class="av-kpi"><div class="av-kpi-l">Phare (confiance)</div><div class="av-kpi-v">{kpi2}</div></div>'
+        '</div>'
+        f'<div class="av-row"><div class="av-row-h">🟢 À jouer — calibrés &amp; fiables</div>'
+        f'<div class="av-chips">{_chips(play, "av-play")}</div></div>'
+        f'<div class="av-row"><div class="av-row-h">🟡 À surveiller — échantillon en construction</div>'
+        f'<div class="av-chips">{_chips(watch, "av-watch")}</div></div>'
+        f'<div class="av-row"><div class="av-row-h">🔴 À éviter — écartés automatiquement</div>'
+        f'<div class="av-chips">{_chips(avoid, "av-avoid")}</div></div>'
+        '</div>')
 
 
 def render_market_watch(by_sport: dict | None) -> str:

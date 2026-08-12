@@ -200,7 +200,8 @@ def _home_stats_compute(since_days: int | None = None) -> tuple:
         + _simulation_card())                                                      # 1b. cadres TENNIS/BASKET
     # ANALYSE (sous-onglet 2) : là où le modèle se prouve (edge, calibration, marchés écartés, transparence).
     analyse = (
-        _sec("Où se trouve l'edge", "notre rendement selon la ligue et la cote jouée", edge, open=True)   # 2.
+        web.render_analysis_verdict(full)                                            # 0. VERDICT en tête (actionnable)
+        + _sec("Où se trouve l'edge", "notre rendement selon la ligue et la cote jouée", edge, open=True)   # 2.
         + _sec("Fiabilité du modèle", "la confiance annoncée se vérifie-t-elle vraiment ?",   # 3.
                web.render_reliability(analyses.calibration_reliability(buckets=12))
                + web.render_calibration(cal))
