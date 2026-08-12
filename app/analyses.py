@@ -3433,7 +3433,10 @@ _CALIB_BANDS = [(45, 55), (55, 65), (65, 75), (75, 85), (85, 101)]
 
 _MARKET_FAMILY = {   # 1er token du code -> famille de marché lisible (pour la calibration par marché)
     "1X2": "Vainqueur", "WIN": "Vainqueur", "DC": "Double chance", "REGTIME": "Vainqueur",
-    "OVER": "Total +/-", "UNDER": "Total +/-", "BTTS": "Les 2 marquent",
+    # OVER et UNDER = familles SÉPARÉES (user 2026-08-13) : regroupés, l'auto-exclusion ne pouvait pas bannir
+    # les Under seuls quand les Over marchaient (ou l'inverse). Séparés -> chaque sens s'exclut/se ré-inclut
+    # indépendamment sur SON propre ROI/écart calibré.
+    "OVER": "Total Over", "UNDER": "Total Under", "BTTS": "Les 2 marquent",
     "HCAP": "Handicap", "SETHCAP": "Handicap", "HCAP3": "Handicap", "TEAMTOT": "Total équipe",
     "HALFRES": "Mi-temps",
     "SET": "Sets", "SETWIN": "Sets", "SETSCORE": "Sets", "SETSTOT": "Sets",
@@ -3513,7 +3516,7 @@ def _save_excluded_state(state: dict) -> None:
 
 
 def market_of(code: str) -> str:
-    """Famille de marché lisible déduite du code de règlement (ex. 'UNDER 163' -> 'Total +/-'). Le 1er token
+    """Famille de marché lisible déduite du code de règlement (ex. 'UNDER 163' -> 'Total Under'). Le 1er token
     est nettoyé du suffixe joueur `|Nom` (ex. 'SCOREASSIST|Un joueur' -> 'SCOREASSIST'). « Autre » ne doit
     JAMAIS apparaître (demande user 2026-08-01) : tout code connu est classé -> si « Autre » ressort, c'est
     un NOUVEAU token de marché à ajouter à `_MARKET_FAMILY`."""
