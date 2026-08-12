@@ -6768,8 +6768,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # variables). Les DEUX restent joués + comptés au ROI/calibration (inchangé). Chaque carte foot porte son
     # `tier` (analyses.bet_tier via foot._card). RÉVERSIBLE : analyses.TIER_SPLIT_ON=False -> tout est
     # « confiance » -> zone Value vide/masquée -> état EXACT d'avant. La MONTANTE (sans tier) reste en Confiance.
-    play_conf = [r for r in play if r.get("tier") != "value"]
+    play_conf = [r for r in play if r.get("tier") == "confiance"]   # montante EXCLUE (zone dédiée, user 2026-08-12)
     play_value = [r for r in play if r.get("tier") == "value"]
+    play_mont = [r for r in play if r.get("tier") == "montante"]     # -> ZONE MONTANTE à part
     _res_conf = _settled_bet_result_cards(today_iso, sport, exclude_mids=_mont_ex, tier="confiance")
     _res_value = _settled_bet_result_cards(today_iso, sport, exclude_mids=_mont_ex, tier="value")
 
@@ -6789,23 +6790,26 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _up = len(_pl) - _pend - _lw - _ll        # jaune = à venir + live INCERTAIN (hors live verrouillés)
         return (len(_pl) + _w + _l + _p, _up, 0, _w + _lw, _l + _ll, _pend)
 
-    # La montante RÉGLÉE (`_mont_settled`) va dans la zone de SON tier (comme sa carte à venir/live), user
-    # 2026-08-10 : une montante à 73% (< seuil) doit apparaître en VALUE, pas en Confiance (cohérent avec les stats).
-    _mont_settled_conf = _mont_settled if _mont_tier != "value" else ""
-    _mont_settled_value = _mont_settled if _mont_tier == "value" else ""
-    # ZONE CONFIANCE (montante réglée de tier confiance incluse avec ses résultats).
-    _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf), _mont_settled_conf) if h])
+    # ZONE CONFIANCE : PUREMENT des confiances (la montante a désormais sa PROPRE zone, user 2026-08-12).
+    _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf)) if h])
     _conf_rec = _tier_rec(play_conf, "confiance")
-    if play_conf or _res_conf or _mont_settled_conf:
+    if play_conf or _res_conf:
         out.append(_zone("play", _plur(len(play_conf) + len(_res_conf), "Confiance"), "",
                          len(play_conf) + len(_res_conf), _conf_html,
                          collapsible=True, record=_conf_rec if _conf_rec[0] else None))
     # ZONE VALUE (n'apparaît que s'il y a des paris value ; masquée quand le split est off).
-    _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value), _mont_settled_value) if h])
+    _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value)) if h])
     _value_rec = _tier_rec(play_value, "value")
-    if play_value or _res_value or _mont_settled_value:
+    if play_value or _res_value:
         out.append(_zone("value", "Value", "", len(play_value) + len(_res_value), _value_html,
                          collapsible=True, record=_value_rec if _value_rec[0] else None))
+    # ZONE MONTANTE (dédiée, user 2026-08-12) : à venir/live (play_mont) + réglée (_mont_settled). Plus jamais
+    # fondue dans Confiance/Value. La carte garde son cadre bleu + titre « MONTANTE • PALIER N ».
+    _mont_html = _MC_SEP.join([h for h in (_rows_by_day(play_mont), _mont_settled) if h])
+    _mont_rec = _tier_rec(play_mont, "montante")
+    if play_mont or _mont_settled:
+        out.append(_zone("mont", "Montante", "", len(play_mont), _mont_html,
+                         collapsible=True, record=_mont_rec if _mont_rec[0] else None))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
@@ -9418,11 +9422,14 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     else:
         # MÊMES TYPES QUE PRONOS : Confiance (montante incluse) → Value → Provisoire → Combiné. Split
         # Confiance/Value par le `tier` de chaque carte (user 2026-08-09) ; Value masquée si vide / split off.
-        _play_c = [c for c in _play if c.get("tier") != "value"]
+        _play_c = [c for c in _play if c.get("tier") == "confiance"]   # montante EXCLUE (zone dédiée)
         _play_v = [c for c in _play if c.get("tier") == "value"]
+        _play_m = [c for c in _play if c.get("tier") == "montante"]     # ZONE MONTANTE à part (user 2026-08-12)
         out = [_zone("play", _plur(len(_play_c), "Confiance"), "en direct", len(_play_c), _cards(_play_c))]
         if _play_v:
             out.append(_zone("value", "Value", "en direct", len(_play_v), _cards(_play_v)))
+        if _play_m:
+            out.append(_zone("mont", "Montante", "en direct", len(_play_m), _cards(_play_m)))
         out += [
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov)),
             _zone("combo", "Combiné double chance", "", 1 if _combo else 0, _combo),
