@@ -30,9 +30,14 @@ class Settings(BaseSettings):
     # sont souvent déjà bloqués). Format : http://user:pass@host:port (ou socks5://...). Vide = direct.
     sofa_proxy: str = ""
 
-    # Book SHARP de référence = Betfair EXCHANGE (remplace le scraping Pinnacle-via-proxy, cf. app/betfair.py).
+    # Book SHARP de référence PRIMAIRE = Pinnacle via The Odds API (the-odds-api.com). Vraie API self-service,
+    # palier gratuit 500 crédits/mois (1 appel = 2 crédits, batche tous les matchs d'une ligue). Renseigner
+    # ODDS_API_KEY dans .env pour activer l'ancre sharp (1X2 + totaux). Vide = repli Betfair puis Pinnacle-scrap.
+    odds_api_key: str = ""
+
+    # Book SHARP de repli = Betfair EXCHANGE (cf. app/betfair.py) — DORMANT (Betfair bloqué en Belgique).
     # Vraie API, gratuite avec un compte Betfair + une « application key » (developer.betfair.com). Renseigner
-    # les 3 dans .env pour activer l'ancre sharp (1X2 + totaux) ; vides = repli sur Pinnacle (fragile).
+    # les 3 dans .env pour activer ; vides = repli sur Pinnacle (fragile).
     betfair_app_key: str = ""
     betfair_user: str = ""
     betfair_pass: str = ""

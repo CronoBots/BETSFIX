@@ -1269,12 +1269,19 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # Unibet (proba_sharp × cote_unibet − 1) -> une EV+ ici = la cote Unibet bat le sharp = VALUE FORTE.
     sharp = ""
     _sharp_src = ""
+    _comp = match.get("comp") or match.get("circuit") or ""
     try:
-        from app import betfair, pinnacle
-        sp = await asyncio.to_thread(betfair.sharp_probs, home, away, sport) if betfair.configured() else None
-        if sp is not None:
-            _sharp_src = "Betfair Exchange"
-        else:                                              # repli Pinnacle si Betfair absent/muet
+        from app import theoddsapi, betfair, pinnacle
+        sp = None
+        if theoddsapi.configured():                        # n°1 : Pinnacle via The Odds API (vraie API)
+            sp = await asyncio.to_thread(theoddsapi.sharp_probs, home, away, sport, _comp)
+            if sp is not None:
+                _sharp_src = "Pinnacle"
+        if sp is None and betfair.configured():            # repli : Betfair Exchange (dormant en Belgique)
+            sp = await asyncio.to_thread(betfair.sharp_probs, home, away, sport)
+            if sp is not None:
+                _sharp_src = "Betfair Exchange"
+        if sp is None:                                     # dernier repli : scraping Pinnacle (fragile)
             sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
             if sp is not None:
                 _sharp_src = "Pinnacle"
@@ -1294,9 +1301,13 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # hors-vainqueur. Même logique que le 1X2 sharp, appliquée à Over/Under & handicaps.
     sharp_mk = ""
     try:
-        from app import betfair, pinnacle
-        smk = await asyncio.to_thread(betfair.sharp_markets, home, away, sport) if betfair.configured() else None
-        if smk is None:
+        from app import theoddsapi, betfair, pinnacle
+        smk = None
+        if theoddsapi.configured():                        # n°1 : Pinnacle via The Odds API
+            smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp)
+        if smk is None and betfair.configured():           # repli Betfair (dormant)
+            smk = await asyncio.to_thread(betfair.sharp_markets, home, away, sport)
+        if smk is None:                                    # repli scraping Pinnacle
             smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport)
     except Exception:
         smk = None
@@ -1320,7 +1331,8 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         # Pinnacle muets) -> on l'écrit NOIR SUR BLANC dans le prompt pour que le modèle NE PARIE PAS d'over/
         # under sur sa seule estimation (c'est exactement ce qui a fait perdre : totaux sans ancre = fausses
         # values). On le pousse vers résultat / double chance (marchés qui gagnaient). Fini la dégradation muette.
-        sharp_mk = ("\n⚠️ AUCUNE ANCRE SHARP DISPONIBLE POUR LES TOTAUX (Betfair/Pinnacle injoignables) : "
+        sharp_mk = ("\n⚠️ AUCUNE ANCRE SHARP DISPONIBLE POUR LES TOTAUX (Pinnacle/The Odds API muet — ligue "
+                    "hors couverture ou match introuvable) : "
                     "n'engage PAS de pari Over/Under buts sur ta seule estimation (sans book de référence, le "
                     "risque de fausse value est élevé). PRIVILÉGIE le résultat (1X2), la double chance et les "
                     "marchés que tu peux ancrer autrement. Ne retiens un total QUE si l'écart est ÉNORME et "
