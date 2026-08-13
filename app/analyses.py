@@ -2475,7 +2475,7 @@ def freeze_published_bet(sport: str, match_id) -> bool:
 # RÉVERSIBLE d'un seul flag : `TIER_SPLIT_ON = False` -> tout redevient « Confiance » (état EXACT d'avant).
 # Seuil TUNABLE : `CONFIANCE_MIN_CONF` (mesuré : 65-70 %≈83-88 %, 80 %+≈96-100 % ; 72 % ≈ ~91-92 %).
 TIER_SPLIT_ON = True
-CONFIANCE_MIN_CONF = 76.0     # seuil de confiance CALIBRÉE (user 2026-08-13 : 78->76 avec le sharp mondial restauré)
+CONFIANCE_MIN_CONF = 75.0     # seuil de confiance CALIBRÉE (user 2026-08-13 : 75 % avec le sharp mondial restauré)
 
 # PROVISOIRES RETIRÉS (user 2026-08-11 : « je ne veux plus de provisoires ; ces matchs doivent être ignorés »).
 # Un match ABSTENU (analysé, aucun pari de value retenu) n'est PLUS affiché ni suivi en « provisoire ». Ses
