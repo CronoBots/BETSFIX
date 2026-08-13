@@ -439,7 +439,7 @@ CSS = """
     .zone-b .mc-sep{display:none}
     .zone-b .dayhdr{grid-column:1/-1}
     /* Combinés + cartes multi-paris = pleine largeur (leurs jambes ont leur propre sous-grille) */
-    .zone-b .mc-tg,.zone-b .mc-tg-gold,.zone-combo .zone-b>*,.zone-betmines .zone-b>*{grid-column:1/-1}
+    .zone-b .mc-tg,.zone-b .mc-tg-gold,.zone-combo .zone-b>*{grid-column:1/-1}
     .foot{text-align:center;padding:18px 0 8px}
   }
   /* Badge du nb de matchs LIVE : BLANC comme les autres onglets (demande user 2026-07-21) — plus de vert
