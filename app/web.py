@@ -4350,8 +4350,9 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         recent=_pend_fc + list(reversed(_foot_c.get("recent") or [])), more_label="Derniers combinés",
         pending=len(_pend_fc),                        # sabliers ⏳ des combinés à venir (comme tennis/basket)
         milestones=_ms_combo, compact=True, hit_points=_foot_c.get("hit_points"),
-        best_streak=_foot_c.get("best_streak"),
-        cote_points=_foot_c.get("cote_points")) if (_foot_c.get("settled") or _pend_fc) else "")
+        best_streak=_foot_c.get("best_streak"), cote_points=_foot_c.get("cote_points"),
+        warmup=3)                                     # combiné du jour ~1/j depuis 29/07 : seuil courbes abaissé
+        if (_foot_c.get("settled") or _pend_fc) else "")
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     # ORDRE onglets = Confiance · Value · [Provisoire retiré] · Combiné (user 2026-08-11). L'onglet Provisoire
@@ -4668,12 +4669,12 @@ def _streak_text(streak, best: int = 0) -> str:
     return f'<div class="spf-hero-streakw">{chips}</div>'
 
 
-def _cote_block(cote_points: list | None, uid: str) -> str:
+def _cote_block(cote_points: list | None, uid: str, warmup: int | None = None) -> str:
     """3e graphe (demande user 2026-07-27 : ROI · Réussite · Cote) — courbe de la COTE MOYENNE cumulée,
     même présentation légère que le taux de réussite mais en OR et au format cote (2 décimales, pas de %,
-    échelle non bornée à 100). '' si trop peu de paris réglés pour être crédible."""
+    échelle non bornée à 100). `warmup` abaissable par suivi (combiné du jour). '' si trop peu de paris."""
     _cp = [c for c in (cote_points or []) if c is not None]
-    if len(_cp) < _RATE_WARMUP + 3:
+    if len(_cp) < (_RATE_WARMUP if warmup is None else warmup) + 3:
         return ""
     _c = _rate_chart(_cp, uid=uid + "c", color="#f6c54a", fmt=lambda v: f"{v:.2f}", clamp_pct=False)
     if not _c:
@@ -4683,7 +4684,7 @@ def _cote_block(cote_points: list | None, uid: str) -> str:
 
 def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, streak=None,
                       hit_points: list | None = None, uid: str = "trk", best_streak: int = 0,
-                      cote_points: list | None = None) -> str:
+                      cote_points: list | None = None, warmup: int | None = None) -> str:
     """Disposition « ROI héros » façon carte ROI GLOBAL (choix user 2026-07-24) pour les cadres sport à
     onglets : petit label « Rentabilité », le ROI en GROS centré (vert/rouge), une sous-ligne
     réussite · paris · cote, la SÉRIE en cours (pastille sans emoji), puis 3 GRAPHES SÉPARÉS empilés (demande
@@ -4699,7 +4700,7 @@ def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, stre
         f'<div><span class="v">{avg_cote or "—"}</span><span class="l">Cote moyenne</span></div>'
         '</div>'
         # 3 graphes SÉPARÉS empilés : ROI (équité) · Réussite (%) · Cote moyenne (demande user 2026-07-27).
-        f'{chart}{_rate_block(hit_points, uid)}{_cote_block(cote_points, uid)}'
+        f'{chart}{_rate_block(hit_points, uid, warmup)}{_cote_block(cote_points, uid, warmup)}'
         f'{form}{_streak_text(streak, best_streak)}')
 
 
@@ -4738,14 +4739,16 @@ _RATE_WARMUP = 10   # nb MIN de paris réglés pour AFFICHER la courbe de réuss
                     # 1er pari (alignée sur la courbe ROI) — cf. _rate_block.
 
 
-def _rate_block(hit_points: list | None, uid: str) -> str:
+def _rate_block(hit_points: list | None, uid: str, warmup: int | None = None) -> str:
     """Bloc « Taux de réussite » (courbe légère + % courant) sous la courbe d'équité — demande user
     2026-07-24 : montrer que la fiabilité s'améliore dans le temps. La courbe DÉMARRE au 1er pari réglé pour
     COMMENCER À LA MÊME DATE que la courbe ROI/équité (demande user 2026-07-27 : les deux graphiques d'un
     sport doivent partir de la même date — mêmes paris 1→N, axes bord-à-bord). On n'affiche le bloc qu'à
-    partir d'assez de paris réglés (_RATE_WARMUP + 3) pour qu'un taux cumulé ait un sens. '' sinon."""
+    partir d'assez de paris réglés (warmup + 3, défaut `_RATE_WARMUP`) pour qu'un taux cumulé ait un sens.
+    `warmup` abaissable par suivi (ex. combiné du jour, ~1/jour depuis 29/07 : seuil réduit pour montrer la
+    courbe sans attendre 13 combinés — demande user 2026-08-13). '' sinon."""
     _hp = [h for h in (hit_points or []) if h is not None]
-    if len(_hp) < _RATE_WARMUP + 3:                      # pas assez de paris réglés pour montrer une courbe
+    if len(_hp) < (_RATE_WARMUP if warmup is None else warmup) + 3:   # pas assez de paris pour une courbe utile
         return ""
     _c = _rate_chart(_hp, uid=uid)                       # DÈS le 1er pari -> même date de départ que la courbe ROI
     if not _c:
@@ -4761,7 +4764,8 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
                           form: list | None = None, pending: int = 0, streak=None,
                           milestones: list | None = None, sport: str | None = None,
                           compact: bool = False, hit_points: list | None = None,
-                          best_streak: int | None = None, cote_points: list | None = None) -> str:
+                          best_streak: int | None = None, cote_points: list | None = None,
+                          warmup: int | None = None) -> str:
     """Bloc courbe+stats « info seule » (provisoires, combiné du jour) construit EXACTEMENT comme les 2
     premiers graphiques de la page Stats (simples/combinés, demande user 2026-07-24) : carte `.spf-cv` avec
     en-tête (titre + chip SÉRIE 🔥/❄️ + chip ROI), LIGNE W/L (`form_dots`, sabliers ⏳ pour les `pending`),
@@ -4788,7 +4792,7 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
     if compact:                                   # cadres sport à onglets : disposition « ROI héros » (frameless)
         inner = _hero_graph_inner(roi=roi, n=n, hit=hit, avg_cote=avg_cote, chart=chart, form=_form,
                                   streak=streak, hit_points=hit_points, uid=uid, best_streak=_best,
-                                  cote_points=cote_points)
+                                  cote_points=cote_points, warmup=warmup)
     else:
         _title_html = f'{emoji + " " if emoji else ""}{html.escape(title)}'
         inner = (
