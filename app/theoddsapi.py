@@ -47,48 +47,87 @@ _last_remaining: int | None = None   # crédits restants (dernier header x-reque
 # liga 2 » avant « la liga », « bundesliga 2 » avant « bundesliga »). Seules les ligues RÉELLEMENT couvertes
 # par l'API sont mappées ; les autres -> None (repli). Match par sous-chaîne sur le libellé normalisé.
 _COMP_MAP: list[tuple[str, str]] = [
-    # Amériques (le gros du volume nocturne)
+    # ── EXCLUSIONS EXPLICITES d'abord (collision-prone OU non couvertes) : '' -> None, 0 crédit ──
+    # Sans elles, le motif générique plus bas capterait à tort (ex. « ligue des champions afc » -> UCL).
+    ("ligue des champions afc", ""),          # AFC (Asie) ≠ UEFA
+    ("champions league afc", ""),
+    ("conference league qualification", ""),  # qualif Conference : PAS de clé (seule la phase de groupes existe)
+    ("qualif. ligue conference", ""),
+    ("qualif. ligue europa", ""),             # qualif Europa : PAS de clé
+    ("europa league qualification", ""),
+    ("qualif. coupe du monde", ""),           # découpé par région chez l'API, libellé Unibet ambigu -> skip
+    ("mls next", ""),                         # MLS Next Pro ≠ MLS
+    ("eerste divisie", ""),                   # D2 néerlandaise ≠ Eredivisie
+    ("brasileirao serie c", ""),              # pas de clé (≠ A/B)
+    ("primera b nacional", ""),               # D2 argentine (≠ Primera) — non couverte
+
+    # ── AMÉRIQUES ──
     ("brasileirao serie a", "soccer_brazil_campeonato"),
     ("brasileirao serie b", "soccer_brazil_serie_b"),
     ("liga profesional argentina", "soccer_argentina_primera_division"),
-    ("primera b nacional", "soccer_argentina_primera_division"),   # 2e div AR non couverte -> repli 1re (best-effort)
     ("copa libertadores", "soccer_conmebol_copa_libertadores"),
     ("libertadores", "soccer_conmebol_copa_libertadores"),
     ("copa sudamericana", "soccer_conmebol_copa_sudamericana"),
     ("sud-americaine", "soccer_conmebol_copa_sudamericana"),
     ("sudamericaine", "soccer_conmebol_copa_sudamericana"),
-    ("leagues cup", "soccer_concacaf_leagues_cup"),
+    ("copa america", "soccer_conmebol_copa_america"),
+    ("leagues cup", "soccer_concacaf_leagues_cup"),               # (AVANT « league cup » anglaise)
     ("liga mx", "soccer_mexico_ligamx"),
-    ("mls next", ""),                                              # NON couvert -> skip explicite (0 crédit)
     ("mls", "soccer_usa_mls"),
     ("primera division - chile", "soccer_chile_campeonato"),
-    # Europe — grands championnats
+    ("primera division", "soccer_chile_campeonato"),              # libellé nu -> Chili (best-effort)
+
+    # ── ANGLETERRE ──
+    ("premier league - russia", "soccer_russia_premier_league"),  # (AVANT « premier league » anglaise)
+    ("premier league russie", "soccer_russia_premier_league"),
+    ("premier league", "soccer_epl"),
+    ("epl", "soccer_epl"),
+    ("championship", "soccer_efl_champ"),
+    ("league one", "soccer_england_league1"),
+    ("league 1", "soccer_england_league1"),
+    ("league two", "soccer_england_league2"),
+    ("league 2", "soccer_england_league2"),
+    ("efl cup", "soccer_england_efl_cup"),
+    ("carabao", "soccer_england_efl_cup"),
+    ("league cup", "soccer_england_efl_cup"),
+    ("fa cup", "soccer_fa_cup"),
+    ("coupe d'angleterre", "soccer_fa_cup"),
+    ("premiership", "soccer_spl"),                               # Écosse (« Premiership d'Ecosse »)
+
+    # ── ESPAGNE ──
     ("la liga 2", "soccer_spain_segunda_division"),
+    ("segunda division", "soccer_spain_segunda_division"),
     ("la liga", "soccer_spain_la_liga"),
+    ("copa del rey", "soccer_spain_copa_del_rey"),
+    ("coupe du roi", "soccer_spain_copa_del_rey"),
+
+    # ── ITALIE ── (après « brasileirao serie a/b » plus haut)
+    ("serie a - italy", "soccer_italy_serie_a"),
+    ("serie b - italy", "soccer_italy_serie_b"),
+    ("serie a", "soccer_italy_serie_a"),
+    ("serie b", "soccer_italy_serie_b"),
+    ("coppa italia", "soccer_italy_coppa_italia"),
+    ("coupe d'italie", "soccer_italy_coppa_italia"),
+
+    # ── ALLEMAGNE ── (Autriche a son libellé propre plus bas)
     ("bundesliga 2", "soccer_germany_bundesliga2"),
+    ("2. bundesliga", "soccer_germany_bundesliga2"),
     ("liga3", "soccer_germany_liga3"),
     ("3. liga", "soccer_germany_liga3"),
     ("dfb-pokal", "soccer_germany_dfb_pokal"),
-    ("bundesliga", "soccer_germany_bundesliga"),                  # (Allemagne ; l'Autriche a son libellé propre)
+    ("coupe d'allemagne", "soccer_germany_dfb_pokal"),
+    ("bundesliga", "soccer_germany_bundesliga"),
+
+    # ── FRANCE ──
     ("ligue 1", "soccer_france_ligue_one"),
     ("ligue 2", "soccer_france_ligue_two"),
-    ("serie a - italy", "soccer_italy_serie_a"),
-    ("serie b - italy", "soccer_italy_serie_b"),
-    ("serie a", "soccer_italy_serie_a"),                          # (après « brasileirao serie a »)
-    ("serie b", "soccer_italy_serie_b"),
-    ("premier league - russia", "soccer_russia_premier_league"),
-    ("premiership", "soccer_spl"),                               # « Premiership d'Ecosse »
-    ("championship", "soccer_efl_champ"),
-    ("league 1", "soccer_england_league1"),
-    ("league 2", "soccer_england_league2"),
-    ("efl cup", "soccer_england_efl_cup"),
-    ("league cup", "soccer_england_efl_cup"),
-    ("epl", "soccer_epl"),
-    ("premier league", "soccer_epl"),        # Unibet FR nomme l'anglaise « Premier League » (après Russie ci-dessus)
+    ("coupe de france", "soccer_france_coupe_de_france"),
+
+    # ── AUTRES CHAMPIONNATS EUROPÉENS ──
     ("eredivisie", "soccer_netherlands_eredivisie"),
-    ("jupiler", "soccer_belgium_first_div"),
-    ("belgium first", "soccer_belgium_first_div"),
+    ("jupiler", "soccer_belgium_first_div"),                     # Belgique (PAS « pro league » nu -> collision Saoudienne)
     ("primeira liga", "soccer_portugal_primeira_liga"),
+    ("liga portugal", "soccer_portugal_primeira_liga"),
     ("superligaen", "soccer_denmark_superliga"),
     ("superliga", "soccer_denmark_superliga"),
     ("eliteserien", "soccer_norway_eliteserien"),
@@ -100,18 +139,40 @@ _COMP_MAP: list[tuple[str, str]] = [
     ("super league grece", "soccer_greece_super_league"),
     ("austrian", "soccer_austria_bundesliga"),
     ("autriche", "soccer_austria_bundesliga"),
-    # UEFA / internationaux
+    ("swiss super", "soccer_switzerland_superleague"),
+    ("super league suisse", "soccer_switzerland_superleague"),
+    ("league of ireland", "soccer_league_of_ireland"),
+
+    # ── UEFA / INTERNATIONAL ── (skips AFC/qualif déjà en tête)
     ("qualif. ligue des champions", "soccer_uefa_champs_league_qualification"),
     ("champions league qualif", "soccer_uefa_champs_league_qualification"),
+    ("ligue des champions", "soccer_uefa_champs_league"),        # phase de groupes (bare, après AFC/qualif)
+    ("ligue europa", "soccer_uefa_europa_league"),              # (qualif déjà exclu en tête)
+    ("conference league", "soccer_uefa_europa_conference_league"),
+    ("ligue conference", "soccer_uefa_europa_conference_league"),
     ("ligue des nations", "soccer_uefa_nations_league"),
     ("nations league", "soccer_uefa_nations_league"),
-    # Reste du monde
+    ("championnat d'europe", "soccer_uefa_european_championship"),
+    ("coupe du monde des clubs", "soccer_fifa_club_world_cup"),
+    ("club world cup", "soccer_fifa_club_world_cup"),
+    ("coupe du monde", "soccer_fifa_world_cup"),
+    ("coupe d'afrique", "soccer_africa_cup_of_nations"),
+    ("africa cup", "soccer_africa_cup_of_nations"),
+
+    # ── RESTE DU MONDE ──
     ("saudi", "soccer_saudi_arabia_pro_league"),
+    ("saoudienne", "soccer_saudi_arabia_pro_league"),
+    ("ligue professionnelle", "soccer_saudi_arabia_pro_league"),  # libellé Unibet du championnat saoudien (best-effort)
     ("turkey", "soccer_turkey_super_league"),
+    ("turquie", "soccer_turkey_super_league"),
     ("super lig", "soccer_turkey_super_league"),
     ("j league", "soccer_japan_j_league"),
     ("j-league", "soccer_japan_j_league"),
     ("k league", "soccer_korea_kleague1"),
+    ("super league - china", "soccer_china_superleague"),
+    ("super league chine", "soccer_china_superleague"),
+    ("a-league", "soccer_australia_aleague"),
+    ("a league", "soccer_australia_aleague"),
 ]
 
 
