@@ -1309,7 +1309,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     try:
         from app import theoddsapi, pinnacle
         # n°1 : Pinnacle BRUT via iProyal (catalogue MONDIAL, toutes ligues — user 2026-08-13 « prioritaire »)
-        sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
+        sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport, _ko)
         if sp is None and theoddsapi.configured():         # repli : The Odds API (gratuit, 68 ligues)
             sp = await asyncio.to_thread(theoddsapi.sharp_probs, home, away, sport, _comp, _ko)
         if sp is not None:
@@ -1332,7 +1332,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     try:
         from app import theoddsapi, pinnacle
         # n°1 : Pinnacle BRUT via iProyal (toutes ligues) ; repli The Odds API
-        smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport)
+        smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport, _ko)
         if smk is None and theoddsapi.configured():        # repli : The Odds API (gratuit)
             smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp, _ko)
     except Exception:
