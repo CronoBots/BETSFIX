@@ -293,12 +293,12 @@ def _montante_eligible_code(code: str) -> bool:
 
 def pick_day_bet() -> dict | None:
     """Le palier du jour = le SIMPLE VALUE JOUÉ le plus SÛR des matchs foot à venir (demande user 2026-07-26).
-    « TOUTES LES CHANCES DE NOTRE CÔTÉ » (demande user 2026-07-28, sans changer l'approche) : on PRIVILÉGIE
-    les marchés les PLUS FIABLES (`_montante_eligible_code` : DC / +1.5 buts / favori domicile / équipe marque
-    — mesurés à 88 % de réussite RÉELLE sur nos paris joués, vs 84 % pour les autres marchés) ; à cote égale
-    de sûreté, on préfère un marché fiable. Repli sur le pool complet si aucun pari en marché fiable ce jour.
-    Puis, dans le pool retenu, le PLUS SÛR = cote la plus basse. Le palier EST le pari value du jour (réglé
-    via son `stat_bet`). None si aucun simple value à venir. Lecture seule."""
+    ÉLIGIBLE-SEULEMENT (user 2026-08-13) : on n'engage la montante QUE sur les marchés SÛRS
+    (`_montante_eligible_code` : DC / +1.5 buts / favori domicile 1X2 / équipe marque — mesurés à 88 % de
+    réussite RÉELLE). PLUS de repli sur les marchés inéligibles (totaux Over/Under…) : si aucun pari éligible
+    à venir ce jour, la montante SAUTE le jour (None) plutôt que d'engager un pari moins sûr. Dans le pool
+    éligible, le PLUS CONFIANT (confiance calibrée la plus haute ; à égalité, cote la plus basse). Le palier
+    EST un pari value du jour (réglé via son `stat_bet`). None si aucun simple value éligible. Lecture seule."""
     from app import analyses
     from app.settle_analyst import code_from_pick
     cands = []
@@ -330,8 +330,10 @@ def pick_day_bet() -> dict | None:
     # SÉLECTION (demande user 2026-08-02) : parmi les PARIS SIMPLES À JOUER (déjà value/retenus), on prend le
     # PLUS CONFIANT (confiance calibrée la plus HAUTE). À confiance égale, marché fiable puis cote la plus
     # basse (le plus sûr). Le palier est ainsi TOUJOURS un pari joué remplissant les conditions demandées.
-    pool = [c for c in cands if c["_elig"]] or cands
-    best = max(pool, key=lambda c: ((c.get("prob") or 0), c.get("_elig", False), -c["cote"]))
+    pool = [c for c in cands if c["_elig"]]            # ÉLIGIBLE-SEULEMENT : plus de repli sur les inéligibles
+    if not pool:                                       # aucun marché sûr éligible ce jour -> pas de montante
+        return None
+    best = max(pool, key=lambda c: ((c.get("prob") or 0), -c["cote"]))
     best.pop("_elig", None)
     return best
 
