@@ -60,6 +60,11 @@ def _get_proxy(path: str):
                     proxies={"http": proxy, "https": proxy}, timeout=20)
         if r.status_code == 200:
             _last_proxy_status = ""
+            try:                                          # compteur de conso iProyal (facturé au Go)
+                from app import proxy_usage
+                proxy_usage.add_bytes(len(r.content), "pinnacle")
+            except Exception:
+                pass
             return json.loads(r.content.decode("utf-8", "replace"))
         _last_proxy_status = f"proxy HTTP {r.status_code}"
     except Exception as e:

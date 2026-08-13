@@ -138,6 +138,11 @@ async def _via_proxy(url, params, headers):
         r = await ps.get(url, params=params, headers=headers)
         if r.status_code == 200:
             log.info("SofaScore via PROXY (dernier recours) OK")
+            try:                                          # compteur conso iProyal (proxy mutualisé)
+                from app import proxy_usage
+                proxy_usage.add_bytes(len(r.content), "sofascore")
+            except Exception:
+                pass
         return r
     except Exception:
         return None

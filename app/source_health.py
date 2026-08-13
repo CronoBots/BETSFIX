@@ -47,12 +47,15 @@ async def _p_understat(c):
 async def _p_pinnacle(c):
     """Pinnacle via la cascade réelle (direct gratuit -> repli proxy résidentiel si Cloudflare bloque l'IP).
     Le detail dit la voie active -> on voit si on consomme les Go du proxy (blocage IP en cours) ou non."""
-    from app import pinnacle
+    from app import pinnacle, proxy_usage
     data = await asyncio.to_thread(pinnacle._get, "sports")
     n = len(data) if isinstance(data, list) else 0
     if data:
         via = "proxy" if pinnacle._direct_blocked() else "direct"
-        return (True, f"{n} sports (via {via})")
+        u = proxy_usage.stats()                            # conso iProyal (facturé au Go, forfait 2 Go)
+        usage = (f" · iProyal ≈ {u['used_mb']} Mo / {u['cap_gb']} Go ({u['pct']}% · {u['remaining_gb']} Go restants)"
+                 if via == "proxy" else "")
+        return (True, f"{n} sports (via {via}){usage}")
     # KO : direct 403 (IP bloquée Cloudflare) ET proxy en échec -> on affiche la CAUSE actionnable du proxy
     # (ex. « 402 — crédit épuisé ») au lieu d'un « KO » opaque, pour savoir s'il faut recharger le proxy.
     reason = getattr(pinnacle, "_last_proxy_status", "") or "direct + proxy"
@@ -135,9 +138,9 @@ async def _p_livescore(c):
 _SOURCES = [
     ("unibet", "Unibet (Kambi)", "cotes + sélection des matchs", True, _p_unibet),
     ("fotmob", "FotMob", "foot : analyse + règlement tirs", True, _p_fotmob),
-    ("theoddsapi", "The Odds API (Pinnacle)", "ancre sharp PRIMAIRE (vraie API, palier gratuit 500/mois)",
-     False, _p_theoddsapi),
-    ("pinnacle", "Pinnacle", "ancre sharp de repli (scraping, fragile)", False, _p_pinnacle),
+    ("pinnacle", "Pinnacle (iProyal)", "ancre sharp PRIMAIRE (catalogue MONDIAL via proxy résidentiel)",
+     False, _p_pinnacle),
+    ("theoddsapi", "The Odds API", "ancre sharp de repli (gratuit, 68 ligues)", False, _p_theoddsapi),
     # ESPN RETIRÉ de la sonde (user 2026-08-07 : app 100 % foot) — ESPN ne servait QUE tennis/basket, son
     # 403 déclenchait un faux « warn ». La sonde suit désormais uniquement les sources UTILES au football.
     ("understat", "Understat", "foot : xG (top-5 ligues)", False, _p_understat),

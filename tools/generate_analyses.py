@@ -114,10 +114,11 @@ def _is_big_match(comp: str) -> bool:
     return any(t in c for t in _BIG_TOURNEYS)
 
 
-# SÉLECTION LIGUES COUVERTES (demande user 2026-08-13) : ne pas gaspiller les slots top-N sur des matchs
-# d'une ligue SANS ancre sharp (The Odds API) — ils finissent en abstention faute d'ancre. On réserve les
-# slots aux matchs RÉELLEMENT analysables. Big matchs (Coupe du Monde) toujours gardés. Réversible : False.
-_COVERED_ONLY = True
+# SÉLECTION LIGUES COUVERTES : à l'origine (2026-08-13 matin) on écartait les ligues non couvertes par
+# The Odds API pour ne pas gaspiller les slots. DÉSACTIVÉ le 2026-08-13 soir : iProyal rechargé -> Pinnacle
+# BRUT (prioritaire) couvre le MONDE ENTIER, donc plus besoin d'exclure des ligues (« accès à toutes les
+# données »). Le garde-fou reste le filet si un match précis n'a aucune ancre. Remettre True si iProyal meurt.
+_COVERED_ONLY = False
 
 
 def _covered_matches(matches: list) -> list:
@@ -1307,11 +1308,10 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     _ko = match.get("start") or ""                         # coup d'envoi -> résolution robuste (translittérations)
     try:
         from app import theoddsapi, pinnacle
-        sp = None
-        if theoddsapi.configured():                        # n°1 : Pinnacle via The Odds API (vraie API)
+        # n°1 : Pinnacle BRUT via iProyal (catalogue MONDIAL, toutes ligues — user 2026-08-13 « prioritaire »)
+        sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
+        if sp is None and theoddsapi.configured():         # repli : The Odds API (gratuit, 68 ligues)
             sp = await asyncio.to_thread(theoddsapi.sharp_probs, home, away, sport, _comp, _ko)
-        if sp is None:                                     # repli : scraping Pinnacle direct (fragile)
-            sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
         if sp is not None:
             _sharp_src = "Pinnacle"
     except Exception:
@@ -1331,11 +1331,10 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     sharp_mk = ""
     try:
         from app import theoddsapi, pinnacle
-        smk = None
-        if theoddsapi.configured():                        # n°1 : Pinnacle via The Odds API
+        # n°1 : Pinnacle BRUT via iProyal (toutes ligues) ; repli The Odds API
+        smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport)
+        if smk is None and theoddsapi.configured():        # repli : The Odds API (gratuit)
             smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp, _ko)
-        if smk is None:                                    # repli : scraping Pinnacle direct
-            smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport)
     except Exception:
         smk = None
     if smk:
