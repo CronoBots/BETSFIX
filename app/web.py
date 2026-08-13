@@ -4575,12 +4575,9 @@ def _prov_sport_graph(sport: str) -> str:
 
 
 def _sport_banner(sport: str) -> str:
-    """Bannière BETSFIX du sport (la MÊME image que les cartes Telegram, `static/banner_<sport>.png`) en
-    en-tête d'un cadre stats — demande user 2026-07-24 (au lieu du titre texte). '' si sport inconnu."""
-    if sport not in ("foot", "tennis", "basket"):
-        return ""
-    _lbl = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}[sport]
-    return f'<img class="stat-banner" src="/static/banner_{sport}.png" alt="BETSFIX {_lbl}" loading="lazy">'
+    """Bannière BETSFIX du sport — RETIRÉE (user 2026-08-13 : l'app est 100 % football, une bannière « sport »
+    est redondante). Renvoie toujours '' ; fonction gardée pour ne pas casser les appelants (réversible)."""
+    return ""
 
 
 def _sport_milestones(sport: str) -> list:
