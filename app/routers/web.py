@@ -244,21 +244,12 @@ async def _home_match_rows() -> list:
     _now = _t.time()
     if _HMR_CACHE["rows"] is not None and (_now - _HMR_CACHE["ts"]) < _HMR_TTL:
         return _HMR_CACHE["rows"]
-    from app import foot as foot_mod, basket as basket_mod
-    from app.routers import foot as foot_r, basket as basket_r
+    from app import foot as foot_mod                       # app 100 % FOOT (tennis/basket retirés 2026-08-13)
+    from app.routers import foot as foot_r
     out = []
     try:
         frows, _ffin = await foot_r._analyst_rows("foot")
         out += [foot_mod._card(r) for r in frows]
-    except Exception:
-        pass
-    try:
-        brows, _bfin = await basket_r._analyst_rows()
-        out += [basket_mod._card(r) for r in brows]
-    except Exception:
-        pass
-    try:                                                   # tennis
-        out += await _tennis_rows()
     except Exception:
         pass
     out.sort(key=lambda x: x.get("start_ts") or 0)         # coup d'envoi le plus proche d'abord
