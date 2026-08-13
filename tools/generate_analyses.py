@@ -114,6 +114,39 @@ def _is_big_match(comp: str) -> bool:
     return any(t in c for t in _BIG_TOURNEYS)
 
 
+# SÉLECTION LIGUES COUVERTES (demande user 2026-08-13) : ne pas gaspiller les slots top-N sur des matchs
+# d'une ligue SANS ancre sharp (The Odds API) — ils finissent en abstention faute d'ancre. On réserve les
+# slots aux matchs RÉELLEMENT analysables. Big matchs (Coupe du Monde) toujours gardés. Réversible : False.
+_COVERED_ONLY = True
+
+
+def _covered_matches(matches: list) -> list:
+    """Garde les matchs dont la ligue est COUVERTE par l'ancre sharp (The Odds API), + les gros tournois.
+    Si l'ancre n'est pas configurée (clé absente), NE FILTRE PAS (sinon on viderait tout à tort). Logue les
+    exclus (jamais silencieux — cf. « no silent caps »)."""
+    if not _COVERED_ONLY:
+        return matches
+    try:
+        from app import theoddsapi
+        if not theoddsapi.configured():
+            return matches
+    except Exception:
+        return matches
+    kept, dropped = [], []
+    for m in matches:
+        comp = m.get("comp") or m.get("circuit") or ""
+        if _is_big_match(comp) or theoddsapi._sport_key_for(comp):
+            kept.append(m)
+        else:
+            dropped.append(comp or "?")
+    if dropped:
+        from collections import Counter
+        _c = Counter(dropped)
+        print(f"[couverture] {len(dropped)} match(s) écartés (ligue sans ancre sharp) : "
+              + ", ".join(f"{k}×{v}" for k, v in _c.most_common(10)))
+    return kept
+
+
 WC_NOTE = (
     "\n\nCONTEXTE COUPE DU MONDE — à INTÉGRER à l'analyse (bloc « CONTEXTE COUPE DU MONDE » ci-dessus) :\n"
     "• ENJEU / QUALIFICATION : sers-toi du CLASSEMENT DU GROUPE + recherche web pour établir l'enjeu réel "
@@ -812,6 +845,7 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         n_ok += 1
         if args.only_big:
             top = [m for m in top if _is_big_match(m.get("comp") or m.get("circuit") or "")]
+        top = _covered_matches(top)                  # ← ne programmer QUE des ligues ancrables (demande user)
         # top `_top` du slate JOUR + top `_top` du slate NUIT (pool trié par importance)
         _day = [m for m in top if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)][:_top]
         _night = [m for m in top if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)][:_top]
@@ -2692,6 +2726,8 @@ async def main():
                 top = [m for m in top if _q in (m.get("name") or "").lower()]
             if args.from_programme:   # ne garder QUE les matchs du programme du jour (matin)
                 top = [m for m in top if str(m.get("id")) in (_prog_ids or set())]
+            if not args.match:        # filet : ligues ancrables seulement (--match = override explicite, épargné)
+                top = _covered_matches(top)
             if args.ko_from is not None and args.ko_to is not None:   # SLATE : bande de coup d'envoi (heure belge)
                 _before = len(top)
                 top = [m for m in top if _in_ko_band(m.get("start") or "", args.ko_from, args.ko_to)]
