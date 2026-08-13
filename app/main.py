@@ -17,8 +17,8 @@ from app import __version__
 from app import fragcache
 from app.dependencies import get_provider, get_rankings, get_unibet, shutdown_provider
 from app.routers import (
-    analysis, auth, basket, billing, flashscore, foot, livescore, matches, players, sportradar,
-    statistics, unibet, web,
+    auth, billing, flashscore, foot, livescore, sportradar,
+    unibet, web,
 )
 from app import accounts, branding, paywall
 
@@ -33,11 +33,8 @@ async def _panel_warmer():
     await asyncio.sleep(8)   # laisse l'app démarrer
     panels = [
         ("panel/home", lambda: web.home(provider=get_provider(), frag=1)),
-        ("panel/tennis", lambda: web.matches_page(
-            provider=get_provider(), rankings=get_rankings(), unibet=get_unibet(), frag=1)),
         ("panel/directs", lambda: web.directs_page(unibet=get_unibet(), frag=1)),
         ("panel/foot", lambda: foot.foot_page(frag=1)),
-        ("panel/basket", lambda: basket.basket_page(frag=1)),
         # stats gardées chaudes (défaut « tout ») : évite qu'un règlement/scan laisse le cache périmé
         # jusqu'à 20 s (les stats affichées suivent les changements en ≤15 s, cohérentes frag=0/frag=1).
         ("panel/stats:all", lambda: web.stats_page(frag=1)),
@@ -557,11 +554,6 @@ async def _no_cache_html(request, call_next):
         resp.headers["Cache-Control"] = "public, max-age=604800, immutable"   # 7 jours
     return resp
 
-app.include_router(matches.router)
-app.include_router(statistics.router)
-app.include_router(players.router)
-app.include_router(analysis.router)
-app.include_router(basket.router)
 app.include_router(foot.router)
 app.include_router(unibet.router)
 app.include_router(flashscore.router)

@@ -3,25 +3,14 @@
 import asyncio
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import accounts, analyses, ace_markets, fragcache, match_analysis, match_select, serve_return, set_markets, tendencies, tracking, web, window
-from app.config import get_settings
-from app.analysis import build_analysis, remove_vig
-from app.analysis import _match_winner_odds
-from app.markets import (
-    DEFAULT_SERVE, calibrate_to_market, evaluate_markets, extract_market_anchors,
-    serve_win_pct,
-)
-from app.providers.unibet import _norm_name
-from app.textutil import name_tokens, names_match
-from app.dependencies import (
-    get_livescore, get_provider, get_rankings, get_unibet,
-)
-from app.routers.analysis import _gather_context
-from app.providers.rankings import RankingsProvider
-from app.providers.sofascore import ProviderError, SofaScoreProvider
+# App 100 % FOOT (tennis/basket retirés 2026-08-13) : les modules d'analyse tennis (analysis,
+# ace_markets, set_markets, tendencies, serve_return, markets tennis, rankings) ne sont plus importés.
+from app import accounts, analyses, fragcache, match_select, web
+from app.dependencies import get_provider, get_unibet
+from app.providers.sofascore import SofaScoreProvider
 from app.providers.unibet import UnibetProvider
 
 router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
@@ -257,73 +246,20 @@ async def _home_match_rows() -> list:
     return out
 
 
-async def _tennis_rows(include_background: bool = False) -> list:
-    """Rows TENNIS (à-venir/en-cours) au format `_tennis_trow`, depuis les sidecars. Extrait de
-    `_home_match_rows` pour être réutilisable par la vue mono-sport tennis de Pronos. `include_background=True`
-    (tennis EXPLICITEMENT sélectionné) force la lecture malgré le statut arrière-plan (demande user 2026-07-29)."""
-    out: list = []
-    live = await match_select.fetch_live_odds("tennis")
-    for d in analyses.list_for("tennis", include_background=include_background):
-        st = analyses.status_of(d)
-        # STATUT + HEURE pilotés par UNIBET (le sidecar peut être périmé -> faux « live »)
-        lf0 = web.live_fields(match_select.live_state_for("tennis", d.get("home"), d.get("away")), "tennis")
-        st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st,
-                                             bool(lf0.get("score")), start_iso=d.get("start"))
-        if st not in ("notstarted", "inprogress"):
-            continue
-        dt = usdt or d.get("_start_dt")
-        tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
-        fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))
-        o1, o2 = (fresh[0], fresh[2]) if fresh else (d.get("o1"), d.get("o2"))
-        sel, odds = analyses.pick_parts(d.get("pick") or "")
-        perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
-        bars = web.analyst_bars(o1, None, o2, analyses.votes_pct(d))
-        r = {"id": d.get("id"), "tour": tour, "home": d.get("home", ""), "away": d.get("away", ""),
-             "status": st, "time": web.fmt_local(usdt or d.get("start"), with_date=True),
-             "score": "", "hp": None, "implied": None, "votes": None, "oh": o1, "oa": o2,
-             "start_ts": dt.timestamp() if dt else None, "female": False,
-             "perle": perle, "perle2": None, "pick_kind": "confiance"}
-        if st == "inprogress":
-            r.update(lf0)
-            if not r.get("score"):   # REPLI SofaScore si Unibet n'a pas le live
-                r.update(await match_select.fetch_sofa_live("tennis", d.get("sofa_id") or d.get("id")) or {})
-            # en cours sans score live : on ne le retire QUE s'il est RÉELLEMENT RÉGLÉ (sinon un pari live
-            # disparaîtrait entre le coup d'envoi et son règlement — même correctif que foot, user 2026-08-02).
-            if not r.get("score") and analyses.likely_finished(d) and analyses.is_settled(d):
-                continue
-        out.append({**_tennis_trow(r), **bars})
-    return out
-
-
-async def _bg_sport_rows(sp: str) -> list:
-    """Rows d'un sport en ARRIÈRE-PLAN (basket/tennis) pour la vue mono-sport de Pronos — construits À LA
-    DEMANDE (hors cache `_home_match_rows`, donc SANS impact sur l'accueil/vue « Tous »). Sert à afficher les
-    PARIS JOUÉS de ce sport quand il est sélectionné, exactement comme son combiné du jour (demande user
-    2026-07-29 : un pari à jouer basket doit apparaître dans Pronos). Simulé (hors ROI réel), inchangé."""
-    if sp == "basket":
-        from app import basket as basket_mod
-        from app.routers import basket as basket_r
-        brows, _ = await basket_r._analyst_rows(include_background=True)
-        return [basket_mod._card(r) for r in brows]
-    if sp == "tennis":
-        return await _tennis_rows(include_background=True)
-    return []
-
-
 def _past_day_cards(date_iso: str) -> list:
     """Cartes d'un JOUR PASSÉ portant un VRAI pari (simple joué figé OU combiné réglé), construites
     DIRECTEMENT depuis les sidecars filtrés par date — SANS fetch d'odds live (matchs finis -> les cotes
     stockées suffisent) ni construction des ~200 autres cartes. Chargement d'un jour ~10× plus rapide
     (demande user 2026-07-19 : chargement des jours trop lent)."""
-    from app import foot as foot_mod, basket as basket_mod
+    from app import foot as foot_mod
     out = []
 
     def _has_bet(d: dict) -> bool:
         return ((d.get("stat_bet") or {}).get("result") in ("won", "lost", "push")
                 or (d.get("combo") or {}).get("result") in ("won", "lost", "void"))
 
-    _bg = analyses.background_sports()                     # tennis/basket en arrière-plan -> jamais sur la page des paris
-    for sport in ("foot", "basket", "tennis"):
+    _bg = analyses.background_sports()                     # sports en arrière-plan -> jamais sur la page des paris
+    for sport in ("foot",):                                # app 100 % FOOT (tennis/basket retirés 2026-08-13)
         if sport in _bg:                                  # sport simulé -> pas dans les « Résultats du jour »
             continue
         for d in analyses.iter_meta(sport):               # brut (pas de retained_bet) : filtrage strict ci-dessous
@@ -354,25 +290,6 @@ def _past_day_cards(date_iso: str) -> list:
                     "pick": None, "start": ts, "votes": analyses.votes_pct(d), "perle": None,
                     "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True,
                     "status": "finished", "res_badge": _bdg, "res_score": _sco}))
-            elif sport == "basket":
-                oh, oa = d.get("o1"), d.get("o2")
-                imp = basket_mod._devig(oh, oa) if (oh and oa) else None
-                out.append(basket_mod._card({
-                    "id": d.get("sofa_id") or d.get("id"), "league": (d.get("comp") or "").upper(),
-                    "home": d.get("home", ""), "away": d.get("away", ""), "model_home": None,
-                    "margin": None, "oh": oh, "oa": oa, "imp_home": imp[0] if imp else None,
-                    "pick": None, "start": ts, "votes": analyses.votes_pct(d), "perle": None,
-                    "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True,
-                    "status": "finished", "res_badge": _bdg, "res_score": _sco}))
-            else:                                          # tennis
-                tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
-                r = {"id": d.get("id"), "tour": tour, "home": d.get("home", ""), "away": d.get("away", ""),
-                     "status": "finished", "time": web.fmt_local(d.get("start"), with_date=True),
-                     "score": _sco or "", "hp": None, "implied": None, "votes": None,
-                     "oh": d.get("o1"), "oa": d.get("o2"), "start_ts": ts, "female": False,
-                     "perle": None, "perle2": None, "pick_kind": "confiance"}
-                out.append({**_tennis_trow(r),
-                            **web.analyst_bars(d.get("o1"), None, d.get("o2"), analyses.votes_pct(d))})
             if out:                                        # bord gauche coloré selon le résultat
                 out[-1]["_state"] = _cstate
     for _c in out:                                         # déjà filtrées bet-only -> évite un re-check meta
@@ -389,7 +306,7 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
     "" = tous. Caché par (date, sport) — passé ~immuable TTL long ; aujourd'hui TTL court."""
     import datetime as _dt
     today_iso = web._sport_today().isoformat()   # jour sportif 06h→06h
-    sp = sport if sport in ("foot", "tennis", "basket") else None
+    sp = sport if sport in ("foot",) else None    # app 100 % FOOT (tennis/basket retirés 2026-08-13)
     is_past = date < today_iso
     ckey = f"panel/jour/{date}/{sp or 'all'}"
     cached = fragcache.get(ckey)
@@ -401,11 +318,6 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
         # (_today_zones trie à-venir → live) jusqu'à son règlement. Les abstentions live sont déjà exclues en
         # amont par `list_for` (donc absentes de _home_match_rows) -> seuls les VRAIS paris joués live passent.
         rows = list(await _home_match_rows())
-        # SPORT EN ARRIÈRE-PLAN (basket/tennis) EXPLICITEMENT sélectionné : ses paris joués ne passent pas
-        # _home_match_rows (list_for=[]) -> on les construit à la demande pour CETTE vue mono-sport, comme son
-        # combiné du jour (demande user 2026-07-29). Jamais en vue « Tous » (sp=None) -> politique inchangée.
-        if sp in analyses.background_sports():
-            rows += list(await _bg_sport_rows(sp))
         results = _past_day_cards(today_iso)               # paris terminés d'aujourd'hui -> zone dédiée
         body = web._today_zones(rows, sp, results)[0]
         fragcache.put(ckey, body, ttl=PANEL_TTL)           # jour courant : bouge -> TTL court
@@ -813,29 +725,6 @@ async def my_bets_redirect() -> RedirectResponse:
     return RedirectResponse("/", status_code=308)
 
 
-def _tennis_fav_sub(r: dict) -> str:
-    # Barre « Bookmakers » RETIRÉE : la barre combinée « Cotes & chances » (web._pick_bars) porte
-    # désormais les cotes ET le % de chance (total 100 %). Plus de sous-ligne dédiée.
-    return ""
-
-
-def _tennis_trow(r: dict, sub: str | None = None, badge: str = "", pick: bool = False) -> dict:
-    """Dict _sport_row d'un match tennis (réutilisé par l'onglet Tennis ET Directs)."""
-    labels = ((r["home"].split() or [""])[-1], (r["away"].split() or [""])[-1])
-    # NB (audit 2026-08-10) : plus de live_won/live_lost (champs morts, jamais lus). Tennis dormant (foot-only).
-    return {"tour": r["tour"].upper(), "sport": "Tennis", "icon": "🎾",
-            "status": r["status"], "time": r.get("time") or "",
-            "score": r.get("score") or "", "server": r.get("server"),
-            "game_pts": r.get("game_pts"),
-            "home": r["home"], "away": r["away"],
-            "prob": r.get("hp"), "prob_labels": labels,
-            "sub": _tennis_fav_sub(r) if sub is None else sub, "badge": badge, "pick": pick,
-            "start_ts": r.get("start_ts"), "female": r.get("female"), "pick_kind": "confiance",
-            "perle": r.get("perle"), "perle2": r.get("perle2"),
-            "url": f'/app/match/{r["id"]}?tour={r["tour"]}',
-            **web.bars_two_way(r.get("hp"), r.get("implied"), r.get("votes"), r["home"], r["away"])}
-
-
 @router.get("/directs", response_class=HTMLResponse)
 async def directs_page(
     unibet: UnibetProvider = Depends(get_unibet),
@@ -843,9 +732,9 @@ async def directs_page(
     sport: str = "",
 ) -> HTMLResponse:
     """Matchs EN DIRECT du SPORT sélectionné (sélecteur en tête, demande user 2026-07-28) — foot par défaut."""
-    from app import basket, foot
+    from app import foot                                    # app 100 % FOOT (tennis/basket retirés 2026-08-13)
 
-    sp = sport if sport in ("foot", "tennis", "basket") else "foot"
+    sp = sport if sport in ("foot",) else "foot"
     _nudge_settle()   # ouverture Live -> pousse le règlement en arrière-plan (throttlé global, non bloquant)
     if frag:
         cached = fragcache.get(f"panel/directs/{sp}")   # cache PAR SPORT (le sélecteur recharge par sport)
@@ -893,41 +782,18 @@ async def directs_page(
             if (not lf.get("score") and analyses.likely_finished(d)
                     and not match_select.sticky_live(sport, d.get("home"), d.get("away"))):
                 continue
-            if sport == "foot":
-                o1, ox, o2 = d.get("o1"), d.get("ox"), d.get("o2")
-                out.append(foot._card({
-                    "id": sid, "status": "inprogress", "comp": d.get("comp"),
-                    "home": d.get("home", ""), "away": d.get("away", ""), "probs": None,
-                    "goals": None, "o1": o1, "ox": ox, "o2": o2,
-                    "imp": foot._devig3(o1, ox, o2) if (o1 and ox and o2) else None,
-                    "pick": None, "start": start, "votes": analyses.votes_pct(d),
-                    "perle": perle, "perle2": None, "perle_value": None,
-                    "pick_kind": "confiance", "sofa_ok": True, **lf}))
-            elif sport == "basket":
-                oh, oa = d.get("o1"), d.get("o2")
-                imp = basket._devig(oh, oa) if (oh and oa) else None
-                out.append(basket._card({
-                    "id": sid, "league": (d.get("comp") or "").upper(), "status": "inprogress",
-                    "home": d.get("home", ""), "away": d.get("away", ""), "model_home": None,
-                    "margin": None, "oh": oh, "oa": oa, "imp_home": imp[0] if imp else None,
-                    "pick": None, "start": start, "votes": analyses.votes_pct(d),
-                    "perle": perle, "perle2": None, "perle_value": None,
-                    "pick_kind": "confiance", "sofa_ok": True, **lf}))
-            else:   # tennis
-                tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
-                card = _tennis_trow({
-                    "id": d.get("id"), "tour": tour, "home": d.get("home", ""),
-                    "away": d.get("away", ""), "status": "inprogress",
-                    "time": web.fmt_local(d.get("start"), with_date=True),
-                    "hp": None, "implied": None, "votes": None,
-                    "oh": d.get("o1"), "oa": d.get("o2"), "start_ts": start,
-                    "female": False, "perle": perle, "perle2": None, "pick_kind": "confiance", **lf})
-                card.update(web.analyst_bars(d.get("o1"), None, d.get("o2"), analyses.votes_pct(d)))
-                out.append(card)
+            o1, ox, o2 = d.get("o1"), d.get("ox"), d.get("o2")
+            out.append(foot._card({
+                "id": sid, "status": "inprogress", "comp": d.get("comp"),
+                "home": d.get("home", ""), "away": d.get("away", ""), "probs": None,
+                "goals": None, "o1": o1, "ox": ox, "o2": o2,
+                "imp": foot._devig3(o1, ox, o2) if (o1 and ox and o2) else None,
+                "pick": None, "start": start, "votes": analyses.votes_pct(d),
+                "perle": perle, "perle2": None, "perle_value": None,
+                "pick_kind": "confiance", "sofa_ok": True, **lf}))
         return out
 
-    for _sp in ("tennis", "basket", "foot"):   # peuple le cache score/horloge live (1 listView/sport)
-        await match_select.fetch_live_odds(_sp)
+    await match_select.fetch_live_odds("foot")   # peuple le cache score/horloge live foot
     # Provisoires EN COURS (demande user 2026-07-10) : ils n'ont pas de sidecar (absents de list_for) ->
     # on les ajoute au Live depuis le programme (cartes _html dorées « en cours », hors ROI). Le cache
     # live est chaud (fetch_live_odds ci-dessus) -> _programme_items détecte correctement _live.
@@ -937,381 +803,8 @@ async def directs_page(
     # d'hier resté « en cours » gonflait le badge Live sans rien afficher). Réversible via PROVISOIRES_ON.
     prov_live = ([it for it in web._programme_items(set()) if it.get("_live")]
                  if analyses.PROVISOIRES_ON else [])
-    play_live = ((await _live_cards("tennis")) + (await _live_cards("basket")) + (await _live_cards("foot")))
+    play_live = await _live_cards("foot")
     body = web.render_directs(play_live, prov_live, sport=sp, frag=bool(frag))
     if frag:
         fragcache.put(f"panel/directs/{sp}", body, ttl=PANEL_TTL)
     return HTMLResponse(body)
-
-
-@router.get("/app", response_class=HTMLResponse)
-async def matches_page(
-    provider: SofaScoreProvider = Depends(get_provider),
-    rankings: RankingsProvider = Depends(get_rankings),
-    unibet: UnibetProvider = Depends(get_unibet),
-    frag: int = 0,
-):
-    """Onglet Tennis RETIRÉ (2026-07-20) : le filtre sport vit sur Pronos -> redirige vers l'accueil."""
-    return RedirectResponse("/", status_code=307)
-    # (code historique conservé mais inatteignable ; _analyst_rows tennis inline reste via _home_match_rows)
-    if frag:
-        cached = fragcache.get("panel/tennis")
-        if cached:
-            return HTMLResponse(cached)
-    # Onglet Tennis = matchs ANALYSÉS uniquement (sidecars). Court-circuite l'ancien chemin modèle.
-    # On garde les sections À venir / En cours / Terminés (statut dérivé du coup d'envoi).
-    live = await match_select.fetch_live_odds("tennis")   # cotes Unibet fraîches (1 appel, gratuit)
-    arows, a_live, a_fin = [], [], []
-    for d in analyses.list_for("tennis"):
-        st = analyses.status_of(d)
-        # STATUT + HEURE pilotés par UNIBET (le sidecar peut être périmé -> faux « live »)
-        lf0 = web.live_fields(match_select.live_state_for("tennis", d.get("home"), d.get("away")), "tennis")
-        match_select.note_live("tennis", d.get("home"), d.get("away"), bool(lf0.get("score")))
-        has_sc = (bool(lf0.get("score")) or (not analyses.is_settled(d)
-                  and match_select.sticky_live("tennis", d.get("home"), d.get("away"))))
-        st, usdt = match_select.fresh_status("tennis", d.get("home"), d.get("away"), st, has_sc)
-        dt = usdt or d.get("_start_dt")
-        tour = (d.get("circuit") or ("WTA" if (d.get("comp") or "").upper() == "WTA" else "ATP")).lower()
-        fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))
-        o1, o2 = (fresh[0], fresh[2]) if fresh else (d.get("o1"), d.get("o2"))
-        sel, odds = analyses.pick_parts(d.get("pick") or "")
-        perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
-        bars = web.analyst_bars(o1, None, o2,
-                                analyses.votes_pct(d) or _cached_votes(provider, d.get("id")))
-        r = {
-            "id": d.get("id"), "tour": tour, "home": d.get("home", ""), "away": d.get("away", ""),
-            "status": st, "time": web.fmt_local(usdt or d.get("start"), with_date=True),
-            "score": "", "hp": None, "implied": None, "votes": None,
-            "oh": o1, "oa": o2, "start_ts": dt.timestamp() if dt else None, "female": False,
-            "perle": perle, "perle2": None, "pick_kind": "confiance", "_bars": bars,
-        }
-        if st == "inprogress":   # score (jeux/sets) + serveur + points EN DIRECT depuis Unibet
-            r.update(lf0)
-            if not r.get("score"):   # REPLI SofaScore si Unibet n'a pas le live
-                r.update(await match_select.fetch_sofa_live("tennis", d.get("sofa_id") or d.get("id")) or {})
-            match_select.note_live("tennis", d.get("home"), d.get("away"), bool(r.get("score")))
-            # En cours SANS score live Unibet : s'il a assez tourné (likely_finished) -> Terminés ; sinon
-            # GARDÉ en « En cours ». Sticky : un score vu très récemment évite l'éviction sur un hoquet du flux.
-            if (not r.get("score") and analyses.likely_finished(d)
-                    and not match_select.sticky_live("tennis", d.get("home"), d.get("away"))):
-                st = "finished"
-                r["status"] = "finished"
-        if st == "finished":
-            bdg, sco = analyses.result_chip(d)
-            brd = analyses.result_board(d, "tennis")   # détail set-par-set (« 6-4 3-6 6-2 »)
-            card = {**_tennis_trow(r), **bars}
-            card["score"] = brd["score"] or sco or "terminé"   # score réel + détail des sets
-            card["badge"] = bdg                 # ✅/❌
-            a_fin.append(card)
-        else:
-            (a_live if st == "inprogress" else arows).append(r)
-    arows.sort(key=lambda r: r["start_ts"] or 0)
-    a_live.sort(key=lambda r: r["start_ts"] or 0)
-    # Cartes COMPLÈTES (barres + perle « à jouer ») dans chaque section ; plus de section Confiances.
-    a_up = [{**_tennis_trow(r), **r["_bars"]} for r in arows]
-    a_livec = [{**_tennis_trow(r), **r["_bars"]} for r in a_live]
-    a_intro = ('🎾 <b>Tennis</b> — matchs analysés par l\'analyste. Touchez un match pour '
-               'l\'analyse complète (Verdict, paris classés, faits, sources).')
-    a_body = web.render_sport_matches("tennis", "Matchs", [], a_livec, a_up, a_fin,
-                                      intro=a_intro, frag=bool(frag), confidences=[])
-    if frag:
-        fragcache.put("panel/tennis", a_body, ttl=PANEL_TTL)
-    return HTMLResponse(a_body)
-
-
-@router.get("/app/match/{match_id}", response_class=HTMLResponse)
-async def match_detail(
-    match_id: int,
-    tour: str = Query("atp"),
-    frag: int = 0,
-    pk: str = Query(""),   # type de pari de la carte tapée : 'value' -> analyse sur la perle value
-    provider: SofaScoreProvider = Depends(get_provider),
-    unibet: UnibetProvider = Depends(get_unibet),
-    rankings: RankingsProvider = Depends(get_rankings),
-) -> HTMLResponse:
-    tour = "wta" if tour == "wta" else "atp"
-    if frag:
-        cached = fragcache.get(f"tennis/{match_id}/{pk}")
-        if cached:
-            return HTMLResponse(cached)
-    # Match ANALYSÉ -> fiche 100 % hors-ligne (sidecar + analyse), AUCUN appel SofaScore : même
-    # renderer que foot/basket. (Une fois analysé, plus aucune raison d'appeler SofaScore.)
-    amd = analyses.meta("tennis", match_id)
-    if amd:
-        live = await match_select.fetch_live_odds("tennis")   # cotes Unibet fraîches
-        fresh = match_select.live_odds_for(live, amd.get("home"), amd.get("away"))
-        o1, o2 = (fresh[0], fresh[2]) if fresh else (amd.get("o1"), amd.get("o2"))
-        votes = analyses.votes_pct(amd) or _cached_votes(provider, match_id)
-        ctx = {
-            "home": amd.get("home", ""), "away": amd.get("away", ""),
-            "home_flag": "", "away_flag": "", "comp": amd.get("comp") or "Tennis",
-            "when": web.fmt_local(amd.get("start"), with_date=True),
-            "analysis": analyses.render("tennis", match_id, card_details=bool(frag)) or "",
-            "streaks": amd.get("streaks"), "h2h": amd.get("h2h"),
-            "form_html": "", "extra": "", "factors_html": "", "recos": "", "forms": None,
-            "prediction": web.analyst_bars(o1, None, o2, votes, home=amd.get("home"), away=amd.get("away")),
-            "odds_cells": [(amd.get("home", ""), o1), (amd.get("away", ""), o2)] if (o1 and o2) else None,
-            "back_url": "/app", "back_label": "Tennis", "sport_key": "tennis",
-            "links": analyses.links_html("tennis", match_id),
-            "odds_move": web.odds_move_for("tennis", amd.get("home", ""), amd.get("away", "")),
-        }
-        html = web.render_sport_match_detail(ctx, frag=bool(frag))
-        if frag:
-            fragcache.put(f"tennis/{match_id}/{pk}", html)
-        return HTMLResponse(html)
-    try:
-        match = await provider.get_match(tour, match_id)
-    except ProviderError:
-        # SofaScore en pause : en accordéon, on montre quand même la reco (store) + TOUS les
-        # paris Unibet (qui ne dépendent pas de SofaScore). Sinon, détail léger pleine page.
-        if frag:
-            return await _tennis_light_frag(match_id, tour, unibet)
-        return await _light_detail(match_id, tour, unibet, rankings, frag=bool(frag))
-
-    hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
-    sr_home, sr_away = serve_return.ratings_for_match(match)
-    analysis = build_analysis(
-        match=match, home_matches=hm or [], away_matches=am or [],
-        home_stats=hs, away_stats=as_,
-        home_wins_h2h=h2h.home_wins if h2h else None,
-        away_wins_h2h=h2h.away_wins if h2h else None,
-        unibet=odds,
-        sr_home=sr_home, sr_away=sr_away,
-    )
-    winner_odds = _match_winner_odds(odds, match) if (odds and odds.matched) else (None, None)
-    best_of = 5 if tour == "atp" else 3
-    fav_prob = max(analysis.model_home_probability or 0.5, analysis.model_away_probability or 0.5)
-    opp_ret_home, opp_ret_away = serve_return.return_rates_for_match(match)
-    line_home, line_away = (_ace_lines(odds, match) if (odds and odds.matched) else (None, None))
-    aces = tendencies.for_match(
-        match, best_of, fav_prob, opp_ret_home=opp_ret_home, opp_ret_away=opp_ret_away,
-        line_home=line_home, line_away=line_away)
-    home_form = _recent_form(hm or [], match.home.id)
-    away_form = _recent_form(am or [], match.away.id)
-    h2h_rec = ({"home": h2h.home_wins, "away": h2h.away_wins} if h2h else None)
-    score = (web.fmt_score(match.home_score, match.away_score)
-             if match.status in ("inprogress", "finished") else "")
-    votes = None
-    try:   # pronostics des fans (provider caché, tolérant aux erreurs)
-        v = await provider.get_votes(match_id)
-        if v.home_percent is not None:
-            votes = (v.home_percent, v.away_percent)
-    except ProviderError:
-        pass
-    # « 🎯 Paris conseillés » depuis le SUIVI (cohérent avec la carte), comme foot/basket.
-    recos = ""
-    analysis_html = ""
-    if frag:
-        rec = tracking.load().get(str(match_id))
-        # COHÉRENCE carte/analyse : si la carte tapée est une VALUE, l'analyse parle de la perle
-        # VALUE (sinon de la confiance) -> plus de « l'analyse joue un autre pari que la carte ».
-        pv = rec.get("perle_value") if rec else None
-        perle = (pv if (pk == "value" and isinstance(pv, dict) and pv.get("selection"))
-                 else (rec.get("perle") if rec else None))
-        if rec:
-            recos = web.perle_advice(perle)   # 🎯 Paris conseillés = la perle (tous marchés)
-        # 🧠 Analyse rédigée (gratuite, ou prose Claude si une clé API est configurée)
-        ground = (analysis.ground_type or "").lower()
-        surface = ("terre" if "clay" in ground else "gazon" if "grass" in ground
-                   else "dur" if "hard" in ground else None)
-        # COHÉRENCE carte/analyse : on prend la proba du SUIVI (celle des barres de la carte),
-        # pas le recalcul à la volée -> plus de « 53/47 sur la carte, 50/50 dans le texte ».
-        mh = (rec or {}).get("model_home_prob")
-        if mh is None:
-            mh = analysis.model_home_probability or 0.5
-        fav_home = mh >= 0.5
-        fav_prob_disp = max(mh, 1 - mh)
-        fform = home_form if fav_home else away_form
-        surf_edge = any(f.name == "surface" and ((f.home if fav_home else f.away) or 0) >= 0.55
-                        for f in (analysis.factors or []))
-        brief = {
-            "sport": "tennis", "home": match.home.name, "away": match.away.name,
-            "favorite": match.home.name if fav_home else match.away.name,
-            "underdog": match.away.name if fav_home else match.home.name,
-            "fav_prob": fav_prob_disp,
-            "fav_odds": winner_odds[0] if fav_home else winner_odds[1],
-            "confidence": analysis.confidence, "perle": perle, "value": None,
-            "surface": surface, "surface_edge": surf_edge,
-            "fav_rank": (match.home.ranking if fav_home else match.away.ranking),
-            "dog_rank": (match.away.ranking if fav_home else match.home.ranking),
-            "fav_form_wins": sum(1 for x in (fform or []) if x.get("win")),
-            "fav_form_n": len(fform or []),
-            "h2h_fav": (h2h_rec or {}).get("home" if fav_home else "away"),
-            "h2h_opp": (h2h_rec or {}).get("away" if fav_home else "home"),
-            "public_fav": ((votes[0] if fav_home else votes[1]) / 100 if votes else None),
-            "match_id": match_id,
-        }
-        # Priorité à l'analyse « analyste » pré-générée (Claude headless) si elle existe.
-        deep = analyses.render("tennis", match_id, card_details=True)   # frag = dépli de carte -> épuré
-        analysis_html = deep or await match_analysis.write_analysis(brief, get_settings())
-    # Marchés Unibet UTILISÉS pour la perle (snapshot) mais plus AFFICHÉS dans la fiche.
-    markets_html = ""
-    html = web.render_match_detail(
-        analysis, winner_odds, aces=aces, tour=tour,
-        home_form=home_form, away_form=away_form, h2h=h2h_rec, score=score, votes=votes,
-        frag=bool(frag), recos=recos, markets_html=markets_html)
-    if frag:
-        html = analysis_html + html      # 🧠 l'analyse rédigée en tête de l'accordéon
-        fragcache.put(f"tennis/{match_id}/{pk}", html)
-    return HTMLResponse(html)
-
-
-def _ace_lines(odds, match) -> tuple[float | None, float | None]:
-    """Lignes Unibet 'Nombre total d'aces - <joueur>' (Plus de), par joueur."""
-    home_tokens = _norm_name(match.home.name)
-    lh = la = None
-    for mk in odds.markets:
-        label = mk.label or ""
-        lab = label.lower()
-        if "aces" not in lab or not ("nombre" in lab or " - " in label):
-            continue
-        over = next((o for o in mk.outcomes if "plus" in (o.label or "").lower()), None)
-        if not over or over.line is None:
-            continue
-        if _norm_name(label) & home_tokens:
-            lh = over.line
-        else:
-            la = over.line
-    return lh, la
-
-
-def _recent_form(matches: list, player_id: int | None, n: int = 6) -> list[dict]:
-    """Derniers résultats (V/D) d'un joueur depuis son historique (récent -> ancien)."""
-    if player_id is None:
-        return []
-    out = []
-    for m in matches:
-        if m.status != "finished" or m.winner not in ("home", "away"):
-            continue
-        if m.home.id == player_id:
-            side, opp = "home", m.away
-        elif m.away.id == player_id:
-            side, opp = "away", m.home
-        else:
-            continue
-        out.append({"win": m.winner == side, "opp": opp.name or ""})
-        if len(out) >= n:
-            break
-    return out
-
-
-def _vb_row(vb) -> dict:
-    return {"market": "Vainqueur", "selection": vb.player, "odds": vb.odds,
-            "model_p": vb.model_probability, "implied_p": vb.implied_probability,
-            "edge": vb.edge, "value": vb.is_value, "line": None}
-
-
-def _edge_row(me) -> dict:
-    return {"market": me.market, "selection": me.selection, "odds": me.odds,
-            "model_p": me.model_probability, "implied_p": me.implied_probability,
-            "edge": me.edge, "value": me.is_value, "line": me.line}
-
-
-@router.get("/app/match/{match_id}/paris", response_class=HTMLResponse)
-async def markets_page(
-    match_id: int,
-    tour: str = Query("atp"),
-    provider: SofaScoreProvider = Depends(get_provider),
-    unibet: UnibetProvider = Depends(get_unibet),
-) -> HTMLResponse:
-    """Outil 'Tous les paris' : modèle vs book sur tous les marchés Unibet du match."""
-    tour = "wta" if tour == "wta" else "atp"
-    try:
-        match = await provider.get_match(tour, match_id)
-    except ProviderError:
-        return HTMLResponse(web.layout(
-            "Tous les paris", "tennis",
-            '<div class="banner">Analyse momentanément indisponible (SofaScore bloqué).</div>'
-            '<a class="dim" href="/app">← Retour</a>'))
-
-    hm, am, hs, as_, h2h, odds = await _gather_context(match, tour, provider, unibet)
-    sr_home, sr_away = serve_return.ratings_for_match(match)
-    analysis = build_analysis(
-        match=match, home_matches=hm or [], away_matches=am or [],
-        home_stats=hs, away_stats=as_,
-        home_wins_h2h=h2h.home_wins if h2h else None,
-        away_wins_h2h=h2h.away_wins if h2h else None,
-        unibet=odds,
-        sr_home=sr_home, sr_away=sr_away,
-    )
-    odds_matched = bool(odds and odds.matched)
-    winner_rows, ace_rows, set_rows, sim_rows = [], [], [], []
-    if odds_matched:
-        best_of = 5 if tour == "atp" else 3
-        winner_rows = [_vb_row(vb) for vb in analysis.value_bets]
-
-        # Sets (au moins un set / handicap ±2.5) : dérivés de la proba de vainqueur, calibrés
-        set_rows = [_edge_row(me) for me in set_markets.evaluate(
-            match, odds, best_of,
-            analysis.model_home_probability, analysis.model_away_probability)]
-
-        # Aces : tendances spécifiques à la surface du match
-        store = tendencies.load_cached()
-        fav_prob = max(analysis.model_home_probability or 0.5,
-                       analysis.model_away_probability or 0.5)
-        rh = tendencies.ace_rate(store.get(str(match.home.id)), match.ground_type)
-        ra = tendencies.ace_rate(store.get(str(match.away.id)), match.ground_type)
-        ace_rows = [_edge_row(me) for me in
-                    ace_markets.evaluate(match, odds, best_of, rh, ra, fav_prob)]
-
-        # Simulateur (jeux/sets/breaks…), calé sur le marché — comme /analysis/markets
-        levels = [v for v in (serve_win_pct(hs), serve_win_pct(as_)) if v is not None]
-        serve_level = sum(levels) / len(levels) if levels else DEFAULT_SERVE[tour]
-        home_tokens = _norm_name(match.home.name)
-        mkt_win, games_line, games_over = extract_market_anchors(odds, home_tokens)
-        model_p = analysis.model_home_probability
-        if mkt_win is not None and model_p is not None:
-            target_win = 0.7 * mkt_win + 0.3 * model_p
-        else:
-            target_win = mkt_win if mkt_win is not None else (model_p or 0.5)
-        sim = calibrate_to_market(target_win, games_line, games_over, serve_level,
-                                  best_of, seed=match_id)
-        sim_edges = sorted(evaluate_markets(match, odds, sim),
-                           key=lambda e: abs(e.edge or 0), reverse=True)
-        sim_rows = [_edge_row(me) for me in sim_edges[:15]]   # top 15 par |écart|
-
-    return HTMLResponse(web.render_markets(
-        match, winner_rows, ace_rows, sim_rows, odds_matched, tour=tour,
-        set_rows=set_rows))
-
-
-async def _tennis_light_frag(match_id, tour, unibet) -> HTMLResponse:
-    """Accordéon tennis quand SofaScore est en pause : reco (depuis le suivi) + TOUS les paris
-    Unibet (qui ne dépendent pas de SofaScore). Plus de « analyse indisponible » sec."""
-    rec = tracking.load().get(str(match_id)) or {}
-    parts = []
-    if rec:
-        parts.append(web.perle_advice(rec.get("perle")))   # 🎯 la perle (depuis le suivi)
-    parts.append('<div class="banner">Stats détaillées (forme, face-à-face, facteurs) '
-                 'momentanément indisponibles — source en pause. La prédiction (carte) reste '
-                 'à jour.</div>')
-    return HTMLResponse("".join(parts) or '<div class="dim">Analyse indisponible pour le moment.</div>')
-
-
-async def _light_detail(match_id, tour, unibet, rankings, frag: bool = False) -> HTMLResponse:
-    """Détail réduit quand SofaScore bloque : favori par classement + cotes Unibet."""
-    ls = get_livescore()
-    match = None
-    try:
-        for m in await ls.get_matches(tour):
-            if m.id == match_id:
-                match = m
-                break
-    except Exception:
-        match = None
-    if match is None:
-        msg = ('<div class="banner">Analyse momentanément indisponible '
-               '(SofaScore bloqué et match introuvable côté secours).</div>')
-        return HTMLResponse(msg if frag else web.layout(
-            "Indisponible", "tennis", msg + '<a class="dim" href="/app">← Retour</a>'))
-    match.home.ranking = await rankings.rank(tour, match.home.name)
-    match.away.ranking = await rankings.rank(tour, match.away.name)
-    odds = await unibet.find_odds(match)
-    analysis = build_analysis(match, [], [], None, None, None, None, odds)
-    winner_odds = _match_winner_odds(odds, match) if (odds and odds.matched) else (None, None)
-    note = ('<div class="banner">⚠️ SofaScore indisponible : analyse réduite (favori '
-            'par classement + cotes). Stats/forme/h2h reviendront dès le rétablissement.</div>')
-    html = web.render_match_detail(analysis, winner_odds, frag=frag)
-    if frag:
-        return HTMLResponse(note + html)
-    return HTMLResponse(html.replace("</h1>", "</h1>" + note, 1))
