@@ -20,17 +20,11 @@ try:
 except (AttributeError, ValueError):  # pragma: no cover
     pass
 
-import build_basket_elo  # noqa: E402
-import build_foot_elo  # noqa: E402
-import build_serve_return  # noqa: E402
-import build_tendencies  # noqa: E402
+import build_foot_elo  # noqa: E402   # (tennis/basket retirés 2026-08-13 : app 100 % foot)
 
 
 def main():
-    steps = (("tendances d'aces", build_tendencies.main),
-             ("domination service/retour", build_serve_return.main),
-             ("Elo d'équipe basket (WNBA)", build_basket_elo.main),
-             ("Elo des sélections (foot)", build_foot_elo.main))
+    steps = (("Elo des sélections (foot)", build_foot_elo.main),)
     for name, fn in steps:
         print(f"\n========== {name} ==========")
         try:
