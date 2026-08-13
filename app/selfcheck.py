@@ -389,7 +389,8 @@ def _check_data_completeness(rows) -> dict:
     if not traced:
         return {"key": "data_completeness", "level": "ok",
                 "title": "Complétude des données d'analyse",
-                "detail": "aucune fiche tracée (traçage forward-only, s'active aux prochains scans)."}
+                "detail": "aucune fiche tracée (traçage forward-only, s'active aux prochains scans).",
+                "items": []}
     zero = [d for d in traced if d.get("data_score", 0) == 0]
     n, nz = len(traced), len(zero)
     lvl = "warn" if nz >= 3 else ("info" if nz else "ok")

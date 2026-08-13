@@ -1368,17 +1368,11 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # blessés, H2H, xG, météo — la source n°2 de la méthodo quand SofaScore est bloqué.
     src_prov: dict = {}   # traçabilité COMPLÉTUDE : sources multi ayant réellement répondu -> sidecar
     alt = await sources.extras(client, sport, match, prov=src_prov)
-    # DONNÉES JOUEURS (basket) : moyennes saison + forme des joueurs cités dans les PROPS -> parier
-    # les props (points/rebonds/passes…) avec des chiffres. Joueurs lus dans `participant` des marchés.
+    # DONNÉES JOUEURS FOOT : moyennes saison + forme des buteurs/joueurs cités dans les PROPS -> parier
+    # les props (buteur/tirs…) avec des chiffres. Joueurs lus dans `participant` des marchés.
+    # (Bloc props BASKET retiré 2026-08-13 — app 100 % FOOT.)
     pblock = ""
-    if sport == "basket":
-        players = [o.get("participant") for b in bo.get("betOffers", []) or []
-                   if "joueur" in ((b.get("criterion") or {}).get("label") or "").lower()
-                   for o in (b.get("outcomes") or []) if o.get("participant")]
-        if players:
-            from app import player_stats
-            pblock = await asyncio.to_thread(player_stats.props_block, players)
-    elif sport == "foot":
+    if sport == "foot":
         teams = {home.lower(), away.lower()}
         players = [o.get("participant") for b in bo.get("betOffers", []) or []
                    if any(k in ((b.get("criterion") or {}).get("label") or "").lower()
