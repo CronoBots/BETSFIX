@@ -30,9 +30,12 @@ import urllib.request
 from app.sources import _deacc_low, _tok   # normalisation accents + tokenisation robuste (FR->EN)
 
 _BASE = "https://api.the-odds-api.com/v4"
-_REGIONS = "eu"                      # région contenant Pinnacle (marge faible)
+_REGIONS = "eu"                      # région contenant les books sharp (Pinnacle, Betfair Exchange…)
 _MARKETS = "h2h,totals"              # 1X2 + totaux buts = 2 crédits/appel
-_BOOK = "pinnacle"                   # book sharp ciblé (1 seul -> payload léger)
+# On récupère TOUS les books eu (même coût : crédits = marchés × régions, INDÉPENDANT du nb de books) pour
+# MAXIMISER la couverture : un match que Pinnacle ne cote pas est souvent coté ailleurs. Préférence sharp :
+# Pinnacle -> Betfair Exchange -> CONSENSUS médian dé-viggé de tous les books (repli robuste).
+_SHARP_BOOKS = ("pinnacle", "betfair_ex")
 _CACHE_DIR = os.path.join("data", "sharp_odds_cache")
 _TTL = 18 * 3600                     # cache par ligue : 18 h -> 1 SEUL fetch/ligue/jour (matin ET soir le partagent)
 _SOFT_FLOOR = 15                     # sous ce reste de crédits, on ARRÊTE de fetcher (garde-fou anti-overage)
@@ -218,9 +221,9 @@ def _save_quota() -> None:
 
 
 def _fetch_league(sport_key: str) -> list | None:
-    """Toutes les cotes Pinnacle (h2h+totals) d'une ligue. Cache fichier par ligue (TTL 12 h) -> 1 appel =
-    2 crédits, partagé entre matchs de la même ligue ET entre scans. None si panne. Respecte un plancher de
-    crédits (arrêt anti-overage)."""
+    """Toutes les cotes (h2h+totals) d'une ligue, TOUS books eu confondus. Cache fichier par ligue (TTL 18 h)
+    -> 1 appel = 2 crédits, partagé entre matchs de la même ligue ET entre scans. None si panne. Respecte un
+    plancher de crédits (arrêt anti-overage)."""
     global _last_status, _last_remaining
     path = os.path.join(_CACHE_DIR, f"{sport_key}.json")
     try:                                                          # cache frais ?
@@ -238,8 +241,7 @@ def _fetch_league(sport_key: str) -> list | None:
         _last_status = f"quota bas ({_last_remaining}) — fetch suspendu (repli garde-fou)"
         return None
     url = (f"{_BASE}/sports/{sport_key}/odds/?" + urllib.parse.urlencode(
-        {"apiKey": key, "regions": _REGIONS, "markets": _MARKETS,
-         "bookmakers": _BOOK, "oddsFormat": "decimal"}))
+        {"apiKey": key, "regions": _REGIONS, "markets": _MARKETS, "oddsFormat": "decimal"}))
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=15) as r:
@@ -270,44 +272,90 @@ def _fetch_league(sport_key: str) -> list | None:
         return None
 
 
-def _find_event(events: list, home: str, away: str) -> dict | None:
-    """Évènement Pinnacle correspondant à NOTRE home/away, par recouvrement de jetons (FR->EN géré par
-    _tok : Unibet en FR, The Odds API en EN). Exige ≥1 jeton fort de CHAQUE côté. None sinon."""
+def _parse_iso(s: str | None) -> float | None:
+    """Horodatage ISO -> epoch (s). Gère le suffixe 'Z' et le naïf (supposé UTC). None si illisible."""
+    if not s:
+        return None
+    try:
+        from datetime import datetime, timezone
+        dt = datetime.fromisoformat(str(s).strip().replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+    except Exception:
+        return None
+
+
+def _find_event(events: list, home: str, away: str, ko: str | None = None) -> dict | None:
+    """Évènement correspondant à NOTRE home/away, par recouvrement de jetons (_tok gère FR->EN). Résolution
+    FORTE = ≥1 jeton de CHAQUE côté (bestsc≥2). REPLI par COUP D'ENVOI (si `ko` fourni) : quand un seul côté
+    matche (ex. translittération arabe « Al Qadisiya » vs « Al-Qadsiah »), on prend l'évènement de la ligue
+    dont le coup d'envoi est le plus proche (fenêtre ±12 h) — dans une ligue, une équipe ne joue qu'une fois,
+    donc c'est sûr. None si rien."""
     th, ta = _tok(home), _tok(away)
     if not th or not ta:
         return None
+    ko_ts = _parse_iso(ko)
     best, bestsc = None, 0
+    fb_best, fb_gap = None, None                              # repli coup d'envoi (1 seul côté + KO proche)
     for ev in events or []:
         eh, ea = _tok(ev.get("home_team", "")), _tok(ev.get("away_team", ""))
-        # même orientation (home=home) OU inversée -> on prend le max, mais on garde l'orientation Pinnacle
         direct = len(th & eh) + len(ta & ea)
         swap = len(th & ea) + len(ta & eh)
         sc = max(direct, swap)
         if sc > bestsc and (len(th & eh) or len(th & ea)) and (len(ta & ea) or len(ta & eh)):
             best, bestsc = ev, sc
-    return best if bestsc >= 2 else None
+        if ko_ts is not None and (th & eh or th & ea or ta & ea or ta & eh):   # ≥1 côté matche
+            ev_ts = _parse_iso(ev.get("commence_time"))
+            if ev_ts is not None:
+                gap = abs(ev_ts - ko_ts)
+                if gap <= 12 * 3600 and (fb_gap is None or gap < fb_gap):
+                    fb_best, fb_gap = ev, gap
+    return best if bestsc >= 2 else fb_best
 
 
-def _pinnacle_markets(ev: dict) -> dict:
-    """{market_key: [outcomes]} pour le book Pinnacle d'un évènement."""
-    for bk in ev.get("bookmakers") or []:
-        if bk.get("key") == _BOOK:
-            return {m.get("key"): (m.get("outcomes") or []) for m in bk.get("markets") or []}
-    return {}
+def _market_outcomes(ev: dict, market_key: str) -> list:
+    """Outcomes d'un marché en préférant le book le plus SHARP : Pinnacle, sinon Betfair Exchange, sinon
+    CONSENSUS = médiane des prix par issue (nom, ligne) sur TOUS les books eu. Maximise la couverture (un
+    match non coté par Pinnacle l'est souvent ailleurs) sans surcoût. [] si aucun book ne cote ce marché."""
+    books = ev.get("bookmakers") or []
+
+    def _book(bk_key):
+        for bk in books:
+            if bk.get("key") == bk_key:
+                for m in bk.get("markets") or []:
+                    if m.get("key") == market_key:
+                        return m.get("outcomes") or []
+        return None
+    for bk_key in _SHARP_BOOKS:                              # 1) book sharp direct si présent
+        o = _book(bk_key)
+        if o:
+            return o
+    from statistics import median                            # 2) consensus médian dé-viggé plus bas
+    agg: dict = {}
+    for bk in books:
+        for m in bk.get("markets") or []:
+            if m.get("key") != market_key:
+                continue
+            for o in m.get("outcomes") or []:
+                if o.get("price"):
+                    agg.setdefault((o.get("name"), o.get("point")), []).append(o["price"])
+    return [{"name": k[0], "point": k[1], "price": round(median(v), 3)} for k, v in agg.items()]
 
 
-def sharp_probs(home: str, away: str, sport: str, comp: str = "") -> dict | None:
-    """Probas 1X2 de-viggées (marge retirée) via Pinnacle/The Odds API, alignées sur NOTRE home/away.
-    {home, away, draw, margin}. None si sport≠foot, ligue non mappée, ou match/cote introuvable."""
+def sharp_probs(home: str, away: str, sport: str, comp: str = "", ko: str | None = None) -> dict | None:
+    """Probas 1X2 de-viggées (marge retirée) via le book le plus sharp de The Odds API (Pinnacle -> Betfair
+    -> consensus), alignées sur NOTRE home/away. `ko` = coup d'envoi (repli de résolution). {home, away,
+    draw, margin}. None si sport≠foot, ligue non mappée, ou match/cote introuvable."""
     if sport != "foot" or not configured():
         return None
     sk = _sport_key_for(comp)
     if not sk:
         return None
-    ev = _find_event(_fetch_league(sk) or [], home, away)
+    ev = _find_event(_fetch_league(sk) or [], home, away, ko)
     if not ev:
         return None
-    outs = _pinnacle_markets(ev).get("h2h") or []
+    outs = _market_outcomes(ev, "h2h")
     if not outs:
         return None
     eh, ea = _tok(ev.get("home_team", "")), _tok(ev.get("away_team", ""))
@@ -339,18 +387,19 @@ def sharp_probs(home: str, away: str, sport: str, comp: str = "") -> dict | None
             "margin": round(s - 1.0, 4)}
 
 
-def sharp_markets(home: str, away: str, sport: str, comp: str = "") -> dict | None:
-    """Probas SHARP de-viggées des TOTAUX buts (Over/Under) via Pinnacle/The Odds API. Ancre value hors-1X2.
+def sharp_markets(home: str, away: str, sport: str, comp: str = "", ko: str | None = None) -> dict | None:
+    """Probas SHARP de-viggées des TOTAUX buts (Over/Under) via le book le plus sharp (Pinnacle -> Betfair ->
+    consensus). Ancre value hors-1X2. `ko` = coup d'envoi (repli de résolution).
     {"totals": {ligne: proba de DÉPASSER}, "spreads": {}}. None si introuvable."""
     if sport != "foot" or not configured():
         return None
     sk = _sport_key_for(comp)
     if not sk:
         return None
-    ev = _find_event(_fetch_league(sk) or [], home, away)
+    ev = _find_event(_fetch_league(sk) or [], home, away, ko)
     if not ev:
         return None
-    outs = _pinnacle_markets(ev).get("totals") or []
+    outs = _market_outcomes(ev, "totals")
     over = {o.get("point"): o.get("price") for o in outs if _deacc_low(o.get("name", "")).startswith("over")}
     under = {o.get("point"): o.get("price") for o in outs if _deacc_low(o.get("name", "")).startswith("under")}
     totals: dict = {}

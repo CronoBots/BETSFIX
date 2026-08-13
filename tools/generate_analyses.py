@@ -1270,11 +1270,12 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     sharp = ""
     _sharp_src = ""
     _comp = match.get("comp") or match.get("circuit") or ""
+    _ko = match.get("start") or ""                         # coup d'envoi -> résolution robuste (translittérations)
     try:
         from app import theoddsapi, pinnacle
         sp = None
         if theoddsapi.configured():                        # n°1 : Pinnacle via The Odds API (vraie API)
-            sp = await asyncio.to_thread(theoddsapi.sharp_probs, home, away, sport, _comp)
+            sp = await asyncio.to_thread(theoddsapi.sharp_probs, home, away, sport, _comp, _ko)
         if sp is None:                                     # repli : scraping Pinnacle direct (fragile)
             sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport)
         if sp is not None:
@@ -1298,7 +1299,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         from app import theoddsapi, pinnacle
         smk = None
         if theoddsapi.configured():                        # n°1 : Pinnacle via The Odds API
-            smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp)
+            smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp, _ko)
         if smk is None:                                    # repli : scraping Pinnacle direct
             smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport)
     except Exception:
