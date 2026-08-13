@@ -2257,6 +2257,7 @@ CSS = """
   .pgm-row.pgm-conf{border-left-color:#34d27b}
   .pgm-row.pgm-val{border-left-color:var(--accent)}
   .pgm-row.pgm-mont{border-left-color:var(--gold)}
+  .pgm-row.pgm-combo{border-left-color:#a78bfa}
   .pgm-row.pgm-won{border-left-color:#34d27b}
   .pgm-row.pgm-lost{border-left-color:#ff6b6b}
   .pgm-row.pgm-done{border-left-color:var(--dim);opacity:.6}
@@ -2282,6 +2283,8 @@ CSS = """
   .pgm-val .pgm-an{color:var(--accent)}
   .pgm-mont .pgm-an i{background:var(--gold);color:var(--gold-bg)}
   .pgm-mont .pgm-an{color:var(--gold)}
+  .pgm-combo .pgm-an i{background:#a78bfa;color:#1a1030}
+  .pgm-combo .pgm-an{color:#a78bfa}
   .pgm-won .pgm-an i{background:#34d27b;color:#08210f}
   .pgm-won .pgm-an{color:#34d27b}
   .pgm-lost .pgm-an i{background:#ff6b6b;color:#2e0808}
@@ -7443,6 +7446,15 @@ def _programme_schedule(sport: str = "foot") -> str:
     # serait redondant avec le titre « Programme du jour »).
     _multi = len({_sport_date(_ld(dt)).isoformat() for _m, dt in items}) > 1
     _mont_mid = str((_montante_today_bet() or {}).get("mid") or "")   # LE pari montante du jour
+    _combo_mids: set = set()                           # mids des JAMBES du combiné du jour (badge « combiné »)
+    try:
+        from app import combo_daily as _cd
+        for _sd in {_sport_date(_ld(dt)).isoformat() for _m, dt in items}:
+            _cb = _cd.today(_sd)
+            if _cb:
+                _combo_mids |= {str(l.get("mid")) for l in (_cb.get("legs") or []) if l.get("mid")}
+    except Exception:
+        pass
     rows, cur_day, n_abst = [], None, 0
     for m, dt in items:
         ld = _ld(dt)
@@ -7465,6 +7477,8 @@ def _programme_schedule(sport: str = "foot") -> str:
                 _pre = f'<span class="pgm-typ {_tcls}">{_typ}</span>'   # type du pari DEVANT le résultat
                 cls, an_l = ("pgm-won", "gagné") if _res == "won" else ("pgm-lost", "perdu")
                 an_t = ""
+            elif _sb is None and mid in _combo_mids:       # jambe de COMBINÉ (pas de simple) -> badge combiné
+                cls, an_t, an_l = "pgm-combo", (_sidecar_analyzed_at(sport, mid) or ""), "combiné"
             elif _sb is None:                              # ABSTENTION réglée -> MÊME rendu que les abstentions non
                 cls, an_t, an_l = "pgm-abst", (_sidecar_analyzed_at(sport, mid) or ""), "abstention"  # réglées (badge)
                 n_abst += 1
@@ -7474,7 +7488,9 @@ def _programme_schedule(sport: str = "foot") -> str:
             _at = _sidecar_analyzed_at(sport, mid)
             _tail = ("✓ " + _at) if _at else "✓"
             rb = analyses.retained_bet(sport, mid)
-            if rb is None:                                 # analyse mais SANS value -> abstention
+            if rb is None and mid in _combo_mids:          # pas de simple retenu MAIS jambe du combiné du jour
+                cls, an_t, an_l = "pgm-combo", (_at or ""), "combiné"
+            elif rb is None:                               # analyse mais SANS value -> abstention
                 cls, an_t, an_l = "pgm-abst", (_at or ""), "abstention"
                 n_abst += 1
             elif mid == _mont_mid:                         # LE pari montante du jour
