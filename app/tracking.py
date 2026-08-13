@@ -20,9 +20,23 @@ import os
 from datetime import datetime, timezone
 
 from app import web
-from app.analysis import remove_vig
 
+# App 100 % FOOT (tennis/basket retirés 2026-08-13) : le module d'analyse tennis (app.analysis) est
+# supprimé. Seul `tracking.load()` est utilisé (par foot.py) ; le reste (report/dashboard/upsert) est
+# du code tennis dormant conservé tel quel, sans dépendance externe morte.
 log = logging.getLogger("uvicorn")
+
+
+def remove_vig(home_odds, away_odds):
+    """Dé-marge un marché 2 issues (proba implicite renormalisée). None si cotes invalides.
+    (Ex-app.analysis.remove_vig, ré-internalisé au retrait du module tennis.)"""
+    if not home_odds or not away_odds or home_odds <= 1 or away_odds <= 1:
+        return None
+    ph, pa = 1.0 / home_odds, 1.0 / away_odds
+    s = ph + pa
+    if s <= 0:
+        return None
+    return (ph / s, pa / s)
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_PATH = os.path.join(_ROOT, "data", "tracking_tennis.json")
@@ -88,56 +102,9 @@ def save(store: dict, path: str = DATA_PATH) -> None:
         _load_cache.pop(path, None)
 
 
-def upsert_prediction(store: dict, analysis, tour: str, now_iso: str,
-                      start_time_iso: str | None = None) -> bool:
-    """Crée/rafraîchit la prédiction d'un match à venir. Renvoie True si modifié."""
-    key = str(analysis.match_id)
-    rec = store.get(key, {})
-    if rec.get("result"):  # déjà réglé : on ne touche plus
-        return False
-
-    value = next((v for v in analysis.value_bets if v.is_value), None)
-    home_odds, away_odds = _odds_for(analysis, "home"), _odds_for(analysis, "away")
-    rec.update({
-        "match_id": analysis.match_id,
-        "tour": tour,
-        "start_time": start_time_iso,
-        "home": analysis.home.name,
-        "away": analysis.away.name,
-        "model_home_prob": analysis.model_home_probability,
-        "confidence": analysis.confidence,
-        # Surface (terre/dur/gazon) : permet d'analyser la perf par type de court.
-        "surface": analysis.ground_type,
-        # Détail par facteur (Elo, classement, forme, surface, h2h) : pour savoir
-        # APRÈS COUP quel facteur prédit bien et lequel nuit. Sans ça, on ne garde
-        # que la proba finale et on ne peut rien diagnostiquer.
-        "factors": [
-            {"name": f.name, "home": f.home, "weight": f.weight}
-            for f in analysis.factors
-        ],
-        # Cote courante : à mesure qu'on rafraîchit jusqu'au coup d'envoi, ce champ
-        # converge vers la cote de CLÔTURE (la plus efficiente).
-        "unibet_home_odds": home_odds,
-        "unibet_away_odds": away_odds,
-        "value_pick": ({
-            "side": value.side, "player": value.player, "odds": value.odds,
-            "edge": value.edge, "stake_pct": value.recommended_stake_pct,
-        } if value else None),
-        "last_update": now_iso,
-    })
-    rec.setdefault("first_logged", now_iso)
-    # Cote d'OUVERTURE : figée au tout premier log (sert au calcul du CLV).
-    rec.setdefault("open_home_odds", home_odds)
-    rec.setdefault("open_away_odds", away_odds)
-    store[key] = rec
-    return True
-
-
-def _odds_for(analysis, side: str):
-    for v in analysis.value_bets:
-        if v.side == side:
-            return v.odds
-    return None
+# `upsert_prediction` / `_odds_for` (écriture des prédictions tennis depuis un objet Analysis)
+# retirés 2026-08-13 avec le module app.analysis — app 100 % FOOT. `tracking.load()` (lu par foot.py)
+# et les fonctions de rapport ci-dessous restent en place (code tennis dormant, sans dépendance morte).
 
 
 def settle(store: dict, match_id: int, winner: str | None, total_games: int | None,
