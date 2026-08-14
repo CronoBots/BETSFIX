@@ -14,9 +14,10 @@ $root = 'C:\Users\vince\BETSFIX'
 $py   = 'C:\Users\vince\AppData\Local\Programs\Python\Python312\python.exe'
 $log  = Join-Path $root 'data\scan_cron.log'
 Set-Location $root
+. (Join-Path $root 'deploy\_log.ps1')   # log concurrent-safe (Add-BfxStream / Write-BfxLogLine)
 
 function Log($m) {
-    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Out-File -Append -Encoding utf8 $log
+    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Add-BfxStream $log
 }
 
 # Anti-doublon : si un scan (vague/complet) OU un autre reconcile tourne déjà, on passe son tour —
@@ -33,5 +34,5 @@ $txt = ($out | Out-String)
 if ($txt -match 'Réglés à l''instant : [1-9]' -or $txt -match 'Regles a l''instant : [1-9]' -or
     $txt -match 're-postés : [1-9]' -or $LASTEXITCODE -ne 0) {
     Log ("RECONCILE-10MIN (exit {0})" -f $LASTEXITCODE)
-    $out | Out-File -Append -Encoding utf8 $log
+    $out | Add-BfxStream $log
 }

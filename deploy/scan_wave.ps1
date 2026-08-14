@@ -16,9 +16,10 @@ $root = 'C:\Users\vince\BETSFIX'
 $py   = 'C:\Users\vince\AppData\Local\Programs\Python\Python312\python.exe'
 $log  = Join-Path $root 'data\scan_cron.log'
 Set-Location $root
+. (Join-Path $root 'deploy\_log.ps1')   # log concurrent-safe (Add-BfxStream / Write-BfxLogLine)
 
 function Log($m) {
-    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Out-File -Append -Encoding utf8 $log
+    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Add-BfxStream $log
 }
 
 # Anti-course : si le SCAN MATIN (generate_analyses) tourne encore, on ne règle PAS en parallèle (évite de
@@ -36,17 +37,17 @@ if ($running) {
 $hours = $WindowHours.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 Log ("WAVE ANALYSE : matchs imminents NON analysés (1re analyse, --refresh-early, jamais de ré-analyse)")
 & $py 'tools\generate_analyses.py' --sport foot --top 8 --hours $hours --from-programme --refresh-early 2>&1 |
-    Out-File -Append -Encoding utf8 $log
+    Add-BfxStream $log
 Log ("WAVE ANALYSE DONE (exit {0})" -f $LASTEXITCODE)
 
 # RÉCONCILIATION : règle tout ce qui est réglable (poste les résultats peu après la fin des matchs),
 # re-poste les pronos imminents dont l'envoi a été manqué, et envoie un BILAN Telegram. Passages
 # fréquents -> résultats postés VITE (fini le « posté 3 jours après »).
 Log 'WAVE RECONCILE : règlement SILENCIEUX (résultats postés, pas de bilan)'
-& $py 'tools\reconcile.py' --no-bilan 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\reconcile.py' --no-bilan 2>&1 | Add-BfxStream $log
 Log ("WAVE RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 
 # AUTO-AUDIT d'intégrité (lecture seule) : garde-fou anti-régression, alerte Telegram seulement si ERREUR.
 Log 'WAVE SELFCHECK'
-& $py 'tools\selfcheck.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\selfcheck.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("WAVE SELFCHECK DONE (exit {0})" -f $LASTEXITCODE)

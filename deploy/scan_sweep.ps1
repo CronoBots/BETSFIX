@@ -23,9 +23,10 @@ $py   = 'C:\Users\vince\AppData\Local\Programs\Python\Python312\python.exe'
 $log  = Join-Path $root 'data\scan_cron.log'
 $flag = Join-Path $root 'data\scan_wave_first.flag'
 Set-Location $root
+. (Join-Path $root 'deploy\_log.ps1')   # log concurrent-safe (Add-BfxStream / Write-BfxLogLine)
 
 function Log($m) {
-    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Out-File -Append -Encoding utf8 $log
+    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Add-BfxStream $log
 }
 
 # RÉVERSIBILITÉ : mode wave-first désactivé -> sweep no-op (le batch matin/soir analyse comme avant).
@@ -48,16 +49,16 @@ if ($running) {
 $hours = $WindowHours.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 Log ("SWEEP ANALYSE : matchs du programme à coup d'envoi <= {0} h, non analysés (1re analyse)" -f $hours)
 & $py 'tools\generate_analyses.py' --sport foot --top 16 --hours $hours --from-programme 2>&1 |
-    Out-File -Append -Encoding utf8 $log
+    Add-BfxStream $log
 Log ("SWEEP ANALYSE DONE (exit {0})" -f $LASTEXITCODE)
 
 # RÉCONCILIATION : règle ce qui est réglable (poste les résultats vite), re-poste les pronos imminents
 # manqués. Silencieux (le bilan Telegram reste 1x/jour, le matin).
 Log 'SWEEP RECONCILE : règlement SILENCIEUX'
-& $py 'tools\reconcile.py' --no-bilan 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\reconcile.py' --no-bilan 2>&1 | Add-BfxStream $log
 Log ("SWEEP RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 
 # AUTO-AUDIT d'intégrité (lecture seule) : garde-fou anti-régression, alerte Telegram seulement si ERREUR.
 Log 'SWEEP SELFCHECK'
-& $py 'tools\selfcheck.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\selfcheck.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("SWEEP SELFCHECK DONE (exit {0})" -f $LASTEXITCODE)

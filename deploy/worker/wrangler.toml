@@ -1,0 +1,26 @@
+# Worker de SECOURS BETSFIX — config wrangler (2026-08-14).
+# Déploiement depuis le PC :  npx wrangler deploy   (dans deploy/worker/)
+# Auth : soit `npx wrangler login` (OAuth navigateur, 1 fois), soit la var d'env
+#        CLOUDFLARE_API_TOKEN = un jeton « Account · Workers Scripts · Edit » (+ Workers Routes:Edit
+#        sur la zone si on laisse wrangler créer la route ci-dessous ; sinon route à la main au dashboard).
+
+name = "betsfix-failover"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+account_id = "d353a7ca3cc5428ad65e96b53dc63573"
+
+# Route publique : le Worker se place devant api.betsfix.com (origin.betsfix.com créé le 2026-08-14).
+# DOIT rester AVANT [vars] : une clé de premier niveau après un [tableau] serait absorbée par ce tableau.
+routes = [
+  { pattern = "api.betsfix.com/*", zone_name = "betsfix.com" }
+]
+
+# Binding vers le namespace KV « betsfix-snapshots » (lecture des snapshots).
+kv_namespaces = [
+  { binding = "SNAP", id = "957f17454a364ef3b9a071439efeac69" }
+]
+
+[vars]
+# 2e hostname pointant sur le MÊME tunnel que api.betsfix.com, pour que le Worker joigne l'origine
+# sans boucler sur lui-même. Créé côté tunnel/DNS (origin.betsfix.com -> même service que api).
+ORIGIN_BASE = "https://origin.betsfix.com"

@@ -7,9 +7,10 @@ $py   = 'C:\Users\vince\AppData\Local\Programs\Python\Python312\python.exe'
 $log  = Join-Path $root 'data\scan_cron.log'
 $flag = Join-Path $root 'data\scan_wave_first.flag'   # présent = mode WAVE-FIRST (analyse ~2h avant KO)
 Set-Location $root
+. (Join-Path $root 'deploy\_log.ps1')   # log concurrent-safe (Add-BfxStream / Write-BfxLogLine)
 
 function Log($m) {
-    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Out-File -Append -Encoding utf8 $log
+    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Add-BfxStream $log
 }
 
 # Anti-doublon : si un generate_analyses tourne déjà (scan manuel ou passe précédente non finie),
@@ -37,12 +38,12 @@ Log 'PROGRAMME : liste COMPLÈTE du jour (jour + nuit) pour l''accueil site'
 # --top 8 = QUOTA PAR SLATE (user 2026-08-08 : « 8 jours et 8 nuits, qualité > quantité ») : le programme
 # garde le top 8 du slate JOUR + le top 8 du slate NUIT = 16 matchs/jour (8 analysés le matin, 8 le soir).
 & $py 'tools\generate_analyses.py' --sport foot --top 8 --hours 24 --programme --no-notify 2>&1 |
-    Out-File -Append -Encoding utf8 $log
+    Add-BfxStream $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le
 # programme tout juste écrit -> règlement rapide autour de chaque match (la ré-analyse est supprimée).
 Log 'REANA SCHED : planification des passes de règlement (coup d''envoi - 1 h)'
-& 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Out-File -Append -Encoding utf8 $log
+& 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Add-BfxStream $log
 # SCAN MATIN (analyse du slate JOUR en batch) : SAUTÉ en mode WAVE-FIRST (user 2026-08-11). Le matin ne fait
 # alors que SÉLECTIONNER (programme ci-dessus) ; chaque match est analysé ~2h avant SON coup d'envoi par le
 # sweep (deploy\scan_sweep.ps1, données/cotes fraîches). Sans le drapeau -> comportement batch inchangé.
@@ -51,7 +52,7 @@ if (Test-Path $flag) {
 } else {
     Log 'SCAN MATIN : SLATE JOUR (coup d''envoi 6h->21h heure belge) + publication des picks'
     & $py 'tools\generate_analyses.py' --sport foot --top 8 --hours 24 --from-programme --force --ko-from 6 --ko-to 21 2>&1 |
-        Out-File -Append -Encoding utf8 $log
+        Add-BfxStream $log
     Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 }
 
@@ -59,7 +60,7 @@ if (Test-Path $flag) {
 # on re-poste les pronos imminents dont l'envoi a été manqué, et on envoie un BILAN Telegram
 # (réglés / en attente / BLOQUÉS / re-postés). Garantit qu'au matin tout est réglé ET posté.
 Log 'RECONCILE : règlement + vérif Telegram'
-& $py 'tools\reconcile.py' 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\reconcile.py' 2>&1 | Add-BfxStream $log
 Log ("RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 
 # DÉBRIEF DES PERTES (mémoire évolutive, demande user 2026-08-02) : après le règlement, on analyse POURQUOI
@@ -67,44 +68,44 @@ Log ("RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 # data/lessons.json. Pilote Claude headless (comme le scan) -> DOIT tourner dans cette session authentifiée.
 # Incrémental (ne traite que les pertes non encore débriefées). Purement additif (jamais ROI/stats/calib).
 Log 'DEBRIEF : analyse des paris joués perdus (mémoire évolutive)'
-& $py 'tools\debrief.py' --sport foot 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\debrief.py' --sport foot 2>&1 | Add-BfxStream $log
 Log ("DEBRIEF DONE (exit {0})" -f $LASTEXITCODE)
 
 # AUTO-AUDIT d'intégrité (100 % lecture seule) : vérifie qu'aucune confusion de stats/règlement ne s'est
 # glissée (chaque contrôle encode une régression déjà survenue). Avance le filigrane de monotonicité et
 # alerte Telegram UNIQUEMENT en cas d'ERREUR. Ne bloque jamais le scan (Continue).
 Log 'SELFCHECK : auto-audit d''intégrité'
-& $py 'tools\selfcheck.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\selfcheck.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("SELFCHECK DONE (exit {0})" -f $LASTEXITCODE)
 
 # JOURNAL D'APPRENTISSAGE : photo du jour + deltas vs la veille + auto-écriture des événements notables
 # (marché écarté / ré-intégré, mouvement de fiabilité/ROI) dans LEARNING.md. Lecture seule.
 Log 'LEARNING : journal d''apprentissage'
-& $py 'tools\learning.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\learning.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("LEARNING DONE (exit {0})" -f $LASTEXITCODE)
 
 # BACKTEST de la politique de sélection (lecture seule) : rejoue les seuils sur l'historique, propose un
 # changement SEULEMENT s'il est significatif hors-échantillon (alerte Telegram). N'applique JAMAIS rien.
 Log 'BACKTEST : politique de sélection'
-& $py 'tools\policy_backtest.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\policy_backtest.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("BACKTEST DONE (exit {0})" -f $LASTEXITCODE)
 
 # DOC MÉTHODOLOGIE par sport (lecture seule) : régénère docs/METHODOLOGIE.md — méthode + état mesuré
 # (ROI/calibration) + scorecard d'optimalité par sport. Placé APRÈS le backtest pour reprendre son verdict.
 Log 'METHODO : doc méthodologie par sport'
-& $py 'tools\methodology_doc.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\methodology_doc.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("METHODO DONE (exit {0})" -f $LASTEXITCODE)
 
 # REVUE QUOTIDIENNE (propriétaire, lecture seule) : consolide l'état par sport + détecte les écarts à
 # l'optimum -> propositions. Écrit docs/REVUE.md + journal. `--telegram` = push PRIVÉ si data/owner_chat.txt
 # existe (JAMAIS le canal abonnés). Placé APRÈS methodo/backtest pour reprendre leurs verdicts frais.
 Log 'REVUE : revue quotidienne proprietaire'
-& $py 'tools\daily_review.py' --quiet --telegram 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\daily_review.py' --quiet --telegram 2>&1 | Add-BfxStream $log
 Log ("REVUE DONE (exit {0})" -f $LASTEXITCODE)
 
 # SANTÉ DES SOURCES (Phase 4) : ping live de chaque source (analyse + règlement). Détecte une source
 # morte AVANT qu'elle dégrade les analyses. Alerte Telegram UNIQUEMENT si une source CRITIQUE (Unibet/
 # FotMob) est down. Journal data/source_health_log.jsonl. Ne bloque jamais le scan (Continue).
 Log 'SOURCES : santé des sources'
-& $py 'tools\source_health.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\source_health.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("SOURCES DONE (exit {0})" -f $LASTEXITCODE)

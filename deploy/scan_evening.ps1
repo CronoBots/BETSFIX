@@ -16,9 +16,10 @@ $py   = 'C:\Users\vince\AppData\Local\Programs\Python\Python312\python.exe'
 $log  = Join-Path $root 'data\scan_cron.log'
 $flag = Join-Path $root 'data\scan_wave_first.flag'   # présent = mode WAVE-FIRST (le sweep analyse la nuit)
 Set-Location $root
+. (Join-Path $root 'deploy\_log.ps1')   # log concurrent-safe (Add-BfxStream / Write-BfxLogLine)
 
 function Log($m) {
-    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Out-File -Append -Encoding utf8 $log
+    "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Add-BfxStream $log
 }
 
 # Anti-doublon : si un generate_analyses tourne déjà (scan matin non fini, ou double déclenchement), on ne
@@ -41,17 +42,17 @@ if (Test-Path $flag) {
 } else {
     Log 'SCAN SOIR : SLATE NUIT (coup d''envoi 21h->06h heure belge) + publication des picks'
     & $py 'tools\generate_analyses.py' --sport foot --top 8 --hours 12 --from-programme --ko-from 21 --ko-to 6 2>&1 |
-        Out-File -Append -Encoding utf8 $log
+        Add-BfxStream $log
     Log ("SCAN SOIR DONE (exit {0})" -f $LASTEXITCODE)
 }
 
 # RÉCONCILIATION : règle ce qui est réglable (poste les résultats des matchs de l'après-midi/soirée finis),
 # re-poste les pronos imminents manqués. Silencieux (pas de bilan — le bilan reste 1×/jour le matin).
 Log 'SOIR RECONCILE : règlement SILENCIEUX'
-& $py 'tools\reconcile.py' --no-bilan 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\reconcile.py' --no-bilan 2>&1 | Add-BfxStream $log
 Log ("SOIR RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 
 # AUTO-AUDIT d'intégrité (lecture seule) : garde-fou anti-régression, alerte Telegram seulement si ERREUR.
 Log 'SOIR SELFCHECK'
-& $py 'tools\selfcheck.py' --quiet 2>&1 | Out-File -Append -Encoding utf8 $log
+& $py 'tools\selfcheck.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("SOIR SELFCHECK DONE (exit {0})" -f $LASTEXITCODE)
