@@ -2489,12 +2489,13 @@ TIER_SPLIT_ON = True
 CONFIANCE_MIN_CONF = 75.0     # seuil de confiance CALIBRÉE (user 2026-08-13 : 75 % avec le sharp mondial restauré)
 
 # CONFIANCE = SEULEMENT les marchés PROUVÉS fiables à haut taux de réussite (user 2026-08-14). En plus du
-# seuil ≥75 % sur LE PARI de CE match, le MARCHÉ doit faire partie de cette liste (mesurée fantômes inclus :
-# réussite ≥75 % + Vainqueur « net »). Sinon le pari reste JOUÉ mais étiqueté VALUE (hors chiffre phare).
-# Réversible : CONFIANCE_MARKET_GATE_ON=False -> seul le seuil de confiance compte (état d'avant).
+# seuil ≥75 % sur LE PARI de CE match, le MARCHÉ doit AVOIR un taux de réussite mesuré ≥ seuil (fantômes
+# inclus). Liste NON figée : CALCULÉE en continu (_confiance_markets, plus bas) -> un marché sort/rentre TOUT
+# SEUL selon ses stats (ex. Vainqueur sous 75 % -> écarté ; il revient quand ses fantômes le font remonter).
+# Sinon le pari reste JOUÉ mais étiqueté VALUE (hors chiffre phare). Réversible : CONFIANCE_MARKET_GATE_ON=False.
 CONFIANCE_MARKET_GATE_ON = True
-_CONFIANCE_MARKETS = frozenset({"Handicap", "Double chance", "Total Under", "Total équipe",
-                                "Total Over", "Tirs cadrés", "Vainqueur"})
+_CONFIANCE_MARKET_MIN_WR = 75     # taux de réussite MESURÉ (%) mini pour qu'un marché soit Confiance-éligible
+_CONFIANCE_MARKET_MIN_N = 25      # échantillon mini (fantômes inclus) — sinon « pas prouvé » -> pas Confiance
 
 # PROVISOIRES RETIRÉS (user 2026-08-11 : « je ne veux plus de provisoires ; ces matchs doivent être ignorés »).
 # Un match ABSTENU (analysé, aucun pari de value retenu) n'est PLUS affiché ni suivi en « provisoire ». Ses
@@ -2504,7 +2505,7 @@ _CONFIANCE_MARKETS = frozenset({"Handicap", "Double chance", "Total Under", "Tot
 PROVISOIRES_ON = False
 
 
-def bet_tier(cprob, cote=None, market=None) -> str:
+def bet_tier(cprob, cote=None, market=None, sport=None) -> str:
     """Tier d'AFFICHAGE d'un pari retenu : « confiance » ou « value ». Off (TIER_SPLIT_ON=False) -> toujours
     « confiance » (état d'avant). DEUX conditions pour « confiance » (user 2026-08-14) :
       1) confiance CALIBRÉE de CE pari (sur CE match) ≥ CONFIANCE_MIN_CONF (75 %) — pas la moyenne du marché ;
@@ -2519,7 +2520,7 @@ def bet_tier(cprob, cote=None, market=None) -> str:
             return "value"
     except (TypeError, ValueError):
         return "value"
-    if CONFIANCE_MARKET_GATE_ON and market and market not in _CONFIANCE_MARKETS:
+    if CONFIANCE_MARKET_GATE_ON and market and sport and market not in _confiance_markets(sport):
         return "value"
     return "confiance"
 
@@ -2567,9 +2568,9 @@ def bet_tier_for(sport, mid) -> str:
         d = meta(sport, str(mid)) or {}
         sb = d.get("stat_bet")
         if isinstance(sb, dict) and sb.get("cprob") is not None:
-            return bet_tier(sb.get("cprob"), sb.get("cote"), _bet_market(d, sb, sport))
+            return bet_tier(sb.get("cprob"), sb.get("cote"), _bet_market(d, sb, sport), sport)
         rb = retained_bet(sport, mid, for_history=True) or {}
-        return bet_tier(rb.get("cprob"), rb.get("cote"), _bet_market(d, rb, sport))
+        return bet_tier(rb.get("cprob"), rb.get("cote"), _bet_market(d, rb, sport), sport)
     except Exception:
         return "confiance"
 
@@ -2583,8 +2584,8 @@ def tier_of(d, rb=None) -> str:
     sb = d.get("stat_bet") if isinstance(d, dict) else None
     _sp = (d.get("sport") if isinstance(d, dict) else None) or "foot"
     if isinstance(sb, dict) and sb.get("cprob") is not None:
-        return bet_tier(sb.get("cprob"), sb.get("cote"), _bet_market(d, sb, _sp))
-    return bet_tier((rb or {}).get("cprob"), (rb or {}).get("cote"), _bet_market(d, rb, _sp))
+        return bet_tier(sb.get("cprob"), sb.get("cote"), _bet_market(d, sb, _sp), _sp)
+    return bet_tier((rb or {}).get("cprob"), (rb or {}).get("cote"), _bet_market(d, rb, _sp), _sp)
 
 
 def stat_bet(d: dict) -> dict | None:
@@ -3587,6 +3588,30 @@ def _calib_map() -> dict:
                            "win_rate": mg.get("win_rate"), "avg_conf": mg.get("avg_conf")}
     _CALIB_MAP_CACHE.update(ts=now, map=m)
     return m
+
+
+_CONF_MK_CACHE = {"ts": 0.0, "by_sport": {}}
+
+
+def _confiance_markets(sport: str) -> frozenset:
+    """Marchés Confiance-éligibles, CALCULÉS EN CONTINU (pas de liste figée — user 2026-08-14) : un marché est
+    éligible si son TAUX DE RÉUSSITE mesuré est ≥ `_CONFIANCE_MARKET_MIN_WR` ET son échantillon ≥
+    `_CONFIANCE_MARKET_MIN_N`. On lit la MÊME mesure que `exclusions_report` : `calibration(min_conf=_MIN_CONF)`
+    (paris/fantômes à confiance ≥ 65 % -> exclut le bruit basse-confiance ; donne Over 76 %, DC 79 %, etc.).
+    Un marché sort/rentre TOUT SEUL au fil des fantômes (ex. Vainqueur 71 % -> écarté ; revient dès ≥ 75 %).
+    Caché 120 s (calibration globe tous les sidecars)."""
+    now = time.time()
+    if not _CONF_MK_CACHE["by_sport"] or now - _CONF_MK_CACHE["ts"] >= 120:
+        cal = calibration(min_conf=_MIN_CONF)
+        by = {}
+        for sport_label, g in (cal.get("by_sport") or {}).items():
+            sp = _SPORT_FR.get(sport_label, sport_label.lower())
+            by[sp] = frozenset(
+                mk for mk, mg in (g.get("markets") or {}).items()
+                if mg.get("win_rate") is not None and mg["win_rate"] >= _CONFIANCE_MARKET_MIN_WR
+                and (mg.get("n") or 0) >= _CONFIANCE_MARKET_MIN_N)
+        _CONF_MK_CACHE.update(ts=now, by_sport=by)
+    return _CONF_MK_CACHE["by_sport"].get(sport, frozenset())
 
 
 def calibrated_conf(prob, sport: str, code: str):
