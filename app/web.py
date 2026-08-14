@@ -9365,9 +9365,11 @@ def _rows_by_day(rows: list) -> str:
         d = ld.date() if ld else None
         if d != cur:
             cur = d
-            if d is not None:
+            prev_card = False
+            # NE PAS coiffer d'un en-tête « Demain … » (user 2026-08-14) : sur la page « Aujourd'hui », un
+            # match d'après-minuit (même JOUR SPORTIF) ne doit pas apparaître sous un « Demain » (trompeur).
+            if d is not None and (d - today).days != 1:
                 out.append(f'<div class="dayhdr">{html.escape(day_label(d, today))}</div>')
-                prev_card = False
         card = r.get("_html") or _sport_row(r)
         if prev_card and card:
             out.append(_MC_SEP)
