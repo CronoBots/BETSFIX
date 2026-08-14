@@ -37,7 +37,10 @@ _MARKETS = "h2h,totals"              # 1X2 + totaux buts = 2 crédits/appel
 # Pinnacle -> Betfair Exchange -> CONSENSUS médian dé-viggé de tous les books (repli robuste).
 _SHARP_BOOKS = ("pinnacle", "betfair_ex")
 _CACHE_DIR = os.path.join("data", "sharp_odds_cache")
-_TTL = 18 * 3600                     # cache par ligue : 18 h -> 1 SEUL fetch/ligue/jour (matin ET soir le partagent)
+_TTL = 3 * 3600                      # cache par ligue : 3 h (user 2026-08-14, wave-first) -> l'ancre de REPLI
+                                     # reste FRAÎCHE (≤3 h avant le KO), pas un cache de la veille. L'ancre
+                                     # PRIMAIRE (Pinnacle) est déjà live par analyse ; ceci ne concerne QUE le
+                                     # fallback The Odds API (rare -> surcoût crédits marginal, plancher 15 protège).
 _SOFT_FLOOR = 15                     # sous ce reste de crédits, on ARRÊTE de fetcher (garde-fou anti-overage)
 _QUOTA_FILE = os.path.join(_CACHE_DIR, "_quota.json")
 
