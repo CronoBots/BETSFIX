@@ -2294,6 +2294,17 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     # `stat_bet` FIGÉ prime (garde) -> aucun risque de retirer un pari déjà compté (compteur monotone intact).
     if m.get("abstained") and not isinstance(m.get("stat_bet"), dict):
         return None
+    # GARDE SKIP / INCOHÉRENCE HEADLINE↔TABLE (bug user 2026-08-14, Wolves) : le modèle a écrit un verdict
+    # SKIP / « no-value intégral » en tête (donc AUCUN pick_code committé) mais a laissé une jambe traîner
+    # dans sa table de paris -> le pari était retenu à tort en Confiance, avec la phrase de SKIP affichée
+    # comme « analyse ». On tranche vers l'ABSTENTION : sans pick_code (pas de marché committé) ET texte de
+    # tête explicitement SKIP/no-value -> aucun pari retenu. Garde `stat_bet` figé : un pari DÉJÀ COMPTÉ
+    # prime et n'est JAMAIS retiré (invariant monotone intact). Les fantômes continuent de nourrir la calib.
+    if (not str(m.get("pick_code") or "").strip()
+            and not isinstance(m.get("stat_bet"), dict)
+            and re.match(r"^\s*(à\s+[ée]viter|à\s+[ée]carter|à\s+bannir|skip\b|no[-\s]?value|aucun\s+pari)",
+                         str(m.get("pick") or ""), re.I)):
+        return None
     if not bets and for_history:
         # Repli SUIVI : le tableau du .md peut être VIDE (ré-analyse « NONE » après publication) alors que
         # le SIDECAR porte le pari PUBLIÉ réinjecté + réglé par le filet settle_analyst (2026-07-21 « ne
