@@ -1547,7 +1547,18 @@ CSS = """
   .arec-sp-v2{font-size:11.5px;font-weight:700;color:#cfe0f5;margin-top:5px}
   .arec-sp-o{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
   .arec-hi{color:#3ee089} .arec-mid{color:var(--gold)} .arec-lo{color:#ff7484}
-  .arec-na{color:var(--muted)}   /* ROI peu fiable (échantillon trop faible) -> grisé */
+  .arec-na{color:var(--muted)}
+  /* Hero « Avantage réalisé » (style Bull) — teinte verte, ROI géant + KPIs (user 2026-08-15) */
+  .adv-hero{text-align:center;padding:18px 14px 16px;margin:2px 0 14px;border-radius:18px;
+       background:linear-gradient(180deg,rgba(62,224,137,.11),rgba(62,224,137,.02));border:1px solid rgba(62,224,137,.24)}
+  .adv-l{font-size:10px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+  .adv-big{font-size:54px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:6px 0 5px}
+  .adv-sub{font-size:12.5px;color:var(--muted);font-weight:600}
+  .adv-sub b{color:var(--text);font-variant-numeric:tabular-nums}
+  .adv-kpis{display:flex;justify-content:center;gap:28px;margin-top:13px}
+  .adv-kpis div{text-align:center}
+  .adv-kpis b{display:block;font-size:18px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+  .adv-kpis span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}   /* ROI peu fiable (échantillon trop faible) -> grisé */
   /* VERDICT MARCHÉS — synthèse actionnable en tête de l'onglet Analyse (demande user 2026-08-13). */
   .av-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 14px 12px;margin:2px 0 14px}
   .av-card-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text);
@@ -4281,6 +4292,29 @@ def _mile_legend(miles: list, *, compact: bool = False) -> str:
             f'<div class="sx-mile-info"></div>{data}</div>')
 
 
+def _avantage_block(ov: dict) -> str:
+    """Hero « Avantage réalisé » (style Bull Sports) en tête du bilan : le ROI (profit par pari) en VEDETTE +
+    réussite / gagnés / perdus. 100 % à partir des chiffres OFFICIELS (full['overall']) -> jamais de valse du
+    compteur. '' si trop peu de réglés (< 10)."""
+    ov = ov or {}
+    n = ov.get("settled") or 0
+    if n < 10:
+        return ""
+    roi, pct, won = ov.get("roi"), ov.get("pct"), (ov.get("won") or 0)
+    lost = n - won
+    _rs = _roistr(roi)
+    return (
+        '<div class="adv-hero">'
+        '<div class="adv-l">Avantage réalisé · profit par pari</div>'
+        f'<div class="adv-big arec-{_roicls(roi)}">{_rs}</div>'
+        f'<div class="adv-sub">Sur <b>{n}</b> paris réglés — chaque pari rapporte <b>{_rs}</b> en moyenne.</div>'
+        '<div class="adv-kpis">'
+        f'<div><b>{pct if pct is not None else "—"}%</b><span>réussite</span></div>'
+        f'<div><b>{won}</b><span>gagnés</span></div>'
+        f'<div><b>{lost}</b><span>perdus</span></div>'
+        '</div></div>')
+
+
 def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
     """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
     UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
@@ -4371,7 +4405,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                               _prov_sport_roi("foot") if analyses.PROVISOIRES_ON else None, _foot_c.get("roi")))
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
-    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
+    return (f'<div class="spf">{_sport_banner("foot")}{_avantage_block(ov)}{_foot}</div>') if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
