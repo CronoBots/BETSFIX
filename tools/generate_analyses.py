@@ -1429,7 +1429,11 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             "« (jXX%) » (marge retirée) et chaque marché sa « [marge X%] ». VALUE = ta proba > jXX% "
             "(détaille la procédure value plus haut) :\n" + "\n".join(lines)
             + imp + sharp + sharp_mk + extras + alt + pblock + wc_ctx + combo)
-    meta = {"odds": odds, "sources_prov": src_prov, **sx}   # odds + streaks/h2h + provenance -> sidecar
+    # VERROU SHARP (user 2026-08-14) : signale l'ABSENCE de toute ancre sharp (ni 1X2 Pinnacle/The Odds API,
+    # ni marchés de-viggés) -> la boucle DIFFÈRE ces matchs (jamais d'analyse « à sec »). `no_sharp` calculé
+    # ICI (au build du dossier) = re-évalué à CHAQUE vague : le sharp se poste souvent plus près du KO.
+    meta = {"odds": odds, "sources_prov": src_prov, **sx,
+            "no_sharp": bool(sport == "foot" and not sharp and not sharp_mk)}   # odds + streaks/h2h + provenance -> sidecar
     return text, meta
 
 
@@ -2857,6 +2861,15 @@ async def main():
                 if _rank >= 3 and not _big_tail and _ds < 2:
                     print(f"  · {m['name']} : match élargi (rang {_rank + 1}) data_score {_ds}<2 "
                           f"-> écarté (sources insuffisantes).")
+                    continue
+                # VERROU SHARP à 100 % (user 2026-08-14 « chaque match analysé DOIT avoir le sharp actif »).
+                # Foot sans AUCUNE ancre sharp live -> on DIFFÈRE (pas d'analyse à sec, économise le run Claude).
+                # En wave-first, la vague suivante (30 min) re-tente : le sharp se poste souvent plus près du
+                # coup d'envoi -> le match est rattrapé. S'il n'arrive jamais (ligue hors couverture) -> jamais
+                # publié = 100 % des paris publiés portent une ancre sharp. Aligné sur la garde-fou anti-bâclage.
+                if sport == "foot" and meta.get("no_sharp"):
+                    print(f"  · {m['name']} : AUCUNE ancre sharp live -> DIFFÉRÉ "
+                          f"(re-tenté à la prochaine vague, sharp posté plus près du coup d'envoi).")
                     continue
                 t0 = time.time()
                 try:
