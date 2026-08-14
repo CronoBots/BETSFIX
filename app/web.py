@@ -3124,6 +3124,8 @@ CSS = """
   .mont-curve{margin:2px 0 12px;padding:9px 8px 3px;border-radius:14px;
        background:linear-gradient(180deg,rgba(52,210,123,.05),transparent);border:1px solid var(--border)}
   .mont-c{width:100%;height:auto;display:block}
+  /* Courbe DANS le hero (user 2026-08-14) : pas de boîte (bordure/fond) -> le graphe s'intègre au hero. */
+  .mont-hero-curve{margin:13px 0 0;padding:6px 0 0;background:none;border:0}
   .mont-c-lbl{font-size:9.5px;font-weight:800;fill:var(--muted);font-variant-numeric:tabular-nums}
   .mont-c-lbl.end{fill:#34d27b;font-size:11.5px;font-weight:900}
   /* Palmarès : KPIs premium propres à la montante (n'affecte pas les .sx-kpi des stats). Best = or. */
@@ -7673,6 +7675,19 @@ def render_montante(st: dict, example: dict) -> str:
     featured = st.get("featured")
     stats = st.get("stats", {})
 
+    # COURBE calculée AVANT le hero (user 2026-08-14 : « le graphique doit faire partie du hero »).
+    # `_fsteps`/`tag` servent aussi à l'échelle plus bas. Trajectoire RÉELLE base(10 €) -> capital après
+    # chaque palier gagné (le pic tracé = le vrai capital atteint).
+    if featured and featured.get("steps"):
+        _fsteps = featured["steps"]
+        tag = ''
+    else:
+        _fsteps = (example or {}).get("steps") or []
+        tag = '<span class="tag">Aperçu · exemple</span>'
+    _caps = [base] + [s.get("payout") for s in _fsteps
+                      if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
+    _curve = f'<div class="mont-curve mont-hero-curve">{_mont_curve(_caps, uid="best")}</div>' if len(_caps) >= 2 else ""
+
     # HERO — capital mis en avant (montante en cours en réel)
     hero = ""   # rempli par le hero PREMIUM en montante en cours ; sinon hero générique plus bas
     if active and palier > 0:
@@ -7692,7 +7707,7 @@ def render_montante(st: dict, example: dict) -> str:
             '<div class="mp-arrow" aria-hidden="true">→</div>'
             f'<div class="mp-cell"><b class="mp-now">{_mont_eur(cap)}</b>'
             f'<span>Capital · palier {palier}</span></div>'
-            '</div></div>')
+            '</div>' + _curve + '</div>')
     elif active:
         sub = 'Nouvelle montante — prête pour le pari du jour'
         chip = '<span class="mont-chip wait">En attente du pari du jour</span>'
@@ -7704,7 +7719,7 @@ def render_montante(st: dict, example: dict) -> str:
     if not hero:
         hero = (f'<div class="mont-hero"><div class="mont-hero-l">{lbl}</div>'
                 f'<div class="mont-hero-cap">{_mont_eur(cap)}</div>'
-                f'<div class="mont-hero-sub">{sub}</div>{chip}</div>')
+                f'<div class="mont-hero-sub">{sub}</div>{chip}{_curve}</div>')
 
     intro = ('<div class="mont-intro">Une <b>montante</b> par jour : on part de <b>10 €</b>, on mise sur '
              '<b>UN seul</b> pari sûr, et à chaque gain on <b>rejoue la totalité</b> le lendemain. '
@@ -7758,22 +7773,10 @@ def render_montante(st: dict, example: dict) -> str:
                     '<div class="mont-empty">Le <b>pari du jour</b> s\'affichera ici — <b>1</b> sélection sûre '
                     'pour faire grimper la mise. À suivre chaque jour.</div>')
 
-    # ÉCHELLE — montante mise en avant (meilleure série en sim, en cours en réel) OU exemple
-    if featured and featured.get("steps"):
-        _fsteps = featured["steps"]
-        tag = ''
-    else:
-        _fsteps = (example or {}).get("steps") or []
-        tag = '<span class="tag">Aperçu · exemple</span>'
-    # COURBE de progression du capital : TRAJECTOIRE RÉELLE base(10 €) -> capital après chaque palier gagné
-    # (fix 2026-08-09 : avant on traçait les MISES -> la courbe s'arrêtait au capital AVANT le dernier gain,
-    # 76 € au lieu de 94 €). Le pic tracé = le vrai capital atteint.
-    _caps = [base] + [s.get("payout") for s in _fsteps
-                      if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
-    _curve = f'<div class="mont-curve">{_mont_curve(_caps, uid="best")}</div>' if len(_caps) >= 2 else ""
+    # ÉCHELLE — l'échelle des paliers (la COURBE est désormais dans le hero, calculée plus haut).
     ladder = (f'<div class="mont-sec-h">La montante{tag}</div>'
               '<div class="mont-lead">Chaque palier gagné fait grimper la mise — la voici, palier par palier.</div>'
-              f'{_curve}<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
+              f'<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
 
     # « COMMENT ÇA MARCHE » RETIRÉ (user 2026-08-09) : redondant avec le paragraphe d'intro sous le hero
     # (principe + risque plafonné à 10 € déjà expliqués). L'échelle des paliers montre la mécanique en acte.
