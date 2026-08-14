@@ -2488,6 +2488,14 @@ def freeze_published_bet(sport: str, match_id) -> bool:
 TIER_SPLIT_ON = True
 CONFIANCE_MIN_CONF = 75.0     # seuil de confiance CALIBRÉE (user 2026-08-13 : 75 % avec le sharp mondial restauré)
 
+# CONFIANCE = SEULEMENT les marchés PROUVÉS fiables à haut taux de réussite (user 2026-08-14). En plus du
+# seuil ≥75 % sur LE PARI de CE match, le MARCHÉ doit faire partie de cette liste (mesurée fantômes inclus :
+# réussite ≥75 % + Vainqueur « net »). Sinon le pari reste JOUÉ mais étiqueté VALUE (hors chiffre phare).
+# Réversible : CONFIANCE_MARKET_GATE_ON=False -> seul le seuil de confiance compte (état d'avant).
+CONFIANCE_MARKET_GATE_ON = True
+_CONFIANCE_MARKETS = frozenset({"Handicap", "Double chance", "Total Under", "Total équipe",
+                                "Total Over", "Tirs cadrés", "Vainqueur"})
+
 # PROVISOIRES RETIRÉS (user 2026-08-11 : « je ne veux plus de provisoires ; ces matchs doivent être ignorés »).
 # Un match ABSTENU (analysé, aucun pari de value retenu) n'est PLUS affiché ni suivi en « provisoire ». Ses
 # prédictions continuent de nourrir la CALIBRATION via ses FANTÔMES (`d["shadow"]`, indépendants — inchangés).
@@ -2496,17 +2504,24 @@ CONFIANCE_MIN_CONF = 75.0     # seuil de confiance CALIBRÉE (user 2026-08-13 : 
 PROVISOIRES_ON = False
 
 
-def bet_tier(cprob, cote=None) -> str:
-    """Tier d'AFFICHAGE d'un pari retenu : « confiance » (confiance calibrée ≥ seuil) ou « value » (sous le
-    seuil OU sans confiance calibrée). Off (TIER_SPLIT_ON=False) -> toujours « confiance » (état d'avant).
-    ⚠️ CONFIANCE = HAUTE confiance CALIBRÉE : un pari SANS cprob (ex. jambe de combiné CdM) NE PEUT PAS être
-    « confiance » -> il va en VALUE (sinon il polluait le taux phare). N'affecte PAS rétention/ROI/calibration."""
+def bet_tier(cprob, cote=None, market=None) -> str:
+    """Tier d'AFFICHAGE d'un pari retenu : « confiance » ou « value ». Off (TIER_SPLIT_ON=False) -> toujours
+    « confiance » (état d'avant). DEUX conditions pour « confiance » (user 2026-08-14) :
+      1) confiance CALIBRÉE de CE pari (sur CE match) ≥ CONFIANCE_MIN_CONF (75 %) — pas la moyenne du marché ;
+      2) le MARCHÉ (`market`) fait partie des marchés prouvés fiables (`_CONFIANCE_MARKETS`).
+    Sinon -> VALUE (le pari reste joué, mais hors chiffre phare). `market`=None (indéterminé) -> on ne
+    déclasse PAS sur ce seul motif (évite de perdre un vrai Confiance sur un code non résolu). N'affecte PAS
+    rétention/ROI/calibration — pur filtre d'affichage/compteur."""
     if not TIER_SPLIT_ON:
         return "confiance"
     try:
-        return "confiance" if (cprob is not None and float(cprob) >= CONFIANCE_MIN_CONF) else "value"
+        if cprob is None or float(cprob) < CONFIANCE_MIN_CONF:
+            return "value"
     except (TypeError, ValueError):
         return "value"
+    if CONFIANCE_MARKET_GATE_ON and market and market not in _CONFIANCE_MARKETS:
+        return "value"
+    return "confiance"
 
 
 _MONT_MIDS_CACHE = {"sig": None, "set": frozenset()}
@@ -2527,6 +2542,19 @@ def _montante_mids() -> frozenset:
     return _MONT_MIDS_CACHE["set"]
 
 
+def _bet_market(d, bet, sport):
+    """Label de marché d'un pari, pour le tier. `bet` = stat_bet (souvent `sel` seul, pas de `code`) ou rb
+    (porte `code`). None si indéterminé -> bet_tier ne déclasse PAS sur ce seul motif."""
+    code = (bet or {}).get("code")
+    if not code and (bet or {}).get("sel"):
+        try:
+            from app.settle_analyst import code_from_pick
+            code = code_from_pick(bet["sel"], sport, (d or {}).get("home", ""), (d or {}).get("away", ""))
+        except Exception:
+            code = None
+    return market_of(code) if code else None
+
+
 def bet_tier_for(sport, mid) -> str:
     """Tier (« confiance »/« value ») d'un match par son id. MONOTONE : on lit d'abord la confiance calibrée
     FIGÉE au règlement (`stat_bet.cprob`, immunisée à la dérive de calibration) ; repli sur le calcul live
@@ -2539,9 +2567,9 @@ def bet_tier_for(sport, mid) -> str:
         d = meta(sport, str(mid)) or {}
         sb = d.get("stat_bet")
         if isinstance(sb, dict) and sb.get("cprob") is not None:
-            return bet_tier(sb.get("cprob"), sb.get("cote"))
+            return bet_tier(sb.get("cprob"), sb.get("cote"), _bet_market(d, sb, sport))
         rb = retained_bet(sport, mid, for_history=True) or {}
-        return bet_tier(rb.get("cprob"), rb.get("cote"))
+        return bet_tier(rb.get("cprob"), rb.get("cote"), _bet_market(d, rb, sport))
     except Exception:
         return "confiance"
 
@@ -2553,9 +2581,10 @@ def tier_of(d, rb=None) -> str:
     if isinstance(d, dict) and str(d.get("id") or "") in _montante_mids():
         return "montante"
     sb = d.get("stat_bet") if isinstance(d, dict) else None
+    _sp = (d.get("sport") if isinstance(d, dict) else None) or "foot"
     if isinstance(sb, dict) and sb.get("cprob") is not None:
-        return bet_tier(sb.get("cprob"), sb.get("cote"))
-    return bet_tier((rb or {}).get("cprob"), (rb or {}).get("cote"))
+        return bet_tier(sb.get("cprob"), sb.get("cote"), _bet_market(d, sb, _sp))
+    return bet_tier((rb or {}).get("cprob"), (rb or {}).get("cote"), _bet_market(d, rb, _sp))
 
 
 def stat_bet(d: dict) -> dict | None:
