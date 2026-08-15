@@ -2261,6 +2261,7 @@ CSS = """
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
   .zone-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
+  .zone-live{margin-left:auto}   /* badge « 🟢 Live » poussé à droite dans l'en-tête de zone (user 2026-08-15) */
   /* RECORD du jour par type — pastilles compactes collées au titre. TOUS les états en BADGE COLORÉ plein
      (user 2026-08-08 : « victoires et défaites dans le même style que les matchs en attente ») : à venir =
      JAUNE ⏳ · gagnés = VERT ✓ · perdus = ROUGE ✗ · live = texte vert 🟢. Discret, groupé après le titre. */
@@ -6385,7 +6386,14 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
     # l'info ; le compteur rond faisait doublon.
-    t = f'<span class="zone-tag">{html.escape(tag)}</span>' if tag else ""
+    # « en direct » -> ANCIEN BADGE « 🟢 Live » (user 2026-08-15) : le libellé texte des zones Live redevient
+    # le badge vert pulsant (comme avant sur les cartes). Les autres tags gardent le texte discret.
+    if tag == "en direct":
+        t = '<span class="mc-badge mc-live zone-live">🟢 Live</span>'
+    elif tag:
+        t = f'<span class="zone-tag">{html.escape(tag)}</span>'
+    else:
+        t = ""
     head = (f'<span class="zone-t">{html.escape(title)}</span>{rec}{t}')   # point (.zone-dot) retiré (user 2026-08-08)
     if collapsible:
         op = " open" if open_ else ""
