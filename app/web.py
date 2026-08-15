@@ -2701,11 +2701,15 @@ CSS = """
   .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
   .vb-live-ar{margin-left:3px;font-size:9.5px}
   .vb-live .vb-bar{order:0;margin-top:0}
-  /* HALO clignotant sur la barre live (user 2026-08-15) : léger pouls bleu accent -> montre que ça bouge
-     (effet « live »). Respecte prefers-reduced-motion. */
-  .vb-live .vb-bar{animation:vblivehalo 1.7s ease-in-out infinite}
-  @keyframes vblivehalo{0%,100%{box-shadow:0 0 0 0 rgba(34,184,255,0)}55%{box-shadow:0 0 9px 1px rgba(34,184,255,.32)}}
-  @media (prefers-reduced-motion:reduce){.vb-live .vb-bar{animation:none}}
+  /* HALO « qui respire » sur la PARTIE REMPLIE seulement (user 2026-08-15) : le rail passe overflow:visible
+     (sinon l'ombre est coupée) et le halo est porté par le remplissage `>i`. Effet DOUX, jamais éteint
+     (baseline -> pic, pas de clignotement on/off). Respecte prefers-reduced-motion. */
+  .vb-live .vb-bar{overflow:visible}
+  .vb-live .vb-bar>i{animation:vbfill 1s cubic-bezier(.22,1,.36,1) .05s both,
+       vblivehalo 2.8s ease-in-out .9s infinite}
+  @keyframes vblivehalo{0%,100%{box-shadow:0 0 4px 0 rgba(34,184,255,.14)}
+       50%{box-shadow:0 0 11px 1px rgba(34,184,255,.42)}}
+  @media (prefers-reduced-motion:reduce){.vb-live .vb-bar>i{animation:vbfill 1s cubic-bezier(.22,1,.36,1) .05s both}}
   /* témoins d'avant-match sur la barre live (user 2026-08-15) : marqueur NOUS (VERT, comme « Confiance »
      de la grille) + marqueur MARCHÉ (BLANC, .vb-mark existant, comme « Marché »). Pas de légende texte —
      les valeurs sont déjà dans la grille de chiffres en dessous. */
