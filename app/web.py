@@ -60,7 +60,7 @@ def _summary_for_url(url: str) -> dict:
 
 _OM_ARR = {"down": "▼", "up": "▲", "flat": "■"}
 _OM_CLS = {"down": "om-down", "up": "om-up", "flat": "om-flat"}
-_OM_COLOR = {"down": "#34d27b", "up": "#ff6b6b", "flat": "#71756a"}
+_OM_COLOR = {"down": "#34d27b", "up": "#ff6b6b", "flat": "#9fb0c8"}
 
 def render_odds_movement(mv: dict | None) -> str:
     """Mini-section « 📉 Mouvement de cote » : par issue, ouverture → cote actuelle/clôture, sens
@@ -251,22 +251,26 @@ def fmt_local(value, with_date: bool = True) -> str:
 
 CSS = """
   :root{
-    /* Thème « BULL » (clair) — user 2026-08-15 : fond crème + accent teal + textes sombres.
-       (Ancien thème néon sombre en historique git — reskin = ce SEUL bloc + qq couleurs codées en dur.) */
-    --bg:#eae7df;--bg2:#e4e0d6;--surface:#fbfaf7;--surface2:#f2efe8;
-    --border:#e3dfd5;--border2:#d6d1c4;--text:#16180f;--muted:#71756a;--dim:#9a9c90;
-    /* ACCENT principal (teal Bull) — UN SEUL endroit à changer pour reskin */
-    --accent:#0f9d74;--accent2:#0b8a66;--accent-ink:#ffffff;--glow:rgba(15,157,116,.18);
-    --halo:rgba(15,157,116,.06);
-    --gold:#b58a22;--gold-bg:#f6efd8;--gold-bd:#e7d9a6;
-    --red:#d8695f;--green:#12a150;--brand:var(--accent);
-    --cardline:rgba(15,157,116,.22);--cardglow:0 10px 30px -20px rgba(20,30,20,.22);
-    --radius:16px;--shadow:0 12px 30px -18px rgba(20,30,20,.20);--shadow-sm:0 2px 10px rgba(20,30,20,.08);
-    /* Bord GAUCHE des cartes de pari selon l'état : en attente=or · live=or · gagné=vert · perdu=rouge · remboursé=gris. */
-    --st-soon:var(--gold);--st-live:var(--gold);--st-won:#12a150;--st-lost:#d8695f;--st-void:#8a8e82;
+    /* Thème « néon » (inspiré OddScore) : fond quasi-noir + accent vert-lime + corail pour le négatif */
+    --bg:#070708;--bg2:#0d0d10;--surface:#141417;--surface2:#1d1d21;
+    --border:#2a2a31;--border2:#3b3b44;--text:#f4f5f7;--muted:#9a9aa6;--dim:#65656e;
+    /* ACCENT principal — UN SEUL endroit à changer pour reskin (cf. candidats en bas) */
+    --accent:#22b8ff;--accent2:#1496f0;--accent-ink:#001321;--glow:rgba(34,184,255,.28);
+    --halo:rgba(34,184,255,.09);
+    --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
+    --red:#ff6b6b;--green:#a6e22e;--brand:var(--accent);
+    --cardline:rgba(34,184,255,.30);--cardglow:0 0 24px rgba(34,184,255,.10);
+    --radius:16px;--shadow:0 8px 26px rgba(0,0,0,.55);--shadow-sm:0 2px 8px rgba(0,0,0,.4);
+    /* Bord GAUCHE des cartes de pari selon l'état (demande user 2026-07-25) : en attente=JAUNE ;
+       en cours (live)=même jaune (PAS de couleur dédiée -> le badge « 🟢 Live » suffit) ; gagné=vert ;
+       perdu=rouge ; remboursé=gris. */
+    --st-soon:var(--gold);--st-live:var(--gold);--st-won:#34d27b;--st-lost:#ff6b6b;--st-void:#90a4be;
   }
-  /* Thème Bull = UN seul accent teal partout (comme Bull Sports). Sports unifiés sur le teal. */
-  body.sp-tennis,body.sp-basket,body.sp-foot{--accent:#0f9d74;--accent2:#0b8a66;--accent-ink:#fff;--glow:rgba(15,157,116,.16)}
+  /* Home & Live = accent principal (hérité de :root). Les sports gardent leur teinte d'identité
+     (néon sur fond noir) : tennis lime-jaune · basket orange · foot vert. */
+  body.sp-tennis{--accent:#d7e64a;--accent2:#aac72f;--accent-ink:#16180a;--glow:rgba(190,210,60,.30)}
+  body.sp-basket{--accent:#ff9f43;--accent2:#f08000;--accent-ink:#1a0e00;--glow:rgba(240,128,0,.30)}
+  body.sp-foot{--accent:#2ee27f;--accent2:#19c46a;--accent-ink:#04130a;--glow:rgba(46,226,127,.30)}
   *{box-sizing:border-box}
   /* Fond html = COULEUR DE LA NAV (#0b0d12) : la zone du home-indicator iPhone (PWA standalone), non
      couverte par body/nav, montrait sinon un TROU NOIR sous la barre du bas. Là elle se fond dedans. */
@@ -319,7 +323,7 @@ CSS = """
      compact dans le coin -> ne déborde plus sur le logo BETSFIX centré. */
   .acctbtn{position:fixed;top:calc(env(safe-area-inset-top) + 16px);right:14px;z-index:55;
     display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;line-height:1;
-    border-radius:999px;color:#43473c;text-decoration:none;
+    border-radius:999px;color:#cfe0f5;text-decoration:none;
     background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
     border:1px solid rgba(150,182,222,.20)}
   .acctbtn:active{transform:scale(.94)}
@@ -367,7 +371,7 @@ CSS = """
   .a2hs.show{transform:translateY(0);opacity:1}
   .a2hs-ic{font-size:23px;flex:none;line-height:1}
   .a2hs-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-  .a2hs-tx b{font-size:13.5px;color:#16180f;font-weight:800;letter-spacing:-.01em}
+  .a2hs-tx b{font-size:13.5px;color:#eef4fb;font-weight:800;letter-spacing:-.01em}
   .a2hs-tx span{font-size:11.5px;color:var(--muted);line-height:1.42}
   .a2hs-tx .shr{display:inline-flex;vertical-align:-2px}
   .a2hs-go{flex:none;padding:8px 14px;border-radius:11px;border:0;cursor:pointer;font-weight:800;font-size:12.5px;
@@ -648,10 +652,10 @@ CSS = """
   .spf-rate{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
   .spf-rate-h{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;
        color:var(--muted)}
-  .spf-rate-h b{color:#0f9d74;font-size:12px;letter-spacing:0;margin-left:3px}
+  .spf-rate-h b{color:#22b8ff;font-size:12px;letter-spacing:0;margin-left:3px}
   .rate-c{display:block;margin-top:5px}
   .rate-lbl{font-size:8px;font-weight:800;fill:var(--muted);font-variant-numeric:tabular-nums}
-  .rate-lbl-e{fill:#0f9d74}
+  .rate-lbl-e{fill:#22b8ff}
   /* Ligne W/L des graphes héros : pastilles RESSERRÉES et centrées (demande user) + espace avant l'historique. */
   .spf-hero .spf-cv-form{display:block;overflow:visible;margin:12px 0 0}
   .spf-hero .spf-cv-form .forms{display:flex;width:100%;justify-content:center;gap:4px;margin-left:0;flex-wrap:wrap}
@@ -782,7 +786,7 @@ CSS = """
   /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
   discret. */
   .mc-comp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-       font-size:12px;font-weight:800;color:#71756a;letter-spacing:.02em;text-transform:uppercase}  /* LIGUE = couleur du glose + MAJUSCULE (user 2026-08-08) */
+       font-size:12px;font-weight:800;color:#8fa2b8;letter-spacing:.02em;text-transform:uppercase}  /* LIGUE = couleur du glose + MAJUSCULE (user 2026-08-08) */
   /* Nom du SPORT (majuscules, accent du sport) puis compétition (muted) — « TENNIS • Wimbledon ». */
   .mc-sport{color:var(--accent);font-weight:800;letter-spacing:.05em}
   .mc-comp-sep{color:var(--dim);font-weight:700}
@@ -790,7 +794,7 @@ CSS = """
        white-space:nowrap;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1.3}
   .mc-up{background:rgba(255,255,255,.06);color:var(--muted)}
   .mc-live{background:rgba(52,210,123,.16);color:#5fe39b}
-  .mc-done{background:rgba(255,255,255,.06);color:#43473c}
+  .mc-done{background:rgba(255,255,255,.06);color:#cfe0f5}
   .mc-wait{background:rgba(246,197,74,.13);color:var(--gold)}
   /* Chevron de dépli : EN BAS À DROITE du cadre replié. */
   .mc-chev{position:absolute;right:12px;bottom:9px;color:var(--muted);font-size:15px;
@@ -831,8 +835,8 @@ CSS = """
      score + le temps restant (cote live dé-margée / repli modèle). PURE AFFICHAGE (jamais au ROI). */
   .lvbar{margin-top:9px}
   .lvbar-hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
-  .lvbar-t{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#71756a}
-  .lvbar-v{font-size:13px;font-weight:900;color:#16180f;font-variant-numeric:tabular-nums}
+  .lvbar-t{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#8fa2b8}
+  .lvbar-v{font-size:13px;font-weight:900;color:#eaf2ff;font-variant-numeric:tabular-nums}
   .lvbar-ar{font-size:10px;margin-left:3px}
   .lvbar.lv-up .lvbar-ar{color:#34d27b}
   .lvbar.lv-down .lvbar-ar{color:#ff6b6b}
@@ -841,7 +845,7 @@ CSS = """
   .lvbar-src{margin-top:3px;font-size:10px;font-weight:600;color:#7d8ca0;text-align:right}
   /* Ligne de pari : libellé à gauche (peut passer à la ligne), pastilles cote/confiance À DROITE,
      VERTICALEMENT CENTRÉES contre le libellé (fini le désalignement quand le libellé fait 2 lignes). */
-  .mc-betl{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:#43473c}
+  .mc-betl{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:#cfe0f5}
   .mc-betl + .mc-betl{margin-top:3px}
   /* Étiquette DOUBLE SCAN (« Premier scan » / « Dernier scan ») : le rescan a changé le pari -> les deux
      décisions affichées et comptées (demande user 2026-07-21). Petite pastille discrète devant le pari. */
@@ -922,7 +926,7 @@ CSS = """
   .lb-n{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff} /* nom d'équipe : prend l'espace restant et TRONQUE -> les colonnes de score restent toujours visibles */
   .lb-s{display:flex;gap:13px;flex:none}
   .lb-c{min-width:13px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
-  .lb-c.lb-win{color:#16180f;font-weight:800}     /* set/score gagné : clair gras */
+  .lb-c.lb-win{color:#eaf2ff;font-weight:800}     /* set/score gagné : clair gras */
   .lb-row.lb-lead .lb-c.lb-win{color:#34d27b}     /* meneur : score gagné en vert */
   .lb-pen{font-size:11px;color:var(--muted);font-weight:600}  /* tirs au but « (4) » inline, discret */
   .lb-row.lb-lead .lb-pen{color:#34d27b}          /* vainqueur des t.a.b. : parenthèse verte */
@@ -937,7 +941,7 @@ CSS = """
   .lboard-t .lb-hdr .lb-c{font-size:10px}
   /* Colonne SETS (résultat du match) = MÊME que TOT basket : taille/couleur/poids,
   gagnant en vert */
-  .lboard-t .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#16180f}
+  .lboard-t .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
   .lboard-t .lb-hdr .lb-tot{font-size:9px}
   .lboard-t .lb-row.lb-lead .lb-tot{color:#34d27b}
   /* UNE seule ligne verticale continue à gauche de SETS (comme basket),
@@ -955,7 +959,7 @@ CSS = """
   .lboard-q .lb-hdr .lb-c{font-size:10px}       /* Q1..Qn + TOT : en-tête discret (plus petit) */
   .lboard-q .lb-c.lb-ico{font-size:13px}        /* foot : icônes 🟥🟨🚩⚽ lisibles (cartons/corners/buts) */
   .lboard-q .lb-c.lb-tot.lb-ico{font-size:14px}
-  .lboard-q .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#16180f}
+  .lboard-q .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
   .lboard-q .lb-row.lb-lead .lb-tot{color:#34d27b}   /* gagnant : SEUL son total en vert */
   .lboard-q .lb-cur{color:#fff}                       /* quart en cours : score en blanc */
   /* UNE seule ligne verticale continue à gauche de TOT,
@@ -1037,7 +1041,7 @@ CSS = """
   .pl-top{display:flex;align-items:center;gap:7px}
   .pl-tag{font-size:10.5px;font-weight:800;letter-spacing:.04em;padding:2px 7px;
           border-radius:7px;white-space:nowrap}
-  .pl-sel{display:block;text-align:center;font-size:15px;font-weight:800;color:#16180f;
+  .pl-sel{display:block;text-align:center;font-size:15px;font-weight:800;color:#eaf2ff;
           letter-spacing:-.01em;line-height:1.3;margin:8px 2px 1px}
   .pl-o{font-size:15px;font-weight:800;margin-left:auto}
   /* CONFIANCE = vert */
@@ -1048,11 +1052,11 @@ CSS = """
   /* VALUE = bleu */
   .perle-value{background:linear-gradient(90deg,rgba(34,184,255,.13),rgba(34,184,255,.05));
                border-color:rgba(34,184,255,.45);box-shadow:0 0 14px rgba(34,184,255,.10)}
-  .perle-value .pl-tag{color:#0f9d74;background:rgba(34,184,255,.16)}
-  .perle-value .pl-o{color:#0f9d74}
+  .perle-value .pl-tag{color:#4aa8ff;background:rgba(34,184,255,.16)}
+  .perle-value .pl-o{color:#4aa8ff}
   .bdg .badge{white-space:nowrap}
   /* Matchs terminés : prono JOUÉ mis en évidence (Confiance vert / Value bleu) + ✓/✗ */
-  .fpick{font-size:12.5px;color:#16180f;padding:8px 11px;border-radius:9px;
+  .fpick{font-size:12.5px;color:#eaf2ff;padding:8px 11px;border-radius:9px;
          margin:4px 0;border:1px solid var(--cardline);line-height:1.35}
   .fp-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .fpick-t{font-weight:800;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
@@ -1061,36 +1065,36 @@ CSS = """
   .fpick-s{font-weight:700;text-align:center;margin-top:5px}   /* le pari,
   centré sur 2e ligne */
   .fp-conf .fpick-t{color:#34d27b}
-  .fp-val .fpick-t{color:#0f9d74}
+  .fp-val .fpick-t{color:#4aa8ff}
   /* Cache PAYWALL : remplace le pari pour un non-abonné (cf. app/paywall.py + middleware) */
   .prono-lock{display:flex;align-items:center;gap:11px;margin:8px 0;padding:11px 13px;border-radius:11px;
     text-decoration:none;background:linear-gradient(100deg,rgba(34,184,255,.10),rgba(34,184,255,.03));
     border:1px solid rgba(34,184,255,.35)}
   .prono-lock-i{font-size:19px;line-height:1}
   .prono-lock-t{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
-  .prono-lock-t b{font-size:12.5px;font-weight:800;color:#16180f}
-  .prono-lock-t small{font-size:10.5px;color:#71756a;font-weight:600}
-  .prono-lock-go{font-size:11px;font-weight:800;color:#0f9d74;white-space:nowrap}
+  .prono-lock-t b{font-size:12.5px;font-weight:800;color:#eaf2ff}
+  .prono-lock-t small{font-size:10.5px;color:#90a4be;font-weight:600}
+  .prono-lock-go{font-size:11px;font-weight:800;color:#5fd0ff;white-space:nowrap}
   /* Page COMPTE (connexion / abonnement) — onglet du bas, rendu dans la coquille app. Scopé .acctwrap */
   .acctwrap{max-width:400px;margin:6px auto 0;width:100%}
   .acctwrap .acard{background:linear-gradient(180deg,rgba(34,184,255,.07),rgba(34,184,255,.02));
     border:1px solid rgba(34,184,255,.22);border-radius:18px;padding:22px 20px}
   .acctwrap h1{font-size:19px;font-weight:800;margin:0 0 4px;color:#e9f1fb}
-  .acctwrap .sub{font-size:12px;color:#71756a;margin:0 0 18px;line-height:1.5}
-  .acctwrap label{display:block;font-size:11px;font-weight:700;color:#71756a;text-transform:uppercase;
+  .acctwrap .sub{font-size:12px;color:#90a4be;margin:0 0 18px;line-height:1.5}
+  .acctwrap label{display:block;font-size:11px;font-weight:700;color:#90a4be;text-transform:uppercase;
     letter-spacing:.04em;margin:14px 0 6px}
   .acctwrap input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
     border-radius:11px;padding:12px 13px;color:#e9f1fb;font-family:inherit;font-size:14px}
   .acctwrap input:focus{outline:none;border-color:rgba(34,184,255,.6)}
-  .acctwrap button{width:100%;margin-top:20px;background:#0f9d74;color:#04121c;border:0;border-radius:12px;
+  .acctwrap button{width:100%;margin-top:20px;background:#22b8ff;color:#04121c;border:0;border-radius:12px;
     padding:13px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer}
-  .acctwrap button.ghost{background:transparent;color:#0f9d74;border:1px solid rgba(34,184,255,.35)}
+  .acctwrap button.ghost{background:transparent;color:#5fd0ff;border:1px solid rgba(34,184,255,.35)}
   .acctwrap .err{background:rgba(255,80,90,.12);border:1px solid rgba(255,80,90,.4);color:#ff9aa1;
     border-radius:10px;padding:10px 12px;font-size:12px;margin-bottom:14px;line-height:1.4}
   .acctwrap .ok{background:rgba(25,196,106,.12);border:1px solid rgba(25,196,106,.4);color:#8df3c0;
     border-radius:10px;padding:10px 12px;font-size:12px;margin-bottom:14px;line-height:1.4}
-  .acctwrap .alt{text-align:center;font-size:12px;color:#71756a;margin-top:18px}
-  .acctwrap a{color:#0f9d74;text-decoration:none}
+  .acctwrap .alt{text-align:center;font-size:12px;color:#90a4be;margin-top:18px}
+  .acctwrap a{color:#5fd0ff;text-decoration:none}
   .acctwrap .arow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;
     padding:11px 0;border-top:1px solid rgba(255,255,255,.08);color:#e9f1fb}
   .acctwrap .arow b{font-weight:800}
@@ -1225,7 +1229,7 @@ CSS = """
   .ocp-fav.ocb-pc .ocp-c{color:#f0cf63;background:rgba(232,195,77,.15);border-color:rgba(232,195,77,.42)}
   /* barre Public compacte : libellés sous la barre fine */
   .oc-pub{font-size:10.5px;color:var(--muted);font-weight:600}
-  .oc-pub b{color:#43473c;font-weight:800}
+  .oc-pub b{color:#cfe0f5;font-weight:800}
   /* Barre « Bookmakers » : 1 segment par issue (cote seule),
   parts ÉGALES. Les 3 ont le
      MÊME fond que le segment le plus faible (non-favori) des autres barres -> navy .pba. */
@@ -1250,7 +1254,7 @@ CSS = """
          font-variant-numeric:tabular-nums}
   .pt2-v.hi{font-weight:800}
   .pt2-v.dim{color:var(--dim)}
-  .t-pm{color:#0f9d74} .t-po{color:#43dd8c} .t-pc{color:#e8c34d}   /* favori = couleur de la source */
+  .t-pm{color:#4aa8ff} .t-po{color:#43dd8c} .t-pc{color:#e8c34d}   /* favori = couleur de la source */
   /* Barre : ligne 2,
   à partir de la colonne 2 (démarre donc après la source) */
   .pt2-bar{grid-column:2/-1;grid-row:2;margin-top:5px;
@@ -1300,7 +1304,7 @@ CSS = """
         margin-top:8px;padding:7px 12px;border-radius:10px;
         background:rgba(34,184,255,.06);border:1px solid rgba(34,184,255,.22)}
   .oc2{font-size:12.5px;color:var(--muted);white-space:nowrap}
-  .oc2 b{color:#16180f;font-weight:800;margin-left:3px;font-size:13.5px;font-variant-numeric:tabular-nums}
+  .oc2 b{color:#eaf2ff;font-weight:800;margin-left:3px;font-size:13.5px;font-variant-numeric:tabular-nums}
   .oc2.fav{color:#9fd0ff} .oc2.fav b{color:#56b0ff}
   /* Tous les paris Unibet : un bloc par marché,
   cotes qui wrappent si nombreuses */
@@ -1355,7 +1359,7 @@ CSS = """
   .dots{display:flex;gap:5px;justify-content:space-between}   /* réparti sur toute la largeur */
   /* Nom d'équipe/joueur des formes récentes : MÊME présentation sur les 3 sports,
   centré */
-  .fm-name{font-size:14px;font-weight:800;text-align:center;margin:2px 0 8px;color:#16180f}
+  .fm-name{font-size:14px;font-weight:800;text-align:center;margin:2px 0 8px;color:#eaf2ff}
   .fm-name .dim{font-weight:600}
   .dot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;
        justify-content:center;font-size:11px;font-weight:800}
@@ -1416,9 +1420,9 @@ CSS = """
   .ptab-row{display:grid;grid-template-columns:1fr 1.4fr .8fr .8fr;gap:5px;
           align-items:center;padding:11px 12px}
   .ptab-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.01em;
-          color:#16180f;border-bottom:1px solid var(--border);background:rgba(255,255,255,.022)}
+          color:#eaf2ff;border-bottom:1px solid var(--border);background:rgba(255,255,255,.022)}
   .ptab-h span{text-align:center} .ptab-h span:first-child{text-align:left}
-  .ptab-h .ph-conf{color:#34d27b} .ptab-h .ph-val{color:#0f9d74}   /* Confiance vert · Value bleu */
+  .ptab-h .ph-conf{color:#34d27b} .ptab-h .ph-val{color:#4aa8ff}   /* Confiance vert · Value bleu */
   .ptab-row{border-top:1px solid var(--border);border-left:3px solid var(--sc,var(--border2));
           text-decoration:none;color:var(--text);transition:background .15s}
   .ptab-row:first-of-type{border-top:none}
@@ -1446,13 +1450,13 @@ CSS = """
   /* Mini-barre de progression PAR SPORT (colonne Fiabilité) : réglés (plein) + en attente (estompé) */
   .pbar2{display:flex;width:86%;max-width:88px;height:5px;border-radius:99px;
           background:var(--border);overflow:hidden;margin:5px auto 4px}
-  .pbar2 .pg-done{height:100%;background:linear-gradient(90deg,#34d27b,#0f9d74)}
+  .pbar2 .pg-done{height:100%;background:linear-gradient(90deg,#34d27b,#4aa8ff)}
   .pbar2 .pg-wait{height:100%;background:rgba(159,180,207,.32)}
   /* Légende sous le tableau */
   .ptab-cap{font-size:11px;color:var(--muted);text-align:center;margin:11px 4px 2px;line-height:1.5}
-  .ptab-cap b{color:#43473c}
+  .ptab-cap b{color:#cfe0f5}
   .pg-lg{display:inline-block;width:14px;height:5px;border-radius:99px;vertical-align:middle;margin-right:2px}
-  .pg-lg.done{background:linear-gradient(90deg,#34d27b,#0f9d74)}
+  .pg-lg.done{background:linear-gradient(90deg,#34d27b,#4aa8ff)}
   .pg-lg.wait{background:rgba(159,180,207,.32)}
   /* Courbe d'équité (P&L cumulé dans le temps) : SVG généré côté serveur,
   sans JS */
@@ -1465,7 +1469,7 @@ CSS = """
   /* Légende des dates d'optimisation perle (sous la section ; = lignes ambre des courbes) */
   .evo-optim{font-size:10.5px;color:var(--muted);text-align:center;margin-top:10px;padding-top:9px;
        border-top:1px solid var(--border);line-height:1.7}
-  .evo-optim b{color:#43473c} .evo-otag{color:#ffa94a;font-weight:800}
+  .evo-optim b{color:#cfe0f5} .evo-otag{color:#ffa94a;font-weight:800}
   /* Carte détail PAR SPORT : verdict + échantillon + barres taux/ROI + courbe P&L cumulé */
   .spc{margin:11px 0;padding:11px 13px 9px;border-radius:var(--radius);
        background:linear-gradient(180deg,var(--surface2),var(--surface));
@@ -1487,7 +1491,7 @@ CSS = """
   /* Analyse « analyste » (markdown rendu) en fiche match */
   .da{font-size:13px;line-height:1.55;color:#e8eaed}
   .da-h{font-weight:800;color:#e8eaed;margin:13px 0 5px}
-  .da-h1{font-size:15px} .da-h2{font-size:13.5px} .da-h3{font-size:12.5px;color:#43473c}
+  .da-h1{font-size:15px} .da-h2{font-size:13.5px} .da-h3{font-size:12.5px;color:#cfe0f5}
   .da-p{margin:6px 0}
   /* Carte DÉPLIÉE refondue (demande user 2026-07-13) : sections premium empilées, en-tête à petite capitale.
      « Pourquoi ce pari » = section accentuée (cœur de l'analyse) ; faits VISIBLES ; mise discrète. */
@@ -1495,7 +1499,7 @@ CSS = """
        border:1px solid var(--border)}
   .da-sec:first-child{margin-top:2px}
   .da-sec>.da-h:first-child{margin-top:0;display:flex;align-items:center;gap:7px;font-size:12px;
-       letter-spacing:.02em;color:#43473c}
+       letter-spacing:.02em;color:#cfe0f5}
   .da-sec .da-p:first-of-type{margin-top:0}
   .da-sec-why{background:linear-gradient(180deg,rgba(34,184,255,.07),rgba(34,184,255,.012));
        border-color:rgba(34,184,255,.24)}
@@ -1508,7 +1512,7 @@ CSS = """
   .da-tbl{width:100%;border-collapse:collapse;margin:9px 0;font-size:11.5px}
   .da-tbl th,
   .da-tbl td{border:1px solid var(--border);padding:5px 7px;text-align:left;vertical-align:top}
-  .da-tbl th{background:var(--surface2);font-weight:700;color:#43473c}
+  .da-tbl th{background:var(--surface2);font-weight:700;color:#cfe0f5}
   .da a{color:#5ab0ff;text-decoration:none}
   /* === Habillage analyste premium : Verdict héro + tableau + faits + tendances === */
   .da{font-size:13px;line-height:1.55;color:var(--text)}
@@ -1519,13 +1523,13 @@ CSS = """
   .da-res-lose{background:rgba(242,93,110,.15);color:#ff7484;border-color:rgba(242,93,110,.35)}
   .da-res-push{background:var(--gold-bg);color:var(--gold);border-color:var(--gold-bd)}
   .da-res-nv{background:var(--surface2);color:var(--muted);border-color:var(--border)}
-  .da-res-sc{font-weight:800;color:#43473c;font-size:12px}
+  .da-res-sc{font-weight:800;color:#cfe0f5;font-size:12px}
   /* Carte « Track record analyste » premium */
   .arec{margin:2px 0 14px;padding:13px 14px 12px;border-radius:var(--radius);
        background:linear-gradient(180deg,var(--surface2),var(--surface));
        border:1px solid var(--cardline);box-shadow:var(--cardglow),var(--shadow)}
   .arec-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:9px}
-  .arec-h-l{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#43473c}
+  .arec-h-l{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#cfe0f5}
   .arec-h-sub{font-size:10.5px;color:var(--muted)}
   .arec-tot{display:flex;align-items:center;gap:12px;padding:6px 0 10px;border-bottom:1px solid var(--border)}
   .arec-big{font-size:30px;font-weight:900;line-height:1;letter-spacing:-.02em}
@@ -1537,10 +1541,10 @@ CSS = """
   .arec-sp-v{font-size:20px;font-weight:900;color:var(--text);margin:3px 0 1px}
   .arec-sp-t{font-size:12px;font-weight:700;color:var(--muted)}
   .arec-sp-p{font-size:12px;font-weight:800}
-  .arec-sp-u{font-size:11px;font-weight:700;color:#43473c;margin-top:2px;font-variant-numeric:tabular-nums}
+  .arec-sp-u{font-size:11px;font-weight:700;color:#cfe0f5;margin-top:2px;font-variant-numeric:tabular-nums}
   .arec-sp-roiv{font-size:23px;font-weight:900;line-height:1.05;margin-top:3px;font-variant-numeric:tabular-nums}
   .arec-sp-roi{font-size:10.5px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
-  .arec-sp-v2{font-size:11.5px;font-weight:700;color:#43473c;margin-top:5px}
+  .arec-sp-v2{font-size:11.5px;font-weight:700;color:#cfe0f5;margin-top:5px}
   .arec-sp-o{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
   .arec-hi{color:#3ee089} .arec-mid{color:var(--gold)} .arec-lo{color:#ff7484}
   .arec-na{color:var(--muted)}
@@ -1580,7 +1584,7 @@ CSS = """
   courbes de profit cumulé) */
   .bcharts{margin:2px 0 14px;display:flex;flex-direction:column;gap:10px}
   .bcharts-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
-       color:#43473c;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+       color:#cfe0f5;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
   .bcharts-sub{font-size:10px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
   .bchart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
        padding:11px 12px 10px}
@@ -1602,7 +1606,7 @@ CSS = """
   .bc-mile-g .bc-mile-c{transition:r .12s}
   .bc-mile-g.on .bc-mile-c{fill:#46e08a;stroke:#bdf6d4}
   .bc-mile-g.on .bc-mile{stroke:rgba(70,224,138,.7)}
-  .bc-mile-c{fill:#0b8a66;stroke:#bfe2ff;stroke-width:.8}
+  .bc-mile-c{fill:#1496f0;stroke:#bfe2ff;stroke-width:.8}
   .bc-mile-n{fill:#fff;font-size:7px;font-weight:900;pointer-events:none}
   /* Repères ALLÉGÉS : pastilles cliquables + panneau d'info au clic (page plus légère) */
   .sx-miles{margin-top:10px}
@@ -1625,7 +1629,7 @@ CSS = """
   .exq-ex{background:rgba(255,107,107,.16);color:#ff9b9b;border:1px solid rgba(255,107,107,.35)}
   .exq-watch{background:rgba(224,179,65,.14);color:#e6c463;border:1px solid rgba(224,179,65,.32)}
   .exq-ok{background:rgba(52,210,123,.14);color:#7fe0a8;border:1px solid rgba(52,210,123,.30)}
-  .exq-reason{font-size:11px;line-height:1.45;color:#43473c}
+  .exq-reason{font-size:11px;line-height:1.45;color:#cfe0f5}
   .exq-meta{font-size:10px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
   .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
        opacity:.85;display:flex;align-items:baseline;gap:8px}
@@ -1647,7 +1651,7 @@ CSS = """
   .sx-mile-tag.mauto{background:rgba(255,159,67,.16);color:#ffca8a}
   .sx-mile-key{display:flex;gap:14px;margin-top:8px;font-size:9.5px;color:var(--muted)}
   .sx-mile-key .km{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
-  .sx-mile-key .kmeth{background:#0b8a66} .sx-mile-key .kauto{background:#ff9f43}
+  .sx-mile-key .kmeth{background:#1496f0} .sx-mile-key .kauto{background:#ff9f43}
   /* Journal des ajustements automatiques (marchés auto-écartés / auto-réintégrés, datés) */
   .exq-journal{display:flex;flex-direction:column;gap:6px;padding:9px 10px;border:1px solid var(--border);
        border-radius:14px;background:rgba(255,159,67,.045)}
@@ -1661,7 +1665,7 @@ CSS = """
   .exq-jmk{font-size:12.5px;font-weight:800;color:var(--text)}
   .exq-jbase{font-size:9px;font-weight:700;color:var(--muted);border:1px solid var(--border);
        border-radius:5px;padding:1px 5px}
-  .exq-jreason{font-size:10.5px;color:#43473c;margin-top:3px;line-height:1.4}
+  .exq-jreason{font-size:10.5px;color:#cfe0f5;margin-top:3px;line-height:1.4}
   .sx-divider{height:1px;background:var(--border);margin:14px 0 2px}
   .sx-h2{margin-top:8px}
   .bc-yl{fill:var(--muted);font-size:9px;text-anchor:end;font-weight:700}
@@ -1670,7 +1674,7 @@ CSS = """
        border:1px solid var(--border);border-radius:9px;padding:4px 8px;font-size:11px}
   .bc-dot{width:8px;height:8px;border-radius:50%;flex:none}
   .bc-lg-n{font-weight:800;color:var(--text)} .bc-lg-p{font-weight:800}
-  .bc-lg-u{font-weight:700;color:#43473c;font-variant-numeric:tabular-nums}
+  .bc-lg-u{font-weight:700;color:#cfe0f5;font-variant-numeric:tabular-nums}
   .bc-lg-c{color:var(--muted);font-variant-numeric:tabular-nums}
   .bc-grid{stroke:rgba(255,255,255,.06);stroke-width:1}
   .bc-end{font-size:8.5px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -1731,7 +1735,7 @@ CSS = """
   .sx-streak.best{color:var(--gold);background:rgba(214,178,90,.12);border:1px solid rgba(214,178,90,.32);margin-left:5px}
   .sx-form{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:flex-end}
   .sx-fd{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:0 0 auto}
-  .sx-fd.won{background:#34d27b} .sx-fd.lost{background:#ff6b6b} .sx-fd.push{background:#71756a}
+  .sx-fd.won{background:#34d27b} .sx-fd.lost{background:#ff6b6b} .sx-fd.push{background:#9fb0c8}
   .sx-ind{font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);
        background:rgba(246,197,74,.15);border:1px solid rgba(246,197,74,.3);padding:1px 5px;border-radius:99px;
        vertical-align:middle;margin-left:4px}
@@ -1865,7 +1869,7 @@ CSS = """
   .sx-bys{display:flex;flex-direction:column;gap:10px}
   .sx-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:0 2px;
        white-space:nowrap;font-size:12px;font-weight:800;letter-spacing:.04em;
-       text-transform:uppercase;color:#43473c;overflow:hidden}   /* overflow:hidden = un en-tête long n'élargit JAMAIS la carte (fix débordement horizontal) */
+       text-transform:uppercase;color:#cfe0f5;overflow:hidden}   /* overflow:hidden = un en-tête long n'élargit JAMAIS la carte (fix débordement horizontal) */
   .sx-h span{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;
        min-width:0;overflow:hidden;text-overflow:ellipsis}   /* sous-titre : ellipsis plutôt que déborder */
   /* Bannière BETSFIX du sport (image Telegram) en en-tête de cadre stats (demande user 2026-07-24) */
@@ -1906,7 +1910,7 @@ CSS = """
   .sx-row-main{display:flex;align-items:center;gap:8px}
   .sx-row-n{font-weight:800;color:var(--text);flex:none}
   .sx-row-roi{font-weight:900;min-width:50px;text-align:right;font-variant-numeric:tabular-nums;flex:none}
-  .sx-row-wl{color:#43473c;font-weight:700;font-variant-numeric:tabular-nums;flex:none}
+  .sx-row-wl{color:#cfe0f5;font-weight:700;font-variant-numeric:tabular-nums;flex:none}
   .sx-row-c{color:var(--muted);font-weight:700;min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
   .sx-row-chev{color:var(--muted);font-weight:900;transition:transform .18s;flex:none}
   .sx-row.open .sx-row-chev{transform:rotate(90deg)}
@@ -1938,11 +1942,11 @@ CSS = """
   sens (steam/drift) + mini-courbe */
   .om{background:rgba(255,255,255,.04);border:1px solid var(--cardline);border-radius:12px;
       padding:9px 12px;margin:11px 0 2px}
-  .om-h{font-size:11.5px;font-weight:800;letter-spacing:.03em;color:#43473c;text-transform:uppercase;
+  .om-h{font-size:11.5px;font-weight:800;letter-spacing:.03em;color:#cfe0f5;text-transform:uppercase;
         display:flex;flex-direction:column;gap:2px;margin-bottom:7px}
   .om-sub{font-size:9px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
   .om-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px;font-weight:700}
-  .om-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#16180f}
+  .om-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#eaf2ff}
   .om-spk{flex:none;width:74px;height:22px;opacity:.95}
   .om-spk .sx-spark{height:22px}
   .om-vals{flex:none;display:flex;gap:5px;align-items:center;font-variant-numeric:tabular-nums}
@@ -2000,8 +2004,8 @@ CSS = """
   /* ===== Cartes de paris — STYLE TELEGRAM (demande user 2026-07-12, reprend les cartes publiées, sans logo) :
      fond BLEU NUIT dégradé + bordure lumineuse ; titre en tiret long ; « Confiance % » en texte ; la COTE en
      GROS chiffre (blanc) en bas à DROITE avec le label « COTE ». ===== */
-  /* Couleurs/graisses CALQUÉES sur la carte Telegram (tools/card_image.py) : cyan #0f9d74, comp #93b7db,
-     titre #16180f, analyse #71756a (léger), meta #71756a, cote #fff. */
+  /* Couleurs/graisses CALQUÉES sur la carte Telegram (tools/card_image.py) : cyan #5fd0ff, comp #93b7db,
+     titre #eef4fb, analyse #a7bcd6 (léger), meta #90a4be, cote #fff. */
   /* Fond UNI (plus de dégradé 165° étirable qui redistribuait « la lumière » au dépli — user 2026-07-21). */
   /* TOUTES les cartes de pari : bordure BLANCHE + bord GAUCHE coloré selon le RÉSULTAT (demande user
      2026-07-25). Par défaut (à venir / en attente) = doré ; gagné = vert ; perdu = rouge ; live = doré ;
@@ -2014,16 +2018,16 @@ CSS = """
   .row.mc.mc-tg.mc-r-push{border-color:var(--st-void)}
   .row.mc.mc-tg.mc-r-live{border-color:var(--st-live)}
   .mc-tg .mc-head{padding:12px 16px 11px}
-  .mc-tg .mc-sport{color:#0f9d74;font-weight:800;letter-spacing:.05em}
+  .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
   .mc-tg .mc-comp-sep{color:#5f7a97}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
   /* Équipes = HÉROS de la carte (demande user 2026-07-14) : plus GRANDES (16 px) que le pari (14 px). */
-  .mc-tg .mc-teams{font-size:15px;font-weight:800;color:#16180f;line-height:1.26;margin-top:10px;
+  .mc-tg .mc-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
        white-space:normal;overflow:visible;text-overflow:clip;text-wrap:balance}
   /* Court extrait d'analyse à BARRE CYAN à gauche (comme la carte Telegram) — texte léger, plafonné à
      4 lignes (demande user 2026-07-12 ; line-clamp = filet visuel, la coupe texte fait déjà l'essentiel). */
-  .mc-note{margin-top:9px;padding-left:13px;border-left:2px solid #3a9fe0;color:#71756a;
+  .mc-note{margin-top:9px;padding-left:13px;border-left:2px solid #3a9fe0;color:#a7bcd6;
        font-size:12.5px;font-weight:500;line-height:1.5;
        display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   /* MÊME trait que le filet au-dessus de « Pourquoi ce choix » (.cleg-fold-bet border-top) — demande
@@ -2033,13 +2037,13 @@ CSS = """
   .mc-tg .mc-chev{display:none}                 /* le gros chiffre COTE occupe le coin bas-droit -> pas de chevron */
   /* Pari à jouer : SOUS les équipes et PLUS PETIT qu'elles (demande user 2026-07-14). Reste en gras (le
      pari), mais l'équipe (le match) domine la hiérarchie de la carte. */
-  .mc-pick{font-size:13px;font-weight:800;color:#16180f;line-height:1.3;letter-spacing:-.01em}
-  .mc-conf{margin-top:10px;font-size:13px;color:#71756a;font-weight:600}
+  .mc-pick{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.3;letter-spacing:-.01em}
+  .mc-conf{margin-top:10px;font-size:13px;color:#90a4be;font-weight:600}
   .mc-conf b{color:#fff;font-weight:800;font-variant-numeric:tabular-nums}
   .mc-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:13px}
   .mc-foot .mc-reana{margin-top:0;color:#7f93aa}
   .mc-cote{flex:none;text-align:right;line-height:1}
-  .mc-cote-l{display:block;font-size:9.5px;font-weight:800;letter-spacing:.13em;color:#71756a;margin-bottom:3px}
+  .mc-cote-l{display:block;font-size:9.5px;font-weight:800;letter-spacing:.13em;color:#90a4be;margin-bottom:3px}
   .mc-cote-v{font-size:30px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
   /* Bande VERDICT (demande user 2026-07-13) : confiance (barre + % coloré par niveau) À GAUCHE, cote À
      DROITE -> les 2 chiffres clés se lisent ENSEMBLE ; la couleur encode le risque sans avoir à lire. */
@@ -2065,7 +2069,7 @@ CSS = """
   .mc-vc-mk{color:var(--muted);font-weight:600}
   .mc-vc-foot{margin-top:6px;font-size:10px;font-weight:600;color:var(--muted)}
   /* Traduction EN CLAIR du marché, sous la sélection (demande user 2026-07-13) — discrète, une flèche cyan. */
-  .mc-gloss{margin-top:5px;font-size:12.5px;color:#71756a;font-weight:600;line-height:1.35}
+  .mc-gloss{margin-top:5px;font-size:12.5px;color:#8fa2b8;font-weight:600;line-height:1.35}
   .mc-gloss b{color:#c4d2e2;font-weight:700}
   .mc-gloss .ar{color:var(--accent);font-weight:800;margin-right:5px}
   /* Mention « pari publié figé · cote a bougé » (demande user 2026-07-14) : rassurant, pas alarmant. */
@@ -2113,12 +2117,12 @@ CSS = """
   .mc-cleg-push{border-left:3px solid var(--st-void)}
   .mc-cleg-b{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
   /* MATCH en titre (équipes) + badge/score live ; PARI À JOUER dessous (sélection + cote or). */
-  .mc-cleg-match{font-size:14px;font-weight:800;color:#16180f;line-height:1.26;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
-  .mc-cleg-bet{margin-top:3px;font-size:13px;font-weight:700;color:#43473c;line-height:1.3}
+  .mc-cleg-match{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.26;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .mc-cleg-bet{margin-top:3px;font-size:13px;font-weight:700;color:#cfe0f5;line-height:1.3}
   .mc-cleg-o{margin-left:7px;font-size:11.5px;font-weight:900;color:#64cd8d;font-variant-numeric:tabular-nums}  /* cote de jambe : vert émeraude (cadre combiné passé au vert 2026-07-21) */
   .mc-cleg-sc{color:#5be08c;font-weight:800;font-variant-numeric:tabular-nums}
   /* analyse de la jambe (comme les combinés Telegram) — texte léger sous la sélection. */
-  .mc-cleg-why{margin-top:6px;font-size:11.5px;font-weight:500;color:#71756a;line-height:1.45}
+  .mc-cleg-why{margin-top:6px;font-size:11.5px;font-weight:500;color:#a7bcd6;line-height:1.45}
   /* JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : chaque jambe encadrée exactement comme une carte
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
@@ -2132,7 +2136,7 @@ CSS = """
   .cleg.lost{border-color:var(--st-lost)}
   .cleg.push,.cleg.void{border-color:var(--st-void)}
   .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
-  .cleg-comp{flex:1;min-width:0;font-size:12px;font-weight:800;color:#71756a;letter-spacing:.02em;
+  .cleg-comp{flex:1;min-width:0;font-size:12px;font-weight:800;color:#8fa2b8;letter-spacing:.02em;
        text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* LIGUE = couleur du glose + MAJUSCULE + MÊME taille que la carte de pari (user 2026-08-08) */
   .cleg-sport{color:#2ee27f;font-weight:800;letter-spacing:.04em;font-size:13px}   /* emoji MÊME taille que .mc-ic (carte pari) */
   /* Nom du sport TOUJOURS à la couleur du sport (demande user 2026-07-20), quel que soit le type de carte
@@ -2150,7 +2154,7 @@ CSS = """
   /* Badge résultat : CONTOUR assorti à l'état (vert gagné / rouge perdu) — demande user 2026-07-28. */
   .cleg-bdg.w{background:rgba(52,210,123,.18);color:#34d27b;border:1px solid rgba(52,210,123,.55)}
   .cleg-bdg.l{background:rgba(255,107,107,.16);color:#ff6b6b;border:1px solid rgba(255,107,107,.5)}
-  .cleg-bdg.n{background:rgba(144,164,190,.16);color:#71756a}
+  .cleg-bdg.n{background:rgba(144,164,190,.16);color:#90a4be}
   /* Carte TERMINÉE (gagné/perdu/remb.) : on RETIRE la barre de progression de confiance (thermomètre
      d'avant-match, muet une fois le résultat connu + doublon du « CONFIANCE % ») — demande user 2026-07-28.
      Le % reste dans la grille verdict ; le scoreboard devient le point focal. À venir/live : barre gardée. */
@@ -2158,16 +2162,16 @@ CSS = """
   /* Badge « en cours » : ORANGE (pas décidé), plus vert (demande user 2026-07-18). */
   .cleg-bdg.live{background:rgba(52,210,123,.16);color:#34d27b}   /* « 🟢 LIVE » vert comme les cartes (2026-07-21) */
   /* Équipes de la jambe sur leur propre ligne, en gros — comme les provisoires (.mc-teams). */
-  .cleg-teams{font-size:14px;font-weight:800;color:#16180f;line-height:1.24;letter-spacing:-.015em;
+  .cleg-teams{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.24;letter-spacing:-.015em;
        margin:2px 0 9px;white-space:normal}
   .cleg-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
   .cleg-main{flex:1;min-width:0}
-  .cleg-pick{font-size:13px;font-weight:800;color:#16180f;line-height:1.28;letter-spacing:-.01em}
-  .cleg-gloss{margin-top:5px;font-size:12px;color:#71756a;font-weight:600;line-height:1.32}
+  .cleg-pick{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
+  .cleg-gloss{margin-top:5px;font-size:12px;color:#8fa2b8;font-weight:600;line-height:1.32}
   .cleg-gloss .ar{color:var(--accent);font-weight:800;margin-right:5px}
   .cleg-why{margin-top:6px;font-size:11px;font-weight:500;color:#93a7c2;line-height:1.4}
   .cleg-cote{flex:none;text-align:right;line-height:1}
-  .cleg-cote-l{display:block;font-size:8.5px;font-weight:800;letter-spacing:.12em;color:#71756a;margin-bottom:2px}
+  .cleg-cote-l{display:block;font-size:8.5px;font-weight:800;letter-spacing:.12em;color:#90a4be;margin-bottom:2px}
   .cleg-cote-v{font-size:21px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .cleg.won .cleg-cote-v{color:#34d27b}
   .cleg-board{margin-top:9px}
@@ -2183,11 +2187,11 @@ CSS = """
      léger filet de séparation au-dessus + texte un poil plus lisible. */
   .cleg-fold-bet{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)}
   .cleg-fold-bet>.cleg-fold-s{font-size:11px}
-  .cleg-fold-bet .cleg-why{font-size:11.5px;color:#71756a;line-height:1.5}
+  .cleg-fold-bet .cleg-why{font-size:11.5px;color:#a7bcd6;line-height:1.5}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
      (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
   .why-ul{margin:8px 0 2px;padding:0;list-style:none}
-  .why-ul li{position:relative;padding-left:15px;margin:8px 0;font-size:11.5px;color:#71756a;line-height:1.5}
+  .why-ul li{position:relative;padding-left:15px;margin:8px 0;font-size:11.5px;color:#a7bcd6;line-height:1.5}
   .why-ul li:first-child{margin-top:2px}
   .why-ul li::before{content:"";position:absolute;left:2px;top:8px;width:5px;height:5px;border-radius:50%;
        background:rgba(120,150,190,.55)}
@@ -2272,8 +2276,8 @@ CSS = """
   .pgm-teams{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.01em;line-height:1.28}
   .pgm-ko{flex:none;font-size:15px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
   .pgm-r2{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:5px}
-  /* LIGUE : même couleur que sur les cartes de paris (.mc-comp = #71756a, user 2026-08-11) */
-  .pgm-comp{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#71756a;
+  /* LIGUE : même couleur que sur les cartes de paris (.mc-comp = #8fa2b8, user 2026-08-11) */
+  .pgm-comp{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#8fa2b8;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .pgm-an{flex:none;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--muted);
     display:inline-flex;align-items:center;gap:6px}
@@ -2324,8 +2328,8 @@ CSS = """
   /* Points/compteurs de zone = MÊME couleur que le CADRE des cartes du type (demande user 2026-07-21) :
      Paris du jour = cyan (cadre .row.pick), Provisoires = blanc (cadre .mc-prov-b), Combiné = vert
      émeraude (cadre .mc-tg-gold vert). Fini le lime/or/violet historiques. */
-  .zone-play .zone-dot{background:#0f9d74;box-shadow:0 0 8px rgba(34,184,255,.55)}
-  .zone-play .zone-n{color:#0f9d74;background:rgba(34,184,255,.12)}
+  .zone-play .zone-dot{background:#22b8ff;box-shadow:0 0 8px rgba(34,184,255,.55)}
+  .zone-play .zone-n{color:#5fd0ff;background:rgba(34,184,255,.12)}
   .zone-indic .zone-dot{background:#eef2f7;box-shadow:0 0 8px rgba(255,255,255,.5)}
   .zone-indic .zone-n{color:#eef2f7;background:rgba(255,255,255,.10)}
   .zone-indic .zone-tag{color:#c9d4e0;opacity:.9}
@@ -2403,7 +2407,7 @@ CSS = """
   .dash-stat-row{display:flex;gap:8px}
   .ds-k{flex:1;display:flex;flex-direction:column;gap:2px}
   .ds-v{font-size:20px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;line-height:1}
-  .ds-v.pos{color:#3ee089} .ds-v.neg{color:#ff7484} .ds-v.neu{color:#43473c}
+  .ds-v.pos{color:#3ee089} .ds-v.neg{color:#ff7484} .ds-v.neu{color:#cfe0f5}
   .ds-l{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
   .dash-stat-go{display:block;margin-top:9px;font-size:11.5px;font-weight:800;color:var(--accent)}
   .dperf-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -2414,8 +2418,8 @@ CSS = """
   .dash-sports{display:flex;gap:8px;margin-top:11px;border-top:1px solid rgba(255,255,255,.08);padding-top:11px}
   .dsp{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
   .dsp-ic{font-size:15px;line-height:1}
-  .dsp-v{font-size:16px;font-weight:900;color:#16180f;font-variant-numeric:tabular-nums}
-  .dsp-v.pos{color:#3ee089} .dsp-v.neg{color:#ff7484} .dsp-v.neu{color:#43473c}
+  .dsp-v{font-size:16px;font-weight:900;color:#eaf2ff;font-variant-numeric:tabular-nums}
+  .dsp-v.pos{color:#3ee089} .dsp-v.neg{color:#ff7484} .dsp-v.neu{color:#cfe0f5}
   .dsp-l{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
   .dash-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:14px 0 4px}
   .dash-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
@@ -2522,13 +2526,13 @@ CSS = """
   .sx-dd-res{flex:none;width:21px;height:21px;border-radius:50%;display:flex;align-items:center;
        justify-content:center;font-size:11px;font-weight:900}
   .sx-dd-res.dd-w{color:#06140d;background:#34d27b} .sx-dd-res.dd-l{color:#fff;background:#ff6b6b}
-  .sx-dd-res.dd-p{color:#0b1428;background:#71756a}
+  .sx-dd-res.dd-p{color:#0b1428;background:#9fb0c8}
   .sx-dd-m{min-width:0;flex:1}
   .sx-dd-t{font-size:12px;font-weight:800;color:var(--text);line-height:1.3}
   .sx-dd-s{font-size:10px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;
        text-overflow:ellipsis}
   .sx-dd-r{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
-  .sx-dd-c{font-size:11.5px;font-weight:800;color:#43473c;font-variant-numeric:tabular-nums}
+  .sx-dd-c{font-size:11.5px;font-weight:800;color:#cfe0f5;font-variant-numeric:tabular-nums}
   .sx-dd-u{font-size:10.5px;font-weight:900;font-variant-numeric:tabular-nums}
   .sx-dd-u.pos{color:#34d27b} .sx-dd-u.neg{color:#ff6b6b} .sx-dd-u.neu{color:var(--dim)}
   /* Animation d'apparition des courbes (tracé) */
@@ -2558,7 +2562,7 @@ CSS = """
   /* Lignes secondaires (compromis / à éviter) */
   .da-vc-row{position:relative;display:flex;gap:8px;font-size:12px;color:var(--muted);
        line-height:1.5;padding:6px 0;border-top:1px solid rgba(255,255,255,.05)}
-  .da-vc-row b{color:#43473c}
+  .da-vc-row b{color:#cfe0f5}
   .da-vc-ic{flex:none;font-size:13px;line-height:1.4}
   .da-vc-skip{color:#9aa6bd}
   /* Encart Mise */
@@ -2568,7 +2572,7 @@ CSS = """
   .da-mise-ic{flex:none;font-size:14px}
   .da-mise b{color:var(--gold)}
   /* Tableau des paris */
-  .da-bets-h{font-size:12px;font-weight:800;letter-spacing:.02em;color:#43473c;margin:14px 0 6px}
+  .da-bets-h{font-size:12px;font-weight:800;letter-spacing:.02em;color:#cfe0f5;margin:14px 0 6px}
   /* 🎲 Combiné « grand tournoi » (Coupe du Monde…) : encadré distinct sous les paris. */
   .da-combo{margin-top:10px;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border:1px solid rgba(255,255,255,.8);border-left:3px solid var(--st-soon);border-radius:12px;padding:10px 12px}
@@ -2582,7 +2586,7 @@ CSS = """
   .da-combo-b{font-size:10px;border-radius:5px;padding:1px 7px;font-weight:800}
   .da-combo-b.won{background:#34d27b;color:#04220f}
   .da-combo-b.lost{background:#ff6b6b;color:#2a0606}
-  .da-combo-b.void{background:#71756a;color:#0b1428}
+  .da-combo-b.void{background:#9fb0c8;color:#0b1428}
   .da-cl-leg{padding:7px 0;border-top:1px solid rgba(255,255,255,.07)}   /* 1 bloc = 1 jambe (rythme) */
   .da-cl-leg:first-of-type{border-top:0;padding-top:2px}
   .da-cl{display:flex;align-items:flex-start;gap:8px;justify-content:space-between;
@@ -2597,15 +2601,15 @@ CSS = """
   .da-cl-void{color:#aeb9c9;opacity:.7}                      /* jambe annulée/remboursée : gris estompé */
   .da-cl-void .da-cl-sel{text-decoration:line-through;text-decoration-style:dotted}
   .da-cl-live{color:#ffd98a}
-  .da-cl-p{font-variant-numeric:tabular-nums;font-size:10.5px;color:#71756a;
+  .da-cl-p{font-variant-numeric:tabular-nums;font-size:10.5px;color:#9fb0c8;
        background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
   .da-cl-pr{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;border:1px solid;
        font-variant-numeric:tabular-nums}                    /* pastille CHANCE de la jambe */
   .da-cl-pr.hi{color:#2ec98a;border-color:rgba(46,201,138,.45);background:rgba(46,201,138,.12)}
-  .da-cl-pr.mid{color:#0f9d74;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
+  .da-cl-pr.mid{color:#22b8ff;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
   .da-cl-pr.lo{color:#ffb020;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.12)}
   .da-cl-why{font-size:11px;line-height:1.5;color:#b9c2cf;padding:3px 0 0 2px}   /* pourquoi DE LA JAMBE (complet) */
-  .da-combo-why{font-size:11px;line-height:1.55;color:#43473c;font-style:italic;margin:0 0 9px}   /* synthèse (intro en tête) */
+  .da-combo-why{font-size:11px;line-height:1.55;color:#cfe0f5;font-style:italic;margin:0 0 9px}   /* synthèse (intro en tête) */
   .da-combo-live{border-left-color:var(--st-live)}
   .da-combo-b.live{background:#ffb020;color:#1a1200;animation:combopulse 1.6s ease-in-out infinite}
   @keyframes combopulse{0%,100%{opacity:1}50%{opacity:.55}}
@@ -2619,36 +2623,36 @@ CSS = """
   .tkt-h .b{font-size:9.5px;border-radius:6px;padding:2px 8px;font-weight:800;letter-spacing:.03em}
   .tkt-h .b.won{background:#34d27b;color:#04220f}
   .tkt-h .b.lost{background:#ff6b6b;color:#2a0606}
-  .tkt-h .b.void{background:#71756a;color:#0b1428}
+  .tkt-h .b.void{background:#9fb0c8;color:#0b1428}
   .tkt-h .b.live{background:rgba(52,210,123,.2);color:#7ff0b6;animation:combopulse 1.6s ease-in-out infinite}
   .tkt-h .top{margin-left:auto;color:#6fb4d8;font-weight:700;text-transform:none;letter-spacing:0;font-size:10px}
   .tkt-synth{font-size:11.5px;font-weight:500;color:#d0dfef;line-height:1.42;margin:9px 0 2px;
        background:rgba(34,184,255,.07);border:1px solid rgba(34,184,255,.16);border-radius:10px;padding:9px 11px}
   .tkt-leg{margin-top:12px}
   .tkt-leg-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-  .tkt-sel{font-size:13.5px;font-weight:800;color:#16180f;line-height:1.25;min-width:0}
+  .tkt-sel{font-size:13.5px;font-weight:800;color:#eef4fb;line-height:1.25;min-width:0}
   .tkt-r{flex:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .tkt-o{background:rgba(25,196,106,.15);color:#7ff0b6;border-radius:8px;padding:2px 9px;
        font-weight:900;font-size:12.5px;font-variant-numeric:tabular-nums}
   .tkt-pr{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:99px;border:1px solid;font-variant-numeric:tabular-nums}
   .tkt-pr.hi{color:#2ec98a;border-color:rgba(46,201,138,.45);background:rgba(46,201,138,.12)}
-  .tkt-pr.mid{color:#0f9d74;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
+  .tkt-pr.mid{color:#22b8ff;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
   .tkt-pr.lo{color:#ffb020;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.12)}
-  .tkt-p{font-size:10px;color:#71756a;background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
+  .tkt-p{font-size:10px;color:#9fb0c8;background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
   .tkt-mk{font-size:12px;line-height:1}
-  .tkt-why{font-size:11px;font-weight:400;color:#71756a;line-height:1.42;margin:5px 0 2px;
+  .tkt-why{font-size:11px;font-weight:400;color:#a7bcd6;line-height:1.42;margin:5px 0 2px;
        padding-left:10px;border-left:2px solid rgba(63,184,255,.4)}
   .tkt-leg.won .tkt-sel{color:#bff6d8}
   .tkt-leg.lost .tkt-sel{text-decoration:line-through;color:#ffb3b3;opacity:.85}
   .tkt-leg.void .tkt-sel{text-decoration:line-through dotted;color:#aeb9c9;opacity:.7}
   .tkt-cote{display:flex;justify-content:space-between;align-items:flex-end;margin-top:15px;padding-top:12px;
        border-top:1px solid rgba(255,255,255,.08)}
-  .tkt-cote .l{font-size:10px;color:#71756a;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+  .tkt-cote .l{font-size:10px;color:#90a4be;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
   .tkt-cote .v{font-size:27px;font-weight:900;color:#fff;line-height:1;font-variant-numeric:tabular-nums}
   .tkt.won{border-color:rgba(52,210,123,.5)} .tkt.lost{border-color:rgba(255,107,107,.45)}
   .tkt.void{border-color:rgba(159,176,200,.4)}
   .tkt-subs{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
-  .tkt-sub{font-size:9.5px;font-weight:700;color:#71756a;background:rgba(255,255,255,.05);
+  .tkt-sub{font-size:9.5px;font-weight:700;color:#90a4be;background:rgba(255,255,255,.05);
        border:1px solid rgba(255,255,255,.09);border-radius:99px;padding:2px 9px}
   /* Bloc VERDICT (refonte 2026-07-18, demande user « réorganise tout : aligné, pleine largeur, que
      l'utile et l'intuitif ») : (1) en-tête CONFIANCE = qualificatif + % coloré + badge ✓ calibré ;
@@ -2724,7 +2728,7 @@ CSS = """
        background:rgba(255,255,255,.09);overflow:hidden}
   .da-prob .tk span{display:block;height:100%;border-radius:99px;
        background:linear-gradient(90deg,var(--accent2),var(--accent))}
-  .da-prob .pv{flex:none;min-width:30px;text-align:right;font-weight:800;font-size:11px;color:#43473c}
+  .da-prob .pv{flex:none;min-width:30px;text-align:right;font-weight:800;font-size:11px;color:#cfe0f5}
   .da-pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:10.5px;font-weight:800;
        white-space:nowrap}
   .da-pill.ok{background:rgba(52,210,123,.16);color:#3ee089;border:1px solid rgba(52,210,123,.32)}
@@ -2753,7 +2757,7 @@ CSS = """
   .da-bk-line{position:relative;padding-left:11px;margin:0 0 7px}
   .da-bk-line:before{content:"";position:absolute;left:0;top:7px;width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.55}
   .da-bk-line:last-child{margin-bottom:0}
-  .da-bk-note b{color:#43473c;font-weight:800}
+  .da-bk-note b{color:#cfe0f5;font-weight:800}
   /* Résidu du Verdict (à éviter / mise) APRÈS les paris : cartes PREMIUM cohérentes (bande gauche +
      pastille d'icône + titre majuscule + texte) */
   .da-bets-extra{margin-top:11px;display:flex;flex-direction:column;gap:9px}
@@ -2798,7 +2802,7 @@ CSS = """
   .da-bk-stats{display:flex;gap:7px;padding:12px 14px 14px}
   .da-st{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.04);
        border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:7px 3px}
-  .da-st-v{display:block;font-size:14px;font-weight:900;color:#16180f;font-variant-numeric:tabular-nums;
+  .da-st-v{display:block;font-size:14px;font-weight:900;color:#eaf2ff;font-variant-numeric:tabular-nums;
        line-height:1.1}
   .da-st-l{display:block;font-size:7.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
        color:var(--muted);margin-top:3px}
@@ -2833,16 +2837,16 @@ CSS = """
        letter-spacing:.02em}
   .da-bk-mark.mk-w{color:#06140d;background:#34d27b}
   .da-bk-mark.mk-l{color:#fff;background:#ff6b6b}
-  .da-bk-mark.mk-p{color:#0b1428;background:#71756a}   /* badge ✅ À JOUER : OR */
+  .da-bk-mark.mk-p{color:#0b1428;background:#9fb0c8}   /* badge ✅ À JOUER : OR */
   .da-bk-mark.mk-abst{color:#9fb6cf;background:rgba(150,165,185,.14);font-weight:700}  /* abstention : « aurait gagné » neutre */
   .da-bk-val{margin-left:6px;font-size:9px;font-weight:800;letter-spacing:.02em;padding:2px 7px;
-       border-radius:99px;color:#06140d;background:linear-gradient(90deg,#34d27b,#0f9d74);white-space:nowrap}
+       border-radius:99px;color:#06140d;background:linear-gradient(90deg,#34d27b,#22b8ff);white-space:nowrap}
   /* MEILLEURE VALUE : même carte que les paris safe,
   mais encadré OR + halo OR (seul repère premium) */
   /* À JOUER (meilleure value) : bande OR (le pari à jouer se distingue) + halo OR + badge + tab OR */
   /* Pari retenu : plus de halo OR (demande user) -> rendu identique à un pari normal. */
   .da-reco{margin:0 0 9px;padding:9px 12px;border-radius:11px;font-size:12.5px;line-height:1.45}
-  .da-reco.play{background:rgba(52,210,123,.12);border:1px solid rgba(52,210,123,.36);color:#16180f}
+  .da-reco.play{background:rgba(52,210,123,.12);border:1px solid rgba(52,210,123,.36);color:#eaf2ff}
   .da-reco.skip{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted)}
   .da-reco-ev{color:#3ee089;font-weight:800;white-space:nowrap}
   .da-bk-won{border-left-color:#34d27b;
@@ -2853,17 +2857,17 @@ CSS = """
   .da-bk-lost .da-bk-tab{color:#ff8090}
   .da-bk-lost .da-bk-cote{color:#ffb3bc;background:rgba(242,93,110,.16);
        border:1px solid rgba(242,93,110,.45)}
-  .da-bk-push{border-left-color:#71756a;filter:saturate(.7)}
+  .da-bk-push{border-left-color:#9fb0c8;filter:saturate(.7)}
   /* Les faits (déroulés dans l'analyse,
   plus en accordéon) */
   .da-faits-h{padding:9px 12px 0;font-size:12px;font-weight:800;color:#9fd0ff;
        text-transform:uppercase;letter-spacing:.03em}
   /* « Informations » : même style que le combiné mais ligne LATÉRALE bleue (demande utilisateur). */
   .da-faits{margin:12px 0 4px;background:linear-gradient(180deg,var(--surface2),var(--surface));
-       border:1px solid var(--border);border-left:3px solid #0f9d74;border-radius:12px;
+       border:1px solid var(--border);border-left:3px solid #22b8ff;border-radius:12px;
        padding:1px 0 4px;overflow:hidden}
   .da-faits>summary{cursor:pointer;list-style:none;padding:11px 13px;font-size:12.5px;
-       font-weight:800;color:#43473c;display:flex;align-items:center;justify-content:space-between}
+       font-weight:800;color:#cfe0f5;display:flex;align-items:center;justify-content:space-between}
   .da-faits>summary::-webkit-details-marker{display:none}
   .da-faits>summary::after{content:"▾";color:var(--muted);transition:transform .18s}
   .da-faits[open]>summary{border-bottom:1px solid var(--border)}
@@ -2893,21 +2897,21 @@ CSS = """
   .strk-team{background:linear-gradient(180deg,var(--surface2),var(--surface));
        border:1px solid var(--border);border-radius:13px;padding:11px 12px}
   .strk-h2h{border-color:rgba(34,184,255,.30)}
-  .strk-h{font-size:12.5px;font-weight:800;color:#16180f;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .strk-h{font-size:12.5px;font-weight:800;color:#eaf2ff;margin-bottom:9px;display:flex;align-items:center;gap:7px}
   .strk-cs{display:flex;flex-wrap:wrap;gap:6px}
   /* Chaque série = une JAUGE : barre verte proportionnelle au ratio + couleur selon la force */
   .strk-c{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:7px;
-       padding:5px 11px;border-radius:10px;font-size:11px;color:#43473c;
+       padding:5px 11px;border-radius:10px;font-size:11px;color:#cfe0f5;
        background:rgba(255,255,255,.035);border:1px solid var(--border)}
   .strk-fill{position:absolute;left:0;top:0;bottom:0;z-index:0;background:rgba(52,210,123,.14)}
   .strk-t,.strk-c b{position:relative;z-index:1}
   .strk-c b{font-weight:800;font-variant-numeric:tabular-nums}
   .strk-c.s-strong{border-color:rgba(52,210,123,.55)}
   .strk-c.s-strong b{color:#46e08a} .strk-c.s-strong .strk-fill{background:rgba(52,210,123,.22)}
-  .strk-c.s-mid b{color:#0f9d74} .strk-c.s-mid .strk-fill{background:rgba(34,184,255,.13)}
+  .strk-c.s-mid b{color:#5fd0ff} .strk-c.s-mid .strk-fill{background:rgba(34,184,255,.13)}
   .strk-c.s-low{opacity:.7} .strk-c.s-low b{color:var(--muted)}
   .strk-c.s-low .strk-fill{background:rgba(255,255,255,.05)}
-  .strk-c.s-count b{color:#0f9d74}
+  .strk-c.s-count b{color:#5fd0ff}
   /* CTA cards */
   .big{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
        border-radius:var(--radius);padding:18px 18px;margin:11px 0;border:1px solid var(--cardline);
@@ -3066,7 +3070,7 @@ CSS = """
        font-weight:700;letter-spacing:.02em;border:1px solid rgba(52,210,123,.35);
        background:rgba(52,210,123,.09);color:#64cd8d}
   .mont-chip.wait{border-color:rgba(246,197,74,.4);background:rgba(246,197,74,.09);color:var(--gold)}
-  .mont-sec-h{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#43473c;
+  .mont-sec-h{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#cfe0f5;
        margin:22px 2px 10px;display:flex;align-items:center;gap:9px}
   .mont-sec-h::before{content:"";flex:none;width:15px;height:2px;border-radius:2px;
        background:linear-gradient(90deg,var(--gold),rgba(246,197,74,.2))}   /* accent doré, ancre premium commune */
@@ -3842,7 +3846,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#eae7df">
+<meta name="theme-color" content="#070708">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
@@ -3886,7 +3890,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#eae7df">
+<meta name="theme-color" content="#070708">
 <title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
@@ -4620,7 +4624,7 @@ def _sport_milestones(sport: str) -> list:
             if (m[4] if len(m) > 4 else "all") in (sport, "all")]
 
 
-def _rate_chart(points: list, uid: str = "r", color: str = "#0f9d74", fmt=None,
+def _rate_chart(points: list, uid: str = "r", color: str = "#22b8ff", fmt=None,
                 clamp_pct: bool = True) -> str:
     """Courbe LÉGÈRE d'une série cumulée (taux de réussite %, ou cote moyenne) — demande user 2026-07-24 :
     prouve que la fiabilité progresse dans le temps. Ligne lissée + aire douce, échelle ajustée aux données
@@ -7022,7 +7026,7 @@ _LZ_CSS = """
 .lz .lzlogo img{width:auto;height:auto;max-width:66%;max-height:52px;filter:drop-shadow(0 6px 20px rgba(34,184,255,.42))}
 .lz .acctbtn{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:75;display:inline-flex;
   align-items:center;gap:6px;font-size:12.5px;font-weight:600;line-height:1;padding:8px 13px;border-radius:999px;
-  color:#43473c;text-decoration:none;background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);
+  color:#cfe0f5;text-decoration:none;background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);
   backdrop-filter:blur(10px);border:1px solid rgba(150,182,222,.20)}
 .lz .acctbtn .ic{font-size:15px}
 .lz .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:19px}
