@@ -2187,6 +2187,9 @@ CSS = """
   .team-mono{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;
        font-size:15px;font-weight:900;color:#fff;letter-spacing:-.02em;
        box-shadow:0 4px 12px rgba(0,0,0,.38),inset 0 0 0 1px rgba(255,255,255,.12)}
+  /* Monogramme CACHÉ par défaut (user 2026-08-15 : pas de flash d'initiales avant le logo) : il n'apparaît
+     QUE si le logo échoue (onerror -> visibility:visible). Logo OK = jamais d'initiales. */
+  .tm-b .team-mono{visibility:hidden}
   /* Logo FotMob PNG transparent (pas de cercle blanc, user 2026-08-15) par-dessus le monogramme (repli) */
   .team-logo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
        background:none;border-radius:0;filter:drop-shadow(0 2px 5px rgba(0,0,0,.45))}
@@ -5764,13 +5767,15 @@ def _team_badge(name: str) -> str:
 
 
 def _crest_badge(name: str) -> str:
-    """Pastille club : le LOGO FotMob (via /crest) par-dessus le MONOGRAMME. Si le logo échoue (404/panne),
-    `onerror` le retire -> le monogramme reste visible. Zéro blocage : /crest résout async côté navigateur."""
+    """Pastille club : le LOGO FotMob (via /crest) par-dessus le MONOGRAMME, qui reste CACHÉ par défaut
+    (CSS `.tm-b .team-mono{visibility:hidden}`). Logo OK -> il s'affiche direct, JAMAIS d'initiales (user
+    2026-08-15 : plus de flash). Logo KO (404/panne) -> `onerror` le retire ET révèle le monogramme (repli).
+    Zéro blocage : /crest résout async côté navigateur."""
     from urllib.parse import quote
     return (f'<span class="tm-b">{_team_badge(name)}'
             f'<img class="team-logo" src="/crest?name={quote(str(name or ""))}" alt="" loading="lazy" '
-            f'onload="this.previousElementSibling.style.visibility=&quot;hidden&quot;" '
-            f'onerror="this.remove()"></span>')
+            f'onerror="this.remove();var m=this.previousElementSibling;if(m)m.style.visibility=&quot;visible&quot;">'
+            f'</span>')
 
 
 def _teams_vs_html(home, away, center: str = "VS") -> str:
