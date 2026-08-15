@@ -418,6 +418,18 @@ async def paris_redirect() -> RedirectResponse:
     return RedirectResponse("/", status_code=308)
 
 
+@router.get("/crest", include_in_schema=False)
+async def crest_route(name: str = ""):
+    """Logo de club (test carte façon Bull) : nom -> ID FotMob (caché) -> redirection 302 vers le logo
+    FotMob. 404 si introuvable/panne -> la carte retombe sur le monogramme (repli). Résolution en thread
+    (httpx sync) pour ne pas bloquer la boucle asyncio."""
+    from fastapi.responses import Response
+    from app import crest as _crest
+    tid = await asyncio.to_thread(_crest.team_id, name)
+    url = _crest.logo_url(tid)
+    return RedirectResponse(url, status_code=302) if url else Response(status_code=404)
+
+
 async def _system_health_html() -> str:
     """Panneau « Santé du système » (privé) : santé LIVE des sources (ping) + auto-audit d'intégrité, dans
     une section repliable de la page Stats. Rend visible d'un coup d'œil ce que surveillaient les CLI."""

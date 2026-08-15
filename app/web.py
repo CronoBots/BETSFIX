@@ -2170,9 +2170,13 @@ CSS = """
   .tm-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0}
   .tm-n{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.15;letter-spacing:-.01em}
   .tm-vs{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.09em;flex:0 0 auto}
+  .tm-b{position:relative;display:inline-block;width:44px;height:44px;flex:0 0 auto}
   .team-mono{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;
        font-size:15px;font-weight:900;color:#fff;letter-spacing:-.02em;
        box-shadow:0 4px 12px rgba(0,0,0,.38),inset 0 0 0 1px rgba(255,255,255,.12)}
+  /* Logo FotMob par-dessus le monogramme (repli) — test carte façon Bull */
+  .team-logo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:50%;
+       background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.38),inset 0 0 0 1px rgba(0,0,0,.06)}
   .cleg-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
   .cleg-main{flex:1;min-width:0}
   .cleg-pick{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
@@ -5709,17 +5713,26 @@ def _team_badge(name: str) -> str:
             f'hsl({hue},48%,46%),hsl({(hue + 24) % 360},52%,34%))">{html.escape(ini)}</span>')
 
 
+def _crest_badge(name: str) -> str:
+    """Pastille club : le LOGO FotMob (via /crest) par-dessus le MONOGRAMME. Si le logo échoue (404/panne),
+    `onerror` le retire -> le monogramme reste visible. Zéro blocage : /crest résout async côté navigateur."""
+    from urllib.parse import quote
+    return (f'<span class="tm-b">{_team_badge(name)}'
+            f'<img class="team-logo" src="/crest?name={quote(str(name or ""))}" alt="" '
+            f'loading="lazy" onerror="this.remove()"></span>')
+
+
 def _teams_vs_html(home, away) -> str:
-    """Ligne d'équipes VS + pastilles MONOGRAMME (test carte façon Bull, user 2026-08-15). Partagée par la
-    carte premium ET les jambes (_leg_card). Repli sur un seul nom si l'autre manque."""
+    """Ligne d'équipes VS + LOGOS de club (repli monogramme) (test carte façon Bull, user 2026-08-15).
+    Partagée par la carte premium ET les jambes (_leg_card). Repli sur un seul nom si l'autre manque."""
     h, a = _noF(str(home or "")), _noF(str(away or ""))
     if not a:
         return html.escape(h)
     return (f'<span class="tmvs">'
-            f'<span class="tm-side"><span class="tm-b">{_team_badge(h)}</span>'
+            f'<span class="tm-side">{_crest_badge(h)}'
             f'<span class="tm-n">{html.escape(h)}</span></span>'
             f'<span class="tm-vs">VS</span>'
-            f'<span class="tm-side"><span class="tm-b">{_team_badge(a)}</span>'
+            f'<span class="tm-side">{_crest_badge(a)}'
             f'<span class="tm-n">{html.escape(a)}</span></span></span>')
 
 
