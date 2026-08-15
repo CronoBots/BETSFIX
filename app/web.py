@@ -2164,6 +2164,14 @@ CSS = """
   /* Équipes de la jambe sur leur propre ligne, en gros — comme les provisoires (.mc-teams). */
   .cleg-teams{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.24;letter-spacing:-.015em;
        margin:2px 0 9px;white-space:normal}
+  /* Ligne équipes façon Bull (test 2026-08-15) : monogrammes club + VS centré */
+  .cleg-teams-vs{display:flex;align-items:center;justify-content:center;gap:12px;text-align:center}
+  .tm-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0}
+  .tm-n{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.15;letter-spacing:-.01em}
+  .tm-vs{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.09em;flex:0 0 auto}
+  .team-mono{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;
+       font-size:15px;font-weight:900;color:#fff;letter-spacing:-.02em;
+       box-shadow:0 4px 12px rgba(0,0,0,.38),inset 0 0 0 1px rgba(255,255,255,.12)}
   .cleg-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
   .cleg-main{flex:1;min-width:0}
   .cleg-pick{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
@@ -5685,6 +5693,18 @@ def _clean_cap(t, maxlen: int = 180) -> str:
 _SPORT_LBL = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}
 
 
+def _team_badge(name: str) -> str:
+    """Pastille MONOGRAMME d'un club (test « carte façon Bull », user 2026-08-15) : cercle à couleur STABLE
+    dérivée du nom + initiales. Placeholder en attendant les vrais logos (SofaScore flaky ; à câbler via
+    FotMob ensuite). Purement décoratif."""
+    import re as _re
+    words = [w for w in _re.split(r"[\s.\-]+", str(name or "")) if w and w[0].isalnum()]
+    ini = ("".join(w[0] for w in words[:2]) or (str(name or "?")[:2])).upper()
+    hue = sum(ord(c) for c in str(name or "")) % 360
+    return (f'<span class="team-mono" style="background:linear-gradient(150deg,'
+            f'hsl({hue},48%,46%),hsl({(hue + 24) % 360},52%,34%))">{html.escape(ini)}</span>')
+
+
 def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True,
               why_always: bool = False, why_label: str = "Pourquoi cette jambe",
               prob_calibrated: bool = False) -> str:
@@ -5715,8 +5735,12 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     comp = html.escape(str(l.get("comp") or ""))
     # (_th/_ta déjà résolus plus haut, avec repli sur `name`, pour le titre ET la ligne d'équipes.)
     # `teams=False` (combiné de MATCH, même affiche que la carte parente) -> pas de répétition des équipes.
-    _teams_html = (f'<div class="cleg-teams">{html.escape(str(_th))} '
-                   f'<span class="mc-dash">—</span> {html.escape(str(_ta))}</div>') if (teams and _th and _ta) else ""
+    _teams_html = (f'<div class="cleg-teams cleg-teams-vs">'
+                   f'<span class="tm-side"><span class="tm-b">{_team_badge(_th)}</span>'
+                   f'<span class="tm-n">{html.escape(str(_th))}</span></span>'
+                   f'<span class="tm-vs">VS</span>'
+                   f'<span class="tm-side"><span class="tm-b">{_team_badge(_ta)}</span>'
+                   f'<span class="tm-n">{html.escape(str(_ta))}</span></span></div>') if (teams and _th and _ta) else ""
     co = l.get("cote")
     _cote = (f'<span class="cleg-cote"><span class="cleg-cote-l">COTE</span>'
              f'<span class="cleg-cote-v">{co:g}</span></span>') if isinstance(co, (int, float)) and co else ""
