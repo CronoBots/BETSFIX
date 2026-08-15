@@ -2710,7 +2710,7 @@ CSS = """
   .vb{margin-top:11px}
   /* BARRE INTÉGRÉE DANS LE CADRE (user 2026-08-15) : la barre / « Confiance live » est À L'INTÉRIEUR du
      cadre .vm, sous la grille -> une marge la sépare des chiffres, un filet fin au-dessus (comme le pari). */
-  .vm .vb-bar, .vm .vb-live, .vm .vm-res{margin-top:11px;padding-top:11px;border-top:1px solid var(--border)}
+  .vm .vb-bar, .vm .vb-live, .vm .vm-res{margin:11px 12px 0;padding-top:11px;border-top:1px solid var(--border)}   /* écart gauche/droite (user 2026-08-15) */
   .vb-live-hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
   .vb-live-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text)}   /* « Confiance live » en BLANC (user 2026-08-15) */
   .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
