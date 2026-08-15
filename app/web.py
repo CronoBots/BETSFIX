@@ -794,7 +794,7 @@ CSS = """
   /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
   discret. */
   .mc-comp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-       font-size:12px;font-weight:800;color:#a6b9cf;letter-spacing:.02em;text-transform:uppercase}  /* LIGUE = MAJUSCULE ; contraste remonté (user 2026-08-15) */
+       font-size:12px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* LIGUE = MAJUSCULE, BLANC (user 2026-08-15) */
   /* Nom du SPORT (majuscules, accent du sport) puis compétition (muted) — « TENNIS • Wimbledon ». */
   .mc-sport{color:var(--accent);font-weight:800;letter-spacing:.05em}
   .mc-comp-sep{color:var(--dim);font-weight:700}
@@ -2215,8 +2215,8 @@ CSS = """
   /* Même pli, mais sur une carte de pari PLEINE (simple retenu / provisoire) et non une mini-jambe :
      léger filet de séparation au-dessus + texte un poil plus lisible. */
   .cleg-fold-bet{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)}
-  .mc-r-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:17px}   /* pas de séparateur + un peu plus d'espace sous la barre live (user 2026-08-15) */
-  .mc-r-live .vb-live{margin-bottom:4px}
+  .mc-r-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:13px}   /* pas de séparateur, espace réduit sous la barre live (user 2026-08-15) */
+  .mc-r-live .vb-live{margin-bottom:2px}
   .cleg-fold-bet>.cleg-fold-s{font-size:11px}
   .cleg-fold-bet .cleg-why{font-size:11.5px;color:#a7bcd6;line-height:1.5}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
@@ -2699,7 +2699,7 @@ CSS = """
      barre juste dessous. Occupe la même place (order:2, sous le cadre). */
   .vb .vb-live{order:2;margin-top:11px}
   .vb-live-hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
-  .vb-live-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#a6b9cf}   /* contraste remonté (user 2026-08-15) */
+  .vb-live-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text)}   /* « Confiance live » en BLANC (user 2026-08-15) */
   .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
   .vb-live-ar{margin-left:3px;font-size:9.5px}
   .vb-live .vb-bar{order:0;margin-top:0}
