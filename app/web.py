@@ -4468,7 +4468,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         milestones=_ms_combo, compact=True, hit_points=_foot_c.get("hit_points"),
         best_streak=_foot_c.get("best_streak"), cote_points=_foot_c.get("cote_points"),
         warmup=3)                                     # combiné du jour ~1/j depuis 29/07 : seuil courbes abaissé
-        if (_foot_c.get("settled") or _pend_fc) else "")
+        if (analyses.COMBO_ROI_ON and (_foot_c.get("settled") or _pend_fc)) else "")   # combinés hors ROI -> bloc masqué (user 2026-08-15)
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     # ORDRE onglets = Confiance · Value · [Provisoire retiré] · Combiné (user 2026-08-11). L'onglet Provisoire
@@ -8837,10 +8837,10 @@ def render_sport_perf(sport: str) -> str:
     charts = ('<div class="spf-charts">'
               + _perf_curve_block("Simples", s, f"sp-{sport}-s", "Aucun simple réglé",
                                   form=s.get("form_simple") or s.get("form"), pending=_pend_s)
-              + _perf_curve_block("Combinés", combo_bs, f"sp-{sport}-c",
-                                  "Aucun combiné réglé pour ce sport",
-                                  form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"),
-                                  pending=_pend_c)
+              + (_perf_curve_block("Combinés", combo_bs, f"sp-{sport}-c",     # combinés hors ROI -> courbe masquée (user 2026-08-15)
+                                   "Aucun combiné réglé pour ce sport",
+                                   form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"),
+                                   pending=_pend_c) if analyses.COMBO_ROI_ON else "")
               + '</div>')
     # Détail INTÉGRÉ au MÊME cadre (repliable) : par pari + calibration par TYPE DE PARI de ce sport.
     g = (analyses.calibration().get("by_sport") or {}).get(label) or {}
@@ -8857,7 +8857,7 @@ def render_sport_perf(sport: str) -> str:
     roi_s, roi_c = s.get("roi"), (combo_bs or {}).get("roi")
     _rs = f'<span class="perf-sum-k arec-{_roi_cls(roi_s, s.get("settled"))}">S {_roistr(roi_s)}</span>'
     _rc = (f'<span class="perf-sum-k arec-{_roi_cls(roi_c, (combo_bs or {}).get("settled"))}">C {_roistr(roi_c)}</span>'
-           if combo_bs and combo_bs.get("settled") else "")
+           if (analyses.COMBO_ROI_ON and combo_bs and combo_bs.get("settled")) else "")   # combinés hors ROI (user 2026-08-15)
     return (f'<details class="perf-fold"><summary class="perf-sum">'
             f'<span class="perf-sum-t">📊 Mes performances</span>{_rs}{_rc}'
             f'<span class="chev">▾</span></summary>'
