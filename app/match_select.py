@@ -364,10 +364,10 @@ def live_minute(ld: dict | None) -> int | None:
 
 
 def live_clock(ld: dict | None) -> tuple | None:
-    """Horloge live foot COMPLÈTE `(minute, second, running)` depuis le `matchClock` Unibet
-    (`{"minute":91,"second":19,"running":true,...}`), ou None si absente/illisible. `running`=False aux
-    pauses (mi-temps) -> l'affichage FIGE. Sert à l'affichage « M:SS » qui défile (ticker JS côté client
-    resynchronisé à chaque refresh). Purement affichage."""
+    """Horloge live foot COMPLÈTE `(minute, second, running, period_id)` depuis le `matchClock` Unibet
+    (`{"minute":91,"second":19,"running":true,"periodId":"SECOND_HALF",...}`), ou None si absente/illisible.
+    `running`=False + `periodId=FIRST_HALF` + minute≥45 = MI-TEMPS (affichage « HT »). minute>45/90 selon la
+    période = PROLONGATION (« 45+N' » / « 90+N' »). Purement affichage (ticker JS resync à chaque refresh)."""
     mc = (ld or {}).get("matchClock") if isinstance(ld, dict) else None
     if not isinstance(mc, dict):
         return None
@@ -375,7 +375,7 @@ def live_clock(ld: dict | None) -> tuple | None:
     if not isinstance(m, int):
         return None
     s = s if isinstance(s, int) else 0
-    return (m, max(0, min(59, s)), bool(mc.get("running")))
+    return (m, max(0, min(59, s)), bool(mc.get("running")), (mc.get("periodId") or ""))
 
 
 def basket_frac(ld: dict | None, comp: str = "") -> float | None:

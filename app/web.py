@@ -784,7 +784,11 @@ CSS = """
   .mc-line{display:flex;align-items:center;gap:7px}
   /* En-tête carte : ligue CENTRÉE sans emoji, décompte en absolu à droite (user 2026-08-15) */
   .mc-line-c{position:relative;justify-content:center;min-height:22px}
-  .mc-line-c .mc-comp{flex:0 1 auto;text-align:center;padding:0 58px}
+  /* ligue CENTRÉE : affichée EN ENTIER (user 2026-08-15) — retour à la ligne autorisé (plus d'ellipse),
+     padding réduit ; en LIVE (pas de badge) elle prend quasi toute la largeur. */
+  .mc-line-c .mc-comp{flex:0 1 auto;text-align:center;padding:0 44px;white-space:normal;overflow:visible;
+       text-overflow:clip;line-height:1.25}
+  .mc-r-live .mc-line-c .mc-comp{padding:0 10px}
   .mc-line-c .mc-badge{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
   .mc-ic{flex:none;font-size:13px;line-height:1}                 /* emoji sport DISCRET (plus petit) */
   /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
@@ -2178,6 +2182,7 @@ CSS = """
   .tm-live{display:flex;flex-direction:column;align-items:center;gap:1px;flex:0 0 auto}
   .tm-live b{font-size:21px;font-weight:900;letter-spacing:-.01em;color:var(--text);font-variant-numeric:tabular-nums}
   .tm-min{font-size:10.5px;font-weight:800;color:var(--gold);letter-spacing:.03em}
+  .tm-min .tm-add{margin-left:2px;font-size:.9em;font-weight:900;color:#ff9d5c}   /* temps additionnel « +N' » à droite */
   .tm-b{position:relative;display:inline-block;width:44px;height:44px;flex:0 0 auto}
   .team-mono{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;
        font-size:15px;font-weight:900;color:#fff;letter-spacing:-.02em;
@@ -9426,12 +9431,22 @@ def _sport_row(r: dict) -> str:
         except Exception:
             _clk = None
         if _clk:
-            _cm, _cs, _crun = _clk
-            # « M:SS » qui DÉFILE côté client (user 2026-08-15 : minute ET seconde). Le ticker JS lit
-            # data-min/data-sec/data-run et incrémente chaque seconde si l'horloge tourne (figé aux pauses) ;
-            # resynchronisé sur la valeur Unibet à chaque refresh de panneau.
-            _clk_html = (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" '
-                         f'data-run="{1 if _crun else 0}">{_cm}:{_cs:02d}</span>')
+            _cm, _cs, _crun, _cpid = _clk
+            _pid = (_cpid or "").upper()
+            # MI-TEMPS (user 2026-08-15) : 1re MT terminée + horloge arrêtée -> « HT ». PROLONGATION : minute
+            # au-delà de 45 (1re MT) / 90 (2e MT) -> base « 45'/90' » + « +N' » (temps additionnel) À DROITE.
+            # Sinon horloge « M:SS » qui DÉFILE côté client (ticker JS lit data-min/data-sec/data-run).
+            if _pid == "FIRST_HALF" and not _crun and _cm >= 45:
+                _clk_html = '<span class="tm-min" data-run="0">HT</span>'
+            elif _pid == "FIRST_HALF" and _cm > 45:
+                _clk_html = ('<span class="tm-min" data-run="0">45\''
+                             f'<span class="tm-add">+{_cm - 45}\'</span></span>')
+            elif _pid == "SECOND_HALF" and _cm > 90:
+                _clk_html = ('<span class="tm-min" data-run="0">90\''
+                             f'<span class="tm-add">+{_cm - 90}\'</span></span>')
+            else:
+                _clk_html = (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" '
+                             f'data-run="{1 if _crun else 0}">{_cm}:{_cs:02d}</span>')
         _center = (f'<span class="tm-live"><b>{e(_sc_live.replace("-", " - "))}</b>'
                    + _clk_html + '</span>')
     else:
