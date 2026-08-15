@@ -2735,7 +2735,7 @@ CSS = """
   .vm{width:100%;margin-top:12px}
   .vm-grid{display:flex;width:100%}   /* rangée Confiance/Marché/Value/Cote (ex-.vm flex) */
   /* Pari+glose DANS le cadre, centré, au-dessus des chiffres (user 2026-08-15), avec filet de séparation. */
-  .vm-pick{text-align:center;padding:2px 6px 10px;margin-bottom:9px;border-bottom:1px solid var(--border)}
+  .vm-pick{text-align:center;padding:2px 6px 10px;margin-bottom:9px;border-bottom:1px solid var(--border2)}
   .vm-pick .mc-pick{text-align:center}
   .vm-pick .mc-gloss{text-align:center;margin-top:4px}
   .vm-cell{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -2750,7 +2750,8 @@ CSS = """
   .vm-conf .vm-v{font-size:19px}         /* notre confiance = héros de la grille */
   .vm-cote .vm-v{font-size:19px;color:#fff}   /* cote TOUJOURS blanche, y c. combiné du jour (demande user 2026-07-18) */
   /* Verdict façon Bull (test 2026-08-15) : la grille = petite carte tintée (la Value RESTE comme avant). */
-  .vm{background:rgba(255,255,255,.028);border:1px solid var(--border);border-radius:14px;padding:11px 4px}
+  .vm{background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:14px;padding:11px 4px;
+       box-shadow:0 2px 12px -6px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.04)}   /* cadre du pari plus visible (user 2026-08-15) */
   .vb-reana{margin-top:11px;font-size:10px;font-weight:600;color:#7f93aa;text-align:center}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
