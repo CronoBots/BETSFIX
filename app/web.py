@@ -809,14 +809,14 @@ CSS = """
   /* L2 : équipes (noms + prénoms complets) — ligne principale. */
   /* Équipes = HÉROS, 16 px + sur 2 lignes possibles pour TOUS les types de cartes (demande user 2026-07-14 :
      cartes semblables) — à venir, provisoire, LIVE et TERMINÉ ont désormais le même titre de match. */
-  .mc-teams{font-size:14px;font-weight:800;color:var(--text);margin-top:9px;letter-spacing:-.015em;
+  .mc-teams{font-size:14px;font-weight:800;color:var(--text);margin-top:15px;letter-spacing:-.015em;
        line-height:1.26;white-space:normal;overflow:visible;text-overflow:clip;text-wrap:balance}
   .mc-teams .dim{color:var(--dim);font-weight:600}
   /* Carte PREMIUM (pari à venir présenté carte) : demande user 2026-07-14 — l'ÉQUIPE (le match) est le
      HÉROS de la carte repliée -> plus GRANDE (16 px) que le pari à jouer (14 px, cf. .mc-pick). Padding
      roomier, équipes sur 2 lignes possibles. */
   .mc-prem .mc-head{padding:13px 16px 12px}
-  .mc-prem .mc-teams{font-size:14px;margin-top:9px;line-height:1.26;white-space:normal;overflow:visible;
+  .mc-prem .mc-teams{font-size:14px;margin-top:15px;line-height:1.26;white-space:normal;overflow:visible;
        text-overflow:clip;text-wrap:balance}
   /* L3 : LISTE des paris (intitulés,
   1/ligne) — masquée une fois DÉPLIÉE (les paris détaillés s'affichent).
@@ -2075,7 +2075,7 @@ CSS = """
   /* Traduction EN CLAIR du marché, sous la sélection (demande user 2026-07-13) — discrète, une flèche cyan. */
   .mc-gloss{margin-top:5px;font-size:12.5px;color:#8fa2b8;font-weight:600;line-height:1.35}
   .mc-gloss b{color:#c4d2e2;font-weight:700}
-  .mc-gloss .ar{color:var(--accent);font-weight:800;margin-right:5px}
+  .mc-gloss .ar{display:none}   /* flèche ↳ du glose retirée (user 2026-08-15) */
   /* Mention « pari publié figé · cote a bougé » (demande user 2026-07-14) : rassurant, pas alarmant. */
   .mc-moved{margin-top:7px;font-size:11.5px;font-weight:700;color:#c9a24a;
        background:rgba(246,197,74,.07);border:1px solid var(--gold-bd);border-radius:8px;padding:5px 9px}
@@ -2189,7 +2189,7 @@ CSS = """
   .cleg-main{flex:1;min-width:0}
   .cleg-pick{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
   .cleg-gloss{margin-top:5px;font-size:12px;color:#8fa2b8;font-weight:600;line-height:1.32}
-  .cleg-gloss .ar{color:var(--accent);font-weight:800;margin-right:5px}
+  .cleg-gloss .ar{display:none}   /* flèche ↳ du glose retirée (user 2026-08-15) */
   .cleg-why{margin-top:6px;font-size:11px;font-weight:500;color:#93a7c2;line-height:1.4}
   .cleg-cote{flex:none;text-align:right;line-height:1}
   .cleg-cote-l{display:block;font-size:8.5px;font-weight:800;letter-spacing:.12em;color:#90a4be;margin-bottom:2px}
@@ -2692,13 +2692,10 @@ CSS = """
   .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
   .vb-live-ar{margin-left:3px;font-size:9.5px}
   .vb-live .vb-bar{order:0;margin-top:0}
-  /* témoins d'avant-match sur la barre live (user 2026-08-15) : marqueur NOUS (bleu accent) + marqueur
-     MARCHÉ (blanc, .vb-mark existant) + légende chiffrée sous la barre. */
-  .vb-mk-us{background:var(--accent) !important;box-shadow:0 0 0 1px rgba(9,14,22,.65) !important}
-  .vb-live-lg{margin-top:6px;font-size:9.5px;font-weight:700;color:#7d90a9;text-align:center;letter-spacing:.01em}
-  .vb-live-lg b{font-weight:800}
-  .vb-live-lg .mk-us{color:var(--accent)}
-  .vb-live-lg .mk-bk{color:#c4d2e2}
+  /* témoins d'avant-match sur la barre live (user 2026-08-15) : marqueur NOUS (VERT, comme « Confiance »
+     de la grille) + marqueur MARCHÉ (BLANC, .vb-mark existant, comme « Marché »). Pas de légende texte —
+     les valeurs sont déjà dans la grille de chiffres en dessous. */
+  .vb-mk-us{background:#64cd8d !important;box-shadow:0 0 0 1px rgba(9,14,22,.65) !important}
   /* BARRE pleine largeur (bloc) : remplissage = confiance, marqueur = seuil marché. */
   .vb-bar{position:relative;height:9px;border-radius:99px;overflow:hidden;margin-top:9px;
        background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
@@ -9184,8 +9181,8 @@ def _sport_row(r: dict) -> str:
         _mt = re.search(r"\d{1,2}:\d{2}", top or "")
         starthm = _mt.group(0) if _mt else (top or "")
     score_txt = e(str(r.get("score"))) if r.get("score") else ""
-    if is_live:                                          # live : badge « Live » (le score va dans le scoreboard sous le pari)
-        badge = '<span class="mc-badge mc-live">🟢 Live</span>'
+    if is_live:                                          # live : PAS de badge en haut à droite (user 2026-08-15) —
+        badge = ""                                       #        le SCORE + l'horloge M:SS au centre suffisent
     elif is_finished:                                    # terminé : score FINAL, SANS drapeau 🏁
         badge = (f'<span class="mc-badge mc-done">{score_txt}</span>' if score_txt
                  else '<span class="mc-badge mc-wait">⏳ En attente</span>')

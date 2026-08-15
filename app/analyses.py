@@ -969,17 +969,15 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
             _lt, lgrad = "Perdu", _RED
         else:
             _lt = "Confiance live"
-        # TÉMOINS D'AVANT-MATCH (user 2026-08-15) : sur la barre live on montre AUSSI notre confiance
-        # d'avant-match (marqueur bleu accent) ET celle des bookmakers (marqueur blanc = `mark`, proba
-        # implicite `be`), + une légende chiffrée « nous X% · marché Y% ». On voit d'un coup où la chance
-        # live se situe par rapport aux deux ancres d'avant-match.
+        # TÉMOINS D'AVANT-MATCH (user 2026-08-15) : sur la barre live, deux marqueurs = notre confiance
+        # d'avant-match (VERT, cohérent avec « Confiance » de la grille) et celle des bookmakers (BLANC = `mark`,
+        # proba implicite `be`, cohérent avec « Marché »). Les valeurs chiffrées sont DÉJÀ dans la grille en
+        # dessous -> pas de légende texte (retirée à la demande user).
         _mk_us = f'<b class="vb-mark vb-mk-us" style="left:{cfi}%"></b>' if 0 < cfi < 100 else ""
         _bar = ('<div class="vb-live">'
                 f'<div class="vb-live-hd"><span class="vb-live-t">{_lt}</span>'
                 f'<span class="vb-live-v">{lp}%<span class="vb-live-ar">{_ar}</span></span></div>'
                 f'<div class="vb-bar"><i style="width:{lp}%;background:{lgrad}"></i>{_mk_us}{mark}</div>'
-                f'<div class="vb-live-lg">Avant-match · <b class="mk-us">nous {cfi}%</b>'
-                f' · <b class="mk-bk">marché {be}%</b></div>'
                 '</div>')
     else:
         _bar = f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
