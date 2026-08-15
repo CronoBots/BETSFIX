@@ -2684,6 +2684,21 @@ CSS = """
   .vb{margin-top:11px;display:flex;flex-direction:column}
   .vb .vm{order:1}
   .vb .vb-bar{order:2;margin-top:11px}  /* barre de confiance SOUS le cadre des chiffres (user 2026-08-15) */
+  /* LIVE : la barre de confiance DEVIENT « Confiance live » (user 2026-08-15) — en-tête libellé + %, la
+     barre juste dessous. Occupe la même place (order:2, sous le cadre). */
+  .vb .vb-live{order:2;margin-top:11px}
+  .vb-live-hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+  .vb-live-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#7d90a9}
+  .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
+  .vb-live-ar{margin-left:3px;font-size:9.5px}
+  .vb-live .vb-bar{order:0;margin-top:0}
+  /* témoins d'avant-match sur la barre live (user 2026-08-15) : marqueur NOUS (bleu accent) + marqueur
+     MARCHÉ (blanc, .vb-mark existant) + légende chiffrée sous la barre. */
+  .vb-mk-us{background:var(--accent) !important;box-shadow:0 0 0 1px rgba(9,14,22,.65) !important}
+  .vb-live-lg{margin-top:6px;font-size:9.5px;font-weight:700;color:#7d90a9;text-align:center;letter-spacing:.01em}
+  .vb-live-lg b{font-weight:800}
+  .vb-live-lg .mk-us{color:var(--accent)}
+  .vb-live-lg .mk-bk{color:#c4d2e2}
   /* BARRE pleine largeur (bloc) : remplissage = confiance, marqueur = seuil marché. */
   .vb-bar{position:relative;height:9px;border-radius:99px;overflow:hidden;margin-top:9px;
        background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
@@ -2700,7 +2715,12 @@ CSS = """
   @media (prefers-reduced-motion:reduce){.vb-bar>i,.vb-mark{animation:none}}
   /* GRILLE métriques : colonnes ÉGALES sur TOUTE la largeur (width:100%), contenu centré, filets fins.
      Confiance à gauche du Marché -> comparaison directe « nous vs marché ». */
-  .vm{display:flex;width:100%;margin-top:12px}
+  .vm{width:100%;margin-top:12px}
+  .vm-grid{display:flex;width:100%}   /* rangée Confiance/Marché/Value/Cote (ex-.vm flex) */
+  /* Pari+glose DANS le cadre, centré, au-dessus des chiffres (user 2026-08-15), avec filet de séparation. */
+  .vm-pick{text-align:center;padding:2px 6px 10px;margin-bottom:9px;border-bottom:1px solid var(--border)}
+  .vm-pick .mc-pick{text-align:center}
+  .vm-pick .mc-gloss{text-align:center;margin-top:4px}
   .vm-cell{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;
        padding:2px 6px;text-align:center;border-left:1px solid rgba(255,255,255,.08)}
   .vm-cell:first-child{border-left:none}
@@ -3411,6 +3431,21 @@ _COUNTDOWN_JS = (
     "t();setInterval(t,1000);})();"
 )
 
+# Horloge LIVE « M:SS » qui défile (user 2026-08-15 : minute ET seconde). Chaque .tm-min porte
+# data-min/data-sec/data-run (valeur Unibet au rendu) ; le ticker incrémente d'1 s toutes les secondes
+# tant que data-run=1 (figé aux pauses). Le rendu serveur (refresh 45 s des panneaux) resynchronise
+# sur la vraie valeur -> pas de dérive. Purement affichage.
+_LIVECLK_JS = (
+    "(function(){function p(n){return n<10?'0'+n:''+n;}"
+    "function t(){var e=document.getElementsByClassName('tm-min'),i,el,m,s;"
+    "for(i=0;i<e.length;i++){el=e[i];if(el.getAttribute('data-run')!=='1')continue;"
+    "m=parseInt(el.getAttribute('data-min'),10);s=parseInt(el.getAttribute('data-sec'),10);"
+    "if(isNaN(m)||isNaN(s))continue;s++;if(s>=60){s=0;m++;}"
+    "el.setAttribute('data-min',m);el.setAttribute('data-sec',s);"
+    "el.textContent=m+':'+p(s);}}"
+    "setInterval(t,1000);})();"
+)
+
 # SPA : tout est chargé à l'ouverture (le sport actif rendu côté serveur, les 3 autres
 # préchargés en arrière-plan via ?frag=1), puis la nav du bas bascule les panneaux SANS
 # rechargement. Vanilla JS, ~0 dépendance. history.pushState garde l'URL/refresh cohérents.
@@ -3881,7 +3916,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
@@ -3925,7 +3960,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -5157,7 +5192,8 @@ def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
 
 
 def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calibrated: bool = True,
-                   hide_neg_value: bool = False) -> str:
+                   hide_neg_value: bool = False, pick_html: str = "",
+                   live_pct=None, live_trend: str = "", live_state: str = "") -> str:
     """Bloc VERDICT UNIFIÉ (demande user 2026-07-17 « tout doit être identique sur les autres types de
     paris ») = ligne verdict PARTAGÉE `analyses.verdict_line` (« Marché XX% · Notre confiance YY% ✓calibré
     → Value ±Z% », value = héros coloré) + pied (mention/ré-analyse + grosse cote). Remplace l'ancienne
@@ -5177,9 +5213,13 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
             # La COTE est désormais une COLONNE de la grille verdict (with_cote) -> pleine largeur, alignée,
             # plus de cote isolée qui flotte. Elle n'apparaît que si la carte a bien une cote à montrer.
             _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated, with_cote=bool(cote_html),
-                                        hide_neg_value=hide_neg_value)
+                                        hide_neg_value=hide_neg_value, pick_html=pick_html,
+                                        live_pct=live_pct, live_trend=live_trend, live_state=live_state)
         except (TypeError, ValueError):
             _vl = ""
+    if not _vl and pick_html:              # pas de verdict calculable -> cadre « pari seul » (jamais perdu)
+        _vl = analyses.verdict_line(0, None, 0, pick_html=pick_html,
+                                    live_pct=live_pct, live_trend=live_trend, live_state=live_state)
     # LAYOUT (refonte 2026-07-18, demande user « réorganise tout : aligné, pleine largeur ») : le bloc verdict
     # (barre + grille Marché/Value/Cote) prend TOUTE la largeur ; la mention (ré-analyse / « compté au ROI »)
     # tient dessous, à gauche. Sans cote/mention -> juste le verdict (live/compact).
@@ -9264,6 +9304,38 @@ def _sport_row(r: dict) -> str:
                           # APRÈS scoreboard + chance live, comme sur les jambes — user 2026-07-21)
     _uid = re.search(r"/(\d+)", url)
     _pmid = _uid.group(1) if _uid else None
+    # CHANCE LIVE (user 2026-08-15) : calculée AVANT le verdict car la barre de confiance DEVIENT « Confiance
+    # live » en direct (remplissage = live_prob, NOS couleurs par niveau, marqueur MARCHÉ d'avant-match gardé).
+    # L'ancienne barre « Chance live » séparée est supprimée. `_lp_res` sert aussi au bord acquis/perdu (plus bas).
+    _lp_res = None
+    _live_pct = None; _live_trend = ""; _live_state = ""
+    if is_live and lscore and bets3 and not is_combo and sport_key:
+        _pbb = bets3[0]
+        _pcode = _pbb.get("code")
+        if not _pcode:
+            from app.settle_analyst import code_from_pick as _cfp_lp
+            _pcode = _cfp_lp(_pbb.get("sel", ""), sport_key, r.get("home", ""), r.get("away", "")) or ""
+        _lhs, _las = _parse_live_score(r.get("score"))
+        _lld = match_select.live_state_for(sport_key, r.get("home"), r.get("away"))
+        _lmid = re.search(r"/(\d+)", url)
+        _fs = r.get("fstats") or {}       # compteurs live (corners/cartons) -> composante « stats live »
+        _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
+                  "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
+                  "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
+        if sport_key == "tennis":         # sets gagnés + jeux du set en cours -> modèle « ≥1 set »
+            _lvals.update(_tennis_sets_games(r.get("score")))
+        _gfrac = (match_select.basket_frac(_lld, comp) if sport_key == "basket" else None)
+        _lp_res = analyses.live_prob(
+            sport_key, _pbb.get("sel", ""), _pcode,
+            r.get("home", ""), r.get("away", ""), _lhs, _las,
+            match_select.live_minute(_lld),
+            match_select.live_win_odds(sport_key, r.get("home"), r.get("away")),
+            _pbb.get("cprob") or _pbb.get("prob"),
+            analyses.live_catalog(_lmid.group(1)) if _lmid else [], _lvals, _gfrac)
+        if isinstance(_lp_res, dict) and isinstance(_lp_res.get("pct"), int):
+            _live_pct = _lp_res.get("pct")
+            _live_trend = _lp_res.get("trend") or ""
+            _live_state = _lp_res.get("source") or ""
     # COMBINÉ COUPE DU MONDE (ROI) À VENIR : présenté EXACTEMENT comme le combiné du jour (demande user
     # 2026-07-19) -> même COQUILLE DORÉE + en-tête « 🎯 COMBINÉ • <match> » + badge heure. On court-circuite
     # la carte de match générique (ni barres %, ni ligne d'équipes, ni bannières sources — comme le combiné
@@ -9318,9 +9390,11 @@ def _sport_row(r: dict) -> str:
         # MONTANTE : plus de badge greffé ici (demande user 2026-07-30) — la montante a sa PROPRE zone
         # « Montante · Palier N » (via _montante_zone_card). Surface unique -> pas de double affichage.
         _mont_b = ""
-        _premium = ('<div class="mc-div"></div>'
-                    + f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
-                    + _verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True)
+        # Pari+glose (+ note « cote au conseil ») DANS le cadre des chiffres, centré (user 2026-08-15) :
+        # passés à _verdict_block via pick_html -> plus de séparateur mc-div sous les équipes.
+        _pick_in_box = f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
+        _premium = (_verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True, pick_html=_pick_in_box,
+                                   live_pct=_live_pct, live_trend=_live_trend, live_state=_live_state)
                     + _mont_b
                     + ("" if is_live else _pwhy))
         # Le pli « 💡 Pourquoi » porte DÉJÀ toute l'analyse (demande user 2026-07-20) -> la carte n'a plus
@@ -9344,62 +9418,33 @@ def _sport_row(r: dict) -> str:
     # sinon -> l'HEURE du match. Le score n'est donc plus répété dans un cadre en dessous (retiré plus bas).
     _sc_live = str(r.get("score") or "").strip()
     if is_live and _sc_live:
-        _lmin = ""
+        _clk_html = ""
         try:
-            _lmin = match_select.live_minute(match_select.live_state_for(sport_key, r.get("home"), r.get("away"))) or ""
+            _clk = match_select.live_clock(match_select.live_state_for(sport_key, r.get("home"), r.get("away")))
         except Exception:
-            _lmin = ""
+            _clk = None
+        if _clk:
+            _cm, _cs, _crun = _clk
+            # « M:SS » qui DÉFILE côté client (user 2026-08-15 : minute ET seconde). Le ticker JS lit
+            # data-min/data-sec/data-run et incrémente chaque seconde si l'horloge tourne (figé aux pauses) ;
+            # resynchronisé sur la valeur Unibet à chaque refresh de panneau.
+            _clk_html = (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" '
+                         f'data-run="{1 if _crun else 0}">{_cm}:{_cs:02d}</span>')
         _center = (f'<span class="tm-live"><b>{e(_sc_live.replace("-", " - "))}</b>'
-                   + (f'<span class="tm-min">{e(str(_lmin))}</span>' if _lmin else "") + '</span>')
+                   + _clk_html + '</span>')
     else:
         _center = e(starthm)
     teams = _teams_vs_html(r.get("home"), r.get("away"), _center)   # heure (ou score+minute en live) au centre + logos
-    # LIVE (demande user 2026-07-12) : intitulé du pari sur UNE ligne EN HAUT, puis le SCOREBOARD (résultats
-    # — le tableau qu'on voit d'habitude au dépli) EN DESSOUS, visible dans la carte repliée. Badge = « Live ».
-    # Barre « Chance live » (demande user 2026-07-15) : sous le scoreboard, reflet EN DIRECT du % que le
-    # pari joué passe (cote live dé-margée / repli modèle score+temps). Simples seulement ici — le combiné
-    # porte ses propres barres (par jambe + global). PURE AFFICHAGE : aucun impact ROI/stats/calibration.
-    _live_bar = ""
-    _lp_res = None                      # résultat live_prob -> source « acquis »/« perdu » pour le bord
-    if is_live and lscore and bets3 and not is_combo and sport_key:
-        _pbb = bets3[0]
-        # CODE du pari : `bets3` ne le porte PAS toujours (plusieurs branches le construisent sans `code`) ->
-        # on le DÉRIVE du `sel` au besoin. Sans ça, `live_prob` recevait un code vide et le VERROU live ne se
-        # déclenchait jamais (bug user 2026-08-03 : Pegula « remporte au moins un set » restait à ~95 % « Live »
-        # alors que le set 1 était déjà pris -> aurait dû être 100 % « acquis » / GAGNÉ). code_from_pick est
-        # déterministe (SET HOME/AWAY, OVER/UNDER, DC…).
-        _pcode = _pbb.get("code")
-        if not _pcode:
-            from app.settle_analyst import code_from_pick as _cfp_lp
-            _pcode = _cfp_lp(_pbb.get("sel", ""), sport_key, r.get("home", ""), r.get("away", "")) or ""
-        _lhs, _las = _parse_live_score(r.get("score"))
-        _lld = match_select.live_state_for(sport_key, r.get("home"), r.get("away"))
-        _lmid = re.search(r"/(\d+)", url)
-        _fs = r.get("fstats") or {}       # compteurs live (corners/cartons) -> composante « stats live »
-        _lvals = {"corners_h": _fs.get("cor_h"), "corners_a": _fs.get("cor_a"),
-                  "cards_h": _fs.get("yc_h"), "cards_a": _fs.get("yc_a"),
-                  "rc_h": _fs.get("rc_h"), "rc_a": _fs.get("rc_a")}
-        if sport_key == "tennis":         # sets gagnés + jeux du set en cours -> modèle « ≥1 set »
-            _lvals.update(_tennis_sets_games(r.get("score")))
-        _gfrac = (match_select.basket_frac(_lld, comp) if sport_key == "basket" else None)
-        _lp_res = analyses.live_prob(
-            sport_key, _pbb.get("sel", ""), _pcode,
-            r.get("home", ""), r.get("away", ""), _lhs, _las,
-            match_select.live_minute(_lld),
-            match_select.live_win_odds(sport_key, r.get("home"), r.get("away")),
-            _pbb.get("cprob") or _pbb.get("prob"),
-            analyses.live_catalog(_lmid.group(1)) if _lmid else [], _lvals, _gfrac)
-        _live_bar = _live_bar_html(_lp_res)
-    # SCORE retiré du cadre (il est maintenant AU CENTRE entre les équipes, user 2026-08-15) -> on ne garde
-    # que la BARRE « chance live » sous le pari (utile). Si pas de barre -> rien.
-    _live_score_row = f'<div class="mc-livesc">{_live_bar}</div>' if (is_live and _live_bar) else ""
+    # LIVE : intitulé du pari EN HAUT puis SCORE+minute au centre (user 2026-08-15). La « Chance live » n'est
+    # PLUS une barre séparée : elle est FUSIONNÉE dans la barre de confiance du verdict (« Confiance live »,
+    # calculée plus haut via `_live_pct`). PURE AFFICHAGE : aucun impact ROI/stats/calibration.
     _chev = "" if _no_expand else '<span class="mc-chev">▸</span>'   # pas de chevron si carte non dépliable
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line mc-line-c">'   # ligue CENTRÉE, SANS emoji (user 2026-08-15) ; décompte en absolu à droite
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{line3}</div>'
-            f'{_live_score_row}{_pwhy if (is_live and _premium) else ""}</div>{_chev}</div>')
+            f'{_pwhy if (is_live and _premium) else ""}</div>{_chev}</div>')
     # ---- CORPS (déplié au tap) : scoreboard + barres % + paris + liens + ANALYSE (chargée d'office
     # à l'ouverture, plus de bouton « Voir l'analyse »). Un clic n'importe où dans la carte la replie. ----
     pkp = f'&pk={r["pick_kind"]}' if r.get("pick_kind") else ""   # type de pari -> analyse cohérente

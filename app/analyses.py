@@ -873,7 +873,8 @@ def first_stats_day() -> str | None:
 
 
 def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False,
-                 hide_neg_value: bool = False) -> str:
+                 hide_neg_value: bool = False, pick_html: str = "",
+                 live_pct=None, live_trend: str = "", live_state: str = "") -> str:
     """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE). Refonte 2026-07-18
     (demande user « réorganise tout : aligné, pleine largeur, que l'utile et l'intuitif ») :
       (1) en-tête CONFIANCE = qualificatif + % coloré (par niveau) ;
@@ -886,12 +887,17 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     masquée si EV ≤ 0 sur un combiné (calibrated=False, pari fiabilité) OU un provisoire (hide_neg_value=True,
     pari indicatif hors ROI — pas un value bet) : règle « 💎 si EV+ » STRICTE (un « +0 % » n'est pas un edge —
     pas de colonne). Carte de SIMPLE : transparence totale (value montrée même à 0/négatif)."""
+    # Cadre « pari seul » (repli) : si le pari+glose doit vivre DANS le cadre (pick_html, user 2026-08-15)
+    # mais qu'on n'a pas de verdict calculable (cote/conf manquantes), on rend quand même le cadre avec juste
+    # le pari centré -> jamais de pari perdu.
+    _pickbox = (f'<div class="vb"><div class="vm"><div class="vm-pick">{pick_html}</div></div></div>'
+                if pick_html else "")
     try:
         cv = float(cote); cf = float(conf); ep = int(round(ev))
     except (TypeError, ValueError):
-        return ""
+        return _pickbox
     if not cv or cv <= 1:
-        return ""
+        return _pickbox
     be = round(100 / cv)                       # proba implicite marché = seuil de rentabilité
     cfi = int(round(cf))
     _RED = "linear-gradient(90deg,#b23b3b,#ff6b6b)"
@@ -946,10 +952,41 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     if with_cote:
         cells.append('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
                      f'<span class="vm-v">{cv:g}</span></div>')
+    # Pari+glose (user 2026-08-15) : DANS le cadre `.vm`, centré, AU-DESSUS de la grille de chiffres
+    # (le séparateur sous les équipes est retiré côté carte). Les cellules passent dans `.vm-grid`
+    # (l'ancienne rangée flex de `.vm`) -> alignement identique pour tous les types de cartes.
+    _pk = f'<div class="vm-pick">{pick_html}</div>' if pick_html else ""
+    # BARRE : statique = confiance calibrée (avant-match). LIVE (user 2026-08-15) = la MÊME barre DEVIENT
+    # « Confiance live » = chance en direct (remplissage = live_pct), NOS couleurs (émeraude/ambre/rouge par
+    # niveau), MARQUEUR marché d'avant-match conservé (le `mark`). Verrou acquis/perdu -> « Gagné »/« Perdu ».
+    if isinstance(live_pct, int):
+        lp = max(0, min(100, live_pct))
+        lgrad = _RED if lp < 50 else _AMB if lp < 68 else _GRN
+        _ar = {"up": "▲", "down": "▼"}.get(live_trend, "")
+        if live_state == "acquis":
+            _lt, lgrad = "Gagné", _GRN
+        elif live_state == "perdu":
+            _lt, lgrad = "Perdu", _RED
+        else:
+            _lt = "Confiance live"
+        # TÉMOINS D'AVANT-MATCH (user 2026-08-15) : sur la barre live on montre AUSSI notre confiance
+        # d'avant-match (marqueur bleu accent) ET celle des bookmakers (marqueur blanc = `mark`, proba
+        # implicite `be`), + une légende chiffrée « nous X% · marché Y% ». On voit d'un coup où la chance
+        # live se situe par rapport aux deux ancres d'avant-match.
+        _mk_us = f'<b class="vb-mark vb-mk-us" style="left:{cfi}%"></b>' if 0 < cfi < 100 else ""
+        _bar = ('<div class="vb-live">'
+                f'<div class="vb-live-hd"><span class="vb-live-t">{_lt}</span>'
+                f'<span class="vb-live-v">{lp}%<span class="vb-live-ar">{_ar}</span></span></div>'
+                f'<div class="vb-bar"><i style="width:{lp}%;background:{lgrad}"></i>{_mk_us}{mark}</div>'
+                f'<div class="vb-live-lg">Avant-match · <b class="mk-us">nous {cfi}%</b>'
+                f' · <b class="mk-bk">marché {be}%</b></div>'
+                '</div>')
+    else:
+        _bar = f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
     return (
         '<div class="vb">'
-        f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
-        f'<div class="vm">{"".join(cells)}</div>'
+        f'{_bar}'
+        f'<div class="vm">{_pk}<div class="vm-grid">{"".join(cells)}</div></div>'
         '</div>')
 
 

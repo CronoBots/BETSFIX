@@ -355,6 +355,21 @@ def live_minute(ld: dict | None) -> int | None:
     return m if isinstance(m, int) else None
 
 
+def live_clock(ld: dict | None) -> tuple | None:
+    """Horloge live foot COMPLÈTE `(minute, second, running)` depuis le `matchClock` Unibet
+    (`{"minute":91,"second":19,"running":true,...}`), ou None si absente/illisible. `running`=False aux
+    pauses (mi-temps) -> l'affichage FIGE. Sert à l'affichage « M:SS » qui défile (ticker JS côté client
+    resynchronisé à chaque refresh). Purement affichage."""
+    mc = (ld or {}).get("matchClock") if isinstance(ld, dict) else None
+    if not isinstance(mc, dict):
+        return None
+    m, s = mc.get("minute"), mc.get("second")
+    if not isinstance(m, int):
+        return None
+    s = s if isinstance(s, int) else 0
+    return (m, max(0, min(59, s)), bool(mc.get("running")))
+
+
 def basket_frac(ld: dict | None, comp: str = "") -> float | None:
     """Fraction de match RÉGLEMENTAIRE écoulée (0,1] au basket, depuis le `matchClock` Unibet (quart +
     temps restant). `comp` sert à choisir la durée d'un quart : WNBA = 10 min, sinon 12 (NBA). None si
