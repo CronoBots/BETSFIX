@@ -2605,7 +2605,8 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     o1, ox, o2 = (meta.get("odds") if meta else None) or (None, None, None)
     side = {"sport": sport, "id": str(fid), "sofa_id": str(sofa_id),
             "home": m.get("home", ""), "away": m.get("away", ""),
-            "name": m.get("name", ""), "comp": m.get("comp", ""), "start": m.get("start", ""),
+            "name": m.get("name", ""), "comp": m.get("comp", ""), "country": m.get("country", ""),
+            "start": m.get("start", ""),
             "o1": o1, "ox": ox, "o2": o2, "pick": _safe_pick(analysis),
             "pick_code": _parse_pick(analysis),   # code technique pour le règlement auto après match
             "unibet_url": (f"https://fr.unibetsports.be/betting/sports/event/{m.get('id')}"

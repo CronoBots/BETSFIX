@@ -76,6 +76,7 @@ def rank_important(events: list, top_n: int = 10, within_hours: int | None = Non
             "home": ev.get("homeName", ""),
             "away": ev.get("awayName", ""),
             "comp": group,
+            "country": _country_of(path_names),           # pays/zone (depuis le chemin) -> stocké au sidecar
             "circuit": _circuit_of(path_names),          # tennis : ATP/WTA/Challenger (depuis le chemin)
             "markets": ev.get("nonLiveBoCount", 0) or 0,
             "start": ev.get("start"),

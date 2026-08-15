@@ -2172,6 +2172,16 @@ CSS = """
   /* Équipes de la jambe sur leur propre ligne, en gros — comme les provisoires (.mc-teams). */
   .cleg-teams{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.24;letter-spacing:-.015em;
        margin:2px 0 9px;white-space:normal}
+  /* CARTE RÉSULTAT « façon live » (user 2026-08-15) : en-tête ligue CENTRÉE + BLANCHE + pays (comme le live),
+     « Terminé » discret sous le score, barre Gagné/Perdu ré-affichée (sans halo), pas de séparateur de pli. */
+  .cleg-h-c{justify-content:center;position:relative}
+  .cleg-h-c .cleg-comp{flex:0 1 auto;text-align:center;white-space:normal;overflow:visible;
+       text-overflow:clip;line-height:1.25;color:var(--text)}
+  .cleg-res-live .cleg-teams{margin-top:14px}
+  .tm-fin{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+  .cleg-res-live .vb-bar{display:block}                    /* ré-affiche la barre (2169 la masque sur réglé) */
+  .cleg-res-live .vb-live .vb-bar{animation:none}          /* pas de halo : la carte est réglée, statique */
+  .cleg-res-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:13px}
   /* Ligne équipes façon Bull (test 2026-08-15) : monogrammes club + VS centré */
   .cleg-teams-vs,.tmvs{display:flex;align-items:center;justify-content:center;gap:12px;text-align:center}
   .mc-teams .tmvs{margin-top:2px}
@@ -5807,7 +5817,7 @@ def _teams_vs_html(home, away, center: str = "VS") -> str:
 
 def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True,
               why_always: bool = False, why_label: str = "Pourquoi cette jambe",
-              prob_calibrated: bool = False) -> str:
+              prob_calibrated: bool = False, live_layout: bool = False) -> str:
     """Rendu d'UNE jambe de combiné COMME UNE CARTE DE SIMPLE (demande user 2026-07-14) : en-tête
     « SPORT • match » + badge d'état, le pari en gras, l'explication en clair (gloss ↳), la COTE à droite,
     bord gauche coloré par état. En live : badge 🟢 LIVE + tableau de score sous la jambe. `why` = ajoute la
@@ -5969,6 +5979,28 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                        f'<span class="cw-sep">-</span>{_cd}</span>')
     else:
         _when_badge = f'<span class="cleg-bdg {_bcls}">{_btxt}</span>'
+    # LAYOUT IDENTIQUE À LA CARTE LIVE (user 2026-08-15 : « le cadre résultat présenté comme le cadre live »)
+    # pour les cartes RÉGLÉES : ligue CENTRÉE blanche + pays, SCORE final au centre (+ « Terminé »), pari+glose
+    # DANS le cadre des chiffres, barre « Gagné/Perdu » (verrou), pas de séparateur ni cadre résultat séparé.
+    if live_layout and verdict and _res in ("won", "lost", "push"):
+        _cty = _cap(str(l.get("country") or ""))
+        _cprts = [p for p in (_cty, str(l.get("comp") or "")) if p]
+        _comp_c = " • ".join(html.escape(p) for p in _cprts).upper()
+        _scf = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip()
+        if _scf and any(c.isdigit() for c in _scf):
+            _ctr = (f'<span class="tm-live"><b>{html.escape(_scf.replace("-", " - "))}</b>'
+                    f'<span class="tm-fin">Terminé</span></span>')
+        else:
+            _ctr = '<span class="tm-fin">Terminé</span>'
+        _teams_c = _teams_vs_html(_th, _ta, _ctr)
+        _pbox = f'<div class="mc-pick">{sel}</div>' + (f'<div class="mc-gloss">{html.escape(_g)}</div>' if _g else "")
+        _lp = 100 if _res == "won" else 0 if _res == "lost" else None
+        _lst = "acquis" if _res == "won" else "perdu" if _res == "lost" else ""
+        _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, live_pct=_lp, live_state=_lst)
+        return (f'<div class="cleg {_state} cleg-res-live">'
+                f'<div class="cleg-h cleg-h-c"><span class="cleg-comp">{_comp_c}</span></div>'
+                f'<div class="cleg-teams">{_teams_c}</div>'
+                f'{_vb}{_why}</div>')
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
     return (f'<div class="cleg {_state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport spc-{_sp or ""}">{emo}</b>'
@@ -6697,13 +6729,15 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
             if tier is not None and analyses.tier_of(d, rb) != tier:
                 continue                                   # carte réglée d'un AUTRE tier -> pas dans cette zone
             _code = (_cfp(rb.get("sel", ""), sp, d.get("home", ""), d.get("away", "")) or "")
+            _umc = match_select.unibet_meta_for(sp, d.get("home"), d.get("away")) or {}   # pays (best-effort)
             out.append((_RES_RANK.get(rb.get("result"), 3), dt.timestamp(), _leg_card(
                 {"sport": sp, "home": d.get("home"), "away": d.get("away"), "comp": d.get("comp"),
+                 "country": _umc.get("country") or d.get("country") or "",   # live meta -> sidecar (futurs scans)
                  "sel": rb.get("sel"), "cote": rb.get("cote"), "prob": rb.get("prob"), "code": _code,
                  "result": rb.get("result"), "score": _board.get("score") or _sco,
                  "periods": _board.get("periods"), "pens": _board.get("pens"), "start": d.get("start"),
                  "why": _prov_why_snippet(sp, fid, maxlen=100000, played=True)},
-                why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")))
+                why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix", live_layout=True)))
     # ORDRE (demande user 2026-08-01) : GAGNÉ d'abord, puis remboursé, puis PERDU ; à rang égal, le plus
     # récent en tête. Cohérent avec l'ordre voulu par type : non joué → live → gagné → perdu.
     out.sort(key=lambda x: (x[0], -x[1]))
