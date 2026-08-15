@@ -202,6 +202,14 @@ def _circuit_of(path_names: list) -> str:
     return ""
 
 
+def _country_of(path_names: list) -> str:
+    """Pays/zone depuis le chemin Unibet (`path` = [sport, PAYS, compétition, …]), ex.
+    ['Football','Angleterre','The Championship'] -> 'Angleterre'. '' si pas de niveau pays
+    (chemin [sport, compétition] seulement)."""
+    pn = [p for p in (path_names or []) if p]
+    return pn[1].strip() if len(pn) >= 3 else ""
+
+
 def unibet_meta_for(sport: str, home: str, away: str) -> dict | None:
     """Métadonnées Unibet FRAÎCHES du match (circuit, tournoi/`group`, heure de début), depuis le
     cache rempli par `fetch_live_odds` (0 appel en plus). None si absent (-> repli sur le sidecar)."""
@@ -316,7 +324,7 @@ async def _fetch_live_odds_now(sport: str, client=None) -> dict:
                 states[key] = ld
             pn = [p.get("name", "") for p in (ev.get("path") or [])]
             metas[key] = {"circuit": _circuit_of(pn), "comp": ev.get("group") or "",
-                          "start": ev.get("start")}
+                          "start": ev.get("start"), "country": _country_of(pn)}
     except Exception:
         out = hit[1] if hit else {}        # repli sur le dernier cache si le fetch échoue
         states = metas = None              # ne pas écraser le dernier état/méta connu

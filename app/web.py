@@ -9157,13 +9157,18 @@ def _sport_row(r: dict) -> str:
     _spn = {"tennis": "TENNIS", "basket": "BASKET"}.get(sport_key, "")   # « FOOTBALL » retiré (foot-only, user 2026-08-08)
     circuit = um.get("circuit") or summ.get("circuit") or ""
     comp = _cap(um.get("comp") or summ.get("comp") or r.get("tour") or "")
-    _cparts = [p for p in ((circuit if _is_tennis else ""), comp) if p]
+    # PAYS/ZONE devant la compétition (user 2026-08-15, ex. « Angleterre • The Championship ») — depuis le
+    # chemin Unibet frais (um["country"]) ; absent pour un match hors slate (terminé ancien) -> compétition seule.
+    _country = _cap(um.get("country") or summ.get("country") or "")
+    if _country and _country.lower() in (comp or "").lower():
+        _country = ""                       # évite « Angleterre • Angleterre » si le pays est déjà dans le nom
+    _cparts = [p for p in ((circuit if _is_tennis else ""), _country, comp) if p]
     if _spn:
         comp_only = (f'<b class="mc-sport spc-{sport_key or ""}">{_spn}</b>'
                      + (f'<span class="mc-comp-sep"> • </span>{" • ".join(e(p) for p in _cparts)}'
                         if _cparts else ""))
     else:
-        comp_only = " · ".join(e(p) for p in _cparts)
+        comp_only = " • ".join(e(p) for p in _cparts)   # foot : « Pays • Compétition » (user 2026-08-15)
     # Heure de début : Unibet frais (path/start) si dispo, sinon l'heure conviviale `top` -> HH:MM.
     sdt = match_select._start_dt(um["start"]) if um.get("start") else None
     # GARDE anti-double-affiche (même patron que match_select.fresh_status) : `unibet_meta_for` matche par
