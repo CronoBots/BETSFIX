@@ -794,7 +794,7 @@ CSS = """
   /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
   discret. */
   .mc-comp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-       font-size:12px;font-weight:800;color:#8fa2b8;letter-spacing:.02em;text-transform:uppercase}  /* LIGUE = couleur du glose + MAJUSCULE (user 2026-08-08) */
+       font-size:12px;font-weight:800;color:#a6b9cf;letter-spacing:.02em;text-transform:uppercase}  /* LIGUE = MAJUSCULE ; contraste remonté (user 2026-08-15) */
   /* Nom du SPORT (majuscules, accent du sport) puis compétition (muted) — « TENNIS • Wimbledon ». */
   .mc-sport{color:var(--accent);font-weight:800;letter-spacing:.05em}
   .mc-comp-sep{color:var(--dim);font-weight:700}
@@ -2697,7 +2697,7 @@ CSS = """
      barre juste dessous. Occupe la même place (order:2, sous le cadre). */
   .vb .vb-live{order:2;margin-top:11px}
   .vb-live-hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
-  .vb-live-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#7d90a9}
+  .vb-live-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#a6b9cf}   /* contraste remonté (user 2026-08-15) */
   .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
   .vb-live-ar{margin-left:3px;font-size:9.5px}
   .vb-live .vb-bar{order:0;margin-top:0}
@@ -2739,7 +2739,7 @@ CSS = """
   .vm-cell{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;
        padding:2px 6px;text-align:center;border-left:1px solid rgba(255,255,255,.08)}
   .vm-cell:first-child{border-left:none}
-  .vm-l{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#7d90a9}
+  .vm-l{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#a6b9cf}   /* libellés remontés en contraste (user 2026-08-15) */
   .vm-v{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#e6eefa;
        line-height:1.05}
   .vm-v.vpos{color:#4be39b} .vm-v.vmid{color:#f6c54a} .vm-v.vneg{color:#ff7484}
@@ -7635,7 +7635,7 @@ def _programme_schedule(sport: str = "foot") -> str:
                 cls, an_t, an_l = "pgm-done", "terminé", ""
         else:                                              # analyse -> TYPE detecte (confiance/value/montante/abstention)
             _at = _sidecar_analyzed_at(sport, mid)
-            _tail = ("✓ " + _at) if _at else "✓"
+            _tail = _at or ""                              # « ✓ » (V) retiré à droite du badge (user 2026-08-15)
             rb = analyses.retained_bet(sport, mid)
             if rb is None and mid in _combo_mids:          # pas de simple retenu MAIS jambe du combiné du jour
                 cls, an_t, an_l = "pgm-combo", (_at or ""), "combiné"
