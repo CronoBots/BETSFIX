@@ -2697,6 +2697,10 @@ CSS = """
   .vm-sub{font-size:8.5px;font-weight:800;text-transform:lowercase;letter-spacing:.02em;line-height:1}
   .vm-conf .vm-v{font-size:19px}         /* notre confiance = héros de la grille */
   .vm-cote .vm-v{font-size:19px;color:#fff}   /* cote TOUJOURS blanche, y c. combiné du jour (demande user 2026-07-18) */
+  /* Verdict façon Bull (test 2026-08-15) : la grille = petite carte tintée + la Value mise EN AVANT. */
+  .vm{background:rgba(255,255,255,.028);border:1px solid var(--border);border-radius:14px;padding:11px 4px}
+  .vm .vm-cell:has(.vpos){background:linear-gradient(180deg,rgba(75,227,155,.11),transparent);border-radius:11px}
+  .vm .vm-cell:has(.vpos) .vm-v,.vm .vm-cell:has(.vmid) .vm-v,.vm .vm-cell:has(.vneg) .vm-v{font-size:23px}
   .vb-reana{margin-top:11px;font-size:10px;font-weight:600;color:#7f93aa;text-align:center}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
