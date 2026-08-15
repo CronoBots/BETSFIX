@@ -2197,6 +2197,7 @@ CSS = """
   .tm-live b{font-size:21px;font-weight:900;letter-spacing:-.01em;color:var(--text);font-variant-numeric:tabular-nums}
   .tm-min{font-size:10.5px;font-weight:800;color:var(--gold);letter-spacing:.03em}
   .tm-min .tm-add{margin-left:2px;font-size:.9em;font-weight:900;color:#ff9d5c}   /* temps additionnel « +N' » à droite */
+  .tm-cd{margin-top:4px;display:flex;justify-content:center}   /* décompte SOUS l'heure (à venir, user 2026-08-15) */
   .tm-b{position:relative;display:inline-block;width:44px;height:44px;flex:0 0 auto}
   .team-mono{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;
        font-size:15px;font-weight:900;color:#fff;letter-spacing:-.02em;
@@ -5801,7 +5802,7 @@ def _crest_badge(name: str) -> str:
     from urllib.parse import quote
     return (f'<span class="tm-b">{_team_badge(name)}'
             f'<img class="team-logo" src="/crest?name={quote(str(name or ""))}" alt="" loading="lazy" '
-            f'onerror="this.remove();var m=this.previousElementSibling;if(m)m.style.visibility=&quot;visible&quot;">'
+            f'onerror="var m=this.previousElementSibling;this.remove();if(m)m.style.visibility=&quot;visible&quot;">'
             f'</span>')
 
 
@@ -9266,10 +9267,10 @@ def _sport_row(r: dict) -> str:
     else:                                                # à venir : HEURE + DÉCOMPTE (« HH:MM - Début dans 52m01s »),
         #                                                  MÊME badge combiné que _leg_card (user 2026-08-08 : timer
         #                                                  heure + décompte sur TOUS les types de paris).
-        _cd_sr = (f'<span class="cd" data-ts="{int(sdt.timestamp())}"></span>'
-                  if sdt and sdt.timestamp() > time.time() else "")
-        if _cd_sr:
-            badge = f'<span class="mc-badge mc-up">{_cd_sr}</span>'   # décompte SEUL (l'heure est au centre, entre les équipes)
+        # DÉCOMPTE déplacé SOUS l'heure au centre (user 2026-08-15) -> plus de badge en haut à droite si un
+        # coup d'envoi futur existe. Repli badge « À venir » seulement si l'heure n'est pas exploitable.
+        if sdt and sdt.timestamp() > time.time():
+            badge = ""
         else:
             badge = f'<span class="mc-badge mc-up">{e(starthm) or "À venir"}</span>'
     # L3 : prono(s) PUBLIABLE(s) seulement — APP = TELEGRAM (strict). Un match SANS combiné n'affiche
@@ -9516,6 +9517,11 @@ def _sport_row(r: dict) -> str:
                              f'data-run="{1 if _crun else 0}">{_cm}:{_cs:02d}</span>')
         _center = (f'<span class="tm-live"><b>{e(_sc_live.replace("-", " - "))}</b>'
                    + _clk_html + '</span>')
+    elif (not is_finished) and sdt and sdt.timestamp() > time.time():
+        # À VENIR (user 2026-08-15) : HEURE au centre + DÉCOMPTE juste DESSOUS (comme l'horloge live sous le
+        # score) ; le badge décompte en haut à droite est retiré. Le timer JS `.cd` rafraîchit le décompte.
+        _center = (f'<span class="tm-live"><b>{e(starthm)}</b>'
+                   f'<span class="tm-cd"><span class="cd" data-ts="{int(sdt.timestamp())}"></span></span></span>')
     else:
         _center = e(starthm)
     teams = _teams_vs_html(r.get("home"), r.get("away"), _center)   # heure (ou score+minute en live) au centre + logos

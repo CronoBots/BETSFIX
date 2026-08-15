@@ -38,6 +38,17 @@ def _norm(s) -> str:
     return "".join(c for c in s if c.isalnum())
 
 
+import re as _re
+
+# Suffixe de code d'état/région (« -SC », « -GO », « -PE »…) ou genre (« (F) ») en fin de nom : FotMob
+# indexe l'équipe SANS -> on le retire pour la recherche/le matching (ex. « Criciúma-SC » -> « Criciúma »).
+_SUFFIX = _re.compile(r"\s*[-–]\s*[A-Za-z]{2,3}\.?\s*$|\s*\((?:F|W)\)\s*$")
+
+
+def _clean(name) -> str:
+    return _SUFFIX.sub("", str(name or "")).strip()
+
+
 def team_id(name: str):
     """ID FotMob de l'équipe `name` (caché). None si introuvable/panne."""
     key = _norm(name)
@@ -47,21 +58,24 @@ def team_id(name: str):
     if key in c:
         return c[key] or None            # négatif caché possible (None)
     tid = None
+    sname = _clean(name)                  # nom sans suffixe état/genre -> meilleure résolution FotMob
+    skey = _norm(sname) or key
     try:
         r = httpx.get("https://apigw.fotmob.com/searchapi/suggest",
-                      params={"term": name, "lang": "en"}, headers=_UA, timeout=8)
+                      params={"term": sname or name, "lang": "en"}, headers=_UA, timeout=8)
         d = r.json()
         opts = [o.get("payload", {}) for g in d.get("matchSuggest", []) for o in g.get("options", [])]
-        for p in opts:                   # 1) match EXACT du nom
-            if _norm(p.get("homeName")) == key:
+        for p in opts:                   # 1) match EXACT du nom (original OU nettoyé)
+            if _norm(p.get("homeName")) in (key, skey):
                 tid = p.get("homeTeamId"); break
-            if _norm(p.get("awayName")) == key:
+            if _norm(p.get("awayName")) in (key, skey):
                 tid = p.get("awayTeamId"); break
-        if not tid:                      # 2) repli : le nom est contenu
+        if not tid and len(skey) >= 4:   # 2) repli : le nom (nettoyé) est contenu, dans un sens ou l'autre
             for p in opts:
-                if key and key in _norm(p.get("homeName")):
+                _nh, _na = _norm(p.get("homeName")), _norm(p.get("awayName"))
+                if _nh and (skey in _nh or _nh in skey):
                     tid = p.get("homeTeamId"); break
-                if key and key in _norm(p.get("awayName")):
+                if _na and (skey in _na or _na in skey):
                     tid = p.get("awayTeamId"); break
     except Exception:
         return None                      # panne -> ne PAS cacher (re-tentera plus tard)
