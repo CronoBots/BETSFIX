@@ -985,7 +985,7 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
                 f'<div class="vb-live-hd"><span class="vb-live-t">{_lt}</span>'
                 f'<span class="vb-live-v">{lp}%<span class="vb-live-ar">{_ar}</span></span></div>'
                 f'<div class="vb-bar"><i style="width:{lp}%;background:{lgrad};'
-                f'--hlo:rgba({_hrgb},.14);--hhi:rgba({_hrgb},.42)"></i>{_mk_us}{mark}</div>'
+                f'--hlo:rgba({_hrgb},.18);--hhi:rgba({_hrgb},.52)"></i>{_mk_us}{mark}</div>'
                 '</div>')
     else:
         _bar = f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'

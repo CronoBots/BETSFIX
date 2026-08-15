@@ -2215,7 +2215,8 @@ CSS = """
   /* Même pli, mais sur une carte de pari PLEINE (simple retenu / provisoire) et non une mini-jambe :
      léger filet de séparation au-dessus + texte un poil plus lisible. */
   .cleg-fold-bet{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)}
-  .mc-r-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:11px}   /* pas de séparateur sous la barre live (user 2026-08-15) */
+  .mc-r-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:17px}   /* pas de séparateur + un peu plus d'espace sous la barre live (user 2026-08-15) */
+  .mc-r-live .vb-live{margin-bottom:4px}
   .cleg-fold-bet>.cleg-fold-s{font-size:11px}
   .cleg-fold-bet .cleg-why{font-size:11.5px;color:#a7bcd6;line-height:1.5}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
@@ -2708,8 +2709,8 @@ CSS = """
   .vb-live .vb-bar{overflow:visible}
   .vb-live .vb-bar>i{animation:vbfill 1s cubic-bezier(.22,1,.36,1) .05s both,
        vblivehalo 2.8s ease-in-out .9s infinite}
-  @keyframes vblivehalo{0%,100%{box-shadow:0 0 4px 0 var(--hlo,rgba(34,184,255,.14))}
-       50%{box-shadow:0 0 11px 1px var(--hhi,rgba(34,184,255,.42))}}
+  @keyframes vblivehalo{0%,100%{box-shadow:0 0 5px 0 var(--hlo,rgba(34,184,255,.18))}
+       50%{box-shadow:0 0 14px 2px var(--hhi,rgba(34,184,255,.52))}}
   @media (prefers-reduced-motion:reduce){.vb-live .vb-bar>i{animation:vbfill 1s cubic-bezier(.22,1,.36,1) .05s both}}
   /* témoins d'avant-match sur la barre live (user 2026-08-15) : marqueur NOUS (VERT, comme « Confiance »
      de la grille) + marqueur MARCHÉ (BLANC, .vb-mark existant, comme « Marché »). Pas de légende texte —
