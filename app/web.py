@@ -2751,7 +2751,7 @@ CSS = """
   .vm{width:100%;margin-top:12px}
   .vm-grid{display:flex;width:100%}   /* rangée Confiance/Marché/Value/Cote (ex-.vm flex) */
   /* Pari+glose DANS le cadre, centré, au-dessus des chiffres (user 2026-08-15), avec filet de séparation. */
-  .vm-pick{text-align:center;padding:2px 6px 10px;margin-bottom:9px;border-bottom:1px solid var(--border2)}
+  .vm-pick{text-align:center;padding:2px 6px 10px;margin:0 12px 9px;border-bottom:1px solid var(--border2)}   /* séparateur = même largeur que la barre (user 2026-08-15) */
   .vm-pick .mc-pick{text-align:center}
   .vm-pick .mc-gloss{text-align:center;margin-top:4px}
   .vm-cell{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;

@@ -77,6 +77,18 @@ def team_id(name: str):
                     tid = p.get("homeTeamId"); break
                 if _na and (skey in _na or _na in skey):
                     tid = p.get("awayTeamId"); break
+        if not tid:                      # 3) TOKEN distinctif partagé (≥6 lettres) : ex. « RB Bragantino »
+            # (abrégé) vs « Red Bull Bragantino » (FotMob) -> le mot « bragantino » est commun. Dernier repli,
+            # sur le mot le plus long (≥6) du nom nettoyé -> on prend le 1er résultat FotMob qui le contient
+            # (déjà classé par pertinence à la recherche -> peu de faux positifs).
+            _toks = sorted((_norm(w) for w in _re.split(r"[\s.\-]+", sname or name) if w), key=len, reverse=True)
+            _big = next((t for t in _toks if len(t) >= 6), "")
+            if _big:
+                for p in opts:
+                    if _big in _norm(p.get("homeName")):
+                        tid = p.get("homeTeamId"); break
+                    if _big in _norm(p.get("awayName")):
+                        tid = p.get("awayTeamId"); break
     except Exception:
         return None                      # panne -> ne PAS cacher (re-tentera plus tard)
     with _LOCK:
