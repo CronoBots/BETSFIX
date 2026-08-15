@@ -2215,6 +2215,7 @@ CSS = """
   /* Même pli, mais sur une carte de pari PLEINE (simple retenu / provisoire) et non une mini-jambe :
      léger filet de séparation au-dessus + texte un poil plus lisible. */
   .cleg-fold-bet{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)}
+  .mc-r-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:11px}   /* pas de séparateur sous la barre live (user 2026-08-15) */
   .cleg-fold-bet>.cleg-fold-s{font-size:11px}
   .cleg-fold-bet .cleg-why{font-size:11.5px;color:#a7bcd6;line-height:1.5}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
@@ -2700,6 +2701,11 @@ CSS = """
   .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
   .vb-live-ar{margin-left:3px;font-size:9.5px}
   .vb-live .vb-bar{order:0;margin-top:0}
+  /* HALO clignotant sur la barre live (user 2026-08-15) : léger pouls bleu accent -> montre que ça bouge
+     (effet « live »). Respecte prefers-reduced-motion. */
+  .vb-live .vb-bar{animation:vblivehalo 1.7s ease-in-out infinite}
+  @keyframes vblivehalo{0%,100%{box-shadow:0 0 0 0 rgba(34,184,255,0)}55%{box-shadow:0 0 9px 1px rgba(34,184,255,.32)}}
+  @media (prefers-reduced-motion:reduce){.vb-live .vb-bar{animation:none}}
   /* témoins d'avant-match sur la barre live (user 2026-08-15) : marqueur NOUS (VERT, comme « Confiance »
      de la grille) + marqueur MARCHÉ (BLANC, .vb-mark existant, comme « Marché »). Pas de légende texte —
      les valeurs sont déjà dans la grille de chiffres en dessous. */
