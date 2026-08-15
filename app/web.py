@@ -3477,7 +3477,7 @@ _LIVECLK_JS = (
     "if(isNaN(m)||isNaN(s))continue;s++;if(s>=60){s=0;m++;}"
     "el.setAttribute('data-min',m);el.setAttribute('data-sec',s);"
     "c=parseInt(el.getAttribute('data-cap'),10)||0;"
-    "if(c&&m>c){el.innerHTML=c+':'+p(s)+'<span class=\"tm-add\">+'+(m-c)+'</span>';}"
+    "if(c&&m>=c){el.innerHTML=m+':'+p(s)+'<span class=\"tm-add\">(+'+(m-c+1)+\"')</span>\";}"
     "else{el.textContent=m+':'+p(s);}}}"
     "setInterval(t,1000);})();"
 )
@@ -9514,9 +9514,11 @@ def _sport_row(r: dict) -> str:
             if _pid == "FIRST_HALF" and not _crun and _cm >= 45:
                 _clk_html = '<span class="tm-min" data-run="0">HT</span>'
             else:
-                if _regcap and _cm > _regcap:
-                    # SECONDES AVANT l'addition (user 2026-08-16) : « 90:40+1 » (base:secondes puis +N).
-                    _disp = f'{_regcap}:{_cs:02d}<span class="tm-add">+{_cm - _regcap}</span>'
+                if _regcap and _cm >= _regcap:
+                    # PROLONGATION (user 2026-08-16) : horloge COMPLÈTE + minute additionnelle en cours entre
+                    # parenthèses -> « 92:27 (+3') ». N = minute écoulée - cap + 1 (2e MT : 92 -> +3).
+                    _disp = (f'{_cm}:{_cs:02d}'
+                             f'<span class="tm-add">(+{_cm - _regcap + 1}\')</span>')
                 else:
                     _disp = f'{_cm}:{_cs:02d}'
                 _clk_html = (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" data-cap="{_regcap}" '
