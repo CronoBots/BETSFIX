@@ -2165,7 +2165,8 @@ CSS = """
   .cleg-teams{font-size:14px;font-weight:800;color:#eef4fb;line-height:1.24;letter-spacing:-.015em;
        margin:2px 0 9px;white-space:normal}
   /* Ligne équipes façon Bull (test 2026-08-15) : monogrammes club + VS centré */
-  .cleg-teams-vs{display:flex;align-items:center;justify-content:center;gap:12px;text-align:center}
+  .cleg-teams-vs,.tmvs{display:flex;align-items:center;justify-content:center;gap:12px;text-align:center}
+  .mc-teams .tmvs{margin-top:2px}
   .tm-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0}
   .tm-n{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.15;letter-spacing:-.01em}
   .tm-vs{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.09em;flex:0 0 auto}
@@ -5428,8 +5429,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
         home, _sep, away = name.partition(" - ")
         # AFFICHAGE seul : on retire « (F) » du nom montré (le sport WNBA/WTA le dit déjà) — `home`/`away`
         # BRUTS restent intacts pour la logique (dédup, gloss, règlement). Demande user 2026-07-21.
-        teams = (f'{html.escape(_noF(home))} <span class="mc-dash">—</span> {html.escape(_noF(away))}'
-                 if away else html.escape(_noF(home)))
+        teams = _teams_vs_html(home, away)
         comp = html.escape(str(m.get("comp") or ""))
         reanalyse = dt - timedelta(hours=1)     # la (ré)analyse rapprochée = coup d'envoi − 1 h
         # PARI PROVISOIRE (demande user 2026-07-09) : un match analysé SANS value affiche quand même « le
@@ -5709,6 +5709,20 @@ def _team_badge(name: str) -> str:
             f'hsl({hue},48%,46%),hsl({(hue + 24) % 360},52%,34%))">{html.escape(ini)}</span>')
 
 
+def _teams_vs_html(home, away) -> str:
+    """Ligne d'équipes VS + pastilles MONOGRAMME (test carte façon Bull, user 2026-08-15). Partagée par la
+    carte premium ET les jambes (_leg_card). Repli sur un seul nom si l'autre manque."""
+    h, a = _noF(str(home or "")), _noF(str(away or ""))
+    if not a:
+        return html.escape(h)
+    return (f'<span class="tmvs">'
+            f'<span class="tm-side"><span class="tm-b">{_team_badge(h)}</span>'
+            f'<span class="tm-n">{html.escape(h)}</span></span>'
+            f'<span class="tm-vs">VS</span>'
+            f'<span class="tm-side"><span class="tm-b">{_team_badge(a)}</span>'
+            f'<span class="tm-n">{html.escape(a)}</span></span></span>')
+
+
 def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True,
               why_always: bool = False, why_label: str = "Pourquoi cette jambe",
               prob_calibrated: bool = False) -> str:
@@ -5739,12 +5753,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     comp = html.escape(str(l.get("comp") or ""))
     # (_th/_ta déjà résolus plus haut, avec repli sur `name`, pour le titre ET la ligne d'équipes.)
     # `teams=False` (combiné de MATCH, même affiche que la carte parente) -> pas de répétition des équipes.
-    _teams_html = (f'<div class="cleg-teams cleg-teams-vs">'
-                   f'<span class="tm-side"><span class="tm-b">{_team_badge(_th)}</span>'
-                   f'<span class="tm-n">{html.escape(str(_th))}</span></span>'
-                   f'<span class="tm-vs">VS</span>'
-                   f'<span class="tm-side"><span class="tm-b">{_team_badge(_ta)}</span>'
-                   f'<span class="tm-n">{html.escape(str(_ta))}</span></span></div>') if (teams and _th and _ta) else ""
+    _teams_html = (f'<div class="cleg-teams">{_teams_vs_html(_th, _ta)}</div>') if (teams and _th and _ta) else ""
     co = l.get("cote")
     _cote = (f'<span class="cleg-cote"><span class="cleg-cote-l">COTE</span>'
              f'<span class="cleg-cote-v">{co:g}</span></span>') if isinstance(co, (int, float)) and co else ""
@@ -9313,8 +9322,7 @@ def _sport_row(r: dict) -> str:
             line3 = '<div class="mc-div"></div>' + line3
     # ÉQUIPES avec tiret « — » pour TOUS les types (demande user 2026-07-14 : cartes semblables) — plus le
     # « vs » réservé aux terminés/live. L'en-tête « SPORT • Ligue » est déjà posé pour tous plus haut.
-    teams = (f'{hf}{e(_noF(r.get("home")))} <span class="mc-dash">—</span> '
-             f'{e(_noF(r.get("away")))}{fem}{af}')
+    teams = _teams_vs_html(r.get("home"), r.get("away"))   # VS + monogrammes (test carte façon Bull)
     # LIVE (demande user 2026-07-12) : intitulé du pari sur UNE ligne EN HAUT, puis le SCOREBOARD (résultats
     # — le tableau qu'on voit d'habitude au dépli) EN DESSOUS, visible dans la carte repliée. Badge = « Live ».
     # Barre « Chance live » (demande user 2026-07-15) : sous le scoreboard, reflet EN DIRECT du % que le
