@@ -1183,6 +1183,34 @@ def _unibet_odds_map(offers: list, home: str, away: str) -> dict:
     return m
 
 
+def _build_sharp_map(sp, smk) -> dict:
+    """Carte {code de marché -> proba SHARP de-viggée} (analogue à `omap` pour les cotes Unibet, user
+    2026-08-15). Permet de calculer la COTE JUSTE du sharp par pari (comparaison carte « Unibet → sharp » +
+    CLV « cotes sharp battues »). Couvre 1X2 + double chance (via `sp`) et totaux Over/Under (via `smk`).
+    Best-effort : dicts None -> carte partielle/vide. Les probas sont figées au scan (le sharp du moment)."""
+    m: dict = {}
+    if sp:
+        h, d, a = sp.get("home"), sp.get("draw"), sp.get("away")
+        if h is not None:
+            m["1X2 1"] = m["WIN 1"] = m["REGTIME HOME"] = round(float(h), 4)
+        if a is not None:
+            m["1X2 2"] = m["WIN 2"] = m["REGTIME AWAY"] = round(float(a), 4)
+        if d is not None:
+            m["1X2 X"] = m["REGTIME DRAW"] = round(float(d), 4)
+        if h is not None and d is not None:
+            m["DC 1X"] = round(float(h) + float(d), 4)
+        if h is not None and a is not None:
+            m["DC 12"] = round(float(h) + float(a), 4)
+        if d is not None and a is not None:
+            m["DC X2"] = round(float(d) + float(a), 4)
+    if smk:
+        for line, p in (smk.get("totals") or {}).items():
+            if p is not None:
+                m[f"OVER {line:g}"] = round(float(p), 4)
+                m[f"UNDER {line:g}"] = round(1 - float(p), 4)
+    return m
+
+
 async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "foot",
                         sofa_id: str | None = None) -> str | None:
     """Dossier compact : marchés Unibet utiles (hors bruit) + séries/H2H/votes SofaScore. None si indispo."""
@@ -1433,6 +1461,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # ni marchés de-viggés) -> la boucle DIFFÈRE ces matchs (jamais d'analyse « à sec »). `no_sharp` calculé
     # ICI (au build du dossier) = re-évalué à CHAQUE vague : le sharp se poste souvent plus près du KO.
     meta = {"odds": odds, "sources_prov": src_prov, **sx,
+            "sharp_map": _build_sharp_map(sp, smk),   # proba sharp par code (figée au scan) -> comparaison carte + CLV
             "no_sharp": bool(sport == "foot" and not sharp and not sharp_mk)}   # odds + streaks/h2h + provenance -> sidecar
     return text, meta
 
@@ -2620,6 +2649,9 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     # la cote EXACTE du marché Unibet (map construite dans build_dossier). S'applique aux fantômes (`shadow`,
     # clé `cote`) ET au pari retenu (`bets`, clé `odds`) -> combiné du jour/sécurité, ROI et affichage collent
     # tous au ticket Unibet. Marché non couvert / cote indispo -> on garde la cote existante (repli).
+    _sharp_map = (meta or {}).get("sharp_map") or {}
+    if _sharp_map:
+        side["sharp_map"] = _sharp_map  # map {code -> proba SHARP de-viggée} figée au scan -> comparaison carte + CLV
     _omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
     if _omap:
         side["omap"] = _omap            # map {code -> vraie cote Unibet} persistée -> re-pricing read-time possible
