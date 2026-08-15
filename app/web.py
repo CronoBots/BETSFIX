@@ -3477,7 +3477,7 @@ _LIVECLK_JS = (
     "if(isNaN(m)||isNaN(s))continue;s++;if(s>=60){s=0;m++;}"
     "el.setAttribute('data-min',m);el.setAttribute('data-sec',s);"
     "c=parseInt(el.getAttribute('data-cap'),10)||0;"
-    "if(c&&m>c){el.innerHTML=c+'<span class=\"tm-add\">+'+(m-c)+'</span>:'+p(s);}"
+    "if(c&&m>c){el.innerHTML=c+':'+p(s)+'<span class=\"tm-add\">+'+(m-c)+'</span>';}"
     "else{el.textContent=m+':'+p(s);}}}"
     "setInterval(t,1000);})();"
 )
@@ -9515,7 +9515,8 @@ def _sport_row(r: dict) -> str:
                 _clk_html = '<span class="tm-min" data-run="0">HT</span>'
             else:
                 if _regcap and _cm > _regcap:
-                    _disp = f'{_regcap}<span class="tm-add">+{_cm - _regcap}</span>:{_cs:02d}'
+                    # SECONDES AVANT l'addition (user 2026-08-16) : « 90:40+1 » (base:secondes puis +N).
+                    _disp = f'{_regcap}:{_cs:02d}<span class="tm-add">+{_cm - _regcap}</span>'
                 else:
                     _disp = f'{_cm}:{_cs:02d}'
                 _clk_html = (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" data-cap="{_regcap}" '
