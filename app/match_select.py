@@ -131,6 +131,46 @@ def _save_slate(sport: str, raw: dict) -> None:
         pass
 
 
+_COMP_COUNTRY_FILE = _os.path.join("data", "comp_country.json")
+_COMP_COUNTRY: dict | None = None
+
+
+def _load_comp_country() -> dict:
+    global _COMP_COUNTRY
+    if _COMP_COUNTRY is None:
+        try:
+            _COMP_COUNTRY = _json.load(open(_COMP_COUNTRY_FILE, encoding="utf-8"))
+        except (OSError, ValueError):
+            _COMP_COUNTRY = {}
+    return _COMP_COUNTRY
+
+
+def comp_country(comp: str) -> str:
+    """Pays APPRIS pour une compétition (cache auto-alimenté par le slate live, cf. `_learn_comp_country`).
+    '' si inconnu. Repli pour les cartes RÉGLÉES : un match fini n'est plus dans le slate Unibet (donc plus de
+    pays direct), mais sa ligue y est repassée un jour -> on a mémorisé « The Championship » -> « Angleterre »."""
+    return _load_comp_country().get((comp or "").strip(), "") if comp else ""
+
+
+def _learn_comp_country(metas: dict) -> None:
+    """Mémorise les couples compétition->pays vus dans le slate (1re occurrence gardée = stable). Écrit
+    seulement quand un NOUVEAU couple apparaît (aucune I/O à chaque cycle)."""
+    cc = _load_comp_country()
+    changed = False
+    for md in (metas or {}).values():
+        cp, cy = str(md.get("comp") or "").strip(), md.get("country") or ""
+        if cp and cy and cp not in cc:
+            cc[cp] = cy
+            changed = True
+    if changed:
+        try:
+            _os.makedirs("data", exist_ok=True)
+            with open(_COMP_COUNTRY_FILE, "w", encoding="utf-8") as f:
+                _json.dump(cc, f, ensure_ascii=False)
+        except OSError:
+            pass
+
+
 def _load_slate(sport: str) -> dict:
     """Lit le JSON brut du listView SYNCHRONISÉ (rôle serveur). {} si absent -> repli gracieux (le rendu
     garde les cotes du sidecar, aucun crash)."""
@@ -334,6 +374,7 @@ async def _fetch_live_odds_now(sport: str, client=None) -> dict:
         _LIVE_STATE_CACHE[sport] = (now, states)
     if metas is not None:
         _META_CACHE[sport] = (now, metas)
+        _learn_comp_country(metas)         # apprend comp->pays (repli pays des cartes réglées)
     return out
 
 

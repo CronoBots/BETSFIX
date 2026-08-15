@@ -2179,9 +2179,13 @@ CSS = """
        text-overflow:clip;line-height:1.25;color:var(--text)}
   .cleg-res-live .cleg-teams{margin-top:14px}
   .tm-fin{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
-  .cleg-res-live .vb-bar{display:block}                    /* ré-affiche la barre (2169 la masque sur réglé) */
-  .cleg-res-live .vb-live .vb-bar{animation:none}          /* pas de halo : la carte est réglée, statique */
   .cleg-res-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:13px}
+  /* BADGE RÉSULTAT pleine largeur (user 2026-08-15) à la place de la barre : GAGNÉ/PERDU/REMBOURSÉ. */
+  .cleg-resbadge{margin-top:11px;width:100%;text-align:center;padding:9px 10px;border-radius:12px;
+       font-size:13px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+  .cleg-rb-w{background:rgba(52,210,123,.18);color:#4be39b;border:1px solid rgba(52,210,123,.55)}
+  .cleg-rb-l{background:rgba(255,107,107,.16);color:#ff6b6b;border:1px solid rgba(255,107,107,.5)}
+  .cleg-rb-n{background:rgba(144,164,190,.16);color:#aebdd0;border:1px solid rgba(144,164,190,.4)}
   /* Ligne équipes façon Bull (test 2026-08-15) : monogrammes club + VS centré */
   .cleg-teams-vs,.tmvs{display:flex;align-items:center;justify-content:center;gap:12px;text-align:center}
   .mc-teams .tmvs{margin-top:2px}
@@ -5994,13 +5998,16 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             _ctr = '<span class="tm-fin">Terminé</span>'
         _teams_c = _teams_vs_html(_th, _ta, _ctr)
         _pbox = f'<div class="mc-pick">{sel}</div>' + (f'<div class="mc-gloss">{html.escape(_g)}</div>' if _g else "")
-        _lp = 100 if _res == "won" else 0 if _res == "lost" else None
-        _lst = "acquis" if _res == "won" else "perdu" if _res == "lost" else ""
-        _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, live_pct=_lp, live_state=_lst)
+        _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox)
+        # BADGE RÉSULTAT PLEINE LARGEUR (user 2026-08-15) à la place de la barre « Confiance live » :
+        # « GAGNÉ » (vert) / « PERDU » (rouge) / « REMBOURSÉ » (gris), sous le cadre des chiffres.
+        _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"),
+                      "push": ("REMBOURSÉ", "n")}.get(_res, ("", "n"))
+        _resbadge = f'<div class="cleg-resbadge cleg-rb-{_rbc}">{_rbt}</div>' if _rbt else ""
         return (f'<div class="cleg {_state} cleg-res-live">'
                 f'<div class="cleg-h cleg-h-c"><span class="cleg-comp">{_comp_c}</span></div>'
                 f'<div class="cleg-teams">{_teams_c}</div>'
-                f'{_vb}{_why}</div>')
+                f'{_vb}{_resbadge}{_why}</div>')
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
     return (f'<div class="cleg {_state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport spc-{_sp or ""}">{emo}</b>'
@@ -6732,7 +6739,8 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
             _umc = match_select.unibet_meta_for(sp, d.get("home"), d.get("away")) or {}   # pays (best-effort)
             out.append((_RES_RANK.get(rb.get("result"), 3), dt.timestamp(), _leg_card(
                 {"sport": sp, "home": d.get("home"), "away": d.get("away"), "comp": d.get("comp"),
-                 "country": _umc.get("country") or d.get("country") or "",   # live meta -> sidecar (futurs scans)
+                 "country": (_umc.get("country") or d.get("country")           # live meta -> sidecar -> cache appris
+                             or match_select.comp_country(d.get("comp")) or ""),
                  "sel": rb.get("sel"), "cote": rb.get("cote"), "prob": rb.get("prob"), "code": _code,
                  "result": rb.get("result"), "score": _board.get("score") or _sco,
                  "periods": _board.get("periods"), "pens": _board.get("pens"), "start": d.get("start"),
