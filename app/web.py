@@ -2174,9 +2174,9 @@ CSS = """
   .team-mono{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;
        font-size:15px;font-weight:900;color:#fff;letter-spacing:-.02em;
        box-shadow:0 4px 12px rgba(0,0,0,.38),inset 0 0 0 1px rgba(255,255,255,.12)}
-  /* Logo FotMob par-dessus le monogramme (repli) — test carte façon Bull */
-  .team-logo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:50%;
-       background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.38),inset 0 0 0 1px rgba(0,0,0,.06)}
+  /* Logo FotMob PNG transparent (pas de cercle blanc, user 2026-08-15) par-dessus le monogramme (repli) */
+  .team-logo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+       background:none;border-radius:0;filter:drop-shadow(0 2px 5px rgba(0,0,0,.45))}
   .cleg-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
   .cleg-main{flex:1;min-width:0}
   .cleg-pick{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
@@ -5718,8 +5718,9 @@ def _crest_badge(name: str) -> str:
     `onerror` le retire -> le monogramme reste visible. Zéro blocage : /crest résout async côté navigateur."""
     from urllib.parse import quote
     return (f'<span class="tm-b">{_team_badge(name)}'
-            f'<img class="team-logo" src="/crest?name={quote(str(name or ""))}" alt="" '
-            f'loading="lazy" onerror="this.remove()"></span>')
+            f'<img class="team-logo" src="/crest?name={quote(str(name or ""))}" alt="" loading="lazy" '
+            f'onload="this.previousElementSibling.style.visibility=&quot;hidden&quot;" '
+            f'onerror="this.remove()"></span>')
 
 
 def _teams_vs_html(home, away) -> str:
