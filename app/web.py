@@ -3471,12 +3471,14 @@ _COUNTDOWN_JS = (
 # sur la vraie valeur -> pas de dérive. Purement affichage.
 _LIVECLK_JS = (
     "(function(){function p(n){return n<10?'0'+n:''+n;}"
-    "function t(){var e=document.getElementsByClassName('tm-min'),i,el,m,s;"
+    "function t(){var e=document.getElementsByClassName('tm-min'),i,el,m,s,c;"
     "for(i=0;i<e.length;i++){el=e[i];if(el.getAttribute('data-run')!=='1')continue;"
     "m=parseInt(el.getAttribute('data-min'),10);s=parseInt(el.getAttribute('data-sec'),10);"
     "if(isNaN(m)||isNaN(s))continue;s++;if(s>=60){s=0;m++;}"
     "el.setAttribute('data-min',m);el.setAttribute('data-sec',s);"
-    "el.textContent=m+':'+p(s);}}"
+    "c=parseInt(el.getAttribute('data-cap'),10)||0;"
+    "if(c&&m>c){el.innerHTML=c+'<span class=\"tm-add\">+'+(m-c)+'</span>:'+p(s);}"
+    "else{el.textContent=m+':'+p(s);}}}"
     "setInterval(t,1000);})();"
 )
 
@@ -9504,20 +9506,20 @@ def _sport_row(r: dict) -> str:
         if _clk:
             _cm, _cs, _crun, _cpid = _clk
             _pid = (_cpid or "").upper()
-            # MI-TEMPS (user 2026-08-15) : 1re MT terminée + horloge arrêtée -> « HT ». PROLONGATION : minute
-            # au-delà de 45 (1re MT) / 90 (2e MT) -> base « 45'/90' » + « +N' » (temps additionnel) À DROITE.
-            # Sinon horloge « M:SS » qui DÉFILE côté client (ticker JS lit data-min/data-sec/data-run).
+            # MI-TEMPS (user 2026-08-15) : 1re MT terminée + horloge arrêtée -> « HT ». Sinon horloge « M:SS »
+            # qui DÉFILE (secondes gardées AUSSI en temps additionnel, user 2026-08-15). En prolongation (au-delà
+            # du cap 45/90) -> « 90+N:SS » : la minute additionnelle ET les secondes continuent d'avancer (le
+            # ticker JS lit data-min/data-sec/data-cap/data-run et reformate au-delà du cap).
+            _regcap = 45 if _pid == "FIRST_HALF" else 90 if _pid == "SECOND_HALF" else 0
             if _pid == "FIRST_HALF" and not _crun and _cm >= 45:
                 _clk_html = '<span class="tm-min" data-run="0">HT</span>'
-            elif _pid == "FIRST_HALF" and _cm > 45:
-                _clk_html = ('<span class="tm-min" data-run="0">45\''
-                             f'<span class="tm-add">+{_cm - 45}\'</span></span>')
-            elif _pid == "SECOND_HALF" and _cm > 90:
-                _clk_html = ('<span class="tm-min" data-run="0">90\''
-                             f'<span class="tm-add">+{_cm - 90}\'</span></span>')
             else:
-                _clk_html = (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" '
-                             f'data-run="{1 if _crun else 0}">{_cm}:{_cs:02d}</span>')
+                if _regcap and _cm > _regcap:
+                    _disp = f'{_regcap}<span class="tm-add">+{_cm - _regcap}</span>:{_cs:02d}'
+                else:
+                    _disp = f'{_cm}:{_cs:02d}'
+                _clk_html = (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" data-cap="{_regcap}" '
+                             f'data-run="{1 if _crun else 0}">{_disp}</span>')
         _center = (f'<span class="tm-live"><b>{e(_sc_live.replace("-", " - "))}</b>'
                    + _clk_html + '</span>')
     elif (not is_finished) and sdt and sdt.timestamp() > time.time():
