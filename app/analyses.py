@@ -874,7 +874,8 @@ def first_stats_day() -> str | None:
 
 def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False,
                  hide_neg_value: bool = False, pick_html: str = "",
-                 live_pct=None, live_trend: str = "", live_state: str = "") -> str:
+                 live_pct=None, live_trend: str = "", live_state: str = "",
+                 result_html: str = "") -> str:
     """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE). Refonte 2026-07-18
     (demande user « réorganise tout : aligné, pleine largeur, que l'utile et l'intuitif ») :
       (1) en-tête CONFIANCE = qualificatif + % coloré (par niveau) ;
@@ -989,6 +990,9 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
                 '</div>')
     else:
         _bar = f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
+    # CARTE RÉGLÉE (user 2026-08-15) : le badge « Gagné/Perdu » REMPLACE la barre et vit AUSSI DANS le cadre.
+    if result_html:
+        _bar = f'<div class="vm-res">{result_html}</div>'
     # BARRE INTÉGRÉE DANS LE CADRE (user 2026-08-15) : la barre de confiance / « Confiance live » vit
     # DÉSORMAIS À L'INTÉRIEUR du cadre `.vm`, SOUS la grille de chiffres (plus en dehors/dessous).
     return (

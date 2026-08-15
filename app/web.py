@@ -2181,8 +2181,8 @@ CSS = """
   .tm-fin{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
   .cleg-res-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:13px}
   /* BADGE RÉSULTAT pleine largeur (user 2026-08-15) à la place de la barre : GAGNÉ/PERDU/REMBOURSÉ. */
-  .cleg-resbadge{margin-top:11px;width:100%;text-align:center;padding:9px 10px;border-radius:12px;
-       font-size:13px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+  .cleg-resbadge{width:100%;text-align:center;padding:9px 10px;border-radius:12px;
+       font-size:13px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}   /* dans .vm-res -> marge gérée par le wrapper */
   .cleg-rb-w{background:rgba(52,210,123,.18);color:#4be39b;border:1px solid rgba(52,210,123,.55)}
   .cleg-rb-l{background:rgba(255,107,107,.16);color:#ff6b6b;border:1px solid rgba(255,107,107,.5)}
   .cleg-rb-n{background:rgba(144,164,190,.16);color:#aebdd0;border:1px solid rgba(144,164,190,.4)}
@@ -2710,7 +2710,7 @@ CSS = """
   .vb{margin-top:11px}
   /* BARRE INTÉGRÉE DANS LE CADRE (user 2026-08-15) : la barre / « Confiance live » est À L'INTÉRIEUR du
      cadre .vm, sous la grille -> une marge la sépare des chiffres, un filet fin au-dessus (comme le pari). */
-  .vm .vb-bar, .vm .vb-live{margin-top:11px;padding-top:11px;border-top:1px solid var(--border)}
+  .vm .vb-bar, .vm .vb-live, .vm .vm-res{margin-top:11px;padding-top:11px;border-top:1px solid var(--border)}
   .vb-live-hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
   .vb-live-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text)}   /* « Confiance live » en BLANC (user 2026-08-15) */
   .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
@@ -5224,7 +5224,7 @@ def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
 
 def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calibrated: bool = True,
                    hide_neg_value: bool = False, pick_html: str = "",
-                   live_pct=None, live_trend: str = "", live_state: str = "") -> str:
+                   live_pct=None, live_trend: str = "", live_state: str = "", result_html: str = "") -> str:
     """Bloc VERDICT UNIFIÉ (demande user 2026-07-17 « tout doit être identique sur les autres types de
     paris ») = ligne verdict PARTAGÉE `analyses.verdict_line` (« Marché XX% · Notre confiance YY% ✓calibré
     → Value ±Z% », value = héros coloré) + pied (mention/ré-analyse + grosse cote). Remplace l'ancienne
@@ -5245,12 +5245,14 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
             # plus de cote isolée qui flotte. Elle n'apparaît que si la carte a bien une cote à montrer.
             _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated, with_cote=bool(cote_html),
                                         hide_neg_value=hide_neg_value, pick_html=pick_html,
-                                        live_pct=live_pct, live_trend=live_trend, live_state=live_state)
+                                        live_pct=live_pct, live_trend=live_trend, live_state=live_state,
+                                        result_html=result_html)
         except (TypeError, ValueError):
             _vl = ""
     if not _vl and pick_html:              # pas de verdict calculable -> cadre « pari seul » (jamais perdu)
         _vl = analyses.verdict_line(0, None, 0, pick_html=pick_html,
-                                    live_pct=live_pct, live_trend=live_trend, live_state=live_state)
+                                    live_pct=live_pct, live_trend=live_trend, live_state=live_state,
+                                    result_html=result_html)
     # LAYOUT (refonte 2026-07-18, demande user « réorganise tout : aligné, pleine largeur ») : le bloc verdict
     # (barre + grille Marché/Value/Cote) prend TOUTE la largeur ; la mention (ré-analyse / « compté au ROI »)
     # tient dessous, à gauche. Sans cote/mention -> juste le verdict (live/compact).
@@ -5997,16 +5999,16 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             _ctr = '<span class="tm-fin">Terminé</span>'
         _teams_c = _teams_vs_html(_th, _ta, _ctr)
         _pbox = f'<div class="mc-pick">{sel}</div>' + (f'<div class="mc-gloss">{html.escape(_g)}</div>' if _g else "")
-        _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox)
         # BADGE RÉSULTAT PLEINE LARGEUR (user 2026-08-15) à la place de la barre « Confiance live » :
-        # « GAGNÉ » (vert) / « PERDU » (rouge) / « REMBOURSÉ » (gris), sous le cadre des chiffres.
+        # « GAGNÉ » (vert) / « PERDU » (rouge) / « REMBOURSÉ » (gris), DANS le cadre des chiffres (result_html).
         _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"),
                       "push": ("REMBOURSÉ", "n")}.get(_res, ("", "n"))
         _resbadge = f'<div class="cleg-resbadge cleg-rb-{_rbc}">{_rbt}</div>' if _rbt else ""
+        _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, result_html=_resbadge)
         return (f'<div class="cleg {_state} cleg-res-live">'
                 f'<div class="cleg-h cleg-h-c"><span class="cleg-comp">{_comp_c}</span></div>'
                 f'<div class="cleg-teams">{_teams_c}</div>'
-                f'{_vb}{_resbadge}{_why}</div>')
+                f'{_vb}{_why}</div>')
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
     return (f'<div class="cleg {_state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport spc-{_sp or ""}">{emo}</b>'
