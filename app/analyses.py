@@ -989,10 +989,11 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
                 '</div>')
     else:
         _bar = f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
+    # BARRE INTÉGRÉE DANS LE CADRE (user 2026-08-15) : la barre de confiance / « Confiance live » vit
+    # DÉSORMAIS À L'INTÉRIEUR du cadre `.vm`, SOUS la grille de chiffres (plus en dehors/dessous).
     return (
         '<div class="vb">'
-        f'{_bar}'
-        f'<div class="vm">{_pk}<div class="vm-grid">{"".join(cells)}</div></div>'
+        f'<div class="vm">{_pk}<div class="vm-grid">{"".join(cells)}</div>{_bar}</div>'
         '</div>')
 
 

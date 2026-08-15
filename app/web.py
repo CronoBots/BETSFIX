@@ -2230,7 +2230,7 @@ CSS = """
   /* Même pli, mais sur une carte de pari PLEINE (simple retenu / provisoire) et non une mini-jambe :
      léger filet de séparation au-dessus + texte un poil plus lisible. */
   .cleg-fold-bet{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)}
-  .mc-r-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:13px}   /* pas de séparateur, espace réduit sous la barre live (user 2026-08-15) */
+  .mc-prem .cleg-fold-bet{border-top:none;padding-top:0;margin-top:13px}   /* pas de séparateur sous le cadre (live + à venir, user 2026-08-15) */
   .mc-r-live .vb-live{margin-bottom:2px}
   .cleg-fold-bet>.cleg-fold-s{font-size:11px}
   .cleg-fold-bet .cleg-why{font-size:11.5px;color:#a7bcd6;line-height:1.5}
@@ -2707,12 +2707,10 @@ CSS = """
      métriques alignées sur toute la largeur — Marché · Value · Cote — label au-dessus / valeur en
      dessous, séparateurs fins. Plus de pill flottant ni de cote isolée. Composant `.vb-*`/`.vm-*`
      partagé (paris + provisoires + combiné -> rendu IDENTIQUE). */
-  .vb{margin-top:11px;display:flex;flex-direction:column}
-  .vb .vm{order:1}
-  .vb .vb-bar{order:2;margin-top:11px}  /* barre de confiance SOUS le cadre des chiffres (user 2026-08-15) */
-  /* LIVE : la barre de confiance DEVIENT « Confiance live » (user 2026-08-15) — en-tête libellé + %, la
-     barre juste dessous. Occupe la même place (order:2, sous le cadre). */
-  .vb .vb-live{order:2;margin-top:11px}
+  .vb{margin-top:11px}
+  /* BARRE INTÉGRÉE DANS LE CADRE (user 2026-08-15) : la barre / « Confiance live » est À L'INTÉRIEUR du
+     cadre .vm, sous la grille -> une marge la sépare des chiffres, un filet fin au-dessus (comme le pari). */
+  .vm .vb-bar, .vm .vb-live{margin-top:11px;padding-top:11px;border-top:1px solid var(--border)}
   .vb-live-hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
   .vb-live-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text)}   /* « Confiance live » en BLANC (user 2026-08-15) */
   .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
