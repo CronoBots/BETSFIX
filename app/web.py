@@ -782,6 +782,10 @@ CSS = """
      aller dans le COIN haut-droit sans être décalée par la flèche. */
   .mc-head{position:relative;padding:11px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .mc-line{display:flex;align-items:center;gap:7px}
+  /* En-tête carte : ligue CENTRÉE sans emoji, décompte en absolu à droite (user 2026-08-15) */
+  .mc-line-c{position:relative;justify-content:center;min-height:22px}
+  .mc-line-c .mc-comp{flex:0 1 auto;text-align:center;padding:0 58px}
+  .mc-line-c .mc-badge{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
   .mc-ic{flex:none;font-size:13px;line-height:1}                 /* emoji sport DISCRET (plus petit) */
   /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
   discret. */
@@ -2169,7 +2173,7 @@ CSS = """
   .mc-teams .tmvs{margin-top:2px}
   .tm-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0}
   .tm-n{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.15;letter-spacing:-.01em}
-  .tm-vs{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.09em;flex:0 0 auto}
+  .tm-vs{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.01em;flex:0 0 auto;font-variant-numeric:tabular-nums}   /* = l'heure du match (user 2026-08-15) */
   .tm-b{position:relative;display:inline-block;width:44px;height:44px;flex:0 0 auto}
   .team-mono{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;
        font-size:15px;font-weight:900;color:#fff;letter-spacing:-.02em;
@@ -2673,7 +2677,9 @@ CSS = """
      métriques alignées sur toute la largeur — Marché · Value · Cote — label au-dessus / valeur en
      dessous, séparateurs fins. Plus de pill flottant ni de cote isolée. Composant `.vb-*`/`.vm-*`
      partagé (paris + provisoires + combiné -> rendu IDENTIQUE). */
-  .vb{margin-top:11px}
+  .vb{margin-top:11px;display:flex;flex-direction:column}
+  .vb .vm{order:1}
+  .vb .vb-bar{order:2;margin-top:11px}  /* barre de confiance SOUS le cadre des chiffres (user 2026-08-15) */
   /* BARRE pleine largeur (bloc) : remplissage = confiance, marqueur = seuil marché. */
   .vb-bar{position:relative;height:9px;border-radius:99px;overflow:hidden;margin-top:9px;
        background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
@@ -2702,10 +2708,8 @@ CSS = """
   .vm-sub{font-size:8.5px;font-weight:800;text-transform:lowercase;letter-spacing:.02em;line-height:1}
   .vm-conf .vm-v{font-size:19px}         /* notre confiance = héros de la grille */
   .vm-cote .vm-v{font-size:19px;color:#fff}   /* cote TOUJOURS blanche, y c. combiné du jour (demande user 2026-07-18) */
-  /* Verdict façon Bull (test 2026-08-15) : la grille = petite carte tintée + la Value mise EN AVANT. */
+  /* Verdict façon Bull (test 2026-08-15) : la grille = petite carte tintée (la Value RESTE comme avant). */
   .vm{background:rgba(255,255,255,.028);border:1px solid var(--border);border-radius:14px;padding:11px 4px}
-  .vm .vm-cell:has(.vpos){background:linear-gradient(180deg,rgba(75,227,155,.11),transparent);border-radius:11px}
-  .vm .vm-cell:has(.vpos) .vm-v,.vm .vm-cell:has(.vmid) .vm-v,.vm .vm-cell:has(.vneg) .vm-v{font-size:23px}
   .vb-reana{margin-top:11px;font-size:10px;font-weight:600;color:#7f93aa;text-align:center}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -5723,16 +5727,16 @@ def _crest_badge(name: str) -> str:
             f'onerror="this.remove()"></span>')
 
 
-def _teams_vs_html(home, away) -> str:
-    """Ligne d'équipes VS + LOGOS de club (repli monogramme) (test carte façon Bull, user 2026-08-15).
-    Partagée par la carte premium ET les jambes (_leg_card). Repli sur un seul nom si l'autre manque."""
+def _teams_vs_html(home, away, center: str = "VS") -> str:
+    """Ligne d'équipes + LOGOS de club (repli monogramme) (test carte façon Bull, user 2026-08-15). Au
+    CENTRE : l'heure du match (user 2026-08-15) au lieu de « VS ». Repli sur un seul nom si l'autre manque."""
     h, a = _noF(str(home or "")), _noF(str(away or ""))
     if not a:
         return html.escape(h)
     return (f'<span class="tmvs">'
             f'<span class="tm-side">{_crest_badge(h)}'
             f'<span class="tm-n">{html.escape(h)}</span></span>'
-            f'<span class="tm-vs">VS</span>'
+            f'<span class="tm-vs">{html.escape(str(center or "VS"))}</span>'
             f'<span class="tm-side">{_crest_badge(a)}'
             f'<span class="tm-n">{html.escape(a)}</span></span></span>')
 
@@ -9146,10 +9150,8 @@ def _sport_row(r: dict) -> str:
         #                                                  heure + décompte sur TOUS les types de paris).
         _cd_sr = (f'<span class="cd" data-ts="{int(sdt.timestamp())}"></span>'
                   if sdt and sdt.timestamp() > time.time() else "")
-        if _cd_sr and starthm:
-            badge = (f'<span class="mc-badge mc-up cleg-when">'
-                     f'<span class="cw-h">{e(starthm)}</span>'
-                     f'<span class="cw-sep">-</span>{_cd_sr}</span>')
+        if _cd_sr:
+            badge = f'<span class="mc-badge mc-up">{_cd_sr}</span>'   # décompte SEUL (l'heure est au centre, entre les équipes)
         else:
             badge = f'<span class="mc-badge mc-up">{e(starthm) or "À venir"}</span>'
     # L3 : prono(s) PUBLIABLE(s) seulement — APP = TELEGRAM (strict). Un match SANS combiné n'affiche
@@ -9336,7 +9338,7 @@ def _sport_row(r: dict) -> str:
             line3 = '<div class="mc-div"></div>' + line3
     # ÉQUIPES avec tiret « — » pour TOUS les types (demande user 2026-07-14 : cartes semblables) — plus le
     # « vs » réservé aux terminés/live. L'en-tête « SPORT • Ligue » est déjà posé pour tous plus haut.
-    teams = _teams_vs_html(r.get("home"), r.get("away"))   # VS + monogrammes (test carte façon Bull)
+    teams = _teams_vs_html(r.get("home"), r.get("away"), starthm)   # heure du match au centre + monogrammes/logos
     # LIVE (demande user 2026-07-12) : intitulé du pari sur UNE ligne EN HAUT, puis le SCOREBOARD (résultats
     # — le tableau qu'on voit d'habitude au dépli) EN DESSOUS, visible dans la carte repliée. Badge = « Live ».
     # Barre « Chance live » (demande user 2026-07-15) : sous le scoreboard, reflet EN DIRECT du % que le
@@ -9376,7 +9378,7 @@ def _sport_row(r: dict) -> str:
     _live_score_row = f'<div class="mc-livesc">{lscore}{_live_bar}</div>' if (is_live and lscore) else ""
     _chev = "" if _no_expand else '<span class="mc-chev">▸</span>'   # pas de chevron si carte non dépliable
     head = (f'<div class="mc-head"><div class="mc-main">'
-            f'<div class="mc-line"><span class="mc-ic">{r.get("icon", "")}</span>'
+            f'<div class="mc-line mc-line-c">'   # ligue CENTRÉE, SANS emoji (user 2026-08-15) ; décompte en absolu à droite
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{line3}</div>'
@@ -9453,10 +9455,8 @@ def _rows_by_day(rows: list) -> str:
         if d != cur:
             cur = d
             prev_card = False
-            # NE PAS coiffer d'un en-tête « Demain … » (user 2026-08-14) : sur la page « Aujourd'hui », un
-            # match d'après-minuit (même JOUR SPORTIF) ne doit pas apparaître sous un « Demain » (trompeur).
-            if d is not None and (d - today).days != 1:
-                out.append(f'<div class="dayhdr">{html.escape(day_label(d, today))}</div>')
+            # EN-TÊTES DE JOUR RETIRÉS (user 2026-08-15) : plus de « Aujourd'hui / Demain / Hier » au-dessus des
+            # paris — la page indique déjà le jour. On garde le regroupement (reset séparateur) sans le titre.
         card = r.get("_html") or _sport_row(r)
         if prev_card and card:
             out.append(_MC_SEP)
