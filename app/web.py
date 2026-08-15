@@ -2707,8 +2707,8 @@ CSS = """
   .vb-live .vb-bar{overflow:visible}
   .vb-live .vb-bar>i{animation:vbfill 1s cubic-bezier(.22,1,.36,1) .05s both,
        vblivehalo 2.8s ease-in-out .9s infinite}
-  @keyframes vblivehalo{0%,100%{box-shadow:0 0 4px 0 rgba(34,184,255,.14)}
-       50%{box-shadow:0 0 11px 1px rgba(34,184,255,.42)}}
+  @keyframes vblivehalo{0%,100%{box-shadow:0 0 4px 0 var(--hlo,rgba(34,184,255,.14))}
+       50%{box-shadow:0 0 11px 1px var(--hhi,rgba(34,184,255,.42))}}
   @media (prefers-reduced-motion:reduce){.vb-live .vb-bar>i{animation:vbfill 1s cubic-bezier(.22,1,.36,1) .05s both}}
   /* témoins d'avant-match sur la barre live (user 2026-08-15) : marqueur NOUS (VERT, comme « Confiance »
      de la grille) + marqueur MARCHÉ (BLANC, .vb-mark existant, comme « Marché »). Pas de légende texte —

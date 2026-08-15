@@ -961,12 +961,19 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     # niveau), MARQUEUR marché d'avant-match conservé (le `mark`). Verrou acquis/perdu -> « Gagné »/« Perdu ».
     if isinstance(live_pct, int):
         lp = max(0, min(100, live_pct))
-        lgrad = _RED if lp < 50 else _AMB if lp < 68 else _GRN
+        # `_hrgb` = triplet RGB de la couleur de remplissage -> le HALO prend LA MÊME couleur (user 2026-08-15),
+        # via les variables CSS --hlo/--hhi (rgba avec opacité) lues par le keyframe vblivehalo.
+        if lp < 50:
+            lgrad, _hrgb = _RED, "255,107,107"
+        elif lp < 68:
+            lgrad, _hrgb = _AMB, "246,197,74"
+        else:
+            lgrad, _hrgb = _GRN, "100,205,141"
         _ar = {"up": "▲", "down": "▼"}.get(live_trend, "")
         if live_state == "acquis":
-            _lt, lgrad = "Gagné", _GRN
+            _lt, lgrad, _hrgb = "Gagné", _GRN, "100,205,141"
         elif live_state == "perdu":
-            _lt, lgrad = "Perdu", _RED
+            _lt, lgrad, _hrgb = "Perdu", _RED, "255,107,107"
         else:
             _lt = "Confiance live"
         # TÉMOINS D'AVANT-MATCH (user 2026-08-15) : sur la barre live, deux marqueurs = notre confiance
@@ -977,7 +984,8 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
         _bar = ('<div class="vb-live">'
                 f'<div class="vb-live-hd"><span class="vb-live-t">{_lt}</span>'
                 f'<span class="vb-live-v">{lp}%<span class="vb-live-ar">{_ar}</span></span></div>'
-                f'<div class="vb-bar"><i style="width:{lp}%;background:{lgrad}"></i>{_mk_us}{mark}</div>'
+                f'<div class="vb-bar"><i style="width:{lp}%;background:{lgrad};'
+                f'--hlo:rgba({_hrgb},.14);--hhi:rgba({_hrgb},.42)"></i>{_mk_us}{mark}</div>'
                 '</div>')
     else:
         _bar = f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
