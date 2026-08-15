@@ -2174,6 +2174,10 @@ CSS = """
   .tm-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0}
   .tm-n{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.15;letter-spacing:-.01em}
   .tm-vs{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.01em;flex:0 0 auto;font-variant-numeric:tabular-nums}   /* = l'heure du match (user 2026-08-15) */
+  /* LIVE : score + minute empilés au centre, entre les équipes (user 2026-08-15) */
+  .tm-live{display:flex;flex-direction:column;align-items:center;gap:1px;flex:0 0 auto}
+  .tm-live b{font-size:21px;font-weight:900;letter-spacing:-.01em;color:var(--text);font-variant-numeric:tabular-nums}
+  .tm-min{font-size:10.5px;font-weight:800;color:var(--gold);letter-spacing:.03em}
   .tm-b{position:relative;display:inline-block;width:44px;height:44px;flex:0 0 auto}
   .team-mono{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;
        font-size:15px;font-weight:900;color:#fff;letter-spacing:-.02em;
@@ -5736,7 +5740,7 @@ def _teams_vs_html(home, away, center: str = "VS") -> str:
     return (f'<span class="tmvs">'
             f'<span class="tm-side">{_crest_badge(h)}'
             f'<span class="tm-n">{html.escape(h)}</span></span>'
-            f'<span class="tm-vs">{html.escape(str(center or "VS"))}</span>'
+            f'<span class="tm-vs">{center or "VS"}</span>'
             f'<span class="tm-side">{_crest_badge(a)}'
             f'<span class="tm-n">{html.escape(a)}</span></span></span>')
 
@@ -9336,9 +9340,20 @@ def _sport_row(r: dict) -> str:
         # provisoires ») — terminés/live/compact inclus. Seulement si la carte a un contenu dessous.
         if line3:
             line3 = '<div class="mc-div"></div>' + line3
-    # ÉQUIPES avec tiret « — » pour TOUS les types (demande user 2026-07-14 : cartes semblables) — plus le
-    # « vs » réservé aux terminés/live. L'en-tête « SPORT • Ligue » est déjà posé pour tous plus haut.
-    teams = _teams_vs_html(r.get("home"), r.get("away"), starthm)   # heure du match au centre + monogrammes/logos
+    # CENTRE entre les équipes : en LIVE -> SCORE + minute (user 2026-08-15, façon SofaScore mais notre style) ;
+    # sinon -> l'HEURE du match. Le score n'est donc plus répété dans un cadre en dessous (retiré plus bas).
+    _sc_live = str(r.get("score") or "").strip()
+    if is_live and _sc_live:
+        _lmin = ""
+        try:
+            _lmin = match_select.live_minute(match_select.live_state_for(sport_key, r.get("home"), r.get("away"))) or ""
+        except Exception:
+            _lmin = ""
+        _center = (f'<span class="tm-live"><b>{e(_sc_live.replace("-", " - "))}</b>'
+                   + (f'<span class="tm-min">{e(str(_lmin))}</span>' if _lmin else "") + '</span>')
+    else:
+        _center = e(starthm)
+    teams = _teams_vs_html(r.get("home"), r.get("away"), _center)   # heure (ou score+minute en live) au centre + logos
     # LIVE (demande user 2026-07-12) : intitulé du pari sur UNE ligne EN HAUT, puis le SCOREBOARD (résultats
     # — le tableau qu'on voit d'habitude au dépli) EN DESSOUS, visible dans la carte repliée. Badge = « Live ».
     # Barre « Chance live » (demande user 2026-07-15) : sous le scoreboard, reflet EN DIRECT du % que le
@@ -9375,7 +9390,9 @@ def _sport_row(r: dict) -> str:
             _pbb.get("cprob") or _pbb.get("prob"),
             analyses.live_catalog(_lmid.group(1)) if _lmid else [], _lvals, _gfrac)
         _live_bar = _live_bar_html(_lp_res)
-    _live_score_row = f'<div class="mc-livesc">{lscore}{_live_bar}</div>' if (is_live and lscore) else ""
+    # SCORE retiré du cadre (il est maintenant AU CENTRE entre les équipes, user 2026-08-15) -> on ne garde
+    # que la BARRE « chance live » sous le pari (utile). Si pas de barre -> rien.
+    _live_score_row = f'<div class="mc-livesc">{_live_bar}</div>' if (is_live and _live_bar) else ""
     _chev = "" if _no_expand else '<span class="mc-chev">▸</span>'   # pas de chevron si carte non dépliable
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line mc-line-c">'   # ligue CENTRÉE, SANS emoji (user 2026-08-15) ; décompte en absolu à droite
