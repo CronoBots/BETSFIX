@@ -2349,9 +2349,14 @@ CSS = """
   .pgm-typ.t-val{color:var(--accent-ink);background:var(--accent)}
   .pgm-typ.t-mont{color:var(--gold-bg);background:var(--gold)}
   .pgm-typ.t-combo{color:#1a1030;background:#a78bfa}
-  /* PASTILLE statut (emoji) : résultats en pleine opacité, états « en attente » tamisés. */
-  .pgm-st{font-size:13px;line-height:1}
-  .pgm-st.st-up,.pgm-st.st-wait,.pgm-st.st-abst,.pgm-st.st-done{opacity:.72}
+  /* PASTILLE statut (symbole fin stylé) : résultats en évidence, « en attente » tamisés. */
+  .pgm-st{min-width:16px;text-align:center;font-weight:900;line-height:1;font-size:15px}
+  .pgm-st.st-won{color:#34d27b}
+  .pgm-st.st-lost{color:#ff6b6b}
+  .pgm-st.st-up{color:var(--gold);font-size:11px}          /* ● à jouer */
+  .pgm-st.st-wait{color:var(--muted);font-size:11px;font-weight:700}   /* ○ à analyser */
+  .pgm-st.st-abst{color:var(--dim);font-size:20px;opacity:.6}          /* · abstention (très discret) */
+  .pgm-st.st-done{color:var(--dim);font-weight:700}
   /* Option « masquer les abstentions » : chip cliquable (case à cocher CSS pure, pas de JS) */
   .pgm-toggle{display:inline-block;margin:2px 3px 11px;font-size:10px;font-weight:700;letter-spacing:.03em;
     color:var(--muted);cursor:pointer;padding:4px 11px;border:1px solid var(--border);border-radius:20px;
@@ -7745,9 +7750,12 @@ def _programme_schedule(sport: str = "foot") -> str:
         comp = _noF(str(m.get("comp") or "")).upper()
         _tcls = {"montante": "t-mont", "value": "t-val", "combiné": "t-combo"}.get(_typ2, "t-conf")
         _chip = f'<span class="pgm-typ {_tcls}">{html.escape(_typ2)}</span>' if _typ2 else ""
-        _ic, _scls = {"won": ("✅", "st-won"), "lost": ("❌", "st-lost"), "up": ("⏳", "st-up"),
-                      "wait": ("⌛", "st-wait"), "abst": ("⏸", "st-abst"),
-                      "done": ("➖", "st-done")}.get(_st, ("⏳", "st-up"))
+        # Symboles FINS stylés (pas d'emoji lourd, user 2026-08-16) : résultats en évidence, « en attente »
+        # tamisés. ✓ gagné (vert) · ✗ perdu (rouge) · ● à jouer (or) · ○ à analyser (gris) · · abstention
+        # (très discret) · – remboursé.
+        _ic, _scls = {"won": ("✓", "st-won"), "lost": ("✗", "st-lost"), "up": ("●", "st-up"),
+                      "wait": ("○", "st-wait"), "abst": ("·", "st-abst"),
+                      "done": ("–", "st-done")}.get(_st, ("●", "st-up"))
         _pill = f'<span class="pgm-st {_scls}">{_ic}</span>'
         rows.append(
             f'<div class="pgm-row {cls}">'
