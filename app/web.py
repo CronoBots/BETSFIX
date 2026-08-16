@@ -2713,7 +2713,7 @@ CSS = """
      métriques alignées sur toute la largeur — Marché · Value · Cote — label au-dessus / valeur en
      dessous, séparateurs fins. Plus de pill flottant ni de cote isolée. Composant `.vb-*`/`.vm-*`
      partagé (paris + provisoires + combiné -> rendu IDENTIQUE). */
-  .vb{margin-top:11px}
+  .vb{margin-top:14px}   /* un rien plus d'espace équipes -> cadre pari (user 2026-08-16) */
   /* BARRE INTÉGRÉE DANS LE CADRE (user 2026-08-15) : la barre / « Confiance live » est À L'INTÉRIEUR du
      cadre .vm, sous la grille -> une marge la sépare des chiffres, un filet fin au-dessus (comme le pari). */
   .vm .vb-bar, .vm .vb-live, .vm .vm-res{margin:11px 12px 5px;padding-top:11px;border-top:1px solid var(--border2)}   /* écart G/D + BAS (user 2026-08-16) ; filet couleur border2 comme pari↔chiffres */
@@ -4511,7 +4511,9 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                               None))   # onglet Combiné AFFICHÉ mais HORS ROI -> pas de chip ROI (user 2026-08-16)
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
-    return (f'<div class="spf">{_sport_banner("foot")}{_avantage_block(ov)}{_foot}</div>') if _foot else ""
+    # Cadre KPIs global (« Avantage réalisé ») RETIRÉ au-dessus des onglets (user 2026-08-16) : le ROI +
+    # réussite restent affichés PAR onglet (Confiance/Value). _avantage_block conservé (dormant), non appelé.
+    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
