@@ -35,9 +35,11 @@ if ($running) {
 Log 'PROGRAMME : liste COMPLÈTE du jour (jour + nuit) pour l''accueil site'
 # 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (Out-File = cmdlet, $LASTEXITCODE reste python).
 # FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés -> tout le budget Claude au foot.
-# --top 10 = QUOTA PAR SLATE (porté de 8 à 10 le 2026-08-16, demande user « passer de 16 à 20 matchs ») :
-# le programme garde le top 10 du slate JOUR + le top 10 du slate NUIT = 20 matchs/jour (10 le matin, 10 le soir).
-& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --programme --no-notify 2>&1 |
+# --top 20 = BUDGET TOTAL du jour (top-20 GLOBAL ADAPTATIF, user 2026-08-16 « top-20 tout compris pour être
+# sûr d'avoir les plus intéressants ») : les 20 matchs les PLUS IMPORTANTS des 24h, répartis par créneau
+# selon leur coup d'envoi (jour analysé le matin, nuit le soir). Le split suit la vraie distribution (ex.
+# 13 JOUR + 7 NUIT) au lieu d'un quota fixe 10/10 qui écrêtait le créneau chargé.
+& $py 'tools\generate_analyses.py' --sport foot --top 20 --hours 24 --programme --no-notify 2>&1 |
     Add-BfxStream $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le
@@ -51,7 +53,7 @@ if (Test-Path $flag) {
     Log 'SCAN MATIN : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~2h avant chaque coup d''envoi'
 } else {
     Log 'SCAN MATIN : SLATE JOUR (coup d''envoi 6h->21h heure belge) + publication des picks'
-    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --from-programme --force --ko-from 6 --ko-to 21 2>&1 |
+    & $py 'tools\generate_analyses.py' --sport foot --top 20 --hours 24 --from-programme --force --ko-from 6 --ko-to 21 2>&1 |
         Add-BfxStream $log
     Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 }

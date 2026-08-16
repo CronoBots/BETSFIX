@@ -819,13 +819,12 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     # 100 % FOOT (user 2026-08-08 : tennis/basket supprimés -> plus de logique d'autres sports) : on respecte
     # simplement `--top` (le quota PAR SLATE choisi par le user). Fini l'« élargissement adaptatif » à 10 qui
     # écrasait `--top 8` en croyant réallouer la capacité de sports « en pause » (bug 10/slate au lieu de 8).
-    _top = args.top   # quota PAR SLATE (foot-only, plus d'élargissement)
+    _top = args.top   # budget TOTAL du jour (top-N global adaptatif, user 2026-08-16)
     n_ok = 0
     for sport in sports:                          # foot uniquement (sports = ["foot"])
-        # QUOTA PAR SLATE (user 2026-08-07) : avec 2 créneaux (jour/nuit), `--top` est le quota de CHAQUE
-        # slate, PAS du jour entier. On tire un POOL TRÈS LARGE (le fetch réseau est INDÉPENDANT de N ->
-        # gratuit : `rank_important` trie tout puis tronque) puis on garde le top `_top` de CHAQUE bande de
-        # coup d'envoi -> vrai top `_top` par slate, même si le jour domine le classement d'importance.
+        # BUDGET TOTAL (user 2026-08-16) : `--top` = nb de matchs du JOUR ENTIER (plus un quota par slate).
+        # On tire un POOL TRÈS LARGE (le fetch réseau est INDÉPENDANT de N -> gratuit : `rank_important` trie
+        # tout puis tronque) puis on garde le top `_top` GLOBAL, réparti par créneau juste pour le timing.
         _pool_n = max(_top * 10, 150)
         top = None
         for _attempt in range(3):                 # getaddrinfo = hoquet fréquent (cf. CLAUDE.md) -> on retente
@@ -847,11 +846,16 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         if args.only_big:
             top = [m for m in top if _is_big_match(m.get("comp") or m.get("circuit") or "")]
         top = _covered_matches(top)                  # ← ne programmer QUE des ligues ancrables (demande user)
-        # top `_top` du slate JOUR + top `_top` du slate NUIT (pool trié par importance)
-        _day = [m for m in top if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)][:_top]
-        _night = [m for m in top if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)][:_top]
+        # TOP-N GLOBAL ADAPTATIF (user 2026-08-16 « top-20 tout compris pour être sûr d'avoir les plus
+        # intéressants ») : `--top` = budget TOTAL du jour. On garde les N matchs les PLUS IMPORTANTS des 24h
+        # (pool déjà trié par importance), PUIS on les répartit par créneau UNIQUEMENT pour le TIMING d'analyse
+        # (jour le matin, nuit le soir, près du coup d'envoi -> sharp/compos frais). Le split suit la VRAIE
+        # distribution (ex. 13 JOUR + 7 NUIT) au lieu d'un quota fixe 10/10 qui écrêtait le créneau chargé.
+        _glob = top[:_top]
+        _day = [m for m in _glob if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)]
+        _night = [m for m in _glob if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)]
         top = _day + _night
-        print(f"[foot] programme par slate : {len(_day)} JOUR + {len(_night)} NUIT (quota {_top}/slate).")
+        print(f"[foot] programme TOP-{_top} adaptatif : {len(_day)} JOUR + {len(_night)} NUIT.")
         for m in top:
             _e = {"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
                   "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""}
