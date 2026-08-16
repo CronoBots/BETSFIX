@@ -945,10 +945,16 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     # GRILLE pleine largeur, colonnes égales. NOTRE confiance placée JUSTE à côté du MARCHÉ (demande user
     # 2026-07-18 : comparaison directe « nous vs marché »). Confiance = héros (valeur colorée + qualificatif
     # en sous-titre). Value sautée sur un combiné à EV<0 (fiabilité). Cote seulement sur simple/combiné.
+    # EDGE (user 2026-08-16) = de combien NOTRE confiance bat la proba du marché (`be`=100/cote), en POINTS.
+    # Remplace la colonne « Marché » (le marché reste montré par le repère blanc sur la barre) : lecture
+    # gauche->droite Confiance -> Edge (on bat le marché de X) -> Value (ce que ça rapporte) -> Cote.
+    _edge = cfi - be
+    _ecls = "vpos" if _edge >= 2 else "vmid" if _edge >= 0 else "vneg"
     cells = [f'<div class="vm-cell vm-conf"><span class="vm-l">Confiance</span>'
              f'<span class="vm-v" style="color:{col}">{cfi}%</span>'
              f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>',
-             f'<div class="vm-cell"><span class="vm-l">Marché</span><span class="vm-v">{be}%</span></div>']
+             f'<div class="vm-cell"><span class="vm-l">Edge</span>'
+             f'<span class="vm-v {_ecls}">{"+" if _edge >= 0 else ""}{_edge} pts</span></div>']
     # VALUE : la colonne est TOUJOURS présente (demande user 2026-07-24 : « ajouter la value partout même
     # si négative ou nulle, mais une barre à la place de la masquée pour garder le même alignement ») — un
     # nombre de cellules CONSTANT garantit que Confiance/Marché/Value[/Cote] restent alignés d'une carte à
