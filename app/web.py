@@ -275,6 +275,11 @@ CSS = """
   /* Fond html = COULEUR DE LA NAV (#0b0d12) : la zone du home-indicator iPhone (PWA standalone), non
      couverte par body/nav, montrait sinon un TROU NOIR sous la barre du bas. Là elle se fond dedans. */
   html{-webkit-text-size-adjust:100%;overflow:hidden;overscroll-behavior:none;background:#0b0d12}
+  /* FILET DE SÉCURITÉ safe-area (user 2026-08-16) : le fond du body (#070708) RECOUVRE le html -> en PWA
+     standalone une ZONE NOIRE apparaissait sous la nav (home-indicator iOS). On peint cette bande, en FIXE,
+     avec la couleur de la nav (#0b0d12), sous la barre (z<nav). */
+  body::after{content:'';position:fixed;left:0;right:0;bottom:0;height:env(safe-area-inset-bottom,0px);
+       background:#0b0d12;z-index:59;pointer-events:none}
   /* Coquille NON-scrollante en COLONNE FLEX,
   hauteur = viewport DYNAMIQUE (100dvh) : le contenu
      scrolle DANS .wrap (flex:1) et la barre du bas est un enfant flex STATIQUE collé au bas. Sur iOS

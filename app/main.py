@@ -578,7 +578,7 @@ async def manifest() -> JSONResponse:
         "description": "Tennis · Basket · Foot — modèle vs cotes, value, calibration.",
         "start_url": "/", "scope": "/", "display": "standalone",
         "orientation": "portrait",
-        "background_color": "#080a0f", "theme_color": "#080a0f",
+        "background_color": "#0b0d12", "theme_color": "#0b0d12",   # = couleur nav (anti zone noire safe-area, user 2026-08-16)
         "icons": [
             {"src": "/static/icon-192.png?v=4", "sizes": "192x192", "type": "image/png"},
             {"src": "/static/icon-512.png?v=4", "sizes": "512x512", "type": "image/png",
