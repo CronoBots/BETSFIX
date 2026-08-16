@@ -2345,18 +2345,13 @@ CSS = """
   /* CHIP type de pari (plein, coloré par type). */
   .pgm-typ{font-size:8.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
     padding:3px 7px;border-radius:7px;white-space:nowrap}
+  /* Types JOUÉS = chip PLEIN coloré (ressortent). Abstention / à analyser = chip DISCRET (contour tamisé). */
   .pgm-typ.t-conf{color:#08210f;background:#34d27b}
   .pgm-typ.t-val{color:var(--accent-ink);background:var(--accent)}
   .pgm-typ.t-mont{color:var(--gold-bg);background:var(--gold)}
   .pgm-typ.t-combo{color:#1a1030;background:#a78bfa}
-  /* PASTILLE statut (symbole fin stylé) : résultats en évidence, « en attente » tamisés. */
-  .pgm-st{min-width:16px;text-align:center;font-weight:900;line-height:1;font-size:15px}
-  .pgm-st.st-won{color:#34d27b}
-  .pgm-st.st-lost{color:#ff6b6b}
-  .pgm-st.st-up{color:var(--gold);font-size:11px}          /* ● à jouer */
-  .pgm-st.st-wait{color:var(--muted);font-size:11px;font-weight:700}   /* ○ à analyser */
-  .pgm-st.st-abst{color:var(--dim);font-size:20px;opacity:.6}          /* · abstention (très discret) */
-  .pgm-st.st-done{color:var(--dim);font-weight:700}
+  .pgm-typ.t-abst{color:var(--dim);background:none;border:1px solid var(--border);font-weight:700}
+  .pgm-typ.t-wait{color:var(--muted);background:none;border:1px solid var(--border);font-weight:700}
   /* Option « masquer les abstentions » : chip cliquable (case à cocher CSS pure, pas de JS) */
   .pgm-toggle{display:inline-block;margin:2px 3px 11px;font-size:10px;font-weight:700;letter-spacing:.03em;
     color:var(--muted);cursor:pointer;padding:4px 11px;border:1px solid var(--border);border-radius:20px;
@@ -7717,52 +7712,47 @@ def _programme_schedule(sport: str = "foot") -> str:
         ko = ld.strftime("%H:%M")
         mid = str(m.get("id"))
         d = analyses.meta(sport, mid)
-        # REFONTE (user 2026-08-16) : UNE ligne scannable = heure (ancre) · équipes (héros) + ligue (petit) ·
-        # chip TYPE · pastille STATUT à droite. `_typ2` = type de pari · `_st` = statut (wait/won/lost/up/abst/done).
-        _typ2, _st = "", "up"
-        if d is None:                                      # pas encore analysé -> analyse à venir
-            cls, _st = "pgm-wait", "wait"
-        elif analyses.is_settled(d):                       # réglé -> résultat
+        # PLANNING = UNIQUEMENT LE TYPE DE SÉLECTION (user 2026-08-16 : PAS le résultat gagné/perdu). Chaque
+        # ligne : heure · équipes+ligue · chip TYPE (Confiance/Value/Montante/Combiné/Abstention/À analyser).
+        # La bordure gauche suit le TYPE (plus le résultat). Un pari réglé garde son TYPE, jamais son issue.
+        _typ2 = ""
+        if d is None:                                      # pas encore analysé
+            _typ2 = "à analyser"
+        elif analyses.is_settled(d):                       # réglé -> on garde le TYPE (jamais l'issue)
             _sb = analyses.stat_bet(d)
             _res = (_sb or {}).get("result") if isinstance(_sb, dict) else None
-            if _res in ("won", "lost"):
+            if _res in ("won", "lost", "push"):            # il Y AVAIT un pari -> son type
                 _typ2 = "montante" if mid == _mont_mid else analyses.bet_tier_for("foot", mid)
-                cls, _st = ("pgm-won", "won") if _res == "won" else ("pgm-lost", "lost")
-            elif _sb is None and mid in _combo_mids:       # jambe de COMBINÉ réglée
-                cls, _typ2, _st = "pgm-combo", "combiné", "done"
-            elif _sb is None:                              # abstention réglée
-                cls, _st = "pgm-abst", "abst"; n_abst += 1
-            else:                                          # push / remboursé
-                cls, _st = "pgm-done", "done"
-        else:                                              # analysé, pas réglé -> type + à venir
+            elif _sb is None and mid in _combo_mids:       # jambe de combiné
+                _typ2 = "combiné"
+            else:                                          # abstention réglée
+                _typ2 = "abstention"; n_abst += 1
+        else:                                              # analysé, pas réglé
             rb = analyses.retained_bet(sport, mid)
             if rb is None and mid in _combo_mids:
-                cls, _typ2, _st = "pgm-combo", "combiné", "up"
+                _typ2 = "combiné"
             elif rb is None:                               # analysé sans value -> abstention
-                cls, _st = "pgm-abst", "abst"; n_abst += 1
+                _typ2 = "abstention"; n_abst += 1
             elif mid == _mont_mid:
-                cls, _typ2, _st = "pgm-mont", "montante", "up"
+                _typ2 = "montante"
             elif analyses.tier_of(d, rb) == "confiance":
-                cls, _typ2, _st = "pgm-conf", "confiance", "up"
+                _typ2 = "confiance"
             else:
-                cls, _typ2, _st = "pgm-val", "value", "up"
+                _typ2 = "value"
         teams = _noF(str(m.get("name") or ""))
         comp = _noF(str(m.get("comp") or "")).upper()
-        _tcls = {"montante": "t-mont", "value": "t-val", "combiné": "t-combo"}.get(_typ2, "t-conf")
-        _chip = f'<span class="pgm-typ {_tcls}">{html.escape(_typ2)}</span>' if _typ2 else ""
-        # Symboles FINS stylés (pas d'emoji lourd, user 2026-08-16) : résultats en évidence, « en attente »
-        # tamisés. ✓ gagné (vert) · ✗ perdu (rouge) · ● à jouer (or) · ○ à analyser (gris) · · abstention
-        # (très discret) · – remboursé.
-        _ic, _scls = {"won": ("✓", "st-won"), "lost": ("✗", "st-lost"), "up": ("●", "st-up"),
-                      "wait": ("○", "st-wait"), "abst": ("·", "st-abst"),
-                      "done": ("–", "st-done")}.get(_st, ("●", "st-up"))
-        _pill = f'<span class="pgm-st {_scls}">{_ic}</span>'
+        cls = {"confiance": "pgm-conf", "value": "pgm-val", "montante": "pgm-mont",
+               "combiné": "pgm-combo", "abstention": "pgm-abst",
+               "à analyser": "pgm-wait"}.get(_typ2, "pgm-abst")
+        _tcls = {"montante": "t-mont", "value": "t-val", "combiné": "t-combo",
+                 "abstention": "t-abst", "à analyser": "t-wait"}.get(_typ2, "t-conf")
+        _chip = f'<span class="pgm-typ {_tcls}">{html.escape(_typ2)}</span>'
         rows.append(
             f'<div class="pgm-row {cls}">'
             f'<span class="pgm-ko">{ko}</span>'
             f'<div class="pgm-mid"><span class="pgm-teams">{html.escape(teams)}</span>'
             f'<span class="pgm-comp">{html.escape(comp)}</span></div>'
-            f'<span class="pgm-tail">{_chip}{_pill}</span>'
+            f'<span class="pgm-tail">{_chip}</span>'
             f'</div>')
     # OPTION « masquer les abstentions » (demande user 2026-08-11) : case à cocher CSS pure (pas de JS) —
     # cochée -> les lignes .pgm-abst passent en display:none. Affichée seulement s'il y a des abstentions.
