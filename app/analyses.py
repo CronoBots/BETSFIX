@@ -37,14 +37,24 @@ _MAX_BETS = 1   # UN SEUL pari par match : le PLUS PROBABLE de tout le marché (
 _FID_CACHE: dict = {}   # sport -> (signature_dossier, {sofa_id: fid}) — index mis en cache
 
 
+_DIR_SIG_CACHE: list = [0.0, ()]   # [ts_monotone, sig] : cache TRÈS court (anti-scandir répété intra-rendu)
+
+
 def _dir_sig() -> tuple:
     """Signature (noms + mtimes ns) de TOUS les sidecars — clé d'invalidation des caches agrégés
-    (calibration, stats). Un scandir par appel : exact et bien moins cher que re-parser N JSON."""
+    (calibration, stats). Cache 2 s : `_dir_sig` était appelé ~7×/rendu (chacun scandir+stat ~460 fichiers
+    = tempête de ~3500 stats, ~0,4 s) ; 2 s suffit pour partager UN scandir sur tout un rendu sans risque
+    (les agrégats lag déjà ~15 s via le warmer ; selfcheck lit à part). Un scandir vaut mieux que re-parser N JSON."""
+    now = time.monotonic()
+    if now - _DIR_SIG_CACHE[0] < 2.0:
+        return _DIR_SIG_CACHE[1]
     try:
-        return tuple(sorted((e.name, e.stat().st_mtime_ns) for e in os.scandir(DIR)
-                            if e.name.endswith(".json")))
+        sig = tuple(sorted((e.name, e.stat().st_mtime_ns) for e in os.scandir(DIR)
+                           if e.name.endswith(".json")))
     except OSError:
-        return ()
+        sig = ()
+    _DIR_SIG_CACHE[0], _DIR_SIG_CACHE[1] = now, sig
+    return sig
 
 
 def _fid_index(sport: str) -> dict:
