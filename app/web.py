@@ -734,7 +734,7 @@ CSS = """
   .dayhdr{display:flex;align-items:center;gap:9px;margin:11px 2px 3px;font-size:9.5px;
           font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;opacity:.85}
   .dayhdr::after{content:"";flex:1;height:1px;background:var(--border)}
-  .row{display:block;background:linear-gradient(180deg,var(--surface2),var(--surface));
+  .row{display:block;background:#18181c;   /* fond UNI (user 2026-08-16) : plus de dégradé qui change la luminosité au dépli */
        border-radius:var(--radius);padding:12px 14px;margin:15px 0;border:1px solid var(--cardline);
        box-shadow:var(--cardglow),var(--shadow-sm);transition:.16s}
   /* Pas d'effet « pressé » (scale) au toucher des cartes de prono (demande user 2026-07-20) : une carte
@@ -758,7 +758,7 @@ CSS = """
   /* Fond UNI (plus de dégradé étirable) : sinon, quand la carte se déplie et grandit, le dégradé se
      redistribue et « la lumière du fond change » (retour user 2026-07-21). Uni -> identique plié/déplié. */
   .row.pick{border-color:rgba(34,184,255,.60);
-            background:rgba(34,184,255,.05);
+            background:#0d1119;   /* fond OPAQUE/uni (user 2026-08-16) : le translucide laissait voir les halos de page -> changeait au dépli */
             box-shadow:0 0 26px rgba(34,184,255,.20)}
   /* CARTE COMPACTE : en-tête toujours visible (statut + équipes + résumé) + corps replié au tap.
      Liste dense -> peu de scroll ; on déplie un match pour voir paris/barres/liens/analyse. */
@@ -2134,7 +2134,7 @@ CSS = """
   /* JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : chaque jambe encadrée exactement comme une carte
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
-  .cleg{background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--st-soon);
+  .cleg{background:#0d1119;border:1px solid var(--st-soon);   /* fond UNI (user 2026-08-16) : stable au dépli */
        border-left:3px solid var(--st-soon);border-radius:12px;padding:11px 12px 10px}
   .cleg.live{border-color:var(--st-live)}
   /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
