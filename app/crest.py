@@ -49,6 +49,16 @@ def _clean(name) -> str:
     return _SUFFIX.sub("", str(name or "")).strip()
 
 
+# ALIAS d'ABRÉVIATIONS que FotMob ne résout PAS seul (recherche « OM » -> Omaha, « OL » -> Olympiacos…).
+# Clé = nom NORMALISÉ (sans accents/espaces) tel qu'Unibet l'écrit -> nom complet cherchable sur FotMob.
+# Extensible : ajouter un couple dès qu'un club à sigle apparaît sans logo.
+_ALIAS = {
+    "psg": "Paris Saint-Germain", "om": "Marseille", "ol": "Lyon", "asse": "Saint-Etienne",
+    "losc": "Lille", "rcsa": "Strasbourg", "ogcnice": "Nice", "tfc": "Toulouse", "asm": "Monaco",
+    "rcl": "Lens", "scb": "Bastia", "fcgb": "Bordeaux",
+}
+
+
 def team_id(name: str):
     """ID FotMob de l'équipe `name` (caché). None si introuvable/panne."""
     key = _norm(name)
@@ -60,6 +70,9 @@ def team_id(name: str):
     tid = None
     sname = _clean(name)                  # nom sans suffixe état/genre -> meilleure résolution FotMob
     skey = _norm(sname) or key
+    _al = _ALIAS.get(key) or _ALIAS.get(skey)   # sigle connu -> nom complet (recherche + matching)
+    if _al:
+        sname, skey = _al, _norm(_al)
     try:
         r = httpx.get("https://apigw.fotmob.com/searchapi/suggest",
                       params={"term": sname or name, "lang": "en"}, headers=_UA, timeout=8)
@@ -89,6 +102,16 @@ def team_id(name: str):
                         tid = p.get("homeTeamId"); break
                     if _big in _norm(p.get("awayName")):
                         tid = p.get("awayTeamId"); break
+        if not tid and 2 <= len(key) <= 4:   # 4) ABRÉVIATION -> INITIALES d'un résultat FotMob : « PSG »
+            # = initiales de « Paris Saint-Germain » (P-S-G). Ne s'active que sur un sigle court (2-4) et
+            # exige l'égalité EXACTE des initiales -> quasi zéro faux positif.
+            def _ini(nm):
+                return "".join(w[0] for w in _re.split(r"[\s.\-]+", nm or "") if w).lower()
+            for p in opts:
+                if _ini(p.get("homeName")) == key:
+                    tid = p.get("homeTeamId"); break
+                if _ini(p.get("awayName")) == key:
+                    tid = p.get("awayTeamId"); break
     except Exception:
         return None                      # panne -> ne PAS cacher (re-tentera plus tard)
     with _LOCK:
