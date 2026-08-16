@@ -2273,8 +2273,10 @@ CSS = """
   .spsel.on .spsel-n{background:rgba(234,246,255,.95);color:#0a2233}
   .zone{margin-top:22px}
   .zone:first-child{margin-top:10px}
-  .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px;padding-bottom:9px;
-       border-bottom:1px solid var(--border)}
+  /* PAS de séparateur SOUS le titre de zone (user 2026-08-16) — il est reporté à la FIN de chaque zone (.zone). */
+  .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px}
+  .zone{padding-bottom:18px;border-bottom:1px solid var(--border)}   /* séparateur à la FIN de chaque type de pari */
+  .dash-zones > .zone:last-child{border-bottom:none;padding-bottom:0}   /* pas de trait après la dernière zone */
   .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
   .zone-t{font-size:15px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) */
   .zone-n{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
@@ -3852,9 +3854,14 @@ _A2HS_JS = (
 # Menu tiroir « complet » (☰) — présent sur TOUTES les pages. Accès direct à tout : accueil, paris à
 # jouer, bilan, stats, et chaque sport + live. Les clés correspondent à l'item mis en évidence.
 # Anti-zoom (ex-_DRAWER_JS — le tiroir ☰ a été retiré, redondant avec la barre du bas).
-# Le PINCH-ZOOM est VOLONTAIREMENT autorisé (accessibilité WCAG 1.4.4) -> on ne bloque plus les
-# events gesture*. `touch-action:manipulation` neutralise déjà le double-tap-zoom accidentel.
-_NOZOOM_JS = ""
+# ZOOM BLOQUÉ (demande user 2026-08-16) : iOS ignore `user-scalable=no` du viewport -> on bloque le
+# PINCH-ZOOM via les events gesture* (`touch-action:manipulation` gère déjà le double-tap-zoom).
+_NOZOOM_JS = (
+    "(function(){function b(e){e.preventDefault();}"
+    "document.addEventListener('gesturestart',b,{passive:false});"
+    "document.addEventListener('gesturechange',b,{passive:false});"
+    "document.addEventListener('gestureend',b,{passive:false});})();"
+)
 
 # Sélecteur de sport de Pronos (demande user 2026-07-26) : clic sur une puce -> recharge #day-content via
 # /jour?date=<jour>&sport=<sk> (le fragment contient le sélecteur avec la puce active à jour). Délégué au
@@ -3945,7 +3952,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
@@ -3989,7 +3996,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
 <title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
@@ -4400,15 +4407,12 @@ def _avantage_block(ov: dict) -> str:
     n = ov.get("settled") or 0
     if n < 10:
         return ""
-    roi, pct, won = ov.get("roi"), ov.get("pct"), (ov.get("won") or 0)
+    pct, won = ov.get("pct"), (ov.get("won") or 0)
     lost = n - won
-    _rs = _roistr(roi)
+    # HERO « profit par pari » (label + gros ROI + phrase) RETIRÉ (user 2026-08-16) : on ne garde que les
+    # KPIs réussite / gagnés / perdus. Le ROI par type reste affiché dans chaque onglet (Confiance/Value).
     return (
-        '<div class="adv-hero">'
-        '<div class="adv-l">Avantage réalisé · profit par pari</div>'
-        f'<div class="adv-big arec-{_roicls(roi)}">{_rs}</div>'
-        f'<div class="adv-sub">Sur <b>{n}</b> paris réglés — chaque pari rapporte <b>{_rs}</b> en moyenne.</div>'
-        '<div class="adv-kpis">'
+        '<div class="adv-hero adv-kpis-only"><div class="adv-kpis">'
         f'<div><b>{pct if pct is not None else "—"}%</b><span>réussite</span></div>'
         f'<div><b>{won}</b><span>gagnés</span></div>'
         f'<div><b>{lost}</b><span>perdus</span></div>'
