@@ -3249,6 +3249,13 @@ async def main():
                             if _csent:
                                 notify.remember_prono(f"combo_foot_{_day}", _csent, "Combiné football")
                                 print("     ↳ combiné football publié sur Telegram (image).")
+                                # NOTIF PUSH PWA « combiné du jour » (user 2026-08-16) — best-effort.
+                                try:
+                                    from app import push as _push
+                                    _push.send_push("⚽ Combiné du jour BETSFIX",
+                                                    f"Combiné football @ {_combo.get('cote', '?')}", "/", "combo")
+                                except Exception:
+                                    pass
                         except Exception as _cce:
                             print(f"  (carte combiné image échouée : {_cce})")
             else:
@@ -3295,6 +3302,13 @@ async def main():
             from app import combo_daily as _cd_mt
             _mr = _mtn.run_daily(_cd_mt.day_key())
             print(f"  🪜 Montante (fin de scan) : {_mr}")
+            if _mr.get("recorded"):        # NOTIF PUSH PWA « montante » (mise du jour placée, user 2026-08-16)
+                try:
+                    from app import push as _push
+                    _push.send_push("🪜 Montante BETSFIX", "Nouvelle mise du jour placée",
+                                    "/montante", "montante")
+                except Exception:
+                    pass
     except Exception as _mexc:
         print(f"  (montante ignorée : {_mexc})")
 
