@@ -2712,6 +2712,9 @@ CSS = """
   /* BARRE INTÉGRÉE DANS LE CADRE (user 2026-08-15) : la barre / « Confiance live » est À L'INTÉRIEUR du
      cadre .vm, sous la grille -> une marge la sépare des chiffres, un filet fin au-dessus (comme le pari). */
   .vm .vb-bar, .vm .vb-live, .vm .vm-res{margin:11px 12px 5px;padding-top:11px;border-top:1px solid var(--border2)}   /* écart G/D + BAS (user 2026-08-16) ; filet couleur border2 comme pari↔chiffres */
+  /* BADGE résultat : écart UNIFORME 11px gauche/droite/bas = l'écart badge↔filet (padding-top 11) — user
+     2026-08-16. Cadre = padding 11px(bas)/4px(côtés) -> marge 7px côtés (+4=11) et 0 bas (+11=11). */
+  .vm .vm-res{margin:11px 7px 0}
   /* la barre INTERNE du bloc « Confiance live » ne doit PAS re-prendre la marge/le filet du cadre (sinon
      double retrait -> plus étroite que la barre d'avant-match). Elle épouse la largeur du bloc .vb-live. */
   .vm .vb-live .vb-bar{margin:0;padding-top:0;border-top:none}
