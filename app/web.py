@@ -2186,6 +2186,10 @@ CSS = """
   .cleg-rb-w{background:rgba(52,210,123,.18);color:#4be39b;border:1px solid rgba(52,210,123,.55)}
   .cleg-rb-l{background:rgba(255,107,107,.16);color:#ff6b6b;border:1px solid rgba(255,107,107,.5)}
   .cleg-rb-n{background:rgba(144,164,190,.16);color:#aebdd0;border:1px solid rgba(144,164,190,.4)}
+  /* note « hors ROI » en tête de l'onglet Combiné (user 2026-08-16 : affiché mais non compté au ROI) */
+  .combo-horsroi{font-size:11px;font-weight:600;color:var(--muted);text-align:center;padding:7px 10px;
+       margin-bottom:9px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px}
+  .combo-horsroi b{color:#c4d2e2;font-weight:800}
   /* Ligne équipes façon Bull (test 2026-08-15) : monogrammes club + VS centré */
   .cleg-teams-vs,.tmvs{display:flex;align-items:center;justify-content:center;gap:12px;text-align:center}
   .mc-teams .tmvs{margin-top:2px}
@@ -4477,7 +4481,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # simulation le fait pour tennis/basket (sinon le combiné foot du jour n'apparaît PAS dans les stats
     # tant qu'il n'est pas réglé — retour user 2026-07-26). Pur affichage (jamais au ROI/gel).
     _pend_fc = analyses.pending_roi_bets(combo=True)
-    combos_block = (render_tracking_curve(
+    combos_block = (('<div class="combo-horsroi">Suivi indicatif — <b>non compté au ROI</b></div>'
+                     + render_tracking_curve(
         emoji="⚽", title="COMBINÉS", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
         n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
         avg_cote=_foot_c.get("avg_odds"), uid="combo-foot", streak=_foot_c.get("streak"),
@@ -4486,8 +4491,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         pending=len(_pend_fc),                        # sabliers ⏳ des combinés à venir (comme tennis/basket)
         milestones=_ms_combo, compact=True, hit_points=_foot_c.get("hit_points"),
         best_streak=_foot_c.get("best_streak"), cote_points=_foot_c.get("cote_points"),
-        warmup=3)                                     # combiné du jour ~1/j depuis 29/07 : seuil courbes abaissé
-        if (analyses.COMBO_ROI_ON and (_foot_c.get("settled") or _pend_fc)) else "")   # combinés hors ROI -> bloc masqué (user 2026-08-15)
+        warmup=3))                                    # combiné du jour ~1/j depuis 29/07 : seuil courbes abaissé
+        if (_foot_c.get("settled") or _pend_fc) else "")   # onglet Combiné AFFICHÉ mais « hors ROI » (user 2026-08-16)
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     # ORDRE onglets = Confiance · Value · [Provisoire retiré] · Combiné (user 2026-08-11). L'onglet Provisoire
@@ -4498,7 +4503,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                         counts=(len(_pend_conf), len(_pend_val),
                                 _prov_pending_count("foot") if analyses.PROVISOIRES_ON else 0, len(_pend_fc)),
                         rois=((_bt.get("confiance") or {}).get("roi"), (_bt.get("value") or {}).get("roi"),
-                              _prov_sport_roi("foot") if analyses.PROVISOIRES_ON else None, _foot_c.get("roi")))
+                              _prov_sport_roi("foot") if analyses.PROVISOIRES_ON else None,
+                              None))   # onglet Combiné AFFICHÉ mais HORS ROI -> pas de chip ROI (user 2026-08-16)
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
     return (f'<div class="spf">{_sport_banner("foot")}{_avantage_block(ov)}{_foot}</div>') if _foot else ""
@@ -8886,10 +8892,10 @@ def render_sport_perf(sport: str) -> str:
     charts = ('<div class="spf-charts">'
               + _perf_curve_block("Simples", s, f"sp-{sport}-s", "Aucun simple réglé",
                                   form=s.get("form_simple") or s.get("form"), pending=_pend_s)
-              + (_perf_curve_block("Combinés", combo_bs, f"sp-{sport}-c",     # combinés hors ROI -> courbe masquée (user 2026-08-15)
-                                   "Aucun combiné réglé pour ce sport",
-                                   form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"),
-                                   pending=_pend_c) if analyses.COMBO_ROI_ON else "")
+              + _perf_curve_block("Combinés · hors ROI", combo_bs, f"sp-{sport}-c",   # AFFICHÉ mais hors ROI (user 2026-08-16)
+                                  "Aucun combiné réglé pour ce sport",
+                                  form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"),
+                                  pending=_pend_c)
               + '</div>')
     # Détail INTÉGRÉ au MÊME cadre (repliable) : par pari + calibration par TYPE DE PARI de ce sport.
     g = (analyses.calibration().get("by_sport") or {}).get(label) or {}

@@ -2933,12 +2933,12 @@ _COMBO_COUNT_FROM = "2026-06-18"
 # (l'ancien système, 18/06→19/07) sont EXCLUS du bilan combinés mais RESTENT dans la calibration et
 # les stats fantômes (leurs jambes sont des prédictions de fiche, calibrées indépendamment).
 _COMBO_STATS_FROM = "2026-07-29"
-# COMBINÉS HORS ROI — bascule TEMPORAIRE & RÉVERSIBLE (demande user 2026-08-15 : « ne pas compter les
-# combinés dans le ROI pour le moment »). Quand False, les SURFACES de ROI combiné sont MASQUÉES à
-# l'affichage (chip « C » du résumé perf, courbe « Combinés » par sport, bloc COMBINÉS du bilan). Le calcul
-# `combo_stats()` reste EXACT (le compte « combinés joués » du panneau transparence reste juste). N'affecte
-# NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone (stat_bet seul), NI la calibration, NI la
-# CARTE combiné du jour (toujours proposée/jouée). Remettre True pour réafficher les combinés au ROI.
+# COMBINÉS HORS ROI — bascule TEMPORAIRE & RÉVERSIBLE (user 2026-08-15/16 : « afficher l'onglet Combiné
+# mais ne pas le compter au ROI »). L'onglet Combiné + la courbe par sport sont AFFICHÉS (marqués « hors
+# ROI »/« non compté au ROI »), MAIS le combiné n'apparaît PAS comme métrique de ROI en tête : quand False,
+# le chip « C » du résumé perf est masqué et l'onglet Combiné ne porte PAS de chip ROI. `combo_stats()` reste
+# EXACT. N'affecte NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone, NI la calibration, NI la
+# carte combiné du jour. Remettre True pour recompter les combinés comme un ROI en tête.
 COMBO_ROI_ON = False
 
 
