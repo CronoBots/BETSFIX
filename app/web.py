@@ -2321,7 +2321,9 @@ CSS = """
     overflow:hidden;background:var(--surface);box-shadow:var(--shadow-sm)}
   .pgm-day{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
     background:var(--bg2);padding:7px 13px;border-bottom:1px solid var(--border)}
-  .pgm-row{padding:11px 13px;border-bottom:1px solid var(--border);border-left:3px solid var(--dim)}
+  /* LIGNE = heure (ancre) · équipes+ligue (héros) · chip type + pastille statut à droite (user 2026-08-16). */
+  .pgm-row{display:flex;align-items:center;gap:11px;padding:10px 13px;border-bottom:1px solid var(--border);
+    border-left:3px solid var(--dim)}
   .pgm-row:last-child{border-bottom:0}
   .pgm-row.pgm-wait{border-left-color:var(--gold)}
   .pgm-row.pgm-abst{border-left-color:var(--dim)}
@@ -2331,39 +2333,25 @@ CSS = """
   .pgm-row.pgm-combo{border-left-color:#a78bfa}
   .pgm-row.pgm-won{border-left-color:#34d27b}
   .pgm-row.pgm-lost{border-left-color:#ff6b6b}
-  .pgm-row.pgm-done{border-left-color:var(--dim);opacity:.6}
-  .pgm-r1{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-  .pgm-teams{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.01em;line-height:1.28}
-  .pgm-ko{flex:none;font-size:15px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
-  .pgm-r2{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:5px}
-  /* LIGUE : même couleur que sur les cartes de paris (.mc-comp = #8fa2b8, user 2026-08-11) */
-  .pgm-comp{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#8fa2b8;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-  .pgm-an{flex:none;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--muted);
-    display:inline-flex;align-items:center;gap:6px}
-  /* BADGE (pastille) plein & coloré selon l'état/résultat — même style que la montante. Pending & abstention
-     restent DISCRETS (fond tamisé) pour que les PICKS et les RÉSULTATS ressortent. */
-  .pgm-an i{font-size:8px;font-weight:800;font-style:normal;letter-spacing:.05em;text-transform:uppercase;
-    padding:2px 6px;border-radius:6px;background:rgba(154,154,166,.14);color:var(--muted);line-height:1.4}
-  .pgm-wait .pgm-an i{background:rgba(246,197,74,.15);color:var(--gold)}
-  .pgm-wait .pgm-an{color:var(--gold)}
-  .pgm-abst .pgm-an{color:var(--dim)}
-  .pgm-conf .pgm-an i{background:#34d27b;color:#08210f}
-  .pgm-conf .pgm-an{color:#34d27b}
-  .pgm-val .pgm-an i{background:var(--accent);color:var(--accent-ink)}
-  .pgm-val .pgm-an{color:var(--accent)}
-  .pgm-mont .pgm-an i{background:var(--gold);color:var(--gold-bg)}
-  .pgm-mont .pgm-an{color:var(--gold)}
-  .pgm-combo .pgm-an i{background:#a78bfa;color:#1a1030}
-  .pgm-combo .pgm-an{color:#a78bfa}
-  .pgm-won .pgm-an i{background:#34d27b;color:#08210f}
-  .pgm-won .pgm-an{color:#34d27b}
-  .pgm-lost .pgm-an i{background:#ff6b6b;color:#2e0808}
-  .pgm-lost .pgm-an{color:#ff6b6b}
-  .pgm-done .pgm-an{color:var(--muted);font-size:11px}
-  /* Type de pari (confiance/value/montante) affiché DEVANT le résultat gagné/perdu — petit, coloré par type */
-  .pgm-typ{font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
-  .pgm-typ.t-conf{color:#34d27b} .pgm-typ.t-val{color:var(--accent)} .pgm-typ.t-mont{color:var(--gold)}
+  .pgm-row.pgm-done{border-left-color:var(--dim);opacity:.55}
+  .pgm-ko{flex:none;min-width:42px;font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+  .pgm-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .pgm-teams{font-size:13.5px;font-weight:800;color:var(--text);letter-spacing:-.01em;line-height:1.25;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* LIGUE : même couleur que les cartes (#8fa2b8), en petit sous les équipes. */
+  .pgm-comp{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#8fa2b8;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pgm-tail{flex:none;display:flex;align-items:center;gap:7px}
+  /* CHIP type de pari (plein, coloré par type). */
+  .pgm-typ{font-size:8.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+    padding:3px 7px;border-radius:7px;white-space:nowrap}
+  .pgm-typ.t-conf{color:#08210f;background:#34d27b}
+  .pgm-typ.t-val{color:var(--accent-ink);background:var(--accent)}
+  .pgm-typ.t-mont{color:var(--gold-bg);background:var(--gold)}
+  .pgm-typ.t-combo{color:#1a1030;background:#a78bfa}
+  /* PASTILLE statut (emoji) : résultats en pleine opacité, états « en attente » tamisés. */
+  .pgm-st{font-size:13px;line-height:1}
+  .pgm-st.st-up,.pgm-st.st-wait,.pgm-st.st-abst,.pgm-st.st-done{opacity:.72}
   /* Option « masquer les abstentions » : chip cliquable (case à cocher CSS pure, pas de JS) */
   .pgm-toggle{display:inline-block;margin:2px 3px 11px;font-size:10px;font-weight:700;letter-spacing:.03em;
     color:var(--muted);cursor:pointer;padding:4px 11px;border:1px solid var(--border);border-radius:20px;
@@ -7724,49 +7712,49 @@ def _programme_schedule(sport: str = "foot") -> str:
         ko = ld.strftime("%H:%M")
         mid = str(m.get("id"))
         d = analyses.meta(sport, mid)
-        _pre = ""                                          # préfixe optionnel (type de pari devant gagné/perdu)
-        if d is None:                                      # pas encore analyse -> heure prevue (KO-2h)
-            cls, an_t, an_l = "pgm-wait", "≈ " + (ld - LEAD).strftime("%H:%M"), "analyse"
-        elif analyses.is_settled(d):                       # réglé -> TYPE de pari + résultat (gagné/perdu), SANS score
-            _sb = analyses.stat_bet(d)                     # (user 2026-08-11 : score inutile ; type de pari affiché)
+        # REFONTE (user 2026-08-16) : UNE ligne scannable = heure (ancre) · équipes (héros) + ligue (petit) ·
+        # chip TYPE · pastille STATUT à droite. `_typ2` = type de pari · `_st` = statut (wait/won/lost/up/abst/done).
+        _typ2, _st = "", "up"
+        if d is None:                                      # pas encore analysé -> analyse à venir
+            cls, _st = "pgm-wait", "wait"
+        elif analyses.is_settled(d):                       # réglé -> résultat
+            _sb = analyses.stat_bet(d)
             _res = (_sb or {}).get("result") if isinstance(_sb, dict) else None
             if _res in ("won", "lost"):
-                _typ = "montante" if mid == _mont_mid else analyses.bet_tier_for("foot", mid)
-                _tcls = {"montante": "t-mont", "value": "t-val"}.get(_typ, "t-conf")
-                _pre = f'<span class="pgm-typ {_tcls}">{_typ}</span>'   # type du pari DEVANT le résultat
-                cls, an_l = ("pgm-won", "gagné") if _res == "won" else ("pgm-lost", "perdu")
-                an_t = ""
-            elif _sb is None and mid in _combo_mids:       # jambe de COMBINÉ (pas de simple) -> badge combiné
-                cls, an_t, an_l = "pgm-combo", (_sidecar_analyzed_at(sport, mid) or ""), "combiné"
-            elif _sb is None:                              # ABSTENTION réglée -> MÊME rendu que les abstentions non
-                cls, an_t, an_l = "pgm-abst", (_sidecar_analyzed_at(sport, mid) or ""), "abstention"  # réglées (badge)
-                n_abst += 1
-            else:                                          # push / remboursé (il Y AVAIT un pari) -> reste affiché
-                cls, an_t, an_l = "pgm-done", "terminé", ""
-        else:                                              # analyse -> TYPE detecte (confiance/value/montante/abstention)
-            _at = _sidecar_analyzed_at(sport, mid)
-            _tail = _at or ""                              # « ✓ » (V) retiré à droite du badge (user 2026-08-15)
+                _typ2 = "montante" if mid == _mont_mid else analyses.bet_tier_for("foot", mid)
+                cls, _st = ("pgm-won", "won") if _res == "won" else ("pgm-lost", "lost")
+            elif _sb is None and mid in _combo_mids:       # jambe de COMBINÉ réglée
+                cls, _typ2, _st = "pgm-combo", "combiné", "done"
+            elif _sb is None:                              # abstention réglée
+                cls, _st = "pgm-abst", "abst"; n_abst += 1
+            else:                                          # push / remboursé
+                cls, _st = "pgm-done", "done"
+        else:                                              # analysé, pas réglé -> type + à venir
             rb = analyses.retained_bet(sport, mid)
-            if rb is None and mid in _combo_mids:          # pas de simple retenu MAIS jambe du combiné du jour
-                cls, an_t, an_l = "pgm-combo", (_at or ""), "combiné"
-            elif rb is None:                               # analyse mais SANS value -> abstention
-                cls, an_t, an_l = "pgm-abst", (_at or ""), "abstention"
-                n_abst += 1
-            elif mid == _mont_mid:                         # LE pari montante du jour
-                cls, an_t, an_l = "pgm-mont", _tail, "montante"
+            if rb is None and mid in _combo_mids:
+                cls, _typ2, _st = "pgm-combo", "combiné", "up"
+            elif rb is None:                               # analysé sans value -> abstention
+                cls, _st = "pgm-abst", "abst"; n_abst += 1
+            elif mid == _mont_mid:
+                cls, _typ2, _st = "pgm-mont", "montante", "up"
             elif analyses.tier_of(d, rb) == "confiance":
-                cls, an_t, an_l = "pgm-conf", _tail, "confiance"
+                cls, _typ2, _st = "pgm-conf", "confiance", "up"
             else:
-                cls, an_t, an_l = "pgm-val", _tail, "value"
+                cls, _typ2, _st = "pgm-val", "value", "up"
         teams = _noF(str(m.get("name") or ""))
         comp = _noF(str(m.get("comp") or "")).upper()
-        an_html = _pre + (f'<i>{an_l}</i>{an_t}' if an_l else an_t)   # (type) + badge ; « analyse »+heure ; nu si terminé
+        _tcls = {"montante": "t-mont", "value": "t-val", "combiné": "t-combo"}.get(_typ2, "t-conf")
+        _chip = f'<span class="pgm-typ {_tcls}">{html.escape(_typ2)}</span>' if _typ2 else ""
+        _ic, _scls = {"won": ("✅", "st-won"), "lost": ("❌", "st-lost"), "up": ("⏳", "st-up"),
+                      "wait": ("⌛", "st-wait"), "abst": ("⏸", "st-abst"),
+                      "done": ("➖", "st-done")}.get(_st, ("⏳", "st-up"))
+        _pill = f'<span class="pgm-st {_scls}">{_ic}</span>'
         rows.append(
             f'<div class="pgm-row {cls}">'
-            f'<div class="pgm-r1"><span class="pgm-teams">{html.escape(teams)}</span>'
-            f'<span class="pgm-ko">{ko}</span></div>'
-            f'<div class="pgm-r2"><span class="pgm-comp">{html.escape(comp)}</span>'
-            f'<span class="pgm-an">{an_html}</span></div>'
+            f'<span class="pgm-ko">{ko}</span>'
+            f'<div class="pgm-mid"><span class="pgm-teams">{html.escape(teams)}</span>'
+            f'<span class="pgm-comp">{html.escape(comp)}</span></div>'
+            f'<span class="pgm-tail">{_chip}{_pill}</span>'
             f'</div>')
     # OPTION « masquer les abstentions » (demande user 2026-08-11) : case à cocher CSS pure (pas de JS) —
     # cochée -> les lignes .pgm-abst passent en display:none. Affichée seulement s'il y a des abstentions.
