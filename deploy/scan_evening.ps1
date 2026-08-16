@@ -41,7 +41,7 @@ if (Test-Path $flag) {
     Log 'SCAN SOIR : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~2h avant chaque coup d''envoi'
 } else {
     Log 'SCAN SOIR : SLATE NUIT (coup d''envoi 21h->06h heure belge) + publication des picks'
-    & $py 'tools\generate_analyses.py' --sport foot --top 8 --hours 12 --from-programme --ko-from 21 --ko-to 6 2>&1 |
+    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 12 --from-programme --ko-from 21 --ko-to 6 2>&1 |
         Add-BfxStream $log
     Log ("SCAN SOIR DONE (exit {0})" -f $LASTEXITCODE)
 }

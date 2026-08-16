@@ -36,7 +36,7 @@ if ($running) {
 # ⚠️ Point décimal « . » obligatoire (locale FR -> "1,5" rejeté par argparse) -> InvariantCulture.
 $hours = $WindowHours.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 Log ("WAVE ANALYSE : matchs imminents NON analysés (1re analyse, --refresh-early, jamais de ré-analyse)")
-& $py 'tools\generate_analyses.py' --sport foot --top 8 --hours $hours --from-programme --refresh-early 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours $hours --from-programme --refresh-early 2>&1 |
     Add-BfxStream $log
 Log ("WAVE ANALYSE DONE (exit {0})" -f $LASTEXITCODE)
 
