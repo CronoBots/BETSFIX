@@ -2277,13 +2277,13 @@ CSS = """
   .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px}
   .zone{padding-bottom:18px;border-bottom:1px solid var(--border)}   /* séparateur à la FIN de chaque type de pari */
   .dash-zones > .zone:last-child{border-bottom:none;padding-bottom:0}   /* pas de trait après la dernière zone */
-  /* Bouton notifications push (user 2026-08-16) — masqué une fois activé (.on). */
-  .bfx-pushrow{display:flex;justify-content:center;margin:2px 0 14px}
+  /* Bouton notifications push (user 2026-08-16) — MASQUÉ par défaut ; le JS ne l'affiche qu'en PWA
+     (mode standalone) et tant que la permission n'est pas accordée. */
+  .bfx-pushrow{display:none;justify-content:center;margin:2px 0 14px}
   .bfx-pushbtn{font-size:12.5px;font-weight:800;color:var(--accent);background:rgba(34,184,255,.10);
        border:1px solid rgba(34,184,255,.35);border-radius:999px;padding:8px 16px;cursor:pointer;
        -webkit-tap-highlight-color:transparent;transition:transform .12s}
   .bfx-pushbtn:active{transform:scale(.97)}
-  .bfx-pushbtn.on{display:none}
   .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
   .zone-t{font-size:15px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) */
   .zone-n{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
@@ -3879,11 +3879,16 @@ _PUSH_JS = (
     "navigator.serviceWorker.register('/sw.js').catch(function(){});"
     "function u8(b){var p='='.repeat((4-b.length%4)%4),s=(b+p).replace(/-/g,'+').replace(/_/g,'/');"
     "var r=atob(s),a=new Uint8Array(r.length),i;for(i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a;}"
-    "window.bfxPushRefresh=function(){var e=document.getElementsByClassName('bfx-pushbtn'),"
-    "st=('Notification' in window)?Notification.permission:'unsupported',i,el;"
-    "for(i=0;i<e.length;i++){el=e[i];el.classList.remove('on');"
-    "if(st==='granted'){el.textContent='\\uD83D\\uDD14 Notifications activées';el.classList.add('on');}"
-    "else if(st==='denied'){el.textContent='\\uD83D\\uDD15 Notifications bloquées';}"
+    "function isPwa(){return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)"
+    "||window.navigator.standalone===true;}"
+    "window.bfxPushRefresh=function(){"
+    "var st=('Notification' in window)?Notification.permission:'unsupported';"
+    "var pwa=isPwa(),show=pwa&&st!=='granted'&&st!=='unsupported';"
+    "var rows=document.getElementsByClassName('bfx-pushrow'),j;"
+    "for(j=0;j<rows.length;j++){rows[j].style.display=show?'flex':'none';}"
+    "var e=document.getElementsByClassName('bfx-pushbtn'),i,el;"
+    "for(i=0;i<e.length;i++){el=e[i];"
+    "if(st==='denied'){el.textContent='\\uD83D\\uDD15 Notifications bloquées';}"
     "else{el.textContent='\\uD83D\\uDD14 Activer les notifications';}}};"
     "window.bfxPushEnable=function(){"
     "if(!('Notification' in window)||!('PushManager' in window)){"
