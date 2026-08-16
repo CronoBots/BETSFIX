@@ -2277,6 +2277,13 @@ CSS = """
   .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px}
   .zone{padding-bottom:18px;border-bottom:1px solid var(--border)}   /* séparateur à la FIN de chaque type de pari */
   .dash-zones > .zone:last-child{border-bottom:none;padding-bottom:0}   /* pas de trait après la dernière zone */
+  /* Bouton notifications push (user 2026-08-16) — masqué une fois activé (.on). */
+  .bfx-pushrow{display:flex;justify-content:center;margin:2px 0 14px}
+  .bfx-pushbtn{font-size:12.5px;font-weight:800;color:var(--accent);background:rgba(34,184,255,.10);
+       border:1px solid rgba(34,184,255,.35);border-radius:999px;padding:8px 16px;cursor:pointer;
+       -webkit-tap-highlight-color:transparent;transition:transform .12s}
+  .bfx-pushbtn:active{transform:scale(.97)}
+  .bfx-pushbtn.on{display:none}
   .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
   .zone-t{font-size:15px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) */
   .zone-n{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
@@ -3863,6 +3870,34 @@ _NOZOOM_JS = (
     "document.addEventListener('gestureend',b,{passive:false});})();"
 )
 
+# NOTIFICATIONS PUSH (PWA) — enregistre le service worker + gère l'abonnement (user 2026-08-16). Le bouton
+# `.bfx-pushbtn` (onclick=bfxPushEnable()) demande la permission, s'abonne (clé VAPID publique) et POST
+# l'abonnement. `bfxPushRefresh` met à jour le libellé du bouton selon l'état. iOS : ne marche qu'en PWA
+# installée (écran d'accueil) -> message d'aide sinon.
+_PUSH_JS = (
+    "(function(){if(!('serviceWorker' in navigator))return;"
+    "navigator.serviceWorker.register('/sw.js').catch(function(){});"
+    "function u8(b){var p='='.repeat((4-b.length%4)%4),s=(b+p).replace(/-/g,'+').replace(/_/g,'/');"
+    "var r=atob(s),a=new Uint8Array(r.length),i;for(i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a;}"
+    "window.bfxPushRefresh=function(){var e=document.getElementsByClassName('bfx-pushbtn'),"
+    "st=('Notification' in window)?Notification.permission:'unsupported',i,el;"
+    "for(i=0;i<e.length;i++){el=e[i];el.classList.remove('on');"
+    "if(st==='granted'){el.textContent='\\uD83D\\uDD14 Notifications activées';el.classList.add('on');}"
+    "else if(st==='denied'){el.textContent='\\uD83D\\uDD15 Notifications bloquées';}"
+    "else{el.textContent='\\uD83D\\uDD14 Activer les notifications';}}};"
+    "window.bfxPushEnable=function(){"
+    "if(!('Notification' in window)||!('PushManager' in window)){"
+    "alert('Notifications non supportées ici. Sur iPhone : ajoute d\\'abord le site à l\\'écran d\\'accueil.');return;}"
+    "Notification.requestPermission().then(function(pm){if(pm!=='granted'){bfxPushRefresh();return;}"
+    "Promise.all([navigator.serviceWorker.ready,fetch('/push/vapid').then(function(r){return r.json();})])"
+    ".then(function(x){var reg=x[0],key=x[1]&&x[1].key;if(!key)return;"
+    "reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(key)}).then(function(sub){"
+    "fetch('/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},"
+    "body:JSON.stringify(sub)}).then(bfxPushRefresh);}).catch(function(){bfxPushRefresh();});});});};"
+    "if(document.readyState!=='loading')bfxPushRefresh();"
+    "else document.addEventListener('DOMContentLoaded',bfxPushRefresh);})();"
+)
+
 # Sélecteur de sport de Pronos (demande user 2026-07-26) : clic sur une puce -> recharge #day-content via
 # /jour?date=<jour>&sport=<sk> (le fragment contient le sélecteur avec la puce active à jour). Délégué au
 # document (survit aux remplacements de #day-content).
@@ -3963,7 +3998,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
@@ -4007,7 +4042,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -7771,6 +7806,9 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
             f'<span class="dv-nav" data-tab="directs" data-n="{_lv_total}" hidden></span>'
             f'<span class="dv-nav" data-tab="montante" data-n="{_mont_n}" hidden></span>'
+            # Bouton NOTIFICATIONS push (user 2026-08-16) — auto-masqué une fois activé (.on), libellé géré par JS.
+            '<div class="bfx-pushrow"><button type="button" class="bfx-pushbtn" onclick="bfxPushEnable()">'
+            '🔔 Activer les notifications</button></div>'
             + f'<div id="day-content">{zones}</div>'
             + _programme_schedule())
     return body if frag else spa_shell("home", "Pronos", body, source=source)

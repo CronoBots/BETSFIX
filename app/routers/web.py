@@ -737,6 +737,59 @@ async def my_bets_redirect() -> RedirectResponse:
     return RedirectResponse("/", status_code=308)
 
 
+# ---- NOTIFICATIONS PUSH (PWA) « nouveau prono » (user 2026-08-16) ----------------------------------
+_SW_JS = (
+    "self.addEventListener('install',function(e){self.skipWaiting();});"
+    "self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim());});"
+    "self.addEventListener('push',function(e){var d={};try{d=e.data.json();}catch(_){"
+    "d={title:'BETSFIX',body:e.data?e.data.text():''};}"
+    "e.waitUntil(self.registration.showNotification(d.title||'BETSFIX',{"
+    "body:d.body||'',icon:'/static/icon-180.png',badge:'/static/icon-180.png',"
+    "tag:d.tag||'prono',data:{url:d.url||'/'},vibrate:[80,40,80]}));});"
+    "self.addEventListener('notificationclick',function(e){e.notification.close();"
+    "var u=(e.notification.data&&e.notification.data.url)||'/';"
+    "e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(function(cl){"
+    "for(var i=0;i<cl.length;i++){if('focus' in cl[i])return cl[i].focus();}"
+    "if(clients.openWindow)return clients.openWindow(u);}));});"
+)
+
+
+@router.get("/sw.js", include_in_schema=False)
+async def service_worker():
+    """Service worker (racine -> scope « / ») : reçoit les push et affiche la notification."""
+    from fastapi.responses import Response
+    return Response(_SW_JS, media_type="application/javascript",
+                    headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
+
+
+@router.get("/push/vapid", include_in_schema=False)
+async def push_vapid():
+    """Clé PUBLIQUE VAPID (applicationServerKey) pour l'abonnement côté client."""
+    from app import push as _push
+    return {"key": _push.public_key()}
+
+
+@router.post("/push/subscribe", include_in_schema=False)
+async def push_subscribe(request: Request):
+    from app import push as _push
+    try:
+        sub = await request.json()
+    except Exception:
+        return {"ok": False}
+    return {"ok": _push.add_sub(sub or {})}
+
+
+@router.post("/push/unsubscribe", include_in_schema=False)
+async def push_unsubscribe(request: Request):
+    from app import push as _push
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    _push.remove_sub((body or {}).get("endpoint", ""))
+    return {"ok": True}
+
+
 @router.get("/directs", response_class=HTMLResponse)
 async def directs_page(
     unibet: UnibetProvider = Depends(get_unibet),

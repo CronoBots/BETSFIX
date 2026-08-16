@@ -3177,6 +3177,16 @@ async def main():
                         _sent = notify.send_photo_sync(_png, "")
                         if _sent:                    # mémorise l'id du prono -> le résultat y répondra
                             notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
+                            # NOTIF PUSH PWA « nouveau prono » (user 2026-08-16) — best-effort, jamais bloquant.
+                            try:
+                                from app import push as _push
+                                _pk = str(_card.get("pick") or "")
+                                _co = _card.get("cote")
+                                _pktxt = f"{_pk} @ {_co}" if (_pk and _co) else _pk
+                                _push.notify_new_prono(str(_card.get("match") or ""), _pktxt,
+                                                       str(_card.get("_sport") or "foot"))
+                            except Exception:
+                                pass
                             # FIGE le pari CONSEILLÉ dès la publication (demande user 2026-07-14) -> ni
                             # retiré ni re-prixé au rescan (l'abonné a parié à ce prix). Idempotent.
                             try:

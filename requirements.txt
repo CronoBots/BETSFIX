@@ -12,3 +12,5 @@ stripe==10.1.0  # abonnement (Phase 2) — facultatif tant que non configuré (l
 pytest==8.2.2
 pytest-asyncio==0.23.7
 respx==0.21.1
+
+pywebpush==2.4.0
