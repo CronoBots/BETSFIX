@@ -2288,10 +2288,12 @@ CSS = """
   /* PAS de séparateur SOUS le titre de zone (user 2026-08-16) — il est reporté à la FIN de chaque zone (.zone). */
   .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px}
   .zone{padding-bottom:18px;border-bottom:1px solid var(--border)}   /* séparateur SOUS CHAQUE catégorie (user 2026-08-17) */
-  /* Zone REPLIÉE (user 2026-08-17) : le trait reste PROCHE de SON titre (padding-bottom court), mais on remet
-     de l'AIR AU-DESSUS du titre suivant (margin-top) -> le séparateur n'est plus collé au titre d'après. */
+  /* Zone REPLIÉE (user 2026-08-17) : le trait reste PROCHE de SON titre (padding-bottom court + marge du header
+     à 0). L'air AVANT le titre suivant est mis sur la ZONE (margin, ci-dessous), IDENTIQUE plié/déplié -> le
+     titre ne se DÉCALE PAS au dépli (avant : margin-top du header 17px->0 faisait remonter le titre). */
   .zone-col:not([open]){padding-bottom:9px}
-  .zone-col:not([open]) > .zone-h{margin-top:17px;margin-bottom:0}
+  .zone-col:not([open]) > .zone-h{margin-bottom:0}
+  .dash-zones > .zone + .zone{margin-top:13px}   /* espace entre 2 zones (constant plié/déplié) */
   .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone OUVERTE : pas d'espace mort avant le pied */
   /* Dernière zone REPLIÉE (ex. Abstention) : garder l'écart trait↔titre (9 px), sinon le trait colle au titre. */
   .dash-zones > .zone-col:not([open]):last-child{padding-bottom:9px}
@@ -2303,7 +2305,7 @@ CSS = """
        -webkit-tap-highlight-color:transparent;transition:transform .12s}
   .bfx-pushbtn:active{transform:scale(.97)}
   .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
-  .zone-t{font-size:15px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) */
+  .zone-t{font-size:17.5px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) + plus GRAND (user 2026-08-17) */
   .zone-n{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
@@ -6334,7 +6336,9 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
              + _live_bar_html(_combo_live_prob(cb)))   # chance live GLOBALE du combiné (user 2026-08-08)
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
-    _sptitle = {"foot": "FOOTBALL", "tennis": "TENNIS", "basket": "BASKET"}.get(sport, "FOOTBALL")
+    # TITRE de la carte (user 2026-08-17) : « COMBINÉ DOUBLE CHANCE » (le combiné foot EST une double chance)
+    # au lieu de « COMBINÉ FOOTBALL ». Tennis/basket (simulés) gardent leur sport.
+    _sptitle = {"tennis": "TENNIS", "basket": "BASKET"}.get(sport, "DOUBLE CHANCE")
     return _combo_gold_card(title=title or f"COMBINÉ {_sptitle}", subtitle=f'{_nlegs} jambes',
                             badge=_badge, body=_body, state=cb.get("result"))
 
@@ -7216,7 +7220,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ZONE VALUE — toujours affichée (user 2026-08-17).
     _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value)) if h])
     _value_rec = _tier_rec(play_value, "value")
-    out.append(_zone("value", "Value", "", len(play_value) + len(_res_value), _value_html,
+    out.append(_zone("value", _plur(len(play_value) + len(_res_value), "Value"), "",
+                     len(play_value) + len(_res_value), _value_html,
                      collapsible=True, record=_value_rec if _value_rec[0] else None,
                      empty="Aucun pari de value aujourd'hui."))
     # ZONE MONTANTE (dédiée, user 2026-08-12) : à venir/live (play_mont) + réglée (_mont_settled). Plus jamais
@@ -7878,7 +7883,7 @@ def _abstention_zone(sport: str = "foot") -> str:
     _pending, abst = _planning_cards(sport)
     if not abst:
         return ""
-    return _zone("abst", "Abstention", "", len(abst), _MC_SEP.join(abst), collapsible=True)
+    return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst), collapsible=True)
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
