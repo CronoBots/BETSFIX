@@ -173,8 +173,8 @@ _CSS_SIMPLE = """
 .swm{height:100px;width:auto;max-width:82%;margin:0 auto;display:block;filter:drop-shadow(0 6px 22px rgba(34,184,255,.42))}
 /* TYPE de pari écrit SOUS le logo comme une signature (user 2026-08-17 : plus en badge) — tagline centrée,
    colorée par type, grand interlettrage pour l'effet « fait partie du logo ». */
-.stag{text-align:center;font-size:39px;font-weight:900;letter-spacing:.28em;text-transform:uppercase;
-  margin:-2px 0 26px;padding-left:.28em}
+.stag{text-align:center;font-size:46px;font-weight:900;letter-spacing:.26em;text-transform:uppercase;
+  margin:-2px 0 40px;padding-left:.26em}
 .stag.st-confiance{color:#34d27b}
 .stag.st-value{color:#22b8ff}
 .stag.rb-w{color:#34d27b}
@@ -193,8 +193,10 @@ _CSS_SIMPLE = """
 span.tlogo.mono{border-radius:50%;display:grid;place-items:center;font-size:35px;font-weight:900;color:#fff;
   box-shadow:0 5px 15px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.12)}
 img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
-.spk{text-align:center;font-size:35px;font-weight:900;color:#eef4fb;margin-bottom:0;line-height:1.18}
-.sgl{text-align:center;font-size:24px;font-weight:600;color:#8fa2b8;line-height:1.32;margin-top:10px}
+/* Pari + glose aux PROPORTIONS du site (user 2026-08-17) : le pari (28px) est PLUS PETIT que les équipes
+   (.stn 31px), la glose (23px) encore un cran en dessous — comme .mc-pick(13)/.mc-gloss(12.5) vs .mc-teams(15). */
+.spk{text-align:center;font-size:28px;font-weight:800;color:#eef4fb;margin-bottom:0;line-height:1.22}
+.sgl{text-align:center;font-size:23px;font-weight:600;color:#8fa2b8;line-height:1.34;margin-top:9px}
 .vbar{position:relative;height:16px;border-radius:99px;overflow:hidden;margin:22px 0 2px;
   background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
 .vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}

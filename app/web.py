@@ -771,9 +771,9 @@ CSS = """
      user 2026-07-25). Défaut = doré (à venir / en attente / live) ; gagné = vert ; perdu = rouge ;
      remboursé = gris. Posé via la classe `mc-r-*`. */
   /* Contour ENTIER coloré par l'état (demande user 2026-07-27 : tout le cadre = couleur du bord gauche) —
-     bord gauche gardé plus épais (3px) comme accent, mais TOUS les côtés prennent la même teinte. */
+     bordure UNIFORME 1px (user 2026-08-17 : plus de bord gauche épais), TOUS les côtés à la même teinte. */
   .row.mc{padding:0;margin:7px 0;overflow:hidden;
-       border:1px solid var(--st-soon);border-left:3px solid var(--st-soon)}
+       border:1px solid var(--st-soon)}
   .row.mc.mc-r-won{border-color:var(--st-won)}
   .row.mc.mc-r-lost{border-color:var(--st-lost)}
   .row.mc.mc-r-push{border-color:var(--st-void)}
