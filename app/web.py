@@ -2288,6 +2288,9 @@ CSS = """
   /* PAS de séparateur SOUS le titre de zone (user 2026-08-16) — il est reporté à la FIN de chaque zone (.zone). */
   .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px}
   .zone{padding-bottom:18px;border-bottom:1px solid var(--border)}   /* séparateur SOUS CHAQUE catégorie (user 2026-08-17) */
+  /* Zone REPLIÉE : le trait vient JUSTE SOUS le titre (user 2026-08-17), pas 18 px plus bas (plus de gros vide). */
+  .zone-col:not([open]){padding-bottom:11px}
+  .zone-col:not([open]) > .zone-h{margin-bottom:0}
   .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone : garde le trait (sépare du pied de page) */
   /* Bouton notifications push (user 2026-08-16) — MASQUÉ par défaut ; le JS ne l'affiche qu'en PWA
      (mode standalone) et tant que la permission n'est pas accordée. */
@@ -7198,16 +7201,18 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ZONE CONFIANCE : PUREMENT des confiances (la montante a désormais sa PROPRE zone, user 2026-08-12).
     _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf)) if h])
     _conf_rec = _tier_rec(play_conf, "confiance")
-    if play_conf or _res_conf:
-        out.append(_zone("play", _plur(len(play_conf) + len(_res_conf), "Confiance"), "",
-                         len(play_conf) + len(_res_conf), _conf_html,
-                         collapsible=True, record=_conf_rec if _conf_rec[0] else None))
-    # ZONE VALUE (n'apparaît que s'il y a des paris value ; masquée quand le split est off).
+    # CONFIANCE + VALUE TOUJOURS AFFICHÉES (user 2026-08-17), même vides -> la catégorie reste visible (message
+    # d'état honnête à la place des cartes). Les autres zones n'apparaissent que si elles ont du contenu.
+    out.append(_zone("play", _plur(len(play_conf) + len(_res_conf), "Confiance"), "",
+                     len(play_conf) + len(_res_conf), _conf_html,
+                     collapsible=True, record=_conf_rec if _conf_rec[0] else None,
+                     empty="Aucun pari de confiance aujourd'hui."))
+    # ZONE VALUE — toujours affichée (user 2026-08-17).
     _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value)) if h])
     _value_rec = _tier_rec(play_value, "value")
-    if play_value or _res_value:
-        out.append(_zone("value", "Value", "", len(play_value) + len(_res_value), _value_html,
-                         collapsible=True, record=_value_rec if _value_rec[0] else None))
+    out.append(_zone("value", "Value", "", len(play_value) + len(_res_value), _value_html,
+                     collapsible=True, record=_value_rec if _value_rec[0] else None,
+                     empty="Aucun pari de value aujourd'hui."))
     # ZONE MONTANTE (dédiée, user 2026-08-12) : à venir/live (play_mont) + réglée (_mont_settled). Plus jamais
     # fondue dans Confiance/Value. La carte garde son cadre bleu + titre « MONTANTE • PALIER N ».
     _mont_html = _MC_SEP.join([h for h in (_rows_by_day(play_mont), _mont_settled) if h])
@@ -7253,15 +7258,13 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         except Exception:
             _combo_rec = None
     out += [
-        _zone("combo", "Combiné double chance", "", 1 if combo_daily else 0, combo_daily,
+        _zone("combo", "Combiné", "", 1 if combo_daily else 0, combo_daily,
               collapsible=True, record=_combo_rec, leg_results=_c_leg_results),
     ]
-    # ZONE ABSTENTION puis PROGRAMME (user 2026-08-17) : après analyse, chaque match rejoint sa catégorie ;
-    # l'abstention en est une, et le programme = ce qui reste À ANALYSER (matchs du jour pas encore traités).
-    # En DERNIER (ce qu'on ne joue pas / pas encore analysé), sous les paris, en CARTES + badge compteur.
+    # ABSTENTION en dernier des catégories (ce qu'on ne joue pas). Le PROGRAMME passe EN PREMIER (user
+    # 2026-08-17 « Oui » : chaque match commence au programme -> il OUVRE la liste), au-dessus des paris.
     out.append(_abstention_zone(sport or "foot"))
-    out.append(_programme_schedule(sport or "foot"))
-    inner = "".join(x for x in out if x)
+    inner = _programme_schedule(sport or "foot") + "".join(x for x in out if x)
     _empty = ('<div class="paj-empty">Aucun pari retenu pour l\'instant.'
               '<span>Chaque match est analysé ~2 h avant son coup d\'envoi (voir le programme) ; '
               'seuls ceux qui offrent de la <b>value</b> deviennent un pari. Analyser n\'est pas parier.</span></div>')
@@ -7296,7 +7299,7 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
             from app import combo_daily as _cd
             cb = _cd.today(iso)
             if cb and cb.get("legs"):
-                combo = _zone("combo", "Combiné double chance", "", 1,
+                combo = _zone("combo", "Combiné", "", 1,
                               _combo_tg_card(include_settled=True, cb=cb))
         except Exception:
             combo = ""
@@ -7868,7 +7871,7 @@ def _programme_schedule(sport: str = "foot") -> str:
     pending, _abst = _planning_cards(sport)
     if not pending:
         return ""
-    return _zone("prog", "Programme du jour", "", len(pending), _MC_SEP.join(pending), collapsible=True)
+    return _zone("prog", "Programme", "", len(pending), _MC_SEP.join(pending), collapsible=True)
 
 
 def _abstention_zone(sport: str = "foot") -> str:
@@ -9950,7 +9953,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             out.append(_zone("mont", "Montante", "en direct", len(_play_m), _cards(_play_m)))
         out += [
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov)),
-            _zone("combo", "Combiné double chance", "", 1 if _combo else 0, _combo),
+            _zone("combo", "Combiné", "", 1 if _combo else 0, _combo),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
