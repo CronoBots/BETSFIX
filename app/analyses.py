@@ -1005,7 +1005,19 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
                 f'--hlo:rgba({_hrgb},.18);--hhi:rgba({_hrgb},.52)"></i>{_mk_us}{mark}</div>'
                 '</div>')
     else:
-        _bar = f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i>{mark}</div>'
+        # BARRE = ZONE EDGE (user 2026-08-17) : le remplissage va jusqu'à NOTRE confiance ; la portion qui
+        # DÉPASSE le marché (= notre edge) est en SURBRILLANCE (edge+), ou le manque jusqu'au marché est
+        # HACHURÉ (edge-). Repère marché DISCRET = frontière de la zone. Remplace le trait blanc « marché »
+        # (jugé ambigu maintenant qu'on affiche l'Edge en colonne, pas la proba marché).
+        _cfic = max(0, min(cfi, 100))
+        _bec = max(0, min(be, 100))
+        if _cfic >= _bec:                          # edge POSITIF : marché..nous en surbrillance (notre avantage)
+            _ov = f'<i class="vb-edge vb-edge-pos" style="left:{_bec}%;width:{_cfic - _bec}%"></i>'
+        else:                                      # edge NÉGATIF : nous..marché hachuré (le marché nous devance)
+            _ov = f'<i class="vb-edge vb-edge-neg" style="left:{_cfic}%;width:{_bec - _cfic}%"></i>'
+        _tick = f'<b class="vb-mktb" style="left:{_bec}%"></b>' if 0 < _bec < 100 else ""
+        _bar = (f'<div class="vb-bar"><i style="width:{_cfic}%;background:{grad}"></i>'
+                f'{_ov}{_tick}</div>')
     # CARTE RÉGLÉE (user 2026-08-15) : le badge « Gagné/Perdu » REMPLACE la barre et vit AUSSI DANS le cadre.
     if result_html:
         _bar = f'<div class="vm-res">{result_html}</div>'

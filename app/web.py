@@ -2186,6 +2186,10 @@ CSS = """
   /* MISE EN PAGE IDENTIQUE À LA CARTE CONFIANCE/VALUE (user 2026-08-17) : même inset de contenu que la carte
      premium (.mc-prem .mc-head = 13px 16px 12px) -> les jambes ont exactement la même respiration/largeur. */
   .cleg-res-live{padding:13px 16px 12px}
+  /* LIGUE un rien PLUS PETITE pour les JAMBES seulement (user 2026-08-17 : « cadre dans un cadre » -> moins de
+     largeur, « Pays • Ligue » débordait sur 2 lignes). + on RETIRE le padding 0 44px de la ligue centrée
+     (réservé au badge des cartes normales, ABSENT ici -> il gaspillait la largeur et forçait le retour ligne). */
+  .cleg-res-live .mc-comp{font-size:11px;padding:0 10px}
   .tm-fin{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
   .cleg-res-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:13px}
   /* BADGE RÉSULTAT pleine largeur (user 2026-08-15) à la place de la barre : GAGNÉ/PERDU/REMBOURSÉ. */
@@ -2755,9 +2759,18 @@ CSS = """
   .vb-mark{position:absolute;top:-1px;bottom:-1px;width:2px;margin-left:-1px;background:#f4f8ff;
        opacity:.92;z-index:2;border-radius:2px;box-shadow:0 0 0 1px rgba(9,14,22,.55);
        animation:vbmark .35s ease .75s both}
+  /* ZONE EDGE (user 2026-08-17) : remplace le trait marché « qui embrouille ». Le remplissage va jusqu'à
+     NOTRE confiance ; la portion au-DELÀ du marché = notre EDGE en surbrillance (edge+), ou le manque
+     jusqu'au marché = hachures (edge-). Repère marché discret = la frontière de la zone. Ces <i> ne doivent
+     PAS hériter du remplissage (min-width/animation vbfill) -> réinitialisés (spécificité `.vb-bar>i.vb-edge`). */
+  .vb-bar>i.vb-edge{min-width:0;border-radius:0;box-shadow:none;animation:vbmark .3s ease .8s both}
+  .vb-edge-pos{background:rgba(255,255,255,.36)}                       /* notre avantage sur le marché (clair) */
+  .vb-edge-neg{background:repeating-linear-gradient(45deg,rgba(255,255,255,.12) 0 3px,transparent 3px 7px)}  /* le marché nous devance */
+  .vb-mktb{position:absolute;top:0;bottom:0;width:1.5px;margin-left:-.75px;background:rgba(244,248,255,.5);
+       z-index:3;border-radius:2px;box-shadow:0 0 0 1px rgba(9,14,22,.5);animation:vbmark .35s ease .8s both}
   @keyframes vbfill{from{width:0}}
   @keyframes vbmark{from{opacity:0;transform:scaleY(.4)}}
-  @media (prefers-reduced-motion:reduce){.vb-bar>i,.vb-mark{animation:none}}
+  @media (prefers-reduced-motion:reduce){.vb-bar>i,.vb-mark,.vb-mktb{animation:none}}
   /* GRILLE métriques : colonnes ÉGALES sur TOUTE la largeur (width:100%), contenu centré, filets fins.
      Confiance à gauche du Marché -> comparaison directe « nous vs marché ». */
   .vm{width:100%;margin-top:12px}
