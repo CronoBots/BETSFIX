@@ -797,6 +797,17 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     from app import notify
     _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
+    # RAFRAÎCHISSEMENT DÉTERMINISTE DU CATALOGUE PINNACLE (user 2026-08-17) : la passe programme du matin (~10h
+    # belge) est LE point d'ancrage quotidien. On FORCE ici le refetch du catalogue matchups (~40 Mo) -> annuaire
+    # frais pile pour la construction du combiné du jour ET toutes les vagues suivantes (TTL 26h -> aucune vague
+    # ne le reconstruit avant le prochain matin). Exactement 1 fetch/jour au lieu du TTL 18h glissant à heure
+    # dérivante. Best-effort : si le refetch échoue, l'ancien cache disque est conservé (aucune casse).
+    try:
+        from app import pinnacle as _pinn
+        _nmu = await asyncio.to_thread(_pinn.refresh_catalog, "foot")
+        print(f"[sharp] catalogue Pinnacle rafraîchi (matin) : {_nmu} match(s) au catalogue.")
+    except Exception as _pce:
+        print(f"[sharp] rafraîchissement catalogue Pinnacle ignoré : {_pce}")
     matches = []
     # Repli PAR SPORT : programme précédent, pour ne pas effacer un sport dont la sélection échoue.
     # + PRÉSERVATION DES STATUTS (bet/abstained) au re-run : régénérer le programme ne doit PAS remettre à

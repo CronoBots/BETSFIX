@@ -29,7 +29,11 @@ _mu_cache: dict = {}     # sportId -> [{id, home, away, starts}]  (cache EN MÉM
 # -> On le CACHE SUR DISQUE (le parse léger id/home/away/starts, pas les 40 Mo), PARTAGÉ entre tous les
 # process, TTL 18 h -> ~1 seul fetch réseau/jour. Les IDs de match sont stables sur la journée -> sûr.
 _MU_DISK = os.path.join("data", "sharp_odds_cache", "pinnacle_matchups.json")
-_MU_TTL = 18 * 3600
+# TTL 26 h (user 2026-08-17) : l'annuaire est désormais rafraîchi DE FAÇON DÉTERMINISTE 1×/jour au scan du
+# matin (10h belge) via `refresh_catalog()` (force). Le TTL n'est plus que le FILET (si le scan matinal saute
+# un jour). On le met > 24 h pour qu'AUCUNE vague ne déclenche un 2e fetch entre deux matins -> exactement
+# 1 fetch 40 Mo/jour (avant : TTL 18h glissant = ~1,33 fetch/jour, heure dérivante). Sûr : id/noms stables 1-2 j.
+_MU_TTL = 26 * 3600
 
 # REPLI PROXY (2026-07-28) : Cloudflare bloque désormais l'API guest Pinnacle depuis NOTRE IP (403 « you have
 # been blocked », vérifié : le direct ET curl_cffi TLS sont bloqués, mais le PROXY résidentiel passe -> blocage
@@ -115,20 +119,33 @@ def _dec(american) -> float | None:
     return round(a / 100 + 1, 4) if a > 0 else round(100 / abs(a) + 1, 4)
 
 
-def _matchups(sport: str) -> list:
+def _disk_matchups(sid) -> list | None:
+    """Catalogue du sport `sid` depuis le cache disque, MÊME EXPIRÉ (repli). None si absent/illisible."""
+    try:
+        disk = json.load(open(_MU_DISK, encoding="utf-8"))
+        got = disk.get(str(sid))
+        return got if isinstance(got, list) else None
+    except Exception:
+        return None
+
+
+def _matchups(sport: str, force: bool = False) -> list:
+    """Catalogue Pinnacle (id/home/away/heure) du sport. `force=True` (refresh_catalog) IGNORE mémoire+disque
+    et refetch réseau. Cascade normale : 1) mémoire process, 2) disque frais (TTL), 3) réseau (~40 Mo)."""
     sid = _SPORT.get(sport)
     if not sid:
         return []
-    if sid in _mu_cache:                                  # 1) cache mémoire (process courant)
-        return _mu_cache[sid]
-    try:                                                  # 2) cache DISQUE frais (partagé entre process, TTL 18h)
-        if os.path.getmtime(_MU_DISK) > _time.time() - _MU_TTL:
-            disk = json.load(open(_MU_DISK, encoding="utf-8"))
-            if str(sid) in disk:
-                _mu_cache[sid] = disk[str(sid)]
-                return _mu_cache[sid]
-    except Exception:
-        pass
+    if not force:
+        if sid in _mu_cache:                              # 1) cache mémoire (process courant)
+            return _mu_cache[sid]
+        try:                                              # 2) cache DISQUE frais (partagé entre process, TTL)
+            if os.path.getmtime(_MU_DISK) > _time.time() - _MU_TTL:
+                got = _disk_matchups(sid)
+                if got is not None:
+                    _mu_cache[sid] = got
+                    return got
+        except Exception:
+            pass
     out = []                                              # 3) fetch réseau (~40 Mo) -> parse léger + persiste
     for m in _get(f"sports/{sid}/matchups") or []:
         ps = m.get("participants") or []
@@ -137,8 +154,8 @@ def _matchups(sport: str) -> list:
         if m.get("id") and h and a:
             out.append({"id": m["id"], "home": h, "away": a,
                         "starts": m.get("startTime") or m.get("starts")})   # heure -> repli résolution
-    _mu_cache[sid] = out
-    if out:                                               # persiste le PARSE léger (pas les 40 Mo réseau)
+    if out:                                               # SUCCÈS : mémoire + persiste le PARSE léger (pas les 40 Mo)
+        _mu_cache[sid] = out
         try:
             disk = {}
             try:
@@ -150,7 +167,22 @@ def _matchups(sport: str) -> list:
             json.dump(disk, open(_MU_DISK, "w", encoding="utf-8"))
         except Exception:
             pass
-    return out
+        return out
+    # ÉCHEC réseau (vide) : NE JAMAIS cacher du vide (sinon 0 résolution tout le process). Repli sur le disque
+    # même EXPIRÉ (un annuaire un peu vieux vaut mieux que rien, id/noms stables 1-2 j), sinon l'ancien mémoire.
+    got = _disk_matchups(sid)
+    if got is not None:
+        _mu_cache[sid] = got
+        return got
+    return _mu_cache.get(sid, [])
+
+
+def refresh_catalog(sport: str = "foot") -> int:
+    """FORCE le rafraîchissement du catalogue (ignore mémoire + TTL) : refetch réseau + ré-écrit le cache
+    disque. Appelé 1×/jour au scan du matin (user 2026-08-17) -> annuaire DÉTERMINISTE et frais, exactement
+    1 fetch 40 Mo/jour (vs TTL glissant ~1,33/jour à heure dérivante). Renvoie le nb de matchs captés
+    (0 = fetch KO -> l'ancien cache disque est conservé, aucune casse)."""
+    return len(_matchups(sport, force=True))
 
 
 def _overlap(a: str, b: str) -> int:
