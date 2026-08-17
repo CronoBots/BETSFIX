@@ -89,10 +89,10 @@ html,body{margin:0;padding:0;background:transparent}
   text-shadow:0 3px 16px rgba(34,184,255,.4)}
 .ico{display:inline-block;vertical-align:-5px;margin-right:6px}
 /* accent verdict sur TOUTE la carte (résultats) — inset pour ne pas être rogné */
-.card.won{border-color:rgba(25,196,106,.55);box-shadow:inset 0 0 0 2px rgba(25,196,106,.30),inset 0 0 140px rgba(25,196,106,.12)}
-.card.won .glow{background:radial-gradient(circle,rgba(25,196,106,.22),transparent 70%)}
-.card.lost{border-color:rgba(255,80,90,.50);box-shadow:inset 0 0 0 2px rgba(255,80,90,.26),inset 0 0 140px rgba(255,80,90,.10)}
-.card.lost .glow{background:radial-gradient(circle,rgba(255,80,90,.18),transparent 70%)}
+/* Cartes RÉSULTAT : bord coloré (vert gagné / rouge perdu / gris remb.) + fin liseré, SANS halo lumineux
+   (user 2026-08-17 : plus aucun effet lumineux, y compris en haut à droite). */
+.card.won{border-color:rgba(25,196,106,.55);box-shadow:inset 0 0 0 2px rgba(25,196,106,.30)}
+.card.lost{border-color:rgba(255,80,90,.50);box-shadow:inset 0 0 0 2px rgba(255,80,90,.26)}
 .card.push{border-color:rgba(150,165,185,.42);box-shadow:inset 0 0 0 2px rgba(150,165,185,.22)}
 .brand{position:absolute;bottom:30px;right:50px;font-size:21px;font-weight:900;letter-spacing:.22em;
   color:rgba(255,255,255,.22)}
@@ -371,8 +371,7 @@ def _result_simple_card_html(d: dict) -> str:
         + (f'<div class="sgl">{e(_gloss)}</div>' if _gloss else "")
         + f'<div class="vgrid">{_cells}</div>'
         + _res                                            # verdict à la place de la barre (match terminé)
-        + '</div>'
-        + _why_bullets_html(d, e))
+        + '</div>')                                       # PAS d'analyse sur la carte résultat (user 2026-08-17)
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard {_rcls}">{inner}</div></body></html>')
 
