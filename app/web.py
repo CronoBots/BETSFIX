@@ -5293,7 +5293,8 @@ def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
 
 def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calibrated: bool = True,
                    hide_neg_value: bool = False, pick_html: str = "",
-                   live_pct=None, live_trend: str = "", live_state: str = "", result_html: str = "") -> str:
+                   live_pct=None, live_trend: str = "", live_state: str = "", result_html: str = "",
+                   bare: bool = False) -> str:
     """Bloc VERDICT UNIFIÉ (demande user 2026-07-17 « tout doit être identique sur les autres types de
     paris ») = ligne verdict PARTAGÉE `analyses.verdict_line` (« Marché XX% · Notre confiance YY% ✓calibré
     → Value ±Z% », value = héros coloré) + pied (mention/ré-analyse + grosse cote). Remplace l'ancienne
@@ -5315,7 +5316,7 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
             _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated, with_cote=bool(cote_html),
                                         hide_neg_value=hide_neg_value, pick_html=pick_html,
                                         live_pct=live_pct, live_trend=live_trend, live_state=live_state,
-                                        result_html=result_html)
+                                        result_html=result_html, bare=bare)
         except (TypeError, ValueError):
             _vl = ""
     if not _vl and pick_html:              # pas de verdict calculable -> cadre « pari seul » (jamais perdu)
@@ -5914,7 +5915,7 @@ def _live_clock_html(sport_key, home, away) -> str:
 
 def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True,
               why_always: bool = False, why_label: str = "Pourquoi cette jambe",
-              prob_calibrated: bool = False, live_layout: bool = False) -> str:
+              prob_calibrated: bool = False, live_layout: bool = False, bare: bool = False) -> str:
     """Rendu d'UNE jambe de combiné COMME UNE CARTE DE SIMPLE (demande user 2026-07-14) : en-tête
     « SPORT • match » + badge d'état, le pari en gras, l'explication en clair (gloss ↳), la COTE à droite,
     bord gauche coloré par état. En live : badge 🟢 LIVE + tableau de score sous la jambe. `why` = ajoute la
@@ -6068,7 +6069,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         _cbig = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
                  f'<span class="mc-cote-v">{co:g}</span></span>'
                  if isinstance(co, (int, float)) and co else "")
-        _verdict = _verdict_block(co, _cp, "", _cbig, calibrated=True, hide_neg_value=True)
+        _verdict = _verdict_block(co, _cp, "", _cbig, calibrated=True, hide_neg_value=True, bare=bare)
     _cote_pill = "" if verdict else _cote           # le bloc verdict porte déjà la grosse cote
     # BADGE HAUT-DROITE : à venir -> UN SEUL badge « heure (blanc) + décompte (gris) », sans « dans » (user
     # 2026-08-08). Sinon (live/réglé/en attente) -> badge d'état simple.
@@ -6123,7 +6124,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         else:
             _ctr = f'<span class="tm-fin">{html.escape(_hh) if _hh else "À venir"}</span>'
         _teams_c = _teams_vs_html(_th, _ta, _ctr)
-        _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, result_html=_resbadge)
+        _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, result_html=_resbadge, bare=bare)
         # CLASSES IDENTIQUES à la carte normale (user 2026-08-17 : « exactement la même mise en page ») :
         # `mc-line mc-line-c` + `mc-comp` (ligue centrée blanche, même taille/espacement) et `mc-teams` (même
         # typo/marge que les équipes d'un pari simple) au lieu des classes compactes `cleg-*`.
@@ -6215,8 +6216,10 @@ def _combo_tg_legs(cb: dict) -> str:
     # (régression user 2026-08-02 : l'analyse disparaissait au règlement).
     # live_layout=True (user 2026-08-17) : CHAQUE jambe présentée comme une carte normale (ligue centrée, heure
     # + décompte / score + horloge / score final au centre entre les logos), pour TOUS les états de la jambe.
+    # bare=True (user 2026-08-17) : COMBINÉ = Confiance + Cote seulement (pas Edge/Value, souvent négatifs sur
+    # un combiné « sécurité » -> ils contrediraient son identité de RÉUSSITE). Barre propre sans zone marché.
     return _MC_SEP.join(_leg_card(l, why=True, verdict=True, why_always=True, prob_calibrated=True,
-                                  live_layout=True) for l in _legs)
+                                  live_layout=True, bare=True) for l in _legs)
 
 
 def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "") -> str:
@@ -6300,7 +6303,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
     # séparations ? ») : sans elle, la barre 50 %/cote totale semblait appartenir à la DERNIÈRE jambe.
     _body = (f'<div class="mc-combo-legs">{_combo_tg_legs(cb)}</div>'
              '<div class="combo-total-hd"><span>Total du combiné</span></div>'
-             + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False)
+             + _verdict_block(_cote, _pconf, '', _cote_big, calibrated=False, bare=True)   # combiné : Confiance+Cote seuls
              + _live_bar_html(_combo_live_prob(cb)))   # chance live GLOBALE du combiné (user 2026-08-08)
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.

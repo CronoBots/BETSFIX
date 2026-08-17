@@ -885,7 +885,7 @@ def first_stats_day() -> str | None:
 def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False,
                  hide_neg_value: bool = False, pick_html: str = "",
                  live_pct=None, live_trend: str = "", live_state: str = "",
-                 result_html: str = "") -> str:
+                 result_html: str = "", bare: bool = False) -> str:
     """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE). Refonte 2026-07-18
     (demande user « réorganise tout : aligné, pleine largeur, que l'utile et l'intuitif ») :
       (1) en-tête CONFIANCE = qualificatif + % coloré (par niveau) ;
@@ -952,20 +952,24 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     _ecls = "vpos" if _edge >= 2 else "vmid" if _edge >= 0 else "vneg"
     cells = [f'<div class="vm-cell vm-conf"><span class="vm-l">Confiance</span>'
              f'<span class="vm-v" style="color:{col}">{cfi}%</span>'
-             f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>',
-             f'<div class="vm-cell"><span class="vm-l">Edge</span>'
-             f'<span class="vm-v {_ecls}">{"+" if _edge >= 0 else ""}{_edge} pts</span></div>']
-    # VALUE : la colonne est TOUJOURS présente (demande user 2026-07-24 : « ajouter la value partout même
-    # si négative ou nulle, mais une barre à la place de la masquée pour garder le même alignement ») — un
-    # nombre de cellules CONSTANT garantit que Confiance/Marché/Value[/Cote] restent alignés d'une carte à
-    # l'autre. On MONTRE la value réelle quand c'est un vrai edge (ep ≥ +1 %) ou sur une carte de SIMPLE
-    # (transparence totale, même à 0/négatif) ; sinon (combiné/provisoire/Betmines sans edge : « 💎 si EV+ »
-    # strict) on affiche une BARRE « — » au lieu de la masquer -> alignement identique, présente ou pas.
-    if ep >= 1 or (calibrated and not hide_neg_value):
-        _valh = f'<span class="vm-v {vcls}">{"+" if ep >= 0 else ""}{ep}%</span>'
-    else:
-        _valh = '<span class="vm-v vm-na">—</span>'
-    cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>{_valh}</div>')
+             f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>']
+    # MODE `bare` (user 2026-08-17) : COMBINÉ = Confiance + Cote SEULEMENT. Un combiné « sécurité » est
+    # structurellement à edge/value NÉGATIFS (DC sûres, cote ~2) -> afficher Edge/Value contredirait son
+    # identité (la RÉUSSITE, pas la value) et découragerait à tort. On retire donc ces 2 colonnes.
+    if not bare:
+        cells.append(f'<div class="vm-cell"><span class="vm-l">Edge</span>'
+                     f'<span class="vm-v {_ecls}">{"+" if _edge >= 0 else ""}{_edge} pts</span></div>')
+        # VALUE : la colonne est TOUJOURS présente (demande user 2026-07-24 : « ajouter la value partout même
+        # si négative ou nulle, mais une barre à la place de la masquée pour garder le même alignement ») — un
+        # nombre de cellules CONSTANT garantit que Confiance/Edge/Value[/Cote] restent alignés d'une carte à
+        # l'autre. On MONTRE la value réelle quand c'est un vrai edge (ep ≥ +1 %) ou sur une carte de SIMPLE
+        # (transparence totale, même à 0/négatif) ; sinon (provisoire/Betmines sans edge : « 💎 si EV+ »
+        # strict) on affiche une BARRE « — » au lieu de la masquer -> alignement identique, présente ou pas.
+        if ep >= 1 or (calibrated and not hide_neg_value):
+            _valh = f'<span class="vm-v {vcls}">{"+" if ep >= 0 else ""}{ep}%</span>'
+        else:
+            _valh = '<span class="vm-v vm-na">—</span>'
+        cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>{_valh}</div>')
     if with_cote:
         cells.append('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
                      f'<span class="vm-v">{cv:g}</span></div>')
@@ -1004,6 +1008,10 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
                 f'<div class="vb-bar"><i style="width:{lp}%;background:{lgrad};'
                 f'--hlo:rgba({_hrgb},.18);--hhi:rgba({_hrgb},.52)"></i>{_mk_us}{mark}</div>'
                 '</div>')
+    elif bare:
+        # COMBINÉ (user 2026-08-17) : barre PROPRE = juste NOTRE confiance/réussite, SANS repère marché ni
+        # zone edge (cohérent avec le retrait des colonnes Edge/Value — le marché n'est pas le sujet ici).
+        _bar = f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i></div>'
     else:
         # BARRE = ZONE EDGE (user 2026-08-17) : le remplissage va jusqu'à NOTRE confiance ; la portion qui
         # DÉPASSE le marché (= notre edge) est en SURBRILLANCE (edge+), ou le manque jusqu'au marché est
