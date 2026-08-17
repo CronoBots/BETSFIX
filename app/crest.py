@@ -126,8 +126,14 @@ def team_id(name: str):
                      key=len, reverse=True):
         if _norm(_w) not in {_norm(t) for t in _terms}:
             _terms.append(_w)
+    # PRÉFIXE de club générique (AFC/FC/AC/SC/CF/CD/CS/US/AS/SV/FK/CA/RC/SK…) : FotMob indexe souvent le club
+    # SANS ce préfixe (« AFC UTA Arad » -> « UTA Arad ») et les mots restants sont trop courts pour être des
+    # termes distinctifs (≥5). On ajoute donc la variante SANS le préfixe comme essai de recherche.
+    _pref = _re.match(r"^\s*(?:afc|fc|ac|sc|cf|cd|cs|us|as|sv|fk|ca|rc|sk|nk|hnk)\s+(.+)$", sname or name, _re.I)
+    if _pref and _norm(_pref.group(1)) not in {_norm(t) for t in _terms}:
+        _terms.append(_pref.group(1))
     try:
-        for _term in _terms[:3]:
+        for _term in _terms[:4]:
             tid = _match(_fetch(_term), key, skey, sname or name)
             if tid:
                 break

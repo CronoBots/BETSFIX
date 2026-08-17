@@ -2287,8 +2287,8 @@ CSS = """
   .zone:first-child{margin-top:10px}
   /* PAS de séparateur SOUS le titre de zone (user 2026-08-16) — il est reporté à la FIN de chaque zone (.zone). */
   .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px}
-  .zone{padding-bottom:18px;border-bottom:1px solid var(--border)}   /* séparateur à la FIN de chaque type de pari */
-  .dash-zones > .zone:last-child{border-bottom:none;padding-bottom:0}   /* pas de trait après la dernière zone */
+  .zone{padding-bottom:18px;border-bottom:1px solid var(--border)}   /* séparateur SOUS CHAQUE catégorie (user 2026-08-17) */
+  .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone : garde le trait (sépare du pied de page) */
   /* Bouton notifications push (user 2026-08-16) — MASQUÉ par défaut ; le JS ne l'affiche qu'en PWA
      (mode standalone) et tant que la permission n'est pas accordée. */
   .bfx-pushrow{display:none;justify-content:center;margin:2px 0 14px}
@@ -2305,9 +2305,8 @@ CSS = """
   /* Badge compteur + chevron POUSSÉS À DROITE (user 2026-08-17 : « badge aligné à droite près de la flèche »). */
   .zone-right{margin-left:auto;display:inline-flex;align-items:center;gap:8px;flex:none}
   /* Compteur simple d'une zone SANS win/loss (Programme / Abstention) — même pastille que Confiance/Value. */
+  /* Compteur GRIS neutre par défaut (Programme ET Abstention, user 2026-08-17 : « numéro dans badge gris »). */
   .zone-rec .zrn{color:#c9d4e0;background:rgba(255,255,255,.10);padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}
-  .zone-prog .zone-rec .zrn{color:#1a1400;background:#e8b93a}                 /* Programme = jaune (à analyser) */
-  .zone-abst .zone-rec .zrn{color:#9fb6cf;background:rgba(159,182,207,.16)}   /* Abstention = gris-bleu neutre */
   /* Carte de match SANS pari (Programme « à analyser » / Abstention) : ligne de statut centrée à la place du pari. */
   .mc-statcard .mc-sub{padding-right:0}
   .mc-stat{text-align:center;font-size:12.5px;font-weight:800;letter-spacing:.02em}
