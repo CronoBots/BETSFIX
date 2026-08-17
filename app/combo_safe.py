@@ -26,11 +26,13 @@ from app import combo_daily as _cd
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRACK_PATH = os.path.join(_ROOT, "data", "combo_safe_track.json")
 
-TARGET_ODDS = 1.90       # cote CIBLE « environ 2 » : on assemble les DC les plus sûres jusqu'à l'atteindre.
-#                          Aligné sur 1.90 (le plancher combo_daily) le 2026-08-06 : la cible 2.0 stricte
-#                          bloquait un combiné DC parfaitement valable à 1.94 (3 jambes sûres, 85/90/74%),
-#                          alors qu'aucun jour-limite n'a de vivier pile à 2.0. 1.90 = plus de combinés
-#                          présents les jours minces, même profil de sécurité (jambes DC les plus sûres).
+TARGET_ODDS = 1.95       # cote CIBLE (user 2026-08-17 : « un combiné à 1,95 tous les jours »). `pick_combo`
+#                          assemble les DC les PLUS SÛRES atteignant cette cote = combiné le plus probable
+#                          possible À cette cote. ⚠️ Plafond MATHÉMATIQUE de réussite à 1,95 = ~1/1,95 ≈ 51 %
+#                          (un peu moins avec la marge) : la cote EST la probabilité implicite, aucune
+#                          construction ne fait mieux sans jambes en value réelle (les DC sûres sont en edge
+#                          légèrement négatif). Pour VRAIMENT monter la réussite il faudrait BAISSER la cote
+#                          (choix user : garder 1,95, ~50 % assumé). Historique : 1.90 (2026-08-06) -> 1.95.
 MAX_LEGS = 7             # borne haute (des DC très sûres à ~1.1 peuvent demander pas mal de jambes)
 MIN_LEGS = 2            # un « combiné » = au moins 2 jambes
 MIN_LEG_PROB = 0.55      # jambe DC fiable (les DC les plus sûres sont bien au-dessus ; garde-fou bas)
