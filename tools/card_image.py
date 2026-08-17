@@ -169,8 +169,8 @@ def _selh(e, market: str, pick: str) -> str:
 
 _CSS_SIMPLE = """
 .scard{padding:44px 48px 48px}
-.shero{text-align:center;margin:-8px 0 16px}
-.swm{height:62px;width:auto;margin:0 auto;display:block;filter:drop-shadow(0 5px 18px rgba(34,184,255,.38))}
+.shero{text-align:center;margin:2px 0 20px}
+.swm{height:100px;width:auto;max-width:88%;margin:0 auto;display:block;filter:drop-shadow(0 6px 22px rgba(34,184,255,.42))}
 .strow{text-align:center;margin-bottom:28px}
 .stype{display:inline-block;font-size:23px;font-weight:900;letter-spacing:.09em;padding:9px 24px;border-radius:14px}
 .st-confiance{color:#08210f;background:#34d27b}
@@ -187,7 +187,7 @@ span.tlogo.mono{border-radius:50%;display:grid;place-items:center;font-size:35px
 img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 .spk{text-align:center;font-size:35px;font-weight:900;color:#eef4fb;margin-bottom:0;line-height:1.18}
 .sgl{text-align:center;font-size:24px;font-weight:600;color:#8fa2b8;line-height:1.32;margin-top:10px}
-.vbar{position:relative;height:16px;border-radius:99px;overflow:hidden;margin:30px 0 4px;
+.vbar{position:relative;height:16px;border-radius:99px;overflow:hidden;margin:22px 0 2px;
   background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
 .vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
 .ve{position:absolute;top:0;bottom:0}
@@ -280,8 +280,8 @@ def _simple_card_html(d: dict) -> str:
         f'</div>'
         f'<div class="spk">{e(d.get("pick", ""))}</div>'
         + (f'<div class="sgl">{e(d.get("gloss"))}</div>' if d.get("gloss") else "")
-        + f'{_bar}'
-        f'<div class="vgrid">{"".join(cells)}</div>'
+        + f'<div class="vgrid">{"".join(cells)}</div>'   # GRILLE d'abord
+        + f'{_bar}'                                       # BARRE SOUS les stats (comme le site, user 2026-08-17)
         + (f'<div class="swhy">{e(d.get("why"))}</div>' if d.get("why") else ""))
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard">{inner}</div></body></html>')
