@@ -7220,14 +7220,14 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out.append(_zone("play", _plur(len(play_conf) + len(_res_conf), "Confiance"), "",
                      len(play_conf) + len(_res_conf), _conf_html,
                      collapsible=True, record=_conf_rec if _conf_rec[0] else None,
-                     empty="Aucun pari de confiance aujourd'hui."))
+                     empty="Aucun pari de confiance pour le moment."))
     # ZONE VALUE — toujours affichée (user 2026-08-17).
     _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value)) if h])
     _value_rec = _tier_rec(play_value, "value")
     out.append(_zone("value", _plur(len(play_value) + len(_res_value), "Value"), "",
                      len(play_value) + len(_res_value), _value_html,
                      collapsible=True, record=_value_rec if _value_rec[0] else None,
-                     empty="Aucun pari de value aujourd'hui."))
+                     empty="Aucun pari de value pour le moment."))
     # ZONE MONTANTE (dédiée, user 2026-08-12) : à venir/live (play_mont) + réglée (_mont_settled). Plus jamais
     # fondue dans Confiance/Value. La carte garde son cadre bleu + titre « MONTANTE • PALIER N ».
     _mont_html = _MC_SEP.join([h for h in (_rows_by_day(play_mont), _mont_settled) if h])
