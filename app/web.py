@@ -2292,7 +2292,9 @@ CSS = """
      de l'AIR AU-DESSUS du titre suivant (margin-top) -> le séparateur n'est plus collé au titre d'après. */
   .zone-col:not([open]){padding-bottom:9px}
   .zone-col:not([open]) > .zone-h{margin-top:17px;margin-bottom:0}
-  .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone : garde le trait (sépare du pied de page) */
+  .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone OUVERTE : pas d'espace mort avant le pied */
+  /* Dernière zone REPLIÉE (ex. Abstention) : garder l'écart trait↔titre (9 px), sinon le trait colle au titre. */
+  .dash-zones > .zone-col:not([open]):last-child{padding-bottom:9px}
   /* Bouton notifications push (user 2026-08-16) — MASQUÉ par défaut ; le JS ne l'affiche qu'en PWA
      (mode standalone) et tant que la permission n'est pas accordée. */
   .bfx-pushrow{display:none;justify-content:center;margin:2px 0 14px}
@@ -2313,6 +2315,9 @@ CSS = """
   .zone-rec .zrn{color:#c9d4e0;background:rgba(255,255,255,.10);padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}
   /* Carte de match SANS pari (Programme « à analyser » / Abstention) : ligne de statut centrée à la place du pari. */
   .mc-statcard .mc-sub{padding-right:0}
+  /* CADRE des cartes sans pari (user 2026-08-17) : Programme = BLEU, Abstention = GRIS (au lieu du doré par défaut). */
+  .mc-statcard.mc-st-wait{border-color:#22b8ff}
+  .mc-statcard.mc-st-abst{border-color:#9fb6cf}
   .mc-stat{text-align:center;font-size:12.5px;font-weight:800;letter-spacing:.02em}
   .mc-stat-wait{color:var(--gold)}
   .mc-stat-abst{color:#9fb6cf}
