@@ -168,10 +168,11 @@ def _selh(e, market: str, pick: str) -> str:
 
 
 _CSS_SIMPLE = """
-.scard{padding:40px 48px 46px}
-.shead{display:flex;align-items:center;justify-content:space-between;margin:-6px 0 26px}
-.swm{height:42px;width:auto;display:block;filter:drop-shadow(0 4px 14px rgba(34,184,255,.35))}
-.stype{font-size:23px;font-weight:900;letter-spacing:.09em;padding:9px 22px;border-radius:14px}
+.scard{padding:44px 48px 48px}
+.shero{text-align:center;margin:-8px 0 16px}
+.swm{height:62px;width:auto;margin:0 auto;display:block;filter:drop-shadow(0 5px 18px rgba(34,184,255,.38))}
+.strow{text-align:center;margin-bottom:28px}
+.stype{display:inline-block;font-size:23px;font-weight:900;letter-spacing:.09em;padding:9px 24px;border-radius:14px}
 .st-confiance{color:#08210f;background:#34d27b}
 .st-value{color:#04121f;background:#22b8ff}
 .slg{text-align:center;font-size:25px;font-weight:800;color:#eef4fb;letter-spacing:.05em;margin-bottom:30px;line-height:1.2}
@@ -184,10 +185,8 @@ _CSS_SIMPLE = """
 span.tlogo.mono{border-radius:50%;display:grid;place-items:center;font-size:35px;font-weight:900;color:#fff;
   box-shadow:0 5px 15px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.12)}
 img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
-.spk{text-align:center;font-size:35px;font-weight:900;color:#eef4fb;margin-bottom:6px;line-height:1.18}
-.spk .legsel{align-items:center}
-.spk .mkt{font-size:26px !important;font-weight:700;color:#a7bcd6}
-.spk .pk{font-size:35px !important;font-weight:900;color:#eef4fb}
+.spk{text-align:center;font-size:35px;font-weight:900;color:#eef4fb;margin-bottom:0;line-height:1.18}
+.sgl{text-align:center;font-size:24px;font-weight:600;color:#8fa2b8;line-height:1.32;margin-top:10px}
 .vbar{position:relative;height:16px;border-radius:99px;overflow:hidden;margin:30px 0 4px;
   background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
 .vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
@@ -205,8 +204,15 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 .vpos{color:#34d27b}
 .vmid{color:#f6c54a}
 .vneg{color:#ff6b6b}
-.swhy{font-size:24px;font-weight:500;color:#a7bcd6;line-height:1.42;margin-top:30px;
-  padding-left:20px;border-left:4px solid rgba(63,184,255,.42)}
+.swhy{font-size:24px;font-weight:500;color:#a7bcd6;line-height:1.42;margin-top:30px}   /* pas de barre verticale (user 2026-08-17) */
+/* Carte RÉSULTAT façon site : badge Gagné/Perdu + SCORE au centre + « Terminé ». */
+.rbadge{display:inline-block;font-size:24px;font-weight:900;letter-spacing:.09em;padding:11px 30px;border-radius:15px}
+.rb-w{color:#08210f;background:#34d27b}
+.rb-l{color:#2a0a0c;background:#ff6b6b}
+.rb-n{color:#0b1220;background:#9fb6cf}
+.rsc{display:flex;flex-direction:column;align-items:center;gap:3px}
+.rsc b{font-size:58px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.rfin{font-size:20px;font-weight:800;color:#90a4be;text-transform:uppercase;letter-spacing:.06em}
 """
 
 
@@ -264,25 +270,62 @@ def _simple_card_html(d: dict) -> str:
         _bar = ""
     inner = (
         f'<div class="glow"></div>'
-        f'<div class="shead">' + (f'<img class="swm" src="{_wm}">' if _wm else '<span></span>')
-        + f'<span class="stype st-{_tier}">{_tlabel}</span></div>'
+        f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
+        f'<div class="strow"><span class="stype st-{_tier}">{_tlabel}</span></div>'
         f'<div class="slg">{e(_lg)}</div>'
         f'<div class="stms">'
         f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
         f'<div class="stc">{e(_hh)}</div>'
         f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
         f'</div>'
-        f'<div class="spk">{_selh(e, d.get("market", ""), d.get("pick", ""))}</div>'
-        f'{_bar}'
+        f'<div class="spk">{e(d.get("pick", ""))}</div>'
+        + (f'<div class="sgl">{e(d.get("gloss"))}</div>' if d.get("gloss") else "")
+        + f'{_bar}'
         f'<div class="vgrid">{"".join(cells)}</div>'
         + (f'<div class="swhy">{e(d.get("why"))}</div>' if d.get("why") else ""))
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard">{inner}</div></body></html>')
 
 
+def _result_simple_card_html(d: dict) -> str:
+    """Carte RÉSULTAT d'un pari SIMPLE façon SITE (user 2026-08-17) : logo BETSFIX + badge Gagné/Perdu,
+    ligue+pays, logos + SCORE au centre + « Terminé », le pari + sa glose."""
+    def e(x):
+        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
+    _wm = _banner_uri(d.get("emoji", ""))
+    sp = d.get("simple") or {}
+    mark = sp.get("mark") or ""
+    _rlabel, _rcls = {"won": ("GAGNÉ", "rb-w"), "lost": ("PERDU", "rb-l"),
+                      "push": ("REMBOURSÉ", "rb-n"), "void": ("REMBOURSÉ", "rb-n")}.get(mark, ("", "rb-n"))
+    home, away = str(d.get("home") or ""), str(d.get("away") or "")
+    _cat = str(d.get("cat", ""))
+    _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
+    _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
+    _score = str(d.get("score") or "").strip()
+    _center = (f'<span class="rsc"><b>{e(_score)}</b><span class="rfin">Terminé</span></span>'
+               if _score else '<span class="rfin">Terminé</span>')
+    _gl = f'<div class="sgl">{e(sp.get("gloss"))}</div>' if sp.get("gloss") else ""
+    _ccls = "won" if mark == "won" else ("lost" if mark == "lost" else "push" if mark in ("push", "void") else "")
+    inner = (
+        f'<div class="glow"></div>'
+        f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
+        + (f'<div class="strow"><span class="rbadge {_rcls}">{_rlabel}</span></div>' if _rlabel else "")
+        + f'<div class="slg">{e(_lg)}</div>'
+        f'<div class="stms">'
+        f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
+        f'<div class="stc">{_center}</div>'
+        f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
+        f'</div>'
+        f'<div class="spk">{e(sp.get("label", ""))}</div>{_gl}')
+    return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
+            f'<body><div class="card scard {_ccls}">{inner}</div></body></html>')
+
+
 def _card_html(d: dict) -> str:
     if d.get("type") == "simple":                       # PARI SIMPLE : design SITE dédié (user 2026-08-17)
         return _simple_card_html(d)
+    if d.get("type") == "result" and d.get("simple") and not d.get("combo"):   # RÉSULTAT simple : design site
+        return _result_simple_card_html(d)
     # Échappe + retire le suffixe « (F) » des équipes féminines (WNBA) — affichage seulement.
     def e(x):
         return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))

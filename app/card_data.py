@@ -149,20 +149,27 @@ def build_prono_card(d: dict) -> dict | None:
         except (TypeError, ValueError):
             pass
         # Enrichissements « design du site » (user 2026-08-17) : pays de la ligue, TYPE de pari (Confiance/
-        # Value), LOGOS des 2 équipes. Imports locaux (évitent un cycle au chargement).
+        # Value), LOGOS des 2 équipes, PARI lisible + GLOSE « en clair » (comme le site). Imports locaux.
         from app import match_select as _ms, crest as _cr
+        _sel = str(rb.get("sel", ""))
+        _pretty = analyses.pretty_sel(_sel, home, away)
+        try:
+            from app import web as _web
+            _gloss = _web._bet_gloss(_sel, sport, home, away)
+        except Exception:
+            _gloss = ""
         _comp = str(d.get("comp") or "")
         try:
             _tier = analyses.bet_tier_for(sport, str(d.get("id")))
         except Exception:
             _tier = "confiance"
-        card.update(type="simple", market=mkt, pick=pk,
+        card.update(type="simple", market="", pick=_pretty, gloss=_gloss,
                     cote=(f"{_cote:g}" if _cote else ""), conf=_conf,
                     edge=_edge, value=_val, tier=_tier,
                     home=home, away=away, country=_ms.comp_country(_comp), comp=_comp,
                     home_logo=(_cr.logo_url(_cr.team_id(home)) or ""),
                     away_logo=(_cr.logo_url(_cr.team_id(away)) or ""),
-                    why=_pick_why(d, str(rb.get("sel", ""))))
+                    why=_pick_why(d, _sel))
     elif pick_shown:
         m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", pick)
         card.update(type="simple", pick=(m.group(1).strip() if m else pick),
@@ -189,11 +196,22 @@ def build_result_card(d: dict) -> dict | None:
     simple_shown = (not has_combo) and analyses.retained_bet(sport, str(d.get("id"))) is not None
 
     card_simple = card_combo = None
+    _home, _away = str(d.get("home", "")), str(d.get("away", ""))
     if pick_result and simple_shown:
-        raw = (d.get("pick") or "").strip()
-        m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", raw)
-        card_simple = {"label": (m.group(1).strip() if m else raw) or "Pari simple",
-                       "cote": (m.group(2).replace(",", ".") if m else ""), "mark": pick_result}
+        rb = analyses.retained_bet(sport, str(d.get("id"))) or {}
+        _sel = str(rb.get("sel") or d.get("pick") or "")
+        _pretty = analyses.pretty_sel(_sel, _home, _away)
+        try:
+            from app import web as _web
+            _gloss = _web._bet_gloss(_sel, sport, _home, _away)
+        except Exception:
+            _gloss = ""
+        try:
+            _tier = analyses.bet_tier_for(sport, str(d.get("id")))
+        except Exception:
+            _tier = "confiance"
+        card_simple = {"label": _pretty or "Pari simple", "gloss": _gloss, "tier": _tier,
+                       "cote": (f"{rb['cote']:g}" if rb.get("cote") else ""), "mark": pick_result}
     if combo_result:
         cco = combo.get("real_odds") or combo.get("total")
         card_combo = {"cote": (f"{cco:.2f}" if isinstance(cco, float) else str(cco or "")),
@@ -204,7 +222,13 @@ def build_result_card(d: dict) -> dict | None:
         return None
     dt = _dt(d)
     meta = f"terminé · {fr_date(dt)} · {dt.strftime('%H:%M')}" if dt else "terminé"
+    # Enrichissements « design du site » pour la carte RÉSULTAT SIMPLE (user 2026-08-17) : pays + logos.
+    from app import match_select as _ms, crest as _cr
+    _comp = str(d.get("comp") or "")
     return {"emoji": SPORT_EMOJI.get(sport, "•"), "_mid": str(d.get("id")), "cat": _cat(d),
             "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta,
             "type": "result", "score": res.get("score") or "",
+            "home": _home, "away": _away, "country": _ms.comp_country(_comp),
+            "home_logo": (_cr.logo_url(_cr.team_id(_home)) or "") if card_simple else "",
+            "away_logo": (_cr.logo_url(_cr.team_id(_away)) or "") if card_simple else "",
             "simple": card_simple, "combo": card_combo}
