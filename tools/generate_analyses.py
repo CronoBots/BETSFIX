@@ -944,13 +944,16 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                     for _lg in _fcombo.get("legs") or []:
                         _lm = {"id": _lg.get("mid"), "name": _lg.get("name"), "home": _lg.get("home"),
                                "away": _lg.get("away"), "comp": _lg.get("comp"), "start": _lg.get("start")}
+                        # FAITS FOOTBALL (forme/H2H/xG/absents via ESPN/FotMob/Understat) — PAS le dossier complet
+                        # (cotes+sharp), sinon le « pourquoi » sort en langage sharp/proba que le filtre d'affichage
+                        # (_strip_meta_stat) massacre (user 2026-08-17 : « je ne vois pas ces analyses »). Ici =
+                        # même matière factuelle que les paris simples -> pourquoi FOOTBALL qui s'affiche en entier.
                         try:
-                            _bd = await build_dossier(client, _lm, "foot")   # renvoie (dossier_texte, meta)
+                            _facts = await sources.extras(client, "foot", _lm)
                         except Exception:
-                            _bd = None
-                        _dos = _bd[0] if isinstance(_bd, tuple) else _bd      # le TEXTE du dossier = les faits
-                        if _dos:
-                            _fbm[str(_lg.get("mid"))] = _dos
+                            _facts = ""
+                        if _facts and _facts.strip():
+                            _fbm[str(_lg.get("mid"))] = _facts
                     if _fbm:
                         _analyze_combo_legs(_fcombo, facts_by_mid=_fbm)   # pourquoi factuel + synthèse, MAINTENANT
                         print(f"  🎯 Combiné du jour : jambes analysées à la construction "
@@ -2468,8 +2471,8 @@ def _analyze_combo_legs(combo: dict, facts_by_mid: dict | None = None) -> None:
     blocs = []
     for i, l in enumerate(legs, 1):
         _fpre = (facts_by_mid or {}).get(str(l.get("mid")))
-        if _fpre:                                      # faits du matin (dossier build_dossier) -> pourquoi immédiat
-            faits = str(_fpre)[:4000]                   # dossier RICHE (cotes + séries/H2H/xG) -> large fenêtre
+        if _fpre:                                      # faits FOOTBALL du matin (sources.extras) -> pourquoi immédiat
+            faits = str(_fpre)[:4000]                   # forme/H2H/xG/absents (PAS de cotes/sharp) -> large fenêtre
         else:                                          # repli : « Les faits » du sidecar (analyse par vague)
             md = _an.load(l.get("sport"), l.get("mid")) or ""
             try:
@@ -2500,13 +2503,15 @@ def _analyze_combo_legs(combo: dict, facts_by_mid: dict | None = None) -> None:
         "hors ROI) de BETSFIX. Pour CHAQUE jambe ci-dessous, écris une JUSTIFICATION propre à CE pari "
         "précis, en 3 phrases COMPLÈTES et AUTONOMES (français impeccable, ton de pro, aucune généralité "
         "ni remplissage). EXIGENCES STRICTES :\n"
-        "  1) Cite AU MOINS DEUX faits CHIFFRÉS concrets tirés des faits fournis (forme récente, H2H, "
-        "buts/points de moyenne, absents clés, xG, série en cours, cote vs proba estimée).\n"
+        "  1) Cite AU MOINS DEUX faits CHIFFRÉS concrets tirés des faits fournis (forme récente avec scores, "
+        "H2H, buts marqués/encaissés, absents clés, xG, série en cours).\n"
         "  2) Nomme explicitement L'ANGLE qui rend ce pari solide (l'avantage principal), pas un survol.\n"
         "  3) Termine par une courte réserve honnête (« bémol : … ») = le principal risque de la jambe, "
         "en une clause — un pro reconnaît le risque sans survendre.\n"
-        "  N'invente AUCUN chiffre : si un fait manque, appuie-toi sur ce qui est fourni. Pas de méta "
-        "(ni « value », ni « proba », ni « seuil » comme sujet) : parle du MATCH.\n"
+        "  N'invente AUCUN chiffre : si un fait manque, appuie-toi sur ce qui est fourni. Parle UNIQUEMENT du "
+        "MATCH (résultats, buts, H2H, absents, forme, dynamique). ⛔ INTERDIT ABSOLU d'employer les mots "
+        "« sharp », « consensus », « proba », « probabilité », « cote », « handicap », « le marché », "
+        "« value » ou un pourcentage de victoire : ce sont des méta-paris, pas une analyse de match.\n"
         + _synth_instr +
         "Réponds AU FORMAT EXACT, une entrée par ligne, RIEN d'autre :\n"
         "LEG1: <justification jambe 1>\nLEG2: <justification jambe 2>\n(… une ligne LEGn par jambe)\n"
