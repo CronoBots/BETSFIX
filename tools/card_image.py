@@ -195,8 +195,8 @@ span.tlogo.mono{border-radius:50%;display:grid;place-items:center;font-size:35px
 img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 /* Pari + glose aux PROPORTIONS du site (user 2026-08-17) : le pari (28px) est PLUS PETIT que les équipes
    (.stn 31px), la glose (23px) encore un cran en dessous — comme .mc-pick(13)/.mc-gloss(12.5) vs .mc-teams(15). */
-.spk{text-align:center;font-size:28px;font-weight:800;color:#eef4fb;margin-bottom:0;line-height:1.22}
-.sgl{text-align:center;font-size:23px;font-weight:600;color:#8fa2b8;line-height:1.34;margin-top:9px}
+.spk{text-align:center;font-size:32px;font-weight:800;color:#eef4fb;margin-bottom:0;line-height:1.2}
+.sgl{text-align:center;font-size:25px;font-weight:600;color:#8fa2b8;line-height:1.32;margin-top:9px}
 .vbar{position:relative;height:16px;border-radius:99px;overflow:hidden;margin:22px 0 2px;
   background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
 .vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
@@ -214,7 +214,12 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 .vpos{color:#34d27b}
 .vmid{color:#f6c54a}
 .vneg{color:#ff6b6b}
-.swhy{font-size:24px;font-weight:500;color:#a7bcd6;line-height:1.42;margin-top:30px}   /* pas de barre verticale (user 2026-08-17) */
+/* ANALYSE en PUCES comme le site (« Pourquoi ce choix », user 2026-08-17) : une phrase = une puce à point
+   gris, texte léger. Pas de barre verticale. */
+.swhy{font-size:23px;font-weight:500;color:#a7bcd6;line-height:1.44;margin-top:34px;padding:0;list-style:none}
+.swhy li{position:relative;padding-left:36px;margin-bottom:18px}
+.swhy li:last-child{margin-bottom:0}
+.swhy li:before{content:"";position:absolute;left:9px;top:13px;width:11px;height:11px;border-radius:50%;background:#5f7a97}
 /* Carte RÉSULTAT façon site : signature Gagné/Perdu sous le logo + SCORE au centre + « Terminé ». */
 .rsc{display:flex;flex-direction:column;align-items:center;gap:3px}
 .rsc b{font-size:58px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
@@ -274,6 +279,19 @@ def _simple_card_html(d: dict) -> str:
         _bar = f'<div class="vbar"><i style="width:{min(cf, 100)}%;background:{_col}"></i>{_ov}{_mk}</div>'
     except (TypeError, ValueError):
         _bar = ""
+    # ANALYSE en PUCES (comme le pli « Pourquoi ce choix » du site) : découpe en phrases, regroupe les
+    # fragments trop courts (< 25 car), une puce par phrase (user 2026-08-17 : l'analyse était tronquée).
+    _why_txt = str(d.get("why") or "").strip()
+    _why_html = ""
+    if _why_txt:
+        _raw = [s.strip() for s in re.split(r"(?<=[.!?…])\s+", _why_txt) if s.strip()]
+        _pts: list = []
+        for _s in _raw:
+            if _pts and len(_pts[-1]) < 25:
+                _pts[-1] = f"{_pts[-1]} {_s}"
+            else:
+                _pts.append(_s)
+        _why_html = '<ul class="swhy">' + "".join(f"<li>{e(p)}</li>" for p in _pts) + "</ul>"
     inner = (
         f'<div class="glow"></div>'
         f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
@@ -290,7 +308,7 @@ def _simple_card_html(d: dict) -> str:
         + f'<div class="vgrid">{"".join(cells)}</div>'   # GRILLE d'abord
         + f'{_bar}'                                       # BARRE SOUS les stats (comme le site, user 2026-08-17)
         + '</div>'
-        + (f'<div class="swhy">{e(d.get("why"))}</div>' if d.get("why") else ""))
+        + _why_html)                                      # ANALYSE COMPLÈTE en puces, sous le cadre
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard">{inner}</div></body></html>')
 

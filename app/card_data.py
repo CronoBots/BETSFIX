@@ -163,13 +163,24 @@ def build_prono_card(d: dict) -> dict | None:
             _tier = analyses.bet_tier_for(sport, str(d.get("id")))
         except Exception:
             _tier = "confiance"
+        # « POURQUOI » = analyse COMPLÈTE (toutes les puces), IDENTIQUE au pli « Pourquoi ce choix » du site
+        # (user 2026-08-17 : l'analyse Telegram était tronquée à 1 phrase). Même source que le site :
+        # _prov_why_snippet(played=True) -> section 🎯/🧪/📋 nettoyée, sans coupe (maxlen géant). Repli sur
+        # l'ancienne note assignée si vide.
+        try:
+            from app import web as _web2
+            _why = _web2._prov_why_snippet(sport, str(d.get("id")), maxlen=100000, played=True)
+        except Exception:
+            _why = ""
+        if not _why:
+            _why = _pick_why(d, _sel)
         card.update(type="simple", market="", pick=_pretty, gloss=_gloss,
                     cote=(f"{_cote:g}" if _cote else ""), conf=_conf,
                     edge=_edge, value=_val, tier=_tier,
                     home=home, away=away, country=_ms.comp_country(_comp), comp=_comp,
                     home_logo=(_cr.logo_url(_cr.team_id(home)) or ""),
                     away_logo=(_cr.logo_url(_cr.team_id(away)) or ""),
-                    why=_pick_why(d, _sel))
+                    why=_why)
     elif pick_shown:
         m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", pick)
         card.update(type="simple", pick=(m.group(1).strip() if m else pick),
