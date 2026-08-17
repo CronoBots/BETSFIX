@@ -173,15 +173,18 @@ _CSS_SIMPLE = """
 .swm{height:100px;width:auto;max-width:82%;margin:0 auto;display:block;filter:drop-shadow(0 6px 22px rgba(34,184,255,.42))}
 /* TYPE de pari écrit SOUS le logo comme une signature (user 2026-08-17 : plus en badge) — tagline centrée,
    colorée par type, grand interlettrage pour l'effet « fait partie du logo ». */
-.stag{text-align:center;font-size:32px;font-weight:900;letter-spacing:.30em;text-transform:uppercase;
-  margin:6px 0 28px;padding-left:.30em}
+.stag{text-align:center;font-size:39px;font-weight:900;letter-spacing:.28em;text-transform:uppercase;
+  margin:-2px 0 26px;padding-left:.28em}
 .stag.st-confiance{color:#34d27b}
 .stag.st-value{color:#22b8ff}
 .stag.rb-w{color:#34d27b}
 .stag.rb-l{color:#ff6b6b}
 .stag.rb-n{color:#9fb6cf}
 .slg{text-align:center;font-size:25px;font-weight:800;color:#eef4fb;letter-spacing:.05em;margin-bottom:30px;line-height:1.2}
-.stms{display:flex;align-items:center;justify-content:center;gap:30px;margin-bottom:52px}   /* plus d'air entre les équipes et le pari (user 2026-08-17) */
+.stms{display:flex;align-items:center;justify-content:center;gap:30px;margin-bottom:34px}   /* espace équipes -> cadre pari (user 2026-08-17) */
+/* CADRE « partie Paris » comme sur le site (.vm) : fond teinté, bordure, coins arrondis (user 2026-08-17). */
+.sbet{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.14);border-radius:22px;
+  padding:30px 32px 32px;box-shadow:0 3px 18px -8px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
 .stm{flex:1;display:flex;flex-direction:column;align-items:center;gap:15px;min-width:0}
 .stn{font-size:31px;font-weight:900;color:#eef4fb;text-align:center;line-height:1.14;letter-spacing:-.01em}
 .stc{flex:0 0 auto;font-size:44px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
@@ -279,10 +282,12 @@ def _simple_card_html(d: dict) -> str:
         f'<div class="stc">{e(_hh)}</div>'
         f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
         f'</div>'
+        f'<div class="sbet">'                             # CADRE « partie Paris » (comme le site, user 2026-08-17)
         f'<div class="spk">{e(d.get("pick", ""))}</div>'
         + (f'<div class="sgl">{e(d.get("gloss"))}</div>' if d.get("gloss") else "")
         + f'<div class="vgrid">{"".join(cells)}</div>'   # GRILLE d'abord
         + f'{_bar}'                                       # BARRE SOUS les stats (comme le site, user 2026-08-17)
+        + '</div>'
         + (f'<div class="swhy">{e(d.get("why"))}</div>' if d.get("why") else ""))
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard">{inner}</div></body></html>')

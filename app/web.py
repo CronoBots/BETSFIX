@@ -2024,7 +2024,7 @@ CSS = """
      2026-07-25). Par défaut (à venir / en attente) = doré ; gagné = vert ; perdu = rouge ; live = doré ;
      remboursé/annulé = gris. L'état est posé via la classe `mc-r-*` (helper `_card_state_cls`). */
   .row.mc.mc-tg{background:#0b1826;
-       border:1px solid var(--st-soon);border-left:3px solid var(--st-soon);
+       border:1px solid var(--st-soon);   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
        box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(255,255,255,.18),0 12px 32px rgba(0,0,0,.5)}
   .row.mc.mc-tg.mc-r-won{border-color:var(--st-won)}
   .row.mc.mc-tg.mc-r-lost{border-color:var(--st-lost)}
@@ -2140,7 +2140,7 @@ CSS = """
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
   .cleg{background:#0d1119;border:1px solid var(--st-soon);   /* fond UNI (user 2026-08-16) : stable au dépli */
-       border-left:3px solid var(--st-soon);border-radius:12px;padding:11px 12px 10px}
+       border-radius:12px;padding:11px 12px 10px}   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
   .cleg.live{border-color:var(--st-live)}
   /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
      défaut) ; GAGNÉ/acquise = VERT ; PERDU = ROUGE ; ANNULÉ/remboursé (void/push) = GRIS. Le live ne doit
