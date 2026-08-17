@@ -2302,6 +2302,18 @@ CSS = """
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
   .zone-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
+  /* Badge compteur + chevron POUSSÉS À DROITE (user 2026-08-17 : « badge aligné à droite près de la flèche »). */
+  .zone-right{margin-left:auto;display:inline-flex;align-items:center;gap:8px;flex:none}
+  /* Compteur simple d'une zone SANS win/loss (Programme / Abstention) — même pastille que Confiance/Value. */
+  .zone-rec .zrn{color:#c9d4e0;background:rgba(255,255,255,.10);padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}
+  .zone-prog .zone-rec .zrn{color:#1a1400;background:#e8b93a}                 /* Programme = jaune (à analyser) */
+  .zone-abst .zone-rec .zrn{color:#9fb6cf;background:rgba(159,182,207,.16)}   /* Abstention = gris-bleu neutre */
+  /* Carte de match SANS pari (Programme « à analyser » / Abstention) : ligne de statut centrée à la place du pari. */
+  .mc-statcard .mc-sub{padding-right:0}
+  .mc-stat{text-align:center;font-size:12.5px;font-weight:800;letter-spacing:.02em}
+  .mc-stat-wait{color:var(--gold)}
+  .mc-stat-abst{color:#9fb6cf}
+  .mc-stat-sub{display:block;margin-top:3px;font-size:10.5px;font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0}
   .zone-live{margin-left:auto}   /* badge « 🟢 Live » poussé à droite dans l'en-tête de zone (user 2026-08-15) */
   /* RECORD du jour par type — pastilles compactes collées au titre. TOUS les états en BADGE COLORÉ plein
      (user 2026-08-08 : « victoires et défaites dans le même style que les matchs en attente ») : à venir =
@@ -6559,6 +6571,10 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
             chips += f'<span class="zr zrw">{_w}</span>'
         if _l:                                            # perdus : badge ROUGE
             chips += f'<span class="zr zrl">{_l}</span>'
+    # COUNT CHIP (user 2026-08-17) : une zone SANS win/loss (Programme, Abstention) affiche quand même le NOMBRE
+    # de matchs, avec le MÊME badge que Confiance/Value (pastille `.zr`), pour l'homogénéité des catégories.
+    if not chips and count > 0:
+        chips = f'<span class="zr zrn">{count}</span>'
     if chips:
         rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
@@ -6571,15 +6587,19 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         t = f'<span class="zone-tag">{html.escape(tag)}</span>'
     else:
         t = ""
-    head = (f'<span class="zone-t">{html.escape(title)}</span>{rec}{t}')   # point (.zone-dot) retiré (user 2026-08-08)
+    # TITRE + tag à GAUCHE ; le BADGE compteur (rec) + le chevron sont poussés À DROITE (user 2026-08-17 :
+    # « ce badge doit être aligné à droite près de la flèche qui déplie »). `.zone-right{margin-left:auto}`.
+    head = (f'<span class="zone-t">{html.escape(title)}</span>{t}')   # point (.zone-dot) retiré (user 2026-08-08)
     if collapsible:
         op = " open" if open_ else ""
         # `data-zk` = clé de persistance du repli (localStorage, JS `_CAL_JS`) : ton choix plier/déplier
         # une zone est mémorisé et réappliqué après chaque swap de jour.
         return (f'<details class="zone zone-{kind} zone-col" data-zk="{kind}"{op}>'
-                f'<summary class="zone-h">{head}<span class="zone-chev">▾</span></summary>'
+                f'<summary class="zone-h">{head}<span class="zone-right">{rec}'
+                f'<span class="zone-chev">▾</span></span></summary>'
                 f'<div class="zone-b">{body}</div></details>')
-    return (f'<section class="zone zone-{kind}"><div class="zone-h">{head}</div>'
+    return (f'<section class="zone zone-{kind}"><div class="zone-h">{head}'
+            f'<span class="zone-right">{rec}</span></div>'
             f'<div class="zone-b">{body}</div></section>')
 
 
@@ -7237,9 +7257,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _zone("combo", "Combiné double chance", "", 1 if combo_daily else 0, combo_daily,
               collapsible=True, record=_combo_rec, leg_results=_c_leg_results),
     ]
-    # ZONE ABSTENTION (user 2026-08-17) : les matchs ANALYSÉS SANS pari retenu = une CATÉGORIE à part (après
-    # analyse, chaque match rejoint sa catégorie ; l'abstention en est une). En DERNIER (ce qu'on ne joue pas).
+    # ZONE ABSTENTION puis PROGRAMME (user 2026-08-17) : après analyse, chaque match rejoint sa catégorie ;
+    # l'abstention en est une, et le programme = ce qui reste À ANALYSER (matchs du jour pas encore traités).
+    # En DERNIER (ce qu'on ne joue pas / pas encore analysé), sous les paris, en CARTES + badge compteur.
     out.append(_abstention_zone(sport or "foot"))
+    out.append(_programme_schedule(sport or "foot"))
     inner = "".join(x for x in out if x)
     _empty = ('<div class="paj-empty">Aucun pari retenu pour l\'instant.'
               '<span>Chaque match est analysé ~2 h avant son coup d\'envoi (voir le programme) ; '
@@ -7757,13 +7779,42 @@ def _sidecar_analyzed_at(sport: str, fid) -> str:
     return ""
 
 
-def _planning_rows(sport: str = "foot") -> tuple[list, list]:
-    """Lignes LÉGÈRES du planning du jour, RÉPARTIES par état (user 2026-08-17 : « chaque match d'abord dans
-    le programme, puis basculé dans sa catégorie après analyse »). Renvoie `(pending, abst)` :
-    - `pending` = matchs PAS ENCORE analysés (« à analyser ») -> zone PROGRAMME (avec l'heure d'analyse ~KO−2 h) ;
-    - `abst`    = matchs ANALYSÉS SANS pari retenu (abstention) -> zone ABSTENTION.
-    Les matchs AVEC pari (confiance/value/montante) ou jambe de combiné sont EXCLUS ici : ils sont affichés en
-    CARTE dans leur propre catégorie. Pur affichage (lit day_programme.json + sidecars, ZÉRO réseau)."""
+def _status_card(m: dict, dt, kind: str) -> str:
+    """Carte d'un match SANS pari, présentée COMME une carte de pari (user 2026-08-17 : « affichés de la même
+    manière que les cartes de paris ») : ligue + PAYS centrés, logos + HEURE au centre, et une ligne de STATUT
+    à la place du pari. `kind` = 'wait' (à analyser, + heure d'analyse ~KO−2 h) | 'abst' (abstention)."""
+    name = _noF(str(m.get("name") or ""))
+    if " - " in name:
+        home, away = [s.strip() for s in name.split(" - ", 1)]
+    else:
+        home, away = name, ""
+    comp = str(m.get("comp") or "")
+    _cty = _cap(match_select.comp_country(comp) or "")
+    if _cty and _cty.lower() in comp.lower():
+        _cty = ""
+    comp_c = " • ".join(html.escape(p) for p in (_cty, _noF(comp)) if p).upper()
+    ld = dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
+    _center = f'<span class="tm-live"><b>{html.escape(ld.strftime("%H:%M"))}</b></span>'
+    teams = _teams_vs_html(home, away, _center)
+    if kind == "wait":
+        _sub = (f'<div class="mc-stat mc-stat-wait">À analyser'
+                f'<span class="mc-stat-sub">analyse prévue ~{(ld - timedelta(hours=2)).strftime("%H:%M")}</span></div>')
+    else:
+        _sub = ('<div class="mc-stat mc-stat-abst">Abstention'
+                '<span class="mc-stat-sub">analysé — pas de value, non joué</span></div>')
+    return (f'<div class="row mc mc-prem mc-statcard mc-st-{kind}">'
+            f'<div class="mc-head"><div class="mc-main">'
+            f'<div class="mc-line mc-line-c"><span class="mc-comp">{comp_c}</span></div>'
+            f'<div class="mc-teams">{teams}</div>'
+            f'<div class="mc-sub">{_sub}</div>'
+            f'</div></div></div>')
+
+
+def _planning_cards(sport: str = "foot") -> tuple[list, list]:
+    """(pending_cards, abst_cards) — CARTES (comme les paris) des matchs À ANALYSER (Programme) et des
+    ABSTENTIONS (analysés sans pari). Modèle user 2026-08-17 : chaque match d'abord au programme, puis basculé
+    dans sa catégorie après analyse. Les matchs AVEC pari / jambe de combiné / montante sont EXCLUS ici (ils
+    ont leur propre zone). Pur affichage (day_programme.json + sidecars, 0 réseau)."""
     import json as _json
     path = os.path.join(analyses._ROOT, "data", "day_programme.json")
     try:
@@ -7780,98 +7831,54 @@ def _planning_rows(sport: str = "foot") -> tuple[list, list]:
     items = sorted([(m, dt) for m, dt in items if dt is not None], key=lambda x: x[1])
     if not items:
         return [], []
-
-    def _ld(dt):
-        return dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
-    _multi = len({_sport_date(_ld(dt)).isoformat() for _m, dt in items}) > 1
-    _mont_mid = str((_montante_today_bet() or {}).get("mid") or "")   # LE pari montante du jour
-    _combo_mids: set = set()                           # mids des JAMBES du combiné du jour
+    _mont_mid = str((_montante_today_bet() or {}).get("mid") or "")
+    _combo_mids: set = set()
     try:
         from app import combo_daily as _cd
+        def _ld(dt):
+            return dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
         for _sd in {_sport_date(_ld(dt)).isoformat() for _m, dt in items}:
             _cb = _cd.today(_sd)
             if _cb:
                 _combo_mids |= {str(l.get("mid")) for l in (_cb.get("legs") or []) if l.get("mid")}
     except Exception:
         pass
-    pending, abst, _pday = [], [], None
+    pending, abst = [], []
     for m, dt in items:
-        ld = _ld(dt)
-        ko = ld.strftime("%H:%M")
         mid = str(m.get("id"))
+        if mid == _mont_mid or mid in _combo_mids:         # montante / jambe de combiné -> leur propre zone
+            continue
         d = analyses.meta(sport, mid)
-        # CATÉGORIE du match (même logique qu'avant). On ne garde ICI que « à analyser » et « abstention » ;
-        # les paris (confiance/value/montante) et jambes de combiné vivent en CARTE dans leur propre zone.
-        if d is None:                                      # pas encore analysé
-            _typ2 = "à analyser"
-        elif analyses.is_settled(d):                       # réglé -> on garde le TYPE (jamais l'issue)
+        if d is None:                                      # pas encore analysé -> PROGRAMME
+            pending.append(_status_card(m, dt, "wait"))
+            continue
+        if analyses.is_settled(d):
             _sb = analyses.stat_bet(d)
-            _res = (_sb or {}).get("result") if isinstance(_sb, dict) else None
-            if _res in ("won", "lost", "push"):
-                _typ2 = "montante" if mid == _mont_mid else analyses.bet_tier_for("foot", mid)
-            elif _sb is None and mid in _combo_mids:
-                _typ2 = "combiné"
-            else:
-                _typ2 = "abstention"
-        else:                                              # analysé, pas réglé
-            rb = analyses.retained_bet(sport, mid)
-            if rb is None and mid in _combo_mids:
-                _typ2 = "combiné"
-            elif rb is None:
-                _typ2 = "abstention"
-            elif mid == _mont_mid:
-                _typ2 = "montante"
-            elif analyses.tier_of(d, rb) == "confiance":
-                _typ2 = "confiance"
-            else:
-                _typ2 = "value"
-        if _typ2 not in ("à analyser", "abstention"):
-            continue                                       # a un pari / jambe combiné -> carte dans sa zone
-        teams = _noF(str(m.get("name") or ""))
-        comp = _noF(str(m.get("comp") or "")).upper()
-        _extra = ""
-        if _typ2 == "à analyser":                          # heure d'analyse PRÉVUE (~KO−2 h, wave-first)
-            _extra = f'<span class="pgm-anh">analyse ~{(ld - timedelta(hours=2)).strftime("%H:%M")}</span>'
-        cls = "pgm-wait" if _typ2 == "à analyser" else "pgm-abst"
-        row = (f'<div class="pgm-row {cls}"><span class="pgm-ko">{ko}</span>'
-               f'<div class="pgm-mid"><span class="pgm-teams">{html.escape(teams)}</span>'
-               f'<span class="pgm-comp">{html.escape(comp)}</span></div>'
-               f'<span class="pgm-tail">{_extra}</span></div>')
-        if _typ2 == "à analyser":
-            if _multi:                                     # en-tête de jour si le programme couvre 2 jours sportifs
-                _dk = _sport_date(ld).isoformat()
-                if _dk != _pday:
-                    _pday = _dk
-                    pending.append(f'<div class="pgm-day">{html.escape(_prog_day_label(ld))}</div>')
-            pending.append(row)
+            _has_bet = isinstance(_sb, dict) and _sb.get("result") in ("won", "lost", "push")
         else:
-            abst.append(row)
+            _has_bet = analyses.retained_bet(sport, mid) is not None
+        if not _has_bet:                                   # analysé SANS pari -> ABSTENTION
+            abst.append(_status_card(m, dt, "abst"))
+        # sinon : a un pari -> carte dans sa zone Confiance/Value
     return pending, abst
 
 
 def _programme_schedule(sport: str = "foot") -> str:
-    """Zone « PROGRAMME DU JOUR » (onglet Pronos) = les matchs PAS ENCORE analysés (à analyser) + leur heure
-    d'analyse prévue. Une fois analysé, un match QUITTE le programme et rejoint sa catégorie (Confiance/Value/
-    Abstention/Montante/Combiné). '' si plus rien à analyser (tout est passé en catégorie)."""
-    pending, _abst = _planning_rows(sport)
+    """Zone « Programme du jour » = les matchs PAS ENCORE analysés, en CARTES (comme les paris) — user
+    2026-08-17. Badge compteur (à droite, près du chevron). '' si plus rien à analyser."""
+    pending, _abst = _planning_cards(sport)
     if not pending:
         return ""
-    _n = sum(1 for r in pending if 'pgm-row' in r)         # compte les MATCHS (pas les en-têtes de jour)
-    return (f'<details class="pgm-fold" open>'
-            f'<summary class="pgm-head"><span class="pgm-title">PROGRAMME DU JOUR</span>'
-            f'<span class="pgm-hr"><span class="pgm-count">{_n} à analyser</span>'
-            f'<span class="pgm-chev">▾</span></span></summary>'
-            f'<div class="pgm-list">{"".join(pending)}</div></details>')
+    return _zone("prog", "Programme du jour", "", len(pending), _MC_SEP.join(pending), collapsible=True)
 
 
 def _abstention_zone(sport: str = "foot") -> str:
-    """Zone « Abstention » (onglet Pronos) = les matchs ANALYSÉS sur lesquels on NE PARIE PAS (pas de value).
-    Catégorie à part entière (comme Confiance/Value) — user 2026-08-17. Lignes légères. '' si aucune."""
-    _pending, abst = _planning_rows(sport)
+    """Zone « Abstention » = les matchs analysés SANS pari, en CARTES (comme les paris) — user 2026-08-17.
+    Catégorie à part entière, badge compteur à droite. '' si aucune."""
+    _pending, abst = _planning_cards(sport)
     if not abst:
         return ""
-    return _zone("abst", "Abstention", "", len(abst),
-                 f'<div class="pgm-list pgm-inzone">{"".join(abst)}</div>', collapsible=True)
+    return _zone("abst", "Abstention", "", len(abst), _MC_SEP.join(abst), collapsible=True)
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
@@ -7907,8 +7914,9 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
             # Bouton NOTIFICATIONS push (user 2026-08-16) — auto-masqué une fois activé (.on), libellé géré par JS.
             '<div class="bfx-pushrow"><button type="button" class="bfx-pushbtn" onclick="bfxPushEnable()">'
             '🔔 Activer les notifications</button></div>'
-            + f'<div id="day-content">{zones}</div>'
-            + _programme_schedule())
+            # PROGRAMME + ABSTENTION sont désormais des ZONES-catégories DANS `#day-content` (via _today_zones),
+            # affichées en CARTES comme les paris (user 2026-08-17) -> plus de module séparé en bas.
+            + f'<div id="day-content">{zones}</div>')
     return body if frag else spa_shell("home", "Pronos", body, source=source)
 
 
