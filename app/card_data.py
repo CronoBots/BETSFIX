@@ -104,6 +104,48 @@ def is_settled(d: dict) -> bool:
     return bool((d.get("result") or {}).get("pick_result")) or bool((d.get("combo") or {}).get("result"))
 
 
+def _simple_common(d: dict, rb: dict, sport, home: str, away: str) -> dict:
+    """Champs COMMUNS du pari simple façon SITE — PARTAGÉS par la carte PRONO et la carte RÉSULTAT (user
+    2026-08-17 : la carte résultat doit être la MÊME carte complète que le site, pas un layout minimal).
+    Rend : pari lisible + glose « en clair », confiance CALIBRÉE, edge/value, cote, tier (Confiance/Value),
+    pays + compét., logos des 2 équipes, et l'analyse COMPLÈTE (mêmes puces que « Pourquoi ce choix »)."""
+    from app import match_select as _ms, crest as _cr
+    _sel = str(rb.get("sel", ""))
+    # CONFIANCE PUBLIÉE = confiance CALIBRÉE (décision user 2026-07-17) ; repli brute si pas de cprob.
+    _conf = round(rb["cprob"]) if rb.get("cprob") is not None else rb.get("prob")
+    _cote = rb.get("cote")
+    _edge = _val = None
+    try:
+        _cf, _c = float(_conf), float(_cote)
+        _edge = round(_cf - 100.0 / _c)            # edge = confiance − proba implicite
+        _val = round((_cf / 100.0 * _c - 1) * 100)  # value = conf×cote − 1
+    except (TypeError, ValueError):
+        pass
+    try:
+        from app import web as _web
+        _gloss = _web._bet_gloss(_sel, sport, home, away)
+    except Exception:
+        _gloss = ""
+    _comp = str(d.get("comp") or "")
+    try:
+        _tier = analyses.bet_tier_for(sport, str(d.get("id")))
+    except Exception:
+        _tier = "confiance"
+    # « POURQUOI » = analyse COMPLÈTE (toutes les puces), IDENTIQUE au pli « Pourquoi ce choix » du site.
+    try:
+        from app import web as _web2
+        _why = _web2._prov_why_snippet(sport, str(d.get("id")), maxlen=100000, played=True)
+    except Exception:
+        _why = ""
+    if not _why:
+        _why = _pick_why(d, _sel)
+    return {"pick": analyses.pretty_sel(_sel, home, away), "gloss": _gloss,
+            "cote": (f"{_cote:g}" if _cote else ""), "conf": _conf, "edge": _edge, "value": _val,
+            "tier": _tier, "country": _ms.comp_country(_comp), "comp": _comp,
+            "home_logo": (_cr.logo_url(_cr.team_id(home)) or ""),
+            "away_logo": (_cr.logo_url(_cr.team_id(away)) or ""), "why": _why}
+
+
 def build_prono_card(d: dict) -> dict | None:
     """Données de la carte PRONO d'un match (avant-match) depuis le sidecar. None si « calibration
     seule » (rien à afficher). Combiné = combiné seul ; sinon le pari simple retenu / le plus sûr."""
@@ -134,53 +176,9 @@ def build_prono_card(d: dict) -> dict | None:
             _legs.append((mkt, pk, str(l.get("cote", "")), _clean_why(l.get("why"))))
         card.update(type="combo", cote=cote, legs=_legs, synth=_clean_synth(combo.get("why")))
     elif pick_shown and rb:
-        mkt, pk = _split_leg(str(rb.get("sel", "")), home, away)
-        # CONFIANCE PUBLIÉE = confiance CALIBRÉE (décision user 2026-07-17 « unifier sur la calibrée ») :
-        # c'est celle qui pilote la value/la sélection ET l'affichage du site -> Telegram = site = moteur.
-        # (Avant : proba brute -> divergence avec la value et le site.) Repli sur la brute si pas de cprob.
-        _conf = round(rb["cprob"]) if rb.get("cprob") is not None else rb.get("prob")
-        _cote = rb.get("cote")
-        # EDGE + VALUE (barre verdict comme le site) : edge = confiance − proba implicite ; value = conf×cote−1.
-        _edge = _val = None
-        try:
-            _cf, _c = float(_conf), float(_cote)
-            _edge = round(_cf - 100.0 / _c)
-            _val = round((_cf / 100.0 * _c - 1) * 100)
-        except (TypeError, ValueError):
-            pass
-        # Enrichissements « design du site » (user 2026-08-17) : pays de la ligue, TYPE de pari (Confiance/
-        # Value), LOGOS des 2 équipes, PARI lisible + GLOSE « en clair » (comme le site). Imports locaux.
-        from app import match_select as _ms, crest as _cr
-        _sel = str(rb.get("sel", ""))
-        _pretty = analyses.pretty_sel(_sel, home, away)
-        try:
-            from app import web as _web
-            _gloss = _web._bet_gloss(_sel, sport, home, away)
-        except Exception:
-            _gloss = ""
-        _comp = str(d.get("comp") or "")
-        try:
-            _tier = analyses.bet_tier_for(sport, str(d.get("id")))
-        except Exception:
-            _tier = "confiance"
-        # « POURQUOI » = analyse COMPLÈTE (toutes les puces), IDENTIQUE au pli « Pourquoi ce choix » du site
-        # (user 2026-08-17 : l'analyse Telegram était tronquée à 1 phrase). Même source que le site :
-        # _prov_why_snippet(played=True) -> section 🎯/🧪/📋 nettoyée, sans coupe (maxlen géant). Repli sur
-        # l'ancienne note assignée si vide.
-        try:
-            from app import web as _web2
-            _why = _web2._prov_why_snippet(sport, str(d.get("id")), maxlen=100000, played=True)
-        except Exception:
-            _why = ""
-        if not _why:
-            _why = _pick_why(d, _sel)
-        card.update(type="simple", market="", pick=_pretty, gloss=_gloss,
-                    cote=(f"{_cote:g}" if _cote else ""), conf=_conf,
-                    edge=_edge, value=_val, tier=_tier,
-                    home=home, away=away, country=_ms.comp_country(_comp), comp=_comp,
-                    home_logo=(_cr.logo_url(_cr.team_id(home)) or ""),
-                    away_logo=(_cr.logo_url(_cr.team_id(away)) or ""),
-                    why=_why)
+        # Champs « design du site » (pari + glose + confiance/edge/value + tier + logos + analyse complète).
+        card.update(type="simple", market="", home=home, away=away,
+                    **_simple_common(d, rb, sport, home, away))
     elif pick_shown:
         m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", pick)
         card.update(type="simple", pick=(m.group(1).strip() if m else pick),
@@ -207,22 +205,16 @@ def build_result_card(d: dict) -> dict | None:
     simple_shown = (not has_combo) and analyses.retained_bet(sport, str(d.get("id"))) is not None
 
     card_simple = card_combo = None
+    _simple_extra: dict = {}
     _home, _away = str(d.get("home", "")), str(d.get("away", ""))
     if pick_result and simple_shown:
         rb = analyses.retained_bet(sport, str(d.get("id"))) or {}
-        _sel = str(rb.get("sel") or d.get("pick") or "")
-        _pretty = analyses.pretty_sel(_sel, _home, _away)
-        try:
-            from app import web as _web
-            _gloss = _web._bet_gloss(_sel, sport, _home, _away)
-        except Exception:
-            _gloss = ""
-        try:
-            _tier = analyses.bet_tier_for(sport, str(d.get("id")))
-        except Exception:
-            _tier = "confiance"
-        card_simple = {"label": _pretty or "Pari simple", "gloss": _gloss, "tier": _tier,
-                       "cote": (f"{rb['cote']:g}" if rb.get("cote") else ""), "mark": pick_result}
+        # MÊME carte complète que le site (user 2026-08-17) : on enrichit avec TOUS les champs du prono
+        # (grille Confiance/Edge/Value/Cote, tier, analyse) -> la carte résultat = la carte de pari + le
+        # verdict Gagné/Perdu, pas un layout minimal. Le TYPE de pari (Confiance/Value) reste la signature.
+        _simple_extra = _simple_common(d, rb, sport, _home, _away)
+        card_simple = {"label": _simple_extra["pick"] or "Pari simple", "gloss": _simple_extra["gloss"],
+                       "tier": _simple_extra["tier"], "cote": _simple_extra["cote"], "mark": pick_result}
     if combo_result:
         cco = combo.get("real_odds") or combo.get("total")
         card_combo = {"cote": (f"{cco:.2f}" if isinstance(cco, float) else str(cco or "")),
@@ -233,13 +225,10 @@ def build_result_card(d: dict) -> dict | None:
         return None
     dt = _dt(d)
     meta = f"terminé · {fr_date(dt)} · {dt.strftime('%H:%M')}" if dt else "terminé"
-    # Enrichissements « design du site » pour la carte RÉSULTAT SIMPLE (user 2026-08-17) : pays + logos.
-    from app import match_select as _ms, crest as _cr
-    _comp = str(d.get("comp") or "")
+    # `_simple_extra` (design site : conf/edge/value/cote/tier/logos/pays/analyse) est fusionné au TOP-LEVEL
+    # -> la carte RÉSULTAT SIMPLE se rend comme la carte de pari. Vide (combiné) -> pas de champs simples.
     return {"emoji": SPORT_EMOJI.get(sport, "•"), "_mid": str(d.get("id")), "cat": _cat(d),
             "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta,
             "type": "result", "score": res.get("score") or "",
-            "home": _home, "away": _away, "country": _ms.comp_country(_comp),
-            "home_logo": (_cr.logo_url(_cr.team_id(_home)) or "") if card_simple else "",
-            "away_logo": (_cr.logo_url(_cr.team_id(_away)) or "") if card_simple else "",
-            "simple": card_simple, "combo": card_combo}
+            "home": _home, "away": _away,
+            "simple": card_simple, "combo": card_combo, **_simple_extra}

@@ -222,10 +222,16 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 .swhy li{position:relative;padding-left:36px;margin-bottom:18px}
 .swhy li:last-child{margin-bottom:0}
 .swhy li:before{content:"";position:absolute;left:9px;top:13px;width:11px;height:11px;border-radius:50%;background:#5f7a97}
-/* Carte RÉSULTAT façon site : signature Gagné/Perdu sous le logo + SCORE au centre + « Terminé ». */
+/* Carte RÉSULTAT façon site : SCORE au centre + « Terminé ». */
 .rsc{display:flex;flex-direction:column;align-items:center;gap:3px}
-.rsc b{font-size:58px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.rsc b{font-size:52px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 .rfin{font-size:20px;font-weight:800;color:#90a4be;text-transform:uppercase;letter-spacing:.06em}
+/* Verdict Gagné/Perdu DANS le cadre Paris (à la place de la barre, match terminé) — pilule bordée façon site. */
+.sres{margin-top:26px;padding:20px;text-align:center;font-size:31px;font-weight:900;letter-spacing:.10em;
+  text-transform:uppercase;border-radius:16px;border:2px solid}
+.sres.won{color:#34d27b;border-color:rgba(52,210,123,.55);background:rgba(52,210,123,.10)}
+.sres.lost{color:#ff6b6b;border-color:rgba(255,107,107,.5);background:rgba(255,107,107,.09)}
+.sres.push{color:#9fb6cf;border-color:rgba(159,182,207,.45);background:rgba(159,182,207,.10)}
 """
 
 
@@ -243,20 +249,8 @@ def _team_logo_html(name, url, e) -> str:
     return f'<span class="tlwrap">{mono}</span>'
 
 
-def _simple_card_html(d: dict) -> str:
-    """Carte de PARI SIMPLE façon SITE (user 2026-08-17) : logo BETSFIX + badge TYPE (Confiance/Value),
-    ligue + pays centrés, logos + heure au centre, le pari, barre de confiance (zone edge), grille verdict
-    Confiance/Edge/Value/Cote, et le « pourquoi » affiché en entier."""
-    def e(x):
-        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
-    _wm = _banner_uri(d.get("emoji", ""))
-    _tier = str(d.get("tier") or "confiance")
-    _tlabel = "VALUE" if _tier == "value" else "CONFIANCE"
-    home, away = str(d.get("home") or ""), str(d.get("away") or "")
-    _cat = str(d.get("cat", ""))                        # « Football · <comp> »
-    _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
-    _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
-    _hh = str(d.get("meta", "")).split("·")[-1].strip() if d.get("meta") else ""
+def _verdict_cells_html(d: dict, e) -> str:
+    """Grille verdict Confiance/Edge/Value/Cote (cellules `.vc`) — PARTAGÉE carte pari + carte résultat."""
     conf, edge, val, cote = d.get("conf"), d.get("edge"), d.get("value"), d.get("cote")
     cells = []
     if conf is not None:
@@ -271,6 +265,41 @@ def _simple_card_html(d: dict) -> str:
                      f'{"+" if val >= 0 else ""}{e(val)}%</span></div>')
     if cote:
         cells.append(f'<div class="vc"><span class="vl">Cote</span><span class="vv vcote">{e(cote)}</span></div>')
+    return "".join(cells)
+
+
+def _why_bullets_html(d: dict, e) -> str:
+    """Analyse en PUCES (« Pourquoi ce choix » du site) — une phrase = une puce ; fragments < 25 car
+    regroupés. PARTAGÉE carte pari + carte résultat. '' si pas d'analyse."""
+    _why_txt = str(d.get("why") or "").strip()
+    if not _why_txt:
+        return ""
+    _raw = [s.strip() for s in re.split(r"(?<=[.!?…])\s+", _why_txt) if s.strip()]
+    _pts: list = []
+    for _s in _raw:
+        if _pts and len(_pts[-1]) < 25:
+            _pts[-1] = f"{_pts[-1]} {_s}"
+        else:
+            _pts.append(_s)
+    return '<ul class="swhy">' + "".join(f"<li>{e(p)}</li>" for p in _pts) + "</ul>"
+
+
+def _simple_card_html(d: dict) -> str:
+    """Carte de PARI SIMPLE façon SITE (user 2026-08-17) : logo BETSFIX + badge TYPE (Confiance/Value),
+    ligue + pays centrés, logos + heure au centre, le pari, barre de confiance (zone edge), grille verdict
+    Confiance/Edge/Value/Cote, et le « pourquoi » affiché en entier."""
+    def e(x):
+        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
+    _wm = _banner_uri(d.get("emoji", ""))
+    _tier = str(d.get("tier") or "confiance")
+    _tlabel = "VALUE" if _tier == "value" else "CONFIANCE"
+    home, away = str(d.get("home") or ""), str(d.get("away") or "")
+    _cat = str(d.get("cat", ""))                        # « Football · <comp> »
+    _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
+    _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
+    _hh = str(d.get("meta", "")).split("·")[-1].strip() if d.get("meta") else ""
+    _cells = _verdict_cells_html(d, e)
+    conf, cote = d.get("conf"), d.get("cote")
     _bar = ""
     try:
         cf, be = int(round(float(conf))), round(100.0 / float(cote))
@@ -281,19 +310,6 @@ def _simple_card_html(d: dict) -> str:
         _bar = f'<div class="vbar"><i style="width:{min(cf, 100)}%;background:{_col}"></i>{_ov}{_mk}</div>'
     except (TypeError, ValueError):
         _bar = ""
-    # ANALYSE en PUCES (comme le pli « Pourquoi ce choix » du site) : découpe en phrases, regroupe les
-    # fragments trop courts (< 25 car), une puce par phrase (user 2026-08-17 : l'analyse était tronquée).
-    _why_txt = str(d.get("why") or "").strip()
-    _why_html = ""
-    if _why_txt:
-        _raw = [s.strip() for s in re.split(r"(?<=[.!?…])\s+", _why_txt) if s.strip()]
-        _pts: list = []
-        for _s in _raw:
-            if _pts and len(_pts[-1]) < 25:
-                _pts[-1] = f"{_pts[-1]} {_s}"
-            else:
-                _pts.append(_s)
-        _why_html = '<ul class="swhy">' + "".join(f"<li>{e(p)}</li>" for p in _pts) + "</ul>"
     inner = (
         f'<div class="glow"></div>'
         f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
@@ -307,46 +323,58 @@ def _simple_card_html(d: dict) -> str:
         f'<div class="sbet">'                             # CADRE « partie Paris » (comme le site, user 2026-08-17)
         f'<div class="spk">{e(d.get("pick", ""))}</div>'
         + (f'<div class="sgl">{e(d.get("gloss"))}</div>' if d.get("gloss") else "")
-        + f'<div class="vgrid">{"".join(cells)}</div>'   # GRILLE d'abord
+        + f'<div class="vgrid">{_cells}</div>'           # GRILLE d'abord
         + f'{_bar}'                                       # BARRE SOUS les stats (comme le site, user 2026-08-17)
         + '</div>'
-        + _why_html)                                      # ANALYSE COMPLÈTE en puces, sous le cadre
+        + _why_bullets_html(d, e))                        # ANALYSE COMPLÈTE en puces, sous le cadre
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard">{inner}</div></body></html>')
 
 
 def _result_simple_card_html(d: dict) -> str:
-    """Carte RÉSULTAT d'un pari SIMPLE façon SITE (user 2026-08-17) : logo BETSFIX + badge Gagné/Perdu,
-    ligue+pays, logos + SCORE au centre + « Terminé », le pari + sa glose."""
+    """Carte RÉSULTAT d'un pari SIMPLE = la MÊME carte que le pari, façon SITE (user 2026-08-17) : logo +
+    signature du TYPE (Confiance/Value, on GARDE le type), ligue, logos + SCORE + « Terminé », cadre Paris
+    (pari + glose + grille Confiance/Edge/Value/Cote + verdict Gagné/Perdu), puis l'analyse complète en puces."""
     def e(x):
         return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
     _wm = _banner_uri(d.get("emoji", ""))
     sp = d.get("simple") or {}
     mark = sp.get("mark") or ""
-    _rlabel, _rcls = {"won": ("GAGNÉ", "rb-w"), "lost": ("PERDU", "rb-l"),
-                      "push": ("REMBOURSÉ", "rb-n"), "void": ("REMBOURSÉ", "rb-n")}.get(mark, ("", "rb-n"))
+    _rlabel, _rcls = {"won": ("GAGNÉ", "won"), "lost": ("PERDU", "lost"),
+                      "push": ("REMBOURSÉ", "push"), "void": ("REMBOURSÉ", "push")}.get(mark, ("", "push"))
+    # SIGNATURE = TYPE de pari (Confiance/Value) — on GARDE le type comme sur la carte de pari (user 2026-08-17).
+    _tier = str(d.get("tier") or sp.get("tier") or "confiance")
+    _tlabel = "VALUE" if _tier == "value" else "CONFIANCE"
     home, away = str(d.get("home") or ""), str(d.get("away") or "")
     _cat = str(d.get("cat", ""))
     _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
     _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
-    _score = str(d.get("score") or "").strip()
+    _score = str(d.get("score") or "").strip().replace("-", " - ")
     _center = (f'<span class="rsc"><b>{e(_score)}</b><span class="rfin">Terminé</span></span>'
                if _score else '<span class="rfin">Terminé</span>')
-    _gl = f'<div class="sgl">{e(sp.get("gloss"))}</div>' if sp.get("gloss") else ""
-    _ccls = "won" if mark == "won" else ("lost" if mark == "lost" else "push" if mark in ("push", "void") else "")
+    _cells = _verdict_cells_html(d, e)
+    _pick = d.get("pick") or sp.get("label", "")
+    _gloss = d.get("gloss") or sp.get("gloss") or ""
+    _res = f'<div class="sres {_rcls}">{_rlabel}</div>' if _rlabel else ""   # verdict Gagné/Perdu dans le cadre
     inner = (
         f'<div class="glow"></div>'
-        + f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
-        + (f'<div class="stag {_rcls}">{_rlabel}</div>' if _rlabel else "")   # résultat écrit sous le logo (signature)
-        + f'<div class="slg">{e(_lg)}</div>'
+        f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
+        f'<div class="stag st-{_tier}">{_tlabel}</div>'
+        f'<div class="slg">{e(_lg)}</div>'
         f'<div class="stms">'
         f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
         f'<div class="stc">{_center}</div>'
         f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
         f'</div>'
-        f'<div class="spk">{e(sp.get("label", ""))}</div>{_gl}')
+        f'<div class="sbet">'
+        f'<div class="spk">{e(_pick)}</div>'
+        + (f'<div class="sgl">{e(_gloss)}</div>' if _gloss else "")
+        + f'<div class="vgrid">{_cells}</div>'
+        + _res                                            # verdict à la place de la barre (match terminé)
+        + '</div>'
+        + _why_bullets_html(d, e))
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
-            f'<body><div class="card scard {_ccls}">{inner}</div></body></html>')
+            f'<body><div class="card scard {_rcls}">{inner}</div></body></html>')
 
 
 def _card_html(d: dict) -> str:
