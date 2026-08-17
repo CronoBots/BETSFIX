@@ -2183,6 +2183,9 @@ CSS = """
   .cleg-h-c .cleg-comp{flex:0 1 auto;text-align:center;white-space:normal;overflow:visible;
        text-overflow:clip;line-height:1.25;color:var(--text)}
   .cleg-res-live .cleg-teams{margin-top:14px}
+  /* MISE EN PAGE IDENTIQUE À LA CARTE CONFIANCE/VALUE (user 2026-08-17) : même inset de contenu que la carte
+     premium (.mc-prem .mc-head = 13px 16px 12px) -> les jambes ont exactement la même respiration/largeur. */
+  .cleg-res-live{padding:13px 16px 12px}
   .tm-fin{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
   .cleg-res-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:13px}
   /* BADGE RÉSULTAT pleine largeur (user 2026-08-15) à la place de la barre : GAGNÉ/PERDU/REMBOURSÉ. */
@@ -6071,8 +6074,13 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     # carte de pari simple (_sport_row). Le pari+glose vont DANS le cadre des chiffres ; barre « Confiance
     # live » (live) ou badge Gagné/Perdu (réglé) dessous. Couvre TOUS les états (avant : réglé seulement).
     if live_layout and verdict and teams and _th and _ta:
-        _cty = _cap(str(l.get("country") or ""))
-        _cprts = [p for p in (_cty, str(l.get("comp") or "")) if p]
+        # LIGUE = « Pays • Compétition » EXACTEMENT comme la carte normale (user 2026-08-17 : le pays manquait) :
+        # pays stocké sinon déduit de la compétition (`comp_country`, statique), dédupliqué si déjà dans le nom.
+        _lcomp = str(l.get("comp") or "")
+        _cty = _cap(str(l.get("country") or "") or match_select.comp_country(_lcomp) or "")
+        if _cty and _cty.lower() in _lcomp.lower():
+            _cty = ""                          # évite « Angleterre • Angleterre » (pays déjà dans le nom)
+        _cprts = [p for p in (_cty, _lcomp) if p]
         _comp_c = " • ".join(html.escape(p) for p in _cprts).upper()
         _pbox = f'<div class="mc-pick">{sel}</div>' + (f'<div class="mc-gloss">{html.escape(_g)}</div>' if _g else "")
         _resbadge, _extra = "", ""
@@ -6103,9 +6111,12 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             _ctr = f'<span class="tm-fin">{html.escape(_hh) if _hh else "À venir"}</span>'
         _teams_c = _teams_vs_html(_th, _ta, _ctr)
         _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, result_html=_resbadge)
-        return (f'<div class="cleg {_state} cleg-res-live">'
-                f'<div class="cleg-h cleg-h-c"><span class="cleg-comp">{_comp_c}</span></div>'
-                f'<div class="cleg-teams">{_teams_c}</div>'
+        # CLASSES IDENTIQUES à la carte normale (user 2026-08-17 : « exactement la même mise en page ») :
+        # `mc-line mc-line-c` + `mc-comp` (ligue centrée blanche, même taille/espacement) et `mc-teams` (même
+        # typo/marge que les équipes d'un pari simple) au lieu des classes compactes `cleg-*`.
+        return (f'<div class="cleg {_state} cleg-res-live mc-prem">'
+                f'<div class="mc-line mc-line-c"><span class="mc-comp">{_comp_c}</span></div>'
+                f'<div class="mc-teams">{_teams_c}</div>'
                 f'{_vb}{_extra}{_why}</div>')
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
     return (f'<div class="cleg {_state}">'
