@@ -124,7 +124,12 @@ _COVERED_ONLY = False
 def _covered_matches(matches: list) -> list:
     """Garde les matchs dont la ligue est COUVERTE par l'ancre sharp (The Odds API), + les gros tournois.
     Si l'ancre n'est pas configurée (clé absente), NE FILTRE PAS (sinon on viderait tout à tort). Logue les
-    exclus (jamais silencieux — cf. « no silent caps »)."""
+    exclus (jamais silencieux — cf. « no silent caps »).
+    NB (2026-08-17) : `_COVERED_ONLY=False` en prod -> ce filtre est un NO-OP tant qu'iProyal/Pinnacle vit
+    (Pinnacle brut, prioritaire, couvre le monde entier). Ce filtre The-Odds-API-seul n'est le bon garde-fou
+    QUE dans le scénario où on le ré-active (« Remettre True si iProyal meurt ») : là Pinnacle est mort, donc
+    restreindre aux ligues The Odds API est justement correct. Ne PAS y ajouter de proxy « profondeur Pinnacle »
+    (ça garderait des matchs sans ancre pile quand Pinnacle est mort)."""
     if not _COVERED_ONLY:
         return matches
     try:
