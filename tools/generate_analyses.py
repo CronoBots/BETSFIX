@@ -932,6 +932,31 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
             print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé) -> conservé.")
         else:
             _fcombo = await _csafe.build_from_programme_async(_cday, matches, client)
+            if _fcombo:
+                # ANALYSE DES JAMBES À LA CONSTRUCTION (user 2026-08-17) : le combiné est FIGÉ et sera joué ->
+                # on prépare son « pourquoi » factuel TOUT DE SUITE (faits gathered le matin via build_dossier
+                # par jambe), sans attendre les vagues. On NE touche PAS aux paris SIMPLES de ces matchs :
+                # build_dossier ne fait que LIRE les faits (aucun sidecar écrit) -> chaque match reste analysé
+                # FRAIS par sa vague ~2h avant le coup d'envoi. Si ça échoue, le « pourquoi » Pinnacle chiffré
+                # reste (repli), enrichi plus tard par la vague. Best-effort, n'interrompt jamais le programme.
+                try:
+                    _fbm = {}
+                    for _lg in _fcombo.get("legs") or []:
+                        _lm = {"id": _lg.get("mid"), "name": _lg.get("name"), "home": _lg.get("home"),
+                               "away": _lg.get("away"), "comp": _lg.get("comp"), "start": _lg.get("start")}
+                        try:
+                            _bd = await build_dossier(client, _lm, "foot")   # renvoie (dossier_texte, meta)
+                        except Exception:
+                            _bd = None
+                        _dos = _bd[0] if isinstance(_bd, tuple) else _bd      # le TEXTE du dossier = les faits
+                        if _dos:
+                            _fbm[str(_lg.get("mid"))] = _dos
+                    if _fbm:
+                        _analyze_combo_legs(_fcombo, facts_by_mid=_fbm)   # pourquoi factuel + synthèse, MAINTENANT
+                        print(f"  🎯 Combiné du jour : jambes analysées à la construction "
+                              f"({len(_fbm)}/{len(_fcombo.get('legs') or [])} faits captés).")
+                except Exception as _cae:
+                    print(f"  (analyse jambes combiné à la construction ignorée : {_cae})")
             if _fcombo and _cdaily.record_daily(_fcombo, _cday):
                 _cdaily.mark_sent(_cday)
                 _fcl = " | ".join(f"{l.get('home')} ({l.get('sel')} @{l.get('cote')})"
@@ -2428,22 +2453,29 @@ def _track_provisional(sport, m, prov) -> None:
         pass
 
 
-def _analyze_combo_legs(combo: dict) -> None:
+def _analyze_combo_legs(combo: dict, facts_by_mid: dict | None = None) -> None:
     """Enrichit CHAQUE jambe du combiné du jour d'une JUSTIFICATION DÉDIÉE (`leg['why']`) + une SYNTHÈSE
     (`combo['synth']`), via UN appel Claude — les jambes sont analysées comme des paris à jouer (demande
     user 2026-07-11). Best-effort : ne casse jamais le scan si l'appel échoue (les jambes restent affichées
-    sans justification). Appelé UNE fois par jour (le combiné est figé après publication)."""
+    sans justification). Appelé UNE fois par jour (le combiné est figé après publication).
+    `facts_by_mid` (user 2026-08-17) : faits GATHERED À LA CONSTRUCTION (le matin, dossier `build_dossier` par
+    jambe) -> on écrit le « pourquoi » factuel TOUT DE SUITE sans attendre les vagues. Sinon (repli) on lit la
+    section « Les faits » du sidecar (présent une fois la jambe analysée par sa vague)."""
     from app import analyses as _an
     legs = combo.get("legs") or []
     if not legs:
         return
     blocs = []
     for i, l in enumerate(legs, 1):
-        md = _an.load(l.get("sport"), l.get("mid")) or ""
-        try:
-            faits = (_an._find(_an._sections(md), "📋", "Les faits", "faits") or "")[:1000]
-        except Exception:
-            faits = ""
+        _fpre = (facts_by_mid or {}).get(str(l.get("mid")))
+        if _fpre:                                      # faits du matin (dossier build_dossier) -> pourquoi immédiat
+            faits = str(_fpre)[:4000]                   # dossier RICHE (cotes + séries/H2H/xG) -> large fenêtre
+        else:                                          # repli : « Les faits » du sidecar (analyse par vague)
+            md = _an.load(l.get("sport"), l.get("mid")) or ""
+            try:
+                faits = (_an._find(_an._sections(md), "📋", "Les faits", "faits") or "")[:1000]
+            except Exception:
+                faits = ""
         blocs.append(f"[{i}] {l.get('sport')} — {l.get('home')} vs {l.get('away')} — "
                      f"pari : {l.get('sel')} @{l.get('cote')} (proba estimée ~{round((l.get('prob') or 0) * 100)}%)\n"
                      f"    Faits du match : {faits or '(pas de faits captés)'}")
