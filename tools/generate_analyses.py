@@ -904,6 +904,33 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     except OSError as e:
         print(f"  (écriture programme échouée : {e})")
     print(f"Programme du jour : {len(matches)} match(s) sélectionné(s).")
+    # COMBINÉ DU JOUR ANCRÉ PINNACLE (matin, user 2026-08-17) : en wave-first les matchs sont analysés et
+    # joués UN PAR UN ~2h avant leur coup d'envoi -> il n'existe plus de moment où ≥2 jambes sont à la fois
+    # analysées ET à venir, donc le combiné ne se créait presque plus (« vivier DC insuffisant »). On le
+    # construit donc ICI, LE MATIN, depuis le programme (tous les matchs encore à venir), en ancrant la value
+    # sur PINNACLE (sharp n°1, dispo par noms d'équipes sans analyse Claude). FIGÉ dès la construction
+    # (record_daily + mark_sent -> published=frozen) : la boucle de scan le verra « déjà publié » et ne le
+    # reconstruira pas. Le « pourquoi » chiffré Pinnacle de chaque jambe est réécrit ensuite par la vague qui
+    # analyse le match. Enregistré dans le MÊME track que le combiné du scan (combo_daily) -> affichage/
+    # règlement/ROI inchangés. Best-effort : n'interrompt jamais l'écriture du programme.
+    try:
+        from app import combo_safe as _csafe, combo_daily as _cdaily
+        _cday = _cdaily.day_key()
+        _cprev = _cdaily.today(_cday)
+        if _cprev and (_cprev.get("sent") or _cprev.get("result")):
+            print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé) -> conservé.")
+        else:
+            _fcombo = await _csafe.build_from_programme_async(_cday, matches, client)
+            if _fcombo and _cdaily.record_daily(_fcombo, _cday):
+                _cdaily.mark_sent(_cday)
+                _fcl = " | ".join(f"{l.get('home')} ({l.get('sel')} @{l.get('cote')})"
+                                  for l in _fcombo.get("legs") or [])
+                print(f"  🎯 Combiné du jour (matin, ancré Pinnacle) : cote {_fcombo['cote']} · "
+                      f"{round(_fcombo['prob'] * 100)}% · {len(_fcombo['legs'])} jambes (figé) : {_fcl}")
+            elif not _fcombo:
+                print("  🎯 Combiné du jour (matin) : vivier DC value insuffisant (aucune jambe à edge positif).")
+    except Exception as _cce:
+        print(f"  (combiné du jour matin ignoré : {_cce})")
     if not matches or args.no_notify:
         return
     lines = [f"📋 <b>Programme du jour</b> — {len(matches)} match(s)"]
@@ -3221,7 +3248,29 @@ async def main():
         _day = _cdaily.day_key()          # clé-jour UNIQUE (jour sportif local 06h→06h, source combo_daily)
         _prev = _cdaily.today(_day)
         if _prev and (_prev.get("sent") or _prev.get("result")):
-            print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")     # pas de re-analyse Claude
+            # DÉJÀ FIGÉ (souvent le combiné du MATIN ancré Pinnacle). On ne retouche JAMAIS la sélection ;
+            # on ENRICHIT seulement le « pourquoi » chiffré Pinnacle de chaque jambe avec le « pourquoi »
+            # factuel complet, dès que la vague a analysé le match. On ne lance l'appel Claude qu'une fois
+            # TOUTES les jambes analysées (sidecar présent) -> un seul appel/jour, et seulement s'il reste
+            # des jambes encore au « pourquoi » Pinnacle (marqueur « Pinnacle (référence sharp) »).
+            try:
+                from app import analyses as _an_enr
+                _plegs = _prev.get("legs") or []
+                _need = [l for l in _plegs if str(l.get("why") or "").startswith("Pinnacle (référence sharp)")]
+                _all_analyzed = _plegs and all((_an_enr.load("foot", l.get("mid")) or "") for l in _plegs)
+                if _need and _all_analyzed and not _prev.get("result"):
+                    _copy = {"legs": [dict(l) for l in _plegs], "synth": _prev.get("synth", "")}
+                    _analyze_combo_legs(_copy)
+                    _whys = {str(l.get("mid")): l.get("why") for l in _copy["legs"]
+                             if l.get("why") and not str(l.get("why")).startswith("Pinnacle (référence sharp)")}
+                    if _cdaily.enrich_narratives(_day, _whys, _copy.get("synth")):
+                        print(f"  🎯 Combiné du jour : « pourquoi » enrichi ({len(_whys)} jambe(s) analysée(s)).")
+                    else:
+                        print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")
+                else:
+                    print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")
+            except Exception as _een:
+                print(f"  🎯 Combiné du jour : figé (enrichissement ignoré : {_een}).")
         else:
             # LE COMBINÉ FOOT DU JOUR = LA DOUBLE CHANCE (demande user 2026-08-02) : à partir d'aujourd'hui,
             # le « combiné football » est la DOUBLE CHANCE la plus sûre par match (VRAIES cotes DC Unibet via

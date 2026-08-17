@@ -428,6 +428,30 @@ def mark_sent(day: str, sport: str = "foot") -> None:
         _save(d, sport)
 
 
+def enrich_narratives(day: str, whys_by_mid: dict, synth: str | None = None, sport: str = "foot") -> bool:
+    """Met à jour UNIQUEMENT le NARRATIF (« pourquoi » des jambes + synthèse) d'un combiné DÉJÀ FIGÉ, SANS
+    jamais toucher à la SÉLECTION (mid/sel/cote/prob/code) ni au RÉSULTAT (result/score/sent). Sert au
+    combiné du matin ancré Pinnacle (user 2026-08-17) : le « pourquoi » chiffré Pinnacle posé le matin est
+    remplacé par le « pourquoi » factuel complet dès que la vague a analysé le match. Idempotent. Renvoie
+    True si un champ a changé (donc sauvegarde)."""
+    d = _load(sport)
+    cb = d.get(day)
+    if not isinstance(cb, dict):
+        return False
+    changed = False
+    for leg in cb.get("legs") or []:
+        w = whys_by_mid.get(str(leg.get("mid") or ""))
+        if w and w != leg.get("why"):
+            leg["why"] = w
+            changed = True
+    if synth and synth != cb.get("synth"):
+        cb["synth"] = synth
+        changed = True
+    if changed:
+        _save(d, sport)
+    return changed
+
+
 def _derive_combo(legs: list) -> str | None:
     """Résultat d'un combiné depuis ses jambes : **lost** si ≥1 perdue ; **won** si ≥1 gagnée (push/void
     NEUTRES, retirées) ; **void** si QUE des push/void. **None** si ≥1 jambe encore en attente. Une jambe

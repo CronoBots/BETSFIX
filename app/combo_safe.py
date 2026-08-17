@@ -17,6 +17,7 @@ aux sidecars, à `stat_bet`, à la calibration, à `list_for`, ni au ROI. Suivi 
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 
@@ -184,6 +185,106 @@ async def build_for_day_async(day: str, client=None) -> dict | None:
     cb = _combo_from_cands(cands)
     if cb:
         cb["date"] = day
+    return cb
+
+
+# Combiné du MATIN ancré Pinnacle (user 2026-08-17). Un combiné DC « sécurité » est structurellement
+# NEUTRE-à-légèrement-négatif : la DC la plus sûre est courte et le marché la price avec sa marge, donc
+# l'edge honnête (proba Pinnacle dé-viggée − implicite) est presque toujours ≤ 0 (mesuré 17/08 : 1 jambe
+# sur 14 à edge+). Exiger un edge STRICTEMENT positif tuerait le combiné (jamais ≥2 jambes). Ce combiné est
+# HORS ROI (contenu d'engagement, pas le chiffre phare) : son identité est « la double chance la PLUS SÛRE
+# du jour » (proba Pinnacle haute), pas la value. On garde donc les jambes à PROBA élevée en ne rejetant
+# que les prix clairement défavorables (edge très négatif = marge excessive).
+MORNING_MIN_LEG_PROB = 0.62      # jambe DC « sûre » : proba Pinnacle dé-viggée ≥ 62 % (écarte les quasi pile-ou-face)
+MORNING_MIN_EDGE = -0.06         # on accepte jusqu'à 6 % de marge (coût de la sécurité), on rejette pire (mauvais prix)
+
+
+def _sharp_dc_why(outcome: str, home: str, away: str, sp: dict, prob: float, cote) -> str:
+    """« Pourquoi » CHIFFRÉ d'une jambe DC, dérivé de l'ancre PINNACLE (sans analyse Claude — dispo dès le
+    matin). Honnête : cite les % sharp de chaque issue + un bémol. Enrichi ensuite par la vague qui analyse
+    le match (elle réécrit ce champ avec le « pourquoi » factuel complet)."""
+    h, d, a = round((sp.get("home") or 0) * 100), round((sp.get("draw") or 0) * 100), round((sp.get("away") or 0) * 100)
+    p = round((prob or 0) * 100)
+    fav, favp = (home, h) if outcome == "1X" else (away, a)
+    opp, oppp = (away, a) if outcome == "1X" else (home, h)
+    edge = _leg_edge(prob, cote)
+    fin = ("Cerise : la cote (@%s) offre même une petite value (proba > cote implicite)." % cote) if edge > 0 \
+        else ("Bémol : cote courte (@%s), on paie la sécurité (pas de value ajoutée)." % cote)
+    return (f"Pinnacle (référence sharp) situe {fav} à {favp}% et le nul à {d}% : la double chance "
+            f"« {fav} ou nul » cumule ~{p}% — il faudrait une victoire nette de {opp} ({oppp}%) pour la faire "
+            f"tomber. {fin}")
+
+
+async def build_from_programme_async(day: str, matches: list, client=None) -> dict | None:
+    """MATIN (user 2026-08-17) — construit LE combiné DC du jour depuis le PROGRAMME (tous les matchs encore
+    À VENIR), SANS attendre l'analyse Claude match-par-match. En wave-first les matchs sont joués un par un :
+    il n'existe plus de moment où ≥2 jambes sont à la fois analysées ET à venir -> le combiné ne se créait
+    plus. Ici la value est ancrée sur PINNACLE (notre sharp n°1, dispo par noms d'équipes sans analyse) :
+    pour chaque match on prend la DC la PLUS SÛRE au marché (cote Unibet la plus basse en 1X/X2) et on ne la
+    RETIENT que si l'ancre Pinnacle lui donne un EDGE POSITIF (proba dé-viggée > implicite). Le « pourquoi »
+    de chaque jambe est un résumé chiffré Pinnacle, réécrit ensuite par la vague qui analyse le match.
+    None si vivier DC value insuffisant. `matches` = liste du programme [{id,sport,name,start,comp}]."""
+    import httpx
+    from datetime import datetime, timezone
+    from app import match_select as _ms, pinnacle
+    now = datetime.now(timezone.utc)
+    own = client is None
+    client = client or httpx.AsyncClient(timeout=15)
+    cands: list = []
+    whys: dict = {}
+    try:
+        for m in matches or []:
+            if (m.get("sport") or "foot") != "foot":
+                continue
+            mid = str(m.get("id") or "")
+            name = str(m.get("name") or "")
+            start = m.get("start") or ""
+            if not mid or " - " not in name:
+                continue
+            try:                                          # match déjà commencé -> pas jouable au combiné
+                _st = datetime.fromisoformat(start.replace("Z", "+00:00"))
+                if _st <= now:
+                    continue
+                if _cd.day_key(_st) != day:               # jour sportif 06h→06h (inclut la nuit) — SOURCE unique
+                    continue
+            except (ValueError, AttributeError):
+                continue                                  # start illisible -> on ne peut pas placer le ticket
+            home, away = [s.strip() for s in name.split(" - ", 1)]
+            try:
+                dc = await _ms.dc_odds(mid, client)
+            except Exception:
+                dc = {}
+            dc = {k: v for k, v in (dc or {}).items()
+                  if k in ("1X", "X2") and isinstance(v, (int, float)) and v >= MIN_LEG_ODDS}
+            if not dc:
+                continue
+            outcome, cote = min(dc.items(), key=lambda kv: kv[1])   # DC la plus sûre au marché (cote la + basse)
+            try:                                          # ANCRE PINNACLE (dé-viggée) -> proba DC de vérité
+                sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, "foot", start)
+            except Exception:
+                sp = None
+            if not sp:
+                continue                                  # pas d'ancre sharp -> pas de value prouvable -> écartée
+            prob = (sp.get("home", 0) + sp.get("draw", 0)) if outcome == "1X" \
+                else (sp.get("away", 0) + sp.get("draw", 0))
+            # SÉCURITÉ-FIRST (pas edge-first) : proba Pinnacle haute + prix pas défavorable. On NE tue PAS le
+            # combiné en exigeant un edge positif (une DC sûre est structurellement neutre-à-légèrement-négative).
+            if prob < MORNING_MIN_LEG_PROB or _leg_edge(prob, cote) < MORNING_MIN_EDGE:
+                continue
+            cands.append({"mid": mid, "sport": "foot", "sel": _dc_sel(outcome, home, away),
+                          "cote": cote, "prob": prob, "code": f"DC {outcome}",
+                          "name": name, "home": home, "away": away,
+                          "start": start, "comp": m.get("comp")})
+            whys[mid] = _sharp_dc_why(outcome, home, away, sp, prob, cote)
+    finally:
+        if own:
+            await client.aclose()
+    cb = _combo_from_cands(cands)
+    if cb:
+        cb["date"] = day
+        for leg in cb.get("legs") or []:                  # ré-attache le « pourquoi » (perdu par _combo_from_cands)
+            if whys.get(leg.get("mid")):
+                leg["why"] = whys[leg["mid"]]
     return cb
 
 
