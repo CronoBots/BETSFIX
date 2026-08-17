@@ -2339,6 +2339,13 @@ CSS = """
   .pgm-row:last-child{border-bottom:0}
   .pgm-row.pgm-wait{border-left-color:var(--gold)}
   .pgm-row.pgm-abst{border-left-color:var(--dim)}
+  /* Heure d'analyse prévue (~KO−2 h) d'un match « à analyser » du programme (user 2026-08-17). */
+  .pgm-anh{font-size:9.5px;font-weight:700;color:var(--muted);white-space:nowrap;letter-spacing:.02em}
+  /* Lignes de planning DANS une zone (ex. Abstention) : pas de double cadre (la zone porte déjà le sien). */
+  .pgm-inzone{border:0;border-radius:0}
+  /* Zone ABSTENTION : pastille + compteur gris-bleu neutre (on ne parie pas -> discret). */
+  .zone-abst .zone-dot{background:#9fb6cf;box-shadow:0 0 8px rgba(159,182,207,.4)}
+  .zone-abst .zone-n{color:#9fb6cf;background:rgba(159,182,207,.12)}
   .pgm-row.pgm-conf{border-left-color:#34d27b}
   .pgm-row.pgm-val{border-left-color:var(--accent)}
   .pgm-row.pgm-mont{border-left-color:var(--gold)}
@@ -7230,6 +7237,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _zone("combo", "Combiné double chance", "", 1 if combo_daily else 0, combo_daily,
               collapsible=True, record=_combo_rec, leg_results=_c_leg_results),
     ]
+    # ZONE ABSTENTION (user 2026-08-17) : les matchs ANALYSÉS SANS pari retenu = une CATÉGORIE à part (après
+    # analyse, chaque match rejoint sa catégorie ; l'abstention en est une). En DERNIER (ce qu'on ne joue pas).
+    out.append(_abstention_zone(sport or "foot"))
     inner = "".join(x for x in out if x)
     _empty = ('<div class="paj-empty">Aucun pari retenu pour l\'instant.'
               '<span>Chaque match est analysé ~2 h avant son coup d\'envoi (voir le programme) ; '
@@ -7747,18 +7757,19 @@ def _sidecar_analyzed_at(sport: str, fid) -> str:
     return ""
 
 
-def _programme_schedule(sport: str = "foot") -> str:
-    """MODULE « Programme du jour » (onglet Pronos) : la LISTE COMPLÈTE des matchs suivis — match ·
-    compétition · coup d'envoi · heure d'analyse. En wave-first, chaque match est analysé ~2 h avant SON
-    coup d'envoi : on affiche l'heure d'analyse PRÉVUE (≈ KO−2 h) tant qu'il n'est pas analysé, puis l'heure
-    RÉELLE une fois fait (✓), et « terminé » une fois réglé. Rend le processus transparent. Pur affichage
-    (lit data/day_programme.json + présence des sidecars, ZÉRO réseau). '' si programme absent/vide."""
+def _planning_rows(sport: str = "foot") -> tuple[list, list]:
+    """Lignes LÉGÈRES du planning du jour, RÉPARTIES par état (user 2026-08-17 : « chaque match d'abord dans
+    le programme, puis basculé dans sa catégorie après analyse »). Renvoie `(pending, abst)` :
+    - `pending` = matchs PAS ENCORE analysés (« à analyser ») -> zone PROGRAMME (avec l'heure d'analyse ~KO−2 h) ;
+    - `abst`    = matchs ANALYSÉS SANS pari retenu (abstention) -> zone ABSTENTION.
+    Les matchs AVEC pari (confiance/value/montante) ou jambe de combiné sont EXCLUS ici : ils sont affichés en
+    CARTE dans leur propre catégorie. Pur affichage (lit day_programme.json + sidecars, ZÉRO réseau)."""
     import json as _json
     path = os.path.join(analyses._ROOT, "data", "day_programme.json")
     try:
         prog = _json.load(open(path, encoding="utf-8"))
     except (OSError, ValueError):
-        return ""
+        return [], []
 
     def _dt_of(m):
         try:
@@ -7768,15 +7779,13 @@ def _programme_schedule(sport: str = "foot") -> str:
     items = [(m, _dt_of(m)) for m in (prog.get("matches") or []) if (m.get("sport") or "foot") == sport]
     items = sorted([(m, dt) for m, dt in items if dt is not None], key=lambda x: x[1])
     if not items:
-        return ""
-    LEAD = timedelta(hours=2)   # heure d'analyse cible = coup d'envoi − 2 h (fenêtre wave-first)
+        return [], []
+
     def _ld(dt):
         return dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
-    # En-tete de jour UNIQUEMENT si le programme couvre plusieurs jours sportifs (sinon « Aujourd'hui »
-    # serait redondant avec le titre « Programme du jour »).
     _multi = len({_sport_date(_ld(dt)).isoformat() for _m, dt in items}) > 1
     _mont_mid = str((_montante_today_bet() or {}).get("mid") or "")   # LE pari montante du jour
-    _combo_mids: set = set()                           # mids des JAMBES du combiné du jour (badge « combiné »)
+    _combo_mids: set = set()                           # mids des JAMBES du combiné du jour
     try:
         from app import combo_daily as _cd
         for _sd in {_sport_date(_ld(dt)).isoformat() for _m, dt in items}:
@@ -7785,69 +7794,84 @@ def _programme_schedule(sport: str = "foot") -> str:
                 _combo_mids |= {str(l.get("mid")) for l in (_cb.get("legs") or []) if l.get("mid")}
     except Exception:
         pass
-    rows, cur_day, n_abst = [], None, 0
+    pending, abst, _pday = [], [], None
     for m, dt in items:
         ld = _ld(dt)
-        day = _sport_date(ld).isoformat()
-        if _multi and day != cur_day:
-            cur_day = day
-            rows.append(f'<div class="pgm-day">{html.escape(_prog_day_label(ld))}</div>')
         ko = ld.strftime("%H:%M")
         mid = str(m.get("id"))
         d = analyses.meta(sport, mid)
-        # PLANNING = UNIQUEMENT LE TYPE DE SÉLECTION (user 2026-08-16 : PAS le résultat gagné/perdu). Chaque
-        # ligne : heure · équipes+ligue · chip TYPE (Confiance/Value/Montante/Combiné/Abstention/À analyser).
-        # La bordure gauche suit le TYPE (plus le résultat). Un pari réglé garde son TYPE, jamais son issue.
-        _typ2 = ""
+        # CATÉGORIE du match (même logique qu'avant). On ne garde ICI que « à analyser » et « abstention » ;
+        # les paris (confiance/value/montante) et jambes de combiné vivent en CARTE dans leur propre zone.
         if d is None:                                      # pas encore analysé
             _typ2 = "à analyser"
         elif analyses.is_settled(d):                       # réglé -> on garde le TYPE (jamais l'issue)
             _sb = analyses.stat_bet(d)
             _res = (_sb or {}).get("result") if isinstance(_sb, dict) else None
-            if _res in ("won", "lost", "push"):            # il Y AVAIT un pari -> son type
+            if _res in ("won", "lost", "push"):
                 _typ2 = "montante" if mid == _mont_mid else analyses.bet_tier_for("foot", mid)
-            elif _sb is None and mid in _combo_mids:       # jambe de combiné
+            elif _sb is None and mid in _combo_mids:
                 _typ2 = "combiné"
-            else:                                          # abstention réglée
-                _typ2 = "abstention"; n_abst += 1
+            else:
+                _typ2 = "abstention"
         else:                                              # analysé, pas réglé
             rb = analyses.retained_bet(sport, mid)
             if rb is None and mid in _combo_mids:
                 _typ2 = "combiné"
-            elif rb is None:                               # analysé sans value -> abstention
-                _typ2 = "abstention"; n_abst += 1
+            elif rb is None:
+                _typ2 = "abstention"
             elif mid == _mont_mid:
                 _typ2 = "montante"
             elif analyses.tier_of(d, rb) == "confiance":
                 _typ2 = "confiance"
             else:
                 _typ2 = "value"
+        if _typ2 not in ("à analyser", "abstention"):
+            continue                                       # a un pari / jambe combiné -> carte dans sa zone
         teams = _noF(str(m.get("name") or ""))
         comp = _noF(str(m.get("comp") or "")).upper()
-        cls = {"confiance": "pgm-conf", "value": "pgm-val", "montante": "pgm-mont",
-               "combiné": "pgm-combo", "abstention": "pgm-abst",
-               "à analyser": "pgm-wait"}.get(_typ2, "pgm-abst")
-        _tcls = {"montante": "t-mont", "value": "t-val", "combiné": "t-combo",
-                 "abstention": "t-abst", "à analyser": "t-wait"}.get(_typ2, "t-conf")
-        _chip = f'<span class="pgm-typ {_tcls}">{html.escape(_typ2)}</span>'
-        rows.append(
-            f'<div class="pgm-row {cls}">'
-            f'<span class="pgm-ko">{ko}</span>'
-            f'<div class="pgm-mid"><span class="pgm-teams">{html.escape(teams)}</span>'
-            f'<span class="pgm-comp">{html.escape(comp)}</span></div>'
-            f'<span class="pgm-tail">{_chip}</span>'
-            f'</div>')
-    # OPTION « masquer les abstentions » (demande user 2026-08-11) : case à cocher CSS pure (pas de JS) —
-    # cochée -> les lignes .pgm-abst passent en display:none. Affichée seulement s'il y a des abstentions.
-    _toggle = ("" if not n_abst else
-               '<input type="checkbox" id="pgmHideAbst" class="pgm-hideabst" hidden>'
-               f'<label for="pgmHideAbst" class="pgm-toggle">Masquer les abstentions ({n_abst})</label>')
-    # REPLIABLE (<details>) : titre EN MAJUSCULE seul (sans emoji ni phrase d'explication, demande user).
+        _extra = ""
+        if _typ2 == "à analyser":                          # heure d'analyse PRÉVUE (~KO−2 h, wave-first)
+            _extra = f'<span class="pgm-anh">analyse ~{(ld - timedelta(hours=2)).strftime("%H:%M")}</span>'
+        cls = "pgm-wait" if _typ2 == "à analyser" else "pgm-abst"
+        row = (f'<div class="pgm-row {cls}"><span class="pgm-ko">{ko}</span>'
+               f'<div class="pgm-mid"><span class="pgm-teams">{html.escape(teams)}</span>'
+               f'<span class="pgm-comp">{html.escape(comp)}</span></div>'
+               f'<span class="pgm-tail">{_extra}</span></div>')
+        if _typ2 == "à analyser":
+            if _multi:                                     # en-tête de jour si le programme couvre 2 jours sportifs
+                _dk = _sport_date(ld).isoformat()
+                if _dk != _pday:
+                    _pday = _dk
+                    pending.append(f'<div class="pgm-day">{html.escape(_prog_day_label(ld))}</div>')
+            pending.append(row)
+        else:
+            abst.append(row)
+    return pending, abst
+
+
+def _programme_schedule(sport: str = "foot") -> str:
+    """Zone « PROGRAMME DU JOUR » (onglet Pronos) = les matchs PAS ENCORE analysés (à analyser) + leur heure
+    d'analyse prévue. Une fois analysé, un match QUITTE le programme et rejoint sa catégorie (Confiance/Value/
+    Abstention/Montante/Combiné). '' si plus rien à analyser (tout est passé en catégorie)."""
+    pending, _abst = _planning_rows(sport)
+    if not pending:
+        return ""
+    _n = sum(1 for r in pending if 'pgm-row' in r)         # compte les MATCHS (pas les en-têtes de jour)
     return (f'<details class="pgm-fold" open>'
             f'<summary class="pgm-head"><span class="pgm-title">PROGRAMME DU JOUR</span>'
-            f'<span class="pgm-hr"><span class="pgm-count">{len(items)} matchs</span>'
+            f'<span class="pgm-hr"><span class="pgm-count">{_n} à analyser</span>'
             f'<span class="pgm-chev">▾</span></span></summary>'
-            f'{_toggle}<div class="pgm-list">{"".join(rows)}</div></details>')
+            f'<div class="pgm-list">{"".join(pending)}</div></details>')
+
+
+def _abstention_zone(sport: str = "foot") -> str:
+    """Zone « Abstention » (onglet Pronos) = les matchs ANALYSÉS sur lesquels on NE PARIE PAS (pas de value).
+    Catégorie à part entière (comme Confiance/Value) — user 2026-08-17. Lignes légères. '' si aucune."""
+    _pending, abst = _planning_rows(sport)
+    if not abst:
+        return ""
+    return _zone("abst", "Abstention", "", len(abst),
+                 f'<div class="pgm-list pgm-inzone">{"".join(abst)}</div>', collapsible=True)
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
