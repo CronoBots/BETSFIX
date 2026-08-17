@@ -2288,9 +2288,10 @@ CSS = """
   /* PAS de séparateur SOUS le titre de zone (user 2026-08-16) — il est reporté à la FIN de chaque zone (.zone). */
   .zone-h{display:flex;align-items:center;gap:9px;margin:0 3px 10px}
   .zone{padding-bottom:18px;border-bottom:1px solid var(--border)}   /* séparateur SOUS CHAQUE catégorie (user 2026-08-17) */
-  /* Zone REPLIÉE : le trait vient JUSTE SOUS le titre (user 2026-08-17), pas 18 px plus bas (plus de gros vide). */
-  .zone-col:not([open]){padding-bottom:11px}
-  .zone-col:not([open]) > .zone-h{margin-bottom:0}
+  /* Zone REPLIÉE (user 2026-08-17) : le trait reste PROCHE de SON titre (padding-bottom court), mais on remet
+     de l'AIR AU-DESSUS du titre suivant (margin-top) -> le séparateur n'est plus collé au titre d'après. */
+  .zone-col:not([open]){padding-bottom:9px}
+  .zone-col:not([open]) > .zone-h{margin-top:17px;margin-bottom:0}
   .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone : garde le trait (sépare du pied de page) */
   /* Bouton notifications push (user 2026-08-16) — MASQUÉ par défaut ; le JS ne l'affiche qu'en PWA
      (mode standalone) et tant que la permission n'est pas accordée. */
