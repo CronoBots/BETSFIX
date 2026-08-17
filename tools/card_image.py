@@ -173,15 +173,15 @@ _CSS_SIMPLE = """
 .swm{height:100px;width:auto;max-width:82%;margin:0 auto;display:block;filter:drop-shadow(0 6px 22px rgba(34,184,255,.42))}
 /* TYPE de pari écrit SOUS le logo comme une signature (user 2026-08-17 : plus en badge) — tagline centrée,
    colorée par type, grand interlettrage pour l'effet « fait partie du logo ». */
-.stag{text-align:center;font-size:25px;font-weight:900;letter-spacing:.32em;text-transform:uppercase;
-  margin:4px 0 28px;padding-left:.32em}
+.stag{text-align:center;font-size:32px;font-weight:900;letter-spacing:.30em;text-transform:uppercase;
+  margin:6px 0 28px;padding-left:.30em}
 .stag.st-confiance{color:#34d27b}
 .stag.st-value{color:#22b8ff}
 .stag.rb-w{color:#34d27b}
 .stag.rb-l{color:#ff6b6b}
 .stag.rb-n{color:#9fb6cf}
 .slg{text-align:center;font-size:25px;font-weight:800;color:#eef4fb;letter-spacing:.05em;margin-bottom:30px;line-height:1.2}
-.stms{display:flex;align-items:center;justify-content:center;gap:30px;margin-bottom:30px}
+.stms{display:flex;align-items:center;justify-content:center;gap:30px;margin-bottom:52px}   /* plus d'air entre les équipes et le pari (user 2026-08-17) */
 .stm{flex:1;display:flex;flex-direction:column;align-items:center;gap:15px;min-width:0}
 .stn{font-size:31px;font-weight:900;color:#eef4fb;text-align:center;line-height:1.14;letter-spacing:-.01em}
 .stc{flex:0 0 auto;font-size:44px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
