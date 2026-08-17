@@ -2324,7 +2324,7 @@ CSS = """
   .mc-stat-wait{color:var(--gold)}
   .mc-stat-abst{color:#9fb6cf}
   .mc-stat-sub{display:block;margin-top:3px;font-size:10.5px;font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0}
-  .zone-live{margin-left:auto}   /* badge « 🟢 Live » poussé à droite dans l'en-tête de zone (user 2026-08-15) */
+  .zone-live{margin-left:8px}   /* badge « 🟢 Live » TOUT à droite, APRÈS le compteur (user 2026-08-17 : « badge à droite, nombre à sa gauche ») */
   /* RECORD du jour par type — pastilles compactes collées au titre. TOUS les états en BADGE COLORÉ plein
      (user 2026-08-08 : « victoires et défaites dans le même style que les matchs en attente ») : à venir =
      JAUNE ⏳ · gagnés = VERT ✓ · perdus = ROUGE ✗ · live = texte vert 🟢. Discret, groupé après le titre. */
@@ -6593,8 +6593,12 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     # l'info ; le compteur rond faisait doublon.
     # « en direct » -> ANCIEN BADGE « 🟢 Live » (user 2026-08-15) : le libellé texte des zones Live redevient
     # le badge vert pulsant (comme avant sur les cartes). Les autres tags gardent le texte discret.
+    # Badge « 🟢 Live » = TOUT À DROITE, le COMPTEUR à sa GAUCHE (user 2026-08-17) : on le sort du `head`
+    # (côté titre) et on l'appose APRÈS le compteur (zone-right), en DERNIER enfant de .zone-h.
+    live_badge = ""
     if tag == "en direct":
-        t = '<span class="mc-badge mc-live zone-live">🟢 Live</span>'
+        t = ""
+        live_badge = '<span class="mc-badge mc-live zone-live">🟢 Live</span>'
     elif tag:
         t = f'<span class="zone-tag">{html.escape(tag)}</span>'
     else:
@@ -6608,10 +6612,10 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         # une zone est mémorisé et réappliqué après chaque swap de jour.
         return (f'<details class="zone zone-{kind} zone-col" data-zk="{kind}"{op}>'
                 f'<summary class="zone-h">{head}<span class="zone-right">{rec}'
-                f'<span class="zone-chev">▾</span></span></summary>'
+                f'<span class="zone-chev">▾</span></span>{live_badge}</summary>'
                 f'<div class="zone-b">{body}</div></details>')
     return (f'<section class="zone zone-{kind}"><div class="zone-h">{head}'
-            f'<span class="zone-right">{rec}</span></div>'
+            f'<span class="zone-right">{rec}</span>{live_badge}</div>'
             f'<div class="zone-b">{body}</div></section>')
 
 
