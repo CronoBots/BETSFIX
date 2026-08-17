@@ -28,11 +28,13 @@ _CSS = """
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 html,body{margin:0;padding:0;background:transparent}
-.card{width:920px;padding:46px 50px 40px;background:linear-gradient(160deg,#101b29 0%,#0a0f17 60%,#080c13 100%);
+.card{width:920px;padding:46px 50px 40px;background:#0b1826;   /* fond PLAT = carte du site .mc-tg (user 2026-08-17) */
   border:2px solid rgba(34,184,255,.55);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden;
-  box-shadow:inset 0 0 0 1px rgba(34,184,255,.28),inset 0 0 80px rgba(34,184,255,.07)}
+  box-shadow:inset 0 0 0 1px rgba(34,184,255,.22)}
+/* plus d'effet cyan en HAUT À DROITE (user 2026-08-17) ; l'élément reste pour que les cartes RÉSULTAT
+   (.card.won/.lost .glow) le re-colorent en vert/rouge. */
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
-  background:radial-gradient(circle,rgba(34,184,255,.20),transparent 70%)}
+  background:transparent}
 .hero{margin:-6px 0 22px;text-align:left;position:relative}
 .hero img{height:46px;width:auto;display:block;filter:drop-shadow(0 4px 14px rgba(34,184,255,.35))}   /* wordmark = LOGO (pas bannière pleine largeur) */
 .top{font-size:30px;font-weight:900;letter-spacing:.05em;color:#5fd0ff;text-transform:uppercase;line-height:1.25}
