@@ -168,14 +168,18 @@ def _selh(e, market: str, pick: str) -> str:
 
 
 _CSS_SIMPLE = """
-.scard{padding:30px 48px 48px}
-.shero{text-align:center;margin:52px 0 28px}   /* logo DESCENDU sous le badge coin -> pas de chevauchement */
+.scard{padding:44px 48px 48px}
+.shero{text-align:center;margin:2px 0 4px}
 .swm{height:100px;width:auto;max-width:82%;margin:0 auto;display:block;filter:drop-shadow(0 6px 22px rgba(34,184,255,.42))}
-.stype{display:inline-block;font-size:22px;font-weight:900;letter-spacing:.09em;padding:8px 22px;border-radius:13px}
-/* Badge TYPE / RÉSULTAT en COIN HAUT-DROIT (ruban, user 2026-08-17) — le logo reste centré, SOUS le badge. */
-.scorner{position:absolute;top:26px;right:44px;z-index:3}
-.st-confiance{color:#08210f;background:#34d27b}
-.st-value{color:#04121f;background:#22b8ff}
+/* TYPE de pari écrit SOUS le logo comme une signature (user 2026-08-17 : plus en badge) — tagline centrée,
+   colorée par type, grand interlettrage pour l'effet « fait partie du logo ». */
+.stag{text-align:center;font-size:25px;font-weight:900;letter-spacing:.32em;text-transform:uppercase;
+  margin:4px 0 28px;padding-left:.32em}
+.stag.st-confiance{color:#34d27b}
+.stag.st-value{color:#22b8ff}
+.stag.rb-w{color:#34d27b}
+.stag.rb-l{color:#ff6b6b}
+.stag.rb-n{color:#9fb6cf}
 .slg{text-align:center;font-size:25px;font-weight:800;color:#eef4fb;letter-spacing:.05em;margin-bottom:30px;line-height:1.2}
 .stms{display:flex;align-items:center;justify-content:center;gap:30px;margin-bottom:30px}
 .stm{flex:1;display:flex;flex-direction:column;align-items:center;gap:15px;min-width:0}
@@ -206,11 +210,7 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 .vmid{color:#f6c54a}
 .vneg{color:#ff6b6b}
 .swhy{font-size:24px;font-weight:500;color:#a7bcd6;line-height:1.42;margin-top:30px}   /* pas de barre verticale (user 2026-08-17) */
-/* Carte RÉSULTAT façon site : badge Gagné/Perdu + SCORE au centre + « Terminé ». */
-.rbadge{display:inline-block;font-size:24px;font-weight:900;letter-spacing:.09em;padding:11px 30px;border-radius:15px}
-.rb-w{color:#08210f;background:#34d27b}
-.rb-l{color:#2a0a0c;background:#ff6b6b}
-.rb-n{color:#0b1220;background:#9fb6cf}
+/* Carte RÉSULTAT façon site : signature Gagné/Perdu sous le logo + SCORE au centre + « Terminé ». */
 .rsc{display:flex;flex-direction:column;align-items:center;gap:3px}
 .rsc b{font-size:58px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 .rfin{font-size:20px;font-weight:800;color:#90a4be;text-transform:uppercase;letter-spacing:.06em}
@@ -271,8 +271,8 @@ def _simple_card_html(d: dict) -> str:
         _bar = ""
     inner = (
         f'<div class="glow"></div>'
-        f'<span class="stype scorner st-{_tier}">{_tlabel}</span>'   # BADGE TYPE en COIN haut-droit (ruban, user 2026-08-17)
         f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
+        f'<div class="stag st-{_tier}">{_tlabel}</div>'   # TYPE écrit sous le logo comme une signature (user 2026-08-17)
         f'<div class="slg">{e(_lg)}</div>'
         f'<div class="stms">'
         f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
@@ -309,8 +309,8 @@ def _result_simple_card_html(d: dict) -> str:
     _ccls = "won" if mark == "won" else ("lost" if mark == "lost" else "push" if mark in ("push", "void") else "")
     inner = (
         f'<div class="glow"></div>'
-        + (f'<span class="rbadge scorner {_rcls}">{_rlabel}</span>' if _rlabel else "")   # badge résultat en COIN
         + f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
+        + (f'<div class="stag {_rcls}">{_rlabel}</div>' if _rlabel else "")   # résultat écrit sous le logo (signature)
         + f'<div class="slg">{e(_lg)}</div>'
         f'<div class="stms">'
         f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
