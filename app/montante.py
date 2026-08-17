@@ -338,9 +338,36 @@ def pick_day_bet() -> dict | None:
     return best
 
 
-def record_day(date_iso: str) -> bool:
+MONTANTE_MIN_COTE = 1.22   # plancher de cote du palier programme-built : sous ça, le payout est dérisoire
+
+
+async def pick_from_programme_async(matches: list, client=None) -> dict | None:
+    """Palier du jour construit DEPUIS LE PROGRAMME (user 2026-08-17), comme le combiné : la DOUBLE CHANCE la
+    PLUS SÛRE (proba Pinnacle la plus haute), ancrée sharp, INDÉPENDANTE des marchés value du flagship (qui
+    joue souvent des totaux INÉLIGIBLES -> la montante était affamée). Garantit un palier CHAQUE jour sur un
+    marché SÛR (DC). On préfère une cote de palier ≥ `MONTANTE_MIN_COTE` (payout non dérisoire) ; à défaut, la
+    plus sûre dispo. None si aucun candidat DC sûr (réseau/vivier). Même format que `pick_day_bet`."""
+    from app import combo_safe as _cs
+    day = _cs.day_key()
+    try:
+        cands, _ = await _cs.safe_dc_candidates(day, matches, client)
+    except Exception:
+        cands = []
+    if not cands:
+        return None
+    pool = [c for c in cands if c.get("cote", 0) >= MONTANTE_MIN_COTE] or cands
+    best = max(pool, key=lambda c: ((c.get("prob") or 0), -c["cote"]))   # le plus sûr (proba haute, cote basse)
+    return {"mid": best["mid"], "sport": "foot",
+            "match": best.get("name") or f'{best.get("home", "")} - {best.get("away", "")}'.strip(" -"),
+            "sel": best["sel"], "cote": best["cote"], "code": best.get("code", ""),
+            "prob": best.get("prob"), "start": best.get("start", "")}
+
+
+def record_day(date_iso: str, pick: dict | None = None) -> bool:
     """Enregistre le pari du jour (1 SEUL par jour). Refuse si un pari est déjà EN ATTENTE (on attend son
-    résultat avant d'engager le palier suivant) ou si le jour est déjà enregistré. True si ajouté."""
+    résultat avant d'engager le palier suivant) ou si le jour est déjà enregistré. True si ajouté.
+    `pick` (user 2026-08-17) : palier PRÉ-CONSTRUIT (ex. programme-built `pick_from_programme_async`) ; sinon
+    on retombe sur `pick_day_bet()` (pari joué éligible)."""
     d = load()
     # DÉMARRAGE au scan du LENDEMAIN de l'activation (demande user 2026-07-25) : `start_date` = jour
     # d'activation ; on n'enregistre qu'à partir du jour STRICTEMENT suivant (le 1er palier vient d'un
@@ -353,7 +380,8 @@ def record_day(date_iso: str) -> bool:
         return False
     if any(s.get("date") == date_iso for s in steps):      # déjà enregistré aujourd'hui
         return False
-    pick = pick_day_bet()
+    if pick is None:
+        pick = pick_day_bet()
     if not pick:
         return False
     steps.append({"date": date_iso, "match": pick["match"], "sel": pick["sel"],

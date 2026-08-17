@@ -217,15 +217,11 @@ def _sharp_dc_why(outcome: str, home: str, away: str, sp: dict, prob: float, cot
             f"tomber. {fin}")
 
 
-async def build_from_programme_async(day: str, matches: list, client=None) -> dict | None:
-    """MATIN (user 2026-08-17) — construit LE combiné DC du jour depuis le PROGRAMME (tous les matchs encore
-    À VENIR), SANS attendre l'analyse Claude match-par-match. En wave-first les matchs sont joués un par un :
-    il n'existe plus de moment où ≥2 jambes sont à la fois analysées ET à venir -> le combiné ne se créait
-    plus. Ici la value est ancrée sur PINNACLE (notre sharp n°1, dispo par noms d'équipes sans analyse) :
-    pour chaque match on prend la DC la PLUS SÛRE au marché (cote Unibet la plus basse en 1X/X2) et on ne la
-    RETIENT que si l'ancre Pinnacle lui donne un EDGE POSITIF (proba dé-viggée > implicite). Le « pourquoi »
-    de chaque jambe est un résumé chiffré Pinnacle, réécrit ensuite par la vague qui analyse le match.
-    None si vivier DC value insuffisant. `matches` = liste du programme [{id,sport,name,start,comp}]."""
+async def safe_dc_candidates(day: str, matches: list, client=None) -> tuple[list, dict]:
+    """Candidats DC SÛRS du jour depuis le PROGRAMME : par match, la DC la PLUS SÛRE au marché (cote Unibet la
+    plus basse en 1X/X2, ancre PINNACLE dé-viggée, filtrée sécurité-first). Renvoie `(cands, whys)`. PARTAGÉ
+    par le combiné (assemblage) ET la montante (pari sûr du jour, user 2026-08-17) -> une seule logique.
+    `matches` = liste programme [{id,sport,name,start,comp}]."""
     import httpx
     from datetime import datetime, timezone
     from app import match_select as _ms, pinnacle
@@ -243,7 +239,7 @@ async def build_from_programme_async(day: str, matches: list, client=None) -> di
             start = m.get("start") or ""
             if not mid or " - " not in name:
                 continue
-            try:                                          # match déjà commencé -> pas jouable au combiné
+            try:                                          # match déjà commencé -> pas jouable
                 _st = datetime.fromisoformat(start.replace("Z", "+00:00"))
                 if _st <= now:
                     continue
@@ -281,6 +277,15 @@ async def build_from_programme_async(day: str, matches: list, client=None) -> di
     finally:
         if own:
             await client.aclose()
+    return cands, whys
+
+
+async def build_from_programme_async(day: str, matches: list, client=None) -> dict | None:
+    """MATIN (user 2026-08-17) — construit LE combiné DC du jour depuis le PROGRAMME (tous les matchs encore
+    À VENIR), SANS attendre l'analyse Claude match-par-match. Ancre PINNACLE (sharp n°1, par noms d'équipes) ;
+    par match la DC la PLUS SÛRE, sécurité-first. « Pourquoi » chiffré Pinnacle réécrit ensuite par la vague.
+    None si vivier DC insuffisant. `matches` = liste programme [{id,sport,name,start,comp}]."""
+    cands, whys = await safe_dc_candidates(day, matches, client)
     cb = _combo_from_cands(cands)
     if cb:
         cb["date"] = day

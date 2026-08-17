@@ -970,6 +970,23 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                 print("  🎯 Combiné du jour (matin) : vivier DC value insuffisant (aucune jambe à edge positif).")
     except Exception as _cce:
         print(f"  (combiné du jour matin ignoré : {_cce})")
+    # MONTANTE — PALIER DU JOUR construit DEPUIS LE PROGRAMME (user 2026-08-17) : le flagship joue souvent des
+    # totaux INÉLIGIBLES -> la montante était affamée (aucun palier depuis le 14/08). Comme le combiné : la DC
+    # la plus sûre ancrée Pinnacle, INDÉPENDANTE des marchés value du flagship -> un palier CHAQUE jour. On règle
+    # l'en-cours d'abord (settle), puis on enregistre (record_day refuse si un palier est encore EN ATTENTE ou si
+    # le jour est déjà pris -> jamais de doublon avec le run_daily de fin de scan). Isolé, best-effort.
+    try:
+        from app import montante as _mtn, combo_daily as _cd_mt
+        if _mtn.is_active():
+            _mtn.settle_pending()
+            _mpick = await _mtn.pick_from_programme_async(matches, client)
+            if _mpick and _mtn.record_day(_cd_mt.day_key(), pick=_mpick):
+                print(f"  🪜 Montante (matin, programme) : {_mpick['match']} — {_mpick['sel']} "
+                      f"@{_mpick['cote']} ({round((_mpick.get('prob') or 0) * 100)}%)")
+            elif not _mpick:
+                print("  🪜 Montante (matin) : aucun candidat DC sûr au programme.")
+    except Exception as _mce:
+        print(f"  (montante matin ignorée : {_mce})")
     if not matches or args.no_notify:
         return
     lines = [f"📋 <b>Programme du jour</b> — {len(matches)} match(s)"]
