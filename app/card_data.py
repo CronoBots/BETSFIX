@@ -139,8 +139,29 @@ def build_prono_card(d: dict) -> dict | None:
         # c'est celle qui pilote la value/la sélection ET l'affichage du site -> Telegram = site = moteur.
         # (Avant : proba brute -> divergence avec la value et le site.) Repli sur la brute si pas de cprob.
         _conf = round(rb["cprob"]) if rb.get("cprob") is not None else rb.get("prob")
+        _cote = rb.get("cote")
+        # EDGE + VALUE (barre verdict comme le site) : edge = confiance − proba implicite ; value = conf×cote−1.
+        _edge = _val = None
+        try:
+            _cf, _c = float(_conf), float(_cote)
+            _edge = round(_cf - 100.0 / _c)
+            _val = round((_cf / 100.0 * _c - 1) * 100)
+        except (TypeError, ValueError):
+            pass
+        # Enrichissements « design du site » (user 2026-08-17) : pays de la ligue, TYPE de pari (Confiance/
+        # Value), LOGOS des 2 équipes. Imports locaux (évitent un cycle au chargement).
+        from app import match_select as _ms, crest as _cr
+        _comp = str(d.get("comp") or "")
+        try:
+            _tier = analyses.bet_tier_for(sport, str(d.get("id")))
+        except Exception:
+            _tier = "confiance"
         card.update(type="simple", market=mkt, pick=pk,
-                    cote=(f"{rb['cote']:g}" if rb.get("cote") else ""), conf=_conf,
+                    cote=(f"{_cote:g}" if _cote else ""), conf=_conf,
+                    edge=_edge, value=_val, tier=_tier,
+                    home=home, away=away, country=_ms.comp_country(_comp), comp=_comp,
+                    home_logo=(_cr.logo_url(_cr.team_id(home)) or ""),
+                    away_logo=(_cr.logo_url(_cr.team_id(away)) or ""),
                     why=_pick_why(d, str(rb.get("sel", ""))))
     elif pick_shown:
         m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", pick)

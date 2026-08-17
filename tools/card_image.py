@@ -33,8 +33,8 @@ html,body{margin:0;padding:0;background:transparent}
   box-shadow:inset 0 0 0 1px rgba(34,184,255,.28),inset 0 0 80px rgba(34,184,255,.07)}
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
   background:radial-gradient(circle,rgba(34,184,255,.20),transparent 70%)}
-.hero{margin:-40px -50px 18px;text-align:center;position:relative}
-.hero img{width:100%;height:auto;display:block;filter:drop-shadow(0 6px 20px rgba(34,184,255,.30))}
+.hero{margin:-6px 0 22px;text-align:left;position:relative}
+.hero img{height:46px;width:auto;display:block;filter:drop-shadow(0 4px 14px rgba(34,184,255,.35))}   /* wordmark = LOGO (pas bannière pleine largeur) */
 .top{font-size:30px;font-weight:900;letter-spacing:.05em;color:#5fd0ff;text-transform:uppercase;line-height:1.25}
 .top .ico{width:30px;height:30px;vertical-align:-5px;margin-right:8px}
 .topcomp{font-size:20px;font-weight:700;letter-spacing:.02em;color:#93b7db;text-transform:none;margin-left:5px}
@@ -148,11 +148,10 @@ def _img_uri(path: str) -> str:
 
 
 def _banner_uri(emoji: str) -> str:
-    """Bannière BETSFIX du SPORT (en-tête de carte) en data-URI base64. Repli sur le wordmark
-    générique si la bannière du sport est absente -> carte autonome (rendu Chrome sans serveur)."""
+    """Logo BETSFIX (wordmark, IDENTIQUE au logo en haut du site — user 2026-08-17 : plus la bannière
+    « BETSFIX FOOTBALL » du sport) en data-URI base64. '' si absent."""
     root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
-    sport = _SPORT_OF.get(emoji or "")
-    for name in ([f"banner_{sport}.png"] if sport else []) + ["wordmark.png"]:
+    for name in ("wordmark.png", "logo.png"):
         uri = _img_uri(os.path.join(root, name))
         if uri:
             return uri
@@ -168,7 +167,122 @@ def _selh(e, market: str, pick: str) -> str:
     return f'<span>{e(pick)}</span>'
 
 
+_CSS_SIMPLE = """
+.scard{padding:40px 48px 46px}
+.shead{display:flex;align-items:center;justify-content:space-between;margin:-6px 0 26px}
+.swm{height:42px;width:auto;display:block;filter:drop-shadow(0 4px 14px rgba(34,184,255,.35))}
+.stype{font-size:23px;font-weight:900;letter-spacing:.09em;padding:9px 22px;border-radius:14px}
+.st-confiance{color:#08210f;background:#34d27b}
+.st-value{color:#04121f;background:#22b8ff}
+.slg{text-align:center;font-size:25px;font-weight:800;color:#eef4fb;letter-spacing:.05em;margin-bottom:30px;line-height:1.2}
+.stms{display:flex;align-items:center;justify-content:center;gap:30px;margin-bottom:30px}
+.stm{flex:1;display:flex;flex-direction:column;align-items:center;gap:15px;min-width:0}
+.stn{font-size:31px;font-weight:900;color:#eef4fb;text-align:center;line-height:1.14;letter-spacing:-.01em}
+.stc{flex:0 0 auto;font-size:44px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.tlwrap{position:relative;width:94px;height:94px;display:block}
+.tlogo{position:absolute;inset:0;width:94px;height:94px}
+span.tlogo.mono{border-radius:50%;display:grid;place-items:center;font-size:35px;font-weight:900;color:#fff;
+  box-shadow:0 5px 15px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.12)}
+img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
+.spk{text-align:center;font-size:35px;font-weight:900;color:#eef4fb;margin-bottom:6px;line-height:1.18}
+.spk .legsel{align-items:center}
+.spk .mkt{font-size:26px !important;font-weight:700;color:#a7bcd6}
+.spk .pk{font-size:35px !important;font-weight:900;color:#eef4fb}
+.vbar{position:relative;height:16px;border-radius:99px;overflow:hidden;margin:30px 0 4px;
+  background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
+.vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+.ve{position:absolute;top:0;bottom:0}
+.vepos{background:rgba(255,255,255,.36)}
+.veneg{background:repeating-linear-gradient(45deg,rgba(255,255,255,.13) 0 5px,transparent 5px 11px)}
+.vmk{position:absolute;top:0;bottom:0;width:3px;margin-left:-1.5px;background:rgba(244,248,255,.55);border-radius:2px}
+.vgrid{display:flex;width:100%;border-top:2px solid rgba(255,255,255,.10);margin-top:28px;padding-top:24px}
+.vc{flex:1;display:flex;flex-direction:column;align-items:center;gap:9px}
+.vc + .vc{border-left:2px solid rgba(255,255,255,.07)}
+.vl{font-size:19px;font-weight:800;color:#90a4be;text-transform:uppercase;letter-spacing:.08em}
+.vv{font-size:37px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.vconf{color:#64cd8d}
+.vcote{color:#fff}
+.vpos{color:#34d27b}
+.vmid{color:#f6c54a}
+.vneg{color:#ff6b6b}
+.swhy{font-size:24px;font-weight:500;color:#a7bcd6;line-height:1.42;margin-top:30px;
+  padding-left:20px;border-left:4px solid rgba(63,184,255,.42)}
+"""
+
+
+def _team_logo_html(name, url, e) -> str:
+    """Logo d'équipe (URL FotMob) SUR un monogramme coloré de repli — comme le site (crest)."""
+    words = [w for w in re.split(r"[\s.\-]+", str(name or "")) if w]
+    ini = ("".join(w[0] for w in words[:2]) or (str(name or "?")[:2])).upper()
+    hue = sum(ord(c) for c in str(name or "")) % 360
+    mono = (f'<span class="tlogo mono" style="background:linear-gradient(150deg,'
+            f'hsl({hue},48%,46%),hsl({(hue + 24) % 360},52%,34%))">{e(ini)}</span>')
+    if url:
+        return (f'<span class="tlwrap">{mono}'
+                f'<img class="tlogo" src="{_html.escape(str(url))}" '
+                f'onerror="this.remove()"></span>')
+    return f'<span class="tlwrap">{mono}</span>'
+
+
+def _simple_card_html(d: dict) -> str:
+    """Carte de PARI SIMPLE façon SITE (user 2026-08-17) : logo BETSFIX + badge TYPE (Confiance/Value),
+    ligue + pays centrés, logos + heure au centre, le pari, barre de confiance (zone edge), grille verdict
+    Confiance/Edge/Value/Cote, et le « pourquoi » affiché en entier."""
+    def e(x):
+        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
+    _wm = _banner_uri(d.get("emoji", ""))
+    _tier = str(d.get("tier") or "confiance")
+    _tlabel = "VALUE" if _tier == "value" else "CONFIANCE"
+    home, away = str(d.get("home") or ""), str(d.get("away") or "")
+    _cat = str(d.get("cat", ""))                        # « Football · <comp> »
+    _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
+    _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
+    _hh = str(d.get("meta", "")).split("·")[-1].strip() if d.get("meta") else ""
+    conf, edge, val, cote = d.get("conf"), d.get("edge"), d.get("value"), d.get("cote")
+    cells = []
+    if conf is not None:
+        cells.append(f'<div class="vc"><span class="vl">Confiance</span><span class="vv vconf">{e(conf)}%</span></div>')
+    if edge is not None:
+        cells.append(f'<div class="vc"><span class="vl">Edge</span>'
+                     f'<span class="vv {"vpos" if edge >= 2 else "vmid" if edge >= 0 else "vneg"}">'
+                     f'{"+" if edge >= 0 else ""}{e(edge)} pts</span></div>')
+    if val is not None:
+        cells.append(f'<div class="vc"><span class="vl">Value</span>'
+                     f'<span class="vv {"vpos" if val >= 3 else "vmid" if val >= 1 else "vneg"}">'
+                     f'{"+" if val >= 0 else ""}{e(val)}%</span></div>')
+    if cote:
+        cells.append(f'<div class="vc"><span class="vl">Cote</span><span class="vv vcote">{e(cote)}</span></div>')
+    _bar = ""
+    try:
+        cf, be = int(round(float(conf))), round(100.0 / float(cote))
+        _col = "#64cd8d" if cf >= 68 else ("#f6c54a" if cf >= 55 else "#ff6b6b")
+        _ov = (f'<i class="ve vepos" style="left:{be}%;width:{cf - be}%"></i>' if cf >= be
+               else f'<i class="ve veneg" style="left:{cf}%;width:{be - cf}%"></i>')
+        _mk = f'<b class="vmk" style="left:{min(be, 100)}%"></b>' if 0 < be < 100 else ""
+        _bar = f'<div class="vbar"><i style="width:{min(cf, 100)}%;background:{_col}"></i>{_ov}{_mk}</div>'
+    except (TypeError, ValueError):
+        _bar = ""
+    inner = (
+        f'<div class="glow"></div>'
+        f'<div class="shead">' + (f'<img class="swm" src="{_wm}">' if _wm else '<span></span>')
+        + f'<span class="stype st-{_tier}">{_tlabel}</span></div>'
+        f'<div class="slg">{e(_lg)}</div>'
+        f'<div class="stms">'
+        f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
+        f'<div class="stc">{e(_hh)}</div>'
+        f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
+        f'</div>'
+        f'<div class="spk">{_selh(e, d.get("market", ""), d.get("pick", ""))}</div>'
+        f'{_bar}'
+        f'<div class="vgrid">{"".join(cells)}</div>'
+        + (f'<div class="swhy">{e(d.get("why"))}</div>' if d.get("why") else ""))
+    return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
+            f'<body><div class="card scard">{inner}</div></body></html>')
+
+
 def _card_html(d: dict) -> str:
+    if d.get("type") == "simple":                       # PARI SIMPLE : design SITE dédié (user 2026-08-17)
+        return _simple_card_html(d)
     # Échappe + retire le suffixe « (F) » des équipes féminines (WNBA) — affichage seulement.
     def e(x):
         return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
