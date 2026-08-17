@@ -21,6 +21,7 @@ _CACHE_FILE = os.path.join("data", "crest_cache.json")
 _UA = {"User-Agent": "Mozilla/5.0"}
 _LOCK = threading.Lock()
 _CACHE: dict | None = None
+_NEG: set = set()   # échecs de résolution vus CETTE session (mémoire seule, jamais figés -> re-tentés au boot)
 
 
 def _load() -> dict:
@@ -59,62 +60,83 @@ _ALIAS = {
 }
 
 
+def _fetch(term: str) -> list:
+    """Résultats FotMob (suggest) pour un libellé de recherche. Peut lever (panne réseau)."""
+    r = httpx.get("https://apigw.fotmob.com/searchapi/suggest",
+                  params={"term": term, "lang": "en"}, headers=_UA, timeout=8)
+    return [o.get("payload", {}) for g in r.json().get("matchSuggest", []) for o in g.get("options", [])]
+
+
+def _match(opts: list, key: str, skey: str, sname: str):
+    """Trouve l'ID d'équipe dans `opts` par 4 niveaux : (1) nom EXACT, (2) contenu bidirectionnel,
+    (3) TOKEN distinctif ≥6 (« RB Bragantino » vs « Red Bull Bragantino »), (4) INITIALES pour un sigle
+    court (« PSG » = Paris Saint-Germain). None si aucun."""
+    for p in opts:                       # 1) exact
+        if _norm(p.get("homeName")) in (key, skey):
+            return p.get("homeTeamId")
+        if _norm(p.get("awayName")) in (key, skey):
+            return p.get("awayTeamId")
+    if len(skey) >= 4:                   # 2) contenu
+        for p in opts:
+            _nh, _na = _norm(p.get("homeName")), _norm(p.get("awayName"))
+            if _nh and (skey in _nh or _nh in skey):
+                return p.get("homeTeamId")
+            if _na and (skey in _na or _na in skey):
+                return p.get("awayTeamId")
+    _toks = sorted((_norm(w) for w in _re.split(r"[\s.\-]+", sname) if w), key=len, reverse=True)
+    _big = next((t for t in _toks if len(t) >= 6), "")
+    if _big:                             # 3) token distinctif
+        for p in opts:
+            if _big in _norm(p.get("homeName")):
+                return p.get("homeTeamId")
+            if _big in _norm(p.get("awayName")):
+                return p.get("awayTeamId")
+    if 2 <= len(key) <= 4:               # 4) initiales (sigle)
+        def _ini(nm):
+            return "".join(w[0] for w in _re.split(r"[\s.\-]+", nm or "") if w).lower()
+        for p in opts:
+            if _ini(p.get("homeName")) == key:
+                return p.get("homeTeamId")
+            if _ini(p.get("awayName")) == key:
+                return p.get("awayTeamId")
+    return None
+
+
 def team_id(name: str):
     """ID FotMob de l'équipe `name` (caché). None si introuvable/panne."""
     key = _norm(name)
     if not key:
         return None
     c = _load()
-    if key in c:
-        return c[key] or None            # négatif caché possible (None)
+    if c.get(key):                       # POSITIF caché -> renvoie direct (jamais re-cherché)
+        return c[key]
+    if key in _NEG:                      # négatif DÉJÀ vu CETTE session -> pas de re-recherche, mais NON figé
+        return None                      # sur disque -> re-tenté au prochain démarrage (capte les fixes de résolution)
     tid = None
     sname = _clean(name)                  # nom sans suffixe état/genre -> meilleure résolution FotMob
     skey = _norm(sname) or key
     _al = _ALIAS.get(key) or _ALIAS.get(skey)   # sigle connu -> nom complet (recherche + matching)
     if _al:
         sname, skey = _al, _norm(_al)
+    # FotMob suggest est SENSIBLE au libellé exact (« AS Monaco » -> 0 résultat, « Monaco » -> OK). On essaie
+    # donc le nom complet PUIS les mots DISTINCTIFS (les plus longs) jusqu'à trouver. Chaque essai est matché
+    # par _match (exact/contenu/token/initiales). Bornes 3 essais -> peu d'appels, résout les libellés à préfixe.
+    _terms = [sname or name]
+    for _w in sorted((w for w in _re.split(r"[\s.\-]+", sname or name) if len(_norm(w)) >= 5),
+                     key=len, reverse=True):
+        if _norm(_w) not in {_norm(t) for t in _terms}:
+            _terms.append(_w)
     try:
-        r = httpx.get("https://apigw.fotmob.com/searchapi/suggest",
-                      params={"term": sname or name, "lang": "en"}, headers=_UA, timeout=8)
-        d = r.json()
-        opts = [o.get("payload", {}) for g in d.get("matchSuggest", []) for o in g.get("options", [])]
-        for p in opts:                   # 1) match EXACT du nom (original OU nettoyé)
-            if _norm(p.get("homeName")) in (key, skey):
-                tid = p.get("homeTeamId"); break
-            if _norm(p.get("awayName")) in (key, skey):
-                tid = p.get("awayTeamId"); break
-        if not tid and len(skey) >= 4:   # 2) repli : le nom (nettoyé) est contenu, dans un sens ou l'autre
-            for p in opts:
-                _nh, _na = _norm(p.get("homeName")), _norm(p.get("awayName"))
-                if _nh and (skey in _nh or _nh in skey):
-                    tid = p.get("homeTeamId"); break
-                if _na and (skey in _na or _na in skey):
-                    tid = p.get("awayTeamId"); break
-        if not tid:                      # 3) TOKEN distinctif partagé (≥6 lettres) : ex. « RB Bragantino »
-            # (abrégé) vs « Red Bull Bragantino » (FotMob) -> le mot « bragantino » est commun. Dernier repli,
-            # sur le mot le plus long (≥6) du nom nettoyé -> on prend le 1er résultat FotMob qui le contient
-            # (déjà classé par pertinence à la recherche -> peu de faux positifs).
-            _toks = sorted((_norm(w) for w in _re.split(r"[\s.\-]+", sname or name) if w), key=len, reverse=True)
-            _big = next((t for t in _toks if len(t) >= 6), "")
-            if _big:
-                for p in opts:
-                    if _big in _norm(p.get("homeName")):
-                        tid = p.get("homeTeamId"); break
-                    if _big in _norm(p.get("awayName")):
-                        tid = p.get("awayTeamId"); break
-        if not tid and 2 <= len(key) <= 4:   # 4) ABRÉVIATION -> INITIALES d'un résultat FotMob : « PSG »
-            # = initiales de « Paris Saint-Germain » (P-S-G). Ne s'active que sur un sigle court (2-4) et
-            # exige l'égalité EXACTE des initiales -> quasi zéro faux positif.
-            def _ini(nm):
-                return "".join(w[0] for w in _re.split(r"[\s.\-]+", nm or "") if w).lower()
-            for p in opts:
-                if _ini(p.get("homeName")) == key:
-                    tid = p.get("homeTeamId"); break
-                if _ini(p.get("awayName")) == key:
-                    tid = p.get("awayTeamId"); break
+        for _term in _terms[:3]:
+            tid = _match(_fetch(_term), key, skey, sname or name)
+            if tid:
+                break
     except Exception:
         return None                      # panne -> ne PAS cacher (re-tentera plus tard)
-    with _LOCK:
+    if not tid:                          # ÉCHEC -> mémoire seule (jamais figé disque) : re-tenté au redémarrage
+        _NEG.add(key)                    # -> un club sans logo aujourd'hui peut en avoir un demain (fix/FotMob)
+        return None
+    with _LOCK:                          # SUCCÈS -> persiste le positif (jamais re-cherché)
         c[key] = tid
         try:
             os.makedirs(os.path.dirname(_CACHE_FILE), exist_ok=True)
