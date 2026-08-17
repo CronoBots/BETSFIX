@@ -7816,8 +7816,9 @@ def _status_card(m: dict, dt, kind: str) -> str:
 def _planning_cards(sport: str = "foot") -> tuple[list, list]:
     """(pending_cards, abst_cards) — CARTES (comme les paris) des matchs À ANALYSER (Programme) et des
     ABSTENTIONS (analysés sans pari). Modèle user 2026-08-17 : chaque match d'abord au programme, puis basculé
-    dans sa catégorie après analyse. Les matchs AVEC pari / jambe de combiné / montante sont EXCLUS ici (ils
-    ont leur propre zone). Pur affichage (day_programme.json + sidecars, 0 réseau)."""
+    dans sa catégorie APRÈS analyse de son PARI SIMPLE. Un match avec un pari simple retenu part en Confiance/
+    Value (via `play`) et n'apparaît donc pas ici. Une jambe de combiné / le match montante NE sont PAS exclus :
+    leur pari simple s'analyse à part -> ils restent au Programme tant que non analysés. 0 réseau."""
     import json as _json
     path = os.path.join(analyses._ROOT, "data", "day_programme.json")
     try:
@@ -7834,23 +7835,14 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
     items = sorted([(m, dt) for m, dt in items if dt is not None], key=lambda x: x[1])
     if not items:
         return [], []
-    _mont_mid = str((_montante_today_bet() or {}).get("mid") or "")
-    _combo_mids: set = set()
-    try:
-        from app import combo_daily as _cd
-        def _ld(dt):
-            return dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
-        for _sd in {_sport_date(_ld(dt)).isoformat() for _m, dt in items}:
-            _cb = _cd.today(_sd)
-            if _cb:
-                _combo_mids |= {str(l.get("mid")) for l in (_cb.get("legs") or []) if l.get("mid")}
-    except Exception:
-        pass
+    # NB (user 2026-08-17) : on N'EXCLUT PLUS les jambes de combiné / le match montante. Leur PARI SIMPLE est
+    # ANALYSÉ SÉPARÉMENT par la vague (~2h avant le KO) -> tant que ce n'est pas fait, le match est bien « à
+    # analyser » et doit RESTER dans le Programme. Le combiné / la montante sont des OVERLAYS (le même match peut
+    # donc figurer au Programme/Abstention/Confiance/Value ET dans Combiné/Montante). Ainsi les 20 matchs du jour
+    # sont TOUS représentés par leur état de pari simple, sans « trou ».
     pending, abst = [], []
     for m, dt in items:
         mid = str(m.get("id"))
-        if mid == _mont_mid or mid in _combo_mids:         # montante / jambe de combiné -> leur propre zone
-            continue
         d = analyses.meta(sport, mid)
         if d is None:                                      # pas encore analysé -> PROGRAMME
             pending.append(_status_card(m, dt, "wait"))
