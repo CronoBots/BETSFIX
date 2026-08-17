@@ -5873,6 +5873,29 @@ def _teams_vs_html(home, away, center: str = "VS") -> str:
             f'<span class="tm-n">{html.escape(a)}</span></span></span>')
 
 
+def _live_clock_html(sport_key, home, away) -> str:
+    """Horloge live « M:SS » (défile via le ticker JS : data-min/sec/cap/run) — « HT » en mi-temps,
+    « 92:27 (+3') » en prolongation. '' si pas d'horloge. PARTAGÉ carte normale (_sport_row) ET jambe de
+    combiné (_leg_card) -> même horloge partout (user 2026-08-17 : jambes présentées comme une carte)."""
+    try:
+        _clk = match_select.live_clock(match_select.live_state_for(sport_key, home, away))
+    except Exception:
+        _clk = None
+    if not _clk:
+        return ""
+    _cm, _cs, _crun, _cpid = _clk
+    _pid = (_cpid or "").upper()
+    _regcap = 45 if _pid == "FIRST_HALF" else 90 if _pid == "SECOND_HALF" else 0
+    if _pid == "FIRST_HALF" and not _crun and _cm >= 45:
+        return '<span class="tm-min" data-run="0">HT</span>'
+    if _regcap and _cm >= _regcap:
+        _disp = f'{_cm}:{_cs:02d}<span class="tm-add">(+{_cm - _regcap + 1}\')</span>'
+    else:
+        _disp = f'{_cm}:{_cs:02d}'
+    return (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" data-cap="{_regcap}" '
+            f'data-run="{1 if _crun else 0}">{_disp}</span>')
+
+
 def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True,
               why_always: bool = False, why_label: str = "Pourquoi cette jambe",
               prob_calibrated: bool = False, live_layout: bool = False) -> str:
@@ -5914,6 +5937,8 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _bmap = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"), "push": ("REMB.", "n"),
              "void": ("ANNULÉ", "n")}
     board = ""
+    _lfz = None   # champs live (score/horloge) — None si réglé (réutilisé par la mise en page « carte normale »)
+    _hh = ""   # heure de coup d'envoi (à venir) — réutilisée par la mise en page « carte normale »
     _cd = ""   # badge DÉCOMPTE avant match (rempli en direct par le timer JS `.cd`) — posé si à venir
     if _res is None:
         _lfz = live_fields(match_select.live_state_for(_sp, _lh, _la), _sp)
@@ -6040,28 +6065,48 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     # LAYOUT IDENTIQUE À LA CARTE LIVE (user 2026-08-15 : « le cadre résultat présenté comme le cadre live »)
     # pour les cartes RÉGLÉES : ligue CENTRÉE blanche + pays, SCORE final au centre (+ « Terminé »), pari+glose
     # DANS le cadre des chiffres, barre « Gagné/Perdu » (verrou), pas de séparateur ni cadre résultat séparé.
-    if live_layout and verdict and _res in ("won", "lost", "push"):
+    # MISE EN PAGE « CARTE NORMALE » POUR CHAQUE JAMBE (user 2026-08-17 : « chaque jambe présentée comme une
+    # carte normale — ligue, heure, décompte »). Ligue CENTRÉE + pays, et au CENTRE entre les logos : HEURE +
+    # DÉCOMPTE (à venir) / SCORE + horloge (live) / SCORE final + « Terminé » (réglé) — exactement comme une
+    # carte de pari simple (_sport_row). Le pari+glose vont DANS le cadre des chiffres ; barre « Confiance
+    # live » (live) ou badge Gagné/Perdu (réglé) dessous. Couvre TOUS les états (avant : réglé seulement).
+    if live_layout and verdict and teams and _th and _ta:
         _cty = _cap(str(l.get("country") or ""))
         _cprts = [p for p in (_cty, str(l.get("comp") or "")) if p]
         _comp_c = " • ".join(html.escape(p) for p in _cprts).upper()
-        _scf = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip()
-        if _scf and any(c.isdigit() for c in _scf):
-            _ctr = (f'<span class="tm-live"><b>{html.escape(_scf.replace("-", " - "))}</b>'
-                    f'<span class="tm-fin">Terminé</span></span>')
-        else:
-            _ctr = '<span class="tm-fin">Terminé</span>'
-        _teams_c = _teams_vs_html(_th, _ta, _ctr)
         _pbox = f'<div class="mc-pick">{sel}</div>' + (f'<div class="mc-gloss">{html.escape(_g)}</div>' if _g else "")
-        # BADGE RÉSULTAT PLEINE LARGEUR (user 2026-08-15) à la place de la barre « Confiance live » :
-        # « GAGNÉ » (vert) / « PERDU » (rouge) / « REMBOURSÉ » (gris), DANS le cadre des chiffres (result_html).
-        _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"),
-                      "push": ("REMBOURSÉ", "n")}.get(_res, ("", "n"))
-        _resbadge = f'<div class="cleg-resbadge cleg-rb-{_rbc}">{_rbt}</div>' if _rbt else ""
+        _resbadge, _extra = "", ""
+        if _res in ("won", "lost", "push", "void"):               # RÉGLÉ : score final + « Terminé » (ou « Annulé »)
+            _scf = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip()
+            if _res == "void":
+                _ctr = '<span class="tm-fin">Annulé</span>'
+            elif _scf and any(c.isdigit() for c in _scf):
+                _ctr = (f'<span class="tm-live"><b>{html.escape(_scf.replace("-", " - "))}</b>'
+                        f'<span class="tm-fin">Terminé</span></span>')
+            else:
+                _ctr = '<span class="tm-fin">Terminé</span>'
+            # BADGE RÉSULTAT (user 2026-08-15) DANS le cadre des chiffres à la place de la barre live.
+            _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"),
+                          "push": ("REMBOURSÉ", "n"), "void": ("ANNULÉ", "n")}.get(_res, ("", "n"))
+            _resbadge = f'<div class="cleg-resbadge cleg-rb-{_rbc}">{_rbt}</div>' if _rbt else ""
+        elif (_lfz or {}).get("score"):                           # EN DIRECT : score + horloge M:SS + barre live
+            _lsc = str(_lfz.get("score")).strip()
+            _ctr = (f'<span class="tm-live"><b>{html.escape(_lsc.replace("-", " - "))}</b>'
+                    + _live_clock_html(_sp, _lh, _la) + '</span>')
+            _extra = _leg_bar or ""                               # barre « Confiance live » sous le cadre
+        elif _cd and _hh:                                         # À VENIR : heure + DÉCOMPTE au centre (carte normale)
+            _ctr = (f'<span class="tm-live"><b>{html.escape(_hh)}</b>'
+                    f'<span class="tm-cd">{_cd}</span></span>')
+        elif _bcls == "p":                                        # commencé, probablement fini, pas encore réglé
+            _ctr = '<span class="tm-fin">En attente</span>'
+        else:
+            _ctr = f'<span class="tm-fin">{html.escape(_hh) if _hh else "À venir"}</span>'
+        _teams_c = _teams_vs_html(_th, _ta, _ctr)
         _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, result_html=_resbadge)
         return (f'<div class="cleg {_state} cleg-res-live">'
                 f'<div class="cleg-h cleg-h-c"><span class="cleg-comp">{_comp_c}</span></div>'
                 f'<div class="cleg-teams">{_teams_c}</div>'
-                f'{_vb}{_why}</div>')
+                f'{_vb}{_extra}{_why}</div>')
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
     return (f'<div class="cleg {_state}">'
             f'<div class="cleg-h"><span class="cleg-comp"><b class="cleg-sport spc-{_sp or ""}">{emo}</b>'
@@ -6144,7 +6189,10 @@ def _combo_tg_legs(cb: dict) -> str:
     # TOTAL = produit de ces probas -> ne PAS re-calibrer (bug double calibration, jambes 99 % vs total 66 %).
     # why_always=True : le « Pourquoi » de chaque jambe reste consultable MÊME une fois le combiné réglé
     # (régression user 2026-08-02 : l'analyse disparaissait au règlement).
-    return _MC_SEP.join(_leg_card(l, why=True, verdict=True, why_always=True, prob_calibrated=True) for l in _legs)
+    # live_layout=True (user 2026-08-17) : CHAQUE jambe présentée comme une carte normale (ligue centrée, heure
+    # + décompte / score + horloge / score final au centre entre les logos), pour TOUS les états de la jambe.
+    return _MC_SEP.join(_leg_card(l, why=True, verdict=True, why_always=True, prob_calibrated=True,
+                                  live_layout=True) for l in _legs)
 
 
 def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "") -> str:
@@ -9547,33 +9595,10 @@ def _sport_row(r: dict) -> str:
     # sinon -> l'HEURE du match. Le score n'est donc plus répété dans un cadre en dessous (retiré plus bas).
     _sc_live = str(r.get("score") or "").strip()
     if is_live and _sc_live:
-        _clk_html = ""
-        try:
-            _clk = match_select.live_clock(match_select.live_state_for(sport_key, r.get("home"), r.get("away")))
-        except Exception:
-            _clk = None
-        if _clk:
-            _cm, _cs, _crun, _cpid = _clk
-            _pid = (_cpid or "").upper()
-            # MI-TEMPS (user 2026-08-15) : 1re MT terminée + horloge arrêtée -> « HT ». Sinon horloge « M:SS »
-            # qui DÉFILE (secondes gardées AUSSI en temps additionnel, user 2026-08-15). En prolongation (au-delà
-            # du cap 45/90) -> « 90+N:SS » : la minute additionnelle ET les secondes continuent d'avancer (le
-            # ticker JS lit data-min/data-sec/data-cap/data-run et reformate au-delà du cap).
-            _regcap = 45 if _pid == "FIRST_HALF" else 90 if _pid == "SECOND_HALF" else 0
-            if _pid == "FIRST_HALF" and not _crun and _cm >= 45:
-                _clk_html = '<span class="tm-min" data-run="0">HT</span>'
-            else:
-                if _regcap and _cm >= _regcap:
-                    # PROLONGATION (user 2026-08-16) : horloge COMPLÈTE + minute additionnelle en cours entre
-                    # parenthèses -> « 92:27 (+3') ». N = minute écoulée - cap + 1 (2e MT : 92 -> +3).
-                    _disp = (f'{_cm}:{_cs:02d}'
-                             f'<span class="tm-add">(+{_cm - _regcap + 1}\')</span>')
-                else:
-                    _disp = f'{_cm}:{_cs:02d}'
-                _clk_html = (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" data-cap="{_regcap}" '
-                             f'data-run="{1 if _crun else 0}">{_disp}</span>')
+        # Horloge « M:SS » (défile), « HT » en mi-temps, « 92:27 (+3') » en prolongation -> helper PARTAGÉ
+        # avec les jambes de combiné (_live_clock_html), même rendu partout (user 2026-08-15/16/17).
         _center = (f'<span class="tm-live"><b>{e(_sc_live.replace("-", " - "))}</b>'
-                   + _clk_html + '</span>')
+                   + _live_clock_html(sport_key, r.get("home"), r.get("away")) + '</span>')
     elif (not is_finished) and sdt and sdt.timestamp() > time.time():
         # À VENIR (user 2026-08-15) : HEURE au centre + DÉCOMPTE juste DESSOUS (comme l'horloge live sous le
         # score) ; le badge décompte en haut à droite est retiré. Le timer JS `.cd` rafraîchit le décompte.
