@@ -2253,7 +2253,8 @@ CSS = """
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
      (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
   .why-ul{margin:8px 0 2px;padding:0;list-style:none}
-  .why-ul li{position:relative;padding-left:15px;margin:8px 0;font-size:11.5px;color:#a7bcd6;line-height:1.5}
+  .why-ul li{position:relative;padding-left:15px;margin:8px 0;font-size:11.5px;color:#a7bcd6;line-height:1.5;
+       font-weight:500}   /* poids EXPLICITE (user 2026-08-17) : sinon une jambe LIVE hérite du gras .live (font-weight:800) */
   .why-ul li:first-child{margin-top:2px}
   .why-ul li::before{content:"";position:absolute;left:2px;top:8px;width:5px;height:5px;border-radius:50%;
        background:rgba(120,150,190,.55)}
