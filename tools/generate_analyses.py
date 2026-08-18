@@ -2538,7 +2538,10 @@ def _track_provisional(sport, m, prov) -> None:
 
 # ============================ CACHES PROCESS-LOCAUX DU BUILDER MATIN (combiné + montante partagent le vivier) ============================
 # Le combiné DC et la montante analysent le MÊME vivier (safe_dc_candidates) avec les MÊMES dossiers complets.
-# Sans mutualisation, le matin refetch 2× les candidats + ~18 dossiers (recouvrement combiné/montante). Ces
+# Sans mutualisation, le matin refetch 2× les candidats + ~18 dossiers (recouvrement combiné/montante).
+# ⚠️ Ce qu'on économise = les fetches UNIBET (dc_odds + betoffer) et les faits FotMob/ESPN/Understat
+# (sources.extras) — PAS Pinnacle : Pinnacle est DÉJÀ caché en amont (catalogue via `refresh_catalog` 1×/jour +
+# `_mu_cache` ; cotes par match via `pinnacle._mk_cache` -> sharp_probs/markets = 1 fetch/match/process). Ces
 # caches sont NATURELLEMENT scopés au process de scan (chaque vague/scan = invocation séparée) -> AUCUN risque
 # de servir un dossier périmé à l'analyse fraîche pré-match. Vidés en tête de `_build_and_post_programme`.
 _MORNING_SAFE_DC: dict = {}
