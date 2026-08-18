@@ -879,11 +879,13 @@ def _check_montante_active() -> dict:
                 gap = (datetime.now(timezone.utc).date() - date.fromisoformat(last[:10])).days
             except (ValueError, TypeError):
                 gap = 0
-        stuck = (not pending) and gap > 2
+        # Depuis la RÈGLE QUANT (2026-08-18), un PASS est LÉGITIME (« discipline > fréquence ») -> un gap est
+        # possible sans bug. On relève le seuil à > 4 j (un silence VRAIMENT long peut signaler un souci de scan).
+        stuck = (not pending) and gap > 4
         return {"key": "montante_active", "level": "warn" if stuck else "ok",
                 "title": "Montante — sélection quotidienne",
                 "detail": (f"aucun palier depuis {gap} j (dernier {last}) alors que la montante est ACTIVE — "
-                           f"vérifier pick_day_bet (paris à jouer non pris ?)." if stuck else
+                           f"PASS répétés (règle quant) OU souci de scan/candidats ? à surveiller." if stuck else
                            f"OK — {len(steps)} paliers, "
                            f"{'1 en attente' if pending else 'dernier ' + (last or '—')}."),
                 "items": ([{"last": last, "gap_days": gap}] if stuck else [])}

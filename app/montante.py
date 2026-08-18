@@ -364,11 +364,28 @@ async def pick_from_programme_async(matches: list, client=None) -> dict | None:
             "prob": best.get("prob"), "start": best.get("start", "")}
 
 
+def can_record_day(date_iso: str) -> bool:
+    """Peut-on encore enregistrer un palier pour `date_iso` ? (False si un palier est EN ATTENTE, si le jour est
+    déjà pris, ou si on est avant/le jour d'activation.) Sert de GARDE-FOU avant de lancer l'analyse quant
+    coûteuse (dossiers + Claude) — inutile de tourner si `record_day` refuserait de toute façon."""
+    d = load()
+    _sd = d.get("start_date") or ""
+    if _sd and date_iso <= _sd:
+        return False
+    steps = d.get("steps") or []
+    if any(s.get("result") is None for s in steps):        # un palier non réglé -> on attend
+        return False
+    if any(s.get("date") == date_iso for s in steps):      # déjà enregistré aujourd'hui
+        return False
+    return True
+
+
 def record_day(date_iso: str, pick: dict | None = None) -> bool:
     """Enregistre le pari du jour (1 SEUL par jour). Refuse si un pari est déjà EN ATTENTE (on attend son
     résultat avant d'engager le palier suivant) ou si le jour est déjà enregistré. True si ajouté.
-    `pick` (user 2026-08-17) : palier PRÉ-CONSTRUIT (ex. programme-built `pick_from_programme_async`) ; sinon
-    on retombe sur `pick_day_bet()` (pari joué éligible)."""
+    `pick` : palier PRÉ-CONSTRUIT — depuis le 2026-08-18 c'est la RÈGLE QUANT (`_montante_best_bet`, seule
+    décideuse). Si `pick is None` -> on N'ENREGISTRE RIEN (plus de repli mécanique `pick_day_bet` : un PASS de
+    la règle quant = pas de palier ce jour, jamais un pari de secours moins discipliné)."""
     d = load()
     # DÉMARRAGE au scan du LENDEMAIN de l'activation (demande user 2026-07-25) : `start_date` = jour
     # d'activation ; on n'enregistre qu'à partir du jour STRICTEMENT suivant (le 1er palier vient d'un
@@ -381,9 +398,7 @@ def record_day(date_iso: str, pick: dict | None = None) -> bool:
         return False
     if any(s.get("date") == date_iso for s in steps):      # déjà enregistré aujourd'hui
         return False
-    if pick is None:
-        pick = pick_day_bet()
-    if not pick:
+    if not pick:                                           # PASS de la règle quant -> aucun palier ce jour
         return False
     steps.append({"date": date_iso, "match": pick["match"], "sel": pick["sel"],
                   "cote": pick["cote"], "mid": pick["mid"], "code": pick.get("code"),
@@ -398,14 +413,20 @@ def record_day(date_iso: str, pick: dict | None = None) -> bool:
 
 
 def settle_pending() -> int:
-    """Règle les paliers en attente : le palier = le SIMPLE VALUE JOUÉ du match, donc son résultat = celui du
-    `stat_bet` figé (déjà calculé par nos règlements, aucune source réseau). Nb réglé/corrigé.
+    """Règle les paliers en attente sur le MARCHÉ PROPRE de la montante. Nb réglé/corrigé.
 
-    AUTO-CORRECTION (user 2026-08-06 « le palier 7 a été perdu ») : un palier DÉJÀ réglé est re-vérifié —
-    si le `stat_bet` du sidecar a CHANGÉ depuis (ex. faux résultat corrigé : Fluminense 0-0→1-3, le pari
-    « Moins de 2.5 » passe won→lost), la montante SUIT. L'échelle est recalculée en aval (`_compute` casse la
-    chaîne sur une perte). Sans ça, un palier gagné à tort restait « won » et la montante continuait à tort."""
+    RÈGLEMENT PAR MARCHÉ PROPRE (user 2026-08-18) : depuis la règle quant, la montante choisit SON marché
+    (DC/Over/1X2/équipe marque…), INDÉPENDANT du flagship. On règle donc sur SON code — re-dérivé du LIBELLÉ
+    via `code_from_pick` (source de vérité, comme le combiné) — contre le score final STOCKÉ dans le sidecar
+    (`result.raw`, zéro réseau). Repli sur le `stat_bet` du flagship UNIQUEMENT si son marché == celui de la
+    montante (ancien comportement, quand la montante = pari joué). Sinon on attend (jamais régler sur un autre
+    marché).
+
+    AUTO-CORRECTION (user 2026-08-06 « le palier 7 a été perdu ») : un palier DÉJÀ réglé est re-vérifié — si le
+    score/règlement du sidecar a CHANGÉ depuis (faux résultat corrigé), la montante SUIT. L'échelle est
+    recalculée en aval (`_compute` casse la chaîne sur une perte)."""
     from app import analyses
+    from app.settle_analyst import settle_pick, code_from_pick
     d = load()
     n = 0
     for s in d.get("steps") or []:
@@ -414,13 +435,28 @@ def settle_pending() -> int:
         m = analyses.meta("foot", s.get("mid"))
         if not m or not analyses.is_settled(m):
             continue
-        sb = m.get("stat_bet") or {}
-        r = sb.get("result")
+        # 1) code du marché de la montante = re-dérivé du libellé (autorité), repli sur le code stocké
+        try:
+            _code = (code_from_pick(s.get("sel", ""), "foot", m.get("home", ""), m.get("away", ""))
+                     or s.get("code") or "")
+        except Exception:
+            _code = s.get("code") or ""
+        r = None
+        _score = (m.get("result") or {}).get("raw")
+        if _code and isinstance(_score, dict):
+            try:
+                r = settle_pick(_code, _score)
+            except Exception:
+                r = None
+        # 2) repli stat_bet flagship SEULEMENT si c'est le même marché (montante = pari joué, ancien cas)
+        if r not in ("won", "lost", "push", "void"):
+            sb = m.get("stat_bet") or {}
+            if (sb.get("code") or "").upper().strip() and \
+               (sb.get("code") or "").upper().strip() == (_code or "").upper().strip():
+                r = sb.get("result")
         if r not in ("won", "lost", "push", "void") or s.get("result") == r:
-            continue                                        # pas réglé côté sidecar, OU déjà à jour
+            continue                                        # non réglable ici (on retente) OU déjà à jour
         s["result"] = r                                     # nouveau règlement OU correction (la montante suit)
-        if sb.get("cote"):
-            s["cote"] = sb["cote"]                          # cote finale figée
         n += 1
     if n:
         save(d)

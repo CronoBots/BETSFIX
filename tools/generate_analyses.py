@@ -993,31 +993,27 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     # l'en-cours d'abord (settle), puis on enregistre (record_day refuse si un palier est encore EN ATTENTE ou si
     # le jour est déjà pris -> jamais de doublon avec le run_daily de fin de scan). Isolé, best-effort.
     try:
-        from app import montante as _mtn, combo_daily as _cd_mt
+        from app import montante as _mtn, combo_daily as _cd_mt, combo_safe as _cs_mt
         if _mtn.is_active():
             _mtn.settle_pending()
-            _mpick = await _mtn.pick_from_programme_async(matches, client)
-            # ANALYSE DÉDIÉE de la montante AU SCAN (user 2026-08-18) : comme le combiné, INDÉPENDANTE du pari
-            # simple (analysé ~1 h avant). Faits football du matin (sources.extras) -> « pourquoi » complet stocké
-            # au palier -> affiché en entier sur l'app dès le matin. Best-effort (repli : why plus tard via la vague).
-            if _mpick:
+            # RÈGLE MONTANTE = ANALYSTE QUANT (user 2026-08-18) : on ne prend plus mécaniquement « la DC la plus
+            # sûre ». On bâtit une SHORTLIST de candidats sharp-ancrés en zone de cote (safe_dc_candidates), puis
+            # Claude applique `MONTANTE_RULE` sur leurs DOSSIERS COMPLETS (`build_dossier`, comme le scan) et
+            # choisit AU PLUS UN best bet (P_est/Edge/EV/score/100) ou PASS. « Pourquoi » = l'analyse complète.
+            # GARDE-FOU : ne lance l'analyse (dossiers + Claude, coûteuse) que si un palier peut encore être posé
+            # aujourd'hui (rien en attente, jour non pris) -> une seule analyse quant / jour, pas à chaque vague.
+            _mpick = None
+            if _mtn.can_record_day(_cd_mt.day_key()):
                 try:
-                    _mlm = {"id": _mpick.get("mid"), "name": _mpick.get("match"), "home": _mpick.get("home"),
-                            "away": _mpick.get("away"), "comp": _mpick.get("comp"), "start": _mpick.get("start")}
-                    _mfacts = await sources.extras(client, "foot", _mlm)
-                    if _mfacts and _mfacts.strip():
-                        _mwrap = {"legs": [dict(_mpick)], "synth": ""}
-                        _analyze_combo_legs(_mwrap, facts_by_mid={str(_mpick.get("mid")): _mfacts})
-                        _mwhy = (_mwrap.get("legs") or [{}])[0].get("why")
-                        if _mwhy and not str(_mwhy).startswith("Pinnacle (référence sharp)"):
-                            _mpick["why"] = _mwhy
-                except Exception as _mae:
-                    print(f"  (analyse montante à la construction ignorée : {_mae})")
-            if _mpick and _mtn.record_day(_cd_mt.day_key(), pick=_mpick):
-                print(f"  🪜 Montante (matin, programme) : {_mpick['match']} — {_mpick['sel']} "
-                      f"@{_mpick['cote']} ({round((_mpick.get('prob') or 0) * 100)}%)")
-            elif not _mpick:
-                print("  🪜 Montante (matin) : aucun candidat DC sûr au programme.")
+                    _mcands, _ = await _cs_mt.safe_dc_candidates(_cd_mt.day_key(), matches, client)
+                    _mpick = await _montante_best_bet(client, _mcands or [])
+                except Exception as _mre:
+                    print(f"  (analyse montante quant ignorée : {_mre})")
+                if _mpick and _mtn.record_day(_cd_mt.day_key(), pick=_mpick):
+                    print(f"  🪜 Montante (matin, règle quant) : {_mpick['match']} — {_mpick['sel']} "
+                          f"@{_mpick['cote']} ({round((_mpick.get('prob') or 0) * 100)}% · score {_mpick.get('score')})")
+                elif not _mpick:
+                    print("  🪜 Montante (matin) : PASS — aucun pari ne remplit la règle quant aujourd'hui.")
     except Exception as _mce:
         print(f"  (montante matin ignorée : {_mce})")
     if not matches or args.no_notify:
@@ -2506,6 +2502,104 @@ def _track_provisional(sport, m, prov) -> None:
         pass
 
 
+# ============================ RÈGLE DE SÉLECTION MONTANTE (analyste quantitatif) ============================
+# Spec user 2026-08-18 (cf. mémoire montante-selection-rule-quant). AU MAX 1 pari / palier, ou PASS. Objectif :
+# P(réussite) × Edge × EV × faible variance × fiabilité — préservation du capital prioritaire. Discipline > fréquence.
+MONTANTE_RULE = """RÔLE : analyste quantitatif football. Sélectionne AU MAXIMUM 1 pari (1 match + 1 marché) pour une MONTANTE, ou réponds PASS. Objectif = meilleur compromis PROBABILITÉ × EDGE × EV × FAIBLE VARIANCE × FIABILITÉ DES DONNÉES. La PRÉSERVATION DU CAPITAL est prioritaire. La mission n'est JAMAIS « trouve un pari aujourd'hui » : c'est « trouve un pari SEULEMENT si le prix payé > le risque ». La discipline vaut mieux que la fréquence.
+
+RÈGLES DURES :
+- Ne jamais confondre pari probable / bonne cote / pari rentable. Une cote faible n'est PAS une preuve de sécurité. Aucun pari n'est « sûr ».
+- COTE : zone autorisée 1,25–1,55 (préférence 1,30–1,45). Hors zone -> rejet sauf justification quantitative exceptionnelle. Ne jamais choisir une cote juste parce qu'elle entre dans la plage.
+- 1 SEUL pari (1 match + 1 marché). PAS de combiné.
+- MARCHÉS à examiner (aucun supérieur par défaut) : Draw No Bet, Double chance 1X/X2, handicaps asiatiques prudents, équipe +0,5, Over 1,5, Under adaptés, victoire simple si vraie value. Choisir celui dont la proba colle le mieux au scénario du match.
+
+CALCULS (toujours produire TA propre estimation, jamais 1/cote du book) :
+- P_est = ta probabilité estimée. P_imp = 1/cote. Fair Odd = 1/P_est. Edge (points) = P_est − P_imp. EV = P_est×cote − 1 (objectif > +3 %, préférence ≥ +5 %). DNB : EV = P(win)×(cote−1) − P(défaite), Fair DNB = (1−P_nul)/P_win — jamais 1/cote naïf.
+- MARGE DE SÉCURITÉ : plus l'incertitude est grande, plus l'edge exigé est grand. Ne PAS prendre 73 % vs 72 %.
+
+DONNÉES à peser : niveau/qualité des adversaires ; forme (poids aux + récents, pas juste W/D/L) ; stats avancées si dispo (xG, xGA, xG diff, tirs cadrés, grosses occasions, conversion, efficacité) ; domicile vs extérieur SÉPARÉS ; effectif (blessures, suspensions, gardien, défenseurs clés, créateurs, buteurs, rotation, banc) ; fatigue (repos, déplacements, prolongations, calendrier, prochain gros match) ; motivation/enjeu ; MATCH-UP tactique (un style adverse peut être un mauvais match-up malgré l'écart de niveau) ; MOUVEMENT DE COTE (opening vs actuelle — ni suivre aveuglément, ni ignorer).
+
+RED FLAGS (relèvent fortement le seuil ou PASS) : derby, amical, sans enjeu, grosse rotation, nouvel entraîneur, données insuffisantes, équipe très irrégulière, compo très incertaine, mouvement de cote inexpliqué, plusieurs titulaires importants absents, calendrier surchargé, contexte inhabituel. Plusieurs red flags majeurs = PASS.
+
+SCORE /100 : solidité stat /25 · edge+EV /20 · forme+niveau /15 · effectif+compo /15 · match-up /10 · contexte+motivation /10 · qualité données+stabilité marché /5. (0–69 = PASS · 70–79 = insuffisant pour la montante · 80–89 = candidat sérieux · 90–100 = exceptionnel.) Un score élevé ne veut jamais dire « garanti ».
+
+XI : si le pari dépend fortement de joueurs et que les compos ne sont pas connues -> décision ATTENDRE LES XI. Sinon GO ou PASS.
+COMPARAISON : ne prends jamais le 1er candidat qui passe. Compare une shortlist (proba, edge, EV, variance, infos, risque compo, robustesse) -> 1 SEUL best bet.
+COTE MINIMUM ACCEPTABLE : toujours l'indiquer. Si la cote réelle descend en dessous -> NO BET.
+PASS si : pas de value suffisante / cote trop basse / edge insuffisant / EV insuffisante / infos essentielles manquantes / compo trop incertaine / plusieurs red flags / estimation trop fragile.
+
+SORTIE — produis d'abord le format lisible :
+🏆 BEST BET MONTANTE (Match / Compétition / Heure / Marché / Cote actuelle / Cote minimum acceptable / Fair Odd)
+📊 PROBABILITÉS (P_est / P_imp / Edge points / EV %)
+🧠 ANALYSE (Forme / Stats-xG / Domicile-extérieur / Effectif / Match-up / Motivation-contexte / Mouvement de cote)
+⚠️ RISQUES (2 à 4 raisons de perdre)
+🎯 SCORE : XX/100 — Confiance : Faible/Moyenne/Bonne/Très bonne
+🚦 DÉCISION : 🟢 GO ou 🟠 ATTENDRE LES XI ou 🔴 PASS (+ 2-4 phrases)
+
+CONTRAINTE DE MARCHÉ FINAL (règlement automatique) : DNB et handicaps asiatiques servent d'ANGLES d'analyse, mais le pari RETENU doit s'exprimer dans un marché RÉGLABLE. Le <CODE> final DOIT être EXACTEMENT l'un de : DC 1X, DC X2, OVER 1.5, OVER 2.5, UNDER 3.5, UNDER 2.5, 1X2 1, 1X2 2, TEAMTOT HOME OVER 0.5, TEAMTOT AWAY OVER 0.5, BTTS YES. (Un scénario « DNB domicile » se traduit en DC 1X ou 1X2 1 selon la confiance ; un « AH -0.5 domicile » = 1X2 1.) La <sélection lisible> doit être le libellé français standard du marché (ex. « Double chance 1X », « Plus de 1.5 buts », « Victoire domicile », « Équipe domicile marque »).
+
+PUIS, EN TOUTE DERNIÈRE LIGNE, une ligne machine EXACTE (pour l'automate), sans gras ni puce :
+MONTANTE_PICK: <match_id>|<CODE>|<sélection lisible>|<cote>|<cote_min>|<P_est %>|<EV %>|<score>|<GO|WAIT|PASS>
+Si aucun pari ne mérite la montante -> exactement : MONTANTE_PICK: PASS
+"""
+
+
+def _parse_montante(analysis: str) -> dict | None:
+    """Ligne machine `MONTANTE_PICK: <mid>|<code>|<sel>|<cote>|<cote_min>|<P_est>|<EV>|<score>|<GO|WAIT|PASS>`
+    (ou `MONTANTE_PICK: PASS`). Renvoie le dict parsé, {'decision':'PASS'} sur PASS, None si illisible."""
+    m = re.search(r"^[\s`*>\-]*MONTANTE_PICK:\s*(.+?)\s*$", analysis, re.M)
+    if not m:
+        return None
+    raw = re.sub(r"[`*]", "", m.group(1)).strip()
+    if raw.upper().startswith("PASS"):
+        return {"decision": "PASS"}
+    parts = [p.strip() for p in raw.split("|")]
+    if len(parts) < 9:
+        return None
+
+    def _f(x):
+        try:
+            return float(str(x).replace("%", "").replace(",", ".").replace("+", "").strip())
+        except (TypeError, ValueError):
+            return None
+    return {"mid": parts[0], "code": parts[1].upper(), "sel": parts[2], "cote": _f(parts[3]),
+            "cote_min": _f(parts[4]), "p_est": _f(parts[5]), "ev": _f(parts[6]), "score": _f(parts[7]),
+            "decision": parts[8].upper()}
+
+
+async def _montante_best_bet(client, cands: list):
+    """RÈGLE MONTANTE (analyste quant, user 2026-08-18) : applique `MONTANTE_RULE` (Claude) sur les CANDIDATS du
+    jour (chacun avec son DOSSIER COMPLET `build_dossier`) et renvoie le BEST BET (dict palier prêt à enregistrer)
+    ou None (PASS / rien de robuste). `cands` = sortie `safe_dc_candidates` (matchs sharp-ancrés, cote en zone)."""
+    blocks = []
+    for c in (cands or [])[:8]:                       # borne : max 8 candidats (coût dossiers/Claude)
+        m = {"id": c.get("mid"), "home": c.get("home"), "away": c.get("away"),
+             "comp": c.get("comp"), "start": c.get("start"), "name": c.get("name")}
+        try:
+            dos = await build_dossier(client, m, "foot")
+        except Exception:
+            dos = None
+        if dos:
+            blocks.append(f"### MATCH id={c.get('mid')} — {c.get('name')} · {c.get('comp')} · KO {c.get('start')}\n{dos}")
+    if not blocks:
+        return None
+    out = run_claude(MONTANTE_RULE + "\n\n=== CANDIDATS DU JOUR (compare-les, choisis-en AU PLUS UN) ===\n\n"
+                     + "\n\n".join(blocks), timeout=540)
+    v = _parse_montante(out)
+    if not v or v.get("decision") != "GO":            # PASS / WAIT / illisible -> pas de palier aujourd'hui
+        return None
+    c = next((x for x in cands if str(x.get("mid")) == str(v.get("mid"))), None)
+    if not c:
+        return None
+    _pest = v.get("p_est")
+    _why = re.sub(r"(?im)^\s*MONTANTE_PICK:.*$", "", out).strip()   # retire la ligne machine du « pourquoi »
+    return {"mid": str(v["mid"]), "sport": "foot", "match": c.get("name"),
+            "home": c.get("home"), "away": c.get("away"), "comp": c.get("comp"), "start": c.get("start"),
+            "sel": v.get("sel") or c.get("sel"), "cote": v.get("cote") or c.get("cote"), "code": v.get("code"),
+            "prob": (_pest / 100.0 if isinstance(_pest, (int, float)) and _pest > 1 else _pest),
+            "cote_min": v.get("cote_min"), "ev": v.get("ev"), "score": v.get("score"), "why": _why}
+
+
 def _analyze_combo_legs(combo: dict, facts_by_mid: dict | None = None) -> None:
     """Enrichit CHAQUE jambe du combiné du jour d'une JUSTIFICATION DÉDIÉE (`leg['why']`) + une SYNTHÈSE
     (`combo['synth']`), via UN appel Claude — les jambes sont analysées comme des paris à jouer (demande
@@ -3447,17 +3541,16 @@ async def main():
     except Exception as _exc:
         print(f"  (combiné du jour ignoré : {_exc})")
 
-    # MONTANTE — SÉLECTION DU PALIER EN FIN DE SCAN (demande user 2026-08-02 : « sélection en fin de scan au
-    # lieu de reconcile »). À ce moment, les PARIS SIMPLES À JOUER du jour viennent d'être générés ET les
-    # matchs sont ENCORE À VENIR -> pick_day_bet trouve fiablement le pari foot le PLUS CONFIANT du jour (fini
-    # les jours sautés faute de fenêtre au reconcile). run_daily = règle l'en-cours + enregistre le palier.
-    # Isolé (data/montante_track.json), hors ROI. Le reconcile continue de régler en cours de journée.
+    # MONTANTE — RÈGLEMENT EN FIN DE SCAN. Depuis la RÈGLE QUANT (user 2026-08-18), le PALIER est POSÉ au
+    # builder matinal (`_build_and_post_programme` -> `_montante_best_bet`, seule décideuse : best bet ou PASS).
+    # Ici on ne fait plus que RÉGLER l'en-cours (`run_daily` -> `record_day(None)` renvoie False = aucun repli
+    # mécanique). Isolé (data/montante_track.json), hors ROI. Le reconcile continue de régler en cours de journée.
     try:
         from app import montante as _mtn
         if _mtn.is_active():
             from app import combo_daily as _cd_mt
             _mr = _mtn.run_daily(_cd_mt.day_key())
-            print(f"  🪜 Montante (fin de scan) : {_mr}")
+            print(f"  🪜 Montante (fin de scan, règlement) : {_mr}")
             if _mr.get("recorded"):        # NOTIF PUSH PWA « montante » (mise du jour placée, user 2026-08-16)
                 try:
                     from app import push as _push
