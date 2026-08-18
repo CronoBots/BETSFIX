@@ -2415,6 +2415,10 @@ CSS = """
   .zone-rec .zlc-u{background:#caa63a}   /* jambe non jouée = cercle JAUNE (ambre) */
   .zone-rec .zlc-w{background:#1f9e57}   /* jambe gagnée = cercle VERT */
   .zone-rec .zlc-l{background:#d33b3b}   /* jambe perdue = cercle ROUGE */
+  /* Points par jambe À DROITE du « N jambes » du combiné (user 2026-08-18) : mêmes couleurs que ci-dessus. */
+  .clegdots{display:inline-flex;align-items:center;gap:4px;margin-left:8px;vertical-align:middle}
+  .clegdots .zlc{width:7px;height:7px;border-radius:50%;box-shadow:0 0 0 1px rgba(10,16,22,.5)}
+  .clegdots .zlc-u{background:#caa63a} .clegdots .zlc-w{background:#1f9e57} .clegdots .zlc-l{background:#d33b3b}
   .zone-b{margin-top:2px}
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
@@ -6360,7 +6364,13 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
     # TITRE de la carte (user 2026-08-17) : « COMBINÉ DOUBLE CHANCE » (le combiné foot EST une double chance)
     # au lieu de « COMBINÉ FOOTBALL ». Tennis/basket (simulés) gardent leur sport.
     _sptitle = {"tennis": "TENNIS", "basket": "BASKET"}.get(sport, "DOUBLE CHANCE")
-    return _combo_gold_card(title=title or f"COMBINÉ {_sptitle}", subtitle=f'{_nlegs} jambes',
+    # POINTS PAR JAMBE À DROITE du « N jambes » (user 2026-08-18) : un cercle par jambe (jaune=à venir/en cours ·
+    # vert=gagnée · rouge=perdue). Déplacés ici (avant : à côté du compteur de la zone -> retirés).
+    def _lgc(r):
+        return "w" if r == "won" else ("l" if r == "lost" else "u")
+    _dots = "".join(f'<span class="zlc zlc-{_lgc(l.get("result"))}"></span>' for l in (cb.get("legs") or []))
+    _sub = f'{_nlegs} jambes<span class="clegdots">{_dots}</span>' if _dots else f'{_nlegs} jambes'
+    return _combo_gold_card(title=title or f"COMBINÉ {_sptitle}", subtitle=_sub,
                             badge=_badge, body=_body, state=cb.get("result"))
 
 
@@ -6495,10 +6505,10 @@ def _montante_zone_card(sport: str | None) -> tuple:
         # live_layout=True (user 2026-08-18) : MÊME mise en page qu'un pari Confiance (ligue CENTRÉE + pays,
         # logos + équipes + heure/score au CENTRE, pari + glose CENTRÉS dans le cadre verdict) — sinon la
         # montante gardait le layout compact `.cleg` (pari collé à gauche, sans ligue) ≠ carte Confiance.
-        # bare=True (user 2026-08-18) : la montante est une DC SÛRE (même famille que le combiné) -> Confiance +
-        # Cote SEULEMENT, pas Edge/Value (un « 91% / +27% value » sur cote 1.4 fait douter — cohérent avec le combiné).
+        # Grille verdict COMPLÈTE (Confiance/Edge/Value/Cote) — user 2026-08-18 : la montante montre toutes les
+        # stats (les probas sont désormais fiables après le fix de résolution Pinnacle, plus de value aberrante).
         card = _leg_card(leg, why=True, verdict=True, teams=True, why_label="Pourquoi ce pari",
-                         prob_calibrated=_prob_cal, live_layout=True, bare=True)
+                         prob_calibrated=_prob_cal, live_layout=True)
         # LIGNE « mont-note » (mise rejouée · voir l'échelle) RETIRÉE sous la carte (user 2026-08-08).
         return f"Montante · Palier {palier}", card
     except Exception:
