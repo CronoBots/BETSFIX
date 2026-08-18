@@ -7313,6 +7313,13 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # fondue dans Confiance/Value. La carte garde son cadre bleu + titre « MONTANTE • PALIER N ».
     _mont_html = _MC_SEP.join([h for h in (_rows_by_day(play_mont), _mont_settled) if h])
     _mont_rec = _tier_rec(play_mont, "montante")
+    # BADGE MONTANTE (user 2026-08-18 « il doit y avoir le badge du nombre de paris gagné ») : le résultat de la
+    # montante vit dans montante_track — PAS toujours dans un stat_bet tier=montante (le match est SOUVENT une
+    # ABSTENTION -> `_settled_wl_today(tier=montante)` le rate -> badge absent). On lit donc le résultat du palier
+    # du jour et on l'injecte dans le record pour que le badge compte le pari GAGNÉ (vert) / perdu (rouge).
+    _mbr = (_montante_today_bet() or {}).get("result")
+    if _mbr in ("won", "lost", "push", "void") and (_mont_rec[0] or 0) == 0:
+        _mont_rec = (1, 0, 0, 1 if _mbr == "won" else 0, 1 if _mbr in ("lost", "void", "push") else 0, 0)
     if play_mont or _mont_settled:
         # TITRE DE ZONE = « Montante • Palier N » (user 2026-08-18 : le palier vit dans le titre de la zone,
         # plus dans un cadre au-dessus de la carte). `_mont_title` = « Montante · Palier N » (repli « Montante »).
@@ -10076,8 +10083,9 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         if _mm_pair:
             _play = [c for c in _play if _prog_pair(c.get("home"), c.get("away")) != _mm_pair]
             _prov = [c for c in _prov if _prog_pair(c.get("home"), c.get("away")) != _mm_pair]
-        _mont_deco = (f'<div class="mont-cardwrap"><a class="mont-hdr" data-goto="montante" href="/montante" '
-                      f'onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
+        # COMME DANS PRONOS (user 2026-08-18) : PAS de titre-cadre interne « MONTANTE • PALIER » au-dessus de la
+        # carte — le palier vit dans le TITRE DE LA ZONE (ci-dessous). Juste le cadre de couleur, carte identique.
+        _mont_deco = f'<div class="mont-cardwrap">{_mont_card}</div>'
         _mont_tier_live = analyses.bet_tier_for("foot", str((_montante_today_bet() or {}).get("mid") or ""))
         _play = list(_play) + [{"_html": _mont_deco, "start_ts": (_md0 or {}).get("start_ts") or 0,
                                 "status": "inprogress", "tier": _mont_tier_live}]   # montante classée par son tier
@@ -10102,7 +10110,9 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         if _play_v:
             out.append(_zone("value", "Value", "en direct", len(_play_v), _cards(_play_v)))
         if _play_m:
-            out.append(_zone("mont", "Montante", "en direct", len(_play_m), _cards(_play_m)))
+            # TITRE DE ZONE = « Montante • Palier N » (comme Pronos), pas un simple « Montante ».
+            out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "en direct",
+                             len(_play_m), _cards(_play_m)))
         out += [
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov)),
             _zone("combo", "Combiné", "", 1 if _combo else 0, _combo),
