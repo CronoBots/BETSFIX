@@ -1665,16 +1665,22 @@ def _resolve_claude() -> str:
 
 CLAUDE_MODEL = "opus"   # analyse ET panel 3 agents : on épingle le modèle le PLUS CAPABLE (qualité > vitesse,
                         # demande user 2026-07-08 : analyses complètes & professionnelles, pas rapides).
+# COMPROMIS QUALITÉ/ROI/CONSO (user 2026-08-18) : on garde OPUS sur tout ce qui DÉCIDE des paris (analyse simple
+# flagship = driver ROI ; règles quant combiné/montante = sélection). On ne descend en modèle MOINS CHER QUE sur
+# ce qui NE touche NI la sélection NI le ROI : le « pourquoi »/synthèse d'AFFICHAGE (narratif factuel) et la
+# ré-émission d'une ligne machine DÉJÀ décidée (simple reformatage). -> économie sans jamais dégrader les paris.
+NARRATIVE_MODEL = "sonnet"   # « pourquoi »/synthèse combo/montante (affichage seul, hors sélection/ROI).
+REEMIT_MODEL = "haiku"       # reformatage d'une ligne machine déjà décidée (aucune décision) -> le moins cher.
 
 
-def run_claude(prompt: str, timeout: int = 360) -> str:
-    """Lance Claude en headless sur l'abonnement et renvoie l'analyse (stdout). Épingle le modèle le PLUS
-    CAPABLE (CLAUDE_MODEL) pour des analyses complètes et professionnelles. REPLI sur le modèle par défaut
-    du CLI si l'appel avec --model rend une sortie vide (renommage/indispo du modèle) -> le scan ne tombe
+def run_claude(prompt: str, timeout: int = 360, model: str | None = None) -> str:
+    """Lance Claude en headless sur l'abonnement et renvoie l'analyse (stdout). `model` épingle le modèle
+    (défaut CLAUDE_MODEL=opus pour tout ce qui DÉCIDE : analyse flagship + règles quant). REPLI sur le modèle
+    par défaut du CLI si l'appel avec --model rend une sortie vide (renommage/indispo) -> le scan ne tombe
     JAMAIS à zéro. Un timeout se propage tel quel (le match est sauté par l'appelant, pas de double run)."""
     exe = _resolve_claude()
     base = [exe, "-p", "--dangerously-skip-permissions"]
-    for cmd in ([*base, "--model", CLAUDE_MODEL], base):
+    for cmd in ([*base, "--model", model or CLAUDE_MODEL], base):
         p = subprocess.run(cmd, input=prompt, text=True, capture_output=True,
                            timeout=timeout, encoding="utf-8")   # TimeoutExpired -> propagé (voulu)
         out = (p.stdout or "").strip()
@@ -2643,7 +2649,8 @@ def _reemit_machine_line(out: str, spec: str, timeout: int = 120) -> str:
         return run_claude(
             "Voici une analyse de pari DÉJÀ produite. Réémets UNIQUEMENT sa dernière LIGNE MACHINE, au format "
             "EXACT ci-dessous, sur UNE seule ligne, sans gras/puce/texte autour, en respectant sa DÉCISION "
-            f"(ne re-décide pas, extrais) :\n{spec}\n\n--- ANALYSE ---\n{out}", timeout=timeout) or ""
+            f"(ne re-décide pas, extrais) :\n{spec}\n\n--- ANALYSE ---\n{out}",
+            timeout=timeout, model=REEMIT_MODEL) or ""      # simple reformatage -> modèle le moins cher
     except Exception:
         return ""
 
@@ -2891,7 +2898,7 @@ def _analyze_combo_legs(combo: dict, facts_by_mid: dict | None = None) -> None:
         "LEG1: <justification jambe 1>\nLEG2: <justification jambe 2>\n(… une ligne LEGn par jambe)\n"
         "SYNTH: <synthèse>\n\nJambes :\n" + "\n".join(blocs))
     try:
-        out = run_claude(prompt, timeout=200)
+        out = run_claude(prompt, timeout=200, model=NARRATIVE_MODEL)   # narratif d'affichage (hors sélection/ROI)
     except Exception:
         out = ""
     if not out:
@@ -2935,7 +2942,7 @@ def _analyze_samematch_legs(combo: dict, analysis: str, home: str, away: str) ->
         "SYNTH: <synthèse>\n\nFaits du match :\n" + (faits or "(pas de faits captés)")
         + "\n\nJambes :\n" + "\n".join(blocs))
     try:
-        out = run_claude(prompt, timeout=200)
+        out = run_claude(prompt, timeout=200, model=NARRATIVE_MODEL)   # narratif d'affichage (hors sélection/ROI)
     except Exception:
         out = ""
     if not out:
