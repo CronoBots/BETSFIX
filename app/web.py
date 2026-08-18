@@ -2384,7 +2384,9 @@ CSS = """
        background:linear-gradient(180deg,rgba(34,184,255,.11),rgba(34,184,255,.02));
        border:1px solid rgba(34,184,255,.22)}
   .pgg-slot-h b{font-size:16px;font-weight:900;color:#eaf3fb;font-variant-numeric:tabular-nums;letter-spacing:.02em}
-  .pgg-slot-h span{font-size:11px;font-weight:800;color:var(--gold);letter-spacing:.02em;white-space:nowrap}
+  .pgg-slot-h span{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;
+       color:var(--gold);letter-spacing:.02em;white-space:nowrap}
+  .pgg-clk{flex:none}
   /* Sous-groupe PAR LIGUE : intertitre CENTRÉ discret, une SEULE fois par ligue (user 2026-08-18). */
   .pgg-lgroup + .pgg-lgroup{margin-top:9px}
   .pgg-lgh{text-align:center;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;
@@ -8007,8 +8009,11 @@ def _programme_grille(pending: list) -> str:
             body.append(f'<div class="pgg-lgroup">'
                         + (f'<div class="pgg-lgh">{lg}</div>' if lg else "")
                         + "".join(rows) + '</div>')
+        _clk = ('<svg class="pgg-clk" width="12" height="12" viewBox="0 0 24 24" fill="none" '
+                'stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">'
+                '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.7"/></svg>')   # horloge nette (pas d'emoji)
         out.append(f'<div class="pgg-slot"><div class="pgg-slot-h"><b>{html.escape(hhmm)}</b>'
-                   f'<span>⏳ analyse ~{_eta}</span></div>{"".join(body)}</div>')
+                   f'<span>{_clk} analyse ~{_eta}</span></div>{"".join(body)}</div>')
     return f'<div class="pgg">{"".join(out)}</div>'
 
 
