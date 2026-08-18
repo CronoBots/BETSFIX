@@ -2627,7 +2627,7 @@ SORTIE — produis d'abord le format lisible :
 🎯 SCORE : XX/100 — Confiance : Faible/Moyenne/Bonne/Très bonne
 🚦 DÉCISION : 🟢 GO ou 🟠 ATTENDRE LES XI ou 🔴 PASS (+ 2-4 phrases)
 
-CONTRAINTE DE MARCHÉ FINAL (règlement automatique) : DNB et handicaps asiatiques servent d'ANGLES d'analyse, mais le pari RETENU doit s'exprimer dans un marché RÉGLABLE. Le <CODE> final DOIT être EXACTEMENT l'un de : DC 1X, DC X2, OVER 1.5, OVER 2.5, UNDER 3.5, UNDER 2.5, 1X2 1, 1X2 2, TEAMTOT HOME OVER 0.5, TEAMTOT AWAY OVER 0.5, BTTS YES. (Un scénario « DNB domicile » se traduit en DC 1X ou 1X2 1 selon la confiance ; un « AH -0.5 domicile » = 1X2 1.) La <sélection lisible> doit être le libellé français standard du marché (ex. « Double chance 1X », « Plus de 1.5 buts », « Victoire domicile », « Équipe domicile marque »).
+CONTRAINTE DE MARCHÉ FINAL (règlement automatique) : DNB et handicaps asiatiques servent d'ANGLES d'analyse, mais le pari RETENU doit s'exprimer dans un marché RÉGLABLE. Le <CODE> final DOIT être EXACTEMENT l'un de : DC 1X, DC X2, OVER 1.5, OVER 2.5, UNDER 3.5, UNDER 2.5, 1X2 1, 1X2 2, TEAMTOT HOME OVER 0.5, TEAMTOT AWAY OVER 0.5, BTTS YES. (Un scénario « DNB domicile » se traduit en DC 1X ou 1X2 1 selon la confiance ; un « AH -0.5 domicile » = 1X2 1.) La <sélection lisible> doit NOMMER L'ÉQUIPE concernée (indispensable pour le règlement au libellé) — utilise EXACTEMENT ces formes : « Double chance <équipe> ou nul » (DC), « Plus de 1.5 buts » / « Moins de 3.5 buts » (totaux match), « <équipe> gagne » (1X2), « <équipe> Plus de 0.5 buts (équipe) » (équipe marque). N'écris JAMAIS de libellé générique « Victoire domicile » ou « Équipe domicile marque ».
 
 PUIS, EN TOUTE DERNIÈRE LIGNE, une ligne machine EXACTE (pour l'automate), sans gras ni puce :
 MONTANTE_PICK: <match_id>|<CODE>|<sélection lisible>|<cote>|<cote_min>|<P_est %>|<EV %>|<score>|<GO|WAIT|PASS>
@@ -2663,7 +2663,10 @@ async def _montante_best_bet(client, cands: list):
     jour (chacun avec son DOSSIER COMPLET `build_dossier`) et renvoie le BEST BET (dict palier prêt à enregistrer)
     ou None (PASS / rien de robuste). `cands` = sortie `safe_dc_candidates` (matchs sharp-ancrés, cote en zone)."""
     blocks = []
-    for c in (cands or [])[:8]:                       # borne : max 8 candidats (coût dossiers/Claude)
+    # top-8 par PROBA (comme le combiné top-10) : on nourrit la règle des candidats les PLUS solides, pas des
+    # 8 premiers dans l'ordre d'itération. Les dossiers sont mutualisés avec le combiné (`_dossier_cached`).
+    _short = sorted((cands or []), key=lambda c: -(c.get("prob") or 0))[:8]
+    for c in _short:                                  # borne : max 8 candidats (coût dossiers/Claude)
         m = {"id": c.get("mid"), "home": c.get("home"), "away": c.get("away"),
              "comp": c.get("comp"), "start": c.get("start"), "name": c.get("name")}
         dos = await _dossier_cached(client, m)

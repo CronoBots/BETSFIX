@@ -277,6 +277,10 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                     continue
                 if notify.get_prono(f"montante_daily_result_{_mday}"):
                     continue                       # résultat déjà posté
+                if not notify.get_prono(f"montante_daily_{_mday}"):
+                    continue                       # prono jamais posté (palier figé AVANT la feature Telegram, ou
+                    # envoi raté) -> pas de résultat ORPHELIN (« Gagné » d'un pari jamais annoncé). On thread
+                    # toujours le résultat sous son prono ; sans prono, on n'affiche rien.
                 _msc = ""
                 try:
                     _mm = _anm.meta("foot", str(_st.get("mid") or "")) or {}
