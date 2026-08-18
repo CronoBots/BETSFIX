@@ -177,11 +177,21 @@ async def _reaudit_scores(max_days: int = 5) -> list:
 
 
 async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
+    # ⚠️ INVARIANT (user 2026-08-18) : le RÈGLEMENT (étape 1) doit tourner QUOI QU'IL ARRIVE. Les filets
+    # AMONT (0 / 0-bis) sont donc chacun isolés dans un try/except : une exception imprévue y est LOGGÉE
+    # mais n'empêche PLUS le règlement + la publication (un IndexError dans _reaudit_scores avait bloqué
+    # TOUT le règlement pendant une nuit — matchs & combiné non clôturés, rien posté sur Telegram).
     # 0) AUTO-RÉPARATION : annule les règlements prématurés (match encore live) -> re-réglés à l'étape 1.
-    n_reset = 0 if dry else _reset_premature()
+    try:
+        n_reset = 0 if dry else _reset_premature()
+    except Exception as exc:
+        print(f"  (auto-réparation prématurés ignorée : {exc})"); n_reset = 0
     # 0-bis) FILET ANTI-FAUX-RÉSULTAT : re-vérifie les paris joués foot récents contre 2 sources
     # désambiguïsées ; un score faux (collision) est reset -> re-réglé correctement à l'étape 1.
-    _reaudited = [] if dry else await _reaudit_scores()
+    try:
+        _reaudited = [] if dry else await _reaudit_scores()
+    except Exception as exc:
+        print(f"  (re-audit scores ignoré : {exc})"); _reaudited = []
 
     # 1) RÈGLEMENT : règle tout ce qui peut l'être (poste les résultats, idempotent via notified_*).
     n_settled = 0
