@@ -795,6 +795,8 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     est ensuite analysé UNE fois par la passe complète du matin (--from-programme). La ré-analyse pré-match
     a été supprimée (user 2026-08-07) : le pick du matin est DÉFINITIF (plus de vague --refresh-early)."""
     from app import notify
+    _MORNING_SAFE_DC.clear()          # vivier/dossiers FRAIS à chaque construction de programme (combiné + montante
+    _MORNING_DOSSIER_CACHE.clear()    # partagent ces caches ; on repart propre pour ne jamais réutiliser un slate ancien)
     _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
     # RAFRAÎCHISSEMENT DÉTERMINISTE DU CATALOGUE PINNACLE (user 2026-08-17) : la passe programme du matin (~10h
@@ -938,7 +940,7 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
             # si l'analyse échoue (réseau/Claude), on retombe sur la construction mécanique (jamais de trou).
             _fcombo = None
             try:
-                _ccands, _cwhys = await _csafe.safe_dc_candidates(_cday, matches, client)
+                _ccands, _cwhys = await _safe_dc_cached(_cday, matches, client)
                 _fcombo = await _combo_dc_best(client, _cday, _ccands, _cwhys)
                 if _fcombo:
                     print(f"  🎯 Combiné du jour : règle quant -> {len(_fcombo['legs'])} jambe(s), "
@@ -1009,7 +1011,7 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     # l'en-cours d'abord (settle), puis on enregistre (record_day refuse si un palier est encore EN ATTENTE ou si
     # le jour est déjà pris -> jamais de doublon avec le run_daily de fin de scan). Isolé, best-effort.
     try:
-        from app import montante as _mtn, combo_daily as _cd_mt, combo_safe as _cs_mt
+        from app import montante as _mtn, combo_daily as _cd_mt
         if _mtn.is_active():
             _mtn.settle_pending()
             # RÈGLE MONTANTE = ANALYSTE QUANT (user 2026-08-18) : on ne prend plus mécaniquement « la DC la plus
@@ -1021,7 +1023,7 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
             _mpick = None
             if _mtn.can_record_day(_cd_mt.day_key()):
                 try:
-                    _mcands, _ = await _cs_mt.safe_dc_candidates(_cd_mt.day_key(), matches, client)
+                    _mcands, _ = await _safe_dc_cached(_cd_mt.day_key(), matches, client)
                     _mpick = await _montante_best_bet(client, _mcands or [])
                 except Exception as _mre:
                     print(f"  (analyse montante quant ignorée : {_mre})")
@@ -2534,6 +2536,40 @@ def _track_provisional(sport, m, prov) -> None:
         pass
 
 
+# ============================ CACHES PROCESS-LOCAUX DU BUILDER MATIN (combiné + montante partagent le vivier) ============================
+# Le combiné DC et la montante analysent le MÊME vivier (safe_dc_candidates) avec les MÊMES dossiers complets.
+# Sans mutualisation, le matin refetch 2× les candidats + ~18 dossiers (recouvrement combiné/montante). Ces
+# caches sont NATURELLEMENT scopés au process de scan (chaque vague/scan = invocation séparée) -> AUCUN risque
+# de servir un dossier périmé à l'analyse fraîche pré-match. Vidés en tête de `_build_and_post_programme`.
+_MORNING_SAFE_DC: dict = {}
+_MORNING_DOSSIER_CACHE: dict = {}
+
+
+async def _safe_dc_cached(day: str, matches: list, client):
+    """`combo_safe.safe_dc_candidates` mémoïsé par jour (appelé par le combiné ET la montante le matin)."""
+    if day in _MORNING_SAFE_DC:
+        return _MORNING_SAFE_DC[day]
+    from app import combo_safe as _cs
+    res = await _cs.safe_dc_candidates(day, matches, client)
+    _MORNING_SAFE_DC[day] = res
+    return res
+
+
+async def _dossier_cached(client, m: dict):
+    """`build_dossier` (foot) mémoïsé par id de match -> le combiné et la montante ne reconstruisent pas 2× le
+    dossier complet d'un même match du vivier partagé. None si indisponible."""
+    mid = str(m.get("id") or "")
+    if mid and mid in _MORNING_DOSSIER_CACHE:
+        return _MORNING_DOSSIER_CACHE[mid]
+    try:
+        d = await build_dossier(client, m, "foot")
+    except Exception:
+        d = None
+    if mid:
+        _MORNING_DOSSIER_CACHE[mid] = d
+    return d
+
+
 # ============================ RÈGLE DE SÉLECTION MONTANTE (analyste quantitatif) ============================
 # Spec user 2026-08-18 (cf. mémoire montante-selection-rule-quant). AU MAX 1 pari / palier, ou PASS. Objectif :
 # P(réussite) × Edge × EV × faible variance × fiabilité — préservation du capital prioritaire. Discipline > fréquence.
@@ -2608,10 +2644,7 @@ async def _montante_best_bet(client, cands: list):
     for c in (cands or [])[:8]:                       # borne : max 8 candidats (coût dossiers/Claude)
         m = {"id": c.get("mid"), "home": c.get("home"), "away": c.get("away"),
              "comp": c.get("comp"), "start": c.get("start"), "name": c.get("name")}
-        try:
-            dos = await build_dossier(client, m, "foot")
-        except Exception:
-            dos = None
+        dos = await _dossier_cached(client, m)
         if dos:
             blocks.append(f"### MATCH id={c.get('mid')} — {c.get('name')} · {c.get('comp')} · KO {c.get('start')}\n{dos}")
     if not blocks:
@@ -2716,10 +2749,7 @@ async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None
     for c in short:
         m = {"id": c["mid"], "home": c.get("home"), "away": c.get("away"),
              "comp": c.get("comp"), "start": c.get("start"), "name": c.get("name")}
-        try:
-            dos = await build_dossier(client, m, "foot")
-        except Exception:
-            dos = None
+        dos = await _dossier_cached(client, m)
         _imp = round(100.0 / c["cote"], 1) if c.get("cote") else "?"
         blocks.append(
             f"### CANDIDAT DC id={c['mid']} — {c.get('name')} · {c.get('comp')} · KO {c.get('start')}\n"
