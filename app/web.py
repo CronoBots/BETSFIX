@@ -2373,6 +2373,25 @@ CSS = """
   .pgm-anh{font-size:9.5px;font-weight:700;color:var(--muted);white-space:nowrap;letter-spacing:.02em}
   /* Lignes de planning DANS une zone (ex. Abstention) : pas de double cadre (la zone porte déjà le sien). */
   .pgm-inzone{border:0;border-radius:0}
+  /* GRILLE HORAIRE du programme (user 2026-08-18) : matchs groupés par heure de coup d'envoi (façon programme
+     TV), lignes compactes. L'heure d'analyse (~KO−1 h) est portée par l'en-tête du créneau. */
+  .pgg{margin-top:4px}
+  .pgg-slot{margin-bottom:15px}
+  .pgg-slot:last-child{margin-bottom:2px}
+  .pgg-slot-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+       padding:0 4px 7px;margin-bottom:6px;border-bottom:1px solid var(--border)}
+  .pgg-slot-h b{font-size:16px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+  .pgg-slot-h span{font-size:11px;font-weight:800;color:var(--gold);letter-spacing:.02em;white-space:nowrap}
+  .pgg-row{display:flex;align-items:center;gap:11px;padding:8px 6px;border-radius:11px}
+  .pgg-row + .pgg-row{margin-top:1px}
+  .pgg-logos{flex:none;display:inline-flex;align-items:center}
+  .pgg-logos .tm-b{width:26px;height:26px}
+  .pgg-logos .tm-b .team-logo,.pgg-logos .tm-b .team-mono{width:26px;height:26px;font-size:11px}
+  .pgg-logos .tm-b + .tm-b{margin-left:-7px}   /* léger chevauchement des 2 logos (façon « versus ») */
+  .pgg-match{flex:1;min-width:0;font-size:13.5px;font-weight:700;color:var(--text);
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pgg-lg{flex:none;max-width:40%;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;
+       letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* Zone ABSTENTION : pastille + compteur gris-bleu neutre (on ne parie pas -> discret). */
   .zone-abst .zone-dot{background:#9fb6cf;box-shadow:0 0 8px rgba(159,182,207,.4)}
   .zone-abst .zone-n{color:#9fb6cf;background:rgba(159,182,207,.12)}
@@ -7915,8 +7934,8 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
     for m, dt in items:
         mid = str(m.get("id"))
         d = analyses.meta(sport, mid)
-        if d is None:                                      # pas encore analysé -> PROGRAMME
-            pending.append(_status_card(m, dt, "wait"))
+        if d is None:                                      # pas encore analysé -> PROGRAMME (données brutes -> grille)
+            pending.append((m, dt))
             continue
         if analyses.is_settled(d):
             _sb = analyses.stat_bet(d)
@@ -7944,13 +7963,45 @@ def _paj_hero() -> str:
         '</div>')
 
 
+def _programme_grille(pending: list) -> str:
+    """GRILLE HORAIRE du programme (user 2026-08-18 « originale et pratique ») : matchs PAS encore analysés,
+    GROUPÉS PAR HEURE de coup d'envoi (comme un programme TV) — lignes COMPACTES (logos + équipes + ligue),
+    l'heure d'analyse (~KO−1 h) portée UNE fois par l'en-tête du créneau. `pending` = liste de (match, dt)."""
+    from collections import OrderedDict
+    slots: "OrderedDict[str, list]" = OrderedDict()
+    for m, dt in pending:                                  # `pending` déjà trié par coup d'envoi
+        ld = dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
+        slots.setdefault(ld.strftime("%H:%M"), []).append((m, ld))
+    out = []
+    for hhmm, ms in slots.items():
+        _eta = (ms[0][1] - timedelta(hours=1)).strftime("%H:%M")   # analyse ~1 h avant le coup d'envoi
+        rows = []
+        for m, _ld in ms:
+            name = _noF(str(m.get("name") or ""))
+            home, away = ([s.strip() for s in name.split(" - ", 1)] if " - " in name else (name, ""))
+            comp = str(m.get("comp") or "")
+            _cty = _cap(match_select.comp_country(comp) or "")
+            if _cty and _cty.lower() in comp.lower():
+                _cty = ""                                  # évite « Angleterre • Angleterre »
+            _lg = " • ".join(html.escape(p) for p in (_cty, _noF(comp)) if p).upper()
+            _logos = (f'<span class="pgg-logos">{_crest_badge(home)}'
+                      f'{_crest_badge(away) if away else ""}</span>')
+            _mtxt = html.escape(f"{home} – {away}" if away else home)
+            rows.append(f'<div class="pgg-row">{_logos}'
+                        f'<span class="pgg-match">{_mtxt}</span>'
+                        f'<span class="pgg-lg">{_lg}</span></div>')
+        out.append(f'<div class="pgg-slot"><div class="pgg-slot-h"><b>{html.escape(hhmm)}</b>'
+                   f'<span>⏳ analyse ~{_eta}</span></div>{"".join(rows)}</div>')
+    return f'<div class="pgg">{"".join(out)}</div>'
+
+
 def _programme_schedule(sport: str = "foot") -> str:
-    """Zone « Programme du jour » = les matchs PAS ENCORE analysés, en CARTES (comme les paris) — user
-    2026-08-17. Badge compteur (à droite, près du chevron). '' si plus rien à analyser."""
+    """Zone « Programme du jour » = les matchs PAS ENCORE analysés, en GRILLE HORAIRE compacte groupée par
+    heure (user 2026-08-18). Badge compteur (à droite, près du chevron). '' si plus rien à analyser."""
     pending, _abst = _planning_cards(sport)
     if not pending:
         return ""
-    return _zone("prog", "Programme", "", len(pending), _MC_SEP.join(pending), collapsible=True)
+    return _zone("prog", "Programme", "", len(pending), _programme_grille(pending), collapsible=True)
 
 
 def _abstention_zone(sport: str = "foot") -> str:
