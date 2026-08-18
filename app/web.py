@@ -2382,16 +2382,18 @@ CSS = """
        padding:0 4px 7px;margin-bottom:6px;border-bottom:1px solid var(--border)}
   .pgg-slot-h b{font-size:16px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.01em}
   .pgg-slot-h span{font-size:11px;font-weight:800;color:var(--gold);letter-spacing:.02em;white-space:nowrap}
-  .pgg-row{display:flex;align-items:center;gap:11px;padding:8px 6px;border-radius:11px}
+  /* Sous-groupe PAR LIGUE dans un créneau : la ligue en petit intertitre discret, une SEULE fois. */
+  .pgg-lgroup + .pgg-lgroup{margin-top:7px}
+  .pgg-lgh{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
+       padding:1px 8px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pgg-row{display:flex;align-items:center;gap:11px;padding:7px 6px;border-radius:11px}
   .pgg-row + .pgg-row{margin-top:1px}
   .pgg-logos{flex:none;display:inline-flex;align-items:center}
   .pgg-logos .tm-b{width:26px;height:26px}
   .pgg-logos .tm-b .team-logo,.pgg-logos .tm-b .team-mono{width:26px;height:26px;font-size:11px}
   .pgg-logos .tm-b + .tm-b{margin-left:-7px}   /* léger chevauchement des 2 logos (façon « versus ») */
   .pgg-match{flex:1;min-width:0;font-size:13.5px;font-weight:700;color:var(--text);
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pgg-lg{flex:none;max-width:40%;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;
-       letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* PLEINE LARGEUR (ligue en intertitre) */
   /* Zone ABSTENTION : pastille + compteur gris-bleu neutre (on ne parie pas -> discret). */
   .zone-abst .zone-dot{background:#9fb6cf;box-shadow:0 0 8px rgba(159,182,207,.4)}
   .zone-abst .zone-n{color:#9fb6cf;background:rgba(159,182,207,.12)}
@@ -7964,9 +7966,10 @@ def _paj_hero() -> str:
 
 
 def _programme_grille(pending: list) -> str:
-    """GRILLE HORAIRE du programme (user 2026-08-18 « originale et pratique ») : matchs PAS encore analysés,
-    GROUPÉS PAR HEURE de coup d'envoi (comme un programme TV) — lignes COMPACTES (logos + équipes + ligue),
-    l'heure d'analyse (~KO−1 h) portée UNE fois par l'en-tête du créneau. `pending` = liste de (match, dt)."""
+    """GRILLE HORAIRE du programme (user 2026-08-18 « originale et pratique », optimisée) : matchs PAS encore
+    analysés, GROUPÉS PAR HEURE de coup d'envoi PUIS PAR LIGUE (façon programme TV). L'heure d'analyse (~KO−1 h)
+    est portée par l'en-tête du créneau ; la LIGUE est affichée UNE fois par sous-groupe (plus sur chaque ligne)
+    -> les noms d'équipes prennent la PLEINE LARGEUR (fin des troncatures). `pending` = liste de (match, dt)."""
     from collections import OrderedDict
     slots: "OrderedDict[str, list]" = OrderedDict()
     for m, dt in pending:                                  # `pending` déjà trié par coup d'envoi
@@ -7975,23 +7978,29 @@ def _programme_grille(pending: list) -> str:
     out = []
     for hhmm, ms in slots.items():
         _eta = (ms[0][1] - timedelta(hours=1)).strftime("%H:%M")   # analyse ~1 h avant le coup d'envoi
-        rows = []
+        lgroups: "OrderedDict[str, list]" = OrderedDict()          # sous-groupe PAR LIGUE dans le créneau
         for m, _ld in ms:
-            name = _noF(str(m.get("name") or ""))
-            home, away = ([s.strip() for s in name.split(" - ", 1)] if " - " in name else (name, ""))
             comp = str(m.get("comp") or "")
             _cty = _cap(match_select.comp_country(comp) or "")
             if _cty and _cty.lower() in comp.lower():
                 _cty = ""                                  # évite « Angleterre • Angleterre »
-            _lg = " • ".join(html.escape(p) for p in (_cty, _noF(comp)) if p).upper()
-            _logos = (f'<span class="pgg-logos">{_crest_badge(home)}'
-                      f'{_crest_badge(away) if away else ""}</span>')
-            _mtxt = html.escape(f"{home} – {away}" if away else home)
-            rows.append(f'<div class="pgg-row">{_logos}'
-                        f'<span class="pgg-match">{_mtxt}</span>'
-                        f'<span class="pgg-lg">{_lg}</span></div>')
+            lg = " • ".join(html.escape(p) for p in (_cty, _noF(comp)) if p).upper()
+            lgroups.setdefault(lg, []).append(m)
+        body = []
+        for lg, gms in lgroups.items():
+            rows = []
+            for m in gms:
+                name = _noF(str(m.get("name") or ""))
+                home, away = ([s.strip() for s in name.split(" - ", 1)] if " - " in name else (name, ""))
+                _logos = (f'<span class="pgg-logos">{_crest_badge(home)}'
+                          f'{_crest_badge(away) if away else ""}</span>')
+                _mtxt = html.escape(f"{home} – {away}" if away else home)
+                rows.append(f'<div class="pgg-row">{_logos}<span class="pgg-match">{_mtxt}</span></div>')
+            body.append(f'<div class="pgg-lgroup">'
+                        + (f'<div class="pgg-lgh">{lg}</div>' if lg else "")
+                        + "".join(rows) + '</div>')
         out.append(f'<div class="pgg-slot"><div class="pgg-slot-h"><b>{html.escape(hhmm)}</b>'
-                   f'<span>⏳ analyse ~{_eta}</span></div>{"".join(rows)}</div>')
+                   f'<span>⏳ analyse ~{_eta}</span></div>{"".join(body)}</div>')
     return f'<div class="pgg">{"".join(out)}</div>'
 
 
