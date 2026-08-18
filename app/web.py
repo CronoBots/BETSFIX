@@ -2376,24 +2376,26 @@ CSS = """
   /* GRILLE HORAIRE du programme (user 2026-08-18) : matchs groupés par heure de coup d'envoi (façon programme
      TV), lignes compactes. L'heure d'analyse (~KO−1 h) est portée par l'en-tête du créneau. */
   .pgg{margin-top:4px}
-  .pgg-slot{margin-bottom:15px}
+  .pgg-slot{margin-bottom:20px}
   .pgg-slot:last-child{margin-bottom:2px}
-  .pgg-slot-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
-       padding:0 4px 7px;margin-bottom:6px;border-bottom:1px solid var(--border)}
-  .pgg-slot-h b{font-size:16px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+  /* EN-TÊTE de créneau = BANDEAU CENTRÉ ENCADRÉ (cyan) — sépare clairement les créneaux (user 2026-08-18). */
+  .pgg-slot-h{display:flex;align-items:center;justify-content:center;gap:12px;
+       padding:9px 14px;margin-bottom:11px;border-radius:12px;
+       background:linear-gradient(180deg,rgba(34,184,255,.11),rgba(34,184,255,.02));
+       border:1px solid rgba(34,184,255,.22)}
+  .pgg-slot-h b{font-size:16px;font-weight:900;color:#eaf3fb;font-variant-numeric:tabular-nums;letter-spacing:.02em}
   .pgg-slot-h span{font-size:11px;font-weight:800;color:var(--gold);letter-spacing:.02em;white-space:nowrap}
-  /* Sous-groupe PAR LIGUE dans un créneau : la ligue en petit intertitre discret, une SEULE fois. */
-  .pgg-lgroup + .pgg-lgroup{margin-top:7px}
-  .pgg-lgh{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
-       padding:1px 8px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pgg-row{display:flex;align-items:center;gap:11px;padding:7px 6px;border-radius:11px}
+  /* Sous-groupe PAR LIGUE : intertitre CENTRÉ discret, une SEULE fois par ligue (user 2026-08-18). */
+  .pgg-lgroup + .pgg-lgroup{margin-top:9px}
+  .pgg-lgh{text-align:center;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;
+       letter-spacing:.05em;padding:1px 8px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* LIGNE match : logo DOMICILE à gauche · équipes CENTRÉES · logo EXTÉRIEUR à droite (user 2026-08-18). */
+  .pgg-row{display:flex;align-items:center;gap:12px;padding:7px 8px;border-radius:11px}
   .pgg-row + .pgg-row{margin-top:1px}
-  .pgg-logos{flex:none;display:inline-flex;align-items:center}
-  .pgg-logos .tm-b{width:26px;height:26px}
-  .pgg-logos .tm-b .team-logo,.pgg-logos .tm-b .team-mono{width:26px;height:26px;font-size:11px}
-  .pgg-logos .tm-b + .tm-b{margin-left:-7px}   /* léger chevauchement des 2 logos (façon « versus ») */
-  .pgg-match{flex:1;min-width:0;font-size:13.5px;font-weight:700;color:var(--text);
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* PLEINE LARGEUR (ligue en intertitre) */
+  .pgg-row .tm-b{flex:none;width:26px;height:26px}
+  .pgg-row .tm-b .team-logo,.pgg-row .tm-b .team-mono{width:26px;height:26px;font-size:11px}
+  .pgg-match{flex:1;min-width:0;text-align:center;font-size:13.5px;font-weight:700;color:var(--text);
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* CENTRÉ, pleine largeur entre les 2 logos */
   /* Zone ABSTENTION : pastille + compteur gris-bleu neutre (on ne parie pas -> discret). */
   .zone-abst .zone-dot{background:#9fb6cf;box-shadow:0 0 8px rgba(159,182,207,.4)}
   .zone-abst .zone-n{color:#9fb6cf;background:rgba(159,182,207,.12)}
@@ -7992,10 +7994,16 @@ def _programme_grille(pending: list) -> str:
             for m in gms:
                 name = _noF(str(m.get("name") or ""))
                 home, away = ([s.strip() for s in name.split(" - ", 1)] if " - " in name else (name, ""))
-                _logos = (f'<span class="pgg-logos">{_crest_badge(home)}'
-                          f'{_crest_badge(away) if away else ""}</span>')
+                # STRIP du code PAYS « (KSA) / (CHI) »… en fin de nom (user 2026-08-18) : redondant avec
+                # l'intertitre ligue (ARABIE SAOUDITE…). Affichage seul ; le crest résout sur le nom complet.
+                _hc, _ac = home, away
+                home = re.sub(r"\s*\([A-Za-z]{2,4}\)\s*$", "", home).strip() or home
+                away = re.sub(r"\s*\([A-Za-z]{2,4}\)\s*$", "", away).strip() or away
+                # LOGO DE CHAQUE CÔTÉ (user 2026-08-18) : domicile à GAUCHE, extérieur à DROITE, équipes CENTRÉES.
                 _mtxt = html.escape(f"{home} – {away}" if away else home)
-                rows.append(f'<div class="pgg-row">{_logos}<span class="pgg-match">{_mtxt}</span></div>')
+                rows.append(f'<div class="pgg-row">{_crest_badge(_hc)}'
+                            f'<span class="pgg-match">{_mtxt}</span>'
+                            + (_crest_badge(_ac) if away else "") + '</div>')
             body.append(f'<div class="pgg-lgroup">'
                         + (f'<div class="pgg-lgh">{lg}</div>' if lg else "")
                         + "".join(rows) + '</div>')
