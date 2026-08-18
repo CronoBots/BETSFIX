@@ -5981,7 +5981,12 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _th, _ta = _lh, _la
     if not (_th and _ta) and l.get("name"):
         _th, _sepn, _ta = str(l.get("name")).partition(" - ")
-    sel = html.escape(_pretty_sel(sel_raw, _th, _ta))
+    _sel_disp = _pretty_sel(sel_raw, _th, _ta)
+    # PARI = le MARCHÉ seul ; le DÉTAIL (« X gagne ou match nul ») vit dans la GLOSE grise sous le pari, pas
+    # en parenthèse à côté (user 2026-08-18). -> on retire la parenthèse redondante des « Double chance … ».
+    if _sel_disp.startswith("Double chance"):
+        _sel_disp = re.sub(r"\s*\(.*\)\s*$", "", _sel_disp).strip()
+    sel = html.escape(_sel_disp)
     # EN-TÊTE FAÇON PROVISOIRE (demande user 2026-07-18) : L1 = « SPORT • compétition » (plus le nom du
     # match condensé) ; L2 = les ÉQUIPES sur leur propre ligne, en gros (comme .mc-teams). Équipes depuis
     # home/away (repli : le nom du match « A - B »).
@@ -6456,13 +6461,16 @@ def _montante_zone_card(sport: str | None) -> tuple:
         mid = str(p.get("mid") or "")
         d = analyses.meta("foot", mid) or {}
         start = d.get("start")
-        if not start:                                  # le sidecar peut ne pas porter l'heure -> day_programme
-            try:
+        _comp = d.get("comp")
+        if not (start and _comp):                      # sidecar sans heure/ligue (match pas encore analysé) ->
+            try:                                        # repli sur le PROGRAMME du jour (heure ET ligue, user 2026-08-18).
                 import json as _j
                 _pg = _j.load(open(os.path.join(analyses._ROOT, "data", "day_programme.json"), encoding="utf-8"))
-                start = next((m.get("start") for m in _pg.get("matches", []) if str(m.get("id")) == mid), None)
+                _pm = next((m for m in _pg.get("matches", []) if str(m.get("id")) == mid), None)
+                start = start or (_pm or {}).get("start")
+                _comp = _comp or (_pm or {}).get("comp")
             except Exception:
-                start = None
+                pass
         # CONFIANCE de la montante = sa PROPRE proba CALIBRÉE (safe_dc/Pinnacle), stockée au palier (user
         # 2026-08-18 : la carte doit être présentée COMME les autres paris -> il lui faut sa confiance). La
         # montante n'est PAS un pari retenu du flagship (match souvent pas encore analysé) -> `retained_bet`
@@ -6480,12 +6488,17 @@ def _montante_zone_card(sport: str | None) -> tuple:
         # sidecar via result_board, une fois le pari réglé.
         _board = (analyses.result_board(d, "foot") or {}) if p.get("result") in ("won", "lost", "push", "void") else {}
         leg = {"sport": "foot", "home": d.get("home"), "away": d.get("away"), "name": p.get("match"),
-               "comp": d.get("comp"), "start": start, "sel": p.get("sel"), "cote": p.get("cote"),
+               "comp": _comp, "start": start, "sel": p.get("sel"), "cote": p.get("cote"),
                "code": p.get("code"), "result": p.get("result"), "prob": prob,
                "score": _board.get("score"), "periods": _board.get("periods"), "pens": _board.get("pens"),
                "why": _prov_why_snippet("foot", mid, maxlen=100000, played=True)}
+        # live_layout=True (user 2026-08-18) : MÊME mise en page qu'un pari Confiance (ligue CENTRÉE + pays,
+        # logos + équipes + heure/score au CENTRE, pari + glose CENTRÉS dans le cadre verdict) — sinon la
+        # montante gardait le layout compact `.cleg` (pari collé à gauche, sans ligue) ≠ carte Confiance.
+        # bare=True (user 2026-08-18) : la montante est une DC SÛRE (même famille que le combiné) -> Confiance +
+        # Cote SEULEMENT, pas Edge/Value (un « 91% / +27% value » sur cote 1.4 fait douter — cohérent avec le combiné).
         card = _leg_card(leg, why=True, verdict=True, teams=True, why_label="Pourquoi ce pari",
-                         prob_calibrated=_prob_cal)
+                         prob_calibrated=_prob_cal, live_layout=True, bare=True)
         # LIGNE « mont-note » (mise rejouée · voir l'échelle) RETIRÉE sous la carte (user 2026-08-08).
         return f"Montante · Palier {palier}", card
     except Exception:
