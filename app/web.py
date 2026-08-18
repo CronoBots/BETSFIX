@@ -5512,6 +5512,23 @@ def _why_fold(text: str, label: str = "Pourquoi ce choix") -> str:
             f'<ul class="why-ul">{_lis}</ul></details>')
 
 
+def _load_day_programme() -> dict:
+    """Programme du jour (data/day_programme.json) — VIDÉ à l'affichage dès que sa `date` n'est PLUS le
+    jour sportif courant (user 2026-08-18 : « vider le programme et les matchs du jour avant 08h belge »).
+    Le programme est reconstruit par le scan du matin (~08h belge) ; entre le rollover du jour sportif
+    (06h belge) et ce scan, on ne montre donc PLUS la liste de la veille -> {'matches': []}. Purement
+    AFFICHAGE : le fichier n'est pas touché (le scan l'écrase à 08h ; anti-éjection déjà gardée par `date`)."""
+    import json as _json
+    path = os.path.join(analyses._ROOT, "data", "day_programme.json")
+    try:
+        prog = _json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"matches": []}
+    if str(prog.get("date") or "") != _sport_today().isoformat():
+        return {"date": prog.get("date"), "matches": []}     # programme périmé -> vidé avant le scan du jour
+    return prog
+
+
 def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
                      keep_sport: str | None = None) -> list:
     """Cartes du PROGRAMME DU JOUR (matchs SANS pari à jouer affiché) à FUSIONNER — dans l'ordre
@@ -5532,14 +5549,8 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
     ~1 h avant son coup d'envoi. On affiche donc l'HEURE EXACTE de cette (ré)analyse (coup d'envoi − 1 h)
     au lieu d'un vague « ~1 h avant ». « Pas de value » n'est montré que si cette échéance est déjà
     passée (verdict quasi-final) ; sinon on annonce à quelle heure l'analyse (re)tombera."""
-    import json
     exclude_pairs = exclude_pairs or set()
-    path = os.path.join(analyses._ROOT, "data", "day_programme.json")
-    try:
-        with open(path, encoding="utf-8") as f:
-            prog = json.load(f)
-    except (OSError, ValueError):
-        return []
+    prog = _load_day_programme()          # VIDÉ si périmé (avant le scan du jour, user 2026-08-18)
     now = datetime.now(timezone.utc)
     _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     # Un match JAMBE du combiné du jour PEUT AUSSI apparaître en provisoire (sur un autre marché) — demande
@@ -7834,12 +7845,7 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
     dans sa catégorie APRÈS analyse de son PARI SIMPLE. Un match avec un pari simple retenu part en Confiance/
     Value (via `play`) et n'apparaît donc pas ici. Une jambe de combiné / le match montante NE sont PAS exclus :
     leur pari simple s'analyse à part -> ils restent au Programme tant que non analysés. 0 réseau."""
-    import json as _json
-    path = os.path.join(analyses._ROOT, "data", "day_programme.json")
-    try:
-        prog = _json.load(open(path, encoding="utf-8"))
-    except (OSError, ValueError):
-        return [], []
+    prog = _load_day_programme()          # VIDÉ si périmé (avant le scan du jour, user 2026-08-18)
 
     def _dt_of(m):
         try:
