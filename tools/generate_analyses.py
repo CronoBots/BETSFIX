@@ -2635,6 +2635,19 @@ Si aucun pari ne mérite la montante -> exactement : MONTANTE_PICK: PASS
 """
 
 
+def _reemit_machine_line(out: str, spec: str, timeout: int = 120) -> str:
+    """ROBUSTESSE (user 2026-08-18 « ça ne doit pas arriver ») : si la ligne machine d'une analyse est ABSENTE ou
+    MALFORMÉE, on ne laisse JAMAIS tomber un pari valide -> on RE-DEMANDE à Claude UNIQUEMENT cette ligne, au
+    format exact, à partir de l'analyse déjà produite (appel court, ciblé). Best-effort ('' si l'appel échoue)."""
+    try:
+        return run_claude(
+            "Voici une analyse de pari DÉJÀ produite. Réémets UNIQUEMENT sa dernière LIGNE MACHINE, au format "
+            "EXACT ci-dessous, sur UNE seule ligne, sans gras/puce/texte autour, en respectant sa DÉCISION "
+            f"(ne re-décide pas, extrais) :\n{spec}\n\n--- ANALYSE ---\n{out}", timeout=timeout) or ""
+    except Exception:
+        return ""
+
+
 def _parse_montante(analysis: str) -> dict | None:
     """Ligne machine `MONTANTE_PICK: <mid>|<code>|<sel>|<cote>|<cote_min>|<P_est>|<EV>|<score>|<GO|WAIT|PASS>`
     (ou `MONTANTE_PICK: PASS`). Renvoie le dict parsé, {'decision':'PASS'} sur PASS, None si illisible."""
@@ -2677,7 +2690,11 @@ async def _montante_best_bet(client, cands: list):
     out = run_claude(MONTANTE_RULE + "\n\n=== CANDIDATS DU JOUR (compare-les, choisis-en AU PLUS UN) ===\n\n"
                      + "\n\n".join(blocks), timeout=540)
     v = _parse_montante(out)
-    if not v or v.get("decision") != "GO":            # PASS / WAIT / illisible -> pas de palier aujourd'hui
+    if v is None:                                     # ligne machine absente/malformée -> on la RE-DEMANDE (jamais
+        v = _parse_montante(_reemit_machine_line(     # perdre un pari valide sur un souci de format)
+            out, "MONTANTE_PICK: <match_id>|<CODE>|<sélection>|<cote>|<cote_min>|<P_est %>|<EV %>|<score>|"
+                 "<GO|WAIT|PASS>   (ou exactement `MONTANTE_PICK: PASS`)"))
+    if not v or v.get("decision") != "GO":            # PASS / WAIT / illisible même après re-émission -> pas de palier
         return None
     c = next((x for x in cands if str(x.get("mid")) == str(v.get("mid"))), None)
     if not c:
@@ -2785,7 +2802,14 @@ async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None
         COMBO_DC_RULE + "\n\n=== SHORTLIST DES DOUBLE CHANCES DISPONIBLES (chacune a une DIRECTION FIXE = la "
         "plus sûre au marché ; choisis LESQUELLES combiner, 2 à 5) ===\n\n" + "\n\n".join(blocks), timeout=600)
     v = _parse_combo_dc(out)
-    if not v or v.get("decision") != "GO":
+    if v is None:                                     # ligne machine absente/malformée -> on la RE-DEMANDE
+        v = _parse_combo_dc(_reemit_machine_line(
+            out, "COMBO_DC_PICK: <mid1>,<mid2>,<mid3>|<cote_totale>|<P_comb %>|<EV %>|<score_global>|"
+                 "<GO|WAIT|PASS>   (ou exactement `COMBO_DC_PICK: PASS`)"))
+    if v is None:                                     # ILLISIBLE même après re-émission -> on lève pour que le
+        raise RuntimeError("combiné DC : sortie Claude illisible (après re-émission)")   # builder bascule sur le
+        # repli MÉCANIQUE (jamais de trou) — un GO valide ne doit pas être perdu sur un souci de format.
+    if v.get("decision") != "GO":                     # PASS / WAIT explicite -> honoré (pas de combiné, pas de repli)
         return None
     mids = [str(x) for x in (v.get("mids") or []) if str(x) in by_mid]
     seen, mids = set(), [x for x in mids if not (x in seen or seen.add(x))]   # dédup, garde l'ordre
