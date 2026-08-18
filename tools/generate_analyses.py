@@ -966,6 +966,23 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                                   for l in _fcombo.get("legs") or [])
                 print(f"  🎯 Combiné du jour (matin, ancré Pinnacle) : cote {_fcombo['cote']} · "
                       f"{round(_fcombo['prob'] * 100)}% · {len(_fcombo['legs'])} jambes (figé) : {_fcl}")
+                # PUBLICATION TELEGRAM du COMBINÉ (design site, signature « COMBINÉ » — user 2026-08-18).
+                # Idempotent : on ne poste qu'une fois par jour (clé notify `combo_daily_<jour>`).
+                if not args.no_notify and _notify.configured() and not _notify.get_prono(f"combo_daily_{_cday}"):
+                    try:
+                        import card_image as _ci_c
+                        from app import card_data as _cdd_c
+                        _ccard = _cdd_c.build_combo_daily_card(_fcombo)
+                        if _ccard:
+                            os.makedirs("data/_cards", exist_ok=True)
+                            _cpng = "data/_cards/combo_daily.png"
+                            await _ci_c.render_card(_ccard, _cpng)
+                            _csent = _notify.send_photo_sync(_cpng, "")
+                            if _csent:
+                                _notify.remember_prono(f"combo_daily_{_cday}", _csent, "Combiné du jour")
+                                print("     ↳ combiné du jour publié sur Telegram (image).")
+                    except Exception as _cne:
+                        print(f"     (combiné Telegram ignoré : {_cne})")
             elif not _fcombo:
                 print("  🎯 Combiné du jour (matin) : vivier DC value insuffisant (aucune jambe à edge positif).")
     except Exception as _cce:

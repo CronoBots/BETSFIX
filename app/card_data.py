@@ -232,3 +232,26 @@ def build_result_card(d: dict) -> dict | None:
             "type": "result", "score": res.get("score") or "",
             "home": _home, "away": _away,
             "simple": card_simple, "combo": card_combo, **_simple_extra}
+
+
+def build_combo_daily_card(combo: dict, *, result: bool = False) -> dict | None:
+    """Carte du COMBINÉ DU JOUR (combo_daily) pour Telegram — design SITE (user 2026-08-18) : signature
+    « COMBINÉ » sous la bannière, chaque jambe (match · pari · cote · pourquoi) en mini-cadre, cote combinée.
+    `result=True` -> carte RÉSULTAT (verdict Gagné/Perdu par jambe + global, sans analyse). None si vide."""
+    if not combo or not combo.get("legs"):
+        return None
+    legs = []
+    for l in combo["legs"]:
+        home, away = str(l.get("home", "")), str(l.get("away", ""))
+        match = (l.get("name") or f"{home} - {away}").replace(" - ", " — ")
+        _sel = analyses.pretty_sel(str(l.get("sel", "")), home, away)
+        legs.append({"match": match, "sel": _sel, "cote": str(l.get("cote", "")),
+                     "why": ("" if result else _clean_why(l.get("why"))),   # pas d'analyse sur le résultat
+                     "mark": (l.get("result") if result else None)})
+    _cote = combo.get("real_odds") or combo.get("cote") or combo.get("total")
+    return {"emoji": "⚽", "type": ("combo_result" if result else "combo"),
+            "combo_title": "COMBINÉ DOUBLE CHANCE",
+            "cote": (f"{_cote:.2f}" if isinstance(_cote, float) else str(_cote or "")),
+            "legs": legs,
+            "synth": ("" if result else _clean_synth(combo.get("synth") or combo.get("why"))),
+            "combo_mark": (combo.get("result") if result else None)}

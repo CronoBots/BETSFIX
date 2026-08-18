@@ -216,6 +216,34 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 print(f"  · {_ncd} combiné(s) du jour tranché(s) (suivi info-seule).")
         except Exception as exc:
             print(f"  (suivi combiné du jour ignoré : {exc})")
+        # PUBLICATION TELEGRAM du RÉSULTAT du combiné (user 2026-08-18) : dès qu'un combiné du jour est
+        # TRANCHÉ, on poste sa carte résultat EN RÉPONSE au prono (clé notify `combo_daily_<jour>`). Idempotent
+        # via `combo_daily_result_<jour>`. Limité aux 2 derniers jours (jamais republier l'historique).
+        try:
+            import json as _json
+            from datetime import datetime as _dtm, timedelta as _td
+            from app import combo_daily as _cdr, card_data as _cddr
+            import card_image as _cir
+            _track = _json.load(open(os.path.join("data", "combo_daily_track.json"), encoding="utf-8"))
+            _recent = {(_dtm.now(timezone.utc).date() - _td(days=k)).isoformat() for k in (0, 1, 2)}
+            for _day, _c in (_track or {}).items():
+                if _day not in _recent or not isinstance(_c, dict) or not _c.get("result"):
+                    continue
+                if notify.get_prono(f"combo_daily_result_{_day}"):
+                    continue                       # résultat déjà posté
+                _rcard = _cddr.build_combo_daily_card(_c, result=True)
+                if not _rcard:
+                    continue
+                os.makedirs("data/_cards", exist_ok=True)
+                _rpng = f"data/_cards/combo_daily_result_{_day}.png"
+                await _cir.render_card(_rcard, _rpng)
+                _reply = notify.get_prono(f"combo_daily_{_day}")     # répond au prono du combiné
+                _rsent = notify.send_photo_sync(_rpng, "", reply_to=_reply)
+                if _rsent:
+                    notify.remember_prono(f"combo_daily_result_{_day}", _rsent, f"Combiné résultat {_day}")
+                    print(f"  · résultat combiné {_day} posté sur Telegram.")
+        except Exception as exc:
+            print(f"  (résultat combiné Telegram ignoré : {exc})")
         # COMBINÉ SÉCURITÉ FOOT (double chance la plus sûre ~2, info seule hors ROI) : règle + tranche.
         try:
             from app import combo_safe as _cs
