@@ -2319,7 +2319,7 @@ CSS = """
   .zone-right{margin-left:auto;display:inline-flex;align-items:center;gap:8px;flex:none}
   /* Compteur simple d'une zone SANS win/loss (Programme / Abstention) — même pastille que Confiance/Value. */
   /* Compteur GRIS neutre par défaut (Programme ET Abstention, user 2026-08-17 : « numéro dans badge gris »). */
-  .zone-rec .zrn{color:#c9d4e0;background:rgba(255,255,255,.10);padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}
+  .zone-rec .zrn{color:#0e141b;background:#9aa6b4;padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}  /* Programme + Abstention = badge GRIS, écriture noire (user 2026-08-18) */
   /* Carte de match SANS pari (Programme « à analyser » / Abstention) : ligne de statut centrée à la place du pari. */
   .mc-statcard .mc-sub{padding-right:0}
   /* CADRE des cartes sans pari (user 2026-08-17) : Programme = BLEU, Abstention = GRIS (au lieu du doré par défaut). */

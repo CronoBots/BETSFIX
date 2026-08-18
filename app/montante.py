@@ -422,6 +422,13 @@ def settle_pending() -> int:
     montante (ancien comportement, quand la montante = pari joué). Sinon on attend (jamais régler sur un autre
     marché).
 
+    ⚠️ DÉCLENCHEUR = MATCH FINI, PAS `is_settled` (fix user 2026-08-18 « la montante n'est plus en live ») : la
+    montante pioche souvent dans des matchs où le flagship s'est ABSTENU (aucun pari joué) -> `is_settled(m)`
+    reste False alors que le MATCH est terminé (score dispo). L'ancien gate `is_settled` laissait donc ces
+    paliers bloqués « EN ATTENTE » à jamais (ex. Levadiakos 2-0, DC 1X gagnée mais jamais réglée). On règle
+    désormais dès que le sidecar a un SCORE FINAL fiable (`result.raw` avec home/away — écrit par le pipeline
+    QUAND le match est fini, comme `combo_daily.settle_pending`), indépendamment du pari flagship.
+
     AUTO-CORRECTION (user 2026-08-06 « le palier 7 a été perdu ») : un palier DÉJÀ réglé est re-vérifié — si le
     score/règlement du sidecar a CHANGÉ depuis (faux résultat corrigé), la montante SUIT. L'échelle est
     recalculée en aval (`_compute` casse la chaîne sur une perte)."""
@@ -433,7 +440,11 @@ def settle_pending() -> int:
         if not s.get("mid"):
             continue
         m = analyses.meta("foot", s.get("mid"))
-        if not m or not analyses.is_settled(m):
+        if not m:
+            continue
+        _score = (m.get("result") or {}).get("raw")
+        # MATCH FINI ? -> score final fiable dans le sidecar. Sinon on attend (jamais régler un match pas fini).
+        if not (isinstance(_score, dict) and _score.get("home") is not None):
             continue
         # 1) code du marché de la montante = re-dérivé du libellé (autorité), repli sur le code stocké
         try:
@@ -442,7 +453,6 @@ def settle_pending() -> int:
         except Exception:
             _code = s.get("code") or ""
         r = None
-        _score = (m.get("result") or {}).get("raw")
         if _code and isinstance(_score, dict):
             try:
                 r = settle_pick(_code, _score)
