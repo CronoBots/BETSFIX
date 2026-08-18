@@ -985,8 +985,10 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                 print(f"  🎯 Combiné du jour (matin, ancré Pinnacle) : cote {_fcombo['cote']} · "
                       f"{round(_fcombo['prob'] * 100)}% · {len(_fcombo['legs'])} jambes (figé) : {_fcl}")
                 # PUBLICATION TELEGRAM du COMBINÉ (design site, signature « COMBINÉ » — user 2026-08-18).
-                # Idempotent : on ne poste qu'une fois par jour (clé notify `combo_daily_<jour>`).
-                if not args.no_notify and _notify.configured() and not _notify.get_prono(f"combo_daily_{_cday}"):
+                # ⚠️ INDÉPENDANT de `--no-notify` (user 2026-08-18) : le pass matinal est `--no-notify` (pour ne
+                # pas spammer la liste programme + simples), mais le COMBINÉ DU JOUR est un LIVRABLE à publier.
+                # Idempotent (clé `combo_daily_<jour>`) -> posté 1× même si le builder re-tourne.
+                if _notify.configured() and not _notify.get_prono(f"combo_daily_{_cday}"):
                     try:
                         import card_image as _ci_c
                         from app import card_data as _cdd_c
@@ -1046,6 +1048,23 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                 if _mpick and _mtn.record_day(_cd_mt.day_key(), pick=_mpick):
                     print(f"  🪜 Montante (matin, règle quant) : {_mpick['match']} — {_mpick['sel']} "
                           f"@{_mpick['cote']} ({round((_mpick.get('prob') or 0) * 100)}% · score {_mpick.get('score')})")
+                    # PUBLICATION TELEGRAM de la MONTANTE (user 2026-08-18) : carte « MONTANTE » (même patron que
+                    # le combiné/simple). Indépendant de `--no-notify`, idempotent (clé `montante_daily_<jour>`).
+                    if _notify.configured() and not _notify.get_prono(f"montante_daily_{_cd_mt.day_key()}"):
+                        try:
+                            import card_image as _ci_m
+                            from app import card_data as _cdd_m
+                            _mcard = _cdd_m.build_montante_card(_mpick)
+                            if _mcard:
+                                os.makedirs("data/_cards", exist_ok=True)
+                                _mpng = "data/_cards/montante_daily.png"
+                                await _ci_m.render_card(_mcard, _mpng)
+                                _msent = _notify.send_photo_sync(_mpng, "")
+                                if _msent:
+                                    _notify.remember_prono(f"montante_daily_{_cd_mt.day_key()}", _msent, "Montante du jour")
+                                    print("     ↳ montante du jour publiée sur Telegram (image).")
+                        except Exception as _mne:
+                            print(f"     (montante Telegram ignorée : {_mne})")
                 elif not _mpick:
                     print("  🪜 Montante (matin) : PASS — aucun pari ne remplit la règle quant aujourd'hui.")
     except Exception as _mce:

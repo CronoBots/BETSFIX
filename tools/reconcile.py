@@ -263,6 +263,39 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 print(f"  · montante : {_r}")
         except Exception as exc:
             print(f"  (montante ignorée : {exc})")
+        # PUBLICATION TELEGRAM du RÉSULTAT de la MONTANTE (user 2026-08-18) : dès qu'un palier est réglé, on poste
+        # sa carte résultat EN RÉPONSE au prono (clé `montante_daily_<jour>`). Idempotent via
+        # `montante_daily_result_<jour>`. Score lu dans le sidecar du match. Limité aux 3 derniers jours.
+        try:
+            from datetime import datetime as _dtm2, timedelta as _td2
+            from app import montante as _mtr, card_data as _cddm, analyses as _anm
+            import card_image as _cim
+            _recent_m = {(_dtm2.now(timezone.utc).date() - _td2(days=k)).isoformat() for k in (0, 1, 2, 3)}
+            for _st in (_mtr.load().get("steps") or []):
+                _mday = str(_st.get("date") or "")
+                if _mday not in _recent_m or _st.get("result") not in ("won", "lost", "push", "void"):
+                    continue
+                if notify.get_prono(f"montante_daily_result_{_mday}"):
+                    continue                       # résultat déjà posté
+                _msc = ""
+                try:
+                    _mm = _anm.meta("foot", str(_st.get("mid") or "")) or {}
+                    _msc = ((_mm.get("result") or {}).get("score")) or ""
+                except Exception:
+                    _msc = ""
+                _mrcard = _cddm.build_montante_card({**_st, "score": _msc}, result=True)
+                if not _mrcard:
+                    continue
+                os.makedirs("data/_cards", exist_ok=True)
+                _mrpng = f"data/_cards/montante_result_{_mday}.png"
+                await _cim.render_card(_mrcard, _mrpng)
+                _mreply = notify.get_prono(f"montante_daily_{_mday}")     # répond au prono de la montante
+                _mrsent = notify.send_photo_sync(_mrpng, "", reply_to=_mreply)
+                if _mrsent:
+                    notify.remember_prono(f"montante_daily_result_{_mday}", _mrsent, f"Montante résultat {_mday}")
+                    print(f"  · résultat montante {_mday} posté sur Telegram.")
+        except Exception as exc:
+            print(f"  (résultat montante Telegram ignoré : {exc})")
 
     # 2) INVENTAIRE : parcourt les fiches, classe chaque match JOUÉ.
     stuck, upcoming, unposted = [], [], []
