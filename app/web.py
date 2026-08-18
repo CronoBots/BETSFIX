@@ -6612,7 +6612,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
 
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
-          record: tuple | None = None,
+          record: tuple | None = None, zk: str | None = None,
           leg_results: list | None = None) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
     de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
@@ -6690,12 +6690,14 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         op = " open" if open_ else ""
         # `data-zk` = clé de persistance du repli (localStorage, JS `_CAL_JS`) : ton choix plier/déplier
         # une zone est mémorisé et réappliqué après chaque swap de jour.
-        return (f'<details class="zone zone-{kind} zone-col" data-zk="{kind}"{op}>'
-                f'<summary class="zone-h">{head}<span class="zone-right">{rec}'
-                f'<span class="zone-chev">▾</span></span>{live_badge}</summary>'
+        # Badge « 🟢 Live » GROUPÉ avec le compteur DANS `zone-right`, AVANT le chevron (user 2026-08-18 :
+        # « à droite de chaque titre » — chevron tout au bord, badge live + nombre juste à sa gauche).
+        return (f'<details class="zone zone-{kind} zone-col" data-zk="{zk or kind}"{op}>'
+                f'<summary class="zone-h">{head}<span class="zone-right">{rec}{live_badge}'
+                f'<span class="zone-chev">▾</span></span></summary>'
                 f'<div class="zone-b">{body}</div></details>')
     return (f'<section class="zone zone-{kind}"><div class="zone-h">{head}'
-            f'<span class="zone-right">{rec}</span>{live_badge}</div>'
+            f'<span class="zone-right">{rec}{live_badge}</span></div>'
             f'<div class="zone-b">{body}</div></section>')
 
 
@@ -10106,16 +10108,23 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _play_c = [c for c in _play if c.get("tier") == "confiance"]   # montante EXCLUE (zone dédiée)
         _play_v = [c for c in _play if c.get("tier") == "value"]
         _play_m = [c for c in _play if c.get("tier") == "montante"]     # ZONE MONTANTE à part (user 2026-08-12)
-        out = [_zone("play", _plur(len(_play_c), "Confiance"), "en direct", len(_play_c), _cards(_play_c))]
+        # ZONES REPLIABLES comme PRONOS (user 2026-08-18 « meilleure répartition verticale des types de paris
+        # pour utiliser l'écran ») : mêmes dividers/chevron/badge-à-droite qu'en Pronos. OUVERTES par défaut
+        # (on veut voir les scores live) ; clés de persistance `live-*` DISTINCTES -> replier une zone en Live
+        # n'affecte PAS la même zone en Pronos (et vice-versa).
+        _lz = dict(collapsible=True, open_=True)
+        out = [_zone("play", _plur(len(_play_c), "Confiance"), "en direct", len(_play_c), _cards(_play_c),
+                     zk="live-play", **_lz)]
         if _play_v:
-            out.append(_zone("value", "Value", "en direct", len(_play_v), _cards(_play_v)))
+            out.append(_zone("value", "Value", "en direct", len(_play_v), _cards(_play_v), zk="live-value", **_lz))
         if _play_m:
             # TITRE DE ZONE = « Montante • Palier N » (comme Pronos), pas un simple « Montante ».
             out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "en direct",
-                             len(_play_m), _cards(_play_m)))
+                             len(_play_m), _cards(_play_m), zk="live-mont", **_lz))
         out += [
-            _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov)),
-            _zone("combo", "Combiné", "", 1 if _combo else 0, _combo),
+            _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
+                  zk="live-indic", **_lz),
+            _zone("combo", "Combiné", "en direct", 1 if _combo else 0, _combo, zk="live-combo", **_lz),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
