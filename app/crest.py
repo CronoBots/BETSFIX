@@ -41,9 +41,10 @@ def _norm(s) -> str:
 
 import re as _re
 
-# Suffixe de code d'état/région (« -SC », « -GO », « -PE »…) ou genre (« (F) ») en fin de nom : FotMob
-# indexe l'équipe SANS -> on le retire pour la recherche/le matching (ex. « Criciúma-SC » -> « Criciúma »).
-_SUFFIX = _re.compile(r"\s*[-–]\s*[A-Za-z]{2,3}\.?\s*$|\s*\((?:F|W)\)\s*$")
+# Suffixe de code d'état/région (« -SC », « -GO », « -PE »…), genre (« (F) ») OU code PAYS entre parenthèses
+# (« (KSA) », « (CHI) », « (PE) »…) en fin de nom : FotMob indexe l'équipe SANS -> on le retire pour la
+# recherche/le matching (ex. « Criciúma-SC » -> « Criciúma », « Al Ettifaq (KSA) » -> « Al Ettifaq »).
+_SUFFIX = _re.compile(r"\s*[-–]\s*[A-Za-z]{2,3}\.?\s*$|\s*\((?:[A-Za-z]{1,4})\)\s*$")
 
 
 def _clean(name) -> str:
@@ -57,6 +58,8 @@ _ALIAS = {
     "psg": "Paris Saint-Germain", "om": "Marseille", "ol": "Lyon", "asse": "Saint-Etienne",
     "losc": "Lille", "rcsa": "Strasbourg", "ogcnice": "Nice", "tfc": "Toulouse", "asm": "Monaco",
     "rcl": "Lens", "scb": "Bastia", "fcgb": "Bordeaux",
+    # Clubs saoudiens dont l'orthographe Unibet diffère de FotMob (user 2026-08-18) :
+    "alakhdood": "Al-Akhdoud", "aldraih": "Al Diriyah",
 }
 
 

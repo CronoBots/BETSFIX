@@ -2335,7 +2335,10 @@ CSS = """
      JAUNE ⏳ · gagnés = VERT ✓ · perdus = ROUGE ✗ · live = texte vert 🟢. Discret, groupé après le titre. */
   .zone-rec{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
        font-variant-numeric:tabular-nums;font-weight:800}
-  .zone-rec .zr{display:inline-flex;align-items:center;gap:3px;font-size:11.5px}
+  /* Badge compteur : LARGEUR FIXE + centré (user 2026-08-18) -> tous les badges des titres de zone ont la
+     MÊME largeur et s'alignent verticalement les uns sous les autres (1 et 20 occupent la même case). */
+  .zone-rec .zr{display:inline-flex;align-items:center;justify-content:center;gap:3px;font-size:11.5px;
+       min-width:26px;box-sizing:border-box}
   .zone-rec .zru{color:#1a1400;background:#e8b93a;padding:1px 7px;border-radius:9px;font-size:11px}  /* à venir = badge JAUNE (user 2026-08-07) */
   .zone-rec .zrp{color:#0e141b;background:#9aa6b4;padding:1px 7px;border-radius:9px;font-size:11px}  /* en attente de résolution = badge GRIS (user 2026-08-08) */
   .zone-rec .zrw{color:#08210f;background:#54d98c;padding:1px 7px;border-radius:9px;font-size:11px}  /* gagnés = badge VERT (user 2026-08-08) */
@@ -2415,8 +2418,8 @@ CSS = """
   .zone-rec .zlc-u{background:#caa63a}   /* jambe non jouée = cercle JAUNE (ambre) */
   .zone-rec .zlc-w{background:#1f9e57}   /* jambe gagnée = cercle VERT */
   .zone-rec .zlc-l{background:#d33b3b}   /* jambe perdue = cercle ROUGE */
-  /* Points par jambe À DROITE du « N jambes » du combiné (user 2026-08-18) : mêmes couleurs que ci-dessus. */
-  .clegdots{display:inline-flex;align-items:center;gap:4px;margin-left:8px;vertical-align:middle}
+  /* Points par jambe du combiné ALIGNÉS À DROITE (avant le badge, user 2026-08-18) : mêmes couleurs. */
+  .clegdots{display:inline-flex;align-items:center;gap:4px;flex:none;margin-right:6px}
   .clegdots .zlc{width:7px;height:7px;border-radius:50%;box-shadow:0 0 0 1px rgba(10,16,22,.5)}
   .clegdots .zlc-u{background:#caa63a} .clegdots .zlc-w{background:#1f9e57} .clegdots .zlc-l{background:#d33b3b}
   .zone-b{margin-top:2px}
@@ -6276,11 +6279,12 @@ def _combo_tg_legs(cb: dict) -> str:
                                   live_layout=True, bare=True) for l in _legs)
 
 
-def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "") -> str:
+def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "", dots: str = "") -> str:
     """Coquille DORÉE partagée du combiné — en-tête « 🎯 <title> • <subtitle> » + badge d'état, filet, puis
     le corps (jambes + ligne verdict). Utilisée par le combiné DU JOUR ET le combiné COUPE DU MONDE pour
     qu'ils soient présentés EXACTEMENT pareil (demande user 2026-07-19). `subtitle`/`badge` déjà échappés
-    par l'appelant ; `title` = libellé fixe. `state` (won/lost/push) colore le bord GAUCHE (2026-07-25)."""
+    par l'appelant ; `title` = libellé fixe. `state` (won/lost/push) colore le bord GAUCHE (2026-07-25).
+    `dots` (user 2026-08-18) = points par jambe, rendus ALIGNÉS À DROITE (avant le badge), pas collés au sous-titre."""
     _rcls = f" mc-r-{state}" if state in ("won", "lost", "push") else ""
     return (
         f'<div class="row pick mc mc-tg mc-tg-gold{_rcls}">'
@@ -6289,7 +6293,7 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
         '<div class="mc-line">'
         f'<span class="mc-comp"><b class="mc-sport mc-sport-w">{title}</b>'
         f'<span class="mc-comp-sep"> • </span>{subtitle}</span>'
-        f'{badge}</div>'
+        f'{dots}{badge}</div>'          # `.mc-comp` en flex:1 pousse points + badge À DROITE
         '<div class="mc-div"></div>'
         + body
         + '</div></div></div>')
@@ -6369,9 +6373,9 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
     def _lgc(r):
         return "w" if r == "won" else ("l" if r == "lost" else "u")
     _dots = "".join(f'<span class="zlc zlc-{_lgc(l.get("result"))}"></span>' for l in (cb.get("legs") or []))
-    _sub = f'{_nlegs} jambes<span class="clegdots">{_dots}</span>' if _dots else f'{_nlegs} jambes'
-    return _combo_gold_card(title=title or f"COMBINÉ {_sptitle}", subtitle=_sub,
-                            badge=_badge, body=_body, state=cb.get("result"))
+    _dots_html = f'<span class="clegdots">{_dots}</span>' if _dots else ""
+    return _combo_gold_card(title=title or f"COMBINÉ {_sptitle}", subtitle=f'{_nlegs} jambes',
+                            dots=_dots_html, badge=_badge, body=_body, state=cb.get("result"))
 
 
 def _combo_safe_with_why(cb: dict | None) -> dict | None:
