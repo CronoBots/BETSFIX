@@ -255,13 +255,8 @@ def build_combo_daily_card(combo: dict, *, result: bool = False) -> dict | None:
         _conf = (round(_pr * 100) if isinstance(_pr, (int, float)) and _pr <= 1
                  else (round(_pr) if isinstance(_pr, (int, float)) else None))
         _cote = l.get("cote")
-        _edge = _val = None
-        try:
-            _cf, _c = float(_conf), float(_cote)
-            _edge = round(_cf - 100.0 / _c)
-            _val = round((_cf / 100.0 * _c - 1) * 100)
-        except (TypeError, ValueError):
-            pass
+        # COMME LE SITE (user 2026-08-18) : les jambes de combiné n'affichent QUE Confiance + Cote (Edge/Value
+        # masqués — la DC sûre a un edge ~neutre/négatif, hors-sujet sur un combiné sécurité). -> edge/value None.
         _dt2 = None
         try:
             _dt2 = datetime.fromisoformat(str(l.get("start") or "").replace("Z", "+00:00"))
@@ -279,7 +274,7 @@ def build_combo_daily_card(combo: dict, *, result: bool = False) -> dict | None:
             "time": (_dt2.strftime("%H:%M") if _dt2 else ""),
             "score": (str(l.get("score") or "") if result else ""),
             "pick": analyses.pretty_sel(_sel, home, away), "gloss": _gloss,
-            "conf": _conf, "edge": _edge, "value": _val, "cote": (f"{_cote:g}" if _cote else ""),
+            "conf": _conf, "edge": None, "value": None, "cote": (f"{_cote:g}" if _cote else ""),
             "why": ("" if result else _clean_why(l.get("why"))),   # pas d'analyse sur le résultat
             "mark": (l.get("result") if result else None),
         })
