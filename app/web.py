@@ -7896,11 +7896,9 @@ def _paj_hero() -> str:
         '<div class="le-orb"><span class="le-ping pe-ping"></span>'
         '<span class="le-ping le-ping2 pe-ping"></span><span class="le-dot pe-dot"></span></div>'
         '<div class="le-h">Aucun pari pour le moment</div>'
-        '<div class="le-sub">Le programme du jour est publié vers <b>08 h</b>. Chaque pari — '
+        '<div class="le-sub">Le programme du jour est établi vers <b>10 h</b>. Chaque pari — '
         'Confiance, Value, Combiné — arrive <b>~1 h avant le coup d\'envoi</b>, une fois l\'analyse faite. '
         'Seuls les matchs à <b>value</b> deviennent un pari.</div>'
-        '<div class="le-cta"><a class="le-btn le-btn-p" href="/directs">Matchs en direct</a>'
-        '<a class="le-btn" href="/stats">Résultats du jour</a></div>'
         '</div>')
 
 
