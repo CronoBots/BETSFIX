@@ -6501,11 +6501,16 @@ def _montante_zone_card(sport: str | None) -> tuple:
         # TABLEAU DES SCORES comme les autres cartes résultat (user 2026-08-08) : score/périodes/pens du
         # sidecar via result_board, une fois le pari réglé.
         _board = (analyses.result_board(d, "foot") or {}) if p.get("result") in ("won", "lost", "push", "void") else {}
-        leg = {"sport": "foot", "home": d.get("home"), "away": d.get("away"), "name": p.get("match"),
-               "comp": _comp, "start": start, "sel": p.get("sel"), "cote": p.get("cote"),
+        # ANALYSE de la montante (user 2026-08-18) : le « pourquoi » ANALYSÉ AU SCAN (stocké au palier, comme
+        # le combiné) prime -> affiché en entier dès le matin, indépendamment du pari simple (fait ~1 h avant).
+        # Repli sur l'analyse du sidecar (_prov_why_snippet) si le match a été analysé depuis (vague).
+        _mwhy = p.get("why") or _prov_why_snippet("foot", mid, maxlen=100000, played=True)
+        leg = {"sport": "foot", "home": d.get("home") or p.get("home"), "away": d.get("away") or p.get("away"),
+               "name": p.get("match"), "comp": _comp or p.get("comp"), "start": start,
+               "sel": p.get("sel"), "cote": p.get("cote"),
                "code": p.get("code"), "result": p.get("result"), "prob": prob,
                "score": _board.get("score"), "periods": _board.get("periods"), "pens": _board.get("pens"),
-               "why": _prov_why_snippet("foot", mid, maxlen=100000, played=True)}
+               "why": _mwhy}
         # live_layout=True (user 2026-08-18) : MÊME mise en page qu'un pari Confiance (ligue CENTRÉE + pays,
         # logos + équipes + heure/score au CENTRE, pari + glose CENTRÉS dans le cadre verdict) — sinon la
         # montante gardait le layout compact `.cleg` (pari collé à gauche, sans ligue) ≠ carte Confiance.

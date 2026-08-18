@@ -997,6 +997,22 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         if _mtn.is_active():
             _mtn.settle_pending()
             _mpick = await _mtn.pick_from_programme_async(matches, client)
+            # ANALYSE DÉDIÉE de la montante AU SCAN (user 2026-08-18) : comme le combiné, INDÉPENDANTE du pari
+            # simple (analysé ~1 h avant). Faits football du matin (sources.extras) -> « pourquoi » complet stocké
+            # au palier -> affiché en entier sur l'app dès le matin. Best-effort (repli : why plus tard via la vague).
+            if _mpick:
+                try:
+                    _mlm = {"id": _mpick.get("mid"), "name": _mpick.get("match"), "home": _mpick.get("home"),
+                            "away": _mpick.get("away"), "comp": _mpick.get("comp"), "start": _mpick.get("start")}
+                    _mfacts = await sources.extras(client, "foot", _mlm)
+                    if _mfacts and _mfacts.strip():
+                        _mwrap = {"legs": [dict(_mpick)], "synth": ""}
+                        _analyze_combo_legs(_mwrap, facts_by_mid={str(_mpick.get("mid")): _mfacts})
+                        _mwhy = (_mwrap.get("legs") or [{}])[0].get("why")
+                        if _mwhy and not str(_mwhy).startswith("Pinnacle (référence sharp)"):
+                            _mpick["why"] = _mwhy
+                except Exception as _mae:
+                    print(f"  (analyse montante à la construction ignorée : {_mae})")
             if _mpick and _mtn.record_day(_cd_mt.day_key(), pick=_mpick):
                 print(f"  🪜 Montante (matin, programme) : {_mpick['match']} — {_mpick['sel']} "
                       f"@{_mpick['cote']} ({round((_mpick.get('prob') or 0) * 100)}%)")

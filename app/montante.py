@@ -359,6 +359,7 @@ async def pick_from_programme_async(matches: list, client=None) -> dict | None:
     best = max(pool, key=lambda c: ((c.get("prob") or 0), -c["cote"]))   # le plus sûr (proba haute, cote basse)
     return {"mid": best["mid"], "sport": "foot",
             "match": best.get("name") or f'{best.get("home", "")} - {best.get("away", "")}'.strip(" -"),
+            "home": best.get("home", ""), "away": best.get("away", ""), "comp": best.get("comp", ""),
             "sel": best["sel"], "cote": best["cote"], "code": best.get("code", ""),
             "prob": best.get("prob"), "start": best.get("start", "")}
 
@@ -387,6 +388,8 @@ def record_day(date_iso: str, pick: dict | None = None) -> bool:
     steps.append({"date": date_iso, "match": pick["match"], "sel": pick["sel"],
                   "cote": pick["cote"], "mid": pick["mid"], "code": pick.get("code"),
                   "prob": pick.get("prob"),   # CONFIANCE (calibrée) -> carte montante = comme les autres paris
+                  "why": pick.get("why"),     # ANALYSE DÉDIÉE au scan (user 2026-08-18) -> « pourquoi » complet sur l'app
+                  "home": pick.get("home"), "away": pick.get("away"), "comp": pick.get("comp"),
                   "sport": "foot", "result": None})
     d["steps"] = steps
     d.setdefault("base_stake", BASE_STAKE)
