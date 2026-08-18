@@ -179,6 +179,7 @@ _CSS_SIMPLE = """
   margin:-2px 0 40px;padding-left:.26em}
 .stag.st-confiance{color:#34d27b}
 .stag.st-value{color:#22b8ff}
+.stag.st-montante{color:#5fd0ff}
 .stag.rb-w{color:#34d27b}
 .stag.rb-l{color:#ff6b6b}
 .stag.rb-n{color:#9fb6cf}
@@ -249,6 +250,15 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 """
 
 
+def _strip_dc_paren(pick) -> str:
+    """PARI = le MARCHÉ seul : « Double chance 1X (X ou nul) » -> « Double chance 1X » (la parenthèse redondante
+    est portée par la GLOSE grise en dessous — cohérent avec le site, user 2026-08-18)."""
+    p = str(pick or "")
+    if p.startswith("Double chance"):
+        p = re.sub(r"\s*\(.*\)\s*$", "", p).strip()
+    return p
+
+
 def _team_logo_html(name, url, e) -> str:
     """Logo d'équipe (URL FotMob) SUR un monogramme coloré de repli — comme le site (crest)."""
     words = [w for w in re.split(r"[\s.\-]+", str(name or "")) if w]
@@ -306,7 +316,7 @@ def _simple_card_html(d: dict) -> str:
         return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
     _wm = _banner_uri(d.get("emoji", ""))
     _tier = str(d.get("tier") or "confiance")
-    _tlabel = "VALUE" if _tier == "value" else "CONFIANCE"
+    _tlabel = {"value": "VALUE", "montante": "MONTANTE"}.get(_tier, "CONFIANCE")
     home, away = str(d.get("home") or ""), str(d.get("away") or "")
     _cat = str(d.get("cat", ""))                        # « Football · <comp> »
     _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
@@ -335,7 +345,7 @@ def _simple_card_html(d: dict) -> str:
         f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
         f'</div>'
         f'<div class="sbet">'                             # CADRE « partie Paris » (comme le site, user 2026-08-17)
-        f'<div class="spk">{e(d.get("pick", ""))}</div>'
+        f'<div class="spk">{e(_strip_dc_paren(d.get("pick", "")))}</div>'
         + (f'<div class="sgl">{e(d.get("gloss"))}</div>' if d.get("gloss") else "")
         + f'<div class="vgrid">{_cells}</div>'           # GRILLE d'abord
         + f'{_bar}'                                       # BARRE SOUS les stats (comme le site, user 2026-08-17)
@@ -358,7 +368,7 @@ def _result_simple_card_html(d: dict) -> str:
                       "push": ("REMBOURSÉ", "push"), "void": ("REMBOURSÉ", "push")}.get(mark, ("", "push"))
     # SIGNATURE = TYPE de pari (Confiance/Value) — on GARDE le type comme sur la carte de pari (user 2026-08-17).
     _tier = str(d.get("tier") or sp.get("tier") or "confiance")
-    _tlabel = "VALUE" if _tier == "value" else "CONFIANCE"
+    _tlabel = {"value": "VALUE", "montante": "MONTANTE"}.get(_tier, "CONFIANCE")
     home, away = str(d.get("home") or ""), str(d.get("away") or "")
     _cat = str(d.get("cat", ""))
     _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
@@ -367,7 +377,7 @@ def _result_simple_card_html(d: dict) -> str:
     _center = (f'<span class="rsc"><b>{e(_score)}</b><span class="rfin">Terminé</span></span>'
                if _score else '<span class="rfin">Terminé</span>')
     _cells = _verdict_cells_html(d, e)
-    _pick = d.get("pick") or sp.get("label", "")
+    _pick = _strip_dc_paren(d.get("pick") or sp.get("label", ""))
     _gloss = d.get("gloss") or sp.get("gloss") or ""
     _res = f'<div class="sres {_rcls}">{_rlabel}</div>' if _rlabel else ""   # verdict Gagné/Perdu dans le cadre
     inner = (
@@ -409,7 +419,7 @@ def _combo_card_html(d: dict) -> str:
         else:
             _center = e(lg.get("time", "")) or "•"
         _cells = _verdict_cells_html(lg, e)
-        _pick = str(lg.get("pick", ""))
+        _pick = _strip_dc_paren(lg.get("pick", ""))
         _gl = f'<div class="sgl">{e(lg.get("gloss"))}</div>' if lg.get("gloss") else ""
         if mark:
             _vt, _vc = {"won": ("GAGNÉ", "won"), "lost": ("PERDU", "lost"),
@@ -569,11 +579,19 @@ def _normalize_card(png: str) -> None:
         card = Image.open(png).convert("RGBA")
         w, h = card.size
         if h / w <= _CARD_RATIO:
-            cw, ch = w, round(w * _CARD_RATIO)          # compléter en HAUTEUR (carte pleine largeur)
+            cw, ch = w, round(w * _CARD_RATIO)          # court -> compléter en HAUTEUR (largeur d'affichage constante)
+            canvas = Image.new("RGBA", (cw, ch), _CARD_BG + (255,))
+            canvas.alpha_composite(card, ((cw - w) // 2, (ch - h) // 2))
         else:
-            cw, ch = round(h / _CARD_RATIO), h          # compléter en LARGEUR (carte plus haute que le ratio)
-        canvas = Image.new("RGBA", (cw, ch), _CARD_BG + (255,))
-        canvas.alpha_composite(card, ((cw - w) // 2, (ch - h) // 2))
+            # Carte HAUTE (combiné 3 jambes + analyse) : NE PAS compléter en largeur (sinon image géante ->
+            # Telegram rejette « PHOTO_INVALID_DIMENSIONS », user 2026-08-18). On aplatit juste l'alpha sur le fond.
+            canvas = Image.new("RGBA", (w, h), _CARD_BG + (255,))
+            canvas.alpha_composite(card, (0, 0))
+        # GARDE-FOU dimensions Telegram (somme largeur+hauteur ≲ 10000 px) : downscale proportionnel si trop grand.
+        _cw, _ch = canvas.size
+        if _cw + _ch > 9200:
+            _f = 9200 / (_cw + _ch)
+            canvas = canvas.resize((max(1, round(_cw * _f)), max(1, round(_ch * _f))), Image.LANCZOS)
         canvas.convert("RGB").save(png)                 # RGB (sans alpha) -> Telegram n'ajoute pas de blanc
     except Exception:
         pass
