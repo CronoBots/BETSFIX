@@ -931,7 +931,23 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         if _cprev and (_cprev.get("sent") or _cprev.get("result")):
             print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé) -> conservé.")
         else:
-            _fcombo = await _csafe.build_from_programme_async(_cday, matches, client)
+            # RÈGLE COMBINÉ DC = ANALYSTE QUANT (user 2026-08-18) : on ne construit plus mécaniquement (top-N DC
+            # les plus sûres vers cote ~2). On bâtit la SHORTLIST DC du jour (safe_dc_candidates, ancrée Pinnacle)
+            # puis Claude applique `COMBO_DC_RULE` sur les DOSSIERS COMPLETS (scan program, shortlist, ablation,
+            # stress, weakest leg, P_est≥80%/jambe, score/100) -> LE meilleur combiné 2-5 jambes ou PASS. Repli :
+            # si l'analyse échoue (réseau/Claude), on retombe sur la construction mécanique (jamais de trou).
+            _fcombo = None
+            try:
+                _ccands, _cwhys = await _csafe.safe_dc_candidates(_cday, matches, client)
+                _fcombo = await _combo_dc_best(client, _cday, _ccands, _cwhys)
+                if _fcombo:
+                    print(f"  🎯 Combiné du jour : règle quant -> {len(_fcombo['legs'])} jambe(s), "
+                          f"cote {_fcombo['cote']} (score {_fcombo.get('rule_score')}).")
+                else:
+                    print("  🎯 Combiné du jour : PASS — aucun combiné DC ne remplit la règle quant aujourd'hui.")
+            except Exception as _cqe:
+                print(f"  (combiné règle quant ignoré, repli mécanique : {_cqe})")
+                _fcombo = await _csafe.build_from_programme_async(_cday, matches, client)
             if _fcombo:
                 # ANALYSE DES JAMBES À LA CONSTRUCTION (user 2026-08-17) : le combiné est FIGÉ et sera joué ->
                 # on prépare son « pourquoi » factuel TOUT DE SUITE (faits gathered le matin via build_dossier
@@ -2598,6 +2614,117 @@ async def _montante_best_bet(client, cands: list):
             "sel": v.get("sel") or c.get("sel"), "cote": v.get("cote") or c.get("cote"), "code": v.get("code"),
             "prob": (_pest / 100.0 if isinstance(_pest, (int, float)) and _pest > 1 else _pest),
             "cote_min": v.get("cote_min"), "ev": v.get("ev"), "score": v.get("score"), "why": _why}
+
+
+# ============================ RÈGLE DE SÉLECTION COMBINÉ DOUBLE CHANCE (analyste quantitatif) ============================
+# Spec user 2026-08-18. UN combiné, EXCLUSIVEMENT des Double Chance 1X/X2, cote cible ~2.00 (jamais obligatoire),
+# 2-5 jambes (3-4 optimal), ou PASS. Priorité : QUALITÉ DONNÉES > ROBUSTESSE > P_comb > RED FLAGS > EDGE > EV >
+# FAIBLE VARIANCE > COTE 2.00. Discipline : jamais forcer une jambe pour atteindre la cote cible.
+COMBO_DC_RULE = """RÔLE : analyste quantitatif football. Construis UN SEUL combiné composé EXCLUSIVEMENT de Double Chance (1X = domicile ou nul · X2 = nul ou extérieur), ou réponds PASS. Objectif = meilleur compromis ROBUSTESSE × PROBABILITÉ GLOBALE × EDGE × EV × QUALITÉ DES DONNÉES × FAIBLE VARIANCE, cote totale CIBLE ~2.00 (jamais une obligation). Ne fabrique JAMAIS un combiné pour faire plaisir : PASS est une réponse valide.
+
+HIÉRARCHIE STRICTE des priorités : 1) qualité/fiabilité des infos · 2) robustesse individuelle des sélections · 3) probabilité globale · 4) absence de red flags · 5) edge · 6) EV · 7) faible variance · 8) cote proche de 2.00. La proximité de 2.00 ne justifie JAMAIS l'ajout d'une mauvaise sélection.
+
+MARCHÉS : uniquement 1X ou X2. Chaque candidat de la shortlist a une DIRECTION DÉJÀ FIXÉE (la DC la plus sûre au marché) — tu choisis LESQUELS combiner, pas la direction.
+
+COTE TOTALE : cible 2.00, zone préférée 1.90–2.10, secondaire 1.80–2.20. Une excellente sélection @1.85 vaut mieux qu'un coupon gonflé @2.00. NE JAMAIS ajouter une jambe insuffisamment robuste juste pour atteindre 1.90.
+NOMBRE DE JAMBES : 3-4 optimal, 2-5 autorisé. Si une seule sélection passe les filtres -> PASS COMBINÉ (signaler qu'une sélection individuelle suffit). Rappel mathématique : plus de jambes ≠ plus de sécurité (0,85⁴=52% ; 0,85⁵=44%).
+
+MÉTHODE OBLIGATOIRE : 1) SCANNE tout le programme fourni (ne prends jamais les premiers matchs) · 2) shortlist des meilleures DC · 3) construis PLUSIEURS coupons candidats (2,3,4,5 jambes) · 4) TEST D'ABLATION : retire tour à tour chaque jambe, recalcule cote/P_comb/EV/robustesse et demande « le rendement ajouté par cette jambe compense-t-il le risque ajouté ? » — si NON, supprime-la · 5) TEST DE STRESS qualitatif (favori encaisse en premier, carton rouge, buteur absent, adversaire ultra-bas, nul tardif) pour repérer les sélections dont la robustesse tient à un scénario trop précis · 6) garde UNIQUEMENT le meilleur coupon.
+
+DONNÉES (utilise le dossier de chaque candidat ; ne jamais INVENTER cote/blessure/compo/stat) : niveau intrinsèque & qualité des adversaires (pas le classement brut), forme récente (poids aux + récents), xG/xGA/tirs cadrés/grosses occasions & divergences résultats↔sous-jacent, performance DOMICILE (pour 1X) ou capacité à ne pas perdre à l'EXTÉRIEUR (pour X2), effectif (blessures/susp/gardien/défense/créateurs/buteurs/rotation), XI (probable vs confirmé), fatigue/calendrier, motivation/enjeu (un nul qui ARRANGE l'équipe choisie = très intéressant pour une DC), match-up tactique, H2H (secondaire). Info clé invérifiable -> « DONNÉE NON CONFIRMÉE » + confiance réduite.
+
+ESTIMATION PAR JAMBE : produis P(1)/P(X)/P(2) (~100%), puis P_est = P(1)+P(X) pour 1X, P(X)+P(2) pour X2. P_imp=1/cote, Fair Odd=1/P_est, Edge=P_est−P_imp (points), EV=(P_est×cote)−1. Marge d'erreur : un 86% vs 85% peut être du bruit -> plus d'incertitude = edge exigé plus grand.
+SEUIL DUR PAR JAMBE : P_est < 80% = REJET. Préféré ≥85%, excellent ≥88%, exceptionnel ≥90%. Une jambe 80–85% doit avoir une excellente value et très peu de red flags. Cote indicative 1.10–1.35 (mais compare toujours prix vs risque). Score /100 par jambe (solidité stat /25 · edge+EV /20 · forme+niveau /15 · effectif+XI /15 · dom/ext /10 · match-up+contexte /10 · qualité/fraîcheur données /5) — préféré ≥85/100, <80 rejet.
+
+RED FLAGS (plusieurs significatifs = rejet de la jambe) : derby/rivalité, amical, nouvel entraîneur, rotation, équipe sans enjeu, nombreuses blessures, gardien absent, défense remaniée, buteur absent, données insuffisantes, équipe très irrégulière, fatigue, voyage difficile, mauvais match-up, cote fortement bougée sans explication, compo très incertaine.
+
+COMBINÉ : P_comb ≈ produit des P_est (JAMAIS additionner) ; évite les sélections corrélées (même match, facteur commun) — si la corrélation n'est pas modélisable, augmente la marge ou rejette. Cote combinée = produit des cotes. EV_comb=(P_comb×cote)−1 : un coupon ~2.00 mais à EV NÉGATIVE = rejet. Identifie la WEAKEST LEG (mérite-t-elle sa place ?). COTE MINIMUM ACCEPTABLE : indique-la ; sous ce seuil -> NO BET. Ne JAMAIS forcer la dernière jambe pour atteindre 2.00. Optimise dans 1.90–2.10 MAIS robustesse > value > P_comb > edge > cote 2.00 (préfère @1.92/P57% à @2.01/P49%).
+
+SORTIE — produis d'abord le format lisible :
+🏆 COMBINÉ DOUBLE CHANCE (par jambe : Match / Compétition / Heure / 1X ou X2 / Cote / P(1)/P(X)/P(2) / P_est / Fair Odd / P_imp / Edge / EV / Score /100 / Argument principal / Risque principal)
+📊 COUPON FINAL (nb sélections / cote totale / P_comb % / P_imp brute % / Fair Odd combinée / Edge global pts / EV globale % / cote minimum acceptable / score global /100)
+🔗 WEAKEST LEG (match / sélection / pourquoi la plus faible / pourquoi elle reste — sinon supprime & recalcule)
+🗑️ SÉLECTIONS REJETÉES (match — sélection — raison : edge insuffisant / cote trop faible / XI incertain / mauvais match-up / fatigue / red flags…)
+⚠️ RISQUES DU COUPON (les 3 principaux, précis)
+🚦 VERDICT : 🟢 GO / 🟠 ATTENDRE LES XI / 🔴 PASS (max 4 phrases). Score global : <75 PASS · 75–84 insuffisant · 85–89 bon · 90+ exceptionnel. Interdit : « sûr / garanti / immanquable / certain / sans risque ».
+
+PUIS, EN TOUTE DERNIÈRE LIGNE, une ligne machine EXACTE (sans gras ni puce), listant les IDENTIFIANTS des matchs retenus :
+COMBO_DC_PICK: <mid1>,<mid2>,<mid3>|<cote_totale>|<P_comb %>|<EV %>|<score_global>|<GO|WAIT|PASS>
+Si aucun combiné ne mérite d'être joué -> exactement : COMBO_DC_PICK: PASS
+"""
+
+
+def _parse_combo_dc(analysis: str) -> dict | None:
+    """Ligne machine `COMBO_DC_PICK: <mids csv>|<cote>|<P_comb>|<EV>|<score>|<GO|WAIT|PASS>` (ou `... PASS`).
+    Renvoie {'decision', 'mids':[...], 'score'} ; {'decision':'PASS'} sur PASS ; None si illisible. On ne se
+    fie qu'aux MIDS + décision (cote/proba sont RECALCULÉES depuis les vraies données candidates)."""
+    m = re.search(r"^[\s`*>\-]*COMBO_DC_PICK:\s*(.+?)\s*$", analysis, re.M)
+    if not m:
+        return None
+    raw = re.sub(r"[`*]", "", m.group(1)).strip()
+    if raw.upper().startswith("PASS"):
+        return {"decision": "PASS"}
+    parts = [p.strip() for p in raw.split("|")]
+    mids = [x for x in re.split(r"[,\s]+", parts[0]) if x.strip()]
+    dec = parts[-1].upper() if len(parts) >= 2 else "GO"
+    if dec not in ("GO", "WAIT", "PASS"):
+        dec = "GO"
+
+    def _f(x):
+        try:
+            return float(str(x).replace("%", "").replace(",", ".").replace("+", "").strip())
+        except (TypeError, ValueError):
+            return None
+    return {"decision": dec, "mids": mids, "score": (_f(parts[4]) if len(parts) >= 6 else None)}
+
+
+async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None):
+    """RÈGLE COMBINÉ DC (analyste quant, user 2026-08-18) : Claude choisit, dans la SHORTLIST DC du jour (chaque
+    candidat = 1 DC sûre + son DOSSIER COMPLET `build_dossier`), LE meilleur combiné 2-5 jambes cote ~2.00
+    (robustesse>value>P_comb>edge>cote) ou PASS. Renvoie la structure combiné (identique à
+    `combo_safe._combo_from_cands` : legs + cote/prob = produits) ou None (PASS / vivier insuffisant)."""
+    cands = [c for c in (cands or []) if c.get("mid") and c.get("cote")]
+    if len(cands) < 2:
+        return None
+    short = sorted(cands, key=lambda c: -(c.get("prob") or 0))[:10]   # borne coût dossiers (top proba)
+    by_mid = {str(c["mid"]): c for c in short}
+    blocks = []
+    for c in short:
+        m = {"id": c["mid"], "home": c.get("home"), "away": c.get("away"),
+             "comp": c.get("comp"), "start": c.get("start"), "name": c.get("name")}
+        try:
+            dos = await build_dossier(client, m, "foot")
+        except Exception:
+            dos = None
+        _imp = round(100.0 / c["cote"], 1) if c.get("cote") else "?"
+        blocks.append(
+            f"### CANDIDAT DC id={c['mid']} — {c.get('name')} · {c.get('comp')} · KO {c.get('start')}\n"
+            f"DC LA PLUS SÛRE AU MARCHÉ : {c.get('sel')} [{c.get('code')}] @ {c.get('cote')} "
+            f"(P_imp {_imp}% · P_est Pinnacle dé-viggée {round((c.get('prob') or 0) * 100, 1)}%)\n"
+            f"{dos or '(dossier indisponible)'}")
+    out = run_claude(
+        COMBO_DC_RULE + "\n\n=== SHORTLIST DES DOUBLE CHANCES DISPONIBLES (chacune a une DIRECTION FIXE = la "
+        "plus sûre au marché ; choisis LESQUELLES combiner, 2 à 5) ===\n\n" + "\n\n".join(blocks), timeout=600)
+    v = _parse_combo_dc(out)
+    if not v or v.get("decision") != "GO":
+        return None
+    mids = [str(x) for x in (v.get("mids") or []) if str(x) in by_mid]
+    seen, mids = set(), [x for x in mids if not (x in seen or seen.add(x))]   # dédup, garde l'ordre
+    if len(mids) < 2:
+        return None
+    legs, cote, prob = [], 1.0, 1.0
+    for mid in mids:
+        c = by_mid[mid]
+        legs.append({"mid": mid, "sport": "foot", "name": c.get("name"), "home": c.get("home"),
+                     "away": c.get("away"), "start": c.get("start"), "comp": c.get("comp"),
+                     "sel": c["sel"], "cote": c["cote"], "prob": round(c.get("prob") or 0, 4),
+                     "code": c.get("code"), "result": None, "score": None,
+                     "why": (whys or {}).get(mid)})
+        cote *= float(c["cote"])
+        prob *= float(c.get("prob") or 0)
+    return {"date": day, "sport": "foot", "cote": round(cote, 3), "prob": round(prob, 4),
+            "legs": legs, "result": None, "sent": False, "created": None,
+            "rule_score": v.get("score")}
 
 
 def _analyze_combo_legs(combo: dict, facts_by_mid: dict | None = None) -> None:
