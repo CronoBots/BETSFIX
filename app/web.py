@@ -6463,12 +6463,19 @@ def _montante_zone_card(sport: str | None) -> tuple:
                 start = next((m.get("start") for m in _pg.get("matches", []) if str(m.get("id")) == mid), None)
             except Exception:
                 start = None
-        prob = None                                    # proba BRUTE (la ligne verdict la recalibre)
-        try:
-            rb = analyses.retained_bet("foot", mid, for_history=True)
-            prob = rb.get("prob") if rb else None
-        except Exception:
-            prob = None
+        # CONFIANCE de la montante = sa PROPRE proba CALIBRÉE (safe_dc/Pinnacle), stockée au palier (user
+        # 2026-08-18 : la carte doit être présentée COMME les autres paris -> il lui faut sa confiance). La
+        # montante n'est PAS un pari retenu du flagship (match souvent pas encore analysé) -> `retained_bet`
+        # renvoie None : on prend `p['prob']` en priorité (calibrée), repli sur la brute du pari joué si dispo.
+        prob = p.get("prob")
+        _prob_cal = prob is not None                   # p['prob'] est DÉJÀ calibrée (comme les jambes de combiné)
+        if prob is None:
+            try:
+                rb = analyses.retained_bet("foot", mid, for_history=True)
+                prob = (rb.get("cprob") or rb.get("prob")) if rb else None
+                _prob_cal = bool(rb and rb.get("cprob"))
+            except Exception:
+                prob = None
         # TABLEAU DES SCORES comme les autres cartes résultat (user 2026-08-08) : score/périodes/pens du
         # sidecar via result_board, une fois le pari réglé.
         _board = (analyses.result_board(d, "foot") or {}) if p.get("result") in ("won", "lost", "push", "void") else {}
@@ -6477,7 +6484,8 @@ def _montante_zone_card(sport: str | None) -> tuple:
                "code": p.get("code"), "result": p.get("result"), "prob": prob,
                "score": _board.get("score"), "periods": _board.get("periods"), "pens": _board.get("pens"),
                "why": _prov_why_snippet("foot", mid, maxlen=100000, played=True)}
-        card = _leg_card(leg, why=True, verdict=True, teams=True, why_label="Pourquoi ce pari")
+        card = _leg_card(leg, why=True, verdict=True, teams=True, why_label="Pourquoi ce pari",
+                         prob_calibrated=_prob_cal)
         # LIGNE « mont-note » (mise rejouée · voir l'échelle) RETIRÉE sous la carte (user 2026-08-08).
         return f"Montante · Palier {palier}", card
     except Exception:

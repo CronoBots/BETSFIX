@@ -386,6 +386,7 @@ def record_day(date_iso: str, pick: dict | None = None) -> bool:
         return False
     steps.append({"date": date_iso, "match": pick["match"], "sel": pick["sel"],
                   "cote": pick["cote"], "mid": pick["mid"], "code": pick.get("code"),
+                  "prob": pick.get("prob"),   # CONFIANCE (calibrée) -> carte montante = comme les autres paris
                   "sport": "foot", "result": None})
     d["steps"] = steps
     d.setdefault("base_stake", BASE_STAKE)
