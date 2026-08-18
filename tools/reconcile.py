@@ -140,7 +140,11 @@ async def _reaudit_scores(max_days: int = 5) -> list:
         st = _start(d)
         if not st or (_now() - st).days > max_days:
             continue
-        stored = ((d.get("result") or {}).get("score") or "").split()[0]
+        # ROBUSTE (fix user 2026-08-18) : un match réglé SANS score (score=None/"" -> ex. règlement par
+        # abandon/walkover) donnait `"".split()[0]` -> IndexError qui FAISAIT PLANTER TOUT LE RECONCILE
+        # (exit 1) AVANT le règlement -> plus aucun match/combiné réglé. On tolère la liste vide.
+        _st = ((d.get("result") or {}).get("score") or "").split()
+        stored = _st[0] if _st else ""
         if not stored or "-" not in stored:
             continue                       # score tennis/sets ou vide -> hors périmètre foot
         try:
@@ -149,9 +153,10 @@ async def _reaudit_scores(max_days: int = 5) -> list:
         except Exception:
             continue
         fsl, lsl = (fs or {}).get("label"), (ls or {}).get("label")
-        if not fsl or not lsl:
+        _fsp, _lsp = str(fsl or "").split(), str(lsl or "").split()
+        if not _fsp or not _lsp:
             continue                       # besoin des DEUX sources pour trancher (haute confiance)
-        fss, lss = str(fsl).split()[0], str(lsl).split()[0]
+        fss, lss = _fsp[0], _lsp[0]
         if fss != lss or fss == stored:
             continue                       # sources en désaccord, OU tout concorde -> on ne touche à rien
         # DÉSACCORD CONFIRMÉ (2 sources d'accord ≠ stocké) -> règlement FAUX -> RESET pour re-règlement.
