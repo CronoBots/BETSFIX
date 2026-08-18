@@ -13,11 +13,18 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time as _time
 import urllib.error
 import urllib.request
 
 from app.sources import _tok   # tokenisation de noms robuste (réutilisée)
+
+# Matchups de PROP (corners/cartons/tirs…) : Pinnacle liste un matchup séparé « Équipe (Corners) » dont la
+# « moneyline » est le vainqueur du MARCHÉ (plus de corners…), PAS du match. On les IGNORE pour le 1X2 (user
+# 2026-08-18 : le match UC/Estudiantes résolvait sur son matchup « (Corners) » -> mauvaises probas 1X2).
+_SPECIAL_MK = re.compile(r"\(\s*(corners?|bookings?|cards?|shots?|fouls?|offsides?|throw|hits?|saves?|"
+                         r"tackles?|passes?|possession)\b", re.I)
 
 _BASE = "https://guest.api.arcadia.pinnacle.com/0.1/"
 _KEY = "CmX2KcMrXuFmNg6YFbmTxE0y9CIrOi0R"          # clé publique du web Pinnacle (guest)
@@ -212,16 +219,24 @@ def _find(home: str, away: str, sport: str, ko: str | None = None) -> dict | Non
     ko_ts = _parse_ts(ko)
     fb, fb_gap = None, None
     for m in _matchups(sport):
-        sh = _overlap(home, m["home"]) + _overlap(away, m["away"])      # même orientation
-        sx = _overlap(home, m["away"]) + _overlap(away, m["home"])      # orientation inversée
-        if sh >= 2 or sx >= 2:                                          # ≥1 mot fort de chaque côté
+        if _SPECIAL_MK.search(str(m.get("home", ""))) or _SPECIAL_MK.search(str(m.get("away", ""))):
+            continue                                                     # matchup de PROP (corners…) -> pas le 1X2
+        _hh, _ha = _overlap(home, m["home"]), _overlap(away, m["away"])   # même orientation
+        _xh, _xa = _overlap(home, m["away"]), _overlap(away, m["home"])   # orientation inversée
+        # MATCH SÛR = ≥1 token partagé de CHAQUE côté (user 2026-08-18). ⚠️ BUG CORRIGÉ : l'ancien
+        # `_overlap(h,mh)+_overlap(a,ma) >= 2` pouvait être satisfait par UN SEUL côté à 2 tokens -> un nom
+        # comme « Universidad Católica » matchait SEUL et acceptait un HOMONYME (UC Chili résolu en UC Équateur
+        # vs Manta, 3 jours plus tard, proba 91 % fantôme). On EXIGE donc que les DEUX côtés matchent.
+        if (_hh >= 1 and _ha >= 1) or (_xh >= 1 and _xa >= 1):
             return m
-        if ko_ts is not None and (_overlap(home, m["home"]) or _overlap(home, m["away"])
-                                  or _overlap(away, m["home"]) or _overlap(away, m["away"])):
+        # REPLI COUP D'ENVOI (translittération d'UN seul côté, ex. sigle) : un côté matche + KO TRÈS proche
+        # (±6 h -> identifie le fixture de façon unique le jour même). Fenêtre resserrée (était ±12 h) pour ne
+        # JAMAIS capter un homonyme qui joue un AUTRE jour (cf. bug UC Chili/Équateur ci-dessus).
+        if ko_ts is not None and (_hh or _ha or _xh or _xa):
             mts = _parse_ts(m.get("starts"))
             if mts is not None:
                 gap = abs(mts - ko_ts)
-                if gap <= 12 * 3600 and (fb_gap is None or gap < fb_gap):
+                if gap <= 6 * 3600 and (fb_gap is None or gap < fb_gap):
                     fb, fb_gap = m, gap
     return fb
 
