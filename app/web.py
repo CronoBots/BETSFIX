@@ -6597,9 +6597,8 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         _any_lost = any(r == "lost" for r in leg_results)
         _all_won = all(r == "won" for r in leg_results)
         _ov = "l" if _any_lost else ("w" if _all_won else "u")   # état global du badge chiffre
-        _dots = "".join(f'<span class="zlc zlc-{_lgcls(r)}"></span>' for r in leg_results)
-        chips += (f'<span class="zr zrleg zrleg-{_ov}">{count}</span>'
-                  f'<span class="zlcs">{_dots}</span>')
+        # Points colorés par jambe RETIRÉS (user 2026-08-18) : seul le chiffre du badge reste.
+        chips += f'<span class="zr zrleg zrleg-{_ov}">{count}</span>'
     elif record:
         # 6 états (user 2026-08-08) : total · à venir · live · EN ATTENTE DE RÉSOLUTION · gagnés · perdus.
         # SANS EMOJI (user 2026-08-08) : distinction par COULEUR seule. à venir=JAUNE · en attente=GRIS ·
@@ -7193,8 +7192,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         # bleu tant que non réglé (en attente/live). Le titre « MONTANTE • PALIER N » suit la même couleur.
         _mres = _mpj.get("result")
         _mcls = " won" if _mres == "won" else " lost" if _mres in ("lost", "void", "push") else ""
-        _mont_deco = (f'<div class="mont-cardwrap{_mcls}"><a class="mont-hdr{_mcls}" data-goto="montante" '
-                      f'href="/montante" onclick="event.stopPropagation()">{html.escape(_mont_title)}</a>{_mont_card}</div>')
+        # Cadre/titre « MONTANTE • PALIER N » AU-DESSUS de la carte RETIRÉ (user 2026-08-18) : le palier est
+        # désormais porté par le TITRE DE LA ZONE (« Montante • Palier N »). On garde juste le cadre de couleur.
+        _mont_deco = f'<div class="mont-cardwrap{_mcls}">{_mont_card}</div>'
         if _mres in ("won", "lost", "push", "void"):
             # RÉGLÉ : avec les autres résultats (le bloc résultats vient APRÈS les à-venir/en cours) — user
             # 2026-08-08 : « le résultat de la montante ne doit pas être tout au-dessus, il reste des paris à venir ».
@@ -7270,7 +7270,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _mont_html = _MC_SEP.join([h for h in (_rows_by_day(play_mont), _mont_settled) if h])
     _mont_rec = _tier_rec(play_mont, "montante")
     if play_mont or _mont_settled:
-        out.append(_zone("mont", "Montante", "", len(play_mont), _mont_html,
+        # TITRE DE ZONE = « Montante • Palier N » (user 2026-08-18 : le palier vit dans le titre de la zone,
+        # plus dans un cadre au-dessus de la carte). `_mont_title` = « Montante · Palier N » (repli « Montante »).
+        out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "", len(play_mont), _mont_html,
                          collapsible=True, record=_mont_rec if _mont_rec[0] else None))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
