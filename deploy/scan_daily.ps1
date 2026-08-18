@@ -1,11 +1,11 @@
-# BETSFIX — scan quotidien automatique (tâche planifiée « BETSFIX Scan », compte vince).
+﻿# BETSFIX — scan quotidien automatique (tâche planifiée « BETSFIX Scan », compte vince).
 # Lance l'analyste sur les 3 sports. SAUTE si un scan tourne déjà (anti-doublon — cf. le piège des
 # 2 scans concurrents). Logue tout dans data/scan_cron.log. Le cache 6 h évite de regénérer l'inutile.
 $ErrorActionPreference = 'Continue'
 $root = 'C:\Users\vince\BETSFIX'
 $py   = 'C:\Users\vince\AppData\Local\Programs\Python\Python312\python.exe'
 $log  = Join-Path $root 'data\scan_cron.log'
-$flag = Join-Path $root 'data\scan_wave_first.flag'   # présent = mode WAVE-FIRST (analyse ~2h avant KO)
+$flag = Join-Path $root 'data\scan_wave_first.flag'   # présent = mode WAVE-FIRST (analyse ~1h avant KO)
 Set-Location $root
 . (Join-Path $root 'deploy\_log.ps1')   # log concurrent-safe (Add-BfxStream / Write-BfxLogLine)
 
@@ -47,10 +47,10 @@ Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 Log 'REANA SCHED : planification des passes de règlement (coup d''envoi - 1 h)'
 & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Add-BfxStream $log
 # SCAN MATIN (analyse du slate JOUR en batch) : SAUTÉ en mode WAVE-FIRST (user 2026-08-11). Le matin ne fait
-# alors que SÉLECTIONNER (programme ci-dessus) ; chaque match est analysé ~2h avant SON coup d'envoi par le
+# alors que SÉLECTIONNER (programme ci-dessus) ; chaque match est analysé ~1h avant SON coup d'envoi par le
 # sweep (deploy\scan_sweep.ps1, données/cotes fraîches). Sans le drapeau -> comportement batch inchangé.
 if (Test-Path $flag) {
-    Log 'SCAN MATIN : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~2h avant chaque coup d''envoi'
+    Log 'SCAN MATIN : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~1h avant chaque coup d''envoi'
 } else {
     Log 'SCAN MATIN : SLATE JOUR (coup d''envoi 6h->21h heure belge) + publication des picks'
     & $py 'tools\generate_analyses.py' --sport foot --top 20 --hours 24 --from-programme --force --ko-from 6 --ko-to 21 2>&1 |

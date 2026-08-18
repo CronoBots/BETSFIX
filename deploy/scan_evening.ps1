@@ -1,4 +1,4 @@
-# BETSFIX — SCAN DU SOIR = SLATE NUIT (tâche planifiée « BETSFIX Scan Soir », compte vince).
+﻿# BETSFIX — SCAN DU SOIR = SLATE NUIT (tâche planifiée « BETSFIX Scan Soir », compte vince).
 # 2 créneaux (user 2026-08-07) : le matin (scan_daily) analyse le SLATE JOUR (coup d'envoi 6h→21h, heure
 # belge : Europe + Asie-après-midi) ; CE scan analyse le SLATE NUIT (coup d'envoi 21h→06h : Amériques —
 # MLS/Brésil/Argentine/Liga MX — + Europe tardive) avec des données du JOUR MÊME, au lieu des ~12-20 h de
@@ -36,9 +36,9 @@ if ($running) {
 # matchs de nuit n'ont pas encore été analysés (le matin ne fait que le slate jour) -> analyse normale ;
 # un match de jour (coup d'envoi < 21h) est EXCLU par la bande -> jamais re-scané ici.
 # SCAN SOIR (analyse du slate NUIT en batch) : SAUTÉ en mode WAVE-FIRST (user 2026-08-11) -> le sweep
-# analyse chaque match de nuit ~2h avant SON coup d'envoi. Sans le drapeau -> comportement batch inchangé.
+# analyse chaque match de nuit ~1h avant SON coup d'envoi. Sans le drapeau -> comportement batch inchangé.
 if (Test-Path $flag) {
-    Log 'SCAN SOIR : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~2h avant chaque coup d''envoi'
+    Log 'SCAN SOIR : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~1h avant chaque coup d''envoi'
 } else {
     Log 'SCAN SOIR : SLATE NUIT (coup d''envoi 21h->06h heure belge) + publication des picks'
     & $py 'tools\generate_analyses.py' --sport foot --top 20 --hours 12 --from-programme --ko-from 21 --ko-to 6 2>&1 |

@@ -1,4 +1,4 @@
-# BETSFIX - ACTIVE / DESACTIVE le mode WAVE-FIRST (analyse ~2h avant le coup d'envoi). A LANCER EN ADMIN.
+﻿# BETSFIX - ACTIVE / DESACTIVE le mode WAVE-FIRST (analyse ~1h avant le coup d'envoi). A LANCER EN ADMIN.
 #
 # ACTIVER (defaut) :
 #   1) Cree/majnstalle la tache "BETSFIX Scan Sweep" (toutes les 30 min) qui lance deploy\scan_sweep.ps1,
@@ -74,7 +74,7 @@ New-Item -ItemType File -Path $flag -Force | Out-Null
 Set-Content -Path $flag -Value ("wave-first active {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm')) -Encoding utf8
 Write-Host "OK : mode WAVE-FIRST ACTIVE (drapeau $flag)." -ForegroundColor Green
 
-# Le scan du SOIR (batch nuit) devient REDONDANT (le sweep analyse la nuit ~2h avant chaque KO ET reconcilie
+# Le scan du SOIR (batch nuit) devient REDONDANT (le sweep analyse la nuit ~1h avant chaque KO ET reconcilie
 # toutes les 30 min) -> on le DESACTIVE (conserve, reactive par -Off). La LISTE reste faite 1x le matin.
 try { Disable-ScheduledTask -TaskName $EveningTask -ErrorAction Stop | Out-Null
       Write-Host "OK : tache '$EveningTask' desactivee (redondante en wave-first)." -ForegroundColor Green }
