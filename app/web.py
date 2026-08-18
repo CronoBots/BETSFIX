@@ -497,6 +497,10 @@ CSS = """
   .le-btn:active{transform:scale(.97)}
   .le-btn-p{color:var(--accent-ink);border-color:transparent;
        background:linear-gradient(180deg,var(--accent),var(--accent2));box-shadow:0 4px 16px var(--glow)}
+  /* État vide PRONOS : orbe CYAN (pas vert -> ne se lit pas « live »). Espace un peu plus généreux. */
+  .pe-dot{background:#5fd0ff;box-shadow:0 0 18px rgba(95,208,255,.85)}
+  .pe-ping{border-color:rgba(95,208,255,.55)}
+  .paj-hero{margin-top:26px}
   /* Header sticky premium */
   .hdr{position:sticky;top:0;z-index:50;
        background:linear-gradient(180deg,rgba(12,15,22,.92),rgba(12,15,22,.78));
@@ -7290,12 +7294,16 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     ]
     # ABSTENTION en dernier des catégories (ce qu'on ne joue pas). Le PROGRAMME passe EN PREMIER (user
     # 2026-08-17 « Oui » : chaque match commence au programme -> il OUVRE la liste), au-dessus des paris.
-    out.append(_abstention_zone(sport or "foot"))
-    inner = _programme_schedule(sport or "foot") + "".join(x for x in out if x)
-    _empty = ('<div class="paj-empty">Aucun pari retenu pour l\'instant.'
-              '<span>Chaque match est analysé ~2 h avant son coup d\'envoi (voir le programme) ; '
-              'seuls ceux qui offrent de la <b>value</b> deviennent un pari. Analyser n\'est pas parier.</span></div>')
-    zones = f'<div class="dash-zones">{inner or _empty}</div>'
+    _abst_html = _abstention_zone(sport or "foot")
+    out.append(_abst_html)
+    _prog_html = _programme_schedule(sport or "foot")
+    # JOURNÉE TOTALEMENT VIDE (tôt le matin AVANT le scan de 08h, ou jour calme) : au lieu de 2 accordéons
+    # Confiance/Value repliés sur un grand vide (message caché), on montre un ÉTAT VIDE PREMIUM (orbe + timing).
+    _day_empty = not (play_conf or _res_conf or play_value or _res_value or play_mont or _mont_settled
+                      or prov or _prov_res or combo_daily
+                      or (_prog_html and _prog_html.strip()) or (_abst_html and _abst_html.strip()))
+    inner = _paj_hero() if _day_empty else (_prog_html + "".join(x for x in out if x))
+    zones = f'<div class="dash-zones">{inner}</div>'
     today_iso = _sport_today().isoformat()
     # BADGE nav = paris NON RÉGLÉS du jour (à venir + en cours). `play`/`prov` ne contiennent DÉJÀ que
     # l'actif (les réglés partent dans _res_cards/_prov_res). Le combiné ne compte donc QUE s'il est encore
@@ -7877,6 +7885,23 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
             abst.append(_status_card(m, dt, "abst"))
         # sinon : a un pari -> carte dans sa zone Confiance/Value
     return pending, abst
+
+
+def _paj_hero() -> str:
+    """État VIDE premium de l'onglet Pronos (aucun pari NI programme ce jour — typiquement tôt le matin avant
+    le scan de 08h, ou jour calme) : orbe cyan + explication du timing. Remplace les 2 accordéons vides sur un
+    grand vide (user 2026-08-18 « comment mieux présenter »). Réutilise le cadre premium de l'état vide Live."""
+    return (
+        '<div class="live-empty paj-hero">'
+        '<div class="le-orb"><span class="le-ping pe-ping"></span>'
+        '<span class="le-ping le-ping2 pe-ping"></span><span class="le-dot pe-dot"></span></div>'
+        '<div class="le-h">Aucun pari pour le moment</div>'
+        '<div class="le-sub">Le programme du jour est publié vers <b>08 h</b>. Chaque pari — '
+        'Confiance, Value, Combiné — arrive <b>~1 h avant le coup d\'envoi</b>, une fois l\'analyse faite. '
+        'Seuls les matchs à <b>value</b> deviennent un pari.</div>'
+        '<div class="le-cta"><a class="le-btn le-btn-p" href="/directs">Matchs en direct</a>'
+        '<a class="le-btn" href="/stats">Résultats du jour</a></div>'
+        '</div>')
 
 
 def _programme_schedule(sport: str = "foot") -> str:
