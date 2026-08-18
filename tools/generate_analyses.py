@@ -1025,6 +1025,22 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                     _mpick = await _montante_best_bet(client, _mcands or [])
                 except Exception as _mre:
                     print(f"  (analyse montante quant ignorée : {_mre})")
+                # « POURQUOI » FACTUEL (comme le combiné) : la règle quant a SÉLECTIONNÉ ; le texte affiché doit être
+                # FACTUEL (forme/xG/absents), pas la sortie quant (méta P_est/EV que _strip_meta_stat massacre —
+                # mémoire analysis-premium-factual-not-meta). On enrichit via sources.extras + _analyze_combo_legs.
+                if _mpick:
+                    try:
+                        _mlm = {"id": _mpick.get("mid"), "name": _mpick.get("match"), "home": _mpick.get("home"),
+                                "away": _mpick.get("away"), "comp": _mpick.get("comp"), "start": _mpick.get("start")}
+                        _mfacts = await sources.extras(client, "foot", _mlm)
+                        if _mfacts and _mfacts.strip():
+                            _mwrap = {"legs": [dict(_mpick)], "synth": ""}
+                            _analyze_combo_legs(_mwrap, facts_by_mid={str(_mpick.get("mid")): _mfacts})
+                            _mwhy = (_mwrap.get("legs") or [{}])[0].get("why")
+                            if _mwhy and not str(_mwhy).startswith("Pinnacle (référence sharp)"):
+                                _mpick["why"] = _mwhy
+                    except Exception as _mae:
+                        print(f"  (enrichissement factuel montante ignoré : {_mae})")
                 if _mpick and _mtn.record_day(_cd_mt.day_key(), pick=_mpick):
                     print(f"  🪜 Montante (matin, règle quant) : {_mpick['match']} — {_mpick['sel']} "
                           f"@{_mpick['cote']} ({round((_mpick.get('prob') or 0) * 100)}% · score {_mpick.get('score')})")
@@ -2539,6 +2555,7 @@ RED FLAGS (relèvent fortement le seuil ou PASS) : derby, amical, sans enjeu, gr
 
 SCORE /100 : solidité stat /25 · edge+EV /20 · forme+niveau /15 · effectif+compo /15 · match-up /10 · contexte+motivation /10 · qualité données+stabilité marché /5. (0–69 = PASS · 70–79 = insuffisant pour la montante · 80–89 = candidat sérieux · 90–100 = exceptionnel.) Un score élevé ne veut jamais dire « garanti ».
 
+CONTEXTE D'EXÉCUTION (IMPORTANT) : cette analyse tourne LE MATIN. Les XI OFFICIELS ne sont en général PAS encore publiés, mais les blessures/suspensions connues SONT dans le dossier -> raisonne sur une compo PROBABLE. Ne réserve 🟠 ATTENDRE LES XI qu'à un pari qui dépend VRAIMENT d'un joueur incertain (rare pour un marché d'ÉQUIPE comme DC/1X2). Le mouvement de cote (opening -> actuelle) n'est PAS toujours disponible : si l'info manque, IGNORE cette dimension, ne l'invente pas. N'utilise QUE ce qui est dans le dossier ; toute donnée clé absente -> « DONNÉE NON CONFIRMÉE » + confiance réduite.
 XI : si le pari dépend fortement de joueurs et que les compos ne sont pas connues -> décision ATTENDRE LES XI. Sinon GO ou PASS.
 COMPARAISON : ne prends jamais le 1er candidat qui passe. Compare une shortlist (proba, edge, EV, variance, infos, risque compo, robustesse) -> 1 SEUL best bet.
 COTE MINIMUM ACCEPTABLE : toujours l'indiquer. Si la cote réelle descend en dessous -> NO BET.
@@ -2608,12 +2625,17 @@ async def _montante_best_bet(client, cands: list):
     if not c:
         return None
     _pest = v.get("p_est")
-    _why = re.sub(r"(?im)^\s*MONTANTE_PICK:.*$", "", out).strip()   # retire la ligne machine du « pourquoi »
+    # `rule_analysis` = la sortie quant (P_est/Edge/EV/score) — traçabilité SEULEMENT, JAMAIS le `why` affiché :
+    # le filtre d'affichage `_strip_meta_stat` massacre le jargon math (EV/sharp/Pinnacle). Le « pourquoi » VISIBLE
+    # est ré-écrit FACTUEL par l'enrichissement (sources.extras + _analyze_combo_legs) dans le builder, comme le
+    # combiné (mémoire analysis-premium-factual-not-meta). On laisse donc `why=None` ici.
+    _ana = re.sub(r"(?im)^\s*MONTANTE_PICK:.*$", "", out).strip()
     return {"mid": str(v["mid"]), "sport": "foot", "match": c.get("name"),
             "home": c.get("home"), "away": c.get("away"), "comp": c.get("comp"), "start": c.get("start"),
             "sel": v.get("sel") or c.get("sel"), "cote": v.get("cote") or c.get("cote"), "code": v.get("code"),
             "prob": (_pest / 100.0 if isinstance(_pest, (int, float)) and _pest > 1 else _pest),
-            "cote_min": v.get("cote_min"), "ev": v.get("ev"), "score": v.get("score"), "why": _why}
+            "cote_min": v.get("cote_min"), "ev": v.get("ev"), "score": v.get("score"),
+            "why": None, "rule_analysis": _ana}
 
 
 # ============================ RÈGLE DE SÉLECTION COMBINÉ DOUBLE CHANCE (analyste quantitatif) ============================
@@ -2628,6 +2650,8 @@ MARCHÉS : uniquement 1X ou X2. Chaque candidat de la shortlist a une DIRECTION 
 
 COTE TOTALE : cible 2.00, zone préférée 1.90–2.10, secondaire 1.80–2.20. Une excellente sélection @1.85 vaut mieux qu'un coupon gonflé @2.00. NE JAMAIS ajouter une jambe insuffisamment robuste juste pour atteindre 1.90.
 NOMBRE DE JAMBES : 3-4 optimal, 2-5 autorisé. Si une seule sélection passe les filtres -> PASS COMBINÉ (signaler qu'une sélection individuelle suffit). Rappel mathématique : plus de jambes ≠ plus de sécurité (0,85⁴=52% ; 0,85⁵=44%).
+
+CONTEXTE D'EXÉCUTION (IMPORTANT) : cette analyse tourne LE MATIN. Les XI OFFICIELS ne sont en général PAS encore publiés, mais les blessures/suspensions connues SONT dans les dossiers -> raisonne sur des compos PROBABLES. Une double chance est un marché d'ÉQUIPE : elle dépend rarement d'un seul joueur -> ne réserve 🟠 ATTENDRE LES XI qu'à une jambe qui en dépend VRAIMENT. Le mouvement de cote (opening -> actuelle) n'est pas toujours fourni : si l'info manque, ignore-la, ne l'invente pas. N'utilise QUE ce qui est dans les dossiers ; donnée clé absente -> « DONNÉE NON CONFIRMÉE » + confiance réduite (jamais de fabrication de cote/blessure/compo/stat).
 
 MÉTHODE OBLIGATOIRE : 1) SCANNE tout le programme fourni (ne prends jamais les premiers matchs) · 2) shortlist des meilleures DC · 3) construis PLUSIEURS coupons candidats (2,3,4,5 jambes) · 4) TEST D'ABLATION : retire tour à tour chaque jambe, recalcule cote/P_comb/EV/robustesse et demande « le rendement ajouté par cette jambe compense-t-il le risque ajouté ? » — si NON, supprime-la · 5) TEST DE STRESS qualitatif (favori encaisse en premier, carton rouge, buteur absent, adversaire ultra-bas, nul tardif) pour repérer les sélections dont la robustesse tient à un scénario trop précis · 6) garde UNIQUEMENT le meilleur coupon.
 
