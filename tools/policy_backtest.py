@@ -58,15 +58,12 @@ def main() -> int:
     except Exception:
         pass
 
+    # ALERTE TELEGRAM COUPÉE (user 2026-08-18) : ce backtest est purement informatif (suggestion sur du ROI
+    # souvent négatif = bruit) et n'applique JAMAIS rien -> il ne doit PLUS polluer le canal Telegram. Les
+    # recommandations restent visibles dans la CONSOLE (ci-dessus) et le JOURNAL `data/backtest_log.jsonl`.
+    # Pour réactiver : remettre le `notify.send_sync(...)` des recommandations ici.
     if r["recommendations"] and faithful:
-        try:
-            from app import notify
-            lines = ["🧪 *BETSFIX — backtest : amélioration significative détectée*",
-                     "_(à valider manuellement — rien n'est appliqué automatiquement)_", ""]
-            lines += [f"• {x['note']}" for x in r["recommendations"][:5]]
-            notify.send_sync("\n".join(lines))
-        except Exception:
-            pass
+        print("   (alerte Telegram coupée — recommandations au log/console seulement)")
     if not faithful:
         print(f"⚠️ porte↔prod seulement {val.get('pct')}% : miroir divergent, backtest non concluant.")
         return 2
