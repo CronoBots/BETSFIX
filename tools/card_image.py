@@ -232,23 +232,20 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 .sres.won{color:#34d27b;border-color:rgba(52,210,123,.55);background:rgba(52,210,123,.10)}
 .sres.lost{color:#ff6b6b;border-color:rgba(255,107,107,.5);background:rgba(255,107,107,.09)}
 .sres.push{color:#9fb6cf;border-color:rgba(159,182,207,.45);background:rgba(159,182,207,.10)}
-/* CARTE COMBINÉ (signature dorée + jambes en mini-cadres + cote combinée). */
+/* CARTE COMBINÉ (user 2026-08-18) : signature dorée « COMBINÉ » + CHAQUE jambe = mini-carte de pari complète
+   (mêmes composants .stms/.spk/.sgl/.vgrid/.swhy/.sres que les simples), encadrée par .clg, + cote combinée. */
 .stag.st-combo{color:#f6c54a}
-.clg{background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.11);border-radius:18px;
-  padding:24px 26px;margin-bottom:16px}
-.clg .clgb{color:#34d27b}   /* jambe gagnée */
-.clg .clgr{color:#ff6b6b}   /* jambe perdue */
-.clg-h{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
-.clg-m{font-size:23px;font-weight:800;color:#eef4fb;line-height:1.2;min-width:0}
-.clg-o{flex:none;font-size:26px;font-weight:900;color:#64cd8d;font-variant-numeric:tabular-nums}
-.clg-s{font-size:27px;font-weight:800;color:#eaf1fa;margin-top:9px;line-height:1.22}
-.clg-w{font-size:20px;font-weight:500;color:#a7bcd6;line-height:1.42;margin-top:11px}
-.clg-vd{margin-top:12px;font-size:19px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
-.ctot{display:flex;align-items:center;justify-content:space-between;margin-top:20px;padding:26px 30px;
-  border-radius:18px;background:rgba(246,197,74,.08);border:1.5px solid rgba(246,197,74,.28)}
-.ctot-l{font-size:23px;font-weight:800;color:#e7c86a;text-transform:uppercase;letter-spacing:.08em}
-.ctot-v{font-size:48px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.csyn{text-align:center;font-size:22px;font-weight:500;color:#a7bcd6;line-height:1.42;margin-top:26px}
+.clg{background:rgba(255,255,255,.035);border:1.5px solid rgba(255,255,255,.12);border-radius:22px;
+  padding:34px 34px 36px;margin-bottom:22px}
+.clg-lg{text-align:center;font-size:22px;font-weight:800;color:#93b7db;letter-spacing:.05em;
+  text-transform:uppercase;margin-bottom:24px}
+.clg .stms{margin-bottom:26px}   /* un cran plus serré que la carte simple (jambes empilées) */
+.clg .swhy{margin-top:26px}
+.ctot{display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:28px 32px;
+  border-radius:20px;background:rgba(246,197,74,.08);border:1.5px solid rgba(246,197,74,.30)}
+.ctot-l{font-size:24px;font-weight:800;color:#e7c86a;text-transform:uppercase;letter-spacing:.08em}
+.ctot-v{font-size:50px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.csyn{text-align:center;font-size:22px;font-weight:500;color:#a7bcd6;line-height:1.42;margin-top:28px}
 """
 
 
@@ -394,27 +391,43 @@ def _result_simple_card_html(d: dict) -> str:
 
 
 def _combo_card_html(d: dict) -> str:
-    """Carte COMBINÉ façon SITE (user 2026-08-18) : logo BETSFIX + signature « COMBINÉ », chaque jambe en
-    mini-cadre (match · pari · cote · pourquoi, + verdict Gagné/Perdu si réglé), puis la COTE combinée.
-    `d['legs']` = liste de dicts {match, sel, cote, why, mark?}. `d['combo_mark']` = won/lost -> bord coloré."""
+    """Carte COMBINÉ (user 2026-08-18) : signature « COMBINÉ », puis CHAQUE jambe rendue EXACTEMENT comme une
+    carte de pari (ligue · logos+équipes+heure/score · pari+glose · grille Confiance/Edge/Value/Cote · analyse
+    ou verdict Gagné/Perdu), et la COTE combinée. `d['legs']` = dicts riches (cf. card_data)."""
     def e(x):
         return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
     _wm = _banner_uri(d.get("emoji", ""))
-    _title = str(d.get("combo_title") or "COMBINÉ DOUBLE CHANCE").upper()
+    _title = str(d.get("combo_title") or "COMBINÉ").upper()
     legs = d.get("legs") or []
-    _rows = ""
+    _blocks = ""
     for lg in legs:
-        match, sel = str(lg.get("match", "")), str(lg.get("sel", ""))
-        cote, why, mark = lg.get("cote", ""), str(lg.get("why", "")), lg.get("mark")
-        _ocls = " clgb" if mark == "won" else (" clgr" if mark == "lost" else "")
-        _vt, _vc = {"won": ("GAGNÉ", "clgb"), "lost": ("PERDU", "clgr"),
-                    "push": ("REMBOURSÉ", ""), "void": ("REMBOURSÉ", "")}.get(mark or "", ("", ""))
-        _vd = f'<div class="clg-vd {_vc}">{_vt}</div>' if _vt else ""
-        _wl = _why_bullets_html({"why": why}, e) if why else ""
-        _rows += (f'<div class="clg">'
-                  f'<div class="clg-h"><span class="clg-m">{e(match)}</span>'
-                  f'<span class="clg-o{_ocls}">{e(cote)}</span></div>'
-                  f'<div class="clg-s">{e(sel)}</div>{_wl}{_vd}</div>')
+        home, away = str(lg.get("home", "")), str(lg.get("away", ""))
+        mark = lg.get("mark")
+        _score = str(lg.get("score") or "").strip().replace("-", " - ")
+        if _score:
+            _center = f'<span class="rsc"><b>{e(_score)}</b><span class="rfin">Terminé</span></span>'
+        else:
+            _center = e(lg.get("time", "")) or "•"
+        _cells = _verdict_cells_html(lg, e)
+        _pick = str(lg.get("pick", ""))
+        _gl = f'<div class="sgl">{e(lg.get("gloss"))}</div>' if lg.get("gloss") else ""
+        if mark:
+            _vt, _vc = {"won": ("GAGNÉ", "won"), "lost": ("PERDU", "lost"),
+                        "push": ("REMBOURSÉ", "push"), "void": ("REMBOURSÉ", "push")}.get(mark, ("", "push"))
+            _extra = f'<div class="sres {_vc}">{_vt}</div>' if _vt else ""
+        else:
+            _extra = _why_bullets_html(lg, e)
+        _blocks += (
+            f'<div class="clg">'
+            + (f'<div class="clg-lg">{e(lg.get("lg"))}</div>' if lg.get("lg") else "")
+            + f'<div class="stms">'
+            f'<div class="stm">{_team_logo_html(home, lg.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
+            f'<div class="stc">{_center}</div>'
+            f'<div class="stm">{_team_logo_html(away, lg.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
+            f'</div>'
+            f'<div class="spk">{e(_pick)}</div>{_gl}'
+            f'<div class="vgrid">{_cells}</div>{_extra}'
+            '</div>')
     _tot = (f'<div class="ctot"><span class="ctot-l">Cote combinée</span>'
             f'<span class="ctot-v">{e(d.get("cote", ""))}</span></div>')
     _syn = f'<div class="csyn">{e(d.get("synth"))}</div>' if d.get("synth") else ""
@@ -425,7 +438,7 @@ def _combo_card_html(d: dict) -> str:
         f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
         f'<div class="stag st-combo">{e(_title)}</div>'
         f'<div class="slg">{len(legs)} SÉLECTIONS</div>'
-        + _rows + _tot + _syn)
+        + _blocks + _tot + _syn)
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard {_ccls}">{inner}</div></body></html>')
 

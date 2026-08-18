@@ -235,22 +235,56 @@ def build_result_card(d: dict) -> dict | None:
 
 
 def build_combo_daily_card(combo: dict, *, result: bool = False) -> dict | None:
-    """Carte du COMBINÉ DU JOUR (combo_daily) pour Telegram — design SITE (user 2026-08-18) : signature
-    « COMBINÉ » sous la bannière, chaque jambe (match · pari · cote · pourquoi) en mini-cadre, cote combinée.
-    `result=True` -> carte RÉSULTAT (verdict Gagné/Perdu par jambe + global, sans analyse). None si vide."""
+    """Carte du COMBINÉ DU JOUR (combo_daily) pour Telegram — construite EXACTEMENT comme les autres paris
+    (user 2026-08-18) : signature « COMBINÉ », puis CHAQUE jambe rendue comme une mini-carte de pari complète
+    (ligue, logos + équipes + heure/score, pari + glose, grille Confiance/Edge/Value/Cote, analyse ou verdict),
+    et la COTE combinée. `result=True` -> verdict Gagné/Perdu par jambe + global, sans analyse. None si vide."""
     if not combo or not combo.get("legs"):
         return None
+    from app import match_select as _ms, crest as _cr
+    try:
+        from app import web as _web
+    except Exception:
+        _web = None
     legs = []
     for l in combo["legs"]:
         home, away = str(l.get("home", "")), str(l.get("away", ""))
-        match = (l.get("name") or f"{home} - {away}").replace(" - ", " — ")
-        _sel = analyses.pretty_sel(str(l.get("sel", "")), home, away)
-        legs.append({"match": match, "sel": _sel, "cote": str(l.get("cote", "")),
-                     "why": ("" if result else _clean_why(l.get("why"))),   # pas d'analyse sur le résultat
-                     "mark": (l.get("result") if result else None)})
+        _comp = str(l.get("comp") or "")
+        _sel = str(l.get("sel", ""))
+        _pr = l.get("prob")
+        _conf = (round(_pr * 100) if isinstance(_pr, (int, float)) and _pr <= 1
+                 else (round(_pr) if isinstance(_pr, (int, float)) else None))
+        _cote = l.get("cote")
+        _edge = _val = None
+        try:
+            _cf, _c = float(_conf), float(_cote)
+            _edge = round(_cf - 100.0 / _c)
+            _val = round((_cf / 100.0 * _c - 1) * 100)
+        except (TypeError, ValueError):
+            pass
+        _dt2 = None
+        try:
+            _dt2 = datetime.fromisoformat(str(l.get("start") or "").replace("Z", "+00:00"))
+        except ValueError:
+            pass
+        try:
+            _gloss = _web._bet_gloss(_sel, "foot", home, away) if _web else ""
+        except Exception:
+            _gloss = ""
+        legs.append({
+            "home": home, "away": away,
+            "home_logo": (_cr.logo_url(_cr.team_id(home)) or ""),
+            "away_logo": (_cr.logo_url(_cr.team_id(away)) or ""),
+            "lg": " • ".join(x for x in (_ms.comp_country(_comp), _comp) if x).upper(),
+            "time": (_dt2.strftime("%H:%M") if _dt2 else ""),
+            "score": (str(l.get("score") or "") if result else ""),
+            "pick": analyses.pretty_sel(_sel, home, away), "gloss": _gloss,
+            "conf": _conf, "edge": _edge, "value": _val, "cote": (f"{_cote:g}" if _cote else ""),
+            "why": ("" if result else _clean_why(l.get("why"))),   # pas d'analyse sur le résultat
+            "mark": (l.get("result") if result else None),
+        })
     _cote = combo.get("real_odds") or combo.get("cote") or combo.get("total")
-    return {"emoji": "⚽", "type": ("combo_result" if result else "combo"),
-            "combo_title": "COMBINÉ DOUBLE CHANCE",
+    return {"emoji": "⚽", "type": ("combo_result" if result else "combo"), "combo_title": "COMBINÉ",
             "cote": (f"{_cote:.2f}" if isinstance(_cote, float) else str(_cote or "")),
             "legs": legs,
             "synth": ("" if result else _clean_synth(combo.get("synth") or combo.get("why"))),
