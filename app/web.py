@@ -2208,6 +2208,7 @@ CSS = """
   .cleg-rb-w{background:rgba(52,210,123,.18);color:#4be39b;border:1px solid rgba(52,210,123,.55)}
   .cleg-rb-l{background:rgba(255,107,107,.16);color:#ff6b6b;border:1px solid rgba(255,107,107,.5)}
   .cleg-rb-n{background:rgba(144,164,190,.16);color:#aebdd0;border:1px solid rgba(144,164,190,.4)}
+  .mc-combo-res{margin-top:12px}   /* badge résultat EN BAS du cadre combiné (user 2026-08-19) */
   /* note « hors ROI » en tête de l'onglet Combiné (user 2026-08-16 : affiché mais non compté au ROI) */
   .combo-horsroi{font-size:11px;font-weight:600;color:var(--muted);text-align:center;padding:7px 10px;
        margin-bottom:9px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px}
@@ -6374,6 +6375,10 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
     par l'appelant ; `title` = libellé fixe. `state` (won/lost/push) colore le bord GAUCHE (2026-07-25).
     `dots` (user 2026-08-18) = points par jambe, rendus ALIGNÉS À DROITE (avant le badge), pas collés au sous-titre."""
     _rcls = f" mc-r-{state}" if state in ("won", "lost", "push") else ""
+    # BADGE RÉSULTAT EN BAS DU CADRE (user 2026-08-19) : comme les cartes Confiance/Value — barre pleine largeur
+    # GAGNÉ/PERDU/REMBOURSÉ sous le corps, PLUS dans l'en-tête. Les points par jambe (`dots`) restent en tête.
+    _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"), "push": ("REMBOURSÉ", "n")}.get(state, ("", "n"))
+    _botbar = (f'<div class="cleg-resbadge cleg-rb-{_rbc} mc-combo-res">{_rbt}</div>' if _rbt else "")
     return (
         f'<div class="row pick mc mc-tg mc-tg-gold{_rcls}">'
         '<div class="mc-head"><div class="mc-main">'
@@ -6381,9 +6386,10 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
         '<div class="mc-line">'
         f'<span class="mc-comp"><b class="mc-sport mc-sport-w">{title}</b>'
         f'<span class="mc-comp-sep"> • </span>{subtitle}</span>'
-        f'{dots}{badge}</div>'          # `.mc-comp` en flex:1 pousse points + badge À DROITE
+        f'{dots}</div>'                 # `.mc-comp` en flex:1 pousse les points À DROITE (badge résultat -> en bas)
         '<div class="mc-div"></div>'
         + body
+        + _botbar                        # badge résultat pleine largeur EN BAS (comme Confiance/Value)
         + '</div></div></div>')
 
 
