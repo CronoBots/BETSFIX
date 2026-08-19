@@ -2538,14 +2538,17 @@ CSS = """
      mis en avant (accent du sport), pastille résultat par jour. Scroll horizontal sans barre visible. */
   .daycal{margin:0 0 9px;position:relative}   /* espace réduit au-dessus du 1er titre (Programme), user 2026-08-19 */
   /* En-tête : mois/année (gauche, maj au scroll) + bouton « Aujourd'hui » (droite, si jour passé). */
-  .daycal-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 3px 4px;min-height:20px}   /* espace mois↔calendrier resserré (user 2026-08-19) */
+  .daycal-hd{position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 3px 4px;min-height:20px}   /* espace mois↔calendrier resserré (user 2026-08-19) ; position:relative = ancre du bouton « Aujourd'hui » absolu */
   .daycal-mo{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
        transition:color .2s ease}
-  .daycal-goto{display:none;flex:none;font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--accent-ink);
+  /* Bouton « Aujourd'hui » en POSITION ABSOLUE (user 2026-08-19) -> apparaît/disparaît SANS décaler le contenu
+     (avant : dans le flux flex, il agrandissait l'en-tête et poussait tout vers le bas). Centré vertical à droite. */
+  .daycal-goto{display:none;position:absolute;right:3px;top:50%;transform:translateY(-50%);z-index:2;flex:none;
+       font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--accent-ink);
        background:linear-gradient(180deg,var(--accent),var(--accent2));border:0;border-radius:20px;
        padding:5px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent;box-shadow:0 4px 14px -6px var(--glow)}
   .daycal-goto.show{display:inline-flex;align-items:center}   /* visible : jour passé OU cellule AUJ. hors vue (user 2026-08-19) */
-  .daycal-goto:active{transform:scale(.94)}
+  .daycal-goto:active{transform:translateY(-50%) scale(.94)}
   .daycal-track{display:flex;gap:7px;overflow-x:auto;padding:2px 4px 8px;scroll-snap-type:x proximity;
        -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
   .daycal-track::-webkit-scrollbar{display:none}
@@ -8390,7 +8393,10 @@ def _programme_schedule(sport: str = "foot") -> str:
     pending, _abst = _planning_cards(sport)
     if not pending:
         return ""
-    return _zone("prog", "Programme du jour", "", len(pending), _programme_grille(pending), collapsible=True)
+    # REPLIÉ PAR DÉFAUT (user 2026-08-19) : `open_=False` -> le Programme du jour est toujours fermé au chargement
+    # (le JS `_CAL_JS` ne force jamais l'ouverture). On le déplie d'un tap pour voir la liste des matchs.
+    return _zone("prog", "Programme du jour", "", len(pending), _programme_grille(pending),
+                 collapsible=True, open_=False)
 
 
 def _abstention_zone(sport: str = "foot") -> str:
