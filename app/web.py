@@ -7092,7 +7092,9 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
             _board = analyses.result_board(d, sp) or {}
             combo = d.get("combo") or {}
             if combo.get("legs") and combo.get("result") in ("won", "lost", "void"):
-                if tier is not None and tier != "confiance":   # les combinés = tier CONFIANCE (jamais « value »)
+                # UN COMBINÉ N'EST PAS UN PARI « CONFIANCE » (user 2026-08-19 : combiné 3 jambes affiché à tort en
+                # Confiance le 19/07). Il a son PROPRE type -> tier « combo » (zone Combiné), jamais Confiance/Value.
+                if tier is not None and tier != "combo":
                     continue
                 _body = _combo_premium_block(sp, fid, d.get("home", ""), d.get("away", ""))
                 if _body:
@@ -7201,7 +7203,7 @@ def _settled_wl_today(iso: str, sport: str | None, tier: str | None = None) -> t
                 continue
             combo = d.get("combo") or {}
             if combo.get("legs") and combo.get("result") in ("won", "lost", "void"):
-                if tier is not None and tier != "confiance":   # combinés = tier CONFIANCE
+                if tier is not None and tier != "combo":       # combiné = tier « combo » (zone Combiné), pas Confiance
                     continue
                 r = combo.get("result")
             else:
@@ -7521,20 +7523,30 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
                 f'<div class="day-sum-roi {pcls}">{"+" if roi >= 0 else "−"}{abs(roi)}% ROI</div></div>')
     else:
         summ = '<div class="day-sum day-sum-empty">Aucun pari réglé ce jour.</div>'
-    combo = ""
-    if not sport:                                          # combiné multisport -> « Tous » seulement
+    # ZONE COMBINÉ = combiné du jour (combo_daily) ET/OU combinés SIDECAR (legacy/CdM). Un combiné a son PROPRE
+    # type -> il n'apparaît PLUS dans Confiance (fix user 2026-08-19 : combiné 3 jambes affiché en Confiance le 19/07).
+    _combo_daily_html, _combo_daily_legs = "", None
+    if not sport:                                          # combo_daily = « Tous » seulement
         try:
             from app import combo_daily as _cd
             cb = _cd.today(iso)
             if cb and cb.get("legs"):
-                # BADGE COMBINÉ COLORÉ (user 2026-08-19) : vert si toutes gagnées · rouge si ≥1 perdue (via
-                # `leg_results`, comme la vue du jour) — plus de badge gris. Repliable + REPLIÉ d'office.
-                combo = _zone("combo", "Combiné", "", 1,
-                              _combo_tg_card(include_settled=True, cb=cb),
-                              collapsible=True, open_=False,
-                              leg_results=[l.get("result") for l in (cb.get("legs") or [])])
+                _combo_daily_html = _combo_tg_card(include_settled=True, cb=cb)
+                _combo_daily_legs = [l.get("result") for l in (cb.get("legs") or [])]
         except Exception:
-            combo = ""
+            pass
+    _combo_sidecar = _settled_bet_result_cards(iso, sport, tier="combo")   # combinés du sidecar (legacy)
+    _combo_body = _MC_SEP.join([h for h in ([_combo_daily_html] + _combo_sidecar) if h])
+    combo = ""
+    if _combo_body:
+        if _combo_daily_legs is not None and not _combo_sidecar:   # combiné du jour SEUL -> badge par jambes
+            combo = _zone("combo", "Combiné", "", 1, _combo_body, collapsible=True, open_=False,
+                          zk="pj-combo", leg_results=_combo_daily_legs)
+        else:                                                       # combinés sidecar -> badge gagnés/perdus
+            _wc, _lc, _pc = _settled_wl_today(iso, sport, tier="combo")
+            _crec = (_wc + _lc + _pc, 0, 0, _wc, _lc, _pc) if (_wc + _lc + _pc) else None
+            combo = _zone("combo", "Combiné", "", (_wc + _lc + _pc) or 1, _combo_body,
+                          collapsible=True, open_=False, zk="pj-combo", record=_crec)
     # HISTORIQUE PAR TYPE DE PARI (user 2026-08-19 : « revoir les TYPES de paris et les résultats ») : mêmes
     # cartes riches que l'onglet (verdict/score/Pourquoi, cadre vert/rouge, via `_settled_bet_result_cards`),
     # SPLIT par tier comme la vue du jour : Confiance · Value · Montante · Combiné · Provisoire. Le tier est
