@@ -10563,6 +10563,30 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
     _upc = [c for c in (upcoming or []) if _item_sport(c) == _cur]   # PROCHAINS matchs (à venir) du sport
+    # SEULEMENT ceux REPRIS PAR UN TYPE DE PARI (user 2026-08-19) : jambes de combiné (Sûr + Cote 2) + pari
+    # montante + paris simples retenus -> on filtre les matchs du programme sur ces paires (le reste du programme
+    # n'apparaît PAS dans Live). Vide -> aucun « prochain match » (normal si rien n'est encore parié).
+    _bet_pairs: set = set()
+    try:
+        from app import combo_daily as _cd2
+        _day2 = _cd2.day_key()
+        for _v in ("", "cote2"):
+            for _l in (_cd2.today(_day2, sport=(_cur if _cur != "foot" else "foot"), variant=_v) or {}).get("legs") or []:
+                _bet_pairs.add(_prog_pair(_l.get("home", ""), _l.get("away", "")))
+    except Exception:
+        pass
+    _mtb = _montante_today_bet() or {}
+    if _mtb.get("match"):
+        _mh0, _, _ma0 = _noF(str(_mtb.get("match"))).partition(" - ")
+        _bet_pairs.add(_prog_pair(_mh0, _ma0))
+    try:
+        for _d in analyses.list_for(_cur, include_background=True):
+            if (analyses.status_of(_d) == "notstarted"
+                    and (analyses.retained_bet(_cur, _d.get("id")) or {}).get("sel")):
+                _bet_pairs.add(_prog_pair(_d.get("home", ""), _d.get("away", "")))
+    except Exception:
+        pass
+    _upc = [c for c in _upc if _prog_pair(c.get("home", ""), c.get("away", "")) in _bet_pairs]
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur] if analyses.PROVISOIRES_ON else []
     _combo_rows = _combos.get(_cur, [])                         # jambes de combiné EN COURS (cartes simples)
