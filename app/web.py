@@ -2318,7 +2318,9 @@ CSS = """
   .bfx-pushbtn:active{transform:scale(.97)}
   .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
   .zone-t{font-size:17.5px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) + plus GRAND (user 2026-08-17) */
-  .zone-ic{font-size:15px;line-height:1;opacity:.92;margin-right:-3px}   /* icône de catégorie (user 2026-08-19) */
+  .zone-ic{display:inline-flex;align-items:center;color:#9aa6b4;margin-right:-2px}   /* icône SVG monochrome de catégorie (user 2026-08-19) */
+  .zone-ic svg{width:19px;height:19px;display:block}
+  .zone-abst .zone-ic{color:#7f8794}   /* abstention = teinte plus discrète (non-pari) */
   .zone-n{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
@@ -6686,8 +6688,28 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     return out
 
 
-# Icône par catégorie de pari (user 2026-08-19) — identité visuelle, à gauche du titre de zone.
-_ZONE_ICON = {"prog": "📋", "play": "⭐", "value": "💎", "mont": "🪜", "combo": "🎯", "abst": "⏸", "indic": "🧪"}
+# Icône par catégorie de pari (user 2026-08-19 « professionnel ») — glyphes SVG MONOCHROMES (tracé fin, teinte
+# acier uniforme via `currentColor`), à gauche du titre de zone. Plus d'emojis couleur (rendu « grand public »).
+_ZONE_ICON = {
+    "prog": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
+             '<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/>'
+             '<line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.4" fill="currentColor" stroke="none"/>'
+             '<circle cx="4.5" cy="12" r="1.4" fill="currentColor" stroke="none"/>'
+             '<circle cx="4.5" cy="18" r="1.4" fill="currentColor" stroke="none"/></svg>'),
+    "play": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+             'stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6l7-3z"/>'
+             '<path d="M9 12l2 2 4-4"/></svg>'),
+    "value": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+              'stroke-linejoin="round"><path d="M12 3L3 9l9 12 9-12-9-6z"/><path d="M3 9h18"/></svg>'),
+    "mont": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+             'stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M16 7h5v5"/></svg>'),
+    "combo": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+              'stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>'),
+    "abst": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
+             '<line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>'),
+    "indic": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+              'stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5.2 8.4A2 2 0 006.5 21h11a2 2 0 001.7-3.6L14 9V3"/></svg>'),
+}
 
 
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
@@ -8240,9 +8262,9 @@ def _abstention_zone(sport: str = "foot") -> str:
     if not abst:
         # PAS de phrase « aucune abstention » (user 2026-08-19) : l'abstention n'est pas un pari attendu ->
         # juste l'EN-TÊTE de catégorie (divider), sans message ni corps.
-        return ('<section class="zone zone-abst zone-vide">'
-                '<div class="zone-h"><span class="zone-ic">⏸</span><span class="zone-t">Abstention</span></div>'
-                '</section>')
+        return (f'<section class="zone zone-abst zone-vide">'
+                f'<div class="zone-h"><span class="zone-ic">{_ZONE_ICON["abst"]}</span>'
+                f'<span class="zone-t">Abstention</span></div></section>')
     return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst), collapsible=True)
 
 
