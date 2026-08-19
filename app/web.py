@@ -2541,9 +2541,10 @@ CSS = """
   .daycal-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 3px 4px;min-height:20px}   /* espace mois↔calendrier resserré (user 2026-08-19) */
   .daycal-mo{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
        transition:color .2s ease}
-  .daycal-goto{flex:none;font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--accent-ink);
+  .daycal-goto{display:none;flex:none;font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--accent-ink);
        background:linear-gradient(180deg,var(--accent),var(--accent2));border:0;border-radius:20px;
        padding:5px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent;box-shadow:0 4px 14px -6px var(--glow)}
+  .daycal-goto.show{display:inline-flex;align-items:center}   /* visible : jour passé OU cellule AUJ. hors vue (user 2026-08-19) */
   .daycal-goto:active{transform:scale(.94)}
   .daycal-track{display:flex;gap:7px;overflow-x:auto;padding:2px 4px 8px;scroll-snap-type:x proximity;
        -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
@@ -4104,12 +4105,27 @@ _DAYCAL_JS = (
     "var cs=tr.querySelectorAll('.daycal-d'),L=tr.getBoundingClientRect().left+12,i;"
     "for(i=0;i<cs.length;i++){if(cs[i].getBoundingClientRect().right>L){"
     "var my=cs[i].getAttribute('data-my');if(my&&mo.textContent!==my)mo.textContent=my;return;}}}"
+    # BOUTON « Aujourd'hui » : visible si on regarde un JOUR PASSÉ, OU si la cellule AUJ. est SORTIE du calendrier
+    # (scroll horizontal) — user 2026-08-19. Masqué sinon.
+    "function updGoto(){var g=document.querySelector('#daycal .daycal-goto');if(!g)return;"
+    "var on=document.querySelector('#daycal .daycal-d.on');"
+    "var tr=document.querySelector('#daycal .daycal-track');"
+    "var td=document.querySelector('#daycal .daycal-d.today');var show=false;"
+    "if(on&&!on.classList.contains('today')){show=true;}"
+    "else if(td&&tr){var a=td.getBoundingClientRect(),t=tr.getBoundingClientRect();"
+    "if(a.right<=t.left+2||a.left>=t.right-2){show=true;}}"
+    "g.classList.toggle('show',show);}"
+    "function onScroll(){updMo();updGoto();}"
     "function bind(){var tr=document.querySelector('#daycal .daycal-track');"
-    "if(tr&&!tr._mb){tr._mb=1;tr.addEventListener('scroll',updMo,{passive:true});}}"
-    "function sync(){ctr();bind();updMo();}"
+    "if(tr&&!tr._mb){tr._mb=1;tr.addEventListener('scroll',onScroll,{passive:true});}}"
+    "function sync(){ctr();bind();updMo();updGoto();}"
     "document.addEventListener('click',function(e){"
     "var b=e.target.closest('.daycal-d,.daycal-goto');if(!b)return;e.preventDefault();"   # cellule OU bouton « Aujourd'hui »
     "var date=b.getAttribute('data-date');if(!date)return;"
+    # « Aujourd'hui » alors qu'on est DÉJÀ sur aujourd'hui -> RECENTRER seulement (pas de re-fetch -> ne réouvre
+    # PAS les types de paris). user 2026-08-19.
+    "if(b.classList.contains('daycal-goto')){var oc=document.querySelector('#daycal .daycal-d.on');"
+    "if(oc&&oc.classList.contains('today')){ctr();setTimeout(updGoto,350);return;}}"
     "var dc=document.getElementById('day-content');if(!dc)return;"
     "var sc=dc.querySelector('.spsel.on');var sp=sc?sc.getAttribute('data-sport'):'';"
     "dc.style.opacity='.45';"
@@ -6971,9 +6987,10 @@ def _day_calendar(iso: str, sport: str | None = None, days: int = 34) -> str:
             f'<span class="dcd-day">{dd.day}</span>{dot}</button>')
     # EN-TÊTE MOIS/ANNÉE (user 2026-08-19) : contexte du jour affiché, mis à jour au scroll par `_DAYCAL_JS`.
     _hdr_my = f"{_MO_FULL[sel.month - 1].capitalize()} {sel.year}"
-    # BOUTON « AUJOURD'HUI » (user 2026-08-19) : revenir en 1 tap au jour courant quand on regarde un jour passé.
-    _today_btn = ("" if sel == today else
-                  f'<button type="button" class="daycal-goto" data-date="{today.isoformat()}">'
+    # BOUTON « AUJOURD'HUI » (user 2026-08-19) : TOUJOURS rendu (visibilité pilotée par JS `updGoto`) -> visible
+    # dès qu'on regarde un jour passé OU que la cellule AUJ. est sortie du calendrier au scroll. Clic : si on est
+    # déjà sur aujourd'hui, on RECENTRE seulement (pas de re-fetch -> ne réouvre PAS les types de paris).
+    _today_btn = (f'<button type="button" class="daycal-goto" data-date="{today.isoformat()}">'
                   f'Aujourd\'hui</button>')
     return (f'<div class="daycal" id="daycal">'
             f'<div class="daycal-hd"><span class="daycal-mo" id="daycal-mo">{html.escape(_hdr_my)}</span>'
