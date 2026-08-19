@@ -131,16 +131,15 @@ def day_label(d, today) -> str:
     jours = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
     return f"{jours[d.weekday()].capitalize()} {d.strftime('%d/%m')}"
 
-_TYPE_TITLES = {"Confiance", "Value", "Provisoire", "Montante", "Combiné", "Abstention"}
-
-
 def _plur(n, word: str) -> str:
-    """Titre de zone. FINITION PRO (user 2026-08-19) : un TYPE de pari est une CATÉGORIE (le nombre est déjà
-    dans le badge) -> TOUJOURS au SINGULIER (« Value », pas « Values » ; « Confiance », pas « Confiances »).
-    Les autres mots gardent l'accord au pluriel (n > 1)."""
-    if word in _TYPE_TITLES:
+    """Titre de zone. PLURIEL quand PLUSIEURS paris du type (user 2026-08-19 : « les types de paris doivent
+    prendre un s s'il y en a plusieurs »). Le « s » va sur le PREMIER mot (le NOM du type) et laisse le reste
+    intact : « Combinés double chance », « Confiances ». Singulier si n ≤ 1."""
+    if (n or 0) <= 1:
         return word
-    return word + "s" if (n or 0) > 1 else word
+    head, _, tail = word.partition(" ")
+    head = head if head.endswith("s") else head + "s"
+    return head + ((" " + tail) if tail else "")
 
 def fmt_live_clock(mc: dict | None) -> str:
     """Horloge LIVE Unibet (matchClock) -> texte court. Foot : « 51' » / « Mi-temps » ;
@@ -7584,8 +7583,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         except Exception:
             _combo_rec = None
     out += [
-        # ZONE COMBINÉ TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état.
-        _zone("combo", "Combiné", "", _n_combos, combo_daily,
+        # ZONE COMBINÉ TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état. Type = « Combiné double
+        # chance » (user 2026-08-19), au pluriel s'il y en a plusieurs.
+        _zone("combo", _plur(_n_combos, "Combiné double chance"), "", _n_combos, combo_daily,
               collapsible=True, record=_combo_rec,
               empty="Aucun combiné du jour pour l'instant."),
     ]
@@ -7632,18 +7632,19 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
         summ = '<div class="day-sum day-sum-empty">Aucun pari réglé ce jour.</div>'
     # ZONE COMBINÉ = combiné du jour (combo_daily) ET/OU combinés SIDECAR (legacy/CdM). Un combiné a son PROPRE
     # type -> il n'apparaît PLUS dans Confiance (fix user 2026-08-19 : combiné 3 jambes affiché en Confiance le 19/07).
-    _combo_daily_html, _combo_daily_legs = "", None
+    _combo_daily_html, _combo_daily_legs, _n_daily_combo, _dc_res = "", None, 0, []
     if not sport:                                          # combo_daily = « Tous » seulement
         try:
             from app import combo_daily as _cd
             _cards = []
-            cb = _cd.today(iso)                            # SÛR (variant='')
-            if cb and cb.get("legs"):
-                _cards.append(_combo_tg_card(include_settled=True, cb=cb, title="COMBINÉ SÛR"))
-                _combo_daily_legs = [l.get("result") for l in (cb.get("legs") or [])]
-            cb2 = _cd.today(iso, variant="cote2")          # COTE 2 (2ᵉ combiné/jour, user 2026-08-19)
-            if cb2 and cb2.get("legs"):
-                _cards.append(_combo_tg_card(include_settled=True, cb=cb2, title="COMBINÉ COTE 2"))
+            for _cv, _ct in (("", "COMBINÉ SÛR"), ("cote2", "COMBINÉ COTE 2")):
+                _c = _cd.today(iso, variant=_cv)
+                if _c and _c.get("legs"):
+                    _cards.append(_combo_tg_card(include_settled=True, cb=_c, title=_ct))
+                    _dc_res.append(_c.get("result"))
+                    if _combo_daily_legs is None:          # dots par jambe = 1er combiné (si un seul affiché)
+                        _combo_daily_legs = [l.get("result") for l in (_c.get("legs") or [])]
+            _n_daily_combo = len(_cards)
             _combo_daily_html = _MC_SEP.join([h for h in _cards if h])
         except Exception:
             pass
@@ -7651,13 +7652,21 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     _combo_body = _MC_SEP.join([h for h in ([_combo_daily_html] + _combo_sidecar) if h])
     combo = ""
     if _combo_body:
-        if _combo_daily_legs is not None and not _combo_sidecar:   # combiné du jour SEUL -> badge par jambes
-            combo = _zone("combo", "Combiné", "", 1, _combo_body, collapsible=True, open_=False,
-                          zk="pj-combo", leg_results=_combo_daily_legs)
+        if _n_daily_combo and not _combo_sidecar:          # combiné(s) du jour SEUL(s)
+            if _n_daily_combo == 1:                        # un seul -> dots par jambe
+                combo = _zone("combo", _plur(1, "Combiné double chance"), "", 1, _combo_body,
+                              collapsible=True, open_=False, zk="pj-combo", leg_results=_combo_daily_legs)
+            else:                                          # deux -> badge W/L agrégé
+                _w = sum(1 for r in _dc_res if r == "won")
+                _l = sum(1 for r in _dc_res if r == "lost")
+                _rec = (_n_daily_combo, _n_daily_combo - _w - _l, 0, _w, _l, 0)
+                combo = _zone("combo", _plur(_n_daily_combo, "Combiné double chance"), "", _n_daily_combo,
+                              _combo_body, collapsible=True, open_=False, zk="pj-combo", record=_rec)
         else:                                                       # combinés sidecar -> badge gagnés/perdus
             _wc, _lc, _pc = _settled_wl_today(iso, sport, tier="combo")
-            _crec = (_wc + _lc + _pc, 0, 0, _wc, _lc, _pc) if (_wc + _lc + _pc) else None
-            combo = _zone("combo", "Combiné", "", (_wc + _lc + _pc) or 1, _combo_body,
+            _ntot = (_wc + _lc + _pc) + _n_daily_combo
+            _crec = (_ntot, 0, 0, _wc, _lc, _pc) if _ntot else None
+            combo = _zone("combo", _plur(_ntot or 1, "Combiné double chance"), "", _ntot or 1, _combo_body,
                           collapsible=True, open_=False, zk="pj-combo", record=_crec)
     # HISTORIQUE PAR TYPE DE PARI (user 2026-08-19 : « revoir les TYPES de paris et les résultats ») : mêmes
     # cartes riches que l'onglet (verdict/score/Pourquoi, cadre vert/rouge, via `_settled_bet_result_cards`),
