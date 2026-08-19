@@ -8675,52 +8675,25 @@ def render_montante(st: dict, example: dict) -> str:
 
 
 def render_montante_bilan(st: dict, example: dict) -> str:
-    """BILAN MONTANTE pour l'onglet RÉSULTATS (user 2026-08-19) — même cadre/onglet que Confiance/Value/Combiné,
-    mais avec le GRAPHIQUE PROPRE à la montante : multiplicateur ×N + courbe de capital + échelle des paliers
-    + palmarès/historique. PAS le pari du jour (il reste dans Pronos). Hors ROI. Remplace l'onglet Montante."""
+    """BILAN MONTANTE pour l'onglet RÉSULTATS — présenté EXACTEMENT comme Confiance/Value/Combiné (user 2026-08-19 :
+    « vraiment ressemblant aux autres ») : même cadre `.spf-hero` = label + GRAND CHIFFRE + KPIs + courbe + W/L +
+    série + liste d'historique. La seule spécificité montante : le grand chiffre = MULTIPLICATEUR ×N (au lieu du
+    ROI) et la courbe = trajectoire du CAPITAL. Le pari du jour reste dans Pronos. Hors ROI."""
+    from app import montante as _mtn
     base = st.get("base", 10.0)
-    active = st.get("active")
     cap = st.get("capital", base)
-    palier = st.get("palier", 0)
     featured = st.get("featured")
     stats = st.get("stats", {})
-    # COURBE de capital (trajectoire réelle base -> pic) ; repli sur l'exemple si rien de réel.
-    if featured and featured.get("steps"):
-        _fsteps, tag = featured["steps"], ''
-    else:
-        _fsteps = (example or {}).get("steps") or []
-        tag = '<span class="tag">Aperçu · exemple</span>'
+    # GRAND CHIFFRE = MULTIPLICATEUR ×N (analogue du ROI héros des autres onglets). >1 = doré/positif.
+    _q = (cap / base) if base else 1.0
+    _qtxt = f'×{round(_q, 1):g}'.replace(".", ",")
+    _qcls = "pos" if _q > 1.0001 else "na"
+    # COURBE DE CAPITAL (le graphique propre à la montante), dans le MÊME cadre `.sx-equity` que la courbe d'équité.
+    _fsteps = (featured.get("steps") if (featured and featured.get("steps")) else (example or {}).get("steps")) or []
     _caps = [base] + [s.get("payout") for s in _fsteps
                       if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
-    _curve = (f'<div class="mont-curve mont-hero-curve">{_mont_curve(_caps, uid="mbil")}</div>'
-              if len(_caps) >= 2 else "")
-    # HERO — multiplicateur ×N vedette si montante en cours, sinon capital + état.
-    if active and palier > 0:
-        _q = (cap / base) if base else 0
-        _qtxt = f'{round(_q, 1):g}'.replace(".", ",")
-        hero = ('<div class="mont-hero mont-hero-live">'
-                '<div class="mhe">Multiplicateur actuel</div>'
-                f'<div class="mhx">×{_qtxt}</div>'
-                '<div class="mhx-cap">sur la mise de départ</div>'
-                '<div class="mont-prog">'
-                f'<div class="mp-cell"><b>{_mont_eur(base)}</b><span>Départ</span></div>'
-                '<div class="mp-arrow" aria-hidden="true">→</div>'
-                f'<div class="mp-cell"><b class="mp-now">{_mont_eur(cap)}</b>'
-                f'<span>Capital · palier {palier}</span></div></div>' + _curve + '</div>')
-    else:
-        _sub = ('Nouvelle montante — prête pour le pari du jour' if active
-                else 'Mise de départ · prête à démarrer')
-        _chip = ('<span class="mont-chip wait">En attente du pari du jour</span>' if active
-                 else '<span class="mont-chip wait">Bientôt · en préparation</span>')
-        hero = (f'<div class="mont-hero"><div class="mont-hero-l">Capital de la montante</div>'
-                f'<div class="mont-hero-cap">{_mont_eur(cap)}</div>'
-                f'<div class="mont-hero-sub">{_sub}</div>{_chip}{_curve}</div>')
-    ladder = (f'<div class="mont-sec-h">La montante{tag}</div>'
-              '<div class="mont-lead">Chaque palier gagné fait grimper la mise — palier par palier.</div>'
-              f'<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
-    # STATS PRÉSENTÉES COMME LES AUTRES ONGLETS (user 2026-08-19) : KPIs Réussite · Gains · Paris réglés,
-    # série EN COURS + MEILLEURE série (`_streak_text`), et ligne W/L — calculés sur les PARIS montante (steps).
-    from app import montante as _mtn
+    _chart = (f'<div class="sx-equity">{_mont_curve(_caps, uid="mbil")}</div>' if len(_caps) >= 2 else "")
+    # KPIs + série + W/L, calculés sur les PARIS montante (steps) — MÊMES classes que les autres onglets.
     _steps = _mtn.load().get("steps") or []
     _res = [s.get("result") for s in _steps]
     _settled = [r for r in _res if r in ("won", "lost")]
@@ -8744,9 +8717,8 @@ def render_montante_bilan(st: dict, example: dict) -> str:
             f'<div><span class="v">{_nb}</span><span class="l">Paris réglés</span></div></div>')
     _fd = form_dots([{"won": "W", "lost": "L"}.get(r, "N") for r in _res if r], n=16)
     _fdh = f'<div class="spf-cv-form">{_fd}</div>' if _fd else ""
-    stats_block = f'<div class="spf-hero mont-stats">{_kpi}{_fdh}{_streak_text(_streak, _best)}</div>'
-    # HISTORIQUE EN LISTE comme les autres onglets (`_recent_bets_html`) : chaque PARI montante (pastille W/L,
-    # affiche, sélection, cote, date), plus récent en haut. Le coup d'envoi est relu du sidecar (steps sans start).
+    # HISTORIQUE EN LISTE — MÊME composant que les autres onglets (`_recent_bets_html`) : pastille W/L + affiche +
+    # sélection + cote + date, plus récent en haut. Coup d'envoi relu du sidecar (les steps n'ont pas de `start`).
     _rec = []
     for s in reversed(_steps):
         _start = None
@@ -8759,9 +8731,12 @@ def render_montante_bilan(st: dict, example: dict) -> str:
         _rec.append({"name": s.get("match"), "sel": s.get("sel"), "cote": s.get("cote"),
                      "start": _start, "result": s.get("result")})
     _hist_list = _recent_bets_html(_rec)
-    hist = (f'<div class="spf-rec-lbl">Historique des montantes</div>{_hist_list}'
-            if _hist_list else '<div class="mont-empty">L\'historique des paris montante apparaîtra ici.</div>')
-    return f'<div class="mont-bilan">{hero}{stats_block}{ladder}{hist}</div>'
+    _histb = f'<div class="spf-rec-lbl">Historique des montantes</div>{_hist_list}' if _hist_list else ""
+    # CADRE IDENTIQUE aux autres onglets : label + grand chiffre + KPIs + courbe + W/L + série + liste.
+    return ('<div class="spf-hero">'
+            '<div class="spf-hero-lbl">Multiplicateur</div>'
+            f'<div class="spf-hero-roi {_qcls}">{_qtxt}</div>'
+            f'{_kpi}{_chart}{_fdh}{_streak_text(_streak, _best)}{_histb}</div>')
 
 
 _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
