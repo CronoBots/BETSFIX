@@ -2275,10 +2275,7 @@ CSS = """
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
      (point d'état + titre casse normale + compteur + mot-clé), filet fin, aucune barre/majuscule criarde. */
-  .dash-zones{margin-top:4px}
-  /* JOUR COURANT : répartir les types de paris sur la hauteur dispo (user 2026-08-19) — plus de gros vide sous
-     la dernière zone. `space-between` : contenu court -> zones étirées ; contenu long -> pile normale. */
-  .dash-fill{display:flex;flex-direction:column;justify-content:space-between;min-height:calc(100dvh - 360px)}
+  .dash-zones{margin-top:2px}
   /* Sous-nav Résultats (refonte user 2026-07-27) : Bilan / Calendrier segmenté */
   .resnav{display:flex;gap:7px;margin:2px 0 12px}
   .resnav-b{flex:1;padding:9px 6px;border-radius:11px;background:rgba(255,255,255,.04);
@@ -2308,7 +2305,7 @@ CSS = """
      titre ne se DÉCALE PAS au dépli (avant : margin-top du header 17px->0 faisait remonter le titre). */
   .zone-col:not([open]){padding-bottom:9px}
   .zone-col:not([open]) > .zone-h{margin-bottom:0}
-  .dash-zones > .zone + .zone{margin-top:13px}   /* espace entre 2 zones (constant plié/déplié) */
+  .dash-zones > .zone + .zone{margin-top:10px}   /* espace entre 2 zones (constant plié/déplié) */
   .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone OUVERTE : pas d'espace mort avant le pied */
   /* Dernière zone REPLIÉE (ex. Abstention) : garder l'écart trait↔titre (9 px), sinon le trait colle au titre. */
   .dash-zones > .zone-col:not([open]):last-child{padding-bottom:9px}
@@ -2461,6 +2458,11 @@ CSS = """
   .zone-b .dayhdr:first-child{margin-top:4px}
   .zone-empty{font-size:12.5px;color:var(--muted);line-height:1.55;padding:2px 3px 6px}
   .zone-empty b{color:var(--text);font-weight:800}
+  /* ZONE VIDE (message « aucun pari… ») COMPACTE (user 2026-08-19) : titre collé au message -> toutes les
+     catégories + phrases tiennent visibles sur l'écran. */
+  .zone-vide .zone-h{margin-bottom:2px}
+  .zone-vide .zone-b{margin-top:0}
+  .zone-vide .zone-empty{padding:0 3px 3px}
   /* Points/compteurs de zone = MÊME couleur que le CADRE des cartes du type (demande user 2026-07-21) :
      Paris du jour = cyan (cadre .row.pick), Provisoires = blanc (cadre .mc-prov-b), Combiné = vert
      émeraude (cadre .mc-tg-gold vert). Fini le lime/or/violet historiques. */
@@ -2487,7 +2489,7 @@ CSS = """
   .day-hd-sub{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:capitalize}
   /* CALENDRIER HORIZONTAL (haut de Pronos, user 2026-08-19) — bande de dates cliquables, jour sélectionné
      mis en avant (accent du sport), pastille résultat par jour. Scroll horizontal sans barre visible. */
-  .daycal{margin:0 0 16px;position:relative}
+  .daycal{margin:0 0 9px;position:relative}   /* espace réduit au-dessus du 1er titre (Programme), user 2026-08-19 */
   /* En-tête : mois/année (gauche, maj au scroll) + bouton « Aujourd'hui » (droite, si jour passé). */
   .daycal-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 3px 9px;min-height:24px}
   .daycal-mo{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
@@ -6772,7 +6774,7 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
                 f'<summary class="zone-h">{head}<span class="zone-right">{rec}{live_badge}'
                 f'<span class="zone-chev">▾</span></span></summary>'
                 f'<div class="zone-b">{body}</div></details>')
-    return (f'<section class="zone zone-{kind}"><div class="zone-h">{head}'
+    return (f'<section class="zone zone-{kind}{" zone-vide" if _empty_zone else ""}"><div class="zone-h">{head}'
             f'<span class="zone-right">{rec}{live_badge}</span></div>'
             f'<div class="zone-b">{body}</div></section>')
 
@@ -7513,10 +7515,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                       or prov or _prov_res or combo_daily
                       or (_prog_html and _prog_html.strip()) or (_abst_html and _abst_html.strip()))
     inner = _paj_hero() if _day_empty else (_prog_html + "".join(x for x in out if x))
-    # RÉPARTIR LES TYPES SUR LA HAUTEUR (user 2026-08-19) : sur le JOUR COURANT (tous les types affichés, même
-    # vides), on étire la liste pour occuper la hauteur dispo (plus de gros vide sous Value). `dash-fill` = flex
-    # colonne + justify space-between ; quand il y a du contenu, ça se replie naturellement (contenu > min-height).
-    zones = f'<div class="dash-zones{"" if _day_empty else " dash-fill"}">{inner}</div>'
+    # COMPACT (user 2026-08-19) : toutes les catégories + leur phrase doivent tenir VISIBLES sur l'écran (plus de
+    # répartition `space-between` qui poussait Combiné/Abstention hors écran). Empilement serré (CSS compacte les
+    # zones vides + réduit les espaces).
+    zones = f'<div class="dash-zones">{inner}</div>'
     today_iso = _sport_today().isoformat()
     # BADGE nav = paris NON RÉGLÉS du jour (à venir + en cours). `play`/`prov` ne contiennent DÉJÀ que
     # l'actif (les réglés partent dans _res_cards/_prov_res). Le combiné ne compte donc QUE s'il est encore
