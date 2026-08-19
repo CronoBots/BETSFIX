@@ -8223,8 +8223,12 @@ def _abstention_zone(sport: str = "foot") -> str:
     Catégorie à part entière, badge compteur à droite. TOUJOURS affichée (user 2026-08-19) : même vide, avec
     un message d'état (« Aucune abstention… ») visible directement, zone non repliable."""
     _pending, abst = _planning_cards(sport)
-    return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst),
-                 collapsible=True, empty="Aucune abstention pour le moment.")
+    if not abst:
+        # PAS de phrase « aucune abstention » (user 2026-08-19) : l'abstention n'est pas un pari attendu ->
+        # juste l'EN-TÊTE de catégorie (divider), sans message ni corps.
+        return ('<section class="zone zone-abst zone-vide">'
+                '<div class="zone-h"><span class="zone-t">Abstention</span></div></section>')
+    return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst), collapsible=True)
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
