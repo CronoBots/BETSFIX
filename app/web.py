@@ -2554,6 +2554,11 @@ CSS = """
   .daycal-track::-webkit-scrollbar{display:none}
   .daycal-d{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:1px;
        min-width:46px;padding:7px 6px 6px;border:1px solid var(--border);border-radius:13px;
+  }
+  /* AUJOURD'HUI = dernière cellule -> snap à DROITE (user 2026-08-19) : avec snap-align:center le snap la
+     RECENTRAIT (la ramenait vers la gauche) après le scroll à droite. `end` la garde collée au bord droit. */
+  .daycal-d.today{scroll-snap-align:end}
+  .daycal-d{
        background:linear-gradient(180deg,var(--surface),var(--bg2));
        cursor:pointer;position:relative;transition:transform .12s ease,border-color .16s ease,box-shadow .16s ease;
        -webkit-tap-highlight-color:transparent}   /* boutons légèrement plus petits (user 2026-08-19) */
@@ -10630,7 +10635,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # PROCHAINS MATCHS = tous les à-venir MÉLANGÉS (combo + montante + simples), triés par coup d'envoi et
     # DÉDUPLIQUÉS par match (un match repris par 2 types = une seule carte compacte). user 2026-08-19.
     _upcoming_all, _seen_up = [], set()
-    for _c in sorted(_up_combo + _up_mont + _up_conf + _up_val, key=lambda c: c.get("start_ts") or 0):
+    for _c in sorted(_up_combo + _up_mont + _up_conf + _up_val,
+                     key=lambda c: c.get("start_ts") or float("inf")):   # sans heure -> en DERNIER (pas en 1er)
         _pu = _prog_pair(_c.get("home", ""), _c.get("away", ""))
         if _pu in _seen_up:
             continue
