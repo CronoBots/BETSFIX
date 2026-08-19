@@ -8315,7 +8315,7 @@ def _programme_schedule(sport: str = "foot") -> str:
     pending, _abst = _planning_cards(sport)
     if not pending:
         return ""
-    return _zone("prog", "Programme", "", len(pending), _programme_grille(pending), collapsible=True)
+    return _zone("prog", "Programme du jour", "", len(pending), _programme_grille(pending), collapsible=True)
 
 
 def _abstention_zone(sport: str = "foot") -> str:
