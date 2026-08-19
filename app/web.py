@@ -7512,8 +7512,12 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
             from app import combo_daily as _cd
             cb = _cd.today(iso)
             if cb and cb.get("legs"):
+                # BADGE COMBINÉ COLORÉ (user 2026-08-19) : vert si toutes gagnées · rouge si ≥1 perdue (via
+                # `leg_results`, comme la vue du jour) — plus de badge gris. Repliable + REPLIÉ d'office.
                 combo = _zone("combo", "Combiné", "", 1,
-                              _combo_tg_card(include_settled=True, cb=cb))
+                              _combo_tg_card(include_settled=True, cb=cb),
+                              collapsible=True, open_=False,
+                              leg_results=[l.get("result") for l in (cb.get("legs") or [])])
         except Exception:
             combo = ""
     # HISTORIQUE PAR TYPE DE PARI (user 2026-08-19 : « revoir les TYPES de paris et les résultats ») : mêmes
@@ -7530,20 +7534,23 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
         # gris=remboursés. Tout est réglé sur un jour passé -> pas de « à venir »/« live ».
         _w, _l, _p = _settled_wl_today(iso, sport, tier=tier)
         return (_w + _l + _p, 0, 0, _w, _l, _p) if (_w + _l + _p) else None
+    # JOUR PASSÉ : zones REPLIÉES D'OFFICE (user 2026-08-19) -> on voit le calendrier + le bilan + les EN-TÊTES
+    # de type (badge coloré gagnés/perdus), et on déplie le type qu'on veut revoir. `data-zk` distinct « pj-* »
+    # pour ne pas coupler l'état plié avec la vue du jour.
     _zones = []
     if _res_conf:
-        _zones.append(_zone("play", _plur(len(_res_conf), "Confiance"), "", len(_res_conf),
-                            _MC_SEP.join(_res_conf), collapsible=True, record=_rec("confiance")))
+        _zones.append(_zone("play", "Confiance", "", len(_res_conf), _MC_SEP.join(_res_conf),
+                            collapsible=True, open_=False, zk="pj-play", record=_rec("confiance")))
     if _res_value:
-        _zones.append(_zone("value", _plur(len(_res_value), "Value"), "", len(_res_value),
-                            _MC_SEP.join(_res_value), collapsible=True, record=_rec("value")))
+        _zones.append(_zone("value", "Value", "", len(_res_value), _MC_SEP.join(_res_value),
+                            collapsible=True, open_=False, zk="pj-value", record=_rec("value")))
     if _res_mont:
-        _zones.append(_zone("mont", _plur(len(_res_mont), "Montante"), "", len(_res_mont),
-                            _MC_SEP.join(_res_mont), collapsible=True, record=_rec("montante")))
+        _zones.append(_zone("mont", "Montante", "", len(_res_mont), _MC_SEP.join(_res_mont),
+                            collapsible=True, open_=False, zk="pj-mont", record=_rec("montante")))
     if combo:
         _zones.append(combo)
     if _prov_res:
-        _zones.append(_zone("indic", "Provisoire", "", 1, _prov_res, collapsible=True))
+        _zones.append(_zone("indic", "Provisoire", "", 1, _prov_res, collapsible=True, open_=False, zk="pj-indic"))
     cards = "".join(_zones)
     inner = summ + cards
     if not cards:
