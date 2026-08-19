@@ -370,7 +370,7 @@ CSS = """
     .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-width:720px;margin:0 auto;
             padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
             box-shadow:0 -8px 28px rgba(0,0,0,.45)}
-    .wrap{padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px))}
+    .wrap{padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px))}   /* +marge pour que le « 18+ » ne colle pas au menu (user 2026-08-19) */
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
@@ -2276,6 +2276,9 @@ CSS = """
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
      (point d'état + titre casse normale + compteur + mot-clé), filet fin, aucune barre/majuscule criarde. */
   .dash-zones{margin-top:4px}
+  /* JOUR COURANT : répartir les types de paris sur la hauteur dispo (user 2026-08-19) — plus de gros vide sous
+     la dernière zone. `space-between` : contenu court -> zones étirées ; contenu long -> pile normale. */
+  .dash-fill{display:flex;flex-direction:column;justify-content:space-between;min-height:calc(100dvh - 360px)}
   /* Sous-nav Résultats (refonte user 2026-07-27) : Bilan / Calendrier segmenté */
   .resnav{display:flex;gap:7px;margin:2px 0 12px}
   .resnav-b{flex:1;padding:9px 6px;border-radius:11px;background:rgba(255,255,255,.04);
@@ -7446,11 +7449,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _mbr = (_montante_today_bet() or {}).get("result")
     if _mbr in ("won", "lost", "push", "void") and (_mont_rec[0] or 0) == 0:
         _mont_rec = (1, 0, 0, 1 if _mbr == "won" else 0, 1 if _mbr in ("lost", "void", "push") else 0, 0)
-    if play_mont or _mont_settled:
-        # TITRE DE ZONE = « Montante • Palier N » (user 2026-08-18 : le palier vit dans le titre de la zone,
-        # plus dans un cadre au-dessus de la carte). `_mont_title` = « Montante · Palier N » (repli « Montante »).
-        out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "", len(play_mont), _mont_html,
-                         collapsible=True, record=_mont_rec if _mont_rec[0] else None))
+    # ZONE MONTANTE TOUJOURS AFFICHÉE (user 2026-08-19 : « afficher tous les types de paris ») — même vide, avec
+    # un message d'état. Titre = « Montante • Palier N » s'il y a un palier, sinon « Montante ».
+    out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "", len(play_mont), _mont_html,
+                     collapsible=True, record=_mont_rec if _mont_rec[0] else None,
+                     empty="Aucune montante pour le moment."))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
@@ -7489,8 +7492,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         except Exception:
             _combo_rec = None
     out += [
+        # ZONE COMBINÉ TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état.
         _zone("combo", "Combiné", "", 1 if combo_daily else 0, combo_daily,
-              collapsible=True, record=_combo_rec, leg_results=_c_leg_results),
+              collapsible=True, record=_combo_rec, leg_results=_c_leg_results,
+              empty="Aucun combiné pour le moment."),
     ]
     # ABSTENTION en dernier des catégories (ce qu'on ne joue pas). Le PROGRAMME passe EN PREMIER (user
     # 2026-08-17 « Oui » : chaque match commence au programme -> il OUVRE la liste), au-dessus des paris.
@@ -7503,7 +7508,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                       or prov or _prov_res or combo_daily
                       or (_prog_html and _prog_html.strip()) or (_abst_html and _abst_html.strip()))
     inner = _paj_hero() if _day_empty else (_prog_html + "".join(x for x in out if x))
-    zones = f'<div class="dash-zones">{inner}</div>'
+    # RÉPARTIR LES TYPES SUR LA HAUTEUR (user 2026-08-19) : sur le JOUR COURANT (tous les types affichés, même
+    # vides), on étire la liste pour occuper la hauteur dispo (plus de gros vide sous Value). `dash-fill` = flex
+    # colonne + justify space-between ; quand il y a du contenu, ça se replie naturellement (contenu > min-height).
+    zones = f'<div class="dash-zones{"" if _day_empty else " dash-fill"}">{inner}</div>'
     today_iso = _sport_today().isoformat()
     # BADGE nav = paris NON RÉGLÉS du jour (à venir + en cours). `play`/`prov` ne contiennent DÉJÀ que
     # l'actif (les réglés partent dans _res_cards/_prov_res). Le combiné ne compte donc QUE s'il est encore
