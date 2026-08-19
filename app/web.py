@@ -3623,10 +3623,13 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 _SPA_TABS = [("accueil", "/accueil", "🏠", "Accueil"),
              ("home", "/", "📅", "Programme"),   # onglet renommé « Pronos » -> « Programme » (user 2026-08-19)
              ("directs", "/directs", _LIVE_RADAR, "Live"),
-             ("stats", "/stats", "📊", "Résultats")]
+             ("stats", "/stats", "📊", "Résultats"),
+             ("compte", "/compte", "👤", "Compte")]   # bouton compte REMIS en onglet bas-droite (user 2026-08-19)
 # Bouton compte en haut à droite (toutes les pages) : /compte affiche la connexion si déconnecté, le compte
 # sinon -> pas besoin de connaître l'état de session dans le rendu.
-_ACCT_BTN = '<a class="acctbtn" href="/compte" aria-label="Mon compte" title="Mon compte"><span class="ic">👤</span></a>'
+# BOUTON COMPTE HAUT-DROITE RETIRÉ (user 2026-08-19) : le compte est de nouveau un ONGLET de la barre du bas
+# (cf. _SPA_TABS « compte »). Vidé pour ne pas doublonner.
+_ACCT_BTN = ''
 # Compte est un onglet SPA À PART ENTIÈRE : son panneau charge /compte?frag=1 (contenu seul) en AJAX,
 # comme les onglets sport -> bascule sans rechargement. (Plus de _NAV_ONLY : il a son panneau.)
 
@@ -3832,7 +3835,7 @@ _SPA_JS = (
     "if(!panel(t))return;"  # onglet sans panneau SPA (Compte) -> navigation normale (page autonome)
     "e.preventDefault();go(t,true);});}"
     "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
-    "if(!t){var m={'/':'home','/accueil':'accueil','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot','/stats':'stats'};"
+    "if(!t){var m={'/':'home','/accueil':'accueil','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot','/stats':'stats','/compte':'compte'};"
     "t=m[location.pathname]||'home';}go(t,false);});"
     # Filtre temporel des stats : clic sur un bouton période -> recharge le panneau stats (since)
     "P.addEventListener('click',function(e){"
@@ -4100,8 +4103,12 @@ _SPSEL_JS = (
 # dans chaque fragment -> la surbrillance suit toujours le jour affiché).
 _DAYCAL_JS = (
     "(function(){"
+    # AUJOURD'HUI = dernière cellule -> on scrolle le calendrier TOUT À DROITE (user 2026-08-19 : au chargement/
+    # changement d'onglet, la date du jour doit être le plus à droite possible). Un jour PASSÉ sélectionné -> centré.
     "function ctr(){var t=document.querySelector('#daycal .daycal-d.on');"
-    "if(t&&t.scrollIntoView){t.scrollIntoView({inline:'center',block:'nearest'});}}"
+    "var tr=document.querySelector('#daycal .daycal-track');if(!t||!tr)return;"
+    "if(t.classList.contains('today')){tr.scrollLeft=tr.scrollWidth;}"
+    "else if(t.scrollIntoView){t.scrollIntoView({inline:'center',block:'nearest'});}}"
     # EN-TÊTE MOIS : reflète la 1re cellule VISIBLE à gauche (contexte quand on remonte l'historique).
     "function updMo(){var tr=document.querySelector('#daycal .daycal-track');"
     "var mo=document.getElementById('daycal-mo');if(!tr||!mo)return;"
