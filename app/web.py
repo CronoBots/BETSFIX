@@ -10474,12 +10474,11 @@ def _safe_combo_any_live() -> bool:
                for l in (cb.get("legs") or []) if l.get("result") is None)
 
 
-def _combo_live_leg_cards(sport: str = "foot") -> list:
-    """Jambes de combiné(s) du jour EN COURS (live) rendues comme des PARIS SIMPLES (score live + pick DC) —
-    pour la zone Combiné de l'onglet Live (user 2026-08-19 : « afficher les jambes de combiné en live seulement
-    comme un pari simple mais dans le type Combiné »). Sûr + Cote 2, DÉDUPLIQUÉES par match. Le cache score live
-    est déjà chaud (fetch_live_odds appelé avant render_directs) -> lecture sync. Renvoie une liste de dicts
-    `foot._card` (rendus par `_sport_row`). [] si aucune jambe en cours."""
+def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
+    """Cartes des jambes de combiné(s) du jour NON RÉGLÉES, rendues comme des PARIS SIMPLES (pick DC + ligue) —
+    zone Combiné de Live (user 2026-08-19). `want_live` True -> jambes EN COURS (score live) ; False -> jambes
+    À VENIR (décompte). Sûr + Cote 2, DÉDUPLIQUÉES par match. Cache score live chaud -> lecture sync. Renvoie
+    des dicts `foot._card` (rendus par `_sport_row`). [] si rien dans l'état demandé."""
     from app import combo_daily as _cd, foot as _foot
     import datetime as _dt
     day = _cd.day_key()
@@ -10489,13 +10488,14 @@ def _combo_live_leg_cards(sport: str = "foot") -> list:
         if not cb:
             continue
         for l in cb.get("legs") or []:
-            if l.get("result") is not None:            # jambe déjà réglée -> pas live
+            if l.get("result") is not None:            # jambe déjà réglée
                 continue
             _pair = _prog_pair(l.get("home", ""), l.get("away", ""))
             if _pair in seen:                          # même match dans Sûr ET Cote 2 -> une seule carte
                 continue
             lf = live_fields(match_select.live_state_for(sport, l.get("home", ""), l.get("away", "")), sport)
-            if not lf.get("score"):                    # pas de score live -> pas en cours
+            _is_live = bool(lf.get("score"))
+            if _is_live != want_live:                  # on ne garde que l'état demandé (live OU à venir)
                 continue
             seen.add(_pair)
             _sel, _odds = l.get("sel"), l.get("cote")
@@ -10505,16 +10505,15 @@ def _combo_live_leg_cards(sport: str = "foot") -> list:
             except (ValueError, TypeError):
                 _sts = 0
             rows.append(_foot._card({
-                "id": l.get("mid"), "status": "inprogress", "comp": l.get("comp"),
+                "id": l.get("mid"), "status": "inprogress" if _is_live else "notstarted", "comp": l.get("comp"),
                 "home": l.get("home", ""), "away": l.get("away", ""), "probs": None, "goals": None,
                 "o1": None, "ox": None, "o2": None, "imp": None, "pick": None, "start": _sts,
                 "votes": None, "perle": _perle, "perle2": None, "perle_value": None,
-                "pick_kind": "confiance", "sofa_ok": True, **lf}))
+                "pick_kind": "confiance", "sofa_ok": True, **(lf if _is_live else {})}))
     return rows
 
 
-def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False,
-                   upcoming: list | None = None) -> str:
+def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
     """Onglet « Directs » : matchs EN DIRECT groupés par TYPE de pari (Combiné · Paris joués · Provisoires).
     SÉLECTEUR DE SPORT en tête (demande user 2026-07-28, comme Pronos) : cliquer un sport recharge le panneau
     `#pn-directs` via /directs?sport=<sk> et ne montre QUE les matchs live de ce sport. `play_live` = paris
@@ -10532,7 +10531,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     for _sk in ("foot", "tennis", "basket"):
         # JAMBES DE COMBINÉ EN COURS (user 2026-08-19) : au lieu de la carte combiné COMPLÈTE, on liste les
         # JAMBES live comme des paris simples (dans la zone Combiné). Foot uniquement. Compteur = nb de jambes live.
-        _combos[_sk] = _combo_live_leg_cards(_sk) if _sk == "foot" else []
+        _combos[_sk] = _combo_leg_cards(_sk, want_live=True) if _sk == "foot" else []
         _counts[_sk] = (sum(1 for c in play_live if _item_sport(c) == _sk)
                         + sum(1 for c in prov_live if c.get("_sport") == _sk)
                         + len(_combos[_sk]))
@@ -10562,34 +10561,57 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     _counts["foot"] += ((1 if _safe_combo else 0) + _mont_extra)
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
-    _upc = [c for c in (upcoming or []) if _item_sport(c) == _cur]   # PROCHAINS matchs (à venir) du sport
-    # SEULEMENT ceux REPRIS PAR UN TYPE DE PARI (user 2026-08-19) : jambes de combiné (Sûr + Cote 2) + pari
-    # montante + paris simples retenus -> on filtre les matchs du programme sur ces paires (le reste du programme
-    # n'apparaît PAS dans Live). Vide -> aucun « prochain match » (normal si rien n'est encore parié).
-    _bet_pairs: set = set()
-    try:
-        from app import combo_daily as _cd2
-        _day2 = _cd2.day_key()
-        for _v in ("", "cote2"):
-            for _l in (_cd2.today(_day2, sport=(_cur if _cur != "foot" else "foot"), variant=_v) or {}).get("legs") or []:
-                _bet_pairs.add(_prog_pair(_l.get("home", ""), _l.get("away", "")))
-    except Exception:
-        pass
-    _mtb = _montante_today_bet() or {}
-    if _mtb.get("match"):
-        _mh0, _, _ma0 = _noF(str(_mtb.get("match"))).partition(" - ")
-        _bet_pairs.add(_prog_pair(_mh0, _ma0))
-    try:
-        for _d in analyses.list_for(_cur, include_background=True):
-            if (analyses.status_of(_d) == "notstarted"
-                    and (analyses.retained_bet(_cur, _d.get("id")) or {}).get("sel")):
-                _bet_pairs.add(_prog_pair(_d.get("home", ""), _d.get("away", "")))
-    except Exception:
-        pass
-    _upc = [c for c in _upc if _prog_pair(c.get("home", ""), c.get("away", "")) in _bet_pairs]
+    # PROCHAINS MATCHS (user 2026-08-19) : les matchs À VENIR repris par un pari, en CARTES DE PRONO (décompte +
+    # ligue + pick, pas « vs ») et CLASSÉS PAR TYPE -> fusionnés dans les zones Confiance/Value/Combiné/Montante
+    # avec les live. Combiné = jambes à venir ; Montante = palier du jour non commencé ; simples = paris retenus.
+    from app import foot as _foot_up
+    import datetime as _dtu
+    _up_combo = _combo_leg_cards(_cur, want_live=False) if _cur == "foot" else []
+    _up_conf, _up_val, _up_mont = [], [], []
+    for _d in analyses.list_for(_cur, include_background=True):     # SIMPLES à venir (Confiance/Value)
+        if analyses.status_of(_d) != "notstarted":
+            continue
+        if not (analyses.retained_bet(_cur, _d.get("id")) or {}).get("sel"):
+            continue
+        if analyses.bet_tier_for(_cur, _d.get("id")) == "montante":  # montante gérée à part (source fiable)
+            continue
+        if live_fields(match_select.live_state_for(_cur, _d.get("home"), _d.get("away")), _cur).get("score"):
+            continue                                                # déjà live
+        _dt2 = _d.get("_start_dt")
+        _s2, _o = analyses.pick_parts(_d.get("pick") or "")
+        _o1, _ox, _o2 = _d.get("o1"), _d.get("ox"), _d.get("o2")
+        _c2 = _foot_up._card({
+            "id": _d.get("sofa_id") or _d.get("id"), "status": "notstarted", "comp": _d.get("comp"),
+            "home": _d.get("home", ""), "away": _d.get("away", ""), "probs": None, "goals": None,
+            "o1": _o1, "ox": _ox, "o2": _o2,
+            "imp": _foot_up._devig3(_o1, _ox, _o2) if (_o1 and _ox and _o2) else None,
+            "pick": None, "start": _dt2.timestamp() if _dt2 else 0, "votes": analyses.votes_pct(_d),
+            "perle": ({"selection": _s2, "odds": _o} if (_s2 and _o and _o >= 1.10) else None),
+            "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True})
+        (_up_val if _c2.get("tier") == "value" else _up_conf).append(_c2)
+    if _cur == "foot":                                              # MONTANTE à venir (palier du jour non commencé)
+        _mtu = _montante_today_bet() or {}
+        if _mtu.get("mid") and _mtu.get("result") is None:
+            _mtd = analyses.meta("foot", str(_mtu["mid"])) or {}
+            if not live_fields(match_select.live_state_for(
+                    "foot", _mtd.get("home") or "", _mtd.get("away") or ""), "foot").get("score"):
+                _mh2, _, _ma2 = _noF(str(_mtu.get("match") or "")).partition(" - ")
+                try:
+                    _msts = _dtu.datetime.fromisoformat(str(_mtd.get("start")).replace("Z", "+00:00")).timestamp()
+                except (ValueError, TypeError):
+                    _msts = 0
+                _up_mont.append(_foot_up._card({
+                    "id": _mtu.get("mid"), "status": "notstarted", "comp": _mtd.get("comp"),
+                    "home": _mtd.get("home") or _mh2, "away": _mtd.get("away") or _ma2, "probs": None,
+                    "goals": None, "o1": None, "ox": None, "o2": None, "imp": None, "pick": None,
+                    "start": _msts, "votes": None,
+                    "perle": {"selection": _mtu.get("sel"), "odds": _mtu.get("cote")},
+                    "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True}))
+    for _lst in (_up_conf, _up_val, _up_mont, _up_combo):
+        _lst.sort(key=lambda c: c.get("start_ts") or 0)
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur] if analyses.PROVISOIRES_ON else []
-    _combo_rows = _combos.get(_cur, [])                         # jambes de combiné EN COURS (cartes simples)
+    _combo_rows = list(_combos.get(_cur, [])) + _up_combo   # jambes de combiné : EN COURS + À VENIR
     _combo = _join_cards([_sport_row(r) for r in _combo_rows])   # rendu HTML pour la zone Combiné
     _safe_combo = _safe_combo if _cur == "foot" else ""   # combinés hors-ROI = foot uniquement
     if _cur != "foot":
@@ -10611,7 +10633,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _mont_tier_live = analyses.bet_tier_for("foot", str((_montante_today_bet() or {}).get("mid") or ""))
         _play = list(_play) + [{"_html": _mont_deco, "start_ts": (_md0 or {}).get("start_ts") or 0,
                                 "status": "inprogress", "tier": _mont_tier_live}]   # montante classée par son tier
-    if not (_play or _prov or _combo or _safe_combo or _upc):
+    if not (_play or _prov or _combo or _safe_combo or _up_conf or _up_val or _up_mont):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -10625,33 +10647,31 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     else:
         # MÊMES TYPES QUE PRONOS : Confiance (montante incluse) → Value → Provisoire → Combiné. Split
         # Confiance/Value par le `tier` de chaque carte (user 2026-08-09) ; Value masquée si vide / split off.
-        _play_c = [c for c in _play if c.get("tier") == "confiance"]   # montante EXCLUE (zone dédiée)
-        _play_v = [c for c in _play if c.get("tier") == "value"]
-        _play_m = [c for c in _play if c.get("tier") == "montante"]     # ZONE MONTANTE à part (user 2026-08-12)
+        # LIVE + À VENIR fusionnés par type (user 2026-08-19) : chaque zone montre les paris en cours ET les
+        # prochains (cartes de prono : décompte + ligue + pick). Les cartes portent leur propre état (score/décompte).
+        _play_c = [c for c in _play if c.get("tier") == "confiance"] + _up_conf
+        _play_v = [c for c in _play if c.get("tier") == "value"] + _up_val
+        _play_m = [c for c in _play if c.get("tier") == "montante"] + _up_mont   # zone MONTANTE à part
         # ZONES REPLIABLES comme PRONOS (user 2026-08-18 « meilleure répartition verticale des types de paris
         # pour utiliser l'écran ») : mêmes dividers/chevron/badge-à-droite qu'en Pronos. OUVERTES par défaut
         # (on veut voir les scores live) ; clés de persistance `live-*` DISTINCTES -> replier une zone en Live
         # n'affecte PAS la même zone en Pronos (et vice-versa).
         _lz = dict(collapsible=True, open_=True)
-        out = [_zone("play", _plur(len(_play_c), "Confiance"), "en direct", len(_play_c), _cards(_play_c),
+        # Tag « en direct » RETIRÉ des titres (les zones mêlent live + à venir 2026-08-19) : chaque carte porte
+        # son état (score live ou décompte). Zones classées par type comme Pronos.
+        out = [_zone("play", _plur(len(_play_c), "Confiance"), "", len(_play_c), _cards(_play_c),
                      zk="live-play", **_lz)]
         if _play_v:
-            out.append(_zone("value", "Value", "en direct", len(_play_v), _cards(_play_v), zk="live-value", **_lz))
+            out.append(_zone("value", "Value", "", len(_play_v), _cards(_play_v), zk="live-value", **_lz))
         if _play_m:
-            # TITRE DE ZONE = « Montante • Palier N » (comme Pronos), pas un simple « Montante ».
-            out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "en direct",
+            out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "",
                              len(_play_m), _cards(_play_m), zk="live-mont", **_lz))
         out += [
-            _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
+            _zone("indic", _plur(len(_prov), "Provisoire"), "", len(_prov), _cards(_prov),
                   zk="live-indic", **_lz),
-            _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "en direct",
+            _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "",
                   len(_combo_rows), _combo, zk="live-combo", **_lz),
         ]
-        # PROCHAINS MATCHS (user 2026-08-19) : les matchs à venir (non commencés) avec un pari, triés par coup
-        # d'envoi -> on anticipe ce qui va passer en direct. Zone dédiée EN DERNIER (après les zones live).
-        if _upc:
-            out.append(_zone("prog", "Prochains matchs", "à venir", len(_upc), _cards(_upc),
-                             zk="live-upc", **_lz))
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
     # Compteur TOUS sports -> BADGE chiffré du menu du bas (marqueur `.dv-nav` lu par le JS SPA).

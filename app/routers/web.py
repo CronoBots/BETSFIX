@@ -855,14 +855,12 @@ async def directs_page(
     # provisoires en cours (prov_live), TOUS sports mélangés — le sport reste lisible via l'en-tête coloré.
     # PROVISOIRES retirés du produit (user 2026-08-11) : plus construits ni comptés (sinon un provisoire
     # d'hier resté « en cours » gonflait le badge Live sans rien afficher). Réversible via PROVISOIRES_ON.
-    _prog_items = web._programme_items(set())   # matchs du PROGRAMME (cartes _html) : live + à venir
-    prov_live = ([it for it in _prog_items if it.get("_live")] if analyses.PROVISOIRES_ON else [])
+    prov_live = ([it for it in web._programme_items(set()) if it.get("_live")]
+                 if analyses.PROVISOIRES_ON else [])
     play_live = await _live_cards("foot")
-    # PROCHAINS MATCHS (user 2026-08-19) : les matchs du programme ENCORE À VENIR (non live) -> même source que
-    # la « Programme du jour » de Pronos (inclut les matchs pas encore analysés, absents de list_for). Triés par KO.
-    upcoming = sorted([it for it in _prog_items if not it.get("_live")],
-                      key=lambda it: it.get("start_ts") or 0)
-    body = web.render_directs(play_live, prov_live, sport=sp, upcoming=upcoming, frag=bool(frag))
+    # PROCHAINS MATCHS À VENIR : construits DANS render_directs depuis les paris (combo/montante/simples), en
+    # cartes de prono classées par type (user 2026-08-19) -> plus besoin de passer une liste `upcoming` ici.
+    body = web.render_directs(play_live, prov_live, sport=sp, frag=bool(frag))
     if frag:
         fragcache.put(f"panel/directs/{sp}", body, ttl=PANEL_TTL)
     return HTMLResponse(body)
