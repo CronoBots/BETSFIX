@@ -308,6 +308,32 @@ def _why_bullets_html(d: dict, e) -> str:
     return '<ul class="swhy">' + "".join(f"<li>{e(p)}</li>" for p in _pts) + "</ul>"
 
 
+def why_caption(d: dict, header: str = "💡 Pourquoi ce choix") -> str:
+    """Le « pourquoi » du pari formaté en LÉGENDE Telegram (texte SOUS l'image, user 2026-08-19) : en-tête gras
+    + analyse en puces « • ». HTML (send_photo_sync = parse_mode HTML). Borné à ~1000 car. en coupant à une
+    PUCE ENTIÈRE (jamais au milieu d'une balise -> pas d'HTML cassé). '' si pas d'analyse."""
+    _txt = str(d.get("why") or "").strip()
+    if not _txt:
+        return ""
+    _raw = [s.strip() for s in re.split(r"(?<=[.!?…])\s+", _txt) if s.strip()]
+    _pts: list = []
+    for _s in _raw:                                        # même regroupement que _why_bullets_html
+        if _pts and len(_pts[-1]) < 25:
+            _pts[-1] = f"{_pts[-1]} {_s}"
+        else:
+            _pts.append(_s)
+    _head = f"<b>{_html.escape(header)}</b>"
+    out, cur, _LIM = [_head, ""], len(_head) + 2, 1000     # marge sous la limite Telegram (1024)
+    for p in _pts:
+        seg = f"• {_html.escape(p)}"
+        if cur + len(seg) + 1 > _LIM:
+            out.append("…")
+            break
+        out.append(seg)
+        cur += len(seg) + 1
+    return "\n".join(out)
+
+
 def _simple_card_html(d: dict) -> str:
     """Carte de PARI SIMPLE façon SITE (user 2026-08-17) : logo BETSFIX + badge TYPE (Confiance/Value),
     ligue + pays centrés, logos + heure au centre, le pari, barre de confiance (zone edge), grille verdict
@@ -350,7 +376,9 @@ def _simple_card_html(d: dict) -> str:
         + f'<div class="vgrid">{_cells}</div>'           # GRILLE d'abord
         + f'{_bar}'                                       # BARRE SOUS les stats (comme le site, user 2026-08-17)
         + '</div>'
-        + _why_bullets_html(d, e))                        # ANALYSE COMPLÈTE en puces, sous le cadre
+        # « POURQUOI » RETIRÉ DE L'IMAGE quand `_no_why` (user 2026-08-19) : sur Telegram, l'analyse est
+        # désormais envoyée en LÉGENDE (texte sous l'image, via `why_caption`), plus dans l'image.
+        + ("" if d.get("_no_why") else _why_bullets_html(d, e)))
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard">{inner}</div></body></html>')
 

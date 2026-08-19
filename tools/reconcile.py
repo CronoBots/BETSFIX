@@ -66,9 +66,11 @@ async def _repost(d: dict) -> bool:
         if not card:                       # pas de value à publier -> normal, on n'envoie rien
             return False
         os.makedirs("data/_cards", exist_ok=True)
+        card["_no_why"] = True                      # image SANS pourquoi -> analyse en LÉGENDE (user 2026-08-19)
+        _cap = card_image.why_caption(card)
         png = f"data/_cards/reconcile_{d.get('sport')}_{d.get('id')}.png"
         await card_image.render_card(card, png)
-        sent = notify.send_photo_sync(png, "")
+        sent = notify.send_photo_sync(png, _cap)
         if sent:
             notify.remember_prono(card.get("_mid") or str(d.get("id")), sent, card.get("match"))
             return True
