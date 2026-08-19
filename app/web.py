@@ -8717,11 +8717,7 @@ def render_montante_bilan(st: dict, example: dict) -> str:
         elif r == "lost":
             _cur = 0
     _, _streak = _form_streak(_res)                    # série EN COURS (run final)
-    _tp = stats.get("total_profit", 0.0) or 0.0
-    _gcls = "pos" if _tp >= 0 else "neg"
-    _gtxt = f'{"+" if _tp >= 0 else "−"}{_mont_eur(abs(_tp))}'
-    # PLUS GROS GAIN (user 2026-08-19 : au lieu de « Paris réglés ») = meilleur capital atteint. COTE MOYENNE
-    # des paris montante réglés (user 2026-08-19 : « la stat cote moyenne aussi »).
+    # KPIs (user 2026-08-19) : GAINS RETIRÉ. Réussite · Plus gros gain (meilleur capital atteint) · Cote moyenne.
     _bestg = stats.get("best_capital", base)
     _cotes = [s.get("cote") for s in _steps
               if s.get("result") in ("won", "lost") and isinstance(s.get("cote"), (int, float))]
@@ -8729,10 +8725,13 @@ def render_montante_bilan(st: dict, example: dict) -> str:
     _kpi = ('<div class="spf-hero-kpis">'
             f'<div><span class="v arec-{_pct_class(_hit)}">{_hit if _hit is not None else "—"}%</span>'
             '<span class="l">Réussite</span></div>'
-            f'<div><span class="v arec-{_gcls}">{_gtxt}</span><span class="l">Gains</span></div>'
             f'<div><span class="v arec-pos">{_mont_eur(_bestg)}</span><span class="l">Plus gros gain</span></div>'
             f'<div><span class="v">{_avgc if _avgc is not None else "—"}</span>'
             '<span class="l">Cote moyenne</span></div></div>')
+    # COURBES « Taux de réussite » + « Cote moyenne » (user 2026-08-19), comme les autres onglets. Warmup abaissé
+    # (montante ~1 pari/jour -> on montre les courbes sans attendre 13 paris).
+    _curves = (_rate_block(_hit_curve(_res), "mbil", warmup=3)
+               + _cote_block(_cote_curve([(s.get("result"), s.get("cote")) for s in _steps]), "mbil", warmup=3))
     _fd = form_dots([{"won": "W", "lost": "L"}.get(r, "N") for r in _res if r], n=16)
     _fdh = f'<div class="spf-cv-form">{_fd}</div>' if _fd else ""
     # HISTORIQUE EN LISTE — MÊME composant que les autres onglets (`_recent_bets_html`) : pastille W/L + affiche +
@@ -8754,7 +8753,7 @@ def render_montante_bilan(st: dict, example: dict) -> str:
     return ('<div class="spf-hero">'
             '<div class="spf-hero-lbl">Multiplicateur</div>'
             f'<div class="spf-hero-roi {_qcls}">{_qtxt}</div>'
-            f'{_kpi}{_chart}{_fdh}{_streak_text(_streak, _best)}{_histb}</div>')
+            f'{_kpi}{_chart}{_curves}{_fdh}{_streak_text(_streak, _best)}{_histb}</div>')
 
 
 _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
