@@ -1988,17 +1988,35 @@ async def _settle_analyses_impl() -> int:
                     _mt = f"{_fr_date(_d0)} · {_d0.strftime('%H:%M')}"
                 except ValueError:
                     pass
-                notify_cards.append({
-                    "emoji": _emo, "_mid": mid, "cat": f"{_sn} · {d['comp']}" if d.get("comp") else _sn,
-                    "match": str(_match).replace(" - ", " — "),
-                    "meta": (f"terminé · {_mt}" if _mt else "terminé"),
-                    "type": "result", "score": _sc,
-                    "simple": _card_simple, "combo": _card_combo,
-                    # AUTO-RÉPARATION : si une carte résultat a DÉJÀ été postée pour ce match (règlement
-                    # corrigé -> reset puis re-règlement), on garde ses message_id pour la SUPPRIMER avant
-                    # de poster la version corrigée (plus de « perdu » fantôme qui traîne dans le canal).
-                    "_old_result_msg": d.get("result_msg"),
-                    "_side": side, "_flags": list(_flags_to_set)})   # R2 : flags figés APRÈS envoi
+                # CARTE RÉSULTAT « FAÇON SITE » (fix user 2026-08-19 « la carte n'est pas celle qu'on a faite ;
+                # les VALUE réglés en CONFIANCE ») : on délègue à `card_data.build_result_card` -> carte COMPLÈTE
+                # avec le VRAI tier (Confiance/Value), la grille conf/edge/value/cote, logos + glose. L'ancienne
+                # carte inline {label,cote,mark} n'avait PAS de `tier` -> card_image retombait sur « CONFIANCE »
+                # par défaut (TOUS les value affichés confiance). Repli sur la carte minimale si le build échoue.
+                _rcard = None
+                try:
+                    from app import card_data as _cdres
+                    _rcard = _cdres.build_result_card(d)
+                    if _rcard and _rcard.get("simple"):
+                        _rcard["combo"] = None      # Telegram = SIMPLE foot seul (le combiné a son propre canal)
+                    else:
+                        _rcard = None               # pas de simple exploitable -> repli minimal
+                except Exception as _rce:
+                    log.warning("build_result_card échouée, repli carte minimale : %s", _rce)
+                    _rcard = None
+                if _rcard is None:
+                    _rcard = {"emoji": _emo, "_mid": mid,
+                              "cat": f"{_sn} · {d['comp']}" if d.get("comp") else _sn,
+                              "match": str(_match).replace(" - ", " — "),
+                              "meta": (f"terminé · {_mt}" if _mt else "terminé"),
+                              "type": "result", "score": _sc, "simple": _card_simple, "combo": _card_combo}
+                # AUTO-RÉPARATION : si une carte résultat a DÉJÀ été postée pour ce match (règlement corrigé ->
+                # reset puis re-règlement), on garde ses message_id pour la SUPPRIMER avant de poster la version
+                # corrigée (plus de « perdu » fantôme qui traîne dans le canal). + R2 : flags figés APRÈS envoi.
+                _rcard["_old_result_msg"] = d.get("result_msg")
+                _rcard["_side"] = side
+                _rcard["_flags"] = list(_flags_to_set)
+                notify_cards.append(_rcard)
             try:
                 json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
                 n += 1
