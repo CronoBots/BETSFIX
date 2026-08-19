@@ -2318,6 +2318,7 @@ CSS = """
   .bfx-pushbtn:active{transform:scale(.97)}
   .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
   .zone-t{font-size:17.5px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) + plus GRAND (user 2026-08-17) */
+  .zone-ic{font-size:15px;line-height:1;opacity:.92;margin-right:-3px}   /* icône de catégorie (user 2026-08-19) */
   .zone-n{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
@@ -2327,6 +2328,7 @@ CSS = """
   /* Compteur simple d'une zone SANS win/loss (Programme / Abstention) — même pastille que Confiance/Value. */
   /* Compteur GRIS neutre par défaut (Programme ET Abstention, user 2026-08-17 : « numéro dans badge gris »). */
   .zone-rec .zrn{color:#0e141b;background:#9aa6b4;padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}  /* Programme + Abstention = badge GRIS, écriture noire (user 2026-08-18) */
+  .zone-rec .zr-wait{color:#8b93a2;background:rgba(255,255,255,.05);padding:1px 8px;border-radius:9px;font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--border)}   /* badge « en attente » des zones vides (user 2026-08-19) */
   /* Carte de match SANS pari (Programme « à analyser » / Abstention) : ligne de statut centrée à la place du pari. */
   .mc-statcard .mc-sub{padding-right:0}
   /* CADRE des cartes sans pari (user 2026-08-17) : Programme = BLEU, Abstention = GRIS (au lieu du doré par défaut). */
@@ -6684,6 +6686,10 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     return out
 
 
+# Icône par catégorie de pari (user 2026-08-19) — identité visuelle, à gauche du titre de zone.
+_ZONE_ICON = {"prog": "📋", "play": "⭐", "value": "💎", "mont": "🪜", "combo": "🎯", "abst": "⏸", "indic": "🧪"}
+
+
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
           record: tuple | None = None, zk: str | None = None,
@@ -6746,6 +6752,10 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     # de matchs, avec le MÊME badge que Confiance/Value (pastille `.zr`), pour l'homogénéité des catégories.
     if not chips and count > 0:
         chips = f'<span class="zr zrn">{count}</span>'
+    # ZONE VIDE (user 2026-08-19) : badge « en attente » discret à droite du titre -> chaque catégorie a un
+    # badge (comme Programme), au lieu d'un titre nu.
+    if _empty_zone and not chips:
+        chips = '<span class="zr zr-wait">en attente</span>'
     if chips:
         rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
@@ -6764,7 +6774,11 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         t = ""
     # TITRE + tag à GAUCHE ; le BADGE compteur (rec) + le chevron sont poussés À DROITE (user 2026-08-17 :
     # « ce badge doit être aligné à droite près de la flèche qui déplie »). `.zone-right{margin-left:auto}`.
-    head = (f'<span class="zone-t">{html.escape(title)}</span>{t}')   # point (.zone-dot) retiré (user 2026-08-08)
+    # ICÔNE de catégorie (user 2026-08-19) : identité visuelle par type (⭐ Confiance · 💎 Value · 🪜 Montante
+    # · 🎯 Combiné · ⏸ Abstention · 📋 Programme), discrète à gauche du titre.
+    _ic = _ZONE_ICON.get(kind, "")
+    _ich = f'<span class="zone-ic">{_ic}</span>' if _ic else ""
+    head = (f'{_ich}<span class="zone-t">{html.escape(title)}</span>{t}')   # point (.zone-dot) retiré (user 2026-08-08)
     if collapsible:
         op = " open" if open_ else ""
         # `data-zk` = clé de persistance du repli (localStorage, JS `_CAL_JS`) : ton choix plier/déplier
@@ -7438,14 +7452,14 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out.append(_zone("play", _plur(len(play_conf) + len(_res_conf), "Confiance"), "",
                      len(play_conf) + len(_res_conf), _conf_html,
                      collapsible=True, record=_conf_rec if _conf_rec[0] else None,
-                     empty="Aucun pari de confiance pour le moment."))
+                     empty="Aucune sélection à haute confiance pour l'instant."))
     # ZONE VALUE — toujours affichée (user 2026-08-17).
     _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value)) if h])
     _value_rec = _tier_rec(play_value, "value")
     out.append(_zone("value", _plur(len(play_value) + len(_res_value), "Value"), "",
                      len(play_value) + len(_res_value), _value_html,
                      collapsible=True, record=_value_rec if _value_rec[0] else None,
-                     empty="Aucun pari de value pour le moment."))
+                     empty="Aucun pari de value détecté pour l'instant."))
     # ZONE MONTANTE (dédiée, user 2026-08-12) : à venir/live (play_mont) + réglée (_mont_settled). Plus jamais
     # fondue dans Confiance/Value. La carte garde son cadre bleu + titre « MONTANTE • PALIER N ».
     _mont_html = _MC_SEP.join([h for h in (_rows_by_day(play_mont), _mont_settled) if h])
@@ -7461,7 +7475,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # un message d'état. Titre = « Montante • Palier N » s'il y a un palier, sinon « Montante ».
     out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "", len(play_mont), _mont_html,
                      collapsible=True, record=_mont_rec if _mont_rec[0] else None,
-                     empty="Aucune montante pour le moment."))
+                     empty="Aucun palier engagé pour l'instant."))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
@@ -7503,7 +7517,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         # ZONE COMBINÉ TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état.
         _zone("combo", "Combiné", "", 1 if combo_daily else 0, combo_daily,
               collapsible=True, record=_combo_rec, leg_results=_c_leg_results,
-              empty="Aucun combiné pour le moment."),
+              empty="Aucun combiné du jour pour l'instant."),
     ]
     # ABSTENTION en dernier des catégories (ce qu'on ne joue pas). Le PROGRAMME passe EN PREMIER (user
     # 2026-08-17 « Oui » : chaque match commence au programme -> il OUVRE la liste), au-dessus des paris.
@@ -8227,7 +8241,8 @@ def _abstention_zone(sport: str = "foot") -> str:
         # PAS de phrase « aucune abstention » (user 2026-08-19) : l'abstention n'est pas un pari attendu ->
         # juste l'EN-TÊTE de catégorie (divider), sans message ni corps.
         return ('<section class="zone zone-abst zone-vide">'
-                '<div class="zone-h"><span class="zone-t">Abstention</span></div></section>')
+                '<div class="zone-h"><span class="zone-ic">⏸</span><span class="zone-t">Abstention</span></div>'
+                '</section>')
     return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst), collapsible=True)
 
 
