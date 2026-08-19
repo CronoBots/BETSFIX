@@ -10334,6 +10334,10 @@ def _sport_row(r: dict) -> str:
         _rcls = ""
     # (La montante est injectée en carte dédiée EN TÊTE de Confiance + exclue de play -> plus de décoration
     #  in-place ici, cf. _today_zones. user 2026-08-08.)
+    # CARTE COMPACTE NON CLIQUABLE (user 2026-08-19 : prochains lives) : plate (pas de corps), classe `prog-card`
+    # -> curseur normal, aucun déploiement d'analyse. On sort AVANT le cas cliquable.
+    if r.get("_compact"):
+        return (f'<div class="row pick mc mc-flat prog-card{_rcls}">{head}</div>')
     if _no_expand:
         return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
@@ -10691,11 +10695,13 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "",
                   len(_combo_rows), _combo, zk="live-combo", **_lz),
         ]
-        # PROCHAINS MATCHS — MÉLANGÉS (pas classés par type tant que non commencés, user 2026-08-19), triés par
-        # coup d'envoi, cartes compactes (équipes + ligue + décompte). Zone en DERNIER.
+        # PROCHAINS LIVES — MÉLANGÉS (pas classés par type tant que non commencés, user 2026-08-19), triés par
+        # coup d'envoi (ordre CHRONOLOGIQUE), cartes compactes NON cliquables. NON REPLIABLE, sans tag « à venir ».
         if _upcoming_all:
-            out.append(_zone("prog", "Prochains matchs", "à venir", len(_upcoming_all),
-                             _join_cards([_sport_row(c) for c in _upcoming_all]), zk="live-upc", **_lz))
+            _upc_title = "Prochains lives" if len(_upcoming_all) > 1 else "Prochain live"
+            out.append(_zone("prog", _upc_title, "", len(_upcoming_all),
+                             _join_cards([_sport_row(c) for c in _upcoming_all]),
+                             zk="live-upc", collapsible=False))
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
     # Compteur TOUS sports -> BADGE chiffré du menu du bas (marqueur `.dv-nav` lu par le JS SPA).
