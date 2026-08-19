@@ -131,7 +131,7 @@ def day_label(d, today) -> str:
     jours = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
     return f"{jours[d.weekday()].capitalize()} {d.strftime('%d/%m')}"
 
-_TYPE_TITLES = {"Confiance", "Value", "Provisoire", "Montante", "Combiné"}
+_TYPE_TITLES = {"Confiance", "Value", "Provisoire", "Montante", "Combiné", "Abstention"}
 
 
 def _plur(n, word: str) -> str:
@@ -6690,10 +6690,15 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     sur un filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les
     cartes déjà triées. `collapsible` -> zone repliable (`<details>`, ex. Terminés). `empty` -> message si
     corps vide (état honnête, ex. « aucun pari de value »). '' si corps vide ET sans `empty`. Pur affichage."""
+    _empty_zone = False
     if not (body and body.strip()):
         if not empty:
             return ""
         body, count = f'<div class="zone-empty">{empty}</div>', 0
+        # ZONE VIDE (user 2026-08-19) : le message « aucun pari… » doit être VISIBLE DIRECTEMENT (pas besoin
+        # d'ouvrir) et la zone N'EST PAS repliable (rien à déplier). -> rendue en <section>, jamais en <details>.
+        _empty_zone = True
+        collapsible = False
     # RECORD du JOUR par type (demande user 2026-08-02) : le BADGE (compteur rond) montre le nombre sélectionné ;
     # à côté, des pastilles -> à venir ⏳ · EN DIRECT 🟢 · gagné–perdu (score). Badge = total ; chaque pastille
     # n'apparaît que si > 0. `record` = (total, à_venir, live, gagnés, perdus).
@@ -8212,11 +8217,11 @@ def _programme_schedule(sport: str = "foot") -> str:
 
 def _abstention_zone(sport: str = "foot") -> str:
     """Zone « Abstention » = les matchs analysés SANS pari, en CARTES (comme les paris) — user 2026-08-17.
-    Catégorie à part entière, badge compteur à droite. '' si aucune."""
+    Catégorie à part entière, badge compteur à droite. TOUJOURS affichée (user 2026-08-19) : même vide, avec
+    un message d'état (« Aucune abstention… ») visible directement, zone non repliable."""
     _pending, abst = _planning_cards(sport)
-    if not abst:
-        return ""
-    return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst), collapsible=True)
+    return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst),
+                 collapsible=True, empty="Aucune abstention pour le moment.")
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
