@@ -2293,6 +2293,19 @@ CSS = """
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
      (point d'état + titre casse normale + compteur + mot-clé), filet fin, aucune barre/majuscule criarde. */
   .dash-zones{margin-top:2px}
+  /* CASCADE D'APPARITION (user 2026-08-19, premium) : à l'ouverture de Pronos / au changement de jour, les
+     catégories montent en fondu séquentiel (feel app native soignée). Uniquement la vue du jour (.dash-today).
+     Respecte prefers-reduced-motion. */
+  @keyframes zoneIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+  .dash-today > .zone{animation:zoneIn .40s cubic-bezier(.22,.9,.3,1) both}
+  .dash-today > .zone:nth-child(1){animation-delay:.03s}
+  .dash-today > .zone:nth-child(2){animation-delay:.07s}
+  .dash-today > .zone:nth-child(3){animation-delay:.11s}
+  .dash-today > .zone:nth-child(4){animation-delay:.15s}
+  .dash-today > .zone:nth-child(5){animation-delay:.19s}
+  .dash-today > .zone:nth-child(6){animation-delay:.23s}
+  .dash-today > .zone:nth-child(7){animation-delay:.27s}
+  @media (prefers-reduced-motion:reduce){.dash-today > .zone{animation:none}}
   /* Sous-nav Résultats (refonte user 2026-07-27) : Bilan / Calendrier segmenté */
   .resnav{display:flex;gap:7px;margin:2px 0 12px}
   .resnav-b{flex:1;padding:9px 6px;border-radius:11px;background:rgba(255,255,255,.04);
