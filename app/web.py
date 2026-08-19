@@ -10467,6 +10467,45 @@ def _safe_combo_any_live() -> bool:
                for l in (cb.get("legs") or []) if l.get("result") is None)
 
 
+def _combo_live_leg_cards(sport: str = "foot") -> list:
+    """Jambes de combiné(s) du jour EN COURS (live) rendues comme des PARIS SIMPLES (score live + pick DC) —
+    pour la zone Combiné de l'onglet Live (user 2026-08-19 : « afficher les jambes de combiné en live seulement
+    comme un pari simple mais dans le type Combiné »). Sûr + Cote 2, DÉDUPLIQUÉES par match. Le cache score live
+    est déjà chaud (fetch_live_odds appelé avant render_directs) -> lecture sync. Renvoie une liste de dicts
+    `foot._card` (rendus par `_sport_row`). [] si aucune jambe en cours."""
+    from app import combo_daily as _cd, foot as _foot
+    import datetime as _dt
+    day = _cd.day_key()
+    rows, seen = [], set()
+    for _var in ("", "cote2"):
+        cb = _cd.today(day, sport=sport, variant=_var)
+        if not cb:
+            continue
+        for l in cb.get("legs") or []:
+            if l.get("result") is not None:            # jambe déjà réglée -> pas live
+                continue
+            _pair = _prog_pair(l.get("home", ""), l.get("away", ""))
+            if _pair in seen:                          # même match dans Sûr ET Cote 2 -> une seule carte
+                continue
+            lf = live_fields(match_select.live_state_for(sport, l.get("home", ""), l.get("away", "")), sport)
+            if not lf.get("score"):                    # pas de score live -> pas en cours
+                continue
+            seen.add(_pair)
+            _sel, _odds = l.get("sel"), l.get("cote")
+            _perle = {"selection": _sel, "odds": _odds} if (_sel and _odds) else None
+            try:
+                _sts = _dt.datetime.fromisoformat(str(l.get("start")).replace("Z", "+00:00")).timestamp()
+            except (ValueError, TypeError):
+                _sts = 0
+            rows.append(_foot._card({
+                "id": l.get("mid"), "status": "inprogress", "comp": l.get("comp"),
+                "home": l.get("home", ""), "away": l.get("away", ""), "probs": None, "goals": None,
+                "o1": None, "ox": None, "o2": None, "imp": None, "pick": None, "start": _sts,
+                "votes": None, "perle": _perle, "perle2": None, "perle_value": None,
+                "pick_kind": "confiance", "sofa_ok": True, **lf}))
+    return rows
+
+
 def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
     """Onglet « Directs » : matchs EN DIRECT groupés par TYPE de pari (Combiné · Paris joués · Provisoires).
     SÉLECTEUR DE SPORT en tête (demande user 2026-07-28, comme Pronos) : cliquer un sport recharge le panneau
@@ -10483,10 +10522,12 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # COMPTES PAR SPORT (badges du sélecteur) + TOTAL tous sports (badge de l'onglet, inchangé).
     _counts, _combos = {}, {}
     for _sk in ("foot", "tennis", "basket"):
-        _combos[_sk] = _combo_tg_card(include_settled=False, sport=_sk) if _daily_combo_any_live(_sk) else ""
+        # JAMBES DE COMBINÉ EN COURS (user 2026-08-19) : au lieu de la carte combiné COMPLÈTE, on liste les
+        # JAMBES live comme des paris simples (dans la zone Combiné). Foot uniquement. Compteur = nb de jambes live.
+        _combos[_sk] = _combo_live_leg_cards(_sk) if _sk == "foot" else []
         _counts[_sk] = (sum(1 for c in play_live if _item_sport(c) == _sk)
                         + sum(1 for c in prov_live if c.get("_sport") == _sk)
-                        + (1 if _combos[_sk] else 0))
+                        + len(_combos[_sk]))
     # Combinés FOOT hors-ROI EN COURS (demande user 2026-07-28 : tout match de Pronos qui tourne doit
     # apparaître dans Live) — le combiné SÉCURITÉ et le combiné BONUS, comme dans l'onglet Pronos. Foot only.
     _safe_combo = ""   # combiné « double chance » fusionné dans « Combiné football » (combo_daily) le 2026-08-02
@@ -10515,7 +10556,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # FILTRE du sport sélectionné.
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur] if analyses.PROVISOIRES_ON else []
-    _combo = _combos.get(_cur, "")
+    _combo_rows = _combos.get(_cur, [])                         # jambes de combiné EN COURS (cartes simples)
+    _combo = _join_cards([_sport_row(r) for r in _combo_rows])   # rendu HTML pour la zone Combiné
     _safe_combo = _safe_combo if _cur == "foot" else ""   # combinés hors-ROI = foot uniquement
     if _cur != "foot":
         _mont_title, _mont_card = "", ""
@@ -10569,7 +10611,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         out += [
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
                   zk="live-indic", **_lz),
-            _zone("combo", "Combiné", "en direct", 1 if _combo else 0, _combo, zk="live-combo", **_lz),
+            _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "en direct",
+                  len(_combo_rows), _combo, zk="live-combo", **_lz),
         ]
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
