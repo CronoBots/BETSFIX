@@ -929,82 +929,72 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     try:
         from app import combo_safe as _csafe, combo_daily as _cdaily
         _cday = _cdaily.day_key()
-        _cprev = _cdaily.today(_cday)
-        if _cprev and (_cprev.get("sent") or _cprev.get("result")):
-            print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé) -> conservé.")
-        else:
-            # RÈGLE COMBINÉ DC = ANALYSTE QUANT (user 2026-08-18) : on ne construit plus mécaniquement (top-N DC
-            # les plus sûres vers cote ~2). On bâtit la SHORTLIST DC du jour (safe_dc_candidates, ancrée Pinnacle)
-            # puis Claude applique `COMBO_DC_RULE` sur les DOSSIERS COMPLETS (scan program, shortlist, ablation,
-            # stress, weakest leg, P_est≥80%/jambe, score/100) -> LE meilleur combiné 2-5 jambes ou PASS. Repli :
-            # si l'analyse échoue (réseau/Claude), on retombe sur la construction mécanique (jamais de trou).
-            _fcombo = None
+        # SHORTLIST DC COMMUNE aux DEUX combinés (dossiers mutualisés via `_dossier_cached` -> pas de coût double).
+        try:
+            _ccands, _cwhys = await _safe_dc_cached(_cday, matches, client)
+        except Exception as _cse:
+            _ccands, _cwhys = [], {}
+            print(f"  (shortlist DC indisponible : {_cse})")
+
+        # DEUX COMBINÉS INDÉPENDANTS/JOUR (user 2026-08-19), tous deux HORS ROI : « Sûr » (variant='', ~1,5, proba
+        # max) + « Cote 2 » (variant='cote2', ~2,0). Même pipeline SÛRETÉ-first, cible de cote différente (`tier`).
+        async def _build_combo_tier(_tier, _variant, _tgkey, _tgcap, _label):
+            _prev = _cdaily.today(_cday, variant=_variant)
+            if _prev and (_prev.get("sent") or _prev.get("result")):
+                print(f"  🎯 Combiné {_label} : déjà publié aujourd'hui (figé) -> conservé.")
+                return
             try:
-                _ccands, _cwhys = await _safe_dc_cached(_cday, matches, client)
-                _fcombo = await _combo_dc_best(client, _cday, _ccands, _cwhys)
-                if _fcombo:
-                    print(f"  🎯 Combiné du jour : règle quant -> {len(_fcombo['legs'])} jambe(s), "
-                          f"cote {_fcombo['cote']} (score {_fcombo.get('rule_score')}).")
-                else:
-                    print("  🎯 Combiné du jour : PASS — aucun combiné DC ne remplit la règle quant aujourd'hui.")
+                _cb = await _combo_dc_best(client, _cday, _ccands, _cwhys, tier=_tier)
             except Exception as _cqe:
-                print(f"  (combiné règle quant ignoré, repli mécanique : {_cqe})")
-                _fcombo = await _csafe.build_from_programme_async(_cday, matches, client)
-            if _fcombo:
-                # ANALYSE DES JAMBES À LA CONSTRUCTION (user 2026-08-17) : le combiné est FIGÉ et sera joué ->
-                # on prépare son « pourquoi » factuel TOUT DE SUITE (faits gathered le matin via build_dossier
-                # par jambe), sans attendre les vagues. On NE touche PAS aux paris SIMPLES de ces matchs :
-                # build_dossier ne fait que LIRE les faits (aucun sidecar écrit) -> chaque match reste analysé
-                # FRAIS par sa vague ~2h avant le coup d'envoi. Si ça échoue, le « pourquoi » Pinnacle chiffré
-                # reste (repli), enrichi plus tard par la vague. Best-effort, n'interrompt jamais le programme.
-                try:
-                    _fbm = {}
-                    for _lg in _fcombo.get("legs") or []:
-                        _lm = {"id": _lg.get("mid"), "name": _lg.get("name"), "home": _lg.get("home"),
-                               "away": _lg.get("away"), "comp": _lg.get("comp"), "start": _lg.get("start")}
-                        # FAITS FOOTBALL (forme/H2H/xG/absents via ESPN/FotMob/Understat) — PAS le dossier complet
-                        # (cotes+sharp), sinon le « pourquoi » sort en langage sharp/proba que le filtre d'affichage
-                        # (_strip_meta_stat) massacre (user 2026-08-17 : « je ne vois pas ces analyses »). Ici =
-                        # même matière factuelle que les paris simples -> pourquoi FOOTBALL qui s'affiche en entier.
-                        try:
-                            _facts = await sources.extras(client, "foot", _lm)
-                        except Exception:
-                            _facts = ""
-                        if _facts and _facts.strip():
-                            _fbm[str(_lg.get("mid"))] = _facts
-                    if _fbm:
-                        _analyze_combo_legs(_fcombo, facts_by_mid=_fbm)   # pourquoi factuel + synthèse, MAINTENANT
-                        print(f"  🎯 Combiné du jour : jambes analysées à la construction "
-                              f"({len(_fbm)}/{len(_fcombo.get('legs') or [])} faits captés).")
-                except Exception as _cae:
-                    print(f"  (analyse jambes combiné à la construction ignorée : {_cae})")
-            if _fcombo and _cdaily.record_daily(_fcombo, _cday):
-                _cdaily.mark_sent(_cday)
+                print(f"  (combiné {_label} règle quant ignoré : {_cqe})")
+                _cb = await _csafe.build_from_programme_async(_cday, matches, client) if _tier == "sur" else None
+            if not _cb:
+                print(f"  🎯 Combiné {_label} : PASS — aucun combiné DC ne remplit la règle aujourd'hui.")
+                return
+            # « Pourquoi » factuel des jambes À LA CONSTRUCTION (faits football via sources.extras -> pas de méta
+            # sharp que _strip_meta_stat massacre). Best-effort. build_dossier/extras LISENT seulement (0 sidecar).
+            try:
+                _fbm = {}
+                for _lg in _cb.get("legs") or []:
+                    _lm = {"id": _lg.get("mid"), "name": _lg.get("name"), "home": _lg.get("home"),
+                           "away": _lg.get("away"), "comp": _lg.get("comp"), "start": _lg.get("start")}
+                    try:
+                        _facts = await sources.extras(client, "foot", _lm)
+                    except Exception:
+                        _facts = ""
+                    if _facts and _facts.strip():
+                        _fbm[str(_lg.get("mid"))] = _facts
+                if _fbm:
+                    _analyze_combo_legs(_cb, facts_by_mid=_fbm)
+            except Exception as _cae:
+                print(f"  (analyse jambes combiné {_label} ignorée : {_cae})")
+            if _cdaily.record_daily(_cb, _cday, variant=_variant):
+                _cdaily.mark_sent(_cday, variant=_variant)
                 _fcl = " | ".join(f"{l.get('home')} ({l.get('sel')} @{l.get('cote')})"
-                                  for l in _fcombo.get("legs") or [])
-                print(f"  🎯 Combiné du jour (matin, ancré Pinnacle) : cote {_fcombo['cote']} · "
-                      f"{round(_fcombo['prob'] * 100)}% · {len(_fcombo['legs'])} jambes (figé) : {_fcl}")
-                # PUBLICATION TELEGRAM du COMBINÉ (design site, signature « COMBINÉ » — user 2026-08-18).
-                # ⚠️ INDÉPENDANT de `--no-notify` (user 2026-08-18) : le pass matinal est `--no-notify` (pour ne
-                # pas spammer la liste programme + simples), mais le COMBINÉ DU JOUR est un LIVRABLE à publier.
-                # Idempotent (clé `combo_daily_<jour>`) -> posté 1× même si le builder re-tourne.
-                if _notify.configured() and not _notify.get_prono(f"combo_daily_{_cday}"):
+                                  for l in _cb.get("legs") or [])
+                print(f"  🎯 Combiné {_label} (figé) : cote {_cb['cote']} · {round(_cb['prob'] * 100)}% · "
+                      f"{len(_cb['legs'])} jambes : {_fcl}")
+                # PUBLICATION TELEGRAM (indépendante de --no-notify, idempotente par clé).
+                if _notify.configured() and not _notify.get_prono(f"{_tgkey}_{_cday}"):
                     try:
                         import card_image as _ci_c
                         from app import card_data as _cdd_c
-                        _ccard = _cdd_c.build_combo_daily_card(_fcombo)
+                        _ccard = _cdd_c.build_combo_daily_card(_cb)
                         if _ccard:
                             os.makedirs("data/_cards", exist_ok=True)
-                            _cpng = "data/_cards/combo_daily.png"
+                            _cpng = f"data/_cards/{_tgkey}.png"
                             await _ci_c.render_card(_ccard, _cpng)
-                            _csent = _notify.send_photo_sync(_cpng, "")
+                            _csent = _notify.send_photo_sync(_cpng, _tgcap)
                             if _csent:
-                                _notify.remember_prono(f"combo_daily_{_cday}", _csent, "Combiné du jour")
-                                print("     ↳ combiné du jour publié sur Telegram (image).")
+                                _notify.remember_prono(f"{_tgkey}_{_cday}", _csent, _label)
+                                print(f"     ↳ combiné {_label} publié sur Telegram (image).")
                     except Exception as _cne:
-                        print(f"     (combiné Telegram ignoré : {_cne})")
-            elif not _fcombo:
-                print("  🎯 Combiné du jour (matin) : vivier DC value insuffisant (aucune jambe à edge positif).")
+                        print(f"     (combiné {_label} Telegram ignoré : {_cne})")
+
+        await _build_combo_tier("sur", "", "combo_daily",
+                                "🛡️ <b>Combiné SÛR</b> · les sélections les plus sûres", "SÛR")
+        await _build_combo_tier("cote2", "cote2", "combo_hi",
+                                "🚀 <b>Combiné COTE 2</b> · plus ambitieux", "COTE 2")
     except Exception as _cce:
         print(f"  (combiné du jour matin ignoré : {_cce})")
     # MONTANTE — PALIER DU JOUR construit DEPUIS LE PROGRAMME (user 2026-08-17) : le flagship joue souvent des
@@ -2794,11 +2784,23 @@ def _parse_combo_dc(analysis: str) -> dict | None:
     return {"decision": dec, "mids": mids, "score": (_f(parts[4]) if len(parts) >= 6 else None)}
 
 
-async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None):
-    """RÈGLE COMBINÉ DC (analyste quant, user 2026-08-18) : Claude choisit, dans la SHORTLIST DC du jour (chaque
-    candidat = 1 DC sûre + son DOSSIER COMPLET `build_dossier`), LE meilleur combiné 2-5 jambes cote ~2.00
-    (robustesse>value>P_comb>edge>cote) ou PASS. Renvoie la structure combiné (identique à
-    `combo_safe._combo_from_cands` : legs + cote/prob = produits) ou None (PASS / vivier insuffisant)."""
+# DIRECTIVE de CIBLE DE COTE par tier (user 2026-08-19, 2 combinés/jour indépendants) — injectée dans le prompt.
+_COMBO_TIER_DIR = {
+    "sur": ("\n\n=== CIBLE DE CE COMBINÉ : « SÛR » ===\nOBJECTIF PRIORITAIRE = SÛRETÉ / probabilité combinée la "
+            "plus HAUTE. Cote totale cible **1,40–1,65** (idéalement 2-3 jambes, les plus sûres, P_est ≥80% de "
+            "préférence). N'AJOUTE JAMAIS une jambe pour monter la cote : ici la cote basse est VOULUE. Entre deux "
+            "coupons, choisis TOUJOURS le plus PROBABLE (P_comb la plus haute), pas le plus côté.\n"),
+    "cote2": ("\n\n=== CIBLE DE CE COMBINÉ : « COTE 2 » ===\nCote totale cible **1,90–2,10** (3-5 jambes). Reste "
+              "SÛRETÉ-first (jambes robustes, edge/EV informatifs), mais vise cette zone de cote sans jamais "
+              "inclure une jambe douteuse.\n"),
+}
+
+
+async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None, tier: str = "cote2"):
+    """RÈGLE COMBINÉ DC (analyste quant, user 2026-08-18 ; SÛRETÉ-first 2026-08-19) : Claude choisit, dans la
+    SHORTLIST DC du jour (chaque candidat = 1 DC sûre + son DOSSIER COMPLET `build_dossier`), LE meilleur combiné
+    2-5 jambes ou PASS. `tier` (user 2026-08-19) = « sur » (cote ~1,5, proba max) ou « cote2 » (cote ~2,0) : deux
+    combinés indépendants/jour. Renvoie la structure combiné (legs + cote/prob = produits) ou None (PASS)."""
     cands = [c for c in (cands or []) if c.get("mid") and c.get("cote")]
     if len(cands) < 2:
         return None
@@ -2816,7 +2818,8 @@ async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None
             f"(P_imp {_imp}% · P_est Pinnacle dé-viggée {round((c.get('prob') or 0) * 100, 1)}%)\n"
             f"{dos or '(dossier indisponible)'}")
     out = run_claude(
-        COMBO_DC_RULE + "\n\n=== SHORTLIST DES DOUBLE CHANCES DISPONIBLES (chacune a une DIRECTION FIXE = la "
+        COMBO_DC_RULE + _COMBO_TIER_DIR.get(tier, "")
+        + "\n\n=== SHORTLIST DES DOUBLE CHANCES DISPONIBLES (chacune a une DIRECTION FIXE = la "
         "plus sûre au marché ; choisis LESQUELLES combiner, 2 à 5) ===\n\n" + "\n\n".join(blocks), timeout=600)
     v = _parse_combo_dc(out)
     if v is None:                                     # ligne machine absente/malformée -> on la RE-DEMANDE

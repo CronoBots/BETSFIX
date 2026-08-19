@@ -6419,7 +6419,7 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
 
 
 def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: str = "foot",
-                   title: str | None = None) -> str:
+                   title: str | None = None, variant: str = "") -> str:
     """Carte « Combiné du jour » présentée COMME les cartes provisoires (Telegram) mais en OR (demande user
     2026-07-12) : en-tête, jambes = picks, SYNTHÈSE en barre cyan, Confiance, COTE en gros chiffre. Placée
     DANS les matchs en direct (plus de bandeau en tête). Info seule. '' si aucun combiné.
@@ -6433,7 +6433,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
             import datetime as _dt
             from app import combo_daily as _cd
             day = _cd.day_key()          # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
-            cb = _cd.today(day, sport=sport)
+            cb = _cd.today(day, sport=sport, variant=variant)
         except Exception:
             cb = None
     if not cb or not cb.get("legs"):
@@ -7401,7 +7401,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # affiché comme le foot (demande user 2026-07-26).
     # CHAQUE type de pari GARDE ses matchs réglés DANS sa section (demande user 2026-08-01 : plus de zone
     # « Résultats du jour » séparée en bas -> la carte affiche le résultat/score en place). -> include_settled=True.
-    combo_daily = _combo_tg_card(include_settled=True, sport=(sport or "foot"))
+    # DEUX combinés/jour (user 2026-08-19) : « Sûr » (~1,5, variant='') + « Cote 2 » (~2,0, variant='cote2'),
+    # les DEUX cartes dans la MÊME zone Combiné (empilées). Hors ROI tous les deux.
+    _combo_sur = _combo_tg_card(include_settled=True, sport=(sport or "foot"), title="COMBINÉ SÛR")
+    _combo_hi = (_combo_tg_card(include_settled=True, sport=(sport or "foot"), variant="cote2",
+                                title="COMBINÉ COTE 2") if (sport in (None, "foot")) else "")
+    combo_daily = _MC_SEP.join([h for h in (_combo_sur, _combo_hi) if h])
     _is_foot_view = sport in (None, "foot")
     # (Zone « Combiné double chance » séparée RETIRÉE le 2026-08-02 : la double chance EST désormais le
     #  « Combiné football » ci-dessus (combo_daily), compté au ROI. Plus de carte combiné distincte.)
@@ -7609,10 +7614,15 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     if not sport:                                          # combo_daily = « Tous » seulement
         try:
             from app import combo_daily as _cd
-            cb = _cd.today(iso)
+            _cards = []
+            cb = _cd.today(iso)                            # SÛR (variant='')
             if cb and cb.get("legs"):
-                _combo_daily_html = _combo_tg_card(include_settled=True, cb=cb)
+                _cards.append(_combo_tg_card(include_settled=True, cb=cb, title="COMBINÉ SÛR"))
                 _combo_daily_legs = [l.get("result") for l in (cb.get("legs") or [])]
+            cb2 = _cd.today(iso, variant="cote2")          # COTE 2 (2ᵉ combiné/jour, user 2026-08-19)
+            if cb2 and cb2.get("legs"):
+                _cards.append(_combo_tg_card(include_settled=True, cb=cb2, title="COMBINÉ COTE 2"))
+            _combo_daily_html = _MC_SEP.join([h for h in _cards if h])
         except Exception:
             pass
     _combo_sidecar = _settled_bet_result_cards(iso, sport, tier="combo")   # combinés du sidecar (legacy)

@@ -79,24 +79,28 @@ def _tier(code: str) -> int:
 SIM_SPORTS = ()   # FOOT SEUL (user 2026-08-07) : tennis/basket retirés -> plus de combinés simulés. Foot = combiné compté au ROI
 
 
-def _track_path(sport: str = "foot") -> str:
+def _track_path(sport: str = "foot", variant: str = "") -> str:
     """Fichier de suivi du combiné du jour par sport. FOOT = combo_daily_track.json (compté au ROI,
     inchangé) ; tennis/basket = combo_daily_<sport>.json (SIMULÉ, hors ROI — demande user 2026-07-25 :
-    un combiné par jour aussi en tennis/basket pour muscler les analyses/stats)."""
+    un combiné par jour aussi en tennis/basket pour muscler les analyses/stats).
+    `variant` (user 2026-08-19) : VARIANTE FOOT dans un fichier dédié (ex. « cote2 » -> combo_daily_cote2.json)
+    pour le 2ᵉ combiné du jour (Cote 2), indépendant du Sûr, HORS ROI. Défaut '' = comportement inchangé."""
+    if variant:
+        return os.path.join(_ROOT, "data", f"combo_daily_{variant}.json")
     return TRACK_PATH if sport == "foot" else os.path.join(_ROOT, "data", f"combo_daily_{sport}.json")
 
 
-def _load(sport: str = "foot") -> dict:
+def _load(sport: str = "foot", variant: str = "") -> dict:
     try:
-        with open(_track_path(sport), encoding="utf-8") as f:
+        with open(_track_path(sport, variant), encoding="utf-8") as f:
             d = json.load(f)
             return d if isinstance(d, dict) else {}
     except (OSError, ValueError):
         return {}
 
 
-def _save(d: dict, sport: str = "foot") -> None:
-    path = _track_path(sport)
+def _save(d: dict, sport: str = "foot", variant: str = "") -> None:
+    path = _track_path(sport, variant)
     tmp = path + ".tmp"
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -400,9 +404,9 @@ def telegram_text(cb: dict) -> str:
     return "\n".join(out)
 
 
-def record_daily(combo: dict, day: str, sport: str = "foot") -> bool:
+def record_daily(combo: dict, day: str, sport: str = "foot", variant: str = "") -> bool:
     """Enregistre le combiné du jour du `sport` (UN par date). Ne réécrit PAS s'il est déjà ENVOYÉ (figé) ou
-    déjà réglé. Renvoie True si (ré)écrit."""
+    déjà réglé. Renvoie True si (ré)écrit. `variant` -> fichier dédié (2ᵉ combiné « cote2 », hors ROI)."""
     if not combo or not combo.get("legs"):
         return False
     # GARDE ANTI-CONTAMINATION CROISÉE (bug 2026-07-26) : un vieux combiné TENNIS avait survécu dans le
@@ -411,30 +415,31 @@ def record_daily(combo: dict, day: str, sport: str = "foot") -> bool:
     if (combo.get("sport") and combo["sport"] != sport) or \
             any(l.get("sport") and l.get("sport") != sport for l in combo.get("legs") or []):
         return False
-    d = _load(sport)
+    d = _load(sport, variant)
     prev = d.get(day)
     if isinstance(prev, dict) and (prev.get("sent") or prev.get("result") in ("won", "lost", "void")):
         return False                                  # figé (posté/réglé) -> jamais réécrit
     d[day] = combo
-    _save(d, sport)
+    _save(d, sport, variant)
     return True
 
 
-def mark_sent(day: str, sport: str = "foot") -> None:
+def mark_sent(day: str, sport: str = "foot", variant: str = "") -> None:
     """Marque le combiné du jour du `sport` comme ENVOYÉ (Telegram) -> figé (published = frozen)."""
-    d = _load(sport)
+    d = _load(sport, variant)
     if isinstance(d.get(day), dict):
         d[day]["sent"] = True
-        _save(d, sport)
+        _save(d, sport, variant)
 
 
-def enrich_narratives(day: str, whys_by_mid: dict, synth: str | None = None, sport: str = "foot") -> bool:
+def enrich_narratives(day: str, whys_by_mid: dict, synth: str | None = None, sport: str = "foot",
+                      variant: str = "") -> bool:
     """Met à jour UNIQUEMENT le NARRATIF (« pourquoi » des jambes + synthèse) d'un combiné DÉJÀ FIGÉ, SANS
     jamais toucher à la SÉLECTION (mid/sel/cote/prob/code) ni au RÉSULTAT (result/score/sent). Sert au
     combiné du matin ancré Pinnacle (user 2026-08-17) : le « pourquoi » chiffré Pinnacle posé le matin est
     remplacé par le « pourquoi » factuel complet dès que la vague a analysé le match. Idempotent. Renvoie
     True si un champ a changé (donc sauvegarde)."""
-    d = _load(sport)
+    d = _load(sport, variant)
     cb = d.get(day)
     if not isinstance(cb, dict):
         return False
@@ -448,7 +453,7 @@ def enrich_narratives(day: str, whys_by_mid: dict, synth: str | None = None, spo
         cb["synth"] = synth
         changed = True
     if changed:
-        _save(d, sport)
+        _save(d, sport, variant)
     return changed
 
 
@@ -471,17 +476,20 @@ def _derive_combo(legs: list) -> str | None:
 
 
 def settle_all() -> int:
-    """Règle les combinés du jour de TOUS les sports (foot compté au ROI + tennis/basket simulés)."""
-    return sum(settle_pending(sp) for sp in ("foot",) + SIM_SPORTS)
+    """Règle les combinés du jour de TOUS les sports (foot compté au ROI + tennis/basket simulés) + la
+    VARIANTE « Cote 2 » du foot (2ᵉ combiné du jour, hors ROI, user 2026-08-19)."""
+    return (sum(settle_pending(sp) for sp in ("foot",) + SIM_SPORTS)
+            + settle_pending("foot", "cote2"))
 
 
-def settle_pending(sport: str = "foot") -> int:
+def settle_pending(sport: str = "foot", variant: str = "") -> int:
     """Règle les jambes des combinés du jour du `sport` dont les matchs sont terminés (Flashscore + repli
     LiveScore + `settle_pick`), puis tranche le combiné : lost si ≥1 jambe perdue ; won si ≥1 gagnée
-    (push/void retirés) ; void si toutes push/void. Idempotent. Renvoie le nb de combinés tranchés."""
+    (push/void retirés) ; void si toutes push/void. Idempotent. Renvoie le nb de combinés tranchés.
+    `variant` (ex. « cote2 ») -> règle le 2ᵉ combiné du jour dans son fichier dédié."""
     from app import flashscore, livescore, analyses as _an
     from app.settle_analyst import settle_pick
-    d = _load(sport)
+    d = _load(sport, variant)
     # RÉCHAUFFE le cache Unibet (heure fraîche + score live) AVANT la borne void : le règlement tourne souvent
     # dans un process FROID (tâche reconcile) où les caches sont vides -> un match DÉCALÉ/EN COURS paraît
     # « fini » et se fait voider à tort (bug 2026-07-23 : Hanfmann-Baez affiché « ANNULÉ » en plein 1er set).
@@ -697,7 +705,7 @@ def settle_pending(sport: str = "foot") -> int:
             changed = True
             n += 1
     if changed:
-        _save(d, sport)          # BUG 2026-07-26 : `_save(d)` sans sport écrivait le dict du sport COURANT
+        _save(d, sport, variant)  # BUG 2026-07-26 : `_save(d)` sans sport écrivait le dict du sport COURANT
         #                          dans le fichier FOOT (défaut) -> settle_pending('tennis') écrasait
         #                          combo_daily_track.json avec le combiné tennis à chaque reconcile.
     return n
@@ -717,9 +725,10 @@ def _combo_result_profit(cb: dict) -> float:
     return 0.0
 
 
-def today(day: str, d: dict | None = None, sport: str = "foot") -> dict | None:
-    """Le combiné enregistré pour `day` (du `sport`) ou None. `d` = snapshot partagé (cf. `load()`)."""
-    d = _load(sport) if d is None else d
+def today(day: str, d: dict | None = None, sport: str = "foot", variant: str = "") -> dict | None:
+    """Le combiné enregistré pour `day` (du `sport`) ou None. `d` = snapshot partagé (cf. `load()`).
+    `variant` (ex. « cote2 ») -> 2ᵉ combiné du jour dans son fichier dédié."""
+    d = _load(sport, variant) if d is None else d
     cb = d.get(day)
     return cb if isinstance(cb, dict) else None
 
