@@ -131,9 +131,15 @@ def day_label(d, today) -> str:
     jours = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
     return f"{jours[d.weekday()].capitalize()} {d.strftime('%d/%m')}"
 
+_TYPE_TITLES = {"Confiance", "Value", "Provisoire", "Montante", "Combiné"}
+
+
 def _plur(n, word: str) -> str:
-    """Titre de type de pari au pluriel s'il y a PLUSIEURS matchs de ce type (user 2026-08-08) :
-    « Confiance » -> « Confiances », « Provisoire » -> « Provisoires »."""
+    """Titre de zone. FINITION PRO (user 2026-08-19) : un TYPE de pari est une CATÉGORIE (le nombre est déjà
+    dans le badge) -> TOUJOURS au SINGULIER (« Value », pas « Values » ; « Confiance », pas « Confiances »).
+    Les autres mots gardent l'accord au pluriel (n > 1)."""
+    if word in _TYPE_TITLES:
+        return word
     return word + "s" if (n or 0) > 1 else word
 
 def fmt_live_clock(mc: dict | None) -> str:
@@ -2499,6 +2505,7 @@ CSS = """
   .dcd-dot.neg{background:#ff7d7d;box-shadow:0 0 8px rgba(255,125,125,.6)}
   .dcd-dot.neu{background:#9aa6b4}
   .dcd-dot.none{background:transparent;border:1px solid var(--border2)}
+  .daycal-d.empty:not(.on){opacity:.44}                         /* jour sans pari = dé-emphasé (reste cliquable) */
   .daycal-d.today .dcd-wd{color:var(--accent)}
   /* AUJOURD'HUI toujours identifiable (même non sélectionné) : anneau discret. */
   .daycal-d.today:not(.on){border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}
@@ -6815,7 +6822,9 @@ def _day_calendar(iso: str, sport: str | None = None, days: int = 21) -> str:
             dot = f'<span class="dcd-dot {dcls}"></span>'
         else:
             dot = '<span class="dcd-dot none"></span>'
-        _cls = ("daycal-d" + (" on" if dd == sel else "") + (" today" if dd == today else ""))
+        # jour SANS pari réglé = dé-emphasé (finition pro) — sauf aujourd'hui (contexte courant). Reste cliquable.
+        _empty = " empty" if (not settled and dd != today) else ""
+        _cls = ("daycal-d" + (" on" if dd == sel else "") + (" today" if dd == today else "") + _empty)
         _wd = _WD_ABBR[dd.weekday()]
         _mo = _MO_FULL[dd.month - 1][:3].upper() if dd.day == 1 or i == days else ""
         _motag = f'<span class="dcd-mo">{_mo}</span>' if _mo else ""
