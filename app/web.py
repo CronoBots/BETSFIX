@@ -10265,6 +10265,10 @@ def _sport_row(r: dict) -> str:
         # provisoires ») — terminés/live/compact inclus. Seulement si la carte a un contenu dessous.
         if line3:
             line3 = '<div class="mc-div"></div>' + line3
+    # CARTE COMPACTE (user 2026-08-19 : « prochains matchs de Live présentés comme le programme, sans les autres
+    # détails ») : on retire toute la ligne pari/statut -> il reste l'affiche (équipes + ligue) + le décompte.
+    if r.get("_compact"):
+        line3 = ""
     # CENTRE entre les équipes : en LIVE -> SCORE + minute (user 2026-08-15, façon SofaScore mais notre style) ;
     # sinon -> l'HEURE du match. Le score n'est donc plus répété dans un cadre en dessous (retiré plus bas).
     _sc_live = str(r.get("score") or "").strip()
@@ -10499,17 +10503,22 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
                 continue
             seen.add(_pair)
             _sel, _odds = l.get("sel"), l.get("cote")
-            _perle = {"selection": _sel, "odds": _odds} if (_sel and _odds) else None
+            # LIVE : pick (perle) + score. À VENIR : carte COMPACTE (match + décompte + ligue seuls, comme le
+            # programme — user 2026-08-19) -> pas de perle, flag `_compact`.
+            _perle = {"selection": _sel, "odds": _odds} if (_is_live and _sel and _odds) else None
             try:
                 _sts = _dt.datetime.fromisoformat(str(l.get("start")).replace("Z", "+00:00")).timestamp()
             except (ValueError, TypeError):
                 _sts = 0
-            rows.append(_foot._card({
+            _c = _foot._card({
                 "id": l.get("mid"), "status": "inprogress" if _is_live else "notstarted", "comp": l.get("comp"),
                 "home": l.get("home", ""), "away": l.get("away", ""), "probs": None, "goals": None,
                 "o1": None, "ox": None, "o2": None, "imp": None, "pick": None, "start": _sts,
                 "votes": None, "perle": _perle, "perle2": None, "perle_value": None,
-                "pick_kind": "confiance", "sofa_ok": True, **(lf if _is_live else {})}))
+                "pick_kind": "confiance", "sofa_ok": True, **(lf if _is_live else {})})
+            if not _is_live:
+                _c["_compact"] = True
+            rows.append(_c)
     return rows
 
 
@@ -10585,9 +10594,9 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             "home": _d.get("home", ""), "away": _d.get("away", ""), "probs": None, "goals": None,
             "o1": _o1, "ox": _ox, "o2": _o2,
             "imp": _foot_up._devig3(_o1, _ox, _o2) if (_o1 and _ox and _o2) else None,
-            "pick": None, "start": _dt2.timestamp() if _dt2 else 0, "votes": analyses.votes_pct(_d),
-            "perle": ({"selection": _s2, "odds": _o} if (_s2 and _o and _o >= 1.10) else None),
-            "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True})
+            "pick": None, "start": _dt2.timestamp() if _dt2 else 0, "votes": None,
+            "perle": None, "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True})
+        _c2["_compact"] = True                                       # carte compacte (comme le programme)
         (_up_val if _c2.get("tier") == "value" else _up_conf).append(_c2)
     if _cur == "foot":                                              # MONTANTE à venir (palier du jour non commencé)
         _mtu = _montante_today_bet() or {}
@@ -10600,13 +10609,14 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
                     _msts = _dtu.datetime.fromisoformat(str(_mtd.get("start")).replace("Z", "+00:00")).timestamp()
                 except (ValueError, TypeError):
                     _msts = 0
-                _up_mont.append(_foot_up._card({
+                _mc = _foot_up._card({
                     "id": _mtu.get("mid"), "status": "notstarted", "comp": _mtd.get("comp"),
                     "home": _mtd.get("home") or _mh2, "away": _mtd.get("away") or _ma2, "probs": None,
                     "goals": None, "o1": None, "ox": None, "o2": None, "imp": None, "pick": None,
-                    "start": _msts, "votes": None,
-                    "perle": {"selection": _mtu.get("sel"), "odds": _mtu.get("cote")},
-                    "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True}))
+                    "start": _msts, "votes": None, "perle": None,
+                    "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True})
+                _mc["_compact"] = True                              # carte compacte (comme le programme)
+                _up_mont.append(_mc)
     for _lst in (_up_conf, _up_val, _up_mont, _up_combo):
         _lst.sort(key=lambda c: c.get("start_ts") or 0)
     _play = [c for c in play_live if _item_sport(c) == _cur]
