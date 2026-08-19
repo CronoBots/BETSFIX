@@ -4721,7 +4721,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # simulation le fait pour tennis/basket (sinon le combiné foot du jour n'apparaît PAS dans les stats
     # tant qu'il n'est pas réglé — retour user 2026-07-26). Pur affichage (jamais au ROI/gel).
     _pend_fc = analyses.pending_roi_bets(combo=True)
-    combos_block = (('<div class="combo-horsroi">Suivi indicatif — <b>non compté au ROI</b></div>'
+    combos_block = ((('' if analyses.COMBO_ROI_ON      # combinés COMPTÉS au ROI (user 2026-08-19) -> plus de note « hors ROI »
+                      else '<div class="combo-horsroi">Suivi indicatif — <b>non compté au ROI</b></div>')
                      + render_tracking_curve(
         emoji="⚽", title="COMBINÉS", roi=_foot_c.get("roi"), hit=_foot_c.get("pct"),
         n=_foot_c.get("settled"), points=_foot_c.get("points"), dates=_foot_c.get("dates"),
@@ -4757,7 +4758,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
                                 _mont_cnt),
                         rois=((_bt.get("confiance") or {}).get("roi"), (_bt.get("value") or {}).get("roi"),
                               _prov_sport_roi("foot") if analyses.PROVISOIRES_ON else None,
-                              None, None))   # Combiné + Montante AFFICHÉS mais HORS ROI -> pas de chip ROI
+                              # COMBINÉ COMPTÉ AU ROI (user 2026-08-19) -> chip ROI affiché ; Montante reste hors ROI.
+                              (_foot_c.get("roi") if analyses.COMBO_ROI_ON else None), None))
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
     # Cadre KPIs global (« Avantage réalisé ») RETIRÉ au-dessus des onglets (user 2026-08-16) : le ROI +
@@ -9605,7 +9607,8 @@ def render_sport_perf(sport: str) -> str:
     charts = ('<div class="spf-charts">'
               + _perf_curve_block("Simples", s, f"sp-{sport}-s", "Aucun simple réglé",
                                   form=s.get("form_simple") or s.get("form"), pending=_pend_s)
-              + _perf_curve_block("Combinés · hors ROI", combo_bs, f"sp-{sport}-c",   # AFFICHÉ mais hors ROI (user 2026-08-16)
+              + _perf_curve_block("Combinés" if analyses.COMBO_ROI_ON else "Combinés · hors ROI",   # compté au ROI (user 2026-08-19)
+                                  combo_bs, f"sp-{sport}-c",
                                   "Aucun combiné réglé pour ce sport",
                                   form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"),
                                   pending=_pend_c)

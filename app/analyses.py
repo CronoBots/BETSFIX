@@ -2975,7 +2975,7 @@ _COMBO_STATS_FROM = "2026-07-29"
 # le chip « C » du résumé perf est masqué et l'onglet Combiné ne porte PAS de chip ROI. `combo_stats()` reste
 # EXACT. N'affecte NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone, NI la calibration, NI la
 # carte combiné du jour. Remettre True pour recompter les combinés comme un ROI en tête.
-COMBO_ROI_ON = False
+COMBO_ROI_ON = True   # user 2026-08-19 : « compte les combinés dans le ROI aussi » -> combiné recompté comme ROI
 
 
 def _agg_bets(events: list) -> dict:
