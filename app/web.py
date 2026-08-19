@@ -2477,28 +2477,35 @@ CSS = """
   .day-hd-sub{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:capitalize}
   /* CALENDRIER HORIZONTAL (haut de Pronos, user 2026-08-19) — bande de dates cliquables, jour sélectionné
      mis en avant (accent du sport), pastille résultat par jour. Scroll horizontal sans barre visible. */
-  .daycal{margin:0 0 16px}
-  .daycal-track{display:flex;gap:8px;overflow-x:auto;padding:2px 3px 9px;scroll-snap-type:x proximity;
+  .daycal{margin:0 0 16px;position:relative}
+  /* Dégradés de bord = affordance de scroll (les dates continuent à gauche/droite). */
+  .daycal::before,.daycal::after{content:"";position:absolute;top:0;bottom:9px;width:26px;pointer-events:none;z-index:2}
+  .daycal::before{left:0;background:linear-gradient(90deg,var(--bg) 12%,transparent)}
+  .daycal::after{right:0;background:linear-gradient(270deg,var(--bg) 12%,transparent)}
+  .daycal-track{display:flex;gap:8px;overflow-x:auto;padding:3px 4px 9px;scroll-snap-type:x proximity;
        -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
   .daycal-track::-webkit-scrollbar{display:none}
   .daycal-d{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;
-       min-width:50px;padding:9px 7px 7px;border:1px solid var(--border);border-radius:15px;background:var(--surface);
+       min-width:51px;padding:9px 7px 8px;border:1px solid var(--border);border-radius:15px;
+       background:linear-gradient(180deg,var(--surface),var(--bg2));
        cursor:pointer;position:relative;transition:transform .12s ease,border-color .16s ease,box-shadow .16s ease;
        -webkit-tap-highlight-color:transparent}
   .daycal-d:active{transform:scale(.95)}
   .dcd-wd{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
   .dcd-day{font-size:19px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.05}
   .dcd-mo{font-size:8px;font-weight:800;letter-spacing:.09em;color:var(--dim);margin-top:1px}
-  .dcd-dot{width:7px;height:7px;border-radius:50%;margin-top:4px}
-  .dcd-dot.pos{background:#54d98c;box-shadow:0 0 7px rgba(84,217,140,.65)}
-  .dcd-dot.neg{background:#ff7d7d;box-shadow:0 0 7px rgba(255,125,125,.55)}
+  .dcd-dot{width:8px;height:8px;border-radius:50%;margin-top:5px}
+  .dcd-dot.pos{background:#54d98c;box-shadow:0 0 8px rgba(84,217,140,.7)}
+  .dcd-dot.neg{background:#ff7d7d;box-shadow:0 0 8px rgba(255,125,125,.6)}
   .dcd-dot.neu{background:#9aa6b4}
   .dcd-dot.none{background:transparent;border:1px solid var(--border2)}
   .daycal-d.today .dcd-wd{color:var(--accent)}
+  /* AUJOURD'HUI toujours identifiable (même non sélectionné) : anneau discret. */
+  .daycal-d.today:not(.on){border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}
   .daycal-d.on{border-color:var(--accent);
-       background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 16%,var(--surface)),var(--surface));
-       box-shadow:0 8px 22px -10px var(--glow)}
-  .daycal-d.on .dcd-wd{color:var(--accent)}
+       background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 22%,var(--surface)),var(--surface));
+       box-shadow:0 9px 24px -9px var(--glow),inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
+  .daycal-d.on .dcd-wd,.daycal-d.on .dcd-day{color:var(--accent)}
   /* Bilan d'un jour PASSÉ (sous l'en-tête) : gagnés/réglés + ROI coloré. */
   .day-sum{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 3px 14px;
        padding:12px 14px;border-radius:13px;border:1px solid var(--border);
@@ -7508,16 +7515,22 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     _res_value = _settled_bet_result_cards(iso, sport, tier="value")
     _res_mont = _settled_bet_result_cards(iso, sport, tier="montante")
     _prov_res = _provisional_results(iso, sport)
+
+    def _rec(tier):
+        # BADGE COLORÉ du jour passé (comme la vue du jour, user 2026-08-19) : vert=gagnés · rouge=perdus ·
+        # gris=remboursés. Tout est réglé sur un jour passé -> pas de « à venir »/« live ».
+        _w, _l, _p = _settled_wl_today(iso, sport, tier=tier)
+        return (_w + _l + _p, 0, 0, _w, _l, _p) if (_w + _l + _p) else None
     _zones = []
     if _res_conf:
         _zones.append(_zone("play", _plur(len(_res_conf), "Confiance"), "", len(_res_conf),
-                            _MC_SEP.join(_res_conf), collapsible=True))
+                            _MC_SEP.join(_res_conf), collapsible=True, record=_rec("confiance")))
     if _res_value:
         _zones.append(_zone("value", _plur(len(_res_value), "Value"), "", len(_res_value),
-                            _MC_SEP.join(_res_value), collapsible=True))
+                            _MC_SEP.join(_res_value), collapsible=True, record=_rec("value")))
     if _res_mont:
         _zones.append(_zone("mont", _plur(len(_res_mont), "Montante"), "", len(_res_mont),
-                            _MC_SEP.join(_res_mont), collapsible=True))
+                            _MC_SEP.join(_res_mont), collapsible=True, record=_rec("montante")))
     if combo:
         _zones.append(combo)
     if _prov_res:
