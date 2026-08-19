@@ -7527,7 +7527,11 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     _res_conf = _settled_bet_result_cards(iso, sport, tier="confiance")
     _res_value = _settled_bet_result_cards(iso, sport, tier="value")
     _res_mont = _settled_bet_result_cards(iso, sport, tier="montante")
-    _prov_res = _provisional_results(iso, sport)
+    # PLUS DE CATÉGORIE « PROVISOIRE » (user 2026-08-19) : un match est soit un pari JOUÉ (affiché dans son TYPE
+    # Confiance/Value/Montante ci-dessus, selon le calcul), soit une ABSTENTION (cachée). On respecte donc
+    # `PROVISOIRES_ON=False` ici AUSSI (le jour passé était le seul endroit qui affichait encore les provisoires).
+    # Les résultats/shadows restent en base pour STATS & CALIBRATION — on ne touche QUE l'affichage.
+    _prov_res = _provisional_results(iso, sport) if analyses.PROVISOIRES_ON else ""
 
     def _rec(tier):
         # BADGE COLORÉ du jour passé (comme la vue du jour, user 2026-08-19) : vert=gagnés · rouge=perdus ·
@@ -7554,7 +7558,9 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     cards = "".join(_zones)
     inner = summ + cards
     if not cards:
-        inner = summ + '<div class="paj-empty">Aucun pari proposé ce jour-là.</div>'
+        # rien à montrer : un SEUL message (le bilan « Aucun pari réglé » redondant est retiré si 0 pari).
+        _empty = '<div class="paj-empty">Aucun pari proposé ce jour-là.</div>'
+        inner = (summ + _empty) if settled else _empty
     return _day_calendar(iso, sport) + f'<div class="dash-zones">{inner}</div>'
 
 
