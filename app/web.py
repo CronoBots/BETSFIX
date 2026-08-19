@@ -8698,11 +8698,12 @@ def render_montante_bilan(st: dict, example: dict) -> str:
     _q = (cap / base) if base else 1.0
     _qtxt = f'×{round(_q, 1):g}'.replace(".", ",")
     _qcls = "pos" if _q > 1.0001 else "na"
-    # COURBE DE CAPITAL (le graphique propre à la montante), dans le MÊME cadre `.sx-equity` que la courbe d'équité.
+    # COURBE DE CAPITAL — MÊME rendu/TAILLE que les autres onglets (user 2026-08-19) : `_hero_chart` dans
+    # `.sx-equity` (au lieu de `_mont_curve` qui avait une taille propre). Points = trajectoire du capital.
     _fsteps = (featured.get("steps") if (featured and featured.get("steps")) else (example or {}).get("steps")) or []
     _caps = [base] + [s.get("payout") for s in _fsteps
                       if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
-    _chart = (f'<div class="sx-equity">{_mont_curve(_caps, uid="mbil")}</div>' if len(_caps) >= 2 else "")
+    _chart = (f'<div class="sx-equity">{_hero_chart(_caps, uid="mbil")}</div>' if len(_caps) >= 2 else "")
     # KPIs + série + W/L, calculés sur les PARIS montante (steps) — MÊMES classes que les autres onglets.
     _steps = _mtn.load().get("steps") or []
     _res = [s.get("result") for s in _steps]
@@ -8745,8 +8746,10 @@ def render_montante_bilan(st: dict, example: dict) -> str:
             _start = None
         if not _start and s.get("date"):
             _start = s["date"] + "T12:00:00"
+        # result=None (pari du jour EN ATTENTE) -> "pending" pour afficher le SABLIER ⏳ (comme les autres
+        # onglets), user 2026-08-19. Sans ça `_recent_bets_html` le rendait « ? ».
         _rec.append({"name": s.get("match"), "sel": s.get("sel"), "cote": s.get("cote"),
-                     "start": _start, "result": s.get("result")})
+                     "start": _start, "result": s.get("result") or "pending"})
     _hist_list = _recent_bets_html(_rec)
     _histb = f'<div class="spf-rec-lbl">Historique des montantes</div>{_hist_list}' if _hist_list else ""
     # CADRE IDENTIQUE aux autres onglets : label + grand chiffre + KPIs + courbe + W/L + série + liste.
