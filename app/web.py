@@ -2332,7 +2332,7 @@ CSS = """
        -webkit-tap-highlight-color:transparent;transition:transform .12s}
   .bfx-pushbtn:active{transform:scale(.97)}
   .zone-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--muted)}
-  .zone-t{font-size:17.5px;font-weight:800;color:var(--text);letter-spacing:.02em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) + plus GRAND (user 2026-08-17) */
+  .zone-t{font-size:17.5px;font-weight:800;color:var(--text);letter-spacing:.045em;text-transform:uppercase}  /* types de pari en MAJUSCULE (user 2026-08-08) + plus GRAND (user 2026-08-17) + tracking premium (2026-08-19) */
   .zone-ic{display:inline-flex;align-items:center;color:#9aa6b4;margin-right:-2px}   /* icône SVG monochrome de catégorie (user 2026-08-19) */
   .zone-ic svg{width:19px;height:19px;display:block}
   .zone-abst .zone-ic{color:#7f8794}   /* abstention = teinte plus discrète (non-pari) */
@@ -2569,9 +2569,10 @@ CSS = """
   .prv-t .prv-sp{font-size:12px;margin-right:2px}
   .prv-s{font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* Zone repliable (Terminés) : summary cliquable + chevron, même en-tête épuré. */
-  details.zone-col > summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  details.zone-col > summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .16s ease}
   details.zone-col > summary::-webkit-details-marker{display:none}
-  .zone-chev{margin-left:auto;color:var(--muted);font-size:18px;line-height:1;transition:transform .18s}
+  details.zone-col > summary:active{opacity:.62}   /* retour tactile premium (user 2026-08-19) */
+  .zone-chev{margin-left:auto;color:var(--muted);font-size:18px;line-height:1;transition:transform .24s cubic-bezier(.34,1.4,.5,1)}   /* rotation avec léger ressort (2026-08-19) */
   details.zone-col[open] .zone-chev{transform:rotate(180deg)}
   /* Cadre de perf REPLIÉ par défaut sur les onglets sport (allègement 2026-07-11) : summary sobre gardant
      le ROI en une ligne ; déplie les 2 courbes + calibration (cadre .spf riche) en 1 tap. */
