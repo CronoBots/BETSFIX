@@ -871,8 +871,13 @@ CSS = """
   .lvbar-ar{font-size:10px;margin-left:3px}
   .lvbar.lv-up .lvbar-ar{color:#34d27b}
   .lvbar.lv-down .lvbar-ar{color:#ff6b6b}
-  .lvbar-track{height:8px;border-radius:6px;background:rgba(255,255,255,.09);overflow:hidden}
-  .lvbar-fill{height:100%;border-radius:6px;transition:width .5s ease}
+  .lvbar-track{height:8px;border-radius:6px;background:rgba(255,255,255,.09);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.35)}
+  /* Remplissage PREMIUM (user 2026-08-19) : dégradé/gloss (posé inline), léger reflet haut, et CROISSANCE à
+     l'entrée (scaleX depuis la gauche). Respecte prefers-reduced-motion. */
+  @keyframes lvGrow{from{transform:scaleX(.02)}to{transform:scaleX(1)}}
+  .lvbar-fill{height:100%;border-radius:6px;transition:width .5s ease;transform-origin:left center;
+       box-shadow:inset 0 1px 0 rgba(255,255,255,.30);animation:lvGrow .75s cubic-bezier(.22,.9,.3,1) both}
+  @media (prefers-reduced-motion:reduce){.lvbar-fill{animation:none}}
   .lvbar-src{margin-top:3px;font-size:10px;font-weight:600;color:#7d8ca0;text-align:right}
   /* Ligne de pari : libellé à gauche (peut passer à la ligne), pastilles cote/confiance À DROITE,
      VERTICALEMENT CENTRÉES contre le libellé (fini le désalignement quand le libellé fait 2 lignes). */
@@ -9636,7 +9641,8 @@ def _live_bar_html(lp: dict | None) -> str:
     arrow = {"up": "▲", "down": "▼"}.get(trend, "")
     tcls = {"up": " lv-up", "down": " lv-down"}.get(trend, "")
     hue = int(round(1.2 * max(0, min(100, pct))))          # 0 % = rouge (h0), 100 % = vert (h120)
-    fill = f"hsl({hue},70%,45%)"
+    # Dégradé vertical (gloss premium, user 2026-08-19) : haut plus clair, bas plus sombre -> relief.
+    fill = f"linear-gradient(180deg,hsl({hue},74%,53%),hsl({hue},70%,41%))"
     # `src` = signaux FUSIONNÉS (« cote + stats live + analyse ») ou état verrouillé (acquis/perdu).
     lbl = {"acquis": "Gagné", "perdu": "Perdu"}.get(src)   # pari verrouillé par le direct (user 2026-08-10)
     if lbl is None:
