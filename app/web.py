@@ -2484,6 +2484,9 @@ CSS = """
   /* CALENDRIER HORIZONTAL (haut de Pronos, user 2026-08-19) — bande de dates cliquables, jour sélectionné
      mis en avant (accent du sport), pastille résultat par jour. Scroll horizontal sans barre visible. */
   .daycal{margin:0 0 16px;position:relative}
+  /* En-tête mois/année (contexte, mis à jour au scroll). */
+  .daycal-mo{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+       margin:0 3px 9px;transition:color .2s ease}
   /* Dégradés de bord = affordance de scroll (les dates continuent à gauche/droite). */
   .daycal::before,.daycal::after{content:"";position:absolute;top:0;bottom:9px;width:26px;pointer-events:none;z-index:2}
   .daycal::before{left:0;background:linear-gradient(90deg,var(--bg) 12%,transparent)}
@@ -4048,6 +4051,15 @@ _DAYCAL_JS = (
     "(function(){"
     "function ctr(){var t=document.querySelector('#daycal .daycal-d.on');"
     "if(t&&t.scrollIntoView){t.scrollIntoView({inline:'center',block:'nearest'});}}"
+    # EN-TÊTE MOIS : reflète la 1re cellule VISIBLE à gauche (contexte quand on remonte l'historique).
+    "function updMo(){var tr=document.querySelector('#daycal .daycal-track');"
+    "var mo=document.getElementById('daycal-mo');if(!tr||!mo)return;"
+    "var cs=tr.querySelectorAll('.daycal-d'),L=tr.getBoundingClientRect().left+12,i;"
+    "for(i=0;i<cs.length;i++){if(cs[i].getBoundingClientRect().right>L){"
+    "var my=cs[i].getAttribute('data-my');if(my&&mo.textContent!==my)mo.textContent=my;return;}}}"
+    "function bind(){var tr=document.querySelector('#daycal .daycal-track');"
+    "if(tr&&!tr._mb){tr._mb=1;tr.addEventListener('scroll',updMo,{passive:true});}}"
+    "function sync(){ctr();bind();updMo();}"
     "document.addEventListener('click',function(e){"
     "var b=e.target.closest('.daycal-d');if(!b)return;e.preventDefault();"
     "var date=b.getAttribute('data-date');if(!date)return;"
@@ -4055,11 +4067,11 @@ _DAYCAL_JS = (
     "var sc=dc.querySelector('.spsel.on');var sp=sc?sc.getAttribute('data-sport'):'';"
     "dc.style.opacity='.45';"
     "fetch('/jour?date='+encodeURIComponent(date)+(sp?'&sport='+encodeURIComponent(sp):'')+'&frag=1',{headers:{'X-Frag':'1'}})"
-    ".then(function(r){return r.text();}).then(function(h){dc.innerHTML=h;dc.style.opacity='';ctr();"
+    ".then(function(r){return r.text();}).then(function(h){dc.innerHTML=h;dc.style.opacity='';sync();"
     "window.scrollTo({top:0,behavior:'smooth'});})"
     ".catch(function(){dc.style.opacity='';});});"
-    # le panneau Pronos se charge en différé (SPA) -> on tente le centrage plusieurs fois (no-op si déjà centré).
-    "document.addEventListener('DOMContentLoaded',ctr);[250,800,1600].forEach(function(t){setTimeout(ctr,t);});})();")
+    # le panneau Pronos se charge en différé (SPA) -> on synchronise plusieurs fois (no-op si déjà à jour).
+    "document.addEventListener('DOMContentLoaded',sync);[250,800,1600].forEach(function(t){setTimeout(sync,t);});})();")
 
 # Sous-nav de l'onglet Résultats (refonte user 2026-07-27) : bascule Bilan / Calendrier. Le Calendrier est
 # LAZY-chargé depuis /calendrier?frag=1 au 1er clic (évite de rendre 2 vues lourdes d'emblée). Délégué au
@@ -6798,7 +6810,7 @@ def _day_header(iso: str) -> str:
     return f'<div class="day-hd"><span class="day-hd-lead">{html.escape(lead)}</span>{sub_html}</div>'
 
 
-def _day_calendar(iso: str, sport: str | None = None, days: int = 21) -> str:
+def _day_calendar(iso: str, sport: str | None = None, days: int = 34) -> str:
     """CALENDRIER HORIZONTAL premium en tête de l'onglet Pronos (user 2026-08-19) — REMPLACE `_day_header`.
     Bande de dates cliquables (jour de semaine + numéro + pastille résultat vert/rouge/neutre issue de
     `_daily_results_map`), jour SÉLECTIONNÉ mis en avant, « AUJ. » marqué. Un clic recharge `#day-content` via
@@ -6828,12 +6840,17 @@ def _day_calendar(iso: str, sport: str | None = None, days: int = 21) -> str:
         _wd = _WD_ABBR[dd.weekday()]
         _mo = _MO_FULL[dd.month - 1][:3].upper() if dd.day == 1 or i == days else ""
         _motag = f'<span class="dcd-mo">{_mo}</span>' if _mo else ""
+        _my = f"{_MO_FULL[dd.month - 1].capitalize()} {dd.year}"   # mois+année de la cellule (en-tête au scroll)
         cells.append(
-            f'<button type="button" class="{_cls}" data-date="{di}" '
+            f'<button type="button" class="{_cls}" data-date="{di}" data-my="{html.escape(_my)}" '
             f'aria-label="{html.escape(_day_label_full(dd))}">'
             f'<span class="dcd-wd">{"AUJ." if dd == today else _wd}</span>'
             f'<span class="dcd-day">{dd.day}</span>{_motag}{dot}</button>')
-    return (f'<div class="daycal" id="daycal"><div class="daycal-track">{"".join(cells)}</div></div>')
+    # EN-TÊTE MOIS/ANNÉE (user 2026-08-19) : contexte du jour affiché, mis à jour au scroll par `_DAYCAL_JS`.
+    _hdr_my = f"{_MO_FULL[sel.month - 1].capitalize()} {sel.year}"
+    return (f'<div class="daycal" id="daycal">'
+            f'<div class="daycal-mo" id="daycal-mo">{html.escape(_hdr_my)}</div>'
+            f'<div class="daycal-track">{"".join(cells)}</div></div>')
 
 
 def _day_label_full(d) -> str:
