@@ -8446,7 +8446,7 @@ def _mont_curve(caps: list, uid: str = "mc") -> str:
     lo, hi = min(pts), max(pts)
     if hi - lo < 1e-9:
         hi = lo + 1.0
-    n, W, H, L, R, T, B = len(pts), 320.0, 116.0, 12.0, 14.0, 16.0, 22.0
+    n, W, H, L, R, T, B = len(pts), 320.0, 104.0, 12.0, 14.0, 14.0, 20.0   # H=104 -> même taille que _hero_chart (user 2026-08-19)
     iw, ih = W - L - R, H - T - B
     AC = "#34d27b"
 
@@ -8698,12 +8698,12 @@ def render_montante_bilan(st: dict, example: dict) -> str:
     _q = (cap / base) if base else 1.0
     _qtxt = f'×{round(_q, 1):g}'.replace(".", ",")
     _qcls = "pos" if _q > 1.0001 else "na"
-    # COURBE DE CAPITAL — MÊME rendu/TAILLE que les autres onglets (user 2026-08-19) : `_hero_chart` dans
-    # `.sx-equity` (au lieu de `_mont_curve` qui avait une taille propre). Points = trajectoire du capital.
+    # COURBE DE CAPITAL — `_mont_curve` (échelle qui DÉMARRE À LA MISE DE BASE 10 €, pas 0 — user 2026-08-19 ;
+    # `_hero_chart` forçait le 0). Dans `.sx-equity` + hauteur alignée (H=104) -> MÊME taille que les autres onglets.
     _fsteps = (featured.get("steps") if (featured and featured.get("steps")) else (example or {}).get("steps")) or []
     _caps = [base] + [s.get("payout") for s in _fsteps
                       if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
-    _chart = (f'<div class="sx-equity">{_hero_chart(_caps, uid="mbil")}</div>' if len(_caps) >= 2 else "")
+    _chart = (f'<div class="sx-equity">{_mont_curve(_caps, uid="mbil")}</div>' if len(_caps) >= 2 else "")
     # KPIs + série + W/L, calculés sur les PARIS montante (steps) — MÊMES classes que les autres onglets.
     _steps = _mtn.load().get("steps") or []
     _res = [s.get("result") for s in _steps]
