@@ -371,6 +371,15 @@ CSS = """
             padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
             box-shadow:0 -8px 28px rgba(0,0,0,.45)}
     .wrap{padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px))}   /* +marge pour que le « 18+ » ne colle pas au menu (user 2026-08-19) */
+    /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
+       s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
+       .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
+       hauteur naturelle + scroll .wrap). Scopé mobile + onglet Pronos (#pn-home) -> les autres onglets intacts. */
+    #panels{display:flex;flex-direction:column;flex:1 0 auto;min-height:0}
+    .panel.on{flex:1 0 auto}
+    #pn-home.on{display:flex;flex-direction:column}
+    #pn-home.on #day-content{flex:1 0 auto;display:flex;flex-direction:column}
+    #pn-home.on .dash-zones{flex:1 0 auto;display:flex;flex-direction:column;justify-content:space-between}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
@@ -2309,6 +2318,9 @@ CSS = """
   .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone OUVERTE : pas d'espace mort avant le pied */
   /* Dernière zone REPLIÉE (ex. Abstention) : garder l'écart trait↔titre (9 px), sinon le trait colle au titre. */
   .dash-zones > .zone-col:not([open]):last-child{padding-bottom:9px}
+  /* Dernière catégorie VIDE (Abstention) : MÊME barre/espacement que les autres zones vides (user 2026-08-19) —
+     on annule le padding-bottom:0 du :last-child pour que son séparateur soit identique. */
+  .dash-zones > .zone-vide:last-child{padding-bottom:8px}
   /* Bouton notifications push (user 2026-08-16) — MASQUÉ par défaut ; le JS ne l'affiche qu'en PWA
      (mode standalone) et tant que la permission n'est pas accordée. */
   .bfx-pushrow{display:none;justify-content:center;margin:2px 0 14px}
@@ -2496,25 +2508,25 @@ CSS = """
      mis en avant (accent du sport), pastille résultat par jour. Scroll horizontal sans barre visible. */
   .daycal{margin:0 0 9px;position:relative}   /* espace réduit au-dessus du 1er titre (Programme), user 2026-08-19 */
   /* En-tête : mois/année (gauche, maj au scroll) + bouton « Aujourd'hui » (droite, si jour passé). */
-  .daycal-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 3px 9px;min-height:24px}
+  .daycal-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 3px 4px;min-height:20px}   /* espace mois↔calendrier resserré (user 2026-08-19) */
   .daycal-mo{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
        transition:color .2s ease}
   .daycal-goto{flex:none;font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--accent-ink);
        background:linear-gradient(180deg,var(--accent),var(--accent2));border:0;border-radius:20px;
        padding:5px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent;box-shadow:0 4px 14px -6px var(--glow)}
   .daycal-goto:active{transform:scale(.94)}
-  .daycal-track{display:flex;gap:8px;overflow-x:auto;padding:3px 4px 9px;scroll-snap-type:x proximity;
+  .daycal-track{display:flex;gap:7px;overflow-x:auto;padding:2px 4px 8px;scroll-snap-type:x proximity;
        -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
   .daycal-track::-webkit-scrollbar{display:none}
-  .daycal-d{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;
-       min-width:51px;padding:9px 7px 8px;border:1px solid var(--border);border-radius:15px;
+  .daycal-d{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:1px;
+       min-width:46px;padding:7px 6px 6px;border:1px solid var(--border);border-radius:13px;
        background:linear-gradient(180deg,var(--surface),var(--bg2));
        cursor:pointer;position:relative;transition:transform .12s ease,border-color .16s ease,box-shadow .16s ease;
-       -webkit-tap-highlight-color:transparent}
+       -webkit-tap-highlight-color:transparent}   /* boutons légèrement plus petits (user 2026-08-19) */
   .daycal-d:active{transform:scale(.95)}
-  .dcd-wd{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-  .dcd-day{font-size:19px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.05}
-  .dcd-dot{width:8px;height:8px;border-radius:50%;margin-top:5px}
+  .dcd-wd{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .dcd-day{font-size:17px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.05}
+  .dcd-dot{width:7px;height:7px;border-radius:50%;margin-top:4px}
   .dcd-dot.pos{background:#54d98c;box-shadow:0 0 8px rgba(84,217,140,.7)}
   .dcd-dot.neg{background:#ff7d7d;box-shadow:0 0 8px rgba(255,125,125,.6)}
   .dcd-dot.neu{background:#9aa6b4}
