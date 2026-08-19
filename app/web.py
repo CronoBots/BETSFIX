@@ -2123,6 +2123,15 @@ CSS = """
   .mc-tg-gold .mc-sport-w{color:var(--text)}   /* titre « COMBINÉ MULTISPORT » en BLANC (user 2026-07-21) */
   .mc-tg-gold .mc-cote-v{color:#64cd8d}
   .mc-tg-gold .mc-cote-l{color:#3f9d6d}
+  /* DIFFÉRENCIATION DES 2 COMBINÉS (user 2026-08-19) : Sûr = TEAL calme (fiabilité) · Cote 2 = AMBRE (ambition).
+     L'accent porte sur la COTE (chiffre proéminent) + une teinte du bord gauche tant que le combiné n'est pas
+     réglé (le bord repasse vert/rouge une fois le résultat connu). */
+  .mc-tg-sur .mc-cote-v{color:#54c7c0}
+  .mc-tg-sur .mc-cote-l{color:#3d938d}
+  .mc-tg-cote2 .mc-cote-v{color:#e8b93a}
+  .mc-tg-cote2 .mc-cote-l{color:#b58a26}
+  .mc-tg-gold.mc-tg-sur:not(.mc-r-won):not(.mc-r-lost):not(.mc-r-push){border-left-color:rgba(84,199,192,.65)}
+  .mc-tg-gold.mc-tg-cote2:not(.mc-r-won):not(.mc-r-lost):not(.mc-r-push){border-left-color:rgba(232,185,58,.65)}
   /* Jambes du combiné présentées comme des PICKS de provisoire (sélection en gras + match en sous-titre). */
   /* Écart entre jambes = MÊME rythme qu'entre cartes provisoires (demande user 2026-07-21, corrigé
      2e passe) : en FLEX les marges ne FUSIONNENT pas (7+9+9+7 s'additionnaient -> écart ~33px vs ~19px
@@ -6393,7 +6402,8 @@ def _combo_tg_legs(cb: dict) -> str:
                                   live_layout=True, bare=True) for l in _legs)
 
 
-def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "", dots: str = "") -> str:
+def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "", dots: str = "",
+                     accent: str = "") -> str:
     """Coquille DORÉE partagée du combiné — en-tête « 🎯 <title> • <subtitle> » + badge d'état, filet, puis
     le corps (jambes + ligne verdict). Utilisée par le combiné DU JOUR ET le combiné COUPE DU MONDE pour
     qu'ils soient présentés EXACTEMENT pareil (demande user 2026-07-19). `subtitle`/`badge` déjà échappés
@@ -6405,7 +6415,7 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
     _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"), "push": ("REMBOURSÉ", "n")}.get(state, ("", "n"))
     _botbar = (f'<div class="cleg-resbadge cleg-rb-{_rbc} mc-combo-res">{_rbt}</div>' if _rbt else "")
     return (
-        f'<div class="row pick mc mc-tg mc-tg-gold{_rcls}">'
+        f'<div class="row pick mc mc-tg mc-tg-gold{_rcls}{(" mc-tg-" + accent) if accent else ""}">'
         '<div class="mc-head"><div class="mc-main">'
         # 1re ligne SANS emoji 🎯, titre en BLANC via .mc-sport-w (demande user 2026-07-21).
         '<div class="mc-line">'
@@ -6493,8 +6503,11 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
         return "w" if r == "won" else ("l" if r == "lost" else "u")
     _dots = "".join(f'<span class="zlc zlc-{_lgc(l.get("result"))}"></span>' for l in (cb.get("legs") or []))
     _dots_html = f'<span class="clegdots">{_dots}</span>' if _dots else ""
-    return _combo_gold_card(title=title or f"COMBINÉ {_sptitle}", subtitle=f'{_nlegs} jambes',
-                            dots=_dots_html, badge=_badge, body=_body, state=cb.get("result"))
+    # ACCENT DE TIER (user 2026-08-19) : Sûr = teal calme · Cote 2 = ambre ambition. Dérivé du titre (variant).
+    _ttl = title or f"COMBINÉ {_sptitle}"
+    _accent = "cote2" if (variant == "cote2" or "COTE 2" in _ttl) else ("sur" if "SÛR" in _ttl else "")
+    return _combo_gold_card(title=_ttl, subtitle=f'{_nlegs} jambes', dots=_dots_html, badge=_badge,
+                            body=_body, state=cb.get("result"), accent=_accent)
 
 
 def _combo_safe_with_why(cb: dict | None) -> dict | None:
