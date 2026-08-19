@@ -3807,7 +3807,8 @@ _SPA_JS = (
     # À l'affichage de l'onglet : REDÉMARRE les animations graphes/stats (courbe + compteurs) — donc APRÈS
     # le splash, et à chaque revisite -> toujours visibles (les panneaux sont préchargés derrière le splash).
     "var sp=panel(t);if(sp){if(window._sxAnim)setTimeout(function(){window._sxAnim(sp);},60);"
-    "if(window._mcInit)window._mcInit(sp);}}"
+    "if(window._mcInit)window._mcInit(sp);}"
+    "if(window._daycalSync)window._daycalSync();}"   # calendrier -> replacé à droite à chaque affichage d'onglet
     # BADGES chiffrés du menu du bas (demande user 2026-07-14) : chaque panneau émet `.dv-nav` (data-tab +
     # data-n = nb de matchs du jour). On pose le compte sur l'onglet correspondant (blanc ; Live = vert +
     # point clignotant). 0 -> badge caché. Fonction dédiée -> appelable AUSSI pour le panneau ACTIF (rendu
@@ -3825,7 +3826,7 @@ _SPA_JS = (
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;badge(p);"
     "if(window._twScan)window._twScan(p);if(window._mcInit)window._mcInit(p);"
-    "if(window._sxAnim)window._sxAnim(p);})"
+    "if(window._sxAnim)window._sxAnim(p);if(window._daycalSync)window._daycalSync();})"
     ".catch(function(){p.removeAttribute('data-loaded');"
     "p.innerHTML='<div class=ldg>Erreur de chargement. Touchez l\\'onglet pour réessayer.</div>';});}"
     "function go(t,push){var p=panel(t);if(!p)return;load(p);show(t);"
@@ -4134,6 +4135,10 @@ _DAYCAL_JS = (
     "function bind(){var tr=document.querySelector('#daycal .daycal-track');"
     "if(tr&&!tr._mb){tr._mb=1;tr.addEventListener('scroll',onScroll,{passive:true});}}"
     "function sync(){ctr();bind();updMo();updGoto();}"
+    # EXPOSÉ GLOBALEMENT (user 2026-08-19) : le SPA rappelle `_daycalSync` à chaque affichage/chargement du
+    # panneau Programme -> le calendrier se REPLACE À DROITE (aujourd'hui) même après un swap d'onglet ou un
+    # rechargement de panneau (sinon il se ré-affichait tout à gauche « sans raison »). rAF -> après layout.
+    "window._daycalSync=function(){requestAnimationFrame(function(){requestAnimationFrame(sync);});};"
     "document.addEventListener('click',function(e){"
     "var b=e.target.closest('.daycal-d,.daycal-goto');if(!b)return;e.preventDefault();"   # cellule OU bouton « Aujourd'hui »
     "var date=b.getAttribute('data-date');if(!date)return;"
