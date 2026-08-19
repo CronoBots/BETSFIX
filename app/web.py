@@ -2297,7 +2297,7 @@ CSS = """
   .prog-note b{color:var(--text);font-weight:800}
   /* ZONES de l'accueil (refonte premium 2026-07-11) : regroupement par nature de pari — en-tête épuré
      (point d'état + titre casse normale + compteur + mot-clé), filet fin, aucune barre/majuscule criarde. */
-  .dash-zones{margin-top:2px}
+  .dash-zones{margin-top:0}   /* espace au-dessus de Programme réduit (user 2026-08-19) */
   /* CASCADE D'APPARITION (user 2026-08-19, premium) : à l'ouverture de Pronos / au changement de jour, les
      catégories montent en fondu séquentiel (feel app native soignée). Uniquement la vue du jour (.dash-today).
      Respecte prefers-reduced-motion. */
@@ -2536,7 +2536,7 @@ CSS = """
   .day-hd-sub{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:capitalize}
   /* CALENDRIER HORIZONTAL (haut de Pronos, user 2026-08-19) — bande de dates cliquables, jour sélectionné
      mis en avant (accent du sport), pastille résultat par jour. Scroll horizontal sans barre visible. */
-  .daycal{margin:0 0 9px;position:relative}   /* espace réduit au-dessus du 1er titre (Programme), user 2026-08-19 */
+  .daycal{margin:0 0 4px;position:relative}   /* espace au-dessus du 1er titre (Programme) encore réduit, user 2026-08-19 */
   /* En-tête : mois/année (gauche, maj au scroll) + bouton « Aujourd'hui » (droite, si jour passé). */
   .daycal-hd{position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 3px 4px;min-height:20px}   /* espace mois↔calendrier resserré (user 2026-08-19) ; position:relative = ancre du bouton « Aujourd'hui » absolu */
   .daycal-mo{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
@@ -3621,7 +3621,7 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # (bilan multiplicateur + courbe capital), comme Confiance/Value/Combiné. Barre = 4 onglets. Son pari du
 # jour reste dans Pronos. `/montante` redirige vers /stats (routeur).
 _SPA_TABS = [("accueil", "/accueil", "🏠", "Accueil"),
-             ("home", "/", "📅", "Pronos"),
+             ("home", "/", "📅", "Programme"),   # onglet renommé « Pronos » -> « Programme » (user 2026-08-19)
              ("directs", "/directs", _LIVE_RADAR, "Live"),
              ("stats", "/stats", "📊", "Résultats")]
 # Bouton compte en haut à droite (toutes les pages) : /compte affiche la connexion si déconnecté, le compte
@@ -8447,7 +8447,7 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
             # PROGRAMME + ABSTENTION sont désormais des ZONES-catégories DANS `#day-content` (via _today_zones),
             # affichées en CARTES comme les paris (user 2026-08-17) -> plus de module séparé en bas.
             + f'<div id="day-content">{zones}</div>')
-    return body if frag else spa_shell("home", "Pronos", body, source=source)
+    return body if frag else spa_shell("home", "Programme", body, source=source)
 
 
 def _mont_eur(v) -> str:
