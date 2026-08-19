@@ -8718,24 +8718,50 @@ def render_montante_bilan(st: dict, example: dict) -> str:
     ladder = (f'<div class="mont-sec-h">La montante{tag}</div>'
               '<div class="mont-lead">Chaque palier gagné fait grimper la mise — palier par palier.</div>'
               f'<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
-    palmares = ('<div class="mont-sec-h">Palmarès</div><div class="mont-kpis">'
-                f'<div class="mont-kpi best"><b>{_mont_eur(stats.get("best_capital", base))}</b>'
-                '<span>meilleure montante</span></div>'
-                f'<div class="mont-kpi"><b>{stats.get("best_palier", 0)}</b><span>paliers max</span></div>'
-                f'<div class="mont-kpi"><b>{stats.get("n", 0)}</b><span>montantes jouées</span></div></div>')
-    chains = st.get("chains") or []
-    if chains:
-        hrows = "".join(
-            '<div class="mont-hrow"><div class="mont-hrow-b">✗</div>'
-            f'<div class="mont-hrow-m"><b>{c.get("palier", 0)} palier{"s" if c.get("palier", 0) != 1 else ""}</b>'
-            f'<span>Pic atteint · {_mont_eur(c.get("peak"))}</span></div>'
-            f'<div class="mont-hrow-v">{_mont_eur(c.get("peak"))}</div></div>' for c in chains)
-        hist = f'<div class="mont-sec-h">Historique des montantes</div><div class="mont-hist">{hrows}</div>'
-    else:
-        hist = ('<div class="mont-sec-h">Historique des montantes</div>'
-                '<div class="mont-empty">Les montantes terminées apparaîtront ici — chacune avec son nombre de '
-                'paliers et le capital maximal atteint.</div>')
-    return f'<div class="mont-bilan">{hero}{ladder}{palmares}{hist}</div>'
+    # STATS PRÉSENTÉES COMME LES AUTRES ONGLETS (user 2026-08-19) : KPIs Réussite · Gains · Paris réglés,
+    # série EN COURS + MEILLEURE série (`_streak_text`), et ligne W/L — calculés sur les PARIS montante (steps).
+    from app import montante as _mtn
+    _steps = _mtn.load().get("steps") or []
+    _res = [s.get("result") for s in _steps]
+    _settled = [r for r in _res if r in ("won", "lost")]
+    _won, _nb = _settled.count("won"), len(_settled)
+    _hit = round(100 * _won / _nb) if _nb else None
+    _best = _cur = 0                                    # meilleure série = plus longue suite de gains
+    for r in _res:
+        if r == "won":
+            _cur += 1
+            _best = max(_best, _cur)
+        elif r == "lost":
+            _cur = 0
+    _, _streak = _form_streak(_res)                    # série EN COURS (run final)
+    _tp = stats.get("total_profit", 0.0) or 0.0
+    _gcls = "pos" if _tp >= 0 else "neg"
+    _gtxt = f'{"+" if _tp >= 0 else "−"}{_mont_eur(abs(_tp))}'
+    _kpi = ('<div class="spf-hero-kpis">'
+            f'<div><span class="v arec-{_pct_class(_hit)}">{_hit if _hit is not None else "—"}%</span>'
+            '<span class="l">Réussite</span></div>'
+            f'<div><span class="v arec-{_gcls}">{_gtxt}</span><span class="l">Gains</span></div>'
+            f'<div><span class="v">{_nb}</span><span class="l">Paris réglés</span></div></div>')
+    _fd = form_dots([{"won": "W", "lost": "L"}.get(r, "N") for r in _res if r], n=16)
+    _fdh = f'<div class="spf-cv-form">{_fd}</div>' if _fd else ""
+    stats_block = f'<div class="spf-hero mont-stats">{_kpi}{_fdh}{_streak_text(_streak, _best)}</div>'
+    # HISTORIQUE EN LISTE comme les autres onglets (`_recent_bets_html`) : chaque PARI montante (pastille W/L,
+    # affiche, sélection, cote, date), plus récent en haut. Le coup d'envoi est relu du sidecar (steps sans start).
+    _rec = []
+    for s in reversed(_steps):
+        _start = None
+        try:
+            _start = (analyses.meta(s.get("sport") or "foot", str(s.get("mid") or "")) or {}).get("start")
+        except Exception:
+            _start = None
+        if not _start and s.get("date"):
+            _start = s["date"] + "T12:00:00"
+        _rec.append({"name": s.get("match"), "sel": s.get("sel"), "cote": s.get("cote"),
+                     "start": _start, "result": s.get("result")})
+    _hist_list = _recent_bets_html(_rec)
+    hist = (f'<div class="spf-rec-lbl">Historique des montantes</div>{_hist_list}'
+            if _hist_list else '<div class="mont-empty">L\'historique des paris montante apparaîtra ici.</div>')
+    return f'<div class="mont-bilan">{hero}{stats_block}{ladder}{hist}</div>'
 
 
 _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
