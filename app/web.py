@@ -666,7 +666,7 @@ CSS = """
   .spf-hero-roi.pos{color:#34d27b} .spf-hero-roi.neg{color:#ff6b6b} .spf-hero-roi.na{color:var(--muted)}
   /* 3 stats présentées de façon INTUITIVE & PRO (demande user 2026-07-24) : valeur nette + libellé clair
      en dessous (Réussite / Paris réglés / Cote moyenne), sans boîte. */
-  .spf-hero-kpis{display:flex;justify-content:center;gap:26px;margin-top:9px}
+  .spf-hero-kpis{display:flex;justify-content:center;gap:10px 20px;margin-top:9px;flex-wrap:wrap}   /* wrap si 4 KPIs (montante), user 2026-08-19 */
   .spf-hero-kpis>div{display:flex;flex-direction:column;align-items:center;line-height:1.1}
   .spf-hero-kpis .v{font-size:16px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
   .spf-hero-kpis .l{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
@@ -4742,17 +4742,24 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # ONGLET MONTANTE (user 2026-08-19) : l'ex-onglet nav Montante devient un onglet des Résultats, comme
     # Confiance/Value/Combiné, MAIS avec son graphique propre (multiplicateur + courbe de capital + échelle).
     # Hors ROI -> pas de chip ROI. Le pari du jour reste dans Pronos. Affiché seulement si la montante est active.
-    _mont_block = ""
+    _mont_block, _mont_chip = "", ""
     try:
         from app import montante as _mtn_s
         if _mtn_s.is_active():
-            _mont_block = render_montante_bilan(_mtn_s.state(), _mtn_s.example())
+            _mst = _mtn_s.state()
+            _mont_block = render_montante_bilan(_mst, _mtn_s.example())
+            # CHIP DU BOUTON MONTANTE = MULTIPLICATEUR ACTUEL ×N (user 2026-08-19), à la place du chip ROI.
+            _mbase = _mst.get("base", 10.0) or 10.0
+            _mq = (_mst.get("capital", _mbase) / _mbase) if _mbase else 1.0
+            _mont_chip = (f'<span class="sctab-roi {"pos" if _mq > 1.0001 else "neu"}">'
+                          f'×{f"{round(_mq, 1):g}".replace(".", ",")}</span>')
     except Exception:
         _mont_block = ""
     _mont_cnt = 1 if _montante_palier() is not None else 0
     _foot = _sport_tabs(simples_block, combos_block, _prov_html,
                         value_html=value_block,                                    # onglet VALUE (user 2026-08-09)
                         montante_html=_mont_block,                                 # onglet MONTANTE (user 2026-08-19)
+                        tab_chips=({"Montante": _mont_chip} if _mont_chip else None),
                         counts=(len(_pend_conf), len(_pend_val),
                                 _prov_pending_count("foot") if analyses.PROVISOIRES_ON else 0, len(_pend_fc),
                                 _mont_cnt),
@@ -4868,7 +4875,7 @@ def _roi_chip_mini(roi) -> str:
 
 def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
                 counts: tuple = (0, 0, 0, 0), rois: tuple = (None, None, None, None),
-                value_html: str = "", montante_html: str = "") -> str:
+                value_html: str = "", montante_html: str = "", tab_chips: dict | None = None) -> str:
     """Onglets « Confiance | Value | Provisoire | Combiné | Montante » dans un cadre sport (demande user
     2026-07-24/25, Value 2026-08-09, Montante 2026-08-19 : l'onglet nav Montante devient un onglet des Résultats) :
     UN graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique). Les onglets vides sont ignorés ;
@@ -4886,8 +4893,9 @@ def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
 
     def _badge(n) -> str:
         return f'<span class="sctab-n">{n}</span>' if isinstance(n, int) and n > 0 else ""
+    # CHIP DU BOUTON (user 2026-08-19) : chip custom par onglet (ex. Montante = multiplicateur ×N) sinon chip ROI.
     _btns = "".join(f'<button class="sctab{" on" if i == 0 else ""}" data-i="{i}">'
-                    f'{lbl}{_roi_chip_mini(r)}{_badge(n)}</button>'
+                    f'{lbl}{(tab_chips or {}).get(lbl) or _roi_chip_mini(r)}{_badge(n)}</button>'
                     for i, (lbl, _h, n, r) in enumerate(_tabs))
     _panes = "".join(f'<div class="sctab-pane{" on" if i == 0 else ""}">{h}</div>'
                      for i, (_lbl, h, _n, _r) in enumerate(_tabs))
@@ -8712,11 +8720,19 @@ def render_montante_bilan(st: dict, example: dict) -> str:
     _tp = stats.get("total_profit", 0.0) or 0.0
     _gcls = "pos" if _tp >= 0 else "neg"
     _gtxt = f'{"+" if _tp >= 0 else "−"}{_mont_eur(abs(_tp))}'
+    # PLUS GROS GAIN (user 2026-08-19 : au lieu de « Paris réglés ») = meilleur capital atteint. COTE MOYENNE
+    # des paris montante réglés (user 2026-08-19 : « la stat cote moyenne aussi »).
+    _bestg = stats.get("best_capital", base)
+    _cotes = [s.get("cote") for s in _steps
+              if s.get("result") in ("won", "lost") and isinstance(s.get("cote"), (int, float))]
+    _avgc = round(sum(_cotes) / len(_cotes), 2) if _cotes else None
     _kpi = ('<div class="spf-hero-kpis">'
             f'<div><span class="v arec-{_pct_class(_hit)}">{_hit if _hit is not None else "—"}%</span>'
             '<span class="l">Réussite</span></div>'
             f'<div><span class="v arec-{_gcls}">{_gtxt}</span><span class="l">Gains</span></div>'
-            f'<div><span class="v">{_nb}</span><span class="l">Paris réglés</span></div></div>')
+            f'<div><span class="v arec-pos">{_mont_eur(_bestg)}</span><span class="l">Plus gros gain</span></div>'
+            f'<div><span class="v">{_avgc if _avgc is not None else "—"}</span>'
+            '<span class="l">Cote moyenne</span></div></div>')
     _fd = form_dots([{"won": "W", "lost": "L"}.get(r, "N") for r in _res if r], n=16)
     _fdh = f'<div class="spf-cv-form">{_fd}</div>' if _fd else ""
     # HISTORIQUE EN LISTE — MÊME composant que les autres onglets (`_recent_bets_html`) : pastille W/L + affiche +
