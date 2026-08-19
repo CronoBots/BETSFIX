@@ -733,10 +733,11 @@ def today(day: str, d: dict | None = None, sport: str = "foot", variant: str = "
     return cb if isinstance(cb, dict) else None
 
 
-def entries(d: dict | None = None, sport: str = "foot") -> list:
+def entries(d: dict | None = None, sport: str = "foot", variant: str = "") -> list:
     """Combinés suivis du `sport` (foot=ROI, tennis/basket=simulé), PLUS RÉCENT en premier :
-    {date, cote, prob, result, legs}. Snapshot partagé (`d`) ou chargé pour `sport`."""
-    d = _load(sport) if d is None else d
+    {date, cote, prob, result, legs}. Snapshot partagé (`d`) ou chargé pour `sport`.
+    `variant` (« cote2 ») -> 2ᵉ combiné du jour dans son fichier dédié."""
+    d = _load(sport, variant) if d is None else d
     out = [cb for cb in d.values() if isinstance(cb, dict) and cb.get("legs")]
     out.sort(key=lambda x: x.get("date") or "", reverse=True)
     return out
@@ -750,13 +751,15 @@ def _leg_summ(cb: dict) -> list:
             for l in (cb.get("legs") or [])]
 
 
-def roi_events(d: dict | None = None) -> list:
+def roi_events(d: dict | None = None, variant: str = "") -> list:
     """Événements ROI des combinés du jour RÉGLÉS (demande user 2026-07-14 : « compter les combinés
     multisport du jour dans le ROI ») -> [(date, result, cote_effective, details)] injectable dans
     `analyses.stats_full` (courbe/ROI/réussite). 1 pari/jour, mise plate 1 u. `void` = neutre -> exclu.
     Cote effective d'un gagnant = produit des jambes GAGNÉES (push/void retirées), cohérent avec
-    `_combo_result_profit` (profit + 1). Frozen dès le règlement -> compteur MONOTONE."""
-    d = _load() if d is None else d
+    `_combo_result_profit` (profit + 1). Frozen dès le règlement -> compteur MONOTONE.
+    `variant` (user 2026-08-19) : « cote2 » -> événements du 2ᵉ combiné du jour (bilan combinés, hors ROI officiel)."""
+    d = _load("foot", variant) if d is None else d
+    _tier_lbl = "Combiné Cote 2" if variant == "cote2" else "Combiné du jour"
     out = []
     for cb in d.values():
         if not isinstance(cb, dict) or cb.get("result") not in ("won", "lost"):
@@ -769,8 +772,9 @@ def roi_events(d: dict | None = None) -> list:
         _sports = {l.get("sport") for l in (cb.get("legs") or []) if l.get("sport")}
         _leg_sport = next(iter(_sports)) if len(_sports) == 1 else None
         out.append((cb.get("date") or "", r, cote,
-                    {"name": f"Combiné du jour ({n} jambes)", "sel": "football",
+                    {"name": f"{_tier_lbl} ({n} jambes)", "sel": "football",
                      "sport": "combiné", "combo_daily": True, "n_legs": n, "leg_sport": _leg_sport,
+                     "tier": ("cote2" if variant else "sur"),
                      "legs": _leg_summ(cb)}))
     return out
 

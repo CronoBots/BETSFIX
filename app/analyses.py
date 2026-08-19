@@ -3087,6 +3087,16 @@ def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
                                 "cote": cb.get("cote"), "name": f"Combiné du jour ({len(cb.get('legs') or [])} j.)",
                                 "sel": "combiné du jour", "sport": _sp, "tier": "confiance",
                                 "legs": combo_daily._leg_summ(cb)})   # jambes -> historique
+            # 2ᵉ COMBINÉ « Cote 2 » (foot, user 2026-08-19) : idem pour les en-cours -> il apparaît AUSSI dans le
+            # bilan/historique combinés (pas seulement le Sûr).
+            if not sport or sport == "foot":
+                for cb in combo_daily.entries(variant="cote2"):
+                    if cb.get("result") in ("won", "lost", "void"):
+                        continue
+                    out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
+                                "cote": cb.get("cote"), "name": f"Combiné Cote 2 ({len(cb.get('legs') or [])} j.)",
+                                "sel": "combiné du jour", "sport": "foot", "tier": "confiance",
+                                "legs": combo_daily._leg_summ(cb)})
         except Exception:
             pass
     else:
@@ -3460,7 +3470,9 @@ def combo_stats(since_days: int | None = None) -> dict:
     # une correction d'historique légitime AVANT abonnés (cf. mémoire history-corrections-before-subscribers).
     try:
         from app import combo_daily as _cdmod
-        for _dt, _res, _cote, _det in _cdmod.roi_events():
+        # DEUX combinés/jour (user 2026-08-19) : « Sûr » (variant='') + « Cote 2 » (variant='cote2'). LES DEUX
+        # comptent dans le BILAN COMBINÉS (rows/curve/crecent), hors ROI officiel des simples.
+        for _dt, _res, _cote, _det in (_cdmod.roi_events() + _cdmod.roi_events(variant="cote2")):
             if _res not in ("won", "lost", "push"):
                 continue
             if (_dt or "")[:10] < _COMBO_STATS_FROM:

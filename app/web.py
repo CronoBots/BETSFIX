@@ -7231,8 +7231,13 @@ def _sport_pronos_counts(match_rows: list) -> dict:
         play = sum(1 for r in match_rows if _item_sport(r) == sp
                    and not (sp == "foot" and _mont_pair and _prog_pair(r.get("home"), r.get("away")) == _mont_pair))
         try:
-            cbt = _cd.today(_day, sport=sp)
-            combo = 1 if (cbt and cbt.get("legs") and cbt.get("result") not in ("won", "lost", "void")) else 0
+            # DEUX combinés/jour pour le FOOT (Sûr + Cote 2, user 2026-08-19) -> compter les DEUX actifs.
+            _cvars = ("", "cote2") if sp == "foot" else ("",)
+            combo = 0
+            for _cv in _cvars:
+                _cbt = _cd.today(_day, sport=sp, variant=_cv)
+                if _cbt and _cbt.get("legs") and _cbt.get("result") not in ("won", "lost", "void"):
+                    combo += 1
         except Exception:
             combo = 0
         out[sp] = play + prov + combo + (_mont if sp == "foot" else 0)
@@ -7539,32 +7544,49 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     if prov or _prov_res:
         out.append(_zone("indic", _plur(len(prov) + _psn, "Provisoire"), "", len(prov), _prov_html,
                          collapsible=True, record=_prov_rec if _prov_rec[0] else None))
-    # Record du COMBINÉ football du jour (1 combiné/jour ; gagné/perdu = son résultat).
+    # Record du COMBINÉ football du jour — DEUX combinés/jour (Sûr + Cote 2, user 2026-08-19) : on AGRÈGE leur
+    # état (total, à venir, live, gagnés, perdus, en attente) -> le badge à droite du type « Combiné » reflète
+    # le NOMBRE réel de combinés (jusqu'à 2) et leurs résultats.
     _combo_rec = None
-    _c_leg_results = None
-    _combo_active = bool(combo_daily)   # défaut : compte le combiné (repli si son état est illisible)
+    _n_combos = 0
+    _combo_active = 0                    # nb de combinés ENCORE actifs (non réglés) -> badge nav
     if combo_daily:
         try:
             from app import combo_daily as _cd2
-            _cbt = _cd2.today(today_iso, sport=(sport or "foot")) or {}
-            # Résultat de CHAQUE jambe -> cercles colorés du badge combiné (jaune/vert/rouge).
-            _c_leg_results = [l.get("result") for l in (_cbt.get("legs") or [])] or None
-            _cr = _cbt.get("result")
-            _c_settled = _cr in ("won", "lost", "void")
-            _combo_active = not _c_settled   # badge nav : ne compter le combiné QUE s'il n'est pas encore réglé
-            _c_live = bool(combo_daily) and not _c_settled and _daily_combo_any_live()
-            # EN ATTENTE DE RÉSOLUTION : pas réglé, pas live, mais au moins une jambe a déjà commencé/fini.
-            _c_pend = 1 if (not _c_settled and not _c_live and any(
-                l.get("start") and analyses.likely_finished({"sport": l.get("sport") or "foot", "start": l.get("start")})
-                for l in (_cbt.get("legs") or []))) else 0
-            _combo_rec = (1, 0 if (_c_settled or _c_live or _c_pend) else 1, 1 if _c_live else 0,
-                          1 if _cr == "won" else 0, 1 if _cr == "lost" else 0, _c_pend)
+            _tot = _up = _clive = _won = _lost = _pend = 0
+            for _var in ("", "cote2"):
+                _cbt = _cd2.today(today_iso, sport=(sport or "foot"), variant=_var) or {}
+                if not _cbt.get("legs"):
+                    continue
+                _tot += 1
+                _cr = _cbt.get("result")
+                if _cr == "won":
+                    _won += 1
+                elif _cr == "lost":
+                    _lost += 1
+                elif _cr == "void":
+                    pass                 # remboursé = neutre (ni gagné ni perdu)
+                else:                    # non réglé -> à venir / live / en attente
+                    _lv = _daily_combo_any_live(sport=(sport or "foot"), variant=_var)
+                    _pd = (not _lv) and any(
+                        l.get("start") and analyses.likely_finished(
+                            {"sport": l.get("sport") or "foot", "start": l.get("start")})
+                        for l in (_cbt.get("legs") or []))
+                    if _lv:
+                        _clive += 1
+                    elif _pd:
+                        _pend += 1
+                    else:
+                        _up += 1
+                    _combo_active += 1
+            _n_combos = _tot
+            _combo_rec = (_tot, _up, _clive, _won, _lost, _pend) if _tot else None
         except Exception:
             _combo_rec = None
     out += [
         # ZONE COMBINÉ TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état.
-        _zone("combo", "Combiné", "", 1 if combo_daily else 0, combo_daily,
-              collapsible=True, record=_combo_rec, leg_results=_c_leg_results,
+        _zone("combo", "Combiné", "", _n_combos, combo_daily,
+              collapsible=True, record=_combo_rec,
               empty="Aucun combiné du jour pour l'instant."),
     ]
     # ABSTENTION en dernier des catégories (ce qu'on ne joue pas). Le PROGRAMME passe EN PREMIER (user
@@ -7590,7 +7612,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # actif (`_combo_active`) : un combiné RÉGLÉ ne doit plus gonfler le badge (fix user 2026-08-08 : badge
     # « 2 » alors qu'il ne restait qu'1 pari en cours, le combiné du jour étant déjà perdu). La MONTANTE
     # n'est PAS ajoutée séparément (fix double-compte) : sa carte est déjà dans `play` (l.6600).
-    _cnt = len(play) + len(prov) + (1 if _combo_active else 0)
+    _cnt = len(play) + len(prov) + _combo_active   # _combo_active = NB de combinés encore actifs (0-2, user 2026-08-19)
     return _day_calendar(today_iso, sport) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
@@ -10244,16 +10266,16 @@ def render_sport_matches(sport: str, title: str, value: list, live: list,
             + _subnav(sport) + render_sport_perf(sport) + f'<div class="dash-zones">{body_zones}</div>')
     return body if frag else spa_shell(sport, title, body)
 
-def _daily_combo_any_live(sport: str = "foot") -> bool:
+def _daily_combo_any_live(sport: str = "foot", variant: str = "") -> bool:
     """Vrai si le combiné du jour (du SPORT donné) a AU MOINS une jambe EN COURS (non réglée + score live).
     Sert à ne montrer le combiné dans l'onglet Live QUE quand une de ses rencontres tourne réellement (demande
     user 2026-07-19). Même détection de liveness que la carte (`_combo_tg_card`). `sport` = filtre Live
-    2026-07-28 (foot par défaut)."""
+    2026-07-28 (foot par défaut). `variant` (user 2026-08-19) : « cote2 » pour le 2ᵉ combiné du jour."""
     try:
         import datetime as _dt
         from app import combo_daily as _cd
         day = _cd.day_key()          # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
-        cb = _cd.today(day, sport=sport)
+        cb = _cd.today(day, sport=sport, variant=variant)
     except Exception:
         cb = None
     if not cb:
