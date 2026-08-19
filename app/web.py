@@ -326,7 +326,7 @@ CSS = """
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo centré tout en haut, en DÉFILEMENT NORMAL (bannière fixe annulée, demande user 2026-08-02).
      Desktop masque .toplogo (logo en sidebar). */
-  .toplogo{display:block;text-align:center;margin:20px 0 12px}
+  .toplogo{display:block;text-align:center;margin:11px 0 8px}   /* resserré (user 2026-08-19) pour tout faire tenir */
   .toplogo img{height:auto;width:auto;max-height:46px;max-width:72%;
                filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
@@ -2305,7 +2305,7 @@ CSS = """
      titre ne se DÉCALE PAS au dépli (avant : margin-top du header 17px->0 faisait remonter le titre). */
   .zone-col:not([open]){padding-bottom:9px}
   .zone-col:not([open]) > .zone-h{margin-bottom:0}
-  .dash-zones > .zone + .zone{margin-top:10px}   /* espace entre 2 zones (constant plié/déplié) */
+  .dash-zones > .zone + .zone{margin-top:8px}   /* espace entre 2 zones (constant plié/déplié) */
   .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone OUVERTE : pas d'espace mort avant le pied */
   /* Dernière zone REPLIÉE (ex. Abstention) : garder l'écart trait↔titre (9 px), sinon le trait colle au titre. */
   .dash-zones > .zone-col:not([open]):last-child{padding-bottom:9px}
@@ -2489,20 +2489,20 @@ CSS = """
   .day-hd-sub{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:capitalize}
   /* CALENDRIER HORIZONTAL (haut de Pronos, user 2026-08-19) — bande de dates cliquables, jour sélectionné
      mis en avant (accent du sport), pastille résultat par jour. Scroll horizontal sans barre visible. */
-  .daycal{margin:0 0 9px;position:relative}   /* espace réduit au-dessus du 1er titre (Programme), user 2026-08-19 */
+  .daycal{margin:0 0 7px;position:relative}   /* espace réduit au-dessus du 1er titre (Programme), user 2026-08-19 */
   /* En-tête : mois/année (gauche, maj au scroll) + bouton « Aujourd'hui » (droite, si jour passé). */
-  .daycal-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 3px 9px;min-height:24px}
+  .daycal-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 3px 6px;min-height:22px}
   .daycal-mo{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
        transition:color .2s ease}
   .daycal-goto{flex:none;font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--accent-ink);
        background:linear-gradient(180deg,var(--accent),var(--accent2));border:0;border-radius:20px;
        padding:5px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent;box-shadow:0 4px 14px -6px var(--glow)}
   .daycal-goto:active{transform:scale(.94)}
-  .daycal-track{display:flex;gap:8px;overflow-x:auto;padding:3px 4px 9px;scroll-snap-type:x proximity;
+  .daycal-track{display:flex;gap:8px;overflow-x:auto;padding:2px 4px 7px;scroll-snap-type:x proximity;
        -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
   .daycal-track::-webkit-scrollbar{display:none}
   .daycal-d{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;
-       min-width:51px;padding:9px 7px 8px;border:1px solid var(--border);border-radius:15px;
+       min-width:51px;padding:7px 7px 6px;border:1px solid var(--border);border-radius:15px;
        background:linear-gradient(180deg,var(--surface),var(--bg2));
        cursor:pointer;position:relative;transition:transform .12s ease,border-color .16s ease,box-shadow .16s ease;
        -webkit-tap-highlight-color:transparent}
