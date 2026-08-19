@@ -3131,12 +3131,11 @@ CSS = """
        font-size:16px;font-weight:700;box-shadow:var(--cardglow),var(--shadow);transition:.16s}
   .big:active{transform:scale(.99)}
   .big .d{font-size:12.5px;color:var(--muted);font-weight:400;margin-top:5px;line-height:1.5}
-  /* Footer ancré EN BAS de la zone scrollable (margin-top:auto) : plus de gros vide sous le contenu
-     court -> le « 18+ » occupe le bas, juste au-dessus de la barre. Contenu long : padding = espacement. */
-  /* Pas de `margin-top:auto` : sinon, dans le .wrap flex-column étiré, le pied de page est POUSSÉ tout
-     en bas et laisse un GROS VIDE sous la liste quand elle ne remplit pas l'écran. Il suit le contenu. */
-  .foot{color:var(--dim);font-size:10.5px;margin-top:22px;padding-top:14px;text-align:center;line-height:1.6;
-        border-top:1px solid rgba(255,255,255,.05)}
+  /* Footer « 18+ » ANCRÉ EN BAS de la zone scrollable (user 2026-08-19) : `margin-top:auto` le pousse tout en
+     bas du .wrap (juste au-dessus de la barre de nav) -> visible UNIQUEMENT quand on scrolle au plus bas de
+     l'onglet (contenu court : il reste au fond de l'écran ; contenu long : au bout du scroll). PAS de ligne
+     de séparation au-dessus (border-top retiré, demande user). */
+  .foot{color:var(--dim);font-size:10.5px;margin-top:auto;padding-top:14px;text-align:center;line-height:1.6}
   .src{font-size:12px;font-weight:600;padding:9px 13px;border-radius:12px;margin:4px 0 2px;
        border:1px solid var(--border)}
   .src.ok{background:rgba(46,226,127,.10);color:var(--accent);border-color:rgba(46,226,127,.22)}
