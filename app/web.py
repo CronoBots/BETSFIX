@@ -3416,7 +3416,7 @@ CSS = """
   .mcal-n{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:8px;font-weight:700;
        color:rgba(255,255,255,.35);letter-spacing:.02em}
   .mcal-today{box-shadow:0 0 0 1.5px rgba(34,184,255,.55)}
-  .mcal-has{cursor:pointer} .mcal-has:active{transform:scale(.95)}
+  .mcal-has{cursor:default}   /* détail au clic retiré (user 2026-08-19) : cases = affichage seul */
   /* Légende + note */
   .mcal-legend{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;font-size:10px;
        color:var(--muted)}
@@ -3924,18 +3924,9 @@ _MCAL_JS = (
     ".then(function(r){return r.text();}).then(function(h){root.innerHTML=h;root.style.opacity='';"
     "try{if(window._sxAnim)window._sxAnim(root);}catch(e){}})"
     ".catch(function(){root.style.opacity='';});return;}"
-    # clic sur un jour joué -> détail des paris via /jour
-    "var c=e.target.closest('.mcal-cell.mcal-has');if(!c)return;"
-    "var date=c.getAttribute('data-mday'),host=document.getElementById('mcal-detail');if(!host||!date)return;"
-    "var s=document.querySelectorAll('.mcal-cell.mcal-sel'),i;for(i=0;i<s.length;i++)s[i].classList.remove('mcal-sel');"
-    "c.classList.add('mcal-sel');host.hidden=false;"
-    "host.innerHTML='<div class=\"skel\"><div class=\"sk\"></div><div class=\"sk\"></div></div>';"
-    "fetch('/jour?date='+encodeURIComponent(date)+'&frag=1',{headers:{'X-Frag':'1'}})"
-    ".then(function(r){return r.text();}).then(function(h){host.innerHTML=h;"
-    "try{if(window._mcInit)window._mcInit(host);}catch(e){}try{if(window._twScan)window._twScan(host);}catch(e){}"
-    "try{if(window._sxAnim)window._sxAnim(host);}catch(e){}"
-    "try{host.scrollIntoView({behavior:'smooth',block:'nearest'});}catch(e){}})"
-    ".catch(function(){host.innerHTML='<div class=\"paj-empty\">Erreur de chargement.</div>';});"
+    # DÉTAIL D'UN JOUR AU CLIC RETIRÉ (user 2026-08-19) : le calendrier Stats montre les résultats UNIQUEMENT
+    # via les cases colorées (ROI/nb de paris), pas de liste de paris en dessous. La navigation jour vit dans
+    # l'onglet Pronos (calendrier horizontal). Seule la nav mois (‹ ›) reste ici.
     "});})();"
 )
 
@@ -8594,13 +8585,14 @@ def _render_calendar(ym: str = "") -> str:
     grid = f'<div class="mcal-grid">{dow}{"".join(cells)}</div>'
     legend = ('<div class="mcal-legend"><span class="mcal-lg pos">Bénéfice</span>'
               '<span class="mcal-lg neg">Perte</span><span class="mcal-lg flat">Neutre</span>'
-              '<span class="mcal-lg-note">Chiffre = ROI du jour · petit nombre = nb de paris · tape un jour pour le détail</span></div>')
-    detail = '<div class="mcal-detail" id="mcal-detail" hidden></div>'
+              '<span class="mcal-lg-note">Chiffre = ROI du jour · petit nombre = nb de paris</span></div>')
+    # DÉTAIL D'UN JOUR EN DESSOUS RETIRÉ (user 2026-08-19) : les résultats vivent UNIQUEMENT dans les cases
+    # colorées du calendrier (le détail par jour est dans l'onglet Pronos, calendrier horizontal).
     if mn == 0:
         summ = ('<div class="mcal-empty-msg">Aucun pari réglé ce mois-ci. Utilise les flèches pour '
                 'parcourir les mois.</div>')
     return (f'<span class="dv-nav" data-tab="calendrier" data-n="0" hidden></span>'
-            f'<div class="mcal">{nav}{summ}{grid}{legend}{detail}</div>')
+            f'<div class="mcal">{nav}{summ}{grid}{legend}</div>')
 
 
 def _reliability_chart(series: list, uid: str = "rel") -> str:
