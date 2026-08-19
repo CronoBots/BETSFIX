@@ -2315,6 +2315,10 @@ CSS = """
   .zone-col:not([open]){padding-bottom:9px}
   .zone-col:not([open]) > .zone-h{margin-bottom:0}
   .dash-zones > .zone + .zone{margin-top:10px}   /* espace entre 2 zones (constant plié/déplié) */
+  /* HISTORIQUE (dates passées, user 2026-08-19) : la vue jour n'a que 2-4 catégories -> pas de space-between
+     (écarts énormes = « bizarre »). On donne un écart FIXE aéré entre les types, proche du rythme d'aujourd'hui,
+     aligné en haut. (Seule la vue du jour = .dash-today distribue sur la hauteur.) */
+  #pn-home.on .dash-zones:not(.dash-today) > .zone + .zone{margin-top:26px}
   .dash-zones > .zone:last-child{padding-bottom:0}   /* dernière zone OUVERTE : pas d'espace mort avant le pied */
   /* Dernière zone REPLIÉE (ex. Abstention) : garder l'écart trait↔titre (9 px), sinon le trait colle au titre. */
   .dash-zones > .zone-col:not([open]):last-child{padding-bottom:9px}
