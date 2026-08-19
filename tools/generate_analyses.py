@@ -2601,9 +2601,13 @@ async def _dossier_cached(client, m: dict):
 
 
 # ============================ RÈGLE DE SÉLECTION MONTANTE (analyste quantitatif) ============================
-# Spec user 2026-08-18 (cf. mémoire montante-selection-rule-quant). AU MAX 1 pari / palier, ou PASS. Objectif :
-# P(réussite) × Edge × EV × faible variance × fiabilité — préservation du capital prioritaire. Discipline > fréquence.
-MONTANTE_RULE = """RÔLE : analyste quantitatif football. Sélectionne AU MAXIMUM 1 pari (1 match + 1 marché) pour une MONTANTE, ou réponds PASS. Objectif = meilleur compromis PROBABILITÉ × EDGE × EV × FAIBLE VARIANCE × FIABILITÉ DES DONNÉES. La PRÉSERVATION DU CAPITAL est prioritaire. La mission n'est JAMAIS « trouve un pari aujourd'hui » : c'est « trouve un pari SEULEMENT si le prix payé > le risque ». La discipline vaut mieux que la fréquence.
+# Spec user 2026-08-18 (cf. mémoire montante-selection-rule-quant). AU MAX 1 pari / palier, ou PASS.
+# SÛRETÉ-FIRST (user 2026-08-19) : une sélection sûre est structurellement à edge/EV ~neutre-négatif vs le prix
+# sharp -> l'edge/EV sont INFORMATIFS (pas des filtres). Objectif = P(réussite) HAUTE × faible variance × fiabilité
+# des données. Vise la PRÉSENCE (un palier chaque jour où une sélection robuste existe) ; PASS seulement si vraiment
+# risqué. Motif : un vivier de DC sûres est edge-négatif par nature -> l'ancienne règle EV-first PASSait tous les jours.
+MONTANTE_RULE = """RÔLE : analyste quantitatif football. Sélectionne AU MAXIMUM 1 pari (1 match + 1 marché) pour une MONTANTE, ou réponds PASS.
+NATURE DU PRODUIT — SÛRETÉ-FIRST : c'est le pari de SÛRETÉ du jour. Une sélection sûre (DC favorite, etc.) est STRUCTURELLEMENT à edge/EV ~neutre voire légèrement NÉGATIF vs le prix sharp : c'est ATTENDU et ACCEPTABLE, ce n'est JAMAIS à lui seul un motif de PASS. Objectif = meilleur compromis PROBABILITÉ (la plus HAUTE possible dans la zone de cote) × FAIBLE VARIANCE × FIABILITÉ DES DONNÉES (l'edge et l'EV sont INFORMATIFS, PAS des filtres). La PRÉSERVATION DU CAPITAL = choisir la sélection la plus ROBUSTE, PAS s'abstenir. Vise la PRÉSENCE : un palier CHAQUE jour où une sélection robuste existe dans la zone de cote -> PASS UNIQUEMENT si la slate est vraiment risquée (données trop minces, aucune sélection robuste dans la zone).
 
 RÈGLES DURES :
 - Ne jamais confondre pari probable / bonne cote / pari rentable. Une cote faible n'est PAS une preuve de sécurité. Aucun pari n'est « sûr ».
@@ -2612,20 +2616,20 @@ RÈGLES DURES :
 - MARCHÉS à examiner (aucun supérieur par défaut) : Draw No Bet, Double chance 1X/X2, handicaps asiatiques prudents, équipe +0,5, Over 1,5, Under adaptés, victoire simple si vraie value. Choisir celui dont la proba colle le mieux au scénario du match.
 
 CALCULS (toujours produire TA propre estimation, jamais 1/cote du book) :
-- P_est = ta probabilité estimée. P_imp = 1/cote. Fair Odd = 1/P_est. Edge (points) = P_est − P_imp. EV = P_est×cote − 1 (objectif > +3 %, préférence ≥ +5 %). DNB : EV = P(win)×(cote−1) − P(défaite), Fair DNB = (1−P_nul)/P_win — jamais 1/cote naïf.
+- P_est = ta probabilité estimée. P_imp = 1/cote. Fair Odd = 1/P_est. Edge (points) = P_est − P_imp. EV = P_est×cote − 1 est INFORMATIVE : pour une sélection de SÛRETÉ, une EV ~neutre voire légèrement négative est NORMALE — ne l'exige PAS positive ; privilégie une P_est HAUTE + des données fiables. DNB : EV = P(win)×(cote−1) − P(défaite), Fair DNB = (1−P_nul)/P_win — jamais 1/cote naïf.
 - MARGE DE SÉCURITÉ : plus l'incertitude est grande, plus l'edge exigé est grand. Ne PAS prendre 73 % vs 72 %.
 
 DONNÉES à peser : niveau/qualité des adversaires ; forme (poids aux + récents, pas juste W/D/L) ; stats avancées si dispo (xG, xGA, xG diff, tirs cadrés, grosses occasions, conversion, efficacité) ; domicile vs extérieur SÉPARÉS ; effectif (blessures, suspensions, gardien, défenseurs clés, créateurs, buteurs, rotation, banc) ; fatigue (repos, déplacements, prolongations, calendrier, prochain gros match) ; motivation/enjeu ; MATCH-UP tactique (un style adverse peut être un mauvais match-up malgré l'écart de niveau) ; MOUVEMENT DE COTE (opening vs actuelle — ni suivre aveuglément, ni ignorer).
 
 RED FLAGS (relèvent fortement le seuil ou PASS) : derby, amical, sans enjeu, grosse rotation, nouvel entraîneur, données insuffisantes, équipe très irrégulière, compo très incertaine, mouvement de cote inexpliqué, plusieurs titulaires importants absents, calendrier surchargé, contexte inhabituel. Plusieurs red flags majeurs = PASS.
 
-SCORE /100 : solidité stat /25 · edge+EV /20 · forme+niveau /15 · effectif+compo /15 · match-up /10 · contexte+motivation /10 · qualité données+stabilité marché /5. (0–69 = PASS · 70–79 = insuffisant pour la montante · 80–89 = candidat sérieux · 90–100 = exceptionnel.) Un score élevé ne veut jamais dire « garanti ».
+SCORE /100 (produit de sûreté — l'edge/EV NE pénalisent PAS) : solidité stat /30 · forme+niveau /20 · effectif+compo /20 · match-up /10 · contexte+motivation /10 · qualité données+stabilité marché /10. (0–54 = PASS · 55–69 = acceptable pour la montante de sûreté · 70–89 = solide · 90–100 = exceptionnel.) Ne PASSE PAS une sélection ROBUSTE juste parce que son edge/EV est neutre. Un score élevé ne veut jamais dire « garanti ».
 
 CONTEXTE D'EXÉCUTION (IMPORTANT) : cette analyse tourne LE MATIN. Les XI OFFICIELS ne sont en général PAS encore publiés, mais les blessures/suspensions connues SONT dans le dossier -> raisonne sur une compo PROBABLE. Ne réserve 🟠 ATTENDRE LES XI qu'à un pari qui dépend VRAIMENT d'un joueur incertain (rare pour un marché d'ÉQUIPE comme DC/1X2). Le mouvement de cote (opening -> actuelle) n'est PAS toujours disponible : si l'info manque, IGNORE cette dimension, ne l'invente pas. N'utilise QUE ce qui est dans le dossier ; toute donnée clé absente -> « DONNÉE NON CONFIRMÉE » + confiance réduite.
 XI : si le pari dépend fortement de joueurs et que les compos ne sont pas connues -> décision ATTENDRE LES XI. Sinon GO ou PASS.
 COMPARAISON : ne prends jamais le 1er candidat qui passe. Compare une shortlist (proba, edge, EV, variance, infos, risque compo, robustesse) -> 1 SEUL best bet.
 COTE MINIMUM ACCEPTABLE : toujours l'indiquer. Si la cote réelle descend en dessous -> NO BET.
-PASS si : pas de value suffisante / cote trop basse / edge insuffisant / EV insuffisante / infos essentielles manquantes / compo trop incertaine / plusieurs red flags / estimation trop fragile.
+PASS si (produit de sûreté) : cote hors zone 1,25–1,55 / infos essentielles manquantes / compo trop incertaine / plusieurs red flags / estimation trop fragile / aucune sélection robuste. NE PASSE PAS pour « edge/EV insuffisant » seul : une sélection sûre est structurellement à edge/EV ~neutre.
 
 SORTIE — produis d'abord le format lisible :
 🏆 BEST BET MONTANTE (Match / Compétition / Heure / Marché / Cote actuelle / Cote minimum acceptable / Fair Odd)
@@ -2724,9 +2728,13 @@ async def _montante_best_bet(client, cands: list):
 
 # ============================ RÈGLE DE SÉLECTION COMBINÉ DOUBLE CHANCE (analyste quantitatif) ============================
 # Spec user 2026-08-18. UN combiné, EXCLUSIVEMENT des Double Chance 1X/X2, cote cible ~2.00 (jamais obligatoire),
-# 2-5 jambes (3-4 optimal), ou PASS. Priorité : QUALITÉ DONNÉES > ROBUSTESSE > P_comb > RED FLAGS > EDGE > EV >
-# FAIBLE VARIANCE > COTE 2.00. Discipline : jamais forcer une jambe pour atteindre la cote cible.
-COMBO_DC_RULE = """RÔLE : analyste quantitatif football. Construis UN SEUL combiné composé EXCLUSIVEMENT de Double Chance (1X = domicile ou nul · X2 = nul ou extérieur), ou réponds PASS. Objectif = meilleur compromis ROBUSTESSE × PROBABILITÉ GLOBALE × EDGE × EV × QUALITÉ DES DONNÉES × FAIBLE VARIANCE, cote totale CIBLE ~2.00 (jamais une obligation). Ne fabrique JAMAIS un combiné pour faire plaisir : PASS est une réponse valide.
+# 2-5 jambes (3-4 optimal), ou PASS.
+# SÛRETÉ-FIRST (user 2026-08-19) : une DC favorite est edge/EV ~neutre-négatif par nature -> edge/EV INFORMATIFS,
+# jamais filtrants. Priorité : QUALITÉ DONNÉES > ROBUSTESSE > P_comb > RED FLAGS > FAIBLE VARIANCE > COTE ~2.00.
+# Seuil/jambe abaissé 80->68% (sinon impossible d'atteindre ~2.00 avec des DC sûres). Vise la PRÉSENCE (sort la
+# plupart des jours) ; PASS seulement si slate pauvre/risquée. Motif : l'ancienne règle EV-first PASSait tous les jours.
+COMBO_DC_RULE = """RÔLE : analyste quantitatif football. Construis UN SEUL combiné composé EXCLUSIVEMENT de Double Chance (1X = domicile ou nul · X2 = nul ou extérieur), ou réponds PASS.
+NATURE DU PRODUIT — SÛRETÉ-FIRST : c'est un combiné de SÛRETÉ. Une DC favorite est STRUCTURELLEMENT survendue par le book -> son edge/EV vs le prix sharp est ~neutre à légèrement NÉGATIF. C'est ATTENDU et ACCEPTABLE, ce n'est JAMAIS à lui seul un motif de rejet ni de PASS. Objectif = meilleur compromis ROBUSTESSE × PROBABILITÉ GLOBALE × QUALITÉ DES DONNÉES × FAIBLE VARIANCE (l'edge et l'EV sont INFORMATIFS, PAS des filtres). Cote totale CIBLE ~2.00 (jamais une obligation ; la SÛRETÉ prime sur la cote). Vise la PRÉSENCE : ce combiné doit sortir la PLUPART des jours -> PASS UNIQUEMENT si la slate est vraiment pauvre/risquée (données trop minces, ou pas 2 jambes robustes disponibles). N'inclus jamais une jambe DOUTEUSE, mais ne t'abstiens pas non plus alors que des DC sûres existent.
 
 HIÉRARCHIE STRICTE des priorités : 1) qualité/fiabilité des infos · 2) robustesse individuelle des sélections · 3) probabilité globale · 4) absence de red flags · 5) edge · 6) EV · 7) faible variance · 8) cote proche de 2.00. La proximité de 2.00 ne justifie JAMAIS l'ajout d'une mauvaise sélection.
 
@@ -2742,11 +2750,11 @@ MÉTHODE OBLIGATOIRE : 1) SCANNE tout le programme fourni (ne prends jamais les 
 DONNÉES (utilise le dossier de chaque candidat ; ne jamais INVENTER cote/blessure/compo/stat) : niveau intrinsèque & qualité des adversaires (pas le classement brut), forme récente (poids aux + récents), xG/xGA/tirs cadrés/grosses occasions & divergences résultats↔sous-jacent, performance DOMICILE (pour 1X) ou capacité à ne pas perdre à l'EXTÉRIEUR (pour X2), effectif (blessures/susp/gardien/défense/créateurs/buteurs/rotation), XI (probable vs confirmé), fatigue/calendrier, motivation/enjeu (un nul qui ARRANGE l'équipe choisie = très intéressant pour une DC), match-up tactique, H2H (secondaire). Info clé invérifiable -> « DONNÉE NON CONFIRMÉE » + confiance réduite.
 
 ESTIMATION PAR JAMBE : produis P(1)/P(X)/P(2) (~100%), puis P_est = P(1)+P(X) pour 1X, P(X)+P(2) pour X2. P_imp=1/cote, Fair Odd=1/P_est, Edge=P_est−P_imp (points), EV=(P_est×cote)−1. Marge d'erreur : un 86% vs 85% peut être du bruit -> plus d'incertitude = edge exigé plus grand.
-SEUIL DUR PAR JAMBE : P_est < 80% = REJET. Préféré ≥85%, excellent ≥88%, exceptionnel ≥90%. Une jambe 80–85% doit avoir une excellente value et très peu de red flags. Cote indicative 1.10–1.35 (mais compare toujours prix vs risque). Score /100 par jambe (solidité stat /25 · edge+EV /20 · forme+niveau /15 · effectif+XI /15 · dom/ext /10 · match-up+contexte /10 · qualité/fraîcheur données /5) — préféré ≥85/100, <80 rejet.
+SEUIL PAR JAMBE (produit de sûreté) : P_est < 68% = REJET. Préféré ≥75%, très sûr ≥82%. Cote indicative 1.10–1.55. Une jambe 68–75% doit avoir des données fiables et peu de red flags. Rappel : viser une cote totale ~2.00 impose souvent 2-3 jambes autour de 70% — c'est ACCEPTABLE si chaque jambe est ROBUSTE (ne rejette PAS une jambe à 71% bien étayée juste parce qu'elle n'atteint pas 80%). Score /100 par jambe (solidité stat /30 · forme+niveau /20 · effectif+XI /15 · dom/ext /15 · match-up+contexte /10 · qualité/fraîcheur données /10 ; l'edge/EV NE pénalisent PAS le score) — préféré ≥70/100, <58 rejet.
 
 RED FLAGS (plusieurs significatifs = rejet de la jambe) : derby/rivalité, amical, nouvel entraîneur, rotation, équipe sans enjeu, nombreuses blessures, gardien absent, défense remaniée, buteur absent, données insuffisantes, équipe très irrégulière, fatigue, voyage difficile, mauvais match-up, cote fortement bougée sans explication, compo très incertaine.
 
-COMBINÉ : P_comb ≈ produit des P_est (JAMAIS additionner) ; évite les sélections corrélées (même match, facteur commun) — si la corrélation n'est pas modélisable, augmente la marge ou rejette. Cote combinée = produit des cotes. EV_comb=(P_comb×cote)−1 : un coupon ~2.00 mais à EV NÉGATIVE = rejet. Identifie la WEAKEST LEG (mérite-t-elle sa place ?). COTE MINIMUM ACCEPTABLE : indique-la ; sous ce seuil -> NO BET. Ne JAMAIS forcer la dernière jambe pour atteindre 2.00. Optimise dans 1.90–2.10 MAIS robustesse > value > P_comb > edge > cote 2.00 (préfère @1.92/P57% à @2.01/P49%).
+COMBINÉ : P_comb ≈ produit des P_est (JAMAIS additionner) ; évite les sélections corrélées (même match, facteur commun) — si la corrélation n'est pas modélisable, augmente la marge ou rejette. Cote combinée = produit des cotes. EV_comb=(P_comb×cote)−1 est INFORMATIVE : un combiné de DC sûres est souvent à EV ~neutre voire légèrement négative vs le prix sharp — ce n'est JAMAIS à lui seul un motif de rejet (produit de sûreté). Rejette une jambe sur sa ROBUSTESSE / red flags / données douteuses, PAS sur un edge/EV légèrement négatif. Identifie la WEAKEST LEG (est-elle assez ROBUSTE pour rester ?). COTE MINIMUM ACCEPTABLE : indique-la ; sous ce seuil -> NO BET. Ne JAMAIS forcer une jambe DOUTEUSE pour atteindre 2.00. Priorité : robustesse > P_comb > qualité données > cote ~2.00 (préfère TOUJOURS le combiné le plus SÛR : @1.49/P58% de 3 jambes ≥82% vaut mieux que @2.00/P49% de 2 jambes ~70%).
 
 SORTIE — produis d'abord le format lisible :
 🏆 COMBINÉ DOUBLE CHANCE (par jambe : Match / Compétition / Heure / 1X ou X2 / Cote / P(1)/P(X)/P(2) / P_est / Fair Odd / P_imp / Edge / EV / Score /100 / Argument principal / Risque principal)
@@ -2754,7 +2762,7 @@ SORTIE — produis d'abord le format lisible :
 🔗 WEAKEST LEG (match / sélection / pourquoi la plus faible / pourquoi elle reste — sinon supprime & recalcule)
 🗑️ SÉLECTIONS REJETÉES (match — sélection — raison : edge insuffisant / cote trop faible / XI incertain / mauvais match-up / fatigue / red flags…)
 ⚠️ RISQUES DU COUPON (les 3 principaux, précis)
-🚦 VERDICT : 🟢 GO / 🟠 ATTENDRE LES XI / 🔴 PASS (max 4 phrases). Score global : <75 PASS · 75–84 insuffisant · 85–89 bon · 90+ exceptionnel. Interdit : « sûr / garanti / immanquable / certain / sans risque ».
+🚦 VERDICT : 🟢 GO / 🟠 ATTENDRE LES XI / 🔴 PASS (max 4 phrases). Score global (produit de sûreté) : <58 PASS · 58–72 acceptable · 73–89 bon · 90+ exceptionnel. Ne PASSE PAS un combiné de DC ROBUSTES juste parce que son edge/EV est neutre — c'est la nature d'une double chance sûre. Interdit : « sûr / garanti / immanquable / certain / sans risque ».
 
 PUIS, EN TOUTE DERNIÈRE LIGNE, une ligne machine EXACTE (sans gras ni puce), listant les IDENTIFIANTS des matchs retenus :
 COMBO_DC_PICK: <mid1>,<mid2>,<mid3>|<cote_totale>|<P_comb %>|<EV %>|<score_global>|<GO|WAIT|PASS>
