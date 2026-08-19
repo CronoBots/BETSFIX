@@ -2829,7 +2829,8 @@ async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None
     if v.get("decision") != "GO":                     # PASS / WAIT explicite -> honoré (pas de combiné, pas de repli)
         return None
     mids = [str(x) for x in (v.get("mids") or []) if str(x) in by_mid]
-    seen, mids = set(), [x for x in mids if not (x in seen or seen.add(x))]   # dédup, garde l'ordre
+    seen = set()                                          # dédup, garde l'ordre (NE PAS fusionner avec la ligne
+    mids = [x for x in mids if not (x in seen or seen.add(x))]   # suivante : `seen` doit exister AVANT la compréhension)
     if len(mids) < 2:
         return None
     legs, cote, prob = [], 1.0, 1.0
