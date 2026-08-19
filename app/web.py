@@ -3613,9 +3613,11 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # ACCUEIL = onglet/PANNEAU SPA à part entière (demande user 2026-07-30) : MÊME cadre + présentation que les
 # autres onglets (son panneau charge /accueil?frag=1, bascule SANS rechargement). « Compte » n'est PAS dans
 # la barre du bas -> bouton en HAUT À DROITE (_ACCT_BTN). (Gating d'onglets par abonnement : plus tard.)
+# ONGLET MONTANTE RETIRÉ de la barre (user 2026-08-19) : la montante devient un ONGLET des Résultats
+# (bilan multiplicateur + courbe capital), comme Confiance/Value/Combiné. Barre = 4 onglets. Son pari du
+# jour reste dans Pronos. `/montante` redirige vers /stats (routeur).
 _SPA_TABS = [("accueil", "/accueil", "🏠", "Accueil"),
              ("home", "/", "📅", "Pronos"),
-             ("montante", "/montante", "🪜", "Montante"),   # à GAUCHE de Live (user 2026-08-08)
              ("directs", "/directs", _LIVE_RADAR, "Live"),
              ("stats", "/stats", "📊", "Résultats")]
 # Bouton compte en haut à droite (toutes les pages) : /compte affiche la connexion si déconnecté, le compte
@@ -4171,7 +4173,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
         f'<a class="{"on" if sport == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
         + ('<span class="nav-n" hidden></span>'
-           if k in ("home", "tennis", "basket", "foot", "directs", "montante") else '')
+           if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
 
@@ -4226,7 +4228,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         f'<a class="{"on" if active == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
         + ('<span class="nav-n" hidden></span>'
-           if k in ("home", "tennis", "basket", "foot", "directs", "montante") else '')
+           if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
@@ -4736,13 +4738,26 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # ORDRE onglets = Confiance · Value · [Provisoire retiré] · Combiné (user 2026-08-11). L'onglet Provisoire
     # n'est plus rendu (prov_html="" -> onglet ignoré) ; les abstentions nourrissent la calibration (fantômes).
     _prov_html = _prov_sport_graph("foot") if analyses.PROVISOIRES_ON else ""
+    # ONGLET MONTANTE (user 2026-08-19) : l'ex-onglet nav Montante devient un onglet des Résultats, comme
+    # Confiance/Value/Combiné, MAIS avec son graphique propre (multiplicateur + courbe de capital + échelle).
+    # Hors ROI -> pas de chip ROI. Le pari du jour reste dans Pronos. Affiché seulement si la montante est active.
+    _mont_block = ""
+    try:
+        from app import montante as _mtn_s
+        if _mtn_s.is_active():
+            _mont_block = render_montante_bilan(_mtn_s.state(), _mtn_s.example())
+    except Exception:
+        _mont_block = ""
+    _mont_cnt = 1 if _montante_palier() is not None else 0
     _foot = _sport_tabs(simples_block, combos_block, _prov_html,
                         value_html=value_block,                                    # onglet VALUE (user 2026-08-09)
+                        montante_html=_mont_block,                                 # onglet MONTANTE (user 2026-08-19)
                         counts=(len(_pend_conf), len(_pend_val),
-                                _prov_pending_count("foot") if analyses.PROVISOIRES_ON else 0, len(_pend_fc)),
+                                _prov_pending_count("foot") if analyses.PROVISOIRES_ON else 0, len(_pend_fc),
+                                _mont_cnt),
                         rois=((_bt.get("confiance") or {}).get("roi"), (_bt.get("value") or {}).get("roi"),
                               _prov_sport_roi("foot") if analyses.PROVISOIRES_ON else None,
-                              None))   # onglet Combiné AFFICHÉ mais HORS ROI -> pas de chip ROI (user 2026-08-16)
+                              None, None))   # Combiné + Montante AFFICHÉS mais HORS ROI -> pas de chip ROI
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
     # Cadre KPIs global (« Avantage réalisé ») RETIRÉ au-dessus des onglets (user 2026-08-16) : le ROI +
@@ -4851,17 +4866,18 @@ def _roi_chip_mini(roi) -> str:
 
 def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
                 counts: tuple = (0, 0, 0, 0), rois: tuple = (None, None, None, None),
-                value_html: str = "") -> str:
-    """Onglets « Confiance | Value | Provisoire | Combiné » dans un cadre sport (demande user 2026-07-24/25,
-    Value ajouté 2026-08-09) : UN graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique).
-    Les onglets vides sont ignorés ; si un seul graphe, rendu direct ; '' si aucun. `counts`/`rois` = par
-    onglet DANS L'ORDRE (Confiance, Value, Provisoire, Combiné) — pastille ⏳ si count>0 + ROI discret."""
-    _c = list(counts) + [0, 0, 0, 0]
-    _r = list(rois) + [None, None, None, None]
-    # ORDRE (user 2026-08-10) : Confiance › Value › Provisoire › Combiné (Combiné en dernier). Libellés au
-    # SINGULIER = plus courts -> les 4 onglets tiennent sans déborder. counts/rois suivent le MÊME ordre.
+                value_html: str = "", montante_html: str = "") -> str:
+    """Onglets « Confiance | Value | Provisoire | Combiné | Montante » dans un cadre sport (demande user
+    2026-07-24/25, Value 2026-08-09, Montante 2026-08-19 : l'onglet nav Montante devient un onglet des Résultats) :
+    UN graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique). Les onglets vides sont ignorés ;
+    si un seul graphe, rendu direct ; '' si aucun. `counts`/`rois` = par onglet DANS L'ORDRE — pastille ⏳ + ROI."""
+    _c = list(counts) + [0, 0, 0, 0, 0]
+    _r = list(rois) + [None, None, None, None, None]
+    # ORDRE (user 2026-08-19) : Confiance › Value › Provisoire › Combiné › Montante (Montante en dernier, comme
+    # dans Pronos). Libellés au SINGULIER. counts/rois suivent le MÊME ordre. La montante n'a PAS de chip ROI
+    # (hors ROI, courbe = capital/multiplicateur).
     _specs = (("Confiance", simple_html), ("Value", value_html),
-              ("Provisoire", prov_html), ("Combiné", combos_html))
+              ("Provisoire", prov_html), ("Combiné", combos_html), ("Montante", montante_html))
     _tabs = [(lbl, h, _c[i], _r[i]) for i, (lbl, h) in enumerate(_specs) if h]
     if len(_tabs) <= 1:
         return _tabs[0][1] if _tabs else ""
@@ -8388,12 +8404,10 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     # quotidien vivent désormais dans l'onglet CALENDRIER dédié -> plus de doublon en tête de Pronos.
     # MODULE « Programme du jour » : liste COMPLÈTE des matchs suivis + heure d'analyse (wave-first). Hors
     # #day-content (stable, indépendant de la navigation par jour). Pur affichage, 0 réseau.
-    # BADGE onglet MONTANTE (user 2026-08-11) : « 1 » s'il y a une montante sélectionnée aujourd'hui (pending
-    # ou réglée du jour), sinon caché. Posé depuis la home (comme le badge Live) -> visible sans visiter l'onglet.
-    _mont_n = 1 if _montante_today_bet() else 0
+    # BADGE nav MONTANTE RETIRÉ (user 2026-08-19) : plus d'onglet Montante dans la barre (la montante est un
+    # onglet des Résultats). Son pari du jour est déjà compté dans le badge Pronos (zone Montante).
     body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
             f'<span class="dv-nav" data-tab="directs" data-n="{_lv_total}" hidden></span>'
-            f'<span class="dv-nav" data-tab="montante" data-n="{_mont_n}" hidden></span>'
             # Bouton NOTIFICATIONS push (user 2026-08-16) — auto-masqué une fois activé (.on), libellé géré par JS.
             '<div class="bfx-pushrow"><button type="button" class="bfx-pushbtn" onclick="bfxPushEnable()">'
             '🔔 Activer les notifications</button></div>'
@@ -8658,6 +8672,70 @@ def render_montante(st: dict, example: dict) -> str:
     _mn = 1 if _montante_palier() is not None else 0
     return (f'<span class="dv-nav" data-tab="montante" data-n="{_mn}" hidden></span>'
             + hero + intro + ladder + pari + palmares + hist)
+
+
+def render_montante_bilan(st: dict, example: dict) -> str:
+    """BILAN MONTANTE pour l'onglet RÉSULTATS (user 2026-08-19) — même cadre/onglet que Confiance/Value/Combiné,
+    mais avec le GRAPHIQUE PROPRE à la montante : multiplicateur ×N + courbe de capital + échelle des paliers
+    + palmarès/historique. PAS le pari du jour (il reste dans Pronos). Hors ROI. Remplace l'onglet Montante."""
+    base = st.get("base", 10.0)
+    active = st.get("active")
+    cap = st.get("capital", base)
+    palier = st.get("palier", 0)
+    featured = st.get("featured")
+    stats = st.get("stats", {})
+    # COURBE de capital (trajectoire réelle base -> pic) ; repli sur l'exemple si rien de réel.
+    if featured and featured.get("steps"):
+        _fsteps, tag = featured["steps"], ''
+    else:
+        _fsteps = (example or {}).get("steps") or []
+        tag = '<span class="tag">Aperçu · exemple</span>'
+    _caps = [base] + [s.get("payout") for s in _fsteps
+                      if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
+    _curve = (f'<div class="mont-curve mont-hero-curve">{_mont_curve(_caps, uid="mbil")}</div>'
+              if len(_caps) >= 2 else "")
+    # HERO — multiplicateur ×N vedette si montante en cours, sinon capital + état.
+    if active and palier > 0:
+        _q = (cap / base) if base else 0
+        _qtxt = f'{round(_q, 1):g}'.replace(".", ",")
+        hero = ('<div class="mont-hero mont-hero-live">'
+                '<div class="mhe">Multiplicateur actuel</div>'
+                f'<div class="mhx">×{_qtxt}</div>'
+                '<div class="mhx-cap">sur la mise de départ</div>'
+                '<div class="mont-prog">'
+                f'<div class="mp-cell"><b>{_mont_eur(base)}</b><span>Départ</span></div>'
+                '<div class="mp-arrow" aria-hidden="true">→</div>'
+                f'<div class="mp-cell"><b class="mp-now">{_mont_eur(cap)}</b>'
+                f'<span>Capital · palier {palier}</span></div></div>' + _curve + '</div>')
+    else:
+        _sub = ('Nouvelle montante — prête pour le pari du jour' if active
+                else 'Mise de départ · prête à démarrer')
+        _chip = ('<span class="mont-chip wait">En attente du pari du jour</span>' if active
+                 else '<span class="mont-chip wait">Bientôt · en préparation</span>')
+        hero = (f'<div class="mont-hero"><div class="mont-hero-l">Capital de la montante</div>'
+                f'<div class="mont-hero-cap">{_mont_eur(cap)}</div>'
+                f'<div class="mont-hero-sub">{_sub}</div>{_chip}{_curve}</div>')
+    ladder = (f'<div class="mont-sec-h">La montante{tag}</div>'
+              '<div class="mont-lead">Chaque palier gagné fait grimper la mise — palier par palier.</div>'
+              f'<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
+    palmares = ('<div class="mont-sec-h">Palmarès</div><div class="mont-kpis">'
+                f'<div class="mont-kpi best"><b>{_mont_eur(stats.get("best_capital", base))}</b>'
+                '<span>meilleure montante</span></div>'
+                f'<div class="mont-kpi"><b>{stats.get("best_palier", 0)}</b><span>paliers max</span></div>'
+                f'<div class="mont-kpi"><b>{stats.get("n", 0)}</b><span>montantes jouées</span></div></div>')
+    chains = st.get("chains") or []
+    if chains:
+        hrows = "".join(
+            '<div class="mont-hrow"><div class="mont-hrow-b">✗</div>'
+            f'<div class="mont-hrow-m"><b>{c.get("palier", 0)} palier{"s" if c.get("palier", 0) != 1 else ""}</b>'
+            f'<span>Pic atteint · {_mont_eur(c.get("peak"))}</span></div>'
+            f'<div class="mont-hrow-v">{_mont_eur(c.get("peak"))}</div></div>' for c in chains)
+        hist = f'<div class="mont-sec-h">Historique des montantes</div><div class="mont-hist">{hrows}</div>'
+    else:
+        hist = ('<div class="mont-sec-h">Historique des montantes</div>'
+                '<div class="mont-empty">Les montantes terminées apparaîtront ici — chacune avec son nombre de '
+                'paliers et le capital maximal atteint.</div>')
+    return f'<div class="mont-bilan">{hero}{ladder}{palmares}{hist}</div>'
 
 
 _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",

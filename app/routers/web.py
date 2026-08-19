@@ -710,23 +710,12 @@ async def calendrier_page(ym: str = "", frag: int = 0, cal: int = 0) -> HTMLResp
     return HTMLResponse(web.spa_shell("calendrier", "Calendrier", body))
 
 
-@router.get("/montante", response_class=HTMLResponse)
-async def montante_page(frag: int = 0) -> HTMLResponse:
-    """Onglet « Montante » (fonctionnalité préparée 2026-07-24) : une montante quotidienne sur 1 pari, mise
-    de départ 10 €, rejouée après chaque gain. Page premium prête à basculer sur les vraies données le jour
-    de l'activation ; en attendant, elle explique le concept + affiche un aperçu (exemple). Hors ROI."""
-    from app import montante as _mt
-    # SIMULATION « meilleure montante » RETIRÉE (user 2026-08-07) : la page Montante ne montre QUE la montante
-    # RÉELLE (et son historique réel), plus aucune vitrine simulée sur les simples foot.
-    _st = _mt.state()
-    # TITRE : « Montante en cours » quand une montante est active avec au moins un palier (user 2026-08-09 :
-    # le badge « 🔥 Montante en cours » du hero est retiré -> l'info passe dans le titre de page).
-    _mtitle = "Montante en cours" if (_st.get("active") and _st.get("palier", 0) > 0) else "Montante"
-    body = (f'<div class="pg-h">{_mtitle}</div>'
-            f'<div class="statsx">{web.render_montante(_st, _mt.example())}</div>')
-    if frag:
-        return HTMLResponse(body)
-    return HTMLResponse(web.spa_shell("montante", "Montante", body))
+@router.get("/montante")
+async def montante_page() -> RedirectResponse:
+    """L'onglet « Montante » a été INTÉGRÉ AUX RÉSULTATS (user 2026-08-19) : le bilan montante (multiplicateur
+    + courbe de capital + échelle des paliers) est désormais un ONGLET de /stats, comme Confiance/Value/Combiné
+    (son pari du jour reste dans Pronos). On redirige les anciens liens/favoris /montante vers /stats."""
+    return RedirectResponse("/stats", status_code=308)
 
 
 # Page « Simulation bankroll » /mybets + tout le module mybets/CLV SUPPRIMÉS (2026-06-14) : le pari
