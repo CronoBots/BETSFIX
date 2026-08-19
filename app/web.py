@@ -6725,9 +6725,11 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     if not (body and body.strip()):
         if not empty:
             return ""
-        body, count = f'<div class="zone-empty">{empty}</div>', 0
-        # ZONE VIDE (user 2026-08-19) : le message « aucun pari… » doit être VISIBLE DIRECTEMENT (pas besoin
-        # d'ouvrir) et la zone N'EST PAS repliable (rien à déplier). -> rendue en <section>, jamais en <details>.
+        # ZONE VIDE (user 2026-08-19) : EN-TÊTE SEUL (icône + titre + badge « en attente »), SANS phrase — le
+        # badge dit déjà « rien pour l'instant », la phrase faisait doublon (comme Abstention). `empty` (non vide)
+        # ne sert plus que de DRAPEAU « afficher cette catégorie même vide » ; son texte n'est plus rendu. Zone
+        # NON repliable (rien à déplier) -> <section>, jamais <details>.
+        body, count = "", 0
         _empty_zone = True
         collapsible = False
     # RECORD du JOUR par type (demande user 2026-08-02) : le BADGE (compteur rond) montre le nombre sélectionné ;
@@ -6811,7 +6813,10 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
                 f'<summary class="zone-h">{head}<span class="zone-right">{rec}{live_badge}'
                 f'<span class="zone-chev">▾</span></span></summary>'
                 f'<div class="zone-b">{body}</div></details>')
-    return (f'<section class="zone zone-{kind}{" zone-vide" if _empty_zone else ""}"><div class="zone-h">{head}'
+    if _empty_zone:                                    # catégorie vide -> en-tête seul (icône + titre + badge)
+        return (f'<section class="zone zone-{kind} zone-vide"><div class="zone-h">{head}'
+                f'<span class="zone-right">{rec}{live_badge}</span></div></section>')
+    return (f'<section class="zone zone-{kind}"><div class="zone-h">{head}'
             f'<span class="zone-right">{rec}{live_badge}</span></div>'
             f'<div class="zone-b">{body}</div></section>')
 
