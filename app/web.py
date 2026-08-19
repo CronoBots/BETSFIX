@@ -265,7 +265,7 @@ CSS = """
     --gold:#f6c54a;--gold-bg:#231d09;--gold-bd:#4a3c0c;
     --red:#ff6b6b;--green:#a6e22e;--brand:var(--accent);
     --cardline:rgba(34,184,255,.30);--cardglow:0 0 24px rgba(34,184,255,.10);
-    --radius:16px;--shadow:0 8px 26px rgba(0,0,0,.55);--shadow-sm:0 2px 8px rgba(0,0,0,.4);
+    --radius:16px;--shadow:0 12px 34px -6px rgba(0,0,0,.55);--shadow-sm:0 3px 12px -2px rgba(0,0,0,.42);   /* ombres plus diffuses = profondeur premium (user 2026-08-19) */
     /* Bord GAUCHE des cartes de pari selon l'état (demande user 2026-07-25) : en attente=JAUNE ;
        en cours (live)=même jaune (PAS de couleur dédiée -> le badge « 🟢 Live » suffit) ; gagné=vert ;
        perdu=rouge ; remboursé=gris. */
