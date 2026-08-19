@@ -379,7 +379,7 @@ CSS = """
     .panel.on{flex:1 0 auto}
     #pn-home.on{display:flex;flex-direction:column}
     #pn-home.on #day-content{flex:1 0 auto;display:flex;flex-direction:column}
-    #pn-home.on .dash-zones{flex:1 0 auto;display:flex;flex-direction:column;justify-content:space-between}
+    #pn-home.on .dash-today{flex:1 0 auto;display:flex;flex-direction:column;justify-content:space-between}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
@@ -7572,7 +7572,9 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # COMPACT (user 2026-08-19) : toutes les catégories + leur phrase doivent tenir VISIBLES sur l'écran (plus de
     # répartition `space-between` qui poussait Combiné/Abstention hors écran). Empilement serré (CSS compacte les
     # zones vides + réduit les espaces).
-    zones = f'<div class="dash-zones">{inner}</div>'
+    # `dash-today` (user 2026-08-19) : SEULE la vue d'AUJOURD'HUI répartit les catégories sur la hauteur
+    # (space-between). Les vues de JOURS PASSÉS (_day_view, même conteneur #day-content) restent alignées EN HAUT.
+    zones = f'<div class="dash-zones dash-today">{inner}</div>'
     today_iso = _sport_today().isoformat()
     # BADGE nav = paris NON RÉGLÉS du jour (à venir + en cours). `play`/`prov` ne contiennent DÉJÀ que
     # l'actif (les réglés partent dans _res_cards/_prov_res). Le combiné ne compte donc QUE s'il est encore
