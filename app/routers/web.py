@@ -847,6 +847,35 @@ async def directs_page(
                 "pick_kind": "confiance", "sofa_ok": True, **lf}))
         return out
 
+    # PROCHAINS MATCHS (à venir, user 2026-08-19) : matchs ANALYSÉS avec un pari retenu, PAS encore commencés
+    # (fresh_status = notstarted, non réglés) -> section « Prochains matchs » du Live, triée par coup d'envoi.
+    async def _upcoming_cards(sport: str) -> list:
+        out = []
+        for d in analyses.list_for(sport, include_background=True):
+            if analyses.is_settled(d):
+                continue
+            lf = web.live_fields(match_select.live_state_for(sport, d.get("home"), d.get("away")), sport)
+            has_sc = (bool(lf.get("score")) or (not analyses.is_settled(d)
+                      and match_select.sticky_live(sport, d.get("home"), d.get("away"))))
+            st, usdt = match_select.fresh_status(sport, d.get("home"), d.get("away"),
+                                                 analyses.status_of(d), has_sc, start_iso=d.get("start"))
+            if st != "notstarted":
+                continue
+            dt = usdt or d.get("_start_dt")
+            start = dt.timestamp() if dt else None
+            sid = d.get("sofa_id") or d.get("id")
+            sel, odds = analyses.pick_parts(d.get("pick") or "")
+            perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
+            o1, ox, o2 = d.get("o1"), d.get("ox"), d.get("o2")
+            out.append(foot._card({
+                "id": sid, "status": "notstarted", "comp": d.get("comp"),
+                "home": d.get("home", ""), "away": d.get("away", ""), "probs": None, "goals": None,
+                "o1": o1, "ox": ox, "o2": o2, "imp": foot._devig3(o1, ox, o2) if (o1 and ox and o2) else None,
+                "pick": None, "start": start, "votes": analyses.votes_pct(d),
+                "perle": perle, "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True}))
+        out.sort(key=lambda c: c.get("start_ts") or 0)
+        return out
+
     await match_select.fetch_live_odds("foot")   # peuple le cache score/horloge live foot
     # Provisoires EN COURS (demande user 2026-07-10) : ils n'ont pas de sidecar (absents de list_for) ->
     # on les ajoute au Live depuis le programme (cartes _html dorées « en cours », hors ROI). Le cache
@@ -858,7 +887,8 @@ async def directs_page(
     prov_live = ([it for it in web._programme_items(set()) if it.get("_live")]
                  if analyses.PROVISOIRES_ON else [])
     play_live = await _live_cards("foot")
-    body = web.render_directs(play_live, prov_live, sport=sp, frag=bool(frag))
+    upcoming = await _upcoming_cards("foot")
+    body = web.render_directs(play_live, prov_live, sport=sp, upcoming=upcoming, frag=bool(frag))
     if frag:
         fragcache.put(f"panel/directs/{sp}", body, ttl=PANEL_TTL)
     return HTMLResponse(body)

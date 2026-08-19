@@ -10506,7 +10506,8 @@ def _combo_live_leg_cards(sport: str = "foot") -> list:
     return rows
 
 
-def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
+def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False,
+                   upcoming: list | None = None) -> str:
     """Onglet « Directs » : matchs EN DIRECT groupés par TYPE de pari (Combiné · Paris joués · Provisoires).
     SÉLECTEUR DE SPORT en tête (demande user 2026-07-28, comme Pronos) : cliquer un sport recharge le panneau
     `#pn-directs` via /directs?sport=<sk> et ne montre QUE les matchs live de ce sport. `play_live` = paris
@@ -10554,6 +10555,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     _counts["foot"] += ((1 if _safe_combo else 0) + _mont_extra)
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
+    _upc = [c for c in (upcoming or []) if _item_sport(c) == _cur]   # PROCHAINS matchs (à venir) du sport
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur] if analyses.PROVISOIRES_ON else []
     _combo_rows = _combos.get(_cur, [])                         # jambes de combiné EN COURS (cartes simples)
@@ -10578,7 +10580,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _mont_tier_live = analyses.bet_tier_for("foot", str((_montante_today_bet() or {}).get("mid") or ""))
         _play = list(_play) + [{"_html": _mont_deco, "start_ts": (_md0 or {}).get("start_ts") or 0,
                                 "status": "inprogress", "tier": _mont_tier_live}]   # montante classée par son tier
-    if not (_play or _prov or _combo or _safe_combo):
+    if not (_play or _prov or _combo or _safe_combo or _upc):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -10614,6 +10616,11 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "en direct",
                   len(_combo_rows), _combo, zk="live-combo", **_lz),
         ]
+        # PROCHAINS MATCHS (user 2026-08-19) : les matchs à venir (non commencés) avec un pari, triés par coup
+        # d'envoi -> on anticipe ce qui va passer en direct. Zone dédiée EN DERNIER (après les zones live).
+        if _upc:
+            out.append(_zone("prog", "Prochains matchs", "à venir", len(_upc), _cards(_upc),
+                             zk="live-upc", **_lz))
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
     # Compteur TOUS sports -> BADGE chiffré du menu du bas (marqueur `.dv-nav` lu par le JS SPA).
