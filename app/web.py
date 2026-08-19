@@ -2475,6 +2475,30 @@ CSS = """
   .day-hd{margin:0 3px 12px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
   .day-hd-lead{font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.01em}
   .day-hd-sub{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:capitalize}
+  /* CALENDRIER HORIZONTAL (haut de Pronos, user 2026-08-19) — bande de dates cliquables, jour sélectionné
+     mis en avant (accent du sport), pastille résultat par jour. Scroll horizontal sans barre visible. */
+  .daycal{margin:0 0 16px}
+  .daycal-track{display:flex;gap:8px;overflow-x:auto;padding:2px 3px 9px;scroll-snap-type:x proximity;
+       -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+  .daycal-track::-webkit-scrollbar{display:none}
+  .daycal-d{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;
+       min-width:50px;padding:9px 7px 7px;border:1px solid var(--border);border-radius:15px;background:var(--surface);
+       cursor:pointer;position:relative;transition:transform .12s ease,border-color .16s ease,box-shadow .16s ease;
+       -webkit-tap-highlight-color:transparent}
+  .daycal-d:active{transform:scale(.95)}
+  .dcd-wd{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .dcd-day{font-size:19px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.05}
+  .dcd-mo{font-size:8px;font-weight:800;letter-spacing:.09em;color:var(--dim);margin-top:1px}
+  .dcd-dot{width:7px;height:7px;border-radius:50%;margin-top:4px}
+  .dcd-dot.pos{background:#54d98c;box-shadow:0 0 7px rgba(84,217,140,.65)}
+  .dcd-dot.neg{background:#ff7d7d;box-shadow:0 0 7px rgba(255,125,125,.55)}
+  .dcd-dot.neu{background:#9aa6b4}
+  .dcd-dot.none{background:transparent;border:1px solid var(--border2)}
+  .daycal-d.today .dcd-wd{color:var(--accent)}
+  .daycal-d.on{border-color:var(--accent);
+       background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 16%,var(--surface)),var(--surface));
+       box-shadow:0 8px 22px -10px var(--glow)}
+  .daycal-d.on .dcd-wd{color:var(--accent)}
   /* Bilan d'un jour PASSÉ (sous l'en-tête) : gagnés/réglés + ROI coloré. */
   .day-sum{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 3px 14px;
        padding:12px 14px;border-radius:13px;border:1px solid var(--border);
@@ -4002,6 +4026,27 @@ _SPSEL_JS = (
     "window.scrollTo({top:0,behavior:'smooth'});})"
     ".catch(function(){dc.style.opacity='';});});})();")
 
+# CALENDRIER HORIZONTAL de Pronos (user 2026-08-19) : clic sur une DATE -> recharge #day-content via
+# /jour?date=<iso>&sport=<sk actif>&frag=1 (préserve le sport sélectionné, lu sur la puce .spsel.on). Centre
+# la date active à l'écran (au chargement ET après chaque swap). Délégué au document (le calendrier est re-rendu
+# dans chaque fragment -> la surbrillance suit toujours le jour affiché).
+_DAYCAL_JS = (
+    "(function(){"
+    "function ctr(){var t=document.querySelector('#daycal .daycal-d.on');"
+    "if(t&&t.scrollIntoView){t.scrollIntoView({inline:'center',block:'nearest'});}}"
+    "document.addEventListener('click',function(e){"
+    "var b=e.target.closest('.daycal-d');if(!b)return;e.preventDefault();"
+    "var date=b.getAttribute('data-date');if(!date)return;"
+    "var dc=document.getElementById('day-content');if(!dc)return;"
+    "var sc=dc.querySelector('.spsel.on');var sp=sc?sc.getAttribute('data-sport'):'';"
+    "dc.style.opacity='.45';"
+    "fetch('/jour?date='+encodeURIComponent(date)+(sp?'&sport='+encodeURIComponent(sp):'')+'&frag=1',{headers:{'X-Frag':'1'}})"
+    ".then(function(r){return r.text();}).then(function(h){dc.innerHTML=h;dc.style.opacity='';ctr();"
+    "window.scrollTo({top:0,behavior:'smooth'});})"
+    ".catch(function(){dc.style.opacity='';});});"
+    # le panneau Pronos se charge en différé (SPA) -> on tente le centrage plusieurs fois (no-op si déjà centré).
+    "document.addEventListener('DOMContentLoaded',ctr);[250,800,1600].forEach(function(t){setTimeout(ctr,t);});})();")
+
 # Sous-nav de l'onglet Résultats (refonte user 2026-07-27) : bascule Bilan / Calendrier. Le Calendrier est
 # LAZY-chargé depuis /calendrier?frag=1 au 1er clic (évite de rendre 2 vues lourdes d'emblée). Délégué au
 # document (survit aux rechargements du panneau SPA).
@@ -4081,7 +4126,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}</style></head><body class="sp-{e(sport)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
@@ -4125,7 +4170,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -6739,6 +6784,47 @@ def _day_header(iso: str) -> str:
     return f'<div class="day-hd"><span class="day-hd-lead">{html.escape(lead)}</span>{sub_html}</div>'
 
 
+def _day_calendar(iso: str, sport: str | None = None, days: int = 21) -> str:
+    """CALENDRIER HORIZONTAL premium en tête de l'onglet Pronos (user 2026-08-19) — REMPLACE `_day_header`.
+    Bande de dates cliquables (jour de semaine + numéro + pastille résultat vert/rouge/neutre issue de
+    `_daily_results_map`), jour SÉLECTIONNÉ mis en avant, « AUJ. » marqué. Un clic recharge `#day-content` via
+    `/jour?date=<iso>&sport=<sk>&frag=1` (JS `_DAYCAL_JS`). Se re-rend à chaque swap -> surbrillance toujours à
+    jour. `days` = fenêtre glissante (dernières N dates, aujourd'hui à droite)."""
+    from datetime import date as _date, timedelta
+    today = _sport_today()
+    try:
+        sel = _date.fromisoformat(iso)
+    except (ValueError, TypeError):
+        sel = today
+    rmap = _daily_results_map()
+    cells = []
+    for i in range(days, -1, -1):                          # du plus ancien (gauche) à AUJOURD'HUI (droite)
+        dd = today - timedelta(days=i)
+        di = dd.isoformat()
+        st = rmap.get(di) or {}
+        settled, profit = st.get("settled", 0), st.get("profit", 0.0)
+        if settled:                                        # pastille résultat du jour (net ROI)
+            dcls = "pos" if profit > 1e-9 else ("neg" if profit < -1e-9 else "neu")
+            dot = f'<span class="dcd-dot {dcls}"></span>'
+        else:
+            dot = '<span class="dcd-dot none"></span>'
+        _cls = ("daycal-d" + (" on" if dd == sel else "") + (" today" if dd == today else ""))
+        _wd = _WD_ABBR[dd.weekday()]
+        _mo = _MO_FULL[dd.month - 1][:3].upper() if dd.day == 1 or i == days else ""
+        _motag = f'<span class="dcd-mo">{_mo}</span>' if _mo else ""
+        cells.append(
+            f'<button type="button" class="{_cls}" data-date="{di}" '
+            f'aria-label="{html.escape(_day_label_full(dd))}">'
+            f'<span class="dcd-wd">{"AUJ." if dd == today else _wd}</span>'
+            f'<span class="dcd-day">{dd.day}</span>{_motag}{dot}</button>')
+    return (f'<div class="daycal" id="daycal"><div class="daycal-track">{"".join(cells)}</div></div>')
+
+
+def _day_label_full(d) -> str:
+    """Libellé accessible d'une date : « mardi 18 août »."""
+    return f"{_WD_FULL[d.weekday()]} {d.day} {_MO_FULL[d.month - 1]}"
+
+
 def _card_has_bet(r: dict) -> bool:
     """Vrai si le match de cette carte a porté un VRAI pari proposé (simple joué figé OU combiné réglé) —
     filtre les ABSTENTIONS (analysées sans pari) de l'historique « Pronos » (demande user 2026-07-19 :
@@ -7387,7 +7473,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # « 2 » alors qu'il ne restait qu'1 pari en cours, le combiné du jour étant déjà perdu). La MONTANTE
     # n'est PAS ajoutée séparément (fix double-compte) : sa carte est déjà dans `play` (l.6600).
     _cnt = len(play) + len(prov) + (1 if _combo_active else 0)
-    return _day_header(today_iso) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
+    return _day_calendar(today_iso, sport) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
 def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
@@ -7414,19 +7500,33 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
                               _combo_tg_card(include_settled=True, cb=cb))
         except Exception:
             combo = ""
-    # HISTORIQUE = les VRAIS paris proposés (simples joués + combinés), rendus COMME les pronos (demande user
-    # 2026-07-28 : même mise en page uniforme dans le calendrier aussi) : cartes `_leg_card` riches (verdict/
-    # score/Pourquoi) + cadre vert/rouge, via le MÊME helper que « Résultats du jour » -> plus la version
-    # allégée de `_past_day_cards`/foot._card. `day_rows` (allégé) n'est donc plus rendu ici.
-    _res_cards = _settled_bet_result_cards(iso, sport)
+    # HISTORIQUE PAR TYPE DE PARI (user 2026-08-19 : « revoir les TYPES de paris et les résultats ») : mêmes
+    # cartes riches que l'onglet (verdict/score/Pourquoi, cadre vert/rouge, via `_settled_bet_result_cards`),
+    # SPLIT par tier comme la vue du jour : Confiance · Value · Montante · Combiné · Provisoire. Le tier est
+    # FIGÉ au règlement -> l'historique reflète ce qui a VRAIMENT été joué ce jour-là.
+    _res_conf = _settled_bet_result_cards(iso, sport, tier="confiance")
+    _res_value = _settled_bet_result_cards(iso, sport, tier="value")
+    _res_mont = _settled_bet_result_cards(iso, sport, tier="montante")
     _prov_res = _provisional_results(iso, sport)
-    _res_html = _MC_SEP.join(_res_cards) if _res_cards else ""
-    cards = (_zone("play", _plur(len(_res_cards), "Confiance"), "", len(_res_cards), _res_html + _prov_res, collapsible=True)
-             if (_res_cards or _prov_res) else "")
-    inner = summ + combo + cards
-    if not (combo or cards):
+    _zones = []
+    if _res_conf:
+        _zones.append(_zone("play", _plur(len(_res_conf), "Confiance"), "", len(_res_conf),
+                            _MC_SEP.join(_res_conf), collapsible=True))
+    if _res_value:
+        _zones.append(_zone("value", _plur(len(_res_value), "Value"), "", len(_res_value),
+                            _MC_SEP.join(_res_value), collapsible=True))
+    if _res_mont:
+        _zones.append(_zone("mont", _plur(len(_res_mont), "Montante"), "", len(_res_mont),
+                            _MC_SEP.join(_res_mont), collapsible=True))
+    if combo:
+        _zones.append(combo)
+    if _prov_res:
+        _zones.append(_zone("indic", "Provisoire", "", 1, _prov_res, collapsible=True))
+    cards = "".join(_zones)
+    inner = summ + cards
+    if not cards:
         inner = summ + '<div class="paj-empty">Aucun pari proposé ce jour-là.</div>'
-    return _day_header(iso) + f'<div class="dash-zones">{inner}</div>'
+    return _day_calendar(iso, sport) + f'<div class="dash-zones">{inner}</div>'
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
