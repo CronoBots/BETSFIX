@@ -10621,8 +10621,17 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _lst.sort(key=lambda c: c.get("start_ts") or 0)
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur] if analyses.PROVISOIRES_ON else []
-    _combo_rows = list(_combos.get(_cur, [])) + _up_combo   # jambes de combiné : EN COURS + À VENIR
+    _combo_rows = list(_combos.get(_cur, []))               # zone Combiné = jambes EN COURS seulement
     _combo = _join_cards([_sport_row(r) for r in _combo_rows])   # rendu HTML pour la zone Combiné
+    # PROCHAINS MATCHS = tous les à-venir MÉLANGÉS (combo + montante + simples), triés par coup d'envoi et
+    # DÉDUPLIQUÉS par match (un match repris par 2 types = une seule carte compacte). user 2026-08-19.
+    _upcoming_all, _seen_up = [], set()
+    for _c in sorted(_up_combo + _up_mont + _up_conf + _up_val, key=lambda c: c.get("start_ts") or 0):
+        _pu = _prog_pair(_c.get("home", ""), _c.get("away", ""))
+        if _pu in _seen_up:
+            continue
+        _seen_up.add(_pu)
+        _upcoming_all.append(_c)
     _safe_combo = _safe_combo if _cur == "foot" else ""   # combinés hors-ROI = foot uniquement
     if _cur != "foot":
         _mont_title, _mont_card = "", ""
@@ -10643,7 +10652,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _mont_tier_live = analyses.bet_tier_for("foot", str((_montante_today_bet() or {}).get("mid") or ""))
         _play = list(_play) + [{"_html": _mont_deco, "start_ts": (_md0 or {}).get("start_ts") or 0,
                                 "status": "inprogress", "tier": _mont_tier_live}]   # montante classée par son tier
-    if not (_play or _prov or _combo or _safe_combo or _up_conf or _up_val or _up_mont):
+    if not (_play or _prov or _combo or _safe_combo or _upcoming_all):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -10657,11 +10666,11 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     else:
         # MÊMES TYPES QUE PRONOS : Confiance (montante incluse) → Value → Provisoire → Combiné. Split
         # Confiance/Value par le `tier` de chaque carte (user 2026-08-09) ; Value masquée si vide / split off.
-        # LIVE + À VENIR fusionnés par type (user 2026-08-19) : chaque zone montre les paris en cours ET les
-        # prochains (cartes de prono : décompte + ligue + pick). Les cartes portent leur propre état (score/décompte).
-        _play_c = [c for c in _play if c.get("tier") == "confiance"] + _up_conf
-        _play_v = [c for c in _play if c.get("tier") == "value"] + _up_val
-        _play_m = [c for c in _play if c.get("tier") == "montante"] + _up_mont   # zone MONTANTE à part
+        # LES ZONES DE TYPE = MATCHS EN COURS SEULEMENT (user 2026-08-19 : on ne classe par type qu'une fois le
+        # match COMMENCÉ). Les prochains matchs (à venir) sont MÉLANGÉS dans une zone unique « Prochains matchs ».
+        _play_c = [c for c in _play if c.get("tier") == "confiance"]
+        _play_v = [c for c in _play if c.get("tier") == "value"]
+        _play_m = [c for c in _play if c.get("tier") == "montante"]     # zone MONTANTE à part
         # ZONES REPLIABLES comme PRONOS (user 2026-08-18 « meilleure répartition verticale des types de paris
         # pour utiliser l'écran ») : mêmes dividers/chevron/badge-à-droite qu'en Pronos. OUVERTES par défaut
         # (on veut voir les scores live) ; clés de persistance `live-*` DISTINCTES -> replier une zone en Live
@@ -10682,6 +10691,11 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "",
                   len(_combo_rows), _combo, zk="live-combo", **_lz),
         ]
+        # PROCHAINS MATCHS — MÉLANGÉS (pas classés par type tant que non commencés, user 2026-08-19), triés par
+        # coup d'envoi, cartes compactes (équipes + ligue + décompte). Zone en DERNIER.
+        if _upcoming_all:
+            out.append(_zone("prog", "Prochains matchs", "à venir", len(_upcoming_all),
+                             _join_cards([_sport_row(c) for c in _upcoming_all]), zk="live-upc", **_lz))
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
     # Compteur TOUS sports -> BADGE chiffré du menu du bas (marqueur `.dv-nav` lu par le JS SPA).
