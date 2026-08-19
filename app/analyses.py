@@ -3222,24 +3222,26 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                   {"name": d.get("name"), "sel": rb.get("sel"), "sport": sport})   # détails -> panneau « derniers paris »
             by_sport.setdefault(sport, []).append(ev)  # TOUJOURS (ROI simulé par sport, tennis/basket inclus)
             if sport not in _bg:                       # headline foot : les sports arrière-plan n'y entrent pas
-                all_ev.append(ev)
-                if is_new:
-                    since_ev.append(ev)
                 # SPLIT CONFIANCE / VALUE (user 2026-08-09) : classement par la confiance FIGÉE (tier_of ->
-                # monotone). Les DEUX comptent au ROI ; c'est juste un découpage d'affichage (onglets Stats).
-                _t = tier_of(d, rb)   # confiance / value / montante (la montante = catégorie à part)
+                # monotone). MONTANTE = produit À PART (ladder, hors ROI simples, user 2026-08-19) -> ses picks
+                # N'ENTRENT PAS dans l'overall (sinon total ≠ Confiance+Value+Combiné). Confiance+Value comptent.
+                _t = tier_of(d, rb)   # confiance / value / montante
+                if _t != "montante":
+                    all_ev.append(ev)
+                    if is_new:
+                        since_ev.append(ev)
                 (conf_ev if _t == "confiance" else mont_ev if _t == "montante" else value_ev).append(ev)
         # UN MATCH = UN PARI (user 2026-08-07) : le pari du 1er scan (`stat_bet_first`) N'EST PLUS compté
         # séparément — un même match ne doit produire QU'UNE ligne / UN résultat au ROI et à la série (avant :
         # un rescan qui changeait le pick faisait compter 2 fois le match, ex. Vitória-Athletico = 2 défaites
         # pour 1 match). On garde UNIQUEMENT le pari retenu (stat_bet). Le champ reste sur disque (jamais
         # supprimé) mais n'alimente plus le ROI/affichage. Annule la décision « double scan » du 2026-07-21.
-    # COMBINÉS MULTISPORT DU JOUR (décision user 2026-07-14 : comptés au ROI) : ce sont des COMBINÉS, donc
-    # comptés dans le bilan COMBINÉ (`combo_stats`, fusionné au ROI global), PAS dans les simples (`all_ev`).
-    # Ici on ne les met QUE dans la 2e ligne de forme (`form_combo`) — jamais dans la ligne simples.
+    # COMBINÉS DU JOUR (Sûr + Cote 2) — COMPTÉS AU ROI OVERALL (user 2026-08-19 : « compte les combinés dans le
+    # ROI aussi »). Quand `COMBO_ROI_ON`, chaque combiné réglé entre dans `all_ev` (overall + courbe d'équité) en
+    # plus du bilan combiné dédié -> Overall = Confiance + Value + Combiné. Toujours dans `combo_form` (2e ligne).
     try:
         from app import combo_daily as _cdroi
-        for _cev in _cdroi.roi_events():
+        for _cev in (_cdroi.roi_events() + _cdroi.roi_events(variant="cote2")):
             if cutoff is not None:
                 try:
                     _cdt = datetime.fromisoformat((_cev[0] or "") + "T00:00:00+00:00")
@@ -3249,6 +3251,13 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                     continue
             if _cev[1] in ("won", "lost", "push"):
                 combo_form.append((_cev[0], _cev[1], "combiné"))
+                # COMPTÉ À L'OVERALL avec le MÊME périmètre que le bilan combiné (`combo_stats`) -> filtre
+                # `_COMBO_STATS_FROM` (sinon des combinés antérieurs à la bascule gonflent le total). Cohérence
+                # totale : Overall = Confiance + Value + Combiné (mêmes combinés que l'onglet).
+                if COMBO_ROI_ON and (_cev[0] or "")[:10] >= _COMBO_STATS_FROM:
+                    all_ev.append(((_cev[0] or "") + "T00:00:00+00:00", _cev[1], _cev[2],
+                                   {"name": (_cev[3] or {}).get("name") or "Combiné du jour",
+                                    "sel": "combiné", "sport": "combiné"}))
     except Exception:
         pass
     out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
