@@ -2487,10 +2487,6 @@ CSS = """
   /* En-tête mois/année (contexte, mis à jour au scroll). */
   .daycal-mo{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
        margin:0 3px 9px;transition:color .2s ease}
-  /* Dégradés de bord = affordance de scroll (les dates continuent à gauche/droite). */
-  .daycal::before,.daycal::after{content:"";position:absolute;top:0;bottom:9px;width:26px;pointer-events:none;z-index:2}
-  .daycal::before{left:0;background:linear-gradient(90deg,var(--bg) 12%,transparent)}
-  .daycal::after{right:0;background:linear-gradient(270deg,var(--bg) 12%,transparent)}
   .daycal-track{display:flex;gap:8px;overflow-x:auto;padding:3px 4px 9px;scroll-snap-type:x proximity;
        -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
   .daycal-track::-webkit-scrollbar{display:none}
@@ -2502,13 +2498,13 @@ CSS = """
   .daycal-d:active{transform:scale(.95)}
   .dcd-wd{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
   .dcd-day{font-size:19px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.05}
-  .dcd-mo{font-size:8px;font-weight:800;letter-spacing:.09em;color:var(--dim);margin-top:1px}
   .dcd-dot{width:8px;height:8px;border-radius:50%;margin-top:5px}
   .dcd-dot.pos{background:#54d98c;box-shadow:0 0 8px rgba(84,217,140,.7)}
   .dcd-dot.neg{background:#ff7d7d;box-shadow:0 0 8px rgba(255,125,125,.6)}
   .dcd-dot.neu{background:#9aa6b4}
   .dcd-dot.none{background:transparent;border:1px solid var(--border2)}
-  .daycal-d.empty:not(.on){opacity:.44}                         /* jour sans pari = dé-emphasé (reste cliquable) */
+  /* jour SANS pari = dé-emphasé ET NON cliquable (user 2026-08-19). */
+  .daycal-d.empty{opacity:.38;cursor:default;pointer-events:none}
   .daycal-d.today .dcd-wd{color:var(--accent)}
   /* AUJOURD'HUI toujours identifiable (même non sélectionné) : anneau discret. */
   .daycal-d.today:not(.on){border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}
@@ -6834,18 +6830,19 @@ def _day_calendar(iso: str, sport: str | None = None, days: int = 34) -> str:
             dot = f'<span class="dcd-dot {dcls}"></span>'
         else:
             dot = '<span class="dcd-dot none"></span>'
-        # jour SANS pari réglé = dé-emphasé (finition pro) — sauf aujourd'hui (contexte courant). Reste cliquable.
-        _empty = " empty" if (not settled and dd != today) else ""
-        _cls = ("daycal-d" + (" on" if dd == sel else "") + (" today" if dd == today else "") + _empty)
+        # jour SANS pari réglé = dé-emphasé ET NON cliquable (user 2026-08-19) — sauf aujourd'hui (contexte courant).
+        _is_empty = (not settled and dd != today)
+        _cls = ("daycal-d" + (" on" if dd == sel else "") + (" today" if dd == today else "")
+                + (" empty" if _is_empty else ""))
         _wd = _WD_ABBR[dd.weekday()]
-        _mo = _MO_FULL[dd.month - 1][:3].upper() if dd.day == 1 or i == days else ""
-        _motag = f'<span class="dcd-mo">{_mo}</span>' if _mo else ""
         _my = f"{_MO_FULL[dd.month - 1].capitalize()} {dd.year}"   # mois+année de la cellule (en-tête au scroll)
+        # PLUS de tag mois DANS la cellule (user 2026-08-19) : le mois vit dans l'EN-TÊTE (mis à jour au scroll).
         cells.append(
-            f'<button type="button" class="{_cls}" data-date="{di}" data-my="{html.escape(_my)}" '
+            f'<button type="button" class="{_cls}" data-date="{di}" data-my="{html.escape(_my)}"'
+            f'{" disabled" if _is_empty else ""} '
             f'aria-label="{html.escape(_day_label_full(dd))}">'
             f'<span class="dcd-wd">{"AUJ." if dd == today else _wd}</span>'
-            f'<span class="dcd-day">{dd.day}</span>{_motag}{dot}</button>')
+            f'<span class="dcd-day">{dd.day}</span>{dot}</button>')
     # EN-TÊTE MOIS/ANNÉE (user 2026-08-19) : contexte du jour affiché, mis à jour au scroll par `_DAYCAL_JS`.
     _hdr_my = f"{_MO_FULL[sel.month - 1].capitalize()} {sel.year}"
     return (f'<div class="daycal" id="daycal">'
