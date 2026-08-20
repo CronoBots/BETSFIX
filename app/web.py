@@ -10066,7 +10066,14 @@ def _sport_row(r: dict) -> str:
     reco_i = summ.get("reco_idx")          # pari RETENU par le moteur -> ⭐ EN TÊTE (à la place du •)
     is_combo = summ.get("is_combo")        # combiné = • comme les autres paris (ni ⭐ ni 🎲, demande user)
     bets3 = summ.get("bets") or []
-    if not is_combo:
+    # JAMBE DE COMBINÉ LIVE affichée SEULE (zone Combiné de Live) : le match est une abstention en tant que
+    # simple, donc les lookups pari retenu/publié renverraient « pas de pari conseillé ». Ici le pari de la
+    # carte EST le pick DC de la jambe -> on force cette bet line pour une carte live NORMALE (user 2026-08-20).
+    _leg_bet = r.get("_leg_bet")
+    if _leg_bet:
+        bets3 = [_leg_bet]
+        reco_i = 0
+    elif not is_combo:
         if is_finished:                    # TERMINÉ : le pari RÉELLEMENT JOUÉ (for_history = stats),
             _mid = re.search(r"/(\d+)", url)   # marché exclu APRÈS coup inclus (sinon « pas de pari » à tort)
             _rbh = (analyses.retained_bet(sport_key, _mid.group(1), for_history=True)
@@ -10517,9 +10524,6 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
                 continue
             seen.add(_pair)
             _sel, _odds = l.get("sel"), l.get("cote")
-            # LIVE : pick (perle) + score. À VENIR : carte COMPACTE (match + décompte + ligue seuls, comme le
-            # programme — user 2026-08-19) -> pas de perle, flag `_compact`.
-            _perle = {"selection": _sel, "odds": _odds} if (_is_live and _sel and _odds) else None
             try:
                 _sts = _dt.datetime.fromisoformat(str(l.get("start")).replace("Z", "+00:00")).timestamp()
             except (ValueError, TypeError):
@@ -10528,9 +10532,16 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
                 "id": l.get("mid"), "status": "inprogress" if _is_live else "notstarted", "comp": l.get("comp"),
                 "home": l.get("home", ""), "away": l.get("away", ""), "probs": None, "goals": None,
                 "o1": None, "ox": None, "o2": None, "imp": None, "pick": None, "start": _sts,
-                "votes": None, "perle": _perle, "perle2": None, "perle_value": None,
+                "votes": None, "perle": None, "perle2": None, "perle_value": None,
                 "pick_kind": "confiance", "sofa_ok": True, **(lf if _is_live else {})})
-            if not _is_live:
+            if _is_live:
+                # La JAMBE = le pari de la carte : le pick DC (sel@cote, proba calibrée) est rendu comme la bet
+                # line d'une carte live NORMALE (verdict Marché/Confiance/Value + scoreboard). user 2026-08-20 :
+                # « juste SÉPARER la jambe live » -> PLUS de « pas de pari conseillé », PLUS de carte appauvrie.
+                if _sel and _odds:
+                    _c["_leg_bet"] = {"sel": _sel, "cote": _odds, "prob": l.get("prob")}
+            else:
+                # À VENIR : carte COMPACTE (match + décompte + ligue seuls, comme le programme — user 2026-08-19).
                 _c["_compact"] = True
             rows.append(_c)
     return rows
