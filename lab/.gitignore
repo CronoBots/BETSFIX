@@ -1,0 +1,3 @@
+fd_cache/
+*.pyc
+__pycache__/
