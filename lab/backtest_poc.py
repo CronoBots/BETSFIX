@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
-"""POC LABO BETSFIX — 100% ISOLÉ (scratchpad, stdlib seul, aucun import du projet, aucune écriture dans data/).
-Démontre la chaîne : données gratuites (football-data.co.uk, cotes de CLÔTURE Pinnacle) -> Elo maison
-walk-forward -> modèle 1X2 -> backtest value vs la clôture sharp, train/test séparés chronologiquement.
-But : montrer des CHIFFRES réels (calibration, ROI, log-loss vs marché) sans toucher à la prod."""
+"""POC LABO BETSFIX — 100% ISOLÉ (lab/, stdlib seul, aucun import du projet, aucune écriture hors lab/).
+v3 : compare ligues EFFICACES (top-5 EU) vs PEU EFFICACES (2e divisions + secondaires) pour voir si l'edge
+apparaît là où le sharp est moins tranchant (= le terrain réel de BETSFIX). CLV propre (de-vig 3 voies).
+Chaîne : football-data.co.uk (cotes Pinnacle EARLY PS* + CLÔTURE PSC*) -> Elo maison walk-forward ->
+modèle 1X2 -> éval out-of-sample par groupe (log-loss vs clôture, CLV, ROI early, ROI par tranche de cote)."""
 import io, os, sys, csv, math, urllib.request
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CACHE = os.path.join(HERE, "fd_cache")
-os.makedirs(CACHE, exist_ok=True)
+CACHE = os.path.join(HERE, "fd_cache"); os.makedirs(CACHE, exist_ok=True)
 
-LEAGUES = ["E0", "D1", "SP1", "I1", "F1"]                 # PL, Bundesliga, Liga, Serie A, Ligue 1
+GROUPS = {
+    "EFFICACES (top-5 EU)":   ["E0", "D1", "SP1", "I1", "F1"],
+    "PEU EFFICACES (2e div/secondaires)": ["E1", "E2", "SC0", "B1", "N1", "P1", "T1", "G1"],
+}
 SEASONS = ["1516","1617","1718","1819","1920","2021","2122","2223","2324","2425"]
 
 def fetch(season, lg):
@@ -21,196 +24,133 @@ def fetch(season, lg):
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         data = urllib.request.urlopen(req, timeout=30).read()
-        open(fn, "wb").write(data)
-        return data
+        open(fn, "wb").write(data); return data
     except Exception as e:
-        print(f"  (skip {season}/{lg}: {e})")
-        return None
+        print(f"  (skip {season}/{lg}: {e})"); return None
 
 def parse_date(s):
+    import datetime
     for fmt in ("%d/%m/%Y", "%d/%m/%y"):
-        try:
-            import datetime; return datetime.datetime.strptime(s, fmt)
-        except Exception:
-            pass
+        try: return datetime.datetime.strptime(s, fmt)
+        except Exception: pass
     return None
 
 def num(x):
     try: return float(x)
     except Exception: return None
 
-# --- 1) INGESTION ---
+def devig(oh, od, oa):
+    ih, idr, ia = 1/oh, 1/od, 1/oa; s = ih + idr + ia
+    return {"H": ih/s, "D": idr/s, "A": ia/s}
+
+# --- 1) INGESTION (tag groupe) ---
 rows = []
-for season in SEASONS:
-    for lg in LEAGUES:
-        raw = fetch(season, lg)
-        if not raw: continue
-        txt = raw.decode("latin-1")
-        rd = csv.DictReader(io.StringIO(txt))
-        for r in rd:
-            d = parse_date((r.get("Date") or "").strip())
-            h, a, ftr = r.get("HomeTeam"), r.get("AwayTeam"), r.get("FTR")
-            if not (d and h and a and ftr in ("H", "D", "A")): continue
-            # cotes EARLY (à l'ouverture ~) = Pinnacle PS*, repli Bet365 B365*
-            oh = num(r.get("PSH")) or num(r.get("B365H"))
-            od = num(r.get("PSD")) or num(r.get("B365D"))
-            oa = num(r.get("PSA")) or num(r.get("B365A"))
-            # cotes de CLÔTURE = Pinnacle PSC*, repli Bet365 clôture B365C*
-            ohc = num(r.get("PSCH")) or num(r.get("B365CH"))
-            odc = num(r.get("PSCD")) or num(r.get("B365CD"))
-            oac = num(r.get("PSCA")) or num(r.get("B365CA"))
-            if not (oh and od and oa and oh > 1 and od > 1 and oa > 1): continue
-            has_close = bool(ohc and odc and oac and ohc > 1 and odc > 1 and oac > 1)
-            rows.append({"date": d, "lg": lg, "season": season, "h": h, "a": a, "ftr": ftr,
-                         "oh": oh, "od": od, "oa": oa,
-                         "ohc": ohc if has_close else oh, "odc": odc if has_close else od,
-                         "oac": oac if has_close else oa, "has_close": has_close})
+for gname, leagues in GROUPS.items():
+    for season in SEASONS:
+        for lg in leagues:
+            raw = fetch(season, lg)
+            if not raw: continue
+            for r in csv.DictReader(io.StringIO(raw.decode("latin-1"))):
+                d = parse_date((r.get("Date") or "").strip())
+                h, a, ftr = r.get("HomeTeam"), r.get("AwayTeam"), r.get("FTR")
+                if not (d and h and a and ftr in ("H", "D", "A")): continue
+                oh = num(r.get("PSH")) or num(r.get("B365H"))
+                od = num(r.get("PSD")) or num(r.get("B365D"))
+                oa = num(r.get("PSA")) or num(r.get("B365A"))
+                ohc = num(r.get("PSCH")) or num(r.get("B365CH"))
+                odc = num(r.get("PSCD")) or num(r.get("B365CD"))
+                oac = num(r.get("PSCA")) or num(r.get("B365CA"))
+                if not (oh and od and oa and oh > 1 and od > 1 and oa > 1): continue
+                hc = bool(ohc and odc and oac and ohc > 1 and odc > 1 and oac > 1)
+                rows.append({"date": d, "grp": gname, "lg": lg, "h": h, "a": a, "ftr": ftr,
+                             "oh": oh, "od": od, "oa": oa,
+                             "ohc": ohc if hc else oh, "odc": odc if hc else od, "oac": oac if hc else oa})
 rows.sort(key=lambda x: x["date"])
-print(f"Matchs ingérés (avec cotes) : {len(rows)}  ·  {len(SEASONS)} saisons × {len(LEAGUES)} ligues")
 
-# --- 2) ELO MAISON walk-forward (par ligue, home advantage) ---
-K, HA = 20.0, 65.0          # paramètres Elo standards (pas d'optimisation -> honnête)
-elo = {}                    # (lg, team) -> rating
+# --- 2) ELO maison walk-forward (par ligue) ---
+K, HA = 20.0, 65.0
+elo, burn = {}, {}
 def get(lg, t): return elo.setdefault((lg, t), 1500.0)
-def We(dr): return 1.0 / (1.0 + 10 ** (-dr / 400.0))   # score attendu domicile
-
-burn = {}                   # nb de matchs vus par équipe (burn-in)
 for r in rows:
-    lg = r["lg"]
-    eh, ea = get(lg, r["h"]), get(lg, r["a"])
-    dr = eh + HA - ea
-    r["We"] = We(dr)
+    lg = r["lg"]; eh, ea = get(lg, r["h"]), get(lg, r["a"])
+    r["We"] = 1.0 / (1.0 + 10 ** (-(eh + HA - ea) / 400.0))
     r["seen"] = min(burn.get((lg, r["h"]), 0), burn.get((lg, r["a"]), 0))
     sh = 1.0 if r["ftr"] == "H" else (0.5 if r["ftr"] == "D" else 0.0)
-    exp = r["We"]
-    elo[(lg, r["h"])] = eh + K * (sh - exp)
-    elo[(lg, r["a"])] = ea + K * ((1 - sh) - (1 - exp))
-    burn[(lg, r["h"])] = burn.get((lg, r["h"]), 0) + 1
-    burn[(lg, r["a"])] = burn.get((lg, r["a"]), 0) + 1
+    elo[(lg, r["h"])] = eh + K * (sh - r["We"]); elo[(lg, r["a"])] = ea + K * ((1 - sh) - (1 - r["We"]))
+    burn[(lg, r["h"])] = burn.get((lg, r["h"]), 0) + 1; burn[(lg, r["a"])] = burn.get((lg, r["a"]), 0) + 1
 
-# garder seulement les matchs avec assez d'historique (Elo stabilisé)
-data = [r for r in rows if r["seen"] >= 10]
-print(f"Matchs après burn-in (Elo stabilisé, ≥10 matchs/équipe) : {len(data)}")
-
-# --- 3) MODÈLE 1X2 : Elo -> (p_home, p_draw, p_away) via 1 paramètre de nul, AJUSTÉ SUR LE TRAIN ---
-cut = int(len(data) * 0.60)
-train, test = data[:cut], data[cut:]
-print(f"Split chrono -> TRAIN {len(train)} · TEST {len(test)}  (test = {test[0]['date'].date()} → {test[-1]['date'].date()})")
-
+# --- 3) MODÈLE 1X2 (1 param de nul, ajusté par groupe sur le train) ---
 def probs(We_, c):
-    pdraw = max(0.02, min(0.6, c * (1 - abs(2 * We_ - 1))))   # nul max quand équilibré, ~0 si écart fort
-    rem = 1 - pdraw
-    return rem * We_, pdraw, rem * (1 - We_)
+    pd = max(0.02, min(0.6, c * (1 - abs(2 * We_ - 1)))); rem = 1 - pd
+    return {"H": rem * We_, "D": pd, "A": rem * (1 - We_)}
 
 def logloss(sample, c):
     s = 0.0
     for r in sample:
-        ph, pd, pa = probs(r["We"], c)
-        p = ph if r["ftr"] == "H" else (pd if r["ftr"] == "D" else pa)
-        s -= math.log(max(p, 1e-9))
+        p = probs(r["We"], c)[r["ftr"]]; s -= math.log(max(p, 1e-9))
     return s / len(sample)
 
-# recherche 1D du meilleur c (paramètre de nul) sur le TRAIN
-best_c, best = 0.25, 9e9
-cc = 0.05
-while cc <= 0.55:
-    ll = logloss(train, cc)
-    if ll < best: best, best_c = ll, cc
-    cc += 0.01
-print(f"Paramètre de nul ajusté sur le train : c={best_c:.2f}  (log-loss train {best:.4f})")
-
-def devig(oh, od, oa):
-    ih, idr, ia = 1/oh, 1/od, 1/oa
-    s = ih + idr + ia
-    return ih/s, idr/s, ia/s     # probas marché dé-viggées
-
-# --- 4) ÉVALUATION SUR LE TEST (out-of-sample) ---
-# 4a) log-loss modèle vs marché (le modèle rivalise-t-il avec la CLÔTURE Pinnacle = le sharp le plus dur ?)
-ll_model = logloss(test, best_c)
-ll_mkt = 0.0
-for r in test:
-    mh, md, ma = devig(r["ohc"], r["odc"], r["oac"])
-    p = mh if r["ftr"] == "H" else (md if r["ftr"] == "D" else ma)
-    ll_mkt -= math.log(max(p, 1e-9))
-ll_mkt /= len(test)
-print(f"\n=== QUALITÉ DE PROBA (test, log-loss, plus bas = mieux) ===")
-print(f"  Modèle Elo maison : {ll_model:.4f}")
-print(f"  Clôture Pinnacle  : {ll_mkt:.4f}   <- le sharp (référence)")
-print(f"  -> {'le marché reste meilleur' if ll_mkt < ll_model else 'le modèle bat le marché'} "
-      f"(écart {ll_model-ll_mkt:+.4f})")
-
-# 4b) calibration de P(domicile)
-print(f"\n=== CALIBRATION P(domicile) sur le test ===")
-bins = [[0,0,0.0] for _ in range(10)]   # [n, wins, sum_p]
-for r in test:
-    ph, pd, pa = probs(r["We"], best_c)
-    b = min(9, int(ph*10)); bins[b][0]+=1; bins[b][2]+=ph
-    if r["ftr"]=="H": bins[b][1]+=1
-print("  proba prédite | fréquence réelle | n")
-for i,(n,w,sp) in enumerate(bins):
-    if n>=20:
-        print(f"   {sp/n*100:5.1f}%       |    {w/n*100:5.1f}%      | {n}")
-
-# 4c) BACKTEST VALUE — au prix EARLY vs au prix CLÔTURE (le TIMING change-t-il tout ?)
-def value_bets(sample, edge, use_close):
-    """Renvoie la liste des paris value : (sel, cote_jouée, gagné?, cote_close, cote_early)."""
+def value_bets(sample, c, edge):
     out = []
     for r in sample:
-        ph, pd, pa = probs(r["We"], best_c)
-        legs = ((("H", ph, r["ohc"] if use_close else r["oh"]),
-                 ("D", pd, r["odc"] if use_close else r["od"]),
-                 ("A", pa, r["oac"] if use_close else r["oa"])))
-        best = None
-        for sel, p, o in legs:
-            ev = p * o - 1
-            if ev > edge and (best is None or ev > best[3]):
-                best = (sel, o, r["ftr"] == sel, ev)
-        if best:
-            oc = {"H": r["ohc"], "D": r["odc"], "A": r["oac"]}[best[0]]
-            oe = {"H": r["oh"],  "D": r["od"],  "A": r["oa"]}[best[0]]
-            out.append((best[0], best[1], best[2], oc, oe))
+        pm = probs(r["We"], c); best = None
+        for sel in ("H", "D", "A"):
+            ev = pm[sel] * r["oh" if sel=="H" else "od" if sel=="D" else "oa"] - 1
+            oe = r["oh" if sel=="H" else "od" if sel=="D" else "oa"]
+            if ev > edge and (best is None or ev > best[-1]):
+                best = (sel, oe, r["ftr"] == sel, {"H": r["ohc"], "D": r["odc"], "A": r["oac"]}[sel], ev)
+        if best: out.append(best)   # (sel, cote_early, gagné, cote_clôture, ev)
     return out
 
-def roi_of(bets):
+def roi(bets):
     if not bets: return (0, 0.0, 0.0, 0.0)
-    ret = sum(o for _, o, w, _, _ in bets if w)
-    return (len(bets), sum(1 for b in bets if b[2]) / len(bets) * 100,
-            sum(b[1] for b in bets) / len(bets), (ret - len(bets)) / len(bets) * 100)
+    ret = sum(b[1] for b in bets if b[2])
+    return (len(bets), sum(1 for b in bets if b[2])/len(bets)*100, sum(b[1] for b in bets)/len(bets), (ret-len(bets))/len(bets)*100)
 
-print(f"\n=== BACKTEST VALUE : jouer au prix EARLY vs au prix CLÔTURE (test, mise 1u) ===")
-print(f"  {'seuil':>6} | {'prix joué':>9} | {'paris':>5} | réussite | cote moy |   ROI")
-for edge in (0.05, 0.10):
-    for use_close, lbl in ((False, "EARLY"), (True, "CLÔTURE")):
-        n, hit, om, roi = roi_of(value_bets(test, edge, use_close))
-        print(f"  >{edge*100:>3.0f}% | {lbl:>9} | {n:5d} | {hit:6.1f}% | {om:6.2f}  | {roi:+5.1f}%")
+def fit_c(train):
+    bestc, bl, c = 0.25, 9e9, 0.05
+    while c <= 0.55:
+        l = logloss(train, c)
+        if l < bl: bl, bestc = l, c
+        c += 0.01
+    return bestc
 
-# 5) CLV — les picks value (au prix EARLY) sont-ils CONFIRMÉS par le mouvement du sharp jusqu'à la clôture ?
-#    CLV>0 = le marché a bougé VERS notre pick (proba clôture > proba d'entrée) -> signal prédictif réel,
-#    même si le ROI top-5 est mince (sur des books plus mous / ligues moins efficaces, ce CLV se monétise).
-print(f"\n=== CLV des picks value au prix EARLY (test) ===")
-for edge in (0.05, 0.10):
-    bets = [b for b in value_bets(test, edge, use_close=False)]
-    if not bets:
-        print(f"  edge>{edge*100:>3.0f}% : aucun pari"); continue
-    clvs, beat = [], 0
-    for sel, o_played, won, oc, oe in bets:
-        # proba dé-viggée de NOTRE sélection, tôt vs clôture (besoin des 3 cotes -> approx via 1/cote normalisé)
-        pe = 1.0 / oe; pc = 1.0 / oc                  # proxy simple (avant normalisation identique des 2 côtés)
-        clv = pc - pe                                 # >0 = la cote a raccourci = le marché est venu vers nous
-        clvs.append(clv * 100)
-        if oc < oe: beat += 1                          # on a obtenu une meilleure cote que la clôture
-    print(f"  edge>{edge*100:>3.0f}% : {len(bets):4d} paris · CLV moyen {sum(clvs)/len(clvs):+5.2f} pp · "
-          f"battent la clôture {beat/len(bets)*100:4.1f}%")
+def eval_bets(test, c, edge):
+    """Paris value au prix EARLY (edge vs early). Renvoie liste (sel, cote_early, gagné, clv%)
+    avec CLV PROPRE = cote_early × proba_clôture_dé-viggée − 1 (>0 = on a battu la clôture)."""
+    out = []
+    for r in test:
+        pm = probs(r["We"], c); best = None
+        for sel in ("H", "D", "A"):
+            oe = {"H": r["oh"], "D": r["od"], "A": r["oa"]}[sel]
+            ev = pm[sel] * oe - 1
+            if ev > edge and (best is None or ev > best[-1]):
+                best = (sel, oe, r["ftr"] == sel, r, ev)
+        if best:
+            sel, oe, won, r, ev = best
+            clv = oe * devig(r["ohc"], r["odc"], r["oac"])[sel] - 1
+            out.append((sel, oe, won, clv * 100))
+    return out
 
-# 6) EDGE PAR TRANCHE DE COTE — où le modèle gagne (favoris ?) vs perd (outsiders ?)
-print(f"\n=== ROI PAR TRANCHE DE COTE (edge>5%, prix EARLY, test) ===")
-brackets = [(1.0, 1.8, "favoris <1.8"), (1.8, 2.5, "1.8–2.5"),
-            (2.5, 4.0, "2.5–4.0"), (4.0, 99, "outsiders >4")]
-bets = value_bets(test, 0.05, use_close=False)
-for lo, hi, name in brackets:
-    sub = [b for b in bets if lo <= b[1] < hi]
-    n, hit, om, roi = roi_of(sub)
-    if n:
-        print(f"  {name:>14} : {n:4d} paris · réussite {hit:4.1f}% · cote moy {om:4.2f} · ROI {roi:+6.1f}%")
-
-print("\n(POC isolé — aucune écriture hors lab/, aucun code prod touché.)")
+# --- 4) ÉVALUATION PAR GROUPE ---
+print(f"Total matchs (avec cotes) : {len(rows)}\n" + "=" * 78)
+for gname in GROUPS:
+    data = [r for r in rows if r["grp"] == gname and r["seen"] >= 10]
+    cut = int(len(data) * 0.60); train, test = data[:cut], data[cut:]
+    c = fit_c(train)
+    llm = logloss(test, c)
+    llc = -sum(math.log(max(devig(r["ohc"], r["odc"], r["oac"])[r["ftr"]], 1e-9)) for r in test) / len(test)
+    print(f"\n### {gname}")
+    print(f"  test : {len(test)} matchs ({test[0]['date'].date()} → {test[-1]['date'].date()}) · c={c:.2f}")
+    print(f"  log-loss : modèle {llm:.4f}  vs  clôture {llc:.4f}   (écart {llm-llc:+.4f} · <0 = on bat le sharp)")
+    bets = eval_bets(test, c, 0.05)
+    n, hit, om, r_early = roi([(b[0], b[1], b[2]) for b in bets])
+    if not n:
+        print("  value edge>5% : aucun pari"); continue
+    clvs = [b[3] for b in bets]; beat = sum(1 for x in clvs if x > 0)
+    print(f"  value edge>5% : {n} paris · réussite {hit:.1f}% · cote moy {om:.2f} · ROI early {r_early:+.1f}%")
+    print(f"     CLV propre (de-vig 3 voies) : moyen {sum(clvs)/len(clvs):+.2f}%  ·  paris à CLV+ {beat/len(clvs)*100:.1f}%")
+    for lo, hi, name in [(1,1.8,"favoris <1.8"),(1.8,2.5,"1.8-2.5"),(2.5,4,"2.5-4"),(4,99,"outsiders >4")]:
+        sub = [(b[0], b[1], b[2]) for b in bets if lo <= b[1] < hi]; sn, sh, so, sr = roi(sub)
+        if sn: print(f"     {name:>13}: {sn:4d} paris · {sh:4.1f}% · ROI {sr:+6.1f}%")
+print("\n" + "=" * 78 + "\n(POC isolé — aucune écriture hors lab/, aucun code prod touché.)")

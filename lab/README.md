@@ -21,13 +21,21 @@ ajusté sur le TRAIN) → évaluation OUT-OF-SAMPLE (test chrono) :
 
 Lancer : `python lab/backtest_poc.py` (stdlib seul, réseau requis au 1er run).
 
-## Résultats (top-5 européen, ~18 000 matchs, test out-of-sample)
-- **Elo bien calibré** (P prédite ≈ fréquence réelle).
-- **Ne bat pas le sharp** : log-loss Elo 0,998 vs clôture Pinnacle 0,967 ; CLV moyen **négatif** (−0,25 pp,
-  45 % battent la clôture) ; jouer au prix EARLY ne sauve rien (ROI ≈ −8,7 % ≈ prix clôture).
-- **La leçon en or (ROI par tranche de cote, edge>5 %)** : le modèle saigne surtout sur les **outsiders
-  (cote >4 : ROI −13,5 %)** ; les **favoris/cotes courtes** sont quasi à l'équilibre (2,5–4,0 : −2,8 %).
-  → confirme chiffres à l'appui la méthodo BETSFIX : rester sur les marchés SÛRS (double chance, favoris),
-  fuir les cotes longues. L'edge « value » sur outsiders est un piège.
+## Résultats v3 (45 632 matchs, EFFICACES vs PEU EFFICACES, out-of-sample)
+Elo bien calibré. Le modèle NAÏF ne bat le sharp NULLE PART (CLV négatif partout) — mais le détail par
+tranche de cote est décisif :
 
-Le POC est un INSTRUMENT : toute variante de stratégie se mesure sur 17 k matchs en quelques secondes.
+| Groupe | favoris <1,8 | 2,5–4 | outsiders >4 |
+|---|---|---|---|
+| Top-5 EU (efficace) | −5,5 % | −2,8 % | −13,5 % |
+| 2e div/secondaires (peu efficace) | **+0,2 %** | **−0,4 %** | **−20,6 %** |
+
+Leçons chiffrées :
+1. **L'edge vit sur les COTES COURTES / favoris** — et sur les ligues PEU efficaces, les favoris sont
+   **à l'équilibre vs Pinnacle** (+0,2 %) → donc **+EV contre un book plus mou**. C'est exactement le terrain
+   de BETSFIX (double chance ~1,1–1,3, ligues Amériques/2e div).
+2. **Les cotes longues sont un incinérateur** (−13 à −21 %) → tout « value » sur outsiders est du bruit.
+3. Le modèle naïf n'a **aucun edge global** (CLV<0) → l'edge réel de BETSFIX doit venir de la couche
+   Claude/enrichissement ; le labo permet maintenant de MESURER si elle bat ce baseline.
+
+Le POC est un INSTRUMENT : toute variante (seuil, marché, ligue, modèle) se mesure sur ~45 k matchs en secondes.
