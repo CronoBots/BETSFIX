@@ -3671,14 +3671,13 @@ _COUNTDOWN_JS = (
 # sur la vraie valeur -> pas de dérive. Purement affichage.
 _LIVECLK_JS = (
     "(function(){function p(n){return n<10?'0'+n:''+n;}"
-    "function t(){var e=document.getElementsByClassName('tm-min'),i,el,m,s,c;"
+    "function t(){var e=document.getElementsByClassName('tm-min'),i,el,m,s;"
     "for(i=0;i<e.length;i++){el=e[i];if(el.getAttribute('data-run')!=='1')continue;"
     "m=parseInt(el.getAttribute('data-min'),10);s=parseInt(el.getAttribute('data-sec'),10);"
     "if(isNaN(m)||isNaN(s))continue;s++;if(s>=60){s=0;m++;}"
     "el.setAttribute('data-min',m);el.setAttribute('data-sec',s);"
-    "c=parseInt(el.getAttribute('data-cap'),10)||0;"
-    "if(c&&m>=c){el.innerHTML=m+':'+p(s)+'<span class=\"tm-add\">(+'+(m-c+1)+\"')</span>\";}"
-    "else{el.textContent=m+':'+p(s);}}}"
+    # HORLOGE SEULE : plus d'indicateur « (+N') » (user 2026-08-20) -> on affiche juste M:SS qui défile.
+    "el.textContent=m+':'+p(s);}}"
     "setInterval(t,1000);})();"
 )
 
@@ -6161,14 +6160,14 @@ def _live_clock_html(sport_key, home, away) -> str:
         return ""
     _cm, _cs, _crun, _cpid = _clk
     _pid = (_cpid or "").upper()
-    _regcap = 45 if _pid == "FIRST_HALF" else 90 if _pid == "SECOND_HALF" else 0
     if _pid == "FIRST_HALF" and not _crun and _cm >= 45:
         return '<span class="tm-min" data-run="0">HT</span>'
-    if _regcap and _cm >= _regcap:
-        _disp = f'{_cm}:{_cs:02d}<span class="tm-add">(+{_cm - _regcap + 1}\')</span>'
-    else:
-        _disp = f'{_cm}:{_cs:02d}'
-    return (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" data-cap="{_regcap}" '
+    # HORLOGE SEULE, sans indicateur « (+N') » (user 2026-08-20) : le temps additionnel ANNONCÉ (+6) n'est PAS
+    # dans le flux de paris Unibet (seulement l'overlay vidéo broadcast) -> on n'affiche pas un « +N » calculé
+    # maison qui contredit le broadcast. L'horloge continue de défiler au-delà de 90 (91:00, 92:00…), comme le
+    # scoreboard de données Unibet (« 90:56 »). `data-cap="0"` -> le ticker JS n'ajoute plus aucun « +N ».
+    _disp = f'{_cm}:{_cs:02d}'
+    return (f'<span class="tm-min" data-min="{_cm}" data-sec="{_cs}" data-cap="0" '
             f'data-run="{1 if _crun else 0}">{_disp}</span>')
 
 
