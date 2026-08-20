@@ -2400,6 +2400,9 @@ CSS = """
      d'envoi · heure d'analyse. TITRE + légende AU-DESSUS (hors cadre) ; la liste EST le cadre principal
      (un seul cadre). Équipes pleine largeur ; heures empilées à droite (KO / analyse). Bord gauche =
      état (jaune=prévu, cyan=analysé, gris=fini). */
+  /* Message d'attente du Programme (avant le scan ~10h) : note discrète sous l'en-tête de zone (user 2026-08-20). */
+  .prog-soon{font-size:11.5px;font-weight:600;color:var(--muted);line-height:1.5;padding:4px 3px 2px}
+  .prog-soon b{color:var(--text);font-weight:800}
   .pgm-fold{margin-top:16px}
   .pgm-fold>summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .pgm-fold>summary::-webkit-details-marker{display:none}
@@ -8421,7 +8424,18 @@ def _programme_schedule(sport: str = "foot") -> str:
     heure (user 2026-08-18). Badge compteur (à droite, près du chevron). '' si plus rien à analyser."""
     pending, _abst = _planning_cards(sport)
     if not pending:
-        return ""
+        # RIEN À ANALYSER -> deux cas (user 2026-08-20 : la LIGNE « Programme du jour » doit rester visible avec
+        # l'info du timing) :
+        #  • programme PAS ENCORE BÂTI (avant le scan ~10h, ou jour sans matchs) -> on affiche la ligne avec un
+        #    message « établi vers 10h » (au lieu de masquer la zone) ;
+        #  • programme BÂTI mais TOUT analysé -> plus rien à montrer -> zone masquée ('').
+        prog = _load_day_programme()
+        _built = any((m.get("sport") or "foot") == sport for m in (prog.get("matches") or []))
+        if _built:
+            return ""
+        _soon = ('<div class="prog-soon">Le programme du jour est établi vers <b>10 h</b>. '
+                 'Les matchs analysés apparaîtront ici.</div>')
+        return _zone("prog", "Programme du jour", "", 0, _soon, collapsible=False)
     # REPLIÉ PAR DÉFAUT (user 2026-08-19) : `open_=False` -> le Programme du jour est toujours fermé au chargement
     # (le JS `_CAL_JS` ne force jamais l'ouverture). On le déplie d'un tap pour voir la liste des matchs.
     return _zone("prog", "Programme du jour", "", len(pending), _programme_grille(pending),
