@@ -134,7 +134,7 @@ def day_label(d, today) -> str:
 def _plur(n, word: str) -> str:
     """Titre de zone. PLURIEL quand PLUSIEURS paris du type (user 2026-08-19 : « les types de paris doivent
     prendre un s s'il y en a plusieurs »). Le « s » va sur le PREMIER mot (le NOM du type) et laisse le reste
-    intact : « Combinés double chance », « Confiances ». Singulier si n ≤ 1."""
+    intact : « Combinés 1X/X2 », « Confiances ». Singulier si n ≤ 1."""
     if (n or 0) <= 1:
         return word
     head, _, tail = word.partition(" ")
@@ -6580,7 +6580,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
              + _live_bar_html(_combo_live_prob(cb)))   # chance live GLOBALE du combiné (user 2026-08-08)
     # En-tête « COMBINÉ MULTISPORT • N jambes » (choix user 2026-07-21) : plus court que l'ancien
     # « COMBINÉ DU JOUR • N jambes · multisport » qui se TRONQUAIT (« multi… ») et répétait le titre de zone.
-    # TITRE de la carte (user 2026-08-17) : « COMBINÉ DOUBLE CHANCE » (le combiné foot EST une double chance)
+    # TITRE de la carte (user 2026-08-17) : « COMBINÉ 1X/X2 » (le combiné foot EST une double chance)
     # au lieu de « COMBINÉ FOOTBALL ». Tennis/basket (simulés) gardent leur sport.
     _sptitle = {"tennis": "TENNIS", "basket": "BASKET"}.get(sport, "DOUBLE CHANCE")
     # POINTS PAR JAMBE À DROITE du « N jambes » (user 2026-08-18) : un cercle par jambe (jaune=à venir/en cours ·
@@ -6635,7 +6635,7 @@ def _combo_safe_tg_card(include_settled: bool = False, cb: dict | None = None) -
     if not cb or not cb.get("legs"):
         return ""
     cb = _combo_safe_with_why(cb)
-    return _combo_tg_card(include_settled=include_settled, cb=cb, sport="foot", title="COMBINÉ DOUBLE CHANCE")
+    return _combo_tg_card(include_settled=include_settled, cb=cb, sport="foot", title="COMBINÉ 1X/X2")
 
 
 def _montante_palier() -> int | None:
@@ -7522,7 +7522,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                                 title="COMBINÉ COTE 2") if (sport in (None, "foot")) else "")
     combo_daily = _MC_SEP.join([h for h in (_combo_sur, _combo_hi) if h])
     _is_foot_view = sport in (None, "foot")
-    # (Zone « Combiné double chance » séparée RETIRÉE le 2026-08-02 : la double chance EST désormais le
+    # (Zone « Combiné 1X/X2 » séparée RETIRÉE le 2026-08-02 : la double chance EST désormais le
     #  « Combiné football » ci-dessus (combo_daily), compté au ROI. Plus de carte combiné distincte.)
     # MONTANTE : type de pari À PART (demande user 2026-07-30) -> zone dédiée « Montante · Palier N » plus bas
     # (via _montante_zone_card). Plus de badge greffé sur les cartes de pari joué (surface unique = la zone).
@@ -7695,7 +7695,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out += [
         # ZONE COMBINÉ TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état. Type = « Combiné double
         # chance » (user 2026-08-19), au pluriel s'il y en a plusieurs.
-        _zone("combo", _plur(_n_combos, "Combiné double chance"), "", _n_combos, combo_daily,
+        _zone("combo", _plur(_n_combos, "Combiné 1X/X2"), "", _n_combos, combo_daily,
               collapsible=True, record=_combo_rec,
               empty="Aucun combiné du jour pour l'instant."),
     ]
@@ -7764,19 +7764,19 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     if _combo_body:
         if _n_daily_combo and not _combo_sidecar:          # combiné(s) du jour SEUL(s)
             if _n_daily_combo == 1:                        # un seul -> dots par jambe
-                combo = _zone("combo", _plur(1, "Combiné double chance"), "", 1, _combo_body,
+                combo = _zone("combo", _plur(1, "Combiné 1X/X2"), "", 1, _combo_body,
                               collapsible=True, open_=False, zk="pj-combo", leg_results=_combo_daily_legs)
             else:                                          # deux -> badge W/L agrégé
                 _w = sum(1 for r in _dc_res if r == "won")
                 _l = sum(1 for r in _dc_res if r == "lost")
                 _rec = (_n_daily_combo, _n_daily_combo - _w - _l, 0, _w, _l, 0)
-                combo = _zone("combo", _plur(_n_daily_combo, "Combiné double chance"), "", _n_daily_combo,
+                combo = _zone("combo", _plur(_n_daily_combo, "Combiné 1X/X2"), "", _n_daily_combo,
                               _combo_body, collapsible=True, open_=False, zk="pj-combo", record=_rec)
         else:                                                       # combinés sidecar -> badge gagnés/perdus
             _wc, _lc, _pc = _settled_wl_today(iso, sport, tier="combo")
             _ntot = (_wc + _lc + _pc) + _n_daily_combo
             _crec = (_ntot, 0, 0, _wc, _lc, _pc) if _ntot else None
-            combo = _zone("combo", _plur(_ntot or 1, "Combiné double chance"), "", _ntot or 1, _combo_body,
+            combo = _zone("combo", _plur(_ntot or 1, "Combiné 1X/X2"), "", _ntot or 1, _combo_body,
                           collapsible=True, open_=False, zk="pj-combo", record=_crec)
     # HISTORIQUE PAR TYPE DE PARI (user 2026-08-19 : « revoir les TYPES de paris et les résultats ») : mêmes
     # cartes riches que l'onglet (verdict/score/Pourquoi, cadre vert/rouge, via `_settled_bet_result_cards`),
@@ -8433,8 +8433,7 @@ def _programme_schedule(sport: str = "foot") -> str:
         _built = any((m.get("sport") or "foot") == sport for m in (prog.get("matches") or []))
         if _built:
             return ""
-        _soon = ('<div class="prog-soon">Le programme du jour est établi vers <b>10 h</b>. '
-                 'Les matchs analysés apparaîtront ici.</div>')
+        _soon = '<div class="prog-soon">Le programme du jour sera établi à <b>10 h</b>.</div>'
         return _zone("prog", "Programme du jour", "", 0, _soon, collapsible=False)
     # REPLIÉ PAR DÉFAUT (user 2026-08-19) : `open_=False` -> le Programme du jour est toujours fermé au chargement
     # (le JS `_CAL_JS` ne force jamais l'ouverture). On le déplie d'un tap pour voir la liste des matchs.
@@ -8444,15 +8443,12 @@ def _programme_schedule(sport: str = "foot") -> str:
 
 def _abstention_zone(sport: str = "foot") -> str:
     """Zone « Abstention » = les matchs analysés SANS pari, en CARTES (comme les paris) — user 2026-08-17.
-    Catégorie à part entière, badge compteur à droite. TOUJOURS affichée (user 2026-08-19) : même vide, avec
-    un message d'état (« Aucune abstention… ») visible directement, zone non repliable."""
+    Catégorie à part entière, badge compteur à droite. CACHÉE tant qu'il n'y a aucune abstention (user
+    2026-08-20 : plus d'en-tête vide) -> '' si vide."""
     _pending, abst = _planning_cards(sport)
     if not abst:
-        # PAS de phrase « aucune abstention » (user 2026-08-19) : l'abstention n'est pas un pari attendu ->
-        # juste l'EN-TÊTE de catégorie (divider), sans message ni corps.
-        return (f'<section class="zone zone-abst zone-vide">'
-                f'<div class="zone-h"><span class="zone-ic">{_ZONE_ICON["abst"]}</span>'
-                f'<span class="zone-t">Abstention</span></div></section>')
+        # CACHÉE tant qu'il n'y a aucune abstention (user 2026-08-20) : plus d'en-tête vide.
+        return ""
     return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst), collapsible=True)
 
 
@@ -10742,7 +10738,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         out += [
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
                   zk="live-indic", **_lz),
-            _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "en direct",
+            _zone("combo", _plur(len(_combo_rows), "Combiné 1X/X2"), "en direct",
                   len(_combo_rows), _combo, zk="live-combo", **_lz),
         ]
         # PROCHAINS LIVES — MÉLANGÉS (pas classés par type tant que non commencés, user 2026-08-19), triés par

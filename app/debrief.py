@@ -318,7 +318,7 @@ def _entry_from_item(item: dict, parsed: dict) -> tuple[str, str, dict]:
         home = "Combiné " + (item.get("date") or "")
         return item["fid"], fam, {
             "sport": "foot", "fid": item["fid"], "home": home, "away": f"{len(legs)} jambes",
-            "comp": "Combiné double chance", "date": item.get("date", ""),
+            "comp": "Combiné 1X/X2", "date": item.get("date", ""),
             "sel": sel, "cote": e.get("cote"), "prob": e.get("prob"), "kind": "combo",
             "market_family": fam, "score": ", ".join(f"{l.get('name','?')} {l.get('score','?')}"
                                                       for l in lost)[:200], **parsed}
