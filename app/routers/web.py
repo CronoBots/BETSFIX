@@ -200,6 +200,8 @@ def _home_stats_compute(since_days: int | None = None) -> tuple:
                web.render_exclusions(analyses.exclusions_report()))
         + _sec("Surveillance des marchés", "fiabilité et taille d'échantillon par type de pari",  # 3c.
                web.render_market_watch((cal or {}).get("by_sport")))
+        + _sec("Aperçu par marché", "réussite, value et confiance par seuil (Over/Under séparés)",  # 3c-bis
+               web.render_market_overview(analyses.market_overview()))
         + _sec("Débrief des pertes", "pourquoi chaque pari perdu a perdu",  # 3d.
                web.render_debrief(None))
         + _sec("Transparence", "tout ce que le modèle a observé, chiffres bruts",                  # 4.

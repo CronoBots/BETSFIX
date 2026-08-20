@@ -4545,6 +4545,54 @@ def calibration(since_days: int | None = None, min_conf: int = 0) -> dict:
     return out
 
 
+def market_overview(min_n: int = 30) -> list:
+    """APERÇU PAR MARCHÉ (foot) au niveau SEUIL (code complet : « OVER 2.5 » ≠ « OVER 3.5 ») ventilé en 3 vues
+    (demande user 2026-08-20) :
+      👻 FANTÔME  = TOUTES les prédictions réglées du marché (réussite réelle + confiance annoncée = calibration) ;
+      💎 VALUE    = celles à VALUE>0 (conf×cote−1>0 = ce qu'on jouerait) + leur ROI ;
+      ⭐ CONFIANCE = value>0 ET confiance ≥75 % + leur ROI.
+    Under/Over restent SÉPARÉS PAR SEUIL (le regroupement famille masquait qu'UNDER 2.5 gagne mais UNDER 3.5/4.5
+    perdent : cotes trop courtes = fausse value). LECTURE des sidecars (fantômes NON biaisés par la sélection ;
+    confiance = ANNONCÉE, cohérent avec la calibration). Renvoie une liste triée [famille, volume] :
+    [{code, fam, n, win, conf, val_n, val_roi, cf_n, cf_roi}]. Sert la vue Résultats›Analyse."""
+    groups: dict = {}
+    for p in glob.glob(os.path.join(DIR, "foot_*.json")):       # app 100 % foot
+        d = _meta_load(p)
+        if not d:
+            continue
+        preds = list(d.get("shadow") or [])
+        if not _is_world_cup(d):                                # CdM : fantômes OK, paris exclus (comme calibration)
+            for b in (d.get("bets") or []):
+                preds.append({"prob": b.get("prob"), "cote": b.get("odds") or b.get("cote"),
+                              "result": b.get("result"), "code": b.get("code")})
+        for s in preds:
+            prob, cote, res, code = s.get("prob"), s.get("cote"), s.get("result"), s.get("code")
+            if res in ("won", "lost") and prob and cote and cote > 1 and code:
+                groups.setdefault(str(code).upper(), []).append((prob / 100.0, float(cote), res == "won"))
+
+    def _roi(sub):
+        if not sub:
+            return (0, None)
+        ret = sum(o for _p, o, w in sub if w)
+        return (len(sub), round((ret - len(sub)) / len(sub) * 100))
+
+    out = []
+    for code, lst in groups.items():
+        if len(lst) < min_n:
+            continue
+        n = len(lst)
+        val = [x for x in lst if x[0] * x[1] - 1 > 0]           # value>0 = jouable
+        cf = [x for x in val if x[0] >= 0.75]                   # + confiance ≥75 %
+        vn, vr = _roi(val)
+        cn, cr = _roi(cf)
+        out.append({"code": code, "fam": _MARKET_FAMILY.get(code.split()[0], "Autre"), "n": n,
+                    "win": round(sum(1 for x in lst if x[2]) / n * 100),
+                    "conf": round(sum(x[0] for x in lst) / n * 100),
+                    "val_n": vn, "val_roi": vr, "cf_n": cn, "cf_roi": cr})
+    out.sort(key=lambda r: (r["fam"], -r["n"]))                 # groupé par famille, puis volume décroissant
+    return out
+
+
 def bet_detail(sport: str | None = None, pari: int | None = None,
                since_days: int | None = None) -> list[dict]:
     """Liste des PARIS réglés (pour le drill-down) filtrés par sport / position de pari / période.

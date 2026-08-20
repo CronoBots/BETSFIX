@@ -1667,6 +1667,12 @@ CSS = """
   .exq-ok{background:rgba(52,210,123,.14);color:#7fe0a8;border:1px solid rgba(52,210,123,.30)}
   .exq-reason{font-size:11px;line-height:1.45;color:#cfe0f5}
   .exq-meta{font-size:10px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+  /* Aperçu par marché (fantôme/value/confiance) — 3 regards en ligne, colorés (user 2026-08-20). */
+  .mkv-meta{display:flex;flex-wrap:wrap;gap:5px 14px;font-size:10.5px;margin-top:5px}
+  .mkv-meta>span{white-space:nowrap}
+  .mkv-pos{color:#34d27b;font-weight:800}
+  .mkv-neg{color:#ff6b6b;font-weight:800}
+  .mkv-dim{color:var(--muted);font-weight:600}
   .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
        opacity:.85;display:flex;align-items:baseline;gap:8px}
   .sx-ml-hint{font-size:9px;font-weight:600;letter-spacing:0;text-transform:none;opacity:.7}
@@ -9272,6 +9278,47 @@ def render_market_watch(by_sport: dict | None) -> str:
         return ""
     return ('<div class="sx-card"><div class="sx-h">Surveillance des marchés'
             '<span>échantillon · calibration · ROI par sport &amp; type de pari</span></div>'
+            f'<div class="exq">{body}</div></div>')
+
+
+def render_market_overview(rows: list | None) -> str:
+    """APERÇU INTELLIGENT PAR MARCHÉ (foot), au niveau SEUIL (OVER 2.5 ≠ OVER 3.5), ventilé en 3 vues
+    (demande user 2026-08-20) : 👻 FANTÔME (réussite réelle + confiance annoncée = calibration) · 💎 VALUE
+    (ce qu'on jouerait, value>0, + ROI) · ⭐ CONFIANCE (value>0 ET conf ≥75 %, + ROI). Groupé par famille.
+    Réutilise le style `.exq` (mobile-friendly). '' si rien. `rows` = `analyses.market_overview()`."""
+    if not rows:
+        return ""
+
+    def _roi(n, r):
+        if not n:
+            return '<span class="mkv-dim">—</span>'
+        if n < 5:                                              # échantillon trop mince -> gris (pas vert/rouge trompeur)
+            return f'{n}·<span class="mkv-dim">{r:+d}%</span>'
+        cls = "mkv-pos" if (r is not None and r > 0) else ("mkv-neg" if (r is not None and r < 0) else "mkv-dim")
+        return f'{n}·<span class="{cls}">{r:+d}%</span>'
+
+    intro = ('<div class="exq-intro">Chaque marché est décliné <b>par seuil</b> (Over/Under 1.5, 2.5, 3.5… '
+             'séparés) et ventilé en trois regards : <b>👻 fantôme</b> = toutes les prédictions (réussite réelle '
+             'vs confiance annoncée) · <b>💎 value</b> = celles qu\'on jouerait (value positive) et leur ROI · '
+             '<b>⭐ confiance</b> = value ET confiance ≥ 75 %. On voit ainsi où l\'<b>edge réel</b> se situe — un '
+             'marché peut gagner souvent mais perdre en value (cote trop courte).</div>')
+    body, cur = intro, None
+    for r in rows:
+        if r["fam"] != cur:                                    # sous-en-tête de FAMILLE
+            cur = r["fam"]
+            body += (f'<div class="exq-sport"><div class="exq-sphead">'
+                     f'<span class="exq-spname">{html.escape(str(cur))}</span></div></div>')
+        gap = r["win"] - r["conf"]
+        body += (f'<div class="exq-row"><div class="exq-top">'
+                 f'<span class="exq-mk">{html.escape(r["code"])}</span></div>'
+                 f'<div class="exq-meta mkv-meta">'
+                 f'<span>👻 <b>{r["n"]}</b> · réussi {r["win"]}% <span class="mkv-dim">(ann. {r["conf"]}%, '
+                 f'écart {gap:+d})</span></span>'
+                 f'<span>💎 value {_roi(r["val_n"], r["val_roi"])}</span>'
+                 f'<span>⭐ conf {_roi(r["cf_n"], r["cf_roi"])}</span>'
+                 f'</div></div>')
+    return ('<div class="sx-card"><div class="sx-h">Aperçu par marché'
+            '<span>fantôme · value · confiance, par seuil</span></div>'
             f'<div class="exq">{body}</div></div>')
 
 
