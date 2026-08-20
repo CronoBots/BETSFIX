@@ -10691,19 +10691,20 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         # (on veut voir les scores live) ; clés de persistance `live-*` DISTINCTES -> replier une zone en Live
         # n'affecte PAS la même zone en Pronos (et vice-versa).
         _lz = dict(collapsible=True, open_=True)
-        # Tag « en direct » RETIRÉ des titres (les zones mêlent live + à venir 2026-08-19) : chaque carte porte
-        # son état (score live ou décompte). Zones classées par type comme Pronos.
-        out = [_zone("play", _plur(len(_play_c), "Confiance"), "", len(_play_c), _cards(_play_c),
+        # Tag « en direct » CONSERVÉ sur les zones de MATCHS EN COURS (user 2026-08-20 : les matchs en cours
+        # doivent rester EXACTEMENT comme avant — carte live inchangée + étiquette « en direct »). Seuls les
+        # PROCHAINS matchs vont dans une zone à part, avec un style distinct (voir « Prochains lives » plus bas).
+        out = [_zone("play", _plur(len(_play_c), "Confiance"), "en direct", len(_play_c), _cards(_play_c),
                      zk="live-play", **_lz)]
         if _play_v:
-            out.append(_zone("value", "Value", "", len(_play_v), _cards(_play_v), zk="live-value", **_lz))
+            out.append(_zone("value", "Value", "en direct", len(_play_v), _cards(_play_v), zk="live-value", **_lz))
         if _play_m:
-            out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "",
+            out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "en direct",
                              len(_play_m), _cards(_play_m), zk="live-mont", **_lz))
         out += [
-            _zone("indic", _plur(len(_prov), "Provisoire"), "", len(_prov), _cards(_prov),
+            _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
                   zk="live-indic", **_lz),
-            _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "",
+            _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "en direct",
                   len(_combo_rows), _combo, zk="live-combo", **_lz),
         ]
         # PROCHAINS LIVES — MÉLANGÉS (pas classés par type tant que non commencés, user 2026-08-19), triés par
