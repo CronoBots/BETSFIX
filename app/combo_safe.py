@@ -374,39 +374,50 @@ async def safe_multi_candidates(day: str, matches: list, client=None) -> tuple[l
                             under_od = round(od / 1000.0, 2)
                     if line is None:
                         continue
+                    lr = round(float(line), 1)
                     p_over = sm["totals"].get(float(line))
+                    # OVER 1,5 (jambe SÛRE) : Pinnacle cote rarement la ligne 1,5 -> repli sur la borne INFÉRIEURE
+                    # sharp (P(over 1,5) ≥ P(over ligne_mini disponible ≤ 2,0), monotone) pour l'ANCRER quand même.
+                    if lr == 1.5 and p_over is None and sm.get("totals"):
+                        _lo = min(sm["totals"].keys())
+                        if _lo <= 2.0:
+                            p_over = sm["totals"][_lo]                     # borne inf conservatrice de P(over 1,5)
                     if p_over is None:
                         continue
                     _lg = f"{line:g}"
                     p_under = 1 - p_over
-                    # LISTE BLANCHE O/U (lab claude_edge : marchés SÛRS et/ou RENTABLES). EXCLUS d'office : Under
-                    # 3,5/4,5 (pièges : gagnent souvent mais cote trop courte), Over 3,5+ (trop risqués). Over 1,5
-                    # = jambe SÛRE (P haute). Over 2,5 / Under 2,5 = jambes VALUE (plus pile-ou-face mais +ROI prouvé)
-                    # -> autorisées avec une value ≥0 exigée (sinon on ne prend pas). Seuils adaptés au marché.
+                    # LISTE BLANCHE O/U (lab claude_edge). EXCLUS : Under 3,5/4,5 (pièges), Over 3,5+ (trop risqués).
+                    # Over 1,5 = jambe SÛRE (P≥70%). Over 2,5 / Under 2,5 = jambes AMBITIEUSES (P≥52%, prix pas
+                    # défavorable) -> l'analyste décidera si en inclure UNE pour la cote/diversité (produit « Cote 2 »).
                     for _dir, _sel, _od, _p in (("OVER", f"Plus de {_lg} buts", over_od, p_over),
                                                 ("UNDER", f"Moins de {_lg} buts", under_od, p_under)):
                         if not (_od and _od >= MIN_LEG_ODDS):
                             continue
-                        _key = (_dir, round(float(line), 1))
                         _edge = _p * _od - 1
-                        if _key == ("OVER", 1.5):                          # jambe SÛRE
+                        if (_dir, lr) == ("OVER", 1.5):
                             _ok = _p >= 0.70 and _leg_edge(_p, _od) >= MORNING_MIN_EDGE
-                        elif _key in (("OVER", 2.5), ("UNDER", 2.5)):      # jambe VALUE (ambitieuse)
-                            _ok = _p >= 0.50 and _edge >= 0
+                        elif (_dir, lr) in (("OVER", 2.5), ("UNDER", 2.5)):
+                            _ok = _p >= 0.52 and _leg_edge(_p, _od) >= MORNING_MIN_EDGE
                         else:
-                            _ok = False                                    # hors liste blanche -> exclu
+                            _ok = False
                         if _ok:
-                            opts.append({**base, "sel": _sel, "cote": _od, "prob": _p,
-                                         "code": f"{_dir} {_lg}", "_edge": _edge,
-                                         "_why": f"Pinnacle : {round(_p*100)}% de {_sel.lower()} "
-                                                 f"(cote {_od}, value {round(_edge*100)}%)."})
-            if not opts:
-                continue
-            # LE MEILLEUR par match : meilleure VALUE (edge), puis cote la plus haute (viser 2,0). 1 seul par mid.
-            best = max(opts, key=lambda o: (round(o["_edge"], 3), o["cote"]))
-            whys[mid] = best.pop("_why", "")
-            best.pop("_edge", None)
-            cands.append(best)
+                            opts.append({**base, "sel": _sel, "cote": _od, "prob": round(_p, 4),
+                                         "code": f"{_dir} {_lg}",
+                                         "why": f"Pinnacle : {round(_p*100)}% de {_sel.lower()} "
+                                                f"(cote {_od}, value {round(_edge*100)}%)."})
+            # DÉDUP par (code) au sein du match (une même ligne ne doit pas apparaître 2×) + on renvoie TOUS les
+            # candidats du match (DC + O/U) : l'analyste choisira lequel par match (user 2026-08-20, option A). `why`
+            # est porté PAR candidat. Cap léger : au plus 3 marchés/match (le DC + jusqu'à 2 O/U) pour borner le prompt.
+            _seen_codes, _kept = set(), []
+            for o in sorted(opts, key=lambda o: -o["prob"]):
+                if o["code"] in _seen_codes:
+                    continue
+                _seen_codes.add(o["code"])
+                o.setdefault("why", "")
+                _kept.append(o)
+                if len(_kept) >= 3:
+                    break
+            cands.extend(_kept)
     finally:
         if own:
             await client.aclose()

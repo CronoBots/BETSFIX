@@ -2778,8 +2778,8 @@ SORTIE — produis d'abord le format lisible :
 ⚠️ RISQUES DU COUPON (les 3 principaux, précis)
 🚦 VERDICT : 🟢 GO / 🟠 ATTENDRE LES XI / 🔴 PASS (max 4 phrases). Score global (produit de sûreté) : <58 PASS · 58–72 acceptable · 73–89 bon · 90+ exceptionnel. Ne PASSE PAS un combiné de DC ROBUSTES juste parce que son edge/EV est neutre — c'est la nature d'une double chance sûre. Interdit : « sûr / garanti / immanquable / certain / sans risque ».
 
-PUIS, EN TOUTE DERNIÈRE LIGNE, une ligne machine EXACTE (sans gras ni puce), listant les IDENTIFIANTS des matchs retenus :
-COMBO_DC_PICK: <mid1>,<mid2>,<mid3>|<cote_totale>|<P_comb %>|<EV %>|<score_global>|<GO|WAIT|PASS>
+PUIS, EN TOUTE DERNIÈRE LIGNE, une ligne machine EXACTE (sans gras ni puce), listant les id= DES CANDIDATS retenus (un seul par match) :
+COMBO_DC_PICK: <id1>,<id2>,<id3>|<cote_totale>|<P_comb %>|<EV %>|<score_global>|<GO|WAIT|PASS>
 Si aucun combiné ne mérite d'être joué -> exactement : COMBO_DC_PICK: PASS
 """
 
@@ -2851,46 +2851,65 @@ async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None
             print(f"  🎯 Combiné {tier} : vivier hors-doublon trop mince ({len(_pref)}) -> chevauchement toléré.")
     if len(cands) < 2:
         return None
-    short = sorted(cands, key=lambda c: -(c.get("prob") or 0))[:10]   # borne coût dossiers (top proba)
-    by_mid = {str(c["mid"]): c for c in short}
-    blocks = []
-    for c in short:
-        m = {"id": c["mid"], "home": c.get("home"), "away": c.get("away"),
-             "comp": c.get("comp"), "start": c.get("start"), "name": c.get("name")}
-        dos = await _dossier_cached(client, m)
+    # SHORTLIST par MATCH (user 2026-08-20, option A : PLUSIEURS marchés/match possibles pour le Cote 2 -> l'analyste
+    # choisit lequel). On garde les meilleurs MATCHS (par meilleure proba) et TOUS leurs candidats ; chaque candidat
+    # a un id UNIQUE (index). Le dossier est caché PAR MATCH -> plusieurs candidats d'un même match = 0 coût double.
+    from collections import defaultdict as _dd
+    _bm = _dd(list)
+    for c in cands:
+        _bm[str(c["mid"])].append(c)
+    _ranked = sorted(_bm.items(), key=lambda kv: -max((x.get("prob") or 0) for x in kv[1]))
+    short = []
+    for _m2, _cs in _ranked[:10]:                         # top 10 matchs
+        short.extend(sorted(_cs, key=lambda x: -(x.get("prob") or 0)))
+    short = short[:20]                                     # borne la taille du prompt
+    by_cid, blocks, _dcache = {}, [], {}
+    for _i, c in enumerate(short):
+        _cid = str(_i)
+        by_cid[_cid] = c
+        _mid = str(c["mid"])
+        if _mid not in _dcache:                           # 1 dossier par match (partagé par ses candidats)
+            _dcache[_mid] = await _dossier_cached(client, {"id": c["mid"], "home": c.get("home"),
+                "away": c.get("away"), "comp": c.get("comp"), "start": c.get("start"), "name": c.get("name")})
         _imp = round(100.0 / c["cote"], 1) if c.get("cote") else "?"
         blocks.append(
-            f"### CANDIDAT id={c['mid']} — {c.get('name')} · {c.get('comp')} · KO {c.get('start')}\n"
-            f"SÉLECTION SÛRE AU MARCHÉ : {c.get('sel')} [{c.get('code')}] @ {c.get('cote')} "
-            f"(P_imp {_imp}% · P_est Pinnacle dé-viggée {round((c.get('prob') or 0) * 100, 1)}%)\n"
-            f"{dos or '(dossier indisponible)'}")
+            f"### CANDIDAT id={_cid} — {c.get('name')} · {c.get('comp')} · KO {c.get('start')}\n"
+            f"SÉLECTION : {c.get('sel')} [{c.get('code')}] @ {c.get('cote')} "
+            f"(P_imp {_imp}% · P_est Pinnacle {round((c.get('prob') or 0) * 100, 1)}%)\n"
+            f"{_dcache[_mid] or '(dossier indisponible)'}")
     out = run_claude(
         COMBO_DC_RULE + _COMBO_TIER_DIR.get(tier, "")
-        + "\n\n=== SHORTLIST DES DOUBLE CHANCES DISPONIBLES (chacune a une DIRECTION FIXE = la "
-        "plus sûre au marché ; choisis LESQUELLES combiner, 2 à 5) ===\n\n" + "\n\n".join(blocks), timeout=600)
+        + "\n\n=== CANDIDATS DISPONIBLES (chacun a un id= et une SÉLECTION déjà fixée ; PLUSIEURS candidats peuvent "
+        "porter sur le MÊME match — tu n'en retiens qu'UN SEUL par match ; choisis LESQUELS combiner via leur id) "
+        "===\n\n" + "\n\n".join(blocks), timeout=600)
     v = _parse_combo_dc(out)
     if v is None:                                     # ligne machine absente/malformée -> on la RE-DEMANDE
         v = _parse_combo_dc(_reemit_machine_line(
-            out, "COMBO_DC_PICK: <mid1>,<mid2>,<mid3>|<cote_totale>|<P_comb %>|<EV %>|<score_global>|"
-                 "<GO|WAIT|PASS>   (ou exactement `COMBO_DC_PICK: PASS`)"))
+            out, "COMBO_DC_PICK: <id1>,<id2>,<id3>|<cote_totale>|<P_comb %>|<EV %>|<score_global>|"
+                 "<GO|WAIT|PASS>   (les id sont ceux des candidats « id= » ; ou exactement `COMBO_DC_PICK: PASS`)"))
     if v is None:                                     # ILLISIBLE même après re-émission -> on lève pour que le
         raise RuntimeError("combiné DC : sortie Claude illisible (après re-émission)")   # builder bascule sur le
         # repli MÉCANIQUE (jamais de trou) — un GO valide ne doit pas être perdu sur un souci de format.
     if v.get("decision") != "GO":                     # PASS / WAIT explicite -> honoré (pas de combiné, pas de repli)
         return None
-    mids = [str(x) for x in (v.get("mids") or []) if str(x) in by_mid]
-    seen = set()                                          # dédup, garde l'ordre (NE PAS fusionner avec la ligne
-    mids = [x for x in mids if not (x in seen or seen.add(x))]   # suivante : `seen` doit exister AVANT la compréhension)
-    if len(mids) < 2:
+    _ids = [str(x) for x in (v.get("mids") or []) if str(x) in by_cid]
+    seen_m, cids = set(), []                               # DÉDUP PAR MATCH : au plus 1 marché/match (jambes indépendantes)
+    for _cid in _ids:
+        _mm = str(by_cid[_cid]["mid"])
+        if _mm in seen_m:
+            continue
+        seen_m.add(_mm)
+        cids.append(_cid)
+    if len(cids) < 2:
         return None
     legs, cote, prob = [], 1.0, 1.0
-    for mid in mids:
-        c = by_mid[mid]
-        legs.append({"mid": mid, "sport": "foot", "name": c.get("name"), "home": c.get("home"),
+    for _cid in cids:
+        c = by_cid[_cid]
+        legs.append({"mid": str(c["mid"]), "sport": "foot", "name": c.get("name"), "home": c.get("home"),
                      "away": c.get("away"), "start": c.get("start"), "comp": c.get("comp"),
                      "sel": c["sel"], "cote": c["cote"], "prob": round(c.get("prob") or 0, 4),
                      "code": c.get("code"), "result": None, "score": None,
-                     "why": (whys or {}).get(mid)})
+                     "why": c.get("why") or (whys or {}).get(str(c["mid"]))})
         cote *= float(c["cote"])
         prob *= float(c.get("prob") or 0)
     # GARDE-FOU COTE MINIMALE PAR TIER (user 2026-08-20) : le Sûr doit coter ≥1,40, le Cote 2 ≥1,90 -> si le
