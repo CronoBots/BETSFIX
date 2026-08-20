@@ -653,7 +653,7 @@ def _combo_safe_card() -> str:
                                        recent=_recent, more_label="Derniers combinés",
                                        form=_form, pending=pend, streak=_streak, compact=True,
                                        hit_points=web._hit_curve([days[d0].get("result") for d0 in sorted(days)]))
-    return '<div class="sx-card"><div class="sx-h">Combiné 1X/X2</div>' + _curve + '</div>'
+    return '<div class="sx-card"><div class="sx-h">Combiné</div>' + _curve + '</div>'
 
 
 # `_combo_daily_card` SUPPRIMÉ le 2026-07-25 (mort) : le combiné du jour foot est ventilé dans le

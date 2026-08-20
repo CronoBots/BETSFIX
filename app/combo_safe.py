@@ -464,7 +464,7 @@ def telegram_text(cb: dict) -> str:
     """Message HTML (parse_mode=HTML) du combiné sécurité pour Telegram. Noms échappés."""
     import html as _h
     from app.analyses import pretty_sel as _psel
-    out = ["🛡️ <b>COMBINÉ 1X/X2 FOOT</b>",
+    out = ["🛡️ <b>COMBINÉ FOOT</b>",
            f"Cote <b>@{cb.get('cote')}</b> · chances <b>{round((cb.get('prob') or 0) * 100)}%</b> "
            f"· {len(cb.get('legs') or [])} jambes (double chance)", ""]
     for l in cb.get("legs") or []:
