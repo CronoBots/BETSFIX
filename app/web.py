@@ -6699,7 +6699,8 @@ def _montante_today_bet():
         if p and p.get("sel"):
             return p
         _today = _sport_today().isoformat()
-        _ts = [s for s in (_mt.load().get("steps") or []) if str(s.get("date")) == _today and s.get("sel")]
+        # public_steps (pas load) -> un palier hors-technique masqué (ex. 20/08) ne réapparaît pas sur l'accueil.
+        _ts = [s for s in _mt.public_steps() if str(s.get("date")) == _today and s.get("sel")]
         return _ts[-1] if _ts else None
     except Exception:
         return None
