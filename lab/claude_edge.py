@@ -113,4 +113,34 @@ for f in order:
     warn = "  ⚠️ échantillon faible" if n1 < 40 else ""
     print(f"  {f:>26} | {n1:4d} | {r1:+6.1f}% | {nv:4d} paris | {rv:+6.1f}%{warn}")
 
+# 8) APERÇU INTELLIGENT PAR MARCHÉ — ventilé 👻 FANTÔME · 💎 VALUE · ⭐ CONFIANCE (≥75%), Under/Over SÉPARÉS
+def rr(s):                                            # (n, ROI%) d'un sous-ensemble, ou None
+    return None if not s else (len(s), (sum(o for _, o, w, _, _ in s if w) - len(s)) / len(s) * 100)
+def cell_v(sub):                                      # value>0
+    return rr([x for x in sub if x[0]*x[1]-1 > 0])
+def cell_c(sub):                                      # value>0 ET confiance ≥75%
+    return rr([x for x in sub if x[0]*x[1]-1 > 0 and x[0] >= 0.75])
+def fmt(t): return f"{t[0]:3d}·{t[1]:+5.1f}%" if t else "   —     "
+
+by_code = {}
+for x in preds: by_code.setdefault(x[3], []).append(x)
+print(f"\n### APERÇU INTELLIGENT PAR MARCHÉ (Under/Over séparés ; ≥60 fantômes)")
+print(f"  {'marché':>22} | 👻 fantôme (réuss./conf) | 💎 value | ⭐ confiance≥75%")
+for code in sorted(by_code, key=lambda c: (c.split()[0] if c.split() else c, c)):
+    sub = by_code[code]
+    if len(sub) < 60: continue
+    win = sum(1 for x in sub if x[2]) / len(sub) * 100
+    conf = sum(x[0] for x in sub) / len(sub) * 100
+    print(f"  {code:>22} | {len(sub):4d}  {win:4.1f}% / {conf:4.1f}%    | {fmt(cell_v(sub))} | {fmt(cell_c(sub))}")
+
+# Focus explicite OVER vs UNDER agrégés (la question : bien séparés ?)
+print(f"\n### OVER vs UNDER (agrégé, tous seuils)")
+for fam_lbl, pref in (("OVER (tous seuils)", "OVER"), ("UNDER (tous seuils)", "UNDER")):
+    sub = [x for x in preds if x[3].startswith(pref)]
+    if not sub: continue
+    win = sum(1 for x in sub if x[2]) / len(sub) * 100
+    n_all, _, om, r_all, _ = roi(sub)
+    print(f"  {fam_lbl:>18} : {n_all:4d} fantômes · réuss {win:4.1f}% · cote {om:4.2f} · ROI tout {r_all:+.1f}% "
+          f"· 💎 value {fmt(cell_v(sub))} · ⭐ conf {fmt(cell_c(sub))}")
+
 print("\n" + "="*70 + "\n(LECTURE SEULE des sidecars, aucune écriture, aucun code prod modifié.)")
