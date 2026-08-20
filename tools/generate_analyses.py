@@ -3141,6 +3141,10 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
             "home": m.get("home", ""), "away": m.get("away", ""),
             "name": m.get("name", ""), "comp": m.get("comp", ""), "country": m.get("country", ""),
             "start": m.get("start", ""),
+            # INSTRUMENTATION SÉLECTION (user 2026-08-20, étude edge) : profondeur de marché Unibet
+            # (`nonLiveBoCount`) = le critère de TRI de rank_important. Figée ici -> permet enfin de mesurer
+            # le ROI par rang/profondeur de sélection a posteriori (0 impact sélection/pari : champ additif).
+            "markets": m.get("markets", 0),
             "o1": o1, "ox": ox, "o2": o2, "pick": _safe_pick(analysis),
             "pick_code": _parse_pick(analysis),   # code technique pour le règlement auto après match
             "unibet_url": (f"https://fr.unibetsports.be/betting/sports/event/{m.get('id')}"
@@ -3190,6 +3194,17 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     _omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
     if _omap:
         side["omap"] = _omap            # map {code -> vraie cote Unibet} persistée -> re-pricing read-time possible
+    # INSTRUMENTATION SÉLECTION PAR EDGE (user 2026-08-20, étude edge : edge sharp > 0 -> +15,7% vs -4,4%).
+    # `sel_edge` = MEILLEUR edge sharp du match figé au scan = max sur les marchés ANCRÉS de
+    # (proba Pinnacle dé-viggée − proba implicite Unibet 1/cote). Dérivable de sharp_map ∩ omap, mais on le
+    # PRÉ-CALCULE (scalaire robuste, pas de re-dérivation) pour classer/mesurer la sélection par edge. Champ
+    # ADDITIF : n'influence NI la sélection (rank_important reste par profondeur) NI le choix du pari.
+    if _sharp_map and _omap:
+        _edges = [_sharp_map[_c] - 1.0 / _omap[_c] for _c in _sharp_map
+                  if isinstance(_omap.get(_c), (int, float)) and _omap[_c] > 1
+                  and isinstance(_sharp_map.get(_c), (int, float))]
+        if _edges:
+            side["sel_edge"] = round(max(_edges), 4)
         for _p in (side.get("shadow") or []):
             _rc = _omap.get(_p.get("code"))
             if isinstance(_rc, (int, float)) and _rc >= 1.01:

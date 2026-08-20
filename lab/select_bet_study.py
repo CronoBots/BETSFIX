@@ -29,6 +29,8 @@ for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
         continue
     sm = d.get("sharp_map") or {}
     clv = d.get("clv")
+    depth = d.get("markets")          # profondeur Unibet figée (instrumentation 2026-08-20) — None avant
+    sedge = d.get("sel_edge")         # meilleur edge sharp figé au scan (instrumentation) — None avant
     if sm: n_sm += 1
     if isinstance(clv, (int, float)):
         n_clv += 1
@@ -39,7 +41,9 @@ for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
         code = (code or "?").upper()
         preds.append({"prob": prob / 100.0, "cote": float(cote), "won": res == "won",
                       "code": code, "fam": code.split()[0] if code.split() else code,
-                      "played": played, "sharp": sm.get(code)})
+                      "played": played, "sharp": sm.get(code),
+                      "depth": depth if isinstance(depth, (int, float)) else None,
+                      "sedge": sedge if isinstance(sedge, (int, float)) else None})
     for s in (d.get("shadow") or []):
         _push(s.get("code"), s.get("cote"), s.get("prob"), s.get("result"), False)
     for b in (d.get("bets") or []):
@@ -137,12 +141,27 @@ else:
     print("  (aucun CLV stocké pour l'instant)")
 
 # =========================================================================================
-# (1) RANG DE SÉLECTION — indisponible
+# (1) RANG DE SÉLECTION (profondeur) + EDGE FIGÉ — dès que l'instrumentation 2026-08-20 s'accumule
 # =========================================================================================
-print("\n### (1) ROI PAR RANG DE SÉLECTION")
-print("  INDISPONIBLE a posteriori : la profondeur de marché (`nonLiveBoCount`) qui pilote le tri de")
-print("  sélection (rank_important) N'EST PAS stockée au sidecar. -> à INSTRUMENTER (persister `markets`")
-print("  + edge sharp du meilleur marché à la sélection) pour mesurer dans 2-3 semaines.")
+print("\n### (1) ROI PAR PROFONDEUR DE MARCHÉ (`markets`) — instrumentation depuis le 20/08")
+dp = [x for x in preds if x.get("depth") is not None]
+print(f"     prédictions avec profondeur figée : {len(dp)}")
+if len(dp) >= 40:
+    qs = sorted(x["depth"] for x in dp)
+    t1, t2 = qs[len(qs) // 3], qs[2 * len(qs) // 3]
+    for name, lo, hi in [("profond (top liq.)", t2, 1e9), ("médian", t1, t2), ("mince (peu liq.)", -1, t1)]:
+        line(name, [x for x in dp if lo <= x["depth"] < hi] if hi < 1e9 else [x for x in dp if x["depth"] >= lo])
+else:
+    print("     -> en attente d'accumulation (mesurable ~2-3 semaines après le 20/08).")
+
+print("\n### (1b) ROI PAR EDGE SHARP FIGÉ À LA SÉLECTION (`sel_edge`) — instrumentation depuis le 20/08")
+se = [x for x in preds if x.get("sedge") is not None]
+print(f"     prédictions avec edge figé : {len(se)}")
+if len(se) >= 40:
+    for name, lo, hi in [("edge ≤ 0", -9, 0.0), ("0..+3%", 0.0, 0.03), ("> +3%", 0.03, 9)]:
+        line(name, [x for x in se if lo <= x["sedge"] < hi])
+else:
+    print("     -> en attente d'accumulation (mesurable ~2-3 semaines après le 20/08).")
 
 print("\n" + "=" * 78)
 print("(LECTURE SEULE des sidecars — aucune écriture, aucun code prod touché.)")
