@@ -39,3 +39,19 @@ Leçons chiffrées :
    Claude/enrichissement ; le labo permet maintenant de MESURER si elle bat ce baseline.
 
 Le POC est un INSTRUMENT : toute variante (seuil, marché, ligue, modèle) se mesure sur ~45 k matchs en secondes.
+
+## `optimize.py` — optimisation HONNÊTE (params réglés sur TRAIN, évalués 1× sur TEST)
+Elo pondéré écart de buts + stratégies proches du produit, tuning anti-overfit. Résultats OUT-OF-SAMPLE
+(ligues peu efficaces, ~10 k matchs test) :
+
+| Stratégie | ROI test | CLV test | verdict |
+|---|---|---|---|
+| Back du favori (Elo) | −1,2 % | −3,6 % | quasi équilibre, mais CLV négatif = pas d'edge réel |
+| Double chance (Elo, proxy) | −5,3 % | −3,8 % | négatif |
+| Ancre Pinnacle → parier Bet365 | (69 train / **6 test**) | — | **échantillon trop mince = non concluant** |
+
+**Conclusion honnête (le plafond) :** on **ne fabrique pas d'edge avec stats publiques + cotes seules contre
+un book sharp**. Le back-favori optimisé frôle l'équilibre mais garde un CLV négatif ; la value d'un book mou
+(Bet365, grosse marge) vs Pinnacle est **trop rare** pour constituer une stratégie (la marge mange l'écart).
+→ l'edge de BETSFIX doit venir d'une INFO que le sharp n'a pas au moment du pari (couche Claude : compos,
+blessés tardifs, contexte) ou du TIMING (parier avant que la ligne se forme). Le labo est prêt à MESURER ça.
