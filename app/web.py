@@ -3864,6 +3864,10 @@ _SPA_JS = (
     "if(!p||!p.getAttribute('data-loaded')||document.hidden)return;"
     "if(!p.querySelector('.live'))return;"
     "if(p.querySelector('.mc-manual'))return;"  # ne pas perturber une carte ouverte À LA MAIN
+    # PLI D'ANALYSE « Pourquoi ce choix / cette jambe » OUVERT (`.cleg-fold[open]`) -> on NE rafraîchit PAS :
+    # le refresh remplace le panneau et refermerait le pli -> l'utilisateur perdait sa lecture (user 2026-08-20).
+    # (Les zones repliables sont `.zone-col`, PAS `.cleg-fold` -> elles ne bloquent pas le refresh.)
+    "if(p.querySelector('.cleg-fold[open]'))return;"
     "var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){"
