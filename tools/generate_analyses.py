@@ -938,19 +938,19 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
 
         # DEUX COMBINÉS INDÉPENDANTS/JOUR (user 2026-08-19), tous deux HORS ROI : « Sûr » (variant='', ~1,5, proba
         # max) + « Cote 2 » (variant='cote2', ~2,0). Même pipeline SÛRETÉ-first, cible de cote différente (`tier`).
-        async def _build_combo_tier(_tier, _variant, _tgkey, _tgcap, _label):
+        async def _build_combo_tier(_tier, _variant, _tgkey, _tgcap, _label, _exclude_mids=None):
             _prev = _cdaily.today(_cday, variant=_variant)
             if _prev and (_prev.get("sent") or _prev.get("result")):
                 print(f"  🎯 Combiné {_label} : déjà publié aujourd'hui (figé) -> conservé.")
-                return
+                return _prev
             try:
-                _cb = await _combo_dc_best(client, _cday, _ccands, _cwhys, tier=_tier)
+                _cb = await _combo_dc_best(client, _cday, _ccands, _cwhys, tier=_tier, exclude_mids=_exclude_mids)
             except Exception as _cqe:
                 print(f"  (combiné {_label} règle quant ignoré : {_cqe})")
                 _cb = await _csafe.build_from_programme_async(_cday, matches, client) if _tier == "sur" else None
             if not _cb:
                 print(f"  🎯 Combiné {_label} : PASS — aucun combiné DC ne remplit la règle aujourd'hui.")
-                return
+                return None
             # « Pourquoi » factuel des jambes À LA CONSTRUCTION (faits football via sources.extras -> pas de méta
             # sharp que _strip_meta_stat massacre). Best-effort. build_dossier/extras LISENT seulement (0 sidecar).
             try:
@@ -993,8 +993,14 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
 
         await _build_combo_tier("sur", "", "combo_daily",
                                 "🛡️ <b>Combiné SÛR</b> · les sélections les plus sûres", "SÛR")
+        # COTE 2 DÉCORRÉLÉ DU SÛR (user 2026-08-20) : on lit les jambes du Sûr (fraîchement enregistré, ou figé
+        # s'il l'était déjà) et on les EXCLUT du vivier Cote 2 -> deux combinés qui ne tombent pas ensemble.
+        # Repli géré dans `_combo_dc_best` si le vivier restant est trop mince.
+        _sur_now = _cdaily.today(_cday, variant="") or {}
+        _sur_mids = [str(_l.get("mid")) for _l in (_sur_now.get("legs") or []) if _l.get("mid")]
         await _build_combo_tier("cote2", "cote2", "combo_hi",
-                                "🚀 <b>Combiné COTE 2</b> · plus ambitieux", "COTE 2")
+                                "🚀 <b>Combiné COTE 2</b> · plus ambitieux", "COTE 2",
+                                _exclude_mids=_sur_mids)
     except Exception as _cce:
         print(f"  (combiné du jour matin ignoré : {_cce})")
     # MONTANTE — PALIER DU JOUR construit DEPUIS LE PROGRAMME (user 2026-08-17) : le flagship joue souvent des
@@ -2796,12 +2802,26 @@ _COMBO_TIER_DIR = {
 }
 
 
-async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None, tier: str = "cote2"):
+async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None, tier: str = "cote2",
+                         exclude_mids: list | None = None):
     """RÈGLE COMBINÉ DC (analyste quant, user 2026-08-18 ; SÛRETÉ-first 2026-08-19) : Claude choisit, dans la
     SHORTLIST DC du jour (chaque candidat = 1 DC sûre + son DOSSIER COMPLET `build_dossier`), LE meilleur combiné
     2-5 jambes ou PASS. `tier` (user 2026-08-19) = « sur » (cote ~1,5, proba max) ou « cote2 » (cote ~2,0) : deux
-    combinés indépendants/jour. Renvoie la structure combiné (legs + cote/prob = produits) ou None (PASS)."""
+    combinés indépendants/jour. `exclude_mids` (user 2026-08-20) = mids déjà pris par l'AUTRE combiné à ÉVITER
+    (décorrélation : un même match dans 2 combinés les fait tomber ENSEMBLE). Renvoie la structure combiné (legs
+    + cote/prob = produits) ou None (PASS)."""
     cands = [c for c in (cands or []) if c.get("mid") and c.get("cote")]
+    # DÉCORRÉLATION (user 2026-08-20) : on RETIRE du vivier les matchs déjà utilisés par l'autre combiné, pour que
+    # les deux combinés soient VRAIMENT différents (pas de doublon = pas de perte simultanée). REPLI : si le
+    # vivier restant est trop mince (< 3 candidats -> pas de combiné distinct crédible), on tolère le chevauchement
+    # plutôt que de forcer un mauvais match (jamais sacrifier la qualité d'une jambe pour la seule diversité).
+    _excl = set(str(x) for x in (exclude_mids or []))
+    if _excl:
+        _pref = [c for c in cands if str(c.get("mid")) not in _excl]
+        if len(_pref) >= 3:
+            cands = _pref
+        else:
+            print(f"  🎯 Combiné {tier} : vivier hors-doublon trop mince ({len(_pref)}) -> chevauchement toléré.")
     if len(cands) < 2:
         return None
     short = sorted(cands, key=lambda c: -(c.get("prob") or 0))[:10]   # borne coût dossiers (top proba)
