@@ -5881,7 +5881,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
             # BLANC (choix user), comme la carte Telegram. La confiance reste la proba de l'analyste (le tag/
             # zone « indicatif · hors ROI » dit clairement que ce n'est pas compté au ROI).
             _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                         f'<span class="mc-cote-v">{_cote:g}</span></span>'
+                         f'<span class="mc-cote-v">{round(_cote, 2):g}</span></span>'
                          if isinstance(_cote, (int, float)) and _cote else "")
             # Pastille « 🧪 PROVISOIRE » par carte : OMISE en mode `framed` (la zone « Indicatif · hors ROI »
             # porte déjà le libellé une fois) — demande user 2026-07-11, fin de la répétition.
@@ -6574,7 +6574,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
             _cote = round(_ec, 2)
             _pconf = round(_ep * 100)
     _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                 f'<span class="mc-cote-v">{_cote:g}</span></span>'
+                 f'<span class="mc-cote-v">{round(_cote, 2):g}</span></span>'
                  if isinstance(_cote, (int, float)) and _cote else "")
     # Synthèse au-dessus des jambes RETIRÉE (demande user 2026-07-18) — chaque jambe porte déjà son « pourquoi ».
     _nlegs = len(cb.get("legs") or [])
@@ -6783,7 +6783,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     # _combo_tg_card). Jambes same-match -> on injecte sport/équipes, nom vide (le match est déjà en en-tête).
     _cote = combo.get("real_odds") or combo.get("total")
     _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                 f'<span class="mc-cote-v">{_cote:g}</span></span>'
+                 f'<span class="mc-cote-v">{round(_cote, 2):g}</span></span>'
                  if isinstance(_cote, (int, float)) and _cote else "")
     _pconf = combo.get("prob")
     _legs = [{**l, "sport": sport, "home": home, "away": away, "name": ""} for l in legs]

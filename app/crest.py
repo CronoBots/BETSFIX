@@ -60,6 +60,8 @@ _ALIAS = {
     "rcl": "Lens", "scb": "Bastia", "fcgb": "Bordeaux",
     # Clubs saoudiens dont l'orthographe Unibet diffère de FotMob (user 2026-08-18) :
     "alakhdood": "Al-Akhdoud", "aldraih": "Al Diriyah",
+    # Amérique du Sud : sigle/orthographe Unibet ≠ FotMob (user 2026-08-20, logos manquants) :
+    "lduquito": "LDU de Quito",
 }
 
 
@@ -132,7 +134,8 @@ def team_id(name: str):
     # PRÉFIXE de club générique (AFC/FC/AC/SC/CF/CD/CS/US/AS/SV/FK/CA/RC/SK…) : FotMob indexe souvent le club
     # SANS ce préfixe (« AFC UTA Arad » -> « UTA Arad ») et les mots restants sont trop courts pour être des
     # termes distinctifs (≥5). On ajoute donc la variante SANS le préfixe comme essai de recherche.
-    _pref = _re.match(r"^\s*(?:afc|fc|ac|sc|cf|cd|cs|us|as|sv|fk|ca|rc|sk|nk|hnk)\s+(.+)$", sname or name, _re.I)
+    # kaa/kv/krc/kvc = préfixes belges « Koninklijke » (FotMob indexe « Gent », pas « KAA Gent ») — user 2026-08-20.
+    _pref = _re.match(r"^\s*(?:afc|fc|ac|sc|cf|cd|cs|us|as|sv|fk|ca|rc|sk|nk|hnk|kaa|kv|krc|kvc)\s+(.+)$", sname or name, _re.I)
     if _pref and _norm(_pref.group(1)) not in {_norm(t) for t in _terms}:
         _terms.append(_pref.group(1))
     try:
