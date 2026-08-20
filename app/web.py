@@ -10492,19 +10492,16 @@ def _safe_combo_any_live() -> bool:
                for l in (cb.get("legs") or []) if l.get("result") is None)
 
 
-def _combo_leg_cards(sport: str = "foot", want_live: bool = True,
-                     variants: tuple = ("", "cote2")) -> list:
-    """Cartes des jambes de combiné(s) du jour NON RÉGLÉES, rendues comme des PARIS SIMPLES (pick DC + ligue).
-    `want_live` True -> jambes EN COURS (score live) ; False -> jambes À VENIR (décompte, cartes compactes pour
-    « Prochains lives »). `variants` = combinés à balayer (défaut Sûr + Cote 2) ; on passe les combinés PAS
-    ENCORE COMMENCÉS pour les à-venir, afin de ne PAS re-lister une jambe déjà montrée dans la carte combiné
-    complète d'un combiné live (user 2026-08-20). DÉDUPLIQUÉES par match. Cache score live chaud -> lecture
-    sync. Renvoie des dicts `foot._card` (rendus par `_sport_row`). [] si rien dans l'état demandé."""
+def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
+    """Cartes des jambes de combiné(s) du jour NON RÉGLÉES, rendues comme des PARIS SIMPLES (pick DC + ligue) —
+    zone Combiné de Live (user 2026-08-19). `want_live` True -> jambes EN COURS (score live) ; False -> jambes
+    À VENIR (décompte). Sûr + Cote 2, DÉDUPLIQUÉES par match. Cache score live chaud -> lecture sync. Renvoie
+    des dicts `foot._card` (rendus par `_sport_row`). [] si rien dans l'état demandé."""
     from app import combo_daily as _cd, foot as _foot
     import datetime as _dt
     day = _cd.day_key()
     rows, seen = [], set()
-    for _var in variants:
+    for _var in ("", "cote2"):
         cb = _cd.today(day, sport=sport, variant=_var)
         if not cb:
             continue
@@ -10555,15 +10552,12 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # COMPTES PAR SPORT (badges du sélecteur) + TOTAL tous sports (badge de l'onglet, inchangé).
     _counts, _combos = {}, {}
     for _sk in ("foot", "tennis", "basket"):
-        # COMBINÉ(S) EN COURS = carte(s) combiné COMPLÈTE(s) empilées, EXACTEMENT comme avant le 2026-08-19 et
-        # comme dans Pronos (user 2026-08-20 : les matchs COMMENCÉS gardent leur format d'avant, PAS de jambes
-        # éclatées — seuls les PROCHAINS matchs ont un format compact à part). Sûr + Cote 2, foot uniquement.
-        # `_combos[_sk]` = NOMBRE de combinés qui tournent (au moins une jambe live) -> compteur de zone/badge.
-        _combos[_sk] = sum(1 for _v in ("", "cote2")
-                           if _sk == "foot" and _daily_combo_any_live(sport="foot", variant=_v))
+        # JAMBES DE COMBINÉ EN COURS (user 2026-08-19) : au lieu de la carte combiné COMPLÈTE, on liste les
+        # JAMBES live comme des paris simples (dans la zone Combiné). Foot uniquement. Compteur = nb de jambes live.
+        _combos[_sk] = _combo_leg_cards(_sk, want_live=True) if _sk == "foot" else []
         _counts[_sk] = (sum(1 for c in play_live if _item_sport(c) == _sk)
                         + sum(1 for c in prov_live if c.get("_sport") == _sk)
-                        + _combos[_sk])
+                        + len(_combos[_sk]))
     # Combinés FOOT hors-ROI EN COURS (demande user 2026-07-28 : tout match de Pronos qui tourne doit
     # apparaître dans Live) — le combiné SÉCURITÉ et le combiné BONUS, comme dans l'onglet Pronos. Foot only.
     _safe_combo = ""   # combiné « double chance » fusionné dans « Combiné football » (combo_daily) le 2026-08-02
@@ -10595,10 +10589,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # avec les live. Combiné = jambes à venir ; Montante = palier du jour non commencé ; simples = paris retenus.
     from app import foot as _foot_up
     import datetime as _dtu
-    # Jambes À VENIR : seulement pour les combinés PAS ENCORE commencés (un combiné DÉJÀ live montre TOUTES ses
-    # jambes dans sa carte complète -> ne pas les re-lister en « Prochains lives »). user 2026-08-20.
-    _up_vars = tuple(_v for _v in ("", "cote2") if not _daily_combo_any_live(sport="foot", variant=_v))
-    _up_combo = _combo_leg_cards(_cur, want_live=False, variants=_up_vars) if _cur == "foot" else []
+    _up_combo = _combo_leg_cards(_cur, want_live=False) if _cur == "foot" else []
     _up_conf, _up_val, _up_mont = [], [], []
     for _d in analyses.list_for(_cur, include_background=True):     # SIMPLES à venir (Confiance/Value)
         if analyses.status_of(_d) != "notstarted":
@@ -10644,16 +10635,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _lst.sort(key=lambda c: c.get("start_ts") or 0)
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur] if analyses.PROVISOIRES_ON else []
-    # ZONE COMBINÉ (matchs EN COURS) = carte(s) combiné COMPLÈTE(s), comme dans Pronos (Sûr + Cote 2 empilés),
-    # affichées seulement si elles tournent. Format d'avant-hier RESTAURÉ (user 2026-08-20 : pas de jambes
-    # éclatées pour les matchs commencés). Les PROCHAINES jambes vont, elles, en « Prochains lives » (compact).
-    _n_combo_live = _combos.get(_cur, 0)
-    _combo = _MC_SEP.join([h for h in (
-        (_combo_tg_card(include_settled=False, sport="foot", title="COMBINÉ SÛR")
-         if _cur == "foot" and _daily_combo_any_live(sport="foot", variant="") else ""),
-        (_combo_tg_card(include_settled=False, sport="foot", variant="cote2", title="COMBINÉ COTE 2")
-         if _cur == "foot" and _daily_combo_any_live(sport="foot", variant="cote2") else ""),
-    ) if h])
+    _combo_rows = list(_combos.get(_cur, []))               # zone Combiné = jambes EN COURS seulement
+    _combo = _join_cards([_sport_row(r) for r in _combo_rows])   # rendu HTML pour la zone Combiné
     # PROCHAINS MATCHS = tous les à-venir MÉLANGÉS (combo + montante + simples), triés par coup d'envoi et
     # DÉDUPLIQUÉS par match (un match repris par 2 types = une seule carte compacte). user 2026-08-19.
     _upcoming_all, _seen_up = [], set()
@@ -10721,8 +10704,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         out += [
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
                   zk="live-indic", **_lz),
-            _zone("combo", _plur(_n_combo_live, "Combiné double chance"), "en direct",
-                  _n_combo_live, _combo, zk="live-combo", **_lz),
+            _zone("combo", _plur(len(_combo_rows), "Combiné double chance"), "en direct",
+                  len(_combo_rows), _combo, zk="live-combo", **_lz),
         ]
         # PROCHAINS LIVES — MÉLANGÉS (pas classés par type tant que non commencés, user 2026-08-19), triés par
         # coup d'envoi (ordre CHRONOLOGIQUE), cartes compactes NON cliquables. NON REPLIABLE, sans tag « à venir ».
