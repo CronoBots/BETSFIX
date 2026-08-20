@@ -10066,14 +10066,7 @@ def _sport_row(r: dict) -> str:
     reco_i = summ.get("reco_idx")          # pari RETENU par le moteur -> ⭐ EN TÊTE (à la place du •)
     is_combo = summ.get("is_combo")        # combiné = • comme les autres paris (ni ⭐ ni 🎲, demande user)
     bets3 = summ.get("bets") or []
-    # JAMBE DE COMBINÉ LIVE affichée SEULE (zone Combiné de Live) : le match est une abstention en tant que
-    # simple, donc les lookups pari retenu/publié renverraient « pas de pari conseillé ». Ici le pari de la
-    # carte EST le pick DC de la jambe -> on force cette bet line pour une carte live NORMALE (user 2026-08-20).
-    _leg_bet = r.get("_leg_bet")
-    if _leg_bet:
-        bets3 = [_leg_bet]
-        reco_i = 0
-    elif not is_combo:
+    if not is_combo:
         if is_finished:                    # TERMINÉ : le pari RÉELLEMENT JOUÉ (for_history = stats),
             _mid = re.search(r"/(\d+)", url)   # marché exclu APRÈS coup inclus (sinon « pas de pari » à tort)
             _rbh = (analyses.retained_bet(sport_key, _mid.group(1), for_history=True)
@@ -10500,10 +10493,11 @@ def _safe_combo_any_live() -> bool:
 
 
 def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
-    """Cartes des jambes de combiné(s) du jour NON RÉGLÉES, rendues comme des PARIS SIMPLES (pick DC + ligue) —
-    zone Combiné de Live (user 2026-08-19). `want_live` True -> jambes EN COURS (score live) ; False -> jambes
-    À VENIR (décompte). Sûr + Cote 2, DÉDUPLIQUÉES par match. Cache score live chaud -> lecture sync. Renvoie
-    des dicts `foot._card` (rendus par `_sport_row`). [] si rien dans l'état demandé."""
+    """Jambes de combiné(s) du jour NON RÉGLÉES, pour la zone Combiné de Live. `want_live` True -> jambes EN
+    COURS : rendues EXACTEMENT comme dans le combiné (via `_leg_card`, mêmes flags que `_combo_tg_legs`) mais
+    présentées comme un MATCH SEUL -> dicts `{_html, start_ts}`. `want_live` False -> jambes À VENIR en carte
+    COMPACTE -> dicts `foot._card` (flag `_compact`, rendus par `_sport_row`). Sûr + Cote 2, DÉDUPLIQUÉES par
+    match. Cache score live chaud -> lecture sync. [] si rien dans l'état demandé."""
     from app import combo_daily as _cd, foot as _foot
     import datetime as _dt
     day = _cd.day_key()
@@ -10523,27 +10517,34 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
             if _is_live != want_live:                  # on ne garde que l'état demandé (live OU à venir)
                 continue
             seen.add(_pair)
-            _sel, _odds = l.get("sel"), l.get("cote")
             try:
                 _sts = _dt.datetime.fromisoformat(str(l.get("start")).replace("Z", "+00:00")).timestamp()
             except (ValueError, TypeError):
                 _sts = 0
-            _c = _foot._card({
-                "id": l.get("mid"), "status": "inprogress" if _is_live else "notstarted", "comp": l.get("comp"),
-                "home": l.get("home", ""), "away": l.get("away", ""), "probs": None, "goals": None,
-                "o1": None, "ox": None, "o2": None, "imp": None, "pick": None, "start": _sts,
-                "votes": None, "perle": None, "perle2": None, "perle_value": None,
-                "pick_kind": "confiance", "sofa_ok": True, **(lf if _is_live else {})})
             if _is_live:
-                # La JAMBE = le pari de la carte : le pick DC (sel@cote, proba calibrée) est rendu comme la bet
-                # line d'une carte live NORMALE (verdict Marché/Confiance/Value + scoreboard). user 2026-08-20 :
-                # « juste SÉPARER la jambe live » -> PLUS de « pas de pari conseillé », PLUS de carte appauvrie.
-                if _sel and _odds:
-                    _c["_leg_bet"] = {"sel": _sel, "cote": _odds, "prob": l.get("prob")}
+                # JAMBE LIVE = le MÊME rendu que DANS le combiné (`_leg_card`, flags IDENTIQUES à `_combo_tg_legs`)
+                # mais présenté comme un MATCH SEUL — PAS de reconstruction (user 2026-08-20 : « la jambe seule
+                # ne devait pas être reconstruite, elle devait ressembler EXACTEMENT à celle du combiné mais comme
+                # un match seul »). teams=True -> en-tête équipes/logos/score ; bare=True -> Confiance + Cote seuls
+                # (PAS d'Edge/Value) ; prob_calibrated=True -> la VRAIE confiance calibrée (ex. 84%, pas 1%) ;
+                # + « Chance live » + « Pourquoi cette jambe », exactement comme IMG_4568. Wrapper `mc-combo-legs`
+                # = même contexte CSS que dans le combiné.
+                _html = ('<div class="mc-combo-legs">'
+                         + _leg_card({**l, "sport": sport}, why=True, verdict=True, why_always=True,
+                                     prob_calibrated=True, live_layout=True, bare=True, teams=True)
+                         + '</div>')
+                rows.append({"_html": _html, "start_ts": _sts, "sport": sport,
+                             "home": l.get("home", ""), "away": l.get("away", "")})
             else:
                 # À VENIR : carte COMPACTE (match + décompte + ligue seuls, comme le programme — user 2026-08-19).
+                _c = _foot._card({
+                    "id": l.get("mid"), "status": "notstarted", "comp": l.get("comp"),
+                    "home": l.get("home", ""), "away": l.get("away", ""), "probs": None, "goals": None,
+                    "o1": None, "ox": None, "o2": None, "imp": None, "pick": None, "start": _sts,
+                    "votes": None, "perle": None, "perle2": None, "perle_value": None,
+                    "pick_kind": "confiance", "sofa_ok": True})
                 _c["_compact"] = True
-            rows.append(_c)
+                rows.append(_c)
     return rows
 
 
@@ -10646,8 +10647,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _lst.sort(key=lambda c: c.get("start_ts") or 0)
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur] if analyses.PROVISOIRES_ON else []
-    _combo_rows = list(_combos.get(_cur, []))               # zone Combiné = jambes EN COURS seulement
-    _combo = _join_cards([_sport_row(r) for r in _combo_rows])   # rendu HTML pour la zone Combiné
+    _combo_rows = list(_combos.get(_cur, []))               # zone Combiné = jambes EN COURS (HTML `_leg_card` pré-rendu)
+    _combo = _join_cards([r.get("_html") or _sport_row(r) for r in _combo_rows])   # rendu HTML pour la zone Combiné
     # PROCHAINS MATCHS = tous les à-venir MÉLANGÉS (combo + montante + simples), triés par coup d'envoi et
     # DÉDUPLIQUÉS par match (un match repris par 2 types = une seule carte compacte). user 2026-08-19.
     _upcoming_all, _seen_up = [], set()
