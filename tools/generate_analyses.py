@@ -2799,13 +2799,13 @@ def _parse_combo_dc(analysis: str) -> dict | None:
 
 # DIRECTIVE de CIBLE DE COTE par tier (user 2026-08-19, 2 combinés/jour indépendants) — injectée dans le prompt.
 _COMBO_TIER_DIR = {
-    "sur": ("\n\n=== CIBLE DE CE COMBINÉ : « SÛR » ===\nNOMBRE DE JAMBES = **EXACTEMENT 2** · COTE TOTALE = "
-            "**MINIMUM 1,40** (OBLIGATOIRE — jamais en dessous), cible 1,40–1,60 (user 2026-08-20 ; ces 2 "
-            "contraintes PRIMENT sur la consigne générale). Choisis les 2 doubles chances les plus SÛRES/robustes "
-            "dont le PRODUIT atteint ≥1,40 (cote individuelle ~1,18–1,32 ; ex. 2 jambes @1,20 = 1,44). NE PRENDS "
-            "PAS les 2 jambes les plus basses en cote si leur produit tombe SOUS 1,40 : le produit est un COMBINÉ, "
-            "il DOIT coter ≥1,40. NE FAIS NI 3 jambes NI 1 seule. REPLI : si aucun couple robuste n'atteint 1,40 "
-            "-> PASS (ne descends jamais sous 1,40, ne monte pas à 3).\n"),
+    "sur": ("\n\n=== CIBLE DE CE COMBINÉ : « SÛR » ===\nMARCHÉ = DOUBLE CHANCE UNIQUEMENT (1X/X2). NOMBRE DE JAMBES "
+            "= **EXACTEMENT 2**. OBJECTIF (user 2026-08-20) = **la COTE la plus HAUTE COMPATIBLE AVEC LA SÉCURITÉ** : "
+            "parmi les doubles chances qui restent VRAIMENT SÛRES (robustes, P_est ≥78% de préférence), choisis les 2 "
+            "dont la COTE est la plus ÉLEVÉE possible — surtout PAS les 2 DC les plus basses en cote. Cote totale = "
+            "**MINIMUM 1,40** (plancher OBLIGATOIRE), et vise le PLUS HAUT dans la zone sûre (~1,45–1,70). Autrement "
+            "dit : maximise la cote SANS jamais sacrifier la sécurité (une jambe doit rester une DC solide). NE FAIS "
+            "NI 3 jambes NI 1 seule. REPLI : si aucun couple de DC sûres n'atteint 1,40 -> PASS.\n"),
     "cote2": ("\n\n=== CIBLE DE CE COMBINÉ : « COTE 2 » ===\nNOMBRE DE JAMBES = **EXACTEMENT 3** · COTE TOTALE = "
               "**MINIMUM 1,90** (OBLIGATOIRE — jamais en dessous), cible 1,90–2,15 (user 2026-08-20 ; PRIMENT sur la "
               "consigne générale). 3 jambes robustes à ~1,24–1,30 chacune dont le PRODUIT atteint ≥1,90. Reste "
