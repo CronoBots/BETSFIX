@@ -7379,7 +7379,8 @@ def _sport_pronos_counts(match_rows: list) -> dict:
             combo = 0
             for _cv in _cvars:
                 _cbt = _cd.today(_day, sport=sp, variant=_cv)
-                if _cbt and _cbt.get("legs") and _cbt.get("result") not in ("won", "lost", "void"):
+                if (_cbt and _cbt.get("legs") and _cbt.get("result") not in ("won", "lost", "void")
+                        and not analyses._combo_rule_void(_day)):   # combiné hors-règle -> pas compté au badge
                     combo += 1
         except Exception:
             combo = 0
@@ -10570,6 +10571,8 @@ def _daily_combo_any_live(sport: str = "foot", variant: str = "") -> bool:
         import datetime as _dt
         from app import combo_daily as _cd
         day = _cd.day_key()          # clé-jour UNIQUE du combiné (jour sportif local 06h→06h)
+        if analyses._combo_rule_void(day):    # combiné hors-règle -> jamais dans Live
+            return False
         cb = _cd.today(day, sport=sport, variant=variant)
     except Exception:
         cb = None
