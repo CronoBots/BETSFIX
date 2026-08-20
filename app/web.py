@@ -5729,9 +5729,9 @@ def _why_fold(text: str, label: str = "Pourquoi ce choix") -> str:
 def _load_day_programme() -> dict:
     """Programme du jour (data/day_programme.json) — VIDÉ à l'affichage dès que sa `date` n'est PLUS le
     jour sportif courant (user 2026-08-18 : « vider le programme et les matchs du jour avant 08h belge »).
-    Le programme est reconstruit par le scan du matin (~08h belge) ; entre le rollover du jour sportif
-    (06h belge) et ce scan, on ne montre donc PLUS la liste de la veille -> {'matches': []}. Purement
-    AFFICHAGE : le fichier n'est pas touché (le scan l'écrase à 08h ; anti-éjection déjà gardée par `date`)."""
+    Le rollover du jour sportif est à 08h belge (cf. `_sport_date`, porté 06h→08h le 2026-08-20 pour que les
+    matchs de nuit encore EN COURS ne disparaissent pas avant 08h) ; le scan du matin repeuple ensuite.
+    Purement AFFICHAGE : le fichier n'est pas touché (anti-éjection déjà gardée par `date`)."""
     import json as _json
     path = os.path.join(analyses._ROOT, "data", "day_programme.json")
     try:
@@ -6936,15 +6936,24 @@ _MO_FULL = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "a
             "septembre", "octobre", "novembre", "décembre"]
 
 
+# FRONTIÈRE DU JOUR SPORTIF (heure locale belge). Portée à 08h le 2026-08-20 (avant : 06h) sur demande user :
+# « les matchs du jour ne doivent pas disparaître avant 08h » — un match de nuit encore EN COURS (ex. MLS qui
+# finit vers 05-07h) reste rattaché à la journée de la veille jusqu'à 08h, au lieu de s'évanouir au rollover de
+# 06h (le programme se vide dès que sa date ≠ jour sportif courant, cf. `_load_day_programme`). Aligne AUSSI le
+# rollover sur l'intention d'origine « vider le programme avant 08h belge » (le scan du matin le repeuple).
+# SOURCE UNIQUE : tout le reste (calendrier, stats, combo_daily.day_key, montante, routeurs) passe par ici.
+_SPORT_DAY_START_H = 8
+
+
 def _sport_date(local_dt):
-    """« JOUR SPORTIF » : la journée court de 06h à 06h le lendemain (demande user 2026-07-21 — pour englober
-    les matchs américains de la nuit). Un événement AVANT 06h locale compte pour la VEILLE. `local_dt` =
-    datetime LOCAL. Renvoie une `date`. Décalage de −6 h puis .date()."""
-    return (local_dt - timedelta(hours=6)).date()
+    """« JOUR SPORTIF » : la journée court de 08h à 08h le lendemain (demande user 2026-07-21 pour englober les
+    matchs américains de la nuit ; frontière portée 06h→08h le 2026-08-20). Un événement AVANT 08h locale compte
+    pour la VEILLE. `local_dt` = datetime LOCAL. Renvoie une `date`. Décalage de −`_SPORT_DAY_START_H` h puis .date()."""
+    return (local_dt - timedelta(hours=_SPORT_DAY_START_H)).date()
 
 
 def _sport_today():
-    """La date SPORTIVE de maintenant (fenêtre 06h→06h)."""
+    """La date SPORTIVE de maintenant (fenêtre 08h→08h, cf. `_sport_date`)."""
     return _sport_date(to_local(datetime.now(timezone.utc)) or datetime.now())
 
 
