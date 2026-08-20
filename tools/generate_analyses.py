@@ -935,23 +935,34 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         except Exception as _cse:
             _ccands, _cwhys = [], {}
             print(f"  (shortlist DC indisponible : {_cse})")
+        # SHORTLIST MULTI-MARCHÉS pour le COTE 2 (user 2026-08-20 : ouvert à TOUS les marchés — DC + Over/Under
+        # sûrs/rentables, ancrés Pinnacle, bannis exclus). Le SÛR reste DC pur (`_ccands`). Repli DC si indispo.
+        try:
+            _mcands, _mwhys = await _csafe.safe_multi_candidates(_cday, matches, client)
+        except Exception as _mce:
+            _mcands, _mwhys = _ccands, _cwhys
+            print(f"  (shortlist multi-marchés indisponible : {_mce} -> repli DC)")
 
         # DEUX COMBINÉS INDÉPENDANTS/JOUR (user 2026-08-19), tous deux HORS ROI : « Sûr » (variant='', ~1,5, proba
         # max) + « Cote 2 » (variant='cote2', ~2,0). Même pipeline SÛRETÉ-first, cible de cote différente (`tier`).
-        async def _build_combo_tier(_tier, _variant, _tgkey, _tgcap, _label, _exclude_mids=None):
+        async def _build_combo_tier(_tier, _variant, _tgkey, _tgcap, _label, _exclude_mids=None,
+                                    _cands=None, _whys=None):
+            # CANDIDATS PAR TIER (user 2026-08-20) : Sûr = DC pur (`_ccands`) ; Cote 2 = MULTI-MARCHÉS (`_mcands`).
+            _cands = _ccands if _cands is None else _cands
+            _whys = _cwhys if _whys is None else _whys
             _prev = _cdaily.today(_cday, variant=_variant)
             if _prev and (_prev.get("sent") or _prev.get("result")):
                 print(f"  🎯 Combiné {_label} : déjà publié aujourd'hui (figé) -> conservé.")
                 return _prev
             try:
-                _cb = await _combo_dc_best(client, _cday, _ccands, _cwhys, tier=_tier, exclude_mids=_exclude_mids)
+                _cb = await _combo_dc_best(client, _cday, _cands, _whys, tier=_tier, exclude_mids=_exclude_mids)
                 # REPLI DÉCORRÉLATION -> CÈDE aux contraintes DURES (user 2026-08-20 : cote mini + nb de jambes
                 # PRIMENT). Si la version décorrélée PASSe (vivier trop mince pour atteindre la cote mini sans
                 # réutiliser une jambe de l'autre combiné), on REtente SANS exclusion -> mieux vaut 2 combinés
                 # partageant 1 jambe que pas de 2ᵉ combiné. La décorrélation reste préférée quand elle est possible.
                 if _cb is None and _exclude_mids:
                     print(f"  🎯 Combiné {_label} : décorrélé impossible (vivier mince) -> retenté avec chevauchement toléré.")
-                    _cb = await _combo_dc_best(client, _cday, _ccands, _cwhys, tier=_tier)
+                    _cb = await _combo_dc_best(client, _cday, _cands, _whys, tier=_tier)
             except Exception as _cqe:
                 print(f"  (combiné {_label} règle quant ignoré : {_cqe})")
                 _cb = await _csafe.build_from_programme_async(_cday, matches, client) if _tier == "sur" else None
@@ -1007,7 +1018,7 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         _sur_mids = [str(_l.get("mid")) for _l in (_sur_now.get("legs") or []) if _l.get("mid")]
         await _build_combo_tier("cote2", "cote2", "combo_hi",
                                 "🚀 <b>Combiné COTE 2</b> · plus ambitieux", "COTE 2",
-                                _exclude_mids=_sur_mids)
+                                _exclude_mids=_sur_mids, _cands=_mcands, _whys=_mwhys)   # MULTI-MARCHÉS
     except Exception as _cce:
         print(f"  (combiné du jour matin ignoré : {_cce})")
     # MONTANTE — PALIER DU JOUR construit DEPUIS LE PROGRAMME (user 2026-08-17) : le flagship joue souvent des
@@ -2741,7 +2752,7 @@ NATURE DU PRODUIT — SÛRETÉ-FIRST : c'est un combiné de SÛRETÉ. Une DC fav
 
 HIÉRARCHIE STRICTE des priorités : 1) qualité/fiabilité des infos · 2) robustesse individuelle des sélections · 3) probabilité globale · 4) absence de red flags · 5) edge · 6) EV · 7) faible variance · 8) cote proche de 2.00. La proximité de 2.00 ne justifie JAMAIS l'ajout d'une mauvaise sélection.
 
-MARCHÉS : uniquement 1X ou X2. Chaque candidat de la shortlist a une DIRECTION DÉJÀ FIXÉE (la DC la plus sûre au marché) — tu choisis LESQUELS combiner, pas la direction.
+MARCHÉS : selon les CANDIDATS FOURNIS — chaque candidat a une SÉLECTION/DIRECTION DÉJÀ FIXÉE (double chance, ou over/under selon le combiné et le marché le plus sûr/rentable du match). Tu choisis LESQUELS combiner (1 SEUL par match), jamais la direction. (Le tier ci-dessous précise si c'est DC uniquement ou multi-marchés.)
 
 COTE TOTALE : cible 2.00, zone préférée 1.90–2.10, secondaire 1.80–2.20. Une excellente sélection @1.85 vaut mieux qu'un coupon gonflé @2.00. NE JAMAIS ajouter une jambe insuffisamment robuste juste pour atteindre 1.90.
 NOMBRE DE JAMBES : atteins la cote cible avec le MINIMUM de jambes. 2-3 PRIVILÉGIÉ, 4-5 UNIQUEMENT si chaque jambe ajoutée est aussi robuste que les autres ET améliore nettement le coupon. PRÉFÉRENCE FORTE (user 2026-08-20) : à cote totale comparable, choisis MOINS de jambes à cote individuelle PLUS ÉLEVÉE plutôt que PLUS de jambes à cote basse — ex. 2 jambes @1,20 (=1,44) plutôt que 3 @1,10 (=1,33) ; 2 @1,45 plutôt que 3 @1,28. Motif : moins de jambes = moins de points de rupture, coupon plus lisible, moins de risque corrélé. N'ajoute JAMAIS une jambe de plus juste pour diversifier ou gonfler la cote. Si une seule sélection passe les filtres -> PASS COMBINÉ. Rappel : plus de jambes ≠ plus de sécurité (0,85⁴=52% ; 0,85⁵=44%).
@@ -2806,7 +2817,10 @@ _COMBO_TIER_DIR = {
             "**MINIMUM 1,40** (plancher OBLIGATOIRE), et vise le PLUS HAUT dans la zone sûre (~1,45–1,70). Autrement "
             "dit : maximise la cote SANS jamais sacrifier la sécurité (une jambe doit rester une DC solide). NE FAIS "
             "NI 3 jambes NI 1 seule. REPLI : si aucun couple de DC sûres n'atteint 1,40 -> PASS.\n"),
-    "cote2": ("\n\n=== CIBLE DE CE COMBINÉ : « COTE 2 » ===\nNOMBRE DE JAMBES = **EXACTEMENT 3** · COTE TOTALE = "
+    "cote2": ("\n\n=== CIBLE DE CE COMBINÉ : « COTE 2 » ===\nMARCHÉS = **MULTI-MARCHÉS** (user 2026-08-20 : ouvert "
+              "à tout) : les candidats mélangent double chance ET over/under — chacun avec sa sélection déjà fixée "
+              "(le meilleur marché sûr/rentable du match). Tu combines librement (1 par match). "
+              "NOMBRE DE JAMBES = **EXACTEMENT 3** · COTE TOTALE = "
               "**MINIMUM 1,90** (OBLIGATOIRE — jamais en dessous), cible 1,90–2,15 (user 2026-08-20 ; PRIMENT sur la "
               "consigne générale). 3 jambes robustes à ~1,24–1,30 chacune dont le PRODUIT atteint ≥1,90. Reste "
               "SÛRETÉ-first (jambes robustes, edge/EV informatifs), sans jamais inclure une jambe douteuse. NE FAIS "
@@ -2846,8 +2860,8 @@ async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None
         dos = await _dossier_cached(client, m)
         _imp = round(100.0 / c["cote"], 1) if c.get("cote") else "?"
         blocks.append(
-            f"### CANDIDAT DC id={c['mid']} — {c.get('name')} · {c.get('comp')} · KO {c.get('start')}\n"
-            f"DC LA PLUS SÛRE AU MARCHÉ : {c.get('sel')} [{c.get('code')}] @ {c.get('cote')} "
+            f"### CANDIDAT id={c['mid']} — {c.get('name')} · {c.get('comp')} · KO {c.get('start')}\n"
+            f"SÉLECTION SÛRE AU MARCHÉ : {c.get('sel')} [{c.get('code')}] @ {c.get('cote')} "
             f"(P_imp {_imp}% · P_est Pinnacle dé-viggée {round((c.get('prob') or 0) * 100, 1)}%)\n"
             f"{dos or '(dossier indisponible)'}")
     out = run_claude(

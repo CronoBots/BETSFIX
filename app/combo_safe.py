@@ -280,6 +280,139 @@ async def safe_dc_candidates(day: str, matches: list, client=None) -> tuple[list
     return cands, whys
 
 
+async def safe_multi_candidates(day: str, matches: list, client=None) -> tuple[list, dict]:
+    """MULTI-MARCHÉS (user 2026-08-20, pour le combiné « Cote 2 » ouvert à tout) : par match, LE MEILLEUR pari
+    sûr, choisi PARMI plusieurs marchés — Double Chance (1X/X2) OU Over/Under (total buts) — chacun ancré
+    PINNACLE (sharp_probs pour DC, sharp_markets.totals pour O/U) et filtré. On renvoie UN candidat par match
+    (le meilleur), donc `_combo_dc_best` reste inchangé (1 candidat par mid). Priorité de choix : parmi les
+    options SÛRES du match (proba Pinnacle ≥ seuil), on prend celle à la meilleure VALUE (edge) — ce qui ouvre
+    naturellement vers l'O/U quand il paie mieux qu'une DC ; à value égale, la cote la plus haute (utile pour
+    viser 2,0). EXCLUT les bannis (corners/BTTS/cartons — jamais générés ici) et les PIÈGES (une option O/U
+    n'est retenue que si sa value est ≥ 0 -> les Under à cote trop courte tombent). `matches` = programme."""
+    import re
+    import httpx
+    from datetime import datetime, timezone
+    from app import match_select as _ms, pinnacle
+    now = datetime.now(timezone.utc)
+    own = client is None
+    client = client or httpx.AsyncClient(timeout=15)
+    cands: list = []
+    whys: dict = {}
+    try:
+        for m in matches or []:
+            if (m.get("sport") or "foot") != "foot":
+                continue
+            mid = str(m.get("id") or "")
+            name = str(m.get("name") or "")
+            start = m.get("start") or ""
+            if not mid or " - " not in name:
+                continue
+            try:
+                _st = datetime.fromisoformat(start.replace("Z", "+00:00"))
+                if _st <= now or _cd.day_key(_st) != day:
+                    continue
+            except (ValueError, AttributeError):
+                continue
+            home, away = [s.strip() for s in name.split(" - ", 1)]
+            try:
+                offers = await _ms.fetch_event_offers(mid, client)
+            except Exception:
+                offers = []
+            try:
+                sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, "foot", start)
+            except Exception:
+                sp = None
+            try:
+                sm = await asyncio.to_thread(pinnacle.sharp_markets, home, away, "foot", start)
+            except Exception:
+                sm = None
+            opts: list = []                                   # options SÛRES du match, tous marchés
+            base = {"mid": mid, "sport": "foot", "name": name, "home": home, "away": away,
+                    "start": start, "comp": m.get("comp")}
+            # --- DOUBLE CHANCE (la plus sûre au marché) ---
+            dc = {}
+            for bo in offers:
+                bt = ((bo.get("betOfferType") or {}).get("name") or "")
+                crit = ((bo.get("criterion") or {}).get("label") or "").lower()
+                if bt == "Double Chance" and "mi-temps" not in crit and "mi temps" not in crit:
+                    for oc in bo.get("outcomes") or []:
+                        lab = (oc.get("englishLabel") or oc.get("label") or "").upper()
+                        od = oc.get("odds")
+                        if lab in ("1X", "X2") and isinstance(od, (int, float)) and od:
+                            dc[lab] = round(od / 1000.0, 2)
+                    break
+            dc = {k: v for k, v in dc.items() if v >= MIN_LEG_ODDS}
+            if dc and sp:
+                oc_, co_ = min(dc.items(), key=lambda kv: kv[1])
+                pr_ = (sp.get("home", 0) + sp.get("draw", 0)) if oc_ == "1X" else (sp.get("away", 0) + sp.get("draw", 0))
+                if pr_ >= MORNING_MIN_LEG_PROB and _leg_edge(pr_, co_) >= MORNING_MIN_EDGE:
+                    opts.append({**base, "sel": _dc_sel(oc_, home, away), "cote": co_, "prob": pr_,
+                                 "code": f"DC {oc_}", "_edge": _leg_edge(pr_, co_),
+                                 "_why": _sharp_dc_why(oc_, home, away, sp, pr_, co_)})
+            # --- OVER / UNDER (total buts) — ancré Pinnacle, VALUE ≥ 0 exigée (écarte les pièges) ---
+            if sm and sm.get("totals"):
+                for bo in offers:
+                    bt = ((bo.get("betOfferType") or {}).get("name") or "")
+                    crit = ((bo.get("criterion") or {}).get("label") or "").lower()
+                    if bt != "Plus de/Moins de" or crit != "nombre total de buts":
+                        continue                              # total MATCH plein temps seulement (pas équipe/mi-temps)
+                    over_od = under_od = line = None
+                    for oc in bo.get("outcomes") or []:
+                        typ = (oc.get("type") or "").upper()
+                        lab = (oc.get("englishLabel") or oc.get("label") or "")
+                        od = oc.get("odds")
+                        ln = oc.get("line")
+                        if isinstance(ln, (int, float)):
+                            line = ln / 1000.0
+                        else:
+                            _mm = re.search(r"(\d+(?:[.,]\d+)?)", str(lab))
+                            if _mm:
+                                line = float(_mm.group(1).replace(",", "."))
+                        if "OVER" in typ and isinstance(od, (int, float)) and od:
+                            over_od = round(od / 1000.0, 2)
+                        elif "UNDER" in typ and isinstance(od, (int, float)) and od:
+                            under_od = round(od / 1000.0, 2)
+                    if line is None:
+                        continue
+                    p_over = sm["totals"].get(float(line))
+                    if p_over is None:
+                        continue
+                    _lg = f"{line:g}"
+                    p_under = 1 - p_over
+                    # LISTE BLANCHE O/U (lab claude_edge : marchés SÛRS et/ou RENTABLES). EXCLUS d'office : Under
+                    # 3,5/4,5 (pièges : gagnent souvent mais cote trop courte), Over 3,5+ (trop risqués). Over 1,5
+                    # = jambe SÛRE (P haute). Over 2,5 / Under 2,5 = jambes VALUE (plus pile-ou-face mais +ROI prouvé)
+                    # -> autorisées avec une value ≥0 exigée (sinon on ne prend pas). Seuils adaptés au marché.
+                    for _dir, _sel, _od, _p in (("OVER", f"Plus de {_lg} buts", over_od, p_over),
+                                                ("UNDER", f"Moins de {_lg} buts", under_od, p_under)):
+                        if not (_od and _od >= MIN_LEG_ODDS):
+                            continue
+                        _key = (_dir, round(float(line), 1))
+                        _edge = _p * _od - 1
+                        if _key == ("OVER", 1.5):                          # jambe SÛRE
+                            _ok = _p >= 0.70 and _leg_edge(_p, _od) >= MORNING_MIN_EDGE
+                        elif _key in (("OVER", 2.5), ("UNDER", 2.5)):      # jambe VALUE (ambitieuse)
+                            _ok = _p >= 0.50 and _edge >= 0
+                        else:
+                            _ok = False                                    # hors liste blanche -> exclu
+                        if _ok:
+                            opts.append({**base, "sel": _sel, "cote": _od, "prob": _p,
+                                         "code": f"{_dir} {_lg}", "_edge": _edge,
+                                         "_why": f"Pinnacle : {round(_p*100)}% de {_sel.lower()} "
+                                                 f"(cote {_od}, value {round(_edge*100)}%)."})
+            if not opts:
+                continue
+            # LE MEILLEUR par match : meilleure VALUE (edge), puis cote la plus haute (viser 2,0). 1 seul par mid.
+            best = max(opts, key=lambda o: (round(o["_edge"], 3), o["cote"]))
+            whys[mid] = best.pop("_why", "")
+            best.pop("_edge", None)
+            cands.append(best)
+    finally:
+        if own:
+            await client.aclose()
+    return cands, whys
+
+
 async def build_from_programme_async(day: str, matches: list, client=None) -> dict | None:
     """MATIN (user 2026-08-17) — construit LE combiné DC du jour depuis le PROGRAMME (tous les matchs encore
     À VENIR), SANS attendre l'analyse Claude match-par-match. Ancre PINNACLE (sharp n°1, par noms d'équipes) ;
