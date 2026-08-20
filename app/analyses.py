@@ -2993,6 +2993,8 @@ def _combo_rule_void(day: str) -> bool:
 # EXACT. N'affecte NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone, NI la calibration, NI la
 # carte combiné du jour. Remettre True pour recompter les combinés comme un ROI en tête.
 COMBO_ROI_ON = True   # user 2026-08-20 (soir) : « compte le combiné dans le ROI » -> recompté dans all_ev (hors-règle 08/08→20/08 exclus via _combo_rule_void)
+MONTANTE_ROI_ON = True   # user 2026-08-20 (nuit) : « montante compte au ROI (période validée) » -> ses paliers AFFICHÉS
+#                          (montante.public_steps = hors période d'erreurs 09/08→20/08) entrent dans all_ev en mise plate.
 
 
 def _agg_bets(events: list) -> dict:
@@ -3269,6 +3271,34 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                                     "sel": "combiné", "sport": "combiné"}))
     except Exception:
         pass
+    # MONTANTE — PALIERS COMPTÉS AU ROI OVERALL (user 2026-08-20 nuit : « montante compte au ROI, période
+    # validée »). Comme le combiné : chaque palier AFFICHÉ (montante.public_steps = HORS période d'erreurs
+    # 09/08→20/08) entre dans all_ev en MISE PLATE 1u sur SA cote/résultat. La montante-mid reste exclue plus
+    # haut via `_t=='montante'` (aucun double-compte du pari flagship du même match). Le ladder capitalisé (page
+    # Montante) est INCHANGÉ (autre représentation). Pas de rétroactivité : `public_steps` borne au 26/07+.
+    if MONTANTE_ROI_ON:
+        try:
+            from app import montante as _mtroi
+            for _ms in _mtroi.public_steps():
+                _mr = _ms.get("result")
+                if _mr not in ("won", "lost", "push"):
+                    continue
+                _mdt = (_ms.get("date") or "") + "T00:00:00+00:00"
+                if cutoff is not None:
+                    try:
+                        _mdd = datetime.fromisoformat(_mdt)
+                    except ValueError:
+                        _mdd = None
+                    if _mdd is None or _mdd < cutoff:
+                        continue
+                _mco = _ms.get("cote")
+                if not isinstance(_mco, (int, float)):
+                    continue
+                all_ev.append((_mdt, _mr, _mco,
+                               {"name": _ms.get("match"), "sel": _ms.get("sel") or "montante",
+                                "sport": "montante"}))
+        except Exception:
+            pass
     out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
            "since_change": _agg_bets(since_ev),        # nouveau système (s'enrichit au fil des scans)
            "by_tier": {"confiance": _agg_bets(conf_ev), "value": _agg_bets(value_ev),
