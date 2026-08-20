@@ -2792,17 +2792,19 @@ def _parse_combo_dc(analysis: str) -> dict | None:
 
 # DIRECTIVE de CIBLE DE COTE par tier (user 2026-08-19, 2 combinés/jour indépendants) — injectée dans le prompt.
 _COMBO_TIER_DIR = {
-    "sur": ("\n\n=== CIBLE DE CE COMBINÉ : « SÛR » ===\nNOMBRE DE JAMBES = **EXACTEMENT 2** (user 2026-08-20 — "
-            "cela PRIME sur la consigne générale de nombre de jambes). Choisis les DEUX doubles chances les plus "
-            "SÛRES et robustes du programme, à cote individuelle plutôt ~1,18–1,32 (ex. 2 jambes @1,20 = 1,44). "
-            "Cote totale attendue **1,35–1,60**. NE FAIS NI 3 jambes NI 1 seule : exactement 2. Entre coupons de 2 "
-            "jambes, choisis le plus PROBABLE (les 2 jambes les plus robustes). REPLI : si 2 jambes vraiment "
-            "robustes n'existent pas -> PASS (ne descends pas à 1, ne monte pas à 3).\n"),
-    "cote2": ("\n\n=== CIBLE DE CE COMBINÉ : « COTE 2 » ===\nNOMBRE DE JAMBES = **EXACTEMENT 3** (user 2026-08-20 — "
-              "cela PRIME sur la consigne générale). Cote totale attendue **1,85–2,15** (3 jambes à ~1,26 chacune). "
-              "Reste SÛRETÉ-first (jambes robustes, edge/EV informatifs), sans jamais inclure une jambe douteuse. "
-              "NE FAIS NI 2 NI 4-5 : exactement 3. REPLI : si 3 jambes robustes n'existent pas -> PASS plutôt que "
-              "d'ajouter une jambe douteuse.\n"),
+    "sur": ("\n\n=== CIBLE DE CE COMBINÉ : « SÛR » ===\nNOMBRE DE JAMBES = **EXACTEMENT 2** · COTE TOTALE = "
+            "**MINIMUM 1,40** (OBLIGATOIRE — jamais en dessous), cible 1,40–1,60 (user 2026-08-20 ; ces 2 "
+            "contraintes PRIMENT sur la consigne générale). Choisis les 2 doubles chances les plus SÛRES/robustes "
+            "dont le PRODUIT atteint ≥1,40 (cote individuelle ~1,18–1,32 ; ex. 2 jambes @1,20 = 1,44). NE PRENDS "
+            "PAS les 2 jambes les plus basses en cote si leur produit tombe SOUS 1,40 : le produit est un COMBINÉ, "
+            "il DOIT coter ≥1,40. NE FAIS NI 3 jambes NI 1 seule. REPLI : si aucun couple robuste n'atteint 1,40 "
+            "-> PASS (ne descends jamais sous 1,40, ne monte pas à 3).\n"),
+    "cote2": ("\n\n=== CIBLE DE CE COMBINÉ : « COTE 2 » ===\nNOMBRE DE JAMBES = **EXACTEMENT 3** · COTE TOTALE = "
+              "**MINIMUM 1,90** (OBLIGATOIRE — jamais en dessous), cible 1,90–2,15 (user 2026-08-20 ; PRIMENT sur la "
+              "consigne générale). 3 jambes robustes à ~1,24–1,30 chacune dont le PRODUIT atteint ≥1,90. Reste "
+              "SÛRETÉ-first (jambes robustes, edge/EV informatifs), sans jamais inclure une jambe douteuse. NE FAIS "
+              "NI 2 NI 4-5 jambes. REPLI : si 3 jambes robustes n'atteignent pas 1,90 -> PASS plutôt qu'une jambe "
+              "douteuse (jamais sous 1,90).\n"),
 }
 
 
@@ -2870,6 +2872,13 @@ async def _combo_dc_best(client, day: str, cands: list, whys: dict | None = None
                      "why": (whys or {}).get(mid)})
         cote *= float(c["cote"])
         prob *= float(c.get("prob") or 0)
+    # GARDE-FOU COTE MINIMALE PAR TIER (user 2026-08-20) : le Sûr doit coter ≥1,40, le Cote 2 ≥1,90 -> si le
+    # coupon choisi tombe sous ce plancher (Claude a pris des jambes trop basses), on REFUSE (PASS) plutôt que
+    # de servir un combiné sous la cible. Le prompt guide déjà Claude vers le plancher ; ceci est le filet dur.
+    _min_cote = {"sur": 1.40, "cote2": 1.90}.get(tier)
+    if _min_cote and round(cote, 3) < _min_cote:
+        print(f"  🎯 Combiné {tier} : cote {round(cote,3)} < plancher {_min_cote} -> refusé (PASS).")
+        return None
     return {"date": day, "sport": "foot", "cote": round(cote, 3), "prob": round(prob, 4),
             "legs": legs, "result": None, "sent": False, "created": None,
             "rule_score": v.get("score")}
