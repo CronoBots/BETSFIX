@@ -2155,14 +2155,13 @@ CSS = """
   .mc-tg-gold .mc-cote-v{color:#64cd8d}
   .mc-tg-gold .mc-cote-l{color:#3f9d6d}
   /* DIFFÉRENCIATION DES 2 COMBINÉS (user 2026-08-19) : Sûr = TEAL calme (fiabilité) · Cote 2 = AMBRE (ambition).
-     L'accent porte sur la COTE (chiffre proéminent) + une teinte du bord gauche tant que le combiné n'est pas
-     réglé (le bord repasse vert/rouge une fois le résultat connu). */
+     L'accent porte UNIQUEMENT sur la COTE (chiffre proéminent). Le bord du cadre reste UNIFORME sur les 4 côtés
+     (user 2026-08-20 : « toutes les bordures de cadre doivent être les mêmes ») — plus de bord-gauche d'une autre
+     couleur qui créait une couture aux coins. */
   .mc-tg-sur .mc-cote-v{color:#54c7c0}
   .mc-tg-sur .mc-cote-l{color:#3d938d}
   .mc-tg-cote2 .mc-cote-v{color:#e8b93a}
   .mc-tg-cote2 .mc-cote-l{color:#b58a26}
-  .mc-tg-gold.mc-tg-sur:not(.mc-r-won):not(.mc-r-lost):not(.mc-r-push){border-left-color:rgba(84,199,192,.65)}
-  .mc-tg-gold.mc-tg-cote2:not(.mc-r-won):not(.mc-r-lost):not(.mc-r-push){border-left-color:rgba(232,185,58,.65)}
   /* Jambes du combiné présentées comme des PICKS de provisoire (sélection en gras + match en sous-titre). */
   /* Écart entre jambes = MÊME rythme qu'entre cartes provisoires (demande user 2026-07-21, corrigé
      2e passe) : en FLEX les marges ne FUSIONNENT pas (7+9+9+7 s'additionnaient -> écart ~33px vs ~19px
