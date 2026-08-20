@@ -2792,13 +2792,17 @@ def _parse_combo_dc(analysis: str) -> dict | None:
 
 # DIRECTIVE de CIBLE DE COTE par tier (user 2026-08-19, 2 combinés/jour indépendants) — injectée dans le prompt.
 _COMBO_TIER_DIR = {
-    "sur": ("\n\n=== CIBLE DE CE COMBINÉ : « SÛR » ===\nOBJECTIF PRIORITAIRE = SÛRETÉ / probabilité combinée la "
-            "plus HAUTE. Cote totale cible **1,40–1,65** (idéalement 2-3 jambes, les plus sûres, P_est ≥80% de "
-            "préférence). N'AJOUTE JAMAIS une jambe pour monter la cote : ici la cote basse est VOULUE. Entre deux "
-            "coupons, choisis TOUJOURS le plus PROBABLE (P_comb la plus haute), pas le plus côté.\n"),
-    "cote2": ("\n\n=== CIBLE DE CE COMBINÉ : « COTE 2 » ===\nCote totale cible **1,90–2,10** (3-5 jambes). Reste "
-              "SÛRETÉ-first (jambes robustes, edge/EV informatifs), mais vise cette zone de cote sans jamais "
-              "inclure une jambe douteuse.\n"),
+    "sur": ("\n\n=== CIBLE DE CE COMBINÉ : « SÛR » ===\nNOMBRE DE JAMBES = **EXACTEMENT 2** (user 2026-08-20 — "
+            "cela PRIME sur la consigne générale de nombre de jambes). Choisis les DEUX doubles chances les plus "
+            "SÛRES et robustes du programme, à cote individuelle plutôt ~1,18–1,32 (ex. 2 jambes @1,20 = 1,44). "
+            "Cote totale attendue **1,35–1,60**. NE FAIS NI 3 jambes NI 1 seule : exactement 2. Entre coupons de 2 "
+            "jambes, choisis le plus PROBABLE (les 2 jambes les plus robustes). REPLI : si 2 jambes vraiment "
+            "robustes n'existent pas -> PASS (ne descends pas à 1, ne monte pas à 3).\n"),
+    "cote2": ("\n\n=== CIBLE DE CE COMBINÉ : « COTE 2 » ===\nNOMBRE DE JAMBES = **EXACTEMENT 3** (user 2026-08-20 — "
+              "cela PRIME sur la consigne générale). Cote totale attendue **1,85–2,15** (3 jambes à ~1,26 chacune). "
+              "Reste SÛRETÉ-first (jambes robustes, edge/EV informatifs), sans jamais inclure une jambe douteuse. "
+              "NE FAIS NI 2 NI 4-5 : exactement 3. REPLI : si 3 jambes robustes n'existent pas -> PASS plutôt que "
+              "d'ajouter une jambe douteuse.\n"),
 }
 
 
