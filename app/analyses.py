@@ -2992,7 +2992,7 @@ def _combo_rule_void(day: str) -> bool:
 # le chip « C » du résumé perf est masqué et l'onglet Combiné ne porte PAS de chip ROI. `combo_stats()` reste
 # EXACT. N'affecte NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone, NI la calibration, NI la
 # carte combiné du jour. Remettre True pour recompter les combinés comme un ROI en tête.
-COMBO_ROI_ON = False  # user 2026-08-20 : combiné HORS ROI (comme la montante) -> affiché seulement, jamais dans all_ev
+COMBO_ROI_ON = True   # user 2026-08-20 (soir) : « compte le combiné dans le ROI » -> recompté dans all_ev (hors-règle 08/08→20/08 exclus via _combo_rule_void)
 
 
 def _agg_bets(events: list) -> dict:
@@ -3258,7 +3258,7 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                     _cdt = None
                 if _cdt is None or _cdt < cutoff:
                     continue
-            if _cev[1] in ("won", "lost", "push"):
+            if _cev[1] in ("won", "lost", "push") and not _combo_rule_void(_cev[0]):
                 combo_form.append((_cev[0], _cev[1], "combiné"))
                 # COMPTÉ À L'OVERALL avec le MÊME périmètre que le bilan combiné (`combo_stats`) -> filtre
                 # `_COMBO_STATS_FROM` (sinon des combinés antérieurs à la bascule gonflent le total). Cohérence
