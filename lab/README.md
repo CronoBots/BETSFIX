@@ -55,3 +55,17 @@ un book sharp**. Le back-favori optimisé frôle l'équilibre mais garde un CLV 
 (Bet365, grosse marge) vs Pinnacle est **trop rare** pour constituer une stratégie (la marge mange l'écart).
 → l'edge de BETSFIX doit venir d'une INFO que le sharp n'a pas au moment du pari (couche Claude : compos,
 blessés tardifs, contexte) ou du TIMING (parier avant que la ligne se forme). Le labo est prêt à MESURER ça.
+
+## `claude_edge.py` — CLAUDE AJOUTE-T-IL DE LA VALUE ? (lecture seule des sidecars, 6 257 prédictions RÉELLES)
+Test sur les FANTÔMES de BETSFIX (toutes les prédictions, non biaisées). Baseline = le marché (la cote).
+
+- **Calibration quasi parfaite** : confiance annoncée ≈ réussite réelle sur TOUTE la plage
+  (60-70 %→64 %, 70-80 %→73 %, 80-90 %→83 %). Légèrement SOUS-confiant.
+- **Claude bat le marché comme prédicteur** : Brier 0,2104 < 0,2121 (marché 1/cote).
+- **LA PREUVE — la value de Claude prédit le ROI, MONOTONE** :
+  value<0 → **−8,6 %** · 0-10 % → **+3,4 %** · 10-25 % → **+15,6 %** · >25 % → **+30,0 %**.
+  Quand Claude annonce de la value, elle EST là, proportionnellement.
+
+**Verdict :** contrairement à l'Elo (aucun edge vs le sharp), **Claude bat le marché et son signal de value est
+réellement rentable**. La sélection BETSFIX (ne jouer QUE la value positive) tape pile dans la zone +ROI.
+Claude apporte une info qu'un modèle stats-seul ne peut pas → sa couche vaut son coût. (Mesuré, pas supposé.)
