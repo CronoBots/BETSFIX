@@ -9651,7 +9651,7 @@ def _recent_bets_html(recent: list) -> str:
         _h2, _, _a2 = _nm_raw.partition(" - ")
         sel = html.escape(_pretty_sel(str(b.get("sel") or ""), _h2, _a2))
         cote = b.get("cote")
-        cote_txt = f'{cote:g}' if isinstance(cote, (int, float)) and cote else ""   # SANS « @ » (demande user 2026-07-25)
+        cote_txt = f'{round(cote, 2):g}' if isinstance(cote, (int, float)) and cote else ""   # 2 décimales (user 2026-08-20) · SANS « @ »
         # DATE (haut, alignée avec les ÉQUIPES) + HEURE (bas, alignée avec le PARI) — demande user 2026-07-25.
         # Date en format COURT JJ/MM POUR TOUS (y compris aujourd'hui) -> colonne étroite (demande user :
         # « écris la date du jour afin de rétrécir la colonne » = pas de « Aujourd'hui »/« Demain » long).

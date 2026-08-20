@@ -3100,20 +3100,12 @@ def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
                 for cb in combo_daily.entries(sport=_sp):
                     if cb.get("result") in ("won", "lost", "void"):
                         continue
+                    if _combo_rule_void(cb.get("date")):     # combiné hors-règle (08/08→20/08) -> ni bilan ni historique
+                        continue
                     out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
                                 "cote": cb.get("cote"), "name": f"Combiné du jour ({len(cb.get('legs') or [])} j.)",
                                 "sel": "combiné du jour", "sport": _sp, "tier": "confiance",
                                 "legs": combo_daily._leg_summ(cb)})   # jambes -> historique
-            # 2ᵉ COMBINÉ « Cote 2 » (foot, user 2026-08-19) : idem pour les en-cours -> il apparaît AUSSI dans le
-            # bilan/historique combinés (pas seulement le Sûr).
-            if not sport or sport == "foot":
-                for cb in combo_daily.entries(variant="cote2"):
-                    if cb.get("result") in ("won", "lost", "void"):
-                        continue
-                    out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
-                                "cote": cb.get("cote"), "name": f"Combiné Cote 2 ({len(cb.get('legs') or [])} j.)",
-                                "sel": "combiné du jour", "sport": "foot", "tier": "confiance",
-                                "legs": combo_daily._leg_summ(cb)})
         except Exception:
             pass
     else:
