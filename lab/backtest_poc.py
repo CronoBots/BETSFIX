@@ -51,13 +51,20 @@ for season in SEASONS:
             d = parse_date((r.get("Date") or "").strip())
             h, a, ftr = r.get("HomeTeam"), r.get("AwayTeam"), r.get("FTR")
             if not (d and h and a and ftr in ("H", "D", "A")): continue
-            # cotes de CLÔTURE Pinnacle (PSC*), repli Pinnacle (PS*), repli Bet365 (B365*)
-            oh = num(r.get("PSCH")) or num(r.get("PSH")) or num(r.get("B365H"))
-            od = num(r.get("PSCD")) or num(r.get("PSD")) or num(r.get("B365D"))
-            oa = num(r.get("PSCA")) or num(r.get("PSA")) or num(r.get("B365A"))
+            # cotes EARLY (à l'ouverture ~) = Pinnacle PS*, repli Bet365 B365*
+            oh = num(r.get("PSH")) or num(r.get("B365H"))
+            od = num(r.get("PSD")) or num(r.get("B365D"))
+            oa = num(r.get("PSA")) or num(r.get("B365A"))
+            # cotes de CLÔTURE = Pinnacle PSC*, repli Bet365 clôture B365C*
+            ohc = num(r.get("PSCH")) or num(r.get("B365CH"))
+            odc = num(r.get("PSCD")) or num(r.get("B365CD"))
+            oac = num(r.get("PSCA")) or num(r.get("B365CA"))
             if not (oh and od and oa and oh > 1 and od > 1 and oa > 1): continue
-            rows.append({"date": d, "lg": lg, "season": season, "h": h, "a": a,
-                         "ftr": ftr, "oh": oh, "od": od, "oa": oa})
+            has_close = bool(ohc and odc and oac and ohc > 1 and odc > 1 and oac > 1)
+            rows.append({"date": d, "lg": lg, "season": season, "h": h, "a": a, "ftr": ftr,
+                         "oh": oh, "od": od, "oa": oa,
+                         "ohc": ohc if has_close else oh, "odc": odc if has_close else od,
+                         "oac": oac if has_close else oa, "has_close": has_close})
 rows.sort(key=lambda x: x["date"])
 print(f"Matchs ingérés (avec cotes) : {len(rows)}  ·  {len(SEASONS)} saisons × {len(LEAGUES)} ligues")
 
@@ -118,11 +125,11 @@ def devig(oh, od, oa):
     return ih/s, idr/s, ia/s     # probas marché dé-viggées
 
 # --- 4) ÉVALUATION SUR LE TEST (out-of-sample) ---
-# 4a) log-loss modèle vs marché (le modèle rivalise-t-il avec la clôture Pinnacle ?)
+# 4a) log-loss modèle vs marché (le modèle rivalise-t-il avec la CLÔTURE Pinnacle = le sharp le plus dur ?)
 ll_model = logloss(test, best_c)
 ll_mkt = 0.0
 for r in test:
-    mh, md, ma = devig(r["oh"], r["od"], r["oa"])
+    mh, md, ma = devig(r["ohc"], r["odc"], r["oac"])
     p = mh if r["ftr"] == "H" else (md if r["ftr"] == "D" else ma)
     ll_mkt -= math.log(max(p, 1e-9))
 ll_mkt /= len(test)
@@ -144,20 +151,66 @@ for i,(n,w,sp) in enumerate(bins):
     if n>=20:
         print(f"   {sp/n*100:5.1f}%       |    {w/n*100:5.1f}%      | {n}")
 
-# 4c) BACKTEST VALUE vs clôture Pinnacle : miser l'issue où model_p*cote - 1 > seuil
-print(f"\n=== BACKTEST VALUE vs CLÔTURE PINNACLE (test, mise 1u) ===")
-for edge in (0.05, 0.10, 0.15):
-    n=stake=ret=win=0; odds_sum=0.0
-    for r in test:
-        ph,pd,pa = probs(r["We"], best_c)
-        for sel,p,o in (("H",ph,r["oh"]),("D",pd,r["od"]),("A",pa,r["oa"])):
-            if p*o - 1 > edge:                 # value détectée vs la clôture
-                n+=1; stake+=1; odds_sum+=o
-                if r["ftr"]==sel: ret+=o; win+=1
-                break                          # 1 pari max par match (la plus grosse value)
+# 4c) BACKTEST VALUE — au prix EARLY vs au prix CLÔTURE (le TIMING change-t-il tout ?)
+def value_bets(sample, edge, use_close):
+    """Renvoie la liste des paris value : (sel, cote_jouée, gagné?, cote_close, cote_early)."""
+    out = []
+    for r in sample:
+        ph, pd, pa = probs(r["We"], best_c)
+        legs = ((("H", ph, r["ohc"] if use_close else r["oh"]),
+                 ("D", pd, r["odc"] if use_close else r["od"]),
+                 ("A", pa, r["oac"] if use_close else r["oa"])))
+        best = None
+        for sel, p, o in legs:
+            ev = p * o - 1
+            if ev > edge and (best is None or ev > best[3]):
+                best = (sel, o, r["ftr"] == sel, ev)
+        if best:
+            oc = {"H": r["ohc"], "D": r["odc"], "A": r["oac"]}[best[0]]
+            oe = {"H": r["oh"],  "D": r["od"],  "A": r["oa"]}[best[0]]
+            out.append((best[0], best[1], best[2], oc, oe))
+    return out
+
+def roi_of(bets):
+    if not bets: return (0, 0.0, 0.0, 0.0)
+    ret = sum(o for _, o, w, _, _ in bets if w)
+    return (len(bets), sum(1 for b in bets if b[2]) / len(bets) * 100,
+            sum(b[1] for b in bets) / len(bets), (ret - len(bets)) / len(bets) * 100)
+
+print(f"\n=== BACKTEST VALUE : jouer au prix EARLY vs au prix CLÔTURE (test, mise 1u) ===")
+print(f"  {'seuil':>6} | {'prix joué':>9} | {'paris':>5} | réussite | cote moy |   ROI")
+for edge in (0.05, 0.10):
+    for use_close, lbl in ((False, "EARLY"), (True, "CLÔTURE")):
+        n, hit, om, roi = roi_of(value_bets(test, edge, use_close))
+        print(f"  >{edge*100:>3.0f}% | {lbl:>9} | {n:5d} | {hit:6.1f}% | {om:6.2f}  | {roi:+5.1f}%")
+
+# 5) CLV — les picks value (au prix EARLY) sont-ils CONFIRMÉS par le mouvement du sharp jusqu'à la clôture ?
+#    CLV>0 = le marché a bougé VERS notre pick (proba clôture > proba d'entrée) -> signal prédictif réel,
+#    même si le ROI top-5 est mince (sur des books plus mous / ligues moins efficaces, ce CLV se monétise).
+print(f"\n=== CLV des picks value au prix EARLY (test) ===")
+for edge in (0.05, 0.10):
+    bets = [b for b in value_bets(test, edge, use_close=False)]
+    if not bets:
+        print(f"  edge>{edge*100:>3.0f}% : aucun pari"); continue
+    clvs, beat = [], 0
+    for sel, o_played, won, oc, oe in bets:
+        # proba dé-viggée de NOTRE sélection, tôt vs clôture (besoin des 3 cotes -> approx via 1/cote normalisé)
+        pe = 1.0 / oe; pc = 1.0 / oc                  # proxy simple (avant normalisation identique des 2 côtés)
+        clv = pc - pe                                 # >0 = la cote a raccourci = le marché est venu vers nous
+        clvs.append(clv * 100)
+        if oc < oe: beat += 1                          # on a obtenu une meilleure cote que la clôture
+    print(f"  edge>{edge*100:>3.0f}% : {len(bets):4d} paris · CLV moyen {sum(clvs)/len(clvs):+5.2f} pp · "
+          f"battent la clôture {beat/len(bets)*100:4.1f}%")
+
+# 6) EDGE PAR TRANCHE DE COTE — où le modèle gagne (favoris ?) vs perd (outsiders ?)
+print(f"\n=== ROI PAR TRANCHE DE COTE (edge>5%, prix EARLY, test) ===")
+brackets = [(1.0, 1.8, "favoris <1.8"), (1.8, 2.5, "1.8–2.5"),
+            (2.5, 4.0, "2.5–4.0"), (4.0, 99, "outsiders >4")]
+bets = value_bets(test, 0.05, use_close=False)
+for lo, hi, name in brackets:
+    sub = [b for b in bets if lo <= b[1] < hi]
+    n, hit, om, roi = roi_of(sub)
     if n:
-        roi=(ret-stake)/stake*100
-        print(f"  edge>{edge*100:>3.0f}% : {n:4d} paris · réussite {win/n*100:4.1f}% · cote moy {odds_sum/n:4.2f} · ROI {roi:+5.1f}%")
-    else:
-        print(f"  edge>{edge*100:>3.0f}% : aucun pari")
-print("\n(POC isolé — aucune écriture hors scratchpad, aucun code prod touché.)")
+        print(f"  {name:>14} : {n:4d} paris · réussite {hit:4.1f}% · cote moy {om:4.2f} · ROI {roi:+6.1f}%")
+
+print("\n(POC isolé — aucune écriture hors lab/, aucun code prod touché.)")

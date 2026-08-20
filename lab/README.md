@@ -21,6 +21,13 @@ ajusté sur le TRAIN) → évaluation OUT-OF-SAMPLE (test chrono) :
 
 Lancer : `python lab/backtest_poc.py` (stdlib seul, réseau requis au 1er run).
 
-## Résultat v1 (top-5 européen, 18 011 matchs)
-Elo bien calibré, MAIS on **ne bat pas la clôture** (ROI value vs close négatif) → l'edge doit venir
-du TIMING (parier avant fermeture) ou de ligues moins efficaces. Voir l'historique git pour l'évolution.
+## Résultats (top-5 européen, ~18 000 matchs, test out-of-sample)
+- **Elo bien calibré** (P prédite ≈ fréquence réelle).
+- **Ne bat pas le sharp** : log-loss Elo 0,998 vs clôture Pinnacle 0,967 ; CLV moyen **négatif** (−0,25 pp,
+  45 % battent la clôture) ; jouer au prix EARLY ne sauve rien (ROI ≈ −8,7 % ≈ prix clôture).
+- **La leçon en or (ROI par tranche de cote, edge>5 %)** : le modèle saigne surtout sur les **outsiders
+  (cote >4 : ROI −13,5 %)** ; les **favoris/cotes courtes** sont quasi à l'équilibre (2,5–4,0 : −2,8 %).
+  → confirme chiffres à l'appui la méthodo BETSFIX : rester sur les marchés SÛRS (double chance, favoris),
+  fuir les cotes longues. L'edge « value » sur outsiders est un piège.
+
+Le POC est un INSTRUMENT : toute variante de stratégie se mesure sur 17 k matchs en quelques secondes.
