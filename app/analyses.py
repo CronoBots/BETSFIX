@@ -971,8 +971,10 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
             _valh = '<span class="vm-v vm-na">—</span>'
         cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>{_valh}</div>')
     if with_cote:
+        # COTE affichée à 2 DÉCIMALES MAX (user 2026-08-20) : la cote d'un combiné est un PRODUIT (ex. 2.016) ->
+        # arrondie à l'affichage comme les simples (2.02). Display-only, la valeur stockée reste intacte.
         cells.append('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
-                     f'<span class="vm-v">{cv:g}</span></div>')
+                     f'<span class="vm-v">{round(cv, 2):g}</span></div>')
     # Pari+glose (user 2026-08-15) : DANS le cadre `.vm`, centré, AU-DESSUS de la grille de chiffres
     # (le séparateur sous les équipes est retiré côté carte). Les cellules passent dans `.vm-grid`
     # (l'ancienne rangée flex de `.vm`) -> alignement identique pour tous les types de cartes.
