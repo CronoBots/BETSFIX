@@ -1668,25 +1668,25 @@ CSS = """
   .exq-reason{font-size:11px;line-height:1.45;color:#cfe0f5}
   .exq-meta{font-size:10px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
   /* Aperçu par marché — TABLEAU pro (user 2026-08-20). Colonnes alignées, chiffres tabulaires, verdict en bord. */
-  .mko-intro{font-size:11px;color:var(--muted);line-height:1.55;margin:2px 2px 10px}
+  .mko-intro{font-size:10.5px;color:var(--muted);line-height:1.5;margin:2px 2px 9px}
   .mko-intro b{color:var(--text);font-weight:800}
-  .mko-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .mko{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  .mko th{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;
-       text-align:right;padding:0 6px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
-  .mko th:first-child{text-align:left;padding-left:9px}
-  .mko-fam td{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--gold);font-weight:800;
-       padding:11px 6px 3px}
-  .mko-r td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.045);text-align:right;vertical-align:middle}
-  .mko-r:last-child td{border-bottom:none}
-  .mko-mk{text-align:left!important;font-size:11.5px;font-weight:800;color:var(--text);white-space:nowrap;
-       border-left:3px solid transparent;padding-left:9px!important}
+  /* Table à largeurs FIXES -> tient ENTIÈREMENT en largeur, aucun scroll horizontal (user 2026-08-20). */
+  .mko{width:100%;table-layout:fixed;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  .mko col.mko-c1{width:31%} .mko col.mko-c2,.mko col.mko-c3,.mko col.mko-c4{width:23%}
+  .mko th{font-size:8.5px;text-transform:uppercase;letter-spacing:.02em;color:var(--muted);font-weight:800;
+       text-align:right;padding:0 5px 5px;border-bottom:1px solid var(--border)}
+  .mko th:first-child{text-align:left;padding-left:8px}
+  .mko-fam td{font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--gold);font-weight:800;
+       padding:10px 5px 3px}
+  .mko-r td{padding:6px 5px;border-bottom:1px solid rgba(255,255,255,.045);text-align:right;vertical-align:middle}
+  .mko-mk{text-align:left!important;font-size:11px;font-weight:800;color:var(--text);white-space:nowrap;
+       overflow:hidden;text-overflow:ellipsis;border-left:3px solid transparent;padding-left:8px!important}
   .mko-r.v-pos .mko-mk{border-left-color:#34d27b}
   .mko-r.v-neg .mko-mk{border-left-color:#ff6b6b}
   .mko-r.v-dim .mko-mk{border-left-color:rgba(255,255,255,.10)}
-  .mko-c{white-space:nowrap;font-size:13px;font-weight:800}
+  .mko-c{white-space:nowrap;font-size:12.5px;font-weight:800}
   .mko-c .mko-win{color:#cfe0f5}
-  .mko-n{display:block;font-size:8.5px;font-weight:600;color:var(--muted);font-style:normal;margin-top:1px}
+  .mko-n{display:block;font-size:8px;font-weight:600;color:var(--muted);font-style:normal;margin-top:1px}
   .mko-pos{color:#34d27b} .mko-neg{color:#ff6b6b} .mko-dim{color:var(--muted)}
   .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
        opacity:.85;display:flex;align-items:baseline;gap:8px}
@@ -9321,18 +9321,18 @@ def render_market_overview(rows: list | None) -> str:
         return _MKO_FAM_ORDER.index(f) if f in _MKO_FAM_ORDER else len(_MKO_FAM_ORDER)
     rows = sorted(rows, key=lambda r: (_rank(r["fam"]), -(r["val_roi"] if r["val_roi"] is not None else -999)))
 
-    def _cell(n, roi):                                         # cellule ROI : gros chiffre coloré + n discret dessous
+    def _cell(n, roi):                                         # cellule ROI : chiffre coloré + n discret dessous
         if not n:
             return '<td class="mko-c"><span class="mko-dim">—</span></td>'
         cls = "mko-dim" if n < 5 else ("mko-pos" if (roi or 0) > 0 else "mko-neg" if (roi or 0) < 0 else "mko-dim")
         return (f'<td class="mko-c"><span class="{cls}">{roi:+d}%</span>'
-                f'<i class="mko-n">{n} pari{"s" if n > 1 else ""}</i></td>')
+                f'<i class="mko-n">{n}</i></td>')                # juste le nb de paris (le mot est expliqué en intro)
 
     intro = ('<div class="mko-intro"><b>Comment lire :</b> chaque type de pari est décliné <b>par seuil</b> '
              '(Over/Under 1.5, 2.5, 3.5… séparés). <b>Réussite</b> = fréquence réelle (toutes prédictions). '
              '<b>Value</b> = rendement des paris qu\'on jouerait (value positive) — <span class="mko-pos">vert '
              '= rentable</span>, <span class="mko-neg">rouge = piège</span> (gagne souvent mais cote trop '
-             'courte). <b>Confiance</b> = value ET confiance ≥ 75 %.</div>')
+             'courte). <b>Confiance</b> = value ET confiance ≥ 75 %. Le petit chiffre gris = nombre de paris.</div>')
     trs, cur = [], None
     for r in rows:
         if r["fam"] != cur:
@@ -9344,13 +9344,14 @@ def render_market_overview(rows: list | None) -> str:
             f'<tr class="mko-r {acc}">'
             f'<td class="mko-mk">{html.escape(r["code"])}</td>'
             f'<td class="mko-c"><span class="mko-win">{r["win"]}%</span>'
-            f'<i class="mko-n">{r["n"]} préd.</i></td>'
-            + _cell(r["val_n"], r["val_roi"]) + _cell(r["cf_n"], r["cf_roi"]) + '</tr>')
+            f'<i class="mko-n">{r["n"]}</i></td>'
+            + _cell(r["cf_n"], r["cf_roi"]) + _cell(r["val_n"], r["val_roi"]) + '</tr>')   # Confiance AVANT Value (user)
     return ('<div class="sx-card"><div class="sx-h">Aperçu par marché'
-            '<span>réussite · value · confiance, par seuil</span></div>'
-            f'{intro}<div class="mko-wrap"><table class="mko"><thead><tr>'
-            '<th>Marché</th><th>Réussite</th><th>Value</th><th>Confiance</th></tr></thead>'
-            f'<tbody>{"".join(trs)}</tbody></table></div></div>')
+            '<span>réussite · confiance · value, par seuil</span></div>'
+            f'{intro}<table class="mko">'
+            '<colgroup><col class="mko-c1"><col class="mko-c2"><col class="mko-c3"><col class="mko-c4"></colgroup>'
+            '<thead><tr><th>Marché</th><th>Réuss.</th><th>Conf.</th><th>Value</th></tr></thead>'
+            f'<tbody>{"".join(trs)}</tbody></table></div>')
 
 
 def render_reliability(rel: dict | None) -> str:
