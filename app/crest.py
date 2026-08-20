@@ -59,9 +59,13 @@ _ALIAS = {
     "losc": "Lille", "rcsa": "Strasbourg", "ogcnice": "Nice", "tfc": "Toulouse", "asm": "Monaco",
     "rcl": "Lens", "scb": "Bastia", "fcgb": "Bordeaux",
     # Clubs saoudiens dont l'orthographe Unibet diffère de FotMob (user 2026-08-18) :
-    "alakhdood": "Al-Akhdoud", "aldraih": "Al Diriyah",
+    "alakhdood": "Al-Akhdoud", "aldraih": "Al Diriyah", "alfeiha": "Al-Fayha",
     # Amérique du Sud : sigle/orthographe Unibet ≠ FotMob (user 2026-08-20, logos manquants) :
-    "lduquito": "LDU de Quito",
+    "lduquito": "LDU de Quito", "macara": "CSD Macara",   # FotMob n'indexe pas « Macará » seul (rien) -> « CSD Macara » (id 6609)
+    # Europe : orthographe FR/abréviation Unibet ≠ nom EXACT FotMob (l'alias DOIT être le nom FotMob, sinon
+    # _match rejette même quand la recherche renvoie le match). user 2026-08-20 :
+    "fccopenhague": "FC København",          # Unibet « FC Copenhague » ; FotMob « FC København » (id 8391)
+    "hearts": "Heart of Midlothian",         # Unibet « Hearts » ; FotMob « Heart of Midlothian » (id 9860)
 }
 
 
