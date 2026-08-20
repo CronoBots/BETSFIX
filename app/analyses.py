@@ -2971,6 +2971,21 @@ _COMBO_COUNT_FROM = "2026-06-18"
 # (l'ancien système, 18/06→19/07) sont EXCLUS du bilan combinés mais RESTENT dans la calibration et
 # les stats fantômes (leurs jambes sont des prédictions de fiche, calibrées indépendamment).
 _COMBO_STATS_FROM = "2026-07-29"
+# COMBINÉS HORS-RÈGLE (user 2026-08-20) : du 08/08 au 20/08, le combiné du jour a été bricolé avec des
+# logiques EXPÉRIMENTALES ABANDONNÉES (4 jambes, multi-marchés, couple « Sûr + Cote 2 », analyste quant).
+# On restaure la règle MÉCANIQUE du 29/07→07/08 (la double chance la PLUS SÛRE par match -> pick_combo
+# ~1,95 ; taux excellent : 6W-1L sur cette fenêtre). Ces jours hors-règle sont RETIRÉS du BILAN combiné
+# (rows/curve/ROI combiné + courbe par sport) mais GARDÉS en calibration : `calibration()` lit les shadows
+# et paris, PAS `combo_stats()`, donc rien n'est retiré du calibrage. Fenêtre inclusive [début, fin].
+_COMBO_RULE_VOID = ("2026-08-08", "2026-08-20")
+
+
+def _combo_rule_void(day: str) -> bool:
+    """True si le combiné de ce jour (ISO/AAAA-MM-JJ…) relève de la période hors-règle -> hors bilan combiné."""
+    d10 = (day or "")[:10]
+    return bool(d10) and _COMBO_RULE_VOID[0] <= d10 <= _COMBO_RULE_VOID[1]
+
+
 # COMBINÉS HORS ROI — bascule TEMPORAIRE & RÉVERSIBLE (user 2026-08-15/16 : « afficher l'onglet Combiné
 # mais ne pas le compter au ROI »). L'onglet Combiné + la courbe par sport sont AFFICHÉS (marqués « hors
 # ROI »/« non compté au ROI »), MAIS le combiné n'apparaît PAS comme métrique de ROI en tête : quand False,
@@ -3450,6 +3465,8 @@ def combo_stats(since_days: int | None = None) -> dict:
         start = d.get("start") or ""
         if start[:10] < _COMBO_STATS_FROM:
             continue                                   # ancien combiné multi-marchés -> calibration seule
+        if _combo_rule_void(start):
+            continue                                   # combiné hors-règle (08/08→20/08) -> calibration seule
         if cutoff is not None:
             try:
                 dt = datetime.fromisoformat(start.replace("Z", "+00:00")) if start else None
@@ -3488,6 +3505,8 @@ def combo_stats(since_days: int | None = None) -> dict:
                 continue
             if (_dt or "")[:10] < _COMBO_STATS_FROM:
                 continue                               # combiné du jour n'existe qu'à partir du 26/07
+            if _combo_rule_void(_dt):
+                continue                               # combiné hors-règle (08/08→20/08) -> calibration seule
             if cutoff is not None:
                 try:
                     _cdt2 = datetime.fromisoformat((_dt or "") + "T00:00:00+00:00")
