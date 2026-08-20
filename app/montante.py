@@ -364,6 +364,29 @@ async def pick_from_programme_async(matches: list, client=None) -> dict | None:
             "prob": best.get("prob"), "start": best.get("start", "")}
 
 
+MONTANTE_MAX_COTE = 1.60   # plafond palier : au-delà, ce n'est plus « le pari le PLUS SÛR du jour »
+
+
+def pick_multi_from_cands(cands: list) -> dict | None:
+    """Palier du jour MULTI-MARCHÉS, MÉCANIQUE (user 2026-08-20 : retour à la méthode 26/07→08/08 = « le
+    simple le PLUS SÛR du jour », qui s'appuyait surtout sur les Under totaux — bannis à tort le 13/08 par la
+    restriction « éligible seulement », d'où la chute 100%→73%). Sans quant : parmi les candidats SÛRS
+    multi-marchés déjà ancrés PINNACLE (`combo_safe.safe_multi_candidates` : DC + Over/Under totaux, liste
+    blanche lab = DC, Over 1.5, Over/Under 2.5 ; les pièges Under 3.5/4.5 restent exclus), on prend le PLUS
+    SÛR (proba Pinnacle la plus haute ; à égalité, cote la plus basse) en zone [MONTANTE_MIN_COTE,
+    MONTANTE_MAX_COTE]. None si aucun. Même format que `pick_day_bet` (réglé sur SON `code`). Lecture seule."""
+    pool = [c for c in (cands or [])
+            if isinstance(c.get("cote"), (int, float)) and MONTANTE_MIN_COTE <= c["cote"] <= MONTANTE_MAX_COTE]
+    if not pool:
+        return None
+    best = max(pool, key=lambda c: ((c.get("prob") or 0), -c["cote"]))   # le PLUS SÛR (proba haute, cote basse)
+    return {"mid": best["mid"], "sport": "foot",
+            "match": best.get("name") or f'{best.get("home", "")} - {best.get("away", "")}'.strip(" -"),
+            "home": best.get("home", ""), "away": best.get("away", ""), "comp": best.get("comp", ""),
+            "sel": best["sel"], "cote": best["cote"], "code": best.get("code", ""),
+            "prob": best.get("prob"), "start": best.get("start", ""), "why": best.get("why", "")}
+
+
 def can_record_day(date_iso: str) -> bool:
     """Peut-on encore enregistrer un palier pour `date_iso` ? (False si un palier est EN ATTENTE, si le jour est
     déjà pris, ou si on est avant/le jour d'activation.) Sert de GARDE-FOU avant de lancer l'analyse quant
@@ -383,9 +406,10 @@ def can_record_day(date_iso: str) -> bool:
 def record_day(date_iso: str, pick: dict | None = None) -> bool:
     """Enregistre le pari du jour (1 SEUL par jour). Refuse si un pari est déjà EN ATTENTE (on attend son
     résultat avant d'engager le palier suivant) ou si le jour est déjà enregistré. True si ajouté.
-    `pick` : palier PRÉ-CONSTRUIT — depuis le 2026-08-18 c'est la RÈGLE QUANT (`_montante_best_bet`, seule
-    décideuse). Si `pick is None` -> on N'ENREGISTRE RIEN (plus de repli mécanique `pick_day_bet` : un PASS de
-    la règle quant = pas de palier ce jour, jamais un pari de secours moins discipliné)."""
+    `pick` : palier PRÉ-CONSTRUIT — depuis le 2026-08-20, c'est la SÉLECTION MÉCANIQUE MULTI-MARCHÉS
+    (`pick_multi_from_cands`, retour à la méthode 26/07→08/08 : le pari le PLUS SÛR du jour parmi DC +
+    Over/Under totaux, ancré Pinnacle). Si `pick is None` -> on N'ENREGISTRE RIEN (pas de palier ce jour :
+    vivier vide/réseau KO ; jamais un pari de secours moins discipliné)."""
     d = load()
     # DÉMARRAGE au scan du LENDEMAIN de l'activation (demande user 2026-07-25) : `start_date` = jour
     # d'activation ; on n'enregistre qu'à partir du jour STRICTEMENT suivant (le 1er palier vient d'un

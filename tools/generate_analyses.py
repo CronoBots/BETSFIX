@@ -796,7 +796,8 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     a été supprimée (user 2026-08-07) : le pick du matin est DÉFINITIF (plus de vague --refresh-early)."""
     from app import notify
     _MORNING_SAFE_DC.clear()          # vivier/dossiers FRAIS à chaque construction de programme (combiné + montante
-    _MORNING_DOSSIER_CACHE.clear()    # partagent ces caches ; on repart propre pour ne jamais réutiliser un slate ancien)
+    _MORNING_SAFE_MULTI.clear()       # partagent ces caches ; on repart propre pour ne jamais réutiliser un slate ancien)
+    _MORNING_DOSSIER_CACHE.clear()
     _ICON = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     _NOM = {"foot": "Football", "tennis": "Tennis", "basket": "Basket"}
     # RAFRAÎCHISSEMENT DÉTERMINISTE DU CATALOGUE PINNACLE (user 2026-08-17) : la passe programme du matin (~10h
@@ -1012,19 +1013,19 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         from app import montante as _mtn, combo_daily as _cd_mt
         if _mtn.is_active():
             _mtn.settle_pending()
-            # RÈGLE MONTANTE = ANALYSTE QUANT (user 2026-08-18) : on ne prend plus mécaniquement « la DC la plus
-            # sûre ». On bâtit une SHORTLIST de candidats sharp-ancrés en zone de cote (safe_dc_candidates), puis
-            # Claude applique `MONTANTE_RULE` sur leurs DOSSIERS COMPLETS (`build_dossier`, comme le scan) et
-            # choisit AU PLUS UN best bet (P_est/Edge/EV/score/100) ou PASS. « Pourquoi » = l'analyse complète.
-            # GARDE-FOU : ne lance l'analyse (dossiers + Claude, coûteuse) que si un palier peut encore être posé
-            # aujourd'hui (rien en attente, jour non pris) -> une seule analyse quant / jour, pas à chaque vague.
+            # RÈGLE MONTANTE = MÉCANIQUE MULTI-MARCHÉS (user 2026-08-20 : retour à la méthode 26/07→08/08, taux
+            # 100% record 7V ; l'analyste quant du 18/08 + la restriction « éligible seulement » du 13/08 avaient
+            # fait chuter à 73%). On prend « le pari le PLUS SÛR du jour » parmi les candidats sûrs multi-marchés
+            # ancrés Pinnacle (safe_multi_candidates : DC + Over/Under totaux — RÉ-INCLUT les Under, marchés
+            # gagnants bannis à tort). Plus d'analyste Claude. GARDE-FOU : ne construit que si un palier peut
+            # encore être posé aujourd'hui (rien en attente, jour non pris).
             _mpick = None
             if _mtn.can_record_day(_cd_mt.day_key()):
                 try:
-                    _mcands, _ = await _safe_dc_cached(_cd_mt.day_key(), matches, client)
-                    _mpick = await _montante_best_bet(client, _mcands or [])
+                    _mcands, _ = await _safe_multi_cached(_cd_mt.day_key(), matches, client)
+                    _mpick = _mtn.pick_multi_from_cands(_mcands or [])
                 except Exception as _mre:
-                    print(f"  (analyse montante quant ignorée : {_mre})")
+                    print(f"  (sélection montante mécanique ignorée : {_mre})")
                 # « POURQUOI » FACTUEL (comme le combiné) : la règle quant a SÉLECTIONNÉ ; le texte affiché doit être
                 # FACTUEL (forme/xG/absents), pas la sortie quant (méta P_est/EV que _strip_meta_stat massacre —
                 # mémoire analysis-premium-factual-not-meta). On enrichit via sources.extras + _analyze_combo_legs.
@@ -1042,8 +1043,8 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                     except Exception as _mae:
                         print(f"  (enrichissement factuel montante ignoré : {_mae})")
                 if _mpick and _mtn.record_day(_cd_mt.day_key(), pick=_mpick):
-                    print(f"  🪜 Montante (matin, règle quant) : {_mpick['match']} — {_mpick['sel']} "
-                          f"@{_mpick['cote']} ({round((_mpick.get('prob') or 0) * 100)}% · score {_mpick.get('score')})")
+                    print(f"  🪜 Montante (matin, mécanique multi-marchés) : {_mpick['match']} — {_mpick['sel']} "
+                          f"@{_mpick['cote']} ({round((_mpick.get('prob') or 0) * 100)}%)")
                     # PUBLICATION TELEGRAM de la MONTANTE (user 2026-08-18) : carte « MONTANTE » (même patron que
                     # le combiné/simple). Indépendant de `--no-notify`, idempotent (clé `montante_daily_<jour>`).
                     if _notify.configured() and not _notify.get_prono(f"montante_daily_{_cd_mt.day_key()}"):
@@ -2568,16 +2569,27 @@ def _track_provisional(sport, m, prov) -> None:
 # caches sont NATURELLEMENT scopés au process de scan (chaque vague/scan = invocation séparée) -> AUCUN risque
 # de servir un dossier périmé à l'analyse fraîche pré-match. Vidés en tête de `_build_and_post_programme`.
 _MORNING_SAFE_DC: dict = {}
+_MORNING_SAFE_MULTI: dict = {}
 _MORNING_DOSSIER_CACHE: dict = {}
 
 
 async def _safe_dc_cached(day: str, matches: list, client):
-    """`combo_safe.safe_dc_candidates` mémoïsé par jour (appelé par le combiné ET la montante le matin)."""
+    """`combo_safe.safe_dc_candidates` mémoïsé par jour (appelé par le combiné le matin)."""
     if day in _MORNING_SAFE_DC:
         return _MORNING_SAFE_DC[day]
     from app import combo_safe as _cs
     res = await _cs.safe_dc_candidates(day, matches, client)
     _MORNING_SAFE_DC[day] = res
+    return res
+
+
+async def _safe_multi_cached(day: str, matches: list, client):
+    """`combo_safe.safe_multi_candidates` mémoïsé par jour (montante multi-marchés du matin : DC + Over/Under)."""
+    if day in _MORNING_SAFE_MULTI:
+        return _MORNING_SAFE_MULTI[day]
+    from app import combo_safe as _cs
+    res = await _cs.safe_multi_candidates(day, matches, client)
+    _MORNING_SAFE_MULTI[day] = res
     return res
 
 
