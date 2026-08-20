@@ -44,11 +44,11 @@ if ($running) {
 # ANALYSE des matchs du programme dont le coup d'envoi est dans les $WindowHours à venir et NON encore
 # analysés (1re et seule analyse -> pick définitif, jamais de flip via _generated_today). --from-programme =
 # uniquement la sélection du matin (aucune dérive). Pas de bande --ko-from/--ko-to : jour ET nuit couverts.
-# --top 20 : ne jamais écrêter un match du programme présent dans la fenêtre (une fenêtre 1,5 h a peu de matchs).
+# --top 24 : ne jamais écrêter un match du programme présent dans la fenêtre (une fenêtre 1,5 h a peu de matchs).
 # ⚠️ Point décimal « . » obligatoire (locale FR -> "2,5" rejeté par argparse) -> InvariantCulture.
 $hours = $WindowHours.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 Log ("SWEEP ANALYSE : matchs du programme à coup d'envoi <= {0} h, non analysés (1re analyse)" -f $hours)
-& $py 'tools\generate_analyses.py' --sport foot --top 20 --hours $hours --from-programme 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot --top 24 --hours $hours --from-programme 2>&1 |
     Add-BfxStream $log
 Log ("SWEEP ANALYSE DONE (exit {0})" -f $LASTEXITCODE)
 
