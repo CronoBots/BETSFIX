@@ -137,10 +137,32 @@ def _compute(steps: list, base: float, sim: bool = False) -> dict:
     }
 
 
+# PALIERS HORS-TECHNIQUE (user 2026-08-20) : du 09/08 au 20/08, la montante n'était PLUS construite avec la
+# technique gagnante du 26/07→08/08 — restriction « éligible seulement » du 13/08 (Under bannis à tort) puis
+# analyste quant du 18/08 -> enchaînement d'erreurs (taux 100%→73%). On MASQUE ces paliers de l'HISTORIQUE
+# affiché (taux/courbe/série/échelle/capital), tout en les GARDANT dans le fichier de suivi. La CALIBRATION est
+# INTACTE : elle lit les sidecars des matchs (shadows), PAS le ladder montante. Fenêtre inclusive. Réversible.
+_MONTANTE_VOID = ("2026-08-09", "2026-08-20")
+
+
+def _rule_void(date_iso: str) -> bool:
+    """True si ce palier (date AAAA-MM-JJ) relève de la période hors-technique -> masqué de l'affichage."""
+    d10 = (date_iso or "")[:10]
+    return bool(d10) and _MONTANTE_VOID[0] <= d10 <= _MONTANTE_VOID[1]
+
+
+def public_steps() -> list:
+    """Paliers AFFICHÉS = tous SAUF les paliers hors-technique (`_MONTANTE_VOID`). Source UNIQUE de l'affichage
+    (état/échelle/taux/courbe/série) -> masquage cohérent partout. Le fichier de suivi garde tout ; le règlement
+    et `can_record_day` lisent `load()` (paliers RÉELS). Lecture seule."""
+    return [s for s in (load().get("steps") or []) if not _rule_void(s.get("date"))]
+
+
 def state() -> dict:
-    """État de la VRAIE montante (fichier de suivi). Vide tant qu'aucun pari n'est enregistré."""
+    """État de la VRAIE montante (fichier de suivi). Vide tant qu'aucun pari n'est enregistré. Les paliers
+    hors-technique (`_MONTANTE_VOID`) sont masqués -> la chaîne se recompose sur la seule bonne technique."""
     d = load()
-    return _compute(d.get("steps") or [], float(d.get("base_stake") or BASE_STAKE), sim=False)
+    return _compute(public_steps(), float(d.get("base_stake") or BASE_STAKE), sim=False)
 
 
 def montante_mids() -> set:

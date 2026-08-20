@@ -8793,8 +8793,9 @@ def render_montante_bilan(st: dict, example: dict) -> str:
     _caps = [base] + [s.get("payout") for s in _fsteps
                       if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
     _chart = (f'<div class="sx-equity">{_mont_curve(_caps, uid="mbil")}</div>' if len(_caps) >= 2 else "")
-    # KPIs + série + W/L, calculés sur les PARIS montante (steps) — MÊMES classes que les autres onglets.
-    _steps = _mtn.load().get("steps") or []
+    # KPIs + série + W/L, calculés sur les PARIS montante AFFICHÉS (paliers hors-technique 09/08→20/08 masqués,
+    # user 2026-08-20 -> `public_steps`) — MÊMES classes que les autres onglets. Calibration intacte (sidecars).
+    _steps = _mtn.public_steps()
     _res = [s.get("result") for s in _steps]
     _settled = [r for r in _res if r in ("won", "lost")]
     _won, _nb = _settled.count("won"), len(_settled)
