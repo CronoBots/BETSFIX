@@ -935,39 +935,28 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         except Exception as _cse:
             _ccands, _cwhys = [], {}
             print(f"  (shortlist DC indisponible : {_cse})")
-        # SHORTLIST MULTI-MARCHÉS pour le COTE 2 (user 2026-08-20 : ouvert à TOUS les marchés — DC + Over/Under
-        # sûrs/rentables, ancrés Pinnacle, bannis exclus). Le SÛR reste DC pur (`_ccands`). Repli DC si indispo.
-        try:
-            _mcands, _mwhys = await _csafe.safe_multi_candidates(_cday, matches, client)
-        except Exception as _mce:
-            _mcands, _mwhys = _ccands, _cwhys
-            print(f"  (shortlist multi-marchés indisponible : {_mce} -> repli DC)")
-
-        # DEUX COMBINÉS INDÉPENDANTS/JOUR (user 2026-08-19), tous deux HORS ROI : « Sûr » (variant='', ~1,5, proba
-        # max) + « Cote 2 » (variant='cote2', ~2,0). Même pipeline SÛRETÉ-first, cible de cote différente (`tier`).
+        # UN SEUL COMBINÉ MÉCANIQUE (user 2026-08-20 : « retrouver la logique du 29/07-07/08, taux de réussite
+        # excellent ; n'avoir plus qu'un combiné, hors ROI »). Plus d'analyste Claude (`_combo_dc_best` retiré du
+        # chemin), plus de 2e combiné (« Cote 2 » supprimé). = le « Combiné SÉCURITÉ » d'origine : la double chance
+        # la PLUS SÛRE par match (ancre Pinnacle, value-aware), assemblée vers ~1,95 par `pick_combo`.
         async def _build_combo_tier(_tier, _variant, _tgkey, _tgcap, _label, _exclude_mids=None,
                                     _cands=None, _whys=None):
-            # CANDIDATS PAR TIER (user 2026-08-20) : Sûr = DC pur (`_ccands`) ; Cote 2 = MULTI-MARCHÉS (`_mcands`).
-            _cands = _ccands if _cands is None else _cands
-            _whys = _cwhys if _whys is None else _whys
             _prev = _cdaily.today(_cday, variant=_variant)
             if _prev and (_prev.get("sent") or _prev.get("result")):
                 print(f"  🎯 Combiné {_label} : déjà publié aujourd'hui (figé) -> conservé.")
                 return _prev
             try:
-                _cb = await _combo_dc_best(client, _cday, _cands, _whys, tier=_tier, exclude_mids=_exclude_mids)
-                # REPLI DÉCORRÉLATION -> CÈDE aux contraintes DURES (user 2026-08-20 : cote mini + nb de jambes
-                # PRIMENT). Si la version décorrélée PASSe (vivier trop mince pour atteindre la cote mini sans
-                # réutiliser une jambe de l'autre combiné), on REtente SANS exclusion -> mieux vaut 2 combinés
-                # partageant 1 jambe que pas de 2ᵉ combiné. La décorrélation reste préférée quand elle est possible.
-                if _cb is None and _exclude_mids:
-                    print(f"  🎯 Combiné {_label} : décorrélé impossible (vivier mince) -> retenté avec chevauchement toléré.")
-                    _cb = await _combo_dc_best(client, _cday, _cands, _whys, tier=_tier)
+                _cb = _csafe._combo_from_cands(_ccands)        # assemblage mécanique depuis les candidats DC déjà fetchés
+                if _cb:
+                    _cb["date"] = _cday
+                    for _lg in _cb.get("legs") or []:          # ré-attache le « pourquoi » chiffré Pinnacle
+                        if _cwhys.get(_lg.get("mid")):
+                            _lg["why"] = _cwhys[_lg["mid"]]
             except Exception as _cqe:
-                print(f"  (combiné {_label} règle quant ignoré : {_cqe})")
-                _cb = await _csafe.build_from_programme_async(_cday, matches, client) if _tier == "sur" else None
+                print(f"  (combiné {_label} mécanique ignoré : {_cqe})")
+                _cb = None
             if not _cb:
-                print(f"  🎯 Combiné {_label} : PASS — aucun combiné DC ne remplit la règle aujourd'hui.")
+                print(f"  🎯 Combiné {_label} : PASS — aucun combiné DC assemblable aujourd'hui.")
                 return None
             # « Pourquoi » factuel des jambes À LA CONSTRUCTION (faits football via sources.extras -> pas de méta
             # sharp que _strip_meta_stat massacre). Best-effort. build_dossier/extras LISENT seulement (0 sidecar).
@@ -1009,16 +998,9 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                     except Exception as _cne:
                         print(f"     (combiné {_label} Telegram ignoré : {_cne})")
 
-        await _build_combo_tier("sur", "", "combo_daily",
-                                "🛡️ <b>Combiné SÛR</b> · les sélections les plus sûres", "SÛR")
-        # COTE 2 DÉCORRÉLÉ DU SÛR (user 2026-08-20) : on lit les jambes du Sûr (fraîchement enregistré, ou figé
-        # s'il l'était déjà) et on les EXCLUT du vivier Cote 2 -> deux combinés qui ne tombent pas ensemble.
-        # Repli géré dans `_combo_dc_best` si le vivier restant est trop mince.
-        _sur_now = _cdaily.today(_cday, variant="") or {}
-        _sur_mids = [str(_l.get("mid")) for _l in (_sur_now.get("legs") or []) if _l.get("mid")]
-        await _build_combo_tier("cote2", "cote2", "combo_hi",
-                                "🚀 <b>Combiné COTE 2</b> · plus ambitieux", "COTE 2",
-                                _exclude_mids=_sur_mids, _cands=_mcands, _whys=_mwhys)   # MULTI-MARCHÉS
+        # UN SEUL COMBINÉ (user 2026-08-20) : le combiné du jour, double chance, mécanique. Plus de « Cote 2 ».
+        await _build_combo_tier("", "", "combo_daily",
+                                "🛡️ <b>Combiné du jour</b> · les doubles chances les plus sûres", "DU JOUR")
     except Exception as _cce:
         print(f"  (combiné du jour matin ignoré : {_cce})")
     # MONTANTE — PALIER DU JOUR construit DEPUIS LE PROGRAMME (user 2026-08-17) : le flagship joue souvent des
