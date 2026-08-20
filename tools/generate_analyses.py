@@ -945,6 +945,13 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                 return _prev
             try:
                 _cb = await _combo_dc_best(client, _cday, _ccands, _cwhys, tier=_tier, exclude_mids=_exclude_mids)
+                # REPLI DÉCORRÉLATION -> CÈDE aux contraintes DURES (user 2026-08-20 : cote mini + nb de jambes
+                # PRIMENT). Si la version décorrélée PASSe (vivier trop mince pour atteindre la cote mini sans
+                # réutiliser une jambe de l'autre combiné), on REtente SANS exclusion -> mieux vaut 2 combinés
+                # partageant 1 jambe que pas de 2ᵉ combiné. La décorrélation reste préférée quand elle est possible.
+                if _cb is None and _exclude_mids:
+                    print(f"  🎯 Combiné {_label} : décorrélé impossible (vivier mince) -> retenté avec chevauchement toléré.")
+                    _cb = await _combo_dc_best(client, _cday, _ccands, _cwhys, tier=_tier)
             except Exception as _cqe:
                 print(f"  (combiné {_label} règle quant ignoré : {_cqe})")
                 _cb = await _csafe.build_from_programme_async(_cday, matches, client) if _tier == "sur" else None
