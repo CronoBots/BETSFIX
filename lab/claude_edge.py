@@ -80,4 +80,37 @@ for code, sub in sorted(codes.items(), key=lambda kv: -len(kv[1])):
     if sn >= 120:
         print(f"  {code:>14} : {sn:5d} · réussite {sh:4.1f}% · cote {so:4.2f} · ROI {sr:+6.1f}%")
 
+# 7) VÉRIFICATION DES MARCHÉS ÉCARTÉS (bannis) — ROI sur TOUT vs sur la VALUE seule (ce qu'on jouerait)
+def famille(code):
+    c = code.lower()
+    if "corner" in c: return "CORNERS (banni)"
+    if "card" in c or "redcard" in c: return "CARTONS (banni)"
+    if "btts" in c: return "BTTS (banni)"
+    if "firstgoal" in c: return "1ER BUT (banni)"
+    if c.startswith("half") or "1h" in c or "2h" in c: return "MI-TEMPS (banni)"
+    if "shotsot" in c: return "TIRS CADRÉS (privilégié)"
+    if c.startswith("dc "): return "DOUBLE CHANCE (privilégié)"
+    if c.startswith("1x2"): return "RÉSULTAT 1X2 (privilégié)"
+    if c.startswith("over") or c.startswith("under"): return "OVER/UNDER (privilégié)"
+    if "teamtot" in c: return "ÉQUIPE MARQUE (privilégié)"
+    return "autres"
+
+def roi_val(sub):                                   # ROI sur les seules prédictions à value>0 (jouées)
+    return roi([x for x in sub if x[0]*x[1]-1 > 0])
+
+fams = {}
+for x in preds: fams.setdefault(famille(x[3]), []).append(x)
+print(f"\n### VÉRIFICATION DES MARCHÉS ÉCARTÉS vs PRIVILÉGIÉS")
+print(f"  {'famille':>26} | {'n':>4} | ROI tout | value>0 (n) | ROI value")
+order = ["CORNERS (banni)","CARTONS (banni)","BTTS (banni)","1ER BUT (banni)","MI-TEMPS (banni)",
+         "TIRS CADRÉS (privilégié)","DOUBLE CHANCE (privilégié)","RÉSULTAT 1X2 (privilégié)",
+         "OVER/UNDER (privilégié)","ÉQUIPE MARQUE (privilégié)"]
+for f in order:
+    sub = fams.get(f)
+    if not sub: continue
+    n1, _, _, r1, _ = roi(sub)
+    nv, _, _, rv, _ = roi_val(sub)
+    warn = "  ⚠️ échantillon faible" if n1 < 40 else ""
+    print(f"  {f:>26} | {n1:4d} | {r1:+6.1f}% | {nv:4d} paris | {rv:+6.1f}%{warn}")
+
 print("\n" + "="*70 + "\n(LECTURE SEULE des sidecars, aucune écriture, aucun code prod modifié.)")
