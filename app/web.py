@@ -4888,12 +4888,14 @@ def render_perf(perf: dict | None) -> str:
 
 
 def render_tier_compare(full: dict | None) -> str:
-    """CONFIANCE vs VALUE vs MONTANTE (demande user 2026-08-13) : le rendement des 3 types de paris JOUÉS
-    côte à côte — ROI, réussite, volume, cote moyenne. Répond « le phare paie-t-il vraiment mieux, et la
-    value compense-t-elle par le volume ? ». Données figées (by_tier de stats_full). '' si rien de réglé."""
+    """CONFIANCE vs VALUE (demande user 2026-08-13) : le rendement des types de paris à mise plate côte à côte
+    — ROI, réussite, volume, cote moyenne. Répond « le phare paie-t-il vraiment mieux, et la value compense-t-elle
+    par le volume ? ». ⚠️ La MONTANTE est EXCLUE (user 2026-08-20) : c'est une échelle CAPITALISÉE (multiplicateur),
+    pas un ROI à mise plate -> elle a sa propre vue (multiplicateur/capital), jamais un chiffre de ROI. Données
+    figées (by_tier de stats_full). '' si rien de réglé."""
     bt = (full or {}).get("by_tier") or {}
     kpis = []
-    for key, lbl in (("confiance", "⭐ Confiance"), ("value", "💎 Value"), ("montante", "🔵 Montante")):
+    for key, lbl in (("confiance", "⭐ Confiance"), ("value", "💎 Value")):
         t = bt.get(key) or {}
         if not t.get("settled"):
             continue
@@ -4905,8 +4907,8 @@ def render_tier_compare(full: dict | None) -> str:
             f'cote {co or "—"}</div></div>')
     if not kpis:
         return ""
-    return ('<div class="sx-card"><div class="sx-h">Confiance vs Value vs Montante'
-            '<span>rendement des 3 types de paris joués</span></div>'
+    return ('<div class="sx-card"><div class="sx-h">Confiance vs Value'
+            '<span>rendement des paris à mise plate (montante à part)</span></div>'
             f'<div class="av-top">{"".join(kpis)}</div></div>')
 
 
