@@ -7811,7 +7811,10 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     # FIGÉ au règlement -> l'historique reflète ce qui a VRAIMENT été joué ce jour-là.
     _res_conf = _settled_bet_result_cards(iso, sport, tier="confiance")
     _res_value = _settled_bet_result_cards(iso, sport, tier="value")
-    _res_mont = _settled_bet_result_cards(iso, sport, tier="montante")
+    # MONTANTE HORS-TECHNIQUE (user 2026-08-20) : les paliers 09/08→20/08 sont MASQUÉS de l'historique
+    # (comme le ladder via public_steps) -> aucune carte montante pour ces jours dans le calendrier Programme.
+    from app import montante as _mtn_dv
+    _res_mont = [] if _mtn_dv._rule_void(iso) else _settled_bet_result_cards(iso, sport, tier="montante")
     # PLUS DE CATÉGORIE « PROVISOIRE » (user 2026-08-19) : un match est soit un pari JOUÉ (affiché dans son TYPE
     # Confiance/Value/Montante ci-dessus, selon le calcul), soit une ABSTENTION (cachée). On respecte donc
     # `PROVISOIRES_ON=False` ici AUSSI (le jour passé était le seul endroit qui affichait encore les provisoires).
