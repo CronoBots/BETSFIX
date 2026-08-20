@@ -6561,6 +6561,12 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
             cb = None
     if not cb or not cb.get("legs"):
         return ""
+    # COMBINÉS HORS-RÈGLE (user 2026-08-20) : masqués de l'affichage ET de l'historique (comme du bilan) —
+    # les jours 08/08→20/08 ont utilisé des logiques expérimentales abandonnées. Leurs jambes RESTENT en
+    # calibration (shadows, indépendants de cette carte). Fenêtre `analyses._COMBO_RULE_VOID`.
+    _cvday = (cb.get("date") or (cb.get("legs") or [{}])[0].get("start") or "")[:10]
+    if analyses._combo_rule_void(_cvday):
+        return ""
     _res = cb.get("result")
     # TERMINÉ = toutes les jambes réglées (won/lost/push/void). On garde la carte tant qu'AU MOINS une jambe
     # court (le combiné est « en cours ») ; une fois tout réglé, il quitte l'accueil/directs.
@@ -7770,7 +7776,7 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
             _cards = []
             for _cv, _ct in (("", "COMBINÉ"),):
                 _c = _cd.today(iso, variant=_cv)
-                if _c and _c.get("legs"):
+                if _c and _c.get("legs") and not analyses._combo_rule_void(iso):
                     _cards.append(_combo_tg_card(include_settled=True, cb=_c, title=_ct))
                     _dc_res.append(_c.get("result"))
                     if _combo_daily_legs is None:          # dots par jambe = 1er combiné (si un seul affiché)
@@ -10595,6 +10601,8 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
     from app import combo_daily as _cd, foot as _foot
     import datetime as _dt
     day = _cd.day_key()
+    if analyses._combo_rule_void(day):                     # combiné hors-règle -> ni Live ni historique
+        return []
     rows, seen = [], set()
     for _var in ("",):
         cb = _cd.today(day, sport=sport, variant=_var)
