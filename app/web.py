@@ -1667,12 +1667,27 @@ CSS = """
   .exq-ok{background:rgba(52,210,123,.14);color:#7fe0a8;border:1px solid rgba(52,210,123,.30)}
   .exq-reason{font-size:11px;line-height:1.45;color:#cfe0f5}
   .exq-meta{font-size:10px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
-  /* Aperçu par marché (fantôme/value/confiance) — 3 regards en ligne, colorés (user 2026-08-20). */
-  .mkv-meta{display:flex;flex-wrap:wrap;gap:5px 14px;font-size:10.5px;margin-top:5px}
-  .mkv-meta>span{white-space:nowrap}
-  .mkv-pos{color:#34d27b;font-weight:800}
-  .mkv-neg{color:#ff6b6b;font-weight:800}
-  .mkv-dim{color:var(--muted);font-weight:600}
+  /* Aperçu par marché — TABLEAU pro (user 2026-08-20). Colonnes alignées, chiffres tabulaires, verdict en bord. */
+  .mko-intro{font-size:11px;color:var(--muted);line-height:1.55;margin:2px 2px 10px}
+  .mko-intro b{color:var(--text);font-weight:800}
+  .mko-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .mko{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  .mko th{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;
+       text-align:right;padding:0 6px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
+  .mko th:first-child{text-align:left;padding-left:9px}
+  .mko-fam td{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--gold);font-weight:800;
+       padding:11px 6px 3px}
+  .mko-r td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.045);text-align:right;vertical-align:middle}
+  .mko-r:last-child td{border-bottom:none}
+  .mko-mk{text-align:left!important;font-size:11.5px;font-weight:800;color:var(--text);white-space:nowrap;
+       border-left:3px solid transparent;padding-left:9px!important}
+  .mko-r.v-pos .mko-mk{border-left-color:#34d27b}
+  .mko-r.v-neg .mko-mk{border-left-color:#ff6b6b}
+  .mko-r.v-dim .mko-mk{border-left-color:rgba(255,255,255,.10)}
+  .mko-c{white-space:nowrap;font-size:13px;font-weight:800}
+  .mko-c .mko-win{color:#cfe0f5}
+  .mko-n{display:block;font-size:8.5px;font-weight:600;color:var(--muted);font-style:normal;margin-top:1px}
+  .mko-pos{color:#34d27b} .mko-neg{color:#ff6b6b} .mko-dim{color:var(--muted)}
   .sx-ml-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
        opacity:.85;display:flex;align-items:baseline;gap:8px}
   .sx-ml-hint{font-size:9px;font-weight:600;letter-spacing:0;text-transform:none;opacity:.7}
@@ -9281,45 +9296,54 @@ def render_market_watch(by_sport: dict | None) -> str:
             f'<div class="exq">{body}</div></div>')
 
 
+_MKO_FAM_ORDER = ["Double chance", "Total Over", "Total Under", "Total équipe", "Vainqueur", "Handicap",
+                  "Les 2 marquent", "Mi-temps", "Tirs cadrés", "Tirs", "Cartons", "Corners",
+                  "Premier but", "Premier buteur", "Score exact", "Arrêts gardien", "Props joueur", "Autre"]
+
+
 def render_market_overview(rows: list | None) -> str:
-    """APERÇU INTELLIGENT PAR MARCHÉ (foot), au niveau SEUIL (OVER 2.5 ≠ OVER 3.5), ventilé en 3 vues
-    (demande user 2026-08-20) : 👻 FANTÔME (réussite réelle + confiance annoncée = calibration) · 💎 VALUE
-    (ce qu'on jouerait, value>0, + ROI) · ⭐ CONFIANCE (value>0 ET conf ≥75 %, + ROI). Groupé par famille.
-    Réutilise le style `.exq` (mobile-friendly). '' si rien. `rows` = `analyses.market_overview()`."""
+    """APERÇU PAR MARCHÉ (foot), au niveau SEUIL (OVER 2.5 ≠ OVER 3.5) — TABLEAU pro (user 2026-08-20 : rendu
+    plus intuitif). 3 colonnes : Réussite (👻 fantôme = fréquence réelle, calibration) · Value (💎 ROI des paris
+    value>0, = ce qu'on jouerait) · Confiance (⭐ ROI des value ≥75 %). Bord gauche coloré = VERDICT sur la value
+    (vert = rentable · rouge = piège · gris = peu de données). Groupé par famille, familles utiles en tête,
+    marchés triés par ROI value décroissant. '' si rien. `rows` = `analyses.market_overview()`."""
     if not rows:
         return ""
 
-    def _roi(n, r):
-        if not n:
-            return '<span class="mkv-dim">—</span>'
-        if n < 5:                                              # échantillon trop mince -> gris (pas vert/rouge trompeur)
-            return f'{n}·<span class="mkv-dim">{r:+d}%</span>'
-        cls = "mkv-pos" if (r is not None and r > 0) else ("mkv-neg" if (r is not None and r < 0) else "mkv-dim")
-        return f'{n}·<span class="{cls}">{r:+d}%</span>'
+    def _rank(f):
+        return _MKO_FAM_ORDER.index(f) if f in _MKO_FAM_ORDER else len(_MKO_FAM_ORDER)
+    rows = sorted(rows, key=lambda r: (_rank(r["fam"]), -(r["val_roi"] if r["val_roi"] is not None else -999)))
 
-    intro = ('<div class="exq-intro">Chaque marché est décliné <b>par seuil</b> (Over/Under 1.5, 2.5, 3.5… '
-             'séparés) et ventilé en trois regards : <b>👻 fantôme</b> = toutes les prédictions (réussite réelle '
-             'vs confiance annoncée) · <b>💎 value</b> = celles qu\'on jouerait (value positive) et leur ROI · '
-             '<b>⭐ confiance</b> = value ET confiance ≥ 75 %. On voit ainsi où l\'<b>edge réel</b> se situe — un '
-             'marché peut gagner souvent mais perdre en value (cote trop courte).</div>')
-    body, cur = intro, None
+    def _cell(n, roi):                                         # cellule ROI : gros chiffre coloré + n discret dessous
+        if not n:
+            return '<td class="mko-c"><span class="mko-dim">—</span></td>'
+        cls = "mko-dim" if n < 5 else ("mko-pos" if (roi or 0) > 0 else "mko-neg" if (roi or 0) < 0 else "mko-dim")
+        return (f'<td class="mko-c"><span class="{cls}">{roi:+d}%</span>'
+                f'<i class="mko-n">{n} pari{"s" if n > 1 else ""}</i></td>')
+
+    intro = ('<div class="mko-intro"><b>Comment lire :</b> chaque type de pari est décliné <b>par seuil</b> '
+             '(Over/Under 1.5, 2.5, 3.5… séparés). <b>Réussite</b> = fréquence réelle (toutes prédictions). '
+             '<b>Value</b> = rendement des paris qu\'on jouerait (value positive) — <span class="mko-pos">vert '
+             '= rentable</span>, <span class="mko-neg">rouge = piège</span> (gagne souvent mais cote trop '
+             'courte). <b>Confiance</b> = value ET confiance ≥ 75 %.</div>')
+    trs, cur = [], None
     for r in rows:
-        if r["fam"] != cur:                                    # sous-en-tête de FAMILLE
+        if r["fam"] != cur:
             cur = r["fam"]
-            body += (f'<div class="exq-sport"><div class="exq-sphead">'
-                     f'<span class="exq-spname">{html.escape(str(cur))}</span></div></div>')
-        gap = r["win"] - r["conf"]
-        body += (f'<div class="exq-row"><div class="exq-top">'
-                 f'<span class="exq-mk">{html.escape(r["code"])}</span></div>'
-                 f'<div class="exq-meta mkv-meta">'
-                 f'<span>👻 <b>{r["n"]}</b> · réussi {r["win"]}% <span class="mkv-dim">(ann. {r["conf"]}%, '
-                 f'écart {gap:+d})</span></span>'
-                 f'<span>💎 value {_roi(r["val_n"], r["val_roi"])}</span>'
-                 f'<span>⭐ conf {_roi(r["cf_n"], r["cf_roi"])}</span>'
-                 f'</div></div>')
+            trs.append(f'<tr class="mko-fam"><td colspan="4">{html.escape(str(cur))}</td></tr>')
+        vn, vr = r["val_n"], (r["val_roi"] or 0)
+        acc = "v-pos" if (vn >= 20 and vr >= 3) else ("v-neg" if (vn >= 20 and vr <= -3) else "v-dim")
+        trs.append(
+            f'<tr class="mko-r {acc}">'
+            f'<td class="mko-mk">{html.escape(r["code"])}</td>'
+            f'<td class="mko-c"><span class="mko-win">{r["win"]}%</span>'
+            f'<i class="mko-n">{r["n"]} préd.</i></td>'
+            + _cell(r["val_n"], r["val_roi"]) + _cell(r["cf_n"], r["cf_roi"]) + '</tr>')
     return ('<div class="sx-card"><div class="sx-h">Aperçu par marché'
-            '<span>fantôme · value · confiance, par seuil</span></div>'
-            f'<div class="exq">{body}</div></div>')
+            '<span>réussite · value · confiance, par seuil</span></div>'
+            f'{intro}<div class="mko-wrap"><table class="mko"><thead><tr>'
+            '<th>Marché</th><th>Réussite</th><th>Value</th><th>Confiance</th></tr></thead>'
+            f'<tbody>{"".join(trs)}</tbody></table></div></div>')
 
 
 def render_reliability(rel: dict | None) -> str:
