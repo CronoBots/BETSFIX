@@ -2031,6 +2031,11 @@ CSS = """
   .prog-card{margin:6px 0}
   .prog-card .mc-head{cursor:default;padding:10px 12px}
   .prog-card .mc-betl.mc-noplay{opacity:.72}
+  /* Carte COMPACTE « prochains lives » (user 2026-08-20) : non cliquable (pas de chevron), + d'air SOUS les
+     équipes (le nom d'équipe ne colle plus au bord bas), et le bloc pari vide ne prend pas de place. */
+  .mc-compact{cursor:default}
+  .mc-compact .mc-teams{margin-bottom:8px}
+  .mc-compact .mc-sub:empty{display:none}
   /* Carte PROVISOIRE avec analyse : cliquable comme un vrai pari (même structure .mc + toggle JS). */
   .prog-card-x .mc-head{cursor:pointer}
   /* Mention « pari provisoire » sous le pari : discrète, avec l'heure de la ré-analyse (coup d'envoi − 1 h). */
@@ -10391,7 +10396,7 @@ def _sport_row(r: dict) -> str:
     # LIVE : intitulé du pari EN HAUT puis SCORE+minute au centre (user 2026-08-15). La « Chance live » n'est
     # PLUS une barre séparée : elle est FUSIONNÉE dans la barre de confiance du verdict (« Confiance live »,
     # calculée plus haut via `_live_pct`). PURE AFFICHAGE : aucun impact ROI/stats/calibration.
-    _chev = "" if _no_expand else '<span class="mc-chev">▸</span>'   # pas de chevron si carte non dépliable
+    _chev = "" if (_no_expand or r.get("_compact")) else '<span class="mc-chev">▸</span>'   # pas de chevron si carte non dépliable / compacte (prochains lives)
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line mc-line-c">'   # ligue CENTRÉE, SANS emoji (user 2026-08-15) ; décompte en absolu à droite
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
@@ -10440,7 +10445,7 @@ def _sport_row(r: dict) -> str:
     # CARTE COMPACTE NON CLIQUABLE (user 2026-08-19 : prochains lives) : plate (pas de corps), classe `prog-card`
     # -> curseur normal, aucun déploiement d'analyse. On sort AVANT le cas cliquable.
     if r.get("_compact"):
-        return (f'<div class="row pick mc mc-flat prog-card{_rcls}">{head}</div>')
+        return (f'<div class="row pick mc prog-card mc-compact{_rcls}">{head}</div>')
     if _no_expand:
         return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
