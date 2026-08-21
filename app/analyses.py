@@ -3173,6 +3173,7 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
     conf_ev: list = []        # paris FOOT du tier CONFIANCE (haute confiance figée) -> stats par tier
     value_ev: list = []       # paris FOOT du tier VALUE (sous le seuil)
     mont_ev: list = []        # paris MONTANTE -> catégorie à part (jamais dans Confiance/Value, user 2026-08-12)
+    _roi_mids: set = set()    # mids DÉJÀ comptés dans all_ev (foot) -> garde anti-double-compte du ROI montante
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -3239,6 +3240,7 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                 _t = tier_of(d, rb)   # confiance / value / montante
                 if _t != "montante":
                     all_ev.append(ev)
+                    _roi_mids.add(str(d.get("id") or ""))   # -> garde anti-double-compte du ROI montante
                     if is_new:
                         since_ev.append(ev)
                 (conf_ev if _t == "confiance" else mont_ev if _t == "montante" else value_ev).append(ev)
@@ -3283,6 +3285,8 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                 _mr = _ms.get("result")
                 if _mr not in ("won", "lost", "push"):
                     continue
+                if str(_ms.get("mid") or "") in _roi_mids:   # GARDE anti-double-compte : le match est DÉJÀ au ROI
+                    continue                                 # (via son pari flagship) -> ne pas le recompter en montante
                 _mdt = (_ms.get("date") or "") + "T00:00:00+00:00"
                 if cutoff is not None:
                     try:
