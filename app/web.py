@@ -8054,7 +8054,14 @@ _LZ_CSS = """
   font-size:9px;font-weight:600}
 .lz .lznav a .ic{font-size:22px;line-height:1;height:24px;display:flex;align-items:center}
 .lz .lznav a.on{color:var(--green)}
+/* Deux familles de paris (Confiance / Value) : cartes jumelles, accent vert vs cyan (user 2026-08-22). */
+.lz .gates.duo{grid-template-columns:1fr 1fr}
+.lz .gate.val .bar{background:var(--accent)}
+.lz .gate.val .tick{background:rgba(34,184,255,.12);color:var(--accent);border-color:rgba(34,184,255,.30)}
+.lz .gate .kpi{display:block;font-family:var(--mono);font-size:12.5px;color:var(--green);margin-top:11px}
+.lz .gate.val .kpi{color:var(--accent)}
 @media (max-width:860px){.lz .hero-grid{grid-template-columns:1fr;gap:28px}.lz .metrics{grid-template-columns:repeat(2,1fr)}
+  .lz .gates.duo{grid-template-columns:1fr}
   .lz .gates,.lz .pillars{grid-template-columns:1fr}.lz .honesty,.lz .calib{grid-template-columns:1fr;gap:26px}.lz .hero{padding-top:34px}
   .lz .decrypt,.lz .demo{grid-template-columns:1fr;gap:28px}}
 @media (prefers-reduced-motion:reduce){.lz *{animation:none!important;transition:none!important}.lz .reveal{opacity:1;transform:none}}
@@ -8243,9 +8250,10 @@ def accueil_body(frag: bool = True) -> str:
           confirme que ça sort autour de 78 %. Fiable, pas décorative.</p></div></div>
       <div class="dc-li"><span class="dc-tag">6</span><div><b>Le marché</b>
         <p>La probabilité qu'implique la cote — le seuil de rentabilité.</p><span class="f">Marché = 100 ÷ cote</span></div></div>
-      <div class="dc-li"><span class="dc-tag">7</span><div><b>La value</b>
-        <p>Ce que la cote paie <b>en trop</b> par rapport à notre confiance. On ne mise que si elle est positive.</p>
-        <span class="f">Value = Confiance × cote − 1</span></div></div>
+      <div class="dc-li"><span class="dc-tag">7</span><div><b>L'edge, puis la value</b>
+        <p>L'<b>edge</b> = de combien on juge le pari plus probable que le marché (78 − 72 = <b>+6 points</b>). La
+          <b>value</b> traduit cet écart <em>en argent</em> — ce que la cote paie en trop. On ne mise que si elle est positive.</p>
+        <span class="f">Edge = confiance − marché · Value = confiance × cote − 1</span></div></div>
       <div class="dc-li"><span class="dc-tag">8</span><div><b>La cote</b>
         <p>Le prix décimal du pari : votre mise <em>multipliée par</em> ce nombre si ça passe (1 € → 1,38 €).</p></div></div>
       <div class="dc-li"><span class="dc-tag">9</span><div><b>Pourquoi ce choix</b>
@@ -8253,6 +8261,50 @@ def accueil_body(frag: bool = True) -> str:
     </div>
   </div>
   <p class="demo-note">Exemple fictif, à but pédagogique — équipes et chiffres illustratifs.</p>
+</div></section>
+
+<section class="blk"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">Comment on analyse</span>
+    <h2>Une IA, des faits croisés, zéro pari au feeling.</h2>
+    <p>Chaque match passe par la même chaîne. Aucune sélection au hasard, aucune opinion isolée — que des nombres
+      vérifiés et recalés sur la réalité.</p></div>
+  <div class="steps">
+    <div class="stp"><span class="n">1</span><div><h3>Sélection</h3>
+      <p>On garde les <b>~24 matchs les plus suivis</b> du jour ; le reste est écarté d'office.</p></div></div>
+    <div class="stp"><span class="n">2</span><div><h3>Dossier de faits</h3>
+      <p>On croise <b>plusieurs sources</b> pour chaque info (forme, blessés, qualité des occasions, séries) plus une
+        <b>référence « sharp »</b> — les bookmakers qui se trompent le moins, notre boussole de probabilité.</p></div></div>
+    <div class="stp"><span class="n">3</span><div><h3>Analyse par une IA</h3>
+      <p>Un <b>agent d'analyse</b> lit tout le dossier, estime la <b>vraie probabilité</b> de chaque issue et retient
+        <b>LE pari le plus sûr</b> qui a de la value — ou <b>s'abstient</b> s'il n'y a rien de solide.</p></div></div>
+    <div class="stp"><span class="n">4</span><div><h3>Double contrôle</h3>
+      <p>Le pari retenu passe devant un <b>panel de validation</b>. Pas de consensus ? Il est écarté.</p></div></div>
+    <div class="stp"><span class="n">5</span><div><h3>Calibration</h3>
+      <p>La confiance est <b>recalée sur notre historique réel</b> : quand on dit « 80 % », l'historique confirme
+        ~80 %. Vérifié en continu sur des milliers de prédictions.</p></div></div>
+    <div class="stp"><span class="n">6</span><div><h3>Publication, gel &amp; règlement</h3>
+      <p>Publié <b>~1-2 h avant</b> le coup d'envoi, puis <b>gelé</b> (plus aucun changement), et <b>réglé honnêtement</b>
+        après le match — gagné comme perdu.</p></div></div>
+  </div>
+</div></section>
+
+<section class="blk"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">Deux familles de paris</span>
+    <h2>Confiance et Value : deux façons de gagner.</h2>
+    <p>Tous nos paris sont value-positifs. On les classe selon leur profil — la <b>sûreté</b> d'un côté, le
+      <b>rendement</b> de l'autre.</p></div>
+  <div class="gates duo">
+    <div class="gate"><span class="bar"></span><span class="step">⭐ LE PHARE</span>
+      <h3><span class="tick">⭐</span> Confiance</h3>
+      <p>Confiance calibrée <b>≥ 75 %</b> sur un marché <b>prouvé fiable</b>. Cote courte, on gagne très souvent :
+        c'est le taux qu'on met en avant.</p>
+      <span class="kpi">~85-90 % de réussite · cote ~1,3</span></div>
+    <div class="gate val"><span class="bar"></span><span class="step">💎 LE RENDEMENT</span>
+      <h3><span class="tick">💎</span> Value</h3>
+      <p>Confiance plus modérée, mais la cote <b>paie en trop</b>. Perd un peu plus souvent — <b>mais rentable sur
+        la durée</b>, c'est mathématique, pas de la chance.</p>
+      <span class="kpi">plus de variance · meilleur ROI long terme</span></div>
+  </div>
 </div></section>
 
 <section class="blk"><div class="lzw">
