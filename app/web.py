@@ -8370,12 +8370,18 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
     # analyser » et doit RESTER dans le Programme. Le combiné / la montante sont des OVERLAYS (le même match peut
     # donc figurer au Programme/Abstention/Confiance/Value ET dans Combiné/Montante). Ainsi les 20 matchs du jour
     # sont TOUS représentés par leur état de pari simple, sans « trou ».
+    _now = datetime.now(timezone.utc)
     pending, abst = [], []
     for m, dt in items:
         mid = str(m.get("id"))
         d = analyses.meta(sport, mid)
-        if d is None:                                      # pas encore analysé -> PROGRAMME (données brutes -> grille)
-            pending.append((m, dt))
+        if d is None:                                      # pas encore analysé
+            # Un match NON analysé dont le COUP D'ENVOI EST PASSÉ n'a plus rien à faire au Programme : il n'est
+            # plus jouable (pré-match uniquement) et polluait la liste avec une heure d'analyse périmée (ex. « analyse
+            # ~19:00 » affiché à 23:08 sur un match de 20:00 jamais analysé faute de budget). On le RETIRE. user 2026-08-21.
+            if dt is not None and dt <= _now:
+                continue
+            pending.append((m, dt))                        # à venir + pas analysé -> PROGRAMME (grille)
             continue
         if analyses.is_settled(d):
             _sb = analyses.stat_bet(d)
