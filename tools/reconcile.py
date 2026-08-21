@@ -233,17 +233,15 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                     continue
                 if notify.get_prono(f"combo_daily_result_{_day}"):
                     continue                       # résultat déjà posté
-                _rcard = _cddr.build_combo_daily_card(_c, result=True)
-                if not _rcard:
-                    continue
-                os.makedirs("data/_cards", exist_ok=True)
-                _rpng = f"data/_cards/combo_daily_result_{_day}.png"
-                await _cir.render_card(_rcard, _rpng)
-                _reply = notify.get_prono(f"combo_daily_{_day}")     # répond au prono du combiné
-                _rsent = notify.send_photo_sync(_rpng, "", reply_to=_reply)
+                _reply = notify.get_prono(f"combo_daily_{_day}")     # carte prono du combiné
+                if not _reply:
+                    continue                       # prono jamais posté -> pas de résultat ORPHELIN
+                # RÉSULTAT = réponse « ✅ / ❌ » au prono (user 2026-08-22), plus de carte résultat. ➖ = remboursé.
+                _emo = {"won": "✅", "lost": "❌"}.get(_c.get("result"), "➖")
+                _rsent = notify.reply_sync(_emo, _reply)
                 if _rsent:
                     notify.remember_prono(f"combo_daily_result_{_day}", _rsent, f"Combiné résultat {_day}")
-                    print(f"  · résultat combiné {_day} posté sur Telegram.")
+                    print(f"  · résultat combiné {_day} posté (réponse {_emo}).")
         except Exception as exc:
             print(f"  (résultat combiné Telegram ignoré : {exc})")
         # COMBINÉ SÉCURITÉ FOOT (double chance la plus sûre ~2, info seule hors ROI) : règle + tranche.
@@ -279,27 +277,15 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                     continue
                 if notify.get_prono(f"montante_daily_result_{_mday}"):
                     continue                       # résultat déjà posté
-                if not notify.get_prono(f"montante_daily_{_mday}"):
-                    continue                       # prono jamais posté (palier figé AVANT la feature Telegram, ou
-                    # envoi raté) -> pas de résultat ORPHELIN (« Gagné » d'un pari jamais annoncé). On thread
-                    # toujours le résultat sous son prono ; sans prono, on n'affiche rien.
-                _msc = ""
-                try:
-                    _mm = _anm.meta("foot", str(_st.get("mid") or "")) or {}
-                    _msc = ((_mm.get("result") or {}).get("score")) or ""
-                except Exception:
-                    _msc = ""
-                _mrcard = _cddm.build_montante_card({**_st, "score": _msc}, result=True)
-                if not _mrcard:
-                    continue
-                os.makedirs("data/_cards", exist_ok=True)
-                _mrpng = f"data/_cards/montante_result_{_mday}.png"
-                await _cim.render_card(_mrcard, _mrpng)
-                _mreply = notify.get_prono(f"montante_daily_{_mday}")     # répond au prono de la montante
-                _mrsent = notify.send_photo_sync(_mrpng, "", reply_to=_mreply)
+                _mreply = notify.get_prono(f"montante_daily_{_mday}")     # carte prono de la montante
+                if not _mreply:
+                    continue                       # prono jamais posté -> pas de résultat ORPHELIN
+                # RÉSULTAT = réponse « ✅ / ❌ » au prono (user 2026-08-22), plus de carte résultat. ➖ = remboursé.
+                _emo = {"won": "✅", "lost": "❌"}.get(_st.get("result"), "➖")
+                _mrsent = notify.reply_sync(_emo, _mreply)
                 if _mrsent:
                     notify.remember_prono(f"montante_daily_result_{_mday}", _mrsent, f"Montante résultat {_mday}")
-                    print(f"  · résultat montante {_mday} posté sur Telegram.")
+                    print(f"  · résultat montante {_mday} posté (réponse {_emo}).")
         except Exception as exc:
             print(f"  (résultat montante Telegram ignoré : {exc})")
 

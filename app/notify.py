@@ -236,6 +236,40 @@ def send_photo_sync(png_path: str, caption: str = "", reply_to: dict | None = No
     return sent
 
 
+def reply_sync(text: str, reply_to: dict | None = None) -> dict:
+    """Répond (message TEXTE court) à la carte prono d'un match (fil prono -> résultat). `reply_to` =
+    {chat_id: message_id}. Sert au règlement : « ✅ » / « ❌ » en RÉPONSE à la carte du pari, sans carte
+    résultat ni texte verbeux (user 2026-08-22). Renvoie {chat: message_id} des réponses réussies (dict vide
+    si rien). No-op si non configuré ; n'élève jamais."""
+    tok, chats = _config()
+    if not (tok and chats):
+        return {}
+    reply_to = reply_to or {}
+    sent: dict = {}
+    try:
+        with httpx.Client(timeout=12) as cl:
+            for ch in chats:
+                try:
+                    data = {"chat_id": ch, "text": text[:200], "parse_mode": "HTML",
+                            "disable_web_page_preview": True}
+                    rid = reply_to.get(str(ch)) or reply_to.get(ch)
+                    if rid:                                   # répond à la carte prono liée
+                        data["reply_to_message_id"] = rid
+                        data["allow_sending_without_reply"] = True
+                    r = cl.post(f"https://api.telegram.org/bot{tok}/sendMessage", json=data)
+                    if r.status_code == 200:
+                        mid = (r.json().get("result") or {}).get("message_id")
+                        if mid:
+                            sent[str(ch)] = mid
+                    else:
+                        log.warning("reply %s -> HTTP %s : %s", ch, r.status_code, r.text[:200])
+                except Exception as exc:
+                    log.warning("reply Telegram %s échoué : %s", ch, exc)
+    except Exception as exc:
+        log.warning("reply Telegram (client) échoué : %s", exc)
+    return sent
+
+
 def send_sync(text: str, clean: bool = False) -> bool:
     """Variante synchrone (contextes hors boucle asyncio). Mêmes garanties + nettoyage du post précédent."""
     tok, chats = _config()

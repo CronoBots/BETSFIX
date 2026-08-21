@@ -2038,30 +2038,26 @@ async def _settle_analyses_impl() -> int:
                 os.makedirs("data/_cards", exist_ok=True)
                 for _i, (msg, card) in enumerate(zip(notify_msgs, notify_cards)):
                     sent = None
-                    render_ok = False
-                    if card:                        # carte image (Option 2 : tout dans l'image)
+                    # RÉSULTAT = simple RÉPONSE « ✅ / ❌ » à la carte du pari (user 2026-08-22 : plus de carte
+                    # résultat ni de texte verbeux). ➖ pour un remboursement (push/void). Fil prono -> résultat.
+                    _mk = ((card.get("simple") or {}).get("mark")
+                           or (card.get("combo") or {}).get("mark")) if card else None
+                    if card and _mk:
                         try:
-                            png = f"data/_cards/res_{_i}.png"
-                            await card_image.render_card(card, png)
-                            render_ok = True        # la carte EXISTE -> le texte n'est plus un repli
-                            # AUTO-RÉPARATION : carte résultat déjà postée pour ce match (correction) ->
-                            # on la SUPPRIME avant d'envoyer la version corrigée (sinon 2 cartes en conflit).
+                            # AUTO-RÉPARATION : une réponse résultat déjà postée (règlement corrigé) est SUPPRIMÉE
+                            # avant de reposter la bonne (plus de « ❌ » fantôme qui traîne dans le fil).
                             if card.get("_old_result_msg"):
                                 await asyncio.to_thread(notify.delete_messages, card["_old_result_msg"])
-                            # répond à la carte PRONO du même match (fil prono -> résultat)
-                            _reply = notify.get_prono(card.get("_mid"))
-                            # envoi BLOQUANT (httpx upload) -> hors event loop pour ne pas figer l'API
-                            sent = await asyncio.to_thread(notify.send_photo_sync, png, "", _reply)
+                            _reply = notify.get_prono(card.get("_mid"))   # répond à la carte PRONO du même match
+                            _emo = {"won": "✅", "lost": "❌"}.get(_mk, "➖")
+                            # envoi BLOQUANT (httpx) -> hors event loop pour ne pas figer l'API
+                            sent = await asyncio.to_thread(notify.reply_sync, _emo, _reply)
                         except Exception as ce:
-                            log.warning("carte résultat échouée, repli texte : %s", ce)
+                            log.warning("réponse résultat échouée : %s", ce)
                     _ok = bool(sent)
-                    # Repli texte UNIQUEMENT si la CARTE n'a pas pu être PRODUITE (pas de carte / rendu
-                    # échoué). Si la carte est rendue mais l'ENVOI photo échoue/expire (sent vide alors
-                    # que la photo a PU partir : rafale -> timeout Telegram), on NE poste PAS le texte ->
-                    # plus de DOUBLON image+texte. _ok reste False -> R2 ré-essaie la CARTE à la passe
-                    # suivante (flag non figé), bornée par notify_tries : zéro perte, zéro doublon.
-                    if not render_ok:
-                        _ok = bool(await notify.send(msg))
+                    # Plus de repli texte verbeux : le résultat est un simple ✅/❌. Un échec d'envoi laisse
+                    # `_ok=False` -> les flags ne sont pas figés -> re-tenté à la passe suivante (borné par
+                    # notify_tries) : zéro perte, zéro doublon.
                     # NOTIF PUSH PWA « résultat » (user 2026-08-16) — best-effort, jamais bloquant/élevant.
                     if _ok and card:
                         try:

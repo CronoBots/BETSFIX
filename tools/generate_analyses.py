@@ -992,7 +992,7 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                             os.makedirs("data/_cards", exist_ok=True)
                             _cpng = f"data/_cards/{_tgkey}.png"
                             await _ci_c.render_card(_ccard, _cpng)
-                            _csent = _notify.send_photo_sync(_cpng, _tgcap)
+                            _csent = _notify.send_photo_sync(_cpng, "")   # image seule (user 2026-08-22 : plus de légende)
                             if _csent:
                                 _notify.remember_prono(f"{_tgkey}_{_cday}", _csent, _label)
                                 print(f"     ↳ combiné {_label} publié sur Telegram (image).")
@@ -1054,11 +1054,10 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                             _mcard = _cdd_m.build_montante_card(_mpick)
                             if _mcard:
                                 os.makedirs("data/_cards", exist_ok=True)
-                                _mcard["_no_why"] = True          # image sans pourquoi -> analyse en LÉGENDE
-                                _mcap = _ci_m.why_caption(_mcard)
+                                # IMAGE SEULE (user 2026-08-22) : « pourquoi » DANS l'image, aucune légende texte.
                                 _mpng = "data/_cards/montante_daily.png"
                                 await _ci_m.render_card(_mcard, _mpng)
-                                _msent = _notify.send_photo_sync(_mpng, _mcap)
+                                _msent = _notify.send_photo_sync(_mpng, "")
                                 if _msent:
                                     _notify.remember_prono(f"montante_daily_{_cd_mt.day_key()}", _msent, "Montante du jour")
                                     print("     ↳ montante du jour publiée sur Telegram (image).")
@@ -3732,13 +3731,12 @@ async def main():
                     if not _card:
                         continue
                     _sent = None
-                    try:                            # carte image + POURQUOI en LÉGENDE (user 2026-08-19 : image
-                        # SANS le pourquoi, l'analyse part en texte SOUS l'image).
-                        _card["_no_why"] = True
-                        _cap = card_image.why_caption(_card)
+                    try:                            # IMAGE SEULE (user 2026-08-22 : « juste les images, plus
+                        # d'analyse écrite »). Le « pourquoi » est rendu DANS l'image (carte complète auto-portée,
+                        # pas de `_no_why`) et l'envoi n'a AUCUNE légende texte.
                         _png = f"data/_cards/scan_{_i}.png"
                         await card_image.render_card(_card, _png)
-                        _sent = notify.send_photo_sync(_png, _cap)
+                        _sent = notify.send_photo_sync(_png, "")
                         if _sent:                    # mémorise l'id du prono -> le résultat y répondra
                             notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
                             # NOTIF PUSH PWA « nouveau prono » (user 2026-08-16) — best-effort, jamais bloquant.
