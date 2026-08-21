@@ -3758,9 +3758,9 @@ async def main():
                             except Exception:
                                 pass
                     except Exception as _ce:
-                        print(f"  (carte image échouée, repli texte : {_ce})")
-                    if not _sent:                   # la carte EXISTE mais rendu/envoi KO -> repli texte
-                        await notify.send(_line)
+                        print(f"  (carte image échouée : {_ce})")
+                    # Plus de repli TEXTE (user 2026-08-22 : images seules). Un envoi image raté laisse le prono
+                    # NON mémorisé -> reconcile le re-poste en IMAGE (< 3 h avant le KO). Zéro texte, zéro perte.
         except Exception as _exc:
             print(f"  (notif Telegram ignorée : {_exc})")
 
