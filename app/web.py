@@ -366,10 +366,15 @@ CSS = """
      vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
      sous la barre. */
   @media (max-width:999px){
-    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-width:720px;margin:0 auto;
-            padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    /* BARRE = ENFANT FLEX STATIQUE au bas de la colonne 100dvh du body (PAS `position:fixed`). Le mélange
+       « body 100dvh + .wrap scroll interne + barre FIXE » créait une ZONE MORTE sous la barre (elle flottait
+       au-dessus du vrai bas). En statique, la barre EST le dernier enfant flex -> collée au bas visible, et son
+       `padding-bas = 6px + safe-area` peint la zone home-indicator iPhone avec la couleur de la barre.
+       (user 2026-08-22 : aligne enfin sur le comportement « premier coup » des autres projets.) */
+    .botnav{padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
             box-shadow:0 -8px 28px rgba(0,0,0,.45)}
-    .wrap{padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px))}   /* +marge pour que le « 18+ » ne colle pas au menu (user 2026-08-19) */
+    /* .wrap ne réserve PLUS ~78px pour une barre fixe : la barre statique est un FRÈRE en-dessous, pas un
+       recouvrement -> le padding-bas de base (22px) suffit (le « 18+ » ne colle pas à la barre). */
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
