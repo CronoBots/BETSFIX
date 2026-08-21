@@ -279,7 +279,7 @@ CSS = """
   *{box-sizing:border-box}
   /* Fond html = COULEUR DE LA NAV (#0b0d12) : la zone du home-indicator iPhone (PWA standalone), non
      couverte par body/nav, montrait sinon un TROU NOIR sous la barre du bas. Là elle se fond dedans. */
-  html{-webkit-text-size-adjust:100%;overflow:hidden;overscroll-behavior:none;background:#0b0d12}
+  html{-webkit-text-size-adjust:100%;overscroll-behavior:none;background:#0b0d12}   /* PAS d'overflow:hidden -> le body doit pouvoir scroller (modèle CRYPTONAUTS, user 2026-08-22) */
   /* FILET DE SÉCURITÉ safe-area (user 2026-08-16) : le fond du body (#070708) RECOUVRE le html -> en PWA
      standalone une ZONE NOIRE apparaissait sous la nav (home-indicator iOS). On peint cette bande, en FIXE,
      avec la couleur de la nav (#0b0d12), sous la barre (z<nav). */
@@ -300,7 +300,11 @@ CSS = """
   @font-face{font-family:'Segoe UI';font-weight:700 900;font-style:normal;font-display:swap;
        src:local('Segoe UI Bold'),url('/static/fonts/selawik-bold.woff') format('woff')}
   body{margin:0;color:var(--text);font-size:14.5px;line-height:1.45;width:100%;
-       height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none;
+       /* MODÈLE DE SCROLL = CRYPTONAUTS (user 2026-08-22) : le BODY scrolle normalement (plus de coquille
+          `height:100dvh;overflow:hidden` + scroll interne `.wrap`, qui calait mal en PWA iOS -> zone morte
+          sous la barre). La barre est `position:fixed;bottom:0` et le body RÉSERVE sa hauteur via padding-bas. */
+       min-height:100dvh;overscroll-behavior-y:none;
+       padding-bottom:calc(62px + env(safe-area-inset-bottom, 0px));
        font-family:'Segoe UI',Roboto,Arial,sans-serif;   /* police des cartes Telegram (demande user 2026-07-12) */
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
        -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
@@ -314,12 +318,12 @@ CSS = """
        background:
          radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
          radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%),
-         var(--bg);}
+         var(--bg);background-attachment:fixed;}   /* halos FIXES même quand le body scrolle */
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   /* Zone de contenu = SEUL élément qui scrolle (flex:1). La barre du bas étant désormais un frère
      statique en dessous,
   plus besoin de réserver ~86px en bas : un petit espace suffit. */
-  .wrap{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;width:100%;
+  .wrap{width:100%;
         position:relative;
         max-width:720px;margin:0 auto;display:flex;flex-direction:column;
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
@@ -366,15 +370,12 @@ CSS = """
      vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
      sous la barre. */
   @media (max-width:999px){
-    /* BARRE = ENFANT FLEX STATIQUE au bas de la colonne 100dvh du body (PAS `position:fixed`). Le mélange
-       « body 100dvh + .wrap scroll interne + barre FIXE » créait une ZONE MORTE sous la barre (elle flottait
-       au-dessus du vrai bas). En statique, la barre EST le dernier enfant flex -> collée au bas visible, et son
-       `padding-bas = 6px + safe-area` peint la zone home-indicator iPhone avec la couleur de la barre.
-       (user 2026-08-22 : aligne enfin sur le comportement « premier coup » des autres projets.) */
-    .botnav{padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    /* BARRE FIXE en bas (recette EXACTE CRYPTONAUTS, user 2026-08-22) : le body scrolle et RÉSERVE la hauteur
+       de la barre via son padding-bas -> la barre `position:fixed;bottom:0` est collée au VRAI bas de l'écran
+       (plus de zone morte), son `padding-bas = 6px + safe-area` peint la zone home-indicator iPhone. */
+    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;
+            padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
             box-shadow:0 -8px 28px rgba(0,0,0,.45)}
-    /* .wrap ne réserve PLUS ~78px pour une barre fixe : la barre statique est un FRÈRE en-dessous, pas un
-       recouvrement -> le padding-bas de base (22px) suffit (le « 18+ » ne colle pas à la barre). */
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
@@ -3863,7 +3864,7 @@ _SPA_JS = (
     "p.innerHTML='<div class=ldg>Erreur de chargement. Touchez l\\'onglet pour réessayer.</div>';});}"
     "function go(t,push){var p=panel(t);if(!p)return;load(p);show(t);"
     "if(push)try{history.pushState({tab:t},'',p.getAttribute('data-src'));}catch(e){}"
-    "var sc=document.querySelector('.wrap');if(sc)sc.scrollTop=0;else window.scrollTo(0,0);}"
+    "window.scrollTo(0,0);}"
     # panneau actif (rendu serveur) = déjà chargé -> on pose SON badge à la main (jamais passé par load) ;
     # on précharge les autres tout de suite (load pose leur badge).
     "var c=P.children,i;for(i=0;i<c.length;i++){"
@@ -3886,7 +3887,7 @@ _SPA_JS = (
     "fetch('/stats?frag=1&since='+a.getAttribute('data-since'),{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){sp.innerHTML=h;"
     "if(window._twScan)window._twScan(sp);if(window._mcInit)window._mcInit(sp);"
-    "var sc=sp.querySelector('.wrap')||document.querySelector('.wrap');if(sc)sc.scrollTop=0;});});"
+    "window.scrollTo(0,0);});});"
     # (handlers data-info/data-dvg/data-exp/.mc : déplacés dans _CARDS_JS, partagé avec layout)
     # rafraîchissement auto des COTES/SCORES live : on ré-interroge le panneau actif toutes les
     # 45 s, UNIQUEMENT s'il contient un direct (.live) ET qu'aucun accordéon n'est ouvert
@@ -3903,8 +3904,8 @@ _SPA_JS = (
     "var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){"
-    "var sc=document.querySelector('.wrap');var y=sc?sc.scrollTop:window.scrollY;"
-    "p.innerHTML=h;if(window._mcInit)window._mcInit(p);if(sc)sc.scrollTop=y;else window.scrollTo(0,y);})"
+    "var y=window.scrollY;"
+    "p.innerHTML=h;if(window._mcInit)window._mcInit(p);window.scrollTo(0,y);})"
     ".catch(function(){});}"
     "setInterval(fresh,45000);})();"
 )
