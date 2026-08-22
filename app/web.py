@@ -329,14 +329,12 @@ CSS = """
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo centré tout en haut, en DÉFILEMENT NORMAL (bannière fixe annulée, demande user 2026-08-02).
      Desktop masque .toplogo (logo en sidebar). */
-  .toplogo{display:block;text-align:center;margin:20px 0 12px;position:relative}
-  /* HALO RADIAL derrière le logo (user 2026-08-22) : centré sur le logo, DANS sa marge -> toujours visible,
-     jamais recouvert par le contenu du panneau (l'ancien drop-shadow vers le bas était noyé sur Live/Accueil). */
-  .toplogo::before{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-       width:300px;height:130px;max-width:92%;pointer-events:none;z-index:0;
-       background:radial-gradient(ellipse at center,rgba(34,184,255,.30) 0%,rgba(34,184,255,.10) 42%,transparent 70%)}
-  .toplogo img{position:relative;z-index:1;height:auto;width:auto;max-height:46px;max-width:72%;
-               filter:drop-shadow(0 4px 13px rgba(34,184,255,.45))}
+  .toplogo{display:block;text-align:center;margin:20px 0 12px}
+  /* HALO = glow SYMÉTRIQUE collé au wordmark (drop-shadow 0-offset), pas une grosse ellipse de fond (user
+     2026-08-22 : l'ellipse était trop forte + coupée par le contenu). Épouse le logo -> visible sur TOUS les
+     onglets, jamais recouvert, subtil. */
+  .toplogo img{height:auto;width:auto;max-height:46px;max-width:72%;
+               filter:drop-shadow(0 0 12px rgba(34,184,255,.32)) drop-shadow(0 4px 10px rgba(34,184,255,.24))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
   /* ICÔNE SEULE (demande user 2026-08-01 : plus de texte « Compte », il chevauchait le logo). Bouton ROND
      compact dans le coin -> ne déborde plus sur le logo BETSFIX centré. */
