@@ -375,10 +375,8 @@ def _simple_card_html(d: dict) -> str:
         + (f'<div class="sgl">{e(d.get("gloss"))}</div>' if d.get("gloss") else "")
         + f'<div class="vgrid">{_cells}</div>'           # GRILLE d'abord
         + f'{_bar}'                                       # BARRE SOUS les stats (comme le site, user 2026-08-17)
-        + '</div>'
-        # « POURQUOI » RETIRÉ DE L'IMAGE quand `_no_why` (user 2026-08-19) : sur Telegram, l'analyse est
-        # désormais envoyée en LÉGENDE (texte sous l'image, via `why_caption`), plus dans l'image.
-        + ("" if d.get("_no_why") else _why_bullets_html(d, e)))
+        + '</div>')                                       # « POURQUOI » TOUJOURS RETIRÉ de l'image (user 2026-08-22,
+        # tous types) : sur Telegram, l'image ne porte QUE le pari + les chiffres, aucune analyse dans le PNG.
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard">{inner}</div></body></html>')
 
@@ -454,7 +452,7 @@ def _combo_card_html(d: dict) -> str:
                         "push": ("REMBOURSÉ", "push"), "void": ("REMBOURSÉ", "push")}.get(mark, ("", "push"))
             _extra = f'<div class="sres {_vc}">{_vt}</div>' if _vt else ""
         else:
-            _extra = _why_bullets_html(lg, e)
+            _extra = ""                                   # « pourquoi » de la jambe RETIRÉ de l'image (user 2026-08-22)
         _blocks += (
             f'<div class="clg">'
             + (f'<div class="clg-lg">{e(lg.get("lg"))}</div>' if lg.get("lg") else "")
@@ -468,7 +466,7 @@ def _combo_card_html(d: dict) -> str:
             '</div>')
     _tot = (f'<div class="ctot"><span class="ctot-l">Cote combinée</span>'
             f'<span class="ctot-v">{e(d.get("cote", ""))}</span></div>')
-    _syn = f'<div class="csyn">{e(d.get("synth"))}</div>' if d.get("synth") else ""
+    _syn = ""      # synthèse « pourquoi ce combiné » RETIRÉE de l'image (user 2026-08-22)
     _cm = d.get("combo_mark") or ""
     _ccls = "won" if _cm == "won" else ("lost" if _cm == "lost" else ("push" if _cm in ("push", "void") else ""))
     inner = (
@@ -550,22 +548,17 @@ def _card_html(d: dict) -> str:
         if _vtxt:
             inner += f'<div class="verdict {_verdict}">{_mark(_verdict, 34)}{e(_vtxt)}</div>'
     elif d.get("type") == "combo":
-        if d.get("synth"):                             # synthèse du combiné (corrélation) — pro, en tête
-            inner += f'<div class="synth">{e(d["synth"])}</div>'
+        # « pourquoi » (synthèse + analyse par jambe) RETIRÉ de l'image (user 2026-08-22, tous types).
         inner += f'<div class="beth">Combiné · {len(d.get("legs",[]))} sélections</div>'
         for leg in d.get("legs", []):                  # legs = (marché, pick, cote[, why])
             mkt, pk, cote = leg[0], leg[1], leg[2]
-            why = leg[3] if len(leg) > 3 else ""
             inner += (f'<div class="leg">{_selh(e, mkt, pk)}'
                       f'<span class="o">{e(str(cote))}</span></div>')
-            if why:                                    # ANALYSE de la jambe (comme l'app)
-                inner += f'<div class="legwhy">{e(why)}</div>'
         inner += (f'<div class="cote"><span class="l">Cote combinée</span>'
                   f'<span class="v">{e(str(d.get("cote","")))}</span></div>')
     else:
         inner += f'<div class="leg">{_selh(e, d.get("market",""), d.get("pick",""))}</div>'
-        if d.get("why"):                               # ANALYSE du pari simple (comme l'app)
-            inner += f'<div class="legwhy">{e(d["why"])}</div>'
+        # « pourquoi » du simple RETIRÉ de l'image (user 2026-08-22, tous types).
         if d.get("conf"):                              # confiance AU-DESSUS de la cote
             inner += f'<div class="conf">Confiance <b>{e(str(d["conf"]))}%</b></div>'
         inner += (f'<div class="cote"><span class="l">Cote</span>'

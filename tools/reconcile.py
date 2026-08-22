@@ -66,7 +66,8 @@ async def _repost(d: dict) -> bool:
         if not card:                       # pas de value à publier -> normal, on n'envoie rien
             return False
         os.makedirs("data/_cards", exist_ok=True)
-        # IMAGE SEULE (user 2026-08-22) : « pourquoi » DANS l'image (pas de `_no_why`), aucune légende texte.
+        # IMAGE SEULE (user 2026-08-22) : le « pourquoi » n'est PLUS rendu dans l'image (retiré côté card_image
+        # pour tous les types) ; aucune légende texte non plus. L'image ne porte que le pari + les chiffres.
         png = f"data/_cards/reconcile_{d.get('sport')}_{d.get('id')}.png"
         await card_image.render_card(card, png)
         sent = notify.send_photo_sync(png, "")

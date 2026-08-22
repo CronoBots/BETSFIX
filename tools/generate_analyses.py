@@ -3738,8 +3738,8 @@ async def main():
                         continue
                     _sent = None
                     try:                            # IMAGE SEULE (user 2026-08-22 : « juste les images, plus
-                        # d'analyse écrite »). Le « pourquoi » est rendu DANS l'image (carte complète auto-portée,
-                        # pas de `_no_why`) et l'envoi n'a AUCUNE légende texte.
+                        # d'analyse écrite »). Le « pourquoi » n'est PLUS rendu dans l'image (retiré côté
+                        # card_image pour tous les types) ; l'envoi n'a AUCUNE légende texte non plus.
                         _png = f"data/_cards/scan_{_i}.png"
                         await card_image.render_card(_card, _png)
                         _sent = notify.send_photo_sync(_png, "")
