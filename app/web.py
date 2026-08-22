@@ -376,6 +376,10 @@ CSS = """
     .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;
             padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
             box-shadow:0 -8px 28px rgba(0,0,0,.45)}
+    /* Le body scrolle -> `.wrap` doit remplir AU MOINS un écran (moins la barre) pour que la chaîne flex:1
+       ci-dessous ait de la hauteur à répartir. Sans ça (jour léger), les catégories se tassent en haut et le
+       « 18+ » colle au dernier pari au lieu de descendre près de la barre (user 2026-08-22). */
+    .wrap{min-height:calc(100dvh - 62px - env(safe-area-inset-bottom, 0px))}
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
@@ -493,6 +497,12 @@ CSS = """
   bascule sans rechargement) */
   .panel{display:none}
   .panel.on{display:block;animation:panein .22s cubic-bezier(.22,.85,.3,1)}
+  /* Transition DIRECTIONNELLE au changement d'onglet (clic OU swipe, user 2026-08-22) : le panneau entrant
+     glisse depuis la droite (onglet suivant) ou la gauche (précédent). `go()` pose sl-next/sl-prev sur #panels. */
+  #panels.sl-next .panel.on{animation:slNext .26s cubic-bezier(.22,.85,.3,1)}
+  #panels.sl-prev .panel.on{animation:slPrev .26s cubic-bezier(.22,.85,.3,1)}
+  @keyframes slNext{from{opacity:.25;transform:translateX(28px)}to{opacity:1;transform:none}}
+  @keyframes slPrev{from{opacity:.25;transform:translateX(-28px)}to{opacity:1;transform:none}}
   @keyframes fadein{from{opacity:.4}to{opacity:1}}
   .ldg{color:var(--dim);text-align:center;padding:40px 0;font-size:13px}
   .ldg::before{content:"";display:block;width:22px;height:22px;margin:0 auto 12px;border-radius:50%;
@@ -3867,7 +3877,12 @@ _SPA_JS = (
     "if(window._sxAnim)window._sxAnim(p);if(window._daycalSync)window._daycalSync();})"
     ".catch(function(){p.removeAttribute('data-loaded');"
     "p.innerHTML='<div class=ldg>Erreur de chargement. Touchez l\\'onglet pour réessayer.</div>';});}"
-    "function go(t,push){var p=panel(t);if(!p)return;load(p);show(t);"
+    "function _tabList(){var nav=document.querySelectorAll('.botnav a'),o=[],k;for(k=0;k<nav.length;k++){var tk=nav[k].getAttribute('data-tab');if(panel(tk))o.push(tk);}return o;}"
+    "function _curTab(){var cc=P.children,k;for(k=0;k<cc.length;k++)if(cc[k].classList.contains('on'))return cc[k].getAttribute('data-tab');return null;}"
+    "function go(t,push){var p=panel(t);if(!p)return;"
+    "var tl=_tabList(),d=tl.indexOf(t)-tl.indexOf(_curTab());"  # direction de la transition (slide)
+    "P.classList.remove('sl-next','sl-prev');if(d>0)P.classList.add('sl-next');else if(d<0)P.classList.add('sl-prev');"
+    "load(p);show(t);"
     "if(push)try{history.pushState({tab:t},'',p.getAttribute('data-src'));}catch(e){}"
     "window.scrollTo(0,0);}"
     # panneau actif (rendu serveur) = déjà chargé -> on pose SON badge à la main (jamais passé par load) ;
@@ -3893,10 +3908,7 @@ _SPA_JS = (
     "var el=document.elementFromPoint(_swx,_swy);"
     "while(el&&el!==document.body){var ov=getComputedStyle(el).overflowX;"
     "if((ov==='auto'||ov==='scroll')&&el.scrollWidth>el.clientWidth+4)return;el=el.parentElement;}"
-    "var nav=document.querySelectorAll('.botnav a'),tabs=[],i;"
-    "for(i=0;i<nav.length;i++){var tk=nav[i].getAttribute('data-tab');if(panel(tk))tabs.push(tk);}"
-    "var act=null,cc=P.children;for(i=0;i<cc.length;i++)if(cc[i].classList.contains('on')){act=cc[i].getAttribute('data-tab');break;}"
-    "var idx=tabs.indexOf(act);if(idx<0)return;var ni=dx<0?idx+1:idx-1;"
+    "var tabs=_tabList(),idx=tabs.indexOf(_curTab());if(idx<0)return;var ni=dx<0?idx+1:idx-1;"
     "if(ni<0||ni>=tabs.length)return;go(tabs[ni],true);},{passive:true});"
     # Filtre temporel des stats : clic sur un bouton période -> recharge le panneau stats (since)
     "P.addEventListener('click',function(e){"
