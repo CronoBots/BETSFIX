@@ -2420,6 +2420,8 @@ CSS = """
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
   .zone-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
+  /* Sous-titre collé au titre de zone (ex. « Palier N » sous « MONTANTE ») : plus PETIT, casse normale (user 2026-08-22). */
+  .zone-sub{margin-left:8px;font-size:11.5px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--muted);align-self:center}
   /* Badge compteur + chevron POUSSÉS À DROITE (user 2026-08-17 : « badge aligné à droite près de la flèche »). */
   .zone-right{margin-left:auto;display:inline-flex;align-items:center;gap:8px;flex:none}
   /* Compteur simple d'une zone SANS win/loss (Programme / Abstention) — même pastille que Confiance/Value. */
@@ -6922,7 +6924,7 @@ _ZONE_ICON = {
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
           record: tuple | None = None, zk: str | None = None,
-          leg_results: list | None = None) -> str:
+          leg_results: list | None = None, subtitle: str = "") -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
     de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
     sur un filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les
@@ -7009,7 +7011,9 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     # · 🎯 Combiné · ⏸ Abstention · 📋 Programme), discrète à gauche du titre.
     _ic = _ZONE_ICON.get(kind, "")
     _ich = f'<span class="zone-ic">{_ic}</span>' if _ic else ""
-    head = (f'{_ich}<span class="zone-t">{html.escape(title)}</span>{t}')   # point (.zone-dot) retiré (user 2026-08-08)
+    # SOUS-TITRE petit collé au titre (user 2026-08-22 : « Palier N » écrit plus petit que « Montante »).
+    _sub = f'<span class="zone-sub">{html.escape(subtitle)}</span>' if subtitle else ""
+    head = (f'{_ich}<span class="zone-t">{html.escape(title)}</span>{_sub}{t}')   # point (.zone-dot) retiré (user 2026-08-08)
     if collapsible:
         op = " open" if open_ else ""
         # `data-zk` = clé de persistance du repli (localStorage, JS `_CAL_JS`) : ton choix plier/déplier
@@ -7724,8 +7728,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _mont_rec = (1, 0, 0, 1 if _mbr == "won" else 0, 1 if _mbr in ("lost", "void", "push") else 0, 0)
     # ZONE MONTANTE TOUJOURS AFFICHÉE (user 2026-08-19 : « afficher tous les types de paris ») — même vide, avec
     # un message d'état. Titre = « Montante • Palier N » s'il y a un palier, sinon « Montante ».
-    out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "", len(play_mont), _mont_html,
+    _mt_split = (_mont_title or "Montante").split(" · ", 1)   # « Montante · Palier N » -> titre + sous-titre PETIT
+    out.append(_zone("mont", _mt_split[0], "", len(play_mont), _mont_html,
                      collapsible=True, record=_mont_rec if _mont_rec[0] else None,
+                     subtitle=(_mt_split[1] if len(_mt_split) > 1 else ""),
                      empty="Aucun palier engagé pour l'instant."))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
@@ -7786,10 +7792,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out.insert(2, _zone("combo", _plur(_n_combos, "Combiné"), "", _n_combos, combo_daily,
                         collapsible=True, record=_combo_rec,
                         empty="Aucun combiné du jour pour l'instant."))
-    # ABSTENTION en dernier des catégories (ce qu'on ne joue pas). Le PROGRAMME passe EN PREMIER (user
-    # 2026-08-17 « Oui » : chaque match commence au programme -> il OUVRE la liste), au-dessus des paris.
-    _abst_html = _abstention_zone(sport or "foot")
-    out.append(_abst_html)
+    # ABSTENTIONS RETIRÉES du programme du jour (user 2026-08-22) : on ne montre plus ce qu'on ne joue pas.
+    _abst_html = ""
     _prog_html = _programme_schedule(sport or "foot")
     # JOURNÉE TOTALEMENT VIDE (tôt le matin AVANT le scan de 08h, ou jour calme) : au lieu de 2 accordéons
     # Confiance/Value repliés sur un grand vide (message caché), on montre un ÉTAT VIDE PREMIUM (orbe + timing).
@@ -7821,12 +7825,9 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     s = _daily_results_map().get(iso) or {}
     won, settled, profit = s.get("won", 0), s.get("settled", 0), s.get("profit", 0.0)
     roi = round(100 * profit / settled) if settled else 0
-    if settled:
-        pcls = "pos" if profit > 1e-9 else ("neg" if profit < -1e-9 else "neu")
-        summ = (f'<div class="day-sum"><div class="day-sum-l"><b>{won}/{settled}</b> gagnés</div>'
-                f'<div class="day-sum-roi {pcls}">{"+" if roi >= 0 else "−"}{abs(roi)}% ROI</div></div>')
-    else:
-        summ = '<div class="day-sum day-sum-empty">Aucun pari réglé ce jour.</div>'
+    # CADRE « bilan du jour » (ROI + nb de paris) RETIRÉ de l'historique (user 2026-08-22). Le bilan vit dans
+    # Résultats ; l'historique Programme ne montre QUE les cartes par type.
+    summ = ""
     # ZONE COMBINÉ = combiné du jour (combo_daily) ET/OU combinés SIDECAR (legacy/CdM). Un combiné a son PROPRE
     # type -> il n'apparaît PLUS dans Confiance (fix user 2026-08-19 : combiné 3 jambes affiché en Confiance le 19/07).
     _combo_daily_html, _combo_daily_legs, _n_daily_combo, _dc_res = "", None, 0, []
@@ -7852,19 +7853,19 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
         if _n_daily_combo and not _combo_sidecar:          # combiné(s) du jour SEUL(s)
             if _n_daily_combo == 1:                        # un seul -> dots par jambe
                 combo = _zone("combo", _plur(1, "Combiné"), "", 1, _combo_body,
-                              collapsible=True, open_=False, zk="pj-combo", leg_results=_combo_daily_legs)
+                              collapsible=True, open_=True, zk="pj-combo", leg_results=_combo_daily_legs)
             else:                                          # deux -> badge W/L agrégé
                 _w = sum(1 for r in _dc_res if r == "won")
                 _l = sum(1 for r in _dc_res if r == "lost")
                 _rec = (_n_daily_combo, _n_daily_combo - _w - _l, 0, _w, _l, 0)
                 combo = _zone("combo", _plur(_n_daily_combo, "Combiné"), "", _n_daily_combo,
-                              _combo_body, collapsible=True, open_=False, zk="pj-combo", record=_rec)
+                              _combo_body, collapsible=True, open_=True, zk="pj-combo", record=_rec)
         else:                                                       # combinés sidecar -> badge gagnés/perdus
             _wc, _lc, _pc = _settled_wl_today(iso, sport, tier="combo")
             _ntot = (_wc + _lc + _pc) + _n_daily_combo
             _crec = (_ntot, 0, 0, _wc, _lc, _pc) if _ntot else None
             combo = _zone("combo", _plur(_ntot or 1, "Combiné"), "", _ntot or 1, _combo_body,
-                          collapsible=True, open_=False, zk="pj-combo", record=_crec)
+                          collapsible=True, open_=True, zk="pj-combo", record=_crec)
     # HISTORIQUE PAR TYPE DE PARI (user 2026-08-19 : « revoir les TYPES de paris et les résultats ») : mêmes
     # cartes riches que l'onglet (verdict/score/Pourquoi, cadre vert/rouge, via `_settled_bet_result_cards`),
     # SPLIT par tier comme la vue du jour : Confiance · Value · Montante · Combiné · Provisoire. Le tier est
@@ -7892,17 +7893,17 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
     _zones = []
     if _res_conf:
         _zones.append(_zone("play", "Confiance", "", len(_res_conf), _MC_SEP.join(_res_conf),
-                            collapsible=True, open_=False, zk="pj-play", record=_rec("confiance")))
+                            collapsible=True, open_=True, zk="pj-play", record=_rec("confiance")))
     if _res_value:
         _zones.append(_zone("value", "Value", "", len(_res_value), _MC_SEP.join(_res_value),
-                            collapsible=True, open_=False, zk="pj-value", record=_rec("value")))
+                            collapsible=True, open_=True, zk="pj-value", record=_rec("value")))
     if _res_mont:
         _zones.append(_zone("mont", "Montante", "", len(_res_mont), _MC_SEP.join(_res_mont),
-                            collapsible=True, open_=False, zk="pj-mont", record=_rec("montante")))
+                            collapsible=True, open_=True, zk="pj-mont", record=_rec("montante")))
     if combo:
         _zones.append(combo)
     if _prov_res:
-        _zones.append(_zone("indic", "Provisoire", "", 1, _prov_res, collapsible=True, open_=False, zk="pj-indic"))
+        _zones.append(_zone("indic", "Provisoire", "", 1, _prov_res, collapsible=True, open_=True, zk="pj-indic"))
     cards = "".join(_zones)
     inner = summ + cards
     if not cards:
@@ -11025,9 +11026,7 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             f'<div class="le-h">Aucun match {_zlabel} en direct</div>'
             '<div class="le-sub">Les scores en temps réel — set par set, quart-temps — '
             's\'affichent ici dès qu\'une rencontre analysée démarre.</div>'
-            '<div class="le-cta">'
-            '<a class="le-btn le-btn-p" href="/">📅 Voir les matchs à venir</a>'
-            '</div></div>')
+            '</div>')   # bouton « Voir les matchs à venir » retiré (user 2026-08-22)
     else:
         # MÊMES TYPES QUE PRONOS : Confiance (montante incluse) → Value → Provisoire → Combiné. Split
         # Confiance/Value par le `tier` de chaque carte (user 2026-08-09) ; Value masquée si vide / split off.
@@ -11049,8 +11048,10 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         if _play_v:
             out.append(_zone("value", "Value", "en direct", len(_play_v), _cards(_play_v), zk="live-value", **_lz))
         if _play_m:
-            out.append(_zone("mont", (_mont_title or "Montante").replace(" · ", " • "), "en direct",
-                             len(_play_m), _cards(_play_m), zk="live-mont", **_lz))
+            _mt_lv = (_mont_title or "Montante").split(" · ", 1)
+            out.append(_zone("mont", _mt_lv[0], "en direct",
+                             len(_play_m), _cards(_play_m), zk="live-mont",
+                             subtitle=(_mt_lv[1] if len(_mt_lv) > 1 else ""), **_lz))
         out += [
             _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
                   zk="live-indic", **_lz),
