@@ -3389,6 +3389,9 @@ CSS = """
        filter:drop-shadow(0 3px 22px rgba(246,197,74,.5))}}
   .mont-hero-live .mhx-cap{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
        color:var(--muted);margin-top:1px}
+  /* Palier atteint, en PILULE dorée juste sous le multiplicateur (user 2026-08-22). */
+  .mont-hero-live .mhx-pal{display:inline-block;margin-top:9px;font-size:11px;font-weight:800;letter-spacing:.03em;
+       color:#f6c54a;background:rgba(246,197,74,.12);border:1px solid rgba(246,197,74,.32);border-radius:999px;padding:3px 12px}
   .mont-prog{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:15px;padding-top:14px;
        border-top:1px solid rgba(255,255,255,.08)}
   .mont-prog .mp-cell{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -8895,6 +8898,7 @@ def render_montante(st: dict, example: dict) -> str:
             '<div class="mont-hero mont-hero-live">'
             '<div class="mhe">Multiplicateur actuel</div>'
             f'<div class="mhx">×{_qtxt}</div>'
+            f'<div class="mhx-pal">Palier {palier} atteint</div>'
             '<div class="mhx-cap">sur la mise de départ</div>'
             '<div class="mont-prog">'
             f'<div class="mp-cell"><b>{_mont_eur(base)}</b><span>Départ</span></div>'
