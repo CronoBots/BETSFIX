@@ -8090,10 +8090,11 @@ _LZ_CSS = """
   text-transform:uppercase;color:var(--faint);padding:2px 30px 13px}
 .lz .dm-match{position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:8px;padding:2px 0 15px}
 .lz .dm-team{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
-.lz .dm-crest{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-weight:800;font-size:18px;color:var(--ink);
+.lz .dm-crest{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:18px;color:var(--ink);overflow:hidden;
   background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.15),rgba(255,255,255,.03));
   border:1px solid var(--line2);box-shadow:inset 0 1px 0 rgba(255,255,255,.10)}
+.lz .dm-crest img{width:34px;height:34px;object-fit:contain;display:block}
 .lz .dm-nm{font-size:14.5px;font-weight:700;line-height:1.15}
 .lz .dm-mid{display:flex;flex-direction:column;align-items:center;gap:5px;padding:2px 6px 0}
 .lz .dm-time{font-size:26px;font-weight:800;letter-spacing:.01em}
@@ -8113,6 +8114,13 @@ _LZ_CSS = """
 .lz .dm-s{font-size:11.5px;color:var(--green);font-weight:600}
 .lz .dm-barwrap{height:9px;border-radius:999px;background:rgba(255,255,255,.06);margin-top:14px;overflow:hidden}
 .lz .dm-bar{height:100%;border-radius:999px;background:linear-gradient(90deg,#1f9d57,#37d07f)}
+/* Bande edge+value AJOUTÉE pour l'exemple (user 2026-08-22) : pas sur la vraie carte -> séparateur pointillé
+   qui signale « les chiffres derrière la décision ». */
+.lz .dm-extra{position:relative;display:flex;justify-content:center;gap:26px;margin-top:13px;
+  padding-top:12px;border-top:1px dashed var(--line2)}
+.lz .dm-x{display:flex;align-items:baseline;gap:6px}
+.lz .dm-xl{text-transform:uppercase;letter-spacing:.05em;font-size:10.5px;color:var(--faint);font-weight:700}
+.lz .dm-xv{color:var(--green);font-weight:800;font-size:15px}
 .lz .dc-why{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:var(--ink);
   border-top:1px solid var(--line);margin:11px -18px 0;padding:13px 18px;position:relative}.lz .dc-why .chev{color:var(--faint)}
 .lz .dc-tag{display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--green);color:var(--accent-ink);
@@ -8476,11 +8484,11 @@ def accueil_body(frag: bool = True) -> str:
     <p>Voici exactement ce que vous recevez sur chaque pari — chiffre par chiffre, sans jargon.</p></div>
   <div class="demo">
     <div class="dcard">
-      <div class="dm-lg">PAYS-BAS · EREDIVISIE<span class="dc-tag dc-tr">1</span></div>
+      <div class="dm-lg">EUROPE · LIGUE DES CHAMPIONS<span class="dc-tag dc-tr">1</span></div>
       <div class="dm-match"><span class="dc-tag dc-cc">2</span>
-        <div class="dm-team"><span class="dm-crest">R</span><span class="dm-nm">AC Rivera</span></div>
-        <div class="dm-mid"><span class="dm-time">20:45</span><span class="dm-cd">05h09m</span><span class="dc-tag dm-c3">3</span></div>
-        <div class="dm-team"><span class="dm-crest">V</span><span class="dm-nm">Sporting Vale</span></div>
+        <div class="dm-team"><span class="dm-crest"><img src="/crest?name=Manchester City" alt="" loading="lazy"></span><span class="dm-nm">Manchester City</span></div>
+        <div class="dm-mid"><span class="dm-time">21:00</span><span class="dm-cd">05h09m</span><span class="dc-tag dm-c3">3</span></div>
+        <div class="dm-team"><span class="dm-crest"><img src="/crest?name=Real Madrid" alt="" loading="lazy"></span><span class="dm-nm">Real Madrid</span></div>
       </div>
       <div class="dm-bet"><span class="dc-tag dc-cc">4</span>
         <div class="dm-pick">Plus de 1.5 buts</div>
@@ -8488,15 +8496,19 @@ def accueil_body(frag: bool = True) -> str:
         <div class="dm-sep"></div>
         <div class="dm-stats">
           <div class="dm-st"><span class="dc-tag dc-cc">5</span><span class="dm-l">Confiance</span><span class="dm-v green">79%</span><span class="dm-s">élevée</span></div>
-          <div class="dm-st"><span class="dc-tag dc-cc">6</span><span class="dm-l">Cote</span><span class="dm-v">1.22</span></div>
+          <div class="dm-st"><span class="dc-tag dc-cc">6</span><span class="dm-l">Cote</span><span class="dm-v">1.38</span></div>
         </div>
         <div class="dm-barwrap"><div class="dm-bar" style="width:79%"></div></div>
+        <div class="dm-extra"><span class="dc-tag dc-cc">7</span>
+          <span class="dm-x"><span class="dm-xl">Edge</span><span class="dm-xv">+7 pts</span></span>
+          <span class="dm-x"><span class="dm-xl">Value</span><span class="dm-xv">+9%</span></span>
+        </div>
       </div>
-      <div class="dc-why">Pourquoi ce pari <span class="chev">▾</span><span class="dc-tag dc-tr">7</span></div>
+      <div class="dc-why">Pourquoi ce pari <span class="chev">▾</span><span class="dc-tag dc-tr">8</span></div>
     </div>
     <div class="dc-legend">
       <div class="dc-li"><span class="dc-tag">1</span><div><b>La compétition</b>
-        <p>Le pays et la ligue du match — le contexte, d'un coup d'œil.</p></div></div>
+        <p>La zone et la compétition du match — le contexte, d'un coup d'œil.</p></div></div>
       <div class="dc-li"><span class="dc-tag">2</span><div><b>Les équipes</b>
         <p>L'affiche avec les logos. Domicile à gauche, extérieur à droite.</p></div></div>
       <div class="dc-li"><span class="dc-tag">3</span><div><b>Le coup d'envoi</b>
@@ -8508,10 +8520,12 @@ def accueil_body(frag: bool = True) -> str:
         <p>Notre probabilité de gain, <b>recalibrée sur notre relevé réel</b> : quand on annonce 79 %, l'historique
           confirme que ça sort autour de 79 %. La barre verte la reprend en repère visuel — fiable, pas décorative.</p></div></div>
       <div class="dc-li"><span class="dc-tag">6</span><div><b>La cote</b>
-        <p>Le prix décimal du pari : votre mise <em>multipliée par</em> ce nombre si ça passe (1 € → 1,22 €).
-          On ne publie un pari que si sa <b>value</b> est positive — l'écart qu'on juge en notre faveur.</p>
-        <span class="f">Value = confiance × cote − 1</span></div></div>
-      <div class="dc-li"><span class="dc-tag">7</span><div><b>Pourquoi ce pari</b>
+        <p>Le prix décimal du pari : votre mise <em>multipliée par</em> ce nombre si ça passe (1 € → 1,38 €).</p></div></div>
+      <div class="dc-li"><span class="dc-tag">7</span><div><b>L'edge, puis la value</b>
+        <p>L'<b>edge</b> = l'écart entre notre confiance (79 %) et ce qu'implique la cote (72 %) : <b>+7 points</b>.
+          La <b>value</b> traduit cet écart <em>en argent</em> — ce que la cote paie en trop. On ne mise que si elle est positive.</p>
+        <span class="f">Edge = confiance − marché · Value = confiance × cote − 1</span></div></div>
+      <div class="dc-li"><span class="dc-tag">8</span><div><b>Pourquoi ce pari</b>
         <p>L'analyse complète du match en un tap : forme, contexte, risque assumé. Rien n'est caché.</p></div></div>
     </div>
   </div>
