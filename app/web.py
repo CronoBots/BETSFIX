@@ -318,7 +318,9 @@ CSS = """
        background:
          radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
          radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%),
-         var(--bg);background-attachment:fixed;}   /* halos FIXES même quand le body scrolle */
+         var(--bg);}   /* dégradé attaché au body (chaque onglet démarre à scroll 0 -> halos visibles pareil ;
+            PAS background-attachment:fixed qui, sur iOS, dimensionne le dégradé au document entier et rend le
+            fond différent selon la longueur de la page — user 2026-08-22). */
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   /* Zone de contenu = SEUL élément qui scrolle (flex:1). La barre du bas étant désormais un frère
      statique en dessous,
@@ -7999,10 +8001,11 @@ _LZ_CSS = """
 .lz .cc::before{display:none}
 .lz .cc-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
 .lz .cc-h .t{font-size:13px;font-weight:600;color:var(--dim)}.lz .cc-h .roi{font-size:15px;font-weight:700;color:var(--green)}
-.lz svg.cv{display:block;width:100%;height:180px}
-.lz .cv path.ln{fill:none;stroke:url(#lzln);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;
-  filter:drop-shadow(0 4px 10px rgba(52,210,123,.4))}
-.lz .cv .ep{fill:var(--gb)}.lz .cv .z0{stroke:rgba(150,182,222,.18);stroke-width:1;stroke-dasharray:3 4}
+.lz svg.cv{display:block;width:100%;height:150px}
+/* Courbe FINE (user 2026-08-22 : « le graph est trop gras ») : trait plus léger + ombre douce. */
+.lz .cv path.ln{fill:none;stroke:url(#lzln);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;
+  filter:drop-shadow(0 2px 6px rgba(52,210,123,.28));vector-effect:non-scaling-stroke}
+.lz .cv .ep{fill:var(--gb)}.lz .cv .z0{stroke:rgba(150,182,222,.16);stroke-width:.8;stroke-dasharray:3 4}
 .lz .cc-f{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:4px}
 .lz section.blk{position:relative;padding:56px 0;border-top:1px solid var(--line)}
 .lz .sec-head{max-width:56ch;margin-bottom:34px}
@@ -8115,16 +8118,22 @@ _LZ_CSS = """
 .lz .gate.val .tick{background:rgba(34,184,255,.12);color:var(--accent);border-color:rgba(34,184,255,.30)}
 .lz .gate .kpi{display:block;font-family:var(--mono);font-size:12.5px;color:var(--green);margin-top:11px}
 .lz .gate.val .kpi{color:var(--accent)}
-@media (max-width:860px){.lz .hero-grid{grid-template-columns:1fr;gap:28px}.lz .metrics{grid-template-columns:repeat(2,1fr)}
+@media (max-width:860px){.lz .hero-grid{grid-template-columns:1fr;gap:24px}.lz .metrics{grid-template-columns:repeat(2,1fr)}
   .lz .gates.duo{grid-template-columns:1fr}
-  .lz .gates,.lz .pillars{grid-template-columns:1fr}.lz .honesty,.lz .calib{grid-template-columns:1fr;gap:26px}.lz .hero{padding-top:34px}
-  .lz .decrypt,.lz .demo{grid-template-columns:1fr;gap:28px}}
+  .lz .gates,.lz .pillars{grid-template-columns:1fr}.lz .honesty,.lz .calib{grid-template-columns:1fr;gap:26px}.lz .hero{padding-top:30px}
+  .lz .decrypt,.lz .demo{grid-template-columns:1fr;gap:28px}
+  /* HERO CENTRÉ sur mobile (user 2026-08-22 : « recentrer ») : grand nombre, texte et CTA au centre. */
+  .lz .hero-grid>div:first-child{text-align:center;display:flex;flex-direction:column;align-items:center}
+  .lz .sh{justify-content:center}
+  .lz h1.tag,.lz .lede{max-width:26ch;margin-left:auto;margin-right:auto}
+  .lz .cta-row{justify-content:center}}
 /* ============ PASSE PREMIUM ACCUEIL (user 2026-08-22) : hero · verre · typo · reveal ============ */
 /* Hero : aura douce derrière le grand nombre (subtile, jamais recouverte -> dans le bloc .sh) */
 .lz .sh{position:relative}
 .lz .sh>*{position:relative;z-index:1}
-.lz .sh::before{content:"";position:absolute;left:-2%;top:4%;width:56%;height:90%;z-index:0;pointer-events:none;
-  background:radial-gradient(56% 60% at 40% 50%,rgba(34,184,255,.15),transparent 72%);filter:blur(2px)}
+.lz .sh::before{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:118%;height:150%;z-index:0;pointer-events:none;
+  background:radial-gradient(52% 58% at 50% 50%,rgba(34,184,255,.16),transparent 72%);filter:blur(2px)}
 .lz .sh .big{filter:drop-shadow(0 8px 34px rgba(34,184,255,.22))}
 /* Cartes VERRE (semi-transparentes -> on floute ce qui est derrière) + profondeur premium (ombre + liseré interne) */
 .lz .cc,.lz .dcard{-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2)}
