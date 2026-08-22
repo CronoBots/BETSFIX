@@ -8135,13 +8135,47 @@ _LZ_CSS = """
   width:118%;height:150%;z-index:0;pointer-events:none;
   background:radial-gradient(52% 58% at 50% 50%,rgba(34,184,255,.16),transparent 72%);filter:blur(2px)}
 .lz .sh .big{filter:drop-shadow(0 8px 34px rgba(34,184,255,.22))}
-/* Cartes VERRE (semi-transparentes -> on floute ce qui est derrière) + profondeur premium (ombre + liseré interne) */
-.lz .cc,.lz .dcard{-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2)}
+/* Profondeur premium (ombre douce + liseré interne). PAS de backdrop-filter : sur iOS il re-calcule le flou
+   à chaque frame de scroll -> le contenu derrière « bouge » puis se fige (user 2026-08-22). */
 .lz .cc,.lz .tkt,.lz .dcard,.lz .gate,.lz .verdict{
   box-shadow:0 22px 50px -30px rgba(0,0,0,.78),inset 0 1px 0 rgba(255,255,255,.05)}
 .lz .cc{position:relative}
 .lz .cc::after{content:"";position:absolute;left:0;right:0;top:0;height:1px;z-index:2;
   background:linear-gradient(90deg,transparent,rgba(34,184,255,.55),transparent)}
+/* ===== HERO PREMIUM « WOW » (refonte user 2026-08-22) : centré, grand nombre chromé, courbe pleine largeur. ===== */
+.lz .hstage{max-width:600px;margin:0 auto;text-align:center;display:flex;flex-direction:column;align-items:center}
+.lz .hstage .hb{margin-bottom:20px}
+.lz .hnum{position:relative;display:inline-flex;align-items:flex-start;line-height:.8;margin-top:2px}
+.lz .hnum::before{content:"";position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);
+  width:150%;height:180%;z-index:0;pointer-events:none;
+  background:radial-gradient(50% 55% at 50% 50%,rgba(34,184,255,.22),transparent 70%);filter:blur(4px)}
+.lz .hnum .big{position:relative;z-index:1;font-weight:800;font-size:clamp(104px,30vw,190px);letter-spacing:-.05em;
+  background:linear-gradient(178deg,#ffffff 3%,#e2f0ff 28%,var(--accent2) 64%,var(--accent) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 12px 34px rgba(34,184,255,.32))}
+.lz .hnum .pct{position:relative;z-index:1;font-weight:800;font-size:clamp(34px,8vw,60px);color:var(--accent);
+  margin-top:.28em;margin-left:.04em}
+.lz .hnum-line{width:76px;height:3px;border-radius:3px;margin:15px 0 13px;
+  background:linear-gradient(90deg,transparent,var(--accent),var(--accent2),transparent)}
+.lz .hsub{font-size:15px;color:var(--dim);margin-bottom:4px}.lz .hsub b{color:var(--ink);font-weight:600}
+.lz .htag{font-size:clamp(23px,5.2vw,33px);font-weight:800;letter-spacing:-.02em;line-height:1.12;margin:10px 0 26px;max-width:20ch}
+.lz .htag .hl{background:linear-gradient(90deg,var(--accent2),var(--accent));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.lz .hcurve{width:100%;margin:0 0 22px;padding:15px 18px 11px;border-radius:18px;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,rgba(34,184,255,.06),rgba(34,184,255,.015));
+  border:1px solid rgba(34,184,255,.28);box-shadow:0 22px 50px -32px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.04)}
+.lz .hcurve::after{content:"";position:absolute;left:0;right:0;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(34,184,255,.5),transparent)}
+.lz .hcurve-top{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--dim);font-weight:600;margin-bottom:8px}
+.lz .hcurve-top .roi{color:var(--green);font-size:14px;font-family:var(--mono)}
+.lz .hcurve svg.cv{height:118px}
+.lz .hcurve-f{display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:5px}
+.lz .hkpis{display:flex;width:100%;max-width:460px;gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:22px}
+.lz .hk{flex:1;background:linear-gradient(180deg,rgba(255,255,255,.028),transparent 42%),var(--gr2);padding:14px 8px}
+.lz .hk b{display:block;font-size:20px;font-weight:800;letter-spacing:-.01em}
+.lz .hk span{display:block;font-size:9.5px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.lz .hstage .cta-note{margin-top:13px}
 /* Typo éditoriale : titres posés, plus d'air */
 .lz section.blk{padding:62px 0}
 .lz .sec-head h2{letter-spacing:-.02em;line-height:1.09}
@@ -8163,12 +8197,12 @@ _LZ_ANIM_JS = (
     "if(!lz||lz._an||lz.offsetParent===null)return;"  # panneau caché (préchargé) -> on attend qu'il soit affiché
     "if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches){lz._an=1;return;}"
     "lz._an=1;lz.classList.add('js-anim');"
-    "var sel='.hero-grid,.metrics,.sec-head,.demo,.steps .stp,.gates .gate,.calib>div,.verdict,.final h2,.final p,.final .cta-row';"
+    "var sel='.hkpis,.sec-head,.demo,.steps .stp,.gates .gate,.calib>div,.verdict,.final h2,.final p,.final .cta-row';"
     "var els=lz.querySelectorAll(sel),i;"
     "if(!('IntersectionObserver' in window)){for(i=0;i<els.length;i++)els[i].classList.add('reveal','in');}"
     "else{var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}});},{threshold:.08,rootMargin:'0px 0px -6% 0px'});"
     "for(i=0;i<els.length;i++){els[i].classList.add('reveal');els[i].style.transitionDelay=((i%5)*45)+'ms';io.observe(els[i]);}}"
-    "var big=lz.querySelector('.sh .big');if(big){var tv=parseInt(big.textContent,10);"
+    "var big=lz.querySelector('.hnum .big');if(big){var tv=parseInt(big.textContent,10);"
     "if(tv>0){big.textContent='0';var s0=null;var cu=function(ts){if(!s0)s0=ts;var k=Math.min(1,(ts-s0)/900);"
     "big.textContent=Math.round(tv*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(cu);};requestAnimationFrame(cu);}}"
     "var p=lz.querySelector('.cv path.ln');if(p&&p.getTotalLength){var L=p.getTotalLength();"
@@ -8298,36 +8332,33 @@ def accueil_body(frag: bool = True) -> str:
 <div class="lz">
 
 <div class="hero"><div class="lzw">
-  <div class="hero-grid">
-    <div>
-      <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · paris Confiance · {_LZ_SINCE_LABEL}</span></span>
-      <div class="sh"><span class="big num">{s['pct']}</span><span class="pct">%</span></div>
-      <div class="sh-cap"><b class="num">{s['won']} gagnés / {s['total']}</b> · relevé réel, pas une projection</div>
-      <h1 class="tag">Les autres vendent des certitudes. <span class="hl">Nous, un relevé.</span></h1>
-      <p class="lede">Aucun prono « sûr à 100 % ». Chaque pari est chiffré, filtré, publié — <b>gagnant comme
-        perdant</b>. Vous décidez sur des nombres, pas sur des promesses.</p>
-      <div class="cta-row">
-        <a class="btn lg" href="/signup">Voir les pronos du jour →</a>
-        <span class="cta-note">Sans engagement · résiliable en un clic</span>
-      </div>
-    </div>
-    <div class="cc">
-      <div class="cc-h"><span class="t">Bénéfice cumulé · football</span><span class="roi num">ROI {roi_txt}</span></div>
+  <div class="hstage">
+    <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · relevé réel · {_LZ_SINCE_LABEL}</span></span>
+    <div class="hnum"><span class="big num">{s['pct']}</span><span class="pct">%</span></div>
+    <div class="hnum-line"></div>
+    <div class="hsub">de réussite sur nos <b>paris Confiance</b> · <b class="num">{s['won']} gagnés / {s['total']}</b></div>
+    <h1 class="htag">Pas des promesses. <span class="hl">Un relevé.</span></h1>
+    <div class="hcurve">
+      <div class="hcurve-top"><span>Bénéfice cumulé · football</span><span class="roi num">ROI {roi_txt}</span></div>
       <svg class="cv" viewBox="0 0 100 42" preserveAspectRatio="none" aria-label="Courbe de bénéfice cumulé, en hausse">
         <defs><linearGradient id="lzln" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="var(--accent2)"/><stop offset="1" stop-color="var(--accent)"/></linearGradient></defs>
+          <stop offset="0" stop-color="var(--accent2)"/><stop offset="1" stop-color="var(--accent)"/></linearGradient>
+          <linearGradient id="lzfill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="rgba(52,210,123,.20)"/><stop offset="1" stop-color="rgba(52,210,123,0)"/></linearGradient></defs>
+        <path class="area" d="{cd} L100,42 L0,42 Z" fill="url(#lzfill)" stroke="none"/>
         <line class="z0" x1="0" y1="{zy}" x2="100" y2="{zy}"/>
         <path class="ln" d="{cd}"/>
-        <circle class="ep" cx="{ex}" cy="{ey}" r="2.4"/>
+        <circle class="ep" cx="{ex}" cy="{ey}" r="1.7"/>
       </svg>
-      <div class="cc-f"><span>7 juin</span><span class="mono">{prof_txt} · mise plate 1 u</span><span>aujourd'hui</span></div>
+      <div class="hcurve-f"><span>7 juin</span><span class="mono">{prof_txt} · mise plate 1 u</span><span>aujourd'hui</span></div>
     </div>
-  </div>
-  <div class="metrics">
-    <div class="metric"><div class="k">Taux de réussite</div><div class="v green num">{s['pct']} %</div></div>
-    <div class="metric"><div class="k">ROI (mise plate)</div><div class="v green num">{roi_txt}</div></div>
-    <div class="metric"><div class="k">Pertes</div><div class="v num">{s['total'] - s['won']} <small>/ {s['total']}</small></div></div>
-    <div class="metric"><div class="k">Meilleure série</div><div class="v num">{s['best']} <small>d'affilée</small></div></div>
+    <div class="hkpis">
+      <div class="hk"><b class="green num">{roi_txt}</b><span>rentabilité</span></div>
+      <div class="hk"><b class="num">{s['total']}</b><span>paris réglés</span></div>
+      <div class="hk"><b class="num">{s['best']}</b><span>meilleure série</span></div>
+    </div>
+    <div class="cta-row"><a class="btn lg" href="/signup">Voir les pronos du jour →</a></div>
+    <span class="cta-note">Sans engagement · résiliable en un clic</span>
   </div>
 </div></div>
 
@@ -8374,7 +8405,6 @@ def accueil_body(frag: bool = True) -> str:
         <p>L'analyse complète du match en un tap : forme, contexte, risque assumé. Rien n'est caché.</p></div></div>
     </div>
   </div>
-  <p class="demo-note">Exemple fictif, à but pédagogique — équipes et chiffres illustratifs.</p>
 </div></section>
 
 <section class="blk"><div class="lzw">
