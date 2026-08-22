@@ -8108,10 +8108,12 @@ _LZ_CSS = """
 .lz .dm-sep{height:1px;background:var(--line);margin:13px -15px}
 /* Rangée métriques IDENTIQUE à la vraie carte (user 2026-08-22) : Confiance · Edge · Value · Cote,
    4 colonnes égales, filets verticaux — edge & value AU MÊME ENDROIT que sur une carte Confiance/Value. */
-.lz .dm-stats{display:grid;grid-template-columns:repeat(4,1fr);text-align:center}
-.lz .dm-st{position:relative;display:flex;flex-direction:column;gap:3px;padding:2px 3px;
+.lz .dm-stats{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;margin-top:6px}
+.lz .dm-st{position:relative;display:flex;flex-direction:column;gap:3px;padding:22px 3px 2px;
   border-left:1px solid var(--line);min-width:0}
 .lz .dm-st:first-child{border-left:none}
+/* pastille d'annotation d'une CELLULE métrique : centrée AU-DESSUS du libellé (plus par-dessus) — user 2026-08-22 */
+.lz .dc-tag.dm-ct{position:absolute;top:0;left:50%;transform:translateX(-50%);margin:0;width:17px;height:17px;font-size:10px;z-index:2}
 .lz .dm-l{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
 .lz .dm-v{font-size:18px;font-weight:800;line-height:1.05;white-space:nowrap}.lz .dm-v.green{color:var(--green)}
 .lz .dm-st:first-child .dm-v,.lz .dm-st:last-child .dm-v{font-size:20px}   /* Confiance & Cote = héros, comme la vraie carte */
@@ -8492,10 +8494,10 @@ def accueil_body(frag: bool = True) -> str:
         <div class="dm-gloss">au moins 2 buts au total (les 2 équipes)</div>
         <div class="dm-sep"></div>
         <div class="dm-stats">
-          <div class="dm-st"><span class="dc-tag dc-cc">5</span><span class="dm-l">Confiance</span><span class="dm-v green">79%</span><span class="dm-s">élevée</span></div>
-          <div class="dm-st"><span class="dc-tag dc-cc">6</span><span class="dm-l">Edge</span><span class="dm-v green">+7 pts</span></div>
-          <div class="dm-st"><span class="dc-tag dc-cc">7</span><span class="dm-l">Value</span><span class="dm-v green">+9%</span></div>
-          <div class="dm-st"><span class="dc-tag dc-cc">8</span><span class="dm-l">Cote</span><span class="dm-v">1.38</span></div>
+          <div class="dm-st"><span class="dc-tag dm-ct">5</span><span class="dm-l">Confiance</span><span class="dm-v green">79%</span><span class="dm-s">élevée</span></div>
+          <div class="dm-st"><span class="dc-tag dm-ct">6</span><span class="dm-l">Edge</span><span class="dm-v green">+7 pts</span></div>
+          <div class="dm-st"><span class="dc-tag dm-ct">7</span><span class="dm-l">Value</span><span class="dm-v green">+9%</span></div>
+          <div class="dm-st"><span class="dc-tag dm-ct">8</span><span class="dm-l">Cote</span><span class="dm-v">1.38</span></div>
         </div>
         <div class="dm-barwrap"><div class="dm-bar" style="width:79%"></div></div>
       </div>
