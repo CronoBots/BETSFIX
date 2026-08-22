@@ -283,7 +283,7 @@ CSS = """
      les onglets, quelle que soit la longueur de la page (user 2026-08-22 : Résultats/Accueil, pages longues,
      avaient un fond dilué car le dégradé était sur le body dimensionné au contenu). PAS d'overflow:hidden
      (le body doit scroller, modèle CRYPTONAUTS). */
-  html{-webkit-text-size-adjust:100%;overscroll-behavior:none;
+  html{-webkit-text-size-adjust:100%;overscroll-behavior:none;color-scheme:dark;
        background:radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
                   radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%),
                   var(--bg)}
@@ -4327,6 +4327,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
+<meta name="color-scheme" content="dark">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preload" as="image" href="/static/wordmark.png?v=1"><link rel="preload" as="image" href="/static/logo.png?v=3">
@@ -4372,6 +4373,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
+<meta name="color-scheme" content="dark">
 <title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preload" as="image" href="/static/wordmark.png?v=1"><link rel="preload" as="image" href="/static/logo.png?v=3">
