@@ -8106,21 +8106,18 @@ _LZ_CSS = """
 .lz .dm-pick{text-align:center;font-size:17px;font-weight:700}
 .lz .dm-gloss{text-align:center;font-size:13px;color:var(--dim);margin-top:3px}
 .lz .dm-sep{height:1px;background:var(--line);margin:13px -15px}
-.lz .dm-stats{display:grid;grid-template-columns:1fr 1fr;text-align:center}
-.lz .dm-st{position:relative;display:flex;flex-direction:column;gap:2px;padding:2px 0}
-.lz .dm-st:first-child{border-right:1px solid var(--line)}
-.lz .dm-l{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
-.lz .dm-v{font-size:27px;font-weight:800;line-height:1.05}.lz .dm-v.green{color:var(--green)}
-.lz .dm-s{font-size:11.5px;color:var(--green);font-weight:600}
+/* Rangée métriques IDENTIQUE à la vraie carte (user 2026-08-22) : Confiance · Edge · Value · Cote,
+   4 colonnes égales, filets verticaux — edge & value AU MÊME ENDROIT que sur une carte Confiance/Value. */
+.lz .dm-stats{display:grid;grid-template-columns:repeat(4,1fr);text-align:center}
+.lz .dm-st{position:relative;display:flex;flex-direction:column;gap:3px;padding:2px 3px;
+  border-left:1px solid var(--line);min-width:0}
+.lz .dm-st:first-child{border-left:none}
+.lz .dm-l{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.lz .dm-v{font-size:18px;font-weight:800;line-height:1.05;white-space:nowrap}.lz .dm-v.green{color:var(--green)}
+.lz .dm-st:first-child .dm-v,.lz .dm-st:last-child .dm-v{font-size:20px}   /* Confiance & Cote = héros, comme la vraie carte */
+.lz .dm-s{font-size:10px;color:var(--green);font-weight:700}
 .lz .dm-barwrap{height:9px;border-radius:999px;background:rgba(255,255,255,.06);margin-top:14px;overflow:hidden}
 .lz .dm-bar{height:100%;border-radius:999px;background:linear-gradient(90deg,#1f9d57,#37d07f)}
-/* Bande edge+value AJOUTÉE pour l'exemple (user 2026-08-22) : pas sur la vraie carte -> séparateur pointillé
-   qui signale « les chiffres derrière la décision ». */
-.lz .dm-extra{position:relative;display:flex;justify-content:center;gap:26px;margin-top:13px;
-  padding-top:12px;border-top:1px dashed var(--line2)}
-.lz .dm-x{display:flex;align-items:baseline;gap:6px}
-.lz .dm-xl{text-transform:uppercase;letter-spacing:.05em;font-size:10.5px;color:var(--faint);font-weight:700}
-.lz .dm-xv{color:var(--green);font-weight:800;font-size:15px}
 .lz .dc-why{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:var(--ink);
   border-top:1px solid var(--line);margin:11px -18px 0;padding:13px 18px;position:relative}.lz .dc-why .chev{color:var(--faint)}
 .lz .dc-tag{display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--green);color:var(--accent-ink);
@@ -8496,15 +8493,13 @@ def accueil_body(frag: bool = True) -> str:
         <div class="dm-sep"></div>
         <div class="dm-stats">
           <div class="dm-st"><span class="dc-tag dc-cc">5</span><span class="dm-l">Confiance</span><span class="dm-v green">79%</span><span class="dm-s">élevée</span></div>
-          <div class="dm-st"><span class="dc-tag dc-cc">6</span><span class="dm-l">Cote</span><span class="dm-v">1.38</span></div>
+          <div class="dm-st"><span class="dc-tag dc-cc">6</span><span class="dm-l">Edge</span><span class="dm-v green">+7 pts</span></div>
+          <div class="dm-st"><span class="dc-tag dc-cc">7</span><span class="dm-l">Value</span><span class="dm-v green">+9%</span></div>
+          <div class="dm-st"><span class="dc-tag dc-cc">8</span><span class="dm-l">Cote</span><span class="dm-v">1.38</span></div>
         </div>
         <div class="dm-barwrap"><div class="dm-bar" style="width:79%"></div></div>
-        <div class="dm-extra"><span class="dc-tag dc-cc">7</span>
-          <span class="dm-x"><span class="dm-xl">Edge</span><span class="dm-xv">+7 pts</span></span>
-          <span class="dm-x"><span class="dm-xl">Value</span><span class="dm-xv">+9%</span></span>
-        </div>
       </div>
-      <div class="dc-why">Pourquoi ce pari <span class="chev">▾</span><span class="dc-tag dc-tr">8</span></div>
+      <div class="dc-why">Pourquoi ce pari <span class="chev">▾</span><span class="dc-tag dc-tr">9</span></div>
     </div>
     <div class="dc-legend">
       <div class="dc-li"><span class="dc-tag">1</span><div><b>La compétition</b>
@@ -8519,13 +8514,15 @@ def accueil_body(frag: bool = True) -> str:
       <div class="dc-li"><span class="dc-tag">5</span><div><b>La confiance</b>
         <p>Notre probabilité de gain, <b>recalibrée sur notre relevé réel</b> : quand on annonce 79 %, l'historique
           confirme que ça sort autour de 79 %. La barre verte la reprend en repère visuel — fiable, pas décorative.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">6</span><div><b>La cote</b>
+      <div class="dc-li"><span class="dc-tag">6</span><div><b>L'edge</b>
+        <p>De combien notre confiance bat la probabilité qu'implique la cote (79 % contre 72 %) : <b>+7 points</b>.
+          C'est notre avantage mesuré sur le marché.</p><span class="f">Edge = confiance − marché</span></div></div>
+      <div class="dc-li"><span class="dc-tag">7</span><div><b>La value</b>
+        <p>L'edge traduit <em>en argent</em> — ce que la cote paie en trop. <b>On ne publie un pari que si elle est positive.</b></p>
+        <span class="f">Value = confiance × cote − 1</span></div></div>
+      <div class="dc-li"><span class="dc-tag">8</span><div><b>La cote</b>
         <p>Le prix décimal du pari : votre mise <em>multipliée par</em> ce nombre si ça passe (1 € → 1,38 €).</p></div></div>
-      <div class="dc-li"><span class="dc-tag">7</span><div><b>L'edge, puis la value</b>
-        <p>L'<b>edge</b> = l'écart entre notre confiance (79 %) et ce qu'implique la cote (72 %) : <b>+7 points</b>.
-          La <b>value</b> traduit cet écart <em>en argent</em> — ce que la cote paie en trop. On ne mise que si elle est positive.</p>
-        <span class="f">Edge = confiance − marché · Value = confiance × cote − 1</span></div></div>
-      <div class="dc-li"><span class="dc-tag">8</span><div><b>Pourquoi ce pari</b>
+      <div class="dc-li"><span class="dc-tag">9</span><div><b>Pourquoi ce pari</b>
         <p>L'analyse complète du match en un tap : forme, contexte, risque assumé. Rien n'est caché.</p></div></div>
     </div>
   </div>
