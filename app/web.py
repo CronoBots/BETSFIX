@@ -329,9 +329,14 @@ CSS = """
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo centré tout en haut, en DÉFILEMENT NORMAL (bannière fixe annulée, demande user 2026-08-02).
      Desktop masque .toplogo (logo en sidebar). */
-  .toplogo{display:block;text-align:center;margin:20px 0 12px}
-  .toplogo img{height:auto;width:auto;max-height:46px;max-width:72%;
-               filter:drop-shadow(0 5px 18px rgba(34,184,255,.40))}
+  .toplogo{display:block;text-align:center;margin:20px 0 12px;position:relative}
+  /* HALO RADIAL derrière le logo (user 2026-08-22) : centré sur le logo, DANS sa marge -> toujours visible,
+     jamais recouvert par le contenu du panneau (l'ancien drop-shadow vers le bas était noyé sur Live/Accueil). */
+  .toplogo::before{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+       width:300px;height:130px;max-width:92%;pointer-events:none;z-index:0;
+       background:radial-gradient(ellipse at center,rgba(34,184,255,.30) 0%,rgba(34,184,255,.10) 42%,transparent 70%)}
+  .toplogo img{position:relative;z-index:1;height:auto;width:auto;max-height:46px;max-width:72%;
+               filter:drop-shadow(0 4px 13px rgba(34,184,255,.45))}
   /* Bouton COMPTE en haut à droite (toutes pages) — remplace l'onglet « Compte » de la barre du bas. */
   /* ICÔNE SEULE (demande user 2026-08-01 : plus de texte « Compte », il chevauchait le logo). Bouton ROND
      compact dans le coin -> ne déborde plus sur le logo BETSFIX centré. */
@@ -7980,7 +7985,11 @@ _LZ_CSS = """
 .lz .cta-note{font-size:12.5px;color:var(--faint)}
 .lz .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:30px;background:var(--line);
   border:1px solid var(--line);border-radius:15px;overflow:hidden}
-.lz .metric{background:var(--gr2);padding:16px 15px}
+.lz .metric{background:linear-gradient(180deg,rgba(255,255,255,.028),transparent 40%),var(--gr2);
+  padding:17px 15px;position:relative}
+/* Fin liseré cyan lumineux en tête de chaque métrique -> profondeur premium (user 2026-08-22). */
+.lz .metric::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(34,184,255,.40),transparent)}
 .lz .metric .k{font-size:12px;color:var(--faint);font-weight:600}
 .lz .metric .v{font-size:26px;font-weight:700;margin-top:3px;letter-spacing:-.02em}
 .lz .metric .v small{font-size:14px;font-weight:600;color:var(--dim)}
@@ -7999,7 +8008,10 @@ _LZ_CSS = """
 .lz .cc-f{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:4px}
 .lz section.blk{position:relative;padding:56px 0;border-top:1px solid var(--line)}
 .lz .sec-head{max-width:56ch;margin-bottom:34px}
-.lz .sec-head .eyebrow{margin-bottom:14px;display:block}
+.lz .sec-head .eyebrow{margin-bottom:14px;display:inline-flex;align-items:center;gap:10px}
+/* Liseré d'accent avant l'eyebrow de section (touche éditoriale premium, user 2026-08-22). */
+.lz .sec-head .eyebrow::before{content:"";width:24px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--green),rgba(34,184,255,0))}
 .lz .sec-head h2{font-size:clamp(26px,3.4vw,38px);font-weight:700}
 .lz .sec-head p{margin-top:14px;font-size:16.5px;color:var(--dim)}
 .lz .gates{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
