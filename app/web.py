@@ -279,7 +279,14 @@ CSS = """
   *{box-sizing:border-box}
   /* Fond html = COULEUR DE LA NAV (#0b0d12) : la zone du home-indicator iPhone (PWA standalone), non
      couverte par body/nav, montrait sinon un TROU NOIR sous la barre du bas. Là elle se fond dedans. */
-  html{-webkit-text-size-adjust:100%;overscroll-behavior:none;background:#0b0d12}   /* PAS d'overflow:hidden -> le body doit pouvoir scroller (modèle CRYPTONAUTS, user 2026-08-22) */
+  /* DÉGRADÉ (halos) sur HTML = fond du CANVAS : fixé au viewport, jamais scrollé -> halos IDENTIQUES sur tous
+     les onglets, quelle que soit la longueur de la page (user 2026-08-22 : Résultats/Accueil, pages longues,
+     avaient un fond dilué car le dégradé était sur le body dimensionné au contenu). PAS d'overflow:hidden
+     (le body doit scroller, modèle CRYPTONAUTS). */
+  html{-webkit-text-size-adjust:100%;overscroll-behavior:none;
+       background:radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
+                  radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%),
+                  var(--bg)}
   /* FILET DE SÉCURITÉ safe-area (user 2026-08-16) : le fond du body (#070708) RECOUVRE le html -> en PWA
      standalone une ZONE NOIRE apparaissait sous la nav (home-indicator iOS). On peint cette bande, en FIXE,
      avec la couleur de la nav (#0b0d12), sous la barre (z<nav). */
@@ -315,12 +322,7 @@ CSS = """
           pseudo z-index:-1 passait DERRIÈRE le fond opaque -> halos masqués (page toute noire).
           Sur le body même, ils s'affichent toujours. Le body ne scrolle pas (.wrap scrolle) ->
           le dégradé reste fixe visuellement. */
-       background:
-         radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
-         radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%),
-         var(--bg);}   /* dégradé attaché au body (chaque onglet démarre à scroll 0 -> halos visibles pareil ;
-            PAS background-attachment:fixed qui, sur iOS, dimensionne le dégradé au document entier et rend le
-            fond différent selon la longueur de la page — user 2026-08-22). */
+       background:transparent;}   /* le dégradé (halos) est sur HTML = canvas fixé au viewport (voir plus haut) */
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   /* Zone de contenu = SEUL élément qui scrolle (flex:1). La barre du bas étant désormais un frère
      statique en dessous,
@@ -8205,10 +8207,6 @@ _LZ_ANIM_JS = (
     "var big=lz.querySelector('.hnum .big');if(big){var tv=parseInt(big.textContent,10);"
     "if(tv>0){big.textContent='0';var s0=null;var cu=function(ts){if(!s0)s0=ts;var k=Math.min(1,(ts-s0)/900);"
     "big.textContent=Math.round(tv*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(cu);};requestAnimationFrame(cu);}}"
-    "var p=lz.querySelector('.cv path.ln');if(p&&p.getTotalLength){var L=p.getTotalLength();"
-    "p.style.strokeDasharray=L;p.style.strokeDashoffset=L;"
-    "requestAnimationFrame(function(){requestAnimationFrame(function(){"
-    "p.style.transition='stroke-dashoffset 1.5s cubic-bezier(.3,.8,.3,1)';p.style.strokeDashoffset=0;});});}"
     "}catch(e){}};"
     "(function(){function r(){window._lzAnim(document);}"
     "if(document.readyState!=='loading')setTimeout(r,80);else document.addEventListener('DOMContentLoaded',function(){setTimeout(r,80);});})();"
@@ -8335,8 +8333,7 @@ def accueil_body(frag: bool = True) -> str:
   <div class="hstage">
     <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · relevé réel · {_LZ_SINCE_LABEL}</span></span>
     <div class="hnum"><span class="big num">{s['pct']}</span><span class="pct">%</span></div>
-    <div class="hnum-line"></div>
-    <div class="hsub">de réussite sur nos <b>paris Confiance</b> · <b class="num">{s['won']} gagnés / {s['total']}</b></div>
+    <div class="hsub">de réussite sur nos <b>paris Confiance</b> — <b class="num">{s['won']}</b> gagnés sur <b class="num">{s['total']}</b></div>
     <h1 class="htag">Pas des promesses. <span class="hl">Un relevé.</span></h1>
     <div class="hcurve">
       <div class="hcurve-top"><span>Bénéfice cumulé · football</span><span class="roi num">ROI {roi_txt}</span></div>
