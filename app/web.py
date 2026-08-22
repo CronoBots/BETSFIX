@@ -4068,9 +4068,9 @@ _MILE_JS = (
 # navigation par jour vit dans l'onglet CALENDRIER dédié, JS `_MCAL_JS`.)
 _CAL_JS = (
     "(function(){"
-    "function restoreFolds(h){try{var ds=(h||document).querySelectorAll('details.zone-col[data-zk]'),i;"
-    "for(i=0;i<ds.length;i++){if(localStorage.getItem('zf_'+ds[i].getAttribute('data-zk'))==='0')"
-    "ds[i].removeAttribute('open');}}catch(e){}}"
+    # TOUT DÉPLIÉ À L'OUVERTURE (user 2026-08-22) : on ne restaure PLUS l'état plié mémorisé -> chaque
+    # (r)ouverture respecte le défaut `open_=True` des zones. Le pli reste possible dans la session (natif).
+    "function restoreFolds(h){}"
     "document.addEventListener('click',function(ev){"
     "if(!ev.target||!ev.target.closest)return;"
     # repli d'une zone : on laisse le navigateur toggler puis on mémorise l'état (localStorage).
