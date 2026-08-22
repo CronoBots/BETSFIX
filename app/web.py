@@ -7958,10 +7958,11 @@ _LZ_CSS = """
 .lz .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--green);
   box-shadow:0 0 0 4px rgba(52,210,123,.16),0 0 14px 2px rgba(79,240,154,.55)}
 .lz .brand em{font-style:normal;color:var(--green)}
-.lz .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:14px;padding:10px 18px;
-  border-radius:11px;cursor:pointer;border:0;background:linear-gradient(180deg,var(--gb),var(--green));
-  color:#04140a;box-shadow:0 6px 20px -6px rgba(52,210,123,.6);transition:transform .12s,box-shadow .12s}
-.lz .btn:hover{transform:translateY(-1px);box-shadow:0 10px 26px -6px rgba(52,210,123,.72)}
+/* Boutons Accueil = BLANC à halo BLEU (user 2026-08-22) : fond blanc, texte bleu foncé, anneau + glow cyan. */
+.lz .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:14px;padding:10px 20px;
+  border-radius:11px;cursor:pointer;border:0;background:#ffffff;color:#06283c;
+  box-shadow:0 0 0 1px rgba(34,184,255,.45),0 8px 26px -8px rgba(34,184,255,.6);transition:transform .12s,box-shadow .12s}
+.lz .btn:hover{transform:translateY(-1px);box-shadow:0 0 0 1px rgba(34,184,255,.7),0 12px 32px -8px rgba(34,184,255,.75)}
 .lz .btn.lg{font-size:16px;padding:15px 28px;border-radius:13px}
 .lz .hero{position:relative;padding:16px 0 26px}
 .lz .hero-glow{display:none}   /* plus de halo vert (demande user 2026-08-01) : fond = celui de l'app */
@@ -8347,7 +8348,6 @@ def accueil_body(frag: bool = True) -> str:
 
 <div class="hero"><div class="lzw">
   <div class="hstage">
-    <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · relevé réel · {_LZ_SINCE_LABEL}</span></span>
     <h1 class="hhead">La transparence,<br><span class="hl">en chiffres.</span></h1>
     <div class="hproof">
       <span class="hpnum"><span class="big num">{s['pct']}</span><span class="pct">%</span></span>
@@ -8360,7 +8360,7 @@ def accueil_body(frag: bool = True) -> str:
         <defs><linearGradient id="lzln" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stop-color="var(--accent2)"/><stop offset="1" stop-color="var(--accent)"/></linearGradient>
           <linearGradient id="lzfill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="rgba(52,210,123,.20)"/><stop offset="1" stop-color="rgba(52,210,123,0)"/></linearGradient></defs>
+          <stop offset="0" stop-color="rgba(34,184,255,.20)"/><stop offset="1" stop-color="rgba(34,184,255,0)"/></linearGradient></defs>
         <path class="area" d="{cd} L100,42 L0,42 Z" fill="url(#lzfill)" stroke="none"/>
         <line class="z0" x1="0" y1="{zy}" x2="100" y2="{zy}"/>
         <path class="ln" d="{cd}"/>
@@ -8373,55 +8373,8 @@ def accueil_body(frag: bool = True) -> str:
       <div class="hk"><b class="num">{s['total']}</b><span>paris réglés</span></div>
       <div class="hk"><b class="num">{s['best']}</b><span>meilleure série</span></div>
     </div>
-    <div class="cta-row"><a class="btn lg" href="/signup">Voir les pronos du jour →</a></div>
-    <span class="cta-note">Sans engagement · résiliable en un clic</span>
   </div>
 </div></div>
-
-<section class="blk"><div class="lzw">
-  <div class="sec-head"><span class="eyebrow">Le pari décrypté</span>
-    <h2>Une carte de match, lue de A à Z.</h2>
-    <p>Voici exactement ce que vous recevez sur chaque pari — chiffre par chiffre, sans jargon.</p></div>
-  <div class="demo">
-    <div class="dcard">
-      <div class="dc-h"><span class="sp">⚽ Football · Championnat<span class="dc-tag">1</span></span><span>20:45</span></div>
-      <div class="dc-teams">AC Rivera <span class="vs">—</span> Sporting Vale<span class="dc-tag">2</span></div>
-      <div class="dc-sep"></div>
-      <div class="dc-pick">AC Rivera ou nul<span class="dc-tag">3</span></div>
-      <div class="dc-gloss"><span class="ar">↳</span>gagne ou match nul<span class="dc-tag">4</span></div>
-      <div class="tk-grid">
-        <div class="tk-c tk-conf"><span class="tk-l">Confiance <span class="dc-tag">5</span></span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
-        <div class="tk-c"><span class="tk-l">Marché <span class="dc-tag">6</span></span><span class="tk-v num">72%</span></div>
-        <div class="tk-c tk-val"><span class="tk-l">Value <span class="dc-tag">7</span></span><span class="tk-v num">+8%</span></div>
-        <div class="tk-c"><span class="tk-l">Cote <span class="dc-tag">8</span></span><span class="tk-v num">1.38</span></div>
-      </div>
-      <div class="dc-why">Pourquoi ce choix<span class="dc-tag">9</span> <span class="chev">▾</span></div>
-    </div>
-    <div class="dc-legend">
-      <div class="dc-li"><span class="dc-tag">1</span><div><b>Sport · compétition · heure</b>
-        <p>Le contexte du match en un coup d'œil : la discipline, la compétition et l'heure du coup d'envoi.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">2</span><div><b>Les équipes</b>
-        <p>L'affiche, domicile à gauche — extérieur à droite.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">3</span><div><b>Le pari</b>
-        <p>La sélection exacte à jouer. Ici une <em>double chance</em> : ça passe si Rivera gagne <em>ou</em> fait nul.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">4</span><div><b>Traduit en clair</b>
-        <p>Le pari réécrit sans jargon (« ↳ ») — vous savez précisément ce qui doit arriver pour gagner.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">5</span><div><b>La confiance</b>
-        <p>Notre probabilité de gain, <b>recalibrée sur notre relevé réel</b> : quand on annonce 78 %, l'historique
-          confirme que ça sort autour de 78 %. Fiable, pas décorative.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">6</span><div><b>Le marché</b>
-        <p>La probabilité qu'implique la cote — le seuil de rentabilité.</p><span class="f">Marché = 100 ÷ cote</span></div></div>
-      <div class="dc-li"><span class="dc-tag">7</span><div><b>L'edge, puis la value</b>
-        <p>L'<b>edge</b> = de combien on juge le pari plus probable que le marché (78 − 72 = <b>+6 points</b>). La
-          <b>value</b> traduit cet écart <em>en argent</em> — ce que la cote paie en trop. On ne mise que si elle est positive.</p>
-        <span class="f">Edge = confiance − marché · Value = confiance × cote − 1</span></div></div>
-      <div class="dc-li"><span class="dc-tag">8</span><div><b>La cote</b>
-        <p>Le prix décimal du pari : votre mise <em>multipliée par</em> ce nombre si ça passe (1 € → 1,38 €).</p></div></div>
-      <div class="dc-li"><span class="dc-tag">9</span><div><b>Pourquoi ce choix</b>
-        <p>L'analyse complète du match en un tap : forme, contexte, risque assumé. Rien n'est caché.</p></div></div>
-    </div>
-  </div>
-</div></section>
 
 <section class="blk"><div class="lzw">
   <div class="sec-head"><span class="eyebrow">Comment on analyse</span>
@@ -8486,6 +8439,51 @@ def accueil_body(frag: bool = True) -> str:
   <div class="verdict"><span class="vn num">≈ {s['sel']} %</span>
     <span class="vt">des matchs analysés finissent <b>écartés</b>. Ce n'est pas de la timidité — c'est exactement
       ce qui produit les {s['pct']} %. Un système qui joue tous les jours ferait bien pire.</span></div>
+</div></section>
+
+<section class="blk"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">Le pari décrypté</span>
+    <h2>Une carte de match, lue de A à Z.</h2>
+    <p>Voici exactement ce que vous recevez sur chaque pari — chiffre par chiffre, sans jargon.</p></div>
+  <div class="demo">
+    <div class="dcard">
+      <div class="dc-h"><span class="sp">⚽ Football · Championnat<span class="dc-tag">1</span></span><span>20:45</span></div>
+      <div class="dc-teams">AC Rivera <span class="vs">—</span> Sporting Vale<span class="dc-tag">2</span></div>
+      <div class="dc-sep"></div>
+      <div class="dc-pick">AC Rivera ou nul<span class="dc-tag">3</span></div>
+      <div class="dc-gloss"><span class="ar">↳</span>gagne ou match nul<span class="dc-tag">4</span></div>
+      <div class="tk-grid">
+        <div class="tk-c tk-conf"><span class="tk-l">Confiance <span class="dc-tag">5</span></span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
+        <div class="tk-c"><span class="tk-l">Marché <span class="dc-tag">6</span></span><span class="tk-v num">72%</span></div>
+        <div class="tk-c tk-val"><span class="tk-l">Value <span class="dc-tag">7</span></span><span class="tk-v num">+8%</span></div>
+        <div class="tk-c"><span class="tk-l">Cote <span class="dc-tag">8</span></span><span class="tk-v num">1.38</span></div>
+      </div>
+      <div class="dc-why">Pourquoi ce choix<span class="dc-tag">9</span> <span class="chev">▾</span></div>
+    </div>
+    <div class="dc-legend">
+      <div class="dc-li"><span class="dc-tag">1</span><div><b>Sport · compétition · heure</b>
+        <p>Le contexte du match en un coup d'œil : la discipline, la compétition et l'heure du coup d'envoi.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">2</span><div><b>Les équipes</b>
+        <p>L'affiche, domicile à gauche — extérieur à droite.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">3</span><div><b>Le pari</b>
+        <p>La sélection exacte à jouer. Ici une <em>double chance</em> : ça passe si Rivera gagne <em>ou</em> fait nul.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">4</span><div><b>Traduit en clair</b>
+        <p>Le pari réécrit sans jargon (« ↳ ») — vous savez précisément ce qui doit arriver pour gagner.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">5</span><div><b>La confiance</b>
+        <p>Notre probabilité de gain, <b>recalibrée sur notre relevé réel</b> : quand on annonce 78 %, l'historique
+          confirme que ça sort autour de 78 %. Fiable, pas décorative.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">6</span><div><b>Le marché</b>
+        <p>La probabilité qu'implique la cote — le seuil de rentabilité.</p><span class="f">Marché = 100 ÷ cote</span></div></div>
+      <div class="dc-li"><span class="dc-tag">7</span><div><b>L'edge, puis la value</b>
+        <p>L'<b>edge</b> = de combien on juge le pari plus probable que le marché (78 − 72 = <b>+6 points</b>). La
+          <b>value</b> traduit cet écart <em>en argent</em> — ce que la cote paie en trop. On ne mise que si elle est positive.</p>
+        <span class="f">Edge = confiance − marché · Value = confiance × cote − 1</span></div></div>
+      <div class="dc-li"><span class="dc-tag">8</span><div><b>La cote</b>
+        <p>Le prix décimal du pari : votre mise <em>multipliée par</em> ce nombre si ça passe (1 € → 1,38 €).</p></div></div>
+      <div class="dc-li"><span class="dc-tag">9</span><div><b>Pourquoi ce choix</b>
+        <p>L'analyse complète du match en un tap : forme, contexte, risque assumé. Rien n'est caché.</p></div></div>
+    </div>
+  </div>
 </div></section>
 
 <section class="blk"><div class="lzw">
