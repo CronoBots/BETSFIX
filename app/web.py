@@ -3891,23 +3891,35 @@ _SPA_JS = (
     "function load(p){if(!p||p.getAttribute('data-loaded'))return;"
     "p.setAttribute('data-loaded','1');var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
-    ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;badge(p);"
+    ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;p.setAttribute('data-ts',''+Date.now());badge(p);"
     "if(window._twScan)window._twScan(p);if(window._mcInit)window._mcInit(p);"
     "if(window._sxAnim)window._sxAnim(p);if(window._daycalSync)window._daycalSync();})"
     ".catch(function(){p.removeAttribute('data-loaded');"
     "p.innerHTML='<div class=ldg>Erreur de chargement. Touchez l\\'onglet pour réessayer.</div>';});}"
+    # RE-FETCH d'un panneau DÉJÀ chargé dont les données sont périmées (>90 s) — user 2026-08-22. Préserve le
+    # scroll ; NE rafraîchit PAS si une carte ouverte à la main (.mc-manual) ou un pli d'analyse (.cleg-fold[open])
+    # est ouvert (on ne coupe pas une lecture). Même philosophie que le refresh Live 45 s.
+    "function _stale(p){var t=parseInt(p.getAttribute('data-ts')||'0',10);return t>0&&(Date.now()-t>90000);}"
+    "function reload(p){if(!p||!p.getAttribute('data-src'))return;"
+    "if(p.querySelector('.mc-manual')||p.querySelector('.cleg-fold[open]'))return;"
+    "var u=p.getAttribute('data-src'),y=window.scrollY,on=p.classList.contains('on');"
+    "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
+    ".then(function(r){return r.text();}).then(function(h){p.innerHTML=h;p.setAttribute('data-ts',''+Date.now());"
+    "badge(p);if(window._mcInit)window._mcInit(p);if(window._daycalSync)window._daycalSync();"
+    "if(on)window.scrollTo(0,y);}).catch(function(){});}"
+    "function _resume(){var t=_curTab(),p=t&&panel(t);if(p&&p.getAttribute('data-loaded')&&_stale(p))reload(p);}"
     "function _tabList(){var nav=document.querySelectorAll('.botnav a'),o=[],k;for(k=0;k<nav.length;k++){var tk=nav[k].getAttribute('data-tab');if(panel(tk))o.push(tk);}return o;}"
     "function _curTab(){var cc=P.children,k;for(k=0;k<cc.length;k++)if(cc[k].classList.contains('on'))return cc[k].getAttribute('data-tab');return null;}"
     "function go(t,push){var p=panel(t);if(!p)return;"
     "var tl=_tabList(),d=tl.indexOf(t)-tl.indexOf(_curTab());"  # direction de la transition (slide)
     "P.classList.remove('sl-next','sl-prev');if(d>0)P.classList.add('sl-next');else if(d<0)P.classList.add('sl-prev');"
-    "load(p);show(t);if(window._lzAnim)window._lzAnim(p);"  # animations premium Accueil au 1er affichage
+    "load(p);show(t);if(_stale(p))reload(p);if(window._lzAnim)window._lzAnim(p);"  # re-fetch si périmé + animations premium Accueil
     "if(push)try{history.pushState({tab:t},'',p.getAttribute('data-src'));}catch(e){}"
     "window.scrollTo(0,0);}"
     # panneau actif (rendu serveur) = déjà chargé -> on pose SON badge à la main (jamais passé par load) ;
     # on précharge les autres tout de suite (load pose leur badge).
     "var c=P.children,i;for(i=0;i<c.length;i++){"
-    "if(c[i].classList.contains('on')){c[i].setAttribute('data-loaded','1');badge(c[i]);}else load(c[i]);}"
+    "if(c[i].classList.contains('on')){c[i].setAttribute('data-loaded','1');c[i].setAttribute('data-ts',''+Date.now());badge(c[i]);}else load(c[i]);}"
     "var nav=document.querySelectorAll('.botnav a');for(i=0;i<nav.length;i++){"
     "nav[i].addEventListener('click',function(e){var t=this.getAttribute('data-tab');"
     "if(!panel(t))return;"  # onglet sans panneau SPA (Compte) -> navigation normale (page autonome)
@@ -3958,7 +3970,7 @@ _SPA_JS = (
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){"
     "var y=window.scrollY;"
-    "p.innerHTML=h;if(window._mcInit)window._mcInit(p);window.scrollTo(0,y);})"
+    "p.innerHTML=h;p.setAttribute('data-ts',''+Date.now());if(window._mcInit)window._mcInit(p);window.scrollTo(0,y);})"
     ".catch(function(){});}"
     "setInterval(fresh,45000);"
     # iOS PWA : au 1er paint, le viewport/safe-area n'est pas encore stable -> la barre fixe (bottom:0) se cale
@@ -3970,7 +3982,9 @@ _SPA_JS = (
     "var d=P.style.display;P.style.display='none';P.offsetHeight;P.style.display=d;}catch(e){}}"
     "requestAnimationFrame(function(){requestAnimationFrame(_relayout);});"
     "setTimeout(_relayout,300);"
-    "window.addEventListener('pageshow',function(){_relayout();});"
+    "window.addEventListener('pageshow',function(){_relayout();_resume();});"
+    # RETOUR AU PREMIER PLAN (sortie de veille / bascule d'app) -> rafraîchit l'onglet actif s'il est périmé.
+    "document.addEventListener('visibilitychange',function(){if(!document.hidden)_resume();});"
     "})();"
 )
 
