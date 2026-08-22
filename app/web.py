@@ -481,9 +481,14 @@ CSS = """
   .nr-dot{position:relative;z-index:1;width:19px;height:19px;border-radius:50%;background:#34d27b;
        box-shadow:0 0 11px rgba(52,210,123,.95),0 0 2px rgba(52,210,123,1)}
   .nr-ring{position:absolute;top:50%;left:50%;width:30px;height:30px;margin:-15px 0 0 -15px;
-       border-radius:50%;border:2px solid rgba(52,210,123,.6);animation:navradar 1.9s ease-out infinite}
+       border-radius:50%;border:2px solid rgba(52,210,123,.6);animation:navradar 1.9s ease-out infinite;
+       will-change:transform,opacity;backface-visibility:hidden;transform:translateZ(0)}   /* couche GPU -> pulse fluide, plus de jank iOS */
   .nr-ring2{animation-delay:.95s}
   @keyframes navradar{0%{transform:scale(.4);opacity:.95}100%{transform:scale(1);opacity:0}}
+  /* Onglet Live ACTIF (fond bleu) : on FIGE le radar vert (sinon il clignote vert-sur-bleu et « déconne » —
+     user 2026-08-22). Le point reste, les anneaux et le halo s'apaisent : on est déjà sur l'onglet. */
+  .botnav a[data-tab="directs"].on .nr-ring{animation:none;opacity:0}
+  .botnav a[data-tab="directs"].on .nav-radar::before{opacity:.3}
   /* SPA : panneaux par onglet (tout chargé à l'ouverture,
   bascule sans rechargement) */
   .panel{display:none}
@@ -3876,6 +3881,23 @@ _SPA_JS = (
     "window.addEventListener('popstate',function(e){var t=(e.state&&e.state.tab);"
     "if(!t){var m={'/':'home','/accueil':'accueil','/directs':'directs','/app':'tennis','/basket':'basket','/foot':'foot','/stats':'stats','/compte':'compte'};"
     "t=m[location.pathname]||'home';}go(t,false);});"
+    # SWIPE horizontal -> onglet suivant/précédent (user 2026-08-22). On ignore : les gestes verticaux/lents,
+    # et surtout les scrolls HORIZONTAUX internes (rails de sous-onglets, sélecteur de sport, carrousels) en
+    # remontant depuis le point de départ tant qu'on trouve un conteneur qui défile en X.
+    "var _swx=0,_swy=0,_swt=0,_swok=false;"
+    "document.addEventListener('touchstart',function(e){if(e.touches.length!==1){_swok=false;return;}"
+    "var t=e.touches[0];_swx=t.clientX;_swy=t.clientY;_swt=Date.now();_swok=true;},{passive:true});"
+    "document.addEventListener('touchend',function(e){if(!_swok)return;_swok=false;"
+    "var t=e.changedTouches[0],dx=t.clientX-_swx,dy=t.clientY-_swy;"
+    "if(Math.abs(dx)<70||Math.abs(dx)<Math.abs(dy)*2||Date.now()-_swt>500)return;"
+    "var el=document.elementFromPoint(_swx,_swy);"
+    "while(el&&el!==document.body){var ov=getComputedStyle(el).overflowX;"
+    "if((ov==='auto'||ov==='scroll')&&el.scrollWidth>el.clientWidth+4)return;el=el.parentElement;}"
+    "var nav=document.querySelectorAll('.botnav a'),tabs=[],i;"
+    "for(i=0;i<nav.length;i++){var tk=nav[i].getAttribute('data-tab');if(panel(tk))tabs.push(tk);}"
+    "var act=null,cc=P.children;for(i=0;i<cc.length;i++)if(cc[i].classList.contains('on')){act=cc[i].getAttribute('data-tab');break;}"
+    "var idx=tabs.indexOf(act);if(idx<0)return;var ni=dx<0?idx+1:idx-1;"
+    "if(ni<0||ni>=tabs.length)return;go(tabs[ni],true);},{passive:true});"
     # Filtre temporel des stats : clic sur un bouton période -> recharge le panneau stats (since)
     "P.addEventListener('click',function(e){"
     # bannière/lien interne data-goto (ex. Montante du jour sur Pronos) -> bascule d'onglet SPA
