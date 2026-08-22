@@ -8699,7 +8699,7 @@ def _programme_schedule(sport: str = "foot") -> str:
     # REPLIÉ PAR DÉFAUT (user 2026-08-19) : `open_=False` -> le Programme du jour est toujours fermé au chargement
     # (le JS `_CAL_JS` ne force jamais l'ouverture). On le déplie d'un tap pour voir la liste des matchs.
     return _zone("prog", "Programme du jour", "", len(pending), _programme_grille(pending),
-                 collapsible=True, open_=False)
+                 collapsible=True, open_=True)   # OUVERT d'office (user 2026-08-22)
 
 
 def _abstention_zone(sport: str = "foot") -> str:
