@@ -3941,7 +3941,18 @@ _SPA_JS = (
     "var y=window.scrollY;"
     "p.innerHTML=h;if(window._mcInit)window._mcInit(p);window.scrollTo(0,y);})"
     ".catch(function(){});}"
-    "setInterval(fresh,45000);})();"
+    "setInterval(fresh,45000);"
+    # iOS PWA : au 1er paint, le viewport/safe-area n'est pas encore stable -> la barre fixe (bottom:0) se cale
+    # trop haut avec une bande morte dessous, jusqu'au 1er changement d'onglet (qui force un reflow). On force CE
+    # reflow juste après l'ouverture : nudge de scroll + bascule display de #panels (change la hauteur -> iOS
+    # recalcule le viewport et recale la barre au vrai bas). Répété : 2 rAF (après 1er paint), 300 ms (safe-area
+    # stabilisée) et à chaque retour d'app (pageshow, ex. sortie de veille).
+    "function _relayout(){try{window.scrollTo(0,1);window.scrollTo(0,0);"
+    "var d=P.style.display;P.style.display='none';P.offsetHeight;P.style.display=d;}catch(e){}}"
+    "requestAnimationFrame(function(){requestAnimationFrame(_relayout);});"
+    "setTimeout(_relayout,300);"
+    "window.addEventListener('pageshow',function(){_relayout();});"
+    "})();"
 )
 
 # Effet « terminal » : les pronostics + l'analyse se TAPENT (caractère par caractère) à l'ouverture,
