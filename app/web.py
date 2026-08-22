@@ -333,7 +333,7 @@ CSS = """
         padding:calc(8px + env(safe-area-inset-top)) 16px 22px}
   /* Logo centré tout en haut, en DÉFILEMENT NORMAL (bannière fixe annulée, demande user 2026-08-02).
      Desktop masque .toplogo (logo en sidebar). */
-  .toplogo{display:block;text-align:center;margin:20px 0 12px}
+  .toplogo{display:flex;align-items:center;justify-content:center;min-height:46px;margin:20px 0 12px}   /* hauteur RÉSERVÉE -> pas de saut quand le logo (préchargé) arrive */
   /* HALO = glow SYMÉTRIQUE collé au wordmark (drop-shadow 0-offset), pas une grosse ellipse de fond (user
      2026-08-22 : l'ellipse était trop forte + coupée par le contenu). Épouse le logo -> visible sur TOUS les
      onglets, jamais recouvert, subtil. */
@@ -4329,6 +4329,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="theme-color" content="#070708">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="preload" as="image" href="/static/wordmark.png?v=1"><link rel="preload" as="image" href="/static/logo.png?v=3">
 <link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -4373,6 +4374,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="theme-color" content="#070708">
 <title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="preload" as="image" href="/static/wordmark.png?v=1"><link rel="preload" as="image" href="/static/logo.png?v=3">
 <link rel="apple-touch-icon" href="/static/icon-180.png?v=5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
