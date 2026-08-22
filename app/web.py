@@ -3885,7 +3885,7 @@ _SPA_JS = (
     "function go(t,push){var p=panel(t);if(!p)return;"
     "var tl=_tabList(),d=tl.indexOf(t)-tl.indexOf(_curTab());"  # direction de la transition (slide)
     "P.classList.remove('sl-next','sl-prev');if(d>0)P.classList.add('sl-next');else if(d<0)P.classList.add('sl-prev');"
-    "load(p);show(t);"
+    "load(p);show(t);if(window._lzAnim)window._lzAnim(p);"  # animations premium Accueil au 1er affichage
     "if(push)try{history.pushState({tab:t},'',p.getAttribute('data-src'));}catch(e){}"
     "window.scrollTo(0,0);}"
     # panneau actif (rendu serveur) = déjà chargé -> on pose SON badge à la main (jamais passé par load) ;
@@ -4364,7 +4364,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}</style></head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -8119,8 +8119,58 @@ _LZ_CSS = """
   .lz .gates.duo{grid-template-columns:1fr}
   .lz .gates,.lz .pillars{grid-template-columns:1fr}.lz .honesty,.lz .calib{grid-template-columns:1fr;gap:26px}.lz .hero{padding-top:34px}
   .lz .decrypt,.lz .demo{grid-template-columns:1fr;gap:28px}}
+/* ============ PASSE PREMIUM ACCUEIL (user 2026-08-22) : hero · verre · typo · reveal ============ */
+/* Hero : aura douce derrière le grand nombre (subtile, jamais recouverte -> dans le bloc .sh) */
+.lz .sh{position:relative}
+.lz .sh>*{position:relative;z-index:1}
+.lz .sh::before{content:"";position:absolute;left:-2%;top:4%;width:56%;height:90%;z-index:0;pointer-events:none;
+  background:radial-gradient(56% 60% at 40% 50%,rgba(34,184,255,.15),transparent 72%);filter:blur(2px)}
+.lz .sh .big{filter:drop-shadow(0 8px 34px rgba(34,184,255,.22))}
+/* Cartes VERRE (semi-transparentes -> on floute ce qui est derrière) + profondeur premium (ombre + liseré interne) */
+.lz .cc,.lz .dcard{-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2)}
+.lz .cc,.lz .tkt,.lz .dcard,.lz .gate,.lz .verdict{
+  box-shadow:0 22px 50px -30px rgba(0,0,0,.78),inset 0 1px 0 rgba(255,255,255,.05)}
+.lz .cc{position:relative}
+.lz .cc::after{content:"";position:absolute;left:0;right:0;top:0;height:1px;z-index:2;
+  background:linear-gradient(90deg,transparent,rgba(34,184,255,.55),transparent)}
+/* Typo éditoriale : titres posés, plus d'air */
+.lz section.blk{padding:62px 0}
+.lz .sec-head h2{letter-spacing:-.02em;line-height:1.09}
+.lz h1.tag{letter-spacing:-.02em;line-height:1.12}
+/* REVEAL au scroll — actif SEULEMENT si JS ajoute .js-anim (sinon tout reste visible = zéro régression). */
+.lz.js-anim .reveal{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .6s cubic-bezier(.22,.85,.3,1)}
+.lz.js-anim .reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.lz.js-anim .reveal{opacity:1!important;transform:none!important;transition:none!important}}
 @media (prefers-reduced-motion:reduce){.lz *{animation:none!important;transition:none!important}.lz .reveal{opacity:1;transform:none}}
 """
+
+# Animations PREMIUM de l'Accueil (user 2026-08-22) : reveal au scroll (IntersectionObserver), count-up du
+# grand nombre, tracé de la courbe d'équité. `window._lzAnim(root)` : idempotent par `.lz._an`, respecte
+# prefers-reduced-motion (ne fait RIEN -> page statique visible). Appelé par le SPA au chargement du panneau
+# Accueil + auto-run pour le rendu initial. Progressive enhancement : sans JS, tout reste visible.
+_LZ_ANIM_JS = (
+    "window._lzAnim=function(root){try{"
+    "var lz=(root||document).querySelector?(root||document).querySelector('.lz'):null;"
+    "if(!lz||lz._an||lz.offsetParent===null)return;"  # panneau caché (préchargé) -> on attend qu'il soit affiché
+    "if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches){lz._an=1;return;}"
+    "lz._an=1;lz.classList.add('js-anim');"
+    "var sel='.hero-grid,.metrics,.sec-head,.demo,.steps .stp,.gates .gate,.calib>div,.verdict,.final h2,.final p,.final .cta-row';"
+    "var els=lz.querySelectorAll(sel),i;"
+    "if(!('IntersectionObserver' in window)){for(i=0;i<els.length;i++)els[i].classList.add('reveal','in');}"
+    "else{var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}});},{threshold:.08,rootMargin:'0px 0px -6% 0px'});"
+    "for(i=0;i<els.length;i++){els[i].classList.add('reveal');els[i].style.transitionDelay=((i%5)*45)+'ms';io.observe(els[i]);}}"
+    "var big=lz.querySelector('.sh .big');if(big){var tv=parseInt(big.textContent,10);"
+    "if(tv>0){big.textContent='0';var s0=null;var cu=function(ts){if(!s0)s0=ts;var k=Math.min(1,(ts-s0)/900);"
+    "big.textContent=Math.round(tv*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(cu);};requestAnimationFrame(cu);}}"
+    "var p=lz.querySelector('.cv path.ln');if(p&&p.getTotalLength){var L=p.getTotalLength();"
+    "p.style.strokeDasharray=L;p.style.strokeDashoffset=L;"
+    "requestAnimationFrame(function(){requestAnimationFrame(function(){"
+    "p.style.transition='stroke-dashoffset 1.5s cubic-bezier(.3,.8,.3,1)';p.style.strokeDashoffset=0;});});}"
+    "}catch(e){}};"
+    "(function(){function r(){window._lzAnim(document);}"
+    "if(document.readyState!=='loading')setTimeout(r,80);else document.addEventListener('DOMContentLoaded',function(){setTimeout(r,80);});})();"
+)
+
 
 def _lz_stats() -> dict:
     """Chiffres DYNAMIQUES de la vitrine, calculés sur le relevé RÉEL (foot simple depuis _LZ_SINCE).
