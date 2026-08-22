@@ -8178,6 +8178,22 @@ _LZ_CSS = """
 .lz .hk b{display:block;font-size:20px;font-weight:800;letter-spacing:-.01em}
 .lz .hk span{display:block;font-size:9.5px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
 .lz .hstage .cta-note{margin-top:13px}
+/* HERO ÉDITORIAL (user 2026-08-22) : grand titre-message + chiffre en PREUVE juste après. */
+.lz .hhead{font-size:clamp(33px,8.6vw,56px);font-weight:800;letter-spacing:-.03em;line-height:1.04;margin:12px 0 0}
+.lz .hhead .hl{background:linear-gradient(92deg,var(--accent2),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lz .hhead::after{content:"";display:block;width:70px;height:3px;border-radius:3px;margin:18px auto 0;
+  background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.lz .hproof{display:flex;align-items:center;justify-content:center;gap:18px;margin:26px 0 28px;text-align:left}
+.lz .hpnum{position:relative;display:inline-flex;align-items:flex-start;line-height:.82}
+.lz .hpnum::before{content:"";position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);
+  width:150%;height:175%;z-index:0;pointer-events:none;
+  background:radial-gradient(50% 55% at 50% 50%,rgba(34,184,255,.20),transparent 70%);filter:blur(4px)}
+.lz .hpnum .big{position:relative;z-index:1;font-weight:800;font-size:clamp(62px,17vw,98px);letter-spacing:-.045em;
+  background:linear-gradient(178deg,#fff 4%,#e2f0ff 30%,var(--accent2) 66%,var(--accent) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 8px 26px rgba(34,184,255,.3))}
+.lz .hpnum .pct{position:relative;z-index:1;font-weight:800;font-size:clamp(22px,5vw,34px);color:var(--accent);margin-top:.3em;margin-left:.03em}
+.lz .hptxt{font-size:14.5px;color:var(--dim);line-height:1.4;max-width:19ch}
+.lz .hptxt b{color:var(--ink);font-weight:700}.lz .hptxt .hpdim{color:var(--faint);font-size:12.5px}
 /* Typo éditoriale : titres posés, plus d'air */
 .lz section.blk{padding:62px 0}
 .lz .sec-head h2{letter-spacing:-.02em;line-height:1.09}
@@ -8204,7 +8220,7 @@ _LZ_ANIM_JS = (
     "if(!('IntersectionObserver' in window)){for(i=0;i<els.length;i++)els[i].classList.add('reveal','in');}"
     "else{var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}});},{threshold:.08,rootMargin:'0px 0px -6% 0px'});"
     "for(i=0;i<els.length;i++){els[i].classList.add('reveal');els[i].style.transitionDelay=((i%5)*45)+'ms';io.observe(els[i]);}}"
-    "var big=lz.querySelector('.hnum .big');if(big){var tv=parseInt(big.textContent,10);"
+    "var big=lz.querySelector('.hpnum .big');if(big){var tv=parseInt(big.textContent,10);"
     "if(tv>0){big.textContent='0';var s0=null;var cu=function(ts){if(!s0)s0=ts;var k=Math.min(1,(ts-s0)/900);"
     "big.textContent=Math.round(tv*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(cu);};requestAnimationFrame(cu);}}"
     "}catch(e){}};"
@@ -8332,9 +8348,12 @@ def accueil_body(frag: bool = True) -> str:
 <div class="hero"><div class="lzw">
   <div class="hstage">
     <span class="hb"><span class="pulse"></span><span class="eyebrow">Football · relevé réel · {_LZ_SINCE_LABEL}</span></span>
-    <div class="hnum"><span class="big num">{s['pct']}</span><span class="pct">%</span></div>
-    <div class="hsub">de réussite sur nos <b>paris Confiance</b> — <b class="num">{s['won']}</b> gagnés sur <b class="num">{s['total']}</b></div>
-    <h1 class="htag">Pas des promesses. <span class="hl">Un relevé.</span></h1>
+    <h1 class="hhead">La transparence,<br><span class="hl">en chiffres.</span></h1>
+    <div class="hproof">
+      <span class="hpnum"><span class="big num">{s['pct']}</span><span class="pct">%</span></span>
+      <span class="hptxt"><b>de réussite</b> sur nos paris Confiance<br>
+        <span class="hpdim"><b class="num">{s['won']}</b> gagnés sur <b class="num">{s['total']}</b> · relevé réel, pas une projection</span></span>
+    </div>
     <div class="hcurve">
       <div class="hcurve-top"><span>Bénéfice cumulé · football</span><span class="roi num">ROI {roi_txt}</span></div>
       <svg class="cv" viewBox="0 0 100 42" preserveAspectRatio="none" aria-label="Courbe de bénéfice cumulé, en hausse">
