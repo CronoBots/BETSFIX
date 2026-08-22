@@ -8092,6 +8092,12 @@ _LZ_CSS = """
   border-top:1px solid var(--line);margin:11px -18px 0;padding:13px 18px}.lz .dc-why .chev{color:var(--faint)}
 .lz .dc-tag{display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--green);color:var(--accent-ink);
   font-family:var(--mono);font-size:11px;font-weight:700;align-items:center;justify-content:center;vertical-align:middle;margin-left:6px}
+/* Numéros d'annotation COHÉRENTS (user 2026-08-22) : lignes -> badge alignés à DROITE (.dc-tr) ;
+   cellules stat -> coin HAUT-GAUCHE (.dc-cc). Fini les numéros éparpillés au milieu du texte. */
+.lz .dcard .dc-h,.lz .dcard .dc-teams,.lz .dcard .dc-pick,.lz .dcard .dc-gloss,.lz .dcard .dc-why{position:relative;padding-right:30px}
+.lz .dc-tag.dc-tr{position:absolute;top:50%;right:4px;transform:translateY(-50%);margin:0}
+.lz .tk-c{position:relative}
+.lz .dc-tag.dc-cc{position:absolute;top:5px;left:5px;margin:0;width:17px;height:17px;font-size:10px}
 .lz .dc-legend{display:flex;flex-direction:column;gap:16px}
 .lz .dc-li{display:flex;gap:12px;align-items:flex-start}.lz .dc-li .dc-tag{margin:1px 0 0;flex:0 0 auto}
 .lz .dc-li b{font-size:15px}.lz .dc-li p{font-size:13.5px;color:var(--dim);margin-top:2px}
@@ -8447,18 +8453,18 @@ def accueil_body(frag: bool = True) -> str:
     <p>Voici exactement ce que vous recevez sur chaque pari — chiffre par chiffre, sans jargon.</p></div>
   <div class="demo">
     <div class="dcard">
-      <div class="dc-h"><span class="sp">⚽ Football · Championnat<span class="dc-tag">1</span></span><span>20:45</span></div>
-      <div class="dc-teams">AC Rivera <span class="vs">—</span> Sporting Vale<span class="dc-tag">2</span></div>
+      <div class="dc-h"><span class="sp">⚽ FOOTBALL · CHAMPIONNAT</span><span class="dc-time">20:45</span><span class="dc-tag dc-tr">1</span></div>
+      <div class="dc-teams">AC Rivera <span class="vs">—</span> Sporting Vale<span class="dc-tag dc-tr">2</span></div>
       <div class="dc-sep"></div>
-      <div class="dc-pick">AC Rivera ou nul<span class="dc-tag">3</span></div>
-      <div class="dc-gloss"><span class="ar">↳</span>gagne ou match nul<span class="dc-tag">4</span></div>
+      <div class="dc-pick">AC Rivera ou nul<span class="dc-tag dc-tr">3</span></div>
+      <div class="dc-gloss"><span class="ar">↳</span>gagne ou match nul<span class="dc-tag dc-tr">4</span></div>
       <div class="tk-grid">
-        <div class="tk-c tk-conf"><span class="tk-l">Confiance <span class="dc-tag">5</span></span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
-        <div class="tk-c"><span class="tk-l">Marché <span class="dc-tag">6</span></span><span class="tk-v num">72%</span></div>
-        <div class="tk-c tk-val"><span class="tk-l">Value <span class="dc-tag">7</span></span><span class="tk-v num">+8%</span></div>
-        <div class="tk-c"><span class="tk-l">Cote <span class="dc-tag">8</span></span><span class="tk-v num">1.38</span></div>
+        <div class="tk-c tk-conf"><span class="dc-tag dc-cc">5</span><span class="tk-l">Confiance</span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
+        <div class="tk-c"><span class="dc-tag dc-cc">6</span><span class="tk-l">Marché</span><span class="tk-v num">72%</span></div>
+        <div class="tk-c tk-val"><span class="dc-tag dc-cc">7</span><span class="tk-l">Value</span><span class="tk-v num">+8%</span></div>
+        <div class="tk-c"><span class="dc-tag dc-cc">8</span><span class="tk-l">Cote</span><span class="tk-v num">1.38</span></div>
       </div>
-      <div class="dc-why">Pourquoi ce choix<span class="dc-tag">9</span> <span class="chev">▾</span></div>
+      <div class="dc-why">Pourquoi ce choix <span class="chev">▾</span><span class="dc-tag dc-tr">9</span></div>
     </div>
     <div class="dc-legend">
       <div class="dc-li"><span class="dc-tag">1</span><div><b>Sport · compétition · heure</b>
