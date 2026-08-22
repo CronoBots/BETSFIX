@@ -518,10 +518,14 @@ CSS = """
   /* État VIDE premium de l'onglet Live (aucun match en cours) : orbe « radar » + CTA */
   /* EXACTEMENT le cadre d'une carte de match (.row.pick) : bordure cyan .60 + dégradé CYAN + glow cyan
      -> uniforme avec les onglets sport (demande user). Mêmes valeurs littérales que .row.pick. */
-  .live-empty{position:relative;overflow:hidden;text-align:center;margin:18px 0;padding:48px 22px 42px;
+  .live-empty{position:relative;overflow:hidden;text-align:center;margin:14px 0 8px;padding:32px 22px;
        border:1px solid rgba(34,184,255,.60);border-radius:var(--radius);display:flex;flex-direction:column;
-       align-items:center;box-shadow:0 0 26px rgba(34,184,255,.20);
+       align-items:center;justify-content:center;box-shadow:0 0 26px rgba(34,184,255,.20);
        background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02))}
+  /* Cadre Live vide : REMPLIT la hauteur dispo jusqu'à la barre du bas, en laissant la place au « 18+ »
+     (qui vit sous #panels dans .wrap) — user 2026-08-22. */
+  #pn-directs.on{display:flex;flex-direction:column}
+  #pn-directs.on .live-empty{flex:1 1 auto}
   .le-orb{position:relative;width:62px;height:62px;display:flex;align-items:center;justify-content:center;
        margin-bottom:20px}
   .le-dot{width:15px;height:15px;border-radius:50%;background:#34d27b;
@@ -11045,10 +11049,10 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
             '<span class="le-dot"></span></div>'
-            f'<div class="le-h">Aucun match {_zlabel} en direct</div>'
-            '<div class="le-sub">Les scores en temps réel — set par set, quart-temps — '
-            's\'affichent ici dès qu\'une rencontre analysée démarre.</div>'
-            '</div>')   # bouton « Voir les matchs à venir » retiré (user 2026-08-22)
+            '<div class="le-h">Aucun match en direct</div>'
+            '<div class="le-sub">Les scores en temps réel — buts et minute de jeu — '
+            's\'affichent ici dès qu\'un match analysé démarre.</div>'
+            '</div>')   # foot-only (user 2026-08-22) ; bouton « Voir les matchs à venir » retiré
     else:
         # MÊMES TYPES QUE PRONOS : Confiance (montante incluse) → Value → Provisoire → Combiné. Split
         # Confiance/Value par le `tier` de chaque carte (user 2026-08-09) ; Value masquée si vide / split off.
