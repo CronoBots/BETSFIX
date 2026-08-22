@@ -1,11 +1,10 @@
-# BETSFIX — PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (remplace le sondage « toutes les 30 min »).
-# ⚠️ La RÉ-ANALYSE pré-match a été SUPPRIMÉE (user 2026-08-07) : scan_wave.ps1 ne fait plus QUE régler +
-# selfcheck (le pick du matin est définitif). On garde néanmoins un déclencheur PONCTUEL par match pour que
-# le RÈGLEMENT tourne vite autour de chaque rencontre (en complément de la boucle continue de l'API).
+# BETSFIX — PLANIFIE LES PASSES PAR MATCH À (COUP D'ENVOI − 1 h) (remplace le sondage « toutes les 30 min »).
+# À chaque déclencheur, scan_wave.ps1 fait : RE-VÉRIFICATION PRÉ-MATCH du pari (--refresh-early, RESTAURÉE
+# 2026-08-23 : re-post si le prono a changé, abstention s'il ne valide plus — identique à la période gagnante)
+# + RÈGLEMENT rapide des matchs finis. Un déclencheur PONCTUEL par match -> re-check pile avant le KO.
 # Pour CHAQUE match du programme du jour (data/day_programme.json), pose sur la tâche « BETSFIX Scan Wave »
 # un déclencheur à (coup d'envoi − 1 h). Précision à la minute, zéro sondage.
 # Rejoué chaque matin par scan_daily.ps1 -> Set-ScheduledTask REMPLACE tous les déclencheurs (pas d'accumulation).
-# L'ACTION de la tâche reste scan_wave.ps1 (règlement + selfcheck, PLUS de ré-analyse).
 # -Dry : calcule et affiche seulement (ne modifie PAS la tâche).
 param([switch]$Dry)
 

@@ -3,9 +3,9 @@
 #  (1) ANALYSE les matchs IMMINENTS PAS ENCORE analysés (1re analyse ~1 h avant leur coup d'envoi) ->
 #      FILET FIABLE pour le SLATE NUIT : si le scan du soir (scan_evening, batch unique à 19 h) RATE (cas
 #      2026-08-08 : tourné mais rien analysé), chaque match de nuit a quand même SA propre vague qui l'analyse.
-#      ⚠️ Ce n'est PAS de la ré-analyse : le garde-fou code `_generated_today` (generate_analyses) SAUTE tout
-#      match DÉJÀ analysé aujourd'hui (matin OU soir) -> le pick reste DÉFINITIF, AUCUN flip. Seuls les
-#      matchs NEUFS (jamais analysés) sont traités.
+#      + RE-VÉRIFICATION PRÉ-MATCH (RESTAURÉE 2026-08-23, user « identique à la période qui gagnait ») : un
+#      match DÉJÀ analysé le matin est RE-CONTRÔLÉ ~1 h avant son KO (--refresh-early) -> re-post si le prono
+#      a CHANGÉ, ABSTENTION s'il ne valide plus. Auto-limité (`_analyzed_too_early`) : une seule re-analyse.
 #  (2) RÈGLEMENT silencieux des matchs finis (--no-bilan) + auto-audit.
 # ⏰ DÉCLENCHEMENT PAR MATCH : scan_daily.ps1 pose chaque matin, via deploy/schedule_reana.ps1, UN
 # déclencheur ponctuel à (coup d'envoi − 1 h) par match.
@@ -31,11 +31,12 @@ if ($running) {
     exit 0
 }
 
-# ANALYSE des matchs imminents NON encore analysés (1re analyse -> filet nuit). Le garde-fou `_generated_today`
-# saute tout match déjà analysé aujourd'hui : donc AUCUNE ré-analyse / AUCUN flip du pick du matin.
+# ANALYSE des matchs imminents (1re analyse pour les neufs -> filet nuit) + RE-VÉRIFICATION ~1 h avant KO des
+# matchs déjà analysés le matin (--refresh-early) : re-post si prono changé, abstention s'il ne valide plus
+# (restauré 2026-08-23). Auto-limité par `_analyzed_too_early` -> une seule re-analyse par match.
 # ⚠️ Point décimal « . » obligatoire (locale FR -> "1,5" rejeté par argparse) -> InvariantCulture.
 $hours = $WindowHours.ToString([System.Globalization.CultureInfo]::InvariantCulture)
-Log ("WAVE ANALYSE : matchs imminents NON analysés (1re analyse, --refresh-early, jamais de ré-analyse)")
+Log ("WAVE ANALYSE : matchs imminents (1re analyse + re-vérif pré-match --refresh-early)")
 & $py 'tools\generate_analyses.py' --sport foot --top 24 --hours $hours --from-programme --refresh-early 2>&1 |
     Add-BfxStream $log
 Log ("WAVE ANALYSE DONE (exit {0})" -f $LASTEXITCODE)

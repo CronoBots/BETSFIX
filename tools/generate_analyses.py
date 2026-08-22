@@ -792,8 +792,9 @@ def _set_programme_status(match_id: str, status: str, provisional: dict | None =
 async def _build_and_post_programme(client, sports: list, args) -> None:
     """MATIN : sélectionne les matchs du jour (top N/sport dans la fenêtre), les enregistre dans
     data/day_programme.json et poste le « programme du jour » sur Telegram — SANS analyser. Chaque match
-    est ensuite analysé UNE fois par la passe complète du matin (--from-programme). La ré-analyse pré-match
-    a été supprimée (user 2026-08-07) : le pick du matin est DÉFINITIF (plus de vague --refresh-early)."""
+    est analysé par la passe complète du matin (--from-programme), PUIS RE-VÉRIFIÉ ~1 h avant son coup
+    d'envoi par les vagues (--refresh-early) : re-post si le prono a changé, abstention s'il ne valide plus
+    (RESTAURÉ le 2026-08-23 — identique à la période 22/06→fin juillet qui gagnait)."""
     from app import notify
     _MORNING_SAFE_DC.clear()          # vivier/dossiers FRAIS à chaque construction de programme (combiné + montante
     _MORNING_SAFE_MULTI.clear()       # partagent ces caches ; on repart propre pour ne jamais réutiliser un slate ancien)
@@ -3367,19 +3368,29 @@ async def main():
                 path = os.path.join(OUT, f"{sport}_{fid}.md")
                 # ⛔ UN MATCH = UNE ANALYSE PAR JOUR (user 2026-08-07 : « plus aucun changement de pari sur un
                 # match analysé », + « sans re-scanner des matchs déjà faits » avec les 2 créneaux jour/nuit).
-                # On ne RÉ-ANALYSE JAMAIS un match dont le sidecar `generated` date du JOUR SPORTIF courant
+                # On ne RÉ-ANALYSE PAS un match dont le sidecar `generated` date du JOUR SPORTIF courant
                 # (06h→06h belge) -> le pick (simple/abstention/provisoire/combiné) est FIGÉ, et les 2 scans
                 # jour/nuit ne se marchent PAS dessus même si un match est RETARDÉ et change de slate (il
                 # garde son analyse du matin). Le SCAN MATIN et le SCAN SOIR analysent chacun les matchs
-                # NEUFS de leur slate (pas de `generated` du jour) ; un match déjà fait est sauté. Seuls
-                # --force (ré-analyse volontaire, ex. scan matin) et --match (override proprio) rouvrent.
+                # NEUFS de leur slate ; un match déjà fait est sauté. EXCEPTIONS qui rouvrent : --force /
+                # --match, ET la RE-VÉRIF PRÉ-MATCH (`_reana` ci-dessous, vague --refresh-early ~1 h avant KO,
+                # restaurée le 2026-08-23) qui re-contrôle le pari juste avant le coup d'envoi.
                 if not args.force and not args.match:
                     _prior_p = os.path.join(OUT, f"{sport}_{fid}.json")
                     try:
                         _prior = json.load(open(_prior_p, encoding="utf-8")) if os.path.exists(_prior_p) else None
                     except (OSError, ValueError):
                         _prior = None
-                    if _prior and _generated_today(_prior.get("generated")):
+                    # RE-VÉRIFICATION PRÉ-MATCH RESTAURÉE (user 2026-08-23 : « tout doit être identique à la
+                    # période 22/06→fin juillet qui gagnait »). Un match analysé le matin mais ÉLIGIBLE à la
+                    # re-vérif ~1 h avant SON coup d'envoi (vague --refresh-early, DÉJÀ publié, analysé « trop
+                    # tôt ») N'EST PAS gelé -> il retombe dans la logique `_refresh` ci-dessous : re-analyse
+                    # complète, RE-POSTE si le prono a CHANGÉ, ABSTIENT si plus rien ne valide. AUTO-LIMITÉ par
+                    # `_analyzed_too_early` (une seule re-analyse quand il entre dans la fenêtre, puis re-gelé ->
+                    # pas de boucle, ~+1 analyse/match). C'est le filet qui écartait les paris fragiles avant le KO.
+                    _reana = (args.refresh_early and _notify.get_prono(str(fid))
+                              and _analyzed_too_early(path, m.get("start"), args.hours))
+                    if _prior and _generated_today(_prior.get("generated")) and not _reana:
                         from app import analyses as _an_lock
                         _has_bet = bool((_prior.get("combo") or {}).get("legs")
                                         or _an_lock.retained_bet(sport, str(fid)))
@@ -3388,10 +3399,10 @@ async def main():
                         continue
                 # REFRESH « analysé trop tôt » (--refresh-early, vagues rapprochées) : un match PUBLIÉ dont
                 # l'analyse a été faite quand il était ENCORE hors fenêtre (lead > --hours) est ré-analysé
-                # UNE fois à l'approche -> pick FRAIS près du coup d'envoi, puis re-posté. Auto-limité (voir
-                # _analyzed_too_early). Sinon le GEL protège intégralement le pick déjà publié (inchangé).
-                # ⚠️ Désormais SUPPLANTÉ pour les matchs déjà analysés (gel matin ci-dessus l'intercepte) :
-                # _refresh ne peut plus se déclencher que sur un match sans sidecar du jour (donc jamais ici).
+                # UNE fois à l'approche -> pick FRAIS près du coup d'envoi, RE-POSTÉ si CHANGÉ, ABSTENU si plus
+                # rien ne valide. Auto-limité (voir _analyzed_too_early). RESTAURÉ le 2026-08-23 : le gel matin
+                # ci-dessus laisse désormais passer ce cas (via `_reana`) -> la re-vérif pré-match refonctionne
+                # exactement comme dans la période gagnante (22/06→fin juillet).
                 _refresh = (args.refresh_early and _notify.get_prono(str(fid))
                             and _analyzed_too_early(path, m.get("start"), args.hours))
                 if not (args.force or args.match or _refresh) and _notify.get_prono(str(fid)):
