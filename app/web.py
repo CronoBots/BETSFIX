@@ -8068,19 +8068,6 @@ _LZ_CSS = """
 .lz .rl{font-family:var(--mono);font-size:12.5px;color:var(--green)}
 /* Bloc « Notre signature » (accueil) : ticket-réplique Confiance/Marché/Value/Cote + les 3 calculs, sans
    dévoiler sources ni méthode d'analyse (demande user 2026-08-01). */
-.lz .decrypt{display:grid;grid-template-columns:.92fr 1.08fr;gap:44px;align-items:center}
-.lz .tkt{background:linear-gradient(180deg,var(--gr3),var(--gr2));border:1px solid var(--line2);border-radius:18px;
-  padding:20px;box-shadow:0 30px 60px -30px rgba(0,0,0,.7);position:relative;overflow:hidden}
-.lz .tkt::before{display:none}
-.lz .tk-top{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:600;color:var(--dim);margin-bottom:13px}
-.lz .tk-top .green{font-family:var(--mono);font-size:12px}
-.lz .tk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:13px;overflow:hidden}
-.lz .tk-c{background:var(--gr2);padding:14px 8px;text-align:center}
-.lz .tk-l{display:block;font-size:10.5px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
-.lz .tk-v{display:block;font-size:25px;font-weight:700;margin-top:5px;letter-spacing:-.02em}
-.lz .tk-s{display:block;font-size:10.5px;margin-top:1px}
-.lz .tk-conf .tk-v,.lz .tk-conf .tk-s,.lz .tk-val .tk-v{color:var(--green)}
-.lz .tk-cap{font-family:var(--mono);font-size:12px;color:var(--faint);margin-top:13px;text-align:center;line-height:1.45}
 .lz .steps{display:flex;flex-direction:column;gap:20px}
 .lz .stp{display:flex;gap:14px;align-items:flex-start}
 .lz .stp .n{flex:0 0 auto;width:27px;height:27px;border-radius:50%;border:1px solid var(--green);color:var(--green);
@@ -8097,22 +8084,43 @@ _LZ_CSS = """
 .lz .dcard{background:linear-gradient(180deg,rgba(34,184,255,.07),rgba(34,184,255,.015));
   border:1px solid rgba(34,184,255,.38);border-radius:16px;
   padding:17px 18px 6px;box-shadow:0 0 22px rgba(34,184,255,.12)}
-.lz .dc-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--faint);font-weight:600}
-.lz .dc-h .sp{color:var(--green);text-transform:uppercase;letter-spacing:.04em}
-.lz .dc-teams{font-size:19px;font-weight:700;margin:9px 0 11px}.lz .dc-teams .vs{color:var(--faint);font-weight:400;margin:0 7px}
-.lz .dc-sep{height:1px;background:var(--line);margin:0 -18px 12px}
-.lz .dc-pick{font-size:16px;font-weight:700}
-.lz .dc-gloss{font-size:13.5px;color:var(--dim);margin:3px 0 13px}.lz .dc-gloss .ar{color:var(--green);margin-right:5px}
+/* Carte RÉELLE répliquée (user 2026-08-22, capture IMG_4714) : ligue centrée · logos+noms de part et
+   d'autre de l'heure/compte à rebours · panneau pari Confiance+Cote · barre de confiance · « Pourquoi ce pari ». */
+.lz .dm-lg{position:relative;text-align:center;font-size:12px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--faint);padding:2px 30px 13px}
+.lz .dm-match{position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:8px;padding:2px 0 15px}
+.lz .dm-team{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.lz .dm-crest{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:18px;color:var(--ink);
+  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.15),rgba(255,255,255,.03));
+  border:1px solid var(--line2);box-shadow:inset 0 1px 0 rgba(255,255,255,.10)}
+.lz .dm-nm{font-size:14.5px;font-weight:700;line-height:1.15}
+.lz .dm-mid{display:flex;flex-direction:column;align-items:center;gap:5px;padding:2px 6px 0}
+.lz .dm-time{font-size:26px;font-weight:800;letter-spacing:.01em}
+.lz .dm-cd{font-family:var(--mono);font-size:11.5px;color:var(--dim);background:var(--gfill);
+  border:1px solid var(--line2);border-radius:999px;padding:2px 10px}
+.lz .dm-c3{margin:2px 0 0}
+.lz .dm-bet{position:relative;background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:12px;
+  padding:14px 15px 15px;margin-bottom:2px}
+.lz .dm-pick{text-align:center;font-size:17px;font-weight:700}
+.lz .dm-gloss{text-align:center;font-size:13px;color:var(--dim);margin-top:3px}
+.lz .dm-sep{height:1px;background:var(--line);margin:13px -15px}
+.lz .dm-stats{display:grid;grid-template-columns:1fr 1fr;text-align:center}
+.lz .dm-st{position:relative;display:flex;flex-direction:column;gap:2px;padding:2px 0}
+.lz .dm-st:first-child{border-right:1px solid var(--line)}
+.lz .dm-l{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.lz .dm-v{font-size:27px;font-weight:800;line-height:1.05}.lz .dm-v.green{color:var(--green)}
+.lz .dm-s{font-size:11.5px;color:var(--green);font-weight:600}
+.lz .dm-barwrap{height:9px;border-radius:999px;background:rgba(255,255,255,.06);margin-top:14px;overflow:hidden}
+.lz .dm-bar{height:100%;border-radius:999px;background:linear-gradient(90deg,#1f9d57,#37d07f)}
 .lz .dc-why{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:var(--ink);
-  border-top:1px solid var(--line);margin:11px -18px 0;padding:13px 18px}.lz .dc-why .chev{color:var(--faint)}
+  border-top:1px solid var(--line);margin:11px -18px 0;padding:13px 18px;position:relative}.lz .dc-why .chev{color:var(--faint)}
 .lz .dc-tag{display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--green);color:var(--accent-ink);
   font-family:var(--mono);font-size:11px;font-weight:700;align-items:center;justify-content:center;vertical-align:middle;margin-left:6px}
-/* Numéros d'annotation COHÉRENTS (user 2026-08-22) : lignes -> badge alignés à DROITE (.dc-tr) ;
-   cellules stat -> coin HAUT-GAUCHE (.dc-cc). Fini les numéros éparpillés au milieu du texte. */
-.lz .dcard .dc-h,.lz .dcard .dc-teams,.lz .dcard .dc-pick,.lz .dcard .dc-gloss,.lz .dcard .dc-why{position:relative;padding-right:30px}
+/* Numéros d'annotation : badge à DROITE de la ligne (.dc-tr) ou coin HAUT-GAUCHE d'un bloc (.dc-cc). */
+.lz .dc-why{padding-right:30px}
 .lz .dc-tag.dc-tr{position:absolute;top:50%;right:4px;transform:translateY(-50%);margin:0}
-.lz .tk-c{position:relative}
-.lz .dc-tag.dc-cc{position:absolute;top:5px;left:5px;margin:0;width:17px;height:17px;font-size:10px}
+.lz .dc-tag.dc-cc{position:absolute;top:5px;left:5px;margin:0;width:17px;height:17px;font-size:10px;z-index:2}
 .lz .dc-legend{display:flex;flex-direction:column;gap:16px}
 .lz .dc-li{display:flex;gap:12px;align-items:flex-start}.lz .dc-li .dc-tag{margin:1px 0 0;flex:0 0 auto}
 .lz .dc-li b{font-size:15px}.lz .dc-li p{font-size:13.5px;color:var(--dim);margin-top:2px}
@@ -8468,40 +8476,42 @@ def accueil_body(frag: bool = True) -> str:
     <p>Voici exactement ce que vous recevez sur chaque pari — chiffre par chiffre, sans jargon.</p></div>
   <div class="demo">
     <div class="dcard">
-      <div class="dc-h"><span class="sp">⚽ FOOTBALL · CHAMPIONNAT</span><span class="dc-time">20:45</span><span class="dc-tag dc-tr">1</span></div>
-      <div class="dc-teams">AC Rivera <span class="vs">—</span> Sporting Vale<span class="dc-tag dc-tr">2</span></div>
-      <div class="dc-sep"></div>
-      <div class="dc-pick">AC Rivera ou nul<span class="dc-tag dc-tr">3</span></div>
-      <div class="dc-gloss"><span class="ar">↳</span>gagne ou match nul<span class="dc-tag dc-tr">4</span></div>
-      <div class="tk-grid">
-        <div class="tk-c tk-conf"><span class="dc-tag dc-cc">5</span><span class="tk-l">Confiance</span><span class="tk-v num">78%</span><span class="tk-s">élevée</span></div>
-        <div class="tk-c"><span class="dc-tag dc-cc">6</span><span class="tk-l">Marché</span><span class="tk-v num">72%</span></div>
-        <div class="tk-c tk-val"><span class="dc-tag dc-cc">7</span><span class="tk-l">Value</span><span class="tk-v num">+8%</span></div>
-        <div class="tk-c"><span class="dc-tag dc-cc">8</span><span class="tk-l">Cote</span><span class="tk-v num">1.38</span></div>
+      <div class="dm-lg">PAYS-BAS · EREDIVISIE<span class="dc-tag dc-tr">1</span></div>
+      <div class="dm-match"><span class="dc-tag dc-cc">2</span>
+        <div class="dm-team"><span class="dm-crest">R</span><span class="dm-nm">AC Rivera</span></div>
+        <div class="dm-mid"><span class="dm-time">20:45</span><span class="dm-cd">05h09m</span><span class="dc-tag dm-c3">3</span></div>
+        <div class="dm-team"><span class="dm-crest">V</span><span class="dm-nm">Sporting Vale</span></div>
       </div>
-      <div class="dc-why">Pourquoi ce choix <span class="chev">▾</span><span class="dc-tag dc-tr">9</span></div>
+      <div class="dm-bet"><span class="dc-tag dc-cc">4</span>
+        <div class="dm-pick">Plus de 1.5 buts</div>
+        <div class="dm-gloss">au moins 2 buts au total (les 2 équipes)</div>
+        <div class="dm-sep"></div>
+        <div class="dm-stats">
+          <div class="dm-st"><span class="dc-tag dc-cc">5</span><span class="dm-l">Confiance</span><span class="dm-v green">79%</span><span class="dm-s">élevée</span></div>
+          <div class="dm-st"><span class="dc-tag dc-cc">6</span><span class="dm-l">Cote</span><span class="dm-v">1.22</span></div>
+        </div>
+        <div class="dm-barwrap"><div class="dm-bar" style="width:79%"></div></div>
+      </div>
+      <div class="dc-why">Pourquoi ce pari <span class="chev">▾</span><span class="dc-tag dc-tr">7</span></div>
     </div>
     <div class="dc-legend">
-      <div class="dc-li"><span class="dc-tag">1</span><div><b>Sport · compétition · heure</b>
-        <p>Le contexte du match en un coup d'œil : la discipline, la compétition et l'heure du coup d'envoi.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">1</span><div><b>La compétition</b>
+        <p>Le pays et la ligue du match — le contexte, d'un coup d'œil.</p></div></div>
       <div class="dc-li"><span class="dc-tag">2</span><div><b>Les équipes</b>
-        <p>L'affiche, domicile à gauche — extérieur à droite.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">3</span><div><b>Le pari</b>
-        <p>La sélection exacte à jouer. Ici une <em>double chance</em> : ça passe si Rivera gagne <em>ou</em> fait nul.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">4</span><div><b>Traduit en clair</b>
-        <p>Le pari réécrit sans jargon (« ↳ ») — vous savez précisément ce qui doit arriver pour gagner.</p></div></div>
+        <p>L'affiche avec les logos. Domicile à gauche, extérieur à droite.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">3</span><div><b>Le coup d'envoi</b>
+        <p>L'heure de début et le compte à rebours avant le lancement du match.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">4</span><div><b>Le pari, traduit en clair</b>
+        <p>La sélection exacte à jouer, réécrite sans jargon — ici : <em>au moins 2 buts</em> dans le match.
+          Vous savez précisément ce qui doit arriver pour gagner.</p></div></div>
       <div class="dc-li"><span class="dc-tag">5</span><div><b>La confiance</b>
-        <p>Notre probabilité de gain, <b>recalibrée sur notre relevé réel</b> : quand on annonce 78 %, l'historique
-          confirme que ça sort autour de 78 %. Fiable, pas décorative.</p></div></div>
-      <div class="dc-li"><span class="dc-tag">6</span><div><b>Le marché</b>
-        <p>La probabilité qu'implique la cote — le seuil de rentabilité.</p><span class="f">Marché = 100 ÷ cote</span></div></div>
-      <div class="dc-li"><span class="dc-tag">7</span><div><b>L'edge, puis la value</b>
-        <p>L'<b>edge</b> = de combien on juge le pari plus probable que le marché (78 − 72 = <b>+6 points</b>). La
-          <b>value</b> traduit cet écart <em>en argent</em> — ce que la cote paie en trop. On ne mise que si elle est positive.</p>
-        <span class="f">Edge = confiance − marché · Value = confiance × cote − 1</span></div></div>
-      <div class="dc-li"><span class="dc-tag">8</span><div><b>La cote</b>
-        <p>Le prix décimal du pari : votre mise <em>multipliée par</em> ce nombre si ça passe (1 € → 1,38 €).</p></div></div>
-      <div class="dc-li"><span class="dc-tag">9</span><div><b>Pourquoi ce choix</b>
+        <p>Notre probabilité de gain, <b>recalibrée sur notre relevé réel</b> : quand on annonce 79 %, l'historique
+          confirme que ça sort autour de 79 %. La barre verte la reprend en repère visuel — fiable, pas décorative.</p></div></div>
+      <div class="dc-li"><span class="dc-tag">6</span><div><b>La cote</b>
+        <p>Le prix décimal du pari : votre mise <em>multipliée par</em> ce nombre si ça passe (1 € → 1,22 €).
+          On ne publie un pari que si sa <b>value</b> est positive — l'écart qu'on juge en notre faveur.</p>
+        <span class="f">Value = confiance × cote − 1</span></div></div>
+      <div class="dc-li"><span class="dc-tag">7</span><div><b>Pourquoi ce pari</b>
         <p>L'analyse complète du match en un tap : forme, contexte, risque assumé. Rien n'est caché.</p></div></div>
     </div>
   </div>
