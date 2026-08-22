@@ -1023,7 +1023,13 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
             if _mtn.can_record_day(_cd_mt.day_key()):
                 try:
                     _mcands, _ = await _safe_multi_cached(_cd_mt.day_key(), matches, client)
-                    _mpick = _mtn.pick_multi_from_cands(_mcands or [])
+                    # ANTI-CHEVAUCHEMENT (user 2026-08-22) : la montante ne doit PAS reprendre un match déjà pris
+                    # par le COMBINÉ du jour (bâti juste avant) -> on exclut ses jambes du vivier. La montante
+                    # prendra donc le 2e pari le plus sûr, sur un AUTRE match -> pas de doublon Montante↔Combiné.
+                    _combo_today = _cdaily.today(_cd_mt.day_key()) or {}
+                    _combo_mids = {str(_l.get("mid")) for _l in (_combo_today.get("legs") or []) if _l.get("mid")}
+                    _mcands_f = [c for c in (_mcands or []) if str(c.get("mid")) not in _combo_mids]
+                    _mpick = _mtn.pick_multi_from_cands(_mcands_f)
                 except Exception as _mre:
                     print(f"  (sélection montante mécanique ignorée : {_mre})")
                 # « POURQUOI » FACTUEL (comme le combiné) : la règle quant a SÉLECTIONNÉ ; le texte affiché doit être
