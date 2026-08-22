@@ -118,6 +118,7 @@ def _compute(steps: list, base: float, sim: bool = False) -> dict:
     avg_pal = round(sum(c["palier"] for c in done) / len(done), 1) if done else 0
     total_profit = round(sum(-base for c in done if c["result"] == "lost")
                          + (cap - base if current else 0.0), 2)
+    _lost_chain = None
     if sim:                                           # SIMULATION -> vitrine de la meilleure série
         # COHÉRENCE (bug user 2026-07-28 « pourquoi 13 paliers ? ») : le HERO doit décrire la MÊME chaîne que
         # celle affichée (`featured` = plus haut CAPITAL). Avant, hero_pal = best_pal (RECORD de paliers, pris
@@ -127,9 +128,16 @@ def _compute(steps: list, base: float, sim: bool = False) -> dict:
         chains_out = sorted(done, key=lambda c: -c["peak"])
     else:                                             # RÉEL -> la montante en cours
         featured, hero_cap, hero_pal = current, cap, palier
+        # APRÈS UNE PERTE (aucune montante en cours) : on met en avant la DERNIÈRE montante — celle qui a PERDU —
+        # au lieu de retomber sur l'exemple. On affiche le PALIER ATTEINT avant la perte (JAMAIS « palier 0 »,
+        # user 2026-08-22) ; le capital est revenu à la base et la courbe retombera (flag `lost`).
+        if current is None and done and done[-1].get("result") == "lost":
+            _lost_chain = done[-1]
+            featured = _lost_chain
+            hero_cap, hero_pal = base, _lost_chain["palier"]
         chains_out = list(reversed(done))
     return {
-        "active": active, "sim": sim, "base": base,
+        "active": active, "sim": sim, "base": base, "lost": bool(_lost_chain),
         "capital": round(hero_cap, 2), "palier": hero_pal, "pending": pending,
         "featured": featured, "chains": chains_out,
         "stats": {"n": len(done), "best_capital": round(best_cap, 2), "best_palier": best_pal,

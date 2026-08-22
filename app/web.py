@@ -3392,6 +3392,9 @@ CSS = """
   /* Palier atteint, en PILULE dorée juste sous le multiplicateur (user 2026-08-22). */
   .mont-hero-live .mhx-pal{display:inline-block;margin-top:9px;font-size:11px;font-weight:800;letter-spacing:.03em;
        color:#f6c54a;background:rgba(246,197,74,.12);border:1px solid rgba(246,197,74,.32);border-radius:999px;padding:3px 12px}
+  /* Hero PERDU : « Palier N » en ROUGE (au lieu du multiplicateur doré), courbe qui retombe (user 2026-08-22). */
+  .mont-hero-lost .mhx-lost{font-size:44px;-webkit-text-fill-color:#ff8a8a;color:#ff8a8a}
+  .mont-hero-lost .mp-now{color:#ff8a8a}
   .mont-prog{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:15px;padding-top:14px;
        border-top:1px solid rgba(255,255,255,.08)}
   .mont-prog .mp-cell{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -8883,11 +8886,26 @@ def render_montante(st: dict, example: dict) -> str:
         tag = '<span class="tag">Aperçu · exemple</span>'
     _caps = [base] + [s.get("payout") for s in _fsteps
                       if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
+    if st.get("lost"):                     # PERTE : la courbe RETOMBE à la base (user 2026-08-22) au lieu de rester au pic
+        _caps.append(base)
     _curve = f'<div class="mont-curve mont-hero-curve">{_mont_curve(_caps, uid="best")}</div>' if len(_caps) >= 2 else ""
 
     # HERO — capital mis en avant (montante en cours en réel)
     hero = ""   # rempli par le hero PREMIUM en montante en cours ; sinon hero générique plus bas
-    if active and palier > 0:
+    if active and st.get("lost") and palier > 0:
+        # HERO PERDU (user 2026-08-22) : la montante a atteint le palier N puis a PERDU. On indique le PALIER
+        # ATTEINT (jamais « palier 0 ») + le retour à la base ; la courbe (ci-dessus) retombe à 10 €.
+        hero = (
+            '<div class="mont-hero mont-hero-live mont-hero-lost">'
+            '<div class="mhe">Montante perdue</div>'
+            f'<div class="mhx mhx-lost">Palier {palier}</div>'
+            '<div class="mhx-cap">atteint avant la perte · retour à la base</div>'
+            '<div class="mont-prog">'
+            f'<div class="mp-cell"><b>{_mont_eur(base)}</b><span>Départ</span></div>'
+            '<div class="mp-arrow" aria-hidden="true">→</div>'
+            f'<div class="mp-cell"><b class="mp-now">{_mont_eur(base)}</b><span>Nouvelle montante</span></div>'
+            '</div>' + _curve + '</div>')
+    elif active and palier > 0:
         # HERO PREMIUM « montante en cours » (user 2026-08-09 : « rendu 100 % pro, il faut vraiment voir le X
         # actuel sur la mise »). Le MULTIPLICATEUR (capital ÷ départ) est la VEDETTE : énorme chiffre en
         # dégradé doré + halo. Sous une fine règle, la PROGRESSION 10 € → capital raconte l'histoire (palier
