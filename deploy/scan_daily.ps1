@@ -35,11 +35,11 @@ if ($running) {
 Log 'PROGRAMME : liste COMPLÈTE du jour (jour + nuit) pour l''accueil site'
 # 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (Out-File = cmdlet, $LASTEXITCODE reste python).
 # FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés -> tout le budget Claude au foot.
-# --top 24 = BUDGET TOTAL du jour (top-N GLOBAL ADAPTATIF, user 2026-08-16 « tout compris pour être sûr
-# d'avoir les plus intéressants » ; porté 20 -> 24 le 2026-08-20) : les 24 matchs les PLUS IMPORTANTS des 24h, répartis par créneau
-# selon leur coup d'envoi (jour analysé le matin, nuit le soir). Le split suit la vraie distribution (ex.
-# 13 JOUR + 7 NUIT) au lieu d'un quota fixe 10/10 qui écrêtait le créneau chargé.
-& $py 'tools\generate_analyses.py' --sport foot --top 24 --hours 24 --programme --no-notify 2>&1 |
+# --top 10 = BUDGET TOTAL du jour (top-N GLOBAL ADAPTATIF, user 2026-08-24 : RETOUR à la SÉLECTIVITÉ de la
+# période gagnante — ~5-10 matchs analysés EN PROFONDEUR/jour au lieu de ~20 survolés qui saturaient le
+# forfait). Les 10 matchs les PLUS IMPORTANTS des 24 h, répartis par créneau selon leur coup d'envoi (jour
+# analysé le matin, nuit le soir). Le split suit la vraie distribution (ex. 7 JOUR + 3 NUIT).
+& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --programme --no-notify 2>&1 |
     Add-BfxStream $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le
@@ -57,7 +57,7 @@ if (Test-Path $flag) {
     # sur données fraîches (compos/blessures/cotes) -> re-post si changé, abstention s'il ne valide plus. C'est
     # la mécanique de la période gagnante, sans les flips visibles (rien n'est posté avant d'être vérifié).
     Log 'SCAN MATIN : SLATE JOUR analysé SANS publier (--no-notify) -> publication à la vague KO - 1 h'
-    & $py 'tools\generate_analyses.py' --sport foot --top 24 --hours 24 --from-programme --force --no-notify --ko-from 6 --ko-to 21 2>&1 |
+    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --from-programme --force --no-notify --ko-from 6 --ko-to 21 2>&1 |
         Add-BfxStream $log
     Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 }
