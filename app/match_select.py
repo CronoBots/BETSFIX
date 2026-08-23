@@ -1,11 +1,15 @@
 """Sélection des matchs IMPORTANTS à analyser en profondeur — AVANT toute analyse coûteuse.
 
-Deux critères, dans l'ordre :
+Critères, dans l'ordre :
 1. **Prévisibilité (enjeu)** : on RELÈGUE les amicaux (« Amicaux », friendlies). Énorme profondeur
    de marché mais ~0 prévisibilité (rotations, motivation aléatoire) = quasi-injouables. On préfère
    les compétitions à enjeu (ligues, coupes, playoffs, tournois), qui sont riches en données.
-2. **Profondeur de marché Unibet** (`nonLiveBoCount` du listView) = l'importance selon le book,
-   utilisée comme tri SECONDAIRE à l'intérieur de chaque niveau.
+2. **Analysabilité** (user 2026-08-24) : on FAVORISE les ligues COUVERTES par le sharp / bien enrichies
+   (The Odds API ~68 grandes ligues + gros tournois) -> ancre pour MESURER la value + données ≥2 sources
+   pour une analyse PROFONDE. Boost MULTIPLICATIF sur la profondeur (pas un filtre) -> un match énorme non
+   couvert passe quand même. Réversible (`COVERAGE_BOOST`).
+3. **Profondeur de marché Unibet** (`nonLiveBoCount` du listView) = l'importance selon le book (le score
+   trié = profondeur, boostée si la ligue est couverte).
 On EXCLUT l'eSports et on garde le **top N par sport** (défaut 10/jour). Les amicaux ne remontent
 qu'en REPLI, si pas assez de matchs compétitifs pour remplir le top N.
 
@@ -50,6 +54,32 @@ def _start_dt(s):
         return None
 
 
+# SÉLECTION OPTIMISÉE (user 2026-08-24) : au-delà de la profondeur de marché, on FAVORISE les matchs dont la
+# ligue est COUVERTE (grande ligue ancrée par le sharp The Odds API / Pinnacle, OU gros tournoi international).
+# Une ligue couverte = ancre sharp fiable (value MESURABLE) + enrichissement riche (forme/xG/blessures/compos
+# ≥2 sources) = analyse PROFONDE. Avec --top 10, on veut que les 10 slots aillent à des matchs ANALYSABLES.
+# Boost MULTIPLICATIF (×_COVERED_WEIGHT), PAS un filtre dur -> un match énorme non couvert peut toujours passer.
+# Réversible : COVERAGE_BOOST=False -> tri par profondeur de marché seule (comportement d'origine).
+COVERAGE_BOOST = True
+_COVERED_WEIGHT = 2.0
+_BIG_TOURNEY_KW = ("world cup", "coupe du monde", "champions league", "ligue des champions", "europa",
+                   "conference league", "copa america", "copa libertadores", "sudamericana", "euro ")
+
+
+def _is_covered_comp(comp: str) -> bool:
+    """La ligue est-elle ancrée par le sharp / bien enrichie ? Proxy CHEAP (0 réseau) : mappée par The Odds
+    API (`_sport_key_for`, ~68 grandes ligues) OU gros tournoi international. Repli prudent : import KO -> False
+    (on retombe alors sur le tri profondeur seule pour ce match)."""
+    try:
+        from app import theoddsapi
+        if theoddsapi._sport_key_for(comp):
+            return True
+    except Exception:
+        pass
+    c = (comp or "").lower()
+    return any(k in c for k in _BIG_TOURNEY_KW)
+
+
 def rank_important(events: list, top_n: int = 10, within_hours: int | None = None,
                    always=None) -> list:
     """Depuis les items `events` d'un listView Unibet, renvoie le TOP N matchs. eSports exclus.
@@ -81,9 +111,14 @@ def rank_important(events: list, top_n: int = 10, within_hours: int | None = Non
             "markets": ev.get("nonLiveBoCount", 0) or 0,
             "start": ev.get("start"),
             "friendly": _is_friendly(group, path_names),
+            "covered": _is_covered_comp(group),          # ligue ancrée sharp / bien enrichie -> analyse profonde
         })
-    # Compétitif (non-amical) AVANT amical ; profondeur de marché en tri secondaire.
-    rows.sort(key=lambda r: (not r["friendly"], r["markets"]), reverse=True)
+    # Compétitif (non-amical) AVANT amical ; puis SCORE = profondeur de marché, BOOSTÉE ×_COVERED_WEIGHT si la
+    # ligue est couverte (ancre sharp + données riches). Boost multiplicatif -> un match énorme non couvert
+    # (grosse profondeur) reste devant une petite ligue couverte. COVERAGE_BOOST=False -> profondeur seule.
+    def _score(r):
+        return r["markets"] * (_COVERED_WEIGHT if (COVERAGE_BOOST and r["covered"]) else 1.0)
+    rows.sort(key=lambda r: (not r["friendly"], _score(r)), reverse=True)
     top = rows[:top_n]
     if always:                                  # force TOUS les gros tournois de la fenêtre (hors top N)
         seen = {r["id"] for r in top}
