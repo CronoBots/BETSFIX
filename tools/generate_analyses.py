@@ -3381,14 +3381,15 @@ async def main():
                         _prior = json.load(open(_prior_p, encoding="utf-8")) if os.path.exists(_prior_p) else None
                     except (OSError, ValueError):
                         _prior = None
-                    # RE-VÉRIFICATION PRÉ-MATCH RESTAURÉE (user 2026-08-23 : « tout doit être identique à la
-                    # période 22/06→fin juillet qui gagnait »). Un match analysé le matin mais ÉLIGIBLE à la
-                    # re-vérif ~1 h avant SON coup d'envoi (vague --refresh-early, DÉJÀ publié, analysé « trop
-                    # tôt ») N'EST PAS gelé -> il retombe dans la logique `_refresh` ci-dessous : re-analyse
-                    # complète, RE-POSTE si le prono a CHANGÉ, ABSTIENT si plus rien ne valide. AUTO-LIMITÉ par
-                    # `_analyzed_too_early` (une seule re-analyse quand il entre dans la fenêtre, puis re-gelé ->
-                    # pas de boucle, ~+1 analyse/match). C'est le filet qui écartait les paris fragiles avant le KO.
-                    _reana = (args.refresh_early and _notify.get_prono(str(fid))
+                    # RE-VÉRIFICATION PRÉ-MATCH (user 2026-08-23, « Option B » = mécanique de la période gagnante
+                    # 22/06→fin juillet). Le matin analyse TOUT le slate SANS publier (--no-notify) ; puis chaque
+                    # match du programme est RE-ANALYSÉ ~1 h avant SON coup d'envoi (vague --refresh-early) et c'est
+                    # LÀ qu'on PUBLIE le pari final (ou qu'on s'abstient). Un match déjà analysé le matin, analysé
+                    # « trop tôt », N'EST donc PAS gelé -> il retombe dans `_refresh` ci-dessous. On NE gate PLUS
+                    # sur « déjà publié » : TOUT le programme repasse près du KO (y compris les abstentions du
+                    # matin -> 2e chance), comme mesuré sur la période gagnante (52/67 abstentions re-analysées
+                    # ~1 h avant). AUTO-LIMITÉ par `_analyzed_too_early` (une seule re-analyse par match).
+                    _reana = (args.refresh_early
                               and _analyzed_too_early(path, m.get("start"), args.hours))
                     if _prior and _generated_today(_prior.get("generated")) and not _reana:
                         from app import analyses as _an_lock
@@ -3397,13 +3398,12 @@ async def main():
                         print(f"  · {m['name']} : déjà analysé aujourd'hui (gelé) -> pas de re-scan.")
                         _set_programme_status(str(m.get("id")), "bet" if _has_bet else "abstained")
                         continue
-                # REFRESH « analysé trop tôt » (--refresh-early, vagues rapprochées) : un match PUBLIÉ dont
-                # l'analyse a été faite quand il était ENCORE hors fenêtre (lead > --hours) est ré-analysé
-                # UNE fois à l'approche -> pick FRAIS près du coup d'envoi, RE-POSTÉ si CHANGÉ, ABSTENU si plus
-                # rien ne valide. Auto-limité (voir _analyzed_too_early). RESTAURÉ le 2026-08-23 : le gel matin
-                # ci-dessus laisse désormais passer ce cas (via `_reana`) -> la re-vérif pré-match refonctionne
-                # exactement comme dans la période gagnante (22/06→fin juillet).
-                _refresh = (args.refresh_early and _notify.get_prono(str(fid))
+                # REFRESH « analysé trop tôt » (--refresh-early) : un match analysé le matin (hors fenêtre) est
+                # ré-analysé UNE fois ~1 h avant le KO. C'est la PUBLICATION FINALE (Option B, 2026-08-23) : le
+                # matin ne publie pas, la vague publie ici le pari frais (ou s'abstient). Plus de gate « publié »
+                # -> tout le programme repasse (abstentions incluses). Auto-limité (voir _analyzed_too_early). La
+                # SUPPRESSION du repost (plus bas) ne s'applique qu'à un pari DÉJÀ publié inchangé (anti-spam).
+                _refresh = (args.refresh_early
                             and _analyzed_too_early(path, m.get("start"), args.hours))
                 if not (args.force or args.match or _refresh) and _notify.get_prono(str(fid)):
                     print(f"  · {m['name']} : déjà publié sur Telegram (gelé) -> pas de ré-analyse.")
@@ -3707,7 +3707,11 @@ async def main():
                 # était déjà publié. Identique -> rien reposté (pas de spam abonnés) ; le sidecar est déjà
                 # réécrit (mtime frais) -> pas de boucle. Un NOUVEAU match (jamais publié) a _old_sig=None
                 # -> posté normalement. (demande user 2026-07-08)
-                if _old_sig is not None and _card_sig(_card) == _old_sig:
+                # OPTION B (2026-08-23) : la garde `get_prono` -> on ne SAUTE la publication que si le pari a
+                # DÉJÀ été publié ET est inchangé. En Option B le matin ne publie pas -> un match jamais publié
+                # DOIT être posté au KO − 1 h même si le pick est identique à l'analyse du matin.
+                if (_old_sig is not None and _card_sig(_card) == _old_sig
+                        and _notify.get_prono(str(fid))):
                     print(f"  = {m['name']} : prono INCHANGÉ à la ré-analyse -> pas de repost.")
                     await asyncio.sleep(SCAN_GAP)
                     continue

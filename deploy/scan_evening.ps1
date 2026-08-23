@@ -40,8 +40,10 @@ if ($running) {
 if (Test-Path $flag) {
     Log 'SCAN SOIR : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~1h avant chaque coup d''envoi'
 } else {
-    Log 'SCAN SOIR : SLATE NUIT (coup d''envoi 21h->06h heure belge) + publication des picks'
-    & $py 'tools\generate_analyses.py' --sport foot --top 24 --hours 12 --from-programme --ko-from 21 --ko-to 6 2>&1 |
+    # OPTION B (user 2026-08-23) : le soir ANALYSE le slate NUIT mais NE PUBLIE PAS (--no-notify) ; chaque pari
+    # de nuit est publié ~1 h avant SON coup d'envoi par la vague (re-analyse fraîche -> publie ou s'abstient).
+    Log 'SCAN SOIR : SLATE NUIT analysé SANS publier (--no-notify) -> publication à la vague KO - 1 h'
+    & $py 'tools\generate_analyses.py' --sport foot --top 24 --hours 12 --from-programme --no-notify --ko-from 21 --ko-to 6 2>&1 |
         Add-BfxStream $log
     Log ("SCAN SOIR DONE (exit {0})" -f $LASTEXITCODE)
 }

@@ -52,8 +52,12 @@ Log 'REANA SCHED : planification des passes de règlement (coup d''envoi - 1 h)'
 if (Test-Path $flag) {
     Log 'SCAN MATIN : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~1h avant chaque coup d''envoi'
 } else {
-    Log 'SCAN MATIN : SLATE JOUR (coup d''envoi 6h->21h heure belge) + publication des picks'
-    & $py 'tools\generate_analyses.py' --sport foot --top 24 --hours 24 --from-programme --force --ko-from 6 --ko-to 21 2>&1 |
+    # OPTION B (user 2026-08-23) : le matin ANALYSE tout le slate JOUR mais NE PUBLIE PAS (--no-notify). Chaque
+    # pari est publié ~1 h avant SON coup d'envoi par la vague (scan_wave.ps1 --refresh-early), après re-analyse
+    # sur données fraîches (compos/blessures/cotes) -> re-post si changé, abstention s'il ne valide plus. C'est
+    # la mécanique de la période gagnante, sans les flips visibles (rien n'est posté avant d'être vérifié).
+    Log 'SCAN MATIN : SLATE JOUR analysé SANS publier (--no-notify) -> publication à la vague KO - 1 h'
+    & $py 'tools\generate_analyses.py' --sport foot --top 24 --hours 24 --from-programme --force --no-notify --ko-from 6 --ko-to 21 2>&1 |
         Add-BfxStream $log
     Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 }
