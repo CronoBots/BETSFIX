@@ -700,6 +700,15 @@ _SAFE_EMO = {"ok": "🟢", "mid": "🟠", "hi": "🔴"}
 _MIN_CONF = 65   # seuil de confiance MINI pour recommander (calibration réelle : sous 65 %, le système
 #                  est sur-confiant et perd ; à partir de 65 % il est fiable). Pas de repli en-dessous.
 
+# LISTE BLANCHE « MARCHÉS PROUVÉS » (user 2026-08-24, option 1 : Over GARDÉ) — la sélection ne retient QUE les
+# familles de marché qui ont fait leurs preuves en période gagnante (début juillet : toutes à ~88-92 %). Un pari
+# dans une famille NON prouvée (cartons, buteurs, mi-temps, hors-jeu, tirs totaux…) est écarté du pool ->
+# abstention si c'était le seul candidat. S'ajoute aux auto-exclusions data-driven (`ok`) + bans durs
+# (Corners/BTTS). Réversible : PROVEN_MARKETS_ONLY = False -> comportement d'avant.
+PROVEN_MARKETS_ONLY = True
+_PROVEN_MARKETS_FOOT = frozenset({"Vainqueur", "Double chance", "Total Under", "Total Over",
+                                  "Total équipe", "Handicap"})
+
 
 def _recommend(data: list, ok: set | None = None, cprobs: list | None = None,
                codes: list | None = None) -> dict:
@@ -724,6 +733,11 @@ def _recommend(data: list, ok: set | None = None, cprobs: list | None = None,
             if s[2] >= _MIN_CONF
             and (data[s[0]].get("cote") or 0) < 2.00
             and ((data[s[0]].get("cote") or 0) < 1.70 or s[2] >= 72)]
+    # LISTE BLANCHE MARCHÉS PROUVÉS (user 2026-08-24) : ne garder que les familles prouvées. `codes` (marché par
+    # candidat) fourni par l'appelant foot -> famille via market_of ; si `codes` absent, pas de filtre (repli sûr).
+    if PROVEN_MARKETS_ONLY and codes:
+        pool = [s for s in pool
+                if market_of((codes[s[0]] if s[0] < len(codes) else "") or "") in _PROVEN_MARKETS_FOOT]
     if not pool:
         return {"idx": None, "verdict": "skip", "ev": None, "stake_pct": 0.0}
     i, ev, _prob = max(pool, key=lambda s: s[1])
