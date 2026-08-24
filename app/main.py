@@ -576,7 +576,12 @@ async def manifest() -> JSONResponse:
         "name": "BETSFIX — Analyse paris multi-sports",
         "short_name": "BETSFIX",
         "description": "Tennis · Basket · Foot — modèle vs cotes, value, calibration.",
-        "start_url": "/", "scope": "/", "display": "standalone",
+        # PLEIN ÉCRAN IMMERSIF (user 2026-08-24) : `fullscreen` masque les barres système Android (statut EN
+        # HAUT + navigation EN BAS) -> l'app occupe tout l'écran. `display_override` retombe sur `standalone`
+        # si `fullscreen` n'est pas supporté (iOS ignore `display` et reste piloté par apple-mobile-web-app-*).
+        # ⚠️ Une PWA DÉJÀ installée doit être RETIRÉE puis RÉ-AJOUTÉE à l'écran d'accueil pour prendre le mode.
+        "start_url": "/", "scope": "/", "display": "fullscreen",
+        "display_override": ["fullscreen", "standalone"],
         "orientation": "portrait",
         "background_color": "#0b0d12", "theme_color": "#0b0d12",   # = couleur nav (anti zone noire safe-area, user 2026-08-16)
         "icons": [
