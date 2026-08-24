@@ -3533,6 +3533,10 @@ async def main():
                          "poste la LISTE sur Telegram, SANS analyser (les paris viennent ~1 h avant chacun).")
     ap.add_argument("--from-programme", action="store_true",
                     help="ne (ré-)analyser QUE les matchs du programme du jour (data/day_programme.json).")
+    ap.add_argument("--daily-combo", action="store_true",
+                    help="À LA FIN de cette passe, (re)construire le COMBINÉ + la MONTANTE du jour depuis les "
+                         "paris analysés ENCORE À VENIR (option B, user 2026-08-24 : lancé par le scan du SOIR "
+                         "~18h -> couvre tout le slate soir+nuit, une seule construction figée).")
     ap.add_argument("--ko-from", type=int, default=None,
                     help="SLATE : ne garder que les matchs dont le coup d'envoi (heure BELGE) est >= cette "
                          "heure. Avec --ko-to, partitionne la journée (ex. JOUR 6->21, NUIT 21->6). Sépare "
@@ -4052,11 +4056,12 @@ async def main():
         import datetime as _dt
         from app import combo_daily as _cdaily
         _day = _cdaily.day_key()          # clé-jour UNIQUE (jour sportif local 06h→06h, source combo_daily)
-        # COMBINÉ + MONTANTE DEPUIS LES PARIS ANALYSÉS (user 2026-08-24) — UNIQUEMENT sur la passe ANALYSE BATCH
-        # du MATIN (tous les matchs du programme analysés en une fois : `--from-programme --force` sans
-        # `--refresh-early` ni `--match`). PAS sur les vagues (`--refresh-early` -> 1-2 matchs imminents = vivier
-        # incomplet) ni les scans ciblés. Idempotent (record_* refusent si déjà figé). Best-effort (isolé).
-        if COMBO_MONTANTE_FROM_ANALYSIS and args.from_programme and args.force \
+        # COMBINÉ + MONTANTE DEPUIS LES PARIS ANALYSÉS (user 2026-08-24, OPTION B) — à la fin de la passe qui porte
+        # `--daily-combo` : le SCAN DU SOIR (~18h). À ce moment TOUT le slate (matchs du jour analysés le matin +
+        # matchs de nuit analysés à l'instant) est prêt ; `_harvest_analyzed_bets` ne prend que les paris ENCORE À
+        # VENIR -> le combiné/montante couvrent le meilleur vivier soir+nuit, en UNE construction figée. PAS sur
+        # les vagues (`--refresh-early` = vivier incomplet) ni les scans ciblés. Idempotent + best-effort (isolé).
+        if COMBO_MONTANTE_FROM_ANALYSIS and args.daily_combo and args.from_programme \
                 and not args.refresh_early and not args.match:
             try:
                 await _build_combo_montante_from_analysis(_day, client)

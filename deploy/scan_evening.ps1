@@ -42,8 +42,10 @@ if (Test-Path $flag) {
 } else {
     # OPTION B (user 2026-08-23) : le soir ANALYSE le slate NUIT mais NE PUBLIE PAS (--no-notify) ; chaque pari
     # de nuit est publié ~1 h avant SON coup d'envoi par la vague (re-analyse fraîche -> publie ou s'abstient).
-    Log 'SCAN SOIR : SLATE NUIT analysé SANS publier (--no-notify) -> publication à la vague KO - 1 h'
-    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 12 --from-programme --no-notify --ko-from 21 --ko-to 6 2>&1 |
+    # --daily-combo (user 2026-08-24) : À LA FIN de cette passe, on (re)construit LE combiné + LA montante du jour
+    # depuis les paris analysés ENCORE À VENIR (soir+nuit) -> une seule construction figée, meilleur vivier.
+    Log 'SCAN SOIR : SLATE NUIT analysé SANS publier + construction combiné/montante du jour (soir+nuit)'
+    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 12 --from-programme --no-notify --daily-combo --ko-from 21 --ko-to 6 2>&1 |
         Add-BfxStream $log
     Log ("SCAN SOIR DONE (exit {0})" -f $LASTEXITCODE)
 }
