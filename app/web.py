@@ -6962,7 +6962,7 @@ _ZONE_ICON = {
 def _zone(kind: str, title: str, tag: str, count: int, body: str,
           *, collapsible: bool = False, open_: bool = True, empty: str | None = None,
           record: tuple | None = None, zk: str | None = None,
-          leg_results: list | None = None, subtitle: str = "") -> str:
+          leg_results: list | None = None, subtitle: str = "", waiting: bool = False) -> str:
     """ZONE (accueil ET onglets sport) — regroupement par nature de pari, en-tête PREMIUM ÉPURÉ : un point
     de couleur (état) + le titre en casse normale + un compteur discret + un mot-clé d'état à droite, posé
     sur un filet fin. PAS de barre verticale ni de majuscules criardes (refonte 2026-07-11). Corps = les
@@ -7023,12 +7023,11 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     # de matchs, avec le MÊME badge que Confiance/Value (pastille `.zr`), pour l'homogénéité des catégories.
     if not chips and count > 0:
         chips = f'<span class="zr zrn">{count}</span>'
-    # ZONE VIDE : PLUS de badge « en attente » à côté d'un type de pari (user 2026-08-24). Avec l'Option B les
-    # paris sont publiés ~1 h avant CHAQUE match (pas le matin) -> Confiance/Value sont vides une partie de la
-    # journée sans que ce soit un « en attente » au sens résultat. En-tête seul (titre), sans badge trompeur.
-    # (Réactiver : décommenter le span zr-wait ci-dessous.)
-    # if _empty_zone and not chips:
-    #     chips = '<span class="zr zr-wait">en attente</span>'
+    # ZONE VIDE : badge « en attente » SEULEMENT si `waiting` (= il y a un PROGRAMME aujourd'hui, des matchs, mais
+    # pas encore de pari dans cette catégorie — user 2026-08-24). Si le programme est VIDE (jour sans match, ou
+    # avant le scan) -> AUCUN badge (« en attente » de rien n'a pas de sens). En-tête seul dans ce cas.
+    if _empty_zone and not chips and waiting:
+        chips = '<span class="zr zr-wait">en attente</span>'
     if chips:
         rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
@@ -7739,6 +7738,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _up = len(_pl) - _pend - _lw - _ll        # jaune = à venir + live INCERTAIN (hors live verrouillés)
         return (len(_pl) + _w + _l + _p, _up, 0, _w + _lw, _l + _ll, _pend)
 
+    # PROGRAMME du jour non vide ? (des matchs prévus) -> pilote le badge « en attente » des catégories VIDES :
+    # programme présent + pas encore de pari = « en attente » ; programme vide (jour sans match / avant scan) =
+    # aucun badge (user 2026-08-24).
+    _has_prog = bool(_load_day_programme().get("matches"))
     # ZONE CONFIANCE : PUREMENT des confiances (la montante a désormais sa PROPRE zone, user 2026-08-12).
     _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf)) if h])
     _conf_rec = _tier_rec(play_conf, "confiance")
@@ -7746,14 +7749,14 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # d'état honnête à la place des cartes). Les autres zones n'apparaissent que si elles ont du contenu.
     out.append(_zone("play", _plur(len(play_conf) + len(_res_conf), "Confiance"), "",
                      len(play_conf) + len(_res_conf), _conf_html,
-                     collapsible=True, record=_conf_rec if _conf_rec[0] else None,
+                     collapsible=True, record=_conf_rec if _conf_rec[0] else None, waiting=_has_prog,
                      empty="Aucune sélection à haute confiance pour l'instant."))
     # ZONE VALUE — toujours affichée (user 2026-08-17).
     _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value)) if h])
     _value_rec = _tier_rec(play_value, "value")
     out.append(_zone("value", _plur(len(play_value) + len(_res_value), "Value"), "",
                      len(play_value) + len(_res_value), _value_html,
-                     collapsible=True, record=_value_rec if _value_rec[0] else None,
+                     collapsible=True, record=_value_rec if _value_rec[0] else None, waiting=_has_prog,
                      empty="Aucun pari de value détecté pour l'instant."))
     # ZONE MONTANTE (dédiée, user 2026-08-12) : à venir/live (play_mont) + réglée (_mont_settled). Plus jamais
     # fondue dans Confiance/Value. La carte garde son cadre bleu + titre « MONTANTE • PALIER N ».
@@ -7770,7 +7773,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # un message d'état. Titre = « Montante • Palier N » s'il y a un palier, sinon « Montante ».
     _mt_split = (_mont_title or "Montante").split(" · ", 1)   # « Montante · Palier N » -> titre + sous-titre PETIT
     out.append(_zone("mont", _mt_split[0], "", len(play_mont), _mont_html,
-                     collapsible=True, record=_mont_rec if _mont_rec[0] else None,
+                     collapsible=True, record=_mont_rec if _mont_rec[0] else None, waiting=_has_prog,
                      subtitle=(_mt_split[1] if len(_mt_split) > 1 else ""),
                      empty="Aucun palier engagé pour l'instant."))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
