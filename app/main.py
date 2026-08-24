@@ -583,6 +583,12 @@ async def manifest() -> JSONResponse:
         "start_url": "/", "scope": "/", "display": "fullscreen",
         "display_override": ["fullscreen", "standalone"],
         "orientation": "portrait",
+        # DÉTECTION « app installée » (user 2026-08-24) : se lister comme related-app « webapp » permet à
+        # `navigator.getInstalledRelatedApps()` (Chrome Android) de savoir si la PWA est déjà installée ->
+        # la bannière d'installation ne s'affiche PAS pour un utilisateur qui a déjà l'app (mais navigue).
+        "related_applications": [{"platform": "webapp",
+                                  "url": "https://api.betsfix.com/manifest.webmanifest"}],
+        "prefer_related_applications": False,
         "background_color": "#0b0d12", "theme_color": "#0b0d12",   # = couleur nav (anti zone noire safe-area, user 2026-08-16)
         "icons": [
             {"src": "/static/icon-192.png?v=4", "sizes": "192x192", "type": "image/png"},

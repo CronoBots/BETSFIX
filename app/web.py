@@ -4137,18 +4137,28 @@ _A2HS_JS = (
     "(function(){var el=document.getElementById('a2hs');if(!el)return;"
     "var go=document.getElementById('a2hs-go'),x=document.getElementById('a2hs-x'),sub=document.getElementById('a2hs-sub');"
     "var sa=window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);"
-    "if(sa)return;"                                    # déjà installée -> jamais de bannière
-    "var off=false;try{off=localStorage.getItem('a2hs_off')==='1';}catch(e){}if(off)return;"
+    "if(sa)return;"                                    # lancée depuis l'icône (dans l'app) -> jamais de bannière
+    # FERMETURE = pour CETTE SESSION seulement (sessionStorage) : la bannière RÉAPPARAÎT à la prochaine visite
+    # TANT QUE l'app n'est pas installée (user 2026-08-24 ; avant : localStorage = fermeture définitive).
+    "var off=false;try{off=sessionStorage.getItem('a2hs_off')==='1';}catch(e){}if(off)return;"
     "function show(){el.hidden=false;requestAnimationFrame(function(){el.classList.add('show');});}"
     "function hide(rem){el.classList.remove('show');setTimeout(function(){el.hidden=true;},320);"
-    "if(rem)try{localStorage.setItem('a2hs_off','1');}catch(e){}}"
-    "var dfd=null;"
+    "if(rem)try{sessionStorage.setItem('a2hs_off','1');}catch(e){}}"
+    "function arm(){var dfd=null;"
     "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();dfd=e;"          # Android/Chrome
     "if(sub)sub.textContent='Plein écran, sans barre du navigateur.';if(go)go.hidden=false;show();});"
     "var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);"
-    "if(ios)setTimeout(show,1400);"                    # iOS : instructions déjà dans le HTML
+    "if(ios){setTimeout(show,1400);}"                  # iOS : instructions manuelles déjà dans le HTML
+    # Android sans prompt natif (Chrome le tait parfois) : on montre quand même, avec l'instruction du menu.
+    "else{setTimeout(function(){if(el.hidden){if(go&&go.hidden&&sub)sub.textContent='Menu ⋮ du navigateur, puis « Installer ».';show();}},1800);}"
     "if(go)go.addEventListener('click',function(){if(dfd){dfd.prompt();dfd.userChoice.then(function(){hide(true);});}});"
     "if(x)x.addEventListener('click',function(){hide(true);});"
+    "window.addEventListener('appinstalled',function(){hide(false);});}"
+    # DÉTECTION FIABLE (Android/Chrome) : la PWA est-elle DÉJÀ installée ? getInstalledRelatedApps lit les
+    # related_applications du manifeste -> si installée, PAS de bannière (même en navigation) ; sinon on arme.
+    # API absente (iOS…) -> on arme directement (le test standalone ci-dessus a déjà écarté « dans l'app »).
+    "if(navigator.getInstalledRelatedApps){navigator.getInstalledRelatedApps().then(function(a){"
+    "if(a&&a.length)return;arm();}).catch(arm);}else{arm();}"
     "})();"
 )
 
