@@ -3769,6 +3769,7 @@ async def main():
                                 _co = _card.get("cote")
                                 _pktxt = f"{_pk} @ {_co}" if (_pk and _co) else _pk
                                 _push.notify_new_prono(str(_card.get("match") or ""), _pktxt,
+                                                       str(_card.get("tier") or "confiance"),
                                                        str(_card.get("_sport") or "foot"))
                             except Exception:
                                 pass
