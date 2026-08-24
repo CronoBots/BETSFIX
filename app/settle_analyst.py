@@ -2064,12 +2064,10 @@ async def _settle_analyses_impl() -> int:
                             from app import push as _push
                             _mk = ((card.get("simple") or {}).get("mark")
                                    or (card.get("combo") or {}).get("mark"))
-                            if _mk in ("won", "lost"):
-                                _e = "✅" if _mk == "won" else "❌"
-                                _l = "GAGNÉ" if _mk == "won" else "Perdu"
+                            if _mk in ("won", "lost"):   # message centralisé -> app/push.py MSG (personnalisable)
                                 await asyncio.to_thread(
-                                    _push.send_push, f"{_e} Pari {_l}",
-                                    str(card.get("match") or "").replace(" — ", " - "), "/", "result")
+                                    _push.notify_result,
+                                    str(card.get("match") or "").replace(" — ", " - "), _mk)
                         except Exception:
                             pass
                     # R2 — on FIGE les flags notified_* SEULEMENT maintenant (envoi confirmé). Si l'envoi

@@ -3910,10 +3910,13 @@ async def main():
             _mr = _mtn.run_daily(_cd_mt.day_key())
             print(f"  🪜 Montante (fin de scan, règlement) : {_mr}")
             if _mr.get("recorded"):        # NOTIF PUSH PWA « montante » (mise du jour placée, user 2026-08-16)
+                # COUPÉ (user 2026-08-24) : plus de notif push montante (comme Telegram) -> reste sur le SITE.
                 try:
-                    from app import push as _push
-                    _push.send_push("🪜 Montante BETSFIX", "Nouvelle mise du jour placée",
-                                    "/montante", "montante")
+                    from app import notify as _nfy_m
+                    if _nfy_m.TG_COMBO_MONTANTE:
+                        from app import push as _push
+                        _push.send_push("🪜 Montante BETSFIX", "Nouvelle mise du jour placée",
+                                        "/montante", "montante")
                 except Exception:
                     pass
     except Exception as _mexc:

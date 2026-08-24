@@ -144,8 +144,30 @@ def send_push(title: str, body: str, url: str = "/", tag: str = "prono") -> int:
     return ok
 
 
+# ───────────────────────────────────────────────────────────────────────────── #
+# MESSAGES DES NOTIFICATIONS PUSH (PWA) — PERSONNALISABLES (user 2026-08-24).      #
+# C'est le SEUL endroit à éditer pour changer les textes reçus sur le téléphone.   #
+# Variables disponibles dans title/body :                                          #
+#   {match} = « A - B »   ·   {pick} = pari + cote (ex. « Plus de 1.5 buts @ 1.35 »)#
+# Seuls les paris SIMPLES Confiance/Value notifient (combiné & montante coupés).    #
+# ───────────────────────────────────────────────────────────────────────────── #
+MSG = {
+    "prono": {"title": "⚽ Nouveau prono BETSFIX", "body": "{match} — {pick}"},
+    "won":   {"title": "✅ Pari gagné",            "body": "{match}"},
+    "lost":  {"title": "❌ Pari perdu",            "body": "{match}"},
+}
+
+
 def notify_new_prono(match: str, pick: str, sport: str = "foot") -> int:
     """Notif « nouveau prono » (appelée à la publication). `match` = « A - B », `pick` = le pari + cote."""
-    title = "⚽ Nouveau prono BETSFIX"
-    body = f"{match} — {pick}" if pick else match
-    return send_push(title, body, url="/", tag="prono")
+    m = MSG["prono"]
+    body = m["body"].format(match=match, pick=pick) if pick else match
+    return send_push(m["title"].format(match=match, pick=pick), body, url="/", tag="prono")
+
+
+def notify_result(match: str, mark: str) -> int:
+    """Notif RÉSULTAT d'un pari simple. `mark` = won/lost (no-op sur push/void). `match` = « A - B »."""
+    if mark not in ("won", "lost"):
+        return 0
+    m = MSG[mark]
+    return send_push(m["title"].format(match=match), m["body"].format(match=match), url="/", tag="result")
