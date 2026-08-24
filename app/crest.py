@@ -66,6 +66,10 @@ _ALIAS = {
     # _match rejette même quand la recherche renvoie le match). user 2026-08-20 :
     "fccopenhague": "FC København",          # Unibet « FC Copenhague » ; FotMob « FC København » (id 8391)
     "hearts": "Heart of Midlothian",         # Unibet « Hearts » ; FotMob « Heart of Midlothian » (id 9860)
+    # user 2026-08-24 (logos manquants) — l'alias DOIT être le nom EXACT FotMob :
+    "fcbarcelone": "Barcelona",              # Unibet « FC Barcelone » ; FotMob « Barcelona » (id 8634)
+    "fcbruges": "Club Brugge",               # Unibet « FC Bruges » ; FotMob « Club Brugge » (id 8342 ; « Brugge » seul = autre équipe)
+    "alqadisiya": "Al-Qadsiah",              # Unibet « Al Qadisiya » ; FotMob « Al-Qadsiah » (id 101919)
 }
 
 
