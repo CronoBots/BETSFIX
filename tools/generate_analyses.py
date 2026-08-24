@@ -984,7 +984,8 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                 print(f"  🎯 Combiné {_label} (figé) : cote {_cb['cote']} · {round(_cb['prob'] * 100)}% · "
                       f"{len(_cb['legs'])} jambes : {_fcl}")
                 # PUBLICATION TELEGRAM (indépendante de --no-notify, idempotente par clé).
-                if _notify.configured() and not _notify.get_prono(f"{_tgkey}_{_cday}"):
+                # COUPÉ (user 2026-08-24) : plus de combiné sur Telegram (`notify.TG_COMBO_MONTANTE`) -> reste sur le SITE.
+                if _notify.TG_COMBO_MONTANTE and _notify.configured() and not _notify.get_prono(f"{_tgkey}_{_cday}"):
                     try:
                         import card_image as _ci_c
                         from app import card_data as _cdd_c
@@ -1054,7 +1055,8 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                           f"@{_mpick['cote']} ({round((_mpick.get('prob') or 0) * 100)}%)")
                     # PUBLICATION TELEGRAM de la MONTANTE (user 2026-08-18) : carte « MONTANTE » (même patron que
                     # le combiné/simple). Indépendant de `--no-notify`, idempotent (clé `montante_daily_<jour>`).
-                    if _notify.configured() and not _notify.get_prono(f"montante_daily_{_cd_mt.day_key()}"):
+                    # COUPÉ (user 2026-08-24) : plus de montante sur Telegram (`notify.TG_COMBO_MONTANTE`) -> reste sur le SITE.
+                    if _notify.TG_COMBO_MONTANTE and _notify.configured() and not _notify.get_prono(f"montante_daily_{_cd_mt.day_key()}"):
                         try:
                             import card_image as _ci_m
                             from app import card_data as _cdd_m
@@ -3837,7 +3839,8 @@ async def main():
                     # PUBLICATION TELEGRAM : carte IMAGE du combiné football, comme les pronos (demande user
                     # 2026-08-02 : publier le combiné football avec génération d'image). Jambes = (marché, pick,
                     # cote, pourquoi) via les helpers card_data ; rendu card_image ; envoi photo.
-                    if not args.no_notify:
+                    # COUPÉ (user 2026-08-24) : plus de combiné sur Telegram (`notify.TG_COMBO_MONTANTE`) -> reste sur le SITE.
+                    if not args.no_notify and notify.TG_COMBO_MONTANTE:
                         try:
                             from app import card_data as _cdd
                             _clegs_img = []

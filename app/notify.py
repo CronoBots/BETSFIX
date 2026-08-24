@@ -25,6 +25,11 @@ import httpx
 
 log = logging.getLogger("betsfix.notify")
 
+# POLITIQUE TELEGRAM (user 2026-08-24) : le canal abonnés ne reçoit QUE les paris simples Confiance/Value
+# (prono + résultat en réponse). Le COMBINÉ du jour et la MONTANTE ne sont PLUS postés sur Telegram — ils
+# restent visibles sur le SITE. Mettre True pour re-publier combiné/montante sur Telegram.
+TG_COMBO_MONTANTE = False
+
 _CFG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "notify.json")
 # IDs des messages envoyés par le bot -> supprimés AVANT chaque nouveau post (chat propre).
 _SENT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "notify_sent.json")

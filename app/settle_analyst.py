@@ -2038,8 +2038,8 @@ async def _settle_analyses_impl() -> int:
                 os.makedirs("data/_cards", exist_ok=True)
                 for _i, (msg, card) in enumerate(zip(notify_msgs, notify_cards)):
                     sent = None
-                    # RÉSULTAT = simple RÉPONSE « ✅ / ❌ » à la carte du pari (user 2026-08-22 : plus de carte
-                    # résultat ni de texte verbeux). ➖ pour un remboursement (push/void). Fil prono -> résultat.
+                    # RÉSULTAT = RÉPONSE « Pari gagné ✅ » / « Pari perdu ❌ » à la carte du pari (user 2026-08-24 ;
+                    # avant : emoji seul). « Remboursé ➖ » pour un push/void. Fil prono -> résultat, pas de carte.
                     _mk = ((card.get("simple") or {}).get("mark")
                            or (card.get("combo") or {}).get("mark")) if card else None
                     if card and _mk:
@@ -2049,7 +2049,7 @@ async def _settle_analyses_impl() -> int:
                             if card.get("_old_result_msg"):
                                 await asyncio.to_thread(notify.delete_messages, card["_old_result_msg"])
                             _reply = notify.get_prono(card.get("_mid"))   # répond à la carte PRONO du même match
-                            _emo = {"won": "✅", "lost": "❌"}.get(_mk, "➖")
+                            _emo = {"won": "Pari gagné ✅", "lost": "Pari perdu ❌"}.get(_mk, "Remboursé ➖")
                             # envoi BLOQUANT (httpx) -> hors event loop pour ne pas figer l'API
                             sent = await asyncio.to_thread(notify.reply_sync, _emo, _reply)
                         except Exception as ce:

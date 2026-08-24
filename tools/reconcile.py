@@ -234,7 +234,7 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 if notify.get_prono(f"combo_daily_result_{_day}"):
                     continue                       # résultat déjà posté
                 _reply = notify.get_prono(f"combo_daily_{_day}")     # carte prono du combiné
-                if not _reply:
+                if not _reply or not notify.TG_COMBO_MONTANTE:       # combiné coupé de Telegram (user 2026-08-24)
                     continue                       # prono jamais posté -> pas de résultat ORPHELIN
                 # RÉSULTAT = réponse « ✅ / ❌ » au prono (user 2026-08-22), plus de carte résultat. ➖ = remboursé.
                 _emo = {"won": "✅", "lost": "❌"}.get(_c.get("result"), "➖")
@@ -278,7 +278,7 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 if notify.get_prono(f"montante_daily_result_{_mday}"):
                     continue                       # résultat déjà posté
                 _mreply = notify.get_prono(f"montante_daily_{_mday}")     # carte prono de la montante
-                if not _mreply:
+                if not _mreply or not notify.TG_COMBO_MONTANTE:      # montante coupée de Telegram (user 2026-08-24)
                     continue                       # prono jamais posté -> pas de résultat ORPHELIN
                 # RÉSULTAT = réponse « ✅ / ❌ » au prono (user 2026-08-22), plus de carte résultat. ➖ = remboursé.
                 _emo = {"won": "✅", "lost": "❌"}.get(_st.get("result"), "➖")
