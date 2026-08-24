@@ -7738,10 +7738,15 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         _up = len(_pl) - _pend - _lw - _ll        # jaune = à venir + live INCERTAIN (hors live verrouillés)
         return (len(_pl) + _w + _l + _p, _up, 0, _w + _lw, _l + _ll, _pend)
 
-    # PROGRAMME du jour non vide ? (des matchs prévus) -> pilote le badge « en attente » des catégories VIDES :
-    # programme présent + pas encore de pari = « en attente » ; programme vide (jour sans match / avant scan) =
-    # aucun badge (user 2026-08-24).
-    _has_prog = bool(_load_day_programme().get("matches"))
+    # Reste-t-il des MATCHS À JOUER au programme ? (coup d'envoi encore à venir) -> pilote le badge « en attente »
+    # des catégories VIDES : des matchs à venir + pas encore de pari = « en attente » ; plus aucun match à jouer
+    # (tous lancés/finis, ou programme vide / avant scan) = aucun badge (user 2026-08-24).
+    def _prog_upcoming(m) -> bool:
+        try:
+            return datetime.fromisoformat(str(m.get("start")).replace("Z", "+00:00")).timestamp() > _now_ts
+        except Exception:
+            return False
+    _has_prog = any(_prog_upcoming(m) for m in (_load_day_programme().get("matches") or []))
     # ZONE CONFIANCE : PUREMENT des confiances (la montante a désormais sa PROPRE zone, user 2026-08-12).
     _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf)) if h])
     _conf_rec = _tier_rec(play_conf, "confiance")
@@ -7833,7 +7838,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ZONE COMBINÉ JUSTE SOUS VALUE (user 2026-08-20) : insérée à l'index 2 (après Confiance[0] + Value[1]),
     # AVANT Montante/Provisoire. TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état.
     out.insert(2, _zone("combo", _plur(_n_combos, "Combiné"), "", _n_combos, combo_daily,
-                        collapsible=True, record=_combo_rec,
+                        collapsible=True, record=_combo_rec, waiting=_has_prog,
                         empty="Aucun combiné du jour pour l'instant."))
     # ABSTENTIONS RETIRÉES du programme du jour (user 2026-08-22) : on ne montre plus ce qu'on ne joue pas.
     _abst_html = ""
