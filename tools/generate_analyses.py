@@ -86,6 +86,28 @@ LOCAL_API = "http://127.0.0.1:8000"
 SOFA_GAP = 1.2     # secondes entre 2 appels SofaScore d'un même match
 SCAN_GAP = 2.0     # secondes entre 2 matchs (lisse la charge ; négligeable vs ~90s de Claude)
 
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# COMBINÉ + MONTANTE CONSTRUITS DEPUIS LES PARIS ANALYSÉS (user 2026-08-24)
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# True  -> le combiné du jour ET la montante sont assemblés À LA FIN de la passe ANALYSE BATCH du matin,
+#          à partir des PARIS RETENUS (Confiance/Value) des simples foot déjà analysés — plus de logique
+#          mécanique Pinnacle-DC. Le combiné ne prend QUE les marchés SÛRS (Résultat/1X2, Double chance,
+#          Total équipe) ; la montante = LE pari le PLUS SÛR du jour (cprob max, cote [1.22, 1.60], marché
+#          éligible montante). Voir `_harvest_analyzed_bets` / `_build_combo_montante_from_analysis`.
+# False -> ANCIEN comportement mécanique INCHANGÉ (build Pinnacle-DC dans _build_and_post_programme + fin
+#          de main). Bascule instantanée pour revert : rien du code mécanique n'est supprimé.
+# ⚠️ Chemin qui COMPTE AU ROI (combiné) -> tout le nouveau bloc est try/except : un échec logue et
+#    continue, il ne casse JAMAIS le scan ni l'analyse des simples. Site-only (aucun Telegram/push).
+COMBO_MONTANTE_FROM_ANALYSIS = True
+
+
+class _SkipMechanicalBuild(Exception):
+    """Sentinelle interne : quand COMBO_MONTANTE_FROM_ANALYSIS=True, on court-circuite les blocs de
+    construction MÉCANIQUE (combiné/montante) de `_build_and_post_programme` — le combiné + la montante
+    sont bâtis depuis les paris analysés en fin de passe analyse. Rattrapée SILENCIEUSEMENT (pas un vrai
+    échec) avant le handler `except Exception` de chaque bloc."""
+
+
 # Marchés à JETER du dossier (bruit) : on garde résultat/totaux/BTTS/handicaps/mi-temps.
 NOISE = ("corner", "ntervalle", "ntervalle", "0:00", "10:00", "14:59", "Premier buteur",
          "Premier but", "Score exact", "Score Exact", "Asiatique", "Marque au moins",
@@ -789,6 +811,228 @@ def _set_programme_status(match_id: str, status: str, provisional: dict | None =
         pass
 
 
+# ═════════════════════════════════════════════════════════════════════════════════════════════
+# COMBINÉ + MONTANTE DEPUIS LES PARIS ANALYSÉS (user 2026-08-24) — voir COMBO_MONTANTE_FROM_ANALYSIS.
+# ═════════════════════════════════════════════════════════════════════════════════════════════
+# Familles de marché (analyses.market_of) AUTORISÉES en jambe de COMBINÉ. On ne garde que les 3 familles
+# les plus SÛRES pour un combiné (mesurées gagnantes, cf. COMBO_MISSION) : Résultat/1X2, Double chance,
+# Total équipe (buts d'UNE équipe). Tout le reste est exclu — en particulier les OVER/UNDER du TOTAL du
+# match (fragiles), les corners, cartons, buteurs, mi-temps, hors-jeu, handicaps, props joueur.
+_COMBO_ANALYSIS_MARKETS = frozenset({"Vainqueur", "Double chance", "Total équipe"})
+
+
+def _combo_leg_from_analysis(bet: dict, d: dict) -> dict | None:
+    """Convertit un pari analysé retenu (`bet` = retained_bet) + son sidecar `d` en JAMBE candidate au
+    format attendu par `combo_daily.pick_combo` : {mid, sport, sel, cote, prob(0-1), code, name, home,
+    away, start, comp}. Ne garde QUE les marchés sûrs (`_COMBO_ANALYSIS_MARKETS`). None si inéligible
+    (marché non sûr, code ambigu, cote/proba absente, ou libellé prop bloqué). Lecture seule, best-effort."""
+    from app import analyses as _an
+    from app.settle_analyst import code_from_pick as _cfp
+    try:
+        sel = str(bet.get("sel") or "").strip()
+        if not sel:
+            return None
+        _sel_l = sel.lower()
+        # libellés prop sans stat (hors-jeu/corner/carton…) -> jamais en jambe (même garde que combo_daily).
+        from app.combo_daily import _COMBO_SEL_BLOCK as _BLK
+        if any(w in _sel_l for w in _BLK):
+            return None
+        home, away = d.get("home", "") or "", d.get("away", "") or ""
+        # CODE de règlement : préférer le code stocké, sinon re-dériver du libellé (source de vérité).
+        code = str(bet.get("code") or "").strip() or _cfp(sel, "foot", home, away).strip()
+        if not code:
+            return None
+        # « DC 12 » (double chance SANS le nul) BANNIE du combiné (comme combo_daily) : perd sur le nul.
+        if code.upper().strip() == "DC 12":
+            return None
+        fam = _an.market_of(code)
+        if fam not in _COMBO_ANALYSIS_MARKETS:
+            return None
+        cote = bet.get("cote")
+        cprob = bet.get("cprob")
+        if cprob is None:
+            cprob = bet.get("prob")
+        if not isinstance(cote, (int, float)) or not isinstance(cprob, (int, float)):
+            return None
+        prob = cprob / 100.0 if cprob > 1 else float(cprob)      # combo_daily attend prob en 0-1
+        if prob <= 0 or prob > 1:
+            return None
+        return {"mid": str(d.get("id") or ""), "sport": "foot", "sel": sel, "cote": float(cote),
+                "prob": prob, "code": code, "name": d.get("name"), "home": home, "away": away,
+                "start": d.get("start"), "comp": d.get("comp")}
+    except Exception:
+        return None
+
+
+def _harvest_analyzed_bets(day: str) -> list[dict]:
+    """Récolte les PARIS RETENUS (Confiance/Value) des simples foot du JOUR SPORTIF `day`, encore À VENIR.
+    Itère les sidecars via `analyses.iter_meta("foot")` (même source que le reste du code), et pour chaque
+    match avec un pari retenu (`analyses.retained_bet`) renvoie un dict :
+      {mid, name, home, away, start, comp, sel, code, cote, cprob(0-100), tier}
+    IGNORE : abstentions (retained_bet=None), roi_void, matchs déjà commencés/réglés (status ≠ notstarted),
+    jours ≠ `day`. Lecture seule, best-effort (un sidecar illisible est sauté)."""
+    from app import analyses as _an
+    from app import web as _w
+    out: list[dict] = []
+    for d in _an.iter_meta("foot"):
+        try:
+            if d.get("roi_void"):                                  # période voidée -> hors ROI/combiné
+                continue
+            if _an.status_of(d) != "notstarted":                  # déjà commencé/fini -> pas jouable
+                continue
+            # JOUR SPORTIF (06h→06h local) du coup d'envoi — cohérent avec combo_daily/day_key.
+            try:
+                _sd = _w._sport_date(_w.to_local(d.get("_start_dt"))).isoformat() if d.get("_start_dt") else None
+            except Exception:
+                _sd = (d.get("start") or "")[:10]
+            if _sd != day:
+                continue
+            mid = str(d.get("id") or "")
+            if not mid:
+                continue
+            rb = _an.retained_bet("foot", mid)                    # None sur abstention (garde e182d3c)
+            if not rb or not rb.get("sel"):
+                continue
+            try:
+                tier = _an.bet_tier_for("foot", mid)
+            except Exception:
+                tier = "confiance"
+            out.append({"mid": mid, "name": d.get("name"), "home": d.get("home"), "away": d.get("away"),
+                        "start": d.get("start"), "comp": d.get("comp"), "sel": rb.get("sel"),
+                        "code": rb.get("code"), "cote": rb.get("cote"),
+                        "cprob": rb.get("cprob") if rb.get("cprob") is not None else rb.get("prob"),
+                        "tier": tier, "_bet": rb, "_d": d})
+        except Exception:
+            continue
+    return out
+
+
+def _montante_from_analyzed(harvest: list[dict]) -> dict | None:
+    """MONTANTE = LE pari le PLUS SÛR du jour parmi les paris analysés : cprob la plus HAUTE, cote dans
+    [MONTANTE_MIN_COTE, MONTANTE_MAX_COTE] (1.22–1.60), marché ÉLIGIBLE montante (`_montante_eligible_code`).
+    Renvoie un pick au format attendu par `montante.record_day` (match/sel/cote/mid/code/prob/home/away/comp/
+    start/sport) ou None si aucun candidat. Lecture seule."""
+    from app import montante as _mtn
+    from app.settle_analyst import code_from_pick as _cfp
+    pool = []
+    for h in harvest:
+        cote = h.get("cote")
+        if not isinstance(cote, (int, float)):
+            continue
+        if not (_mtn.MONTANTE_MIN_COTE <= cote <= _mtn.MONTANTE_MAX_COTE):
+            continue
+        code = str(h.get("code") or "").strip() or _cfp(h.get("sel", ""), "foot",
+                                                        h.get("home", "") or "", h.get("away", "") or "").strip()
+        if not _mtn._montante_eligible_code(code):
+            continue
+        cprob = h.get("cprob")
+        pool.append({"mid": h.get("mid"), "sport": "foot",
+                     "match": h.get("name") or f'{h.get("home", "")} - {h.get("away", "")}'.strip(" -"),
+                     "home": h.get("home", "") or "", "away": h.get("away", "") or "",
+                     "comp": h.get("comp", "") or "", "sel": h.get("sel"), "cote": float(cote),
+                     "code": code, "prob": (cprob / 100.0 if isinstance(cprob, (int, float)) and cprob > 1
+                                            else cprob),
+                     "start": h.get("start", "") or "",
+                     "_cprob": cprob if isinstance(cprob, (int, float)) else 0})
+    if not pool:
+        return None
+    best = max(pool, key=lambda c: (c.get("_cprob") or 0, -c["cote"]))   # + confiant ; à égalité, cote la + basse
+    best.pop("_cprob", None)
+    return best
+
+
+async def _build_combo_montante_from_analysis(day: str, client) -> None:
+    """FIN de la passe ANALYSE BATCH du matin (tous les sidecars du slate écrits) : reconstruit LE combiné du
+    jour ET la montante depuis les PARIS ANALYSÉS (Confiance/Value), au lieu de la logique mécanique Pinnacle.
+    Idempotent (record_daily/record_day refusent si déjà figé aujourd'hui). Site-only (aucun Telegram/push).
+    Tout est try/except : un échec logue et continue, il ne casse JAMAIS le scan/les simples."""
+    from app import combo_daily as _cdaily
+    from app import combo_safe as _csafe
+    harvest = _harvest_analyzed_bets(day)
+    print(f"  🧮 Combiné/montante depuis l'analyse : {len(harvest)} pari(s) retenu(s) récolté(s) pour {day}.")
+
+    # ── COMBINÉ DU JOUR : 2-5 jambes SÛRES vers ~1.95 ────────────────────────────────────────────
+    try:
+        _prev = _cdaily.today(day)
+        if _prev and (_prev.get("sent") or _prev.get("result")):
+            print("  🎯 Combiné du jour : déjà figé aujourd'hui -> conservé.")
+        else:
+            legs: list[dict] = []
+            for h in harvest:
+                leg = _combo_leg_from_analysis(h.get("_bet") or {}, h.get("_d") or {})
+                if leg:
+                    legs.append(leg)
+            _combo = _cdaily.pick_combo(legs, min_odds=_csafe.TARGET_ODDS) if legs else None
+            if _combo:
+                _clegs = [{"mid": l["mid"], "sport": "foot", "name": l.get("name"), "home": l.get("home"),
+                           "away": l.get("away"), "start": l.get("start"), "comp": l.get("comp"),
+                           "sel": l["sel"], "cote": l["cote"], "prob": round(l["prob"], 4),
+                           "code": l["code"], "result": None, "score": None} for l in _combo["legs"]]
+                _cb = {"date": day, "sport": "foot", "cote": _combo["cote"], "prob": round(_combo["prob"], 4),
+                       "legs": _clegs, "result": None, "sent": False, "created": None}
+                # « pourquoi » factuel par jambe (comme le build mécanique) — best-effort, 0 sidecar écrit.
+                try:
+                    _fbm = {}
+                    for _lg in _cb["legs"]:
+                        _lm = {"id": _lg.get("mid"), "name": _lg.get("name"), "home": _lg.get("home"),
+                               "away": _lg.get("away"), "comp": _lg.get("comp"), "start": _lg.get("start")}
+                        try:
+                            _facts = await sources.extras(client, "foot", _lm)
+                        except Exception:
+                            _facts = ""
+                        if _facts and _facts.strip():
+                            _fbm[str(_lg.get("mid"))] = _facts
+                    if _fbm:
+                        _analyze_combo_legs(_cb, facts_by_mid=_fbm)
+                except Exception as _cae:
+                    print(f"    (analyse jambes combiné ignorée : {_cae})")
+                if _cdaily.record_daily(_cb, day):
+                    _cdaily.mark_sent(day)
+                    _fcl = " | ".join(f"{l.get('home')} ({l.get('sel')} @{l.get('cote')})" for l in _cb["legs"])
+                    print(f"  🎯 Combiné du jour (analyse, figé) : cote {_cb['cote']} · "
+                          f"{round(_cb['prob'] * 100)}% · {len(_cb['legs'])} jambes : {_fcl}")
+                else:
+                    print("  🎯 Combiné du jour : record refusé (déjà figé ?) -> conservé.")
+            else:
+                print("  🎯 Combiné du jour : PASS — pas assez de jambes SÛRES analysées pour atteindre la cote.")
+    except Exception as _cce:
+        print(f"  (combiné du jour depuis l'analyse ignoré : {_cce})")
+
+    # ── MONTANTE : LE pari le PLUS SÛR du jour ────────────────────────────────────────────────────
+    try:
+        from app import montante as _mtn, combo_daily as _cd_mt
+        if _mtn.is_active():
+            _mtn.settle_pending()
+            if _mtn.can_record_day(day):
+                # ANTI-CHEVAUCHEMENT : la montante ne reprend PAS un match déjà pris par le combiné du jour.
+                _combo_today = _cdaily.today(day) or {}
+                _combo_mids = {str(l.get("mid")) for l in (_combo_today.get("legs") or []) if l.get("mid")}
+                _mpick = _montante_from_analyzed([h for h in harvest if str(h.get("mid")) not in _combo_mids])
+                if _mpick:
+                    # « pourquoi » factuel (comme le build mécanique) — best-effort.
+                    try:
+                        _mlm = {"id": _mpick.get("mid"), "name": _mpick.get("match"), "home": _mpick.get("home"),
+                                "away": _mpick.get("away"), "comp": _mpick.get("comp"), "start": _mpick.get("start")}
+                        _mfacts = await sources.extras(client, "foot", _mlm)
+                        if _mfacts and _mfacts.strip():
+                            _mwrap = {"legs": [dict(_mpick)], "synth": ""}
+                            _analyze_combo_legs(_mwrap, facts_by_mid={str(_mpick.get("mid")): _mfacts})
+                            _mwhy = (_mwrap.get("legs") or [{}])[0].get("why")
+                            if _mwhy and not str(_mwhy).startswith("Pinnacle (référence sharp)"):
+                                _mpick["why"] = _mwhy
+                    except Exception as _mae:
+                        print(f"    (enrichissement factuel montante ignoré : {_mae})")
+                    if _mtn.record_day(day, pick=_mpick):
+                        print(f"  🪜 Montante (analyse) : {_mpick['match']} — {_mpick['sel']} @{_mpick['cote']} "
+                              f"({round((_mpick.get('prob') or 0) * 100)}%)")
+                    else:
+                        print("  🪜 Montante : record refusé (déjà posé / en attente).")
+                else:
+                    print("  🪜 Montante : PASS — aucun pari analysé sûr+éligible en cote [1.22,1.60] aujourd'hui.")
+    except Exception as _mce:
+        print(f"  (montante depuis l'analyse ignorée : {_mce})")
+
+
 async def _build_and_post_programme(client, sports: list, args) -> None:
     """MATIN : sélectionne les matchs du jour (top N/sport dans la fenêtre), les enregistre dans
     data/day_programme.json et poste le « programme du jour » sur Telegram — SANS analyser. Chaque match
@@ -928,7 +1172,13 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     # reconstruira pas. Le « pourquoi » chiffré Pinnacle de chaque jambe est réécrit ensuite par la vague qui
     # analyse le match. Enregistré dans le MÊME track que le combiné du scan (combo_daily) -> affichage/
     # règlement/ROI inchangés. Best-effort : n'interrompt jamais l'écriture du programme.
+    # ⚠️ COMBO_MONTANTE_FROM_ANALYSIS (user 2026-08-24) : quand True, le combiné + la montante sont bâtis DEPUIS
+    # LES PARIS ANALYSÉS à la FIN de la passe analyse batch (`_build_combo_montante_from_analysis`). On NE DOIT
+    # alors PAS pré-geler ici une version MÉCANIQUE (sinon record_daily/record_day refuseraient la version
+    # « analyse » figée). Les 2 blocs mécaniques ci-dessous sont donc SAUTÉS (garde en tête de chaque `try`).
     try:
+        if COMBO_MONTANTE_FROM_ANALYSIS:
+            raise _SkipMechanicalBuild
         from app import combo_safe as _csafe, combo_daily as _cdaily
         _cday = _cdaily.day_key()
         # SHORTLIST DC COMMUNE aux DEUX combinés (dossiers mutualisés via `_dossier_cached` -> pas de coût double).
@@ -1004,6 +1254,8 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         # UN SEUL COMBINÉ (user 2026-08-20) : le combiné du jour, double chance, mécanique. Plus de « Cote 2 ».
         await _build_combo_tier("", "", "combo_daily",
                                 "🛡️ <b>Combiné du jour</b> · les doubles chances les plus sûres", "DU JOUR")
+    except _SkipMechanicalBuild:
+        pass          # COMBO_MONTANTE_FROM_ANALYSIS=True -> combiné bâti en fin de passe analyse (pas ici)
     except Exception as _cce:
         print(f"  (combiné du jour matin ignoré : {_cce})")
     # MONTANTE — PALIER DU JOUR construit DEPUIS LE PROGRAMME (user 2026-08-17) : le flagship joue souvent des
@@ -1012,6 +1264,8 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     # l'en-cours d'abord (settle), puis on enregistre (record_day refuse si un palier est encore EN ATTENTE ou si
     # le jour est déjà pris -> jamais de doublon avec le run_daily de fin de scan). Isolé, best-effort.
     try:
+        if COMBO_MONTANTE_FROM_ANALYSIS:
+            raise _SkipMechanicalBuild
         from app import montante as _mtn, combo_daily as _cd_mt
         if _mtn.is_active():
             _mtn.settle_pending()
@@ -1074,6 +1328,8 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
                             print(f"     (montante Telegram ignorée : {_mne})")
                 elif not _mpick:
                     print("  🪜 Montante (matin) : PASS — aucun pari ne remplit la règle quant aujourd'hui.")
+    except _SkipMechanicalBuild:
+        pass          # COMBO_MONTANTE_FROM_ANALYSIS=True -> montante bâtie en fin de passe analyse (pas ici)
     except Exception as _mce:
         print(f"  (montante matin ignorée : {_mce})")
     if not matches or args.no_notify:
@@ -3796,6 +4052,16 @@ async def main():
         import datetime as _dt
         from app import combo_daily as _cdaily
         _day = _cdaily.day_key()          # clé-jour UNIQUE (jour sportif local 06h→06h, source combo_daily)
+        # COMBINÉ + MONTANTE DEPUIS LES PARIS ANALYSÉS (user 2026-08-24) — UNIQUEMENT sur la passe ANALYSE BATCH
+        # du MATIN (tous les matchs du programme analysés en une fois : `--from-programme --force` sans
+        # `--refresh-early` ni `--match`). PAS sur les vagues (`--refresh-early` -> 1-2 matchs imminents = vivier
+        # incomplet) ni les scans ciblés. Idempotent (record_* refusent si déjà figé). Best-effort (isolé).
+        if COMBO_MONTANTE_FROM_ANALYSIS and args.from_programme and args.force \
+                and not args.refresh_early and not args.match:
+            try:
+                await _build_combo_montante_from_analysis(_day, client)
+            except Exception as _bmaexc:
+                print(f"  (combiné/montante depuis l'analyse ignorés : {_bmaexc})")
         _prev = _cdaily.today(_day)
         if _prev and (_prev.get("sent") or _prev.get("result")):
             # DÉJÀ FIGÉ (souvent le combiné du MATIN ancré Pinnacle). On ne retouche JAMAIS la sélection ;
@@ -3821,7 +4087,12 @@ async def main():
                     print("  🎯 Combiné du jour : déjà publié aujourd'hui (figé).")
             except Exception as _een:
                 print(f"  🎯 Combiné du jour : figé (enrichissement ignoré : {_een}).")
-        else:
+        # COMBO_MONTANTE_FROM_ANALYSIS=True (user 2026-08-24) : le combiné du jour est bâti DEPUIS LES PARIS
+        # ANALYSÉS ci-dessus (`_build_combo_montante_from_analysis`). On NE tombe PLUS sur le repli MÉCANIQUE
+        # `build_for_day_async` (double chance Pinnacle) : si l'analyse n'a pas produit de combiné sûr, c'est
+        # un PASS (pas de combiné ce jour), pas un combiné mécanique de secours. Le repli mécanique reste
+        # disponible instantanément en repassant le flag à False.
+        elif not COMBO_MONTANTE_FROM_ANALYSIS:
             # LE COMBINÉ FOOT DU JOUR = LA DOUBLE CHANCE (demande user 2026-08-02) : à partir d'aujourd'hui,
             # le « combiné football » est la DOUBLE CHANCE la plus sûre par match (VRAIES cotes DC Unibet via
             # build_for_day_async). Enregistré dans le MÊME track ROI (combo_daily_track.json) -> il COMPTE AU
