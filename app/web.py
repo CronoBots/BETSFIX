@@ -7023,10 +7023,12 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
     # de matchs, avec le MÊME badge que Confiance/Value (pastille `.zr`), pour l'homogénéité des catégories.
     if not chips and count > 0:
         chips = f'<span class="zr zrn">{count}</span>'
-    # ZONE VIDE (user 2026-08-19) : badge « en attente » discret à droite du titre -> chaque catégorie a un
-    # badge (comme Programme), au lieu d'un titre nu.
-    if _empty_zone and not chips:
-        chips = '<span class="zr zr-wait">en attente</span>'
+    # ZONE VIDE : PLUS de badge « en attente » à côté d'un type de pari (user 2026-08-24). Avec l'Option B les
+    # paris sont publiés ~1 h avant CHAQUE match (pas le matin) -> Confiance/Value sont vides une partie de la
+    # journée sans que ce soit un « en attente » au sens résultat. En-tête seul (titre), sans badge trompeur.
+    # (Réactiver : décommenter le span zr-wait ci-dessous.)
+    # if _empty_zone and not chips:
+    #     chips = '<span class="zr zr-wait">en attente</span>'
     if chips:
         rec = f'<span class="zone-rec">{chips}</span>'
     # BADGE TOTAL (.zone-n) RETIRÉ (user 2026-08-07) : le record (à venir ⏳ · live 🟢 · score) porte déjà
