@@ -7840,8 +7840,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out.insert(2, _zone("combo", _plur(_n_combos, "Combiné"), "", _n_combos, combo_daily,
                         collapsible=True, record=_combo_rec, waiting=_has_prog,
                         empty="Aucun combiné du jour pour l'instant."))
-    # ABSTENTIONS RETIRÉES du programme du jour (user 2026-08-22) : on ne montre plus ce qu'on ne joue pas.
-    _abst_html = ""
+    # ABSTENTIONS RÉAFFICHÉES (user 2026-08-24) : les matchs analysés SANS pari retenu, en cartes, catégorie à
+    # part (cachée s'il n'y en a aucune). On remontre ce qu'on a analysé mais pas jugé jouable.
+    _abst_html = _abstention_zone(sport or "foot")
+    out.append(_abst_html)
     _prog_html = _programme_schedule(sport or "foot")
     # JOURNÉE TOTALEMENT VIDE (tôt le matin AVANT le scan de 08h, ou jour calme) : au lieu de 2 accordéons
     # Confiance/Value repliés sur un grand vide (message caché), on montre un ÉTAT VIDE PREMIUM (orbe + timing).
