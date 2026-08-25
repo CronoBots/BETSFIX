@@ -51,6 +51,46 @@ def _ts(s):
         return None
 
 
+def _send_owner(text: str) -> bool:
+    """Envoie une alerte EN PRIVÉ au propriétaire (data/owner_chat.txt) — JAMAIS le canal abonnés. Best-effort."""
+    chat_p = os.path.join(os.path.dirname(A.DIR), "owner_chat.txt")
+    if not os.path.exists(chat_p):
+        return False
+    try:
+        from app import notify
+        chat = open(chat_p, encoding="utf-8").read().strip()
+        tok, _ = notify._config()
+        if not (tok and chat):
+            return False
+        import httpx
+        httpx.post(f"https://api.telegram.org/bot{tok}/sendMessage",
+                   json={"chat_id": chat, "text": text[:3900]}, timeout=15)
+        return True
+    except Exception as exc:
+        print(f"(alerte privée ignorée : {exc})")
+        return False
+
+
+_ALERT_STATE = os.path.join(os.path.dirname(A.DIR), "quality_alerts.json")
+
+
+def _new_issues(day: str, keys: list[str]) -> list[str]:
+    """DÉDUP : ne renvoie que les problèmes PAS ENCORE alertés aujourd'hui (évite le spam à chaque vague)."""
+    try:
+        st = json.load(open(_ALERT_STATE, encoding="utf-8"))
+    except Exception:
+        st = {}
+    done = set(st.get(day) or [])
+    new = [k for k in keys if k not in done]
+    if new:
+        st = {day: sorted(done | set(new))}          # on ne garde que le jour courant
+        try:
+            json.dump(st, open(_ALERT_STATE, "w", encoding="utf-8"), ensure_ascii=False)
+        except Exception:
+            pass
+    return new
+
+
 def _sidecar_for(mid: str, home: str, away: str):
     """Sidecar (json) + chemin .md d'un match du programme : par id d'abord, repli par home/away."""
     jp = os.path.join(A.DIR, f"foot_{mid}.json")
@@ -70,7 +110,7 @@ def _sidecar_for(mid: str, home: str, away: str):
     return None, None
 
 
-def run(date: str | None = None) -> int:
+def run(date: str | None = None, send_alert: bool = False) -> int:
     prog = _load_programme()
     matches = prog.get("matches") or []
     day = date or prog.get("date") or ""
@@ -140,6 +180,16 @@ def run(date: str | None = None) -> int:
         print("🔴 ALERTE :")
         for a in alert:
             print(f"   - {a}")
+        # ENVOI PRIVÉ (owner) — dédupliqué : chaque problème n'alerte qu'UNE fois par jour.
+        keys = [f"missed:{n}" for n in missed_list] + [f"shallow:{n}" for n in shallow]
+        if pending == 0 and analysed >= 4 and conv < CONV_ALERT:
+            keys.append("conversion")
+        new = _new_issues(day, keys)
+        if send_alert and new:
+            msg = (f"⚠️ BETSFIX — contrôle qualité {day}\n\n" + "\n".join(f"• {a}" for a in alert)
+                   + f"\n\nCouverture {analysed} analysé · {missed} manqué · conversion {100*conv:.0f}%.")
+            if _send_owner(msg):
+                print(f"   → alerte privée envoyée ({len(new)} nouveau(x) problème(s)).")
         return 1
     if pending:
         print(f"🟡 OK pour l'instant ({pending} match(s) encore à analyser par leur vague — à revérifier plus tard).")
@@ -151,5 +201,8 @@ def run(date: str | None = None) -> int:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=None, help="jour ISO (défaut : programme courant)")
+    ap.add_argument("--alert", action="store_true",
+                    help="envoie une alerte PRIVÉE au propriétaire (data/owner_chat.txt) si problème, "
+                         "dédupliquée (1 fois/problème/jour). Sans ce flag : rapport console seul.")
     args = ap.parse_args()
-    sys.exit(run(args.date))
+    sys.exit(run(args.date, send_alert=args.alert))

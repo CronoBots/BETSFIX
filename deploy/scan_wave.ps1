@@ -48,6 +48,14 @@ Log 'WAVE RECONCILE : règlement SILENCIEUX (résultats postés, pas de bilan)'
 & $py 'tools\reconcile.py' --no-bilan 2>&1 | Add-BfxStream $log
 Log ("WAVE RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 
+# CONTRÔLE QUALITÉ D'ANALYSE (user 2026-08-25) : chaque match du jour est-il analysé « comme en période
+# gagnante » ? Couverture (0 match sauté) + profondeur (.md) + conversion (analysé->pari). Alerte PRIVÉE au
+# proprio (data/owner_chat.txt) si un match est MANQUÉ (vague passée sans analyse) ou si la conversion chute.
+# Dédupliqué (1×/problème/jour). Lecture seule. La vague tourne à chaque KO-1h -> couvre toute la journée.
+Log 'WAVE QUALITÉ : contrôle couverture/profondeur/conversion (+ alerte privée si problème)'
+& $py 'tools\analysis_quality.py' --alert 2>&1 | Add-BfxStream $log
+Log ("WAVE QUALITÉ DONE (exit {0})" -f $LASTEXITCODE)
+
 # AUTO-AUDIT d'intégrité (lecture seule) : garde-fou anti-régression, alerte Telegram seulement si ERREUR.
 Log 'WAVE SELFCHECK'
 & $py 'tools\selfcheck.py' --quiet 2>&1 | Add-BfxStream $log
