@@ -76,10 +76,18 @@ async def login_page(request: Request, next: str = "/"):
 
 
 @router.post("/login", response_class=HTMLResponse, include_in_schema=False)
-async def login_submit(next: str = Form("/"), email: str = Form(...), password: str = Form(...)):
+async def login_submit(request: Request, next: str = Form("/"), email: str = Form(...),
+                       password: str = Form(...)):
     nxt = _safe_next(next)
+    ip = request.client.host if request.client else "?"
+    key = f"{accounts._norm(email)}|{ip}"                 # anti brute-force : email + IP
+    if accounts.login_blocked(key):
+        return HTMLResponse(_login_form(nxt, "Trop de tentatives. Réessaie dans quelques minutes.", email),
+                            status_code=429)
     if not accounts.verify_login(email, password):
+        accounts.note_login_fail(key)
         return HTMLResponse(_login_form(nxt, "Email ou mot de passe incorrect.", email), status_code=401)
+    accounts.note_login_ok(key)
     resp = RedirectResponse(nxt, status_code=303)
     _set_cookie(resp, email)
     return resp
@@ -117,16 +125,27 @@ async def account_page(request: Request, frag: int = 0):
         return HTMLResponse(_login_form("/compte", frag=bool(frag)))
     e = _html.escape
     sub = accounts.is_subscriber(email)
-    badge = ('<span class="abadge on">✓ Abonné</span>' if sub
-             else '<span class="abadge off">Non abonné</span>')
-    if sub:
+    plan = accounts.plan_of(email)
+    u = accounts.get_user(email) or {}
+    import time as _t
+    trial_left = int(((u.get("trial_until") or 0) - _t.time()) // 86400 + 1) if plan == "trial" else 0
+    plabel = (accounts.plans().get(plan) or {}).get("label", plan)
+    if plan == "trial" and sub:
+        badge = f'<span class="abadge on">Essai — {max(trial_left,0)} j restants</span>'
+    elif sub:
+        badge = f'<span class="abadge on">✓ Abonné · {e(plabel)}</span>'
+    else:
+        badge = '<span class="abadge off">Non abonné</span>'
+    if sub and plan != "trial":
         action = ('<div class=ok>Ton abonnement est actif — tu vois tous les pronos joués.</div>'
                   '<form method=post action="/billing/portal"><button class=ghost type=submit>'
                   'Gérer mon abonnement</button></form>')
     else:
-        action = ('<div class=sub>Débloque tous les pronos joués (simples + combinés). '
-                  'Les stats et résultats sont déjà ouverts.</div>'
-                  '<form method=post action="/billing/subscribe"><button type=submit>'
+        head = ('<div class=ok>Essai gratuit en cours — profites-en pour voir les pronos joués. '
+                'Abonne-toi pour continuer sans coupure.</div>' if plan == "trial"
+                else '<div class=sub>Débloque tous les pronos joués (simples + combinés). '
+                     'Les stats et résultats sont déjà ouverts.</div>')
+        action = (head + '<form method=post action="/billing/subscribe"><button type=submit>'
                   "S'abonner</button></form>")
     return HTMLResponse(_page("Mon compte", f"""<div class=acard><h1>Mon compte</h1>
 <div class=arow><span>Email</span><b>{e(email)}</b></div>

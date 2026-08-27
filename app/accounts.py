@@ -19,6 +19,8 @@ import secrets
 import threading
 import time
 
+from app import userdb          # base utilisateurs SQLite (remplace le store JSON à plat, cf. userdb.py)
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATA = os.path.join(_ROOT, "data")
 _STORE = os.path.join(_DATA, "accounts.json")
@@ -28,6 +30,56 @@ COOKIE = "bx_session"
 _SESSION_MAX_AGE = 60 * 24 * 3600          # 60 jours
 _PBKDF2_ROUNDS = 200_000
 _lock = threading.Lock()
+
+# --------------------------------------------------------------------------- FORMULES D'ABONNEMENT
+# STRUCTURE des formules seulement — les PRIX réels vivent dans Stripe (un price_id par formule, cf.
+# billing.py). `days` sert au repli local (sub_until) si le webhook tarde. Catalogue surchargéable via
+# data/plans.json sans redéploiement.
+TRIAL_DAYS = 7
+_DEFAULT_PLANS = {
+    "free":    {"label": "Gratuit",       "days": 0,          "paid": False},
+    "trial":   {"label": "Essai gratuit", "days": TRIAL_DAYS, "paid": False},
+    "monthly": {"label": "Mensuel",       "days": 30,         "paid": True},
+    "yearly":  {"label": "Annuel",        "days": 365,        "paid": True},
+}
+# L'essai gratuit démarre-t-il automatiquement à l'inscription ? OFF par défaut (décision produit :
+# offrir N jours de pronos gratuits = choix revenu). Activable via env BETSFIX_TRIAL_ON_SIGNUP=1.
+TRIAL_ON_SIGNUP = os.environ.get("BETSFIX_TRIAL_ON_SIGNUP", "").strip() in ("1", "true", "on", "yes")
+
+
+def plans() -> dict:
+    """Catalogue des formules (défauts + surcharge data/plans.json si présent)."""
+    p = dict(_DEFAULT_PLANS)
+    try:
+        with open(os.path.join(_DATA, "plans.json"), encoding="utf-8") as f:
+            for k, v in (json.load(f) or {}).items():
+                if isinstance(v, dict):
+                    p[k] = {**p.get(k, {}), **v}
+    except (OSError, ValueError):
+        pass
+    return p
+
+# --------------------------------------------------------------------------- ANTI BRUTE-FORCE (login)
+# Fenêtre glissante en mémoire (process unique). Au-delà de _MAX_FAILS échecs / _FAIL_WINDOW, on bloque
+# la clé (email+IP) le temps que la fenêtre expire. Suffisant pour ralentir un bourrage de mots de passe.
+_MAX_FAILS = 8
+_FAIL_WINDOW = 900                          # 15 min
+_login_fails: dict[str, list] = {}
+
+
+def login_blocked(key: str) -> bool:
+    now = time.time()
+    fails = [t for t in _login_fails.get(key, []) if now - t < _FAIL_WINDOW]
+    _login_fails[key] = fails
+    return len(fails) >= _MAX_FAILS
+
+
+def note_login_fail(key: str) -> None:
+    _login_fails.setdefault(key, []).append(time.time())
+
+
+def note_login_ok(key: str) -> None:
+    _login_fails.pop(key, None)
 
 # PROPRIÉTAIRES : emails TOUJOURS considérés abonnés (immunisés Stripe). Deux sources cumulées :
 #  • env BETSFIX_OWNER_EMAIL (lue au démarrage, séparée par virgules) ;
@@ -89,21 +141,17 @@ def _secret() -> bytes:
     return sec
 
 
-# --------------------------------------------------------------------------- store
+# --------------------------------------------------------------------------- store (SQLite via userdb)
+# Historique : le store était un JSON à plat réécrit en entier à chaque écriture. Il est désormais
+# adossé à SQLite (app/userdb.py) — migration transparente (accounts.json importé au 1er accès puis
+# archivé). `_load`/`_save` restent pour compat, mais les chemins chauds passent par des upserts 1-ligne.
 def _load() -> dict:
-    try:
-        with open(_STORE, encoding="utf-8") as f:
-            return json.load(f) or {}
-    except (OSError, ValueError):
-        return {}
+    return userdb.all_users()
 
 
 def _save(data: dict) -> None:
-    os.makedirs(_DATA, exist_ok=True)
-    tmp = _STORE + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, _STORE)             # atomique
+    for email, rec in (data or {}).items():
+        userdb.upsert(email, **{k: v for k, v in rec.items() if k != "email"})
 
 
 def _norm(email: str) -> str:
@@ -133,7 +181,7 @@ def verify_pw(pw: str, stored: str) -> bool:
 
 # --------------------------------------------------------------------------- comptes
 def get_user(email: str) -> dict | None:
-    return _load().get(_norm(email))
+    return userdb.get(_norm(email))
 
 
 def create_user(email: str, pw: str) -> tuple[bool, str]:
@@ -144,14 +192,30 @@ def create_user(email: str, pw: str) -> tuple[bool, str]:
     if len(pw or "") < 8:
         return False, "Le mot de passe doit faire au moins 8 caractères."
     with _lock:
-        data = _load()
-        if email in data:
+        if userdb.exists(email):
             return False, "Un compte existe déjà avec cet email."
-        data[email] = {"pw": hash_pw(pw), "created": int(time.time()),
-                       "sub_active": False, "sub_until": None,
-                       "stripe_customer": None, "stripe_sub": None}
-        _save(data)
+        userdb.upsert(email, pw=hash_pw(pw), created=int(time.time()),
+                      plan="free", sub_active=0, sub_until=None,
+                      stripe_customer=None, stripe_sub=None)
+        if TRIAL_ON_SIGNUP:
+            _start_trial_locked(email)
     return True, ""
+
+
+def _start_trial_locked(email: str, days: int | None = None) -> bool:
+    """Démarre l'essai gratuit (une fois par compte). Appelé sous _lock. True si démarré."""
+    u = userdb.get(email)
+    if not u or u.get("trial_used"):
+        return False
+    until = time.time() + (days or TRIAL_DAYS) * 86400
+    userdb.upsert(email, plan="trial", trial_until=until, trial_used=1)
+    return True
+
+
+def start_trial(email: str, days: int | None = None) -> bool:
+    """Démarre l'essai gratuit pour un compte (une seule fois). Renvoie True si démarré."""
+    with _lock:
+        return _start_trial_locked(_norm(email), days)
 
 
 def verify_login(email: str, pw: str) -> bool:
@@ -172,38 +236,47 @@ def is_subscriber(email: str) -> bool:
         return False
     if u.get("sub_active"):
         return True
-    until = u.get("sub_until")
-    return bool(until and until > time.time())
+    now = time.time()
+    # tolérance : abonnement payé dont le webhook n'a pas encore rebasculé sub_active, OU essai en cours
+    return bool((u.get("sub_until") and u["sub_until"] > now)
+                or (u.get("trial_until") and u["trial_until"] > now))
+
+
+def plan_of(email: str) -> str:
+    """Formule courante d'un compte : 'trial' si essai en cours, sinon le plan stocké (défaut 'free')."""
+    email = _norm(email)
+    if email in _owners():
+        return "vip"
+    u = get_user(email)
+    if not u:
+        return "free"
+    if not u.get("sub_active") and (u.get("trial_until") or 0) > time.time():
+        return "trial"
+    return u.get("plan") or "free"
 
 
 def find_by_stripe_customer(customer_id: str) -> str | None:
-    """Email local rattaché à un customer Stripe (pour le webhook). None si inconnu."""
-    if not customer_id:
-        return None
-    for em, u in _load().items():
-        if u.get("stripe_customer") == customer_id:
-            return em
-    return None
+    """Email local rattaché à un customer Stripe (pour le webhook). None si inconnu (requête INDEXÉE)."""
+    return userdb.find_by_stripe_customer(customer_id)
 
 
 def set_subscription(email: str, active: bool, until: float | None = None,
-                     stripe_customer: str | None = None, stripe_sub: str | None = None) -> None:
-    """Met à jour le statut d'abonnement (appelé par le webhook Stripe en Phase 2)."""
+                     stripe_customer: str | None = None, stripe_sub: str | None = None,
+                     plan: str | None = None) -> None:
+    """Met à jour le statut d'abonnement (appelé par le webhook Stripe en Phase 2). Stripe peut connaître
+    un email sans compte local -> upsert crée alors une ligne vide (pw='')."""
     email = _norm(email)
+    fields = {"sub_active": 1 if active else 0}
+    if until is not None:
+        fields["sub_until"] = until
+    if stripe_customer is not None:
+        fields["stripe_customer"] = stripe_customer
+    if stripe_sub is not None:
+        fields["stripe_sub"] = stripe_sub
+    if plan is not None:
+        fields["plan"] = plan
     with _lock:
-        data = _load()
-        u = data.get(email)
-        if not u:                       # Stripe peut connaître un email sans compte local -> on le crée vide
-            u = {"pw": "", "created": int(time.time())}
-        u["sub_active"] = bool(active)
-        if until is not None:
-            u["sub_until"] = until
-        if stripe_customer is not None:
-            u["stripe_customer"] = stripe_customer
-        if stripe_sub is not None:
-            u["stripe_sub"] = stripe_sub
-        data[email] = u
-        _save(data)
+        userdb.upsert(email, **fields)
 
 
 # --------------------------------------------------------------------------- sessions (cookie signé)
