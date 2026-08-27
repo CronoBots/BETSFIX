@@ -44,10 +44,9 @@ def main() -> int:
                 for it in c["items"][:6]:
                     print(f"      - {it}")
 
-    # ALERTE Telegram : sur ERREUR (confusion stats/règlement réelle) OU sur un WARN de SURVEILLANCE ciblé
-    # (_ALERT_ON_WARN) — demande user 2026-07-22 : être prévenu si la sur-confiance du marché « Sets » tennis
-    # revient, SANS bruiter sur les autres warns (la politique « alerte seulement sur erreur » reste pour eux).
-    _ALERT_ON_WARN = {"tennis_sets_overconfidence"}
+    # ALERTE Telegram : uniquement sur ERREUR (confusion stats/règlement réelle). La surveillance « Sets »
+    # tennis a été retirée avec les autres sports (app 100 % foot) -> plus aucun WARN n'alerte, que des erreurs.
+    _ALERT_ON_WARN: set = set()
     alerts = [c for c in rep["checks"]
               if c["level"] == "error" or (c["level"] == "warn" and c["key"] in _ALERT_ON_WARN)]
     if alerts:

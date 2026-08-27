@@ -320,20 +320,14 @@ def _check_combo_correlated_pricing(rows) -> dict:
 def _check_combo_ev_value(rows) -> dict:
     """Depuis la correction de corrélation (2026-07-05), la proba d'un combiné same-match intègre la
     corrélation que le marché price dans la VRAIE cote Bet Builder (k = total/real). Conséquence : un
-    combiné À VENIR en tennis/basket ne doit JAMAIS être retenu sans VALUE réelle — EV = real_odds ×
-    prob/100 doit rester ≥ ~1 (le code exige real*prob>1 à la création hors-foot). Un combiné hors-foot
-    affiché avec EV<1 = correction/garde-fou contourné (cas FAA/ADF : 3.40 × 28 % = 0.95 -> abstention).
-    Le foot COUPE DU MONDE est exclu (repli « 1 combiné par match » voulu) ; le foot HORS CdM est aligné sur
-    tennis/basket (exigence de value, depuis 2026-07-05). Forward-only : seulement les combinés à venir."""
+    combiné À VENIR ne doit JAMAIS être retenu sans VALUE réelle — EV = real_odds × prob/100 doit rester
+    ≥ ~1 (le code exige real*prob>1 à la création). Un combiné affiché avec EV<1 = correction/garde-fou
+    contourné (cas FAA/ADF : 3.40 × 28 % = 0.95 -> abstention). Forward-only : combinés à venir seulement."""
     bad = []
     for p, d in rows:
         c = d.get("combo") or {}
         if not c.get("legs") or c.get("result") is not None:
             continue
-        comp = (d.get("comp") or "").lower()
-        if d.get("sport") == "foot" and ("coupe du monde" in comp or "world cup" in comp):
-            continue                                        # foot CdM SEULEMENT : repli « 1 combiné/match »
-        #   (hors CdM, le foot est aligné sur tennis/basket -> exigence de value applicable)
         if analyses.status_of(d) == "finished":
             continue
         real, prob = _f(c.get("real_odds")), _f(c.get("prob"))
@@ -341,11 +335,11 @@ def _check_combo_ev_value(rows) -> dict:
             continue
         ev = real * prob / 100
         if ev < 0.95:                                       # marge : cotes rafraîchies -> léger jeu toléré
-            bad.append(f"{d.get('sport')} {d.get('home', '?')}–{d.get('away', '?')} : EV={ev:.2f} "
+            bad.append(f"{d.get('home', '?')}–{d.get('away', '?')} : EV={ev:.2f} "
                        f"(cote {real} × {prob:.0f}%) — combiné sans value réelle")
     return {"key": "combo_ev_value", "level": "warn" if bad else "ok",
-            "title": "Combiné à venir porteur de value (hors-foot)",
-            "detail": f"{len(bad)} combiné(s) tennis/basket à venir retenu(s) sans value (EV<0.95).",
+            "title": "Combiné à venir porteur de value",
+            "detail": f"{len(bad)} combiné(s) à venir retenu(s) sans value réelle (EV<0.95).",
             "items": bad[:20]}
 
 
@@ -717,60 +711,6 @@ def _check_bet_gloss_coverage(rows) -> dict:
             "items": (empty + generic)[:20]}
 
 
-def _check_tennis_sets_overconfidence(rows) -> dict:
-    """SURVEILLANCE (demande user 2026-07-22) du marché « Sets » tennis (« remporte au moins un set »),
-    coupable historique du ROI tennis : juin = annoncé 78 % → réel 56 % (−21 pts de sur-confiance) ; redressé
-    en juillet (+3 pts). On NE COUPE PAS le marché tant qu'il performe, mais on ALERTE si la sur-confiance
-    REVIENT : écart réussite réelle − confiance annoncée ≤ −15 pts sur les 40 dernières prédictions Sets
-    tennis à HAUTE confiance (≥ 65 %, la zone de jeu), joués + fantômes. Seuil CALIBRÉ sur données (juin −21
-    aurait alerté, juillet +3 non). Lecture seule — signale, ne modifie rien. Alerte Telegram ciblée (cf.
-    tools/selfcheck.py _ALERT_ON_WARN) sans réintroduire de bruit sur les autres warns."""
-    import re as _re
-    _is_set = lambda sel: bool(_re.search(
-        r"au moins un set|remporte.*set|1er set|premier set|sans perdre.*set", (sel or "").lower()))
-    preds = []
-    for _p, d in rows:
-        if d.get("sport") != "tennis":
-            continue
-        day = (d.get("start") or "")[:10]
-        cands = ([d["stat_bet"]] if d.get("stat_bet") else []) + (d.get("shadow") or [])
-        for c in cands:
-            if not isinstance(c, dict) or c.get("result") not in ("won", "lost"):
-                continue
-            if not _is_set(c.get("sel")):
-                continue
-            p = c.get("prob")
-            if p is None:
-                p = c.get("cprob")
-            if p is None:
-                continue
-            p = p if p > 1 else p * 100
-            if p >= 65:
-                preds.append((day, p, c.get("result")))
-    preds.sort()
-    window = preds[-40:]
-    MIN_N, GAP_WARN = 25, -15
-    n = len(window)
-    if n < MIN_N:
-        return {"key": "tennis_sets_overconfidence", "level": "ok",
-                "title": "Sur-confiance marché « Sets » tennis (surveillance)",
-                "detail": f"{n} prédiction(s) Sets tennis à conf ≥ 65 % (min {MIN_N}) — surveillance en attente de données.",
-                "items": []}
-    w = sum(r[2] == "won" for r in window)
-    real = round(100 * w / n)
-    conf = round(sum(r[1] for r in window) / n)
-    gap = real - conf
-    over = gap <= GAP_WARN
-    items = ([f"Sets tennis (40 derniers, conf ≥ 65 %) : annoncé {conf}% mais réel {real}% → sur-confiance "
-              f"{gap:+} pts (seuil {GAP_WARN}). Le marché re-déraille comme en juin → envisager de l'écarter "
-              f"ou de recalibrer sa confiance à la baisse."] if over else [])
-    return {"key": "tennis_sets_overconfidence", "level": "warn" if over else "ok",
-            "title": "Sur-confiance marché « Sets » tennis (surveillance)",
-            "detail": f"40 derniers Sets tennis (conf ≥ 65 %) : annoncé {conf}% → réel {real}% "
-                      f"(écart {gap:+} pts ; alerte si ≤ {GAP_WARN}).",
-            "items": items}
-
-
 def _check_uniform_labels(rows) -> dict:
     """UNIFORMITÉ DES LIBELLÉS (demande user 2026-07-23, IMPÉRATIVE « ça ne doit plus JAMAIS arriver ») : deux
     paris à MÊME issue de règlement DOIVENT afficher le MÊME intitulé (`pretty_sel`). Détecte les DIVERGENCES
@@ -894,32 +834,6 @@ def _check_montante_active() -> dict:
                 "detail": f"vérif ignorée (non bloquante) : {e}", "items": []}
 
 
-def _check_background_publish(rows) -> dict:
-    """Un sport en ARRIÈRE-PLAN (tennis/basket en probation) ne doit JAMAIS avoir de carte prono postée sur
-    Telegram. Fuite vécue (user 2026-08-02) : le reconcile re-postait les tennis/basket « manqués » (ils
-    n'ont pas de carte car volontairement non publiés). Un `notify.get_prono` non vide sur un match d'un
-    sport suspendu = FUITE. Ne lève jamais."""
-    try:
-        from app import analyses as _an, notify as _n
-        bg = _an.background_sports()
-        if not bg:
-            return {"key": "background_publish", "level": "ok", "title": "Aucune fuite Telegram (sports suspendus)",
-                    "detail": "aucun sport en arrière-plan.", "items": []}
-        leaks = []
-        for _p, d in rows:
-            if isinstance(d, dict) and d.get("sport") in bg and _n.get_prono(str(d.get("id"))):
-                leaks.append(f'{d.get("sport")} · {d.get("home", "")} - {d.get("away", "")}')
-        return {"key": "background_publish",
-                "level": "warn" if leaks else "ok",
-                "title": "Aucune fuite Telegram (sports suspendus)",
-                "detail": (f"{len(leaks)} prono(s) tennis/basket postés à tort sur Telegram (sports suspendus) — "
-                           f"à supprimer." if leaks else "aucune fuite : tennis/basket jamais publiés."),
-                "items": leaks[:20]}
-    except Exception as e:
-        return {"key": "background_publish", "level": "ok", "title": "Aucune fuite Telegram (sports suspendus)",
-                "detail": f"vérif ignorée (non bloquante) : {e}", "items": []}
-
-
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -948,11 +862,9 @@ def run(persist: bool = False) -> dict:
         _check_combo_daily_leg_analysis(),
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),
-        _check_tennis_sets_overconfidence(rows),
         _check_uniform_labels(rows),
         _check_stats_snapshot_drift(),
         _check_montante_active(),
-        _check_background_publish(rows),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]
