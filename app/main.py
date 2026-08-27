@@ -573,9 +573,9 @@ app.mount("/static", StaticFiles(directory=os.path.join(_ROOT, "static")), name=
 @app.get("/manifest.webmanifest", include_in_schema=False)
 async def manifest() -> JSONResponse:
     return JSONResponse({
-        "name": "BETSFIX — Analyse paris multi-sports",
+        "name": "BETSFIX — Analyse paris football",
         "short_name": "BETSFIX",
-        "description": "Tennis · Basket · Foot — modèle vs cotes, value, calibration.",
+        "description": "Football — modèle vs cotes, value, calibration.",
         # PLEIN ÉCRAN IMMERSIF (user 2026-08-24) : `fullscreen` masque les barres système Android (statut EN
         # HAUT + navigation EN BAS) -> l'app occupe tout l'écran. `display_override` retombe sur `standalone`
         # si `fullscreen` n'est pas supporté (iOS ignore `display` et reste piloté par apple-mobile-web-app-*).

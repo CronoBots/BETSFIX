@@ -4136,14 +4136,23 @@ _A2HS_HTML = (
 _A2HS_JS = (
     "(function(){var el=document.getElementById('a2hs');if(!el)return;"
     "var go=document.getElementById('a2hs-go'),x=document.getElementById('a2hs-x'),sub=document.getElementById('a2hs-sub');"
-    "var sa=window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);"
-    "if(sa)return;"                                    # lancée depuis l'icône (dans l'app) -> jamais de bannière
-    # FERMETURE = pour CETTE SESSION seulement (sessionStorage) : la bannière RÉAPPARAÎT à la prochaine visite
-    # TANT QUE l'app n'est pas installée (user 2026-08-24 ; avant : localStorage = fermeture définitive).
-    "var off=false;try{off=sessionStorage.getItem('a2hs_off')==='1';}catch(e){}if(off)return;"
+    "function lget(k){try{return localStorage.getItem(k);}catch(e){return null;}}"
+    "function lset(k,v){try{localStorage.setItem(k,v);}catch(e){}}"
+    # INSTALLÉE ? On teste TOUS les modes d'affichage d'une app installée — standalone MAIS AUSSI **fullscreen**
+    # (le manifeste demande `display:fullscreen` -> l'app se lance en fullscreen, PAS standalone : l'ancien test
+    # ratait ça et affichait la bannière DANS l'app, à chaque démarrage) et minimal-ui ; + iOS navigator.standalone.
+    "function inApp(){return (window.matchMedia&&(matchMedia('(display-mode: standalone)').matches"
+    "||matchMedia('(display-mode: fullscreen)').matches||matchMedia('(display-mode: minimal-ui)').matches))"
+    "||window.navigator.standalone===true;}"
+    "if(inApp()){lset('bfx_installed','1');return;}"    # lancée depuis l'icône -> MÉMORISE installée + jamais de bannière
+    "if(lget('bfx_installed')==='1')return;"            # déjà repérée installée sur ce navigateur -> plus jamais proposer
+    # FERMETURE ✕ = SILENCE PERSISTANT 21 jours (user 2026-08-27 : « apparaît tout le temps au démarrage »).
+    # Avant : sessionStorage -> revenait à chaque visite. Maintenant snooze localStorage daté -> plus de harcèlement.
+    "var sn=parseInt(lget('a2hs_snooze')||'0',10);if(sn&&Date.now()<sn)return;"
     "function show(){el.hidden=false;requestAnimationFrame(function(){el.classList.add('show');});}"
-    "function hide(rem){el.classList.remove('show');setTimeout(function(){el.hidden=true;},320);"
-    "if(rem)try{sessionStorage.setItem('a2hs_off','1');}catch(e){}}"
+    "function hide(snooze){el.classList.remove('show');setTimeout(function(){el.hidden=true;},320);"
+    "if(snooze)lset('a2hs_snooze',String(Date.now()+21*864e5));}"
+    "function done(){lset('bfx_installed','1');hide(false);}"   # installée (accept/appinstalled) -> mémorise DÉFINITIVEMENT
     "function arm(){var dfd=null;"
     "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();dfd=e;"          # Android/Chrome
     "if(sub)sub.textContent='Plein écran, sans barre du navigateur.';if(go)go.hidden=false;show();});"
@@ -4151,14 +4160,14 @@ _A2HS_JS = (
     "if(ios){setTimeout(show,1400);}"                  # iOS : instructions manuelles déjà dans le HTML
     # Android sans prompt natif (Chrome le tait parfois) : on montre quand même, avec l'instruction du menu.
     "else{setTimeout(function(){if(el.hidden){if(go&&go.hidden&&sub)sub.textContent='Menu ⋮ du navigateur, puis « Installer ».';show();}},1800);}"
-    "if(go)go.addEventListener('click',function(){if(dfd){dfd.prompt();dfd.userChoice.then(function(){hide(true);});}});"
+    "if(go)go.addEventListener('click',function(){if(dfd){dfd.prompt();dfd.userChoice.then(function(r){if(r&&r.outcome==='accepted')done();else hide(true);});}});"
     "if(x)x.addEventListener('click',function(){hide(true);});"
-    "window.addEventListener('appinstalled',function(){hide(false);});}"
+    "window.addEventListener('appinstalled',done);}"
     # DÉTECTION FIABLE (Android/Chrome) : la PWA est-elle DÉJÀ installée ? getInstalledRelatedApps lit les
-    # related_applications du manifeste -> si installée, PAS de bannière (même en navigation) ; sinon on arme.
-    # API absente (iOS…) -> on arme directement (le test standalone ci-dessus a déjà écarté « dans l'app »).
+    # related_applications du manifeste -> si installée, on MÉMORISE et PAS de bannière (même en navigation) ; sinon arme.
+    # API absente (iOS…) -> on arme directement (le test inApp ci-dessus a déjà écarté « dans l'app »).
     "if(navigator.getInstalledRelatedApps){navigator.getInstalledRelatedApps().then(function(a){"
-    "if(a&&a.length)return;arm();}).catch(arm);}else{arm();}"
+    "if(a&&a.length){lset('bfx_installed','1');return;}arm();}).catch(arm);}else{arm();}"
     "})();"
 )
 
