@@ -35,16 +35,15 @@ _lock = threading.Lock()
 # STRUCTURE des formules seulement — les PRIX réels vivent dans Stripe (un price_id par formule, cf.
 # billing.py). `days` sert au repli local (sub_until) si le webhook tarde. Catalogue surchargéable via
 # data/plans.json sans redéploiement.
-TRIAL_DAYS = 7
+TRIAL_DAYS = 3                              # essai gratuit à l'inscription (choix user 2026-08-27)
 _DEFAULT_PLANS = {
     "free":    {"label": "Gratuit",       "days": 0,          "paid": False},
     "trial":   {"label": "Essai gratuit", "days": TRIAL_DAYS, "paid": False},
     "monthly": {"label": "Mensuel",       "days": 30,         "paid": True},
-    "yearly":  {"label": "Annuel",        "days": 365,        "paid": True},
 }
-# L'essai gratuit démarre-t-il automatiquement à l'inscription ? OFF par défaut (décision produit :
-# offrir N jours de pronos gratuits = choix revenu). Activable via env BETSFIX_TRIAL_ON_SIGNUP=1.
-TRIAL_ON_SIGNUP = os.environ.get("BETSFIX_TRIAL_ON_SIGNUP", "").strip() in ("1", "true", "on", "yes")
+# Essai gratuit automatique à l'inscription : ON (user 2026-08-27, 3 jours). Désactivable via env
+# BETSFIX_TRIAL_ON_SIGNUP=0 sans redéploiement.
+TRIAL_ON_SIGNUP = os.environ.get("BETSFIX_TRIAL_ON_SIGNUP", "1").strip() in ("1", "true", "on", "yes")
 
 
 def plans() -> dict:
@@ -304,6 +303,74 @@ def read_session(token: str | None) -> str | None:
         return email or None
     except (ValueError, UnicodeDecodeError):
         return None
+
+
+# --------------------------------------------------------------------------- mot de passe / vérif email
+def set_password(email: str, pw: str) -> tuple[bool, str]:
+    """Change le mot de passe d'un compte existant. (True,'') ou (False, message)."""
+    email = _norm(email)
+    if not get_user(email):
+        return False, "Compte introuvable."
+    if len(pw or "") < 8:
+        return False, "Le mot de passe doit faire au moins 8 caractères."
+    with _lock:
+        userdb.upsert(email, pw=hash_pw(pw))
+    return True, ""
+
+
+def mark_verified(email: str) -> None:
+    with _lock:
+        userdb.upsert(_norm(email), email_verified=1)
+
+
+def _sign_token(purpose: str, email: str, extra_key: bytes = b"") -> str:
+    """Jeton signé HMAC sans état serveur : purpose|email|ts. `extra_key` lie le jeton à un état
+    (ex. hash du mot de passe courant) -> auto-invalidation à usage unique."""
+    payload = base64.urlsafe_b64encode(
+        f"{purpose}|{_norm(email)}|{int(time.time())}".encode()).decode().rstrip("=")
+    sig = hmac.new(_secret() + extra_key, payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+
+def _read_token(purpose: str, token: str | None, max_age: int, extra_key_for) -> str | None:
+    if not token or "." not in token:
+        return None
+    payload, _, sig = token.partition(".")
+    try:
+        pad = "=" * (-len(payload) % 4)
+        p, email, ts = base64.urlsafe_b64decode(payload + pad).decode().split("|")
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if p != purpose:
+        return None
+    extra = extra_key_for(email) if extra_key_for else b""
+    good = hmac.new(_secret() + extra, payload.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, good):
+        return None
+    if int(ts) + max_age < time.time():
+        return None
+    return email or None
+
+
+def make_reset_token(email: str) -> str | None:
+    """Jeton de réinitialisation (1 h). Signé avec le hash du mot de passe courant -> USAGE UNIQUE
+    (dès que le mot de passe change le jeton devient invalide) ; None si compte inconnu."""
+    u = get_user(_norm(email))
+    return _sign_token("reset", email, (u.get("pw") or "").encode()) if u else None
+
+
+def check_reset_token(token: str | None) -> str | None:
+    return _read_token("reset", token, 3600,
+                       lambda em: ((get_user(em) or {}).get("pw") or "").encode())
+
+
+def make_verify_token(email: str) -> str:
+    """Jeton de vérification d'email (7 j)."""
+    return _sign_token("verify", email)
+
+
+def check_verify_token(token: str | None) -> str | None:
+    return _read_token("verify", token, 7 * 24 * 3600, None)
 
 
 # --------------------------------------------------------------------------- aide requête (paywall)

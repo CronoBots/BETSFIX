@@ -6,13 +6,45 @@ Phase 1 du paywall : email + mot de passe (cf. app/accounts.py), session par coo
 from __future__ import annotations
 
 import html as _html
+import os
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import accounts
+from app import accounts, mailer
 
 router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
+
+
+def _base_url(request: Request) -> str:
+    """Base publique pour les liens des emails (env prioritaire, sinon l'hôte de la requête)."""
+    env = (os.environ.get("BETSFIX_PUBLIC_URL") or "").strip().rstrip("/")
+    return env or str(request.base_url).rstrip("/")
+
+
+def _send_reset_email(request: Request, email: str) -> None:
+    token = accounts.make_reset_token(email)
+    if not token:                                  # compte inconnu -> on n'envoie rien (anti-énumération)
+        return
+    link = f"{_base_url(request)}/reset?token={_html.escape(token)}"
+    mailer.send(email, "Réinitialise ton mot de passe BETSFIX",
+                f"""<div style="font-family:system-ui,Arial;max-width:480px">
+<h2>Réinitialisation du mot de passe</h2>
+<p>Clique sur le lien ci-dessous pour choisir un nouveau mot de passe. Il expire dans 1 heure.</p>
+<p><a href="{link}" style="background:#111;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Choisir un nouveau mot de passe</a></p>
+<p style="color:#666;font-size:13px">Si tu n'es pas à l'origine de cette demande, ignore cet email.</p></div>""",
+                text=f"Réinitialise ton mot de passe BETSFIX : {link} (valable 1 h).")
+
+
+def _send_verify_email(request: Request, email: str) -> None:
+    token = accounts.make_verify_token(email)
+    link = f"{_base_url(request)}/verify?token={_html.escape(token)}"
+    mailer.send(email, "Confirme ton email BETSFIX",
+                f"""<div style="font-family:system-ui,Arial;max-width:480px">
+<h2>Bienvenue sur BETSFIX 👋</h2>
+<p>Confirme ton adresse pour sécuriser ton compte. Ton essai gratuit de {accounts.TRIAL_DAYS} jours est déjà actif.</p>
+<p><a href="{link}" style="background:#111;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Confirmer mon email</a></p></div>""",
+                text=f"Confirme ton email BETSFIX : {link}")
 
 # Le CSS du compte (scopé .acctwrap) est désormais GLOBAL dans web.py (toujours chargé) -> le contenu
 # marche aussi bien en page pleine qu'en FRAGMENT injecté dans le panneau SPA.
@@ -52,6 +84,7 @@ def _login_form(nxt: str = "/", err: str = "", email: str = "", frag: bool = Fal
 <label>Email</label><input name=email type=email autocomplete=email value='{e(email)}' required>
 <label>Mot de passe</label><input name=password type=password autocomplete=current-password required>
 <button type=submit>Se connecter</button></form>
+<div class=alt><a href='/forgot'>Mot de passe oublié ?</a></div>
 <div class=alt>Pas encore de compte ? <a href='/signup?next={e(nxt)}'>Créer un compte</a></div></div>""", frag)
 
 
@@ -59,7 +92,7 @@ def _signup_form(nxt: str = "/", err: str = "", email: str = "") -> str:
     e = _html.escape
     err_html = f'<div class=err>{e(err)}</div>' if err else ""
     return _page("Inscription", f"""<div class=acard><h1>Créer un compte</h1>
-<div class=sub>Gratuit. Tu vois aussitôt toutes les stats et résultats ; les pronos se débloquent avec l'abonnement.</div>
+<div class=sub>Essai gratuit de {accounts.TRIAL_DAYS} jours : tu vois tous les pronos joués immédiatement. Ensuite, abonnement pour continuer — stats et résultats restent ouverts à tous.</div>
 {err_html}<form method=post action='/signup'>
 <input type=hidden name=next value='{e(nxt)}'>
 <label>Email</label><input name=email type=email autocomplete=email value='{e(email)}' required>
@@ -101,11 +134,16 @@ async def signup_page(request: Request, next: str = "/"):
 
 
 @router.post("/signup", response_class=HTMLResponse, include_in_schema=False)
-async def signup_submit(next: str = Form("/"), email: str = Form(...), password: str = Form(...)):
+async def signup_submit(request: Request, next: str = Form("/"), email: str = Form(...),
+                        password: str = Form(...)):
     nxt = _safe_next(next)
     ok, err = accounts.create_user(email, password)
     if not ok:
         return HTMLResponse(_signup_form(nxt, err, email), status_code=400)
+    try:
+        _send_verify_email(request, email)         # best-effort : ne bloque jamais l'inscription
+    except Exception:
+        pass
     resp = RedirectResponse(nxt, status_code=303)
     _set_cookie(resp, email)
     return resp
@@ -116,6 +154,82 @@ async def logout():
     resp = RedirectResponse("/", status_code=303)
     resp.delete_cookie(accounts.COOKIE, path="/")
     return resp
+
+
+# --------------------------------------------------------------------------- mot de passe oublié
+def _forgot_form(msg: str = "", ok: bool = False) -> str:
+    box = f'<div class="{"ok" if ok else "err"}">{_html.escape(msg)}</div>' if msg else ""
+    return _page("Mot de passe oublié", f"""<div class=acard><h1>Mot de passe oublié</h1>
+<div class=sub>Entre ton email : si un compte existe, tu recevras un lien pour choisir un nouveau mot de passe.</div>
+{box}<form method=post action='/forgot'>
+<label>Email</label><input name=email type=email autocomplete=email required>
+<button type=submit>Envoyer le lien</button></form>
+<div class=alt><a href='/login'>Retour à la connexion</a></div></div>""")
+
+
+@router.get("/forgot", response_class=HTMLResponse, include_in_schema=False)
+async def forgot_page():
+    return HTMLResponse(_forgot_form())
+
+
+@router.post("/forgot", response_class=HTMLResponse, include_in_schema=False)
+async def forgot_submit(request: Request, email: str = Form(...)):
+    try:
+        _send_reset_email(request, email)          # silencieux si compte inconnu (anti-énumération)
+    except Exception:
+        pass
+    # message IDENTIQUE que le compte existe ou non -> ne révèle pas quels emails sont inscrits
+    return HTMLResponse(_forgot_form(
+        "Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.", ok=True))
+
+
+def _reset_form(token: str, err: str = "") -> str:
+    e = _html.escape
+    err_html = f'<div class=err>{e(err)}</div>' if err else ""
+    return _page("Nouveau mot de passe", f"""<div class=acard><h1>Nouveau mot de passe</h1>
+{err_html}<form method=post action='/reset'>
+<input type=hidden name=token value='{e(token)}'>
+<label>Nouveau mot de passe</label>
+<input name=password type=password autocomplete=new-password minlength=8 required>
+<button type=submit>Enregistrer</button></form></div>""")
+
+
+@router.get("/reset", response_class=HTMLResponse, include_in_schema=False)
+async def reset_page(token: str = ""):
+    if not accounts.check_reset_token(token):
+        return HTMLResponse(_page("Lien expiré",
+            "<div class=acard><h1>Lien invalide ou expiré</h1>"
+            "<div class=sub>Demande un nouveau lien.</div>"
+            "<div class=alt><a href='/forgot'>Mot de passe oublié</a></div></div>"), status_code=400)
+    return HTMLResponse(_reset_form(token))
+
+
+@router.post("/reset", response_class=HTMLResponse, include_in_schema=False)
+async def reset_submit(token: str = Form(...), password: str = Form(...)):
+    email = accounts.check_reset_token(token)
+    if not email:
+        return HTMLResponse(_page("Lien expiré",
+            "<div class=acard><h1>Lien invalide ou expiré</h1>"
+            "<div class=alt><a href='/forgot'>Demander un nouveau lien</a></div></div>"), status_code=400)
+    okpw, err = accounts.set_password(email, password)
+    if not okpw:
+        return HTMLResponse(_reset_form(token, err), status_code=400)
+    resp = RedirectResponse("/compte", status_code=303)   # mot de passe changé -> connexion directe
+    _set_cookie(resp, email)
+    return resp
+
+
+@router.get("/verify", response_class=HTMLResponse, include_in_schema=False)
+async def verify_email(token: str = ""):
+    email = accounts.check_verify_token(token)
+    if not email:
+        return HTMLResponse(_page("Lien invalide",
+            "<div class=acard><h1>Lien de confirmation invalide ou expiré</h1></div>"), status_code=400)
+    accounts.mark_verified(email)
+    return HTMLResponse(_page("Email confirmé",
+        "<div class=acard><h1>Email confirmé ✓</h1>"
+        "<div class=sub>Merci — ton compte est sécurisé.</div>"
+        "<div class=alt><a href='/compte'>Aller à mon compte</a></div></div>"))
 
 
 @router.get("/compte", response_class=HTMLResponse, include_in_schema=False)
