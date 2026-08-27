@@ -8647,6 +8647,21 @@ def _status_card(m: dict, dt, kind: str) -> str:
             f'</div></div></div>')
 
 
+def _awaiting_prematch_reanalysis(sport: str, mid: str, dt, now, window_h: float = 1.5) -> bool:
+    """L'analyse existante a-t-elle été faite TROP TÔT (le matin, lead > window_h au moment de l'analyse)
+    alors que le match est ENCORE à venir ? Si oui, sa RÉ-ANALYSE pré-match décisive (~1 h avant le KO, la
+    « vague ») n'a PAS encore eu lieu. Miroir EXACT de `_analyzed_too_early` du scan (mtime du .md = instant
+    de la dernière analyse) pour que l'affichage et le scan soient d'accord : on ne FIGE une abstention
+    qu'APRÈS cette 2e analyse (user 2026-08-27). window_h = fenêtre de la vague (1,5 h, cf. scan_wave.ps1)."""
+    if dt is None or dt <= now:
+        return False
+    try:
+        analyzed = os.path.getmtime(os.path.join(analyses.DIR, f"{sport}_{mid}.md"))
+    except OSError:
+        return False
+    return (dt.timestamp() - analyzed) / 3600 > window_h
+
+
 def _planning_cards(sport: str = "foot") -> tuple[list, list]:
     """(pending_cards, abst_cards) — CARTES (comme les paris) des matchs À ANALYSER (Programme) et des
     ABSTENTIONS (analysés sans pari). Modèle user 2026-08-17 : chaque match d'abord au programme, puis basculé
@@ -8687,8 +8702,15 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
             _has_bet = isinstance(_sb, dict) and _sb.get("result") in ("won", "lost", "push")
         else:
             _has_bet = analyses.retained_bet(sport, mid) is not None
-        if not _has_bet:                                   # analysé SANS pari -> ABSTENTION
-            abst.append(_status_card(m, dt, "abst"))
+        if not _has_bet:                                   # analysé SANS pari
+            # ABSTENTION FIGÉE APRÈS LA 2e ANALYSE SEULEMENT (user 2026-08-27) : une abstention issue du SCAN
+            # DU MATIN sur un match encore à venir sera RE-VÉRIFIÉE ~1 h avant le KO (la vague). Tant que cette
+            # ré-analyse décisive n'a pas eu lieu, on la laisse au PROGRAMME (« à analyser ~1 h avant ») au lieu
+            # de la classer « Abstention — non joué » prématurément. Passée la vague (mtime récent) -> ferme.
+            if _awaiting_prematch_reanalysis(sport, mid, dt, _now):
+                pending.append((m, dt))
+            else:
+                abst.append(_status_card(m, dt, "abst"))
         # sinon : a un pari -> carte dans sa zone Confiance/Value
     return pending, abst
 
