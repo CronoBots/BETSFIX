@@ -83,7 +83,7 @@ def _get_proxy(path: str):
                 _last_proxy_status = ""
                 try:                                      # compteur de conso iProyal (facturé au Go)
                     from app import proxy_usage
-                    proxy_usage.add_bytes(len(r.content), "pinnacle")
+                    proxy_usage.add_bytes(proxy_usage.wire_bytes(r), "pinnacle")   # octets COMPRESSÉS (=iProyal)
                 except Exception:
                     pass
                 return json.loads(r.content.decode("utf-8", "replace"))

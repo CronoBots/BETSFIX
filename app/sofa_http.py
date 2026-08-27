@@ -140,7 +140,7 @@ async def _via_proxy(url, params, headers):
             log.info("SofaScore via PROXY (dernier recours) OK")
             try:                                          # compteur conso iProyal (proxy mutualisé)
                 from app import proxy_usage
-                proxy_usage.add_bytes(len(r.content), "sofascore")
+                proxy_usage.add_bytes(proxy_usage.wire_bytes(r), "sofascore")   # octets COMPRESSÉS (=iProyal)
             except Exception:
                 pass
         return r

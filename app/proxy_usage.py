@@ -22,6 +22,24 @@ def _load() -> dict:
         return {"bytes": 0, "calls": 0, "since": int(_time.time())}
 
 
+def wire_bytes(resp) -> int:
+    """Octets RÉELLEMENT transités = ce que FACTURE iProyal (corps COMPRESSÉ sur le fil). On lit le
+    `Content-Length` (taille compressée annoncée par le serveur) ; à défaut (transfert chunké, header
+    absent) on retombe sur la taille DÉCOMPRESSÉE `len(content)` — qui SUR-estime ~8-10× (curl décompresse
+    le gzip), mais c'est le seul repli. Corrige le compteur qui affichait ~9× trop (user 2026-08-27)."""
+    try:
+        h = getattr(resp, "headers", None) or {}
+        cl = h.get("content-length") or h.get("Content-Length")
+        if cl and int(cl) > 0:
+            return int(cl)
+    except Exception:
+        pass
+    try:
+        return len(resp.content)
+    except Exception:
+        return 0
+
+
 def add_bytes(n: int, host: str = "") -> None:
     """Ajoute `n` octets téléchargés via le proxy (best-effort, jamais d'exception)."""
     if not n or n < 0:
