@@ -7842,7 +7842,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                         empty="Aucun combiné du jour pour l'instant."))
     # ABSTENTIONS RÉAFFICHÉES (user 2026-08-24) : les matchs analysés SANS pari retenu, en cartes, catégorie à
     # part (cachée s'il n'y en a aucune). On remontre ce qu'on a analysé mais pas jugé jouable.
-    _abst_html = _abstention_zone(sport or "foot")
+    # ABSTENTIONS masquées quand le PROGRAMME est TERMINÉ (plus aucun match à jouer, user 2026-08-27) : une
+    # abstention n'a de sens que tant qu'il reste des matchs à venir. Journée finie -> on ne montre plus ce
+    # qu'on n'a pas joué. Même condition `_has_prog` que le badge « en attente ».
+    _abst_html = _abstention_zone(sport or "foot") if _has_prog else ""
     out.append(_abst_html)
     _prog_html = _programme_schedule(sport or "foot")
     # JOURNÉE TOTALEMENT VIDE (tôt le matin AVANT le scan de 08h, ou jour calme) : au lieu de 2 accordéons
