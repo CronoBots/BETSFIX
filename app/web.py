@@ -5713,8 +5713,17 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
     if not (foot_txt or cote_html):
         return _vl
     _rn = f'<div class="vb-reana">{foot_txt}</div>' if foot_txt else ""
-    # Repli : pas de confiance calculable (verdict vide) mais une cote à montrer -> ancien pied simple.
+    # Repli CONFIANCE INDISPONIBLE (verdict non calculable, ex. vieille jambe de combiné dont le `prob` n'a
+    # jamais été stocké) : au lieu de la grosse pastille `mc-foot`/`mc-cote` (mise en page DIFFÉRENTE qui
+    # « décrochait » de l'historique), on rend le MÊME CADRE grille que les autres cartes avec la COTE SEULE —
+    # Confiance/Edge/Value MASQUÉES (pas de faux chiffre, user 2026-08-29). `mc-foot` ultime si cote inexploitable.
     if not _vl and cote_html:
+        if c > 1:
+            _pk = f'<div class="vm-pick">{pick_html}</div>' if pick_html else ""
+            _rb = result_html or ""
+            _cell = ('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
+                     f'<span class="vm-v">{round(c, 2):g}</span></div>')
+            return f'<div class="vb"><div class="vm">{_pk}<div class="vm-grid">{_cell}</div>{_rb}</div></div>{_rn}'
         _rf = f'<span class="mc-reana mc-reana-prov">{foot_txt}</span>' if foot_txt else ""
         return f'<div class="mc-foot">{_rf}{cote_html}</div>'
     return _vl + _rn
