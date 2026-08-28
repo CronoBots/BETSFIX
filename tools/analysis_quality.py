@@ -25,6 +25,15 @@ import sys
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Console Windows en cp1252 : les ═ / ✅ / emojis des logs crasheraient (UnicodeEncodeError) -> exit 1
+# indistinct d'une vraie ALERTE. On force la sortie en UTF-8 (idiome projet, cf. generate_analyses.py).
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from app import analyses as A  # noqa: E402
 
 MIN_MD = 2500            # octets : en-dessous, l'analyse est un stub (les vraies font ~2900-5900 o)
