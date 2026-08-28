@@ -3873,13 +3873,26 @@ async def main():
                                     os.remove(path)
                                 except OSError:
                                     pass
-                        else:                           # aucun fantôme exploitable -> comportement d'avant
-                            _exts = (".json",) if _prov else (".json", ".md")
-                            for ext in _exts:
-                                try:
-                                    os.remove(os.path.join(OUT, f"{sport}_{fid}{ext}"))
-                                except OSError:
-                                    pass
+                        else:                           # aucun fantôme exploitable DANS CETTE passe
+                            # GARDE-FOU CALIBRATION (28/08) : ne PAS supprimer un fantôme DÉJÀ écrit (ex. par
+                            # le scan du matin) juste parce qu'une RÉ-ANALYSE (--refresh-early, cache-hit 3-5s)
+                            # n'a pas re-parsé de CALIB. Sans ça, la vague pré-match effaçait les fantômes du
+                            # matin -> calibration privée de ces prédictions (constaté : 6 matchs, 0 sidecar le
+                            # 28/08 alors que l'analyse matinale les avait écrits). On ne retire QUE s'il n'y a
+                            # pas déjà un fantôme valide en place.
+                            try:
+                                _prev = json.load(open(side_p, encoding="utf-8"))
+                            except (OSError, ValueError):
+                                _prev = {}
+                            if _prev.get("abstained") and _prev.get("shadow"):
+                                pass                    # fantôme valide déjà persisté -> on le GARDE
+                            else:
+                                _exts = (".json",) if _prov else (".json", ".md")
+                                for ext in _exts:
+                                    try:
+                                        os.remove(os.path.join(OUT, f"{sport}_{fid}{ext}"))
+                                    except OSError:
+                                        pass
                     continue
                 # Pas d'entête « # {nom} » : la fiche affiche déjà le nom du match (doublon évité).
                 header = f"<!-- généré {datetime.now(timezone.utc).isoformat()} · {dt:.0f}s -->\n\n"
