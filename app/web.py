@@ -7127,14 +7127,20 @@ def _day_header(iso: str) -> str:
     return f'<div class="day-hd"><span class="day-hd-lead">{html.escape(lead)}</span>{sub_html}</div>'
 
 
-def _day_calendar(iso: str, sport: str | None = None, days: int = 34) -> str:
+def _day_calendar(iso: str, sport: str | None = None, days: int | None = None) -> str:
     """CALENDRIER HORIZONTAL premium en tête de l'onglet Pronos (user 2026-08-19) — REMPLACE `_day_header`.
     Bande de dates cliquables (jour de semaine + numéro + pastille résultat vert/rouge/neutre issue de
     `_daily_results_map`), jour SÉLECTIONNÉ mis en avant, « AUJ. » marqué. Un clic recharge `#day-content` via
     `/jour?date=<iso>&sport=<sk>&frag=1` (JS `_DAYCAL_JS`). Se re-rend à chaque swap -> surbrillance toujours à
-    jour. `days` = fenêtre glissante (dernières N dates, aujourd'hui à droite)."""
+    jour. `days` = fenêtre glissante (dernières N dates, aujourd'hui à droite). None (défaut) -> remonte jusqu'au
+    début du phare `_LZ_SINCE` (22/06), pour afficher TOUT l'historique dans la frise (user 2026-08-29)."""
     from datetime import date as _date, timedelta
     today = _sport_today()
+    if days is None:                                       # défaut : couvrir tout l'historique jusqu'au 22/06
+        try:
+            days = max(1, (today - _date.fromisoformat(_LZ_SINCE)).days)
+        except (ValueError, TypeError):
+            days = 34
     try:
         sel = _date.fromisoformat(iso)
     except (ValueError, TypeError):
