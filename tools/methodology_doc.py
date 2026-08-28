@@ -1,8 +1,8 @@
 """Documentation MÉTHODOLOGIE par sport — RUN QUOTIDIEN (après le scan/règlement).
 
-Écrit `docs/METHODOLOGIE.md` : pour CHAQUE sport (foot/tennis/basket), la méthode d'analyse et de
-SÉLECTION des pronos, son état MESURÉ (ROI, calibration), les repères méthodo, et une SCORECARD
-d'optimalité. But : voir, sport par sport, QUAND la méthode est optimale.
+Écrit `docs/METHODOLOGIE.md` : la méthode d'analyse et de SÉLECTION des pronos (football — app 100 %
+foot), son état MESURÉ (ROI, calibration), les repères méthodo, et une SCORECARD d'optimalité. But :
+voir QUAND la méthode est optimale.
 
 « Optimal » (critères choisis) = (A) ROI positif & STABLE  ET  (B) calibration BONNE.
 
@@ -26,9 +26,10 @@ from app import analyses  # noqa: E402
 DOC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "METHODOLOGIE.md")
 
 # nom court (stats/exclusions/jalons) -> nom calibration by_sport
-SPORTS = [("foot", "Football", "⚽ Football"),
-          ("tennis", "Tennis", "🎾 Tennis"),
-          ("basket", "Basket", "🏀 Basket")]
+# 100 % FOOT (user 2026-08-07 : tennis/basket supprimés) — la revue quotidienne (daily_review.py) ET la
+# méthodo (METHODOLOGIE.md) itèrent sur cette liste : la garder foot-only évite de ré-afficher des lignes
+# « Tennis/Basket EN COURS 0/20 » vides (retour user 2026-08-28). Réintégrer un sport = ré-ajouter son tuple.
+SPORTS = [("foot", "Football", "⚽ Football")]
 
 # Seuils d'optimalité (alignés sur les critères choisis : ROI stable + calibration).
 _MIN_SETTLED = 20      # sous ce nombre de paris réglés, l'échantillon ne tranche pas encore
