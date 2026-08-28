@@ -5721,9 +5721,18 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
         if c > 1:
             _pk = f'<div class="vm-pick">{pick_html}</div>' if pick_html else ""
             _rb = result_html or ""
-            _cell = ('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
-                     f'<span class="vm-v">{round(c, 2):g}</span></div>')
-            return f'<div class="vb"><div class="vm">{_pk}<div class="vm-grid">{_cell}</div>{_rb}</div></div>{_rn}'
+            # MÊME GRILLE À COLONNES que les autres jambes (Confiance · Edge · Value · Cote) pour un ALIGNEMENT
+            # IDENTIQUE — les métriques indisponibles affichent « — » (jamais un faux chiffre). `bare` (combiné)
+            # -> seulement Confiance + Cote, comme la grille pleine. Évite la « grosse boîte vide » d'une cote isolée.
+            _na = '<span class="vm-v vm-na">—</span>'
+            _cells = [f'<div class="vm-cell vm-conf"><span class="vm-l">Confiance</span>{_na}</div>']
+            if not bare:
+                _cells.append(f'<div class="vm-cell"><span class="vm-l">Edge</span>{_na}</div>')
+                _cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>{_na}</div>')
+            _cells.append('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
+                          f'<span class="vm-v">{round(c, 2):g}</span></div>')
+            return (f'<div class="vb"><div class="vm">{_pk}'
+                    f'<div class="vm-grid">{"".join(_cells)}</div>{_rb}</div></div>{_rn}')
         _rf = f'<span class="mc-reana mc-reana-prov">{foot_txt}</span>' if foot_txt else ""
         return f'<div class="mc-foot">{_rf}{cote_html}</div>'
     return _vl + _rn
@@ -6905,7 +6914,26 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     legs = combo.get("legs") or []
     if not legs:
         return ""
+    # CONTEXTE MATCH en tête (user 2026-08-29) : un combiné MÊME-MATCH n'affichait NI équipes NI ligue NI score
+    # -> on montre le match UNE fois en tête (ligue centrée « Pays • Compétition » + équipes/logos + score final),
+    # EXACTEMENT comme une carte normale, pour qu'il soit présenté comme le produit actuel. Les jambes restent
+    # `teams=False` (le match est déjà en en-tête -> pas de répétition).
     out = ""
+    if home and away:
+        _lcomp = str(m.get("comp") or "")
+        _cty = _cap(str(m.get("country") or "") or match_select.comp_country(_lcomp) or "")
+        if _cty and _cty.lower() in _lcomp.lower():
+            _cty = ""                              # évite « Angleterre • Angleterre »
+        _comp_c = " • ".join(html.escape(x) for x in (_cty, _lcomp) if x).upper()
+        _bd = analyses.result_board(m, sport) or {}
+        _scf = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(_bd.get("score") or "")).strip()
+        if _scf and any(ch.isdigit() for ch in _scf):
+            _ctr = (f'<span class="tm-live"><b>{html.escape(_scf.replace("-", " - "))}</b>'
+                    '<span class="tm-fin">Terminé</span></span>')
+        else:
+            _ctr = ""                              # pas de score (à venir / indispo) -> équipes seules
+        out = (f'<div class="mc-line mc-line-c"><span class="mc-comp">{_comp_c}</span></div>'
+               f'<div class="mc-teams">{_teams_vs_html(home, away, _ctr)}</div><div class="mc-div"></div>')
     # SIMPLE retenu ADDITIONNEL (cas « carte multi-paris » : un match CdM peut porter un simple retenu ET
     # le combiné). On le montre en tête, présenté comme une carte de pari (pick gras + glose + verdict).
     rb = analyses.retained_bet(sport, mid)

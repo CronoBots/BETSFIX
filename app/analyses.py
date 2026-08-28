@@ -532,7 +532,7 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
             return f"{_who} remporte au moins un set"
     # TOTAL DU MATCH : « Nombre total de buts – Moins de 2.5 » -> « Moins de 2.5 buts » (forme unique). Cible
     # buts/points/jeux uniquement (les objets nommés corners/cartons ont leur propre glose).
-    _mtot = re.match(r"^(?:nombre\s+)?total\s+(?:de\s+|d')?(buts?|points?|jeux)\s*[—–:\-]+\s*"
+    _mtot = re.match(r"^(?:nombre\s+)?total\s+(?:de\s+|d')?(buts?|points?|jeux)\s*[—–:\-]*\s+"
                      r"(plus|moins)\s+de\s+(\d+(?:\.\d+)?)", s, re.I)
     if _mtot:
         _u = {"but": "buts", "point": "points"}.get(_mtot.group(1).lower().rstrip("s"),
