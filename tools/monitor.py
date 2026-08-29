@@ -57,7 +57,10 @@ def _metrics(picks):
 # --------------------------------------------------------------------------- Panel A : produits déployés
 def panel_deployed():
     # clé = `stat_bet.kind` RÉEL (anglais : "confidence"/"value"), pas le libellé d'affichage français.
-    tiers = {"confidence": [], "value": []}
+    # DEUX vues : "hist" = TOUT (backfill = backtest appliqué au passé) ; "fwd" = FORWARD RÉEL = paris passés
+    # par la VAGUE en direct (marqueur `prematch_done`, jamais posé sur un pari backfillé). Le forward démarre
+    # vide et se remplit au fil des vraies sélections -> c'est LUI qui prouve (ou non) le backtest.
+    tiers = {"confidence": {"hist": [], "fwd": []}, "value": {"hist": [], "fwd": []}}
     _mids = A._montante_mids() if A.MONTANTE_ROI_ON else frozenset()   # montante OFF -> ne rien exclure
     for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
         try:
@@ -71,11 +74,15 @@ def panel_deployed():
             continue
         k = sb.get("kind")
         if k in tiers:
-            tiers[k].append((sb["result"], sb.get("cote") or 0))
+            rec = (sb["result"], sb.get("cote") or 0)
+            tiers[k]["hist"].append(rec)
+            if d.get("prematch_done"):                    # FORWARD = réellement passé par la vague live
+                tiers[k]["fwd"].append(rec)
     exp = {"confidence": "backtest 93% · cote ~1.14 · ROI ~+8%",
            "value": "backtest profil B · cote ~1.6 · ROI ~+11 à +18%"}
     lbl = {"confidence": "Confiance", "value": "Value"}
-    return [{"tier": lbl[t], **_metrics(v), "attente": exp[t]} for t, v in tiers.items()]
+    return [{"tier": lbl[t], "hist": _metrics(v["hist"]), "fwd": _metrics(v["fwd"]), "attente": exp[t]}
+            for t, v in tiers.items()]
 
 
 # --------------------------------------------------------------------------- Panel B : maturité / promotion
@@ -140,10 +147,14 @@ def render_text():
     print("=" * 78)
     print("TABLEAU DE BORD MONITORING — BETSFIX")
     print("=" * 78)
-    print("\n[A] PRODUITS DÉPLOYÉS (réel figé)")
+    print("\n[A] PRODUITS DÉPLOYÉS — Historique (backfill) vs FORWARD réel (vagues live)")
     for r in panel_deployed():
-        print("  %-9s : n=%-3s réussite=%-5s%% ROI=%+6s%% cote=%-4s | attendu: %s"
-              % (r["tier"].upper(), r.get("n"), r.get("winrate"), r.get("roi"), r.get("avg_cote"), r["attente"]))
+        hh, ff = r["hist"], r["fwd"]
+        _f = ("aucun encore (démarre à la 1re vague)" if not ff.get("n")
+              else "n=%s  %s%%  ROI %+s%%  cote %s" % (ff.get("n"), ff.get("winrate"), ff.get("roi"), ff.get("avg_cote")))
+        print("  %-9s | HIST : n=%-3s %-5s%% ROI %+6s%% cote %-4s | FORWARD : %s"
+              % (r["tier"].upper(), hh.get("n"), hh.get("winrate"), hh.get("roi"), hh.get("avg_cote"), _f))
+        print("            attendu backtest : %s" % r["attente"])
     ds = B.load_dataset()
     print("\n[B] MATURITÉ / PROMOTION par marché (curaté = 1 meilleur pari/match)")
     print("  %-14s | %-28s | %-28s" % ("MARCHÉ", "sous règles CONFIANCE", "sous règles VALUE"))
@@ -175,12 +186,19 @@ def build_html() -> str:
     h = ['<h1>📊 Monitoring BETSFIX</h1>',
          '<p class="sub">Lecture seule · confiance/value déployées, maturité des marchés, calibration brute.</p>']
     # A
-    h.append('<h2>🎯 Produits déployés (réel)</h2><table><tr><th>Tier</th><th>n</th><th>Réussite</th>'
-             '<th>ROI</th><th>Cote</th><th>Attendu (backtest)</th></tr>')
+    h.append('<h2>🎯 Produits déployés</h2>'
+             '<p class="sub">HIST = tout l\'historique (backfill = backtest appliqué au passé). '
+             'FORWARD = paris réellement passés par la vague live (vrai track record — démarre vide, se remplit).</p>'
+             '<table><tr><th>Tier</th><th colspan=3>Historique (backfill)</th>'
+             '<th colspan=3>Forward réel</th><th>Attendu</th></tr>'
+             '<tr><th></th><th>n</th><th>réuss</th><th>ROI</th><th>n</th><th>réuss</th><th>ROI</th><th></th></tr>')
     for r in dep:
-        h.append(f'<tr><td><b>{r["tier"].upper()}</b></td><td>{r.get("n","–")}</td>'
-                 f'<td>{r.get("winrate","–")}%</td><td>{_pill(r.get("roi",0),3,0)}</td>'
-                 f'<td>{r.get("avg_cote","–")}</td><td class="muted">{r["attente"]}</td></tr>')
+        hh, ff = r["hist"], r["fwd"]
+        _fw = (f'<td colspan=3 class="muted">démarre à la 1re vague</td>' if not ff.get("n")
+               else f'<td>{ff.get("n")}</td><td>{ff.get("winrate")}%</td><td>{_pill(ff.get("roi",0),3,0)}</td>')
+        h.append(f'<tr><td><b>{r["tier"].upper()}</b></td>'
+                 f'<td>{hh.get("n","–")}</td><td>{hh.get("winrate","–")}%</td><td>{_pill(hh.get("roi",0),3,0)}</td>'
+                 f'{_fw}<td class="muted">{r["attente"]}</td></tr>')
     h.append('</table>')
     # B
     h.append('<h2>🌱 Maturité / promotion par marché</h2>'
