@@ -219,6 +219,25 @@ async def stats_detail(sport: str = "", pari: int = -1, since: str = "") -> HTML
     return HTMLResponse(web.render_bet_detail(analyses.bet_detail(sp, pk, days)))
 
 
+_MONITOR_CACHE = {"ts": 0.0, "html": ""}
+
+
+@router.get("/monitor", response_class=HTMLResponse)
+async def monitor_page() -> HTMLResponse:
+    """Tableau de bord MONITORING (admin, lecture seule) : Confiance/Value réels vs backtest, maturité des
+    marchés (promotion), calibration brute par cote. Recalculé au plus toutes les 5 min (cache)."""
+    import time as _t
+    if _t.time() - _MONITOR_CACHE["ts"] > 300 or not _MONITOR_CACHE["html"]:
+        try:
+            from tools import monitor as _mon
+            _MONITOR_CACHE["html"] = _mon.build_html()
+            _MONITOR_CACHE["ts"] = _t.time()
+        except Exception as _e:
+            return HTMLResponse(f"<p style='color:#e6edf3;background:#0b0f14;padding:16px'>"
+                                f"monitor indisponible : {_e}</p>", status_code=200)
+    return HTMLResponse(_MONITOR_CACHE["html"])
+
+
 _HMR_CACHE: dict = {"ts": 0.0, "rows": None}
 _HMR_TTL = 15   # s : mémo COURTE des lignes tous-sports -> changer d'onglet de sport ne re-fetch pas tout
 

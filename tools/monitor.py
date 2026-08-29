@@ -164,6 +164,12 @@ def _pill(v, ok, warn):
 
 
 def render_html(path):
+    open(path, "w", encoding="utf-8").write(build_html())
+    return path
+
+
+def build_html() -> str:
+    """HTML autonome du tableau de bord (string) — sert au fichier ET à la route /monitor de l'app."""
     ds = B.load_dataset()
     dep, promo, calib = panel_deployed(), panel_promotion(ds), panel_calibration()
     h = ['<h1>📊 Monitoring BETSFIX</h1>',
@@ -209,8 +215,7 @@ def render_html(path):
            "overflow-x:auto;display:block}th,td{padding:6px 8px;text-align:center;border-bottom:1px solid #1c2733}"
            "th{color:#9fb6cf;font-weight:600;font-size:11px;text-transform:uppercase}"
            "td:first-child,th:first-child{text-align:left}tr:hover td{background:#0f1620}</style>")
-    open(path, "w", encoding="utf-8").write(css + "".join(h))
-    return path
+    return css + "".join(h)
 
 
 def main():
