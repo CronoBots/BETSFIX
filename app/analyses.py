@@ -722,6 +722,11 @@ _PROVEN_MARKETS_FOOT = frozenset({"Vainqueur", "Double chance", "Total Under", "
 # de cote s'appliquent toujours (le candidat sort du `pool` déjà filtré). Réversible : CONFIDENCE_FIRST_ON=False
 # -> comportement d'avant (value-only). Assumé : légère baisse de ROI possible contre un meilleur taux de
 # réussite (favoris à forte chance de passer) — c'est le compromis du 16/07, voulu par l'user.
+# FOOT = uniquement les 2 sélecteurs mécaniques (confiance 93% + value B). Coupe la retombée sur l'ancien
+# pick EV de Claude (`_recommend`) pour un match foot À VENIR sans pari mécanique -> abstention propre (plus
+# de pollution du tier value par des picks hors-profil). Réversible : False -> ancien comportement.
+FOOT_MECHANICAL_ONLY = True
+
 CONFIDENCE_FIRST_ON = False  # SUPERSEDED 2026-08-29 : le backtest a montré que les favoris à value NÉGATIVE
 #   ne sont PAS optimaux ; le vrai pari de confiance est le profil 93% mécanique (app.confidence_pick, DC/
 #   Handicap EV-indifférent). On coupe donc ce confidence-first ad-hoc -> le pick VALUE (placeholder) redevient
@@ -2454,6 +2459,17 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
         _vcc = _cool_conf(calibrated_conf(_vb.get("prob"), sport, _vb["code"]), sport, _vb["code"], m.get("streaks"))
         return {"idx": 0, "sel": _vb.get("sel"), "prob": _vb.get("prob"), "cprob": _vcc,
                 "cote": _vb.get("cote"), "result": _vres, "code": _vb["code"], "tier": "value"}
+    # FOOT = 2 SÉLECTEURS MÉCANIQUES SEULEMENT (confiance + value). Un match foot À VENIR SANS confidence_bet
+    # NI value_bet est une ABSTENTION : on ne rejoue PLUS l'ANCIEN pick EV de Claude (`_recommend`), qui
+    # polluait le tier value avec des paris hors-profil (ex. Real Sociedad « Plus de 1.5 @1.25 », cote < 1.40).
+    # On PRÉSERVE la montante (mids dédiés) et les combinés (leur pick vient d'ailleurs), et on ne touche pas
+    # aux réglés figés (stat_bet -> couche stats/anchor). Réversible : FOOT_MECHANICAL_ONLY = False.
+    if (FOOT_MECHANICAL_ONLY and sport == "foot" and not isinstance(m.get("stat_bet"), dict)
+            and not (isinstance(_cb, dict) and _cb.get("code"))
+            and not (isinstance(_vb, dict) and _vb.get("code"))
+            and not (m.get("combo") or {}).get("legs")
+            and str(match_id) not in _montante_mids()):
+        return None
     # ABSTENTION (panel rejeté / sans value) : le sidecar `abstained` = méta + fantômes SEULS, JAMAIS un pari
     # JOUÉ. La couche AFFICHAGE le cache déjà (`list_for` : `if d.get("abstained") and not stat_bet`). On
     # l'exclut ICI aussi pour que la couche STATS (`stat_bet` se replie sur `retained_bet(for_history=True)`)
