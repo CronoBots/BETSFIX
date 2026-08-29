@@ -47,12 +47,17 @@ def _is_period_bet(sel: str) -> bool:
     return bool(_PERIOD_RE.search(sel or ""))
 
 
-def match_candidates(d: dict, markets=None) -> list[dict]:
+# Bans DURS + non-sélectionnables (miroir du harnais backtest) : jamais dans un vivier « tous marchés ».
+_BAN_MARKETS = frozenset({"Corners", "Les 2 marquent", "Premier but", "Mi-temps",
+                          "Score exact", "Props joueur", "Arrêts gardien"})
+
+
+def match_candidates(d: dict, markets=None, exclude_markets=None) -> list[dict]:
     """Vivier de candidats d'un match (sidecar `d`) = fantômes `shadow` + pari retenu `bets`, dédup par
     (code), meilleure proba. Code RE-DÉRIVÉ du libellé (règlement à jour). `prob` en % (0-100).
-    `markets` : familles de marché autorisées (défaut = MARKETS confiance = DC/Handicap). Réutilisé par
-    `value_pick` avec la liste safe4."""
-    _mk = MARKETS if markets is None else markets
+    `markets` : familles AUTORISÉES (inclusion — défaut = MARKETS confiance DC/Handicap). Si `exclude_markets`
+    est fourni, mode « tous marchés SAUF ceux-là » (value profil B utilise exclude=_BAN_MARKETS)."""
+    _mk = None if exclude_markets is not None else (MARKETS if markets is None else markets)
     preds = list(d.get("shadow") or [])
     for b in (d.get("bets") or []):
         preds.append({"sel": b.get("sel"), "cote": b.get("odds") or b.get("cote"),
@@ -65,7 +70,10 @@ def match_candidates(d: dict, markets=None) -> list[dict]:
                               d.get("home", ""), d.get("away", "")).strip()
         if not code or code in _BLOCK_CODES:
             continue
-        if analyses.market_of(code) not in _mk:
+        _m = analyses.market_of(code)
+        if _mk is not None and _m not in _mk:
+            continue
+        if exclude_markets is not None and _m in exclude_markets:
             continue
         pr, co = p.get("prob"), p.get("cote")
         if not isinstance(pr, (int, float)) or not isinstance(co, (int, float)):
