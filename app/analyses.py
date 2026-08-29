@@ -3263,7 +3263,11 @@ def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
                     continue
             elif _sp in _bg:                                 # défaut ROI officiel : exclut tennis/basket (pause)
                 continue                                     # (fix 2026-07-25 : ne pas polluer l'historique foot)
-            rb = retained_bet(_sp, mid) or published_bet(_sp, mid)
+            # FOOT (user 2026-08-29) : PAS de repli `published_bet` -> un pari foot en attente n'est compté que
+            # s'il est RETENU par la logique mécanique actuelle (retained_bet). Sinon un `published_bet` HÉRITÉ
+            # (ancien pick / incident, ex. Bournemouth « Plus de 1.5 » posté avant le fix) remonterait en
+            # « value » fantôme. Le repli reste pour les autres sports (aucun aujourd'hui).
+            rb = retained_bet(_sp, mid) if _sp == "foot" else (retained_bet(_sp, mid) or published_bet(_sp, mid))
             if rb and rb.get("result") not in ("won", "lost", "push"):
                 out.append({"start": d.get("start") or "", "result": "pending", "cote": rb.get("cote"),
                             "name": d.get("name"), "sel": rb.get("sel"), "sport": _sp,
