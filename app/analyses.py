@@ -285,6 +285,13 @@ def list_for(sport: str, include_background: bool = False) -> list[dict]:
                 and not (isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"))
                 and not (isinstance(d.get("value_bet"), dict) and d["value_bet"].get("code"))):
             continue    # abstention pure -> cachée ; SAUF si elle porte un pari de CONFIANCE ou de VALUE mécanique
+        # OPTION B : pari mécanique À VENIR pas encore PUBLIÉ (published_bet) -> CACHÉ (provisoire, re-vérifié
+        # à la vague ~1h avant KO). Il réapparaît une fois publié/validé, ou une fois réglé (historique).
+        if (HIDE_UNPUBLISHED_PICKS and sport == "foot" and not is_settled(d)
+                and (isinstance(d.get("confidence_bet"), dict) or isinstance(d.get("value_bet"), dict))
+                and not (isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel"))
+                and not isinstance(d.get("stat_bet"), dict)):
+            continue
         st = d.get("start")
         try:
             dt = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
@@ -726,6 +733,12 @@ _PROVEN_MARKETS_FOOT = frozenset({"Vainqueur", "Double chance", "Total Under", "
 # pick EV de Claude (`_recommend`) pour un match foot À VENIR sans pari mécanique -> abstention propre (plus
 # de pollution du tier value par des picks hors-profil). Réversible : False -> ancien comportement.
 FOOT_MECHANICAL_ONLY = True
+
+# OPTION B (user 2026-08-29) : ne pas AFFICHER un pari mécanique tant qu'il n'est pas PUBLIÉ (`published_bet`
+# gelé à la vague ~1h avant KO). Le pari du matin est PROVISOIRE et re-vérifié à la vague (peut changer /
+# disparaître) -> tant qu'il n'est pas figé, on le CACHE de l'app (évite qu'un abonné mise un pari qui
+# bougera). Affichage seul : ne touche NI la sélection, NI la publication (la vague publie via build_prono_card).
+HIDE_UNPUBLISHED_PICKS = True
 
 CONFIDENCE_FIRST_ON = False  # SUPERSEDED 2026-08-29 : le backtest a montré que les favoris à value NÉGATIVE
 #   ne sont PAS optimaux ; le vrai pari de confiance est le profil 93% mécanique (app.confidence_pick, DC/
