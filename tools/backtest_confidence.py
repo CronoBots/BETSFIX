@@ -67,6 +67,9 @@ def build_dataset() -> list:
             cote, prob, code = s.get("cote"), s.get("prob"), s.get("code") or ""
             if not cote or prob is None or cote < 1.01:
                 continue
+            from app.confidence_pick import _is_period_bet
+            if _is_period_bet(s.get("sel") or ""):
+                continue                              # pari de PÉRIODE mal codé/réglé (1ère MT…) -> hors vivier
             mk = market_of(code)
             if mk in HARD_BAN or mk in NON_SELECTABLE:
                 continue

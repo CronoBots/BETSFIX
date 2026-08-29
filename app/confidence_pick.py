@@ -33,6 +33,19 @@ COTE_HI = 1.30
 # « DC 12 » bannie (double chance la plus faible, perd sur le nul — cohérent avec le combiné du jour).
 _BLOCK_CODES = frozenset({"DC 12"})
 
+# BUG DE FOND (trouvé 2026-08-29) : les paris de PÉRIODE (1ère mi-temps, quart-temps…) sont MAL codés par
+# code_from_pick en total PLEIN MATCH (ex. « moins de 0.5 but 1ère MT » -> TEAMTOT AWAY UNDER 0.5) puis
+# RÉGLÉS sur le match entier (résultat FAUX). market_of les classe alors « Total équipe » -> ils passent le
+# filtre safe4. On les EXCLUT du vivier de sélection (confiance ET value) via le LIBELLÉ (seule info fiable,
+# le code étant déjà corrompu). Ne touche pas le règlement des fantômes (calibration) — juste la SÉLECTION.
+import re as _re
+_PERIOD_RE = _re.compile(r"mi-?temps|\bmt\b|1[eè]re?\s*(?:p[ée]riode|mt|mi)|2[eè]me?\s*(?:p[ée]riode|mt|mi)"
+                         r"|quart-?temps|\bhalf\b|1st\s*half|2nd\s*half", _re.I)
+
+
+def _is_period_bet(sel: str) -> bool:
+    return bool(_PERIOD_RE.search(sel or ""))
+
 
 def match_candidates(d: dict, markets=None) -> list[dict]:
     """Vivier de candidats d'un match (sidecar `d`) = fantômes `shadow` + pari retenu `bets`, dédup par
@@ -46,6 +59,8 @@ def match_candidates(d: dict, markets=None) -> list[dict]:
                       "prob": b.get("prob"), "code": b.get("code"), "result": b.get("result")})
     best: dict[str, dict] = {}
     for p in preds:
+        if _is_period_bet(p.get("sel") or ""):
+            continue                                   # pari de PÉRIODE mal codé/réglé -> jamais sélectionné
         code = code_from_pick(p.get("sel") or "", d.get("sport", "foot"),
                               d.get("home", ""), d.get("away", "")).strip()
         if not code or code in _BLOCK_CODES:
