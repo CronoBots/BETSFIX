@@ -285,13 +285,6 @@ def list_for(sport: str, include_background: bool = False) -> list[dict]:
                 and not (isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"))
                 and not (isinstance(d.get("value_bet"), dict) and d["value_bet"].get("code"))):
             continue    # abstention pure -> cachée ; SAUF si elle porte un pari de CONFIANCE ou de VALUE mécanique
-        # OPTION B : pari mécanique À VENIR pas encore PUBLIÉ (published_bet) -> CACHÉ (provisoire, re-vérifié
-        # à la vague ~1h avant KO). Il réapparaît une fois publié/validé, ou une fois réglé (historique).
-        if (HIDE_UNPUBLISHED_PICKS and sport == "foot" and not is_settled(d)
-                and (isinstance(d.get("confidence_bet"), dict) or isinstance(d.get("value_bet"), dict))
-                and not (isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel"))
-                and not isinstance(d.get("stat_bet"), dict)):
-            continue
         st = d.get("start")
         try:
             dt = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
@@ -734,11 +727,11 @@ _PROVEN_MARKETS_FOOT = frozenset({"Vainqueur", "Double chance", "Total Under", "
 # de pollution du tier value par des picks hors-profil). Réversible : False -> ancien comportement.
 FOOT_MECHANICAL_ONLY = True
 
-# OPTION B (user 2026-08-29) : ne pas AFFICHER un pari mécanique tant qu'il n'est pas PUBLIÉ (`published_bet`
-# gelé à la vague ~1h avant KO). Le pari du matin est PROVISOIRE et re-vérifié à la vague (peut changer /
-# disparaître) -> tant qu'il n'est pas figé, on le CACHE de l'app (évite qu'un abonné mise un pari qui
-# bougera). Affichage seul : ne touche NI la sélection, NI la publication (la vague publie via build_prono_card).
-HIDE_UNPUBLISHED_PICKS = True
+# OPTION B (user 2026-08-29) : ne RÉVÉLER un pari mécanique qu'une fois FINAL (re-vérifié à la vague ~1h avant
+# KO : prematch_done / published_bet / réglé / historique). Avant ça, le pari du matin est PROVISOIRE ->
+# retained_bet renvoie None et l'app montre le match en « À analyser / en attente » (ni pari révélé, ni
+# abstention). Évite qu'un abonné mise un pari qui change/disparaît. Affichage seul (la vague publie normalement).
+REVEAL_ONLY_FINAL = True
 
 CONFIDENCE_FIRST_ON = False  # SUPERSEDED 2026-08-29 : le backtest a montré que les favoris à value NÉGATIVE
 #   ne sont PAS optimaux ; le vrai pari de confiance est le profil 93% mécanique (app.confidence_pick, DC/
@@ -2447,8 +2440,15 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     # CONTOURNE le gate EV de _recommend (le profil 93% est EV-indifférent : favoris DC/Handicap cote ~1.15).
     # Le flag n'est posé QUE sur des matchs À VENIR au scan -> jamais rétroactif (pas d'incident backfill). Le
     # RÉSULTAT est lu depuis le fantôme de MÊME code, réglé normalement. `stat_bet` figé prime (monotone).
+    # OPTION B / marqueur vague (user 2026-08-29) : on ne RÉVÈLE un pari mécanique à venir que s'il est FINAL —
+    # publié (published_bet), re-vérifié à la vague (prematch_done), réglé, ou en mode historique. Avant ça
+    # (matin, provisoire) -> None : l'app le montre en « À analyser / en attente », jamais comme un pari joué
+    # qui pourrait changer/disparaître à la re-vérif ~1h avant KO. La vague pose prematch_done AVANT de bâtir
+    # la carte -> la publication voit bien le pari. Réversible : REVEAL_ONLY_FINAL = False.
+    _final = (not REVEAL_ONLY_FINAL or for_history or is_settled(m) or m.get("prematch_done")
+              or (isinstance(m.get("published_bet"), dict) and m["published_bet"].get("sel")))
     _cb = m.get("confidence_bet")
-    if isinstance(_cb, dict) and _cb.get("code") and not isinstance(m.get("stat_bet"), dict):
+    if _final and isinstance(_cb, dict) and _cb.get("code") and not isinstance(m.get("stat_bet"), dict):
         try:
             from app import confidence_pick as _cpk
             _res = _cpk.resolve_result(m, _cb["code"])
@@ -2462,7 +2462,7 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     # confiance : renvoyé en priorité (bypass EV — le gate EV+3 % est DÉJÀ dans la sélection value), forward +
     # historique via le flag, résultat résolu depuis le fantôme. `stat_bet` figé prime (monotone).
     _vb = m.get("value_bet")
-    if (isinstance(_vb, dict) and _vb.get("code") and not (isinstance(_cb, dict) and _cb.get("code"))
+    if (_final and isinstance(_vb, dict) and _vb.get("code") and not (isinstance(_cb, dict) and _cb.get("code"))
             and not isinstance(m.get("stat_bet"), dict)):
         try:
             from app import confidence_pick as _cpk2

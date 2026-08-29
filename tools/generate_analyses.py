@@ -3430,7 +3430,7 @@ async def _validate_bet(doss: str, bet: dict, analyst_prob, sport: str) -> dict:
 
 def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, analysis: str,
                    votes=None, sofa_url: str | None = None, validation: dict | None = None,
-                   combo=None) -> None:
+                   combo=None, prematch: bool = False) -> None:
     """Métadonnées de l'analyse (équipes, compétition, coup d'envoi, cotes 1X2, pick, votes, +
     séries/H2H STRUCTURÉS + liens SofaScore/Unibet) -> sidecar JSON. La fiche rend tout depuis ce
     fichier, SANS rappeler SofaScore (une fois analysé, plus aucune raison d'appeler SofaScore)."""
@@ -3525,8 +3525,15 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
             _old_sc = json.load(open(_sp_path, encoding="utf-8"))
             if isinstance(_old_sc.get("published_bet"), dict) and _old_sc["published_bet"].get("sel"):
                 side["published_bet"] = _old_sc["published_bet"]
+            if _old_sc.get("prematch_done"):
+                side["prematch_done"] = True          # une fois posé par la vague, jamais retiré
     except (OSError, ValueError):
         pass
+    # MARQUEUR VAGUE (user 2026-08-29) : la RE-ANALYSE PRÉ-MATCH (~1 h avant KO, --refresh-early) pose
+    # `prematch_done` -> l'affichage sait que la décision est FINALE (pari publié OU abstention). Avant ça, un
+    # match analysé le matin reste « À analyser / en attente » dans le programme (ni pari révélé, ni abstention).
+    if prematch:
+        side["prematch_done"] = True
     with open(_sp_path, "w", encoding="utf-8") as f:
         json.dump(side, f, ensure_ascii=False)
 
@@ -3922,7 +3929,9 @@ async def main():
                     f.write(header + analysis + "\n")
                 votes = await _fetch_votes(client, sport, sofa_id)
                 surl = await _sofa_url(sofa_id)
-                _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation, combo)  # -> board (MÊME combo que la notif)
+                _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation, combo,
+                               prematch=bool(args.refresh_early))  # vague ~1h avant KO -> décision FINALE
+
                 if _old_side:                      # ré-analyse (refresh/force) : ancien pick/prédictions -> fantômes
                     _carry_shadow_from_old(sport, fid, _old_side)
                 _purge_duplicates(sport, fid, m)   # le scan le plus récent REMPLACE l'ancien

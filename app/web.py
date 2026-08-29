@@ -8707,10 +8707,18 @@ def _awaiting_prematch_reanalysis(sport: str, mid: str, dt, now, window_h: float
     qu'APRÈS cette 2e analyse (user 2026-08-27). window_h = fenêtre de la vague (1,5 h, cf. scan_wave.ps1)."""
     if dt is None or dt <= now:
         return False
+    # FIABILISÉ (user 2026-08-29) par le flag `prematch_done` posé par la VAGUE (--refresh-early) : c'est le
+    # signal EXPLICITE que la 2e analyse décisive a eu lieu. prematch_done -> la vague est passée -> décision
+    # FINALE (False -> l'abstention/le pari se fige). Un match À VENIR SANS ce flag -> la vague n'est pas encore
+    # passée -> True (reste au Programme « À analyser », ni pari révélé, ni abstention). Repli mtime pour les
+    # fiches héritées sans flag (analysé > window_h avant le KO = pas encore re-vérifié).
+    d = analyses.meta(sport, mid) or {}
+    if d.get("prematch_done"):
+        return False
     try:
         analyzed = os.path.getmtime(os.path.join(analyses.DIR, f"{sport}_{mid}.md"))
     except OSError:
-        return False
+        return True                      # pas d'info d'analyse -> match à venir gardé « à analyser » (prudent)
     return (dt.timestamp() - analyzed) / 3600 > window_h
 
 
