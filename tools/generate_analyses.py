@@ -1044,6 +1044,15 @@ async def _build_combo_montante_from_analysis(day: str, client) -> None:
         print(f"  🛡️ Paris de confiance (profil 93%) : {_ncp} posé(s) pour {day}.")
     except Exception as _cpe:
         print(f"  (paris de confiance ignorés : {_cpe})")
+    # ── PARI DE VALUE (profil « grassy » backtest) — APRÈS la confiance (elle est prioritaire, 1/match) ──
+    # Sélecteur MÉCANIQUE (app.value_pick) : par match foot À VENIR SANS pari de confiance, le pari safe4 à
+    # meilleure value (conf≥62, cote 1.40-2.30, EV≥+3 %, cote la plus haute). Posé dans `value_bet`.
+    try:
+        from app import value_pick as _valp
+        _nvp = _valp.apply_for_day(day)
+        print(f"  💎 Paris de value (grassy) : {_nvp} posé(s) pour {day}.")
+    except Exception as _vpe:
+        print(f"  (paris de value ignorés : {_vpe})")
 
 
 async def _build_and_post_programme(client, sports: list, args) -> None:

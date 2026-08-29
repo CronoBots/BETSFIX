@@ -282,8 +282,9 @@ def list_for(sport: str, include_background: bool = False) -> list[dict]:
         # (demande user 2026-07-10 : un match sans value n'est ni retenu ni affiché). Il nourrit UNIQUEMENT
         # la calibration (fantômes). Garde-fou : un stat_bet figé le garderait (ne devrait pas arriver).
         if (d.get("abstained") and not isinstance(d.get("stat_bet"), dict)
-                and not (isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"))):
-            continue    # abstention pure -> cachée ; SAUF si elle porte un pari de CONFIANCE mécanique
+                and not (isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"))
+                and not (isinstance(d.get("value_bet"), dict) and d["value_bet"].get("code"))):
+            continue    # abstention pure -> cachée ; SAUF si elle porte un pari de CONFIANCE ou de VALUE mécanique
         st = d.get("start")
         try:
             dt = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
@@ -2438,6 +2439,21 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
         _cc = _cool_conf(calibrated_conf(_cb.get("prob"), sport, _cb["code"]), sport, _cb["code"], m.get("streaks"))
         return {"idx": 0, "sel": _cb.get("sel"), "prob": _cb.get("prob"), "cprob": _cc,
                 "cote": _cb.get("cote"), "result": _res, "code": _cb["code"], "tier": "confiance"}
+    # PARI DE VALUE MÉCANIQUE (profil « grassy » du backtest 2026-08-29, `app.value_pick`). Posé au scan dans
+    # `d["value_bet"]` sur les matchs SANS pari de confiance (Confiance prioritaire). Même traitement que la
+    # confiance : renvoyé en priorité (bypass EV — le gate EV+3 % est DÉJÀ dans la sélection value), forward +
+    # historique via le flag, résultat résolu depuis le fantôme. `stat_bet` figé prime (monotone).
+    _vb = m.get("value_bet")
+    if (isinstance(_vb, dict) and _vb.get("code") and not (isinstance(_cb, dict) and _cb.get("code"))
+            and not isinstance(m.get("stat_bet"), dict)):
+        try:
+            from app import confidence_pick as _cpk2
+            _vres = _cpk2.resolve_result(m, _vb["code"])
+        except Exception:
+            _vres = None
+        _vcc = _cool_conf(calibrated_conf(_vb.get("prob"), sport, _vb["code"]), sport, _vb["code"], m.get("streaks"))
+        return {"idx": 0, "sel": _vb.get("sel"), "prob": _vb.get("prob"), "cprob": _vcc,
+                "cote": _vb.get("cote"), "result": _vres, "code": _vb["code"], "tier": "value"}
     # ABSTENTION (panel rejeté / sans value) : le sidecar `abstained` = méta + fantômes SEULS, JAMAIS un pari
     # JOUÉ. La couche AFFICHAGE le cache déjà (`list_for` : `if d.get("abstained") and not stat_bet`). On
     # l'exclut ICI aussi pour que la couche STATS (`stat_bet` se replie sur `retained_bet(for_history=True)`)

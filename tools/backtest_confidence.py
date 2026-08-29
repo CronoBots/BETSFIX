@@ -106,6 +106,20 @@ def _index(dataset):
 
 
 # --------------------------------------------------------------------------- selection
+# Profil CONFIANCE DÉPLOYÉ (93%) — sert à EXCLURE de la recherche VALUE les matchs déjà couverts par la
+# Confiance (elle est PRIORITAIRE : 1 pari/match, confiance d'abord). La value ne se mesure donc QUE sur les
+# matchs SANS pari de confiance -> volume/ROI value RÉALISTES (pas de double comptage du même match).
+_CONF_MARKETS = frozenset({"Double chance", "Handicap"})
+_CONF_PROB_MIN = 80.0
+_CONF_COTE_LO, _CONF_COTE_HI = 1.05, 1.30
+
+
+def _confidence_covered(m) -> bool:
+    """True si le match a un candidat du profil CONFIANCE 93% (DC/Handicap, prob≥80, cote 1.05-1.30)."""
+    return any(c["market"] in _CONF_MARKETS and c["prob"] >= _CONF_PROB_MIN
+               and _CONF_COTE_LO <= c["cote"] <= _CONF_COTE_HI for c in m["cands"])
+
+
 def select_fast(m, prob_min, cote_lo, cote_hi, markets, ev_floor, tiebreak):
     """1er candidat (dans l'ordre du départage pré-trié) qui passe le filtre. None si aucun."""
     for c in m["ord"][tiebreak]:
@@ -146,10 +160,13 @@ def _metrics(picks):
             "profit": round(ret, 1)}
 
 
-def evaluate(dataset, params, split_date=None):
-    """Évalue un combo sur tout le dataset + splits train/test si split_date fourni."""
+def evaluate(dataset, params, split_date=None, exclude_conf=False):
+    """Évalue un combo sur tout le dataset + splits train/test si split_date fourni. `exclude_conf` :
+    ignore les matchs déjà couverts par la Confiance (population VALUE réaliste)."""
     picks = []
     for m in dataset:
+        if exclude_conf and _confidence_covered(m):
+            continue
         c = select_fast(m, params["prob_min"], params["cote_lo"], params["cote_hi"],
                         params.get("markets"), params["ev_floor"], params["tiebreak"])
         if c:
@@ -213,15 +230,16 @@ def iter_space():
                "tiebreak": tb, "market_preset": mp, "markets": MARKET_PRESETS[mp]}
 
 
-def run_grid(dataset, objective, min_n, top, split_date, slice_spec=None):
+def run_grid(dataset, objective, min_n, top, split_date, slice_spec=None, exclude_conf=False):
     combos = list(iter_space())
     if slice_spec:
         i, nsl = (int(x) for x in slice_spec.split("/"))
         combos = [c for k, c in enumerate(combos) if k % nsl == i]
+    _ds = [m for m in dataset if not (exclude_conf and _confidence_covered(m))] if exclude_conf else dataset
     scored = []
     for params in combos:
         picks = []
-        for m in dataset:
+        for m in _ds:
             c = select_fast(m, params["prob_min"], params["cote_lo"], params["cote_hi"],
                             params["markets"], params["ev_floor"], params["tiebreak"])
             if c:
@@ -250,9 +268,11 @@ def main():
     g.add_argument("--top", type=int, default=25)
     g.add_argument("--split", default="2026-08-01")   # train < split <= test
     g.add_argument("--slice", default=None)
+    g.add_argument("--exclude-conf", action="store_true")   # population VALUE (hors matchs Confiance)
     e = sub.add_parser("eval")
     e.add_argument("--params", required=True)
     e.add_argument("--split", default="2026-08-01")
+    e.add_argument("--exclude-conf", action="store_true")
     a = ap.parse_args()
     if a.cmd == "build":
         ds = build_dataset()
@@ -262,12 +282,12 @@ def main():
         return
     ds = load_dataset()
     if a.cmd == "grid":
-        print(json.dumps(run_grid(ds, a.objective, a.min_n, a.top, a.split, a.slice),
-                         ensure_ascii=False))
+        print(json.dumps(run_grid(ds, a.objective, a.min_n, a.top, a.split, a.slice,
+                                  exclude_conf=a.exclude_conf), ensure_ascii=False))
     elif a.cmd == "eval":
         params = json.loads(a.params)
         params["markets"] = MARKET_PRESETS.get(params.get("market_preset"), params.get("markets"))
-        print(json.dumps(evaluate(ds, params, a.split), ensure_ascii=False))
+        print(json.dumps(evaluate(ds, params, a.split, exclude_conf=a.exclude_conf), ensure_ascii=False))
 
 
 if __name__ == "__main__":

@@ -34,9 +34,12 @@ COTE_HI = 1.30
 _BLOCK_CODES = frozenset({"DC 12"})
 
 
-def match_candidates(d: dict) -> list[dict]:
+def match_candidates(d: dict, markets=None) -> list[dict]:
     """Vivier de candidats d'un match (sidecar `d`) = fantômes `shadow` + pari retenu `bets`, dédup par
-    (code), meilleure proba. Code RE-DÉRIVÉ du libellé (règlement à jour). `prob` en % (0-100)."""
+    (code), meilleure proba. Code RE-DÉRIVÉ du libellé (règlement à jour). `prob` en % (0-100).
+    `markets` : familles de marché autorisées (défaut = MARKETS confiance = DC/Handicap). Réutilisé par
+    `value_pick` avec la liste safe4."""
+    _mk = MARKETS if markets is None else markets
     preds = list(d.get("shadow") or [])
     for b in (d.get("bets") or []):
         preds.append({"sel": b.get("sel"), "cote": b.get("odds") or b.get("cote"),
@@ -47,7 +50,7 @@ def match_candidates(d: dict) -> list[dict]:
                               d.get("home", ""), d.get("away", "")).strip()
         if not code or code in _BLOCK_CODES:
             continue
-        if analyses.market_of(code) not in MARKETS:
+        if analyses.market_of(code) not in _mk:
             continue
         pr, co = p.get("prob"), p.get("cote")
         if not isinstance(pr, (int, float)) or not isinstance(co, (int, float)):
@@ -87,11 +90,18 @@ def pick_for_match(sport: str, match_id) -> dict | None:
 
 
 def resolve_result(d: dict, code: str) -> str | None:
-    """Résultat (won/lost/push) du pari de confiance : lu depuis le candidat (fantôme/bets) de MÊME code,
-    réglé normalement au règlement du match. None tant que le match n'est pas réglé."""
-    for c in match_candidates(d):
-        if c["code"] == code and c.get("result") in ("won", "lost", "push"):
-            return c["result"]
+    """Résultat (won/lost/push) d'un pari de code donné : lu depuis le fantôme/bets de MÊME code (règlé
+    normalement au règlement du match). AGNOSTIQUE au marché (sert Confiance ET Value). None si pas réglé."""
+    preds = list(d.get("shadow") or [])
+    for b in (d.get("bets") or []):
+        preds.append({"sel": b.get("sel"), "result": b.get("result")})
+    for p in preds:
+        if p.get("result") not in ("won", "lost", "push"):
+            continue
+        c = code_from_pick(p.get("sel") or "", d.get("sport", "foot"),
+                           d.get("home", ""), d.get("away", "")).strip()
+        if c == code:
+            return p["result"]
     return None
 
 
