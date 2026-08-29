@@ -62,6 +62,29 @@ def _start_dt(s):
 # Réversible : COVERAGE_BOOST=False -> tri par profondeur de marché seule (comportement d'origine).
 COVERAGE_BOOST = True
 _COVERED_WEIGHT = 2.0
+
+# BOOST FAVORI NET (user 2026-08-29 « équilibré ») : on remonte dans le classement les matchs à FAVORI 1X2
+# marqué (là où la Confiance/Value tirent), sans abandonner le prestige (base = profondeur de marché).
+# FAV_MIN = % implicite mini du favori (100/cote la plus basse). FAV_MULT = multiplicateur du score.
+# Réglages ajustables selon le monitor ; FAV_BOOST_ON=False -> comportement d'origine (prestige seul).
+FAV_BOOST_ON = True
+FAV_MIN = 72.0
+FAV_MULT = 3.0
+
+
+def _fav_implied(it) -> float:
+    """% implicite du FAVORI 1X2 (100 / cote la plus basse) depuis les betOffers du listView Unibet. 0 si
+    les cotes ne sont pas présentes (match trop lointain / book pas encore ouvert)."""
+    try:
+        wo = _winner_odds(it.get("betOffers")) if isinstance(it, dict) else None
+        if wo and wo[0] and wo[2]:
+            lo = min(wo[0], wo[2])
+            return 100.0 / lo if lo > 0 else 0.0
+    except Exception:
+        pass
+    return 0.0
+
+
 _BIG_TOURNEY_KW = ("world cup", "coupe du monde", "champions league", "ligue des champions", "europa",
                    "conference league", "copa america", "copa libertadores", "sudamericana", "euro ")
 
@@ -112,12 +135,20 @@ def rank_important(events: list, top_n: int = 10, within_hours: int | None = Non
             "start": ev.get("start"),
             "friendly": _is_friendly(group, path_names),
             "covered": _is_covered_comp(group),          # ligue ancrée sharp / bien enrichie -> analyse profonde
+            "fav": _fav_implied(it),                      # % implicite du FAVORI 1X2 (0 si cotes absentes)
         })
     # Compétitif (non-amical) AVANT amical ; puis SCORE = profondeur de marché, BOOSTÉE ×_COVERED_WEIGHT si la
     # ligue est couverte (ancre sharp + données riches). Boost multiplicatif -> un match énorme non couvert
     # (grosse profondeur) reste devant une petite ligue couverte. COVERAGE_BOOST=False -> profondeur seule.
+    # BOOST FAVORI NET (user 2026-08-29) : un match avec un FAVORI 1X2 ≥ FAV_MIN % est là où nos produits tirent
+    # (Confiance = DC/Handicap ≥80% ; Value = edge sur favori). On le REMONTE (×FAV_MULT) pour qu'il ne soit plus
+    # écrasé hors du top-N par des gros matchs européens ÉQUILIBRÉS (favori 40-55% = 0 pari). Base = profondeur
+    # -> pas de junk (un petit book ×FAV_MULT ne bat pas un gros European). Réversible : FAV_BOOST_ON=False.
     def _score(r):
-        return r["markets"] * (_COVERED_WEIGHT if (COVERAGE_BOOST and r["covered"]) else 1.0)
+        s = r["markets"] * (_COVERED_WEIGHT if (COVERAGE_BOOST and r["covered"]) else 1.0)
+        if FAV_BOOST_ON and r.get("fav", 0) >= FAV_MIN:
+            s *= FAV_MULT
+        return s
     rows.sort(key=lambda r: (not r["friendly"], _score(r)), reverse=True)
     top = rows[:top_n]
     if always:                                  # force TOUS les gros tournois de la fenêtre (hors top N)
