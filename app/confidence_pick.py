@@ -29,7 +29,11 @@ CONFIDENCE_PICK_ON = True
 MARKETS = frozenset({"Double chance", "Handicap"})
 PROB_MIN = 80.0          # confiance brute mini
 COTE_LO = 1.05
-COTE_HI = 1.30
+# COTE_HI = plafond de cote. INERTE sur tout l'historique (0 candidat DC/Handicap à conf≥80 & cote>1.30 :
+# une confiance ≥80 sur ces marchés implique déjà une cote courte). Gardé comme GARDE-FOU (user 2026-08-29,
+# porté 1.30->1.50) : écarte une anomalie future (conf≥80 à cote haute = sur-confiance modèle vs marché =
+# probable erreur), pour ne pas polluer le produit « Confiance » (haute réussite). Aucun effet sur les stats.
+COTE_HI = 1.50
 # « DC 12 » bannie (double chance la plus faible, perd sur le nul — cohérent avec le combiné du jour).
 _BLOCK_CODES = frozenset({"DC 12"})
 
