@@ -281,8 +281,9 @@ def list_for(sport: str, include_background: bool = False) -> list[dict]:
         # ABSTENTION shadow-only (sidecar `abstained` = méta + fantômes SEULS, aucun pari) : JAMAIS au board
         # (demande user 2026-07-10 : un match sans value n'est ni retenu ni affiché). Il nourrit UNIQUEMENT
         # la calibration (fantômes). Garde-fou : un stat_bet figé le garderait (ne devrait pas arriver).
-        if d.get("abstained") and not isinstance(d.get("stat_bet"), dict):
-            continue
+        if (d.get("abstained") and not isinstance(d.get("stat_bet"), dict)
+                and not (isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"))):
+            continue    # abstention pure -> cachée ; SAUF si elle porte un pari de CONFIANCE mécanique
         st = d.get("start")
         try:
             dt = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
@@ -709,9 +710,29 @@ PROVEN_MARKETS_ONLY = True
 _PROVEN_MARKETS_FOOT = frozenset({"Vainqueur", "Double chance", "Total Under", "Total Over",
                                   "Total équipe", "Handicap"})
 
+# CONFIDENCE-FIRST (user 2026-08-29 : « redevenir comme le 16/07 ») — RESTAURE le comportement de sélection
+# observé le 16/07 (captures user). Ce jour-là, des FAVORIS COURTS à confiance CALIBRÉE haute étaient retenus
+# et joués MÊME quand la value BRUTE était légèrement négative/nulle (ex. Tijuana +1.5 78 %@1.25 = value −2 %,
+# mais recalibré 83,5 % ce jour-là -> EV +4 % -> retenu). Depuis, la calibration a APPRIS (le même 78 % brut
+# se recalibre à 78 % -> EV −2 % -> skip) et ces favoris disparaissent. Sur demande explicite user, on les
+# REMET : quand AUCUN value play (EV ≥ +3 %) n'existe, on retient le PLUS SÛR (confiance calibrée max) des
+# favoris COURTS (cote 1.20-1.60) à confiance ≥ 75 %, tant que la value n'est pas CATASTROPHIQUE (≥ −5 %).
+# N'affaiblit RIEN d'autre : bans durs (Corners/BTTS), liste blanche marchés prouvés, `ok` réglable et garde
+# de cote s'appliquent toujours (le candidat sort du `pool` déjà filtré). Réversible : CONFIDENCE_FIRST_ON=False
+# -> comportement d'avant (value-only). Assumé : légère baisse de ROI possible contre un meilleur taux de
+# réussite (favoris à forte chance de passer) — c'est le compromis du 16/07, voulu par l'user.
+CONFIDENCE_FIRST_ON = False  # SUPERSEDED 2026-08-29 : le backtest a montré que les favoris à value NÉGATIVE
+#   ne sont PAS optimaux ; le vrai pari de confiance est le profil 93% mécanique (app.confidence_pick, DC/
+#   Handicap EV-indifférent). On coupe donc ce confidence-first ad-hoc -> le pick VALUE (placeholder) redevient
+#   value-only propre (EV≥+3%) en attendant le sélecteur value dédié. Réactivable si besoin.
+_CF_MIN_CONF = 75            # confiance CALIBRÉE mini pour un pari confidence-first
+_CF_COTE_LO = 1.20          # bande de cote COURTE (favori net) — comme les picks du 16/07 (1.24-1.26)
+_CF_COTE_HI = 1.60
+_CF_EV_FLOOR = -0.05        # on tolère une value légèrement négative (Tijuana −2 %), pas catastrophique
+
 
 def _recommend(data: list, ok: set | None = None, cprobs: list | None = None,
-               codes: list | None = None) -> dict:
+               codes: list | None = None, conf_first: bool = True) -> dict:
     """Choisit LE pari à jouer pour faire grimper le portefeuille : meilleure VALUE (EV = proba×cote−1)
     parmi les paris VRAIMENT fiables (proba ≥ 65 %, cf. _MIN_CONF — calibré sur l'historique). Joue si
     EV ≥ +3 %, sinon SKIP. `stake_pct` = mise conseillée en % de bankroll (¼ Kelly plafonné à 3 %).
@@ -742,6 +763,21 @@ def _recommend(data: list, ok: set | None = None, cprobs: list | None = None,
         return {"idx": None, "verdict": "skip", "ev": None, "stake_pct": 0.0}
     i, ev, _prob = max(pool, key=lambda s: s[1])
     if ev < 0.03:
+        # CONFIDENCE-FIRST (user 2026-08-29, retour au 16/07) : pas de value play, mais un FAVORI COURT à
+        # confiance calibrée HAUTE reste jouable (chance de passer max). On prend le PLUS SÛR (cprob max,
+        # départage EV) dans la bande de cote courte, value tolérée jusqu'à −5 %. Le candidat vient du `pool`
+        # déjà filtré (65 %+, cote<2, marchés prouvés, `ok` réglable) -> aucun garde-fou contourné.
+        if CONFIDENCE_FIRST_ON and conf_first:
+            cf = [s for s in pool
+                  if s[2] >= _CF_MIN_CONF
+                  and _CF_COTE_LO <= (data[s[0]].get("cote") or 0) <= _CF_COTE_HI
+                  and s[1] >= _CF_EV_FLOOR]
+            if cf:
+                i, ev, _prob = max(cf, key=lambda s: (s[2], s[1]))   # le plus SÛR d'abord
+                b = data[i]["cote"] - 1
+                kelly = ev / b if b > 0 else 0.0
+                stake_pct = round(max(0.0, min(kelly * 0.25, 0.03)) * 100, 1)
+                return {"idx": i, "verdict": "play", "ev": round(ev * 100), "stake_pct": stake_pct}
         return {"idx": None, "verdict": "skip", "ev": round(ev * 100), "stake_pct": 0.0}
     b = data[i]["cote"] - 1
     kelly = ev / b if b > 0 else 0.0                        # Kelly complet
@@ -2385,6 +2421,23 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     d'exclusion : un pari réellement publié reste compté à vie (track record honnête, défaites incluses)."""
     bets = bets_of(sport, match_id)
     m = meta(sport, match_id) or {}
+    # PARI DE CONFIANCE MÉCANIQUE (profil 93% du backtest 2026-08-29, `app.confidence_pick`). Posé au scan
+    # dans `d["confidence_bet"]` (sel/code/prob/cote FIGÉS), sélectionné dans le VIVIER COMPLET du match
+    # (fantômes+bets) car l'analyste ne commit qu'~1 pari/match -> 105/117 de ces paris n'existent que dans
+    # les fantômes. Il PRIME sur le pick value de Claude (la value sera un 2e sélecteur mécanique plus tard) et
+    # CONTOURNE le gate EV de _recommend (le profil 93% est EV-indifférent : favoris DC/Handicap cote ~1.15).
+    # Le flag n'est posé QUE sur des matchs À VENIR au scan -> jamais rétroactif (pas d'incident backfill). Le
+    # RÉSULTAT est lu depuis le fantôme de MÊME code, réglé normalement. `stat_bet` figé prime (monotone).
+    _cb = m.get("confidence_bet")
+    if isinstance(_cb, dict) and _cb.get("code") and not isinstance(m.get("stat_bet"), dict):
+        try:
+            from app import confidence_pick as _cpk
+            _res = _cpk.resolve_result(m, _cb["code"])
+        except Exception:
+            _res = None
+        _cc = _cool_conf(calibrated_conf(_cb.get("prob"), sport, _cb["code"]), sport, _cb["code"], m.get("streaks"))
+        return {"idx": 0, "sel": _cb.get("sel"), "prob": _cb.get("prob"), "cprob": _cc,
+                "cote": _cb.get("cote"), "result": _res, "code": _cb["code"], "tier": "confiance"}
     # ABSTENTION (panel rejeté / sans value) : le sidecar `abstained` = méta + fantômes SEULS, JAMAIS un pari
     # JOUÉ. La couche AFFICHAGE le cache déjà (`list_for` : `if d.get("abstained") and not stat_bet`). On
     # l'exclut ICI aussi pour que la couche STATS (`stat_bet` se replie sur `retained_bet(for_history=True)`)
@@ -2457,9 +2510,13 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
             cprobs.append(_cool_conf(calibrated_conf(b.get("prob"), sport, code), sport, code, m.get("streaks")))
             if code and market_of(code) not in ex_markets:
                 ok.add(i)
-        reco = _recommend(bets, ok, cprobs, codes)
+        # CONFIDENCE-FIRST seulement en FORWARD (publication de NOUVEAUX paris). En mode SUIVI/historique
+        # (for_history), on garde la reconstruction d'avant (value + ancre pari publié/compté) : sinon un
+        # favori jamais posté aux abonnés ressusciterait rétroactivement dans « Terminés » (interdit :
+        # « corrections d'historique = avant abonnés seulement »).
+        reco = _recommend(bets, ok, cprobs, codes, conf_first=not for_history)
     except Exception:
-        reco = _recommend(bets)
+        reco = _recommend(bets, conf_first=not for_history)
     ri = reco.get("idx")
     if reco.get("verdict") != "play" or ri is None:
         ri = None
@@ -2681,6 +2738,11 @@ def tier_of(d, rb=None) -> str:
     La MONTANTE est sa PROPRE catégorie « montante » (user 2026-08-12) -> hors Confiance/Value."""
     if isinstance(d, dict) and str(d.get("id") or "") in _montante_mids():
         return "montante"
+    # PARI DE CONFIANCE MÉCANIQUE (profil 93%) -> toujours tier « confiance », quel que soit le marché
+    # (DC/Handicap à cote courte) : c'est le produit VITRINE, il ne doit jamais retomber en « value ».
+    if isinstance(d, dict) and isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code") \
+            and not isinstance(d.get("stat_bet"), dict):
+        return "confiance"
     sb = d.get("stat_bet") if isinstance(d, dict) else None
     _sp = (d.get("sport") if isinstance(d, dict) else None) or "foot"
     if isinstance(sb, dict) and sb.get("cprob") is not None:
