@@ -2738,16 +2738,17 @@ def tier_of(d, rb=None) -> str:
     La MONTANTE est sa PROPRE catégorie « montante » (user 2026-08-12) -> hors Confiance/Value."""
     if isinstance(d, dict) and str(d.get("id") or "") in _montante_mids():
         return "montante"
-    # PARI DE CONFIANCE MÉCANIQUE (profil 93%) -> toujours tier « confiance », quel que soit le marché
-    # (DC/Handicap à cote courte) : c'est le produit VITRINE, il ne doit jamais retomber en « value ».
-    if isinstance(d, dict) and isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code") \
-            and not isinstance(d.get("stat_bet"), dict):
-        return "confiance"
+    # CONFIANCE = STRICTEMENT le profil 93% mécanique (backtest 2026-08-29) : un match porte le tier
+    # « confiance » SSI il a un pari de confiance — soit `confidence_bet` (à venir), soit un `stat_bet`
+    # figé marqué `kind="confidence"` (réglé). L'ancien split par `bet_tier` est SUPERSEDED : tout le reste
+    # (anciens picks de Claude) = « value » (placeholder jusqu'au sélecteur value dédié). Cohérent avec le
+    # track record affiché = la méthode réellement déployée.
     sb = d.get("stat_bet") if isinstance(d, dict) else None
-    _sp = (d.get("sport") if isinstance(d, dict) else None) or "foot"
-    if isinstance(sb, dict) and sb.get("cprob") is not None:
-        return bet_tier(sb.get("cprob"), sb.get("cote"), _bet_market(d, sb, _sp), _sp)
-    return bet_tier((rb or {}).get("cprob"), (rb or {}).get("cote"), _bet_market(d, rb, _sp), _sp)
+    if isinstance(d, dict) and isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"):
+        return "confiance"
+    if isinstance(sb, dict) and sb.get("kind") == "confidence":
+        return "confiance"
+    return "value"
 
 
 def stat_bet(d: dict) -> dict | None:
