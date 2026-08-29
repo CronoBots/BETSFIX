@@ -2752,9 +2752,18 @@ def bet_tier_for(sport, mid) -> str:
     La MONTANTE est sa PROPRE catégorie « montante » (user 2026-08-12) -> jamais comptée dans le taux
     Confiance (ni Value) : elle ne doit pas polluer le phare (elle a sa page/ badge dédiés)."""
     try:
-        if sport == "foot" and str(mid) in _montante_mids():
-            return "montante"
+        if MONTANTE_ROI_ON and sport == "foot" and str(mid) in _montante_mids():
+            return "montante"    # montante OFF -> le match revient à son tier réel (cohérent avec tier_of)
         d = meta(sport, str(mid)) or {}
+        # PARI DE CONFIANCE/VALUE MÉCANIQUE non encore figé (à venir) : tier direct depuis le flag posé au scan,
+        # cohérent avec tier_of (sinon un pari value à venir pourrait retomber « confiance » via bet_tier).
+        if isinstance(d, dict):
+            if isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code") \
+                    and not isinstance(d.get("stat_bet"), dict):
+                return "confiance"
+            if isinstance(d.get("value_bet"), dict) and d["value_bet"].get("code") \
+                    and not isinstance(d.get("stat_bet"), dict):
+                return "value"
         sb = d.get("stat_bet")
         if isinstance(sb, dict) and sb.get("cprob") is not None:
             return bet_tier(sb.get("cprob"), sb.get("cote"), _bet_market(d, sb, sport), sport)

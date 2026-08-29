@@ -3999,6 +3999,18 @@ async def main():
                     _side_fresh = {"sport": sport, "id": m.get("id"), "name": m.get("name"),
                                    "comp": m.get("comp"), "start": m.get("start"), "pick": _pick,
                                    "combo": combo}
+                # PARIS MÉCANIQUES (confiance 93% / value B) posés AVANT de bâtir la carte -> garantit que la
+                # VAGUE (--refresh-early, qui ne passe pas par _build_combo_montante_from_analysis) applique
+                # aussi les sélecteurs, y compris à un match analysé pour la 1re fois en pré-match. Idempotent
+                # (apply_to_sidecar skippe si déjà posé au matin). Réécrit le sidecar -> retained_bet (relu par
+                # build_prono_card + freeze_published_bet) voit le confidence_bet/value_bet. Foot uniquement.
+                try:
+                    from app import confidence_pick as _confp2, value_pick as _valp2
+                    if _confp2.apply_to_sidecar(_side_fresh) or _valp2.apply_to_sidecar(_side_fresh):
+                        with open(os.path.join(OUT, f"{sport}_{fid}.json"), "w", encoding="utf-8") as _f2:
+                            json.dump(_side_fresh, _f2, ensure_ascii=False)
+                except Exception as _cpe2:
+                    print(f"    (paris mécaniques carte ignorés : {_cpe2})")
                 _card = _cd.build_prono_card(_side_fresh)
                 # RÉ-ANALYSE (re-check 1 h avant OU --force) : ne REPUBLIER QUE si le prono a CHANGÉ vs ce qui
                 # était déjà publié. Identique -> rien reposté (pas de spam abonnés) ; le sidecar est déjà
