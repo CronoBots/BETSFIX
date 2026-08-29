@@ -2768,8 +2768,8 @@ def tier_of(d, rb=None) -> str:
     """Tier d'une fiche (dict déjà chargé), en préférant la confiance FIGÉE (`stat_bet.cprob`, monotone) sur
     la calibrée live `rb.cprob`. `rb` = retained_bet déjà calculé par l'appelant (évite un 2e calcul).
     La MONTANTE est sa PROPRE catégorie « montante » (user 2026-08-12) -> hors Confiance/Value."""
-    if isinstance(d, dict) and str(d.get("id") or "") in _montante_mids():
-        return "montante"
+    if MONTANTE_ROI_ON and isinstance(d, dict) and str(d.get("id") or "") in _montante_mids():
+        return "montante"    # montante OFF (MONTANTE_ROI_ON=False) -> le match revient à son tier réel
     # CONFIANCE = STRICTEMENT le profil 93% mécanique (backtest 2026-08-29) : un match porte le tier
     # « confiance » SSI il a un pari de confiance — soit `confidence_bet` (à venir), soit un `stat_bet`
     # figé marqué `kind="confidence"` (réglé). L'ancien split par `bet_tier` est SUPERSEDED : tout le reste
@@ -3102,7 +3102,10 @@ def _combo_rule_void(day: str) -> bool:
 # EXACT. N'affecte NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone, NI la calibration, NI la
 # carte combiné du jour. Remettre True pour recompter les combinés comme un ROI en tête.
 COMBO_ROI_ON = True   # user 2026-08-20 (soir) : « compte le combiné dans le ROI » -> recompté dans all_ev (hors-règle 08/08→20/08 exclus via _combo_rule_void)
-MONTANTE_ROI_ON = True   # user 2026-08-20 (nuit) : « montante compte au ROI (période validée) » -> ses paliers AFFICHÉS
+MONTANTE_ROI_ON = False  # user 2026-08-29 : montante DÉSACTIVÉE (refonte de la sélection à venir) -> RIEN dans
+#                          la catégorie montante ; les matchs montante-mids reviennent à leur tier réel
+#                          (confiance/value) via tier_of. Réactiver = True + recréer data/montante_active.flag.
+#   (ancien) user 2026-08-20 (nuit) : « montante compte au ROI (période validée) » -> ses paliers AFFICHÉS
 #                          (montante.public_steps = hors période d'erreurs 09/08→20/08) entrent dans all_ev en mise plate.
 
 
