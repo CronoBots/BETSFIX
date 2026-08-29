@@ -53,19 +53,26 @@ Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
   ? { $_.CommandLine -match 'remote-control BETSFIX' } | Select ProcessId
 ```
 
-## Sources de données & analyse (état réel — 2026-06-17)
+## ⚠️ BETSFIX = 100 % FOOTBALL (depuis 2026-08-07)
+
+Tennis et basket ont été **retirés** (scan, UI, données supprimées) — mémoire
+`football-only-tennis-basket-removed`. **Le foot est le seul sport.** Le code
+sport-paramétré (tennis/basket) est **dormant** mais conservé. Toute mention
+tennis/basket ci-dessous décrit un rôle **dormant**, pas actif.
+
+## Sources de données & analyse (foot — MAJ 2026-08-29)
 
 ### Sources par rôle (toutes vérifiées vivantes)
-| Source | Rôle | Statut |
+| Source | Rôle (foot) | Statut |
 |---|---|---|
-| **Unibet** | cotes + marchés + **sélection** des matchs (les 3 sports) | ✅ |
+| **Unibet** | cotes + marchés + **sélection** des matchs | ✅ |
 | **Pinnacle** | ancre « sharp » (proba de référence, faible marge) | ✅ |
-| **FotMob** | foot : forme / blessés / H2H / météo | ✅ |
-| **ESPN** | tennis (classement + forme) · basket (bilans + blessés WNBA/NBA) | ✅ |
-| **Understat** | foot : xG (top-5 ligues) | ✅ |
-| **Flashscore** | foot/tennis/basket : forme + H2H + service + compos | ✅ |
+| **FotMob** | forme / blessés / H2H / météo | ✅ |
+| **ESPN** | (dormant : ex-tennis/basket) | 💤 |
+| **Understat** | xG (top-5 ligues) | ✅ |
+| **Flashscore** | forme + H2H + compos | ✅ |
 | **LiveScore** | scores **live** (onglet radar) + **règlement** des paris | ✅ |
-| **Sportradar (GISMO)** | foot/tennis/basket : forme · **streaks de pari** (sans défaite/marque/BTTS/over) · H2H · classement · **moyennes buts-points & over 2.5** — feed LIBRE `lsc.fn.sportradar.com` (locale FR), `app/sportradar.py` branché à `sources.extras` + routeur `/sportradar/*` (dans `/docs`) · **+ RÈGLEMENT (v44)** : `sportradar.final_score()` lit `match_info.periods` → jeux/sets/tie-breaks tennis & quart-temps basket (repli `need_periods` dans settle_analyst) | ✅ |
+| **Sportradar (GISMO)** | forme · **streaks de pari** (sans défaite/marque/BTTS/over) · H2H · classement · **moyennes buts & over 2.5** — feed LIBRE `lsc.fn.sportradar.com`, `app/sportradar.py` branché à `sources.extras` + routeur `/sportradar/*` · **+ RÈGLEMENT** : `sportradar.final_score()` lit `match_info.periods` (repli `need_periods` dans settle_analyst) | ✅ |
 | **SofaScore** | séries de pari · votes · scores live · event/h2h/lineups/incidents (Sportradar GISMO reste l'upstream principal) | ✅ **re-vérifié vivant 2026-07-28** |
 
 ### ✅ SofaScore RE-VÉRIFIÉ VIVANT (2026-07-28) — l'ancien « MORT » était une panne temporaire
@@ -85,19 +92,40 @@ Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
 - Reste vrai : **Elo tennis RETIRÉ** (4ee2d45) + garde-fou anti-écrasement des builds (ba61e1b).
 
 ### L'enrichissement vivant = `app/sources.py`
-- `sources.extras(client, sport, match)` → FotMob/ESPN/Understat + Flashscore,
-  **branché au scan** (`tools/generate_analyses.py:674`), pour les **3 sports**.
-- Tennis : le circuit ATP/WTA est **DÉDUIT** en cherchant les joueurs dans les 2
-  classements ESPN (le champ `circuit` ex-SofaScore est vide) — fix commit b60710d.
-  Avant ce fix, les matchs WTA n'avaient AUCUNE donnée ESPN (chute sur ATP par défaut).
+- `sources.extras(client, sport, match)` → FotMob/Understat + Flashscore + Sportradar,
+  **branché au scan** (`tools/generate_analyses.py`).
 
 ### Le scan = `tools/generate_analyses.py`
-- Pilote Claude headless (`claude -p`), **confidence-first**, faits web ≥2 sources.
+- Pilote Claude headless (`claude -p`), faits web ≥2 sources.
   **DOIT** tourner en session `vince` (authentifiée) + **réseau requis**
   (lancer avec sandbox désactivé).
-- Usage : `python tools/generate_analyses.py --sport foot,tennis,basket --top 3 --hours 24`
-- Les **3 sports sont scannables**. Un `getaddrinfo failed` ponctuel = hoquet réseau
-  transitoire (pas structurel) → relancer.
+- Usage : `python tools/generate_analyses.py --sport foot --top 10 --hours 24`
+  (`--sport` par défaut = `foot` ; **ignoré** s'il vise autre chose que le foot).
+- Un `getaddrinfo failed` ponctuel = hoquet réseau transitoire → relancer.
+
+### ⚠️ La SÉLECTION du pari est MÉCANIQUE (depuis fantômes), pas le pick Claude
+Refonte 2026-08-29 (mémoire `confidence-bet-backtest-93-profile`). Claude **analyse**
+et nourrit les **fantômes** ; le pari joué est ensuite choisi par des **sélecteurs
+mécaniques** backtestés :
+- **Confiance** = `app/confidence_pick.py` — DC/Handicap, conf ≥80, cote 1.05–1.50,
+  le + sûr (~94 % / +7,7 %). Plafond cote **1.50** (`3abb5f0`).
+- **Value** = `app/value_pick.py` — tous marchés sauf bans, conf ≥58, cote 1.40–2.30,
+  EV ≥ +5 %, cote la + haute, sur matchs **SANS** confiance (~72 % / +15,9 %).
+- Verrous dans `app/analyses.py` : `FOOT_MECHANICAL_ONLY=True` (le foot ne prend QUE
+  le pari mécanique) · `REVEAL_ONLY_FINAL=True` (voir flux Option B).
+- **Montante = DÉSACTIVÉE** (`2c2f85e`, refonte à venir) — rien dans la catégorie.
+
+### Flux « Option B » (matin → vague KO−1h)
+- **Matin (~10h)** : analyse + sélection mécanique **CACHÉE** (état « À analyser » ;
+  un pari reste provisoire, `0f89733`).
+- **Vague KO−1h** : recalcul sur cotes fraîches → **publication** (app + Telegram).
+  La vague pose `prematch_done` puis publie (`published_bet`). Tant que non publié,
+  le pari mécanique est masqué sur l'app (`757ac3e`).
+
+### Monitoring `/monitor`
+- Dashboard live (`tools/monitor.py`, route dans `app/routers/web.py`), consultable
+  mobile : produits déployés, maturité des marchés, calibration brute, et vue
+  **FORWARD réel vs Historique (backfill)** (`537171b`/`4a2ecf1`/`9783807`).
 - Méthodo combinés : privilégier la « domination corrélée » (jambes qui tombent ensemble).
   **Taux de réussite par jambe mesuré 2026-06-18 (53 jambes réglées, 14 combinés)** :
   - 🔴 **BANNIR** : **TOUS les corners** (total/équipe/handicap/1ère MT — le marché le plus perdant,
