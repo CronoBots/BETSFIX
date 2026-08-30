@@ -2049,7 +2049,17 @@ async def _settle_analyses_impl() -> int:
                             if card.get("_old_result_msg"):
                                 await asyncio.to_thread(notify.delete_messages, card["_old_result_msg"])
                             _reply = notify.get_prono(card.get("_mid"))   # répond à la carte PRONO du même match
-                            _emo = {"won": "Pari gagné ✅", "lost": "Pari perdu ❌"}.get(_mk, "Remboursé ➖")
+                            # MARQUAGE TIER (user 2026-08-30) : la réponse résultat porte le TYPE + verdict au
+                            # féminin (« VALUE GAGNÉE ✅ » / « CONFIANCE PERDUE ❌ » / « … REMBOURSÉE ➖ »),
+                            # cohérent avec la signature de la carte résultat du site. Simple foot uniquement ;
+                            # un combiné/autre garde le texte générique (Telegram = simple foot seul).
+                            _vw, _ve = {"won": ("GAGNÉE", "✅"), "lost": ("PERDUE", "❌")}.get(_mk, ("REMBOURSÉE", "➖"))
+                            if card.get("simple"):
+                                _rtier = str((card.get("simple") or {}).get("tier") or card.get("tier") or "confiance")
+                                _rlbl = {"value": "VALUE", "montante": "MONTANTE"}.get(_rtier, "CONFIANCE")
+                                _emo = f"{_rlbl} {_vw} {_ve}"
+                            else:
+                                _emo = {"won": "Pari gagné ✅", "lost": "Pari perdu ❌"}.get(_mk, "Remboursé ➖")
                             # envoi BLOQUANT (httpx) -> hors event loop pour ne pas figer l'API
                             sent = await asyncio.to_thread(notify.reply_sync, _emo, _reply)
                         except Exception as ce:
