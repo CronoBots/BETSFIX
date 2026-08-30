@@ -7472,7 +7472,14 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
                         title="COMBINÉ", subtitle=f'{len(combo["legs"])} jambes',
                         badge=_bdg, body=_body, state=_st)))
                 continue
-            rb = analyses.retained_bet(sp, fid, for_history=True)
+            # SOURCE = LE PARI FIGÉ (couche STATS), pas un retained_bet recalculé en direct (bug user 2026-08-30 :
+            # un pari de CONFIANCE joué apparaissait dans Telegram + Stats mais PAS dans « Résultats du jour »).
+            # Cause : une fois `stat_bet` gelé au règlement, `retained_bet(for_history=True)` NE reconstruit plus
+            # le pick MÉCANIQUE confidence_bet/value_bet (branches gardées par `not isinstance(stat_bet, dict)`)
+            # -> il retombe sur la table `.md` de Claude, qui ne contient PAS le pick venu d'un fantôme -> None
+            # (carte perdue) ou un AUTRE marché (carte fausse). `stat_bet(d)` renvoie le pari RÉELLEMENT joué
+            # (immuable) et se replie sur retained_bet(for_history) tant qu'il n'est pas figé -> affichage == stats.
+            rb = analyses.stat_bet(d)
             if not rb or rb.get("result") not in ("won", "lost", "push"):
                 continue
             if tier is not None and analyses.tier_of(d, rb) != tier:
@@ -7582,7 +7589,12 @@ def _settled_wl_today(iso: str, sport: str | None, tier: str | None = None) -> t
                     continue
                 r = combo.get("result")
             else:
-                rb = analyses.retained_bet(sp, str(d.get("id")), for_history=True)
+                # LE PARI FIGÉ (couche STATS), pas retained_bet recalculé (même bug que _settled_bet_result_cards,
+                # user 2026-08-30) : après gel, retained_bet(for_history) NE reconstruit plus le pick mécanique
+                # confidence/value -> renvoie None -> la victoire n'était PAS comptée dans le RECORD de la zone
+                # (badge gris « en attente » au lieu de vert « gagné »), alors que la CARTE, elle, s'affichait.
+                # `stat_bet(d)` = le pari réellement joué -> record == cartes affichées.
+                rb = analyses.stat_bet(d)
                 if not rb or rb.get("result") not in ("won", "lost", "push"):
                     continue
                 if tier is not None and analyses.tier_of(d, rb) != tier:
