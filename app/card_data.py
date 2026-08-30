@@ -93,9 +93,22 @@ def _cat(d: dict) -> str:
     return f"{sn} · {d['comp']}" if d.get("comp") else sn
 
 
+def _local(dt):
+    """Convertit un datetime AWARE (UTC) en HEURE BELGE (Europe/Brussels, gère l'heure d'été) pour
+    l'AFFICHAGE. La carte stockait `start` en UTC (`...Z`) et le formatait tel quel -> elle affichait
+    l'heure UTC (ex. 15:00) au lieu de l'heure locale (17:00). On localise ici, à la source, pour la
+    date ET l'heure de TOUTES les cartes (prono + résultat). Explicite Europe/Brussels (pas .astimezone()
+    sans arg) -> correct même si un jour hébergé hors du fuseau belge."""
+    try:
+        from zoneinfo import ZoneInfo
+        return dt.astimezone(ZoneInfo("Europe/Brussels")) if dt else dt
+    except Exception:
+        return dt
+
+
 def _dt(d):
     try:
-        return datetime.fromisoformat((d.get("start") or "").replace("Z", "+00:00"))
+        return _local(datetime.fromisoformat((d.get("start") or "").replace("Z", "+00:00")))
     except ValueError:
         return None
 
@@ -259,7 +272,7 @@ def build_combo_daily_card(combo: dict, *, result: bool = False) -> dict | None:
         # masqués — la DC sûre a un edge ~neutre/négatif, hors-sujet sur un combiné sécurité). -> edge/value None.
         _dt2 = None
         try:
-            _dt2 = datetime.fromisoformat(str(l.get("start") or "").replace("Z", "+00:00"))
+            _dt2 = _local(datetime.fromisoformat(str(l.get("start") or "").replace("Z", "+00:00")))
         except ValueError:
             pass
         try:
