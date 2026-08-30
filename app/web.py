@@ -10652,10 +10652,16 @@ def _sport_row(r: dict) -> str:
                 # DOUBLE SCAN à venir (demande user 2026-07-21) : si le DERNIER scan a produit un pari
                 # DIFFÉRENT du publié -> 2 lignes étiquetées (les deux compteront au ROI) ; s'il a décidé
                 # de NE RIEN jouer (tableau .md vidé après ré-analyse) -> ligne info sous le pari publié.
+                # SÉLECTION MÉCANIQUE (user 2026-08-29/30) : le pari joué n'est PLUS le pick brut de Claude
+                # (`bets_of`[0] = le flagship de l'analyse, ex. « Plus de 2.5 buts ») mais la sélection
+                # MÉCANIQUE (confidence_pick/value_pick, ex. « Double chance X2 »). On compare donc le publié
+                # au pari MÉCANIQUE COURANT (`retained_bet`), pas au pick brut -> plus de « Dernier scan »
+                # fantôme incohérent avec Telegram. Le double scan ne subsiste que si le pari mécanique a
+                # RÉELLEMENT changé au dernier scan (publié figé = « Premier », mécanique frais = « Dernier »).
                 try:
-                    _curb = analyses.bets_of(sport_key, _mid.group(1)) if (sport_key and _mid) else []
+                    _curb = analyses.retained_bet(sport_key, _mid.group(1)) if (sport_key and _mid) else None
                 except Exception:
-                    _curb = []
+                    _curb = None
                 # MÊME PARI = mêmes CODES de règlement (pas les libellés : « Roman Andres Burruchaga
                 # vainqueur » vs « Roman Burruchaga vainqueur » = même issue) -> pas de faux double scan.
                 # DOUBLE SCAN robuste (user 2026-08-02 « pour ne plus que ça arrive ») : on ne montre 2 lignes
@@ -10666,12 +10672,12 @@ def _sport_row(r: dict) -> str:
                 # RENDU (pas les codes bruts) couvre tous les cas, pas seulement celui du jour. Le pari publié
                 # reste FIGÉ ; le double scan ne subsiste que sur un pari réellement différent (2 comptés au ROI).
                 _pub_disp = analyses.pretty_sel(_pbz.get("sel", ""), r.get("home", ""), r.get("away", ""))
-                _cur_disp = (analyses.pretty_sel(_curb[0].get("sel", ""), r.get("home", ""), r.get("away", ""))
+                _cur_disp = (analyses.pretty_sel(_curb.get("sel", ""), r.get("home", ""), r.get("away", ""))
                              if _curb else "")
                 if _curb and _cur_disp and _pub_disp != _cur_disp:
                     bets3 = [{**_pbz, "tag": "Premier scan"},
-                             {"sel": _curb[0].get("sel", ""), "cote": _curb[0].get("cote"),
-                              "prob": _curb[0].get("prob"), "tag": "Dernier scan"}]
+                             {"sel": _curb.get("sel", ""), "cote": _curb.get("cote"),
+                              "prob": _curb.get("prob"), "tag": "Dernier scan"}]
             elif summ.get("play") and reco_i is not None and 0 <= reco_i < len(bets3):
                 bets3 = [bets3[reco_i]]     # À VENIR non publié : le simple RECOMMANDÉ maintenant
                 reco_i = 0
