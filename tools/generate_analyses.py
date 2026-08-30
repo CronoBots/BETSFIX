@@ -942,10 +942,22 @@ def _harvest_combo_legs(day: str, ko_from=None, ko_to=None) -> list[dict]:
             if ko_from is not None and ko_to is not None \
                     and not _in_ko_band(d.get("start") or "", ko_from, ko_to):
                 continue
+            # CORRECTNESS (user 2026-08-31) : une jambe n'entre QUE si sa cote est la VRAIE cote Unibet (présente
+            # dans `omap` = map {code -> cote Unibet réelle}), JAMAIS une cote estimée par le LLM (ex. « DC 1X »
+            # fantôme à 1.42 alors que la vraie DC vaut 1.06). Sans cote Unibet vérifiée, la jambe n'est pas
+            # plaçable au bon prix -> exclue. On FORCE aussi la cote à la valeur omap (au cas où le sidecar
+            # est antérieur au re-pricing). Match sans omap (odds non captées) -> aucune jambe -> plus de cote fausse.
+            _om = d.get("omap") or {}
             best = None                                       # la jambe SÛRE la plus probable de ce match
             for cand in (_cp.match_candidates(d) or []):
                 leg = _combo_leg_from_analysis(cand, d)       # filtre marchés sûrs + code + cote/proba
-                if leg and (best is None or leg["prob"] > best["prob"]):
+                if not leg:
+                    continue
+                _real = _om.get(leg.get("code"))
+                if not (isinstance(_real, (int, float)) and _real >= 1.01):
+                    continue                                  # pas de cote Unibet réelle pour ce code -> exclu
+                leg["cote"] = float(_real)                    # cote RÉELLE Unibet (source de vérité)
+                if best is None or leg["prob"] > best["prob"]:
                     best = leg
             if best:
                 legs.append(best)
@@ -3562,12 +3574,11 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     # (proba Pinnacle dé-viggée − proba implicite Unibet 1/cote). Dérivable de sharp_map ∩ omap, mais on le
     # PRÉ-CALCULE (scalaire robuste, pas de re-dérivation) pour classer/mesurer la sélection par edge. Champ
     # ADDITIF : n'influence NI la sélection (rank_important reste par profondeur) NI le choix du pari.
-    if _sharp_map and _omap:
-        _edges = [_sharp_map[_c] - 1.0 / _omap[_c] for _c in _sharp_map
-                  if isinstance(_omap.get(_c), (int, float)) and _omap[_c] > 1
-                  and isinstance(_sharp_map.get(_c), (int, float))]
-        if _edges:
-            side["sel_edge"] = round(max(_edges), 4)
+    # RE-PRICING UNIBET (fix user 2026-08-31) : chaque prédiction/pari reçoit la VRAIE cote Unibet de son code
+    # -> corrige les cotes LLM erronées (ex. « DC 1X » estimée 1.42 alors que la vraie DC Unibet est ~1.06).
+    # ⚠️ BUG CORRIGÉ : ce re-pricing était imbriqué dans `if _sharp_map and _omap` -> SAUTÉ sur les matchs SANS
+    # Pinnacle (ligues obscures) -> cotes fantômes fausses dans le vivier combiné. Il ne dépend QUE d'`_omap`.
+    if _omap:
         for _p in (side.get("shadow") or []):
             _rc = _omap.get(_p.get("code"))
             if isinstance(_rc, (int, float)) and _rc >= 1.01:
@@ -3576,6 +3587,13 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
             _rc = _omap.get(_b.get("code"))
             if isinstance(_rc, (int, float)) and _rc >= 1.01:
                 _b["odds"] = _rc
+    # `sel_edge` (edge sharp) a besoin des DEUX cartes (Pinnacle ∩ Unibet).
+    if _sharp_map and _omap:
+        _edges = [_sharp_map[_c] - 1.0 / _omap[_c] for _c in _sharp_map
+                  if isinstance(_omap.get(_c), (int, float)) and _omap[_c] > 1
+                  and isinstance(_sharp_map.get(_c), (int, float))]
+        if _edges:
+            side["sel_edge"] = round(max(_edges), 4)
     if validation:                       # verdict du panel de validateurs (3 agents) sur le pari retenu
         side["validation"] = validation
     if votes and votes[0] is not None:
