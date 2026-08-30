@@ -42,7 +42,7 @@ Log 'PROGRAMME : SLATE JOUR (coup d''envoi 6h-21h) pour l''accueil site — la n
 # période gagnante — ~5-10 matchs analysés EN PROFONDEUR/jour au lieu de ~20 survolés qui saturaient le
 # forfait). Les 10 matchs les PLUS IMPORTANTS des 24 h, répartis par créneau selon leur coup d'envoi (jour
 # analysé le matin, nuit le soir). Le split suit la vraie distribution (ex. 7 JOUR + 3 NUIT).
-& $py 'tools\generate_analyses.py' --sport foot --top 6 --hours 24 --programme --no-notify --ko-from 6 --ko-to 21 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot --top 7 --hours 24 --programme --no-notify --ko-from 6 --ko-to 21 2>&1 |
     Add-BfxStream $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le
