@@ -52,6 +52,14 @@ if (Test-Path $flag) {
     & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --programme --no-notify --ko-from 21 --ko-to 6 2>&1 |
         Add-BfxStream $log
     Log ("SCAN SOIR PROGRAMME NUIT DONE (exit {0})" -f $LASTEXITCODE)
+    # 1b) REPLANIFIE les vagues KO-1 h (user 2026-08-30) : les matchs de NUIT ne sont AJOUTÉS au programme
+    # qu'ICI (le matin n'écrit que le jour) -> sans ça, ils n'auraient JAMAIS leur vague de publication à
+    # KO-1 h (schedule_reana ne tourne sinon qu'à 10h, avant que la nuit existe). Set-ScheduledTask REMPLACE
+    # tous les déclencheurs de « BETSFIX Scan Wave » -> repose les matchs encore à venir (jour tardif + nuit),
+    # zéro accumulation, zéro doublon. Les vagues de jour déjà passées sont ignorées (at <= now).
+    Log 'SCAN SOIR : REPLANIFICATION des vagues KO-1 h (inclut désormais le slate NUIT)'
+    & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Add-BfxStream $log
+    Log ("SCAN SOIR REANA SCHED DONE (exit {0})" -f $LASTEXITCODE)
     # 2) ANALYSE du slate NUIT SANS publier (Option B) + construction combiné/montante du jour (soir+nuit).
     Log 'SCAN SOIR : SLATE NUIT analysé SANS publier + construction combiné/montante du jour (soir+nuit)'
     & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 12 --from-programme --no-notify --daily-combo --ko-from 21 --ko-to 6 2>&1 |
