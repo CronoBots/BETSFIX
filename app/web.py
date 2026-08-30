@@ -9313,13 +9313,14 @@ _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juille
 
 
 def _daily_pnl() -> dict:
-    """P&L par JOUR SPORTIF (06h→06h) des paris comptés au ROI — FOOTBALL UNIQUEMENT (simples foot +
-    combinés foot). DÉRIVÉ de `_daily_results_map` (source canonique football-only) pour que la case du
-    calendrier soit STRICTEMENT COHÉRENTE avec le détail du jour + le ROI global football-only (bug user
-    2026-07-27 : la case comptait AUSSI les combinés non-foot -> 2 paris/−23,5 % alors que le détail foot
-    montrait 1/1/+53 %). {jour_iso: {profit, n, won, lost, roi}}. Lecture seule, hors calibration."""
+    """P&L par JOUR SPORTIF (06h→06h) pour le CALENDRIER de l'onglet Stats — CONFIANCE UNIQUEMENT (demande
+    user 2026-08-30 : le calendrier Stats ne doit refléter QUE les paris de Confiance, le chiffre phare —
+    pas la Value/le combiné/la montante), football. DÉRIVÉ de `_daily_conf_results_map` (tier « confiance »
+    figé via `tier_of`, monotone, immunisé à la dérive de calibration) -> teinte des jours ET bilan du mois
+    (ROI/paris/jours joués/meilleure journée) tous en Confiance seule. Aligné sur la pastille du calendrier
+    horizontal (Programme). {jour_iso: {profit, n, won, lost, roi}}. Lecture seule, hors ROI/calibration."""
     out: dict = {}
-    for day, e in _daily_results_map().items():
+    for day, e in _daily_conf_results_map().items():
         n = int(e.get("settled") or 0)
         if not n:
             continue
