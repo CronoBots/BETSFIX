@@ -7182,19 +7182,25 @@ def _day_calendar(iso: str, sport: str | None = None, days: int | None = None) -
         sel = _date.fromisoformat(iso)
     except (ValueError, TypeError):
         sel = today
-    rmap = _daily_results_map()
+    rmap = _daily_results_map()                            # TOUS paris réglés -> pilote la CLIQUABILITÉ du jour
+    cmap = _daily_conf_results_map()                       # CONFIANCE seule -> pilote la COULEUR de la pastille
     cells = []
     for i in range(days, -1, -1):                          # du plus ancien (gauche) à AUJOURD'HUI (droite)
         dd = today - timedelta(days=i)
         di = dd.isoformat()
         st = rmap.get(di) or {}
-        settled, profit = st.get("settled", 0), st.get("profit", 0.0)
-        if settled:                                        # pastille résultat du jour (net ROI)
-            dcls = "pos" if profit > 1e-9 else ("neg" if profit < -1e-9 else "neu")
+        settled = st.get("settled", 0)                     # activité TOUS paris (clic/emphase)
+        # PASTILLE = CONFIANCE UNIQUEMENT (user 2026-08-30) : vert/rouge/neutre selon le net ROI des seuls paris
+        # de Confiance du jour. Un jour SANS confiance réglée (que de la Value, un combiné…) -> pas de point coloré,
+        # même s'il reste cliquable (l'activité TOUS-paris ci-dessus garde le jour actif).
+        cst = cmap.get(di) or {}
+        c_settled, c_profit = cst.get("settled", 0), cst.get("profit", 0.0)
+        if c_settled:                                      # pastille = net ROI des CONFIANCES
+            dcls = "pos" if c_profit > 1e-9 else ("neg" if c_profit < -1e-9 else "neu")
             dot = f'<span class="dcd-dot {dcls}"></span>'
         else:
             dot = '<span class="dcd-dot none"></span>'
-        # jour SANS pari réglé = dé-emphasé ET NON cliquable (user 2026-08-19) — sauf aujourd'hui (contexte courant).
+        # jour SANS pari réglé (TOUS types) = dé-emphasé ET NON cliquable (user 2026-08-19) — sauf aujourd'hui.
         _is_empty = (not settled and dd != today)
         _cls = ("daycal-d" + (" on" if dd == sel else "") + (" today" if dd == today else "")
                 + (" empty" if _is_empty else ""))
@@ -7277,6 +7283,39 @@ def _daily_results_map() -> dict:
     # Le ROI = SIMPLES football uniquement (cohérent avec stats_full.overall qui exclut déjà les combinés).
     # Les combinés restent AFFICHÉS comme joués (cartes, ✓/✗) — info seule, jamais au ROI.
     _DRM_CACHE.update(ts=_now, map=res)
+    return res
+
+
+_DRM_CONF_CACHE: dict = {"ts": 0.0, "map": None}
+
+
+def _daily_conf_results_map() -> dict:
+    """Comme `_daily_results_map` mais RESTREINT aux paris de CONFIANCE (tier « confiance »), football.
+    Sert UNIQUEMENT à colorer les PASTILLES du calendrier horizontal (demande user 2026-08-30 : le point
+    vert/rouge ne doit refléter QUE la Confiance — le chiffre phare — pas la Value/le combiné/la montante).
+    Net 1 u (won -> cote−1, lost -> −1), agrégé par JOUR SPORTIF. On lit le tier FIGÉ (`tier_of`, monotone :
+    `confidence_bet`/`stat_bet.kind`), donc immunisé à la dérive de calibration. Caché 30 s (comme le map global)."""
+    _now = time.time()
+    if _DRM_CONF_CACHE["map"] is not None and _now - _DRM_CONF_CACHE["ts"] < 30:
+        return _DRM_CONF_CACHE["map"]
+    res: dict = {}
+    for d in analyses.iter_meta("foot"):
+        if d.get("roi_void"):
+            continue
+        sb = d.get("stat_bet")
+        if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost")):
+            continue
+        if analyses.tier_of(d) != "confiance":                 # Value / combiné / montante -> hors pastille
+            continue
+        ld = to_local(d.get("_start_dt")) if d.get("_start_dt") else None
+        if ld is None:
+            continue
+        won = sb["result"] == "won"
+        e = res.setdefault(_sport_date(ld).isoformat(), {"won": 0, "settled": 0, "profit": 0.0})
+        e["settled"] += 1
+        e["won"] += 1 if won else 0
+        e["profit"] += (float(sb.get("cote") or 1) - 1) if won else -1.0
+    _DRM_CONF_CACHE.update(ts=_now, map=res)
     return res
 
 
