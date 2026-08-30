@@ -42,7 +42,7 @@ if (Test-Path $flag) {
     # 1) SÉLECTION du slate NUIT (adaptatif, cotes de nuit ouvertes) -> fusionné dans day_programme.json.
     # TOUJOURS exécutée (safe même si une vague tourne : écrit le programme, aucune carte, aucun sidecar).
     Log 'SCAN SOIR : SÉLECTION du SLATE NUIT (coup d''envoi 21h-6h, cotes fraîches) -> fusion au programme'
-    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --programme --no-notify --ko-from 21 --ko-to 6 2>&1 |
+    & $py 'tools\generate_analyses.py' --sport foot --top 6 --hours 24 --programme --no-notify --ko-from 21 --ko-to 6 2>&1 |
         Add-BfxStream $log
     Log ("SCAN SOIR PROGRAMME NUIT DONE (exit {0})" -f $LASTEXITCODE)
     # 1b) REPLANIFIE les vagues KO-1 h (user 2026-08-30) : les matchs de NUIT ne sont AJOUTÉS au programme
