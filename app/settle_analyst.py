@@ -2057,7 +2057,12 @@ async def _settle_analyses_impl() -> int:
                             if card.get("simple"):
                                 _rtier = str((card.get("simple") or {}).get("tier") or card.get("tier") or "confiance")
                                 _rlbl = {"value": "VALUE", "montante": "MONTANTE"}.get(_rtier, "CONFIANCE")
-                                _emo = f"{_rlbl} {_vw} {_ve}"
+                                # COTE affichée UNIQUEMENT si GAGNÉ (user 2026-08-30) : « VALUE GAGNÉE @1.56 ✅ »
+                                # (met en valeur la cote remportée ; cote AVANT l'emoji = ✅ tampon final). Rien
+                                # sur perte/remboursé (on n'appuie pas sur le montant perdu).
+                                _rco = (card.get("cote") or (card.get("simple") or {}).get("cote") or "") if _mk == "won" else ""
+                                _cotetxt = f" @{_rco}" if _rco else ""
+                                _emo = f"{_rlbl} {_vw}{_cotetxt} {_ve}"
                             else:
                                 _emo = {"won": "Pari gagné ✅", "lost": "Pari perdu ❌"}.get(_mk, "Remboursé ➖")
                             # envoi BLOQUANT (httpx) -> hors event loop pour ne pas figer l'API
