@@ -156,8 +156,10 @@ def send_push(title: str, body: str, url: str = "/", tag: str = "prono") -> int:
 MSG = {
     # NOUVEAU PARI (user 2026-08-30) : TITRE SEUL « NOUVELLE <TIER> @<cote> » — NI équipes NI pari joué.
     "prono": {"title": "NOUVELLE {tier}{cote}", "body": ""},   # {tier} = CONFIANCE / VALUE · {cote} = « @1.28 »
-    "won":   {"title": "Pari gagné ✅",           "body": "{match}\n{pick}"},
-    "lost":  {"title": "Pari perdu ❌",           "body": "{match}\n{pick}"},
+    # RÉSULTAT (user 2026-08-30, aligné Telegram) : TITRE SEUL « <TIER> GAGNÉE @<cote> ✅ » — cote SI GAGNÉ.
+    "won":   {"title": "{tier} GAGNÉE{cote} ✅", "body": ""},
+    "lost":  {"title": "{tier} PERDUE ❌",       "body": ""},
+    "push":  {"title": "{tier} REMBOURSÉE ➖",   "body": ""},
 }
 _TIER_LABEL = {"confiance": "Confiance", "value": "Value", "montante": "Montante"}
 _TIER_LABEL_UP = {"confiance": "CONFIANCE", "value": "VALUE", "montante": "MONTANTE"}
@@ -190,10 +192,23 @@ def notify_new_prono(match: str, pick: str, tier: str = "confiance", sport: str 
     return send_push(title, m.get("body", ""), url="/", tag="prono")
 
 
-def notify_result(match: str, mark: str, pick: str = "") -> int:
-    """Notif RÉSULTAT d'un pari simple. `mark` = won/lost (no-op sur push/void). `pick` = pari + cote."""
-    if mark not in ("won", "lost"):
+def notify_result(match: str, mark: str, pick: str = "", tier: str = "confiance", cote=None) -> int:
+    """Notif RÉSULTAT d'un pari simple — TITRE SEUL « <TIER> GAGNÉE @<cote> ✅ » / « <TIER> PERDUE ❌ »
+    (user 2026-08-30, aligné sur Telegram). Cote UNIQUEMENT si gagné. Ni équipes ni pari. `cote` = cote du
+    pari (repli : lue dans `pick` « … @ 1.28 »). push/void -> « … REMBOURSÉE ➖ »."""
+    m = MSG.get(mark) or MSG.get("push")
+    if not m:
         return 0
-    m = MSG[mark]
-    body = m["body"].format(match=_vs(match), pick=pick) if pick else _vs(match)
-    return send_push(m["title"], body, url="/", tag="result")
+    _tl = _TIER_LABEL_UP.get((tier or "confiance").lower(), "CONFIANCE")
+    _ct = ""
+    if mark == "won":                                   # cote affichée SEULEMENT sur un gain
+        if cote is None:
+            _mt = re.search(r"@\s*([0-9]+(?:[.,][0-9]+)?)", str(pick or ""))
+            cote = _mt.group(1).replace(",", ".") if _mt else None
+        if cote is not None:
+            try:
+                cote = f"{float(str(cote).replace(',', '.')):.2f}"
+            except (ValueError, TypeError):
+                pass
+        _ct = f" @{cote}" if cote else ""
+    return send_push(m["title"].format(tier=_tl, cote=_ct), m.get("body", ""), url="/", tag="result")

@@ -2081,11 +2081,13 @@ async def _settle_analyses_impl() -> int:
                                    or (card.get("combo") or {}).get("mark"))
                             if _mk in ("won", "lost"):   # message centralisé -> app/push.py MSG (personnalisable)
                                 _rpk = str(card.get("pick") or "")
-                                _rco = card.get("cote")
+                                _rco = card.get("cote") or (card.get("simple") or {}).get("cote")
                                 _rpktxt = f"{_rpk} @ {_rco}" if (_rpk and _rco) else _rpk
+                                _rtier = str((card.get("simple") or {}).get("tier") or card.get("tier") or "confiance")
                                 await asyncio.to_thread(
                                     _push.notify_result,
-                                    str(card.get("match") or "").replace(" — ", " - "), _mk, _rpktxt)
+                                    str(card.get("match") or "").replace(" — ", " - "), _mk, _rpktxt,
+                                    _rtier, _rco)
                         except Exception:
                             pass
                     # R2 — on FIGE les flags notified_* SEULEMENT maintenant (envoi confirmé). Si l'envoi
