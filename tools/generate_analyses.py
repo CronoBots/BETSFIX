@@ -4109,7 +4109,8 @@ async def main():
                                 _pktxt = f"{_pk} @ {_co}" if (_pk and _co) else _pk
                                 _push.notify_new_prono(str(_card.get("match") or ""), _pktxt,
                                                        str(_card.get("tier") or "confiance"),
-                                                       str(_card.get("_sport") or "foot"))
+                                                       str(_card.get("_sport") or "foot"),
+                                                       cote=_card.get("cote"))
                             except Exception:
                                 pass
                             # FIGE le pari CONSEILLÉ dès la publication (demande user 2026-07-14) -> ni

@@ -15,6 +15,7 @@ import base64
 import json
 import logging
 import os
+import re
 import threading
 
 log = logging.getLogger("betsfix.push")
@@ -147,17 +148,19 @@ def send_push(title: str, body: str, url: str = "/", tag: str = "prono") -> int:
 # ───────────────────────────────────────────────────────────────────────────── #
 # MESSAGES DES NOTIFICATIONS PUSH (PWA) — PERSONNALISABLES (user 2026-08-24).      #
 # C'est le SEUL endroit à éditer pour changer les textes reçus sur le téléphone.   #
-# Variables disponibles dans title/body :                                          #
-#   {match} = équipes (rendu « A vs B »)  ·  {pick} = pari + cote  ·  {tier} =       #
-#   « Confiance »/« Value » (titre du prono seulement).  « \n » = retour à la ligne. #
+# Variables : {match} = équipes  ·  {pick} = pari + cote  ·  {tier} = CONFIANCE/VALUE ·  #
+#   {cote} = « @1.28 » (prono).  NOUVEAU PARI (user 2026-08-30) = TITRE SEUL             #
+#   « NOUVELLE <TIER> @<cote> », sans équipes ni pari (won/lost gardent {match}/{pick}). #
 # Seuls les paris SIMPLES Confiance/Value notifient (combiné & montante coupés).     #
 # ───────────────────────────────────────────────────────────────────────────── #
 MSG = {
-    "prono": {"title": "Nouveau pari de {tier}", "body": "{match}\n{pick}"},   # {tier} = Confiance / Value
+    # NOUVEAU PARI (user 2026-08-30) : TITRE SEUL « NOUVELLE <TIER> @<cote> » — NI équipes NI pari joué.
+    "prono": {"title": "NOUVELLE {tier}{cote}", "body": ""},   # {tier} = CONFIANCE / VALUE · {cote} = « @1.28 »
     "won":   {"title": "Pari gagné ✅",           "body": "{match}\n{pick}"},
     "lost":  {"title": "Pari perdu ❌",           "body": "{match}\n{pick}"},
 }
 _TIER_LABEL = {"confiance": "Confiance", "value": "Value", "montante": "Montante"}
+_TIER_LABEL_UP = {"confiance": "CONFIANCE", "value": "VALUE", "montante": "MONTANTE"}
 
 
 def _vs(match: str) -> str:
@@ -169,12 +172,22 @@ def _vs(match: str) -> str:
     return m
 
 
-def notify_new_prono(match: str, pick: str, tier: str = "confiance", sport: str = "foot") -> int:
-    """Notif « nouveau prono ». `match` = « A - B », `pick` = pari + cote, `tier` = confiance/value."""
+def notify_new_prono(match: str, pick: str, tier: str = "confiance", sport: str = "foot", cote=None) -> int:
+    """Notif « nouveau pari » — TITRE SEUL « NOUVELLE <TIER> @<cote> » (user 2026-08-30 : ni équipes ni pari
+    joué). `cote` = cote du pari ; à défaut on la lit dans `pick` (« … @ 1.28 »). `match`/`pick` non affichés."""
     m = MSG["prono"]
-    title = m["title"].format(tier=_TIER_LABEL.get((tier or "confiance").lower(), "Confiance"))
-    body = m["body"].format(match=_vs(match), pick=pick) if pick else _vs(match)
-    return send_push(title, body, url="/", tag="prono")
+    _tl = _TIER_LABEL_UP.get((tier or "confiance").lower(), "CONFIANCE")
+    if cote is None:                                    # repli : extraire la cote de `pick` (« … @ 1.28 »)
+        _mt = re.search(r"@\s*([0-9]+(?:[.,][0-9]+)?)", str(pick or ""))
+        cote = _mt.group(1).replace(",", ".") if _mt else None
+    if cote is not None:                                # cote à 2 décimales (« @1.60 », pas « @1.6 »)
+        try:
+            cote = f"{float(str(cote).replace(',', '.')):.2f}"
+        except (ValueError, TypeError):
+            pass
+    _ct = f" @{cote}" if cote else ""
+    title = m["title"].format(tier=_tl, cote=_ct)
+    return send_push(title, m.get("body", ""), url="/", tag="prono")
 
 
 def notify_result(match: str, mark: str, pick: str = "") -> int:
