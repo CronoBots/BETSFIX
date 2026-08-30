@@ -760,6 +760,73 @@ def _check_uniform_labels(rows) -> dict:
             "items": diverg[:20]}
 
 
+def _check_settled_display_coherence(rows) -> dict:
+    """AFFICHAGE == STATS pour les RÉGLÉS DU JOUR (régression user 2026-08-30). Un pari COMPTÉ (stat_bet figé
+    won/lost/push) DOIT apparaître comme CARTE dans « Résultats du jour » ET être compté dans le RECORD de sa
+    zone. Le bug : `_settled_bet_result_cards` (carte) et `_settled_wl_today` (record) re-dérivaient le pari via
+    `retained_bet(for_history=True)`, qui — une fois stat_bet gelé — ne reconstruit plus le pick MÉCANIQUE
+    (confidence/value venu d'un fantôme) -> None -> carte DISPARUE + victoire comptée GRISE (« en attente ») au
+    lieu de VERTE, alors que Stats/Telegram (qui lisent le pari figé) l'affichaient. Ce contrôle ANCRE le SOURCE
+    DE VÉRITÉ (stat_bet figé) et exige, par jour ACTIF et par tier, que : nb figés == nb cartes == record (W+L+P).
+    Couvre les 2 sens (carte manquante ET record faux). 100 % lecture seule."""
+    from app import web
+    # VÉRITÉ : paris SIMPLES figés (hors combiné RÉGLÉ / roi_void), groupés par (jour sportif, tier). On ne
+    # SPÉCIALISE PAS la montante : `tier_of` la route vers son propre tier « montante » quand elle est ACTIVE
+    # (donc hors confiance/value dans les 3 sources), et vers son tier RÉEL quand elle est OFF (donc affichée
+    # comme un simple partout) -> les 3 sources restent alignées sans exclusion ad hoc. Le combiné RÉGLÉ est
+    # exclu avec la MÊME condition que les fonctions d'affichage (result ∈ won/lost/void) -> pas de faux écart.
+    truth: dict = {}
+    for _, d in rows:
+        if d.get("sport") != "foot" or d.get("roi_void"):
+            continue
+        sb = d.get("stat_bet")
+        if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost", "push")):
+            continue
+        _combo = d.get("combo") or {}
+        if _combo.get("legs") and _combo.get("result") in ("won", "lost", "void"):
+            continue
+        st = d.get("start")
+        try:
+            dt = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
+        except (ValueError, AttributeError):
+            dt = None
+        ld = web.to_local(dt) if dt else None
+        if ld is None:
+            continue
+        iso = web._sport_date(ld).isoformat()
+        tier = analyses.tier_of(d)
+        if tier not in ("confiance", "value"):
+            continue
+        truth[(iso, tier)] = truth.get((iso, tier), 0) + 1
+    # On BORNE aux ~30 derniers jours actifs (une régression frappe les jours récents ; garde le coût du rendu
+    # de cartes borné). Un jour SANS pari figé n'a rien à afficher -> pas à vérifier.
+    _days = sorted({iso for (iso, _t) in truth}, reverse=True)[:30]
+    items = []
+    for iso in _days:
+        for tier in ("confiance", "value"):
+            nb_truth = truth.get((iso, tier), 0)
+            if nb_truth == 0:
+                continue
+            try:
+                nb_cards = len(web._settled_bet_result_cards(iso, "foot", tier=tier))
+                _w, _l, _p = web._settled_wl_today(iso, "foot", tier=tier)
+                nb_rec = _w + _l + _p
+            except Exception as e:
+                items.append(f"{iso} · {tier} : vérif impossible ({e})")
+                continue
+            if not (nb_truth == nb_cards == nb_rec):
+                items.append(f"{iso} · {tier} : figés {nb_truth} ≠ cartes {nb_cards} ≠ record {nb_rec} "
+                             f"(un pari COMPTÉ n'est pas affiché/compté à l'identique)")
+    return {"key": "settled_display_coherence",
+            "level": "error" if items else "ok",
+            "title": "Réglés du jour affichés == comptés (carte + record == stat_bet figé)",
+            "detail": ("DIVERGENCE : un pari figé n'apparaît pas (ou n'est pas compté vert) dans Résultats du jour."
+                       if items else
+                       f"0 divergence — chaque pari figé est affiché ET compté à l'identique "
+                       f"({len(_days)} jour(s) actif(s) vérifié(s))."),
+            "items": items}
+
+
 def _check_stats_snapshot_drift() -> dict:
     """SNAPSHOT STATS == CALCUL LIVE (garde-fou de l'étape 1 scalabilité, 2026-07-28). Le snapshot disque
     (`data/_stats_snapshot.json`) sert les requêtes en O(1) au lieu de recalculer 2,5 s à chaque restart. Il
@@ -863,6 +930,7 @@ def run(persist: bool = False) -> dict:
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),
         _check_uniform_labels(rows),
+        _check_settled_display_coherence(rows),
         _check_stats_snapshot_drift(),
         _check_montante_active(),
     ]
