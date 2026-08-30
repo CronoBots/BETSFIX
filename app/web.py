@@ -258,7 +258,7 @@ CSS = """
   :root{
     /* Thème « néon » (inspiré OddScore) : fond quasi-noir + accent vert-lime + corail pour le négatif */
     --bg:#070708;--bg2:#0d0d10;--surface:#141417;--surface2:#1d1d21;
-    --border:#2a2a31;--border2:#3b3b44;--text:#f4f5f7;--muted:#9a9aa6;--dim:#65656e;
+    --border:#2a2a31;--border2:#3b3b44;--text:#f4f5f7;--muted:#9a9aa6;--dim:#8b8b95;
     /* ACCENT principal — UN SEUL endroit à changer pour reskin (cf. candidats en bas) */
     --accent:#22b8ff;--accent2:#1496f0;--accent-ink:#001321;--glow:rgba(34,184,255,.28);
     --halo:rgba(34,184,255,.09);
@@ -306,7 +306,7 @@ CSS = """
        src:local('Segoe UI Semibold'),url('/static/fonts/selawik-semibold.woff') format('woff')}
   @font-face{font-family:'Segoe UI';font-weight:700 900;font-style:normal;font-display:swap;
        src:local('Segoe UI Bold'),url('/static/fonts/selawik-bold.woff') format('woff')}
-  body{margin:0;color:var(--text);font-size:14.5px;line-height:1.45;width:100%;
+  body{margin:0;color:var(--text);font-size:15px;line-height:1.45;width:100%;
        /* MODÈLE DE SCROLL = CRYPTONAUTS (user 2026-08-22) : le BODY scrolle normalement (plus de coquille
           `height:100dvh;overflow:hidden` + scroll interne `.wrap`, qui calait mal en PWA iOS -> zone morte
           sous la barre). La barre est `position:fixed;bottom:0` et le body RÉSERVE sa hauteur via padding-bas. */
@@ -415,7 +415,7 @@ CSS = """
   .a2hs-x{flex:none;width:27px;height:27px;border-radius:50%;border:0;cursor:pointer;font-size:12px;
        background:rgba(255,255,255,.08);color:var(--muted);-webkit-tap-highlight-color:transparent}
   .botnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-            padding:6px 0 4px;border-radius:14px;color:var(--muted);font-size:10px;
+            padding:6px 0 4px;border-radius:14px;color:var(--muted);font-size:11px;
             font-weight:700;transition:.15s}
   /* `.ic` = boîte de hauteur FIXE qui CENTRE son contenu -> emoji ET radar Live alignés pareil */
   .botnav a .ic{font-size:24px;line-height:1;height:26px;display:flex;align-items:center;justify-content:center}
@@ -442,7 +442,7 @@ CSS = """
      défaut (À venir/Tennis/Basket/Foot) ; l'onglet LIVE est VERT + halo pulsant. Caché à 0 (JS pose `hidden`). */
   .botnav a{position:relative}
   .nav-n{position:absolute;top:1px;left:calc(50% + 7px);min-width:16px;height:16px;padding:0 4px;
-       border-radius:99px;background:#eef2f7;color:#0b0d12;font-size:10px;font-weight:900;line-height:16px;
+       border-radius:99px;background:#eef2f7;color:#0b0d12;font-size:11px;font-weight:900;line-height:16px;
        text-align:center;font-variant-numeric:tabular-nums;border:1.5px solid #0b0d12;
        box-shadow:0 1px 4px rgba(0,0,0,.5)}
   /* ===== DESKTOP (≥1000px) — dashboard multi-colonnes (maquette validée user 2026-08-02). Sidebar gauche +
@@ -565,8 +565,8 @@ CSS = """
             letter-spacing:.04em}
   .brand b{color:var(--brand)}
   .brand .hright{margin-left:auto;display:inline-flex;align-items:center;gap:8px}
-  .brand .hdot{font-size:10px;font-weight:800;color:var(--gold);white-space:nowrap;letter-spacing:.02em}
-  .brand .tag{font-size:10px;font-weight:700;letter-spacing:.12em;
+  .brand .hdot{font-size:11px;font-weight:800;color:var(--gold);white-space:nowrap;letter-spacing:.02em}
+  .brand .tag{font-size:11px;font-weight:700;letter-spacing:.12em;
               text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);
               padding:3px 8px;border-radius:20px}
   .nav{display:flex;gap:9px;margin-top:11px}
@@ -619,12 +619,12 @@ CSS = """
   .spf-cv-form{display:flex;justify-content:flex-end;margin:0 0 5px;overflow:hidden}
   .spf-cv-form .forms{flex-wrap:nowrap}
   .spf-cv-form .fd{width:15px;height:15px;font-size:9px}   /* pastilles plus grandes (demande user) — 16 tiennent centrées */
-  .spf-cv-form .fd.fd-p{font-size:10px}
+  .spf-cv-form .fd.fd-p{font-size:11px}
   /* Groupe de gauche de l'en-tête : titre + badge SÉRIE côte à côte (le badge n'est PAS dans la ligne W/L). */
   .spf-cv-hl{display:flex;align-items:center;gap:7px;min-width:0}
   .spf-cv-hl .sx-streak{flex:none}
   /* Libellé STATIQUE des derniers paris (affichés d'office, sans bouton — demande user 2026-08-13). */
-  .spf-rec-lbl{margin-top:9px;text-align:center;font-size:10px;font-weight:800;letter-spacing:.04em;
+  .spf-rec-lbl{margin-top:9px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.04em;
        text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border);padding-top:11px}
   /* Liste des derniers paris (révélée) : pastille W/L/N + affiche + sélection + date. */
   /* Historique = REGISTRE pro (demande user 2026-07-25) : lignes séparées par un filet fin, padding régulier,
@@ -635,17 +635,17 @@ CSS = """
        border-bottom:1px solid rgba(255,255,255,.055)}
   .spf-rec:last-child{border-bottom:none}
   .spf-rec-b{flex:none;width:19px;height:19px;border-radius:6px;display:flex;align-items:center;
-       justify-content:center;font-size:10px;font-weight:900;color:#0a0a0a}
+       justify-content:center;font-size:11px;font-weight:900;color:#0a0a0a}
   .spf-rec.rec-w .spf-rec-b{background:#34d27b} .spf-rec.rec-l .spf-rec-b{background:#ff6b6b}
   .spf-rec.rec-n .spf-rec-b{background:var(--muted)}
   /* Pari À JOUER (compté au ROI, pas encore réglé) : SABLIER DORÉ, IDENTIQUE au badge provisoire
      `.sx-bdg.p` (demande user 2026-07-17 : « les icônes en attente des listes ROI comme les sabliers
      des provisoires »). Nom en blanc (comme les paris réglés). */
-  .spf-rec.rec-p .spf-rec-b{background:var(--gold);font-size:10px}
+  .spf-rec.rec-p .spf-rec-b{background:var(--gold);font-size:11px}
   .spf-rec.rec-p b{color:var(--text)}
   .spf-rec-m{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
   .spf-rec-m b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .spf-rec-s{color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spf-rec-s{color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* COMBINÉ dépliable : cliquer la ligne révèle les JAMBES (demande user 2026-07-26). Natif <details>. */
   .spf-rec-x{border-bottom:1px solid rgba(255,255,255,.055)}
   .spf-rec-x:last-child{border-bottom:none}
@@ -656,7 +656,7 @@ CSS = """
   .spf-cx{color:var(--muted);font-size:9px;display:inline-block;transition:transform .15s}
   .spf-rec-x[open] .spf-cx{transform:rotate(180deg)}
   .spf-legs{padding:1px 2px 8px 20px;display:flex;flex-direction:column}
-  .spf-leg{display:flex;align-items:center;gap:8px;font-size:10px;padding:5px 0;
+  .spf-leg{display:flex;align-items:center;gap:8px;font-size:11px;padding:5px 0;
        border-top:1px dashed rgba(255,255,255,.08)}
   .spf-leg-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
   .spf-leg-t b{color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -676,7 +676,7 @@ CSS = """
   .spf-rec-d{flex:none;width:48px;display:flex;flex-direction:column;line-height:1.3;text-align:center;
        font-variant-numeric:tabular-nums}
   .spf-rec-d b{color:var(--muted);font-weight:700;font-size:11px;white-space:nowrap}   /* DATE = taille équipes */
-  .spf-rec-d span{color:var(--dim);font-size:10px;white-space:nowrap}                  /* HEURE = taille pari */
+  .spf-rec-d span{color:var(--dim);font-size:11px;white-space:nowrap}                  /* HEURE = taille pari */
   .spf-rec-c{flex:none;color:var(--text);font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
        text-align:right;min-width:42px}
   /* Stats PROPRES à chaque graphe (juste sous la courbe) : réussite · paris · cote moy. */
@@ -752,7 +752,7 @@ CSS = """
   .spf-sp-pause.spf-sp-ready{color:#64cd8d;background:rgba(100,205,141,.14);border-color:rgba(100,205,141,.4)}
   .spf-sp-roi{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;min-width:58px;text-align:right}
   .spf-sp-pct{font-size:11px;color:var(--dim);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
-  .spf-sp-k{font-size:10px;color:var(--muted);min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
+  .spf-sp-k{font-size:11px;color:var(--muted);min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
   /* Détail INTÉGRÉ au cadre (repliable) : fiabilité par-pari + calibration,
   séparé par un filet */
   .spf-det{margin-top:12px;border-top:1px solid var(--border)}
@@ -780,7 +780,7 @@ CSS = """
         text-align:center;box-shadow:var(--shadow-sm);overflow:hidden}
   .card:before{content:"";position:absolute;inset:0 0 auto 0;height:2px;
                background:linear-gradient(90deg,transparent,var(--border2),transparent)}
-  .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+  .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
   .val{font-size:25px;font-weight:800;margin:5px 0;letter-spacing:-.02em;
        font-variant-numeric:tabular-nums}
   .sub{font-size:11px;color:var(--muted)}
@@ -900,7 +900,7 @@ CSS = """
   .lvbar-hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
   .lvbar-t{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#8fa2b8}
   .lvbar-v{font-size:13px;font-weight:900;color:#eaf2ff;font-variant-numeric:tabular-nums}
-  .lvbar-ar{font-size:10px;margin-left:3px}
+  .lvbar-ar{font-size:11px;margin-left:3px}
   .lvbar.lv-up .lvbar-ar{color:#34d27b}
   .lvbar.lv-down .lvbar-ar{color:#ff6b6b}
   .lvbar-track{height:8px;border-radius:6px;background:rgba(255,255,255,.09);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.35)}
@@ -910,7 +910,7 @@ CSS = """
   .lvbar-fill{height:100%;border-radius:6px;transition:width .5s ease;transform-origin:left center;
        box-shadow:inset 0 1px 0 rgba(255,255,255,.30);animation:lvGrow .75s cubic-bezier(.22,.9,.3,1) both}
   @media (prefers-reduced-motion:reduce){.lvbar-fill{animation:none}}
-  .lvbar-src{margin-top:3px;font-size:10px;font-weight:600;color:#7d8ca0;text-align:right}
+  .lvbar-src{margin-top:3px;font-size:11px;font-weight:600;color:#7d8ca0;text-align:right}
   /* Ligne de pari : libellé à gauche (peut passer à la ligne), pastilles cote/confiance À DROITE,
      VERTICALEMENT CENTRÉES contre le libellé (fini le désalignement quand le libellé fait 2 lignes). */
   .mc-betl{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:#cfe0f5}
@@ -1006,7 +1006,7 @@ CSS = """
   .lboard-t .lb-s{gap:6px;align-items:baseline}
   .lboard-t .lb-c{width:18px;min-width:18px;font-size:12px}
   .lboard-t .lb-n{font-size:12.5px}
-  .lboard-t .lb-hdr .lb-c{font-size:10px}
+  .lboard-t .lb-hdr .lb-c{font-size:11px}
   /* Colonne SETS (résultat du match) = MÊME que TOT basket : taille/couleur/poids,
   gagnant en vert */
   .lboard-t .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
@@ -1024,7 +1024,7 @@ CSS = """
   colonnes fixes */
   .lboard-q .lb-n{font-size:12.5px}             /* nom d'équipe (évite la troncature) */
   .lboard-q .lb-hdr{border-bottom:1px solid rgba(255,255,255,.13);padding-bottom:3px;margin-bottom:2px}
-  .lboard-q .lb-hdr .lb-c{font-size:10px}       /* Q1..Qn + TOT : en-tête discret (plus petit) */
+  .lboard-q .lb-hdr .lb-c{font-size:11px}       /* Q1..Qn + TOT : en-tête discret (plus petit) */
   .lboard-q .lb-c.lb-ico{font-size:13px}        /* foot : icônes 🟥🟨🚩⚽ lisibles (cartons/corners/buts) */
   .lboard-q .lb-c.lb-tot.lb-ico{font-size:14px}
   .lboard-q .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
@@ -1048,7 +1048,7 @@ CSS = """
   .lb-fut{color:var(--dim);opacity:.5}
   .lb-row.lb-lead .lb-c.lb-fut{color:var(--dim)}
   /* 🎾 balle de service à droite du nom du serveur */
-  .lb-srv{font-size:10px;vertical-align:middle;margin-left:1px}
+  .lb-srv{font-size:11px;vertical-align:middle;margin-left:1px}
   /* Colonne 🎾 = points du jeu en cours (0/15/30/40) : en évidence,
   SANS case verte */
   .lb-pt{color:#fff;font-weight:800}
@@ -1225,18 +1225,18 @@ CSS = """
   .cd.live{background:rgba(52,210,123,.18);color:#5fe39b;border-color:rgba(52,210,123,.40);
         font-size:10.5px;padding:4px 9px;letter-spacing:.04em}
   .cd.done{background:rgba(255,255,255,.05);color:var(--muted);border-color:var(--border2);
-        font-size:10px;padding:3px 8px}
+        font-size:11px;padding:3px 8px}
   .cd.wait{background:rgba(246,197,74,.12);color:var(--gold);border-color:rgba(246,197,74,.32);
-        font-size:10px;padding:3px 8px}
+        font-size:11px;padding:3px 8px}
   /* HEURE + DÉCOMPTE dans UN MÊME badge (user 2026-08-08) : heure à gauche en BLANC, décompte à droite en
      GRIS, sans « dans ». Le décompte est rempli/rafraîchi en direct par le timer JS. Au coup d'envoi, le
      timer reprend le vert « live » normal (:not(.live)). */
   .cleg-when{display:inline-flex;align-items:baseline;gap:5px;font-variant-numeric:tabular-nums;
-        font-size:10px;white-space:nowrap}
+        font-size:11px;white-space:nowrap}
   .cleg-when .cw-h{color:#fff;font-weight:900}                     /* heure = BLANC */
   .cleg-when .cw-sep{color:var(--muted);font-weight:600}           /* séparateur « - » heure ↔ décompte */
   .cleg-when .cd:not(.live){background:transparent;border-color:transparent;color:var(--muted);
-        font-weight:700;padding:0;font-size:10px}                 /* décompte = GRIS, MÊME taille que l'heure */
+        font-weight:700;padding:0;font-size:11px}                 /* décompte = GRIS, MÊME taille que l'heure */
   .formrow{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .fc{display:inline-flex;align-items:center;gap:5px;font-size:11px}
   .forms{display:inline-flex;gap:3px;vertical-align:middle;margin-left:4px}
@@ -1245,7 +1245,7 @@ CSS = """
       text-transform:uppercase;text-align:center;padding-top:1px}
   /* Sablier « en attente » dans la bande W/L : MÊME doré que le badge provisoire .sx-bdg.p (demande
      user 2026-07-17). Paris à jouer pas encore réglés, en queue à droite (le plus récent). */
-  .fd.fd-p{background:var(--gold);font-size:10px;padding-top:0}
+  .fd.fd-p{background:var(--gold);font-size:11px;padding-top:0}
   .pbars{margin-top:7px;display:flex;flex-direction:column;gap:5px}
   .pb-h{font-size:12px;color:var(--text);margin-bottom:2px}
   /* TABLEAU « Chances de gagner » : sources en LIGNES,
@@ -1259,7 +1259,7 @@ CSS = """
         background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.014));
         border:1px solid var(--border);
         box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 8px 22px rgba(0,0,0,.24)}
-  .oc-h{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:800;text-transform:uppercase;
+  .oc-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;
         letter-spacing:.1em;color:var(--muted);margin-bottom:11px}
   .oc-h::before{content:"";flex:none;width:5px;height:5px;border-radius:99px;
         background:linear-gradient(180deg,#3ee089,#19c46a);box-shadow:0 0 8px rgba(52,210,123,.7)}
@@ -1301,7 +1301,7 @@ CSS = """
   /* Barre « Bookmakers » : 1 segment par issue (cote seule),
   parts ÉGALES. Les 3 ont le
      MÊME fond que le segment le plus faible (non-favori) des autres barres -> navy .pba. */
-  .sb-bar.ocbar .seg{flex:1 1 0;min-width:0;gap:5px;padding:0 7px}
+  .sb-bar.ocbar .seg{flex:1 1 0;min-width:0;gap:5px;padding:0 7px;min-height:44px;align-items:center}
   .ocbar .seg b{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
   .ptab2{margin:8px 0 2px}
   .pt2-h{display:grid;grid-template-columns:var(--cols);gap:6px;align-items:center;
@@ -1363,7 +1363,7 @@ CSS = """
   .oc{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;
       background:rgba(34,184,255,.07);border:1px solid rgba(34,184,255,.4);border-radius:10px;padding:5px 6px}
   .oc.fav{border-color:#2e9bff;background:rgba(34,184,255,.16);box-shadow:0 0 12px rgba(34,184,255,.2)}
-  .ocn{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
+  .ocn{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;
        max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .oc.fav .ocn{color:#9fd0ff}
   .ocv{font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -1420,7 +1420,7 @@ CSS = """
   .pbar .s1{background:linear-gradient(90deg,var(--accent2),var(--accent))}
   .pbar .s2{background:var(--surface2)}
   .pbar .sx{background:var(--dim)}
-  .pbar-l{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);
+  .pbar-l{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);
           font-weight:700;letter-spacing:.02em;gap:6px}
   .pbar-l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Dataviz fiche match : pastilles de forme + mini-barres de facteurs */
@@ -1477,7 +1477,7 @@ CSS = """
   .an-tag.conf{background:rgba(34,184,255,.14);color:var(--brand);border:1px solid rgba(34,184,255,.32)}
   .an-tag.no{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
   .an-body{font-size:13.5px;line-height:1.62;color:var(--text)}
-  .an-note{font-size:10px;color:var(--muted);margin-top:9px;border-top:1px solid var(--border);
+  .an-note{font-size:11px;color:var(--muted);margin-top:9px;border-top:1px solid var(--border);
           padding-top:7px}
   /* « Preuve » — tableau unique (1 ligne/sport,
   colonnes alignées) façon tableau de bord */
@@ -1487,7 +1487,7 @@ CSS = """
   .ptab-h,
   .ptab-row{display:grid;grid-template-columns:1fr 1.4fr .8fr .8fr;gap:5px;
           align-items:center;padding:11px 12px}
-  .ptab-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.01em;
+  .ptab-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.01em;
           color:#eaf2ff;border-bottom:1px solid var(--border);background:rgba(255,255,255,.022)}
   .ptab-h span{text-align:center} .ptab-h span:first-child{text-align:left}
   .ptab-h .ph-conf{color:#34d27b} .ptab-h .ph-val{color:#4aa8ff}   /* Confiance vert · Value bleu */
@@ -1498,7 +1498,7 @@ CSS = """
   .ptab-row:hover{background:rgba(255,255,255,.03)}
   .ptab-sport{font-weight:800;font-size:12.5px;line-height:1.2;min-width:0;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ptab-sub{display:block;font-size:10px;font-weight:600;color:var(--muted)}
+  .ptab-sub{display:block;font-size:11px;font-weight:600;color:var(--muted)}
   /* Fiabilité = verdict coloré + nb de matchs dessous. min-width:0 + sous-ligne qui peut
      se replier -> la colonne RESTE à sa fraction (sinon elle s'élargit et décale Confiance/Value). */
   .ptab-verdict{font-size:11px;font-weight:800;text-align:center;white-space:nowrap;min-width:0;
@@ -1511,7 +1511,7 @@ CSS = """
           line-height:1.1;min-width:0}
   .ptab-conf.na,
   .ptab-val.na{color:var(--muted);font-weight:600;opacity:.5;font-size:16px}
-  .ptab-pct{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-top:1px}
+  .ptab-pct{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-top:1px}
   .ptab-pct.pos,
   .ptab-pct .pos{color:var(--green)} .ptab-pct.neg,
   .ptab-pct .neg{color:var(--red)}
@@ -1547,13 +1547,13 @@ CSS = """
   .spc-name{font-weight:800;font-size:14px;white-space:nowrap}
   .spc-verdict{font-size:11px;font-weight:800;white-space:nowrap}
   .spc-verdict.ok{color:var(--green)} .spc-verdict.ko{color:var(--red)} .spc-verdict.na{color:var(--muted)}
-  .spc-sample{font-size:10px;color:var(--muted);font-weight:600;margin:1px 0 7px;
+  .spc-sample{font-size:11px;color:var(--muted);font-weight:600;margin:1px 0 7px;
        display:flex;justify-content:space-between;align-items:center;gap:8px}
   /* Badge de tendance récente (7 j) par sport */
-  .spc-trend{font-size:10px;font-weight:800;white-space:nowrap}
+  .spc-trend{font-size:11px;font-weight:800;white-space:nowrap}
   .spc-trend.up{color:var(--green)} .spc-trend.down{color:var(--red)} .spc-trend.flat{color:var(--muted)}
   .spc-trend-l{font-weight:600;color:var(--muted);opacity:.8}
-  .spc-foot{font-size:10px;color:var(--muted);text-align:center;margin-top:4px;line-height:1.5}
+  .spc-foot{font-size:11px;color:var(--muted);text-align:center;margin-top:4px;line-height:1.5}
   .spc-foot b.pos{color:var(--green)} .spc-foot b.neg{color:var(--red)}
   .spc-tot{font-weight:800}   /* P&L Total mis en avant */
   /* Analyse « analyste » (markdown rendu) en fiche match */
@@ -1619,14 +1619,14 @@ CSS = """
   /* Hero « Avantage réalisé » (style Bull) — teinte verte, ROI géant + KPIs (user 2026-08-15) */
   .adv-hero{text-align:center;padding:18px 14px 16px;margin:2px 0 14px;border-radius:18px;
        background:linear-gradient(180deg,rgba(62,224,137,.11),rgba(62,224,137,.02));border:1px solid rgba(62,224,137,.24)}
-  .adv-l{font-size:10px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+  .adv-l{font-size:11px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
   .adv-big{font-size:54px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:6px 0 5px}
   .adv-sub{font-size:12.5px;color:var(--muted);font-weight:600}
   .adv-sub b{color:var(--text);font-variant-numeric:tabular-nums}
   .adv-kpis{display:flex;justify-content:center;gap:28px;margin-top:13px}
   .adv-kpis div{text-align:center}
   .adv-kpis b{display:block;font-size:18px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
-  .adv-kpis span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}   /* ROI peu fiable (échantillon trop faible) -> grisé */
+  .adv-kpis span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}   /* ROI peu fiable (échantillon trop faible) -> grisé */
   /* VERDICT MARCHÉS — synthèse actionnable en tête de l'onglet Analyse (demande user 2026-08-13). */
   .av-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 14px 12px;margin:2px 0 14px}
   .av-card-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text);
@@ -1653,7 +1653,7 @@ CSS = """
   .bcharts{margin:2px 0 14px;display:flex;flex-direction:column;gap:10px}
   .bcharts-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
        color:#cfe0f5;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-  .bcharts-sub{font-size:10px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
+  .bcharts-sub{font-size:11px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
   .bchart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
        padding:11px 12px 10px}
   .bchart-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
@@ -1698,7 +1698,7 @@ CSS = """
   .exq-watch{background:rgba(224,179,65,.14);color:#e6c463;border:1px solid rgba(224,179,65,.32)}
   .exq-ok{background:rgba(52,210,123,.14);color:#7fe0a8;border:1px solid rgba(52,210,123,.30)}
   .exq-reason{font-size:11px;line-height:1.45;color:#cfe0f5}
-  .exq-meta{font-size:10px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+  .exq-meta{font-size:11px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
   /* Aperçu par marché — TABLEAU pro (user 2026-08-20). Colonnes alignées, chiffres tabulaires, verdict en bord. */
   .mko-intro{font-size:10.5px;color:var(--muted);line-height:1.5;margin:2px 2px 9px}
   .mko-intro b{color:var(--text);font-weight:800}
@@ -1750,7 +1750,7 @@ CSS = """
   .exq-jempty{font-size:11px;color:var(--muted);line-height:1.45}
   .exq-jrow{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;padding:7px 9px}
   .exq-jtop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-  .exq-jdate{font-size:10px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+  .exq-jdate{font-size:11px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
   .exq-jmk{font-size:12.5px;font-weight:800;color:var(--text)}
   .exq-jbase{font-size:9px;font-weight:700;color:var(--muted);border:1px solid var(--border);
        border-radius:5px;padding:1px 5px}
@@ -1897,7 +1897,7 @@ CSS = """
   .sx-rel-tr.up{color:#34d27b} .sx-rel-tr.flat{color:var(--muted)} .sx-rel-tr.down{color:#ff6b6b}
   .sx-rel-kpi{text-align:right}
   .sx-rel-kpi b{display:block;font-size:14px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
-  .sx-rel-kpi span{font-size:10px;color:var(--muted);font-weight:600}
+  .sx-rel-kpi span{font-size:11px;color:var(--muted);font-weight:600}
   .sx-rel-period{font-size:10.5px;font-weight:700;color:var(--muted);margin-top:9px}
   .sx-rel-period b{color:var(--accent);font-weight:900}
   .sx-rel-chart{margin-top:12px}
@@ -1915,7 +1915,7 @@ CSS = """
     border-top:1px solid rgba(255,255,255,.06)}
   .vbs-sp{font-size:12px;font-weight:800;display:flex;align-items:center;gap:5px;flex-wrap:wrap;line-height:1.3}
   .vbs-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}
-  .vbs-cell{text-align:right;font-size:10px;color:var(--muted);font-weight:600;line-height:1.35}
+  .vbs-cell{text-align:right;font-size:11px;color:var(--muted);font-weight:600;line-height:1.35}
   .vbs-cell b{display:block;color:var(--text);font-weight:900;font-size:16px}
   .vbs-cell span{display:block;font-size:9.5px}
   .vbs-cell .vbs-c2{opacity:.62;font-size:9px}
@@ -1983,7 +1983,7 @@ CSS = """
   .sctab-roi.pos{color:#63d68f}.sctab-roi.neg{color:#ff8080}.sctab-roi.neu{color:var(--dim)}
   .sctab-pane{display:none}
   .sctab-pane.on{display:block}
-  .sx-sub{font-size:10px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
+  .sx-sub{font-size:11px;color:var(--muted);line-height:1.35;padding:2px 2px 6px}
   /* Section par sport */
   /* mêmes cadres que les cartes de match (.row) : dégradé + bordure cyan + glow */
   .sx-sport{background:linear-gradient(180deg,var(--surface2),var(--surface));
@@ -2082,7 +2082,7 @@ CSS = """
        box-shadow:0 1px 4px rgba(0,0,0,.25)}
   /* Provisoire : ligne « ré-analyse » DISCRÈTE (allègement 2026-07-11) — petite, grisée, non grasse :
      info présente mais qui ne pèse plus visuellement (la carte dorée + la zone disent déjà l'essentiel). */
-  .mc-reana-prov{color:var(--muted);font-size:10px;font-weight:600;opacity:.92;margin-top:2px}
+  .mc-reana-prov{color:var(--muted);font-size:11px;font-weight:600;opacity:.92;margin-top:2px}
   /* Provisoire — présentation épurée : pastille de RÔLE (dit « hors ROI » une fois) + puce confiance. */
   .mc-prov-tag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
        color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);border-radius:7px;
@@ -2161,7 +2161,7 @@ CSS = """
   .mc-vc-val{margin-top:8px;font-size:11px;font-weight:800;letter-spacing:.01em}
   .mc-vc-val.pos{color:#a6e22e}
   .mc-vc-mk{color:var(--muted);font-weight:600}
-  .mc-vc-foot{margin-top:6px;font-size:10px;font-weight:600;color:var(--muted)}
+  .mc-vc-foot{margin-top:6px;font-size:11px;font-weight:600;color:var(--muted)}
   /* Traduction EN CLAIR du marché, sous la sélection (demande user 2026-07-13) — discrète, une flèche cyan. */
   .mc-gloss{margin-top:5px;font-size:12.5px;color:#8fa2b8;font-weight:600;line-height:1.35}
   .mc-gloss b{color:#c4d2e2;font-weight:700}
@@ -2249,7 +2249,7 @@ CSS = """
   .mc-sport.spc-basket,.cleg-sport.spc-basket{color:#ff9f43}
   .mc-sport.spc-tennis,.cleg-sport.spc-tennis{color:#d7e64a}
   .cleg-sep{color:var(--dim)}
-  .cleg-bdg{flex:none;font-size:10px;font-weight:900;padding:2px 7px;border-radius:7px;white-space:nowrap}
+  .cleg-bdg{flex:none;font-size:11px;font-weight:900;padding:2px 7px;border-radius:7px;white-space:nowrap}
   .cleg-bdg.p{background:rgba(232,184,74,.16);color:var(--gold)}
   /* Badge HEURE d'une jambe à venir : MÊME couleur neutre que les provisoires (.mc-up) — demande user. */
   .cleg-bdg.up{background:rgba(255,255,255,.06);color:var(--muted)}
@@ -2370,7 +2370,8 @@ CSS = """
   @media (prefers-reduced-motion:reduce){.dash-today > .zone{animation:none}}
   /* Sous-nav Résultats (refonte user 2026-07-27) : Bilan / Calendrier segmenté */
   .resnav{display:flex;gap:7px;margin:2px 0 12px}
-  .resnav-b{flex:1;padding:9px 6px;border-radius:11px;background:rgba(255,255,255,.04);
+  .resnav-b{flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;
+    padding:9px 6px;border-radius:11px;background:rgba(255,255,255,.04);
     border:1px solid var(--border);color:var(--muted);font-weight:800;font-size:12.5px;cursor:pointer;
     transition:background .12s,border-color .12s,color .12s}
   .resnav-b.on{background:rgba(34,184,255,.16);border-color:rgba(34,184,255,.5);color:#fff}
@@ -2423,7 +2424,7 @@ CSS = """
   .zone-n{font-size:11px;font-weight:800;min-width:19px;height:19px;padding:0 6px;border-radius:10px;
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
-  .zone-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
+  .zone-tag{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
   /* Sous-titre collé au titre de zone (ex. « Palier N » sous « MONTANTE ») : plus PETIT, casse normale (user 2026-08-22). */
   .zone-sub{margin-left:8px;font-size:11.5px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--muted);align-self:center}
   /* Badge compteur + chevron POUSSÉS À DROITE (user 2026-08-17 : « badge aligné à droite près de la flèche »). */
@@ -2469,14 +2470,14 @@ CSS = """
   .pgm-title{font-size:14px;font-weight:800;color:var(--text);letter-spacing:.04em;text-transform:uppercase}
   .pgm-hr{flex:none;display:inline-flex;align-items:baseline;gap:9px}
   .pgm-count{font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
-  .pgm-chev{font-size:10px;color:var(--muted);transition:transform .2s ease;transform:rotate(-90deg)}
+  .pgm-chev{font-size:11px;color:var(--muted);transition:transform .2s ease;transform:rotate(-90deg)}
   .pgm-fold[open] .pgm-chev{transform:rotate(0deg)}
   .pgm-legend{font-size:10.5px;color:var(--muted);margin:5px 3px 12px;line-height:1.45}
   .pgm-legend b{font-weight:800}
   .pgm-legend .pk1{color:var(--gold)} .pgm-legend .pk2{color:var(--accent)} .pgm-legend .pk3{color:var(--dim)}
   .pgm-list{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:14px;
     overflow:hidden;background:var(--surface);box-shadow:var(--shadow-sm)}
-  .pgm-day{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+  .pgm-day{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
     background:var(--bg2);padding:7px 13px;border-bottom:1px solid var(--border)}
   /* LIGNE = heure (ancre) · équipes+ligue (héros) · chip type + pastille statut à droite (user 2026-08-16). */
   .pgm-row{display:flex;align-items:center;gap:11px;padding:10px 13px;border-bottom:1px solid var(--border);
@@ -2504,7 +2505,7 @@ CSS = """
   .pgg-clk{flex:none}
   /* Sous-groupe PAR LIGUE : intertitre CENTRÉ discret, une SEULE fois par ligue (user 2026-08-18). */
   .pgg-lgroup + .pgg-lgroup{margin-top:9px}
-  .pgg-lgh{text-align:center;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;
+  .pgg-lgh{text-align:center;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;
        letter-spacing:.05em;padding:1px 8px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* LIGNE match : logo DOMICILE à gauche · équipes CENTRÉES · logo EXTÉRIEUR à droite (user 2026-08-18). */
   .pgg-row{display:flex;align-items:center;gap:12px;padding:7px 8px;border-radius:11px}
@@ -2542,7 +2543,7 @@ CSS = """
   .pgm-typ.t-abst{color:var(--dim);background:none;border:1px solid var(--border);font-weight:700}
   .pgm-typ.t-wait{color:var(--muted);background:none;border:1px solid var(--border);font-weight:700}
   /* Option « masquer les abstentions » : chip cliquable (case à cocher CSS pure, pas de JS) */
-  .pgm-toggle{display:inline-block;margin:2px 3px 11px;font-size:10px;font-weight:700;letter-spacing:.03em;
+  .pgm-toggle{display:inline-block;margin:2px 3px 11px;font-size:11px;font-weight:700;letter-spacing:.03em;
     color:var(--muted);cursor:pointer;padding:4px 11px;border:1px solid var(--border);border-radius:20px;
     user-select:none;-webkit-tap-highlight-color:transparent}
   .pgm-hideabst:checked ~ .pgm-toggle{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
@@ -2713,7 +2714,7 @@ CSS = """
   .dsp-ic{font-size:15px;line-height:1}
   .dsp-v{font-size:16px;font-weight:900;color:#eaf2ff;font-variant-numeric:tabular-nums}
   .dsp-v.pos{color:#3ee089} .dsp-v.neg{color:#ff7484} .dsp-v.neu{color:#cfe0f5}
-  .dsp-l{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .dsp-l{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
   .dash-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:14px 0 4px}
   .dash-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
        padding:15px 6px;border-radius:15px;text-decoration:none;font-size:11.5px;font-weight:800;
@@ -2822,7 +2823,7 @@ CSS = """
   .sx-dd-res.dd-p{color:#0b1428;background:#9fb0c8}
   .sx-dd-m{min-width:0;flex:1}
   .sx-dd-t{font-size:12px;font-weight:800;color:var(--text);line-height:1.3}
-  .sx-dd-s{font-size:10px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;
+  .sx-dd-s{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;
        text-overflow:ellipsis}
   .sx-dd-r{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
   .sx-dd-c{font-size:11.5px;font-weight:800;color:#cfe0f5;font-variant-numeric:tabular-nums}
@@ -2843,7 +2844,7 @@ CSS = """
   /* Héro « le plus sûr » */
   .da-vc-top{position:relative;padding:10px 12px;margin-bottom:10px;border-radius:12px;
        background:rgba(255,255,255,.04);border:1px solid var(--border)}
-  .da-vc-lbl{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  .da-vc-lbl{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
        color:var(--accent);margin-bottom:5px}
   .da-vc-pick{font-size:17px;font-weight:800;color:#fff;line-height:1.25;
        display:flex;align-items:center;flex-wrap:wrap;gap:8px}
@@ -2876,7 +2877,7 @@ CSS = """
        margin-bottom:7px;text-transform:uppercase;letter-spacing:.03em}
   .da-combo-n{font-weight:700;color:#cdb98a;opacity:.85}     /* « · N jambes » à côté de Combiné */
   .da-combo-c{margin-left:auto;background:#ffb020;color:#1a1200;border-radius:6px;padding:1px 7px;font-weight:800}  /* cote totale : coin haut-droite */
-  .da-combo-b{font-size:10px;border-radius:5px;padding:1px 7px;font-weight:800}
+  .da-combo-b{font-size:11px;border-radius:5px;padding:1px 7px;font-weight:800}
   .da-combo-b.won{background:#34d27b;color:#04220f}
   .da-combo-b.lost{background:#ff6b6b;color:#2a0606}
   .da-combo-b.void{background:#9fb0c8;color:#0b1428}
@@ -2896,7 +2897,7 @@ CSS = """
   .da-cl-live{color:#ffd98a}
   .da-cl-p{font-variant-numeric:tabular-nums;font-size:10.5px;color:#9fb0c8;
        background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
-  .da-cl-pr{font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;border:1px solid;
+  .da-cl-pr{font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;border:1px solid;
        font-variant-numeric:tabular-nums}                    /* pastille CHANCE de la jambe */
   .da-cl-pr.hi{color:#2ec98a;border-color:rgba(46,201,138,.45);background:rgba(46,201,138,.12)}
   .da-cl-pr.mid{color:#22b8ff;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
@@ -2910,7 +2911,7 @@ CSS = """
      Fond sombre dégradé + accent cyan, pastilles de cote vertes, justif. par jambe (barre latérale). */
   .tkt{background:linear-gradient(160deg,#101b29,#0a0f17 60%,#080c13);border:1px solid rgba(34,184,255,.5);
        border-radius:15px;padding:13px 14px 12px;margin-top:10px;box-shadow:inset 0 0 50px rgba(34,184,255,.05)}
-  .tkt-h{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:800;letter-spacing:.08em;
+  .tkt-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.08em;
        color:#9fe7c0;text-transform:uppercase}
   .tkt-h .n{color:#7fbfa4;opacity:.8;font-weight:700}
   .tkt-h .b{font-size:9.5px;border-radius:6px;padding:2px 8px;font-weight:800;letter-spacing:.03em}
@@ -2918,7 +2919,7 @@ CSS = """
   .tkt-h .b.lost{background:#ff6b6b;color:#2a0606}
   .tkt-h .b.void{background:#9fb0c8;color:#0b1428}
   .tkt-h .b.live{background:rgba(52,210,123,.2);color:#7ff0b6;animation:combopulse 1.6s ease-in-out infinite}
-  .tkt-h .top{margin-left:auto;color:#6fb4d8;font-weight:700;text-transform:none;letter-spacing:0;font-size:10px}
+  .tkt-h .top{margin-left:auto;color:#6fb4d8;font-weight:700;text-transform:none;letter-spacing:0;font-size:11px}
   .tkt-synth{font-size:11.5px;font-weight:500;color:#d0dfef;line-height:1.42;margin:9px 0 2px;
        background:rgba(34,184,255,.07);border:1px solid rgba(34,184,255,.16);border-radius:10px;padding:9px 11px}
   .tkt-leg{margin-top:12px}
@@ -2931,7 +2932,7 @@ CSS = """
   .tkt-pr.hi{color:#2ec98a;border-color:rgba(46,201,138,.45);background:rgba(46,201,138,.12)}
   .tkt-pr.mid{color:#22b8ff;border-color:rgba(34,184,255,.45);background:rgba(34,184,255,.12)}
   .tkt-pr.lo{color:#ffb020;border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.12)}
-  .tkt-p{font-size:10px;color:#9fb0c8;background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
+  .tkt-p{font-size:11px;color:#9fb0c8;background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px}
   .tkt-mk{font-size:12px;line-height:1}
   .tkt-why{font-size:11px;font-weight:400;color:#a7bcd6;line-height:1.42;margin:5px 0 2px;
        padding-left:10px;border-left:2px solid rgba(63,184,255,.4)}
@@ -2940,7 +2941,7 @@ CSS = """
   .tkt-leg.void .tkt-sel{text-decoration:line-through dotted;color:#aeb9c9;opacity:.7}
   .tkt-cote{display:flex;justify-content:space-between;align-items:flex-end;margin-top:15px;padding-top:12px;
        border-top:1px solid rgba(255,255,255,.08)}
-  .tkt-cote .l{font-size:10px;color:#90a4be;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+  .tkt-cote .l{font-size:11px;color:#90a4be;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
   .tkt-cote .v{font-size:27px;font-weight:900;color:#fff;line-height:1;font-variant-numeric:tabular-nums}
   .tkt.won{border-color:rgba(52,210,123,.5)} .tkt.lost{border-color:rgba(255,107,107,.45)}
   .tkt.void{border-color:rgba(159,176,200,.4)}
@@ -2964,7 +2965,7 @@ CSS = """
      double retrait -> plus étroite que la barre d'avant-match). Elle épouse la largeur du bloc .vb-live. */
   .vm .vb-live .vb-bar{margin:0;padding-top:0;border-top:none}
   .vb-live-hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
-  .vb-live-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text)}   /* « Confiance live » en BLANC (user 2026-08-15) */
+  .vb-live-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text)}   /* « Confiance live » en BLANC (user 2026-08-15) */
   .vb-live-v{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:#e6eefa}
   .vb-live-ar{margin-left:3px;font-size:9.5px}
   .vb-live .vb-bar{order:0;margin-top:0}
@@ -3026,7 +3027,7 @@ CSS = """
   /* Verdict façon Bull (test 2026-08-15) : la grille = petite carte tintée (la Value RESTE comme avant). */
   .vm{background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:14px;padding:11px 4px;
        box-shadow:0 2px 12px -6px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.04)}   /* cadre du pari plus visible (user 2026-08-15) */
-  .vb-reana{margin-top:11px;font-size:10px;font-weight:600;color:#7f93aa;text-align:center}
+  .vb-reana{margin-top:11px;font-size:11px;font-weight:600;color:#7f93aa;text-align:center}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
   .tkt-value.vpos{color:#08180e;background:linear-gradient(180deg,#4be39b,#22c07d);
@@ -3052,7 +3053,7 @@ CSS = """
   .da-bets{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px;
        background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
   .da-bets th{background:var(--surface2);color:var(--muted);font-weight:700;text-align:left;
-       padding:7px 9px;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+       padding:7px 9px;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
   .da-bets td{padding:8px 9px;vertical-align:middle;border-top:1px solid rgba(255,255,255,.05)}
   .da-bp{font-weight:700;color:var(--text);width:42%}
   .da-bpr{width:34%}
@@ -3106,7 +3107,7 @@ CSS = """
   .da-bx-ic{flex:none;width:24px;height:24px;border-radius:7px;display:inline-flex;align-items:center;
        justify-content:center;font-size:13px;line-height:1;background:rgba(255,255,255,.05);
        border:1px solid rgba(255,255,255,.08)}
-  .da-bx-lbl{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+  .da-bx-lbl{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
   .da-bx.skip .da-bx-lbl{color:#ffb163}
   .da-bx.mise .da-bx-lbl{color:var(--accent)}
   .da-bx-t{font-size:11.5px;line-height:1.55;color:var(--muted)}
@@ -3170,7 +3171,7 @@ CSS = """
   .da-ev.neu{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)}
   .da-ev.neg{background:rgba(246,197,74,.13);color:var(--gold);border:1px solid rgba(246,197,74,.3)}
   /* Résultat PAR pari (après match) : cadre VERT (gagné) / ROUGE (perdu) / gris (remboursé) + halo */
-  .da-bk-mark{margin-left:auto;font-size:10px;font-weight:900;padding:2px 8px;border-radius:99px;
+  .da-bk-mark{margin-left:auto;font-size:11px;font-weight:900;padding:2px 8px;border-radius:99px;
        letter-spacing:.02em}
   .da-bk-mark.mk-w{color:#06140d;background:#34d27b}
   .da-bk-mark.mk-l{color:#fff;background:#ff6b6b}
@@ -3227,7 +3228,7 @@ CSS = """
   .da-faits-b .da-ul li::before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;
        border-radius:99px;background:var(--accent)}
   .da-faits-b a{display:inline-block;padding:1px 8px;margin:1px 2px 1px 0;border-radius:99px;
-       font-size:10px;font-weight:700;color:var(--accent);background:rgba(255,255,255,.05);
+       font-size:11px;font-weight:700;color:var(--accent);background:rgba(255,255,255,.05);
        border:1px solid var(--border);text-decoration:none;vertical-align:baseline}
   /* --- Bloc Tendances (séries SofaScore mappées aux marchés) --- */
   .strk{display:flex;flex-direction:column;gap:10px}
@@ -3327,7 +3328,7 @@ CSS = """
        border:1px solid rgba(52,210,123,.4);border-radius:14px;font-size:12.5px;color:var(--text);
        background:linear-gradient(180deg,rgba(52,210,123,.10),rgba(52,210,123,.03))}
   .dash-livebar .nr-dot{width:9px;height:9px;flex:none}
-  .dash-livebar-go{margin-left:auto;font-size:10px;font-weight:800;color:#34d27b;
+  .dash-livebar-go{margin-left:auto;font-size:11px;font-weight:800;color:#34d27b;
        text-transform:uppercase;letter-spacing:.04em}
   /* Carte « Évolution du profit » (/stats) : courbe d'équité unique + repères */
   .sx-card{background:rgba(34,184,255,.055);   /* teinte UNIE : fond stable à l'ouverture de l'historique */
@@ -3371,7 +3372,7 @@ CSS = """
   .mont-hero{text-align:center;padding:18px 14px 15px;margin:2px 0 14px;border-radius:18px;
        border:1px solid rgba(52,210,123,.5);background:linear-gradient(180deg,rgba(52,210,123,.12),rgba(52,210,123,.02));
        box-shadow:0 0 34px rgba(52,210,123,.16),var(--shadow-sm)}
-  .mont-hero-l{font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .mont-hero-l{font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
   .mont-hero-cap{font-size:46px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:6px 0 4px;
        color:#34d27b;font-variant-numeric:tabular-nums}
   .mont-hero-sub{font-size:12.5px;color:var(--muted);font-weight:600}
@@ -3458,7 +3459,7 @@ CSS = """
   .mont-step-g{display:block;font-size:11.5px;font-weight:800;color:var(--muted);margin-top:1px}
   .mont-step-g.up{color:#64cd8d} .mont-step-g.dn{color:#ff8a8a}
   /* MISE bien visible (demande user 2026-07-25) : label discret + montant lisible. */
-  .mont-step-mise{display:block;font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.02em}
+  .mont-step-mise{display:block;font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.02em}
   .mont-step-mise b{color:var(--text);font-weight:800}
   /* MONTANTE fusionnée dans Confiance (user 2026-08-08) : titre « MONTANTE • PALIER N » DANS le cadre BLEU,
      centré, BLANC, MAJUSCULE, sans emoji, + fine ligne dessous. La carte = LA MÊME que l'onglet Montante. */
@@ -3499,7 +3500,7 @@ CSS = """
   .mont-hrow-b{flex:none;width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;
        font-size:12px;background:rgba(255,107,107,.15);color:#ff6b6b}
   .mont-hrow-m{flex:1;min-width:0;font-size:12px;color:var(--text)}
-  .mont-hrow-m span{display:block;font-size:10px;color:var(--muted);margin-top:2px}
+  .mont-hrow-m span{display:block;font-size:11px;color:var(--muted);margin-top:2px}
   .mont-hrow-v{flex:none;font-size:13px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
   .mont-empty{text-align:center;color:var(--muted);font-size:12px;padding:18px 12px;line-height:1.5;
        border:1px dashed var(--border);border-radius:13px}
@@ -3517,7 +3518,7 @@ CSS = """
   .mcal-sum.neg{background:radial-gradient(120% 80% at 50% 0,rgba(255,107,107,.06),rgba(255,255,255,.015) 60%,transparent)}
   .mcal-sum-hero{text-align:center;font-size:38px;font-weight:900;line-height:1;letter-spacing:-.025em;
        font-variant-numeric:tabular-nums}
-  .mcal-sum-lb{display:block;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+  .mcal-sum-lb{display:block;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
        color:var(--muted);margin-top:5px}
   .mcal-eq{margin:12px 0 4px}
   .mcal-eq .sx-heroc{max-height:none;width:100%;height:auto}   /* pleine largeur, MÊME rendu que les courbes Stats */
@@ -3553,7 +3554,7 @@ CSS = """
   .mcal-today{box-shadow:0 0 0 1.5px rgba(34,184,255,.55)}
   .mcal-has{cursor:default}   /* détail au clic retiré (user 2026-08-19) : cases = affichage seul */
   /* Légende + note */
-  .mcal-legend{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;font-size:10px;
+  .mcal-legend{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;font-size:11px;
        color:var(--muted)}
   .mcal-lg{display:inline-flex;align-items:center;gap:5px;font-weight:700}
   .mcal-lg::before{content:"";width:11px;height:11px;border-radius:4px;display:inline-block}
@@ -3569,9 +3570,9 @@ CSS = """
   .sx-leg{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06)}
   .sx-leg-t{flex:1;min-width:0;line-height:1.28;font-size:11.5px}
   .sx-leg-t small{display:block;color:var(--muted);font-size:9.5px}
-  .sx-leg-x{flex:none;font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .sx-leg-x{flex:none;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
   .sx-leg-live{flex:none;color:#5fe39b;font-weight:800;font-size:10.5px}
-  .sx-bdg{flex:none;width:19px;height:19px;border-radius:6px;color:#0a0a0a;font-weight:900;font-size:10px;
+  .sx-bdg{flex:none;width:19px;height:19px;border-radius:6px;color:#0a0a0a;font-weight:900;font-size:11px;
        display:flex;align-items:center;justify-content:center}
   .sx-bdg.w{background:#34d27b}.sx-bdg.l{background:#ff6b6b}.sx-bdg.n{background:#9a9aa6}
   .sx-bdg.p{background:var(--gold)}
@@ -3579,13 +3580,13 @@ CSS = """
   .sx-group{display:flex;align-items:center;gap:10px;margin:18px 2px 2px;font-size:11px;font-weight:900;
        letter-spacing:.10em;text-transform:uppercase;color:var(--gold)}
   .sx-group::before{content:"";flex:0 0 14px;height:2px;border-radius:2px;background:var(--gold);opacity:.8}
-  .sx-group span{font-size:10px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0}
+  .sx-group span{font-size:11px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0}
   /* HERO en tête de la page Stats : le chiffre clé (ROI global) + courbe globale — l'argument n°1. */
   .sx-hero{text-align:center;padding:15px 14px 12px;margin:2px 0 8px;border-radius:18px;
        border:1px solid rgba(34,184,255,.55);
        background:linear-gradient(180deg,rgba(34,184,255,.13),rgba(34,184,255,.02));
        box-shadow:0 0 34px rgba(34,184,255,.18),var(--shadow-sm)}
-  .sx-hero-lbl{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .sx-hero-lbl{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
   .sx-hero-roi{font-size:48px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:5px 0 3px;
        font-variant-numeric:tabular-nums}
   .sx-hero-roi.pos{color:#34d27b}.sx-hero-roi.neg{color:#ff6b6b}
@@ -4358,7 +4359,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
 <meta name="color-scheme" content="dark">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
@@ -4404,7 +4405,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070708">
 <meta name="color-scheme" content="dark">
 <title>{e(title)} · BETSFIX</title>
@@ -8255,11 +8256,11 @@ _LZ_CSS = """
   border-left:1px solid var(--line);min-width:0}
 .lz .dm-st:first-child{border-left:none}
 /* pastille d'annotation d'une CELLULE métrique : centrée AU-DESSUS du libellé (plus par-dessus) — user 2026-08-22 */
-.lz .dc-tag.dm-ct{position:absolute;top:0;left:50%;transform:translateX(-50%);margin:0;width:17px;height:17px;font-size:10px;z-index:2}
-.lz .dm-l{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.lz .dc-tag.dm-ct{position:absolute;top:0;left:50%;transform:translateX(-50%);margin:0;width:17px;height:17px;font-size:11px;z-index:2}
+.lz .dm-l{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
 .lz .dm-v{font-size:18px;font-weight:800;line-height:1.05;white-space:nowrap}.lz .dm-v.green{color:var(--green)}
 .lz .dm-st:first-child .dm-v,.lz .dm-st:last-child .dm-v{font-size:20px}   /* Confiance & Cote = héros, comme la vraie carte */
-.lz .dm-s{font-size:10px;color:var(--green);font-weight:700}
+.lz .dm-s{font-size:11px;color:var(--green);font-weight:700}
 .lz .dm-barwrap{height:9px;border-radius:999px;background:rgba(255,255,255,.06);margin-top:14px;overflow:hidden}
 .lz .dm-bar{height:100%;border-radius:999px;background:linear-gradient(90deg,#1f9d57,#37d07f)}
 .lz .dc-why{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:var(--ink);
@@ -8269,7 +8270,7 @@ _LZ_CSS = """
 /* Numéros d'annotation : badge à DROITE de la ligne (.dc-tr) ou coin HAUT-GAUCHE d'un bloc (.dc-cc). */
 .lz .dc-why{padding-right:30px}
 .lz .dc-tag.dc-tr{position:absolute;top:50%;right:4px;transform:translateY(-50%);margin:0}
-.lz .dc-tag.dc-cc{position:absolute;top:5px;left:5px;margin:0;width:17px;height:17px;font-size:10px;z-index:2}
+.lz .dc-tag.dc-cc{position:absolute;top:5px;left:5px;margin:0;width:17px;height:17px;font-size:11px;z-index:2}
 .lz .dc-legend{display:flex;flex-direction:column;gap:16px}
 .lz .dc-li{display:flex;gap:12px;align-items:flex-start}.lz .dc-li .dc-tag{margin:1px 0 0;flex:0 0 auto}
 .lz .dc-li b{font-size:15px}.lz .dc-li p{font-size:13.5px;color:var(--dim);margin-top:2px}
