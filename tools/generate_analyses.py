@@ -870,8 +870,10 @@ def _combo_leg_from_analysis(bet: dict, d: dict) -> dict | None:
         return None
 
 
-def _harvest_analyzed_bets(day: str) -> list[dict]:
+def _harvest_analyzed_bets(day: str, ko_from=None, ko_to=None) -> list[dict]:
     """Récolte les PARIS RETENUS (Confiance/Value) des simples foot du JOUR SPORTIF `day`, encore À VENIR.
+    `ko_from/ko_to` (user 2026-08-30) : si fournis, RESTREINT à la bande de coup d'envoi (heure belge) —
+    slate JOUR (6->21) pour le « Combiné du jour », slate NUIT (21->6) pour le « Combiné du soir ».
     Itère les sidecars via `analyses.iter_meta("foot")` (même source que le reste du code), et pour chaque
     match avec un pari retenu (`analyses.retained_bet`) renvoie un dict :
       {mid, name, home, away, start, comp, sel, code, cote, cprob(0-100), tier}
@@ -893,6 +895,9 @@ def _harvest_analyzed_bets(day: str) -> list[dict]:
                 _sd = (d.get("start") or "")[:10]
             if _sd != day:
                 continue
+            if ko_from is not None and ko_to is not None \
+                    and not _in_ko_band(d.get("start") or "", ko_from, ko_to):
+                continue                                          # hors du slate demandé (jour vs nuit)
             mid = str(d.get("id") or "")
             if not mid:
                 continue
@@ -947,21 +952,23 @@ def _montante_from_analyzed(harvest: list[dict]) -> dict | None:
     return best
 
 
-async def _build_combo_montante_from_analysis(day: str, client) -> None:
-    """FIN de la passe ANALYSE BATCH du matin (tous les sidecars du slate écrits) : reconstruit LE combiné du
-    jour ET la montante depuis les PARIS ANALYSÉS (Confiance/Value), au lieu de la logique mécanique Pinnacle.
-    Idempotent (record_daily/record_day refusent si déjà figé aujourd'hui). Site-only (aucun Telegram/push).
-    Tout est try/except : un échec logue et continue, il ne casse JAMAIS le scan/les simples."""
+async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko_to=None, variant: str = "") -> None:
+    """FIN de la passe ANALYSE BATCH d'un slate : construit le COMBINÉ (du jour OU du soir) depuis les PARIS
+    ANALYSÉS (Confiance/Value) du slate, + la montante. DEUX combinés/jour (user 2026-08-30) : `variant=""` +
+    bande JOUR (6->21) = « Combiné du jour » (au scan matin) ; `variant="soir"` + bande NUIT (21->6) =
+    « Combiné du soir » (au scan soir). Vivier scopé par bande KO. Idempotent (record_daily refuse si déjà figé
+    ce jour pour CE variant). HORS ROI. Site-only. Tout try/except : un échec logue, ne casse JAMAIS le scan."""
     from app import combo_daily as _cdaily
     from app import combo_safe as _csafe
-    harvest = _harvest_analyzed_bets(day)
-    print(f"  🧮 Combiné/montante depuis l'analyse : {len(harvest)} pari(s) retenu(s) récolté(s) pour {day}.")
+    _clabel = "Combiné du soir" if variant == "soir" else "Combiné du jour"
+    harvest = _harvest_analyzed_bets(day, ko_from, ko_to)
+    print(f"  🧮 {_clabel} depuis l'analyse : {len(harvest)} pari(s) retenu(s) récolté(s) pour {day}.")
 
     # ── COMBINÉ DU JOUR : 2-5 jambes SÛRES vers ~1.95 ────────────────────────────────────────────
     try:
-        _prev = _cdaily.today(day)
+        _prev = _cdaily.today(day, variant=variant)
         if _prev and (_prev.get("sent") or _prev.get("result")):
-            print("  🎯 Combiné du jour : déjà figé aujourd'hui -> conservé.")
+            print(f"  🎯 {_clabel} : déjà figé aujourd'hui -> conservé.")
         else:
             legs: list[dict] = []
             for h in harvest:
@@ -992,17 +999,17 @@ async def _build_combo_montante_from_analysis(day: str, client) -> None:
                         _analyze_combo_legs(_cb, facts_by_mid=_fbm)
                 except Exception as _cae:
                     print(f"    (analyse jambes combiné ignorée : {_cae})")
-                if _cdaily.record_daily(_cb, day):
-                    _cdaily.mark_sent(day)
+                if _cdaily.record_daily(_cb, day, variant=variant):
+                    _cdaily.mark_sent(day, variant=variant)
                     _fcl = " | ".join(f"{l.get('home')} ({l.get('sel')} @{l.get('cote')})" for l in _cb["legs"])
-                    print(f"  🎯 Combiné du jour (analyse, figé) : cote {_cb['cote']} · "
+                    print(f"  🎯 {_clabel} (analyse, figé) : cote {_cb['cote']} · "
                           f"{round(_cb['prob'] * 100)}% · {len(_cb['legs'])} jambes : {_fcl}")
                 else:
-                    print("  🎯 Combiné du jour : record refusé (déjà figé ?) -> conservé.")
+                    print(f"  🎯 {_clabel} : record refusé (déjà figé ?) -> conservé.")
             else:
-                print("  🎯 Combiné du jour : PASS — pas assez de jambes SÛRES analysées pour atteindre la cote.")
+                print(f"  🎯 {_clabel} : PASS — pas assez de jambes SÛRES analysées pour atteindre la cote.")
     except Exception as _cce:
-        print(f"  (combiné du jour depuis l'analyse ignoré : {_cce})")
+        print(f"  ({_clabel} depuis l'analyse ignoré : {_cce})")
 
     # ── MONTANTE : LE pari le PLUS SÛR du jour ────────────────────────────────────────────────────
     try:
@@ -4143,8 +4150,15 @@ async def main():
         # les vagues (`--refresh-early` = vivier incomplet) ni les scans ciblés. Idempotent + best-effort (isolé).
         if COMBO_MONTANTE_FROM_ANALYSIS and args.daily_combo and args.from_programme \
                 and not args.refresh_early and not args.match:
+            # DEUX COMBINÉS/JOUR (user 2026-08-30) : le variant DÉRIVE de la bande KO du scan -> bande NUIT
+            # (21->6) = « Combiné du soir » (variant "soir", scan du soir) ; sinon = « Combiné du jour »
+            # (variant "", scan du matin). Vivier scopé au slate -> le combiné du jour ne rate plus les matchs
+            # de jour (qui, en construction du soir, étaient déjà joués).
+            _is_night_combo = (args.ko_from == _SLATE_BOUNDARY_H and args.ko_to == _DAY_START_H)
+            _combo_variant = "soir" if _is_night_combo else ""
             try:
-                await _build_combo_montante_from_analysis(_day, client)
+                await _build_combo_montante_from_analysis(_day, client, ko_from=args.ko_from,
+                                                          ko_to=args.ko_to, variant=_combo_variant)
             except Exception as _bmaexc:
                 print(f"  (combiné/montante depuis l'analyse ignorés : {_bmaexc})")
         _prev = _cdaily.today(_day)

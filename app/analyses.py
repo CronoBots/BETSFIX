@@ -3123,7 +3123,7 @@ def _combo_rule_void(day: str) -> bool:
 # le chip « C » du résumé perf est masqué et l'onglet Combiné ne porte PAS de chip ROI. `combo_stats()` reste
 # EXACT. N'affecte NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone, NI la calibration, NI la
 # carte combiné du jour. Remettre True pour recompter les combinés comme un ROI en tête.
-COMBO_ROI_ON = True   # user 2026-08-20 (soir) : « compte le combiné dans le ROI » -> recompté dans all_ev (hors-règle 08/08→20/08 exclus via _combo_rule_void)
+COMBO_ROI_ON = False  # user 2026-08-30 : DEUX combinés/jour (jour+soir) HORS ROI (le temps de valider le split) -> combinés en affichage seul, ROI phare = simples seuls, UI affiche « hors ROI »
 MONTANTE_ROI_ON = False  # user 2026-08-29 : montante DÉSACTIVÉE (refonte de la sélection à venir) -> RIEN dans
 #                          la catégorie montante ; les matchs montante-mids reviennent à leur tier réel
 #                          (confiance/value) via tier_of. Réactiver = True + recréer data/montante_active.flag.

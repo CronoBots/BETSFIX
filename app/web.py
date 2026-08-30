@@ -7575,7 +7575,7 @@ def _sport_pronos_counts(match_rows: list) -> dict:
                    and not (sp == "foot" and _mont_pair and _prog_pair(r.get("home"), r.get("away")) == _mont_pair))
         try:
             # UN SEUL combiné/jour (user 2026-08-20) -> variant "" seulement.
-            _cvars = ("",)
+            _cvars = ("", "soir")
             combo = 0
             for _cv in _cvars:
                 _cbt = _cd.today(_day, sport=sp, variant=_cv)
@@ -7756,7 +7756,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # CHAQUE type de pari GARDE ses matchs réglés DANS sa section (demande user 2026-08-01 : plus de zone
     # « Résultats du jour » séparée en bas -> la carte affiche le résultat/score en place). -> include_settled=True.
     # UN SEUL COMBINÉ du jour (user 2026-08-20 : retour au combiné sécurité unique du 29/07-07/08). Hors ROI.
-    combo_daily = _combo_tg_card(include_settled=True, sport=(sport or "foot"), title="COMBINÉ")
+    # DEUX COMBINÉS (user 2026-08-30) : « Combiné du jour » (variant "") + « Combiné du soir » (variant "soir"),
+    # MÊME présentation (titre sans « SÛR »/« COTE 2 » -> accent par défaut). Chacun bâti à SON scan (matin/soir).
+    combo_daily = _MC_SEP.join([c for c in (
+        _combo_tg_card(include_settled=True, sport=(sport or "foot"), title="COMBINÉ DU JOUR", variant=""),
+        _combo_tg_card(include_settled=True, sport=(sport or "foot"), title="COMBINÉ DU SOIR", variant="soir"),
+    ) if c])
     _is_foot_view = sport in (None, "foot")
     # (Zone « Combiné » séparée RETIRÉE le 2026-08-02 : la double chance EST désormais le
     #  « Combiné football » ci-dessus (combo_daily), compté au ROI. Plus de carte combiné distincte.)
@@ -7910,7 +7915,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         try:
             from app import combo_daily as _cd2
             _tot = _up = _clive = _won = _lost = _pend = 0
-            for _var in ("",):
+            for _var in ("", "soir"):
                 _cbt = _cd2.today(today_iso, sport=(sport or "foot"), variant=_var) or {}
                 if not _cbt.get("legs"):
                     continue
@@ -7992,7 +7997,7 @@ def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
         try:
             from app import combo_daily as _cd
             _cards = []
-            for _cv, _ct in (("", "COMBINÉ"),):
+            for _cv, _ct in (("", "COMBINÉ DU JOUR"), ("soir", "COMBINÉ DU SOIR")):
                 _c = _cd.today(iso, variant=_cv)
                 if _c and _c.get("legs") and not analyses._combo_rule_void(iso):
                     _cards.append(_combo_tg_card(include_settled=True, cb=_c, title=_ct))
@@ -11074,7 +11079,7 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
     if analyses._combo_rule_void(day):                     # combiné hors-règle -> ni Live ni historique
         return []
     rows, seen = [], set()
-    for _var in ("",):
+    for _var in ("", "soir"):
         cb = _cd.today(day, sport=sport, variant=_var)
         if not cb:
             continue

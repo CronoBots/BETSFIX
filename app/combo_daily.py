@@ -142,7 +142,7 @@ def leg_names(day: str | None = None) -> list:
     dans un fichier dédié `combo_daily_cote2.json`) — sinon les jambes du Cote 2 (ex. Coquimbo) fuitaient dans
     la grille « Programme du jour » = doublon (match affiché à la fois en combiné ET en programme)."""
     out: list = []
-    for _var in ("", "cote2"):
+    for _var in ("", "cote2", "soir"):
         d = _load(variant=_var)
         days = [d.get(day)] if day is not None else list(d.values())
         for entry in days:
@@ -483,7 +483,8 @@ def settle_all() -> int:
     """Règle les combinés du jour de TOUS les sports (foot compté au ROI + tennis/basket simulés) + la
     VARIANTE « Cote 2 » du foot (2ᵉ combiné du jour, hors ROI, user 2026-08-19)."""
     return (sum(settle_pending(sp) for sp in ("foot",) + SIM_SPORTS)
-            + settle_pending("foot", "cote2"))
+            + settle_pending("foot", "cote2")
+            + settle_pending("foot", "soir"))     # « Combiné du soir » (user 2026-08-30)
 
 
 def settle_pending(sport: str = "foot", variant: str = "") -> int:
@@ -763,7 +764,8 @@ def roi_events(d: dict | None = None, variant: str = "") -> list:
     `_combo_result_profit` (profit + 1). Frozen dès le règlement -> compteur MONOTONE.
     `variant` (user 2026-08-19) : « cote2 » -> événements du 2ᵉ combiné du jour (bilan combinés, hors ROI officiel)."""
     d = _load("foot", variant) if d is None else d
-    _tier_lbl = "Combiné Cote 2" if variant == "cote2" else "Combiné du jour"
+    _tier_lbl = ("Combiné du soir" if variant == "soir"
+                 else "Combiné Cote 2" if variant == "cote2" else "Combiné du jour")
     out = []
     for cb in d.values():
         if not isinstance(cb, dict) or cb.get("result") not in ("won", "lost"):

@@ -60,7 +60,7 @@ if (Test-Path $flag) {
     # sur données fraîches (compos/blessures/cotes) -> re-post si changé, abstention s'il ne valide plus. C'est
     # la mécanique de la période gagnante, sans les flips visibles (rien n'est posté avant d'être vérifié).
     Log 'SCAN MATIN : SLATE JOUR analysé SANS publier (--no-notify) -> publication à la vague KO - 1 h'
-    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --from-programme --force --no-notify --ko-from 6 --ko-to 21 2>&1 |
+    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --from-programme --force --no-notify --daily-combo --ko-from 6 --ko-to 21 2>&1 |
         Add-BfxStream $log
     Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
 }
