@@ -1758,10 +1758,17 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         return None
     if sport == "foot":       # map des VRAIES cotes Unibet par code -> re-pricing du sidecar (cf. _UNIBET_OMAP)
         try:
-            _UNIBET_OMAP[str(match["id"])] = _unibet_odds_map(bo.get("betOffers"),
-                                                              match.get("home", ""), match.get("away", ""))
-        except Exception:
-            pass
+            _om = _unibet_odds_map(bo.get("betOffers"), match.get("home", ""), match.get("away", ""))
+            _UNIBET_OMAP[str(match["id"])] = _om
+            # DIAGNOSTIC omap (user 2026-08-31) : si la capture échoue, on LOGUE le match + le nb de betOffers
+            # -> le prochain scan révèle QUELS matchs perdent leurs vraies cotes Unibet et pourquoi (fetch vide
+            # vs labels non reconnus). ~74% des sidecars historiques ont un omap vide (cotes fantômes = LLM).
+            if not _om:
+                _nbo = len(bo.get("betOffers") or [])
+                print(f"  ⚠️ COTES UNIBET NON CAPTÉES : {match.get('name', '?')} "
+                      f"(betOffers={_nbo}) -> cotes fantômes = estimations LLM (à surveiller).")
+        except Exception as _ome:
+            print(f"  ⚠️ omap KO {match.get('name','?')} : {_ome}")
     # Coupe du Monde : filtre RELÂCHÉ -> corners / premier but restent dispo pour bâtir un combiné
     # de marchés INDÉPENDANTS (non corrélés -> pas de réduction Unibet).
     big = _is_big_match(match.get("comp") or match.get("circuit") or "")
@@ -3567,6 +3574,13 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     if _sharp_map:
         side["sharp_map"] = _sharp_map  # map {code -> proba SHARP de-viggée} figée au scan -> comparaison carte + CLV
     _omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
+    if not _omap:                       # process courant n'a pas re-capté les cotes Unibet (ré-écriture, cache…)
+        try:                            # -> NE PAS PERDRE l'omap déjà écrit dans le sidecar (user 2026-08-31)
+            _prev_sc = json.load(open(os.path.join(OUT, f"{sport}_{fid}.json"), encoding="utf-8"))
+            if isinstance(_prev_sc.get("omap"), dict) and _prev_sc["omap"]:
+                _omap = _prev_sc["omap"]
+        except (OSError, ValueError):
+            pass
     if _omap:
         side["omap"] = _omap            # map {code -> vraie cote Unibet} persistée -> re-pricing read-time possible
     # INSTRUMENTATION SÉLECTION PAR EDGE (user 2026-08-20, étude edge : edge sharp > 0 -> +15,7% vs -4,4%).
