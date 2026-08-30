@@ -25,6 +25,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+import re
 from datetime import datetime, timezone, date
 
 from app import analyses
@@ -901,6 +902,72 @@ def _check_montante_active() -> dict:
                 "detail": f"vérif ignorée (non bloquante) : {e}", "items": []}
 
 
+def _check_upcoming_display_coherence(rows) -> dict:
+    """AFFICHAGE À VENIR == PARI MÉCANIQUE (régression user 2026-08-30, Telegram vs site). Un match À VENIR
+    publié affichait sur le site « Premier scan : Double chance X2 » (le pari mécanique publié sur Telegram)
+    ET « Dernier scan : Plus de 2.5 buts » — un pari JAMAIS publié ni joué, dérivé du pick BRUT de Claude
+    (`bets_of()[0]`), incohérent avec Telegram. Depuis la refonte, LE PARI = la sélection MÉCANIQUE
+    (`published_bet`/`retained_bet`), jamais le pick brut. Ce contrôle REND la vraie ligne du site
+    (`web._sport_row`) pour chaque match À VENIR publié où le pick brut DIFFÈRE du mécanique, et exige que
+    ce pick brut n'apparaisse PAS comme pari affiché. Détecte toute rechute vers `bets_of`. 100 % lecture
+    seule (bornée aux matchs à venir publiés, non combinés -> quelques-uns/jour)."""
+    from app import web
+    import html as _html
+    bad, n = [], 0
+    try:
+        disp = analyses.list_for("foot")
+    except Exception as e:
+        return {"key": "upcoming_display_coherence", "level": "ok",
+                "title": "Pari affiché à venir == pari mécanique (pas le pick brut Claude)",
+                "detail": f"vérif ignorée (non bloquante) : {e}", "items": []}
+    by_id = {str(d.get("id")): d for _s, d in rows}
+    for r in disp:
+        mid = str(r.get("id") or "")
+        if not mid.isdigit():
+            continue
+        # `list_for` ne pose PAS `url` (posée à l'étape de rendu) ; `_sport_row` en a besoin pour détecter le
+        # sport (foot) et charger le pari. On la reconstruit au format réel « /foot/match/<id> ».
+        r = {**r, "url": r.get("url") or f"/foot/match/{mid}"}
+        d = by_id.get(mid)
+        if d is None or (d.get("result") or {}).get("pick_result"):     # à venir SEULEMENT (pas réglé)
+            continue
+        if (d.get("combo") or {}).get("legs"):                          # combiné = jambes multiples, hors scope
+            continue
+        pb = analyses.published_bet("foot", mid)
+        if not pb:                                                      # seulement les matchs PUBLIÉS
+            continue
+        try:
+            raw = analyses.bets_of("foot", mid) or []
+        except Exception:
+            raw = []
+        if not raw:
+            continue
+        home, away = r.get("home", ""), r.get("away", "")
+        mech = {analyses.pretty_sel(pb.get("sel", ""), home, away)}
+        rb = analyses.retained_bet("foot", mid)
+        if rb:
+            mech.add(analyses.pretty_sel(rb.get("sel", ""), home, away))
+        raw_disp = analyses.pretty_sel(raw[0].get("sel", ""), home, away)
+        if not raw_disp or raw_disp in mech:                           # pick brut == mécanique -> rien à craindre
+            continue
+        try:
+            picks = set(re.findall(r'class="mc-pick">([^<]*)<', web._sport_row(r)))
+        except Exception:
+            continue
+        n += 1
+        if raw_disp in picks or _html.escape(raw_disp) in picks:       # le pick brut est AFFICHÉ comme pari
+            bad.append(f"{home}–{away} : le site affiche le pick BRUT « {raw_disp} » (≠ pari mécanique publié) "
+                       f"-> incohérent avec Telegram")
+    return {"key": "upcoming_display_coherence",
+            "level": "error" if bad else "ok",
+            "title": "Pari affiché à venir == pari mécanique (pas le pick brut Claude)",
+            "detail": ("INCOHÉRENCE Telegram/site : un pick BRUT de Claude est affiché comme pari sur le site."
+                       if bad else
+                       f"0 incohérence — {n} match(s) à venir publié(s) au pick brut divergent vérifié(s) "
+                       f"(aucun n'affiche le pick brut)."),
+            "items": bad}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -931,6 +998,7 @@ def run(persist: bool = False) -> dict:
         _check_bet_gloss_coverage(rows),
         _check_uniform_labels(rows),
         _check_settled_display_coherence(rows),
+        _check_upcoming_display_coherence(rows),
         _check_stats_snapshot_drift(),
         _check_montante_active(),
     ]
