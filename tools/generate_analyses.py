@@ -918,6 +918,42 @@ def _harvest_analyzed_bets(day: str, ko_from=None, ko_to=None) -> list[dict]:
     return out
 
 
+def _harvest_combo_legs(day: str, ko_from=None, ko_to=None) -> list[dict]:
+    """VIVIER LARGE du combiné (user 2026-08-31) : renvoie 1 jambe/match = la sélection SÛRE la PLUS PROBABLE
+    de CHAQUE match analysé du slate (via `confidence_pick.match_candidates` -> DC/1X2/Total équipe, fantômes
+    inclus), et PAS seulement les paris retenus Confiance/Value. C'est ce qui donne un combiné quasi-quotidien
+    (façon « combiné sécurité »). À VENIR uniquement (un combiné = jambes non commencées), football, jour
+    sportif `day`, scopé bande KO (jour vs nuit). Lecture seule, best-effort. Format `pick_combo`."""
+    from app import analyses as _an
+    from app import confidence_pick as _cp
+    from app import web as _w
+    legs: list[dict] = []
+    for d in _an.iter_meta("foot"):
+        try:
+            if d.get("roi_void") or _an.status_of(d) != "notstarted":
+                continue
+            try:
+                _sd = _w._sport_date(_w.to_local(d.get("_start_dt"))).isoformat() if d.get("_start_dt") \
+                    else (d.get("start") or "")[:10]
+            except Exception:
+                _sd = (d.get("start") or "")[:10]
+            if _sd != day:
+                continue
+            if ko_from is not None and ko_to is not None \
+                    and not _in_ko_band(d.get("start") or "", ko_from, ko_to):
+                continue
+            best = None                                       # la jambe SÛRE la plus probable de ce match
+            for cand in (_cp.match_candidates(d) or []):
+                leg = _combo_leg_from_analysis(cand, d)       # filtre marchés sûrs + code + cote/proba
+                if leg and (best is None or leg["prob"] > best["prob"]):
+                    best = leg
+            if best:
+                legs.append(best)
+        except Exception:
+            continue
+    return legs
+
+
 def _montante_from_analyzed(harvest: list[dict]) -> dict | None:
     """MONTANTE = LE pari le PLUS SÛR du jour parmi les paris analysés : cprob la plus HAUTE, cote dans
     [MONTANTE_MIN_COTE, MONTANTE_MAX_COTE] (1.22–1.60), marché ÉLIGIBLE montante (`_montante_eligible_code`).
@@ -970,11 +1006,10 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
         if _prev and (_prev.get("sent") or _prev.get("result")):
             print(f"  🎯 {_clabel} : déjà figé aujourd'hui -> conservé.")
         else:
-            legs: list[dict] = []
-            for h in harvest:
-                leg = _combo_leg_from_analysis(h.get("_bet") or {}, h.get("_d") or {})
-                if leg:
-                    legs.append(leg)
+            # VIVIER LARGE (user 2026-08-31) : la sélection SÛRE la plus probable de CHAQUE match analysé du
+            # slate (via `_harvest_combo_legs`), pas seulement les paris retenus Confiance/Value -> combiné
+            # quasi-quotidien (façon combiné sécurité). 1 jambe/match, marchés sûrs (DC/1X2/Total équipe).
+            legs = _harvest_combo_legs(day, ko_from, ko_to)
             _combo = _cdaily.pick_combo(legs, min_odds=_csafe.TARGET_ODDS) if legs else None
             if _combo:
                 _clegs = [{"mid": l["mid"], "sport": "foot", "name": l.get("name"), "home": l.get("home"),
