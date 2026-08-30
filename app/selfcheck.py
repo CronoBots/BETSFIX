@@ -968,6 +968,36 @@ def _check_upcoming_display_coherence(rows) -> dict:
             "items": bad}
 
 
+def _check_omap_coverage(rows) -> dict:
+    """COTES UNIBET RÉELLES sur les paris RÉCENTS (bug grave user 2026-08-31) : `omap` = {code -> vraie cote
+    Unibet}, capté au scan. S'il MANQUE, la cote du pari retenu / des fantômes reste une ESTIMATION LLM
+    (fausse : ex. DC 1X à 1.42 au lieu de ~1.06) -> ROI et combinés pollués. Ce contrôle compte, parmi les
+    matchs foot analysés dans les ~22 dernières heures AVEC un pari retenu, ceux dont le sidecar N'A PAS
+    d'omap. 0 = la capture est réparée (confirmation) ; >0 = le write-path échoue encore (à corriger).
+    100% lecture seule. Historique (marchés retirés) EXCLU : on ne regarde que le récent (write-path actuel)."""
+    bad, n_up = [], 0
+    for _s, d in rows:
+        if d.get("sport") != "foot" or d.get("roi_void"):
+            continue
+        if analyses.status_of(d) != "notstarted":         # À VENIR seulement = le write-path ACTUEL (l'historique
+            continue                                       # réglé a ses marchés retirés -> irrécupérable, EXCLU)
+        mid = str(d.get("id") or "")
+        if not (d.get("published_bet") or analyses.retained_bet("foot", mid)):
+            continue                                       # seulement les matchs où on a un pari (cote qui compte)
+        n_up += 1
+        if not (isinstance(d.get("omap"), dict) and d.get("omap")):
+            bad.append(f"{d.get('home','?')}–{d.get('away','?')} : cote Unibet NON captée (omap vide) "
+                       f"-> cote estimée LLM")
+    return {"key": "omap_coverage",
+            "level": "error" if bad else "ok",
+            "title": "Cotes Unibet réelles captées sur les paris récents",
+            "detail": (f"{len(bad)}/{n_up} pari(s) à venir SANS vraie cote Unibet (omap vide) -> cote "
+                       f"estimée LLM (ROI/combiné pollués) — write-path à corriger."
+                       if bad else
+                       f"0 — les {n_up} pari(s) à venir portent la vraie cote Unibet (capture OK)."),
+            "items": bad}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -999,6 +1029,7 @@ def run(persist: bool = False) -> dict:
         _check_uniform_labels(rows),
         _check_settled_display_coherence(rows),
         _check_upcoming_display_coherence(rows),
+        _check_omap_coverage(rows),
         _check_stats_snapshot_drift(),
         _check_montante_active(),
     ]
