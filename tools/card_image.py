@@ -183,6 +183,7 @@ _CSS_SIMPLE = """
 .stag.rb-w{color:#34d27b}
 .stag.rb-l{color:#ff6b6b}
 .stag.rb-n{color:#9fb6cf}
+.stag.rlong{font-size:33px;letter-spacing:.14em}   /* signature RÉSULTAT « CONFIANCE GAGNÉE ✅ » : plus longue -> réduite pour tenir sur une ligne */
 .slg{text-align:center;font-size:25px;font-weight:800;color:#eef4fb;letter-spacing:.05em;margin-bottom:30px;line-height:1.2}
 .stms{display:flex;align-items:center;justify-content:center;gap:30px;margin-bottom:34px}   /* espace équipes -> cadre pari (user 2026-08-17) */
 /* CADRE « partie Paris » comme sur le site (.vm) : fond teinté, bordure, coins arrondis (user 2026-08-17). */
@@ -390,11 +391,17 @@ def _result_simple_card_html(d: dict) -> str:
     _wm = _banner_uri(d.get("emoji", ""))
     sp = d.get("simple") or {}
     mark = sp.get("mark") or ""
-    _rlabel, _rcls = {"won": ("GAGNÉ", "won"), "lost": ("PERDU", "lost"),
-                      "push": ("REMBOURSÉ", "push"), "void": ("REMBOURSÉ", "push")}.get(mark, ("", "push"))
-    # SIGNATURE = TYPE de pari (Confiance/Value) — on GARDE le type comme sur la carte de pari (user 2026-08-17).
+    # MARQUAGE COMBINÉ (user 2026-08-30) : la signature du résultat = TYPE + VERDICT + emoji, en un seul
+    # marquage (ex. « CONFIANCE GAGNÉE ✅ », « VALUE PERDUE ❌ »). Verdict au FÉMININN (la Confiance / la
+    # Value / la Montante). `_rcls` (won/lost/push) reste pour colorer la BORDURE de la carte ; `_rbcls`
+    # (rb-w/rb-l/rb-n) colore la signature ; `_vemoji` = ✅/❌/➖ (_MK).
+    _vword, _rbcls, _rcls = {"won": ("GAGNÉE", "rb-w", "won"), "lost": ("PERDUE", "rb-l", "lost"),
+                             "push": ("REMBOURSÉE", "rb-n", "push"), "void": ("REMBOURSÉE", "rb-n", "push"),
+                             }.get(mark, ("", "rb-n", "push"))
+    _vemoji = _MK.get(mark, "")
     _tier = str(d.get("tier") or sp.get("tier") or "confiance")
     _tlabel = {"value": "VALUE", "montante": "MONTANTE"}.get(_tier, "CONFIANCE")
+    _sig = f"{_tlabel} {_vword} {_vemoji}".strip() if _vword else _tlabel
     home, away = str(d.get("home") or ""), str(d.get("away") or "")
     _cat = str(d.get("cat", ""))
     _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
@@ -405,11 +412,10 @@ def _result_simple_card_html(d: dict) -> str:
     _cells = _verdict_cells_html(d, e)
     _pick = _strip_dc_paren(d.get("pick") or sp.get("label", ""))
     _gloss = d.get("gloss") or sp.get("gloss") or ""
-    _res = f'<div class="sres {_rcls}">{_rlabel}</div>' if _rlabel else ""   # verdict Gagné/Perdu dans le cadre
     inner = (
         f'<div class="glow"></div>'
         f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
-        f'<div class="stag st-{_tier}">{_tlabel}</div>'
+        f'<div class="stag {_rbcls} rlong">{e(_sig)}</div>'   # MARQUAGE : « CONFIANCE GAGNÉE ✅ » / « VALUE PERDUE ❌ »
         f'<div class="slg">{e(_lg)}</div>'
         f'<div class="stms">'
         f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
@@ -420,8 +426,7 @@ def _result_simple_card_html(d: dict) -> str:
         f'<div class="spk">{e(_pick)}</div>'
         + (f'<div class="sgl">{e(_gloss)}</div>' if _gloss else "")
         + f'<div class="vgrid">{_cells}</div>'
-        + _res                                            # verdict à la place de la barre (match terminé)
-        + '</div>')                                       # PAS d'analyse sur la carte résultat (user 2026-08-17)
+        + '</div>')                                       # verdict désormais dans la signature (marquage haut de carte) ; PAS d'analyse (user 2026-08-17)
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard {_rcls}">{inner}</div></body></html>')
 
