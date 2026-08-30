@@ -24,22 +24,25 @@ if ($running) {
 
 # MATIN = SLATE JOUR (2 créneaux, user 2026-08-07 : séparer Europe/Amériques par heure de coup d'envoi
 # pour analyser chaque match au bon moment, une seule fois, sans re-scanner une région) :
-#   1) PROGRAMME : écrit la LISTE COMPLÈTE du jour (data/day_programme.json — TOUS les matchs, jour ET nuit)
-#      pour l'accueil du site + le verrou --from-programme. SANS Telegram (--no-notify).
+#   1) PROGRAMME = SLATE JOUR (--ko-from 6 --ko-to 21) : écrit la liste des matchs de JOUR (data/day_programme.json)
+#      pour l'accueil du site + le verrou --from-programme. SANS Telegram (--no-notify). Le SLATE NUIT est
+#      sélectionné le SOIR (scan_evening.ps1, ~19h) quand ses cotes Unibet sont ENFIN ouvertes (fusionné dans
+#      le même day_programme.json via la préservation same-day) -> le boost favori-net traite la nuit comme le
+#      jour au lieu de l'écraser faute de cote à 10h (user 2026-08-30).
 #   2) SCAN MATIN = SLATE JOUR SEULEMENT (--ko-from 6 --ko-to 21) : analyse et PUBLIE les matchs dont le
 #      coup d'envoi (heure belge) est entre 06h et 21h (Europe + Asie-après-midi). Les matchs de NUIT
 #      (21h→06h : Amériques + Europe tardive) sont ANALYSÉS LE SOIR par scan_evening.ps1 (~19h) -> données
 #      fraîches du jour même au lieu de 12-20 h de retard. Aucun chevauchement : la bande de coup d'envoi
 #      partitionne la journée, un match tombe dans UN seul slate. --force = full matin (ignore cache 6 h).
 #   Plus de ré-analyse pré-match (user 2026-08-07) : le pick de CHAQUE slate est DÉFINITIF une fois posé.
-Log 'PROGRAMME : liste COMPLÈTE du jour (jour + nuit) pour l''accueil site'
+Log 'PROGRAMME : SLATE JOUR (coup d''envoi 6h-21h) pour l''accueil site — la nuit est sélectionnée le soir'
 # 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (Out-File = cmdlet, $LASTEXITCODE reste python).
 # FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés -> tout le budget Claude au foot.
 # --top 10 = BUDGET TOTAL du jour (top-N GLOBAL ADAPTATIF, user 2026-08-24 : RETOUR à la SÉLECTIVITÉ de la
 # période gagnante — ~5-10 matchs analysés EN PROFONDEUR/jour au lieu de ~20 survolés qui saturaient le
 # forfait). Les 10 matchs les PLUS IMPORTANTS des 24 h, répartis par créneau selon leur coup d'envoi (jour
 # analysé le matin, nuit le soir). Le split suit la vraie distribution (ex. 7 JOUR + 3 NUIT).
-& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --programme --no-notify 2>&1 |
+& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --programme --no-notify --ko-from 6 --ko-to 21 2>&1 |
     Add-BfxStream $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le

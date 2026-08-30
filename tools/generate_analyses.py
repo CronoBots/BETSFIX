@@ -1078,12 +1078,16 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
     # frais pile pour la construction du combiné du jour ET toutes les vagues suivantes (TTL 26h -> aucune vague
     # ne le reconstruit avant le prochain matin). Exactement 1 fetch/jour au lieu du TTL 18h glissant à heure
     # dérivante. Best-effort : si le refetch échoue, l'ancien cache disque est conservé (aucune casse).
-    try:
-        from app import pinnacle as _pinn
-        _nmu = await asyncio.to_thread(_pinn.refresh_catalog, "foot")
-        print(f"[sharp] catalogue Pinnacle rafraîchi (matin) : {_nmu} match(s) au catalogue.")
-    except Exception as _pce:
-        print(f"[sharp] rafraîchissement catalogue Pinnacle ignoré : {_pce}")
+    # 1 SEUL refetch/jour : uniquement au build du MATIN (slate jour / jour entier). Le build du SOIR (slate
+    # NUIT, --ko-from 21 --ko-to 6) réutilise le cache disque frais du matin (TTL 26h) -> pas de 2e fetch 40 Mo.
+    _is_night_build = (args.ko_from == _SLATE_BOUNDARY_H and args.ko_to == _DAY_START_H)
+    if not _is_night_build:
+        try:
+            from app import pinnacle as _pinn
+            _nmu = await asyncio.to_thread(_pinn.refresh_catalog, "foot")
+            print(f"[sharp] catalogue Pinnacle rafraîchi (matin) : {_nmu} match(s) au catalogue.")
+        except Exception as _pce:
+            print(f"[sharp] rafraîchissement catalogue Pinnacle ignoré : {_pce}")
     matches = []
     # Repli PAR SPORT : programme précédent, pour ne pas effacer un sport dont la sélection échoue.
     # + PRÉSERVATION DES STATUTS (bet/abstained) au re-run : régénérer le programme ne doit PAS remettre à
@@ -1143,11 +1147,24 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         # (pool déjà trié par importance), PUIS on les répartit par créneau UNIQUEMENT pour le TIMING d'analyse
         # (jour le matin, nuit le soir, près du coup d'envoi -> sharp/compos frais). Le split suit la VRAIE
         # distribution (ex. 13 JOUR + 7 NUIT) au lieu d'un quota fixe 10/10 qui écrêtait le créneau chargé.
-        _glob = top[:_top]
-        _day = [m for m in _glob if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)]
-        _night = [m for m in _glob if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)]
-        top = _day + _night
-        print(f"[foot] programme TOP-{_top} adaptatif : {len(_day)} JOUR + {len(_night)} NUIT.")
+        # SÉLECTION ADAPTATIVE *PAR SLATE* (user 2026-08-30) : si une bande de coup d'envoi est demandée
+        # (--ko-from/--ko-to), on sélectionne le top-N DANS CETTE BANDE, au moment où le scan tourne. Le
+        # SLATE JOUR est choisi le MATIN (10h, cotes de jour ouvertes) ; le SLATE NUIT est choisi le SOIR
+        # (19h) quand les cotes Unibet des matchs Amériques (MLS/Brésil/Argentine/Liga MX) sont ENFIN
+        # ouvertes -> le boost favori-net les traite comme le jour au lieu de les écraser faute de cote à
+        # 10h. Les 2 slates FUSIONNENT via la préservation same-day plus bas (le soir reconduit le jour du
+        # matin). Sans bande (--programme seul) -> ancien comportement (jour entier, split pour le timing).
+        if args.ko_from is not None and args.ko_to is not None:
+            _inband = [m for m in top if _in_ko_band(m.get("start", ""), args.ko_from, args.ko_to)]
+            top = _inband[:_top]
+            _lbl = "NUIT" if args.ko_from == _SLATE_BOUNDARY_H else "JOUR"
+            print(f"[foot] programme SLATE {_lbl} ({args.ko_from}h→{args.ko_to}h) : {len(top)} match(s) (adaptatif).")
+        else:
+            _glob = top[:_top]
+            _day = [m for m in _glob if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)]
+            _night = [m for m in _glob if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)]
+            top = _day + _night
+            print(f"[foot] programme TOP-{_top} adaptatif : {len(_day)} JOUR + {len(_night)} NUIT.")
         for m in top:
             _e = {"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
                   "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""}

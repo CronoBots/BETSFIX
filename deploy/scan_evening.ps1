@@ -5,8 +5,11 @@
 # retard d'un scan unique du matin. Partition par HEURE DE COUP D'ENVOI -> chaque match tombe dans UN seul
 # slate, AUCUNE région n'est re-scannée (le filtre --ko-from/--ko-to exclut le slate jour d'ici).
 #
-# Utilise le PROGRAMME déjà écrit le matin (data/day_programme.json, journée complète 06h→06h) -> ne
-# reconstruit PAS la liste, ne re-poste PAS le programme. Analyse + PUBLIE uniquement les picks de nuit,
+# SÉLECTIONNE le SLATE NUIT ICI (user 2026-08-30) : le matin n'écrit que le slate JOUR ; à 19h les cotes
+# Unibet des matchs de nuit (Amériques) sont ENFIN ouvertes -> on choisit le top-N NUIT au moment où le
+# boost favori-net peut vraiment les juger (fini l'écrasement faute de cote à 10h). Le build ci-dessous
+# FUSIONNE la nuit dans data/day_programme.json en RECONDUISANT le slate jour du matin (préservation
+# same-day) -> ne re-poste PAS le programme, ne touche PAS aux matchs de jour. Analyse + PUBLIE ensuite les
 # puis règle (résultats postés vite) + auto-audit. Les gros calculs quotidiens (méthodo/revue/backtest/
 # débrief/santé sources) restent dans scan_daily.ps1 (1×/jour, matin). Pas de ré-analyse : le pick du soir
 # est DÉFINITIF (comme celui du matin).
@@ -44,6 +47,12 @@ if (Test-Path $flag) {
     # de nuit est publié ~1 h avant SON coup d'envoi par la vague (re-analyse fraîche -> publie ou s'abstient).
     # --daily-combo (user 2026-08-24) : À LA FIN de cette passe, on (re)construit LE combiné + LA montante du jour
     # depuis les paris analysés ENCORE À VENIR (soir+nuit) -> une seule construction figée, meilleur vivier.
+    # 1) SÉLECTION du slate NUIT (adaptatif, cotes de nuit ouvertes) -> fusionné dans day_programme.json.
+    Log 'SCAN SOIR : SÉLECTION du SLATE NUIT (coup d''envoi 21h-6h, cotes fraîches) -> fusion au programme'
+    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --programme --no-notify --ko-from 21 --ko-to 6 2>&1 |
+        Add-BfxStream $log
+    Log ("SCAN SOIR PROGRAMME NUIT DONE (exit {0})" -f $LASTEXITCODE)
+    # 2) ANALYSE du slate NUIT SANS publier (Option B) + construction combiné/montante du jour (soir+nuit).
     Log 'SCAN SOIR : SLATE NUIT analysé SANS publier + construction combiné/montante du jour (soir+nuit)'
     & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 12 --from-programme --no-notify --daily-combo --ko-from 21 --ko-to 6 2>&1 |
         Add-BfxStream $log
