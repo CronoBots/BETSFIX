@@ -1000,6 +1000,45 @@ def _montante_from_analyzed(harvest: list[dict]) -> dict | None:
     return best
 
 
+def _notify_owner(text: str) -> bool:
+    """Alerte PRIVÉE au propriétaire (data/owner_chat.txt) — JAMAIS le canal abonnés. Best-effort."""
+    try:
+        import httpx as _h
+        from app import notify as _n
+        _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        _cp = os.path.join(_root, "data", "owner_chat.txt")
+        if not os.path.exists(_cp):
+            return False
+        _chat = open(_cp, encoding="utf-8").read().strip()
+        _tok, _ = _n._config()
+        if not (_tok and _chat):
+            return False
+        _h.post(f"https://api.telegram.org/bot{_tok}/sendMessage",
+                json={"chat_id": _chat, "text": text[:3900]}, timeout=15)
+        return True
+    except Exception:
+        return False
+
+
+def _owner_alert_once(key: str, text: str) -> None:
+    """Envoie l'alerte privée `text` UNE seule fois par `key` (dédup disque) -> pas de spam si le scan
+    est relancé. Best-effort, ne casse jamais."""
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _sp = os.path.join(_root, "data", "owner_alerts.json")
+    try:
+        _st = json.load(open(_sp, encoding="utf-8"))
+    except Exception:
+        _st = {}
+    if _st.get(key):
+        return
+    if _notify_owner(text):
+        _st[key] = True
+        try:
+            json.dump(_st, open(_sp, "w", encoding="utf-8"), ensure_ascii=False)
+        except OSError:
+            pass
+
+
 async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko_to=None, variant: str = "") -> None:
     """FIN de la passe ANALYSE BATCH d'un slate : construit le COMBINÉ (du jour OU du soir) depuis les PARIS
     ANALYSÉS (Confiance/Value) du slate, + la montante. DEUX combinés/jour (user 2026-08-30) : `variant=""` +
@@ -1057,6 +1096,18 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
                 print(f"  🎯 {_clabel} : PASS — pas assez de jambes SÛRES analysées pour atteindre la cote.")
     except Exception as _cce:
         print(f"  ({_clabel} depuis l'analyse ignoré : {_cce})")
+    # ALERTE PRIVÉE (user 2026-08-31) : prévenir le propriétaire si AUCUN combiné n'a pu être bâti aujourd'hui
+    # pour ce variant (jour/soir). Lecture d'autorité = combo_daily.today (couvre PASS, vivier vide, exception).
+    # 1 alerte max/jour/variant (dédup disque). JAMAIS le canal abonnés.
+    try:
+        if _cdaily.today(day, variant=variant) is None:
+            _slate = "NUIT" if variant == "soir" else "JOUR"
+            _owner_alert_once(
+                f"combo_pass:{day}:{variant or 'jour'}",
+                f"⚠️ {_clabel} INTROUVABLE pour {day} (slate {_slate}) : aucun combiné bâti — "
+                f"pas assez de doubles chances sûres avec vraie cote Unibet. {len(harvest)} pari(s) analysé(s).")
+    except Exception:
+        pass
 
     # ── MONTANTE : LE pari le PLUS SÛR du jour ────────────────────────────────────────────────────
     try:
