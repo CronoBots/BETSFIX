@@ -487,6 +487,80 @@ def settle_all() -> int:
             + settle_pending("foot", "soir"))     # « Combiné du soir » (user 2026-08-30)
 
 
+COMBO_TG_FROM = "2026-08-31"   # ⚠️ NE JAMAIS poster sur Telegram un combiné ANTÉRIEUR (anti-spam de l'historique)
+
+
+def notify_combos(sport: str = "foot") -> None:
+    """TELEGRAM des combinés du jour + du soir (user 2026-08-31, réactivation) : (1) poste la CARTE IMAGE du
+    combiné UNE fois (comme les simples), (2) poste le résultat de CHAQUE jambe dès qu'elle est réglée
+    (« JAMBE GAGNÉE ✅ / PERDUE ❌ », en réponse à la carte), (3) poste le RÉSULTAT GLOBAL du combiné quand il
+    est tranché (« COMBINÉ DU JOUR/SOIR GAGNÉ ✅ @cote / PERDU ❌ »). Idempotent via flags persistés dans le
+    track (`tg_msg`, `leg.tg_done`, `tg_result_done`). Foot seul, best-effort, ne casse jamais le règlement.
+    Garde-fou anti-spam : JAMAIS un combiné antérieur à COMBO_TG_FROM (sinon la 1re passe reposterait tout
+    l'historique). Appelé après `settle_all` dans le pipeline reconcile (= posté aux vagues)."""
+    from app import notify
+    if not notify.configured():
+        return
+    import sys as _sys
+    _tools = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools")
+    if _tools not in _sys.path:
+        _sys.path.insert(0, _tools)
+    try:
+        import card_image as _cimg
+    except Exception:
+        _cimg = None
+    from app import card_data as _cd
+    for variant in ("", "soir"):
+        _label = "COMBINÉ DU SOIR" if variant == "soir" else "COMBINÉ DU JOUR"
+        d = _load(sport, variant)
+        _chg = False
+        for day, cb in d.items():
+            if not isinstance(cb, dict) or not cb.get("legs"):
+                continue
+            if str(day) < COMBO_TG_FROM:                 # ⛔ jamais l'historique (anti-spam)
+                continue
+            # (1) CARTE PRONO — une seule fois (tg_msg absent)
+            if not cb.get("tg_msg") and _cimg is not None:
+                try:
+                    _card = _cd.build_combo_daily_card(cb)
+                    if _card:
+                        _card["combo_title"] = _label
+                        os.makedirs("data/_cards", exist_ok=True)
+                        _png = os.path.join("data", "_cards", f"combo_{variant or 'jour'}_{day}.png")
+                        _cimg.render_card_sync(_card, _png)
+                        _sent = notify.send_photo_sync(_png, "")
+                        if _sent:
+                            cb["tg_msg"] = _sent
+                            _chg = True
+                except Exception:
+                    pass
+            _reply = cb.get("tg_msg")
+            if not isinstance(_reply, dict) or not _reply:
+                continue
+            # (2) RÉSULTAT PAR JAMBE — dès qu'elle est réglée (1 message/jambe, réponse à la carte)
+            for leg in cb.get("legs") or []:
+                _lr = leg.get("result")
+                if _lr in ("won", "lost", "push") and not leg.get("tg_done"):
+                    _vw, _ve = {"won": ("GAGNÉE", "✅"), "lost": ("PERDUE", "❌")}.get(_lr, ("REMBOURSÉE", "➖"))
+                    _lco = leg.get("cote")
+                    _cot = f" @{_lco:g}" if (_lr == "won" and isinstance(_lco, (int, float))) else ""
+                    _lsel = str(leg.get("sel") or "").strip()
+                    _txt = (f"JAMBE {_vw}{_cot} {_ve}" + (f"\n{_lsel}" if _lsel else "")).strip()
+                    if notify.reply_sync(_txt, _reply):
+                        leg["tg_done"] = True
+                        _chg = True
+            # (3) RÉSULTAT GLOBAL du combiné — une seule fois (quand tranché)
+            if cb.get("result") in ("won", "lost", "void") and not cb.get("tg_result_done"):
+                _gw, _ge = {"won": ("GAGNÉ", "✅"), "lost": ("PERDU", "❌")}.get(cb["result"], ("REMBOURSÉ", "➖"))
+                _cco = cb.get("real_odds") or cb.get("cote")
+                _gcot = f" @{_cco:g}" if (cb["result"] == "won" and isinstance(_cco, (int, float))) else ""
+                if notify.reply_sync(f"{_label} {_gw}{_gcot} {_ge}", _reply):
+                    cb["tg_result_done"] = True
+                    _chg = True
+        if _chg:
+            _save(d, sport, variant)
+
+
 def settle_pending(sport: str = "foot", variant: str = "") -> int:
     """Règle les jambes des combinés du jour du `sport` dont les matchs sont terminés (Flashscore + repli
     LiveScore + `settle_pick`), puis tranche le combiné : lost si ≥1 jambe perdue ; won si ≥1 gagnée

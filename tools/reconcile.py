@@ -218,32 +218,16 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 print(f"  · {_ncd} combiné(s) du jour tranché(s) (suivi info-seule).")
         except Exception as exc:
             print(f"  (suivi combiné du jour ignoré : {exc})")
-        # PUBLICATION TELEGRAM du RÉSULTAT du combiné (user 2026-08-18) : dès qu'un combiné du jour est
-        # TRANCHÉ, on poste sa carte résultat EN RÉPONSE au prono (clé notify `combo_daily_<jour>`). Idempotent
-        # via `combo_daily_result_<jour>`. Limité aux 2 derniers jours (jamais republier l'historique).
+        # PUBLICATION TELEGRAM des COMBINÉS jour + soir (user 2026-08-31, réactivation) : carte IMAGE du combiné
+        # (une fois) + résultat PAR JAMBE dès qu'elle est réglée (« JAMBE GAGNÉE ✅ / PERDUE ❌ », réponse à la
+        # carte) + résultat GLOBAL du combiné quand tranché. Idempotent (flags tg_msg/leg.tg_done/tg_result_done
+        # dans le track) + anti-spam historique (COMBO_TG_FROM). Remplace l'ancien « ✅/❌ » global (jour seul,
+        # gaté TG_COMBO_MONTANTE). Tourne aux vagues (reconcile) -> combiné posté « à la vague » comme les simples.
         try:
-            import json as _json
-            from datetime import datetime as _dtm, timedelta as _td
-            from app import combo_daily as _cdr, card_data as _cddr
-            import card_image as _cir
-            _track = _json.load(open(os.path.join("data", "combo_daily_track.json"), encoding="utf-8"))
-            _recent = {(_dtm.now(timezone.utc).date() - _td(days=k)).isoformat() for k in (0, 1, 2)}
-            for _day, _c in (_track or {}).items():
-                if _day not in _recent or not isinstance(_c, dict) or not _c.get("result"):
-                    continue
-                if notify.get_prono(f"combo_daily_result_{_day}"):
-                    continue                       # résultat déjà posté
-                _reply = notify.get_prono(f"combo_daily_{_day}")     # carte prono du combiné
-                if not _reply or not notify.TG_COMBO_MONTANTE:       # combiné coupé de Telegram (user 2026-08-24)
-                    continue                       # prono jamais posté -> pas de résultat ORPHELIN
-                # RÉSULTAT = réponse « ✅ / ❌ » au prono (user 2026-08-22), plus de carte résultat. ➖ = remboursé.
-                _emo = {"won": "✅", "lost": "❌"}.get(_c.get("result"), "➖")
-                _rsent = notify.reply_sync(_emo, _reply)
-                if _rsent:
-                    notify.remember_prono(f"combo_daily_result_{_day}", _rsent, f"Combiné résultat {_day}")
-                    print(f"  · résultat combiné {_day} posté (réponse {_emo}).")
+            from app import combo_daily as _cdr
+            await asyncio.to_thread(_cdr.notify_combos, "foot")
         except Exception as exc:
-            print(f"  (résultat combiné Telegram ignoré : {exc})")
+            print(f"  (Telegram combinés ignoré : {exc})")
         # COMBINÉ SÉCURITÉ FOOT (double chance la plus sûre ~2, info seule hors ROI) : règle + tranche.
         try:
             from app import combo_safe as _cs
