@@ -407,7 +407,27 @@ async def fetch_live_odds(sport: str, client=None) -> dict:
 
             asyncio.create_task(_bg())
         return hit[1]                               # ancien tout de suite (0 attente réseau)
-    return await _fetch_live_odds_now(sport, client)   # tout premier chargement (cache vide) seulement
+    # COLD (cache VIDE, ex. juste après un reload/restart — fréquent car l'API a --reload) : NE PAS bloquer le
+    # 1er rendu ~1.3 s sur le réseau Unibet (user 2026-08-31 « chargement lent »). Si une boucle async tourne
+    # (contexte API), on lance le fetch EN TÂCHE DE FOND et on renvoie {} tout de suite -> le rendu utilise les
+    # cotes du SIDECAR (repli), et le chargement suivant a les cotes live. Compromis fraîcheur/vitesse assumé.
+    try:
+        _loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _loop = None
+    if _loop is not None:
+        if sport not in _ODDS_REFRESHING:
+            _ODDS_REFRESHING.add(sport)
+
+            async def _bg0() -> None:
+                try:
+                    await _fetch_live_odds_now(sport)
+                finally:
+                    _ODDS_REFRESHING.discard(sport)
+
+            _loop.create_task(_bg0())
+        return {}
+    return await _fetch_live_odds_now(sport, client)   # hors boucle (script) -> bloquant (ok)
 
 
 async def _fetch_live_odds_now(sport: str, client=None) -> dict:
