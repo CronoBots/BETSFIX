@@ -780,7 +780,7 @@ def roi_events(d: dict | None = None, variant: str = "") -> list:
         out.append((cb.get("date") or "", r, cote,
                     {"name": f"{_tier_lbl} ({n} jambes)", "sel": "football",
                      "sport": "combiné", "combo_daily": True, "n_legs": n, "leg_sport": _leg_sport,
-                     "tier": ("cote2" if variant else "sur"),
+                     "tier": ("soir" if variant == "soir" else "cote2" if variant == "cote2" else "sur"),
                      "legs": _leg_summ(cb)}))
     return out
 
