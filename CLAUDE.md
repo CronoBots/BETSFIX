@@ -75,6 +75,10 @@ tennis/basket ci-dessous décrit un rôle **dormant**, pas actif.
 | **Sportradar (GISMO)** | forme · **streaks de pari** (sans défaite/marque/BTTS/over) · H2H · classement · **moyennes buts & over 2.5** — feed LIBRE `lsc.fn.sportradar.com`, `app/sportradar.py` branché à `sources.extras` + routeur `/sportradar/*` · **+ RÈGLEMENT** : `sportradar.final_score()` lit `match_info.periods` (repli `need_periods` dans settle_analyst) | ✅ |
 | **SofaScore** | séries de pari · votes · scores live · event/h2h/lineups/incidents (Sportradar GISMO reste l'upstream principal) | ✅ **re-vérifié vivant 2026-07-28** |
 
+> **Ancre sharp** : Pinnacle brut via **iProyal** (proxy, prioritaire, monde entier, `app/pinnacle.py`) ;
+> **The Odds API** en secours (~68 ligues, `app/theoddsapi.py`). Verrou `no_sharp` dans `build_dossier` : un
+> match foot SANS ancre sharp live est **différé** → 100 % des paris publiés portent une ancre. Mémoire `sharp-anchor-theoddsapi`.
+
 ### ✅ SofaScore RE-VÉRIFIÉ VIVANT (2026-07-28) — l'ancien « MORT » était une panne temporaire
 - **Contrôle empirique 2026-07-28** : les 3 voies (`app/sofa_http` cascade) répondent **HTTP 200**
   (direct curl_cffi + RapidAPI + proxy) sur live/search/event/h2h/incidents/votes/lineups, et
@@ -162,6 +166,32 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   (83 %), buts total / équipe marque (79 %).
 - **Intitulé double chance uniforme** : « **\<équipe\> ou nul (1X)** » partout via `analyses.pretty_sel`.
 - Mémoires : `two-combos-jour-soir`, `session-2026-08-31-omap-combos-telegram`, `telegram-foot-simple-only`.
+
+## Timeline quotidienne (heure Europe/Brussels)
+- **~10h — scan JOUR** (`deploy/scan_daily.ps1` → `generate_analyses --ko-from 6 --ko-to 21`) : sélection
+  slate jour + analyse **cachée** (Option B) + **combiné du jour** + planif des vagues.
+- **~19h — scan NUIT** (`deploy/scan_evening.ps1` → `--ko-from 21 --ko-to 6`) : sélection slate nuit +
+  fusion + analyse + **combiné du soir** + replanif des vagues.
+- **KO−1h — vagues** (`deploy/scan_wave.ps1` → `--refresh-early`) : re-analyse chaque match ~1h avant SON
+  coup d'envoi, **PUBLIE** le pari (app + Telegram), puis reconcile (règlement + résultats combinés par jambe).
+  Cap **7+7** (jour+nuit). Mémoire `daily-construction-methodology` (flux de référence + invariants anti-bug).
+
+## Autres sous-systèmes
+- **Auth / abonnement** : base users **SQLite** `app/userdb.py` (migration JSON→SQLite auto), API
+  `app/accounts.py` (login anti brute-force, reset mdp `/forgot`+`/reset`, vérif email `/verify`),
+  `app/mailer.py` (SMTP env `BETSFIX_SMTP_*`, repli `data/outbox`). Tiers free / trial(3j auto) / monthly.
+  **Reste à faire** : câbler Stripe aux tiers, choisir un SMTP, héberger hors PC. Mémoire `auth-subscription-scale-foundation`.
+- **Filet de survie site** : Cloudflare Worker `betsfix-failover` devant `api.betsfix.com` sert un snapshot
+  **KV** si le PC est down. `deploy/snapshot_to_kv.py` (tâche `BETSFIX-KV-Snapshot`, 30 min) + `deploy/worker/`.
+  Jeton en env user `BETSFIX_KV_*`. Mémoire `cloudflare-kv-snapshot-failover`.
+- **selfcheck** = `app/selfcheck.py` : ~30 garde-fous d'intégrité (compteur monotone, cohérence affichage↔stats,
+  combinés, omap, **verdict = pari joué**…), lancé après chaque scan/reconcile.
+  Vérif : `python -c "from app import selfcheck; print(selfcheck.run()['counts'])"` → doit être `error:0`.
+- **Monitoring** : `/monitor` (`tools/monitor.py`) — forward réel vs backfill, calibration, maturité des marchés.
+- **Perf accueil** : caches `_HMR_CACHE` (rows), `fragcache` (fragment jour), `_ODDS_CACHE` (cotes live 25 s,
+  stale-while-revalidate, **non-bloquant au cold start** depuis `4f6013c`), snapshot `data/_stats_snapshot.json`.
+- **UI** : calendrier stats = **taux de réussite** (jour/mois, plus le ROI) ; « Programme du jour » **fermé**
+  dès qu'un pari existe dans une catégorie ; intitulé DC « \<équipe\> ou nul (1X) ».
 
 ## ⚠️ 3 COUCHES à NE JAMAIS confondre (Affichage / Stats / Calibration) — juillet 2026
 
