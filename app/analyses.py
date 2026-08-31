@@ -3250,16 +3250,20 @@ def pending_roi_bets(combo: bool = False, sport: str | None = None) -> list:
     if combo:
         try:
             from app import combo_daily
+            # DEUX combinés/jour (user 2026-08-31) : le combiné EN ATTENTE doit inclure le SOIR (variant="soir")
+            # en plus du JOUR (variant=""). Avant, `entries(sport=_sp)` ne lisait QUE le jour -> le combiné du
+            # soir en cours n'apparaissait JAMAIS dans l'onglet Combinés des Stats tant qu'il n'était pas réglé.
             for _sp in ((sport,) if sport else ("foot",)):
-                for cb in combo_daily.entries(sport=_sp):
-                    if cb.get("result") in ("won", "lost", "void"):
-                        continue
-                    if _combo_rule_void(cb.get("date")):     # combiné hors-règle (08/08→20/08) -> ni bilan ni historique
-                        continue
-                    out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
-                                "cote": cb.get("cote"), "name": f"Combiné du jour ({len(cb.get('legs') or [])} j.)",
-                                "sel": "combiné du jour", "sport": _sp, "tier": "confiance",
-                                "legs": combo_daily._leg_summ(cb)})   # jambes -> historique
+                for _cvar, _clbl in (("", "Combiné du jour"), ("soir", "Combiné du soir")):
+                    for cb in combo_daily.entries(sport=_sp, variant=_cvar):
+                        if cb.get("result") in ("won", "lost", "void"):
+                            continue
+                        if _combo_rule_void(cb.get("date")):     # combiné hors-règle (08/08→20/08) -> ni bilan ni historique
+                            continue
+                        out.append({"start": (cb.get("date") or "") + "T00:00:00+00:00", "result": "pending",
+                                    "cote": cb.get("cote"), "name": f"{_clbl} ({len(cb.get('legs') or [])} j.)",
+                                    "sel": _clbl.lower(), "sport": _sp, "tier": "confiance",
+                                    "legs": combo_daily._leg_summ(cb)})   # jambes -> historique
         except Exception:
             pass
     else:
