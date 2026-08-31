@@ -9382,9 +9382,10 @@ def _render_calendar(ym: str = "") -> str:
             roi, prof = b["roi"], b["profit"]
             sign = "pos" if prof > 1e-9 else ("neg" if prof < -1e-9 else "flat")
             cls += f" mcal-{sign} mcal-has"
-            op = min(0.40, 0.09 + abs(roi) / 220.0)    # intensité de teinte selon l'ampleur du ROI
+            op = min(0.40, 0.09 + abs(roi) / 220.0)    # intensité de teinte selon l'ampleur du ROI (couleur = profit)
             style = f' style="--mt:{op:.3f}"'
-            extra = (f'<span class="mcal-roi">{"+" if prof >= 0 else "−"}{abs(roi):g}%</span>'
+            _dhit = round(100 * b["won"] / b["n"])     # TAUX DE RÉUSSITE du jour (user 2026-08-31, au lieu du ROI)
+            extra = (f'<span class="mcal-roi">{_dhit}%</span>'
                      f'<span class="mcal-n">{b["n"]}</span>')
             mprofit += prof
             mn += b["n"]
@@ -9393,10 +9394,10 @@ def _render_calendar(ym: str = "") -> str:
             ndays_bet += 1
             _cum += prof
             _eq_pts.append(round(_cum, 2))
-            if best is None or roi > best[1]:
-                best = (dnum, roi)
-            if worst is None or roi < worst[1]:
-                worst = (dnum, roi)
+            if best is None or _dhit > best[1]:        # meilleure journée = meilleur TAUX DE RÉUSSITE
+                best = (dnum, _dhit)
+            if worst is None or _dhit < worst[1]:
+                worst = (dnum, _dhit)
         else:
             cls += " mcal-empty"
         if diso == today.isoformat():
@@ -9411,6 +9412,7 @@ def _render_calendar(ym: str = "") -> str:
     _next_disabled = (y, mo) >= (today.year, today.month)
     _title = f"{_CAL_MONTHS_FR[mo - 1].capitalize()} {y}"
     _mroi = round(100 * mprofit / mn, 1) if mn else 0.0
+    _mhit = round(100 * mwon / mn) if mn else 0            # TAUX DE RÉUSSITE du mois (user 2026-08-31)
     _rcls = "pos" if mprofit > 1e-9 else ("neg" if mprofit < -1e-9 else "flat")
     nav = (f'<div class="mcal-nav">'
            f'<button class="mcal-arw" data-cal="{prev_ym}" aria-label="Mois précédent">‹</button>'
@@ -9421,11 +9423,11 @@ def _render_calendar(ym: str = "") -> str:
     # Bilan du mois (ROI héros + courbe d'équité + jours gagnants/paris + meilleure journée).
     _eq = (f'<div class="mcal-eq sx-equity">{_hero_chart(_eq_pts, uid="mcaleq")}</div>'
            if len(_eq_pts) >= 3 else "")
-    _best_v = f'+{best[1]:g}%' if best else "—"
+    _best_v = f'{best[1]:g}%' if best else "—"
     _best_lb = f'meilleure · {best[0]} {_CAL_MONTHS_FR[mo - 1][:4]}.' if best else "meilleure journée"
     summ = (f'<div class="mcal-sum{" neg" if _rcls == "neg" else ""}">'
-            f'<div class="mcal-sum-hero mcal-{_rcls}">{"+" if mprofit >= 0 else "−"}{abs(_mroi):g}%'
-            f'<span class="mcal-sum-lb">ROI du mois</span></div>'
+            f'<div class="mcal-sum-hero mcal-{_rcls}">{_mhit}%'
+            f'<span class="mcal-sum-lb">Réussite du mois</span></div>'
             f'{_eq}'
             f'<div class="mcal-sum-kpis">'
             f'<div><b>{ndays_bet}</b><span>jours joués</span></div>'
@@ -9435,7 +9437,7 @@ def _render_calendar(ym: str = "") -> str:
     grid = f'<div class="mcal-grid">{dow}{"".join(cells)}</div>'
     legend = ('<div class="mcal-legend"><span class="mcal-lg pos">Bénéfice</span>'
               '<span class="mcal-lg neg">Perte</span><span class="mcal-lg flat">Neutre</span>'
-              '<span class="mcal-lg-note">Chiffre = ROI du jour · petit nombre = nb de paris</span></div>')
+              '<span class="mcal-lg-note">Chiffre = taux de réussite du jour · petit nombre = nb de paris</span></div>')
     # DÉTAIL D'UN JOUR EN DESSOUS RETIRÉ (user 2026-08-19) : les résultats vivent UNIQUEMENT dans les cases
     # colorées du calendrier (le détail par jour est dans l'onglet Pronos, calendrier horizontal).
     if mn == 0:
