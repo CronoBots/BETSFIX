@@ -582,7 +582,7 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
                         else "X2" if any(t in _t05.lower() for t in _tok05(away)) else "1X")
             if home and away:
                 _e05 = {"1X": f"{home} ou nul", "X2": f"{away} ou nul"}[_c05]
-                return f"Double chance {_c05} ({_e05})"
+                return f"{_e05} ({_c05})"          # format « <équipe> ou nul (1X) » (user 2026-08-31)
             return f"Double chance {_c05}"
     # HANDICAP d'équipe : normaliser l'AFFICHAGE vers UNE forme unique « Handicap <type> <équipe> <±N> »
     # (demande user 2026-07-14 : « Handicap St Johnstone -1.5 » et « Partick -1.5 (handicap) » = MÊME pari,
@@ -646,7 +646,7 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
         return s
     if home and away:
         expl = {"1X": f"{home} ou nul", "X2": f"{away} ou nul", "12": f"{home} ou {away}"}[code]
-        return f"Double chance {code} ({expl})"
+        return f"{expl} ({code})"                   # format « <équipe> ou nul (1X) » (user 2026-08-31)
     return f"Double chance {code}"
 
 
