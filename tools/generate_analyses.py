@@ -1102,10 +1102,26 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
     try:
         if _cdaily.today(day, variant=variant) is None:
             _slate = "NUIT" if variant == "soir" else "JOUR"
-            _owner_alert_once(
-                f"combo_pass:{day}:{variant or 'jour'}",
-                f"⚠️ {_clabel} INTROUVABLE pour {day} (slate {_slate}) : aucun combiné bâti — "
-                f"pas assez de doubles chances sûres avec vraie cote Unibet. {len(harvest)} pari(s) analysé(s).")
+            # DIAGNOSTIC dans l'alerte : distinguer un PROBLÈME DE COTES (aucune jambe avec vraie cote Unibet)
+            # d'une raison NORMALE (jambes sûres présentes mais favoris trop courts -> le produit n'atteint pas
+            # la cible ~1.95). Sinon l'alerte laissait croire à un bug de cotes alors que tout était capté.
+            try:
+                _lg = _harvest_combo_legs(day, ko_from, ko_to)
+            except Exception:
+                _lg = []
+            _strong = [l for l in _lg if (l.get("prob") or 0) >= 0.80]
+            _prod = 1.0
+            for _l in _strong:
+                _prod *= (_l.get("cote") or 1)
+            if not _lg:
+                _why = "aucune jambe avec vraie cote Unibet captée -> PROBLÈME DE COTES (à corriger)."
+            elif not _strong:
+                _why = f"{len(_lg)} jambe(s) mais aucune ≥80% (pas assez sûres) — normal."
+            else:
+                _why = (f"{len(_strong)} jambe(s) sûre(s) mais produit {_prod:.2f} < cible "
+                        f"{_csafe.TARGET_ODDS} (favoris trop courts) — PAS un problème de cotes.")
+            _owner_alert_once(f"combo_pass:{day}:{variant or 'jour'}",
+                              f"⚠️ {_clabel} INTROUVABLE pour {day} (slate {_slate}) : {_why}")
     except Exception:
         pass
 
