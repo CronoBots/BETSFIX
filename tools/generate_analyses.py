@@ -1754,7 +1754,13 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         r = await client.get(f"{UNIBET_B}/betoffer/event/{match['id']}.json",
                              params=UNIBET_PARAMS, headers=UA)
         bo = r.json()
-    except Exception:
+    except Exception as _fe:
+        # DIAGNOSTIC (user 2026-08-31) : un fetch Unibet KO -> dossier None ET omap vide. L'ancien diagnostic
+        # (plus bas) était APRÈS ce return -> une panne de fetch était TOTALEMENT SILENCIEUSE (on ne voyait
+        # jamais QUELS matchs perdaient leurs cotes ni pourquoi). On logue ICI, avant de sortir.
+        if sport == "foot":
+            print(f"  ⚠️ FETCH UNIBET KO {match.get('name', '?')} (id {match.get('id')}) : "
+                  f"{type(_fe).__name__} {_fe} -> dossier None, cotes fantômes")
         return None
     if sport == "foot":       # map des VRAIES cotes Unibet par code -> re-pricing du sidecar (cf. _UNIBET_OMAP)
         try:
@@ -3625,6 +3631,27 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
                 _omap = _prev_sc["omap"]
         except (OSError, ValueError):
             pass
+    if not _omap and sport == "foot":
+        # DERNIER RECOURS (fix user 2026-08-31) : re-capter les VRAIES cotes Unibet EN DIRECT à l'écriture du
+        # sidecar. La capture de `build_dossier` (dans `_UNIBET_OMAP`) a pu être PERDUE avant d'arriver ici
+        # (ré-écriture du sidecar sur re-passe méthodo, ordre des passes…) -> sinon le match part avec omap
+        # VIDE = cotes fantômes LLM ET est exclu du vivier combiné (bug vécu 2026-08-31 : « combiné du jour
+        # PASS » car 5/7 matchs sans vraies cotes, alors que le fetch Unibet répond 200 + ~600 betOffers).
+        # Le fetch est fiable -> un retry SYNCHRONE borné récupère les cotes. Best-effort, jamais bloquant.
+        try:
+            import httpx as _httpx
+            _rr = _httpx.get(f"{UNIBET_B}/betoffer/event/{m['id']}.json",
+                             params=UNIBET_PARAMS, headers=UA, timeout=15)
+            _omap = _unibet_odds_map((_rr.json() or {}).get("betOffers"),
+                                     m.get("home", ""), m.get("away", "")) or {}
+            if _omap:
+                _UNIBET_OMAP[str(m.get("id"))] = _omap
+                print(f"  ↻ cotes Unibet re-captées à l'écriture : {m.get('name', '?')} ({len(_omap)} marchés)")
+            else:
+                print(f"  ⚠️ COTES UNIBET NON CAPTÉES (retry vide) : {m.get('name', '?')} "
+                      f"(id {m.get('id')}) -> cotes fantômes = estimations LLM")
+        except Exception as _rre:
+            print(f"  ⚠️ omap retry KO {m.get('name', '?')} : {type(_rre).__name__} {_rre}")
     if _omap:
         side["omap"] = _omap            # map {code -> vraie cote Unibet} persistée -> re-pricing read-time possible
     # INSTRUMENTATION SÉLECTION PAR EDGE (user 2026-08-20, étude edge : edge sharp > 0 -> +15,7% vs -4,4%).
