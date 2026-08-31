@@ -9373,10 +9373,9 @@ def _render_calendar(ym: str = "") -> str:
         y, mo = today.year, today.month
     pnl = _daily_pnl()
     first_wd, ndays = _calmod.monthrange(y, mo)        # first_wd : lundi=0 … dimanche=6
-    # Bilan du mois + meilleures/pires journées.
+    # Bilan du mois (jours joués + nb de paris ; « meilleure journée » retirée, user 2026-09-01).
     mprofit = mn = mwon = mlost = 0
     ndays_bet = 0
-    best = worst = None
     _eq_pts, _cum = [0.0], 0.0                          # courbe d'équité du mois (profit cumulé, ordre des jours)
     cells = []
     for _ in range(first_wd):                          # cases vides avant le 1er (aligne les colonnes)
@@ -9401,10 +9400,6 @@ def _render_calendar(ym: str = "") -> str:
             ndays_bet += 1
             _cum += prof
             _eq_pts.append(round(_cum, 2))
-            if best is None or _dhit > best[1]:        # meilleure journée = meilleur TAUX DE RÉUSSITE
-                best = (dnum, _dhit)
-            if worst is None or _dhit < worst[1]:
-                worst = (dnum, _dhit)
         else:
             cls += " mcal-empty"
         if diso == today.isoformat():
@@ -9430,16 +9425,14 @@ def _render_calendar(ym: str = "") -> str:
     # Bilan du mois (ROI héros + courbe d'équité + jours gagnants/paris + meilleure journée).
     _eq = (f'<div class="mcal-eq sx-equity">{_hero_chart(_eq_pts, uid="mcaleq")}</div>'
            if len(_eq_pts) >= 3 else "")
-    _best_v = f'{best[1]:g}%' if best else "—"
-    _best_lb = f'meilleure · {best[0]} {_CAL_MONTHS_FR[mo - 1][:4]}.' if best else "meilleure journée"
     summ = (f'<div class="mcal-sum{" neg" if _rcls == "neg" else ""}">'
             f'<div class="mcal-sum-hero mcal-{_rcls}">{_mhit}%'
             f'<span class="mcal-sum-lb">Réussite du mois</span></div>'
             f'{_eq}'
+            # KPIs : jours AVEC paris + nombre de paris joués (« meilleure journée » retirée, user 2026-09-01).
             f'<div class="mcal-sum-kpis">'
-            f'<div><b>{ndays_bet}</b><span>jours joués</span></div>'
-            f'<div><b>{mn}</b><span>paris</span></div>'
-            f'<div><b class="mcal-{_rcls}">{_best_v}</b><span>{_best_lb}</span></div>'
+            f'<div><b>{ndays_bet}</b><span>jours avec paris</span></div>'
+            f'<div><b>{mn}</b><span>paris joués</span></div>'
             f'</div></div>')
     grid = f'<div class="mcal-grid">{dow}{"".join(cells)}</div>'
     legend = ('<div class="mcal-legend"><span class="mcal-lg pos">Bénéfice</span>'
