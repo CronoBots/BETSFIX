@@ -5830,8 +5830,23 @@ def _prov_why_snippet(sport, fid, maxlen: int = 185, *, played: bool = False) ->
         _tgt = analyses._find(secs, "🎯", "pari à jouer", "Le pari")
         _prov = analyses._find(secs, "🧪", "provisoire", "Provisoire")
         _faits = analyses._find(secs, "📋", "faits", "Les faits")
+        # PARI JOUÉ : justification DÉDIÉE au pari MÉCANIQUE réellement joué (`played_why`, générée au scan
+        # par sonnet). Elle PRIME sur la section « 🎯 Le pari à jouer », qui décrit le PICK BRUT de Claude —
+        # souvent un AUTRE marché que le pari joué (bug user 2026-08-31 : bet « DC 1X » / analyse « Under 3.5 »,
+        # 73 % des fiches). Utilisée UNIQUEMENT si elle décrit bien le pari ACTUELLEMENT joué (sel identique)
+        # -> jamais de texte périmé si le pari a changé à la vague. Repli intégral sur les sections si absente.
+        _ded = ""
+        if played:
+            try:
+                _mm = analyses.meta(sport, str(fid)) or {}
+                _pw = _mm.get("played_why") or {}
+                _rbw = analyses.stat_bet(_mm) or analyses.retained_bet(sport, str(fid), for_history=True) or {}
+                if _pw.get("text") and analyses._norm_sel(_pw.get("sel", "")) == analyses._norm_sel(_rbw.get("sel", "")):
+                    _ded = _pw["text"]
+            except Exception:
+                _ded = ""
         t = ""
-        for _cand in ((_tgt, _prov, _faits) if played else (_prov, _tgt, _faits)):
+        for _cand in ((_ded, _tgt, _prov, _faits) if played else (_prov, _tgt, _faits)):
             t = _clean(_cand or "")
             if t:
                 break

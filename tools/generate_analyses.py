@@ -3407,6 +3407,50 @@ def _analyze_samematch_legs(combo: dict, analysis: str, home: str, away: str) ->
         combo["why"] = ms.group(1).strip()
 
 
+def _mech_bet_why(analysis: str, bet: dict, home: str, away: str) -> str:
+    """Justification DÉDIÉE du pari MÉCANIQUE réellement joué (confiance/value) pour le pli « Pourquoi ce
+    pari » du site. Le sélecteur mécanique choisit son pari dans les FANTÔMES (qui n'ont AUCUNE prose) —
+    sans ce texte, l'affichage retombait sur le raisonnement du PICK BRUT de Claude, souvent un AUTRE
+    marché que le pari joué (bug user 2026-08-31 : bet « DC 1X » mais analyse « Moins de 3.5 buts » ; 73 %
+    des fiches). PUREMENT ADDITIF : un appel sonnet, faits tirés de la section « Les faits » DÉJÀ écrite
+    (aucune donnée neuve, AUCUN impact sur la sélection, le ROI ni la qualité de l'analyse). Best-effort :
+    '' si l'appel échoue -> l'affichage garde son repli habituel. Même patron que `_analyze_samematch_legs`."""
+    sel = str((bet or {}).get("sel") or "").strip()
+    if not sel:
+        return ""
+    faits = ""
+    m = re.search(r"##[^\n]*[Ff]aits(.*?)(?:\n##|\Z)", analysis or "", re.S)
+    if m:
+        faits = re.sub(r"[*`>]", "", m.group(1)).strip()[:2000]
+    if not faits:
+        return ""
+    _p = (bet or {}).get("prob")
+    try:
+        _pct = round(_p * 100) if isinstance(_p, (int, float)) and _p <= 1 else round(_p or 0)
+    except Exception:
+        _pct = 0
+    prompt = (
+        f"Tu es un analyste PRO du pari sportif (BETSFIX). Le pari RETENU sur {home} vs {away} est : "
+        f"« {sel} » (proba estimée ~{_pct}%). Écris SA justification en 3 phrases COMPLÈTES et AUTONOMES "
+        "(français impeccable, ton de pro, ZÉRO généralité ni remplissage). EXIGENCES STRICTES :\n"
+        "  1) Cite AU MOINS DEUX faits CHIFFRÉS tirés des faits fournis (forme récente avec scores, H2H, "
+        "buts marqués/encaissés, absents clés, xG, série en cours).\n"
+        "  2) Nomme explicitement L'ANGLE qui rend CE pari précis solide (l'avantage principal).\n"
+        "  3) Termine par une courte réserve honnête (« bémol : … ») = le principal risque, en une clause.\n"
+        "  N'invente AUCUN chiffre : si un fait manque, appuie-toi sur ce qui est fourni. Parle UNIQUEMENT du "
+        "MATCH (résultats, buts, H2H, absents, forme, dynamique) et de CE pari. ⛔ INTERDIT ABSOLU d'employer "
+        "les mots « sharp », « consensus », « proba », « probabilité », « cote », « value », « le marché » ni "
+        "un pourcentage de victoire : ce sont des méta-paris, pas une analyse de match.\n"
+        "Réponds AU FORMAT EXACT, une seule ligne, RIEN d'autre :\n"
+        "WHY: <justification>\n\nFaits du match :\n" + faits)
+    try:
+        out = run_claude(prompt, timeout=120, model=NARRATIVE_MODEL)   # narratif d'affichage (hors sélection/ROI)
+    except Exception:
+        out = ""
+    mm = re.search(r"^\s*WHY\s*:\s*(.+)", out or "", re.M)
+    return mm.group(1).strip() if mm else ""
+
+
 _VOTES_CACHE: dict = {}   # (sport, sofa_id) -> votes : évite de récupérer les votes 2× par match
 
 
@@ -4117,6 +4161,23 @@ async def main():
                             json.dump(_side_fresh, _f2, ensure_ascii=False)
                 except Exception as _cpe2:
                     print(f"    (paris mécaniques carte ignorés : {_cpe2})")
+                # JUSTIFICATION DÉDIÉE du pari mécanique JOUÉ (pli « Pourquoi ce pari » du site) : le
+                # sélecteur choisit dans les fantômes (sans prose) -> sans ça l'affichage montrait le
+                # raisonnement du PICK BRUT de Claude, souvent un AUTRE marché (bug 2026-08-31, 73 % des
+                # fiches). ADDITIF PUR : sonnet sur les faits DÉJÀ écrits, zéro impact sélection/ROI/qualité.
+                # Régénéré seulement si absent OU si le pari a changé (staleness) -> pas d'appel superflu.
+                try:
+                    _mb = _side_fresh.get("confidence_bet") or _side_fresh.get("value_bet")
+                    _pw0 = _side_fresh.get("played_why") or {}
+                    if (isinstance(_mb, dict) and _mb.get("sel")
+                            and _pw0.get("sel") != _mb.get("sel")):
+                        _wtxt = _mech_bet_why(analysis, _mb, m.get("home", ""), m.get("away", ""))
+                        if _wtxt:
+                            _side_fresh["played_why"] = {"sel": _mb.get("sel"), "text": _wtxt}
+                            with open(os.path.join(OUT, f"{sport}_{fid}.json"), "w", encoding="utf-8") as _f3:
+                                json.dump(_side_fresh, _f3, ensure_ascii=False)
+                except Exception as _pwe:
+                    print(f"    (pourquoi pari mécanique ignoré : {_pwe})")
                 _card = _cd.build_prono_card(_side_fresh)
                 # RÉ-ANALYSE (re-check 1 h avant OU --force) : ne REPUBLIER QUE si le prono a CHANGÉ vs ce qui
                 # était déjà publié. Identique -> rien reposté (pas de spam abonnés) ; le sidecar est déjà
