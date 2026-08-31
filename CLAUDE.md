@@ -115,6 +115,22 @@ mécaniques** backtestés :
   le pari mécanique) · `REVEAL_ONLY_FINAL=True` (voir flux Option B).
 - **Montante = DÉSACTIVÉE** (`2c2f85e`, refonte à venir) — rien dans la catégorie.
 
+### ⚠️ VERDICT / COTE / ANALYSE d'affichage = le pari JOUÉ, JAMAIS le pick brut (MAJ 2026-08-31)
+Depuis la refonte mécanique, le pari joué (`stat_bet`/mécanique) **DIVERGE** du pick brut de Claude
+(`d["pick"]` / tableau `.md`, qui note un AUTRE marché). Tout ce qui s'AFFICHE doit suivre le pari joué :
+- **Source unique** = `analyses.played_result(d)` (combiné → `stat_bet` → repli `pick_result`). Vaut pour le
+  bandeau, le chip « Terminés », le bord coloré, la **carte résultat** (site + Telegram), et la **cote publiée**.
+- L'**analyse « Pourquoi ce pari »** suit aussi le pari joué : `played_why` (sonnet) généré dédié au scan
+  (sinon l'affichage montrait le raisonnement du mauvais pari).
+- Garde-fou selfcheck `_check_verdict_reads_played_bet`. Bugs récurrents (mémoires `result-verdict-follows-played-bet`,
+  `session-2026-08-31-omap-combos-telegram`). ⛔ Ne JAMAIS lire `pick_result`/`d["pick"]`/`bets_of` pour un affichage.
+
+### omap = VRAIES cotes Unibet captées au scan (paris ET abstentions)
+`_unibet_odds_map` (dans `build_dossier`) capte la cote Unibet réelle par code, persistée `side["omap"]` et
+re-price fantômes+paris. Captée pour CHAQUE match — paris (`_write_sidecar`) **ET abstentions** (la fiche
+minimale d'abstention ne l'écrivait pas → réparé 2026-08-31, re-fetch synchrone). Sans vraie cote, une jambe
+est exclue du vivier combiné. Mémoire `omap-unibet-cote-capture` (RÉSOLU).
+
 ### Flux « Option B » (matin → vague KO−1h)
 - **Matin (~10h)** : analyse + sélection mécanique **CACHÉE** (état « À analyser » ;
   un pari reste provisoire, `0f89733`).
@@ -126,14 +142,26 @@ mécaniques** backtestés :
 - Dashboard live (`tools/monitor.py`, route dans `app/routers/web.py`), consultable
   mobile : produits déployés, maturité des marchés, calibration brute, et vue
   **FORWARD réel vs Historique (backfill)** (`537171b`/`4a2ecf1`/`9783807`).
-- Méthodo combinés : privilégier la « domination corrélée » (jambes qui tombent ensemble).
-  **Taux de réussite par jambe mesuré 2026-06-18 (53 jambes réglées, 14 combinés)** :
-  - 🔴 **BANNIR** : **TOUS les corners** (total/équipe/handicap/1ère MT — le marché le plus perdant,
-    coupable dans 5/13 combinés perdus ; banni TOTALEMENT le 2026-06-19 sur demande user), tirs TOTAUX
-    (0/2), cartons (57 %), premier but / mi-temps (non réglables).
-  - 🟢 **PRIVILÉGIER** : résultat / double chance (83 %), tirs **cadrés** (83 %), buts total / équipe
-    marque (79 %).
-  - Gravé dans `tools/generate_analyses.py` (COMBO_MISSION) ; cf. mémoire `combo-construction-rules`.
+## Combinés du jour + du soir (MAJ 2026-08-31 — refonte complète)
+DEUX combinés/jour : variant `""` = **Combiné du jour** (scan matin, slate jour) · `"soir"` = **Combiné du
+soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses._build_combo_montante_from_analysis`.
+- **Vivier MULTI-MARCHÉS** (`_harvest_combo_legs`) : la sélection sûre la plus probable de CHAQUE match
+  analysé, familles **Vainqueur / Double chance / Total équipe** (`_COMBO_ANALYSIS_MARKETS`, `match_candidates`),
+  **VRAIE cote Unibet obligatoire** (omap). Plus « DC seule ».
+- **Sélection SÉCURITÉ** : ≤3 jambes (`COMBO_MAX_LEGS_SAFE=3`), plancher de sûreté 50 % (`COMBO_MIN_SAFE_PROB`),
+  on descend `COMBO_ODDS_LADDER` (1.95→1.40) → cote la plus HAUTE en restant sûr (fini le PASS systématique
+  des nuits de gros favoris ET le combiné risqué à cote forcée).
+- **COMPTÉS AU ROI + stats** : `analyses.COMBO_ROI_ON=True` ; variant "soir" ajouté à l'agrégation
+  (`stats_full`, `combo_stats`, `pending_roi_bets`). Overall = Confiance + Value + Combiné.
+- **PUBLIÉS sur Telegram** (`combo_daily.notify_combos("foot")`, appelé par `reconcile.py` après `settle_all`) :
+  (1) CARTE IMAGE du combiné, (2) « JAMBE GAGNÉE @cote ✅ / PERDUE ❌ » par jambe dès qu'elle est réglée,
+  (3) « COMBINÉ DU JOUR/SOIR GAGNÉ @cote ✅ / PERDU ❌ » global. Idempotent (flags `tg_msg`/`leg.tg_done`/
+  `tg_result_done`), anti-spam `COMBO_TG_FROM`. **Alerte privée owner** (`_owner_alert_once`) si aucun combiné.
+- **BANS DURS gravés** (`COMBO_MISSION`, taux par jambe mesuré 2026-06-18) : 🔴 **TOUS les corners**, tirs
+  TOTAUX, cartons, premier but / mi-temps. 🟢 privilégier résultat / double chance (83 %), tirs **cadrés**
+  (83 %), buts total / équipe marque (79 %).
+- **Intitulé double chance uniforme** : « **\<équipe\> ou nul (1X)** » partout via `analyses.pretty_sel`.
+- Mémoires : `two-combos-jour-soir`, `session-2026-08-31-omap-combos-telegram`, `telegram-foot-simple-only`.
 
 ## ⚠️ 3 COUCHES à NE JAMAIS confondre (Affichage / Stats / Calibration) — juillet 2026
 
