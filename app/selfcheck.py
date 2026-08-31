@@ -828,6 +828,61 @@ def _check_settled_display_coherence(rows) -> dict:
             "items": items}
 
 
+def _check_verdict_reads_played_bet(rows) -> dict:
+    """VERDICT AFFICHÉ == PARI JOUÉ (anti-régression 2026-08-31, bug user « ça a publié l'inverse du
+    résultat, les paris sont gagnés » : Bahia-BA 3-2, DC 1X GAGNÉ publié « CONFIANCE PERDUE »). Le verdict
+    d'un match réglé (bandeau `_result_badge`, chip « Terminés » `result_chip`, bord coloré, carte résultat
+    Telegram/site `build_result_card`) DOIT suivre le pari RÉELLEMENT JOUÉ (`analyses.played_result` ->
+    combiné/`stat_bet` figé), JAMAIS `result.pick_result` (verdict du PICK BRUT de Claude — souvent un AUTRE
+    marché depuis la refonte mécanique 29/08, ex. « Under 3.5 » alors qu'on joue « DC 1X »). Ce contrôle
+    REJOUE les VRAIS afficheurs et exige qu'ils rendent le MÊME verdict que `played_result`. Il ne teste QUE
+    les fiches où un pari a été JOUÉ + réglé (stat_bet figé ou combiné réglé) -> `played` vient du pari joué,
+    pas du repli. Il MORD sur les fiches où `pick_result` diverge (≥34 en base) : toute lecture de
+    `pick_result` ré-introduite en AFFICHAGE rallume ce garde-fou. 100 % lecture seule."""
+    import re as _re
+    from app import card_data
+    _CLS = {"won": "win", "lost": "lose", "push": "push", "void": "push"}
+    items, n_div = [], 0
+    for _, d in rows:
+        if d.get("sport") != "foot":
+            continue
+        sb = d.get("stat_bet")
+        _combo = d.get("combo") or {}
+        _played_simple = isinstance(sb, dict) and sb.get("result") in ("won", "lost", "push")
+        _played_combo = bool(_combo.get("legs")) and _combo.get("result") in ("won", "lost", "push", "void")
+        if not (_played_simple or _played_combo):        # pas un pari JOUÉ+réglé -> hors périmètre
+            continue
+        played = analyses.played_result(d)
+        if played not in ("won", "lost", "push", "void"):
+            continue
+        if (d.get("result") or {}).get("pick_result") != played:
+            n_div += 1                                    # fiche DISCRIMINANTE (le pick brut diverge)
+        nm = d.get("name")
+        # 1) chip « Terminés »
+        if analyses.result_chip(d)[0] != analyses._RESULT_CHIP.get(played, ""):
+            items.append(f"{nm} : chip ≠ pari joué ({played})"); continue
+        # 2) bandeau headline (classe de couleur)
+        _m = _re.search(r"da-res-(win|lose|push|nv)", analyses._result_badge(d))
+        if not _m or _m.group(1) != _CLS.get(played):
+            items.append(f"{nm} : bandeau {_m.group(1) if _m else '?'} ≠ pari joué ({played})"); continue
+        # 3) carte résultat (simple ; le combiné suit combo.result, déjà = played)
+        try:
+            _simple = (card_data.build_result_card(d) or {}).get("simple") or {}
+            if _simple and _simple.get("mark") not in (None, played):
+                items.append(f"{nm} : carte mark {_simple.get('mark')} ≠ pari joué ({played})")
+        except Exception:
+            pass
+    return {"key": "verdict_reads_played_bet",
+            "level": "error" if items else "ok",
+            "title": "Verdict affiché == pari JOUÉ (jamais le pick brut de Claude)",
+            "detail": ("DIVERGENCE : un afficheur note le verdict d'un AUTRE pari que celui joué "
+                       "(régression pick_result -> résultat inversé, cf. bug Bahia 2026-08-31)."
+                       if items else
+                       f"0 divergence — bandeau/chip/carte suivent le pari joué "
+                       f"({n_div} fiche(s) où le pick brut diverge, donc réellement testées)."),
+            "items": items[:20]}
+
+
 def _check_stats_snapshot_drift() -> dict:
     """SNAPSHOT STATS == CALCUL LIVE (garde-fou de l'étape 1 scalabilité, 2026-07-28). Le snapshot disque
     (`data/_stats_snapshot.json`) sert les requêtes en O(1) au lieu de recalculer 2,5 s à chaque restart. Il
@@ -1028,6 +1083,7 @@ def run(persist: bool = False) -> dict:
         _check_bet_gloss_coverage(rows),
         _check_uniform_labels(rows),
         _check_settled_display_coherence(rows),
+        _check_verdict_reads_played_bet(rows),
         _check_upcoming_display_coherence(rows),
         _check_omap_coverage(rows),
         _check_stats_snapshot_drift(),
