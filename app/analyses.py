@@ -2817,6 +2817,24 @@ def stat_bet(d: dict) -> dict | None:
     return retained_bet(d.get("sport"), d.get("id"), for_history=True)
 
 
+def played_result(d: dict) -> str | None:
+    """Verdict (won/lost/push/void) du pari RÉELLEMENT JOUÉ : le combiné s'il y en a un, sinon la couche
+    mécanique FIGÉE (`stat_bet`). ⚠️ PAS `result.pick_result`, qui note le 1er pari du tableau .md (pick
+    BRUT de Claude) et DIVERGE du pari mécanique joué depuis la refonte 2026-08-29 : le scan pick p.ex.
+    « Moins de 3.5 » mais le pari CONFIANCE joué est « DC 1X » (venu d'un fantôme). Lire pick_result faisait
+    afficher « perdu » sur un pari GAGNÉ (bug user 2026-08-31, Bahia-BA – Internacional 3-2). SOURCE UNIQUE
+    du verdict d'affichage (badge headline, chip « Terminés », carte résultat Telegram/site). Repli
+    pick_result tant qu'aucun pari mécanique n'est figé (ex. anciens sidecars pré-refonte)."""
+    d = d or {}
+    combo = d.get("combo") or {}
+    if combo.get("legs"):
+        return combo.get("result")
+    sb = stat_bet(d)
+    if isinstance(sb, dict) and sb.get("result") is not None:
+        return sb.get("result")
+    return (d.get("result") or {}).get("pick_result")
+
+
 def provisional_shown(sport, sel, cote, prob, home="", away="", fid=None) -> bool:
     """Un pari PROVISOIRE (indicatif) est-il DIGNE d'être affiché/suivi ? (demande user 2026-07-17, affiné
     2026-07-20) Un provisoire est un PICK indicatif : il doit d'abord être un pari qu'on FAVORISE. On ne
@@ -2983,8 +3001,8 @@ def result_chip(d: dict) -> tuple[str, str]:
     Match CdM : le pari AFFICHÉ est le COMBINÉ -> le badge suit SON résultat, jamais le pari simple
     (qui peut diverger : combiné perdu mais BTTS Non gagné = « Pari réussi » trompeur, ex. 0-0)."""
     res = (d or {}).get("result") or {}
-    combo = (d or {}).get("combo") or {}
-    outcome = combo.get("result") if combo.get("legs") else res.get("pick_result")
+    # VERDICT = pari JOUÉ (combiné ou couche mécanique figée), pas `pick_result` (pick brut divergent).
+    outcome = played_result(d)
     return (_RESULT_CHIP.get(outcome, ""), res.get("score") or "")
 
 
@@ -4916,14 +4934,16 @@ def _result_badge(m: dict | None) -> str:
                     "push": ("push", "➖ Pari remboursé"),
                     "void": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
         return f'<div class="da-res da-res-{cls}">{txt} {sco}</div>'
-    # SIMPLE : « Pari réussi/perdu » UNIQUEMENT si le pari était RETENU. Sinon ABSTENTION -> on n'a pas
-    # parié : bandeau NEUTRE (sinon « ✅ Pari réussi » sur un match qu'on n'a pas joué = trompeur).
-    pr = res.get("pick_result")
-    # Match terminé -> on juge sur le pari JOUÉ (for_history), pas la reco du jour : un pari dans un
-    # marché exclu APRÈS coup reste un vrai pari de l'historique (sinon « pas de pari » sur un pari joué).
-    if retained_bet(m.get("sport"), m.get("id"), for_history=True):
+    # SIMPLE : « Pari réussi/perdu » UNIQUEMENT si un pari a été JOUÉ (couche mécanique figée). Sinon
+    # ABSTENTION -> bandeau NEUTRE (sinon « ✅ Pari réussi » sur un match non joué = trompeur). Le VERDICT
+    # suit le pari JOUÉ (`played_result` -> stat_bet), PAS `pick_result` (pick brut du .md, divergent depuis
+    # la refonte mécanique 2026-08-29 : DC 1X joué/gagné mais pick_result notait Under 3.5 -> « perdu » à tort).
+    sb = stat_bet(m)
+    if isinstance(sb, dict):
+        pr = played_result(m)
         cls, txt = {"won": ("win", "✅ Pari réussi"), "lost": ("lose", "❌ Pari perdu"),
-                    "push": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
+                    "push": ("push", "➖ Pari remboursé"),
+                    "void": ("push", "➖ Pari remboursé")}.get(pr, ("nv", "Résultat connu"))
     else:                                        # vraie abstention : bandeau NEUTRE, sans langage « pari »
         cls, txt = "nv", "Match analysé · pas de pari"
     return f'<div class="da-res da-res-{cls}">{txt} {sco}</div>'

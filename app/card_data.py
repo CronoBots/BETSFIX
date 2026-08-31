@@ -208,26 +208,33 @@ def build_result_card(d: dict) -> dict | None:
     combo = d.get("combo") or {}
     has_combo = bool(combo.get("legs"))
     res = d.get("result") or {}
-    pick_result = res.get("pick_result")
     combo_result = combo.get("result")
+    # LE PARI JOUÉ = la couche MÉCANIQUE FIGÉE (`stat_bet`), JAMAIS le pick brut de Claude. ⚠️ Cette carte
+    # est bâtie APRÈS le gel de `stat_bet` (au règlement) : à ce moment `retained_bet(for_history=False)` ne
+    # reflète PLUS le pari joué — il reconstruit depuis le tableau .md, souvent un AUTRE marché (ex. pick brut
+    # « Moins de 3.5 » alors que le pari CONFIANCE joué était « DC 1X »). On lisait alors le VERDICT (pick_result)
+    # de CE mauvais pari -> carte « DC 1X @1.22 » tamponnée « PERDUE » sur un pari GAGNÉ (bug user 2026-08-31,
+    # Bahia-BA – Internacional 3-2 : DC 1X gagné, publié « CONFIANCE PERDUE » car pick_result notait Under 3.5).
+    # Source UNIQUE du pari joué + son résultat = `stat_bet` (comme web._settled_bet_result_cards, commit f8c5853).
+    _sb = analyses.stat_bet(d) if sport else None
+    simple_result = (_sb or {}).get("result") if isinstance(_sb, dict) else None
     # Cohérent avec la carte prono (posté = réglé) : `build_prono_card` n'affiche QUE le combiné quand il
     # y en a un (le simple est masqué). La carte résultat doit REFLÉTER ça -> le simple n'est montré que
-    # s'il N'Y A PAS de combiné ET qu'il était RETENU. Sinon on ajoutait un pari simple JAMAIS proposé
-    # (souvent un doublon d'une jambe du combiné) -> incohérence vécue Suisse-Colombie (« Moins de 2.5 »
-    # affiché en simple ET en jambe 1). Un simple non retenu n'a pas de carte prono -> pas de résultat non plus.
-    simple_shown = (not has_combo) and analyses.retained_bet(sport, str(d.get("id"))) is not None
+    # s'il N'Y A PAS de combiné ET qu'un pari a réellement été joué (stat_bet). Sinon on ajoutait un pari simple
+    # JAMAIS proposé (souvent un doublon d'une jambe du combiné) -> incohérence vécue Suisse-Colombie.
+    simple_shown = (not has_combo) and isinstance(_sb, dict)
 
     card_simple = card_combo = None
     _simple_extra: dict = {}
     _home, _away = str(d.get("home", "")), str(d.get("away", ""))
-    if pick_result and simple_shown:
-        rb = analyses.retained_bet(sport, str(d.get("id"))) or {}
+    if simple_result and simple_shown:
         # MÊME carte complète que le site (user 2026-08-17) : on enrichit avec TOUS les champs du prono
         # (grille Confiance/Edge/Value/Cote, tier, analyse) -> la carte résultat = la carte de pari + le
         # verdict Gagné/Perdu, pas un layout minimal. Le TYPE de pari (Confiance/Value) reste la signature.
-        _simple_extra = _simple_common(d, rb, sport, _home, _away)
+        # `_sb` (stat_bet figé : sel/cote/cprob/prob/result du pari JOUÉ) alimente le rendu ET le verdict.
+        _simple_extra = _simple_common(d, _sb, sport, _home, _away)
         card_simple = {"label": _simple_extra["pick"] or "Pari simple", "gloss": _simple_extra["gloss"],
-                       "tier": _simple_extra["tier"], "cote": _simple_extra["cote"], "mark": pick_result}
+                       "tier": _simple_extra["tier"], "cote": _simple_extra["cote"], "mark": simple_result}
     if combo_result:
         cco = combo.get("real_odds") or combo.get("total")
         card_combo = {"cote": (f"{cco:.2f}" if isinstance(cco, float) else str(cco or "")),

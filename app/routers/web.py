@@ -296,9 +296,10 @@ def _past_day_cards(date_iso: str) -> list:
                 continue
             _bdg, _sco = analyses.result_chip(d)
             # État RÉSULTAT pour le bord gauche coloré de la carte (demande user 2026-07-25) : won/lost/push.
-            _res0 = d.get("result") or {}
-            _combo0 = d.get("combo") or {}
-            _outcome = _combo0.get("result") if _combo0.get("legs") else _res0.get("pick_result")
+            # Bord gauche = MÊME verdict que le chip (`result_chip`/`played_result`) : pari JOUÉ (combiné
+            # ou couche mécanique figée), PAS `pick_result` (pick brut divergent) -> plus de chip ✅ / bord
+            # rouge contradictoires (bug user 2026-08-31, DC 1X gagné affiché perdu).
+            _outcome = analyses.played_result(d)
             _cstate = {"won": "won", "lost": "lost", "push": "push", "void": "push"}.get(_outcome, "")
             ts = dt.timestamp()
             if sport == "foot":
