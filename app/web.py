@@ -10158,7 +10158,12 @@ def _recent_bets_html(recent: list) -> str:
             _mn = {str(l.get("name") or "").strip() for l in _legs}
             _mn.discard("")
             if len(_mn) > 1:                            # ≥2 matchs distincts -> vrai combiné multi-matchs
-                name = html.escape("Combiné du jour")
+                # TITRE = le VRAI nom du combiné (« Combiné du jour » OU « Combiné du soir »), pas un libellé
+                # hardcodé (bug user 2026-08-31 : le combiné du soir s'affichait « Combiné du jour »). Le nom
+                # entrant porte déjà la variante (ex. « Combiné du soir (3 j.) ») -> on retire juste le
+                # « (N jambes) » et on met le nb de jambes en sous-ligne. Repli « Combiné du jour » si vide.
+                _ctitle = re.sub(r"\s*\([^)]*\)\s*$", "", _nm_raw).strip() or "Combiné du jour"
+                name = html.escape(_ctitle)
                 sel = html.escape(f"{len(_legs)} jambe{'s' if len(_legs) > 1 else ''}")
         _sel_disp = sel + (' <span class="spf-cx">▾</span>' if _legs else "")
         _inner = (
