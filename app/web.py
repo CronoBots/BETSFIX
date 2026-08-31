@@ -7971,7 +7971,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # qu'on n'a pas joué. Même condition `_has_prog` que le badge « en attente ».
     _abst_html = _abstention_zone(sport or "foot") if _has_prog else ""
     out.append(_abst_html)
-    _prog_html = _programme_schedule(sport or "foot")
+    # PROGRAMME FERMÉ par défaut dès qu'un PARI apparaît dans ≥1 catégorie (Confiance/Value/Combiné/Montante) —
+    # user 2026-08-31. Tant qu'aucun pari : OUVERT (l'user voit le programme à venir).
+    _any_bet = bool(play_conf or _res_conf or play_value or _res_value
+                    or play_mont or _mont_settled or _n_combos)
+    _prog_html = _programme_schedule(sport or "foot", collapse=_any_bet)
     # JOURNÉE TOTALEMENT VIDE (tôt le matin AVANT le scan de 08h, ou jour calme) : au lieu de 2 accordéons
     # Confiance/Value repliés sur un grand vide (message caché), on montre un ÉTAT VIDE PREMIUM (orbe + timing).
     _day_empty = not (play_conf or _res_conf or play_value or _res_value or play_mont or _mont_settled
@@ -8910,9 +8914,11 @@ def _programme_grille(pending: list) -> str:
     return f'<div class="pgg">{"".join(out)}</div>'
 
 
-def _programme_schedule(sport: str = "foot") -> str:
+def _programme_schedule(sport: str = "foot", collapse: bool = False) -> str:
     """Zone « Programme du jour » = les matchs PAS ENCORE analysés, en GRILLE HORAIRE compacte groupée par
-    heure (user 2026-08-18). Badge compteur (à droite, près du chevron). '' si plus rien à analyser."""
+    heure (user 2026-08-18). Badge compteur (à droite, près du chevron). '' si plus rien à analyser.
+    `collapse` (user 2026-08-31) : FERMÉ par défaut dès qu'un pari existe déjà dans une catégorie (Confiance/
+    Value/Combiné/Montante) ; OUVERT tant qu'aucun pari (pour voir le programme à venir)."""
     pending, _abst = _planning_cards(sport)
     if not pending:
         # RIEN À ANALYSER -> deux cas (user 2026-08-20 : la LIGNE « Programme du jour » doit rester visible avec
@@ -8928,8 +8934,9 @@ def _programme_schedule(sport: str = "foot") -> str:
         return _zone("prog", "Programme du jour", "", 0, _soon, collapsible=False)
     # REPLIÉ PAR DÉFAUT (user 2026-08-19) : `open_=False` -> le Programme du jour est toujours fermé au chargement
     # (le JS `_CAL_JS` ne force jamais l'ouverture). On le déplie d'un tap pour voir la liste des matchs.
+    # FERMÉ dès qu'un pari existe déjà dans une catégorie (user 2026-08-31) ; OUVERT sinon (voir le programme).
     return _zone("prog", "Programme du jour", "", len(pending), _programme_grille(pending),
-                 collapsible=True, open_=True)   # OUVERT d'office (user 2026-08-22)
+                 collapsible=True, open_=(not collapse))
 
 
 def _abstention_zone(sport: str = "foot") -> str:
