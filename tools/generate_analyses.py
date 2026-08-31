@@ -4055,12 +4055,28 @@ async def main():
                         _shadow = _parse_calib(analysis, sport, m.get("home", ""), m.get("away", ""))
                         if _shadow:
                             _o = (meta.get("odds") if meta else None) or (None, None, None)
+                            # VRAIES COTES UNIBET même sur une ABSTENTION (fix user 2026-08-31) : la fiche
+                            # minimale d'abstention n'écrivait PAS `omap` -> la DC la plus sûre d'un match
+                            # abstenu (ex. un favori net) était privée de vraie cote et donc EXCLUE du vivier
+                            # LARGE du combiné (« la DC la plus sûre de CHAQUE match »). On capte l'omap ici
+                            # aussi : cache process, sinon re-fetch synchrone borné (fiable). Best-effort.
+                            _ab_omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
+                            if not _ab_omap and sport == "foot":
+                                try:
+                                    import httpx as _h2
+                                    _r2 = _h2.get(f"{UNIBET_B}/betoffer/event/{m['id']}.json",
+                                                  params=UNIBET_PARAMS, headers=UA, timeout=15)
+                                    _ab_omap = _unibet_odds_map((_r2.json() or {}).get("betOffers"),
+                                                                m.get("home", ""), m.get("away", "")) or {}
+                                except Exception:
+                                    _ab_omap = {}
                             try:
                                 json.dump({"sport": sport, "id": str(fid), "sofa_id": str(sofa_id or ""),
                                            "home": m.get("home", ""), "away": m.get("away", ""),
                                            "name": m.get("name", ""), "comp": m.get("comp", ""),
                                            "start": m.get("start", ""), "o1": _o[0], "ox": _o[1], "o2": _o[2],
                                            "shadow": _shadow, "abstained": True,
+                                           **({"omap": _ab_omap} if _ab_omap else {}),
                                            "generated": datetime.now(timezone.utc).isoformat()},
                                           open(side_p, "w", encoding="utf-8"), ensure_ascii=False)
                             except OSError:
