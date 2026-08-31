@@ -948,19 +948,22 @@ def _harvest_combo_legs(day: str, ko_from=None, ko_to=None) -> list[dict]:
             # plaçable au bon prix -> exclue. On FORCE aussi la cote à la valeur omap (au cas où le sidecar
             # est antérieur au re-pricing). Match sans omap (odds non captées) -> aucune jambe -> plus de cote fausse.
             _om = d.get("omap") or {}
-            best = None                                       # la jambe SÛRE la plus probable de ce match
-            for cand in (_cp.match_candidates(d) or []):
-                leg = _combo_leg_from_analysis(cand, d)       # filtre marchés sûrs + code + cote/proba
+            # MULTI-MARCHÉS (user 2026-08-31) : on récolte TOUS les candidats SÛRS du match (familles Résultat/
+            # Double chance/Total équipe, cf. `_COMBO_ANALYSIS_MARKETS`), pas seulement la DC la plus probable.
+            # Sur une nuit de gros favoris, les DC sont trop courtes (~1.10) pour atteindre la cible ; les
+            # marchés « X gagne » (Vainqueur) et « X marque +0.5/+1.5 » (Total équipe) offrent des cotes VARIÉES
+            # -> `pick_combo` (qui gère déjà jusqu'à 3 marchés/match et optimise proba sous contrainte de cote)
+            # peut atteindre la cible en restant le plus sûr possible. Cote RÉELLE Unibet obligatoire (omap) ;
+            # marchés bannis (corners/cartons/total MATCH/handicap/props) déjà exclus par _combo_leg_from_analysis.
+            for cand in (_cp.match_candidates(d, markets=_COMBO_ANALYSIS_MARKETS) or []):
+                leg = _combo_leg_from_analysis(cand, d)       # filtre familles sûres + code + cote/proba
                 if not leg:
                     continue
                 _real = _om.get(leg.get("code"))
                 if not (isinstance(_real, (int, float)) and _real >= 1.01):
                     continue                                  # pas de cote Unibet réelle pour ce code -> exclu
                 leg["cote"] = float(_real)                    # cote RÉELLE Unibet (source de vérité)
-                if best is None or leg["prob"] > best["prob"]:
-                    best = leg
-            if best:
-                legs.append(best)
+                legs.append(leg)                              # TOUS les candidats sûrs -> pick_combo cape à 3/match
         except Exception:
             continue
     return legs
