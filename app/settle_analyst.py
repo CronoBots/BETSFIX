@@ -1948,12 +1948,23 @@ async def _settle_analyses_impl() -> int:
                     _flags_to_set.append("notified_pick")   # affiché -> figé APRÈS envoi réussi
                     _m = _MARK.get(new_pick, "")   # ✅/❌ APRÈS le prono
                     _raw = (d.get("pick") or "").strip()
-                    _pl = re.sub(r"@\s*([\d]+[.,][\d]+)", r"· <b>\1</b>", html.escape(_raw))
-                    _parts.append(f"• {_pl} {_m}".strip() if _pl else f"• Pari simple {_m}".strip())
+                    # LIBELLÉ + COTE = pari MÉCANIQUE JOUÉ (stat_bet figé / retained), PAS le pick brut de
+                    # Claude (bug user 2026-08-31 : résultat publié « @1.34 » alors que le pari joué valait
+                    # 1.07 ; le pick « X gagne @1.34 » / « DC 12 @1.21 » diverge du pari mécanique). Ce repli
+                    # (utilisé quand build_result_card ne fournit pas de simple) lisait `d["pick"]` -> mauvaise
+                    # cote. On lit le pari mécanique ; repli sur le pick SEULEMENT si rien de mécanique.
+                    _rbm = analyses.stat_bet(d)
+                    if not isinstance(_rbm, dict):
+                        _rbm = analyses.retained_bet(sport, mid) or {}
                     _sm = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", _raw)
-                    _card_simple = {"label": (_sm.group(1).strip() if _sm else _raw) or "Pari simple",
-                                    "cote": (_sm.group(2).replace(",", ".") if _sm else ""),
-                                    "mark": new_pick}
+                    _mlbl = _rbm.get("sel") or (_sm.group(1).strip() if _sm else _raw)
+                    _mco = _rbm.get("cote")
+                    _mco_s = (f"{_mco:g}" if isinstance(_mco, (int, float))
+                              else (_sm.group(2).replace(",", ".") if _sm else ""))
+                    _pl = (f"{html.escape(str(_mlbl))} · <b>{html.escape(_mco_s)}</b>" if _mco_s
+                           else html.escape(str(_mlbl or "")))
+                    _parts.append(f"• {_pl} {_m}".strip() if _pl else f"• Pari simple {_m}".strip())
+                    _card_simple = {"label": str(_mlbl) or "Pari simple", "cote": _mco_s, "mark": new_pick}
             if new_combo in _chip and not d.get("notified_combo"):
                 # Combiné NON publié sur Telegram (user 2026-08-02 : Telegram = paris SIMPLES FOOT
                 # uniquement). On FIGE le flag SANS envoi -> le combiné reste réglé/affiché sur le SITE,
