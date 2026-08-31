@@ -3141,7 +3141,7 @@ def _combo_rule_void(day: str) -> bool:
 # le chip « C » du résumé perf est masqué et l'onglet Combiné ne porte PAS de chip ROI. `combo_stats()` reste
 # EXACT. N'affecte NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone, NI la calibration, NI la
 # carte combiné du jour. Remettre True pour recompter les combinés comme un ROI en tête.
-COMBO_ROI_ON = False  # user 2026-08-30 : DEUX combinés/jour (jour+soir) HORS ROI (le temps de valider le split) -> combinés en affichage seul, ROI phare = simples seuls, UI affiche « hors ROI »
+COMBO_ROI_ON = True  # user 2026-08-31 : combinés du JOUR (variant='') + du SOIR (variant='soir') COMPTÉS AU ROI et affichés dans les stats (jour ET nuit). Overall = Confiance + Value + Combiné. Repasser False = combinés en affichage seul.
 MONTANTE_ROI_ON = False  # user 2026-08-29 : montante DÉSACTIVÉE (refonte de la sélection à venir) -> RIEN dans
 #                          la catégorie montante ; les matchs montante-mids reviennent à leur tier réel
 #                          (confiance/value) via tier_of. Réactiver = True + recréer data/montante_active.flag.
@@ -3410,7 +3410,8 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
     # plus du bilan combiné dédié -> Overall = Confiance + Value + Combiné. Toujours dans `combo_form` (2e ligne).
     try:
         from app import combo_daily as _cdroi
-        for _cev in (_cdroi.roi_events() + _cdroi.roi_events(variant="cote2")):
+        for _cev in (_cdroi.roi_events() + _cdroi.roi_events(variant="cote2")
+                     + _cdroi.roi_events(variant="soir")):   # jour + (cote2 dormant) + SOIR au ROI
             if cutoff is not None:
                 try:
                     _cdt = datetime.fromisoformat((_cev[0] or "") + "T00:00:00+00:00")
@@ -3682,7 +3683,8 @@ def combo_stats(since_days: int | None = None) -> dict:
         from app import combo_daily as _cdmod
         # DEUX combinés/jour (user 2026-08-19) : « Sûr » (variant='') + « Cote 2 » (variant='cote2'). LES DEUX
         # comptent dans le BILAN COMBINÉS (rows/curve/crecent), hors ROI officiel des simples.
-        for _dt, _res, _cote, _det in (_cdmod.roi_events() + _cdmod.roi_events(variant="cote2")):
+        for _dt, _res, _cote, _det in (_cdmod.roi_events() + _cdmod.roi_events(variant="cote2")
+                                       + _cdmod.roi_events(variant="soir")):   # jour + cote2 + SOIR
             if _res not in ("won", "lost", "push"):
                 continue
             if (_dt or "")[:10] < _COMBO_STATS_FROM:
