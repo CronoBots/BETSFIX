@@ -825,6 +825,12 @@ def _set_programme_status(match_id: str, status: str, provisional: dict | None =
 # Total équipe (buts d'UNE équipe). Tout le reste est exclu — en particulier les OVER/UNDER du TOTAL du
 # match (fragiles), les corners, cartons, buteurs, mi-temps, hors-jeu, handicaps, props joueur.
 _COMBO_ANALYSIS_MARKETS = frozenset({"Vainqueur", "Double chance", "Total équipe"})
+# COMBINÉ SÉCURITÉ (user 2026-08-31 « 3 jambes max, cote max sécurité ») : au plus 3 jambes, et on vise la
+# cote LA PLUS HAUTE atteignable EN RESTANT sûr (proba du combiné ≥ COMBO_MIN_SAFE_PROB). On descend la cible
+# de cote jusqu'au 1er combiné qui respecte le plancher — au lieu de forcer ~1.95 avec des jambes risquées.
+COMBO_MAX_LEGS_SAFE = 3
+COMBO_MIN_SAFE_PROB = 0.50
+COMBO_ODDS_LADDER = (1.95, 1.80, 1.65, 1.55, 1.50, 1.45, 1.40)
 
 
 def _combo_leg_from_analysis(bet: dict, d: dict) -> dict | None:
@@ -1064,7 +1070,15 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
             # slate (via `_harvest_combo_legs`), pas seulement les paris retenus Confiance/Value -> combiné
             # quasi-quotidien (façon combiné sécurité). 1 jambe/match, marchés sûrs (DC/1X2/Total équipe).
             legs = _harvest_combo_legs(day, ko_from, ko_to)
-            _combo = _cdaily.pick_combo(legs, min_odds=_csafe.TARGET_ODDS) if legs else None
+            # COMBINÉ SÉCURITÉ : ≤3 jambes, cote LA PLUS HAUTE en restant sûr (≥ plancher). On descend la
+            # cible jusqu'au 1er combiné qui tient le plancher (ex. nuit de gros favoris -> ~1.45 à 61% au
+            # lieu de 1.99 à 39% ou rien). PASS seulement si aucune cote de l'échelle ne passe le plancher.
+            _combo = None
+            for _tgt in COMBO_ODDS_LADDER:
+                _combo = _cdaily.pick_combo(legs, min_odds=_tgt, max_legs=COMBO_MAX_LEGS_SAFE,
+                                            min_combo_prob=COMBO_MIN_SAFE_PROB) if legs else None
+                if _combo:
+                    break
             if _combo:
                 _clegs = [{"mid": l["mid"], "sport": "foot", "name": l.get("name"), "home": l.get("home"),
                            "away": l.get("away"), "start": l.get("start"), "comp": l.get("comp"),
@@ -1112,17 +1126,12 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
                 _lg = _harvest_combo_legs(day, ko_from, ko_to)
             except Exception:
                 _lg = []
-            _strong = [l for l in _lg if (l.get("prob") or 0) >= 0.80]
-            _prod = 1.0
-            for _l in _strong:
-                _prod *= (_l.get("cote") or 1)
             if not _lg:
                 _why = "aucune jambe avec vraie cote Unibet captée -> PROBLÈME DE COTES (à corriger)."
-            elif not _strong:
-                _why = f"{len(_lg)} jambe(s) mais aucune ≥80% (pas assez sûres) — normal."
             else:
-                _why = (f"{len(_strong)} jambe(s) sûre(s) mais produit {_prod:.2f} < cible "
-                        f"{_csafe.TARGET_ODDS} (favoris trop courts) — PAS un problème de cotes.")
+                _why = (f"{len(_lg)} jambe(s) candidate(s) mais aucun combiné ≤{COMBO_MAX_LEGS_SAFE} jambes "
+                        f"n'atteint le plancher de sûreté {int(COMBO_MIN_SAFE_PROB * 100)}% même à cote basse "
+                        f"— pas assez de jambes sûres/variées (PAS un problème de cotes).")
             _owner_alert_once(f"combo_pass:{day}:{variant or 'jour'}",
                               f"⚠️ {_clabel} INTROUVABLE pour {day} (slate {_slate}) : {_why}")
     except Exception:
