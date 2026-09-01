@@ -53,6 +53,19 @@ Get-CimInstance Win32_Process -Filter "Name='claude.exe'" |
   ? { $_.CommandLine -match 'remote-control BETSFIX' } | Select ProcessId
 ```
 
+## Remote control coupé : réparation en 1 clic
+
+- **Diagnostic seul (ne modifie rien)** : double-clic `diagnose_remote.bat`.
+- **Réparation** : double-clic **`reparer_remote.bat`** (→ `deploy/repair_remote.ps1`,
+  **sans admin**) : vérifie claude + login, **tue tout** (loops orphelines + claude
+  remote BETSFIX → anti-doublon), relance via la tâche planifiée sinon **directement**
+  `remote-control-loop.ps1`, puis **attend et vérifie** (1 boucle + 1 claude + connexion
+  Anthropic établie) et dit ce qui bloque encore.
+- Rappel : une **session cloud** (claude.ai/code) **ne peut PAS** relancer le remote du
+  PC — pas de route réseau vers la machine. La relance se fait **sur le PC**.
+- Autostart au logon (tâche) = `deploy/setup_remote_control.ps1` (PowerShell **admin**),
+  source de vérité.
+
 ## ⚠️ BETSFIX = 100 % FOOTBALL (depuis 2026-08-07)
 
 Tennis et basket ont été **retirés** (scan, UI, données supprimées) — mémoire
