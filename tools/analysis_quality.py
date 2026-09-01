@@ -260,45 +260,116 @@ def _md_section(txt: str, needle: str) -> str:
     return ""
 
 
-def _qc_signals(d: dict, md: str | None, mdtxt: str = "") -> list[str]:
-    """Signaux de QUALITÉ (lecture seule) : sources, ancre sharp, vraies cotes Unibet, profondeur, panel,
-    fantômes. Repli sur le .md quand le JSON (fiche d'abstention) ne porte pas sources/sharp -> pas de faux ❌."""
+def _qc_collect(d: dict, md: str | None, mdtxt: str) -> dict:
+    """Rassemble les signaux BRUTS d'un match (lecture seule). Repli sur le .md quand le JSON (fiche
+    d'abstention) ne porte pas sources/sharp -> pas de faux ❌."""
     srcs = d.get("sources")
     src_names = srcs if isinstance(srcs, list) else (list(srcs.keys()) if isinstance(srcs, dict) else [])
-    if not src_names and mdtxt:                       # fiche d'abstention -> sources citées dans le .md
+    if not src_names and mdtxt:
         low = mdtxt.lower()
         src_names = [t for t in _SRC_TOKENS if t in low]
-    n_src = len(src_names)
-    sharp_ok = (bool(d.get("sharp_map")) or ("pinnacle" in mdtxt.lower())) and not d.get("no_sharp")
-    n_omap = len(d.get("omap") or {})
     md_ko = (os.path.getsize(md) / 1000.0) if (md and os.path.exists(md)) else 0.0
-    md_ok = md_ko * 1000 >= MIN_MD
-    panel = bool(d.get("validation") or d.get("votes")) or ("Paris classés" in mdtxt)
-    n_shadow = len(d.get("shadow") or [])
-    return [
-        "📊 Qualité de l'analyse",
-        f"  • Sources : {n_src}" + (f" ({', '.join(src_names[:5])})" if src_names else " ⚠️ (aucune trace)"),
-        f"  • Ancre sharp (Pinnacle) : {'✅' if sharp_ok else '❌'}",
-        f"  • Vraies cotes Unibet (omap) : {'✅ ' + str(n_omap) if n_omap else '❌'}",
-        f"  • Profondeur analyse : {md_ko:.1f} ko {'✅' if md_ok else '⚠️ (stub)'}",
-        f"  • Panel de validation : {'✅' if panel else '❌'}",
-        f"  • Fantômes (calibration) : {n_shadow}",
-    ]
+    return {
+        "src_names": src_names, "n_src": len(src_names),
+        "sharp_ok": (bool(d.get("sharp_map")) or ("pinnacle" in mdtxt.lower())) and not d.get("no_sharp"),
+        "n_omap": len(d.get("omap") or {}),
+        "md_ko": md_ko, "md_ok": md_ko * 1000 >= MIN_MD,
+        "panel": bool(d.get("validation") or d.get("votes")) or ("Paris classés" in mdtxt),
+        "n_shadow": len(d.get("shadow") or []),
+        "has_facts": bool(_md_section(mdtxt, "Les faits")),
+        "final": bool(d.get("prematch_done") or d.get("abstained") or A.is_settled(d)
+                      or (isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel"))),
+    }
+
+
+# Bandes de cote par tier (source de vérité = les sélecteurs mécaniques).
+try:
+    from app import confidence_pick as _CP, value_pick as _VP
+    _BANDS = {"confiance": (_CP.COTE_LO, _CP.COTE_HI), "value": (_VP.COTE_LO, _VP.COTE_HI)}
+except Exception:
+    _BANDS = {"confiance": (1.05, 1.50), "value": (1.40, 2.30)}
+
+
+def _qc_audit(d: dict, rb: dict | None, sig: dict) -> dict:
+    """Verdict DIAGNOSTIC par pilier (SCAN / ANALYSE / SÉLECTION / SOURCES) + liste des soucis détectés.
+    ✅ ok · ⚠️ attention · ❌ problème. Le pire pilier donne le feu global (🟢/🟠/🔴)."""
+    issues, sel_notes = [], []
+    # SCAN : analyse écrite et décision finalisée
+    scan = "✅"
+    if not sig["md_ok"]:
+        scan = "❌"; issues.append(f"SCAN : analyse trop courte ({sig['md_ko']:.1f} ko, stub)")
+    if not sig["final"]:
+        scan = "⚠️" if scan == "✅" else scan; issues.append("SCAN : décision pas encore finalisée (vague à venir)")
+    # ANALYSE : faits multi-sources + panel + vivier de fantômes
+    analyse = "✅"
+    if not sig["has_facts"]:
+        analyse = "❌"; issues.append("ANALYSE : section « Les faits » absente")
+    if not sig["panel"]:
+        analyse = "⚠️" if analyse == "✅" else analyse; issues.append("ANALYSE : panel de validation absent")
+    if sig["n_shadow"] < 6:
+        analyse = "⚠️" if analyse == "✅" else analyse; issues.append(f"ANALYSE : peu de fantômes ({sig['n_shadow']})")
+    # SOURCES : ≥2 sources indépendantes + ancre sharp + vraies cotes Unibet
+    sources = "✅"
+    if sig["n_src"] < 2:
+        sources = "❌"; issues.append(f"SOURCES : {sig['n_src']} source(s) (<2 requis)")
+    if not sig["sharp_ok"]:
+        sources = "⚠️" if sources == "✅" else sources; issues.append("SOURCES : pas d'ancre sharp Pinnacle")
+    if sig["n_omap"] == 0:
+        sources = "⚠️" if sources == "✅" else sources; issues.append("SOURCES : cotes réelles Unibet (omap) absentes")
+    # SÉLECTION : pari dans sa bande + cote réelle + cohérence proba/cote ; ou abstention (décision valide)
+    selection = "✅"
+    if rb and rb.get("sel"):
+        tkey = rb.get("tier") or "confiance"
+        lo, hi = _BANDS.get(tkey, (1.01, 100.0))
+        cote, prob, cprob, code = rb.get("cote"), rb.get("prob"), rb.get("cprob"), rb.get("code")
+        if isinstance(cote, (int, float)) and lo - 1e-9 <= cote <= hi + 1e-9:
+            sel_notes.append(f"cote dans la bande {tkey} {lo:g}–{hi:g}")
+        else:
+            selection = "❌"; issues.append(f"SÉLECTION : cote {cote} HORS bande {tkey} [{lo:g}–{hi:g}]")
+        if code and code not in (d.get("omap") or {}):
+            selection = "❌"; issues.append("SÉLECTION : cote du pari ABSENTE de l'omap (cote non vérifiée)")
+        else:
+            sel_notes.append("cote réelle Unibet vérifiée")
+        # cohérence proba/cote : sur la CONFIANCE, une proba très au-dessus de l'implicite = drapeau rouge
+        # (ex. ancien bug « DC 91 %@1.42 » = cote fantôme / mauvais match). La VALUE, elle, VEUT proba>implicite.
+        imp = (1.0 / cote) if isinstance(cote, (int, float)) and cote else None
+        use = cprob if isinstance(cprob, (int, float)) else prob
+        if imp and isinstance(use, (int, float)):
+            if tkey == "confiance" and (use / 100.0 - imp) > 0.15:
+                selection = "❌"; issues.append(
+                    f"SÉLECTION : proba {use:.0f}% ≫ implicite {imp*100:.0f}% (cote {cote}) — incohérence proba/cote")
+            else:
+                sel_notes.append(f"cohérence proba/cote OK (implicite {imp*100:.0f}%)")
+    else:
+        sel_notes.append("abstention (aucun candidat mécanique ≥ seuil — décision valide)")
+    rank = {"✅": 0, "⚠️": 1, "❌": 2}
+    worst = max((scan, analyse, selection, sources), key=lambda s: rank[s])
+    return {"overall": {"✅": "🟢", "⚠️": "🟠", "❌": "🔴"}[worst],
+            "scan": scan, "analyse": analyse, "selection": selection, "sources": sources,
+            "issues": issues, "sel_notes": sel_notes}
 
 
 def _qc_card(d: dict, m: dict, md: str | None) -> str:
-    """Fiche QC PRO d'un match : match + coup d'envoi, PARI JOUÉ (tier/cote/confiance + pourquoi) OU
-    ABSTENTION (seuils + décision), l'ANALYSE (faits multi-sources du .md), puis les signaux de qualité."""
+    """Fiche QC DIAGNOSTIC d'un match : en-tête feu global + 4 piliers (SCAN/ANALYSE/SÉLECTION/SOURCES),
+    soucis détectés, le pari joué (ou abstention) + cohérence, l'analyse (faits sourcés), le détail qualité."""
     home, away = str(d.get("home", "")), str(d.get("away", ""))
     name = m.get("name") or f"{home} - {away}"
     comp = d.get("comp") or ""
     ko = _ko_bx(m.get("start") or d.get("start"))
     mdtxt = _md_text(md)
-    head = f"🔎 CONTRÔLE MATCH — {name}"
-    sub = " · ".join(x for x in (comp, (f"{ko} (Brussels)" if ko else "")) if x)
-    lines = [head] + ([f"🏆 {sub}"] if sub else []) + [""]
-
     rb = A.retained_bet("foot", str(d.get("id"))) if d.get("id") else None
+    sig = _qc_collect(d, md, mdtxt)
+    au = _qc_audit(d, rb, sig)
+
+    sub = " · ".join(x for x in (comp, (f"{ko} (Brussels)" if ko else "")) if x)
+    lines = [f"{au['overall']} CONTRÔLE — {name}"]
+    if sub:
+        lines.append(f"🏆 {sub}")
+    lines.append(f"SCAN {au['scan']} · ANALYSE {au['analyse']} · SÉLECTION {au['selection']} · SOURCES {au['sources']}")
+    if au["issues"]:
+        lines += ["", "⚠️ À VÉRIFIER :"] + [f"  • {x}" for x in au["issues"]]
+    lines.append("")
+
     if rb and rb.get("sel"):
         tier = {"confiance": "CONFIANCE", "value": "VALUE"}.get(rb.get("tier"), (rb.get("tier") or "").upper())
         prob, cprob = rb.get("prob"), rb.get("cprob")
@@ -307,17 +378,18 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
             conf = f"confiance {prob:.0f}%"
             if isinstance(cprob, (int, float)) and abs(cprob - prob) >= 1:
                 conf += f" · calibrée {cprob:.0f}%"
-        lines.append(f"✅ PARI JOUÉ — {tier}")
+        lines.append(f"🎯 PARI JOUÉ — {tier}")
         lines.append(f"   {A.pretty_sel(rb.get('sel', ''), home, away)} @ {rb.get('cote')}"
                      + (f"   ({conf})" if conf else ""))
+        for nt in au["sel_notes"]:
+            lines.append(f"   ✔ {nt}")
         why = d.get("played_why") or {}
         wtext = why.get("text") if isinstance(why, dict) else None
         if wtext:
             lines += ["", f"💬 Pourquoi ce pari : {str(wtext).strip()[:800]}"]
     else:
         lines.append("⏸️ ABSTENTION — aucun pari mécanique ≥ seuil")
-        lines.append("   (Confiance : conf ≥ 80 · cote 1.05-1.50 · marché fiable —"
-                     " Value : conf ≥ 68 · cote 1.40-2.30 · EV ≥ +5 %)")
+        lines.append("   (Confiance : conf ≥ 80 · cote 1.05–1.50 — Value : conf ≥ 68 · cote 1.40–2.30 · EV ≥ +5 %)")
         skip = _md_section(mdtxt, "Le pari à jouer")
         if skip:
             lines += ["", f"🧭 Décision : {skip[:450]}"]
@@ -325,7 +397,13 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
     facts = _md_section(mdtxt, "Les faits")             # L'ANALYSE = faits multi-sources sourcés (à vérifier)
     if facts:
         lines += ["", "📋 Les faits (analyse) :", facts[:900]]
-    lines += [""] + _qc_signals(d, md, mdtxt)
+    lines += ["", "📊 Détail qualité",
+              f"  • Sources : {sig['n_src']}"
+              + (f" ({', '.join(sig['src_names'][:5])})" if sig["src_names"] else " (aucune trace)"),
+              f"  • Ancre sharp (Pinnacle) : {'✅' if sig['sharp_ok'] else '❌'}",
+              f"  • Cotes réelles Unibet (omap) : {'✅ ' + str(sig['n_omap']) if sig['n_omap'] else '❌'}",
+              f"  • Profondeur : {sig['md_ko']:.1f} ko {'✅' if sig['md_ok'] else '⚠️'}"
+              f" · panel {'✅' if sig['panel'] else '❌'} · fantômes {sig['n_shadow']}"]
     return "\n".join(lines)
 
 
