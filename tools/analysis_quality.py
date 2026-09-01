@@ -210,11 +210,148 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
     return 0
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# FICHE QC PAR MATCH (user 2026-09-01) — chaque match analysé envoie EN PRIVÉ (owner) une fiche pour
+# vérifier PROFESSIONNELLEMENT la qualité de l'analyse et le choix fait (pari joué / abstention).
+# Envoyée UNE fois par match, à sa vague (décision FINALE), dédupliquée par jour. Lecture seule.
+# ─────────────────────────────────────────────────────────────────────────────
+_QC_SENT = os.path.join(os.path.dirname(A.DIR), "match_qc_sent.json")
+
+try:
+    import zoneinfo
+    _BX = zoneinfo.ZoneInfo("Europe/Brussels")
+except Exception:
+    _BX = None
+
+
+def _ko_bx(start: str) -> str:
+    """Heure de coup d'envoi en Europe/Brussels (« HH:MM »), depuis le start ISO (UTC) du programme."""
+    try:
+        dt = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return (dt.astimezone(_BX) if _BX else dt).strftime("%H:%M")
+    except Exception:
+        return ""
+
+
+def _qc_signals(d: dict, md: str | None) -> list[str]:
+    """Signaux de QUALITÉ (lecture seule) : sources, ancre sharp, vraies cotes Unibet, profondeur, panel, fantômes."""
+    srcs = d.get("sources")
+    src_names = srcs if isinstance(srcs, list) else (list(srcs.keys()) if isinstance(srcs, dict) else [])
+    n_src = len(src_names)
+    sharp_ok = bool(d.get("sharp_map")) and not d.get("no_sharp")
+    n_omap = len(d.get("omap") or {})
+    md_ko = (os.path.getsize(md) / 1000.0) if (md and os.path.exists(md)) else 0.0
+    md_ok = md_ko * 1000 >= MIN_MD
+    panel = bool(d.get("validation") or d.get("votes"))
+    n_shadow = len(d.get("shadow") or [])
+    return [
+        "📋 Qualité de l'analyse",
+        f"  • Sources : {n_src}" + (f" ({', '.join(src_names[:5])})" if src_names else " ⚠️ (fiche minimale)"),
+        f"  • Ancre sharp (Pinnacle) : {'✅' if sharp_ok else '❌'}",
+        f"  • Vraies cotes Unibet (omap) : {'✅ ' + str(n_omap) if n_omap else '❌'}",
+        f"  • Profondeur analyse : {md_ko:.1f} ko {'✅' if md_ok else '⚠️ (stub)'}",
+        f"  • Panel de validation : {'✅' if panel else '❌'}",
+        f"  • Fantômes (calibration) : {n_shadow}",
+    ]
+
+
+def _qc_card(d: dict, m: dict, md: str | None) -> str:
+    """Fiche QC PRO d'un match : match + coup d'envoi, PARI JOUÉ (tier/cote/confiance + pourquoi) OU
+    ABSTENTION (seuils + angle Claude informatif), puis les signaux de qualité de l'analyse."""
+    home, away = str(d.get("home", "")), str(d.get("away", ""))
+    name = m.get("name") or f"{home} - {away}"
+    comp = d.get("comp") or ""
+    ko = _ko_bx(m.get("start") or d.get("start"))
+    head = f"🔎 CONTRÔLE MATCH — {name}"
+    sub = " · ".join(x for x in (comp, (f"{ko} (Brussels)" if ko else "")) if x)
+    lines = [head] + ([f"🏆 {sub}"] if sub else []) + [""]
+
+    rb = A.retained_bet("foot", str(d.get("id"))) if d.get("id") else None
+    if rb and rb.get("sel"):
+        tier = {"confiance": "CONFIANCE", "value": "VALUE"}.get(rb.get("tier"), (rb.get("tier") or "").upper())
+        prob, cprob = rb.get("prob"), rb.get("cprob")
+        conf = ""
+        if isinstance(prob, (int, float)):
+            conf = f"confiance {prob:.0f}%"
+            if isinstance(cprob, (int, float)) and abs(cprob - prob) >= 1:
+                conf += f" · calibrée {cprob:.0f}%"
+        lines.append(f"✅ PARI JOUÉ — {tier}")
+        lines.append(f"   {A.pretty_sel(rb.get('sel', ''), home, away)} @ {rb.get('cote')}"
+                     + (f"   ({conf})" if conf else ""))
+        why = d.get("played_why") or {}
+        wtext = why.get("text") if isinstance(why, dict) else None
+        if wtext:
+            lines += ["", f"💬 {str(wtext).strip()[:900]}"]
+    else:
+        lines.append("⏸️ ABSTENTION — aucun pari mécanique ≥ seuil")
+        lines.append("   (Confiance : conf ≥ 80 · cote 1.05-1.50 · marché fiable —"
+                     " Value : conf ≥ 68 · cote 1.40-2.30 · EV ≥ +5 %)")
+        raw = str(d.get("pick") or "").strip()
+        if raw:
+            lines += ["", f"🧭 Angle Claude (informatif, NON joué) : {raw[:160]}"]
+    lines += [""] + _qc_signals(d, md)
+    return "\n".join(lines)
+
+
+def notify_match_qc(date: str | None = None, send: bool = False) -> int:
+    """Envoie (ou prévisualise) une FICHE QC par match analysé FINALISÉ, une seule fois par match/jour."""
+    prog = _load_programme()
+    matches = prog.get("matches") or []
+    day = date or prog.get("date") or ""
+    if date:
+        matches = [m for m in matches if (m.get("start") or "")[:10] == date]
+    try:
+        st = json.load(open(_QC_SENT, encoding="utf-8"))
+    except Exception:
+        st = {}
+    done = set(st.get(day) or [])
+    n_sent = n_wait = 0
+    print(f"═══ FICHES QC PAR MATCH — {day or 'jour courant'} ═══")
+    for m in matches:
+        mid = str(m.get("id") or "")
+        d, md = _sidecar_for(mid, m.get("home", ""), m.get("away", ""))
+        analysed = bool(d and (d.get("bets") or d.get("shadow") or d.get("abstained") or d.get("stat_bet")))
+        if not analysed:
+            continue
+        # DÉCISION FINALE seulement (Option B) : vague passée (`prematch_done`), abstention confirmée,
+        # publié, ou réglé -> `retained_bet` reflète le VRAI pari (pas l'état provisoire du matin).
+        final = bool(d.get("prematch_done") or d.get("abstained") or A.is_settled(d)
+                     or (isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel")))
+        if not final:
+            n_wait += 1
+            continue
+        if mid in done:
+            continue
+        card = _qc_card(d, m, md)
+        if send:
+            if _send_owner(card):
+                done.add(mid); n_sent += 1
+                print(f"  → QC envoyée : {m.get('name') or mid}")
+            else:
+                print(f"  (envoi impossible : {m.get('name') or mid})")
+        else:
+            print("\n" + "-" * 60 + "\n" + card)
+    if send and n_sent:
+        try:
+            json.dump({day: sorted(done)}, open(_QC_SENT, "w", encoding="utf-8"), ensure_ascii=False)
+        except Exception:
+            pass
+    print(f"\n{n_sent} fiche(s) envoyée(s) · {n_wait} en attente de vague.")
+    return 0
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=None, help="jour ISO (défaut : programme courant)")
     ap.add_argument("--alert", action="store_true",
                     help="envoie une alerte PRIVÉE au propriétaire (data/owner_chat.txt) si problème, "
                          "dédupliquée (1 fois/problème/jour). Sans ce flag : rapport console seul.")
+    ap.add_argument("--match-messages", action="store_true",
+                    help="envoie une FICHE QC PRIVÉE par match analysé finalisé (une fois/match/jour). "
+                         "Combiner avec --alert pour ENVOYER ; seul = prévisualisation console.")
     args = ap.parse_args()
+    if args.match_messages:
+        sys.exit(notify_match_qc(args.date, send=args.alert))
     sys.exit(run(args.date, send_alert=args.alert))

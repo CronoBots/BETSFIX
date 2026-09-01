@@ -56,6 +56,13 @@ Log 'WAVE QUALITÉ : contrôle couverture/profondeur/conversion (+ alerte privé
 & $py 'tools\analysis_quality.py' --alert 2>&1 | Add-BfxStream $log
 Log ("WAVE QUALITÉ DONE (exit {0})" -f $LASTEXITCODE)
 
+# FICHE QC PAR MATCH (user 2026-09-01) : chaque match analysé FINALISÉ (vague passée / abstention confirmée)
+# envoie EN PRIVÉ (owner) une fiche pour vérifier qualité + choix (pari joué OU abstention + signaux qualité).
+# 1 seule fois par match/jour (dédup data/match_qc_sent.json). Lecture seule.
+Log 'WAVE QC MATCHS : fiche privée par match analysé'
+& $py 'tools\analysis_quality.py' --match-messages --alert 2>&1 | Add-BfxStream $log
+Log ("WAVE QC MATCHS DONE (exit {0})" -f $LASTEXITCODE)
+
 # AUTO-AUDIT d'intégrité (lecture seule) : garde-fou anti-régression, alerte Telegram seulement si ERREUR.
 Log 'WAVE SELFCHECK'
 & $py 'tools\selfcheck.py' --quiet 2>&1 | Add-BfxStream $log
