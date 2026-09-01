@@ -113,8 +113,12 @@ et nourrit les **fantômes** ; le pari joué est ensuite choisi par des **sélec
 mécaniques** backtestés :
 - **Confiance** = `app/confidence_pick.py` — DC/Handicap, conf ≥80, cote 1.05–1.50,
   le + sûr (~94 % / +7,7 %). Plafond cote **1.50** (`3abb5f0`).
-- **Value** = `app/value_pick.py` — tous marchés sauf bans, conf ≥58, cote 1.40–2.30,
-  EV ≥ +5 %, cote la + haute, sur matchs **SANS** confiance (~72 % / +15,9 %).
+- **Value** = `app/value_pick.py` — conf **≥68** (relevé de 58, MAJ 2026-09-01), cote 1.40–2.30, EV ≥ +5 %,
+  cote la + haute, sur matchs **SANS** confiance. Marchés sauf bans **+ « Total Over » exclu** (`_VALUE_BAN_MARKETS`
+  = seul marché value perdant : 56 %/−9 %). Perf ré-alignée ~87 % / +35 %. Optim via backtest fantômes 1/match +
+  train/test anti-surapprentissage (mémoire `value-exclude-total-over`). **Historique RE-PIQUÉ** sous ce modèle
+  (2026-09-01, pas d'abonnés) : 46→23 value (23 retirés = abstentions), stat_bet re-figé EXPLICITEMENT (pas via
+  `retained_bet`/`stat_bet` qui ressuscitent le pari publié) + filigrane monotone remis à 0.
 - Verrous dans `app/analyses.py` : `FOOT_MECHANICAL_ONLY=True` (le foot ne prend QUE
   le pari mécanique) · `REVEAL_ONLY_FINAL=True` (voir flux Option B).
 - **Montante = DÉSACTIVÉE** (`2c2f85e`, refonte à venir) — rien dans la catégorie.
@@ -188,10 +192,17 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   combinés, omap, **verdict = pari joué**…), lancé après chaque scan/reconcile.
   Vérif : `python -c "from app import selfcheck; print(selfcheck.run()['counts'])"` → doit être `error:0`.
 - **Monitoring** : `/monitor` (`tools/monitor.py`) — forward réel vs backfill, calibration, maturité des marchés.
-- **Perf accueil** : caches `_HMR_CACHE` (rows), `fragcache` (fragment jour), `_ODDS_CACHE` (cotes live 25 s,
-  stale-while-revalidate, **non-bloquant au cold start** depuis `4f6013c`), snapshot `data/_stats_snapshot.json`.
-- **UI** : calendrier stats = **taux de réussite** (jour/mois, plus le ROI) ; « Programme du jour » **fermé**
-  dès qu'un pari existe dans une catégorie ; intitulé DC « \<équipe\> ou nul (1X) ».
+- **Perf accueil** (rendu ~10× plus rapide, 2026-09-01) : caches `_HMR_CACHE` (rows), `fragcache` (fragment
+  jour), `_ODDS_CACHE` (cotes live 25 s, stale-while-revalidate, **non-bloquant au cold start** `4f6013c`),
+  snapshot `data/_stats_snapshot.json`, et surtout **throttle 2 s de `_fid_index` + `iter_meta`** (`_FID_SIG_TTL`/
+  `_ITERMETA_TTL`, `3a190fa`) : sans lui le rendu re-scannait+re-parsait les ~720 sidecars des MILLIERS de fois/
+  requête. La barre de nav mobile est recalée à la réouverture (bfcache iOS) via `_relayout` sur `pageshow`.
+- **UI** : calendrier stats = **taux de réussite** (jour/mois, plus le ROI), KPIs = jours-avec-paris + paris-joués
+  (Confiance seule) ; « Programme du jour » **fermé** dès qu'un pari existe dans une catégorie ; intitulé DC
+  « \<équipe\> ou nul (1X) ».
+- **Telegram** (MAJ 2026-09-01) : publie **Confiance + Value + combinés**. Value posté comme la confiance
+  (carte + résultat « VALUE GAGNÉE @cote ✅ / PERDUE ❌ », label via flag figé `_is_value`). Un résultat simple
+  n'est posté QU'en réponse à un prono réel (`get_prono`) — jamais d'orphelin. Cf. `telegram-foot-simple-only`.
 
 ## ⚠️ 3 COUCHES à NE JAMAIS confondre (Affichage / Stats / Calibration) — juillet 2026
 
