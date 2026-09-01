@@ -86,7 +86,12 @@ def _hero_card(full: dict, combo: dict) -> str:
     total + une courbe d'équité GLOBALE (simples + combinés + PROVISOIRES résultat, fusionnés par date).
     L'argument n°1, en un coup d'œil, avant le détail par catégorie/sport."""
     ov = full.get("overall") or {}
-    cb = combo.get("overall") or combo or {}
+    # ⚠️ ANTI-DOUBLE-COMPTE : depuis COMBO_ROI_ON=True (2026-08-30/31), `stats_full` INJECTE déjà chaque
+    # combiné réglé dans `overall` (all_ev) -> Overall = Confiance + Value + Combiné. Ré-additionner `combo`
+    # ici comptait les combinés DEUX FOIS (bug user : 162/91 % affiché au lieu du vrai 151/92 %, +14,1 %).
+    # Quand les combinés sont déjà dans overall, on neutralise leur contribution au hero (compteurs ET courbe).
+    _combo_in_overall = getattr(analyses, "COMBO_ROI_ON", False)
+    cb = {} if _combo_in_overall else (combo.get("overall") or combo or {})
     # PROVISOIRES retirés du produit (user 2026-08-11 : « je ne veux plus de provisoires ») -> ils ne
     # comptent PLUS au ROI global. Gardés uniquement en fantômes pour la calibration. On neutralise leur
     # contribution au hero (sinon « X paris réglés » gonflait de ~51 paris qui n'existent plus).
