@@ -235,20 +235,49 @@ def _ko_bx(start: str) -> str:
         return ""
 
 
-def _qc_signals(d: dict, md: str | None) -> list[str]:
-    """Signaux de QUALITÉ (lecture seule) : sources, ancre sharp, vraies cotes Unibet, profondeur, panel, fantômes."""
+_SRC_TOKENS = ("fotmob", "flashscore", "sportradar", "understat", "sofascore", "espn", "livescore")
+
+
+def _md_text(md: str | None) -> str:
+    try:
+        return open(md, encoding="utf-8").read() if (md and os.path.exists(md)) else ""
+    except OSError:
+        return ""
+
+
+def _md_section(txt: str, needle: str) -> str:
+    """Corps d'une section « ## … <needle> … » du .md (jusqu'au prochain « ## »), lignes machine
+    (PICK:/PROV:/CALIB:/LIB:) et commentaires retirés. '' si section absente."""
+    import re
+    for part in re.split(r"(?m)^##\s*", txt):
+        head = part.splitlines()[0] if part else ""
+        if needle.lower() in head.lower():
+            body = part.split("\n", 1)[1] if "\n" in part else ""
+            keep = [ln for ln in body.splitlines()
+                    if ln.strip() and not re.match(r"^\s*(PICK|PROV|CALIB|LIB)\s*:", ln)
+                    and not ln.strip().startswith("<!--")]
+            return "\n".join(keep).strip()
+    return ""
+
+
+def _qc_signals(d: dict, md: str | None, mdtxt: str = "") -> list[str]:
+    """Signaux de QUALITÉ (lecture seule) : sources, ancre sharp, vraies cotes Unibet, profondeur, panel,
+    fantômes. Repli sur le .md quand le JSON (fiche d'abstention) ne porte pas sources/sharp -> pas de faux ❌."""
     srcs = d.get("sources")
     src_names = srcs if isinstance(srcs, list) else (list(srcs.keys()) if isinstance(srcs, dict) else [])
+    if not src_names and mdtxt:                       # fiche d'abstention -> sources citées dans le .md
+        low = mdtxt.lower()
+        src_names = [t for t in _SRC_TOKENS if t in low]
     n_src = len(src_names)
-    sharp_ok = bool(d.get("sharp_map")) and not d.get("no_sharp")
+    sharp_ok = (bool(d.get("sharp_map")) or ("pinnacle" in mdtxt.lower())) and not d.get("no_sharp")
     n_omap = len(d.get("omap") or {})
     md_ko = (os.path.getsize(md) / 1000.0) if (md and os.path.exists(md)) else 0.0
     md_ok = md_ko * 1000 >= MIN_MD
-    panel = bool(d.get("validation") or d.get("votes"))
+    panel = bool(d.get("validation") or d.get("votes")) or ("Paris classés" in mdtxt)
     n_shadow = len(d.get("shadow") or [])
     return [
-        "📋 Qualité de l'analyse",
-        f"  • Sources : {n_src}" + (f" ({', '.join(src_names[:5])})" if src_names else " ⚠️ (fiche minimale)"),
+        "📊 Qualité de l'analyse",
+        f"  • Sources : {n_src}" + (f" ({', '.join(src_names[:5])})" if src_names else " ⚠️ (aucune trace)"),
         f"  • Ancre sharp (Pinnacle) : {'✅' if sharp_ok else '❌'}",
         f"  • Vraies cotes Unibet (omap) : {'✅ ' + str(n_omap) if n_omap else '❌'}",
         f"  • Profondeur analyse : {md_ko:.1f} ko {'✅' if md_ok else '⚠️ (stub)'}",
@@ -259,11 +288,12 @@ def _qc_signals(d: dict, md: str | None) -> list[str]:
 
 def _qc_card(d: dict, m: dict, md: str | None) -> str:
     """Fiche QC PRO d'un match : match + coup d'envoi, PARI JOUÉ (tier/cote/confiance + pourquoi) OU
-    ABSTENTION (seuils + angle Claude informatif), puis les signaux de qualité de l'analyse."""
+    ABSTENTION (seuils + décision), l'ANALYSE (faits multi-sources du .md), puis les signaux de qualité."""
     home, away = str(d.get("home", "")), str(d.get("away", ""))
     name = m.get("name") or f"{home} - {away}"
     comp = d.get("comp") or ""
     ko = _ko_bx(m.get("start") or d.get("start"))
+    mdtxt = _md_text(md)
     head = f"🔎 CONTRÔLE MATCH — {name}"
     sub = " · ".join(x for x in (comp, (f"{ko} (Brussels)" if ko else "")) if x)
     lines = [head] + ([f"🏆 {sub}"] if sub else []) + [""]
@@ -283,12 +313,19 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
         why = d.get("played_why") or {}
         wtext = why.get("text") if isinstance(why, dict) else None
         if wtext:
-            lines += ["", f"💬 {str(wtext).strip()[:900]}"]
+            lines += ["", f"💬 Pourquoi ce pari : {str(wtext).strip()[:800]}"]
     else:
         lines.append("⏸️ ABSTENTION — aucun pari mécanique ≥ seuil")
         lines.append("   (Confiance : conf ≥ 80 · cote 1.05-1.50 · marché fiable —"
                      " Value : conf ≥ 68 · cote 1.40-2.30 · EV ≥ +5 %)")
-    lines += [""] + _qc_signals(d, md)
+        skip = _md_section(mdtxt, "Le pari à jouer")
+        if skip:
+            lines += ["", f"🧭 Décision : {skip[:450]}"]
+
+    facts = _md_section(mdtxt, "Les faits")             # L'ANALYSE = faits multi-sources sourcés (à vérifier)
+    if facts:
+        lines += ["", "📋 Les faits (analyse) :", facts[:900]]
+    lines += [""] + _qc_signals(d, md, mdtxt)
     return "\n".join(lines)
 
 
