@@ -25,7 +25,10 @@ from app import confidence_pick as _cp
 VALUE_PICK_ON = True
 
 # Profil value B (backtest données propres). Bornes sur la proba BRUTE. Marchés = TOUS sauf bans.
-PROB_MIN = 58.0
+PROB_MIN = 68.0         # relevé 58 -> 68 (user 2026-09-01) : seul levier ROBUSTE au backtest fantômes 1/match
+#                         + train/test (train avant 11/08, test après) -> 68 tient DANS LES DEUX (83%/+27% train,
+#                         78%/+25% test) vs 58 qui se dégrade (76%->67%) et 64 qui vire négatif en test (piège).
+#                         EV/cote NON touchés (les monter n'aidait pas). Moins de value mais plus fiables. Forward.
 COTE_LO = 1.40
 COTE_HI = 2.30
 EV_MIN = 0.05            # vrai edge value : proba × cote − 1 ≥ +5 %
