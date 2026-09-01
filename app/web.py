@@ -3980,10 +3980,18 @@ _SPA_JS = (
     # recalcule le viewport et recale la barre au vrai bas). Répété : 2 rAF (après 1er paint), 300 ms (safe-area
     # stabilisée) et à chaque retour d'app (pageshow, ex. sortie de veille).
     "function _relayout(){try{window.scrollTo(0,1);window.scrollTo(0,0);"
-    "var d=P.style.display;P.style.display='none';P.offsetHeight;P.style.display=d;}catch(e){}}"
+    "var d=P.style.display;P.style.display='none';P.offsetHeight;P.style.display=d;"
+    # BARRE DE NAV : à la RÉOUVERTURE (bfcache iOS Safari), la barre fixe se retrouve parfois AU MILIEU de la
+    # page (containing-block recalculé de travers). On la force à RE-COMPOSITER (toggle transform -> reflow) pour
+    # qu'elle re-colle au bas du viewport. Bug user récurrent 2026-09-01.
+    "var b=document.querySelector('.botnav');if(b){b.style.transform='translateZ(0)';b.offsetHeight;b.style.transform='';}"
+    "}catch(e){}}"
     "requestAnimationFrame(function(){requestAnimationFrame(_relayout);});"
     "setTimeout(_relayout,300);"
-    "window.addEventListener('pageshow',function(){_relayout();_resume();});"
+    # pageshow : `persisted` = restauration bfcache (réouverture d'onglet / retour arrière) -> c'est LÀ que la
+    # barre saute ; on répète le reflow sur plusieurs frames pour la recaler à coup sûr.
+    "window.addEventListener('pageshow',function(e){_relayout();_resume();"
+    "if(e&&e.persisted){requestAnimationFrame(_relayout);setTimeout(_relayout,60);setTimeout(_relayout,250);}});"
     # RETOUR AU PREMIER PLAN (sortie de veille / bascule d'app) -> rafraîchit l'onglet actif s'il est périmé.
     "document.addEventListener('visibilitychange',function(){if(!document.hidden)_resume();});"
     "})();"
