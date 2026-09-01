@@ -2055,17 +2055,14 @@ async def _settle_analyses_impl() -> int:
                 os.makedirs("data/_cards", exist_ok=True)
                 for _i, (msg, card) in enumerate(zip(notify_msgs, notify_cards)):
                     sent = None
-                    # Un RÉSULTAT simple n'est posté QU'EN RÉPONSE à un PRONO réellement posté. On NE poste PAS :
-                    #  • un pari VALUE (non diffusé sur Telegram, user 2026-09-01) ;
-                    #  • un résultat ORPHELIN dont le prono n'a JAMAIS été posté (value gaté à la publication, OU
-                    #    tier qui a « drifté » depuis) -> sinon message STANDALONE « CONFIANCE PERDUE » sans carte
-                    #    (bug user 2026-09-01). La garde `get_prono is None` est la vraie protection (robuste au
-                    #    drift de tier). On FIGE les flags SANS envoi (pas de retry), puis on passe.
-                    if card and card.get("simple"):
-                        if card.get("_is_value") or not notify.get_prono(card.get("_mid")):
-                            if card.get("_flags") and card.get("_side"):
-                                _mark_notified(card["_side"], card["_flags"], None)
-                            continue
+                    # Un RÉSULTAT simple n'est posté QU'EN RÉPONSE à un PRONO réellement posté : si le prono
+                    # n'a jamais été posté (get_prono None), on ne poste PAS un résultat ORPHELIN standalone
+                    # (bug 2026-09-01). Value RÉ-ACTIVÉ (user 2026-09-01) -> on ne gate PLUS sur `_is_value`.
+                    # On FIGE les flags SANS envoi (pas de retry), puis on passe.
+                    if card and card.get("simple") and not notify.get_prono(card.get("_mid")):
+                        if card.get("_flags") and card.get("_side"):
+                            _mark_notified(card["_side"], card["_flags"], None)
+                        continue
                     # RÉSULTAT = RÉPONSE « Pari gagné ✅ » / « Pari perdu ❌ » à la carte du pari (user 2026-08-24 ;
                     # avant : emoji seul). « Remboursé ➖ » pour un push/void. Fil prono -> résultat, pas de carte.
                     _mk = ((card.get("simple") or {}).get("mark")
@@ -2084,7 +2081,10 @@ async def _settle_analyses_impl() -> int:
                             _vw, _ve = {"won": ("GAGNÉE", "✅"), "lost": ("PERDUE", "❌")}.get(_mk, ("REMBOURSÉE", "➖"))
                             if card.get("simple"):
                                 _rtier = str((card.get("simple") or {}).get("tier") or card.get("tier") or "confiance")
-                                _rlbl = {"value": "VALUE", "montante": "MONTANTE"}.get(_rtier, "CONFIANCE")
+                                # LABEL FIABLE : « VALUE » via le FLAG FIGÉ `_is_value` (le tier dynamique DÉRIVE ->
+                                # un value avait été étiqueté « CONFIANCE PERDUE », bug 2026-09-01). Montante via tier.
+                                _rlbl = ("VALUE" if card.get("_is_value")
+                                         else {"montante": "MONTANTE"}.get(_rtier, "CONFIANCE"))
                                 # COTE affichée UNIQUEMENT si GAGNÉ (user 2026-08-30) : « VALUE GAGNÉE @1.56 ✅ »
                                 # (met en valeur la cote remportée ; cote AVANT l'emoji = ✅ tampon final). Rien
                                 # sur perte/remboursé (on n'appuie pas sur le montant perdu).

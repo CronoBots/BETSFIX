@@ -4301,14 +4301,8 @@ async def main():
                 except Exception as _pwe:
                     print(f"    (pourquoi pari mécanique ignoré : {_pwe})")
                 _card = _cd.build_prono_card(_side_fresh)
-                # TELEGRAM = CONFIANCE (+ combinés) SEULEMENT — PAS les VALUE (user 2026-09-01). On lit les
-                # FLAGS FIGÉS `value_bet`/`confidence_bet` (robuste, ne dérive pas comme le tier dynamique) :
-                # une carte SIMPLE dont le pari mécanique est un VALUE n'est PAS postée (reste SITE + ROI).
-                # Un combiné (type != simple) ou une confiance passent normalement.
-                _is_value_pub = (bool((_side_fresh.get("value_bet") or {}).get("sel"))
-                                 and not bool((_side_fresh.get("confidence_bet") or {}).get("sel")))
-                if _card and _card.get("type") == "simple" and _is_value_pub:
-                    _card = None
+                # TELEGRAM = Confiance + Value + combinés (user 2026-09-01, value RÉ-ACTIVÉ). La carte value est
+                # postée comme la confiance (signature « VALUE » sur l'image via build_prono_card/bet_tier_for).
                 # RÉ-ANALYSE (re-check 1 h avant OU --force) : ne REPUBLIER QUE si le prono a CHANGÉ vs ce qui
                 # était déjà publié. Identique -> rien reposté (pas de spam abonnés) ; le sidecar est déjà
                 # réécrit (mtime frais) -> pas de boucle. Un NOUVEAU match (jamais publié) a _old_sig=None
