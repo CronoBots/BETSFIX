@@ -121,7 +121,13 @@ mécaniques** backtestés :
   `retained_bet`/`stat_bet` qui ressuscitent le pari publié) + filigrane monotone remis à 0.
 - Verrous dans `app/analyses.py` : `FOOT_MECHANICAL_ONLY=True` (le foot ne prend QUE
   le pari mécanique) · `REVEAL_ONLY_FINAL=True` (voir flux Option B).
-- **Montante = DÉSACTIVÉE** (`2c2f85e`, refonte à venir) — rien dans la catégorie.
+- **Montante = RÉACTIVÉE AUTO** (2026-09-01, refonte) — `app/montante.py`. Sélection MÉCANIQUE = moteur
+  Confiance borné : `pick_confidence_day` pioche dans le vivier fantômes complet (familles Vainqueur/DC/Total
+  équipe), **VRAIE cote Unibet (omap) bornée 1.25-1.55**, confiance ≥80, le + sûr ; **PASS si rien** (survie).
+  Capital **composé** (arrondi centime/palier), amorcé à la série réelle du user (**42,53 € / 7-0**, relancée
+  23/08). Auto-réglée (`settle_pending`, marché propre). **HORS overall/hero** (`MONTANTE_ROI_ON=False` : unité
+  composée ≠ ROI mise-plate → sa propre carte). **Publiée sur le site**, mais **Telegram OFF** (`TG_COMBO_MONTANTE=
+  False`, broadcast en attente du feu vert user). Mémoire `montante-reactivated-confidence-auto`.
 
 ### ⚠️ VERDICT / COTE / ANALYSE d'affichage = le pari JOUÉ, JAMAIS le pick brut (MAJ 2026-08-31)
 Depuis la refonte mécanique, le pari joué (`stat_bet`/mécanique) **DIVERGE** du pick brut de Claude
