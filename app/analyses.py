@@ -971,6 +971,36 @@ def first_stats_day() -> str | None:
     return day or None
 
 
+def _edge_word(e: int) -> tuple[str, str]:
+    """(classe couleur, qualificatif) de l'EDGE en points (notre confiance − proba marché). Symétrie avec le
+    qualificatif de la Confiance. 0 = NEUTRE (gris, `vneu`), PAS rouge : un edge nul n'est pas une erreur, c'est
+    juste « on est d'accord avec le marché ». Rouge réservé au NÉGATIF (on est SOUS le marché). Masculin."""
+    if e >= 5:
+        return "vpos", "très élevé"
+    if e >= 2:
+        return "vpos", "élevé"
+    if e >= 1:
+        return "vmid", "léger"
+    if e <= -1:
+        return "vneg", "négatif"
+    return "vneu", "nul"                                    # -1 < e < 1 (edge nul) -> neutre
+
+
+def _value_word(v: int) -> tuple[str, str]:
+    """(classe couleur, qualificatif) de la VALUE (EV %). 0 = NEUTRE (gris) : une value nulle sur un pari
+    Confiance à cote courte est NORMALE (l'objet du pari est la sûreté, pas la value) -> plus de rouge trompeur.
+    Rouge réservé à la value NÉGATIVE (EV < 0). Féminin (accord avec « value »)."""
+    if v >= 8:
+        return "vpos", "élevée"
+    if v >= 3:
+        return "vpos", "correcte"
+    if v >= 1:
+        return "vmid", "légère"
+    if v <= -1:
+        return "vneg", "négative"
+    return "vneu", "nulle"                                  # -1 < v < 1 (value nulle) -> neutre
+
+
 def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False,
                  hide_neg_value: bool = False, pick_html: str = "",
                  live_pct=None, live_trend: str = "", live_state: str = "",
@@ -1027,7 +1057,6 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
             col, grad, word = _GRN_C, _GRN, "Solide"
         else:
             col, grad, word = _GRN_C, _GRN, "Très solide"
-    vcls = "vpos" if ep >= 3 else "vmid" if ep >= 1 else "vneg"
     mark = f'<b class="vb-mark" style="left:{be}%"></b>' if 0 < be < 100 else ""
     # GRILLE de métriques (pleine largeur, colonnes alignées). Marché toujours ; Value sauf combiné à EV<0
     # (pari fiabilité, pas value) ; Cote seulement sur les cartes de simple/combiné (with_cote).
@@ -1038,7 +1067,6 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     # Remplace la colonne « Marché » (le marché reste montré par le repère blanc sur la barre) : lecture
     # gauche->droite Confiance -> Edge (on bat le marché de X) -> Value (ce que ça rapporte) -> Cote.
     _edge = cfi - be
-    _ecls = "vpos" if _edge >= 2 else "vmid" if _edge >= 0 else "vneg"
     cells = [f'<div class="vm-cell vm-conf"><span class="vm-l">Confiance</span>'
              f'<span class="vm-v" style="color:{col}">{cfi}%</span>'
              f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>']
@@ -1046,8 +1074,10 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     # structurellement à edge/value NÉGATIFS (DC sûres, cote ~2) -> afficher Edge/Value contredirait son
     # identité (la RÉUSSITE, pas la value) et découragerait à tort. On retire donc ces 2 colonnes.
     if not bare:
+        _ecls, _eword = _edge_word(_edge)                  # couleur LOGIQUE + qualificatif (comme la Confiance)
         cells.append(f'<div class="vm-cell"><span class="vm-l">Edge</span>'
-                     f'<span class="vm-v {_ecls}">{"+" if _edge >= 0 else ""}{_edge} pts</span></div>')
+                     f'<span class="vm-v {_ecls}">{"+" if _edge >= 0 else ""}{_edge} pts</span>'
+                     f'<span class="vm-sub {_ecls}">{_eword}</span></div>')
         # VALUE : la colonne est TOUJOURS présente (demande user 2026-07-24 : « ajouter la value partout même
         # si négative ou nulle, mais une barre à la place de la masquée pour garder le même alignement ») — un
         # nombre de cellules CONSTANT garantit que Confiance/Edge/Value[/Cote] restent alignés d'une carte à
@@ -1055,7 +1085,9 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
         # (transparence totale, même à 0/négatif) ; sinon (provisoire/Betmines sans edge : « 💎 si EV+ »
         # strict) on affiche une BARRE « — » au lieu de la masquer -> alignement identique, présente ou pas.
         if ep >= 1 or (calibrated and not hide_neg_value):
-            _valh = f'<span class="vm-v {vcls}">{"+" if ep >= 0 else ""}{ep}%</span>'
+            _vcls, _vword = _value_word(ep)                # couleur LOGIQUE (0 = gris neutre, plus rouge) + mot
+            _valh = (f'<span class="vm-v {_vcls}">{"+" if ep >= 0 else ""}{ep}%</span>'
+                     f'<span class="vm-sub {_vcls}">{_vword}</span>')
         else:
             _valh = '<span class="vm-v vm-na">—</span>'
         cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>{_valh}</div>')

@@ -3020,8 +3020,11 @@ CSS = """
   .vm-v{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#e6eefa;
        line-height:1.05}
   .vm-v.vpos{color:#4be39b} .vm-v.vmid{color:#f6c54a} .vm-v.vneg{color:#ff7484}
+  .vm-v.vneu{color:#9aa7b8}    /* NEUTRE (edge/value nul) : gris lisible (≠ rouge) — 0 n'est pas une erreur */
   .vm-v.vm-na{color:#5b6675}   /* barre « — » : Value non affichée (masquée) mais colonne conservée -> alignement constant */
   .vm-sub{font-size:8.5px;font-weight:800;text-transform:lowercase;letter-spacing:.02em;line-height:1}
+  /* Qualificatif Edge/Value (comme « très élevée » sous la Confiance) — teinté de la MÊME couleur logique. */
+  .vm-sub.vpos{color:#4be39b} .vm-sub.vmid{color:#f6c54a} .vm-sub.vneg{color:#ff7484} .vm-sub.vneu{color:#9aa7b8}
   .vm-conf .vm-v{font-size:19px}         /* notre confiance = héros de la grille */
   .vm-cote .vm-v{font-size:19px;color:#fff}   /* cote TOUJOURS blanche, y c. combiné du jour (demande user 2026-07-18) */
   /* Verdict façon Bull (test 2026-08-15) : la grille = petite carte tintée (la Value RESTE comme avant). */
