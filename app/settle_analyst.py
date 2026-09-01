@@ -2049,6 +2049,14 @@ async def _settle_analyses_impl() -> int:
                 os.makedirs("data/_cards", exist_ok=True)
                 for _i, (msg, card) in enumerate(zip(notify_msgs, notify_cards)):
                     sent = None
+                    # TELEGRAM = PAS de résultat VALUE (user 2026-09-01) : une carte SIMPLE de tier « value » ne
+                    # poste PAS son résultat sur le canal (la Value reste sur le SITE + au ROI ; son prono n'est
+                    # pas posté non plus). On FIGE ses flags SANS envoi (sinon re-tenté indéfiniment), puis on
+                    # passe. Confiance + combinés continuent de poster leur résultat normalement.
+                    if card and card.get("simple") and str((card.get("simple") or {}).get("tier") or "") == "value":
+                        if card.get("_flags") and card.get("_side"):
+                            _mark_notified(card["_side"], card["_flags"], None)
+                        continue
                     # RÉSULTAT = RÉPONSE « Pari gagné ✅ » / « Pari perdu ❌ » à la carte du pari (user 2026-08-24 ;
                     # avant : emoji seul). « Remboursé ➖ » pour un push/void. Fil prono -> résultat, pas de carte.
                     _mk = ((card.get("simple") or {}).get("mark")
