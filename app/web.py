@@ -9396,12 +9396,17 @@ def _render_calendar(ym: str = "") -> str:
         b = pnl.get(diso)
         cls, style, extra = "mcal-cell", "", ""
         if b and b["n"]:
-            roi, prof = b["roi"], b["profit"]
-            sign = "pos" if prof > 1e-9 else ("neg" if prof < -1e-9 else "flat")
-            cls += f" mcal-{sign} mcal-has"
-            op = min(0.40, 0.09 + abs(roi) / 220.0)    # intensité de teinte selon l'ampleur du ROI (couleur = profit)
-            style = f' style="--mt:{op:.3f}"'
+            prof = b["profit"]
             _dhit = round(100 * b["won"] / b["n"])     # TAUX DE RÉUSSITE du jour (user 2026-08-31, au lieu du ROI)
+            # COULEUR = RÉUSSITE (user 2026-09-01) : la teinte SUIT le taux de réussite AFFICHÉ (majorité
+            # gagnée = vert · perdue = rouge · 50 % = neutre), plus le profit -> fini le « 80 % en rouge » qui
+            # troublait (jour à forte réussite mais perte sèche à cote courte). Le PROFIT réel reste honnête
+            # dans la COURBE D'ÉQUITÉ du mois (argent, ci-dessous) ; la heatmap = ressenti « réussite ».
+            _hit = 100.0 * b["won"] / b["n"]
+            sign = "pos" if _hit > 50 else ("neg" if _hit < 50 else "flat")
+            cls += f" mcal-{sign} mcal-has"
+            op = min(0.40, 0.11 + abs(_hit - 50) / 130.0)   # intensité selon l'écart au 50 % (couleur = réussite)
+            style = f' style="--mt:{op:.3f}"'
             extra = (f'<span class="mcal-roi">{_dhit}%</span>'
                      f'<span class="mcal-n">{b["n"]}</span>')
             mprofit += prof
@@ -9426,7 +9431,9 @@ def _render_calendar(ym: str = "") -> str:
     _title = f"{_CAL_MONTHS_FR[mo - 1].capitalize()} {y}"
     _mroi = round(100 * mprofit / mn, 1) if mn else 0.0
     _mhit = round(100 * mwon / mn) if mn else 0            # TAUX DE RÉUSSITE du mois (user 2026-08-31)
-    _rcls = "pos" if mprofit > 1e-9 else ("neg" if mprofit < -1e-9 else "flat")
+    # COULEUR DU HÉROS = RÉUSSITE du mois (user 2026-09-01, cohérent avec les cases) : le chiffre affiché est
+    # la réussite -> la teinte la suit (>50 % vert · <50 % rouge). Le profit réel reste dans la courbe d'équité.
+    _rcls = "pos" if (mn and _mhit > 50) else ("neg" if (mn and _mhit < 50) else "flat")
     nav = (f'<div class="mcal-nav">'
            f'<button class="mcal-arw" data-cal="{prev_ym}" aria-label="Mois précédent">‹</button>'
            f'<div class="mcal-title">{_title}</div>'
@@ -9446,9 +9453,9 @@ def _render_calendar(ym: str = "") -> str:
             f'<div><b>{mn}</b><span>paris joués</span></div>'
             f'</div></div>')
     grid = f'<div class="mcal-grid">{dow}{"".join(cells)}</div>'
-    legend = ('<div class="mcal-legend"><span class="mcal-lg pos">Bénéfice</span>'
-              '<span class="mcal-lg neg">Perte</span><span class="mcal-lg flat">Neutre</span>'
-              '<span class="mcal-lg-note">Chiffre = taux de réussite du jour · petit nombre = nb de paris</span></div>')
+    legend = ('<div class="mcal-legend"><span class="mcal-lg pos">Majorité gagnée</span>'
+              '<span class="mcal-lg neg">Majorité perdue</span><span class="mcal-lg flat">Neutre</span>'
+              '<span class="mcal-lg-note">Couleur &amp; chiffre = taux de réussite du jour · petit nombre = nb de paris</span></div>')
     # DÉTAIL D'UN JOUR EN DESSOUS RETIRÉ (user 2026-08-19) : les résultats vivent UNIQUEMENT dans les cases
     # colorées du calendrier (le détail par jour est dans l'onglet Pronos, calendrier horizontal).
     if mn == 0:
