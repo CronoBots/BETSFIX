@@ -29,12 +29,18 @@ PROB_MIN = 58.0
 COTE_LO = 1.40
 COTE_HI = 2.30
 EV_MIN = 0.05            # vrai edge value : proba × cote − 1 ≥ +5 %
-MARKETS = None          # tous marchés (l'exclusion des bans se fait via _cp._BAN_MARKETS)
+MARKETS = None          # tous marchés (l'exclusion des bans se fait via _VALUE_BAN_MARKETS)
+# EXCLUSION VALUE (user 2026-09-01, « les value perdent trop souvent ») : « Total Over » (Plus de X buts) est le
+# SEUL marché PERDANT du value mesuré sur le forward réel (n=9 · 56 % · ROI −9,2 %), alors que tout le reste est
+# gagnant (Total Under 67 %/+4,6 % · Total équipe 83 %/+31,8 % · résultat/handicap +). On l'EXCLUT du value
+# (Confiance INCHANGÉE). Aligné avec la fragilité récurrente des TOTAUX (combinés, provisoires). Scopé FORWARD,
+# réversible (retirer « Total Over » du set). n petit -> à re-mesurer, mais cut défendable + demandé par l'user.
+_VALUE_BAN_MARKETS = _cp._BAN_MARKETS | frozenset({"Total Over"})
 
 
 def match_candidates(d: dict) -> list[dict]:
-    """Vivier value = TOUS marchés sauf bans (réutilise la machinerie de confidence_pick, mode exclusion)."""
-    return _cp.match_candidates(d, exclude_markets=_cp._BAN_MARKETS)
+    """Vivier value = TOUS marchés sauf bans + « Total Over » (réutilise confidence_pick, mode exclusion)."""
+    return _cp.match_candidates(d, exclude_markets=_VALUE_BAN_MARKETS)
 
 
 def resolve_result(d: dict, code: str) -> str | None:
