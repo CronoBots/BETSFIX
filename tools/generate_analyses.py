@@ -1146,7 +1146,9 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
                 # ANTI-CHEVAUCHEMENT : la montante ne reprend PAS un match déjà pris par le combiné du jour.
                 _combo_today = _cdaily.today(day) or {}
                 _combo_mids = {str(l.get("mid")) for l in (_combo_today.get("legs") or []) if l.get("mid")}
-                _mpick = _montante_from_analyzed([h for h in harvest if str(h.get("mid")) not in _combo_mids])
+                # SÉLECTION = MOTEUR CONFIANCE BORNÉ (user 2026-09-01) : le pari le plus SÛR du jour depuis le
+                # vivier fantômes complet, familles sûres, VRAIE cote Unibet [1.25,1.55], hors matchs du combiné.
+                _mpick = _mtn.pick_confidence_day(day, exclude_mids=_combo_mids)
                 if _mpick:
                     # « pourquoi » factuel (comme le build mécanique) — best-effort.
                     try:
@@ -1167,7 +1169,7 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
                     else:
                         print("  🪜 Montante : record refusé (déjà posé / en attente).")
                 else:
-                    print("  🪜 Montante : PASS — aucun pari analysé sûr+éligible en cote [1.22,1.60] aujourd'hui.")
+                    print("  🪜 Montante : PASS — aucun pari sûr (confiance≥80) à vraie cote Unibet [1.25,1.55] aujourd'hui.")
     except Exception as _mce:
         print(f"  (montante depuis l'analyse ignorée : {_mce})")
 

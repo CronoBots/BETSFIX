@@ -58,8 +58,11 @@ def _split_chains(steps: list, base: float) -> list:
         step = {**s, "stake": stake}
         res = s.get("result")
         if res == "won" and isinstance(cote, (int, float)):
-            cap = cap * cote
-            step["payout"] = round(cap, 2)
+            # ARRONDI AU CENTIME PAR PALIER (user 2026-09-01) : le capital réellement disponible pour le palier
+            # SUIVANT est arrondi au centime (comportement réel d'un bookmaker : chaque gain est réglé au cent).
+            # Sans ça, la capitalisation gardait la pleine précision (ex. 42,51 € au lieu du vrai 42,53 € payé).
+            cap = round(cap * cote, 2)
+            step["payout"] = cap
             cur.append(step)
         elif res == "lost":
             step["payout"] = 0.0
@@ -415,6 +418,60 @@ def pick_multi_from_cands(cands: list) -> dict | None:
             "home": best.get("home", ""), "away": best.get("away", ""), "comp": best.get("comp", ""),
             "sel": best["sel"], "cote": best["cote"], "code": best.get("code", ""),
             "prob": best.get("prob"), "start": best.get("start", ""), "why": best.get("why", "")}
+
+
+# === SÉLECTEUR MONTANTE = MOTEUR CONFIANCE BORNÉ (user 2026-09-01) ===================================
+# Choix user : la montante joue LE pari le plus SÛR du jour, choisi MÉCANIQUEMENT (jamais le pick Claude)
+# dans le VIVIER FANTÔMES COMPLET (`confidence_pick.match_candidates` = shadow + pari retenu), comme le
+# combiné du jour — familles SÛRES {Vainqueur, Double chance, Total équipe} (couvre les « X gagne » et les
+# « X ou nul (1X) » de la série réelle), à la VRAIE cote Unibet (`omap`, §2 anti-hallucination : jamais une
+# cote estimée) bornée [MONT_CONF_LO, MONT_CONF_HI], confiance brute ≥ MONT_CONF_PROB_MIN. On prend le PLUS
+# SÛR (proba max ; à égalité, cote la plus haute = meilleur palier). PASS si rien (survie > jouer, §3/§17).
+MONT_CONF_LO, MONT_CONF_HI = 1.25, 1.55       # bande de cote (user : préférée 1.30-1.45, plafond 1.55)
+MONT_CONF_PROB_MIN = 80.0                      # garde-fou confiance brute (aligné au profil Confiance 93%)
+_MONT_CONF_MARKETS = frozenset({"Vainqueur", "Double chance", "Total équipe"})
+
+
+def pick_confidence_day(day: str, exclude_mids=None) -> dict | None:
+    """Palier du jour = le pari le plus SÛR (moteur Confiance borné) parmi les matchs foot À VENIR du jour
+    sportif `day`, hors matchs déjà pris par le combiné (`exclude_mids`). Cote RÉELLE Unibet obligatoire
+    (omap) dans [MONT_CONF_LO, MONT_CONF_HI], confiance ≥ MONT_CONF_PROB_MIN, familles sûres. None (PASS) si
+    aucun candidat. Format `record_day`. Lecture seule."""
+    from app import analyses, confidence_pick as _cp, web as _w
+    excl = {str(x) for x in (exclude_mids or set())}
+    pool: list[dict] = []
+    for d in analyses.iter_meta("foot"):
+        try:
+            if d.get("roi_void") or analyses.status_of(d) != "notstarted":
+                continue
+            mid = str(d.get("id") or "")
+            if not mid or mid in excl:
+                continue
+            try:
+                _sd = _w._sport_date(_w.to_local(d.get("_start_dt"))).isoformat() if d.get("_start_dt") \
+                    else (d.get("start") or "")[:10]
+            except Exception:
+                _sd = (d.get("start") or "")[:10]
+            if _sd != day:
+                continue
+            _om = d.get("omap") or {}
+            for c in (_cp.match_candidates(d, markets=_MONT_CONF_MARKETS) or []):
+                if c.get("market") not in _MONT_CONF_MARKETS or (c.get("prob") or 0) < MONT_CONF_PROB_MIN:
+                    continue
+                _real = _om.get(c.get("code"))
+                if not (isinstance(_real, (int, float)) and MONT_CONF_LO <= _real <= MONT_CONF_HI):
+                    continue                                   # pas de VRAIE cote Unibet en bande -> exclu
+                pool.append({"mid": mid, "sport": "foot",
+                             "match": d.get("name") or f'{d.get("home", "")} - {d.get("away", "")}'.strip(" -"),
+                             "home": d.get("home", "") or "", "away": d.get("away", "") or "",
+                             "comp": d.get("comp", "") or "", "sel": c.get("sel"), "cote": float(_real),
+                             "code": c.get("code"), "prob": (c.get("prob") or 0) / 100.0,
+                             "start": d.get("start", "") or ""})
+        except Exception:
+            continue
+    if not pool:
+        return None
+    return max(pool, key=lambda c: (c["prob"], c["cote"]))   # le PLUS SÛR ; à égalité, meilleur palier
 
 
 def can_record_day(date_iso: str) -> bool:
