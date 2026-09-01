@@ -11230,7 +11230,6 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         if live_fields(match_select.live_state_for(_cur, _d.get("home"), _d.get("away")), _cur).get("score"):
             continue                                                # déjà live
         _dt2 = _d.get("_start_dt")
-        _s2, _o = analyses.pick_parts(_d.get("pick") or "")
         _o1, _ox, _o2 = _d.get("o1"), _d.get("ox"), _d.get("o2")
         _c2 = _foot_up._card({
             "id": _d.get("sofa_id") or _d.get("id"), "status": "notstarted", "comp": _d.get("comp"),

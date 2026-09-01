@@ -846,8 +846,10 @@ async def directs_page(
             dt = usdt or d.get("_start_dt")
             start = dt.timestamp() if dt else None
             sid = d.get("sofa_id") or d.get("id")
-            sel, odds = analyses.pick_parts(d.get("pick") or "")
-            perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
+            # PARI AFFICHÉ (perle) = pari JOUÉ mécanique via la source UNIQUE `analyses.display_perle`
+            # (retained_bet), JAMAIS le pick BRUT de Claude `d["pick"]` (divergent depuis la refonte
+            # 2026-08-29 + fantôme sur abstention). Idem carte À VENIR — cf. result-verdict-follows-played-bet.
+            perle = analyses.display_perle(sport, d.get("id"))
             if not lf.get("score"):                        # REPLI SofaScore (mort) puis LiveScore (vivant)
                 lf = await match_select.fetch_sofa_live(sport, sid) or lf
                 if not lf.get("score"):                    # LiveScore = notre source de scores live -> évite

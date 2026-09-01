@@ -2894,6 +2894,20 @@ def played_result(d: dict) -> str | None:
     return (d.get("result") or {}).get("pick_result")
 
 
+def display_perle(sport: str, match_id) -> dict | None:
+    """PERLE AFFICHÉE (carte à venir / live / terminé) = pari RÉELLEMENT JOUÉ via `retained_bet` (couche
+    mécanique confidence_bet/value_bet, ou `stat_bet` figé une fois réglé). SOURCE UNIQUE de la ligne de pari
+    des cartes — pour que le routeur (`routers.foot._analyst_rows`) ET le garde-fou selfcheck lisent le MÊME
+    pari. ⚠️ JAMAIS le pick BRUT de Claude `d["pick"]`/`pick_parts` : depuis la refonte mécanique (2026-08-29)
+    le pick brut DIVERGE du marché joué (ex. Sheffield : pick brut « Moins de 3,5 » vs pari joué « DC 1X ») —
+    et sur une ABSTENTION il n'y a AUCUN pari joué, donc AUCUNE perle (l'ancien code affichait un pari fantôme
+    tiré du pick brut, bug user 2026-09-01). `None` = abstention / pari pas encore révélé (Option B)."""
+    rb = retained_bet(sport, match_id)
+    if isinstance(rb, dict) and rb.get("sel") and rb.get("cote"):
+        return {"selection": rb["sel"], "odds": rb["cote"]}
+    return None
+
+
 def provisional_shown(sport, sel, cote, prob, home="", away="", fid=None) -> bool:
     """Un pari PROVISOIRE (indicatif) est-il DIGNE d'être affiché/suivi ? (demande user 2026-07-17, affiné
     2026-07-20) Un provisoire est un PICK indicatif : il doit d'abord être un pari qu'on FAVORISE. On ne

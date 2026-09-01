@@ -948,8 +948,6 @@ def _check_upcoming_display_coherence(rows) -> dict:
     (`web._sport_row`) pour chaque match À VENIR publié où le pick brut DIFFÈRE du mécanique, et exige que
     ce pick brut n'apparaisse PAS comme pari affiché. Détecte toute rechute vers `bets_of`. 100 % lecture
     seule (bornée aux matchs à venir publiés, non combinés -> quelques-uns/jour)."""
-    from app import web
-    import html as _html
     bad, n = [], 0
     try:
         disp = analyses.list_for("foot")
@@ -962,46 +960,39 @@ def _check_upcoming_display_coherence(rows) -> dict:
         mid = str(r.get("id") or "")
         if not mid.isdigit():
             continue
-        # `list_for` ne pose PAS `url` (posée à l'étape de rendu) ; `_sport_row` en a besoin pour détecter le
-        # sport (foot) et charger le pari. On la reconstruit au format réel « /foot/match/<id> ».
-        r = {**r, "url": r.get("url") or f"/foot/match/{mid}"}
         d = by_id.get(mid)
         if d is None or (d.get("result") or {}).get("pick_result"):     # à venir SEULEMENT (pas réglé)
             continue
         if (d.get("combo") or {}).get("legs"):                          # combiné = jambes multiples, hors scope
             continue
-        pb = analyses.published_bet("foot", mid)
-        if not pb:                                                      # seulement les matchs PUBLIÉS
-            continue
-        try:
-            raw = analyses.bets_of("foot", mid) or []
-        except Exception:
-            raw = []
-        if not raw:
-            continue
-        home, away = r.get("home", ""), r.get("away", "")
-        mech = {analyses.pretty_sel(pb.get("sel", ""), home, away)}
-        rb = analyses.retained_bet("foot", mid)
-        if rb:
-            mech.add(analyses.pretty_sel(rb.get("sel", ""), home, away))
-        raw_disp = analyses.pretty_sel(raw[0].get("sel", ""), home, away)
-        if not raw_disp or raw_disp in mech:                           # pick brut == mécanique -> rien à craindre
-            continue
-        try:
-            picks = set(re.findall(r'class="mc-pick">([^<]*)<', web._sport_row(r)))
-        except Exception:
-            continue
         n += 1
-        if raw_disp in picks or _html.escape(raw_disp) in picks:       # le pick brut est AFFICHÉ comme pari
-            bad.append(f"{home}–{away} : le site affiche le pick BRUT « {raw_disp} » (≠ pari mécanique publié) "
-                       f"-> incohérent avec Telegram")
+        home, away = r.get("home", ""), r.get("away", "")
+        # SOURCE UNIQUE : la perle que le site affiche RÉELLEMENT (le routeur `_analyst_rows` lit le MÊME
+        # helper). On la confronte au pari JOUÉ (`retained_bet`) et au pick BRUT de Claude (`d["pick"]`).
+        dp = analyses.display_perle("foot", mid)
+        rb = analyses.retained_bet("foot", mid)
+        raw_sel, _raw_odds = analyses.pick_parts(d.get("pick") or "")
+        raw_disp = analyses.pretty_sel(raw_sel, home, away) if raw_sel else ""
+        got = analyses.pretty_sel((dp or {}).get("selection", ""), home, away) if dp else ""
+        exp = analyses.pretty_sel(rb.get("sel", ""), home, away) if rb else ""
+        if rb is None and dp is not None:
+            # ABSTENTION / pari non révélé : AUCUN pari joué -> le site ne doit RIEN afficher (l'ancien code
+            # y collait un pari FANTÔME tiré du pick brut de Claude, bug user 2026-09-01).
+            extra = f" (= pick brut « {raw_disp} »)" if raw_disp and got == raw_disp else ""
+            bad.append(f"{home}–{away} : abstention/pari non révélé, mais le site affiche « {got} »{extra} "
+                       f"-> pari FANTÔME (aucun pari joué).")
+        elif rb is not None and dp is None:
+            bad.append(f"{home}–{away} : pari joué « {exp} » mais AUCUNE perle affichée -> pari joué masqué.")
+        elif rb is not None and dp is not None and got != exp:
+            src = f" (= pick brut « {raw_disp} »)" if raw_disp and got == raw_disp else ""
+            bad.append(f"{home}–{away} : le site affiche « {got} »{src} au lieu du pari joué « {exp} ».")
     return {"key": "upcoming_display_coherence",
             "level": "error" if bad else "ok",
             "title": "Pari affiché à venir == pari mécanique (pas le pick brut Claude)",
-            "detail": ("INCOHÉRENCE Telegram/site : un pick BRUT de Claude est affiché comme pari sur le site."
+            "detail": ("INCOHÉRENCE : le pari affiché à venir ≠ pari mécanique joué (pick brut / fantôme)."
                        if bad else
-                       f"0 incohérence — {n} match(s) à venir publié(s) au pick brut divergent vérifié(s) "
-                       f"(aucun n'affiche le pick brut)."),
+                       f"0 incohérence — {n} match(s) à venir vérifié(s) : perle affichée == retained_bet "
+                       f"(ou rien si abstention)."),
             "items": bad}
 
 

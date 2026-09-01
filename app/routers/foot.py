@@ -65,8 +65,12 @@ async def _analyst_rows(sport: str) -> tuple[list[dict], list[dict]]:
             st = "inprogress"
         fresh = match_select.live_odds_for(live, d.get("home"), d.get("away"))
         o1, ox, o2 = fresh if fresh else (d.get("o1"), d.get("ox"), d.get("o2"))
-        sel, odds = analyses.pick_parts(d.get("pick") or "")
-        perle = {"selection": sel, "odds": odds} if (sel and odds and odds >= 1.10) else None
+        # LE PARI AFFICHÉ (perle) = pari JOUÉ mécanique, via la SOURCE UNIQUE `analyses.display_perle`
+        # (retained_bet : confidence_bet / value_bet / stat_bet figé). JAMAIS le pick BRUT de Claude
+        # `d["pick"]` : depuis la refonte mécanique (2026-08-29) il DIVERGE du marché joué (Sheffield : pick
+        # brut « Moins de 3,5 » vs pari joué « DC 1X ») et est ABSENT sur une abstention -> l'ancien code
+        # affichait un pari fantôme (bug user 2026-09-01). Le garde-fou selfcheck lit le MÊME helper.
+        perle = analyses.display_perle("foot", d.get("id"))
         base = {
             "id": d.get("sofa_id") or d.get("id"), "comp": d.get("comp"),
             "home": d.get("home", ""), "away": d.get("away", ""),

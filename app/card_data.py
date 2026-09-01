@@ -165,7 +165,6 @@ def build_prono_card(d: dict) -> dict | None:
     sport = d.get("sport")
     combo = d.get("combo") or {}
     has_combo = bool(combo.get("legs"))
-    pick = d.get("pick") or ""
     rb = analyses.retained_bet(sport, str(d.get("id")))
     # On ne publie un SIMPLE que s'il est RETENU (passe confiance+EV+garde-fous) — combiné OU non.
     # Sinon Telegram postait des paris (favoris sans value, ex. @1.14) que les stats ne comptent PAS
@@ -190,12 +189,10 @@ def build_prono_card(d: dict) -> dict | None:
         card.update(type="combo", cote=cote, legs=_legs, synth=_clean_synth(combo.get("why")))
     elif pick_shown and rb:
         # Champs « design du site » (pari + glose + confiance/edge/value + tier + logos + analyse complète).
+        # `pick_shown == bool(rb)` -> AUCUN repli sur le pick brut de Claude : un match sans pari mécanique
+        # retenu (rb None) n'a PAS de carte prono (return None), jamais une carte tirée de `d["pick"]`.
         card.update(type="simple", market="", home=home, away=away,
                     **_simple_common(d, rb, sport, home, away))
-    elif pick_shown:
-        m = re.search(r"(.+?)\s*@\s*([\d]+[.,][\d]+)", pick)
-        card.update(type="simple", pick=(m.group(1).strip() if m else pick),
-                    cote=(m.group(2).replace(",", ".") if m else ""), conf=None)
     else:
         return None
     return card
