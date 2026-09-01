@@ -4151,15 +4151,31 @@ async def main():
                                                                 m.get("home", ""), m.get("away", "")) or {}
                                 except Exception:
                                     _ab_omap = {}
+                            _ab_side = {"sport": sport, "id": str(fid), "sofa_id": str(sofa_id or ""),
+                                        "home": m.get("home", ""), "away": m.get("away", ""),
+                                        "name": m.get("name", ""), "comp": m.get("comp", ""),
+                                        "start": m.get("start", ""), "o1": _o[0], "ox": _o[1], "o2": _o[2],
+                                        "shadow": _shadow, "abstained": True,
+                                        **({"omap": _ab_omap} if _ab_omap else {}),
+                                        "generated": datetime.now(timezone.utc).isoformat()}
+                            # PRÉSERVATION AUDIT (user 2026-09-01) : la fiche d'abstention garde les CHAMPS
+                            # D'ANALYSE déjà écrits (sources, ancre sharp, panel de validation, marchés, H2H,
+                            # streaks, votes publics) pour l'audit qualité. Sans ça, la re-analyse en abstention
+                            # les EFFAÇAIT -> le contrôle qualité / la fiche QC affichaient de faux ❌ « fiche
+                            # minimale » alors que le .md restait profond+multi-sources (Preston 3.7 ko, 2026-09-01).
+                            # Purement métadonnées : AUCUN pari (ni bets/stat_bet/combo) -> ROI/affichage inchangés
+                            # (list_for ignore toujours `abstained`). Le shadow reste celui de la passe courante.
                             try:
-                                json.dump({"sport": sport, "id": str(fid), "sofa_id": str(sofa_id or ""),
-                                           "home": m.get("home", ""), "away": m.get("away", ""),
-                                           "name": m.get("name", ""), "comp": m.get("comp", ""),
-                                           "start": m.get("start", ""), "o1": _o[0], "ox": _o[1], "o2": _o[2],
-                                           "shadow": _shadow, "abstained": True,
-                                           **({"omap": _ab_omap} if _ab_omap else {}),
-                                           "generated": datetime.now(timezone.utc).isoformat()},
-                                          open(side_p, "w", encoding="utf-8"), ensure_ascii=False)
+                                _prev_side = json.load(open(side_p, encoding="utf-8"))
+                            except (OSError, ValueError):
+                                _prev_side = {}
+                            for _k in ("sources", "sharp_map", "validation", "votes", "markets", "sel_edge",
+                                       "h2h", "streaks", "data_score", "pub_home", "pub_away", "pub_draw",
+                                       "country", "sofa_url", "unibet_url"):
+                                if _prev_side.get(_k) is not None and _ab_side.get(_k) is None:
+                                    _ab_side[_k] = _prev_side[_k]
+                            try:
+                                json.dump(_ab_side, open(side_p, "w", encoding="utf-8"), ensure_ascii=False)
                             except OSError:
                                 pass
                             if not _prov:               # pas de provisoire -> pas d'analyse à consulter -> .md inutile

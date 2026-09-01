@@ -288,9 +288,6 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
         lines.append("⏸️ ABSTENTION — aucun pari mécanique ≥ seuil")
         lines.append("   (Confiance : conf ≥ 80 · cote 1.05-1.50 · marché fiable —"
                      " Value : conf ≥ 68 · cote 1.40-2.30 · EV ≥ +5 %)")
-        raw = str(d.get("pick") or "").strip()
-        if raw:
-            lines += ["", f"🧭 Angle Claude (informatif, NON joué) : {raw[:160]}"]
     lines += [""] + _qc_signals(d, md)
     return "\n".join(lines)
 
@@ -322,7 +319,7 @@ def notify_match_qc(date: str | None = None, send: bool = False) -> int:
         if not final:
             n_wait += 1
             continue
-        if mid in done:
+        if send and mid in done:                 # dédup à l'ENVOI seulement ; l'aperçu montre toujours tout
             continue
         card = _qc_card(d, m, md)
         if send:
