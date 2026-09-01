@@ -35,6 +35,10 @@ _MAX_BETS = 1   # UN SEUL pari par match : le PLUS PROBABLE de tout le marché (
 
 
 _FID_CACHE: dict = {}   # sport -> (signature_dossier, {sofa_id: fid}) — index mis en cache
+_FID_SIG_TS: dict = {}  # sport -> monotonic ts du dernier scandir (throttle anti-re-scan par requête)
+_FID_SIG_TTL = 2.0      # s : on ne re-scandir le dossier qu'au plus 1×/2s (le dossier ne bouge qu'au scan/règlement)
+_ITERMETA_CACHE: dict = {}   # sport -> (monotonic_ts, [dicts avec _start_dt]) — cache throttlé d'iter_meta
+_ITERMETA_TTL = 2.0          # s : même logique que _FID_SIG_TTL (dossier stable entre 2 scans)
 
 
 _DIR_SIG_CACHE: list = [0.0, ()]   # [ts_monotone, sig] : cache TRÈS court (anti-scandir répété intra-rendu)
@@ -61,11 +65,21 @@ def _fid_index(sport: str) -> dict:
     """Index {sofa_id: id_de_fichier} d'un sport, MIS EN CACHE et invalidé dès que le dossier change
     (noms + mtimes). Évite de globber+charger TOUS les sidecars à CHAQUE résolution (O(cartes×fichiers)
     -> O(fichiers) une fois)."""
+    # THROTTLE ANTI-RE-SCAN (perf 2026-09-01) : un rendu appelle `_fid_index` des DIZAINES de fois/requête, et
+    # chaque appel re-scandir + re-stat les ~720 sidecars JUSTE pour vérifier la signature du cache (leaf ~1.1 s
+    # mesuré sur l'accueil). Le dossier ne change qu'au scan/règlement -> on ne RE-SCANDIR qu'au plus une fois
+    # par `_FID_SIG_TTL` s. Pendant un burst de rendu (< TTL), on réutilise l'index caché SANS toucher le disque.
+    import time as _t
+    _now = _t.monotonic()
+    _hit0 = _FID_CACHE.get(sport)
+    if _hit0 is not None and (_now - _FID_SIG_TS.get(sport, 0.0)) < _FID_SIG_TTL:
+        return _hit0[1]
     try:
         entries = sorted((e.name, e.stat().st_mtime_ns) for e in os.scandir(DIR)
                          if e.name.startswith(f"{sport}_") and e.name.endswith(".json"))
     except OSError:
         return {}
+    _FID_SIG_TS[sport] = _now
     sig = tuple(entries)
     hit = _FID_CACHE.get(sport)
     if hit and hit[0] == sig:
@@ -380,17 +394,30 @@ def iter_meta(sport: str):
     """Itère les sidecars BRUTS d'un sport (méta chargée + `_start_dt` posé), SANS le filtrage lourd de
     `list_for` (pas de `retained_bet`/`load` par sidecar). Pour les appelants qui font DÉJÀ leur PROPRE
     filtrage plus strict (ex. `_past_day_cards` : date + is_settled + a un pari) -> iso-résultat, sans le
-    coût de list_for (perf 2026-07-20)."""
-    for p in glob.glob(os.path.join(DIR, f"{sport}_*.json")):
-        d = _meta_load(p)
-        if not d:
-            continue
-        st = d.get("start")
-        try:
-            d["_start_dt"] = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
-        except (ValueError, AttributeError):
-            d["_start_dt"] = None
-        yield d
+    coût de list_for (perf 2026-07-20).
+    THROTTLE 2s (perf 2026-09-01) : un rendu appelle `iter_meta` des MILLIERS de fois (stats, zones, combo,
+    calendrier…) ; sans cache, chacune re-globbe + re-stat + re-parse `_start_dt` sur les ~720 sidecars (leaf
+    ~1.9 s mesuré). Le dossier ne change qu'au scan/règlement -> on ne reconstruit la liste qu'au plus 1×/2s ;
+    on YIELD des COPIES (les appelants posent des clés de travail dessus, jamais sur le cache partagé)."""
+    import time as _t
+    _now = _t.monotonic()
+    hit = _ITERMETA_CACHE.get(sport)
+    if not (hit and (_now - hit[0]) < _ITERMETA_TTL):
+        metas = []
+        for p in glob.glob(os.path.join(DIR, f"{sport}_*.json")):
+            d = _meta_load(p)
+            if not d:
+                continue
+            st = d.get("start")
+            try:
+                d["_start_dt"] = datetime.fromisoformat(st.replace("Z", "+00:00")) if st else None
+            except (ValueError, AttributeError):
+                d["_start_dt"] = None
+            metas.append(d)
+        _ITERMETA_CACHE[sport] = (_now, metas)
+        hit = (_now, metas)
+    for d in hit[1]:
+        yield dict(d)          # COPIE : les appelants mutent le dict yield, jamais l'objet caché
 
 
 def _inline(s: str) -> str:
