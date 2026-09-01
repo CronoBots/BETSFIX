@@ -2027,6 +2027,12 @@ async def _settle_analyses_impl() -> int:
                 _rcard["_old_result_msg"] = d.get("result_msg")
                 _rcard["_side"] = side
                 _rcard["_flags"] = list(_flags_to_set)
+                # TIER FROZEN (user 2026-09-01) : « est-ce un pari VALUE ? » lu sur les FLAGS FIGÉS au scan
+                # (`value_bet`/`confidence_bet`), PAS le tier dynamique (`bet_tier_for`) qui DÉRIVE, ni le tier
+                # de la carte MINIMALE de repli (absent -> défaut « CONFIANCE » = le bug « CONFIANCE PERDUE »
+                # sur un pari value, 2026-09-01). Robuste : un value bet reste value quoi qu'il arrive.
+                _rcard["_is_value"] = (bool((d.get("value_bet") or {}).get("sel"))
+                                       and not bool((d.get("confidence_bet") or {}).get("sel")))
                 notify_cards.append(_rcard)
             try:
                 json.dump(d, open(side, "w", encoding="utf-8"), ensure_ascii=False)
@@ -2049,14 +2055,17 @@ async def _settle_analyses_impl() -> int:
                 os.makedirs("data/_cards", exist_ok=True)
                 for _i, (msg, card) in enumerate(zip(notify_msgs, notify_cards)):
                     sent = None
-                    # TELEGRAM = PAS de résultat VALUE (user 2026-09-01) : une carte SIMPLE de tier « value » ne
-                    # poste PAS son résultat sur le canal (la Value reste sur le SITE + au ROI ; son prono n'est
-                    # pas posté non plus). On FIGE ses flags SANS envoi (sinon re-tenté indéfiniment), puis on
-                    # passe. Confiance + combinés continuent de poster leur résultat normalement.
-                    if card and card.get("simple") and str((card.get("simple") or {}).get("tier") or "") == "value":
-                        if card.get("_flags") and card.get("_side"):
-                            _mark_notified(card["_side"], card["_flags"], None)
-                        continue
+                    # Un RÉSULTAT simple n'est posté QU'EN RÉPONSE à un PRONO réellement posté. On NE poste PAS :
+                    #  • un pari VALUE (non diffusé sur Telegram, user 2026-09-01) ;
+                    #  • un résultat ORPHELIN dont le prono n'a JAMAIS été posté (value gaté à la publication, OU
+                    #    tier qui a « drifté » depuis) -> sinon message STANDALONE « CONFIANCE PERDUE » sans carte
+                    #    (bug user 2026-09-01). La garde `get_prono is None` est la vraie protection (robuste au
+                    #    drift de tier). On FIGE les flags SANS envoi (pas de retry), puis on passe.
+                    if card and card.get("simple"):
+                        if card.get("_is_value") or not notify.get_prono(card.get("_mid")):
+                            if card.get("_flags") and card.get("_side"):
+                                _mark_notified(card["_side"], card["_flags"], None)
+                            continue
                     # RÉSULTAT = RÉPONSE « Pari gagné ✅ » / « Pari perdu ❌ » à la carte du pari (user 2026-08-24 ;
                     # avant : emoji seul). « Remboursé ➖ » pour un push/void. Fil prono -> résultat, pas de carte.
                     _mk = ((card.get("simple") or {}).get("mark")

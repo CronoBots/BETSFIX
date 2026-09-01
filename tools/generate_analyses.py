@@ -4301,10 +4301,13 @@ async def main():
                 except Exception as _pwe:
                     print(f"    (pourquoi pari mécanique ignoré : {_pwe})")
                 _card = _cd.build_prono_card(_side_fresh)
-                # TELEGRAM = CONFIANCE (+ combinés) SEULEMENT — PAS les VALUE (user 2026-09-01). Une carte
-                # SIMPLE de tier « value » n'est PAS postée sur le canal (elle reste sur le SITE + au ROI).
+                # TELEGRAM = CONFIANCE (+ combinés) SEULEMENT — PAS les VALUE (user 2026-09-01). On lit les
+                # FLAGS FIGÉS `value_bet`/`confidence_bet` (robuste, ne dérive pas comme le tier dynamique) :
+                # une carte SIMPLE dont le pari mécanique est un VALUE n'est PAS postée (reste SITE + ROI).
                 # Un combiné (type != simple) ou une confiance passent normalement.
-                if _card and _card.get("type") == "simple" and str(_card.get("tier") or "") == "value":
+                _is_value_pub = (bool((_side_fresh.get("value_bet") or {}).get("sel"))
+                                 and not bool((_side_fresh.get("confidence_bet") or {}).get("sel")))
+                if _card and _card.get("type") == "simple" and _is_value_pub:
                     _card = None
                 # RÉ-ANALYSE (re-check 1 h avant OU --force) : ne REPUBLIER QUE si le prono a CHANGÉ vs ce qui
                 # était déjà publié. Identique -> rien reposté (pas de spam abonnés) ; le sidecar est déjà
