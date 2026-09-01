@@ -38,7 +38,10 @@ from app import analyses as A  # noqa: E402
 
 MIN_MD = 2500            # octets : en-dessous, l'analyse est un stub (les vraies font ~2900-5900 o)
 CONV_ALERT = 0.25        # conversion < 25 % -> alerte (gagnante ~0.49 ; diluée ~0.11)
-WAVE_LEAD_H = 1.6        # la vague analyse ~1 h avant le KO ; on laisse une marge -> "manqué" si KO-1.6h passé
+WAVE_LEAD_H = 0.75       # la vague analyse à KO-1.0 h ; on ne crie "manqué" qu'APRÈS + une marge de ~15 min
+#                          (KO-0.75 h). ⚠️ Doit être < 1.0 : un seuil >= au lead de la vague (ex. l'ancien 1.6)
+#                          déclarait "manqué" AVANT que la vague ne tourne -> faux positif (Atletico Grau
+#                          2026-09-01 : alerté à KO-1.6h=20:24 alors que la vague était prévue à 21:00).
 
 
 def _prog_path() -> str:
