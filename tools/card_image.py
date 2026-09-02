@@ -261,17 +261,24 @@ def _strip_dc_paren(pick) -> str:
 
 
 def _team_logo_html(name, url, e) -> str:
-    """Logo d'équipe (URL FotMob) SUR un monogramme coloré de repli — comme le site (crest)."""
+    """Logo d'équipe (URL FotMob), SANS pastille colorée derrière (user 2026-09-02 : « pas de cercle
+    de couleur derrière les logos »). Le monogramme coloré reste le REPLI : il est rendu mais
+    INVISIBLE (`opacity:0`) quand un logo existe, et n'est révélé que si l'image échoue à charger
+    (`onerror`). On garde donc le filet sans jamais entourer un vrai blason d'un disque de couleur.
+    ⚠️ L'ordre compte dans `onerror` : révéler le monogramme AVANT `this.remove()`, sinon le nœud
+    est déjà détaché et `previousElementSibling` renvoie null."""
     words = [w for w in re.split(r"[\s.\-]+", str(name or "")) if w]
     ini = ("".join(w[0] for w in words[:2]) or (str(name or "?")[:2])).upper()
     hue = sum(ord(c) for c in str(name or "")) % 360
-    mono = (f'<span class="tlogo mono" style="background:linear-gradient(150deg,'
-            f'hsl({hue},48%,46%),hsl({(hue + 24) % 360},52%,34%))">{e(ini)}</span>')
+    _bg = (f'background:linear-gradient(150deg,hsl({hue},48%,46%),'
+           f'hsl({(hue + 24) % 360},52%,34%))')
     if url:
+        mono = f'<span class="tlogo mono" style="{_bg};opacity:0">{e(ini)}</span>'
         return (f'<span class="tlwrap">{mono}'
                 f'<img class="tlogo" src="{_html.escape(str(url))}" '
-                f'onerror="this.remove()"></span>')
-    return f'<span class="tlwrap">{mono}</span>'
+                f'onerror="var m=this.previousElementSibling;if(m)m.style.opacity=1;this.remove()">'
+                f'</span>')
+    return f'<span class="tlwrap"><span class="tlogo mono" style="{_bg}">{e(ini)}</span></span>'
 
 
 def _verdict_cells_html(d: dict, e) -> str:
