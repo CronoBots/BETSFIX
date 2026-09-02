@@ -1036,8 +1036,7 @@ CSS = """
   .lboard-q .lb-n{font-size:12.5px}             /* nom d'équipe (évite la troncature) */
   .lboard-q .lb-hdr{border-bottom:1px solid rgba(255,255,255,.13);padding-bottom:3px;margin-bottom:2px}
   .lboard-q .lb-hdr .lb-c{font-size:11px}       /* Q1..Qn + TOT : en-tête discret (plus petit) */
-  .lboard-q .lb-c.lb-ico{font-size:13px}        /* foot : icônes 🟥🟨🚩⚽ lisibles (cartons/corners/buts) */
-  .lboard-q .lb-c.lb-tot.lb-ico{font-size:14px}
+  /* (.lb-ico retiré 2026-09-02 avec le box-score foot cartons/corners — plus aucun élément ne le porte) */
   .lboard-q .lb-tot{width:28px;min-width:28px;font-size:12.5px;font-weight:900;color:#eaf2ff}
   .lboard-q .lb-row.lb-lead .lb-tot{color:#34d27b}   /* gagnant : SEUL son total en vert */
   .lboard-q .lb-cur{color:#fff}                       /* quart en cours : score en blanc */
@@ -6195,8 +6194,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
         # provisoire EN DIRECT (demande user 2026-07-12), comme les paris live.
         _lscore = (_live_scoreboard(_lf.get("score"), home, away, tennis=(sp == "tennis"),
                                     server=_lf.get("server"), points=_lf.get("game_pts"),
-                                    clock=_lf.get("live_time"), periods=_lf.get("periods"),
-                                    fstats=_lf.get("fstats"))
+                                    clock=_lf.get("live_time"), periods=_lf.get("periods"))
                    if (_is_live and _lf.get("score")) else "")
         # Barre « Chance live » (demande user 2026-07-20 : elle manquait sur les provisoires en direct) —
         # même reflet EN DIRECT que les paris retenus (cote live dé-margée / repli modèle). '' si non mappable.
@@ -6502,8 +6500,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             board = ('<div class="cleg-board">'
                      + _live_scoreboard(_lfz["score"], _lh, _la, tennis=(_sp == "tennis"),
                                         server=_lfz.get("server"), points=_lfz.get("game_pts"),
-                                        clock=_lfz.get("live_time"), periods=_lfz.get("periods"),
-                                        fstats=_lfz.get("fstats"))
+                                        clock=_lfz.get("live_time"), periods=_lfz.get("periods"))
                      + _leg_bar + '</div>')
         elif analyses.likely_finished({"sport": _sp, "start": l.get("start")}):
             # Match FINI mais pas encore réglé ET sans donnée live (ex. jambe Betmines d'une ligue absente
@@ -10469,7 +10466,7 @@ def _live_bar_html(lp: dict | None) -> str:
 def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                      server: str | None = None, points: tuple | None = None,
                      clock: str | None = None, periods: list | None = None,
-                     best_of: int | None = None, fstats: dict | None = None,
+                     best_of: int | None = None,
                      pens: tuple | None = None) -> str:
     """Scoreboard LIVE. Tennis (`tennis=True`) : style Unibet — en-tête numéros de set + 🎾, TOUS
     les sets en colonnes (jeux par set), sets gagnés en gras, set en cours en évidence (PAS de
@@ -10568,25 +10565,12 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
                 f'<div class="lb-row lb-hdr">{clk}<span class="lb-s">{hdr}</span></div>'
                 f'{qrow(0, hn, th > ta)}{qrow(1, an, ta > th)}</div>')
 
-    if fstats:   # FOOT LIVE : box-score cartons/corners/buts (demande user 2026-07-12) — colonnes 🟥 🟨 🚩 ⚽
-        gh, ga = (cols[0] if cols else (0, 0))
-        _v = lambda x: x if isinstance(x, (int, float)) else 0
-        _defs = [("🟥", _v(fstats.get("rc_h")), _v(fstats.get("rc_a"))),
-                 ("🟨", _v(fstats.get("yc_h")), _v(fstats.get("yc_a"))),
-                 ("🚩", _v(fstats.get("cor_h")), _v(fstats.get("cor_a")))]
-        hdr = ("".join(f'<span class="lb-c lb-h lb-ico">{ic}</span>' for ic, _, _ in _defs)
-               + '<span class="lb-c lb-h lb-tot lb-ico">⚽</span>')
-
-        def frow(i, name, lead, goals):
-            cs = "".join(f'<span class="lb-c">{(hv if i == 0 else av)}</span>' for _, hv, av in _defs)
-            cs += f'<span class="lb-c lb-tot">{goals}</span>'
-            return (f'<div class="lb-row{" lb-lead" if lead else ""}">'
-                    f'<span class="lb-n">{name}</span><span class="lb-s">{cs}</span></div>')
-        clk = f'<span class="lb-n lb-clk-in">{e(clock)}</span>' if clock else '<span class="lb-n"></span>'
-        return (f'<div class="lboard lboard-q">'
-                f'<div class="lb-row lb-hdr">{clk}<span class="lb-s">{hdr}</span></div>'
-                f'{frow(0, hn, gh > ga, gh)}{frow(1, an, ga > gh, ga)}</div>')
-
+    # BOX-SCORE FOOT (cartons 🟥🟨 / corners 🚩 / buts ⚽) RETIRÉ le 2026-09-02 (demande user : « ce n'est
+    # plus utilisé, maintenant c'est la version simple avec le score entre les équipes »). Le foot live
+    # tombe désormais sur le rendu de score STANDARD ci-dessous, comme les autres sports.
+    # ⚠️ La DONNÉE `fstats` (cartons/corners live) reste COLLECTÉE et utilisée ailleurs — composante
+    # « stats live » du calcul, cf. `_fs = r.get("fstats")` plus bas : ne pas la supprimer en croyant
+    # qu'elle ne servait qu'à ce tableau.
     # TIRS AU BUT (foot : Supercoupe/finales) — affichés INLINE « 1 (4) » / « 1 (5) » sur la ligne du score
     # (demande user 2026-08-01 : pas de colonne en plus, le nombre de pénos entre parenthèses). Le score de
     # régulation reste le chiffre principal ; le vainqueur du shoot-out prend la ligne verte (lb-lead).
@@ -10651,7 +10635,7 @@ def _sport_row(r: dict) -> str:
         lscore = _live_scoreboard(r.get("score"), r.get("home") or "", r.get("away") or "",
                                   tennis=_is_tennis, server=r.get("server"), points=r.get("game_pts"),
                                   clock=r.get("live_time"), periods=r.get("periods"),
-                                  best_of=r.get("best_of"), fstats=r.get("fstats"))
+                                  best_of=r.get("best_of"))
     elif is_finished and r.get("score"):
         # Score FINAL présenté COMME en live, AVEC le détail : sets (tennis « 6-4 3-6 6-2 ») ou
         # quart-temps (basket `periods`), sinon total 2 lignes. Sans horloge (match terminé).
