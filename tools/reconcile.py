@@ -354,5 +354,58 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
             "stuck": len(stuck), "reposted": reposted}
 
 
+_LOCK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "reconcile.lock")
+_LOCK_STALE_S = 20 * 60          # un verrou plus vieux que ça = process mort -> on le reprend
+
+
+def _acquire_lock() -> bool:
+    """VERROU EXCLUSIF de réconciliation (user 2026-09-02 : « je suis spammé par les notifications »).
+
+    Cause du spam : `reconcile.py` est lancé par CINQ chemins (reconcile_loop toutes les 10 min, et les
+    scans daily / evening / sweep / wave — la tâche Wave ayant un déclencheur PAR MATCH). Seul
+    `reconcile_loop.ps1` vérifiait qu'un autre règlement ne tournait pas ; les scans, NON. Deux passes
+    simultanées lisent `notified_pick` AVANT que l'autre ne l'écrive -> le MÊME résultat part 2 à 5 fois
+    (Telegram ET notification PWA, qui est postée dans la foulée d'un envoi réussi).
+
+    Le garde vit ICI plutôt que dans chaque .ps1 : peu importe qui lance le règlement, il ne peut y en
+    avoir qu'un. Verrou = fichier contenant le PID ; ignoré s'il est périmé (process tué avant de nettoyer)
+    ou si le PID n'existe plus, pour ne jamais bloquer définitivement le règlement."""
+    try:
+        if os.path.exists(_LOCK):
+            fresh = (datetime.now().timestamp() - os.path.getmtime(_LOCK)) < _LOCK_STALE_S
+            alive = False
+            try:
+                pid = int(open(_LOCK, encoding="utf-8").read().strip() or 0)
+                if pid > 0:
+                    import subprocess
+                    out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True,
+                                         text=True, timeout=15).stdout
+                    alive = str(pid) in out
+            except Exception:
+                alive = False
+            if fresh and alive:
+                print(f"⏭️  RECONCILE : un règlement tourne déjà (PID {pid}) -> on passe son tour "
+                      f"(évite les notifications en double).")
+                return False
+        os.makedirs(os.path.dirname(_LOCK), exist_ok=True)
+        with open(_LOCK, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
+        return True
+    except Exception:
+        return True                  # verrou impossible -> on ne bloque JAMAIS le règlement
+
+
+def _release_lock() -> None:
+    try:
+        os.remove(_LOCK)
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
-    asyncio.run(reconcile(dry="--dry" in sys.argv, no_bilan="--no-bilan" in sys.argv))
+    if not _acquire_lock():
+        sys.exit(0)
+    try:
+        asyncio.run(reconcile(dry="--dry" in sys.argv, no_bilan="--no-bilan" in sys.argv))
+    finally:
+        _release_lock()

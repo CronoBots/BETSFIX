@@ -1964,7 +1964,12 @@ async def _settle_analyses_impl() -> int:
                     _pl = (f"{html.escape(str(_mlbl))} · <b>{html.escape(_mco_s)}</b>" if _mco_s
                            else html.escape(str(_mlbl or "")))
                     _parts.append(f"• {_pl} {_m}".strip() if _pl else f"• Pari simple {_m}".strip())
-                    _card_simple = {"label": str(_mlbl) or "Pari simple", "cote": _mco_s, "mark": new_pick}
+                    # ⚠️ `str(_mlbl) or "Pari simple"` était PIÉGÉ : `str(None)` vaut la chaîne "None",
+                    # qui est TRUTHY -> le repli ne se déclenchait jamais et le libellé devenait
+                    # littéralement « None » (vu par le user le 2026-09-02 : « CONFIANCE GAGNÉE ✅ / None »).
+                    # On teste la valeur AVANT de la convertir.
+                    _card_simple = {"label": (str(_mlbl).strip() if _mlbl else "") or "Pari simple",
+                                    "cote": _mco_s, "mark": new_pick}
             if new_combo in _chip and not d.get("notified_combo"):
                 # Combiné NON publié sur Telegram (user 2026-08-02 : Telegram = paris SIMPLES FOOT
                 # uniquement). On FIGE le flag SANS envoi -> le combiné reste réglé/affiché sur le SITE,

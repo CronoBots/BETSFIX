@@ -123,7 +123,10 @@ def _simple_common(d: dict, rb: dict, sport, home: str, away: str) -> dict:
     Rend : pari lisible + glose « en clair », confiance CALIBRÉE, edge/value, cote, tier (Confiance/Value),
     pays + compét., logos des 2 équipes, et l'analyse COMPLÈTE (mêmes puces que « Pourquoi ce choix »)."""
     from app import match_select as _ms, crest as _cr
-    _sel = str(rb.get("sel", ""))
+    # `str(rb.get("sel", ""))` seul rendait la chaîne "None" quand `sel` vaut None (clé PRÉSENTE mais
+    # nulle -> le défaut de `.get` ne s'applique pas). Ce "None" remontait ensuite jusqu'au libellé de la
+    # carte et du message Telegram (bug user 2026-09-02). On normalise à vide.
+    _sel = str(rb.get("sel") or "")
     # CONFIANCE PUBLIÉE = confiance CALIBRÉE (décision user 2026-07-17) ; repli brute si pas de cprob.
     _conf = round(rb["cprob"]) if rb.get("cprob") is not None else rb.get("prob")
     _cote = rb.get("cote")
