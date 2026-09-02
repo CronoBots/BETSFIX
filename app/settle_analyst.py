@@ -2090,7 +2090,10 @@ async def _settle_analyses_impl() -> int:
                                 # sur perte/remboursé (on n'appuie pas sur le montant perdu).
                                 _rco = (card.get("cote") or (card.get("simple") or {}).get("cote") or "") if _mk == "won" else ""
                                 _cotetxt = f" @{_rco}" if _rco else ""
-                                _emo = f"{_rlbl} {_vw}{_cotetxt} {_ve}"
+                                # PARI JOUÉ à la ligne du dessous (user 2026-09-02 « comme pour les jambes ») :
+                                # lève toute ambiguïté sur « quel pari » ce verdict règle (le label = stat_bet).
+                                _rplayed = str((card.get("simple") or {}).get("label") or "").strip()
+                                _emo = f"{_rlbl} {_vw}{_cotetxt} {_ve}" + (f"\n{_rplayed}" if _rplayed else "")
                             else:
                                 _emo = {"won": "Pari gagné ✅", "lost": "Pari perdu ❌"}.get(_mk, "Remboursé ➖")
                             # envoi BLOQUANT (httpx) -> hors event loop pour ne pas figer l'API
