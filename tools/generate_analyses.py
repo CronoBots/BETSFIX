@@ -1985,15 +1985,19 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # -> on la JETTE (sp/smk=None -> sharp_map vide -> no_sharp -> match DIFFÉRÉ) plutôt que de calculer EV/value
     # sur une ancre inversée. Seuils prudents (écart net des DEUX côtés) pour ne jamais jeter un match serré.
     _sharp_conflict = False
-    if (sp and isinstance(sp.get("home"), (int, float)) and isinstance(sp.get("away"), (int, float))
-            and o1 and o2):
-        _sh = sp["home"] - sp["away"]                          # >0 -> sharp favorise le DOMICILE
-        _mk = 1.0 / o1 - 1.0 / o2                              # >0 -> marché Unibet favorise le DOMICILE
-        if abs(_sh) >= 0.10 and abs(_mk) >= 0.08 and (_sh > 0) != (_mk > 0):
-            print(f"  ⚠️ ancre sharp REJETÉE (favori OPPOSÉ au marché) : {home} {sp['home']*100:.0f}% / "
-                  f"{away} {sp['away']*100:.0f}% vs cotes Unibet {o1}/{o2} — résolution douteuse, match différé")
-            sp = None                                          # -> le texte CONSENSUS SHARP ne sera pas bâti
-            _sharp_conflict = True
+    if sp and isinstance(sp.get("home"), (int, float)) and isinstance(sp.get("away"), (int, float)):
+        # Référence marché du 1X2 : l'omap (VRAIES cotes Unibet, TOUJOURS résolu) en priorité, repli o1/o2 live.
+        _omp = _UNIBET_OMAP.get(str(match.get("id"))) or {}
+        _mh = _omp.get("1X2 1") or o1                          # cote domicile
+        _ma = _omp.get("1X2 2") or o2                          # cote extérieur
+        if _mh and _ma:
+            _sh = sp["home"] - sp["away"]                      # >0 -> sharp favorise le DOMICILE
+            _mk = 1.0 / _mh - 1.0 / _ma                        # >0 -> marché Unibet favorise le DOMICILE
+            if abs(_sh) >= 0.10 and abs(_mk) >= 0.08 and (_sh > 0) != (_mk > 0):
+                print(f"  ⚠️ ancre sharp REJETÉE (favori OPPOSÉ au marché) : {home} {sp['home']*100:.0f}% / "
+                      f"{away} {sp['away']*100:.0f}% vs cotes Unibet {_mh}/{_ma} — résolution douteuse, différé")
+                sp = None                                      # -> le texte CONSENSUS SHARP ne sera pas bâti
+                _sharp_conflict = True
     if sp and o1 and o2 and (sp.get("margin") or 1) <= _SHARP_MAX_MARGIN:
         seg = [f"{home} {sp['home'] * 100:.0f}%"] \
             + ([f"nul {sp['draw'] * 100:.0f}%"] if sp.get("draw") else []) \
