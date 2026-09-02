@@ -405,15 +405,22 @@ CSS = """
        background:linear-gradient(180deg,#161b25,#0d1017);box-shadow:0 14px 38px rgba(0,0,0,.6);
        transform:translateY(20px);opacity:0;transition:transform .32s cubic-bezier(.22,.85,.3,1),opacity .32s}
   .a2hs.show{transform:translateY(0);opacity:1}
-  .a2hs-ic{font-size:23px;flex:none;line-height:1}
+  .a2hs-ic{font-size:23px;flex:none;line-height:1;color:#7cc4ff}
+  .a2hs-ic svg{width:23px;height:23px;display:block}       /* SVG : taille explicite (pas via font-size) */
   .a2hs-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   .a2hs-tx b{font-size:13.5px;color:#eef4fb;font-weight:800;letter-spacing:-.01em}
   .a2hs-tx span{font-size:11.5px;color:var(--muted);line-height:1.42}
   .a2hs-tx .shr{display:inline-flex;vertical-align:-2px}
   .a2hs-go{flex:none;padding:8px 14px;border-radius:11px;border:0;cursor:pointer;font-weight:800;font-size:12.5px;
        color:#04131f;background:linear-gradient(180deg,#8fd0ff,#5fb2f5)}
+  /* Fermer : la CIBLE reste 44px (checklist tactile) via une zone transparente, alors que la PASTILLE
+     visible reste à 27px — on agrandit le hit area sans alourdir le visuel. */
   .a2hs-x{flex:none;width:27px;height:27px;border-radius:50%;border:0;cursor:pointer;font-size:12px;
-       background:rgba(255,255,255,.08);color:var(--muted);-webkit-tap-highlight-color:transparent}
+       background:rgba(255,255,255,.08);color:var(--muted);-webkit-tap-highlight-color:transparent;
+       display:grid;place-items:center;position:relative}
+  .a2hs-x::after{content:"";position:absolute;top:50%;left:50%;width:44px;height:44px;
+       transform:translate(-50%,-50%)}
+  .a2hs-x svg{width:13px;height:13px;display:block}
   .botnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
             padding:6px 0 4px;border-radius:14px;color:var(--muted);font-size:11px;
             font-weight:700;transition:.15s}
@@ -432,6 +439,9 @@ CSS = """
   /* 6 onglets -> labels un brin plus compacts pour tenir sur petit écran */
   .botnav a .lb{font-size:9px}
   .botnav a .ic{font-size:22px;height:24px}
+  /* ICÔNES SVG (audit 2026-09-02) : taille en TOKEN, pas via font-size (un SVG ne suit pas la taille de
+     police). 22px = même encombrement optique que les anciens emoji -> aucun décalage de la barre. */
+  .botnav a .ic svg{width:22px;height:22px;display:block}
   .botnav a.on .ic{transform:scale(1.06)}
   /* Onglet Live : SEUL le point 🟢 vire au vert et clignote,
   et UNIQUEMENT s'il y a du live
@@ -460,6 +470,7 @@ CSS = """
     .botnav a{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:13px;
               padding:11px 14px;border-radius:11px;font-size:14px}
     .botnav a .ic{font-size:20px;height:auto}
+    .botnav a .ic svg{width:20px;height:20px}   /* nav latérale (large) : icône un cran plus petite */
     .botnav a .lb{font-size:14px;font-weight:600}
     .botnav a.on .ic{transform:none}
     .nav-n{position:static;margin-left:auto;top:auto;left:auto;box-shadow:none}
@@ -3697,11 +3708,34 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # ONGLET MONTANTE RETIRÉ de la barre (user 2026-08-19) : la montante devient un ONGLET des Résultats
 # (bilan multiplicateur + courbe capital), comme Confiance/Value/Combiné. Barre = 4 onglets. Son pari du
 # jour reste dans Pronos. `/montante` redirige vers /stats (routeur).
-_SPA_TABS = [("accueil", "/accueil", "🏠", "Accueil"),
-             ("home", "/", "📅", "Programme"),   # onglet renommé « Pronos » -> « Programme » (user 2026-08-19)
+# ICÔNES DE NAV = SVG, PLUS D'EMOJI (audit ui-ux-pro-max 2026-09-02, règle n°1 « No Emoji as Structural
+# Icons »). Les emoji 🏠📅📊👤 étaient dépendants de la police système, ne pouvaient PAS hériter de la
+# couleur de l'onglet — sur l'onglet ACTIF (fond dégradé bleu, `color:var(--accent-ink)`) ils restaient
+# multicolores — et le 📅 d'iOS affiche « JUL 17 », une date figée en pleine navigation.
+# Famille homogène : trait `currentColor`, viewBox 24, épaisseur 1.8, bouts arrondis -> l'icône suit
+# exactement l'état de l'onglet (repos/actif/live). `aria-hidden` : le libellé `.lb` est déjà visible et
+# le lien porte un `aria-label` -> icône DÉCORATIVE, masquée à l'arbre d'accessibilité.
+def _nav_svg(paths: str) -> str:
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+            'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+            + paths + '</svg>')
+
+
+_ICO_ACCUEIL = _nav_svg('<path d="M3.5 11.5 12 4l8.5 7.5"/>'
+                        '<path d="M5.8 10.3V19a1.5 1.5 0 0 0 1.5 1.5h9.4a1.5 1.5 0 0 0 1.5-1.5v-8.7"/>'
+                        '<path d="M9.9 20.5v-5.1h4.2v5.1"/>')
+_ICO_PROGRAMME = _nav_svg('<rect x="3.5" y="5.5" width="17" height="15" rx="2.6"/>'
+                          '<path d="M8.2 3.4v4.2M15.8 3.4v4.2M3.5 10.6h17"/>')
+_ICO_RESULTATS = _nav_svg('<path d="M4 20.4h16"/><path d="M7.7 20.4v-4.6"/>'
+                          '<path d="M12 20.4v-8.6"/><path d="M16.3 20.4v-12.6"/>')
+_ICO_COMPTE = _nav_svg('<circle cx="12" cy="8.4" r="3.7"/>'
+                       '<path d="M4.8 20.5c0-3.5 3.3-5.9 7.2-5.9s7.2 2.4 7.2 5.9"/>')
+
+_SPA_TABS = [("accueil", "/accueil", _ICO_ACCUEIL, "Accueil"),
+             ("home", "/", _ICO_PROGRAMME, "Programme"),   # onglet renommé « Pronos » -> « Programme » (user 2026-08-19)
              ("directs", "/directs", _LIVE_RADAR, "Live"),
-             ("stats", "/stats", "📊", "Résultats"),
-             ("compte", "/compte", "👤", "Compte")]   # bouton compte REMIS en onglet bas-droite (user 2026-08-19)
+             ("stats", "/stats", _ICO_RESULTATS, "Résultats"),
+             ("compte", "/compte", _ICO_COMPTE, "Compte")]   # bouton compte REMIS en onglet bas-droite (user 2026-08-19)
 # Bouton compte en haut à droite (toutes les pages) : /compte affiche la connexion si déconnecté, le compte
 # sinon -> pas besoin de connaître l'état de session dans le rendu.
 # BOUTON COMPTE HAUT-DROITE RETIRÉ (user 2026-08-19) : le compte est de nouveau un ONGLET de la barre du bas
@@ -4139,11 +4173,19 @@ _SHARE_SVG = ('<svg class="shr" width="11" height="13" viewBox="0 0 12 14" fill=
               'stroke-linecap="round" stroke-linejoin="round"/></svg>')
 _A2HS_HTML = (
     '<div class="a2hs" id="a2hs" hidden>'
-    '<div class="a2hs-ic">📲</div>'
+    # Icône SVG (audit 2026-09-02) : l'emoji 📲 rendait un téléphone MULTICOLORE de la police système dans
+    # un bandeau sobre — hors palette et hors tokens. Trait `currentColor` -> suit la couleur du bandeau.
+    '<div class="a2hs-ic">'
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
+    'stroke-linejoin="round" aria-hidden="true" focusable="false">'
+    '<rect x="6.5" y="2.5" width="11" height="19" rx="2.6"/><path d="M10.6 18.6h2.8"/>'
+    '<path d="M12 6.4v5.6M9.7 9.9 12 12.2l2.3-2.3"/></svg></div>'
     '<div class="a2hs-tx"><b>Installer l\'app BETSFIX</b>'
     f'<span id="a2hs-sub">Appuyez sur {_SHARE_SVG} Partager, puis « Sur l\'écran d\'accueil ».</span></div>'
     '<button class="a2hs-go" id="a2hs-go" hidden>Installer</button>'
-    '<button class="a2hs-x" id="a2hs-x" aria-label="Fermer">✕</button>'
+    '<button class="a2hs-x" id="a2hs-x" aria-label="Fermer">'
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" '
+    'aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7 7 17"/></svg></button>'
     '</div>')
 _A2HS_JS = (
     "(function(){var el=document.getElementById('a2hs');if(!el)return;"
