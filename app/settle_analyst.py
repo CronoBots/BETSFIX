@@ -1286,7 +1286,13 @@ async def _settle_analyses_impl() -> int:
         # réseau. (Les matchs sans sofa_id exploitable ne sont PAS retentés en boucle.)
         # On retente le backfill des votes tant que le public manque (borné à 3 essais : la résolution
         # de l'id SofaScore par noms peut échouer si SofaScore est temporairement bloqué).
-        votes_pending = (d.get("pub_home") is None and (d.get("votes_tries") or 0) < 3)
+        # ⚠️ FIX CHURN (2026-09-03) : un match VOIDÉ FAUTE DE SCORE (`noscore_void`) n'aura JAMAIS de votes
+        # (même donnée manquante) — mais le chemin « VOID dernier recours » (l.~1425) `continue` AVANT
+        # d'incrémenter `votes_tries`, donc `votes_pending` restait True À VIE → le match était re-mis en
+        # `pending` et RE-VOIDÉ/RÉ-ÉCRIT (contenu identique) à CHAQUE passe (churn no-op infini, 6 vieux
+        # matchs saoudiens re-écrits toutes les ~2 min). On l'EXCLUT du backfill votes -> il est enfin skippé.
+        votes_pending = (d.get("pub_home") is None and (d.get("votes_tries") or 0) < 3
+                         and not d.get("noscore_void"))
         # Combiné dont le verdict GLOBAL manque encore (jambes réglées au compte-gouttes : stats df_st
         # parfois en retard sur la fin du match) -> on retente pour le compléter.
         cmb = d.get("combo") or {}
