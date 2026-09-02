@@ -276,4 +276,16 @@ def notify_result(match: str, mark: str, pick: str = "", tier: str = "confiance"
             except (ValueError, TypeError):
                 pass
         _ct = f" @{cote}" if cote else ""
+        # ⚠️ GARDE ANTI-FANTÔME (user 2026-09-03) : un pari GAGNÉ a TOUJOURS une cote (la cote jouée figée).
+        # Un « GAGNÉE » SANS cote = carte DÉGRADÉE (piège retained_bet sur un réglé / match re-voidé pendant la
+        # passe) -> notif fantôme récurrente (« CONFIANCE/VALUE GAGNÉE ✅ » sans @cote). On SUPPRIME. Ne touche
+        # PAS un vrai pari (qui porte sa cote). Les pertes n'affichent jamais de cote -> guard scopé au « won ».
+        if not _ct:
+            try:                                        # trace dédiée (les logs process sont peu fiables) ->
+                with open(os.path.join(_DATA, "push_phantom.log"), "a", encoding="utf-8") as _pf:
+                    _pf.write(f"won-no-cote SUPPRIMÉ : match={match!r} tier={tier!r} pick={str(pick)[:80]!r}\n")
+            except OSError:
+                pass
+            log.warning("push résultat SUPPRIMÉ (gagné SANS cote = fantôme) : match=%s tier=%s", match, tier)
+            return 0
     return send_push(m["title"].format(tier=_tl, cote=_ct), m.get("body", ""), url="/", tag="result")
