@@ -215,15 +215,22 @@ async def _combo_refresh_loop():
         await asyncio.sleep(10 * 60)
 
 
+# Sports RELEVÉS par `_odds_loop`. BETSFIX est 100 % FOOT depuis 2026-08-07 : la boucle interrogeait
+# encore Unibet pour tennis+basket toutes les 10 min (≈288 appels/jour pour des sports retirés) et
+# faisait grossir data/odds_history/{tennis,basket}.json, jamais lus (bug trouvé au ménage 2026-09-02).
+# Le code reste sport-paramétré : ré-ouvrir un sport = le remettre dans ce tuple.
+_ODDS_LOOP_SPORTS = ("foot",)
+
+
 async def _odds_loop():
-    """Suivi des VARIATIONS de cote (Unibet, gratuit) : relève les matchs à venir des 3 sports.
+    """Suivi des VARIATIONS de cote (Unibet, gratuit) : relève les matchs à venir (`_ODDS_LOOP_SPORTS`).
     Réveil toutes les 10 min ; `odds_history` décide quels matchs relever (1/h, resserré à 10 min
     dans la dernière heure avant le coup d'envoi). Aucun appel SofaScore."""
     from app import match_select, odds_history
     await asyncio.sleep(40)    # laisse l'app démarrer
     while True:
         try:
-            for sp in ("foot", "tennis", "basket"):
+            for sp in _ODDS_LOOP_SPORTS:
                 events = await match_select.fetch_events_with_odds(sp)
                 n = odds_history.record_all(sp, events)
                 if n:
