@@ -324,6 +324,16 @@ CSS = """
           le dégradé reste fixe visuellement. */
        background:transparent;}   /* le dégradé (halos) est sur HTML = canvas fixé au viewport (voir plus haut) */
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
+  /* Accessibilité clavier (audit 2026-09-02) : anneau de focus VISIBLE au clavier UNIQUEMENT
+     (:focus-visible) — jamais au tap/souris, donc 0 changement pour l'usage tactile normal.
+     Rétablit un repère que `-webkit-tap-highlight-color:transparent` (+ un `outline:none` sur les
+     inputs) avait supprimé = anti-pattern WCAG 2.4.7 « Focus Visible » (niveau AA). L'outline épouse
+     automatiquement le border-radius de l'élément sur les navigateurs modernes. */
+  a:focus-visible,button:focus-visible,summary:focus-visible,
+  input:focus-visible,select:focus-visible,textarea:focus-visible,
+  [tabindex]:focus-visible,[role="button"]:focus-visible{
+    outline:2px solid var(--accent);outline-offset:2px}
+  :focus:not(:focus-visible){outline:none}
   /* Zone de contenu = SEUL élément qui scrolle (flex:1). La barre du bas étant désormais un frère
      statique en dessous,
   plus besoin de réserver ~86px en bas : un petit espace suffit. */
@@ -362,6 +372,14 @@ CSS = """
   @keyframes splashOut{to{opacity:0;visibility:hidden}}
   @media (prefers-reduced-motion:reduce){
     .splash{animation:splashOut .3s ease .4s forwards}.splash img{animation:none}}
+  /* Mouvement réduit (audit 2026-09-02) : on FIGE les pulsations/clignotements DÉCORATIFS restants
+     (radar nav Live, points « live », badges pulsants) — l'élément reste VISIBLE dans son état
+     statique, seul le mouvement en boucle s'arrête (WCAG 2.3.3). Les spinners/skeletons de
+     chargement gardent leur animation (motion essentielle, non touchée). */
+  @media (prefers-reduced-motion:reduce){
+    .nr-ring,.le-ping,.zone-live .zone-dot,.da-combo-b.live,.tkt-h .b.live,
+    .mc-badge.mc-live,.lz .hb .pulse{animation:none}
+  }
   .pausewrap{text-align:right;margin:-10px 0 8px}
   .pausebadge{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
               color:var(--dim);background:transparent;border:1px solid var(--border2);
@@ -1168,6 +1186,8 @@ CSS = """
   .acctwrap input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
     border-radius:11px;padding:12px 13px;color:#e9f1fb;font-family:inherit;font-size:14px}
   .acctwrap input:focus{outline:none;border-color:rgba(34,184,255,.6)}
+  /* …mais on rend l'anneau clavier (specificité égale, placé APRÈS -> gagne quand :focus-visible matche) */
+  .acctwrap input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   .acctwrap button{width:100%;margin-top:20px;background:#22b8ff;color:#04121c;border:0;border-radius:12px;
     padding:13px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer}
   .acctwrap button.ghost{background:transparent;color:#5fd0ff;border:1px solid rgba(34,184,255,.35)}
