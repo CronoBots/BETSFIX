@@ -389,7 +389,11 @@ METHODO = (
     "tort -> prudence ou SKIP. Quand un bloc « SHARP PAR MARCHÉ » est fourni (totaux Over/Under + "
     "handicaps de-viggés), utilise-le EXACTEMENT pareil pour les paris HORS-vainqueur : compare la proba "
     "sharp du marché à la cote Unibet du MÊME marché — c'est ton ancre de value sur les totaux/handicaps, "
-    "pas seulement le 1X2.\n\n"
+    "pas seulement le 1X2.\n"
+    "⛔ N'INVENTE JAMAIS de proba sharp/Pinnacle : si AUCUN « CONSENSUS SHARP » n'apparaît ci-dessus pour ce "
+    "match, il n'y a PAS d'ancre sharp — ne cite AUCUN pourcentage « sharp »/« Pinnacle » et ne calcule PAS "
+    "d'EV « contre le sharp » (dis simplement que l'ancre sharp est indisponible). Écrire un chiffre sharp "
+    "sans ancre fournie = faute grave (chiffre fabriqué).\n\n"
     "VALUE — DÉTECTION SYSTÉMATIQUE (clé du ROI) : chaque issue du bloc COTES porte sa PROBA JUSTE "
     "« (jXX%) » = la proba du marché MARGE RETIRÉE (de-vig), et chaque marché sa « [marge X%] ». "
     "Procédure pour CHAQUE pari envisagé : (1) estime TA proba à partir des FAITS ; (2) compare-la à la "
@@ -1974,6 +1978,22 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             _sharp_src = "Pinnacle"
     except Exception:
         sp = None
+    # ⚠️ GARDE ANTI-RÉSOLUTION FAUSSE de l'ancre (user 2026-09-02 — cas Saint-Trond–Union : Pinnacle donnait le
+    # DOMICILE favori 48 % alors qu'Unibet price l'EXTÉRIEUR favori = home/away inversé ou MAUVAIS match résolu,
+    # cf. mémoire pinnacle-match-resolution-confusion). Un book SHARP et Unibet ne désignent JAMAIS des favoris
+    # OPPOSÉS de façon TRANCHÉE. Si le favori sharp contredit NETTEMENT le favori marché, l'ancre est corrompue
+    # -> on la JETTE (sp/smk=None -> sharp_map vide -> no_sharp -> match DIFFÉRÉ) plutôt que de calculer EV/value
+    # sur une ancre inversée. Seuils prudents (écart net des DEUX côtés) pour ne jamais jeter un match serré.
+    _sharp_conflict = False
+    if (sp and isinstance(sp.get("home"), (int, float)) and isinstance(sp.get("away"), (int, float))
+            and o1 and o2):
+        _sh = sp["home"] - sp["away"]                          # >0 -> sharp favorise le DOMICILE
+        _mk = 1.0 / o1 - 1.0 / o2                              # >0 -> marché Unibet favorise le DOMICILE
+        if abs(_sh) >= 0.10 and abs(_mk) >= 0.08 and (_sh > 0) != (_mk > 0):
+            print(f"  ⚠️ ancre sharp REJETÉE (favori OPPOSÉ au marché) : {home} {sp['home']*100:.0f}% / "
+                  f"{away} {sp['away']*100:.0f}% vs cotes Unibet {o1}/{o2} — résolution douteuse, match différé")
+            sp = None                                          # -> le texte CONSENSUS SHARP ne sera pas bâti
+            _sharp_conflict = True
     if sp and o1 and o2 and (sp.get("margin") or 1) <= _SHARP_MAX_MARGIN:
         seg = [f"{home} {sp['home'] * 100:.0f}%"] \
             + ([f"nul {sp['draw'] * 100:.0f}%"] if sp.get("draw") else []) \
@@ -1995,6 +2015,8 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp, _ko)
     except Exception:
         smk = None
+    if _sharp_conflict:
+        smk = None                     # même match mal résolu -> les marchés sharp (totaux/handicaps) aussi suspects
     if smk:
         unit = {"foot": "buts", "basket": "pts", "tennis": "jeux"}.get(sport, "")
         tot = smk.get("totals") or {}
@@ -2092,7 +2114,8 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # ICI (au build du dossier) = re-évalué à CHAQUE vague : le sharp se poste souvent plus près du KO.
     meta = {"odds": odds, "sources_prov": src_prov, **sx,
             "sharp_map": _build_sharp_map(sp, smk),   # proba sharp par code (figée au scan) -> comparaison carte + CLV
-            "no_sharp": bool(sport == "foot" and not sharp and not sharp_mk)}   # odds + streaks/h2h + provenance -> sidecar
+            "no_sharp": bool(sport == "foot" and not sharp and not sharp_mk),   # odds + streaks/h2h + provenance -> sidecar
+            "sharp_conflict": _sharp_conflict}   # ancre rejetée (favori sharp opposé au marché = résolution fausse)
     return text, meta
 
 

@@ -21,6 +21,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 
@@ -278,6 +279,10 @@ def _md_section(txt: str, needle: str) -> str:
     return ""
 
 
+# Citation d'une ANCRE sharp chiffrée dans la prose (« sharp (43 %) », « Pinnacle 82 % », « sharp à 66 % »…).
+_SHARP_CITE = re.compile(r"(sharp|pinnacle)[^.\n]{0,20}?\d{1,3}\s*%", re.I)
+
+
 def _qc_collect(d: dict, md: str | None, mdtxt: str) -> dict:
     """Rassemble les signaux BRUTS d'un match (lecture seule). Repli sur le .md quand le JSON (fiche
     d'abstention) ne porte pas sources/sharp -> pas de faux ❌."""
@@ -290,6 +295,12 @@ def _qc_collect(d: dict, md: str | None, mdtxt: str) -> dict:
     return {
         "src_names": src_names, "n_src": len(src_names),
         "sharp_ok": (bool(d.get("sharp_map")) or ("pinnacle" in mdtxt.lower())) and not d.get("no_sharp"),
+        # ⚠️ FABRICATION D'ANCRE : l'analyse cite un « sharp/Pinnacle XX % » alors qu'AUCUNE ancre réelle n'existe
+        # (`sharp_map` vide) -> chiffre inventé pour justifier une EV (bug Burnley-Middlesbrough 2026-09-02).
+        "sharp_map_empty": not bool(d.get("sharp_map")),
+        "sharp_cited": bool(_SHARP_CITE.search(mdtxt or "")),
+        # ancre REJETÉE par le garde anti-résolution-fausse (favori sharp opposé au marché, cf. build_dossier).
+        "sharp_conflict": bool(d.get("sharp_conflict")),
         "n_omap": len(d.get("omap") or {}),
         "md_ko": md_ko, "md_ok": md_ko * 1000 >= MIN_MD,
         "panel": bool(d.get("validation") or d.get("votes")) or ("Paris classés" in mdtxt),
@@ -330,7 +341,13 @@ def _qc_audit(d: dict, rb: dict | None, sig: dict) -> dict:
     sources = "✅"
     if sig["n_src"] < 2:
         sources = "❌"; issues.append(f"SOURCES : {sig['n_src']} source(s) (<2 requis)")
-    if not sig["sharp_ok"]:
+    if sig.get("sharp_conflict"):
+        sources = "⚠️" if sources == "✅" else sources
+        issues.append("SOURCES : ancre sharp REJETÉE (favori opposé au marché = résolution fausse → match différé)")
+    elif sig.get("sharp_cited") and sig.get("sharp_map_empty"):
+        sources = "❌"   # GRAVE : chiffre sharp inventé (la prose s'appuie sur une ancre qui n'existe pas)
+        issues.append("SOURCES : l'analyse CITE un sharp INEXISTANT (aucune ancre `sharp_map` — chiffre fabriqué)")
+    elif not sig["sharp_ok"]:
         sources = "⚠️" if sources == "✅" else sources; issues.append("SOURCES : pas d'ancre sharp Pinnacle")
     if sig["n_omap"] == 0:
         sources = "⚠️" if sources == "✅" else sources; issues.append("SOURCES : cotes réelles Unibet (omap) absentes")
@@ -410,7 +427,17 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
         lines.append("   (Confiance : conf ≥ 80 · cote 1.05–1.50 — Value : conf ≥ 68 · cote 1.40–2.30 · EV ≥ +5 %)")
         skip = _md_section(mdtxt, "Le pari à jouer")
         if skip:
-            lines += ["", f"🧭 Décision : {skip[:450]}"]
+            # Le .md « Le pari à jouer » peut être une vraie ABSTENTION (« À éviter / SKIP ») OU un pari
+            # RECOMMANDÉ par l'analyste que le sélecteur mécanique a REFUSÉ (marché banni / cote hors bande /
+            # conf sous seuil). Ne PAS afficher ce dernier comme « Décision : <pari> » sous une ABSTENTION
+            # (contradiction vue par le user 2026-09-02) -> on le relabélise clairement « angle NON retenu ».
+            _is_skip = bool(re.match(r"\s*[-*•]?\s*\*{0,2}\s*(à\s+[ée]viter|skip|on\s+s['’]abstient|"
+                                     r"aucun\s+pari|pas\s+de\s+pari|on\s+ne\s+joue\s+pas)", skip, re.I))
+            if _is_skip:
+                lines += ["", f"🧭 Décision : {skip[:450]}"]
+            else:
+                lines += ["", f"💡 Angle de l'analyse — NON RETENU par la sélection mécanique "
+                              f"(sous seuil / hors bande / marché exclu) : {skip[:420]}"]
 
     facts = _md_section(mdtxt, "Les faits")             # L'ANALYSE = faits multi-sources sourcés (à vérifier)
     if facts:
