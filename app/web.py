@@ -5564,6 +5564,26 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
             if mteam.group(2).lower() == "plus":
                 return f"{who} {_verbe} au moins {n} {_u(n)}"
             return f"{who} {_verbe} moins de {n} {_u(n)}"
+    # ÉQUIPE (total) — forme « Plus/Moins de X.5 but(s) <équipe> », ÉQUIPE EN FIN, APRÈS l'unité (ex.
+    # « Plus de 0.5 but FC Midtjylland » = Midtjylland marque ≥1). C'est le libellé produit par le vivier
+    # multi-marchés du combiné (code TEAMTOT). Les 3 branches équipe ci-dessus attendent toutes l'équipe
+    # AVANT le nombre -> aucune ne matchait, et le pari tombait sur le TOTAL DU MATCH glosé « au total
+    # (les 2 équipes) » : FAUX, il ne porte que sur une équipe (bug user 2026-09-02, jambes Midtjylland et
+    # Union Saint-Gilloise du combiné du jour). DOIT rester AVANT le total du match. Exige un vrai NOM
+    # D'ÉQUIPE (home/away) pour ne jamais requalifier un total de match en total d'équipe.
+    mteam2 = re.search(r"^(plus|moins)\s+de\s+(\d+(?:[.,]\d+)?)\s*(?:buts?|points?|jeux)\s+(.+?)\s*$",
+                       s, re.I)
+    if mteam2 and "total" not in sl and not _per_gloss:
+        who = mteam2.group(3).strip()
+        _wn = re.sub(r"\W+", "", who.lower())
+        _teams = [re.sub(r"\W+", "", t.lower()) for t in (home, away) if t]
+        if _wn and _teams and any(_wn in t or t in _wn for t in _teams):
+            val = float(mteam2.group(2).replace(",", "."))
+            n = math.ceil(val)
+            _verbe = "remporte" if sport == "tennis" else "marque"
+            if mteam2.group(1).lower() == "plus":
+                return f"{who} {_verbe} au moins {n} {_u(n)}"
+            return f"{who} {_verbe} moins de {n} {_u(n)}"
     # TOTAL du match « plus/moins de X.5 (points/buts/jeux) » -> nombre entier lisible. On EXCLUT les totaux
     # d'un objet SPÉCIFIQUE (corners/tirs/cartons/aces/rebonds/passes/fautes) : « au total buts » y serait FAUX
     # (mauvaise unité) -> ils tombent sur le repli générique « pari sur … » (fix 2026-07-17).
