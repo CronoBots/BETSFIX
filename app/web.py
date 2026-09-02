@@ -442,6 +442,10 @@ CSS = """
   /* ICÔNES SVG (audit 2026-09-02) : taille en TOKEN, pas via font-size (un SVG ne suit pas la taille de
      police). 22px = même encombrement optique que les anciens emoji -> aucun décalage de la barre. */
   .botnav a .ic svg{width:22px;height:22px;display:block}
+  /* Pictos issus de app/icons.py (ex-emoji) : 1em -> ils prennent la taille de police du contexte, comme
+     l'emoji qu'ils remplacent. Défini ICI (feuille toujours servie) EN PLUS de l'injection faite par
+     icons.apply : double filet, pour qu'un picto ne puisse JAMAIS s'afficher sans dimension. */
+  .eico{width:1em;height:1em;display:inline-block;vertical-align:-.14em;flex:none}
   .botnav a.on .ic{transform:scale(1.06)}
   /* Onglet Live : SEUL le point 🟢 vire au vert et clignote,
   et UNIQUEMENT s'il y a du live
@@ -2292,10 +2296,18 @@ CSS = """
   .tm-fin{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
   .cleg-res-live .cleg-fold-bet{border-top:none;padding-top:0;margin-top:13px}
   /* BADGE RÉSULTAT pleine largeur (user 2026-08-15) à la place de la barre : GAGNÉ/PERDU/REMBOURSÉ. */
-  .cleg-resbadge{width:100%;text-align:center;padding:9px 10px;border-radius:12px;
+  /* BADGE RÉSULTAT pleine largeur (user 2026-08-15) à la place de la barre : GAGNÉ/PERDU/REMBOURSÉ.
+     AUDIT 2026-09-02 : il ressemblait à un BOUTON (bord plein + coins arrondis + libellé centré) alors
+     qu'il n'est pas cliquable — anti-patron « Controls that look tappable but do nothing » de pro-rules.
+     Corrigé en BANNIÈRE d'état : plus de bord périmétrique, un LISERÉ GAUCHE porte la couleur (patron
+     bannière), et une ICÔNE accompagne le mot -> l'information ne repose plus sur la couleur seule
+     (règle a11y « Color Only »), ce qui la rend lisible en daltonisme et en niveaux de gris. */
+  .cleg-resbadge{width:100%;padding:9px 12px;border-radius:10px;
+       display:flex;align-items:center;justify-content:center;gap:8px;
        font-size:13px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}   /* dans .vm-res -> marge gérée par le wrapper */
-  .cleg-rb-w{background:rgba(52,210,123,.18);color:#4be39b;border:1px solid rgba(52,210,123,.55)}
-  .cleg-rb-l{background:rgba(255,107,107,.16);color:#ff6b6b;border:1px solid rgba(255,107,107,.5)}
+  .cleg-resbadge svg{width:15px;height:15px;flex:none}
+  .cleg-rb-w{background:rgba(52,210,123,.15);color:#4be39b;border-left:3px solid #34d27b}
+  .cleg-rb-l{background:rgba(255,107,107,.13);color:#ff6b6b;border-left:3px solid #ff6b6b}
   .cleg-rb-n{background:rgba(144,164,190,.16);color:#aebdd0;border:1px solid rgba(144,164,190,.4)}
   .mc-combo-res{margin-top:12px}   /* badge résultat EN BAS du cadre combiné (user 2026-08-19) */
   /* note « hors ROI » en tête de l'onglet Combiné (user 2026-08-16 : affiché mais non compté au ROI) */
@@ -3714,6 +3726,19 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # Famille homogène : trait `currentColor`, viewBox 24, épaisseur 1.8, bouts arrondis -> l'icône suit
 # exactement l'état de l'onglet (repos/actif/live). `aria-hidden` : le libellé `.lb` est déjà visible et
 # le lien porte un `aria-label` -> icône DÉCORATIVE, masquée à l'arbre d'accessibilité.
+def _res_ico(kind: str) -> str:
+    """Icône du BADGE RÉSULTAT (audit 2026-09-02) : coche / croix / tiret, en `currentColor` donc de la
+    couleur du badge. Rend l'issue lisible SANS la couleur (daltonisme, niveaux de gris, capture N&B) —
+    règle a11y « Color Only » : ne jamais faire porter l'information par la seule couleur. Décorative
+    (`aria-hidden`) : le mot GAGNÉ/PERDU/REMBOURSÉ juste à côté porte déjà le sens."""
+    d = {"w": '<path d="m5 12.5 4.5 4.5L19 7.5"/>',                    # coche = gagné
+         "l": '<path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/>',      # croix = perdu
+         }.get(kind, '<path d="M6 12h12"/>')                            # tiret = remboursé/annulé
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" '
+            'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+            + d + '</svg>')
+
+
 def _nav_svg(paths: str) -> str:
     return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
             'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
@@ -6614,7 +6639,8 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             # BADGE RÉSULTAT (user 2026-08-15) DANS le cadre des chiffres à la place de la barre live.
             _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"),
                           "push": ("REMBOURSÉ", "n"), "void": ("ANNULÉ", "n")}.get(_res, ("", "n"))
-            _resbadge = f'<div class="cleg-resbadge cleg-rb-{_rbc}">{_rbt}</div>' if _rbt else ""
+            _resbadge = (f'<div class="cleg-resbadge cleg-rb-{_rbc}">{_res_ico(_rbc)}{_rbt}</div>'
+                         if _rbt else "")
         elif (_lfz or {}).get("score"):                           # EN DIRECT : score + horloge M:SS + barre live
             _lsc = str(_lfz.get("score")).strip()
             _ctr = (f'<span class="tm-live"><b>{html.escape(_lsc.replace("-", " - "))}</b>'
@@ -6737,7 +6763,8 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
     # BADGE RÉSULTAT EN BAS DU CADRE (user 2026-08-19) : comme les cartes Confiance/Value — barre pleine largeur
     # GAGNÉ/PERDU/REMBOURSÉ sous le corps, PLUS dans l'en-tête. Les points par jambe (`dots`) restent en tête.
     _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"), "push": ("REMBOURSÉ", "n")}.get(state, ("", "n"))
-    _botbar = (f'<div class="cleg-resbadge cleg-rb-{_rbc} mc-combo-res">{_rbt}</div>' if _rbt else "")
+    _botbar = (f'<div class="cleg-resbadge cleg-rb-{_rbc} mc-combo-res">{_res_ico(_rbc)}{_rbt}</div>'
+               if _rbt else "")
     return (
         f'<div class="row pick mc mc-tg mc-tg-gold{_rcls}{(" mc-tg-" + accent) if accent else ""}">'
         '<div class="mc-head"><div class="mc-main">'

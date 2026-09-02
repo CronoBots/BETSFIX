@@ -111,10 +111,16 @@ CSS = ('<style>.eico{width:1em;height:1em;display:inline-block;vertical-align:-.
 
 
 def apply(html: str) -> str:
-    """Remplace les emoji couleur par leur picto SVG. No-op si aucun n'est présent (coût nul)."""
+    """Remplace les emoji couleur par leur picto SVG. No-op sur le corps si aucun n'est présent.
+
+    ⚠️ La CSS `.eico` est injectée dans TOUTE page complète (présence de `</head>`), MÊME si cette page
+    ne contient aucun emoji : les fragments AJAX chargés ENSUITE peuvent en apporter, et ils n'ont pas de
+    `<head>` où injecter quoi que ce soit. Sans cette règle, un picto arrivant par fragment dans une page
+    initialement sans emoji s'afficherait SANS dimension — donc à la taille intrinsèque du SVG, soit un
+    pictogramme géant en travers de l'écran (constaté au rendu isolé d'un fragment 2026-09-02)."""
     if not html:
         return html
-    out, n = _PAT.subn(lambda m: ICONS[m.group(0).rstrip("️")], html)
-    if n and "</head>" in out:
+    out = _PAT.sub(lambda m: ICONS[m.group(0).rstrip("️")], html)
+    if "</head>" in out:
         out = out.replace("</head>", CSS + "</head>", 1)
     return out

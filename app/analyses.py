@@ -981,8 +981,15 @@ def _edge_word(e: int) -> tuple[str, str]:
         return "vpos", "élevé"
     if e >= 1:
         return "vmid", "léger"
-    if e <= -1:
+    # ÉCART FAIBLE (-1..-4) = NEUTRE, pas rouge (user 2026-09-02, carte Sheffield GAGNÉE affichant
+    # « -2 pts négatif » en rouge). Un pari CONFIANCE à cote courte est STRUCTURELLEMENT un peu sous le
+    # marché — c'est son identité (on vend la RÉUSSITE, pas la value, cf. le même raisonnement déjà acté
+    # pour le combiné, `bare` dans verdict_line). Peindre ça en rouge sur un pari gagné à 94 % de réussite
+    # fait passer le produit pour défaillant. Le rouge reste pour un VRAI décrochage (≤ -5 pts).
+    if e <= -5:
         return "vneg", "négatif"
+    if e <= -1:
+        return "vneu", "sous le marché"
     return "vneu", "nul"                                    # -1 < e < 1 (edge nul) -> neutre
 
 
@@ -996,8 +1003,12 @@ def _value_word(v: int) -> tuple[str, str]:
         return "vpos", "correcte"
     if v >= 1:
         return "vmid", "légère"
-    if v <= -1:
+    # Symétrique de `_edge_word` (user 2026-09-02) : une value LÉGÈREMENT négative (-1..-4) est le PROFIL
+    # NORMAL d'un pari Confiance à cote courte -> gris neutre, pas l'alarme rouge. Rouge à partir de -5 %.
+    if v <= -5:
         return "vneg", "négative"
+    if v <= -1:
+        return "vneu", "quasi nulle"
     return "vneu", "nulle"                                  # -1 < v < 1 (value nulle) -> neutre
 
 
