@@ -97,6 +97,7 @@ def _signup_form(nxt: str = "/", err: str = "", email: str = "") -> str:
 <input type=hidden name=next value='{e(nxt)}'>
 <label>Email</label><input name=email type=email autocomplete=email value='{e(email)}' required>
 <label>Mot de passe</label><input name=password type=password autocomplete=new-password minlength=8 required>
+<div class=hint>8 caractères minimum.</div>
 <button type=submit>Créer mon compte</button></form>
 <div class=alt>Déjà inscrit ? <a href='/login?next={e(nxt)}'>Se connecter</a></div></div>""")
 

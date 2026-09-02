@@ -1188,6 +1188,7 @@ CSS = """
   .acctwrap input:focus{outline:none;border-color:rgba(34,184,255,.6)}
   /* …mais on rend l'anneau clavier (specificité égale, placé APRÈS -> gagne quand :focus-visible matche) */
   .acctwrap input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .acctwrap .hint{font-size:11px;color:#7c90ab;margin:6px 0 0;line-height:1.4}
   .acctwrap button{width:100%;margin-top:20px;background:#22b8ff;color:#04121c;border:0;border-radius:12px;
     padding:13px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer}
   .acctwrap button.ghost{background:transparent;color:#5fd0ff;border:1px solid rgba(34,184,255,.35)}
