@@ -477,6 +477,13 @@ async def _paywall_dispatch(request, call_next):
         # -> aucun impact tant que le mode public n'est pas activé ; le propriétaire voit toujours tout.
         if branding.hide_sources() and not accounts.is_owner(request):
             body = branding.debrand(body.decode("utf-8", "replace")).encode("utf-8")
+        # ICÔNES (audit ui-ux-pro-max 2026-09-02) : les emoji COULEUR du HTML deviennent des pictos SVG
+        # `currentColor`/1em. Fait ICI — point de passage UNIQUE qui couvre les pages ENTIÈRES *et* les
+        # fragments AJAX (renvoyés directement par les routeurs, sans coquille de page) — plutôt que dans
+        # les ~70 chaînes de web.py. Après le cache de fragments, donc jamais de HTML mixte en cache.
+        # N'affecte PAS Telegram (autre chemin) : là-bas l'emoji est le seul format possible.
+        from app import icons as _icons
+        body = _icons.apply(body.decode("utf-8", "replace")).encode("utf-8")
         headers = dict(resp.headers)
         headers.pop("content-length", None)        # le corps a pu changer de taille
         return _Response(content=body, status_code=resp.status_code, headers=headers, media_type=ct)
