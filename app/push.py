@@ -17,6 +17,7 @@ import logging
 import os
 import re
 import threading
+import time
 
 log = logging.getLogger("betsfix.push")
 
@@ -24,10 +25,39 @@ _DATA = "data"
 _VAPID_PEM = os.path.join(_DATA, "push_vapid.pem")       # clé PRIVÉE VAPID (PKCS8 PEM)
 _VAPID_PUB = os.path.join(_DATA, "push_vapid_pub.txt")   # clé PUBLIQUE (b64url, applicationServerKey)
 _SUBS = os.path.join(_DATA, "push_subs.json")            # [{endpoint, keys:{p256dh,auth}}, ...]
+_SENT = os.path.join(_DATA, "push_sent.json")            # {titre: ts} — anti-doublon d'envoi (fenêtre courte)
 _SUB_CLAIM = "mailto:noreply@betsfix.com"                # identifiant de l'expéditeur (VAPID `sub`)
+_DEDUP_WINDOW = 300     # s : un TITRE identique n'est pas ré-envoyé dans cette fenêtre (défend contre les
+#                         doubles tirs — passes reconcile concurrentes, 2 process — et les re-livraisons)
 
 _LOCK = threading.Lock()
 _PUB_CACHE: str | None = None
+
+
+def _dup_recent(title: str) -> bool:
+    """True si `title` a DÉJÀ été envoyé il y a < _DEDUP_WINDOW (et enregistre l'envoi sinon). Persisté sur
+    disque -> tient entre passes ET entre process (API vs tâche reconcile). Lecture fraîche à chaque appel
+    (fenêtre de course minime, acceptable pour de la notif). Purge > 1 h."""
+    now = time.time()
+    with _LOCK:
+        try:
+            m = json.load(open(_SENT, encoding="utf-8"))
+            if not isinstance(m, dict):
+                m = {}
+        except (OSError, ValueError):
+            m = {}
+        recent = (title in m) and (now - float(m.get(title) or 0) < _DEDUP_WINDOW)
+        if not recent:
+            m = {k: v for k, v in m.items() if now - float(v or 0) < 3600}   # purge > 1 h
+            m[title] = now
+            try:
+                tmp = _SENT + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(m, f, ensure_ascii=False)
+                os.replace(tmp, _SENT)
+            except OSError:
+                pass
+        return recent
 
 
 def _ensure_keys() -> None:
@@ -110,7 +140,11 @@ def sub_count() -> int:
 
 def send_push(title: str, body: str, url: str = "/", tag: str = "prono") -> int:
     """Envoie une notification à TOUS les abonnés. Purge les abonnements morts (404/410). Renvoie le
-    nombre d'envois réussis. Best-effort : jamais d'exception propagée."""
+    nombre d'envois réussis. Best-effort : jamais d'exception propagée. Anti-doublon : un TITRE identique
+    déjà envoyé il y a < _DEDUP_WINDOW est ignoré (défend contre les doubles tirs / re-livraisons)."""
+    if _dup_recent(title):
+        log.debug("push doublon ignoré (fenêtre %ss): %s", _DEDUP_WINDOW, title)
+        return 0
     try:
         from pywebpush import webpush, WebPushException
     except Exception as exc:
