@@ -2362,6 +2362,10 @@ CSS = """
   .cleg-pick{font-size:13px;font-weight:800;color:#eef4fb;line-height:1.28;letter-spacing:-.01em}
   .cleg-gloss{margin-top:5px;font-size:12px;color:#8fa2b8;font-weight:600;line-height:1.32}
   .cleg-gloss .ar{display:none}   /* flèche ↳ du glose retirée (user 2026-08-15) */
+  /* GLOSE RETIRÉE des cartes de pari (user 2026-09-02, direction « sobriété ») : le pari NOMMÉ se suffit
+     (« Plus de 0.5 but X »), la ligne d'explication « en clair » alourdissait la carte. Réversible :
+     retirer ce display:none. La glose reste calculée (_bet_gloss) pour Telegram/autres usages. */
+  .mc-gloss,.cleg-gloss{display:none}
   .cleg-why{margin-top:6px;font-size:11px;font-weight:500;color:#93a7c2;line-height:1.4}
   .cleg-cote{flex:none;text-align:right;line-height:1}
   .cleg-cote-l{display:block;font-size:8.5px;font-weight:800;letter-spacing:.12em;color:#90a4be;margin-bottom:2px}
