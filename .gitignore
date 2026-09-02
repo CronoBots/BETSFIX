@@ -17,8 +17,14 @@ data/
 # Fichiers runtime (PID de la boucle remote control, etc.)
 .remote-control.pid
 
-# Réglages locaux Claude Code (settings.local.json, locks)
+# Réglages locaux Claude Code (settings.local.json, locks) — MAIS on VERSIONNE
+# .claude/settings.json : il porte le hook de clôture (rappel mémoire/CLAUDE.md) et doit
+# survivre à un reclone, contrairement aux hooks git locaux. settings.local.json (permissions
+# de cette machine) reste ignoré.
 .claude/
+!.claude/
+.claude/*
+!.claude/settings.json
 
 # Brouillons d'images non référencés par l'app
 static/logo.orig.png

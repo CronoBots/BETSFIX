@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "d=/c/Users/vince/BETSFIX; m=/c/Users/vince/.claude/projects/C--Users-vince-BETSFIX/memory; lc=$(git -C \"$d\" log -1 --format=%ct 2>/dev/null || echo 0); lmt=$(ls -t \"$m\"/*.md 2>/dev/null | head -1 | xargs -r stat -c %Y 2>/dev/null || echo 0); if [ $((lc-lmt)) -gt 900 ]; then printf '%s' '{\"systemMessage\":\"CLOTURE BETSFIX : des commits sont plus recents que la derniere ecriture memoire. A verifier avant de passer a autre chose -- (1) MEMOIRE : creer/mettre a jour le fichier sujet + 1 ligne dans MEMORY.md (<=145 c, jamais de detail dans l index) ; (2) CLAUDE.md : mettre a jour si le flux, un seuil ou l architecture a change ; (3) un seuil modifie doit etre corrige PARTOUT (code, commentaires, doc, memoire). Ne pas memoriser ce que git raconte deja.\"}'; fi",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
