@@ -1,8 +1,9 @@
 """Backtest de la POLITIQUE DE SÉLECTION (seuils confiance/EV/cote) — RUN (à la demande ou quotidien).
 
 ⚠️ Ne PAS confondre avec l'ancien `tools/backtest.py` (calibration Elo tennis via SofaScore, hérité/mort).
-Ici on rejoue la PORTE DE DÉCISION de prod (`_recommend`) sur l'historique des prédictions, on balaye les
-seuils clés, et on PROPOSE un changement UNIQUEMENT s'il améliore le ROI hors-échantillon de façon
+Ici on rejoue les SÉLECTEURS MÉCANIQUES de prod (`confidence_pick`/`value_pick`, refonte 2026-08-29/09-01 —
+plus l'ancienne porte `_recommend`) sur l'historique par match, on balaye leurs VRAIS leviers (bornes de
+confiance/cote/EV), et on PROPOSE un changement UNIQUEMENT s'il améliore le ROI hors-échantillon de façon
 significative. **N'applique JAMAIS rien** (lecture seule) : appliquer un seuil reste une décision explicite.
 Journal `data/backtest_log.jsonl` + alerte Telegram si une amélioration significative apparaît.
 
