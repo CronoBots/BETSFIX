@@ -3062,11 +3062,11 @@ CSS = """
   .vm-ctx .vx-i.vpos b{color:#4be39b} .vm-ctx .vx-i.vmid b{color:#f6c54a}
   .vm-ctx .vx-i.vneg b{color:#ff7484} .vm-ctx .vx-i.vneu b{color:#9aa7b8}
   /* Verdict façon Bull (test 2026-08-15) : la grille = petite carte tintée (la Value RESTE comme avant). */
-  /* CADRE DU PARI ALLÉGÉ (2026-09-02, direction « sobriété financière ») : la carte empilait 3 cadres
-     imbriqués (carte > pari > grille). La grille n'a plus de cadre propre, et celui-ci devient un simple
-     GROUPEMENT — fond très léger, plus de bord périmétrique ni d'ombre portée. Le regroupement reste lisible
-     (contraste de surface) sans rajouter une 2ᵉ boîte dessinée à l'intérieur de la carte. */
-  .vm{background:rgba(255,255,255,.028);border:0;border-radius:14px;padding:11px 4px}
+  /* CADRE DU PARI SUPPRIMÉ (2026-09-02, user : « supprimer le background différent derrière la partie
+     pari à jouer »). La carte empilait 3 cadres imbriqués (carte > pari > grille) : la grille a perdu le
+     sien, et ce bloc n'a plus NI fond NI bord — il ne reste que la carte. La séparation reste lisible par
+     les FILETS existants (`.vm-pick` en bas, `.vm-res`/barre en haut), pas par une surface concurrente. */
+  .vm{background:none;border:0;border-radius:14px;padding:11px 4px}
   .vb-reana{margin-top:11px;font-size:11px;font-weight:600;color:#7f93aa;text-align:center}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -5701,10 +5701,19 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
         if "mi-temps" in sl:
             return "les deux marquent en 1ère mi-temps" if "non" not in sl else "pas de but des deux avant la pause"
         return "au moins une équipe ne marque pas" if "non" in sl else "les deux équipes marquent au moins un but"
+    # NOM DE L'ÉQUIPE PARIÉE (user 2026-09-02 : « la glose vainqueur doit indiquer le nom de l'équipe,
+    # devant "gagne dans le…" »). Même résolution par TOKENS que la double chance : on cherche lequel de
+    # home/away est cité dans la sélection. '' si aucun (glose impersonnelle, comme avant) -> jamais de
+    # nom inventé.
+    _wtok = lambda nm: [t for t in re.findall(r"[a-zà-ÿ0-9]+", (nm or "").lower()) if len(t) >= 3]
+    _wteam = (home if any(t in sl for t in _wtok(home))
+              else away if any(t in sl for t in _wtok(away)) else "")
     # TEMPS RÉGLEMENTAIRE <équipe/nul> (1X2 foot, réglé sur les 90 min).
     if "temps réglementaire" in sl:
-        return "match nul à la fin des 90 min" if re.search(r"\b(draw|nul)\b", sl) \
-            else "gagne dans le temps réglementaire (90 min)"
+        if re.search(r"\b(draw|nul)\b", sl):
+            return "match nul à la fin des 90 min"
+        return (f"{_wteam} gagne dans le temps réglementaire (90 min)" if _wteam
+                else "gagne dans le temps réglementaire (90 min)")
     # TENNIS — marchés de SETS/manches (fix 2026-07-17 : « <joueur> remporte au moins un set » restait SANS
     # glose -> reproche user « paris sans explications »). « au moins N sets » / 1er set / sans perdre de set.
     if sport == "tennis":
@@ -5723,11 +5732,14 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     # y serait FAUX (c'est le vainqueur du set/de la période). Pas de glose plutôt qu'une glose fausse.
     if (re.search(r"\b(vainqueur|victoire|gagne|l'emporte)\b", sl)
             and not re.search(r"mi-temps|\bset\b|\bmt\b|1[eè]re|2[eè]|quart", sl)):
+        # Nom de l'équipe/du joueur EN TÊTE quand il est identifiable (user 2026-09-02) : « Celtic gagne
+        # dans le temps réglementaire » se lit seul, là où « gagne dans le… » obligeait à remonter au pari.
+        _pre = f"{_wteam} " if _wteam else ""
         if sport == "tennis":
-            return "gagne le match (en sets)"
+            return f"{_pre}gagne le match (en sets)"
         if sport == "basket":
-            return "gagne le match (prolongations comprises)"
-        return "gagne dans le temps réglementaire (90 min)"
+            return f"{_pre}gagne le match (prolongations comprises)"
+        return f"{_pre}gagne dans le temps réglementaire (90 min)"
     return ""
 
 
@@ -6761,10 +6773,14 @@ def _combo_tg_legs(cb: dict) -> str:
     # (régression user 2026-08-02 : l'analyse disparaissait au règlement).
     # live_layout=True (user 2026-08-17) : CHAQUE jambe présentée comme une carte normale (ligue centrée, heure
     # + décompte / score + horloge / score final au centre entre les logos), pour TOUS les états de la jambe.
-    # bare=True (user 2026-08-17) : COMBINÉ = Confiance + Cote seulement (pas Edge/Value, souvent négatifs sur
-    # un combiné « sécurité » -> ils contrediraient son identité de RÉUSSITE). Barre propre sans zone marché.
+    # bare=False depuis le 2026-09-02 (demande user « afficher les value et edge sur les jambes aussi ») :
+    # l'épure `bare` datait du 2026-08-17, quand un edge/value négatif s'affichait en ROUGE ALARMANT et
+    # contredisait l'identité « RÉUSSITE » du combiné. Ce motif a disparu : un écart faible (-1..-4) est
+    # désormais gris neutre (« sous le marché » / « quasi nulle », cf. `_edge_word`/`_value_word`), et ces
+    # deux métriques vivent dans la LIGNE DE CONTEXTE discrète, plus dans des colonnes de poids égal.
+    # Chaque jambe expose donc la même information qu'une carte simple.
     return _MC_SEP.join(_leg_card(l, why=True, verdict=True, why_always=True, prob_calibrated=True,
-                                  live_layout=True, bare=True) for l in _legs)
+                                  live_layout=True, bare=False) for l in _legs)
 
 
 def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state: str = "", dots: str = "",

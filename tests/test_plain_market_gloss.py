@@ -20,8 +20,17 @@ def test_tennis_sans_perdre_de_set():
     assert g and "lâcher" in g
 
 
-def test_tennis_vainqueur_inchange():
-    assert web._plain_market("Flavio Cobolli vainqueur", "tennis", "Flavio Cobolli", "X") == "gagne le match (en sets)"
+def test_tennis_vainqueur_nomme_le_joueur():
+    # user 2026-09-02 : la glose « vainqueur » PRÉFIXE le nom (« <équipe/joueur> gagne … ») pour se lire
+    # seule, sans remonter au libellé du pari. Le nom vient de home/away, jamais inventé.
+    assert web._plain_market("Flavio Cobolli vainqueur", "tennis", "Flavio Cobolli", "X") == \
+        "Flavio Cobolli gagne le match (en sets)"
+
+
+def test_vainqueur_sans_equipe_identifiable_reste_impersonnel():
+    # Aucun des deux camps n'est cité -> on NE FABRIQUE PAS de nom : repli sur la glose impersonnelle.
+    assert web._plain_market("Vainqueur du match", "foot", "Celtic", "Aberdeen") == \
+        "gagne dans le temps réglementaire (90 min)"
 
 
 # --------------------------------------------------------------- foot : équipe marque (forme sans tiret)
@@ -72,8 +81,10 @@ def test_bet_gloss_total_objet_nomme_par_equipe():
 
 
 def test_bet_gloss_prefere_le_cas_precis():
-    # quand un cas PRÉCIS existe, _bet_gloss le renvoie (pas le générique)
-    assert web._bet_gloss("Flavio Cobolli vainqueur", "tennis", "Flavio Cobolli", "X") == "gagne le match (en sets)"
+    # quand un cas PRÉCIS existe, _bet_gloss le renvoie (pas le générique) — avec le nom en tête
+    # depuis le 2026-09-02 (cf. test_tennis_vainqueur_nomme_le_joueur).
+    assert web._bet_gloss("Flavio Cobolli vainqueur", "tennis", "Flavio Cobolli", "X") == \
+        "Flavio Cobolli gagne le match (en sets)"
 
 
 def test_bet_gloss_vide_seulement_si_sel_vide():
