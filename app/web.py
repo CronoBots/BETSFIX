@@ -8009,11 +8009,13 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     return _day_calendar(today_iso, sport) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
 
-def _day_view(iso: str, day_rows: list, sport: str | None = None) -> str:
+def _day_view(iso: str, sport: str | None = None) -> str:
     """Contenu d'un JOUR PASSÉ (calendrier « Pronos ») : bilan du jour (gagnés/réglés · ROI, TOUS sports) +
     le combiné du jour de cette date (résultat) + les paris proposés ce jour-là avec leur résultat (cartes
-    `_sport_row`, terminées = score + ✓/✗). `day_rows` = cartes des matchs du jour. `sport` : filtre les
-    cartes sur ce sport (le bilan reste le total du jour ; le combiné multisport n'apparaît qu'en « Tous »)."""
+    résultat bâties ici depuis `stat_bet`). `sport` : filtre les cartes sur ce sport (le bilan reste le total
+    du jour ; le combiné multisport n'apparaît qu'en « Tous »).
+    NB (2026-09-02) : l'ancien paramètre `day_rows` (= `_past_day_cards(date)`) n'était JAMAIS lu dans le
+    corps -> supprimé avec son appel côté routeur (calcul mort à chaque consultation d'un jour passé)."""
     s = _daily_results_map().get(iso) or {}
     won, settled, profit = s.get("won", 0), s.get("settled", 0), s.get("profit", 0.0)
     roi = round(100 * profit / settled) if settled else 0
@@ -10674,10 +10676,14 @@ def _sport_row(r: dict) -> str:
     is_combo = summ.get("is_combo")        # combiné = • comme les autres paris (ni ⭐ ni 🎲, demande user)
     bets3 = summ.get("bets") or []
     if not is_combo:
-        if is_finished:                    # TERMINÉ : le pari RÉELLEMENT JOUÉ (for_history = stats),
-            _mid = re.search(r"/(\d+)", url)   # marché exclu APRÈS coup inclus (sinon « pas de pari » à tort)
-            _rbh = (analyses.retained_bet(sport_key, _mid.group(1), for_history=True)
-                    if (sport_key and _mid) else None)
+        if is_finished:                    # TERMINÉ : le pari RÉELLEMENT JOUÉ = `stat_bet` FIGÉ.
+            _mid = re.search(r"/(\d+)", url)
+            # ⛔ PAS `retained_bet(for_history=True)` (user 2026-09-02) : une fois `stat_bet` gelé au
+            # règlement, il ne reconstruit plus le pari mécanique et retombe sur le PICK BRUT du .md
+            # (mesuré : 11 verdicts INVERSÉS + 67 paris qui disparaissent, cf. commit 11fcd37 sur la
+            # carte prono). Même source de vérité que `_settled_bet_result_cards` et `played_result`.
+            _dh = (analyses.meta(sport_key, _mid.group(1)) if (sport_key and _mid) else None)
+            _rbh = analyses.stat_bet(_dh) if isinstance(_dh, dict) else None
             # UN MATCH = UN PARI (user 2026-08-07 ; audit 2026-08-07) : on affiche LE pari retenu (for_history)
             # et RIEN d'autre. Le double affichage « Premier scan / Dernier scan » (basé sur stat_bet_first)
             # est RETIRÉ — il n'est plus compté au ROI, donc la carte doit refléter un seul pari par match.

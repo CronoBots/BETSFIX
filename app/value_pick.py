@@ -51,15 +51,18 @@ def resolve_result(d: dict, code: str) -> str | None:
 
 
 def pick_from_candidates(cands: list[dict]) -> dict | None:
-    """Profil value B : prob ≥ 58, cote 1.40-2.30, EV ≥ +5 % -> la cote la plus HAUTE (départage prob).
-    C'est le pari à EDGE : la value la plus grasse parmi les paris fiables. `cands` déjà sans bans. None si rien."""
+    """Profil value B : prob ≥ PROB_MIN (68 depuis 2026-09-01, ex-58), cote COTE_LO..COTE_HI (1.40-2.30),
+    EV ≥ EV_MIN (+5 %) -> la cote la plus HAUTE (départage prob).
+    C'est le pari à EDGE : la value la plus grasse parmi les paris fiables. `cands` déjà sans bans. None si rien.
+    Dernier départage = `code` (alphabétique) : à cote ET prob ÉGALES, `max()` renvoyait le 1er rencontré
+    -> pari dépendant de l'ordre d'itération des fantômes. Désormais DÉTERMINISTE (2026-09-02)."""
     pool = [c for c in cands
             if c["prob"] >= PROB_MIN
             and COTE_LO <= c["cote"] <= COTE_HI
             and (c["prob"] / 100.0 * c["cote"] - 1.0) >= EV_MIN]
     if not pool:
         return None
-    return max(pool, key=lambda c: (c["cote"], c["prob"]))
+    return max(pool, key=lambda c: (c["cote"], c["prob"], str(c.get("code") or "")))
 
 
 def pick_for_sidecar(d: dict) -> dict | None:

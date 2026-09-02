@@ -5,6 +5,8 @@ Contexte : le backtest exhaustif sur tout l'historique (tools/backtest_confidenc
 1 pari/match) a désigné comme MEILLEUR profil « réussite max » :
     marchés {Double chance, Handicap} · confiance BRUTE ≥ 80 % · cote 1.05-1.30 · le PLUS SÛR d'abord
   -> 93 % de réussite (107-8), série de 26, ROI +6 %, stable juin/juillet/août, test ≥ train.
+⚠️ Le plafond de cote EN VIGUEUR est COTE_HI = 1.50 (porté de 1.30 le 2026-08-29, cf. note l.32) —
+   la borne « 1.05-1.30 » ci-dessus décrit le backtest d'origine, pas le code actuel.
 
 ⚠️ Ce profil ne PEUT PAS venir du pick committé par Claude : l'analyste ne commit qu'~1 pari/match
 (table `bets` médiane = 1), et 105/117 de ces paris n'existent que dans les FANTÔMES (`shadow`). On
@@ -91,15 +93,18 @@ def match_candidates(d: dict, markets=None, exclude_markets=None) -> list[dict]:
 
 
 def pick_from_candidates(cands: list[dict]) -> dict | None:
-    """Applique le profil 93% : marché autorisé, prob ≥ 80, cote 1.05-1.30 -> le PLUS SÛR (prob max,
-    départage cote la plus basse = favori le plus net). None si rien n'est éligible."""
+    """Applique le profil 93% : marché autorisé, prob ≥ PROB_MIN, cote COTE_LO..COTE_HI -> le PLUS SÛR
+    (prob max, départage cote la plus basse = favori le plus net). None si rien n'est éligible.
+    Dernier départage = `code` (ordre alphabétique) : à prob ET cote ÉGALES (mesuré : 2 matchs sur 216)
+    `max()` renvoyait sinon le 1er rencontré, donc un pari dépendant de l'ordre d'itération des fantômes.
+    Même valeur attendue, mais désormais DÉTERMINISTE (2026-09-02)."""
     pool = [c for c in cands
             if c["market"] in MARKETS
             and c["prob"] >= PROB_MIN
             and COTE_LO <= c["cote"] <= COTE_HI]
     if not pool:
         return None
-    return max(pool, key=lambda c: (c["prob"], -c["cote"]))
+    return max(pool, key=lambda c: (c["prob"], -c["cote"], str(c.get("code") or "")))
 
 
 def pick_for_sidecar(d: dict) -> dict | None:

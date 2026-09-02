@@ -349,8 +349,9 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
         body = web._today_zones(rows, sp, results)[0]
         fragcache.put(ckey, body, ttl=PANEL_TTL)           # jour courant : bouge -> TTL court
         return HTMLResponse(body)
-    day_rows = _past_day_cards(date)                       # jour passé : cartes bet-only de cette date (rapide)
-    body = web._day_view(date, day_rows, sp)
+    # `_day_view` bâtit lui-même ses cartes -> l'ancien `day_rows = _past_day_cards(date)` n'était jamais
+    # lu (calcul mort à chaque consultation d'un jour passé). Retiré 2026-09-02.
+    body = web._day_view(date, sp)
     fragcache.put(ckey, body, ttl=1800)                    # jour passé : ~immuable -> 30 min
     return HTMLResponse(body)
 
