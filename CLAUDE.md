@@ -30,6 +30,19 @@
    track (→ le site suit), **supprimer** l'ancien message Telegram, **reposter** par le chemin normal,
    **régénérer l'analyse par jambe**, `mark_sent`, puis selfcheck. On ne demande l'autorisation QUE si
    l'événement a commencé ou qu'un pari est déjà réglé. Mémoire `rule-change-propagates-automatically`.
+10. **CLÔTURE DE TÂCHE — rien ne se perd entre deux conversations** (user 2026-09-02). AVANT de rendre
+    la main, pour toute modif qui change le COMPORTEMENT du produit ou une DÉCISION :
+    - **commit descriptif** (le *quoi/pourquoi/mesuré*, pas juste le *quoi*) — il est poussé tout seul ;
+    - **mémoire** : créer/**mettre à jour** le fichier sujet concerné (`~/.claude/projects/…/memory/`)
+      + **1 ligne** dans `MEMORY.md` (≤145 c). **Mettre à jour l'existant plutôt que dupliquer** ;
+      marquer RÉSOLU ce qui l'est (ne pas laisser un bug corrigé décrit comme ouvert) ;
+    - **CLAUDE.md** : mettre à jour la section concernée si le flux/les seuils/l'archi changent ;
+    - un seuil ou un chiffre cité quelque part et modifié → **le corriger PARTOUT** (code, commentaire,
+      CLAUDE.md, mémoire) : un commentaire périmé a déjà coûté des heures de re-diagnostic.
+    ⛔ **Ne PAS mémoriser** ce que git/CLAUDE.md racontent déjà (détail d'implémentation, refactor
+    routinier) ni ce qui n'a d'intérêt que dans la conversation : c'est ça qui avait fait gonfler
+    l'index à 64 Ko et me faisait « repartir de zéro ». On mémorise une **décision**, un **piège**, une
+    **mesure**, une **préférence** — pas un diff.
 
 ## Carte du démarrage automatique (Windows)
 
