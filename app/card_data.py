@@ -166,6 +166,18 @@ def build_prono_card(d: dict) -> dict | None:
     combo = d.get("combo") or {}
     has_combo = bool(combo.get("legs"))
     rb = analyses.retained_bet(sport, str(d.get("id")))
+    # MATCH RÉGLÉ -> LE PARI JOUÉ EST `stat_bet`, PAS `retained_bet` (user 2026-09-02). Une fois
+    # `stat_bet` gelé au règlement, `retained_bet` ne reconstruit PLUS le pari mécanique : il retombe
+    # sur `_recommend()` qui relit le tableau `.md` = PICK BRUT de Claude (souvent un AUTRE marché).
+    # Mesuré sur les 115 réglés : 7 cartes correctes seulement — 67 cartes VIDES (pari joué absent),
+    # 30 au mauvais pari, 11 à VERDICT INVERSÉ (« Moins de 3.5 » perdu affiché alors que le DC 1X
+    # joué était GAGNÉ : Bahia, Sparta-Feyenoord, Sheffield-Bolton…). Exposé en live par
+    # `tools/renotify_cards.py` (incident Telegram du 02/09). Même règle que `build_result_card`
+    # (l.216) et `web._settled_bet_result_cards` : sur un réglé, la source unique est `stat_bet`.
+    if is_settled(d):
+        _sbp = analyses.stat_bet(d)
+        if _sbp:
+            rb = _sbp
     # On ne publie un SIMPLE que s'il est RETENU (passe confiance+EV+garde-fous) — combiné OU non.
     # Sinon Telegram postait des paris (favoris sans value, ex. @1.14) que les stats ne comptent PAS
     # -> incohérence. Désormais : posté = compté. Si rien n'est retenu, on s'abstient (pas de carte).

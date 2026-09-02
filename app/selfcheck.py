@@ -865,6 +865,50 @@ def _check_verdict_reads_played_bet(rows) -> dict:
             "items": items[:20]}
 
 
+def _check_settled_prono_card_reads_played_bet(rows) -> dict:
+    """CARTE PRONO d'un match RÉGLÉ == PARI JOUÉ (anti-régression 2026-09-02, incident Telegram user).
+    Symétrique de `_check_upcoming_display_coherence` (qui EXCLUT les réglés) et de
+    `_check_settled_display_coherence` (qui couvre la carte RÉSULTAT, pas la carte PRONO) : c'était
+    l'angle mort. `card_data.build_prono_card` lisait `analyses.retained_bet()` qui, une fois `stat_bet`
+    GELÉ au règlement, ne reconstruit plus le pari mécanique et retombe sur `_recommend()` = PICK BRUT du
+    tableau `.md` (souvent un AUTRE marché). Mesuré avant correctif sur les 115 réglés : 7 cartes justes,
+    67 VIDES, 30 au mauvais pari, 11 à VERDICT INVERSÉ (Bahia, Sparta-Feyenoord, Sheffield-Bolton… « Moins
+    de 3.5 » PERDU affiché alors que le DC 1X joué était GAGNÉ). Exposé en live par
+    `tools/renotify_cards.py` -> paire Telegram contradictoire. Ce contrôle REJOUE le vrai constructeur de
+    carte et exige, sur chaque réglé portant un `stat_bet` figé, que la carte montre CE pari. 100 % lecture
+    seule."""
+    from app import card_data
+    items, n = [], 0
+    for _, d in rows:
+        if d.get("sport") != "foot":
+            continue
+        sb = d.get("stat_bet")
+        if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost", "push")):
+            continue
+        if (d.get("combo") or {}).get("legs"):        # combiné : la carte montre le combiné (par design)
+            continue
+        if not card_data.is_settled(d):
+            continue
+        n += 1
+        try:
+            card = card_data.build_prono_card(d)
+        except Exception as exc:
+            items.append(f"{d.get('name')} : carte prono en erreur ({exc})"); continue
+        want = analyses.pretty_sel(sb.get("sel"), d.get("home", ""), d.get("away", ""))
+        if not card:
+            items.append(f"{d.get('name')} : carte prono VIDE alors qu'un pari est joué ({want})"); continue
+        if str(card.get("pick") or "").strip() != str(want).strip():
+            items.append(f"{d.get('name')} : carte « {card.get('pick')} » ≠ pari joué « {want} »")
+    return {"key": "settled_prono_card_reads_played_bet",
+            "level": "error" if items else "ok",
+            "title": "Carte PRONO d'un match réglé == pari JOUÉ (jamais le pick brut)",
+            "detail": ("DIVERGENCE : la carte prono d'un match réglé montre un AUTRE pari que celui joué "
+                       "(régression retained_bet -> pick brut, cf. incident Telegram 2026-09-02)."
+                       if items else
+                       f"0 divergence sur {n} match(s) réglé(s) — la carte prono suit le pari joué."),
+            "items": items[:20]}
+
+
 def _check_stats_snapshot_drift() -> dict:
     """SNAPSHOT STATS == CALCUL LIVE (garde-fou de l'étape 1 scalabilité, 2026-07-28). Le snapshot disque
     (`data/_stats_snapshot.json`) sert les requêtes en O(1) au lieu de recalculer 2,5 s à chaque restart. Il
@@ -1056,6 +1100,7 @@ def run(persist: bool = False) -> dict:
         _check_uniform_labels(rows),
         _check_settled_display_coherence(rows),
         _check_verdict_reads_played_bet(rows),
+        _check_settled_prono_card_reads_played_bet(rows),
         _check_upcoming_display_coherence(rows),
         _check_omap_coverage(rows),
         _check_stats_snapshot_drift(),
