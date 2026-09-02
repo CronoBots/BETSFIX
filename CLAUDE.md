@@ -24,6 +24,12 @@
 7. **Vocabulaire UI : « pari joué »** — plus d'étoile ⭐ ni de « retenu ».
 8. **Mémoire** : `MEMORY.md` est un INDEX (1 ligne ≤ ~145 c par mémoire, détail dans le fichier lié).
    S'il gonfle, il ne se charge que partiellement et je « repars de zéro » → ne jamais y mettre de détail.
+9. **Un changement de règle se PROPAGE tout seul** (user 2026-09-02 : « ça devrait être
+   automatique, je ne dois pas te dire ce genre de choses »). Dès qu'un critère de sélection change,
+   je reconstruis et je **remplace** ce qui est publié mais **pas encore commencé** : réécrire le
+   track (→ le site suit), **supprimer** l'ancien message Telegram, **reposter** par le chemin normal,
+   **régénérer l'analyse par jambe**, `mark_sent`, puis selfcheck. On ne demande l'autorisation QUE si
+   l'événement a commencé ou qu'un pari est déjà réglé. Mémoire `rule-change-propagates-automatically`.
 
 ## Carte du démarrage automatique (Windows)
 
