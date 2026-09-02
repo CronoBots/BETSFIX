@@ -122,6 +122,9 @@ tennis/basket ci-dessous décrit un rôle **dormant**, pas actif.
 > **Ancre sharp** : Pinnacle brut via **iProyal** (proxy, prioritaire, monde entier, `app/pinnacle.py`) ;
 > **The Odds API** en secours (~68 ligues, `app/theoddsapi.py`). Verrou `no_sharp` dans `build_dossier` : un
 > match foot SANS ancre sharp live est **différé** → 100 % des paris publiés portent une ancre. Mémoire `sharp-anchor-theoddsapi`.
+> **Garde anti-résolution-fausse (2026-09-02)** : si le favori sharp CONTREDIT le favori marché (réf omap,
+> écarts nets opposés), l'ancre est JETÉE → `no_sharp` → différé (flag `sharp_conflict`). Évite un EV calculé
+> sur une ancre inversée (cas Saint-Trond–Union : sharp 48 % dom vs omap 3.75 outsider). Mémoire `pinnacle-match-resolution-confusion`.
 
 ### ✅ SofaScore RE-VÉRIFIÉ VIVANT (2026-07-28) — l'ancien « MORT » était une panne temporaire
 - **Contrôle empirique 2026-07-28** : les 3 voies (`app/sofa_http` cascade) répondent **HTTP 200**
@@ -217,6 +220,10 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   des nuits de gros favoris ET le combiné risqué à cote forcée).
 - **COMPTÉS AU ROI + stats** : `analyses.COMBO_ROI_ON=True` ; variant "soir" ajouté à l'agrégation
   (`stats_full`, `combo_stats`, `pending_roi_bets`). Overall = Confiance + Value + Combiné.
+- **RÈGLEMENT LIVE d'une jambe BUTS-OVER acquise (2026-09-02)** : une jambe monotone (total OVER, total équipe
+  OVER, BTTS YES) déjà gagnée se valide EN LIVE (irréversible), sans attendre la fin — 2 sources live
+  concordantes (Flashscore partiel `final_score(allow_live=True)` + LiveScore), anti-collision. JAMAIS
+  Under/vainqueur/handicap/DC/périodes/stats. `combo_daily._live_over_settle`. Mémoire `settle-never-on-live-score`.
 - **PUBLIÉS sur Telegram** (`combo_daily.notify_combos("foot")`, appelé par `reconcile.py` après `settle_all`) :
   (1) CARTE IMAGE du combiné, (2) « JAMBE GAGNÉE @cote ✅ / PERDUE ❌ » par jambe dès qu'elle est réglée,
   (3) « COMBINÉ DU JOUR/SOIR GAGNÉ @cote ✅ / PERDU ❌ » global. Idempotent (flags `tg_msg`/`leg.tg_done`/
@@ -263,6 +270,10 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 - **Telegram** (MAJ 2026-09-01) : publie **Confiance + Value + combinés**. Value posté comme la confiance
   (carte + résultat « VALUE GAGNÉE @cote ✅ / PERDUE ❌ », label via flag figé `_is_value`). Un résultat simple
   n'est posté QU'en réponse à un prono réel (`get_prono`) — jamais d'orphelin. Cf. `telegram-foot-simple-only`.
+- **Push PWA** (MAJ 2026-09-02) : notifie **simples + JAMBES + COMBINÉS** (`app/push.py` : `notify_leg`/
+  `notify_combo`, libellés alignés Telegram), won/lost seulement. Garde **anti-doublon** (titre identique < 5 min,
+  `data/push_sent.json`). Tier résultat via flag figé `_is_value`. Cartes **sans glose** (site + Telegram,
+  `.mc-gloss/.cleg-gloss/.sgl` → `display:none`). Mémoire `push-pwa-legs-combos-dedup`.
 
 ## ⚠️ 3 COUCHES à NE JAMAIS confondre (Affichage / Stats / Calibration) — juillet 2026
 
