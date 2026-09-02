@@ -22,7 +22,21 @@ MIN_ODDS = 1.90           # cote minimale du combiné (demande user 2026-07-22 :
 #                           le 1,95 du 2026-07-17, pour un peu plus de marge face au plancher de proba)
 MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)
 MIN_LEGS = 2             # un « combiné » = au moins 2 jambes
-MIN_LEG_PROB = 0.65      # « les plus probables » : jambe fiable seulement (relevé pour la sécurité)
+# PLANCHER PAR JAMBE — relevé 0.65 -> 0.75 (user 2026-09-02 : jambe « Saint-Trond ou nul » à 66 % jugée
+# trop risquée à l'œil, confirmée par la mesure). Backtest sur les 94 jambes RÉGLÉES de l'historique
+# (combiné du jour / soir / cote2 / safe) :
+#   proba < 70 %  : n= 8 · 50,0 % de réussite · ROI −28,5 %   <- pile ou face
+#   proba 70-75 % : n=12 · 58,3 % · ROI −19,4 %               <- perdant
+#   proba 75-80 % : n=19 · 89,5 % · ROI +18,4 %
+#   proba 85 %+   : n=30 · 90,0 % · ROI  +3,5 %
+# Le plancher 0.65 laissait donc passer les DEUX tranches perdantes. À 0.75 : 74 jambes gardées à 86,5 %
+# (ROI global −1,0 % -> +4,9 %) et 20 rejetées dont la réussite réelle n'est que 55 % (11 gagnées/9 perdues).
+# ANTI-SURAPPRENTISSAGE (playbook) : meilleur seuil dans les DEUX moitiés chronologiques (train 89,6 %/
+# +9,6 % · test 80,8 %/−3,7 %, contre 85,5 %/+6,1 % et 71,8 %/−11,0 % à 0.65) et c'est un PLATEAU, pas un
+# pic (0.73 -> +5,0 % · 0.75 -> +4,9 % · 0.77 -> +0,9 %). ⚠️ n=94 : à re-mesurer en walk-forward.
+# Conséquence ASSUMÉE : moins de jambes éligibles -> combinés plus courts / à cote plus basse, voire PASS
+# certains jours. C'est le but d'un produit « sécurité ».
+MIN_LEG_PROB = 0.75      # « les plus probables » : jambe fiable seulement (relevé pour la sécurité)
 MIN_LEG_ODDS = 1.06      # une jambe quasi-sûre à cote ~1.01 n'apporte rien vers le seuil
 MIN_COMBO_PROB = 0.0     # PLUS DE PLANCHER (demande user 2026-07-25) : combiné FOOT présent CHAQUE JOUR dès
 #                          que cote ≥ 1,9 atteignable (pick_combo renvoie déjà le plus probable). Historique :

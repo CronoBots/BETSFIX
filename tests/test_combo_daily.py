@@ -24,7 +24,9 @@ def test_pick_respecte_cote_min_et_max_proba():
 
 def test_pick_force_minimum_deux_jambes():
     # une seule grosse jambe atteint 1.9 -> doit quand même en mettre 2 (c'est un COMBINÉ)
-    cands = [_leg("1", "tennis", "Upset", 1.95, 0.70, "WIN HOME"),
+    # NB : les probas doivent rester >= CD.MIN_LEG_PROB (0.75 depuis 2026-09-02, ex-0.65) sinon la
+    # jambe est filtrée en amont et le test mesurerait le plancher, pas la règle « minimum 2 jambes ».
+    cands = [_leg("1", "tennis", "Upset", 1.95, 0.78, "WIN HOME"),
              _leg("2", "foot", "Bayern", 1.15, 0.90, "WIN HOME")]
     r = CD.pick_combo(cands)
     assert r is not None and len(r["legs"]) >= 2
