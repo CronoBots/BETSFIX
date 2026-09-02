@@ -200,7 +200,9 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 /* Pari + glose aux PROPORTIONS du site (user 2026-08-17) : le pari (28px) est PLUS PETIT que les équipes
    (.stn 31px), la glose (23px) encore un cran en dessous — comme .mc-pick(13)/.mc-gloss(12.5) vs .mc-teams(15). */
 .spk{text-align:center;font-size:32px;font-weight:800;color:#eef4fb;margin-bottom:0;line-height:1.2}
-.sgl{text-align:center;font-size:25px;font-weight:600;color:#8fa2b8;line-height:1.32;margin-top:9px}
+/* GLOSE RETIRÉE des cartes Telegram (user 2026-09-02, cohérent avec le site — direction « sobriété ») :
+   le pari nommé se suffit. Réversible : retirer ce display:none. La glose reste calculée (card_data). */
+.sgl{display:none;text-align:center;font-size:25px;font-weight:600;color:#8fa2b8;line-height:1.32;margin-top:9px}
 .vbar{position:relative;height:16px;border-radius:99px;overflow:hidden;margin:22px 0 2px;
   background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
 .vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
