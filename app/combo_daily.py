@@ -594,6 +594,69 @@ def notify_combos(sport: str = "foot") -> None:
             _save(d, sport, variant)
 
 
+def _live_over_won_eligible(code: str) -> bool:
+    """Une jambe est-elle réglable EN LIVE dès le seuil franchi ? OUI seulement pour les BUTS MONOTONES
+    plein match — total OVER, total ÉQUIPE OVER, « les 2 marquent » (YES) : une fois acquis, un but de plus
+    ne peut PAS les faire perdre (irréversible). NON pour Under/vainqueur/handicap (le score bouge encore),
+    les périodes (mi-temps) et les stats shots/corners/cartons (données live peu fiables + bannies du combiné)."""
+    p = (code or "").upper().split()
+    if not p:
+        return False
+    kind = p[0]
+    if kind in ("CARDS", "REDCARDS", "CORNERS", "SHOTSOT", "SHOTS", "BTTSHALF"):
+        return False
+    if any(t in p for t in ("HALF", "1STHALF", "2NDHALF", "SETGAMES")):
+        return False
+    if kind == "BTTS" and "YES" in p:
+        return True
+    if "OVER" in p and kind in ("OVER", "TOTAL", "TEAMTOT"):
+        return True
+    return False
+
+
+def _live_over_settle(leg: dict) -> tuple | None:
+    """Règlement LIVE d'une jambe BUTS-OVER/BTTS déjà GAGNÉE (seuil franchi = irréversible). Exige la
+    CONCORDANCE de 2 sources live INDÉPENDANTES (Flashscore partiel + LiveScore) sur le BON match
+    (désambiguïsation anti-collision héritée de flashscore.final_score). Renvoie ('won', 'h-a') ou None.
+    ⚠️ JAMAIS lost/push en live — seul le « gagné » d'un marché monotone est définitif (mémoire
+    settle-never-on-live-score : l'exception, c'est l'irréversible)."""
+    sport = leg.get("sport") or "foot"
+    if sport != "foot":
+        return None
+    from app.settle_analyst import code_from_pick, settle_pick
+    code = (code_from_pick(leg.get("sel", ""), sport, leg.get("home", ""), leg.get("away", ""))
+            or leg.get("code", "")).strip()
+    if not _live_over_won_eligible(code):
+        return None
+    home, away, start = leg.get("home", ""), leg.get("away", ""), leg.get("start")
+    scores: list[dict] = []
+    try:                                                 # Source 1 — Flashscore (score partiel, LIVE autorisé)
+        from app import flashscore
+        fs = flashscore.final_score(sport, {"home": home, "away": away, "start": start}, allow_live=True)
+        if fs and fs.get("home") is not None and fs.get("away") is not None:
+            scores.append({"home": fs["home"], "away": fs["away"]})
+    except Exception:
+        pass
+    try:                                                 # Source 2 — LiveScore (champs live)
+        from app import match_select as _ms
+        lf = _ms.livescore_live_fields(sport, home, away, start)
+        _sc = str(lf.get("score") or "")
+        if "-" in _sc:
+            _h, _a = _sc.split("-", 1)
+            scores.append({"home": int(_h.strip()), "away": int(_a.strip())})
+    except Exception:
+        pass
+    if len(scores) < 2:
+        return None                                      # DOUBLE confirmation obligatoire (anti-collision)
+    try:
+        if all(settle_pick(code, s) == "won" for s in scores):
+            s0 = scores[0]
+            return ("won", f"{s0['home']}-{s0['away']}")
+    except Exception:
+        return None
+    return None
+
+
 def settle_pending(sport: str = "foot", variant: str = "") -> int:
     """Règle les jambes des combinés du jour du `sport` dont les matchs sont terminés (Flashscore + repli
     LiveScore + `settle_pick`), puis tranche le combiné : lost si ≥1 jambe perdue ; won si ≥1 gagnée
@@ -671,6 +734,13 @@ def settle_pending(sport: str = "foot", variant: str = "") -> int:
             continue
         for leg in cb.get("legs") or []:
             if leg.get("result") in ("won", "lost", "push"):   # void = RÉVISABLE (pas won/lost/push définitifs)
+                continue
+            # RÈGLEMENT LIVE (user 2026-09-02) : une jambe BUTS-OVER/BTTS déjà ACQUISE se valide SANS attendre
+            # la fin du match (irréversible). 2 sources live concordantes exigées (anti-collision). Le match
+            # sera de toute façon re-vérifié à la fin (self-heal ci-dessus) sur le score final autoritaire.
+            _lv = _live_over_settle(leg)
+            if _lv:
+                leg["result"], leg["score"], changed = _lv[0], _lv[1], True
                 continue
             q = {"home": leg.get("home", ""), "away": leg.get("away", ""),
                  "start": leg.get("start"), "sofa_id": ""}

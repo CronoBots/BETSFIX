@@ -663,13 +663,17 @@ def match_status(sport: str, home: str, away: str, start: str | None = None) -> 
     return None
 
 
-def final_score(sport: str, d: dict) -> dict | None:
+def final_score(sport: str, d: dict, allow_live: bool = False) -> dict | None:
     """Score FINAL d'un match via l'INDEX Flashscore (couverture quasi UNIVERSELLE des ligues) — pour
     RÉGLER les pronos quand toutes les autres sources échouent (ligues obscures, etc.). Cherche le match
     par NOMS au jour du coup d'envoi (±1), SANS la borne -10 de _day_offsets : on veut rattraper un match
     ancien tant que Flashscore sert ce jour (borné -45). Renvoie un dict compatible règlement, ou None.
     foot/basket : home/away = buts/points ; tennis : sets_home/sets_away. None si trouvé sans score
-    (pas fini) -> on ne règle JAMAIS sur un score partiel."""
+    (pas fini) -> on ne règle JAMAIS sur un score partiel.
+    `allow_live=True` (⚠️ réservé au règlement LIVE d'un pari BUTS-OVER IRRÉVERSIBLE, cf. combo_daily) :
+    renvoie AUSSI le score PARTIEL d'un match EN COURS (statut 2) — le résultat porte `"live": True`. La
+    même désambiguïsation anti-collision (kickoff ±6 h) s'applique. Ne JAMAIS l'utiliser pour un marché
+    non monotone (Under/vainqueur/handicap) : le score partiel n'y est pas définitif."""
     home, away, start = d.get("home", ""), d.get("away", ""), d.get("start")
     dt = _start_dt(start) if start else None
     if dt is not None:
@@ -704,7 +708,8 @@ def final_score(sport: str, d: dict) -> dict | None:
     # le statut passe à 3. (Walkover/forfait accepté même si statut ≠ 3.)
     status = str(m.get("status") or "")
     if status and status != "3" and not is_wo:
-        return None
+        if not (allow_live and status == "2"):     # LIVE autorisé UNIQUEMENT en règlement OVER irréversible
+            return None
     hs, as_ = _n(m.get("home_score")), _n(m.get("away_score"))
     if hs is None or as_ is None:
         # Pas de score -> WALKOVER/FORFAIT ? Le champ `note` (AM) = « <joueur> - withdrawn/retired/walkover ».
@@ -724,7 +729,8 @@ def final_score(sport: str, d: dict) -> dict | None:
                 "label": f"{hs}-{as_} (sets)" + (" (ab.)" if is_wo else ""),
                 "retired": is_wo, "src": "flashscore"}
     out = {"home": hs, "away": as_, "sets_home": None, "sets_away": None,
-           "label": f"{hs}-{as_}", "src": "flashscore"}
+           "label": f"{hs}-{as_}" + (" (live)" if status == "2" else ""),
+           "live": status == "2", "src": "flashscore"}
     if sport == "foot":        # mi-temps -> rend réglables les marchés 1H/2H + « 2 mi-temps »
         pp = {}
         for i, p in enumerate((periods(m["id"]) or {}).get("periods", [])[:2], 1):
