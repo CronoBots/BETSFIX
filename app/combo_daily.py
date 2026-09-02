@@ -563,6 +563,16 @@ def notify_combos(sport: str = "foot") -> None:
                     if notify.reply_sync(_txt, _reply):
                         leg["tg_done"] = True
                         _chg = True
+                    # PUSH PWA de la jambe (user 2026-09-02) — indépendant de Telegram, une seule fois,
+                    # won/lost seulement (le « remboursé » d'un push = bruit).
+                    if _lr in ("won", "lost") and not leg.get("push_done"):
+                        try:
+                            from app import push as _push
+                            _push.notify_leg(_lsel, _lr, _lco)
+                        except Exception:
+                            pass
+                        leg["push_done"] = True
+                        _chg = True
             # (3) RÉSULTAT GLOBAL du combiné — une seule fois (quand tranché)
             if cb.get("result") in ("won", "lost", "void") and not cb.get("tg_result_done"):
                 _gw, _ge = {"won": ("GAGNÉ", "✅"), "lost": ("PERDU", "❌")}.get(cb["result"], ("REMBOURSÉ", "➖"))
@@ -570,6 +580,15 @@ def notify_combos(sport: str = "foot") -> None:
                 _gcot = f" @{_cco:g}" if (cb["result"] == "won" and isinstance(_cco, (int, float))) else ""
                 if notify.reply_sync(f"{_label} {_gw}{_gcot} {_ge}", _reply):
                     cb["tg_result_done"] = True
+                    _chg = True
+                # PUSH PWA du combiné global (user 2026-09-02) — une seule fois, won/lost seulement.
+                if cb.get("result") in ("won", "lost") and not cb.get("push_result_done"):
+                    try:
+                        from app import push as _push
+                        _push.notify_combo(_label, cb["result"], _cco)
+                    except Exception:
+                        pass
+                    cb["push_result_done"] = True
                     _chg = True
         if _chg:
             _save(d, sport, variant)

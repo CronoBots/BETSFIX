@@ -151,7 +151,8 @@ def send_push(title: str, body: str, url: str = "/", tag: str = "prono") -> int:
 # Variables : {match} = équipes  ·  {pick} = pari + cote  ·  {tier} = CONFIANCE/VALUE ·  #
 #   {cote} = « @1.28 » (prono).  NOUVEAU PARI (user 2026-08-30) = TITRE SEUL             #
 #   « NOUVELLE <TIER> @<cote> », sans équipes ni pari (won/lost gardent {match}/{pick}). #
-# Seuls les paris SIMPLES Confiance/Value notifient (combiné & montante coupés).     #
+# Paris SIMPLES Confiance/Value + JAMBES et COMBINÉS notifient (user 2026-09-02 :   #
+# « active les notifs pour les jambes et combinés »). Montante toujours coupée.      #
 # ───────────────────────────────────────────────────────────────────────────── #
 MSG = {
     # NOUVEAU PARI (user 2026-08-30) : TITRE SEUL « NOUVELLE <TIER> @<cote> » — NI équipes NI pari joué.
@@ -190,6 +191,36 @@ def notify_new_prono(match: str, pick: str, tier: str = "confiance", sport: str 
     _ct = f" @{cote}" if cote else ""
     title = m["title"].format(tier=_tl, cote=_ct)
     return send_push(title, m.get("body", ""), url="/", tag="prono")
+
+
+def _fmt_cote(cote) -> str:
+    """« @1.13 » (2 décimales) ou '' si absente/illisible."""
+    if cote is None:
+        return ""
+    try:
+        return f" @{float(str(cote).replace(',', '.')):.2f}"
+    except (ValueError, TypeError):
+        return ""
+
+
+def notify_leg(sel: str, mark: str, cote=None) -> int:
+    """Notif PWA d'une JAMBE de combiné réglée — « JAMBE GAGNÉE @1.13 ✅ » (aligné Telegram). Cote SI gagné.
+    La sélection est en corps de notif (« Plus de 0.5 but FC Midtjylland »). won/lost seulement (le
+    « remboursé » d'un push/void = bruit, non notifié)."""
+    _vw, _ve = {"won": ("GAGNÉE", "✅"), "lost": ("PERDUE", "❌")}.get(mark, (None, None))
+    if _vw is None:
+        return 0
+    title = f"JAMBE {_vw}{_fmt_cote(cote) if mark == 'won' else ''} {_ve}"
+    return send_push(title, str(sel or ""), url="/directs", tag=f"leg:{str(sel or '')[:24]}")
+
+
+def notify_combo(label: str, mark: str, cote=None) -> int:
+    """Notif PWA du COMBINÉ global — « COMBINÉ DU JOUR GAGNÉ @1.55 ✅ ». Cote SI gagné. won/lost seulement."""
+    _gw, _ge = {"won": ("GAGNÉ", "✅"), "lost": ("PERDU", "❌")}.get(mark, (None, None))
+    if _gw is None:
+        return 0
+    title = f"{(label or 'COMBINÉ').upper()} {_gw}{_fmt_cote(cote) if mark == 'won' else ''} {_ge}"
+    return send_push(title, "", url="/", tag="combo")
 
 
 def notify_result(match: str, mark: str, pick: str = "", tier: str = "confiance", cote=None) -> int:
