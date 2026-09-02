@@ -47,6 +47,15 @@ Log 'PROGRAMME : SLATE JOUR (coup d''envoi 6h-21h) pour l''accueil site — la n
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le
 # programme tout juste écrit -> règlement rapide autour de chaque match (la ré-analyse est supprimée).
+# LOGOS DES ÉQUIPES (user 2026-09-02) : résout le blason des 2 équipes de CHAQUE match du programme
+# tout juste écrit. Double effet : (1) PRÉ-CHAUFFE data/crest_cache.json -> à la vague KO-1 h, le logo est
+# déjà connu (pas de résolution à chaud pendant la publication) ; (2) DÉTECTE les équipes sans blason
+# (carte trouée côté abonné) et les RÉPARE via les fixtures FotMob du jour, qui couvrent bien plus de
+# ligues que la recherche par nom. Alerte PRIVÉE (jamais le canal abonnés) si un logo reste manquant.
+Log 'LOGOS : vérification/pré-chauffe des blasons du programme JOUR'
+& $py 'tools\logo_check.py' --quiet --alert 2>&1 | Add-BfxStream $log
+Log ("LOGOS DONE (exit {0})" -f $LASTEXITCODE)
+
 Log 'REANA SCHED : planification des passes de règlement (coup d''envoi - 1 h)'
 & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Add-BfxStream $log
 # SCAN MATIN (analyse du slate JOUR en batch) : SAUTÉ en mode WAVE-FIRST (user 2026-08-11). Le matin ne fait

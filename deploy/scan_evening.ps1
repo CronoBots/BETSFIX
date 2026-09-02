@@ -50,6 +50,13 @@ if (Test-Path $flag) {
     # KO-1 h (schedule_reana ne tourne sinon qu'à 10h, avant que la nuit existe). Set-ScheduledTask REMPLACE
     # tous les déclencheurs de « BETSFIX Scan Wave » -> repose les matchs encore à venir (jour tardif + nuit),
     # zéro accumulation, zéro doublon. Les vagues de jour déjà passées sont ignorées (at <= now). TOUJOURS.
+    # LOGOS DES ÉQUIPES (user 2026-09-02) : même contrôle qu'au matin, appliqué au programme APRÈS fusion
+    # du slate NUIT -> les clubs sud-américains / d'Europe tardive (souvent absents de la recherche FotMob
+    # par nom) sont résolus via les fixtures du jour et mis en cache AVANT leur vague de publication.
+    Log 'LOGOS : vérification/pré-chauffe des blasons (programme JOUR + NUIT fusionnés)'
+    & $py 'tools\logo_check.py' --quiet --alert 2>&1 | Add-BfxStream $log
+    Log ("LOGOS DONE (exit {0})" -f $LASTEXITCODE)
+
     Log 'SCAN SOIR : REPLANIFICATION des vagues KO-1 h (inclut désormais le slate NUIT)'
     & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Add-BfxStream $log
     Log ("SCAN SOIR REANA SCHED DONE (exit {0})" -f $LASTEXITCODE)
