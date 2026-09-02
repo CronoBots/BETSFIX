@@ -2110,16 +2110,24 @@ async def _settle_analyses_impl() -> int:
                     # `_ok=False` -> les flags ne sont pas figés -> re-tenté à la passe suivante (borné par
                     # notify_tries) : zéro perte, zéro doublon.
                     # NOTIF PUSH PWA « résultat » (user 2026-08-16) — best-effort, jamais bloquant/élevant.
-                    if _ok and card:
+                    # SIMPLE uniquement (jambe/combiné -> combo_daily.notify_combos). ⚠️ On ne teste PLUS
+                    # `card.combo.mark` (pushait à tort un combiné). TIER via le FLAG FIGÉ `_is_value` (le tier
+                    # DYNAMIQUE dérive -> « VALUE GAGNÉE » à tort, aligné sur le label Telegram l.2091, user
+                    # 2026-09-02). Log traceur : identifie précisément tout push résultat (match/tier/cote).
+                    if _ok and card and card.get("simple"):
                         try:
                             from app import push as _push
-                            _mk = ((card.get("simple") or {}).get("mark")
-                                   or (card.get("combo") or {}).get("mark"))
+                            _mk = (card.get("simple") or {}).get("mark")
                             if _mk in ("won", "lost"):   # message centralisé -> app/push.py MSG (personnalisable)
                                 _rpk = str(card.get("pick") or "")
                                 _rco = card.get("cote") or (card.get("simple") or {}).get("cote")
                                 _rpktxt = f"{_rpk} @ {_rco}" if (_rpk and _rco) else _rpk
-                                _rtier = str((card.get("simple") or {}).get("tier") or card.get("tier") or "confiance")
+                                _rtier = ("value" if card.get("_is_value")
+                                          else {"montante": "montante"}.get(
+                                              str((card.get("simple") or {}).get("tier")
+                                                  or card.get("tier") or "confiance"), "confiance"))
+                                log.info("push PWA résultat : %s | tier=%s is_value=%s mark=%s cote=%s",
+                                         card.get("match"), _rtier, card.get("_is_value"), _mk, _rco)
                                 await asyncio.to_thread(
                                     _push.notify_result,
                                     str(card.get("match") or "").replace(" — ", " - "), _mk, _rpktxt,
