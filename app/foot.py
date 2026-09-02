@@ -1,11 +1,14 @@
-"""Module FOOT (Coupe du Monde + grandes compétitions) — **séparé** du tennis/basket.
+"""Module FOOT — page/routeur foot et rendu des cartes de match.
 
-Spécificité : 3 issues (1-X-2, le match nul existe). Modèle : Elo d'équipe
-(tools/build_foot_elo.py) -> supériorité de buts -> double Poisson -> P(1)/P(X)/P(2),
-confronté au 1X2 Unibet pour repérer une value. Filtre « grandes compétitions » par ID
-(Coupe du Monde + top championnats + C1/C3), pas les petits championnats.
+Spécificité : 3 issues (1-X-2, le match nul existe). Confronte la probabilité au 1X2 Unibet
+pour repérer une value (garde-fous `MODEL_TRUST` / `VALUE_THRESHOLD` / `MIN_IMPLIED`).
 
-⚠️ Modèle jeune + venues neutres en CdM : avantage terrain faible, value à confirmer.
+⚠️ L'ancien modèle « Elo d'équipe -> double Poisson -> P(1)/P(X)/P(2) » n'existe PLUS : la
+sélection du pari est MÉCANIQUE depuis les fantômes de l'analyse Claude (`confidence_pick` /
+`value_pick`, refonte 2026-08-29). Les vestiges du modèle Elo (ELO_PATH, SUP_PER_100,
+GOALS_TOTAL, NEUTRAL_COMPS + tools/build_foot_elo.py + data/foot_elo.json, vide depuis le
+2026-06-17 car plus rien ne le reconstruisait) ont été retirés au ménage du 2026-09-02.
+
 Sources gratuites : SofaScore + Unibet BE.
 """
 
@@ -22,7 +25,6 @@ from app.textutil import name_tokens
 log = logging.getLogger("uvicorn")
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ELO_PATH = os.path.join(_ROOT, "data", "foot_elo.json")
 
 # Grandes compétitions (SofaScore unique-tournament id -> libellé court).
 MAJOR_TIDS = {16: "Coupe du Monde", 17: "Premier League", 8: "LaLiga", 23: "Serie A",
@@ -31,14 +33,7 @@ MAJOR_TIDS = {16: "Coupe du Monde", 17: "Premier League", 8: "LaLiga", 23: "Seri
               851: "Amicaux Int."}
 
 
-
-# Compétitions à venues majoritairement NEUTRES : le « domicile » SofaScore est
-# arbitraire (sauf pays hôte), donc aucun avantage terrain ne doit s'appliquer.
-NEUTRAL_COMPS = {"Coupe du Monde", "Euro"}
-
 HOME_ADV = 35.0           # faible : beaucoup de venues neutres en grand tournoi
-GOALS_TOTAL = 2.7         # total de buts moyen (baseline)
-SUP_PER_100 = 0.45        # 100 pts Elo ~ 0.45 but de supériorité
 # Fenêtre de récupération : logique COMMUNE aux 3 sports (cf. app/window.py). Un match entre dans
 # la fenêtre (et reçoit sa perle) ~HORIZON_HOURS avant le coup d'envoi.
 MODEL_TRUST = 0.50

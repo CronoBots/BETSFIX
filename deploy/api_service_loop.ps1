@@ -15,9 +15,20 @@ $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
 
-# Journal simple (utile pour diagnostiquer sans session ouverte)
+# Journal simple (utile pour diagnostiquer sans session ouverte).
+# ROTATION (2026-09-02) : le fichier grossissait SANS LIMITE (8 Mo au ménage, jamais purgé, gardant
+# des lignes de juillet). Au-delà de 2 Mo on bascule vers .1 (l'ancien .1 est écrasé) -> au pire
+# ~4 Mo sur le disque, et on garde toujours l'historique récent utile au diagnostic.
 $log = Join-Path $root "deploy\api_service.log"
+function Rotate-Log {
+  try {
+    if ((Test-Path $log) -and ((Get-Item $log).Length -gt 2MB)) {
+      Move-Item -Path $log -Destination "$log.1" -Force -ErrorAction SilentlyContinue
+    }
+  } catch { }
+}
 function Write-Log($msg) {
+  Rotate-Log
   $line = "{0}  {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
   Add-Content -Path $log -Value $line -ErrorAction SilentlyContinue
 }

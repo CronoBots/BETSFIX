@@ -1,15 +1,22 @@
-"""Contrôle de la MONTANTE (fonctionnalité préparée 2026-07-24 ; activation = un simple interrupteur).
+"""Contrôle MANUEL de la MONTANTE — inspection et interrupteur de secours.
+
+⚠️ ÉTAT RÉEL (MAJ 2026-09-02) : la montante est **RÉACTIVÉE et AUTOMATIQUE** depuis le 2026-09-01.
+Le pari du jour est choisi MÉCANIQUEMENT par `montante.pick_confidence_day` (vivier fantômes,
+familles Vainqueur/DC/Total équipe, VRAIE cote Unibet bornée 1.25-1.55, confiance ≥80, PASS si rien),
+appelé par le SCAN ; le règlement passe par `settle_pending`. Capital COMPOSÉ, amorcé à la série
+réelle du propriétaire. Publiée sur le site, Telegram OFF (`TG_COMBO_MONTANTE=False`).
+Hors overall/ROI (`MONTANTE_ROI_ON=False`) : unité composée ≠ mise plate.
+
+Ce script ne fait donc PAS tourner la montante au quotidien — c'est un outil d'INSPECTION et un
+interrupteur de secours. `--run` reste utile pour forcer un cycle à la main si le scan a échoué.
 
 Usage :
-  python tools/montante.py --status        # état courant + activée ou non
-  python tools/montante.py --activate       # ACTIVE l'enregistrement quotidien (interrupteur ON)
-  python tools/montante.py --deactivate     # coupe l'enregistrement (retour à la simulation)
-  python tools/montante.py --run            # exécute UN cycle (règle l'en-cours + enregistre le pari du
-                                            #   jour) — no-op si non activée. La tâche reconcile l'appelle.
+  python tools/montante.py --status        # état courant (capital, palier, pari en attente, candidat)
+  python tools/montante.py --run           # force UN cycle (règle l'en-cours + enregistre le jour)
+  python tools/montante.py --activate      # interrupteur ON  (normalement déjà actif)
+  python tools/montante.py --deactivate    # interrupteur OFF (repasse la page en simulation)
 
-Tant que la montante n'est pas activée : rien n'est enregistré, la page /montante affiche la SIMULATION
-sur les simples foot. Une fois activée, un pari foot par jour (le plus sûr) est enregistré et réglé par
-nos résultats. TOTALEMENT ISOLÉ (data/montante_track.json), hors ROI.
+TOTALEMENT ISOLÉ dans data/montante_track.json. Mémoire `montante-reactivated-confidence-auto`.
 """
 import argparse
 import os
