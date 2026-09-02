@@ -94,7 +94,11 @@ def test_combo_attend_chaque_jambe_avant_publication(tmp_path, monkeypatch):
     assert d2["combo"]["legs"][1]["result"] == "won", "2e jambe désormais réglée"
     assert d2["combo"]["result"] == "lost", "une jambe perdue -> combiné perdu, MAINTENANT que tout est réglé"
     assert d2.get("notified_combo") is True, "combiné publié une fois CHAQUE jambe validée"
-    assert photo["n"] == 1, "exactement une carte combiné envoyée"
+    # CARTE : plus AUCUNE envoyée par settle_analyst depuis la refonte du 2026-08-31 — le combiné a son
+    # PROPRE canal (`combo_daily.notify_combos`) et `settle_analyst` force `_rcard["combo"] = None`
+    # (« Telegram = SIMPLE foot seul »). Ce test garde tout son sens : il verrouille le RÈGLEMENT des
+    # jambes et le verdict global (assertions ci-dessus), pas le transport de l'image.
+    assert photo["n"] == 0, "aucune carte combiné envoyée par settle_analyst (canal dédié depuis 31/08)"
 
 
 def test_combo_jambe_perdue_tranche_apres_budget(tmp_path, monkeypatch):
@@ -136,4 +140,8 @@ def test_combo_jambe_perdue_tranche_apres_budget(tmp_path, monkeypatch):
     assert d.get("combo_tries") == 8, "essais bornés à 8 (pas de boucle infinie)"
     assert d["combo"]["result"] == "lost", "après le budget, une jambe perdue -> combiné TRANCHÉ perdu"
     assert d.get("notified_combo") is True, "tranché -> publié (plus de combiné coincé en attente à vie)"
-    assert photo["n"] == 1, "exactement une carte combiné envoyée"
+    # CARTE : plus AUCUNE envoyée par settle_analyst depuis la refonte du 2026-08-31 — le combiné a son
+    # PROPRE canal (`combo_daily.notify_combos`) et `settle_analyst` force `_rcard["combo"] = None`
+    # (« Telegram = SIMPLE foot seul »). Ce test garde tout son sens : il verrouille le RÈGLEMENT des
+    # jambes et le verdict global (assertions ci-dessus), pas le transport de l'image.
+    assert photo["n"] == 0, "aucune carte combiné envoyée par settle_analyst (canal dédié depuis 31/08)"

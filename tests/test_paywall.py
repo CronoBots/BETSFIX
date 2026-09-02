@@ -8,18 +8,36 @@ import tempfile
 
 import pytest
 
-from app import accounts, paywall
+from app import accounts, paywall, userdb
 
 
 @pytest.fixture
 def store(monkeypatch):
+    """Isole TOUT l'état des comptes dans un dossier temporaire.
+
+    ⚠️ CORRIGÉ le 2026-09-02 : la fixture ne patchait que `accounts._STORE` (l'ancien fichier JSON).
+    Depuis la migration en SQLite du 2026-08-27, les comptes vivent dans `userdb` -> les tests écrivaient
+    dans la VRAIE base `data/users.db`. Conséquences observées : 4 comptes de test (`a@b.com`, `free@b.com`,
+    `jean@mail.com`, `sub@b.com`) créés en production, et `test_compte_creation_et_login` qui ne passait
+    QU'AU PREMIER LANCEMENT (ensuite « doublon »). On redirige donc `userdb._DB` et on force la
+    reconnexion, avant ET après le test.
+    """
     d = tempfile.mkdtemp()
     monkeypatch.setattr(accounts, "_STORE", os.path.join(d, "accounts.json"))
     monkeypatch.setattr(accounts, "_SECRET_FILE", os.path.join(d, ".secret"))
     monkeypatch.setenv("BETSFIX_SESSION_SECRET", "test-secret-123")
     monkeypatch.setattr(accounts, "_OWNERS_ENV", set())
     monkeypatch.setattr(accounts, "_OWNERS_FILE", os.path.join(d, "owners.json"))
-    return d
+    monkeypatch.setattr(userdb, "_DATA", d)
+    monkeypatch.setattr(userdb, "_DB", os.path.join(d, "users.db"))
+    monkeypatch.setattr(userdb, "_conn", None)          # force une NOUVELLE connexion sur la base temp
+    yield d
+    try:                                                # referme la connexion temp -> la prod reprend
+        if userdb._conn is not None:
+            userdb._conn.close()
+    except Exception:
+        pass
+    userdb._conn = None
 
 
 class _Req:
@@ -39,7 +57,18 @@ def test_compte_creation_et_login(store):
     assert accounts.verify_login("jean@mail.com", "X") is False
 
 
-def test_abonnement_et_session(store):
+def test_essai_gratuit_automatique_a_l_inscription(store):
+    """ESSAI 3 JOURS AUTO (user 2026-08-27) : une inscription donne accès tout de suite. C'est ce
+    comportement qui faisait échouer les tests d'abonnement écrits AVANT — ils sont désormais explicites."""
+    accounts.create_user("trial@b.com", "motdepasse")
+    assert accounts.plan_of("trial@b.com") == "trial"
+    assert accounts.is_subscriber("trial@b.com") is True      # l'essai OUVRE l'accès
+
+
+def test_abonnement_et_session(store, monkeypatch):
+    # On COUPE l'essai auto pour tester la logique d'ABONNEMENT seule (sinon tout compte neuf est
+    # « abonné » via son essai, et l'assertion ci-dessous ne mesurerait plus rien).
+    monkeypatch.setattr(accounts, "TRIAL_ON_SIGNUP", False)
     accounts.create_user("a@b.com", "motdepasse")
     assert accounts.is_subscriber("a@b.com") is False
     accounts.set_subscription("a@b.com", True)
@@ -50,7 +79,8 @@ def test_abonnement_et_session(store):
     assert accounts.read_session("nimporte") is None
 
 
-def test_can_see_picks(store):
+def test_can_see_picks(store, monkeypatch):
+    monkeypatch.setattr(accounts, "TRIAL_ON_SIGNUP", False)   # « free » doit rester SANS accès
     accounts.create_user("sub@b.com", "motdepasse")
     accounts.set_subscription("sub@b.com", True)
     accounts.create_user("free@b.com", "motdepasse")

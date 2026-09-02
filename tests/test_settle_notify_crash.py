@@ -48,13 +48,20 @@ def test_notif_zero_perte_zero_doublon(tmp_path, monkeypatch):
     monkeypatch.setattr(settle_analyst, "settle_pick", lambda c, score: "won")
     monkeypatch.setattr(analyses, "DIR", str(tmp_path))
     monkeypatch.setattr(analyses, "bets_of", lambda sport, mid: [])
-    monkeypatch.setattr(analyses, "retained_bet", lambda s, m: {"result": "won"})  # simple RETENU -> affiché
+    # `**kw` : `retained_bet` a gagné le paramètre `for_history` ; le mock resté à 2 arguments faisait
+    # échouer ces tests en TypeError — faux positif sans rapport avec la notification testée.
+    monkeypatch.setattr(analyses, "retained_bet",
+                        lambda s, m, **kw: {"result": "won"})   # simple RETENU -> affiché
     monkeypatch.setattr(analyses, "status_of", lambda d: "finished")
     monkeypatch.setattr(analyses, "likely_finished", lambda d: True)
 
     # --- Telegram piloté ---
     monkeypatch.setattr(notify, "configured", lambda: True)
-    monkeypatch.setattr(notify, "get_prono", lambda mid: None)
+    # PRONO EXISTANT obligatoire depuis le 2026-09-01 : un résultat simple n'est posté qu'EN RÉPONSE à une
+    # carte prono réellement publiée (garde anti-orphelin, settle_analyst ~2062). Avec `None`, le garde
+    # court-circuitait l'envoi et ces 3 tests mesuraient le garde au lieu de la logique de re-tentative
+    # qu'ils sont censés verrouiller. On simule donc un prono déjà posté.
+    monkeypatch.setattr(notify, "get_prono", lambda mid: {"-100": 42})
 
     async def _fake_render(card, png):           # pas de Chrome : on évite le rendu réel
         return None
@@ -67,6 +74,15 @@ def test_notif_zero_perte_zero_doublon(tmp_path, monkeypatch):
         photo_calls["n"] += 1
         return {"chat": 1} if send_ok["v"] else {}   # {} = échec (falsy)
     monkeypatch.setattr(notify, "send_photo_sync", _fake_photo)
+
+    # TRANSPORT RÉEL du résultat depuis le 2026-08-24 : une RÉPONSE TEXTE au prono (« CONFIANCE GAGNÉE
+    # @1.15 ✅ »), plus une carte image. Les tests comptaient les photos et ne voyaient donc plus rien —
+    # alors que l'invariant qu'ils protègent (zéro perte / zéro doublon au ré-essai) est INTACT. On compte
+    # désormais le bon canal, avec le même compteur : les assertions ci-dessous gardent tout leur sens.
+    def _fake_reply(text, reply_to=None):
+        photo_calls["n"] += 1
+        return {"chat": 1} if send_ok["v"] else {}
+    monkeypatch.setattr(notify, "reply_sync", _fake_reply)
 
     async def _fake_send(text, clean=False):
         return send_ok["v"]                          # repli texte : suit le même sort
@@ -103,35 +119,53 @@ def test_pas_de_doublon_image_texte(tmp_path, monkeypatch):
     monkeypatch.setattr(settle_analyst, "settle_pick", lambda c, score: "won")
     monkeypatch.setattr(analyses, "DIR", str(tmp_path))
     monkeypatch.setattr(analyses, "bets_of", lambda sport, mid: [])
-    monkeypatch.setattr(analyses, "retained_bet", lambda s, m: {"result": "won"})  # simple RETENU -> affiché
+    # `**kw` : `retained_bet` a gagné le paramètre `for_history` ; le mock resté à 2 arguments faisait
+    # échouer ces tests en TypeError — faux positif sans rapport avec la notification testée.
+    monkeypatch.setattr(analyses, "retained_bet",
+                        lambda s, m, **kw: {"result": "won"})   # simple RETENU -> affiché
     monkeypatch.setattr(analyses, "status_of", lambda d: "finished")
     monkeypatch.setattr(analyses, "likely_finished", lambda d: True)
     monkeypatch.setattr(notify, "configured", lambda: True)
-    monkeypatch.setattr(notify, "get_prono", lambda mid: None)
+    # PRONO EXISTANT obligatoire depuis le 2026-09-01 : un résultat simple n'est posté qu'EN RÉPONSE à une
+    # carte prono réellement publiée (garde anti-orphelin, settle_analyst ~2062). Avec `None`, le garde
+    # court-circuitait l'envoi et ces 3 tests mesuraient le garde au lieu de la logique de re-tentative
+    # qu'ils sont censés verrouiller. On simule donc un prono déjà posté.
+    monkeypatch.setattr(notify, "get_prono", lambda mid: {"-100": 42})
 
-    text_calls = {"n": 0}
+    # ⚠️ SCÉNARIO RÉÉCRIT le 2026-09-02. À l'origine ce test vérifiait qu'on n'envoyait pas À LA FOIS une
+    # carte IMAGE et un repli TEXTE (doublon). Ce risque N'EXISTE PLUS : depuis le 2026-08-24 le résultat
+    # d'un simple est UNIQUEMENT une réponse TEXTE au prono (`reply_sync`) — il n'y a plus de carte image
+    # ni de repli. L'invariant encore utile, et que ce test verrouille désormais : un envoi NON CONFIRMÉ
+    # ne fige PAS le flag, donc la notification est ré-essayée (zéro perte) et jamais dupliquée.
+    reply_calls = {"n": 0}
+    ok = {"v": False}
 
-    async def _fake_send(text, clean=False):
-        text_calls["n"] += 1
-        return True
-    monkeypatch.setattr(notify, "send", _fake_send)
-    # l'envoi PHOTO échoue toujours (renvoie {} = aucun chat confirmé)
+    def _fake_reply(text, reply_to=None):
+        reply_calls["n"] += 1
+        return {"chat": 1} if ok["v"] else {}        # {} = échec (falsy)
+    monkeypatch.setattr(notify, "reply_sync", _fake_reply)
     monkeypatch.setattr(notify, "send_photo_sync", lambda png, caption="", reply_to=None: {})
 
-    # cas 1 : RENDU OK + envoi photo échoué -> AUCUN texte (sinon doublon), flag NON figé (R2 réessaie)
+    async def _fake_send(text, clean=False):
+        return False
+    monkeypatch.setattr(notify, "send", _fake_send)
+
     async def _render_ok(card, png):
         return None
     monkeypatch.setattr(card_image, "render_card", _render_ok)
-    asyncio.run(settle_analyst._settle_analyses_impl())
-    assert text_calls["n"] == 0, "carte rendue mais envoi photo échoué -> PAS de texte (zéro doublon)"
-    assert not _load(side).get("notified_pick"), "envoi non confirmé -> non figé -> R2 ré-essaiera la carte"
 
-    # cas 2 : le RENDU échoue (Chrome indispo…) -> le texte EST le repli légitime
-    async def _render_fail(card, png):
-        raise RuntimeError("rendu indisponible")
-    monkeypatch.setattr(card_image, "render_card", _render_fail)
+    # passe 1 : l'envoi ÉCHOUE -> flag NON figé, la notif reste à ré-émettre
     asyncio.run(settle_analyst._settle_analyses_impl())
-    assert text_calls["n"] == 1, "rendu impossible -> repli texte (seule option restante)"
+    assert reply_calls["n"] == 1, "la réponse résultat doit avoir été TENTÉE"
+    assert not _load(side).get("notified_pick"), "envoi non confirmé -> non figé -> R2 ré-essaiera"
+
+    # passe 2 : l'envoi RÉUSSIT -> figé UNE fois, donc jamais de doublon ensuite
+    ok["v"] = True
+    asyncio.run(settle_analyst._settle_analyses_impl())
+    assert reply_calls["n"] == 2, "la notif perdue est ré-émise à la passe suivante"
+    assert _load(side).get("notified_pick") is True, "envoi réussi -> flag posé (idempotence)"
+    asyncio.run(settle_analyst._settle_analyses_impl())
+    assert reply_calls["n"] == 2, "déjà notifié -> AUCUN nouvel envoi (zéro doublon)"
 
 
 def test_notif_borne_apres_5_echecs(tmp_path, monkeypatch):
@@ -140,11 +174,18 @@ def test_notif_borne_apres_5_echecs(tmp_path, monkeypatch):
     monkeypatch.setattr(settle_analyst, "settle_pick", lambda c, score: "won")
     monkeypatch.setattr(analyses, "DIR", str(tmp_path))
     monkeypatch.setattr(analyses, "bets_of", lambda sport, mid: [])
-    monkeypatch.setattr(analyses, "retained_bet", lambda s, m: {"result": "won"})  # simple RETENU -> affiché
+    # `**kw` : `retained_bet` a gagné le paramètre `for_history` ; le mock resté à 2 arguments faisait
+    # échouer ces tests en TypeError — faux positif sans rapport avec la notification testée.
+    monkeypatch.setattr(analyses, "retained_bet",
+                        lambda s, m, **kw: {"result": "won"})   # simple RETENU -> affiché
     monkeypatch.setattr(analyses, "status_of", lambda d: "finished")
     monkeypatch.setattr(analyses, "likely_finished", lambda d: True)
     monkeypatch.setattr(notify, "configured", lambda: True)
-    monkeypatch.setattr(notify, "get_prono", lambda mid: None)
+    # PRONO EXISTANT obligatoire depuis le 2026-09-01 : un résultat simple n'est posté qu'EN RÉPONSE à une
+    # carte prono réellement publiée (garde anti-orphelin, settle_analyst ~2062). Avec `None`, le garde
+    # court-circuitait l'envoi et ces 3 tests mesuraient le garde au lieu de la logique de re-tentative
+    # qu'ils sont censés verrouiller. On simule donc un prono déjà posté.
+    monkeypatch.setattr(notify, "get_prono", lambda mid: {"-100": 42})
 
     async def _fake_render(card, png):
         return None
@@ -156,6 +197,9 @@ def test_notif_borne_apres_5_echecs(tmp_path, monkeypatch):
         calls["n"] += 1
         return {}                                    # échoue toujours
     monkeypatch.setattr(notify, "send_photo_sync", _fake_photo)
+    # transport RÉEL du résultat (réponse texte) — cf. note du 1er test
+    monkeypatch.setattr(notify, "reply_sync",
+                        lambda text, reply_to=None: calls.__setitem__("n", calls["n"] + 1) or {})
 
     async def _fake_send(text, clean=False):
         return False

@@ -1,5 +1,7 @@
 """Tests des fonctions PURES de app/flashscore.py (aucun appel réseau)."""
 
+from datetime import datetime, timedelta, timezone
+
 from app import flashscore as fs
 
 
@@ -81,7 +83,12 @@ def test_goals_for_against_et_tendances():
 def test_final_score_ignore_match_en_cours(monkeypatch):
     """Régression 2026-07-01 : un match LIVE (statut Flashscore AB=2) a DÉJÀ un score partiel dans
     l'index -> `final_score` doit s'ABSTENIR (None), sinon règlement FAUX. Terminé (AB=3) -> score."""
-    d = {"sport": "foot", "home": "Angleterre", "away": "Congo DR", "start": "2026-07-01T16:00:00Z"}
+    # ⚠️ DATE RELATIVE, jamais figée : `final_score` ne cherche que dans une fenêtre de -45 jours
+    # (`offs`). Avec la date en dur d'origine (2026-07-01), le test passait à l'écriture puis échouait
+    # TOUT SEUL une fois cette date sortie de la fenêtre — un faux positif qui a pollué la suite pendant
+    # des semaines sans qu'aucun code ne soit en cause. On ancre sur « hier », toujours dans la fenêtre.
+    _kick = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT16:00:00Z")
+    d = {"sport": "foot", "home": "Angleterre", "away": "Congo DR", "start": _kick}
     row = lambda status, hs, as_: [{"id": "X", "home": "Angleterre", "away": "Congo DR",
                                     "home_score": hs, "away_score": as_, "status": status,
                                     "note": None, "league": None, "start_ts": None}]
