@@ -83,6 +83,24 @@ def _send_owner(text: str) -> bool:
         return False
 
 
+def _played_bet(d: dict) -> dict | None:
+    """LE PARI JOUÉ d'un match, valable AVANT comme APRÈS règlement (fix 2026-09-02).
+    ⚠️ `retained_bet` seul ne suffit PAS : une fois `stat_bet` gelé au règlement, il ne reconstruit
+    plus le pari mécanique et retombe sur le PICK BRUT du tableau .md (autre marché) — ou sur None.
+    La QC annonçait alors « PARI JOUÉ — Moins de 3.5 buts @1.37 » (et le VALIDAIT) alors que le pari
+    réellement joué était « Double chance 1X @1.15 » (Sheffield-Bolton), et comptait Torino en
+    abstention alors qu'un pari avait été joué -> taux de conversion faussé. Ça mordait sur tout match
+    dont la fiche part APRÈS le règlement (vague manquée, rattrapage). Même règle que
+    `card_data.build_prono_card` (commit 11fcd37) : sur un réglé, la source unique est `stat_bet`."""
+    if not isinstance(d, dict):
+        return None
+    if A.is_settled(d):
+        sb = A.stat_bet(d)
+        if sb:
+            return sb
+    return A.retained_bet("foot", str(d.get("id") or ""))
+
+
 _ALERT_STATE = os.path.join(os.path.dirname(A.DIR), "quality_alerts.json")
 
 
@@ -146,7 +164,7 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
         wave_due = ko is not None and now >= (ko - WAVE_LEAD_H * 3600)   # la vague aurait dû tourner
         if is_analysed:
             analysed += 1
-            rb = A.retained_bet("foot", str(d.get("id") or mid)) if d else None
+            rb = _played_bet(d) if d else None      # réglé -> stat_bet (sinon pick brut / None)
             has_bet = bool(rb and rb.get("sel"))
             if has_bet:
                 bets += 1
@@ -357,7 +375,7 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
     comp = d.get("comp") or ""
     ko = _ko_bx(m.get("start") or d.get("start"))
     mdtxt = _md_text(md)
-    rb = A.retained_bet("foot", str(d.get("id"))) if d.get("id") else None
+    rb = _played_bet(d) if d.get("id") else None      # réglé -> stat_bet (sinon pick brut / None)
     sig = _qc_collect(d, md, mdtxt)
     au = _qc_audit(d, rb, sig)
 
