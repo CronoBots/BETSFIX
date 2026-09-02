@@ -1,5 +1,30 @@
 # BETSFIX — Notes projet
 
+## ⛔ RÈGLES PERMANENTES — décisions DÉJÀ tranchées, ne pas re-débattre
+
+> Ces points ont dû être répétés d'une session à l'autre. Ils sont **définitifs** jusqu'à ce que le
+> user dise le contraire. **Avant de signaler un « problème », vérifier ici et en mémoire s'il est
+> déjà tranché.** Re-poser une question réglée fait perdre du temps et de la confiance.
+
+1. **AUCUN ABONNÉ à ce jour.** Donc re-piquer l'historique **rétroactivement est légitime** : les
+   stats ne gardent QUE les paris conformes aux seuils **actuels**. ⛔ Ne PAS présenter « des paris
+   publiés ne sont pas comptés » / « biais du survivant » / « posté == compté » comme un bug.
+   ⚠️ Ça changera le jour où il y aura de vrais abonnés → les seuils ne s'appliqueront plus qu'en
+   **forward**. Mémoire `no-subscribers-retroactive-repick-ok`.
+2. **Tout ce qui s'AFFICHE = le PARI JOUÉ**, jamais le pick brut de Claude. Source unique :
+   `analyses.stat_bet` / `played_result` (à venir : `display_perle`). ⛔ Ne jamais lire `d["pick"]`,
+   `result.pick_result`, `bets_of`, **ni `retained_bet` sur un match RÉGLÉ** (il retombe sur le pick
+   brut : c'est le bug récurrent n°1, réapparu 3×).
+3. **Peu de paris Confiance/Value un jour donné = NORMAL** (créneau sans value). Ne pas
+   re-diagnostiquer comme une panne d'ancre ou de quota.
+4. **Ne JAMAIS recréer un mécanisme d'autostart** sans avoir vérifié **en admin** qu'il n'existe pas
+   déjà (les tâches SYSTEM sont invisibles autrement — voir le piège plus bas).
+5. **Foot uniquement** depuis 2026-08-07. Le code tennis/basket est dormant, pas actif.
+6. **Un commit = déjà poussé** (hook `post-commit`). Il n'y a PAS d'auto-commit périodique (coupé).
+7. **Vocabulaire UI : « pari joué »** — plus d'étoile ⭐ ni de « retenu ».
+8. **Mémoire** : `MEMORY.md` est un INDEX (1 ligne ≤ ~145 c par mémoire, détail dans le fichier lié).
+   S'il gonfle, il ne se charge que partiellement et je « repars de zéro » → ne jamais y mettre de détail.
+
 ## Carte du démarrage automatique (Windows)
 
 Au démarrage du PC, trois briques remontent. **Important : deux d'entre elles
@@ -136,8 +161,14 @@ Depuis la refonte mécanique, le pari joué (`stat_bet`/mécanique) **DIVERGE** 
   bandeau, le chip « Terminés », le bord coloré, la **carte résultat** (site + Telegram), et la **cote publiée**.
 - L'**analyse « Pourquoi ce pari »** suit aussi le pari joué : `played_why` (sonnet) généré dédié au scan
   (sinon l'affichage montrait le raisonnement du mauvais pari).
-- Garde-fou selfcheck `_check_verdict_reads_played_bet`. Bugs récurrents (mémoires `result-verdict-follows-played-bet`,
+- Garde-fous selfcheck `_check_verdict_reads_played_bet` **et `_check_settled_prono_card_reads_played_bet`**
+  (30e contrôle, 2026-09-02). Bugs récurrents (mémoires `result-verdict-follows-played-bet`,
   `session-2026-08-31-omap-combos-telegram`). ⛔ Ne JAMAIS lire `pick_result`/`d["pick"]`/`bets_of` pour un affichage.
+- ⚠️ **PIÈGE `retained_bet` (2026-09-02)** : sur un match **RÉGLÉ**, `analyses.retained_bet()` ne reconstruit
+  PLUS le pari mécanique (gardes `not stat_bet`) et retombe sur `_recommend()` = **pick brut du `.md`**, ou None.
+  Mesuré : 7/115 cartes justes seulement (67 vides, 30 mauvais pari, **11 verdicts inversés**). Corrigé dans
+  `card_data.build_prono_card`, `web._sport_row` (branche terminé) et `analysis_quality` (fiche QC privée).
+  **Règle : sur un réglé → `stat_bet`.** `retained_bet` ne reste correct qu'AVANT règlement (scan/à-venir).
 
 ### omap = VRAIES cotes Unibet captées au scan (paris ET abstentions)
 `_unibet_odds_map` (dans `build_dossier`) capte la cote Unibet réelle par code, persistée `side["omap"]` et
@@ -179,9 +210,13 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 
 ## Timeline quotidienne (heure Europe/Brussels)
 - **~10h — scan JOUR** (`deploy/scan_daily.ps1` → `generate_analyses --ko-from 6 --ko-to 21`) : sélection
-  slate jour + analyse **cachée** (Option B) + **combiné du jour** + planif des vagues.
+  slate jour + **vérif/pré-chauffe des LOGOS** + analyse **cachée** (Option B) + **combiné du jour** + planif des vagues.
 - **~19h — scan NUIT** (`deploy/scan_evening.ps1` → `--ko-from 21 --ko-to 6`) : sélection slate nuit +
-  fusion + analyse + **combiné du soir** + replanif des vagues.
+  fusion + **vérif/pré-chauffe des LOGOS** + analyse + **combiné du soir** + replanif des vagues.
+- **LOGOS** (`tools/logo_check.py --quiet --alert`, 2026-09-02) : résout le blason des 2 équipes de chaque
+  match du programme → **pré-chauffe `crest_cache.json`** (logo prêt à la publication), **vérifie l'URL en 200**,
+  **auto-répare** via les fixtures FotMob du jour (ancrage sur l'adversaire reconnu + KO — indispensable quand
+  les libellés n'ont aucun token commun : « Saint-Trond » ↔ « St.Truiden »), **alerte privée** si un logo manque.
 - **KO−1h — vagues** (`deploy/scan_wave.ps1` → `--refresh-early`) : re-analyse chaque match ~1h avant SON
   coup d'envoi, **PUBLIE** le pari (app + Telegram), puis reconcile (règlement + résultats combinés par jambe).
   Cap **7+7** (jour+nuit). Mémoire `daily-construction-methodology` (flux de référence + invariants anti-bug).
