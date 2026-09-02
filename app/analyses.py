@@ -1081,27 +1081,25 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     cells = [f'<div class="vm-cell vm-conf"><span class="vm-l">Confiance</span>'
              f'<span class="vm-v" style="color:{col}">{cfi}%</span>'
              f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>']
-    # MODE `bare` (user 2026-08-17) : COMBINÉ = Confiance + Cote SEULEMENT. Un combiné « sécurité » est
-    # structurellement à edge/value NÉGATIFS (DC sûres, cote ~2) -> afficher Edge/Value contredirait son
-    # identité (la RÉUSSITE, pas la value) et découragerait à tort. On retire donc ces 2 colonnes.
+    # SOBRIÉTÉ FINANCIÈRE (refonte 2026-09-02, direction choisie par le user après audit ui-ux-pro-max) :
+    # la grille montrait QUATRE colonnes de poids ÉGAL (Confiance/Edge/Value/Cote) — l'œil ne savait pas
+    # quoi lire en premier, et deux métriques de CONTEXTE (edge, value) pesaient autant que les deux
+    # métriques de DÉCISION (confiance, cote). Désormais : 2 chiffres HÉROS (Confiance + Cote) puis une
+    # LIGNE DE CONTEXTE discrète « marché X% · edge ±N pts · value ±N% ».
+    # Aucune information n'est PERDUE (la transparence voulue le 2026-07-24 est intacte) — elle est
+    # HIÉRARCHISÉE. C'est le patron que le combiné utilisait déjà via `bare` (Confiance + Cote seuls) :
+    # les cartes simples s'alignent dessus au lieu d'avoir leur propre densité.
+    _ctx = ""
     if not bare:
         _ecls, _eword = _edge_word(_edge)                  # couleur LOGIQUE + qualificatif (comme la Confiance)
-        cells.append(f'<div class="vm-cell"><span class="vm-l">Edge</span>'
-                     f'<span class="vm-v {_ecls}">{"+" if _edge >= 0 else ""}{_edge} pts</span>'
-                     f'<span class="vm-sub {_ecls}">{_eword}</span></div>')
-        # VALUE : la colonne est TOUJOURS présente (demande user 2026-07-24 : « ajouter la value partout même
-        # si négative ou nulle, mais une barre à la place de la masquée pour garder le même alignement ») — un
-        # nombre de cellules CONSTANT garantit que Confiance/Edge/Value[/Cote] restent alignés d'une carte à
-        # l'autre. On MONTRE la value réelle quand c'est un vrai edge (ep ≥ +1 %) ou sur une carte de SIMPLE
-        # (transparence totale, même à 0/négatif) ; sinon (provisoire/Betmines sans edge : « 💎 si EV+ »
-        # strict) on affiche une BARRE « — » au lieu de la masquer -> alignement identique, présente ou pas.
+        _bits = [f'<span class="vx-i">marché <b>{be}%</b></span>',
+                 f'<span class="vx-i {_ecls}">edge <b>{"+" if _edge >= 0 else ""}{_edge} pts</b></span>']
+        # VALUE : toujours présente sur une carte de SIMPLE (transparence totale, même négative/nulle) ;
+        # sur un provisoire/sans edge (« 💎 si EV+ » strict) on n'affiche pas un chiffre trompeur.
         if ep >= 1 or (calibrated and not hide_neg_value):
-            _vcls, _vword = _value_word(ep)                # couleur LOGIQUE (0 = gris neutre, plus rouge) + mot
-            _valh = (f'<span class="vm-v {_vcls}">{"+" if ep >= 0 else ""}{ep}%</span>'
-                     f'<span class="vm-sub {_vcls}">{_vword}</span>')
-        else:
-            _valh = '<span class="vm-v vm-na">—</span>'
-        cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>{_valh}</div>')
+            _vcls, _vword = _value_word(ep)                # couleur LOGIQUE (0 = gris neutre, plus rouge)
+            _bits.append(f'<span class="vx-i {_vcls}">value <b>{"+" if ep >= 0 else ""}{ep}%</b></span>')
+        _ctx = '<div class="vm-ctx">' + '<span class="vx-s">·</span>'.join(_bits) + '</div>'
     if with_cote:
         # COTE affichée à 2 DÉCIMALES MAX (user 2026-08-20) : la cote d'un combiné est un PRODUIT (ex. 2.016) ->
         # arrondie à l'affichage comme les simples (2.02). Display-only, la valeur stockée reste intacte.
@@ -1167,7 +1165,7 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     # DÉSORMAIS À L'INTÉRIEUR du cadre `.vm`, SOUS la grille de chiffres (plus en dehors/dessous).
     return (
         '<div class="vb">'
-        f'<div class="vm">{_pk}<div class="vm-grid">{"".join(cells)}</div>{_bar}</div>'
+        f'<div class="vm">{_pk}<div class="vm-grid">{"".join(cells)}</div>{_ctx}{_bar}</div>'
         '</div>')
 
 

@@ -3047,11 +3047,26 @@ CSS = """
   .vm-sub{font-size:8.5px;font-weight:800;text-transform:lowercase;letter-spacing:.02em;line-height:1}
   /* Qualificatif Edge/Value (comme « très élevée » sous la Confiance) — teinté de la MÊME couleur logique. */
   .vm-sub.vpos{color:#4be39b} .vm-sub.vmid{color:#f6c54a} .vm-sub.vneg{color:#ff7484} .vm-sub.vneu{color:#9aa7b8}
-  .vm-conf .vm-v{font-size:19px}         /* notre confiance = héros de la grille */
-  .vm-cote .vm-v{font-size:19px;color:#fff}   /* cote TOUJOURS blanche, y c. combiné du jour (demande user 2026-07-18) */
+  /* SOBRIÉTÉ FINANCIÈRE (2026-09-02) : Confiance et Cote sont les DEUX chiffres de DÉCISION -> ils
+     montent (26px) et deviennent les héros ; edge/value descendent dans `.vm-ctx` (ligne de contexte). */
+  .vm-conf .vm-v{font-size:26px}         /* notre confiance = héros de la grille */
+  .vm-cote .vm-v{font-size:26px;color:#fff}   /* cote TOUJOURS blanche, y c. combiné du jour (demande user 2026-07-18) */
+  /* LIGNE DE CONTEXTE : marché / edge / value — même information qu'avant, mais en appui du récit au lieu
+     d'occuper 2 colonnes de même poids que la décision. Chiffres en tabular-nums pour un alignement stable
+     d'une carte à l'autre ; retour à la ligne autorisé sur petit écran (pas de débordement horizontal). */
+  .vm-ctx{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:0 7px;
+       margin:9px 12px 0;font-size:11.5px;font-weight:700;color:var(--dim);
+       font-variant-numeric:tabular-nums;line-height:1.5}
+  .vm-ctx .vx-i b{font-weight:900;color:#c8d3e2}
+  .vm-ctx .vx-s{color:var(--faint,#5b6675);opacity:.7}
+  .vm-ctx .vx-i.vpos b{color:#4be39b} .vm-ctx .vx-i.vmid b{color:#f6c54a}
+  .vm-ctx .vx-i.vneg b{color:#ff7484} .vm-ctx .vx-i.vneu b{color:#9aa7b8}
   /* Verdict façon Bull (test 2026-08-15) : la grille = petite carte tintée (la Value RESTE comme avant). */
-  .vm{background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:14px;padding:11px 4px;
-       box-shadow:0 2px 12px -6px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.04)}   /* cadre du pari plus visible (user 2026-08-15) */
+  /* CADRE DU PARI ALLÉGÉ (2026-09-02, direction « sobriété financière ») : la carte empilait 3 cadres
+     imbriqués (carte > pari > grille). La grille n'a plus de cadre propre, et celui-ci devient un simple
+     GROUPEMENT — fond très léger, plus de bord périmétrique ni d'ombre portée. Le regroupement reste lisible
+     (contraste de surface) sans rajouter une 2ᵉ boîte dessinée à l'intérieur de la carte. */
+  .vm{background:rgba(255,255,255,.028);border:0;border-radius:14px;padding:11px 4px}
   .vb-reana{margin-top:11px;font-size:11px;font-weight:600;color:#7f93aa;text-align:center}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
