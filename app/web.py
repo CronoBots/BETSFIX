@@ -2200,10 +2200,11 @@ CSS = """
      JAMBE dans le coin haut-droite de chaque jambe (à côté du pari). Pas de numéros. Jambes = pari(+cote) ·
      équipes/heure · Confiance·Edge·Value. Classes DÉDIÉES `.uel*`/`.cbo*` (⚠️ jamais `.cleg*`/`.cnum` : déjà
      pris par `_leg_card` → collision CSS). ===== */
-  .ue.cbo .mc-head{cursor:default;padding:12px 0 0}
-  /* En-tête : nom du combiné à gauche, « N jambes » dans le COIN haut-droite (même ligne). Pas d'état
-     « À venir » (user 2026-09-03) — le résultat passe par le rail gauche + les marqueurs par jambe. */
-  .cbo-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:0 15px}
+  .ue.cbo .mc-head{cursor:default;padding:0}
+  /* En-tête = BANDEAU (même fond que la colonne cote, user 2026-09-03) : nom du combiné centré verticalement
+     à gauche, « N jambes » dans le coin haut-droite. Pas d'état « À venir » (rail gauche + marqueurs par jambe). */
+  .cbo-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;
+       padding:11px 15px;background:rgba(255,255,255,.035)}
   .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff;overflow-wrap:anywhere;min-width:0}
   .cbo-nb{flex:none;font-size:11.5px;color:#6f8299;font-weight:700;white-space:nowrap}
   .cbo-split{display:grid;grid-template-columns:minmax(0,1fr) 58px;border-top:1px solid rgba(255,255,255,.08);margin-top:9px}
@@ -2218,6 +2219,10 @@ CSS = """
   .uel.lost .uel-n{background:var(--st-lost);color:#2a0608}
   .uel.push .uel-n,.uel.void .uel-n{background:var(--st-void);color:#0d1420}
   .uel-b{flex:1;min-width:0;padding:10px 12px 11px}
+  /* Eyebrow de jambe : ligue + heure du match (comme les cartes simples). */
+  .uel-eye{font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#7fa8d6;
+       margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .uel-eye .t{color:#8fa4bd}
   .uel-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
   .uel-sel{font-size:14.5px;font-weight:900;line-height:1.25;color:var(--text);overflow-wrap:anywhere;min-width:0}
   .uel.lost .uel-sel{color:var(--muted)}
@@ -10908,11 +10913,15 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _v_h = f'<span class="uel-v {_vc}">{_vg}</span>' if _vg else ""
         _ct_h = (f'<div class="uel-ct"><b>{e(_lcote_txt)}</b>{_v_h}</div>'
                  if (_lcote_txt or _v_h) else "")
-        # Sous-ligne équipes · heure (+ score en gras si réglé).
-        _sub_parts = [f"{_lh} — {_la}" if (_lh and _la) else "", _lwhen]
-        _sub_txt = " · ".join(e(x) for x in _sub_parts if x)
+        # Eyebrow = LIGUE · heure du match (user 2026-09-03) ; sous-ligne = équipes (+ score en gras si réglé).
+        _lcomp = str(l.get("comp") or "")
+        _eye_bits = [e(_lcomp)] if _lcomp else []
+        if _lwhen:
+            _eye_bits.append(f'<span class="t">{e(_lwhen)}</span>')
+        _eye_h = f'<div class="uel-eye">{" · ".join(_eye_bits)}</div>' if _eye_bits else ""
+        _sub_txt = e(f"{_lh} — {_la}") if (_lh and _la) else ""
         if _lscore and any(c.isdigit() for c in _lscore):
-            _sub_txt += f' · <b class="h">{e(_lscore)}</b>'
+            _sub_txt += (" · " if _sub_txt else "") + f'<b class="h">{e(_lscore)}</b>'
         # Métriques par jambe (Confiance·Edge·Value) : edge/value dérivés de la VRAIE cote de jambe.
         _lp = l.get("prob")
         _lconf = (round(_lp * 100) if isinstance(_lp, (int, float)) and _lp <= 1
@@ -10925,9 +10934,10 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
                 _le = _lv = None
         _mx = _ue_metrics_html(_lconf, _le, _lv)
         _mx_h = f'<div class="uel-mx">{_mx}</div>' if _mx else ""
+        _sub_h = f'<div class="uel-sub">{_sub_txt}</div>' if _sub_txt else ""
         _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n">{i}</div><div class="uel-b">'
-                       f'<div class="uel-h"><div class="uel-sel">{e(_lsel)}</div>{_ct_h}</div>'
-                       f'<div class="uel-sub">{_sub_txt}</div>{_mx_h}</div></div>')
+                       f'{_eye_h}<div class="uel-h"><div class="uel-sel">{e(_lsel)}</div>{_ct_h}</div>'
+                       f'{_sub_h}{_mx_h}</div></div>')
     # « N jambes » dans le coin haut-droite, même ligne que le nom du combiné (user 2026-09-03).
     _nb = f'{len(legs)} jambe{"s" if len(legs) > 1 else ""}'
     # COTE GLOBALE en colonne à droite (span toute la hauteur) — user 2026-09-03.
