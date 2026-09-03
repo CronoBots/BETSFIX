@@ -740,7 +740,7 @@ def settle_pending(sport: str = "foot", variant: str = "") -> int:
             # sera de toute façon re-vérifié à la fin (self-heal ci-dessus) sur le score final autoritaire.
             _lv = _live_over_settle(leg)
             if _lv:
-                leg["result"], leg["score"], changed = _lv[0], _lv[1], True
+                leg["result"], leg["score"], leg["live_won"], changed = _lv[0], _lv[1], True, True
                 continue
             q = {"home": leg.get("home", ""), "away": leg.get("away", ""),
                  "start": leg.get("start"), "sofa_id": ""}

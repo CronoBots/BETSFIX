@@ -548,6 +548,19 @@ def _check_combo_daily_settle_finished() -> dict:
                 sm = analyses.meta(leg.get("sport"), str(leg.get("mid") or "")) or {}
                 if analyses.is_settled(sm):
                     continue                          # match déjà réglé dans son sidecar -> légitime
+                # RÈGLEMENT LIVE LÉGITIME (user 2026-09-02) : une jambe BUTS-OVER/BTTS monotone ACQUISE se valide
+                # EN LIVE (irréversible) AVANT la fin — ce n'est PAS prématuré. Marqueur `live_won`, repli sur le
+                # prédicat d'éligibilité (jambes déjà réglées sans marqueur). JAMAIS lost/push (seul won est live).
+                if leg.get("result") == "won":
+                    try:
+                        from app import combo_daily as _cd
+                        from app.settle_analyst import code_from_pick as _cfp
+                        _code = (leg.get("code") or _cfp(leg.get("sel", ""), leg.get("sport") or "foot",
+                                 leg.get("home", ""), leg.get("away", "")) or "").strip()
+                        if leg.get("live_won") or _cd._live_over_won_eligible(_code):
+                            continue
+                    except Exception:
+                        pass
                 bad.append(f"{day} {leg.get('sport')} {leg.get('name', '?')} : jambe réglée "
                            f"'{leg.get('result')}' (score {leg.get('score', '?')}) alors que le match "
                            f"n'est PAS fini (coup d'envoi {leg.get('start')})")
