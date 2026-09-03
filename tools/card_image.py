@@ -185,6 +185,9 @@ _CSS_SIMPLE = """
 .stag.rb-n{color:#9fb6cf}
 .stag.rlong{font-size:33px;letter-spacing:.14em}   /* signature RÉSULTAT « CONFIANCE GAGNÉE ✅ » : plus longue -> réduite pour tenir sur une ligne */
 .slg{text-align:center;font-size:25px;font-weight:800;color:#eef4fb;letter-spacing:.05em;margin-bottom:30px;line-height:1.2}
+/* LIGUE = même bleu que les leagues de jambes de combiné (.clg-lg #93b7db), calée EN HAUT À GAUCHE, plus le
+   blanc des cartes Confiance/Value (user 2026-09-03). Modificateur .lgtop -> ne touche PAS « N SÉLECTIONS » (.slg nu). */
+.slg.lgtop{text-align:left;color:#93b7db}
 .stms{display:flex;align-items:center;justify-content:center;gap:30px;margin-bottom:34px}   /* espace équipes -> cadre pari (user 2026-08-17) */
 /* CADRE « partie Paris » comme sur le site (.vm) : fond teinté, bordure, coins arrondis (user 2026-08-17). */
 .sbet{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.14);border-radius:22px;
@@ -241,7 +244,7 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 .stag.st-combo{color:#f6c54a}
 .clg{background:rgba(255,255,255,.035);border:1.5px solid rgba(255,255,255,.12);border-radius:22px;
   padding:34px 34px 36px;margin-bottom:22px}
-.clg-lg{text-align:center;font-size:22px;font-weight:800;color:#93b7db;letter-spacing:.05em;
+.clg-lg{text-align:left;font-size:22px;font-weight:800;color:#93b7db;letter-spacing:.05em;
   text-transform:uppercase;margin-bottom:24px}
 .clg .stms{margin-bottom:26px}   /* un cran plus serré que la carte simple (jambes empilées) */
 .clg .swhy{margin-top:26px}
@@ -374,7 +377,7 @@ def _simple_card_html(d: dict) -> str:
         f'<div class="glow"></div>'
         f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
         f'<div class="stag st-{_tier}">{_tlabel}</div>'   # TYPE écrit sous le logo comme une signature (user 2026-08-17)
-        f'<div class="slg">{e(_lg)}</div>'
+        f'<div class="slg lgtop">{e(_lg)}</div>'
         f'<div class="stms">'
         f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
         f'<div class="stc">{e(_hh)}</div>'
@@ -425,7 +428,7 @@ def _result_simple_card_html(d: dict) -> str:
         f'<div class="glow"></div>'
         f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
         f'<div class="stag {_rbcls} rlong">{e(_sig)}</div>'   # MARQUAGE : « CONFIANCE GAGNÉE ✅ » / « VALUE PERDUE ❌ »
-        f'<div class="slg">{e(_lg)}</div>'
+        f'<div class="slg lgtop">{e(_lg)}</div>'
         f'<div class="stms">'
         f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
         f'<div class="stc">{_center}</div>'
