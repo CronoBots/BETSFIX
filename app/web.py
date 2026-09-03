@@ -266,7 +266,7 @@ def fmt_local(value, with_date: bool = True) -> str:
 CSS = """
   :root{
     /* Thème « néon » (inspiré OddScore) : fond quasi-noir + accent vert-lime + corail pour le négatif */
-    --bg:#070708;--bg2:#0d0d10;--surface:#141417;--surface2:#1d1d21;
+    --bg:#080d15;--bg2:#0d0d10;--surface:#141417;--surface2:#1d1d21;   /* fond bleu très sombre (user 2026-09-03) : même température que les cartes -> ensemble unifié/premium */
     --border:#2a2a31;--border2:#3b3b44;--text:#f4f5f7;--muted:#9a9aa6;--dim:#8b8b95;
     /* ACCENT principal — UN SEUL endroit à changer pour reskin (cf. candidats en bas) */
     --accent:#22b8ff;--accent2:#1496f0;--accent-ink:#001321;--glow:rgba(34,184,255,.28);
@@ -2154,7 +2154,7 @@ CSS = """
   /* TOUTES les cartes de pari : bordure BLANCHE + bord GAUCHE coloré selon le RÉSULTAT (demande user
      2026-07-25). Par défaut (à venir / en attente) = doré ; gagné = vert ; perdu = rouge ; live = doré ;
      remboursé/annulé = gris. L'état est posé via la classe `mc-r-*` (helper `_card_state_cls`). */
-  .row.mc.mc-tg{background:#0b1826;
+  .row.mc.mc-tg{background:#0f1c2c;
        border:1px solid var(--st-soon);   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
        box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(255,255,255,.18),0 12px 32px rgba(0,0,0,.5)}
   .row.mc.mc-tg.mc-r-won{border-color:var(--st-won)}
@@ -2168,7 +2168,7 @@ CSS = """
   /* ===== STYLE E — liste plate façon Unibet (user 2026-09-03, flag BETSFIX_CARD_STYLE) =====
      Résumé compact : rail de statut à gauche, en-tête « Type @ cote · état », sélection en gras,
      match dessous, pied confiance/score. Le DÉTAIL riche (logos, barres, analyse) est dans .mc-body. */
-  .row.mc.ue{background:#0b1826;border:1px solid rgba(255,255,255,.08);
+  .row.mc.ue{background:#0f1c2c;border:1px solid rgba(255,255,255,.08);
        border-left:5px solid var(--st-soon);border-radius:13px;overflow:hidden;
        box-shadow:0 10px 26px -20px rgba(0,0,0,.9);margin:9px 0}
   .row.mc.ue.mc-r-won{border-left-color:var(--st-won)}
@@ -4550,7 +4550,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#070708">
+<meta name="theme-color" content="#080d15">
 <meta name="color-scheme" content="dark">
 {meta_refresh}<title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
@@ -4596,7 +4596,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
         for k, href, ico, name in _SPA_TABS) + "</nav>"
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#070708">
+<meta name="theme-color" content="#080d15">
 <meta name="color-scheme" content="dark">
 <title>{e(title)} · BETSFIX</title>
 <link rel="manifest" href="/manifest.webmanifest">
