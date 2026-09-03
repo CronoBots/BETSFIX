@@ -2196,37 +2196,33 @@ CSS = """
   .ue-abst .ue-pk{color:var(--muted);font-weight:800;font-size:14px}
   .ue .mc-body{padding:2px 16px 15px 16px}
   .ue .mc-body>.cleg{border:none;background:transparent;padding:0}
-  /* ===== Combiné E « Unibet » (user 2026-09-03, image IMG_5325) : en-tête « TITRE @ cote · état » + « N jambes »,
-     gouttière de NUMÉROS pleine hauteur (colorés par verdict), colonne COTE GLOBALE à droite (span toute la
-     hauteur), et Confiance·Edge·Value SOUS chaque jambe. Jambes = classes DÉDIÉES `.uel*` (⚠️ jamais `.cleg*`/
-     `.cnum` : déjà pris par les cartes de jambe classiques `_leg_card` → collision CSS). ===== */
-  .ue.cbo .mc-head{cursor:default;padding:13px 0 0}
-  .cbo-hd{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;padding:0 15px}
-  .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff}
-  .cbo-hd .at{color:var(--dim);font-weight:600}
-  .cbo-hd .od{font-weight:900;color:#fff;font-variant-numeric:tabular-nums}
-  .cbo-hd .st{margin-left:auto;font-size:13px;font-weight:900;color:var(--gold)}
-  .cbo-hd .st.won{color:var(--st-won)} .cbo-hd .st.lost{color:var(--st-lost)}
-  .cbo-hd .st.push{color:var(--st-void)} .cbo-hd .st.live{color:var(--st-live)}
-  .cbo-sub{font-size:11.5px;color:#6f8299;font-weight:600;margin:3px 15px 11px}
-  .cbo-split{display:grid;grid-template-columns:minmax(0,1fr) 76px;border-top:1px solid rgba(255,255,255,.08)}
-  .cbo-legs{min-width:0}
-  .uel{display:flex;min-width:0}
+  /* ===== Combiné E (user 2026-09-03) : PAS de colonne de numéros, PAS de colonne cote. La COTE globale est
+     dans le COIN haut-droite, sur la même ligne que le titre du combiné. Jambes empilées (pari · équipes/heure ·
+     Confiance·Edge·Value). Classes DÉDIÉES `.uel*`/`.cbo*` (⚠️ jamais `.cleg*`/`.cnum` : déjà pris par
+     `_leg_card` → collision CSS). ===== */
+  .ue.cbo .mc-head{cursor:default;padding:12px 15px 3px}
+  .cbo-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .cbo-l{min-width:0}
+  .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff;overflow-wrap:anywhere}
+  .cbo-sub{font-size:11.5px;color:#6f8299;font-weight:600;margin-top:3px}
+  .cbo-sub .st{font-weight:900;color:var(--gold)}
+  .cbo-sub .st.won{color:var(--st-won)} .cbo-sub .st.lost{color:var(--st-lost)}
+  .cbo-sub .st.push{color:var(--st-void)} .cbo-sub .st.live{color:var(--st-live)}
+  .cbo-ct{flex:none;text-align:right;line-height:1.05}
+  .cbo-ct i{display:block;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+  .cbo-ct b{font-size:22px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .cbo-legs{min-width:0;margin-top:9px;border-top:1px solid rgba(255,255,255,.08)}
+  .uel{min-width:0;padding:10px 0 11px}
   .uel+.uel{border-top:1px solid rgba(255,255,255,.08)}
-  .uel-n{flex:none;width:42px;display:grid;place-items:center;background:var(--st-soon);
-       color:#04130a;font-size:17px;font-weight:900;font-variant-numeric:tabular-nums}
-  .uel.won .uel-n{background:var(--st-won)} .uel.lost .uel-n{background:var(--st-lost);color:#2a0608}
-  .uel.push .uel-n,.uel.void .uel-n{background:var(--st-void);color:#0d1420}
-  .uel-b{flex:1;min-width:0;padding:10px 12px 11px}
-  .uel-sel{font-size:14.5px;font-weight:900;line-height:1.25;color:var(--text);overflow-wrap:anywhere}
+  .uel-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
+  .uel-sel{font-size:14.5px;font-weight:900;line-height:1.25;color:var(--text);overflow-wrap:anywhere;min-width:0}
+  .uel.lost .uel-sel{color:var(--muted)}
+  .uel-v{flex:none;font-size:12px;font-weight:900}
+  .uel-v.won{color:var(--st-won)} .uel-v.lost{color:var(--st-lost)} .uel-v.push{color:var(--st-void)}
   .uel-sub{font-size:11.5px;color:#8fa2b8;font-weight:600;margin-top:3px;overflow-wrap:anywhere}
   .uel-mx{font-size:11px;font-weight:700;color:#61748b;margin-top:5px;font-variant-numeric:tabular-nums}
   .uel-mx b{font-weight:900;color:#8fa4bd} .uel-mx b.c{color:var(--st-won)} .uel-mx b.pos{color:var(--st-won)}
   .uel-mx .sep{color:#3a4a5e;margin:0 4px}
-  .cbo-odc{border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;
-       align-items:center;justify-content:center;gap:3px}
-  .cbo-odc i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
-  .cbo-odc b{font-size:22px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
   /* Équipes = HÉROS de la carte (demande user 2026-07-14) : plus GRANDES (16 px) que le pari (14 px). */
   .mc-tg .mc-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
@@ -10885,13 +10881,17 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
             _cote = round(_ec, 2)
     _cote_txt = f"{round(_cote, 2):g}" if isinstance(_cote, (int, float)) and _cote else ""
     _legs_html = ""
-    for i, l in enumerate(legs, 1):
+    for l in legs:
         _lr = l.get("result")
         _lcls = _lr if _lr in ("won", "lost", "push", "void") else "soon"
         _lh, _la = l.get("home", ""), l.get("away", "")
         _lsel = _pretty_sel(l.get("sel", ""), _lh, _la)
         _lwhen = fmt_local(l.get("start"), with_date=False)
         _lscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip().replace("-", " - ")
+        # Marqueur de verdict PAR JAMBE (les numéros ayant disparu) : ✓ / ✗ / = , seulement une fois réglée.
+        _vc, _vg = {"won": ("won", "✓"), "lost": ("lost", "✗"),
+                    "push": ("push", "="), "void": ("push", "=")}.get(_lr, ("", ""))
+        _v_h = f'<span class="uel-v {_vc}">{_vg}</span>' if _vg else ""
         # Sous-ligne équipes · heure (+ score en gras si réglé).
         _sub_parts = [f"{_lh} — {_la}" if (_lh and _la) else "", _lwhen]
         _sub_txt = " · ".join(e(x) for x in _sub_parts if x)
@@ -10911,15 +10911,17 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
                 _le = _lv = None
         _mx = _ue_metrics_html(_lconf, _le, _lv)
         _mx_h = f'<div class="uel-mx">{_mx}</div>' if _mx else ""
-        _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n">{i}</div><div class="uel-b">'
-                       f'<div class="uel-sel">{e(_lsel)}</div>'
-                       f'<div class="uel-sub">{_sub_txt}</div>{_mx_h}</div></div>')
-    _od = (f'<span class="at">@</span><span class="od">{e(_cote_txt)}</span>' if _cote_txt else "")
+        _legs_html += (f'<div class="uel {_lcls}">'
+                       f'<div class="uel-h"><div class="uel-sel">{e(_lsel)}</div>{_v_h}</div>'
+                       f'<div class="uel-sub">{_sub_txt}</div>{_mx_h}</div>')
+    # COTE globale dans le COIN haut-droite, sur la même ligne que le titre (user 2026-09-03).
+    _ct = f'<div class="cbo-ct"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
     _st = f'<span class="st {_scls}">{e(_sw)}</span>' if _sw else ""
-    _sub = f'<div class="cbo-sub">{len(legs)} jambe{"s" if len(legs) > 1 else ""}</div>'
-    _odc = f'<div class="cbo-odc"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
-    _head = (f'<div class="mc-head"><div class="cbo-hd"><span class="cbo-ti">{e(title)}</span>{_od}{_st}</div>'
-             f'{_sub}<div class="cbo-split"><div class="cbo-legs">{_legs_html}</div>{_odc}</div></div>')
+    _nb = f'{len(legs)} jambe{"s" if len(legs) > 1 else ""}'
+    _sub = f'<div class="cbo-sub">{_nb}{" · " + _st if _st else ""}</div>'
+    _head = (f'<div class="mc-head"><div class="cbo-hd">'
+             f'<div class="cbo-l"><div class="cbo-ti">{e(title)}</div>{_sub}</div>{_ct}</div>'
+             f'<div class="cbo-legs">{_legs_html}</div></div>')
     return f'<div class="row pick mc ue cbo{_rcls}">{_head}</div>'
 
 
