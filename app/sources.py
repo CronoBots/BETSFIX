@@ -1441,13 +1441,26 @@ async def _flashscore_block(sport: str, match: dict) -> str:
     h, a, st = match.get("home", ""), match.get("away", ""), match.get("start")
     try:
         from app import flashscore
-        facts = await asyncio.to_thread(flashscore.prematch_facts, h, a, st, fs_sport)
-        if sport == "tennis":                  # + stats de SERVICE des 2 joueurs (aces, 1er service…)
-            facts = facts + await asyncio.to_thread(flashscore.serve_facts, h, a, st)
-        elif sport == "foot":                  # + compositions/formations si dispo (~1 h avant le coup d'envoi)
-            facts = facts + await asyncio.to_thread(flashscore.lineup_facts, h, a, st)
     except Exception:
         return ""
+
+    async def _fetch(fn, *args):
+        try:
+            return await asyncio.to_thread(fn, *args) or []
+        except Exception:
+            return []
+
+    facts = await _fetch(flashscore.prematch_facts, h, a, st, fs_sport)
+    # 1 RETRY sur vide (user 2026-09-03) : les ratés de Flashscore au scan sont surtout TRANSITOIRES (hoquet
+    # réseau/blocage momentané) — vérifié KAA Gent (vide au scan, 620 c au re-run). Coûte 0,8 s SEULEMENT quand
+    # la 1re tentative échoue (chemin nominal inchangé) ; évite les analyses « 1 source » par malchance de timing.
+    if not facts:
+        await asyncio.sleep(0.8)
+        facts = await _fetch(flashscore.prematch_facts, h, a, st, fs_sport)
+    if sport == "tennis":                  # + stats de SERVICE des 2 joueurs (aces, 1er service…) — non destructif
+        facts = facts + await _fetch(flashscore.serve_facts, h, a, st)
+    elif sport == "foot":                  # + compositions/formations si dispo (~1 h avant le coup d'envoi)
+        facts = facts + await _fetch(flashscore.lineup_facts, h, a, st)
     if not facts:
         return ""
     return ("\n\nDONNÉES FLASHSCORE (forme, face-à-face & service — source indépendante n°3, à CROISER "
