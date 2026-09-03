@@ -2208,14 +2208,17 @@ CSS = """
      équipes/heure · Confiance·Edge·Value. Classes DÉDIÉES `.uel*`/`.cbo*` (⚠️ jamais `.cleg*`/`.cnum` : déjà
      pris par `_leg_card` → collision CSS). ===== */
   .ue.cbo .mc-head{cursor:default;padding:0}
-  /* En-tête = BANDEAU (même fond que la colonne cote, user 2026-09-03) : nom du combiné centré verticalement
-     à gauche, « N jambes » dans le coin haut-droite. Pas d'état « À venir » (rail gauche + marqueurs par jambe). */
-  .cbo-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  /* En-tête = BANDEAU : titre + « · N sélections » COLLÉ au titre à gauche, COTE TOTALE en haut à droite
+     (plus de colonne cote — user 2026-09-03). Pas d'état « À venir » (rail gauche + marqueurs par jambe). */
+  .cbo-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
        padding:11px 15px;background:rgba(255,255,255,.035)}
-  .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff;overflow-wrap:anywhere;min-width:0}
-  .cbo-nb{flex:none;font-size:11.5px;color:#6f8299;font-weight:700;white-space:nowrap}
-  .cbo-split{display:grid;grid-template-columns:minmax(0,1fr) 58px;border-top:1px solid rgba(255,255,255,.08)}
-  .cbo-legs{min-width:0}
+  .cbo-l{display:flex;align-items:baseline;gap:6px;min-width:0;flex-wrap:wrap}
+  .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff}
+  .cbo-nb{font-size:11.5px;color:#6f8299;font-weight:700;white-space:nowrap}
+  .cbo-ct{flex:none;display:flex;align-items:baseline;gap:5px}
+  .cbo-ct i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--gold);text-transform:uppercase}
+  .cbo-ct b{font-size:18px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .cbo-legs{min-width:0;border-top:1px solid rgba(255,255,255,.08)}
   .uel{display:flex;min-width:0}
   .uel+.uel{border-top:1px solid rgba(255,255,255,.08)}   /* même séparation entre jambes */
   /* Fine gouttière de numéro (user 2026-09-03) : colonne étroite, FOND = couleur du statut de la jambe,
@@ -2244,12 +2247,6 @@ CSS = """
   .uel-mx .sep{color:#3a4a5e;margin:0 4px}
   .uel-score{flex:none;font-size:12.5px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
   .uel-score.live{color:var(--gold)}   /* score LIVE (match en cours) */
-  /* Colonne cote globale : léger fond « panneau » (user 2026-09-03, point 3) pour combler le vide vertical
-     et la lire comme un bloc volontaire, sans cadre lourd. */
-  .cbo-odc{border-left:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);
-       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
-  .cbo-odc i{font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
-  .cbo-odc b{font-size:19px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
   /* Équipes = HÉROS de la carte (demande user 2026-07-14) : plus GRANDES (16 px) que le pari (14 px). */
   .mc-tg .mc-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
@@ -10819,7 +10816,8 @@ def _ue_head_html(*, league: str, when: str, sel_txt: str, cote_txt: str, match_
     (gauche) + SCORE en bas à droite. `metrics_html` = HTML déjà sûr. Le verdict passe par le RAIL gauche,
     pas de badge Gagné/Perdu ici (couleur `.mc-r-*` sur la carte)."""
     e = html.escape
-    eye = f'<div class="ue-eye"><span class="ue-lg">{e(league)}</span></div>'
+    # LIGUE RETIRÉE des tickets non-combiné aussi (user 2026-09-03) — comme les jambes de combiné : les équipes
+    # suffisent, l'eyebrow ligue était du bruit (et dupliquait la ligue du dépli). Param `league` conservé (ignoré).
     top = f'<div class="ue-top"><div class="ue-pk">{e(sel_txt)}</div>{_ue_cote_html(cote_txt)}</div>'
     _when_h = f' · <span class="ue-when">{e(when)}</span>' if when else ""
     mt = f'<div class="ue-tm">{e(match_txt)}{_when_h}</div>' if (match_txt or when) else ""
@@ -10828,7 +10826,7 @@ def _ue_head_html(*, league: str, when: str, sel_txt: str, cote_txt: str, match_
             if (metrics_html or _score_h) else "")
     chev_h = '<span class="mc-chev">▾</span>' if chev else ""
     cls = " ue-abst" if abst else ""
-    return f'<div class="mc-head{cls}">{eye}{top}{mt}{foot}{chev_h}</div>'
+    return f'<div class="mc-head{cls}">{top}{mt}{foot}{chev_h}</div>'
 
 
 def _ue_metrics_html(conf_i, edge=None, value=None) -> str:
@@ -10966,13 +10964,14 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n">{i}</div><div class="uel-b">'
                        f'<div class="uel-h"><div class="uel-sel">{e(_lsel)}</div>{_ct_h}</div>'
                        f'{_sub_h}{_foot_h}</div></div>')
-    # « N jambes » dans le coin haut-droite, même ligne que le nom du combiné (user 2026-09-03).
+    # « N sélections » COLLÉ au nom du combiné (gauche) ; COTE TOTALE en HAUT À DROITE — plus de colonne cote
+    # (user 2026-09-03). Les jambes prennent toute la largeur.
     _nb = f'{len(legs)} sélection{"s" if len(legs) > 1 else ""}'
-    # COTE GLOBALE en colonne à droite (span toute la hauteur) — user 2026-09-03.
-    _odc = f'<div class="cbo-odc"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
+    _ct = f'<span class="cbo-ct"><i>COTE</i><b>{e(_cote_txt)}</b></span>' if _cote_txt else ""
     _head = (f'<div class="mc-head"><div class="cbo-hd">'
-             f'<div class="cbo-ti">{e(title)}</div><span class="cbo-nb">{_nb}</span></div>'
-             f'<div class="cbo-split"><div class="cbo-legs">{_legs_html}</div>{_odc}</div></div>')
+             f'<div class="cbo-l"><span class="cbo-ti">{e(title)}</span><span class="cbo-nb">· {_nb}</span></div>'
+             f'{_ct}</div>'
+             f'<div class="cbo-legs">{_legs_html}</div></div>')
     return f'<div class="row pick mc ue cbo{_rcls}">{_head}</div>'
 
 
@@ -11446,8 +11445,9 @@ def _sport_row(r: dict) -> str:
                 league=_uleague, when=_uwhen_disp, cote_txt=_ucote_txt,
                 sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
                 match_txt=_umatch, metrics_html=_umx, score_txt=_uscore_txt, chev=True, abst=(_pb is None))
+            # Ligne LIGUE du dépli RETIRÉE (user 2026-09-03) : doublon de l'eyebrow (lui-même supprimé) — le
+            # dépli = scoreboard + verdict/pourquoi + faits, sans re-répéter la ligue.
             _uedetail = (f'<div class="mc-main">'
-                         f'<div class="mc-line mc-line-c mc-lg-cleg"><span class="mc-comp">{comp_only}</span></div>'
                          f'<div class="mc-teams">{teams}</div>'
                          f'<div class="mc-sub">{line3}</div></div>{body}')
             return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
