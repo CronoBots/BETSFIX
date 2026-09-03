@@ -2219,16 +2219,17 @@ CSS = """
   .uel.lost .uel-n{background:var(--st-lost);color:#2a0608}
   .uel.push .uel-n,.uel.void .uel-n{background:var(--st-void);color:#0d1420}
   .uel-b{flex:1;min-width:0;padding:10px 12px 11px}
-  /* Eyebrow de jambe : ligue + heure du match (comme les cartes simples). */
+  /* Eyebrow de jambe : LIGUE seule (l'heure va dans le coin droit, au-dessus de la cote). */
   .uel-eye{font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#7fa8d6;
        margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .uel-eye .t{color:#8fa4bd}
-  .uel-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
+  .uel-h{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0}
   .uel-sel{font-size:14.5px;font-weight:900;line-height:1.25;color:var(--text);overflow-wrap:anywhere;min-width:0}
   .uel.lost .uel-sel{color:var(--muted)}
-  .uel-ct{flex:none;display:flex;align-items:baseline;gap:5px}
-  .uel-ct b{font-size:15px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .uel-ct .uel-v{font-size:12px;font-weight:900}
+  /* Coin droit de la jambe : HEURE (au-dessus) puis COTE (dessous). */
+  .uel-ct{flex:none;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;gap:1px}
+  .uel-ct .tm{font-size:10.5px;font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
+  .uel-ct .od{font-size:15px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .uel-ct .uel-v{font-size:12px;font-weight:900;margin-left:4px}
   .uel-v.won{color:var(--st-won)} .uel-v.lost{color:var(--st-lost)} .uel-v.push{color:var(--st-void)}
   .uel-sub{font-size:11.5px;color:#8fa2b8;font-weight:600;margin-top:3px;overflow-wrap:anywhere}
   .uel-mx{font-size:11px;font-weight:700;color:#61748b;margin-top:5px;font-variant-numeric:tabular-nums}
@@ -10911,14 +10912,14 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         # une jambe GAGNÉE (user 2026-09-03) : la pastille numéro VERTE le dit déjà (le « ✓ » faisait doublon).
         _vc, _vg = {"lost": ("lost", "✗"), "push": ("push", "="), "void": ("push", "=")}.get(_lr, ("", ""))
         _v_h = f'<span class="uel-v {_vc}">{_vg}</span>' if _vg else ""
-        _ct_h = (f'<div class="uel-ct"><b>{e(_lcote_txt)}</b>{_v_h}</div>'
-                 if (_lcote_txt or _v_h) else "")
-        # Eyebrow = LIGUE · heure du match (user 2026-09-03) ; sous-ligne = équipes (+ score en gras si réglé).
+        # Coin droit = HEURE (au-dessus) puis COTE (dessous) + marqueur verdict éventuel — user 2026-09-03.
+        _tm_line = f'<span class="tm">{e(_lwhen)}</span>' if _lwhen else ""
+        _od_line = (f'<span class="od">{e(_lcote_txt)}{_v_h}</span>' if _lcote_txt
+                    else (f'<span class="od">{_v_h}</span>' if _v_h else ""))
+        _ct_h = f'<div class="uel-ct">{_tm_line}{_od_line}</div>' if (_tm_line or _od_line) else ""
+        # Eyebrow = LIGUE seule ; sous-ligne = équipes (+ score en gras si réglé).
         _lcomp = str(l.get("comp") or "")
-        _eye_bits = [e(_lcomp)] if _lcomp else []
-        if _lwhen:
-            _eye_bits.append(f'<span class="t">{e(_lwhen)}</span>')
-        _eye_h = f'<div class="uel-eye">{" · ".join(_eye_bits)}</div>' if _eye_bits else ""
+        _eye_h = f'<div class="uel-eye">{e(_lcomp)}</div>' if _lcomp else ""
         _sub_txt = e(f"{_lh} — {_la}") if (_lh and _la) else ""
         if _lscore and any(c.isdigit() for c in _lscore):
             _sub_txt += (" · " if _sub_txt else "") + f'<b class="h">{e(_lscore)}</b>'
