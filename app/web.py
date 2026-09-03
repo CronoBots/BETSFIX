@@ -2200,10 +2200,14 @@ CSS = """
   .ue-co .legs{min-width:0}
   .ue-co .leg{display:flex}
   .ue-co .leg+.leg{border-top:1px solid rgba(255,255,255,.08)}
-  .ue-co .num{flex:none;width:34px;display:grid;place-items:center;font-size:14px;font-weight:900;color:#04130a;align-self:stretch}
-  .ue-co .leg.won .num{background:var(--st-won)} .ue-co .leg.lost .num{background:var(--st-lost)}
-  .ue-co .leg.push .num,.ue-co .leg.void .num{background:var(--st-void)}
-  .ue-co .leg.soon .num{background:var(--st-soon);color:#1b1403}
+  /* numéro de jambe = PASTILLE ronde colorée par verdict (gouttière transparente ; le fin liseré du
+     bord gauche de la carte court tout du long) — user 2026-09-03, fini le pavé plein pleine-hauteur. */
+  .ue-co .num{flex:none;width:40px;display:grid;place-items:center}
+  .ue-co .num .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+       font-size:12px;font-weight:900;color:#04130a;background:var(--st-soon);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+  .ue-co .leg.won .num .n{background:var(--st-won)}
+  .ue-co .leg.lost .num .n{background:var(--st-lost);color:#2a0608}
+  .ue-co .leg.push .num .n,.ue-co .leg.void .num .n{background:var(--st-void);color:#0d1420}
   .ue-co .lb{flex:1;min-width:0;padding:10px 12px 11px}
   .ue-co .lb .lt{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
   .ue-co .lb .sel{font-size:13.5px;font-weight:900;line-height:1.25;color:var(--text)}
@@ -10873,12 +10877,13 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         if _lscore and any(c.isdigit() for c in _lscore):
             _subs.append(f"Score {_lscore}")
         _rr_h = f'<div class="rr {_rrc}">{e(_rrw)}</div>' if _rrw else ""
-        _legs_html += (f'<div class="leg {_lcls}"><div class="num">{i}</div>'
+        _legs_html += (f'<div class="leg {_lcls}"><div class="num"><span class="n">{i}</span></div>'
                        f'<div class="lb"><div class="lt"><div class="sel">{e(_lsel)}</div>{_rr_h}</div>'
                        f'<div class="sub">{" · ".join(e(x) for x in _subs)}</div></div></div>')
     _odc = f'<div class="odc"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
-    _cote_h = (f'<span class="dot">@</span><span class="od">{e(_cote_txt)}</span>' if _cote_txt else "")
-    _head = (f'<div class="mc-head"><div class="ue-hd"><span>{e(title)}</span>{_cote_h}'
+    # Cote affichée UNE seule fois = dans la colonne (.odc) ; retirée de l'en-tête pour éviter le doublon
+    # (user 2026-09-03). L'en-tête ne porte que le titre + l'état.
+    _head = (f'<div class="mc-head"><div class="ue-hd"><span>{e(title)}</span>'
              f'<span class="res {_sc}">{e(_sw)}</span></div>'
              f'<div class="ue-meta">{len(legs)} jambes</div></div>')
     return (f'<div class="row pick mc ue ue-co{_rcls}">{_head}'
