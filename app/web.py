@@ -10917,16 +10917,20 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _lh, _la = l.get("home", ""), l.get("away", "")
         _lsel = _pretty_sel(l.get("sel", ""), _lh, _la)
         _lwhen = fmt_local(l.get("start"), with_date=False)
+        # SCORE : le score LIVE PRIME tant que le MATCH tourne (horloge active) — MÊME si la jambe est déjà
+        # GAGNÉE (jambe OVER acquise irréversible mais match en cours : le score continue de bouger). Affiché
+        # en OR/vivant comme les autres jambes live. Repli sur le score RÉGLÉ (blanc) quand le match est fini.
+        # user 2026-09-03. Source cheap = liveData Unibet (0 réseau) ; None -> repli réglé.
         _lscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip().replace("-", " - ")
         _live_leg = False
-        if not (_lscore and any(c.isdigit() for c in _lscore)):     # pas de score réglé -> SCORE LIVE si en cours
-            try:                                                     # (onglet Pronos aussi, user 2026-09-03)
-                _lsp = l.get("sport") or sport
-                _lls = str(live_fields(match_select.live_state_for(_lsp, _lh, _la), _lsp).get("score") or "").strip()
-                if _lls and "-" in _lls:
-                    _lscore, _live_leg = _lls.replace("-", " - "), True
-            except Exception:
-                pass
+        try:
+            _lsp = l.get("sport") or sport
+            _lf = live_fields(match_select.live_state_for(_lsp, _lh, _la), _lsp)
+            _lls = str(_lf.get("score") or "").strip()
+            if _lls and "-" in _lls and _lf.get("live_time"):       # match RÉELLEMENT en cours (horloge)
+                _lscore, _live_leg = _lls.replace("-", " - "), True
+        except Exception:
+            pass
         _lc = l.get("cote")
         _lcote_txt = f"{round(float(_lc), 2):g}" if isinstance(_lc, (int, float)) and _lc else ""
         # Coin haut-droite de la jambe = COTE de jambe (+ marqueur ✗/= si perdue/remboursée). PAS de « ✓ » sur
