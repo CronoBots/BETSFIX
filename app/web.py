@@ -2173,11 +2173,14 @@ CSS = """
      pas de badge Gagné/Perdu. Combiné : chaque jambe = même structure + sa cote ; cote totale en en-tête. ===== */
   .row.mc.ue{position:relative;background:#12212f;border:1px solid rgba(255,255,255,.08);border-radius:13px;
        overflow:hidden;box-shadow:0 10px 26px -20px rgba(0,0,0,.9);margin:9px 0;box-sizing:border-box;max-width:100%}
-  .row.mc.ue::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--st-soon);z-index:2}
-  .row.mc.ue.mc-r-won::before{background:var(--st-won)}
-  .row.mc.ue.mc-r-lost::before{background:var(--st-lost)}
-  .row.mc.ue.mc-r-push::before{background:var(--st-void)}
-  .row.mc.ue.mc-r-live::before{background:var(--st-live)}
+  /* Colonne de STATUT à gauche (user 2026-09-03) : bande colorée par le résultat, PLUS un « bord » fin — même
+     langage visuel que la gouttière des jambes de combiné. Le COMBINÉ n'a PAS cette bande de carte (ses jambes
+     portent chacune leur propre gouttière de statut → sinon la bande de carte les masquerait). */
+  .row.mc.ue:not(.cbo)::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--st-soon);z-index:2}
+  .row.mc.ue:not(.cbo).mc-r-won::before{background:var(--st-won)}
+  .row.mc.ue:not(.cbo).mc-r-lost::before{background:var(--st-lost)}
+  .row.mc.ue:not(.cbo).mc-r-push::before{background:var(--st-void)}
+  .row.mc.ue:not(.cbo).mc-r-live::before{background:var(--st-live)}
   .ue .mc-head{position:relative;padding:12px 16px 14px 16px;cursor:pointer}
   .ue-eye{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:13px}
   .ue-lg{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#7fa8d6;
@@ -2222,13 +2225,11 @@ CSS = """
   .cbo-legs{min-width:0;border-top:1px solid rgba(255,255,255,.08)}
   .uel{display:flex;min-width:0}
   .uel+.uel{border-top:1px solid rgba(255,255,255,.08)}   /* même séparation entre jambes */
-  /* Fine gouttière de numéro (user 2026-09-03) : colonne étroite, FOND = couleur du statut de la jambe,
-     chiffre en couleur du fond (foncé), centré. */
-  .uel-n{flex:none;width:22px;display:grid;place-items:center;font-size:11px;font-weight:900;
-       background:var(--st-soon);color:#04130a;font-variant-numeric:tabular-nums}
-  .uel.won .uel-n{background:var(--st-won);color:#04130a}
-  .uel.lost .uel-n{background:var(--st-lost);color:#2a0608}
-  .uel.push .uel-n,.uel.void .uel-n{background:var(--st-void);color:#0d1420}
+  /* Gouttière de STATUT (user 2026-09-03) : bande colorée par le statut de la jambe, SANS numéro. */
+  .uel-n{flex:none;width:6px;background:var(--st-soon)}
+  .uel.won .uel-n{background:var(--st-won)}
+  .uel.lost .uel-n{background:var(--st-lost)}
+  .uel.push .uel-n,.uel.void .uel-n{background:var(--st-void)}
   .uel-b{flex:1;min-width:0;padding:10px 12px 11px}
   .uel-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
   .uel-sel{font-size:14.5px;font-weight:900;line-height:1.25;color:var(--text);overflow-wrap:anywhere;min-width:0}
@@ -10831,16 +10832,16 @@ def _ue_head_html(*, league: str, when: str, sel_txt: str, cote_txt: str, match_
 
 
 def _ue_metrics_html(conf_i, edge=None, value=None) -> str:
-    """Ligne de métriques style E : « Confiance <b class=c>93%</b> · edge <b>+5</b> · value <b>+12%</b> ».
-    conf en vert (.c) ; edge/value positifs POPENT en vert (.pos), négatif/neutre restent gris (profil normal
-    d'un pari Confiance à cote courte). Renvoie '' si rien à montrer."""
+    """Ligne de métriques style E : « Confiance <b class=c>93%</b> · Edge <b>+5</b> · Value <b>+12%</b> ».
+    Edge/Value NÉGATIFS (ou nuls) NON affichés (user 2026-09-03) : on ne montre que la value/edge POSITIVE (en
+    vert). Sur un pari Confiance à cote courte (edge/value négatifs = normal) → seule la Confiance reste."""
     bits = []
     if conf_i is not None:
         bits.append(f'Confiance <b class="c">{conf_i}%</b>')
-    if edge is not None:
-        bits.append(f'Edge <b class="pos">+{edge}</b>' if edge > 0 else f'Edge <b>{edge:+d}</b>')
-    if value is not None:
-        bits.append(f'Value <b class="pos">+{value}%</b>' if value >= 3 else f'Value <b>{value:+d}%</b>')
+    if edge is not None and edge > 0:
+        bits.append(f'Edge <b class="pos">+{edge}</b>')
+    if value is not None and value > 0:
+        bits.append(f'Value <b class="pos">+{value}%</b>')
     return '<span class="sep">·</span>'.join(bits)
 
 
@@ -10962,7 +10963,7 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
                     if _score_txt else "")
         _foot_h = (f'<div class="uel-foot"><div class="uel-mx">{_mx}</div>{_score_h}</div>'
                    if (_mx or _score_h) else "")
-        _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n">{i}</div><div class="uel-b">'
+        _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n"></div><div class="uel-b">'
                        f'<div class="uel-h"><div class="uel-sel">{e(_lsel)}</div>{_ct_h}</div>'
                        f'{_sub_h}{_foot_h}</div></div>')
     # « N sélections » COLLÉ au nom du combiné (gauche) ; COTE TOTALE en HAUT À DROITE — plus de colonne cote
