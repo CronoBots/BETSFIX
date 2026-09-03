@@ -1932,6 +1932,11 @@ async def _settle_analyses_impl() -> int:
             _match = f"{d.get('home', '')} - {d.get('away', '')}"
             _sc = (d.get("result") or {}).get("score") or ""
             new_pick = (d.get("result") or {}).get("pick_result")
+            # ⚠️ VERDICT NOTIFIÉ = résultat du PARI JOUÉ (stat_bet via played_result), JAMAIS `pick_result`
+            # (résultat du pick BRUT de Claude, souvent un AUTRE marché — bug #1 récurrent : KAA Gent ou nul 1X
+            # GAGNÉ posté « CONFIANCE PERDUE » car pick_result notait un marché perdant, user 2026-09-03).
+            # `new_pick` reste le SIGNAL « match réglé » (déclencheur/flags) ; le MARK affiché suit le pari joué.
+            _played_mk = analyses.played_result(d) or new_pick
             new_combo = (d.get("combo") or {}).get("result")
             _parts = []
             _card_simple = _card_combo = None   # données carte image (résultat simple / combiné)
@@ -1952,7 +1957,7 @@ async def _settle_analyses_impl() -> int:
                     d["notified_pick"] = True   # non affiché/non-foot -> rien à envoyer, on FIGE tout de suite
                 if _simple_shown:
                     _flags_to_set.append("notified_pick")   # affiché -> figé APRÈS envoi réussi
-                    _m = _MARK.get(new_pick, "")   # ✅/❌ APRÈS le prono
+                    _m = _MARK.get(_played_mk, "")   # ✅/❌ du PARI JOUÉ (played_result), pas du pick brut
                     _raw = (d.get("pick") or "").strip()
                     # LIBELLÉ + COTE = pari MÉCANIQUE JOUÉ (stat_bet figé / retained), PAS le pick brut de
                     # Claude (bug user 2026-08-31 : résultat publié « @1.34 » alors que le pari joué valait
@@ -1975,7 +1980,7 @@ async def _settle_analyses_impl() -> int:
                     # littéralement « None » (vu par le user le 2026-09-02 : « CONFIANCE GAGNÉE ✅ / None »).
                     # On teste la valeur AVANT de la convertir.
                     _card_simple = {"label": (str(_mlbl).strip() if _mlbl else "") or "Pari simple",
-                                    "cote": _mco_s, "mark": new_pick}
+                                    "cote": _mco_s, "mark": _played_mk}   # mark = pari JOUÉ, pas le pick brut
             if new_combo in _chip and not d.get("notified_combo"):
                 # Combiné NON publié sur Telegram (user 2026-08-02 : Telegram = paris SIMPLES FOOT
                 # uniquement). On FIGE le flag SANS envoi -> le combiné reste réglé/affiché sur le SITE,
